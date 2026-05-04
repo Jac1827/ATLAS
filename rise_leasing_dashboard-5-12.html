@@ -3426,6 +3426,7 @@ function renderPropGrid() {
     })].join("");
   }
   if (snapshot) {
+    const selectedMonth = getSelectedDashboardMonthIndex();
     const occupiedPct = isPortfolioWorkspaceSelected() ? getSummaryOccPct(aggregate) : (summary ? getSummaryOccPct(summary) : 0);
     const leasedPct = isPortfolioWorkspaceSelected() ? getSummaryLeasedPct(aggregate) : (summary ? getSummaryLeasedPct(summary) : 0);
     const occupiedUnits = isPortfolioWorkspaceSelected() ? (aggregate.occupied ?? 0) : (summary?.occupied ?? (Number(currentRecord.currentOccupied) || 0));
@@ -3442,7 +3443,7 @@ function renderPropGrid() {
         <div class="workspace-snapshot-address">${primaryAddress}</div>
         <div class="workspace-snapshot-meta">
           <span class="workspace-snapshot-chip">${totalUnitsForCurrent > 0 ? `${totalUnitsForCurrent} units` : "Unit count needed"}</span>
-          <span class="workspace-snapshot-chip">${FULL_MONTHS[getSelectedDashboardMonthIndex()]} focus</span>
+          <span class="workspace-snapshot-chip">${FULL_MONTHS[selectedMonth]} focus</span>
           ${isPortfolioWorkspaceSelected() ? `<span class="workspace-snapshot-chip">${details.length} communities</span>` : ""}
         </div>
       </div>
@@ -3491,7 +3492,7 @@ function renderPropGrid() {
     workspaceStatus.className = `workspace-pill${isSavedScope ? " is-saved" : ""}`;
   }
   if (workspaceSubline) {
-    workspaceSubline.textContent = `${isPortfolioWorkspaceSelected() ? `${details.length} communities · ${aggregate.totalUnits.toLocaleString()} units` : getHeaderSubText()} · Reporting month ${FULL_MONTHS[currentMonth]} · ${savedCount} of ${totalCount} communities saved in this browser.`;
+    workspaceSubline.textContent = `${isPortfolioWorkspaceSelected() ? `${details.length} communities · ${aggregate.totalUnits.toLocaleString()} units` : getHeaderSubText()} · Reporting month ${FULL_MONTHS[getSelectedDashboardMonthIndex()]} · ${savedCount} of ${totalCount} communities saved in this browser.`;
   }
   if (workspaceCount) {
     workspaceCount.textContent = isPortfolioWorkspaceSelected()
@@ -6201,6 +6202,8 @@ function attachEventListeners() {
       }
       if (field === "currentMonth") {
         persistOperationsWorkspaceContext();
+        renderPropGrid();
+        syncHeaderSubText();
       }
       renderTab();
     });

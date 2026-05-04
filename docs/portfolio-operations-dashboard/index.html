@@ -21403,6 +21403,16 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
         : (detectedMonthIdx ?? getImportTargetMonth()));
       if (targetMonthIdx == null || targetMonthIdx < 0 || targetMonthIdx > 11) { skipped += 1; continue; }
 
+      const leadWalkInsValue = getNumericCell(row, "lead_walk_ins");
+      const leadCallsValue = getNumericCell(row, "lead_calls");
+      const leadEmailsOnlineValue = getNumericCell(row, "lead_emails_online");
+      const leadChatTextOtherValue = getNumericCell(row, "lead_chat_text_other");
+      const leadSourceValues = [leadWalkInsValue, leadCallsValue, leadEmailsOnlineValue, leadChatTextOtherValue];
+      const leadSourceTotal = leadSourceValues.some(value => value !== null)
+        ? leadSourceValues.reduce((sum, value) => sum + (value ?? 0), 0)
+        : null;
+      const guestCardsValue = getCell(row, "leads") || getCell(row, "traffic") || "";
+
       included += 1;
       const mappedRow = {
         property: mappedName,
@@ -21411,12 +21421,12 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
         leased: getCell(row, "leased_units") ?? "",
         move_outs: getCell(row, "move_outs") ?? "",
         move_ins: getCell(row, "move_ins") ?? "",
-        guest_cards: getCell(row, "leads") || getCell(row, "traffic") || "",
-        walk_in: getCell(row, "lead_walk_ins") ?? "",
+        guest_cards: guestCardsValue || (leadSourceTotal ?? ""),
+        walk_in: leadWalkInsValue ?? "",
         off_site_event: "",
-        phone_calls: getCell(row, "lead_calls") ?? "",
-        emails_online: getCell(row, "lead_emails_online") ?? "",
-        text_chat_other: getCell(row, "lead_chat_text_other") ?? "",
+        phone_calls: leadCallsValue ?? "",
+        emails_online: leadEmailsOnlineValue ?? "",
+        text_chat_other: leadChatTextOtherValue ?? "",
         tours: getCell(row, "tours") ?? "",
         applications: getCell(row, "applications") ?? "",
         applications_approved: getCell(row, "approved_applications") ?? "",
@@ -21492,12 +21502,8 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
       if (log.length < 18) {
         const monthLabel = MONTHS[targetMonthIdx];
         log.push(`${mappedName} · ${monthLabel}: occupied ${mappedRow.occupied || "—"}, leased ${mappedRow.leased || "—"}, leads ${mappedRow.guest_cards || "—"}`);
-        const leadWalkIns = getNumericCell(row, "lead_walk_ins");
-        const leadCalls = getNumericCell(row, "lead_calls");
-        const leadEmailsOnline = getNumericCell(row, "lead_emails_online");
-        const leadChatTextOther = getNumericCell(row, "lead_chat_text_other");
-        if ([leadWalkIns, leadCalls, leadEmailsOnline, leadChatTextOther].some(value => value !== null)) {
-          log.push(`↳ lead mix: walk ${leadWalkIns ?? 0}, calls ${leadCalls ?? 0}, email/online ${leadEmailsOnline ?? 0}, text/chat/other ${leadChatTextOther ?? 0}`);
+        if ([leadWalkInsValue, leadCallsValue, leadEmailsOnlineValue, leadChatTextOtherValue].some(value => value !== null)) {
+          log.push(`↳ lead mix: walk ${leadWalkInsValue ?? 0}, calls ${leadCallsValue ?? 0}, email/online ${leadEmailsOnlineValue ?? 0}, text/chat/other ${leadChatTextOtherValue ?? 0}`);
         }
       }
     }

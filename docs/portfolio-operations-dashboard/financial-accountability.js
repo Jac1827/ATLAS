@@ -275,12 +275,24 @@
   let xlsxLoaderPromise = null;
   let pdfLoaderPromise = null;
   let pendingApprovedBudgetFiles = [];
+  const CSV_AND_EXCEL_FILE_ACCEPT = ".csv,text/csv,.xlsx,.xls,.xlsm,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12";
 
   function logDebug(...args) {
     // Keep console noise low in normal operation, but invaluable while we harden imports.
     try {
       // eslint-disable-next-line no-console
       console.log("[financial-accountability]", ...args);
+    } catch (_error) {}
+  }
+
+  function applySupportedFileAcceptAttributes() {
+    try {
+      if (dom.financialInput) {
+        dom.financialInput.accept = `${CSV_AND_EXCEL_FILE_ACCEPT},.pdf,application/pdf`;
+      }
+      if (dom.approvedBudgetInput) {
+        dom.approvedBudgetInput.accept = CSV_AND_EXCEL_FILE_ACCEPT;
+      }
     } catch (_error) {}
   }
 
@@ -4075,7 +4087,7 @@
       } else {
         dom.approvedBudgetMeta.innerHTML = `
           <div class="status-line">
-            Upload finalized budgets by entity. These rows become the source-of-truth budget baseline used when scoring monthly income statement actuals.
+            Upload finalized budgets by entity as CSV or Excel. These rows become the source-of-truth budget baseline used when scoring monthly income statement actuals.
           </div>
         `;
       }
@@ -6148,6 +6160,12 @@
       return;
     }
 
+    if (type === "financial") {
+      try {
+        input.accept = `${CSV_AND_EXCEL_FILE_ACCEPT},.pdf,application/pdf`;
+      } catch (_error) {}
+    }
+
     input.addEventListener("change", (event) => {
       logDebug("input change", type, event?.target?.files?.length || 0);
       try {
@@ -6219,6 +6237,18 @@
       return;
     }
 
+    try {
+      input.accept = CSV_AND_EXCEL_FILE_ACCEPT;
+      const strong = dropzone.querySelector("strong");
+      const hint = dropzone.querySelector("span");
+      if (strong) {
+        strong.textContent = "Drop or choose finalized budget CSV or Excel files";
+      }
+      if (hint) {
+        hint.textContent = "Supports .csv, .xlsx, .xls, and .xlsm. Use the finalized budget export with line items and monthly budget values.";
+      }
+    } catch (_error) {}
+
     input.addEventListener("change", (event) => {
       try {
         const fileNames = Array.from(event?.target?.files || [])
@@ -6289,6 +6319,7 @@
   }
 
   function bindEvents() {
+    applySupportedFileAcceptAttributes();
     populateFinancialImportScopeOptions();
     populateApprovedBudgetScopeOptions();
     if (dom.financialImportMode) {

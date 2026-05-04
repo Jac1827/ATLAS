@@ -212,6 +212,34 @@
     lastFinancialApplyNotice: null,
   };
 
+  function ensureFinancialPageBridgeElements() {
+    const appRoot = document.getElementById("app");
+    if (!appRoot || document.getElementById("financial-workspace-bridge")) {
+      return;
+    }
+    const bridge = document.createElement("section");
+    bridge.id = "financial-workspace-bridge";
+    bridge.style.maxWidth = "1440px";
+    bridge.style.margin = "20px auto 0";
+    bridge.style.padding = "0 18px";
+    bridge.innerHTML = `
+      <div style="background:#ffffff;border:1px solid rgba(15,23,42,0.08);border-radius:18px;padding:16px 18px;box-shadow:0 14px 42px rgba(15,23,42,0.08);display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+        <div style="min-width:260px;flex:1">
+          <div style="font-size:0.78rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#013e51">ATLAS Workspace Bridge</div>
+          <div id="ops-workspace-note" style="margin-top:6px;font-size:0.92rem;line-height:1.45;color:#475569">Connected to <strong>Portfolio Operations Dashboard</strong>.</div>
+          <div id="ops-workspace-chips" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <a id="back-to-operations" href="./index.html" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:999px;background:#013e51;color:#ffffff;text-decoration:none;font-weight:700;font-size:0.9rem">Back To ATLAS</a>
+          <a id="open-selected-ops" href="./index.html" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:999px;border:1px solid rgba(1,62,81,0.18);background:#f8fafc;color:#013e51;text-decoration:none;font-weight:700;font-size:0.9rem">Open Selected Community In Ops</a>
+        </div>
+      </div>
+    `;
+    appRoot.parentNode.insertBefore(bridge, appRoot);
+  }
+
+  ensureFinancialPageBridgeElements();
+
   const dom = {
     periodSelect: document.getElementById("period-select"),
     manualPeriodInput: document.getElementById("manual-period-input"),

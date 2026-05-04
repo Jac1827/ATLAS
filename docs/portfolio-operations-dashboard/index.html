@@ -6067,7 +6067,16 @@ function renderTab() {
   const panel = document.getElementById(`tab-panel-${activeTab}`);
   const renderer = renderers[activeTab];
   if (panel && typeof renderer === "function") {
-    panel.innerHTML = renderer();
+    try {
+      panel.innerHTML = renderer();
+    } catch (error) {
+      console.error("Tab failed to render", { activeTab, error });
+      const activeLabel = document.querySelectorAll(".tab")[activeTab]?.textContent?.trim() || `Tab ${activeTab}`;
+      panel.innerHTML = `<div class="card mb4">
+        <div class="card-title" style="margin-bottom:8px">${escapeHtml(activeLabel)}</div>
+        <div class="alert-red">This section hit a render issue and did not finish loading. Refresh once. If it still fails, the saved data for this section likely needs cleanup after the recent browser-storage migration.</div>
+      </div>`;
+    }
   }
   document.querySelectorAll(".tab-panel").forEach((p, j) => p.style.display = activeTab === j ? "" : "none");
   applyDashboardBackdrop();
@@ -6679,6 +6688,7 @@ function renderPortfolioScopePanel(title, subtitle, cardsHtml, bodyHtml) {
 }
 
 function renderPortfolioScopedSetupTab() {
+  try {
   const { details, aggregate } = getWorkspaceScopedAggregate(getSelectedDashboardMonthIndex());
   const selectedName = getPortfolioSetupCommunityName();
   const selectedRecord = getPortfolioSetupCommunityRecord(selectedName);
@@ -6805,6 +6815,13 @@ function renderPortfolioScopedSetupTab() {
     </table>
   </div>`;
   return renderPortfolioScopePanel("Portfolio Community Setup", "A read-through of saved setup data across the full portfolio.", cardsHtml, bodyHtml + selectedCommunityEditor);
+  } catch (error) {
+    console.error("Portfolio Community Setup failed to render", error);
+    return `<div class="card mb4">
+      <div class="card-title" style="margin-bottom:8px">Portfolio Community Setup</div>
+      <div class="alert-red">Portfolio Community Setup hit a render issue after loading saved setup data. Refresh once. If it persists, one of the saved community setup records needs cleanup.</div>
+    </div>`;
+  }
 }
 
 function renderPortfolioScopedOverviewTab() {
@@ -7029,7 +7046,15 @@ function renderPortfolioScopedImportTab() {
 }
 
 function renderSetupTab() {
+  try {
   if (isPortfolioWorkspaceSelected() && workspaceScopeValue === PORTFOLIO_SCOPE_VALUE) return renderPortfolioScopedSetupTab();
+  communityPhotoBank = normalizeCommunityPhotoBank(communityPhotoBank);
+  communityTeamProfiles = normalizeCommunityTeamProfiles(communityTeamProfiles, propertyTeamConfig);
+  communityFloorPlans = normalizeCommunityFloorPlans(communityFloorPlans);
+  investorEmailContacts = normalizeInvestorEmailContacts(investorEmailContacts);
+  marketSurveyData = normalizeMarketSurveyData(marketSurveyData);
+  propertyTurnoverByQuarter = normalizePropertyTurnoverByQuarter(propertyTurnoverByQuarter, propertyTurnoverConfig);
+  msoeByQuarter = normalizeMsoeByQuarter(msoeByQuarter);
   const p = getProp();
   const totalUnits = getTotalUnits();
   const unitsIsOverridden = parseInt(customUnits) > 0;
@@ -7554,6 +7579,13 @@ function renderSetupTab() {
       collapsedPreview: `${bonusQuarter} turnover ${quarterTurnoverRollup.totalEmployees > 0 ? quarterTurnoverRollup.turnoverPct.toFixed(1) + "%" : "not set"} · Salaries ${salarySecurity.enabled ? "locked" : "open"}`
     })
   ].join("");
+  } catch (error) {
+    console.error("Community Setup failed to render", error);
+    return `<div class="card mb4">
+      <div class="card-title" style="margin-bottom:8px">Community Setup</div>
+      <div class="alert-red">Community Setup hit a render issue after loading saved data. Refresh once. If it still fails, one of the saved setup records needs cleanup after the storage migration.</div>
+    </div>`;
+  }
 }
 
 function updateReputationField(field, val) {

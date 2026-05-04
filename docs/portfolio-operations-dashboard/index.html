@@ -10015,14 +10015,7 @@ function buildDailyBoxScoreSnapshotFromRows(rows = [], fileName = "", rawText = 
     dailySnapshot.tours = leadActivityTotals.firstVisitsTours;
   }
   if (leadConversionTotals) {
-    dailySnapshot.applications = (
-      (leadConversionTotals.completed || 0)
-      + (leadConversionTotals.partiallyCompleted || 0)
-      + (leadConversionTotals.completedCancelled || 0)
-      + (leadConversionTotals.denied || 0)
-      + (leadConversionTotals.approved || 0)
-      + (leadConversionTotals.approvedCancelled || 0)
-    );
+    dailySnapshot.applications = leadConversionTotals.completed || 0;
     dailySnapshot.pendingDecision = leadConversionTotals.partiallyCompleted;
     dailySnapshot.applicationsApproved = leadConversionTotals.approved;
     dailySnapshot.denied = leadConversionTotals.denied;
@@ -20712,9 +20705,7 @@ function parseRonaldoLeadConversionRows(rows = [], target = {}) {
   const leaseCompleted = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["lease_completed"]));
   const leaseApproved = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["lease_approved"]));
   return makeRonaldoBackfillRow(target, {
-    applications: [completed, partial, completedCancelled, denied, approved, approvedCancelled].some(value => Number.isFinite(value))
-      ? [completed, partial, completedCancelled, denied, approved, approvedCancelled].filter(value => Number.isFinite(value)).reduce((sum, value) => sum + value, 0)
-      : "",
+    applications: Number.isFinite(completed) ? completed : "",
     applications_approved: approved ?? "",
     denied: denied ?? "",
     cancelled: [completedCancelled, approvedCancelled].some(value => Number.isFinite(value))

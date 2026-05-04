@@ -7196,6 +7196,37 @@ function renderSetupTab() {
         <div style="display:flex;flex-wrap:wrap;gap:8px">${floorPlanVarianceData.unmatchedRates.map(rate => `<span style="display:inline-flex;gap:6px;align-items:center;padding:6px 8px;border-radius:999px;background:var(--bg2);border:1px solid rgba(217,153,34,0.35);font-size:0.66rem;color:var(--text)">${escapeHtml(rate.name || "Unnamed plan")}<strong style="color:#9d5d14">${rate.marketRent != null ? formatDlrCurrency(rate.marketRent) : "—"}</strong></span>`).join("")}</div>
       </div>`
     : "";
+  const marketSurveyFloorPlanRows = normalizeMarketSurveyFloorPlanRates(marketSurveyData.floorPlanRates).length
+    ? normalizeMarketSurveyFloorPlanRates(marketSurveyData.floorPlanRates).map((rate, idx) => `
+        <div style="display:grid;grid-template-columns:minmax(170px,1.4fr) repeat(4,minmax(90px,0.75fr)) minmax(130px,1fr) auto;gap:8px;align-items:end;padding:10px 0;border-top:${idx === 0 ? "0" : "1px solid rgba(15,23,42,0.08)"}">
+          <div>
+            <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Plan name</div>
+            <input type="text" value="${escapeHtml(rate.name || "")}" placeholder="A1 / One Bedroom" onchange="updateMarketSurveyFloorPlanField(${idx},'name',this.value)">
+          </div>
+          <div>
+            <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Market rent</div>
+            <input type="number" min="0" step="1" value="${rate.marketRent ?? ""}" placeholder="1850" onchange="updateMarketSurveyFloorPlanField(${idx},'marketRent',this.value)">
+          </div>
+          <div>
+            <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Sqft</div>
+            <input type="number" min="0" step="1" value="${rate.sqft ?? ""}" placeholder="812" onchange="updateMarketSurveyFloorPlanField(${idx},'sqft',this.value)">
+          </div>
+          <div>
+            <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Beds</div>
+            <input type="number" min="0" step="1" value="${rate.beds ?? ""}" placeholder="1" onchange="updateMarketSurveyFloorPlanField(${idx},'beds',this.value)">
+          </div>
+          <div>
+            <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Baths</div>
+            <input type="number" min="0" step="0.5" value="${rate.baths ?? ""}" placeholder="1" onchange="updateMarketSurveyFloorPlanField(${idx},'baths',this.value)">
+          </div>
+          <div>
+            <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Source</div>
+            <input type="text" value="${escapeHtml(rate.sourceSheet || "")}" placeholder="APTIQ workbook / PDF" onchange="updateMarketSurveyFloorPlanField(${idx},'sourceSheet',this.value)">
+          </div>
+          <button class="btn btn-gray btn-sm" type="button" onclick="removeMarketSurveyFloorPlanRate(${idx})">Remove</button>
+        </div>
+      `).join("")
+    : `<div style="font-size:0.72rem;color:var(--muted);padding:4px 0">No marketed floor-plan rates are saved yet for this community. Upload an APTIQ survey or add rows manually here.</div>`;
   const msoeInputs = ["Q1", "Q2", "Q3", "Q4"].map(q => {
     const value = normalizedMsoeByQuarter[q];
     return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">

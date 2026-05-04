@@ -422,28 +422,102 @@
   .dashboard-home-grid { display:grid; grid-template-columns:1.3fr 0.9fr; gap:16px; }
   @media(max-width:1100px) { .dashboard-home-grid { grid-template-columns:1fr; } }
   .comp-calc-shell { display:grid; gap:16px; }
-  .comp-calc-hero { background:linear-gradient(135deg,#17354a 0%, #235b73 58%, #6f8f7c 100%); color:#f7fbff; border-radius:18px; padding:22px; border:1px solid rgba(255,255,255,0.1); box-shadow:0 18px 40px rgba(10,24,36,0.16); }
-  .comp-calc-hero h2 { font-size:1.35rem; margin-bottom:8px; }
-  .comp-calc-hero p { color:rgba(240,247,255,0.84); font-size:0.78rem; line-height:1.65; }
+  .comp-calc-hero {
+    position:relative;
+    overflow:hidden;
+    background:linear-gradient(135deg,#0e3c56 0%, #165a76 48%, #5d8c8b 100%);
+    color:#f7fbff;
+    border-radius:18px;
+    padding:22px;
+    border:1px solid rgba(255,255,255,0.12);
+    box-shadow:0 18px 40px rgba(10,24,36,0.16);
+  }
+  .comp-calc-hero::after {
+    content:"";
+    position:absolute;
+    inset:auto -10% -60% auto;
+    width:320px;
+    height:320px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(255,255,255,0.16) 0, rgba(255,255,255,0) 70%);
+    pointer-events:none;
+  }
+  .comp-calc-hero h2 { font-size:1.28rem; margin-bottom:6px; }
+  .comp-calc-hero p { color:rgba(240,247,255,0.84); font-size:0.78rem; line-height:1.65; max-width:1100px; }
+  .comp-calc-toolbar {
+    display:grid;
+    grid-template-columns:1.15fr 1fr auto;
+    gap:14px;
+    align-items:start;
+    margin-top:16px;
+    padding:14px;
+    border-radius:16px;
+    background:rgba(255,255,255,0.12);
+    border:1px solid rgba(255,255,255,0.16);
+    backdrop-filter:blur(10px);
+    position:relative;
+    z-index:1;
+  }
+  @media(max-width:980px) { .comp-calc-toolbar { grid-template-columns:1fr; } }
+  .comp-calc-toolbar-brand { display:flex; align-items:center; gap:14px; }
+  .comp-calc-toolbar-brand img { height:42px; width:auto; object-fit:contain; flex:0 0 auto; }
+  .comp-calc-toolbar-copy { display:flex; flex-direction:column; gap:3px; }
+  .comp-calc-toolbar-copy .eyebrow { font-size:0.64rem; text-transform:uppercase; letter-spacing:0.08em; color:rgba(240,247,255,0.74); }
+  .comp-calc-toolbar-copy .title { font-size:1.05rem; font-weight:700; }
+  .comp-calc-toolbar-copy .sub { font-size:0.72rem; line-height:1.55; color:rgba(240,247,255,0.82); }
+  .comp-calc-controls { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+  @media(max-width:1200px) { .comp-calc-controls { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  @media(max-width:680px) { .comp-calc-controls { grid-template-columns:1fr; } }
+  .comp-calc-control label {
+    display:block;
+    font-size:0.62rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:rgba(240,247,255,0.72);
+    margin-bottom:5px;
+  }
+  .comp-calc-control input,
+  .comp-calc-control select {
+    width:100%;
+    background:rgba(255,255,255,0.92);
+    border:1px solid rgba(255,255,255,0.18);
+    border-radius:10px;
+    color:#103246;
+    font-weight:700;
+    box-shadow:none;
+  }
+  .comp-calc-toolbar-actions { display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end; align-items:flex-start; }
+  @media(max-width:980px) { .comp-calc-toolbar-actions { justify-content:flex-start; } }
   .comp-calc-kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin-top:16px; }
-  .comp-calc-kpi { background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.16); border-radius:14px; padding:14px; backdrop-filter:blur(10px); }
+  .comp-calc-kpi {
+    background:rgba(255,255,255,0.1);
+    border:1px solid rgba(255,255,255,0.16);
+    border-radius:14px;
+    padding:14px;
+    backdrop-filter:blur(10px);
+  }
   .comp-calc-kpi .k { font-size:0.64rem; text-transform:uppercase; letter-spacing:0.08em; color:rgba(240,247,255,0.72); margin-bottom:6px; }
-  .comp-calc-kpi .v { font-size:1.45rem; font-weight:700; font-family:'JetBrains Mono', monospace; color:#ffffff; margin-bottom:5px; }
+  .comp-calc-kpi .v { font-size:1.42rem; font-weight:700; font-family:'JetBrains Mono', monospace; color:#ffffff; margin-bottom:5px; }
   .comp-calc-kpi .s { font-size:0.72rem; color:rgba(240,247,255,0.8); line-height:1.45; }
-  .comp-calc-grid { display:grid; grid-template-columns:1.15fr 0.85fr; gap:16px; }
-  @media(max-width:1080px) { .comp-calc-grid { grid-template-columns:1fr; } }
+  .comp-calc-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+  @media(max-width:920px) { .comp-calc-grid { grid-template-columns:1fr; } }
   .comp-calc-card { background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:16px; }
   .comp-calc-card h3 { font-size:0.95rem; margin-bottom:6px; }
-  .comp-calc-sub { font-size:0.72rem; color:var(--muted); line-height:1.55; margin-bottom:14px; }
+  .comp-calc-sub { font-size:0.7rem; color:var(--muted); margin-bottom:12px; line-height:1.55; }
   .comp-calc-market-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
   .comp-calc-market-card { background:var(--bg3); border:1px solid var(--border); border-radius:14px; padding:14px; }
   .comp-calc-market-card h4 { font-size:0.86rem; margin-bottom:4px; }
   .comp-calc-market-card .meta { font-size:0.68rem; color:var(--muted); margin-bottom:12px; }
-  .comp-calc-stat-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
-  .comp-calc-stat { background:rgba(15,23,42,0.03); border:1px solid var(--border2); border-radius:10px; padding:10px; }
-  .comp-calc-stat .k { font-size:0.64rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:4px; }
-  .comp-calc-stat .v { font-size:1rem; font-weight:700; }
-  .comp-calc-stat .s { font-size:0.68rem; color:var(--muted); margin-top:3px; line-height:1.45; }
+  .comp-calc-stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+  .comp-calc-stat {
+    border:1px solid var(--border);
+    background:var(--bg3);
+    border-radius:12px;
+    padding:12px;
+  }
+  .comp-calc-stat .k { font-size:0.62rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:5px; }
+  .comp-calc-stat .v { font-size:1.14rem; font-weight:700; font-family:'JetBrains Mono', monospace; color:var(--text); margin-bottom:4px; }
+  .comp-calc-stat .s { font-size:0.66rem; color:var(--muted); line-height:1.4; }
   .comp-calc-reco { border-radius:14px; padding:14px; border:1px solid transparent; }
   .comp-calc-reco.up { background:rgba(63,185,80,0.08); border-color:rgba(63,185,80,0.24); }
   .comp-calc-reco.down { background:rgba(248,81,73,0.08); border-color:rgba(248,81,73,0.24); }
@@ -453,9 +527,35 @@
   .comp-calc-reco .body { font-size:0.74rem; line-height:1.6; color:var(--text); }
   .comp-calc-chip-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
   .comp-calc-chip { display:inline-flex; align-items:center; gap:6px; background:var(--bg3); border:1px solid var(--border); border-radius:999px; padding:6px 10px; font-size:0.68rem; color:var(--text); }
-  .comp-calc-table-wrap { overflow:auto; }
-  .comp-calc-table { width:100%; border-collapse:collapse; font-size:0.76rem; }
-  .comp-calc-table th { background:var(--bg3); color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; font-size:0.64rem; padding:10px; border-bottom:1px solid var(--border); text-align:left; }
+  .comp-calc-section-title { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+  .comp-calc-section-title h3 { margin-bottom:2px; }
+  .comp-calc-section-badge {
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    border-radius:999px;
+    padding:5px 9px;
+    border:1px solid rgba(21,92,122,0.15);
+    background:rgba(21,92,122,0.08);
+    font-size:0.62rem;
+    color:#155c7a;
+    font-weight:700;
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+  }
+  .comp-calc-table-wrap { overflow:auto; border-radius:12px; }
+  .comp-calc-table { width:100%; border-collapse:collapse; font-size:0.76rem; min-width:780px; }
+  .comp-calc-table th {
+    background:var(--bg3);
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    font-size:0.64rem;
+    padding:10px;
+    border-bottom:1px solid var(--border);
+    text-align:left;
+    white-space:nowrap;
+  }
   .comp-calc-table td { padding:10px; border-bottom:1px solid var(--border2); vertical-align:top; }
   .comp-calc-table tr:last-child td { border-bottom:none; }
   .comp-calc-tonal { font-size:0.66rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; }
@@ -463,7 +563,42 @@
   .comp-calc-tonal.down { color:#f85149; }
   .comp-calc-tonal.hold { color:#d29922; }
   .comp-calc-actions { display:flex; flex-wrap:wrap; gap:8px; }
-  .comp-calc-empty { background:rgba(68,147,248,0.08); border:1px solid rgba(68,147,248,0.24); border-radius:14px; padding:18px; font-size:0.76rem; line-height:1.65; color:var(--text); }
+  .comp-calc-empty {
+    background:rgba(68,147,248,0.08);
+    border:1px solid rgba(68,147,248,0.24);
+    border-radius:14px;
+    padding:18px;
+    font-size:0.76rem;
+    line-height:1.65;
+    color:var(--text);
+  }
+  .comp-calc-playbook-grid { display:grid; grid-template-columns:1.15fr 0.85fr; gap:16px; }
+  @media(max-width:980px) { .comp-calc-playbook-grid { grid-template-columns:1fr; } }
+  .comp-calc-pill-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .comp-calc-pill {
+    display:inline-flex;
+    align-items:center;
+    padding:5px 9px;
+    border-radius:999px;
+    background:rgba(21,92,122,0.06);
+    border:1px solid rgba(21,92,122,0.12);
+    color:#0f3f57;
+    font-size:0.64rem;
+    font-weight:700;
+  }
+  .comp-calc-snapshot-banner {
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:14px;
+    padding:14px 16px;
+    border-radius:16px;
+    background:linear-gradient(135deg, rgba(14,60,86,0.95), rgba(21,92,122,0.95));
+    color:#f8fbff;
+    border:1px solid rgba(255,255,255,0.12);
+  }
+  .comp-calc-snapshot-banner strong { display:block; font-size:1rem; margin-bottom:4px; }
+  .comp-calc-snapshot-banner span { font-size:0.72rem; line-height:1.55; color:rgba(247,251,255,0.82); }
   .portfolio-hero { background:linear-gradient(135deg,#163047 0%, #22465f 62%, #2c6985 100%); color:#f8fbff; border-radius:18px; padding:22px; border:1px solid rgba(255,255,255,0.1); box-shadow:0 18px 40px rgba(8,20,30,0.16); }
   .portfolio-hero h2 { font-size:1.4rem; margin-bottom:8px; }
   .portfolio-hero p { color:rgba(240,247,255,0.82); font-size:0.78rem; line-height:1.65; }
@@ -538,11 +673,11 @@
         <span class="side-nav-action-label">Financials</span>
       </button>
       <div class="tabs" id="tabs">
-        <button class="tab active" onclick="setTab(0)" aria-label="Comp Calculator"><span class="tab-icon">🧮</span><span class="tab-label">Comp Calculator</span></button>
-        <button class="tab" onclick="setTab(1)" aria-label="Portfolio Home"><span class="tab-icon">📈</span><span class="tab-label">Portfolio Home</span></button>
-        <button class="tab" onclick="setTab(2)" aria-label="Community Setup"><span class="tab-icon">🏢</span><span class="tab-label">Community Setup</span></button>
-        <button class="tab" onclick="setTab(3)" aria-label="Overview"><span class="tab-icon">📊</span><span class="tab-label">Overview</span></button>
-        <button class="tab" onclick="setTab(4)" aria-label="Traffic and Funnel"><span class="tab-icon">🔍</span><span class="tab-label">Traffic &amp; Funnel</span></button>
+        <button class="tab active" onclick="setTab(0)" aria-label="Portfolio Home"><span class="tab-icon">📈</span><span class="tab-label">Portfolio Home</span></button>
+        <button class="tab" onclick="setTab(1)" aria-label="Community Setup"><span class="tab-icon">🏢</span><span class="tab-label">Community Setup</span></button>
+        <button class="tab" onclick="setTab(2)" aria-label="Overview"><span class="tab-icon">📊</span><span class="tab-label">Overview</span></button>
+        <button class="tab" onclick="setTab(3)" aria-label="Traffic and Funnel"><span class="tab-icon">🔍</span><span class="tab-label">Traffic &amp; Funnel</span></button>
+        <button class="tab" onclick="setTab(4)" aria-label="Comp Calculator"><span class="tab-icon">🧮</span><span class="tab-label">Comp Calculator</span></button>
         <button class="tab" onclick="setTab(5)" aria-label="Renewals"><span class="tab-icon">🔁</span><span class="tab-label">Renewals</span></button>
         <button class="tab" onclick="setTab(6)" aria-label="Reputation"><span class="tab-icon">⭐</span><span class="tab-label">Reputation</span></button>
         <button class="tab" onclick="setTab(7)" aria-label="Data Import"><span class="tab-icon">📁</span><span class="tab-label">Data Import</span></button>
@@ -1141,7 +1276,11 @@ function defaultMarketSurveyData() {
     cancellationsLast30Pct: 0,
     marketConcessions: "",
     recommendedApproach: "",
+    leasingApproach: "balanced",
     strategyScore: "",
+    targetOccupancyPct: 0,
+    leaseTermMonths: 0,
+    maxConcessionAmount: 0,
     rentAdjustmentDirection: "hold",
     rentAdjustmentAmount: 0,
     specialsRecommendation: "",
@@ -1766,7 +1905,11 @@ function normalizeMarketSurveyData(data) {
     cancellationsLast30Pct: Number(input.cancellationsLast30Pct ?? defaults.cancellationsLast30Pct) || 0,
     marketConcessions: String(input.marketConcessions ?? defaults.marketConcessions).trim(),
     recommendedApproach: String(input.recommendedApproach ?? defaults.recommendedApproach).trim(),
+    leasingApproach: String(input.leasingApproach ?? defaults.leasingApproach).trim().toLowerCase(),
     strategyScore: String(input.strategyScore ?? defaults.strategyScore).trim(),
+    targetOccupancyPct: Number(input.targetOccupancyPct ?? defaults.targetOccupancyPct) || 0,
+    leaseTermMonths: Number(input.leaseTermMonths ?? defaults.leaseTermMonths) || 0,
+    maxConcessionAmount: Number(input.maxConcessionAmount ?? defaults.maxConcessionAmount) || 0,
     rentAdjustmentDirection: ["up", "down", "hold"].includes(String(input.rentAdjustmentDirection ?? "").toLowerCase())
       ? String(input.rentAdjustmentDirection).toLowerCase()
       : defaults.rentAdjustmentDirection,
@@ -3211,7 +3354,7 @@ function getLeadSourceTotal(monthEntry = {}) {
 
 function getApplicationDecisionMetrics(monthEntry = {}) {
   const applications = Math.max(0, Number(monthEntry.applications) || 0);
-  const approvals = Math.min(getApplicationsApprovedCount(monthEntry), applications || Number.MAX_SAFE_INTEGER);
+  const approvals = Math.max(0, Number(getApplicationsApprovedCount(monthEntry)) || 0);
   const explicitDenials = Math.max(0, Number(monthEntry.denied) || 0);
   const explicitCancelled = Math.max(0, Number(monthEntry.cancelled) || 0);
   const explicitPending = Math.max(0, Number(monthEntry.pendingDecision) || 0);
@@ -6054,11 +6197,11 @@ function setTab(i) {
 
 function renderTab() {
   const renderers = [
-    renderCompCalculatorTab,
     renderPortfolioHomeTab,
     renderSetupTab,
     renderOverviewTab,
     renderTrafficTab,
+    renderCompCalculatorTab,
     renderRenewalsTab,
     renderReputationTab,
     renderCSVTab,
@@ -9878,6 +10021,9 @@ function extractMarketSurveyFloorPlanRates(workbook, targetCommunity = "") {
     const targetedRows = extractFloorPlanRatesFromFloorPlanDataSheet(floorPlanRows, targetCommunity);
     if (targetedRows.length > 0) return targetedRows;
   }
+  if (String(targetCommunity ?? "").trim()) {
+    return [];
+  }
   const rows = [];
   workbook.SheetNames.forEach(sheetName => {
     const sheet = workbook.Sheets?.[sheetName];
@@ -10348,7 +10494,11 @@ function applyMarketSurveyDataToProperty(propName, surveyInput) {
     compAverageLeases30: surveyInput.compAverageLeases30 ?? existingSurvey.compAverageLeases30,
     compAverageCancelPct: surveyInput.compAverageCancelPct ?? existingSurvey.compAverageCancelPct,
     recommendedApproach: surveyInput.recommendedApproach || existingSurvey.recommendedApproach,
+    leasingApproach: surveyInput.leasingApproach || existingSurvey.leasingApproach,
     strategyScore: surveyInput.strategyScore ?? existingSurvey.strategyScore,
+    targetOccupancyPct: surveyInput.targetOccupancyPct ?? existingSurvey.targetOccupancyPct,
+    leaseTermMonths: surveyInput.leaseTermMonths ?? existingSurvey.leaseTermMonths,
+    maxConcessionAmount: surveyInput.maxConcessionAmount ?? existingSurvey.maxConcessionAmount,
     marketConcessions: surveyInput.marketConcessions || existingSurvey.marketConcessions,
     compNarrative: surveyInput.compNarrative || existingSurvey.compNarrative || "",
     pricingNotes: surveyInput.pricingNotes || existingSurvey.pricingNotes || "",
@@ -12185,7 +12335,7 @@ function buildPortfolioHomePriorities(details = [], selectedMonth = getSelectedD
         valueSub: "apps last 30",
         tone: "warn",
         severity: 68,
-        tabIdx: 0,
+        tabIdx: 4,
         actionLabel: "Open Comp Calc"
       });
     }
@@ -12265,65 +12415,394 @@ function compCalcFormatSignedPoints(value, digits = 1) {
   return `${numeric >= 0 ? "+" : "-"}${abs}`;
 }
 
-function buildCompCalculatorRecommendation(market) {
-  const rentGap = Number(market.subjectAskingRent ?? 0) - Number(market.compAverageRent ?? 0);
-  const nerGap = Number(market.subjectNetEffectiveRent ?? 0) - Number(market.compAverageNer ?? 0);
-  const occGap = Number(market.subjectOccPct ?? 0) - Number(market.compAverageLeasedPct ?? 0);
-  const exposureGap = Number(market.subjectExposurePct ?? 0) - Number(market.compAverageExposurePct ?? 0);
-  const appToLeasePct = compCalcPercent(market.leasesLast30 ?? 0, market.applicationsLast30 ?? 0);
-  let direction = String(market.rentAdjustmentDirection ?? "").toLowerCase();
-  if (!["up", "down", "hold"].includes(direction)) {
-    if (rentGap > 35 || exposureGap > 1.5 || appToLeasePct < 22) direction = "down";
-    else if (rentGap < -35 && occGap >= 0 && exposureGap <= 0) direction = "up";
-    else direction = "hold";
+function compCalcNormalizeApproach(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (normalized === "aggressive" || normalized === "conservative") return normalized;
+  return "balanced";
+}
+
+function compCalcApproachLabel(value) {
+  const labels = {
+    aggressive: "Aggressive",
+    balanced: "Balanced",
+    conservative: "Conservative"
+  };
+  return labels[compCalcNormalizeApproach(value)] ?? "Balanced";
+}
+
+function compCalcParseConcessionTypes(text = "") {
+  const lower = String(text ?? "").toLowerCase();
+  const types = [];
+  const add = label => {
+    if (label && !types.includes(label)) types.push(label);
+  };
+  if (/free rent|weeks free|months free/.test(lower)) add("Free Rent");
+  if (/gift card/.test(lower)) add("Gift Card");
+  if (/waiv(?:ed|er).*(admin|administration) fee/.test(lower) || /admin fee/.test(lower)) add("Fee Waiver");
+  if (/waiv(?:ed|er).*application fee/.test(lower) || /application fee waiver/.test(lower)) add("App Fee Waiver");
+  if (/security deposit/.test(lower) || /deposit relief/.test(lower)) add("Deposit Relief");
+  if (/storage/.test(lower)) add("Storage");
+  if (/parking/.test(lower)) add("Parking");
+  if (/internet/.test(lower)) add("Internet");
+  if (/move[- ]in/.test(lower)) add("Move-In Credit");
+  if (types.length === 0 && lower.trim()) add("Other");
+  return types;
+}
+
+function compCalcEstimateConcessionValue(text = "", market = {}) {
+  const baseRent = Number(market.subjectAskingRent ?? market.compAverageRent ?? 0) || 0;
+  if (baseRent <= 0 && !String(text ?? "").trim()) return 0;
+  const lower = String(text ?? "").toLowerCase();
+  let total = 0;
+  const leaseTermMonths = Math.max(1, Number(market.leaseTermMonths ?? 14) || 14);
+  const freeRentMatches = [...lower.matchAll(/(\d+(?:\.\d+)?)\s*(months?|mos?|mo|weeks?|wks?)\s+free rent/g)];
+  freeRentMatches.forEach(match => {
+    const rawCount = Number(match[1]) || 0;
+    const unit = String(match[2] ?? "").toLowerCase();
+    const months = /week|wks?/.test(unit) ? rawCount / 4.333 : rawCount;
+    total += months * baseRent;
+  });
+  if (/gift card/.test(lower)) {
+    const cardMatch = lower.match(/\$?\s*(\d[\d,]*)\s*(?:gift card|gc)/);
+    total += cardMatch ? Number(String(cardMatch[1]).replace(/,/g, "")) || 500 : 500;
   }
-  const impliedAmount = Math.min(250, Math.max(25, Math.round(Math.abs(rentGap) / 25) * 25 || 0));
-  const amount = Number(market.rentAdjustmentAmount ?? 0) || (direction === "hold" ? 0 : impliedAmount);
-  const titles = {
-    up: amount > 0 ? `Push rates ${formatDlrCurrency(amount)}` : "Push rates modestly",
-    down: amount > 0 ? `Trim rates ${formatDlrCurrency(amount)}` : "Reduce rates modestly",
-    hold: "Hold base rate and tune specials"
-  };
-  const summaries = {
-    up: "Subject pricing is below comps or leasing velocity is outpacing exposure.",
-    down: "Pricing is running ahead of the comp set or exposure is building faster than demand.",
-    hold: "The asset is roughly aligned with the market and should use specials or follow-up to protect conversion."
-  };
-  const detailBits = [
-    Number(market.subjectAskingRent ?? 0) > 0 && Number(market.compAverageRent ?? 0) > 0 ? `Rent gap ${compCalcFormatSignedCurrency(rentGap)} vs comps` : "",
-    Number(market.subjectNetEffectiveRent ?? 0) > 0 && Number(market.compAverageNer ?? 0) > 0 ? `NER gap ${compCalcFormatSignedCurrency(nerGap)}` : "",
-    Number(market.subjectOccPct ?? 0) > 0 && Number(market.compAverageLeasedPct ?? 0) > 0 ? `Leased occ ${compCalcFormatSignedPoints(occGap)} pts vs market` : "",
-    Number(market.subjectExposurePct ?? 0) > 0 && Number(market.compAverageExposurePct ?? 0) > 0 ? `Exposure ${exposureGap >= 0 ? "+" : ""}${exposureGap.toFixed(1)} pts` : "",
-    Number(market.applicationsLast30 ?? 0) > 0 ? `${Math.round(appToLeasePct)}% app-to-lease` : ""
-  ].filter(Boolean);
-  const strategyLabel = String(market.recommendedApproach || market.strategyScore || "").trim();
-  const note = String(market.pricingNotes || market.compNarrative || summaries[direction]).trim() || summaries[direction];
+  if (/admin/.test(lower)) total += 250;
+  if (/application fee/.test(lower)) total += 75;
+  if (/security deposit/.test(lower)) total += 500;
+  if (/storage/.test(lower)) total += 100;
+  if (/parking/.test(lower)) total += 100;
+  if (/internet/.test(lower)) total += 75 * 12;
+  if (/move[- ]in/.test(lower)) total += 250;
+  if (Number(market.maxConcessionAmount ?? 0) > 0) {
+    total = Math.min(total, Number(market.maxConcessionAmount));
+  }
+  return total / leaseTermMonths;
+}
+
+function getCompCalculatorSubjectActivity(detail, market, monthIdx = getSelectedDashboardMonthIndex()) {
+  const record = detail?.record ?? {};
+  const summary = detail?.summary ?? {};
+  const monthEntry = record?.monthlyData?.[monthIdx] ?? {};
+  const dlrSummary = normalizeDlrSummary(record?.latestDlrSummary);
+  const boxScore = normalizeDlrBoxScoreSnapshot(dlrSummary.dailyBoxScore);
+  const applicationMetrics = getApplicationDecisionMetrics(monthEntry);
+  const guestCards = getLeadSourceTotal(monthEntry)
+    || Number(summary.guestCards ?? 0)
+    || Number(boxScore.newLeads ?? boxScore.guestCards ?? 0)
+    || 0;
+  const tours = Number(monthEntry.tours ?? summary.tours ?? boxScore.firstVisitsTours ?? boxScore.tours ?? 0) || 0;
+  const applications = applicationMetrics.applications || Number(summary.applications ?? boxScore.applications ?? 0) || 0;
+  const applicationsApproved = applicationMetrics.approvals || Number(summary.applicationsApproved ?? boxScore.applicationsApproved ?? 0) || 0;
+  const leasesSigned = Number(monthEntry.leasesSignedActual ?? summary.leasesSigned ?? boxScore.leasesSigned ?? 0) || 0;
+  const currentOccPct = Number(summary.occPct ?? summary.occupancyPct ?? 0) || 0;
+  const currentLeasedPct = Number(summary.leasedPct ?? 0) || 0;
+  const budgetOccPct = Number(summary.budgetOccPct ?? market?.targetOccupancyPct ?? 0) || 0;
   return {
-    direction,
-    title: titles[direction],
-    strategyLabel,
-    summary: note,
-    detail: detailBits.join(" · "),
-    specials: String(market.specialsRecommendation || market.marketConcessions || "").trim(),
-    amount,
-    severity: Math.abs(rentGap) + Math.abs(exposureGap * 20) + Math.abs(occGap * 12) + Math.max(0, 35 - appToLeasePct)
+    sourceLabel: boxScore.sourceFileName ? "Ronaldo upload" : (dlrSummary.sourceFileName ? "Saved DLR summary" : "Saved monthly data"),
+    monthLabel: FULL_MONTHS[monthIdx],
+    guestCards,
+    tours,
+    applications,
+    applicationsApproved,
+    approvedPct: applicationMetrics.approvalPct,
+    deniedPct: applicationMetrics.denialPct,
+    cancelledPct: applicationMetrics.cancelledPct,
+    pendingPct: applicationMetrics.pendingPct,
+    appToLeasePct: applicationMetrics.appToLeasePct,
+    leasesSigned,
+    guestToTourPct: guestCards > 0 ? (tours / guestCards) * 100 : 0,
+    tourToAppPct: tours > 0 ? (applications / tours) * 100 : 0,
+    currentOccPct,
+    currentLeasedPct,
+    budgetOccPct,
+    occGapPts: budgetOccPct > 0 ? currentOccPct - budgetOccPct : 0,
+    occupancyGapUnits: Number(summary.occGapUnits ?? 0) || 0,
+    leasedGapUnits: Number(summary.leasedGapUnits ?? 0) || 0,
+    moveIns: Number(monthEntry.moveIns ?? summary.moveIns ?? 0) || 0,
+    moveOuts: Number(monthEntry.moveOuts ?? summary.moveOuts ?? 0) || 0
   };
 }
 
-function getCompCalculatorRows(monthIdx = getSelectedDashboardMonthIndex()) {
-  return getWorkspaceScopedDetails(monthIdx)
-    .map(detail => {
-      const survey = getCompCalculatorSurveySnapshot(detail, monthIdx);
-      if (!hasMarketSurveyData(survey)) return null;
-      const meta = getCompCalculatorScopeMeta(detail, survey);
+function buildCompCalculatorRecommendation(market, activity = {}, floorPlanContext = {}) {
+  const targetOccupancyPct = Number(market.targetOccupancyPct ?? activity.budgetOccPct ?? 0) || 0;
+  const currentOccPct = Number(activity.currentOccPct ?? market.subjectOccPct ?? 0) || 0;
+  const currentLeasedPct = Number(activity.currentLeasedPct ?? market.subjectOccPct ?? 0) || 0;
+  const approvalPct = Number(activity.approvedPct ?? 0) || 0;
+  const cancelPct = Number(activity.cancelledPct ?? market.cancellationsLast30Pct ?? 0) || 0;
+  const appToLeasePct = Number(activity.appToLeasePct ?? 0) || 0;
+  const subjectRent = Number(market.subjectAskingRent ?? 0) || 0;
+  const subjectNer = Number(market.subjectNetEffectiveRent ?? 0) || 0;
+  const compRent = Number(market.compAverageRent ?? 0) || 0;
+  const compNer = Number(market.compAverageNer ?? 0) || 0;
+  const rentGap = subjectRent - compRent;
+  const nerGap = subjectNer - compNer;
+  const cancelGap = cancelPct - Number(market.compAverageCancelPct ?? 0);
+  const leasedGap = currentLeasedPct - Number(market.compAverageLeasedPct ?? 0);
+  const occupancyAhead = targetOccupancyPct > 0 ? currentOccPct >= targetOccupancyPct : currentOccPct >= Number(market.compAverageLeasedPct ?? 0);
+  let mode = compCalcNormalizeApproach(market.leasingApproach);
+  if (mode === "balanced") {
+    if (occupancyAhead) mode = "aggressive";
+    else if (targetOccupancyPct > 0 && currentOccPct + 1.5 < targetOccupancyPct) mode = "conservative";
+    else if (!targetOccupancyPct && currentOccPct + 1.25 < Number(market.compAverageLeasedPct ?? 0)) mode = "conservative";
+  }
+  const score = Math.max(0, Math.min(10,
+    5
+    + (targetOccupancyPct > 0 ? (currentOccPct - targetOccupancyPct) * 0.9 : 0)
+    + (approvalPct - 50) / 14
+    + (appToLeasePct - 25) / 12
+    - Math.max(0, cancelGap) / 4
+  ));
+  const label = compCalcApproachLabel(mode);
+  const titleMap = {
+    aggressive: `AGGRESSIVE (Score: ${score.toFixed(1)}/10)`,
+    balanced: `BALANCED (Score: ${score.toFixed(1)}/10)`,
+    conservative: `CONSERVATIVE (Score: ${score.toFixed(1)}/10)`
+  };
+  const summaryMap = {
+    aggressive: "Pace is in hand, so the property can push harder on pricing and lean into the strongest lease-conversion specials.",
+    balanced: "The property is close enough to goal to stay in market, match the strongest comps, and let the best specials do the work.",
+    conservative: "The property needs more leases to hit goal, so protect occupancy with targeted specials instead of forcing aggressive price cuts."
+  };
+  const detailBits = [
+    targetOccupancyPct > 0 ? `Goal ${targetOccupancyPct.toFixed(1)}% vs current ${currentOccPct.toFixed(1)}%` : `Current occupancy ${currentOccPct.toFixed(1)}%`,
+    Number(market.compAverageRent ?? 0) > 0 && subjectRent > 0 ? `Rent gap ${compCalcFormatSignedCurrency(rentGap)} vs comp avg` : "",
+    Number(market.compAverageNer ?? 0) > 0 && subjectNer > 0 ? `NER gap ${compCalcFormatSignedCurrency(nerGap)}` : "",
+    Number(market.compAverageLeasedPct ?? 0) > 0 ? `Leased occupancy ${compCalcFormatSignedPoints(leasedGap)} pts vs comp avg` : "",
+    Number(activity.guestCards ?? 0) > 0 ? `${Math.round(activity.guestToTourPct)}% guest-to-tour` : "",
+    Number(activity.applications ?? 0) > 0 ? `${Math.round(activity.approvedPct)}% approval / ${Math.round(activity.appToLeasePct)}% app-to-lease` : ""
+  ].filter(Boolean);
+  const keyAdvantage = Number(floorPlanContext.subjectAvgSqft ?? 0) > 0 && Number(floorPlanContext.compAvgSqft ?? 0) > 0
+    ? `${Math.round((Number(floorPlanContext.subjectAvgSqft) / Number(floorPlanContext.compAvgSqft)) * 100) - 100}% larger average floor plans`
+    : (Number(market.subjectAskingRent ?? 0) > 0 && Number(market.compAverageRent ?? 0) > 0
+      ? `${compCalcFormatSignedCurrency(rentGap)} rent spread to comp average`
+      : "Subject pricing and product mix are the main levers");
+  const avoid = mode === "aggressive"
+    ? "Don’t over-concede once pace has recovered."
+    : mode === "conservative"
+      ? "Don’t chase rate cuts without protecting the rent basis."
+      : "Don’t make a big swing without checking the next monthly snapshot.";
+  return {
+    mode,
+    label,
+    title: titleMap[mode] || titleMap.balanced,
+    summary: summaryMap[mode] || summaryMap.balanced,
+    detail: detailBits.join(" · "),
+    strategyLabel: String(market.strategyScore || market.recommendedApproach || "").trim(),
+    direction: mode === "aggressive" ? "up" : (mode === "conservative" ? "down" : "hold"),
+    severity: Math.abs(rentGap) + Math.abs(nerGap) + Math.abs((targetOccupancyPct > 0 ? currentOccPct - targetOccupancyPct : 0) * 8) + Math.max(0, cancelGap * 2),
+    rentGap,
+    nerGap,
+    targetOccupancyPct,
+    currentOccPct,
+    currentLeasedPct,
+    approvalPct,
+    cancelPct,
+    appToLeasePct,
+    keyAdvantage,
+    avoid,
+    score,
+    occupancyAhead,
+    currentRent: subjectRent,
+    currentNer: subjectNer
+  };
+}
+
+function buildCompCalculatorConcessionPlaybook(market, activity = {}) {
+  const termMonths = Math.max(1, Number(market.leaseTermMonths ?? 14) || 14);
+  const subjectOccPct = Number(activity.currentOccPct ?? market.subjectOccPct ?? 0) || 0;
+  const subjectLeases = Number(activity.leasesSigned ?? 0) || 0;
+  const subjectApps = Number(activity.applications ?? 0) || 0;
+  const buckets = new Map();
+  (Array.isArray(market.surveyComps) ? market.surveyComps : []).forEach(comp => {
+    const concessionText = String(comp?.concessionDetails ?? "").trim();
+    const types = compCalcParseConcessionTypes(concessionText);
+    const amount = compCalcEstimateConcessionValue(concessionText, market);
+    const rowTypes = types.length > 0 ? types : ["Other"];
+    rowTypes.forEach(type => {
+      const next = buckets.get(type) ?? {
+        type,
+        count: 0,
+        leasedPctTotal: 0,
+        leases30Total: 0,
+        apps30Total: 0,
+        rentTotal: 0,
+        nerTotal: 0,
+        monthlyTotal: 0,
+        examples: []
+      };
+      next.count += 1;
+      next.leasedPctTotal += Number(comp?.leasedPct ?? 0) || 0;
+      next.leases30Total += Number(comp?.leasesLast30 ?? 0) || 0;
+      next.apps30Total += Number(comp?.applicationsLast30 ?? 0) || 0;
+      next.rentTotal += Number(comp?.rent ?? 0) || 0;
+      next.nerTotal += Number(comp?.ner ?? 0) || 0;
+      next.monthlyTotal += amount;
+      if (concessionText) next.examples.push(concessionText);
+      buckets.set(type, next);
+    });
+  });
+  const rows = [...buckets.values()]
+    .map(row => {
+      const avgLeasedPct = row.count > 0 ? row.leasedPctTotal / row.count : 0;
+      const avgLeases30 = row.count > 0 ? row.leases30Total / row.count : 0;
+      const avgApps30 = row.count > 0 ? row.apps30Total / row.count : 0;
+      const avgMonthly = row.count > 0 ? row.monthlyTotal / row.count : 0;
+      const marketRead = avgLeasedPct >= subjectOccPct + 1.0 || avgLeases30 >= subjectLeases
+        ? "Performing better than us"
+        : avgApps30 >= subjectApps
+          ? "Above our app pace"
+          : avgLeasedPct >= Number(market.compAverageLeasedPct ?? 0)
+            ? "Above comp average"
+            : "Middle of pack";
       return {
-        detail,
-        market: survey,
-        meta,
-        recommendation: buildCompCalculatorRecommendation(survey)
+        type: row.type,
+        count: row.count,
+        avgLeasedPct,
+        avgLeases30,
+        avgApps30,
+        avgMonthly,
+        marketRead,
+        examples: [...new Set(row.examples)].slice(0, 2)
       };
     })
-    .filter(Boolean);
+    .sort((a, b) => (b.count - a.count) || (b.avgLeases30 - a.avgLeases30) || a.type.localeCompare(b.type));
+  const strongest = rows[0] ?? null;
+  const marketLeader = rows.find(row => row.marketRead === "Performing better than us") ?? strongest;
+  const buildLabel = row => row ? `${row.type}${row.avgMonthly > 0 ? ` (${formatDlrCurrency(row.avgMonthly)} / mo)` : ""}` : "";
+  return {
+    rows,
+    strongest,
+    marketLeader,
+    primaryLabel: buildLabel(strongest),
+    secondaryLabel: buildLabel(rows[1] ?? strongest),
+    aggressiveLabel: buildLabel(marketLeader ?? strongest),
+    averageMonthly: rows.length > 0 ? compCalcAverage(rows.map(row => row.avgMonthly)) : 0,
+    termMonths
+  };
+}
+
+function buildCompCalculatorPricingRows(market, activity = {}, playbook = {}, recommendation = {}, floorPlanContext = {}) {
+  const subjectRent = Number(market.subjectAskingRent ?? 0) || 0;
+  const subjectNer = Number(market.subjectNetEffectiveRent ?? 0) || 0;
+  const compRents = (Array.isArray(market.surveyComps) ? market.surveyComps : []).map(comp => Number(comp?.rent ?? 0)).filter(value => value > 0);
+  const compNers = (Array.isArray(market.surveyComps) ? market.surveyComps : []).map(comp => Number(comp?.ner ?? 0)).filter(value => value > 0);
+  const compLowRent = compRents.length > 0 ? Math.min(...compRents) : 0;
+  const compHighRent = compRents.length > 0 ? Math.max(...compRents) : 0;
+  const compLowNer = compNers.length > 0 ? Math.min(...compNers) : 0;
+  const compHighNer = compNers.length > 0 ? Math.max(...compNers) : 0;
+  const subjectSqft = Number(floorPlanContext.subjectAvgSqft ?? 0) || 0;
+  const compSqft = Number(floorPlanContext.compAvgSqft ?? 0) || 0;
+  const nerPerSqft = (ner, sqft) => ner > 0 && sqft > 0 ? ner / sqft : 0;
+  const leaseTermMonths = Math.max(1, Number(market.leaseTermMonths ?? playbook.termMonths ?? 14) || 14);
+  const currentMonthly = Math.max(0, Number(market.maxConcessionAmount ?? 0) || playbook.averageMonthly || 0);
+  const competitiveMonthly = Math.max(0, playbook.averageMonthly || currentMonthly || 0);
+  const aggressiveMonthly = Math.max(currentMonthly, Math.round(competitiveMonthly * 1.4));
+  const conservativeMonthly = Math.round(Math.max(0, competitiveMonthly * 0.55));
+  const aggressiveRent = subjectRent > 0
+    ? Math.max(0, Math.round(subjectRent - Math.max(50, Math.max(0, subjectRent - (compLowRent || subjectRent)) * 0.65)))
+    : 0;
+  const competitiveRent = compCalcAverage([subjectRent, Number(market.compAverageRent ?? 0)]) || subjectRent;
+  const conservativeRent = subjectRent || competitiveRent;
+  const aggressiveNer = aggressiveRent > 0 ? Math.max(0, aggressiveRent - aggressiveMonthly) : 0;
+  const competitiveNer = subjectNer > 0 ? subjectNer : Math.max(0, competitiveRent - competitiveMonthly);
+  const conservativeNer = subjectNer > 0 ? subjectNer : Math.max(0, conservativeRent - conservativeMonthly);
+  const currentNer = subjectNer > 0 ? subjectNer : conservativeNer;
+  const rows = [
+    {
+      metric: "Recommended Asking Rent",
+      conservative: conservativeRent,
+      competitive: competitiveRent,
+      aggressive: aggressiveRent,
+      current: subjectRent,
+      compLow: compLowRent,
+      compHigh: compHighRent,
+      formatter: value => value > 0 ? formatDlrCurrency(value) : "—"
+    },
+    {
+      metric: "Recommended Concession",
+      conservative: conservativeMonthly * leaseTermMonths,
+      competitive: competitiveMonthly * leaseTermMonths,
+      aggressive: aggressiveMonthly * leaseTermMonths,
+      current: currentMonthly * leaseTermMonths,
+      compLow: compLowMonthly(playbook, market),
+      compHigh: Math.max(compLowMonthly(playbook, market), aggressiveMonthly * leaseTermMonths),
+      formatter: value => value > 0 ? formatDlrCurrency(value) : "—"
+    },
+    {
+      metric: "Monthly Conc. Spread",
+      conservative: conservativeMonthly,
+      competitive: competitiveMonthly,
+      aggressive: aggressiveMonthly,
+      current: currentMonthly,
+      compLow: 0,
+      compHigh: 0,
+      formatter: value => value > 0 ? formatDlrCurrency(value) : "—"
+    },
+    {
+      metric: "Net Effective Rent",
+      conservative: conservativeNer,
+      competitive: competitiveNer,
+      aggressive: aggressiveNer,
+      current: currentNer,
+      compLow: compLowNer,
+      compHigh: compHighNer,
+      formatter: value => value > 0 ? formatDlrCurrency(value) : "—"
+    },
+    {
+      metric: "NER PSF",
+      conservative: nerPerSqft(conservativeNer, subjectSqft || compSqft),
+      competitive: nerPerSqft(competitiveNer, subjectSqft || compSqft),
+      aggressive: nerPerSqft(aggressiveNer, subjectSqft || compSqft),
+      current: nerPerSqft(currentNer, subjectSqft || compSqft),
+      compLow: compLowRent > 0 ? nerPerSqft(compLowNer, compSqft || subjectSqft) : 0,
+      compHigh: compHighRent > 0 ? nerPerSqft(compHighNer, compSqft || subjectSqft) : 0,
+      formatter: value => value > 0 ? `$${Number(value).toFixed(2)}` : "—"
+    },
+    {
+      metric: "Annual Revenue / Unit",
+      conservative: conservativeNer * 12,
+      competitive: competitiveNer * 12,
+      aggressive: aggressiveNer * 12,
+      current: currentNer * 12,
+      compLow: compLowNer * 12,
+      compHigh: compHighNer * 12,
+      formatter: value => value > 0 ? formatDlrCurrency(value) : "—"
+    },
+    {
+      metric: "Revenue vs Current / Year",
+      conservative: conservativeNer > 0 ? ((conservativeNer - currentNer) * 12) : 0,
+      competitive: competitiveNer > 0 ? ((competitiveNer - currentNer) * 12) : 0,
+      aggressive: aggressiveNer > 0 ? ((aggressiveNer - currentNer) * 12) : 0,
+      current: 0,
+      compLow: 0,
+      compHigh: 0,
+      formatter: value => value === 0 ? "—" : compCalcFormatSignedCurrency(value)
+    },
+    {
+      metric: "Concession Type",
+      conservative: playbook.strongest?.type || market.specialsRecommendation || market.marketConcessions || "—",
+      competitive: playbook.secondaryLabel || playbook.strongest?.type || market.marketConcessions || "—",
+      aggressive: playbook.aggressiveLabel || playbook.strongest?.type || market.marketConcessions || "—",
+      current: market.marketConcessions || market.specialsRecommendation || "—",
+      compLow: "—",
+      compHigh: "—",
+      formatter: value => String(value || "—")
+    }
+  ];
+  return rows.map(row => ({
+    ...row,
+    subject: row.current,
+    currentLabel: row.current,
+    compLowLabel: row.compLow,
+    compHighLabel: row.compHigh
+  }));
+}
+
+function compLowMonthly(playbook, market) {
+  const termMonths = Math.max(1, Number(market.leaseTermMonths ?? playbook?.termMonths ?? 14) || 14);
+  const values = (playbook?.rows ?? []).map(row => Number(row.avgMonthly ?? 0)).filter(value => value > 0);
+  if (values.length === 0) return 0;
+  return Math.min(...values) * termMonths;
 }
 
 function buildCompCalculatorFloorPlanRows(detail, market) {
@@ -12366,6 +12845,89 @@ function buildCompCalculatorFloorPlanRows(detail, market) {
   return rows.sort((a, b) => (Number(a.beds ?? 99) - Number(b.beds ?? 99)) || String(a.name).localeCompare(String(b.name)));
 }
 
+function buildCompCalculatorSnapshotData(detail, market, monthIdx = getSelectedDashboardMonthIndex()) {
+  const meta = getCompCalculatorScopeMeta(detail, market);
+  const activity = getCompCalculatorSubjectActivity(detail, market, monthIdx);
+  const floorPlanRows = buildCompCalculatorFloorPlanRows(detail, market);
+  const subjectSqft = compCalcAverage(floorPlanRows.map(row => row.marketedRent ? Number(row.sqft ?? 0) : 0).filter(Boolean));
+  const compSqft = compCalcAverage((market.floorPlanRates ?? []).map(rate => Number(rate.sqft ?? 0)).filter(Boolean));
+  const floorPlanContext = {
+    subjectAvgSqft: subjectSqft,
+    compAvgSqft: compSqft,
+    subjectPlanCount: floorPlanRows.filter(row => Number(row.marketedRent ?? 0) > 0).length,
+    compPlanCount: Array.isArray(market.floorPlanRates) ? market.floorPlanRates.length : 0
+  };
+  const recommendation = buildCompCalculatorRecommendation(market, activity, floorPlanContext);
+  const playbook = buildCompCalculatorConcessionPlaybook(market, activity);
+  const pricingRows = buildCompCalculatorPricingRows(market, activity, playbook, recommendation, floorPlanContext);
+  const surveyComps = Array.isArray(market.surveyComps) ? market.surveyComps : [];
+  const subjectRow = {
+    name: detail.name,
+    isSubject: true,
+    rent: Number(market.subjectAskingRent ?? 0) || 0,
+    ner: Number(market.subjectNetEffectiveRent ?? 0) || 0,
+    leasedPct: Number(activity.currentOccPct ?? market.subjectOccPct ?? 0) || 0,
+    exposurePct: Number(market.subjectExposurePct ?? 0) || 0,
+    applicationsLast30: Number(activity.applications ?? 0) || 0,
+    leasesLast30: Number(activity.leasesSigned ?? 0) || 0,
+    concessionDetails: String(market.marketConcessions || market.specialsRecommendation || "—").trim(),
+    threat: "YOU"
+  };
+  const compRows = surveyComps
+    .filter(comp => !comp.isSubject)
+    .map(comp => ({
+      ...comp,
+      threat: getCompCalculatorThreatLabel(comp, market, activity)
+    }))
+    .sort((a, b) => (Number(b.leasedPct ?? 0) - Number(a.leasedPct ?? 0)) || String(a.name).localeCompare(String(b.name)));
+  const landscapeRows = [subjectRow, ...compRows];
+  return {
+    detail,
+    market,
+    monthIdx,
+    meta,
+    activity,
+    floorPlanRows,
+    floorPlanContext,
+    recommendation,
+    playbook,
+    pricingRows,
+    subjectRow,
+    landscapeRows
+  };
+}
+
+function getCompCalculatorRows(monthIdx = getSelectedDashboardMonthIndex()) {
+  return getWorkspaceScopedDetails(monthIdx)
+    .map(detail => {
+      const survey = getCompCalculatorSurveySnapshot(detail, monthIdx);
+      if (!hasMarketSurveyData(survey)) return null;
+      const snapshot = buildCompCalculatorSnapshotData(detail, survey, monthIdx);
+      return {
+        detail,
+        market: survey,
+        meta: snapshot.meta,
+        activity: snapshot.activity,
+        recommendation: snapshot.recommendation,
+        playbook: snapshot.playbook,
+        pricingRows: snapshot.pricingRows,
+        floorPlanRows: snapshot.floorPlanRows,
+        landscapeRows: snapshot.landscapeRows
+      };
+    })
+    .filter(Boolean);
+}
+
+function getCompCalculatorThreatLabel(comp, market, activity) {
+  const subjectOccPct = Number(activity.currentOccPct ?? market.subjectOccPct ?? 0) || 0;
+  const leasedPct = Number(comp?.leasedPct ?? 0) || 0;
+  const rent = Number(comp?.rent ?? 0) || 0;
+  const compAverageRent = Number(market.compAverageRent ?? 0) || 0;
+  if (leasedPct >= subjectOccPct + 4 || (compAverageRent > 0 && rent <= compAverageRent * 0.94)) return "HIGH";
+  if (leasedPct >= subjectOccPct + 1.5 || (compAverageRent > 0 && rent <= compAverageRent * 0.98)) return "MEDIUM";
+  return "LOW";
+}
+
 function renderCompCalculatorPortfolioView(rows, monthIdx) {
   const marketGroups = new Map();
   rows.forEach(row => {
@@ -12376,18 +12938,19 @@ function renderCompCalculatorPortfolioView(rows, monthIdx) {
   const groups = [...marketGroups.values()]
     .map(group => {
       const directions = group.items.reduce((acc, item) => {
-        acc[item.recommendation.direction] = (acc[item.recommendation.direction] || 0) + 1;
+        acc[item.recommendation.mode] = (acc[item.recommendation.mode] || 0) + 1;
         return acc;
-      }, { up: 0, down: 0, hold: 0 });
-      const leadDirection = ["down", "hold", "up"].sort((a, b) => (directions[b] || 0) - (directions[a] || 0))[0];
+      }, { aggressive: 0, balanced: 0, conservative: 0 });
+      const leadDirection = ["conservative", "balanced", "aggressive"].sort((a, b) => (directions[b] || 0) - (directions[a] || 0))[0];
       return {
         ...group,
         avgCompRent: compCalcAverage(group.items.map(item => item.market.compAverageRent)),
         avgCompNer: compCalcAverage(group.items.map(item => item.market.compAverageNer)),
-        avgLeased: compCalcAverage(group.items.map(item => item.market.compAverageLeasedPct)),
+        avgLeased: compCalcAverage(group.items.map(item => item.activity.currentOccPct)),
         avgExposure: compCalcAverage(group.items.map(item => item.market.compAverageExposurePct)),
-        apps30: group.items.reduce((sum, item) => sum + (Number(item.market.applicationsLast30 ?? 0) || 0), 0),
-        leases30: group.items.reduce((sum, item) => sum + (Number(item.market.leasesLast30 ?? 0) || 0), 0),
+        apps30: group.items.reduce((sum, item) => sum + (Number(item.activity.applications ?? 0) || 0), 0),
+        approvals30: group.items.reduce((sum, item) => sum + (Number(item.activity.applicationsApproved ?? 0) || 0), 0),
+        leases30: group.items.reduce((sum, item) => sum + (Number(item.activity.leasesSigned ?? 0) || 0), 0),
         leadDirection,
         strongest: group.items.slice().sort((a, b) => b.recommendation.severity - a.recommendation.severity)[0]
       };
@@ -12396,25 +12959,26 @@ function renderCompCalculatorPortfolioView(rows, monthIdx) {
   const watchlist = rows.slice().sort((a, b) => b.recommendation.severity - a.recommendation.severity).slice(0, 5);
   const avgCompRent = compCalcAverage(rows.map(row => row.market.compAverageRent));
   const avgCompNer = compCalcAverage(rows.map(row => row.market.compAverageNer));
-  const totalApps30 = rows.reduce((sum, row) => sum + (Number(row.market.applicationsLast30 ?? 0) || 0), 0);
-  const totalLeases30 = rows.reduce((sum, row) => sum + (Number(row.market.leasesLast30 ?? 0) || 0), 0);
-  const downCount = rows.filter(row => row.recommendation.direction === "down").length;
-  const holdCount = rows.filter(row => row.recommendation.direction === "hold").length;
-  const upCount = rows.filter(row => row.recommendation.direction === "up").length;
+  const totalApps30 = rows.reduce((sum, row) => sum + (Number(row.activity.applications ?? 0) || 0), 0);
+  const totalApproved30 = rows.reduce((sum, row) => sum + (Number(row.activity.applicationsApproved ?? 0) || 0), 0);
+  const totalLeases30 = rows.reduce((sum, row) => sum + (Number(row.activity.leasesSigned ?? 0) || 0), 0);
+  const aggressiveCount = rows.filter(row => row.recommendation.mode === "aggressive").length;
+  const balancedCount = rows.filter(row => row.recommendation.mode === "balanced").length;
+  const conservativeCount = rows.filter(row => row.recommendation.mode === "conservative").length;
   return `<div class="comp-calc-shell">
     <section class="comp-calc-hero">
       <h2>Portfolio comp calculator by market area</h2>
-      <p>${rows.length} communities have saved APTIQ survey data for ${escapeHtml(FULL_MONTHS[monthIdx])}. This rollup stays tied to the uploaded survey snapshots for the selected dashboard month, then surfaces rate posture, recent demand, and market pressure by city and submarket.</p>
+      <p>This rollup keeps the survey comps in the market-data layer, but it now uses the stored Ronaldo month data for each subject property's leads, prospects, applications, approvals, and signed leases so the funnel read is truer to the operating snapshot.</p>
       <div class="comp-calc-kpi-grid">
-        <div class="comp-calc-kpi"><div class="k">Survey Coverage</div><div class="v">${rows.length}</div><div class="s">${groups.length} city / market areas represented</div></div>
+        <div class="comp-calc-kpi"><div class="k">Communities</div><div class="v">${rows.length}</div><div class="s">${groups.length} city / market areas represented</div></div>
         <div class="comp-calc-kpi"><div class="k">Avg Comp Rent</div><div class="v">${avgCompRent > 0 ? formatDlrCurrency(avgCompRent) : "—"}</div><div class="s">${avgCompNer > 0 ? `Avg comp NER ${formatDlrCurrency(avgCompNer)}` : "NER not populated in every survey"}</div></div>
-        <div class="comp-calc-kpi"><div class="k">Demand Pace</div><div class="v">${Math.round(totalApps30)}</div><div class="s">${Math.round(totalLeases30)} leases in the same 30-day survey windows</div></div>
-        <div class="comp-calc-kpi"><div class="k">Recommendation Mix</div><div class="v">${downCount}/${holdCount}/${upCount}</div><div class="s">Down / hold / up across the saved communities</div></div>
+        <div class="comp-calc-kpi"><div class="k">Ronaldo Apps</div><div class="v">${Math.round(totalApps30)}</div><div class="s">${Math.round(totalApproved30)} approved · ${Math.round(totalLeases30)} leases signed</div></div>
+        <div class="comp-calc-kpi"><div class="k">Recommendation Mix</div><div class="v">${aggressiveCount}/${balancedCount}/${conservativeCount}</div><div class="s">Aggressive / balanced / conservative across the saved communities</div></div>
       </div>
     </section>
     <section class="comp-calc-grid">
       <div class="comp-calc-card">
-        <h3>City and market-area overview</h3>
+        <h3>Market-area overview</h3>
         <div class="comp-calc-sub">These cards help you read the portfolio at the market level before drilling into a single community.</div>
         <div class="comp-calc-market-grid">
           ${groups.map(group => `<div class="comp-calc-market-card">
@@ -12422,27 +12986,27 @@ function renderCompCalculatorPortfolioView(rows, monthIdx) {
             <div class="meta">${escapeHtml(group.city)} · ${group.items.length} communit${group.items.length === 1 ? "y" : "ies"}</div>
             <div class="comp-calc-stat-grid">
               <div class="comp-calc-stat"><div class="k">Comp rent</div><div class="v">${group.avgCompRent > 0 ? formatDlrCurrency(group.avgCompRent) : "—"}</div><div class="s">${group.avgCompNer > 0 ? `Comp NER ${formatDlrCurrency(group.avgCompNer)}` : "NER not saved"}</div></div>
-              <div class="comp-calc-stat"><div class="k">Leased / exposure</div><div class="v">${compCalcFormatPercent(group.avgLeased)} / ${compCalcFormatPercent(group.avgExposure)}</div><div class="s">${Math.round(group.apps30)} apps · ${Math.round(group.leases30)} leases</div></div>
+              <div class="comp-calc-stat"><div class="k">Current occupancy</div><div class="v">${compCalcFormatPercent(group.avgLeased)}</div><div class="s">${Math.round(group.apps30)} apps · ${Math.round(group.approvals30)} approvals · ${Math.round(group.leases30)} leases</div></div>
             </div>
             <div class="comp-calc-reco ${escapeHtml(group.leadDirection)}" style="margin-top:12px">
               <div class="eyebrow">Recommendation view</div>
               <div class="title">${escapeHtml(group.strongest?.recommendation?.title || "Review current pricing")}</div>
-              <div class="body">${escapeHtml(group.strongest?.detail?.name || "")} is setting the strongest signal in this area. ${escapeHtml(group.strongest?.recommendation?.detail || "")}</div>
+              <div class="body">${escapeHtml(group.strongest?.detail?.name || "")} is setting the strongest signal in this area. ${escapeHtml(group.strongest?.recommendation?.summary || "")}</div>
             </div>
           </div>`).join("")}
         </div>
       </div>
       <div class="comp-calc-card">
         <h3>Recommendation watchlist</h3>
-        <div class="comp-calc-sub">These are the communities with the sharpest pricing or conversion tension in the uploaded survey set.</div>
+        <div class="comp-calc-sub">These are the communities with the sharpest pricing or conversion tension in the saved market set.</div>
         <div style="display:grid;gap:10px">
-          ${watchlist.map(item => `<div class="comp-calc-reco ${escapeHtml(item.recommendation.direction)}">
-            <div class="eyebrow">${escapeHtml(item.meta.marketArea)} · ${escapeHtml(item.recommendation.strategyLabel || "Survey-driven action")}</div>
+          ${watchlist.map(item => `<div class="comp-calc-reco ${escapeHtml(item.recommendation.mode)}">
+            <div class="eyebrow">${escapeHtml(item.meta.marketArea)} · ${escapeHtml(item.recommendation.strategyLabel || item.recommendation.label)}</div>
             <div class="title">${escapeHtml(item.detail.name)}: ${escapeHtml(item.recommendation.title)}</div>
             <div class="body">${escapeHtml(item.recommendation.summary)}</div>
             ${item.recommendation.detail ? `<div class="body" style="margin-top:6px;color:var(--muted)">${escapeHtml(item.recommendation.detail)}</div>` : ""}
             <div class="comp-calc-actions" style="margin-top:10px">
-              <button type="button" class="btn btn-sm btn-primary" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(item.detail.name)}, 0)'>Open Comp Calculator</button>
+              <button type="button" class="btn btn-sm btn-primary" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(item.detail.name)}, 4)'>Open Comp Calculator</button>
               <button type="button" class="btn btn-sm btn-gray" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(item.detail.name)}, 7)'>Open Data Import</button>
             </div>
           </div>`).join("")}
@@ -12457,23 +13021,23 @@ function renderCompCalculatorPortfolioView(rows, monthIdx) {
           <thead>
             <tr>
               <th>Community</th>
-              <th>City / Market Area</th>
+              <th>Market Area</th>
+              <th>Subject Leads / Apps</th>
               <th>Comp Rent / NER</th>
               <th>Leased / Exposure</th>
-              <th>Apps / Leases 30</th>
               <th>Recommendation</th>
               <th>Action</th>
             </tr>
           </thead>
           <tbody>
-            ${rows.sort((a, b) => String(a.detail.name).localeCompare(String(b.detail.name))).map(item => `<tr>
-              <td><strong>${escapeHtml(item.detail.name)}</strong><div class="meta">${escapeHtml(item.market.updatedOn || item.market.sourceFileName || "APTIQ survey saved")}</div></td>
-              <td>${escapeHtml(item.meta.city)}<div class="meta">${escapeHtml(item.meta.marketArea)}</div></td>
+            ${rows.slice().sort((a, b) => String(a.detail.name).localeCompare(String(b.detail.name))).map(item => `<tr>
+              <td><strong>${escapeHtml(item.detail.name)}</strong><div class="meta">${escapeHtml(item.market.updatedOn || item.market.sourceFileName || item.activity.sourceLabel || "Saved snapshot")}</div></td>
+              <td>${escapeHtml(item.meta.marketArea)}<div class="meta">${escapeHtml(item.meta.city)}</div></td>
+              <td>${Math.round(item.activity.applications ?? 0)}<div class="meta">${Math.round(item.activity.guestCards ?? 0)} leads · ${Math.round(item.activity.applicationsApproved ?? 0)} approved</div></td>
               <td>${item.market.compAverageRent > 0 ? formatDlrCurrency(item.market.compAverageRent) : "—"}<div class="meta">${item.market.compAverageNer > 0 ? `NER ${formatDlrCurrency(item.market.compAverageNer)}` : "NER not saved"}</div></td>
               <td>${compCalcFormatPercent(item.market.compAverageLeasedPct)}<div class="meta">Exposure ${compCalcFormatPercent(item.market.compAverageExposurePct)}</div></td>
-              <td>${Math.round(item.market.applicationsLast30 || 0)}<div class="meta">${Math.round(item.market.leasesLast30 || 0)} leases</div></td>
-              <td><span class="comp-calc-tonal ${escapeHtml(item.recommendation.direction)}">${escapeHtml(item.recommendation.title)}</span><div class="meta">${escapeHtml(item.recommendation.detail || item.recommendation.summary)}</div></td>
-              <td><button type="button" class="btn btn-sm btn-primary" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(item.detail.name)}, 0)'>Open</button></td>
+              <td><span class="comp-calc-tonal ${escapeHtml(item.recommendation.mode)}">${escapeHtml(item.recommendation.title)}</span><div class="meta">${escapeHtml(item.recommendation.detail || item.recommendation.summary)}</div></td>
+              <td><button type="button" class="btn btn-sm btn-primary" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(item.detail.name)}, 4)'>Open</button></td>
             </tr>`).join("")}
           </tbody>
         </table>
@@ -12482,105 +13046,487 @@ function renderCompCalculatorPortfolioView(rows, monthIdx) {
   </div>`;
 }
 
+function buildCompCalculatorInvestorSnapshotDocument(data) {
+  const logoSrc = resolveExportBrandLogoSrc();
+  const { detail, market, activity, recommendation, playbook, pricingRows, floorPlanRows, landscapeRows, meta, monthIdx } = data;
+  const title = `${detail.name} Investor Snapshot`;
+  const subjectLabel = recommendation.mode === "aggressive"
+    ? "AGGRESSIVE"
+    : recommendation.mode === "conservative"
+      ? "CONSERVATIVE"
+      : "BALANCED";
+  return `<!DOCTYPE html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>${escapeHtml(title)}</title>
+      <style>
+        body { margin:0; font-family: Arial, sans-serif; color:#0f172a; background:#eef3f8; }
+        * { box-sizing:border-box; }
+        .page { padding:14px; }
+        .sheet { background:#fff; border:1px solid #d6dee8; border-radius:16px; overflow:hidden; box-shadow:0 12px 24px rgba(15,23,42,0.08); }
+        .hero { background:linear-gradient(135deg,#0e3c56,#165a76 55%,#5d8c8b); color:#fff; padding:18px 20px; display:flex; justify-content:space-between; gap:18px; align-items:flex-start; }
+        .hero h1 { font-size:22px; margin:0 0 4px; }
+        .hero p { margin:0; font-size:12px; line-height:1.6; color:rgba(255,255,255,0.84); max-width:1080px; }
+        .hero .meta { font-size:11px; text-align:right; color:rgba(255,255,255,0.82); white-space:nowrap; }
+        .hero img { height:38px; width:auto; display:block; margin-bottom:8px; }
+        .section { padding:14px 16px 0; }
+        .section-title { background:#0e3c56; color:#fff; padding:10px 14px; font-weight:700; text-transform:uppercase; font-size:13px; letter-spacing:0.02em; }
+        .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(165px,1fr)); gap:10px; }
+        .kpi { border:1px solid #d6dee8; border-radius:12px; padding:12px; background:#f8fbff; }
+        .kpi .k { font-size:10px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:5px; }
+        .kpi .v { font-size:22px; font-weight:700; color:#0f172a; margin-bottom:4px; }
+        .kpi .s { font-size:11px; color:#475569; line-height:1.45; }
+        .two-col { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+        @media (max-width:900px) { .two-col { grid-template-columns:1fr; } }
+        .card { border:1px solid #d6dee8; border-radius:14px; padding:12px; background:#fff; }
+        .card h3 { margin:0 0 6px; font-size:14px; color:#0f172a; }
+        .card p, .card li { font-size:12px; line-height:1.6; color:#334155; }
+        .card ul { margin:8px 0 0; padding-left:18px; }
+        table { width:100%; border-collapse:collapse; }
+        th, td { border:1px solid #d6dee8; padding:9px 10px; font-size:12px; vertical-align:top; }
+        th { background:#0e3c56; color:#fff; text-transform:uppercase; letter-spacing:0.05em; font-size:10px; text-align:left; }
+        .you { background:#d8ebf4; }
+        .badge { display:inline-flex; align-items:center; justify-content:center; padding:3px 8px; border-radius:999px; font-size:10px; font-weight:700; }
+        .badge.high { background:#fee2e2; color:#b91c1c; }
+        .badge.medium { background:#fef3c7; color:#b45309; }
+        .badge.low { background:#dcfce7; color:#15803d; }
+        .badge.you { background:#dbeafe; color:#0f4c81; }
+        .muted { font-size:10px; color:#64748b; }
+        .pricing-grid { display:grid; gap:12px; }
+        .pricing-title { font-size:14px; font-weight:700; color:#0f172a; margin:0 0 8px; }
+        .footer { padding:0 16px 16px; font-size:10px; color:#64748b; }
+      </style>
+    </head>
+    <body>
+      <div class="page">
+        <div class="sheet">
+          <div class="hero">
+            <div>
+              <img src="${logoSrc}" alt="RISE logo">
+              <h1>${escapeHtml(title)}</h1>
+              <p>${escapeHtml(meta.city)} · ${escapeHtml(meta.marketArea)} · ${escapeHtml(FULL_MONTHS[monthIdx])}. This report uses the saved Ronaldo activity for the subject property and the uploaded comp survey for the market read, then blends both into a printable investor snapshot.</p>
+            </div>
+            <div class="meta">
+              <div>${escapeHtml(activity.sourceLabel)}</div>
+              <div>Leasing approach: ${escapeHtml(recommendation.label)}</div>
+              <div>Generated: ${escapeHtml(new Date().toLocaleString())}</div>
+            </div>
+          </div>
+          <div class="section">
+            <div class="kpi-grid">
+              <div class="kpi"><div class="k">Subject Occupancy</div><div class="v">${compCalcFormatPercent(activity.currentOccPct)}</div><div class="s">${activity.budgetOccPct > 0 ? `${activity.budgetOccPct.toFixed(1)}% goal` : "Saved goal not set"}</div></div>
+              <div class="kpi"><div class="k">Leads / Prospects</div><div class="v">${Math.round(activity.guestCards)}</div><div class="s">${Math.round(activity.tours)} tours · ${Math.round(activity.applications)} applications</div></div>
+              <div class="kpi"><div class="k">Approved Apps</div><div class="v">${Math.round(activity.applicationsApproved)}</div><div class="s">${Math.round(activity.approvalPct)}% approval · ${Math.round(activity.appToLeasePct)}% app-to-lease</div></div>
+              <div class="kpi"><div class="k">Pricing Mode</div><div class="v">${escapeHtml(subjectLabel)}</div><div class="s">${escapeHtml(recommendation.summary)}</div></div>
+            </div>
+          </div>
+          <div class="section">
+            <div class="section-title">Competitive Landscape</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Property</th>
+                  <th>Rent</th>
+                  <th>NER</th>
+                  <th>Leased / Exposure</th>
+                  <th>Apps 30D</th>
+                  <th>Leases 30D</th>
+                  <th>Concession</th>
+                  <th>Threat</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${landscapeRows.map(row => `<tr class="${row.isSubject ? "you" : ""}">
+                  <td><strong>${escapeHtml(row.name)}</strong>${row.isSubject ? `<div class="muted">Subject property</div>` : ""}</td>
+                  <td>${row.rent > 0 ? formatDlrCurrency(row.rent) : "—"}</td>
+                  <td>${row.ner > 0 ? formatDlrCurrency(row.ner) : "—"}</td>
+                  <td>${compCalcFormatPercent(row.leasedPct)} / ${compCalcFormatPercent(row.exposurePct)}</td>
+                  <td>${Math.round(row.applicationsLast30 ?? 0)}</td>
+                  <td>${Math.round(row.leasesLast30 ?? 0)}</td>
+                  <td>${escapeHtml(row.concessionDetails || "—")}</td>
+                  <td><span class="badge ${row.isSubject ? "you" : String(row.threat || "").toLowerCase()}">${escapeHtml(row.threat || (row.isSubject ? "YOU" : "LOW"))}</span></td>
+                </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>
+          <div class="section two-col">
+            <div>
+              <div class="section-title">Concession Playbook</div>
+              <div class="card">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Concession Type</th>
+                      <th># Comps</th>
+                      <th>Market Read</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${(playbook.rows || []).map(row => `<tr>
+                      <td><strong>${escapeHtml(row.type)}</strong></td>
+                      <td>${row.count}</td>
+                      <td>${escapeHtml(row.marketRead)}</td>
+                    </tr>`).join("") || `<tr><td colspan="3">No concession rows were saved for this market survey yet.</td></tr>`}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div>
+              <div class="section-title">Marketing Expert Recommendation</div>
+              <div class="card">
+                <h3>${escapeHtml(recommendation.title)}</h3>
+                <p>${escapeHtml(recommendation.summary)}</p>
+                <ul>
+                  <li>${escapeHtml(recommendation.detail || "Ronaldo data is being used to anchor the subject-property funnel.")}</li>
+                  <li>${escapeHtml(recommendation.keyAdvantage)}</li>
+                  <li>${escapeHtml(recommendation.avoid)}</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div class="section">
+            <div class="section-title">Recommended Pricing</div>
+            <div class="card pricing-grid">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Metric</th>
+                    <th>Conservative</th>
+                    <th>Competitive</th>
+                    <th>Aggressive</th>
+                    <th>Current</th>
+                    <th>Comp Low</th>
+                    <th>Comp High</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${pricingRows.map(row => `<tr>
+                    <td><strong>${escapeHtml(row.metric)}</strong></td>
+                    <td>${escapeHtml(row.formatter(row.conservative))}</td>
+                    <td>${escapeHtml(row.formatter(row.competitive))}</td>
+                    <td>${escapeHtml(row.formatter(row.aggressive))}</td>
+                    <td>${escapeHtml(row.formatter(row.current))}</td>
+                    <td>${escapeHtml(row.formatter(row.compLow))}</td>
+                    <td>${escapeHtml(row.formatter(row.compHigh))}</td>
+                  </tr>`).join("")}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="footer">This investor snapshot is generated from ATLAS RISE dashboard data and is meant to match the market-table layout in the attached examples while keeping RISE branding and subject-property data intact.</div>
+        </div>
+      </div>
+    </body>
+  </html>`;
+}
+
+function openCompCalculatorInvestorSnapshot(detailName, monthIdx = getSelectedDashboardMonthIndex()) {
+  const details = getWorkspaceScopedDetails(monthIdx);
+  const detail = details.find(item => item.name === detailName) || details[0];
+  const market = detail ? getCompCalculatorSurveySnapshot(detail, monthIdx) : defaultMarketSurveyData();
+  if (!detail || !hasMarketSurveyData(market)) {
+    alert(`No saved comp calculator data is available for ${String(detailName || getProp().name)} in ${FULL_MONTHS[monthIdx]}.`);
+    return false;
+  }
+  const data = buildCompCalculatorSnapshotData(detail, market, monthIdx);
+  const win = window.open("", "_blank");
+  if (!win) {
+    alert("The investor snapshot could not be opened because the browser blocked the popup.");
+    return false;
+  }
+  win.document.write(buildCompCalculatorInvestorSnapshotDocument(data));
+  win.document.close();
+  win.focus();
+  return false;
+}
+
 function renderCompCalculatorCommunityView(detail, market, monthIdx) {
-  const meta = getCompCalculatorScopeMeta(detail, market);
-  const recommendation = buildCompCalculatorRecommendation(market);
-  const subjectVsComp = [
+  const snapshot = buildCompCalculatorSnapshotData(detail, market, monthIdx);
+  const { activity, recommendation, playbook, pricingRows, floorPlanRows, landscapeRows, meta } = snapshot;
+  const controls = [
     {
-      label: "Asking rent",
-      value: Number(market.subjectAskingRent ?? 0) > 0 ? formatDlrCurrency(market.subjectAskingRent) : "—",
-      sub: Number(market.compAverageRent ?? 0) > 0 ? `${compCalcFormatSignedCurrency(Number(market.subjectAskingRent ?? 0) - Number(market.compAverageRent ?? 0))} vs comp avg` : "Comp average not saved"
+      key: "targetOccupancyPct",
+      label: "Target Occupancy",
+      value: Number(market.targetOccupancyPct ?? activity.budgetOccPct ?? 0) || ""
     },
     {
-      label: "Net effective rent",
-      value: Number(market.subjectNetEffectiveRent ?? 0) > 0 ? formatDlrCurrency(market.subjectNetEffectiveRent) : "—",
-      sub: Number(market.compAverageNer ?? 0) > 0 ? `${compCalcFormatSignedCurrency(Number(market.subjectNetEffectiveRent ?? 0) - Number(market.compAverageNer ?? 0))} vs comp avg NER` : "Comp NER not saved"
+      key: "leaseTermMonths",
+      label: "Lease Term (mo)",
+      value: Number(market.leaseTermMonths ?? 0) || ""
     },
     {
-      label: "Leased / exposure",
-      value: `${compCalcFormatPercent(market.subjectOccPct)} / ${compCalcFormatPercent(market.subjectExposurePct)}`,
-      sub: `${compCalcFormatPercent(market.compAverageLeasedPct)} / ${compCalcFormatPercent(market.compAverageExposurePct)} comp averages`
+      key: "leasingApproach",
+      label: "Leasing Approach",
+      value: compCalcNormalizeApproach(market.leasingApproach)
     },
     {
-      label: "Applications / leases",
-      value: `${Math.round(market.applicationsLast30 || 0)} / ${Math.round(market.leasesLast30 || 0)}`,
-      sub: `${Math.round(compCalcPercent(market.leasesLast30 || 0, market.applicationsLast30 || 0))}% app-to-lease from the survey window`
+      key: "maxConcessionAmount",
+      label: "Max Concession",
+      value: Number(market.maxConcessionAmount ?? 0) || ""
     }
   ];
-  const floorPlanRows = buildCompCalculatorFloorPlanRows(detail, market);
-  const comps = Array.isArray(market.surveyComps) ? market.surveyComps : [];
-  const subject = comps.find(comp => comp.isSubject);
-  const peers = comps.filter(comp => !comp.isSubject).sort((a, b) => Number(b.leasedPct ?? 0) - Number(a.leasedPct ?? 0));
+  const kpis = [
+    {
+      label: "Leads / Prospects",
+      value: String(Math.round(activity.guestCards ?? 0)),
+      sub: `${Math.round(activity.guestToTourPct || 0)}% guest-to-tour from Ronaldo data`
+    },
+    {
+      label: "Applications (30d)",
+      value: String(Math.round(activity.applications ?? 0)),
+      sub: `${Math.round(activity.approvedPct || 0)}% approval rate`
+    },
+    {
+      label: "Approved Apps",
+      value: String(Math.round(activity.applicationsApproved ?? 0)),
+      sub: `${Math.round(activity.appToLeasePct || 0)}% app-to-lease`
+    },
+    {
+      label: "Leases Signed",
+      value: String(Math.round(activity.leasesSigned ?? 0)),
+      sub: `${Math.round(activity.currentOccPct || 0)}% subject occupancy`
+    },
+    {
+      label: "Cancel Rate",
+      value: compCalcFormatPercent(activity.cancelledPct),
+      sub: `${compCalcFormatPercent(market.compAverageCancelPct)} market average`
+    },
+    {
+      label: "Budget Pace",
+      value: compCalcFormatPercent(activity.budgetOccPct),
+      sub: `${recommendation.occupancyAhead ? "On pace / ahead" : "Needs more leases"}`
+    }
+  ];
+  const controlHtml = controls.map(control => {
+    const inputId = `cc-${control.key}`;
+    const commonLabel = `<label for="${inputId}">${escapeHtml(control.label)}</label>`;
+    if (control.key === "leasingApproach") {
+      return `<div class="comp-calc-control">${commonLabel}<select id="${inputId}" onchange="updateMarketSurveyField('leasingApproach', this.value)">
+        <option value="balanced" ${control.value === "balanced" ? "selected" : ""}>Balanced</option>
+        <option value="aggressive" ${control.value === "aggressive" ? "selected" : ""}>Aggressive</option>
+        <option value="conservative" ${control.value === "conservative" ? "selected" : ""}>Conservative</option>
+      </select></div>`;
+    }
+    return `<div class="comp-calc-control">${commonLabel}<input id="${inputId}" type="number" min="0" step="1" value="${control.value || ""}" onchange="updateMarketSurveyField('${control.key}', this.value)"></div>`;
+  }).join("");
+  const subjectConcession = String(market.marketConcessions || market.specialsRecommendation || "—").trim();
+  const playbookSummary = playbook.rows.length > 0
+    ? `${playbook.strongest?.type || "No"} is the most common special in the current comp set. ${playbook.marketLeader?.marketRead || "Market positioning is mixed."}`
+    : "No concession patterns were detected in the uploaded survey rows yet.";
   return `<div class="comp-calc-shell">
     <section class="comp-calc-hero">
       <h2>${escapeHtml(detail.name)} comp calculator</h2>
-      <p>${escapeHtml(meta.city)} · ${escapeHtml(meta.marketArea)} · ${escapeHtml(FULL_MONTHS[monthIdx])}. This view reads the saved APTIQ survey snapshot for the selected month, lines it up against current subject positioning, and turns it into rate and concession recommendations.</p>
+      <p>${escapeHtml(meta.city)} · ${escapeHtml(meta.marketArea)} · ${escapeHtml(FULL_MONTHS[monthIdx])}. The subject-property lead and application counts are pulled from the saved Ronaldo month data, while rent and concession comparisons still come from the uploaded market survey.</p>
+      <div class="comp-calc-toolbar">
+        <div class="comp-calc-toolbar-brand">
+          <img src="${resolveExportBrandLogoSrc()}" alt="RISE logo">
+          <div class="comp-calc-toolbar-copy">
+            <div class="eyebrow">RISE Property</div>
+            <div class="title">${escapeHtml(detail.name)}</div>
+            <div class="sub">${escapeHtml(activity.sourceLabel)} · ${escapeHtml(recommendation.label)} pricing posture · ${escapeHtml(recommendation.keyAdvantage)}</div>
+          </div>
+        </div>
+        <div class="comp-calc-controls">${controlHtml}</div>
+        <div class="comp-calc-toolbar-actions">
+          <button type="button" class="btn btn-sm btn-primary" onclick="renderTab()">Analyze &amp; Generate</button>
+          <button type="button" class="btn btn-sm btn-gray" onclick='return openCompCalculatorInvestorSnapshot(${JSON.stringify(detail.name)}, ${monthIdx})'>Investor Snapshot</button>
+        </div>
+      </div>
       <div class="comp-calc-kpi-grid">
-        ${subjectVsComp.map(card => `<div class="comp-calc-kpi"><div class="k">${escapeHtml(card.label)}</div><div class="v">${escapeHtml(card.value)}</div><div class="s">${escapeHtml(card.sub)}</div></div>`).join("")}
+        ${kpis.map(card => `<div class="comp-calc-kpi"><div class="k">${escapeHtml(card.label)}</div><div class="v">${escapeHtml(String(card.value))}</div><div class="s">${escapeHtml(card.sub)}</div></div>`).join("")}
       </div>
     </section>
     <section class="comp-calc-grid">
       <div class="comp-calc-card">
-        <h3>Recommendation view</h3>
-        <div class="comp-calc-sub">This summary blends the uploaded market metrics, saved comp notes, and the subject-versus-market spread for the selected month.</div>
-        <div class="comp-calc-reco ${escapeHtml(recommendation.direction)}">
-          <div class="eyebrow">${escapeHtml(market.strategyScore || market.recommendedApproach || "Survey recommendation")}</div>
+        <div class="comp-calc-section-title">
+          <div>
+            <h3>Leasing Velocity</h3>
+            <div class="comp-calc-sub">This is the decision layer: where the subject-property funnel sits versus the saved target occupancy and how hard the property should lean on price.</div>
+          </div>
+          <div class="comp-calc-section-badge">${escapeHtml(recommendation.title)}</div>
+        </div>
+        <div class="comp-calc-reco ${escapeHtml(recommendation.mode)}">
+          <div class="eyebrow">${escapeHtml(recommendation.strategyLabel || recommendation.label)}</div>
           <div class="title">${escapeHtml(recommendation.title)}</div>
           <div class="body">${escapeHtml(recommendation.summary)}</div>
-          ${recommendation.detail ? `<div class="body" style="margin-top:8px;color:var(--muted)">${escapeHtml(recommendation.detail)}</div>` : ""}
+          <div class="body" style="margin-top:8px;color:var(--muted)">${escapeHtml(recommendation.detail)}</div>
         </div>
         <div class="comp-calc-chip-row">
-          <div class="comp-calc-chip">Primary comp set: ${escapeHtml(market.primaryCompSet || "Saved survey comps")}</div>
-          <div class="comp-calc-chip">Survey updated: ${escapeHtml(market.updatedOn || market.uploadedAt || "Not stamped")}</div>
-          <div class="comp-calc-chip">Source: ${escapeHtml(market.sourceFileName || market.sourceKind || "APTIQ upload")}</div>
+          <div class="comp-calc-chip">Subject data: ${escapeHtml(activity.sourceLabel)}</div>
+          <div class="comp-calc-chip">Target occupancy: ${escapeHtml(activity.budgetOccPct > 0 ? `${activity.budgetOccPct.toFixed(1)}%` : "Not set")}</div>
+          <div class="comp-calc-chip">Leasing approach: ${escapeHtml(compCalcApproachLabel(market.leasingApproach))}</div>
+          <div class="comp-calc-chip">Comp set: ${escapeHtml(market.primaryCompSet || "Saved survey comps")}</div>
         </div>
-        <div class="comp-calc-stat-grid" style="margin-top:14px">
-          <div class="comp-calc-stat"><div class="k">Specials recommendation</div><div class="v" style="font-size:0.88rem">${escapeHtml(market.specialsRecommendation || "Tune specials based on current conversion friction.")}</div><div class="s">${escapeHtml(market.marketConcessions || "No explicit comp concession string saved yet.")}</div></div>
-          <div class="comp-calc-stat"><div class="k">Pricing note</div><div class="v" style="font-size:0.88rem">${escapeHtml(market.pricingNotes || market.compNarrative || "Add the narrative you want carried into recommendation views.")}</div><div class="s">This note is reused from the saved market survey entry.</div></div>
+      <div class="comp-calc-stat-grid" style="margin-top:14px">
+          <div class="comp-calc-stat"><div class="k">Velocity Read</div><div class="v" style="font-size:0.92rem">${escapeHtml(Number(market.compAverageLeases30 ?? 0) > 0 && activity.applications >= Number(market.compAverageLeases30 ?? 0) ? "Traffic is Healthy" : "Traffic Needs More Close")}</div><div class="s">${Math.round(activity.guestCards ?? 0)} leads, ${Math.round(activity.tours ?? 0)} tours, ${Math.round(activity.applications ?? 0)} applications.</div></div>
+          <div class="comp-calc-stat"><div class="k">Cancel Signal</div><div class="v" style="font-size:0.92rem">${escapeHtml(Number(market.compAverageCancelPct ?? 0) > 0 && activity.cancelledPct > Number(market.compAverageCancelPct ?? 0) ? "Pricing Resistance Detected" : "Cancel Pace is Manageable")}</div><div class="s">${compCalcFormatPercent(activity.cancelledPct)} subject cancel rate vs ${compCalcFormatPercent(market.compAverageCancelPct)} market average.</div></div>
+          <div class="comp-calc-stat"><div class="k">Key Advantage</div><div class="v" style="font-size:0.92rem">${escapeHtml(recommendation.keyAdvantage)}</div><div class="s">${escapeHtml(meta.marketArea)} operating mix and subject product positioning.</div></div>
+          <div class="comp-calc-stat"><div class="k">Concession Move</div><div class="v" style="font-size:0.92rem">${escapeHtml(playbook.strongest?.type || subjectConcession || "Hold current special")}</div><div class="s">${escapeHtml(playbookSummary)}</div></div>
         </div>
       </div>
       <div class="comp-calc-card">
-        <h3>Conversion pressure</h3>
-        <div class="comp-calc-sub">This strips the survey down to the signals most likely driving the pricing conversation.</div>
-        <div class="comp-calc-stat-grid">
-          <div class="comp-calc-stat"><div class="k">Subject occupancy</div><div class="v">${compCalcFormatPercent(market.subjectOccPct)}</div><div class="s">${Number(market.compAverageLeasedPct ?? 0) > 0 ? `${(Number(market.subjectOccPct ?? 0) - Number(market.compAverageLeasedPct ?? 0)).toFixed(1)} pts vs comps` : "Comp occupancy not saved"}</div></div>
-          <div class="comp-calc-stat"><div class="k">Subject exposure</div><div class="v">${compCalcFormatPercent(market.subjectExposurePct)}</div><div class="s">${Number(market.compAverageExposurePct ?? 0) > 0 ? `${(Number(market.subjectExposurePct ?? 0) - Number(market.compAverageExposurePct ?? 0)).toFixed(1)} pts vs comps` : "Comp exposure not saved"}</div></div>
-          <div class="comp-calc-stat"><div class="k">Comp lease pace</div><div class="v">${Math.round(market.compAverageLeases30 || 0)}</div><div class="s">Average leases over the last 30 days across the uploaded survey</div></div>
-          <div class="comp-calc-stat"><div class="k">Cancel rate</div><div class="v">${compCalcFormatPercent(market.cancellationsLast30Pct)}</div><div class="s">${compCalcFormatPercent(market.compAverageCancelPct)} market average cancel rate</div></div>
+        <div class="comp-calc-section-title">
+          <div>
+            <h3>Your Property</h3>
+            <div class="comp-calc-sub">The floor-plan table compares the budget setup for the RISE subject property against the imported market rates and only shows the subject plans saved on this property.</div>
+          </div>
+          <div class="comp-calc-section-badge">${landscapeRows.length} comps</div>
         </div>
-        ${subject ? `<div class="comp-calc-empty" style="margin-top:14px">${escapeHtml(subject.name)} is saved as the subject row in the survey comp table. Use the table below to review which comps are carrying the highest rent, strongest occupancy, and biggest concession pressure.</div>` : ""}
+        <div class="comp-calc-table-wrap">
+          <table class="comp-calc-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th>Conservative</th>
+                <th>Competitive</th>
+                <th>Aggressive</th>
+                <th>Current</th>
+                <th>Comp Low</th>
+                <th>Comp High</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${pricingRows.map(row => `<tr>
+                <td><strong>${escapeHtml(row.metric)}</strong></td>
+                <td>${escapeHtml(row.formatter(row.conservative))}</td>
+                <td>${escapeHtml(row.formatter(row.competitive))}</td>
+                <td>${escapeHtml(row.formatter(row.aggressive))}</td>
+                <td>${escapeHtml(row.formatter(row.current))}</td>
+                <td>${escapeHtml(row.formatter(row.compLow))}</td>
+                <td>${escapeHtml(row.formatter(row.compHigh))}</td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
     <section class="comp-calc-card">
-      <h3>Competitive landscape</h3>
-      <div class="comp-calc-sub">Saved directly from the APTIQ upload for ${escapeHtml(FULL_MONTHS[monthIdx])}. This makes it easy to flip community to community without re-uploading the workbook.</div>
+      <div class="comp-calc-section-title">
+        <div>
+          <h3>Competitive Landscape</h3>
+          <div class="comp-calc-sub">The subject row is powered by the Ronaldo uploads; the remaining rows reflect the market survey comps and the concession pressure they are carrying.</div>
+        </div>
+        <div class="comp-calc-section-badge">Market read</div>
+      </div>
       <div class="comp-calc-table-wrap">
         <table class="comp-calc-table">
           <thead>
             <tr>
-              <th>Comp</th>
-              <th>Rent / NER</th>
+              <th>Property</th>
+              <th>Rent</th>
+              <th>NER</th>
               <th>Leased / Exposure</th>
-              <th>Apps / Leases 30</th>
+              <th>Apps 30D</th>
+              <th>Leases 30D</th>
               <th>Concession</th>
+              <th>Threat</th>
             </tr>
           </thead>
           <tbody>
-            ${(subject ? [subject] : []).concat(peers).map(comp => `<tr>
-              <td><strong>${escapeHtml(comp.name)}</strong>${comp.isSubject ? `<div class="meta">Subject property</div>` : ""}</td>
-              <td>${Number(comp.rent ?? 0) > 0 ? formatDlrCurrency(comp.rent) : "—"}<div class="meta">${Number(comp.ner ?? 0) > 0 ? `NER ${formatDlrCurrency(comp.ner)}` : "NER not saved"}</div></td>
-              <td>${compCalcFormatPercent(comp.leasedPct)}<div class="meta">Exposure ${compCalcFormatPercent(comp.exposurePct)}</div></td>
-              <td>${Math.round(comp.applicationsLast30 || 0)}<div class="meta">${Math.round(comp.leasesLast30 || 0)} leases</div></td>
-              <td>${escapeHtml(comp.concessionDetails || "—")}</td>
-            </tr>`).join("") || `<tr><td colspan="5">No comp rows were saved with this survey yet.</td></tr>`}
+            ${landscapeRows.map(row => `<tr class="${row.isSubject ? "you" : ""}">
+              <td><strong>${escapeHtml(row.name)}</strong>${row.isSubject ? `<div class="meta">Subject property</div>` : ""}</td>
+              <td>${row.rent > 0 ? formatDlrCurrency(row.rent) : "—"}</td>
+              <td>${row.ner > 0 ? formatDlrCurrency(row.ner) : "—"}</td>
+              <td>${compCalcFormatPercent(row.leasedPct)} / ${compCalcFormatPercent(row.exposurePct)}</td>
+              <td>${Math.round(row.applicationsLast30 ?? 0)}</td>
+              <td>${Math.round(row.leasesLast30 ?? 0)}</td>
+              <td>${escapeHtml(row.concessionDetails || "—")}</td>
+              <td><span class="badge ${row.isSubject ? "you" : String(row.threat || "").toLowerCase()}">${escapeHtml(row.threat || (row.isSubject ? "YOU" : "LOW"))}</span></td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <section class="comp-calc-grid">
+      <div class="comp-calc-card">
+        <div class="comp-calc-section-title">
+          <div>
+            <h3>Concession Playbook</h3>
+            <div class="comp-calc-sub">These concession types are grouped by how often they appear in the uploaded comp set and whether they appear to outperform the subject property's pace.</div>
+          </div>
+          <div class="comp-calc-section-badge">Playbook</div>
+        </div>
+        <div class="comp-calc-table-wrap">
+          <table class="comp-calc-table">
+            <thead>
+              <tr>
+                <th>Concession Type</th>
+                <th># Comps</th>
+                <th>Market Read</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(playbook.rows || []).map(row => `<tr>
+                <td><strong>${escapeHtml(row.type)}</strong></td>
+                <td>${row.count}</td>
+                <td>${escapeHtml(row.marketRead)}</td>
+              </tr>`).join("") || `<tr><td colspan="3">No concession rows were saved for this market survey yet.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="comp-calc-card">
+        <div class="comp-calc-section-title">
+          <div>
+            <h3>Marketing Expert Recommendation</h3>
+            <div class="comp-calc-sub">This narrative is what you can carry straight into the investor snapshot export.</div>
+          </div>
+          <div class="comp-calc-section-badge">Narrative</div>
+        </div>
+        <div class="comp-calc-reco ${escapeHtml(recommendation.mode)}">
+          <div class="eyebrow">${escapeHtml(recommendation.label)}</div>
+          <div class="title">${escapeHtml(recommendation.title)}</div>
+          <div class="body">${escapeHtml(recommendation.summary)}</div>
+          <div class="body" style="margin-top:8px;color:var(--muted)">${escapeHtml(recommendation.avoid)}</div>
+        </div>
+      </div>
+    </section>
+    <section class="comp-calc-card">
+      <div class="comp-calc-section-title">
+        <div>
+          <h3>Recommended Pricing</h3>
+          <div class="comp-calc-sub">This matrix matches the screenshot-style layout you shared and compares conservative, competitive, and aggressive positioning against the current ask.</div>
+        </div>
+        <div class="comp-calc-section-badge">Pricing matrix</div>
+      </div>
+      <div class="comp-calc-table-wrap">
+        <table class="comp-calc-table">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Conservative</th>
+              <th>Competitive</th>
+              <th>Aggressive</th>
+              <th>Current</th>
+              <th>Comp Low</th>
+              <th>Comp High</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${pricingRows.map(row => `<tr>
+              <td><strong>${escapeHtml(row.metric)}</strong></td>
+              <td>${escapeHtml(row.formatter(row.conservative))}</td>
+              <td>${escapeHtml(row.formatter(row.competitive))}</td>
+              <td>${escapeHtml(row.formatter(row.aggressive))}</td>
+              <td>${escapeHtml(row.formatter(row.current))}</td>
+              <td>${escapeHtml(row.formatter(row.compLow))}</td>
+              <td>${escapeHtml(row.formatter(row.compHigh))}</td>
+            </tr>`).join("")}
           </tbody>
         </table>
       </div>
     </section>
     <section class="comp-calc-card">
-      <h3>Floor-plan comparison</h3>
-      <div class="comp-calc-sub">When APTIQ floor-plan rates are available, this compares them against the saved subject plan rents so you can see where the community is leading or trailing the market.</div>
-      ${floorPlanRows.length === 0 ? `<div class="comp-calc-empty">No floor-plan rate rows are saved yet for this community. Upload an APTIQ market survey workbook with floor-plan data, then this comparison will populate automatically.</div>` : `<div class="comp-calc-table-wrap">
+      <div class="comp-calc-section-title">
+        <div>
+          <h3>Floor-plan comparison</h3>
+          <div class="comp-calc-sub">Only the floor plans that belong to the selected RISE subject property are imported here, then compared against the matching market rates.</div>
+        </div>
+        <div class="comp-calc-section-badge">${floorPlanRows.length} plans</div>
+      </div>
+      ${floorPlanRows.length === 0 ? `<div class="comp-calc-empty">No floor-plan rate rows are saved yet for this community. Upload an APTIQ market survey workbook with subject-property floor-plan data, then this comparison will populate automatically.</div>` : `<div class="comp-calc-table-wrap">
         <table class="comp-calc-table">
           <thead>
             <tr>
@@ -12615,14 +13561,14 @@ function renderCompCalculatorTab() {
   const rows = getCompCalculatorRows(monthIdx);
   if (isPortfolioWorkspaceSelected()) {
     if (rows.length === 0) {
-      return `<div class="comp-calc-empty">No saved APTIQ market surveys are available for ${escapeHtml(FULL_MONTHS[monthIdx])} in the current portfolio scope yet. Upload the weekly survey workbooks in Data Import, then this landing page will build the portfolio-level comp overview automatically.<div class="comp-calc-actions" style="margin-top:12px"><button type="button" class="btn btn-primary" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(PORTFOLIO_SCOPE_VALUE)}, 7, { portfolio: true })'>Open Data Import</button></div></div>`;
+      return `<div class="comp-calc-empty">No saved comp survey data is available for ${escapeHtml(FULL_MONTHS[monthIdx])} in the current portfolio scope yet. Upload the weekly survey workbooks in Data Import, then this landing page will build the portfolio-level comp overview automatically.<div class="comp-calc-actions" style="margin-top:12px"><button type="button" class="btn btn-primary" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(PORTFOLIO_SCOPE_VALUE)}, 7, { portfolio: true })'>Open Data Import</button></div></div>`;
     }
     return renderCompCalculatorPortfolioView(rows, monthIdx);
   }
   const detail = getWorkspaceScopedDetails(monthIdx)[0];
   const market = detail ? getCompCalculatorSurveySnapshot(detail, monthIdx) : defaultMarketSurveyData();
   if (!detail || !hasMarketSurveyData(market)) {
-    return `<div class="comp-calc-empty">No saved APTIQ market survey is available for ${escapeHtml(getProp().name)} in ${escapeHtml(FULL_MONTHS[monthIdx])} yet. Upload the market workbook in Data Import or switch to a community with saved survey data.</div>`;
+    return `<div class="comp-calc-empty">No saved comp survey is available for ${escapeHtml(getProp().name)} in ${escapeHtml(FULL_MONTHS[monthIdx])} yet. Upload the market workbook in Data Import or switch to a community with saved survey data.</div>`;
   }
   return renderCompCalculatorCommunityView(detail, market, monthIdx);
 }

@@ -7,6 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,-apple-system,sans-serif;background:#f8fafc;color:#1a1a2e;font-size:13px}
@@ -47,6 +48,9 @@ const FALLBACK_COMMUNITIES=["Bartram Park","Baymeadows","Nocatee","Doro","St Aug
 const f$=v=>{if(v==null||isNaN(v))return"\u2014";const n=v<0,a=Math.abs(v);return(n?"(":"")+"$"+a.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0})+(n?")":"");};
 const fp=v=>v==null||isNaN(v)?"\u2014":(v>=0?"+":"")+v.toFixed(1)+"%";
 const ATLAS_DASHBOARD_HREF="./index.html";
+if(window.pdfjsLib&&window.pdfjsLib.GlobalWorkerOptions){
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+}
 let atlasStateDbPromise=null;
 
 const slugifyEntityId=v=>String(v||"").toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"")||"other";
@@ -1270,6 +1274,143 @@ return parseCSV(csvText);
 });
 }
 
+function parseFinancialNumber(token){
+  const raw=String(token||"").trim();
+  if(!raw)return 0;
+  const cleaned=raw.replace(/[%,$]/g,"").trim();
+  if(!cleaned)return 0;
+  const negative=/^\(.*\)$/.test(cleaned);
+  const normalized=cleaned.replace(/^\(/,"").replace(/\)$/,"").replace(/,/g,"");
+  const value=Number(normalized);
+  if(Number.isNaN(value))return 0;
+  return negative?-value:value;
+}
+
+function extractPdfTextLines(items){
+  const groups=[];
+  (Array.isArray(items)?items:[]).forEach(item=>{
+    const str=String(item&&item.str||"");
+    if(!str)return;
+    const x=Number(item&&item.transform&&item.transform[4]||0);
+    const y=Math.round(Number(item&&item.transform&&item.transform[5]||0));
+    let group=groups.find(entry=>Math.abs(entry.y-y)<=2);
+    if(!group){
+      group={y,items:[]};
+      groups.push(group);
+    }
+    group.items.push({x,str});
+  });
+  return groups.sort((a,b)=>b.y-a.y).map(group=>group.items.sort((a,b)=>a.x-b.x).map(item=>item.str).join(" ").replace(/\s+/g," ").trim()).filter(Boolean);
+}
+
+function extractPdfProperty(text){
+  const raw=String(text||"");
+  const match=raw.match(/Property:\s*([^\n]+)/i);
+  if(match)return String(match[1]||"").trim();
+  const alt=raw.match(/\bRISE\s+[A-Za-z0-9 &/-]+/i);
+  return alt?String(alt[0]||"").trim():"";
+}
+
+function extractPdfPeriod(text,fileName){
+  const raw=String(text||"");
+  const match=raw.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\b/i);
+  if(match){
+    const monthIdx=MONTHS.findIndex(m=>m.toLowerCase()===String(match[1]).slice(0,3).toLowerCase());
+    if(monthIdx>=0)return `${MONTHS[monthIdx]} ${match[2]}`;
+  }
+  const fileMatch=String(fileName||"").match(/(\d{4})[.\-_](\d{2})(?!\d)/);
+  if(fileMatch){
+    const monthIdx=Number(fileMatch[2])-1;
+    return `${MONTHS[monthIdx]||fileMatch[2]} ${fileMatch[1]}`;
+  }
+  return "";
+}
+
+function isPdfBudgetComparisonPage(text){
+  const raw=String(text||"");
+  return /Budget Comparison - Income Statement/i.test(raw) || /Income Statement - Budget vs Actual/i.test(raw);
+}
+
+function isPdfSectionHeading(line){
+  const text=String(line||"").trim();
+  if(!text)return false;
+  if(/^(\d{4,6})\b/.test(text))return false;
+  if(/^(RISE -|Property:|Accrual Basis|Account\b|Page \d+|Report Parameters|Balance Sheet|Cash Flow Statement|Forecasted Income Statement|Trailing 12 Month - Income Statement|Income Statement - Budget vs Actual)/i.test(text))return false;
+  if(/^Total\b/i.test(text))return false;
+  if(/^Net\b/i.test(text) && /(Income|Operating|Cash Flow)/i.test(text))return false;
+  if(/\d/.test(text))return false;
+  return text.length<=60;
+}
+
+function parsePdfIncomeStatementRow(line,currentSection,pageNum){
+  const text=String(line||"").trim();
+  const glMatch=text.match(/^(\d{4,6})\b/);
+  if(!glMatch)return null;
+  const numericMatches=[...text.matchAll(/(\(?-?[\d,]+\.\d{2}\)?|-?\d+\.\d{2}%)/g)];
+  if(numericMatches.length<9)return null;
+  const firstNumberIndex=numericMatches[0].index;
+  if(firstNumberIndex==null||firstNumberIndex<0)return null;
+  const gl=String(glMatch[1]||"").trim();
+  const name=text.slice(glMatch[0].length,firstNumberIndex).trim();
+  const values=numericMatches.slice(0,9).map(match=>parseFinancialNumber(match[0]));
+  const [mAct,mBud,mVar,mVarPct,yAct,yBud,yVar,yVarPct,annBud]=values;
+  return{
+    gl,
+    name,
+    section:String(currentSection||"").trim(),
+    mAct,
+    mBud,
+    mVar,
+    mVarPct,
+    yAct,
+    yBud,
+    yVar,
+    yVarPct,
+    annBud,
+    comment:`PDF page ${pageNum}`
+  };
+}
+
+async function parsePdfFinancialActuals(file){
+  if(!window.pdfjsLib||typeof window.pdfjsLib.getDocument!=="function"){
+    throw new Error("PDF parser is not available on this page.");
+  }
+  const buffer=new Uint8Array(await file.arrayBuffer());
+  const pdf=await window.pdfjsLib.getDocument({data:buffer}).promise;
+  const rows=[];
+  let currentSection="";
+  let property="";
+  let period="";
+  let statementPages=0;
+  for(let pageNum=1;pageNum<=pdf.numPages;pageNum++){
+    const page=await pdf.getPage(pageNum);
+    const content=await page.getTextContent();
+    const lines=extractPdfTextLines(content.items);
+    const pageText=lines.join("\n");
+    if(!period)period=extractPdfPeriod(pageText,file.name);
+    if(!property)property=extractPdfProperty(pageText);
+    if(!isPdfBudgetComparisonPage(pageText))continue;
+    statementPages+=1;
+    lines.forEach(line=>{
+      if(isPdfSectionHeading(line)){
+        currentSection=line;
+        return;
+      }
+      const parsed=parsePdfIncomeStatementRow(line,currentSection,pageNum);
+      if(parsed)rows.push(parsed);
+    });
+  }
+  if(!rows.length)throw new Error("No monthly actual rows were detected in the PDF package.");
+  return{
+    property:property||"",
+    period:period||"",
+    rows,
+    sourceFileName:file.name,
+    sourceType:"pdf",
+    statementPages
+  };
+}
+
 function getSt(a,b,inc){if(!b)return"on";if(inc)return a/b>=1?"on":a/b>=.9?"watch":"under";const r=a/b;return r<=1?"on":r<=1.1?"watch":"over";}
 
 function getDatasetPeriodKey(dataset){
@@ -1521,18 +1662,27 @@ function buildThresholdPlanHtml(entityId){
 function loadFile(file,ent,options={}){
 state.loading=true;render();
 const lowerName=String(file?.name||"").toLowerCase();
-const loader=(lowerName.endsWith(".xlsx")||lowerName.endsWith(".xls")||lowerName.endsWith(".xlsm"))
+const loader=lowerName.endsWith(".pdf")
+? parsePdfFinancialActuals(file)
+: (lowerName.endsWith(".xlsx")||lowerName.endsWith(".xls")||lowerName.endsWith(".xlsm"))
 ? parseWorkbook(file)
 : file.text().then(text=>parseCSV(text));
-loader.then(async rows=>{
+loader.then(async parsed=>{
+const payload=Array.isArray(parsed)?{rows:parsed}:{...(parsed||{})};
+const rows=Array.isArray(payload.rows)?payload.rows:[];
+const entityFromSelection=getEntityById(ent);
+const entity=getEntityByLabel(payload.property)||entityFromSelection;
 const nameMatch=file.name.match(/(\d{2})[.\-_](\d{2})[.\-_](\d{2,4})/);
 let period=file.name.replace(/\.\w+$/,"");
 if(nameMatch){const m=nameMatch[1],y=nameMatch[3];period=m+"/"+(y.length===2?"20"+y:y);}
-const entity=getEntityById(ent);
+const pdfNameMatch=String(file.name||"").match(/(\d{4})[.\-_](\d{2})(?!\d)/);
+if(lowerName.endsWith(".pdf")&&pdfNameMatch){const monthIdx=Number(pdfNameMatch[2])-1;period=`${MONTHS[monthIdx]||pdfNameMatch[2]} ${pdfNameMatch[1]}`;}
+if(payload.period)period=payload.period;
 const ds={id:Date.now(),name:file.name.replace(/\.\w+$/,""),period:period,date:new Date().toLocaleDateString(),rows:rows,rowCount:rows.length,entityLabel:entity&&entity.label||ent};
-if(!state.store[ent])state.store[ent]=[];
-state.store[ent]=[...state.store[ent],ds];
-state.entity=ent;
+if(!state.store[entity.id])state.store[entity.id]=[];
+state.store[entity.id]=[...state.store[entity.id],ds];
+state.entity=entity.id;
+state.uploadEntity=entity.id;
 state.selDs=ds.id;
 if(options.keepTab)state.tab=options.keepTab;
 else if(options.compareTarget)state.tab="compare";
@@ -2059,7 +2209,7 @@ html+='<span style="font-size:10px;color:#94a3b8;align-self:center;">Uploads int
 html+='</div></div>';
 });
 html+='</div>';
-html+='<input id="compareFileInput" type="file" accept=".csv,.txt,.xlsx,.xls,.xlsm" style="display:none"/>';
+html+='<input id="compareFileInput" type="file" accept=".csv,.txt,.xlsx,.xls,.xlsm,.pdf" style="display:none"/>';
 } else {
 html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">';
 html+='<div><label style="font-size:11px;font-weight:600;color:'+L+';display:block;margin-bottom:3px">Period A (Current/Newer)</label>';
@@ -2279,9 +2429,9 @@ entities.forEach(e=>{h+='<option value="'+e.id+'"'+(ent===e.id?' selected':'')+'
 h+='</select></div>';
 h+='<div id="dropZone" style="border:2px dashed #cbd5e1;border-radius:10px;padding:36px;text-align:center;background:white;cursor:pointer;">';
 h+='<div style="font-size:32px;margin-bottom:8px">&#128202;</div>';
-h+='<div style="font-size:14px;font-weight:600;color:'+D+'">Upload Income Statement / Budget CSV or Excel</div>';
-h+='<div style="font-size:12px;color:#64748b;margin-top:4px">Click or drag & drop .csv, .xlsx, .xls, or .xlsm</div>';
-h+='<input id="fileInput" type="file" accept=".csv,.txt,.xlsx,.xls,.xlsm" style="display:none"/>';
+h+='<div style="font-size:14px;font-weight:600;color:'+D+'">Upload Income Statement / Budget CSV, Excel, or PDF</div>';
+h+='<div style="font-size:12px;color:#64748b;margin-top:4px">Click or drag & drop .csv, .xlsx, .xls, .xlsm, or monthly actual PDF packages</div>';
+h+='<input id="fileInput" type="file" accept=".csv,.txt,.xlsx,.xls,.xlsm,.pdf" style="display:none"/>';
 h+='</div></div>';
 return h;
 }

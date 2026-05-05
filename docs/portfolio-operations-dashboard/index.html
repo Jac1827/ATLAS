@@ -3326,17 +3326,25 @@ function getApplicationsApprovedCount(monthEntry = {}) {
 }
 
 function getLeadSourceBreakdown(monthEntry = {}) {
+  const readLeadSourceValue = (...keys) => {
+    for (const key of keys) {
+      if (Object.prototype.hasOwnProperty.call(monthEntry ?? {}, key)) {
+        return Math.max(0, Number(monthEntry[key]) || 0);
+      }
+    }
+    return 0;
+  };
   return {
-    walkIn: Math.max(0, Number(monthEntry.walkIn) || 0),
-    offSiteEvent: Math.max(0, Number(monthEntry.offSiteEvent) || 0),
-    phoneCalls: Math.max(0, Number(monthEntry.phoneCalls) || 0),
-    emailsOnline: Math.max(0, Number(monthEntry.emailsOnline) || 0),
-    textChatOther: Math.max(0, Number(monthEntry.textChatOther) || 0)
+    walkIn: readLeadSourceValue("walkIn", "walk_in"),
+    offSiteEvent: readLeadSourceValue("offSiteEvent", "off_site_event"),
+    phoneCalls: readLeadSourceValue("phoneCalls", "phone_calls"),
+    emailsOnline: readLeadSourceValue("emailsOnline", "emails_online"),
+    textChatOther: readLeadSourceValue("textChatOther", "text_chat_other")
   };
 }
 
 function getLeadSourceTotal(monthEntry = {}) {
-  const explicitGuestCards = Math.max(0, Number(monthEntry.guestCards) || 0);
+  const explicitGuestCards = Math.max(0, Number(monthEntry.guestCards ?? monthEntry.guest_cards) || 0);
   const sources = getLeadSourceBreakdown(monthEntry);
   const sourceTotal = Object.values(sources).reduce((sum, value) => sum + value, 0);
   // Prefer the fuller rollup when Ronaldo source buckets are present so the
@@ -21756,7 +21764,7 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
         leased: getCell(row, "leased_units") ?? "",
         move_outs: getCell(row, "move_outs") ?? "",
         move_ins: getCell(row, "move_ins") ?? "",
-        guest_cards: guestCardsValue || (leadSourceTotal ?? ""),
+        guest_cards: leadSourceTotal ?? guestCardsValue ?? "",
         walk_in: leadWalkInsValue ?? "",
         off_site_event: "",
         phone_calls: leadCallsValue ?? "",

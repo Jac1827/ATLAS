@@ -152,6 +152,7 @@ function persistPageState(){
       compareMode:state.compareMode,
       compareBudgetDs:state.compareBudgetDs,
       compareArchivedBudgetId:state.compareArchivedBudgetId,
+      compareUploadTarget:state.compareUploadTarget,
       search:state.search,
       filterSec:state.filterSec,
       filterSt:state.filterSt,
@@ -816,6 +817,69 @@ function summarizeApprovedBudgetRowsByMonth(rows){
   }).filter(row=>row.gl);
 }
 
+function getLatestDatasetForEntity(entityId){
+  const list=Array.isArray(state&&state.store&&state.store[entityId])?state.store[entityId]:[];
+  return list.length?list[list.length-1]:null;
+}
+
+function removeDatasetFromState(entityId,datasetId){
+  const id=Number(datasetId);
+  const list=Array.isArray(state.store&&state.store[entityId])?state.store[entityId]:[];
+  const target=list.find(item=>Number(item&&item.id)===id)||null;
+  state.store[entityId]=list.filter(item=>Number(item&&item.id)!==id);
+  if(Number(state.selDs)===id)state.selDs=(state.store[entityId]&&state.store[entityId][state.store[entityId].length-1]&&state.store[entityId][state.store[entityId].length-1].id)||null;
+  if(Number(state.cmpA)===id)state.cmpA=null;
+  if(Number(state.cmpB)===id)state.cmpB=null;
+  if(Number(state.compareBudgetDs)===id)state.compareBudgetDs=null;
+  return target;
+}
+
+function renameDatasetInState(entityId,datasetId,newName){
+  const id=Number(datasetId);
+  const name=String(newName||"").trim();
+  if(!name)return null;
+  const list=Array.isArray(state.store&&state.store[entityId])?state.store[entityId]:[];
+  let updated=null;
+  state.store[entityId]=list.map(item=>{
+    if(Number(item&&item.id)!==id)return item;
+    updated={...item,name};
+    return updated;
+  });
+  return updated;
+}
+
+function getCommunityBudgetWatchItems(entityId){
+  const ds=getLatestDatasetForEntity(entityId);
+  if(!ds||!Array.isArray(ds.rows)||!ds.rows.length)return null;
+  const enrichedRows=enrich(ds.rows);
+  const summary=getSummary(enrichedRows);
+  if(!summary)return null;
+  const overRows=enrichedRows
+    .filter(row=>!row.isIncome&&row.status==="over")
+    .sort((a,b)=>(b.yVar||0)-(a.yVar||0))
+    .slice(0,2);
+  const underRows=enrichedRows
+    .filter(row=>row.isIncome&&row.status==="under")
+    .sort((a,b)=>(a.yVar||0)-(b.yVar||0))
+    .slice(0,2);
+  const overSections=(summary.ss||[])
+    .filter(section=>section.overCount>0)
+    .sort((a,b)=>b.overCount-a.overCount)
+    .slice(0,2);
+  return{
+    dataset:ds,
+    summary,
+    overRows,
+    underRows,
+    overSections
+  };
+}
+
+function buildBudgetIssueLabel(row){
+  const variance=Number(row&&row.yVar||0);
+  return `${row&&row.name||""} · ${f$(Math.abs(variance))} ${row&&row.isIncome?"below":"over"} budget`;
+}
+
 function goBackToAtlas(){
 window.location.href=ATLAS_DASHBOARD_HREF;
 }
@@ -857,7 +921,7 @@ return parseCSV(csvText);
 
 function getSt(a,b,inc){if(!b)return"on";if(inc)return a/b>=1?"on":a/b>=.9?"watch":"under";const r=a/b;return r<=1?"on":r<=1.1?"watch":"over";}
 
-let state={store:{},entity:"rise_corp",tab:"dash",selDs:null,cmpA:null,cmpB:null,compareMode:"report_vs_budget",compareBudgetDs:null,compareArchivedBudgetId:null,search:"",filterSec:"all",filterSt:"all",sortCol:null,sortDir:"desc",uploadEntity:"rise_corp",baselineEntity:"rise_corp",loading:false,approvedBudgets:loadStoredApprovedBudgets()};
+let state={store:{},entity:"rise_corp",tab:"dash",selDs:null,cmpA:null,cmpB:null,compareMode:"report_vs_budget",compareBudgetDs:null,compareArchivedBudgetId:null,compareUploadTarget:"a",search:"",filterSec:"all",filterSt:"all",sortCol:null,sortDir:"desc",uploadEntity:"rise_corp",baselineEntity:"rise_corp",loading:false,approvedBudgets:loadStoredApprovedBudgets()};
 {
   const storedState=loadStoredPageState();
   if(storedState&&typeof storedState==="object"){
@@ -870,6 +934,7 @@ let state={store:{},entity:"rise_corp",tab:"dash",selDs:null,cmpA:null,cmpB:null
     state.compareMode=storedState.compareMode||state.compareMode;
     state.compareBudgetDs=storedState.compareBudgetDs??state.compareBudgetDs;
     state.compareArchivedBudgetId=storedState.compareArchivedBudgetId??state.compareArchivedBudgetId;
+    state.compareUploadTarget=storedState.compareUploadTarget||state.compareUploadTarget;
     state.search=storedState.search||state.search;
     state.filterSec=storedState.filterSec||state.filterSec;
     state.filterSt=storedState.filterSt||state.filterSt;
@@ -911,7 +976,7 @@ return r;
 
 function statusBadge(s){const m={on:{l:"On Track",c:G,b:"#ecfdf5"},watch:{l:"Watch",c:A,b:"#fffbeb"},over:{l:"Over",c:R,b:"#fef2f2"},under:{l:"Under",c:A,b:"#fffbeb"}};const x=m[s]||m.on;return '<span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:600;color:'+x.c+';background:'+x.b+'">'+x.l+'</span>';}
 
-function loadFile(file,ent){
+function loadFile(file,ent,options={}){
 state.loading=true;render();
 const lowerName=String(file?.name||"").toLowerCase();
 const loader=(lowerName.endsWith(".xlsx")||lowerName.endsWith(".xls")||lowerName.endsWith(".xlsm"))
@@ -925,7 +990,15 @@ const entity=getEntityById(ent);
 const ds={id:Date.now(),name:file.name.replace(/\.\w+$/,""),period:period,date:new Date().toLocaleDateString(),rows:rows,rowCount:rows.length,entityLabel:entity&&entity.label||ent};
 if(!state.store[ent])state.store[ent]=[];
 state.store[ent]=[...state.store[ent],ds];
-state.entity=ent;state.selDs=ds.id;state.tab="dash";state.loading=false;render();
+state.entity=ent;
+state.selDs=ds.id;
+if(options.keepTab)state.tab=options.keepTab;
+else if(options.compareTarget)state.tab="compare";
+else state.tab="dash";
+if(options.compareTarget==="a")state.cmpA=ds.id;
+if(options.compareTarget==="b")state.cmpB=ds.id;
+if(options.compareTarget)state.compareMode="month_over_month";
+state.loading=false;render();
 const atlasResult=await applyDatasetToAtlasStore(ds,entity);
 if(atlasResult&&atlasResult.ok===false){
 window.alert(atlasResult.message||"The upload loaded into the financial page, but it could not be saved back into ATLAS.");
@@ -1076,6 +1149,82 @@ html+='<td style="padding:5px;text-align:right">'+pu.toFixed(1)+'%</td>';
 html+='<td style="padding:5px;text-align:right">'+(s.overCount>0?'<span style="color:'+R+';font-size:10px">'+s.overCount+'&#9888;</span>':'')+'</td></tr>';
 });
 html+='</tbody></table></div>';
+
+const currentWatch=getCommunityBudgetWatchItems(curEntity.id);
+if(currentWatch){
+html+='<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px;">';
+html+='<div style="background:white;border-radius:8px;padding:12px;border:1px solid #e2e8f0;">';
+html+='<div style="font-size:12px;font-weight:700;color:'+D+';margin-bottom:6px">Current Budget Watch</div>';
+html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">';
+html+='<div style="padding:5px 9px;border-radius:999px;background:#fef2f2;color:'+R+';font-size:10px;font-weight:700;">'+(currentWatch.summary.totalOver||0)+' over budget</div>';
+html+='<div style="padding:5px 9px;border-radius:999px;background:#fffbeb;color:'+A+';font-size:10px;font-weight:700;">'+(currentWatch.summary.totalWatch||0)+' watch</div>';
+html+='<div style="padding:5px 9px;border-radius:999px;background:#ecfdf5;color:'+G+';font-size:10px;font-weight:700;">'+(currentWatch.summary.totalOn||0)+' on track</div>';
+html+='</div>';
+html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+[
+  {title:"Over Budget Lines", items:currentWatch.overRows, color:R, bg:"#fef2f2", empty:"No expense lines over budget yet."},
+  {title:"Income Under Target", items:currentWatch.underRows, color:A, bg:"#fffbeb", empty:"No income lines under target yet."}
+].forEach(block=>{
+html+='<div style="border:1px solid #e2e8f0;border-radius:8px;padding:8px;background:#fafafa;">';
+html+='<div style="font-size:10px;font-weight:700;color:'+D+';margin-bottom:6px">'+block.title+'</div>';
+if(block.items.length){
+block.items.forEach(item=>{
+html+='<div style="display:flex;justify-content:space-between;gap:6px;align-items:flex-start;padding:5px 0;border-top:1px solid #eef2f7;">';
+html+='<div style="font-size:10px;color:#334155;line-height:1.25;max-width:72%">'+item.name+'</div>';
+html+='<div style="font-size:10px;font-weight:700;color:'+block.color+';text-align:right">'+f$(Math.abs(item.yVar||0))+'</div></div>';
+});
+} else {
+html+='<div style="font-size:10px;color:#94a3b8">'+block.empty+'</div>';
+}
+html+='</div>';
+});
+html+='</div>';
+html+='</div>';
+
+html+='<div style="background:white;border-radius:8px;padding:12px;border:1px solid #e2e8f0;">';
+html+='<div style="font-size:12px;font-weight:700;color:'+D+';margin-bottom:6px">Section Highlights</div>';
+if(currentWatch.overSections.length){
+html+='<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+currentWatch.overSections.forEach(section=>{
+html+='<div style="padding:6px 8px;border-radius:999px;background:#eff6ff;color:'+D+';font-size:10px;font-weight:700;">'+section.name+' · '+section.overCount+' over</div>';
+});
+html+='</div>';
+} else {
+html+='<div style="font-size:10px;color:#94a3b8">No section overages found in the active report.</div>';
+}
+html+='</div>';
+html+='</div>';
+}
+
+const communityHighlights=entities.filter(e=>Array.isArray(state.store[e.id])&&state.store[e.id].length).map(entity=>{
+  const watch=getCommunityBudgetWatchItems(entity.id);
+  return watch?{entity,watch}:null;
+}).filter(Boolean);
+if(communityHighlights.length){
+html+='<div style="background:white;border-radius:8px;padding:12px;border:1px solid #e2e8f0;margin-top:10px;">';
+html+='<div style="font-size:12px;font-weight:700;color:'+D+';margin-bottom:8px">Community Over / Under Highlights</div>';
+html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;">';
+communityHighlights.forEach(({entity,watch})=>{
+const topOver=watch.overRows[0];
+const topUnder=watch.underRows[0];
+html+='<div style="border:1px solid #e2e8f0;border-radius:8px;padding:10px;background:#f8fafc;">';
+html+='<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;margin-bottom:6px;">';
+html+='<div><div style="font-size:11px;font-weight:700;color:'+D+'">'+entity.label+'</div>';
+html+='<div style="font-size:10px;color:#94a3b8">'+(watch.dataset.period||watch.dataset.name||"Latest report")+'</div></div>';
+html+='<div style="text-align:right;"><div style="font-size:9px;color:#94a3b8;text-transform:uppercase;font-weight:700;">Over / Under</div><div style="font-size:14px;font-weight:700;color:'+D+'">'+(watch.summary.totalOver||0)+' / '+(watch.summary.totalWatch||0)+'</div></div>';
+html+='</div>';
+if(topOver||topUnder){
+if(topOver)html+='<div style="font-size:10px;color:'+R+';margin-bottom:4px">Over: '+buildBudgetIssueLabel(topOver)+'</div>';
+if(topUnder)html+='<div style="font-size:10px;color:'+A+';">Under: '+buildBudgetIssueLabel(topUnder)+'</div>';
+} else {
+html+='<div style="font-size:10px;color:#94a3b8">No over/under watch items yet.</div>';
+}
+const leadSection=watch.overSections[0];
+if(leadSection)html+='<div style="font-size:10px;color:#64748b;margin-top:6px">Top section: '+leadSection.name+' ('+leadSection.overCount+' over)</div>';
+html+='</div>';
+});
+html+='</div></div>';
+}
 }
 
 /* ===== DETAIL ===== */
@@ -1272,6 +1421,24 @@ html+='<select id="compareArchivedBudgetSel" style="width:100%;padding:6px;borde
 archivedBudgetBatches.forEach(batch=>{html+='<option value="'+batch.id+'"'+(state.compareArchivedBudgetId===batch.id?' selected':'')+'>'+batch.yearLabel+' ('+(batch.sourceFileName||"archived")+' )</option>';});
 html+='</select></div>';
 html+='<div style="font-size:11px;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;">Compare the current active baseline against a prior archived year to see year-over-year budget movement.</div>';
+} else if(state.compareMode==="month_over_month"){
+html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">';
+[
+  {slot:"a",label:"Period A (Current/Newer)",button:"Upload Report A",sel:"cmpASel",color:L},
+  {slot:"b",label:"Period B (Prior/Older)",button:"Upload Report B",sel:"cmpBSel",color:P}
+].forEach(cfg=>{
+html+='<div style="border:1px solid #e2e8f0;border-radius:8px;padding:10px;background:#f8fafc;">';
+html+='<label style="font-size:11px;font-weight:600;color:'+cfg.color+';display:block;margin-bottom:3px">'+cfg.label+'</label>';
+html+='<select id="'+cfg.sel+'" style="width:100%;padding:6px;border:1px solid #d1d5db;border-radius:5px;font-size:12px;"><option value="">Select...</option>';
+entityDS.forEach(d=>{html+='<option value="'+d.id+'"'+((cfg.slot==="a"&&state.cmpA===d.id)||(cfg.slot==="b"&&state.cmpB===d.id)?' selected':'')+'>'+d.name+' ('+d.period+')</option>';});
+html+='</select>';
+html+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">';
+html+='<button class="compareUploadBtn" data-target="'+cfg.slot+'" style="padding:6px 10px;background:'+D+';color:white;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;">'+cfg.button+'</button>';
+html+='<span style="font-size:10px;color:#94a3b8;align-self:center;">Uploads into the library and selects '+cfg.slot.toUpperCase()+'</span>';
+html+='</div></div>';
+});
+html+='</div>';
+html+='<input id="compareFileInput" type="file" accept=".csv,.txt,.xlsx,.xls,.xlsm" style="display:none"/>';
 } else {
 html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">';
 html+='<div><label style="font-size:11px;font-weight:600;color:'+L+';display:block;margin-bottom:3px">Period A (Current/Newer)</label>';
@@ -1417,8 +1584,12 @@ html+='<div style="margin-top:20px;"><div style="font-size:12px;font-weight:600;
 entities.filter(e=>(state.store[e.id]||[]).length>0).forEach(e=>{
 html+='<div style="margin-bottom:10px;"><div style="font-size:12px;font-weight:600;color:'+D+';margin-bottom:4px">'+e.label+' ('+state.store[e.id].length+' reports)</div>';
 state.store[e.id].forEach(d=>{
-html+='<div style="padding:6px 10px;background:white;border-radius:6px;border:1px solid #e2e8f0;margin-bottom:3px;display:flex;justify-content:space-between;font-size:11px;">';
-html+='<span>'+d.name+' &middot; '+d.period+'</span><span style="color:#94a3b8">'+d.rowCount+' accts</span></div>';
+html+='<div style="padding:6px 10px;background:white;border-radius:6px;border:1px solid #e2e8f0;margin-bottom:3px;display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:11px;">';
+html+='<div style="min-width:0;"><div style="font-weight:600;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+d.name+'</div><div style="font-size:10px;color:#94a3b8">'+(d.period||"")+' &middot; '+d.rowCount+' accts</div></div>';
+html+='<div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">';
+html+='<button class="editDs" data-entity="'+e.id+'" data-id="'+d.id+'" style="padding:3px 7px;font-size:10px;background:#eff6ff;color:'+D+';border:1px solid #bfdbfe;border-radius:4px;cursor:pointer;font-weight:600;">Edit</button>';
+html+='<button class="delDs" data-entity="'+e.id+'" data-id="'+d.id+'" style="padding:3px 7px;font-size:10px;background:#fee2e2;color:'+R+';border:none;border-radius:4px;cursor:pointer;font-weight:600;">Delete</button>';
+html+='</div></div>';
 });
 html+='</div>';
 });
@@ -1476,7 +1647,24 @@ document.querySelectorAll(".secRow").forEach(tr=>tr.addEventListener("click",()=
 document.querySelectorAll(".histItem").forEach(el=>el.addEventListener("click",e=>{if(e.target.tagName==="BUTTON")return;state.selDs=parseInt(el.dataset.id);state.tab="dash";render();}));
 document.querySelectorAll(".setCmpA").forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();state.compareMode="month_over_month";state.cmpA=parseInt(b.dataset.id);state.tab="compare";render();}));
 document.querySelectorAll(".setCmpB").forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();state.compareMode="month_over_month";state.cmpB=parseInt(b.dataset.id);state.tab="compare";render();}));
-document.querySelectorAll(".delDs").forEach(b=>b.addEventListener("click",async e=>{e.stopPropagation();const id=parseInt(b.dataset.id);const existing=(state.store[state.entity]||[]).find(x=>x.id===id)||null;state.store[state.entity]=(state.store[state.entity]||[]).filter(x=>x.id!==id);render();if(existing){try{await removeDatasetFromAtlasStore(existing,getEntityById(state.entity));}catch(error){console.error(error);}}}));
+document.querySelectorAll(".editDs").forEach(b=>b.addEventListener("click",e=>{
+e.stopPropagation();
+const id=parseInt(b.dataset.id);
+const entityId=b.dataset.entity||state.entity;
+const existing=(state.store[entityId]||[]).find(x=>x.id===id)||null;
+if(!existing)return;
+const nextName=window.prompt("Rename this report in the data library:",existing.name||"");
+if(nextName==null)return;
+if(renameDatasetInState(entityId,id,nextName))render();
+}));
+document.querySelectorAll(".delDs").forEach(b=>b.addEventListener("click",async e=>{
+e.stopPropagation();
+const id=parseInt(b.dataset.id);
+const entityId=b.dataset.entity||state.entity;
+const existing=removeDatasetFromState(entityId,id);
+render();
+if(existing){try{await removeDatasetFromAtlasStore(existing,getEntityById(entityId));}catch(error){console.error(error);}}
+}));
 const compareModeSel=document.getElementById("compareModeSel");
 if(compareModeSel)compareModeSel.addEventListener("change",()=>{state.compareMode=compareModeSel.value||"report_vs_budget";render();});
 const cmpASel=document.getElementById("cmpASel");
@@ -1487,6 +1675,11 @@ const compareBudgetSel=document.getElementById("compareBudgetSel");
 if(compareBudgetSel)compareBudgetSel.addEventListener("change",()=>{state.compareBudgetDs=compareBudgetSel.value?parseInt(compareBudgetSel.value):null;render();});
 const compareArchivedBudgetSel=document.getElementById("compareArchivedBudgetSel");
 if(compareArchivedBudgetSel)compareArchivedBudgetSel.addEventListener("change",()=>{state.compareArchivedBudgetId=compareArchivedBudgetSel.value||null;render();});
+document.querySelectorAll(".compareUploadBtn").forEach(btn=>btn.addEventListener("click",()=>{
+state.compareUploadTarget=btn.dataset.target||"a";
+const compareFileInput=document.getElementById("compareFileInput");
+if(compareFileInput)compareFileInput.click();
+}));
 const baselineEntSel=document.getElementById("baselineEntSel");
 if(baselineEntSel)baselineEntSel.addEventListener("change",()=>{state.baselineEntity=baselineEntSel.value;render();});
 const archiveBudgetBtn=document.getElementById("archiveBudgetBtn");
@@ -1500,6 +1693,7 @@ const dropZone=document.getElementById("dropZone");
 const fileInput=document.getElementById("fileInput");
 const budgetUploadBtn=document.getElementById("budgetUploadBtn");
 const budgetFileInput=document.getElementById("budgetFileInput");
+const compareFileInput=document.getElementById("compareFileInput");
 if(dropZone&&fileInput){
 dropZone.addEventListener("click",()=>fileInput.click());
 dropZone.addEventListener("dragover",e=>{e.preventDefault();dropZone.style.borderColor=D;dropZone.style.background="#f0f9ff";});
@@ -1510,6 +1704,13 @@ fileInput.addEventListener("change",()=>{const f=fileInput.files[0];const ent=(u
 if(budgetUploadBtn&&budgetFileInput){
 budgetUploadBtn.addEventListener("click",()=>budgetFileInput.click());
 budgetFileInput.addEventListener("change",()=>{const f=budgetFileInput.files[0];const ent=(uploadEntSel?uploadEntSel.value:state.entity);if(f)loadApprovedBudgetFile(f,ent);});
+}
+if(compareFileInput){
+compareFileInput.addEventListener("change",()=>{
+const f=compareFileInput.files[0];
+if(f)loadFile(f,state.entity,{keepTab:"compare",compareTarget:state.compareUploadTarget||"a"});
+compareFileInput.value="";
+});
 }
 const genBtn=document.getElementById("genReport");
 if(genBtn&&summary){genBtn.addEventListener("click",()=>{

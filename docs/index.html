@@ -7937,12 +7937,20 @@ function setReportFilter(field, value){
 }
 
 function toggleReportRecordType(type){
+  if(type === 'call_review'){
+    UI.reportFilters.recordTypes = ['call_review'];
+    UI.reportFilters.dateType = 'call_date';
+    render();
+    return;
+  }
   const current = new Set(UI.reportFilters.recordTypes);
+  current.delete('call_review');
   if(current.has(type) && current.size > 1){
     current.delete(type);
   }else{
     current.add(type);
   }
+  if(!current.size) current.add(type);
   UI.reportFilters.recordTypes = Array.from(current);
   render();
 }
@@ -8045,6 +8053,339 @@ function reportKeyDateForWriteup(writeup){
   return writeup.date || writeup.createdAt || '';
 }
 
+function callReviewReportingPlans(){
+  return filteredReportingPlans().filter(plan => plan.type === 'call_review' || planHasFocus(plan, 'call_reviews'));
+}
+
+function activeLeasingPlanIndicators(employeeId){
+  const active = activePlans().filter(plan => plan.employeeId === employeeId);
+  const shopPlan = active.find(plan => plan.type === 'shop_review' || planHasFocus(plan, 'shop')) || null;
+  const callReviewPlan = active.find(plan => plan.type === 'call_review' || planHasFocus(plan, 'call_reviews')) || null;
+  return {shopPlan, callReviewPlan};
+}
+
+function callReviewPerformanceBand(score){
+  if(score == null || Number.isNaN(Number(score))){
+    return {label:'No grade', badge:'badge-soft'};
+  }
+  const value = Number(score);
+  if(value >= 90) return {label:'Top performer', badge:'badge-active'};
+  if(value >= 80) return {label:'Strong', badge:'badge-coaching'};
+  if(value >= 70) return {label:'Steady', badge:'badge-shop'};
+  return {label:'Needs coaching', badge:'badge-pip'};
+}
+
+function averageScore(values){
+  const list = (Array.isArray(values) ? values : []).map(value => Number(value)).filter(value => !Number.isNaN(value));
+  return list.length ? Math.round((list.reduce((sum, value) => sum + value, 0) / list.length) * 10) / 10 : null;
+}
+
+function callReviewSummaryRows(plans, mode){
+  const grouped = {};
+  (Array.isArray(plans) ? plans : []).forEach(plan => {
+    const employee = getEmployee(plan.employeeId);
+    if(!employee) return;
+    const key = mode === 'manager'
+      ? (managerDisplayName(employee) || 'Unassigned manager')
+      : (employee.community || 'Unassigned community');
+    if(!grouped[key]){
+      grouped[key] = {
+        label: key,
+        employees: new Set(),
+        reviewCount: 0,
+        managerScores: [],
+        employeeScores: [],
+        activeShopEmployees: new Set(),
+        activeCallReviewEmployees: new Set()
+      };
+    }
+    const entry = grouped[key];
+    entry.employees.add(employee.id);
+    entry.reviewCount += 1;
+    if(plan.callReviewManagerScore != null) entry.managerScores.push(Number(plan.callReviewManagerScore));
+    if(plan.callReviewEmployeeScore != null) entry.employeeScores.push(Number(plan.callReviewEmployeeScore));
+    const active = activeLeasingPlanIndicators(employee.id);
+    if(active.shopPlan) entry.activeShopEmployees.add(employee.id);
+    if(active.callReviewPlan) entry.activeCallReviewEmployees.add(employee.id);
+  });
+
+  return Object.values(grouped)
+    .map(entry => ({
+      label: entry.label,
+      employees: entry.employees.size,
+      reviews: entry.reviewCount,
+      avgManagerScore: averageScore(entry.managerScores),
+      avgEmployeeScore: averageScore(entry.employeeScores),
+      activeShop: entry.activeShopEmployees.size,
+      activeCallReview: entry.activeCallReviewEmployees.size
+    }))
+    .sort((left, right) =>
+      (Number(right.avgManagerScore || 0) - Number(left.avgManagerScore || 0))
+      || (right.reviews - left.reviews)
+      || left.label.localeCompare(right.label)
+    );
+}
+
+function callReviewEmployeeRows(plans){
+  const grouped = {};
+  (Array.isArray(plans) ? plans : []).forEach(plan => {
+    const employee = getEmployee(plan.employeeId);
+    if(!employee) return;
+    if(!grouped[employee.id]){
+      grouped[employee.id] = {
+        employee,
+        plans: [],
+        managerScores: [],
+        employeeScores: []
+      };
+    }
+    const entry = grouped[employee.id];
+    entry.plans.push(plan);
+    if(plan.callReviewManagerScore != null) entry.managerScores.push(Number(plan.callReviewManagerScore));
+    if(plan.callReviewEmployeeScore != null) entry.employeeScores.push(Number(plan.callReviewEmployeeScore));
+  });
+
+  return Object.values(grouped)
+    .map(entry => {
+      const reviews = [...entry.plans].sort((left, right) => (right.callReviewDate || right.reviewDate || right.createdAt || '').localeCompare(left.callReviewDate || left.reviewDate || left.createdAt || ''));
+      const latest = reviews[0] || null;
+      const active = activeLeasingPlanIndicators(entry.employee.id);
+      return {
+        employee: entry.employee,
+        reviews,
+        latest,
+        reviewCount: reviews.length,
+        avgManagerScore: averageScore(entry.managerScores),
+        avgEmployeeScore: averageScore(entry.employeeScores),
+        activeShopPlan: active.shopPlan,
+        activeCallReviewPlan: active.callReviewPlan,
+        scoreBand: callReviewPerformanceBand(averageScore(entry.managerScores))
+      };
+    })
+    .sort((left, right) =>
+      (Number(right.avgManagerScore || 0) - Number(left.avgManagerScore || 0))
+      || (Number(right.avgEmployeeScore || 0) - Number(left.avgEmployeeScore || 0))
+      || normalizeComparable(left.employee.name).localeCompare(normalizeComparable(right.employee.name))
+    );
+}
+
+function renderCallReviewSummaryTable(title, description, rows){
+  return `
+    <div class="card">
+      <div class="section-title">
+        <div>
+          <h2>${title}</h2>
+          <p>${description}</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>${title === 'Manager rankings' ? 'Manager' : 'Community'}</th>
+              <th>Employees</th>
+              <th>Reviews</th>
+              <th>Avg manager</th>
+              <th>Avg employee</th>
+              <th>Active shop plans</th>
+              <th>Active call review plans</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.length ? rows.map(row => {
+              const managerBand = callReviewPerformanceBand(row.avgManagerScore);
+              const employeeBand = callReviewPerformanceBand(row.avgEmployeeScore);
+              return `
+                <tr>
+                  <td><strong>${escapeHtml(row.label)}</strong></td>
+                  <td>${row.employees}</td>
+                  <td>${row.reviews}</td>
+                  <td><span class="badge ${managerBand.badge}">${row.avgManagerScore != null ? row.avgManagerScore + '%' : 'N/A'}</span></td>
+                  <td><span class="badge ${employeeBand.badge}">${row.avgEmployeeScore != null ? row.avgEmployeeScore + '%' : 'N/A'}</span></td>
+                  <td>${row.activeShop}</td>
+                  <td>${row.activeCallReview}</td>
+                </tr>
+              `;
+            }).join('') : `<tr><td colspan="7"><div class="alert alert-info">No call review data matches the current filters.</div></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function renderCallReviewEmployeeCard(row, index){
+  const topBand = callReviewPerformanceBand(row.avgManagerScore);
+  const activeBadges = [];
+  if(row.activeShopPlan){
+    activeBadges.push(`<button class="btn btn-sm btn-soft" onclick="openPlanDetail('${row.activeShopPlan.id}')">Active shop plan</button>`);
+  }
+  if(row.activeCallReviewPlan){
+    activeBadges.push(`<button class="btn btn-sm btn-soft" onclick="openPlanDetail('${row.activeCallReviewPlan.id}')">Active call review plan</button>`);
+  }
+  return `
+    <div class="card" style="background:#fbfdff">
+      <div class="inline" style="justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:10px">
+        <div>
+          <div class="inline" style="gap:8px;align-items:center;margin-bottom:6px">
+            <span class="badge ${topBand.badge}">#${index + 1} ${escapeHtml(topBand.label)}</span>
+            <span class="badge badge-call-review">${row.reviewCount} review${row.reviewCount === 1 ? '' : 's'}</span>
+          </div>
+          <div>${renderEmployeeProfileLink(row.employee)}</div>
+          <div class="small muted" style="margin-top:4px">${escapeHtml(row.employee.community || 'Community not set')} · ${escapeHtml(managerDisplayName(row.employee) || 'Unassigned manager')}</div>
+        </div>
+        <div class="inline" style="flex-wrap:wrap;justify-content:flex-end">${activeBadges.join('')}</div>
+      </div>
+      <div class="grid-3" style="margin-bottom:10px">
+        <div class="card" style="background:#f8fbfc">
+          <div class="small muted">Avg manager</div>
+          <div style="font-size:26px;font-weight:800;color:var(--ink);margin-top:4px">${row.avgManagerScore != null ? row.avgManagerScore + '%' : 'N/A'}</div>
+        </div>
+        <div class="card" style="background:#f8fbfc">
+          <div class="small muted">Avg employee</div>
+          <div style="font-size:26px;font-weight:800;color:var(--ink);margin-top:4px">${row.avgEmployeeScore != null ? row.avgEmployeeScore + '%' : 'N/A'}</div>
+        </div>
+        <div class="card" style="background:#f8fbfc">
+          <div class="small muted">Rank band</div>
+          <div style="font-size:26px;font-weight:800;color:var(--ink);margin-top:4px">${escapeHtml(topBand.label)}</div>
+        </div>
+      </div>
+      <div class="stack">
+        ${(row.reviews || []).slice(0, 3).map(review => `
+          <div class="history-card">
+            <div class="inline" style="justify-content:space-between;gap:10px">
+              <strong>${escapeHtml(formatDate(review.callReviewDate || review.reviewDate || review.createdAt || ''))}</strong>
+              <span class="badge badge-call-review">${escapeHtml(capitalizeSentence(review.callReviewCallType || 'Call review'))}</span>
+            </div>
+            <div class="small muted" style="margin-top:6px">
+              Sentiment: ${escapeHtml(capitalizeSentence(review.callReviewSentiment || 'Not set'))} ·
+              Manager ${review.callReviewManagerScore != null ? escapeHtml(review.callReviewManagerScore + '%') : 'N/A'} ·
+              Employee ${review.callReviewEmployeeScore != null ? escapeHtml(review.callReviewEmployeeScore + '%') : 'N/A'}
+            </div>
+            ${(review.callReviewContact || review.callReviewDetails) ? `<div class="tiny muted" style="margin-top:6px">${escapeHtml(review.callReviewContact || '')}${review.callReviewContact && review.callReviewDetails ? ' · ' : ''}${escapeHtml((review.callReviewDetails || '').slice(0, 180))}${review.callReviewDetails && review.callReviewDetails.length > 180 ? '…' : ''}</div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderCallReviewDashboard(){
+  const callReviewPlans = callReviewReportingPlans();
+  const managerSummary = callReviewSummaryRows(callReviewPlans, 'manager');
+  const communitySummary = callReviewSummaryRows(callReviewPlans, 'community');
+  const employeeRows = callReviewEmployeeRows(callReviewPlans);
+  const dateLabel = reportDateLabel();
+  const totalManagerAverage = averageScore(callReviewPlans.map(plan => plan.callReviewManagerScore));
+  const totalEmployeeAverage = averageScore(callReviewPlans.map(plan => plan.callReviewEmployeeScore));
+  const activeEmployeeIds = new Set();
+  employeeRows.forEach(row => {
+    if(row.activeShopPlan) activeEmployeeIds.add(row.employee.id);
+    if(row.activeCallReviewPlan) activeEmployeeIds.add(row.employee.id);
+  });
+  return `
+    <div class="page">
+      <div class="grid-2-equal">
+        <div class="card">
+          <div class="section-title">
+            <div>
+              <h2>Call review dashboard</h2>
+              <p>Leasing-team call review performance only, ranked by manager grading with employee history, active plan indicators, and quick profile access.</p>
+            </div>
+          </div>
+          <div class="pill-row" style="margin-bottom:14px">
+            ${REPORT_RECORD_TYPE_OPTIONS.map(option => `<button class="pill ${option.value === 'call_review' ? 'active' : ''}" onclick="toggleReportRecordType('${option.value}')">${option.label}</button>`).join('')}
+          </div>
+          <div class="form-grid cols-3">
+            <div>
+              <label>Manager</label>
+              <select onchange="setReportFilter('managerId', this.value)">${renderManagerOptions(UI.reportFilters.managerId, 'All managers', managerUsers())}</select>
+            </div>
+            <div>
+              <label>Regional alert owner</label>
+              <select onchange="setReportFilter('regionalManagerId', this.value)">${renderManagerOptions(UI.reportFilters.regionalManagerId, 'All regional owners', managerUsers())}</select>
+            </div>
+            <div>
+              <label>Employee</label>
+              <select onchange="setReportFilter('employeeId', this.value)">
+                <option value="">All employees</option>
+                ${sortedVisibleEmployees().map(employee => `<option value="${employee.id}" ${UI.reportFilters.employeeId === employee.id ? 'selected' : ''}>${escapeHtml(employee.name)}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div class="form-grid cols-3" style="margin-top:12px">
+            <div>
+              <label>Community</label>
+              <input value="${escapeHtml(UI.reportFilters.community)}" list="report-community-options" placeholder="All communities" onchange="setReportFilter('community', this.value)">
+            </div>
+            <div>
+              <label>Area / region</label>
+              <select onchange="setReportFilter('region', this.value)">
+                <option value="">All areas</option>
+                ${Object.entries(REGIONS).map(([key, value]) => `<option value="${key}" ${UI.reportFilters.region === key ? 'selected' : ''}>${value.name}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label>Date basis</label>
+              <select onchange="setReportFilter('dateType', this.value)">
+                ${REPORT_DATE_OPTIONS.map(option => `<option value="${option.value}" ${UI.reportFilters.dateType === option.value ? 'selected' : ''}>${option.label}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div class="form-grid cols-2" style="margin-top:12px">
+            <div><label>Date from</label><input type="date" value="${UI.reportFilters.dateFrom}" onchange="setReportFilter('dateFrom', this.value)"></div>
+            <div><label>Date to</label><input type="date" value="${UI.reportFilters.dateTo}" onchange="setReportFilter('dateTo', this.value)"></div>
+          </div>
+          <div class="inline" style="margin-top:14px">
+            <button class="btn btn-primary" onclick="exportReportingExcel()">Export Excel</button>
+            <button class="btn btn-accent" onclick="exportReportingPDF()">Export RISE Branded PDF</button>
+            <button class="btn btn-soft" onclick="downloadReportingEmployeeDocs()">Download employee docs</button>
+            <button class="btn btn-soft" onclick="resetReportFilters()">Reset filters</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">
+            <div>
+              <h2>Call review scope</h2>
+              <p>The dashboard below ignores write-ups and plans. It shows active leasing-grade call review data only.</p>
+            </div>
+          </div>
+          <div class="stack small">
+            <div><strong>Call reviews selected:</strong> ${callReviewPlans.length}</div>
+            <div><strong>Date basis:</strong> ${escapeHtml(dateLabel)}</div>
+            <div><strong>Avg manager grade:</strong> ${totalManagerAverage != null ? totalManagerAverage + '%' : 'N/A'}</div>
+            <div><strong>Avg employee grade:</strong> ${totalEmployeeAverage != null ? totalEmployeeAverage + '%' : 'N/A'}</div>
+            <div><strong>Employees ranked:</strong> ${employeeRows.length}</div>
+            <div><strong>Employees with active plans:</strong> ${activeEmployeeIds.size}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2-equal" style="margin-top:16px">
+        ${renderCallReviewSummaryTable('Manager rankings', 'Direct-manager rollup of call review performance across the current filters.', managerSummary)}
+        ${renderCallReviewSummaryTable('Community rankings', 'Community rollup of the same call review performance view.', communitySummary)}
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="section-title">
+          <div>
+            <h2>Employee success rankings</h2>
+            <p>Ranked by average manager grade, with the last three call reviews for each employee shown on the card.</p>
+          </div>
+        </div>
+        ${employeeRows.length ? `
+          <div class="stack">
+            ${employeeRows.map((row, index) => renderCallReviewEmployeeCard(row, index)).join('')}
+          </div>
+        ` : '<div class="alert alert-info">No call review records match the current filters.</div>'}
+      </div>
+
+      <datalist id="report-community-options">${communityChoices().map(community => `<option value="${escapeHtml(community)}">`).join('')}</datalist>
+    </div>
+  `;
+}
+
 function callReviewSummaryText(plan){
   if(!plan || plan.type !== 'call_review') return plan && plan.notes ? plan.notes : '';
   const parts = [];
@@ -8060,6 +8401,26 @@ function callReviewSummaryText(plan){
 }
 
 function reportingRecords(){
+  const selectedTypes = new Set(UI.reportFilters.recordTypes);
+  if(selectedTypes.has('call_review')){
+    return callReviewReportingPlans().map(plan => {
+      const employee = getEmployee(plan.employeeId);
+      return {
+        kind: 'plan',
+        recordType: 'call_review',
+        employee,
+        title: `${planTypeLabel(plan.type)} plan`,
+        summary: callReviewSummaryText(plan),
+        keyDate: reportKeyDateForPlan(plan),
+        status: planLabel(plan),
+        recommendation: '',
+        overallScore: plan.callReviewManagerScore != null ? plan.callReviewManagerScore : plan.callReviewEmployeeScore,
+        level: '',
+        plan,
+        writeup: null
+      };
+    }).sort((left, right) => (right.keyDate || '').localeCompare(left.keyDate || '') || left.employee.name.localeCompare(right.employee.name));
+  }
   const planRows = filteredReportingPlans().map(plan => {
     const employee = getEmployee(plan.employeeId);
     const lastUpdate = (plan.weeklyUpdates || []).slice(-1)[0];
@@ -8246,9 +8607,13 @@ function renderSummaryTable(title, description, rows){
 
 function renderExport(){
   const records = reportingRecords();
+  const activeTypes = new Set(UI.reportFilters.recordTypes);
+  if(activeTypes.has('call_review')){
+    return renderCallReviewDashboard();
+  }
+
   const managerSummary = buildReportingSummary(records, 'manager');
   const communitySummary = buildReportingSummary(records, 'community');
-  const activeTypes = new Set(UI.reportFilters.recordTypes);
   const dateLabel = reportDateLabel();
 
   return `

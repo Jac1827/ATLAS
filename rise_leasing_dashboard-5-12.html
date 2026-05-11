@@ -3979,8 +3979,9 @@ function loadPropertyData(propName) {
   financialBudgetUpdatedAt = d.financialBudgetUpdatedAt;
   renewalImportLog = [];
   renewalImportSourceLabel = "";
+  const resolvedHistoricalCommunity = matchPropertyName(historicalImportTarget.community, { fallbackToCurrent: false }) || propName;
   historicalImportTarget = normalizeHistoricalImportTarget({
-    community: historicalImportTarget.community || propName,
+    community: resolvedHistoricalCommunity,
     month: importMonthOverride,
     year: historicalImportTarget.year
   });

@@ -632,6 +632,61 @@
 
   /* Move-in badge */
   .movein-badge { background: rgba(45,212,191,0.12); border: 1px solid rgba(45,212,191,0.3); color: #2dd4bf; font-size: 0.62rem; font-weight: 700; padding: 1px 5px; border-radius: 4px; margin-left: 4px; }
+
+  /* Scout presence */
+  .scout-presence-layer{position:fixed;inset:0;pointer-events:none;z-index:45}
+  .scout-orb{
+    position:absolute;left:0;top:0;width:78px;height:78px;opacity:.94;
+    filter:drop-shadow(0 14px 24px rgba(8,31,48,0.20));
+    transition:width .28s ease,height .28s ease,opacity .18s ease;
+    --scout-color:#6db6ff;--scout-deep:#1270d0;--scout-glow:rgba(109,182,255,0.30);
+  }
+  .scout-orb::before{
+    content:"";position:absolute;inset:-12px;border-radius:50%;
+    background:radial-gradient(circle, var(--scout-glow) 0%, rgba(109,182,255,0.08) 46%, transparent 72%);
+    animation:scoutHalo 5.2s ease-in-out infinite;
+  }
+  .scout-ring,.scout-core,.scout-scan,.scout-grid,.scout-pulse{position:absolute;border-radius:50%;inset:0}
+  .scout-ring{border:1px solid rgba(255,255,255,0.18)}
+  .scout-ring.r1{inset:6px;animation:scoutRingForward 8s linear infinite}
+  .scout-ring.r2{inset:14px;border-color:rgba(255,255,255,0.14);animation:scoutRingReverse 11s linear infinite}
+  .scout-ring.r3{inset:24px;border-color:rgba(255,255,255,0.16);border-style:dashed;animation:scoutRingForward 14s linear infinite}
+  .scout-core{
+    inset:15px;border:1px solid rgba(255,255,255,0.16);
+    background:
+      radial-gradient(circle at 34% 32%, rgba(255,255,255,0.88) 0%, rgba(255,255,255,0.24) 22%, transparent 38%),
+      radial-gradient(circle at 60% 70%, rgba(255,255,255,0.15) 0%, transparent 42%),
+      linear-gradient(145deg, var(--scout-color) 0%, rgba(255,255,255,0.14) 30%, var(--scout-deep) 100%);
+    box-shadow:inset 0 0 24px rgba(255,255,255,0.12),0 0 24px var(--scout-glow);
+    animation:scoutCoreBreathe 6.2s ease-in-out infinite;
+  }
+  .scout-grid{
+    inset:20px;overflow:hidden;opacity:.30;mix-blend-mode:screen;
+    background:
+      linear-gradient(90deg, transparent 0 43%, rgba(255,255,255,0.26) 50%, transparent 57%),
+      linear-gradient(180deg, transparent 0 43%, rgba(255,255,255,0.16) 50%, transparent 57%);
+    animation:scoutGridRotate 9s linear infinite;
+  }
+  .scout-scan{inset:10px;overflow:hidden;mask-image:radial-gradient(circle, transparent 22%, #000 24%);-webkit-mask-image:radial-gradient(circle, transparent 22%, #000 24%)}
+  .scout-scan::after{
+    content:"";position:absolute;left:12%;right:12%;top:47%;height:2px;border-radius:999px;
+    background:linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.0) 10%, rgba(255,255,255,0.84) 50%, rgba(255,255,255,0.0) 90%, transparent 100%);
+    box-shadow:0 0 14px rgba(255,255,255,0.44);animation:scoutScanSweep 5s ease-in-out infinite;
+  }
+  .scout-pulse{inset:-2px;border:1px solid rgba(255,255,255,0.10);opacity:0}
+  .scout-orb.is-processing .scout-pulse{animation:scoutProcessPulse 1.2s ease-out infinite}
+  .scout-orb.is-speaking{width:92px;height:92px}
+  .scout-orb.is-speaking .scout-core{animation-duration:3.2s}
+  .scout-orb.is-critical .scout-core{box-shadow:inset 0 0 24px rgba(255,255,255,0.10),0 0 30px rgba(239,85,85,0.34)}
+  .scout-orb.is-critical .scout-scan::after{animation-duration:2.8s}
+  @keyframes scoutHalo{0%,100%{transform:scale(.97);opacity:.72}50%{transform:scale(1.06);opacity:1}}
+  @keyframes scoutCoreBreathe{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+  @keyframes scoutGridRotate{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+  @keyframes scoutRingForward{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+  @keyframes scoutRingReverse{from{transform:rotate(360deg)}to{transform:rotate(0deg)}}
+  @keyframes scoutScanSweep{0%,100%{transform:translateY(-12px);opacity:.32}50%{transform:translateY(14px);opacity:1}}
+  @keyframes scoutProcessPulse{0%{transform:scale(.84);opacity:0}30%{opacity:.46}100%{transform:scale(1.16);opacity:0}}
+  @media(max-width:760px){.scout-orb{width:66px;height:66px}.scout-orb.is-speaking{width:78px;height:78px}}
 </style>
 </head>
 <body>
@@ -732,12 +787,37 @@
 
 </div>
 
+<div class="scout-presence-layer" aria-hidden="true">
+  <div class="scout-orb" id="scout-orb">
+    <div class="scout-ring r1"></div>
+    <div class="scout-ring r2"></div>
+    <div class="scout-ring r3"></div>
+    <div class="scout-scan"></div>
+    <div class="scout-pulse"></div>
+    <div class="scout-core"></div>
+    <div class="scout-grid"></div>
+  </div>
+</div>
+
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const FULL_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DEFAULT_CURRENT_MONTH = Math.max(0, Math.min(11, new Date().getMonth()));
 const PORTFOLIO_SCOPE_VALUE = "__rise_portfolio__";
+const scoutPresenceState = {
+  initialized: false,
+  currentState: "normal",
+  currentAnchor: "dock",
+  x: 0,
+  y: 0,
+  targetX: 0,
+  targetY: 0,
+  driftX: 0,
+  driftY: 0,
+  rafId: 0,
+  speakingTimer: null
+};
 const PORTFOLIO_SCOPE_LABEL = "ATLAS RISE Portfolio";
 const WEEKLY_SNAPSHOT_STORAGE_KEY = "rise_weekly_portfolio_snapshot_v1";
 const OPS_GLOBAL_STORAGE_KEY = "rise_ops_global_v1";
@@ -6614,6 +6694,122 @@ function queueAtlasPortfolioMapHydration() {
   });
 }
 
+function getScoutOrbElement() {
+  return document.getElementById("scout-orb");
+}
+
+function getScoutDockPoint() {
+  const orb = getScoutOrbElement();
+  const size = orb ? (orb.offsetWidth || 78) : 78;
+  return {
+    x: window.innerWidth - size - 28,
+    y: window.innerHeight - size - 28
+  };
+}
+
+function getScoutElementPoint(element, xBias = 0.94, yBias = 0.24) {
+  if (!element) return getScoutDockPoint();
+  const orb = getScoutOrbElement();
+  const size = orb ? (orb.offsetWidth || 78) : 78;
+  const rect = element.getBoundingClientRect();
+  return {
+    x: rect.left + (rect.width * xBias) - (size / 2),
+    y: rect.top + (rect.height * yBias) - (size / 2)
+  };
+}
+
+function setScoutOrbState(stateName = "normal") {
+  const orb = getScoutOrbElement();
+  if (!orb) return;
+  const palette = {
+    normal: { color: "#6db6ff", deep: "#1270d0", glow: "rgba(109,182,255,0.30)" },
+    opportunity: { color: "#2ab9b0", deep: "#0d8d87", glow: "rgba(42,185,176,0.28)" },
+    warning: { color: "#f5a623", deep: "#c47900", glow: "rgba(245,166,35,0.28)" },
+    critical: { color: "#ef5555", deep: "#bd1e1e", glow: "rgba(239,85,85,0.30)" },
+    processing: { color: "#f4fbff", deep: "#b9d8e7", glow: "rgba(244,251,255,0.34)" }
+  };
+  const next = palette[stateName] || palette.normal;
+  orb.style.setProperty("--scout-color", next.color);
+  orb.style.setProperty("--scout-deep", next.deep);
+  orb.style.setProperty("--scout-glow", next.glow);
+  orb.classList.toggle("is-critical", stateName === "critical");
+  orb.classList.toggle("is-processing", stateName === "processing");
+  scoutPresenceState.currentState = stateName;
+}
+
+function pulseScoutSpeaking(duration = 1400) {
+  const orb = getScoutOrbElement();
+  if (!orb) return;
+  if (scoutPresenceState.speakingTimer) clearTimeout(scoutPresenceState.speakingTimer);
+  orb.classList.add("is-speaking");
+  scoutPresenceState.speakingTimer = setTimeout(() => orb.classList.remove("is-speaking"), duration);
+}
+
+function ensureScoutPresence() {
+  const orb = getScoutOrbElement();
+  if (!orb || scoutPresenceState.initialized) return;
+  const dock = getScoutDockPoint();
+  scoutPresenceState.x = dock.x;
+  scoutPresenceState.y = dock.y;
+  scoutPresenceState.targetX = dock.x;
+  scoutPresenceState.targetY = dock.y;
+  scoutPresenceState.initialized = true;
+  setScoutOrbState("normal");
+  const tick = () => {
+    const orbEl = getScoutOrbElement();
+    if (!orbEl) return;
+    const t = performance.now() / 1000;
+    scoutPresenceState.driftX = Math.sin(t * 0.88) * 4;
+    scoutPresenceState.driftY = Math.cos(t * 1.04) * 6;
+    scoutPresenceState.x += (scoutPresenceState.targetX - scoutPresenceState.x) * 0.085;
+    scoutPresenceState.y += (scoutPresenceState.targetY - scoutPresenceState.y) * 0.085;
+    orbEl.style.transform = `translate3d(${scoutPresenceState.x + scoutPresenceState.driftX}px, ${scoutPresenceState.y + scoutPresenceState.driftY}px, 0)`;
+    scoutPresenceState.rafId = requestAnimationFrame(tick);
+  };
+  scoutPresenceState.rafId = requestAnimationFrame(tick);
+}
+
+function getScoutDashboardSignal() {
+  const currentEntry = monthlyData[currentMonth] ?? {};
+  const budgetOcc = getBudgetOccPctForMonth(currentEntry, savedBudgetTargets, currentMonth);
+  const occPct = typeof currentOccPct === "function" ? currentOccPct() : 0;
+  const occGap = budgetOcc > 0 ? budgetOcc - occPct : 0;
+  const applicationMetrics = typeof getApplicationDecisionMetrics === "function"
+    ? getApplicationDecisionMetrics(currentEntry)
+    : { approvalPct: 0, appToLeasePct: 0 };
+  const renewalSummary = typeof getRenewalSummaryForMonth === "function"
+    ? getRenewalSummaryForMonth(currentEntry)
+    : { projectedAttrition: 0, undecided: 0 };
+
+  if (activeTab === 7) {
+    return { state: "processing", selector: `#tab-panel-${activeTab} .tbl-wrap, #tab-panel-${activeTab} .card`, speak: false };
+  }
+  if (occGap >= 3 || renewalSummary.projectedAttrition >= 6) {
+    return { state: "critical", selector: `#tab-panel-${activeTab} .alert-banner, #tab-panel-${activeTab} .portfolio-priority-item, #tab-panel-${activeTab} .current-row, #tab-panel-${activeTab} .card`, speak: true };
+  }
+  if (occGap >= 1 || applicationMetrics.appToLeasePct < 35 || applicationMetrics.approvalPct < 60) {
+    return { state: "warning", selector: `#tab-panel-${activeTab} .alert-banner, #tab-panel-${activeTab} .current-row, #tab-panel-${activeTab} .card, #tab-panel-${activeTab} .tbl-wrap`, speak: false };
+  }
+  if ((budgetOcc > 0 && occGap <= -0.5) || applicationMetrics.appToLeasePct >= 50) {
+    return { state: "opportunity", selector: `#tab-panel-${activeTab} .portfolio-priority-item, #tab-panel-${activeTab} .stat-box, #tab-panel-${activeTab} .card`, speak: false };
+  }
+  return { state: "normal", selector: "", speak: false };
+}
+
+function updateScoutPresence() {
+  ensureScoutPresence();
+  const signal = getScoutDashboardSignal();
+  const previousState = scoutPresenceState.currentState;
+  setScoutOrbState(signal.state);
+  const targetElement = signal.selector ? document.querySelector(signal.selector) : null;
+  const point = targetElement ? getScoutElementPoint(targetElement) : getScoutDockPoint();
+  scoutPresenceState.targetX = point.x;
+  scoutPresenceState.targetY = point.y;
+  if (signal.speak || previousState !== signal.state) {
+    pulseScoutSpeaking(signal.state === "processing" ? 1000 : 1350);
+  }
+}
+
 // ─── Auto Conv Rate ──────────────────────────────────────────────────────────
 function autoCalcConvRate() {
   const documentedMonths = monthlyData.slice(0, currentMonth + 1).filter(m =>
@@ -6720,6 +6916,7 @@ function renderTab() {
   attachEventListeners();
   queueActiveTabPhotoAssetHydration();
   queueAtlasPortfolioMapHydration();
+  requestAnimationFrame(updateScoutPresence);
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -22780,6 +22977,7 @@ async function handleCSVFile(file, options = {}) {
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 async function initializeAtlasDashboard() {
+  ensureScoutPresence();
   sideNavCollapsed = loadSideNavCollapsed();
   applySideNavState();
   await hydrateDashboardPersistentState();
@@ -22801,6 +22999,7 @@ async function initializeAtlasDashboard() {
 }
 
 initializeAtlasDashboard().catch((error) => {
+  ensureScoutPresence();
   markAtlasPersistenceError(error, "ATLAS could not finish loading browser data.");
   hydrateOpsGlobalData();
   currentMonth = DEFAULT_CURRENT_MONTH;

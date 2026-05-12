@@ -14309,6 +14309,16 @@ function getCompCalculatorSurveySnapshot(detail, monthIdx = getSelectedDashboard
   return hasMarketSurveyData(current) ? current : historical;
 }
 
+function getCompCalculatorActiveSurvey(detail, monthIdx = getSelectedDashboardMonthIndex(), year = new Date().getFullYear()) {
+  const detailName = String(detail?.name || "").trim();
+  const currentName = getProp().name;
+  if (detailName && detailName === currentName) {
+    const live = buildRegionalPricingWorksheetSnapshot(detail, marketSurveyData, monthIdx);
+    if (hasMarketSurveyData(live)) return live;
+  }
+  return getCompCalculatorSurveySnapshot(detail, monthIdx, year);
+}
+
 function getLatestMarketSurveySnapshot(record = {}, monthIdx = getSelectedDashboardMonthIndex(), year = new Date().getFullYear()) {
   const current = normalizeMarketSurveyData(record?.marketSurveyData);
   const history = normalizeMarketSurveyHistory(record?.marketSurveyHistory);
@@ -15367,7 +15377,7 @@ function buildCompCalculatorInvestorSnapshotDocument(data) {
 function openCompCalculatorInvestorSnapshot(detailName, monthIdx = getSelectedDashboardMonthIndex()) {
   const details = getWorkspaceScopedDetails(monthIdx);
   const detail = details.find(item => item.name === detailName) || details[0];
-  const market = detail ? getCompCalculatorSurveySnapshot(detail, monthIdx) : defaultMarketSurveyData();
+  const market = detail ? getCompCalculatorActiveSurvey(detail, monthIdx) : defaultMarketSurveyData();
   if (!detail || !hasMarketSurveyData(market)) {
     alert(`No saved comp calculator data is available for ${String(detailName || getProp().name)} in ${FULL_MONTHS[monthIdx]}.`);
     return false;
@@ -15723,7 +15733,7 @@ function renderCompCalculatorTab() {
     return renderCompCalculatorPortfolioView(rows, monthIdx);
   }
   const detail = getWorkspaceScopedDetails(monthIdx)[0];
-  const market = detail ? getCompCalculatorSurveySnapshot(detail, monthIdx) : defaultMarketSurveyData();
+  const market = detail ? getCompCalculatorActiveSurvey(detail, monthIdx) : defaultMarketSurveyData();
   if (!detail || !hasMarketSurveyData(market)) {
     return `<div class="comp-calc-empty">No saved comp survey is available for ${escapeHtml(getProp().name)} in ${escapeHtml(FULL_MONTHS[monthIdx])} yet. Upload the market workbook in Data Import or switch to a community with saved survey data.</div>`;
   }

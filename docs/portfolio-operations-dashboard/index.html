@@ -638,9 +638,11 @@
   .scout-orb{
     position:absolute;left:0;top:0;width:78px;height:78px;opacity:.94;
     filter:drop-shadow(0 14px 24px rgba(8,31,48,0.20));
-    transition:width .28s ease,height .28s ease,opacity .18s ease;
+    transition:width .28s ease,height .28s ease,opacity .18s ease,box-shadow .18s ease;
     --scout-color:#6db6ff;--scout-deep:#1270d0;--scout-glow:rgba(109,182,255,0.30);
+    pointer-events:auto;cursor:pointer;border:0;background:transparent;padding:0;
   }
+  .scout-orb:focus-visible{outline:2px solid rgba(68,147,248,0.45);outline-offset:4px;border-radius:50%}
   .scout-orb::before{
     content:"";position:absolute;inset:-12px;border-radius:50%;
     background:radial-gradient(circle, var(--scout-glow) 0%, rgba(109,182,255,0.08) 46%, transparent 72%);
@@ -677,8 +679,53 @@
   .scout-orb.is-processing .scout-pulse{animation:scoutProcessPulse 1.2s ease-out infinite}
   .scout-orb.is-speaking{width:92px;height:92px}
   .scout-orb.is-speaking .scout-core{animation-duration:3.2s}
+  .scout-orb.is-open{opacity:1}
   .scout-orb.is-critical .scout-core{box-shadow:inset 0 0 24px rgba(255,255,255,0.10),0 0 30px rgba(239,85,85,0.34)}
   .scout-orb.is-critical .scout-scan::after{animation-duration:2.8s}
+  .scout-assistant{
+    position:fixed;right:28px;bottom:118px;width:min(420px,calc(100vw - 24px));max-height:min(72vh,760px);
+    background:rgba(249,252,255,0.97);border:1px solid rgba(15,47,87,0.12);border-radius:22px;
+    box-shadow:0 24px 60px rgba(10,36,58,0.18);backdrop-filter:blur(14px);
+    display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;overflow:hidden;pointer-events:auto;
+    transform:translateY(18px) scale(.98);opacity:0;visibility:hidden;transition:opacity .2s ease,transform .2s ease,visibility .2s ease;
+    z-index:46;
+  }
+  .scout-assistant.is-open{opacity:1;visibility:visible;transform:translateY(0) scale(1)}
+  .scout-assistant-header{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:18px 18px 14px;
+    background:linear-gradient(180deg, rgba(18,112,208,0.08) 0%, rgba(18,112,208,0.02) 100%);
+    border-bottom:1px solid rgba(15,47,87,0.08);
+  }
+  .scout-assistant-title{font-size:0.98rem;font-weight:800;color:#12324b}
+  .scout-assistant-sub{font-size:0.7rem;color:#567086;margin-top:4px;line-height:1.45}
+  .scout-assistant-close{
+    border:0;background:rgba(15,47,87,0.06);color:#35566f;border-radius:999px;padding:8px 10px;cursor:pointer;font-weight:700
+  }
+  .scout-assistant-prompts{display:flex;gap:8px;flex-wrap:wrap;padding:12px 18px 0}
+  .scout-prompt-chip{
+    border:1px solid rgba(18,112,208,0.14);background:#fff;color:#184c70;border-radius:999px;padding:8px 12px;cursor:pointer;font-size:0.68rem;font-weight:700
+  }
+  .scout-assistant-log{padding:14px 18px 12px;overflow:auto;display:flex;flex-direction:column;gap:10px;background:linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(241,247,252,0.96) 100%)}
+  .scout-msg{max-width:92%;padding:12px 14px;border-radius:16px;font-size:0.75rem;line-height:1.5;white-space:pre-wrap}
+  .scout-msg.user{align-self:flex-end;background:#12324b;color:#fff;border-bottom-right-radius:6px}
+  .scout-msg.assistant{align-self:flex-start;background:#fff;color:#23435b;border:1px solid rgba(15,47,87,0.08);border-bottom-left-radius:6px}
+  .scout-msg-meta{display:block;font-size:0.62rem;color:#6a8599;margin-top:6px}
+  .scout-assistant-compose{display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:12px 18px 18px;border-top:1px solid rgba(15,47,87,0.08);background:#f8fbfe}
+  .scout-assistant-compose input{
+    min-width:0;border:1px solid rgba(15,47,87,0.14);border-radius:14px;padding:12px 14px;font:inherit;background:#fff;color:#14324b
+  }
+  .scout-assistant-compose button{
+    border:0;border-radius:14px;padding:0 14px;font-weight:800;cursor:pointer
+  }
+  .scout-mic-btn{background:rgba(18,112,208,0.10);color:#0f5caa}
+  .scout-mic-btn.is-listening{background:#ef5555;color:#fff}
+  .scout-send-btn{background:#12324b;color:#fff}
+  .scout-compose-note{padding:0 18px 12px;font-size:0.64rem;color:#6b8293;background:#f8fbfe}
+  @media(max-width:760px){
+    .scout-assistant{right:12px;left:12px;bottom:96px;width:auto;max-height:min(70vh,680px)}
+    .scout-assistant-compose{grid-template-columns:1fr auto}
+    .scout-send-btn{grid-column:span 2}
+  }
   @keyframes scoutHalo{0%,100%{transform:scale(.97);opacity:.72}50%{transform:scale(1.06);opacity:1}}
   @keyframes scoutCoreBreathe{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
   @keyframes scoutGridRotate{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
@@ -788,7 +835,7 @@
 </div>
 
 <div class="scout-presence-layer" aria-hidden="true">
-  <div class="scout-orb" id="scout-orb">
+  <button type="button" class="scout-orb" id="scout-orb" aria-label="Open Scout assistant" title="Ask Scout">
     <div class="scout-ring r1"></div>
     <div class="scout-ring r2"></div>
     <div class="scout-ring r3"></div>
@@ -796,8 +843,29 @@
     <div class="scout-pulse"></div>
     <div class="scout-core"></div>
     <div class="scout-grid"></div>
-  </div>
+  </button>
 </div>
+<section class="scout-assistant" id="scout-assistant" aria-label="Scout assistant" aria-hidden="true">
+  <div class="scout-assistant-header">
+    <div>
+      <div class="scout-assistant-title">Scout</div>
+      <div class="scout-assistant-sub">ATLAS intelligence layer. Ask by typing or microphone. Answers are grounded in the current dashboard state.</div>
+    </div>
+    <button type="button" class="scout-assistant-close" id="scout-assistant-close" aria-label="Close Scout">Close</button>
+  </div>
+  <div class="scout-assistant-prompts">
+    <button type="button" class="scout-prompt-chip" data-scout-prompt="What changed this month?">What changed?</button>
+    <button type="button" class="scout-prompt-chip" data-scout-prompt="Which communities need the most attention right now?">Top risks</button>
+    <button type="button" class="scout-prompt-chip" data-scout-prompt="What lease and app goals should I set this month?">Goal guidance</button>
+  </div>
+  <div class="scout-assistant-log" id="scout-assistant-log"></div>
+  <div class="scout-assistant-compose">
+    <input id="scout-assistant-input" type="text" placeholder="Ask Scout about occupancy, goals, apps, conversion, priorities..." autocomplete="off">
+    <button type="button" class="scout-mic-btn" id="scout-mic-btn" aria-label="Use microphone">Mic</button>
+    <button type="button" class="scout-send-btn" id="scout-send-btn">Ask Scout</button>
+  </div>
+  <div class="scout-compose-note" id="scout-compose-note">Mic works in supported browsers. Scout uses live ATLAS data on this page.</div>
+</section>
 
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -817,6 +885,13 @@ const scoutPresenceState = {
   driftY: 0,
   rafId: 0,
   speakingTimer: null
+};
+const scoutAssistantState = {
+  isOpen: false,
+  listening: false,
+  recognition: null,
+  messages: [],
+  uiBound: false
 };
 const PORTFOLIO_SCOPE_LABEL = "ATLAS RISE Portfolio";
 const WEEKLY_SNAPSHOT_STORAGE_KEY = "rise_weekly_portfolio_snapshot_v1";
@@ -6798,6 +6873,13 @@ function getScoutDashboardSignal() {
 
 function updateScoutPresence() {
   ensureScoutPresence();
+  if (scoutAssistantState.isOpen) {
+    const dock = getScoutDockPoint();
+    scoutPresenceState.targetX = dock.x;
+    scoutPresenceState.targetY = dock.y;
+    setScoutOrbState("normal");
+    return;
+  }
   const signal = getScoutDashboardSignal();
   const previousState = scoutPresenceState.currentState;
   setScoutOrbState(signal.state);
@@ -6808,6 +6890,228 @@ function updateScoutPresence() {
   if (signal.speak || previousState !== signal.state) {
     pulseScoutSpeaking(signal.state === "processing" ? 1000 : 1350);
   }
+}
+
+function getScoutAssistantElement() {
+  return document.getElementById("scout-assistant");
+}
+
+function getScoutAssistantLogElement() {
+  return document.getElementById("scout-assistant-log");
+}
+
+function getScoutAssistantInputElement() {
+  return document.getElementById("scout-assistant-input");
+}
+
+function formatScoutDateLabel(monthIdx = getSelectedDashboardMonthIndex()) {
+  const year = new Date().getFullYear();
+  return `${FULL_MONTHS[Math.max(0, Math.min(11, monthIdx))]} ${year}`;
+}
+
+function getScoutQuestionScope(question = "") {
+  const monthIdx = getSelectedDashboardMonthIndex();
+  const text = String(question ?? "").trim();
+  const detailPool = buildPortfolioDetailsForMonth(monthIdx);
+  const lower = text.toLowerCase();
+  const wantsPortfolio = isPortfolioWorkspaceSelected() || /\bportfolio\b|\ball communities\b|\bentire portfolio\b/.test(lower);
+  if (wantsPortfolio) {
+    return {
+      type: "portfolio",
+      monthIdx,
+      details: getWorkspaceScopedDetails(monthIdx),
+      aggregate: aggregateCommunitySummaries(getWorkspaceScopedDetails(monthIdx).map(detail => detail.summary))
+    };
+  }
+  const matchedCommunity = getAllCommunityNames().find(name => lower.includes(String(name).toLowerCase()));
+  const currentName = getProp().name;
+  const targetName = matchedCommunity || currentName;
+  const detail = detailPool.find(item => item.name === targetName) || getCurrentRegionalPricingDetail(monthIdx);
+  return { type: "community", monthIdx, detail };
+}
+
+function buildScoutRecommendationSummary(detail) {
+  const recommendations = Array.isArray(detail?.recommendations) ? detail.recommendations : [];
+  if (recommendations.length === 0) {
+    return "Here’s where to focus next: no active watchlist item is flagged from the current dashboard sections.";
+  }
+  const top = recommendations.slice(0, 2).map(item => `${item.title}: ${item.body}`).join(" ");
+  return `Here’s where to focus next: ${top}`;
+}
+
+function answerScoutPortfolioQuestion(question = "", scope = null) {
+  const resolvedScope = scope || getScoutQuestionScope(question);
+  const aggregate = resolvedScope.aggregate;
+  const details = resolvedScope.details || [];
+  const monthLabel = formatScoutDateLabel(resolvedScope.monthIdx);
+  const topRiskDetail = [...details].sort((left, right) =>
+    Math.max(Number(right.summary?.occGapUnits ?? 0) || 0, Number(right.summary?.leasedGapUnits ?? 0) || 0)
+    - Math.max(Number(left.summary?.occGapUnits ?? 0) || 0, Number(left.summary?.leasedGapUnits ?? 0) || 0)
+  )[0];
+  const lower = String(question ?? "").toLowerCase();
+  if (/\bgoal\b|\bgoals\b|\blease goal\b|\bapp goal\b/.test(lower)) {
+    const targets = details.slice(0, 5).map(detail => {
+      const plan = getCommunityPerformancePlan(detail.name, detail.record) ?? {};
+      return `${detail.name}: ${Math.round(plan.currentGrossLeaseNeed ?? 0)} lease goal, ${Math.round(plan.currentAppNeed ?? 0)} app goal`;
+    }).join("; ");
+    return `Here’s what changed: for ${monthLabel}, the portfolio goal editor is now the source of truth for monthly lease and app targets.\nHere’s what is driving it: each recommendation is based on budget occupancy pressure, current close rate, and current funnel depth.\nHere’s where to focus next: ${targets || "set community-level lease and app goals from the portfolio overview tab."}\nHere’s what I can’t confirm from the current data: exact 7-day pacing where a community has not stored a fresh box score snapshot.`;
+  }
+  if (/\battention\b|\brisk\b|\bpriority\b|\bfocus\b/.test(lower)) {
+    return `Here’s what changed: ${details.length} communities are in scope for ${monthLabel}, with physical occupancy at ${getSummaryOccPct(aggregate).toFixed(1)}% and leased occupancy at ${getSummaryLeasedPct(aggregate).toFixed(1)}%.\nHere’s what is driving it: the highest visible pressure is ${topRiskDetail ? `${topRiskDetail.name} with ${Math.max(topRiskDetail.summary?.occGapUnits ?? 0, 0)} occupancy gap units and ${(topRiskDetail.summary?.tourToLeasePct ?? 0).toFixed(1)}% tour-to-lease conversion.` : "the current budget gap across the selected communities."}\nHere’s where to focus next: ${details.slice(0, 3).map(detail => `${detail.name} (${Math.max(detail.summary?.occGapUnits ?? 0, 0)} gap units)`).join(", ") || "review the portfolio overview goal guidance table"}.\nHere’s what I can’t confirm from the current data: any operating issue that depends on notes or external actions not stored in ATLAS.`;
+  }
+  return `Here’s what changed: the portfolio is at ${getSummaryOccPct(aggregate).toFixed(1)}% physical occupancy and ${getSummaryLeasedPct(aggregate).toFixed(1)}% leased occupancy for ${monthLabel}.\nHere’s what is driving it: ${Math.round(aggregate.applications ?? 0)} applications and ${Math.round(aggregate.applicationsApproved ?? 0)} approved applications are saved month to date, with ${Math.max(aggregate.occGapUnits ?? 0, 0)} budget gap units across the current scope.\nHere’s where to focus next: ${topRiskDetail ? `${topRiskDetail.name} is the clearest first review because it combines occupancy pressure with current funnel needs.` : "review community goal guidance from the portfolio overview editor."}\nHere’s what I can’t confirm from the current data: any change that depends on unstored pricing strategy or pending manual updates.`;
+}
+
+function answerScoutCommunityQuestion(question = "", scope = null) {
+  const resolvedScope = scope || getScoutQuestionScope(question);
+  const detail = resolvedScope.detail;
+  if (!detail) {
+    return "Here’s what I can’t confirm from the current data: I could not resolve a community in the saved ATLAS scope for that question.";
+  }
+  const monthLabel = formatScoutDateLabel(resolvedScope.monthIdx);
+  const summary = detail.summary || {};
+  const plan = getCommunityPerformancePlan(detail.name, detail.record) || {};
+  const lower = String(question ?? "").toLowerCase();
+  if (/\boccup|leased|budget gap\b/.test(lower)) {
+    return `Here’s what changed: ${detail.name} is at ${getSummaryOccPct(summary).toFixed(1)}% physical occupancy and ${getSummaryLeasedPct(summary).toFixed(1)}% leased occupancy for ${monthLabel}.\nHere’s what is driving it: the community is ${Math.max(summary.occGapUnits ?? 0, 0)} units from budget occupancy and is currently pacing ${(summary.tourToLeasePct ?? 0).toFixed(1)}% tour-to-lease.\nHere’s where to focus next: ${buildScoutRecommendationSummary(detail)}\nHere’s what I can’t confirm from the current data: whether pending approvals will convert without updated follow-up notes.`;
+  }
+  if (/\bapplication|\bapps?\b|\bapproved\b|\bconversion\b|\bclose\b/.test(lower)) {
+    return `Here’s what changed: ${detail.name} has ${Math.round(summary.applications ?? 0)} applications and ${Math.round(summary.applicationsApproved ?? 0)} approved applications saved month to date.\nHere’s what is driving it: current conversion is ${(summary.tourToAppPct ?? 0).toFixed(1)}% from tour to app and ${(summary.tourToLeasePct ?? 0).toFixed(1)}% from tour to lease.\nHere’s where to focus next: the current operating plan points to ${Math.round(plan.currentGrossLeaseNeed ?? 0)} lease goal and ${Math.round(plan.currentAppNeed ?? 0)} app goal for this month.\nHere’s what I can’t confirm from the current data: the exact blocker on any one approval unless the team logs it in ATLAS.`;
+  }
+  if (/\bgoal\b|\bgoals\b|\blease goal\b|\bapp goal\b/.test(lower)) {
+    return `Here’s what changed: ${detail.name} is carrying a recommended target of ${Math.round(plan.currentGrossLeaseNeed ?? 0)} leases and ${Math.round(plan.currentAppNeed ?? 0)} applications for ${monthLabel}.\nHere’s what is driving it: budget occupancy pressure is ${Math.max(summary.occGapUnits ?? 0, 0)} units, and the current close rate is ${(summary.tourToLeasePct ?? 0).toFixed(1)}% against a needed ${(plan.currentTourToLeaseNeededPct ?? 0).toFixed(1)}%.\nHere’s where to focus next: use the portfolio overview goal editor to save the monthly goal, then keep the funnel aligned to approved applications and follow-up speed.\nHere’s what I can’t confirm from the current data: whether you want to stretch above the recommended target for a specific strategic reason.`;
+  }
+  return `Here’s what changed: ${detail.name} is operating at ${getSummaryOccPct(summary).toFixed(1)}% physical occupancy with ${Math.round(summary.applicationsApproved ?? 0)} approved apps month to date in ${monthLabel}.\nHere’s what is driving it: budget gap, current conversion, and move-out pressure are the main leasing drivers in the saved record.\nHere’s where to focus next: ${buildScoutRecommendationSummary(detail)}\nHere’s what I can’t confirm from the current data: any context that lives outside the dashboard, such as pricing calls or team notes not saved here.`;
+}
+
+function generateScoutAnswer(question = "") {
+  const scope = getScoutQuestionScope(question);
+  return scope.type === "portfolio"
+    ? answerScoutPortfolioQuestion(question, scope)
+    : answerScoutCommunityQuestion(question, scope);
+}
+
+function renderScoutAssistantMessages() {
+  const log = getScoutAssistantLogElement();
+  if (!log) return;
+  log.innerHTML = scoutAssistantState.messages.map(message => `<div class="scout-msg ${message.role}">
+    ${escapeHtml(message.body)}
+    ${message.meta ? `<span class="scout-msg-meta">${escapeHtml(message.meta)}</span>` : ""}
+  </div>`).join("");
+  log.scrollTop = log.scrollHeight;
+}
+
+function pushScoutMessage(role, body, meta = "") {
+  scoutAssistantState.messages.push({ role, body: String(body ?? "").trim(), meta: String(meta ?? "").trim() });
+  renderScoutAssistantMessages();
+}
+
+function primeScoutAssistant() {
+  if (scoutAssistantState.messages.length > 0) return;
+  const scopeLabel = isPortfolioWorkspaceSelected() ? "the full ATLAS portfolio" : getProp().name;
+  pushScoutMessage("assistant", `Scout is live in beta. I can answer questions about ${scopeLabel}, current occupancy, leasing goals, applications, conversion, and current recommendations.`, `Grounded in ${formatScoutDateLabel(getSelectedDashboardMonthIndex())} dashboard data`);
+}
+
+function setScoutAssistantOpen(nextOpen = true) {
+  const panel = getScoutAssistantElement();
+  const orb = getScoutOrbElement();
+  if (!panel || !orb) return;
+  scoutAssistantState.isOpen = Boolean(nextOpen);
+  panel.classList.toggle("is-open", scoutAssistantState.isOpen);
+  panel.setAttribute("aria-hidden", scoutAssistantState.isOpen ? "false" : "true");
+  orb.classList.toggle("is-open", scoutAssistantState.isOpen);
+  if (scoutAssistantState.isOpen) {
+    primeScoutAssistant();
+    requestAnimationFrame(() => getScoutAssistantInputElement()?.focus());
+  }
+  updateScoutPresence();
+}
+
+function submitScoutQuestion(rawQuestion = "") {
+  const question = String(rawQuestion ?? "").trim();
+  if (!question) return false;
+  pushScoutMessage("user", question);
+  setScoutOrbState("processing");
+  pulseScoutSpeaking(900);
+  const answer = generateScoutAnswer(question);
+  window.setTimeout(() => {
+    pushScoutMessage("assistant", answer, `Source: live ATLAS dashboard · ${formatScoutDateLabel(getSelectedDashboardMonthIndex())}`);
+    setScoutOrbState("normal");
+    pulseScoutSpeaking(1450);
+  }, 220);
+  return true;
+}
+
+function toggleScoutVoiceInput() {
+  const note = document.getElementById("scout-compose-note");
+  const button = document.getElementById("scout-mic-btn");
+  const RecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!RecognitionCtor) {
+    if (note) note.textContent = "Mic is not available in this browser. Type to ask Scout a question.";
+    return;
+  }
+  if (scoutAssistantState.listening && scoutAssistantState.recognition) {
+    scoutAssistantState.recognition.stop();
+    return;
+  }
+  const recognition = new RecognitionCtor();
+  scoutAssistantState.recognition = recognition;
+  recognition.lang = "en-US";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+  recognition.onstart = () => {
+    scoutAssistantState.listening = true;
+    button?.classList.add("is-listening");
+    if (note) note.textContent = "Listening… ask Scout a question.";
+  };
+  recognition.onresult = (event) => {
+    const transcript = Array.from(event.results || []).map(result => result?.[0]?.transcript || "").join(" ").trim();
+    const input = getScoutAssistantInputElement();
+    if (input) input.value = transcript;
+    if (transcript) submitScoutQuestion(transcript);
+  };
+  recognition.onerror = () => {
+    if (note) note.textContent = "Scout could not read the microphone input. Try again or type your question.";
+  };
+  recognition.onend = () => {
+    scoutAssistantState.listening = false;
+    button?.classList.remove("is-listening");
+    if (note) note.textContent = "Mic works in supported browsers. Scout uses live ATLAS data on this page.";
+  };
+  recognition.start();
+}
+
+function bindScoutAssistantUi() {
+  if (scoutAssistantState.uiBound) return;
+  const orb = getScoutOrbElement();
+  const closeButton = document.getElementById("scout-assistant-close");
+  const sendButton = document.getElementById("scout-send-btn");
+  const micButton = document.getElementById("scout-mic-btn");
+  const input = getScoutAssistantInputElement();
+  orb?.addEventListener("click", () => setScoutAssistantOpen(!scoutAssistantState.isOpen));
+  closeButton?.addEventListener("click", () => setScoutAssistantOpen(false));
+  sendButton?.addEventListener("click", () => {
+    if (!input) return;
+    const submitted = submitScoutQuestion(input.value);
+    if (submitted) input.value = "";
+  });
+  micButton?.addEventListener("click", () => toggleScoutVoiceInput());
+  input?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const submitted = submitScoutQuestion(input.value);
+    if (submitted) input.value = "";
+  });
+  document.querySelectorAll("[data-scout-prompt]").forEach(button => {
+    button.addEventListener("click", () => {
+      const prompt = button.getAttribute("data-scout-prompt") || "";
+      submitScoutQuestion(prompt);
+    });
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && scoutAssistantState.isOpen) setScoutAssistantOpen(false);
+  });
+  scoutAssistantState.uiBound = true;
 }
 
 // ─── Auto Conv Rate ──────────────────────────────────────────────────────────
@@ -7694,6 +7998,28 @@ function renderPortfolioScopedSetupTab() {
 function renderPortfolioScopedOverviewTab() {
   const { details, aggregate } = getWorkspaceScopedAggregate(getSelectedDashboardMonthIndex());
   const selectedMonth = getSelectedDashboardMonthIndex();
+  const buildGoalRecommendationHtml = (detail) => {
+    const plan = getCommunityPerformancePlan(detail.name, detail.record) ?? {};
+    const currentMonthEntry = detail.record?.monthlyData?.[selectedMonth] ?? {};
+    const currentAppMetrics = getApplicationDecisionMetrics(currentMonthEntry);
+    const actualCloseRate = Number(detail.summary?.tourToLeasePct ?? 0) || 0;
+    const neededCloseRate = Number(plan.currentTourToLeaseNeededPct ?? 0) || 0;
+    const budgetGapUnits = Math.max(Number(detail.summary?.occGapUnits ?? 0) || 0, 0);
+    const recs = Array.isArray(detail.recommendations) ? detail.recommendations.slice(0, 2) : [];
+    const recommendationText = recs.length > 0
+      ? recs.map(item => `${item.title}: ${item.body}`).join(" ")
+      : "No active watchlist items surfaced from the current dashboard sections.";
+    return `<div style="min-width:280px;text-align:left">
+      <div style="font-weight:700;color:var(--text);margin-bottom:4px">Scout guidance</div>
+      <div style="font-size:0.67rem;color:var(--muted);line-height:1.45;margin-bottom:6px">${escapeHtml(recommendationText)}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:0.65rem;color:var(--muted)">
+        <span><strong style="color:${budgetGapUnits > 0 ? "#f97316" : "#3fb950"}">${budgetGapUnits}</strong> budget gap units</span>
+        <span><strong style="color:${actualCloseRate >= neededCloseRate ? "#3fb950" : "#d29922"}">${actualCloseRate.toFixed(1)}%</strong> close rate</span>
+        <span><strong style="color:#4493f8">${neededCloseRate.toFixed(1)}%</strong> needed</span>
+        <span><strong style="color:#a371f7">${Math.round(currentAppMetrics.approvals ?? 0)}</strong> approved</span>
+      </div>
+    </div>`;
+  };
   const cardsHtml = `<div class="grid-4">
     ${statBox("Physical Occupancy", `${getSummaryOccPct(aggregate).toFixed(1)}%`, `${aggregate.occupied.toLocaleString()} occupied units`, "#4493f8")}
     ${statBox("Leased Occupancy", `${getSummaryLeasedPct(aggregate).toFixed(1)}%`, `${aggregate.leased.toLocaleString()} leased units`, "#a371f7")}
@@ -7701,12 +8027,19 @@ function renderPortfolioScopedOverviewTab() {
     ${statBox("Budget Gap Units", Math.max(aggregate.occGapUnits ?? 0, 0), `${aggregate.onTrackBudgetOccCount ?? 0}/${aggregate.trackedBudgetOccCount ?? 0} communities on budget pace`, "#d29922")}
   </div>`;
   const bodyHtml = `<div class="tbl-wrap">
-    <div class="tbl-header"><h2>Portfolio occupancy editor</h2><p>Edit the selected month’s occupancy inputs directly here while keeping the whole portfolio in view.</p></div>
+    <div class="tbl-header"><h2>Portfolio occupancy editor</h2><p>Edit the selected month’s occupancy inputs and set each community’s lease and application goals here. Those saved goals feed the leasing schedule, traffic pacing, bonus calculations, and reporting across ATLAS.</p></div>
     <table>
-      <thead><tr><th class="l">Community</th><th>Physical %</th><th>Leased %</th><th>Occupied</th><th>Leased</th><th>Budget Occ %</th><th>Move-Ins</th><th>Move-Outs</th></tr></thead>
+      <thead><tr><th class="l">Community</th><th>Physical %</th><th>Leased %</th><th>Occupied</th><th>Leased</th><th>Budget Occ %</th><th>This Month Lease Goal</th><th>This Month App Goal</th><th>Move-Ins</th><th>Move-Outs</th><th>Goal Guidance</th></tr></thead>
       <tbody>${details.map(detail => {
         const entry = detail.record?.monthlyData?.[selectedMonth] ?? {};
         const budgetOccPct = getRecordBudgetOccPct(detail.record, selectedMonth);
+        const plan = getCommunityPerformancePlan(detail.name, detail.record) ?? {};
+        const recommendedLeaseGoal = Math.max(0, Math.round(Number(plan.currentGrossLeaseNeed ?? 0) || 0));
+        const recommendedAppGoal = Math.max(0, Math.round(Number(plan.currentAppNeed ?? 0) || 0));
+        const savedLeaseGoal = Number(entry.grossLeaseGoalManual);
+        const savedAppGoal = Number(entry.appGoalManual);
+        const effectiveLeaseGoal = Number.isFinite(savedLeaseGoal) && savedLeaseGoal > 0 ? savedLeaseGoal : recommendedLeaseGoal;
+        const effectiveAppGoal = Number.isFinite(savedAppGoal) && savedAppGoal > 0 ? savedAppGoal : recommendedAppGoal;
         return `<tr>
           <td class="l" style="font-weight:700">${escapeHtml(detail.name)}</td>
           <td>${getSummaryOccPct(detail.summary).toFixed(1)}%</td>
@@ -7714,8 +8047,11 @@ function renderPortfolioScopedOverviewTab() {
           <td><input type="number" min="0" value="${Math.round(detail.summary?.occupied ?? 0)}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "occupied", this.value)' style="width:88px"></td>
           <td><input type="number" min="0" value="${Math.round(detail.summary?.leased ?? 0)}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "leased", this.value)' style="width:88px"></td>
           <td><input type="number" min="0" max="100" step="0.1" value="${escapeHtml(budgetOccPct > 0 ? budgetOccPct.toFixed(1) : "")}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "budget_occ", this.value)' style="width:92px"></td>
+          <td><div style="display:grid;gap:4px"><input type="number" min="0" value="${effectiveLeaseGoal || ""}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "gross_lease_goal", this.value)' style="width:96px"><div class="goal-sub" style="color:${Number.isFinite(savedLeaseGoal) && savedLeaseGoal > 0 ? "#d29922" : "#fb923c"}">${Number.isFinite(savedLeaseGoal) && savedLeaseGoal > 0 ? `Saved goal ${savedLeaseGoal}` : `Rec ${recommendedLeaseGoal}`}</div></div></td>
+          <td><div style="display:grid;gap:4px"><input type="number" min="0" value="${effectiveAppGoal || ""}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "app_goal", this.value)' style="width:96px"><div class="goal-sub" style="color:${Number.isFinite(savedAppGoal) && savedAppGoal > 0 ? "#d29922" : "#3fb950"}">${Number.isFinite(savedAppGoal) && savedAppGoal > 0 ? `Saved goal ${savedAppGoal}` : `Rec ${recommendedAppGoal}`}</div></div></td>
           <td><input type="number" min="0" value="${escapeHtml(String(entry.moveIns ?? ""))}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "move_ins", this.value)' style="width:88px"></td>
           <td><input type="number" min="0" value="${escapeHtml(String(entry.moveOuts ?? ""))}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "move_outs", this.value)' style="width:88px"></td>
+          <td>${buildGoalRecommendationHtml(detail)}</td>
         </tr>`;
       }).join("")}</tbody>
     </table>
@@ -7976,11 +8312,15 @@ function renderSetupTab() {
       <div style="font-size:0.62rem;color:${count>0 ? "#d29922" : "var(--muted)"};margin-top:6px">${count > 0 ? `${bonusQuarter}: ${((activeQuarterCount / count) * 100).toFixed(1)}% · YTD events: ${turnoverCount}` : "Add headcount to calculate turnover"}</div>
     </div>`;
   }).join("");
+  const regionalPricingDetail = getCurrentRegionalPricingDetail(currentMonth);
+  const regionalPricingWorksheetData = regionalPricingDetail
+    ? buildRegionalPricingWorksheetSnapshot(regionalPricingDetail, marketSurveyData, currentMonth)
+    : normalizeMarketSurveyData(marketSurveyData);
   const adjustmentDirectionLabel = ({
     up: "Increase Rent",
     down: "Decrease Rent",
     hold: "Hold Rate"
-  })[marketSurveyData.rentAdjustmentDirection] ?? "Hold Rate";
+  })[regionalPricingWorksheetData.rentAdjustmentDirection] ?? "Hold Rate";
   const communityRosterCards = getConfiguredCommunityTeamProfiles(propertyTeamConfig, communityTeamProfiles)
     .map(profile => {
       const photo = normalizePhotoAsset(profile.photo);
@@ -8002,8 +8342,8 @@ function renderSetupTab() {
         </div>
       </div>`;
     }).join("");
-  const adjustmentAmountLabel = Number(marketSurveyData.rentAdjustmentAmount ?? 0) > 0
-    ? `${marketSurveyData.rentAdjustmentDirection === "down" ? "-" : "+"}$${Number(marketSurveyData.rentAdjustmentAmount).toLocaleString(undefined,{maximumFractionDigits:0})}`
+  const adjustmentAmountLabel = Number(regionalPricingWorksheetData.rentAdjustmentAmount ?? 0) > 0
+    ? `${regionalPricingWorksheetData.rentAdjustmentDirection === "down" ? "-" : "+"}$${Number(regionalPricingWorksheetData.rentAdjustmentAmount).toLocaleString(undefined,{maximumFractionDigits:0})}`
     : "No adjustment set";
   const floorPlanVarianceData = buildCommunityFloorPlanVarianceRows(communityFloorPlans, marketSurveyData);
   const selectedCommunityFloorPlanIds = getFloorPlanSelectionIds("community", getProp().name);
@@ -8124,7 +8464,8 @@ function renderSetupTab() {
       <div>
         <div class="card-title" style="margin-bottom:6px">📈 Regional Pricing Worksheet</div>
         <div style="font-size:0.72rem;color:var(--muted)">Built around the APTIQ Property Summary + Market Survey layout. Regionals can use this section to capture comp-average rent and NER, concession language, exposure, and application velocity before filling in the pricing recommendation slide.</div>
-        <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${marketSurveyData.sourceFileName ? `Source: ${escapeHtml(marketSurveyData.sourceFileName)}${marketSurveyData.uploadedAt ? ` · saved ${escapeHtml(formatSavedTimestampLabel(marketSurveyData.uploadedAt))}` : ""}` : "Upload an ATLAS RISE Investor Snapshot to prefill these pricing fields, then keep them editable."}</div>
+        <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${regionalPricingWorksheetData.sourceFileName ? `Comp source: ${escapeHtml(regionalPricingWorksheetData.sourceFileName)}${regionalPricingWorksheetData.uploadedAt ? ` · saved ${escapeHtml(formatSavedTimestampLabel(regionalPricingWorksheetData.uploadedAt))}` : ""}` : "Upload an ATLAS RISE Investor Snapshot to prefill comp pricing fields."}</div>
+        <div style="font-size:0.64rem;color:var(--muted);margin-top:4px">Comp fields below are sourced from the most recent APTIQ upload. Subject performance fields pull from the selected community's saved operating data.</div>
       </div>
       <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
         <label class="btn btn-gray btn-sm" style="cursor:pointer">
@@ -8132,7 +8473,7 @@ function renderSetupTab() {
           <input type="file" accept=".pdf,.xlsx,.xls,.xlsm,.csv" style="display:none" onchange="handleRegionalPricingSnapshotUpload(this)">
         </label>
         <div style="text-align:right">
-          <div style="font-size:1.25rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:${marketSurveyData.rentAdjustmentDirection === "down" ? "#f97316" : marketSurveyData.rentAdjustmentDirection === "up" ? "#3fb950" : "#58a6ff"}">${adjustmentAmountLabel}</div>
+          <div style="font-size:1.25rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:${regionalPricingWorksheetData.rentAdjustmentDirection === "down" ? "#f97316" : regionalPricingWorksheetData.rentAdjustmentDirection === "up" ? "#3fb950" : "#58a6ff"}">${adjustmentAmountLabel}</div>
           <div style="font-size:0.66rem;color:var(--muted)">${adjustmentDirectionLabel}</div>
         </div>
       </div>
@@ -8140,97 +8481,97 @@ function renderSetupTab() {
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Survey updated on</div>
-        <input type="text" value="${escapeHtml(marketSurveyData.updatedOn)}" placeholder="March 24, 2026" onchange="updateMarketSurveyField('updatedOn',this.value)">
+        <input type="text" value="${escapeHtml(regionalPricingWorksheetData.updatedOn)}" placeholder="March 24, 2026" onchange="updateMarketSurveyField('updatedOn',this.value)">
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Primary comp set / notes</div>
-        <input type="text" value="${escapeHtml(marketSurveyData.primaryCompSet)}" placeholder="Top comps driving this recommendation" onchange="updateMarketSurveyField('primaryCompSet',this.value)">
+        <input type="text" value="${escapeHtml(regionalPricingWorksheetData.primaryCompSet)}" placeholder="Top comps driving this recommendation" onchange="updateMarketSurveyField('primaryCompSet',this.value)">
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Comp average rent</div>
-        <input type="number" min="0" step="1" value="${marketSurveyData.compAverageRent || ""}" placeholder="From APTIQ comp average" onchange="updateMarketSurveyField('compAverageRent',this.value)">
+        <input type="number" min="0" step="1" value="${regionalPricingWorksheetData.compAverageRent || ""}" placeholder="From APTIQ comp average" onchange="updateMarketSurveyField('compAverageRent',this.value)">
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Comp average NER</div>
-        <input type="number" min="0" step="1" value="${marketSurveyData.compAverageNer || ""}" placeholder="Comp average NER" onchange="updateMarketSurveyField('compAverageNer',this.value)">
+        <input type="number" min="0" step="1" value="${regionalPricingWorksheetData.compAverageNer || ""}" placeholder="Comp average NER" onchange="updateMarketSurveyField('compAverageNer',this.value)">
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Comp average leased %</div>
-        <input type="number" min="0" max="100" step="0.1" value="${marketSurveyData.compAverageLeasedPct || ""}" placeholder="Leased %" onchange="updateMarketSurveyField('compAverageLeasedPct',this.value)">
+        <input type="number" min="0" max="100" step="0.1" value="${regionalPricingWorksheetData.compAverageLeasedPct || ""}" placeholder="Leased %" onchange="updateMarketSurveyField('compAverageLeasedPct',this.value)">
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Comp average exposure %</div>
-        <input type="number" min="0" max="100" step="0.1" value="${marketSurveyData.compAverageExposurePct || ""}" placeholder="Exposure %" onchange="updateMarketSurveyField('compAverageExposurePct',this.value)">
+        <input type="number" min="0" max="100" step="0.1" value="${regionalPricingWorksheetData.compAverageExposurePct || ""}" placeholder="Exposure %" onchange="updateMarketSurveyField('compAverageExposurePct',this.value)">
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Subject occupancy %</div>
-        <input type="number" min="0" max="100" step="0.1" value="${marketSurveyData.subjectOccPct || ""}" placeholder="From investor snapshot" onchange="updateMarketSurveyField('subjectOccPct',this.value)">
+        <input type="number" min="0" max="100" step="0.1" value="${regionalPricingWorksheetData.subjectOccPct || ""}" placeholder="From saved community data" readonly>
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Subject exposure %</div>
-        <input type="number" min="0" max="100" step="0.1" value="${marketSurveyData.subjectExposurePct || ""}" placeholder="From investor snapshot" onchange="updateMarketSurveyField('subjectExposurePct',this.value)">
+        <input type="number" min="0" max="100" step="0.1" value="${regionalPricingWorksheetData.subjectExposurePct || ""}" placeholder="From latest saved worksheet" onchange="updateMarketSurveyField('subjectExposurePct',this.value)">
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Current asking rent</div>
-        <input type="number" min="0" step="1" value="${marketSurveyData.subjectAskingRent || ""}" placeholder="From investor snapshot" onchange="updateMarketSurveyField('subjectAskingRent',this.value)">
+        <input type="number" min="0" step="1" value="${regionalPricingWorksheetData.subjectAskingRent || ""}" placeholder="From saved community data" readonly>
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Current net effective rent</div>
-        <input type="number" min="0" step="1" value="${marketSurveyData.subjectNetEffectiveRent || ""}" placeholder="From investor snapshot" onchange="updateMarketSurveyField('subjectNetEffectiveRent',this.value)">
+        <input type="number" min="0" step="1" value="${regionalPricingWorksheetData.subjectNetEffectiveRent || ""}" placeholder="From saved community data" readonly>
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Applications last 7 days</div>
-        <input type="number" min="0" step="1" value="${marketSurveyData.applicationsLast7 || ""}" placeholder="APTIQ application count" onchange="updateMarketSurveyField('applicationsLast7',this.value)">
+        <input type="number" min="0" step="1" value="${regionalPricingWorksheetData.applicationsLast7 || ""}" placeholder="APTIQ application count" onchange="updateMarketSurveyField('applicationsLast7',this.value)">
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Applications last 30 days</div>
-        <input type="number" min="0" step="1" value="${marketSurveyData.applicationsLast30 || ""}" placeholder="APTIQ application count" onchange="updateMarketSurveyField('applicationsLast30',this.value)">
+        <input type="number" min="0" step="1" value="${regionalPricingWorksheetData.applicationsLast30 || ""}" placeholder="From saved community data" readonly>
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Leases last 30 days</div>
-        <input type="number" min="0" step="1" value="${marketSurveyData.leasesLast30 || ""}" placeholder="From investor snapshot" onchange="updateMarketSurveyField('leasesLast30',this.value)">
+        <input type="number" min="0" step="1" value="${regionalPricingWorksheetData.leasesLast30 || ""}" placeholder="From saved community data" readonly>
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Cancellation % last 30 days</div>
-        <input type="number" min="0" max="100" step="0.1" value="${marketSurveyData.cancellationsLast30Pct || ""}" placeholder="From investor snapshot" onchange="updateMarketSurveyField('cancellationsLast30Pct',this.value)">
+        <input type="number" min="0" max="100" step="0.1" value="${regionalPricingWorksheetData.cancellationsLast30Pct || ""}" placeholder="From saved community data" readonly>
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Recommended rent direction</div>
         <select onchange="updateMarketSurveyField('rentAdjustmentDirection',this.value)">
-          <option value="hold" ${marketSurveyData.rentAdjustmentDirection === "hold" ? "selected" : ""}>Hold</option>
-          <option value="up" ${marketSurveyData.rentAdjustmentDirection === "up" ? "selected" : ""}>Increase</option>
-          <option value="down" ${marketSurveyData.rentAdjustmentDirection === "down" ? "selected" : ""}>Decrease</option>
+          <option value="hold" ${regionalPricingWorksheetData.rentAdjustmentDirection === "hold" ? "selected" : ""}>Hold</option>
+          <option value="up" ${regionalPricingWorksheetData.rentAdjustmentDirection === "up" ? "selected" : ""}>Increase</option>
+          <option value="down" ${regionalPricingWorksheetData.rentAdjustmentDirection === "down" ? "selected" : ""}>Decrease</option>
         </select>
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Recommended rent adjustment ($)</div>
-        <input type="number" min="0" step="1" value="${marketSurveyData.rentAdjustmentAmount || ""}" placeholder="e.g. 50" onchange="updateMarketSurveyField('rentAdjustmentAmount',this.value)">
+        <input type="number" min="0" step="1" value="${regionalPricingWorksheetData.rentAdjustmentAmount || ""}" placeholder="e.g. 50" onchange="updateMarketSurveyField('rentAdjustmentAmount',this.value)">
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Recommended approach</div>
-        <input type="text" value="${escapeHtml(marketSurveyData.recommendedApproach || "")}" placeholder="Conservative / Aggressive / Hold" onchange="updateMarketSurveyField('recommendedApproach',this.value)">
+        <input type="text" value="${escapeHtml(regionalPricingWorksheetData.recommendedApproach || "")}" placeholder="Conservative / Aggressive / Hold" onchange="updateMarketSurveyField('recommendedApproach',this.value)">
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Strategy score</div>
-        <input type="number" min="0" max="10" step="0.1" value="${marketSurveyData.strategyScore || ""}" placeholder="e.g. 2/10" onchange="updateMarketSurveyField('strategyScore',this.value)">
+        <input type="number" min="0" max="10" step="0.1" value="${regionalPricingWorksheetData.strategyScore || ""}" placeholder="e.g. 2/10" onchange="updateMarketSurveyField('strategyScore',this.value)">
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:12px">
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Market concession details / specials in market</div>
-        <textarea placeholder="Example: 8 weeks free rent, 2 months free, gift card, waived admin fee" onchange="updateMarketSurveyField('marketConcessions',this.value)">${escapeHtml(marketSurveyData.marketConcessions)}</textarea>
+        <textarea placeholder="Example: 8 weeks free rent, 2 months free, gift card, waived admin fee" onchange="updateMarketSurveyField('marketConcessions',this.value)">${escapeHtml(regionalPricingWorksheetData.marketConcessions)}</textarea>
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Recommended specials for this community</div>
-        <textarea placeholder="What should this community offer to stay competitive?" onchange="updateMarketSurveyField('specialsRecommendation',this.value)">${escapeHtml(marketSurveyData.specialsRecommendation)}</textarea>
+        <textarea placeholder="What should this community offer to stay competitive?" onchange="updateMarketSurveyField('specialsRecommendation',this.value)">${escapeHtml(regionalPricingWorksheetData.specialsRecommendation)}</textarea>
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Comp narrative / market takeaway</div>
-        <textarea placeholder="Summarize the key comp pressure or advantage from the market survey." onchange="updateMarketSurveyField('compNarrative',this.value)">${escapeHtml(marketSurveyData.compNarrative)}</textarea>
+        <textarea placeholder="Summarize the key comp pressure or advantage from the market survey." onchange="updateMarketSurveyField('compNarrative',this.value)">${escapeHtml(regionalPricingWorksheetData.compNarrative)}</textarea>
       </div>
       <div>
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Regional pricing notes for investor deck</div>
-        <textarea placeholder="This feeds the fill-in pricing recommendation slide for this community." onchange="updateMarketSurveyField('pricingNotes',this.value)">${escapeHtml(marketSurveyData.pricingNotes)}</textarea>
+        <textarea placeholder="This feeds the fill-in pricing recommendation slide for this community." onchange="updateMarketSurveyField('pricingNotes',this.value)">${escapeHtml(regionalPricingWorksheetData.pricingNotes)}</textarea>
       </div>
     </div>
     <div data-floor-plan-selection-section="survey" style="margin-top:14px;padding:14px;border:1px solid rgba(68,147,248,0.18);border-radius:12px;background:rgba(68,147,248,0.04)">
@@ -9360,17 +9701,6 @@ function renderOverviewTab() {
     const applicationsActual = monthApplicationMetrics.applications;
     const approvalsActual = monthApplicationMetrics.approvals;
     const vsLeasedBudget = savedPct > 0 && thisRollingLeased !== null ? thisRollingLeased - savedPct : null;
-    const grossLeasesCell = isPast
-      ? (approvalsActual > 0
-          ? `<div><span style="color:#fb923c;font-weight:700">${approvalsActual}</span></div>`
-          : `<span style="color:var(--muted)">—</span>`)
-      : monthGoalInpField(i, "grossLeaseGoalManual", monthlyData[i]?.grossLeaseGoalManual, row.recommendedGrossLeases, approvalsActual, "Approved", "#fb923c");
-    const appsCell = isPast
-      ? (applicationsActual > 0
-          ? `<div><span style="color:#3fb950;font-weight:700">${applicationsActual}</span></div>`
-          : `<span style="color:var(--muted)">—</span>`)
-      : monthGoalInpField(i, "appGoalManual", monthlyData[i]?.appGoalManual, row.recommendedApps, applicationsActual, "Actual", "#3fb950");
-
     return `<tr class="${isPast?"past":isCurrent?"current-row":""}">
       <td class="l">${row.month}${isCurrent?`<span class="now-badge">Now</span>`:""}</td>
       <td>${isPast?`<span style="color:var(--muted)">${row.moveOuts}</span>`:`${monthMoveOutInpField(i, monthlyData[i].moveOuts ?? 0, getEffectiveMoveOutsForMonth(i).renewal)}`}</td>
@@ -9380,8 +9710,6 @@ function renderOverviewTab() {
       <td>${savedPct>0?`<span style="color:#4ade80;font-weight:600">${savedPct.toFixed(1)}%</span>${!isPast?`<div class="goal-sub" style="color:${budgetPct-savedPct>=0?"#4493f8":"#fb923c"}">${budgetPct-savedPct>=0?"▲":"▼"}${Math.abs(budgetPct-savedPct).toFixed(1)}%</div>`:""}`:`<span style="color:var(--border)">—</span>`}</td>
       <td><span style="font-size:0.72rem;font-weight:700;color:${(seasonal[i]??1)>=1.0?"#3fb950":(seasonal[i]??1)>=0.8?"#d29922":"#f85149"}">${(seasonal[i]??1).toFixed(2)}x</span></td>
       <td>${isPast?`<span style="color:var(--muted)">—</span>`:`<span style="color:#d29922;font-weight:700">${row.netOccLeases}</span>`}</td>
-      <td>${grossLeasesCell}</td>
-      <td>${appsCell}</td>
       <td>${isPast?`<span style="color:var(--muted)">—</span>`:`<div><span style="font-weight:700;color:${atOcc?"#4493f8":row.occPct>80?"#d29922":"#f85149"}">${row.occPct.toFixed(1)}%</span>${vsbudget!==null?`<div class="goal-sub" style="color:${vsbudget>=0?"#3fb950":"#f85149"}">${vsbudget>=0?"▲":"▼"}${Math.abs(vsbudget).toFixed(1)}%</div>`:""}</div>`}</td>
       <td>${endingOccPct !== null ? `<span style="font-weight:700;color:${endingOccPct>=occupancyGoal?"#4493f8":endingOccPct>=85?"#d29922":"#f85149"}">${endingOccPct.toFixed(1)}%</span>` : `<span style="color:var(--muted)">—</span>`}</td>
     </tr>`;
@@ -9405,8 +9733,6 @@ function renderOverviewTab() {
         <th class="c">Saved Budget</th>
         <th class="c">Season</th>
         <th class="c">Net Occ</th>
-        <th class="c">Gross Leases Goal</th>
-        <th class="c">Apps Goal</th>
         <th class="c">Occ %</th>
         <th class="c">Ending Occ %</th>
       </tr></thead>
@@ -13733,6 +14059,110 @@ function getCompCalculatorSurveySnapshot(detail, monthIdx = getSelectedDashboard
   return hasMarketSurveyData(current) ? current : historical;
 }
 
+function getLatestMarketSurveySnapshot(record = {}, monthIdx = getSelectedDashboardMonthIndex(), year = new Date().getFullYear()) {
+  const current = normalizeMarketSurveyData(record?.marketSurveyData);
+  const history = normalizeMarketSurveyHistory(record?.marketSurveyHistory);
+  const selectedPeriodKey = buildPeriodKey(monthIdx, year);
+  const candidates = [];
+  const pushCandidate = (survey, key, isCurrent = false) => {
+    const normalized = normalizeMarketSurveyData(survey);
+    if (!hasMarketSurveyData(normalized)) return;
+    const uploadedAt = parseDateSafe(normalized.uploadedAt)?.getTime() ?? 0;
+    const updatedOn = parseDateSafe(normalized.updatedOn)?.getTime() ?? 0;
+    candidates.push({
+      survey: normalized,
+      key: String(key || ""),
+      isCurrent,
+      uploadedAt,
+      updatedOn
+    });
+  };
+  pushCandidate(current, "current", true);
+  Object.entries(history).forEach(([key, survey]) => pushCandidate(survey, key, false));
+  if (candidates.length === 0) return current;
+  candidates.sort((left, right) => {
+    if (right.uploadedAt !== left.uploadedAt) return right.uploadedAt - left.uploadedAt;
+    if (right.updatedOn !== left.updatedOn) return right.updatedOn - left.updatedOn;
+    if ((right.key === selectedPeriodKey) !== (left.key === selectedPeriodKey)) {
+      return right.key === selectedPeriodKey ? 1 : -1;
+    }
+    if (right.isCurrent !== left.isCurrent) return right.isCurrent ? 1 : -1;
+    return right.key.localeCompare(left.key);
+  });
+  return candidates[0]?.survey ?? current;
+}
+
+function getCurrentRegionalPricingDetail(monthIdx = getSelectedDashboardMonthIndex()) {
+  const currentName = getProp().name;
+  const details = buildPortfolioDetailsForMonth(monthIdx);
+  return details.find(detail => detail.name === currentName) ?? details[0] ?? null;
+}
+
+function buildRegionalPricingWorksheetSnapshot(detail, editableSurvey = null, monthIdx = getSelectedDashboardMonthIndex()) {
+  const record = detail?.record ?? {};
+  const latestSurvey = getLatestMarketSurveySnapshot(record, monthIdx);
+  const editableInput = (editableSurvey && typeof editableSurvey === "object")
+    ? editableSurvey
+    : ((record?.marketSurveyData && typeof record.marketSurveyData === "object") ? record.marketSurveyData : {});
+  const editable = normalizeMarketSurveyData(editableInput);
+  if (!detail) return editable;
+  const activity = getCompCalculatorSubjectActivity(detail, latestSurvey, monthIdx);
+  const monthEntry = record?.monthlyData?.[monthIdx] ?? {};
+  const summary = detail?.summary ?? {};
+  const floorPlanMetrics = getCommunityFloorPlanRentMetrics(record, latestSurvey);
+  const hasOwn = key => Object.prototype.hasOwnProperty.call(editableInput, key);
+  const pickText = key => {
+    const value = String(editableInput?.[key] ?? "").trim();
+    return value || latestSurvey[key];
+  };
+  const pickNumber = key => {
+    if (hasOwn(key) && editableInput?.[key] !== "" && editableInput?.[key] != null) {
+      const numeric = Number(editableInput[key]);
+      if (Number.isFinite(numeric)) return numeric;
+    }
+    return Number(latestSurvey?.[key] ?? 0) || 0;
+  };
+  const pickDirection = key => {
+    const value = String(editableInput?.[key] ?? "").trim().toLowerCase();
+    if (hasOwn(key) && ["up", "down", "hold"].includes(value)) return value;
+    return String(latestSurvey?.[key] ?? "hold").trim().toLowerCase() || "hold";
+  };
+  const resolvedSubjectAskingRent = Number(monthEntry.marketRent ?? 0)
+    || Number(floorPlanMetrics.marketRent ?? 0)
+    || Number(summary.currentRent ?? 0)
+    || Number(latestSurvey.subjectAskingRent ?? 0)
+    || 0;
+  const resolvedSubjectNer = Number(monthEntry.nerActual ?? 0)
+    || Number(summary.currentNer ?? 0)
+    || Number(latestSurvey.subjectNetEffectiveRent ?? 0)
+    || 0;
+  return normalizeMarketSurveyData({
+    ...latestSurvey,
+    primaryCompSet: pickText("primaryCompSet"),
+    marketConcessions: pickText("marketConcessions"),
+    recommendedApproach: pickText("recommendedApproach"),
+    leasingApproach: pickText("leasingApproach"),
+    strategyScore: pickText("strategyScore"),
+    targetOccupancyPct: pickNumber("targetOccupancyPct") || activity.budgetOccPct,
+    leaseTermMonths: pickNumber("leaseTermMonths"),
+    maxConcessionAmount: pickNumber("maxConcessionAmount"),
+    rentAdjustmentDirection: pickDirection("rentAdjustmentDirection"),
+    rentAdjustmentAmount: pickNumber("rentAdjustmentAmount"),
+    specialsRecommendation: pickText("specialsRecommendation"),
+    compNarrative: pickText("compNarrative"),
+    pricingNotes: pickText("pricingNotes"),
+    subjectOccPct: Number(activity.currentOccPct ?? 0) || Number(latestSurvey.subjectOccPct ?? 0) || 0,
+    subjectExposurePct: pickNumber("subjectExposurePct"),
+    subjectAskingRent: resolvedSubjectAskingRent,
+    subjectNetEffectiveRent: resolvedSubjectNer,
+    applicationsLast7: pickNumber("applicationsLast7"),
+    applicationsLast30: Number(activity.applications ?? 0) || Number(latestSurvey.applicationsLast30 ?? 0) || 0,
+    leasesLast7: pickNumber("leasesLast7"),
+    leasesLast30: Number(activity.leasesSigned ?? 0) || Number(latestSurvey.leasesLast30 ?? 0) || 0,
+    cancellationsLast30Pct: Number(activity.cancelledPct ?? 0) || Number(latestSurvey.cancellationsLast30Pct ?? 0) || 0
+  });
+}
+
 function compCalcAverage(values = []) {
   const cleaned = values.map(value => Number(value ?? 0)).filter(value => Number.isFinite(value) && value > 0);
   if (cleaned.length === 0) return 0;
@@ -15803,7 +16233,17 @@ function updatePortfolioCommunityMonthField(propName, monthIdx, targetKey, value
   const raw = String(value ?? "").trim();
   const numericValue = raw === "" ? 0 : Number(raw);
   if (!Number.isFinite(numericValue)) return;
-  applyValueToRecord(record, normalizedMonth, targetKey, numericValue);
+  if (targetKey === "gross_lease_goal" || targetKey === "app_goal") {
+    if (!record.monthlyData[normalizedMonth]) record.monthlyData[normalizedMonth] = defaultMonthly()[normalizedMonth];
+    const md = record.monthlyData[normalizedMonth];
+    if (targetKey === "gross_lease_goal") {
+      md.grossLeaseGoalManual = raw === "" || numericValue <= 0 ? null : numericValue;
+    } else {
+      md.appGoalManual = raw === "" || numericValue <= 0 ? null : numericValue;
+    }
+  } else {
+    applyValueToRecord(record, normalizedMonth, targetKey, numericValue);
+  }
   persistPortfolioCommunityRecord(propName, record);
 }
 
@@ -16839,7 +17279,7 @@ function buildPresentationTeamPanel(members, title = "Team In Scope") {
 }
 
 function buildCommunityMarketSurveyCharts(detail) {
-  const market = normalizeMarketSurveyData(detail.record?.marketSurveyData);
+  const market = buildRegionalPricingWorksheetSnapshot(detail);
   const comps = Array.isArray(market.surveyComps) ? market.surveyComps : [];
   if (comps.length === 0) return "";
   const subject = comps.find(comp => comp.isSubject);
@@ -16903,7 +17343,7 @@ function getRegionalPricingActionLabel(market) {
 }
 
 function buildCommunitySpotlightPricingPanel(detail) {
-  const market = normalizeMarketSurveyData(detail.record?.marketSurveyData);
+  const market = buildRegionalPricingWorksheetSnapshot(detail);
   const signalCards = [
     {
       label: "Comp Avg Rent",
@@ -17340,7 +17780,7 @@ function buildMonthlyInvestorPresentationSlidePlan(report) {
     });
   }
   report.details.forEach((detail, idx) => {
-    const market = normalizeMarketSurveyData(detail.record?.marketSurveyData);
+    const market = buildRegionalPricingWorksheetSnapshot(detail);
     slides.push({
       title: detail.name,
       ribbon: "Community spotlight + pricing action",
@@ -17590,7 +18030,7 @@ function buildMonthlyPresentationPricingSlide(report) {
     "Our Market Rent vs Comp Average Rent",
     report.details.map(detail => {
       const monthEntry = getMonthlyPresentationCurrentEntry(detail);
-      const market = normalizeMarketSurveyData(detail.record?.marketSurveyData);
+      const market = buildRegionalPricingWorksheetSnapshot(detail);
       return {
         label: detail.name,
         value: Number(monthEntry.marketRent ?? 0),
@@ -17622,7 +18062,7 @@ function buildMonthlyPresentationPricingSlide(report) {
           <thead><tr><th>Community</th><th>Comp Signals</th><th>Rent Adjustment</th><th>Recommended Specials</th><th>Regional Note</th></tr></thead>
           <tbody>
             ${report.details.map(detail => {
-              const market = normalizeMarketSurveyData(detail.record?.marketSurveyData);
+              const market = buildRegionalPricingWorksheetSnapshot(detail);
               const adjustmentDirection = ({
                 up: "Increase",
                 down: "Decrease",
@@ -18761,7 +19201,7 @@ async function buildMonthlyInvestorPresentationPptxSlides(pptx, report) {
     });
     const summary = detail.summary;
     const monthEntry = getMonthlyPresentationCurrentEntry(detail);
-    const market = normalizeMarketSurveyData(detail.record?.marketSurveyData);
+    const market = buildRegionalPricingWorksheetSnapshot(detail);
     const people = getPresentationCommunityStaffForDetail(detail);
     addPptxTextPanel(detailSlide, pptx, {
       x: 0.35, y: 2.0, w: 4.55, h: 1.16,
@@ -22978,6 +23418,7 @@ async function handleCSVFile(file, options = {}) {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 async function initializeAtlasDashboard() {
   ensureScoutPresence();
+  bindScoutAssistantUi();
   sideNavCollapsed = loadSideNavCollapsed();
   applySideNavState();
   await hydrateDashboardPersistentState();
@@ -23000,6 +23441,7 @@ async function initializeAtlasDashboard() {
 
 initializeAtlasDashboard().catch((error) => {
   ensureScoutPresence();
+  bindScoutAssistantUi();
   markAtlasPersistenceError(error, "ATLAS could not finish loading browser data.");
   hydrateOpsGlobalData();
   currentMonth = DEFAULT_CURRENT_MONTH;

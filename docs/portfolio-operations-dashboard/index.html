@@ -17242,6 +17242,61 @@ function formatPortfolioReportValueWithTrend(value, kind, previousValue, trendMo
   return trend ? `${base} · ${trend}` : base;
 }
 
+function getPreviousMonthForReport(monthIdx, year) {
+  const safeMonth = clampNumber(monthIdx, 0, 11);
+  const safeYear = Number.isFinite(Number(year)) ? Number(year) : new Date().getFullYear();
+  return safeMonth > 0
+    ? { monthIdx: safeMonth - 1, year: safeYear }
+    : { monthIdx: 11, year: safeYear - 1 };
+}
+
+function buildWeeklyMomTrendContext(monthIdx, year, generatedAt = new Date()) {
+  const context = getCurrentCalendarDayContext(monthIdx, year);
+  const previousPeriod = getPreviousMonthForReport(monthIdx, year);
+  const previousDaysInMonth = getDaysInMonthFor(previousPeriod.year, previousPeriod.monthIdx);
+  const comparablePreviousDay = context.isCurrentCalendarMonth
+    ? Math.max(1, Math.min(context.dayOfMonth, previousDaysInMonth))
+    : previousDaysInMonth;
+  return {
+    ...context,
+    generatedAt,
+    previousMonthIdx: previousPeriod.monthIdx,
+    previousYear: previousPeriod.year,
+    previousDaysInMonth,
+    comparablePreviousDay,
+    previousPaceRatio: context.isCurrentCalendarMonth ? comparablePreviousDay / Math.max(previousDaysInMonth, 1) : 1,
+    label: context.isCurrentCalendarMonth ? `day ${context.dayOfMonth} prior-month trend` : "prior month"
+  };
+}
+
+function formatWeeklyMomTrendValue(currentValue, previousValue, mode = "count_pct", trendContext = {}) {
+  const current = Number(currentValue) || 0;
+  const previous = Number(previousValue) || 0;
+  const contextLabel = trendContext.label || "prior month";
+  const expectedPrevious = mode === "count_pct" || mode === "number_diff"
+    ? previous * (Number(trendContext.previousPaceRatio) || 1)
+    : previous;
+  const diff = current - expectedPrevious;
+  const directionLabel = diff >= 0 ? "Exceeding" : "Below";
+  const arrow = diff >= 0 ? "▲" : "▼";
+  if (mode === "point") {
+    if (Math.abs(diff) < 0.05) return `On track with ${contextLabel}`;
+    return `${arrow} ${directionLabel} ${contextLabel} by ${Math.abs(diff).toFixed(1)} pts`;
+  }
+  if (mode === "number_diff") {
+    if (Math.abs(diff) < 0.5) return `On track with ${contextLabel}`;
+    return `${arrow} ${directionLabel} ${contextLabel} by ${Math.abs(diff).toFixed(0)} units`;
+  }
+  if (Math.abs(diff) < 0.5) return `On track with ${contextLabel}`;
+  if (Math.abs(expectedPrevious) < 0.5) {
+    return current > 0
+      ? `${arrow} ${directionLabel} ${contextLabel} with new activity`
+      : `On track with ${contextLabel}`;
+  }
+  const pctChange = (diff / Math.abs(expectedPrevious)) * 100;
+  return `${arrow} ${directionLabel} ${contextLabel} by ${Math.abs(pctChange).toFixed(1)}%`;
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -17524,46 +17579,47 @@ function buildWeeklyExecutiveNarrative(report) {
 
 function buildWeeklyExecutiveMetricCards(report) {
   const aggregate = report.aggregate;
-  const previousAggregate = report.previousAggregate;
+  const trendAggregate = report.previousMonthAggregate;
+  const trendContext = report.momTrendContext || buildWeeklyMomTrendContext(getReportHubMonthIndex(), getReportHubYear(), report.generatedAt);
   const occPct = getSummaryOccPct(aggregate);
   const leasedPct = getSummaryLeasedPct(aggregate);
-  const previousOccPct = previousAggregate ? getSummaryOccPct(previousAggregate) : null;
-  const previousLeasedPct = previousAggregate ? getSummaryLeasedPct(previousAggregate) : null;
+  const previousOccPct = trendAggregate ? getSummaryOccPct(trendAggregate) : null;
+  const previousLeasedPct = trendAggregate ? getSummaryLeasedPct(trendAggregate) : null;
   return [
     {
       label: "Physical Occupancy",
       value: `${occPct.toFixed(1)}%`,
-      sub: previousAggregate ? `${formatPortfolioTrendValue(occPct, previousOccPct, "point").replace("MoM", "vs prior weekly")}` : `${aggregate.onTrackBudgetOccCount ?? 0}/${aggregate.trackedBudgetOccCount ?? 0} communities on track`
+      sub: trendAggregate ? formatWeeklyMomTrendValue(occPct, previousOccPct, "point", trendContext) : `${aggregate.onTrackBudgetOccCount ?? 0}/${aggregate.trackedBudgetOccCount ?? 0} communities on track`
     },
     {
       label: "Leased Occupancy",
       value: `${leasedPct.toFixed(1)}%`,
-      sub: previousAggregate ? `${formatPortfolioTrendValue(leasedPct, previousLeasedPct, "point").replace("MoM", "vs prior weekly")}` : `${Math.max(aggregate.leasedGapUnits ?? 0, 0)} units behind leased budget`
+      sub: trendAggregate ? formatWeeklyMomTrendValue(leasedPct, previousLeasedPct, "point", trendContext) : `${Math.max(aggregate.leasedGapUnits ?? 0, 0)} units behind leased budget`
     },
     {
       label: "Applications Received",
       value: `${Math.round(aggregate.applications ?? 0)}`,
-      sub: previousAggregate ? `${formatPortfolioTrendValue(aggregate.applications ?? 0, previousAggregate.applications ?? 0, "count_pct").replace("MoM", "vs prior weekly")}` : formatPortfolioTrendValue(aggregate.applications ?? 0, aggregate.previousApplications ?? 0, "count_pct")
+      sub: trendAggregate ? formatWeeklyMomTrendValue(aggregate.applications ?? 0, trendAggregate.applications ?? 0, "count_pct", trendContext) : formatPortfolioTrendValue(aggregate.applications ?? 0, aggregate.previousApplications ?? 0, "count_pct")
     },
     {
       label: "Approved Applications",
       value: `${Math.round(aggregate.applicationsApproved ?? 0)}`,
-      sub: previousAggregate ? `${formatPortfolioTrendValue(aggregate.applicationsApproved ?? 0, previousAggregate.applicationsApproved ?? 0, "count_pct").replace("MoM", "vs prior weekly")}` : formatPortfolioTrendValue(aggregate.applicationsApproved ?? 0, aggregate.previousApplicationsApproved ?? 0, "count_pct")
+      sub: trendAggregate ? formatWeeklyMomTrendValue(aggregate.applicationsApproved ?? 0, trendAggregate.applicationsApproved ?? 0, "count_pct", trendContext) : formatPortfolioTrendValue(aggregate.applicationsApproved ?? 0, aggregate.previousApplicationsApproved ?? 0, "count_pct")
     },
     {
       label: "Approval Rate",
       value: `${(aggregate.applicationApprovalPct ?? 0).toFixed(1)}%`,
-      sub: previousAggregate ? `${formatPortfolioTrendValue(aggregate.applicationApprovalPct ?? 0, previousAggregate.applicationApprovalPct ?? 0, "point").replace("MoM", "vs prior weekly")}` : formatPortfolioTrendValue(aggregate.applicationApprovalPct ?? 0, aggregate.previousApplicationApprovalPct ?? 0, "point")
+      sub: trendAggregate ? formatWeeklyMomTrendValue(aggregate.applicationApprovalPct ?? 0, trendAggregate.applicationApprovalPct ?? 0, "point", trendContext) : formatPortfolioTrendValue(aggregate.applicationApprovalPct ?? 0, aggregate.previousApplicationApprovalPct ?? 0, "point")
     },
     {
       label: "Net Absorption",
       value: formatSignedDisplay(aggregate.monthAbsorption ?? 0),
-      sub: previousAggregate ? `${formatPortfolioTrendValue(aggregate.monthAbsorption ?? 0, previousAggregate.monthAbsorption ?? 0, "number_diff").replace("MoM", "vs prior weekly")}` : formatPortfolioTrendValue(aggregate.monthAbsorption ?? 0, aggregate.previousMonthAbsorption ?? 0, "number_diff")
+      sub: trendAggregate ? formatWeeklyMomTrendValue(aggregate.monthAbsorption ?? 0, trendAggregate.monthAbsorption ?? 0, "number_diff", trendContext) : formatPortfolioTrendValue(aggregate.monthAbsorption ?? 0, aggregate.previousMonthAbsorption ?? 0, "number_diff")
     },
     {
       label: "Renewal Retention",
       value: `${(aggregate.renewalRetentionRate ?? 0).toFixed(1)}%`,
-      sub: previousAggregate ? `${formatPortfolioTrendValue(aggregate.renewalRetentionRate ?? 0, previousAggregate.renewalRetentionRate ?? 0, "point").replace("MoM", "vs prior weekly")}` : formatPortfolioTrendValue(aggregate.renewalRetentionRate ?? 0, aggregate.previousRenewalRetentionRate ?? 0, "point")
+      sub: trendAggregate ? formatWeeklyMomTrendValue(aggregate.renewalRetentionRate ?? 0, trendAggregate.renewalRetentionRate ?? 0, "point", trendContext) : formatPortfolioTrendValue(aggregate.renewalRetentionRate ?? 0, aggregate.previousRenewalRetentionRate ?? 0, "point")
     },
     {
       label: "ORA Average",
@@ -17591,16 +17647,23 @@ function buildWeeklyExecutiveReportData() {
   const investorGroups = buildInvestorPortfolioGroups(details, previousGroupsByName);
   const generatedAt = new Date();
   const scopeLabel = isPortfolioWorkspaceSelected() ? PORTFOLIO_SCOPE_LABEL : getProp().name;
+  const reportYear = getReportHubYear();
+  const previousMonthContext = getPreviousMonthForReport(selectedMonth, reportYear);
+  const previousMonthDetails = selectedMonth > 0
+    ? getScopedPortfolioReportDetails(buildPortfolioDetailsForMonth(previousMonthContext.monthIdx))
+    : [];
   return {
     title: isPortfolioWorkspaceSelected() ? "ATLAS RISE Weekly Portfolio Snap Shot" : `ATLAS RISE Weekly Portfolio Snap Shot - ${scopeLabel}`,
     subtitle: `${getReportPerspectiveLabel()} · high-level portfolio details, leasing metrics, financials, and budget target progress`,
     generatedAt,
     scopeLabel,
     currentMonthLabel: getDashboardMonthLabel(selectedMonth),
-    reportYear: getReportHubYear(),
+    reportYear,
     perspective: reportHubPerspective,
     details,
     aggregate: aggregateCommunitySummaries(details.map(detail => detail.summary)),
+    previousMonthAggregate: previousMonthDetails.length > 0 ? aggregateCommunitySummaries(previousMonthDetails.map(detail => detail.summary)) : null,
+    momTrendContext: buildWeeklyMomTrendContext(selectedMonth, reportYear, generatedAt),
     previousAggregate: previousDetails.length > 0 ? aggregateCommunitySummaries(previousDetails.map(detail => detail.summary)) : null,
     previousGeneratedAt: previousPayload?.exportedAt ?? null,
     investorGroups

@@ -3855,6 +3855,110 @@ function getApplicationDecisionMetrics(monthEntry = {}) {
   return { applications, approvals, denials, cancelled, pendingDecision, leases, approvalPct, denialPct, cancelledPct, pendingPct, appToLeasePct };
 }
 
+function getDlrActivityMetric(activity = {}, label, field = "mtd") {
+  const row = activity?.[label];
+  if (!row || typeof row !== "object") return null;
+  const value = Number(row?.[field]);
+  return Number.isFinite(value) ? value : null;
+}
+
+function buildDlrTrafficMetricsFromSummary(dlrSummary = {}, monthEntry = {}, dailyBoxScore = {}, options = {}) {
+  const normalizedSummary = normalizeDlrSummary(dlrSummary);
+  const activity = normalizedSummary.activity || {};
+  const preferDailyBoxScore = Boolean(options?.preferDailyBoxScore);
+  const leadSources = {
+    walkIn: getDlrActivityMetric(activity, "Walk In"),
+    offSiteEvent: getDlrActivityMetric(activity, "Off Site Event"),
+    phoneCalls: getDlrActivityMetric(activity, "Phone Calls"),
+    emailsOnline: getDlrActivityMetric(activity, "Emails/Online"),
+    textChatOther: getDlrActivityMetric(activity, "Text/Chat/Other")
+  };
+  const derivedLeadValues = Object.values(leadSources).filter(value => Number.isFinite(value));
+  const monthLeadSources = getLeadSourceBreakdown(monthEntry);
+  const monthApplications = getApplicationDecisionMetrics(monthEntry);
+  const dailyApplicationsSource = preferDailyBoxScore ? dailyBoxScore : {};
+  const summaryApplications = {
+    applications: getDlrActivityMetric(activity, "Applications")
+      ?? getDlrActivityMetric(activity, "Gross New Applications")
+      ?? getDlrActivityMetric(activity, "Net New Applications")
+      ?? monthApplications.applications
+      ?? Number(dailyApplicationsSource?.applications),
+    approvals: getDlrActivityMetric(activity, "Approved")
+      ?? monthApplications.approvals
+      ?? (Number.isFinite(Number(dailyApplicationsSource?.applicationsApproved))
+        ? Number(dailyApplicationsSource.applicationsApproved)
+        : null),
+    denials: getDlrActivityMetric(activity, "Denied")
+      ?? monthApplications.denials
+      ?? (Number.isFinite(Number(dailyApplicationsSource?.denied))
+        ? Number(dailyApplicationsSource.denied)
+        : null),
+    cancelled: getDlrActivityMetric(activity, "Cancelled")
+      ?? monthApplications.cancelled
+      ?? (Number.isFinite(Number(dailyApplicationsSource?.cancelled))
+        ? Number(dailyApplicationsSource.cancelled)
+        : null),
+    pendingDecision: getDlrActivityMetric(activity, "Pending / Partial")
+      ?? monthApplications.pendingDecision
+      ?? (Number.isFinite(Number(dailyApplicationsSource?.pendingDecision))
+        ? Number(dailyApplicationsSource.pendingDecision)
+        : null),
+    leases: monthApplications.leases
+      ?? (Number.isFinite(Number(dailyApplicationsSource?.leasesSigned))
+        ? Number(dailyApplicationsSource.leasesSigned)
+        : null)
+  };
+  const applications = Math.max(0, Number(summaryApplications.applications) || 0);
+  const approvals = Math.max(0, Number(summaryApplications.approvals) || 0);
+  const denials = Math.max(0, Number(summaryApplications.denials) || 0);
+  const cancelled = Math.max(0, Number(summaryApplications.cancelled) || 0);
+  const pendingDecision = Math.max(0, Number(summaryApplications.pendingDecision) || 0);
+  const leases = Math.max(0, Number(summaryApplications.leases) || 0);
+  const derivedApplications = applications > 0 ? applications : (approvals + denials + cancelled + pendingDecision);
+  const leadGuestCards = getDlrActivityMetric(activity, "Guest Cards")
+    ?? getDlrActivityMetric(activity, "Applications")
+    ?? (derivedLeadValues.length > 0
+      ? derivedLeadValues.reduce((sum, value) => sum + value, 0)
+      : getLeadSourceTotal(monthEntry));
+  const tours = getDlrActivityMetric(activity, "Tours")
+    ?? Number(dailyBoxScore?.firstVisitsTours ?? dailyBoxScore?.tours)
+    ?? Number(monthEntry.tours)
+    ?? 0;
+  const moveIns = getDlrActivityMetric(activity, "Move-Ins")
+    ?? Number(dailyBoxScore?.moveIns)
+    ?? Number(monthEntry.moveIns)
+    ?? 0;
+  const moveOuts = getDlrActivityMetric(activity, "Move-Outs")
+    ?? Number(dailyBoxScore?.moveOuts)
+    ?? Number(monthEntry.moveOuts)
+    ?? 0;
+  const renewals = getDlrActivityMetric(activity, "Renewals")
+    ?? Number(dailyBoxScore?.renewals)
+    ?? Number(monthEntry.renewals)
+    ?? 0;
+  return {
+    walkIn: Math.max(0, Number(leadSources.walkIn ?? monthLeadSources.walkIn) || 0),
+    offSiteEvent: Math.max(0, Number(leadSources.offSiteEvent ?? monthLeadSources.offSiteEvent) || 0),
+    phoneCalls: Math.max(0, Number(leadSources.phoneCalls ?? monthLeadSources.phoneCalls) || 0),
+    emailsOnline: Math.max(0, Number(leadSources.emailsOnline ?? monthLeadSources.emailsOnline) || 0),
+    textChatOther: Math.max(0, Number(leadSources.textChatOther ?? monthLeadSources.textChatOther) || 0),
+    guestCards: Math.max(0, Number(leadGuestCards) || 0),
+    rolledGuestCards: Math.max(0, Number(leadGuestCards) || 0),
+    tours: Math.max(0, Number(tours) || 0),
+    applications: Math.max(0, Number(derivedApplications) || 0),
+    approvals: Math.max(0, approvals),
+    denials: Math.max(0, denials),
+    cancelled: Math.max(0, cancelled),
+    pendingDecision: Math.max(0, pendingDecision),
+    leases: Math.max(0, leases),
+    moveIns: Math.max(0, Number(moveIns) || 0),
+    moveOuts: Math.max(0, Number(moveOuts) || 0),
+    renewals: Math.max(0, Number(renewals) || 0),
+    notices: Math.max(0, Number(getDlrActivityMetric(activity, "Notices Received")) || 0),
+    sourceMode: derivedLeadValues.length > 0 || Object.keys(activity).length > 0 ? "dlr_summary" : "dashboard_mtd"
+  };
+}
+
 function getGrossLeaseProgressCount(monthEntry = {}) {
   const approvals = getApplicationsApprovedCount(monthEntry);
   if (approvals > 0) return approvals;
@@ -21708,46 +21812,15 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
   const budgetOccPct = getBudgetOccPctForMonth(monthEntry, record.savedBudgetTargets, reportMetricMonthIdx) || Number(scheduleRow.budgetOcc) || 0;
   const moveInsNeeded = Number(scheduleRow.netOccLeases) || 0;
   const moveInGoalPerWeek = moveInsNeeded > 0 ? Math.max(1, Math.ceil(moveInsNeeded / 4)) : 0;
-  const dashboardLeadSources = getLeadSourceBreakdown(monthEntry);
-  const dashboardLeadSourceTotal = getLeadSourceTotal(monthEntry);
-  const mtdTraffic = {
-    walkIn: dashboardLeadSources.walkIn,
-    offSiteEvent: dashboardLeadSources.offSiteEvent,
-    phoneCalls: dashboardLeadSources.phoneCalls,
-    emailsOnline: dashboardLeadSources.emailsOnline,
-    textChatOther: dashboardLeadSources.textChatOther,
-    guestCards: dashboardLeadSourceTotal,
-    rolledGuestCards: dashboardLeadSourceTotal,
-    tours: Number(monthEntry.tours) || 0,
-    applications: appMetrics.applications,
-    approvals: appMetrics.approvals,
-    denials: appMetrics.denials,
-    cancelled: appMetrics.cancelled,
-    pendingDecision: appMetrics.pendingDecision,
-    leases: appMetrics.leases,
-    moveIns: Number(monthEntry.moveIns) || 0,
-    moveOuts: getEffectiveMoveOutsForMonth(reportMetricMonthIdx, scopeMonthlyData).effective,
-    renewals: renewalSummary.signed,
-    notices: renewalSummary.ntv
-  };
+  const mtdTraffic = buildDlrTrafficMetricsFromSummary(dlrSummary, monthEntry, dailyBoxScore, {
+    preferDailyBoxScore: hasMatchingDailyBoxScore
+  });
   mtdTraffic.guestToTourPct = mtdTraffic.guestCards > 0 ? (mtdTraffic.tours / mtdTraffic.guestCards) * 100 : 0;
   mtdTraffic.tourToAppPct = mtdTraffic.tours > 0 ? (mtdTraffic.applications / mtdTraffic.tours) * 100 : 0;
   mtdTraffic.appToLeasePct = mtdTraffic.applications > 0 ? (mtdTraffic.leases / mtdTraffic.applications) * 100 : 0;
-  const prevMonthTraffic = {
-    walkIn: getLeadSourceBreakdown(prevMonthEntry).walkIn,
-    offSiteEvent: getLeadSourceBreakdown(prevMonthEntry).offSiteEvent,
-    phoneCalls: getLeadSourceBreakdown(prevMonthEntry).phoneCalls,
-    emailsOnline: getLeadSourceBreakdown(prevMonthEntry).emailsOnline,
-    textChatOther: getLeadSourceBreakdown(prevMonthEntry).textChatOther,
-    guestCards: getLeadSourceTotal(prevMonthEntry),
-    tours: Number(prevMonthEntry.tours) || 0,
-    applications: prevAppMetrics.applications,
-    approvals: prevAppMetrics.approvals,
-    denials: prevAppMetrics.denials,
-    cancelled: prevAppMetrics.cancelled,
-    pendingDecision: prevAppMetrics.pendingDecision,
-    leases: prevAppMetrics.leases
-  };
+  const prevMonthTraffic = buildDlrTrafficMetricsFromSummary({}, prevMonthEntry, {}, {
+    preferDailyBoxScore: false
+  });
   const dailyLeadSources = hasMatchingDailyBoxScore
     ? {
         walkIn: Math.max(0, Number(dailyBoxScore.walkIn) || 0),
@@ -21814,7 +21887,7 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
   const generatedNotes = buildDlrInvestorNotes({
     reportDateLabel: hasDailyBoxScore ? (dailyBoxScore.reportDateLabel || dlrSummary.reportDateLabel) : dlrSummary.reportDateLabel,
     monthLabel: formatDlrMonthYear(reportMetricMonthIdx, year),
-    leadSources: dashboardLeadSources,
+    leadSources: mtdTraffic,
     dailyTraffic,
     mtdTraffic,
     prevMonthTraffic,
@@ -23166,6 +23239,24 @@ function getRonaldoGeneratorSheetKind(name) {
   return null;
 }
 
+function detectRonaldoGeneratorSheetKindFromRows(rows = []) {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  const sampleText = rows
+    .slice(0, 40)
+    .flatMap(row => Array.isArray(row) ? row : [])
+    .map(cell => String(cell ?? "").trim())
+    .filter(Boolean)
+    .join(" ");
+  const normalized = normalizeAtlasColumnKey(sampleText);
+  if (!normalized) return null;
+  if (normalized.includes("lead_activity") || (normalized.includes("lead") && normalized.includes("activity"))) return "lead_activity";
+  if (normalized.includes("lead_conversions") || normalized.includes("application") || normalized.includes("approved") || normalized.includes("denied")) return "lead_conversions";
+  if (normalized.includes("property_pulse") || normalized.includes("move_ins") || normalized.includes("move_outs") || normalized.includes("renewals")) return "property_pulse";
+  if (normalized.includes("make_ready") || normalized.includes("ready") || normalized.includes("vacant")) return "make_ready_status";
+  if (normalized.includes("availability") || normalized.includes("occupied") || normalized.includes("leased")) return "availability";
+  return null;
+}
+
 function getRonaldoGeneratorRowHeaders(rows = []) {
   const headerRow = Array.isArray(rows[0]) ? rows[0] : [];
   const normalized = headerRow.map(cell => normalizeAtlasColumnKey(cell));
@@ -23802,6 +23893,18 @@ async function processRonaldoMonthlyReferenceFiles(files, options = {}) {
         }
       }
       if (fileRows.length === 0) {
+        for (const sheetName of sheetNames) {
+          const sheetRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false });
+          const inferredKind = detectRonaldoGeneratorSheetKindFromRows(sheetRows);
+          if (!inferredKind || inferredKind === "monthly_upload" || inferredKind === "community_master") continue;
+          const row = parseRonaldoGeneratorDetailRows(sheetRows, inferredKind, forcedTarget, `${file.name} · ${sheetName}`);
+          if (row) {
+            fileRows.push(row);
+            notes.push(`✅ ${file.name} · ${sheetName} inferred as ${inferredKind.replace(/_/g, " ")}.`);
+          }
+        }
+      }
+      if (fileRows.length === 0) {
         if (lowerName.endsWith(".csv") || hasGeneratorDetailSheet) {
           notes.push(`⚠️ ${file.name} did not surface a generator sheet the dashboard could map.`);
         }
@@ -24017,9 +24120,13 @@ function buildDlrSummary(rawText, fileName = "") {
     "Phone Calls",
     "Emails/Online",
     "Text/Chat/Other",
+    "Guest Cards",
+    "Applications",
     "Gross New Applications",
+    "Approved",
     "Denied",
     "Cancelled",
+    "Pending / Partial",
     "Net New Applications",
     "Pipeline (Application Started)",
     "Notices Received",

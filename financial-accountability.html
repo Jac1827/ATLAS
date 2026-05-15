@@ -178,6 +178,9 @@ function persistPageState(){
       sortCol:state.sortCol,
       sortDir:state.sortDir,
       uploadEntity:state.uploadEntity,
+      uploadType:state.uploadType,
+      uploadMonth:state.uploadMonth,
+      uploadYear:state.uploadYear,
       baselineEntity:state.baselineEntity
     }));
   }catch(_error){}
@@ -828,6 +831,15 @@ function getCompareDatasetList(entityId){
   });
 }
 
+function getCompareDatasetListForMode(entityId,mode){
+  const list=getCompareDatasetList(entityId);
+  if(mode==="report_vs_budget"||mode==="actual_vs_baseline"){
+    const actuals=list.filter(dataset=>getDatasetKind(dataset)==="actuals");
+    return actuals.length?actuals:list;
+  }
+  return list;
+}
+
 function getLatestDatasetIdForEntity(entityId){
   const list=Array.isArray(state&&state.store&&state.store[entityId])?state.store[entityId]:[];
   return list.length?list[list.length-1].id:null;
@@ -860,7 +872,7 @@ function buildApprovedBudgetIndex(property,selectedPeriod,rowsOverride,options={
 function getCompareContext(){
   const actualEntityId=state.compareActualEntity||state.entity;
   const actualEntity=getEntityById(actualEntityId);
-  const actualList=getCompareDatasetList(actualEntity.id);
+  const actualList=getCompareDatasetListForMode(actualEntity.id,"actual_vs_baseline");
   const actualDatasetId=state.compareActualDs&&actualList.some(item=>Number(item.id)===Number(state.compareActualDs))
     ? Number(state.compareActualDs)
     : getLatestDatasetIdForEntity(actualEntity.id);
@@ -1099,9 +1111,9 @@ function syncActualVsBaselineSelections(){
     state.compareBaselineEntity=state.baselineEntity||state.compareActualEntity||state.entity;
   }
   const actualCompareEntity=getEntityById(state.compareActualEntity);
-  const actualCompareList=getCompareDatasetList(actualCompareEntity.id);
+  const actualCompareList=getCompareDatasetListForMode(actualCompareEntity.id,"actual_vs_baseline");
   if(!state.compareActualDs||!actualCompareList.some(d=>Number(d.id)===Number(state.compareActualDs))){
-    state.compareActualDs=getLatestDatasetIdForEntity(actualCompareEntity.id);
+    state.compareActualDs=actualCompareList.length?actualCompareList[actualCompareList.length-1].id:null;
   }
   const baselineCompareEntity=getEntityById(state.compareBaselineEntity);
   const baselineCompareBatches=getApprovedBudgetBatchOptions(baselineCompareEntity.label);
@@ -1417,6 +1429,21 @@ function getDatasetPeriodKey(dataset){
   return normalizeFinancialPeriodKey(dataset&&dataset.period||dataset&&dataset.name||"");
 }
 
+function getDatasetKind(dataset){
+  const kind=String(dataset&&dataset.kind||dataset&&dataset.uploadType||"actuals").toLowerCase();
+  return kind==="budget"?"budget":"actuals";
+}
+
+function getDatasetKindLabel(dataset){
+  return getDatasetKind(dataset)==="budget"?"Budget":"Actuals";
+}
+
+function getDatasetPeriodSummary(dataset){
+  const periodKey=getDatasetPeriodKey(dataset);
+  const periodLabel=periodKey?formatBudgetPeriodLabel(periodKey,true):(dataset&&dataset.period||dataset&&dataset.name||"");
+  return periodLabel||"";
+}
+
 function getElapsedMonthsForDataset(dataset){
   const periodKey=getDatasetPeriodKey(dataset);
   const month=Number(String(periodKey).slice(5,7));
@@ -1519,7 +1546,7 @@ function buildPortfolioThresholdHighlights(){
     .filter(Boolean);
 }
 
-let state={store:{},entity:"rise_corp",tab:"dash",selDs:null,cmpA:null,cmpB:null,compareMode:"report_vs_budget",compareBudgetDs:null,compareArchivedBudgetId:null,compareActualEntity:null,compareActualDs:null,compareBaselineEntity:null,compareBaselineBatchId:null,compareBaselinePeriod:null,compareUploadTarget:"a",search:"",filterSec:"all",filterSt:"all",sortCol:null,sortDir:"desc",uploadEntity:"rise_corp",baselineEntity:"rise_corp",loading:false,approvedBudgets:loadStoredApprovedBudgets()};
+let state={store:{},entity:"rise_corp",tab:"dash",selDs:null,cmpA:null,cmpB:null,compareMode:"report_vs_budget",compareBudgetDs:null,compareArchivedBudgetId:null,compareActualEntity:null,compareActualDs:null,compareBaselineEntity:null,compareBaselineBatchId:null,compareBaselinePeriod:null,compareUploadTarget:"a",search:"",filterSec:"all",filterSt:"all",sortCol:null,sortDir:"desc",uploadEntity:"rise_corp",uploadType:"actuals",uploadMonth:String(new Date().getMonth()+1).padStart(2,"0"),uploadYear:String(new Date().getFullYear()),baselineEntity:"rise_corp",loading:false,approvedBudgets:loadStoredApprovedBudgets()};
 {
   const storedState=loadStoredPageState();
   if(storedState&&typeof storedState==="object"){
@@ -1544,6 +1571,9 @@ let state={store:{},entity:"rise_corp",tab:"dash",selDs:null,cmpA:null,cmpB:null
     state.sortCol=storedState.sortCol??state.sortCol;
     state.sortDir=storedState.sortDir||state.sortDir;
     state.uploadEntity=storedState.uploadEntity||state.uploadEntity;
+    state.uploadType=storedState.uploadType||state.uploadType;
+    state.uploadMonth=storedState.uploadMonth||state.uploadMonth;
+    state.uploadYear=storedState.uploadYear||state.uploadYear;
     state.baselineEntity=storedState.baselineEntity||state.baselineEntity;
     state.approvedBudgets=normalizeApprovedBudgetState(storedState.approvedBudgets||state.approvedBudgets);
   }
@@ -1671,18 +1701,27 @@ loader.then(async parsed=>{
 const payload=Array.isArray(parsed)?{rows:parsed}:{...(parsed||{})};
 const rows=Array.isArray(payload.rows)?payload.rows:[];
 const entityFromSelection=getEntityById(ent);
-const entity=getEntityByLabel(payload.property)||entityFromSelection;
+const detectedEntity=getEntityByLabel(payload.property);
+const entity=entityFromSelection||detectedEntity;
+const uploadType=String(options.uploadType||state.uploadType||"actuals").toLowerCase()==="budget"?"budget":"actuals";
+const uploadMonth=String(options.uploadMonth||state.uploadMonth||String(new Date().getMonth()+1).padStart(2,"0")).padStart(2,"0");
+const uploadYear=String(options.uploadYear||state.uploadYear||String(new Date().getFullYear())).slice(0,4);
+const periodKey=`${uploadYear}-${uploadMonth}`;
 const nameMatch=file.name.match(/(\d{2})[.\-_](\d{2})[.\-_](\d{2,4})/);
 let period=file.name.replace(/\.\w+$/,"");
 if(nameMatch){const m=nameMatch[1],y=nameMatch[3];period=m+"/"+(y.length===2?"20"+y:y);}
 const pdfNameMatch=String(file.name||"").match(/(\d{4})[.\-_](\d{2})(?!\d)/);
 if(lowerName.endsWith(".pdf")&&pdfNameMatch){const monthIdx=Number(pdfNameMatch[2])-1;period=`${MONTHS[monthIdx]||pdfNameMatch[2]} ${pdfNameMatch[1]}`;}
 if(payload.period)period=payload.period;
-const ds={id:Date.now(),name:file.name.replace(/\.\w+$/,""),period:period,date:new Date().toLocaleDateString(),rows:rows,rowCount:rows.length,entityLabel:entity&&entity.label||ent};
+period=periodKey||period;
+const ds={id:Date.now(),name:file.name.replace(/\.\w+$/,""),period:period,date:new Date().toLocaleDateString(),rows:rows,rowCount:rows.length,entityLabel:entity&&entity.label||ent,detectedProperty:String(payload.property||""),kind:uploadType,uploadType,uploadMonth,uploadYear,uploadPeriod:periodKey,compareUsage:uploadType==="budget"?"budget":"actuals"};
 if(!state.store[entity.id])state.store[entity.id]=[];
 state.store[entity.id]=[...state.store[entity.id],ds];
 state.entity=entity.id;
 state.uploadEntity=entity.id;
+state.uploadType=uploadType;
+state.uploadMonth=uploadMonth;
+state.uploadYear=uploadYear;
 state.selDs=ds.id;
 if(options.keepTab)state.tab=options.keepTab;
 else if(options.compareTarget)state.tab="compare";
@@ -2124,7 +2163,21 @@ html+='</div></div>';
 /* ===== COMPARE ===== */
 if(state.tab==="compare"){
 const compareContextPreview=state.compareMode==="actual_vs_baseline"?getCompareContext():null;
-html+='<div style="font-size:14px;font-weight:700;color:'+D+';margin-bottom:10px">Period Comparison'+(state.compareMode==="actual_vs_baseline"&&compareContextPreview?' - '+compareContextPreview.actualEntity.label+' vs '+compareContextPreview.baselineEntity.label:' - '+curEntity.label)+'</div>';
+const compareHeaderSavedAs=state.compareMode==="actual_vs_baseline"
+  ? (compareContextPreview&&compareContextPreview.actualDataset?getDatasetKindLabel(compareContextPreview.actualDataset):null)
+  : state.compareMode==="report_vs_budget"||state.compareMode==="month_over_month"
+    ? (state.compareMode==="report_vs_budget"&&compareEntityDS.length&&state.compareBudgetDs
+        ? getDatasetKindLabel(compareEntityDS.find(d=>Number(d.id)===Number(state.compareBudgetDs))||compareEntityDS[compareEntityDS.length-1])
+        : state.compareMode==="month_over_month"&&((state.cmpA&&entityDS.find(d=>d.id===state.cmpA))||(state.cmpB&&entityDS.find(d=>d.id===state.cmpB)))
+          ? getDatasetKindLabel((state.cmpA&&entityDS.find(d=>d.id===state.cmpA))||(state.cmpB&&entityDS.find(d=>d.id===state.cmpB)))
+          : null)
+    : null;
+html+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:14px;font-weight:700;color:'+D+';">';
+html+='<span>Period Comparison'+(state.compareMode==="actual_vs_baseline"&&compareContextPreview?' - '+compareContextPreview.actualEntity.label+' vs '+compareContextPreview.baselineEntity.label:' - '+curEntity.label)+'</span>';
+if(compareHeaderSavedAs){
+html+='<span style="display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;background:#eef6fb;border:1px solid #c9dceb;color:'+D+';font-size:10px;font-weight:700;letter-spacing:0.02em;text-transform:uppercase">Saved As: '+compareHeaderSavedAs+'</span>';
+}
+html+='</div>';
 html+='<div style="display:grid;grid-template-columns:minmax(220px,260px) 1fr;gap:12px;align-items:end;margin-bottom:14px;">';
 html+='<div><label style="font-size:11px;font-weight:600;color:'+D+';display:block;margin-bottom:3px">Comparison Mode</label>';
 html+='<select id="compareModeSel" style="width:100%;padding:6px;border:1px solid #d1d5db;border-radius:5px;font-size:12px;">';
@@ -2133,22 +2186,25 @@ html+='<option value="month_over_month"'+(state.compareMode==="month_over_month"
 html+='<option value="actual_vs_baseline"'+(state.compareMode==="actual_vs_baseline"?' selected':'')+'>Actual vs Baseline</option>';
 html+='<option value="baseline_yoy"'+(state.compareMode==="baseline_yoy"?' selected':'')+'>Baseline YoY</option>';
 html+='</select></div>';
-if(state.compareMode==="report_vs_budget"&&!state.compareBudgetDs&&entityDS.length)state.compareBudgetDs=entityDS[entityDS.length-1].id;
+const compareEntityDS=state.compareMode==="report_vs_budget"||state.compareMode==="actual_vs_baseline"
+  ? getCompareDatasetListForMode(state.entity,state.compareMode)
+  : entityDS;
+if(state.compareMode==="report_vs_budget"&&!compareEntityDS.some(d=>Number(d.id)===Number(state.compareBudgetDs)))state.compareBudgetDs=compareEntityDS.length?compareEntityDS[compareEntityDS.length-1].id:null;
+if(state.compareMode==="report_vs_budget"&&!state.compareBudgetDs&&compareEntityDS.length)state.compareBudgetDs=compareEntityDS[compareEntityDS.length-1].id;
 if(state.compareMode==="report_vs_budget"){
 html+='<div><label style="font-size:11px;font-weight:600;color:'+L+';display:block;margin-bottom:3px">Uploaded Report / Month</label>';
 html+='<select id="compareBudgetSel" style="width:100%;padding:6px;border:1px solid #d1d5db;border-radius:5px;font-size:12px;"><option value="">Select...</option>';
-entityDS.forEach(d=>{html+='<option value="'+d.id+'"'+(state.compareBudgetDs===d.id?' selected':'')+'>'+d.name+' ('+d.period+')</option>';});
+compareEntityDS.forEach(d=>{html+='<option value="'+d.id+'"'+(state.compareBudgetDs===d.id?' selected':'')+'>'+getDatasetKindLabel(d)+' · '+d.name+' ('+getDatasetPeriodSummary(d)+')</option>';});
 html+='</select></div>';
 } else {
-if(state.compareMode==="actual_vs_baseline"&&!state.compareBudgetDs&&entityDS.length)state.compareBudgetDs=entityDS[entityDS.length-1].id;
 if(state.compareMode==="baseline_yoy"&&!state.compareArchivedBudgetId&&getApprovedBudgetArchivedBatches(curEntity.label).length)state.compareArchivedBudgetId=getApprovedBudgetArchivedBatches(curEntity.label)[0].id;
 if(state.compareMode==="actual_vs_baseline"){
 const communityEntities=getEntities().filter(e=>e.kind==="community");
 if(!state.compareActualEntity||!communityEntities.some(e=>e.id===state.compareActualEntity))state.compareActualEntity=state.entity&&getEntityById(state.entity).kind==="community"?state.entity:(communityEntities[0]&&communityEntities[0].id)||state.entity;
 if(!state.compareBaselineEntity||!communityEntities.some(e=>e.id===state.compareBaselineEntity))state.compareBaselineEntity=state.baselineEntity||state.compareActualEntity||state.entity;
 const actualCompareEntity=getEntityById(state.compareActualEntity);
-const actualCompareList=getCompareDatasetList(actualCompareEntity.id);
-if(!state.compareActualDs||!actualCompareList.some(d=>Number(d.id)===Number(state.compareActualDs)))state.compareActualDs=getLatestDatasetIdForEntity(actualCompareEntity.id);
+const actualCompareList=getCompareDatasetListForMode(actualCompareEntity.id,"actual_vs_baseline");
+if(!state.compareActualDs||!actualCompareList.some(d=>Number(d.id)===Number(state.compareActualDs)))state.compareActualDs=actualCompareList.length?actualCompareList[actualCompareList.length-1].id:null;
 const actualCompareDataset=actualCompareList.find(d=>Number(d.id)===Number(state.compareActualDs))||actualCompareList[actualCompareList.length-1]||null;
 const baselineCompareEntity=getEntityById(state.compareBaselineEntity);
 const baselineCompareBatches=getApprovedBudgetBatchOptions(baselineCompareEntity.label);
@@ -2164,7 +2220,7 @@ communityEntities.forEach(entity=>{html+='<option value="'+entity.id+'"'+(state.
 html+='</select>';
 html+='<label style="font-size:10px;font-weight:700;color:#64748b;display:block;margin-bottom:3px">Actual Report / Month</label>';
 html+='<select id="compareActualSel" style="width:100%;padding:6px;border:1px solid #d1d5db;border-radius:5px;font-size:12px;"><option value="">Select...</option>';
-actualCompareList.forEach(d=>{html+='<option value="'+d.id+'"'+(state.compareActualDs===d.id?' selected':'')+'>'+d.name+' ('+d.period+')</option>';});
+actualCompareList.forEach(d=>{html+='<option value="'+d.id+'"'+(state.compareActualDs===d.id?' selected':'')+'>'+getDatasetKindLabel(d)+' · '+d.name+' ('+getDatasetPeriodSummary(d)+')</option>';});
 html+='</select>';
 html+='<div style="font-size:10px;color:#64748b;margin-top:6px">'+(actualCompareDataset?actualCompareDataset.rowCount+' accounts loaded for this month.':'No uploaded actual report exists for this community yet.')+'</div>';
 html+='</div>';
@@ -2201,7 +2257,7 @@ html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">';
 html+='<div style="border:1px solid #e2e8f0;border-radius:8px;padding:10px;background:#f8fafc;">';
 html+='<label style="font-size:11px;font-weight:600;color:'+cfg.color+';display:block;margin-bottom:3px">'+cfg.label+'</label>';
 html+='<select id="'+cfg.sel+'" style="width:100%;padding:6px;border:1px solid #d1d5db;border-radius:5px;font-size:12px;"><option value="">Select...</option>';
-entityDS.forEach(d=>{html+='<option value="'+d.id+'"'+((cfg.slot==="a"&&state.cmpA===d.id)||(cfg.slot==="b"&&state.cmpB===d.id)?' selected':'')+'>'+d.name+' ('+d.period+')</option>';});
+entityDS.forEach(d=>{html+='<option value="'+d.id+'"'+((cfg.slot==="a"&&state.cmpA===d.id)||(cfg.slot==="b"&&state.cmpB===d.id)?' selected':'')+'>'+getDatasetKindLabel(d)+' · '+d.name+' ('+getDatasetPeriodSummary(d)+')</option>';});
 html+='</select>';
 html+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">';
 html+='<button class="compareUploadBtn" data-target="'+cfg.slot+'" style="padding:6px 10px;background:'+D+';color:white;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;">'+cfg.button+'</button>';
@@ -2397,7 +2453,10 @@ entities.filter(e=>(state.store[e.id]||[]).length>0).forEach(e=>{
 html+='<div style="margin-bottom:10px;"><div style="font-size:12px;font-weight:600;color:'+D+';margin-bottom:4px">'+e.label+' ('+state.store[e.id].length+' reports)</div>';
 state.store[e.id].forEach(d=>{
 html+='<div style="padding:6px 10px;background:white;border-radius:6px;border:1px solid #e2e8f0;margin-bottom:3px;display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:11px;">';
-html+='<div style="min-width:0;"><div style="font-weight:600;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+d.name+'</div><div style="font-size:10px;color:#94a3b8">'+(d.period||"")+' &middot; '+d.rowCount+' accts</div></div>';
+html+='<div style="min-width:0;"><div style="font-weight:600;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+d.name+'</div><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:3px;">';
+html+='<span style="display:inline-flex;align-items:center;padding:2px 7px;border-radius:999px;background:'+(getDatasetKind(d)==="budget"?"#fff4e5":"#eef6fb")+';border:1px solid '+(getDatasetKind(d)==="budget"?"#f3d29b":"#c9dceb")+';color:'+D+';font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em">Saved As: '+getDatasetKindLabel(d)+'</span>';
+html+='<span style="font-size:10px;color:#94a3b8">'+getDatasetPeriodSummary(d)+' &middot; '+(d.rowCount||0)+' accts</span>';
+html+='</div></div>';
 html+='<div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">';
 html+='<button class="editDs" data-entity="'+e.id+'" data-id="'+d.id+'" style="padding:3px 7px;font-size:10px;background:#eff6ff;color:'+D+';border:1px solid #bfdbfe;border-radius:4px;cursor:pointer;font-weight:600;">Edit</button>';
 html+='<button class="delDs" data-entity="'+e.id+'" data-id="'+d.id+'" style="padding:3px 7px;font-size:10px;background:#fee2e2;color:'+R+';border:none;border-radius:4px;cursor:pointer;font-weight:600;">Delete</button>';
@@ -2422,11 +2481,35 @@ setTimeout(()=>drawBarChart("cmpChart",window._cmpChartData,"periodA","periodB",
 
 function uploadAreaHTML(ent){
 const entities=getEntities();
-let h='<div style="margin-top:16px;"><div style="margin-bottom:12px;">';
-h+='<label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">Assign to Community/Entity:</label>';
+const currentMonth=String(state.uploadMonth||String(new Date().getMonth()+1).padStart(2,"0")).padStart(2,"0");
+const currentYear=String(state.uploadYear||String(new Date().getFullYear())).slice(0,4);
+const currentType=String(state.uploadType||"actuals");
+let h='<div style="margin-top:16px;">';
+h+='<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px;">';
+h+='<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;">';
+h+='<label style="font-size:11px;font-weight:700;color:'+D+';display:block;margin-bottom:4px">Assign to Community / Entity</label>';
 h+='<select id="uploadEntSel" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:5px;font-size:12px;width:100%;">';
 entities.forEach(e=>{h+='<option value="'+e.id+'"'+(ent===e.id?' selected':'')+'>'+e.label+'</option>';});
 h+='</select></div>';
+h+='<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;">';
+h+='<label style="font-size:11px;font-weight:700;color:'+D+';display:block;margin-bottom:4px">Use For Compare</label>';
+h+='<select id="uploadTypeSel" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:5px;font-size:12px;width:100%;">';
+h+='<option value="actuals"'+(currentType==="actuals"?' selected':'')+'>Actuals</option>';
+h+='<option value="budget"'+(currentType==="budget"?' selected':'')+'>Budget</option>';
+h+='</select></div>';
+h+='<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;">';
+h+='<label style="font-size:11px;font-weight:700;color:'+D+';display:block;margin-bottom:4px">Month</label>';
+h+='<select id="uploadMonthSel" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:5px;font-size:12px;width:100%;">';
+MONTHS.forEach((m,idx)=>{const value=String(idx+1).padStart(2,"0");h+='<option value="'+value+'"'+(currentMonth===value?' selected':'')+'>'+m+'</option>';});
+h+='</select></div>';
+h+='<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;">';
+h+='<label style="font-size:11px;font-weight:700;color:'+D+';display:block;margin-bottom:4px">Year</label>';
+h+='<input id="uploadYearSel" type="number" inputmode="numeric" min="2020" max="2100" value="'+currentYear+'" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:5px;font-size:12px;width:100%;"/>';
+h+='</div>';
+h+='</div>';
+h+='<div style="margin-bottom:12px;padding:10px 12px;background:#fff8e7;border:1px solid #f5d9a6;border-radius:10px;font-size:11px;color:#7c5a14;line-height:1.45">';
+h+='This filing will be saved as <strong>'+ (currentType==="budget"?"Budget":"Actuals") +'</strong> for <strong>'+(MONTHS[Number(currentMonth)-1]||currentMonth)+' '+currentYear+'</strong> and attached to <strong>'+((getEntityById(ent)||{}).label||"the selected entity")+'</strong> for compare-tab use.';
+h+='</div>';
 h+='<div id="dropZone" style="border:2px dashed #cbd5e1;border-radius:10px;padding:36px;text-align:center;background:white;cursor:pointer;">';
 h+='<div style="font-size:32px;margin-bottom:8px">&#128202;</div>';
 h+='<div style="font-size:14px;font-weight:600;color:'+D+'">Upload Income Statement / Budget CSV, Excel, or PDF</div>';
@@ -2513,6 +2596,12 @@ const genRegionalBriefBtn=document.getElementById("genRegionalBriefBtn");
 if(genRegionalBriefBtn)genRegionalBriefBtn.addEventListener("click",generateRegionalBrief);
 const uploadEntSel=document.getElementById("uploadEntSel");
 if(uploadEntSel)uploadEntSel.addEventListener("change",()=>{if(state.tab==="upload")state.uploadEntity=uploadEntSel.value;else state.entity=uploadEntSel.value;render();});
+const uploadTypeSel=document.getElementById("uploadTypeSel");
+if(uploadTypeSel)uploadTypeSel.addEventListener("change",()=>{state.uploadType=uploadTypeSel.value==="budget"?"budget":"actuals";render();});
+const uploadMonthSel=document.getElementById("uploadMonthSel");
+if(uploadMonthSel)uploadMonthSel.addEventListener("change",()=>{state.uploadMonth=String(uploadMonthSel.value||state.uploadMonth||"01").padStart(2,"0");render();});
+const uploadYearSel=document.getElementById("uploadYearSel");
+if(uploadYearSel)uploadYearSel.addEventListener("input",()=>{state.uploadYear=String(uploadYearSel.value||state.uploadYear||new Date().getFullYear()).slice(0,4);render();});
 const dropZone=document.getElementById("dropZone");
 const fileInput=document.getElementById("fileInput");
 const budgetUploadBtn=document.getElementById("budgetUploadBtn");
@@ -2522,8 +2611,8 @@ if(dropZone&&fileInput){
 dropZone.addEventListener("click",()=>fileInput.click());
 dropZone.addEventListener("dragover",e=>{e.preventDefault();dropZone.style.borderColor=D;dropZone.style.background="#f0f9ff";});
 dropZone.addEventListener("dragleave",()=>{dropZone.style.borderColor="#cbd5e1";dropZone.style.background="white";});
-dropZone.addEventListener("drop",e=>{e.preventDefault();dropZone.style.borderColor="#cbd5e1";const f=e.dataTransfer&&e.dataTransfer.files[0];const ent=(uploadEntSel?uploadEntSel.value:state.entity);if(f)loadFile(f,ent);});
-fileInput.addEventListener("change",()=>{const f=fileInput.files[0];const ent=(uploadEntSel?uploadEntSel.value:state.entity);if(f)loadFile(f,ent);});
+dropZone.addEventListener("drop",e=>{e.preventDefault();dropZone.style.borderColor="#cbd5e1";const f=e.dataTransfer&&e.dataTransfer.files[0];const ent=(uploadEntSel?uploadEntSel.value:state.entity);if(f)loadFile(f,ent,{uploadType:uploadTypeSel?uploadTypeSel.value:state.uploadType,uploadMonth:uploadMonthSel?uploadMonthSel.value:state.uploadMonth,uploadYear:uploadYearSel?uploadYearSel.value:state.uploadYear});});
+fileInput.addEventListener("change",()=>{const f=fileInput.files[0];const ent=(uploadEntSel?uploadEntSel.value:state.entity);if(f)loadFile(f,ent,{uploadType:uploadTypeSel?uploadTypeSel.value:state.uploadType,uploadMonth:uploadMonthSel?uploadMonthSel.value:state.uploadMonth,uploadYear:uploadYearSel?uploadYearSel.value:state.uploadYear});});
 }
 if(budgetUploadBtn&&budgetFileInput){
 budgetUploadBtn.addEventListener("click",()=>budgetFileInput.click());
@@ -2532,7 +2621,7 @@ budgetFileInput.addEventListener("change",()=>{const f=budgetFileInput.files[0];
 if(compareFileInput){
 compareFileInput.addEventListener("change",()=>{
 const f=compareFileInput.files[0];
-if(f)loadFile(f,state.entity,{keepTab:"compare",compareTarget:state.compareUploadTarget||"a"});
+if(f)loadFile(f,state.entity,{keepTab:"compare",compareTarget:state.compareUploadTarget||"a",uploadType:uploadTypeSel?uploadTypeSel.value:state.uploadType,uploadMonth:uploadMonthSel?uploadMonthSel.value:state.uploadMonth,uploadYear:uploadYearSel?uploadYearSel.value:state.uploadYear});
 compareFileInput.value="";
 });
 }

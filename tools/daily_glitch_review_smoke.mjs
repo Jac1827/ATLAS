@@ -4,11 +4,34 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const browserClientPath =
-  "/Users/jacheflin/.codex/plugins/cache/openai-bundled/browser-use/0.1.0-alpha1/scripts/browser-client.mjs";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..");
+
+function resolveBrowserClientPath() {
+  const pluginRoots = [
+    "/Users/jacheflin/.codex/plugins/cache/openai-bundled/browser",
+    "/Users/jacheflin/.codex/plugins/cache/openai-bundled/browser-use",
+  ];
+
+  for (const pluginRoot of pluginRoots) {
+    const versionDirs = fs.existsSync(pluginRoot)
+      ? fs.readdirSync(pluginRoot, { withFileTypes: true })
+          .filter((entry) => entry.isDirectory())
+          .map((entry) => entry.name)
+          .sort((left, right) => right.localeCompare(left, undefined, { numeric: true }))
+      : [];
+
+    for (const version of versionDirs) {
+      const candidate = path.join(pluginRoot, version, "scripts", "browser-client.mjs");
+      if (fs.existsSync(candidate)) return candidate;
+    }
+  }
+
+  return null;
+}
+
+const browserClientPath = resolveBrowserClientPath();
 
 const publishedPages = [
   {
@@ -148,9 +171,23 @@ function runStaticChecks() {
 }
 
 async function tryRunBrowserChecks() {
+  if (!browserClientPath) {
+    return {
+      mode: "static-only",
+      reason: "browser-client.mjs was not found in the installed browser-use plugin cache",
+    };
+  }
+
   try {
-    const { setupAtlasRuntime } = await import(browserClientPath);
-    await setupAtlasRuntime({ globals: globalThis, backend: "iab" });
+    const browserClient = await import(browserClientPath);
+    const setupRuntime = browserClient.setupAtlasRuntime || browserClient.setupBrowserRuntime;
+    if (typeof setupRuntime !== "function") {
+      return {
+        mode: "static-only",
+        reason: "browser-client.mjs does not export a supported setup runtime function",
+      };
+    }
+    await setupRuntime({ globals: globalThis, backend: "iab" });
     await agent.browser.nameSession("🔎 daily glitch review smoke");
   } catch (error) {
     return {

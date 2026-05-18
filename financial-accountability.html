@@ -840,6 +840,10 @@ function getCompareDatasetListForMode(entityId,mode){
   return list;
 }
 
+function getCompareScopeEntities(){
+  return getEntities().filter(entity=>entity&&["community","corporate"].includes(entity.kind));
+}
+
 function getLatestDatasetIdForEntity(entityId){
   const list=Array.isArray(state&&state.store&&state.store[entityId])?state.store[entityId]:[];
   return list.length?list[list.length-1].id:null;
@@ -1103,11 +1107,11 @@ function generateRegionalBrief(){
 
 function syncActualVsBaselineSelections(){
   if(state.compareMode!=="actual_vs_baseline")return;
-  const communityEntities=getEntities().filter(e=>e.kind==="community");
-  if(!state.compareActualEntity||!communityEntities.some(e=>e.id===state.compareActualEntity)){
-    state.compareActualEntity=(state.entity&&getEntityById(state.entity).kind==="community"?state.entity:(communityEntities[0]&&communityEntities[0].id)||state.entity);
+  const compareEntities=getCompareScopeEntities();
+  if(!state.compareActualEntity||!compareEntities.some(e=>e.id===state.compareActualEntity)){
+    state.compareActualEntity=state.entity||compareEntities[0]&&compareEntities[0].id||null;
   }
-  if(!state.compareBaselineEntity||!communityEntities.some(e=>e.id===state.compareBaselineEntity)){
+  if(!state.compareBaselineEntity||!compareEntities.some(e=>e.id===state.compareBaselineEntity)){
     state.compareBaselineEntity=state.baselineEntity||state.compareActualEntity||state.entity;
   }
   const actualCompareEntity=getEntityById(state.compareActualEntity);
@@ -2199,9 +2203,9 @@ html+='</select></div>';
 } else {
 if(state.compareMode==="baseline_yoy"&&!state.compareArchivedBudgetId&&getApprovedBudgetArchivedBatches(curEntity.label).length)state.compareArchivedBudgetId=getApprovedBudgetArchivedBatches(curEntity.label)[0].id;
 if(state.compareMode==="actual_vs_baseline"){
-const communityEntities=getEntities().filter(e=>e.kind==="community");
-if(!state.compareActualEntity||!communityEntities.some(e=>e.id===state.compareActualEntity))state.compareActualEntity=state.entity&&getEntityById(state.entity).kind==="community"?state.entity:(communityEntities[0]&&communityEntities[0].id)||state.entity;
-if(!state.compareBaselineEntity||!communityEntities.some(e=>e.id===state.compareBaselineEntity))state.compareBaselineEntity=state.baselineEntity||state.compareActualEntity||state.entity;
+const compareEntities=getCompareScopeEntities();
+if(!state.compareActualEntity||!compareEntities.some(e=>e.id===state.compareActualEntity))state.compareActualEntity=state.entity||((compareEntities[0]&&compareEntities[0].id)||null);
+if(!state.compareBaselineEntity||!compareEntities.some(e=>e.id===state.compareBaselineEntity))state.compareBaselineEntity=state.baselineEntity||state.compareActualEntity||state.entity;
 const actualCompareEntity=getEntityById(state.compareActualEntity);
 const actualCompareList=getCompareDatasetListForMode(actualCompareEntity.id,"actual_vs_baseline");
 if(!state.compareActualDs||!actualCompareList.some(d=>Number(d.id)===Number(state.compareActualDs)))state.compareActualDs=actualCompareList.length?actualCompareList[actualCompareList.length-1].id:null;
@@ -2214,20 +2218,20 @@ const baselineComparePeriods=getApprovedBudgetPeriodsForBatch(baselineCompareBat
 if(!state.compareBaselinePeriod||!baselineComparePeriods.includes(normalizeFinancialPeriodKey(state.compareBaselinePeriod)))state.compareBaselinePeriod=baselineComparePeriods[baselineComparePeriods.length-1]||baselineComparePeriods[0]||null;
 html+='<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">';
 html+='<div style="border:1px solid #e2e8f0;border-radius:8px;padding:10px;background:#f8fafc;">';
-html+='<div style="font-size:11px;font-weight:700;color:'+L+';margin-bottom:3px">Actual Community</div>';
+html+='<div style="font-size:11px;font-weight:700;color:'+L+';margin-bottom:3px">Actual Entity</div>';
 html+='<select id="compareActualEntitySel" style="width:100%;padding:6px;border:1px solid #d1d5db;border-radius:5px;font-size:12px;margin-bottom:8px;">';
-communityEntities.forEach(entity=>{html+='<option value="'+entity.id+'"'+(state.compareActualEntity===entity.id?' selected':'')+'>'+entity.label+'</option>';});
+compareEntities.forEach(entity=>{html+='<option value="'+entity.id+'"'+(state.compareActualEntity===entity.id?' selected':'')+'>'+entity.label+'</option>';});
 html+='</select>';
 html+='<label style="font-size:10px;font-weight:700;color:#64748b;display:block;margin-bottom:3px">Actual Report / Month</label>';
 html+='<select id="compareActualSel" style="width:100%;padding:6px;border:1px solid #d1d5db;border-radius:5px;font-size:12px;"><option value="">Select...</option>';
 actualCompareList.forEach(d=>{html+='<option value="'+d.id+'"'+(state.compareActualDs===d.id?' selected':'')+'>'+getDatasetKindLabel(d)+' · '+d.name+' ('+getDatasetPeriodSummary(d)+')</option>';});
 html+='</select>';
-html+='<div style="font-size:10px;color:#64748b;margin-top:6px">'+(actualCompareDataset?actualCompareDataset.rowCount+' accounts loaded for this month.':'No uploaded actual report exists for this community yet.')+'</div>';
+html+='<div style="font-size:10px;color:#64748b;margin-top:6px">'+(actualCompareDataset?actualCompareDataset.rowCount+' accounts loaded for this entity.':'No uploaded actual report exists for this entity yet.')+'</div>';
 html+='</div>';
 html+='<div style="border:1px solid #e2e8f0;border-radius:8px;padding:10px;background:#f8fafc;">';
-html+='<div style="font-size:11px;font-weight:700;color:'+P+';margin-bottom:3px">Baseline Community</div>';
+html+='<div style="font-size:11px;font-weight:700;color:'+P+';margin-bottom:3px">Baseline Entity</div>';
 html+='<select id="compareBaselineEntitySel" style="width:100%;padding:6px;border:1px solid #d1d5db;border-radius:5px;font-size:12px;margin-bottom:8px;">';
-communityEntities.forEach(entity=>{html+='<option value="'+entity.id+'"'+(state.compareBaselineEntity===entity.id?' selected':'')+'>'+entity.label+'</option>';});
+compareEntities.forEach(entity=>{html+='<option value="'+entity.id+'"'+(state.compareBaselineEntity===entity.id?' selected':'')+'>'+entity.label+'</option>';});
 html+='</select>';
 html+='<label style="font-size:10px;font-weight:700;color:#64748b;display:block;margin-bottom:3px">Baseline Budget Batch</label>';
 html+='<select id="compareBaselineBatchSel" style="width:100%;padding:6px;border:1px solid #d1d5db;border-radius:5px;font-size:12px;margin-bottom:8px;"><option value="">Select...</option>';
@@ -2237,10 +2241,10 @@ html+='<label style="font-size:10px;font-weight:700;color:#64748b;display:block;
 html+='<select id="compareBaselinePeriodSel" style="width:100%;padding:6px;border:1px solid #d1d5db;border-radius:5px;font-size:12px;"><option value="">Select...</option>';
 baselineComparePeriods.forEach(period=>{html+='<option value="'+period+'"'+(normalizeFinancialPeriodKey(state.compareBaselinePeriod)===period?' selected':'')+'>'+formatBudgetPeriodLabel(period,true)+'</option>';});
 html+='</select>';
-html+='<div style="font-size:10px;color:#64748b;margin-top:6px">'+(baselineCompareBatch?baselineCompareBatch.rowCount+' baseline rows available across '+baselineComparePeriods.length+' month(s).':'No baseline workbook has been saved for this community yet.')+'</div>';
+html+='<div style="font-size:10px;color:#64748b;margin-top:6px">'+(baselineCompareBatch?baselineCompareBatch.rowCount+' baseline rows available across '+baselineComparePeriods.length+' month(s).':'No baseline workbook has been saved for this entity yet.')+'</div>';
 html+='</div>';
 html+='</div>';
-html+='<div style="margin-top:10px;font-size:11px;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;">Select any saved actual month from one community and compare it against any saved baseline month from another community. This compares exact baseline month values so the drilldown reflects the selected period only.</div>';
+html+='<div style="margin-top:10px;font-size:11px;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;">Select any saved actual month from the chosen entity and compare it against any saved baseline month from the chosen entity. Community and RISE selections both stay in scope, so the dropdowns only surface files tied to the active upload context.</div>';
 } else if(state.compareMode==="baseline_yoy"){
 const archivedBudgetBatches=getApprovedBudgetArchivedBatches(curEntity.label);
 html+='<div><label style="font-size:11px;font-weight:600;color:'+P+';display:block;margin-bottom:3px">Archived Baseline</label>';

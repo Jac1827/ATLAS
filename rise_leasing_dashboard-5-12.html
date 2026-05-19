@@ -3083,11 +3083,10 @@ function deriveSavedBudgetTargetsFromMonthlyData(monthEntries, existingTargets) 
   const normalizedExisting = Array.from({ length: 12 }, (_, idx) =>
     normalizeBudgetOccupancyPct(Array.isArray(existingTargets) ? existingTargets[idx] : 0)
   );
-  const hasExistingTargets = normalizedExisting.some(value => value > 0);
-  if (hasExistingTargets) return normalizedExisting;
-  return Array.from({ length: 12 }, (_, idx) =>
-    normalizeBudgetOccupancyPct(Array.isArray(monthEntries) ? monthEntries[idx]?.budgetOcc : 0)
-  );
+  return Array.from({ length: 12 }, (_, idx) => {
+    const monthlyValue = normalizeBudgetOccupancyPct(Array.isArray(monthEntries) ? monthEntries[idx]?.budgetOcc : 0);
+    return monthlyValue > 0 ? monthlyValue : normalizedExisting[idx];
+  });
 }
 
 function getSavedBudgetOccPct(savedTargets, monthIdx) {
@@ -7923,6 +7922,9 @@ function saveCommunityData(silent = false) {
   const key = scopeCommunityName;
   carryForwardMonthlyData(currentMonth);
   storeCurrentMonthSnapshots(currentMonth, currentOccupied, currentLeased);
+  savedBudgetTargets = Array.from({ length: 12 }, (_, idx) =>
+    getBudgetOccPctForMonth(monthlyData[idx], savedBudgetTargets, idx)
+  );
   savedData[key] = getCurrentCommunityRecord();
   const savedResult = persistSaved();
   queueDailyBackupSnapshotWrite("save_community_data");
@@ -8308,6 +8310,12 @@ function updateMonthly(i, field, val, recommendedVal = null) {
     }
   }
   monthlyData[i] = { ...monthlyData[i], [field]: Number(val) };
+  if (field === "budgetOcc") {
+    if (!Array.isArray(savedBudgetTargets) || savedBudgetTargets.length !== 12) {
+      savedBudgetTargets = Array(12).fill(0);
+    }
+    savedBudgetTargets[i] = normalizeBudgetOccupancyPct(val);
+  }
 }
 
 function updateSeasonal(i, val) {

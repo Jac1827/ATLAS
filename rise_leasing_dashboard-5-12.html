@@ -17764,6 +17764,10 @@ function getScopedPortfolioReportDetails(details) {
     : getInvestorScopedPortfolioDetails(details);
 }
 
+function getReportBuilderScopedDetails() {
+  return getScopedPortfolioReportDetails(buildPortfolioDetailsForMonth(getReportHubMonthIndex()));
+}
+
 function getPortfolioReportScopeSummary(report) {
   if (report.mode === "regional") {
     const regionalTitles = getRegionalReportFilterOptions()
@@ -17823,11 +17827,10 @@ function resetReportRecommendationOverride(name) {
   renderTab();
 }
 
-function getWorkspaceScopedRecipientContacts() {
+function getWorkspaceScopedRecipientContacts(details = getReportBuilderScopedDetails()) {
   const contacts = [];
   const seen = new Set();
-  const details = getWorkspaceScopedDetails(getSelectedDashboardMonthIndex());
-  details.forEach(detail => {
+  (Array.isArray(details) ? details : []).forEach(detail => {
     normalizeInvestorEmailContacts(detail.record?.investorEmailContacts).forEach((entry, idx) => {
       const email = String(entry.email || "").trim();
       if (!email) return;
@@ -17846,7 +17849,7 @@ function getWorkspaceScopedRecipientContacts() {
 }
 
 function ensureReportHubRecipientSelection() {
-  const contacts = getWorkspaceScopedRecipientContacts();
+  const contacts = getWorkspaceScopedRecipientContacts(getReportBuilderScopedDetails());
   const validKeys = new Set(contacts.map(contact => contact.key));
   reportHubRecipientKeys = (Array.isArray(reportHubRecipientKeys) ? reportHubRecipientKeys : []).filter(key => validKeys.has(key));
   if (reportHubRecipientKeys.length === 0 && contacts.length > 0) {
@@ -23989,7 +23992,8 @@ async function processRonaldoFloorPlanSnapshotRows(workbook, fileName = "", opti
     const sqft = normalizeRonaldoBackfillNumber(getCell(row, "avg_sqft"));
     const beds = normalizeRonaldoBackfillNumber(getCell(row, "bed_count"));
     const baths = normalizeRonaldoBackfillNumber(getCell(row, "bath_count"));
-    const leasedPct = normalizeAtlasPercentValue(getCell(row, "leased_pct") || getCell(row, "occupancy_pct"));
+    const leasedPct = normalizeAtlasPercentValue(getCell(row, "leased_pct"));
+    const occupancyPct = normalizeAtlasPercentValue(getCell(row, "occupancy_pct"));
     const units = normalizeRonaldoBackfillNumber(getCell(row, "units")) ?? normalizeRonaldoBackfillNumber(getCell(row, "rentable_units")) ?? 1;
     const weight = Number.isFinite(units) && units > 0 ? units : 1;
     const rateKey = normalizeFloorPlanLookupName(resolvedFloorPlanName);
@@ -24004,6 +24008,8 @@ async function processRonaldoFloorPlanSnapshotRows(workbook, fileName = "", opti
       sqftWeight: 0,
       leasedPctTotal: 0,
       leasedPctWeight: 0,
+      occupancyPctTotal: 0,
+      occupancyPctWeight: 0,
       beds: null,
       baths: null,
       sourceSheet: fileName
@@ -24024,6 +24030,10 @@ async function processRonaldoFloorPlanSnapshotRows(workbook, fileName = "", opti
       existingRate.leasedPctTotal += leasedPct * weight;
       existingRate.leasedPctWeight += weight;
     }
+    if (Number.isFinite(occupancyPct)) {
+      existingRate.occupancyPctTotal += occupancyPct * weight;
+      existingRate.occupancyPctWeight += weight;
+    }
     if (Number.isFinite(beds) && existingRate.beds == null) existingRate.beds = beds;
     if (Number.isFinite(baths) && existingRate.baths == null) existingRate.baths = baths;
     existingRate.sourceSheet = fileName;
@@ -24042,6 +24052,7 @@ async function processRonaldoFloorPlanSnapshotRows(workbook, fileName = "", opti
       budgetRent: rate.budgetRentWeight > 0 ? rate.budgetRentTotal / rate.budgetRentWeight : null,
       sqft: rate.sqftWeight > 0 ? rate.sqftTotal / rate.sqftWeight : null,
       leasedPct: rate.leasedPctWeight > 0 ? rate.leasedPctTotal / rate.leasedPctWeight : null,
+      occupancyPct: rate.occupancyPctWeight > 0 ? rate.occupancyPctTotal / rate.occupancyPctWeight : null,
       beds: rate.beds ?? null,
       baths: rate.baths ?? null,
       sourceSheet: rate.sourceSheet
@@ -24087,6 +24098,7 @@ async function processRonaldoFloorPlanSnapshotRows(workbook, fileName = "", opti
         sqft: existing?.sqft ?? rate.sqft ?? null,
         budgetRent: existing?.budgetRent ?? rate.budgetRent ?? null,
         marketedRent: existing?.marketedRent ?? rate.marketRent ?? null,
+        occupancyPct: existing?.occupancyPct ?? rate.occupancyPct ?? null,
         leasedPct: existing?.leasedPct ?? rate.leasedPct ?? null,
         marketedRentSource: existing?.marketedRentSource || fileName,
         beds: existing?.beds ?? rate.beds ?? null,

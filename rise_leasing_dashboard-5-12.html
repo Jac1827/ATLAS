@@ -1521,6 +1521,7 @@ function normalizeCommunityFloorPlans(data) {
     const budgetRent = Number(row?.budgetRent);
     const marketedRent = Number(row?.marketedRent);
     const leasedPct = Number(row?.leasedPct);
+    const occupancyPct = Number(row?.occupancyPct);
     const beds = Number(row?.beds);
     const baths = Number(row?.baths);
     const units = Number(row?.units);
@@ -1531,6 +1532,7 @@ function normalizeCommunityFloorPlans(data) {
       budgetRent: Number.isFinite(budgetRent) && budgetRent > 0 ? budgetRent : null,
       marketedRent: Number.isFinite(marketedRent) && marketedRent > 0 ? marketedRent : null,
       leasedPct: Number.isFinite(leasedPct) && leasedPct >= 0 ? Math.min(leasedPct, 100) : null,
+      occupancyPct: Number.isFinite(occupancyPct) && occupancyPct >= 0 ? Math.min(occupancyPct, 100) : null,
       marketedRentSource: String(row?.marketedRentSource ?? "").trim(),
       beds: Number.isFinite(beds) && beds >= 0 ? beds : null,
       baths: Number.isFinite(baths) && baths >= 0 ? baths : null,
@@ -1547,6 +1549,8 @@ function normalizeMarketSurveyFloorPlanRates(data) {
     const sqft = Number(row?.sqft);
     const beds = Number(row?.beds);
     const baths = Number(row?.baths);
+    const leasedPct = Number(row?.leasedPct);
+    const occupancyPct = Number(row?.occupancyPct);
     const units = Number(row?.units);
     return {
       id: buildSurveyFloorPlanRowId(row, index),
@@ -1556,6 +1560,8 @@ function normalizeMarketSurveyFloorPlanRates(data) {
       sqft: Number.isFinite(sqft) && sqft > 0 ? sqft : null,
       beds: Number.isFinite(beds) && beds >= 0 ? beds : null,
       baths: Number.isFinite(baths) && baths >= 0 ? baths : null,
+      leasedPct: Number.isFinite(leasedPct) && leasedPct >= 0 ? Math.min(leasedPct, 100) : null,
+      occupancyPct: Number.isFinite(occupancyPct) && occupancyPct >= 0 ? Math.min(occupancyPct, 100) : null,
       units: Number.isFinite(units) && units > 0 ? units : null,
       sourceSheet: String(row?.sourceSheet ?? "").trim()
     };
@@ -8804,7 +8810,7 @@ function renderPortfolioScopedImportTab() {
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
       <div>
         <div class="card-title" style="margin-bottom:6px">Ronaldo Monthly Backfill / Bulk DLR</div>
-        <div style="font-size:0.68rem;color:var(--muted)">Upload the completed <span class="mono">ATLAS_Advanced_Monthly_Upload_Template.xlsx</span> workbook or report-generator exports here. It writes the selected month into every saved community record so Overview, Traffic, Renewals, Reputation, and DLR rollups stay aligned. This is the same bulk path used by the DLR upload when a Ronaldo template workbook is dropped.</div>
+        <div style="font-size:0.68rem;color:var(--muted)">Upload the completed <span class="mono">ATLAS_Advanced_Monthly_Upload_Template.xlsx</span> workbook or report-generator exports here. It writes the selected month into every saved community record so Overview, Traffic, Renewals, Reputation, and DLR rollups stay aligned. Any lead-source data included in the Ronaldo upload is mapped into the portfolio Overview / Traffic &amp; Funnel rollups and the matching individual community Traffic &amp; Funnel month records from the same import.</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
         <div>
@@ -8822,10 +8828,10 @@ function renderPortfolioScopedImportTab() {
     <label class="csv-dropzone" style="padding:20px;cursor:pointer">
       <div class="csv-drop-icon">⬆</div>
       <div style="font-size:0.82rem;color:#4493f8;font-weight:600">Click to upload the monthly template, generator workbook, and optional box-score references</div>
-      <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">Supports <span class="mono">.xlsx</span>, <span class="mono">.xlsm</span>, <span class="mono">.xls</span>, <span class="mono">.csv</span>, and <span class="mono">.pdf</span>. The workbook is applied to the target month; generator sheet exports and box-score files are mapped into the same community month record to create DLR-ready data in bulk.</div>
+      <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">Supports <span class="mono">.xlsx</span>, <span class="mono">.xlsm</span>, <span class="mono">.xls</span>, <span class="mono">.csv</span>, and <span class="mono">.pdf</span>. The workbook is applied to the target month; generator sheet exports and box-score files are mapped into the same community month record so lead totals, lead-source buckets, tours, and applications stay consistent between Overview, portfolio Traffic &amp; Funnel, and each community Traffic &amp; Funnel tab.</div>
       <input type="file" accept=".xlsx,.xls,.xlsm,.csv,.pdf" id="ronaldo-monthly-upload-input" multiple onchange="processRonaldoMonthlyBackfillFiles(this.files); this.value = ''"/>
     </label>
-    <div style="font-size:0.66rem;color:var(--muted);margin-top:8px">Use this when Ronaldo fills out the template and you want the import to populate every relevant community month record in one pass.</div>
+    <div style="font-size:0.66rem;color:var(--muted);margin-top:8px">Use this when Ronaldo fills out the template and you want the import to populate every relevant community month record in one pass. The same upload should carry each community's lead-source breakdown into both portfolio reporting and the individual community funnel screens.</div>
   </div>`;
   const renewalTrackerUploadHTML = `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
@@ -9664,6 +9670,8 @@ function buildCommunityFloorPlanVarianceRows(floorPlans = communityFloorPlans, s
       units: Number.isFinite(Number(plan.units)) && Number(plan.units) > 0
         ? Number(plan.units)
         : (Number.isFinite(Number(match?.rate?.units)) && Number(match.rate.units) > 0 ? Number(match.rate.units) : null),
+      occupancyPct: compCalcNormalizePctValue(plan.occupancyPct ?? match?.rate?.occupancyPct),
+      leasedPct: compCalcNormalizePctValue(plan.leasedPct ?? match?.rate?.leasedPct),
       marketRent: resolvedMarketRent,
       marketSource: resolvedMarketSource,
       variance: Number.isFinite(budgetRent) && budgetRent > 0 && Number.isFinite(resolvedMarketRent) && resolvedMarketRent > 0
@@ -15005,6 +15013,11 @@ function compCalcFormatPercent(value, digits = 1) {
   return numeric > 0 ? `${numeric.toFixed(digits)}%` : "—";
 }
 
+function compCalcFormatPercentValue(value, digits = 1) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= 0 ? `${numeric.toFixed(digits)}%` : "—";
+}
+
 function compCalcFormatSignedCurrency(value) {
   const numeric = Number(value ?? 0);
   if (!numeric) return "$0";
@@ -15021,6 +15034,34 @@ function compCalcRoundRent(value, step = 5) {
   const numeric = Number(value ?? 0);
   if (!Number.isFinite(numeric) || numeric <= 0) return 0;
   return Math.round(numeric / step) * step;
+}
+
+function compCalcNormalizePctValue(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= 0 ? Math.min(numeric, 100) : null;
+}
+
+function getCompCalculatorFloorPlanDemandSignals(plan = {}, activity = {}) {
+  const occupancyPct = compCalcNormalizePctValue(plan?.occupancyPct);
+  const leasedPct = compCalcNormalizePctValue(plan?.leasedPct);
+  const populated = [occupancyPct, leasedPct].filter(value => value != null);
+  const strongestPct = populated.length > 0 ? Math.max(...populated) : null;
+  const weakestPct = populated.length > 0 ? Math.min(...populated) : null;
+  const currentOccPct = Number(activity.currentOccPct ?? 0) || 0;
+  const budgetOccPct = Number(activity.budgetOccPct ?? 0) || 0;
+  const communityAhead = budgetOccPct > 0 ? currentOccPct + 0.15 >= budgetOccPct : currentOccPct >= 95;
+  return {
+    occupancyPct,
+    leasedPct,
+    strongestPct,
+    weakestPct,
+    nearFull: strongestPct != null && strongestPct >= 97,
+    fullyConstrained: weakestPct != null && weakestPct >= 98.5,
+    soft: weakestPct != null && weakestPct < 93,
+    verySoft: weakestPct != null && weakestPct < 90,
+    communityAhead,
+    communityBehind: budgetOccPct > 0 ? currentOccPct + 0.15 < budgetOccPct : currentOccPct < 95
+  };
 }
 
 function compCalcNormalizeApproach(value) {
@@ -15161,6 +15202,8 @@ function buildCompCalculatorRecommendation(market, activity = {}, floorPlanConte
   const budgetRentGap = Number(floorPlanContext.avgMarketedToBudgetGap ?? 0) || 0;
   const budgetRentGapPct = Number(floorPlanContext.avgMarketedToBudgetGapPct ?? 0) || 0;
   const occupancyAhead = targetOccupancyPct > 0 ? currentOccPct >= targetOccupancyPct : currentOccPct >= Number(market.compAverageLeasedPct ?? 0);
+  const constrainedPlanShare = Number(floorPlanContext.constrainedPlanShare ?? 0) || 0;
+  const softPlanShare = Number(floorPlanContext.softPlanShare ?? 0) || 0;
   let mode = compCalcNormalizeApproach(market.leasingApproach);
   if (mode === "balanced") {
     if (occupancyAhead) mode = "aggressive";
@@ -15169,6 +15212,14 @@ function buildCompCalculatorRecommendation(market, activity = {}, floorPlanConte
     if (mode === "aggressive" && budgetRentGapPct > 4 && !occupancyAhead) mode = "balanced";
     if (mode === "balanced" && budgetRentGapPct > 6 && targetOccupancyPct > 0 && currentOccPct < targetOccupancyPct) mode = "conservative";
   }
+  if (softPlanShare >= 0.34 && !occupancyAhead) {
+    mode = "conservative";
+  } else if (constrainedPlanShare >= 0.4 && occupancyAhead && mode === "conservative") {
+    mode = "balanced";
+  }
+  if (constrainedPlanShare >= 0.55 && occupancyAhead && mode === "balanced") {
+    mode = "aggressive";
+  }
   const score = Math.max(0, Math.min(10,
     5
     + (targetOccupancyPct > 0 ? (currentOccPct - targetOccupancyPct) * 0.9 : 0)
@@ -15176,6 +15227,8 @@ function buildCompCalculatorRecommendation(market, activity = {}, floorPlanConte
     + (appToLeasePct - 25) / 12
     - Math.max(0, budgetRentGapPct) / 3
     - Math.max(0, cancelGap) / 4
+    + (constrainedPlanShare * 1.2)
+    - (softPlanShare * 1.4)
   ));
   const label = compCalcApproachLabel(mode);
   const titleMap = {
@@ -15194,6 +15247,7 @@ function buildCompCalculatorRecommendation(market, activity = {}, floorPlanConte
     Number(market.compAverageNer ?? 0) > 0 && subjectNer > 0 ? `NER gap ${compCalcFormatSignedCurrency(nerGap)}` : "",
     Number(market.compAverageLeasedPct ?? 0) > 0 ? `Leased occupancy ${compCalcFormatSignedPoints(leasedGap)} pts vs comp avg` : "",
     Number(floorPlanContext.subjectAvgBudgetRent ?? 0) > 0 ? `Floor-plan rent is ${compCalcFormatSignedCurrency(budgetRentGap)} vs budget on average` : "",
+    floorPlanContext.subjectPlanCount > 0 ? `${floorPlanContext.constrainedPlanCount || 0} tight plan${(floorPlanContext.constrainedPlanCount || 0) === 1 ? "" : "s"} / ${floorPlanContext.softPlanCount || 0} soft plan${(floorPlanContext.softPlanCount || 0) === 1 ? "" : "s"}` : "",
     Number(activity.guestCards ?? 0) > 0 ? `${Math.round(activity.guestToTourPct)}% guest-to-tour` : "",
     Number(activity.applications ?? 0) > 0 ? `${Math.round(activity.approvedPct)}% approval / ${Math.round(activity.appToLeasePct)}% app-to-lease` : ""
   ].filter(Boolean);
@@ -15436,7 +15490,7 @@ function compLowMonthly(playbook, market) {
   return Math.min(...values) * termMonths;
 }
 
-function buildCompCalculatorFloorPlanRows(detail, market) {
+function buildCompCalculatorFloorPlanRows(detail, market, activity = {}) {
   const subjectPlans = normalizeCommunityFloorPlans(detail?.record?.communityFloorPlans);
   const surveyRates = normalizeMarketSurveyFloorPlanRates(market?.floorPlanRates);
   const usedRateIds = new Set();
@@ -15455,14 +15509,29 @@ function buildCompCalculatorFloorPlanRows(detail, market) {
     const budgetRent = Number(plan.budgetRent ?? 0) || null;
     const gap = marketedRent != null && marketRent != null ? marketedRent - marketRent : null;
     const gapPct = gap != null && marketRent > 0 ? (gap / marketRent) * 100 : null;
+    const demand = getCompCalculatorFloorPlanDemandSignals({
+      ...plan,
+      occupancyPct: plan?.occupancyPct ?? matchedRate?.occupancyPct ?? null,
+      leasedPct: plan?.leasedPct ?? matchedRate?.leasedPct ?? null
+    }, activity);
     let rateAction = "hold";
     let rateTone = "hold";
     let rateRead = marketRent > 0 ? "At market" : "No market rate saved";
     let suggestedRent = marketedRent || marketRent || null;
     if (marketRent > 0 && marketedRent > 0) {
-      const reduceThreshold = Math.max(75, marketRent * 0.04);
-      const trimThreshold = Math.max(25, marketRent * 0.015);
-      const pushThreshold = Math.max(50, marketRent * 0.03);
+      let reduceThreshold = Math.max(75, marketRent * 0.04);
+      let trimThreshold = Math.max(25, marketRent * 0.015);
+      let pushThreshold = Math.max(50, marketRent * 0.03);
+      if (demand.nearFull) {
+        reduceThreshold *= 1.35;
+        trimThreshold *= 1.4;
+        pushThreshold *= 0.72;
+      }
+      if (demand.soft) {
+        reduceThreshold *= 0.78;
+        trimThreshold *= 0.72;
+        pushThreshold *= demand.communityAhead ? 1.05 : 1.45;
+      }
       if (gap > reduceThreshold) {
         rateAction = "reduce";
         rateTone = "down";
@@ -15484,6 +15553,32 @@ function buildCompCalculatorFloorPlanRows(detail, market) {
         rateRead = "Hold at market";
         suggestedRent = compCalcRoundRent(marketedRent);
       }
+      if ((demand.nearFull || demand.fullyConstrained) && (rateAction === "reduce" || rateAction === "trim")) {
+        if (gap > reduceThreshold * 1.25 && demand.communityBehind) {
+          rateAction = "trim";
+          rateTone = "down";
+          rateRead = `Trim lightly; ${compCalcFormatPercentValue(demand.strongestPct)} full`;
+          suggestedRent = compCalcRoundRent(Math.max(marketRent, marketedRent - 25));
+        } else {
+          rateAction = "hold";
+          rateTone = "hold";
+          rateRead = `Hold strength; ${compCalcFormatPercentValue(demand.strongestPct)} full`;
+          suggestedRent = compCalcRoundRent(marketedRent);
+        }
+      }
+      if (demand.soft && !demand.communityAhead) {
+        if (gap < -pushThreshold && rateAction === "push") {
+          rateAction = "hold";
+          rateTone = "hold";
+          rateRead = `Hold here; ${compCalcFormatPercentValue(demand.weakestPct)} occupied`;
+          suggestedRent = compCalcRoundRent(marketedRent);
+        } else if (gap >= -Math.max(20, marketRent * 0.01) && rateAction === "hold") {
+          rateAction = "trim";
+          rateTone = "down";
+          rateRead = `Trim to lift demand at ${compCalcFormatPercentValue(demand.weakestPct)}`;
+          suggestedRent = compCalcRoundRent(Math.max(0, Math.min(marketedRent - 25, marketRent)));
+        }
+      }
     } else if (marketRent > 0 && !marketedRent) {
       rateAction = "review";
       rateTone = "hold";
@@ -15498,6 +15593,8 @@ function buildCompCalculatorFloorPlanRows(detail, market) {
       beds: plan.beds ?? matchedRate?.beds ?? null,
       baths: plan.baths ?? matchedRate?.baths ?? null,
       sqft: plan.sqft ?? matchedRate?.sqft ?? null,
+      occupancyPct: demand.occupancyPct,
+      leasedPct: demand.leasedPct,
       marketedRent,
       marketRent,
       gap,
@@ -15531,7 +15628,7 @@ function buildCompCalculatorFloorPlanSummary(rows = []) {
 function buildCompCalculatorSnapshotData(detail, market, monthIdx = getSelectedDashboardMonthIndex()) {
   const meta = getCompCalculatorScopeMeta(detail, market);
   const activity = getCompCalculatorSubjectActivity(detail, market, monthIdx);
-  const floorPlanRows = buildCompCalculatorFloorPlanRows(detail, market);
+  const floorPlanRows = buildCompCalculatorFloorPlanRows(detail, market, activity);
   const floorPlanSummary = buildCompCalculatorFloorPlanSummary(floorPlanRows);
   const subjectSqft = compCalcAverage(floorPlanRows.map(row => row.marketedRent ? Number(row.sqft ?? 0) : 0).filter(Boolean));
   const compSqft = compCalcAverage((market.floorPlanRates ?? []).map(rate => Number(rate.sqft ?? 0)).filter(Boolean));
@@ -15548,9 +15645,18 @@ function buildCompCalculatorSnapshotData(detail, market, monthIdx = getSelectedD
     subjectAvgMarketedRent,
     avgMarketedToBudgetGap,
     avgMarketedToBudgetGapPct: subjectAvgBudgetRent > 0 ? (avgMarketedToBudgetGap / subjectAvgBudgetRent) * 100 : 0,
-    subjectPlanCount: floorPlanRows.filter(row => Number(row.marketedRent ?? 0) > 0).length,
-    compPlanCount: Array.isArray(market.floorPlanRates) ? market.floorPlanRates.length : 0
+    subjectPlanCount: floorPlanRows.length,
+    compPlanCount: Array.isArray(market.floorPlanRates) ? market.floorPlanRates.length : 0,
+    constrainedPlanCount: floorPlanRows.filter(row => Number(row.occupancyPct ?? row.leasedPct ?? -1) >= 97 || Number(row.leasedPct ?? row.occupancyPct ?? -1) >= 97).length,
+    softPlanCount: floorPlanRows.filter(row => {
+      const occupancyPct = compCalcNormalizePctValue(row.occupancyPct);
+      const leasedPct = compCalcNormalizePctValue(row.leasedPct);
+      const populated = [occupancyPct, leasedPct].filter(value => value != null);
+      return populated.length > 0 && Math.min(...populated) < 93;
+    }).length
   };
+  floorPlanContext.constrainedPlanShare = floorPlanContext.subjectPlanCount > 0 ? floorPlanContext.constrainedPlanCount / floorPlanContext.subjectPlanCount : 0;
+  floorPlanContext.softPlanShare = floorPlanContext.subjectPlanCount > 0 ? floorPlanContext.softPlanCount / floorPlanContext.subjectPlanCount : 0;
   const recommendation = buildCompCalculatorRecommendation(market, activity, floorPlanContext);
   const playbook = buildCompCalculatorConcessionPlaybook(market, activity);
   const pricingRows = buildCompCalculatorPricingRows(market, activity, playbook, recommendation, floorPlanContext);
@@ -15904,6 +16010,8 @@ function buildCompCalculatorInvestorSnapshotDocument(data) {
                   <th>Plan</th>
                   <th>Type</th>
                   <th>Sq Ft</th>
+                  <th>Occupied</th>
+                  <th>Leased</th>
                   <th>Current Rent</th>
                   <th>Market Rent</th>
                   <th>Gap</th>
@@ -15918,6 +16026,8 @@ function buildCompCalculatorInvestorSnapshotDocument(data) {
                       <td><strong>${escapeHtml(row.name)}</strong></td>
                       <td>${row.beds !== null && row.baths !== null ? `${row.beds} / ${row.baths}` : row.beds !== null ? `${row.beds} bd` : "—"}</td>
                       <td>${row.sqft ? Math.round(row.sqft).toLocaleString() : "—"}</td>
+                      <td>${compCalcFormatPercentValue(row.occupancyPct)}</td>
+                      <td>${compCalcFormatPercentValue(row.leasedPct)}</td>
                       <td>${row.marketedRent ? formatDlrCurrency(row.marketedRent) : "—"}</td>
                       <td>${row.marketRent ? formatDlrCurrency(row.marketRent) : "—"}</td>
                       <td>${row.gap == null ? "—" : compCalcFormatSignedCurrency(row.gap)}</td>
@@ -15925,7 +16035,7 @@ function buildCompCalculatorInvestorSnapshotDocument(data) {
                       <td><span class="badge ${row.rateTone === "down" ? "medium" : row.rateTone === "up" ? "low" : "you"}">${escapeHtml(row.rateRead || "Hold")}</span></td>
                       <td>${row.suggestedRent ? formatDlrCurrency(row.suggestedRent) : "—"}</td>
                     </tr>`).join("")
-                  : `<tr><td colspan="9">No subject floor plans were saved for this community yet.</td></tr>`}
+                  : `<tr><td colspan="11">No subject floor plans were saved for this community yet.</td></tr>`}
               </tbody>
             </table>
           </div>
@@ -16354,6 +16464,8 @@ function renderCompCalculatorCommunityView(detail, market, monthIdx) {
               <th>Plan</th>
               <th>Type</th>
               <th>Sq Ft</th>
+              <th>Occupied</th>
+              <th>Leased</th>
               <th>Current Rent</th>
               <th>Market Rent</th>
               <th>Gap</th>
@@ -16368,6 +16480,8 @@ function renderCompCalculatorCommunityView(detail, market, monthIdx) {
               <td><strong>${escapeHtml(row.name)}</strong></td>
               <td>${row.beds !== null && row.beds !== undefined ? `${row.beds}${row.baths !== null && row.baths !== undefined ? ` / ${row.baths}` : ""}` : "—"}</td>
               <td>${row.sqft ? Math.round(row.sqft).toLocaleString() : "—"}</td>
+              <td>${compCalcFormatPercentValue(row.occupancyPct)}</td>
+              <td>${compCalcFormatPercentValue(row.leasedPct)}</td>
               <td>${row.marketedRent ? formatDlrCurrency(row.marketedRent) : "—"}</td>
               <td>${row.marketRent ? formatDlrCurrency(row.marketRent) : "—"}</td>
               <td>${row.gap === null ? "—" : compCalcFormatSignedCurrency(row.gap)}</td>
@@ -21517,7 +21631,7 @@ function buildDlrFloorPlanVarianceChart(report) {
       row.baths != null ? `${row.baths} ba` : "",
       row.sqft != null ? `${Math.round(row.sqft).toLocaleString()} sf` : ""
     ].filter(Boolean).join(" · ");
-    return `<div style="display:grid;grid-template-columns:minmax(170px,1.1fr) minmax(280px,1fr) 120px 120px 92px 100px;gap:12px;align-items:center;padding:10px 0;border-top:1px solid #e5e7eb">
+    return `<div style="display:grid;grid-template-columns:minmax(170px,1.1fr) minmax(280px,1fr) 120px 120px 92px 100px 100px;gap:12px;align-items:center;padding:10px 0;border-top:1px solid #e5e7eb">
       <div>
         <div style="font-size:13px;font-weight:700;color:#0f172a">${escapeHtml(row.name)}</div>
         <div style="font-size:11px;color:#64748b;margin-top:3px">${escapeHtml(meta || "Budget plan")}</div>
@@ -21538,7 +21652,8 @@ function buildDlrFloorPlanVarianceChart(report) {
       <div style="font-size:12px;color:#334155"><strong>Budget</strong><br>${formatDlrCurrency(row.budgetRent)}</div>
       <div style="font-size:12px;color:#334155"><strong>Market</strong><br>${formatDlrCurrency(row.marketRent)}</div>
       <div style="font-size:12px;font-weight:700;color:${varianceColor}">${row.variance == null ? "—" : formatSignedDisplay(variance, 0, "")}</div>
-      <div style="font-size:12px;color:#334155"><strong>% Leased</strong><br>${row.leasedPct == null ? "—" : `${Number(row.leasedPct).toFixed(1)}%`}</div>
+      <div style="font-size:12px;color:#334155"><strong>% Occupied</strong><br>${compCalcFormatPercentValue(row.occupancyPct)}</div>
+      <div style="font-size:12px;color:#334155"><strong>% Leased</strong><br>${compCalcFormatPercentValue(row.leasedPct)}</div>
     </div>`;
   }).join("");
   return `<div style="padding:16px;border:1px solid #dbe4f0;border-radius:16px;background:#ffffff">
@@ -23747,7 +23862,7 @@ async function processRonaldoLeadSourceRows(workbook, fileName = "", options = {
   if (saveResult?.ok === false) return { rows: [], notes: [`⚠️ ${saveResult.message}`] };
   if (rows.some(row => row.property === getProp().name)) loadPropertyData(getProp().name);
   renderPropGrid();
-  notes.push(`✅ Applied lead source totals across ${rows.length} community-month row${rows.length === 1 ? "" : "s"}.`);
+  notes.push(`✅ Applied lead source totals across ${rows.length} community-month row${rows.length === 1 ? "" : "s"} and synced them into portfolio and individual community Traffic & Funnel records.`);
   return { rows, notes };
 }
 
@@ -24947,7 +25062,7 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
         csvLog.push(`ℹ ${unresolvedWorkbookRows.length - 6} additional workbook row(s) also failed mapping validation.`);
       }
     }
-    csvLog.push(`ℹ Community records updated across tabs/calculations for ${touchedCommunities.size} communit${touchedCommunities.size === 1 ? "y" : "ies"}.`);
+      csvLog.push(`ℹ Community records updated across tabs/calculations for ${touchedCommunities.size} communit${touchedCommunities.size === 1 ? "y" : "ies"}, including portfolio Overview / Traffic & Funnel and each matching community Traffic & Funnel month record.`);
     renderTab();
   } catch (err) {
     csvError = "Failed to parse ATLAS workbook: " + err.message;

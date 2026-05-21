@@ -1242,7 +1242,7 @@ let csvLog = [];
 let csvError = "";
 let importMonthOverride = currentMonth;
 let importRoutingMode = "file_first";
-let atlasWorkbookImportMode = "merge_scope";
+let atlasWorkbookImportMode = "replace_scope";
 let monthlyTemplateImportTargetTouched = false;
 let monthlyTemplateImportTarget = buildDefaultMonthlyTemplateImportTarget();
 let extractedDashboardRows = [];
@@ -2944,7 +2944,7 @@ function normalizeOpsGlobalData(data) {
       ...(input.portfolioReportFilters && typeof input.portfolioReportFilters === "object" ? input.portfolioReportFilters : {})
     },
     portfolioReportMode: input.portfolioReportMode === "regional" ? "regional" : "owner",
-    atlasWorkbookImportMode: input.atlasWorkbookImportMode === "replace_scope" ? "replace_scope" : "merge_scope",
+    atlasWorkbookImportMode: input.atlasWorkbookImportMode === "merge_scope" ? "merge_scope" : "replace_scope",
     portfolioMonthScopeByPeriod: normalizePortfolioMonthScopeByPeriod(input.portfolioMonthScopeByPeriod),
     reportHubType: normalizeReportHubType(input.reportHubType),
     reportHubPerspective: normalizeReportHubPerspective(input.reportHubPerspective),
@@ -17727,7 +17727,7 @@ function resetImportWorkspace() {
   marketSurveyImportSourceLabel = "";
   extractFieldMap = { ...DEFAULT_EXTRACT_FIELD_MAP };
   importRoutingMode = "file_first";
-  atlasWorkbookImportMode = "merge_scope";
+  atlasWorkbookImportMode = "replace_scope";
   persistOpsGlobalData();
   renderTab();
 }
@@ -21956,9 +21956,7 @@ function buildDlrInvestorNotes({
   const appVolumeDelta = (mtdTraffic.applications || 0) - (prevMonthTraffic.applications || 0);
   const approvalDelta = (mtdTraffic.approvals || 0) - (prevMonthTraffic.approvals || 0);
   const tourDelta = (mtdTraffic.tours || 0) - (prevMonthTraffic.tours || 0);
-  const netAbsorption = trafficMetricsSourceMode === "daily_box_score"
-    ? (dailyTraffic.moveIns || 0) - (dailyTraffic.moveOuts || 0)
-    : (mtdTraffic.moveIns || 0) - (mtdTraffic.moveOuts || 0);
+  const netAbsorption = (mtdTraffic.moveIns || 0) - (mtdTraffic.moveOuts || 0);
   const budgetRentDelta = (Number(avgInPlaceRent) || 0) - (Number(avgBudgetRent) || 0);
   const tours = [
     `Report-period activity reflects ${reportDateLabel || monthLabel}.`,
@@ -22070,10 +22068,7 @@ function buildDlrEmailSnapshotSvg(report) {
 function buildDlrEmailPlainTextBody(report) {
   const today = report.dailyTraffic || {};
   const mtd = report.trafficMetrics || {};
-  const useDailyTraffic = report.trafficMetrics?.sourceMode === "daily_box_score";
-  const moveInsLine = useDailyTraffic
-    ? `Move-Ins: ${today.moveIns || 0} | Move-Outs: ${today.moveOuts || 0} | Renewals: ${today.renewals || 0}`
-    : `Move-Ins: ${mtd.moveIns || 0} | Move-Outs: ${mtd.moveOuts || 0} | Renewals: ${mtd.renewals || 0}`;
+  const moveInsLine = `Move-Ins: ${mtd.moveIns || 0} | Move-Outs: ${mtd.moveOuts || 0} | Renewals: ${mtd.renewals || 0}`;
   const bulletLines = (report.notes?.wins?.length ? report.notes.wins : report.notes?.highlights || []).map(line => `- ${line}`);
   const marketingLines = report.marketing?.ready ? ["", "Marketing", report.marketing.narrative] : [];
   return [
@@ -22226,6 +22221,8 @@ function resolveDlrSummaryUnits(summary, totalUnits, metric = "occupied") {
 function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommunityName(), monthIdx = getHistoricalImportMonthIndex(), year = getHistoricalImportYear()) {
   const communityName = matchPropertyName(propName, { fallbackToCurrent: false }) || getProp().name;
   const record = getCommunityRecordForScope(communityName);
+  const reportDetail = buildPortfolioDetailsForMonth(clampNumber(monthIdx, 0, 11), { [communityName]: record })[0] || null;
+  const reportSummary = reportDetail?.summary || {};
   const surveyData = normalizeMarketSurveyData(record.marketSurveyData);
   const dlrSummary = getCommunityDlrSummary(communityName);
   const dailyBoxScore = normalizeDlrBoxScoreSnapshot(dlrSummary.dailyBoxScore);
@@ -22233,23 +22230,17 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
   const dailyBoxScoreDate = parseDlrSpecificDate(dailyBoxScore.reportDateIso);
   const hasMatchingDailyBoxScore = hasDailyBoxScore && (!dailyBoxScoreDate || (dailyBoxScoreDate.getMonth() === clampNumber(monthIdx, 0, 11) && dailyBoxScoreDate.getFullYear() === Number(year)));
   const prop = getPropertyByName(communityName);
-  const totalUnits = hasMatchingDailyBoxScore && Number.isFinite(Number(dailyBoxScore.totalUnits))
-    ? Math.max(0, Number(dailyBoxScore.totalUnits) || 0)
-    : getTotalUnitsFor(prop, record.customUnits);
+  const totalUnits = getTotalUnitsFor(prop, record.customUnits);
   const corporateUnits = getCorporateLeaseUnitsForRecord(record, totalUnits);
   const scopeMonthlyData = Array.isArray(record.monthlyData) && record.monthlyData.length === 12 ? record.monthlyData : defaultMonthly();
   const scopeSeasonal = Array.isArray(record.seasonal) && record.seasonal.length === 12 ? record.seasonal : [...DEFAULT_SEASONAL];
   const normalizedMonthIdx = clampNumber(monthIdx, 0, 11);
   const scopeCurrentMonth = Number.isInteger(record.currentMonth) ? record.currentMonth : DEFAULT_CURRENT_MONTH;
   const reportMetricMonthIdx = normalizedMonthIdx;
-  const reportAnchorOccupiedUnits = hasMatchingDailyBoxScore && Number.isFinite(Number(dailyBoxScore.occupiedUnits))
-    ? Math.max(0, Number(dailyBoxScore.occupiedUnits) || 0)
-    : reportMetricMonthIdx === scopeCurrentMonth
+  const reportAnchorOccupiedUnits = reportMetricMonthIdx === scopeCurrentMonth
     ? Math.max(0, Number(record.currentOccupied) || 0)
     : estimateSnapshotUnitsForRecordMonth(record, totalUnits, reportMetricMonthIdx, "occupiedSnapshot");
-  const reportAnchorLeasedUnits = hasMatchingDailyBoxScore && Number.isFinite(Number(dailyBoxScore.leasedUnits))
-    ? Math.max(0, Number(dailyBoxScore.leasedUnits) || 0)
-    : reportMetricMonthIdx === scopeCurrentMonth
+  const reportAnchorLeasedUnits = reportMetricMonthIdx === scopeCurrentMonth
     ? Math.max(0, Number(record.currentLeased) || 0)
     : estimateSnapshotUnitsForRecordMonth(record, totalUnits, reportMetricMonthIdx, "leasedSnapshot");
   const schedule = computeScheduleFromContext({
@@ -22293,22 +22284,19 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
     });
   const occupiedUnits = reportAnchorOccupiedUnits;
   const leasedUnits = reportAnchorLeasedUnits;
-  const occupancyPct = hasMatchingDailyBoxScore && Number.isFinite(Number(dailyBoxScore.occupiedUnits)) && totalUnits > 0
-    ? (occupiedUnits / totalUnits) * 100
-    : getOccupancyPctFromUnits(occupiedUnits, totalUnits, corporateUnits);
-  const leasedPct = hasMatchingDailyBoxScore && Number.isFinite(Number(dailyBoxScore.leasedUnits)) && totalUnits > 0
-    ? (leasedUnits / totalUnits) * 100
-    : getOccupancyPctFromUnits(leasedUnits, totalUnits, corporateUnits);
-  const projectedEndingOccupancy = hasMatchingDailyBoxScore && Number.isFinite(Number(dailyBoxScore.trendUnits)) && totalUnits > 0
-    ? { occupiedUnits: Math.max(0, Number(dailyBoxScore.trendUnits) || 0), pct: (Math.max(0, Number(dailyBoxScore.trendUnits) || 0) / totalUnits) * 100 }
-    : computeProjectedEndingPhysicalOccupancy(record, totalUnits, reportMetricMonthIdx, 3);
+  const occupancyPct = getOccupancyPctFromUnits(occupiedUnits, totalUnits, corporateUnits);
+  const leasedPct = getOccupancyPctFromUnits(leasedUnits, totalUnits, corporateUnits);
+  const projectedEndingOccupancy = computeProjectedEndingPhysicalOccupancy(record, totalUnits, reportMetricMonthIdx, 3);
   const trendingOccupancyPct = Number(projectedEndingOccupancy.pct ?? occupancyPct) || occupancyPct;
   const budgetOccPct = getRecordSavedBudgetOccPct(record, reportMetricMonthIdx);
   const moveInsNeeded = Number(scheduleRow.netOccLeases) || 0;
   const moveInGoalPerWeek = moveInsNeeded > 0 ? Math.max(1, Math.ceil(moveInsNeeded / 4)) : 0;
-  const mtdTraffic = buildDlrTrafficMetricsFromSummary(dlrSummary, monthEntry, dailyBoxScore, {
-    preferDailyBoxScore: hasMatchingDailyBoxScore
+  const mtdTraffic = buildDlrTrafficMetricsFromSummary({}, monthEntry, {}, {
+    preferDailyBoxScore: false
   });
+  mtdTraffic.moveIns = Math.max(0, Number(reportSummary.moveIns ?? monthEntry.moveIns) || 0);
+  mtdTraffic.moveOuts = Math.max(0, Number(reportSummary.moveOuts ?? getEffectiveMoveOutsForMonth(reportMetricMonthIdx, scopeMonthlyData).effective) || 0);
+  mtdTraffic.monthAbsorption = Number(reportSummary.monthAbsorption ?? (mtdTraffic.moveIns - mtdTraffic.moveOuts)) || 0;
   mtdTraffic.guestToTourPct = mtdTraffic.guestCards > 0 ? (mtdTraffic.tours / mtdTraffic.guestCards) * 100 : 0;
   mtdTraffic.tourToAppPct = mtdTraffic.tours > 0 ? (mtdTraffic.applications / mtdTraffic.tours) * 100 : 0;
   mtdTraffic.appToLeasePct = mtdTraffic.applications > 0 ? (mtdTraffic.leases / mtdTraffic.applications) * 100 : 0;
@@ -22430,6 +22418,7 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
     budgetOccPct,
     moveInGoalPerWeek,
     moveInsNeeded,
+    monthAbsorption: Number(reportSummary.monthAbsorption ?? mtdTraffic.monthAbsorption ?? 0) || 0,
     trafficMetrics: {
       ...mtdTraffic,
       sourceMode: hasMatchingDailyBoxScore ? "daily_box_score" : "dashboard_mtd"
@@ -22559,9 +22548,7 @@ function renderDashboardDlrActivityMiniTable(report) {
 }
 
 function buildDlrInvestorOverviewDocument(report) {
-  const netAbsorption = report.trafficMetrics?.sourceMode === "daily_box_score"
-    ? (Number(report.dailyTraffic?.moveIns) || 0) - (Number(report.dailyTraffic?.moveOuts) || 0)
-    : (Number(report.trafficMetrics?.moveIns) || 0) - (Number(report.trafficMetrics?.moveOuts) || 0);
+  const netAbsorption = Number(report.monthAbsorption ?? ((Number(report.trafficMetrics?.moveIns) || 0) - (Number(report.trafficMetrics?.moveOuts) || 0))) || 0;
   const communityRecord = getPropertyRecordForApply(report.communityName);
   const communityPhoto = normalizeCommunityPhotoBank(communityRecord?.photoBank)[0]?.src || "";
   const photoHeroHtml = communityPhoto ? `<div class="section dlr-photo-hero">

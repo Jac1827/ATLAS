@@ -25261,9 +25261,10 @@ async function processRonaldoMonthlyBackfillFiles(files, options = {}) {
   csvLog = [shouldForceWorkbookPeriod
     ? `📦 Ronaldo monthly backfill target: ${MONTHS[targetMonthIdx]} ${targetYear}`
     : "📦 Ronaldo monthly backfill target: workbook Report_Month routing"];
-  const workbookImportOptions = shouldForceWorkbookPeriod
-    ? { forcedMonthIdx: targetMonthIdx, forcedYear: targetYear }
-    : {};
+  const workbookImportOptions = {
+    ...(shouldForceWorkbookPeriod ? { forcedMonthIdx: targetMonthIdx, forcedYear: targetYear } : {}),
+    replacePortfolioScope: true
+  };
   for (const file of workbookFiles) {
     await handleAtlasAdvancedWorkbook(file, workbookImportOptions);
   }
@@ -26178,9 +26179,10 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
       return;
     }
     let replacedScopeCommunities = 0;
+    const shouldReplacePortfolioScope = options.replacePortfolioScope === true || atlasWorkbookImportMode === "replace_scope";
     if (!forcedTarget.community) {
       touchedPeriods.forEach((importedNames, periodKey) => {
-        if (atlasWorkbookImportMode !== "replace_scope") {
+        if (!shouldReplacePortfolioScope) {
           setPortfolioMonthScopeForPeriod(periodKey, []);
           return;
         }
@@ -26223,7 +26225,7 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
       : "file month routing";
     csvLog = [`✅ Imported ${included} ATLAS Monthly_Upload row(s) from ${file.name} using ${modeLabel}.`, ...log];
     if (skipped > 0) csvLog.push(`ℹ Skipped ${skipped} row(s) marked ERROR or missing community/month mapping.`);
-    if (!forcedTarget.community && atlasWorkbookImportMode === "replace_scope") {
+    if (!forcedTarget.community && shouldReplacePortfolioScope) {
       csvLog.push(`✅ Replace scope mode reset the selected month rollup to ${touchedCommunities.size} uploaded communit${touchedCommunities.size === 1 ? "y" : "ies"} and cleared stale month data from ${replacedScopeCommunities} previously saved communit${replacedScopeCommunities === 1 ? "y" : "ies"}.`);
     }
     if (!forcedTarget.community && activeMasterCommunities.length > 0) {

@@ -629,6 +629,21 @@
   .portfolio-rank-item .metric { text-align:right; font-family:'JetBrains Mono',monospace; font-size:0.88rem; font-weight:700; }
   .portfolio-rank-item .metric-sub { font-size:0.64rem; color:var(--muted); margin-top:4px; }
   .portfolio-shortcut-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+  .portfolio-trend-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+  .portfolio-trend-summary { text-align:right; min-width:140px; }
+  .portfolio-trend-summary .label { font-size:0.62rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); }
+  .portfolio-trend-summary .value { font-size:1.35rem; font-weight:700; font-family:'JetBrains Mono',monospace; color:var(--accent); margin-top:3px; }
+  .portfolio-trend-summary .sub { font-size:0.66rem; color:var(--muted); margin-top:4px; line-height:1.45; }
+  .portfolio-trend-plot { border:1px solid var(--border); border-radius:14px; padding:10px 12px 8px; background:linear-gradient(180deg,rgba(255,255,255,0.98) 0%,rgba(243,242,238,0.92) 100%); }
+  .portfolio-trend-footer { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .portfolio-trend-chip { display:inline-flex; align-items:center; gap:6px; padding:5px 9px; border-radius:999px; border:1px solid var(--border); background:var(--bg3); color:var(--muted); font-size:0.64rem; font-weight:700; letter-spacing:0.03em; }
+  .portfolio-trend-chip strong { color:var(--text); }
+  .community-status-chip-group { display:flex; gap:8px; flex-wrap:wrap; }
+  .community-status-chip { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-width:92px; border:1px solid var(--border); background:var(--bg2); color:var(--muted); border-radius:999px; padding:7px 12px; font-size:0.68rem; font-weight:700; cursor:pointer; font-family:inherit; transition:all 0.15s ease; }
+  .community-status-chip:hover { background:var(--bg3); }
+  .community-status-chip.is-current-active { background:#e8f6ec; border-color:#9dd3a7; color:#1d5c2c; }
+  .community-status-chip.is-current-inactive { background:#fdeeee; border-color:#e6b0b0; color:#8b0000; }
+  .community-status-note { font-size:0.63rem; color:var(--muted); margin-top:5px; line-height:1.5; }
   .report-hub-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
   .report-hub-card { background:var(--bg3); border:1px solid var(--border); border-radius:12px; padding:14px; }
   .report-hub-card h3 { font-size:0.8rem; font-weight:700; margin-bottom:6px; }
@@ -921,35 +936,6 @@ const PORTFOLIO_SCOPE_LABEL = "ATLAS RISE Portfolio";
 const ATLAS_COMMUNITY_ID_ALIASES = {
   STA: "St Augustine"
 };
-const RONALDO_PORTFOLIO_BOX_SCORE_COMMUNITY_ORDER = [
-  "Glen Kernan Park",
-  "Nocatee",
-  "Bartram Park",
-  "Baymeadows",
-  "Citrus Ridge",
-  "Doro",
-  "Florence Villa",
-  "Sereno",
-  "St Augustine",
-  "Viera"
-];
-const RONALDO_PORTFOLIO_BOX_SCORE_EXPECTED_UNITS = {
-  "Glen Kernan Park": 308,
-  Nocatee: 178,
-  "Bartram Park": 297,
-  Baymeadows: 331,
-  "Citrus Ridge": 222,
-  Doro: 247,
-  "Florence Villa": 224,
-  Sereno: 320,
-  "St Augustine": 272,
-  Viera: 166
-};
-const RONALDO_PORTFOLIO_BOX_SCORE_ROW_COUNTS = {
-  lead_activity: [6, 11, 20, 13, 3, 16, 3, 10, 3, 10],
-  lead_conversions: [4, 6, 14, 11, 3, 10, 2, 6, 2, 6],
-  make_ready_status: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
-};
 const WEEKLY_SNAPSHOT_STORAGE_KEY = "rise_weekly_portfolio_snapshot_v1";
 const OPS_GLOBAL_STORAGE_KEY = "rise_ops_global_v1";
 const OPS_WORKSPACE_CONTEXT_KEY = "rise_ops_workspace_context_v1";
@@ -1237,6 +1223,7 @@ let selectedPropIdx = 7;
 let customUnits = "";
 let corporateLeaseUnits = 0;
 let investorName = "";
+let communityStatus = "active";
 let investorEmailContacts = [];
 let activeTab = 0;
 let reputationData = defaultReputationData();
@@ -3393,6 +3380,17 @@ function getCommissionAgents() {
   return commissionData.agents;
 }
 
+function normalizeCommunityStatus(value) {
+  return String(value ?? "").trim().toLowerCase() === "inactive" ? "inactive" : "active";
+}
+
+function isCommunityStatusActive(recordOrStatus) {
+  if (recordOrStatus && typeof recordOrStatus === "object" && !Array.isArray(recordOrStatus)) {
+    return normalizeCommunityStatus(recordOrStatus.communityStatus) === "active";
+  }
+  return normalizeCommunityStatus(recordOrStatus) === "active";
+}
+
 function defaultSavedCommunityRecord(propName = getProp().name) {
   const prop = getPropertyByName(propName);
   return {
@@ -3410,6 +3408,7 @@ function defaultSavedCommunityRecord(propName = getProp().name) {
     customUnits: "",
     corporateLeaseUnits: 0,
     investorName: "",
+    communityStatus: "active",
     investorEmailContacts: [],
     communityFloorPlans: defaultCommunityFloorPlans(),
     communityAddress: "",
@@ -3473,6 +3472,7 @@ function normalizeSavedCommunityRecord(propName, data) {
     customUnits: input.customUnits ?? defaults.customUnits,
     corporateLeaseUnits: normalizeCorporateLeaseUnits(input.corporateLeaseUnits ?? defaults.corporateLeaseUnits, getTotalUnitsFor(getPropertyByName(propName), input.customUnits ?? defaults.customUnits)),
     investorName: input.investorName ?? defaults.investorName,
+    communityStatus: normalizeCommunityStatus(input.communityStatus ?? defaults.communityStatus),
     investorEmailContacts: normalizeInvestorEmailContacts(input.investorEmailContacts),
     communityFloorPlans: normalizeCommunityFloorPlans(input.communityFloorPlans),
     communityAddress: String(input.communityAddress ?? defaults.communityAddress).trim(),
@@ -3524,6 +3524,7 @@ function getCurrentCommunityRecord() {
     customUnits,
     corporateLeaseUnits,
     investorName,
+    communityStatus,
     investorEmailContacts,
     communityFloorPlans,
     communityAddress,
@@ -3785,11 +3786,44 @@ function isPortfolioWorkspaceSelected() {
 function getWorkspaceScopeDisplayName() {
   return isPortfolioWorkspaceSelected() ? PORTFOLIO_SCOPE_LABEL : getProp().name;
 }
+function buildCommunityDetailForMonth(name, sourceRecord, monthIdx) {
+  const record = normalizeSavedCommunityRecord(name, sourceRecord);
+  const prop = getPropertyByName(name);
+  const totalUnits = getTotalUnitsFor(prop, record.customUnits);
+  const scopedRecord = {
+    ...record,
+    currentMonth: monthIdx,
+    currentOccupied: estimateSnapshotUnitsForRecordMonth(record, totalUnits, monthIdx, "occupiedSnapshot"),
+    currentLeased: estimateSnapshotUnitsForRecordMonth(record, totalUnits, monthIdx, "leasedSnapshot")
+  };
+  const summary = getCommunitySummary(name, scopedRecord);
+  return summary ? {
+    name,
+    record: scopedRecord,
+    summary,
+    recommendations: buildRecommendationsForRecord(name, scopedRecord)
+  } : null;
+}
+
+function getPortfolioScopedCommunityRecordsForMonth(monthIdx, recordMap = savedData, options = {}) {
+  const sourceMap = (recordMap && typeof recordMap === "object") ? recordMap : {};
+  const mergedMap = options.includeCurrent === false
+    ? { ...sourceMap }
+    : { ...sourceMap, [getProp().name]: getCurrentCommunityRecord() };
+  const names = getPortfolioScopeCommunityNames(mergedMap, monthIdx);
+  return names
+    .map(name => ({
+      name,
+      record: normalizeSavedCommunityRecord(name, mergedMap[name])
+    }))
+    .filter(entry => entry.record && (options.includeInactive === true || isCommunityStatusActive(entry.record)));
+}
 function getWorkspaceScopedDetails(monthIdx = getSelectedDashboardMonthIndex()) {
-  const details = buildPortfolioDetailsForMonth(monthIdx);
-  return isPortfolioWorkspaceSelected()
-    ? details
-    : details.filter(detail => detail.name === getProp().name);
+  if (isPortfolioWorkspaceSelected()) {
+    return buildPortfolioDetailsForMonth(monthIdx);
+  }
+  const detail = buildCommunityDetailForMonth(getProp().name, getCurrentCommunityRecord(), monthIdx);
+  return detail ? [detail] : [];
 }
 function getWorkspaceScopedAggregate(monthIdx = getSelectedDashboardMonthIndex()) {
   const details = getWorkspaceScopedDetails(monthIdx);
@@ -4537,6 +4571,7 @@ function loadPropertyData(propName) {
   customUnits = d.customUnits;
   corporateLeaseUnits = d.corporateLeaseUnits;
   investorName = String(d.investorName ?? "").trim();
+  communityStatus = normalizeCommunityStatus(d.communityStatus);
   investorEmailContacts = normalizeInvestorEmailContacts(d.investorEmailContacts);
   communityFloorPlans = normalizeCommunityFloorPlans(d.communityFloorPlans);
   communityAddress = String(d.communityAddress ?? "").trim();
@@ -4602,8 +4637,9 @@ function renderPropGrid() {
   if (communitySelect) {
     communitySelect.innerHTML = [`<option value="${PORTFOLIO_SCOPE_VALUE}" ${isPortfolioWorkspaceSelected() ? "selected" : ""}>${PORTFOLIO_SCOPE_LABEL} · ${aggregate.totalUnits || 0} units · ${details.length} communities</option>`, ...PROPERTIES.map((prop, i) => {
       const isSaved = !!savedData[prop.name];
+      const isActiveSaved = isSaved ? isCommunityStatusActive(savedData[prop.name]) : false;
       const effectiveUnits = getTotalUnitsFor(prop, savedData[prop.name]?.customUnits);
-      const statusLabel = isSaved ? "Saved" : "Draft";
+      const statusLabel = isSaved ? (isActiveSaved ? "Active" : "Inactive") : "Draft";
       const unitLabel = effectiveUnits > 0 ? `${effectiveUnits} units` : "Units needed";
       return `<option value="${escapeHtml(prop.name)}" ${(!isPortfolioWorkspaceSelected() && i===selectedPropIdx)?"selected":""}>${escapeHtml(prop.name)} · ${unitLabel} · ${statusLabel}</option>`;
     })].join("");
@@ -4763,6 +4799,13 @@ function getAllCommunityNames() {
 
 function getSavedCommunityNames() {
   return Object.keys(savedData ?? {});
+}
+
+function getActiveSavedCommunityNames(includeCurrentSelection = false) {
+  const sourceMap = includeCurrentSelection
+    ? { ...(savedData ?? {}), [getProp().name]: getCurrentCommunityRecord() }
+    : (savedData ?? {});
+  return Object.keys(sourceMap).filter(name => isCommunityStatusActive(sourceMap[name]));
 }
 
 function getAssignedCommunityRoles() {
@@ -5332,9 +5375,9 @@ function getJacRoleScope(role) {
   const isAssignedScopeRole = role.id === "vp_ops" || role.id.startsWith("regional_");
   const explicitAssignments = isAssignedScopeRole ? (regionalAssignments[role.id] ?? []) : [];
   const assignedNames = isAssignedScopeRole
-    ? (explicitAssignments.length > 0 ? explicitAssignments : getSavedCommunityNames())
-    : getSavedCommunityNames();
-  const savedNames = assignedNames.filter(name => !!savedData[name]);
+    ? (explicitAssignments.length > 0 ? explicitAssignments : getActiveSavedCommunityNames())
+    : getActiveSavedCommunityNames();
+  const savedNames = assignedNames.filter(name => !!savedData[name] && isCommunityStatusActive(savedData[name]));
   const summaries = savedNames.map(name => getCommunitySummary(name, savedData[name])).filter(Boolean);
   const plans = savedNames.map(name => getCommunityPerformancePlan(name, savedData[name])).filter(Boolean);
   const metrics = aggregateCommunitySummaries(summaries);
@@ -5384,7 +5427,7 @@ function getRoleDisplayTitle(role) {
   return role.title ?? preferredName;
 }
 
-function getPortfolioCommunityRecordEntries(includeCurrentSelection = true) {
+function getPortfolioCommunityRecordEntries(includeCurrentSelection = true, options = {}) {
   const entries = new Map();
   Object.entries(savedData ?? {}).forEach(([name, data]) => {
     entries.set(name, normalizeSavedCommunityRecord(name, data));
@@ -5392,7 +5435,9 @@ function getPortfolioCommunityRecordEntries(includeCurrentSelection = true) {
   if (includeCurrentSelection) {
     entries.set(getProp().name, getCurrentCommunityRecord());
   }
-  return [...entries.entries()].map(([name, record]) => ({ name, record }));
+  return [...entries.entries()]
+    .map(([name, record]) => ({ name, record }))
+    .filter(entry => options.includeInactive === true || isCommunityStatusActive(entry.record));
 }
 
 function getCommunityQuarterTurnoverBreakdown(propName, sourceData, quarter = bonusQuarter) {
@@ -5742,6 +5787,12 @@ function updateInvestorName(val) {
   investorName = String(val ?? "").trim();
   syncHeaderSubText();
   saveCommunityData(true);
+}
+
+function updateCommunityStatus(value) {
+  communityStatus = normalizeCommunityStatus(value);
+  saveCommunityData(true);
+  renderTab();
 }
 
 function addInvestorEmailContact() {
@@ -8633,25 +8684,41 @@ function renderPortfolioPresentationImageLibrary() {
 
 function renderPortfolioScopedSetupTab() {
   try {
-  const { details, aggregate } = getWorkspaceScopedAggregate(getSelectedDashboardMonthIndex());
-  const selectedName = getPortfolioSetupCommunityName();
+  const selectedMonth = getSelectedDashboardMonthIndex();
+  const setupDetails = getPortfolioScopedCommunityRecordsForMonth(selectedMonth, savedData, {
+    includeCurrent: true,
+    includeInactive: true
+  }).map(entry => buildCommunityDetailForMonth(entry.name, entry.record, selectedMonth)).filter(Boolean);
+  const activeDetails = setupDetails.filter(detail => isCommunityStatusActive(detail.record));
+  const aggregate = aggregateCommunitySummaries(activeDetails.map(detail => detail.summary));
+  const setupNames = setupDetails.map(detail => detail.name);
+  const selectedName = setupNames.includes(getPortfolioSetupCommunityName())
+    ? getPortfolioSetupCommunityName()
+    : (setupNames[0] || getProp().name);
   const selectedRecord = getPortfolioSetupCommunityRecord(selectedName);
   const selectedProp = getPropertyByName(selectedName);
   const selectedTotalUnits = getTotalUnitsFor(selectedProp, selectedRecord.customUnits);
-  const contactCount = details.reduce((sum, detail) => sum + normalizeInvestorEmailContacts(detail.record?.investorEmailContacts).length, 0);
-  const floorPlanCount = details.reduce((sum, detail) => sum + normalizeCommunityFloorPlans(detail.record?.communityFloorPlans).filter(plan => String(plan.name || "").trim()).length, 0);
+  const contactCount = setupDetails.reduce((sum, detail) => sum + normalizeInvestorEmailContacts(detail.record?.investorEmailContacts).length, 0);
+  const floorPlanCount = setupDetails.reduce((sum, detail) => sum + normalizeCommunityFloorPlans(detail.record?.communityFloorPlans).filter(plan => String(plan.name || "").trim()).length, 0);
   const cardsHtml = `<div class="grid-4">
-    ${statBox("Communities", details.length, `${aggregate.totalUnits.toLocaleString()} units in current scope`, "#4493f8")}
+    ${statBox("Communities", setupDetails.length, `${activeDetails.length} active · ${Math.max(setupDetails.length - activeDetails.length, 0)} inactive in current scope`, "#4493f8")}
     ${statBox("Saved Contacts", contactCount, "Community recipient records available for reporting", "#3fb950")}
     ${statBox("Floor Plans", floorPlanCount, "Configured floor plans saved in Community Setup", "#d29922")}
-    ${statBox("Addresses on File", details.filter(detail => String(detail.record?.communityAddress || "").trim()).length, "Communities with saved address metadata", "#a371f7")}
+    ${statBox("Addresses on File", setupDetails.filter(detail => String(detail.record?.communityAddress || "").trim()).length, `${aggregate.totalUnits.toLocaleString()} active units feeding portfolio totals`, "#a371f7")}
   </div>`;
-  const rows = details.map(detail => {
+  const rows = setupDetails.map(detail => {
     const contacts = normalizeInvestorEmailContacts(detail.record?.investorEmailContacts);
     const plans = normalizeCommunityFloorPlans(detail.record?.communityFloorPlans).filter(plan => String(plan.name || "").trim()).length;
     const contactText = contacts.map(entry => entry.email).filter(Boolean).join("; ");
+    const status = normalizeCommunityStatus(detail.record?.communityStatus);
     return `<tr>
       <td class="l" style="font-weight:700">${escapeHtml(detail.name)}</td>
+      <td>
+        <div class="community-status-chip-group" style="justify-content:center">
+          <button type="button" class="community-status-chip${status === "active" ? " is-current-active" : ""}" onclick='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "communityStatus", "active")'>Active</button>
+          <button type="button" class="community-status-chip${status === "inactive" ? " is-current-inactive" : ""}" onclick='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "communityStatus", "inactive")'>Inactive</button>
+        </div>
+      </td>
       <td><input type="number" min="1" value="${escapeHtml(detail.record?.customUnits || "")}" placeholder="${escapeHtml(String(detail.summary.totalUnits || ""))}" onchange='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "customUnits", this.value)' style="width:96px"></td>
       <td><input type="number" min="0" value="${escapeHtml(String(detail.record?.corporateLeaseUnits || ""))}" placeholder="0" onchange='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "corporateLeaseUnits", this.value)' style="width:92px"></td>
       <td class="l"><input type="text" value="${escapeHtml(detail.record?.communityAddress || "")}" placeholder="Community address" onchange='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "communityAddress", this.value)' style="width:100%"></td>
@@ -8719,13 +8786,13 @@ function renderPortfolioScopedSetupTab() {
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
       <div>
         <div class="card-title" style="margin-bottom:6px">Selected Community Editor</div>
-        <div style="font-size:0.72rem;color:var(--muted)">Stay in portfolio scope while editing one community at a time. The floor-plan table below writes directly back to that community's saved record.</div>
+        <div style="font-size:0.72rem;color:var(--muted)">Stay in portfolio scope while editing one community at a time. Inactive communities remain editable here even though they are removed from combined portfolio totals and reporting.</div>
       </div>
       <div style="display:grid;grid-template-columns:minmax(220px,300px) auto;gap:10px;align-items:end">
         <div>
           <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Community</div>
           <select onchange="setPortfolioSetupCommunityName(this.value)">
-            ${getPortfolioScopeCommunityNames().map(name => `<option value="${escapeHtml(name)}" ${name === selectedName ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}
+            ${setupNames.map(name => `<option value="${escapeHtml(name)}" ${name === selectedName ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}
           </select>
         </div>
         <div style="text-align:right">
@@ -8784,9 +8851,9 @@ function renderPortfolioScopedSetupTab() {
     </div>
   </div>`;
   const bodyHtml = `<div class="tbl-wrap">
-    <div class="tbl-header"><h2>Portfolio setup roster</h2><p>Core setup fields are editable directly here. Use the action button when you need the full community setup editor for floor plans, photos, or staffing.</p></div>
+    <div class="tbl-header"><h2>Portfolio setup roster</h2><p>Core setup fields are editable directly here. Mark a community inactive to keep it out of combined portfolio reporting while still keeping its saved record available for edits and reactivation.</p></div>
     <table>
-      <thead><tr><th class="l">Community</th><th>Units</th><th>Corp Leases</th><th class="l">Address</th><th class="l">Investor</th><th class="l">Report Contacts</th><th>Floor Plans</th><th>Action</th></tr></thead>
+      <thead><tr><th class="l">Community</th><th>Status</th><th>Units</th><th>Corp Leases</th><th class="l">Address</th><th class="l">Investor</th><th class="l">Report Contacts</th><th>Floor Plans</th><th>Action</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   </div>`;
@@ -9494,6 +9561,14 @@ function renderSetupTab() {
           <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Corporate Lease Units</div>
           <input type="number" min="0" max="${Math.max(totalUnits, 0)}" value="${corporateLeaseUnits || ""}" placeholder="0" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" onchange="updateCorporateLeaseUnits(this.value)">
           <div style="font-size:0.63rem;color:var(--muted);margin-top:3px">These units are removed from comparable occupied and leased counts and from the eligible occupancy base.</div>
+        </div>
+        <div>
+          <div style="font-size:0.68rem;color:var(--muted);margin-bottom:6px">Portfolio reporting status</div>
+          <div class="community-status-chip-group">
+            <button type="button" class="community-status-chip${communityStatus === "active" ? " is-current-active" : ""}" onclick="updateCommunityStatus('active')">Active</button>
+            <button type="button" class="community-status-chip${communityStatus === "inactive" ? " is-current-inactive" : ""}" onclick="updateCommunityStatus('inactive')">Inactive</button>
+          </div>
+          <div class="community-status-note">${communityStatus === "active" ? "Included in ATLAS portfolio rollups and reporting outputs." : "Kept editable here, but excluded from combined portfolio reporting and totals."}</div>
         </div>
         <div>
           <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Community Address</div>
@@ -17074,41 +17149,143 @@ function renderPortfolioHomeTab() {
         sub: `${aggregate.onTrackBudgetOccCount ?? 0}/${aggregate.trackedBudgetOccCount ?? 0} communities pacing on saved occupancy budget`
       }
     ];
-    const topAppHtml = renderSafeSection(
-      () => topApplications.length > 0
-        ? topApplications.map(detail => `<div class="portfolio-rank-item">
-            <div>
-              <div style="font-size:0.78rem;font-weight:700">${escapeHtml(detail.name)}</div>
-              <div class="meta">${escapeHtml(getInvestorPortfolioName(detail.record))} · ${detail.summary.totalUnits} units · ${detail.summary.applications} apps MTD</div>
-            </div>
-            <div style="text-align:right">
-              <div class="metric">${Math.round(detail.summary.applicationsApproved ?? 0)}</div>
-              <div class="metric-sub">approved apps</div>
-            </div>
-          </div>`).join("")
-        : `<div class="alert alert-info">No saved communities are available yet for portfolio rollup.</div>`,
-      `<div class="alert alert-info">Top application drivers are temporarily unavailable for this snapshot.</div>`
-    );
     const prioritiesHtml = renderSafeSection(
       () => portfolioPriorities.length > 0
         ? portfolioPriorities.map(renderPortfolioPriorityItem).join("")
         : `<div class="alert-green">No internal priority signals are currently tripping for ${selectedLabel}. Keep monitoring renewal saves, reputation, traffic source mix, and AptIQ velocity.</div>`,
       `<div class="alert alert-info">Portfolio priorities are temporarily unavailable for this snapshot.</div>`
     );
-    const investorRollupHtml = renderSafeSection(
-      () => investorGroups.length > 0
-        ? investorGroups.slice(0, 6).map(group => `<div class="portfolio-rank-item">
-            <div>
-              <div style="font-size:0.78rem;font-weight:700">${escapeHtml(group.name)}</div>
-              <div class="meta">${group.communityCount} communit${group.communityCount === 1 ? "y" : "ies"} · ${getSummaryOccPct(group.aggregate).toFixed(1)}% physical · ${(group.aggregate.renewalRetentionRate ?? 0).toFixed(1)}% retention</div>
-            </div>
-            <div style="text-align:right">
-              <div class="metric">${Math.round(group.aggregate.applicationsApproved ?? 0)}</div>
-              <div class="metric-sub">approved apps</div>
-            </div>
-          </div>`).join("")
-        : `<div class="alert alert-info">Add investor names in Community Setup to unlock grouped ownership rollups here.</div>`,
-      `<div class="alert alert-info">Investor portfolio rollups are temporarily unavailable for this snapshot.</div>`
+    const trendScopeTitle = isPortfolioWorkspaceSelected() ? "Portfolio" : getProp().name;
+    const trendRows = buildPortfolioHomeMonthlyTrendRows(selectedMonth);
+    const selectedTrendRow = trendRows[selectedMonth] || null;
+    const lastClosedTrendMonth = getClosedMonthTrendCeiling(selectedMonth, new Date().getFullYear());
+    const lastClosedTrendRow = lastClosedTrendMonth >= 0 ? trendRows[lastClosedTrendMonth] : null;
+    const approvedTrendCard = renderSafeSection(
+      () => buildPortfolioTrendCard({
+        title: "Approved apps trend",
+        subtitle: `${trendScopeTitle} month-over-month approved applications from Jan ${new Date().getFullYear()} through ${selectedLabel} ${new Date().getFullYear()}.`,
+        summaryLabel: selectedLabel,
+        summaryValue: selectedTrendRow && selectedTrendRow.communityCount > 0 ? formatPortfolioTrendMetricValue(selectedTrendRow.approvedApps, "number") : "—",
+        summarySub: selectedMonth > 0 && selectedTrendRow && trendRows[selectedMonth - 1]?.communityCount > 0
+          ? formatPortfolioTrendValue(selectedTrendRow.approvedApps ?? 0, trendRows[selectedMonth - 1]?.approvedApps ?? 0, "count_pct").replace("MoM", "vs prior month")
+          : "Approved apps saved in the selected reporting month",
+        chips: [
+          `<strong>${selectedTrendRow?.communityCount ?? 0}</strong> active communities`,
+          `<strong>${formatPortfolioTrendMetricValue(trendRows[0]?.approvedApps, "number")}</strong> in Jan`,
+          `<strong>${formatPortfolioTrendMetricValue(Math.max(...trendRows.map(row => row.approvedApps || 0)), "number")}</strong> peak month`
+        ],
+        chartHtml: buildPortfolioTrendLineChart(
+          trendRows.map(row => ({
+            shortLabel: row.shortLabel,
+            value: row.communityCount > 0 && row.monthIdx <= selectedMonth ? row.approvedApps : null,
+            projected: false
+          })),
+          {
+            kind: "number",
+            minClamp: 0,
+            maxClampMinimum: 5,
+            lineColor: "#1d4ed8",
+            axisFormatter: value => `${Math.max(0, Math.round(value))}`
+          }
+        )
+      }),
+      `<div class="portfolio-list-card"><h3>Approved apps trend</h3><p>Trend data is temporarily unavailable for this snapshot.</p></div>`
+    );
+    const netAbsorptionTrendCard = renderSafeSection(
+      () => buildPortfolioTrendCard({
+        title: "Net absorption trend",
+        subtitle: `${trendScopeTitle} monthly move-ins minus effective move-outs, starting in Jan ${new Date().getFullYear()}.`,
+        summaryLabel: selectedLabel,
+        summaryValue: selectedTrendRow && selectedTrendRow.communityCount > 0 ? formatPortfolioTrendMetricValue(selectedTrendRow.netAbsorption, "signed") : "—",
+        summarySub: selectedMonth > 0 && selectedTrendRow && trendRows[selectedMonth - 1]?.communityCount > 0
+          ? formatPortfolioTrendValue(selectedTrendRow.netAbsorption ?? 0, trendRows[selectedMonth - 1]?.netAbsorption ?? 0, "number_diff").replace("MoM", "vs prior month")
+          : "Move-ins less effective move-outs for the selected month",
+        chips: [
+          `<strong>${formatPortfolioTrendMetricValue(selectedTrendRow?.moveIns, "number")}</strong> move-ins`,
+          `<strong>${formatPortfolioTrendMetricValue(selectedTrendRow?.moveOuts, "number")}</strong> move-outs`,
+          `<strong>${formatPortfolioTrendMetricValue(Math.max(...trendRows.map(row => row.netAbsorption || 0)), "signed")}</strong> best month`
+        ],
+        chartHtml: buildPortfolioTrendBarChart(
+          trendRows.map(row => ({
+            shortLabel: row.shortLabel,
+            value: row.communityCount > 0 && row.monthIdx <= selectedMonth ? row.netAbsorption : null,
+            projected: false
+          })),
+          {
+            positiveColor: "#2a8f83",
+            negativeColor: "#c9943c",
+            axisFormatter: value => `${Number(value) > 0 ? "+" : ""}${Math.round(value)}`
+          }
+        )
+      }),
+      `<div class="portfolio-list-card"><h3>Net absorption trend</h3><p>Trend data is temporarily unavailable for this snapshot.</p></div>`
+    );
+    const leasedOccupancyTrendCard = renderSafeSection(
+      () => {
+        const projectedYearEndRow = trendRows[trendRows.length - 1] || null;
+        return buildPortfolioTrendCard({
+          title: `${trendScopeTitle} leased occupancy trend`,
+          subtitle: `Actual leased occupancy through ${selectedLabel} ${new Date().getFullYear()}, then projected forward using scheduled move-ins and effective move-outs.`,
+          summaryLabel: "Selected / Year-end",
+          summaryValue: selectedTrendRow && selectedTrendRow.communityCount > 0
+            ? `${formatPortfolioTrendMetricValue(selectedTrendRow.leasedOccupancyPct, "pct")} → ${formatPortfolioTrendMetricValue(projectedYearEndRow?.leasedOccupancyPct, "pct")}`
+            : "—",
+          summarySub: "Future months stay on the chart as forward-looking projections.",
+          chips: [
+            `<strong>${formatPortfolioTrendMetricValue(selectedTrendRow?.leasedOccupancyPct, "pct")}</strong> selected month`,
+            `<strong>${formatPortfolioTrendMetricValue(projectedYearEndRow?.leasedOccupancyPct, "pct")}</strong> December projection`,
+            `<strong>${selectedTrendRow?.communityCount ?? 0}</strong> active communities included`
+          ],
+          chartHtml: buildPortfolioTrendLineChart(
+            trendRows.map(row => ({
+              shortLabel: row.shortLabel,
+              value: row.communityCount > 0 ? row.leasedOccupancyPct : null,
+              projected: row.projected
+            })),
+            {
+              kind: "pct",
+              minClamp: 0,
+              maxClampMinimum: 100,
+              lineColor: "#1f6feb",
+              projectedLineColor: "#7c3aed",
+              projectedDotColor: "#a371f7",
+              axisFormatter: value => `${Number(value).toFixed(0)}%`
+            }
+          )
+        });
+      },
+      `<div class="portfolio-list-card"><h3>Portfolio leased occupancy trend</h3><p>Trend data is temporarily unavailable for this snapshot.</p></div>`
+    );
+    const tourToLeaseTrendCard = renderSafeSection(
+      () => buildPortfolioTrendCard({
+        title: "Tour to lease close-rate trend",
+        subtitle: lastClosedTrendMonth >= 0
+          ? `${trendScopeTitle} closed-month tour-to-lease percentages from Jan ${new Date().getFullYear()} through ${FULL_MONTHS[lastClosedTrendMonth]} ${new Date().getFullYear()}.`
+          : `Closed-month tour-to-lease percentages will appear here once the first month closes in ${new Date().getFullYear()}.`,
+        summaryLabel: lastClosedTrendRow ? FULL_MONTHS[lastClosedTrendRow.monthIdx] : "Closed month",
+        summaryValue: lastClosedTrendRow && lastClosedTrendRow.communityCount > 0 ? formatPortfolioTrendMetricValue(lastClosedTrendRow.tourToLeaseClosedPct, "pct") : "—",
+        summarySub: lastClosedTrendRow ? `${formatPortfolioTrendMetricValue(lastClosedTrendRow.tours, "number")} tours · ${formatPortfolioTrendMetricValue(lastClosedTrendRow.closes, "number")} closes` : "Open current month intentionally excluded",
+        chips: [
+          `<strong>${formatPortfolioTrendMetricValue(trendRows[0]?.tourToLeaseClosedPct, "pct")}</strong> January close rate`,
+          `<strong>${lastClosedTrendMonth >= 0 ? FULL_MONTHS[lastClosedTrendMonth] : "No closed month"}</strong> latest closed month`,
+          `<strong>${lastClosedTrendRow?.communityCount ?? 0}</strong> active communities included`
+        ],
+        chartHtml: buildPortfolioTrendLineChart(
+          trendRows.map(row => ({
+            shortLabel: row.shortLabel,
+            value: row.communityCount > 0 && row.monthIdx <= lastClosedTrendMonth ? row.tourToLeaseClosedPct : null,
+            projected: false
+          })),
+          {
+            kind: "pct",
+            minClamp: 0,
+            maxClampMinimum: 25,
+            lineColor: "#2a8f83",
+            axisFormatter: value => `${Number(value).toFixed(0)}%`
+          }
+        )
+      }),
+      `<div class="portfolio-list-card"><h3>Tour to lease close-rate trend</h3><p>Trend data is temporarily unavailable for this snapshot.</p></div>`
     );
     return `<div class="dashboard-home-grid">
     <div>
@@ -17142,103 +17319,12 @@ function renderPortfolioHomeTab() {
     </div>
   </div>
   <div class="portfolio-section-grid" style="margin-top:16px">
-    <div class="portfolio-list-card">
-      <h3>Top application drivers</h3>
-      <p>${isPortfolioWorkspaceSelected() ? "Highest approved-application communities for the selected month-to-date snapshot." : "Top funnel and application signals for the selected community this month."}</p>
-      <div class="portfolio-rank-list">${topAppHtml}</div>
-    </div>
-    <div class="portfolio-list-card">
-      <h3>Investor portfolio rollup</h3>
-      <p>${isPortfolioWorkspaceSelected() ? "Grouped ownership performance so you can spot which portfolios are strongest or need follow-up." : "Ownership and investor alignment for the selected community."}</p>
-      <div class="portfolio-rank-list">${investorRollupHtml}</div>
-    </div>
+    ${approvedTrendCard}
+    ${netAbsorptionTrendCard}
   </div>
   <div class="portfolio-section-grid" style="margin-top:16px">
-    <div class="portfolio-list-card">
-      <h3>Renewal health</h3>
-      <p>Portfolio-level renewal and attrition pressure carried from the Renewals tab into the home-page snapshot.</p>
-      <div class="portfolio-rank-list">
-        <div class="portfolio-rank-item">
-          <div>
-            <div style="font-size:0.78rem;font-weight:700">Retention Rate</div>
-            <div class="meta">${Math.round(aggregate.renewalsSigned ?? 0)} signed from ${Math.round(aggregate.renewalExpirations ?? 0)} expirations</div>
-          </div>
-          <div style="text-align:right">
-            <div class="metric">${(aggregate.renewalRetentionRate ?? 0).toFixed(1)}%</div>
-            <div class="metric-sub">portfolio retention</div>
-          </div>
-        </div>
-        <div class="portfolio-rank-item">
-          <div>
-            <div style="font-size:0.78rem;font-weight:700">Projected Attrition</div>
-            <div class="meta">${Math.round(aggregate.renewalUndecided ?? 0)} undecided / M2M still in play</div>
-          </div>
-          <div style="text-align:right">
-            <div class="metric">${Math.round(aggregate.renewalProjectedAttrition ?? 0)}</div>
-            <div class="metric-sub">risk units</div>
-          </div>
-        </div>
-        <div class="portfolio-rank-item">
-          <div>
-            <div style="font-size:0.78rem;font-weight:700">Early Terminations</div>
-            <div class="meta">Tracked separately from expirations for retention scoring</div>
-          </div>
-          <div style="text-align:right">
-            <div class="metric">${Math.round(aggregate.renewalEarlyTermination ?? 0)}</div>
-            <div class="metric-sub">month to date</div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="portfolio-list-card">
-      <h3>Market survey / investor snapshot highlights</h3>
-      <p>Portfolio signals fed from saved market survey and investor snapshot fields across the communities.</p>
-      <div class="portfolio-rank-list">
-        <div class="portfolio-rank-item">
-          <div>
-            <div style="font-size:0.78rem;font-weight:700">Survey Coverage</div>
-            <div class="meta">${marketSurveyAggregate.communityCount} communit${marketSurveyAggregate.communityCount === 1 ? "y has" : "ies have"} saved pricing context</div>
-          </div>
-          <div style="text-align:right">
-            <div class="metric">${marketSurveyAggregate.communityCount}</div>
-            <div class="metric-sub">communities loaded</div>
-          </div>
-        </div>
-        <div class="portfolio-rank-item">
-          <div>
-            <div style="font-size:0.78rem;font-weight:700">Comp Average Rent</div>
-            <div class="meta">${marketSurveyAggregate.compAverageRentCount > 0 ? `${marketSurveyAggregate.compAverageRentCount} communities with comp rent data` : "Waiting on uploaded rent comps"}</div>
-          </div>
-          <div style="text-align:right">
-            <div class="metric">${marketSurveyAggregate.compAverageRentCount > 0 ? formatDlrCurrency(marketSurveyAggregate.compAverageRentTotal / marketSurveyAggregate.compAverageRentCount) : "—"}</div>
-            <div class="metric-sub">portfolio avg comp rent</div>
-          </div>
-        </div>
-        <div class="portfolio-rank-item">
-          <div>
-            <div style="font-size:0.78rem;font-weight:700">Investor Snapshot Velocity</div>
-            <div class="meta">${Math.round(marketSurveyAggregate.applicationsLast30 ?? 0)} applications over the last 30 days from uploaded snapshot data</div>
-          </div>
-          <div style="text-align:right">
-            <div class="metric">${Math.round(marketSurveyAggregate.leasesLast30 ?? 0)}</div>
-            <div class="metric-sub">leases last 30</div>
-          </div>
-        </div>
-        <div class="portfolio-rank-item">
-          <div>
-            <div style="font-size:0.78rem;font-weight:700">Pricing Direction Mix</div>
-            <div class="meta">${marketSurveyAggregate.upCount} increase · ${marketSurveyAggregate.holdCount} hold · ${marketSurveyAggregate.downCount} decrease recommendations saved</div>
-          </div>
-          <div style="text-align:right">
-            <div class="metric">${marketSurveyAggregate.subjectOccPctCount > 0 ? `${(marketSurveyAggregate.subjectOccPctTotal / marketSurveyAggregate.subjectOccPctCount).toFixed(1)}%` : "—"}</div>
-            <div class="metric-sub">avg subject occ</div>
-          </div>
-        </div>
-        ${marketSurveyHighlights}
-        <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);font-weight:700;margin-top:4px">Submarket snapshots by community</div>
-        ${marketSurveyCommunitySnapshotHtml}
-      </div>
-    </div>
+    ${leasedOccupancyTrendCard}
+    ${tourToLeaseTrendCard}
   </div>`;
   } catch (error) {
     console.error("Portfolio Home failed to render", error);
@@ -17652,6 +17738,8 @@ function updatePortfolioCommunityField(propName, field, value) {
     record.communityGeo = null;
   } else if (field === "investorName") {
     record.investorName = String(value ?? "").trim();
+  } else if (field === "communityStatus") {
+    record.communityStatus = normalizeCommunityStatus(value);
   } else if (field === "investorEmailContacts") {
     record.investorEmailContacts = parseInvestorEmailContactsText(value);
   } else {
@@ -17985,10 +18073,15 @@ function getPortfolioReportSectionLabel(sectionKey) {
   }[sectionKey] ?? sectionKey;
 }
 
+function getReportableCommunityNames(monthIdx = getReportHubMonthIndex()) {
+  return getPortfolioScopedCommunityRecordsForMonth(monthIdx, savedData, { includeCurrent: true, includeInactive: false })
+    .map(entry => entry.name);
+}
+
 function getInvestorReportFilterOptions() {
   const names = [];
   const seen = new Set();
-  const sourceNames = [...new Set([...getSavedCommunityNames(), getProp().name])];
+  const sourceNames = getReportableCommunityNames(getReportHubMonthIndex());
   sourceNames.forEach(name => {
     const record = normalizeSavedCommunityRecord(name, name === getProp().name ? getCurrentCommunityRecord() : savedData[name]);
     const investor = String(record.investorName ?? "").trim();
@@ -18197,6 +18290,221 @@ function formatPortfolioReportValueWithTrend(value, kind, previousValue, trendMo
   return trend ? `${base} · ${trend}` : base;
 }
 
+function formatPortfolioTrendMetricValue(value, kind = "number") {
+  if (value === null || value === undefined || value === "" || !Number.isFinite(Number(value))) return "—";
+  const numeric = Number(value);
+  if (kind === "pct") return `${numeric.toFixed(1)}%`;
+  if (kind === "signed") return formatSignedDisplay(numeric);
+  if (kind === "currency") return formatDlrCurrency(numeric);
+  return Math.round(numeric).toLocaleString();
+}
+
+function getClosedMonthTrendCeiling(anchorMonth = getSelectedDashboardMonthIndex(), year = new Date().getFullYear()) {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonthIdx = now.getMonth();
+  if (year < currentYear) return 11;
+  if (year > currentYear) return -1;
+  return Math.min(anchorMonth, currentMonthIdx - 1);
+}
+
+function buildPortfolioHomeMonthlyTrendRows(anchorMonth = getSelectedDashboardMonthIndex(), recordMap = savedData) {
+  const trendYear = new Date().getFullYear();
+  return MONTHS.map((monthLabel, monthIdx) => {
+    const records = isPortfolioWorkspaceSelected()
+      ? getPortfolioScopedCommunityRecordsForMonth(monthIdx, recordMap, {
+          includeCurrent: true,
+          includeInactive: false
+        })
+      : [{
+          name: getProp().name,
+          record: normalizeSavedCommunityRecord(getProp().name, getCurrentCommunityRecord())
+        }];
+    const totals = records.reduce((acc, entry) => {
+      const monthEntries = Array.isArray(entry.record?.monthlyData) && entry.record.monthlyData.length === 12
+        ? entry.record.monthlyData
+        : defaultMonthly();
+      const monthEntry = monthEntries[monthIdx] ?? {};
+      const prop = getPropertyByName(entry.name);
+      const totalUnits = getTotalUnitsFor(prop, entry.record.customUnits);
+      const corporateUnits = getCorporateLeaseUnitsForRecord(entry.record, totalUnits);
+      const baseUnits = getOccupancyBaseUnits(totalUnits, corporateUnits);
+      acc.communityCount += 1;
+      acc.approvedApps += getApplicationsApprovedCount(monthEntry);
+      acc.moveIns += Math.max(0, Number(monthEntry.moveIns) || 0);
+      acc.moveOuts += getEffectiveMoveOutsForMonth(monthIdx, monthEntries).effective;
+      acc.tours += Math.max(0, Number(monthEntry.tours) || 0);
+      acc.closes += getGrossLeaseProgressCount(monthEntry);
+      acc.occupancyBaseUnits += baseUnits;
+      acc.leasedUnits += baseUnits > 0
+        ? estimateSnapshotUnitsForRecordMonth(entry.record, totalUnits, monthIdx, "leasedSnapshot")
+        : 0;
+      return acc;
+    }, {
+      communityCount: 0,
+      approvedApps: 0,
+      moveIns: 0,
+      moveOuts: 0,
+      tours: 0,
+      closes: 0,
+      occupancyBaseUnits: 0,
+      leasedUnits: 0
+    });
+    return {
+      monthIdx,
+      monthLabel,
+      shortLabel: FULL_MONTHS[monthIdx].slice(0, 3),
+      year: trendYear,
+      projected: monthIdx > anchorMonth,
+      communityCount: totals.communityCount,
+      approvedApps: totals.approvedApps,
+      moveIns: totals.moveIns,
+      moveOuts: totals.moveOuts,
+      netAbsorption: totals.moveIns - totals.moveOuts,
+      tours: totals.tours,
+      closes: totals.closes,
+      leasedOccupancyPct: totals.occupancyBaseUnits > 0 ? (totals.leasedUnits / totals.occupancyBaseUnits) * 100 : null,
+      tourToLeaseClosedPct: totals.tours > 0 ? (totals.closes / totals.tours) * 100 : null
+    };
+  });
+}
+
+function buildPortfolioTrendLineChart(points = [], options = {}) {
+  const validPoints = points.filter(point => Number.isFinite(Number(point?.value)));
+  if (validPoints.length === 0) {
+    return `<div class="alert alert-info">No saved trend points are available for this view yet.</div>`;
+  }
+  const width = 640;
+  const height = 220;
+  const left = 42;
+  const right = 14;
+  const top = 16;
+  const bottom = 34;
+  const chartWidth = width - left - right;
+  const chartHeight = height - top - bottom;
+  const baseMin = options.minValue ?? Math.min(...validPoints.map(point => Number(point.value)));
+  const baseMax = options.maxValue ?? Math.max(...validPoints.map(point => Number(point.value)));
+  const rawRange = Math.max(baseMax - baseMin, 1);
+  let minValue = options.minValue ?? (baseMin - rawRange * 0.16);
+  let maxValue = options.maxValue ?? (baseMax + rawRange * 0.16);
+  if (options.minClamp !== undefined) minValue = Math.max(Number(options.minClamp), minValue);
+  if (options.maxClampMinimum !== undefined) maxValue = Math.max(Number(options.maxClampMinimum), maxValue);
+  if (maxValue <= minValue) maxValue = minValue + 1;
+  const stepX = points.length > 1 ? chartWidth / (points.length - 1) : 0;
+  const yForValue = (value) => top + chartHeight - (((Number(value) - minValue) / (maxValue - minValue)) * chartHeight);
+  const pointAt = (point, idx) => ({
+    ...point,
+    x: left + (stepX * idx),
+    y: yForValue(point.value)
+  });
+  const plottedPoints = points.map((point, idx) => Number.isFinite(Number(point?.value)) ? pointAt(point, idx) : null);
+  const actualPoints = plottedPoints.filter(point => point && !point.projected);
+  const projectedPoints = plottedPoints.filter(point => point && point.projected);
+  const projectedPathPoints = projectedPoints.length > 0
+    ? [actualPoints[actualPoints.length - 1] || null, ...projectedPoints].filter(Boolean)
+    : [];
+  const tickCount = 4;
+  const ticks = Array.from({ length: tickCount + 1 }, (_, idx) => {
+    const value = minValue + (((maxValue - minValue) / tickCount) * idx);
+    return {
+      value,
+      y: top + chartHeight - ((idx / tickCount) * chartHeight)
+    };
+  });
+  const zeroLine = minValue < 0 && maxValue > 0
+    ? `<line x1="${left}" y1="${yForValue(0)}" x2="${width - right}" y2="${yForValue(0)}" stroke="rgba(51,51,51,0.18)" stroke-width="1.5" stroke-dasharray="4 4"/>`
+    : "";
+  return `<svg viewBox="0 0 ${width} ${height}" style="width:100%;height:auto;display:block">
+    <rect x="0" y="0" width="${width}" height="${height}" rx="14" fill="transparent"/>
+    ${ticks.map(tick => `<g>
+      <line x1="${left}" y1="${tick.y}" x2="${width - right}" y2="${tick.y}" stroke="rgba(27,58,75,0.08)" stroke-width="1"/>
+      <text x="${left - 8}" y="${tick.y + 4}" text-anchor="end" font-size="10" fill="#7d8590">${escapeHtml(options.axisFormatter ? options.axisFormatter(tick.value) : formatPortfolioTrendMetricValue(tick.value, options.kind))}</text>
+    </g>`).join("")}
+    ${zeroLine}
+    ${actualPoints.length > 1 ? `<polyline fill="none" stroke="${options.lineColor || "#1d4ed8"}" stroke-width="3" points="${actualPoints.map(point => `${point.x},${point.y}`).join(" ")}"/>` : ""}
+    ${projectedPathPoints.length > 1 ? `<polyline fill="none" stroke="${options.projectedLineColor || options.lineColor || "#1d4ed8"}" stroke-width="3" stroke-dasharray="7 6" points="${projectedPathPoints.map(point => `${point.x},${point.y}`).join(" ")}"/>` : ""}
+    ${plottedPoints.map(point => {
+      if (!point) return "";
+      return `<circle cx="${point.x}" cy="${point.y}" r="${point.projected ? 3.5 : 4.5}" fill="${point.projected ? (options.projectedDotColor || "#94a3b8") : (options.dotColor || options.lineColor || "#1d4ed8")}" stroke="#ffffff" stroke-width="1.5"/>`;
+    }).join("")}
+    ${points.map((point, idx) => {
+      const x = left + (stepX * idx);
+      const isHighlighted = point?.projected ? false : idx === getSelectedDashboardMonthIndex();
+      return `<text x="${x}" y="${height - 12}" text-anchor="middle" font-size="10" fill="${isHighlighted ? "#1b3a4b" : "#7d8590"}" font-weight="${isHighlighted ? "700" : "500"}">${escapeHtml(point?.shortLabel || FULL_MONTHS[idx].slice(0, 3))}</text>`;
+    }).join("")}
+  </svg>`;
+}
+
+function buildPortfolioTrendBarChart(points = [], options = {}) {
+  const validPoints = points.filter(point => Number.isFinite(Number(point?.value)));
+  if (validPoints.length === 0) {
+    return `<div class="alert alert-info">No saved trend points are available for this view yet.</div>`;
+  }
+  const width = 640;
+  const height = 220;
+  const left = 42;
+  const right = 14;
+  const top = 16;
+  const bottom = 34;
+  const chartWidth = width - left - right;
+  const chartHeight = height - top - bottom;
+  const minValue = Math.min(0, ...validPoints.map(point => Number(point.value)));
+  const maxValue = Math.max(0, ...validPoints.map(point => Number(point.value)));
+  const range = Math.max(maxValue - minValue, 1);
+  const yForValue = (value) => top + chartHeight - (((Number(value) - minValue) / range) * chartHeight);
+  const zeroY = yForValue(0);
+  const stepX = points.length > 0 ? chartWidth / points.length : chartWidth;
+  const barWidth = Math.max(16, stepX * 0.55);
+  const tickCount = 4;
+  const ticks = Array.from({ length: tickCount + 1 }, (_, idx) => {
+    const value = minValue + (((maxValue - minValue) / tickCount) * idx);
+    return {
+      value,
+      y: top + chartHeight - ((idx / tickCount) * chartHeight)
+    };
+  });
+  return `<svg viewBox="0 0 ${width} ${height}" style="width:100%;height:auto;display:block">
+    <rect x="0" y="0" width="${width}" height="${height}" rx="14" fill="transparent"/>
+    ${ticks.map(tick => `<g>
+      <line x1="${left}" y1="${tick.y}" x2="${width - right}" y2="${tick.y}" stroke="rgba(27,58,75,0.08)" stroke-width="1"/>
+      <text x="${left - 8}" y="${tick.y + 4}" text-anchor="end" font-size="10" fill="#7d8590">${escapeHtml(options.axisFormatter ? options.axisFormatter(tick.value) : formatPortfolioTrendMetricValue(tick.value, "signed"))}</text>
+    </g>`).join("")}
+    <line x1="${left}" y1="${zeroY}" x2="${width - right}" y2="${zeroY}" stroke="rgba(51,51,51,0.2)" stroke-width="1.5"/>
+    ${points.map((point, idx) => {
+      const numeric = Number(point?.value);
+      if (!Number.isFinite(numeric)) return "";
+      const x = left + (stepX * idx) + ((stepX - barWidth) / 2);
+      const y = yForValue(numeric);
+      const barHeight = Math.max(Math.abs(zeroY - y), 1.5);
+      const color = numeric >= 0 ? (options.positiveColor || "#2a8f83") : (options.negativeColor || "#b45309");
+      return `<rect x="${x}" y="${numeric >= 0 ? y : zeroY}" width="${barWidth}" height="${barHeight}" rx="8" fill="${color}" opacity="${point.projected ? "0.45" : "0.9"}"/>`;
+    }).join("")}
+    ${points.map((point, idx) => {
+      const x = left + (stepX * idx) + (stepX / 2);
+      const isHighlighted = point?.projected ? false : idx === getSelectedDashboardMonthIndex();
+      return `<text x="${x}" y="${height - 12}" text-anchor="middle" font-size="10" fill="${isHighlighted ? "#1b3a4b" : "#7d8590"}" font-weight="${isHighlighted ? "700" : "500"}">${escapeHtml(point?.shortLabel || FULL_MONTHS[idx].slice(0, 3))}</text>`;
+    }).join("")}
+  </svg>`;
+}
+
+function buildPortfolioTrendCard({ title = "", subtitle = "", summaryLabel = "", summaryValue = "", summarySub = "", chips = [], chartHtml = "" } = {}) {
+  return `<div class="portfolio-list-card">
+    <div class="portfolio-trend-head">
+      <div>
+        <h3>${escapeHtml(title)}</h3>
+        <p>${escapeHtml(subtitle)}</p>
+      </div>
+      <div class="portfolio-trend-summary">
+        <div class="label">${escapeHtml(summaryLabel)}</div>
+        <div class="value">${escapeHtml(summaryValue)}</div>
+        <div class="sub">${escapeHtml(summarySub)}</div>
+      </div>
+    </div>
+    <div class="portfolio-trend-plot">${chartHtml}</div>
+    ${chips.length > 0 ? `<div class="portfolio-trend-footer">${chips.map(chip => `<div class="portfolio-trend-chip">${chip}</div>`).join("")}</div>` : ""}
+  </div>`;
+}
+
 function getPreviousMonthForReport(monthIdx, year) {
   const safeMonth = clampNumber(monthIdx, 0, 11);
   const safeYear = Number.isFinite(Number(year)) ? Number(year) : new Date().getFullYear();
@@ -18314,19 +18622,11 @@ function getSummaryLeasedPct(summary) {
   return baseUnits > 0 ? (Number(summary?.leased) || 0) / baseUnits * 100 : 0;
 }
 
-function buildPortfolioDetailsFromRecordMap(recordMap) {
+function buildPortfolioDetailsFromRecordMap(recordMap, options = {}) {
   const map = (recordMap && typeof recordMap === "object") ? recordMap : {};
-  return Object.keys(map).map(name => {
-    const sourceRecord = name === getProp().name ? getCurrentCommunityRecord() : map[name];
-    const record = normalizeSavedCommunityRecord(name, sourceRecord);
-    const summary = getCommunitySummary(name, record);
-    return summary ? {
-      name,
-      record,
-      summary,
-      recommendations: buildRecommendationsForRecord(name, record)
-    } : null;
-  }).filter(Boolean);
+  return Object.keys(map)
+    .map(name => buildCommunityDetailForMonth(name, map[name], options.monthIdx ?? getSelectedDashboardMonthIndex()))
+    .filter(detail => detail && (options.includeInactive === true || isCommunityStatusActive(detail.record)));
 }
 
 function getPortfolioScopeCommunityNames(recordMap = savedData, monthIdx = getSelectedDashboardMonthIndex()) {
@@ -18335,47 +18635,9 @@ function getPortfolioScopeCommunityNames(recordMap = savedData, monthIdx = getSe
 }
 
 function buildPortfolioDetailsForMonth(monthIdx, recordMap = savedData) {
-  const map = (recordMap && typeof recordMap === "object") ? recordMap : {};
-  const scopedMap = { ...map, [getProp().name]: getCurrentCommunityRecord() };
-  const names = getPortfolioScopeCommunityNames(scopedMap, monthIdx);
-  let details = names.map(name => {
-    const record = normalizeSavedCommunityRecord(name, scopedMap[name]);
-    const prop = getPropertyByName(name);
-    const totalUnits = getTotalUnitsFor(prop, record.customUnits);
-    const scopedRecord = {
-      ...record,
-      currentMonth: monthIdx,
-      currentOccupied: estimateSnapshotUnitsForRecordMonth(record, totalUnits, monthIdx, "occupiedSnapshot"),
-      currentLeased: estimateSnapshotUnitsForRecordMonth(record, totalUnits, monthIdx, "leasedSnapshot")
-    };
-    const summary = getCommunitySummary(name, scopedRecord);
-    return summary ? {
-      name,
-      record: scopedRecord,
-      summary,
-      recommendations: buildRecommendationsForRecord(name, scopedRecord)
-    } : null;
-  }).filter(Boolean);
-  if (details.length === 0) {
-    const currentName = getProp().name;
-    const baseRecord = normalizeSavedCommunityRecord(currentName, getCurrentCommunityRecord());
-    const prop = getPropertyByName(currentName);
-    const totalUnits = getTotalUnitsFor(prop, baseRecord.customUnits);
-    const scopedRecord = {
-      ...baseRecord,
-      currentMonth: monthIdx,
-      currentOccupied: estimateSnapshotUnitsForRecordMonth(baseRecord, totalUnits, monthIdx, "occupiedSnapshot"),
-      currentLeased: estimateSnapshotUnitsForRecordMonth(baseRecord, totalUnits, monthIdx, "leasedSnapshot")
-    };
-    const summary = getCommunitySummary(currentName, scopedRecord);
-    details = summary ? [{
-      name: currentName,
-      record: scopedRecord,
-      summary,
-      recommendations: buildRecommendationsForRecord(currentName, scopedRecord)
-    }] : [];
-  }
-  return details;
+  return getPortfolioScopedCommunityRecordsForMonth(monthIdx, recordMap, { includeCurrent: true, includeInactive: false })
+    .map(entry => buildCommunityDetailForMonth(entry.name, entry.record, monthIdx))
+    .filter(Boolean);
 }
 
 function getCurrentPortfolioDetails() {
@@ -21712,9 +21974,12 @@ function getPrimaryReportCommunityName() {
     ...(portfolioReportFilters.investorCommunities ?? []),
     ...(portfolioReportFilters.regionalCommunities ?? [])
   ].map(name => matchPropertyName(name, { fallbackToCurrent: false })).filter(Boolean);
-  if (communitySelections.length > 0) return communitySelections[0];
+  const reportableNames = getReportableCommunityNames(getReportHubMonthIndex());
+  if (communitySelections.length > 0) {
+    return communitySelections.find(name => reportableNames.includes(name)) || reportableNames[0] || communitySelections[0];
+  }
   const scoped = getScopedPortfolioReportDetails(buildPortfolioDetailsForMonth(getReportHubMonthIndex()));
-  return scoped[0]?.name || getProp().name;
+  return scoped[0]?.name || reportableNames[0] || getProp().name;
 }
 
 function getDlrReportCommunityName() {
@@ -21768,16 +22033,23 @@ function focusReportingDlrPreview() {
 }
 
 function renderDlrReportingWorkspace() {
-  const communityName = getDlrReportCommunityName();
   const monthIdx = getReportHubMonthIndex();
   const year = getReportHubYear();
+  const communityOptions = getReportableCommunityNames(monthIdx);
+  if (communityOptions.length === 0) {
+    return `<div id="reporting-dlr-workspace" class="report-hub-card" style="margin-top:14px">
+      <div class="alert-red">Mark at least one community Active in Community Setup before using the DLR reporting workspace.</div>
+    </div>`;
+  }
+  const communityName = communityOptions.includes(getDlrReportCommunityName())
+    ? getDlrReportCommunityName()
+    : communityOptions[0];
   const report = buildDashboardDlrInvestorOverview(communityName, monthIdx, year);
   if (!report) {
     return `<div id="reporting-dlr-workspace" class="report-hub-card" style="margin-top:14px">
       <div class="alert-red">Save community data first, then the DLR workspace can build a preview from the selected daily box score.</div>
     </div>`;
   }
-  const communityOptions = getAllCommunityNames();
   const dateInput = escapeHtml(buildDlrDateInputValue(report.reportDateIso));
   const reportDateLabel = report.reportDateLabel || report.reportPeriodLabel || "Select the daily report date";
   const sourceLine = report.dailyBoxScoreSourceFile
@@ -23145,7 +23417,7 @@ function renderCSVTab() {
   const selectedReportSections = getSelectedPortfolioReportSections();
   const investorOptions = getInvestorReportFilterOptions();
   const regionalOptions = getRegionalReportFilterOptions();
-  const reportCommunityOptions = getAllCommunityNames();
+  const reportCommunityOptions = getReportableCommunityNames(getReportHubMonthIndex());
   const monthlyPresentationSummary = (monthlyPresentationCommunities ?? []).length > 0
     ? `${monthlyPresentationCommunities.length} community selection(s) locked into the deck`
     : "No specific communities selected - the deck will follow the Investor Report scope";
@@ -24056,30 +24328,15 @@ function handleDrop(e) {
 }
 
 async function processImportFiles(files) {
-  const ronaldoReferenceFiles = [];
   for (const file of files) {
     const lowerName = file.name.toLowerCase();
     if (file.type === "application/pdf" || lowerName.endsWith(".pdf")) {
       await handlePDF(file);
     } else if (file.type === "text/csv" || lowerName.endsWith(".csv")) {
-      const generatorKind = getRonaldoGeneratorSheetKind(file.name);
-      if (generatorKind && generatorKind !== "monthly_upload" && generatorKind !== "community_master") {
-        ronaldoReferenceFiles.push(file);
-      } else {
-        await handleCSVFile(file);
-      }
+      await handleCSVFile(file);
     } else if (lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls") || lowerName.endsWith(".xlsm")) {
       await handleAtlasAdvancedWorkbook(file);
     }
-  }
-  if (ronaldoReferenceFiles.length > 0) {
-    const existingLog = Array.isArray(csvLog) ? [...csvLog] : [];
-    const referenceResult = await processRonaldoMonthlyReferenceFiles(ronaldoReferenceFiles, {
-      forcedMonthIdx: getImportTargetMonth(),
-      forcedYear: new Date().getFullYear()
-    });
-    csvLog = [...referenceResult.notes, ...csvLog, ...existingLog];
-    renderTab();
   }
 }
 
@@ -24173,18 +24430,6 @@ function findRonaldoHeaderIndex(indices, aliases = [], occurrence = 0) {
   return uniqueMatches[occurrence] ?? -1;
 }
 
-function findExactRonaldoHeaderIndex(indices, aliases = [], occurrence = 0) {
-  const searchAliases = Array.isArray(aliases) ? aliases : [aliases];
-  const flattened = searchAliases.map(alias => normalizeAtlasColumnKey(alias)).filter(Boolean);
-  const allMatches = [];
-  Object.entries(indices ?? {}).forEach(([key, positions]) => {
-    if (!flattened.includes(key)) return;
-    allMatches.push(...positions);
-  });
-  const uniqueMatches = [...new Set(allMatches)].sort((a, b) => a - b);
-  return uniqueMatches[occurrence] ?? -1;
-}
-
 function sumRonaldoColumn(rows = [], idx = -1) {
   if (!Number.isInteger(idx) || idx < 0) return null;
   let total = 0;
@@ -24254,149 +24499,10 @@ function hasRonaldoBackfillValues(row = {}) {
   return Object.entries(row).some(([key, value]) => key !== "property" && key !== "month" && value !== "" && value !== null && value !== undefined);
 }
 
-function getRonaldoPortfolioBoxScoreCommunityOrder() {
-  const available = new Set(getAllCommunityNames());
-  return RONALDO_PORTFOLIO_BOX_SCORE_COMMUNITY_ORDER
-    .map(name => matchPropertyName(name, { fallbackToCurrent: false }))
-    .filter(name => name && available.has(name));
-}
-
-function getRonaldoPortfolioExpectedUnits(communityName) {
-  const exact = RONALDO_PORTFOLIO_BOX_SCORE_EXPECTED_UNITS[communityName];
-  if (Number.isFinite(exact) && exact > 0) return exact;
-  const record = normalizeSavedCommunityRecord(communityName, savedData[communityName]);
-  const prop = getPropertyByName(communityName);
-  const totalUnits = getTotalUnitsFor(prop, record.customUnits);
-  return Number.isFinite(totalUnits) && totalUnits > 0 ? Math.round(totalUnits) : null;
-}
-
-function buildRonaldoPortfolioSplitRows(headerRow, dataRows = []) {
-  return [headerRow, ...dataRows];
-}
-
-function splitRonaldoRowsByExpectedUnits(rows = []) {
-  const dataRows = rows.filter(row => Array.isArray(row) && row.some(cell => String(cell ?? "").trim() !== ""));
-  if (dataRows.length < 2) return [];
-  const { headerRow, indices } = getRonaldoGeneratorRowHeaders(dataRows);
-  const unitsIdx = findExactRonaldoHeaderIndex(indices, ["units"], 0);
-  if (unitsIdx < 0) return [];
-  const order = getRonaldoPortfolioBoxScoreCommunityOrder();
-  if (order.length !== RONALDO_PORTFOLIO_BOX_SCORE_COMMUNITY_ORDER.length) return [];
-  const groups = [];
-  let cursor = 1;
-  for (const community of order) {
-    const expectedUnits = getRonaldoPortfolioExpectedUnits(community);
-    if (!Number.isFinite(expectedUnits) || expectedUnits <= 0) return [];
-    const groupRows = [];
-    let totalUnits = 0;
-    while (cursor < dataRows.length && totalUnits < expectedUnits) {
-      const row = dataRows[cursor];
-      const units = normalizeRonaldoBackfillNumber(row[unitsIdx]);
-      if (!Number.isFinite(units)) return [];
-      groupRows.push(row);
-      totalUnits += units;
-      cursor += 1;
-    }
-    if (Math.round(totalUnits) !== Math.round(expectedUnits)) return [];
-    groups.push({ community, rows: buildRonaldoPortfolioSplitRows(headerRow, groupRows) });
-  }
-  return cursor === dataRows.length ? groups : [];
-}
-
-function splitRonaldoRowsByUnknownSentinel(rows = [], kind = "") {
-  const dataRows = rows.filter(row => Array.isArray(row) && row.some(cell => String(cell ?? "").trim() !== ""));
-  if (dataRows.length < 2) return [];
-  const { headerRow, indices } = getRonaldoGeneratorRowHeaders(dataRows);
-  const unitTypeIdx = findExactRonaldoHeaderIndex(indices, ["unit_type"], 0);
-  if (unitTypeIdx < 0) return [];
-  const order = getRonaldoPortfolioBoxScoreCommunityOrder();
-  if (order.length !== RONALDO_PORTFOLIO_BOX_SCORE_COMMUNITY_ORDER.length) return [];
-  const groups = [];
-  let start = 1;
-  for (let idx = 1; idx < dataRows.length; idx += 1) {
-    const unitType = String(dataRows[idx]?.[unitTypeIdx] ?? "").trim().toLowerCase();
-    if (unitType !== "unknown") continue;
-    groups.push({
-      community: order[groups.length],
-      rows: buildRonaldoPortfolioSplitRows(headerRow, dataRows.slice(start, idx + 1))
-    });
-    start = idx + 1;
-  }
-  if (groups.length === order.length && start === dataRows.length) return groups;
-  return splitRonaldoRowsByFixedCounts(dataRows, order, kind);
-}
-
-function splitRonaldoRowsByFixedCounts(dataRows = [], order = [], kind = "") {
-  const counts = RONALDO_PORTFOLIO_BOX_SCORE_ROW_COUNTS[kind] || [];
-  if (!Array.isArray(counts) || counts.length === 0 || counts.length !== order.length || dataRows.length < 2) return [];
-  const dataCount = dataRows.length - 1;
-  const expectedCount = counts.reduce((sum, count) => sum + count, 0);
-  if (dataCount !== expectedCount) return [];
-  const headerRow = dataRows[0];
-  const groups = [];
-  let cursor = 1;
-  counts.forEach((count, idx) => {
-    groups.push({
-      community: order[idx],
-      rows: buildRonaldoPortfolioSplitRows(headerRow, dataRows.slice(cursor, cursor + count))
-    });
-    cursor += count;
-  });
-  return groups;
-}
-
-function splitRonaldoPortfolioGeneratorRows(rows = [], kind = "", target = {}) {
-  if (target.community) return [];
-  if (kind === "availability" || kind === "property_pulse") return splitRonaldoRowsByExpectedUnits(rows);
-  const dataRows = rows.filter(row => Array.isArray(row) && row.some(cell => String(cell ?? "").trim() !== ""));
-  const order = getRonaldoPortfolioBoxScoreCommunityOrder();
-  if (order.length !== RONALDO_PORTFOLIO_BOX_SCORE_COMMUNITY_ORDER.length || dataRows.length < 2) return [];
-  if (kind === "lead_activity") return splitRonaldoRowsByUnknownSentinel(dataRows, kind);
-  if (kind === "lead_conversions" || kind === "make_ready_status") return splitRonaldoRowsByFixedCounts(dataRows, order, kind);
-  return [];
-}
-
-function isLikelyRonaldoPortfolioGeneratorRows(rows = [], kind = "", target = {}) {
-  if (target.community) return false;
-  const dataRows = rows.filter(row => Array.isArray(row) && row.some(cell => String(cell ?? "").trim() !== ""));
-  if (dataRows.length < 2) return false;
-  const order = getRonaldoPortfolioBoxScoreCommunityOrder();
-  if (order.length !== RONALDO_PORTFOLIO_BOX_SCORE_COMMUNITY_ORDER.length) return false;
-  if (kind === "availability" || kind === "property_pulse") {
-    const { indices } = getRonaldoGeneratorRowHeaders(dataRows);
-    const unitsIdx = findExactRonaldoHeaderIndex(indices, ["units"], 0);
-    if (unitsIdx < 0) return false;
-    const exportedUnits = sumRonaldoColumn(dataRows, unitsIdx);
-    const expectedUnits = order
-      .map(getRonaldoPortfolioExpectedUnits)
-      .filter(value => Number.isFinite(value))
-      .reduce((sum, value) => sum + value, 0);
-    return Math.round(exportedUnits ?? 0) === Math.round(expectedUnits);
-  }
-  const fixedCounts = RONALDO_PORTFOLIO_BOX_SCORE_ROW_COUNTS[kind] || [];
-  const fixedCountTotal = fixedCounts.reduce((sum, count) => sum + count, 0);
-  if (fixedCountTotal > 0 && fixedCountTotal === dataRows.length - 1) return true;
-  if (kind === "lead_activity") {
-    const { indices } = getRonaldoGeneratorRowHeaders(dataRows);
-    const unitTypeIdx = findExactRonaldoHeaderIndex(indices, ["unit_type"], 0);
-    if (unitTypeIdx < 0) return false;
-    const unknownRows = dataRows.slice(1).filter(row => String(row[unitTypeIdx] ?? "").trim().toLowerCase() === "unknown").length;
-    return unknownRows >= order.length;
-  }
-  return false;
-}
-
-function parseRonaldoPortfolioGeneratorRows(rows = [], kind = "", target = {}) {
-  return splitRonaldoPortfolioGeneratorRows(rows, kind, target)
-    .map(group => parseRonaldoGeneratorDetailRows(group.rows, kind, { ...target, community: group.community }))
-    .filter(row => row && hasRonaldoBackfillValues(row));
-}
-
 function parseRonaldoAvailabilityRows(rows = [], target = {}) {
   const { indices } = getRonaldoGeneratorRowHeaders(rows);
   const totalUnitsIdx = findRonaldoHeaderIndex(indices, ["units"]);
   const rentableUnitsIdx = findRonaldoHeaderIndex(indices, ["rentable_units"]);
-  const leasedUnitsIdx = findExactRonaldoHeaderIndex(indices, ["leased_units", "total_leased", "units_leased", "leased_count"]);
   const occupiedCountIdx = findRonaldoHeaderIndex(indices, ["occupied"], 0);
   const vacantCountIdx = findRonaldoHeaderIndex(indices, ["vacant"], 0);
   const availableCountIdx = findRonaldoHeaderIndex(indices, ["available"], 0);
@@ -24414,11 +24520,11 @@ function parseRonaldoAvailabilityRows(rows = [], target = {}) {
   const occupiedNoNotice = sumRonaldoColumn(rows, occupiedNoNoticeIdx);
   const noticeRented = sumRonaldoColumn(rows, noticeRentedIdx);
   const vacantRented = sumRonaldoColumn(rows, vacantRentedIdx);
-  const leased = sumRonaldoColumn(rows, leasedUnitsIdx);
   const marketRent = weightedAverageRonaldoColumn(rows, avgBudgetRentIdx, rentableUnitsIdx) ?? weightedAverageRonaldoColumn(rows, avgBudgetRentIdx, totalUnitsIdx);
   const budgetRent = weightedAverageRonaldoColumn(rows, avgScheduledRentIdx, rentableUnitsIdx) ?? weightedAverageRonaldoColumn(rows, avgScheduledRentIdx, totalUnitsIdx);
   const ner = weightedAverageRonaldoColumn(rows, avgNetEffRentIdx, rentableUnitsIdx) ?? weightedAverageRonaldoColumn(rows, avgNetEffRentIdx, totalUnitsIdx);
   const occupiedPct = Number.isFinite(occupied) && Number.isFinite(rentableUnits) && rentableUnits > 0 ? (occupied / rentableUnits) * 100 : null;
+  const leased = [occupied, noticeRented, vacantRented].every(value => Number.isFinite(value)) ? occupied + noticeRented + vacantRented : null;
   const concessions = Number.isFinite(budgetRent) && Number.isFinite(ner) ? Math.max(0, budgetRent - ner) : null;
   const budgetNer = Number.isFinite(ner) ? ner : null;
   const rentRollTotal = Number.isFinite(budgetRent) && Number.isFinite(rentableUnits) ? budgetRent * rentableUnits : null;
@@ -24505,6 +24611,7 @@ function parseRonaldoPropertyPulseRows(rows = [], target = {}) {
   const renewalTransfers = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["renewal_transfers"]));
   const skips = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["skips"]));
   const evictions = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["evictions"]));
+  const leased = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["leased"]));
   const mtm = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["mtm"]));
   const mtmConversions = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["mtm_conversions"]));
   return makeRonaldoBackfillRow(target, {
@@ -24518,6 +24625,7 @@ function parseRonaldoPropertyPulseRows(rows = [], target = {}) {
     renewal_undecided: [mtm, mtmConversions].some(value => Number.isFinite(value))
       ? [mtm, mtmConversions].filter(value => Number.isFinite(value)).reduce((sum, value) => sum + value, 0)
       : "",
+    ...(leased !== null ? { leased } : {}),
     ...(skips !== null || evictions !== null ? { renewal_early_termination: [skips, evictions].filter(value => Number.isFinite(value)).reduce((sum, value) => sum + value, 0) } : {})
   });
 }
@@ -24929,32 +25037,16 @@ async function processRonaldoMonthlyReferenceFiles(files, options = {}) {
         if (kind && kind !== "monthly_upload" && kind !== "community_master") {
           const csvSheet = workbook.Sheets[sheetNames[0]];
           const csvRows = XLSX.utils.sheet_to_json(csvSheet, { header: 1, defval: "", raw: false });
-          const portfolioRows = parseRonaldoPortfolioGeneratorRows(csvRows, kind, forcedTarget);
-          if (portfolioRows.length > 0) {
-            fileRows.push(...portfolioRows);
-            notes.push(`✅ ${file.name} split into ${portfolioRows.length} community ${kind.replace(/_/g, " ")} row${portfolioRows.length === 1 ? "" : "s"}.`);
-          } else if (isLikelyRonaldoPortfolioGeneratorRows(csvRows, kind, forcedTarget)) {
-            notes.push(`⚠️ ${file.name} looks like a portfolio ${kind.replace(/_/g, " ")} export, but its row blocks did not match the expected community order. No single-community fallback was applied.`);
-          } else {
-            const row = parseRonaldoGeneratorDetailRows(csvRows, kind, forcedTarget, file.name);
-            if (row) fileRows.push(row);
-          }
+          const row = parseRonaldoGeneratorDetailRows(csvRows, kind, forcedTarget, file.name);
+          if (row) fileRows.push(row);
         }
       } else {
         for (const { sheetName, kind } of detailSheetKinds) {
           const sheetRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false });
-          const portfolioRows = parseRonaldoPortfolioGeneratorRows(sheetRows, kind, forcedTarget);
-          if (portfolioRows.length > 0) {
-            fileRows.push(...portfolioRows);
-            notes.push(`✅ ${file.name} · ${sheetName} split into ${portfolioRows.length} community ${kind.replace(/_/g, " ")} row${portfolioRows.length === 1 ? "" : "s"}.`);
-          } else if (isLikelyRonaldoPortfolioGeneratorRows(sheetRows, kind, forcedTarget)) {
-            notes.push(`⚠️ ${file.name} · ${sheetName} looks like a portfolio ${kind.replace(/_/g, " ")} export, but its row blocks did not match the expected community order. No single-community fallback was applied.`);
-          } else {
-            const row = parseRonaldoGeneratorDetailRows(sheetRows, kind, forcedTarget, `${file.name} · ${sheetName}`);
-            if (row) {
-              fileRows.push(row);
-              notes.push(`✅ ${file.name} · ${sheetName} mapped as ${kind.replace(/_/g, " ")}.`);
-            }
+          const row = parseRonaldoGeneratorDetailRows(sheetRows, kind, forcedTarget, `${file.name} · ${sheetName}`);
+          if (row) {
+            fileRows.push(row);
+            notes.push(`✅ ${file.name} · ${sheetName} mapped as ${kind.replace(/_/g, " ")}.`);
           }
         }
       }
@@ -24963,18 +25055,10 @@ async function processRonaldoMonthlyReferenceFiles(files, options = {}) {
           const sheetRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false });
           const inferredKind = detectRonaldoGeneratorSheetKindFromRows(sheetRows);
           if (!inferredKind || inferredKind === "monthly_upload" || inferredKind === "community_master") continue;
-          const portfolioRows = parseRonaldoPortfolioGeneratorRows(sheetRows, inferredKind, forcedTarget);
-          if (portfolioRows.length > 0) {
-            fileRows.push(...portfolioRows);
-            notes.push(`✅ ${file.name} · ${sheetName} inferred and split into ${portfolioRows.length} community ${inferredKind.replace(/_/g, " ")} row${portfolioRows.length === 1 ? "" : "s"}.`);
-          } else if (isLikelyRonaldoPortfolioGeneratorRows(sheetRows, inferredKind, forcedTarget)) {
-            notes.push(`⚠️ ${file.name} · ${sheetName} looks like a portfolio ${inferredKind.replace(/_/g, " ")} export, but its row blocks did not match the expected community order. No single-community fallback was applied.`);
-          } else {
-            const row = parseRonaldoGeneratorDetailRows(sheetRows, inferredKind, forcedTarget, `${file.name} · ${sheetName}`);
-            if (row) {
-              fileRows.push(row);
-              notes.push(`✅ ${file.name} · ${sheetName} inferred as ${inferredKind.replace(/_/g, " ")}.`);
-            }
+          const row = parseRonaldoGeneratorDetailRows(sheetRows, inferredKind, forcedTarget, `${file.name} · ${sheetName}`);
+          if (row) {
+            fileRows.push(row);
+            notes.push(`✅ ${file.name} · ${sheetName} inferred as ${inferredKind.replace(/_/g, " ")}.`);
           }
         }
       }

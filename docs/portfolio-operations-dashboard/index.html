@@ -1118,6 +1118,14 @@ function getBudgetTierSet() {
   ];
 }
 
+function getBudgetVarianceTierSet() {
+  return [
+    { label: "At / Above Budget", threshold: 0, multiplier: 1 },
+    { label: "Within Reach", threshold: -1, multiplier: 0.75 },
+    { label: "Just Under Budget", threshold: -2, multiplier: 0.5 }
+  ];
+}
+
 function getOraTierSet() {
   return [
     { label: "Top-Tier Reputation", threshold: 72, multiplier: 1 },
@@ -2830,7 +2838,7 @@ function defaultJacsTeamBonus() {
   });
   return [
     role("vp_ops", "VP of Property Management Operations", 150000, 20, "Leadership", [
-      metric("Physical Occ % vs Budget",          25, 100,  { syncKey:"avgBudgetOccAttainmentPct", sourceLabel:"Overview", format:"pct", direction:"up", tiers:getBudgetTierSet(), hideGoalInput:true }),
+      metric("Budget Attainment %",               25, 100,  { syncKey:"avgBudgetOccAttainmentPct", sourceLabel:"Overview", format:"pct", direction:"up", tiers:getBudgetTierSet(), hideGoalInput:true }),
       metric("NER Growth vs Prior Year %",         25,  3,  { sourceLabel:"Manual",     format:"pct",    direction:"up" }),
       metric("ORA Score",                          20,  62, { syncKey:"oraScore",       sourceLabel:"Reputation", format:"decimal", direction:"up", tiers:getOraTierSet(), hideGoalInput:true }),
       metric("Operations Budget Adherence %",      15,  95, { sourceLabel:"Manual",     format:"pct",    direction:"up",
@@ -2839,28 +2847,28 @@ function defaultJacsTeamBonus() {
                                                               partial:true, partialThreshold:55 })
     ]),
     role("regional_1", "Regional Manager 1", 110000, 15, "Regionals", [
-      metric("Occ vs Budget (pts)", 25, 100, { syncKey:"avgBudgetOccAttainmentPct", sourceLabel:"Overview", format:"pct", tiers:getBudgetTierSet(), hideGoalInput:true }),
+      metric("Occ vs Budget (pts)", 25, 0, { syncKey:"avgOccGapPts", sourceLabel:"Overview", format:"delta", direction:"up", tiers:getBudgetVarianceTierSet(), hideGoalInput:true }),
       metric("Employee Turnover %", 25, 40, { syncKey:"employeeTurnoverPct", sourceLabel:"Community Setup", format:"pct", direction:"down", partial:true, partialThreshold:50 }),
       metric("MTD Absorption", 20, 0, { syncKey:"monthAbsorption", sourceLabel:"Overview", format:"number", comboType:"absorption_renewal", secondaryLabel:"Renewal %", secondaryGoal:60, secondarySyncKey:"quarterClosedRetentionAverage", partial:true }),
       metric("Guest Card Goal Attainment %", 15, 100, { syncKey:"guestCardGoalPct", sourceLabel:"Traffic", format:"pct" }),
       metric("ORA Score", 15, 62, { syncKey:"oraScore", sourceLabel:"Reputation", format:"decimal", tiers:getOraTierSet(), hideGoalInput:true })
     ]),
     role("regional_2", "Regional Manager 2", 110000, 15, "Regionals", [
-      metric("Occ vs Budget (pts)", 25, 100, { syncKey:"avgBudgetOccAttainmentPct", sourceLabel:"Overview", format:"pct", tiers:getBudgetTierSet(), hideGoalInput:true }),
+      metric("Occ vs Budget (pts)", 25, 0, { syncKey:"avgOccGapPts", sourceLabel:"Overview", format:"delta", direction:"up", tiers:getBudgetVarianceTierSet(), hideGoalInput:true }),
       metric("Employee Turnover %", 25, 40, { syncKey:"employeeTurnoverPct", sourceLabel:"Community Setup", format:"pct", direction:"down", partial:true, partialThreshold:50 }),
       metric("MTD Absorption", 20, 0, { syncKey:"monthAbsorption", sourceLabel:"Overview", format:"number", comboType:"absorption_renewal", secondaryLabel:"Renewal %", secondaryGoal:60, secondarySyncKey:"quarterClosedRetentionAverage", partial:true }),
       metric("Guest Card Goal Attainment %", 15, 100, { syncKey:"guestCardGoalPct", sourceLabel:"Traffic", format:"pct" }),
       metric("ORA Score", 15, 62, { syncKey:"oraScore", sourceLabel:"Reputation", format:"decimal", tiers:getOraTierSet(), hideGoalInput:true })
     ]),
     role("regional_3", "Regional Manager 3", 110000, 15, "Regionals", [
-      metric("Occ vs Budget (pts)", 25, 100, { syncKey:"avgBudgetOccAttainmentPct", sourceLabel:"Overview", format:"pct", tiers:getBudgetTierSet(), hideGoalInput:true }),
+      metric("Occ vs Budget (pts)", 25, 0, { syncKey:"avgOccGapPts", sourceLabel:"Overview", format:"delta", direction:"up", tiers:getBudgetVarianceTierSet(), hideGoalInput:true }),
       metric("Employee Turnover %", 25, 40, { syncKey:"employeeTurnoverPct", sourceLabel:"Community Setup", format:"pct", direction:"down", partial:true, partialThreshold:50 }),
       metric("MTD Absorption", 20, 0, { syncKey:"monthAbsorption", sourceLabel:"Overview", format:"number", comboType:"absorption_renewal", secondaryLabel:"Renewal %", secondaryGoal:60, secondarySyncKey:"quarterClosedRetentionAverage", partial:true }),
       metric("Guest Card Goal Attainment %", 15, 100, { syncKey:"guestCardGoalPct", sourceLabel:"Traffic", format:"pct" }),
       metric("ORA Score", 15, 62, { syncKey:"oraScore", sourceLabel:"Reputation", format:"decimal", tiers:getOraTierSet(), hideGoalInput:true })
     ]),
     role("regional_4", "Regional Manager 4", 110000, 15, "Regionals", [
-      metric("Occ vs Budget (pts)", 25, 100, { syncKey:"avgBudgetOccAttainmentPct", sourceLabel:"Overview", format:"pct", tiers:getBudgetTierSet(), hideGoalInput:true }),
+      metric("Occ vs Budget (pts)", 25, 0, { syncKey:"avgOccGapPts", sourceLabel:"Overview", format:"delta", direction:"up", tiers:getBudgetVarianceTierSet(), hideGoalInput:true }),
       metric("Employee Turnover %", 25, 40, { syncKey:"employeeTurnoverPct", sourceLabel:"Community Setup", format:"pct", direction:"down", partial:true, partialThreshold:50 }),
       metric("MTD Absorption", 20, 0, { syncKey:"monthAbsorption", sourceLabel:"Overview", format:"number", comboType:"absorption_renewal", secondaryLabel:"Renewal %", secondaryGoal:60, secondarySyncKey:"quarterClosedRetentionAverage", partial:true }),
       metric("Guest Card Goal Attainment %", 15, 100, { syncKey:"guestCardGoalPct", sourceLabel:"Traffic", format:"pct" }),
@@ -2925,7 +2933,7 @@ function normalizeJacsTeamBonus(data) {
       bonusRate: Number(savedRole.bonusRate ?? defRole.bonusRate),
       metrics: defRole.metrics.map(defMetric => {
         const savedMetric = (savedRole.metrics ?? []).find(m => m?.cat === defMetric.cat) ?? {};
-        const forceBudgetOccMetric = defMetric.cat === "Physical Occ % vs Budget" || defMetric.cat === "Occ vs Budget (pts)";
+        const forceBudgetOccMetric = defMetric.cat === "Budget Attainment %" || defMetric.cat === "Occ vs Budget (pts)";
         const forceCombinedRetentionMetric = isCombinedAbsorptionMetric(defMetric);
         return {
           ...defMetric,
@@ -4055,11 +4063,12 @@ function getApplicationDecisionMetrics(monthEntry = {}) {
   const cancelled = hasCancelled ? explicitCancelled : 0;
   const pendingDecision = inferPendingDecisionApplications(applications, approvals, denials, cancelled, hasPending ? explicitPending : 0);
   const leases = Math.max(0, Number(monthEntry.leasesSignedActual) || 0);
-  const approvalPct = applications > 0 ? (approvals / applications) * 100 : 0;
-  const denialPct = applications > 0 ? (denials / applications) * 100 : 0;
-  const cancelledPct = applications > 0 ? (cancelled / applications) * 100 : 0;
-  const pendingPct = applications > 0 ? (pendingDecision / applications) * 100 : 0;
-  const appToLeasePct = applications > 0 ? (leases / applications) * 100 : 0;
+  const funnelBase = Math.max(applications, approvals + denials + cancelled + pendingDecision, leases);
+  const approvalPct = funnelBase > 0 ? (approvals / funnelBase) * 100 : 0;
+  const denialPct = funnelBase > 0 ? (denials / funnelBase) * 100 : 0;
+  const cancelledPct = funnelBase > 0 ? (cancelled / funnelBase) * 100 : 0;
+  const pendingPct = funnelBase > 0 ? (pendingDecision / funnelBase) * 100 : 0;
+  const appToLeasePct = funnelBase > 0 ? (leases / funnelBase) * 100 : 0;
   return { applications, approvals, denials, cancelled, pendingDecision, leases, approvalPct, denialPct, cancelledPct, pendingPct, appToLeasePct };
 }
 
@@ -5206,8 +5215,8 @@ function aggregateCommunitySummaries(summaries) {
     previousLeadToLeasePct: totals.previousGuestCards > 0 ? (totals.previousLeasesSigned / totals.previousGuestCards) * 100 : 0,
     tourToAppPct: totals.tours > 0 ? (totals.applications / totals.tours) * 100 : 0,
     previousTourToAppPct: totals.previousTours > 0 ? (totals.previousApplications / totals.previousTours) * 100 : 0,
-    tourToLeasePct: totals.tourToLeasePctCount > 0 ? totals.tourToLeasePctTotal / totals.tourToLeasePctCount : 0,
-    previousTourToLeasePct: totals.previousTourToLeasePctCount > 0 ? totals.previousTourToLeasePctTotal / totals.previousTourToLeasePctCount : 0,
+    tourToLeasePct: totals.tours > 0 ? (totals.leasesSigned / totals.tours) * 100 : 0,
+    previousTourToLeasePct: totals.previousTours > 0 ? (totals.previousLeasesSigned / totals.previousTours) * 100 : 0,
     applicationApprovalPct: totals.applications > 0 ? (totals.applicationsApproved / totals.applications) * 100 : 0,
     previousApplicationApprovalPct: totals.previousApplications > 0 ? (totals.previousApplicationsApproved / totals.previousApplications) * 100 : 0,
     applicationDenialPct: totals.applications > 0 ? (totals.applicationsDenied / totals.applications) * 100 : 0,
@@ -13926,7 +13935,10 @@ function getJacsMetricRecommendation(role, metric, scope) {
   let primary = Number(metric.goal) || 0;
   let secondary = null;
   let reason = "Current benchmark remains the recommended target.";
-  if (cat === "Occ vs Budget (pts)" || cat === "Physical Occ % vs Budget") {
+  if (cat === "Occ vs Budget (pts)") {
+    primary = 0;
+    reason = `Keep the average physical occupancy variance at budget or better across the assigned scope.`;
+  } else if (cat === "Budget Attainment %") {
     primary = 100;
     reason = `Scores each saved community independently using the occupancy budget attainment tiers, then sums the earned share of this metric across the assigned scope.`;
   } else if (cat === "Leased vs Target (pts)") {
@@ -13954,9 +13966,6 @@ function getJacsMetricRecommendation(role, metric, scope) {
   } else if (cat === "Move-In Goal Attainment %") {
     primary = 100;
     reason = `Hit the full move-in plan needed to protect budget occupancy.`;
-  } else if (cat === "Budget Attainment %") {
-    primary = 100;
-    reason = `The portfolio should stay at or above the budget occupancy target.`;
   } else if (cat === "MoM Application Growth %" && plan) {
     const currentApps = Number(plan.currentApplications || 0);
     const neededGrowth = currentApps > 0 ? ((Math.max(plan.currentAppNeed || 0, currentApps) - currentApps) / currentApps) * 100 : primary;
@@ -14048,7 +14057,7 @@ function getMetricOutcome(m) {
 }
 
 function isVpCommunityBudgetMetric(role, metric) {
-  return role?.id === "vp_ops" && String(metric?.cat ?? "") === "Physical Occ % vs Budget";
+  return role?.id === "vp_ops" && String(metric?.cat ?? "") === "Budget Attainment %";
 }
 
 function getTierMatchForActual(actual, tiers = []) {
@@ -14730,6 +14739,15 @@ function formatJacMetricSource(metric, scopeTypeLabel, scope) {
     if (tracked > 0) {
       return `↔ ${scopeTypeLabel} · ${rate.toFixed(1)}% avg budget attainment · ${onTrack}/${tracked} communities on track`;
     }
+  }
+  if (metric.syncKey === "avgOccGapPts") {
+    const tracked = Number(scope?.metrics?.trackedBudgetOccCount || 0);
+    const onTrack = Number(scope?.metrics?.onTrackBudgetOccCount || 0);
+    const gap = Number(scope?.metrics?.avgOccGapPts || 0);
+    if (tracked > 0) {
+      return `↔ ${scopeTypeLabel} · ${formatSignedDisplay(gap, 1, " pts")} avg occ vs budget · ${onTrack}/${tracked} communities on track`;
+    }
+    return `↔ ${scopeTypeLabel} · add saved occupancy budgets in Overview to score this metric`;
   }
   if (metric.syncKey === "employeeTurnoverPct") {
     const headcount = Number(scope?.metrics?.employeeHeadcount || 0);
@@ -17199,29 +17217,36 @@ function renderPortfolioHomeTab() {
       `<div class="alert alert-info">Portfolio priorities are temporarily unavailable for this snapshot.</div>`
     );
     const trendScopeTitle = isPortfolioWorkspaceSelected() ? "Portfolio" : getProp().name;
-    const trendRows = buildPortfolioHomeMonthlyTrendRows(selectedMonth);
-    const selectedTrendRow = trendRows[selectedMonth] || null;
-    const lastClosedTrendMonth = getClosedMonthTrendCeiling(selectedMonth, new Date().getFullYear());
-    const lastClosedTrendRow = lastClosedTrendMonth >= 0 ? trendRows[lastClosedTrendMonth] : null;
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentCalendarMonth = currentDate.getMonth();
+    const trendCeilingMonth = Math.min(selectedMonth, currentCalendarMonth);
+    const trendRows = buildPortfolioHomeMonthlyTrendRows(trendCeilingMonth);
+    const selectedTrendRow = trendRows[trendCeilingMonth] || null;
+    const isLiveCurrentMonthTrend = selectedMonth === currentCalendarMonth;
+    const approvedTrendAsOfLabel = isLiveCurrentMonthTrend
+      ? formatPresentationDate(currentDate)
+      : `${selectedLabel} ${currentYear}`;
     const approvedTrendCard = renderSafeSection(
       () => buildPortfolioTrendCard({
         title: "Approved apps trend",
-        subtitle: `${trendScopeTitle} month-over-month approved applications from Jan ${new Date().getFullYear()} through ${selectedLabel} ${new Date().getFullYear()}.`,
-        summaryLabel: selectedLabel,
+        subtitle: `${trendScopeTitle} month-over-month approved applications from Jan ${currentYear} through ${approvedTrendAsOfLabel}.`,
+        summaryLabel: isLiveCurrentMonthTrend ? "As of Today" : selectedLabel,
         summaryValue: selectedTrendRow && selectedTrendRow.communityCount > 0 ? formatPortfolioTrendMetricValue(selectedTrendRow.approvedApps, "number") : "—",
-        summarySub: selectedMonth > 0 && selectedTrendRow && trendRows[selectedMonth - 1]?.communityCount > 0
-          ? formatPortfolioTrendValue(selectedTrendRow.approvedApps ?? 0, trendRows[selectedMonth - 1]?.approvedApps ?? 0, "count_pct").replace("MoM", "vs prior month")
-          : "Approved apps saved in the selected reporting month",
+        summarySub: trendCeilingMonth > 0 && selectedTrendRow && trendRows[trendCeilingMonth - 1]?.communityCount > 0
+          ? `${formatPortfolioTrendValue(selectedTrendRow.approvedApps ?? 0, trendRows[trendCeilingMonth - 1]?.approvedApps ?? 0, "count_pct").replace("MoM", "vs prior month")} · updated through ${approvedTrendAsOfLabel}`
+          : `Approved apps saved through ${approvedTrendAsOfLabel}`,
         chips: [
           `<strong>${selectedTrendRow?.communityCount ?? 0}</strong> active communities`,
           `<strong>${formatPortfolioTrendMetricValue(trendRows[0]?.approvedApps, "number")}</strong> in Jan`,
-          `<strong>${formatPortfolioTrendMetricValue(Math.max(...trendRows.map(row => row.approvedApps || 0)), "number")}</strong> peak month`
+          `<strong>${formatPortfolioTrendMetricValue(Math.max(...trendRows.map(row => row.approvedApps || 0)), "number")}</strong> peak month`,
+          `<strong>${approvedTrendAsOfLabel}</strong> last live date`
         ],
         chartHtml: buildPortfolioTrendLineChart(
           trendRows.map(row => ({
             shortLabel: row.shortLabel,
-            value: row.communityCount > 0 && row.monthIdx <= selectedMonth ? row.approvedApps : null,
-            projected: false
+            value: row.communityCount > 0 && row.monthIdx <= trendCeilingMonth ? row.approvedApps : null,
+            projected: row.monthIdx > trendCeilingMonth
           })),
           {
             kind: "number",
@@ -19827,7 +19852,7 @@ function buildMonthlyInvestorPresentationNarrative(report) {
   const secondParagraph = report.previousMonthLabel
     ? (packetMode
         ? `Versus ${report.previousMonthLabel}, approved applications are ${formatPortfolioTrendValue(aggregate.applicationsApproved ?? 0, aggregate.previousApplicationsApproved ?? 0, "count_pct").replace("MoM", "month over month")}, renewal retention is ${formatPortfolioTrendValue(aggregate.renewalRetentionRate ?? 0, aggregate.previousRenewalRetentionRate ?? 0, "point").replace("MoM", "month over month")}, and tour-to-lease conversion is ${tourToLeaseComparison}. The packet stays high level, but it still reads directly from live ATLAS data, APTIQ market inputs, team assignments, and saved community photos.`
-        : `Versus ${report.previousMonthLabel}, applications are ${formatPortfolioTrendValue(aggregate.applicationsApproved ?? 0, aggregate.previousApplicationsApproved ?? 0, "count_pct").replace("MoM", "month over month")}, renewal retention is ${formatPortfolioTrendValue(aggregate.renewalRetentionRate ?? 0, aggregate.previousRenewalRetentionRate ?? 0, "point").replace("MoM", "month over month")}, and tour-to-lease conversion is ${tourToLeaseComparison}. This export is built from live dashboard data, not a static slide template, so each monthly deck reflects the current operating picture for the selected communities.`)
+        : `Versus ${report.previousMonthLabel}, approved applications are ${formatPortfolioTrendValue(aggregate.applicationsApproved ?? 0, aggregate.previousApplicationsApproved ?? 0, "count_pct").replace("MoM", "month over month")}, renewal retention is ${formatPortfolioTrendValue(aggregate.renewalRetentionRate ?? 0, aggregate.previousRenewalRetentionRate ?? 0, "point").replace("MoM", "month over month")}, and tour-to-lease conversion is ${tourToLeaseComparison}. This export is built from live dashboard data, not a static slide template, so each monthly deck reflects the current operating picture for the selected communities.`)
     : (packetMode
         ? `Tour-to-lease conversion is currently ${(aggregate.tourToLeasePct ?? 0).toFixed(1)}%, and this packet blends live operating momentum with saved market, staffing, and image data so the story remains investor-ready without losing connection to the actual dashboard numbers.`
         : `Tour-to-lease conversion is currently ${(aggregate.tourToLeasePct ?? 0).toFixed(1)}%, and this export is built from live dashboard data rather than a static slide template so the deck always reflects the current operating picture for the selected communities.`);

@@ -15309,6 +15309,7 @@ function buildPortfolioHomePriorities(details = [], selectedMonth = getSelectedD
     const record = detail.record ?? {};
     const currentEntry = record.monthlyData?.[selectedMonth] ?? {};
     const previousEntry = previousMonthIdx !== null ? (record.monthlyData?.[previousMonthIdx] ?? {}) : null;
+    const summary = getCommunitySummary(detail.name, record);
     const renewal = getRenewalSummaryForMonth(currentEntry);
     const explicitUndecided = Math.max(0, Number(currentEntry.renewalUndecided) || 0);
     const undecidedRenewals = Math.max(renewal.undecided, explicitUndecided);
@@ -15326,19 +15327,17 @@ function buildPortfolioHomePriorities(details = [], selectedMonth = getSelectedD
       });
     }
 
-    const reputation = normalizeReputationData(record.reputationData);
-    const googleRating = reputation.googleQuarterlyRating > 0 ? reputation.googleQuarterlyRating : reputation.googleLifetimeRating;
-    if (googleRating > 0 && googleRating < 4) {
+    if (summary && Number(summary.budgetOccPct ?? 0) > 0 && (Number(summary.occGapUnits ?? 0) >= 4 || Number(summary.leasedGapUnits ?? 0) >= 6)) {
       priorities.push({
         community: detail.name,
-        title: `Google score is below 4 stars`,
-        body: `${detail.name} is sitting at ${googleRating.toFixed(2)} stars. Tighten review response, resident recovery, and post-service review asks before sentiment drags leasing trust.`,
-        value: googleRating.toFixed(2),
-        valueSub: "Google rating",
-        tone: googleRating < 3.7 ? "critical" : "warn",
-        severity: 78 + Math.max(0, 4 - googleRating) * 10,
-        tabIdx: 6,
-        actionLabel: "Open Reputation"
+        title: `Occupancy is off the saved leasing pace`,
+        body: `${detail.name} is ${Math.max(0, Math.round(summary.occGapUnits ?? 0))} occupied unit${Math.round(summary.occGapUnits ?? 0) === 1 ? "" : "s"} and ${Math.max(0, Math.round(summary.leasedGapUnits ?? 0))} leased unit${Math.round(summary.leasedGapUnits ?? 0) === 1 ? "" : "s"} behind the saved budget path for ${FULL_MONTHS[selectedMonth]}. Tighten pending closeouts and near-term move-in execution before the gap widens.`,
+        value: `${Number(summary.occPct ?? 0).toFixed(1)}%`,
+        valueSub: `budget ${Number(summary.budgetOccPct ?? 0).toFixed(1)}%`,
+        tone: Number(summary.occGapUnits ?? 0) >= 8 ? "critical" : "warn",
+        severity: 84 + Math.min(Math.max(Number(summary.occGapUnits ?? 0), Number(summary.leasedGapUnits ?? 0)), 12),
+        tabIdx: 2,
+        actionLabel: "Open Overview"
       });
     }
 
@@ -15365,23 +15364,22 @@ function buildPortfolioHomePriorities(details = [], selectedMonth = getSelectedD
       }
     }
 
-    const market = normalizeMarketSurveyData(record.marketSurveyData);
-    if (hasMarketSurveyData(market) && Number(market.applicationsLast30 ?? 0) > 0 && Number(market.leasesLast30 ?? 0) === 0) {
+    if (summary && Number(summary.tours ?? 0) >= 5 && Number(summary.tourToLeasePct ?? 0) > 0 && Number(summary.tourToLeasePct ?? 0) < 25) {
       priorities.push({
         community: detail.name,
-        title: `APTIQ traffic is not converting to leases`,
-        body: `${Math.round(market.applicationsLast30)} APTIQ applications are showing in the last 30 days with no executed leases captured. Review approval friction, cancellations, and pricing follow-up.`,
-        value: `${Math.round(market.applicationsLast30)}`,
-        valueSub: "apps last 30",
+        title: `Tour-to-lease conversion is too soft`,
+        body: `${detail.name} is converting at ${Number(summary.tourToLeasePct ?? 0).toFixed(1)}% on ${Math.round(summary.tours ?? 0)} tours in ${FULL_MONTHS[selectedMonth]}. Response speed, follow-up discipline, and application closeout need attention before traffic waste compounds.`,
+        value: `${Number(summary.tourToLeasePct ?? 0).toFixed(1)}%`,
+        valueSub: `${Math.round(summary.tours ?? 0)} tours`,
         tone: "warn",
-        severity: 68,
-        tabIdx: 4,
-        actionLabel: "Open Comp Calc"
+        severity: 76 + Math.min(25 - Number(summary.tourToLeasePct ?? 0), 15),
+        tabIdx: 3,
+        actionLabel: "Open Traffic"
       });
     }
 
     const financial = getFinancialSummaryForMonth(record, selectedMonth);
-    if (financial.hasData && Math.abs(financial.noiVariance) >= 1000) {
+    if (financial.hasData && financial.noiVariance <= -1000) {
       const isUnderBudget = financial.noiVariance < 0;
       priorities.push({
         community: detail.name,
@@ -15402,7 +15400,7 @@ function buildPortfolioHomePriorities(details = [], selectedMonth = getSelectedD
   });
   return priorities
     .sort((a, b) => (Number(b.severity) || 0) - (Number(a.severity) || 0) || String(a.community).localeCompare(String(b.community)))
-    .slice(0, 6);
+    .slice(0, 3);
 }
 
 function renderPortfolioPriorityItem(priority) {
@@ -17296,7 +17294,7 @@ function renderPortfolioHomeTab() {
     const prioritiesHtml = renderSafeSection(
       () => portfolioPriorities.length > 0
         ? portfolioPriorities.map(renderPortfolioPriorityItem).join("")
-        : `<div class="alert-green">No internal priority signals are currently tripping for ${selectedLabel}. Keep monitoring renewal saves, reputation, traffic source mix, and AptIQ velocity.</div>`,
+        : `<div class="alert-green">No high-priority operating issues are currently surfacing for ${selectedLabel}. Keep monitoring renewals, pace to budget, conversion, and NOI pressure.</div>`,
       `<div class="alert alert-info">Portfolio priorities are temporarily unavailable for this snapshot.</div>`
     );
     const trendScopeTitle = isPortfolioWorkspaceSelected() ? "Portfolio" : getProp().name;
@@ -17431,8 +17429,7 @@ function renderPortfolioHomeTab() {
       }),
       `<div class="portfolio-list-card"><h3>Tour to lease close-rate trend</h3><p>Trend data is temporarily unavailable for this snapshot.</p></div>`
     );
-    return `<div class="dashboard-home-grid">
-    <div>
+    return `<div>
       <div class="portfolio-hero">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
           <div>
@@ -17456,11 +17453,11 @@ function renderPortfolioHomeTab() {
         </div>`).join("")}
       </div>
     </div>
-    <div class="portfolio-list-card">
+  </div>
+  <div class="portfolio-list-card" style="margin-top:16px">
       <h3>Portfolio priorities</h3>
       <p>${isPortfolioWorkspaceSelected() ? "Internally-facing items that may need a management touch before they show up as missed outcomes." : "Internally-facing items that may need a management touch before they show up as missed outcomes for this community."}</p>
       <div class="portfolio-rank-list">${prioritiesHtml}</div>
-    </div>
   </div>
   <div class="portfolio-section-grid" style="margin-top:16px">
     ${approvedTrendCard}

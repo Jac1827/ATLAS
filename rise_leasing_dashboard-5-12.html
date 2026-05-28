@@ -1289,7 +1289,7 @@ let portfolioReportFilters = defaultPortfolioReportFilters();
 let monthlyPresentationCommunities = [];
 let weeklyExecutiveEmail = defaultWeeklyExecutiveEmailSettings();
 let workspaceScopeValue = PORTFOLIO_SCOPE_VALUE;
-let reportHubType = "weekly_portfolio_snapshot";
+let reportHubType = "investor_snapshot";
 let reportHubAction = "preview";
 let reportHubRecipientKeys = [];
 let reportHubPerspective = "csuite";
@@ -1814,20 +1814,18 @@ function normalizeReportHubType(value) {
     weekly_csuite: "weekly_portfolio_snapshot",
     portfolio_report: "investor_snapshot",
     investor_deck: "monthly_investor_deck",
-    dlr_overview: "dlr"
+    dlr_overview: "dlr",
+    monthly_report: "monthly_investor_deck",
+    marketing_report: "investor_marketing_report"
   };
-  const mapped = legacyMap[normalized] || normalized || "weekly_portfolio_snapshot";
+  const mapped = legacyMap[normalized] || normalized || "investor_snapshot";
   return [
     "investor_snapshot",
-    "investor_property_packet",
-    "weekly_portfolio_snapshot",
     "monthly_investor_deck",
     "investor_marketing_report",
     "dlr",
-    "portfolio_dlr",
-    "bonus_payout",
-    "regional_progress_report"
-  ].includes(mapped) ? mapped : "weekly_portfolio_snapshot";
+    "bonus_payout"
+  ].includes(mapped) ? mapped : "investor_snapshot";
 }
 
 function normalizeReportHubPerspective(value) {
@@ -9093,9 +9091,105 @@ function renderPortfolioScopedImportTab() {
   const dlrLoaded = readinessDetails.filter(detail => detail.readiness.dlrLoaded).length;
   const surveyLoaded = readinessDetails.filter(detail => detail.readiness.surveyLoaded).length;
   const renewalLoaded = readinessDetails.filter(detail => detail.readiness.renewalLoaded).length;
+  const errorHTML = csvError ? `<div class="alert-red" style="margin-top:12px">${csvError}</div>` : "";
+  const logHTML = csvLog.length > 0 ? `<div class="alert-green" style="margin-top:12px">${csvLog.map((line, idx) => `<div style="${idx===0?"color:#3fb950;font-weight:600":"color:var(--muted)"}">${escapeHtml(line)}</div>`).join("")}</div>` : "";
   const marketSurveyLogHTML = marketSurveyImportLog.length > 0
     ? `<div class="alert-green" style="margin-top:12px">${marketSurveyImportLog.map((line, idx) => `<div style="${idx===0?"color:#3fb950;font-weight:600":"color:var(--muted)"}">${escapeHtml(line)}</div>`).join("")}</div>`
     : "";
+  const bulkImportWorkspaceHTML = `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+      <div>
+        <div class="card-title" style="margin-bottom:6px">Portfolio Bulk Import Workspace</div>
+        <div style="font-size:0.68rem;color:var(--muted)">Stage CSV, PDF, and ATLAS monthly workbook uploads for the whole portfolio here. This is the main review area for extracted rows before they are applied into saved community month records.</div>
+      </div>
+      <button class="btn btn-gray btn-sm" onclick="resetImportWorkspace()">↺ Start Fresh</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px">
+      <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:12px">
+        <div class="card-title" style="margin-bottom:6px">Month Routing</div>
+        <select data-field="importRoutingMode">
+          <option value="file_first" ${importRoutingMode==="file_first"?"selected":""}>Use file / row month first</option>
+          <option value="force_override" ${importRoutingMode==="force_override"?"selected":""}>Force selected month</option>
+        </select>
+        <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">Trust the report month when it exists, or force everything into the selected portfolio month when you need a clean backfill.</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:12px">
+        <div class="card-title" style="margin-bottom:6px">Manual Month Override</div>
+        <select data-field="importMonthOverride">
+          ${MONTHS.map((m,i) => `<option value="${i}" ${i===getImportTargetMonth()?"selected":""}>${m}</option>`).join("")}
+        </select>
+        <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">Used as the fallback month, or as the forced target when routing mode is set to override.</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:12px">
+        <div class="card-title" style="margin-bottom:6px">ATLAS Workbook Scope</div>
+        <select data-field="atlasWorkbookImportMode">
+          <option value="merge_scope" ${atlasWorkbookImportMode==="merge_scope"?"selected":""}>Merge into saved communities</option>
+          <option value="replace_scope" ${atlasWorkbookImportMode==="replace_scope"?"selected":""}>Replace selected month scope</option>
+        </select>
+        <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">Use replace when the workbook is the source of truth and you want the selected month to match the uploaded portfolio set exactly.</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:12px">
+        <div class="card-title" style="margin-bottom:6px">Ideal Upload Format</div>
+        <div style="font-size:0.68rem;color:var(--muted);line-height:1.55">Upload one row per property per month with <code>property</code> and <code>month</code> included in every row. Review the extracted preview below before you apply.</div>
+      </div>
+    </div>
+    <label class="csv-dropzone" id="dropzone-area" style="cursor:pointer" ondragover="event.preventDefault();event.target.style.borderColor='#4493f8';event.target.style.background='rgba(68,147,248,0.08)'" ondragleave="event.target.style.borderColor='rgba(68,147,248,0.4)';event.target.style.background=''" ondrop="handleDrop(event)">
+      <div class="csv-drop-icon">⬆</div>
+      <div style="font-size:0.85rem;color:#4493f8;font-weight:600">Click to upload CSV, PDF, or ATLAS monthly workbook files</div>
+      <div style="font-size:0.72rem;color:var(--muted);margin-top:4px">Multiple files stage into one shared portfolio preview so you can review them before they write into the dashboard.</div>
+      <input type="file" accept=".csv,.pdf,.xlsx,.xls,.xlsm" id="csv-input" multiple/>
+    </label>
+    ${errorHTML}${logHTML}
+  </div>`;
+  const extractPreviewHTML = extractedDashboardRows.length > 0 ? `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div>
+        <div class="card-title" style="margin-bottom:6px">Extracted Dashboard CSV Preview</div>
+        <div style="font-size:0.72rem;color:var(--muted)">Source: ${extractedSourceLabel}. Review these normalized portfolio rows before applying them into the dashboard or downloading the staged CSV.</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-blue btn-sm" onclick="applyExtractedDashboardRows()">Apply Extracted Rows</button>
+        <button class="btn btn-gray btn-sm" onclick="downloadExtractedDashboardCSV()">Download Dashboard CSV</button>
+        <button class="btn btn-gray btn-sm" onclick="clearExtractedDashboardRows()">Clear Preview</button>
+      </div>
+    </div>
+    <div class="tbl-wrap" style="margin-bottom:0">
+      <table>
+        <thead><tr><th class="l">Property</th><th class="c">Month</th><th class="c">Occupied</th><th class="c">Leased</th><th class="c">Move-Outs</th><th class="c">Move-Ins</th><th class="c">Guest Cards</th><th class="c">Walk In</th><th class="c">Off Site</th><th class="c">Phone</th><th class="c">Email / Online</th><th class="c">Text / Chat / Other</th><th class="c">Tours</th><th class="c">Applications</th><th class="c">Apps Approved</th><th class="c">Leases Signed</th><th class="c">Budget Occ %</th><th class="c">Market Rent</th><th class="c">Budget Rent</th><th class="c">Budget NER</th><th class="c">Rent Roll Total</th><th class="c">Concessions</th><th class="c">NER</th><th class="c">Renewal Exp.</th><th class="c">Renewals Signed</th><th class="c">Renewal NTVs</th><th class="c">Transfers</th><th class="c">Undecided / M2M</th><th class="c">Early Term.</th></tr></thead>
+        <tbody>${extractedDashboardRows.map((row, idx) => `<tr>
+          <td class="l"><input type="text" value="${row.property ?? ""}" onchange="updateExtractedDashboardCell(${idx},'property',this.value)" style="width:150px"></td>
+          <td><input type="text" value="${row.month ?? ""}" onchange="updateExtractedDashboardCell(${idx},'month',this.value)" style="width:58px;text-align:center"></td>
+          <td><input type="number" value="${row.occupied ?? ""}" onchange="updateExtractedDashboardCell(${idx},'occupied',this.value)" style="width:74px;text-align:center"></td>
+          <td><input type="number" value="${row.leased ?? ""}" onchange="updateExtractedDashboardCell(${idx},'leased',this.value)" style="width:74px;text-align:center"></td>
+          <td><input type="number" value="${row.move_outs ?? ""}" onchange="updateExtractedDashboardCell(${idx},'move_outs',this.value)" style="width:74px;text-align:center"></td>
+          <td><input type="number" value="${row.move_ins ?? ""}" onchange="updateExtractedDashboardCell(${idx},'move_ins',this.value)" style="width:74px;text-align:center"></td>
+          <td><input type="number" value="${row.guest_cards ?? ""}" onchange="updateExtractedDashboardCell(${idx},'guest_cards',this.value)" style="width:84px;text-align:center"></td>
+          <td><input type="number" value="${row.walk_in ?? ""}" onchange="updateExtractedDashboardCell(${idx},'walk_in',this.value)" style="width:72px;text-align:center"></td>
+          <td><input type="number" value="${row.off_site_event ?? ""}" onchange="updateExtractedDashboardCell(${idx},'off_site_event',this.value)" style="width:72px;text-align:center"></td>
+          <td><input type="number" value="${row.phone_calls ?? ""}" onchange="updateExtractedDashboardCell(${idx},'phone_calls',this.value)" style="width:72px;text-align:center"></td>
+          <td><input type="number" value="${row.emails_online ?? ""}" onchange="updateExtractedDashboardCell(${idx},'emails_online',this.value)" style="width:84px;text-align:center"></td>
+          <td><input type="number" value="${row.text_chat_other ?? ""}" onchange="updateExtractedDashboardCell(${idx},'text_chat_other',this.value)" style="width:96px;text-align:center"></td>
+          <td><input type="number" value="${row.tours ?? ""}" onchange="updateExtractedDashboardCell(${idx},'tours',this.value)" style="width:70px;text-align:center"></td>
+          <td><input type="number" value="${row.applications ?? ""}" onchange="updateExtractedDashboardCell(${idx},'applications',this.value)" style="width:92px;text-align:center"></td>
+          <td><input type="number" value="${row.applications_approved ?? ""}" onchange="updateExtractedDashboardCell(${idx},'applications_approved',this.value)" style="width:92px;text-align:center"></td>
+          <td><input type="number" value="${row.leases_signed ?? ""}" onchange="updateExtractedDashboardCell(${idx},'leases_signed',this.value)" style="width:92px;text-align:center"></td>
+          <td><input type="number" value="${row.budget_occ ?? ""}" onchange="updateExtractedDashboardCell(${idx},'budget_occ',this.value)" style="width:82px;text-align:center"></td>
+          <td><input type="number" value="${row.market_rent ?? ""}" onchange="updateExtractedDashboardCell(${idx},'market_rent',this.value)" style="width:92px;text-align:center"></td>
+          <td><input type="number" value="${row.budget_rent ?? ""}" onchange="updateExtractedDashboardCell(${idx},'budget_rent',this.value)" style="width:92px;text-align:center"></td>
+          <td><input type="number" value="${row.budget_ner ?? ""}" onchange="updateExtractedDashboardCell(${idx},'budget_ner',this.value)" style="width:92px;text-align:center"></td>
+          <td><input type="number" value="${row.rent_roll_total ?? ""}" onchange="updateExtractedDashboardCell(${idx},'rent_roll_total',this.value)" style="width:110px;text-align:center"></td>
+          <td><input type="number" value="${row.concessions ?? ""}" onchange="updateExtractedDashboardCell(${idx},'concessions',this.value)" style="width:92px;text-align:center"></td>
+          <td><input type="number" value="${row.ner ?? ""}" onchange="updateExtractedDashboardCell(${idx},'ner',this.value)" style="width:92px;text-align:center"></td>
+          <td><input type="number" value="${row.renewal_expirations ?? ""}" onchange="updateExtractedDashboardCell(${idx},'renewal_expirations',this.value)" style="width:92px;text-align:center"></td>
+          <td><input type="number" value="${row.renewals_signed ?? ""}" onchange="updateExtractedDashboardCell(${idx},'renewals_signed',this.value)" style="width:92px;text-align:center"></td>
+          <td><input type="number" value="${row.renewal_ntvs ?? ""}" onchange="updateExtractedDashboardCell(${idx},'renewal_ntvs',this.value)" style="width:92px;text-align:center"></td>
+          <td><input type="number" value="${row.renewal_transfers ?? ""}" onchange="updateExtractedDashboardCell(${idx},'renewal_transfers',this.value)" style="width:92px;text-align:center"></td>
+          <td><input type="number" value="${row.renewal_undecided ?? ""}" onchange="updateExtractedDashboardCell(${idx},'renewal_undecided',this.value)" style="width:92px;text-align:center"></td>
+          <td><input type="number" value="${row.renewal_early_termination ?? ""}" onchange="updateExtractedDashboardCell(${idx},'renewal_early_termination',this.value)" style="width:92px;text-align:center"></td>
+        </tr>`).join("")}</tbody>
+      </table>
+    </div>
+  </div>` : "";
   const monthlyTemplateBackfillHTML = `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
       <div>
@@ -9138,6 +9232,9 @@ function renderPortfolioScopedImportTab() {
     </label>
   </div>`;
   const bodyHtml = `<div class="tbl-wrap">
+    ${bulkImportWorkspaceHTML}
+    ${extractPreviewHTML}
+    ${extractedDashboardRows.length > 0 ? renderExtractFieldMapControls() : ""}
     ${renderDashboardDataMigrationPanel()}
     ${monthlyTemplateBackfillHTML}
     ${renewalTrackerUploadHTML}
@@ -9158,7 +9255,7 @@ function renderPortfolioScopedImportTab() {
       ${marketSurveyImportSourceLabel ? `<div style="font-size:0.68rem;color:var(--muted);margin-top:8px">Latest market survey sync: ${escapeHtml(marketSurveyImportSourceLabel)}</div>` : ""}
       ${marketSurveyLogHTML}
     </div>
-    <div class="tbl-header"><h2>Import readiness by community</h2><p>APTIQ workbooks can be uploaded in portfolio mode, while DLR box scores and renewal files still open through each community import workspace.</p></div>
+    <div class="tbl-header"><h2>Import readiness by community</h2><p>The portfolio workspace above is now the primary staging area for bulk rows and workbook uploads. Use the community import view when you need a one-off, community-specific deep dive.</p></div>
     <table>
       <thead><tr><th class="l">Community</th><th>DLR Box Score</th><th>Market Survey</th><th>Renewals</th><th>Action</th></tr></thead>
       <tbody>${readinessDetails.map(detail => {
@@ -9181,7 +9278,7 @@ function renderPortfolioScopedImportTab() {
     ${statBox("Renewal Coverage", `${renewalLoaded}/${details.length}`, isSelectedDashboardMonthCurrentCalendarMonth() ? "Resets to Pending every Sunday until Monday uploads refresh" : "Communities with historical renewal data for the selected month", "#d29922")}
     ${statBox("Contacts Loaded", details.filter(detail => normalizeInvestorEmailContacts(detail.record?.investorEmailContacts).length > 0).length, "Communities with report recipients saved", "#a371f7")}
   </div>`;
-  return renderPortfolioScopePanel("Portfolio Import Coverage", "A portfolio-level read on data readiness before you export reporting.", cardsHtml, bodyHtml);
+  return renderPortfolioScopePanel("Portfolio Data Import Workspace", "Stage, validate, and apply portfolio uploads here before they flow into reporting and dashboard screens.", cardsHtml, bodyHtml);
 }
 
 function renderSetupTab() {
@@ -14331,7 +14428,7 @@ function exportBonusPayoutCSV() {
   a.click();
 }
 
-function openBonusPayoutReport(printImmediately=false) {
+function buildBonusPayoutReportDocument() {
   const data = getBonusExportData();
   const roleTotalRows = data.roleTotals.map(row =>
     `<tr><td>${row.quarter}</td><td>${row.role}</td><td>$${row.total.toLocaleString(undefined,{maximumFractionDigits:2})}</td></tr>`
@@ -14366,9 +14463,7 @@ function openBonusPayoutReport(printImmediately=false) {
       </div>`;
     })
   ].join("");
-  const win = window.open("", "_blank");
-  if (!win) return;
-  win.document.write(`<!DOCTYPE html><html><head><title>Bonus Payout Report</title><style>
+  return `<!DOCTYPE html><html><head><title>Bonus Payout Report</title><style>
     body{font-family:'DM Sans',Arial,sans-serif;padding:28px;color:#1b3a4b;background:#fff} h1,h2,h3{margin:0 0 12px} h1{font-size:26px;color:#1b3a4b} h2{font-size:18px;color:#1b3a4b;margin-top:18px} table{width:100%;border-collapse:collapse;margin:16px 0} th,td{border:1px solid #dfdfda;padding:8px;text-align:left;font-size:12px} th{background:#f3f2ee;color:#1b3a4b;text-transform:uppercase;letter-spacing:.05em}
     .brand{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;padding-bottom:14px;border-bottom:2px solid #89bdd7}.brand img{height:38px;width:auto;object-fit:contain}.meta{color:#666;font-size:12px;margin-bottom:16px}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:16px}.card{border:1px solid #dfdfda;border-radius:10px;padding:16px;break-inside:avoid-page;background:#fff}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#666;margin-bottom:6px}.meta-row{display:flex;justify-content:space-between;gap:12px;margin-bottom:6px;font-size:12px}.total{margin:12px 0;padding:10px;border-radius:8px;background:#eef5f7;color:#1b3a4b;font-weight:700}.detail-title{font-size:12px;font-weight:700;margin-bottom:6px} ul{margin:0;padding-left:18px} li,p{font-size:12px;line-height:1.45}
   </style></head><body>
@@ -14377,7 +14472,13 @@ function openBonusPayoutReport(printImmediately=false) {
   <table><thead><tr><th>Quarter</th><th>Role</th><th>Total Payout Due</th></tr></thead><tbody>${roleTotalRows}</tbody></table>
   <h2>Employee Payroll Snapshots</h2>
   <div class="cards">${employeeCards}</div>
-  </body></html>`);
+  </body></html>`;
+}
+
+function openBonusPayoutReport(printImmediately=false) {
+  const win = window.open("", "_blank");
+  if (!win) return;
+  win.document.write(buildBonusPayoutReportDocument());
   win.document.close();
   if (printImmediately) win.print();
 }
@@ -15208,6 +15309,7 @@ function buildPortfolioHomePriorities(details = [], selectedMonth = getSelectedD
     const record = detail.record ?? {};
     const currentEntry = record.monthlyData?.[selectedMonth] ?? {};
     const previousEntry = previousMonthIdx !== null ? (record.monthlyData?.[previousMonthIdx] ?? {}) : null;
+    const summary = getCommunitySummary(detail.name, record);
     const renewal = getRenewalSummaryForMonth(currentEntry);
     const explicitUndecided = Math.max(0, Number(currentEntry.renewalUndecided) || 0);
     const undecidedRenewals = Math.max(renewal.undecided, explicitUndecided);
@@ -15225,19 +15327,17 @@ function buildPortfolioHomePriorities(details = [], selectedMonth = getSelectedD
       });
     }
 
-    const reputation = normalizeReputationData(record.reputationData);
-    const googleRating = reputation.googleQuarterlyRating > 0 ? reputation.googleQuarterlyRating : reputation.googleLifetimeRating;
-    if (googleRating > 0 && googleRating < 4) {
+    if (summary && Number(summary.budgetOccPct ?? 0) > 0 && (Number(summary.occGapUnits ?? 0) >= 4 || Number(summary.leasedGapUnits ?? 0) >= 6)) {
       priorities.push({
         community: detail.name,
-        title: `Google score is below 4 stars`,
-        body: `${detail.name} is sitting at ${googleRating.toFixed(2)} stars. Tighten review response, resident recovery, and post-service review asks before sentiment drags leasing trust.`,
-        value: googleRating.toFixed(2),
-        valueSub: "Google rating",
-        tone: googleRating < 3.7 ? "critical" : "warn",
-        severity: 78 + Math.max(0, 4 - googleRating) * 10,
-        tabIdx: 6,
-        actionLabel: "Open Reputation"
+        title: `Occupancy is off the saved leasing pace`,
+        body: `${detail.name} is ${Math.max(0, Math.round(summary.occGapUnits ?? 0))} occupied unit${Math.round(summary.occGapUnits ?? 0) === 1 ? "" : "s"} and ${Math.max(0, Math.round(summary.leasedGapUnits ?? 0))} leased unit${Math.round(summary.leasedGapUnits ?? 0) === 1 ? "" : "s"} behind the saved budget path for ${FULL_MONTHS[selectedMonth]}. Tighten pending closeouts and near-term move-in execution before the gap widens.`,
+        value: `${Number(summary.occPct ?? 0).toFixed(1)}%`,
+        valueSub: `budget ${Number(summary.budgetOccPct ?? 0).toFixed(1)}%`,
+        tone: Number(summary.occGapUnits ?? 0) >= 8 ? "critical" : "warn",
+        severity: 84 + Math.min(Math.max(Number(summary.occGapUnits ?? 0), Number(summary.leasedGapUnits ?? 0)), 12),
+        tabIdx: 2,
+        actionLabel: "Open Overview"
       });
     }
 
@@ -15264,23 +15364,22 @@ function buildPortfolioHomePriorities(details = [], selectedMonth = getSelectedD
       }
     }
 
-    const market = normalizeMarketSurveyData(record.marketSurveyData);
-    if (hasMarketSurveyData(market) && Number(market.applicationsLast30 ?? 0) > 0 && Number(market.leasesLast30 ?? 0) === 0) {
+    if (summary && Number(summary.tours ?? 0) >= 5 && Number(summary.tourToLeasePct ?? 0) > 0 && Number(summary.tourToLeasePct ?? 0) < 25) {
       priorities.push({
         community: detail.name,
-        title: `APTIQ traffic is not converting to leases`,
-        body: `${Math.round(market.applicationsLast30)} APTIQ applications are showing in the last 30 days with no executed leases captured. Review approval friction, cancellations, and pricing follow-up.`,
-        value: `${Math.round(market.applicationsLast30)}`,
-        valueSub: "apps last 30",
+        title: `Tour-to-lease conversion is too soft`,
+        body: `${detail.name} is converting at ${Number(summary.tourToLeasePct ?? 0).toFixed(1)}% on ${Math.round(summary.tours ?? 0)} tours in ${FULL_MONTHS[selectedMonth]}. Response speed, follow-up discipline, and application closeout need attention before traffic waste compounds.`,
+        value: `${Number(summary.tourToLeasePct ?? 0).toFixed(1)}%`,
+        valueSub: `${Math.round(summary.tours ?? 0)} tours`,
         tone: "warn",
-        severity: 68,
-        tabIdx: 4,
-        actionLabel: "Open Comp Calc"
+        severity: 76 + Math.min(25 - Number(summary.tourToLeasePct ?? 0), 15),
+        tabIdx: 3,
+        actionLabel: "Open Traffic"
       });
     }
 
     const financial = getFinancialSummaryForMonth(record, selectedMonth);
-    if (financial.hasData && Math.abs(financial.noiVariance) >= 1000) {
+    if (financial.hasData && financial.noiVariance <= -1000) {
       const isUnderBudget = financial.noiVariance < 0;
       priorities.push({
         community: detail.name,
@@ -15301,7 +15400,7 @@ function buildPortfolioHomePriorities(details = [], selectedMonth = getSelectedD
   });
   return priorities
     .sort((a, b) => (Number(b.severity) || 0) - (Number(a.severity) || 0) || String(a.community).localeCompare(String(b.community)))
-    .slice(0, 6);
+    .slice(0, 3);
 }
 
 function renderPortfolioPriorityItem(priority) {
@@ -17195,7 +17294,7 @@ function renderPortfolioHomeTab() {
     const prioritiesHtml = renderSafeSection(
       () => portfolioPriorities.length > 0
         ? portfolioPriorities.map(renderPortfolioPriorityItem).join("")
-        : `<div class="alert-green">No internal priority signals are currently tripping for ${selectedLabel}. Keep monitoring renewal saves, reputation, traffic source mix, and AptIQ velocity.</div>`,
+        : `<div class="alert-green">No high-priority operating issues are currently surfacing for ${selectedLabel}. Keep monitoring renewals, pace to budget, conversion, and NOI pressure.</div>`,
       `<div class="alert alert-info">Portfolio priorities are temporarily unavailable for this snapshot.</div>`
     );
     const trendScopeTitle = isPortfolioWorkspaceSelected() ? "Portfolio" : getProp().name;
@@ -17330,8 +17429,7 @@ function renderPortfolioHomeTab() {
       }),
       `<div class="portfolio-list-card"><h3>Tour to lease close-rate trend</h3><p>Trend data is temporarily unavailable for this snapshot.</p></div>`
     );
-    return `<div class="dashboard-home-grid">
-    <div>
+    return `<div>
       <div class="portfolio-hero">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
           <div>
@@ -17355,11 +17453,11 @@ function renderPortfolioHomeTab() {
         </div>`).join("")}
       </div>
     </div>
-    <div class="portfolio-list-card">
+  </div>
+  <div class="portfolio-list-card" style="margin-top:16px">
       <h3>Portfolio priorities</h3>
       <p>${isPortfolioWorkspaceSelected() ? "Internally-facing items that may need a management touch before they show up as missed outcomes." : "Internally-facing items that may need a management touch before they show up as missed outcomes for this community."}</p>
       <div class="portfolio-rank-list">${prioritiesHtml}</div>
-    </div>
   </div>
   <div class="portfolio-section-grid" style="margin-top:16px">
     ${approvedTrendCard}
@@ -17380,9 +17478,14 @@ function renderPortfolioHomeTab() {
 
 function renderReportingTab() {
   ensureValidReportHubAction();
+  reportHubType = normalizeReportHubType(reportHubType);
+  if (!["dlr", "bonus_payout"].includes(reportHubType) && reportHubPerspective === "regional") {
+    reportHubPerspective = "investor";
+  }
   if (normalizeReportHubType(reportHubType) === "dlr") {
     syncDlrTargetFromReportHub({ preserveCommunity: true });
   }
+  const normalizedType = normalizeReportHubType(reportHubType);
   const reportHubContacts = ensureReportHubRecipientSelection();
   const reportHubActionOptions = getReportHubActionOptions();
   const reportBuilderDetails = buildPortfolioDetailsForMonth(getReportHubMonthIndex());
@@ -17397,89 +17500,41 @@ function renderReportingTab() {
         </button>`;
       }).join("")
     : `<div style="font-size:0.72rem;color:var(--muted)">No saved community contacts are available in the current scope yet.</div>`;
-  const weeklyBaseline = getStoredWeeklySnapshotPayload();
-  const weeklyBaselineText = weeklyBaseline?.exportedAt
-    ? `Weekly comparison baseline synced ${new Date(weeklyBaseline.exportedAt).toLocaleString()}.`
-    : "No weekly baseline is synced yet. Use the weekly report controls below after this week’s send so next week can compare correctly.";
-  const selectedReportSections = getSelectedPortfolioReportSections();
   const reportMonthLabel = `${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`;
-  const ownerFilterSummary = `${(portfolioReportFilters.investorGroups ?? []).length} investor group(s) · ${(portfolioReportFilters.investorCommunities ?? []).length} community selection(s)`;
-  const regionalFilterSummary = `${(portfolioReportFilters.regionalScopes ?? []).length} scope(s) · ${(portfolioReportFilters.regionalCommunities ?? []).length} community selection(s)`;
-  const scopeFilterHTML = portfolioReportMode === "owner"
-    ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
-        <div class="report-hub-card">
-          <div class="card-title" style="margin-bottom:8px">Investor Groups</div>
-          <div class="bonus-assignment-chip-wrap">
-            ${getInvestorReportFilterOptions().length > 0 ? getInvestorReportFilterOptions().map(name => {
-              const isActive = (portfolioReportFilters.investorGroups ?? []).includes(name);
-              return `<button class="bonus-community-chip ${isActive ? "active" : ""}" onclick='togglePortfolioReportFilter("investorGroups", ${JSON.stringify(name)})'>${escapeHtml(name)}</button>`;
-            }).join("") : `<div style="font-size:0.72rem;color:var(--muted)">Add investor names in Community Setup to group communities here.</div>`}
-          </div>
+  const selectedReportSections = getSelectedPortfolioReportSections();
+  const ownerFilterSummary = `${(portfolioReportFilters.investorGroups ?? []).length} investor group(s) · ${(portfolioReportFilters.investorCommunities ?? []).length} highlighted communit${(portfolioReportFilters.investorCommunities ?? []).length === 1 ? "y" : "ies"}`;
+  const reportNeedsScopeBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout";
+  const reportNeedsSectionBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout";
+  const reportTypeDescription = normalizedType === "investor_marketing_report"
+    ? "Combines traffic and funnel performance with comp calculator and market-survey context."
+    : normalizedType === "monthly_investor_deck"
+      ? "Builds the branded monthly report deck from the selected investor scope."
+      : normalizedType === "bonus_payout"
+        ? "Payroll-ready payout reporting using the saved bonus calculator data."
+        : normalizedType === "dlr"
+          ? "Single-community daily leasing report with upload-backed activity checks."
+          : "Investor-facing operating snapshot across the selected investor groups and highlighted communities.";
+  const scopeFilterHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+      <div class="report-hub-card">
+        <div class="card-title" style="margin-bottom:8px">Investor Groups</div>
+        <div class="bonus-assignment-chip-wrap">
+          ${getInvestorReportFilterOptions().length > 0 ? getInvestorReportFilterOptions().map(name => {
+            const isActive = (portfolioReportFilters.investorGroups ?? []).includes(name);
+            return `<button class="bonus-community-chip ${isActive ? "active" : ""}" onclick='togglePortfolioReportFilter("investorGroups", ${JSON.stringify(name)})'>${escapeHtml(name)}</button>`;
+          }).join("") : `<div style="font-size:0.72rem;color:var(--muted)">Add investor names in Community Setup to group communities here.</div>`}
         </div>
-        <div class="report-hub-card">
-          <div class="card-title" style="margin-bottom:8px">Communities</div>
-          <div class="bonus-assignment-chip-wrap">
-            ${reportBuilderDetails.map(detail => {
-              const name = detail.name;
-              const isActive = (portfolioReportFilters.investorCommunities ?? []).includes(name);
-              return `<button class="bonus-community-chip ${isActive ? "active" : ""}" onclick='togglePortfolioReportFilter("investorCommunities", ${JSON.stringify(name)})'>${escapeHtml(name)}</button>`;
-            }).join("") || `<div style="font-size:0.72rem;color:var(--muted)">Save communities to filter them here.</div>`}
-          </div>
+      </div>
+      <div class="report-hub-card">
+        <div class="card-title" style="margin-bottom:8px">Highlighted Communities</div>
+        <div class="bonus-assignment-chip-wrap">
+          ${reportBuilderDetails.map(detail => {
+            const name = detail.name;
+            const isActive = (portfolioReportFilters.investorCommunities ?? []).includes(name);
+            return `<button class="bonus-community-chip ${isActive ? "active" : ""}" onclick='togglePortfolioReportFilter("investorCommunities", ${JSON.stringify(name)})'>${escapeHtml(name)}</button>`;
+          }).join("") || `<div style="font-size:0.72rem;color:var(--muted)">Save communities to filter them here.</div>`}
         </div>
-      </div>`
-    : `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
-        <div class="report-hub-card">
-          <div class="card-title" style="margin-bottom:8px">Regional Roles</div>
-          <div class="bonus-assignment-chip-wrap">
-            ${getRegionalReportFilterOptions().length > 0 ? getRegionalReportFilterOptions().map(option => {
-              const isActive = (portfolioReportFilters.regionalScopes ?? []).includes(option.id);
-              return `<button class="bonus-community-chip ${isActive ? "active" : ""}" onclick='togglePortfolioReportFilter("regionalScopes", ${JSON.stringify(option.id)})'>${escapeHtml(option.title)}</button>`;
-            }).join("") : `<div style="font-size:0.72rem;color:var(--muted)">Assign communities to Regionals in Community Setup or Bonus Calc first.</div>`}
-          </div>
-        </div>
-        <div class="report-hub-card">
-          <div class="card-title" style="margin-bottom:8px">Communities</div>
-          <div class="bonus-assignment-chip-wrap">
-            ${reportBuilderDetails.map(detail => {
-              const name = detail.name;
-              const isActive = (portfolioReportFilters.regionalCommunities ?? []).includes(name);
-              return `<button class="bonus-community-chip ${isActive ? "active" : ""}" onclick='togglePortfolioReportFilter("regionalCommunities", ${JSON.stringify(name)})'>${escapeHtml(name)}</button>`;
-            }).join("") || `<div style="font-size:0.72rem;color:var(--muted)">Save communities to filter them here.</div>`}
-          </div>
-        </div>
-      </div>`;
-  const bonusPayoutCard = `<div class="report-hub-card">
-    <h3>Bonus payout reporting</h3>
-    <p>Pull payroll-ready employee payout views across the portfolio without a community name in the output.</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-gray btn-sm" onclick="exportBonusPayoutCSV()">⬇ CSV</button>
-      <button class="btn btn-gray btn-sm" onclick="openBonusPayoutReport(false)">🧾 Printable HTML</button>
-      <button class="btn btn-blue btn-sm" onclick="openBonusPayoutReport(true)">🖨 PDF / Print</button>
-        <button type="button" class="btn btn-gray btn-sm" onmousedown="return queueCurrentWorkspaceTab(9)">Open Bonus Calc</button>
-    </div>
-  </div>`;
-  const executiveCard = `<div class="report-hub-card">
-    <h3>Weekly Portfolio Snap Shot</h3>
-    <p>${escapeHtml(weeklyBaselineText)}</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-gray btn-sm" onclick="publishWeeklySnapshot()">📡 Sync This Week as Baseline</button>
-      <button class="btn btn-gray btn-sm" onclick="openWeeklyExecutiveReport(false)">👁 Preview Snap Shot</button>
-      <button class="btn btn-blue btn-sm" onclick="openWeeklyExecutiveReport(true)">🖨 Weekly PDF / Print</button>
-      <button class="btn btn-gray btn-sm" onclick="draftWeeklyExecutiveOutlookEmail()">✉ Draft Outlook Email</button>
-    </div>
-  </div>`;
-  const investorCard = `<div class="report-hub-card">
-    <h3>Investor-facing output</h3>
-    <p>Generate branded investor deliverables from saved dashboard data without disturbing any community records.</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-gray btn-sm" onclick="openMonthlyInvestorPresentation(false)">👁 Preview Deck</button>
-      <button class="btn btn-blue btn-sm" onclick="openMonthlyInvestorPresentation(true)">🖨 Investor PDF / Print</button>
-      <button class="btn btn-gray btn-sm" onclick="setReportHubType('investor_property_packet')">Investor Info</button>
-      <button class="btn btn-gray btn-sm" onclick="exportMonthlyInvestorPresentationPptx()">🪄 Export for Canva</button>
-      <button class="btn btn-gray btn-sm" onclick="setReportHubType('dlr')">📘 Build DLR</button>
-      <button class="btn btn-gray btn-sm" onclick="setReportHubType('portfolio_dlr')">🏢 Portfolio DLR</button>
-    </div>
-  </div>`;
+      </div>
+    </div>`;
   const editableRecommendationDetails = (reportHubPerspective === "csuite" || reportHubPerspective === "regional")
     ? getScopedPortfolioReportDetails(reportBuilderDetails).slice(0, 8)
     : [];
@@ -17503,6 +17558,17 @@ function renderReportingTab() {
     </div>`
     : "";
   return `<div class="card mb4">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div>
+        <h2 style="font-size:0.95rem;font-weight:700;margin-bottom:4px">🗂 Reporting Hub</h2>
+        <p style="font-size:0.72rem;color:var(--muted)">Build the report from the current month, selected investor scope, and highlighted communities, then review the live preview below before you export or email it.</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn btn-gray btn-sm" onmousedown="return queueCurrentWorkspaceTab(7)">Open Data Import</button>
+        ${normalizedType === "bonus_payout" ? `<button type="button" class="btn btn-gray btn-sm" onmousedown="return queueCurrentWorkspaceTab(9)">Open Bonus Calc</button>` : ""}
+        <button type="button" class="btn btn-gray btn-sm" onmousedown="return queueCurrentWorkspaceTab(0)">Back to Portfolio Home</button>
+      </div>
+    </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px">
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Current Scope</div>
@@ -17512,25 +17578,21 @@ function renderReportingTab() {
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Report Type</div>
         <select onchange="setReportHubType(this.value)">
-          <option value="investor_snapshot" ${reportHubType==="investor_snapshot"?"selected":""}>Investor Snap Shot</option>
-          <option value="investor_property_packet" ${reportHubType==="investor_property_packet"?"selected":""}>Investor Community Information</option>
-          <option value="weekly_portfolio_snapshot" ${reportHubType==="weekly_portfolio_snapshot"?"selected":""}>Weekly Portfolio Snap Shot</option>
-          <option value="monthly_investor_deck" ${reportHubType==="monthly_investor_deck"?"selected":""}>Monthly Investor Deck</option>
-          <option value="investor_marketing_report" ${reportHubType==="investor_marketing_report"?"selected":""}>Investor Marketing Report</option>
           <option value="dlr" ${reportHubType==="dlr"?"selected":""}>DLR</option>
-          <option value="portfolio_dlr" ${reportHubType==="portfolio_dlr"?"selected":""}>Portfolio DLR</option>
+          <option value="investor_snapshot" ${reportHubType==="investor_snapshot"?"selected":""}>Investor Snapshot</option>
+          <option value="investor_marketing_report" ${reportHubType==="investor_marketing_report"?"selected":""}>Marketing Report</option>
           <option value="bonus_payout" ${reportHubType==="bonus_payout"?"selected":""}>Bonus Payout Report</option>
-          <option value="regional_progress_report" ${reportHubType==="regional_progress_report"?"selected":""}>Regional Progress Report</option>
+          <option value="monthly_investor_deck" ${reportHubType==="monthly_investor_deck"?"selected":""}>Monthly Report</option>
         </select>
+        <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${escapeHtml(reportTypeDescription)}</div>
       </div>
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Report View</div>
         <select onchange="setReportHubPerspective(this.value)">
           <option value="investor" ${reportHubPerspective==="investor"?"selected":""}>Investor facing</option>
-          <option value="regional" ${reportHubPerspective==="regional"?"selected":""}>Regional level view</option>
           <option value="csuite" ${reportHubPerspective==="csuite"?"selected":""}>C-Suite View</option>
         </select>
-        <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${reportHubPerspective === "investor" ? "Highlights wins and cushions complications without watering down the facts." : reportHubPerspective === "regional" ? "Shows pain points, issues, improvement focus, and direct recommendations." : "High-level, clear wins and headwinds with management adjustments shown as controlled actions."}</div>
+        <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${reportHubPerspective === "investor" ? "Highlights wins and keeps the delivery investor-ready." : "High-level, clear wins and headwinds with management adjustments shown as controlled actions."}</div>
       </div>
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Report Period</div>
@@ -17555,6 +17617,27 @@ function renderReportingTab() {
         <div style="font-size:0.68rem;color:var(--muted);margin-top:8px">${selectedRecipientCount} recipient${selectedRecipientCount === 1 ? "" : "s"} selected for email actions.</div>
       </div>
     </div>
+    ${reportNeedsScopeBuilder ? `<div class="report-hub-card" style="margin-bottom:14px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+        <div>
+          <div class="card-title" style="margin-bottom:6px">Portfolio Report Builder</div>
+          <p style="font-size:0.72rem;color:var(--muted)">Use investor groups and highlighted communities to define the reporting scope. The live preview below updates from this builder.</p>
+        </div>
+        <div style="font-size:0.68rem;color:var(--muted)">${ownerFilterSummary}</div>
+      </div>
+      ${reportNeedsSectionBuilder ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px">
+        <div class="report-hub-card">
+          <div class="card-title" style="margin-bottom:8px">Sections to Include</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px">
+            ${Object.keys(portfolioReportSections).map(sectionKey => `<label style="display:flex;align-items:center;gap:8px;font-size:0.72rem;color:var(--text)">
+              <input type="checkbox" ${portfolioReportSections[sectionKey]?"checked":""} onchange="setPortfolioReportSection('${sectionKey}',this.checked)">
+              <span>${getPortfolioReportSectionLabel(sectionKey)}</span>
+            </label>`).join("")}
+          </div>
+        </div>
+      </div>` : ""}
+      ${scopeFilterHTML}
+    </div>` : ""}
     <div class="report-hub-card" style="margin-bottom:14px">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
         <div>
@@ -17569,70 +17652,67 @@ function renderReportingTab() {
       <div class="bonus-assignment-chip-wrap">${reportHubRecipientsHtml}</div>
     </div>
     ${recommendationsEditorHtml}
-    ${reportHubType === "dlr" ? renderDlrReportingWorkspace() : ""}
-    ${reportHubType === "portfolio_dlr" ? renderPortfolioDlrReportingWorkspace() : ""}
   </div>
-  <div class="card mb4">
+  ${renderReportHubInlinePreview(normalizedType, selectedReportSections)}`;
+}
+
+function renderReportHubPreviewFrame(title, description, documentHtml, controlsHtml = "") {
+  if (!documentHtml) {
+    return `<div class="card mb4" id="reporting-inline-preview">
+      <div class="report-hub-card">
+        <div class="alert-red">The selected report could not be previewed yet. Adjust the current scope or save the required source data first.</div>
+      </div>
+    </div>`;
+  }
+  return `<div class="card mb4" id="reporting-inline-preview">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
       <div>
-        <h2 style="font-size:0.95rem;font-weight:700;margin-bottom:4px">🗂 Reporting Hub</h2>
-        <p style="font-size:0.72rem;color:var(--muted)">This is the cleaner front door for internal operations reporting, investor-facing reporting, and bonus payout output. The underlying exports read from the selected month and the selected workspace scope.</p>
+        <h3 style="font-size:0.9rem;font-weight:700;margin-bottom:6px">${escapeHtml(title)} Preview</h3>
+        <p style="font-size:0.72rem;color:var(--muted)">${escapeHtml(description)}</p>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button type="button" class="btn btn-gray btn-sm" onmousedown="return queueCurrentWorkspaceTab(7)">Open Data Import</button>
-        <button type="button" class="btn btn-gray btn-sm" onmousedown="return queueCurrentWorkspaceTab(0)">Back to Portfolio Home</button>
-      </div>
+      ${controlsHtml ? `<div style="display:flex;gap:8px;flex-wrap:wrap">${controlsHtml}</div>` : ""}
     </div>
-    <div class="report-hub-grid">
-      ${executiveCard}
-      ${investorCard}
-      ${bonusPayoutCard}
-      <div class="report-hub-card">
-        <h3>Data Import access</h3>
-        <p>Market survey uploads stay in Data Import. DLR daily box score uploads now appear here only when the DLR report type is selected.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button type="button" class="btn btn-blue btn-sm" onmousedown="return queueCurrentWorkspaceTab(7)">Open Data Import Workspace</button>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="card mb4">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
-      <div>
-        <h3 style="font-size:0.85rem;font-weight:700;margin-bottom:6px">📦 Portfolio report builder</h3>
-        <p style="font-size:0.72rem;color:var(--muted)">Filter the report by investor ownership, Regional scope, or individual communities, then export the selected sections in the format you need.</p>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-gray btn-sm" onclick="exportPortfolioReportCSV()" ${selectedReportSections.length===0?"disabled":""}>⬇ CSV</button>
-        <button class="btn btn-gray btn-sm" onclick="exportPortfolioReportExcel()" ${selectedReportSections.length===0?"disabled":""}>📊 Excel</button>
-        <button class="btn btn-blue btn-sm" onclick="openPortfolioPerformanceReport(true)" ${selectedReportSections.length===0?"disabled":""}>🖨 PDF / Print</button>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
-      <div class="report-hub-card">
-        <div class="card-title" style="margin-bottom:6px">Report Audience</div>
-        <select onchange="setPortfolioReportMode(this.value)">
-          <option value="owner" ${portfolioReportMode==="owner"?"selected":""}>Investor Report</option>
-          <option value="regional" ${portfolioReportMode==="regional"?"selected":""}>Regional Detailed + Recommendations</option>
-        </select>
-        <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${portfolioReportMode==="owner"?"High-level investor-facing summary for the selected ownership scope.":"Detailed internal package for Regional accountability and recommendations."}</div>
-      </div>
-      <div class="report-hub-card" style="grid-column:span 2">
-        <div class="card-title" style="margin-bottom:8px">Sections to Include</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">
-          ${Object.keys(portfolioReportSections).map(sectionKey => `<label style="display:flex;align-items:center;gap:8px;font-size:0.72rem;color:var(--text)">
-            <input type="checkbox" ${portfolioReportSections[sectionKey]?"checked":""} onchange="setPortfolioReportSection('${sectionKey}',this.checked)">
-            <span>${getPortfolioReportSectionLabel(sectionKey)}</span>
-          </label>`).join("")}
-        </div>
-      </div>
-    </div>
-    <div class="report-hub-card" style="margin-top:12px">
-      <div class="card-title" style="margin-bottom:6px">${portfolioReportMode==="owner"?"Investor Scope Builder":"Regional Scope Builder"}</div>
-      <div style="font-size:0.68rem;color:var(--muted);margin-bottom:10px">${portfolioReportMode==="owner"?ownerFilterSummary:regionalFilterSummary}</div>
-      ${scopeFilterHTML}
-    </div>
+    <iframe title="${escapeHtml(title)} Preview" srcdoc="${escapeHtml(documentHtml)}" style="width:100%;min-height:980px;border:1px solid var(--border);border-radius:16px;background:#fff"></iframe>
   </div>`;
+}
+
+function renderReportHubInlinePreview(type = normalizeReportHubType(reportHubType), selectedSections = getSelectedPortfolioReportSections()) {
+  if (type === "dlr") {
+    return `<div class="card mb4" id="reporting-inline-preview">${renderDlrReportingWorkspace()}</div>`;
+  }
+  if (type === "bonus_payout") {
+    return renderReportHubPreviewFrame(
+      "Bonus Payout Report",
+      "Payroll-ready output built from the saved bonus calculator state.",
+      buildBonusPayoutReportDocument(),
+      `<button class="btn btn-gray btn-sm" onclick="exportBonusPayoutCSV()">⬇ CSV</button><button class="btn btn-blue btn-sm" onclick="openBonusPayoutReport(true)">🖨 PDF / Print</button>`
+    );
+  }
+  if (selectedSections.length === 0) {
+    return `<div class="card mb4" id="reporting-inline-preview">
+      <div class="report-hub-card">
+        <div class="alert-red">Select at least one report section to build the preview.</div>
+      </div>
+    </div>`;
+  }
+  if (type === "monthly_investor_deck") {
+    const report = buildMonthlyInvestorPresentationData("monthly_investor_deck", { silent: true });
+    return renderReportHubPreviewFrame(
+      "Monthly Report",
+      "Branded monthly report deck preview for the selected investor scope.",
+      report ? buildMonthlyInvestorPresentationDocument(report) : "",
+      `<button class="btn btn-gray btn-sm" onclick="downloadMonthlyInvestorPresentationBrief()">⬇ Editable HTML</button><button class="btn btn-blue btn-sm" onclick="openMonthlyInvestorPresentation(true)">🖨 PDF / Print</button>`
+    );
+  }
+  const payload = buildPortfolioReportRows({ silent: true });
+  return renderReportHubPreviewFrame(
+    type === "investor_marketing_report" ? "Marketing Report" : "Investor Snapshot",
+    type === "investor_marketing_report"
+      ? "Preview blends traffic and funnel momentum with comp calculator and market-survey context."
+      : "Preview shows the current investor-facing operating snapshot for the selected scope.",
+    payload ? buildPortfolioPerformanceReportDocument(payload.report) : "",
+    `<button class="btn btn-gray btn-sm" onclick="exportPortfolioReportCSV()">⬇ CSV</button><button class="btn btn-gray btn-sm" onclick="exportPortfolioReportExcel()">📊 Excel</button><button class="btn btn-blue btn-sm" onclick="openPortfolioPerformanceReport(true)">🖨 PDF / Print</button>`
+  );
 }
 
 // ─── CSV Tab ───────────────────────────────────────────────────────────────────
@@ -17988,16 +18068,12 @@ function setReportHubPerspective(value) {
 
 function getReportHubTypeLabel(type = reportHubType) {
   return {
-    investor_snapshot: "Investor Snap Shot",
-    investor_property_packet: "Investor Community Information",
-    weekly_portfolio_snapshot: "Weekly Portfolio Snap Shot",
-    monthly_investor_deck: "Monthly Investor Deck",
-    investor_marketing_report: "Investor Marketing Report",
+    investor_snapshot: "Investor Snapshot",
+    monthly_investor_deck: "Monthly Report",
+    investor_marketing_report: "Marketing Report",
     dlr: "DLR",
-    portfolio_dlr: "Portfolio DLR",
-    bonus_payout: "Bonus Payout Report",
-    regional_progress_report: "Regional Progress Report"
-  }[normalizeReportHubType(type)] || "Weekly Portfolio Snap Shot";
+    bonus_payout: "Bonus Payout Report"
+  }[normalizeReportHubType(type)] || "Investor Snapshot";
 }
 
 function getReportPerspectiveLabel(value = reportHubPerspective) {
@@ -18010,35 +18086,35 @@ function getReportPerspectiveLabel(value = reportHubPerspective) {
 
 function configureReportHubDefaultsForType(type) {
   const normalized = normalizeReportHubType(type);
-  if (normalized === "regional_progress_report") {
-    portfolioReportMode = "regional";
-    reportHubPerspective = "regional";
+  if (normalized === "investor_marketing_report") {
+    portfolioReportMode = "owner";
+    reportHubPerspective = "investor";
     portfolioReportSections = normalizePortfolioReportSections({
       overview: true,
       traffic: true,
       marketing: true,
       leasing: true,
-      budget: true,
-      renewals: true,
-      reputation: true,
-      finances: true
-    });
-  } else if (normalized === "investor_marketing_report") {
-    portfolioReportMode = "owner";
-    reportHubPerspective = "investor";
-    portfolioReportSections = normalizePortfolioReportSections({
-      overview: false,
-      traffic: true,
-      marketing: true,
-      leasing: true,
       budget: false,
-      renewals: false,
+      renewals: true,
       reputation: true,
       finances: false
     });
-  } else if (normalized === "weekly_portfolio_snapshot") {
+  } else if (normalized === "monthly_investor_deck") {
     portfolioReportMode = "owner";
-    reportHubPerspective = "csuite";
+    reportHubPerspective = "investor";
+    portfolioReportSections = normalizePortfolioReportSections({
+      overview: true,
+      traffic: true,
+      marketing: false,
+      leasing: false,
+      budget: false,
+      renewals: true,
+      reputation: true,
+      finances: false
+    });
+  } else if (normalized === "investor_snapshot") {
+    portfolioReportMode = "owner";
+    reportHubPerspective = "investor";
     portfolioReportSections = normalizePortfolioReportSections({
       overview: true,
       traffic: true,
@@ -18046,12 +18122,13 @@ function configureReportHubDefaultsForType(type) {
       leasing: true,
       budget: true,
       renewals: true,
-      reputation: false,
+      reputation: true,
       finances: true
     });
-  } else if (normalized === "investor_snapshot" || normalized === "monthly_investor_deck" || normalized === "investor_property_packet" || normalized === "portfolio_dlr") {
-    portfolioReportMode = "owner";
-    reportHubPerspective = "investor";
+  } else if (normalized === "dlr") {
+    reportHubPerspective = "csuite";
+  } else if (normalized === "bonus_payout") {
+    reportHubPerspective = "csuite";
   }
 }
 
@@ -19035,6 +19112,7 @@ function buildMarketSurveyAggregateForDetails(details = []) {
 
 function buildPortfolioReportData() {
   const selectedMonth = getReportHubMonthIndex();
+  const reportMode = "owner";
   const allDetails = buildPortfolioDetailsForMonth(selectedMonth);
   const details = getScopedPortfolioReportDetails(allDetails).map(detail => ({
     ...detail,
@@ -19044,19 +19122,15 @@ function buildPortfolioReportData() {
     }
   }));
   const type = normalizeReportHubType(reportHubType);
-  const reportTitle = type === "regional_progress_report"
-    ? "ATLAS RISE Regional Progress Report"
-    : type === "investor_marketing_report"
+  const reportTitle = type === "investor_marketing_report"
       ? "ATLAS RISE Investor Marketing Report"
-      : type === "weekly_portfolio_snapshot"
-        ? "ATLAS RISE Weekly Portfolio Snap Shot"
-        : "ATLAS RISE Investor Snap Shot";
-  const reportSubtitle = `${getReportPerspectiveLabel()} · ${portfolioReportMode === "owner" ? "selected investor/community scope" : "regional performance scope"}`;
+      : "ATLAS RISE Investor Snapshot";
+  const reportSubtitle = `${getReportPerspectiveLabel()} · selected investor groups and highlighted communities`;
   const aggregate = aggregateCommunitySummaries(details.map(detail => detail.summary));
   aggregate.marketSurveyAggregate = buildMarketSurveyAggregateForDetails(details);
   const report = {
     generatedAt: new Date(),
-    mode: portfolioReportMode,
+    mode: reportMode,
     type,
     perspective: reportHubPerspective,
     title: reportTitle,
@@ -19074,15 +19148,16 @@ function buildPortfolioReportData() {
   return report;
 }
 
-function buildPortfolioReportRows() {
+function buildPortfolioReportRows(options = {}) {
+  const silent = options?.silent === true;
   const report = buildPortfolioReportData();
   if (report.selectedSections.length === 0) {
-    alert("Select at least one section for the portfolio report.");
+    if (!silent) alert("Select at least one section for the portfolio report.");
     return null;
   }
   report.scopeSummary = getPortfolioReportScopeSummary(report);
   if (report.details.length === 0) {
-    alert("No communities match the current report filters.");
+    if (!silent) alert("No communities match the current report filters.");
     return null;
   }
   const rows = [];
@@ -19214,10 +19289,8 @@ function exportPortfolioReportExcel() {
   URL.revokeObjectURL(link.href);
 }
 
-function openPortfolioPerformanceReport(printImmediately = false) {
-  const payload = buildPortfolioReportRows();
-  if (!payload) return;
-  const { report } = payload;
+function buildPortfolioPerformanceReportDocument(report) {
+  if (!report) return "";
   const recommendationSourcesBySection = {
     overview: ["Overview", "Traffic", "Renewals"],
     traffic: ["Traffic"],
@@ -19281,13 +19354,20 @@ function openPortfolioPerformanceReport(printImmediately = false) {
         </section>`;
       }).join("")
     : "";
-  const win = window.open("", "_blank");
-  if (!win) return;
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${report.title}</title><style>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${report.title}</title><style>
     body{font-family:'DM Sans',Arial,sans-serif;padding:28px;color:#111827}
     table{width:100%;border-collapse:collapse}
     @media print { body{padding:18px} }
-  </style></head><body>${brandMark}${investorMarketingBlocks}${sectionBlocks}</body></html>`);
+  </style></head><body>${brandMark}${investorMarketingBlocks}${sectionBlocks}</body></html>`;
+}
+
+function openPortfolioPerformanceReport(printImmediately = false) {
+  const payload = buildPortfolioReportRows();
+  if (!payload) return;
+  const documentHtml = buildPortfolioPerformanceReportDocument(payload.report);
+  const win = window.open("", "_blank");
+  if (!win) return;
+  win.document.write(documentHtml);
   win.document.close();
   if (printImmediately) {
     win.focus();
@@ -19702,12 +19782,13 @@ function getMonthlyPresentationCurrentEntry(detail) {
   return detail?.record?.monthlyData?.[monthIdx] ?? {};
 }
 
-function buildMonthlyInvestorPresentationData(variant = "monthly_investor_deck") {
+function buildMonthlyInvestorPresentationData(variant = "monthly_investor_deck", options = {}) {
+  const silent = options?.silent === true;
   const selectedMonth = getReportHubMonthIndex();
   const allDetails = buildPortfolioDetailsForMonth(selectedMonth);
   const details = getMonthlyPresentationScopedDetails(allDetails);
   if (details.length === 0) {
-    alert("No communities match the current monthly investor presentation scope.");
+    if (!silent) alert("No communities match the current monthly report scope.");
     return null;
   }
   const generatedAt = new Date();
@@ -19731,7 +19812,7 @@ function buildMonthlyInvestorPresentationData(variant = "monthly_investor_deck")
     variant,
     title: isInvestorPacket
       ? "Investor Community Information"
-      : (details.length === 1 ? "Community Market Analysis" : "Portfolio Market Analysis"),
+      : (details.length === 1 ? "ATLAS RISE Monthly Report" : "ATLAS RISE Monthly Report"),
     subtitle: isInvestorPacket ? communityNames.join(" · ") : subtitle,
     coverMonthLabel: `${getDashboardMonthLabel(selectedMonth)} ${isInvestorPacket ? "Investor Community Information" : "Investor Presentation"}`,
     footerLabel: isInvestorPacket
@@ -21915,11 +21996,9 @@ function getReportHubActionOptions(type = reportHubType) {
     { value: "print", label: "Print / PDF" },
     { value: "email", label: "Draft Email" }
   ];
-  if (["investor_snapshot", "investor_marketing_report", "regional_progress_report"].includes(normalizedType)) return [...common, { value: "export_csv", label: "Export CSV" }, { value: "export_excel", label: "Export Excel" }];
-  if (normalizedType === "monthly_investor_deck") return [...common, { value: "export_canva", label: "Export for Canva" }, { value: "export_html", label: "Download Editable HTML" }];
-  if (normalizedType === "investor_property_packet") return [...common, { value: "export_html", label: "Download Editable HTML" }];
+  if (["investor_snapshot", "investor_marketing_report"].includes(normalizedType)) return [...common, { value: "export_csv", label: "Export CSV" }, { value: "export_excel", label: "Export Excel" }];
+  if (normalizedType === "monthly_investor_deck") return [...common, { value: "export_html", label: "Download Editable HTML" }];
   if (normalizedType === "dlr") return [...common, { value: "export_html", label: "Download Editable HTML" }];
-  if (normalizedType === "portfolio_dlr") return [...common, { value: "export_html", label: "Download Editable HTML" }];
   if (normalizedType === "bonus_payout") return [...common, { value: "export_csv", label: "Export CSV" }];
   return common;
 }
@@ -21934,16 +22013,7 @@ function buildReportHubEmailDraft(type = reportHubType) {
   const selectedRecipients = ensureReportHubRecipientSelection().filter(contact => reportHubRecipientKeys.includes(contact.key));
   const to = selectedRecipients.map(contact => contact.email).join("; ");
   const scopeLabel = getWorkspaceScopeDisplayName();
-  if (normalizedType === "weekly_portfolio_snapshot") {
-    const report = buildWeeklyExecutiveReportData();
-    if (!report) return null;
-    return {
-      to,
-      subject: `${report.title} | ${report.currentMonthLabel}`,
-      body: buildWeeklyExecutiveEmailBody(report)
-    };
-  }
-  if (["investor_snapshot", "investor_marketing_report", "regional_progress_report"].includes(normalizedType)) {
+  if (["investor_snapshot", "investor_marketing_report"].includes(normalizedType)) {
     const payload = buildPortfolioReportRows();
     if (!payload) return null;
     return {
@@ -21968,22 +22038,7 @@ function buildReportHubEmailDraft(type = reportHubType) {
         `${report.title}`,
         `${report.scopeSummary}`,
         "",
-        "The latest investor presentation is ready from the Reporting Hub.",
-        "Use Preview, Print / PDF, Export for Canva, or Download Editable HTML before sending."
-      ].join("\n")
-    };
-  }
-  if (normalizedType === "investor_property_packet") {
-    const report = buildInvestorPropertyPacketData();
-    if (!report) return null;
-    return {
-      to,
-      subject: `${report.title} | ${report.currentMonthLabel}`,
-      body: [
-        `${report.title}`,
-        `${report.scopeSummary}`,
-        "",
-        "The latest Investor Community Information report is ready from the Reporting Hub.",
+        "The latest monthly report is ready from the Reporting Hub.",
         "Use Preview, Print / PDF, or Download Editable HTML before sending."
       ].join("\n")
     };
@@ -22001,21 +22056,6 @@ function buildReportHubEmailDraft(type = reportHubType) {
         report.reportPeriodLabel,
         "",
         "The latest DLR snapshot is ready from the dashboard.",
-        "Use Print / PDF or Download Editable HTML before sending."
-      ].join("\n")
-    };
-  }
-  if (normalizedType === "portfolio_dlr") {
-    const report = buildPortfolioDlrOverviewData();
-    if (!report) return null;
-    return {
-      to,
-      subject: `${report.title} | ${report.reportPeriodLabel}`,
-      body: [
-        report.title,
-        report.scopeSummary,
-        "",
-        `${report.details.length} selected communit${report.details.length === 1 ? "y is" : "ies are"} included in this branded portfolio DLR.`,
         "Use Print / PDF or Download Editable HTML before sending."
       ].join("\n")
     };
@@ -22685,46 +22725,36 @@ async function runReportHubAction() {
   ensureValidReportHubAction();
   const type = normalizeReportHubType(reportHubType);
   if (reportHubAction === "preview") {
-    if (type === "weekly_portfolio_snapshot") return openWeeklyExecutiveReport(false);
-    if (["investor_snapshot", "investor_marketing_report", "regional_progress_report"].includes(type)) return openPortfolioPerformanceReport(false);
-    if (type === "monthly_investor_deck") return openMonthlyInvestorPresentation(false);
-    if (type === "investor_property_packet") return openInvestorPropertyPacket(false);
+    if (["investor_snapshot", "investor_marketing_report", "monthly_investor_deck", "bonus_payout"].includes(type)) {
+      renderTab();
+      const target = document.getElementById("reporting-inline-preview");
+      if (target?.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
     if (type === "dlr") {
       syncDlrTargetFromReportHub({ preserveCommunity: true });
       renderTab();
       focusReportingDlrPreview();
       return;
     }
-    if (type === "portfolio_dlr") {
-      renderTab();
-      const target = document.getElementById("reporting-portfolio-dlr-workspace");
-      if (target?.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "start" });
-      return;
-    }
-    return openBonusPayoutReport(false);
+    return;
   }
   if (reportHubAction === "print") {
-    if (type === "weekly_portfolio_snapshot") return openWeeklyExecutiveReport(true);
-    if (["investor_snapshot", "investor_marketing_report", "regional_progress_report"].includes(type)) return openPortfolioPerformanceReport(true);
+    if (["investor_snapshot", "investor_marketing_report"].includes(type)) return openPortfolioPerformanceReport(true);
     if (type === "monthly_investor_deck") return openMonthlyInvestorPresentation(true);
-    if (type === "investor_property_packet") return openInvestorPropertyPacket(true);
     if (type === "dlr") {
       syncDlrTargetFromReportHub({ preserveCommunity: true });
       return openDlrInvestorOverview(true);
     }
-    if (type === "portfolio_dlr") return openPortfolioDlrOverview(true);
     return openBonusPayoutReport(true);
   }
   if (reportHubAction === "export_csv") {
-    if (["investor_snapshot", "investor_marketing_report", "regional_progress_report"].includes(type)) return exportPortfolioReportCSV();
+    if (["investor_snapshot", "investor_marketing_report"].includes(type)) return exportPortfolioReportCSV();
     return exportBonusPayoutCSV();
   }
   if (reportHubAction === "export_excel") return exportPortfolioReportExcel();
-  if (reportHubAction === "export_canva") return exportMonthlyInvestorPresentationPptx();
   if (reportHubAction === "export_html") {
     if (type === "monthly_investor_deck") return downloadMonthlyInvestorPresentationBrief();
-    if (type === "investor_property_packet") return downloadInvestorPropertyPacketHtml();
-    if (type === "portfolio_dlr") return downloadPortfolioDlrOverviewHtml();
     syncDlrTargetFromReportHub({ preserveCommunity: true });
     return downloadDlrInvestorOverviewHtml();
   }
@@ -26495,6 +26525,7 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
     const seenWorkbookCommunityIds = new Set();
     const touchedPeriods = new Map();
     const unresolvedWorkbookRows = [];
+    const missingLeadSourceRows = [];
     const log = [];
     let matched = 0;
     let included = 0;
@@ -26642,12 +26673,17 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
           text_chat_other: "text_chat_other"
         };
         const hasLeadSourceBreakdown = leadSourceValues.some(value => value !== null);
-        const rebalancedLeadSourceResult = !hasLeadSourceBreakdown && guestCardsValue !== null
-          ? rebalanceLeadSourceBreakdown(targetRecord, targetMonthIdx, guestCardsValue)
-          : null;
+        const shouldFlagMissingLeadMix = !hasLeadSourceBreakdown && guestCardsValue !== null && guestCardsValue > 0;
+        if (shouldFlagMissingLeadMix) {
+          missingLeadSourceRows.push({
+            community: mappedName,
+            month: MONTHS[targetMonthIdx],
+            leads: guestCardsValue
+          });
+        }
         const fieldsToClear = [
           ...Object.values(monthlyFieldMap),
-          ...((hasLeadSourceBreakdown || rebalancedLeadSourceResult) ? Object.values(leadSourceFieldMap) : [])
+          ...(hasLeadSourceBreakdown ? Object.values(leadSourceFieldMap) : [])
         ];
         clearMonthlyRecordFields(targetRecord, targetMonthIdx, fieldsToClear);
         const applyFieldMap = {
@@ -26661,13 +26697,6 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
           if (!Number.isFinite(numeric)) return;
           applyValueToRecord(targetRecord, targetMonthIdx, targetKey, numeric);
         });
-        if (!hasLeadSourceBreakdown && rebalancedLeadSourceResult) {
-          Object.entries(leadSourceFieldMap).forEach(([sourceKey, targetKey]) => {
-            const numeric = Number(rebalancedLeadSourceResult.values?.[sourceKey]);
-            if (!Number.isFinite(numeric)) return;
-            applyValueToRecord(targetRecord, targetMonthIdx, targetKey, numeric);
-          });
-        }
         const totalUnitsVal = Number(String(totalUnitsValue ?? "").replace(/[,]/g, ""));
         if (Number.isFinite(totalUnitsVal) && totalUnitsVal > 0) {
           targetRecord.customUnits = Math.round(totalUnitsVal);
@@ -26691,10 +26720,8 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
         log.push(`${mappedName} · ${monthLabel}: occupied ${mappedRow.occupied || "—"}, leased ${mappedRow.leased || "—"}, leads ${mappedRow.guest_cards || "—"}`);
         if ([leadWalkInsValue, leadCallsValue, leadEmailsOnlineValue, leadChatTextOtherValue].some(value => value !== null)) {
           log.push(`↳ lead mix: walk ${leadWalkInsValue ?? 0}, calls ${leadCallsValue ?? 0}, email/online ${leadEmailsOnlineValue ?? 0}, text/chat/other ${leadChatTextOtherValue ?? 0}`);
-        } else if (rebalancedLeadSourceResult?.strategy === "rescaled_existing") {
-          log.push(`↳ lead mix not supplied in Monthly_Upload; rescaled the saved source mix to ${mappedRow.guest_cards || 0} total leads.`);
-        } else if (rebalancedLeadSourceResult?.strategy === "catch_all") {
-          log.push(`↳ lead mix not supplied in Monthly_Upload; routed ${mappedRow.guest_cards || 0} unattributed leads into text/chat/other so the funnel stays in sync.`);
+        } else if (shouldFlagMissingLeadMix) {
+          log.push(`↳ lead mix missing in Monthly_Upload; ATLAS kept totals but did not rebalance ${mappedRow.guest_cards || 0} leads into source buckets.`);
         } else {
           log.push("↳ lead mix not supplied in Monthly_Upload; no source buckets were changed.");
         }
@@ -26771,6 +26798,11 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
       if (unresolvedWorkbookRows.length > 6) {
         csvLog.push(`ℹ ${unresolvedWorkbookRows.length - 6} additional workbook row(s) also failed mapping validation.`);
       }
+    }
+    if (missingLeadSourceRows.length > 0) {
+      const sample = missingLeadSourceRows.slice(0, 6).map(item => `${item.community} (${item.month} · ${item.leads} leads)`).join(", ");
+      csvError = `Lead-source mix is missing for ${missingLeadSourceRows.length} workbook row(s). ATLAS imported totals but did not rebalance source buckets. Review: ${sample}${missingLeadSourceRows.length > 6 ? `, plus ${missingLeadSourceRows.length - 6} more.` : "."}`;
+      csvLog.push(`❌ Lead-source validation: ${missingLeadSourceRows.length} row(s) had lead totals without source mix. No silent rebalancing was applied.`);
     }
       csvLog.push(`ℹ Community records updated across tabs/calculations for ${touchedCommunities.size} communit${touchedCommunities.size === 1 ? "y" : "ies"}, including portfolio Overview / Traffic & Funnel and each matching community Traffic & Funnel month record.`);
     renderTab();

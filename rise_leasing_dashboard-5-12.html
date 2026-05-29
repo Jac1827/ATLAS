@@ -26642,6 +26642,15 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
         renewal_early_termination: ""
       };
       const targetRecord = getPropertyRecordForApply(mappedName);
+      const leadSourceFieldMap = {
+        walk_in: "walk_in",
+        off_site_event: "off_site_event",
+        phone_calls: "phone_calls",
+        emails_online: "emails_online",
+        text_chat_other: "text_chat_other"
+      };
+      const hasLeadSourceBreakdown = leadSourceValues.some(value => value !== null);
+      const shouldFlagMissingLeadMix = !hasLeadSourceBreakdown && guestCardsValue !== null && guestCardsValue > 0;
       if (targetRecord) {
         touchedCommunities.add(mappedName);
         const monthlyFieldMap = {
@@ -26665,15 +26674,6 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
           renewal_expirations: "renewal_expirations",
           renewals_signed: "renewals_signed"
         };
-        const leadSourceFieldMap = {
-          walk_in: "walk_in",
-          off_site_event: "off_site_event",
-          phone_calls: "phone_calls",
-          emails_online: "emails_online",
-          text_chat_other: "text_chat_other"
-        };
-        const hasLeadSourceBreakdown = leadSourceValues.some(value => value !== null);
-        const shouldFlagMissingLeadMix = !hasLeadSourceBreakdown && guestCardsValue !== null && guestCardsValue > 0;
         if (shouldFlagMissingLeadMix) {
           missingLeadSourceRows.push({
             community: mappedName,

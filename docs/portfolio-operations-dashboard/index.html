@@ -1834,7 +1834,9 @@ function normalizeReportHubType(value) {
     investor_deck: "monthly_investor_deck",
     dlr_overview: "dlr",
     monthly_report: "monthly_investor_deck",
-    marketing_report: "investor_marketing_report"
+    marketing_report: "investor_marketing_report",
+    community_report: "community_progress",
+    community_progress_report: "community_progress"
   };
   const mapped = legacyMap[normalized] || normalized || "investor_snapshot";
   return [
@@ -1842,7 +1844,8 @@ function normalizeReportHubType(value) {
     "monthly_investor_deck",
     "investor_marketing_report",
     "dlr",
-    "bonus_payout"
+    "bonus_payout",
+    "community_progress"
   ].includes(mapped) ? mapped : "investor_snapshot";
 }
 
@@ -18122,8 +18125,11 @@ function renderPortfolioHomeTab() {
 function renderReportingTab() {
   ensureValidReportHubAction();
   reportHubType = normalizeReportHubType(reportHubType);
-  if (!["dlr", "bonus_payout"].includes(reportHubType) && reportHubPerspective === "regional") {
+  if (!["dlr", "bonus_payout", "community_progress"].includes(reportHubType) && reportHubPerspective === "regional") {
     reportHubPerspective = "investor";
+  }
+  if (reportHubType === "community_progress") {
+    reportHubPerspective = "csuite";
   }
   if (normalizeReportHubType(reportHubType) === "dlr") {
     syncDlrTargetFromReportHub({ preserveCommunity: true });
@@ -18146,8 +18152,8 @@ function renderReportingTab() {
   const reportMonthLabel = `${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`;
   const selectedReportSections = getSelectedPortfolioReportSections();
   const ownerFilterSummary = `${(portfolioReportFilters.investorGroups ?? []).length} investor group(s) · ${(portfolioReportFilters.investorCommunities ?? []).length} highlighted communit${(portfolioReportFilters.investorCommunities ?? []).length === 1 ? "y" : "ies"}`;
-  const reportNeedsScopeBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout";
-  const reportNeedsSectionBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout";
+  const reportNeedsScopeBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "community_progress";
+  const reportNeedsSectionBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "community_progress";
   const reportTypeDescription = normalizedType === "investor_marketing_report"
     ? "Combines traffic and funnel performance with comp calculator and market-survey context."
     : normalizedType === "monthly_investor_deck"
@@ -18156,6 +18162,8 @@ function renderReportingTab() {
         ? "Payroll-ready payout reporting using the saved bonus calculator data."
         : normalizedType === "dlr"
           ? "Single-community daily leasing report with upload-backed activity checks."
+          : normalizedType === "community_progress"
+            ? "C-suite month-to-date community progress report with photo-led visuals, pace analysis, and explicit data alerts when source fields are incomplete."
           : "Investor-facing operating snapshot across the selected investor groups and highlighted communities.";
   const scopeFilterHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
       <div class="report-hub-card">
@@ -18178,7 +18186,9 @@ function renderReportingTab() {
         </div>
       </div>
     </div>`;
-  const editableRecommendationDetails = (reportHubPerspective === "csuite" || reportHubPerspective === "regional")
+  const editableRecommendationDetails = normalizedType === "community_progress"
+    ? []
+    : (reportHubPerspective === "csuite" || reportHubPerspective === "regional")
     ? getScopedPortfolioReportDetails(reportBuilderDetails).slice(0, 8)
     : [];
   const recommendationsEditorHtml = editableRecommendationDetails.length > 0
@@ -18215,8 +18225,8 @@ function renderReportingTab() {
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px">
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Current Scope</div>
-        <div style="font-size:0.82rem;font-weight:700;color:var(--accent)">${escapeHtml(getWorkspaceScopeDisplayName())}</div>
-        <div style="font-size:0.68rem;color:var(--muted);margin-top:6px">${escapeHtml(reportMonthLabel)} report period · ${isPortfolioWorkspaceSelected() ? "portfolio aggregate mode" : "community-specific mode"}</div>
+        <div style="font-size:0.82rem;font-weight:700;color:var(--accent)">${escapeHtml(normalizedType === "community_progress" ? getCommunityProgressReportCommunityName() : getWorkspaceScopeDisplayName())}</div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-top:6px">${escapeHtml(reportMonthLabel)} report period · ${normalizedType === "community_progress" ? "single-community c-suite mode" : (isPortfolioWorkspaceSelected() ? "portfolio aggregate mode" : "community-specific mode")}</div>
       </div>
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Report Type</div>
@@ -18226,16 +18236,20 @@ function renderReportingTab() {
           <option value="investor_marketing_report" ${reportHubType==="investor_marketing_report"?"selected":""}>Marketing Report</option>
           <option value="bonus_payout" ${reportHubType==="bonus_payout"?"selected":""}>Bonus Payout Report</option>
           <option value="monthly_investor_deck" ${reportHubType==="monthly_investor_deck"?"selected":""}>Monthly Report</option>
+          <option value="community_progress" ${reportHubType==="community_progress"?"selected":""}>Community Progress Report</option>
         </select>
         <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${escapeHtml(reportTypeDescription)}</div>
       </div>
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Report View</div>
-        <select onchange="setReportHubPerspective(this.value)">
-          <option value="investor" ${reportHubPerspective==="investor"?"selected":""}>Investor facing</option>
-          <option value="csuite" ${reportHubPerspective==="csuite"?"selected":""}>C-Suite View</option>
-        </select>
-        <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${reportHubPerspective === "investor" ? "Highlights wins and keeps the delivery investor-ready." : "High-level, clear wins and headwinds with management adjustments shown as controlled actions."}</div>
+        ${normalizedType === "community_progress"
+          ? `<div style="padding:8px 10px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2);font-size:0.78rem;font-weight:700;color:var(--accent)">C-Suite View</div>
+             <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">This report is locked to a c-suite lens so the output stays focused on operating progress and data confidence checks.</div>`
+          : `<select onchange="setReportHubPerspective(this.value)">
+              <option value="investor" ${reportHubPerspective==="investor"?"selected":""}>Investor facing</option>
+              <option value="csuite" ${reportHubPerspective==="csuite"?"selected":""}>C-Suite View</option>
+            </select>
+            <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${reportHubPerspective === "investor" ? "Highlights wins and keeps the delivery investor-ready." : "High-level, clear wins and headwinds with management adjustments shown as controlled actions."}</div>`}
       </div>
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Report Period</div>
@@ -18322,6 +18336,9 @@ function renderReportHubPreviewFrame(title, description, documentHtml, controlsH
 function renderReportHubInlinePreview(type = normalizeReportHubType(reportHubType), selectedSections = getSelectedPortfolioReportSections()) {
   if (type === "dlr") {
     return `<div class="card mb4" id="reporting-inline-preview">${renderDlrReportingWorkspace()}</div>`;
+  }
+  if (type === "community_progress") {
+    return `<div class="card mb4" id="reporting-inline-preview">${renderCommunityProgressReportingWorkspace()}</div>`;
   }
   if (type === "bonus_payout") {
     return renderReportHubPreviewFrame(
@@ -18715,7 +18732,8 @@ function getReportHubTypeLabel(type = reportHubType) {
     monthly_investor_deck: "Monthly Report",
     investor_marketing_report: "Marketing Report",
     dlr: "DLR",
-    bonus_payout: "Bonus Payout Report"
+    bonus_payout: "Bonus Payout Report",
+    community_progress: "Community Progress Report"
   }[normalizeReportHubType(type)] || "Investor Snapshot";
 }
 
@@ -18771,6 +18789,8 @@ function configureReportHubDefaultsForType(type) {
   } else if (normalized === "dlr") {
     reportHubPerspective = "csuite";
   } else if (normalized === "bonus_payout") {
+    reportHubPerspective = "csuite";
+  } else if (normalized === "community_progress") {
     reportHubPerspective = "csuite";
   }
 }
@@ -18900,6 +18920,10 @@ function getScopedPortfolioReportDetails(details) {
 }
 
 function getReportBuilderScopedDetails() {
+  if (normalizeReportHubType(reportHubType) === "community_progress") {
+    const detail = buildCommunityDetailForMonth(getCommunityProgressReportCommunityName(), getCurrentCommunityRecord(), getReportHubMonthIndex());
+    return detail ? [detail] : [];
+  }
   return getScopedPortfolioReportDetails(buildPortfolioDetailsForMonth(getReportHubMonthIndex()));
 }
 
@@ -19180,6 +19204,7 @@ function buildPortfolioTrendLineChart(points = [], options = {}) {
     ? [actualPoints[actualPoints.length - 1] || null, ...projectedPoints].filter(Boolean)
     : [];
   const tickCount = 4;
+  const highlightMonthIdx = Number.isInteger(options.highlightMonthIdx) ? options.highlightMonthIdx : getSelectedDashboardMonthIndex();
   const ticks = Array.from({ length: tickCount + 1 }, (_, idx) => {
     const value = minValue + (((maxValue - minValue) / tickCount) * idx);
     return {
@@ -19205,7 +19230,7 @@ function buildPortfolioTrendLineChart(points = [], options = {}) {
     }).join("")}
     ${points.map((point, idx) => {
       const x = left + (stepX * idx);
-      const isHighlighted = point?.projected ? false : idx === getSelectedDashboardMonthIndex();
+      const isHighlighted = point?.projected ? false : idx === highlightMonthIdx;
       return `<text x="${x}" y="${height - 12}" text-anchor="middle" font-size="10" fill="${isHighlighted ? "#1b3a4b" : "#7d8590"}" font-weight="${isHighlighted ? "700" : "500"}">${escapeHtml(point?.shortLabel || FULL_MONTHS[idx].slice(0, 3))}</text>`;
     }).join("")}
   </svg>`;
@@ -22651,6 +22676,7 @@ function getReportHubActionOptions(type = reportHubType) {
   if (["investor_snapshot", "investor_marketing_report"].includes(normalizedType)) return [...common, { value: "export_csv", label: "Export CSV" }, { value: "export_excel", label: "Export Excel" }];
   if (normalizedType === "monthly_investor_deck") return [...common, { value: "export_html", label: "Download Editable HTML" }];
   if (normalizedType === "dlr") return [...common, { value: "export_html", label: "Download Editable HTML" }];
+  if (normalizedType === "community_progress") return [...common, { value: "export_html", label: "Download Editable HTML" }];
   if (normalizedType === "bonus_payout") return [...common, { value: "export_csv", label: "Export CSV" }];
   return common;
 }
@@ -22692,6 +22718,21 @@ function buildReportHubEmailDraft(type = reportHubType) {
         "",
         "The latest monthly report is ready from the Reporting Hub.",
         "Use Preview, Print / PDF, or Download Editable HTML before sending."
+      ].join("\n")
+    };
+  }
+  if (normalizedType === "community_progress") {
+    const report = buildCommunityProgressReportData({ silent: true });
+    if (!report) return null;
+    return {
+      to,
+      subject: `${report.communityName} | Community Progress Report | ${report.currentMonthLabel}`,
+      body: [
+        `${report.title}`,
+        `${report.communityName} · ${report.currentMonthLabel}`,
+        "",
+        "The month-to-date community progress report is ready from the Reporting Hub.",
+        "Use Preview, Print / PDF, or Download Editable HTML before sending. Review the alerts section first so any missing source data is called out explicitly."
       ].join("\n")
     };
   }
@@ -23587,6 +23628,11 @@ async function runReportHubAction() {
       if (target?.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
+    if (type === "community_progress") {
+      renderTab();
+      focusReportingCommunityProgressPreview();
+      return;
+    }
     if (type === "dlr") {
       syncDlrTargetFromReportHub({ preserveCommunity: true });
       renderTab();
@@ -23598,6 +23644,7 @@ async function runReportHubAction() {
   if (reportHubAction === "print") {
     if (["investor_snapshot", "investor_marketing_report"].includes(type)) return openPortfolioPerformanceReport(true);
     if (type === "monthly_investor_deck") return openMonthlyInvestorPresentation(true);
+    if (type === "community_progress") return openCommunityProgressReport(true);
     if (type === "dlr") {
       syncDlrTargetFromReportHub({ preserveCommunity: true });
       return openDlrInvestorOverview(true);
@@ -23611,6 +23658,7 @@ async function runReportHubAction() {
   if (reportHubAction === "export_excel") return exportPortfolioReportExcel();
   if (reportHubAction === "export_html") {
     if (type === "monthly_investor_deck") return downloadMonthlyInvestorPresentationBrief();
+    if (type === "community_progress") return downloadCommunityProgressReportHtml();
     syncDlrTargetFromReportHub({ preserveCommunity: true });
     return downloadDlrInvestorOverviewHtml();
   }
@@ -23789,6 +23837,7 @@ function buildDlrForwardLookChart(report) {
   if (rows.length === 0) {
     return `<div style="font-size:0.68rem;color:var(--muted)">Projected occupancy chart will appear here once forward-look months are saved.</div>`;
   }
+  const hasBudgetData = rows.some(row => Number.isFinite(Number(row.budgetedOccupancy)) && Number(row.budgetedOccupancy) > 0);
   const maxPct = Math.max(100, ...rows.map(row => Math.max(Number(row.projectedOccupancy) || 0, Number(row.budgetedOccupancy) || 0)));
   const width = 520;
   const height = 180;
@@ -23804,7 +23853,7 @@ function buildDlrForwardLookChart(report) {
     const y = top + chartHeight - ((Math.max(0, Number(value) || 0) / maxPct) * chartHeight);
     return [x, y];
   };
-  const budgetPath = rows.map((row, idx) => pointFor(row.budgetedOccupancy, idx).join(",")).join(" ");
+  const budgetPath = hasBudgetData ? rows.map((row, idx) => pointFor(row.budgetedOccupancy, idx).join(",")).join(" ") : "";
   const projectedPath = rows.map((row, idx) => pointFor(row.projectedOccupancy, idx).join(",")).join(" ");
   const labels = rows.map((row, idx) => {
     const [x] = pointFor(row.projectedOccupancy, idx);
@@ -23817,27 +23866,29 @@ function buildDlrForwardLookChart(report) {
       <text x="${x}" y="${y - 8}" text-anchor="middle" font-size="10" fill="#0f172a">${(Number(row.projectedOccupancy) || 0).toFixed(1)}%</text>
     </g>`;
   }).join("");
-  const budgetDots = rows.map((row, idx) => {
+  const budgetDots = hasBudgetData ? rows.map((row, idx) => {
     const [x, y] = pointFor(row.budgetedOccupancy, idx);
     return `<circle cx="${x}" cy="${y}" r="3" fill="#94a3b8"/>`;
-  }).join("");
+  }).join("") : "";
   return `<svg viewBox="0 0 ${width} ${height}" style="width:100%;height:auto;display:block">
     <rect x="0" y="0" width="${width}" height="${height}" rx="14" fill="rgba(239,246,255,0.55)"/>
     <line x1="${left}" y1="${top + chartHeight}" x2="${width - right}" y2="${top + chartHeight}" stroke="#cbd5e1" stroke-width="1"/>
-    <polyline fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 4" points="${budgetPath}"/>
+    ${hasBudgetData ? `<polyline fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 4" points="${budgetPath}"/>` : ""}
     <polyline fill="none" stroke="#2563eb" stroke-width="3" points="${projectedPath}"/>
     ${budgetDots}
     ${projectedDots}
+    ${hasBudgetData ? "" : `<text x="${left}" y="${top + 14}" font-size="10" fill="#64748b">Budget occupancy not saved for this month.</text>`}
     ${labels}
   </svg>`;
 }
 
 function buildDlrOccupancyPositionChart(report) {
+  const budgetPct = Number.isFinite(Number(report.budgetOccPct)) ? Number(report.budgetOccPct) : null;
   const metrics = [
     { label: "Occupied", pct: Number(report.occupancyPct) || 0, color: "#1d4ed8", detail: `${formatDlrMetricValue(report.occupiedUnits)} units` },
     { label: "Leased", pct: Number(report.leasedPct) || 0, color: "#0f766e", detail: `${formatDlrMetricValue(report.leasedUnits)} units` },
     { label: "90-Day", pct: Number(report.trendingOccupancyPct) || 0, color: "#7c3aed", detail: "ending physical occ" },
-    { label: "Budget", pct: Number(report.budgetOccPct) || 0, color: "#94a3b8", detail: "current target" }
+    { label: "Budget", pct: budgetPct, color: "#94a3b8", detail: budgetPct !== null ? "current target" : "budget not saved" }
   ];
   const bars = metrics.map(item => `
     <div style="margin-bottom:10px">
@@ -23857,7 +23908,7 @@ function buildDlrOccupancyPositionChart(report) {
         <div style="font-size:22px;font-weight:800;color:#0f172a;margin-top:4px">${formatDlrPercent(report.occupancyPct, 1)} occupied</div>
       </div>
       <div style="text-align:right;font-size:12px;color:#475569">
-        <div>${formatSignedDisplay((Number(report.occupancyPct) || 0) - (Number(report.budgetOccPct) || 0), 1, " pts").replace("pts", "pts vs budget")}</div>
+        <div>${budgetPct !== null ? formatSignedDisplay((Number(report.occupancyPct) || 0) - budgetPct, 1, " pts").replace("pts", "pts vs budget") : "Budget not saved"}</div>
         <div style="margin-top:4px">${formatDlrPercent(report.leasedPct, 1)} leased</div>
       </div>
     </div>
@@ -24800,6 +24851,943 @@ function buildDlrInvestorOverviewDocument(report) {
       </div>
     </div>
   </body></html>`;
+}
+
+function getCommunityProgressReportCommunityName() {
+  return matchPropertyName(getProp().name, { fallbackToCurrent: false }) || getProp().name;
+}
+
+function buildCommunityProgressTrendRows(report) {
+  if (!report?.sourceRecord) return [];
+  const record = report.sourceRecord;
+  const monthEntries = Array.isArray(record.monthlyData) && record.monthlyData.length === 12 ? record.monthlyData : defaultMonthly();
+  const communityName = report.communityName || getCommunityProgressReportCommunityName();
+  const selectedMonthIdx = Number.isInteger(report.reportMonthIdx) ? clampNumber(report.reportMonthIdx, 0, 11) : getReportHubMonthIndex();
+  return MONTHS.slice(0, selectedMonthIdx + 1).map((monthLabel, monthIdx) => {
+    const detail = buildCommunityDetailForMonth(communityName, record, monthIdx) || {};
+    const summary = detail.summary || {};
+    const monthEntry = monthEntries[monthIdx] ?? {};
+    const budgetOccPct = getRecordSavedBudgetOccPct(record, monthIdx);
+    const occupancyPct = Number.isFinite(Number(summary.occPct))
+      ? Number(summary.occPct)
+      : (Number.isFinite(Number(summary.occupiedRaw)) && Number.isFinite(Number(summary.totalUnits)) && Number(summary.totalUnits) > 0
+        ? (Number(summary.occupiedRaw) / Number(summary.totalUnits)) * 100
+        : null);
+    const leasedPct = Number.isFinite(Number(summary.leasedPct))
+      ? Number(summary.leasedPct)
+      : (Number.isFinite(Number(summary.leasedRaw)) && Number.isFinite(Number(summary.totalUnits)) && Number(summary.totalUnits) > 0
+        ? (Number(summary.leasedRaw) / Number(summary.totalUnits)) * 100
+        : null);
+    const guestCards = Number.isFinite(Number(summary.guestCards))
+      ? Number(summary.guestCards)
+      : Math.max(0, Number(monthEntry.guestCards) || 0);
+    const tours = Number.isFinite(Number(summary.tours))
+      ? Number(summary.tours)
+      : Math.max(0, Number(monthEntry.tours) || 0);
+    const applications = Number.isFinite(Number(summary.applications))
+      ? Number(summary.applications)
+      : Math.max(0, Number(monthEntry.applications) || 0);
+    const approvals = Number.isFinite(Number(summary.applicationsApproved))
+      ? Number(summary.applicationsApproved)
+      : Number.isFinite(Number(summary.leasesSigned))
+        ? Number(summary.leasesSigned)
+        : Math.max(0, Number(monthEntry.applicationsApproved ?? monthEntry.leasesSignedActual) || 0);
+    const moveIns = Number.isFinite(Number(summary.moveIns))
+      ? Number(summary.moveIns)
+      : Math.max(0, Number(monthEntry.moveIns) || 0);
+    const moveOuts = Number.isFinite(Number(summary.moveOuts))
+      ? Number(summary.moveOuts)
+      : Math.max(0, Number(getEffectiveMoveOutsForMonth(monthIdx, monthEntries).effective) || 0);
+    const renewalRetention = Number.isFinite(Number(summary.retentionRate))
+      ? Number(summary.retentionRate)
+      : null;
+    return {
+      monthIdx,
+      monthLabel,
+      shortLabel: FULL_MONTHS[monthIdx].slice(0, 3),
+      occupancyPct,
+      leasedPct,
+      guestCards,
+      tours,
+      applications,
+      approvals,
+      moveIns,
+      moveOuts,
+      netAbsorption: moveIns - moveOuts,
+      tourToLeasePct: tours > 0 ? (approvals / tours) * 100 : null,
+      renewalRetention,
+      budgetOccPct: Number.isFinite(Number(budgetOccPct)) && Number(budgetOccPct) > 0 ? Number(budgetOccPct) : null
+    };
+  });
+}
+
+function buildCommunityProgressTrendCard({
+  title,
+  subtitle,
+  points,
+  formatter,
+  kind,
+  lineColor,
+  dotColor,
+  axisFormatter
+}) {
+  const validPoints = Array.isArray(points) ? points.filter(point => Number.isFinite(Number(point?.value))) : [];
+  const current = validPoints[validPoints.length - 1]?.value;
+  const previous = validPoints[validPoints.length - 2]?.value;
+  const delta = Number.isFinite(Number(current)) && Number.isFinite(Number(previous)) ? Number(current) - Number(previous) : null;
+  const deltaText = delta === null
+    ? "No prior month saved"
+    : kind === "pct"
+      ? `${delta >= 0 ? "▲" : "▼"}${Math.abs(delta).toFixed(1)} pts vs prior month`
+      : `${delta >= 0 ? "▲" : "▼"}${formatDlrMetricValue(Math.abs(delta))} vs prior month`;
+  const currentText = Number.isFinite(Number(current)) ? formatter(current) : "—";
+  const chartHtml = validPoints.length > 0
+    ? buildPortfolioTrendLineChart(points, {
+        kind,
+        lineColor,
+        dotColor,
+        axisFormatter,
+        highlightMonthIdx: Number.isInteger(points?.[points.length - 1]?.monthIdx) ? points[points.length - 1].monthIdx : getReportHubMonthIndex()
+      })
+    : `<div style="font-size:12px;color:#64748b">No month-over-month values are available yet for this metric.</div>`;
+  return `<div class="progress-card">
+    <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:10px">
+      <div>
+        <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#64748b">${escapeHtml(title)}</div>
+        <div style="font-size:22px;font-weight:800;color:#0f172a;margin-top:4px">${escapeHtml(currentText)}</div>
+      </div>
+      <div style="text-align:right;font-size:12px;color:#475569">
+        <div>${escapeHtml(deltaText)}</div>
+        <div style="margin-top:4px">${escapeHtml(subtitle)}</div>
+      </div>
+    </div>
+    ${chartHtml}
+  </div>`;
+}
+
+function buildCommunityProgressTrendSection(report) {
+  const rows = Array.isArray(report?.trendRows) ? report.trendRows : [];
+  if (rows.length === 0) {
+    return `<div class="progress-card section">
+      <div style="font-size:14px;font-weight:700;margin-bottom:10px">Month-over-Month Progress</div>
+      <div style="font-size:12px;color:#64748b">Save more months for this community to unlock the month-over-month trend view.</div>
+    </div>`;
+  }
+  const trendSeries = metricKey => rows
+    .map(row => ({
+      monthIdx: row.monthIdx,
+      shortLabel: row.shortLabel,
+      value: row[metricKey],
+      projected: false
+    }));
+  return `<div class="progress-card section">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+      <div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:4px">Month-over-Month Progress</div>
+        <div style="font-size:12px;color:#64748b">This section compares the same community against itself across saved months. The current reporting month is highlighted in each chart.</div>
+      </div>
+      <div style="font-size:12px;color:#475569">${escapeHtml(report.communityName)} · ${escapeHtml(formatDlrMonthYear(report.reportMonthIdx, report.reportYear))}</div>
+    </div>
+    <div class="progress-grid-equal">
+      ${buildCommunityProgressTrendCard({
+        title: "Physical Occupancy",
+        subtitle: "Month-over-month physical occupancy trend",
+        points: trendSeries("occupancyPct"),
+        formatter: value => formatDlrPercent(value, 1),
+        kind: "pct",
+        lineColor: "#1d4ed8",
+        dotColor: "#1d4ed8",
+        axisFormatter: value => formatDlrPercent(value, 0)
+      })}
+      ${buildCommunityProgressTrendCard({
+        title: "Leased Occupancy",
+        subtitle: "Leased exposure trend by month",
+        points: trendSeries("leasedPct"),
+        formatter: value => formatDlrPercent(value, 1),
+        kind: "pct",
+        lineColor: "#0f766e",
+        dotColor: "#0f766e",
+        axisFormatter: value => formatDlrPercent(value, 0)
+      })}
+      ${buildCommunityProgressTrendCard({
+        title: "Guest Cards",
+        subtitle: "Month-to-date lead volume by month",
+        points: trendSeries("guestCards"),
+        formatter: value => formatDlrMetricValue(value),
+        kind: "metric",
+        lineColor: "#7c3aed",
+        dotColor: "#7c3aed",
+        axisFormatter: value => formatDlrMetricValue(value)
+      })}
+      ${buildCommunityProgressTrendCard({
+        title: "Tour to Lease",
+        subtitle: "Funnel close rate across the same property",
+        points: trendSeries("tourToLeasePct"),
+        formatter: value => formatDlrPercent(value, 1),
+        kind: "pct",
+        lineColor: "#f97316",
+        dotColor: "#f97316",
+        axisFormatter: value => formatDlrPercent(value, 0)
+      })}
+      ${buildCommunityProgressTrendCard({
+        title: "Net Absorption",
+        subtitle: "Move-ins minus move-outs by month",
+        points: trendSeries("netAbsorption"),
+        formatter: value => formatDlrSignedNumber(value),
+        kind: "signed",
+        lineColor: "#2a8f83",
+        dotColor: "#2a8f83",
+        axisFormatter: value => formatDlrSignedNumber(Math.round(value))
+      })}
+      ${buildCommunityProgressTrendCard({
+        title: "Renewal Retention",
+        subtitle: "Retention rate month over month",
+        points: trendSeries("renewalRetention"),
+        formatter: value => formatDlrPercent(value, 0),
+        kind: "pct",
+        lineColor: "#2563eb",
+        dotColor: "#2563eb",
+        axisFormatter: value => formatDlrPercent(value, 0)
+      })}
+    </div>
+  </div>`;
+}
+
+function buildCommunityProgressNarrative({
+  communityName,
+  occupancyPct,
+  leasedPct,
+  budgetOccPct,
+  trafficMetrics,
+  renewalSummary,
+  moveInsNeeded,
+  leadSourceBreakdown
+}) {
+  const leadSources = leadSourceBreakdown ? getTopLeadSourceFacts(leadSourceBreakdown) : [];
+  const leadSourceText = leadSources[0]
+    ? `${leadSources[0].label} is the strongest source driver with ${leadSources[0].value} lead${leadSources[0].value === 1 ? "" : "s"} logged in the current mix.`
+    : "Lead-source breakout is incomplete, so the report is carrying the month-to-date total guest card count only until the source fields are saved.";
+  return [
+    `${communityName} is sitting at ${formatDlrPercent(occupancyPct, 1)} physical occupancy and ${formatDlrPercent(leasedPct, 1)} leased occupancy${Number.isFinite(Number(budgetOccPct)) ? ` against a saved budget line of ${formatDlrPercent(budgetOccPct, 1)}` : ""}.`,
+    `${Math.round(Number(trafficMetrics.approvals ?? 0))} approved applications and ${formatDlrSignedNumber(Number(trafficMetrics.moveIns ?? 0) - Number(trafficMetrics.moveOuts ?? 0))} net absorption are supporting the month-to-date pace, with ${formatDlrMetricValue(moveInsNeeded)} move-in${Math.abs(Number(moveInsNeeded)) === 1 ? "" : "s"} still needed to protect the current occupancy path.`,
+    `${formatDlrPercent(renewalSummary.retentionRate, 0)} renewal retention across ${formatDlrMetricValue(renewalSummary.expirations)} expirations is keeping the forward look steady. ${leadSourceText}`
+  ];
+}
+
+function buildCommunityProgressReportAlerts(report) {
+  if (!report) return [];
+  const alerts = [];
+  if (Number(report.trafficMetrics?.guestCards ?? 0) > 0 && !report.hasLeadSourceBreakdown) {
+    alerts.push({
+      level: "critical",
+      title: "Lead-source mix is missing",
+      body: "ATLAS can show the total guest card count, but the walk-in / off-site / phone / email-online / text-chat-other split is not fully saved for this month. The report will not guess how to break that traffic out."
+    });
+  }
+  if (report.hasLeadSourceBreakdown && report.leadSourceBreakdownTotal !== Number(report.trafficMetrics?.guestCards ?? 0)) {
+    alerts.push({
+      level: "warning",
+      title: "Lead-source mix does not reconcile to total guest cards",
+      body: `The saved source split totals ${report.leadSourceBreakdownTotal}, while the month shows ${formatDlrMetricValue(report.trafficMetrics?.guestCards)} guest cards. Please verify the source entries before sharing this report externally.`
+    });
+  }
+  if (Number(report.trafficMetrics?.applications ?? 0) > 0 && !report.hasDecisionBreakdown) {
+    alerts.push({
+      level: "critical",
+      title: "Application decision breakout is incomplete",
+      body: "Applications are saved, but the approved / denied / cancelled / pending split is not fully broken out. The report will only use counts that are explicitly present and will not invent the rest."
+    });
+  }
+  if (!report.hasGuestCards && (Number(report.trafficMetrics?.tours ?? 0) > 0 || Number(report.trafficMetrics?.applications ?? 0) > 0) && !report.hasLeadSourceBreakdown) {
+    alerts.push({
+      level: "warning",
+      title: "Guest-card total is not explicitly saved",
+      body: "Tours or applications exist for this month, but the total guest-card count is only being carried forward from other saved traffic fields. Save the explicit guest-card total to keep the funnel math fully auditable."
+    });
+  }
+  if (!report.hasBudgetOcc) {
+    alerts.push({
+      level: "critical",
+      title: "Budget occupancy is missing for the selected month",
+      body: "The report can still show occupancy and leased position, but it cannot pace against budget until the month has a saved budget occupancy percentage."
+    });
+  }
+  if (!Array.isArray(report.floorPlanVarianceRows) || report.floorPlanVarianceRows.length === 0) {
+    alerts.push({
+      level: "warning",
+      title: "Floor plan variance data is unavailable",
+      body: "Add saved floor plans and current market survey rents to publish the rent variance chart."
+    });
+  } else if ((report.unmatchedMarketFloorPlans ?? []).length > 0) {
+    alerts.push({
+      level: "warning",
+      title: "Some floor plans did not match the market survey",
+      body: `${report.unmatchedMarketFloorPlans.length} floor plan row(s) did not find a confident market match. Review the floor-plan names or market survey entries before distributing this report.`
+    });
+  }
+  if (!Array.isArray(report.photoPool) || report.photoPool.length === 0) {
+    alerts.push({
+      level: "info",
+      title: "No community photos are saved",
+      body: "The report will fall back to the ATLAS brand mark instead of a community hero image. Add at least one community photo to keep the output presentation-ready."
+    });
+  }
+  if (Number(report.renewalSnapshot?.expirations ?? 0) === 0 && Number(report.renewalSnapshot?.signed ?? 0) === 0) {
+    alerts.push({
+      level: "info",
+      title: "Renewal data is not yet populated",
+      body: "No renewal expirations were found for this month, so the renewal chart will stay minimal until those records are saved."
+    });
+  }
+  return alerts;
+}
+
+function buildCommunityProgressTrafficMixPanel(report) {
+  if (!report.hasLeadSourceBreakdown || !report.leadSourceBreakdown) {
+    return `<div style="border:1px dashed #cbd5e1;border-radius:16px;padding:16px;background:#f8fafc;font-size:12px;color:#64748b">The total guest card count is available, but the source split is not saved for this month yet. Add walk-in, off-site event, phone, email / online, and text / chat / other counts to break this traffic out accurately.</div>`;
+  }
+  const items = getTopLeadSourceFacts(report.leadSourceBreakdown);
+  const total = Math.max(report.leadSourceBreakdownTotal || 0, 1);
+  return `<div style="padding:16px;border:1px solid #dbe4f0;border-radius:16px;background:#ffffff">
+    <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:12px">
+      <div>
+        <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#64748b">Traffic Mix</div>
+        <div style="font-size:22px;font-weight:800;color:#0f172a;margin-top:4px">${formatDlrMetricValue(report.trafficMetrics?.guestCards)} guest cards</div>
+      </div>
+      <div style="text-align:right;font-size:12px;color:#475569">
+        <div>${items.length > 0 ? `${items[0].label} leads the mix` : "Source mix present"}</div>
+        <div style="margin-top:4px">${formatDlrPercent(report.trafficMetrics?.guestToTourPct, 1)} guest-to-tour pace</div>
+      </div>
+    </div>
+    ${items.map(item => `
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#334155;margin-bottom:5px">
+          <span style="font-weight:700">${escapeHtml(item.label)}</span>
+          <span>${formatDlrMetricValue(item.value)}</span>
+        </div>
+        <div style="height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden">
+          <div style="height:100%;width:${Math.max(0, Math.min((item.value / total) * 100, 100))}%;background:#2563eb;border-radius:999px"></div>
+        </div>
+      </div>
+    `).join("")}
+  </div>`;
+}
+
+function buildCommunityProgressPacePanel(report) {
+  const rows = Array.isArray(report?.paceRows) ? report.paceRows : [];
+  const renderRow = row => {
+    const actual = Math.max(0, Number(row.actual) || 0);
+    const goal = Math.max(0, Number(row.goal) || 0);
+    const pct = goal > 0 ? Math.min((actual / goal) * 100, 150) : 0;
+    const note = String(row.note ?? "").trim();
+    return `<div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#334155;margin-bottom:5px">
+        <span style="font-weight:700">${escapeHtml(row.label)}</span>
+        <span>${formatDlrMetricValue(actual)}${goal > 0 ? ` / ${formatDlrMetricValue(goal)}` : ""}</span>
+      </div>
+      <div style="height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden">
+        <div style="height:100%;width:${Math.max(0, Math.min(pct, 100))}%;background:#0f766e;border-radius:999px"></div>
+      </div>
+      <div style="font-size:11px;color:#64748b;margin-top:5px;line-height:1.5">${escapeHtml(note || "—")}</div>
+    </div>`;
+  };
+  return `<div style="padding:16px;border:1px solid #dbe4f0;border-radius:16px;background:linear-gradient(180deg,#f8fbff 0%,#f0f9ff 100%)">
+    <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:12px">
+      <div>
+        <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#64748b">Month-to-Date Pace</div>
+        <div style="font-size:22px;font-weight:800;color:#0f172a;margin-top:4px">${formatDlrMetricValue(report.moveInsNeeded)} move-in${Math.abs(Number(report.moveInsNeeded)) === 1 ? "" : "s"} needed</div>
+      </div>
+      <div style="text-align:right;font-size:12px;color:#475569">
+        <div>${formatDlrPercent(report.trafficMetrics?.tourToLeasePct, 1)} tour-to-lease</div>
+        <div style="margin-top:4px">${formatDlrPercent(report.trafficMetrics?.appToLeasePct, 1)} approval pace</div>
+      </div>
+    </div>
+    ${rows.map(renderRow).join("")}
+  </div>`;
+}
+
+function buildCommunityProgressReportData(options = {}) {
+  const silent = options.silent === true;
+  const monthIdx = getReportHubMonthIndex();
+  const year = getReportHubYear();
+  const communityName = getCommunityProgressReportCommunityName();
+  const record = getPersistedCommunityRecordForScope(communityName, { allowCurrentFallback: true });
+  if (!record) {
+    if (!silent) alert("Save community data first, then the Community Progress report can build from the selected community.");
+    return null;
+  }
+  const detail = buildCommunityDetailForMonth(communityName, record, monthIdx);
+  if (!detail) {
+    if (!silent) alert("Save community data first, then the Community Progress report can build from the selected community.");
+    return null;
+  }
+  const summary = detail.summary || {};
+  const prop = getPropertyByName(communityName);
+  const totalUnits = getTotalUnitsFor(prop, record.customUnits);
+  const corporateUnits = getCorporateLeaseUnitsForRecord(record, totalUnits);
+  const monthEntries = Array.isArray(record.monthlyData) && record.monthlyData.length === 12 ? record.monthlyData : defaultMonthly();
+  const monthEntry = monthEntries[monthIdx] ?? {};
+  const previousMonthEntry = monthEntries[Math.max(monthIdx - 1, 0)] ?? {};
+  const schedule = computeScheduleFromContext({
+    totalUnits,
+    corporateLeaseUnits: corporateUnits,
+    currentOccupied: Number.isFinite(Number(summary.occupiedRaw)) ? Number(summary.occupiedRaw) : Number(record.currentOccupied) || 0,
+    currentLeased: Number.isFinite(Number(summary.leasedRaw)) ? Number(summary.leasedRaw) : Number(record.currentLeased) || 0,
+    occupancyGoal: Number(record.occupancyGoal ?? 95),
+    leasedGoal: Number(record.leasedGoal ?? 97),
+    currentMonth: monthIdx,
+    conversionRate: Number(record.conversionRate ?? 65),
+    monthlyData: monthEntries,
+    savedBudgetTargets: record.savedBudgetTargets,
+    seasonal: Array.isArray(record.seasonal) && record.seasonal.length === 12 ? record.seasonal : [...DEFAULT_SEASONAL]
+  });
+  const scheduleRow = schedule[monthIdx] ?? {};
+  const nextRows = MONTHS.map((_, idx) => idx)
+    .filter(idx => idx >= monthIdx)
+    .slice(0, 4)
+    .map(idx => {
+      const entry = monthEntries[idx] ?? {};
+      const row = schedule[idx] ?? {};
+      const renewals = getRenewalSummaryForMonth(entry);
+      return {
+        monthIdx: idx,
+        label: formatDlrMonthYear(idx, year),
+        leaseExpirations: renewals.expirations,
+        mtm: renewals.undecided,
+        pendingMoveOuts: getEffectiveMoveOutsForMonth(idx, monthEntries).effective,
+        pendingMoveIns: Number(entry.moveIns) || 0,
+        budgetedOccupancy: getRecordSavedBudgetOccPct(record, idx) || null,
+        projectedOccupancy: Number(row.occPct) || 0,
+        moveInsNeeded: Number(row.netOccLeases) || 0
+      };
+    });
+  const leadSourceHasExplicitCounts = ["walkIn", "offSiteEvent", "phoneCalls", "emailsOnline", "textChatOther"].some(key => Object.prototype.hasOwnProperty.call(monthEntry, key));
+  const leadSourceBreakdown = leadSourceHasExplicitCounts
+    ? {
+        walkIn: Math.max(0, Number(monthEntry.walkIn) || 0),
+        offSiteEvent: Math.max(0, Number(monthEntry.offSiteEvent) || 0),
+        phoneCalls: Math.max(0, Number(monthEntry.phoneCalls) || 0),
+        emailsOnline: Math.max(0, Number(monthEntry.emailsOnline) || 0),
+        textChatOther: Math.max(0, Number(monthEntry.textChatOther) || 0)
+      }
+    : null;
+  const leadSourceBreakdownTotal = leadSourceBreakdown
+    ? Object.values(leadSourceBreakdown).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0)
+    : 0;
+  const hasGuestCards = Object.prototype.hasOwnProperty.call(monthEntry, "guestCards");
+  const hasTours = Object.prototype.hasOwnProperty.call(monthEntry, "tours");
+  const hasApplications = Object.prototype.hasOwnProperty.call(monthEntry, "applications");
+  const hasApprovals = Object.prototype.hasOwnProperty.call(monthEntry, "applicationsApproved") || Object.prototype.hasOwnProperty.call(monthEntry, "leasesSignedActual");
+  const hasDenied = Object.prototype.hasOwnProperty.call(monthEntry, "denied");
+  const hasCancelled = Object.prototype.hasOwnProperty.call(monthEntry, "cancelled");
+  const hasPending = Object.prototype.hasOwnProperty.call(monthEntry, "pendingDecision");
+  const hasDecisionBreakdown = hasApplications && hasApprovals && hasDenied && hasCancelled && hasPending;
+  const budgetOccPct = getRecordSavedBudgetOccPct(record, monthIdx);
+  const hasBudgetOcc = Number.isFinite(Number(budgetOccPct)) && Number(budgetOccPct) > 0;
+  const occupiedUnits = Number.isFinite(Number(summary.occupied)) ? Number(summary.occupied) : getComparableOccupancyUnits(Number(record.currentOccupied) || 0, corporateUnits);
+  const leasedUnits = Number.isFinite(Number(summary.leased)) ? Number(summary.leased) : getComparableOccupancyUnits(Number(record.currentLeased) || 0, corporateUnits);
+  const occupancyPct = Number.isFinite(Number(summary.occPct)) ? Number(summary.occPct) : getOccupancyPctFromUnits(occupiedUnits, totalUnits, corporateUnits);
+  const leasedPct = Number.isFinite(Number(summary.leasedPct)) ? Number(summary.leasedPct) : getOccupancyPctFromUnits(leasedUnits, totalUnits, corporateUnits);
+  const moveInsNeeded = Number(scheduleRow.netOccLeases) || 0;
+  const moveInGoalPerWeek = moveInsNeeded > 0 ? Math.max(1, Math.ceil(moveInsNeeded / 4)) : 0;
+  const trafficMetrics = {
+    walkIn: leadSourceBreakdown ? leadSourceBreakdown.walkIn : null,
+    offSiteEvent: leadSourceBreakdown ? leadSourceBreakdown.offSiteEvent : null,
+    phoneCalls: leadSourceBreakdown ? leadSourceBreakdown.phoneCalls : null,
+    emailsOnline: leadSourceBreakdown ? leadSourceBreakdown.emailsOnline : null,
+    textChatOther: leadSourceBreakdown ? leadSourceBreakdown.textChatOther : null,
+    guestCards: hasGuestCards ? Math.max(0, Number(monthEntry.guestCards) || 0) : Math.max(0, Number(summary.guestCards) || leadSourceBreakdownTotal || 0),
+    rolledGuestCards: hasGuestCards ? Math.max(0, Number(monthEntry.guestCards) || 0) : Math.max(0, Number(summary.guestCards) || leadSourceBreakdownTotal || 0),
+    tours: hasTours ? Math.max(0, Number(monthEntry.tours) || 0) : Math.max(0, Number(summary.tours) || 0),
+    applications: Number.isFinite(Number(monthEntry.applications)) ? Math.max(0, Number(monthEntry.applications) || 0) : Math.max(0, Number(summary.applications) || 0),
+    approvals: hasApprovals ? Math.max(0, Number(monthEntry.applicationsApproved ?? monthEntry.leasesSignedActual ?? summary.applicationsApproved) || 0) : Math.max(0, Number(summary.applicationsApproved) || 0),
+    denials: hasDenied ? Math.max(0, Number(monthEntry.denied) || 0) : null,
+    cancelled: hasCancelled ? Math.max(0, Number(monthEntry.cancelled) || 0) : null,
+    pendingDecision: hasPending ? Math.max(0, Number(monthEntry.pendingDecision) || 0) : null,
+    leases: Number.isFinite(Number(monthEntry.leasesSignedActual)) ? Math.max(0, Number(monthEntry.leasesSignedActual) || 0) : Math.max(0, Number(summary.leasesSigned) || 0),
+    moveIns: Number.isFinite(Number(monthEntry.moveIns)) ? Math.max(0, Number(monthEntry.moveIns) || 0) : Math.max(0, Number(summary.moveIns) || 0),
+    moveOuts: Math.max(0, Number(getEffectiveMoveOutsForMonth(monthIdx, monthEntries).effective) || 0),
+    renewals: Number.isFinite(Number(monthEntry.renewalsSigned)) ? Math.max(0, Number(monthEntry.renewalsSigned) || 0) : Math.max(0, Number(summary.renewalsSigned) || 0),
+    sourceMode: leadSourceBreakdown ? "community_monthly_source_breakout" : "community_monthly_total_only"
+  };
+  trafficMetrics.guestToTourPct = trafficMetrics.guestCards > 0 ? (trafficMetrics.tours / trafficMetrics.guestCards) * 100 : 0;
+  trafficMetrics.tourToAppPct = trafficMetrics.tours > 0 ? (trafficMetrics.applications / trafficMetrics.tours) * 100 : 0;
+  trafficMetrics.appToLeasePct = trafficMetrics.applications > 0 ? (trafficMetrics.approvals / trafficMetrics.applications) * 100 : 0;
+  trafficMetrics.tourToLeasePct = trafficMetrics.tours > 0 ? (trafficMetrics.approvals / trafficMetrics.tours) * 100 : 0;
+  trafficMetrics.leadToLeasePct = trafficMetrics.guestCards > 0 ? (trafficMetrics.approvals / trafficMetrics.guestCards) * 100 : 0;
+  const renewalSummary = getRenewalSummaryForMonth(monthEntry);
+  const floorPlanVarianceData = buildCommunityFloorPlanVarianceRows(record.communityFloorPlans, normalizeMarketSurveyData(record.marketSurveyData));
+  const photoPool = collectMonthlyPresentationPhotos([detail], 4);
+  const progressPaceRows = [
+    {
+      label: "Guest Cards / Leads",
+      actual: trafficMetrics.guestCards,
+      goal: Number(scheduleRow.guestCardsNeeded) || 0,
+      note: leadSourceBreakdown
+        ? `${getTopLeadSourceFacts(leadSourceBreakdown)[0]?.label || "Lead mix"} leads the month-to-date source mix.`
+        : "Lead-source split is not saved, so only the total guest card count is reliable here."
+    },
+    {
+      label: "Tours",
+      actual: trafficMetrics.tours,
+      goal: Number(scheduleRow.toursNeeded) || 0,
+      note: `Guest-to-tour pacing is ${trafficMetrics.guestToTourPct.toFixed(1)}% this month.`
+    },
+    {
+      label: "Applications",
+      actual: trafficMetrics.applications,
+      goal: Number(scheduleRow.apps) || 0,
+      note: hasDecisionBreakdown
+        ? `Tour-to-app pace is ${trafficMetrics.tourToAppPct.toFixed(1)}%.`
+        : "Application decision breakout is incomplete, so this report shows the total applications count only."
+    },
+    {
+      label: "Approved Applications",
+      actual: trafficMetrics.approvals,
+      goal: Number(scheduleRow.grossLeases) || 0,
+      note: hasDecisionBreakdown
+        ? `Approval rate is ${trafficMetrics.appToLeasePct.toFixed(1)}%.`
+        : "Approved applications are shown, but denials / cancellations / pending decisions still need to be saved."
+    },
+    {
+      label: "Move-Ins",
+      actual: trafficMetrics.moveIns,
+      goal: moveInsNeeded,
+      note: moveInsNeeded > 0
+        ? `${moveInGoalPerWeek} move-in${moveInGoalPerWeek === 1 ? "" : "s"} per week keeps the month on pace.`
+        : "Move-in need is not yet defined for this month."
+    }
+  ];
+  const executiveSummary = buildCommunityProgressNarrative({
+    communityName,
+    occupancyPct,
+    leasedPct,
+    budgetOccPct: hasBudgetOcc ? budgetOccPct : null,
+    trafficMetrics,
+    renewalSummary,
+    moveInsNeeded,
+    leadSourceBreakdown
+  });
+  const report = {
+    type: "community_progress",
+    title: "ATLAS RISE Community Progress Report",
+    subtitle: `${communityName} · month-to-date operating review for the c-suite`,
+    communityName,
+    sourceRecord: record,
+    currentMonthLabel: getDashboardMonthLabel(monthIdx),
+    reportMonthIdx: monthIdx,
+    reportYear: year,
+    reportMonthLabel: formatDlrMonthYear(monthIdx, year),
+    reportPeriodLabel: `${formatDlrMonthYear(monthIdx, year)} month-to-date community progress`,
+    generatedAt: new Date(),
+    totalUnits,
+    occupiedUnits,
+    leasedUnits,
+    occupancyPct,
+    leasedPct,
+    budgetOccPct: hasBudgetOcc ? budgetOccPct : null,
+    moveInGoalPerWeek,
+    moveInsNeeded,
+    monthAbsorption: Number(trafficMetrics.moveIns - trafficMetrics.moveOuts) || 0,
+    trafficMetrics,
+    leadSourceBreakdown,
+    leadSourceBreakdownTotal,
+    hasLeadSourceBreakdown: Boolean(leadSourceBreakdown && leadSourceBreakdownTotal > 0),
+    hasDecisionBreakdown,
+    hasBudgetOcc,
+    hasGuestCards,
+    hasTours,
+    trendRows: buildCommunityProgressTrendRows({
+      type: "community_progress",
+      communityName,
+      sourceRecord: record,
+      reportMonthIdx: monthIdx,
+      reportYear: year
+    }),
+    paceRows: progressPaceRows,
+    forwardLook: nextRows,
+    renewalSnapshot: {
+      expirations: renewalSummary.expirations,
+      signed: renewalSummary.signed,
+      undecided: renewalSummary.undecided,
+      projectedAttrition: renewalSummary.projectedAttrition,
+      retentionRate: renewalSummary.retentionRate,
+      previousRetentionRate: getRenewalSummaryForMonth(previousMonthEntry).retentionRate
+    },
+    pricing: {
+      totalUnits,
+      leasedUnits,
+      occupiedUnits,
+      avgBudgetRent: Number(monthEntry.proformaRent) || null,
+      avgInPlaceRent: Number(monthEntry.marketRent) || null,
+      avgNetEffectiveRent: Number(monthEntry.nerActual) || null,
+      rentRollTotal: Number(monthEntry.rentRollTotal) || null,
+      concessions: Number(monthEntry.concessions) || null
+    },
+    notes: executiveSummary,
+    communityPhotoAsset: photoPool[0] || null,
+    communityPhotoPreviewSrc: String(photoPool[0]?.previewSrc || photoPool[0]?.src || ""),
+    photoPool,
+    floorPlanVarianceRows: floorPlanVarianceData.rows,
+    unmatchedMarketFloorPlans: floorPlanVarianceData.unmatchedRates,
+    marketSurveyUpdatedOn: normalizeMarketSurveyData(record.marketSurveyData).updatedOn,
+    sourceSummary: `${communityName} · ${formatDlrMonthYear(monthIdx, year)} month-to-date community progress`,
+    dataAlerts: []
+  };
+  report.dataAlerts = buildCommunityProgressReportAlerts(report);
+  return report;
+}
+
+function buildCommunityProgressReportDocument(report) {
+  if (!report) return "";
+  const alerts = Array.isArray(report.dataAlerts) ? report.dataAlerts : buildCommunityProgressReportAlerts(report);
+  const heroPhotos = Array.isArray(report.photoPool) ? report.photoPool.slice(0, 3) : [];
+  const heroPhoto = heroPhotos[0]?.resolvedSrc || heroPhotos[0]?.previewSrc || heroPhotos[0]?.src || String(report.communityPhotoPreviewSrc || "");
+  const photoStripHtml = heroPhotos.length > 0
+    ? `<div class="progress-photo-strip">
+        ${heroPhotos.map(photo => {
+          const src = photo.resolvedSrc || photo.previewSrc || photo.src || "";
+          return `<div class="progress-photo-frame">
+            <img src="${src}" alt="" class="progress-photo-img">
+            <div class="progress-photo-label">${escapeHtml(photo.community || report.communityName || "ATLAS")}</div>
+          </div>`;
+        }).join("")}
+      </div>`
+    : `<div class="progress-photo-placeholder">
+        <img src="${resolveExportBrandLogoSrc()}" alt="ATLAS RISE logo" class="progress-photo-logo">
+        <div class="progress-photo-placeholder-copy">
+          <div class="progress-photo-placeholder-title">Add a Community Photo</div>
+          <div class="progress-photo-placeholder-sub">The report will use the saved community photo library when one is available.</div>
+        </div>
+      </div>`;
+  const heroCards = [
+    { label: "Physical Occupancy", value: formatDlrPercent(report.occupancyPct), sub: `${formatDlrMetricValue(report.occupiedUnits)} occupied units` },
+    { label: "Leased Exposure", value: formatDlrPercent(report.leasedPct), sub: `${formatDlrMetricValue(report.leasedUnits)} leased units` },
+    { label: "Approved Apps MTD", value: formatDlrMetricValue(report.trafficMetrics?.approvals), sub: `${formatDlrMetricValue(report.trafficMetrics?.applications)} total applications` },
+    { label: "Net Absorption", value: formatDlrSignedNumber(report.monthAbsorption), sub: `${formatDlrMetricValue(report.trafficMetrics?.moveIns)} ins / ${formatDlrMetricValue(report.trafficMetrics?.moveOuts)} outs` },
+    { label: "Renewal Retention", value: formatDlrPercent(report.renewalSnapshot?.retentionRate, 0), sub: `${formatDlrMetricValue(report.renewalSnapshot?.signed)} signed of ${formatDlrMetricValue(report.renewalSnapshot?.expirations)}` },
+    { label: "Move-In Need", value: formatDlrMetricValue(report.moveInsNeeded), sub: `${formatDlrMetricValue(report.moveInGoalPerWeek)} per week target` }
+  ];
+  const alertsHtml = alerts.length > 0
+    ? `<div class="progress-alert-grid">
+        ${alerts.map(alertItem => `<div class="progress-alert ${alertItem.level || "info"}">
+          <div class="progress-alert-title">${escapeHtml(alertItem.title)}</div>
+          <div class="progress-alert-body">${escapeHtml(alertItem.body)}</div>
+        </div>`).join("")}
+      </div>`
+    : `<div class="progress-alert success">
+        <div class="progress-alert-title">All required breakout fields are present</div>
+        <div class="progress-alert-body">The current month has enough saved data to render the report without inventing missing breakouts.</div>
+      </div>`;
+  const paceTable = `<div class="progress-card">
+    <div style="font-size:14px;font-weight:700;margin-bottom:10px">Month-to-Date Pace</div>
+    ${buildCommunityProgressPacePanel(report)}
+  </div>`;
+  const trafficMix = `<div class="progress-card">
+    <div style="font-size:14px;font-weight:700;margin-bottom:10px">Traffic Mix</div>
+    ${buildCommunityProgressTrafficMixPanel(report)}
+  </div>`;
+  const forwardRows = (report.forwardLook ?? []).map(row => `<tr>
+    <td style="padding:8px 10px;border-top:1px solid #e5e7eb;font-size:12px;font-weight:700">${escapeHtml(row.label)}</td>
+    <td style="padding:8px 10px;border-top:1px solid #e5e7eb;font-size:12px;text-align:center">${formatDlrMetricValue(row.leaseExpirations)}</td>
+    <td style="padding:8px 10px;border-top:1px solid #e5e7eb;font-size:12px;text-align:center">${formatDlrMetricValue(row.pendingMoveOuts)}</td>
+    <td style="padding:8px 10px;border-top:1px solid #e5e7eb;font-size:12px;text-align:center">${formatDlrMetricValue(row.pendingMoveIns)}</td>
+    <td style="padding:8px 10px;border-top:1px solid #e5e7eb;font-size:12px;text-align:center">${formatDlrPercent(row.budgetedOccupancy)}</td>
+    <td style="padding:8px 10px;border-top:1px solid #e5e7eb;font-size:12px;text-align:center">${formatDlrPercent(row.projectedOccupancy)}</td>
+    <td style="padding:8px 10px;border-top:1px solid #e5e7eb;font-size:12px;text-align:center;font-weight:700">${formatDlrMetricValue(row.moveInsNeeded)}</td>
+  </tr>`).join("");
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(report.title)}</title><style>
+    *{box-sizing:border-box}
+    body{font-family:'DM Sans',Arial,sans-serif;padding:28px;color:#0f172a;background:#ffffff}
+    table{width:100%;border-collapse:collapse}
+    .progress-shell{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px;padding:18px 20px;border:1px solid #dbe4f0;border-radius:20px;background:linear-gradient(135deg,#f8fbff 0%,#eef5ff 100%)}
+    .progress-brand{display:flex;align-items:center;gap:14px}
+    .progress-brand img{height:38px;width:auto;object-fit:contain;display:block}
+    .progress-title{font-size:24px;font-weight:700;color:#1d4ed8}
+    .progress-sub{font-size:13px;color:#64748b}
+    .progress-meta{font-size:11px;color:#64748b;text-align:right}
+    .progress-photo-hero{position:relative;min-height:220px;border-radius:22px;overflow:hidden;border:1px solid #dbe4f0;background:#0f172a;margin-bottom:18px}
+    .progress-photo-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+    .progress-photo-hero-overlay{position:absolute;inset:0;background:linear-gradient(90deg,rgba(15,23,42,.82),rgba(15,23,42,.34),rgba(15,23,42,.08))}
+    .progress-photo-hero-copy{position:relative;z-index:1;color:#fff;padding:28px;max-width:560px}
+    .progress-photo-kicker{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#bfdbfe;margin-bottom:8px}
+    .progress-photo-title{font-size:30px;font-weight:800;margin-bottom:8px}
+    .progress-photo-sub{font-size:13px;line-height:1.6;color:#e2e8f0}
+    .progress-photo-pill{display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(191,219,254,.35);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#dbeafe}
+    .progress-photo-strip{display:grid;grid-template-columns:repeat(${Math.max(heroPhotos.length, 1)},minmax(0,1fr));gap:12px;margin-bottom:18px}
+    .progress-photo-frame{position:relative;min-height:160px;border-radius:18px;overflow:hidden;border:1px solid #dbe4f0;background:#0f172a}
+    .progress-photo-label{position:absolute;left:12px;bottom:12px;padding:6px 10px;border-radius:999px;background:rgba(15,23,42,.74);border:1px solid rgba(191,219,254,.4);color:#dbeafe;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+    .progress-photo-placeholder{display:flex;align-items:center;gap:16px;min-height:160px;border-radius:18px;border:1px dashed #cbd5e1;background:#f8fafc;padding:18px}
+    .progress-photo-logo{height:42px;width:auto;flex:0 0 auto}
+    .progress-photo-placeholder-title{font-size:18px;font-weight:800;color:#0f172a}
+    .progress-photo-placeholder-sub{font-size:12px;color:#64748b;line-height:1.6;margin-top:4px}
+    .progress-grid-2{display:grid;grid-template-columns:1.1fr 0.9fr;gap:14px}
+    .progress-grid-equal{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .progress-card{border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff}
+    .progress-alert-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-bottom:18px}
+    .progress-alert{border-radius:14px;padding:14px 16px;border:1px solid #dbe4f0;background:#f8fafc}
+    .progress-alert.critical{background:#fef2f2;border-color:#fecaca}
+    .progress-alert.warning{background:#fff7ed;border-color:#fed7aa}
+    .progress-alert.info{background:#eff6ff;border-color:#bfdbfe}
+    .progress-alert.success{background:#ecfdf5;border-color:#a7f3d0}
+    .progress-alert-title{font-size:12px;font-weight:800;color:#0f172a;margin-bottom:4px}
+    .progress-alert-body{font-size:12px;line-height:1.6;color:#334155}
+    .section{margin-bottom:18px}
+    @media print { body{padding:18px} .progress-grid-2,.progress-grid-equal{grid-template-columns:1fr 1fr} }
+  </style></head><body>
+    <div class="progress-shell">
+      <div class="progress-brand">
+        <img src="${resolveExportBrandLogoSrc()}" alt="ATLAS RISE logo">
+        <div>
+          <div class="progress-title">${escapeHtml(report.title)}</div>
+          <div class="progress-sub">${escapeHtml(report.subtitle)}</div>
+          <div class="progress-sub" style="margin-top:6px;max-width:640px">${escapeHtml(report.communityName)} · ${escapeHtml(report.reportPeriodLabel)} · month-to-date c-suite progress review</div>
+        </div>
+      </div>
+      <div class="progress-meta">
+        <div>Generated ${escapeHtml(formatPresentationTimestamp(report.generatedAt))}</div>
+        <div style="margin-top:6px">${escapeHtml(report.sourceSummary)}</div>
+      </div>
+    </div>
+    ${heroPhotos.length > 0 ? `<div class="progress-photo-hero">
+      <img src="${heroPhoto}" alt="" class="progress-photo-img">
+      <div class="progress-photo-hero-overlay"></div>
+      <div class="progress-photo-hero-copy">
+        <div class="progress-photo-kicker">Community field view</div>
+        <div class="progress-photo-title">${escapeHtml(report.communityName)}</div>
+        <div class="progress-photo-sub">A c-suite month-to-date operating view anchored by the saved community photo library and the current occupancy, leasing, and renewal story.</div>
+        <div class="progress-photo-pill">Community Progress</div>
+      </div>
+    </div>` : ""}
+    ${photoStripHtml}
+    <div class="progress-grid-equal section">
+      ${heroCards.map(card => `<div class="progress-card">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#6b7280;margin-bottom:6px">${escapeHtml(card.label)}</div>
+        <div style="font-size:24px;font-weight:700;color:#0f172a;margin-bottom:4px">${escapeHtml(card.value)}</div>
+        <div style="font-size:12px;color:#475569">${escapeHtml(card.sub)}</div>
+      </div>`).join("")}
+    </div>
+    <div class="progress-narrative">
+      ${report.notes.map((paragraph, idx) => `<p style="font-size:13px;line-height:1.7;color:#1f2937;margin:${idx === 0 ? "0 0 10px" : "0"}">${escapeHtml(paragraph)}</p>`).join("")}
+    </div>
+    ${buildCommunityProgressTrendSection(report)}
+    ${alerts.length > 0 ? `<div class="progress-alert-grid">
+        ${alerts.map(alertItem => `<div class="progress-alert ${alertItem.level || "info"}">
+          <div class="progress-alert-title">${escapeHtml(alertItem.title)}</div>
+          <div class="progress-alert-body">${escapeHtml(alertItem.body)}</div>
+        </div>`).join("")}
+      </div>` : `<div class="progress-alert success" style="margin-bottom:18px">
+        <div class="progress-alert-title">All required breakout fields are present</div>
+        <div class="progress-alert-body">The current month has enough saved data to render the report without inventing missing breakouts.</div>
+      </div>`}
+    <div class="progress-grid-2 section">
+      <div>${buildDlrOccupancyPositionChart(report)}</div>
+      <div>${buildDlrRenewalHealthChart(report)}</div>
+    </div>
+    <div class="progress-grid-2 section">
+      <div class="progress-card">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px">Month-to-Date Pace</div>
+        ${buildCommunityProgressPacePanel(report)}
+      </div>
+      <div class="progress-card">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px">Traffic Mix</div>
+        ${buildCommunityProgressTrafficMixPanel(report)}
+      </div>
+    </div>
+    <div class="progress-card section">
+      <div style="font-size:14px;font-weight:700;margin-bottom:10px">Floor Plan Rent Variance vs Budget</div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:12px">This chart compares each saved community floor plan budget rent against the current marketed rent by floor plan, using the saved floor plan rate first and imported market survey matches as fallback.</div>
+      ${buildDlrFloorPlanVarianceChart(report)}
+    </div>
+    <div class="progress-card section">
+      <div style="font-size:14px;font-weight:700;margin-bottom:10px">Forward Look</div>
+      <div style="margin-bottom:12px">${buildDlrForwardLookChart(report)}</div>
+      <table>
+        <thead>
+          <tr style="background:#eff6ff">
+            <th style="padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#475569;text-align:left">Month</th>
+            <th style="padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#475569;text-align:center">Expirations</th>
+            <th style="padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#475569;text-align:center">Pending Outs</th>
+            <th style="padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#475569;text-align:center">Pending Ins</th>
+            <th style="padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#475569;text-align:center">Budget Occ</th>
+            <th style="padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#475569;text-align:center">Projected Occ</th>
+            <th style="padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#475569;text-align:center">Move-Ins Needed</th>
+          </tr>
+        </thead>
+        <tbody>${forwardRows}</tbody>
+      </table>
+    </div>
+  </body></html>`;
+}
+
+function renderCommunityProgressReportingWorkspace() {
+  const report = buildCommunityProgressReportData({ silent: true });
+  if (!report) {
+    return `<div id="reporting-community-progress-workspace" class="report-hub-card" style="margin-top:14px">
+      <div class="alert-red">Save a community first, then the Community Progress report can render from the selected month-to-date data.</div>
+    </div>`;
+  }
+  const alerts = Array.isArray(report.dataAlerts) ? report.dataAlerts : [];
+  return `<div id="reporting-community-progress-workspace" class="report-hub-card" style="margin-top:14px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div>
+        <div class="card-title" style="margin-bottom:6px">Community Progress Setup</div>
+        <p style="font-size:0.72rem;color:var(--muted)">This report is single-community only and is designed for c-suite distribution. It stays month-to-date and flags any field that would otherwise be assumed before export.</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-gray btn-sm" onclick="downloadCommunityProgressReportHtml()">⬇ Editable HTML</button>
+        <button class="btn btn-gray btn-sm" onclick="openCommunityProgressReport(true)">🖨 PDF / Print</button>
+        <button class="btn btn-blue btn-sm" onclick="draftCommunityProgressEmail()">✉ Draft Outlook Email</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:12px">
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
+        <div class="card-title" style="margin-bottom:6px">Community</div>
+        <div style="font-size:0.82rem;font-weight:700;color:var(--accent)">${escapeHtml(report.communityName)}</div>
+        <div style="font-size:0.64rem;color:var(--muted);margin-top:6px">Single-community c-suite report · ${escapeHtml(report.reportPeriodLabel)}</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
+        <div class="card-title" style="margin-bottom:6px">Data Confidence</div>
+        <div style="font-size:1.4rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:${alerts.some(item => item.level === "critical") ? "#f85149" : "#3fb950"}">${alerts.length}</div>
+        <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${alerts.length === 0 ? "All required breakout fields are present." : `${alerts.filter(item => item.level === "critical").length} critical alert${alerts.filter(item => item.level === "critical").length === 1 ? "" : "s"} and ${alerts.length - alerts.filter(item => item.level === "critical").length} non-critical reminder${alerts.length - alerts.filter(item => item.level === "critical").length === 1 ? "" : "s"}.`}</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
+        <div class="card-title" style="margin-bottom:6px">Month</div>
+        <div style="font-size:0.82rem;font-weight:700;color:var(--accent)">${escapeHtml(report.reportPeriodLabel)}</div>
+        <div style="font-size:0.64rem;color:var(--muted);margin-top:6px">${escapeHtml(report.sourceSummary)}</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
+        <div class="card-title" style="margin-bottom:6px">Photo Library</div>
+        <div style="font-size:1.4rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:#2dd4bf">${Array.isArray(report.photoPool) ? report.photoPool.length : 0}</div>
+        <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${Array.isArray(report.photoPool) && report.photoPool.length > 0 ? "A saved community photo will anchor the report hero." : "Add a saved community photo to make the output more presentation-ready."}</div>
+      </div>
+    </div>
+    ${alerts.length > 0 ? `<div style="display:grid;gap:10px;margin-bottom:12px">
+      ${alerts.map(alertItem => `<div class="alert-${alertItem.level === "critical" ? "red" : alertItem.level === "warning" ? "yellow" : "green"}">${escapeHtml(alertItem.title)} — ${escapeHtml(alertItem.body)}</div>`).join("")}
+    </div>` : `<div class="alert-green" style="margin-bottom:12px">All required breakout fields are present for this month.</div>`}
+    <div id="reporting-community-progress-preview">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px">
+        <div class="bonus-framework-stat"><div class="k">Occupancy</div><div class="v" style="font-size:1rem">${formatDlrPercent(report.occupancyPct)}</div></div>
+        <div class="bonus-framework-stat"><div class="k">Leased</div><div class="v" style="font-size:1rem">${formatDlrPercent(report.leasedPct)}</div></div>
+        <div class="bonus-framework-stat"><div class="k">Approved Apps</div><div class="v" style="font-size:1rem">${formatDlrMetricValue(report.trafficMetrics?.approvals)}</div></div>
+        <div class="bonus-framework-stat"><div class="k">Move-Ins Needed</div><div class="v" style="font-size:1rem">${formatDlrMetricValue(report.moveInsNeeded)}</div></div>
+        <div class="bonus-framework-stat"><div class="k">Retention</div><div class="v" style="font-size:1rem">${formatDlrPercent(report.renewalSnapshot?.retentionRate, 0)}</div></div>
+      </div>
+      <div class="progress-grid-2" style="margin-bottom:12px">
+        <div class="report-hub-card">
+          <div class="card-title" style="margin-bottom:8px">Community Progress Narrative</div>
+          <div style="font-size:0.72rem;line-height:1.7;color:var(--text)">${report.notes.map(item => escapeHtml(item)).join("<br><br>")}</div>
+        </div>
+        <div class="report-hub-card">
+          <div class="card-title" style="margin-bottom:8px">Traffic Mix Check</div>
+          ${report.hasLeadSourceBreakdown ? `<div style="font-size:0.72rem;line-height:1.7">
+            ${getTopLeadSourceFacts(report.leadSourceBreakdown).map(item => `<div>${escapeHtml(item.label)}: <strong>${formatDlrMetricValue(item.value)}</strong></div>`).join("")}
+          </div>` : `<div class="alert-yellow">Lead-source mix is missing for this month. Add the source split before sharing this report externally.</div>`}
+        </div>
+      </div>
+      ${buildCommunityProgressTrendSection(report)}
+      <div class="progress-grid-2" style="margin-bottom:12px">
+        <div class="report-hub-card">
+          <div class="card-title" style="margin-bottom:8px">Occupancy Position</div>
+          ${buildDlrOccupancyPositionChart(report)}
+        </div>
+        <div class="report-hub-card">
+          <div class="card-title" style="margin-bottom:8px">Renewal Health</div>
+          ${buildDlrRenewalHealthChart(report)}
+        </div>
+      </div>
+      <div class="report-hub-card" style="margin-bottom:12px">
+        <div class="card-title" style="margin-bottom:8px">Floor Plan Rent Variance vs Budget</div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-bottom:10px">This chart compares each saved community floor plan budget rent against the current marketed rent by floor plan, using the saved floor plan rate first and imported market survey matches as fallback.</div>
+        ${buildDlrFloorPlanVarianceChart(report)}
+      </div>
+      <div class="progress-grid-2" style="margin-bottom:12px">
+        <div class="report-hub-card">
+          <div class="card-title" style="margin-bottom:8px">Month-to-Date Pace</div>
+          ${buildCommunityProgressPacePanel(report)}
+        </div>
+        <div class="report-hub-card">
+          <div class="card-title" style="margin-bottom:8px">Forward Look</div>
+          <div style="margin-bottom:10px">${buildDlrForwardLookChart(report)}</div>
+          <div style="display:grid;grid-template-columns:repeat(${Math.max(report.forwardLook.length,1)},1fr);gap:8px">
+            ${report.forwardLook.map(row => `<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">
+              <div style="font-size:0.68rem;font-weight:700;color:#4493f8">${escapeHtml(row.label)}</div>
+              <div style="font-size:0.64rem;color:var(--muted);margin-top:6px">Expirations ${formatDlrMetricValue(row.leaseExpirations)}</div>
+              <div style="font-size:0.64rem;color:var(--muted)">Pending outs ${formatDlrMetricValue(row.pendingMoveOuts)}</div>
+              <div style="font-size:0.64rem;color:var(--muted)">Pending ins ${formatDlrMetricValue(row.pendingMoveIns)}</div>
+              <div style="font-size:0.64rem;color:var(--muted)">Budget occ ${formatDlrPercent(row.budgetedOccupancy)}</div>
+              <div style="font-size:0.64rem;color:var(--muted)">Projected occ ${formatDlrPercent(row.projectedOccupancy)}</div>
+            </div>`).join("") || `<div style="font-size:0.68rem;color:var(--muted)">No forward-looking months are available yet.</div>`}
+          </div>
+        </div>
+      </div>
+      <div class="report-hub-card">
+        <div class="card-title" style="margin-bottom:8px">Source Alerts</div>
+        ${alerts.length > 0 ? alerts.map(alertItem => `<div style="margin-bottom:8px"><div style="font-size:0.72rem;font-weight:700;color:var(--text)">${escapeHtml(alertItem.title)}</div><div style="font-size:0.68rem;color:var(--muted);line-height:1.6">${escapeHtml(alertItem.body)}</div></div>`).join("") : `<div style="font-size:0.72rem;color:var(--muted)">No source alerts surfaced for the selected month.</div>`}
+      </div>
+    </div>
+  </div>`;
+}
+
+function focusReportingCommunityProgressPreview() {
+  const target = document.getElementById("reporting-community-progress-preview") || document.getElementById("reporting-community-progress-workspace");
+  if (target?.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function openCommunityProgressReport(printImmediately = false) {
+  const report = buildCommunityProgressReportData({ silent: true });
+  if (!report) return;
+  const win = window.open("", "_blank");
+  if (!win) return;
+  win.document.write(buildCommunityProgressReportDocument(report));
+  win.document.close();
+  if (printImmediately) {
+    win.focus();
+    setTimeout(() => win.print(), 200);
+  }
+}
+
+async function downloadCommunityProgressReportHtml() {
+  const report = buildCommunityProgressReportData({ silent: true });
+  if (!report) return;
+  const blob = new Blob([buildCommunityProgressReportDocument(report)], { type: "text/html" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `atlas_community_progress_${report.reportYear}-${String(report.reportMonthIdx + 1).padStart(2, "0")}.html`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function buildCommunityProgressEmailBody(report) {
+  return [
+    report.title,
+    `${report.communityName} · ${report.reportPeriodLabel}`,
+    "",
+    `Physical occupancy: ${formatDlrPercent(report.occupancyPct, 1)} | Leased: ${formatDlrPercent(report.leasedPct, 1)} | Approved apps: ${formatDlrMetricValue(report.trafficMetrics?.approvals)}`,
+    `Move-ins needed: ${formatDlrMetricValue(report.moveInsNeeded)} | Renewal retention: ${formatDlrPercent(report.renewalSnapshot?.retentionRate, 0)}`,
+    "",
+    "Review the alerts section before sending so any missing source data is called out explicitly.",
+    "Use Preview, Print / PDF, or Download Editable HTML before attaching the final report."
+  ].join("\n");
+}
+
+function draftCommunityProgressEmail() {
+  const report = buildCommunityProgressReportData({ silent: true });
+  if (!report) return;
+  const toLine = normalizeEmailListInput(
+    ensureReportHubRecipientSelection()
+      .filter(contact => reportHubRecipientKeys.includes(contact.key))
+      .map(contact => contact.email)
+      .join("; ")
+  );
+  openOutlookComposeDraft({
+    to: toLine,
+    subject: `${report.communityName} | Community Progress Report | ${report.reportPeriodLabel}`,
+    body: buildCommunityProgressEmailBody(report)
+  });
+  setTimeout(() => {
+    alert(`Outlook draft requested for ${report.communityName}. Export or print the Community Progress report first if you need to attach the PDF or HTML version.`);
+  }, 250);
 }
 
 async function openDlrInvestorOverview(printImmediately = false) {

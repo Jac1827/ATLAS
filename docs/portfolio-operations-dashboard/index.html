@@ -2947,7 +2947,7 @@ async function parseRonaldoDailyDlrWorkbook(file) {
       marketRent: normalizeOptionalNumber(row?.Avg_Scheduled_Rent_Used),
       units: normalizeOptionalNumber(row?.Units),
       occupiedUnits: normalizeOptionalNumber(row?.Occupied_Units),
-      leasedPct: normalizeWorkbookPercentToReportPct(row?.Leased_%),
+      leasedPct: normalizeWorkbookPercentToReportPct(row?.["Leased_%"]),
       occupancyPct: null
     });
     floorPlansByCommunity.set(matchedName, current);
@@ -27827,22 +27827,34 @@ async function initializeAtlasDashboard() {
   bindScoutAssistantUi();
   sideNavCollapsed = loadSideNavCollapsed();
   applySideNavState();
-  await hydrateDashboardPersistentState();
-  hydrateOpsGlobalData();
-  queuePersistedPhotoStorageCompaction();
   currentMonth = DEFAULT_CURRENT_MONTH;
   workspaceMonthOverride = null;
   applyIncomingWorkspaceNavigation();
+  hydrateOpsGlobalData();
   loadPropertyData(getProp().name);
   renderPropGrid();
   renderTab();
   persistOperationsWorkspaceContext();
-  if (savedData && Object.keys(savedData).length > 0) {
-    queueDailyBackupSnapshotWrite("startup_retain");
-  }
-  setTimeout(() => {
-    pullDashboardSharedState({ silent: true, applyRemoteIfNewer: true });
-  }, 320);
+  queuePersistedPhotoStorageCompaction();
+
+  void (async () => {
+    try {
+      await hydrateDashboardPersistentState();
+    } catch (error) {
+      markAtlasPersistenceError(error, "ATLAS could not finish loading browser data.");
+    }
+    hydrateOpsGlobalData();
+    loadPropertyData(getProp().name);
+    renderPropGrid();
+    renderTab();
+    persistOperationsWorkspaceContext();
+    if (savedData && Object.keys(savedData).length > 0) {
+      queueDailyBackupSnapshotWrite("startup_retain");
+    }
+    setTimeout(() => {
+      pullDashboardSharedState({ silent: true, applyRemoteIfNewer: true });
+    }, 320);
+  })();
 }
 
 initializeAtlasDashboard().catch((error) => {

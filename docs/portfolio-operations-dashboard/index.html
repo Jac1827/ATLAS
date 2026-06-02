@@ -1850,7 +1850,9 @@ function normalizeReportHubType(value) {
     monthly_report: "monthly_investor_deck",
     marketing_report: "investor_marketing_report",
     community_report: "community_progress",
-    community_progress_report: "community_progress"
+    community_progress_report: "community_progress",
+    market_comparison_report: "market_comparison",
+    market_to_subject_report: "market_comparison"
   };
   const mapped = legacyMap[normalized] || normalized || "investor_snapshot";
   return [
@@ -1859,7 +1861,8 @@ function normalizeReportHubType(value) {
     "investor_marketing_report",
     "dlr",
     "bonus_payout",
-    "community_progress"
+    "community_progress",
+    "market_comparison"
   ].includes(mapped) ? mapped : "investor_snapshot";
 }
 
@@ -5587,14 +5590,6 @@ function aggregateCommunitySummaries(summaries) {
     acc.previousApplicationsDenied += summary.previousApplicationsDenied || 0;
     acc.leasesSigned += summary.leasesSigned;
     acc.previousLeasesSigned += summary.previousLeasesSigned;
-    if (Number.isFinite(Number(summary.tourToLeasePct))) {
-      acc.tourToLeasePctTotal += Number(summary.tourToLeasePct);
-      acc.tourToLeasePctCount += 1;
-    }
-    if (Number.isFinite(Number(summary.previousTourToLeasePct))) {
-      acc.previousTourToLeasePctTotal += Number(summary.previousTourToLeasePct);
-      acc.previousTourToLeasePctCount += 1;
-    }
     acc.moveOuts += summary.moveOuts;
     acc.moveIns += summary.moveIns;
     acc.previousMoveOuts += summary.previousMoveOuts;
@@ -5603,8 +5598,14 @@ function aggregateCommunitySummaries(summaries) {
     acc.employeeHeadcount += summary.employeeHeadcount;
     acc.employeeTurnoverCount += summary.employeeTurnoverCount;
     if (summary.msoeCompletionPct !== null && summary.msoeCompletionPct !== undefined && Number.isFinite(Number(summary.msoeCompletionPct))) {
-      acc.msoeCompletionTotal += Number(summary.msoeCompletionPct);
-      acc.msoeCompletionCount += 1;
+      const msoeWeight = Math.max(0, Number(summary.employeeHeadcount) || 0);
+      if (msoeWeight > 0) {
+        acc.msoeCompletionWeightedTotal += Number(summary.msoeCompletionPct) * msoeWeight;
+        acc.msoeCompletionWeight += msoeWeight;
+      } else {
+        acc.msoeCompletionTotal += Number(summary.msoeCompletionPct);
+        acc.msoeCompletionCount += 1;
+      }
     }
     acc.renewalExpirations += summary.renewalExpirations;
     acc.renewalsSigned += summary.renewalsSigned;
@@ -5621,10 +5622,6 @@ function aggregateCommunitySummaries(summaries) {
     if (summary.previousRenewalRetentionRate > 0) {
       acc.previousRenewalRetentionRateTotal += summary.previousRenewalRetentionRate;
       acc.previousRenewalRetentionRateCount += 1;
-    }
-    if (summary.quarterClosedRetentionMonths > 0) {
-      acc.quarterClosedRetentionTotal += summary.quarterClosedRetentionAverage;
-      acc.quarterClosedRetentionCount += 1;
     }
     if (summary.oraScore > 0) {
       acc.oraTotal += summary.oraScore;
@@ -5673,10 +5670,6 @@ function aggregateCommunitySummaries(summaries) {
     previousApplicationsDenied: 0,
     leasesSigned: 0,
     previousLeasesSigned: 0,
-    tourToLeasePctTotal: 0,
-    tourToLeasePctCount: 0,
-    previousTourToLeasePctTotal: 0,
-    previousTourToLeasePctCount: 0,
     moveOuts: 0,
     moveIns: 0,
     previousMoveOuts: 0,
@@ -5686,6 +5679,8 @@ function aggregateCommunitySummaries(summaries) {
     employeeTurnoverCount: 0,
     msoeCompletionTotal: 0,
     msoeCompletionCount: 0,
+    msoeCompletionWeightedTotal: 0,
+    msoeCompletionWeight: 0,
     renewalExpirations: 0,
     renewalsSigned: 0,
     renewalNTV: 0,
@@ -5698,8 +5693,6 @@ function aggregateCommunitySummaries(summaries) {
     previousRenewalsSigned: 0,
     previousRenewalRetentionRateTotal: 0,
     previousRenewalRetentionRateCount: 0,
-    quarterClosedRetentionTotal: 0,
-    quarterClosedRetentionCount: 0,
     oraTotal: 0,
     oraCount: 0,
     googleQuarterlyTotal: 0,
@@ -5749,7 +5742,9 @@ function aggregateCommunitySummaries(summaries) {
     employeeHeadcount: totals.employeeHeadcount,
     employeeTurnoverCount: totals.employeeTurnoverCount,
     employeeTurnoverPct: totals.employeeHeadcount > 0 ? (totals.employeeTurnoverCount / totals.employeeHeadcount) * 100 : 0,
-    msoeCompletionPct: totals.msoeCompletionCount > 0 ? totals.msoeCompletionTotal / totals.msoeCompletionCount : 0,
+    msoeCompletionPct: totals.msoeCompletionWeight > 0
+      ? totals.msoeCompletionWeightedTotal / totals.msoeCompletionWeight
+      : (totals.msoeCompletionCount > 0 ? totals.msoeCompletionTotal / totals.msoeCompletionCount : 0),
     occGapUnits: Math.max(totals.budgetOccUnits - totals.occupied, 0),
     leasedGapUnits: Math.max(totals.budgetLeasedUnits - totals.leased, 0),
     avgBudgetOccAttainmentPct: totals.avgBudgetOccAttainmentPctCount > 0 ? totals.avgBudgetOccAttainmentPctTotal / totals.avgBudgetOccAttainmentPctCount : 0,
@@ -5771,8 +5766,8 @@ function aggregateCommunitySummaries(summaries) {
     previousLeadToLeasePct: totals.previousGuestCards > 0 ? (totals.previousLeasesSigned / totals.previousGuestCards) * 100 : 0,
     tourToAppPct: totals.tours > 0 ? (totals.applications / totals.tours) * 100 : 0,
     previousTourToAppPct: totals.previousTours > 0 ? (totals.previousApplications / totals.previousTours) * 100 : 0,
-    tourToLeasePct: totals.tourToLeasePctCount > 0 ? totals.tourToLeasePctTotal / totals.tourToLeasePctCount : 0,
-    previousTourToLeasePct: totals.previousTourToLeasePctCount > 0 ? totals.previousTourToLeasePctTotal / totals.previousTourToLeasePctCount : 0,
+    tourToLeasePct: totals.tours > 0 ? (totals.applicationsApproved / totals.tours) * 100 : 0,
+    previousTourToLeasePct: totals.previousTours > 0 ? (totals.previousApplicationsApproved / totals.previousTours) * 100 : 0,
     applicationApprovalPct: totals.applications > 0 ? (totals.applicationsApproved / totals.applications) * 100 : 0,
     previousApplicationApprovalPct: totals.previousApplications > 0 ? (totals.previousApplicationsApproved / totals.previousApplications) * 100 : 0,
     applicationDenialPct: totals.applications > 0 ? (totals.applicationsDenied / totals.applications) * 100 : 0,
@@ -5785,7 +5780,7 @@ function aggregateCommunitySummaries(summaries) {
     renewalEarlyTermination: totals.renewalEarlyTermination,
     renewalProjectedAttrition: totals.renewalProjectedAttrition,
     renewalRetentionRate: totals.renewalExpirations > 0 ? (totals.renewalsSigned / totals.renewalExpirations) * 100 : (totals.renewalRetentionRateCount > 0 ? totals.renewalRetentionRateTotal / totals.renewalRetentionRateCount : 0),
-    quarterClosedRetentionAverage: totals.quarterClosedRetentionCount > 0 ? totals.quarterClosedRetentionTotal / totals.quarterClosedRetentionCount : 0,
+    quarterClosedRetentionAverage: totals.renewalExpirations > 0 ? (totals.renewalsSigned / totals.renewalExpirations) * 100 : 0,
     previousRenewalExpirations: totals.previousRenewalExpirations,
     previousRenewalsSigned: totals.previousRenewalsSigned,
     previousRenewalRetentionRate: totals.previousRenewalExpirations > 0 ? (totals.previousRenewalsSigned / totals.previousRenewalExpirations) * 100 : (totals.previousRenewalRetentionRateCount > 0 ? totals.previousRenewalRetentionRateTotal / totals.previousRenewalRetentionRateCount : 0),
@@ -18040,6 +18035,80 @@ function renderPortfolioHomeTab() {
       overBudgetCount: 0
     });
     financialAggregate.noiVariance = financialAggregate.noiActual - financialAggregate.noiBudget;
+    const marketComparisonAggregate = renderSafeSection(
+      () => buildMarketComparisonAggregateForDetails(details, selectedMonth),
+      null
+    );
+    const marketComparisonHtml = renderSafeSection(
+      () => {
+        if (!marketComparisonAggregate) {
+          return `<div class="alert alert-info">Upload weekly AptIQ market survey files to surface the side-by-side market comparison card here.</div>`;
+        }
+        const subject = {
+          occupancyPct: marketComparisonAggregate.subjectOccupancyPct,
+          leasedPct: marketComparisonAggregate.subjectLeasedPct,
+          rent: marketComparisonAggregate.subjectAverageRent,
+          ner: marketComparisonAggregate.subjectAverageNer,
+          applications: marketComparisonAggregate.subjectApplications,
+          leases: marketComparisonAggregate.subjectLeases,
+          guestCards: marketComparisonAggregate.subjectGuestCards,
+          tours: marketComparisonAggregate.subjectTours,
+          approvals: marketComparisonAggregate.subjectApprovals,
+          moveIns: marketComparisonAggregate.subjectMoveIns,
+          moveOuts: marketComparisonAggregate.subjectMoveOuts,
+          retentionRate: marketComparisonAggregate.subjectRetentionRate,
+          occupiedUnits: marketComparisonAggregate.subjectOccupiedUnits,
+          leasedUnits: marketComparisonAggregate.subjectLeasedUnits
+        };
+        const market = {
+          leasedPct: marketComparisonAggregate.marketLeasedPct,
+          exposurePct: marketComparisonAggregate.marketExposurePct,
+          rent: marketComparisonAggregate.marketAverageRent,
+          ner: marketComparisonAggregate.marketAverageNer,
+          applicationsLast30: marketComparisonAggregate.marketApplicationsLast30,
+          leasesLast30: marketComparisonAggregate.marketLeasesLast30
+        };
+        const comparisonRows = buildMarketComparisonMetricRows(subject, market);
+        const rentGap = Number(subject.rent ?? 0) - Number(market.rent ?? 0);
+        const nerGap = Number(subject.ner ?? 0) - Number(market.ner ?? 0);
+        const occupancyGap = Number(subject.occupancyPct ?? 0) - Number(market.leasedPct ?? 0);
+        return `<div class="portfolio-list-card" style="margin-top:16px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+            <div>
+              <h3>Market to Subject Portfolio Comparison</h3>
+              <p>Weekly AptIQ survey benchmarks against the selected month of ATLAS subject performance.</p>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button type="button" class="btn btn-gray btn-sm" onmousedown="setReportHubType('market_comparison'); return queueWorkspaceNavigation('', 8, { portfolio: true })">Open Market Comparison</button>
+            </div>
+          </div>
+          <div class="portfolio-rank-list">
+            <div class="portfolio-rank-item">
+              <div>
+                <div style="font-size:0.78rem;font-weight:700">Coverage</div>
+                <div class="meta">${formatDlrMetricValue(marketComparisonAggregate.marketCoverageCount)} of ${formatDlrMetricValue(marketComparisonAggregate.communityCount)} communities with survey data</div>
+              </div>
+              <div style="text-align:right;max-width:220px">
+                <div class="metric">${Math.round(marketComparisonAggregate.marketCoveragePct || 0)}%</div>
+                <div class="metric-sub">survey coverage</div>
+              </div>
+            </div>
+            <div class="portfolio-rank-item">
+              <div>
+                <div style="font-size:0.78rem;font-weight:700">Pricing Gap</div>
+                <div class="meta">${formatSignedDisplay(rentGap, 0, "")} rent · ${formatSignedDisplay(nerGap, 0, "")} NER</div>
+              </div>
+              <div style="text-align:right;max-width:220px">
+                <div class="metric">${formatSignedDisplay(occupancyGap, 1, " pts")}</div>
+                <div class="metric-sub">occupancy gap</div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:12px">${buildSideBySideComparisonChart("Subject vs Market", comparisonRows, { subjectLabel: "Subject", marketLabel: "Market", summaryLabel: `${formatDlrMetricValue(marketComparisonAggregate.marketCoverageCount)} survey-covered communities`, subtitle: "Weekly AptIQ benchmark data compared against the current portfolio month." })}</div>
+        </div>`;
+      },
+      `<div class="alert alert-info">Upload weekly AptIQ market survey files to surface the side-by-side market comparison card here.</div>`
+    );
     const tiles = [
       {
         label: "Saved Communities",
@@ -18049,12 +18118,16 @@ function renderPortfolioHomeTab() {
       {
         label: "Approved Applications",
         value: `${Math.round(aggregate.applicationsApproved ?? 0)}`,
-        sub: previousAggregate ? formatPortfolioTrendValue(aggregate.applicationsApproved ?? 0, previousAggregate.applicationsApproved ?? 0, "count_pct").replace("MoM", "vs prior month") : "Month-to-date approved applications"
+        sub: previousAggregate
+          ? formatPortfolioProjectedTrendValue(aggregate.applicationsApproved ?? 0, previousAggregate.applicationsApproved ?? 0, "count_pct", selectedMonth, new Date().getFullYear())
+          : "Month-to-date approved applications"
       },
       {
         label: "Net Absorption",
         value: formatSignedDisplay(aggregate.monthAbsorption ?? 0),
-        sub: previousAggregate ? formatPortfolioTrendValue(aggregate.monthAbsorption ?? 0, previousAggregate.monthAbsorption ?? 0, "number_diff").replace("MoM", "vs prior month") : "Move-ins minus move-outs"
+        sub: previousAggregate
+          ? formatPortfolioProjectedTrendValue(aggregate.monthAbsorption ?? 0, previousAggregate.monthAbsorption ?? 0, "number_diff", selectedMonth, new Date().getFullYear())
+          : "Move-ins minus move-outs"
       },
       {
         label: "Renewal Retention",
@@ -18114,7 +18187,7 @@ function renderPortfolioHomeTab() {
         summaryLabel: selectedLabel,
         summaryValue: selectedTrendRow && selectedTrendRow.communityCount > 0 ? formatPortfolioTrendMetricValue(selectedTrendRow.approvedApps, "number") : "—",
         summarySub: selectedMonth > 0 && selectedTrendRow && trendRows[selectedMonth - 1]?.communityCount > 0
-          ? formatPortfolioTrendValue(selectedTrendRow.approvedApps ?? 0, trendRows[selectedMonth - 1]?.approvedApps ?? 0, "count_pct").replace("MoM", "vs prior month")
+          ? formatPortfolioProjectedTrendValue(selectedTrendRow.approvedApps ?? 0, trendRows[selectedMonth - 1]?.approvedApps ?? 0, "count_pct", selectedMonth, new Date().getFullYear())
           : "Approved apps saved in the selected reporting month",
         chips: [
           `<strong>${selectedTrendRow?.communityCount ?? 0}</strong> active communities`,
@@ -18145,7 +18218,7 @@ function renderPortfolioHomeTab() {
         summaryLabel: selectedLabel,
         summaryValue: selectedTrendRow && selectedTrendRow.communityCount > 0 ? formatPortfolioTrendMetricValue(selectedTrendRow.netAbsorption, "signed") : "—",
         summarySub: selectedMonth > 0 && selectedTrendRow && trendRows[selectedMonth - 1]?.communityCount > 0
-          ? formatPortfolioTrendValue(selectedTrendRow.netAbsorption ?? 0, trendRows[selectedMonth - 1]?.netAbsorption ?? 0, "number_diff").replace("MoM", "vs prior month")
+          ? formatPortfolioProjectedTrendValue(selectedTrendRow.netAbsorption ?? 0, trendRows[selectedMonth - 1]?.netAbsorption ?? 0, "number_diff", selectedMonth, new Date().getFullYear())
           : "Move-ins less effective move-outs for the selected month",
         chips: [
           `<strong>${formatPortfolioTrendMetricValue(selectedTrendRow?.moveIns, "number")}</strong> move-ins`,
@@ -18268,10 +18341,28 @@ function renderPortfolioHomeTab() {
     </div>
   </div>
   <div class="portfolio-list-card" style="margin-top:16px">
+      <div class="atlas-map-shell" style="margin-top:0;margin-bottom:16px">
+        <h3>Portfolio map</h3>
+        <p>Community pins use the saved addresses in Community Setup so the portfolio view can verify geographic coverage and location context without leaving the dashboard.</p>
+        <div class="atlas-map-grid">
+          <div id="atlas-portfolio-map" aria-label="ATLAS portfolio map"></div>
+          <div class="atlas-map-list">
+            <div class="atlas-map-card">
+              <div class="atlas-map-card-title">Saved address coverage</div>
+              <div class="atlas-map-card-meta">${details.length} communities are included in this snapshot. Add or update addresses in Community Setup if a pin is missing.</div>
+            </div>
+            <div class="atlas-map-card">
+              <div class="atlas-map-card-title">Map behavior</div>
+              <div class="atlas-map-card-meta">The map auto-fits to saved properties and each hover state shows the community name, address, and unit count.</div>
+            </div>
+          </div>
+        </div>
+      </div>
       <h3>Portfolio priorities</h3>
       <p>${isPortfolioWorkspaceSelected() ? "Internally-facing items that may need a management touch before they show up as missed outcomes." : "Internally-facing items that may need a management touch before they show up as missed outcomes for this community."}</p>
       <div class="portfolio-rank-list">${prioritiesHtml}</div>
   </div>
+  ${marketComparisonHtml}
   <div class="portfolio-section-grid" style="margin-top:16px">
     ${approvedTrendCard}
     ${netAbsorptionTrendCard}
@@ -18292,10 +18383,10 @@ function renderPortfolioHomeTab() {
 function renderReportingTab() {
   ensureValidReportHubAction();
   reportHubType = normalizeReportHubType(reportHubType);
-  if (!["dlr", "bonus_payout", "community_progress"].includes(reportHubType) && reportHubPerspective === "regional") {
+  if (!["dlr", "bonus_payout", "community_progress", "market_comparison"].includes(reportHubType) && reportHubPerspective === "regional") {
     reportHubPerspective = "investor";
   }
-  if (reportHubType === "community_progress") {
+  if (reportHubType === "community_progress" || reportHubType === "market_comparison") {
     reportHubPerspective = "csuite";
   }
   if (normalizeReportHubType(reportHubType) === "dlr") {
@@ -18322,8 +18413,8 @@ function renderReportingTab() {
   const selectedReportSections = getSelectedPortfolioReportSections();
   const ownerFilterSummary = `${(portfolioReportFilters.investorGroups ?? []).length} investor group(s) · ${(portfolioReportFilters.investorCommunities ?? []).length} highlighted communit${(portfolioReportFilters.investorCommunities ?? []).length === 1 ? "y" : "ies"}`;
   const communityProgressFilterSummary = `${communityProgressSelectionNames.length} communit${communityProgressSelectionNames.length === 1 ? "y" : "ies"} selected`;
-  const reportNeedsScopeBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "community_progress";
-  const reportNeedsSectionBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "community_progress";
+  const reportNeedsScopeBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && !["community_progress", "market_comparison"].includes(normalizedType);
+  const reportNeedsSectionBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && !["community_progress", "market_comparison"].includes(normalizedType);
   const reportTypeDescription = normalizedType === "investor_marketing_report"
     ? "Combines traffic and funnel performance with comp calculator and market-survey context."
     : normalizedType === "monthly_investor_deck"
@@ -18334,6 +18425,8 @@ function renderReportingTab() {
           ? "Single-community daily leasing report with upload-backed activity checks."
           : normalizedType === "community_progress"
             ? "C-suite month-to-date community progress report with photo-led visuals, pace analysis, and explicit data alerts when source fields are incomplete."
+            : normalizedType === "market_comparison"
+              ? "C-suite market-versus-subject report built from the weekly AptIQ survey feed and saved community metrics."
           : "Investor-facing operating snapshot across the selected investor groups and highlighted communities.";
   const scopeFilterHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
       <div class="report-hub-card">
@@ -18356,12 +18449,14 @@ function renderReportingTab() {
         </div>
       </div>
     </div>`;
-  const communityProgressScopeHTML = normalizedType === "community_progress"
+  const communityProgressScopeHTML = ["community_progress", "market_comparison"].includes(normalizedType)
     ? `<div class="report-hub-card" style="margin-bottom:14px">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
         <div>
-          <div class="card-title" style="margin-bottom:6px">Community Selection</div>
-          <p style="font-size:0.72rem;color:var(--muted)">Pick one or more communities to feed the report. The top summary rolls them up together and the detailed sections break out each community below.</p>
+          <div class="card-title" style="margin-bottom:6px">${normalizedType === "market_comparison" ? "Market Comparison Selection" : "Community Selection"}</div>
+          <p style="font-size:0.72rem;color:var(--muted)">${normalizedType === "market_comparison"
+            ? "Pick one or more communities to compare against their weekly APTIQ submarket snapshots. The top summary rolls them up together and the detailed sections break out each community below."
+            : "Pick one or more communities to feed the report. The top summary rolls them up together and the detailed sections break out each community below."}</p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-gray btn-sm" onclick="setAllCommunityProgressReportCommunities(true)">Select All</button>
@@ -18378,7 +18473,7 @@ function renderReportingTab() {
       </div>
     </div>`
     : "";
-  const editableRecommendationDetails = normalizedType === "community_progress"
+  const editableRecommendationDetails = ["community_progress", "market_comparison"].includes(normalizedType)
     ? []
     : (reportHubPerspective === "csuite" || reportHubPerspective === "regional")
     ? getScopedPortfolioReportDetails(reportBuilderDetails).slice(0, 8)
@@ -18417,8 +18512,8 @@ function renderReportingTab() {
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px">
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Current Scope</div>
-        <div style="font-size:0.82rem;font-weight:700;color:var(--accent)">${escapeHtml(normalizedType === "community_progress" ? getCommunityProgressReportScopeLabel() : getWorkspaceScopeDisplayName())}</div>
-        <div style="font-size:0.68rem;color:var(--muted);margin-top:6px">${escapeHtml(reportMonthLabel)} report period · ${normalizedType === "community_progress" ? `${communityProgressSelectionNames.length > 1 ? "multi-community c-suite mode" : "single-community c-suite mode"}` : (isPortfolioWorkspaceSelected() ? "portfolio aggregate mode" : "community-specific mode")}</div>
+        <div style="font-size:0.82rem;font-weight:700;color:var(--accent)">${escapeHtml(["community_progress", "market_comparison"].includes(normalizedType) ? getCommunityProgressReportScopeLabel() : getWorkspaceScopeDisplayName())}</div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-top:6px">${escapeHtml(reportMonthLabel)} report period · ${["community_progress", "market_comparison"].includes(normalizedType) ? `${communityProgressSelectionNames.length > 1 ? "multi-community c-suite mode" : "single-community c-suite mode"}` : (isPortfolioWorkspaceSelected() ? "portfolio aggregate mode" : "community-specific mode")}</div>
       </div>
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Report Type</div>
@@ -18429,6 +18524,7 @@ function renderReportingTab() {
           <option value="bonus_payout" ${reportHubType==="bonus_payout"?"selected":""}>Bonus Payout Report</option>
           <option value="monthly_investor_deck" ${reportHubType==="monthly_investor_deck"?"selected":""}>Monthly Report</option>
           <option value="community_progress" ${reportHubType==="community_progress"?"selected":""}>Community Progress Report</option>
+          <option value="market_comparison" ${reportHubType==="market_comparison"?"selected":""}>Market Comparison Report</option>
         </select>
         <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${escapeHtml(reportTypeDescription)}</div>
       </div>
@@ -18532,6 +18628,9 @@ function renderReportHubInlinePreview(type = normalizeReportHubType(reportHubTyp
   }
   if (type === "community_progress") {
     return `<div class="card mb4" id="reporting-inline-preview">${renderCommunityProgressReportingWorkspace()}</div>`;
+  }
+  if (type === "market_comparison") {
+    return renderMarketComparisonReportingWorkspace();
   }
   if (type === "bonus_payout") {
     return renderReportHubPreviewFrame(
@@ -18926,7 +19025,8 @@ function getReportHubTypeLabel(type = reportHubType) {
     investor_marketing_report: "Marketing Report",
     dlr: "DLR",
     bonus_payout: "Bonus Payout Report",
-    community_progress: "Community Progress Report"
+    community_progress: "Community Progress Report",
+    market_comparison: "Market Comparison Report"
   }[normalizeReportHubType(type)] || "Investor Snapshot";
 }
 
@@ -19028,7 +19128,7 @@ function configureReportHubDefaultsForType(type) {
     reportHubPerspective = "csuite";
   } else if (normalized === "bonus_payout") {
     reportHubPerspective = "csuite";
-  } else if (normalized === "community_progress") {
+  } else if (normalized === "community_progress" || normalized === "market_comparison") {
     reportHubPerspective = "csuite";
     if (!Array.isArray(reportHubCommunityProgressCommunities) || reportHubCommunityProgressCommunities.length === 0) {
       reportHubCommunityProgressCommunities = [getCommunityProgressReportCommunityName()];
@@ -19161,7 +19261,7 @@ function getScopedPortfolioReportDetails(details) {
 }
 
 function getReportBuilderScopedDetails() {
-  if (normalizeReportHubType(reportHubType) === "community_progress") {
+  if (["community_progress", "market_comparison"].includes(normalizeReportHubType(reportHubType))) {
     return getCommunityProgressReportCommunityNames()
       .map(name => {
         const record = getPersistedCommunityRecordForScope(name, { allowCurrentFallback: true });
@@ -19325,6 +19425,38 @@ function formatPortfolioTrendValue(currentValue, previousValue, mode = "count_pc
   const pctChange = ((current - previous) / Math.abs(previous)) * 100;
   if (Math.abs(pctChange) < 0.1) return "flat MoM";
   return `${pctChange >= 0 ? "▲" : "▼"}${Math.abs(pctChange).toFixed(1)}% MoM`;
+}
+
+function formatPortfolioProjectedTrendValue(currentValue, previousValue, mode = "count_pct", selectedMonth = getSelectedDashboardMonthIndex(), year = new Date().getFullYear()) {
+  const current = Number(currentValue) || 0;
+  const previous = Number(previousValue) || 0;
+  const calendarContext = getCurrentCalendarDayContext(selectedMonth, year);
+  if (!calendarContext.isCurrentCalendarMonth) {
+    return formatPortfolioTrendValue(current, previous, mode).replace("MoM", "vs prior month");
+  }
+  const projected = (current / Math.max(calendarContext.dayOfMonth, 1)) * calendarContext.daysInMonth;
+  if (mode === "point") {
+    const diff = projected - previous;
+    if (Math.abs(diff) < 0.05) return "on pace with prior month";
+    return `${diff >= 0 ? "▲" : "▼"}${Math.abs(diff).toFixed(1)} pts projected vs prior month`;
+  }
+  if (mode === "number_diff") {
+    const diff = projected - previous;
+    if (Math.abs(diff) < 0.5) return "on pace with prior month";
+    return `${diff >= 0 ? "▲" : "▼"}${Math.abs(diff).toFixed(0)} units projected vs prior month`;
+  }
+  if (mode === "currency_diff") {
+    const diff = projected - previous;
+    if (Math.abs(diff) < 0.5) return "on pace with prior month";
+    return `${diff >= 0 ? "▲" : "▼"}$${Math.abs(diff).toLocaleString(undefined, { maximumFractionDigits: 0 })} projected vs prior month`;
+  }
+  if (previous === 0) {
+    if (projected === 0) return "on pace with prior month";
+    return "new projected month";
+  }
+  const pctChange = ((projected - previous) / Math.abs(previous)) * 100;
+  if (Math.abs(pctChange) < 0.1) return "on pace with prior month";
+  return `${pctChange >= 0 ? "▲" : "▼"}${Math.abs(pctChange).toFixed(1)}% projected vs prior month`;
 }
 
 function formatPortfolioReportValueWithTrend(value, kind, previousValue, trendMode = "count_pct") {
@@ -22921,7 +23053,7 @@ function getReportHubActionOptions(type = reportHubType) {
   if (["investor_snapshot", "investor_marketing_report"].includes(normalizedType)) return [...common, { value: "export_csv", label: "Export CSV" }, { value: "export_excel", label: "Export Excel" }];
   if (normalizedType === "monthly_investor_deck") return [...common, { value: "export_html", label: "Download Editable HTML" }];
   if (normalizedType === "dlr") return [...common, { value: "export_html", label: "Download Editable HTML" }];
-  if (normalizedType === "community_progress") return [...common, { value: "export_html", label: "Download Editable HTML" }];
+  if (normalizedType === "community_progress" || normalizedType === "market_comparison") return [...common, { value: "export_html", label: "Download Editable HTML" }];
   if (normalizedType === "bonus_payout") return [...common, { value: "export_csv", label: "Export CSV" }];
   return common;
 }
@@ -22978,6 +23110,21 @@ function buildReportHubEmailDraft(type = reportHubType) {
         "",
         "The month-to-date community progress report is ready from the Reporting Hub.",
         "Use Preview, Print / PDF, or Download Editable HTML before sending. Review the alerts section first so any missing source data is called out explicitly."
+      ].join("\n")
+    };
+  }
+  if (normalizedType === "market_comparison") {
+    const report = buildMarketComparisonReportData({ silent: true });
+    if (!report) return null;
+    return {
+      to,
+      subject: `${(report.communityCount > 1 ? report.scopeLabel : report.communityName) || "Market Comparison"} | Market Comparison Report | ${report.currentMonthLabel}`,
+      body: [
+        `${report.title}`,
+        `${report.communityCount > 1 ? `${report.scopeLabel} (${report.communityCount} communities)` : report.communityName} · ${report.currentMonthLabel}`,
+        "",
+        "The market comparison report is ready from the Reporting Hub.",
+        "Use Preview, Print / PDF, or Download Editable HTML before sending. Review the alerts section first so any missing survey data is called out explicitly."
       ].join("\n")
     };
   }
@@ -23878,6 +24025,11 @@ async function runReportHubAction() {
       focusReportingCommunityProgressPreview();
       return;
     }
+    if (type === "market_comparison") {
+      renderTab();
+      focusReportingMarketComparisonPreview();
+      return;
+    }
     if (type === "dlr") {
       syncDlrTargetFromReportHub({ preserveCommunity: true });
       renderTab();
@@ -23890,6 +24042,7 @@ async function runReportHubAction() {
     if (["investor_snapshot", "investor_marketing_report"].includes(type)) return openPortfolioPerformanceReport(true);
     if (type === "monthly_investor_deck") return openMonthlyInvestorPresentation(true);
     if (type === "community_progress") return openCommunityProgressReport(true);
+    if (type === "market_comparison") return openMarketComparisonReport(true);
     if (type === "dlr") {
       syncDlrTargetFromReportHub({ preserveCommunity: true });
       return openDlrInvestorOverview(true);
@@ -23904,6 +24057,7 @@ async function runReportHubAction() {
   if (reportHubAction === "export_html") {
     if (type === "monthly_investor_deck") return downloadMonthlyInvestorPresentationBrief();
     if (type === "community_progress") return downloadCommunityProgressReportHtml();
+    if (type === "market_comparison") return downloadMarketComparisonReportHtml();
     syncDlrTargetFromReportHub({ preserveCommunity: true });
     return downloadDlrInvestorOverviewHtml();
   }
@@ -24256,6 +24410,97 @@ function buildDlrFloorPlanVarianceChart(report) {
       </div>
     </div>
     <div style="display:grid">${rowHtml}</div>
+  </div>`;
+}
+
+function buildSideBySideComparisonChart(title, rows = [], options = {}) {
+  const cleaned = (Array.isArray(rows) ? rows : []).filter(row => {
+    const subject = Number(row?.subjectValue ?? 0) || 0;
+    const market = Number(row?.marketValue ?? 0) || 0;
+    return subject > 0 || market > 0 || Boolean(row?.forceRow);
+  });
+  if (cleaned.length === 0) {
+    return `<div style="padding:14px;border:1px dashed #cbd5e1;border-radius:16px;background:#f8fafc;font-size:12px;color:#64748b">No comparison data is saved yet for the selected communities.</div>`;
+  }
+  const formatValue = (value, kind = "number", formatter = null) => {
+    if (typeof formatter === "function") return formatter(value);
+    const numeric = Number(value ?? 0) || 0;
+    if (kind === "currency") return formatDlrCurrency(numeric);
+    if (kind === "pct") return formatDlrPercent(numeric, 1);
+    return formatDlrMetricValue(numeric);
+  };
+  const subjectColor = options.subjectColor || "#1d4ed8";
+  const marketColor = options.marketColor || "#0f766e";
+  const subjectLabelDefault = options.subjectLabel || "Subject";
+  const marketLabelDefault = options.marketLabel || "Market";
+  const subtitle = String(options.subtitle || "").trim();
+  const totalSubject = cleaned.reduce((sum, row) => sum + Math.max(0, Number(row.subjectValue ?? 0) || 0), 0);
+  const totalMarket = cleaned.reduce((sum, row) => sum + Math.max(0, Number(row.marketValue ?? 0) || 0), 0);
+  const rowsHtml = cleaned.map(row => {
+    const subjectValue = Math.max(0, Number(row.subjectValue ?? 0) || 0);
+    const marketValue = Math.max(0, Number(row.marketValue ?? 0) || 0);
+    const rowMax = Math.max(subjectValue, marketValue, 1);
+    const subjectWidth = subjectValue > 0 ? Math.max(8, Math.min((subjectValue / rowMax) * 100, 100)) : 0;
+    const marketWidth = marketValue > 0 ? Math.max(8, Math.min((marketValue / rowMax) * 100, 100)) : 0;
+    const label = String(row.label ?? "Metric");
+    const subjectLabel = String(row.subjectLabel ?? subjectLabelDefault);
+    const marketLabel = String(row.marketLabel ?? marketLabelDefault);
+    const subjectNote = String(row.subjectNote ?? "").trim();
+    const marketNote = String(row.marketNote ?? "").trim();
+    const rowNote = String(row.note ?? "").trim();
+    const kind = row.kind || options.kind || "number";
+    const formatter = row.formatter || options.formatter || null;
+    return `<div style="padding:12px 0;border-top:1px solid #e5e7eb">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:8px">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#0f172a">${escapeHtml(label)}</div>
+          ${rowNote ? `<div style="font-size:11px;color:#64748b;margin-top:3px;line-height:1.45">${escapeHtml(rowNote)}</div>` : ""}
+        </div>
+        <div style="font-size:11px;color:#64748b;text-align:right;line-height:1.5">
+          <div>${escapeHtml(formatValue(subjectValue, kind, formatter))}</div>
+          <div>${escapeHtml(formatValue(marketValue, kind, formatter))}</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:10px">
+        <div style="padding:10px;border:1px solid #dbe4f0;border-radius:12px;background:linear-gradient(180deg,#f8fbff 0%,#f0f7ff 100%)">
+          <div style="display:flex;justify-content:space-between;gap:10px;font-size:11px;color:#475569;margin-bottom:7px">
+            <span style="font-weight:700">${escapeHtml(subjectLabel)}</span>
+            <span>${escapeHtml(formatValue(subjectValue, kind, formatter))}</span>
+          </div>
+          <div style="height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden">
+            <div style="height:100%;width:${subjectWidth}%;background:${subjectColor};border-radius:999px"></div>
+          </div>
+          ${subjectNote ? `<div style="font-size:11px;color:#64748b;margin-top:5px;line-height:1.45">${escapeHtml(subjectNote)}</div>` : ""}
+        </div>
+        <div style="padding:10px;border:1px solid #dbe4f0;border-radius:12px;background:linear-gradient(180deg,#f8fffd 0%,#effaf7 100%)">
+          <div style="display:flex;justify-content:space-between;gap:10px;font-size:11px;color:#475569;margin-bottom:7px">
+            <span style="font-weight:700">${escapeHtml(marketLabel)}</span>
+            <span>${escapeHtml(formatValue(marketValue, kind, formatter))}</span>
+          </div>
+          <div style="height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden">
+            <div style="height:100%;width:${marketWidth}%;background:${marketColor};border-radius:999px"></div>
+          </div>
+          ${marketNote ? `<div style="font-size:11px;color:#64748b;margin-top:5px;line-height:1.45">${escapeHtml(marketNote)}</div>` : ""}
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+  return `<div style="padding:16px;border:1px solid #dbe4f0;border-radius:16px;background:#ffffff">
+    <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#64748b">${escapeHtml(title)}</div>
+        ${subtitle ? `<div style="font-size:12px;color:#64748b;margin-top:5px;line-height:1.6">${escapeHtml(subtitle)}</div>` : ""}
+      </div>
+      <div style="text-align:right;font-size:12px;color:#475569">
+        <div>${cleaned.length} metric${cleaned.length === 1 ? "" : "s"} compared</div>
+        <div style="margin-top:4px">${escapeHtml(options.summaryLabel || "Subject vs market")}</div>
+      </div>
+    </div>
+    <div style="display:grid;gap:12px">${rowsHtml}</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+      <div style="padding:6px 10px;border:1px solid #dbe4f0;border-radius:999px;background:#f8fbff;font-size:11px;color:#475569"><strong>${formatDlrMetricValue(totalSubject)}</strong> subject total</div>
+      <div style="padding:6px 10px;border:1px solid #dbe4f0;border-radius:999px;background:#f8fffd;font-size:11px;color:#475569"><strong>${formatDlrMetricValue(totalMarket)}</strong> market total</div>
+    </div>
   </div>`;
 }
 
@@ -25109,12 +25354,7 @@ function buildCommunityProgressTrendRows(report) {
       const details = communityRecords.map(({ name, record }) => buildCommunityDetailForMonth(name, record, monthIdx)).filter(Boolean);
       const summaries = details.map(detail => detail.summary);
       const aggregate = aggregateCommunitySummaries(summaries);
-      const budgetOccValues = details
-        .map(detail => getRecordSavedBudgetOccPct(detail.record, monthIdx))
-        .filter(value => Number.isFinite(Number(value)) && Number(value) > 0);
-      const budgetOccPct = budgetOccValues.length > 0
-        ? budgetOccValues.reduce((sum, value) => sum + Number(value), 0) / budgetOccValues.length
-        : null;
+      const budgetOccPct = aggregate.budgetOccPct > 0 ? aggregate.budgetOccPct : null;
       return {
         monthIdx,
         monthLabel,
@@ -25769,11 +26009,8 @@ function buildCommunityProgressReportData(options = {}) {
   const leadSourceBreakdownTotal = leadSourceBreakdown
     ? Object.values(leadSourceBreakdown).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0)
     : 0;
-  const budgetOccValues = communityReports
-    .map(item => Number(item.budgetOccPct))
-    .filter(value => Number.isFinite(Number(value)) && Number(value) > 0);
-  const budgetOccPct = allHaveBudgetOcc && budgetOccValues.length > 0
-    ? budgetOccValues.reduce((sum, value) => sum + Number(value), 0) / budgetOccValues.length
+  const budgetOccPct = allHaveBudgetOcc && aggregateSummary.budgetOccPct > 0
+    ? aggregateSummary.budgetOccPct
     : null;
   const previousRetentionValues = communityReports
     .map(item => Number(item.renewalSnapshot?.previousRetentionRate))
@@ -26389,6 +26626,661 @@ function draftCommunityProgressEmail() {
   });
   setTimeout(() => {
     alert(`Outlook draft requested for ${report.communityName}. Export or print the Community Progress report first if you need to attach the PDF or HTML version.`);
+  }, 250);
+}
+
+function getMarketComparisonReportCommunityNames() {
+  return getCommunityProgressReportCommunityNames();
+}
+
+function getMarketComparisonReportScopeLabel() {
+  return getCommunityProgressReportScopeLabel();
+}
+
+function buildMarketComparisonAggregateForDetails(details = [], monthIdx = getReportHubMonthIndex()) {
+  const normalizedDetails = Array.isArray(details) ? details.filter(Boolean) : [];
+  const snapshots = normalizedDetails.map(detail => ({
+    detail,
+    summary: detail?.summary ?? {},
+    market: buildRegionalPricingWorksheetSnapshot(detail, null, monthIdx)
+  }));
+  const marketSnapshots = snapshots.filter(item => hasMarketSurveyData(item.market));
+  const averageFrom = (items, selector) => {
+    const values = (Array.isArray(items) ? items : [])
+      .map(selector)
+      .map(value => Number(value ?? 0))
+      .filter(value => Number.isFinite(value) && value > 0);
+    return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+  };
+  const sumFrom = (items, selector) => (Array.isArray(items) ? items : []).reduce((sum, item) => sum + Math.max(0, Number(selector(item)) || 0), 0);
+  const subjectSummary = aggregateCommunitySummaries(normalizedDetails.map(detail => detail.summary));
+  return {
+    details: normalizedDetails,
+    snapshots,
+    marketSnapshots,
+    communityCount: normalizedDetails.length,
+    marketCoverageCount: marketSnapshots.length,
+    marketCoveragePct: normalizedDetails.length > 0 ? (marketSnapshots.length / normalizedDetails.length) * 100 : 0,
+    subjectSummary,
+    subjectOccupancyPct: getSummaryOccPct(subjectSummary),
+    subjectLeasedPct: getSummaryLeasedPct(subjectSummary),
+    subjectAverageRent: averageFrom(snapshots, item => Number(item.market.subjectAskingRent ?? item.summary.marketRent ?? item.summary.proformaRent ?? 0)),
+    subjectAverageNer: averageFrom(snapshots, item => Number(item.market.subjectNetEffectiveRent ?? item.summary.nerActual ?? item.summary.proformaNER ?? 0)),
+    subjectApplications: Number(subjectSummary.applications ?? 0) || 0,
+    subjectApprovals: Number(subjectSummary.applicationsApproved ?? 0) || 0,
+    subjectTours: Number(subjectSummary.tours ?? 0) || 0,
+    subjectLeases: Number(subjectSummary.leasesSigned ?? 0) || 0,
+    subjectMoveIns: Number(subjectSummary.moveIns ?? 0) || 0,
+    subjectMoveOuts: Number(subjectSummary.moveOuts ?? 0) || 0,
+    subjectGuestCards: Number(subjectSummary.guestCards ?? 0) || 0,
+    subjectRetentionRate: Number(subjectSummary.renewalRetentionRate ?? 0) || 0,
+    subjectOccupiedUnits: Number(subjectSummary.occupied ?? 0) || 0,
+    subjectLeasedUnits: Number(subjectSummary.leased ?? 0) || 0,
+    marketAverageRent: averageFrom(marketSnapshots, item => Number(item.market.compAverageRent ?? 0)),
+    marketAverageNer: averageFrom(marketSnapshots, item => Number(item.market.compAverageNer ?? 0)),
+    marketLeasedPct: averageFrom(marketSnapshots, item => Number(item.market.compAverageLeasedPct ?? 0)),
+    marketExposurePct: averageFrom(marketSnapshots, item => Number(item.market.compAverageExposurePct ?? 0)),
+    marketApplicationsLast30: sumFrom(marketSnapshots, item => Number(item.market.applicationsLast30 ?? 0)),
+    marketLeasesLast30: sumFrom(marketSnapshots, item => Number(item.market.leasesLast30 ?? 0)),
+    marketSurveyUpdatedOn: marketSnapshots.map(item => item.market.updatedOn).filter(Boolean).sort().pop() || null,
+    marketSurveySourceLabel: marketSnapshots.map(item => item.market.sourceFileName || item.market.primaryCompSet || "").filter(Boolean).sort().pop() || ""
+  };
+}
+
+function buildMarketComparisonMetricRows(subject = {}, market = {}) {
+  return [
+    {
+      label: "Physical Occupancy",
+      kind: "pct",
+      subjectValue: subject.occupancyPct,
+      marketValue: market.leasedPct,
+      subjectLabel: "Subject",
+      marketLabel: "Market",
+      subjectNote: subject.occupiedUnits > 0 ? `${formatDlrMetricValue(subject.occupiedUnits)} occupied units` : "Subject occupancy",
+      marketNote: market.leasedPct > 0 ? "Weekly AptIQ leased occupancy" : "Weekly AptIQ leased occupancy benchmark"
+    },
+    {
+      label: "Leased Position",
+      kind: "pct",
+      subjectValue: subject.leasedPct,
+      marketValue: market.exposurePct,
+      subjectLabel: "Subject",
+      marketLabel: "Market",
+      subjectNote: subject.leasedUnits > 0 ? `${formatDlrMetricValue(subject.leasedUnits)} leased units` : "Subject leased position",
+      marketNote: market.exposurePct > 0 ? "Weekly AptIQ exposure benchmark" : "Weekly AptIQ exposure benchmark"
+    },
+    {
+      label: "Market Rent",
+      kind: "currency",
+      subjectValue: subject.rent,
+      marketValue: market.rent,
+      subjectLabel: "Subject",
+      marketLabel: "Market",
+      subjectNote: "Subject current rent",
+      marketNote: "Comp average rent"
+    },
+    {
+      label: "Net Effective Rent",
+      kind: "currency",
+      subjectValue: subject.ner,
+      marketValue: market.ner,
+      subjectLabel: "Subject",
+      marketLabel: "Market",
+      subjectNote: "Subject NER",
+      marketNote: "Comp average NER"
+    },
+    {
+      label: "Applications",
+      kind: "number",
+      subjectValue: subject.applications,
+      marketValue: market.applicationsLast30,
+      subjectLabel: "Subject",
+      marketLabel: "Market",
+      subjectNote: "Month-to-date applications",
+      marketNote: "APTIQ applications last 30 days"
+    },
+    {
+      label: "Leases",
+      kind: "number",
+      subjectValue: subject.leases,
+      marketValue: market.leasesLast30,
+      subjectLabel: "Subject",
+      marketLabel: "Market",
+      subjectNote: "Subject signed leases",
+      marketNote: "APTIQ leases last 30 days"
+    }
+  ];
+}
+
+function buildMarketComparisonSubjectCards(report) {
+  const subject = report?.subject ?? {};
+  return [
+    { label: "Physical Occupancy", value: formatDlrPercent(subject.occupancyPct), sub: `${formatDlrMetricValue(subject.occupiedUnits)} occupied units` },
+    { label: "Leased Occupancy", value: formatDlrPercent(subject.leasedPct), sub: `${formatDlrMetricValue(subject.leasedUnits)} leased units` },
+    { label: "Current Rent", value: formatDlrCurrency(subject.rent), sub: "Subject-side average rent" },
+    { label: "Net Effective Rent", value: formatDlrCurrency(subject.ner), sub: "Subject-side average NER" },
+    { label: "Applications", value: formatDlrMetricValue(subject.applications), sub: "Month-to-date subject applications" },
+    { label: "Leases", value: formatDlrMetricValue(subject.leases), sub: "Subject signed leases" }
+  ];
+}
+
+function buildMarketComparisonMarketCards(report) {
+  const market = report?.market ?? {};
+  return [
+    { label: "Comp Leased Occupancy", value: formatDlrPercent(market.leasedPct), sub: `${formatDlrMetricValue(report.marketCoverageCount)} communities with survey data` },
+    { label: "Comp Exposure", value: formatDlrPercent(market.exposurePct), sub: "Weekly AptIQ exposure benchmark" },
+    { label: "Comp Avg Rent", value: formatDlrCurrency(market.rent), sub: "Survey average asking rent" },
+    { label: "Comp Avg NER", value: formatDlrCurrency(market.ner), sub: "Survey average NER" },
+    { label: "Apps Last 30", value: formatDlrMetricValue(market.applicationsLast30), sub: "Survey velocity benchmark" },
+    { label: "Leases Last 30", value: formatDlrMetricValue(market.leasesLast30), sub: "Survey velocity benchmark" }
+  ];
+}
+
+function buildMarketComparisonSubjectOnlyCards(report) {
+  const subject = report?.subject ?? {};
+  return [
+    { label: "Guest Cards", value: formatDlrMetricValue(subject.guestCards), sub: "Subject-side only" },
+    { label: "Tours", value: formatDlrMetricValue(subject.tours), sub: "No market counterpart" },
+    { label: "Approved Apps", value: formatDlrMetricValue(subject.approvals), sub: "Subject-side only" },
+    { label: "Move-Ins", value: formatDlrMetricValue(subject.moveIns), sub: "Subject-side only" },
+    { label: "Move-Outs", value: formatDlrMetricValue(subject.moveOuts), sub: "Subject-side only" },
+    { label: "Retention", value: formatDlrPercent(subject.retentionRate, 0), sub: "No market counterpart" }
+  ];
+}
+
+function buildMarketComparisonNarrative(report) {
+  const subject = report?.subject ?? {};
+  const market = report?.market ?? {};
+  const occupancyDelta = (Number(subject.occupancyPct) || 0) - (Number(market.leasedPct) || 0);
+  const rentDelta = (Number(subject.rent) || 0) - (Number(market.rent) || 0);
+  const nerDelta = (Number(subject.ner) || 0) - (Number(market.ner) || 0);
+  const appDelta = (Number(subject.applications) || 0) - (Number(market.applicationsLast30) || 0);
+  const leaseDelta = (Number(subject.leases) || 0) - (Number(market.leasesLast30) || 0);
+  const scopeLabel = report?.communityCount > 1 ? `${report.scopeLabel || report.communityName} (${report.communityCount} communities)` : report?.communityName || "Selected community";
+  return [
+    `${scopeLabel} is operating at ${formatDlrPercent(subject.occupancyPct, 1)} physical occupancy against a ${formatDlrPercent(market.leasedPct, 1)} market leased benchmark, a ${formatSignedDisplay(occupancyDelta, 1, " pts")} gap.`,
+    `Subject rent averages ${formatDlrCurrency(subject.rent)} versus ${formatDlrCurrency(market.rent)} in the weekly AptIQ comp set, while subject NER averages ${formatDlrCurrency(subject.ner)} versus ${formatDlrCurrency(market.ner)}. Applications are ${formatSignedDisplay(appDelta, 0, " units")} versus the market's last-30-day pace and signed leases are ${formatSignedDisplay(leaseDelta, 0, " units")} versus the market benchmark.`,
+    `Weekly AptIQ survey coverage is ${formatDlrMetricValue(report.marketCoverageCount)} of ${formatDlrMetricValue(report.communityCount)} selected communities${report.marketCoveragePct > 0 ? ` (${report.marketCoveragePct.toFixed(0)}%)` : ""}. Subject-only operating metrics such as tours, approvals, move-ins, move-outs, and retention remain visible below, but they are not forced into a market comparison because the survey does not publish a like-for-like counterpart.`
+  ];
+}
+
+function buildMarketComparisonReportAlerts(report) {
+  const alerts = [];
+  if (Number(report.marketCoverageCount ?? 0) === 0) {
+    alerts.push({
+      level: "critical",
+      title: "No market survey data is saved for this scope",
+      body: "Upload the weekly AptIQ market survey for one or more selected communities before using the market comparison report."
+    });
+  } else if (Number(report.marketCoverageCount ?? 0) < Number(report.communityCount ?? 0)) {
+    alerts.push({
+      level: "warning",
+      title: "Some selected communities are missing market coverage",
+      body: `${report.marketCoverageCount} of ${report.communityCount} selected communities have weekly AptIQ survey data. The comparison will still render, but the missing communities stay on the subject-only side until a survey is uploaded.`
+    });
+  }
+  if (!(Number(report.market?.rent) > 0)) {
+    alerts.push({
+      level: "critical",
+      title: "Comp average rent is missing",
+      body: "The AptIQ survey must include a usable comp average rent before the pricing comparison can be considered complete."
+    });
+  }
+  if (!(Number(report.market?.ner) > 0)) {
+    alerts.push({
+      level: "warning",
+      title: "Comp average NER is missing",
+      body: "The market comparison can still render, but the NER comparison will remain incomplete until the survey includes a usable comp average NER."
+    });
+  }
+  if (!(Number(report.subject?.rent) > 0) || !(Number(report.subject?.ner) > 0)) {
+    alerts.push({
+      level: "warning",
+      title: "Subject pricing data is incomplete",
+      body: "Add current subject rent and net effective rent to the saved community records so the subject-versus-market pricing comparison stays fully auditable."
+    });
+  }
+  if (!(Number(report.market?.applicationsLast30) > 0) && !(Number(report.market?.leasesLast30) > 0)) {
+    alerts.push({
+      level: "info",
+      title: "Market velocity data is limited",
+      body: "The weekly survey did not publish meaningful application or lease velocity for this scope, so the report leans harder on occupancy and pricing."
+    });
+  }
+  return alerts;
+}
+
+function buildMarketComparisonSingleReportData(options = {}) {
+  const silent = options.silent === true;
+  const monthIdx = getReportHubMonthIndex();
+  const year = getReportHubYear();
+  const communityName = String(options.communityName ?? "").trim() || getMarketComparisonReportCommunityNames()[0] || getProp().name;
+  const record = options.record || getPersistedCommunityRecordForScope(communityName, { allowCurrentFallback: true });
+  if (!record) {
+    if (!silent) alert("Save community data first, then the market comparison report can build from the selected community.");
+    return null;
+  }
+  const detail = buildCommunityDetailForMonth(communityName, record, monthIdx);
+  if (!detail) {
+    if (!silent) alert("Save community data first, then the market comparison report can build from the selected community.");
+    return null;
+  }
+  const aggregate = buildMarketComparisonAggregateForDetails([detail], monthIdx);
+  const subject = {
+    occupancyPct: aggregate.subjectOccupancyPct,
+    leasedPct: aggregate.subjectLeasedPct,
+    rent: aggregate.subjectAverageRent,
+    ner: aggregate.subjectAverageNer,
+    applications: aggregate.subjectApplications,
+    approvals: aggregate.subjectApprovals,
+    tours: aggregate.subjectTours,
+    leases: aggregate.subjectLeases,
+    moveIns: aggregate.subjectMoveIns,
+    moveOuts: aggregate.subjectMoveOuts,
+    guestCards: aggregate.subjectGuestCards,
+    retentionRate: aggregate.subjectRetentionRate,
+    occupiedUnits: aggregate.subjectOccupiedUnits,
+    leasedUnits: aggregate.subjectLeasedUnits
+  };
+  const market = {
+    leasedPct: aggregate.marketLeasedPct,
+    exposurePct: aggregate.marketExposurePct,
+    rent: aggregate.marketAverageRent,
+    ner: aggregate.marketAverageNer,
+    applicationsLast30: aggregate.marketApplicationsLast30,
+    leasesLast30: aggregate.marketLeasesLast30,
+    surveyCount: aggregate.marketCoverageCount,
+    updatedOn: aggregate.marketSurveyUpdatedOn,
+    sourceLabel: aggregate.marketSurveySourceLabel
+  };
+  const report = {
+    type: "market_comparison",
+    title: "ATLAS RISE Market Comparison Report",
+    subtitle: `${communityName} · subject vs submarket operating review for the c-suite`,
+    communityName,
+    summary: detail.summary || {},
+    communityNames: [communityName],
+    communityCount: 1,
+    scopeLabel: communityName,
+    sourceRecord: record,
+    detail,
+    currentMonthLabel: getDashboardMonthLabel(monthIdx),
+    reportMonthIdx: monthIdx,
+    reportYear: year,
+    reportMonthLabel: formatDlrMonthYear(monthIdx, year),
+    reportPeriodLabel: `${formatDlrMonthYear(monthIdx, year)} market comparison`,
+    generatedAt: new Date(),
+    subject,
+    market,
+    comparisonRows: buildMarketComparisonMetricRows(subject, market, communityName),
+    subjectCards: buildMarketComparisonSubjectCards({ subject, market, marketCoverageCount: aggregate.marketCoverageCount }),
+    marketCards: buildMarketComparisonMarketCards({ market, marketCoverageCount: aggregate.marketCoverageCount }),
+    subjectOnlyCards: buildMarketComparisonSubjectOnlyCards({ subject }),
+    marketCoverageCount: aggregate.marketCoverageCount,
+    marketCoveragePct: aggregate.marketCoveragePct,
+    marketSurveyUpdatedOn: aggregate.marketSurveyUpdatedOn,
+    marketSurveySourceLabel: aggregate.marketSurveySourceLabel,
+    communityPhotoAsset: collectMonthlyPresentationPhotos([detail], 4)[0] || null,
+    communityPhotoPreviewSrc: String(collectMonthlyPresentationPhotos([detail], 4)[0]?.previewSrc || collectMonthlyPresentationPhotos([detail], 4)[0]?.src || ""),
+    photoPool: collectMonthlyPresentationPhotos([detail], 4),
+    communityReports: [],
+    sourceSummary: `${communityName} · ${formatDlrMonthYear(monthIdx, year)} market vs subject comparison`,
+    dataAlerts: [],
+    notes: []
+  };
+  report.notes = buildMarketComparisonNarrative(report);
+  report.dataAlerts = buildMarketComparisonReportAlerts(report);
+  return report;
+}
+
+function buildMarketComparisonReportData(options = {}) {
+  const silent = options.silent === true;
+  const monthIdx = getReportHubMonthIndex();
+  const year = getReportHubYear();
+  const selectedCommunityNames = getMarketComparisonReportCommunityNames();
+  const communityReports = selectedCommunityNames
+    .map(name => buildMarketComparisonSingleReportData({
+      silent,
+      communityName: name,
+      record: getPersistedCommunityRecordForScope(name, { allowCurrentFallback: true })
+    }))
+    .filter(Boolean);
+  if (communityReports.length === 0) {
+    if (!silent) alert("Save community data first, then the market comparison report can build from the selected community or communities.");
+    return null;
+  }
+  if (communityReports.length === 1) return communityReports[0];
+  const aggregate = buildMarketComparisonAggregateForDetails(communityReports.map(item => item.detail || buildCommunityDetailForMonth(item.communityName, item.sourceRecord, monthIdx)).filter(Boolean), monthIdx);
+  const subject = {
+    occupancyPct: aggregate.subjectOccupancyPct,
+    leasedPct: aggregate.subjectLeasedPct,
+    rent: aggregate.subjectAverageRent,
+    ner: aggregate.subjectAverageNer,
+    applications: aggregate.subjectApplications,
+    approvals: aggregate.subjectApprovals,
+    tours: aggregate.subjectTours,
+    leases: aggregate.subjectLeases,
+    moveIns: aggregate.subjectMoveIns,
+    moveOuts: aggregate.subjectMoveOuts,
+    guestCards: aggregate.subjectGuestCards,
+    retentionRate: aggregate.subjectRetentionRate,
+    occupiedUnits: aggregate.subjectOccupiedUnits,
+    leasedUnits: aggregate.subjectLeasedUnits
+  };
+  const market = {
+    leasedPct: aggregate.marketLeasedPct,
+    exposurePct: aggregate.marketExposurePct,
+    rent: aggregate.marketAverageRent,
+    ner: aggregate.marketAverageNer,
+    applicationsLast30: aggregate.marketApplicationsLast30,
+    leasesLast30: aggregate.marketLeasesLast30,
+    surveyCount: aggregate.marketCoverageCount,
+    updatedOn: aggregate.marketSurveyUpdatedOn,
+    sourceLabel: aggregate.marketSurveySourceLabel
+  };
+  const report = {
+    type: "market_comparison",
+    title: "ATLAS RISE Market Comparison Report",
+    subtitle: `${getMarketComparisonReportScopeLabel()} · subject vs submarket operating review for the c-suite`,
+    communityName: getMarketComparisonReportScopeLabel(),
+    summary: aggregate.subjectSummary,
+    communityNames: selectedCommunityNames,
+    communityCount: communityReports.length,
+    scopeLabel: getMarketComparisonReportScopeLabel(),
+    sourceRecord: communityReports[0]?.sourceRecord || null,
+    communityReports,
+    currentMonthLabel: getDashboardMonthLabel(monthIdx),
+    reportMonthIdx: monthIdx,
+    reportYear: year,
+    reportMonthLabel: formatDlrMonthYear(monthIdx, year),
+    reportPeriodLabel: `${formatDlrMonthYear(monthIdx, year)} market comparison`,
+    generatedAt: new Date(),
+    subject,
+    market,
+    comparisonRows: buildMarketComparisonMetricRows(subject, market, getMarketComparisonReportScopeLabel()),
+    subjectCards: buildMarketComparisonSubjectCards({ subject, market, marketCoverageCount: aggregate.marketCoverageCount }),
+    marketCards: buildMarketComparisonMarketCards({ market, marketCoverageCount: aggregate.marketCoverageCount }),
+    subjectOnlyCards: buildMarketComparisonSubjectOnlyCards({ subject }),
+    marketCoverageCount: aggregate.marketCoverageCount,
+    marketCoveragePct: aggregate.marketCoveragePct,
+    marketSurveyUpdatedOn: aggregate.marketSurveyUpdatedOn,
+    marketSurveySourceLabel: aggregate.marketSurveySourceLabel,
+    communityPhotoAsset: collectMonthlyPresentationPhotos(communityReports, 4)[0] || null,
+    communityPhotoPreviewSrc: String(collectMonthlyPresentationPhotos(communityReports, 4)[0]?.previewSrc || collectMonthlyPresentationPhotos(communityReports, 4)[0]?.src || ""),
+    photoPool: collectMonthlyPresentationPhotos(communityReports, 4),
+    sourceSummary: `${getMarketComparisonReportScopeLabel()} · ${formatDlrMonthYear(monthIdx, year)} market vs subject comparison`,
+    dataAlerts: [],
+    notes: []
+  };
+  report.notes = buildMarketComparisonNarrative(report);
+  report.dataAlerts = buildMarketComparisonReportAlerts(report);
+  return report;
+}
+
+function buildMarketComparisonSectionHtml(report, options = {}) {
+  if (!report) return "";
+  const title = String(options.title ?? (report.communityCount > 1 ? getMarketComparisonReportScopeLabel() : report.communityName)).trim();
+  const alerts = Array.isArray(report.dataAlerts) ? report.dataAlerts : [];
+  const cardsSubject = Array.isArray(report.subjectCards) ? report.subjectCards : buildMarketComparisonSubjectCards(report);
+  const cardsMarket = Array.isArray(report.marketCards) ? report.marketCards : buildMarketComparisonMarketCards(report);
+  const cardsSubjectOnly = Array.isArray(report.subjectOnlyCards) ? report.subjectOnlyCards : buildMarketComparisonSubjectOnlyCards(report);
+  const comparisonChart = buildSideBySideComparisonChart(
+    "Market to Subject Portfolio Comparison",
+    Array.isArray(report.comparisonRows) ? report.comparisonRows : buildMarketComparisonMetricRows(report.subject, report.market),
+    {
+      subjectLabel: "Subject",
+      marketLabel: "Market",
+      summaryLabel: `${formatDlrMetricValue(report.marketCoverageCount)} of ${formatDlrMetricValue(report.communityCount)} communities with survey data`,
+      subtitle: "Weekly AptIQ survey benchmarks are compared against the saved subject performance for the same month."
+    }
+  );
+  return `<div class="comparison-section" style="margin-top:${options.compact ? "10px" : "0"}">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div>
+        <div style="font-size:${options.compact ? "13px" : "14px"};font-weight:800;color:#0f172a;margin-bottom:4px">${escapeHtml(title)}</div>
+        <div style="font-size:12px;color:#64748b;line-height:1.6">${escapeHtml(report.reportPeriodLabel)} · ${escapeHtml(report.sourceSummary)}</div>
+      </div>
+      <div style="text-align:right;font-size:12px;color:#475569">
+        <div>${formatDlrMetricValue(report.marketCoverageCount)} survey-covered communit${report.marketCoverageCount === 1 ? "y" : "ies"}</div>
+        <div style="margin-top:4px">${report.marketSurveyUpdatedOn ? `APTIQ updated ${escapeHtml(report.marketSurveyUpdatedOn)}` : "Survey refresh date unavailable"}</div>
+      </div>
+    </div>
+    ${Array.isArray(report.notes) && report.notes.length > 0 ? `<div style="margin-bottom:12px;font-size:13px;line-height:1.7;color:#1f2937">${report.notes.map((item, idx) => `<p style="margin:${idx === 0 ? "0 0 10px" : "0"}">${escapeHtml(item)}</p>`).join("")}</div>` : ""}
+    ${alerts.length > 0 ? `<div style="display:grid;gap:10px;margin-bottom:12px">
+      ${alerts.map(alertItem => `<div style="border-radius:14px;padding:14px 16px;border:1px solid ${alertItem.level === "critical" ? "#fecaca" : alertItem.level === "warning" ? "#fed7aa" : "#bfdbfe"};background:${alertItem.level === "critical" ? "#fef2f2" : alertItem.level === "warning" ? "#fff7ed" : "#eff6ff"}">
+        <div style="font-size:12px;font-weight:800;color:#0f172a;margin-bottom:4px">${escapeHtml(alertItem.title)}</div>
+        <div style="font-size:12px;line-height:1.6;color:#334155">${escapeHtml(alertItem.body)}</div>
+      </div>`).join("")}
+    </div>` : `<div style="border-radius:14px;padding:14px 16px;border:1px solid #a7f3d0;background:#ecfdf5;font-size:12px;line-height:1.6;color:#334155;margin-bottom:12px">All required market survey fields are present for this scope.</div>`}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px">
+      ${cardsSubject.map(card => `<div style="background:linear-gradient(180deg,#f8fbff 0%,#eef5ff 100%);border:1px solid #dbe4f0;border-radius:14px;padding:12px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-bottom:6px">${escapeHtml(card.label)}</div>
+        <div style="font-size:20px;font-weight:800;color:#0f172a;margin-bottom:4px">${escapeHtml(card.value)}</div>
+        <div style="font-size:11px;color:#475569;line-height:1.5">${escapeHtml(card.sub)}</div>
+      </div>`).join("")}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px">
+      ${cardsMarket.map(card => `<div style="background:linear-gradient(180deg,#f8fffd 0%,#eefaf7 100%);border:1px solid #dbe4f0;border-radius:14px;padding:12px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-bottom:6px">${escapeHtml(card.label)}</div>
+        <div style="font-size:20px;font-weight:800;color:#0f172a;margin-bottom:4px">${escapeHtml(card.value)}</div>
+        <div style="font-size:11px;color:#475569;line-height:1.5">${escapeHtml(card.sub)}</div>
+      </div>`).join("")}
+    </div>
+    ${comparisonChart}
+    <div style="margin-top:12px">
+      <div style="font-size:12px;font-weight:800;color:#0f172a;margin-bottom:8px">Subject-only operating metrics</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">
+        ${cardsSubjectOnly.map(card => `<div style="border:1px solid #dbe4f0;border-radius:12px;padding:10px;background:#ffffff">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-bottom:5px">${escapeHtml(card.label)}</div>
+          <div style="font-size:18px;font-weight:800;color:#0f172a;margin-bottom:3px">${escapeHtml(card.value)}</div>
+          <div style="font-size:11px;color:#64748b;line-height:1.45">${escapeHtml(card.sub)}</div>
+        </div>`).join("")}
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildMarketComparisonReportDocument(report) {
+  if (!report) return "";
+  const heroPhotos = Array.isArray(report.photoPool) ? report.photoPool.slice(0, 3) : [];
+  const heroPhoto = heroPhotos[0]?.resolvedSrc || heroPhotos[0]?.previewSrc || heroPhotos[0]?.src || "";
+  const heroCards = [
+    { label: "Subject Occupancy", value: formatDlrPercent(report.subject?.occupancyPct), sub: `${formatDlrMetricValue(report.subject?.occupiedUnits)} occupied units` },
+    { label: "Market Leased Occupancy", value: formatDlrPercent(report.market?.leasedPct), sub: `${formatDlrMetricValue(report.marketCoverageCount)} communities with market data` },
+    { label: "Subject Rent", value: formatDlrCurrency(report.subject?.rent), sub: "Current subject rent" },
+    { label: "Market Rent", value: formatDlrCurrency(report.market?.rent), sub: "Comp average rent" },
+    { label: "Subject NER", value: formatDlrCurrency(report.subject?.ner), sub: "Current subject NER" },
+    { label: "Market NER", value: formatDlrCurrency(report.market?.ner), sub: "Comp average NER" }
+  ];
+  const overallSectionHtml = buildMarketComparisonSectionHtml(report, { title: report.communityCount > 1 ? "Overall Portfolio Comparison" : report.communityName });
+  const childSectionsHtml = Array.isArray(report.communityReports) && report.communityReports.length > 1
+    ? report.communityReports.map(child => buildMarketComparisonSectionHtml(child, { title: child.communityName, compact: true })).join("")
+    : "";
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(report.title)}</title><style>
+    *{box-sizing:border-box}
+    body{font-family:'DM Sans',Arial,sans-serif;padding:28px;color:#0f172a;background:#ffffff}
+    .comparison-shell{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px;padding:18px 20px;border:1px solid #dbe4f0;border-radius:20px;background:linear-gradient(135deg,#f8fbff 0%,#eef5ff 100%)}
+    .comparison-brand{display:flex;align-items:center;gap:14px}
+    .comparison-brand img{height:38px;width:auto;object-fit:contain;display:block}
+    .comparison-title{font-size:24px;font-weight:700;color:#1d4ed8}
+    .comparison-sub{font-size:13px;color:#64748b}
+    .comparison-meta{font-size:11px;color:#64748b;text-align:right}
+    .comparison-photo-hero{position:relative;min-height:210px;border-radius:22px;overflow:hidden;border:1px solid #dbe4f0;background:#0f172a;margin-bottom:18px}
+    .comparison-photo-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+    .comparison-photo-overlay{position:absolute;inset:0;background:linear-gradient(90deg,rgba(15,23,42,.82),rgba(15,23,42,.34),rgba(15,23,42,.08))}
+    .comparison-photo-copy{position:relative;z-index:1;color:#fff;padding:28px;max-width:580px}
+    .comparison-photo-kicker{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#bfdbfe;margin-bottom:8px}
+    .comparison-photo-headline{font-size:30px;font-weight:800;margin-bottom:8px}
+    .comparison-photo-copytext{font-size:13px;line-height:1.6;color:#e2e8f0}
+    .comparison-photo-pill{display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(191,219,254,.35);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#dbeafe}
+    .comparison-photo-strip{display:grid;grid-template-columns:repeat(${Math.max(heroPhotos.length, 1)},minmax(0,1fr));gap:12px;margin-bottom:18px}
+    .comparison-photo-frame{position:relative;min-height:160px;border-radius:18px;overflow:hidden;border:1px solid #dbe4f0;background:#0f172a}
+    .comparison-photo-label{position:absolute;left:12px;bottom:12px;padding:6px 10px;border-radius:999px;background:rgba(15,23,42,.74);border:1px solid rgba(191,219,254,.4);color:#dbeafe;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+    .comparison-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .comparison-card{border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff}
+    .comparison-section{margin-bottom:18px}
+    .comparison-child-stack{display:grid;gap:14px}
+    .comparison-alert{border-radius:14px;padding:14px 16px;border:1px solid #dbe4f0;background:#f8fafc}
+    @media print { body{padding:18px} .comparison-grid-2{grid-template-columns:1fr 1fr} }
+  </style></head><body>
+    <div class="comparison-shell">
+      <div class="comparison-brand">
+        <img src="${resolveExportBrandLogoSrc()}" alt="ATLAS RISE logo">
+        <div>
+          <div class="comparison-title">${escapeHtml(report.title)}</div>
+          <div class="comparison-sub">${escapeHtml(report.subtitle)}</div>
+          <div class="comparison-sub" style="margin-top:6px">${escapeHtml(report.sourceSummary)}</div>
+        </div>
+      </div>
+      <div class="comparison-meta">
+        <div>Generated ${escapeHtml(formatPresentationTimestamp(report.generatedAt))}</div>
+        <div style="margin-top:6px">${escapeHtml(report.reportPeriodLabel)}</div>
+      </div>
+    </div>
+    ${heroPhotos.length > 0 ? `<div class="comparison-photo-hero">
+      <img src="${heroPhoto}" alt="" class="comparison-photo-img">
+      <div class="comparison-photo-overlay"></div>
+      <div class="comparison-photo-copy">
+        <div class="comparison-photo-kicker">Market vs Subject</div>
+        <div class="comparison-photo-headline">${escapeHtml(report.communityName)}</div>
+        <div class="comparison-photo-copytext">A c-suite month-to-date operating view that compares the saved ATLAS subject performance against the weekly AptIQ submarket survey feed.</div>
+        <div class="comparison-photo-pill">Market Comparison Report</div>
+      </div>
+    </div>` : ""}
+    ${heroPhotos.length > 0 ? `<div class="comparison-photo-strip">
+      ${heroPhotos.map(photo => {
+        const src = photo.resolvedSrc || photo.previewSrc || photo.src || "";
+        return `<div class="comparison-photo-frame">
+          <img src="${src}" alt="" class="comparison-photo-img">
+          <div class="comparison-photo-label">${escapeHtml(photo.community || report.communityName || "ATLAS")}</div>
+        </div>`;
+      }).join("")}
+    </div>` : ""}
+    <div class="comparison-grid-2 section">
+      ${heroCards.map(card => `<div class="comparison-card">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#6b7280;margin-bottom:6px">${escapeHtml(card.label)}</div>
+        <div style="font-size:24px;font-weight:700;color:#0f172a;margin-bottom:4px">${escapeHtml(card.value)}</div>
+        <div style="font-size:12px;color:#475569">${escapeHtml(card.sub)}</div>
+      </div>`).join("")}
+    </div>
+    <div class="comparison-section">
+      ${overallSectionHtml}
+    </div>
+    ${childSectionsHtml ? `<div class="comparison-section">
+      <div style="font-size:14px;font-weight:800;color:#0f172a;margin-bottom:10px">By Community</div>
+      <div class="comparison-child-stack">${childSectionsHtml}</div>
+    </div>` : ""}
+  </body></html>`;
+}
+
+function renderMarketComparisonReportingWorkspace() {
+  const report = buildMarketComparisonReportData({ silent: true });
+  if (!report) {
+    return `<div id="reporting-market-comparison-workspace" class="report-hub-card" style="margin-top:14px">
+      <div class="alert-red">Save a community first, then the Market Comparison report can render from the selected month-to-date data.</div>
+    </div>`;
+  }
+  const alerts = Array.isArray(report.dataAlerts) ? report.dataAlerts : [];
+  const summaryCards = [
+    { label: "Communities", value: `${report.communityCount}`, sub: `${report.communityCount > 1 ? "Selected communities" : "Single-community mode"} · ${report.reportPeriodLabel}` },
+    { label: "Market Coverage", value: `${Math.round(report.marketCoveragePct || 0)}%`, sub: `${report.marketCoverageCount} communities with weekly AptIQ data` },
+    { label: "Data Confidence", value: `${alerts.length}`, sub: `${alerts.filter(item => item.level === "critical").length} critical alert${alerts.filter(item => item.level === "critical").length === 1 ? "" : "s"}` },
+    { label: "Month", value: `${report.currentMonthLabel} ${report.reportYear}`, sub: `${report.sourceSummary}` },
+    { label: "Photo Library", value: `${Array.isArray(report.photoPool) ? report.photoPool.length : 0}`, sub: `${Array.isArray(report.photoPool) && report.photoPool.length > 0 ? "A saved community photo will anchor the report hero." : "Add a community photo to strengthen the report output."}` }
+  ];
+  return `<div id="reporting-market-comparison-workspace" class="report-hub-card" style="margin-top:14px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div>
+        <div class="card-title" style="margin-bottom:6px">Market Comparison Setup</div>
+        <p style="font-size:0.72rem;color:var(--muted)">This report compares the subject portfolio against the weekly AptIQ survey feed. Select one or more communities, review the explicit alerts, then preview the charted export below.</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-gray btn-sm" onclick="downloadMarketComparisonReportHtml()">⬇ Editable HTML</button>
+        <button class="btn btn-gray btn-sm" onclick="openMarketComparisonReport(true)">🖨 PDF / Print</button>
+        <button class="btn btn-blue btn-sm" onclick="draftMarketComparisonEmail()">✉ Draft Outlook Email</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px">
+      ${summaryCards.map(card => `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
+        <div class="card-title" style="margin-bottom:6px">${escapeHtml(card.label)}</div>
+        <div style="font-size:1.25rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--accent)">${escapeHtml(card.value)}</div>
+        <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${escapeHtml(card.sub)}</div>
+      </div>`).join("")}
+    </div>
+    ${alerts.length > 0 ? `<div style="display:grid;gap:10px;margin-bottom:12px">
+      ${alerts.map(alertItem => `<div class="alert-${alertItem.level === "critical" ? "red" : alertItem.level === "warning" ? "yellow" : "green"}">${escapeHtml(alertItem.title)} — ${escapeHtml(alertItem.body)}</div>`).join("")}
+    </div>` : `<div class="alert-green" style="margin-bottom:12px">All required breakout fields are present for this month.</div>`}
+    ${renderReportHubPreviewFrame(
+      "Market Comparison Report",
+      "Subject-versus-submarket comparison for the c-suite, built from the weekly AptIQ survey feed and the saved ATLAS operating records.",
+      buildMarketComparisonReportDocument(report),
+      `<button class="btn btn-gray btn-sm" onclick="downloadMarketComparisonReportHtml()">⬇ HTML</button><button class="btn btn-blue btn-sm" onclick="openMarketComparisonReport(true)">🖨 PDF / Print</button>`
+    )}
+  </div>`;
+}
+
+function focusReportingMarketComparisonPreview() {
+  const target = document.getElementById("reporting-inline-preview") || document.getElementById("reporting-market-comparison-workspace");
+  if (target?.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function openMarketComparisonReport(printImmediately = false) {
+  const report = buildMarketComparisonReportData({ silent: true });
+  if (!report) return;
+  const win = window.open("", "_blank");
+  if (!win) return;
+  win.document.write(buildMarketComparisonReportDocument(report));
+  win.document.close();
+  if (printImmediately) {
+    win.focus();
+    setTimeout(() => win.print(), 220);
+  }
+}
+
+async function downloadMarketComparisonReportHtml() {
+  const report = buildMarketComparisonReportData({ silent: true });
+  if (!report) return;
+  const blob = new Blob([buildMarketComparisonReportDocument(report)], { type: "text/html" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `atlas_market_comparison_${report.reportYear}-${String(report.reportMonthIdx + 1).padStart(2, "0")}.html`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function buildMarketComparisonEmailBody(report) {
+  const scopeLabel = report.communityCount > 1
+    ? `${report.scopeLabel || report.communityName} (${report.communityCount} communities)`
+    : report.communityName;
+  return [
+    report.title,
+    `${scopeLabel} · ${report.reportPeriodLabel}`,
+    "",
+    `Subject occupancy: ${formatDlrPercent(report.subject?.occupancyPct, 1)} vs market leased occupancy ${formatDlrPercent(report.market?.leasedPct, 1)}`,
+    `Subject rent: ${formatDlrCurrency(report.subject?.rent)} vs market rent ${formatDlrCurrency(report.market?.rent)}`,
+    `Subject NER: ${formatDlrCurrency(report.subject?.ner)} vs market NER ${formatDlrCurrency(report.market?.ner)}`,
+    "",
+    "The market comparison report is ready from the Reporting Hub.",
+    "Use Preview, Print / PDF, or Download Editable HTML before sending. Review the alerts section first so any missing survey data is called out explicitly."
+  ].join("\n");
+}
+
+function draftMarketComparisonEmail() {
+  const report = buildMarketComparisonReportData({ silent: true });
+  if (!report) return;
+  const toLine = normalizeEmailListInput(
+    ensureReportHubRecipientSelection()
+      .filter(contact => reportHubRecipientKeys.includes(contact.key))
+      .map(contact => contact.email)
+      .join("; ")
+  );
+  openOutlookComposeDraft({
+    to: toLine,
+    subject: `${(report.communityCount > 1 ? report.scopeLabel : report.communityName) || "Market Comparison"} | Market Comparison Report | ${report.reportPeriodLabel}`,
+    body: buildMarketComparisonEmailBody(report)
+  });
+  setTimeout(() => {
+    alert(`Outlook draft requested for ${report.communityName}. Export or print the Market Comparison report first if you need to attach the PDF or HTML version.`);
   }, 250);
 }
 

@@ -17151,6 +17151,46 @@ function getCompCalculatorThreatLabel(comp, market, activity) {
   return "LOW";
 }
 
+function buildCompCalculatorMarketStackSnapshot(row) {
+  const subjectOccupancy = Number(row?.activity?.currentOccPct ?? row?.market?.subjectOccPct ?? 0) || 0;
+  const subjectLeased = Number(row?.activity?.currentLeasedPct ?? row?.market?.subjectOccPct ?? 0) || 0;
+  const subjectExposure = Number(row?.market?.subjectExposurePct ?? 0) || 0;
+  const subjectRent = Number(row?.market?.subjectAskingRent ?? 0) || 0;
+  const subjectNer = Number(row?.market?.subjectNetEffectiveRent ?? 0) || 0;
+  const marketLeased = Number(row?.market?.compAverageLeasedPct ?? 0) || 0;
+  const marketExposure = Number(row?.market?.compAverageExposurePct ?? 0) || 0;
+  const marketRent = Number(row?.market?.compAverageRent ?? 0) || 0;
+  const marketNer = Number(row?.market?.compAverageNer ?? 0) || 0;
+  return {
+    subjectOccupancy,
+    subjectLeased,
+    subjectExposure,
+    subjectRent,
+    subjectNer,
+    marketLeased,
+    marketExposure,
+    marketRent,
+    marketNer,
+    occupancyGap: marketLeased > 0 ? subjectOccupancy - marketLeased : null,
+    leasedGap: marketLeased > 0 ? subjectLeased - marketLeased : null,
+    exposureGap: marketExposure > 0 ? subjectExposure - marketExposure : null,
+    rentGap: marketRent > 0 ? subjectRent - marketRent : null,
+    nerGap: marketNer > 0 ? subjectNer - marketNer : null
+  };
+}
+
+function buildCompCalculatorMarketStackNarrative(row) {
+  const stack = buildCompCalculatorMarketStackSnapshot(row);
+  const lines = [
+    stack.occupancyGap != null ? `Occupancy ${compCalcFormatSignedPoints(stack.occupancyGap)} vs market` : "",
+    stack.leasedGap != null ? `Leased ${compCalcFormatSignedPoints(stack.leasedGap)} vs market` : "",
+    stack.exposureGap != null ? `Exposure ${compCalcFormatSignedPoints(stack.exposureGap)} vs market` : "",
+    stack.rentGap != null ? `Asking rent ${compCalcFormatSignedCurrency(stack.rentGap)} vs market avg` : "",
+    stack.nerGap != null ? `NER ${compCalcFormatSignedCurrency(stack.nerGap)} vs market avg` : ""
+  ].filter(Boolean);
+  return lines.join(" · ");
+}
+
 function renderCompCalculatorPortfolioView(rows, monthIdx) {
   const marketGroups = new Map();
   rows.forEach(row => {
@@ -17169,13 +17209,23 @@ function renderCompCalculatorPortfolioView(rows, monthIdx) {
         ...group,
         avgCompRent: compCalcAverage(group.items.map(item => item.market.compAverageRent)),
         avgCompNer: compCalcAverage(group.items.map(item => item.market.compAverageNer)),
-        avgLeased: compCalcAverage(group.items.map(item => item.activity.currentOccPct)),
-        avgExposure: compCalcAverage(group.items.map(item => item.market.compAverageExposurePct)),
+        avgSubjectOcc: compCalcAverage(group.items.map(item => item.activity.currentOccPct ?? item.market.subjectOccPct)),
+        avgSubjectLeased: compCalcAverage(group.items.map(item => item.activity.currentLeasedPct ?? item.market.subjectOccPct)),
+        avgSubjectExposure: compCalcAverage(group.items.map(item => item.market.subjectExposurePct)),
+        avgMarketLeased: compCalcAverage(group.items.map(item => item.market.compAverageLeasedPct)),
+        avgMarketExposure: compCalcAverage(group.items.map(item => item.market.compAverageExposurePct)),
+        avgSubjectRent: compCalcAverage(group.items.map(item => item.market.subjectAskingRent)),
+        avgSubjectNer: compCalcAverage(group.items.map(item => item.market.subjectNetEffectiveRent)),
         apps30: group.items.reduce((sum, item) => sum + (Number(item.activity.applications ?? 0) || 0), 0),
         approvals30: group.items.reduce((sum, item) => sum + (Number(item.activity.applicationsApproved ?? 0) || 0), 0),
         leases30: group.items.reduce((sum, item) => sum + (Number(item.activity.leasesSigned ?? 0) || 0), 0),
         leadDirection,
-        strongest: group.items.slice().sort((a, b) => b.recommendation.severity - a.recommendation.severity)[0]
+        strongest: group.items.slice().sort((a, b) => b.recommendation.severity - a.recommendation.severity)[0],
+        topStackGap: group.items.slice().sort((a, b) => {
+          const aGap = Math.abs(buildCompCalculatorMarketStackSnapshot(a).leasedGap ?? 0) + Math.abs(buildCompCalculatorMarketStackSnapshot(a).rentGap ?? 0) / 100;
+          const bGap = Math.abs(buildCompCalculatorMarketStackSnapshot(b).leasedGap ?? 0) + Math.abs(buildCompCalculatorMarketStackSnapshot(b).rentGap ?? 0) / 100;
+          return bGap - aGap;
+        })[0]
       };
     })
     .sort((a, b) => String(a.marketArea).localeCompare(String(b.marketArea)));
@@ -17202,19 +17252,22 @@ function renderCompCalculatorPortfolioView(rows, monthIdx) {
     <section class="comp-calc-grid">
       <div class="comp-calc-card">
         <h3>Market-area overview</h3>
-        <div class="comp-calc-sub">These cards help you read the portfolio at the market level before drilling into a single community.</div>
+        <div class="comp-calc-sub">These cards show how the subject communities are stacking up against their APTIQ market averages before you drill into a single community.</div>
         <div class="comp-calc-market-grid">
           ${groups.map(group => `<div class="comp-calc-market-card">
             <h4>${escapeHtml(group.marketArea)}</h4>
             <div class="meta">${escapeHtml(group.city)} · ${group.items.length} communit${group.items.length === 1 ? "y" : "ies"}</div>
             <div class="comp-calc-stat-grid">
-              <div class="comp-calc-stat"><div class="k">Comp rent</div><div class="v">${group.avgCompRent > 0 ? formatDlrCurrency(group.avgCompRent) : "—"}</div><div class="s">${group.avgCompNer > 0 ? `Comp NER ${formatDlrCurrency(group.avgCompNer)}` : "NER not saved"}</div></div>
-              <div class="comp-calc-stat"><div class="k">Current occupancy</div><div class="v">${compCalcFormatPercent(group.avgLeased)}</div><div class="s">${Math.round(group.apps30)} apps · ${Math.round(group.approvals30)} approvals · ${Math.round(group.leases30)} leases</div></div>
+              <div class="comp-calc-stat"><div class="k">Subject vs market rent</div><div class="v">${group.avgSubjectRent > 0 ? formatDlrCurrency(group.avgSubjectRent) : "—"} / ${group.avgCompRent > 0 ? formatDlrCurrency(group.avgCompRent) : "—"}</div><div class="s">${group.avgSubjectNer > 0 || group.avgCompNer > 0 ? `NER ${group.avgSubjectNer > 0 ? formatDlrCurrency(group.avgSubjectNer) : "—"} / ${group.avgCompNer > 0 ? formatDlrCurrency(group.avgCompNer) : "—"}` : "Subject and market NER not fully saved"}</div></div>
+              <div class="comp-calc-stat"><div class="k">Subject vs market leased</div><div class="v">${compCalcFormatPercent(group.avgSubjectLeased)} / ${compCalcFormatPercent(group.avgMarketLeased)}</div><div class="s">Exposure ${compCalcFormatPercent(group.avgSubjectExposure)} / ${compCalcFormatPercent(group.avgMarketExposure)}</div></div>
+              <div class="comp-calc-stat"><div class="k">Subject occupancy</div><div class="v">${compCalcFormatPercent(group.avgSubjectOcc)}</div><div class="s">${Math.round(group.apps30)} apps · ${Math.round(group.approvals30)} approvals · ${Math.round(group.leases30)} leases</div></div>
             </div>
             <div class="comp-calc-reco ${escapeHtml(group.leadDirection)}" style="margin-top:12px">
-              <div class="eyebrow">Recommendation view</div>
+              <div class="eyebrow">Market stack read</div>
               <div class="title">${escapeHtml(group.strongest?.recommendation?.title || "Review current pricing")}</div>
-              <div class="body">${escapeHtml(group.strongest?.detail?.name || "")} is setting the strongest signal in this area. ${escapeHtml(group.strongest?.recommendation?.summary || "")}</div>
+              <div class="body">${escapeHtml(group.topStackGap?.detail?.name || group.strongest?.detail?.name || "")} is showing the clearest gap versus the market in this area.</div>
+              <div class="body" style="margin-top:6px;color:var(--muted)">${escapeHtml(buildCompCalculatorMarketStackNarrative(group.topStackGap || group.strongest) || group.strongest?.recommendation?.detail || "")}</div>
+              <div class="body" style="margin-top:6px;color:var(--muted)">${escapeHtml(group.strongest?.recommendation?.summary || "")}</div>
             </div>
           </div>`).join("")}
         </div>
@@ -17238,30 +17291,33 @@ function renderCompCalculatorPortfolioView(rows, monthIdx) {
     </section>
     <section class="comp-calc-card">
       <h3>Community comp table</h3>
-      <div class="comp-calc-sub">Use this when you want to scan the whole portfolio, then jump into a single community calculator without losing the selected month.</div>
+      <div class="comp-calc-sub">Use this to scan how each subject community is performing against its APTIQ market and submarket, then jump into a single community calculator without losing the selected month.</div>
       <div class="comp-calc-table-wrap">
         <table class="comp-calc-table">
           <thead>
             <tr>
               <th>Community</th>
               <th>Market Area</th>
-              <th>Subject Leads / Apps</th>
-              <th>Comp Rent / NER</th>
-              <th>Leased / Exposure</th>
+              <th>Subject Funnel</th>
+              <th>Rent / NER Stack</th>
+              <th>Leased / Exposure Stack</th>
               <th>Recommendation</th>
               <th>Action</th>
             </tr>
           </thead>
           <tbody>
-            ${rows.slice().sort((a, b) => String(a.detail.name).localeCompare(String(b.detail.name))).map(item => `<tr>
+            ${rows.slice().sort((a, b) => String(a.detail.name).localeCompare(String(b.detail.name))).map(item => {
+              const stack = buildCompCalculatorMarketStackSnapshot(item);
+              return `<tr>
               <td><strong>${escapeHtml(item.detail.name)}</strong><div class="meta">${escapeHtml(item.market.updatedOn || item.market.sourceFileName || item.activity.sourceLabel || "Saved snapshot")}</div></td>
               <td>${escapeHtml(item.meta.marketArea)}<div class="meta">${escapeHtml(item.meta.city)}</div></td>
-              <td>${Math.round(item.activity.applications ?? 0)}<div class="meta">${Math.round(item.activity.guestCards ?? 0)} leads · ${Math.round(item.activity.applicationsApproved ?? 0)} approved</div></td>
-              <td>${item.market.compAverageRent > 0 ? formatDlrCurrency(item.market.compAverageRent) : "—"}<div class="meta">${item.market.compAverageNer > 0 ? `NER ${formatDlrCurrency(item.market.compAverageNer)}` : "NER not saved"}</div></td>
-              <td>${compCalcFormatPercent(item.market.compAverageLeasedPct)}<div class="meta">Exposure ${compCalcFormatPercent(item.market.compAverageExposurePct)}</div></td>
-              <td><span class="comp-calc-tonal ${escapeHtml(item.recommendation.mode)}">${escapeHtml(item.recommendation.title)}</span><div class="meta">${escapeHtml(item.recommendation.detail || item.recommendation.summary)}</div></td>
+              <td>${Math.round(item.activity.applications ?? 0)} apps<div class="meta">${Math.round(item.activity.guestCards ?? 0)} leads · ${Math.round(item.activity.applicationsApproved ?? 0)} approved · ${Math.round(item.activity.leasesSigned ?? 0)} leases</div></td>
+              <td>${stack.subjectRent > 0 ? formatDlrCurrency(stack.subjectRent) : "—"} / ${stack.marketRent > 0 ? formatDlrCurrency(stack.marketRent) : "—"}<div class="meta">NER ${stack.subjectNer > 0 ? formatDlrCurrency(stack.subjectNer) : "—"} / ${stack.marketNer > 0 ? formatDlrCurrency(stack.marketNer) : "—"} · ${stack.rentGap != null ? compCalcFormatSignedCurrency(stack.rentGap) : "—"} rent gap</div></td>
+              <td>${compCalcFormatPercent(stack.subjectLeased)} / ${compCalcFormatPercent(stack.marketLeased)}<div class="meta">Exposure ${compCalcFormatPercent(stack.subjectExposure)} / ${compCalcFormatPercent(stack.marketExposure)} · ${stack.leasedGap != null ? compCalcFormatSignedPoints(stack.leasedGap) : "—"} leased gap</div></td>
+              <td><span class="comp-calc-tonal ${escapeHtml(item.recommendation.mode)}">${escapeHtml(item.recommendation.title)}</span><div class="meta">${escapeHtml(buildCompCalculatorMarketStackNarrative(item) || item.recommendation.detail || item.recommendation.summary)}</div></td>
               <td><button type="button" class="btn btn-sm btn-primary" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(item.detail.name)}, 4)'>Open</button></td>
-            </tr>`).join("")}
+            </tr>`;
+            }).join("")}
           </tbody>
         </table>
       </div>
@@ -25671,27 +25727,57 @@ function buildCommunityProgressNarrative({
   leadSourceBreakdown,
   communityCount = Array.isArray(communityNames) ? communityNames.length : 1
 }) {
+  const leadSources = leadSourceBreakdown ? getTopLeadSourceFacts(leadSourceBreakdown) : [];
+  const hasTrafficVolume = [
+    trafficMetrics?.guestCards,
+    trafficMetrics?.tours,
+    trafficMetrics?.applications,
+    trafficMetrics?.approvals,
+    trafficMetrics?.moveIns,
+    trafficMetrics?.moveOuts
+  ].some(value => Math.abs(Number(value) || 0) > 0);
+  const renewalExpirations = Math.max(0, Number(renewalSummary?.expirations) || 0);
+  const renewalSigned = Math.max(0, Number(renewalSummary?.signed) || 0);
+  const renewalUndecided = Math.max(0, Number(renewalSummary?.undecided) || 0);
+  const renewalProjectedAttrition = Math.max(0, Number(renewalSummary?.projectedAttrition) || 0);
+  const hasRenewalVolume = renewalExpirations > 0 || renewalSigned > 0 || renewalUndecided > 0 || renewalProjectedAttrition > 0;
   if (Array.isArray(communityNames) && communityNames.length > 1) {
     const scopeLabel = communityName || `${communityCount} selected communities`;
-    const leadSources = leadSourceBreakdown ? getTopLeadSourceFacts(leadSourceBreakdown) : [];
     const leadSourceText = leadSources[0]
       ? `${leadSources[0].label} is the strongest combined source driver with ${leadSources[0].value} lead${leadSources[0].value === 1 ? "" : "s"} logged in the saved source mix.`
       : "Lead-source breakout is incomplete for one or more selected communities, so the overall traffic mix only reflects source fields that were explicitly saved.";
+    const trafficText = hasTrafficVolume
+      ? `${Math.round(Number(trafficMetrics.approvals ?? 0))} approved applications and ${formatDlrSignedNumber(Number(trafficMetrics.moveIns ?? 0) - Number(trafficMetrics.moveOuts ?? 0))} net absorption are supporting the month-to-date pace across ${communityCount} communit${communityCount === 1 ? "y" : "ies"}${Number(moveInsNeeded) > 0 ? `, with ${formatDlrMetricValue(moveInsNeeded)} move-in${Math.abs(Number(moveInsNeeded)) === 1 ? "" : "s"} still needed to protect the current occupancy path.` : "."}`
+      : `Month-to-date traffic activity is not fully loaded across the selected communities yet, so the pace narrative will update once current-month approvals, move-ins, and move-outs are saved.`;
+    const renewalText = hasRenewalVolume
+      ? `${formatDlrPercent(renewalSummary.retentionRate, 0)} renewal retention across ${formatDlrMetricValue(renewalExpirations)} expirations is shaping the current forward look.`
+      : "Renewal detail is not yet populated for the selected communities this month, so the forward-look narrative is waiting on updated retention entries.";
     return [
       `${scopeLabel} is sitting at ${formatDlrPercent(occupancyPct, 1)} physical occupancy and ${formatDlrPercent(leasedPct, 1)} leased occupancy${Number.isFinite(Number(budgetOccPct)) ? ` against a saved budget line of ${formatDlrPercent(budgetOccPct, 1)}` : ""}.`,
-      `${Math.round(Number(trafficMetrics.approvals ?? 0))} approved applications and ${formatDlrSignedNumber(Number(trafficMetrics.moveIns ?? 0) - Number(trafficMetrics.moveOuts ?? 0))} net absorption are supporting the month-to-date pace across ${communityCount} communit${communityCount === 1 ? "y" : "ies"}, with ${formatDlrMetricValue(moveInsNeeded)} move-in${Math.abs(Number(moveInsNeeded)) === 1 ? "" : "s"} still needed to protect the current occupancy path.`,
-      `${formatDlrPercent(renewalSummary.retentionRate, 0)} renewal retention across ${formatDlrMetricValue(renewalSummary.expirations)} expirations is keeping the forward look steady. ${leadSourceText}`
+      trafficText,
+      `${renewalText} ${leadSourceText}`.trim()
     ];
   }
-  const leadSources = leadSourceBreakdown ? getTopLeadSourceFacts(leadSourceBreakdown) : [];
   const leadSourceText = leadSources[0]
     ? `${leadSources[0].label} is the strongest source driver with ${leadSources[0].value} lead${leadSources[0].value === 1 ? "" : "s"} logged in the current mix.`
     : "Lead-source breakout is incomplete, so the report is carrying the month-to-date total guest card count only until the source fields are saved.";
+  const trafficText = hasTrafficVolume
+    ? `${Math.round(Number(trafficMetrics.approvals ?? 0))} approved applications and ${formatDlrSignedNumber(Number(trafficMetrics.moveIns ?? 0) - Number(trafficMetrics.moveOuts ?? 0))} net absorption are supporting the month-to-date pace${Number(moveInsNeeded) > 0 ? `, with ${formatDlrMetricValue(moveInsNeeded)} move-in${Math.abs(Number(moveInsNeeded)) === 1 ? "" : "s"} still needed to protect the current occupancy path.` : "."}`
+    : "Month-to-date traffic activity is not fully loaded for this community yet, so the pace narrative will update once current-month approvals, move-ins, and move-outs are saved.";
+  const renewalText = hasRenewalVolume
+    ? `${formatDlrPercent(renewalSummary.retentionRate, 0)} renewal retention across ${formatDlrMetricValue(renewalExpirations)} expirations is shaping the current forward look.`
+    : "Renewal detail is not yet populated for this month, so the forward-look narrative is waiting on updated retention entries.";
   return [
     `${communityName} is sitting at ${formatDlrPercent(occupancyPct, 1)} physical occupancy and ${formatDlrPercent(leasedPct, 1)} leased occupancy${Number.isFinite(Number(budgetOccPct)) ? ` against a saved budget line of ${formatDlrPercent(budgetOccPct, 1)}` : ""}.`,
-    `${Math.round(Number(trafficMetrics.approvals ?? 0))} approved applications and ${formatDlrSignedNumber(Number(trafficMetrics.moveIns ?? 0) - Number(trafficMetrics.moveOuts ?? 0))} net absorption are supporting the month-to-date pace, with ${formatDlrMetricValue(moveInsNeeded)} move-in${Math.abs(Number(moveInsNeeded)) === 1 ? "" : "s"} still needed to protect the current occupancy path.`,
-    `${formatDlrPercent(renewalSummary.retentionRate, 0)} renewal retention across ${formatDlrMetricValue(renewalSummary.expirations)} expirations is keeping the forward look steady. ${leadSourceText}`
+    trafficText,
+    `${renewalText} ${leadSourceText}`.trim()
   ];
+}
+
+function extractHtmlBodyContent(documentHtml) {
+  const html = String(documentHtml || "");
+  const match = html.match(/<body[^>]*>([\s\S]*)<\/body>\s*<\/html>\s*$/i);
+  return match ? match[1] : html;
 }
 
 function buildCommunityProgressReportAlerts(report) {
@@ -26370,22 +26456,22 @@ function buildCommunityProgressReportDocument(report) {
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
           <div>
             <div style="font-size:14px;font-weight:700;margin-bottom:4px">By Community</div>
-            <div style="font-size:12px;color:#64748b">Each selected community is rendered below so the rollup can be compared against the individual property views.</div>
+            <div style="font-size:12px;color:#64748b">Each selected community is appended below as a full report page so the rollup can be compared against the individual property views in the exported PDF.</div>
           </div>
           <div style="font-size:12px;color:#475569">${escapeHtml(String(report.communityCount || 0))} communities selected</div>
         </div>
-        <div class="progress-community-stack">
+        <div class="progress-community-export-stack">
           ${report.communityReports.map(child => {
-            const childDoc = buildCommunityProgressReportDocument(child);
-            return `<div class="progress-community-frame">
+            const childDocBody = extractHtmlBodyContent(buildCommunityProgressReportDocument(child));
+            return `<section class="progress-community-report-page">
               <div class="progress-community-frame-header">
                 <div>
                   <div class="progress-community-frame-title">${escapeHtml(child.communityName)}</div>
                   <div class="progress-community-frame-sub">${escapeHtml(child.reportPeriodLabel)} · individual community view</div>
                 </div>
               </div>
-              <iframe title="${escapeHtml(child.communityName)} community progress report" srcdoc="${escapeHtml(childDoc)}"></iframe>
-            </div>`;
+              <div class="progress-community-export-body">${childDocBody}</div>
+            </section>`;
           }).join("")}
         </div>
       </div>`
@@ -26427,11 +26513,15 @@ function buildCommunityProgressReportDocument(report) {
     .progress-alert-title{font-size:12px;font-weight:800;color:#0f172a;margin-bottom:4px}
     .progress-alert-body{font-size:12px;line-height:1.6;color:#334155}
     .progress-community-stack{display:grid;gap:14px}
+    .progress-community-export-stack{display:grid;gap:18px}
     .progress-community-frame{border:1px solid #dbe4f0;border-radius:18px;overflow:hidden;background:#f8fafc}
     .progress-community-frame-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid #dbe4f0;background:linear-gradient(180deg,#f8fbff 0%,#f1f7ff 100%)}
     .progress-community-frame-title{font-size:15px;font-weight:800;color:#0f172a}
     .progress-community-frame-sub{font-size:12px;color:#64748b;margin-top:4px}
     .progress-community-frame iframe{width:100%;min-height:1120px;border:0;display:block;background:#fff}
+    .progress-community-report-page{border:1px solid #dbe4f0;border-radius:18px;overflow:hidden;background:#ffffff;break-before:page;page-break-before:always}
+    .progress-community-export-body{padding:16px;background:#ffffff}
+    .progress-community-export-body .progress-shell{margin-bottom:18px}
     .section{margin-bottom:18px}
     @media print { body{padding:18px} .progress-grid-2,.progress-grid-equal{grid-template-columns:1fr 1fr} }
   </style></head><body>

@@ -20831,6 +20831,38 @@ function collectMonthlyPresentationPhotos(details, maxPhotos = 6) {
   return photos;
 }
 
+function collectInterleavedMonthlyPresentationPhotos(details, maxPhotos = 6) {
+  const photoGroups = details
+    .map(detail => ({
+      community: detail?.name || "",
+      photos: getDetailPhotoBank(detail).map((photo, idx) => ({
+        ...photo,
+        community: detail?.name || "",
+        featured: idx === 0
+      }))
+    }))
+    .filter(group => group.photos.length > 0);
+  const photos = [];
+  const seen = new Set();
+  let photoIndex = 0;
+  while (photos.length < maxPhotos) {
+    let addedThisRound = false;
+    photoGroups.forEach(group => {
+      if (photos.length >= maxPhotos) return;
+      const photo = group.photos[photoIndex];
+      if (!photo) return;
+      const photoKey = String(photo.id || photo.previewSrc || photo.src || `${group.community}-${photoIndex}`);
+      if (seen.has(photoKey)) return;
+      seen.add(photoKey);
+      photos.push(photo);
+      addedThisRound = true;
+    });
+    if (!addedThisRound) break;
+    photoIndex += 1;
+  }
+  return photos;
+}
+
 function getMonthlyPresentationCurrentEntry(detail) {
   const monthIdx = Number(detail?.record?.currentMonth ?? currentMonth);
   return detail?.record?.monthlyData?.[monthIdx] ?? {};
@@ -26064,7 +26096,7 @@ function buildCommunityProgressReportData(options = {}) {
     retentionRate: aggregateSummary.renewalRetentionRate,
     previousRetentionRate
   };
-  const selectedReportPhotos = communityReports.flatMap(item => Array.isArray(item.photoPool) ? item.photoPool : []);
+  const selectedReportPhotos = collectInterleavedMonthlyPresentationPhotos(communityReports, 6);
   const communityNamesLabel = getCommunityProgressReportScopeLabel();
   const forwardLook = MONTHS.map((_, idx) => idx)
     .filter(idx => idx >= monthIdx)
@@ -26100,8 +26132,8 @@ function buildCommunityProgressReportData(options = {}) {
     });
   const report = {
     type: "community_progress",
-    title: "ATLAS RISE Community Progress Report",
-    subtitle: `${communityNamesLabel} · month-to-date operating review for the c-suite`,
+    title: "ATLAS RISE Portfolio Community Progress Report",
+    subtitle: `${communityNamesLabel} · month-to-date portfolio operating review for the c-suite`,
     communityName: communityNamesLabel,
     communityNames: selectedCommunityNames,
     communityCount: communityReports.length,
@@ -26112,7 +26144,7 @@ function buildCommunityProgressReportData(options = {}) {
     reportMonthIdx: monthIdx,
     reportYear: year,
     reportMonthLabel: formatDlrMonthYear(monthIdx, year),
-    reportPeriodLabel: `${formatDlrMonthYear(monthIdx, year)} month-to-date community progress`,
+    reportPeriodLabel: `${formatDlrMonthYear(monthIdx, year)} month-to-date portfolio community progress`,
     generatedAt: new Date(),
     totalUnits,
     occupiedUnits,
@@ -26210,7 +26242,7 @@ function buildCommunityProgressReportData(options = {}) {
     floorPlanVarianceRows: communityReports.flatMap(item => Array.isArray(item.floorPlanVarianceRows) ? item.floorPlanVarianceRows : []),
     unmatchedMarketFloorPlans: communityReports.flatMap(item => Array.isArray(item.unmatchedMarketFloorPlans) ? item.unmatchedMarketFloorPlans : []),
     marketSurveyUpdatedOn: communityReports.map(item => item.marketSurveyUpdatedOn).filter(Boolean).sort().pop() || null,
-    sourceSummary: `${communityNamesLabel} · ${formatDlrMonthYear(monthIdx, year)} month-to-date community progress`,
+    sourceSummary: `${communityNamesLabel} · ${formatDlrMonthYear(monthIdx, year)} month-to-date portfolio community progress`,
     dataAlerts: []
   };
   report.dataAlerts = buildCommunityProgressReportAlerts(report);
@@ -26363,10 +26395,12 @@ function buildCommunityProgressReportDocument(report) {
       <img src="${heroPhoto}" alt="" class="progress-photo-img">
       <div class="progress-photo-hero-overlay"></div>
       <div class="progress-photo-hero-copy">
-        <div class="progress-photo-kicker">Community field view</div>
+        <div class="progress-photo-kicker">${report.communityCount > 1 ? "Portfolio field view" : "Community field view"}</div>
         <div class="progress-photo-title">${escapeHtml(report.communityName)}</div>
-        <div class="progress-photo-sub">A c-suite month-to-date operating view anchored by the saved community photo library and the current occupancy, leasing, and renewal story.</div>
-        <div class="progress-photo-pill">Community Progress</div>
+        <div class="progress-photo-sub">${escapeHtml(report.communityCount > 1
+          ? "A c-suite month-to-date portfolio operating view anchored by the saved community photo library and the combined occupancy, leasing, and renewal story."
+          : "A c-suite month-to-date operating view anchored by the saved community photo library and the current occupancy, leasing, and renewal story.")}</div>
+        <div class="progress-photo-pill">${escapeHtml(report.communityCount > 1 ? "Portfolio Progress" : "Community Progress")}</div>
       </div>
     </div>` : ""}
     ${photoStripHtml}
@@ -26893,6 +26927,7 @@ function buildMarketComparisonSingleReportData(options = {}) {
     updatedOn: aggregate.marketSurveyUpdatedOn,
     sourceLabel: aggregate.marketSurveySourceLabel
   };
+  const mixedPhotoPool = collectInterleavedMonthlyPresentationPhotos(communityReports, 4);
   const report = {
     type: "market_comparison",
     title: "ATLAS RISE Market Comparison Report",
@@ -27005,9 +27040,9 @@ function buildMarketComparisonReportData(options = {}) {
     marketCoveragePct: aggregate.marketCoveragePct,
     marketSurveyUpdatedOn: aggregate.marketSurveyUpdatedOn,
     marketSurveySourceLabel: aggregate.marketSurveySourceLabel,
-    communityPhotoAsset: collectMonthlyPresentationPhotos(communityReports, 4)[0] || null,
-    communityPhotoPreviewSrc: String(collectMonthlyPresentationPhotos(communityReports, 4)[0]?.previewSrc || collectMonthlyPresentationPhotos(communityReports, 4)[0]?.src || ""),
-    photoPool: collectMonthlyPresentationPhotos(communityReports, 4),
+    communityPhotoAsset: mixedPhotoPool[0] || null,
+    communityPhotoPreviewSrc: String(mixedPhotoPool[0]?.previewSrc || mixedPhotoPool[0]?.src || ""),
+    photoPool: mixedPhotoPool,
     sourceSummary: `${getMarketComparisonReportScopeLabel()} · ${formatDlrMonthYear(monthIdx, year)} market vs subject comparison`,
     dataAlerts: [],
     notes: []

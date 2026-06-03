@@ -24456,8 +24456,6 @@ function buildDlrOccupancyPositionChart(report) {
   const budgetPct = Number.isFinite(Number(report.budgetOccPct)) ? Number(report.budgetOccPct) : null;
   const currentPct = Math.max(0, Math.min(Number(report.occupancyPct) || 0, 100));
   const leasedPct = Math.max(0, Math.min(Number(report.leasedPct) || 0, 100));
-  const projectedPct = Math.max(0, Math.min(Number(report.trendingOccupancyPct) || 0, 100));
-  const projectedDelta = projectedPct - currentPct;
   const metrics = [
     { label: "Occupied", pct: currentPct, color: "#1d4ed8", detail: `${formatDlrMetricValue(report.occupiedUnits)} units` },
     { label: "Leased", pct: leasedPct, color: "#0f766e", detail: `${formatDlrMetricValue(report.leasedUnits)} units` },
@@ -24474,23 +24472,6 @@ function buildDlrOccupancyPositionChart(report) {
       </div>
     </div>
   `).join("");
-  const projectionTrack = `
-    <div style="margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#334155;margin-bottom:5px">
-        <span style="font-weight:700">90-Day</span>
-        <span>${formatDlrPercent(currentPct, 1)} → ${formatDlrPercent(projectedPct, 1)} · ${escapeHtml(projectedDelta >= 0 ? `+${projectedDelta.toFixed(1)}` : projectedDelta.toFixed(1))} pts projected</span>
-      </div>
-      <div style="position:relative;height:16px;border-radius:999px;background:#e2e8f0;overflow:hidden">
-        <div style="position:absolute;left:0;top:0;bottom:0;width:${currentPct}%;background:linear-gradient(90deg, rgba(124,58,237,0.28), rgba(124,58,237,0.08));border-radius:999px"></div>
-        <div style="position:absolute;left:${Math.max(0, Math.min(currentPct, 100))}%;top:50%;width:${Math.max(Math.abs(projectedPct - currentPct), 0.5)}%;height:4px;background:#7c3aed;border-radius:999px;transform:translateY(-50%);"></div>
-        <div style="position:absolute;left:${Math.max(0, Math.min(currentPct, 100))}%;top:50%;width:11px;height:11px;background:#1d4ed8;border:2px solid #fff;border-radius:999px;transform:translate(-50%,-50%);box-shadow:0 0 0 1px rgba(29,78,216,0.18)"></div>
-        <div style="position:absolute;left:${Math.max(0, Math.min(projectedPct, 100))}%;top:50%;width:11px;height:11px;background:#7c3aed;border:2px solid #fff;border-radius:999px;transform:translate(-50%,-50%);box-shadow:0 0 0 1px rgba(124,58,237,0.18)"></div>
-      </div>
-      <div style="display:flex;justify-content:space-between;gap:10px;font-size:10px;color:#64748b;margin-top:4px">
-        <span>Current occupancy</span>
-        <span>Projected ending occupancy</span>
-      </div>
-    </div>`;
   return `<div style="padding:16px;border:1px solid #dbe4f0;border-radius:16px;background:linear-gradient(180deg,#f8fbff 0%,#eef5ff 100%)">
     <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:12px">
       <div>
@@ -24503,7 +24484,6 @@ function buildDlrOccupancyPositionChart(report) {
       </div>
     </div>
     ${bars}
-    ${projectionTrack}
   </div>`;
 }
 
@@ -24572,10 +24552,32 @@ function buildDlrFloorPlanVarianceChart(report) {
     return `<div style="padding:14px;border:1px dashed #cbd5e1;border-radius:16px;background:#f8fafc;font-size:12px;color:#64748b">Add marketed rents to the saved floor plans or upload a market survey to populate this chart.</div>`;
   }
   const maxAbsVariance = Math.max(25, ...rowsWithVariance.map(row => Math.abs(Number(row.variance) || 0)));
+  const buildRecommendation = row => {
+    const budget = Number(row?.budgetRent) || 0;
+    const market = Number(row?.marketRent) || 0;
+    const leasedPct = Number(row?.leasedPct) || 0;
+    if (budget <= 0 || market <= 0 || leasedPct <= 0) {
+      return { label: "Pending data", color: "#64748b", bg: "#f8fafc" };
+    }
+    if (leasedPct > 92 && market < budget) {
+      return { label: "Increase advertised rate", color: "#c2410c", bg: "#fff7ed" };
+    }
+    if (market > budget && leasedPct < 80) {
+      return { label: "Reduce advertised rate", color: "#b91c1c", bg: "#fef2f2" };
+    }
+    if (market >= budget && leasedPct > 79) {
+      return { label: "Hold firm", color: "#15803d", bg: "#ecfdf5" };
+    }
+    if (market < budget && leasedPct >= 80) {
+      return { label: "Hold / monitor", color: "#0f766e", bg: "#f0fdfa" };
+    }
+    return { label: "Review pricing", color: "#475569", bg: "#f8fafc" };
+  };
   const rowHtml = rowsWithVariance.map(row => {
     const variance = row.variance == null ? null : (Number(row.variance) || 0);
     const varianceWidth = variance == null ? 0 : Math.max(4, Math.min((Math.abs(variance) / maxAbsVariance) * 50, 50));
     const varianceColor = variance == null ? "#94a3b8" : variance >= 0 ? "#22c55e" : "#f97316";
+    const recommendation = buildRecommendation(row);
     const communityIdentifier = String(row.communityIdentifier || "").trim();
     const communityName = String(row.communityName || getDlrCommunityIdentifier(report)).trim();
     const communityDisplayLabel = communityName || communityIdentifier || "—";
@@ -24585,9 +24587,9 @@ function buildDlrFloorPlanVarianceChart(report) {
       row.baths != null ? `${row.baths} ba` : "",
       row.sqft != null ? `${Math.round(row.sqft).toLocaleString()} sf` : ""
     ].filter(Boolean).join(" · ");
-    return `<div style="display:grid;grid-template-columns:150px minmax(170px,1.1fr) minmax(280px,1fr) 120px 120px 92px 100px 100px;gap:12px;align-items:center;padding:10px 0;border-top:1px solid #e5e7eb">
+    return `<div style="display:grid;grid-template-columns:150px minmax(170px,1.1fr) minmax(280px,1fr) 120px 120px 92px 100px 100px minmax(150px,0.9fr);gap:12px;align-items:center;padding:10px 0;border-top:1px solid #e5e7eb">
       <div style="font-size:12px;color:#334155">
-        <strong>Community</strong><br>${escapeHtml(communityDisplayLabel)}
+        <div style="font-size:13px;font-weight:700;color:#0f172a">${escapeHtml(communityDisplayLabel)}</div>
         ${communityDisplayMeta ? `<div style="font-size:10px;color:#64748b;margin-top:3px">${escapeHtml(communityDisplayMeta)}</div>` : ""}
       </div>
       <div>
@@ -24612,6 +24614,12 @@ function buildDlrFloorPlanVarianceChart(report) {
       <div style="font-size:12px;font-weight:700;color:${varianceColor}">${row.variance == null ? "—" : formatSignedDisplay(variance, 0, "")}</div>
       <div style="font-size:12px;color:#334155"><strong>% Occupied</strong><br>${compCalcFormatPercentValue(row.occupancyPct)}</div>
       <div style="font-size:12px;color:#334155"><strong>% Leased</strong><br>${compCalcFormatPercentValue(row.leasedPct)}</div>
+      <div>
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-bottom:4px">Recommendation</div>
+        <div style="display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:7px 10px;border-radius:999px;background:${recommendation.bg};border:1px solid ${recommendation.color}33;font-size:11px;font-weight:700;line-height:1.35;color:${recommendation.color};text-align:center">
+          ${escapeHtml(recommendation.label)}
+        </div>
+      </div>
     </div>`;
   }).join("");
   return `<div style="padding:16px;border:1px solid #dbe4f0;border-radius:16px;background:#ffffff">

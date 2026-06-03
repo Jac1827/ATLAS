@@ -29199,15 +29199,18 @@ async function processRonaldoFloorPlanSnapshotRows(workbook, fileName = "", opti
     row.floorPlanRates.forEach(rate => {
       const normalizedRateName = normalizeFloorPlanLookupName(rate.name);
       const existing = existingByName.get(normalizedRateName);
+      const importedMarketedRent = Number.isFinite(Number(rate.budgetRent)) && Number(rate.budgetRent) > 0
+        ? Number(rate.budgetRent)
+        : (Number.isFinite(Number(rate.marketRent)) && Number(rate.marketRent) > 0 ? Number(rate.marketRent) : null);
       nextPlans.push({
         id: existing?.id || makeFloorPlanId(),
         name: String(existing?.name || rate.name || "").trim(),
         sqft: existing?.sqft ?? rate.sqft ?? null,
         budgetRent: existing?.budgetRent ?? rate.budgetRent ?? null,
-        marketedRent: existing?.marketedRent ?? rate.marketRent ?? null,
+        marketedRent: importedMarketedRent,
         occupancyPct: existing?.occupancyPct ?? rate.occupancyPct ?? null,
-        leasedPct: existing?.leasedPct ?? rate.leasedPct ?? null,
-        marketedRentSource: existing?.marketedRentSource || fileName,
+        leasedPct: Number.isFinite(Number(rate.leasedPct)) ? Number(rate.leasedPct) : (existing?.leasedPct ?? null),
+        marketedRentSource: importedMarketedRent != null ? `${fileName} · Scheduled Rent` : (existing?.marketedRentSource || fileName),
         beds: existing?.beds ?? rate.beds ?? null,
         baths: existing?.baths ?? rate.baths ?? null
       });
@@ -29229,7 +29232,7 @@ async function processRonaldoFloorPlanSnapshotRows(workbook, fileName = "", opti
   if (saveResult?.ok === false) return { rows: [], notes: [`⚠️ ${saveResult.message}`] };
   if (rows.some(row => row.property === getProp().name)) loadPropertyData(getProp().name);
   renderPropGrid();
-  return { rows, notes: [`✅ Applied floor plan snapshots across ${rows.length} community-month row${rows.length === 1 ? "" : "s"}.`] };
+  return { rows, notes: [`✅ Applied floor plan snapshots across ${rows.length} community-month row${rows.length === 1 ? "" : "s"} and refreshed marketed rent from scheduled rent plus leased % in Community Setup.`] };
 }
 
 async function processRonaldoMonthlyReferenceFiles(files, options = {}) {

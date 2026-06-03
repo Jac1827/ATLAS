@@ -20903,6 +20903,13 @@ function getDetailPresentationPhoto(detail, report, includeGlobalFallback = fals
   return includeGlobalFallback ? String(report?.primaryPhoto ?? "") : "";
 }
 
+async function resolvePresentationPhotoSrc(asset) {
+  const photo = normalizePhotoAsset(asset);
+  if (!photo) return "";
+  const resolved = await getPhotoAssetDataForPptx(photo);
+  return resolved || String(photo.previewSrc || photo.src || "");
+}
+
 function collectMonthlyPresentationPhotos(details, maxPhotos = 6) {
   const photos = [];
   details.forEach(detail => {
@@ -25810,42 +25817,37 @@ function buildCommunityProgressNarrative({
   ];
 }
 
-function buildCommunityProgressLeadershipPanel(report) {
-  const staff = Array.isArray(report?.regionalStaff)
-    ? report.regionalStaff.filter(member => normalizePhotoAsset(member?.photo))
-    : [];
-  if (staff.length === 0) {
-    return `<div class="progress-card section">
-      <div style="font-size:14px;font-weight:700;margin-bottom:10px">Leadership In Scope</div>
-      <div style="font-size:12px;line-height:1.7;color:#64748b">No VP or Regional headshots are currently saved for the selected communities.</div>
-    </div>`;
-  }
-  return `<div class="progress-card section">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
-      <div>
-        <div style="font-size:14px;font-weight:700;margin-bottom:4px">Leadership In Scope</div>
-        <div style="font-size:12px;color:#64748b;line-height:1.6">VP and assigned Regional headshots for the selected community scope.</div>
-      </div>
-      <div style="font-size:12px;color:#475569">${escapeHtml(report.communityCount > 1 ? `${report.communityCount} communities selected` : "Single-community view")}</div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
-      ${staff.map(member => {
-        const photo = normalizePhotoAsset(member.photo);
-        const communities = Array.isArray(member.communities) ? member.communities.filter(Boolean) : [];
-        const communityLabel = member.roleId === "vp_ops"
-          ? "VP"
-          : `${communities.length} communit${communities.length === 1 ? "y" : "ies"} represented`;
-        return `<div style="border:1px solid #dbe4f0;border-radius:16px;overflow:hidden;background:#f8fafc">
-          <div style="position:relative;aspect-ratio:1/1;background:#0f172a">
-            <img src="${photo.src}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">
-          </div>
-          <div style="padding:12px 12px 14px">
-            <div style="font-size:13px;font-weight:800;color:#0f172a;line-height:1.35">${escapeHtml(member.name)}</div>
-            <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-top:4px">${escapeHtml(communityLabel)}</div>
-            ${communities.length > 0 ? `<div style="font-size:11px;color:#475569;line-height:1.5;margin-top:6px">${escapeHtml(communities.join(", "))}</div>` : ""}
-          </div>
-        </div>`;
-      }).join("")}
+function buildCommunityProgressThumbnailRail(report) {
+  const communityPhotos = (Array.isArray(report?.photoPoolResolved) ? report.photoPoolResolved : report?.photoPool ?? [])
+    .map(photo => {
+      const src = String(photo?.resolvedSrc || photo?.previewSrc || photo?.src || "").trim();
+      return src ? {
+        src,
+        label: String(photo?.community || report?.communityName || "Community")
+      } : null;
+    })
+    .filter(Boolean)
+    .slice(0, 3);
+  const leadership = (Array.isArray(report?.regionalStaffResolved) ? report.regionalStaffResolved : report?.regionalStaff ?? [])
+    .map(member => {
+      const src = String(member?.resolvedSrc || member?.photo?.previewSrc || member?.photo?.src || "").trim();
+      return src ? {
+        src,
+        label: String(member?.name || "Leadership")
+      } : null;
+    })
+    .filter(Boolean)
+    .slice(0, 5);
+  const thumbs = [...communityPhotos, ...leadership];
+  if (thumbs.length === 0) return "";
+  return `<div style="display:flex;justify-content:flex-end;margin-top:10px">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;max-width:380px">
+      ${thumbs.map(item => `<div style="display:flex;flex-direction:column;align-items:center;gap:5px;width:46px">
+        <div style="width:42px;height:42px;border-radius:999px;overflow:hidden;border:1px solid rgba(148,163,184,0.55);background:#0f172a;box-shadow:0 6px 16px rgba(15,23,42,0.12)">
+          <img src="${item.src}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">
+        </div>
+        <div style="width:46px;font-size:8px;line-height:1.1;text-align:center;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(item.label)}</div>
+      </div>`).join("")}
     </div>
   </div>`;
 }
@@ -26530,10 +26532,48 @@ function buildCommunityProgressReportData(options = {}) {
   return report;
 }
 
+async function hydrateCommunityProgressReportAssets(report) {
+  if (!report) return report;
+  const detailAssets = [];
+  (report.details ?? []).forEach(detail => {
+    normalizeCommunityPhotoBank(detail.record?.photoBank).forEach(photo => detailAssets.push(photo));
+    getConfiguredCommunityTeamProfiles(detail.record?.propertyTeamConfig, detail.record?.communityTeamProfiles)
+      .forEach(profile => detailAssets.push(profile.photo));
+  });
+  (report.regionalStaff ?? []).forEach(member => detailAssets.push(member.photo));
+  if (detailAssets.length > 0) {
+    await ensurePhotoAssetsLoaded(detailAssets);
+  }
+  if (Array.isArray(report.photoPool) && report.photoPool.length > 0) {
+    report.photoPoolResolved = await Promise.all(report.photoPool.map(async photo => ({
+      ...photo,
+      resolvedSrc: await resolvePresentationPhotoSrc(photo)
+    })));
+  } else {
+    report.photoPoolResolved = [];
+  }
+  if (Array.isArray(report.regionalStaff) && report.regionalStaff.length > 0) {
+    report.regionalStaffResolved = await Promise.all(report.regionalStaff.map(async member => ({
+      ...member,
+      resolvedSrc: await resolvePresentationPhotoSrc(member.photo)
+    })));
+  } else {
+    report.regionalStaffResolved = [];
+  }
+  if (Array.isArray(report.communityReports) && report.communityReports.length > 0) {
+    for (const child of report.communityReports) {
+      await hydrateCommunityProgressReportAssets(child);
+    }
+  }
+  return report;
+}
+
 function buildCommunityProgressReportDocument(report) {
   if (!report) return "";
   const alerts = Array.isArray(report.dataAlerts) ? report.dataAlerts : buildCommunityProgressReportAlerts(report);
-  const heroPhotos = Array.isArray(report.photoPool) ? report.photoPool.slice(0, 3) : [];
+  const heroPhotos = Array.isArray(report.photoPoolResolved) && report.photoPoolResolved.length > 0
+    ? report.photoPoolResolved.slice(0, 3)
+    : Array.isArray(report.photoPool) ? report.photoPool.slice(0, 3) : [];
   const heroPhoto = heroPhotos[0]?.resolvedSrc || heroPhotos[0]?.previewSrc || heroPhotos[0]?.src || String(report.communityPhotoPreviewSrc || "");
   const photoStripHtml = heroPhotos.length > 0
     ? `<div class="progress-photo-strip">
@@ -26633,6 +26673,10 @@ function buildCommunityProgressReportDocument(report) {
     .progress-title{font-size:24px;font-weight:700;color:#1d4ed8}
     .progress-sub{font-size:13px;color:#64748b}
     .progress-meta{font-size:11px;color:#64748b;text-align:right}
+    .progress-meta-thumbs{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:10px;max-width:380px}
+    .progress-meta-thumb{width:42px;height:42px;border-radius:999px;overflow:hidden;border:1px solid rgba(148,163,184,0.55);background:#0f172a;box-shadow:0 6px 16px rgba(15,23,42,0.12)}
+    .progress-meta-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+    .progress-meta-thumb-label{font-size:8px;line-height:1.1;text-align:center;color:#475569;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46px}
     .progress-photo-hero{position:relative;min-height:220px;border-radius:22px;overflow:hidden;border:1px solid #dbe4f0;background:#0f172a;margin-bottom:18px}
     .progress-photo-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
     .progress-photo-hero-overlay{position:absolute;inset:0;background:linear-gradient(90deg,rgba(15,23,42,.82),rgba(15,23,42,.34),rgba(15,23,42,.08))}
@@ -26684,6 +26728,7 @@ function buildCommunityProgressReportDocument(report) {
       <div class="progress-meta">
         <div>Generated ${escapeHtml(formatPresentationTimestamp(report.generatedAt))}</div>
         <div style="margin-top:6px">${escapeHtml(report.sourceSummary)}</div>
+        ${buildCommunityProgressThumbnailRail(report)}
       </div>
     </div>
     ${heroPhotos.length > 0 ? `<div class="progress-photo-hero">
@@ -26706,7 +26751,6 @@ function buildCommunityProgressReportDocument(report) {
         <div style="font-size:12px;color:#475569">${escapeHtml(card.sub)}</div>
       </div>`).join("")}
     </div>
-    ${buildCommunityProgressLeadershipPanel(report)}
     ${buildCommunityProgressTrendSection(report)}
     ${alerts.length > 0 ? `<div class="progress-alert-grid">
         ${alerts.map(alertItem => `<div class="progress-alert ${alertItem.level || "info"}">
@@ -26874,7 +26918,8 @@ function renderCommunityProgressReportingWorkspace() {
       </div>
       <div class="progress-grid-2" style="margin-bottom:12px">
         <div class="report-hub-card">
-          ${buildCommunityProgressLeadershipPanel(report)}
+          <div class="card-title" style="margin-bottom:8px">Images In Scope</div>
+          <div style="font-size:0.72rem;color:var(--muted);line-height:1.6">Thumbnails are shown in the report header at the top right and should stay compact with rounded borders.</div>
         </div>
         <div class="report-hub-card">
           <div class="card-title" style="margin-bottom:8px">Traffic Mix Check</div>
@@ -26933,9 +26978,10 @@ function focusReportingCommunityProgressPreview() {
   if (target?.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function openCommunityProgressReport(printImmediately = false) {
-  const report = buildCommunityProgressReportData({ silent: true });
+async function openCommunityProgressReport(printImmediately = false) {
+  let report = buildCommunityProgressReportData({ silent: true });
   if (!report) return;
+  await hydrateCommunityProgressReportAssets(report);
   const win = window.open("", "_blank");
   if (!win) return;
   win.document.write(buildCommunityProgressReportDocument(report));
@@ -26946,10 +26992,11 @@ function openCommunityProgressReport(printImmediately = false) {
   }
 }
 
-function openCommunityProgressIndividualReports(printImmediately = false) {
+async function openCommunityProgressIndividualReports(printImmediately = false) {
   const report = buildCommunityProgressReportData({ silent: true });
   if (!report || !Array.isArray(report.communityReports) || report.communityReports.length === 0) return;
-  report.communityReports.forEach(child => {
+  for (const child of report.communityReports) {
+    await hydrateCommunityProgressReportAssets(child);
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(buildCommunityProgressReportDocument(child));
@@ -26958,10 +27005,10 @@ function openCommunityProgressIndividualReports(printImmediately = false) {
       win.focus();
       setTimeout(() => win.print(), 200);
     }
-  });
+  }
 }
 
-function openSingleCommunityProgressReport(communityName, printImmediately = false) {
+async function openSingleCommunityProgressReport(communityName, printImmediately = false) {
   const report = buildCommunityProgressReportData({ silent: true });
   if (!report) return;
   const target = Array.isArray(report.communityReports) && report.communityReports.length > 0
@@ -26969,6 +27016,7 @@ function openSingleCommunityProgressReport(communityName, printImmediately = fal
     : (report.communityName === communityName ? report : null);
   const finalReport = target || (report.communityName === communityName ? report : null);
   if (!finalReport) return;
+  await hydrateCommunityProgressReportAssets(finalReport);
   const win = window.open("", "_blank");
   if (!win) return;
   win.document.write(buildCommunityProgressReportDocument(finalReport));
@@ -26980,8 +27028,9 @@ function openSingleCommunityProgressReport(communityName, printImmediately = fal
 }
 
 async function downloadCommunityProgressReportHtml() {
-  const report = buildCommunityProgressReportData({ silent: true });
+  let report = buildCommunityProgressReportData({ silent: true });
   if (!report) return;
+  await hydrateCommunityProgressReportAssets(report);
   const blob = new Blob([buildCommunityProgressReportDocument(report)], { type: "text/html" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);

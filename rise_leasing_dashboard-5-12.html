@@ -3932,18 +3932,21 @@ function setRecordBudgetOccPct(record, monthIdx, value, year = null) {
   if (!Array.isArray(record.monthlyData) || record.monthlyData.length !== 12) record.monthlyData = defaultMonthly();
   if (!Array.isArray(record.savedBudgetTargets) || record.savedBudgetTargets.length !== 12) record.savedBudgetTargets = Array(12).fill(0);
   const normalized = normalizeBudgetOccupancyPct(value);
+  const isCurrentBudgetYear = year == null || Number(year) === new Date().getFullYear();
+  const existingSavedPct = getSavedBudgetOccPct(record.savedBudgetTargets, monthIdx);
+  const budgetPctToStore = normalized > 0 ? normalized : (isCurrentBudgetYear ? existingSavedPct : 0);
   const targetEntry = year == null
     ? getRecordMonthEntryForPeriod(record, monthIdx, new Date().getFullYear(), { createLive: true })
     : getRecordMonthEntryForPeriod(record, monthIdx, year, { createHistory: true });
   Object.assign(targetEntry, {
     ...defaultMonthly()[monthIdx],
     ...(targetEntry ?? {}),
-    budgetOcc: normalized
+    budgetOcc: budgetPctToStore
   });
-  if (year == null || Number(year) === new Date().getFullYear()) {
-    record.savedBudgetTargets[monthIdx] = normalized;
+  if (isCurrentBudgetYear) {
+    record.savedBudgetTargets[monthIdx] = budgetPctToStore;
   }
-  return normalized;
+  return budgetPctToStore;
 }
 
 function getClosedOutRetentionAverageForMonths(monthEntries = monthlyData, monthIndexes = MONTHS.map((_, idx) => idx), closeThroughMonth = currentMonth) {
@@ -8820,7 +8823,8 @@ function renderTab() {
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
 function saveBudgetCurve() {
-  savedBudgetTargets = monthlyData.map(m => normalizeBudgetOccupancyPct(m.budgetOcc));
+  savedBudgetTargets = deriveSavedBudgetTargetsFromMonthlyData(monthlyData, savedBudgetTargets);
+  monthlyData = repairMonthlyBudgetTargets(monthlyData, savedBudgetTargets);
   visibleCurves.budget = true;
   savedData[getProp().name] = getCurrentCommunityRecord();
   const savedResult = persistSaved();
@@ -8834,7 +8838,10 @@ function saveBudgetCurve() {
 
 function revertToBudget() {
   if (!savedBudgetTargets.some(v => v > 0)) return;
-  monthlyData = monthlyData.map((m, i) => ({ ...m, budgetOcc: savedBudgetTargets[i] ?? m.budgetOcc }));
+  monthlyData = monthlyData.map((m, i) => {
+    const savedPct = getSavedBudgetOccPct(savedBudgetTargets, i);
+    return { ...m, budgetOcc: savedPct > 0 ? savedPct : m.budgetOcc };
+  });
   activeCurve = "budget";
   renderTab();
 }
@@ -9160,9 +9167,14 @@ function mergeDashboardCommunityRecord(baseRecord, incomingRecord, name) {
   const base = normalizeSavedCommunityRecord(name, baseRecord);
   const incoming = normalizeSavedCommunityRecord(name, incomingRecord);
   const mergedMonthlyData = mergeDashboardMonthlyData(base.monthlyData, incoming.monthlyData);
-  const nextSavedBudgetTargets = Array.isArray(incoming.savedBudgetTargets) && incoming.savedBudgetTargets.some(value => Number(value) > 0)
-    ? incoming.savedBudgetTargets
-    : base.savedBudgetTargets;
+  const nextSavedBudgetTargets = Array.from({ length: 12 }, (_, idx) => {
+    const incomingPct = getSavedBudgetOccPct(incoming.savedBudgetTargets, idx);
+    if (incomingPct > 0) return incomingPct;
+    const mergedPct = normalizeBudgetOccupancyPct(mergedMonthlyData[idx]?.budgetOcc);
+    if (mergedPct > 0) return mergedPct;
+    return getSavedBudgetOccPct(base.savedBudgetTargets, idx);
+  });
+  const nextMonthlyData = repairMonthlyBudgetTargets(mergedMonthlyData, nextSavedBudgetTargets);
   const nextSeasonal = Array.isArray(incoming.seasonal) && incoming.seasonal.some(value => Number(value) !== 0)
     ? incoming.seasonal
     : base.seasonal;
@@ -9179,7 +9191,7 @@ function mergeDashboardCommunityRecord(baseRecord, incomingRecord, name) {
   return {
     ...base,
     ...incoming,
-    monthlyData: mergedMonthlyData,
+    monthlyData: nextMonthlyData,
     savedBudgetTargets: nextSavedBudgetTargets,
     seasonal: nextSeasonal,
     photoBank: nextPhotoBank,
@@ -9442,7 +9454,15 @@ function updateMonthly(i, field, val, recommendedVal = null) {
     if (!Array.isArray(savedBudgetTargets) || savedBudgetTargets.length !== 12) {
       savedBudgetTargets = Array(12).fill(0);
     }
-    savedBudgetTargets[i] = normalizeBudgetOccupancyPct(val);
+    const normalizedBudgetPct = normalizeBudgetOccupancyPct(val);
+    if (normalizedBudgetPct > 0) {
+      savedBudgetTargets[i] = normalizedBudgetPct;
+    } else {
+      const existingSavedPct = getSavedBudgetOccPct(savedBudgetTargets, i);
+      if (existingSavedPct > 0) {
+        monthlyData[i] = { ...monthlyData[i], budgetOcc: existingSavedPct };
+      }
+    }
   }
 }
 

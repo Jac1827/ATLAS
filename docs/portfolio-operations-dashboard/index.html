@@ -23938,7 +23938,7 @@ function buildPortfolioDlrOverviewDocument(report) {
     : "";
   const heroCards = [
     { label: "Physical Occupancy", value: formatDlrPercent(report.occupancyPct), sub: `${report.occupiedUnits} occupied units` },
-    { label: "Leased Exposure", value: formatDlrPercent(report.leasedPct), sub: `${report.leasedUnits} leased units` },
+    { label: "Leased", value: formatDlrPercent(report.leasedPct), sub: `${report.leasedUnits} leased units` },
     { label: "90-Day Projection", value: formatDlrPercent(report.trendingOccupancyPct), sub: "ending physical occupancy" },
     { label: "Net Absorption", value: formatDlrSignedNumber(report.monthAbsorption), sub: `${formatDlrMetricValue(report.trafficMetrics?.moveIns)} ins / ${formatDlrMetricValue(report.trafficMetrics?.moveOuts)} outs` },
     { label: "Renewal Retention", value: formatDlrPercent(report.renewalSnapshot.retentionRate, 0), sub: `${formatDlrMetricValue(report.renewalSnapshot.signed)} signed of ${formatDlrMetricValue(report.renewalSnapshot.expirations)}` },
@@ -25456,7 +25456,7 @@ function buildDlrInvestorOverviewDocument(report) {
   </div>` : "";
   const heroCards = [
     { label: "Physical Occupancy", value: formatDlrPercent(report.occupancyPct), sub: `${report.occupiedUnits} occupied units` },
-    { label: "Leased Exposure", value: formatDlrPercent(report.leasedPct), sub: `${report.leasedUnits} leased units` },
+    { label: "Leased", value: formatDlrPercent(report.leasedPct), sub: `${report.leasedUnits} leased units` },
     { label: "90-Day Projection", value: formatDlrPercent(report.trendingOccupancyPct), sub: "ending physical occupancy" },
     { label: "Net Absorption", value: formatDlrSignedNumber(netAbsorption), sub: `${formatDlrMetricValue(report.trafficMetrics?.moveIns)} ins / ${formatDlrMetricValue(report.trafficMetrics?.moveOuts)} outs` },
     { label: "Renewal Retention", value: formatDlrPercent(report.renewalSnapshot.retentionRate, 0), sub: `${formatDlrMetricValue(report.renewalSnapshot.signed)} signed of ${formatDlrMetricValue(report.renewalSnapshot.expirations)}` },
@@ -27106,7 +27106,7 @@ function buildCommunityProgressReportDocument(report) {
       </div>`;
   const heroCards = [
     { label: "Physical Occupancy", value: formatDlrPercent(report.occupancyPct), sub: `${formatDlrMetricValue(report.occupiedUnits)} occupied units` },
-    { label: "Leased Exposure", value: formatDlrPercent(report.leasedPct), sub: `${formatDlrMetricValue(report.leasedUnits)} leased units` },
+    { label: "Leased", value: formatDlrPercent(report.leasedPct), sub: `${formatDlrMetricValue(report.leasedUnits)} leased units` },
     { label: "Approved Apps MTD", value: formatDlrMetricValue(report.trafficMetrics?.approvals), sub: `${formatDlrMetricValue(report.trafficMetrics?.applications)} total applications` },
     { label: "Net Absorption", value: formatDlrSignedNumber(report.monthAbsorption), sub: `${formatDlrMetricValue(report.trafficMetrics?.moveIns)} ins / ${formatDlrMetricValue(report.trafficMetrics?.moveOuts)} outs` },
     { label: "Renewal Retention", value: formatDlrPercent(report.renewalSnapshot?.retentionRate, 0), sub: `${formatDlrMetricValue(report.renewalSnapshot?.signed)} signed of ${formatDlrMetricValue(report.renewalSnapshot?.expirations)}` },

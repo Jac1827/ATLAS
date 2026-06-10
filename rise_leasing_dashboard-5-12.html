@@ -1061,15 +1061,8 @@ const DASHBOARD_STORAGE_MIGRATION_KEYS = [
 ];
 const DASHBOARD_SHARED_SYNC_SCOPE = "atlas_dashboard_v1";
 function getDashboardSharedSyncBaseUrl() {
-  const origin = String(window.location?.origin || "");
-  if (/^https?:\/\//i.test(origin)) {
-    try {
-      const host = new URL(origin).hostname.toLowerCase();
-      if (host !== "github.io" && !host.endsWith(".github.io")) {
-        return origin.replace(/\/+$/, "");
-      }
-    } catch {}
-  }
+  const explicitOverride = String(window.ATLAS_SHARED_SYNC_BASE_URL || "").trim();
+  if (/^https?:\/\//i.test(explicitOverride)) return explicitOverride.replace(/\/+$/, "");
   return "https://api.appdeploy.ai/app/582d88ce519f411cab";
 }
 const DASHBOARD_SHARED_SYNC_BASE_URL = getDashboardSharedSyncBaseUrl();

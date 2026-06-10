@@ -25655,24 +25655,6 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
   const moveInGoalPerWeek = scheduledMoveInGoalPerWeek > 0
     ? scheduledMoveInGoalPerWeek
     : (summaryMoveInGoalPerWeek ?? scheduledMoveInGoalPerWeek);
-  const occupiedUnits = resolveDlrSummaryUnits(effectiveDlrSummary, totalUnits, "occupied") ?? reportAnchorOccupiedUnits;
-  const leasedUnits = resolveDlrSummaryUnits(effectiveDlrSummary, totalUnits, "leased") ?? reportAnchorLeasedUnits;
-  const occupancyPct = Number.isFinite(Number(effectiveDlrSummary.occupancyPct))
-    ? Number(effectiveDlrSummary.occupancyPct)
-    : getOccupancyPctFromUnits(occupiedUnits, totalUnits, corporateUnits);
-  const leasedPct = Number.isFinite(Number(effectiveDlrSummary.leasedPct))
-    ? Number(effectiveDlrSummary.leasedPct)
-    : getOccupancyPctFromUnits(leasedUnits, totalUnits, corporateUnits);
-  const projectedTrendRow = nextRows[Math.min(3, Math.max(nextRows.length - 1, 0))] || nextRows[nextRows.length - 1] || null;
-  const projectedEndingOccupancy = computeProjectedEndingPhysicalOccupancy(scopedRecord, totalUnits, reportMetricMonthIdx, 3);
-  const trendingOccupancyPct = Number.isFinite(Number(effectiveDlrSummary.trendingOccupancyPct))
-    ? Number(effectiveDlrSummary.trendingOccupancyPct)
-    : (Number(projectedTrendRow?.projectedOccupancy ?? projectedEndingOccupancy.pct ?? occupancyPct) || occupancyPct);
-  const budgetOccPct = getRecordSavedBudgetOccPct(record, reportMetricMonthIdx, year);
-  const moveInsNeeded = Number(scheduleRow.netOccLeases) || 0;
-  const moveInGoalPerWeek = Number.isFinite(Number(effectiveDlrSummary.moveInGoalPerWeek))
-    ? Number(effectiveDlrSummary.moveInGoalPerWeek)
-    : (moveInsNeeded > 0 ? Math.max(1, Math.ceil(moveInsNeeded / 4)) : 0);
   const mtdTraffic = buildDlrTrafficMetricsFromSummary(effectiveDlrSummary, monthEntry, {}, {
     preferDailyBoxScore: false
   });

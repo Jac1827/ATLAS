@@ -14812,6 +14812,7 @@ function renderRenewalsTab() {
   const currentSummary = getRenewalSummaryForMonth(currentEntry);
   const currentSchedule = computeSchedule()[currentMonth] ?? {};
   const closedRetentionAverage = getClosedOutRetentionAverageForMonths(monthlyData, MONTHS.map((_, idx) => idx), currentMonth);
+  const quarterlyRenewalTotals = getQuarterlyRenewalTotals(monthlyData, currentMonth);
   const trackedEarlyTermination = MONTHS.map((_, idx) => idx)
     .filter(idx => idx <= currentMonth)
     .reduce((sum, idx) => sum + (getRenewalSummaryForMonth(monthlyData[idx] ?? {}).earlyTermination || 0), 0);
@@ -14852,11 +14853,28 @@ function renderRenewalsTab() {
   </div>
   ${logHTML}`;
 
+  const quarterlyRetentionWidgets = ["Q1", "Q2", "Q3", "Q4"].map((quarter) => {
+    const summary = quarterlyRenewalTotals[quarter] ?? { averageClosedRetentionRate: 0, closedMonthCount: 0, expirations: 0, signed: 0 };
+    const avgRetention = Number(summary.averageClosedRetentionRate ?? 0);
+    const hasClosedMonths = Number(summary.closedMonthCount ?? 0) > 0;
+    const valueText = hasClosedMonths ? `${avgRetention.toFixed(1)}%` : "—";
+    const subtitle = hasClosedMonths
+      ? `${summary.closedMonthCount} closed month${summary.closedMonthCount === 1 ? "" : "s"} · ${summary.signed} signed of ${summary.expirations} expirations`
+      : "No closed-month retention yet";
+    const accent = hasClosedMonths
+      ? (avgRetention >= 60 ? "#3fb950" : "#d29922")
+      : "var(--muted)";
+    return statBox(`${quarter} Avg Renewal %`, valueText, subtitle, accent);
+  }).join("");
+
   const renewalsMetricsSection = `<div class="grid-4 mb4">
     ${statBox("Current Month Expirations", currentSummary.expirations || 0, `${MONTHS[currentMonth]} lease expirations imported or entered`, "#4493f8")}
     ${statBox("Renewals Signed", currentSummary.signed || 0, `${currentSummary.retentionRate > 0 ? currentSummary.retentionRate.toFixed(1) + "% retention" : "No signed renewals yet"}`, "#3fb950")}
     ${statBox("Pending / Undecided / M2M", currentSummary.undecided || 0, `${currentSummary.projectedAttrition} projected attrition units in pace planning · transfers excluded from attrition · ${currentSummary.earlyTermination || 0} early terminations tracked`, "#d29922")}
     ${statBox("Lease Need Impact", currentSchedule.renewalRiskUnits || 0, "Renewal risk units now included in gross lease need", "#f97316")}
+  </div>
+  <div class="grid-4 mb4">
+    ${quarterlyRetentionWidgets}
   </div>`;
 
   const renewalsTableSection = `<div class="tbl-wrap mb4">

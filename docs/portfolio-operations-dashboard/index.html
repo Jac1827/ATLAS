@@ -4295,7 +4295,9 @@ function normalizeSavedCommunityRecord(propName, data) {
 }
 
 function getCurrentCommunityRecord() {
+  const baseRecord = normalizeSavedCommunityRecord(getProp().name, savedData[getProp().name]);
   return normalizeSavedCommunityRecord(getProp().name, {
+    ...baseRecord,
     currentOccupied,
     currentLeased,
     occupancyGoal,
@@ -4330,6 +4332,7 @@ function getCurrentCommunityRecord() {
     reputationData,
     marketSurveyData,
     latestDlrSummary,
+    monthlyHistoryByPeriod: baseRecord.monthlyHistoryByPeriod,
     marketSurveyHistory,
     importTracking,
     financialLedger,
@@ -9991,7 +9994,7 @@ function renderPortfolioScopedRenewalsTab() {
     <table>
       <thead><tr><th class="l">Community</th><th>Expirations</th><th>Signed</th><th>NTVs</th><th>Undecided / M2M</th><th>Early Term.</th><th>Retention %</th></tr></thead>
       <tbody>${details.map(detail => {
-        const entry = detail.record?.monthlyData?.[selectedMonth] ?? {};
+        const entry = getRenewalMonthEntryForRecord(detail.record, selectedMonth, detail.record?.reportYear ?? new Date().getFullYear());
         return `<tr>
           <td class="l" style="font-weight:700">${escapeHtml(detail.name)}</td>
           <td><input type="number" min="0" value="${escapeHtml(String(entry.renewalExpirations ?? ""))}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "renewal_expirations", this.value)' style="width:88px"></td>
@@ -12214,19 +12217,48 @@ function getRenewalWorkbookPropertyName(workbook) {
   return matchedProperty || getProp().name;
 }
 
-function applyRenewalSummaryToRecord(record, monthIdx, summary) {
+function applyRenewalSummaryToRecord(record, monthIdx, summary, year = new Date().getFullYear()) {
   if (!record) return;
-  if (!Array.isArray(record.monthlyData) || record.monthlyData.length !== 12) record.monthlyData = defaultMonthly();
-  if (!record.monthlyData[monthIdx]) record.monthlyData[monthIdx] = defaultMonthly()[monthIdx];
-  record.monthlyData[monthIdx] = {
-    ...record.monthlyData[monthIdx],
-    renewalExpirations: summary.expirations,
-    renewalSigned: summary.renewalsSigned,
-    renewalNTV: summary.ntv,
-    renewalTransfers: summary.transfers,
-    renewalUndecided: summary.undecided,
-    renewalEarlyTermination: summary.earlyTermination
+  const safeMonth = Math.max(0, Math.min(11, Number(monthIdx) || 0));
+  const currentYear = new Date().getFullYear();
+  const safeYear = Number.isFinite(Number(year)) ? Number(year) : currentYear;
+  const renewalSnapshot = {
+    renewalExpirations: Math.max(0, Number(summary.expirations) || 0),
+    renewalSigned: Math.max(0, Number(summary.renewalsSigned) || 0),
+    renewalNTV: Math.max(0, Number(summary.ntv) || 0),
+    renewalTransfers: Math.max(0, Number(summary.transfers) || 0),
+    renewalUndecided: Math.max(0, Number(summary.undecided) || 0),
+    renewalEarlyTermination: Math.max(0, Number(summary.earlyTermination) || 0)
   };
+  if (!Array.isArray(record.monthlyData) || record.monthlyData.length !== 12) record.monthlyData = defaultMonthly();
+  if (!record.monthlyData[safeMonth]) record.monthlyData[safeMonth] = defaultMonthly()[safeMonth];
+  const liveEntry = {
+    ...record.monthlyData[safeMonth],
+    ...renewalSnapshot
+  };
+  if (safeYear === currentYear) {
+    record.monthlyData[safeMonth] = liveEntry;
+  }
+  const historyEntry = getRecordMonthEntryForPeriod(record, safeMonth, safeYear, { createHistory: true });
+  Object.assign(historyEntry, safeYear === currentYear ? liveEntry : renewalSnapshot);
+}
+
+function getRenewalMonthEntryForRecord(record, monthIdx, year = new Date().getFullYear()) {
+  const normalized = normalizeSavedCommunityRecord(record?.propertyName || getProp().name, record);
+  const safeMonth = Math.max(0, Math.min(11, Number(monthIdx) || 0));
+  const currentYear = new Date().getFullYear();
+  const safeYear = Number.isFinite(Number(year)) ? Number(year) : currentYear;
+  const liveEntry = normalized.monthlyData?.[safeMonth] ?? defaultMonthly()[safeMonth];
+  const historyEntry = getRecordHistoryEntry(normalized, safeMonth, safeYear);
+  if (safeYear !== currentYear) {
+    return historyEntry
+      ? { ...defaultMonthly()[safeMonth], ...historyEntry }
+      : liveEntry;
+  }
+  if (hasRenewalMonthData(liveEntry)) return liveEntry;
+  return historyEntry
+    ? { ...defaultMonthly()[safeMonth], ...historyEntry }
+    : liveEntry;
 }
 
 function applyRenewalSummaryToMonth(monthIdx, summary) {
@@ -12268,7 +12300,7 @@ async function handleRenewalWorkbook(file) {
     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" });
     const summary = extractRenewalSheetSummary(rows);
     if ([summary.expirations, summary.renewalsSigned, summary.ntv, summary.transfers, summary.undecided, summary.earlyTermination].every(v => v === 0)) return;
-    applyRenewalSummaryToRecord(targetRecord, monthIdx, summary);
+    applyRenewalSummaryToRecord(targetRecord, monthIdx, summary, sheetYear);
     setRecordPeriodImportStamp(targetRecord, "renewals", buildPeriodKey(monthIdx, sheetYear), {
       importedAt: new Date().toISOString(),
       sourceFileName: file.name,
@@ -12346,7 +12378,8 @@ async function processRenewalFiles(files) {
       renewalImportLog.push(`⚠️ ${file.name} is not a supported renewal upload. Use XLSX or CSV.`);
     }
   }
-  saveCommunityData(true);
+  persistSaved();
+  renderPropGrid();
   renderTab();
 }
 
@@ -14393,7 +14426,7 @@ function getImportReadinessStatus(record, monthIdx = getSelectedDashboardMonthIn
       })
     : getPeriodImportStamp(normalizedRecord, "marketSurvey", periodKey);
   const surveyLoaded = hasMarketSurveyData(surveySnapshot) && (isCurrentMonth ? isTimestampInCurrentMondayUploadCycle(surveyStamp.importedAt) : !!surveyStamp.importedAt);
-  const renewalEntry = normalizedRecord.monthlyData?.[monthIdx] ?? {};
+  const renewalEntry = getRenewalMonthEntryForRecord(normalizedRecord, monthIdx, year);
   const renewalStamp = getPeriodImportStamp(normalizedRecord, "renewals", periodKey);
   const renewalLoaded = hasRenewalMonthData(renewalEntry) && (isCurrentMonth ? isTimestampInCurrentMondayUploadCycle(renewalStamp.importedAt) : true);
   return {
@@ -14812,19 +14845,22 @@ async function processMarketSurveyFiles(files) {
 
 function renderRenewalsTab() {
   if (isPortfolioWorkspaceSelected()) return renderPortfolioScopedRenewalsTab();
-  const currentEntry = monthlyData[currentMonth] ?? {};
+  const currentRecord = getCurrentCommunityRecord();
+  const currentYear = new Date().getFullYear();
+  const currentYearMonthlyData = MONTHS.map((_, idx) => getRenewalMonthEntryForRecord(currentRecord, idx, currentYear));
+  const currentEntry = currentYearMonthlyData[currentMonth] ?? {};
   const currentSummary = getRenewalSummaryForMonth(currentEntry);
   const currentSchedule = computeSchedule()[currentMonth] ?? {};
-  const closedRetentionAverage = getClosedOutRetentionAverageForMonths(monthlyData, MONTHS.map((_, idx) => idx), currentMonth);
-  const quarterlyRenewalTotals = getQuarterlyRenewalTotals(monthlyData, currentMonth);
+  const closedRetentionAverage = getClosedOutRetentionAverageForMonths(currentYearMonthlyData, MONTHS.map((_, idx) => idx), currentMonth);
+  const quarterlyRenewalTotals = getQuarterlyRenewalTotals(currentYearMonthlyData, currentMonth);
   const trackedEarlyTermination = MONTHS.map((_, idx) => idx)
     .filter(idx => idx <= currentMonth)
-    .reduce((sum, idx) => sum + (getRenewalSummaryForMonth(monthlyData[idx] ?? {}).earlyTermination || 0), 0);
+    .reduce((sum, idx) => sum + (getRenewalSummaryForMonth(currentYearMonthlyData[idx] ?? {}).earlyTermination || 0), 0);
   const logHTML = renewalImportLog.length > 0
     ? `<div class="alert-green mb4">${renewalImportLog.map((line, idx) => `<div style="${idx===0?"color:#3fb950;font-weight:600":"color:var(--muted)"}">${line}</div>`).join("")}</div>`
     : "";
   const monthlyRows = MONTHS.map((month, idx) => {
-    const rowEntry = monthlyData[idx] ?? {};
+    const rowEntry = currentYearMonthlyData[idx] ?? {};
     const summary = getRenewalSummaryForMonth(rowEntry);
     return `<tr class="${idx<currentMonth?"past":idx===currentMonth?"current-row":""}">
       <td class="l">${month}${idx===currentMonth?`<span class="now-badge">Now</span>`:""}</td>

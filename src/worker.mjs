@@ -5,19 +5,29 @@ const SITE_ROUTES = [
     description: "Main landing page for the performance platform.",
   },
   {
-    path: "/docs/",
-    title: "Docs Home",
-    description: "Primary documentation landing page and site index.",
-  },
-  {
-    path: "/docs/portfolio-operations-dashboard/",
+    path: "/portfolio-operations-dashboard/",
     title: "ATLAS RISE Ops Dashboard",
     description: "Operational dashboard workspace for the portfolio team.",
   },
   {
-    path: "/docs/portfolio-operations-dashboard/financial-accountability.html",
+    path: "/portfolio-operations-dashboard/financial-accountability.html",
     title: "Financial Accountability",
     description: "Companion dashboard for financial performance review and drill-down.",
+  },
+  {
+    path: "/docs/",
+    title: "Docs Home (Legacy Alias)",
+    description: "Legacy alias that resolves to the performance platform.",
+  },
+  {
+    path: "/docs/portfolio-operations-dashboard/",
+    title: "ATLAS RISE Ops Dashboard (Legacy Alias)",
+    description: "Legacy alias that resolves to the operations dashboard workspace.",
+  },
+  {
+    path: "/docs/portfolio-operations-dashboard/financial-accountability.html",
+    title: "Financial Accountability (Legacy Alias)",
+    description: "Legacy alias that resolves to the financial accountability dashboard.",
   },
 ];
 
@@ -82,11 +92,7 @@ function withCommonHeaders(response) {
 }
 
 function buildCandidatePaths(pathname) {
-  const candidates = [pathname];
-
-  if (pathname === "/") {
-    return candidates;
-  }
+  const candidates = pathname === "/" ? [pathname, "/index.html"] : [pathname];
 
   const endsWithSlash = pathname.endsWith("/");
   const hasExtension = pathname.split("/").pop().includes(".");
@@ -104,9 +110,22 @@ function buildCandidatePaths(pathname) {
   return [...new Set(candidates)];
 }
 
+function normalizeAssetPathname(pathname) {
+  if (pathname === "/docs" || pathname === "/docs/") {
+    return "/";
+  }
+
+  if (pathname.startsWith("/docs/")) {
+    const normalized = pathname.slice("/docs".length);
+    return normalized.startsWith("/") ? normalized : `/${normalized}`;
+  }
+
+  return pathname;
+}
+
 async function fetchAsset(request, env) {
   const url = new URL(request.url);
-  const candidates = buildCandidatePaths(url.pathname);
+  const candidates = buildCandidatePaths(normalizeAssetPathname(url.pathname));
 
   for (const pathname of candidates) {
     const candidateUrl = new URL(url);

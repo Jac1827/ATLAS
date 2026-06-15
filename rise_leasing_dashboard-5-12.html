@@ -11533,7 +11533,7 @@ function renderOverviewTab() {
   // Stats row — Budget Occ pulls from saved budget for CURRENT month (falls back to entered budgetOcc),
   //             Budget Leased pulls from saved budget for NEXT month (falls back to next month budgetOcc)
   const savedBudgetOcc    = getBudgetOccPctForMonth(monthlyData[currentMonth], savedBudgetTargets, currentMonth);
-  const savedBudgetLeased = nextRow.budgetLeased ?? 0;
+  const savedBudgetLeased = upcomingBudgetLeased;
   const savedBudgetOccUnits    = occupancyBaseUnits > 0 && savedBudgetOcc > 0 ? Math.ceil(occupancyBaseUnits * savedBudgetOcc / 100) : 0;
   const savedBudgetLeasedUnits = occupancyBaseUnits > 0 && savedBudgetLeased > 0 ? Math.ceil(occupancyBaseUnits * savedBudgetLeased / 100) : 0;
   const onTrackOcc    = savedBudgetOcc > 0 && oCPct >= savedBudgetOcc;
@@ -11569,7 +11569,7 @@ function renderOverviewTab() {
     : "Current month is excluded until it closes";
   const statsRow = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:16px">
     ${statBox("Budget Occ % Goal", savedBudgetOcc>0?`${savedBudgetOcc.toFixed(1)}%`:"Not Set", savedBudgetOcc>0?`${formatGoalGapLabel(occGapUnits, onTrackOcc)} <span style="font-size:0.6rem;opacity:0.6">(${budgetOccSource})</span>`:"Enter budget occ % in schedule below", onTrackOcc&&savedBudgetOcc>0?"#4ade80":"#d29922")}
-    ${statBox(`Budget Leased % Goal <span style="font-size:0.6rem;color:var(--muted);font-weight:400">(${MONTHS[nextMonth]})</span>`, savedBudgetLeased>0?`${savedBudgetLeased.toFixed(1)}%`:"Not Set", savedBudgetLeased>0?`${formatGoalGapLabel(leasedGapUnits, onTrackLeased)} <span style="font-size:0.6rem;opacity:0.6">(${budgetLeasedSource})</span>`:"Enter budget occ % in schedule below", onTrackLeased&&savedBudgetLeased>0?"#a371f7":"#f85149")}
+    ${statBox(`Budget Leased % Goal <span style="font-size:0.6rem;color:var(--muted);font-weight:400">(${MONTHS[nextMonth]})</span>`, savedBudgetLeased>0?`${savedBudgetLeased.toFixed(1)}%`:"Not Set", savedBudgetLeased>0?`${formatGoalGapLabel(leasedGapUnits, onTrackLeased)} <span style="font-size:0.6rem;opacity:0.6">(${budgetLeasedSource})</span>`:"Enter leased budget % in schedule below", onTrackLeased&&savedBudgetLeased>0?"#a371f7":"#f85149")}
     ${statBox(`Units to Occupancy Goal <span style="font-size:0.6rem;color:var(--muted);font-weight:400">(${formulaGoalMonthLabel})</span>`, upcomingOccGoalPct>0?upcomingOccupancyGoalNeed.unitsNeeded:"—", upcomingOccGoalPct>0?`${upcomingOccGoalUnits} target units at ${upcomingOccGoalPct.toFixed(1)}% · ${upcomingOccupancyGoalNeed.scheduledMoveOuts} move-outs (${upcomingOccupancyGoalNeed.moveOutSource === "manual" ? "manual" : "renewals"}) · ${upcomingOccupancyGoalNeed.scheduledMoveIns} scheduled move-ins${occupancyGoalOnTrack ? " · on pace" : ""}`:"Set an upcoming pace target below", occupancyGoalOnTrack&&upcomingOccGoalPct>0?"#4ade80":"#4493f8")}
     ${statBox("Months to Stabilization", totalUnits>0?stabilizationValue:"—", stabilizationSub, stabilization.months === null ? "#f85149" : stabilization.months <= 3 ? "#3fb950" : "#d29922")}
     ${statBox("Historical Applications / Week", applicationTrendValue, `${applicationTrendSub}<br><span style="font-size:0.62rem;opacity:0.85">${applicationTrendDetail}</span>`, applicationWeeklyTrend.monthsUsed > 0 ? "#fb923c" : "#7d8590")}

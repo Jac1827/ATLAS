@@ -83,7 +83,9 @@
         leasedPct: ["leasedpct", "leased", "economicoccupancy", "leasedpercent"],
         concessionsPct: ["concessionspct", "concessions", "concessionrate"],
         traffic: ["traffic", "guestcards", "prospecttraffic", "leads"],
+        tours: ["tours", "tourcount", "propertytours"],
         applications: ["applications", "apps"],
+        approvals: ["approvals", "approvedapplications", "applicationsapproved", "approvedapps"],
         leases: ["leases", "signedleases", "moveins"],
         delinquencyPct: ["delinquencypct", "delinquency", "baddebtpct"],
       },
@@ -1771,7 +1773,9 @@
           leasedPct: units ? (leasedUnits / units) * 100 : null,
           concessionsPct,
           traffic: parseAmount(entry.guestCards) || parseAmount(entry.tours),
+          tours: parseAmount(entry.tours),
           applications: parseAmount(entry.applications),
+          approvals: getApplicationsApprovedCount(entry),
           leases: parseAmount(entry.leasesSignedActual),
           delinquencyPct,
         });
@@ -2128,7 +2132,9 @@
             leasedPct: parsePercent(getField(row, fieldInfo.detected, "leasedPct")),
             concessionsPct: parsePercent(getField(row, fieldInfo.detected, "concessionsPct")),
             traffic: parseAmount(getField(row, fieldInfo.detected, "traffic")),
+            tours: parseAmount(getField(row, fieldInfo.detected, "tours")),
             applications: parseAmount(getField(row, fieldInfo.detected, "applications")),
+            approvals: parseAmount(getField(row, fieldInfo.detected, "approvals")),
             leases: parseAmount(getField(row, fieldInfo.detected, "leases")),
             delinquencyPct: parsePercent(getField(row, fieldInfo.detected, "delinquencyPct")),
           });
@@ -3052,9 +3058,29 @@
       if (year && !String(record.period).startsWith(String(year))) continue;
       if (property && record.property !== property) continue;
       approvedBudgetKeyCandidates(record, "period").forEach((key) => exactIndex.set(key.toLowerCase(), record));
-      approvedBudgetKeyCandidates(record, "year").forEach((key) => yearIndex.set(key.toLowerCase(), record));
+      approvedBudgetKeyCandidates(record, "year").forEach((key) => {
+        const normalizedKey = key.toLowerCase();
+        const matches = yearIndex.get(normalizedKey) || [];
+        matches.push(record);
+        yearIndex.set(normalizedKey, matches);
+      });
     }
     return { exactIndex, yearIndex };
+  }
+
+  function findApprovedBudgetMatch(record, approvedIndex) {
+    if (!record || !approvedIndex) return null;
+    const exactIndex = approvedIndex instanceof Map ? approvedIndex : approvedIndex.exactIndex;
+    const yearIndex = approvedIndex instanceof Map ? null : approvedIndex.yearIndex;
+    const exactCandidates = approvedBudgetKeyCandidates(record, "period").map((key) => key.toLowerCase());
+    const exactMatch = exactCandidates.map((key) => exactIndex?.get(key)).find(Boolean);
+    if (exactMatch) return exactMatch;
+    const yearCandidates = approvedBudgetKeyCandidates(record, "year").map((key) => key.toLowerCase());
+    for (const key of yearCandidates) {
+      const matches = yearIndex?.get(key) || [];
+      if (matches.length === 1) return matches[0];
+    }
+    return null;
   }
 
   function applyApprovedBudgetToRecords(records = [], approvedIndex) {
@@ -3069,11 +3095,7 @@
       return records;
     }
     return records.map((record) => {
-      const exactCandidates = approvedBudgetKeyCandidates(record, "period").map((key) => key.toLowerCase());
-      const yearCandidates = approvedBudgetKeyCandidates(record, "year").map((key) => key.toLowerCase());
-      const approved =
-        exactCandidates.map((key) => exactIndex?.get(key)).find(Boolean) ||
-        yearCandidates.map((key) => yearIndex?.get(key)).find(Boolean);
+      const approved = findApprovedBudgetMatch(record, approvedIndex);
       if (!approved) return record;
       return {
         ...record,
@@ -3085,16 +3107,9 @@
 
   function countApprovedBudgetMatches(records = [], approvedIndex) {
     if (!records.length || !approvedIndex) return 0;
-    const exactIndex = approvedIndex instanceof Map ? approvedIndex : approvedIndex.exactIndex;
-    const yearIndex = approvedIndex instanceof Map ? approvedIndex : approvedIndex.yearIndex;
     let matched = 0;
     for (const record of records) {
-      const exactCandidates = approvedBudgetKeyCandidates(record, "period").map((key) => key.toLowerCase());
-      const yearCandidates = approvedBudgetKeyCandidates(record, "year").map((key) => key.toLowerCase());
-      const found =
-        exactCandidates.map((key) => exactIndex?.get(key)).find(Boolean) ||
-        yearCandidates.map((key) => yearIndex?.get(key)).find(Boolean);
-      if (found) matched += 1;
+      if (findApprovedBudgetMatch(record, approvedIndex)) matched += 1;
     }
     return matched;
   }
@@ -3602,8 +3617,18 @@
       return null;
     }
 
+    const conversionDenominator =
+      record.tours != null && Number(record.tours) > 0 ? Number(record.tours) : record.traffic;
+    const conversionNumerator =
+      record.approvals != null && Number(record.approvals) >= 0 ? Number(record.approvals) : record.leases;
     const trafficToLeasePct =
-      record.traffic && record.leases != null ? (record.leases / Math.max(record.traffic, 1)) * 100 : null;
+      conversionDenominator && conversionNumerator != null
+        ? (conversionNumerator / Math.max(conversionDenominator, 1)) * 100
+        : null;
+    const conversionLabel =
+      record.tours != null && Number(record.tours) > 0
+        ? (record.approvals != null && Number(record.approvals) >= 0 ? "Tour-to-approval" : "Tour-to-lease")
+        : "Traffic-to-lease";
 
     const metrics = [
       {
@@ -3629,7 +3654,7 @@
       },
       {
         key: "trafficToLeasePct",
-        label: "Traffic-to-lease",
+        label: conversionLabel,
         value: trafficToLeasePct,
         targetText: "Healthy >= 22%",
         score: scoreHigherBetter(trafficToLeasePct, 22, 10),

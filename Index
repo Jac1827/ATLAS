@@ -1,0 +1,250 @@
+(() => {
+  const BUILD_ID = "2026-05-01.1";
+  const STORAGE_KEY = "rise_financial_accountability_page_v1";
+  const COMMUNITY_STORAGE_KEY = "rise_ops_dashboard_data_v1";
+  const LEGACY_COMMUNITY_STORAGE_KEY = "rise_leasing_v5";
+  const COMMUNITY_STORAGE_KEYS = [COMMUNITY_STORAGE_KEY, LEGACY_COMMUNITY_STORAGE_KEY];
+  const OPS_WORKSPACE_CONTEXT_KEY = "rise_ops_workspace_context_v1";
+  const OPS_PROPERTY_CATALOG_KEY = "rise_ops_property_catalog_v1";
+  const PORTFOLIO_SCOPE_LABEL = "ATLAS RISE Portfolio";
+  const FINANCIAL_HISTORY_STORAGE_KEY = "rise_financial_history_v1";
+  const AUTO_IMPORT_SCOPE = "__AUTO__";
+  const APPROVED_BUDGET_STORAGE_KEY = "rise_financial_accountability_approved_budgets_v1";
+  const FALLBACK_COMMUNITIES = [
+    { name: "Bartram Park", units: 297 },
+    { name: "Baymeadows", units: 331 },
+    { name: "Nocatee", units: 178 },
+    { name: "Doro", units: 247 },
+    { name: "St Augustine", units: null },
+    { name: "Sutton House", units: null },
+    { name: "Viera", units: 166 },
+    { name: "Florence Villa", units: 224 },
+    { name: "Citrus Ridge", units: 222 },
+    { name: "Sereno", units: 320 },
+    { name: "Glen Kernan Park", units: 308 },
+  ];
+
+  const FINANCIAL_LINES = [
+    { key: "rentalIncome", label: "Rental Income", glCode: "4000", section: "Operating Income" },
+    { key: "otherIncome", label: "Other Income", glCode: "4010", section: "Operating Income" },
+    { key: "concessions", label: "Concessions", glCode: "4020", section: "Operating Income" },
+    { key: "badDebt", label: "Bad Debt", glCode: "4030", section: "Operating Income" },
+    { key: "payroll", label: "Payroll", glCode: "5000", section: "Operating Expenses" },
+    { key: "utilities", label: "Utilities", glCode: "5010", section: "Operating Expenses" },
+    { key: "repairsMaintenance", label: "Repairs & Maintenance", glCode: "5020", section: "Operating Expenses" },
+    { key: "turnExpense", label: "Turn Expense", glCode: "5030", section: "Operating Expenses" },
+  ];
+
+
+  const FILE_SPECS = {
+    financial: {
+      label: "Financial",
+      required: {
+        lineItem: ["lineitem", "accountname", "name", "description", "accountdescription"],
+        actual: ["actual", "actualamount", "ytdactual", "mtdactual"],
+        budget: ["budget", "budgetamount", "ytdbudget", "mtdbudget"],
+      },
+      recommended: {
+        property: ["property", "propertyname", "community", "asset", "assetname", "site"],
+        period: ["period", "month", "asof", "asofmonth", "reportingmonth", "date"],
+        section: ["section", "category", "accountsection", "finsection"],
+        glCode: ["gl", "glcode", "account", "accountnumber", "glaccount"],
+        annualBudget: ["annualbudget", "fybudget", "fullyearbudget", "annualplan", "budgetannual"],
+      },
+    },
+    operations: {
+      label: "Operational",
+      required: {
+        property: ["property", "propertyname", "community", "asset", "site"],
+        period: ["period", "month", "asof", "asofmonth", "reportingmonth", "date"],
+      },
+      recommended: {
+        units: ["units", "unitcount", "apts", "homes"],
+        turns: ["turns", "make readies", "makereadies", "turncount"],
+        openWorkOrders: ["openworkorders", "openwo", "workordersopen", "openservicerequests"],
+        completedWorkOrders: ["completedworkorders", "completedwo", "closedworkorders", "completedservicerequests"],
+        avgMakeReadyDays: ["avgmakereadydays", "makereadydays", "avgturndays", "turndays"],
+        payrollHours: ["payrollhours", "hoursworked", "workedhours"],
+        overtimeHours: ["overtimehours", "othours", "overtime"],
+        payrollCost: ["payrollcost", "payroll", "laborcost"],
+        utilitiesCost: ["utilitiescost", "utilities", "utilitycost"],
+        rmCost: ["rmcost", "repairsmaintenancecost", "repairsandmaintenance", "repairscost"],
+      },
+    },
+    leasing: {
+      label: "Leasing",
+      required: {
+        property: ["property", "propertyname", "community", "asset", "site"],
+        period: ["period", "month", "asof", "asofmonth", "reportingmonth", "date"],
+      },
+      recommended: {
+        units: ["units", "unitcount", "apts", "homes"],
+        occupancyPct: ["occupancypct", "occupancy", "physicaloccupancy", "occupiedpct"],
+        leasedPct: ["leasedpct", "leased", "economicoccupancy", "leasedpercent"],
+        concessionsPct: ["concessionspct", "concessions", "concessionrate"],
+        traffic: ["traffic", "guestcards", "prospecttraffic", "leads"],
+        tours: ["tours", "tourcount", "propertytours"],
+        applications: ["applications", "apps"],
+        approvals: ["approvals", "approvedapplications", "applicationsapproved", "approvedapps"],
+        leases: ["leases", "signedleases", "moveins"],
+        delinquencyPct: ["delinquencypct", "delinquency", "baddebtpct"],
+      },
+    },
+  };
+
+  const CROSSWALKS = [
+    {
+      pattern: /rental income|rent/i,
+      group: "Leasing",
+      label: "Rental income",
+      narrative: "Revenue softness usually starts with occupancy, leased exposure, conversion, or collections pressure.",
+      drivers: ["occupancyPct", "leasedPct", "trafficToLeasePct", "delinquencyPct"],
+    },
+    {
+      pattern: /concession/i,
+      group: "Leasing",
+      label: "Concessions",
+      narrative: "Higher concession spend is often the cost of maintaining leasing pace when occupancy or conversion weakens.",
+      drivers: ["concessionsPct", "occupancyPct", "trafficToLeasePct"],
+    },
+    {
+      pattern: /bad debt|delinquency/i,
+      group: "Leasing",
+      label: "Bad debt",
+      narrative: "Bad debt pressure tends to track collections health and downstream delinquency behavior.",
+      drivers: ["delinquencyPct", "occupancyPct", "leasedPct"],
+    },
+    {
+      pattern: /payroll/i,
+      group: "Operations",
+      label: "Payroll",
+      narrative: "Payroll variance typically follows labor intensity from turns, service backlog, and overtime.",
+      drivers: ["turnsPer100", "openWorkOrdersPer100", "overtimeHoursPer100"],
+    },
+    {
+      pattern: /utilit/i,
+      group: "Operations",
+      label: "Utilities",
+      narrative: "Utility overages usually show up with high occupied load or inefficient turn activity.",
+      drivers: ["utilitiesCostPerUnit", "occupancyPct", "turnsPer100"],
+    },
+    {
+      pattern: /repair|maintenance|r&m|turn expense/i,
+      group: "Operations",
+      label: "R&M / Turns",
+      narrative: "R&M and turn spend rise when unit churn, open work orders, and make-ready days drift up together.",
+      drivers: ["rmCostPerUnit", "turnsPer100", "openWorkOrdersPer100", "avgMakeReadyDays"],
+    },
+  ];
+
+  function defaultManualPeriodSelection() {
+    const today = new Date();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    return `${today.getFullYear()}-${month}`;
+  }
+
+  function buildManualPeriodOptions(anchorPeriod) {
+    const normalized = parsePeriod(anchorPeriod) || defaultManualPeriodSelection();
+    const match = /^(\d{4})-(\d{2})$/.exec(normalized);
+    let baseDate = new Date();
+    if (match) {
+      baseDate = new Date(Number(match[1]), Number(match[2]) - 1, 1);
+    }
+    const options = [];
+    for (let delta = -3; delta <= 3; delta += 1) {
+      const candidate = new Date(baseDate.getFullYear(), baseDate.getMonth() + delta, 1);
+      options.push(`${candidate.getFullYear()}-${String(candidate.getMonth() + 1).padStart(2, "0")}`);
+    }
+    return Array.from(new Set(options));
+  }
+
+  function setManualPeriodValue(value, syncPeriod = false) {
+    if (!value) return;
+    state.manualPeriod = value;
+    if (dom.manualPeriodInput && dom.manualPeriodInput.value !== value) {
+      dom.manualPeriodInput.value = value;
+    }
+    if (syncPeriod) {
+      state.selectedPeriod = value;
+      syncWorkspaceContextFromCurrentSelection();
+      persistState();
+    }
+  }
+
+  const state = {
+    layer: "financial",
+    selectedPeriod: null,
+    selectedProperty: null,
+    manualPeriod: defaultManualPeriodSelection(),
+    pendingFinancial: null,
+    pendingApprovedBudget: null,
+    financialImport: {
+      scope: AUTO_IMPORT_SCOPE,
+      mode: "merge",
+      periodMode: "csv",
+      periodMonth: String(new Date().getMonth() + 1).padStart(2, "0"),
+      periodYear: String(new Date().getFullYear()),
+    },
+    snapshotScope: {
+      mode: "all",
+      search: "",
+      selectedEntities: [],
+    },
+    financialLineFilter: {
+      period: "selected",
+      glCode: "all",
+      status: "all",
+    },
+    datasets: {
+      financial: null,
+      operations: null,
+      leasing: null,
+    },
+    approvedBudgets: {
+      records: [],
+      benchmarks: [],
+      updatedAt: null,
+    },
+    lastApprovedBudgetNotice: null,
+    approvedBudgetImport: {
+      scope: "RISE Corporate",
+      year: "2026",
+      expandAcrossYear: true,
+    },
+    lastFinancialApplyNotice: null,
+  };
+
+  function ensureFinancialPageBridgeElements() {
+    const appRoot = document.getElementById("app");
+    if (!appRoot || document.getElementById("financial-workspace-bridge")) {
+      return;
+    }
+    const bridge = document.createElement("section");
+    bridge.id = "financial-workspace-bridge";
+    bridge.style.maxWidth = "1440px";
+    bridge.style.margin = "20px auto 0";
+    bridge.style.padding = "0 18px";
+    bridge.innerHTML = `
+      <div style="background:#ffffff;border:1px solid rgba(15,23,42,0.08);border-radius:18px;padding:16px 18px;box-shadow:0 14px 42px rgba(15,23,42,0.08);display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+        <div style="min-width:260px;flex:1">
+          <div style="font-size:0.78rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#013e51">ATLAS Workspace Bridge</div>
+          <div id="ops-workspace-note" style="margin-top:6px;font-size:0.92rem;line-height:1.45;color:#475569">Connected to <strong>Portfolio Operations Dashboard</strong>.</div>
+          <div id="ops-workspace-chips" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <a id="back-to-operations" href="./index.html" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:999px;background:#013e51;color:#ffffff;text-decoration:none;font-weight:700;font-size:0.9rem">Back To ATLAS</a>
+          <a id="open-selected-ops" href="./index.html" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:999px;border:1px solid rgba(1,62,81,0.18);background:#f8fafc;color:#013e51;text-decoration:none;font-weight:700;font-size:0.9rem">Open Selected Community In Ops</a>
+        </div>
+      </div>
+    `;
+    appRoot.parentNode.insertBefore(bridge, appRoot);
+  }
+
+  ensureFinancialPageBridgeElements();
+
+  const dom = {
+    periodSelect: document.getElementById("period-select"),
+    manualPeriodInput: document.getElementById("manual-period-input"),
+    dataReadiness: document.getElementById("data-readiness"),
+    ledgerDebug: document.getElementById("ledger-debug"),
+    opsWorkspaceChips: document.getElementById("ops-workspace-chips"),

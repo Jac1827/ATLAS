@@ -3309,12 +3309,12 @@ function buildWorkbookOnlyDlrInvestorOverview(communityName, overlay, monthIdx, 
     },
     forwardLook: buildWorkbookOnlyForwardLook(monthIdx, year, occupancyPct),
     renewalSnapshot: {
-      expirations: 0,
-      signed: normalizeOptionalNumber(overlay.renewalsSigned) || 0,
-      undecided: 0,
-      projectedAttrition: normalizeOptionalNumber(overlay.notices) || 0,
-      retentionRate: 0,
-      previousRetentionRate: 0
+      expirations: null,
+      signed: normalizeOptionalNumber(overlay.renewalsSigned),
+      undecided: null,
+      projectedAttrition: normalizeOptionalNumber(overlay.notices),
+      retentionRate: null,
+      previousRetentionRate: null
     },
     dailyBoxScoreSourceFile: dlrWorkbookReportState.sourceFileName || "",
     dailyBoxScoreImportedAt: dlrWorkbookReportState.importedAt || "",
@@ -3935,17 +3935,24 @@ function setRecordBudgetOccPct(record, monthIdx, value, year = null) {
   if (!Array.isArray(record.monthlyData) || record.monthlyData.length !== 12) record.monthlyData = defaultMonthly();
   if (!Array.isArray(record.savedBudgetTargets) || record.savedBudgetTargets.length !== 12) record.savedBudgetTargets = Array(12).fill(0);
   const normalized = normalizeBudgetOccupancyPct(value);
-  const isCurrentBudgetYear = year == null || Number(year) === new Date().getFullYear();
+  const periodEntries = getWritableMonthlyPeriodEntries(record, monthIdx, year);
+  if (!periodEntries) return 0;
+  const { safeYear, currentYear, historyEntry, liveEntry } = periodEntries;
+  const isCurrentBudgetYear = safeYear === currentYear;
   const existingSavedPct = getSavedBudgetOccPct(record.savedBudgetTargets, monthIdx);
   const budgetPctToStore = normalized > 0 ? normalized : (isCurrentBudgetYear ? existingSavedPct : 0);
-  const targetEntry = year == null
-    ? getRecordMonthEntryForPeriod(record, monthIdx, new Date().getFullYear(), { createLive: true })
-    : getRecordMonthEntryForPeriod(record, monthIdx, year, { createHistory: true });
-  Object.assign(targetEntry, {
+  Object.assign(historyEntry, {
     ...defaultMonthly()[monthIdx],
-    ...(targetEntry ?? {}),
+    ...(historyEntry ?? {}),
     budgetOcc: budgetPctToStore
   });
+  if (liveEntry) {
+    Object.assign(liveEntry, {
+      ...defaultMonthly()[monthIdx],
+      ...(liveEntry ?? {}),
+      budgetOcc: budgetPctToStore
+    });
+  }
   if (isCurrentBudgetYear) {
     record.savedBudgetTargets[monthIdx] = budgetPctToStore;
   }
@@ -4236,6 +4243,7 @@ function defaultSavedCommunityRecord(propName = getProp().name) {
 function normalizeSavedCommunityRecord(propName, data) {
   const defaults = defaultSavedCommunityRecord(propName);
   const input = data ?? {};
+  const currentYear = new Date().getFullYear();
   const propertyConfig = normalizePropertyTeamConfig(input.propertyTeamConfig);
   const communityProfiles = normalizeCommunityTeamProfiles(input.communityTeamProfiles, propertyConfig);
   const legacyPropertyTurnover = normalizePropertyTurnoverConfig(input.propertyTurnoverConfig);
@@ -4247,8 +4255,13 @@ function normalizeSavedCommunityRecord(propName, data) {
   const seededMonthlyData = Array.isArray(input.monthlyData) && input.monthlyData.length === 12
     ? input.monthlyData.map((entry, idx) => ({ ...defaults.monthlyData[idx], ...(entry ?? {}) }))
     : defaults.monthlyData;
+  const normalizedMonthlyHistory = normalizeMonthlyHistoryByPeriod(input.monthlyHistoryByPeriod);
+  const resolvedCurrentYearMonthlyData = seededMonthlyData.map((entry, idx) => ({
+    ...entry,
+    ...(normalizedMonthlyHistory[buildPeriodKey(idx, currentYear)] ?? {})
+  }));
   const repairedMonthlyData = repairMonthlyBudgetTargets(
-    seededMonthlyData,
+    resolvedCurrentYearMonthlyData,
     Array.isArray(input.savedBudgetTargets) ? input.savedBudgetTargets : defaults.savedBudgetTargets
   );
   const normalizedSavedBudgetTargets = deriveSavedBudgetTargetsFromMonthlyData(
@@ -4298,7 +4311,7 @@ function normalizeSavedCommunityRecord(propName, data) {
     reputationData: normalizeReputationData(input.reputationData),
     marketSurveyData: normalizeMarketSurveyData(input.marketSurveyData),
     latestDlrSummary: normalizeDlrSummary(input.latestDlrSummary),
-    monthlyHistoryByPeriod: normalizeMonthlyHistoryByPeriod(input.monthlyHistoryByPeriod),
+    monthlyHistoryByPeriod: normalizedMonthlyHistory,
     marketSurveyHistory: normalizeMarketSurveyHistory(input.marketSurveyHistory),
     importTracking: normalizeImportTracking(input.importTracking),
     financialLedger: (input.financialLedger && typeof input.financialLedger === "object") ? input.financialLedger : {},
@@ -4310,7 +4323,10 @@ function normalizeSavedCommunityRecord(propName, data) {
 }
 
 function getCurrentCommunityRecord() {
+  const baseRecord = normalizeSavedCommunityRecord(getProp().name, savedData[getProp().name]);
+  syncRecordMonthlyDataToHistory(baseRecord, monthlyData, new Date().getFullYear());
   return normalizeSavedCommunityRecord(getProp().name, {
+    ...baseRecord,
     currentOccupied,
     currentLeased,
     occupancyGoal,
@@ -4346,6 +4362,7 @@ function getCurrentCommunityRecord() {
     reputationData,
     marketSurveyData,
     latestDlrSummary,
+    monthlyHistoryByPeriod: baseRecord.monthlyHistoryByPeriod,
     marketSurveyHistory,
     importTracking,
     financialLedger,
@@ -4998,10 +5015,27 @@ function getRenewalSummaryForMonth(monthEntry = {}) {
   const ntv = Math.max(0, Number(monthEntry.renewalNTV) || 0);
   const transfers = Math.max(0, Number(monthEntry.renewalTransfers) || 0);
   const earlyTermination = Math.max(0, Number(monthEntry.renewalEarlyTermination) || 0);
+  if (expirations === 0) {
+    return {
+      expirations,
+      signed,
+      ntv,
+      transfers,
+      undecided: null,
+      earlyTermination,
+      retentionRate: null,
+      decidedRetentionRate: null,
+      projectedUndecidedPool: null,
+      projectedUndecidedLosses: null,
+      projectedRenewalAttrition: null,
+      projectedAttrition: null,
+      projectedRetention: null
+    };
+  }
   const undecided = Math.max(expirations - signed - ntv - transfers - earlyTermination, 0);
-  const retentionRate = expirations > 0 ? (signed / expirations) * 100 : 0;
+  const retentionRate = (signed / expirations) * 100;
   const decidedBase = signed + ntv;
-  const decidedRetentionRate = decidedBase > 0 ? (signed / decidedBase) * 100 : 0;
+  const decidedRetentionRate = decidedBase > 0 ? (signed / decidedBase) * 100 : null;
   const projectedUndecidedPool = Math.max(expirations - signed - ntv - transfers - earlyTermination, 0);
   const projectedUndecidedLosses = projectedUndecidedPool > 0
     ? Math.round(projectedUndecidedPool * ((100 - (decidedBase > 0 ? decidedRetentionRate : 50)) / 100))
@@ -5372,7 +5406,9 @@ function loadPropertyData(propName) {
   currentMonth = Number.isInteger(workspaceMonthOverride) ? workspaceMonthOverride : DEFAULT_CURRENT_MONTH;
   syncMonthlyTemplateImportTarget();
   conversionRate = d.conversionRate;
-  monthlyData = d.monthlyData;
+  // Resolve the active month array from the year-aware history map so community
+  // pages inherit whatever the portfolio scope already loaded for that period.
+  monthlyData = getRecordMonthlyDataForYear(d, new Date().getFullYear());
   renewalDetailRowsByMonth = d.renewalDetailRowsByMonth;
   savedBudgetTargets = d.savedBudgetTargets;
   seasonal = d.seasonal;
@@ -5456,13 +5492,21 @@ function renderPropGrid() {
   }
   if (snapshot) {
     const selectedMonth = getSelectedDashboardMonthIndex();
-    const occupiedPct = isPortfolioWorkspaceSelected() ? getSummaryOccPct(aggregate) : (summary ? getSummaryOccPct(summary) : 0);
-    const leasedPct = isPortfolioWorkspaceSelected() ? getSummaryLeasedPct(aggregate) : (summary ? getSummaryLeasedPct(summary) : 0);
-    const occupiedUnits = isPortfolioWorkspaceSelected() ? (aggregate.occupied ?? 0) : (summary?.occupied ?? getComparableOccupancyUnits(currentRecord.currentOccupied, currentRecord.corporateLeaseUnits));
-    const leasedUnits = isPortfolioWorkspaceSelected() ? (aggregate.leased ?? 0) : (summary?.leased ?? getComparableOccupancyUnits(currentRecord.currentLeased, currentRecord.corporateLeaseUnits));
+    const occupiedUnits = isPortfolioWorkspaceSelected()
+      ? (aggregate.occupied ?? 0)
+      : Math.max(0, Number(currentRecord.currentOccupied) || 0);
+    const leasedUnits = isPortfolioWorkspaceSelected()
+      ? (aggregate.leased ?? 0)
+      : Math.max(0, Number(currentRecord.currentLeased) || 0);
     const occupancyBaseUnits = isPortfolioWorkspaceSelected()
       ? (aggregate.occupancyBaseUnits ?? aggregate.totalUnits ?? 0)
-      : (summary?.occupancyBaseUnits ?? getOccupancyBaseUnits(totalUnitsForCurrent, currentRecord.corporateLeaseUnits));
+      : Math.max(0, Number(totalUnitsForCurrent) || 0);
+    const occupiedPct = occupancyBaseUnits > 0
+      ? ((occupiedUnits / occupancyBaseUnits) * 100)
+      : 0;
+    const leasedPct = occupancyBaseUnits > 0
+      ? ((leasedUnits / occupancyBaseUnits) * 100)
+      : 0;
     const applicationsMtd = isPortfolioWorkspaceSelected() ? Math.round(aggregate.applications ?? 0) : Math.round(appMetrics.applications || 0);
     const approvalsMtd = isPortfolioWorkspaceSelected() ? Math.round(aggregate.applicationsApproved ?? 0) : Math.round(appMetrics.approvals || 0);
     const pendingMtd = isPortfolioWorkspaceSelected()
@@ -5482,7 +5526,7 @@ function renderPropGrid() {
       <button type="button" class="workspace-snapshot-tile" onmousedown="return queueCurrentWorkspaceTab(2)">
         <div class="workspace-snapshot-label">Physical Occupancy</div>
         <div class="workspace-snapshot-value">${occupiedPct.toFixed(1)}%</div>
-        <div class="workspace-snapshot-sub">${occupiedUnits} occupied of ${occupancyBaseUnits || 0} eligible units</div>
+        <div class="workspace-snapshot-sub">${occupiedUnits} occupied of ${occupancyBaseUnits || 0} total units</div>
         <div class="workspace-snapshot-link">Open Overview</div>
       </button>
       <button type="button" class="workspace-snapshot-tile" onmousedown="return queueCurrentWorkspaceTab(2)">
@@ -8961,6 +9005,14 @@ function getDashboardSharedSyncStatusLine() {
   return `${lastActivity}${errorLine}`;
 }
 
+function isDashboardLoadedFromFileProtocol() {
+  try {
+    return window.location?.protocol === "file:";
+  } catch {
+    return false;
+  }
+}
+
 async function pullDashboardSharedState({ silent = false, applyRemoteIfNewer = true } = {}) {
   try {
     const response = await fetch(`${DASHBOARD_SHARED_SYNC_ENDPOINT}?scope=${encodeURIComponent(DASHBOARD_SHARED_SYNC_SCOPE)}`, { method: "GET" });
@@ -10008,7 +10060,7 @@ function renderPortfolioScopedRenewalsTab() {
     <table>
       <thead><tr><th class="l">Community</th><th>Expirations</th><th>Signed</th><th>NTVs</th><th>Undecided / M2M</th><th>Early Term.</th><th>Retention %</th></tr></thead>
       <tbody>${details.map(detail => {
-        const entry = detail.record?.monthlyData?.[selectedMonth] ?? {};
+        const entry = getRenewalMonthEntryForRecord(detail.record, selectedMonth, detail.record?.reportYear ?? new Date().getFullYear());
         return `<tr>
           <td class="l" style="font-weight:700">${escapeHtml(detail.name)}</td>
           <td><input type="number" min="0" value="${escapeHtml(String(entry.renewalExpirations ?? ""))}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "renewal_expirations", this.value)' style="width:88px"></td>
@@ -12229,19 +12281,48 @@ function getRenewalWorkbookPropertyName(workbook) {
   return matchedProperty || getProp().name;
 }
 
-function applyRenewalSummaryToRecord(record, monthIdx, summary) {
+function applyRenewalSummaryToRecord(record, monthIdx, summary, year = new Date().getFullYear()) {
   if (!record) return;
-  if (!Array.isArray(record.monthlyData) || record.monthlyData.length !== 12) record.monthlyData = defaultMonthly();
-  if (!record.monthlyData[monthIdx]) record.monthlyData[monthIdx] = defaultMonthly()[monthIdx];
-  record.monthlyData[monthIdx] = {
-    ...record.monthlyData[monthIdx],
-    renewalExpirations: summary.expirations,
-    renewalSigned: summary.renewalsSigned,
-    renewalNTV: summary.ntv,
-    renewalTransfers: summary.transfers,
-    renewalUndecided: summary.undecided,
-    renewalEarlyTermination: summary.earlyTermination
+  const safeMonth = Math.max(0, Math.min(11, Number(monthIdx) || 0));
+  const currentYear = new Date().getFullYear();
+  const safeYear = Number.isFinite(Number(year)) ? Number(year) : currentYear;
+  const renewalSnapshot = {
+    renewalExpirations: Math.max(0, Number(summary.expirations) || 0),
+    renewalSigned: Math.max(0, Number(summary.renewalsSigned) || 0),
+    renewalNTV: Math.max(0, Number(summary.ntv) || 0),
+    renewalTransfers: Math.max(0, Number(summary.transfers) || 0),
+    renewalUndecided: Math.max(0, Number(summary.undecided) || 0),
+    renewalEarlyTermination: Math.max(0, Number(summary.earlyTermination) || 0)
   };
+  if (!Array.isArray(record.monthlyData) || record.monthlyData.length !== 12) record.monthlyData = defaultMonthly();
+  if (!record.monthlyData[safeMonth]) record.monthlyData[safeMonth] = defaultMonthly()[safeMonth];
+  const liveEntry = {
+    ...record.monthlyData[safeMonth],
+    ...renewalSnapshot
+  };
+  if (safeYear === currentYear) {
+    record.monthlyData[safeMonth] = liveEntry;
+  }
+  const historyEntry = getRecordMonthEntryForPeriod(record, safeMonth, safeYear, { createHistory: true });
+  Object.assign(historyEntry, safeYear === currentYear ? liveEntry : renewalSnapshot);
+}
+
+function getRenewalMonthEntryForRecord(record, monthIdx, year = new Date().getFullYear()) {
+  const normalized = normalizeSavedCommunityRecord(record?.propertyName || getProp().name, record);
+  const safeMonth = Math.max(0, Math.min(11, Number(monthIdx) || 0));
+  const currentYear = new Date().getFullYear();
+  const safeYear = Number.isFinite(Number(year)) ? Number(year) : currentYear;
+  const liveEntry = normalized.monthlyData?.[safeMonth] ?? defaultMonthly()[safeMonth];
+  const historyEntry = getRecordHistoryEntry(normalized, safeMonth, safeYear);
+  if (safeYear !== currentYear) {
+    return historyEntry
+      ? { ...defaultMonthly()[safeMonth], ...historyEntry }
+      : liveEntry;
+  }
+  if (hasRenewalMonthData(liveEntry)) return liveEntry;
+  return historyEntry
+    ? { ...defaultMonthly()[safeMonth], ...historyEntry }
+    : liveEntry;
 }
 
 function applyRenewalSummaryToMonth(monthIdx, summary) {
@@ -12283,7 +12364,7 @@ async function handleRenewalWorkbook(file) {
     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" });
     const summary = extractRenewalSheetSummary(rows);
     if ([summary.expirations, summary.renewalsSigned, summary.ntv, summary.transfers, summary.undecided, summary.earlyTermination].every(v => v === 0)) return;
-    applyRenewalSummaryToRecord(targetRecord, monthIdx, summary);
+    applyRenewalSummaryToRecord(targetRecord, monthIdx, summary, sheetYear);
     setRecordPeriodImportStamp(targetRecord, "renewals", buildPeriodKey(monthIdx, sheetYear), {
       importedAt: new Date().toISOString(),
       sourceFileName: file.name,
@@ -12361,7 +12442,9 @@ async function processRenewalFiles(files) {
       renewalImportLog.push(`⚠️ ${file.name} is not a supported renewal upload. Use XLSX or CSV.`);
     }
   }
-  saveCommunityData(true);
+  savedData[getProp().name] = getCurrentCommunityRecord();
+  persistSaved();
+  renderPropGrid();
   renderTab();
 }
 
@@ -12489,6 +12572,35 @@ function getRecordMonthlyDataForYear(record, year = new Date().getFullYear()) {
     ...defaultMonthly()[monthIdx],
     ...getRecordMonthEntryForPeriod(normalized, monthIdx, year)
   }));
+}
+
+function syncRecordMonthlyDataToHistory(record, monthEntries = record?.monthlyData, year = new Date().getFullYear()) {
+  if (!record) return record;
+  const safeYear = Number.isFinite(Number(year)) ? Number(year) : new Date().getFullYear();
+  const sourceEntries = Array.isArray(monthEntries) && monthEntries.length === 12 ? monthEntries : defaultMonthly();
+  if (!record.monthlyHistoryByPeriod || typeof record.monthlyHistoryByPeriod !== "object") {
+    record.monthlyHistoryByPeriod = {};
+  }
+  sourceEntries.forEach((entry, monthIdx) => {
+    const periodKey = buildPeriodKey(monthIdx, safeYear);
+    record.monthlyHistoryByPeriod[periodKey] = {
+      ...defaultMonthly()[monthIdx],
+      ...((entry && typeof entry === "object") ? entry : {})
+    };
+  });
+  return record;
+}
+
+function getWritableMonthlyPeriodEntries(record, monthIdx, year = null) {
+  if (!record || monthIdx < 0 || monthIdx > 11) return null;
+  const currentYear = new Date().getFullYear();
+  const safeYear = Number.isFinite(Number(year)) ? Number(year) : currentYear;
+  if (!Array.isArray(record.monthlyData) || record.monthlyData.length !== 12) record.monthlyData = defaultMonthly();
+  const historyEntry = getRecordHistoryEntry(record, monthIdx, safeYear, { create: true });
+  const liveEntry = safeYear === currentYear
+    ? (record.monthlyData[monthIdx] || (record.monthlyData[monthIdx] = defaultMonthly()[monthIdx]))
+    : null;
+  return { safeYear, currentYear, historyEntry, liveEntry };
 }
 
 function getCurrentCalendarPeriodKey() {
@@ -13047,7 +13159,7 @@ function extractAvailabilityTotalsFromRows(rows = []) {
     }
     if (headerIdx === -1) continue;
     let totalIdx = -1;
-    for (let probe = headerIdx + 1; probe < Math.min(rows.length, headerIdx + 8); probe += 1) {
+    for (let probe = headerIdx + 1; probe < rows.length; probe += 1) {
       const label = String(rows[probe]?.[0] ?? "").trim();
       if (/^total:?$/i.test(label)) {
         totalIdx = probe;
@@ -13151,7 +13263,7 @@ function extractLeadActivityTotalsFromRows(rows = []) {
     }
     if (headerIdx === -1) continue;
     let totalIdx = -1;
-    for (let probe = headerIdx + 1; probe < Math.min(rows.length, headerIdx + 8); probe += 1) {
+    for (let probe = headerIdx + 1; probe < rows.length; probe += 1) {
       const label = String(rows[probe]?.[0] ?? "").trim();
       if (/^total:?$/i.test(label)) {
         totalIdx = probe;
@@ -13197,7 +13309,7 @@ function extractPropertyPulseTotalsFromRows(rows = []) {
     }
     if (headerIdx === -1) continue;
     let totalIdx = -1;
-    for (let probe = headerIdx + 1; probe < Math.min(rows.length, headerIdx + 8); probe += 1) {
+    for (let probe = headerIdx + 1; probe < rows.length; probe += 1) {
       const label = String(rows[probe]?.[0] ?? "").trim();
       if (/^total:?$/i.test(label)) {
         totalIdx = probe;
@@ -13341,7 +13453,7 @@ function extractLeadConversionTotalsFromRows(rows = []) {
       const leaseCompletedCancelledIdx = findColumn(/^lease$/i, /completed\s*\(cancelled\)/i);
       const leaseApprovedIdx = findColumn(/^lease$/i, /^approved$/i);
       if (approvedIdx === -1 && leaseCompletedIdx === -1 && !hasApplicationAnchor) continue;
-      for (let totalIdx = headerIdx + 1; totalIdx < Math.min(rows.length, headerIdx + 8); totalIdx += 1) {
+      for (let totalIdx = headerIdx + 1; totalIdx < rows.length; totalIdx += 1) {
         const totalRow = Array.isArray(rows[totalIdx]) ? rows[totalIdx] : [];
         const totalLabel = String(totalRow[0] ?? "").trim();
         if (!/^total:?$/i.test(totalLabel)) continue;
@@ -13562,7 +13674,7 @@ async function processDlrBoxScoreFiles(files) {
         messages.push(`⚠️ ${file.name} did not surface any recognizable daily leasing metrics for the DLR.`);
         continue;
       }
-      const targetRecord = getPropertyRecordForApply(targetCommunity);
+      const targetRecord = getPropertyRecordForApply(targetCommunity, { useCurrentRecord: false });
       if (importedFloorPlanRows.length > 0) {
         const existingPlans = normalizeCommunityFloorPlans(targetRecord.communityFloorPlans);
         const existingByName = new Map(existingPlans.map(plan => [normalizeFloorPlanLookupName(plan.name), plan]));
@@ -13612,7 +13724,7 @@ async function processDlrBoxScoreFiles(files) {
           year: parsedDate.getFullYear()
         });
       }
-      const refreshedRecord = getPropertyRecordForApply(targetCommunity);
+      const refreshedRecord = getPropertyRecordForApply(targetCommunity, { useCurrentRecord: false });
       savedData[targetCommunity] = normalizeSavedCommunityRecord(targetCommunity, refreshedRecord);
       persistSaved();
       messages.push(`✅ ${file.name} mapped into the DLR for ${targetCommunity}${snapshot.reportDateLabel ? ` · ${snapshot.reportDateLabel}` : ""}${importedFloorPlanRows.length > 0 ? ` and refreshed ${importedFloorPlanRows.length} floor plan occupancy row${importedFloorPlanRows.length === 1 ? "" : "s"}` : ""}.`);
@@ -14408,7 +14520,7 @@ function getImportReadinessStatus(record, monthIdx = getSelectedDashboardMonthIn
       })
     : getPeriodImportStamp(normalizedRecord, "marketSurvey", periodKey);
   const surveyLoaded = hasMarketSurveyData(surveySnapshot) && (isCurrentMonth ? isTimestampInCurrentMondayUploadCycle(surveyStamp.importedAt) : !!surveyStamp.importedAt);
-  const renewalEntry = normalizedRecord.monthlyData?.[monthIdx] ?? {};
+  const renewalEntry = getRenewalMonthEntryForRecord(normalizedRecord, monthIdx, year);
   const renewalStamp = getPeriodImportStamp(normalizedRecord, "renewals", periodKey);
   const renewalLoaded = hasRenewalMonthData(renewalEntry) && (isCurrentMonth ? isTimestampInCurrentMondayUploadCycle(renewalStamp.importedAt) : true);
   return {
@@ -14827,19 +14939,22 @@ async function processMarketSurveyFiles(files) {
 
 function renderRenewalsTab() {
   if (isPortfolioWorkspaceSelected()) return renderPortfolioScopedRenewalsTab();
-  const currentEntry = monthlyData[currentMonth] ?? {};
+  const currentRecord = getCurrentCommunityRecord();
+  const currentYear = new Date().getFullYear();
+  const currentYearMonthlyData = MONTHS.map((_, idx) => getRenewalMonthEntryForRecord(currentRecord, idx, currentYear));
+  const currentEntry = currentYearMonthlyData[currentMonth] ?? {};
   const currentSummary = getRenewalSummaryForMonth(currentEntry);
   const currentSchedule = computeSchedule()[currentMonth] ?? {};
-  const closedRetentionAverage = getClosedOutRetentionAverageForMonths(monthlyData, MONTHS.map((_, idx) => idx), currentMonth);
-  const quarterlyRenewalTotals = getQuarterlyRenewalTotals(monthlyData, currentMonth);
+  const closedRetentionAverage = getClosedOutRetentionAverageForMonths(currentYearMonthlyData, MONTHS.map((_, idx) => idx), currentMonth);
+  const quarterlyRenewalTotals = getQuarterlyRenewalTotals(currentYearMonthlyData, currentMonth);
   const trackedEarlyTermination = MONTHS.map((_, idx) => idx)
     .filter(idx => idx <= currentMonth)
-    .reduce((sum, idx) => sum + (getRenewalSummaryForMonth(monthlyData[idx] ?? {}).earlyTermination || 0), 0);
+    .reduce((sum, idx) => sum + (getRenewalSummaryForMonth(currentYearMonthlyData[idx] ?? {}).earlyTermination || 0), 0);
   const logHTML = renewalImportLog.length > 0
     ? `<div class="alert-green mb4">${renewalImportLog.map((line, idx) => `<div style="${idx===0?"color:#3fb950;font-weight:600":"color:var(--muted)"}">${line}</div>`).join("")}</div>`
     : "";
   const monthlyRows = MONTHS.map((month, idx) => {
-    const rowEntry = monthlyData[idx] ?? {};
+    const rowEntry = currentYearMonthlyData[idx] ?? {};
     const summary = getRenewalSummaryForMonth(rowEntry);
     return `<tr class="${idx<currentMonth?"past":idx===currentMonth?"current-row":""}">
       <td class="l">${month}${idx===currentMonth?`<span class="now-badge">Now</span>`:""}</td>
@@ -18644,6 +18759,20 @@ function renderPortfolioHomeTab() {
     const selectedTrendRow = trendRows[selectedMonth] || null;
     const lastClosedTrendMonth = getClosedMonthTrendCeiling(selectedMonth, new Date().getFullYear());
     const lastClosedTrendRow = lastClosedTrendMonth >= 0 ? trendRows[lastClosedTrendMonth] : null;
+    const currentCalendarMonth = new Date().getMonth();
+    const applicationTrendCeilingMonth = Math.min(selectedMonth, currentCalendarMonth);
+    const applicationTrendRows = trendRows.filter(row => {
+      const totalApplications = Math.max(0, Number(row.applications) || 0);
+      const approvedApps = Math.max(0, Number(row.approvedApps) || 0);
+      return row.monthIdx <= applicationTrendCeilingMonth
+        && row.communityCount > 0
+        && (totalApplications > 0 || approvedApps > 0);
+    });
+    const latestApplicationTrendRow = applicationTrendRows[applicationTrendRows.length - 1] || null;
+    const previousApplicationTrendRow = applicationTrendRows[applicationTrendRows.length - 2] || null;
+    const latestApplicationApprovalRate = latestApplicationTrendRow && Number(latestApplicationTrendRow.applications) > 0
+      ? (Number(latestApplicationTrendRow.approvedApps) / Number(latestApplicationTrendRow.applications)) * 100
+      : null;
     const approvedTrendCard = renderSafeSection(
       () => buildPortfolioTrendCard({
         title: "Approved apps trend",
@@ -18704,41 +18833,36 @@ function renderPortfolioHomeTab() {
       }),
       `<div class="portfolio-list-card"><h3>Net absorption trend</h3><p>Trend data is temporarily unavailable for this snapshot.</p></div>`
     );
-    const leasedOccupancyTrendCard = renderSafeSection(
-      () => {
-        const projectedYearEndRow = trendRows[trendRows.length - 1] || null;
-        return buildPortfolioTrendCard({
-          title: `${trendScopeTitle} leased occupancy trend`,
-          subtitle: `Actual leased occupancy through ${selectedLabel} ${new Date().getFullYear()}, then projected forward using the saved Monthly Leasing Schedule move-ins and effective move-outs for each community.`,
-          summaryLabel: "Selected / Year-end",
-          summaryValue: selectedTrendRow && selectedTrendRow.communityCount > 0
-            ? `${formatPortfolioTrendMetricValue(selectedTrendRow.leasedOccupancyPct, "pct")} → ${formatPortfolioTrendMetricValue(projectedYearEndRow?.leasedOccupancyPct, "pct")}`
-            : "—",
-          summarySub: "Future months stay on the chart as forward-looking projections.",
-          chips: [
-            `<strong>${formatPortfolioTrendMetricValue(selectedTrendRow?.leasedOccupancyPct, "pct")}</strong> selected month`,
-            `<strong>${formatPortfolioTrendMetricValue(projectedYearEndRow?.leasedOccupancyPct, "pct")}</strong> December projection`,
-            `<strong>${selectedTrendRow?.communityCount ?? 0}</strong> active communities included`
-          ],
-          chartHtml: buildPortfolioTrendLineChart(
-            trendRows.map(row => ({
-              shortLabel: row.shortLabel,
-              value: row.communityCount > 0 ? row.leasedOccupancyPct : null,
-              projected: row.projected
-            })),
-            {
-              kind: "pct",
-              minClamp: 0,
-              maxClampMinimum: 100,
-              lineColor: "#1f6feb",
-              projectedLineColor: "#7c3aed",
-              projectedDotColor: "#a371f7",
-              axisFormatter: value => `${Number(value).toFixed(0)}%`
-            }
-          )
-        });
-      },
-      `<div class="portfolio-list-card"><h3>Portfolio leased occupancy trend</h3><p>Trend data is temporarily unavailable for this snapshot.</p></div>`
+    const applicationComparisonTrendCard = renderSafeSection(
+      () => buildPortfolioTrendCard({
+        title: `${trendScopeTitle} application trend`,
+        subtitle: `${trendScopeTitle} approved applications compared with total applications received, showing only saved months through ${FULL_MONTHS[applicationTrendCeilingMonth]} ${new Date().getFullYear()}.`,
+        summaryLabel: latestApplicationTrendRow ? FULL_MONTHS[latestApplicationTrendRow.monthIdx] : "Applications",
+        summaryValue: latestApplicationTrendRow
+          ? `${formatPortfolioTrendMetricValue(latestApplicationTrendRow.approvedApps, "number")} / ${formatPortfolioTrendMetricValue(latestApplicationTrendRow.applications, "number")}`
+          : "—",
+        summarySub: latestApplicationTrendRow && previousApplicationTrendRow
+          ? `${formatPortfolioTrendValue(latestApplicationTrendRow.applications, previousApplicationTrendRow.applications, "count_pct")} total apps`
+          : "Approved apps versus total apps received",
+        chips: [
+          `<strong>${formatPortfolioTrendMetricValue(latestApplicationTrendRow?.applications, "number")}</strong> total apps received`,
+          `<strong>${formatPortfolioTrendMetricValue(latestApplicationTrendRow?.approvedApps, "number")}</strong> approved apps`,
+          `<strong>${latestApplicationApprovalRate === null ? "—" : `${latestApplicationApprovalRate.toFixed(1)}%`}</strong> approval rate`,
+          `<strong>${applicationTrendRows.length}</strong> month${applicationTrendRows.length === 1 ? "" : "s"} shown`
+        ],
+        chartHtml: buildPortfolioApplicationComparisonChart(
+          applicationTrendRows.map(row => ({
+            monthIdx: row.monthIdx,
+            shortLabel: row.shortLabel,
+            applications: row.applications,
+            approvedApps: row.approvedApps
+          })),
+          {
+            highlightMonthIdx: latestApplicationTrendRow?.monthIdx
+          }
+        )
+      }),
+      `<div class="portfolio-list-card"><h3>Application trend</h3><p>Trend data is temporarily unavailable for this snapshot.</p></div>`
     );
     const tourToLeaseTrendCard = renderSafeSection(
       () => buildPortfolioTrendCard({
@@ -18832,7 +18956,7 @@ function renderPortfolioHomeTab() {
     ${netAbsorptionTrendCard}
   </div>
   <div class="portfolio-section-grid" style="margin-top:16px">
-    ${leasedOccupancyTrendCard}
+    ${applicationComparisonTrendCard}
     ${tourToLeaseTrendCard}
   </div>`;
   } catch (error) {
@@ -19158,6 +19282,12 @@ function buildHistoricalMonthLabel(monthIdx, year = new Date().getFullYear()) {
   return `${safeMonth}-${String(safeYear).slice(-2)}`;
 }
 
+function getExtractedDashboardRowYear(row = {}, fallbackYear = new Date().getFullYear()) {
+  const explicitYear = Number(row?.year);
+  if (Number.isFinite(explicitYear) && explicitYear > 2000) return Math.floor(explicitYear);
+  return parseYearFromValue(row?.month, fallbackYear);
+}
+
 function buildDefaultMonthlyTemplateImportTarget() {
   const baseMonth = Number.isInteger(workspaceMonthOverride) ? workspaceMonthOverride : currentMonth;
   return {
@@ -19237,8 +19367,12 @@ function getRowTargetMonth(row) {
   return parseMonthIndexValue(row.month) ?? getImportTargetMonth();
 }
 
-function getPropertyRecordForApply(propName) {
-  if (propName === getProp().name) return getCurrentCommunityRecord();
+function getPropertyRecordForApply(propName, options = {}) {
+  if (propName === getProp().name) {
+    return options.useCurrentRecord === false
+      ? normalizeSavedCommunityRecord(propName, savedData[propName])
+      : getCurrentCommunityRecord();
+  }
   return normalizeSavedCommunityRecord(propName, savedData[propName]);
 }
 
@@ -19330,54 +19464,59 @@ function getForcedImportTarget(options = {}) {
 }
 
 function applyValueToRecord(record, monthIdx, targetKey, numericValue, year = null) {
-  const md = year == null
-    ? getRecordMonthEntryForPeriod(record, monthIdx, new Date().getFullYear(), { createLive: true })
-    : getRecordMonthEntryForPeriod(record, monthIdx, year, { createHistory: true });
+  const periodEntries = getWritableMonthlyPeriodEntries(record, monthIdx, year);
+  if (!periodEntries) return false;
+  const { safeYear, currentYear, historyEntry, liveEntry } = periodEntries;
+  const md = historyEntry;
+  const assignValue = (field, value) => {
+    md[field] = value;
+    if (liveEntry) liveEntry[field] = value;
+  };
   if (targetKey === "occupied") {
-    md.occupiedSnapshot = numericValue;
-    if ((year == null || Number(year) === new Date().getFullYear()) && monthIdx === record.currentMonth) record.currentOccupied = numericValue;
+    assignValue("occupiedSnapshot", numericValue);
+    if (safeYear === currentYear && monthIdx === record.currentMonth) record.currentOccupied = numericValue;
     return true;
   }
   if (targetKey === "leased") {
-    md.leasedSnapshot = numericValue;
-    if ((year == null || Number(year) === new Date().getFullYear()) && monthIdx === record.currentMonth) record.currentLeased = numericValue;
+    assignValue("leasedSnapshot", numericValue);
+    if (safeYear === currentYear && monthIdx === record.currentMonth) record.currentLeased = numericValue;
     return true;
   }
-  if (targetKey === "move_outs") { md.moveOuts = numericValue; return true; }
-  if (targetKey === "move_ins") { md.moveIns = numericValue; return true; }
-  if (targetKey === "guest_cards") { md.guestCards = numericValue; return true; }
-  if (targetKey === "walk_in") { md.walkIn = numericValue; return true; }
-  if (targetKey === "off_site_event") { md.offSiteEvent = numericValue; return true; }
-  if (targetKey === "phone_calls") { md.phoneCalls = numericValue; return true; }
-  if (targetKey === "emails_online") { md.emailsOnline = numericValue; return true; }
-  if (targetKey === "text_chat_other") { md.textChatOther = numericValue; return true; }
-  if (targetKey === "tours") { md.tours = numericValue; return true; }
-  if (targetKey === "applications") { md.applications = numericValue; return true; }
-  if (targetKey === "applications_approved") { md.applicationsApproved = numericValue; return true; }
-  if (targetKey === "denied") { md.denied = numericValue; return true; }
-  if (targetKey === "cancelled") { md.cancelled = numericValue; return true; }
-  if (targetKey === "pending_decision") { md.pendingDecision = numericValue; return true; }
-  if (targetKey === "leases_signed") { md.leasesSignedActual = numericValue; return true; }
+  if (targetKey === "move_outs") { assignValue("moveOuts", numericValue); return true; }
+  if (targetKey === "move_ins") { assignValue("moveIns", numericValue); return true; }
+  if (targetKey === "guest_cards") { assignValue("guestCards", numericValue); return true; }
+  if (targetKey === "walk_in") { assignValue("walkIn", numericValue); return true; }
+  if (targetKey === "off_site_event") { assignValue("offSiteEvent", numericValue); return true; }
+  if (targetKey === "phone_calls") { assignValue("phoneCalls", numericValue); return true; }
+  if (targetKey === "emails_online") { assignValue("emailsOnline", numericValue); return true; }
+  if (targetKey === "text_chat_other") { assignValue("textChatOther", numericValue); return true; }
+  if (targetKey === "tours") { assignValue("tours", numericValue); return true; }
+  if (targetKey === "applications") { assignValue("applications", numericValue); return true; }
+  if (targetKey === "applications_approved") { assignValue("applicationsApproved", numericValue); return true; }
+  if (targetKey === "denied") { assignValue("denied", numericValue); return true; }
+  if (targetKey === "cancelled") { assignValue("cancelled", numericValue); return true; }
+  if (targetKey === "pending_decision") { assignValue("pendingDecision", numericValue); return true; }
+  if (targetKey === "leases_signed") { assignValue("leasesSignedActual", numericValue); return true; }
   if (targetKey === "budget_occ") { setRecordBudgetOccPct(record, monthIdx, numericValue, year); return true; }
-  if (targetKey === "market_rent") { md.marketRent = numericValue; return true; }
-  if (targetKey === "budget_rent") { md.proformaRent = numericValue; return true; }
-  if (targetKey === "budget_ner") { md.proformaNER = numericValue; return true; }
-  if (targetKey === "rent_roll_total") { md.rentRollTotal = numericValue; return true; }
-  if (targetKey === "concessions") { md.concessions = numericValue; return true; }
-  if (targetKey === "ner") { md.nerActual = numericValue; return true; }
-  if (targetKey === "renewal_expirations") { md.renewalExpirations = numericValue; return true; }
-  if (targetKey === "renewals_signed") { md.renewalSigned = numericValue; return true; }
-  if (targetKey === "renewal_ntvs") { md.renewalNTV = numericValue; return true; }
-  if (targetKey === "renewal_transfers") { md.renewalTransfers = numericValue; return true; }
-  if (targetKey === "renewal_undecided") { md.renewalUndecided = numericValue; return true; }
-  if (targetKey === "renewal_early_termination") { md.renewalEarlyTermination = numericValue; return true; }
+  if (targetKey === "market_rent") { assignValue("marketRent", numericValue); return true; }
+  if (targetKey === "budget_rent") { assignValue("proformaRent", numericValue); return true; }
+  if (targetKey === "budget_ner") { assignValue("proformaNER", numericValue); return true; }
+  if (targetKey === "rent_roll_total") { assignValue("rentRollTotal", numericValue); return true; }
+  if (targetKey === "concessions") { assignValue("concessions", numericValue); return true; }
+  if (targetKey === "ner") { assignValue("nerActual", numericValue); return true; }
+  if (targetKey === "renewal_expirations") { assignValue("renewalExpirations", numericValue); return true; }
+  if (targetKey === "renewals_signed") { assignValue("renewalSigned", numericValue); return true; }
+  if (targetKey === "renewal_ntvs") { assignValue("renewalNTV", numericValue); return true; }
+  if (targetKey === "renewal_transfers") { assignValue("renewalTransfers", numericValue); return true; }
+  if (targetKey === "renewal_undecided") { assignValue("renewalUndecided", numericValue); return true; }
+  if (targetKey === "renewal_early_termination") { assignValue("renewalEarlyTermination", numericValue); return true; }
   return false;
 }
 
-function clearMonthlyRecordFields(record, monthIdx, targetKeys = []) {
+function clearMonthlyRecordFields(record, monthIdx, targetKeys = [], year = null) {
   const normalizedKeys = new Set((Array.isArray(targetKeys) ? targetKeys : []).filter(Boolean));
   normalizedKeys.forEach(targetKey => {
-    applyValueToRecord(record, monthIdx, targetKey, 0);
+    applyValueToRecord(record, monthIdx, targetKey, 0, year);
   });
 }
 
@@ -19965,12 +20104,14 @@ function buildPortfolioHomeMonthlyTrendRows(anchorMonth = getSelectedDashboardMo
         ? entry.record.monthlyData
         : defaultMonthly();
       const monthEntry = monthEntries[monthIdx] ?? {};
+      const applicationMetrics = getApplicationDecisionMetrics(monthEntry);
       const prop = getPropertyByName(entry.name);
       const totalUnits = getTotalUnitsFor(prop, entry.record.customUnits);
       const corporateUnits = getCorporateLeaseUnitsForRecord(entry.record, totalUnits);
       const baseUnits = getOccupancyBaseUnits(totalUnits, corporateUnits);
       acc.communityCount += 1;
-      acc.approvedApps += getApplicationsApprovedCount(monthEntry);
+      acc.applications += applicationMetrics.applications;
+      acc.approvedApps += applicationMetrics.approvals;
       acc.moveIns += Math.max(0, Number(monthEntry.moveIns) || 0);
       acc.moveOuts += getEffectiveMoveOutsForMonth(monthIdx, monthEntries).effective;
       acc.tours += Math.max(0, Number(monthEntry.tours) || 0);
@@ -19982,6 +20123,7 @@ function buildPortfolioHomeMonthlyTrendRows(anchorMonth = getSelectedDashboardMo
       return acc;
     }, {
       communityCount: 0,
+      applications: 0,
       approvedApps: 0,
       moveIns: 0,
       moveOuts: 0,
@@ -19997,6 +20139,7 @@ function buildPortfolioHomeMonthlyTrendRows(anchorMonth = getSelectedDashboardMo
       year: trendYear,
       projected: monthIdx > anchorMonth,
       communityCount: totals.communityCount,
+      applications: totals.applications,
       approvedApps: totals.approvedApps,
       moveIns: totals.moveIns,
       moveOuts: totals.moveOuts,
@@ -20046,6 +20189,12 @@ function buildPortfolioTrendLineChart(points = [], options = {}) {
     : [];
   const tickCount = 4;
   const highlightMonthIdx = Number.isInteger(options.highlightMonthIdx) ? options.highlightMonthIdx : getSelectedDashboardMonthIndex();
+  const pointLabelFormatter = typeof options.pointLabelFormatter === "function"
+    ? options.pointLabelFormatter
+    : (value) => {
+        if (typeof options.axisFormatter === "function") return options.axisFormatter(value);
+        return formatPortfolioTrendMetricValue(value, options.kind);
+      };
   const ticks = Array.from({ length: tickCount + 1 }, (_, idx) => {
     const value = minValue + (((maxValue - minValue) / tickCount) * idx);
     return {
@@ -20055,6 +20204,14 @@ function buildPortfolioTrendLineChart(points = [], options = {}) {
   });
   const zeroLine = minValue < 0 && maxValue > 0
     ? `<line x1="${left}" y1="${yForValue(0)}" x2="${width - right}" y2="${yForValue(0)}" stroke="rgba(51,51,51,0.18)" stroke-width="1.5" stroke-dasharray="4 4"/>`
+    : "";
+  const pointLabels = options.showPointLabels
+    ? plottedPoints.map(point => {
+        if (!point) return "";
+        const label = pointLabelFormatter(point.value);
+        const labelY = point.y <= top + 20 ? point.y + 12 : point.y - 9;
+        return `<text x="${point.x}" y="${labelY}" text-anchor="middle" font-size="8.5" font-weight="700" fill="#334155" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke fill" pointer-events="none">${escapeHtml(label)}</text>`;
+      }).join("")
     : "";
   return `<svg viewBox="0 0 ${width} ${height}" style="width:100%;height:auto;display:block">
     <rect x="0" y="0" width="${width}" height="${height}" rx="14" fill="transparent"/>
@@ -20069,10 +20226,87 @@ function buildPortfolioTrendLineChart(points = [], options = {}) {
       if (!point) return "";
       return `<circle cx="${point.x}" cy="${point.y}" r="${point.projected ? 3.5 : 4.5}" fill="${point.projected ? (options.projectedDotColor || "#94a3b8") : (options.dotColor || options.lineColor || "#1d4ed8")}" stroke="#ffffff" stroke-width="1.5"/>`;
     }).join("")}
+    ${pointLabels}
     ${points.map((point, idx) => {
       const x = left + (stepX * idx);
       const isHighlighted = point?.projected ? false : idx === highlightMonthIdx;
       return `<text x="${x}" y="${height - 12}" text-anchor="middle" font-size="10" fill="${isHighlighted ? "#1b3a4b" : "#7d8590"}" font-weight="${isHighlighted ? "700" : "500"}">${escapeHtml(point?.shortLabel || FULL_MONTHS[idx].slice(0, 3))}</text>`;
+    }).join("")}
+  </svg>`;
+}
+
+function buildPortfolioApplicationComparisonChart(points = [], options = {}) {
+  const validPoints = (Array.isArray(points) ? points : []).filter(point => {
+    const applications = Number(point?.applications);
+    const approvedApps = Number(point?.approvedApps);
+    return Number.isFinite(applications) || Number.isFinite(approvedApps);
+  });
+  if (validPoints.length === 0) {
+    return `<div class="alert alert-info">No saved application trend points are available for this view yet.</div>`;
+  }
+  const width = 640;
+  const height = 220;
+  const left = 42;
+  const right = 14;
+  const top = 30;
+  const bottom = 34;
+  const chartWidth = width - left - right;
+  const chartHeight = height - top - bottom;
+  const totalColor = options.totalColor || "#1d4ed8";
+  const approvedColor = options.approvedColor || "#2a8f83";
+  const maxDatum = Math.max(
+    5,
+    ...validPoints.flatMap(point => [
+      Math.max(0, Number(point.applications) || 0),
+      Math.max(0, Number(point.approvedApps) || 0)
+    ])
+  );
+  const minValue = 0;
+  const maxValue = Math.max(maxDatum * 1.16, 5);
+  const yForValue = value => top + chartHeight - (((Math.max(0, Number(value) || 0) - minValue) / (maxValue - minValue)) * chartHeight);
+  const stepX = validPoints.length > 1 ? chartWidth / (validPoints.length - 1) : 0;
+  const pointAt = (point, idx, key) => ({
+    ...point,
+    value: Math.max(0, Number(point[key]) || 0),
+    x: left + (stepX * idx),
+    y: yForValue(point[key])
+  });
+  const totalPoints = validPoints.map((point, idx) => pointAt(point, idx, "applications"));
+  const approvedPoints = validPoints.map((point, idx) => pointAt(point, idx, "approvedApps"));
+  const buildLine = seriesPoints => seriesPoints.length > 1
+    ? seriesPoints.map(point => `${point.x},${point.y}`).join(" ")
+    : "";
+  const tickCount = 4;
+  const ticks = Array.from({ length: tickCount + 1 }, (_, idx) => {
+    const value = minValue + (((maxValue - minValue) / tickCount) * idx);
+    return {
+      value,
+      y: top + chartHeight - ((idx / tickCount) * chartHeight)
+    };
+  });
+  const highlightMonthIdx = Number.isInteger(options.highlightMonthIdx)
+    ? options.highlightMonthIdx
+    : (validPoints[validPoints.length - 1]?.monthIdx ?? getSelectedDashboardMonthIndex());
+  return `<svg viewBox="0 0 ${width} ${height}" style="width:100%;height:auto;display:block">
+    <rect x="0" y="0" width="${width}" height="${height}" rx="14" fill="transparent"/>
+    <g transform="translate(${width - 238} 10)">
+      <line x1="0" y1="0" x2="18" y2="0" stroke="${totalColor}" stroke-width="3" stroke-linecap="round"/>
+      <text x="24" y="4" font-size="10" font-weight="700" fill="#334155">Total apps received</text>
+      <line x1="134" y1="0" x2="152" y2="0" stroke="${approvedColor}" stroke-width="3" stroke-linecap="round"/>
+      <text x="158" y="4" font-size="10" font-weight="700" fill="#334155">Approved apps</text>
+    </g>
+    ${ticks.map(tick => `<g>
+      <line x1="${left}" y1="${tick.y}" x2="${width - right}" y2="${tick.y}" stroke="rgba(27,58,75,0.08)" stroke-width="1"/>
+      <text x="${left - 8}" y="${tick.y + 4}" text-anchor="end" font-size="10" fill="#7d8590">${escapeHtml(formatPortfolioTrendMetricValue(tick.value, "number"))}</text>
+    </g>`).join("")}
+    ${totalPoints.length > 1 ? `<polyline fill="none" stroke="${totalColor}" stroke-width="3" points="${buildLine(totalPoints)}"/>` : ""}
+    ${approvedPoints.length > 1 ? `<polyline fill="none" stroke="${approvedColor}" stroke-width="3" points="${buildLine(approvedPoints)}"/>` : ""}
+    ${totalPoints.map(point => `<circle cx="${point.x}" cy="${point.y}" r="4.5" fill="${totalColor}" stroke="#ffffff" stroke-width="1.5"/>`).join("")}
+    ${approvedPoints.map(point => `<circle cx="${point.x}" cy="${point.y}" r="4.5" fill="${approvedColor}" stroke="#ffffff" stroke-width="1.5"/>`).join("")}
+    ${validPoints.map((point, idx) => {
+      const x = left + (stepX * idx);
+      const isHighlighted = Number(point.monthIdx) === highlightMonthIdx;
+      return `<text x="${x}" y="${height - 12}" text-anchor="middle" font-size="10" fill="${isHighlighted ? "#1b3a4b" : "#7d8590"}" font-weight="${isHighlighted ? "700" : "500"}">${escapeHtml(point.shortLabel || FULL_MONTHS[point.monthIdx]?.slice(0, 3) || "")}</text>`;
     }).join("")}
   </svg>`;
 }
@@ -24717,19 +24951,19 @@ function draftWeeklyExecutiveOutlookEmail() {
 }
 
 function formatDlrMetricValue(value, suffix = "") {
-  return Number.isFinite(Number(value)) ? `${Number(value)}${suffix}` : "—";
+  return Number.isFinite(Number(value)) ? `${Number(value)}${suffix}` : "N/A";
 }
 
 function formatDlrCurrency(value) {
   return Number.isFinite(Number(value))
     ? `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-    : "—";
+    : "N/A";
 }
 
 function formatDlrPercent(value, digits = 1) {
   return Number.isFinite(Number(value))
     ? `${Number(value).toFixed(digits)}%`
-    : "—";
+    : "N/A";
 }
 
 function formatDlrMonthYear(monthIdx, year) {
@@ -26555,7 +26789,9 @@ function buildCommunityProgressTrendCard({
   kind,
   lineColor,
   dotColor,
-  axisFormatter
+  axisFormatter,
+  showPointLabels = false,
+  pointLabelFormatter
 }) {
   const validPoints = Array.isArray(points) ? points.filter(point => Number.isFinite(Number(point?.value))) : [];
   const current = validPoints[validPoints.length - 1]?.value;
@@ -26573,6 +26809,8 @@ function buildCommunityProgressTrendCard({
         lineColor,
         dotColor,
         axisFormatter,
+        showPointLabels,
+        pointLabelFormatter: pointLabelFormatter || formatter,
         highlightMonthIdx: Number.isInteger(points?.[points.length - 1]?.monthIdx) ? points[points.length - 1].monthIdx : getReportHubMonthIndex()
       })
     : `<div style="font-size:12px;color:#64748b">No month-over-month values are available yet for this metric.</div>`;
@@ -26591,35 +26829,23 @@ function buildCommunityProgressTrendCard({
   </div>`;
 }
 
-function buildCommunityProgressOccupancyTrendCard(rows = []) {
+function buildCommunityProgressOccupancyTrendCard(rows = [], { showPointLabels = false } = {}) {
   const validRows = Array.isArray(rows) ? rows.filter(Boolean) : [];
   const currentRow = validRows[validRows.length - 1] || {};
-  const marketValues = validRows
-    .map(row => Number(row.marketLeasedPct))
-    .filter(value => Number.isFinite(value) && value > 0);
-  const avgMarket = marketValues.length > 0
-    ? marketValues.reduce((sum, value) => sum + value, 0) / marketValues.length
-    : null;
-  const budgetValues = validRows
-    .map(row => Number(row.budgetOccPct))
-    .filter(value => Number.isFinite(value) && value > 0);
-  const currentBudget = Number(currentRow.budgetOccPct);
-  const budgetNote = budgetValues.length > 0
-    ? `${formatDlrPercent(currentBudget, 1)} saved budget target`
-    : "No saved budget target for this month";
-  const marketNote = avgMarket !== null
-    ? `${formatDlrPercent(avgMarket, 1)} average market benchmark across saved months`
-    : "No market benchmark saved yet";
+  const submarketPct = Number.isFinite(Number(currentRow.marketLeasedPct)) ? Number(currentRow.marketLeasedPct) : null;
+  const submarketLegendLabel = "Submarket Avg.";
+  const submarketNote = submarketPct !== null
+    ? `${formatDlrPercent(submarketPct, 1)} current submarket benchmark`
+    : "No submarket benchmark saved yet";
   return `<div class="progress-card">
     <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:10px">
       <div>
-        <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#64748b">Occupancy, Leased, Budget, and Market Benchmark</div>
+        <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#64748b">Occupancy, Leased, Budget, and Submarket Avg.</div>
         <div style="font-size:22px;font-weight:800;color:#0f172a;margin-top:4px">${formatDlrPercent(currentRow.occupancyPct, 1)} occupied</div>
       </div>
       <div style="text-align:right;font-size:12px;color:#475569">
         <div>${formatDlrPercent(currentRow.leasedPct, 1)} leased</div>
-        <div style="margin-top:4px">${escapeHtml(Number.isFinite(currentBudget) && currentBudget > 0 ? `${formatDlrPercent(currentBudget, 1)} budget target` : marketNote)}</div>
-        <div style="margin-top:4px">${escapeHtml(marketNote)}</div>
+        <div style="margin-top:4px">${submarketPct !== null ? `${formatDlrPercent(submarketPct, 1)} submarket avg.` : "Submarket benchmark not saved"}</div>
       </div>
     </div>
     ${buildCommunityProgressDualLineChart(validRows.map(row => ({
@@ -26636,16 +26862,17 @@ function buildCommunityProgressOccupancyTrendCard(rows = []) {
       maxClampMinimum: 100,
       axisFormatter: value => formatDlrPercent(value, 0),
       pointLabelFormatter: value => formatDlrPercent(value, 1),
+      showPointLabels,
       highlightMonthIdx: validRows[validRows.length - 1]?.monthIdx ?? getReportHubMonthIndex(),
       series: [
         { key: "occupied", label: "Physical Occupancy", lineColor: "#1d4ed8", dotColor: "#1d4ed8" },
         { key: "leased", label: "Leased Occupancy", lineColor: "#0f766e", dotColor: "#0f766e" },
         { key: "budget", label: "Budgeted Occupancy", lineColor: "#7c3aed", dotColor: "#7c3aed", dash: "8 4" },
-        { key: "market", label: "Market Average Occupancy Benchmark", lineColor: "#d97706", dotColor: "#d97706", dash: "4 4" }
+        { key: "market", label: submarketLegendLabel, lineColor: "#d97706", dotColor: "#d97706", dash: "4 4" }
       ]
     })}
     <div style="font-size:11px;color:#64748b;line-height:1.6;margin-top:10px">
-      Hover each point to see the exact monthly value. Use the monthly drill-down below the chart to inspect the raw series values. ${escapeHtml(budgetNote)}.
+      Point labels are printed on each dot for quick review. The orange line tracks the saved submarket occupancy benchmark for this month. ${escapeHtml(submarketNote)}.
     </div>
   </div>`;
 }
@@ -26896,6 +27123,9 @@ function buildCommunityProgressDualLineChart(points = [], options = {}) {
       if (typeof options.axisFormatter === "function") return options.axisFormatter(value);
       return formatPortfolioTrendMetricValue(value, options.kind || "pct");
     };
+  const seriesLabelOffsets = Array.isArray(options.seriesLabelOffsets) && options.seriesLabelOffsets.length > 0
+    ? options.seriesLabelOffsets
+    : [-12, 12, -22, 22];
   const ticks = Array.from({ length: tickCount + 1 }, (_, idx) => {
     const value = minValue + (((maxValue - minValue) / tickCount) * idx);
     return {
@@ -26911,6 +27141,20 @@ function buildCommunityProgressDualLineChart(points = [], options = {}) {
         <title>${series.label} · ${point.monthLabel}: ${pointLabelFormatter(point.value)}</title>
       </circle>
     `).join("");
+  const pointLabels = options.showPointLabels
+    ? plotSeries.map((series, seriesIdx) => {
+        const offset = Number.isFinite(Number(seriesLabelOffsets[seriesIdx])) ? Number(seriesLabelOffsets[seriesIdx]) : (seriesIdx % 2 === 0 ? -12 : 12);
+        return series.points.map(point => {
+          const rawY = point.y + offset;
+          const labelY = rawY < top + 8
+            ? point.y + Math.abs(offset) + 4
+            : rawY > height - 10
+              ? point.y - Math.abs(offset) - 4
+              : rawY;
+          return `<text x="${point.x}" y="${labelY}" text-anchor="middle" font-size="8.5" font-weight="700" fill="#334155" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke fill" pointer-events="none">${escapeHtml(pointLabelFormatter(point.value, series, seriesIdx))}</text>`;
+        }).join("");
+      }).join("")
+    : "";
   const detailsRows = points.map(point => {
     const monthLabel = point?.monthLabel || point?.shortLabel || "";
     return `<tr>
@@ -26929,6 +27173,7 @@ function buildCommunityProgressDualLineChart(points = [], options = {}) {
     </g>`).join("")}
     ${plotSeries.map(lineFor).join("")}
     ${plotSeries.map(dotsFor).join("")}
+    ${pointLabels}
     ${points.map((point, idx) => {
       const x = left + (stepX * idx);
       const isHighlighted = point?.projected ? false : idx === highlightMonthIdx;
@@ -26954,7 +27199,7 @@ function buildCommunityProgressDualLineChart(points = [], options = {}) {
   </details>`;
 }
 
-function buildCommunityProgressTrendSection(report) {
+function buildCommunityProgressTrendSection(report, { showPointLabels = false } = {}) {
   const rows = Array.isArray(report?.trendRows) ? report.trendRows : [];
   if (rows.length === 0) {
     return `${buildCommunityProgressYoyApplicationsCard(report)}<div class="progress-card section">
@@ -26985,7 +27230,7 @@ function buildCommunityProgressTrendSection(report) {
       <div style="font-size:12px;color:#475569">${escapeHtml(report.communityName)} · ${escapeHtml(formatDlrMonthYear(report.reportMonthIdx, report.reportYear))}</div>
     </div>
     <div class="progress-grid-equal">
-      ${buildCommunityProgressOccupancyTrendCard(rows)}
+      ${buildCommunityProgressOccupancyTrendCard(rows, { showPointLabels })}
       ${buildCommunityProgressTrendCard({
         title: "Guest Cards",
         subtitle: "Recorded guest cards by month",
@@ -26994,7 +27239,9 @@ function buildCommunityProgressTrendSection(report) {
         kind: "metric",
         lineColor: "#7c3aed",
         dotColor: "#7c3aed",
-        axisFormatter: value => formatDlrMetricValue(Math.round(value))
+        axisFormatter: value => formatDlrMetricValue(Math.round(value)),
+        showPointLabels,
+        pointLabelFormatter: value => formatDlrMetricValue(Math.round(value))
       })}
       <div class="progress-card">
         <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:10px">
@@ -27014,6 +27261,8 @@ function buildCommunityProgressTrendSection(report) {
             lineColor: "#2a8f83",
             dotColor: "#2a8f83",
             axisFormatter: value => formatDlrSignedNumber(Math.round(value)),
+            showPointLabels,
+            pointLabelFormatter: value => formatDlrSignedNumber(Math.round(value)),
             highlightMonthIdx: rows[rows.length - 1]?.monthIdx ?? getReportHubMonthIndex()
           })}
         </div>
@@ -27992,7 +28241,14 @@ function buildCommunityProgressReportDocument(report) {
     .progress-community-export-body{padding:16px;background:#ffffff}
     .progress-community-export-body .progress-shell{margin-bottom:18px}
     .section{margin-bottom:18px}
-    @media print { body{padding:18px} .progress-grid-2,.progress-grid-equal{grid-template-columns:1fr 1fr} }
+    @media print {
+      body{padding:18px}
+      .progress-grid-2,.progress-grid-equal{grid-template-columns:1fr 1fr}
+      .progress-card.section,.progress-grid-2 > .progress-card,.progress-grid-equal > .progress-card{
+        break-inside:avoid;
+        page-break-inside:avoid;
+      }
+    }
   </style></head><body>
     <div class="progress-shell">
       <div class="progress-brand">
@@ -28030,7 +28286,7 @@ function buildCommunityProgressReportDocument(report) {
       </div>`).join("")}
     </div>
     ${buildCommunityProgressSnapshotWidgets(report)}
-    ${buildCommunityProgressTrendSection(report)}
+    ${buildCommunityProgressTrendSection(report, { showPointLabels: true })}
     ${alerts.length > 0 ? `<div class="progress-alert-grid">
         ${alerts.map(alertItem => `<div class="progress-alert ${alertItem.level || "info"}">
           <div class="progress-alert-title">${escapeHtml(alertItem.title)}</div>
@@ -29885,7 +30141,8 @@ function mergeExtractedDashboardRows(rows, sourceLabel="Uploaded report") {
   const merged = new Map();
   [...extractedDashboardRows, ...rows].forEach(row => {
     const normalized = Object.fromEntries(DASHBOARD_EXTRACT_HEADERS.map(key => [key, row[key] ?? ""]));
-    const mapKey = `${normalized.property}::${normalized.month}`;
+    normalized.year = getExtractedDashboardRowYear(row, getExtractedDashboardRowYear(normalized));
+    const mapKey = `${normalized.property}::${normalized.year}::${normalized.month}`;
     if (!merged.has(mapKey)) {
       merged.set(mapKey, normalized);
       return;
@@ -29978,6 +30235,7 @@ function buildDlrDashboardRows(dlr, targetMonth) {
   rows.push({
     property: getProp().name,
     month: MONTHS[targetMonth],
+    year: new Date().getFullYear(),
     occupied: dlr.occupied ?? "",
     leased: dlr.leased ?? "",
     move_outs: dlr.moveOuts ?? "",
@@ -30007,6 +30265,7 @@ function buildDlrDashboardRows(dlr, targetMonth) {
     rows.push({
       property: getProp().name,
       month: MONTHS[monthIdx],
+      year: new Date().getFullYear(),
       occupied: "",
       leased: "",
       move_outs: dlr.pendingMoveOutsByMonth[monthIdx] ?? "",
@@ -30034,9 +30293,10 @@ function buildDlrDashboardRows(dlr, targetMonth) {
 
 function downloadExtractedDashboardCSV() {
   if (extractedDashboardRows.length === 0) return;
+  const headers = [...DASHBOARD_EXTRACT_HEADERS, "year"];
   const lines = [
-    DASHBOARD_EXTRACT_HEADERS.join(","),
-    ...extractedDashboardRows.map(row => DASHBOARD_EXTRACT_HEADERS.map(key => `"${toDashboardCsvValue(row[key] ?? "")}"`).join(","))
+    headers.join(","),
+    ...extractedDashboardRows.map(row => headers.map(key => `"${toDashboardCsvValue(key === "year" ? getExtractedDashboardRowYear(row) : (row[key] ?? ""))}"`).join(","))
   ];
   const blob = new Blob([lines.join("\n")], { type: "text/csv" });
   const a = document.createElement("a");
@@ -30055,14 +30315,16 @@ function applyExtractedDashboardRows(options = {}) {
     if (monthIdx === null || monthIdx < 0 || monthIdx > 11) return;
     const propName = forcedTarget.community || matchPropertyName(row.property, { fallbackToCurrent: false });
     if (!propName) return;
-    const record = getPropertyRecordForApply(propName);
+    const rowYear = getExtractedDashboardRowYear(row);
+    const targetYear = forcedTarget.year ?? rowYear;
+    const record = getPropertyRecordForApply(propName, { useCurrentRecord: false });
     const applyMappedValue = (sourceKey, value) => {
       if (value === "") return;
       const targetKey = extractFieldMap[sourceKey] ?? sourceKey;
       if (targetKey === "ignore") return;
       const numericValue = Number(value);
       if (!Number.isFinite(numericValue)) return;
-      if (applyValueToRecord(record, monthIdx, targetKey, numericValue, forcedTarget.year)) applied++;
+      if (applyValueToRecord(record, monthIdx, targetKey, numericValue, targetYear)) applied++;
     };
     EXTRACT_MAPPABLE_FIELDS.forEach(sourceKey => applyMappedValue(sourceKey, row[sourceKey] ?? ""));
     savedData[propName] = normalizeSavedCommunityRecord(propName, record);
@@ -30252,6 +30514,7 @@ function makeRonaldoBackfillRow(target, values = {}) {
   return {
     property: String(values.property ?? target.community ?? getProp().name).trim(),
     month: String(values.month ?? monthLabel).trim(),
+    year: Number.isInteger(target.year) ? target.year : new Date().getFullYear(),
     occupied: values.occupied ?? "",
     leased: values.leased ?? "",
     move_outs: values.move_outs ?? "",
@@ -30601,11 +30864,14 @@ async function processRonaldoLeadSourceRows(workbook, fileName = "", options = {
     if (!mappedName) continue;
     const detectedMonthIdx = parseAtlasMonthIndex(getCell(row, "report_month"));
     const targetMonthIdx = forcedTarget.monthIdx ?? (importRoutingMode === "force_override" ? getImportTargetMonth() : (detectedMonthIdx ?? getImportTargetMonth()));
+    const targetYear = forcedTarget.year ?? getHistoricalImportYear();
     if (targetMonthIdx < 0 || targetMonthIdx > 11) continue;
-    const key = `${mappedName}::${targetMonthIdx}`;
+    const key = `${mappedName}::${targetMonthIdx}::${targetYear}`;
     const current = rowsByKey.get(key) || {
       property: mappedName,
-      month: forcedTarget.year ? buildHistoricalMonthLabel(targetMonthIdx, forcedTarget.year) : MONTHS[targetMonthIdx],
+      month: targetYear === new Date().getFullYear() ? MONTHS[targetMonthIdx] : buildHistoricalMonthLabel(targetMonthIdx, targetYear),
+      monthIdx: targetMonthIdx,
+      year: targetYear,
       guest_cards: 0,
       walk_in: 0,
       off_site_event: 0,
@@ -30643,10 +30909,11 @@ async function processRonaldoLeadSourceRows(workbook, fileName = "", options = {
   }));
   if (rows.length === 0) return { rows: [], notes };
   rows.forEach(row => {
-    const record = getPropertyRecordForApply(row.property);
+    const record = getPropertyRecordForApply(row.property, { useCurrentRecord: false });
     if (!record) return;
     const monthIdx = parseMonthIndexValue(row.month) ?? forcedTarget.monthIdx ?? getImportTargetMonth();
-    clearMonthlyRecordFields(record, monthIdx, ["guest_cards", "walk_in", "off_site_event", "phone_calls", "emails_online", "text_chat_other", "tours"]);
+    const year = Number.isFinite(Number(row.year)) ? Number(row.year) : (forcedTarget.year ?? getHistoricalImportYear());
+    clearMonthlyRecordFields(record, monthIdx, ["guest_cards", "walk_in", "off_site_event", "phone_calls", "emails_online", "text_chat_other", "tours"], year);
     const targetMap = {
       guest_cards: "guest_cards",
       walk_in: "walk_in",
@@ -30658,7 +30925,7 @@ async function processRonaldoLeadSourceRows(workbook, fileName = "", options = {
     };
     Object.entries(targetMap).forEach(([sourceKey, targetKey]) => {
       const value = Number(row[sourceKey]);
-      if (Number.isFinite(value)) applyValueToRecord(record, monthIdx, targetKey, value, row.year);
+      if (Number.isFinite(value)) applyValueToRecord(record, monthIdx, targetKey, value, year);
     });
     savedData[row.property] = normalizeSavedCommunityRecord(row.property, record);
   });
@@ -30777,7 +31044,7 @@ async function processRonaldoFloorPlanSnapshotRows(workbook, fileName = "", opti
   }));
   if (rows.length === 0) return { rows: [], notes: [] };
   rows.forEach(row => {
-    const record = getPropertyRecordForApply(row.property);
+    const record = getPropertyRecordForApply(row.property, { useCurrentRecord: false });
     if (!record) return;
     const existingSurvey = normalizeMarketSurveyData(record.marketSurveyData);
     const nextSurvey = normalizeMarketSurveyData({
@@ -30887,7 +31154,7 @@ async function processRonaldoMonthlyReferenceFiles(files, options = {}) {
             notes.push(`⚠️ ${file.name} has no portfolio-safe community route. Select a community first or use a file that includes Community_ID / Community_Name.`);
             continue;
           }
-          const pdfRow = makeRonaldoBackfillRow(forcedTarget, {
+          const pdfRow = makeRonaldoBackfillRow({ ...forcedTarget, year: targetYear }, {
             property: targetCommunity,
             guest_cards: snapshot.guestCards ?? snapshot.newLeads ?? "",
             walk_in: snapshot.walkIn ?? "",
@@ -31288,67 +31555,82 @@ async function handlePDF(file, options = {}) {
     const dlr = parseDlrPdf(originalText, fullText, file.name);
     if (dlr) {
       const reportMonth = dlr.reportDate ? dlr.reportDate.getMonth() : null;
+      const reportYear = dlr.reportDate ? dlr.reportDate.getFullYear() : null;
       const manualOverrideActive = forcedTarget.monthIdx === null && importRoutingMode === "force_override";
       const targetMonth = forcedTarget.monthIdx ?? (manualOverrideActive
         ? getImportTargetMonth()
         : (reportMonth ?? getImportTargetMonth()));
+      const targetYear = forcedTarget.year ?? reportYear ?? getHistoricalImportYear();
       const targetCommunity = forcedTarget.community || getProp().name;
-      const targetRecord = getPropertyRecordForApply(targetCommunity);
+      const targetRecord = getPropertyRecordForApply(targetCommunity, { useCurrentRecord: false });
       log.push(`↪ DLR format detected${dlr.reportDate ? ` · report date ${dlr.reportDate.toLocaleDateString('en-US')}` : ""}`);
       if (forcedTarget.community || forcedTarget.monthIdx !== null) {
-        log.push(`↪ Historical target applied: ${targetCommunity} · ${buildHistoricalMonthLabel(targetMonth, forcedTarget.year || getHistoricalImportYear())}`);
+        log.push(`↪ Historical target applied: ${targetCommunity} · ${buildHistoricalMonthLabel(targetMonth, targetYear)}`);
       } else if (manualOverrideActive) {
         log.push(`↪ Manual month override applied: ${MONTHS[targetMonth]}`);
       } else {
         log.push(`↪ DLR routed to ${MONTHS[targetMonth]} from Daily Leasing Report header date`);
       }
 
-      if (!targetRecord.monthlyData[targetMonth]) targetRecord.monthlyData[targetMonth] = defaultMonthly()[targetMonth];
-      const md = targetRecord.monthlyData[targetMonth];
+      const periodEntries = getWritableMonthlyPeriodEntries(targetRecord, targetMonth, targetYear);
+      if (!periodEntries) {
+        csvError = "Unable to resolve the target period for the DLR import.";
+        renderTab();
+        return;
+      }
+      const { historyEntry: md, liveEntry } = periodEntries;
+      const writeMonthField = (field, value) => {
+        md[field] = value;
+        if (liveEntry) liveEntry[field] = value;
+      };
       if (dlr.occupied !== null) {
-        md.occupiedSnapshot = Math.round(dlr.occupied);
+        writeMonthField("occupiedSnapshot", Math.round(dlr.occupied));
         matched++;
         log.push(`→ ${MONTHS[targetMonth]} occupied snapshot: ${md.occupiedSnapshot}`);
       }
       if (dlr.leased !== null) {
-        md.leasedSnapshot = Math.round(dlr.leased);
+        writeMonthField("leasedSnapshot", Math.round(dlr.leased));
         matched++;
         log.push(`→ ${MONTHS[targetMonth]} leased snapshot: ${md.leasedSnapshot}`);
       }
-      if (targetMonth === targetRecord.currentMonth) {
+      if (targetYear === new Date().getFullYear() && targetMonth === targetRecord.currentMonth) {
         if (dlr.occupied !== null) { targetRecord.currentOccupied = Math.round(dlr.occupied); matched++; log.push(`→ Occupied units: ${targetRecord.currentOccupied}`); }
         if (dlr.leased !== null) { targetRecord.currentLeased = Math.round(dlr.leased); matched++; log.push(`→ Leased units: ${targetRecord.currentLeased}`); }
       } else if (dlr.occupied !== null || dlr.leased !== null) {
-        log.push(`→ Live occupied/leased widgets unchanged because ${MONTHS[targetMonth]} is not the active month`);
+        log.push(`→ Live occupied/leased widgets unchanged because ${MONTHS[targetMonth]} is not the active month for ${targetYear}`);
       }
 
-      if (dlr.moveOuts !== null) { md.moveOuts = Math.round(dlr.moveOuts); matched++; log.push(`→ ${MONTHS[targetMonth]} move-outs: ${md.moveOuts}`); }
-      if (dlr.moveIns !== null) { md.moveIns = Math.round(dlr.moveIns); matched++; log.push(`→ ${MONTHS[targetMonth]} move-ins: ${md.moveIns}`); }
-      if (dlr.guestCards !== null) { md.guestCards = Math.round(dlr.guestCards); matched++; log.push(`→ ${MONTHS[targetMonth]} guest cards: ${md.guestCards} (MTD source rollup)`); }
-      if (dlr.leadSources?.walkIn !== null && dlr.leadSources?.walkIn !== undefined) { md.walkIn = Math.round(dlr.leadSources.walkIn || 0); matched++; log.push(`→ ${MONTHS[targetMonth]} walk in leads: ${md.walkIn}`); }
-      if (dlr.leadSources?.offSiteEvent !== null && dlr.leadSources?.offSiteEvent !== undefined) { md.offSiteEvent = Math.round(dlr.leadSources.offSiteEvent || 0); matched++; log.push(`→ ${MONTHS[targetMonth]} off-site event leads: ${md.offSiteEvent}`); }
-      if (dlr.leadSources?.phoneCalls !== null && dlr.leadSources?.phoneCalls !== undefined) { md.phoneCalls = Math.round(dlr.leadSources.phoneCalls || 0); matched++; log.push(`→ ${MONTHS[targetMonth]} phone call leads: ${md.phoneCalls}`); }
-      if (dlr.leadSources?.emailsOnline !== null && dlr.leadSources?.emailsOnline !== undefined) { md.emailsOnline = Math.round(dlr.leadSources.emailsOnline || 0); matched++; log.push(`→ ${MONTHS[targetMonth]} emails / online leads: ${md.emailsOnline}`); }
-      if (dlr.leadSources?.textChatOther !== null && dlr.leadSources?.textChatOther !== undefined) { md.textChatOther = Math.round(dlr.leadSources.textChatOther || 0); matched++; log.push(`→ ${MONTHS[targetMonth]} text / chat / other leads: ${md.textChatOther}`); }
-      if (dlr.tours !== null) { md.tours = Math.round(dlr.tours); matched++; log.push(`→ ${MONTHS[targetMonth]} tours: ${md.tours}`); }
-      if (dlr.applications !== null) { md.applications = Math.round(dlr.applications); matched++; log.push(`→ ${MONTHS[targetMonth]} applications: ${md.applications}`); }
-      if (dlr.marketRent !== null) { md.marketRent = dlr.marketRent; matched++; log.push(`→ ${MONTHS[targetMonth]} market rent: $${md.marketRent}`); }
-      if (dlr.budgetRent !== null) { md.proformaRent = dlr.budgetRent; matched++; log.push(`→ ${MONTHS[targetMonth]} budget rent: $${md.proformaRent}`); }
+      if (dlr.moveOuts !== null) { writeMonthField("moveOuts", Math.round(dlr.moveOuts)); matched++; log.push(`→ ${MONTHS[targetMonth]} move-outs: ${md.moveOuts}`); }
+      if (dlr.moveIns !== null) { writeMonthField("moveIns", Math.round(dlr.moveIns)); matched++; log.push(`→ ${MONTHS[targetMonth]} move-ins: ${md.moveIns}`); }
+      if (dlr.guestCards !== null) { writeMonthField("guestCards", Math.round(dlr.guestCards)); matched++; log.push(`→ ${MONTHS[targetMonth]} guest cards: ${md.guestCards} (MTD source rollup)`); }
+      if (dlr.leadSources?.walkIn !== null && dlr.leadSources?.walkIn !== undefined) { writeMonthField("walkIn", Math.round(dlr.leadSources.walkIn || 0)); matched++; log.push(`→ ${MONTHS[targetMonth]} walk in leads: ${md.walkIn}`); }
+      if (dlr.leadSources?.offSiteEvent !== null && dlr.leadSources?.offSiteEvent !== undefined) { writeMonthField("offSiteEvent", Math.round(dlr.leadSources.offSiteEvent || 0)); matched++; log.push(`→ ${MONTHS[targetMonth]} off-site event leads: ${md.offSiteEvent}`); }
+      if (dlr.leadSources?.phoneCalls !== null && dlr.leadSources?.phoneCalls !== undefined) { writeMonthField("phoneCalls", Math.round(dlr.leadSources.phoneCalls || 0)); matched++; log.push(`→ ${MONTHS[targetMonth]} phone call leads: ${md.phoneCalls}`); }
+      if (dlr.leadSources?.emailsOnline !== null && dlr.leadSources?.emailsOnline !== undefined) { writeMonthField("emailsOnline", Math.round(dlr.leadSources.emailsOnline || 0)); matched++; log.push(`→ ${MONTHS[targetMonth]} emails / online leads: ${md.emailsOnline}`); }
+      if (dlr.leadSources?.textChatOther !== null && dlr.leadSources?.textChatOther !== undefined) { writeMonthField("textChatOther", Math.round(dlr.leadSources.textChatOther || 0)); matched++; log.push(`→ ${MONTHS[targetMonth]} text / chat / other leads: ${md.textChatOther}`); }
+      if (dlr.tours !== null) { writeMonthField("tours", Math.round(dlr.tours)); matched++; log.push(`→ ${MONTHS[targetMonth]} tours: ${md.tours}`); }
+      if (dlr.applications !== null) { writeMonthField("applications", Math.round(dlr.applications)); matched++; log.push(`→ ${MONTHS[targetMonth]} applications: ${md.applications}`); }
+      if (dlr.marketRent !== null) { writeMonthField("marketRent", dlr.marketRent); matched++; log.push(`→ ${MONTHS[targetMonth]} market rent: $${md.marketRent}`); }
+      if (dlr.budgetRent !== null) { writeMonthField("proformaRent", dlr.budgetRent); matched++; log.push(`→ ${MONTHS[targetMonth]} budget rent: $${md.proformaRent}`); }
       targetRecord.latestDlrSummary = normalizeDlrSummary(dlr.summary);
 
       Object.entries(dlr.pendingMoveOutsByMonth).forEach(([monthIdx, value]) => {
         const idx = Number(monthIdx);
-        if (!targetRecord.monthlyData[idx]) targetRecord.monthlyData[idx] = defaultMonthly()[idx];
-        targetRecord.monthlyData[idx].moveOuts = Math.round(value);
+        const pendingEntries = getWritableMonthlyPeriodEntries(targetRecord, idx, targetYear);
+        if (!pendingEntries) return;
+        pendingEntries.historyEntry.moveOuts = Math.round(value);
+        if (pendingEntries.liveEntry) pendingEntries.liveEntry.moveOuts = Math.round(value);
         matched++;
-        log.push(`→ ${MONTHS[idx]} pending move-outs: ${targetRecord.monthlyData[idx].moveOuts}`);
+        log.push(`→ ${MONTHS[idx]} pending move-outs: ${pendingEntries.historyEntry.moveOuts}`);
       });
       Object.entries(dlr.pendingMoveInsByMonth).forEach(([monthIdx, value]) => {
         const idx = Number(monthIdx);
-        if (!targetRecord.monthlyData[idx]) targetRecord.monthlyData[idx] = defaultMonthly()[idx];
-        targetRecord.monthlyData[idx].moveIns = Math.round(value);
+        const pendingEntries = getWritableMonthlyPeriodEntries(targetRecord, idx, targetYear);
+        if (!pendingEntries) return;
+        pendingEntries.historyEntry.moveIns = Math.round(value);
+        if (pendingEntries.liveEntry) pendingEntries.liveEntry.moveIns = Math.round(value);
         matched++;
-        log.push(`→ ${MONTHS[idx]} pending move-ins: ${targetRecord.monthlyData[idx].moveIns}`);
+        log.push(`→ ${MONTHS[idx]} pending move-ins: ${pendingEntries.historyEntry.moveIns}`);
       });
 
       if (matched === 0) {
@@ -31369,7 +31651,8 @@ async function handlePDF(file, options = {}) {
       const previewRows = buildDlrDashboardRows(dlr, targetMonth).map(row => ({
         ...row,
         property: targetCommunity,
-        month: forcedTarget.year ? buildHistoricalMonthLabel(targetMonth, forcedTarget.year) : row.month
+        month: targetYear === new Date().getFullYear() ? row.month : buildHistoricalMonthLabel(targetMonth, targetYear),
+        year: targetYear
       }));
       mergeExtractedDashboardRows(previewRows, `DLR PDF${dlr.reportDate ? ` (${dlr.reportDate.toLocaleDateString('en-US')})` : ""}`);
       renderTab();
@@ -31538,7 +31821,7 @@ function inferAtlasWorkbookYear(value) {
   return isNaN(parsed) ? null : parsed.getFullYear();
 }
 
-function resetAtlasMonthlyUploadMonthForRecord(record, monthIdx) {
+function resetAtlasMonthlyUploadMonthForRecord(record, monthIdx, year = new Date().getFullYear()) {
   clearMonthlyRecordFields(record, monthIdx, [
     "occupied",
     "leased",
@@ -31564,7 +31847,7 @@ function resetAtlasMonthlyUploadMonthForRecord(record, monthIdx) {
     "ner",
     "renewal_expirations",
     "renewals_signed"
-  ]);
+  ], year);
 }
 
 function inferAtlasWorkbookCommunityName(fileName = "", row = {}, getCell = () => "") {
@@ -31818,7 +32101,7 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
         renewal_undecided: "",
         renewal_early_termination: ""
       };
-      const targetRecord = getPropertyRecordForApply(mappedName);
+      const targetRecord = getPropertyRecordForApply(mappedName, { useCurrentRecord: false });
       const leadSourceFieldMap = {
         walk_in: "walk_in",
         off_site_event: "off_site_event",
@@ -31862,7 +32145,7 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
           ...Object.values(monthlyFieldMap),
           ...(hasLeadSourceBreakdown ? Object.values(leadSourceFieldMap) : [])
         ];
-        clearMonthlyRecordFields(targetRecord, targetMonthIdx, fieldsToClear);
+        clearMonthlyRecordFields(targetRecord, targetMonthIdx, fieldsToClear, targetYear);
         const applyFieldMap = {
           ...monthlyFieldMap,
           ...(hasLeadSourceBreakdown ? leadSourceFieldMap : {})
@@ -31920,11 +32203,13 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
         const [monthPart] = String(periodKey).split("-");
         const monthIdx = parseMonthIndexValue(monthPart);
         if (monthIdx == null) return;
+        const parsedPeriod = parsePeriodKey(periodKey);
+        const periodYear = parsedPeriod?.year ?? new Date().getFullYear();
         const savedNames = Object.keys(savedData ?? {}).filter(Boolean);
         savedNames.forEach(name => {
           if (importedNames.has(name)) return;
           const record = normalizeSavedCommunityRecord(name, savedData[name]);
-          resetAtlasMonthlyUploadMonthForRecord(record, monthIdx);
+          resetAtlasMonthlyUploadMonthForRecord(record, monthIdx, periodYear);
           savedData[name] = normalizeSavedCommunityRecord(name, record);
           replacedScopeCommunities += 1;
         });
@@ -32052,6 +32337,10 @@ async function handleCSVFile(file, options = {}) {
         const monthIdx = forcedTarget.monthIdx ?? (importRoutingMode === "force_override"
           ? getImportTargetMonth()
           : (parseMonthIndexValue(monthStr) ?? getImportTargetMonth()));
+        const rowYearValue = findVal(row, ["year","report_year","reporting_year","period_year"]);
+        const rowYear = Number.isFinite(Number(rowYearValue))
+          ? Math.floor(Number(rowYearValue))
+          : (forcedTarget.year ?? parseYearFromValue(monthStr, new Date().getFullYear()));
         const rawProperty = findVal(row, fieldMap.property);
         const propertyName = forcedTarget.community || getKnownAtlasCommunityName(rawProperty) || matchPropertyName(rawProperty, { fallbackToCurrent: false });
         if (!propertyName) {
@@ -32076,6 +32365,7 @@ async function handleCSVFile(file, options = {}) {
         normalizedRows.push({
           property: propertyName,
           month: forcedTarget.year ? buildHistoricalMonthLabel(monthIdx, forcedTarget.year) : MONTHS[monthIdx],
+          year: rowYear,
           occupied: findVal(row, fieldMap.occupied) ?? "",
           leased: findVal(row, fieldMap.leased) ?? "",
           move_outs: findVal(row, fieldMap.moveOuts) ?? "",
@@ -32149,9 +32439,11 @@ async function initializeAtlasDashboard() {
     if (savedData && Object.keys(savedData).length > 0) {
       queueDailyBackupSnapshotWrite("startup_retain");
     }
-    setTimeout(() => {
-      pullDashboardSharedState({ silent: true, applyRemoteIfNewer: true });
-    }, 320);
+    if (!isDashboardLoadedFromFileProtocol()) {
+      setTimeout(() => {
+        pullDashboardSharedState({ silent: true, applyRemoteIfNewer: true });
+      }, 320);
+    }
   })();
 }
 

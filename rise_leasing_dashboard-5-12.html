@@ -1206,7 +1206,10 @@ const DASHBOARD_STORAGE_MIGRATION_KEYS = [
   PERFORMANCE_PLATFORM_STORAGE_KEY
 ];
 const DASHBOARD_SHARED_SYNC_SCOPE = "atlas_dashboard_v1";
+const DASHBOARD_SHARED_SYNC_WORKER_ORIGIN = "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev";
 function getDashboardSharedSyncBaseUrl() {
+  const explicitOverride = String(window.ATLAS_SHARED_SYNC_BASE_URL || "").trim();
+  if (/^https?:\/\//i.test(explicitOverride)) return explicitOverride.replace(/\/+$/, "");
   const origin = String(window.location?.origin || "");
   if (/^https?:\/\//i.test(origin)) {
     try {
@@ -1217,7 +1220,7 @@ function getDashboardSharedSyncBaseUrl() {
       }
     } catch {}
   }
-  return "https://api.appdeploy.ai/app/582d88ce519f411cab";
+  return DASHBOARD_SHARED_SYNC_WORKER_ORIGIN;
 }
 const DASHBOARD_SHARED_SYNC_BASE_URL = getDashboardSharedSyncBaseUrl();
 const DASHBOARD_SHARED_SYNC_ENDPOINT = `${DASHBOARD_SHARED_SYNC_BASE_URL}/api/state`;
@@ -10093,7 +10096,7 @@ function renderPortfolioScopedReputationTab() {
         <td><input type="number" min="0" max="100" step="0.1" value="${escapeHtml(String(detail.record?.reputationData?.oraScore || ""))}" onchange='updatePortfolioCommunityReputationField(${JSON.stringify(detail.name)}, "oraScore", this.value)' style="width:88px"></td>
         <td><input type="number" min="0" max="5" step="0.1" value="${escapeHtml(String(detail.record?.reputationData?.googleQuarterlyRating || ""))}" onchange='updatePortfolioCommunityReputationField(${JSON.stringify(detail.name)}, "googleQuarterlyRating", this.value)' style="width:88px"></td>
         <td><input type="number" min="0" max="5" step="0.1" value="${escapeHtml(String(detail.record?.reputationData?.googleLifetimeRating || ""))}" onchange='updatePortfolioCommunityReputationField(${JSON.stringify(detail.name)}, "googleLifetimeRating", this.value)' style="width:88px"></td>
-        <td><button type="button" class="btn btn-gray btn-sm" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(detail.name)}, 5)'>Open Full Reputation</button></td>
+        <td><button type="button" class="btn btn-gray btn-sm" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(detail.name)}, 6)'>Open Full Reputation</button></td>
       </tr>`).join("")}</tbody>
     </table>
   </div>`;
@@ -10307,7 +10310,7 @@ function renderPortfolioScopedImportTab() {
           <td>${hasDlr ? "Loaded" : "Pending"}</td>
           <td>${hasSurvey ? "Loaded" : "Pending"}</td>
           <td>${hasRenewal ? "Loaded" : "Pending"}</td>
-          <td><button type="button" class="btn btn-gray btn-sm" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(detail.name)}, 6)'>Open Import</button></td>
+          <td><button type="button" class="btn btn-gray btn-sm" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(detail.name)}, 7)'>Open Import</button></td>
         </tr>`;
       }).join("")}</tbody>
     </table>
@@ -18745,7 +18748,7 @@ function renderPortfolioHomeTab() {
       {
         label: "ORA Average",
         value: (aggregate.oraScore ?? 0) > 0 ? (aggregate.oraScore ?? 0).toFixed(1) : "—",
-        sub: `${aggregate.onTrackBudgetOccCount ?? 0}/${aggregate.trackedBudgetOccCount ?? 0} communities pacing on saved occupancy budget`
+        sub: "Portfolio average reputation score"
       }
     ];
     const prioritiesHtml = renderSafeSection(

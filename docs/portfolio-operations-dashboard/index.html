@@ -4981,9 +4981,9 @@ function buildDlrTrafficMetricsFromSummary(dlrSummary = {}, monthEntry = {}, dai
 }
 
 function getGrossLeaseProgressCount(monthEntry = {}) {
-  const approvals = getApplicationsApprovedCount(monthEntry);
-  if (approvals > 0) return approvals;
-  return Math.max(0, Number(monthEntry.leasesSignedActual) || 0);
+  const leases = Math.max(0, Number(monthEntry.leasesSignedActual) || 0);
+  if (leases > 0) return leases;
+  return getApplicationsApprovedCount(monthEntry);
 }
 
 function getTourToLeasePctForMonth(monthEntries = monthlyData, monthIdx = currentMonth, fallbackThroughMonth = monthIdx) {
@@ -5891,6 +5891,10 @@ function aggregateCommunitySummaries(summaries) {
       acc.renewalRetentionRateTotal += summary.renewalRetentionRate;
       acc.renewalRetentionRateCount += 1;
     }
+    if (summary.quarterClosedRetentionAverage > 0 && summary.quarterClosedRetentionMonths > 0) {
+      acc.quarterClosedRetentionAverageTotal += summary.quarterClosedRetentionAverage * summary.quarterClosedRetentionMonths;
+      acc.quarterClosedRetentionMonths += summary.quarterClosedRetentionMonths;
+    }
     if (summary.previousRenewalRetentionRate > 0) {
       acc.previousRenewalRetentionRateTotal += summary.previousRenewalRetentionRate;
       acc.previousRenewalRetentionRateCount += 1;
@@ -5961,6 +5965,8 @@ function aggregateCommunitySummaries(summaries) {
     renewalProjectedAttrition: 0,
     renewalRetentionRateTotal: 0,
     renewalRetentionRateCount: 0,
+    quarterClosedRetentionAverageTotal: 0,
+    quarterClosedRetentionMonths: 0,
     previousRenewalExpirations: 0,
     previousRenewalsSigned: 0,
     previousRenewalRetentionRateTotal: 0,
@@ -6038,8 +6044,8 @@ function aggregateCommunitySummaries(summaries) {
     previousLeadToLeasePct: totals.previousGuestCards > 0 ? (totals.previousLeasesSigned / totals.previousGuestCards) * 100 : 0,
     tourToAppPct: totals.tours > 0 ? (totals.applications / totals.tours) * 100 : 0,
     previousTourToAppPct: totals.previousTours > 0 ? (totals.previousApplications / totals.previousTours) * 100 : 0,
-    tourToLeasePct: totals.tours > 0 ? (totals.applicationsApproved / totals.tours) * 100 : 0,
-    previousTourToLeasePct: totals.previousTours > 0 ? (totals.previousApplicationsApproved / totals.previousTours) * 100 : 0,
+    tourToLeasePct: totals.tours > 0 ? (totals.leasesSigned / totals.tours) * 100 : 0,
+    previousTourToLeasePct: totals.previousTours > 0 ? (totals.previousLeasesSigned / totals.previousTours) * 100 : 0,
     applicationApprovalPct: totals.applications > 0 ? (totals.applicationsApproved / totals.applications) * 100 : 0,
     previousApplicationApprovalPct: totals.previousApplications > 0 ? (totals.previousApplicationsApproved / totals.previousApplications) * 100 : 0,
     applicationDenialPct: totals.applications > 0 ? (totals.applicationsDenied / totals.applications) * 100 : 0,
@@ -6052,7 +6058,10 @@ function aggregateCommunitySummaries(summaries) {
     renewalEarlyTermination: totals.renewalEarlyTermination,
     renewalProjectedAttrition: totals.renewalProjectedAttrition,
     renewalRetentionRate: totals.renewalExpirations > 0 ? (totals.renewalsSigned / totals.renewalExpirations) * 100 : (totals.renewalRetentionRateCount > 0 ? totals.renewalRetentionRateTotal / totals.renewalRetentionRateCount : 0),
-    quarterClosedRetentionAverage: totals.renewalExpirations > 0 ? (totals.renewalsSigned / totals.renewalExpirations) * 100 : 0,
+    quarterClosedRetentionAverage: totals.quarterClosedRetentionMonths > 0
+      ? totals.quarterClosedRetentionAverageTotal / totals.quarterClosedRetentionMonths
+      : 0,
+    quarterClosedRetentionMonths: totals.quarterClosedRetentionMonths,
     previousRenewalExpirations: totals.previousRenewalExpirations,
     previousRenewalsSigned: totals.previousRenewalsSigned,
     previousRenewalRetentionRate: totals.previousRenewalExpirations > 0 ? (totals.previousRenewalsSigned / totals.previousRenewalExpirations) * 100 : (totals.previousRenewalRetentionRateCount > 0 ? totals.previousRenewalRetentionRateTotal / totals.previousRenewalRetentionRateCount : 0),
@@ -24349,17 +24358,18 @@ function buildPortfolioDlrOverviewData(options = {}) {
         pendingMoveOuts: sumMetrics(communityReports, report => report.forwardLook?.[idx]?.pendingMoveOuts),
         pendingMoveIns: sumMetrics(communityReports, report => report.forwardLook?.[idx]?.pendingMoveIns),
         moveInsNeeded: sumMetrics(communityReports, report => report.forwardLook?.[idx]?.moveInsNeeded),
-        budgetedOccupancy: weightedAverage(communityReports.map(report => ({ ...report, occupiedUnits: report.totalUnits })), report => report.forwardLook?.[idx]?.budgetedOccupancy) || 0,
-        projectedOccupancy: weightedAverage(communityReports.map(report => ({ ...report, occupiedUnits: report.totalUnits })), report => report.forwardLook?.[idx]?.projectedOccupancy) || 0
+        budgetedOccupancy: weightedAverage(communityReports.map(report => ({ ...report, occupiedUnits: report.occupancyBaseUnits ?? report.totalUnits })), report => report.forwardLook?.[idx]?.budgetedOccupancy) || 0,
+        projectedOccupancy: weightedAverage(communityReports.map(report => ({ ...report, occupiedUnits: report.occupancyBaseUnits ?? report.totalUnits })), report => report.forwardLook?.[idx]?.projectedOccupancy) || 0
       };
     });
     const aggregate = {
       totalUnits,
+      occupancyBaseUnits: sumMetrics(communityReports, report => report.occupancyBaseUnits ?? report.totalUnits),
       occupied: occupiedUnits,
       leased: leasedUnits,
-      occPct: totalUnits > 0 ? (occupiedUnits / totalUnits) * 100 : 0,
-      leasedPct: totalUnits > 0 ? (leasedUnits / totalUnits) * 100 : 0,
-      budgetOccPct: weightedAverage(communityReports.map(report => ({ ...report, occupiedUnits: report.totalUnits })), report => report.budgetOccPct) || 0,
+      occPct: 0,
+      leasedPct: 0,
+      budgetOccPct: weightedAverage(communityReports.map(report => ({ ...report, occupiedUnits: report.occupancyBaseUnits ?? report.totalUnits })), report => report.budgetOccPct) || 0,
       applications: sumMetrics(communityReports, report => report.trafficMetrics?.applications),
       applicationsApproved: sumMetrics(communityReports, report => report.trafficMetrics?.approvals),
       tours: sumMetrics(communityReports, report => report.trafficMetrics?.tours),
@@ -24370,9 +24380,11 @@ function buildPortfolioDlrOverviewData(options = {}) {
       renewalUndecided: sumMetrics(communityReports, report => report.renewalSnapshot?.undecided),
       renewalProjectedAttrition: sumMetrics(communityReports, report => report.renewalSnapshot?.projectedAttrition)
     };
+    aggregate.occPct = aggregate.occupancyBaseUnits > 0 ? (aggregate.occupied / aggregate.occupancyBaseUnits) * 100 : 0;
+    aggregate.leasedPct = aggregate.occupancyBaseUnits > 0 ? (aggregate.leased / aggregate.occupancyBaseUnits) * 100 : 0;
     aggregate.renewalRetentionRate = aggregate.renewalExpirations > 0 ? (aggregate.renewalsSigned / aggregate.renewalExpirations) * 100 : 0;
     aggregate.moveInGoal = sumMetrics(communityReports, report => report.moveInGoalPerWeek);
-    aggregate.occGapUnits = Math.max(Math.round(((aggregate.budgetOccPct || 0) / 100) * totalUnits) - occupiedUnits, 0);
+    aggregate.occGapUnits = Math.max(Math.round(((aggregate.budgetOccPct || 0) / 100) * aggregate.occupancyBaseUnits) - occupiedUnits, 0);
     const dateLabels = [...new Set(communityReports.map(report => String(report.reportDateLabel || "").trim()).filter(Boolean))];
     const reportDateLabel = dateLabels.length === 1 ? dateLabels[0] : (dlrWorkbookReportState.reportDateLabel || "");
     const notes = buildPortfolioDlrOverviewNotes({
@@ -26443,7 +26455,7 @@ function buildCommunityProgressTrendRows(report) {
         moveIns: aggregate.moveIns,
         moveOuts: aggregate.moveOuts,
         netAbsorption: aggregate.monthAbsorption,
-        tourToLeasePct: aggregate.tours > 0 ? (aggregate.applicationsApproved / aggregate.tours) * 100 : null,
+        tourToLeasePct: aggregate.tours > 0 ? (aggregate.leasesSigned / aggregate.tours) * 100 : null,
         renewalRetention: renewalHasData ? aggregate.renewalRetentionRate : null,
         budgetOccPct: budgetOccPct != null ? Number(budgetOccPct) : null,
         marketLeasedPct: Number(marketPerformance.compAverageLeasedPct) || null,
@@ -27637,9 +27649,9 @@ function buildCommunityProgressSingleReportData(options = {}) {
   };
   trafficMetrics.guestToTourPct = trafficMetrics.guestCards > 0 ? (trafficMetrics.tours / trafficMetrics.guestCards) * 100 : 0;
   trafficMetrics.tourToAppPct = trafficMetrics.tours > 0 ? (trafficMetrics.applications / trafficMetrics.tours) * 100 : 0;
-  trafficMetrics.appToLeasePct = trafficMetrics.applications > 0 ? (trafficMetrics.approvals / trafficMetrics.applications) * 100 : 0;
-  trafficMetrics.tourToLeasePct = trafficMetrics.tours > 0 ? (trafficMetrics.approvals / trafficMetrics.tours) * 100 : 0;
-  trafficMetrics.leadToLeasePct = trafficMetrics.guestCards > 0 ? (trafficMetrics.approvals / trafficMetrics.guestCards) * 100 : 0;
+  trafficMetrics.appToLeasePct = trafficMetrics.applications > 0 ? (trafficMetrics.leases / trafficMetrics.applications) * 100 : 0;
+  trafficMetrics.tourToLeasePct = trafficMetrics.tours > 0 ? (trafficMetrics.leases / trafficMetrics.tours) * 100 : 0;
+  trafficMetrics.leadToLeasePct = trafficMetrics.guestCards > 0 ? (trafficMetrics.leases / trafficMetrics.guestCards) * 100 : 0;
   const renewalSummary = getRenewalSummaryForMonth(monthEntry);
   const floorPlanVarianceData = buildCommunityFloorPlanVarianceRows(scopedRecord.communityFloorPlans, activeSurveyData);
   const floorPlanRentComparisonRows = buildCommunityProgressBedroomRentComparisonRows(scopedRecord.communityFloorPlans, activeSurveyData);
@@ -27871,9 +27883,9 @@ function buildCommunityProgressReportData(options = {}) {
   };
   trafficMetrics.guestToTourPct = trafficMetrics.guestCards > 0 ? (trafficMetrics.tours / trafficMetrics.guestCards) * 100 : 0;
   trafficMetrics.tourToAppPct = trafficMetrics.tours > 0 ? (trafficMetrics.applications / trafficMetrics.tours) * 100 : 0;
-  trafficMetrics.appToLeasePct = trafficMetrics.applications > 0 ? (trafficMetrics.approvals / trafficMetrics.applications) * 100 : 0;
-  trafficMetrics.tourToLeasePct = trafficMetrics.tours > 0 ? (trafficMetrics.approvals / trafficMetrics.tours) * 100 : 0;
-  trafficMetrics.leadToLeasePct = trafficMetrics.guestCards > 0 ? (trafficMetrics.approvals / trafficMetrics.guestCards) * 100 : 0;
+  trafficMetrics.appToLeasePct = trafficMetrics.applications > 0 ? (trafficMetrics.leases / trafficMetrics.applications) * 100 : 0;
+  trafficMetrics.tourToLeasePct = trafficMetrics.tours > 0 ? (trafficMetrics.leases / trafficMetrics.tours) * 100 : 0;
+  trafficMetrics.leadToLeasePct = trafficMetrics.guestCards > 0 ? (trafficMetrics.leases / trafficMetrics.guestCards) * 100 : 0;
   const renewalSummary = {
     expirations: aggregateSummary.renewalExpirations,
     signed: aggregateSummary.renewalsSigned,

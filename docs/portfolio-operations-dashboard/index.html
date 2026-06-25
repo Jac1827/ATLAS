@@ -1096,6 +1096,8 @@ const ATLAS_COMMUNITY_ID_ALIASES = {
 const WEEKLY_SNAPSHOT_STORAGE_KEY = "rise_weekly_portfolio_snapshot_v1";
 const OPS_GLOBAL_STORAGE_KEY = "rise_ops_global_v1";
 const OPS_WORKSPACE_CONTEXT_KEY = "rise_ops_workspace_context_v1";
+const LVR_TEMPLATE_STORAGE_KEY = "atlas_lvr_data_v1";
+const LVR_TEMPLATE_HREF = "leasing-velocity-report-template.html";
 const SIDE_NAV_STORAGE_KEY = "atlas_rise_side_nav_collapsed_v1";
 const COMMUNITY_STORAGE_KEY = "rise_ops_dashboard_data_v1";
 const LEGACY_COMMUNITY_STORAGE_KEY = "rise_leasing_v5";
@@ -18999,6 +19001,7 @@ function renderReportingTab() {
   const reportableCommunityNames = getReportableCommunityNames(getReportHubMonthIndex());
   const communityProgressSelectionNames = getCommunityProgressReportCommunityNames();
   const selectedRecipientCount = reportHubContacts.filter(contact => reportHubRecipientKeys.includes(contact.key)).length;
+  const lvrTemplateWorkspaceHTML = renderLvrTemplateWorkspace();
   const reportHubRecipientsHtml = reportHubContacts.length > 0
     ? reportHubContacts.map(contact => {
         const isActive = reportHubRecipientKeys.includes(contact.key);
@@ -19199,6 +19202,7 @@ function renderReportingTab() {
     </div>
     ${recommendationsEditorHtml}
   </div>
+  ${lvrTemplateWorkspaceHTML}
   ${renderReportHubInlinePreview(normalizedType, selectedReportSections)}`;
 }
 
@@ -24052,6 +24056,342 @@ function syncDlrTargetFromReportHub(options = {}) {
     month: getReportHubMonthIndex(),
     year: getReportHubYear()
   });
+}
+
+function getLvrBenchmarks(mode = "stabilized") {
+  return mode === "leaseup"
+    ? { leadToTour: 42, tourToApp: 36, appToLease: 68, leadToLease: 10 }
+    : { leadToTour: 40, tourToApp: 35, appToLease: 75, leadToLease: 10 };
+}
+
+function formatLvrPct(value, digits = 1) {
+  return Number.isFinite(Number(value)) ? `${Number(value).toFixed(digits)}%` : "N/A";
+}
+
+function formatLvrInt(value) {
+  return Number.isFinite(Number(value)) ? Math.round(Number(value)).toLocaleString() : "0";
+}
+
+function formatLvrCurrency(value) {
+  return Number.isFinite(Number(value)) && Number(value) > 0
+    ? `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+    : "N/A";
+}
+
+function getLvrStatusFromDelta(delta, watchFloor = -2) {
+  if (!Number.isFinite(Number(delta))) return "ok";
+  if (Number(delta) >= 0) return "ahead";
+  if (Number(delta) >= watchFloor) return "watch";
+  return "behind";
+}
+
+function formatLvrDelta(delta, digits = 1, suffix = " pts") {
+  if (!Number.isFinite(Number(delta))) return "N/A";
+  const numeric = Number(delta);
+  return `${numeric >= 0 ? "+" : ""}${numeric.toFixed(digits)}${suffix}`;
+}
+
+function getLvrPhotoSrc(photo) {
+  const normalized = normalizePhotoAsset(photo);
+  return String(normalized?.src || normalized?.previewSrc || "").trim();
+}
+
+function buildAtlasLvrImages(report) {
+  const photos = Array.isArray(report?.photoPool) ? report.photoPool.map(getLvrPhotoSrc).filter(Boolean) : [];
+  return {
+    hero: photos[0] || "",
+    feature: photos[1] || photos[0] || "",
+    g1: photos[0] || "",
+    g2: photos[1] || "",
+    g3: photos[2] || "",
+    g4: photos[3] || ""
+  };
+}
+
+function buildAtlasLvrSourceRows(report, leadToTourPct, leaseCount) {
+  const traffic = report?.trafficMetrics || {};
+  const leadSources = report?.hasLeadSourceBreakdown ? getTopLeadSourceFacts(report.leadSourceBreakdown) : [];
+  const totalLeads = Math.max(1, Number(report?.leadSourceBreakdownTotal || traffic.guestCards || 0) || 1);
+  if (leadSources.length === 0) {
+    return [{
+      source: "Saved guest cards",
+      leads: formatLvrInt(traffic.guestCards),
+      tourRate: formatLvrPct(leadToTourPct, 1),
+      leases: formatLvrInt(leaseCount),
+      cpl: "N/A",
+      note: "Source split pending",
+      status: Number(traffic.guestCards || 0) > 0 ? "watch" : "behind"
+    }];
+  }
+  return leadSources.map(item => {
+    const sourceShare = totalLeads > 0 ? item.value / totalLeads : 0;
+    const allocatedLeases = Math.round((Number(leaseCount) || 0) * sourceShare);
+    return {
+      source: item.label,
+      leads: formatLvrInt(item.value),
+      tourRate: formatLvrPct(leadToTourPct, 1),
+      leases: formatLvrInt(allocatedLeases),
+      cpl: "ATLAS",
+      note: sourceShare >= 0.3 ? "Largest source" : "Monitor mix",
+      status: sourceShare >= 0.3 ? "ahead" : "watch"
+    };
+  });
+}
+
+function buildAtlasLvrCompRows(report) {
+  const pricing = report?.pricing || {};
+  const market = report?.marketPerformance || {};
+  const subjectEffective = pricing.avgNetEffectiveRent || pricing.avgInPlaceRent || pricing.avgBudgetRent;
+  const rows = [{
+    property: report?.communityName || "Subject community",
+    isSubject: true,
+    type: "Portfolio average",
+    marketRent: formatLvrCurrency(pricing.avgInPlaceRent || pricing.avgBudgetRent),
+    concession: Number(pricing.concessions || 0) > 0 ? formatLvrCurrency(pricing.concessions) : "N/A",
+    effectiveRent: formatLvrCurrency(subjectEffective)
+  }];
+  if (Number(market.compAverageRent || 0) > 0 || Number(market.compAverageNer || 0) > 0) {
+    rows.push({
+      property: "Comp average",
+      type: "APTIQ market survey",
+      marketRent: formatLvrCurrency(market.compAverageRent),
+      concession: "Survey average",
+      effectiveRent: formatLvrCurrency(market.compAverageNer)
+    });
+  }
+  const floorPlanRows = Array.isArray(report?.floorPlanRentComparisonRows) ? report.floorPlanRentComparisonRows.slice(0, 3) : [];
+  floorPlanRows.forEach(row => {
+    rows.push({
+      property: row.name || row.floorPlan || "Floor plan",
+      type: [row.beds != null ? `${row.beds}BR` : "", row.baths != null ? `${row.baths}BA` : ""].filter(Boolean).join(" / ") || "Floor plan",
+      marketRent: formatLvrCurrency(row.marketedRent ?? row.marketRent),
+      concession: "Plan detail",
+      effectiveRent: formatLvrCurrency(row.netEffectiveRent ?? row.marketedRent ?? row.marketRent)
+    });
+  });
+  return rows.length > 1 ? rows : [
+    ...rows,
+    {
+      property: "Market survey",
+      type: "Pending comp feed",
+      marketRent: "N/A",
+      concession: "Pending",
+      effectiveRent: "N/A"
+    }
+  ];
+}
+
+function buildAtlasLvrVariantData(report, mode = "stabilized") {
+  const summary = report?.summary || {};
+  const traffic = report?.trafficMetrics || {};
+  const record = report?.sourceRecord || {};
+  const totalUnits = Number(report?.totalUnits || summary.totalUnits || 0) || 0;
+  const occupiedUnits = Math.max(0, Number(report?.occupiedUnits ?? summary.occupied ?? 0) || 0);
+  const leasedUnits = Math.max(0, Number(report?.leasedUnits ?? summary.leased ?? 0) || 0);
+  const occupancyPct = Number(report?.occupancyPct ?? getSummaryOccPct(summary)) || 0;
+  const leasedPct = Number(report?.leasedPct ?? getSummaryLeasedPct(summary)) || 0;
+  const budgetOccPct = Number(report?.budgetOccPct ?? summary.budgetOccPct ?? record.occupancyGoal ?? 95) || 95;
+  const budgetLeasedPct = Number(summary.budgetLeasedPct ?? record.leasedGoal ?? (mode === "leaseup" ? Math.max(leasedPct + 2, leasedPct) : 97)) || 0;
+  const moveIns = Number(traffic.moveIns ?? summary.moveIns ?? 0) || 0;
+  const moveOuts = Number(traffic.moveOuts ?? summary.moveOuts ?? 0) || 0;
+  const netLeases = moveIns - moveOuts;
+  const leads = Math.max(0, Number(traffic.guestCards ?? summary.guestCards ?? 0) || 0);
+  const tours = Math.max(0, Number(traffic.tours ?? summary.tours ?? 0) || 0);
+  const applications = Math.max(0, Number(traffic.applications ?? summary.applications ?? 0) || 0);
+  const leases = Math.max(0, Number(traffic.leases ?? summary.leasesSigned ?? 0) || 0);
+  const leadToTourPct = leads > 0 ? (tours / leads) * 100 : 0;
+  const tourToAppPct = tours > 0 ? (applications / tours) * 100 : 0;
+  const appToLeasePct = applications > 0 ? (leases / applications) * 100 : 0;
+  const leadToLeasePct = leads > 0 ? (leases / leads) * 100 : 0;
+  const benchmarks = getLvrBenchmarks(mode);
+  const weeklyLeaseTarget = Math.max(0, Number(report?.moveInGoalPerWeek ?? summary.moveInGoal ?? 0) || 0);
+  const leaseGoal = Math.max(weeklyLeaseTarget, Number(report?.paceRows?.find(row => row.label === "Approved Applications")?.goal ?? 0) || 0);
+  const vacancyUnits = Math.max(totalUnits - occupiedUnits, 0);
+  const preleasedVacant = Math.max(Math.min(leasedUnits - occupiedUnits, vacancyUnits), 0);
+  const availableVacant = Math.max(vacancyUnits - preleasedVacant, 0);
+  const exposurePct = totalUnits > 0 ? (availableVacant / totalUnits) * 100 : 0;
+  const summaryText = Array.isArray(report?.notes) ? report.notes.join(" ") : String(report?.notes || "");
+  const occDelta = occupancyPct - budgetOccPct;
+  const leasedDelta = leasedPct - budgetLeasedPct;
+  const netDelta = weeklyLeaseTarget > 0 ? netLeases - weeklyLeaseTarget : netLeases;
+  const leadTourDelta = leadToTourPct - benchmarks.leadToTour;
+  const tourAppDelta = tourToAppPct - benchmarks.tourToApp;
+  const appLeaseDelta = appToLeasePct - benchmarks.appToLease;
+  const leadLeaseDelta = leadToLeasePct - benchmarks.leadToLease;
+
+  return {
+    meta: {
+      label: mode === "leaseup" ? "Lease-up" : "Stabilized",
+      community: report?.communityName || getWorkspaceScopeDisplayName(),
+      address: record.communityAddress || "Address pending in ATLAS",
+      units: totalUnits > 0 ? `${formatLvrInt(totalUnits)} units` : "Units pending",
+      type: mode === "leaseup" ? "Lease-up" : "Stabilized",
+      period: report?.reportPeriodLabel || `${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`,
+      trailing: "ATLAS month-to-date / saved trailing inputs",
+      prepared: "ATLAS Asset Management",
+      leasedLabel: "Leased",
+      leasedValue: formatLvrPct(leasedPct, 1),
+      occupiedLabel: "Occupied",
+      occupiedValue: formatLvrPct(occupancyPct, 1),
+      netLabel: "Net leases / mo",
+      netValue: formatSignedDisplay(netLeases)
+    },
+    summary: summaryText || `${report?.communityName || "This community"} is at ${formatLvrPct(occupancyPct, 1)} occupancy and ${formatLvrPct(leasedPct, 1)} leased for the selected ATLAS period. The report is populated from saved ATLAS operating metrics; source and comp detail will sharpen as those fields are loaded.`,
+    kpis: [
+      { label: "Occupancy", value: formatLvrPct(occupancyPct, 1), target: `Target ${formatLvrPct(budgetOccPct, 1)}`, note: formatLvrDelta(occDelta), status: getLvrStatusFromDelta(occDelta) },
+      { label: "Net leases / mo", value: formatSignedDisplay(netLeases), target: weeklyLeaseTarget > 0 ? `Target +${formatLvrInt(weeklyLeaseTarget)}` : "Target pending", note: formatLvrDelta(netDelta, 0, ""), status: getLvrStatusFromDelta(netDelta, -1) },
+      { label: "Signed leases", value: formatLvrInt(leases), target: leaseGoal > 0 ? `Goal ${formatLvrInt(leaseGoal)}` : "Goal pending", note: leaseGoal > 0 ? formatLvrDelta(leases - leaseGoal, 0, "") : "N/A", status: leaseGoal > 0 ? getLvrStatusFromDelta(leases - leaseGoal, -2) : "ok" },
+      { label: "Lead -> Lease", value: formatLvrPct(leadToLeasePct, 1), target: `Benchmark ${formatLvrPct(benchmarks.leadToLease, 0)}`, note: formatLvrDelta(leadLeaseDelta), status: getLvrStatusFromDelta(leadLeaseDelta) }
+    ],
+    funnel: [
+      { name: "Traffic / Leads", sub: "Saved guest cards", count: formatLvrInt(leads), barPct: "100%", convLabel: "Lead -> Tour", conv: formatLvrPct(leadToTourPct, 1), benchmark: `Benchmark ${formatLvrPct(benchmarks.leadToTour, 0)}`, convNote: formatLvrDelta(leadTourDelta), convStatus: getLvrStatusFromDelta(leadTourDelta) },
+      { name: "Tours", sub: "Completed tours", count: formatLvrInt(tours), barPct: leads > 0 ? `${Math.min((tours / leads) * 100, 100).toFixed(0)}%` : "0%", convLabel: "Tour -> App", conv: formatLvrPct(tourToAppPct, 1), benchmark: `Benchmark ${formatLvrPct(benchmarks.tourToApp, 0)}`, convNote: formatLvrDelta(tourAppDelta), convStatus: getLvrStatusFromDelta(tourAppDelta) },
+      { name: "Applications", sub: "Submitted", count: formatLvrInt(applications), barPct: leads > 0 ? `${Math.min((applications / leads) * 100, 100).toFixed(0)}%` : "0%", convLabel: "App -> Lease", conv: formatLvrPct(appToLeasePct, 1), benchmark: `Benchmark ${formatLvrPct(benchmarks.appToLease, 0)}`, convNote: formatLvrDelta(appLeaseDelta), convStatus: getLvrStatusFromDelta(appLeaseDelta) },
+      { name: "Signed leases", sub: "Executed this period", count: formatLvrInt(leases), barPct: leads > 0 ? `${Math.min((leases / leads) * 100, 100).toFixed(0)}%` : "0%" }
+    ],
+    funnelNote: leadTourDelta < -2
+      ? "The largest current LVR watch item is Lead -> Tour conversion. Tighten speed-to-lead, tour setting, and follow-up before adding more top-of-funnel spend."
+      : "Funnel pacing is tracking near the saved benchmark set. Keep the focus on source quality, response speed, and application-to-lease completion.",
+    sources: buildAtlasLvrSourceRows(report, leadToTourPct, leases),
+    sourcesNote: report?.hasLeadSourceBreakdown
+      ? "Source rows use the saved ATLAS lead-source breakdown. Lease counts are allocated by source share until source-level lease attribution is loaded."
+      : "ATLAS has a saved guest-card total but not a full source split for this period, so the template carries a single source row until the source fields are populated.",
+    occTiles: [
+      { label: "Occupancy", value: formatLvrPct(occupancyPct, 1), target: `Target ${formatLvrPct(budgetOccPct, 1)}`, note: formatLvrDelta(occDelta), status: getLvrStatusFromDelta(occDelta) },
+      { label: "Leased", value: formatLvrPct(leasedPct, 1), target: budgetLeasedPct > 0 ? `Target ${formatLvrPct(budgetLeasedPct, 1)}` : "Target pending", note: budgetLeasedPct > 0 ? formatLvrDelta(leasedDelta) : "N/A", status: budgetLeasedPct > 0 ? getLvrStatusFromDelta(leasedDelta) : "ok" },
+      { label: "Exposure", value: formatLvrPct(exposurePct, 1), target: "Target <=5.0%", note: exposurePct <= 5 ? "OK" : formatLvrDelta(exposurePct - 5), status: exposurePct <= 5 ? "ahead" : exposurePct <= 7 ? "watch" : "behind" },
+      { label: "Available to rent", value: formatLvrInt(availableVacant), target: totalUnits > 0 ? `of ${formatLvrInt(totalUnits)} units` : "Units pending", note: availableVacant > 0 ? "Watch" : "OK", status: availableVacant > 0 ? "watch" : "ahead" }
+    ],
+    occBar: [
+      { label: "Occupied", count: formatLvrInt(occupiedUnits), pct: formatLvrPct(occupancyPct, 1), color: "#2f4660" },
+      { label: "Vacant - pre-leased", count: formatLvrInt(preleasedVacant), pct: totalUnits > 0 ? formatLvrPct((preleasedVacant / totalUnits) * 100, 1) : "0.0%", color: "#7c97b3" },
+      { label: "Vacant - available", count: formatLvrInt(availableVacant), pct: totalUnits > 0 ? formatLvrPct((availableVacant / totalUnits) * 100, 1) : "0.0%", color: "#dadfe7" }
+    ],
+    comps: buildAtlasLvrCompRows(report),
+    concessionNote: "Pricing and concession rows use ATLAS pricing fields plus the market-survey snapshot when available. Add or refresh APTIQ survey data to expand comp coverage in this section.",
+    diag: [
+      { severity: occDelta < -2 ? "HIGH" : "MED", area: "Occupancy pace", finding: `Occupancy is ${formatLvrDelta(occDelta)} versus the saved target.`, status: getLvrStatusFromDelta(occDelta) },
+      { severity: leadTourDelta < -5 ? "HIGH" : "MED", area: "Lead -> Tour conversion", finding: `Lead-to-tour conversion is ${formatLvrPct(leadToTourPct, 1)} versus a ${formatLvrPct(benchmarks.leadToTour, 0)} benchmark.`, status: getLvrStatusFromDelta(leadTourDelta) },
+      { severity: appLeaseDelta < -5 ? "HIGH" : "MED", area: "Application completion", finding: `Application-to-lease conversion is ${formatLvrPct(appToLeasePct, 1)} against a ${formatLvrPct(benchmarks.appToLease, 0)} benchmark.`, status: getLvrStatusFromDelta(appLeaseDelta) },
+      { severity: exposurePct > 7 ? "HIGH" : "MED", area: "Exposure", finding: `${formatLvrInt(availableVacant)} units are vacant and available, equal to ${formatLvrPct(exposurePct, 1)} of total units.`, status: exposurePct <= 5 ? "ahead" : exposurePct <= 7 ? "watch" : "behind" },
+      { severity: report?.hasLeadSourceBreakdown ? "LOW" : "MED", area: "Source attribution", finding: report?.hasLeadSourceBreakdown ? "Lead-source data is saved for this period." : "Lead-source split is not fully saved yet, so source-level diagnosis is limited.", status: report?.hasLeadSourceBreakdown ? "ahead" : "watch" }
+    ],
+    recs: [
+      { priority: "P1", action: "Tighten lead-response SLA and tour-setting follow-up for under-benchmark source channels.", owner: "Leasing Manager", due: "7 days" },
+      { priority: "P1", action: "Review concession depth against comp survey and hold any additional discounting until funnel leakage is isolated.", owner: "Asset Manager", due: "Next pricing call" },
+      { priority: "P2", action: "Rebalance marketing attention toward the highest-converting saved lead sources.", owner: "Marketing", due: "14 days" },
+      { priority: "P2", action: "Audit application completion and approval handoff to reduce loss between tour, application, and lease.", owner: "Regional", due: "14 days" },
+      { priority: "P3", action: "Refresh source and comp fields before the next LVR export to improve attribution confidence.", owner: "ATLAS Owner", due: "Ongoing" }
+    ],
+    images: buildAtlasLvrImages(report)
+  };
+}
+
+async function buildAtlasLvrPayload(options = {}) {
+  const communityName = matchPropertyName(options.communityName || getPrimaryReportCommunityName(), { fallbackToCurrent: false }) || getProp().name;
+  const record = getPersistedCommunityRecordForScope(communityName, { allowCurrentFallback: true });
+  if (!record) {
+    if (options.alert !== false) alert("Save community data first, then the Leasing Velocity Report can open from ATLAS.");
+    return null;
+  }
+  const report = buildCommunityProgressSingleReportData({ silent: true, communityName, record });
+  if (!report) {
+    if (options.alert !== false) alert("The Leasing Velocity Report could not build from the selected community.");
+    return null;
+  }
+  try {
+    await ensurePhotoAssetsLoaded(report.photoPool || []);
+  } catch {}
+  return {
+    schema: "atlas_lvr_payload_v1",
+    generatedAt: new Date().toISOString(),
+    source: "portfolio-operations-dashboard",
+    community: communityName,
+    period: report.reportPeriodLabel,
+    theme: "dashboard",
+    data: {
+      stabilized: buildAtlasLvrVariantData(report, "stabilized"),
+      leaseup: buildAtlasLvrVariantData(report, "leaseup")
+    }
+  };
+}
+
+function persistAtlasLvrPayload(payload) {
+  try {
+    localStorage.setItem(LVR_TEMPLATE_STORAGE_KEY, JSON.stringify(payload));
+    return true;
+  } catch (error) {
+    console.error("Could not save LVR template payload.", error);
+    alert("The Leasing Velocity Report data could not be prepared in browser storage. Try clearing old saved images or opening the blank template.");
+    return false;
+  }
+}
+
+function buildLvrTemplateHref(mode = "stabilized", options = {}) {
+  const params = new URLSearchParams();
+  params.set("mode", mode === "leaseup" ? "leaseup" : "stabilized");
+  params.set("theme", "dashboard");
+  params.set("atlasStorageKey", LVR_TEMPLATE_STORAGE_KEY);
+  if (options.printImmediately) params.set("print", "1");
+  return `${LVR_TEMPLATE_HREF}?${params.toString()}`;
+}
+
+async function openLeasingVelocityReportTemplate(mode = "stabilized", printImmediately = false) {
+  const target = window.open("", "_blank");
+  const payload = await buildAtlasLvrPayload();
+  if (!payload || !persistAtlasLvrPayload(payload)) {
+    if (target && !target.closed) target.close();
+    return false;
+  }
+  const href = buildLvrTemplateHref(mode, { printImmediately });
+  if (target && !target.closed) {
+    target.opener = null;
+    target.location.href = href;
+  } else {
+    window.location.href = href;
+  }
+  return false;
+}
+
+function renderLvrTemplateWorkspace() {
+  const communityName = matchPropertyName(getPrimaryReportCommunityName(), { fallbackToCurrent: false }) || getProp().name;
+  const record = getPersistedCommunityRecordForScope(communityName, { allowCurrentFallback: true });
+  const report = record ? buildCommunityProgressSingleReportData({ silent: true, communityName, record }) : null;
+  const imageCount = Array.isArray(report?.photoPool) ? report.photoPool.length : 0;
+  const periodLabel = report?.reportPeriodLabel || `${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`;
+  return `<div class="card mb4">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div>
+        <h3 style="font-size:0.85rem;font-weight:700;margin-bottom:6px">Leasing Velocity Report Template</h3>
+        <p style="font-size:0.72rem;color:var(--muted)">Portable ATLAS LVR export using the current community, reporting month, and saved community photo bank.</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-gray btn-sm" onclick="openLeasingVelocityReportTemplate('stabilized', false)">Preview Stabilized</button>
+        <button class="btn btn-gray btn-sm" onclick="openLeasingVelocityReportTemplate('leaseup', false)">Preview Lease-up</button>
+        <button class="btn btn-blue btn-sm" onclick="openLeasingVelocityReportTemplate('stabilized', true)">Print / PDF</button>
+        <a class="btn btn-gray btn-sm" href="${LVR_TEMPLATE_HREF}" target="_blank" rel="noopener">Blank Template</a>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px">
+      <div class="report-hub-card">
+        <div class="card-title" style="margin-bottom:6px">Community</div>
+        <div style="font-size:0.82rem;font-weight:700;color:var(--accent)">${escapeHtml(communityName)}</div>
+      </div>
+      <div class="report-hub-card">
+        <div class="card-title" style="margin-bottom:6px">Report Period</div>
+        <div style="font-size:0.78rem;color:var(--text);line-height:1.5">${escapeHtml(periodLabel)}</div>
+      </div>
+      <div class="report-hub-card">
+        <div class="card-title" style="margin-bottom:6px">Image Slots Ready</div>
+        <div style="font-size:1.4rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:#2a8f83">${imageCount}</div>
+        <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">Uses hero, feature, and gallery order from Community Setup.</div>
+      </div>
+      <div class="report-hub-card">
+        <div class="card-title" style="margin-bottom:6px">Data Contract</div>
+        <div style="font-size:0.7rem;color:var(--muted);line-height:1.65">Writes <span class="mono">${LVR_TEMPLATE_STORAGE_KEY}</span> with <span class="mono">stabilized</span> and <span class="mono">leaseup</span> payloads before opening.</div>
+      </div>
+    </div>
+  </div>`;
 }
 
 function setReportingDlrCommunity(value) {

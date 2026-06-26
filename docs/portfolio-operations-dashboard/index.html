@@ -29421,6 +29421,10 @@ function buildMarketComparisonReportData(options = {}) {
     return null;
   }
   if (communityReports.length === 1) return communityReports[0];
+  const mixedPhotoPool = collectMonthlyPresentationPhotos(
+    communityReports.map(item => item.detail).filter(Boolean),
+    4
+  );
   const aggregate = buildMarketComparisonAggregateForDetails(communityReports.map(item => item.detail || buildCommunityDetailForMonth(item.communityName, item.sourceRecord, monthIdx, year)).filter(Boolean), monthIdx);
   const subject = {
     occupancyPct: aggregate.subjectOccupancyPct,

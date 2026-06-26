@@ -1455,6 +1455,7 @@ let portfolioReportSections = defaultPortfolioReportSections();
 let portfolioReportFilters = defaultPortfolioReportFilters();
 let monthlyPresentationCommunities = [];
 let reportHubCommunityProgressCommunities = [];
+let reportHubLvrCommunity = "";
 let weeklyExecutiveEmail = defaultWeeklyExecutiveEmailSettings();
 let workspaceScopeValue = PORTFOLIO_SCOPE_VALUE;
 let reportHubType = "investor_snapshot";
@@ -2022,7 +2023,10 @@ function normalizeReportHubType(value) {
     community_report: "community_progress",
     community_progress_report: "community_progress",
     market_comparison_report: "market_comparison",
-    market_to_subject_report: "market_comparison"
+    market_to_subject_report: "market_comparison",
+    lvr: "leasing_velocity",
+    lvr_template: "leasing_velocity",
+    leasing_velocity_report: "leasing_velocity"
   };
   const mapped = legacyMap[normalized] || normalized || "investor_snapshot";
   return [
@@ -2032,7 +2036,8 @@ function normalizeReportHubType(value) {
     "dlr",
     "bonus_payout",
     "community_progress",
-    "market_comparison"
+    "market_comparison",
+    "leasing_velocity"
   ].includes(mapped) ? mapped : "investor_snapshot";
 }
 
@@ -3745,6 +3750,7 @@ function normalizeOpsGlobalData(data) {
     salarySecurity: normalizeSalarySecurity(input.salarySecurity),
     monthlyPresentationCommunities: normalizeMonthlyPresentationCommunities(input.monthlyPresentationCommunities),
     reportHubCommunityProgressCommunities: normalizeCommunityProgressReportCommunities(input.reportHubCommunityProgressCommunities),
+    reportHubLvrCommunity: String(input.reportHubLvrCommunity ?? "").trim(),
     weeklyExecutiveEmail: normalizeWeeklyExecutiveEmailSettings(input.weeklyExecutiveEmail),
     portfolioReportSections: normalizePortfolioReportSections(input.portfolioReportSections),
     portfolioReportFilters: {
@@ -3774,6 +3780,7 @@ function getLegacyOpsGlobalSeed() {
     salarySecurity: legacy.salarySecurity,
     weeklyExecutiveEmail: legacy.weeklyExecutiveEmail,
     reportHubCommunityProgressCommunities: legacy.reportHubCommunityProgressCommunities,
+    reportHubLvrCommunity: legacy.reportHubLvrCommunity,
     portfolioReportSections: legacy.portfolioReportSections,
     portfolioReportFilters: legacy.portfolioReportFilters,
     portfolioReportMode: legacy.portfolioReportMode,
@@ -3795,6 +3802,7 @@ function applyOpsGlobalData(data) {
   salarySecurity = normalized.salarySecurity;
   monthlyPresentationCommunities = normalized.monthlyPresentationCommunities;
   reportHubCommunityProgressCommunities = normalized.reportHubCommunityProgressCommunities;
+  reportHubLvrCommunity = normalized.reportHubLvrCommunity;
   weeklyExecutiveEmail = normalized.weeklyExecutiveEmail;
   portfolioReportSections = normalized.portfolioReportSections;
   portfolioReportFilters = normalized.portfolioReportFilters;
@@ -3851,6 +3859,7 @@ function persistOpsGlobalData() {
     salarySecurity,
     monthlyPresentationCommunities,
     reportHubCommunityProgressCommunities,
+    reportHubLvrCommunity,
     weeklyExecutiveEmail,
     portfolioReportSections,
     portfolioReportFilters,
@@ -18985,10 +18994,10 @@ function renderPortfolioHomeTab() {
 function renderReportingTab() {
   ensureValidReportHubAction();
   reportHubType = normalizeReportHubType(reportHubType);
-  if (!["dlr", "bonus_payout", "community_progress", "market_comparison"].includes(reportHubType) && reportHubPerspective === "regional") {
+  if (!["dlr", "bonus_payout", "community_progress", "market_comparison", "leasing_velocity"].includes(reportHubType) && reportHubPerspective === "regional") {
     reportHubPerspective = "investor";
   }
-  if (reportHubType === "community_progress" || reportHubType === "market_comparison") {
+  if (reportHubType === "community_progress" || reportHubType === "market_comparison" || reportHubType === "leasing_velocity") {
     reportHubPerspective = "csuite";
   }
   if (normalizeReportHubType(reportHubType) === "dlr") {
@@ -19001,7 +19010,18 @@ function renderReportingTab() {
   const reportableCommunityNames = getReportableCommunityNames(getReportHubMonthIndex());
   const communityProgressSelectionNames = getCommunityProgressReportCommunityNames();
   const selectedRecipientCount = reportHubContacts.filter(contact => reportHubRecipientKeys.includes(contact.key)).length;
-  const lvrTemplateWorkspaceHTML = renderLvrTemplateWorkspace();
+  const isCommunitySelectionReport = ["community_progress", "market_comparison"].includes(normalizedType);
+  const isLvrReport = normalizedType === "leasing_velocity";
+  const currentScopeName = isCommunitySelectionReport
+    ? getCommunityProgressReportScopeLabel()
+    : isLvrReport
+      ? getLvrReportCommunityName()
+      : getWorkspaceScopeDisplayName();
+  const currentScopeMode = isCommunitySelectionReport
+    ? `${communityProgressSelectionNames.length > 1 ? "multi-community c-suite mode" : "single-community c-suite mode"}`
+    : isLvrReport
+      ? "single-community LVR mode"
+      : (isPortfolioWorkspaceSelected() ? "portfolio aggregate mode" : "community-specific mode");
   const reportHubRecipientsHtml = reportHubContacts.length > 0
     ? reportHubContacts.map(contact => {
         const isActive = reportHubRecipientKeys.includes(contact.key);
@@ -19016,8 +19036,8 @@ function renderReportingTab() {
   const selectedReportSections = getSelectedPortfolioReportSections();
   const ownerFilterSummary = `${(portfolioReportFilters.investorGroups ?? []).length} investor group(s) · ${(portfolioReportFilters.investorCommunities ?? []).length} highlighted communit${(portfolioReportFilters.investorCommunities ?? []).length === 1 ? "y" : "ies"}`;
   const communityProgressFilterSummary = `${communityProgressSelectionNames.length} communit${communityProgressSelectionNames.length === 1 ? "y" : "ies"} selected`;
-  const reportNeedsScopeBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && !["community_progress", "market_comparison"].includes(normalizedType);
-  const reportNeedsSectionBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && !["community_progress", "market_comparison"].includes(normalizedType);
+  const reportNeedsScopeBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && !["community_progress", "market_comparison"].includes(normalizedType);
+  const reportNeedsSectionBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && !["community_progress", "market_comparison"].includes(normalizedType);
   const reportTypeDescription = normalizedType === "investor_marketing_report"
     ? "Combines traffic and funnel performance with comp calculator and market-survey context."
     : normalizedType === "monthly_investor_deck"
@@ -19026,6 +19046,8 @@ function renderReportingTab() {
         ? "Payroll-ready payout reporting using the saved bonus calculator data."
         : normalizedType === "dlr"
           ? "Single-community daily leasing report with upload-backed activity checks."
+          : normalizedType === "leasing_velocity"
+            ? "Portable ATLAS LVR export with stabilized and lease-up views, image slots, and print-ready Letter pages."
           : normalizedType === "community_progress"
             ? "C-suite month-to-date community progress report with photo-led visuals, pace analysis, and explicit data alerts when source fields are incomplete."
             : normalizedType === "market_comparison"
@@ -19115,8 +19137,8 @@ function renderReportingTab() {
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px">
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Current Scope</div>
-        <div style="font-size:0.82rem;font-weight:700;color:var(--accent)">${escapeHtml(["community_progress", "market_comparison"].includes(normalizedType) ? getCommunityProgressReportScopeLabel() : getWorkspaceScopeDisplayName())}</div>
-        <div style="font-size:0.68rem;color:var(--muted);margin-top:6px">${escapeHtml(reportMonthLabel)} report period · ${["community_progress", "market_comparison"].includes(normalizedType) ? `${communityProgressSelectionNames.length > 1 ? "multi-community c-suite mode" : "single-community c-suite mode"}` : (isPortfolioWorkspaceSelected() ? "portfolio aggregate mode" : "community-specific mode")}</div>
+        <div style="font-size:0.82rem;font-weight:700;color:var(--accent)">${escapeHtml(currentScopeName)}</div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-top:6px">${escapeHtml(reportMonthLabel)} report period · ${escapeHtml(currentScopeMode)}</div>
       </div>
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Report Type</div>
@@ -19128,14 +19150,15 @@ function renderReportingTab() {
           <option value="monthly_investor_deck" ${reportHubType==="monthly_investor_deck"?"selected":""}>Monthly Report</option>
           <option value="community_progress" ${reportHubType==="community_progress"?"selected":""}>Community Progress Report</option>
           <option value="market_comparison" ${reportHubType==="market_comparison"?"selected":""}>Market Comparison Report</option>
+          <option value="leasing_velocity" ${reportHubType==="leasing_velocity"?"selected":""}>Leasing Velocity Report</option>
         </select>
         <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${escapeHtml(reportTypeDescription)}</div>
       </div>
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Report View</div>
-        ${normalizedType === "community_progress"
-          ? `<div style="padding:8px 10px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2);font-size:0.78rem;font-weight:700;color:var(--accent)">C-Suite View</div>
-             <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">This report is locked to a c-suite lens so the output stays focused on operating progress and data confidence checks.</div>`
+        ${normalizedType === "community_progress" || normalizedType === "leasing_velocity"
+          ? `<div style="padding:8px 10px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2);font-size:0.78rem;font-weight:700;color:var(--accent)">${normalizedType === "leasing_velocity" ? "LVR Template" : "C-Suite View"}</div>
+             <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${normalizedType === "leasing_velocity" ? "The exported template contains its own stabilized / lease-up mode control." : "This report is locked to a c-suite lens so the output stays focused on operating progress and data confidence checks."}</div>`
           : `<select onchange="setReportHubPerspective(this.value)">
               <option value="investor" ${reportHubPerspective==="investor"?"selected":""}>Investor facing</option>
               <option value="csuite" ${reportHubPerspective==="csuite"?"selected":""}>C-Suite View</option>
@@ -19202,7 +19225,6 @@ function renderReportingTab() {
     </div>
     ${recommendationsEditorHtml}
   </div>
-  ${lvrTemplateWorkspaceHTML}
   ${renderReportHubInlinePreview(normalizedType, selectedReportSections)}`;
 }
 
@@ -19229,6 +19251,9 @@ function renderReportHubPreviewFrame(title, description, documentHtml, controlsH
 function renderReportHubInlinePreview(type = normalizeReportHubType(reportHubType), selectedSections = getSelectedPortfolioReportSections()) {
   if (type === "dlr") {
     return `<div class="card mb4" id="reporting-inline-preview">${renderDlrReportingWorkspace()}</div>`;
+  }
+  if (type === "leasing_velocity") {
+    return renderLvrTemplateWorkspace();
   }
   if (type === "community_progress") {
     return `<div class="card mb4" id="reporting-inline-preview">${renderCommunityProgressReportingWorkspace()}</div>`;
@@ -19645,7 +19670,8 @@ function getReportHubTypeLabel(type = reportHubType) {
     dlr: "DLR",
     bonus_payout: "Bonus Payout Report",
     community_progress: "Community Progress Report",
-    market_comparison: "Market Comparison Report"
+    market_comparison: "Market Comparison Report",
+    leasing_velocity: "Leasing Velocity Report"
   }[normalizeReportHubType(type)] || "Investor Snapshot";
 }
 
@@ -19752,6 +19778,9 @@ function configureReportHubDefaultsForType(type) {
     if (!Array.isArray(reportHubCommunityProgressCommunities) || reportHubCommunityProgressCommunities.length === 0) {
       reportHubCommunityProgressCommunities = [getCommunityProgressReportCommunityName()];
     }
+  } else if (normalized === "leasing_velocity") {
+    reportHubPerspective = "csuite";
+    reportHubLvrCommunity = getLvrReportCommunityName();
   }
 }
 
@@ -19887,6 +19916,12 @@ function getReportBuilderScopedDetails() {
         return buildCommunityDetailForMonth(name, record, getReportHubMonthIndex(), getReportHubYear());
       })
       .filter(Boolean);
+  }
+  if (normalizeReportHubType(reportHubType) === "leasing_velocity") {
+    const name = getLvrReportCommunityName();
+    const record = getPersistedCommunityRecordForScope(name, { allowCurrentFallback: true });
+    const detail = record ? buildCommunityDetailForMonth(name, record, getReportHubMonthIndex(), getReportHubYear()) : null;
+    return detail ? [detail] : [];
   }
   return getScopedPortfolioReportDetails(buildPortfolioDetailsForMonth(getReportHubMonthIndex(), savedData, getReportHubYear()));
 }
@@ -23924,6 +23959,13 @@ function getReportHubActionOptions(type = reportHubType) {
   if (["investor_snapshot", "investor_marketing_report"].includes(normalizedType)) return [...common, { value: "export_csv", label: "Export CSV" }, { value: "export_excel", label: "Export Excel" }];
   if (normalizedType === "monthly_investor_deck") return [...common, { value: "export_html", label: "Download Editable HTML" }];
   if (normalizedType === "dlr") return [...common, { value: "export_html", label: "Download Editable HTML" }];
+  if (normalizedType === "leasing_velocity") return [
+    { value: "preview", label: "Preview Stabilized" },
+    { value: "preview_leaseup", label: "Preview Lease-up" },
+    { value: "print", label: "Print / PDF" },
+    { value: "blank_template", label: "Blank Template" },
+    { value: "email", label: "Draft Email" }
+  ];
   if (normalizedType === "community_progress") return [...common, { value: "export_html", label: "Download Editable HTML" }, { value: "export_individual_pdfs", label: "Separate PDFs" }];
   if (normalizedType === "market_comparison") return [...common, { value: "export_html", label: "Download Editable HTML" }];
   if (normalizedType === "bonus_payout") return [...common, { value: "export_csv", label: "Export CSV" }];
@@ -24000,6 +24042,20 @@ function buildReportHubEmailDraft(type = reportHubType) {
       ].join("\n")
     };
   }
+  if (normalizedType === "leasing_velocity") {
+    const communityName = getLvrReportCommunityName();
+    return {
+      to,
+      subject: `${communityName} | Leasing Velocity Report | ${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`,
+      body: [
+        `${communityName} Leasing Velocity Report`,
+        `${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`,
+        "",
+        "The ATLAS Leasing Velocity Report is ready from the Reporting Hub.",
+        "Use Preview Stabilized, Preview Lease-up, or Print / PDF before sending. The template includes both stabilized and lease-up variation modes."
+      ].join("\n")
+    };
+  }
   if (normalizedType === "dlr") {
     syncDlrTargetFromReportHub({ preserveCommunity: true });
     const report = buildDashboardDlrInvestorOverview();
@@ -24040,6 +24096,20 @@ function getPrimaryReportCommunityName() {
   }
   const scoped = getScopedPortfolioReportDetails(buildPortfolioDetailsForMonth(getReportHubMonthIndex()));
   return scoped[0]?.name || reportableNames[0] || getProp().name;
+}
+
+function getLvrReportCommunityName() {
+  const reportableNames = getReportableCommunityNames(getReportHubMonthIndex());
+  const selected = matchPropertyName(reportHubLvrCommunity, { fallbackToCurrent: false });
+  if (selected && reportableNames.includes(selected)) return selected;
+  const primary = matchPropertyName(getPrimaryReportCommunityName(), { fallbackToCurrent: false });
+  return (primary && reportableNames.includes(primary)) ? primary : (reportableNames[0] || primary || getProp().name);
+}
+
+function setLvrReportCommunity(value) {
+  reportHubLvrCommunity = matchPropertyName(value, { fallbackToCurrent: false }) || String(value ?? "").trim();
+  persistOpsGlobalData();
+  renderTab();
 }
 
 function getDlrReportCommunityName() {
@@ -24288,7 +24358,7 @@ function buildAtlasLvrVariantData(report, mode = "stabilized") {
 }
 
 async function buildAtlasLvrPayload(options = {}) {
-  const communityName = matchPropertyName(options.communityName || getPrimaryReportCommunityName(), { fallbackToCurrent: false }) || getProp().name;
+  const communityName = matchPropertyName(options.communityName || getLvrReportCommunityName(), { fallbackToCurrent: false }) || getProp().name;
   const record = getPersistedCommunityRecordForScope(communityName, { allowCurrentFallback: true });
   if (!record) {
     if (options.alert !== false) alert("Save community data first, then the Leasing Velocity Report can open from ATLAS.");
@@ -24354,16 +24424,24 @@ async function openLeasingVelocityReportTemplate(mode = "stabilized", printImmed
 }
 
 function renderLvrTemplateWorkspace() {
-  const communityName = matchPropertyName(getPrimaryReportCommunityName(), { fallbackToCurrent: false }) || getProp().name;
+  const communityOptions = getReportableCommunityNames(getReportHubMonthIndex());
+  if (communityOptions.length === 0) {
+    return `<div class="card mb4" id="reporting-inline-preview">
+      <div class="report-hub-card">
+        <div class="alert-red">Mark at least one community Active in Community Setup before using the Leasing Velocity Report.</div>
+      </div>
+    </div>`;
+  }
+  const communityName = getLvrReportCommunityName();
   const record = getPersistedCommunityRecordForScope(communityName, { allowCurrentFallback: true });
   const report = record ? buildCommunityProgressSingleReportData({ silent: true, communityName, record }) : null;
   const imageCount = Array.isArray(report?.photoPool) ? report.photoPool.length : 0;
   const periodLabel = report?.reportPeriodLabel || `${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`;
-  return `<div class="card mb4">
+  return `<div class="card mb4" id="reporting-inline-preview">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
       <div>
-        <h3 style="font-size:0.85rem;font-weight:700;margin-bottom:6px">Leasing Velocity Report Template</h3>
-        <p style="font-size:0.72rem;color:var(--muted)">Portable ATLAS LVR export using the current community, reporting month, and saved community photo bank.</p>
+        <h3 style="font-size:0.85rem;font-weight:700;margin-bottom:6px">Leasing Velocity Report</h3>
+        <p style="font-size:0.72rem;color:var(--muted)">Portable ATLAS LVR export using the selected community, reporting month, and saved community photo bank.</p>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-gray btn-sm" onclick="openLeasingVelocityReportTemplate('stabilized', false)">Preview Stabilized</button>
@@ -24375,7 +24453,10 @@ function renderLvrTemplateWorkspace() {
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px">
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Community</div>
-        <div style="font-size:0.82rem;font-weight:700;color:var(--accent)">${escapeHtml(communityName)}</div>
+        <select onchange="setLvrReportCommunity(this.value)">
+          ${communityOptions.map(name => `<option value="${escapeHtml(name)}" ${name===communityName?"selected":""}>${escapeHtml(name)}</option>`).join("")}
+        </select>
+        <div style="font-size:0.64rem;color:var(--muted);margin-top:6px">LVR exports are single-community only.</div>
       </div>
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Report Period</div>
@@ -25224,7 +25305,18 @@ function renderPortfolioDlrReportingWorkspace() {
 async function runReportHubAction() {
   ensureValidReportHubAction();
   const type = normalizeReportHubType(reportHubType);
+  if (reportHubAction === "preview_leaseup") {
+    if (type === "leasing_velocity") return openLeasingVelocityReportTemplate("leaseup", false);
+    return null;
+  }
+  if (reportHubAction === "blank_template") {
+    if (type === "leasing_velocity") {
+      window.open(LVR_TEMPLATE_HREF, "_blank", "noopener");
+    }
+    return null;
+  }
   if (reportHubAction === "preview") {
+    if (type === "leasing_velocity") return openLeasingVelocityReportTemplate("stabilized", false);
     if (["investor_snapshot", "investor_marketing_report", "monthly_investor_deck", "bonus_payout"].includes(type)) {
       renderTab();
       const target = document.getElementById("reporting-inline-preview");
@@ -25252,6 +25344,7 @@ async function runReportHubAction() {
   if (reportHubAction === "print") {
     if (["investor_snapshot", "investor_marketing_report"].includes(type)) return openPortfolioPerformanceReport(true);
     if (type === "monthly_investor_deck") return openMonthlyInvestorPresentation(true);
+    if (type === "leasing_velocity") return openLeasingVelocityReportTemplate("stabilized", true);
     if (type === "community_progress") return openCommunityProgressReport(true);
     if (type === "market_comparison") return openMarketComparisonReport(true);
     if (type === "dlr") {

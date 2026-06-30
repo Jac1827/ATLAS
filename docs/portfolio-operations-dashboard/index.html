@@ -4831,7 +4831,7 @@ function getApplicationsApprovedCount(monthEntry = {}) {
   if (Object.prototype.hasOwnProperty.call(monthEntry ?? {}, "applicationsApproved")) {
     return Math.max(0, Number(monthEntry.applicationsApproved) || 0);
   }
-  return Math.max(0, Number(monthEntry.leasesSignedActual) || 0);
+  return 0;
 }
 
 function getLeadSourceBreakdown(monthEntry = {}) {
@@ -6919,8 +6919,17 @@ function selectAllFloorPlans(section, propName, ids = []) {
   setFloorPlanSelectionIds(section, propName, allSelected ? [] : availableIds);
 }
 
+function getFloorPlanSelectionScope(section, propName) {
+  const normalizedPropName = matchPropertyName(propName, { fallbackToCurrent: false }) || getProp().name;
+  const escapedPropName = typeof CSS !== "undefined" && typeof CSS.escape === "function"
+    ? CSS.escape(normalizedPropName)
+    : normalizedPropName.replace(/"/g, '\\"');
+  return document.querySelector(`[data-floor-plan-selection-section="${section}"][data-floor-plan-selection-prop="${escapedPropName}"]`)
+    || document.querySelector(`[data-floor-plan-selection-section="${section}"]`);
+}
+
 function syncFloorPlanSelectionUi(section, propName) {
-  const scope = document.querySelector(`[data-floor-plan-selection-section="${section}"]`);
+  const scope = getFloorPlanSelectionScope(section, propName);
   if (!scope) return;
   const selectedIds = new Set(getFloorPlanSelectionIds(section, propName));
   const checkboxes = Array.from(scope.querySelectorAll("[data-floor-plan-row-checkbox]"));
@@ -6988,8 +6997,9 @@ function applySelectedCommunityFloorPlanField(propName) {
     alert("Select one or more saved floor plans first, then apply the bulk edit.");
     return false;
   }
-  const field = String(document.getElementById("community-floor-plan-bulk-field")?.value ?? "").trim();
-  const rawValue = document.getElementById("community-floor-plan-bulk-value")?.value ?? "";
+  const scope = getFloorPlanSelectionScope("community", propName);
+  const field = String(scope?.querySelector('[data-floor-plan-bulk-field="community"]')?.value ?? "").trim();
+  const rawValue = scope?.querySelector('[data-floor-plan-bulk-value="community"]')?.value ?? "";
   if (!field) {
     alert("Choose a floor-plan field to update first.");
     return false;
@@ -8797,16 +8807,16 @@ function bindScoutAssistantUi() {
 // ─── Auto Conv Rate ──────────────────────────────────────────────────────────
 function autoCalcConvRate() {
   const documentedMonths = monthlyData.slice(0, currentMonth + 1).filter(m =>
-    (m?.tours ?? 0) > 0 || (m?.applications ?? 0) > 0 || (m?.leasesSignedActual ?? 0) > 0 || getApplicationsApprovedCount(m) > 0
+    (m?.tours ?? 0) > 0 || (m?.applications ?? 0) > 0 || (m?.leasesSignedActual ?? 0) > 0
   );
   const totalTours = documentedMonths.reduce((sum, m) => sum + (m?.tours ?? 0), 0);
   const totalApps = documentedMonths.reduce((sum, m) => sum + (m?.applications ?? 0), 0);
-  const totalLeases = documentedMonths.reduce((sum, m) => sum + ((m?.leasesSignedActual ?? 0) || getApplicationsApprovedCount(m)), 0);
+  const totalLeases = documentedMonths.reduce((sum, m) => sum + Math.max(0, Number(m?.leasesSignedActual) || 0), 0);
   const currentTourToApp = (monthlyData[currentMonth]?.tours ?? 0) > 0
     ? ((monthlyData[currentMonth]?.applications ?? 0) / (monthlyData[currentMonth]?.tours ?? 0)) * 100
     : 0;
   const currentAppToLease = (monthlyData[currentMonth]?.applications ?? 0) > 0
-    ? ((((monthlyData[currentMonth]?.leasesSignedActual ?? 0) || getApplicationsApprovedCount(monthlyData[currentMonth])) / (monthlyData[currentMonth]?.applications ?? 0)) * 100)
+    ? ((Math.max(0, Number(monthlyData[currentMonth]?.leasesSignedActual) || 0) / (monthlyData[currentMonth]?.applications ?? 0)) * 100)
     : 0;
   const histTourToApp = totalTours > 0 ? (totalApps / totalTours) * 100 : 0;
   const histAppToLease = totalApps > 0 ? (totalLeases / totalApps) * 100 : 0;
@@ -9581,6 +9591,8 @@ function resetSeasonal() {
 function attachEventListeners() {
   // Numeric inputs
   document.querySelectorAll("[data-field]").forEach(el => {
+    if (el.dataset.atlasBoundChange === "1") return;
+    el.dataset.atlasBoundChange = "1";
     el.addEventListener("change", () => {
       const field = el.dataset.field;
       const idx = parseInt(el.dataset.idx);
@@ -9631,47 +9643,66 @@ function attachEventListeners() {
     });
   });
   // File import (CSV or PDF)
-  const csvInput = document.getElementById("csv-input");
-  if (csvInput) csvInput.addEventListener("change", function(e) {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    processImportFiles(files);
-    e.target.value = "";
+  document.querySelectorAll("#csv-input").forEach(csvInput => {
+    if (csvInput.dataset.atlasBoundChange === "1") return;
+    csvInput.dataset.atlasBoundChange = "1";
+    csvInput.addEventListener("change", function(e) {
+      const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
+      processImportFiles(files);
+      e.target.value = "";
+    });
   });
   const historicalInput = document.getElementById("historical-report-input");
-  if (historicalInput) historicalInput.addEventListener("change", function(e) {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    processHistoricalImportFiles(files);
-    e.target.value = "";
-  });
+  if (historicalInput && historicalInput.dataset.atlasBoundChange !== "1") {
+    historicalInput.dataset.atlasBoundChange = "1";
+    historicalInput.addEventListener("change", function(e) {
+      const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
+      processHistoricalImportFiles(files);
+      e.target.value = "";
+    });
+  }
   const renewalInput = document.getElementById("renewal-input");
-  if (renewalInput) renewalInput.addEventListener("change", function(e) {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    processRenewalFiles(files);
-    e.target.value = "";
-  });
+  if (renewalInput && renewalInput.dataset.atlasBoundChange !== "1") {
+    renewalInput.dataset.atlasBoundChange = "1";
+    renewalInput.addEventListener("change", function(e) {
+      const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
+      processRenewalFiles(files);
+      e.target.value = "";
+    });
+  }
   const portfolioRenewalInput = document.getElementById("portfolio-renewal-input");
-  if (portfolioRenewalInput) portfolioRenewalInput.addEventListener("change", function(e) {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    processRenewalFiles(files);
-    e.target.value = "";
+  if (portfolioRenewalInput && portfolioRenewalInput.dataset.atlasBoundChange !== "1") {
+    portfolioRenewalInput.dataset.atlasBoundChange = "1";
+    portfolioRenewalInput.addEventListener("change", function(e) {
+      const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
+      processRenewalFiles(files);
+      e.target.value = "";
+    });
+  }
+  document.querySelectorAll("#market-survey-input").forEach(marketSurveyInput => {
+    if (marketSurveyInput.dataset.atlasBoundChange === "1") return;
+    marketSurveyInput.dataset.atlasBoundChange = "1";
+    marketSurveyInput.addEventListener("change", function(e) {
+      const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
+      processMarketSurveyFiles(files);
+      e.target.value = "";
+    });
   });
-  const marketSurveyInput = document.getElementById("market-survey-input");
-  if (marketSurveyInput) marketSurveyInput.addEventListener("change", function(e) {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    processMarketSurveyFiles(files);
-    e.target.value = "";
+  document.querySelectorAll("#dlr-box-score-input, .dlr-box-score-input").forEach(dlrBoxScoreInput => {
+    if (dlrBoxScoreInput.dataset.atlasBoundChange === "1") return;
+    dlrBoxScoreInput.dataset.atlasBoundChange = "1";
+    dlrBoxScoreInput.addEventListener("change", function(e) {
+      const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
+      processDlrBoxScoreFiles(files);
+      e.target.value = "";
+    });
   });
-  document.querySelectorAll("#dlr-box-score-input, .dlr-box-score-input").forEach(dlrBoxScoreInput => dlrBoxScoreInput.addEventListener("change", function(e) {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    processDlrBoxScoreFiles(files);
-    e.target.value = "";
-  }));
 }
 
 function getImportTargetMonth() {
@@ -9903,7 +9934,7 @@ function renderPortfolioScopedSetupTab() {
         </div>
       </div>
     </div>
-    <div data-floor-plan-selection-section="community" style="margin-bottom:14px;padding:14px;border-radius:12px;border:1px solid rgba(68,147,248,0.18);background:rgba(255,255,255,0.65)">
+    <div data-floor-plan-selection-section="community" data-floor-plan-selection-prop="${escapeHtml(selectedName)}" style="margin-bottom:14px;padding:14px;border-radius:12px;border:1px solid rgba(68,147,248,0.18);background:rgba(255,255,255,0.65)">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
         <div>
           <div style="font-size:0.76rem;font-weight:700;color:var(--text)">Floor Plan Budget Setup</div>
@@ -9917,7 +9948,7 @@ function renderPortfolioScopedSetupTab() {
           <div style="display:grid;grid-template-columns:150px 140px auto;gap:8px;align-items:end">
             <div>
               <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Bulk field</div>
-              <select id="community-floor-plan-bulk-field">
+              <select data-floor-plan-bulk-field="community">
                 <option value="marketedRent">Marketed rent</option>
                 <option value="budgetRent">Budget rent</option>
                 <option value="leasedPct">Leased %</option>
@@ -9930,7 +9961,7 @@ function renderPortfolioScopedSetupTab() {
             </div>
             <div>
               <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Bulk value</div>
-              <input id="community-floor-plan-bulk-value" type="text" placeholder="Value to apply">
+              <input data-floor-plan-bulk-value="community" type="text" placeholder="Value to apply">
             </div>
             <button class="btn btn-gray btn-sm" type="button" onclick="applySelectedCommunityFloorPlanField(${JSON.stringify(selectedName)})">Apply to Selected</button>
           </div>
@@ -10789,7 +10820,7 @@ function renderSetupTab() {
           <div style="font-size:0.63rem;color:var(--muted);margin-top:3px">Use the direct floor-plan / pricing page when it differs from the main website.</div>
         </div>
       </div>
-      <div id="community-floor-plan-budget-setup" data-floor-plan-selection-section="community" style="margin-top:14px;padding:14px;border-radius:12px;border:1px solid rgba(68,147,248,0.18);background:rgba(255,255,255,0.65)">
+      <div id="community-floor-plan-budget-setup" data-floor-plan-selection-section="community" data-floor-plan-selection-prop="${escapeHtml(p.name)}" style="margin-top:14px;padding:14px;border-radius:12px;border:1px solid rgba(68,147,248,0.18);background:rgba(255,255,255,0.65)">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
           <div>
             <div style="font-size:0.76rem;font-weight:700;color:var(--text)">Investor Community Email Setup</div>
@@ -10833,7 +10864,7 @@ function renderSetupTab() {
           <div style="display:grid;grid-template-columns:150px 140px auto;gap:8px;align-items:end">
             <div>
               <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Bulk field</div>
-              <select id="community-floor-plan-bulk-field">
+              <select data-floor-plan-bulk-field="community">
                 <option value="marketedRent">Marketed rent</option>
                 <option value="budgetRent">Budget rent</option>
                 <option value="leasedPct">Leased %</option>
@@ -10846,7 +10877,7 @@ function renderSetupTab() {
             </div>
             <div>
               <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Bulk value</div>
-              <input id="community-floor-plan-bulk-value" type="text" placeholder="Value to apply">
+              <input data-floor-plan-bulk-value="community" type="text" placeholder="Value to apply">
             </div>
             <button class="btn btn-gray btn-sm" type="button" onclick="applySelectedCommunityFloorPlanField(${JSON.stringify(p.name)})">Apply to Selected</button>
           </div>
@@ -18796,24 +18827,24 @@ function renderPortfolioHomeTab() {
     const latestApplicationApprovalRate = latestApplicationTrendRow && Number(latestApplicationTrendRow.applications) > 0
       ? (Number(latestApplicationTrendRow.approvedApps) / Number(latestApplicationTrendRow.applications)) * 100
       : null;
-    const approvedTrendCard = renderSafeSection(
+    const guestCardTrendCard = renderSafeSection(
       () => buildPortfolioTrendCard({
-        title: "Approved apps trend",
-        subtitle: `${trendScopeTitle} month-over-month approved applications from Jan ${new Date().getFullYear()} through ${selectedLabel} ${new Date().getFullYear()}.`,
+        title: "Guest card / lead trend",
+        subtitle: `${trendScopeTitle} month-over-month guest cards from Jan ${new Date().getFullYear()} through ${selectedLabel} ${new Date().getFullYear()}.`,
         summaryLabel: selectedLabel,
-        summaryValue: selectedTrendRow && selectedTrendRow.communityCount > 0 ? formatPortfolioTrendMetricValue(selectedTrendRow.approvedApps, "number") : "—",
+        summaryValue: selectedTrendRow && selectedTrendRow.communityCount > 0 ? formatPortfolioTrendMetricValue(selectedTrendRow.guestCards, "number") : "—",
         summarySub: selectedMonth > 0 && selectedTrendRow && trendRows[selectedMonth - 1]?.communityCount > 0
-          ? formatPortfolioProjectedTrendValue(selectedTrendRow.approvedApps ?? 0, trendRows[selectedMonth - 1]?.approvedApps ?? 0, "count_pct", selectedMonth, new Date().getFullYear())
-          : "Approved apps saved in the selected reporting month",
+          ? formatPortfolioProjectedTrendValue(selectedTrendRow.guestCards ?? 0, trendRows[selectedMonth - 1]?.guestCards ?? 0, "count_pct", selectedMonth, new Date().getFullYear())
+          : "Guest cards saved in the selected reporting month",
         chips: [
           `<strong>${selectedTrendRow?.communityCount ?? 0}</strong> active communities`,
-          `<strong>${formatPortfolioTrendMetricValue(trendRows[0]?.approvedApps, "number")}</strong> in Jan`,
-          `<strong>${formatPortfolioTrendMetricValue(Math.max(...trendRows.map(row => row.approvedApps || 0)), "number")}</strong> peak month`
+          `<strong>${formatPortfolioTrendMetricValue(trendRows[0]?.guestCards, "number")}</strong> in Jan`,
+          `<strong>${formatPortfolioTrendMetricValue(Math.max(...trendRows.map(row => row.guestCards || 0)), "number")}</strong> peak month`
         ],
         chartHtml: buildPortfolioTrendLineChart(
           trendRows.map(row => ({
             shortLabel: row.shortLabel,
-            value: row.communityCount > 0 && row.monthIdx <= selectedMonth ? row.approvedApps : null,
+            value: row.communityCount > 0 && row.monthIdx <= selectedMonth ? row.guestCards : null,
             projected: false
           })),
           {
@@ -18825,7 +18856,7 @@ function renderPortfolioHomeTab() {
           }
         )
       }),
-      `<div class="portfolio-list-card"><h3>Approved apps trend</h3><p>Trend data is temporarily unavailable for this snapshot.</p></div>`
+      `<div class="portfolio-list-card"><h3>Guest card / lead trend</h3><p>Trend data is temporarily unavailable for this snapshot.</p></div>`
     );
     const netAbsorptionTrendCard = renderSafeSection(
       () => buildPortfolioTrendCard({
@@ -18952,30 +18983,13 @@ function renderPortfolioHomeTab() {
     </div>
   </div>
   <div class="portfolio-list-card" style="margin-top:16px">
-      <div class="atlas-map-shell" style="margin-top:0;margin-bottom:16px">
-        <h3>Portfolio map</h3>
-        <p>Community pins use the saved addresses in Community Setup so the portfolio view can verify geographic coverage and location context without leaving the dashboard.</p>
-        <div class="atlas-map-grid">
-          <div id="atlas-portfolio-map" aria-label="ATLAS portfolio map"></div>
-          <div class="atlas-map-list">
-            <div class="atlas-map-card">
-              <div class="atlas-map-card-title">Saved address coverage</div>
-              <div class="atlas-map-card-meta">${details.length} communities are included in this snapshot. Add or update addresses in Community Setup if a pin is missing.</div>
-            </div>
-            <div class="atlas-map-card">
-              <div class="atlas-map-card-title">Map behavior</div>
-              <div class="atlas-map-card-meta">The map auto-fits to saved properties and each hover state shows the community name, address, and unit count.</div>
-            </div>
-          </div>
-        </div>
-      </div>
       <h3>Portfolio priorities</h3>
       <p>${isPortfolioWorkspaceSelected() ? "Internally-facing items that may need a management touch before they show up as missed outcomes." : "Internally-facing items that may need a management touch before they show up as missed outcomes for this community."}</p>
       <div class="portfolio-rank-list">${prioritiesHtml}</div>
   </div>
   ${marketComparisonHtml}
   <div class="portfolio-section-grid" style="margin-top:16px">
-    ${approvedTrendCard}
+    ${guestCardTrendCard}
     ${netAbsorptionTrendCard}
   </div>
   <div class="portfolio-section-grid" style="margin-top:16px">
@@ -20163,6 +20177,7 @@ function buildPortfolioHomeMonthlyTrendRows(anchorMonth = getSelectedDashboardMo
       acc.communityCount += 1;
       acc.applications += applicationMetrics.applications;
       acc.approvedApps += applicationMetrics.approvals;
+      acc.guestCards += getLeadSourceTotal(monthEntry);
       acc.moveIns += Math.max(0, Number(monthEntry.moveIns) || 0);
       acc.moveOuts += getEffectiveMoveOutsForMonth(monthIdx, monthEntries).effective;
       acc.tours += Math.max(0, Number(monthEntry.tours) || 0);
@@ -20176,6 +20191,7 @@ function buildPortfolioHomeMonthlyTrendRows(anchorMonth = getSelectedDashboardMo
       communityCount: 0,
       applications: 0,
       approvedApps: 0,
+      guestCards: 0,
       moveIns: 0,
       moveOuts: 0,
       tours: 0,
@@ -20192,6 +20208,7 @@ function buildPortfolioHomeMonthlyTrendRows(anchorMonth = getSelectedDashboardMo
       communityCount: totals.communityCount,
       applications: totals.applications,
       approvedApps: totals.approvedApps,
+      guestCards: totals.guestCards,
       moveIns: totals.moveIns,
       moveOuts: totals.moveOuts,
       netAbsorption: totals.moveIns - totals.moveOuts,
@@ -26927,9 +26944,7 @@ function buildCommunityProgressTrendRows(report) {
       : Math.max(0, Number(monthEntry.applications) || 0);
     const approvals = Number.isFinite(Number(summary.applicationsApproved))
       ? Number(summary.applicationsApproved)
-      : Number.isFinite(Number(summary.leasesSigned))
-        ? Number(summary.leasesSigned)
-        : Math.max(0, Number(monthEntry.applicationsApproved ?? monthEntry.leasesSignedActual) || 0);
+      : Math.max(0, Number(monthEntry.applicationsApproved) || 0);
     const moveIns = Number.isFinite(Number(summary.moveIns))
       ? Number(summary.moveIns)
       : Math.max(0, Number(monthEntry.moveIns) || 0);
@@ -28045,7 +28060,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
   const hasGuestCards = Object.prototype.hasOwnProperty.call(monthEntry, "guestCards");
   const hasTours = Object.prototype.hasOwnProperty.call(monthEntry, "tours");
   const hasApplications = Object.prototype.hasOwnProperty.call(monthEntry, "applications");
-  const hasApprovals = Object.prototype.hasOwnProperty.call(monthEntry, "applicationsApproved") || Object.prototype.hasOwnProperty.call(monthEntry, "leasesSignedActual");
+  const hasApprovals = Object.prototype.hasOwnProperty.call(monthEntry, "applicationsApproved");
   const hasDenied = Object.prototype.hasOwnProperty.call(monthEntry, "denied");
   const hasCancelled = Object.prototype.hasOwnProperty.call(monthEntry, "cancelled");
   const hasPending = Object.prototype.hasOwnProperty.call(monthEntry, "pendingDecision");
@@ -28070,7 +28085,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
     rolledGuestCards: hasGuestCards ? Math.max(0, Number(monthEntry.guestCards) || 0) : Math.max(0, Number(summary.guestCards) || leadSourceBreakdownTotal || 0),
     tours: hasTours ? Math.max(0, Number(monthEntry.tours) || 0) : Math.max(0, Number(summary.tours) || 0),
     applications: Number.isFinite(Number(monthEntry.applications)) ? Math.max(0, Number(monthEntry.applications) || 0) : Math.max(0, Number(summary.applications) || 0),
-    approvals: hasApprovals ? Math.max(0, Number(monthEntry.applicationsApproved ?? monthEntry.leasesSignedActual ?? summary.applicationsApproved) || 0) : Math.max(0, Number(summary.applicationsApproved) || 0),
+    approvals: hasApprovals ? Math.max(0, Number(monthEntry.applicationsApproved) || 0) : Math.max(0, Number(summary.applicationsApproved) || 0),
     denials: hasDenied ? Math.max(0, Number(monthEntry.denied) || 0) : null,
     cancelled: hasCancelled ? Math.max(0, Number(monthEntry.cancelled) || 0) : null,
     pendingDecision: hasPending ? Math.max(0, Number(monthEntry.pendingDecision) || 0) : null,

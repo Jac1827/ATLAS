@@ -8450,11 +8450,34 @@ function callReviewSummaryText(plan){
   return parts.filter(Boolean).join(' · ') || (plan.notes || 'Call review saved.');
 }
 
+function buildReportingEmployeeFallback(employeeId, overrides = {}){
+  const resolved = overrides && typeof overrides === 'object' ? overrides : {};
+  return {
+    id: String(employeeId || resolved.id || `missing-${Date.now()}`),
+    name: String(resolved.name || 'Unknown employee'),
+    community: String(resolved.community || ''),
+    role: String(resolved.role || 'Former / missing employee'),
+    region: String(resolved.region || ''),
+    department: String(resolved.department || ''),
+    managerId: String(resolved.managerId || ''),
+    managerName: String(resolved.managerName || '')
+  };
+}
+
+function getReportingEmployee(employeeId, overrides = {}){
+  return getEmployee(employeeId) || buildReportingEmployeeFallback(employeeId, overrides);
+}
+
+function compareReportingRecordRows(left, right){
+  return (right.keyDate || '').localeCompare(left.keyDate || '')
+    || String(left.employee?.name || 'Unknown employee').localeCompare(String(right.employee?.name || 'Unknown employee'));
+}
+
 function reportingRecords(){
   const selectedTypes = new Set(UI.reportFilters.recordTypes);
   if(selectedTypes.has('call_review')){
     return callReviewReportingPlans().map(plan => {
-      const employee = getEmployee(plan.employeeId);
+      const employee = getReportingEmployee(plan.employeeId);
       return {
         kind: 'plan',
         recordType: 'call_review',
@@ -8469,11 +8492,10 @@ function reportingRecords(){
         plan,
         writeup: null
       };
-    }).sort((left, right) => (right.keyDate || '').localeCompare(left.keyDate || '') || left.employee.name.localeCompare(right.employee.name));
+    }).sort(compareReportingRecordRows);
   }
   const planRows = filteredReportingPlans().map(plan => {
-    const employee = getEmployee(plan.employeeId);
-    const lastUpdate = (plan.weeklyUpdates || []).slice(-1)[0];
+    const employee = getReportingEmployee(plan.employeeId);
     return {
       kind: 'plan',
       recordType: plan.type,
@@ -8493,7 +8515,7 @@ function reportingRecords(){
   });
 
   const writeupRows = filteredReportingWriteups().map(writeup => {
-    const employee = STATE.employees.find(item => item.id === writeup.employeeId);
+    const employee = getReportingEmployee(writeup.employeeId);
     return {
       kind: 'writeup',
       recordType: 'writeup',
@@ -8510,7 +8532,7 @@ function reportingRecords(){
     };
   });
 
-  return [...planRows, ...writeupRows].sort((left, right) => (right.keyDate || '').localeCompare(left.keyDate || '') || left.employee.name.localeCompare(right.employee.name));
+  return [...planRows, ...writeupRows].sort(compareReportingRecordRows);
 }
 
 function buildReportingSummary(records, mode){

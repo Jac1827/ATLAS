@@ -3264,7 +3264,13 @@ function buildWorkbookOnlyDlrInvestorOverview(communityName, overlay, monthIdx, 
   const generatedNotes = buildDlrInvestorNotes({
     reportDateLabel: overlay.reportDateLabel,
     monthLabel: formatDlrMonthYear(monthIdx, year),
-    leadSources: mtdTraffic,
+    leadSources: {
+      walkIn: mtdTraffic.walkIn,
+      offSiteEvent: mtdTraffic.offSiteEvent,
+      phoneCalls: mtdTraffic.phoneCalls,
+      emailsOnline: mtdTraffic.emailsOnline,
+      textChatOther: mtdTraffic.textChatOther
+    },
     dailyTraffic,
     mtdTraffic,
     prevMonthTraffic: {},
@@ -13203,14 +13209,20 @@ function buildBoxScoreSheetCandidates(workbook) {
   }));
 }
 
+function isAvailabilityHeaderRow(headerRow = []) {
+  const normalized = Array.isArray(headerRow) ? headerRow.map(cell => String(cell ?? "").trim().toLowerCase()) : [];
+  if (!normalized.includes("unit type") || !normalized.includes("units") || !normalized.includes("occupied")) return false;
+  return normalized.includes("leased")
+    || (normalized.includes("occupied no notice") && normalized.includes("notice rented"));
+}
+
 function extractAvailabilityTotalsFromRows(rows = []) {
   for (let idx = 0; idx < rows.length; idx += 1) {
     const row = Array.isArray(rows[idx]) ? rows[idx].map(cell => String(cell ?? "").trim()) : [];
     if (!row.some(cell => /availability\s*\(as of/i.test(cell))) continue;
     let headerIdx = -1;
     for (let probe = idx; probe < Math.min(rows.length, idx + 6); probe += 1) {
-      const headerRow = Array.isArray(rows[probe]) ? rows[probe].map(cell => String(cell ?? "").trim().toLowerCase()) : [];
-      if (headerRow.includes("unit type") && headerRow.includes("units") && headerRow.includes("occupied") && headerRow.includes("leased")) {
+      if (isAvailabilityHeaderRow(rows[probe])) {
         headerIdx = probe;
         break;
       }
@@ -13230,6 +13242,11 @@ function extractAvailabilityTotalsFromRows(rows = []) {
     const findHeader = (...patterns) => headers.findIndex(header => patterns.some(pattern => header === pattern || header.includes(pattern)));
     const valueAt = idx => Number.isInteger(idx) && idx >= 0 && idx < totalRow.length ? parseOptionalWorkbookMetric(totalRow[idx]) : null;
     const trendUnitsIdx = headers.findIndex(header => /not exposed leased units/i.test(header));
+    const leasedUnitsIdx = headers.findIndex(header => /availability .* leased units/i.test(header));
+    const occupiedNoNoticeIdx = findHeader("occupied no notice");
+    const noticeRentedIdx = findHeader("notice rented");
+    const explicitLeasedUnits = valueAt(leasedUnitsIdx);
+    const derivedLeasedUnits = [occupiedNoNoticeIdx, noticeRentedIdx].reduce((sum, columnIdx) => sum + (Number(valueAt(columnIdx)) || 0), 0);
     return {
       totalUnits: valueAt(findHeader("units")),
       rentableUnits: valueAt(findHeader("rentable units")),
@@ -13237,7 +13254,7 @@ function extractAvailabilityTotalsFromRows(rows = []) {
       vacantUnits: valueAt(findHeader("vacant")),
       availableUnits: valueAt(findHeader("available")),
       occupiedNoNoticeUnits: valueAt(findHeader("occupied no notice")),
-      leasedUnits: valueAt(headers.findIndex(header => /availability .* leased units/i.test(header))),
+      leasedUnits: explicitLeasedUnits ?? (derivedLeasedUnits > 0 ? derivedLeasedUnits : null),
       exposureUnits: valueAt(headers.findIndex(header => /availability .* exposure units/i.test(header))),
       notExposedLeasedUnits: valueAt(trendUnitsIdx),
       trendUnits: valueAt(trendUnitsIdx)
@@ -13252,8 +13269,7 @@ function extractAvailabilityFloorPlanRowsFromRows(rows = [], fileName = "") {
     if (!row.some(cell => /availability\s*\(as of/i.test(cell))) continue;
     let headerIdx = -1;
     for (let probe = idx; probe < Math.min(rows.length, idx + 6); probe += 1) {
-      const headerRow = Array.isArray(rows[probe]) ? rows[probe].map(cell => String(cell ?? "").trim().toLowerCase()) : [];
-      if (headerRow.includes("unit type") && headerRow.includes("units") && headerRow.includes("occupied") && headerRow.includes("leased")) {
+      if (isAvailabilityHeaderRow(rows[probe])) {
         headerIdx = probe;
         break;
       }
@@ -13273,6 +13289,8 @@ function extractAvailabilityFloorPlanRowsFromRows(rows = [], fileName = "") {
     const occupiedPctCandidates = exactHeaderIndices("occupied").filter(matchIdx => matchIdx !== occupiedCountIdx);
     const leasedPctCandidates = exactHeaderIndices("leased");
     const leasedUnitsIdx = headers.findIndex(header => /availability .* leased units/i.test(header));
+    const occupiedNoNoticeIdx = headers.findIndex(header => header.includes("occupied no notice"));
+    const noticeRentedIdx = headers.findIndex(header => header.includes("notice rented"));
     const floorPlanRows = [];
     for (let rowIdx = headerIdx + 1; rowIdx < rows.length; rowIdx += 1) {
       const sourceRow = Array.isArray(rows[rowIdx]) ? rows[rowIdx] : [];
@@ -13281,7 +13299,12 @@ function extractAvailabilityFloorPlanRowsFromRows(rows = [], fileName = "") {
       if (/^total:?$/i.test(label)) break;
       const units = normalizeWorkbookNumber(sourceRow[rentableUnitsIdx >= 0 ? rentableUnitsIdx : unitsIdx]);
       const occupiedCount = normalizeWorkbookNumber(sourceRow[occupiedCountIdx]);
-      const leasedUnits = leasedUnitsIdx >= 0 ? normalizeWorkbookNumber(sourceRow[leasedUnitsIdx]) : 0;
+      const explicitLeasedUnits = leasedUnitsIdx >= 0 ? normalizeWorkbookNumber(sourceRow[leasedUnitsIdx]) : null;
+      const derivedLeasedUnits = [occupiedNoNoticeIdx, noticeRentedIdx].reduce((sum, columnIdx) => {
+        if (!Number.isInteger(columnIdx) || columnIdx < 0) return sum;
+        return sum + (normalizeWorkbookNumber(sourceRow[columnIdx]) || 0);
+      }, 0);
+      const leasedUnits = explicitLeasedUnits ?? (derivedLeasedUnits > 0 ? derivedLeasedUnits : 0);
       const firstPctValue = candidateIndices => candidateIndices.reduce((resolved, candidateIdx) => {
         if (resolved != null) return resolved;
         const numeric = parseOptionalWorkbookMetric(sourceRow[candidateIdx]);
@@ -13741,15 +13764,15 @@ async function processDlrBoxScoreFiles(files) {
           return {
             id: existing?.id || rate.id || makeFloorPlanId(),
             name: String(existing?.name || rate.name || "").trim(),
-            sqft: existing?.sqft ?? rate.sqft ?? null,
-            budgetRent: existing?.budgetRent ?? rate.budgetRent ?? null,
+            sqft: rate.sqft ?? existing?.sqft ?? null,
+            budgetRent: rate.budgetRent ?? existing?.budgetRent ?? null,
             marketedRent: existing?.marketedRent ?? null,
             occupancyPct: rate.occupancyPct ?? existing?.occupancyPct ?? null,
             leasedPct: rate.leasedPct ?? existing?.leasedPct ?? null,
             marketedRentSource: existing?.marketedRentSource || rate.marketedRentSource || file.name,
             beds: existing?.beds ?? null,
             baths: existing?.baths ?? null,
-            units: existing?.units ?? rate.units ?? null
+            units: rate.units ?? existing?.units ?? null
           };
         });
         existingPlans.forEach(plan => {
@@ -26519,7 +26542,13 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
   const generatedNotes = buildDlrInvestorNotes({
     reportDateLabel: hasDailyBoxScore ? (dailyBoxScore.reportDateLabel || effectiveDlrSummary.reportDateLabel) : effectiveDlrSummary.reportDateLabel,
     monthLabel: formatDlrMonthYear(reportMetricMonthIdx, year),
-    leadSources: mtdTraffic,
+    leadSources: {
+      walkIn: mtdTraffic.walkIn,
+      offSiteEvent: mtdTraffic.offSiteEvent,
+      phoneCalls: mtdTraffic.phoneCalls,
+      emailsOnline: mtdTraffic.emailsOnline,
+      textChatOther: mtdTraffic.textChatOther
+    },
     dailyTraffic,
     mtdTraffic,
     prevMonthTraffic,

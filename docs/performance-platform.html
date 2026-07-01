@@ -300,6 +300,12 @@ const DASHBOARD_STORAGE_MIGRATION_KEYS = [
   'rise_ops_property_catalog_v1',
   'atlas_rise_side_nav_collapsed_v1'
 ];
+const ATLAS_STATE_DB_NAME = 'atlas_rise_state_v1';
+const ATLAS_STATE_STORE_NAME = 'records';
+const ATLAS_STATE_COMMUNITY_KEY = 'community_data';
+const ATLAS_STATE_WEEKLY_SNAPSHOT_KEY = 'weekly_snapshot';
+const ATLAS_STATE_DAILY_BACKUP_INDEX_KEY = 'daily_backup_index';
+const ATLAS_STATE_DAILY_BACKUP_PREFIX = 'daily_backup:';
 const PERFORMANCE_SHARED_SYNC_SCOPE = 'atlas_performance_v1';
 function getPerformanceSharedSyncBaseUrl(){
   const origin = String(window.location?.origin || '');
@@ -308,6 +314,55 @@ function getPerformanceSharedSyncBaseUrl(){
 const PERFORMANCE_SHARED_SYNC_BASE_URL = getPerformanceSharedSyncBaseUrl();
 const PERFORMANCE_SHARED_SYNC_ENDPOINT = `${PERFORMANCE_SHARED_SYNC_BASE_URL}/api/state`;
 const PERFORMANCE_SHARED_SYNC_HEALTH_ENDPOINT = `${PERFORMANCE_SHARED_SYNC_BASE_URL}/api/health`;
+
+function openAtlasIndexedDbFromPerformance(){
+  return new Promise((resolve, reject) => {
+    if(typeof indexedDB === 'undefined'){
+      reject(new Error('IndexedDB is not available in this browser.'));
+      return;
+    }
+    const request = indexedDB.open(ATLAS_STATE_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if(!db.objectStoreNames.contains(ATLAS_STATE_STORE_NAME)){
+        db.createObjectStore(ATLAS_STATE_STORE_NAME, { keyPath: 'key' });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error('Could not open ATLAS browser data storage.'));
+  });
+}
+
+function readAtlasIndexedDbValueFromPerformance(key){
+  return openAtlasIndexedDbFromPerformance().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(ATLAS_STATE_STORE_NAME, 'readonly');
+    const store = tx.objectStore(ATLAS_STATE_STORE_NAME);
+    const request = store.get(key);
+    request.onsuccess = () => resolve(request.result ? request.result.value : undefined);
+    request.onerror = () => reject(request.error || new Error('Could not read ATLAS browser data storage.'));
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => reject(tx.error || new Error('ATLAS data storage transaction failed.'));
+    tx.onabort = () => reject(tx.error || new Error('ATLAS data storage transaction aborted.'));
+  }));
+}
+
+async function buildAtlasIndexedDbBundlePayloadFromPerformance(){
+  try{
+    const communityData = await readAtlasIndexedDbValueFromPerformance(ATLAS_STATE_COMMUNITY_KEY);
+    const weeklySnapshot = await readAtlasIndexedDbValueFromPerformance(ATLAS_STATE_WEEKLY_SNAPSHOT_KEY);
+    const dailyBackupIndexRaw = await readAtlasIndexedDbValueFromPerformance(ATLAS_STATE_DAILY_BACKUP_INDEX_KEY);
+    const dailyBackupIndex = Array.isArray(dailyBackupIndexRaw) ? dailyBackupIndexRaw.filter(Boolean) : [];
+    const dailyBackups = {};
+    for(const dateKey of dailyBackupIndex){
+      const payload = await readAtlasIndexedDbValueFromPerformance(`${ATLAS_STATE_DAILY_BACKUP_PREFIX}${dateKey}`);
+      if(payload) dailyBackups[dateKey] = payload;
+    }
+    if(!communityData && !weeklySnapshot && dailyBackupIndex.length === 0) return null;
+    return { communityData, weeklySnapshot, dailyBackupIndex, dailyBackups };
+  }catch(_error){
+    return null;
+  }
+}
 const PERFORMANCE_SHARED_SYNC_WRITE_TOKEN = 'atlas-rise-shared-sync-2026';
 const PERFORMANCE_SHARED_SYNC_META_KEY = 'atlas_performance_shared_sync_meta_v1';
 const COMPANY_ROSTER_ASSET = './company-active-employee-roster.xlsx';
@@ -1131,7 +1186,7 @@ async function pushPerformanceSharedState({ silent = false, source = 'manual' } 
   try{
     // To avoid overwriting other users' work, pull the latest remote snapshot and merge it with
     // the local browser state before pushing an updated combined dataset back to the cloud.
-    const localBundle = buildPerformancePlatformStorageBundle();
+    const localBundle = await buildPerformancePlatformStorageBundle();
     let mergedKeys = {...(localBundle && localBundle.keys ? localBundle.keys : {})};
     try{
       const response = await fetch(`${PERFORMANCE_SHARED_SYNC_ENDPOINT}?scope=${encodeURIComponent(PERFORMANCE_SHARED_SYNC_SCOPE)}`, { method:'GET' });
@@ -1183,7 +1238,7 @@ async function pushPerformanceSharedState({ silent = false, source = 'manual' } 
   }
 }
 
-function buildPerformancePlatformStorageBundle(){
+async function buildPerformancePlatformStorageBundle(){
   suppressPerformanceSharedSyncPush = true;
   try{
     saveState();
@@ -1203,15 +1258,16 @@ function buildPerformancePlatformStorageBundle(){
   });
   return {
     app: 'rise-performance-platform',
-    bundleType: 'atlas_browser_storage_bundle_v1',
+    bundleType: 'atlas_browser_storage_bundle_v2',
     exportedAt: new Date().toISOString(),
     sourceLabel: 'RISE Performance Platform',
-    keys: storage
+    keys: storage,
+    indexedDb: await buildAtlasIndexedDbBundlePayloadFromPerformance()
   };
 }
 
 async function copyPerformancePlatformBundleToClipboard(){
-  const payload = JSON.stringify(buildPerformancePlatformStorageBundle(), null, 2);
+  const payload = JSON.stringify(await buildPerformancePlatformStorageBundle(), null, 2);
   if(navigator.clipboard && navigator.clipboard.writeText){
     try{
       await navigator.clipboard.writeText(payload);

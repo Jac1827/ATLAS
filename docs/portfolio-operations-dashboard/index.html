@@ -5730,7 +5730,8 @@ function getCommunitySummary(propName, sourceData) {
     seasonal: scopeSeasonal
   });
   const curMonthData = scopeMonthlyData[scopeCurrentMonth] ?? {};
-  const prevMonthData = scopeMonthlyData[Math.max(scopeCurrentMonth - 1, 0)] ?? {};
+  const previousMonthIdx = scopeCurrentMonth > 0 ? scopeCurrentMonth - 1 : null;
+  const prevMonthData = previousMonthIdx != null ? (scopeMonthlyData[previousMonthIdx] ?? {}) : {};
   const currentRow = schedule[scopeCurrentMonth] ?? {};
   const nextRow = schedule[Math.min(scopeCurrentMonth + 1, 11)] ?? currentRow;
   const budgetOccPct = getRecordSavedBudgetOccPct(sourceData, scopeCurrentMonth, sourceData.reportYear);
@@ -5743,7 +5744,9 @@ function getCommunitySummary(propName, sourceData) {
   const applicationMetrics = getApplicationDecisionMetrics(curMonthData);
   const prevApplicationMetrics = getApplicationDecisionMetrics(prevMonthData);
   const renewalSummary = getRenewalSummaryForMonth(curMonthData);
-  const previousRenewalSummary = getRenewalSummaryForMonth(prevMonthData);
+  const previousRenewalSummary = previousMonthIdx != null
+    ? getRenewalSummaryForMonth(prevMonthData)
+    : { expirations: 0, signed: 0, ntv: 0, transfers: 0, undecided: 0, earlyTermination: 0, projectedAttrition: 0, retentionRate: 0 };
   const closedQuarterRetention = getClosedOutRetentionAverageForMonths(scopeMonthlyData, getQuarterMonths(bonusQuarter), scopeCurrentMonth);
   const applications = applicationMetrics.applications;
   const previousGuestCards = getLeadSourceTotal(prevMonthData);
@@ -5754,7 +5757,7 @@ function getCommunitySummary(propName, sourceData) {
   const previousLeasesSigned = Number(prevMonthData.leasesSignedActual) || 0;
   const moveOuts = getEffectiveMoveOutsForMonth(scopeCurrentMonth, scopeMonthlyData).effective;
   const moveIns = Number(curMonthData.moveIns) || 0;
-  const previousMoveOuts = getEffectiveMoveOutsForMonth(Math.max(scopeCurrentMonth - 1, 0), scopeMonthlyData).effective;
+  const previousMoveOuts = previousMonthIdx != null ? getEffectiveMoveOutsForMonth(previousMonthIdx, scopeMonthlyData).effective : 0;
   const previousMoveIns = Number(prevMonthData.moveIns) || 0;
   const budgetOccUnits = occupancyBaseUnits > 0 && budgetOccPct > 0 ? Math.ceil(occupancyBaseUnits * budgetOccPct / 100) : 0;
   const budgetLeasedUnits = occupancyBaseUnits > 0 && budgetLeasedPct > 0 ? Math.ceil(occupancyBaseUnits * budgetLeasedPct / 100) : 0;
@@ -5797,7 +5800,7 @@ function getCommunitySummary(propName, sourceData) {
     applicationApprovalPct: applicationMetrics.approvalPct,
     applicationDenialPct: applicationMetrics.denialPct,
     tourToLeasePct: getTourToLeasePctForMonth(scopeMonthlyData, scopeCurrentMonth, scopeCurrentMonth),
-    previousTourToLeasePct: getTourToLeasePctForMonth(scopeMonthlyData, Math.max(scopeCurrentMonth - 1, 0), Math.max(scopeCurrentMonth - 1, 0)),
+    previousTourToLeasePct: previousMonthIdx != null ? getTourToLeasePctForMonth(scopeMonthlyData, previousMonthIdx, previousMonthIdx) : 0,
     previousApplications: prevApplicationMetrics.applications,
     leasesSigned,
     previousLeasesSigned,
@@ -9246,11 +9249,12 @@ function mergeDashboardMonthlyData(baseMonthlyData, incomingMonthlyData) {
   const incomingEntries = Array.isArray(incomingMonthlyData) ? incomingMonthlyData : [];
   return Array.from({ length: 12 }, (_, idx) => {
     const baseEntry = baseEntries[idx] && typeof baseEntries[idx] === "object" ? baseEntries[idx] : {};
-    const incomingEntry = incomingEntries[idx] && typeof incomingEntries[idx] === "object" ? incomingEntries[idx] : {};
-    if (!dashboardMonthlyEntryHasData(incomingEntry)) {
+    const hasIncomingEntry = idx in incomingEntries && incomingEntries[idx] && typeof incomingEntries[idx] === "object";
+    if (!hasIncomingEntry) {
       return baseEntry;
     }
-    return { ...baseEntry, ...incomingEntry };
+    const incomingEntry = incomingEntries[idx];
+    return dashboardMonthlyEntryHasData(incomingEntry) ? { ...baseEntry, ...incomingEntry } : { ...incomingEntry };
   });
 }
 
@@ -9264,7 +9268,7 @@ function mergeMonthlyHistoryByPeriod(baseHistory, incomingHistory) {
     const baseEntry = merged[periodKey] && typeof merged[periodKey] === "object" ? merged[periodKey] : defaultMonthly()[monthIdx];
     merged[periodKey] = dashboardMonthlyEntryHasData(incomingEntry)
       ? { ...baseEntry, ...incomingEntry }
-      : baseEntry;
+      : { ...incomingEntry };
   });
   return merged;
 }
@@ -25154,8 +25158,11 @@ function buildPortfolioDlrOverviewDocument(report) {
     </div>`).join("");
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(report.title)}</title><style>
     *{box-sizing:border-box}
-    body{font-family:'DM Sans',Arial,sans-serif;padding:28px;color:#0f172a;background:#ffffff}
-    table{width:100%;border-collapse:collapse}
+    @page{size:Letter portrait;margin:0.42in}
+    html{background:#ffffff}
+    body{font-family:'DM Sans',Arial,sans-serif;margin:0 auto;max-width:960px;padding:20px 22px;color:#0f172a;background:#ffffff}
+    table{width:100%;border-collapse:collapse;table-layout:fixed}
+    img,svg{max-width:100%}
     .section{margin-bottom:18px}
     .section-card{border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff}
     .hero-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px}
@@ -25780,7 +25787,7 @@ function buildDlrFloorPlanVarianceChart(report) {
   };
   const rowHtml = rowsWithVariance.map(row => {
     const variance = row.variance == null ? null : (Number(row.variance) || 0);
-    const varianceWidth = variance == null ? 0 : Math.max(4, Math.min((Math.abs(variance) / maxAbsVariance) * 50, 50));
+    const varianceWidth = variance == null ? 0 : Math.max(8, Math.min((Math.abs(variance) / maxAbsVariance) * 100, 100));
     const varianceColor = variance == null ? "#94a3b8" : variance >= 0 ? "#22c55e" : "#f97316";
     const recommendation = buildRecommendation(row);
     const communityIdentifier = String(row.communityIdentifier || "").trim();
@@ -25792,7 +25799,7 @@ function buildDlrFloorPlanVarianceChart(report) {
       row.baths != null ? `${row.baths} ba` : "",
       row.sqft != null ? `${Math.round(row.sqft).toLocaleString()} sf` : ""
     ].filter(Boolean).join(" · ");
-    return `<div style="display:grid;grid-template-columns:118px minmax(128px,0.9fr) minmax(178px,1fr) 76px 76px 56px 74px 74px minmax(102px,0.85fr);gap:8px;align-items:center;padding:7px 0;border-top:1px solid #e5e7eb">
+    return `<div style="display:grid;grid-template-columns:88px minmax(110px,0.95fr) minmax(132px,1fr) 60px 60px 44px 54px 54px minmax(88px,0.85fr);gap:6px;align-items:center;padding:7px 0;border-top:1px solid #e5e7eb">
   <div style="font-size:10px;color:#334155;line-height:1.3">
     <div style="font-size:11px;font-weight:700;color:#0f172a;line-height:1.2">${escapeHtml(communityDisplayLabel)}</div>
     ${communityDisplayMeta ? `<div style="font-size:9px;color:#64748b;margin-top:2px;line-height:1.3">${escapeHtml(communityDisplayMeta)}</div>` : ""}
@@ -25804,9 +25811,12 @@ function buildDlrFloorPlanVarianceChart(report) {
   <div>
     <div style="position:relative;height:11px;border-radius:999px;background:#eef2f7;overflow:hidden;border:1px solid #dbe4f0">
       <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:#94a3b8"></div>
-      ${variance == null ? "" : variance >= 0
-        ? `<div style="position:absolute;left:50%;top:1px;bottom:1px;width:${varianceWidth}%;background:${varianceColor};border-radius:0 999px 999px 0"></div>`
-        : `<div style="position:absolute;right:50%;top:1px;bottom:1px;width:${varianceWidth}%;background:${varianceColor};border-radius:999px 0 0 999px"></div>`}
+      <div style="position:absolute;left:0;top:0;bottom:0;width:50%;display:flex;justify-content:flex-end;padding:1px 0 1px 1px">
+        ${variance == null || variance >= 0 ? "" : `<div style="width:${varianceWidth}%;background:${varianceColor};border-radius:999px 0 0 999px"></div>`}
+      </div>
+      <div style="position:absolute;right:0;top:0;bottom:0;width:50%;display:flex;justify-content:flex-start;padding:1px 1px 1px 0">
+        ${variance == null || variance < 0 ? "" : `<div style="width:${varianceWidth}%;background:${varianceColor};border-radius:0 999px 999px 0"></div>`}
+      </div>
     </div>
     <div style="display:flex;justify-content:space-between;gap:6px;font-size:8px;color:#64748b;margin-top:3px;line-height:1.2">
       <span>Below</span>
@@ -25821,13 +25831,13 @@ function buildDlrFloorPlanVarianceChart(report) {
   <div style="font-size:10px;color:#334155;line-height:1.2"><strong>% Lsd</strong><br>${compCalcFormatPercentValue(row.leasedPct)}</div>
   <div>
     <div style="font-size:8px;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-bottom:3px">Recommendation</div>
-    <div style="display:inline-flex;align-items:center;justify-content:center;min-height:28px;padding:5px 7px;border-radius:999px;background:${recommendation.bg};border:1px solid ${recommendation.color}33;font-size:9px;font-weight:700;line-height:1.2;color:${recommendation.color};text-align:center">
+    <div style="display:inline-flex;align-items:center;justify-content:center;min-height:28px;max-width:100%;padding:5px 7px;border-radius:999px;background:${recommendation.bg};border:1px solid ${recommendation.color}33;font-size:9px;font-weight:700;line-height:1.2;color:${recommendation.color};text-align:center;white-space:normal;overflow-wrap:anywhere">
       ${escapeHtml(recommendation.label)}
     </div>
   </div>
 </div>`;
   }).join("");
-  return `<div style="padding:12px 12px 14px;border:1px solid #dbe4f0;border-radius:16px;background:#ffffff">
+  return `<div style="padding:12px 12px 14px;border:1px solid #dbe4f0;border-radius:16px;background:#ffffff;overflow:hidden">
     <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:12px">
       <div>
         <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#64748b">Floor Plan Rent Variance</div>
@@ -28010,7 +28020,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
     monthlyData: monthEntries
   };
   const monthEntry = monthEntries[monthIdx] ?? {};
-  const previousMonthEntry = monthEntries[Math.max(monthIdx - 1, 0)] ?? {};
+  const previousMonthEntry = monthIdx > 0 ? (monthEntries[monthIdx - 1] ?? {}) : null;
   const schedule = computeScheduleFromContext({
     totalUnits,
     corporateLeaseUnits: corporateUnits,
@@ -28210,7 +28220,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
       undecided: renewalSummary.undecided,
       projectedAttrition: renewalSummary.projectedAttrition,
       retentionRate: renewalSummary.retentionRate,
-      previousRetentionRate: getRenewalSummaryForMonth(previousMonthEntry).retentionRate
+      previousRetentionRate: previousMonthEntry ? getRenewalSummaryForMonth(previousMonthEntry).retentionRate : null
     },
     pricing: {
       totalUnits,
@@ -28684,7 +28694,7 @@ function buildCommunityProgressReportDocument(report) {
     .progress-snapshot-widget-value{font-size:28px;font-weight:800;line-height:1;margin-top:8px}
     .progress-snapshot-widget-sub{font-size:12px;line-height:1.6;color:#475569;margin-top:8px}
     .progress-snapshot-widget-detail{font-size:11px;line-height:1.6;color:#64748b;margin-top:4px}
-    .progress-card{border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff}
+    .progress-card{border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff;overflow:hidden}
     .progress-alert-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-bottom:18px}
     .progress-alert{border-radius:14px;padding:14px 16px;border:1px solid #dbe4f0;background:#f8fafc}
     .progress-alert.critical{background:#fef2f2;border-color:#fecaca}
@@ -28705,7 +28715,7 @@ function buildCommunityProgressReportDocument(report) {
     .progress-community-export-body .progress-shell{margin-bottom:18px}
     .section{margin-bottom:18px}
     @media print {
-      body{padding:18px}
+      body{max-width:none;padding:0}
       .progress-grid-2,.progress-grid-equal{grid-template-columns:1fr 1fr}
       .progress-card.section,.progress-grid-2 > .progress-card,.progress-grid-equal > .progress-card{
         break-inside:avoid;
@@ -31549,10 +31559,10 @@ async function processRonaldoFloorPlanSnapshotRows(workbook, fileName = "", opti
       nextPlans.push({
         id: existing?.id || makeFloorPlanId(),
         name: String(existing?.name || rate.name || "").trim(),
-        sqft: existing?.sqft ?? rate.sqft ?? null,
-        budgetRent: existing?.budgetRent ?? rate.budgetRent ?? null,
+        sqft: Number.isFinite(Number(rate.sqft)) ? Number(rate.sqft) : (existing?.sqft ?? null),
+        budgetRent: Number.isFinite(Number(rate.budgetRent)) ? Number(rate.budgetRent) : (existing?.budgetRent ?? null),
         marketedRent: importedMarketedRent,
-        occupancyPct: existing?.occupancyPct ?? rate.occupancyPct ?? null,
+        occupancyPct: Number.isFinite(Number(rate.occupancyPct)) ? Number(rate.occupancyPct) : (existing?.occupancyPct ?? null),
         leasedPct: Number.isFinite(Number(rate.leasedPct)) ? Number(rate.leasedPct) : (existing?.leasedPct ?? null),
         marketedRentSource: importedMarketedRent != null ? `${fileName} · Scheduled Rent` : (existing?.marketedRentSource || fileName),
         beds: existing?.beds ?? rate.beds ?? null,

@@ -9110,7 +9110,7 @@ async function pushDashboardSharedState({ silent = false, source = "manual" } = 
         }
       }
     } catch {}
-    const response = await fetch(DASHBOARD_SHARED_SYNC_ENDPOINT, {
+    const response = await fetch(`${DASHBOARD_SHARED_SYNC_ENDPOINT}?scope=${encodeURIComponent(DASHBOARD_SHARED_SYNC_SCOPE)}`, {
       method: "POST",
       headers: {
         accept: "application/json",
@@ -19147,6 +19147,8 @@ function renderReportingTab() {
     : "";
   const editableRecommendationDetails = ["community_progress", "market_comparison"].includes(normalizedType)
     ? []
+    : isLvrReport
+    ? getReportBuilderScopedDetails().slice(0, 1)
     : (reportHubPerspective === "csuite" || reportHubPerspective === "regional")
     ? getScopedPortfolioReportDetails(reportBuilderDetails).slice(0, 8)
     : [];

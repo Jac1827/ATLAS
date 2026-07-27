@@ -1206,7 +1206,10 @@ const DASHBOARD_STORAGE_MIGRATION_KEYS = [
   PERFORMANCE_PLATFORM_STORAGE_KEY
 ];
 const DASHBOARD_SHARED_SYNC_SCOPE = "atlas_dashboard_v1";
+const DASHBOARD_SHARED_SYNC_WORKER_ORIGIN = "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev";
 function getDashboardSharedSyncBaseUrl() {
+  const explicitOverride = String(window.ATLAS_SHARED_SYNC_BASE_URL || "").trim();
+  if (/^https?:\/\//i.test(explicitOverride)) return explicitOverride.replace(/\/+$/, "");
   const origin = String(window.location?.origin || "");
   if (/^https?:\/\//i.test(origin)) {
     try {
@@ -1217,7 +1220,7 @@ function getDashboardSharedSyncBaseUrl() {
       }
     } catch {}
   }
-  return "https://api.appdeploy.ai/app/582d88ce519f411cab";
+  return DASHBOARD_SHARED_SYNC_WORKER_ORIGIN;
 }
 const DASHBOARD_SHARED_SYNC_BASE_URL = getDashboardSharedSyncBaseUrl();
 const DASHBOARD_SHARED_SYNC_ENDPOINT = `${DASHBOARD_SHARED_SYNC_BASE_URL}/api/state`;
@@ -9068,7 +9071,7 @@ async function pushDashboardSharedState({ silent = false, source = "manual" } = 
         }
       }
     } catch {}
-    const response = await fetch(DASHBOARD_SHARED_SYNC_ENDPOINT, {
+    const response = await fetch(`${DASHBOARD_SHARED_SYNC_ENDPOINT}?scope=${encodeURIComponent(DASHBOARD_SHARED_SYNC_SCOPE)}`, {
       method: "POST",
       headers: {
         accept: "application/json",

@@ -1206,7 +1206,10 @@ const DASHBOARD_STORAGE_MIGRATION_KEYS = [
   PERFORMANCE_PLATFORM_STORAGE_KEY
 ];
 const DASHBOARD_SHARED_SYNC_SCOPE = "atlas_dashboard_v1";
+const DASHBOARD_SHARED_SYNC_WORKER_ORIGIN = "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev";
 function getDashboardSharedSyncBaseUrl() {
+  const explicitOverride = String(window.ATLAS_SHARED_SYNC_BASE_URL || "").trim();
+  if (/^https?:\/\//i.test(explicitOverride)) return explicitOverride.replace(/\/+$/, "");
   const origin = String(window.location?.origin || "");
   if (/^https?:\/\//i.test(origin)) {
     try {
@@ -1217,7 +1220,7 @@ function getDashboardSharedSyncBaseUrl() {
       }
     } catch {}
   }
-  return "https://api.appdeploy.ai/app/582d88ce519f411cab";
+  return DASHBOARD_SHARED_SYNC_WORKER_ORIGIN;
 }
 const DASHBOARD_SHARED_SYNC_BASE_URL = getDashboardSharedSyncBaseUrl();
 const DASHBOARD_SHARED_SYNC_ENDPOINT = `${DASHBOARD_SHARED_SYNC_BASE_URL}/api/state`;
@@ -5305,14 +5308,14 @@ function computeScheduleFromContext(ctx) {
 
     const netOccNeeded    = Math.max(Math.ceil(occupancyBaseUnits * occTarget    / 100) - baseOcc,    0);
     const netLeasedNeeded = Math.max(Math.ceil(occupancyBaseUnits * leasedTarget / 100) - baseLeased, 0);
-    const netNeeded       = netOccNeeded;
+    const netNeeded       = Math.max(netOccNeeded, netLeasedNeeded);
 
     // Gross leases = net needed + replacement for move-outs
     const moveOutsToReplace = moveOuts;
     const recommendedGrossLeases = moveOutsToReplace + netNeeded;
 
-    const newOccupied = Math.min(baseOcc    + netOccNeeded, occupancyBaseUnits);
-    const newLeased   = Math.min(baseLeased + netNeeded,    occupancyBaseUnits);
+    const newOccupied = Math.min(baseOcc    + netOccNeeded,    occupancyBaseUnits);
+    const newLeased   = Math.min(baseLeased + netLeasedNeeded, occupancyBaseUnits);
 
     simOcc    = newOccupied;
     simLeased = newLeased;
@@ -5587,8 +5590,8 @@ function renderPropGrid() {
       } else {
         const scopeParts = [];
         if (savedScopedCount > 0) scopeParts.push(`${savedScopedCount} saved`);
-        if (liveDraftScopedCount > 0) scopeParts.push(`${liveDraftScopedCount} live draft`);
-        scopeStorageLabel = `${scopeParts.length ? scopeParts.join(" + ") : "0 saved"} communities in current portfolio scope`;
+        if (liveDraftScopedCount > 0) scopeParts.push(`${liveDraftScopedCount} live draft ${liveDraftScopedCount === 1 ? "community" : "communities"}`);
+        scopeStorageLabel = `${scopeParts.length ? scopeParts.join(" + ") : "0 saved communities"} in current portfolio scope`;
       }
     }
     workspaceSubline.textContent = `${isPortfolioWorkspaceSelected() ? `${details.length} communities · ${aggregate.totalUnits.toLocaleString()} units` : getHeaderSubText()} · Reporting month ${FULL_MONTHS[getSelectedDashboardMonthIndex()]} · ${scopeStorageLabel}.`;
@@ -9068,7 +9071,7 @@ async function pushDashboardSharedState({ silent = false, source = "manual" } = 
         }
       }
     } catch {}
-    const response = await fetch(DASHBOARD_SHARED_SYNC_ENDPOINT, {
+    const response = await fetch(`${DASHBOARD_SHARED_SYNC_ENDPOINT}?scope=${encodeURIComponent(DASHBOARD_SHARED_SYNC_SCOPE)}`, {
       method: "POST",
       headers: {
         accept: "application/json",
@@ -16652,15 +16655,21 @@ function buildPortfolioHomePriorities(details = [], selectedMonth = getSelectedD
       });
     }
 
-    if (summary && Number(summary.budgetOccPct ?? 0) > 0 && (Number(summary.occGapUnits ?? 0) >= 4 || Number(summary.leasedGapUnits ?? 0) >= 6)) {
+    const budgetOccPct = Number(summary?.budgetOccPct ?? 0);
+    const occGapUnits = Math.max(0, Number(summary?.occGapUnits ?? 0));
+    const leasedGapUnits = Math.max(0, Number(summary?.leasedGapUnits ?? 0));
+    const hasBudgetPath = budgetOccPct > 0;
+    if (summary && ((hasBudgetPath && occGapUnits >= 4) || leasedGapUnits >= 6)) {
       priorities.push({
         community: detail.name,
-        title: `Occupancy is off the saved leasing pace`,
-        body: `${detail.name} is ${Math.max(0, Math.round(summary.occGapUnits ?? 0))} occupied unit${Math.round(summary.occGapUnits ?? 0) === 1 ? "" : "s"} and ${Math.max(0, Math.round(summary.leasedGapUnits ?? 0))} leased unit${Math.round(summary.leasedGapUnits ?? 0) === 1 ? "" : "s"} behind the saved budget path for ${FULL_MONTHS[selectedMonth]}. Tighten pending closeouts and near-term move-in execution before the gap widens.`,
+        title: hasBudgetPath ? `Occupancy is off the saved leasing pace` : `Leased occupancy is materially behind target`,
+        body: hasBudgetPath
+          ? `${detail.name} is ${occGapUnits} occupied unit${occGapUnits === 1 ? "" : "s"} and ${leasedGapUnits} leased unit${leasedGapUnits === 1 ? "" : "s"} behind the saved budget path for ${FULL_MONTHS[selectedMonth]}. Tighten pending closeouts and near-term move-in execution before the gap widens.`
+          : `${detail.name} is ${leasedGapUnits} leased unit${leasedGapUnits === 1 ? "" : "s"} behind the current leased target for ${FULL_MONTHS[selectedMonth]}. Save the missing budget occupancy path and tighten pending closeouts before the gap widens.`,
         value: `${Number(summary.occPct ?? 0).toFixed(1)}%`,
-        valueSub: `budget ${Number(summary.budgetOccPct ?? 0).toFixed(1)}%`,
-        tone: Number(summary.occGapUnits ?? 0) >= 8 ? "critical" : "warn",
-        severity: 84 + Math.min(Math.max(Number(summary.occGapUnits ?? 0), Number(summary.leasedGapUnits ?? 0)), 12),
+        valueSub: hasBudgetPath ? `budget ${budgetOccPct.toFixed(1)}%` : `${leasedGapUnits} leased units behind`,
+        tone: Math.max(occGapUnits, leasedGapUnits) >= 8 ? "critical" : "warn",
+        severity: 84 + Math.min(Math.max(occGapUnits, leasedGapUnits), 12),
         tabIdx: 2,
         actionLabel: "Open Overview"
       });
@@ -18649,7 +18658,7 @@ function renderPortfolioHomeTab() {
         });
         const rentGap = Number(subject.rent ?? 0) - Number(market.rent ?? 0);
         const nerGap = Number(subject.ner ?? 0) - Number(market.ner ?? 0);
-        const occupancyGap = Number(subject.occupancyPct ?? 0) - Number(market.leasedPct ?? 0);
+        const leasedBenchmarkGap = Number(subject.leasedPct ?? 0) - Number(market.leasedPct ?? 0);
         const comparisonCardBody = `<div class="portfolio-list-card" style="margin-top:0">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
             <div>
@@ -18677,8 +18686,8 @@ function renderPortfolioHomeTab() {
                 <div class="meta">${formatSignedDisplay(rentGap, 0, "")} rent · ${formatSignedDisplay(nerGap, 0, "")} NER</div>
               </div>
               <div style="text-align:right;max-width:220px">
-                <div class="metric">${formatSignedDisplay(occupancyGap, 1, " pts")}</div>
-                <div class="metric-sub">occupancy gap</div>
+                <div class="metric">${formatSignedDisplay(leasedBenchmarkGap, 1, " pts")}</div>
+                <div class="metric-sub">leased gap vs market</div>
               </div>
             </div>
           </div>
@@ -28716,13 +28725,13 @@ function buildMarketComparisonMetricRows(subject = {}, market = {}, options = {}
     : "";
   return [
     {
-      label: "Physical Occupancy",
+      label: "Leased Occupancy Benchmark",
       kind: "pct",
-      subjectValue: subject.occupancyPct,
+      subjectValue: subject.leasedPct,
       marketValue: market.leasedPct,
       subjectLabel: "Subject",
       marketLabel: "Market",
-      subjectNote: subject.occupiedUnits > 0 ? `${formatDlrMetricValue(subject.occupiedUnits)} occupied units${occupancyExclusionNote}` : `Subject occupancy${occupancyExclusionNote}`,
+      subjectNote: subject.leasedUnits > 0 ? `${formatDlrMetricValue(subject.leasedUnits)} leased units${occupancyExclusionNote}` : `Subject leased occupancy${occupancyExclusionNote}`,
       marketNote: market.leasedPct > 0 ? `Weekly AptIQ leased occupancy${occupancyExclusionNote}` : `Weekly AptIQ leased occupancy benchmark${occupancyExclusionNote}`
     },
     {
@@ -28807,7 +28816,7 @@ function buildMarketComparisonSubjectOnlyCards(report) {
 function buildMarketComparisonNarrative(report) {
   const subject = report?.subject ?? {};
   const market = report?.market ?? {};
-  const occupancyDelta = (Number(subject.occupancyPct) || 0) - (Number(market.leasedPct) || 0);
+  const leasedDelta = (Number(subject.leasedPct) || 0) - (Number(market.leasedPct) || 0);
   const rentDelta = (Number(subject.rent) || 0) - (Number(market.rent) || 0);
   const nerDelta = (Number(subject.ner) || 0) - (Number(market.ner) || 0);
   const appDelta = (Number(subject.applications) || 0) - (Number(market.applicationsLast30) || 0);
@@ -28817,7 +28826,7 @@ function buildMarketComparisonNarrative(report) {
     ? ` Lease-up communities were excluded from the aggregated occupancy benchmark for this view.`
     : "";
   return [
-    `${scopeLabel} is operating at ${formatDlrPercent(subject.occupancyPct, 1)} physical occupancy against a ${formatDlrPercent(market.leasedPct, 1)} market leased benchmark, a ${formatSignedDisplay(occupancyDelta, 1, " pts")} gap.${occupancyExclusionLine}`,
+    `${scopeLabel} is operating at ${formatDlrPercent(subject.leasedPct, 1)} leased occupancy against a ${formatDlrPercent(market.leasedPct, 1)} market leased benchmark, a ${formatSignedDisplay(leasedDelta, 1, " pts")} gap.${occupancyExclusionLine}`,
     `Subject rent averages ${formatDlrCurrency(subject.rent)} versus ${formatDlrCurrency(market.rent)} in the weekly AptIQ comp set, while subject NER averages ${formatDlrCurrency(subject.ner)} versus ${formatDlrCurrency(market.ner)}. Applications are ${formatSignedDisplay(appDelta, 0, " units")} versus the market's last-30-day pace and signed leases are ${formatSignedDisplay(leaseDelta, 0, " units")} versus the market benchmark.`,
     `Weekly AptIQ survey coverage is ${formatDlrMetricValue(report.marketCoverageCount)} of ${formatDlrMetricValue(report.communityCount)} selected communities${report.marketCoveragePct > 0 ? ` (${report.marketCoveragePct.toFixed(0)}%)` : ""}. Subject-only operating metrics such as tours, approvals, move-ins, move-outs, and retention remain visible below, but they are not forced into a market comparison because the survey does not publish a like-for-like counterpart.`
   ];

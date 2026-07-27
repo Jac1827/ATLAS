@@ -1,0 +1,405 @@
+{
+  "createdAt": "2026-07-21T15:50:51.437Z",
+  "currentCloudUpdatedAt": "2026-07-21T15:40:02.958Z",
+  "sourceBundle": "/Users/jacheflin/Downloads/atlas_browser_bundle_2026-06-24.json",
+  "restoreTargetScope": "atlas_dashboard_v1",
+  "currentScopeReadForRollback": "atlas_performance_v1",
+  "restoredCommunityCount": 10,
+  "restoredCommunities": [
+    "Glen Kernan Park",
+    "Nocatee",
+    "Bartram Park",
+    "Baymeadows",
+    "Citrus Ridge",
+    "Florence Villa",
+    "Sereno",
+    "Viera",
+    "St Augustine",
+    "Doro"
+  ],
+  "skippedOldOnlyCommunities": [
+    "Sutton House"
+  ],
+  "dailyBackupIndex": [
+    "2026-07-21",
+    "2026-06-24"
+  ],
+  "payloadBytes": 11714118,
+  "before": {
+    "Glen Kernan Park": {
+      "monthlyDataNonEmpty": 0,
+      "historyPeriods": [
+        "2026-07"
+      ],
+      "financialPeriods": [],
+      "financialBudgetPeriods": [],
+      "marketSurveyPeriods": [
+        "2026-07"
+      ]
+    },
+    "Nocatee": {
+      "monthlyDataNonEmpty": 0,
+      "historyPeriods": [
+        "2026-07"
+      ],
+      "financialPeriods": [],
+      "financialBudgetPeriods": [],
+      "marketSurveyPeriods": [
+        "2026-07"
+      ]
+    },
+    "Bartram Park": {
+      "monthlyDataNonEmpty": 1,
+      "historyPeriods": [
+        "2026-07"
+      ],
+      "financialPeriods": [],
+      "financialBudgetPeriods": [],
+      "marketSurveyPeriods": [
+        "2026-07"
+      ]
+    },
+    "Baymeadows": {
+      "monthlyDataNonEmpty": 1,
+      "historyPeriods": [
+        "2026-07"
+      ],
+      "financialPeriods": [],
+      "financialBudgetPeriods": [],
+      "marketSurveyPeriods": [
+        "2026-07"
+      ]
+    },
+    "Citrus Ridge": {
+      "monthlyDataNonEmpty": 1,
+      "historyPeriods": [
+        "2026-07"
+      ],
+      "financialPeriods": [],
+      "financialBudgetPeriods": [],
+      "marketSurveyPeriods": [
+        "2026-07"
+      ]
+    },
+    "Florence Villa": {
+      "monthlyDataNonEmpty": 6,
+      "historyPeriods": [
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "financialPeriods": [],
+      "financialBudgetPeriods": [],
+      "marketSurveyPeriods": [
+        "2026-07"
+      ]
+    },
+    "Sereno": {
+      "monthlyDataNonEmpty": 1,
+      "historyPeriods": [
+        "2026-07"
+      ],
+      "financialPeriods": [],
+      "financialBudgetPeriods": [],
+      "marketSurveyPeriods": [
+        "2026-07"
+      ]
+    },
+    "Viera": {
+      "monthlyDataNonEmpty": 0,
+      "historyPeriods": [
+        "2026-07"
+      ],
+      "financialPeriods": [],
+      "financialBudgetPeriods": [],
+      "marketSurveyPeriods": [
+        "2026-07"
+      ]
+    },
+    "St Augustine": {
+      "monthlyDataNonEmpty": 1,
+      "historyPeriods": [
+        "2026-07"
+      ],
+      "financialPeriods": [],
+      "financialBudgetPeriods": [],
+      "marketSurveyPeriods": [
+        "2026-07"
+      ]
+    },
+    "Doro": {
+      "monthlyDataNonEmpty": 1,
+      "historyPeriods": [
+        "2026-07"
+      ],
+      "financialPeriods": [],
+      "financialBudgetPeriods": [],
+      "marketSurveyPeriods": []
+    }
+  },
+  "after": {
+    "Glen Kernan Park": {
+      "monthlyDataNonEmpty": 12,
+      "historyPeriods": [
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "financialPeriods": [],
+      "financialBudgetPeriods": [],
+      "marketSurveyPeriods": [
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07"
+      ]
+    },
+    "Nocatee": {
+      "monthlyDataNonEmpty": 12,
+      "historyPeriods": [
+        "2026-05",
+        "2026-06",
+        "2026-07"
+      ],
+      "financialPeriods": [],
+      "financialBudgetPeriods": [
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "marketSurveyPeriods": [
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07"
+      ]
+    },
+    "Bartram Park": {
+      "monthlyDataNonEmpty": 12,
+      "historyPeriods": [
+        "2026-05",
+        "2026-06",
+        "2026-07"
+      ],
+      "financialPeriods": [],
+      "financialBudgetPeriods": [
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12",
+        "2027-01",
+        "2027-02",
+        "2027-03",
+        "2027-04",
+        "2027-05",
+        "2027-06",
+        "2027-07",
+        "2027-08",
+        "2027-09",
+        "2027-10",
+        "2027-11",
+        "2027-12"
+      ],
+      "marketSurveyPeriods": [
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07"
+      ]
+    },
+    "Baymeadows": {
+      "monthlyDataNonEmpty": 12,
+      "historyPeriods": [
+        "2026-05",
+        "2026-06",
+        "2026-07"
+      ],
+      "financialPeriods": [],
+      "financialBudgetPeriods": [],
+      "marketSurveyPeriods": [
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07"
+      ]
+    },
+    "Citrus Ridge": {
+      "monthlyDataNonEmpty": 12,
+      "historyPeriods": [
+        "2026-05",
+        "2026-06",
+        "2026-07"
+      ],
+      "financialPeriods": [],
+      "financialBudgetPeriods": [],
+      "marketSurveyPeriods": [
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07"
+      ]
+    },
+    "Florence Villa": {
+      "monthlyDataNonEmpty": 12,
+      "historyPeriods": [
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "financialPeriods": [],
+      "financialBudgetPeriods": [],
+      "marketSurveyPeriods": [
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07"
+      ]
+    },
+    "Sereno": {
+      "monthlyDataNonEmpty": 12,
+      "historyPeriods": [
+        "2026-05",
+        "2026-06",
+        "2026-07"
+      ],
+      "financialPeriods": [],
+      "financialBudgetPeriods": [],
+      "marketSurveyPeriods": [
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07"
+      ]
+    },
+    "Viera": {
+      "monthlyDataNonEmpty": 12,
+      "historyPeriods": [
+        "2026-05",
+        "2026-06",
+        "2026-07"
+      ],
+      "financialPeriods": [],
+      "financialBudgetPeriods": [
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "marketSurveyPeriods": [
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07"
+      ]
+    },
+    "St Augustine": {
+      "monthlyDataNonEmpty": 12,
+      "historyPeriods": [
+        "2026-05",
+        "2026-06",
+        "2026-07"
+      ],
+      "financialPeriods": [],
+      "financialBudgetPeriods": [],
+      "marketSurveyPeriods": [
+        "2026-05",
+        "2026-06",
+        "2026-07"
+      ]
+    },
+    "Doro": {
+      "monthlyDataNonEmpty": 12,
+      "historyPeriods": [
+        "2026-05",
+        "2026-06",
+        "2026-07"
+      ],
+      "financialPeriods": [
+        "2026-03"
+      ],
+      "financialBudgetPeriods": [
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12",
+        "2027-01",
+        "2027-02",
+        "2027-03",
+        "2027-04",
+        "2027-05",
+        "2027-06",
+        "2027-07",
+        "2027-08",
+        "2027-09",
+        "2027-10",
+        "2027-11",
+        "2027-12"
+      ],
+      "marketSurveyPeriods": [
+        "2026-04",
+        "2026-05",
+        "2026-06"
+      ]
+    }
+  }
+}

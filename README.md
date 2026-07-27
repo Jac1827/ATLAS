@@ -2,7 +2,8 @@
 
 This repo carries two separate static HTML experiences:
 
-- RISE Performance Platform: [docs/index.html](docs/index.html)
+- Root redirect / ATLAS launcher: [docs/index.html](docs/index.html)
+- RISE Performance Platform: [docs/performance-platform.html](docs/performance-platform.html)
 - RISE Portfolio Operations Dashboard: [docs/portfolio-operations-dashboard/index.html](docs/portfolio-operations-dashboard/index.html)
 
 ## What is included
@@ -27,8 +28,10 @@ This repo carries two separate static HTML experiences:
 - The Tea notification uses `mailto:` because this is a static site with no mail backend.
 - Signed documents are also stored in browser storage, so extremely large files are not recommended.
 - Presentation images and related assets use browser storage, so occasional cleanup is still recommended for very large image libraries.
-- The published site serves `docs/index.html` for the performance platform and `docs/portfolio-operations-dashboard/index.html` for the operations dashboard.
+- The published site root `docs/index.html` redirects to the ATLAS operations dashboard.
+- The Performance Platform publishes from `docs/performance-platform.html`.
+- The operations dashboard publishes from `docs/portfolio-operations-dashboard/index.html`.
 - Daily Glitch Review smoke check:
   - `node tools/daily_glitch_review_smoke.mjs`
-  - Always validates `docs/index.html`, `docs/portfolio-operations-dashboard/index.html`, and `docs/portfolio-operations-dashboard/financial-accountability.html` for source/publish parity, expected UI markers, and local asset references.
+  - Validates the root redirect page plus `docs/performance-platform.html`, `docs/portfolio-operations-dashboard/index.html`, and `docs/portfolio-operations-dashboard/financial-accountability.html` for expected UI markers and local asset references.
   - When run inside the Codex in-app browser session, it also verifies the published dashboard pages render cleanly without console errors and expose the expected tabs and export/import controls.

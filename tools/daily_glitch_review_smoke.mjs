@@ -35,8 +35,17 @@ const browserClientPath = resolveBrowserClientPath();
 
 const publishedPages = [
   {
-    label: "performance platform",
+    label: "site redirect",
     relativePath: "docs/index.html",
+    markers: [
+      "<title>Opening ATLAS RISE Ops Dashboard</title>",
+      "window.location.replace(\"portfolio-operations-dashboard/\")",
+      "Open ATLAS",
+    ],
+  },
+  {
+    label: "performance platform",
+    relativePath: "docs/performance-platform.html",
     markers: [
       "<title>RISE Performance Platform</title>",
       "Performance Platform",
@@ -78,11 +87,6 @@ const sourceParityPairs = [
     label: "financial accountability",
     sourcePath: "financial-accountability.html",
     publishedPath: "docs/portfolio-operations-dashboard/financial-accountability.html",
-  },
-  {
-    label: "performance platform",
-    sourcePath: "index.html",
-    publishedPath: "docs/index.html",
   },
 ];
 
@@ -198,6 +202,7 @@ async function tryRunBrowserChecks() {
 
   const pageUrls = {
     performance: pathToFileURL(path.join(repoRoot, "docs/index.html")).href,
+    performanceApp: pathToFileURL(path.join(repoRoot, "docs/performance-platform.html")).href,
     operations: pathToFileURL(path.join(repoRoot, "docs/portfolio-operations-dashboard/index.html")).href,
     financial: pathToFileURL(path.join(repoRoot, "docs/portfolio-operations-dashboard/financial-accountability.html")).href,
   };
@@ -224,9 +229,9 @@ async function tryRunBrowserChecks() {
   }
 
   async function verifyPerformancePage(tab) {
-    await tab.goto(pageUrls.performance);
+    await tab.goto(pageUrls.performanceApp);
     await tab.playwright.waitForLoadState({ state: "load", timeoutMs: 15000 });
-    await requireNoConsoleErrors(tab, "docs/index.html");
+    await requireNoConsoleErrors(tab, "docs/performance-platform.html");
     await requireVisible(tab.playwright.getByText("Performance Platform", { exact: false }), "Performance Platform title");
     await requireVisible(tab.playwright.getByText("Secure coaching, PIP, and roster management", { exact: false }), "performance subtitle");
   }
@@ -269,12 +274,12 @@ async function main() {
   const browserResult = await tryRunBrowserChecks();
   if (browserResult.mode === "static-only") {
     console.log(
-      `Daily Glitch Review smoke passed static coverage for docs/index.html, docs/portfolio-operations-dashboard/index.html, and docs/portfolio-operations-dashboard/financial-accountability.html. Browser checks were skipped: ${browserResult.reason}`,
+      `Daily Glitch Review smoke passed static coverage for docs/index.html, docs/performance-platform.html, docs/portfolio-operations-dashboard/index.html, and docs/portfolio-operations-dashboard/financial-accountability.html. Browser checks were skipped: ${browserResult.reason}`,
     );
     return;
   }
   console.log(
-    "Daily Glitch Review smoke passed static and browser coverage for docs/index.html, docs/portfolio-operations-dashboard/index.html, and docs/portfolio-operations-dashboard/financial-accountability.html.",
+    "Daily Glitch Review smoke passed static and browser coverage for docs/index.html, docs/performance-platform.html, docs/portfolio-operations-dashboard/index.html, and docs/portfolio-operations-dashboard/financial-accountability.html.",
   );
 }
 

@@ -6635,9 +6635,15 @@ function flushWorkspaceNavigation() {
 }
 
 function queueWorkspaceNavigation(scopeValue = "", tabIdx = null, options = {}) {
+  const safeTabIdx = tabIdx === null || tabIdx === undefined ? null : Math.max(0, Math.min(9, Number(tabIdx) || 0));
+  if (safeTabIdx === 8 && options?.syncReportMonth !== false) {
+    reportHubMonth = getSelectedDashboardMonthIndex();
+    reportHubYear = new Date().getFullYear();
+    persistOpsGlobalData();
+  }
   pendingWorkspaceNavigation = {
     scopeValue: typeof scopeValue === "string" ? scopeValue : "",
-    tabIdx: tabIdx === null || tabIdx === undefined ? null : Math.max(0, Math.min(9, Number(tabIdx) || 0)),
+    tabIdx: safeTabIdx,
     portfolio: options?.portfolio === true,
     windowshadeKey: String(options?.windowshadeKey || ""),
     anchorId: String(options?.anchorId || "")
@@ -9621,6 +9627,8 @@ function attachEventListeners() {
       else if (field === "currentMonth") {
         storeCurrentMonthSnapshots(prevCurrentMonth, currentOccupied, currentLeased);
         currentMonth = Number(el.value);
+        reportHubMonth = currentMonth;
+        reportHubYear = new Date().getFullYear();
         workspaceMonthOverride = currentMonth;
         restoreCurrentMonthSnapshots(currentMonth, {
           anchorMonth: prevCurrentMonth,
@@ -10090,18 +10098,21 @@ function renderPortfolioScopedTrafficTab() {
   </div>`;
   const rows = details.map(detail => {
     const entry = detail.record?.monthlyData?.[selectedMonth] ?? {};
+    const currentMonthTourToLeasePct = Number(detail.summary?.tours ?? 0) > 0
+      ? ((Number(detail.summary?.leasesSigned ?? 0) || 0) / (Number(detail.summary?.tours ?? 0) || 1)) * 100
+      : null;
     return `<tr>
       <td class="l" style="font-weight:700">${escapeHtml(detail.name)}</td>
       <td><input type="number" min="0" value="${Math.round(detail.summary.guestCards ?? 0)}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "guest_cards", this.value)' style="width:88px"></td>
       <td><input type="number" min="0" value="${Math.round(detail.summary.tours ?? 0)}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "tours", this.value)' style="width:88px"></td>
       <td><input type="number" min="0" value="${Math.round(detail.summary.applications ?? 0)}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "applications", this.value)' style="width:88px"></td>
       <td><input type="number" min="0" value="${Math.round(detail.summary.applicationsApproved ?? 0)}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "applications_approved", this.value)' style="width:88px"></td>
-      <td>${(detail.summary.tourToLeasePct ?? 0).toFixed(1)}%</td>
+      <td>${currentMonthTourToLeasePct === null ? "—" : `${currentMonthTourToLeasePct.toFixed(1)}%`}</td>
       <td><button type="button" class="btn btn-gray btn-sm" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(detail.name)}, 3)'>Open Funnel</button></td>
     </tr>`;
   }).join("");
   const bodyHtml = `<div class="tbl-wrap">
-    <div class="tbl-header"><h2>Portfolio funnel by community</h2><p>Traffic and funnel fields are editable directly here for the selected month. Tour-to-lease continues to use the current month or historical fallback logic.</p></div>
+    <div class="tbl-header"><h2>Portfolio funnel by community</h2><p>Traffic and funnel fields are editable directly here for the selected month. Community rows show current-month conversion only so historical fallback rates do not masquerade as live month performance.</p></div>
     <table>
       <thead><tr><th class="l">Community</th><th>Leads</th><th>Tours</th><th>Applications</th><th>Approved</th><th>Tour to Lease</th><th>Action</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -10113,9 +10124,14 @@ function renderPortfolioScopedTrafficTab() {
 function renderPortfolioScopedRenewalsTab() {
   const { details, aggregate } = getWorkspaceScopedAggregate(getSelectedDashboardMonthIndex());
   const selectedMonth = getSelectedDashboardMonthIndex();
+  const aggregateExpirations = Math.max(0, Number(aggregate.renewalExpirations ?? 0) || 0);
+  const aggregateSigned = Math.max(0, Number(aggregate.renewalsSigned ?? 0) || 0);
+  const aggregateRetentionLabel = aggregateExpirations > 0
+    ? `${(aggregate.renewalRetentionRate ?? 0).toFixed(1)}% retention`
+    : (aggregateSigned > 0 ? "Signed renewals loaded · expirations missing" : "No expirations saved yet");
   const cardsHtml = `<div class="grid-4">
     ${statBox("Expirations", Math.round(aggregate.renewalExpirations ?? 0), "Current month renewal expirations in scope", "#4493f8")}
-    ${statBox("Renewals Signed", Math.round(aggregate.renewalsSigned ?? 0), `${(aggregate.renewalRetentionRate ?? 0).toFixed(1)}% retention`, "#3fb950")}
+    ${statBox("Renewals Signed", Math.round(aggregate.renewalsSigned ?? 0), aggregateRetentionLabel, "#3fb950")}
     ${statBox("Undecided / M2M", Math.round(aggregate.renewalUndecided ?? 0), "At-risk renewals still in play", "#d29922")}
     ${statBox("Projected Attrition", Math.round(aggregate.renewalProjectedAttrition ?? 0), "Renewal-driven attrition risk", "#f97316")}
   </div>`;
@@ -10125,6 +10141,7 @@ function renderPortfolioScopedRenewalsTab() {
       <thead><tr><th class="l">Community</th><th>Expirations</th><th>Signed</th><th>NTVs</th><th>Undecided / M2M</th><th>Early Term.</th><th>Retention %</th></tr></thead>
       <tbody>${details.map(detail => {
         const entry = getRenewalMonthEntryForRecord(detail.record, selectedMonth, detail.record?.reportYear ?? new Date().getFullYear());
+        const entrySummary = getRenewalSummaryForMonth(entry);
         return `<tr>
           <td class="l" style="font-weight:700">${escapeHtml(detail.name)}</td>
           <td><input type="number" min="0" value="${escapeHtml(String(entry.renewalExpirations ?? ""))}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "renewal_expirations", this.value)' style="width:88px"></td>
@@ -10132,7 +10149,7 @@ function renderPortfolioScopedRenewalsTab() {
           <td><input type="number" min="0" value="${escapeHtml(String(entry.renewalNTV ?? ""))}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "renewal_ntvs", this.value)' style="width:88px"></td>
           <td><input type="number" min="0" value="${escapeHtml(String(entry.renewalUndecided ?? ""))}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "renewal_undecided", this.value)' style="width:88px"></td>
           <td><input type="number" min="0" value="${escapeHtml(String(entry.renewalEarlyTermination ?? ""))}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "renewal_early_termination", this.value)' style="width:88px"></td>
-          <td>${(detail.summary.renewalRetentionRate ?? 0).toFixed(1)}%</td>
+          <td>${entrySummary.expirations > 0 ? `${(entrySummary.retentionRate ?? 0).toFixed(1)}%` : "—"}</td>
         </tr>`;
       }).join("")}</tbody>
     </table>
@@ -15081,10 +15098,13 @@ function renderRenewalsTab() {
       : "var(--muted)";
     return statBox(`${quarter} Avg Renewal %`, valueText, subtitle, accent);
   }).join("");
+  const currentRetentionLabel = currentSummary.expirations > 0
+    ? `${currentSummary.retentionRate.toFixed(1)}% retention`
+    : (currentSummary.signed > 0 ? "Signed renewals loaded · expirations missing" : "No signed renewals yet");
 
   const renewalsMetricsSection = `<div class="grid-4 mb4">
     ${statBox("Current Month Expirations", currentSummary.expirations || 0, `${MONTHS[currentMonth]} lease expirations imported or entered`, "#4493f8")}
-    ${statBox("Renewals Signed", currentSummary.signed || 0, `${currentSummary.retentionRate > 0 ? currentSummary.retentionRate.toFixed(1) + "% retention" : "No signed renewals yet"}`, "#3fb950")}
+    ${statBox("Renewals Signed", currentSummary.signed || 0, currentRetentionLabel, "#3fb950")}
     ${statBox("Pending / Undecided / M2M", currentSummary.undecided || 0, `${currentSummary.projectedAttrition} projected attrition units in pace planning · transfers excluded from attrition · ${currentSummary.earlyTermination || 0} early terminations tracked`, "#d29922")}
     ${statBox("Lease Need Impact", currentSchedule.renewalRiskUnits || 0, "Renewal risk units now included in gross lease need", "#f97316")}
   </div>
@@ -16734,18 +16754,23 @@ function buildPortfolioHomePriorities(details = [], selectedMonth = getSelectedD
     }
 
     const budgetOccPct = Number(summary?.budgetOccPct ?? 0);
+    const budgetLeasedPct = Number(summary?.budgetLeasedPct ?? 0);
     const occGapUnits = Math.max(0, Number(summary?.occGapUnits ?? 0));
     const leasedGapUnits = Math.max(0, Number(summary?.leasedGapUnits ?? 0));
     const hasBudgetPath = budgetOccPct > 0;
+    const hasLeasedBudgetPath = budgetLeasedPct > 0;
     if (summary && ((hasBudgetPath && occGapUnits >= 4) || leasedGapUnits >= 6)) {
+      const showLeasedMetric = hasLeasedBudgetPath && leasedGapUnits >= occGapUnits;
+      const displayPct = showLeasedMetric ? Number(summary.leasedPct ?? 0) : Number(summary.occPct ?? 0);
+      const displayBudgetPct = showLeasedMetric ? budgetLeasedPct : budgetOccPct;
       priorities.push({
         community: detail.name,
-        title: hasBudgetPath ? `Occupancy is off the saved leasing pace` : `Leased occupancy is materially behind target`,
+        title: showLeasedMetric ? `Leased occupancy is off the saved leasing pace` : (hasBudgetPath ? `Occupancy is off the saved leasing pace` : `Leased occupancy is materially behind target`),
         body: hasBudgetPath
           ? `${detail.name} is ${occGapUnits} occupied unit${occGapUnits === 1 ? "" : "s"} and ${leasedGapUnits} leased unit${leasedGapUnits === 1 ? "" : "s"} behind the saved budget path for ${FULL_MONTHS[selectedMonth]}. Tighten pending closeouts and near-term move-in execution before the gap widens.`
           : `${detail.name} is ${leasedGapUnits} leased unit${leasedGapUnits === 1 ? "" : "s"} behind the current leased target for ${FULL_MONTHS[selectedMonth]}. Save the missing budget occupancy path and tighten pending closeouts before the gap widens.`,
-        value: `${Number(summary.occPct ?? 0).toFixed(1)}%`,
-        valueSub: hasBudgetPath ? `budget ${budgetOccPct.toFixed(1)}%` : `${leasedGapUnits} leased units behind`,
+        value: `${displayPct.toFixed(1)}%`,
+        valueSub: displayBudgetPct > 0 ? `budget ${displayBudgetPct.toFixed(1)}%` : `${leasedGapUnits} leased units behind`,
         tone: Math.max(occGapUnits, leasedGapUnits) >= 8 ? "critical" : "warn",
         severity: 84 + Math.min(Math.max(occGapUnits, leasedGapUnits), 12),
         tabIdx: 2,
@@ -18775,6 +18800,8 @@ function renderPortfolioHomeTab() {
       },
       `<div class="alert alert-info">Upload weekly AptIQ market survey files to surface the side-by-side market comparison card here.</div>`
     );
+    const aggregateRenewalExpirations = Math.max(0, Number(aggregate.renewalExpirations ?? 0) || 0);
+    const aggregateRenewalSigned = Math.max(0, Number(aggregate.renewalsSigned ?? 0) || 0);
     const tiles = [
       {
         label: "Saved Communities",
@@ -18797,8 +18824,10 @@ function renderPortfolioHomeTab() {
       },
       {
         label: "Renewal Retention",
-        value: `${(aggregate.renewalRetentionRate ?? 0).toFixed(1)}%`,
-        sub: `${Math.round(aggregate.renewalsSigned ?? 0)} signed from ${Math.round(aggregate.renewalExpirations ?? 0)} expirations`
+        value: aggregateRenewalExpirations > 0 ? `${(aggregate.renewalRetentionRate ?? 0).toFixed(1)}%` : "—",
+        sub: aggregateRenewalExpirations > 0
+          ? `${aggregateRenewalSigned} signed from ${aggregateRenewalExpirations} expirations`
+          : (aggregateRenewalSigned > 0 ? `${aggregateRenewalSigned} signed · no expirations saved` : "No expirations saved yet")
       },
       {
         label: "Physical Occupancy",
@@ -25904,8 +25933,6 @@ function buildSideBySideComparisonChart(title, rows = [], options = {}) {
   const subjectLabelDefault = options.subjectLabel || "Subject";
   const marketLabelDefault = options.marketLabel || "Market";
   const subtitle = String(options.subtitle || "").trim();
-  const totalSubject = cleaned.reduce((sum, row) => sum + Math.max(0, Number(row.subjectValue ?? 0) || 0), 0);
-  const totalMarket = cleaned.reduce((sum, row) => sum + Math.max(0, Number(row.marketValue ?? 0) || 0), 0);
   const rowsHtml = cleaned.map(row => {
     const subjectValue = Math.max(0, Number(row.subjectValue ?? 0) || 0);
     const marketValue = Math.max(0, Number(row.marketValue ?? 0) || 0);
@@ -25967,10 +25994,6 @@ function buildSideBySideComparisonChart(title, rows = [], options = {}) {
       </div>
     </div>
     <div style="display:grid;gap:12px">${rowsHtml}</div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
-      <div style="padding:6px 10px;border:1px solid #dbe4f0;border-radius:999px;background:#f8fbff;font-size:11px;color:#475569"><strong>${formatDlrMetricValue(totalSubject)}</strong> subject total</div>
-      <div style="padding:6px 10px;border:1px solid #dbe4f0;border-radius:999px;background:#f8fffd;font-size:11px;color:#475569"><strong>${formatDlrMetricValue(totalMarket)}</strong> market total</div>
-    </div>
   </div>`;
 }
 

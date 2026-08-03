@@ -3,18 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="refresh" content="0; url=portfolio-operations-dashboard/">
-<title>Opening ATLAS RISE Ops Dashboard</title>
+<meta http-equiv="refresh" content="0; url=reit-management/">
+<title>Opening ATLAS REIT Management</title>
 <script>
-  window.location.replace("portfolio-operations-dashboard/");
+  window.location.replace("reit-management/");
 </script>
 <style>
   :root {
-    --ink: #023046;
-    --sky: #549db8;
+    --ink: #14344a;
+    --steel: #6b8798;
     --paper: #ffffff;
-    --mist: #eef5f8;
-    --line: #d6e2e8;
+    --mist: #eef3f6;
+    --line: #d5e0e6;
+    --accent: #2e6b8c;
   }
   * { box-sizing: border-box; }
   body {
@@ -26,46 +27,61 @@
     font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
     color: var(--ink);
     background:
-      radial-gradient(circle at top left, rgba(84,157,184,0.18), transparent 32%),
+      radial-gradient(circle at top left, rgba(46,107,140,0.18), transparent 30%),
       linear-gradient(180deg, #f8fbfc 0%, var(--mist) 100%);
   }
   main {
-    width: min(520px, 100%);
-    padding: 28px;
+    width: min(720px, 100%);
+    padding: 32px;
     border: 1px solid var(--line);
-    border-radius: 20px;
-    background: var(--paper);
-    box-shadow: 0 18px 48px rgba(2,48,70,0.08);
+    border-radius: 24px;
+    background: rgba(255,255,255,0.92);
+    box-shadow: 0 20px 48px rgba(20,52,74,0.08);
   }
   h1 {
-    margin: 0 0 8px;
-    font-size: 1.35rem;
-    line-height: 1.2;
+    margin: 0 0 10px;
+    font-size: 1.8rem;
+    line-height: 1.1;
   }
   p {
-    margin: 0 0 18px;
-    color: #375767;
-    line-height: 1.5;
+    margin: 0 0 20px;
+    color: #476273;
+    line-height: 1.6;
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
   }
   a {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 42px;
-    padding: 0 16px;
+    min-height: 44px;
+    padding: 0 18px;
     border-radius: 12px;
-    background: var(--ink);
-    color: #fff;
-    font-weight: 700;
     text-decoration: none;
+    font-weight: 700;
+  }
+  .primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .secondary {
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--line);
   }
 </style>
 </head>
 <body>
 <main>
-  <h1>Opening ATLAS RISE Ops Dashboard</h1>
-  <p>If you are not redirected automatically, open the dashboard below.</p>
-  <a href="portfolio-operations-dashboard/">Open ATLAS</a>
+  <h1>Opening ATLAS REIT Management</h1>
+  <p>The new ATLAS redesign is now the default GitHub Pages entrypoint. The legacy portfolio operations dashboard remains available below.</p>
+  <div class="actions">
+    <a class="primary" href="reit-management/">Open REIT Management</a>
+    <a class="secondary" href="portfolio-operations-dashboard/">Open Legacy ATLAS Dashboard</a>
+  </div>
 </main>
 </body>
 </html>

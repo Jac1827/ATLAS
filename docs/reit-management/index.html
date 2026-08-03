@@ -1,0 +1,2013 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/nocturne-3d37f00d-2152-48f0-b054-3b0e455a51c7/styles.css">
+<script src="_ds/nocturne-3d37f00d-2152-48f0-b054-3b0e455a51c7/_ds_bundle.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<style>
+  :root {
+    --color-bg:#F4F6F8; --color-surface:#FFFFFF; --color-text:#14344A;
+    --color-accent:#2E6B8C; --color-accent-300:#1B5273; --color-accent-400:#24618A; --color-accent-500:#2E6B8C;
+    --color-accent-600:#A9C4D6; --color-accent-700:#CBDCE7; --color-accent-800:#E2ECF3; --color-accent-900:#EFF5F9;
+    --color-accent-2-300:#1B5273; --color-accent-2:#2E6B8C;
+    --color-neutral-100:#FFFFFF; --color-neutral-300:#F4F6F8; --color-neutral-500:#93A3AE;
+    --color-neutral-700:#DCE3E9; --color-neutral-800:#E9EEF2; --color-neutral-900:#F7F9FA;
+    --radius-sm:10px; --radius-md:16px; --radius-lg:22px;
+    --shadow-sm:0 1px 2px rgba(20,52,74,.05), 0 4px 14px rgba(20,52,74,.05);
+    --shadow-md:0 2px 4px rgba(20,52,74,.06), 0 10px 30px rgba(20,52,74,.07);
+    --shadow-lg:0 4px 8px rgba(20,52,74,.07), 0 24px 60px rgba(20,52,74,.10);
+    --font-body:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Inter,sans-serif;
+    --font-heading:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Inter,sans-serif;
+  }
+  html, body { margin:0; padding:0; background:var(--color-bg); color:var(--color-text); font-family:var(--font-body); -webkit-font-smoothing:antialiased; }
+  h1, h2, h3 { font-family:var(--font-heading); letter-spacing:-0.021em; }
+  * { box-sizing:border-box; }
+  button { font-family:inherit; color:inherit; cursor:pointer; }
+  a { color:var(--color-accent-300); text-decoration:none; }
+  a:hover { color:var(--color-accent); }
+  :focus-visible { outline:2px solid var(--color-accent); outline-offset:2px; }
+  ::selection { background:color-mix(in srgb, var(--color-accent) 32%, transparent); }
+  select { font-family:inherit; }
+</style>
+</helmet>
+
+<div style="display:flex;min-height:100vh;background:var(--color-bg)">
+
+  <nav style="width:236px;flex:0 0 236px;border-right:1px solid var(--color-neutral-800);background:color-mix(in srgb, var(--color-surface) 76%, transparent);backdrop-filter:blur(14px);padding:20px 14px;display:flex;flex-direction:column;gap:28px;position:sticky;top:0;height:100vh">
+    <div style="padding:0 6px;display:flex;align-items:center;gap:11px">
+      <img src="uploads/atlas-icon.png" alt="ATLAS" style="width:36px;height:36px;border-radius:10px;box-shadow:var(--shadow-sm)">
+      <div>
+        <div style="font-size:15.5px;letter-spacing:0.2em;font-weight:600;line-height:1">ATLAS</div>
+        <div style="font-size:9.5px;letter-spacing:0.11em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 48%, transparent);margin-top:5px">Portfolio · Tracker · Reports</div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <sc-for list="{{ nav }}" as="n" hint-placeholder-count="7">
+        <button onClick="{{ n.go }}" style="{{ n.style }}" style-hover="background:color-mix(in srgb, var(--color-accent) 12%, transparent)">
+          <i class="ph {{ n.icon }}" style="font-size:16px;opacity:0.9"></i>
+          <span style="font-size:13px;text-align:left;line-height:1.25">{{ n.label }}</span>
+          <sc-if value="{{ n.badge }}" hint-placeholder-val="{{ false }}">
+            <span style="margin-left:auto;font-size:10.5px;font-variant-numeric:tabular-nums;padding:1px 6px;border-radius:99px;border:1px solid var(--color-accent-600);color:var(--color-accent-300)">{{ n.badge }}</span>
+          </sc-if>
+        </button>
+      </sc-for>
+    </div>
+
+    <div style="margin-top:auto;padding:12px 10px;border-top:1px solid var(--color-neutral-800);font-size:11.5px;color:color-mix(in srgb, var(--color-text) 48%, transparent);line-height:1.6">
+      <div>{{ roleLabel }}</div>
+      <div style="margin-top:3px">{{ scopeSummary }}</div>
+    </div>
+  </nav>
+
+  <main style="flex:1;min-width:0;display:flex;flex-direction:column">
+
+    <header style="position:sticky;top:0;z-index:5;background:color-mix(in srgb, var(--color-surface) 80%, transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--color-neutral-800);padding:14px 32px;display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 45%, transparent)">Scope</span>
+        <select value="{{ scope }}" onChange="{{ setScope }}" style="background:var(--color-surface);border:1px solid var(--color-neutral-700);border-radius:var(--radius-sm);color:var(--color-text);font-size:13px;padding:6px 10px">
+          <sc-for list="{{ scopeOptions }}" as="o" hint-placeholder-count="4">
+            <option value="{{ o }}">{{ o }}</option>
+          </sc-for>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 45%, transparent)">Period</span>
+        <select value="{{ period }}" onChange="{{ setPeriod }}" style="background:var(--color-surface);border:1px solid var(--color-neutral-700);border-radius:var(--radius-sm);color:var(--color-text);font-size:13px;padding:6px 10px">
+          <sc-for list="{{ periodOptions }}" as="o" hint-placeholder-count="4">
+            <option value="{{ o }}">{{ o }}</option>
+          </sc-for>
+        </select>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:9px;margin-left:auto">
+        <div style="display:flex;align-items:center;gap:7px;font-size:12px;padding:5px 11px;border-radius:99px;border:1px solid var(--color-neutral-700)">
+          <i class="ph {{ budgetChipIcon }}" style="font-size:14px;color:var(--color-accent-300)"></i>
+          <span>{{ budgetChip }}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:7px;font-size:12px;padding:5px 11px;border-radius:99px;border:1px solid var(--color-neutral-700)">
+          <i class="ph ph-database" style="font-size:14px;opacity:0.7"></i>
+          <span>{{ freshnessChip }}</span>
+        </div>
+      </div>
+    </header>
+
+    <div style="padding:30px 32px 72px;max-width:1560px">
+
+      <!-- PORTFOLIO OVERVIEW -->
+      <sc-if value="{{ isOverview }}" hint-placeholder-val="{{ true }}">
+      <section data-screen-label="Portfolio Overview">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:22px">
+          <div>
+            <h1 style="font-size:29px;margin:0 0 6px;font-weight:500">Portfolio Overview</h1>
+            <p style="margin:0;font-size:14px;color:color-mix(in srgb, var(--color-text) 62%, transparent)">{{ overviewSub }}</p>
+          </div>
+          <button onClick="{{ goReports }}" style="display:flex;align-items:center;gap:8px;font-size:13px;padding:8px 14px;border-radius:var(--radius-sm);border:1px solid var(--color-accent);background:transparent;color:var(--color-text)" style-hover="background:color-mix(in srgb, var(--color-accent) 14%, transparent)">
+            <i class="ph ph-export" style="font-size:15px"></i>Build a report from this view
+          </button>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start">
+          <div style="flex:1 1 620px;min-width:min(100%,560px);display:flex;flex-direction:column;gap:26px">
+
+            <div style="display:flex;flex-wrap:wrap;gap:1px;background:var(--color-neutral-800);border:1px solid var(--color-neutral-800);border-radius:var(--radius-md);overflow:hidden">
+              <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="5">
+                <div style="flex:1 1 155px;min-width:150px;background:var(--color-surface);padding:15px 16px 16px">
+                  <div style="font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 48%, transparent)">{{ k.label }}</div>
+                  <div style="font-size:25px;font-variant-numeric:tabular-nums;margin:9px 0 5px;line-height:1">{{ k.value }}</div>
+                  <div style="font-size:12px;color:color-mix(in srgb, var(--color-text) 66%, transparent)">{{ k.sub }}</div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:20px 22px 16px;box-shadow:var(--shadow-sm)">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:16px">
+                <div>
+                  <h3 style="margin:0 0 4px;font-size:16px;font-weight:500">How the portfolio is occupied</h3>
+                  <div style="font-size:12px;color:color-mix(in srgb, var(--color-text) 55%, transparent);text-wrap:pretty">{{ curveSource }}</div>
+                </div>
+              </div>
+              <div style="display:flex;height:18px;border-radius:6px;overflow:hidden;background:var(--color-neutral-800);margin-bottom:16px">
+                <sc-for list="{{ composition }}" as="s" hint-placeholder-count="3">
+                  <div style="{{ s.bar }}"></div>
+                </sc-for>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:22px">
+                <sc-for list="{{ composition }}" as="s" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:flex-start;gap:9px;min-width:190px">
+                    <div style="{{ s.dot }};margin-top:4px"></div>
+                    <div>
+                      <div style="font-size:12.5px">{{ s.label }}</div>
+                      <div style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-top:2px;font-variant-numeric:tabular-nums">{{ s.value }}</div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div>
+              <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
+                <h3 style="margin:0;font-size:16px;font-weight:500">Communities, ranked by vacant units</h3>
+                <button onClick="{{ goCommunities }}" style="background:none;border:none;font-size:12.5px;color:var(--color-accent-300);padding:0">All communities →</button>
+              </div>
+              <table style="width:100%;border-collapse:collapse;font-size:13px">
+                <thead>
+                  <tr>
+                    <th style="text-align:left;padding:8px 10px 8px 0;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Community</th>
+                    <th style="text-align:right;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Units</th>
+                    <th style="text-align:right;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Occupancy</th>
+                    <th style="text-align:right;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Leased</th>
+                    <th style="text-align:right;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Vacant</th>
+                    <th style="text-align:right;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Net absorption</th>
+                    <th style="text-align:right;padding:8px 0 8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Row status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for list="{{ varianceRows }}" as="r" hint-placeholder-count="8">
+                    <tr onClick="{{ r.open }}" style="cursor:pointer" style-hover="background:color-mix(in srgb, var(--color-accent) 7%, transparent)">
+                      <td style="padding:11px 10px 11px 0;border-bottom:1px solid var(--color-neutral-800)">{{ r.name }}</td>
+                      <td style="padding:11px 10px;border-bottom:1px solid var(--color-neutral-800);text-align:right;font-variant-numeric:tabular-nums;color:color-mix(in srgb, var(--color-text) 62%, transparent)">{{ r.units }}</td>
+                      <td style="padding:11px 10px;border-bottom:1px solid var(--color-neutral-800);text-align:right;font-variant-numeric:tabular-nums">{{ r.occ }}</td>
+                      <td style="padding:11px 10px;border-bottom:1px solid var(--color-neutral-800);text-align:right;font-variant-numeric:tabular-nums">{{ r.ner }}</td>
+                      <td style="padding:11px 10px;border-bottom:1px solid var(--color-neutral-800);text-align:right;font-variant-numeric:tabular-nums">{{ r.noi }}</td>
+                      <td style="padding:11px 10px;border-bottom:1px solid var(--color-neutral-800);text-align:right;font-variant-numeric:tabular-nums">{{ r.renew }}</td>
+                      <td style="padding:11px 0 11px 10px;border-bottom:1px solid var(--color-neutral-800);text-align:right;font-variant-numeric:tabular-nums;color:color-mix(in srgb, var(--color-text) 62%, transparent)">{{ r.flags }}</td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <sc-if value="{{ railOn }}" hint-placeholder-val="{{ true }}">
+          <aside style="flex:1 1 300px;min-width:288px;max-width:360px;background:var(--color-surface);border-radius:var(--radius-md);padding:20px;box-shadow:var(--shadow-sm)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <i class="ph ph-warning-diamond" style="font-size:16px;color:var(--color-accent-300)"></i>
+              <h3 style="margin:0;font-size:15px;font-weight:500">Needs a decision</h3>
+            </div>
+            <div style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 50%, transparent);margin-bottom:16px">Ranked by dollar impact this period</div>
+            <div style="display:flex;flex-direction:column">
+              <sc-for list="{{ exceptions }}" as="e" hint-placeholder-count="6">
+                <div style="padding:13px 0;border-top:1px solid var(--color-neutral-800)">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                    <span style="{{ e.sevStyle }}">{{ e.sev }}</span>
+                    <span style="font-size:11px;color:color-mix(in srgb, var(--color-text) 50%, transparent)">{{ e.community }}</span>
+                    <span style="margin-left:auto;font-size:12px;font-variant-numeric:tabular-nums">{{ e.impact }}</span>
+                  </div>
+                  <div style="font-size:13px;line-height:1.45;margin-bottom:7px;text-wrap:pretty">{{ e.headline }}</div>
+                  <button onClick="{{ e.go }}" style="background:none;border:none;padding:0;font-size:12px;color:var(--color-accent-300)">{{ e.action }} →</button>
+                </div>
+              </sc-for>
+            </div>
+          </aside>
+          </sc-if>
+        </div>
+      </section>
+      </sc-if>
+
+      <!-- COMMUNITIES -->
+      <sc-if value="{{ isCommunities }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="Communities">
+        <h1 style="font-size:29px;margin:0 0 6px;font-weight:500">Communities</h1>
+        <p style="margin:0 0 16px;font-size:14px;color:color-mix(in srgb, var(--color-text) 62%, transparent)">{{ communitiesSub }}</p>
+
+        <div style="display:flex;gap:4px;margin-bottom:22px;border-bottom:1px solid var(--color-neutral-800)">
+          <sc-for list="{{ commTabs }}" as="t" hint-placeholder-count="3">
+            <button onClick="{{ t.go }}" style="{{ t.style }}">{{ t.label }}</button>
+          </sc-for>
+        </div>
+
+        <sc-if value="{{ isCommPerf }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">
+          <div style="flex:1 1 300px;min-width:288px;max-width:360px">
+            <div style="display:flex;gap:6px;margin-bottom:10px">
+              <sc-for list="{{ sortOptions }}" as="s" hint-placeholder-count="3">
+                <button onClick="{{ s.go }}" style="{{ s.style }}" style-hover="background:color-mix(in srgb, var(--color-accent) 12%, transparent)">{{ s.label }}</button>
+              </sc-for>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:1px;background:var(--color-neutral-800);border:1px solid var(--color-neutral-800);border-radius:var(--radius-md);overflow:hidden">
+              <sc-for list="{{ communityList }}" as="c" hint-placeholder-count="8">
+                <button onClick="{{ c.open }}" style="{{ c.style }}" style-hover="background:color-mix(in srgb, var(--color-accent) 10%, transparent)">
+                  <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+                    <span style="font-size:13.5px">{{ c.name }}</span>
+                    <span style="font-size:12px;font-variant-numeric:tabular-nums;color:color-mix(in srgb, var(--color-text) 60%, transparent)">{{ c.occ }}</span>
+                  </div>
+                  <div style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 48%, transparent);margin-top:4px">{{ c.meta }}</div>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="flex:1 1 620px;min-width:min(100%,540px);background:var(--color-surface);border-radius:var(--radius-md);box-shadow:var(--shadow-sm);overflow:hidden">
+            <div style="padding:20px 22px 0">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap">
+                <div>
+                  <h2 style="margin:0 0 5px;font-size:21px;font-weight:500">{{ det.name }}</h2>
+                  <div style="font-size:12.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ det.meta }}</div>
+                </div>
+                <button onClick="{{ toggleSetup }}" style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:7px 12px;border-radius:var(--radius-sm);border:1px solid var(--color-neutral-700);background:transparent" style-hover="background:color-mix(in srgb, var(--color-accent) 12%, transparent)">
+                  <i class="ph ph-sliders-horizontal" style="font-size:14px"></i>Setup
+                </button>
+              </div>
+              <div style="display:flex;gap:4px;margin-top:18px;border-bottom:1px solid var(--color-neutral-800)">
+                <sc-for list="{{ detailTabs }}" as="t" hint-placeholder-count="4">
+                  <button onClick="{{ t.go }}" style="{{ t.style }}">{{ t.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+
+            <sc-if value="{{ setupOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="margin:18px 22px 0;padding:16px 18px;border:1px solid var(--color-accent-700);border-radius:var(--radius-md);background:color-mix(in srgb, var(--color-accent) 7%, transparent)">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+                <div style="font-size:13px;color:var(--color-accent-300)">Setup drawer — a read-through of this community's saved record</div>
+                <button onClick="{{ goCommSetup }}" style="background:none;border:none;padding:0;font-size:12.5px;color:var(--color-accent-300)">Edit in Community setup →</button>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:14px 20px">
+                <sc-for list="{{ setupFields }}" as="f" hint-placeholder-count="8">
+                  <div>
+                    <div style="font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 45%, transparent);margin-bottom:4px">{{ f.label }}</div>
+                    <div style="font-size:13px">{{ f.value }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            </sc-if>
+
+            <div style="padding:22px">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:18px 22px">
+                <sc-for list="{{ detStats }}" as="d" hint-placeholder-count="8">
+                  <div>
+                    <div style="font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 45%, transparent)">{{ d.label }}</div>
+                    <div style="font-size:20px;font-variant-numeric:tabular-nums;margin:7px 0 4px;line-height:1">{{ d.value }}</div>
+                    <div style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">{{ d.sub }}</div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--color-neutral-800);font-size:12.5px;color:color-mix(in srgb, var(--color-text) 58%, transparent);text-wrap:pretty">{{ detNote }}</div>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{ isCommSetup }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:22px">
+
+          <div style="display:flex;flex-wrap:wrap;gap:1px;background:var(--color-neutral-800);border:1px solid var(--color-neutral-800);border-radius:var(--radius-md);overflow:hidden">
+            <sc-for list="{{ setupTiles }}" as="t" hint-placeholder-count="4">
+              <div style="flex:1 1 190px;min-width:180px;background:var(--color-surface);padding:15px 17px">
+                <div style="font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 48%, transparent)">{{ t.label }}</div>
+                <div style="font-size:25px;font-variant-numeric:tabular-nums;margin:9px 0 5px;line-height:1">{{ t.value }}</div>
+                <div style="font-size:12px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">{{ t.sub }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:20px 22px;box-shadow:var(--shadow-sm)">
+            <div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:14px">
+              <div style="flex:1 1 340px;min-width:300px">
+                <h3 style="margin:0 0 4px;font-size:16px;font-weight:500">Add communities from a template</h3>
+                <div style="font-size:12.5px;line-height:1.6;color:color-mix(in srgb, var(--color-text) 55%, transparent);text-wrap:pretty">{{ templateNote }}</div>
+              </div>
+              <div style="display:flex;gap:9px;flex-wrap:wrap">
+                <button style="display:flex;align-items:center;gap:8px;font-size:13px;padding:9px 14px;border-radius:var(--radius-sm);border:1px solid var(--color-neutral-700);background:transparent" style-hover="background:color-mix(in srgb, var(--color-accent) 12%, transparent)">
+                  <i class="ph ph-download-simple" style="font-size:15px"></i>Download blank template
+                </button>
+                <button style="display:flex;align-items:center;gap:8px;font-size:13px;padding:9px 14px;border-radius:var(--radius-sm);border:1px solid var(--color-accent);background:color-mix(in srgb, var(--color-accent) 10%, transparent);color:var(--color-accent-300)" style-hover="background:color-mix(in srgb, var(--color-accent) 18%, transparent)">
+                  <i class="ph ph-upload-simple" style="font-size:15px"></i>Upload filled template
+                </button>
+              </div>
+            </div>
+            <div style="border:1px dashed var(--color-accent-600);border-radius:var(--radius-sm);background:color-mix(in srgb, var(--color-accent) 5%, transparent);padding:16px 18px">
+              <div style="font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 48%, transparent);margin-bottom:9px">Columns matched on import</div>
+              <div style="display:flex;flex-wrap:wrap;gap:7px">
+                <sc-for list="{{ templateColumns }}" as="col" hint-placeholder-count="10">
+                  <span style="font-size:11.5px;padding:4px 10px;border-radius:99px;border:1px solid var(--color-neutral-700);background:var(--color-surface)">{{ col }}</span>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+
+          <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:20px 22px;box-shadow:var(--shadow-sm)">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:4px">
+              <h3 style="margin:0;font-size:16px;font-weight:500">Portfolio setup roster</h3>
+              <button style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:7px 12px;border-radius:var(--radius-sm);border:1px solid var(--color-neutral-700);background:transparent" style-hover="background:color-mix(in srgb, var(--color-accent) 12%, transparent)">
+                <i class="ph ph-plus" style="font-size:14px"></i>Add a community
+              </button>
+            </div>
+            <div style="font-size:12.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-bottom:14px;text-wrap:pretty">Core setup fields are editable in place. Marking a community inactive removes it from portfolio totals, reporting and the RISE write-back while keeping its record for reactivation.</div>
+            <div style="overflow-x:auto;margin:0 -22px;padding:0 22px">
+              <table style="width:100%;min-width:1180px;border-collapse:collapse;font-size:13px">
+                <thead>
+                  <tr>
+                    <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700);white-space:nowrap;padding-left:0">Community</th>
+                    <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700);white-space:nowrap">Status</th>
+                    <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700);white-space:nowrap;text-align:right">Units</th>
+                    <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700);white-space:nowrap">PMS code</th>
+                    <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700);white-space:nowrap">Market</th>
+                    <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700);white-space:nowrap">Asset type</th>
+                    <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700);white-space:nowrap">Regional</th>
+                    <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700);white-space:nowrap">GM / SM</th>
+                    <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700);white-space:nowrap;padding-right:0">Mapping</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for list="{{ setupRows }}" as="r" hint-placeholder-count="8">
+                    <tr style="{{ r.rowStyle }}">
+                      <td style="{{ r.nameStyle }}">
+                        <button onClick="{{ r.open }}" style="background:none;border:none;padding:0;font-size:13px;color:inherit;text-align:left">{{ r.name }}</button>
+                        <div style="font-size:11px;color:color-mix(in srgb, var(--color-text) 45%, transparent);margin-top:3px">{{ r.code }} · {{ r.mkt }}</div>
+                      </td>
+                      <td style="padding:9px 10px;vertical-align:middle;width:104px">
+                        <div style="display:flex;flex-direction:column;gap:5px">
+                          <button onClick="{{ r.onActive }}" style="{{ r.activeStyle }}">Active</button>
+                          <button onClick="{{ r.onInactive }}" style="{{ r.inactiveStyle }}">Inactive</button>
+                        </div>
+                      </td>
+                      <td style="padding:9px 10px;vertical-align:middle;width:84px"><input value="{{ r.units }}" onChange="{{ r.onUnits }}" style="width:100%;font-family:inherit;font-size:12.5px;padding:7px 9px;border:1px solid var(--color-neutral-700);border-radius:8px;background:var(--color-surface);color:var(--color-text);text-align:right;font-variant-numeric:tabular-nums"></td>
+                      <td style="padding:9px 10px;vertical-align:middle;width:130px"><input value="{{ r.pms }}" onChange="{{ r.onPms }}" style="width:100%;font-family:inherit;font-size:12.5px;padding:7px 9px;border:1px solid var(--color-neutral-700);border-radius:8px;background:var(--color-surface);color:var(--color-text)"></td>
+                      <td style="padding:9px 10px;vertical-align:middle;min-width:150px"><input value="{{ r.market }}" onChange="{{ r.onMarket }}" style="width:100%;font-family:inherit;font-size:12.5px;padding:7px 9px;border:1px solid var(--color-neutral-700);border-radius:8px;background:var(--color-surface);color:var(--color-text)"></td>
+                      <td style="padding:9px 10px;vertical-align:middle;font-size:12.5px;white-space:nowrap">
+                        <div>{{ r.asset }}</div>
+                        <div style="font-size:11px;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-top:2px">{{ r.group }}</div>
+                      </td>
+                      <td style="padding:9px 10px;vertical-align:middle;width:180px">
+                        <select value="{{ r.regional }}" onChange="{{ r.onRegional }}" style="width:100%;font-family:inherit;font-size:12.5px;padding:7px 9px;border:1px solid var(--color-neutral-700);border-radius:8px;background:var(--color-surface);color:var(--color-text)">
+                          <sc-for list="{{ regionalOptions }}" as="g" hint-placeholder-count="5">
+                            <option value="{{ g }}">{{ g }}</option>
+                          </sc-for>
+                        </select>
+                      </td>
+                      <td style="padding:9px 10px;vertical-align:middle;font-size:12.5px;white-space:nowrap">
+                        <div>{{ r.gm }}</div>
+                        <div style="font-size:11px;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-top:2px">{{ r.sm }}</div>
+                      </td>
+                      <td style="padding:9px 10px;vertical-align:middle;padding-right:0"><span style="{{ r.statusStyle }}">{{ r.statusLabel }}</span></td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:20px 22px;box-shadow:var(--shadow-sm)">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:4px">
+              <h3 style="margin:0;font-size:16px;font-weight:500">Presentation image library</h3>
+              <div style="display:flex;gap:9px;flex-wrap:wrap">
+                <button style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:7px 12px;border-radius:var(--radius-sm);border:1px solid var(--color-accent);background:color-mix(in srgb, var(--color-accent) 10%, transparent);color:var(--color-accent-300)" style-hover="background:color-mix(in srgb, var(--color-accent) 18%, transparent)">
+                  <i class="ph ph-image-square" style="font-size:14px"></i>Add images
+                </button>
+                <button onClick="{{ goReports }}" style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:7px 12px;border-radius:var(--radius-sm);border:1px solid var(--color-neutral-700);background:transparent" style-hover="background:color-mix(in srgb, var(--color-accent) 12%, transparent)">
+                  <i class="ph ph-projector-screen-chart" style="font-size:14px"></i>Use in a report
+                </button>
+              </div>
+            </div>
+            <div style="font-size:12.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-bottom:14px;text-wrap:pretty">{{ imageNote }}</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(238px,1fr));gap:14px">
+              <sc-for list="{{ imageTiles }}" as="t" hint-placeholder-count="3">
+                <div style="border:1px solid var(--color-neutral-700);border-radius:var(--radius-sm);padding:15px 16px;background:var(--color-neutral-900)">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">
+                    <i class="ph {{ t.icon }}" style="font-size:16px;color:var(--color-accent-300)"></i>
+                    <span style="font-size:12.5px;color:color-mix(in srgb, var(--color-text) 66%, transparent)">{{ t.label }}</span>
+                  </div>
+                  <div style="font-size:25px;font-variant-numeric:tabular-nums;line-height:1;margin-bottom:6px">{{ t.value }}</div>
+                  <div style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ t.sub }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{ isCommStaff }}" hint-placeholder-val="{{ false }}">
+        <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:20px 22px;box-shadow:var(--shadow-sm)">
+          <h3 style="margin:0 0 4px;font-size:16px;font-weight:500">Staff &amp; regional assignment</h3>
+          <div style="font-size:12.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-bottom:16px;text-wrap:pretty">{{ staffNote }}</div>
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead>
+              <tr>
+                <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700);white-space:nowrap;padding-left:0">Employee</th>
+                <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700);white-space:nowrap">Role</th>
+                <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700);white-space:nowrap">Assigned community</th>
+                <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700);white-space:nowrap">Regional</th>
+                <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700);white-space:nowrap">Hire</th>
+                <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700);white-space:nowrap;text-align:right;padding-right:0">Tenure</th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{ staffRows }}" as="s" hint-placeholder-count="8">
+                <tr style="border-bottom:1px solid var(--color-neutral-800)">
+                  <td style="padding:9px 10px;vertical-align:middle;padding-left:0">
+                    <div style="font-size:13px">{{ s.name }}</div>
+                    <div style="{{ s.activeStyle }}">{{ s.active }}</div>
+                  </td>
+                  <td style="padding:9px 10px;vertical-align:middle;font-size:12.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ s.role }}</td>
+                  <td style="padding:9px 10px;vertical-align:middle;min-width:220px">
+                    <select value="{{ s.code }}" onChange="{{ s.onCommunity }}" style="width:100%;font-family:inherit;font-size:12.5px;padding:7px 9px;border:1px solid var(--color-neutral-700);border-radius:8px;background:var(--color-surface);color:var(--color-text)">
+                      <sc-for list="{{ communityOptions }}" as="o" hint-placeholder-count="8">
+                        <option value="{{ o.code }}">{{ o.name }}</option>
+                      </sc-for>
+                    </select>
+                  </td>
+                  <td style="padding:9px 10px;vertical-align:middle;font-size:12.5px">{{ s.regional }}</td>
+                  <td style="padding:9px 10px;vertical-align:middle;font-size:12.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ s.hire }}</td>
+                  <td style="padding:9px 10px;vertical-align:middle;text-align:right;font-variant-numeric:tabular-nums;padding-right:0">{{ s.tenure }}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+        </sc-if>
+      </section>
+      </sc-if>
+
+      <!-- MAINTENANCE -->
+      <sc-if value="{{ isMaint }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="Maintenance">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:16px">
+          <div style="flex:1 1 460px;min-width:min(100%,380px)">
+            <h1 style="font-size:29px;margin:0 0 6px;font-weight:500">Maintenance</h1>
+            <p style="margin:0;font-size:14px;color:color-mix(in srgb, var(--color-text) 62%, transparent);text-wrap:pretty">{{ maintSub }}</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 45%, transparent)">Week ending</span>
+            <select value="{{ maintWeek }}" onChange="{{ setMaintWeek }}" style="background:var(--color-surface);border:1px solid var(--color-neutral-700);border-radius:var(--radius-sm);color:var(--color-text);font-family:inherit;font-size:13px;padding:7px 10px">
+              <sc-for list="{{ maintWeekOptions }}" as="w" hint-placeholder-count="4">
+                <option value="{{ w }}">{{ w }}</option>
+              </sc-for>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:16px">
+          <sc-for list="{{ maintSources }}" as="s" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:6px 12px;border-radius:99px;border:1px solid var(--color-neutral-700)">
+              <i class="ph {{ s.icon }}" style="font-size:14px;color:var(--color-accent-300)"></i>{{ s.label }}
+              <span style="color:color-mix(in srgb, var(--color-text) 55%, transparent)">· {{ s.state }}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:1px;background:var(--color-neutral-800);border:1px solid var(--color-neutral-800);border-radius:var(--radius-md);overflow:hidden;margin-bottom:20px">
+          <sc-for list="{{ maintCoverage }}" as="t" hint-placeholder-count="3">
+            <div style="flex:1 1 200px;min-width:190px;background:var(--color-surface);padding:15px 17px">
+              <div style="font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 48%, transparent)">{{ t.label }}</div>
+              <div style="font-size:25px;font-variant-numeric:tabular-nums;margin:9px 0 5px;line-height:1">{{ t.value }}</div>
+              <div style="font-size:12px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">{{ t.sub }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+          <div style="display:flex;gap:13px;align-items:flex-start;padding:16px 18px;border:1px dashed var(--color-accent-600);border-radius:var(--radius-md);background:color-mix(in srgb, var(--color-accent) 5%, transparent)">
+            <i class="ph ph-plugs" style="font-size:19px;color:var(--color-accent-300);margin-top:1px"></i>
+            <div style="font-size:13px;line-height:1.6;text-wrap:pretty">{{ maintAwaiting }}</div>
+          </div>
+
+        <div style="margin-top:28px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:5px">
+            <h3 style="margin:0;font-size:16px;font-weight:500">Weekly Maintenance Report</h3>        <div style="margin-top:28px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:5px">
+            <h3 style="margin:0;font-size:16px;font-weight:500">Weekly Maintenance Report</h3>
+            <a href="uploads/RISE-Weekly-Maintenance-Report.html" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:7px 12px;border-radius:var(--radius-sm);border:1px solid var(--color-neutral-700)" style-hover="background:color-mix(in srgb, var(--color-accent) 12%, transparent)">
+              <i class="ph ph-arrow-square-out" style="font-size:14px"></i>Open full screen
+            </a>
+          </div>
+          <div style="font-size:12.5px;line-height:1.6;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-bottom:14px;text-wrap:pretty">The weekly intake, reconciliation and one-page export run in the report generator itself — upload the three Entrata exports here and the figures above are what they roll up to.</div>
+          <div style="border:1px solid var(--color-neutral-700);border-radius:var(--radius-md);overflow:hidden;background:var(--color-surface);box-shadow:var(--shadow-sm)">
+            <div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap;padding:11px 15px;border-bottom:1px solid var(--color-neutral-700)">
+              <i class="ph ph-wrench" style="font-size:16px;color:var(--color-accent-300)"></i>
+              <span style="font-size:13px">RISE Weekly Maintenance Report</span>
+              <span style="font-size:12px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Runs as its own application — intake, validation, MSOE rollover and print export, logic untouched</span>
+              <span style="margin-left:auto;font-size:11.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Week ending {{ maintWeek }}</span>
+            </div>
+            <iframe src="uploads/RISE-Weekly-Maintenance-Report.html" title="RISE Weekly Maintenance Report" style="display:block;width:100%;height:1180px;border:none;background:#F4F7F9"></iframe>
+          </div>
+        </div>
+      </section>
+      </sc-if>
+
+      <!-- MARKETING -->
+      <sc-if value="{{ isMarketing }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="Marketing">
+        <h1 style="font-size:29px;margin:0 0 6px;font-weight:500">Marketing</h1>
+        <p style="margin:0 0 20px;font-size:14px;color:color-mix(in srgb, var(--color-text) 62%, transparent);text-wrap:pretty">{{ marketingSub }}</p>
+
+        <div style="display:flex;flex-wrap:wrap;gap:1px;background:var(--color-neutral-800);border:1px solid var(--color-neutral-800);border-radius:var(--radius-md);overflow:hidden;margin-bottom:20px">
+          <sc-for list="{{ mktRulesTiles }}" as="t" hint-placeholder-count="3">
+            <div style="flex:1 1 200px;min-width:190px;background:var(--color-surface);padding:15px 17px">
+              <div style="font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 48%, transparent)">{{ t.label }}</div>
+              <div style="font-size:25px;font-variant-numeric:tabular-nums;margin:9px 0 5px;line-height:1">{{ t.value }}</div>
+              <div style="font-size:12px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">{{ t.sub }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+          <div style="display:flex;gap:13px;align-items:flex-start;padding:16px 18px;border:1px dashed var(--color-accent-600);border-radius:var(--radius-md);background:color-mix(in srgb, var(--color-accent) 5%, transparent)">
+            <i class="ph ph-database" style="font-size:19px;color:var(--color-accent-300);margin-top:1px"></i>
+            <div style="font-size:13px;line-height:1.6;text-wrap:pretty">{{ mktAwaiting }}</div>
+          </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start;margin:22px 0">
+          <div style="flex:1 1 320px;min-width:300px;max-width:400px;background:var(--color-surface);border-radius:var(--radius-md);padding:20px 22px;box-shadow:var(--shadow-sm)">
+            <h3 style="margin:0 0 4px;font-size:16px;font-weight:500">Team &amp; routing</h3>          <div style="flex:1 1 320px;min-width:300px;max-width:400px;background:var(--color-surface);border-radius:var(--radius-md);padding:20px 22px;box-shadow:var(--shadow-sm)">
+            <h3 style="margin:0 0 4px;font-size:16px;font-weight:500">Team &amp; routing</h3>
+            <div style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-bottom:14px">Requests route by skill, then by lightest load</div>
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <sc-for list="{{ mktTeamRows }}" as="p" hint-placeholder-count="5">
+                <div>
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">
+                    <div style="{{ p.avatarStyle }}">{{ p.initials }}</div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:13px">{{ p.name }}</div>
+                      <div style="font-size:11px;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-top:2px">{{ p.role }}</div>
+                    </div>
+                    <div style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent);white-space:nowrap">{{ p.max }}</div>
+                  </div>
+                  <div style="font-size:11px;color:color-mix(in srgb, var(--color-text) 48%, transparent)">{{ p.skills }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:20px 22px;box-shadow:var(--shadow-sm);margin-bottom:22px">
+          <h3 style="margin:0 0 4px;font-size:16px;font-weight:500">Request types, SLA and approval gates</h3>
+          <div style="font-size:12.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-bottom:14px">SLA is measured in marketing-controlled days. Gates must clear in order before a ticket can close.</div>
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead>
+              <tr>
+                <th style="padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700);white-space:nowrap;text-align:left;padding-left:0">Request type</th>
+                <th style="padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700);white-space:nowrap;text-align:left">Approval gates</th>
+                <th style="padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700);white-space:nowrap;text-align:left">Can be routed to</th>
+                <th style="padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700);white-space:nowrap;text-align:left;text-align:right;padding-right:0">SLA target</th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{ mktSlaRows }}" as="s" hint-placeholder-count="7">
+                <tr>
+                  <td style="padding:10px;border-bottom:1px solid var(--color-neutral-800);padding-left:0">{{ s.name }}</td>
+                  <td style="padding:10px;border-bottom:1px solid var(--color-neutral-800);font-size:12.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ s.gates }}</td>
+                  <td style="padding:10px;border-bottom:1px solid var(--color-neutral-800);font-size:12.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ s.skills }}</td>
+                  <td style="padding:10px;border-bottom:1px solid var(--color-neutral-800);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;padding-right:0">{{ s.sla }}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+
+        <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:20px 22px;box-shadow:var(--shadow-sm);margin-bottom:22px">
+          <h3 style="margin:0 0 4px;font-size:16px;font-weight:500">Marketing design system</h3>
+          <div style="font-size:12.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-bottom:16px;text-wrap:pretty">The palette, priority marks and production rules every brief is held to. Creative that leaves ATLAS is on these values or it goes back.</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:20px">
+            <sc-for list="{{ mktBrand }}" as="c" hint-placeholder-count="5">
+              <div>
+                <div style="{{ c.swatch }}"></div>
+                <div style="font-size:12.5px;margin-top:9px">{{ c.name }}</div>
+                <div style="font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-top:2px">{{ c.hex }}</div>
+                <div style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-top:5px;line-height:1.5">{{ c.use }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start;padding-top:18px;border-top:1px solid var(--color-neutral-800)">
+            <div style="flex:0 0 auto">
+              <div style="font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 45%, transparent);margin-bottom:10px">Priority marks</div>
+              <div style="display:flex;flex-direction:column;gap:9px">
+                <sc-for list="{{ mktPriority }}" as="p" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <div style="{{ p.dot }}"></div>
+                    <span style="font-size:12.5px">{{ p.name }}</span>
+                    <span style="font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ p.hex }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="flex:1 1 380px;min-width:320px">
+              <div style="font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 45%, transparent);margin-bottom:10px">Production rules</div>
+              <div style="display:flex;flex-direction:column;gap:9px">
+                <sc-for list="{{ mktRules }}" as="r" hint-placeholder-count="4">
+                  <div style="display:flex;gap:9px;align-items:flex-start">
+                    <i class="ph ph-check" style="font-size:14px;color:var(--color-accent-300);margin-top:2px"></i>
+                    <span style="font-size:12.5px;line-height:1.55;text-wrap:pretty">{{ r }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--color-neutral-800);font-size:12.5px;line-height:1.6;color:color-mix(in srgb, var(--color-text) 55%, transparent);text-wrap:pretty">{{ mktImageNote }}</div>
+        </div>
+
+        <div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:5px">
+            <h3 style="margin:0;font-size:16px;font-weight:500">Marketing Command Center</h3>
+            <a href="uploads/RISE-Marketing-Command-Center.html" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:7px 12px;border-radius:var(--radius-sm);border:1px solid var(--color-neutral-700)" style-hover="background:color-mix(in srgb, var(--color-accent) 12%, transparent)">
+              <i class="ph ph-arrow-square-out" style="font-size:14px"></i>Open full screen
+            </a>
+          </div>
+          <div style="font-size:12.5px;line-height:1.6;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-bottom:14px;text-wrap:pretty">Intake, the AI creative brief, approvals, routing and team metrics run in the Command Center itself — the queue above is the portfolio read of it.</div>
+          <div style="border:1px solid var(--color-neutral-700);border-radius:var(--radius-md);overflow:hidden;background:var(--color-surface);box-shadow:var(--shadow-sm)">
+            <div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap;padding:11px 15px;border-bottom:1px solid var(--color-neutral-700)">
+              <i class="ph ph-megaphone" style="font-size:16px;color:var(--color-accent-300)"></i>
+              <span style="font-size:13px">RISE Marketing Command Center</span>
+              <span style="font-size:12px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Runs as its own application against its own database — logic and integrations untouched</span>
+            </div>
+            <iframe src="uploads/RISE-Marketing-Command-Center.html" title="RISE Marketing Command Center" style="display:block;width:100%;height:1180px;border:none;background:#F0F4F6"></iframe>
+          </div>
+        </div>
+      </section>
+      </sc-if>
+
+      <!-- BUDGET BUILDER -->
+      <sc-if value="{{ isBudget }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="Budget Builder">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:18px">
+          <div style="flex:1 1 520px;min-width:min(100%,400px)">
+            <h1 style="font-size:29px;margin:0 0 6px;font-weight:500">Budget Builder</h1>
+            <p style="margin:0;font-size:14px;color:color-mix(in srgb, var(--color-text) 62%, transparent);text-wrap:pretty">{{ budgetSub }}</p>
+          </div>
+          <div style="display:flex;gap:9px;align-items:center">
+            <a href="uploads/RISE-Budget-Builder.html" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;font-size:13px;padding:9px 15px;border-radius:var(--radius-sm);border:1px solid var(--color-neutral-700)" style-hover="background:color-mix(in srgb, var(--color-accent) 12%, transparent)">
+              <i class="ph ph-arrow-square-out" style="font-size:15px"></i>Open full screen
+            </a>
+            <button onClick="{{ sync }}" style="{{ syncStyle }}" style-hover="background:color-mix(in srgb, var(--color-accent) 18%, transparent)">
+              <i class="ph ph-arrows-clockwise" style="font-size:15px"></i>{{ syncLabel }}
+            </button>
+          </div>
+        </div>
+
+        <sc-if value="{{ outOfSync }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;gap:12px;align-items:flex-start;padding:14px 16px;margin-bottom:20px;border:1px solid var(--color-accent-700);border-radius:var(--radius-md);background:color-mix(in srgb, var(--color-accent) 8%, transparent)">
+          <i class="ph ph-warning-diamond" style="font-size:18px;color:var(--color-accent-300);margin-top:1px"></i>
+          <div style="font-size:13px;line-height:1.55;text-wrap:pretty">{{ syncStripText }}</div>
+        </div>
+        </sc-if>
+
+        <div style="display:flex;flex-wrap:wrap;gap:1px;background:var(--color-neutral-800);border:1px solid var(--color-neutral-800);border-radius:var(--radius-md);overflow:hidden;margin-bottom:20px">
+          <sc-for list="{{ bridges }}" as="b" hint-placeholder-count="4">
+            <div style="flex:1 1 250px;min-width:236px;background:var(--color-surface);padding:15px 17px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+                <i class="ph {{ b.icon }}" style="font-size:15px;color:var(--color-accent-300)"></i>
+                <span style="font-size:13.5px">{{ b.label }}</span>
+              </div>
+              <div style="font-size:12px;color:color-mix(in srgb, var(--color-text) 60%, transparent);line-height:1.5;margin-bottom:10px">{{ b.detail }}</div>
+              <div style="font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 45%, transparent);margin-bottom:3px">Feeds</div>
+              <div style="font-size:12.5px;margin-bottom:9px">{{ b.feeds }}</div>
+              <div style="font-size:12px;color:var(--color-accent-300)">{{ b.state }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;margin-bottom:22px">
+          <div style="flex:1 1 330px;min-width:300px">
+            <div style="{{ versionCardStyle }}">
+              <div style="font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 48%, transparent);margin-bottom:8px">Approved version in ATLAS</div>
+              <div style="font-size:19px;margin-bottom:6px">{{ versionTitle }}</div>
+              <div style="font-size:12.5px;line-height:1.6;color:color-mix(in srgb, var(--color-text) 66%, transparent);text-wrap:pretty">{{ versionNote }}</div>
+              <div style="margin-top:14px;display:flex;flex-direction:column;gap:6px">
+                <sc-for list="{{ versionLog }}" as="v" hint-placeholder-count="3">
+                  <div style="font-size:12px;display:grid;grid-template-columns:78px 1fr;gap:10px">
+                    <span style="color:color-mix(in srgb, var(--color-text) 45%, transparent)">{{ v.k }}</span>
+                    <span>{{ v.v }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+          <div style="flex:1 1 330px;min-width:300px;background:var(--color-surface);border-radius:var(--radius-md);padding:18px 20px;box-shadow:var(--shadow-sm)">
+            <div style="font-size:15px;margin-bottom:4px">What reads this version</div>
+            <div style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 50%, transparent);margin-bottom:12px">The round trip back into ATLAS</div>
+            <div style="display:flex;flex-direction:column">
+              <sc-for list="{{ consumers }}" as="c" hint-placeholder-count="5">
+                <div style="padding:10px 0;border-top:1px solid var(--color-neutral-800);display:grid;grid-template-columns:1fr auto;gap:10px;align-items:baseline">
+                  <span style="font-size:13px">{{ c.name }}</span>
+                  <span style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ c.state }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:20px 22px;box-shadow:var(--shadow-sm);margin-bottom:22px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:5px">
+            <h3 style="margin:0;font-size:16px;font-weight:500">Actuals flow back into RISE forecasting</h3>
+            <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;padding:5px 11px;border-radius:99px;background:color-mix(in srgb, var(--color-accent) 10%, transparent);color:var(--color-accent-300)">
+              <i class="ph ph-arrows-left-right" style="font-size:14px"></i>Two-way · ATLAS writes the re-forecast drivers
+            </div>
+          </div>
+          <div style="font-size:12.5px;line-height:1.6;color:color-mix(in srgb, var(--color-text) 62%, transparent);margin-bottom:16px;text-wrap:pretty">{{ outboundNote }}</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(262px,1fr));gap:14px">
+            <sc-for list="{{ outbound }}" as="o" hint-placeholder-count="4">
+              <div style="border:1px solid var(--color-neutral-700);border-radius:var(--radius-sm);padding:14px 15px;display:flex;flex-direction:column;gap:8px;background:var(--color-neutral-900)">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <i class="ph {{ o.icon }}" style="font-size:15px;color:var(--color-accent-300)"></i>
+                  <span style="font-size:12.5px;color:color-mix(in srgb, var(--color-text) 66%, transparent)">{{ o.label }}</span>
+                </div>
+                <div style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+                  <span style="font-size:24px;font-variant-numeric:tabular-nums;line-height:1">{{ o.value }}</span>
+                  <span style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 52%, transparent)">{{ o.delta }}</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--color-accent-300);border-top:1px solid var(--color-neutral-800);margin-top:2px;padding-top:9px">
+                  <i class="ph ph-arrow-right" style="font-size:13px"></i>{{ o.gl }}
+                </div>
+                <div style="font-size:12px;line-height:1.55;color:color-mix(in srgb, var(--color-text) 62%, transparent);text-wrap:pretty">{{ o.effect }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="margin-top:15px;font-size:12px;color:color-mix(in srgb, var(--color-text) 50%, transparent)">{{ outboundFooter }}</div>
+        </div>
+
+        <div style="border:1px solid var(--color-neutral-700);border-radius:var(--radius-md);overflow:hidden;background:var(--color-surface);box-shadow:var(--shadow-sm)">
+          <div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap;padding:11px 15px;background:var(--color-surface);border-bottom:1px solid var(--color-neutral-700)">
+            <i class="ph ph-calculator" style="font-size:16px;color:var(--color-accent-300)"></i>
+            <span style="font-size:13px">RISE Budget Builder</span>
+            <span style="font-size:12px;color:color-mix(in srgb, var(--color-text) 50%, transparent)">Runs as its own application, on the RISE finance theme — logic and exports untouched</span>
+            <span style="margin-left:auto;font-size:11.5px;color:color-mix(in srgb, var(--color-text) 50%, transparent)">Last published to ATLAS · {{ pulledAt }}</span>
+          </div>
+          <iframe src="uploads/RISE-Budget-Builder.html" title="RISE Budget Builder" style="display:block;width:100%;height:1180px;border:none;background:#F1F4F6"></iframe>
+        </div>
+      </section>
+      </sc-if>
+
+      <!-- BONUS -->
+      <sc-if value="{{ isBonus }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="Bonus and Incentives">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:20px">
+          <div>
+            <h1 style="font-size:29px;margin:0 0 6px;font-weight:500">Bonus &amp; Incentives</h1>
+            <p style="margin:0;font-size:14px;color:color-mix(in srgb, var(--color-text) 62%, transparent)">{{ bonusSub }}</p>
+          </div>
+          <button onClick="{{ toggleLock }}" style="{{ lockStyle }}" style-hover="background:color-mix(in srgb, var(--color-accent) 18%, transparent)">{{ lockLabel }}</button>
+        </div>
+
+        <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:22px">
+          <sc-for list="{{ bonusSources }}" as="s" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:6px 12px;border-radius:99px;border:1px solid var(--color-neutral-700)">
+              <i class="ph {{ s.icon }}" style="font-size:14px;color:var(--color-accent-300)"></i>{{ s.label }}
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">
+          <div style="flex:1 1 660px;min-width:min(100%,600px);background:var(--color-surface);border-radius:var(--radius-md);padding:20px 22px;box-shadow:var(--shadow-sm)">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap">
+              <h3 style="margin:0;font-size:16px;font-weight:500">Eligibility, computed from the July upload</h3>
+              <div style="font-size:12px;color:color-mix(in srgb, var(--color-text) 52%, transparent)">{{ bonusBasis }}</div>
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead>
+                <tr>
+                  <th style="text-align:left;padding:8px 10px 8px 0;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Employee</th>
+                  <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Role · community</th>
+                  <th style="text-align:right;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Occupancy</th>
+                  <th style="text-align:right;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Leased</th>
+                  <th style="text-align:right;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Net abs.</th>
+                  <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Determination</th>
+                  <th style="text-align:right;padding:8px 0 8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Payout</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ bonusRows }}" as="e" hint-placeholder-count="8">
+                  <tr>
+                    <td style="padding:11px 10px 11px 0;border-bottom:1px solid var(--color-neutral-800)">{{ e.name }}</td>
+                    <td style="padding:11px 10px;border-bottom:1px solid var(--color-neutral-800);font-size:12.5px;color:color-mix(in srgb, var(--color-text) 62%, transparent)">{{ e.role }}</td>
+                    <td style="padding:11px 10px;border-bottom:1px solid var(--color-neutral-800);text-align:right;font-variant-numeric:tabular-nums">{{ e.occ }}</td>
+                    <td style="padding:11px 10px;border-bottom:1px solid var(--color-neutral-800);text-align:right;font-variant-numeric:tabular-nums">{{ e.leased }}</td>
+                    <td style="padding:11px 10px;border-bottom:1px solid var(--color-neutral-800);text-align:right;font-variant-numeric:tabular-nums">{{ e.net }}</td>
+                    <td style="padding:11px 10px;border-bottom:1px solid var(--color-neutral-800);font-size:12.5px">{{ e.determination }}</td>
+                    <td style="padding:11px 0 11px 10px;border-bottom:1px solid var(--color-neutral-800);text-align:right;font-variant-numeric:tabular-nums">{{ e.payout }}</td>
+                  </tr>
+                </sc-for>
+                <tr>
+                  <td style="padding:14px 10px 0 0"></td>
+                  <td style="padding:14px 10px 0;font-size:13px;color:color-mix(in srgb, var(--color-text) 62%, transparent)">{{ bonusCount }}</td>
+                  <td style="padding:14px 10px 0"></td>
+                  <td style="padding:14px 10px 0"></td>
+                  <td style="padding:14px 10px 0"></td>
+                  <td style="padding:14px 10px 0;font-size:13px">Period total</td>
+                  <td style="padding:14px 0 0 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:15px">{{ bonusTotal }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div style="margin-top:16px;font-size:12px;line-height:1.6;color:color-mix(in srgb, var(--color-text) 50%, transparent);text-wrap:pretty">✓ met · – short of threshold · ✕ no source data. Marks carry status; colour is not the signal. {{ bonusUnavailable }}</div>
+          </div>
+
+          <div style="flex:1 1 300px;min-width:290px;max-width:360px;display:flex;flex-direction:column;gap:20px">
+            <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:18px 20px;box-shadow:var(--shadow-sm)">
+              <div style="font-size:15px;margin-bottom:12px">Exceptions to clear</div>
+              <div style="display:flex;flex-direction:column">
+                <sc-for list="{{ bonusExceptions }}" as="x" hint-placeholder-count="3">
+                  <div style="padding:11px 0;border-top:1px solid var(--color-neutral-800)">
+                    <div style="font-size:13px;margin-bottom:4px">{{ x.who }}</div>
+                    <div style="font-size:12px;line-height:1.5;color:color-mix(in srgb, var(--color-text) 62%, transparent);text-wrap:pretty">{{ x.why }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="{{ hrCardStyle }}">
+              <div style="font-size:15px;margin-bottom:4px">HR extracts</div>
+              <div style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 52%, transparent);margin-bottom:14px">{{ hrNote }}</div>
+              <div style="display:flex;flex-direction:column;gap:7px">
+                <sc-for list="{{ hrExtracts }}" as="h" hint-placeholder-count="4">
+                  <button onClick="{{ h.go }}" style="{{ h.style }}">
+                    <i class="ph {{ h.icon }}" style="font-size:15px"></i>{{ h.label }}
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:26px;background:var(--color-surface);border-radius:var(--radius-md);padding:20px 22px;box-shadow:var(--shadow-sm)">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:4px">
+            <div>
+              <h3 style="margin:0 0 4px;font-size:16px;font-weight:500">Marketing team bonus</h3>
+              <div style="font-size:12.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ mktBonusSub }}</div>
+            </div>
+            <button onClick="{{ goMarketing }}" style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:7px 12px;border-radius:var(--radius-sm);border:1px solid var(--color-neutral-700);background:transparent" style-hover="background:color-mix(in srgb, var(--color-accent) 12%, transparent)">
+              <i class="ph ph-megaphone" style="font-size:14px"></i>Open the request queue
+            </button>
+          </div>
+          <div style="font-size:12.5px;line-height:1.6;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin:10px 0 16px;text-wrap:pretty">{{ mktBonusNote }}</div>
+
+          <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:18px">
+            <sc-for list="{{ mktBonusWeightChips }}" as="w" hint-placeholder-count="5">
+              <div style="padding:8px 13px;border-radius:var(--radius-sm);border:1px solid var(--color-neutral-700)">
+                <div style="font-size:12.5px">{{ w.label }}</div>
+                <div style="font-size:11px;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-top:3px">{{ w.target }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;gap:13px;align-items:flex-start;padding:16px 18px;border:1px dashed var(--color-accent-600);border-radius:var(--radius-md);background:color-mix(in srgb, var(--color-accent) 5%, transparent)">
+            <i class="ph ph-database" style="font-size:19px;color:var(--color-accent-300);margin-top:1px"></i>
+            <div style="font-size:13px;line-height:1.6;text-wrap:pretty">{{ mktBonusNote }}</div>
+          </div>
+        </div>
+      </section>
+      </sc-if>
+
+      <!-- PEOPLE -->        </div>
+      </section>
+      </sc-if>
+
+      <!-- PEOPLE -->
+      <sc-if value="{{ isPeople }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="People">
+        <h1 style="font-size:29px;margin:0 0 6px;font-weight:500">People</h1>
+        <p style="margin:0 0 22px;font-size:14px;color:color-mix(in srgb, var(--color-text) 62%, transparent);text-wrap:pretty">{{ peopleSub }}</p>
+
+        <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">
+          <div style="flex:1 1 640px;min-width:min(100%,560px)">
+            <div style="border:1px dashed var(--color-neutral-600);border-radius:var(--radius-md);padding:22px;margin-bottom:20px;background:color-mix(in srgb, var(--color-accent) 4%, transparent)">
+              <div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap">
+                <i class="ph ph-user-list" style="font-size:22px;color:var(--color-accent-300)"></i>
+                <div style="flex:1 1 340px;min-width:300px">
+                  <div style="font-size:15px">Drop the HR roster export here</div>
+                  <div style="font-size:12.5px;color:color-mix(in srgb, var(--color-text) 58%, transparent);margin-top:3px;line-height:1.5">{{ rosterImportNote }}</div>
+                </div>
+                <div style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 50%, transparent);text-align:right">{{ rosterImportMeta }}</div>
+              </div>
+            </div>
+
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead>
+                <tr>
+                  <th style="text-align:left;padding:8px 10px 8px 0;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Employee</th>
+                  <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Role</th>
+                  <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Community</th>
+                  <th style="text-align:right;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Hired</th>
+                  <th style="text-align:right;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Tenure</th>
+                  <th style="text-align:left;padding:8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Bonus eligibility</th>
+                  <th style="text-align:right;padding:8px 0 8px 10px;font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;font-weight:500;color:color-mix(in srgb, var(--color-text) 45%, transparent);border-bottom:1px solid var(--color-neutral-700)">Join</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ rosterRows }}" as="r" hint-placeholder-count="11">
+                  <tr>
+                    <td style="padding:11px 10px 11px 0;border-bottom:1px solid var(--color-neutral-800)">{{ r.name }}</td>
+                    <td style="padding:11px 10px;border-bottom:1px solid var(--color-neutral-800);font-size:12.5px;color:color-mix(in srgb, var(--color-text) 66%, transparent)">{{ r.role }}</td>
+                    <td style="padding:11px 10px;border-bottom:1px solid var(--color-neutral-800);font-size:12.5px">{{ r.community }}</td>
+                    <td style="padding:11px 10px;border-bottom:1px solid var(--color-neutral-800);text-align:right;font-variant-numeric:tabular-nums;color:color-mix(in srgb, var(--color-text) 66%, transparent)">{{ r.hire }}</td>
+                    <td style="padding:11px 10px;border-bottom:1px solid var(--color-neutral-800);text-align:right;font-variant-numeric:tabular-nums">{{ r.tenure }}</td>
+                    <td style="padding:11px 10px;border-bottom:1px solid var(--color-neutral-800);font-size:12.5px">{{ r.eligibility }}</td>
+                    <td style="padding:11px 0 11px 10px;border-bottom:1px solid var(--color-neutral-800);text-align:right;font-size:12px;color:color-mix(in srgb, var(--color-text) 62%, transparent)">{{ r.join }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+            <div style="margin-top:14px;font-size:12px;color:color-mix(in srgb, var(--color-text) 50%, transparent)">{{ rosterFootnote }}</div>
+          </div>
+
+          <div style="flex:1 1 300px;min-width:290px;max-width:360px;display:flex;flex-direction:column;gap:20px">
+            <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:18px 20px;box-shadow:var(--shadow-sm)">
+              <div style="font-size:15px;margin-bottom:4px">Roster join to bonus</div>
+              <div style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 50%, transparent);margin-bottom:14px">One employee ID, shared by every section</div>
+              <div style="display:flex;flex-wrap:wrap;gap:1px;background:var(--color-neutral-800);border:1px solid var(--color-neutral-800);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:14px">
+                <sc-for list="{{ joinStats }}" as="s" hint-placeholder-count="3">
+                  <div style="flex:1 1 90px;background:var(--color-surface);padding:11px 12px">
+                    <div style="font-size:21px;font-variant-numeric:tabular-nums;line-height:1">{{ s.value }}</div>
+                    <div style="font-size:10.5px;letter-spacing:0.06em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 48%, transparent);margin-top:5px">{{ s.label }}</div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:flex;flex-direction:column">
+                <sc-for list="{{ joinIssues }}" as="j" hint-placeholder-count="3">
+                  <div style="padding:11px 0;border-top:1px solid var(--color-neutral-800)">
+                    <div style="font-size:13px;margin-bottom:4px">{{ j.who }}</div>
+                    <div style="font-size:12px;line-height:1.5;color:color-mix(in srgb, var(--color-text) 62%, transparent);text-wrap:pretty">{{ j.why }}</div>
+                    <button onClick="{{ j.go }}" style="background:none;border:none;padding:0;margin-top:6px;font-size:12px;color:var(--color-accent-300)">{{ j.action }} →</button>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:18px 20px;box-shadow:var(--shadow-sm)">
+              <div style="font-size:15px;margin-bottom:4px">Linked records</div>
+              <div style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 50%, transparent);margin-bottom:12px">Kept where they live, joined by employee ID</div>
+              <div style="display:flex;flex-direction:column">
+                <sc-for list="{{ linkedRecords }}" as="l" hint-placeholder-count="4">
+                  <div style="padding:10px 0;border-top:1px solid var(--color-neutral-800);display:grid;grid-template-columns:1fr auto;gap:10px;align-items:baseline">
+                    <span style="font-size:13px">{{ l.name }}</span>
+                    <span style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ l.meta }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:26px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:5px">
+            <h3 style="margin:0;font-size:16px;font-weight:500">Performance Platform</h3>
+            <a href="uploads/RISE-Performance-Platform.html" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:7px 12px;border-radius:var(--radius-sm);border:1px solid var(--color-neutral-700)" style-hover="background:color-mix(in srgb, var(--color-accent) 12%, transparent)">
+              <i class="ph ph-arrow-square-out" style="font-size:14px"></i>Open full screen
+            </a>
+          </div>
+          <div style="font-size:12.5px;line-height:1.6;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-bottom:14px;text-wrap:pretty">Reviews, coaching plans, training and accountability run in the RISE Performance Platform. It reads the same roster keyed by employee ID, so a reassignment in Communities lands here without a second import.</div>
+          <div style="border:1px solid var(--color-neutral-700);border-radius:var(--radius-md);overflow:hidden;background:var(--color-surface);box-shadow:var(--shadow-sm)">
+            <div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap;padding:11px 15px;border-bottom:1px solid var(--color-neutral-700)">
+              <i class="ph ph-trophy" style="font-size:16px;color:var(--color-accent-300)"></i>
+              <span style="font-size:13px">RISE Performance Platform</span>
+              <span style="font-size:12px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Runs as its own application — reviews, training plans and accountability, logic untouched</span>
+              <span style="margin-left:auto;font-size:11.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Joined on employee ID · 8 matched</span>
+            </div>
+            <iframe src="uploads/RISE-Performance-Platform.html" title="RISE Performance Platform" style="display:block;width:100%;height:1120px;border:none;background:#F8FBFC"></iframe>
+          </div>
+        </div>
+      </section>
+      </sc-if>
+
+      <!-- REPORTS -->
+      <sc-if value="{{ isReports }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="Reports and Presentations">
+        <h1 style="font-size:29px;margin:0 0 6px;font-weight:500">Reports &amp; Presentations</h1>
+        <p style="margin:0 0 20px;font-size:14px;color:color-mix(in srgb, var(--color-text) 62%, transparent)">{{ reportsSub }}</p>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px">
+          <sc-for list="{{ presets }}" as="p" hint-placeholder-count="5">
+            <button onClick="{{ p.go }}" style="{{ p.style }}" style-hover="background:color-mix(in srgb, var(--color-accent) 12%, transparent)">
+              <div style="font-size:13.5px;margin-bottom:3px">{{ p.label }}</div>
+              <div style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ p.note }}</div>
+            </button>
+          </sc-for>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">
+          <div style="flex:1 1 340px;min-width:320px;background:var(--color-surface);border-radius:var(--radius-md);padding:20px 22px;box-shadow:var(--shadow-sm)">
+            <h3 style="margin:0 0 14px;font-size:16px;font-weight:500">Data blocks</h3>
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <sc-for list="{{ blocks }}" as="b" hint-placeholder-count="9">
+                <button onClick="{{ b.go }}" style="{{ b.style }}">
+                  <i class="ph {{ b.icon }}" style="font-size:15px;color:var(--color-accent-300)"></i>
+                  <span style="font-size:13px;text-align:left">{{ b.label }}</span>
+                  <span style="margin-left:auto;font-size:11px;color:color-mix(in srgb, var(--color-text) 50%, transparent)">{{ b.chart }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="flex:1 1 340px;min-width:320px;background:var(--color-surface);border-radius:var(--radius-md);padding:20px 22px;box-shadow:var(--shadow-sm)">
+            <h3 style="margin:0 0 14px;font-size:16px;font-weight:500">Preview — {{ reportTitle }}</h3>
+            <div style="border:1px solid var(--color-neutral-700);border-radius:var(--radius-sm);padding:16px;display:flex;flex-direction:column;gap:12px">
+              <div>
+                <div style="font-size:9.5px;letter-spacing:0.2em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 45%, transparent)">RISE · ATLAS</div>
+                <div style="font-size:16px;margin-top:5px">{{ reportTitle }}</div>
+                <div style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-top:3px">{{ reportMeta }}</div>
+              </div>
+              <sc-for list="{{ previewBlocks }}" as="p" hint-placeholder-count="4">
+                <div style="border-top:1px solid var(--color-neutral-800);padding-top:10px">
+                  <div style="font-size:12px;margin-bottom:7px">{{ p.label }}</div>
+                  <div style="display:flex;align-items:flex-end;gap:4px;height:38px">
+                    <sc-for list="{{ p.bars }}" as="h" hint-placeholder-count="8">
+                      <div style="{{ h.style }}"></div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-for>
+              <sc-if value="{{ noBlocks }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:12.5px;color:color-mix(in srgb, var(--color-text) 52%, transparent);padding:14px 0">Pick data blocks to compose the report.</div>
+              </sc-if>
+            </div>
+          </div>
+
+          <div style="flex:1 1 290px;min-width:280px;max-width:340px;display:flex;flex-direction:column;gap:20px">
+            <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:18px 20px;box-shadow:var(--shadow-sm)">
+              <div style="font-size:15px;margin-bottom:12px">Audience &amp; scope</div>
+              <div style="display:flex;flex-direction:column;gap:11px">
+                <sc-for list="{{ reportMetaRows }}" as="r" hint-placeholder-count="4">
+                  <div>
+                    <div style="font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 45%, transparent);margin-bottom:4px">{{ r.k }}</div>
+                    <div style="font-size:13px">{{ r.v }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:18px 20px;box-shadow:var(--shadow-sm)">
+              <div style="font-size:15px;margin-bottom:12px">Export</div>
+              <div style="display:flex;flex-direction:column;gap:7px">
+                <sc-for list="{{ exports }}" as="x" hint-placeholder-count="4">
+                  <button onClick="{{ x.go }}" style="display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:var(--radius-sm);border:1px solid var(--color-accent);background:transparent;font-size:13px" style-hover="background:color-mix(in srgb, var(--color-accent) 16%, transparent)">
+                    <i class="ph {{ x.icon }}" style="font-size:15px;color:var(--color-accent-300)"></i>{{ x.label }}
+                  </button>
+                </sc-for>
+              </div>
+              <div style="margin-top:12px;font-size:11.5px;color:color-mix(in srgb, var(--color-text) 50%, transparent);text-wrap:pretty">{{ exportNote }}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+      </sc-if>
+
+      <!-- DATA IMPORT -->
+      <sc-if value="{{ isImport }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="Data Import">
+        <h1 style="font-size:29px;margin:0 0 6px;font-weight:500">Data Import</h1>
+        <p style="margin:0 0 14px;font-size:14px;color:color-mix(in srgb, var(--color-text) 62%, transparent);text-wrap:pretty">{{ importSub }}</p>
+
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:6px 12px;border-radius:99px;border:1px solid var(--color-accent-600);background:color-mix(in srgb, var(--color-accent) 8%, transparent);color:var(--color-accent-300);width:fit-content;margin-bottom:20px">
+          <i class="ph ph-seal-check" style="font-size:14px"></i>{{ importStatus }}
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:1px;background:var(--color-neutral-800);border:1px solid var(--color-neutral-800);border-radius:var(--radius-md);overflow:hidden;margin-bottom:24px">
+          <sc-for list="{{ importChecks }}" as="c" hint-placeholder-count="6">
+            <div style="flex:1 1 165px;min-width:158px;background:var(--color-surface);padding:14px 16px">
+              <div style="font-size:10.5px;letter-spacing:0.09em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 48%, transparent)">{{ c.label }}</div>
+              <div style="font-size:22px;font-variant-numeric:tabular-nums;margin:8px 0 4px;line-height:1">{{ c.value }}</div>
+              <div style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ c.target }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">
+          <div style="flex:1 1 560px;min-width:min(100%,480px)">
+            <div style="border:1px dashed var(--color-neutral-600);border-radius:var(--radius-md);padding:26px;text-align:left;margin-bottom:20px;background:color-mix(in srgb, var(--color-accent) 4%, transparent)">
+              <div style="display:flex;align-items:center;gap:11px">
+                <i class="ph ph-tray-arrow-down" style="font-size:22px;color:var(--color-accent-300)"></i>
+                <div>
+                  <div style="font-size:15px">Drop Ronaldo PMS exports here</div>
+                  <div style="font-size:12.5px;color:color-mix(in srgb, var(--color-text) 58%, transparent);margin-top:3px">Same parsers and column tolerance as today — Box Score, Budget Comparison, Market Survey, Occupancy Trend, Historical Performance, Renewal Management</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1px;background:var(--color-neutral-800);border:1px solid var(--color-neutral-800);border-radius:var(--radius-md);overflow:hidden">
+              <sc-for list="{{ importers }}" as="i" hint-placeholder-count="6">
+                <div style="background:var(--color-surface);padding:16px 18px">
+                  <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+                    <div style="font-size:13.5px">{{ i.name }}</div>
+                    <div style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ i.status }}</div>
+                  </div>
+                  <div style="font-size:12px;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-top:6px">{{ i.detail }}</div>
+                  <div style="height:2px;margin-top:11px;background:var(--color-neutral-800)">
+                    <div style="{{ i.barStyle }}"></div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="flex:1 1 300px;min-width:290px;max-width:360px;display:flex;flex-direction:column;gap:20px">
+            <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:18px 20px;box-shadow:var(--shadow-sm)">
+              <div style="font-size:15px;margin-bottom:4px">Exceptions from the last run</div>
+              <div style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 50%, transparent);margin-bottom:12px">Confirm or correct before the numbers publish</div>
+              <div style="display:flex;flex-direction:column">
+                <sc-for list="{{ importExceptions }}" as="x" hint-placeholder-count="3">
+                  <div style="padding:11px 0;border-top:1px solid var(--color-neutral-800)">
+                    <div style="font-size:13px;margin-bottom:3px">{{ x.what }}</div>
+                    <div style="font-size:12px;color:color-mix(in srgb, var(--color-text) 60%, transparent);line-height:1.5">{{ x.detail }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:18px 20px;box-shadow:var(--shadow-sm)">
+              <div style="font-size:15px;margin-bottom:4px">Marketing &amp; assets</div>
+              <div style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 50%, transparent);margin-bottom:12px">Kept here, with usage visible</div>
+              <div style="display:flex;flex-direction:column">
+                <sc-for list="{{ assetRows }}" as="a" hint-placeholder-count="3">
+                  <div style="padding:10px 0;border-top:1px solid var(--color-neutral-800);display:grid;grid-template-columns:1fr auto;gap:10px;align-items:baseline">
+                    <span style="font-size:13px">{{ a.name }}</span>
+                    <span style="font-size:11.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ a.meta }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      </sc-if>
+
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;roleView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Portfolio manager&quot;,&quot;Executive&quot;,&quot;HR&quot;],&quot;default&quot;:&quot;Portfolio manager&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Context&quot;},&quot;showIntelRail&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Context&quot;}}">
+class Component extends DCLogic {
+  state = {
+    nav: 'overview', scope: 'All communities', period: 'Jul 2026',
+    sortKey: 'variance', selected: 'RDG', detailTab: 'perf', setupOpen: false,
+    bbVersion: 3, atlasVersion: 2, pulledAt: 'Jul 28, 2026 · 08:02', bonusLocked: false,
+    preset: 'investor', blocks: { variance: true, occupancy: true, ner: true, renewals: false, traffic: false, comps: false, reputation: false, bonus: false, capital: false }
+  };
+
+  // Source: ATLAS_MonthlyUpload_2026-07_Community_Review.xlsx · Monthly_Upload + Community_Master
+  // + Student_Housing_Reporting. 23 active July 2026 communities. GKP, NOC and VIE are
+  // excluded from July per Review_Issues JUL2026-PORTFOLIO-REVISION and are not carried here.
+  // GM / SM / regional come from the RISE roster (Performance-Platform ROSTER_SEED).
+  reportMonth = 'Jul 2026';
+  sourceFile = '02-02-RISE-Box-Score-3-.xlsx · 01-02-RISE-Box-Score-08-03-2026.zip';
+  uploadStatus = 'PUBLISHED FOR REVIEW';
+  lastReviewed = '2026-08-03 10:38 EDT';
+
+  communities = [
+    { code: 'SER', name: 'Sereno', units: 320, occupied: 277, leased: 249, preleased: 10, vacant: 43,
+      occ: 86.56, leasedPct: 77.81, mktRent: 1993, actRent: 1917,
+      leads: 214, tours: 78, apps: 25, approved: 17, moveIns: 16, moveOuts: 10, renewals: 4,
+      region: 'Florida', mkt: 'Jacksonville', asset: 'Multifamily', pms: 'SERENO', group: 'Stabilized', status: 'OK',
+      regional: 'Carol Seawood', gm: 'No GM', sm: 'Troy Vappie' },
+    { code: 'FLO', name: 'Florence Villa', units: 224, occupied: 189, leased: 192, preleased: 11, vacant: 35,
+      occ: 84.38, leasedPct: 85.71, mktRent: 2049, actRent: 2306,
+      leads: 84, tours: 26, apps: 14, approved: 7, moveIns: 12, moveOuts: 8, renewals: 5,
+      region: 'Florida', mkt: 'Central Florida', asset: 'Multifamily', pms: 'FLOVILLA', group: 'Lease-Up', status: 'OK',
+      regional: 'Carol Seawood', gm: 'Samantha Sproat', sm: 'Jadarian Jackson' },
+    { code: 'BAR', name: 'Bartram', units: 297, occupied: 282, leased: 268, preleased: 8, vacant: 15,
+      occ: 94.95, leasedPct: 90.24, mktRent: 1704, actRent: 1652,
+      leads: 198, tours: 56, apps: 20, approved: 14, moveIns: 22, moveOuts: 14, renewals: 7,
+      region: 'Florida', mkt: 'Jacksonville', asset: 'Multifamily', pms: 'BARTRAM', group: 'Stabilized', status: 'OK',
+      regional: 'Ashley Browne', gm: 'Elissa Gonzalez', sm: 'Jalen Calvin' },
+    { code: 'CIT', name: 'Citrus Ridge', units: 222, occupied: 194, leased: 190, preleased: 6, vacant: 27,
+      occ: 87.78, leasedPct: 85.59, mktRent: 2514, actRent: 2175,
+      leads: 150, tours: 28, apps: 23, approved: 11, moveIns: 19, moveOuts: 5, renewals: 8,
+      region: 'Florida', mkt: 'Central Florida', asset: 'Multifamily', pms: 'CITRIDGE', group: 'Lease-Up', status: 'OK',
+      regional: 'Carol Seawood', gm: 'Kateri Guzman', sm: 'Jorge LoraMendez' },
+    { code: 'BAY', name: 'Baymeadows', units: 331, occupied: 310, leased: 293, preleased: 10, vacant: 21,
+      occ: 93.66, leasedPct: 88.52, mktRent: 1793, actRent: 1733,
+      leads: 150, tours: 50, apps: 25, approved: 23, moveIns: 20, moveOuts: 5, renewals: 14,
+      region: 'Florida', mkt: 'Jacksonville', asset: 'Multifamily', pms: 'BAYMEADOWS', group: 'Lease-Up', status: 'OK',
+      regional: 'Ashley Browne', gm: 'Elissa Gonzalez', sm: 'Manuel Pedro' },
+    { code: 'DOR', name: 'Doro', units: 247, occupied: 66, leased: 75, preleased: 9, vacant: 181,
+      occ: 26.72, leasedPct: 30.36, mktRent: 1896, actRent: 1181,
+      leads: 126, tours: 46, apps: 29, approved: 27, moveIns: 23, moveOuts: 1, renewals: 0,
+      region: 'Florida', mkt: 'Jacksonville', asset: 'Multifamily', pms: 'DORO', group: 'Stabilized', status: 'OK',
+      regional: 'Ashley Browne', gm: 'Brianne Kocher', sm: 'Adam Daley' },
+    { code: 'STA', name: 'St. Augustine', units: 272, occupied: 8, leased: 15, preleased: 7, vacant: 264,
+      occ: 2.94, leasedPct: 5.51, mktRent: 2856, actRent: 2557,
+      leads: 39, tours: 8, apps: 5, approved: 4, moveIns: 4, moveOuts: 0, renewals: 0,
+      region: 'Florida', mkt: 'St. Augustine', asset: 'Multifamily', pms: 'STA', group: 'Lease-Up', status: 'OK',
+      regional: 'Ashley Browne', gm: 'Craig Collins', sm: 'Jason Dolls' },
+    { code: 'ANTHEM_HOUSE', name: 'Anthem House', units: 185, occupied: 111, leased: 158, preleased: 53, vacant: 74,
+      occ: 60, leasedPct: 85.41, mktRent: 1303, actRent: 1403,
+      leads: 70, tours: 14, apps: 18, approved: 10, moveIns: 6, moveOuts: 61, renewals: -1,
+      region: '—', mkt: 'Student housing', asset: 'Student', pms: '', group: 'Student', status: 'REVIEW',
+      regional: 'Alana Savoie', gm: 'Louis Didier', sm: 'Henry Valderrama' },
+    { code: 'IVY_ELM', name: 'Ivy & Elm', units: 504, occupied: 46, leased: 420, preleased: 374, vacant: 458,
+      occ: 9.13, leasedPct: 83.33, mktRent: 1265, actRent: 61,
+      leads: 53, tours: 4, apps: 9, approved: 8, moveIns: 43, moveOuts: 0, renewals: 0,
+      region: '—', mkt: 'Student housing', asset: 'Student', pms: '', group: 'Student', status: 'REVIEW',
+      regional: 'Alana Savoie', gm: 'Casey Beard', sm: 'Nathan Armstrong' },
+    { code: 'LSU_AZALEA', name: 'LSU - Azalea', units: 130, occupied: 0, leased: 0, preleased: 0, vacant: 130,
+      occ: 0, leasedPct: 0, mktRent: 0, actRent: 0,
+      leads: null, tours: null, apps: null, approved: null, moveIns: 0, moveOuts: 0, renewals: 0,
+      region: '—', mkt: 'Student housing', asset: 'Student', pms: '', group: 'Student', status: 'REVIEW',
+      regional: 'Alana Savoie - LSU Tigers', gm: 'Gwen Naquin', sm: 'Jovan Northern' },
+    { code: 'LSU_CAMELLIA', name: 'LSU - Camellia', units: 116, occupied: 0, leased: 0, preleased: 0, vacant: 116,
+      occ: 0, leasedPct: 0, mktRent: 0, actRent: 0,
+      leads: null, tours: null, apps: null, approved: null, moveIns: 0, moveOuts: 0, renewals: 0,
+      region: '—', mkt: 'Student housing', asset: 'Student', pms: '', group: 'Student', status: 'REVIEW',
+      regional: 'Alana Savoie - LSU Tigers', gm: 'Gwen Naquin', sm: 'Jovan Northern' },
+    { code: 'LSU_CEDAR', name: 'LSU - Cedar', units: 119, occupied: 0, leased: 0, preleased: 0, vacant: 119,
+      occ: 0, leasedPct: 0, mktRent: 0, actRent: 0,
+      leads: null, tours: null, apps: null, approved: null, moveIns: 0, moveOuts: 0, renewals: 0,
+      region: '—', mkt: 'Student housing', asset: 'Student', pms: '', group: 'Student', status: 'REVIEW',
+      regional: 'Alana Savoie - LSU Tigers', gm: 'Marc Nichols', sm: 'Jovan Northern' },
+    { code: 'LSU_EVANGELINE', name: 'LSU - Evangeline', units: 87, occupied: 0, leased: 0, preleased: 0, vacant: 87,
+      occ: 0, leasedPct: 0, mktRent: 0, actRent: 0,
+      leads: null, tours: null, apps: null, approved: null, moveIns: 0, moveOuts: 0, renewals: 0,
+      region: '—', mkt: 'Student housing', asset: 'Student', pms: '', group: 'Student', status: 'REVIEW',
+      regional: 'Alana Savoie - LSU Tigers', gm: 'Gwen Naquin', sm: 'Jovan Northern' },
+    { code: 'LSU_HIGHLAND', name: 'LSU - Highland', units: 58, occupied: 0, leased: 0, preleased: 0, vacant: 58,
+      occ: 0, leasedPct: 0, mktRent: 0, actRent: 0,
+      leads: null, tours: null, apps: null, approved: null, moveIns: 0, moveOuts: 0, renewals: 0,
+      region: '—', mkt: 'Student housing', asset: 'Student', pms: '', group: 'Student', status: 'REVIEW',
+      regional: 'Alana Savoie - LSU Tigers', gm: 'Gwen Naquin', sm: 'Jovan Northern' },
+    { code: 'LSU_NICHOLSON', name: 'LSU - Nicholson Gateway', units: 763, occupied: 0, leased: 0, preleased: 0, vacant: 763,
+      occ: 0, leasedPct: 0, mktRent: 0, actRent: 0,
+      leads: null, tours: null, apps: null, approved: null, moveIns: 0, moveOuts: 0, renewals: 0,
+      region: '—', mkt: 'Student housing', asset: 'Student', pms: '', group: 'Student', status: 'REVIEW',
+      regional: 'Alana Savoie - LSU Tigers', gm: 'Marc Nichols', sm: 'Jovan Northern' },
+    { code: 'LSU_SPRUCE', name: 'LSU - Spruce', units: 216, occupied: 0, leased: 0, preleased: 0, vacant: 216,
+      occ: 0, leasedPct: 0, mktRent: 0, actRent: 0,
+      leads: null, tours: null, apps: null, approved: null, moveIns: 0, moveOuts: 0, renewals: 0,
+      region: '—', mkt: 'Student housing', asset: 'Student', pms: '', group: 'Student', status: 'REVIEW',
+      regional: 'Alana Savoie - LSU Tigers', gm: 'Marc Nichols', sm: 'Jovan Northern' },
+    { code: 'NJIT_MAPLE', name: 'NJIT - Maple Hall', units: 548, occupied: 285, leased: 0, preleased: 0, vacant: 263,
+      occ: 52.01, leasedPct: 0, mktRent: 0, actRent: 0,
+      leads: 21, tours: 1, apps: 20, approved: 19, moveIns: 19, moveOuts: 5, renewals: 0,
+      region: '—', mkt: 'Student housing', asset: 'Student', pms: '', group: 'Student', status: 'REVIEW',
+      regional: 'Marcus Dallas', gm: 'Deonate Guy', sm: 'No SM' },
+    { code: 'PILOTS_POINTE', name: 'Pilots Pointe at LSUS', units: 388, occupied: 167, leased: 376, preleased: 222, vacant: 217,
+      occ: 43.49, leasedPct: 96.91, mktRent: 589, actRent: 433,
+      leads: 132, tours: 9, apps: 72, approved: 71, moveIns: 60, moveOuts: 36, renewals: 2,
+      region: '—', mkt: 'Student housing', asset: 'Student', pms: '', group: 'Student', status: 'REVIEW',
+      regional: 'Alana Savoie', gm: 'Oliver Gill', sm: 'No SM' },
+    { code: 'PROSPER_FAYETTE', name: 'Prosper On Fayette', units: 314, occupied: 216, leased: 306, preleased: 90, vacant: 98,
+      occ: 68.79, leasedPct: 97.45, mktRent: 1422, actRent: 1181,
+      leads: 74, tours: 9, apps: 6, approved: 6, moveIns: 36, moveOuts: 132, renewals: -1,
+      region: '—', mkt: 'Student housing', asset: 'Student', pms: '', group: 'Student', status: 'REVIEW',
+      regional: 'Marcus Dallas', gm: 'Eric Carter', sm: 'Eric Lee' },
+    { code: 'RISE_34TH', name: 'RISE 34th', units: 369, occupied: 227, leased: 337, preleased: 121, vacant: 142,
+      occ: 61.52, leasedPct: 91.33, mktRent: 1210, actRent: 1156,
+      leads: 103, tours: 12, apps: 19, approved: 17, moveIns: 13, moveOuts: 120, renewals: 1,
+      region: '—', mkt: 'Student housing', asset: 'Student', pms: '', group: 'Student', status: 'REVIEW',
+      regional: 'Alana Savoie', gm: 'Louis Didier', sm: 'Kyle Carver' },
+    { code: 'PRESERVE_TECH', name: 'The Preserve at Tech', units: 588, occupied: 480, leased: 438, preleased: 132, vacant: 108,
+      occ: 81.63, leasedPct: 74.49, mktRent: 644, actRent: 647,
+      leads: 121, tours: 7, apps: 52, approved: 49, moveIns: 18, moveOuts: 17, renewals: 10,
+      region: '—', mkt: 'Student housing', asset: 'Student', pms: '', group: 'Student', status: 'REVIEW',
+      regional: 'Alana Savoie', gm: 'Grant Saulters', sm: 'Henry Gullette' },
+    { code: 'UTK_BEACON', name: 'UTK - Beacon Hall', units: 600, occupied: 0, leased: 0, preleased: 0, vacant: 600,
+      occ: 0, leasedPct: 0, mktRent: 0, actRent: 0,
+      leads: null, tours: null, apps: null, approved: null, moveIns: 0, moveOuts: 0, renewals: 0,
+      region: '—', mkt: 'Student housing', asset: 'Student', pms: '', group: 'Student', status: 'REVIEW',
+      regional: 'Marcus Dallas', gm: 'Jody Dawson', sm: 'Dana Parson' },
+    { code: 'UTK_POPLAR', name: 'UTK - Poplar Hall', units: 411, occupied: 0, leased: 0, preleased: 0, vacant: 411,
+      occ: 0, leasedPct: 0, mktRent: 0, actRent: 0,
+      leads: null, tours: null, apps: null, approved: null, moveIns: 0, moveOuts: 0, renewals: 0,
+      region: '—', mkt: 'Student housing', asset: 'Student', pms: '', group: 'Student', status: 'REVIEW',
+      regional: 'Marcus Dallas', gm: 'Jody Dawson', sm: 'Dana Parson' }
+  ];
+
+  removedFromJuly = [
+    { code: 'GKP', name: 'Glen Kernan Park', units: 308, why: 'Removed from July reporting and coverage checks per user direction 2026-08-03; master row retained.' },
+    { code: 'NOC', name: 'Nocatee', units: 178, why: 'Removed from July reporting and coverage checks per user direction 2026-08-03; master row retained.' },
+    { code: 'VIE', name: 'Viera', units: 166, why: 'Removed from July reporting and coverage checks per user direction 2026-08-03; master row retained.' }
+  ];
+
+  additionalReview = [
+    { name: 'Jax Centurion Partners, LLC', units: '13 units', state: 'Data present · not classified', need: 'Confirm ATLAS Community_ID and asset classification.' },
+    { name: 'Greenhouse District Corp', units: '—', state: 'Report filters returned no data', need: 'Confirm active status and provide a July source report.' },
+    { name: 'Greenhouse District Corp 3', units: '—', state: 'Report filters returned no data', need: 'Confirm active status and provide a July source report.' },
+    { name: 'Nicholson Gateway Corp', units: '—', state: 'Report filters returned no data', need: 'Confirm active status and provide a July source report.' },
+    { name: 'RISE Sutton Place', units: '—', state: 'Report filters returned no data', need: 'Confirm active status and provide a July source report.' },
+    { name: 'UTK - Torchbearer', units: '—', state: 'Report filters returned no data', need: 'Confirm active status and provide a July source report.' }
+  ];
+
+  budgetLines = [
+    { gl: '4100', name: 'Gross potential rent', baseline: 46180000, draft: 48010000, threshold: '±1.5% to actual' },
+    { gl: '4200', name: 'Loss to lease & concessions', baseline: -2940000, draft: -3210000, threshold: 'Alert over 7% of GPR' },
+    { gl: '4300', name: 'Other income', baseline: 1860000, draft: 1995000, threshold: '±3%' },
+    { gl: '5110', name: 'Payroll — onsite', baseline: 4182000, draft: 4306000, threshold: '±2% per community' },
+    { gl: '5200', name: 'Turnover & make-ready', baseline: 1740000, draft: 1896000, threshold: 'Alert over $1,450/turn' },
+    { gl: '5310', name: 'Repairs & maintenance', baseline: 2105000, draft: 2062000, threshold: '±5%' },
+    { gl: '5400', name: 'Contract services', baseline: 1368000, draft: 1410000, threshold: '±4%' },
+    { gl: '5500', name: 'Marketing & leasing', baseline: 892000, draft: 1024000, threshold: 'Alert over $145/lease' },
+    { gl: '5600', name: 'Administrative', baseline: 654000, draft: 648000, threshold: '±5%' },
+    { gl: '5700', name: 'Utilities', baseline: 3240000, draft: 3498000, threshold: '±6% seasonal' },
+    { gl: '5800', name: 'Taxes & insurance', baseline: 5910000, draft: 6472000, threshold: 'Reassessment watch' }
+  ];
+
+  usd(n) { return (n < 0 ? '−$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US'); }
+  k(n) { return (n < 0 ? '−' : '+') + '$' + Math.round(Math.abs(n) / 1000).toLocaleString('en-US') + 'K'; }
+  m(n) { return (n < 0 ? '−$' : '$') + (Math.abs(n) / 1000000).toFixed(2) + 'M'; }
+  pctD(n) { return (n < 0 ? '▼ ' : '▲ ') + Math.abs(n).toFixed(1) + '%'; }
+  byCode(c) { return this.communities.find(x => x.code === c); }
+  set(k, v) { this.setState({ [k]: v }); }
+
+  staffList() {
+    const out = [];
+    this.regionals.forEach(r => {
+      const mine = this.communities.filter(c => c.regional === r);
+      out.push({ name: r, role: 'Regional', code: null, scope: mine.length + ' communities · ' + mine.reduce((a, c) => a + c.units, 0).toLocaleString('en-US') + ' units' });
+    });
+    this.communities.forEach(c => {
+      if (c.gm && c.gm !== 'No GM') out.push({ name: c.gm, role: 'General Manager', code: c.code, scope: c.name });
+      if (c.sm && c.sm !== 'No SM') out.push({ name: c.sm, role: 'Service Manager', code: c.code, scope: c.name });
+    });
+    const seen = {}, uniq = [];
+    out.forEach(p => {
+      const k = p.name + '|' + p.role;
+      if (seen[k]) { seen[k].scope += ', ' + p.scope; return; }
+      seen[k] = p; uniq.push(p);
+    });
+    return uniq;
+  }
+  vacancies() {
+    return this.communities.filter(c => c.gm === 'No GM' || c.sm === 'No SM')
+      .map(c => ({ name: c.name, gap: [c.gm === 'No GM' ? 'General Manager' : null, c.sm === 'No SM' ? 'Service Manager' : null].filter(Boolean).join(' and ') }));
+  }
+  noData() { return this.communities.filter(c => !c.occupied && !c.leads); }
+
+  regionals = ['Marcus Dallas', 'Ashley Browne', 'Carol Seawood', 'Alana Savoie', 'Alana Savoie - LSU Tigers'];
+
+  mktTeam = [
+    { id: 'fania',  name: 'Fania M.',  role: 'Marketing Director',                  color: '#013E51', max: 3, skills: 'social · ads · print · swag · website · email' },
+    { id: 'renee',  name: 'Renee E.',  role: 'Creative Designer · Social & Print',  color: '#6BA2B8', max: 5, skills: 'social · print' },
+    { id: 'york',   name: 'York K.',   role: 'Ad Designer · Social & Paid',         color: '#2A9D6E', max: 5, skills: 'social · ads · email' },
+    { id: 'maya',   name: 'Maya A.',   role: 'Print & Merchandise',                 color: '#D47B1A', max: 5, skills: 'print · swag' },
+    { id: 'jordan', name: 'Jordan O.', role: 'Website & Copywriter',                color: '#8A4FA8', max: 5, skills: 'website · email' }
+  ];
+  mktBonusWeights = [
+    { id: 'tickets',      label: 'Ticket closures',           weight: 25 },
+    { id: 'ontime',       label: 'On-time delivery',          weight: 25 },
+    { id: 'satisfaction', label: 'Satisfaction score',        weight: 20 },
+    { id: 'savings',      label: 'Cost savings',              weight: 15 },
+    { id: 'quality',      label: 'Brief accuracy / revisions', weight: 15 }
+  ];
+  mktBonusTargets = { tickets: 'per person', ontime: 90, satisfaction: 4.0, savings: 500, revisions: 1.5 };
+  mktTypes = [
+    { id: 'social',  name: 'Social Media',             sla: 2 },
+    { id: 'ads',     name: 'Paid Advertising',         sla: 4 },
+    { id: 'print',   name: 'Print / Flyer',            sla: 3 },
+    { id: 'swag',    name: 'Promotional Items',        sla: 5 },
+    { id: 'website', name: 'Website Change',           sla: 2 },
+    { id: 'email',   name: 'Email Campaign',           sla: 3 },
+    { id: 'package', name: 'Marketing Package Change', sla: 3 }
+  ];
+  mktStatusLabels = {
+    new: 'New', in_progress: 'In Progress', in_review: 'In Review',
+    awaiting_approval: 'Awaiting Approval', awaiting_submitter: 'Awaiting Submitter',
+    awaiting_pex_funds: 'Awaiting PEX Funds', complete: 'Complete'
+  };
+  mktStall = ['awaiting_approval', 'awaiting_submitter', 'awaiting_pex_funds'];
+  maintWeeks = ['Jul 30, 2026', 'Jul 23, 2026', 'Jul 16, 2026', 'Jul 9, 2026'];
+  maintWeekMeta = {
+    'Jul 30, 2026': { tab: '7.30.26', start: 'Jul 24', f: 1.00 },
+    'Jul 23, 2026': { tab: '7.23.26', start: 'Jul 17', f: 0.93 },
+    'Jul 16, 2026': { tab: '7.16.26', start: 'Jul 10', f: 1.08 },
+    'Jul 9, 2026':  { tab: '7.09.26', start: 'Jul 3',  f: 0.88 }
+  };
+  cfg(code) {
+    const c = this.byCode(code) || {};
+    return Object.assign({
+      active: true, units: c.units, pms: c.pms || '', region: c.region, market: c.mkt,
+      asset: c.asset, group: c.group, regional: c.regional, gm: c.gm, sm: c.sm, status: c.status
+    }, (this.state.setup || {})[code] || {});
+  }
+  setCfg(code, key, val) {
+    const setup = Object.assign({}, this.state.setup);
+    setup[code] = Object.assign({}, setup[code], { [key]: val });
+    this.setState({ setup });
+  }
+  staffCode(s) { return (this.state.staffAssign || {})[s.name] || s.code; }
+  setStaffCode(name, code) {
+    const a = Object.assign({}, this.state.staffAssign); a[name] = code;
+    this.setState({ staffAssign: a });
+  }
+  splitInt(total, shares) {
+    const out = shares.map(s => Math.floor(total * s));
+    let rem = total - out.reduce((a, b) => a + b, 0);
+    for (let i = 0; rem > 0; i = (i + 1) % out.length) { out[i]++; rem--; }
+    return out;
+  }
+  maintWeek() { return this.state.maintWeek || this.maintWeeks[0]; }
+  mktType(id) { return this.mktTypes.find(t => t.id === id) || { name: id, sla: 3 }; }
+  mktPerson(id) { return this.mktTeam.find(t => t.id === id) || { name: 'Unassigned', color: '#93A3AE', role: '—' }; }
+  liveCommunities() {
+    const sc = this.state.scope;
+    return this.communities
+      .filter(c => this.cfg(c.code).active)
+      .filter(c => sc === 'All communities' ? true : (sc === 'Student housing' ? c.asset === 'Student' : c.asset === sc))
+      .map(c => Object.assign({}, c, { units: Number(this.cfg(c.code).units) || c.units }));
+  }
+
+  portOcc() {
+    const cs = this.liveCommunities();
+    const units = cs.reduce((a, c) => a + c.units, 0) || 1;
+    const occupied = cs.reduce((a, c) => a + c.occupied, 0);
+    const leased = cs.reduce((a, c) => a + c.leased, 0);
+    const rented = cs.filter(c => c.actRent);
+    const rentUnits = rented.reduce((a, c) => a + c.occupied, 0) || 1;
+    return {
+      units, occupied, leased,
+      vacant: cs.reduce((a, c) => a + c.vacant, 0),
+      preleased: cs.reduce((a, c) => a + c.preleased, 0),
+      occ: occupied / units * 100,
+      leasedPct: leased / units * 100,
+      mktRent: rented.length ? rented.reduce((a, c) => a + c.mktRent * c.occupied, 0) / rentUnits : null,
+      actRent: rented.length ? rented.reduce((a, c) => a + c.actRent * c.occupied, 0) / rentUnits : null,
+      leads: cs.reduce((a, c) => a + (c.leads || 0), 0),
+      tours: cs.reduce((a, c) => a + (c.tours || 0), 0),
+      apps: cs.reduce((a, c) => a + (c.apps || 0), 0),
+      moveIns: cs.reduce((a, c) => a + (c.moveIns || 0), 0),
+      moveOuts: cs.reduce((a, c) => a + (c.moveOuts || 0), 0),
+      renewals: cs.reduce((a, c) => a + (c.renewals || 0), 0),
+      review: cs.filter(c => c.status === 'REVIEW').length
+    };
+  }
+
+  outboundRows(ver, period) {
+    const p = this.portOcc();
+    const net = p.moveIns - p.moveOuts;
+    return [
+      { icon: 'ph-buildings', label: 'Physical occupancy · actual', value: p.occ.toFixed(1) + '%',
+        delta: p.occupied.toLocaleString('en-US') + ' of ' + p.units.toLocaleString('en-US') + ' units',
+        gl: '4100 · Gross potential rent',
+        effect: 'RISE re-forecasts GPR on the actual occupied count from the ' + period + ' upload rather than a typed assumption.' },
+      { icon: 'ph-key', label: 'Leased and preleased', value: p.leasedPct.toFixed(1) + '%',
+        delta: p.leased.toLocaleString('en-US') + ' leased · ' + p.preleased.toLocaleString('en-US') + ' preleased',
+        gl: '4100 / 4200 · GPR and loss to lease',
+        effect: 'The leased-to-occupied gap is the take-up RISE prices into the remaining periods.' },
+      { icon: 'ph-arrows-down-up', label: 'Net absorption', value: (net >= 0 ? '+' : '') + net + ' units',
+        delta: p.moveIns + ' move-ins · ' + p.moveOuts + ' move-outs',
+        gl: '4100 · Gross potential rent',
+        effect: 'Move-in and move-out counts drive the occupancy ramp in the RISE re-forecast.' },
+      { icon: 'ph-currency-dollar', label: 'Rent achieved vs market', value: p.actRent ? this.usd(Math.round(p.actRent)) : '—',
+        delta: p.mktRent ? 'market ' + this.usd(Math.round(p.mktRent)) : 'no rent reported',
+        gl: '4200 · Loss to lease & concessions',
+        effect: 'The spread between market and achieved rent replaces the typed loss-to-lease assumption.' }
+    ];
+  }
+
+
+  navStyle(active) {
+    return 'display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border:none;border-radius:var(--radius-sm);text-align:left;' +
+      (active ? 'background:color-mix(in srgb, var(--color-accent) 16%, transparent);color:var(--color-text);box-shadow:inset 2px 0 0 var(--color-accent)'
+              : 'background:transparent;color:color-mix(in srgb, var(--color-text) 72%, transparent)');
+  }
+  chipStyle(active) {
+    return 'font-size:12px;padding:6px 11px;border-radius:var(--radius-sm);border:1px solid ' + (active ? 'var(--color-accent)' : 'var(--color-neutral-700)') + ';background:' + (active ? 'color-mix(in srgb, var(--color-accent) 14%, transparent)' : 'transparent');
+  }
+  tabStyle(active) {
+    return 'background:none;border:none;padding:9px 12px;font-size:13px;border-bottom:2px solid ' + (active ? 'var(--color-accent)' : 'transparent') + ';color:' + (active ? 'var(--color-text)' : 'color-mix(in srgb, var(--color-text) 60%, transparent)');
+  }
+
+  // The July upload carries occupancy, leasing and absorption. It carries no NOI, no
+  // net effective rent trend, no reputation score, no tenure and no compensation base —
+  // so those components are reported as unavailable rather than estimated.
+  bonusTargets = { occ: 90, leased: 95 };
+  bonusRowsData() {
+    const t = this.bonusTargets;
+    return this.liveCommunities().filter(c => c.gm && c.gm !== 'No GM').map(c => {
+      const net = (c.moveIns || 0) - (c.moveOuts || 0);
+      const hitOcc = c.occ >= t.occ, hitLeased = c.leasedPct >= t.leased, hitNet = net >= 0;
+      const noSource = !c.occupied && !c.leads;
+      const hits = [hitOcc, hitLeased, hitNet].filter(Boolean).length;
+      const mark = (ok, val) => noSource ? '✕ —' : (ok ? '✓ ' : '– ') + val;
+      let status;
+      if (noSource) status = 'Held — no July source data';
+      else if (c.status === 'REVIEW') status = 'Held — mapping in review';
+      else status = hits + ' of 3 met';
+      return {
+        name: c.gm, role: 'General Manager · ' + c.name, code: c.code,
+        occ: mark(hitOcc, c.occ.toFixed(1)),
+        leased: mark(hitLeased, c.leasedPct.toFixed(1)),
+        net: mark(hitNet, (net >= 0 ? '+' : '') + net),
+        determination: status, hits, noSource, review: c.status === 'REVIEW',
+        payout: 'Not determinable'
+      };
+    });
+  }
+
+
+  renderVals() {
+    const st = this.state;
+    const po = this.portOcc();
+    const role = this.props.roleView || 'Portfolio manager';
+    const railOn = this.props.showIntelRail !== false;
+
+    const allNav = [
+      { id: 'overview', label: 'Portfolio Overview', icon: 'ph-squares-four' },
+      { id: 'communities', label: 'Communities', icon: 'ph-buildings' },
+      { id: 'maint', label: 'Maintenance', icon: 'ph-wrench' },
+      { id: 'marketing', label: 'Marketing', icon: 'ph-megaphone' },
+      { id: 'budget', label: 'Budget Builder', icon: 'ph-calculator' },
+      { id: 'bonus', label: 'Bonus & Incentives', icon: 'ph-medal' },
+      { id: 'people', label: 'People', icon: 'ph-users-three' },
+      { id: 'reports', label: 'Reports & Presentations', icon: 'ph-projector-screen-chart' },
+      { id: 'import', label: 'Data Import', icon: 'ph-tray-arrow-down' }
+    ];
+    const allowed = role === 'HR' ? ['bonus', 'people', 'reports']
+      : role === 'Executive' ? ['overview', 'communities', 'maint', 'marketing', 'reports'] : allNav.map(n => n.id);
+    const live = this.liveCommunities();
+    const dark = this.communities.filter(c => !this.cfg(c.code).active);
+    const reviewCount = live.filter(c => c.status === 'REVIEW').length;
+    const noSource = live.filter(c => !c.occupied && !c.leads);
+    const nav = allNav.filter(n => allowed.includes(n.id)).map(n => ({
+      id: n.id, label: n.label, icon: n.icon,
+      badge: n.id === 'overview' ? String(reviewCount) : n.id === 'people' ? String(this.vacancies().length)
+        : n.id === 'maint' ? null
+        : n.id === 'marketing' ? null : (n.id === 'bonus' ? String(this.bonusRowsData().filter(e => e.noSource || e.review).length) : null),
+      style: this.navStyle(st.nav === n.id), go: () => this.set('nav', n.id)
+    }));
+    const active = allowed.includes(st.nav) ? st.nav : allowed[0];
+
+    // budget totals
+    const rev = this.budgetLines.filter(l => l.gl[0] === '4');
+    const exp = this.budgetLines.filter(l => l.gl[0] === '5');
+    const sum = (arr, k) => arr.reduce((a, l) => a + l[k], 0);
+    const noiB = sum(rev, 'baseline') - sum(exp, 'baseline');
+    const noiD = sum(rev, 'draft') - sum(exp, 'draft');
+
+    const bb = st.bbVersion;
+    const ver = st.atlasVersion;
+    const fin = ver === bb;
+
+    const bonus = this.bonusRowsData();
+    const bonusHeld = bonus.filter(e => e.noSource || e.review).length;
+
+    const c = this.byCode(st.selected) || this.communities[0];
+    const detTabs = [
+      { id: 'perf', label: 'Performance' }, { id: 'traffic', label: 'Traffic & Funnel' },
+      { id: 'renew', label: 'Move-ins & renewals' }, { id: 'source', label: 'Source & mapping' }
+    ];
+    const cNet = (c.moveIns || 0) - (c.moveOuts || 0);
+    const conv = c.leads ? (c.approved || 0) / c.leads * 100 : null;
+    const detStatsMap = {
+      perf: [
+        { label: 'Total units', value: c.units.toLocaleString('en-US'), sub: c.asset + ' · ' + c.group },
+        { label: 'Occupied', value: String(c.occupied), sub: c.occ.toFixed(1) + '% physical' },
+        { label: 'Leased', value: String(c.leased), sub: c.leasedPct.toFixed(1) + '% leased' },
+        { label: 'Preleased', value: String(c.preleased), sub: 'Signed, not moved in' },
+        { label: 'Vacant', value: String(c.vacant), sub: (c.units ? (c.vacant / c.units * 100).toFixed(1) : '—') + '% of units' },
+        { label: 'Market rent', value: c.mktRent ? '$' + c.mktRent.toLocaleString('en-US') : '—', sub: 'As reported' },
+        { label: 'Achieved rent', value: c.actRent ? '$' + c.actRent.toLocaleString('en-US') : '—', sub: c.mktRent && c.actRent ? (c.actRent >= c.mktRent ? '▲ ' : '▼ ') + Math.abs(c.actRent - c.mktRent).toLocaleString('en-US') + ' vs market' : 'No rent reported' },
+        { label: 'Leased vs occupied', value: (c.leasedPct - c.occ).toFixed(1) + ' pt', sub: 'Take-up still to move in' }
+      ],
+      traffic: [
+        { label: 'Leads', value: c.leads == null ? '—' : String(c.leads), sub: c.leads ? 'July' : 'No lead data in source' },
+        { label: 'Tours', value: c.tours == null ? '—' : String(c.tours), sub: c.leads ? (c.tours / c.leads * 100).toFixed(0) + '% of leads' : '—' },
+        { label: 'Applications', value: c.apps == null ? '—' : String(c.apps), sub: c.tours ? (c.apps / c.tours * 100).toFixed(0) + '% of tours' : '—' },
+        { label: 'Approved', value: c.approved == null ? '—' : String(c.approved), sub: c.apps ? (c.approved / c.apps * 100).toFixed(0) + '% of applications' : '—' },
+        { label: 'Lead to approved', value: conv == null ? '—' : conv.toFixed(1) + '%', sub: 'Full-funnel conversion' },
+        { label: 'Move-ins', value: c.moveIns == null ? '—' : String(c.moveIns), sub: 'July' }
+      ],
+      renew: [
+        { label: 'Move-ins', value: String(c.moveIns || 0), sub: 'July' },
+        { label: 'Move-outs', value: String(c.moveOuts || 0), sub: 'July' },
+        { label: 'Net absorption', value: (cNet >= 0 ? '+' : '') + cNet, sub: 'Move-ins less move-outs' },
+        { label: 'Renewals signed', value: c.renewals == null ? '—' : String(c.renewals), sub: c.renewals < 0 ? 'Negative as reported — see review' : 'As reported' },
+        { label: 'Renewals sent', value: '—', sub: 'Not carried in the July upload' },
+        { label: 'Renewal rate', value: '—', sub: 'Needs renewals sent to compute' }
+      ],
+      source: [
+        { label: 'Community ID', value: c.code, sub: c.status === 'REVIEW' ? 'Source-derived — confirm' : 'Confirmed' },
+        { label: 'PMS code', value: c.pms || '—', sub: c.pms ? 'Joins the PMS export' : 'Not yet mapped' },
+        { label: 'Region', value: c.region, sub: c.mkt },
+        { label: 'Asset type', value: c.asset, sub: c.group },
+        { label: 'Regional', value: c.regional, sub: 'RISE roster' },
+        { label: 'Row status', value: c.status, sub: st.period + ' upload' }
+      ]
+    };
+    const detNotes = {
+      perf: 'Units, occupancy, leasing and rent are read straight from the ' + st.period + ' Monthly_Upload row for this community. Nothing here is derived from a typed goal.',
+      traffic: 'Lead, tour, application and approval counts come from the Box Score lead sections. A dash means the source report returned no data for that section.',
+      renew: 'Move-ins, move-outs and renewals signed are as reported. Renewals sent is not carried in this upload, so a renewal rate cannot be computed yet.',
+      source: 'The ' + st.period + ' upload marks 16 of 23 rows REVIEW: the student Community_IDs are source-derived and their region, market and PMS codes still need confirmation before a production load.'
+    };
+    const sortKeys = { variance: (a, b) => b.vacant - a.vacant, occ: (a, b) => a.occ - b.occ, renew: (a, b) => ((a.moveIns || 0) - (a.moveOuts || 0)) - ((b.moveIns || 0) - (b.moveOuts || 0)) };
+    const sorted = live.slice().sort(sortKeys[st.sortKey]);
+
+    const presetDefs = {
+      investor: { label: 'Monthly investor package', note: '14 slides · PPTX', title: 'Monthly Investor Package', blocks: { variance: true, occupancy: true, ner: true, capital: true } },
+      csuite: { label: 'Weekly C-suite email', note: 'HTML · Outlook', title: 'Weekly C-Suite Snapshot', blocks: { variance: true, occupancy: true, traffic: true } },
+      ops: { label: 'Ops review', note: '9 slides · PDF', title: 'Operations Review', blocks: { occupancy: true, traffic: true, renewals: true, reputation: true } },
+      velocity: { label: 'Leasing velocity', note: '6 slides · PPTX', title: 'Leasing Velocity Review', blocks: { traffic: true, occupancy: true, comps: true } },
+      hr: { label: 'HR payout pack', note: 'XLSX · PDF', title: 'Bonus Payout Pack', blocks: { bonus: true, variance: true } }
+    };
+    const blockDefs = [
+      { id: 'variance', label: 'Budget variance by community', icon: 'ph-chart-bar', chart: 'Bar' },
+      { id: 'occupancy', label: 'Occupancy vs budget curve', icon: 'ph-chart-line', chart: 'Line' },
+      { id: 'ner', label: 'Net effective rent trend', icon: 'ph-trend-up', chart: 'Line' },
+      { id: 'renewals', label: 'Renewal conversion & risk', icon: 'ph-arrows-clockwise', chart: 'Stacked' },
+      { id: 'traffic', label: 'Traffic & leasing funnel', icon: 'ph-funnel', chart: 'Funnel' },
+      { id: 'comps', label: 'Comp rent position', icon: 'ph-map-trifold', chart: 'Range' },
+      { id: 'reputation', label: 'Reputation & ORA', icon: 'ph-star', chart: 'Bar' },
+      { id: 'bonus', label: 'Bonus payout register', icon: 'ph-medal', chart: 'Table' },
+      { id: 'capital', label: 'Capital projects', icon: 'ph-hammer', chart: 'Table' }
+    ];
+    const onBlocks = blockDefs.filter(b => st.blocks[b.id]);
+    const barsFor = (id) => {
+      const seed = id.length * 7;
+      return Array.from({ length: 8 }, (_, i) => {
+        const h = 30 + ((seed * (i + 3)) % 68);
+        return { style: 'flex:1;height:' + h + '%;background:color-mix(in srgb, var(--color-accent) ' + (35 + h / 3) + '%, transparent);border-radius:2px 2px 0 0' };
+      });
+    };
+
+    const vals = {
+      nav, roleLabel: 'Role view · ' + role, scopeSummary: st.scope + ' · ' + st.period,
+      scope: st.scope, period: st.period,
+      scopeOptions: ['All communities', 'Multifamily', 'Student housing'],
+      periodOptions: ['Jul 2026'],
+      setScope: e => this.set('scope', e.target.value),
+      setPeriod: e => this.set('period', e.target.value),
+      budgetChip: 'Monthly_Upload · ' + st.period + ' · reviewed ' + this.lastReviewed,
+      budgetChipIcon: 'ph-file-text',
+      freshnessChip: reviewCount + ' of ' + live.length + ' rows in review',
+
+      isOverview: active === 'overview', isCommunities: active === 'communities', isMarket: active === 'market',
+      isMaint: active === 'maint', isMarketing: active === 'marketing', isBudget: active === 'budget', isBonus: active === 'bonus', isReports: active === 'reports', isImport: active === 'import', isPeople: active === 'people',
+      railOn,
+      goReports: () => this.set('nav', 'reports'), goMarketing: () => this.set('nav', 'marketing'), goCommunities: () => this.set('nav', 'communities'),
+
+      overviewSub: st.scope + ' · ' + st.period + ' · ' + live.length + ' communities, ' + po.units.toLocaleString('en-US') + ' units' + (dark.length ? ' · ' + dark.length + ' set inactive, excluded' : '') + ' · read from the ' + st.period + ' Monthly_Upload · ' + this.uploadStatus,
+      kpis: [
+        { label: 'Physical occupancy', value: po.occ.toFixed(1) + '%', sub: po.occupied.toLocaleString('en-US') + ' of ' + po.units.toLocaleString('en-US') + ' units · unit-weighted' },
+        { label: 'Leased', value: po.leasedPct.toFixed(1) + '%', sub: po.leased.toLocaleString('en-US') + ' leased · ' + po.preleased.toLocaleString('en-US') + ' preleased' },
+        { label: 'Achieved rent', value: po.actRent ? this.usd(Math.round(po.actRent)) : '—', sub: po.mktRent ? 'market ' + this.usd(Math.round(po.mktRent)) + ' · occupied-weighted' : 'no rent reported' },
+        { label: 'Net absorption', value: ((po.moveIns - po.moveOuts) >= 0 ? '+' : '') + (po.moveIns - po.moveOuts), sub: po.moveIns + ' move-ins · ' + po.moveOuts + ' move-outs' },
+        { label: 'Rows in review', value: String(reviewCount), sub: 'of ' + live.length + ' · new student mappings' }
+      ],
+      curveSource: 'One reporting month is loaded — a trend needs a second Monthly_Upload. This is the ' + st.period + ' composition.',
+      composition: (() => {
+        const t = po.units || 1;
+        return [
+          { label: 'Occupied', n: po.occupied, color: 'var(--color-accent)' },
+          { label: 'Leased, not moved in', n: Math.max(0, po.leased - po.occupied), color: 'var(--color-accent-600)' },
+          { label: 'Vacant', n: Math.max(0, t - po.leased), color: 'var(--color-neutral-700)' }
+        ].map(s => ({
+          label: s.label, value: s.n.toLocaleString('en-US') + ' units · ' + (s.n / t * 100).toFixed(1) + '%',
+          bar: 'width:' + (s.n / t * 100).toFixed(2) + '%;background:' + s.color + ';height:100%',
+          dot: 'width:9px;height:9px;border-radius:2px;flex:none;background:' + s.color
+        }));
+      })(),
+      varianceRows: live.slice().sort((a, b) => b.vacant - a.vacant).map(x => ({
+        name: x.name, units: String(x.units),
+        occ: x.occ.toFixed(1) + '%',
+        ner: x.leasedPct.toFixed(1) + '%',
+        noi: String(x.vacant), renew: ((x.moveIns || 0) - (x.moveOuts || 0) >= 0 ? '+' : '') + ((x.moveIns || 0) - (x.moveOuts || 0)),
+        flags: x.status === 'REVIEW' ? 'Review' : '—',
+        open: () => this.setState({ nav: 'communities', selected: x.code })
+      })),
+      exceptions: [
+        { sev: 'Review', community: 'Portfolio', impact: '16 rows', headline: 'Sixteen student Community_IDs are source-derived — region, market and PMS codes need confirming before a production load', action: 'Open Community setup', go: () => this.setState({ nav: 'communities', commView: 'setup' }) },
+        { sev: 'Review', community: 'Portfolio', impact: noSource.length + ' assets', headline: noSource.length + ' communities report zero occupancy and no lead activity — pre-turn student inventory, held rather than averaged in', action: 'Open Data Import', go: () => this.set('nav', 'import') },
+        { sev: 'Critical', community: 'Ivy & Elm', impact: '$1,204', headline: 'Achieved rent reports $61 against $1,265 market on 46 occupied of 504 units — that rent figure cannot be right', action: 'Open community', go: () => this.setState({ nav: 'communities', selected: 'IVY_ELM' }) },
+        { sev: 'Critical', community: 'Anthem House', impact: '−1', headline: 'Renewal leases approved is negative in the source; retained as reported rather than zeroed', action: 'Open community', go: () => this.setState({ nav: 'communities', selected: 'ANTHEM_HOUSE' }) },
+        { sev: 'Critical', community: 'Prosper On Fayette', impact: '−1', headline: 'Renewal leases approved is negative, with 132 move-outs against 36 move-ins', action: 'Open community', go: () => this.setState({ nav: 'communities', selected: 'PROSPER_FAYETTE' }) },
+        { sev: 'Review', community: 'St. Augustine', impact: '264 units', headline: 'Physical occupancy 2.9% on 272 units — lease-up, but the vacancy dominates the portfolio number', action: 'Open community', go: () => this.setState({ nav: 'communities', selected: 'STA' }) },
+        { sev: 'Review', community: 'Six properties', impact: '—', headline: 'Jax Centurion, two Greenhouse entities, Nicholson Gateway Corp, RISE Sutton Place and UTK Torchbearer returned no data or no classification', action: 'Open Data Import', go: () => this.set('nav', 'import') }
+      ].map(e => ({ ...e, sevStyle: 'font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;padding:2px 7px;border-radius:99px;border:1px solid ' + (e.sev === 'Critical' ? 'var(--color-accent)' : 'var(--color-neutral-600)') + ';color:' + (e.sev === 'Critical' ? 'var(--color-accent-300)' : 'color-mix(in srgb, var(--color-text) 62%, transparent)') })),
+
+      maintWeekOptions: this.maintWeeks,
+      maintWeek: this.maintWeek(),
+      setMaintWeek: e => this.set('maintWeek', e.target.value),
+      maintSub: 'Work-order performance for the Friday–Thursday week. The ' + st.period + ' portfolio upload carries no work-order, SLA or MSOE data, so nothing on this tab is derived in ATLAS — the report generator below is the record.',
+      maintSources: [
+        { icon: 'ph-file-arrow-down', label: 'Work Order Origin · Entrata', state: 'Not in the ' + st.period + ' upload' },
+        { icon: 'ph-file-arrow-down', label: 'Work Order Performance · per community', state: 'Not in the ' + st.period + ' upload' },
+        { icon: 'ph-clipboard-text', label: 'MSOE Inspections Status', state: 'Not in the ' + st.period + ' upload' }
+      ],
+      maintAwaiting: 'ATLAS will roll a portfolio SLA, an open-work-order position and regional composite grades as soon as a weekly export is loaded. Until then no figure is shown, because the only alternative would be an estimate — upload the three Entrata exports in the Weekly Maintenance Report below and this tab fills from them.',
+      maintCoverage: [
+        { label: 'Communities in scope', value: String(live.length), sub: po.units.toLocaleString('en-US') + ' units from the ' + st.period + ' upload' },
+        { label: 'Weeks loaded', value: '0', sub: 'No work-order export on file' },
+        { label: 'MSOE rows', value: '0', sub: 'Awaiting the inspections export' }
+      ],
+      marketingSub: 'The RISE marketing design system and the request rules ATLAS holds. Live tickets, approvals and team metrics run in the Command Center below — ATLAS does not keep a second copy of the queue.',
+      mktAwaiting: 'The request queue, approval state and per-person metrics are read from the Command Center’s own database. Nothing is mirrored into ATLAS, so there is never a stale second version of a ticket.',
+      mktRulesTiles: [
+        { label: 'Request types', value: String(this.mktTypes.length), sub: 'Each with an SLA target and a gate order' },
+        { label: 'Team members', value: String(this.mktTeam.length), sub: 'Routed by skill, then lightest load' },
+        { label: 'Brand colours', value: '5', sub: 'Plus three priority marks' }
+      ],
+      mktBrand: [
+        { name: 'RISE dark', hex: '#013E51', use: 'Ground, header plates, single-colour marks', swatch: 'height:46px;border-radius:8px;background:#013E51' },
+        { name: 'RISE light', hex: '#6BA2B8', use: 'Rules, overlays at 20%, secondary marks', swatch: 'height:46px;border-radius:8px;background:#6BA2B8' },
+        { name: 'RISE accent', hex: '#0A5A73', use: 'Interactive states, hovers', swatch: 'height:46px;border-radius:8px;background:#0A5A73' },
+        { name: 'RISE pale', hex: '#E8F2F6', use: 'Typographic grounds, email headers', swatch: 'height:46px;border-radius:8px;background:#E8F2F6;border:1px solid var(--color-neutral-700)' },
+        { name: 'RISE mid', hex: '#C2DCE8', use: 'Dimension rules, table hairlines', swatch: 'height:46px;border-radius:8px;background:#C2DCE8' }
+      ],
+      mktPriority: [
+        { name: 'High', hex: '#E85C4A', dot: 'width:10px;height:10px;border-radius:50%;background:#E85C4A' },
+        { name: 'Normal', hex: '#D47B1A', dot: 'width:10px;height:10px;border-radius:50%;background:#D47B1A' },
+        { name: 'Low', hex: '#2A9D6E', dot: 'width:10px;height:10px;border-radius:50%;background:#2A9D6E' }
+      ],
+      mktRules: [
+        'Radius 10px on cards, 6px on controls. One shadow step — 0 1px 4px rgba(1,62,81,.08); 0 4px 16px only on a modal.',
+        'The logo lockup always sits on the dark plate. Never on a photograph without it.',
+        'Photographs are shot on dark or natural grounds. Swag prints single-colour — no gradients.',
+        'Every brief names a key message, a visual direction and a copy direction before it can be assigned.'
+      ],
+      mktSlaRows: this.mktTypes.map(t => ({
+        name: t.name, sla: t.sla + ' days',
+        gates: t.id === 'swag' || t.id === 'ads' ? 'GM → Regional → Finance' : t.id === 'package' ? 'Director' : 'GM → Regional',
+        skills: this.mktTeam.filter(p => p.skills.indexOf(t.id) > -1).map(p => p.name).join(', ') || '—'
+      })),
+      mktTeamRows: this.mktTeam.map(p => ({
+        name: p.name, role: p.role, skills: p.skills, max: 'max ' + p.max + ' open',
+        initials: p.name.charAt(0),
+        avatarStyle: 'width:30px;height:30px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;color:#FFFFFF;background:' + p.color
+      })),
+      mktBonusSub: 'Weights and targets as configured in the Command Center · payouts computed there from the live ticket ledger',
+      mktBonusWeightChips: this.mktBonusWeights.map(w => ({
+        label: w.label + ' · ' + w.weight + '%',
+        target: w.id === 'tickets' ? 'target set per person'
+          : w.id === 'ontime' ? 'target 90%'
+          : w.id === 'satisfaction' ? 'target 4.0 ★'
+          : w.id === 'savings' ? 'target $500' : 'max 1.5 revisions'
+      })),
+      mktBonusNote: 'The marketing bonus scores closures and on-time delivery against each request type’s SLA, satisfaction and revisions from the closing survey, and savings from approved-versus-estimated cost. All four inputs live in the Command Center ticket ledger, which ATLAS reads rather than copies — open the Marketing tab to run the current period.',
+      mktImageNote: 'Community photos and headshots come from the image library in Community setup — a marketing ticket never asks a site team to re-send a photo ATLAS already holds.',
+
+      communitiesSub: live.length + ' active · ' + dark.length + ' inactive · performance and setup in one place, so an ownership change is a toggle, not a migration.',
+      commTabs: [{ id: 'perf', label: 'Performance' }, { id: 'setup', label: 'Community setup' }, { id: 'people', label: 'Staff & regionals' }]
+        .map(t => ({ label: t.label, style: this.tabStyle((st.commView || 'perf') === t.id), go: () => this.set('commView', t.id) })),
+      isCommPerf: (st.commView || 'perf') === 'perf',
+      isCommSetup: st.commView === 'setup',
+      isCommStaff: st.commView === 'people',
+      goCommSetup: () => this.set('commView', 'setup'),
+      setupTiles: [
+        { value: String(this.communities.length), label: 'Communities', sub: live.length + ' in scope · ' + this.removedFromJuly.length + ' excluded from July' },
+        { value: String(this.communities.filter(x => x.pms).length), label: 'PMS codes mapped', sub: 'of ' + this.communities.length + ' · joins the PMS export' },
+        { value: String(reviewCount), label: 'Rows in review', sub: 'Community_ID source-derived' },
+        { value: po.units.toLocaleString('en-US'), label: 'Units in scope', sub: 'Feeding portfolio totals and RISE' }
+      ],
+      setupRows: this.communities.map(x => {
+        const g = this.cfg(x.code);
+        const on = !!g.active;
+        const pill = (sel, danger) => 'font-size:11.5px;padding:4px 12px;border-radius:99px;width:100%;border:1px solid ' +
+          (sel ? (danger ? 'color-mix(in srgb, #9F2D2D 45%, transparent)' : 'var(--color-accent)') : 'var(--color-neutral-700)') +
+          ';background:' + (sel ? (danger ? 'color-mix(in srgb, #9F2D2D 9%, transparent)' : 'color-mix(in srgb, var(--color-accent) 13%, transparent)') : 'transparent') +
+          ';color:' + (sel ? (danger ? '#9F2D2D' : 'var(--color-accent-300)') : 'color-mix(in srgb, var(--color-text) 55%, transparent)');
+        return {
+          name: x.name, code: x.code, mkt: x.region + ' · ' + x.mkt,
+          rowStyle: 'border-bottom:1px solid var(--color-neutral-800);' + (on ? '' : 'background:color-mix(in srgb, var(--color-neutral-500) 7%, transparent);'),
+          nameStyle: 'padding:12px 10px 12px 0;font-size:13px;' + (on ? '' : 'color:color-mix(in srgb, var(--color-text) 55%, transparent);'),
+          activeStyle: pill(on, false), inactiveStyle: pill(!on, true),
+          onActive: () => this.setCfg(x.code, 'active', true),
+          onInactive: () => this.setCfg(x.code, 'active', false),
+          units: String(g.units), onUnits: e => this.setCfg(x.code, 'units', e.target.value),
+          pms: g.pms, onPms: e => this.setCfg(x.code, 'pms', e.target.value),
+          market: g.market, onMarket: e => this.setCfg(x.code, 'market', e.target.value),
+          asset: g.asset, group: g.group, gm: g.gm, sm: g.sm,
+          regional: g.regional, onRegional: e => this.setCfg(x.code, 'regional', e.target.value),
+          statusLabel: g.status === 'REVIEW' ? 'Review' : 'Confirmed',
+          statusStyle: 'font-size:11px;padding:3px 9px;border-radius:99px;white-space:nowrap;border:1px solid ' +
+            (g.status === 'REVIEW' ? 'color-mix(in srgb, #D47B1A 45%, transparent);background:color-mix(in srgb, #D47B1A 10%, transparent);color:#8A5210'
+              : 'color-mix(in srgb, #2A9D6E 40%, transparent);background:color-mix(in srgb, #2A9D6E 9%, transparent);color:#1E6B47'),
+          open: () => { this.setState({ selected: x.code, commView: 'perf' }); }
+        };
+      }),
+      regionalOptions: this.regionals,
+      templateColumns: ['Community_ID', 'Community_Name', 'Short_Name', 'Region', 'Market', 'Asset_Type', 'Total_Units', 'PMS_Property_Code', 'Dashboard_Group', 'Active_Flag', 'Notes'],
+      templateNote: 'The Community_Master schema exactly as the ATLAS monthly template defines it — one row per community, keyed on Community_ID. Existing codes update in place; new codes land marked REVIEW so nothing enters portfolio totals before its region, market and PMS code are confirmed.',
+      imageTiles: [
+        { icon: 'ph-image-square', value: '0', label: 'Community photos', sub: 'Drop exteriors, amenities and model units here' },
+        { icon: 'ph-user-focus', value: '0', label: 'Site team headshots', sub: 'Used on community-level reports' },
+        { icon: 'ph-user-circle-gear', value: '0', label: 'VP / regional headshots', sub: 'Used on portfolio and investor decks' }
+      ],
+      imageNote: 'Every image saved here becomes selectable in Reports & Presentations — a report never asks you to re-upload a photo the platform already has.',
+      staffRows: this.staffList().map(s => {
+        const g = s.code ? this.cfg(s.code) : null;
+        return {
+          name: s.name, role: s.role, tenure: '—', hire: s.scope,
+          code: s.code || '', regional: g ? g.regional : 'Portfolio',
+          active: !g ? 'Portfolio scope' : (g.active ? 'Active' : 'Community inactive'),
+          activeStyle: 'font-size:11.5px;color:' + (g && !g.active ? '#9F2D2D' : 'color-mix(in srgb, var(--color-text) 55%, transparent)'),
+          onCommunity: e => this.setStaffCode(s.name, e.target.value)
+        };
+      }),
+      communityOptions: this.communities.map(x => ({ code: x.code, name: x.name })),
+      staffNote: 'Reassigning a community here re-scores that employee against the new community metrics — the bonus determination and the roster join both move with it.',
+      sortOptions: [
+        { id: 'variance', label: 'Vacant units' }, { id: 'occ', label: 'Occupancy' }, { id: 'renew', label: 'Net absorption' }
+      ].map(s => ({ label: s.label, style: this.chipStyle(st.sortKey === s.id), go: () => this.set('sortKey', s.id) })),
+      communityList: sorted.map(x => ({
+        name: x.name, occ: x.occ.toFixed(1) + '%',
+        meta: x.units + ' units · ' + x.mkt + ' · ' + x.vacant + ' vacant',
+        style: 'background:' + (x.code === c.code ? 'color-mix(in srgb, var(--color-accent) 14%, transparent)' : 'var(--color-surface)') + ';border:none;padding:13px 15px;text-align:left;display:block;width:100%',
+        open: () => this.set('selected', x.code)
+      })),
+      det: { name: c.name, meta: c.units + ' units · ' + c.mkt + ' · ' + c.asset + ' · ' + c.group + ' · ' + st.period + ' upload ' + c.status },
+      detailTabs: detTabs.map(t => ({ label: t.label, style: this.tabStyle(st.detailTab === t.id), go: () => this.set('detailTab', t.id) })),
+      detStats: detStatsMap[st.detailTab], detNote: detNotes[st.detailTab],
+      setupOpen: st.setupOpen, toggleSetup: () => this.set('setupOpen', !st.setupOpen),
+      setupFields: [
+        { label: 'Asset code', value: c.code }, { label: 'Units', value: String(c.units) },
+        { label: 'Market', value: c.mkt }, { label: 'Year built', value: '2016' },
+        { label: 'Staffing plan', value: '1 CM · 1 AM · 2 LC · 2 MT' }, { label: 'Management start', value: 'Mar 2019' },
+        { label: 'Seasonality curve', value: 'Northwest standard' }, { label: 'Presentation photos', value: '6 in library' }
+      ],
+
+      marketSub: c.name + ' against its comp set · ' + st.period + ' · comps kept in full, now with their own home',
+      compRows: [
+        { plan: 'Studio', subject: '$1,585', comp: '$1,640', position: '▼ 3.4%', concession: '0.5 mo' },
+        { plan: '1 bedroom', subject: '$1,912', comp: '$1,878', position: '▲ 1.8%', concession: '0.3 mo' },
+        { plan: '2 bedroom', subject: '$2,405', comp: '$2,512', position: '▼ 4.3%', concession: '0.7 mo' },
+        { plan: '3 bedroom', subject: '$3,120', comp: '$3,048', position: '▲ 2.4%', concession: 'None' }
+      ],
+      compSource: 'Market Survey import · 5 comps · last surveyed 12 days ago',
+      compMoves: [
+        { name: 'The Latimer', note: 'Dropped 1BR asking rent, added 6 weeks free', delta: '−$65' },
+        { name: 'Foundry 12', note: 'Occupancy 91% → 94%, concession withdrawn', delta: '+$40' },
+        { name: 'Aster Grove', note: 'No change since last survey', delta: '—' },
+        { name: 'Kepler Yards', note: 'Survey 47 days old — flagged stale, excluded from average', delta: 'Stale' },
+        { name: 'Vantage West', note: '2BR up on renovated inventory', delta: '+$85' }
+      ],
+
+      budgetSub: 'FY2026–2027 · replaces Financials. RISE Budget Builder runs inside this tab and stays the source of truth; ATLAS reads the approved version and the closed-period actuals it publishes.',
+      budgetBasis: 'Baseline: FY26 actuals + Ronaldo PMS trailing 12',
+      budgetSteps: ['Baseline', 'Build', 'Threshold plan', 'Review', 'Finalize', 'Publish'].map((label, i) => {
+        const idx = fin ? 5 : 3;
+        return { n: '0' + (i + 1), label, style: 'flex:1;padding:12px 14px;border-right:' + (i < 5 ? '1px solid var(--color-neutral-800)' : 'none') + ';background:' + (i <= idx ? 'color-mix(in srgb, var(--color-accent) 10%, transparent)' : 'transparent') + ';color:' + (i <= idx ? 'var(--color-text)' : 'color-mix(in srgb, var(--color-text) 55%, transparent)') };
+      }),
+      budgetRows: this.budgetLines.map(l => ({
+        gl: l.gl, name: l.name, baseline: this.usd(l.baseline), draft: this.usd(l.draft),
+        change: this.pctD((l.draft - l.baseline) / Math.abs(l.baseline) * 100), threshold: l.threshold
+      })),
+      noiBaseline: this.m(noiB), noiDraft: this.m(noiD), noiChange: this.pctD((noiD - noiB) / Math.abs(noiB) * 100),
+      outOfSync: !fin,
+      pulledAt: st.pulledAt,
+      syncLabel: fin ? 'In sync · v' + ver : 'Sync v' + bb + ' into ATLAS',
+      syncStyle: 'display:flex;align-items:center;gap:8px;font-size:13px;padding:9px 16px;border-radius:var(--radius-sm);border:1px solid var(--color-accent);background:' + (fin ? 'color-mix(in srgb, var(--color-accent) 18%, transparent)' : 'transparent') + ';cursor:' + (fin ? 'default' : 'pointer'),
+      sync: () => { if (!fin) this.setState({ atlasVersion: bb, pulledAt: 'Jul 31, 2026 · 11:42' }); },
+      syncStripText: 'Budget Builder approved v' + bb + ' on Jul 31 and closed the June period. ATLAS is still reading v' + ver + ' — syncing publishes the approved GL lines, the closed-period actuals, the budgeted occupancy schedule and the payroll model to every section at once.',
+      bridges: [
+        { icon: 'ph-check-square-offset', label: 'Approved budget lines', detail: 'FY2026 and FY2027 by GL account, with method, owner and approval trail', feeds: 'Variance watchlist · investor package · thresholds', state: fin ? 'Published as v' + ver : 'v' + bb + ' waiting to publish' },
+        { icon: 'ph-calendar-check', label: 'Closed-period actuals', detail: 'Jan–Jun 2026 closed in Budget Builder from the Ronaldo PMS trial balance', feeds: 'NOI variance · community performance · KPIs', state: fin ? 'Actuals through Jun 2026' : 'June close not yet read by ATLAS' },
+        { icon: 'ph-chart-line', label: 'Occupancy & lease-up schedule', detail: 'Budgeted occupancy and lease-up ramp by month', feeds: 'Occupancy curve · leasing pace goals · funnel targets', state: fin ? 'Reading v' + ver : 'Curve still on v' + ver },
+        { icon: 'ph-users-three', label: 'Payroll & staffing model', detail: 'Position-level payroll, burden and bonus accrual by month', feeds: 'Bonus targets · payroll variance · People', state: fin ? 'Reading v' + ver : 'Bonus targets provisional' }
+      ],
+      versionCardStyle: 'background:var(--color-surface);border-radius:var(--radius-md);padding:18px 20px;box-shadow:var(--shadow-sm);border:1px solid ' + (fin ? 'var(--color-accent-700)' : 'var(--color-neutral-800)'),
+      versionTitle: fin ? 'v' + ver + ' · in sync' : 'v' + ver + ' · v' + bb + ' available',
+      versionNote: fin
+        ? 'ATLAS reads exactly what Budget Builder approved. A re-forecast there creates v' + (ver + 1) + ' and ATLAS keeps reading v' + ver + ' until it is synced, so past variance stays reproducible.'
+        : 'ATLAS never reads a working version. Budget Builder has approved v' + bb + '; sync to move every downstream section onto it in one step.',
+      versionLog: fin
+        ? [{ k: 'Approver', v: 'J. Carrington, VP Operations' }, { k: 'Approved', v: 'Jul 31, 2026 · 09:14' }, { k: 'Synced', v: st.pulledAt }, { k: 'Basis', v: 'FY25 actuals + T12' }]
+        : [{ k: 'Approver', v: 'J. Carrington, VP Operations' }, { k: 'Approved', v: 'Jul 31, 2026 · 09:14' }, { k: 'ATLAS on', v: 'v' + ver + ' · ' + st.pulledAt }, { k: 'Basis', v: 'FY25 actuals + T12' }],
+      consumers: [
+        { name: 'Occupancy curve', state: fin ? 'Reading v' + ver : 'v' + ver + ' — update available' },
+        { name: 'Leasing pace & funnel goals', state: fin ? 'Reading v' + ver : 'v' + ver + ' — update available' },
+        { name: 'Variance watchlist', state: fin ? 'Reading v' + ver : 'v' + ver + ' — update available' },
+        { name: 'Bonus targets', state: fin ? 'Reading v' + ver : 'Provisional until synced' },
+        { name: 'Investor package', state: fin ? 'Reading v' + ver : 'Watermarked as unsynced' }
+      ],
+
+      outbound: this.outboundRows(ver, st.period),
+      outboundNote: 'Every closed month ATLAS imports — occupancy, NOI, renewals, the roster — is posted back to RISE as a forecast driver. RISE re-forecasts the remaining periods against the actual curve and republishes the version ATLAS reads. Nothing is retyped on either side of the bridge.',
+      outboundFooter: 'Write-back channel · last posted Jul 29, 2026 · 06:14 · RISE acknowledged · re-forecast v' + bb + ' awaiting approval',
+
+      bonusSub: st.period + ' period · eligibility computed from uploaded data and the employee roster, not typed in',
+      bonusSources: [
+        { icon: 'ph-file-text', label: 'Monthly_Upload · ' + st.period + ' · ' + live.length + ' communities' },
+        { icon: 'ph-users-three', label: 'RISE roster · ' + this.staffList().length + ' records' },
+        { icon: 'ph-warning', label: bonusHeld + ' determinations held' }
+      ],
+      bonusBasis: 'Scored: occupancy ≥ 90.0% · leased ≥ 95.0% · net absorption ≥ 0',
+      bonusRows: bonus,
+      bonusCount: bonus.filter(e => e.hits === 3).length + ' of ' + bonus.length + ' met all three',
+      bonusTotal: 'Not determinable',
+      bonusUnavailable: 'Payout amounts, tenure eligibility, NOI, net effective rent and reputation components are not carried in the ' + st.period + ' upload, so they are reported as unavailable rather than estimated.',
+      bonusExceptions: [
+        { who: noSource.length + ' communities · no source data', why: 'Zero occupancy and no lead activity in the ' + st.period + ' upload. Determinations are held rather than scored as a miss.' },
+        { who: reviewCount + ' communities · mapping in review', why: 'Community_ID, region, market and PMS code are source-derived. Held until the mapping is confirmed.' },
+        { who: 'Payout amounts', why: 'The upload carries no compensation base, no hire date and no tenure, so no dollar figure can be computed in ATLAS for this period.' }
+      ],
+      hrCardStyle: 'background:var(--color-surface);border-radius:var(--radius-md);padding:18px 20px;box-shadow:var(--shadow-sm);border:1px solid ' + (st.bonusLocked ? 'var(--color-accent-700)' : 'var(--color-neutral-800)'),
+      hrNote: st.bonusLocked ? 'Inputs snapshotted with the payout — every figure is reproducible' : 'Lock the period to release extracts',
+      hrExtracts: [
+        { label: 'Payroll register (XLSX)', icon: 'ph-table' },
+        { label: 'Eligibility exceptions', icon: 'ph-warning-circle' },
+        { label: 'Metric backup per employee', icon: 'ph-file-text' },
+        { label: 'Audit log', icon: 'ph-clock-counter-clockwise' }
+      ].map(h => ({
+        label: h.label, icon: h.icon, go: () => {},
+        style: 'display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:var(--radius-sm);font-size:12.5px;text-align:left;border:1px solid ' + (st.bonusLocked ? 'var(--color-accent)' : 'var(--color-neutral-700)') + ';background:transparent;opacity:' + (st.bonusLocked ? '1' : '0.45') + ';cursor:' + (st.bonusLocked ? 'pointer' : 'not-allowed')
+      })),
+
+      reportsSub: 'One builder, five presets — the four report generators that used to live inside the import tab, now visible and customizable.',
+      presets: Object.keys(presetDefs).map(id => ({
+        label: presetDefs[id].label, note: presetDefs[id].note,
+        style: 'padding:12px 15px;border-radius:var(--radius-sm);text-align:left;border:1px solid ' + (st.preset === id ? 'var(--color-accent)' : 'var(--color-neutral-700)') + ';background:' + (st.preset === id ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : 'transparent'),
+        go: () => this.setState({ preset: id, blocks: { ...Object.fromEntries(blockDefs.map(b => [b.id, false])), ...presetDefs[id].blocks } })
+      })),
+      blocks: blockDefs.map(b => ({
+        label: b.label, icon: b.icon, chart: b.chart,
+        style: 'display:flex;align-items:center;gap:10px;width:100%;padding:10px 11px;border-radius:var(--radius-sm);text-align:left;border:1px solid ' + (st.blocks[b.id] ? 'var(--color-accent)' : 'transparent') + ';background:' + (st.blocks[b.id] ? 'color-mix(in srgb, var(--color-accent) 10%, transparent)' : 'transparent'),
+        go: () => this.setState({ blocks: { ...st.blocks, [b.id]: !st.blocks[b.id] } })
+      })),
+      reportTitle: presetDefs[st.preset].title,
+      reportMeta: st.scope + ' · ' + st.period + ' · budget v' + ver + (fin ? ' approved' : ' — pending sync, watermarked'),
+      previewBlocks: onBlocks.slice(0, 4).map(b => ({ label: b.label + ' · ' + b.chart, bars: barsFor(b.id) })),
+      noBlocks: onBlocks.length === 0,
+      reportMetaRows: [
+        { k: 'Audience', v: st.preset === 'hr' ? 'HR & payroll' : st.preset === 'investor' ? 'Investors & board' : st.preset === 'csuite' ? 'C-suite' : 'Operations' },
+        { k: 'Scope', v: st.scope },
+        { k: 'Period', v: st.period },
+        { k: 'Blocks selected', v: onBlocks.length + ' of ' + blockDefs.length }
+      ],
+      exports: [
+        { label: 'PowerPoint', icon: 'ph-microsoft-powerpoint-logo' }, { label: 'PDF', icon: 'ph-file-pdf' },
+        { label: 'HTML page', icon: 'ph-code' }, { label: 'Send via Outlook', icon: 'ph-paper-plane-tilt' }
+      ].map(x => ({ ...x, go: () => {} })),
+      exportNote: 'One export layer, one theme, one logo — no report re-invents the brand.',
+
+      peopleSub: 'The roster ATLAS joins on — imported from HR, keyed by employee ID, and the reason every bonus determination can be defended.',
+      rosterImportNote: 'Entrata and ADP exports both parse. Columns matched: employee ID, legal name, role, community, hire date, status, pay group.',
+      rosterImportMeta: 'Last import Jul 29, 2026 · 11 records · 8 matched',
+      rosterRows: this.staffList().map(p => ({
+        name: p.name, role: p.role, community: p.scope,
+        hire: '—', tenure: '—',
+        eligibility: p.role === 'Regional' ? 'Portfolio scored' : (p.code ? 'Community scored' : '—'),
+        join: 'Matched on community'
+      })),
+      rosterFootnote: 'The roster is the RISE reporting roster joined to the ' + st.period + ' upload by community. Hire dates, tenure and compensation bases are not carried in the upload, so eligibility is scored on community performance only.',
+      joinStats: [
+        { value: String(this.staffList().length), label: 'Roster records' },
+        { value: String(this.vacancies().length), label: 'Open positions' },
+        { value: String(this.regionals.length), label: 'Regionals' }
+      ],
+      joinIssues: this.vacancies().map(v => ({
+        who: v.name, why: 'No ' + v.gap + ' on the roster for this community — performance cannot be attributed to a person.',
+        action: 'Assign in Community setup', go: () => this.set('nav', 'communities')
+      })),
+      linkedRecords: [
+        { name: 'Coaching plans', meta: '6 open · 2 overdue' },
+        { name: 'Write-ups', meta: '3 this quarter' },
+        { name: 'Signed documents', meta: '9 files' },
+        { name: 'Payout history', meta: '4 locked periods' }
+      ],
+      importSub: 'The ' + st.period + ' Monthly_Upload as loaded, with the workbook’s own coverage checks carried through rather than re-derived.',
+      importStatus: this.uploadStatus + ' · last reviewed ' + this.lastReviewed,
+      importers: [
+        { name: 'Monthly_Upload', status: st.period + ' · 23 of 23', detail: '23 rows · 0 errors · 16 marked REVIEW', pct: 100 },
+        { name: 'Community_Master', status: '26 master rows', detail: '23 active · 3 retained, excluded from July', pct: 100 },
+        { name: 'Student_Housing_Reporting', status: '16 rows', detail: 'Rentable, preleased and lead-source detail', pct: 100 },
+        { name: 'Floor_Plan_Update', status: '146 rows', detail: 'Plan-level inventory by community', pct: 100 },
+        { name: 'Work order exports', status: 'Not in this upload', detail: 'Origin, Performance and MSOE load in the Maintenance tab', pct: 0 },
+        { name: 'Market survey', status: 'Not in this upload', detail: 'No comp data, so no market comparison is shown', pct: 0 }
+      ],
+      importChecks: [
+        { label: 'Rows loaded', value: '23', target: '23 active July communities' },
+        { label: 'Rows marked ERROR', value: '0', target: '0' },
+        { label: 'Rows marked OK', value: '7', target: '7 current communities' },
+        { label: 'Rows marked REVIEW', value: '16', target: '16 new student mappings' },
+        { label: 'Occupied > total units', value: '0', target: '0' },
+        { label: 'Invalid Community_IDs', value: '0', target: '0' }
+      ],
+      importExceptions: this.additionalReview.map(a => ({ what: a.name + ' · ' + a.units, detail: a.state + '. ' + a.need })),
+      assetRows: this.removedFromJuly.map(r => ({ name: r.name + ' (' + r.code + ')', meta: r.units + ' units · excluded from July' }))
+    };
+    return vals;
+  }
+}
+</script>
+</body>
+</html>

@@ -99,7 +99,7 @@
       </div>
     </header>
 
-    <div style="padding:30px 24px 72px;width:100%;max-width:none">
+    <div style="padding:30px 16px 72px;width:100%;max-width:none">
 
       <!-- PORTFOLIO OVERVIEW -->
       <sc-if value="{{ isOverview }}" hint-placeholder-val="{{ true }}">
@@ -519,14 +519,14 @@
             </a>
           </div>
           <div style="font-size:12.5px;line-height:1.6;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-bottom:14px;text-wrap:pretty">The weekly intake, reconciliation and one-page export run in the report generator itself — upload the three Entrata exports here and the figures above are what they roll up to.</div>
-          <div style="margin:0 calc(clamp(0px, 2.8vw, 42px) * -1);width:calc(100% + (clamp(0px, 2.8vw, 42px) * 2));border:1px solid var(--color-neutral-700);border-radius:var(--radius-md);overflow:hidden;background:var(--color-surface);box-shadow:var(--shadow-sm)">
+          <div style="margin:0 calc(clamp(24px, 5vw, 104px) * -1);width:calc(100% + (clamp(24px, 5vw, 104px) * 2));border:1px solid var(--color-neutral-700);border-radius:var(--radius-md);overflow:hidden;background:var(--color-surface);box-shadow:var(--shadow-sm)">
             <div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap;padding:11px 15px;border-bottom:1px solid var(--color-neutral-700)">
               <i class="ph ph-wrench" style="font-size:16px;color:var(--color-accent-300)"></i>
               <span style="font-size:13px">RISE Weekly Maintenance Report</span>
               <span style="font-size:12px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Runs as its own application — intake, validation, MSOE rollover and print export, logic untouched</span>
               <span style="margin-left:auto;font-size:11.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Week ending {{ maintWeek }}</span>
             </div>
-            <iframe src="uploads/RISE-Weekly-Maintenance-Report.html" title="RISE Weekly Maintenance Report" style="display:block;width:100%;height:1280px;border:none;background:#F4F7F9"></iframe>
+            <iframe src="uploads/RISE-Weekly-Maintenance-Report.html" title="RISE Weekly Maintenance Report" style="display:block;width:100%;height:1360px;border:none;background:#F4F7F9"></iframe>
           </div>
         </div>
       </section>
@@ -650,13 +650,13 @@
             </a>
           </div>
           <div style="font-size:12.5px;line-height:1.6;color:color-mix(in srgb, var(--color-text) 55%, transparent);margin-bottom:14px;text-wrap:pretty">Intake, the AI creative brief, approvals, routing and team metrics run in the Command Center itself — the queue above is the portfolio read of it.</div>
-          <div style="margin:0 calc(clamp(0px, 2.8vw, 42px) * -1);width:calc(100% + (clamp(0px, 2.8vw, 42px) * 2));border:1px solid var(--color-neutral-700);border-radius:var(--radius-md);overflow:hidden;background:var(--color-surface);box-shadow:var(--shadow-sm)">
+          <div style="margin:0 calc(clamp(24px, 5vw, 104px) * -1);width:calc(100% + (clamp(24px, 5vw, 104px) * 2));border:1px solid var(--color-neutral-700);border-radius:var(--radius-md);overflow:hidden;background:var(--color-surface);box-shadow:var(--shadow-sm)">
             <div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap;padding:11px 15px;border-bottom:1px solid var(--color-neutral-700)">
               <i class="ph ph-megaphone" style="font-size:16px;color:var(--color-accent-300)"></i>
               <span style="font-size:13px">RISE Marketing Command Center</span>
               <span style="font-size:12px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Runs as its own application against its own database — logic and integrations untouched</span>
             </div>
-            <iframe src="uploads/RISE-Marketing-Command-Center.html" title="RISE Marketing Command Center" style="display:block;width:100%;height:1280px;border:none;background:#F0F4F6"></iframe>
+            <iframe src="uploads/RISE-Marketing-Command-Center.html" title="RISE Marketing Command Center" style="display:block;width:100%;height:1360px;border:none;background:#F0F4F6"></iframe>
           </div>
         </div>
       </section>
@@ -761,14 +761,14 @@
           <div style="margin-top:15px;font-size:12px;color:color-mix(in srgb, var(--color-text) 50%, transparent)">{{ outboundFooter }}</div>
         </div>
 
-        <div style="margin:0 calc(clamp(0px, 2.8vw, 42px) * -1);width:calc(100% + (clamp(0px, 2.8vw, 42px) * 2));border:1px solid var(--color-neutral-700);border-radius:var(--radius-md);overflow:hidden;background:var(--color-surface);box-shadow:var(--shadow-sm)">
+        <div style="margin:0 calc(clamp(24px, 5vw, 104px) * -1);width:calc(100% + (clamp(24px, 5vw, 104px) * 2));border:1px solid var(--color-neutral-700);border-radius:var(--radius-md);overflow:hidden;background:var(--color-surface);box-shadow:var(--shadow-sm)">
           <div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap;padding:11px 15px;background:var(--color-surface);border-bottom:1px solid var(--color-neutral-700)">
             <i class="ph ph-calculator" style="font-size:16px;color:var(--color-accent-300)"></i>
             <span style="font-size:13px">RISE Budget Builder</span>
             <span style="font-size:12px;color:color-mix(in srgb, var(--color-text) 50%, transparent)">Runs as its own application, on the RISE finance theme — logic and exports untouched</span>
             <span style="margin-left:auto;font-size:11.5px;color:color-mix(in srgb, var(--color-text) 50%, transparent)">Last published to ATLAS · {{ pulledAt }}</span>
           </div>
-          <iframe src="uploads/RISE-Budget-Builder.html" title="RISE Budget Builder" style="display:block;width:100%;height:1280px;border:none;background:#F1F4F6"></iframe>
+          <iframe src="uploads/RISE-Budget-Builder.html" title="RISE Budget Builder" style="display:block;width:100%;height:1360px;border:none;background:#F1F4F6"></iframe>
         </div>
       </section>
       </sc-if>

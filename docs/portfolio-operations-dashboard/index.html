@@ -1053,6 +1053,7 @@
   <div class="scout-compose-note" id="scout-compose-note">Mic works in supported browsers. Scout uses live ATLAS data on this page.</div>
 </section>
 
+<script src="./atlas_historical_restore_data.js"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -4485,6 +4486,73 @@ function normalizeSavedCommunityMap(data = {}) {
     normalizeSavedCommunityRecord(name, record)
   ]));
 }
+function getAtlasHistoricalRecoveryCommunityMap() {
+  const source = window.ATLAS_HISTORICAL_RESTORE_COMMUNITY_DATA;
+  if (!source || typeof source !== "object") return {};
+  return normalizeSavedCommunityMap(source);
+}
+function restoreHistoricalCommunityData(savedCommunityMap = {}) {
+  const baseMap = savedCommunityMap && typeof savedCommunityMap === "object" ? savedCommunityMap : {};
+  const recoveryMap = getAtlasHistoricalRecoveryCommunityMap();
+  if (!Object.keys(recoveryMap).length) {
+    return { data: normalizeSavedCommunityMap(baseMap), changed: false, restoredCommunities: [] };
+  }
+  const merged = normalizeSavedCommunityMap(baseMap);
+  const restoredCommunities = [];
+  Object.entries(recoveryMap).forEach(([name, recoveryRecord]) => {
+    const currentRecord = merged[name];
+    if (!currentRecord) {
+      merged[name] = normalizeSavedCommunityRecord(name, recoveryRecord);
+      restoredCommunities.push(name);
+      return;
+    }
+    const nextRecord = normalizeSavedCommunityRecord(name, currentRecord);
+    let changed = false;
+    const currentHistory = nextRecord.monthlyHistoryByPeriod && typeof nextRecord.monthlyHistoryByPeriod === "object"
+      ? nextRecord.monthlyHistoryByPeriod
+      : {};
+    const recoveryHistory = recoveryRecord.monthlyHistoryByPeriod && typeof recoveryRecord.monthlyHistoryByPeriod === "object"
+      ? recoveryRecord.monthlyHistoryByPeriod
+      : {};
+    Object.entries(recoveryHistory).forEach(([periodKey, recoveryEntry]) => {
+      const currentEntry = currentHistory[periodKey];
+      if (dashboardMonthlyEntryHasData(currentEntry)) return;
+      currentHistory[periodKey] = recoveryEntry && typeof recoveryEntry === "object" ? { ...recoveryEntry } : recoveryEntry;
+      changed = true;
+    });
+    nextRecord.monthlyHistoryByPeriod = currentHistory;
+
+    const recoveryMonthlyData = Array.isArray(recoveryRecord.monthlyData) ? recoveryRecord.monthlyData : [];
+    nextRecord.monthlyData = Array.from({ length: 12 }, (_, idx) => {
+      const currentEntry = nextRecord.monthlyData[idx];
+      if (dashboardMonthlyEntryHasData(currentEntry)) return currentEntry;
+      const recoveryEntry = recoveryMonthlyData[idx];
+      if (recoveryEntry && typeof recoveryEntry === "object") {
+        changed = true;
+        return { ...recoveryEntry };
+      }
+      return currentEntry;
+    });
+
+    const recoveryBudgetTargets = Array.isArray(recoveryRecord.savedBudgetTargets) ? recoveryRecord.savedBudgetTargets : [];
+    nextRecord.savedBudgetTargets = Array.from({ length: 12 }, (_, idx) => {
+      const currentPct = getSavedBudgetOccPct(nextRecord.savedBudgetTargets, idx);
+      if (currentPct > 0) return currentPct;
+      const recoveryPct = getSavedBudgetOccPct(recoveryBudgetTargets, idx);
+      if (recoveryPct > 0) {
+        changed = true;
+        return recoveryPct;
+      }
+      return currentPct;
+    });
+
+    if (changed) {
+      merged[name] = nextRecord;
+      restoredCommunities.push(name);
+    }
+  });
+  return { data: merged, changed: restoredCommunities.length > 0, restoredCommunities };
+}
 async function loadSaved() {
   try {
     const stored = await atlasStateGetValue(ATLAS_STATE_COMMUNITY_KEY);
@@ -4661,6 +4729,15 @@ async function hydrateWeeklySnapshotState() {
 
 async function hydrateDashboardPersistentState() {
   savedData = await loadSaved();
+  const historicalRestoreResult = restoreHistoricalCommunityData(savedData);
+  if (historicalRestoreResult.changed) {
+    savedData = historicalRestoreResult.data;
+    persistSaved();
+    csvLog = [
+      `Recovered historical ATLAS community data for ${historicalRestoreResult.restoredCommunities.join(", ")} from the July 21 restore snapshot.`,
+      ...csvLog
+    ].slice(0, 40);
+  }
   const normalizedSavedData = normalizeSavedCommunityMap(savedData);
   if (JSON.stringify(normalizedSavedData) !== JSON.stringify(savedData)) {
     savedData = normalizedSavedData;
@@ -32794,26 +32871,12 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
       renderTab();
       return;
     }
-    let replacedScopeCommunities = 0;
     if (!forcedTarget.community) {
       touchedPeriods.forEach((importedNames, periodKey) => {
         if (atlasWorkbookImportMode !== "replace_scope") {
           setPortfolioMonthScopeForPeriod(periodKey, []);
           return;
         }
-        const [monthPart] = String(periodKey).split("-");
-        const monthIdx = parseMonthIndexValue(monthPart);
-        if (monthIdx == null) return;
-        const parsedPeriod = parsePeriodKey(periodKey);
-        const periodYear = parsedPeriod?.year ?? new Date().getFullYear();
-        const savedNames = Object.keys(savedData ?? {}).filter(Boolean);
-        savedNames.forEach(name => {
-          if (importedNames.has(name)) return;
-          const record = normalizeSavedCommunityRecord(name, savedData[name]);
-          resetAtlasMonthlyUploadMonthForRecord(record, monthIdx, periodYear);
-          savedData[name] = normalizeSavedCommunityRecord(name, record);
-          replacedScopeCommunities += 1;
-        });
         const orderedImportedNames = PROPERTIES
           .map(prop => prop.name)
           .filter(name => importedNames.has(name));
@@ -32843,7 +32906,7 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
     csvLog = [`✅ Imported ${included} ATLAS Monthly_Upload row(s) from ${file.name} using ${modeLabel}.`, ...log];
     if (skipped > 0) csvLog.push(`ℹ Skipped ${skipped} row(s) marked ERROR or missing community/month mapping.`);
     if (!forcedTarget.community && atlasWorkbookImportMode === "replace_scope") {
-      csvLog.push(`✅ Replace scope mode reset the selected month rollup to ${touchedCommunities.size} uploaded communit${touchedCommunities.size === 1 ? "y" : "ies"} and cleared stale month data from ${replacedScopeCommunities} previously saved communit${replacedScopeCommunities === 1 ? "y" : "ies"}.`);
+      csvLog.push(`✅ Replace scope mode reset the selected month rollup to ${touchedCommunities.size} uploaded communit${touchedCommunities.size === 1 ? "y" : "ies"} while preserving prior community history in ATLAS.`);
     }
     if (!forcedTarget.community && activeMasterCommunities.length > 0) {
       const missingMasterCommunities = activeMasterCommunities.filter(item => !seenWorkbookCommunityIds.has(item.id));

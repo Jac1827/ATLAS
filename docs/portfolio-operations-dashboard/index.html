@@ -1815,7 +1815,7 @@ function normalizeCommunityFloorPlans(data) {
   return rows.map(row => {
     const sqft = Number(row?.sqft);
     const budgetRent = Number(row?.budgetRent);
-    const marketedRent = Number(row?.marketedRent);
+    const marketedRent = Number(row?.marketedRent ?? row?.marketRent);
     const leasedPct = Number(row?.leasedPct);
     const occupancyPct = Number(row?.occupancyPct);
     const beds = Number(row?.beds);
@@ -6778,8 +6778,7 @@ function flushWorkspaceNavigation() {
 function queueWorkspaceNavigation(scopeValue = "", tabIdx = null, options = {}) {
   const safeTabIdx = tabIdx === null || tabIdx === undefined ? null : Math.max(0, Math.min(9, Number(tabIdx) || 0));
   if (safeTabIdx === 8 && options?.syncReportMonth !== false) {
-    reportHubMonth = getSelectedDashboardMonthIndex();
-    reportHubYear = new Date().getFullYear();
+    syncReportHubToWorkspacePeriod();
     persistOpsGlobalData();
   }
   pendingWorkspaceNavigation = {
@@ -9033,6 +9032,10 @@ function autoPopulateLeasingPace() {
 // ─── Tab ──────────────────────────────────────────────────────────────────────
 function setTab(i) {
   activeTab = Math.max(0, Math.min(9, Number(i) || 0));
+  if (activeTab === 8) {
+    syncReportHubToWorkspacePeriod();
+    persistOpsGlobalData();
+  }
   document.querySelectorAll(".tab").forEach((t, j) => t.classList.toggle("active", activeTab === j));
   document.querySelectorAll(".tab-panel").forEach((p, j) => p.style.display = activeTab === j ? "" : "none");
   renderTab();
@@ -19862,6 +19865,11 @@ function getReportHubYear() {
   return Number.isFinite(parsed) && parsed > 2000 ? parsed : new Date().getFullYear();
 }
 
+function syncReportHubToWorkspacePeriod() {
+  reportHubMonth = getSelectedDashboardMonthIndex();
+  reportHubYear = new Date().getFullYear();
+}
+
 function setReportHubDateField(field, value) {
   if (field === "month") {
     reportHubMonth = clampNumber(Number(value), 0, 11);
@@ -20431,8 +20439,8 @@ function buildPortfolioTrendLineChart(points = [], options = {}) {
   if (validPoints.length === 0) {
     return `<div class="alert alert-info">No saved trend points are available for this view yet.</div>`;
   }
-  const width = 640;
-  const height = 220;
+  const width = Math.max(320, Number(options.width) || 640);
+  const height = Math.max(180, Number(options.height) || 220);
   const left = 42;
   const right = 14;
   const top = 16;
@@ -26055,16 +26063,18 @@ function buildDlrFloorPlanVarianceChart(report) {
 
 function buildSideBySideComparisonChart(title, rows = [], options = {}) {
   const cleaned = (Array.isArray(rows) ? rows : []).filter(row => {
-    const subject = Number(row?.subjectValue ?? 0) || 0;
-    const market = Number(row?.marketValue ?? 0) || 0;
+    const subject = Number(row?.subjectValue);
+    const market = Number(row?.marketValue);
     return subject > 0 || market > 0 || Boolean(row?.forceRow);
   });
   if (cleaned.length === 0) {
     return `<div style="padding:14px;border:1px dashed #cbd5e1;border-radius:16px;background:#f8fafc;font-size:12px;color:#64748b">No comparison data is saved yet for the selected communities.</div>`;
   }
   const formatValue = (value, kind = "number", formatter = null) => {
+    if (value === null || value === undefined || value === "") return "—";
     if (typeof formatter === "function") return formatter(value);
-    const numeric = Number(value ?? 0) || 0;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return "—";
     if (kind === "currency") return formatDlrCurrency(numeric);
     if (kind === "pct") return formatDlrPercent(numeric, 1);
     return formatDlrMetricValue(numeric);
@@ -26075,8 +26085,10 @@ function buildSideBySideComparisonChart(title, rows = [], options = {}) {
   const marketLabelDefault = options.marketLabel || "Market";
   const subtitle = String(options.subtitle || "").trim();
   const rowsHtml = cleaned.map(row => {
-    const subjectValue = Math.max(0, Number(row.subjectValue ?? 0) || 0);
-    const marketValue = Math.max(0, Number(row.marketValue ?? 0) || 0);
+    const subjectRawValue = row.subjectValue;
+    const marketRawValue = row.marketValue;
+    const subjectValue = Math.max(0, Number(subjectRawValue) || 0);
+    const marketValue = Math.max(0, Number(marketRawValue) || 0);
     const rowMax = Math.max(subjectValue, marketValue, 1);
     const subjectWidth = subjectValue > 0 ? Math.max(8, Math.min((subjectValue / rowMax) * 100, 100)) : 0;
     const marketWidth = marketValue > 0 ? Math.max(8, Math.min((marketValue / rowMax) * 100, 100)) : 0;
@@ -26095,15 +26107,15 @@ function buildSideBySideComparisonChart(title, rows = [], options = {}) {
           ${rowNote ? `<div style="font-size:11px;color:#64748b;margin-top:3px;line-height:1.45">${escapeHtml(rowNote)}</div>` : ""}
         </div>
         <div style="font-size:11px;color:#64748b;text-align:right;line-height:1.5">
-          <div>${escapeHtml(formatValue(subjectValue, kind, formatter))}</div>
-          <div>${escapeHtml(formatValue(marketValue, kind, formatter))}</div>
+          <div>${escapeHtml(formatValue(subjectRawValue, kind, formatter))}</div>
+          <div>${escapeHtml(formatValue(marketRawValue, kind, formatter))}</div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:10px">
         <div style="padding:10px;border:1px solid #dbe4f0;border-radius:12px;background:linear-gradient(180deg,#f8fbff 0%,#f0f7ff 100%)">
           <div style="display:flex;justify-content:space-between;gap:10px;font-size:11px;color:#475569;margin-bottom:7px">
             <span style="font-weight:700">${escapeHtml(subjectLabel)}</span>
-            <span>${escapeHtml(formatValue(subjectValue, kind, formatter))}</span>
+            <span>${escapeHtml(formatValue(subjectRawValue, kind, formatter))}</span>
           </div>
           <div style="height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden">
             <div style="height:100%;width:${subjectWidth}%;background:${subjectColor};border-radius:999px"></div>
@@ -26113,7 +26125,7 @@ function buildSideBySideComparisonChart(title, rows = [], options = {}) {
         <div style="padding:10px;border:1px solid #dbe4f0;border-radius:12px;background:linear-gradient(180deg,#f8fffd 0%,#effaf7 100%)">
           <div style="display:flex;justify-content:space-between;gap:10px;font-size:11px;color:#475569;margin-bottom:7px">
             <span style="font-weight:700">${escapeHtml(marketLabel)}</span>
-            <span>${escapeHtml(formatValue(marketValue, kind, formatter))}</span>
+            <span>${escapeHtml(formatValue(marketRawValue, kind, formatter))}</span>
           </div>
           <div style="height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden">
             <div style="height:100%;width:${marketWidth}%;background:${marketColor};border-radius:999px"></div>
@@ -27511,7 +27523,7 @@ function buildCommunityProgressOccupancyTrendCard(rows = [], { showPointLabels =
   const submarketNote = submarketPct !== null
     ? `${formatDlrPercent(submarketPct, 1)} current submarket benchmark`
     : "No submarket benchmark saved yet";
-  return `<div class="progress-card">
+  return `<div class="progress-card progress-card-occupancy-trend">
     <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:10px">
       <div>
         <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#64748b">Occupancy, Leased, Budget, and Submarket Avg.</div>
@@ -27532,6 +27544,8 @@ function buildCommunityProgressOccupancyTrendCard(rows = [], { showPointLabels =
       market: row.marketLeasedPct
     })), {
       kind: "pct",
+      width: 760,
+      height: 280,
       minClamp: 0,
       maxClampMinimum: 100,
       axisFormatter: value => formatDlrPercent(value, 0),
@@ -28918,6 +28932,7 @@ function buildCommunityProgressReportDocument(report) {
     @media print {
       body{max-width:none;padding:0}
       .progress-grid-2,.progress-grid-equal{grid-template-columns:1fr 1fr}
+      .progress-card-occupancy-trend{grid-column:1 / -1}
       .progress-card.section,.progress-grid-2 > .progress-card,.progress-grid-equal > .progress-card{
         break-inside:avoid;
         page-break-inside:avoid;

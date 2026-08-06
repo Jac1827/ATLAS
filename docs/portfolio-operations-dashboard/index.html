@@ -4772,8 +4772,9 @@ function buildCommunityDetailForMonth(name, sourceRecord, monthIdx, year = new D
   const totalUnits = getTotalUnitsFor(prop, record.customUnits);
   const scopedMonthlyData = getRecordMonthlyDataForYear(record, year);
   const corporateUnits = getCorporateLeaseUnitsForRecord(record, totalUnits);
-  const scopedOccupiedComparable = estimateSnapshotUnitsForRecordMonth({ ...record, monthlyData: scopedMonthlyData }, totalUnits, monthIdx, "occupiedSnapshot");
-  const scopedLeasedComparable = estimateSnapshotUnitsForRecordMonth({ ...record, monthlyData: scopedMonthlyData }, totalUnits, monthIdx, "leasedSnapshot");
+  const scopedRecordForMonth = { ...record, monthlyData: scopedMonthlyData, reportYear: year, currentMonth: monthIdx };
+  const scopedOccupiedComparable = getRecordComparableSnapshotUnits(scopedRecordForMonth, totalUnits, monthIdx, "occupiedSnapshot");
+  const scopedLeasedComparable = getRecordComparableSnapshotUnits(scopedRecordForMonth, totalUnits, monthIdx, "leasedSnapshot");
   const scopedRecord = {
     ...record,
     reportYear: year,
@@ -5859,10 +5860,11 @@ function getCommunitySummary(propName, sourceData) {
   const totalUnits = getTotalUnitsFor(prop, sourceData.customUnits);
   const corporateUnits = getCorporateLeaseUnitsForRecord(sourceData, totalUnits);
   const occupancyBaseUnits = getOccupancyBaseUnits(totalUnits, corporateUnits);
-  const occupiedRaw = Number(sourceData.currentOccupied) || 0;
-  const leasedRaw = Number(sourceData.currentLeased) || 0;
-  const occupied = getComparableOccupancyUnits(occupiedRaw, corporateUnits);
-  const leased = getComparableOccupancyUnits(leasedRaw, corporateUnits);
+  const scopeRecord = { ...record, reportYear: sourceData.reportYear, monthlyData: scopeMonthlyData, currentMonth: scopeCurrentMonth };
+  const occupied = getRecordComparableSnapshotUnits(scopeRecord, totalUnits, scopeCurrentMonth, "occupiedSnapshot");
+  const leased = getRecordComparableSnapshotUnits(scopeRecord, totalUnits, scopeCurrentMonth, "leasedSnapshot");
+  const occupiedRaw = Math.min(Math.max(0, occupied + corporateUnits), totalUnits || occupied + corporateUnits);
+  const leasedRaw = Math.min(Math.max(0, leased + corporateUnits), totalUnits || leased + corporateUnits);
   const schedule = computeScheduleFromContext({
     totalUnits,
     corporateLeaseUnits: corporateUnits,
@@ -5879,6 +5881,10 @@ function getCommunitySummary(propName, sourceData) {
   const curMonthData = scopeMonthlyData[scopeCurrentMonth] ?? {};
   const previousMonthIdx = scopeCurrentMonth > 0 ? scopeCurrentMonth - 1 : null;
   const prevMonthData = previousMonthIdx != null ? (scopeMonthlyData[previousMonthIdx] ?? {}) : {};
+  const curRenewalMonthData = getRenewalMonthEntryForRecord(scopeRecord, scopeCurrentMonth, sourceData.reportYear);
+  const prevRenewalMonthData = previousMonthIdx != null
+    ? getRenewalMonthEntryForRecord(scopeRecord, previousMonthIdx, sourceData.reportYear)
+    : {};
   const currentRow = schedule[scopeCurrentMonth] ?? {};
   const nextRow = schedule[Math.min(scopeCurrentMonth + 1, 11)] ?? currentRow;
   const budgetOccPct = getRecordSavedBudgetOccPct(sourceData, scopeCurrentMonth, sourceData.reportYear);
@@ -5890,9 +5896,9 @@ function getCommunitySummary(propName, sourceData) {
   const tours = Number(curMonthData.tours) || 0;
   const applicationMetrics = getApplicationDecisionMetrics(curMonthData);
   const prevApplicationMetrics = getApplicationDecisionMetrics(prevMonthData);
-  const renewalSummary = getRenewalSummaryForMonth(curMonthData);
+  const renewalSummary = getRenewalSummaryForMonth(curRenewalMonthData);
   const previousRenewalSummary = previousMonthIdx != null
-    ? getRenewalSummaryForMonth(prevMonthData)
+    ? getRenewalSummaryForMonth(prevRenewalMonthData)
     : { expirations: 0, signed: 0, ntv: 0, transfers: 0, undecided: 0, earlyTermination: 0, projectedAttrition: 0, retentionRate: 0 };
   const closedQuarterRetention = getClosedOutRetentionAverageForMonths(scopeMonthlyData, getQuarterMonths(bonusQuarter), scopeCurrentMonth);
   const applications = applicationMetrics.applications;
@@ -6249,12 +6255,14 @@ function getCommunityPerformancePlan(propName, sourceData) {
   const scopeSeasonal = Array.isArray(record.seasonal) && record.seasonal.length === 12 ? record.seasonal : [...DEFAULT_SEASONAL];
   const scopeCurrentMonth = Number.isInteger(record.currentMonth) ? record.currentMonth : 0;
   const totalUnits = getTotalUnitsFor(prop, record.customUnits);
+  const resolvedCurrentOccupied = getRecordComparableSnapshotUnits(record, totalUnits, scopeCurrentMonth, "occupiedSnapshot");
+  const resolvedCurrentLeased = getRecordComparableSnapshotUnits(record, totalUnits, scopeCurrentMonth, "leasedSnapshot");
   const occupancyBaseUnits = getOccupancyBaseUnits(totalUnits, record.corporateLeaseUnits);
   const schedule = computeScheduleFromContext({
     totalUnits,
     corporateLeaseUnits: record.corporateLeaseUnits,
-    currentOccupied: Number(record.currentOccupied) || 0,
-    currentLeased: Number(record.currentLeased) || 0,
+    currentOccupied: resolvedCurrentOccupied,
+    currentLeased: resolvedCurrentLeased,
     occupancyGoal: Number(record.occupancyGoal ?? 95),
     leasedGoal: Number(record.leasedGoal ?? 97),
     currentMonth: scopeCurrentMonth,
@@ -6268,10 +6276,10 @@ function getCommunityPerformancePlan(propName, sourceData) {
   const currentAppMetrics = getApplicationDecisionMetrics(currentMonthData);
   const budgetOccPct = getRecordSavedBudgetOccPct(record, scopeCurrentMonth, record.reportYear);
   const budgetOccUnits = occupancyBaseUnits > 0 && budgetOccPct > 0 ? Math.ceil(occupancyBaseUnits * budgetOccPct / 100) : 0;
-  const occupancyGapUnits = Math.max(budgetOccUnits - getComparableOccupancyUnits(Number(record.currentOccupied) || 0, record.corporateLeaseUnits), 0);
+  const occupancyGapUnits = Math.max(budgetOccUnits - resolvedCurrentOccupied, 0);
   const quarterTotals = getQuarterMonths(bonusQuarter).reduce((acc, idx) => {
     const row = schedule[idx] ?? {};
-    const renewal = getRenewalSummaryForMonth(scopeMonthlyData[idx] ?? {});
+    const renewal = getRenewalSummaryForMonth(getRenewalMonthEntryForRecord(record, idx, record.reportYear));
     acc.netOccNeed += Number(row.netOccLeases ?? 0);
     acc.grossLeaseNeed += Number(row.grossLeases ?? 0);
     acc.appNeed += Number(row.apps ?? 0);
@@ -25676,12 +25684,20 @@ function estimateSnapshotUnitsForRecordMonth(record, totalUnits, targetMonth, sn
   const anchorMonth = Number.isInteger(record?.currentMonth) ? record.currentMonth : DEFAULT_CURRENT_MONTH;
   const corporateUnits = normalizeCorporateLeaseUnits(record?.corporateLeaseUnits, totalUnits);
   const occupancyBaseUnits = getOccupancyBaseUnits(totalUnits, corporateUnits);
-  let runningUnits = snapshotKey === "leasedSnapshot"
-    ? Math.max(0, Number(record?.currentLeased) || 0)
-    : Math.max(0, Number(record?.currentOccupied) || 0);
-  if (!Number.isInteger(targetMonth)) return getComparableOccupancyUnits(runningUnits, corporateUnits);
-  if (targetMonth === anchorMonth) return getComparableOccupancyUnits(runningUnits, corporateUnits);
   const monthEntries = getRecordMonthlyDataForYear(record, record?.reportYear);
+  const anchorEntry = monthEntries[anchorMonth] ?? {};
+  const explicitAnchorSnapshot = Number(anchorEntry?.[snapshotKey] ?? 0);
+  let runningUnits = explicitAnchorSnapshot > 0
+    ? getComparableOccupancyUnits(explicitAnchorSnapshot, corporateUnits)
+    : (snapshotKey === "leasedSnapshot"
+        ? Math.max(0, Number(record?.currentLeased) || 0)
+        : Math.max(0, Number(record?.currentOccupied) || 0));
+  if (!Number.isInteger(targetMonth)) return getComparableOccupancyUnits(runningUnits, corporateUnits);
+  if (targetMonth === anchorMonth) {
+    return occupancyBaseUnits > 0
+      ? Math.min(getComparableOccupancyUnits(runningUnits, corporateUnits), occupancyBaseUnits)
+      : getComparableOccupancyUnits(runningUnits, corporateUnits);
+  }
   if (targetMonth < anchorMonth) {
     for (let month = anchorMonth; month > targetMonth; month -= 1) {
       const priorSnapshot = Number(monthEntries[month - 1]?.[snapshotKey] ?? 0);
@@ -25707,6 +25723,19 @@ function estimateSnapshotUnitsForRecordMonth(record, totalUnits, targetMonth, sn
   return occupancyBaseUnits > 0
     ? Math.min(getComparableOccupancyUnits(runningUnits, corporateUnits), occupancyBaseUnits)
     : getComparableOccupancyUnits(runningUnits, corporateUnits);
+}
+
+function getRecordComparableSnapshotUnits(record, totalUnits, monthIdx, snapshotKey) {
+  const corporateUnits = getCorporateLeaseUnitsForRecord(record, totalUnits);
+  const occupancyBaseUnits = getOccupancyBaseUnits(totalUnits, corporateUnits);
+  const monthEntries = getRecordMonthlyDataForYear(record, record?.reportYear);
+  const monthEntry = Array.isArray(monthEntries) ? (monthEntries[monthIdx] ?? {}) : {};
+  const explicitSnapshot = Number(monthEntry?.[snapshotKey] ?? 0);
+  if (explicitSnapshot > 0) {
+    const comparableUnits = getComparableOccupancyUnits(explicitSnapshot, corporateUnits);
+    return occupancyBaseUnits > 0 ? Math.min(comparableUnits, occupancyBaseUnits) : comparableUnits;
+  }
+  return estimateSnapshotUnitsForRecordMonth(record, totalUnits, monthIdx, snapshotKey);
 }
 
 function computeProjectedEndingPhysicalOccupancy(record, totalUnits, startMonth, horizonMonths = 3) {

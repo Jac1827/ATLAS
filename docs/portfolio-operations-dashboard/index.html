@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs/dist/pptxgen.bundle.js"></script>
@@ -921,6 +922,9 @@
   @keyframes scoutProcessPulse{0%{transform:scale(.84);opacity:0}30%{opacity:.46}100%{transform:scale(1.16);opacity:0}}
   @media(max-width:760px){.scout-orb{width:66px;height:66px}.scout-orb.is-speaking{width:78px;height:78px}}
 </style>
+<!-- ATLAS Redesign v2 presentation layer — loaded last so it overrides the base
+     styles above. Presentation only; no dashboard logic depends on it. -->
+<link rel="stylesheet" href="atlas-redesign.css"/>
 </head>
 <body>
 <div class="container">
@@ -930,8 +934,11 @@
   <div class="app-shell">
     <aside class="side-nav" aria-label="Dashboard navigation">
       <div class="side-nav-brand">
-        <img class="side-nav-brand-logo" src="assets/atlas-rise-logo.png" alt="ATLAS Portfolio Tracker Reports for RISE logo">
-        <img class="side-nav-brand-tagline" src="assets/atlas-rise-tagline.png" alt="Love. Serve. Care. Powering better outcomes together for RISE">
+        <img class="side-nav-brand-mark" src="assets/atlas-icon.png" alt="ATLAS">
+        <div class="side-nav-brand-text">
+          <div class="side-nav-brand-word">ATLAS</div>
+          <div class="side-nav-brand-eyebrow">Portfolio · Tracker · Reports</div>
+        </div>
       </div>
       <div class="side-nav-head">
         <div class="side-nav-title">Navigation</div>
@@ -965,20 +972,70 @@
         <img class="side-nav-action-icon" src="assets/atlas-icon.png" alt="">
         <span class="side-nav-action-label">Financials</span>
       </button>
+      <!-- Merged navigation: the redesign's flow and grouping, carrying every
+           destination from the live dashboard plus the four embedded RISE
+           platforms. Active state is keyed off data-tab, not DOM order, so the
+           nav can be reordered freely without touching the tab router. -->
       <div class="tabs" id="tabs">
-        <button class="tab active" onclick="setTab(0)" aria-label="Portfolio Home"><span class="tab-icon">📈</span><span class="tab-label">Portfolio Home</span></button>
-        <button class="tab" onclick="setTab(1)" aria-label="Community Setup"><span class="tab-icon">🏢</span><span class="tab-label">Community Setup</span></button>
-        <button class="tab" onclick="setTab(2)" aria-label="Overview"><span class="tab-icon">📊</span><span class="tab-label">Overview</span></button>
-        <button class="tab" onclick="setTab(3)" aria-label="Traffic and Funnel"><span class="tab-icon">🔍</span><span class="tab-label">Traffic &amp; Funnel</span></button>
-        <button class="tab" onclick="setTab(4)" aria-label="Comp Calculator"><span class="tab-icon">🧮</span><span class="tab-label">Comp Calculator</span></button>
-        <button class="tab" onclick="setTab(5)" aria-label="Renewals"><span class="tab-icon">🔁</span><span class="tab-label">Renewals</span></button>
-        <button class="tab" onclick="setTab(6)" aria-label="Reputation"><span class="tab-icon">⭐</span><span class="tab-label">Reputation</span></button>
-        <button class="tab" onclick="setTab(7)" aria-label="Data Import"><span class="tab-icon">📁</span><span class="tab-label">Data Import</span></button>
-        <button class="tab" onclick="setTab(8)" aria-label="Reporting"><span class="tab-icon">🗂</span><span class="tab-label">Reporting</span></button>
-        <button class="tab" onclick="setTab(9)" aria-label="Bonus Calc"><span class="tab-icon">🏆</span><span class="tab-label">Bonus Calc</span></button>
+        <div class="nav-group-label">Portfolio</div>
+        <button class="tab active" data-tab="0" onclick="setTab(0)" aria-label="Portfolio Home"><i class="tab-icon ph ph-chart-line-up" aria-hidden="true"></i><span class="tab-label">Portfolio Home</span></button>
+        <button class="tab" data-tab="2" onclick="setTab(2)" aria-label="Portfolio Overview"><i class="tab-icon ph ph-squares-four" aria-hidden="true"></i><span class="tab-label">Portfolio Overview</span></button>
+        <button class="tab" data-tab="1" onclick="setTab(1)" aria-label="Communities"><i class="tab-icon ph ph-buildings" aria-hidden="true"></i><span class="tab-label">Communities</span></button>
+
+        <div class="nav-group-label">Operations</div>
+        <button class="tab" data-tab="3" onclick="setTab(3)" aria-label="Traffic and Funnel"><i class="tab-icon ph ph-funnel" aria-hidden="true"></i><span class="tab-label">Traffic &amp; Funnel</span></button>
+        <button class="tab" data-tab="4" onclick="setTab(4)" aria-label="Comp Calculator"><i class="tab-icon ph ph-calculator" aria-hidden="true"></i><span class="tab-label">Comp Calculator</span></button>
+        <button class="tab" data-tab="5" onclick="setTab(5)" aria-label="Renewals"><i class="tab-icon ph ph-arrows-clockwise" aria-hidden="true"></i><span class="tab-label">Renewals</span></button>
+        <button class="tab" data-tab="6" onclick="setTab(6)" aria-label="Reputation"><i class="tab-icon ph ph-star" aria-hidden="true"></i><span class="tab-label">Reputation</span></button>
+        <button class="tab" data-tab="10" onclick="setTab(10)" aria-label="Maintenance"><i class="tab-icon ph ph-wrench" aria-hidden="true"></i><span class="tab-label">Maintenance</span></button>
+        <button class="tab" data-tab="11" onclick="setTab(11)" aria-label="Marketing"><i class="tab-icon ph ph-megaphone" aria-hidden="true"></i><span class="tab-label">Marketing</span></button>
+
+        <div class="nav-group-label">Finance &amp; People</div>
+        <button class="tab" data-tab="12" onclick="setTab(12)" aria-label="Budget Builder"><i class="tab-icon ph ph-calculator" aria-hidden="true"></i><span class="tab-label">Budget Builder</span></button>
+        <button class="tab" data-tab="9" onclick="setTab(9)" aria-label="Bonus and Incentives"><i class="tab-icon ph ph-medal" aria-hidden="true"></i><span class="tab-label">Bonus &amp; Incentives</span></button>
+        <button class="tab" data-tab="13" onclick="setTab(13)" aria-label="People"><i class="tab-icon ph ph-users-three" aria-hidden="true"></i><span class="tab-label">People</span></button>
+
+        <div class="nav-group-label">Output</div>
+        <button class="tab" data-tab="8" onclick="setTab(8)" aria-label="Reports and Presentations"><i class="tab-icon ph ph-presentation-chart" aria-hidden="true"></i><span class="tab-label">Reports &amp; Presentations</span></button>
+        <button class="tab" data-tab="7" onclick="setTab(7)" aria-label="Data Import"><i class="tab-icon ph ph-download-simple" aria-hidden="true"></i><span class="tab-label">Data Import</span></button>
+      </div>
+      <div class="side-nav-footer">
+        <div id="side-nav-role-label">Role view · Portfolio manager</div>
+        <div id="side-nav-scope-summary">All communities</div>
       </div>
     </aside>
     <main class="content-shell">
+
+  <!-- Sticky context header (redesign): scope + period mirror the sidebar
+       selects, chips report budget state and upload freshness. -->
+  <header class="atlas-topbar" id="atlas-topbar">
+    <div class="atlas-topbar-field">
+      <span class="atlas-topbar-label">Scope</span>
+      <select id="atlas-topbar-scope" onchange="onWorkspaceCommunitySelect(this.value)" aria-label="Scope"></select>
+    </div>
+    <div class="atlas-topbar-field">
+      <span class="atlas-topbar-label">Period</span>
+      <select id="atlas-topbar-period" aria-label="Period">
+        <option value="0">January</option>
+        <option value="1">February</option>
+        <option value="2">March</option>
+        <option value="3">April</option>
+        <option value="4">May</option>
+        <option value="5">June</option>
+        <option value="6">July</option>
+        <option value="7">August</option>
+        <option value="8">September</option>
+        <option value="9">October</option>
+        <option value="10">November</option>
+        <option value="11">December</option>
+      </select>
+    </div>
+    <div class="atlas-topbar-chips">
+      <span class="atlas-chip is-accent" id="atlas-chip-budget"><i class="ph ph-file-text" aria-hidden="true"></i><span>Monthly upload</span></span>
+      <span class="atlas-chip" id="atlas-chip-freshness"><i class="ph ph-database" aria-hidden="true"></i><span>No rows in review</span></span>
+      <button type="button" class="atlas-chip atlas-chip-action" onclick="openFinancialAccountabilityPage()"><i class="ph ph-currency-dollar" aria-hidden="true"></i><span>Financials</span></button>
+    </div>
+  </header>
 
   <!-- Property Selector -->
   <div class="card mb4 workspace-card" id="prop-selector-card">
@@ -1014,6 +1071,11 @@
   <div id="tab-panel-7" class="tab-panel" style="display:none"></div>
   <div id="tab-panel-8" class="tab-panel" style="display:none"></div>
   <div id="tab-panel-9" class="tab-panel" style="display:none"></div>
+  <!-- Embedded RISE platforms — each renders its tool inline, no click-to-open -->
+  <div id="tab-panel-10" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-11" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-12" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-13" class="tab-panel" style="display:none"></div>
 
     </main>
   </div>
@@ -1054,6 +1116,7 @@
 </section>
 
 <script src="./atlas_historical_restore_data.js"></script>
+<script src="./atlas-mounts.js"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -5860,7 +5923,9 @@ function getCommunitySummary(propName, sourceData) {
   const totalUnits = getTotalUnitsFor(prop, sourceData.customUnits);
   const corporateUnits = getCorporateLeaseUnitsForRecord(sourceData, totalUnits);
   const occupancyBaseUnits = getOccupancyBaseUnits(totalUnits, corporateUnits);
-  const scopeRecord = { ...record, reportYear: sourceData.reportYear, monthlyData: scopeMonthlyData, currentMonth: scopeCurrentMonth };
+  // Bugfix: this spread referenced an undefined `record` (the parameter is
+  // `sourceData`), which threw a ReferenceError and took down every tab render.
+  const scopeRecord = { ...sourceData, reportYear: sourceData.reportYear, monthlyData: scopeMonthlyData, currentMonth: scopeCurrentMonth };
   const occupied = getRecordComparableSnapshotUnits(scopeRecord, totalUnits, scopeCurrentMonth, "occupiedSnapshot");
   const leased = getRecordComparableSnapshotUnits(scopeRecord, totalUnits, scopeCurrentMonth, "leasedSnapshot");
   const occupiedRaw = Math.min(Math.max(0, occupied + corporateUnits), totalUnits || occupied + corporateUnits);
@@ -9038,14 +9103,30 @@ function autoPopulateLeasingPace() {
 }
 
 // ─── Tab ──────────────────────────────────────────────────────────────────────
+// Tabs 0–9 are the original dashboard screens; 10–13 are the embedded RISE
+// platforms added by the redesign merge. MOUNT_TABS render a tool inline and
+// have no community-workspace context of their own.
+const MOUNT_TABS = [10, 11, 12, 13];
+const MAX_TAB = 13;
+
 function setTab(i) {
-  activeTab = Math.max(0, Math.min(9, Number(i) || 0));
+  activeTab = Math.max(0, Math.min(MAX_TAB, Number(i) || 0));
   if (activeTab === 8) {
     syncReportHubToWorkspacePeriod();
     persistOpsGlobalData();
   }
-  document.querySelectorAll(".tab").forEach((t, j) => t.classList.toggle("active", activeTab === j));
-  document.querySelectorAll(".tab-panel").forEach((p, j) => p.style.display = activeTab === j ? "" : "none");
+  // Active state is keyed off data-tab so the sidebar can be grouped and
+  // reordered independently of the panel indices.
+  document.querySelectorAll(".tab").forEach(t => {
+    t.classList.toggle("active", Number(t.dataset.tab) === activeTab);
+  });
+  document.querySelectorAll(".tab-panel").forEach(p => {
+    const idx = Number(String(p.id).replace("tab-panel-", ""));
+    p.style.display = idx === activeTab ? "" : "none";
+  });
+  // The Community Workspace header is meaningless on a mounted platform.
+  const workspaceCard = document.getElementById("prop-selector-card");
+  if (workspaceCard) workspaceCard.style.display = MOUNT_TABS.includes(activeTab) ? "none" : "";
   renderTab();
 }
 
@@ -9060,7 +9141,11 @@ function renderTab() {
     renderReputationTab,
     renderCSVTab,
     renderReportingTab,
-    renderBonusTab
+    renderBonusTab,
+    window.renderMaintenanceTab,
+    window.renderMarketingTab,
+    window.renderBudgetBuilderTab,
+    window.renderPeopleTab
   ];
   if (activeTab >= renderers.length) activeTab = renderers.length - 1;
   const panel = document.getElementById(`tab-panel-${activeTab}`);
@@ -9070,7 +9155,7 @@ function renderTab() {
       panel.innerHTML = renderer();
     } catch (error) {
       console.error("Tab failed to render", { activeTab, error });
-      const activeLabel = document.querySelectorAll(".tab")[activeTab]?.textContent?.trim() || `Tab ${activeTab}`;
+      const activeLabel = document.querySelector(`.tab[data-tab="${activeTab}"]`)?.textContent?.trim() || `Tab ${activeTab}`;
       const errorDetail = String(error?.message || error || "Unknown render error");
       panel.innerHTML = `<div class="card mb4">
         <div class="card-title" style="margin-bottom:8px">${escapeHtml(activeLabel)}</div>
@@ -9078,12 +9163,63 @@ function renderTab() {
       </div>`;
     }
   }
-  document.querySelectorAll(".tab-panel").forEach((p, j) => p.style.display = activeTab === j ? "" : "none");
+  document.querySelectorAll(".tab-panel").forEach(p => {
+    const idx = Number(String(p.id).replace("tab-panel-", ""));
+    p.style.display = idx === activeTab ? "" : "none";
+  });
   applyDashboardBackdrop();
-  attachEventListeners();
-  queueActiveTabPhotoAssetHydration();
-  queueAtlasPortfolioMapHydration();
+  syncAtlasTopbar();
+  if (!MOUNT_TABS.includes(activeTab)) {
+    attachEventListeners();
+    queueActiveTabPhotoAssetHydration();
+    queueAtlasPortfolioMapHydration();
+  }
   requestAnimationFrame(updateScoutPresence);
+}
+
+// Keeps the sticky header's scope/period selects and status chips in step with
+// the sidebar workspace controls. Read-only mirror — the sidebar remains the
+// source of truth for community and month selection.
+function syncAtlasTopbar() {
+  try {
+    const sourceSelect = document.getElementById("workspace-community-select");
+    const topScope = document.getElementById("atlas-topbar-scope");
+    if (sourceSelect && topScope && topScope.innerHTML !== sourceSelect.innerHTML) {
+      topScope.innerHTML = sourceSelect.innerHTML;
+    }
+    if (sourceSelect && topScope) topScope.value = sourceSelect.value;
+
+    const monthSelect = document.getElementById("workspace-current-month");
+    const topPeriod = document.getElementById("atlas-topbar-period");
+    if (monthSelect && topPeriod) {
+      topPeriod.value = monthSelect.value;
+      topPeriod.onchange = () => {
+        monthSelect.value = topPeriod.value;
+        monthSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      };
+    }
+
+    const scopeLabel = document.getElementById("side-nav-scope-summary");
+    if (scopeLabel && topScope) {
+      scopeLabel.textContent = topScope.options[topScope.selectedIndex]?.textContent?.trim() || "All communities";
+    }
+
+    const budgetChip = document.getElementById("atlas-chip-budget");
+    if (budgetChip) {
+      const monthLabel = FULL_MONTHS[Number(monthSelect?.value) || 0] || "";
+      budgetChip.lastElementChild.textContent = `Monthly upload · ${monthLabel} ${new Date().getFullYear()}`;
+    }
+
+    const freshChip = document.getElementById("atlas-chip-freshness");
+    if (freshChip) {
+      const count = Object.keys(savedData || {}).length;
+      freshChip.lastElementChild.textContent = count
+        ? `${count} ${count === 1 ? "community" : "communities"} saved`
+        : "No saved communities yet";
+    }
+  } catch (error) {
+    console.warn("Topbar sync skipped", error);
+  }
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -19175,7 +19311,7 @@ function renderPortfolioHomeTab() {
       <div class="portfolio-hero">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
           <div>
-            <div style="font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase;color:rgba(240,247,255,0.72);margin-bottom:8px">${isPortfolioWorkspaceSelected() ? "ATLAS RISE Portfolio Command Center" : "Community Command Center"}</div>
+            <div class="portfolio-hero-eyebrow">${isPortfolioWorkspaceSelected() ? "ATLAS RISE Portfolio Command Center" : "Community Command Center"}</div>
             <h2>${escapeHtml(selectedLabel)} ${isPortfolioWorkspaceSelected() ? "portfolio snapshot" : `${getProp().name} snapshot`}</h2>
             <p>${isPortfolioWorkspaceSelected() ? "This landing view gives you the whole-book read before you drop into a single community." : "This landing view gives you a fast management snapshot for the selected community before you move deeper into Overview, Traffic, Renewals, or Reporting."} It uses the same saved community records that power the existing tabs, so nothing is being re-keyed or stored separately.</p>
           </div>

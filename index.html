@@ -7,7 +7,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs/dist/pptxgen.bundle.js"></script>
@@ -922,9 +921,6 @@
   @keyframes scoutProcessPulse{0%{transform:scale(.84);opacity:0}30%{opacity:.46}100%{transform:scale(1.16);opacity:0}}
   @media(max-width:760px){.scout-orb{width:66px;height:66px}.scout-orb.is-speaking{width:78px;height:78px}}
 </style>
-<!-- ATLAS Redesign v2 presentation layer — loaded last so it overrides the base
-     styles above. Presentation only; no dashboard logic depends on it. -->
-<link rel="stylesheet" href="atlas-redesign.css"/>
 </head>
 <body>
 <div class="container">
@@ -934,11 +930,8 @@
   <div class="app-shell">
     <aside class="side-nav" aria-label="Dashboard navigation">
       <div class="side-nav-brand">
-        <img class="side-nav-brand-mark" src="assets/atlas-icon.png" alt="ATLAS">
-        <div class="side-nav-brand-text">
-          <div class="side-nav-brand-word">ATLAS</div>
-          <div class="side-nav-brand-eyebrow">Portfolio · Tracker · Reports</div>
-        </div>
+        <img class="side-nav-brand-logo" src="assets/atlas-rise-logo.png" alt="ATLAS Portfolio Tracker Reports for RISE logo">
+        <img class="side-nav-brand-tagline" src="assets/atlas-rise-tagline.png" alt="Love. Serve. Care. Powering better outcomes together for RISE">
       </div>
       <div class="side-nav-head">
         <div class="side-nav-title">Navigation</div>
@@ -972,70 +965,20 @@
         <img class="side-nav-action-icon" src="assets/atlas-icon.png" alt="">
         <span class="side-nav-action-label">Financials</span>
       </button>
-      <!-- Merged navigation: the redesign's flow and grouping, carrying every
-           destination from the live dashboard plus the four embedded RISE
-           platforms. Active state is keyed off data-tab, not DOM order, so the
-           nav can be reordered freely without touching the tab router. -->
       <div class="tabs" id="tabs">
-        <div class="nav-group-label">Portfolio</div>
-        <button class="tab active" data-tab="0" onclick="setTab(0)" aria-label="Portfolio Home"><i class="tab-icon ph ph-chart-line-up" aria-hidden="true"></i><span class="tab-label">Portfolio Home</span></button>
-        <button class="tab" data-tab="2" onclick="setTab(2)" aria-label="Portfolio Overview"><i class="tab-icon ph ph-squares-four" aria-hidden="true"></i><span class="tab-label">Portfolio Overview</span></button>
-        <button class="tab" data-tab="1" onclick="setTab(1)" aria-label="Communities"><i class="tab-icon ph ph-buildings" aria-hidden="true"></i><span class="tab-label">Communities</span></button>
-
-        <div class="nav-group-label">Operations</div>
-        <button class="tab" data-tab="3" onclick="setTab(3)" aria-label="Traffic and Funnel"><i class="tab-icon ph ph-funnel" aria-hidden="true"></i><span class="tab-label">Traffic &amp; Funnel</span></button>
-        <button class="tab" data-tab="4" onclick="setTab(4)" aria-label="Comp Calculator"><i class="tab-icon ph ph-calculator" aria-hidden="true"></i><span class="tab-label">Comp Calculator</span></button>
-        <button class="tab" data-tab="5" onclick="setTab(5)" aria-label="Renewals"><i class="tab-icon ph ph-arrows-clockwise" aria-hidden="true"></i><span class="tab-label">Renewals</span></button>
-        <button class="tab" data-tab="6" onclick="setTab(6)" aria-label="Reputation"><i class="tab-icon ph ph-star" aria-hidden="true"></i><span class="tab-label">Reputation</span></button>
-        <button class="tab" data-tab="10" onclick="setTab(10)" aria-label="Maintenance"><i class="tab-icon ph ph-wrench" aria-hidden="true"></i><span class="tab-label">Maintenance</span></button>
-        <button class="tab" data-tab="11" onclick="setTab(11)" aria-label="Marketing"><i class="tab-icon ph ph-megaphone" aria-hidden="true"></i><span class="tab-label">Marketing</span></button>
-
-        <div class="nav-group-label">Finance &amp; People</div>
-        <button class="tab" data-tab="12" onclick="setTab(12)" aria-label="Budget Builder"><i class="tab-icon ph ph-calculator" aria-hidden="true"></i><span class="tab-label">Budget Builder</span></button>
-        <button class="tab" data-tab="9" onclick="setTab(9)" aria-label="Bonus and Incentives"><i class="tab-icon ph ph-medal" aria-hidden="true"></i><span class="tab-label">Bonus &amp; Incentives</span></button>
-        <button class="tab" data-tab="13" onclick="setTab(13)" aria-label="People"><i class="tab-icon ph ph-users-three" aria-hidden="true"></i><span class="tab-label">People</span></button>
-
-        <div class="nav-group-label">Output</div>
-        <button class="tab" data-tab="8" onclick="setTab(8)" aria-label="Reports and Presentations"><i class="tab-icon ph ph-presentation-chart" aria-hidden="true"></i><span class="tab-label">Reports &amp; Presentations</span></button>
-        <button class="tab" data-tab="7" onclick="setTab(7)" aria-label="Data Import"><i class="tab-icon ph ph-download-simple" aria-hidden="true"></i><span class="tab-label">Data Import</span></button>
-      </div>
-      <div class="side-nav-footer">
-        <div id="side-nav-role-label">Role view · Portfolio manager</div>
-        <div id="side-nav-scope-summary">All communities</div>
+        <button class="tab active" onclick="setTab(0)" aria-label="Portfolio Home"><span class="tab-icon">📈</span><span class="tab-label">Portfolio Home</span></button>
+        <button class="tab" onclick="setTab(1)" aria-label="Community Setup"><span class="tab-icon">🏢</span><span class="tab-label">Community Setup</span></button>
+        <button class="tab" onclick="setTab(2)" aria-label="Overview"><span class="tab-icon">📊</span><span class="tab-label">Overview</span></button>
+        <button class="tab" onclick="setTab(3)" aria-label="Traffic and Funnel"><span class="tab-icon">🔍</span><span class="tab-label">Traffic &amp; Funnel</span></button>
+        <button class="tab" onclick="setTab(4)" aria-label="Comp Calculator"><span class="tab-icon">🧮</span><span class="tab-label">Comp Calculator</span></button>
+        <button class="tab" onclick="setTab(5)" aria-label="Renewals"><span class="tab-icon">🔁</span><span class="tab-label">Renewals</span></button>
+        <button class="tab" onclick="setTab(6)" aria-label="Reputation"><span class="tab-icon">⭐</span><span class="tab-label">Reputation</span></button>
+        <button class="tab" onclick="setTab(7)" aria-label="Data Import"><span class="tab-icon">📁</span><span class="tab-label">Data Import</span></button>
+        <button class="tab" onclick="setTab(8)" aria-label="Reporting"><span class="tab-icon">🗂</span><span class="tab-label">Reporting</span></button>
+        <button class="tab" onclick="setTab(9)" aria-label="Bonus Calc"><span class="tab-icon">🏆</span><span class="tab-label">Bonus Calc</span></button>
       </div>
     </aside>
     <main class="content-shell">
-
-  <!-- Sticky context header (redesign): scope + period mirror the sidebar
-       selects, chips report budget state and upload freshness. -->
-  <header class="atlas-topbar" id="atlas-topbar">
-    <div class="atlas-topbar-field">
-      <span class="atlas-topbar-label">Scope</span>
-      <select id="atlas-topbar-scope" onchange="onWorkspaceCommunitySelect(this.value)" aria-label="Scope"></select>
-    </div>
-    <div class="atlas-topbar-field">
-      <span class="atlas-topbar-label">Period</span>
-      <select id="atlas-topbar-period" aria-label="Period">
-        <option value="0">January</option>
-        <option value="1">February</option>
-        <option value="2">March</option>
-        <option value="3">April</option>
-        <option value="4">May</option>
-        <option value="5">June</option>
-        <option value="6">July</option>
-        <option value="7">August</option>
-        <option value="8">September</option>
-        <option value="9">October</option>
-        <option value="10">November</option>
-        <option value="11">December</option>
-      </select>
-    </div>
-    <div class="atlas-topbar-chips">
-      <span class="atlas-chip is-accent" id="atlas-chip-budget"><i class="ph ph-file-text" aria-hidden="true"></i><span>Monthly upload</span></span>
-      <span class="atlas-chip" id="atlas-chip-freshness"><i class="ph ph-database" aria-hidden="true"></i><span>No rows in review</span></span>
-      <button type="button" class="atlas-chip atlas-chip-action" onclick="openFinancialAccountabilityPage()"><i class="ph ph-currency-dollar" aria-hidden="true"></i><span>Financials</span></button>
-    </div>
-  </header>
 
   <!-- Property Selector -->
   <div class="card mb4 workspace-card" id="prop-selector-card">
@@ -1071,11 +1014,6 @@
   <div id="tab-panel-7" class="tab-panel" style="display:none"></div>
   <div id="tab-panel-8" class="tab-panel" style="display:none"></div>
   <div id="tab-panel-9" class="tab-panel" style="display:none"></div>
-  <!-- Embedded RISE platforms — each renders its tool inline, no click-to-open -->
-  <div id="tab-panel-10" class="tab-panel" style="display:none"></div>
-  <div id="tab-panel-11" class="tab-panel" style="display:none"></div>
-  <div id="tab-panel-12" class="tab-panel" style="display:none"></div>
-  <div id="tab-panel-13" class="tab-panel" style="display:none"></div>
 
     </main>
   </div>
@@ -1115,8 +1053,6 @@
   <div class="scout-compose-note" id="scout-compose-note">Mic works in supported browsers. Scout uses live ATLAS data on this page.</div>
 </section>
 
-<script src="./atlas_historical_restore_data.js"></script>
-<script src="./atlas-mounts.js"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -1145,39 +1081,21 @@ const scoutAssistantState = {
 };
 const PORTFOLIO_SCOPE_LABEL = "ATLAS RISE Portfolio";
 const ATLAS_COMMUNITY_ID_ALIASES = {
-  ANTHEM_HOUSE: "Anthem House",
   BAR: "Bartram Park",
   BAY: "Baymeadows",
   CIT: "Citrus Ridge",
   DOR: "Doro",
   FLO: "Florence Villa",
   GKP: "Glen Kernan Park",
-  IVY_ELM: "Ivy & Elm",
-  LSU_AZALEA: "LSU - Azalea",
-  LSU_CAMELLIA: "LSU - Camellia",
-  LSU_CEDAR: "LSU - Cedar",
-  LSU_EVANGELINE: "LSU - Evangeline",
-  LSU_HIGHLAND: "LSU - Highland",
-  LSU_NICHOLSON: "LSU - Nicholson Gateway",
-  LSU_SPRUCE: "LSU - Spruce",
   NOC: "Nocatee",
-  NJIT_MAPLE: "NJIT - Maple Hall",
-  PILOTS_POINTE: "Pilots Pointe at LSUS",
-  PRESERVE_TECH: "The Preserve at Tech",
-  PROSPER_FAYETTE: "Prosper On Fayette",
-  RISE_34TH: "RISE 34th",
   SER: "Sereno",
   STA: "St Augustine",
   SUT: "Sutton House",
-  UTK_BEACON: "UTK - Beacon Hall",
-  UTK_POPLAR: "UTK - Poplar Hall",
   VIE: "Viera"
 };
 const WEEKLY_SNAPSHOT_STORAGE_KEY = "rise_weekly_portfolio_snapshot_v1";
 const OPS_GLOBAL_STORAGE_KEY = "rise_ops_global_v1";
 const OPS_WORKSPACE_CONTEXT_KEY = "rise_ops_workspace_context_v1";
-const LVR_TEMPLATE_STORAGE_KEY = "atlas_lvr_data_v1";
-const LVR_TEMPLATE_HREF = "leasing-velocity-report-template.html";
 const SIDE_NAV_STORAGE_KEY = "atlas_rise_side_nav_collapsed_v1";
 const COMMUNITY_STORAGE_KEY = "rise_ops_dashboard_data_v1";
 const LEGACY_COMMUNITY_STORAGE_KEY = "rise_leasing_v5";
@@ -1238,28 +1156,12 @@ const RISE_PRESENTATION_BRAND = {
   muted: "rgba(229, 242, 255, 0.82)"
 };
 const PROPERTIES = [
-  { name: "Anthem House", units: 185 },
   { name: "Bartram Park", units: 297 },
   { name: "Baymeadows", units: 331 },
-  { name: "Ivy & Elm", units: 504 },
-  { name: "LSU - Azalea", units: 130 },
-  { name: "LSU - Camellia", units: 116 },
-  { name: "LSU - Cedar", units: 119 },
-  { name: "LSU - Evangeline", units: 87 },
-  { name: "LSU - Highland", units: 58 },
-  { name: "LSU - Nicholson Gateway", units: 763 },
-  { name: "LSU - Spruce", units: 216 },
   { name: "Nocatee", units: 178 },
-  { name: "NJIT - Maple Hall", units: 548 },
   { name: "Doro", units: 247 },
-  { name: "Pilots Pointe at LSUS", units: 388 },
-  { name: "Prosper On Fayette", units: 314 },
-  { name: "RISE 34th", units: 369 },
-  { name: "St Augustine", units: 272 },
+  { name: "St Augustine", units: null },
   { name: "Sutton House", units: null },
-  { name: "The Preserve at Tech", units: 588 },
-  { name: "UTK - Beacon Hall", units: 600 },
-  { name: "UTK - Poplar Hall", units: 411 },
   { name: "Viera", units: 166 },
   { name: "Florence Villa", units: 224 },
   { name: "Citrus Ridge", units: 222 },
@@ -1267,28 +1169,12 @@ const PROPERTIES = [
   { name: "Glen Kernan Park", units: 308 },
 ];
 const COMMUNITY_MARKET_AREA_FALLBACKS = {
-  "Anthem House": { city: "Student Housing", marketArea: "Anthem House" },
   "Bartram Park": { city: "Jacksonville", marketArea: "South Jacksonville" },
   "Baymeadows": { city: "Jacksonville", marketArea: "Baymeadows" },
-  "Ivy & Elm": { city: "Student Housing", marketArea: "Ivy & Elm" },
-  "LSU - Azalea": { city: "Student Housing", marketArea: "LSU - Azalea" },
-  "LSU - Camellia": { city: "Student Housing", marketArea: "LSU - Camellia" },
-  "LSU - Cedar": { city: "Student Housing", marketArea: "LSU - Cedar" },
-  "LSU - Evangeline": { city: "Student Housing", marketArea: "LSU - Evangeline" },
-  "LSU - Highland": { city: "Student Housing", marketArea: "LSU - Highland" },
-  "LSU - Nicholson Gateway": { city: "Student Housing", marketArea: "LSU - Nicholson Gateway" },
-  "LSU - Spruce": { city: "Student Housing", marketArea: "LSU - Spruce" },
   "Nocatee": { city: "Ponte Vedra", marketArea: "Nocatee" },
-  "NJIT - Maple Hall": { city: "Student Housing", marketArea: "NJIT - Maple Hall" },
   "Doro": { city: "Jacksonville", marketArea: "San Marco / Southbank" },
-  "Pilots Pointe at LSUS": { city: "Student Housing", marketArea: "Pilots Pointe at LSUS" },
-  "Prosper On Fayette": { city: "Student Housing", marketArea: "Prosper On Fayette" },
-  "RISE 34th": { city: "Student Housing", marketArea: "RISE 34th" },
   "St Augustine": { city: "St. Augustine", marketArea: "St. Augustine" },
   "Sutton House": { city: "Orlando", marketArea: "Downtown Orlando" },
-  "The Preserve at Tech": { city: "Student Housing", marketArea: "The Preserve at Tech" },
-  "UTK - Beacon Hall": { city: "Student Housing", marketArea: "UTK - Beacon Hall" },
-  "UTK - Poplar Hall": { city: "Student Housing", marketArea: "UTK - Poplar Hall" },
   "Viera": { city: "Melbourne", marketArea: "Viera / Space Coast" },
   "Florence Villa": { city: "Winter Haven", marketArea: "Winter Haven" },
   "Citrus Ridge": { city: "Kissimmee", marketArea: "Citrus Ridge / Four Corners" },
@@ -1296,28 +1182,12 @@ const COMMUNITY_MARKET_AREA_FALLBACKS = {
   "Glen Kernan Park": { city: "Jacksonville", marketArea: "Southside / Glen Kernan" }
 };
 const COMMUNITY_MARKER_ICONS = {
-  "Anthem House": "🎓",
   "Bartram Park": "🌴",
   "Baymeadows": "🪻",
-  "Ivy & Elm": "🎓",
-  "LSU - Azalea": "🎓",
-  "LSU - Camellia": "🎓",
-  "LSU - Cedar": "🎓",
-  "LSU - Evangeline": "🎓",
-  "LSU - Highland": "🎓",
-  "LSU - Nicholson Gateway": "🎓",
-  "LSU - Spruce": "🎓",
   "Nocatee": "🌊",
-  "NJIT - Maple Hall": "🎓",
   "Doro": "🐆",
-  "Pilots Pointe at LSUS": "🎓",
-  "Prosper On Fayette": "🎓",
-  "RISE 34th": "🎓",
   "St Augustine": "🏰",
   "Sutton House": "🏠",
-  "The Preserve at Tech": "🎓",
-  "UTK - Beacon Hall": "🎓",
-  "UTK - Poplar Hall": "🎓",
   "Viera": "🚀",
   "Florence Villa": "🌺",
   "Citrus Ridge": "🍊",
@@ -1583,7 +1453,6 @@ let portfolioReportSections = defaultPortfolioReportSections();
 let portfolioReportFilters = defaultPortfolioReportFilters();
 let monthlyPresentationCommunities = [];
 let reportHubCommunityProgressCommunities = [];
-let reportHubLvrCommunity = "";
 let weeklyExecutiveEmail = defaultWeeklyExecutiveEmailSettings();
 let workspaceScopeValue = PORTFOLIO_SCOPE_VALUE;
 let reportHubType = "investor_snapshot";
@@ -1878,7 +1747,7 @@ function normalizeCommunityFloorPlans(data) {
   return rows.map(row => {
     const sqft = Number(row?.sqft);
     const budgetRent = Number(row?.budgetRent);
-    const marketedRent = Number(row?.marketedRent ?? row?.marketRent);
+    const marketedRent = Number(row?.marketedRent);
     const leasedPct = Number(row?.leasedPct);
     const occupancyPct = Number(row?.occupancyPct);
     const beds = Number(row?.beds);
@@ -2151,10 +2020,7 @@ function normalizeReportHubType(value) {
     community_report: "community_progress",
     community_progress_report: "community_progress",
     market_comparison_report: "market_comparison",
-    market_to_subject_report: "market_comparison",
-    lvr: "leasing_velocity",
-    lvr_template: "leasing_velocity",
-    leasing_velocity_report: "leasing_velocity"
+    market_to_subject_report: "market_comparison"
   };
   const mapped = legacyMap[normalized] || normalized || "investor_snapshot";
   return [
@@ -2164,8 +2030,7 @@ function normalizeReportHubType(value) {
     "dlr",
     "bonus_payout",
     "community_progress",
-    "market_comparison",
-    "leasing_velocity"
+    "market_comparison"
   ].includes(mapped) ? mapped : "investor_snapshot";
 }
 
@@ -3392,13 +3257,7 @@ function buildWorkbookOnlyDlrInvestorOverview(communityName, overlay, monthIdx, 
   const generatedNotes = buildDlrInvestorNotes({
     reportDateLabel: overlay.reportDateLabel,
     monthLabel: formatDlrMonthYear(monthIdx, year),
-    leadSources: {
-      walkIn: mtdTraffic.walkIn,
-      offSiteEvent: mtdTraffic.offSiteEvent,
-      phoneCalls: mtdTraffic.phoneCalls,
-      emailsOnline: mtdTraffic.emailsOnline,
-      textChatOther: mtdTraffic.textChatOther
-    },
+    leadSources: mtdTraffic,
     dailyTraffic,
     mtdTraffic,
     prevMonthTraffic: {},
@@ -3884,7 +3743,6 @@ function normalizeOpsGlobalData(data) {
     salarySecurity: normalizeSalarySecurity(input.salarySecurity),
     monthlyPresentationCommunities: normalizeMonthlyPresentationCommunities(input.monthlyPresentationCommunities),
     reportHubCommunityProgressCommunities: normalizeCommunityProgressReportCommunities(input.reportHubCommunityProgressCommunities),
-    reportHubLvrCommunity: String(input.reportHubLvrCommunity ?? "").trim(),
     weeklyExecutiveEmail: normalizeWeeklyExecutiveEmailSettings(input.weeklyExecutiveEmail),
     portfolioReportSections: normalizePortfolioReportSections(input.portfolioReportSections),
     portfolioReportFilters: {
@@ -3914,7 +3772,6 @@ function getLegacyOpsGlobalSeed() {
     salarySecurity: legacy.salarySecurity,
     weeklyExecutiveEmail: legacy.weeklyExecutiveEmail,
     reportHubCommunityProgressCommunities: legacy.reportHubCommunityProgressCommunities,
-    reportHubLvrCommunity: legacy.reportHubLvrCommunity,
     portfolioReportSections: legacy.portfolioReportSections,
     portfolioReportFilters: legacy.portfolioReportFilters,
     portfolioReportMode: legacy.portfolioReportMode,
@@ -3936,7 +3793,6 @@ function applyOpsGlobalData(data) {
   salarySecurity = normalized.salarySecurity;
   monthlyPresentationCommunities = normalized.monthlyPresentationCommunities;
   reportHubCommunityProgressCommunities = normalized.reportHubCommunityProgressCommunities;
-  reportHubLvrCommunity = normalized.reportHubLvrCommunity;
   weeklyExecutiveEmail = normalized.weeklyExecutiveEmail;
   portfolioReportSections = normalized.portfolioReportSections;
   portfolioReportFilters = normalized.portfolioReportFilters;
@@ -3993,7 +3849,6 @@ function persistOpsGlobalData() {
     salarySecurity,
     monthlyPresentationCommunities,
     reportHubCommunityProgressCommunities,
-    reportHubLvrCommunity,
     weeklyExecutiveEmail,
     portfolioReportSections,
     portfolioReportFilters,
@@ -4549,73 +4404,6 @@ function normalizeSavedCommunityMap(data = {}) {
     normalizeSavedCommunityRecord(name, record)
   ]));
 }
-function getAtlasHistoricalRecoveryCommunityMap() {
-  const source = window.ATLAS_HISTORICAL_RESTORE_COMMUNITY_DATA;
-  if (!source || typeof source !== "object") return {};
-  return normalizeSavedCommunityMap(source);
-}
-function restoreHistoricalCommunityData(savedCommunityMap = {}) {
-  const baseMap = savedCommunityMap && typeof savedCommunityMap === "object" ? savedCommunityMap : {};
-  const recoveryMap = getAtlasHistoricalRecoveryCommunityMap();
-  if (!Object.keys(recoveryMap).length) {
-    return { data: normalizeSavedCommunityMap(baseMap), changed: false, restoredCommunities: [] };
-  }
-  const merged = normalizeSavedCommunityMap(baseMap);
-  const restoredCommunities = [];
-  Object.entries(recoveryMap).forEach(([name, recoveryRecord]) => {
-    const currentRecord = merged[name];
-    if (!currentRecord) {
-      merged[name] = normalizeSavedCommunityRecord(name, recoveryRecord);
-      restoredCommunities.push(name);
-      return;
-    }
-    const nextRecord = normalizeSavedCommunityRecord(name, currentRecord);
-    let changed = false;
-    const currentHistory = nextRecord.monthlyHistoryByPeriod && typeof nextRecord.monthlyHistoryByPeriod === "object"
-      ? nextRecord.monthlyHistoryByPeriod
-      : {};
-    const recoveryHistory = recoveryRecord.monthlyHistoryByPeriod && typeof recoveryRecord.monthlyHistoryByPeriod === "object"
-      ? recoveryRecord.monthlyHistoryByPeriod
-      : {};
-    Object.entries(recoveryHistory).forEach(([periodKey, recoveryEntry]) => {
-      const currentEntry = currentHistory[periodKey];
-      if (dashboardMonthlyEntryHasData(currentEntry)) return;
-      currentHistory[periodKey] = recoveryEntry && typeof recoveryEntry === "object" ? { ...recoveryEntry } : recoveryEntry;
-      changed = true;
-    });
-    nextRecord.monthlyHistoryByPeriod = currentHistory;
-
-    const recoveryMonthlyData = Array.isArray(recoveryRecord.monthlyData) ? recoveryRecord.monthlyData : [];
-    nextRecord.monthlyData = Array.from({ length: 12 }, (_, idx) => {
-      const currentEntry = nextRecord.monthlyData[idx];
-      if (dashboardMonthlyEntryHasData(currentEntry)) return currentEntry;
-      const recoveryEntry = recoveryMonthlyData[idx];
-      if (recoveryEntry && typeof recoveryEntry === "object") {
-        changed = true;
-        return { ...recoveryEntry };
-      }
-      return currentEntry;
-    });
-
-    const recoveryBudgetTargets = Array.isArray(recoveryRecord.savedBudgetTargets) ? recoveryRecord.savedBudgetTargets : [];
-    nextRecord.savedBudgetTargets = Array.from({ length: 12 }, (_, idx) => {
-      const currentPct = getSavedBudgetOccPct(nextRecord.savedBudgetTargets, idx);
-      if (currentPct > 0) return currentPct;
-      const recoveryPct = getSavedBudgetOccPct(recoveryBudgetTargets, idx);
-      if (recoveryPct > 0) {
-        changed = true;
-        return recoveryPct;
-      }
-      return currentPct;
-    });
-
-    if (changed) {
-      merged[name] = nextRecord;
-      restoredCommunities.push(name);
-    }
-  });
-  return { data: merged, changed: restoredCommunities.length > 0, restoredCommunities };
-}
 async function loadSaved() {
   try {
     const stored = await atlasStateGetValue(ATLAS_STATE_COMMUNITY_KEY);
@@ -4792,15 +4580,6 @@ async function hydrateWeeklySnapshotState() {
 
 async function hydrateDashboardPersistentState() {
   savedData = await loadSaved();
-  const historicalRestoreResult = restoreHistoricalCommunityData(savedData);
-  if (historicalRestoreResult.changed) {
-    savedData = historicalRestoreResult.data;
-    persistSaved();
-    csvLog = [
-      `Recovered historical ATLAS community data for ${historicalRestoreResult.restoredCommunities.join(", ")} from the July 21 restore snapshot.`,
-      ...csvLog
-    ].slice(0, 40);
-  }
   const normalizedSavedData = normalizeSavedCommunityMap(savedData);
   if (JSON.stringify(normalizedSavedData) !== JSON.stringify(savedData)) {
     savedData = normalizedSavedData;
@@ -4835,9 +4614,8 @@ function buildCommunityDetailForMonth(name, sourceRecord, monthIdx, year = new D
   const totalUnits = getTotalUnitsFor(prop, record.customUnits);
   const scopedMonthlyData = getRecordMonthlyDataForYear(record, year);
   const corporateUnits = getCorporateLeaseUnitsForRecord(record, totalUnits);
-  const scopedRecordForMonth = { ...record, monthlyData: scopedMonthlyData, reportYear: year, currentMonth: monthIdx };
-  const scopedOccupiedComparable = getRecordComparableSnapshotUnits(scopedRecordForMonth, totalUnits, monthIdx, "occupiedSnapshot");
-  const scopedLeasedComparable = getRecordComparableSnapshotUnits(scopedRecordForMonth, totalUnits, monthIdx, "leasedSnapshot");
+  const scopedOccupiedComparable = estimateSnapshotUnitsForRecordMonth({ ...record, monthlyData: scopedMonthlyData }, totalUnits, monthIdx, "occupiedSnapshot");
+  const scopedLeasedComparable = estimateSnapshotUnitsForRecordMonth({ ...record, monthlyData: scopedMonthlyData }, totalUnits, monthIdx, "leasedSnapshot");
   const scopedRecord = {
     ...record,
     reportYear: year,
@@ -5042,7 +4820,7 @@ function getApplicationsApprovedCount(monthEntry = {}) {
   if (Object.prototype.hasOwnProperty.call(monthEntry ?? {}, "applicationsApproved")) {
     return Math.max(0, Number(monthEntry.applicationsApproved) || 0);
   }
-  return 0;
+  return Math.max(0, Number(monthEntry.leasesSignedActual) || 0);
 }
 
 function getLeadSourceBreakdown(monthEntry = {}) {
@@ -5203,9 +4981,9 @@ function buildDlrTrafficMetricsFromSummary(dlrSummary = {}, monthEntry = {}, dai
 }
 
 function getGrossLeaseProgressCount(monthEntry = {}) {
-  const leases = Math.max(0, Number(monthEntry.leasesSignedActual) || 0);
-  if (leases > 0) return leases;
-  return getApplicationsApprovedCount(monthEntry);
+  const approvals = getApplicationsApprovedCount(monthEntry);
+  if (approvals > 0) return approvals;
+  return Math.max(0, Number(monthEntry.leasesSignedActual) || 0);
 }
 
 function getTourToLeasePctForMonth(monthEntries = monthlyData, monthIdx = currentMonth, fallbackThroughMonth = monthIdx) {
@@ -5923,13 +5701,10 @@ function getCommunitySummary(propName, sourceData) {
   const totalUnits = getTotalUnitsFor(prop, sourceData.customUnits);
   const corporateUnits = getCorporateLeaseUnitsForRecord(sourceData, totalUnits);
   const occupancyBaseUnits = getOccupancyBaseUnits(totalUnits, corporateUnits);
-  // Bugfix: this spread referenced an undefined `record` (the parameter is
-  // `sourceData`), which threw a ReferenceError and took down every tab render.
-  const scopeRecord = { ...sourceData, reportYear: sourceData.reportYear, monthlyData: scopeMonthlyData, currentMonth: scopeCurrentMonth };
-  const occupied = getRecordComparableSnapshotUnits(scopeRecord, totalUnits, scopeCurrentMonth, "occupiedSnapshot");
-  const leased = getRecordComparableSnapshotUnits(scopeRecord, totalUnits, scopeCurrentMonth, "leasedSnapshot");
-  const occupiedRaw = Math.min(Math.max(0, occupied + corporateUnits), totalUnits || occupied + corporateUnits);
-  const leasedRaw = Math.min(Math.max(0, leased + corporateUnits), totalUnits || leased + corporateUnits);
+  const occupiedRaw = Number(sourceData.currentOccupied) || 0;
+  const leasedRaw = Number(sourceData.currentLeased) || 0;
+  const occupied = getComparableOccupancyUnits(occupiedRaw, corporateUnits);
+  const leased = getComparableOccupancyUnits(leasedRaw, corporateUnits);
   const schedule = computeScheduleFromContext({
     totalUnits,
     corporateLeaseUnits: corporateUnits,
@@ -5944,12 +5719,7 @@ function getCommunitySummary(propName, sourceData) {
     seasonal: scopeSeasonal
   });
   const curMonthData = scopeMonthlyData[scopeCurrentMonth] ?? {};
-  const previousMonthIdx = scopeCurrentMonth > 0 ? scopeCurrentMonth - 1 : null;
-  const prevMonthData = previousMonthIdx != null ? (scopeMonthlyData[previousMonthIdx] ?? {}) : {};
-  const curRenewalMonthData = getRenewalMonthEntryForRecord(scopeRecord, scopeCurrentMonth, sourceData.reportYear);
-  const prevRenewalMonthData = previousMonthIdx != null
-    ? getRenewalMonthEntryForRecord(scopeRecord, previousMonthIdx, sourceData.reportYear)
-    : {};
+  const prevMonthData = scopeMonthlyData[Math.max(scopeCurrentMonth - 1, 0)] ?? {};
   const currentRow = schedule[scopeCurrentMonth] ?? {};
   const nextRow = schedule[Math.min(scopeCurrentMonth + 1, 11)] ?? currentRow;
   const budgetOccPct = getRecordSavedBudgetOccPct(sourceData, scopeCurrentMonth, sourceData.reportYear);
@@ -5961,10 +5731,8 @@ function getCommunitySummary(propName, sourceData) {
   const tours = Number(curMonthData.tours) || 0;
   const applicationMetrics = getApplicationDecisionMetrics(curMonthData);
   const prevApplicationMetrics = getApplicationDecisionMetrics(prevMonthData);
-  const renewalSummary = getRenewalSummaryForMonth(curRenewalMonthData);
-  const previousRenewalSummary = previousMonthIdx != null
-    ? getRenewalSummaryForMonth(prevRenewalMonthData)
-    : { expirations: 0, signed: 0, ntv: 0, transfers: 0, undecided: 0, earlyTermination: 0, projectedAttrition: 0, retentionRate: 0 };
+  const renewalSummary = getRenewalSummaryForMonth(curMonthData);
+  const previousRenewalSummary = getRenewalSummaryForMonth(prevMonthData);
   const closedQuarterRetention = getClosedOutRetentionAverageForMonths(scopeMonthlyData, getQuarterMonths(bonusQuarter), scopeCurrentMonth);
   const applications = applicationMetrics.applications;
   const previousGuestCards = getLeadSourceTotal(prevMonthData);
@@ -5975,7 +5743,7 @@ function getCommunitySummary(propName, sourceData) {
   const previousLeasesSigned = Number(prevMonthData.leasesSignedActual) || 0;
   const moveOuts = getEffectiveMoveOutsForMonth(scopeCurrentMonth, scopeMonthlyData).effective;
   const moveIns = Number(curMonthData.moveIns) || 0;
-  const previousMoveOuts = previousMonthIdx != null ? getEffectiveMoveOutsForMonth(previousMonthIdx, scopeMonthlyData).effective : 0;
+  const previousMoveOuts = getEffectiveMoveOutsForMonth(Math.max(scopeCurrentMonth - 1, 0), scopeMonthlyData).effective;
   const previousMoveIns = Number(prevMonthData.moveIns) || 0;
   const budgetOccUnits = occupancyBaseUnits > 0 && budgetOccPct > 0 ? Math.ceil(occupancyBaseUnits * budgetOccPct / 100) : 0;
   const budgetLeasedUnits = occupancyBaseUnits > 0 && budgetLeasedPct > 0 ? Math.ceil(occupancyBaseUnits * budgetLeasedPct / 100) : 0;
@@ -6018,7 +5786,7 @@ function getCommunitySummary(propName, sourceData) {
     applicationApprovalPct: applicationMetrics.approvalPct,
     applicationDenialPct: applicationMetrics.denialPct,
     tourToLeasePct: getTourToLeasePctForMonth(scopeMonthlyData, scopeCurrentMonth, scopeCurrentMonth),
-    previousTourToLeasePct: previousMonthIdx != null ? getTourToLeasePctForMonth(scopeMonthlyData, previousMonthIdx, previousMonthIdx) : 0,
+    previousTourToLeasePct: getTourToLeasePctForMonth(scopeMonthlyData, Math.max(scopeCurrentMonth - 1, 0), Math.max(scopeCurrentMonth - 1, 0)),
     previousApplications: prevApplicationMetrics.applications,
     leasesSigned,
     previousLeasesSigned,
@@ -6123,10 +5891,6 @@ function aggregateCommunitySummaries(summaries) {
       acc.renewalRetentionRateTotal += summary.renewalRetentionRate;
       acc.renewalRetentionRateCount += 1;
     }
-    if (summary.quarterClosedRetentionAverage > 0 && summary.quarterClosedRetentionMonths > 0) {
-      acc.quarterClosedRetentionAverageTotal += summary.quarterClosedRetentionAverage * summary.quarterClosedRetentionMonths;
-      acc.quarterClosedRetentionMonths += summary.quarterClosedRetentionMonths;
-    }
     if (summary.previousRenewalRetentionRate > 0) {
       acc.previousRenewalRetentionRateTotal += summary.previousRenewalRetentionRate;
       acc.previousRenewalRetentionRateCount += 1;
@@ -6197,8 +5961,6 @@ function aggregateCommunitySummaries(summaries) {
     renewalProjectedAttrition: 0,
     renewalRetentionRateTotal: 0,
     renewalRetentionRateCount: 0,
-    quarterClosedRetentionAverageTotal: 0,
-    quarterClosedRetentionMonths: 0,
     previousRenewalExpirations: 0,
     previousRenewalsSigned: 0,
     previousRenewalRetentionRateTotal: 0,
@@ -6276,8 +6038,8 @@ function aggregateCommunitySummaries(summaries) {
     previousLeadToLeasePct: totals.previousGuestCards > 0 ? (totals.previousLeasesSigned / totals.previousGuestCards) * 100 : 0,
     tourToAppPct: totals.tours > 0 ? (totals.applications / totals.tours) * 100 : 0,
     previousTourToAppPct: totals.previousTours > 0 ? (totals.previousApplications / totals.previousTours) * 100 : 0,
-    tourToLeasePct: totals.tours > 0 ? (totals.leasesSigned / totals.tours) * 100 : 0,
-    previousTourToLeasePct: totals.previousTours > 0 ? (totals.previousLeasesSigned / totals.previousTours) * 100 : 0,
+    tourToLeasePct: totals.tours > 0 ? (totals.applicationsApproved / totals.tours) * 100 : 0,
+    previousTourToLeasePct: totals.previousTours > 0 ? (totals.previousApplicationsApproved / totals.previousTours) * 100 : 0,
     applicationApprovalPct: totals.applications > 0 ? (totals.applicationsApproved / totals.applications) * 100 : 0,
     previousApplicationApprovalPct: totals.previousApplications > 0 ? (totals.previousApplicationsApproved / totals.previousApplications) * 100 : 0,
     applicationDenialPct: totals.applications > 0 ? (totals.applicationsDenied / totals.applications) * 100 : 0,
@@ -6290,10 +6052,7 @@ function aggregateCommunitySummaries(summaries) {
     renewalEarlyTermination: totals.renewalEarlyTermination,
     renewalProjectedAttrition: totals.renewalProjectedAttrition,
     renewalRetentionRate: totals.renewalExpirations > 0 ? (totals.renewalsSigned / totals.renewalExpirations) * 100 : (totals.renewalRetentionRateCount > 0 ? totals.renewalRetentionRateTotal / totals.renewalRetentionRateCount : 0),
-    quarterClosedRetentionAverage: totals.quarterClosedRetentionMonths > 0
-      ? totals.quarterClosedRetentionAverageTotal / totals.quarterClosedRetentionMonths
-      : 0,
-    quarterClosedRetentionMonths: totals.quarterClosedRetentionMonths,
+    quarterClosedRetentionAverage: totals.renewalExpirations > 0 ? (totals.renewalsSigned / totals.renewalExpirations) * 100 : 0,
     previousRenewalExpirations: totals.previousRenewalExpirations,
     previousRenewalsSigned: totals.previousRenewalsSigned,
     previousRenewalRetentionRate: totals.previousRenewalExpirations > 0 ? (totals.previousRenewalsSigned / totals.previousRenewalExpirations) * 100 : (totals.previousRenewalRetentionRateCount > 0 ? totals.previousRenewalRetentionRateTotal / totals.previousRenewalRetentionRateCount : 0),
@@ -6320,14 +6079,12 @@ function getCommunityPerformancePlan(propName, sourceData) {
   const scopeSeasonal = Array.isArray(record.seasonal) && record.seasonal.length === 12 ? record.seasonal : [...DEFAULT_SEASONAL];
   const scopeCurrentMonth = Number.isInteger(record.currentMonth) ? record.currentMonth : 0;
   const totalUnits = getTotalUnitsFor(prop, record.customUnits);
-  const resolvedCurrentOccupied = getRecordComparableSnapshotUnits(record, totalUnits, scopeCurrentMonth, "occupiedSnapshot");
-  const resolvedCurrentLeased = getRecordComparableSnapshotUnits(record, totalUnits, scopeCurrentMonth, "leasedSnapshot");
   const occupancyBaseUnits = getOccupancyBaseUnits(totalUnits, record.corporateLeaseUnits);
   const schedule = computeScheduleFromContext({
     totalUnits,
     corporateLeaseUnits: record.corporateLeaseUnits,
-    currentOccupied: resolvedCurrentOccupied,
-    currentLeased: resolvedCurrentLeased,
+    currentOccupied: Number(record.currentOccupied) || 0,
+    currentLeased: Number(record.currentLeased) || 0,
     occupancyGoal: Number(record.occupancyGoal ?? 95),
     leasedGoal: Number(record.leasedGoal ?? 97),
     currentMonth: scopeCurrentMonth,
@@ -6341,10 +6098,10 @@ function getCommunityPerformancePlan(propName, sourceData) {
   const currentAppMetrics = getApplicationDecisionMetrics(currentMonthData);
   const budgetOccPct = getRecordSavedBudgetOccPct(record, scopeCurrentMonth, record.reportYear);
   const budgetOccUnits = occupancyBaseUnits > 0 && budgetOccPct > 0 ? Math.ceil(occupancyBaseUnits * budgetOccPct / 100) : 0;
-  const occupancyGapUnits = Math.max(budgetOccUnits - resolvedCurrentOccupied, 0);
+  const occupancyGapUnits = Math.max(budgetOccUnits - getComparableOccupancyUnits(Number(record.currentOccupied) || 0, record.corporateLeaseUnits), 0);
   const quarterTotals = getQuarterMonths(bonusQuarter).reduce((acc, idx) => {
     const row = schedule[idx] ?? {};
-    const renewal = getRenewalSummaryForMonth(getRenewalMonthEntryForRecord(record, idx, record.reportYear));
+    const renewal = getRenewalSummaryForMonth(scopeMonthlyData[idx] ?? {});
     acc.netOccNeed += Number(row.netOccLeases ?? 0);
     acc.grossLeaseNeed += Number(row.grossLeases ?? 0);
     acc.appNeed += Number(row.apps ?? 0);
@@ -6849,14 +6606,9 @@ function flushWorkspaceNavigation() {
 }
 
 function queueWorkspaceNavigation(scopeValue = "", tabIdx = null, options = {}) {
-  const safeTabIdx = tabIdx === null || tabIdx === undefined ? null : Math.max(0, Math.min(9, Number(tabIdx) || 0));
-  if (safeTabIdx === 8 && options?.syncReportMonth !== false) {
-    syncReportHubToWorkspacePeriod();
-    persistOpsGlobalData();
-  }
   pendingWorkspaceNavigation = {
     scopeValue: typeof scopeValue === "string" ? scopeValue : "",
-    tabIdx: safeTabIdx,
+    tabIdx: tabIdx === null || tabIdx === undefined ? null : Math.max(0, Math.min(9, Number(tabIdx) || 0)),
     portfolio: options?.portfolio === true,
     windowshadeKey: String(options?.windowshadeKey || ""),
     anchorId: String(options?.anchorId || "")
@@ -7147,17 +6899,8 @@ function selectAllFloorPlans(section, propName, ids = []) {
   setFloorPlanSelectionIds(section, propName, allSelected ? [] : availableIds);
 }
 
-function getFloorPlanSelectionScope(section, propName) {
-  const normalizedPropName = matchPropertyName(propName, { fallbackToCurrent: false }) || getProp().name;
-  const escapedPropName = typeof CSS !== "undefined" && typeof CSS.escape === "function"
-    ? CSS.escape(normalizedPropName)
-    : normalizedPropName.replace(/"/g, '\\"');
-  return document.querySelector(`[data-floor-plan-selection-section="${section}"][data-floor-plan-selection-prop="${escapedPropName}"]`)
-    || document.querySelector(`[data-floor-plan-selection-section="${section}"]`);
-}
-
 function syncFloorPlanSelectionUi(section, propName) {
-  const scope = getFloorPlanSelectionScope(section, propName);
+  const scope = document.querySelector(`[data-floor-plan-selection-section="${section}"]`);
   if (!scope) return;
   const selectedIds = new Set(getFloorPlanSelectionIds(section, propName));
   const checkboxes = Array.from(scope.querySelectorAll("[data-floor-plan-row-checkbox]"));
@@ -7225,9 +6968,8 @@ function applySelectedCommunityFloorPlanField(propName) {
     alert("Select one or more saved floor plans first, then apply the bulk edit.");
     return false;
   }
-  const scope = getFloorPlanSelectionScope("community", propName);
-  const field = String(scope?.querySelector('[data-floor-plan-bulk-field="community"]')?.value ?? "").trim();
-  const rawValue = scope?.querySelector('[data-floor-plan-bulk-value="community"]')?.value ?? "";
+  const field = String(document.getElementById("community-floor-plan-bulk-field")?.value ?? "").trim();
+  const rawValue = document.getElementById("community-floor-plan-bulk-value")?.value ?? "";
   if (!field) {
     alert("Choose a floor-plan field to update first.");
     return false;
@@ -9035,16 +8777,16 @@ function bindScoutAssistantUi() {
 // ─── Auto Conv Rate ──────────────────────────────────────────────────────────
 function autoCalcConvRate() {
   const documentedMonths = monthlyData.slice(0, currentMonth + 1).filter(m =>
-    (m?.tours ?? 0) > 0 || (m?.applications ?? 0) > 0 || (m?.leasesSignedActual ?? 0) > 0
+    (m?.tours ?? 0) > 0 || (m?.applications ?? 0) > 0 || (m?.leasesSignedActual ?? 0) > 0 || getApplicationsApprovedCount(m) > 0
   );
   const totalTours = documentedMonths.reduce((sum, m) => sum + (m?.tours ?? 0), 0);
   const totalApps = documentedMonths.reduce((sum, m) => sum + (m?.applications ?? 0), 0);
-  const totalLeases = documentedMonths.reduce((sum, m) => sum + Math.max(0, Number(m?.leasesSignedActual) || 0), 0);
+  const totalLeases = documentedMonths.reduce((sum, m) => sum + ((m?.leasesSignedActual ?? 0) || getApplicationsApprovedCount(m)), 0);
   const currentTourToApp = (monthlyData[currentMonth]?.tours ?? 0) > 0
     ? ((monthlyData[currentMonth]?.applications ?? 0) / (monthlyData[currentMonth]?.tours ?? 0)) * 100
     : 0;
   const currentAppToLease = (monthlyData[currentMonth]?.applications ?? 0) > 0
-    ? ((Math.max(0, Number(monthlyData[currentMonth]?.leasesSignedActual) || 0) / (monthlyData[currentMonth]?.applications ?? 0)) * 100)
+    ? ((((monthlyData[currentMonth]?.leasesSignedActual ?? 0) || getApplicationsApprovedCount(monthlyData[currentMonth])) / (monthlyData[currentMonth]?.applications ?? 0)) * 100)
     : 0;
   const histTourToApp = totalTours > 0 ? (totalApps / totalTours) * 100 : 0;
   const histAppToLease = totalApps > 0 ? (totalLeases / totalApps) * 100 : 0;
@@ -9103,30 +8845,10 @@ function autoPopulateLeasingPace() {
 }
 
 // ─── Tab ──────────────────────────────────────────────────────────────────────
-// Tabs 0–9 are the original dashboard screens; 10–13 are the embedded RISE
-// platforms added by the redesign merge. MOUNT_TABS render a tool inline and
-// have no community-workspace context of their own.
-const MOUNT_TABS = [10, 11, 12, 13];
-const MAX_TAB = 13;
-
 function setTab(i) {
-  activeTab = Math.max(0, Math.min(MAX_TAB, Number(i) || 0));
-  if (activeTab === 8) {
-    syncReportHubToWorkspacePeriod();
-    persistOpsGlobalData();
-  }
-  // Active state is keyed off data-tab so the sidebar can be grouped and
-  // reordered independently of the panel indices.
-  document.querySelectorAll(".tab").forEach(t => {
-    t.classList.toggle("active", Number(t.dataset.tab) === activeTab);
-  });
-  document.querySelectorAll(".tab-panel").forEach(p => {
-    const idx = Number(String(p.id).replace("tab-panel-", ""));
-    p.style.display = idx === activeTab ? "" : "none";
-  });
-  // The Community Workspace header is meaningless on a mounted platform.
-  const workspaceCard = document.getElementById("prop-selector-card");
-  if (workspaceCard) workspaceCard.style.display = MOUNT_TABS.includes(activeTab) ? "none" : "";
+  activeTab = Math.max(0, Math.min(9, Number(i) || 0));
+  document.querySelectorAll(".tab").forEach((t, j) => t.classList.toggle("active", activeTab === j));
+  document.querySelectorAll(".tab-panel").forEach((p, j) => p.style.display = activeTab === j ? "" : "none");
   renderTab();
 }
 
@@ -9141,11 +8863,7 @@ function renderTab() {
     renderReputationTab,
     renderCSVTab,
     renderReportingTab,
-    renderBonusTab,
-    window.renderMaintenanceTab,
-    window.renderMarketingTab,
-    window.renderBudgetBuilderTab,
-    window.renderPeopleTab
+    renderBonusTab
   ];
   if (activeTab >= renderers.length) activeTab = renderers.length - 1;
   const panel = document.getElementById(`tab-panel-${activeTab}`);
@@ -9155,7 +8873,7 @@ function renderTab() {
       panel.innerHTML = renderer();
     } catch (error) {
       console.error("Tab failed to render", { activeTab, error });
-      const activeLabel = document.querySelector(`.tab[data-tab="${activeTab}"]`)?.textContent?.trim() || `Tab ${activeTab}`;
+      const activeLabel = document.querySelectorAll(".tab")[activeTab]?.textContent?.trim() || `Tab ${activeTab}`;
       const errorDetail = String(error?.message || error || "Unknown render error");
       panel.innerHTML = `<div class="card mb4">
         <div class="card-title" style="margin-bottom:8px">${escapeHtml(activeLabel)}</div>
@@ -9163,63 +8881,12 @@ function renderTab() {
       </div>`;
     }
   }
-  document.querySelectorAll(".tab-panel").forEach(p => {
-    const idx = Number(String(p.id).replace("tab-panel-", ""));
-    p.style.display = idx === activeTab ? "" : "none";
-  });
+  document.querySelectorAll(".tab-panel").forEach((p, j) => p.style.display = activeTab === j ? "" : "none");
   applyDashboardBackdrop();
-  syncAtlasTopbar();
-  if (!MOUNT_TABS.includes(activeTab)) {
-    attachEventListeners();
-    queueActiveTabPhotoAssetHydration();
-    queueAtlasPortfolioMapHydration();
-  }
+  attachEventListeners();
+  queueActiveTabPhotoAssetHydration();
+  queueAtlasPortfolioMapHydration();
   requestAnimationFrame(updateScoutPresence);
-}
-
-// Keeps the sticky header's scope/period selects and status chips in step with
-// the sidebar workspace controls. Read-only mirror — the sidebar remains the
-// source of truth for community and month selection.
-function syncAtlasTopbar() {
-  try {
-    const sourceSelect = document.getElementById("workspace-community-select");
-    const topScope = document.getElementById("atlas-topbar-scope");
-    if (sourceSelect && topScope && topScope.innerHTML !== sourceSelect.innerHTML) {
-      topScope.innerHTML = sourceSelect.innerHTML;
-    }
-    if (sourceSelect && topScope) topScope.value = sourceSelect.value;
-
-    const monthSelect = document.getElementById("workspace-current-month");
-    const topPeriod = document.getElementById("atlas-topbar-period");
-    if (monthSelect && topPeriod) {
-      topPeriod.value = monthSelect.value;
-      topPeriod.onchange = () => {
-        monthSelect.value = topPeriod.value;
-        monthSelect.dispatchEvent(new Event("change", { bubbles: true }));
-      };
-    }
-
-    const scopeLabel = document.getElementById("side-nav-scope-summary");
-    if (scopeLabel && topScope) {
-      scopeLabel.textContent = topScope.options[topScope.selectedIndex]?.textContent?.trim() || "All communities";
-    }
-
-    const budgetChip = document.getElementById("atlas-chip-budget");
-    if (budgetChip) {
-      const monthLabel = FULL_MONTHS[Number(monthSelect?.value) || 0] || "";
-      budgetChip.lastElementChild.textContent = `Monthly upload · ${monthLabel} ${new Date().getFullYear()}`;
-    }
-
-    const freshChip = document.getElementById("atlas-chip-freshness");
-    if (freshChip) {
-      const count = Object.keys(savedData || {}).length;
-      freshChip.lastElementChild.textContent = count
-        ? `${count} ${count === 1 ? "community" : "communities"} saved`
-        : "No saved communities yet";
-    }
-  } catch (error) {
-    console.warn("Topbar sync skipped", error);
-  }
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -9549,12 +9216,11 @@ function mergeDashboardMonthlyData(baseMonthlyData, incomingMonthlyData) {
   const incomingEntries = Array.isArray(incomingMonthlyData) ? incomingMonthlyData : [];
   return Array.from({ length: 12 }, (_, idx) => {
     const baseEntry = baseEntries[idx] && typeof baseEntries[idx] === "object" ? baseEntries[idx] : {};
-    const hasIncomingEntry = idx in incomingEntries && incomingEntries[idx] && typeof incomingEntries[idx] === "object";
-    if (!hasIncomingEntry) {
+    const incomingEntry = incomingEntries[idx] && typeof incomingEntries[idx] === "object" ? incomingEntries[idx] : {};
+    if (!dashboardMonthlyEntryHasData(incomingEntry)) {
       return baseEntry;
     }
-    const incomingEntry = incomingEntries[idx];
-    return dashboardMonthlyEntryHasData(incomingEntry) ? { ...baseEntry, ...incomingEntry } : { ...incomingEntry };
+    return { ...baseEntry, ...incomingEntry };
   });
 }
 
@@ -9568,7 +9234,7 @@ function mergeMonthlyHistoryByPeriod(baseHistory, incomingHistory) {
     const baseEntry = merged[periodKey] && typeof merged[periodKey] === "object" ? merged[periodKey] : defaultMonthly()[monthIdx];
     merged[periodKey] = dashboardMonthlyEntryHasData(incomingEntry)
       ? { ...baseEntry, ...incomingEntry }
-      : { ...incomingEntry };
+      : baseEntry;
   });
   return merged;
 }
@@ -9895,8 +9561,6 @@ function resetSeasonal() {
 function attachEventListeners() {
   // Numeric inputs
   document.querySelectorAll("[data-field]").forEach(el => {
-    if (el.dataset.atlasBoundChange === "1") return;
-    el.dataset.atlasBoundChange = "1";
     el.addEventListener("change", () => {
       const field = el.dataset.field;
       const idx = parseInt(el.dataset.idx);
@@ -9915,8 +9579,6 @@ function attachEventListeners() {
       else if (field === "currentMonth") {
         storeCurrentMonthSnapshots(prevCurrentMonth, currentOccupied, currentLeased);
         currentMonth = Number(el.value);
-        reportHubMonth = currentMonth;
-        reportHubYear = new Date().getFullYear();
         workspaceMonthOverride = currentMonth;
         restoreCurrentMonthSnapshots(currentMonth, {
           anchorMonth: prevCurrentMonth,
@@ -9949,66 +9611,47 @@ function attachEventListeners() {
     });
   });
   // File import (CSV or PDF)
-  document.querySelectorAll("#csv-input").forEach(csvInput => {
-    if (csvInput.dataset.atlasBoundChange === "1") return;
-    csvInput.dataset.atlasBoundChange = "1";
-    csvInput.addEventListener("change", function(e) {
-      const files = Array.from(e.target.files || []);
-      if (files.length === 0) return;
-      processImportFiles(files);
-      e.target.value = "";
-    });
+  const csvInput = document.getElementById("csv-input");
+  if (csvInput) csvInput.addEventListener("change", function(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    processImportFiles(files);
+    e.target.value = "";
   });
   const historicalInput = document.getElementById("historical-report-input");
-  if (historicalInput && historicalInput.dataset.atlasBoundChange !== "1") {
-    historicalInput.dataset.atlasBoundChange = "1";
-    historicalInput.addEventListener("change", function(e) {
-      const files = Array.from(e.target.files || []);
-      if (files.length === 0) return;
-      processHistoricalImportFiles(files);
-      e.target.value = "";
-    });
-  }
+  if (historicalInput) historicalInput.addEventListener("change", function(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    processHistoricalImportFiles(files);
+    e.target.value = "";
+  });
   const renewalInput = document.getElementById("renewal-input");
-  if (renewalInput && renewalInput.dataset.atlasBoundChange !== "1") {
-    renewalInput.dataset.atlasBoundChange = "1";
-    renewalInput.addEventListener("change", function(e) {
-      const files = Array.from(e.target.files || []);
-      if (files.length === 0) return;
-      processRenewalFiles(files);
-      e.target.value = "";
-    });
-  }
+  if (renewalInput) renewalInput.addEventListener("change", function(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    processRenewalFiles(files);
+    e.target.value = "";
+  });
   const portfolioRenewalInput = document.getElementById("portfolio-renewal-input");
-  if (portfolioRenewalInput && portfolioRenewalInput.dataset.atlasBoundChange !== "1") {
-    portfolioRenewalInput.dataset.atlasBoundChange = "1";
-    portfolioRenewalInput.addEventListener("change", function(e) {
-      const files = Array.from(e.target.files || []);
-      if (files.length === 0) return;
-      processRenewalFiles(files);
-      e.target.value = "";
-    });
-  }
-  document.querySelectorAll("#market-survey-input").forEach(marketSurveyInput => {
-    if (marketSurveyInput.dataset.atlasBoundChange === "1") return;
-    marketSurveyInput.dataset.atlasBoundChange = "1";
-    marketSurveyInput.addEventListener("change", function(e) {
-      const files = Array.from(e.target.files || []);
-      if (files.length === 0) return;
-      processMarketSurveyFiles(files);
-      e.target.value = "";
-    });
+  if (portfolioRenewalInput) portfolioRenewalInput.addEventListener("change", function(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    processRenewalFiles(files);
+    e.target.value = "";
   });
-  document.querySelectorAll("#dlr-box-score-input, .dlr-box-score-input").forEach(dlrBoxScoreInput => {
-    if (dlrBoxScoreInput.dataset.atlasBoundChange === "1") return;
-    dlrBoxScoreInput.dataset.atlasBoundChange = "1";
-    dlrBoxScoreInput.addEventListener("change", function(e) {
-      const files = Array.from(e.target.files || []);
-      if (files.length === 0) return;
-      processDlrBoxScoreFiles(files);
-      e.target.value = "";
-    });
+  const marketSurveyInput = document.getElementById("market-survey-input");
+  if (marketSurveyInput) marketSurveyInput.addEventListener("change", function(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    processMarketSurveyFiles(files);
+    e.target.value = "";
   });
+  document.querySelectorAll("#dlr-box-score-input, .dlr-box-score-input").forEach(dlrBoxScoreInput => dlrBoxScoreInput.addEventListener("change", function(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    processDlrBoxScoreFiles(files);
+    e.target.value = "";
+  }));
 }
 
 function getImportTargetMonth() {
@@ -10240,7 +9883,7 @@ function renderPortfolioScopedSetupTab() {
         </div>
       </div>
     </div>
-    <div data-floor-plan-selection-section="community" data-floor-plan-selection-prop="${escapeHtml(selectedName)}" style="margin-bottom:14px;padding:14px;border-radius:12px;border:1px solid rgba(68,147,248,0.18);background:rgba(255,255,255,0.65)">
+    <div data-floor-plan-selection-section="community" style="margin-bottom:14px;padding:14px;border-radius:12px;border:1px solid rgba(68,147,248,0.18);background:rgba(255,255,255,0.65)">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
         <div>
           <div style="font-size:0.76rem;font-weight:700;color:var(--text)">Floor Plan Budget Setup</div>
@@ -10254,7 +9897,7 @@ function renderPortfolioScopedSetupTab() {
           <div style="display:grid;grid-template-columns:150px 140px auto;gap:8px;align-items:end">
             <div>
               <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Bulk field</div>
-              <select data-floor-plan-bulk-field="community">
+              <select id="community-floor-plan-bulk-field">
                 <option value="marketedRent">Marketed rent</option>
                 <option value="budgetRent">Budget rent</option>
                 <option value="leasedPct">Leased %</option>
@@ -10267,7 +9910,7 @@ function renderPortfolioScopedSetupTab() {
             </div>
             <div>
               <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Bulk value</div>
-              <input data-floor-plan-bulk-value="community" type="text" placeholder="Value to apply">
+              <input id="community-floor-plan-bulk-value" type="text" placeholder="Value to apply">
             </div>
             <button class="btn btn-gray btn-sm" type="button" onclick="applySelectedCommunityFloorPlanField(${JSON.stringify(selectedName)})">Apply to Selected</button>
           </div>
@@ -10386,21 +10029,18 @@ function renderPortfolioScopedTrafficTab() {
   </div>`;
   const rows = details.map(detail => {
     const entry = detail.record?.monthlyData?.[selectedMonth] ?? {};
-    const currentMonthTourToLeasePct = Number(detail.summary?.tours ?? 0) > 0
-      ? ((Number(detail.summary?.leasesSigned ?? 0) || 0) / (Number(detail.summary?.tours ?? 0) || 1)) * 100
-      : null;
     return `<tr>
       <td class="l" style="font-weight:700">${escapeHtml(detail.name)}</td>
       <td><input type="number" min="0" value="${Math.round(detail.summary.guestCards ?? 0)}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "guest_cards", this.value)' style="width:88px"></td>
       <td><input type="number" min="0" value="${Math.round(detail.summary.tours ?? 0)}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "tours", this.value)' style="width:88px"></td>
       <td><input type="number" min="0" value="${Math.round(detail.summary.applications ?? 0)}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "applications", this.value)' style="width:88px"></td>
       <td><input type="number" min="0" value="${Math.round(detail.summary.applicationsApproved ?? 0)}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "applications_approved", this.value)' style="width:88px"></td>
-      <td>${currentMonthTourToLeasePct === null ? "—" : `${currentMonthTourToLeasePct.toFixed(1)}%`}</td>
+      <td>${(detail.summary.tourToLeasePct ?? 0).toFixed(1)}%</td>
       <td><button type="button" class="btn btn-gray btn-sm" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(detail.name)}, 3)'>Open Funnel</button></td>
     </tr>`;
   }).join("");
   const bodyHtml = `<div class="tbl-wrap">
-    <div class="tbl-header"><h2>Portfolio funnel by community</h2><p>Traffic and funnel fields are editable directly here for the selected month. Community rows show current-month conversion only so historical fallback rates do not masquerade as live month performance.</p></div>
+    <div class="tbl-header"><h2>Portfolio funnel by community</h2><p>Traffic and funnel fields are editable directly here for the selected month. Tour-to-lease continues to use the current month or historical fallback logic.</p></div>
     <table>
       <thead><tr><th class="l">Community</th><th>Leads</th><th>Tours</th><th>Applications</th><th>Approved</th><th>Tour to Lease</th><th>Action</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -10412,14 +10052,9 @@ function renderPortfolioScopedTrafficTab() {
 function renderPortfolioScopedRenewalsTab() {
   const { details, aggregate } = getWorkspaceScopedAggregate(getSelectedDashboardMonthIndex());
   const selectedMonth = getSelectedDashboardMonthIndex();
-  const aggregateExpirations = Math.max(0, Number(aggregate.renewalExpirations ?? 0) || 0);
-  const aggregateSigned = Math.max(0, Number(aggregate.renewalsSigned ?? 0) || 0);
-  const aggregateRetentionLabel = aggregateExpirations > 0
-    ? `${(aggregate.renewalRetentionRate ?? 0).toFixed(1)}% retention`
-    : (aggregateSigned > 0 ? "Signed renewals loaded · expirations missing" : "No expirations saved yet");
   const cardsHtml = `<div class="grid-4">
     ${statBox("Expirations", Math.round(aggregate.renewalExpirations ?? 0), "Current month renewal expirations in scope", "#4493f8")}
-    ${statBox("Renewals Signed", Math.round(aggregate.renewalsSigned ?? 0), aggregateRetentionLabel, "#3fb950")}
+    ${statBox("Renewals Signed", Math.round(aggregate.renewalsSigned ?? 0), `${(aggregate.renewalRetentionRate ?? 0).toFixed(1)}% retention`, "#3fb950")}
     ${statBox("Undecided / M2M", Math.round(aggregate.renewalUndecided ?? 0), "At-risk renewals still in play", "#d29922")}
     ${statBox("Projected Attrition", Math.round(aggregate.renewalProjectedAttrition ?? 0), "Renewal-driven attrition risk", "#f97316")}
   </div>`;
@@ -10429,7 +10064,6 @@ function renderPortfolioScopedRenewalsTab() {
       <thead><tr><th class="l">Community</th><th>Expirations</th><th>Signed</th><th>NTVs</th><th>Undecided / M2M</th><th>Early Term.</th><th>Retention %</th></tr></thead>
       <tbody>${details.map(detail => {
         const entry = getRenewalMonthEntryForRecord(detail.record, selectedMonth, detail.record?.reportYear ?? new Date().getFullYear());
-        const entrySummary = getRenewalSummaryForMonth(entry);
         return `<tr>
           <td class="l" style="font-weight:700">${escapeHtml(detail.name)}</td>
           <td><input type="number" min="0" value="${escapeHtml(String(entry.renewalExpirations ?? ""))}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "renewal_expirations", this.value)' style="width:88px"></td>
@@ -10437,7 +10071,7 @@ function renderPortfolioScopedRenewalsTab() {
           <td><input type="number" min="0" value="${escapeHtml(String(entry.renewalNTV ?? ""))}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "renewal_ntvs", this.value)' style="width:88px"></td>
           <td><input type="number" min="0" value="${escapeHtml(String(entry.renewalUndecided ?? ""))}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "renewal_undecided", this.value)' style="width:88px"></td>
           <td><input type="number" min="0" value="${escapeHtml(String(entry.renewalEarlyTermination ?? ""))}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "renewal_early_termination", this.value)' style="width:88px"></td>
-          <td>${entrySummary.expirations > 0 ? `${(entrySummary.retentionRate ?? 0).toFixed(1)}%` : "—"}</td>
+          <td>${(detail.summary.renewalRetentionRate ?? 0).toFixed(1)}%</td>
         </tr>`;
       }).join("")}</tbody>
     </table>
@@ -10462,7 +10096,7 @@ function renderPortfolioScopedReputationTab() {
         <td><input type="number" min="0" max="100" step="0.1" value="${escapeHtml(String(detail.record?.reputationData?.oraScore || ""))}" onchange='updatePortfolioCommunityReputationField(${JSON.stringify(detail.name)}, "oraScore", this.value)' style="width:88px"></td>
         <td><input type="number" min="0" max="5" step="0.1" value="${escapeHtml(String(detail.record?.reputationData?.googleQuarterlyRating || ""))}" onchange='updatePortfolioCommunityReputationField(${JSON.stringify(detail.name)}, "googleQuarterlyRating", this.value)' style="width:88px"></td>
         <td><input type="number" min="0" max="5" step="0.1" value="${escapeHtml(String(detail.record?.reputationData?.googleLifetimeRating || ""))}" onchange='updatePortfolioCommunityReputationField(${JSON.stringify(detail.name)}, "googleLifetimeRating", this.value)' style="width:88px"></td>
-        <td><button type="button" class="btn btn-gray btn-sm" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(detail.name)}, 6)'>Open Full Reputation</button></td>
+        <td><button type="button" class="btn btn-gray btn-sm" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(detail.name)}, 5)'>Open Full Reputation</button></td>
       </tr>`).join("")}</tbody>
     </table>
   </div>`;
@@ -10676,7 +10310,7 @@ function renderPortfolioScopedImportTab() {
           <td>${hasDlr ? "Loaded" : "Pending"}</td>
           <td>${hasSurvey ? "Loaded" : "Pending"}</td>
           <td>${hasRenewal ? "Loaded" : "Pending"}</td>
-          <td><button type="button" class="btn btn-gray btn-sm" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(detail.name)}, 7)'>Open Import</button></td>
+          <td><button type="button" class="btn btn-gray btn-sm" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(detail.name)}, 6)'>Open Import</button></td>
         </tr>`;
       }).join("")}</tbody>
     </table>
@@ -11135,7 +10769,7 @@ function renderSetupTab() {
           <div style="font-size:0.63rem;color:var(--muted);margin-top:3px">Use the direct floor-plan / pricing page when it differs from the main website.</div>
         </div>
       </div>
-      <div id="community-floor-plan-budget-setup" data-floor-plan-selection-section="community" data-floor-plan-selection-prop="${escapeHtml(p.name)}" style="margin-top:14px;padding:14px;border-radius:12px;border:1px solid rgba(68,147,248,0.18);background:rgba(255,255,255,0.65)">
+      <div id="community-floor-plan-budget-setup" data-floor-plan-selection-section="community" style="margin-top:14px;padding:14px;border-radius:12px;border:1px solid rgba(68,147,248,0.18);background:rgba(255,255,255,0.65)">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
           <div>
             <div style="font-size:0.76rem;font-weight:700;color:var(--text)">Investor Community Email Setup</div>
@@ -11179,7 +10813,7 @@ function renderSetupTab() {
           <div style="display:grid;grid-template-columns:150px 140px auto;gap:8px;align-items:end">
             <div>
               <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Bulk field</div>
-              <select data-floor-plan-bulk-field="community">
+              <select id="community-floor-plan-bulk-field">
                 <option value="marketedRent">Marketed rent</option>
                 <option value="budgetRent">Budget rent</option>
                 <option value="leasedPct">Leased %</option>
@@ -11192,7 +10826,7 @@ function renderSetupTab() {
             </div>
             <div>
               <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Bulk value</div>
-              <input data-floor-plan-bulk-value="community" type="text" placeholder="Value to apply">
+              <input id="community-floor-plan-bulk-value" type="text" placeholder="Value to apply">
             </div>
             <button class="btn btn-gray btn-sm" type="button" onclick="applySelectedCommunityFloorPlanField(${JSON.stringify(p.name)})">Apply to Selected</button>
           </div>
@@ -13514,20 +13148,14 @@ function buildBoxScoreSheetCandidates(workbook) {
   }));
 }
 
-function isAvailabilityHeaderRow(headerRow = []) {
-  const normalized = Array.isArray(headerRow) ? headerRow.map(cell => String(cell ?? "").trim().toLowerCase()) : [];
-  if (!normalized.includes("unit type") || !normalized.includes("units") || !normalized.includes("occupied")) return false;
-  return normalized.includes("leased")
-    || (normalized.includes("occupied no notice") && normalized.includes("notice rented"));
-}
-
 function extractAvailabilityTotalsFromRows(rows = []) {
   for (let idx = 0; idx < rows.length; idx += 1) {
     const row = Array.isArray(rows[idx]) ? rows[idx].map(cell => String(cell ?? "").trim()) : [];
     if (!row.some(cell => /availability\s*\(as of/i.test(cell))) continue;
     let headerIdx = -1;
     for (let probe = idx; probe < Math.min(rows.length, idx + 6); probe += 1) {
-      if (isAvailabilityHeaderRow(rows[probe])) {
+      const headerRow = Array.isArray(rows[probe]) ? rows[probe].map(cell => String(cell ?? "").trim().toLowerCase()) : [];
+      if (headerRow.includes("unit type") && headerRow.includes("units") && headerRow.includes("occupied") && headerRow.includes("leased")) {
         headerIdx = probe;
         break;
       }
@@ -13547,11 +13175,6 @@ function extractAvailabilityTotalsFromRows(rows = []) {
     const findHeader = (...patterns) => headers.findIndex(header => patterns.some(pattern => header === pattern || header.includes(pattern)));
     const valueAt = idx => Number.isInteger(idx) && idx >= 0 && idx < totalRow.length ? parseOptionalWorkbookMetric(totalRow[idx]) : null;
     const trendUnitsIdx = headers.findIndex(header => /not exposed leased units/i.test(header));
-    const leasedUnitsIdx = headers.findIndex(header => /availability .* leased units/i.test(header));
-    const occupiedNoNoticeIdx = findHeader("occupied no notice");
-    const noticeRentedIdx = findHeader("notice rented");
-    const explicitLeasedUnits = valueAt(leasedUnitsIdx);
-    const derivedLeasedUnits = [occupiedNoNoticeIdx, noticeRentedIdx].reduce((sum, columnIdx) => sum + (Number(valueAt(columnIdx)) || 0), 0);
     return {
       totalUnits: valueAt(findHeader("units")),
       rentableUnits: valueAt(findHeader("rentable units")),
@@ -13559,7 +13182,7 @@ function extractAvailabilityTotalsFromRows(rows = []) {
       vacantUnits: valueAt(findHeader("vacant")),
       availableUnits: valueAt(findHeader("available")),
       occupiedNoNoticeUnits: valueAt(findHeader("occupied no notice")),
-      leasedUnits: explicitLeasedUnits ?? (derivedLeasedUnits > 0 ? derivedLeasedUnits : null),
+      leasedUnits: valueAt(headers.findIndex(header => /availability .* leased units/i.test(header))),
       exposureUnits: valueAt(headers.findIndex(header => /availability .* exposure units/i.test(header))),
       notExposedLeasedUnits: valueAt(trendUnitsIdx),
       trendUnits: valueAt(trendUnitsIdx)
@@ -13574,7 +13197,8 @@ function extractAvailabilityFloorPlanRowsFromRows(rows = [], fileName = "") {
     if (!row.some(cell => /availability\s*\(as of/i.test(cell))) continue;
     let headerIdx = -1;
     for (let probe = idx; probe < Math.min(rows.length, idx + 6); probe += 1) {
-      if (isAvailabilityHeaderRow(rows[probe])) {
+      const headerRow = Array.isArray(rows[probe]) ? rows[probe].map(cell => String(cell ?? "").trim().toLowerCase()) : [];
+      if (headerRow.includes("unit type") && headerRow.includes("units") && headerRow.includes("occupied") && headerRow.includes("leased")) {
         headerIdx = probe;
         break;
       }
@@ -13594,8 +13218,6 @@ function extractAvailabilityFloorPlanRowsFromRows(rows = [], fileName = "") {
     const occupiedPctCandidates = exactHeaderIndices("occupied").filter(matchIdx => matchIdx !== occupiedCountIdx);
     const leasedPctCandidates = exactHeaderIndices("leased");
     const leasedUnitsIdx = headers.findIndex(header => /availability .* leased units/i.test(header));
-    const occupiedNoNoticeIdx = headers.findIndex(header => header.includes("occupied no notice"));
-    const noticeRentedIdx = headers.findIndex(header => header.includes("notice rented"));
     const floorPlanRows = [];
     for (let rowIdx = headerIdx + 1; rowIdx < rows.length; rowIdx += 1) {
       const sourceRow = Array.isArray(rows[rowIdx]) ? rows[rowIdx] : [];
@@ -13604,12 +13226,7 @@ function extractAvailabilityFloorPlanRowsFromRows(rows = [], fileName = "") {
       if (/^total:?$/i.test(label)) break;
       const units = normalizeWorkbookNumber(sourceRow[rentableUnitsIdx >= 0 ? rentableUnitsIdx : unitsIdx]);
       const occupiedCount = normalizeWorkbookNumber(sourceRow[occupiedCountIdx]);
-      const explicitLeasedUnits = leasedUnitsIdx >= 0 ? normalizeWorkbookNumber(sourceRow[leasedUnitsIdx]) : null;
-      const derivedLeasedUnits = [occupiedNoNoticeIdx, noticeRentedIdx].reduce((sum, columnIdx) => {
-        if (!Number.isInteger(columnIdx) || columnIdx < 0) return sum;
-        return sum + (normalizeWorkbookNumber(sourceRow[columnIdx]) || 0);
-      }, 0);
-      const leasedUnits = explicitLeasedUnits ?? (derivedLeasedUnits > 0 ? derivedLeasedUnits : 0);
+      const leasedUnits = leasedUnitsIdx >= 0 ? normalizeWorkbookNumber(sourceRow[leasedUnitsIdx]) : 0;
       const firstPctValue = candidateIndices => candidateIndices.reduce((resolved, candidateIdx) => {
         if (resolved != null) return resolved;
         const numeric = parseOptionalWorkbookMetric(sourceRow[candidateIdx]);
@@ -14069,15 +13686,15 @@ async function processDlrBoxScoreFiles(files) {
           return {
             id: existing?.id || rate.id || makeFloorPlanId(),
             name: String(existing?.name || rate.name || "").trim(),
-            sqft: rate.sqft ?? existing?.sqft ?? null,
-            budgetRent: rate.budgetRent ?? existing?.budgetRent ?? null,
+            sqft: existing?.sqft ?? rate.sqft ?? null,
+            budgetRent: existing?.budgetRent ?? rate.budgetRent ?? null,
             marketedRent: existing?.marketedRent ?? null,
             occupancyPct: rate.occupancyPct ?? existing?.occupancyPct ?? null,
             leasedPct: rate.leasedPct ?? existing?.leasedPct ?? null,
             marketedRentSource: existing?.marketedRentSource || rate.marketedRentSource || file.name,
             beds: existing?.beds ?? null,
             baths: existing?.baths ?? null,
-            units: rate.units ?? existing?.units ?? null
+            units: existing?.units ?? rate.units ?? null
           };
         });
         existingPlans.forEach(plan => {
@@ -15386,13 +15003,10 @@ function renderRenewalsTab() {
       : "var(--muted)";
     return statBox(`${quarter} Avg Renewal %`, valueText, subtitle, accent);
   }).join("");
-  const currentRetentionLabel = currentSummary.expirations > 0
-    ? `${currentSummary.retentionRate.toFixed(1)}% retention`
-    : (currentSummary.signed > 0 ? "Signed renewals loaded · expirations missing" : "No signed renewals yet");
 
   const renewalsMetricsSection = `<div class="grid-4 mb4">
     ${statBox("Current Month Expirations", currentSummary.expirations || 0, `${MONTHS[currentMonth]} lease expirations imported or entered`, "#4493f8")}
-    ${statBox("Renewals Signed", currentSummary.signed || 0, currentRetentionLabel, "#3fb950")}
+    ${statBox("Renewals Signed", currentSummary.signed || 0, `${currentSummary.retentionRate > 0 ? currentSummary.retentionRate.toFixed(1) + "% retention" : "No signed renewals yet"}`, "#3fb950")}
     ${statBox("Pending / Undecided / M2M", currentSummary.undecided || 0, `${currentSummary.projectedAttrition} projected attrition units in pace planning · transfers excluded from attrition · ${currentSummary.earlyTermination || 0} early terminations tracked`, "#d29922")}
     ${statBox("Lease Need Impact", currentSchedule.renewalRiskUnits || 0, "Renewal risk units now included in gross lease need", "#f97316")}
   </div>
@@ -17042,23 +16656,18 @@ function buildPortfolioHomePriorities(details = [], selectedMonth = getSelectedD
     }
 
     const budgetOccPct = Number(summary?.budgetOccPct ?? 0);
-    const budgetLeasedPct = Number(summary?.budgetLeasedPct ?? 0);
     const occGapUnits = Math.max(0, Number(summary?.occGapUnits ?? 0));
     const leasedGapUnits = Math.max(0, Number(summary?.leasedGapUnits ?? 0));
     const hasBudgetPath = budgetOccPct > 0;
-    const hasLeasedBudgetPath = budgetLeasedPct > 0;
     if (summary && ((hasBudgetPath && occGapUnits >= 4) || leasedGapUnits >= 6)) {
-      const showLeasedMetric = hasLeasedBudgetPath && leasedGapUnits >= occGapUnits;
-      const displayPct = showLeasedMetric ? Number(summary.leasedPct ?? 0) : Number(summary.occPct ?? 0);
-      const displayBudgetPct = showLeasedMetric ? budgetLeasedPct : budgetOccPct;
       priorities.push({
         community: detail.name,
-        title: showLeasedMetric ? `Leased occupancy is off the saved leasing pace` : (hasBudgetPath ? `Occupancy is off the saved leasing pace` : `Leased occupancy is materially behind target`),
+        title: hasBudgetPath ? `Occupancy is off the saved leasing pace` : `Leased occupancy is materially behind target`,
         body: hasBudgetPath
           ? `${detail.name} is ${occGapUnits} occupied unit${occGapUnits === 1 ? "" : "s"} and ${leasedGapUnits} leased unit${leasedGapUnits === 1 ? "" : "s"} behind the saved budget path for ${FULL_MONTHS[selectedMonth]}. Tighten pending closeouts and near-term move-in execution before the gap widens.`
           : `${detail.name} is ${leasedGapUnits} leased unit${leasedGapUnits === 1 ? "" : "s"} behind the current leased target for ${FULL_MONTHS[selectedMonth]}. Save the missing budget occupancy path and tighten pending closeouts before the gap widens.`,
-        value: `${displayPct.toFixed(1)}%`,
-        valueSub: displayBudgetPct > 0 ? `budget ${displayBudgetPct.toFixed(1)}%` : `${leasedGapUnits} leased units behind`,
+        value: `${Number(summary.occPct ?? 0).toFixed(1)}%`,
+        valueSub: hasBudgetPath ? `budget ${budgetOccPct.toFixed(1)}%` : `${leasedGapUnits} leased units behind`,
         tone: Math.max(occGapUnits, leasedGapUnits) >= 8 ? "critical" : "warn",
         severity: 84 + Math.min(Math.max(occGapUnits, leasedGapUnits), 12),
         tabIdx: 2,
@@ -19088,8 +18697,6 @@ function renderPortfolioHomeTab() {
       },
       `<div class="alert alert-info">Upload weekly AptIQ market survey files to surface the side-by-side market comparison card here.</div>`
     );
-    const aggregateRenewalExpirations = Math.max(0, Number(aggregate.renewalExpirations ?? 0) || 0);
-    const aggregateRenewalSigned = Math.max(0, Number(aggregate.renewalsSigned ?? 0) || 0);
     const tiles = [
       {
         label: "Saved Communities",
@@ -19112,10 +18719,8 @@ function renderPortfolioHomeTab() {
       },
       {
         label: "Renewal Retention",
-        value: aggregateRenewalExpirations > 0 ? `${(aggregate.renewalRetentionRate ?? 0).toFixed(1)}%` : "—",
-        sub: aggregateRenewalExpirations > 0
-          ? `${aggregateRenewalSigned} signed from ${aggregateRenewalExpirations} expirations`
-          : (aggregateRenewalSigned > 0 ? `${aggregateRenewalSigned} signed · no expirations saved` : "No expirations saved yet")
+        value: `${(aggregate.renewalRetentionRate ?? 0).toFixed(1)}%`,
+        sub: `${Math.round(aggregate.renewalsSigned ?? 0)} signed from ${Math.round(aggregate.renewalExpirations ?? 0)} expirations`
       },
       {
         label: "Physical Occupancy",
@@ -19149,7 +18754,7 @@ function renderPortfolioHomeTab() {
       {
         label: "ORA Average",
         value: (aggregate.oraScore ?? 0) > 0 ? (aggregate.oraScore ?? 0).toFixed(1) : "—",
-        sub: "Portfolio average reputation score"
+        sub: `${aggregate.onTrackBudgetOccCount ?? 0}/${aggregate.trackedBudgetOccCount ?? 0} communities pacing on saved occupancy budget`
       }
     ];
     const prioritiesHtml = renderSafeSection(
@@ -19177,24 +18782,24 @@ function renderPortfolioHomeTab() {
     const latestApplicationApprovalRate = latestApplicationTrendRow && Number(latestApplicationTrendRow.applications) > 0
       ? (Number(latestApplicationTrendRow.approvedApps) / Number(latestApplicationTrendRow.applications)) * 100
       : null;
-    const guestCardTrendCard = renderSafeSection(
+    const approvedTrendCard = renderSafeSection(
       () => buildPortfolioTrendCard({
-        title: "Guest card / lead trend",
-        subtitle: `${trendScopeTitle} month-over-month guest cards from Jan ${new Date().getFullYear()} through ${selectedLabel} ${new Date().getFullYear()}.`,
+        title: "Approved apps trend",
+        subtitle: `${trendScopeTitle} month-over-month approved applications from Jan ${new Date().getFullYear()} through ${selectedLabel} ${new Date().getFullYear()}.`,
         summaryLabel: selectedLabel,
-        summaryValue: selectedTrendRow && selectedTrendRow.communityCount > 0 ? formatPortfolioTrendMetricValue(selectedTrendRow.guestCards, "number") : "—",
+        summaryValue: selectedTrendRow && selectedTrendRow.communityCount > 0 ? formatPortfolioTrendMetricValue(selectedTrendRow.approvedApps, "number") : "—",
         summarySub: selectedMonth > 0 && selectedTrendRow && trendRows[selectedMonth - 1]?.communityCount > 0
-          ? formatPortfolioProjectedTrendValue(selectedTrendRow.guestCards ?? 0, trendRows[selectedMonth - 1]?.guestCards ?? 0, "count_pct", selectedMonth, new Date().getFullYear())
-          : "Guest cards saved in the selected reporting month",
+          ? formatPortfolioProjectedTrendValue(selectedTrendRow.approvedApps ?? 0, trendRows[selectedMonth - 1]?.approvedApps ?? 0, "count_pct", selectedMonth, new Date().getFullYear())
+          : "Approved apps saved in the selected reporting month",
         chips: [
           `<strong>${selectedTrendRow?.communityCount ?? 0}</strong> active communities`,
-          `<strong>${formatPortfolioTrendMetricValue(trendRows[0]?.guestCards, "number")}</strong> in Jan`,
-          `<strong>${formatPortfolioTrendMetricValue(Math.max(...trendRows.map(row => row.guestCards || 0)), "number")}</strong> peak month`
+          `<strong>${formatPortfolioTrendMetricValue(trendRows[0]?.approvedApps, "number")}</strong> in Jan`,
+          `<strong>${formatPortfolioTrendMetricValue(Math.max(...trendRows.map(row => row.approvedApps || 0)), "number")}</strong> peak month`
         ],
         chartHtml: buildPortfolioTrendLineChart(
           trendRows.map(row => ({
             shortLabel: row.shortLabel,
-            value: row.communityCount > 0 && row.monthIdx <= selectedMonth ? row.guestCards : null,
+            value: row.communityCount > 0 && row.monthIdx <= selectedMonth ? row.approvedApps : null,
             projected: false
           })),
           {
@@ -19206,7 +18811,7 @@ function renderPortfolioHomeTab() {
           }
         )
       }),
-      `<div class="portfolio-list-card"><h3>Guest card / lead trend</h3><p>Trend data is temporarily unavailable for this snapshot.</p></div>`
+      `<div class="portfolio-list-card"><h3>Approved apps trend</h3><p>Trend data is temporarily unavailable for this snapshot.</p></div>`
     );
     const netAbsorptionTrendCard = renderSafeSection(
       () => buildPortfolioTrendCard({
@@ -19311,7 +18916,7 @@ function renderPortfolioHomeTab() {
       <div class="portfolio-hero">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
           <div>
-            <div class="portfolio-hero-eyebrow">${isPortfolioWorkspaceSelected() ? "ATLAS RISE Portfolio Command Center" : "Community Command Center"}</div>
+            <div style="font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase;color:rgba(240,247,255,0.72);margin-bottom:8px">${isPortfolioWorkspaceSelected() ? "ATLAS RISE Portfolio Command Center" : "Community Command Center"}</div>
             <h2>${escapeHtml(selectedLabel)} ${isPortfolioWorkspaceSelected() ? "portfolio snapshot" : `${getProp().name} snapshot`}</h2>
             <p>${isPortfolioWorkspaceSelected() ? "This landing view gives you the whole-book read before you drop into a single community." : "This landing view gives you a fast management snapshot for the selected community before you move deeper into Overview, Traffic, Renewals, or Reporting."} It uses the same saved community records that power the existing tabs, so nothing is being re-keyed or stored separately.</p>
           </div>
@@ -19333,13 +18938,30 @@ function renderPortfolioHomeTab() {
     </div>
   </div>
   <div class="portfolio-list-card" style="margin-top:16px">
+      <div class="atlas-map-shell" style="margin-top:0;margin-bottom:16px">
+        <h3>Portfolio map</h3>
+        <p>Community pins use the saved addresses in Community Setup so the portfolio view can verify geographic coverage and location context without leaving the dashboard.</p>
+        <div class="atlas-map-grid">
+          <div id="atlas-portfolio-map" aria-label="ATLAS portfolio map"></div>
+          <div class="atlas-map-list">
+            <div class="atlas-map-card">
+              <div class="atlas-map-card-title">Saved address coverage</div>
+              <div class="atlas-map-card-meta">${details.length} communities are included in this snapshot. Add or update addresses in Community Setup if a pin is missing.</div>
+            </div>
+            <div class="atlas-map-card">
+              <div class="atlas-map-card-title">Map behavior</div>
+              <div class="atlas-map-card-meta">The map auto-fits to saved properties and each hover state shows the community name, address, and unit count.</div>
+            </div>
+          </div>
+        </div>
+      </div>
       <h3>Portfolio priorities</h3>
       <p>${isPortfolioWorkspaceSelected() ? "Internally-facing items that may need a management touch before they show up as missed outcomes." : "Internally-facing items that may need a management touch before they show up as missed outcomes for this community."}</p>
       <div class="portfolio-rank-list">${prioritiesHtml}</div>
   </div>
   ${marketComparisonHtml}
   <div class="portfolio-section-grid" style="margin-top:16px">
-    ${guestCardTrendCard}
+    ${approvedTrendCard}
     ${netAbsorptionTrendCard}
   </div>
   <div class="portfolio-section-grid" style="margin-top:16px">
@@ -19358,10 +18980,10 @@ function renderPortfolioHomeTab() {
 function renderReportingTab() {
   ensureValidReportHubAction();
   reportHubType = normalizeReportHubType(reportHubType);
-  if (!["dlr", "bonus_payout", "community_progress", "market_comparison", "leasing_velocity"].includes(reportHubType) && reportHubPerspective === "regional") {
+  if (!["dlr", "bonus_payout", "community_progress", "market_comparison"].includes(reportHubType) && reportHubPerspective === "regional") {
     reportHubPerspective = "investor";
   }
-  if (reportHubType === "community_progress" || reportHubType === "market_comparison" || reportHubType === "leasing_velocity") {
+  if (reportHubType === "community_progress" || reportHubType === "market_comparison") {
     reportHubPerspective = "csuite";
   }
   if (normalizeReportHubType(reportHubType) === "dlr") {
@@ -19374,18 +18996,6 @@ function renderReportingTab() {
   const reportableCommunityNames = getReportableCommunityNames(getReportHubMonthIndex());
   const communityProgressSelectionNames = getCommunityProgressReportCommunityNames();
   const selectedRecipientCount = reportHubContacts.filter(contact => reportHubRecipientKeys.includes(contact.key)).length;
-  const isCommunitySelectionReport = ["community_progress", "market_comparison"].includes(normalizedType);
-  const isLvrReport = normalizedType === "leasing_velocity";
-  const currentScopeName = isCommunitySelectionReport
-    ? getCommunityProgressReportScopeLabel()
-    : isLvrReport
-      ? getLvrReportCommunityName()
-      : getWorkspaceScopeDisplayName();
-  const currentScopeMode = isCommunitySelectionReport
-    ? `${communityProgressSelectionNames.length > 1 ? "multi-community c-suite mode" : "single-community c-suite mode"}`
-    : isLvrReport
-      ? "single-community LVR mode"
-      : (isPortfolioWorkspaceSelected() ? "portfolio aggregate mode" : "community-specific mode");
   const reportHubRecipientsHtml = reportHubContacts.length > 0
     ? reportHubContacts.map(contact => {
         const isActive = reportHubRecipientKeys.includes(contact.key);
@@ -19400,8 +19010,8 @@ function renderReportingTab() {
   const selectedReportSections = getSelectedPortfolioReportSections();
   const ownerFilterSummary = `${(portfolioReportFilters.investorGroups ?? []).length} investor group(s) · ${(portfolioReportFilters.investorCommunities ?? []).length} highlighted communit${(portfolioReportFilters.investorCommunities ?? []).length === 1 ? "y" : "ies"}`;
   const communityProgressFilterSummary = `${communityProgressSelectionNames.length} communit${communityProgressSelectionNames.length === 1 ? "y" : "ies"} selected`;
-  const reportNeedsScopeBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && !["community_progress", "market_comparison"].includes(normalizedType);
-  const reportNeedsSectionBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && !["community_progress", "market_comparison"].includes(normalizedType);
+  const reportNeedsScopeBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && !["community_progress", "market_comparison"].includes(normalizedType);
+  const reportNeedsSectionBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && !["community_progress", "market_comparison"].includes(normalizedType);
   const reportTypeDescription = normalizedType === "investor_marketing_report"
     ? "Combines traffic and funnel performance with comp calculator and market-survey context."
     : normalizedType === "monthly_investor_deck"
@@ -19410,8 +19020,6 @@ function renderReportingTab() {
         ? "Payroll-ready payout reporting using the saved bonus calculator data."
         : normalizedType === "dlr"
           ? "Single-community daily leasing report with upload-backed activity checks."
-          : normalizedType === "leasing_velocity"
-            ? "Portable ATLAS LVR export with stabilized and lease-up views, image slots, and print-ready Letter pages."
           : normalizedType === "community_progress"
             ? "C-suite month-to-date community progress report with photo-led visuals, pace analysis, and explicit data alerts when source fields are incomplete."
             : normalizedType === "market_comparison"
@@ -19464,8 +19072,6 @@ function renderReportingTab() {
     : "";
   const editableRecommendationDetails = ["community_progress", "market_comparison"].includes(normalizedType)
     ? []
-    : isLvrReport
-    ? getReportBuilderScopedDetails().slice(0, 1)
     : (reportHubPerspective === "csuite" || reportHubPerspective === "regional")
     ? getScopedPortfolioReportDetails(reportBuilderDetails).slice(0, 8)
     : [];
@@ -19503,8 +19109,8 @@ function renderReportingTab() {
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px">
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Current Scope</div>
-        <div style="font-size:0.82rem;font-weight:700;color:var(--accent)">${escapeHtml(currentScopeName)}</div>
-        <div style="font-size:0.68rem;color:var(--muted);margin-top:6px">${escapeHtml(reportMonthLabel)} report period · ${escapeHtml(currentScopeMode)}</div>
+        <div style="font-size:0.82rem;font-weight:700;color:var(--accent)">${escapeHtml(["community_progress", "market_comparison"].includes(normalizedType) ? getCommunityProgressReportScopeLabel() : getWorkspaceScopeDisplayName())}</div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-top:6px">${escapeHtml(reportMonthLabel)} report period · ${["community_progress", "market_comparison"].includes(normalizedType) ? `${communityProgressSelectionNames.length > 1 ? "multi-community c-suite mode" : "single-community c-suite mode"}` : (isPortfolioWorkspaceSelected() ? "portfolio aggregate mode" : "community-specific mode")}</div>
       </div>
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Report Type</div>
@@ -19516,15 +19122,14 @@ function renderReportingTab() {
           <option value="monthly_investor_deck" ${reportHubType==="monthly_investor_deck"?"selected":""}>Monthly Report</option>
           <option value="community_progress" ${reportHubType==="community_progress"?"selected":""}>Community Progress Report</option>
           <option value="market_comparison" ${reportHubType==="market_comparison"?"selected":""}>Market Comparison Report</option>
-          <option value="leasing_velocity" ${reportHubType==="leasing_velocity"?"selected":""}>Leasing Velocity Report</option>
         </select>
         <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${escapeHtml(reportTypeDescription)}</div>
       </div>
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Report View</div>
-        ${normalizedType === "community_progress" || normalizedType === "leasing_velocity"
-          ? `<div style="padding:8px 10px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2);font-size:0.78rem;font-weight:700;color:var(--accent)">${normalizedType === "leasing_velocity" ? "LVR Template" : "C-Suite View"}</div>
-             <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${normalizedType === "leasing_velocity" ? "The exported template contains its own stabilized / lease-up mode control." : "This report is locked to a c-suite lens so the output stays focused on operating progress and data confidence checks."}</div>`
+        ${normalizedType === "community_progress"
+          ? `<div style="padding:8px 10px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2);font-size:0.78rem;font-weight:700;color:var(--accent)">C-Suite View</div>
+             <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">This report is locked to a c-suite lens so the output stays focused on operating progress and data confidence checks.</div>`
           : `<select onchange="setReportHubPerspective(this.value)">
               <option value="investor" ${reportHubPerspective==="investor"?"selected":""}>Investor facing</option>
               <option value="csuite" ${reportHubPerspective==="csuite"?"selected":""}>C-Suite View</option>
@@ -19617,9 +19222,6 @@ function renderReportHubPreviewFrame(title, description, documentHtml, controlsH
 function renderReportHubInlinePreview(type = normalizeReportHubType(reportHubType), selectedSections = getSelectedPortfolioReportSections()) {
   if (type === "dlr") {
     return `<div class="card mb4" id="reporting-inline-preview">${renderDlrReportingWorkspace()}</div>`;
-  }
-  if (type === "leasing_velocity") {
-    return renderLvrTemplateWorkspace();
   }
   if (type === "community_progress") {
     return `<div class="card mb4" id="reporting-inline-preview">${renderCommunityProgressReportingWorkspace()}</div>`;
@@ -20009,11 +19611,6 @@ function getReportHubYear() {
   return Number.isFinite(parsed) && parsed > 2000 ? parsed : new Date().getFullYear();
 }
 
-function syncReportHubToWorkspacePeriod() {
-  reportHubMonth = getSelectedDashboardMonthIndex();
-  reportHubYear = new Date().getFullYear();
-}
-
 function setReportHubDateField(field, value) {
   if (field === "month") {
     reportHubMonth = clampNumber(Number(value), 0, 11);
@@ -20041,8 +19638,7 @@ function getReportHubTypeLabel(type = reportHubType) {
     dlr: "DLR",
     bonus_payout: "Bonus Payout Report",
     community_progress: "Community Progress Report",
-    market_comparison: "Market Comparison Report",
-    leasing_velocity: "Leasing Velocity Report"
+    market_comparison: "Market Comparison Report"
   }[normalizeReportHubType(type)] || "Investor Snapshot";
 }
 
@@ -20149,9 +19745,6 @@ function configureReportHubDefaultsForType(type) {
     if (!Array.isArray(reportHubCommunityProgressCommunities) || reportHubCommunityProgressCommunities.length === 0) {
       reportHubCommunityProgressCommunities = [getCommunityProgressReportCommunityName()];
     }
-  } else if (normalized === "leasing_velocity") {
-    reportHubPerspective = "csuite";
-    reportHubLvrCommunity = getLvrReportCommunityName();
   }
 }
 
@@ -20287,12 +19880,6 @@ function getReportBuilderScopedDetails() {
         return buildCommunityDetailForMonth(name, record, getReportHubMonthIndex(), getReportHubYear());
       })
       .filter(Boolean);
-  }
-  if (normalizeReportHubType(reportHubType) === "leasing_velocity") {
-    const name = getLvrReportCommunityName();
-    const record = getPersistedCommunityRecordForScope(name, { allowCurrentFallback: true });
-    const detail = record ? buildCommunityDetailForMonth(name, record, getReportHubMonthIndex(), getReportHubYear()) : null;
-    return detail ? [detail] : [];
   }
   return getScopedPortfolioReportDetails(buildPortfolioDetailsForMonth(getReportHubMonthIndex(), savedData, getReportHubYear()));
 }
@@ -20534,7 +20121,6 @@ function buildPortfolioHomeMonthlyTrendRows(anchorMonth = getSelectedDashboardMo
       acc.communityCount += 1;
       acc.applications += applicationMetrics.applications;
       acc.approvedApps += applicationMetrics.approvals;
-      acc.guestCards += getLeadSourceTotal(monthEntry);
       acc.moveIns += Math.max(0, Number(monthEntry.moveIns) || 0);
       acc.moveOuts += getEffectiveMoveOutsForMonth(monthIdx, monthEntries).effective;
       acc.tours += Math.max(0, Number(monthEntry.tours) || 0);
@@ -20548,7 +20134,6 @@ function buildPortfolioHomeMonthlyTrendRows(anchorMonth = getSelectedDashboardMo
       communityCount: 0,
       applications: 0,
       approvedApps: 0,
-      guestCards: 0,
       moveIns: 0,
       moveOuts: 0,
       tours: 0,
@@ -20565,7 +20150,6 @@ function buildPortfolioHomeMonthlyTrendRows(anchorMonth = getSelectedDashboardMo
       communityCount: totals.communityCount,
       applications: totals.applications,
       approvedApps: totals.approvedApps,
-      guestCards: totals.guestCards,
       moveIns: totals.moveIns,
       moveOuts: totals.moveOuts,
       netAbsorption: totals.moveIns - totals.moveOuts,
@@ -20583,8 +20167,8 @@ function buildPortfolioTrendLineChart(points = [], options = {}) {
   if (validPoints.length === 0) {
     return `<div class="alert alert-info">No saved trend points are available for this view yet.</div>`;
   }
-  const width = Math.max(320, Number(options.width) || 640);
-  const height = Math.max(180, Number(options.height) || 220);
+  const width = 640;
+  const height = 220;
   const left = 42;
   const right = 14;
   const top = 16;
@@ -24333,13 +23917,6 @@ function getReportHubActionOptions(type = reportHubType) {
   if (["investor_snapshot", "investor_marketing_report"].includes(normalizedType)) return [...common, { value: "export_csv", label: "Export CSV" }, { value: "export_excel", label: "Export Excel" }];
   if (normalizedType === "monthly_investor_deck") return [...common, { value: "export_html", label: "Download Editable HTML" }];
   if (normalizedType === "dlr") return [...common, { value: "export_html", label: "Download Editable HTML" }];
-  if (normalizedType === "leasing_velocity") return [
-    { value: "preview", label: "Preview Stabilized" },
-    { value: "preview_leaseup", label: "Preview Lease-up" },
-    { value: "print", label: "Print / PDF" },
-    { value: "blank_template", label: "Blank Template" },
-    { value: "email", label: "Draft Email" }
-  ];
   if (normalizedType === "community_progress") return [...common, { value: "export_html", label: "Download Editable HTML" }, { value: "export_individual_pdfs", label: "Separate PDFs" }];
   if (normalizedType === "market_comparison") return [...common, { value: "export_html", label: "Download Editable HTML" }];
   if (normalizedType === "bonus_payout") return [...common, { value: "export_csv", label: "Export CSV" }];
@@ -24416,20 +23993,6 @@ function buildReportHubEmailDraft(type = reportHubType) {
       ].join("\n")
     };
   }
-  if (normalizedType === "leasing_velocity") {
-    const communityName = getLvrReportCommunityName();
-    return {
-      to,
-      subject: `${communityName} | Leasing Velocity Report | ${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`,
-      body: [
-        `${communityName} Leasing Velocity Report`,
-        `${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`,
-        "",
-        "The ATLAS Leasing Velocity Report is ready from the Reporting Hub.",
-        "Use Preview Stabilized, Preview Lease-up, or Print / PDF before sending. The template includes both stabilized and lease-up variation modes."
-      ].join("\n")
-    };
-  }
   if (normalizedType === "dlr") {
     syncDlrTargetFromReportHub({ preserveCommunity: true });
     const report = buildDashboardDlrInvestorOverview();
@@ -24472,20 +24035,6 @@ function getPrimaryReportCommunityName() {
   return scoped[0]?.name || reportableNames[0] || getProp().name;
 }
 
-function getLvrReportCommunityName() {
-  const reportableNames = getReportableCommunityNames(getReportHubMonthIndex());
-  const selected = matchPropertyName(reportHubLvrCommunity, { fallbackToCurrent: false });
-  if (selected && reportableNames.includes(selected)) return selected;
-  const primary = matchPropertyName(getPrimaryReportCommunityName(), { fallbackToCurrent: false });
-  return (primary && reportableNames.includes(primary)) ? primary : (reportableNames[0] || primary || getProp().name);
-}
-
-function setLvrReportCommunity(value) {
-  reportHubLvrCommunity = matchPropertyName(value, { fallbackToCurrent: false }) || String(value ?? "").trim();
-  persistOpsGlobalData();
-  renderTab();
-}
-
 function getDlrReportCommunityName() {
   return matchPropertyName(historicalImportTarget.community, { fallbackToCurrent: false }) || getPrimaryReportCommunityName();
 }
@@ -24500,353 +24049,6 @@ function syncDlrTargetFromReportHub(options = {}) {
     month: getReportHubMonthIndex(),
     year: getReportHubYear()
   });
-}
-
-function getLvrBenchmarks(mode = "stabilized") {
-  return mode === "leaseup"
-    ? { leadToTour: 42, tourToApp: 36, appToLease: 68, leadToLease: 10 }
-    : { leadToTour: 40, tourToApp: 35, appToLease: 75, leadToLease: 10 };
-}
-
-function formatLvrPct(value, digits = 1) {
-  return Number.isFinite(Number(value)) ? `${Number(value).toFixed(digits)}%` : "N/A";
-}
-
-function formatLvrInt(value) {
-  return Number.isFinite(Number(value)) ? Math.round(Number(value)).toLocaleString() : "0";
-}
-
-function formatLvrCurrency(value) {
-  return Number.isFinite(Number(value)) && Number(value) > 0
-    ? `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-    : "N/A";
-}
-
-function getLvrStatusFromDelta(delta, watchFloor = -2) {
-  if (!Number.isFinite(Number(delta))) return "ok";
-  if (Number(delta) >= 0) return "ahead";
-  if (Number(delta) >= watchFloor) return "watch";
-  return "behind";
-}
-
-function formatLvrDelta(delta, digits = 1, suffix = " pts") {
-  if (!Number.isFinite(Number(delta))) return "N/A";
-  const numeric = Number(delta);
-  return `${numeric >= 0 ? "+" : ""}${numeric.toFixed(digits)}${suffix}`;
-}
-
-function getLvrPhotoSrc(photo) {
-  const normalized = normalizePhotoAsset(photo);
-  return String(normalized?.src || normalized?.previewSrc || "").trim();
-}
-
-function buildAtlasLvrImages(report) {
-  const photos = Array.isArray(report?.photoPool) ? report.photoPool.map(getLvrPhotoSrc).filter(Boolean) : [];
-  return {
-    hero: photos[0] || "",
-    feature: photos[1] || photos[0] || "",
-    g1: photos[0] || "",
-    g2: photos[1] || "",
-    g3: photos[2] || "",
-    g4: photos[3] || ""
-  };
-}
-
-function buildAtlasLvrSourceRows(report, leadToTourPct, leaseCount) {
-  const traffic = report?.trafficMetrics || {};
-  const leadSources = report?.hasLeadSourceBreakdown ? getTopLeadSourceFacts(report.leadSourceBreakdown) : [];
-  const totalLeads = Math.max(1, Number(report?.leadSourceBreakdownTotal || traffic.guestCards || 0) || 1);
-  if (leadSources.length === 0) {
-    return [{
-      source: "Saved guest cards",
-      leads: formatLvrInt(traffic.guestCards),
-      tourRate: formatLvrPct(leadToTourPct, 1),
-      leases: formatLvrInt(leaseCount),
-      cpl: "N/A",
-      note: "Source split pending",
-      status: Number(traffic.guestCards || 0) > 0 ? "watch" : "behind"
-    }];
-  }
-  return leadSources.map(item => {
-    const sourceShare = totalLeads > 0 ? item.value / totalLeads : 0;
-    const allocatedLeases = Math.round((Number(leaseCount) || 0) * sourceShare);
-    return {
-      source: item.label,
-      leads: formatLvrInt(item.value),
-      tourRate: formatLvrPct(leadToTourPct, 1),
-      leases: formatLvrInt(allocatedLeases),
-      cpl: "ATLAS",
-      note: sourceShare >= 0.3 ? "Largest source" : "Monitor mix",
-      status: sourceShare >= 0.3 ? "ahead" : "watch"
-    };
-  });
-}
-
-function buildAtlasLvrCompRows(report) {
-  const pricing = report?.pricing || {};
-  const market = report?.marketPerformance || {};
-  const subjectEffective = pricing.avgNetEffectiveRent || pricing.avgInPlaceRent || pricing.avgBudgetRent;
-  const rows = [{
-    property: report?.communityName || "Subject community",
-    isSubject: true,
-    type: "Portfolio average",
-    marketRent: formatLvrCurrency(pricing.avgInPlaceRent || pricing.avgBudgetRent),
-    concession: Number(pricing.concessions || 0) > 0 ? formatLvrCurrency(pricing.concessions) : "N/A",
-    effectiveRent: formatLvrCurrency(subjectEffective)
-  }];
-  if (Number(market.compAverageRent || 0) > 0 || Number(market.compAverageNer || 0) > 0) {
-    rows.push({
-      property: "Comp average",
-      type: "APTIQ market survey",
-      marketRent: formatLvrCurrency(market.compAverageRent),
-      concession: "Survey average",
-      effectiveRent: formatLvrCurrency(market.compAverageNer)
-    });
-  }
-  const floorPlanRows = Array.isArray(report?.floorPlanRentComparisonRows) ? report.floorPlanRentComparisonRows.slice(0, 3) : [];
-  floorPlanRows.forEach(row => {
-    rows.push({
-      property: row.name || row.floorPlan || "Floor plan",
-      type: [row.beds != null ? `${row.beds}BR` : "", row.baths != null ? `${row.baths}BA` : ""].filter(Boolean).join(" / ") || "Floor plan",
-      marketRent: formatLvrCurrency(row.marketedRent ?? row.marketRent),
-      concession: "Plan detail",
-      effectiveRent: formatLvrCurrency(row.netEffectiveRent ?? row.marketedRent ?? row.marketRent)
-    });
-  });
-  return rows.length > 1 ? rows : [
-    ...rows,
-    {
-      property: "Market survey",
-      type: "Pending comp feed",
-      marketRent: "N/A",
-      concession: "Pending",
-      effectiveRent: "N/A"
-    }
-  ];
-}
-
-function buildAtlasLvrVariantData(report, mode = "stabilized") {
-  const summary = report?.summary || {};
-  const traffic = report?.trafficMetrics || {};
-  const record = report?.sourceRecord || {};
-  const totalUnits = Number(report?.totalUnits || summary.totalUnits || 0) || 0;
-  const occupiedUnits = Math.max(0, Number(report?.occupiedUnits ?? summary.occupied ?? 0) || 0);
-  const leasedUnits = Math.max(0, Number(report?.leasedUnits ?? summary.leased ?? 0) || 0);
-  const occupancyPct = Number(report?.occupancyPct ?? getSummaryOccPct(summary)) || 0;
-  const leasedPct = Number(report?.leasedPct ?? getSummaryLeasedPct(summary)) || 0;
-  const budgetOccPct = Number(report?.budgetOccPct ?? summary.budgetOccPct ?? record.occupancyGoal ?? 95) || 95;
-  const budgetLeasedPct = Number(summary.budgetLeasedPct ?? record.leasedGoal ?? (mode === "leaseup" ? Math.max(leasedPct + 2, leasedPct) : 97)) || 0;
-  const moveIns = Number(traffic.moveIns ?? summary.moveIns ?? 0) || 0;
-  const moveOuts = Number(traffic.moveOuts ?? summary.moveOuts ?? 0) || 0;
-  const netLeases = moveIns - moveOuts;
-  const leads = Math.max(0, Number(traffic.guestCards ?? summary.guestCards ?? 0) || 0);
-  const tours = Math.max(0, Number(traffic.tours ?? summary.tours ?? 0) || 0);
-  const applications = Math.max(0, Number(traffic.applications ?? summary.applications ?? 0) || 0);
-  const leases = Math.max(0, Number(traffic.leases ?? summary.leasesSigned ?? 0) || 0);
-  const leadToTourPct = leads > 0 ? (tours / leads) * 100 : 0;
-  const tourToAppPct = tours > 0 ? (applications / tours) * 100 : 0;
-  const appToLeasePct = applications > 0 ? (leases / applications) * 100 : 0;
-  const leadToLeasePct = leads > 0 ? (leases / leads) * 100 : 0;
-  const benchmarks = getLvrBenchmarks(mode);
-  const weeklyLeaseTarget = Math.max(0, Number(report?.moveInGoalPerWeek ?? summary.moveInGoal ?? 0) || 0);
-  const leaseGoal = Math.max(weeklyLeaseTarget, Number(report?.paceRows?.find(row => row.label === "Approved Applications")?.goal ?? 0) || 0);
-  const vacancyUnits = Math.max(totalUnits - occupiedUnits, 0);
-  const preleasedVacant = Math.max(Math.min(leasedUnits - occupiedUnits, vacancyUnits), 0);
-  const availableVacant = Math.max(vacancyUnits - preleasedVacant, 0);
-  const exposurePct = totalUnits > 0 ? (availableVacant / totalUnits) * 100 : 0;
-  const summaryText = Array.isArray(report?.notes) ? report.notes.join(" ") : String(report?.notes || "");
-  const occDelta = occupancyPct - budgetOccPct;
-  const leasedDelta = leasedPct - budgetLeasedPct;
-  const netDelta = weeklyLeaseTarget > 0 ? netLeases - weeklyLeaseTarget : netLeases;
-  const leadTourDelta = leadToTourPct - benchmarks.leadToTour;
-  const tourAppDelta = tourToAppPct - benchmarks.tourToApp;
-  const appLeaseDelta = appToLeasePct - benchmarks.appToLease;
-  const leadLeaseDelta = leadToLeasePct - benchmarks.leadToLease;
-
-  return {
-    meta: {
-      label: mode === "leaseup" ? "Lease-up" : "Stabilized",
-      community: report?.communityName || getWorkspaceScopeDisplayName(),
-      address: record.communityAddress || "Address pending in ATLAS",
-      units: totalUnits > 0 ? `${formatLvrInt(totalUnits)} units` : "Units pending",
-      type: mode === "leaseup" ? "Lease-up" : "Stabilized",
-      period: report?.reportPeriodLabel || `${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`,
-      trailing: "ATLAS month-to-date / saved trailing inputs",
-      prepared: "ATLAS Asset Management",
-      leasedLabel: "Leased",
-      leasedValue: formatLvrPct(leasedPct, 1),
-      occupiedLabel: "Occupied",
-      occupiedValue: formatLvrPct(occupancyPct, 1),
-      netLabel: "Net leases / mo",
-      netValue: formatSignedDisplay(netLeases)
-    },
-    summary: summaryText || `${report?.communityName || "This community"} is at ${formatLvrPct(occupancyPct, 1)} occupancy and ${formatLvrPct(leasedPct, 1)} leased for the selected ATLAS period. The report is populated from saved ATLAS operating metrics; source and comp detail will sharpen as those fields are loaded.`,
-    kpis: [
-      { label: "Occupancy", value: formatLvrPct(occupancyPct, 1), target: `Target ${formatLvrPct(budgetOccPct, 1)}`, note: formatLvrDelta(occDelta), status: getLvrStatusFromDelta(occDelta) },
-      { label: "Net leases / mo", value: formatSignedDisplay(netLeases), target: weeklyLeaseTarget > 0 ? `Target +${formatLvrInt(weeklyLeaseTarget)}` : "Target pending", note: formatLvrDelta(netDelta, 0, ""), status: getLvrStatusFromDelta(netDelta, -1) },
-      { label: "Signed leases", value: formatLvrInt(leases), target: leaseGoal > 0 ? `Goal ${formatLvrInt(leaseGoal)}` : "Goal pending", note: leaseGoal > 0 ? formatLvrDelta(leases - leaseGoal, 0, "") : "N/A", status: leaseGoal > 0 ? getLvrStatusFromDelta(leases - leaseGoal, -2) : "ok" },
-      { label: "Lead -> Lease", value: formatLvrPct(leadToLeasePct, 1), target: `Benchmark ${formatLvrPct(benchmarks.leadToLease, 0)}`, note: formatLvrDelta(leadLeaseDelta), status: getLvrStatusFromDelta(leadLeaseDelta) }
-    ],
-    funnel: [
-      { name: "Traffic / Leads", sub: "Saved guest cards", count: formatLvrInt(leads), barPct: "100%", convLabel: "Lead -> Tour", conv: formatLvrPct(leadToTourPct, 1), benchmark: `Benchmark ${formatLvrPct(benchmarks.leadToTour, 0)}`, convNote: formatLvrDelta(leadTourDelta), convStatus: getLvrStatusFromDelta(leadTourDelta) },
-      { name: "Tours", sub: "Completed tours", count: formatLvrInt(tours), barPct: leads > 0 ? `${Math.min((tours / leads) * 100, 100).toFixed(0)}%` : "0%", convLabel: "Tour -> App", conv: formatLvrPct(tourToAppPct, 1), benchmark: `Benchmark ${formatLvrPct(benchmarks.tourToApp, 0)}`, convNote: formatLvrDelta(tourAppDelta), convStatus: getLvrStatusFromDelta(tourAppDelta) },
-      { name: "Applications", sub: "Submitted", count: formatLvrInt(applications), barPct: leads > 0 ? `${Math.min((applications / leads) * 100, 100).toFixed(0)}%` : "0%", convLabel: "App -> Lease", conv: formatLvrPct(appToLeasePct, 1), benchmark: `Benchmark ${formatLvrPct(benchmarks.appToLease, 0)}`, convNote: formatLvrDelta(appLeaseDelta), convStatus: getLvrStatusFromDelta(appLeaseDelta) },
-      { name: "Signed leases", sub: "Executed this period", count: formatLvrInt(leases), barPct: leads > 0 ? `${Math.min((leases / leads) * 100, 100).toFixed(0)}%` : "0%" }
-    ],
-    funnelNote: leadTourDelta < -2
-      ? "The largest current LVR watch item is Lead -> Tour conversion. Tighten speed-to-lead, tour setting, and follow-up before adding more top-of-funnel spend."
-      : "Funnel pacing is tracking near the saved benchmark set. Keep the focus on source quality, response speed, and application-to-lease completion.",
-    sources: buildAtlasLvrSourceRows(report, leadToTourPct, leases),
-    sourcesNote: report?.hasLeadSourceBreakdown
-      ? "Source rows use the saved ATLAS lead-source breakdown. Lease counts are allocated by source share until source-level lease attribution is loaded."
-      : "ATLAS has a saved guest-card total but not a full source split for this period, so the template carries a single source row until the source fields are populated.",
-    occTiles: [
-      { label: "Occupancy", value: formatLvrPct(occupancyPct, 1), target: `Target ${formatLvrPct(budgetOccPct, 1)}`, note: formatLvrDelta(occDelta), status: getLvrStatusFromDelta(occDelta) },
-      { label: "Leased", value: formatLvrPct(leasedPct, 1), target: budgetLeasedPct > 0 ? `Target ${formatLvrPct(budgetLeasedPct, 1)}` : "Target pending", note: budgetLeasedPct > 0 ? formatLvrDelta(leasedDelta) : "N/A", status: budgetLeasedPct > 0 ? getLvrStatusFromDelta(leasedDelta) : "ok" },
-      { label: "Exposure", value: formatLvrPct(exposurePct, 1), target: "Target <=5.0%", note: exposurePct <= 5 ? "OK" : formatLvrDelta(exposurePct - 5), status: exposurePct <= 5 ? "ahead" : exposurePct <= 7 ? "watch" : "behind" },
-      { label: "Available to rent", value: formatLvrInt(availableVacant), target: totalUnits > 0 ? `of ${formatLvrInt(totalUnits)} units` : "Units pending", note: availableVacant > 0 ? "Watch" : "OK", status: availableVacant > 0 ? "watch" : "ahead" }
-    ],
-    occBar: [
-      { label: "Occupied", count: formatLvrInt(occupiedUnits), pct: formatLvrPct(occupancyPct, 1), color: "#2f4660" },
-      { label: "Vacant - pre-leased", count: formatLvrInt(preleasedVacant), pct: totalUnits > 0 ? formatLvrPct((preleasedVacant / totalUnits) * 100, 1) : "0.0%", color: "#7c97b3" },
-      { label: "Vacant - available", count: formatLvrInt(availableVacant), pct: totalUnits > 0 ? formatLvrPct((availableVacant / totalUnits) * 100, 1) : "0.0%", color: "#dadfe7" }
-    ],
-    comps: buildAtlasLvrCompRows(report),
-    concessionNote: "Pricing and concession rows use ATLAS pricing fields plus the market-survey snapshot when available. Add or refresh APTIQ survey data to expand comp coverage in this section.",
-    diag: [
-      { severity: occDelta < -2 ? "HIGH" : "MED", area: "Occupancy pace", finding: `Occupancy is ${formatLvrDelta(occDelta)} versus the saved target.`, status: getLvrStatusFromDelta(occDelta) },
-      { severity: leadTourDelta < -5 ? "HIGH" : "MED", area: "Lead -> Tour conversion", finding: `Lead-to-tour conversion is ${formatLvrPct(leadToTourPct, 1)} versus a ${formatLvrPct(benchmarks.leadToTour, 0)} benchmark.`, status: getLvrStatusFromDelta(leadTourDelta) },
-      { severity: appLeaseDelta < -5 ? "HIGH" : "MED", area: "Application completion", finding: `Application-to-lease conversion is ${formatLvrPct(appToLeasePct, 1)} against a ${formatLvrPct(benchmarks.appToLease, 0)} benchmark.`, status: getLvrStatusFromDelta(appLeaseDelta) },
-      { severity: exposurePct > 7 ? "HIGH" : "MED", area: "Exposure", finding: `${formatLvrInt(availableVacant)} units are vacant and available, equal to ${formatLvrPct(exposurePct, 1)} of total units.`, status: exposurePct <= 5 ? "ahead" : exposurePct <= 7 ? "watch" : "behind" },
-      { severity: report?.hasLeadSourceBreakdown ? "LOW" : "MED", area: "Source attribution", finding: report?.hasLeadSourceBreakdown ? "Lead-source data is saved for this period." : "Lead-source split is not fully saved yet, so source-level diagnosis is limited.", status: report?.hasLeadSourceBreakdown ? "ahead" : "watch" }
-    ],
-    recs: [
-      { priority: "P1", action: "Tighten lead-response SLA and tour-setting follow-up for under-benchmark source channels.", owner: "Leasing Manager", due: "7 days" },
-      { priority: "P1", action: "Review concession depth against comp survey and hold any additional discounting until funnel leakage is isolated.", owner: "Asset Manager", due: "Next pricing call" },
-      { priority: "P2", action: "Rebalance marketing attention toward the highest-converting saved lead sources.", owner: "Marketing", due: "14 days" },
-      { priority: "P2", action: "Audit application completion and approval handoff to reduce loss between tour, application, and lease.", owner: "Regional", due: "14 days" },
-      { priority: "P3", action: "Refresh source and comp fields before the next LVR export to improve attribution confidence.", owner: "ATLAS Owner", due: "Ongoing" }
-    ],
-    images: buildAtlasLvrImages(report)
-  };
-}
-
-async function buildAtlasLvrPayload(options = {}) {
-  const communityName = matchPropertyName(options.communityName || getLvrReportCommunityName(), { fallbackToCurrent: false }) || getProp().name;
-  const record = getPersistedCommunityRecordForScope(communityName, { allowCurrentFallback: true });
-  if (!record) {
-    if (options.alert !== false) alert("Save community data first, then the Leasing Velocity Report can open from ATLAS.");
-    return null;
-  }
-  const report = buildCommunityProgressSingleReportData({ silent: true, communityName, record });
-  if (!report) {
-    if (options.alert !== false) alert("The Leasing Velocity Report could not build from the selected community.");
-    return null;
-  }
-  try {
-    await ensurePhotoAssetsLoaded(report.photoPool || []);
-  } catch {}
-  return {
-    schema: "atlas_lvr_payload_v1",
-    generatedAt: new Date().toISOString(),
-    source: "portfolio-operations-dashboard",
-    community: communityName,
-    period: report.reportPeriodLabel,
-    theme: "dashboard",
-    data: {
-      stabilized: buildAtlasLvrVariantData(report, "stabilized"),
-      leaseup: buildAtlasLvrVariantData(report, "leaseup")
-    }
-  };
-}
-
-function persistAtlasLvrPayload(payload) {
-  try {
-    localStorage.setItem(LVR_TEMPLATE_STORAGE_KEY, JSON.stringify(payload));
-    return true;
-  } catch (error) {
-    console.error("Could not save LVR template payload.", error);
-    alert("The Leasing Velocity Report data could not be prepared in browser storage. Try clearing old saved images or opening the blank template.");
-    return false;
-  }
-}
-
-function buildLvrTemplateHref(mode = "stabilized", options = {}) {
-  const params = new URLSearchParams();
-  params.set("mode", mode === "leaseup" ? "leaseup" : "stabilized");
-  params.set("theme", "dashboard");
-  params.set("atlasStorageKey", LVR_TEMPLATE_STORAGE_KEY);
-  if (options.printImmediately) params.set("print", "1");
-  return `${LVR_TEMPLATE_HREF}?${params.toString()}`;
-}
-
-async function openLeasingVelocityReportTemplate(mode = "stabilized", printImmediately = false) {
-  const target = window.open("", "_blank");
-  const payload = await buildAtlasLvrPayload();
-  if (!payload || !persistAtlasLvrPayload(payload)) {
-    if (target && !target.closed) target.close();
-    return false;
-  }
-  const href = buildLvrTemplateHref(mode, { printImmediately });
-  if (target && !target.closed) {
-    target.opener = null;
-    target.location.href = href;
-  } else {
-    window.location.href = href;
-  }
-  return false;
-}
-
-function renderLvrTemplateWorkspace() {
-  const communityOptions = getReportableCommunityNames(getReportHubMonthIndex());
-  if (communityOptions.length === 0) {
-    return `<div class="card mb4" id="reporting-inline-preview">
-      <div class="report-hub-card">
-        <div class="alert-red">Mark at least one community Active in Community Setup before using the Leasing Velocity Report.</div>
-      </div>
-    </div>`;
-  }
-  const communityName = getLvrReportCommunityName();
-  const record = getPersistedCommunityRecordForScope(communityName, { allowCurrentFallback: true });
-  const report = record ? buildCommunityProgressSingleReportData({ silent: true, communityName, record }) : null;
-  const imageCount = Array.isArray(report?.photoPool) ? report.photoPool.length : 0;
-  const periodLabel = report?.reportPeriodLabel || `${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`;
-  return `<div class="card mb4" id="reporting-inline-preview">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
-      <div>
-        <h3 style="font-size:0.85rem;font-weight:700;margin-bottom:6px">Leasing Velocity Report</h3>
-        <p style="font-size:0.72rem;color:var(--muted)">Portable ATLAS LVR export using the selected community, reporting month, and saved community photo bank.</p>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-gray btn-sm" onclick="openLeasingVelocityReportTemplate('stabilized', false)">Preview Stabilized</button>
-        <button class="btn btn-gray btn-sm" onclick="openLeasingVelocityReportTemplate('leaseup', false)">Preview Lease-up</button>
-        <button class="btn btn-blue btn-sm" onclick="openLeasingVelocityReportTemplate('stabilized', true)">Print / PDF</button>
-        <a class="btn btn-gray btn-sm" href="${LVR_TEMPLATE_HREF}" target="_blank" rel="noopener">Blank Template</a>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px">
-      <div class="report-hub-card">
-        <div class="card-title" style="margin-bottom:6px">Community</div>
-        <select onchange="setLvrReportCommunity(this.value)">
-          ${communityOptions.map(name => `<option value="${escapeHtml(name)}" ${name===communityName?"selected":""}>${escapeHtml(name)}</option>`).join("")}
-        </select>
-        <div style="font-size:0.64rem;color:var(--muted);margin-top:6px">LVR exports are single-community only.</div>
-      </div>
-      <div class="report-hub-card">
-        <div class="card-title" style="margin-bottom:6px">Report Period</div>
-        <div style="font-size:0.78rem;color:var(--text);line-height:1.5">${escapeHtml(periodLabel)}</div>
-      </div>
-      <div class="report-hub-card">
-        <div class="card-title" style="margin-bottom:6px">Image Slots Ready</div>
-        <div style="font-size:1.4rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:#2a8f83">${imageCount}</div>
-        <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">Uses hero, feature, and gallery order from Community Setup.</div>
-      </div>
-      <div class="report-hub-card">
-        <div class="card-title" style="margin-bottom:6px">Data Contract</div>
-        <div style="font-size:0.7rem;color:var(--muted);line-height:1.65">Writes <span class="mono">${LVR_TEMPLATE_STORAGE_KEY}</span> with <span class="mono">stabilized</span> and <span class="mono">leaseup</span> payloads before opening.</div>
-      </div>
-    </div>
-  </div>`;
 }
 
 function setReportingDlrCommunity(value) {
@@ -25153,18 +24355,17 @@ function buildPortfolioDlrOverviewData(options = {}) {
         pendingMoveOuts: sumMetrics(communityReports, report => report.forwardLook?.[idx]?.pendingMoveOuts),
         pendingMoveIns: sumMetrics(communityReports, report => report.forwardLook?.[idx]?.pendingMoveIns),
         moveInsNeeded: sumMetrics(communityReports, report => report.forwardLook?.[idx]?.moveInsNeeded),
-        budgetedOccupancy: weightedAverage(communityReports.map(report => ({ ...report, occupiedUnits: report.occupancyBaseUnits ?? report.totalUnits })), report => report.forwardLook?.[idx]?.budgetedOccupancy) || 0,
-        projectedOccupancy: weightedAverage(communityReports.map(report => ({ ...report, occupiedUnits: report.occupancyBaseUnits ?? report.totalUnits })), report => report.forwardLook?.[idx]?.projectedOccupancy) || 0
+        budgetedOccupancy: weightedAverage(communityReports.map(report => ({ ...report, occupiedUnits: report.totalUnits })), report => report.forwardLook?.[idx]?.budgetedOccupancy) || 0,
+        projectedOccupancy: weightedAverage(communityReports.map(report => ({ ...report, occupiedUnits: report.totalUnits })), report => report.forwardLook?.[idx]?.projectedOccupancy) || 0
       };
     });
     const aggregate = {
       totalUnits,
-      occupancyBaseUnits: sumMetrics(communityReports, report => report.occupancyBaseUnits ?? report.totalUnits),
       occupied: occupiedUnits,
       leased: leasedUnits,
-      occPct: 0,
-      leasedPct: 0,
-      budgetOccPct: weightedAverage(communityReports.map(report => ({ ...report, occupiedUnits: report.occupancyBaseUnits ?? report.totalUnits })), report => report.budgetOccPct) || 0,
+      occPct: totalUnits > 0 ? (occupiedUnits / totalUnits) * 100 : 0,
+      leasedPct: totalUnits > 0 ? (leasedUnits / totalUnits) * 100 : 0,
+      budgetOccPct: weightedAverage(communityReports.map(report => ({ ...report, occupiedUnits: report.totalUnits })), report => report.budgetOccPct) || 0,
       applications: sumMetrics(communityReports, report => report.trafficMetrics?.applications),
       applicationsApproved: sumMetrics(communityReports, report => report.trafficMetrics?.approvals),
       tours: sumMetrics(communityReports, report => report.trafficMetrics?.tours),
@@ -25175,11 +24376,9 @@ function buildPortfolioDlrOverviewData(options = {}) {
       renewalUndecided: sumMetrics(communityReports, report => report.renewalSnapshot?.undecided),
       renewalProjectedAttrition: sumMetrics(communityReports, report => report.renewalSnapshot?.projectedAttrition)
     };
-    aggregate.occPct = aggregate.occupancyBaseUnits > 0 ? (aggregate.occupied / aggregate.occupancyBaseUnits) * 100 : 0;
-    aggregate.leasedPct = aggregate.occupancyBaseUnits > 0 ? (aggregate.leased / aggregate.occupancyBaseUnits) * 100 : 0;
     aggregate.renewalRetentionRate = aggregate.renewalExpirations > 0 ? (aggregate.renewalsSigned / aggregate.renewalExpirations) * 100 : 0;
     aggregate.moveInGoal = sumMetrics(communityReports, report => report.moveInGoalPerWeek);
-    aggregate.occGapUnits = Math.max(Math.round(((aggregate.budgetOccPct || 0) / 100) * aggregate.occupancyBaseUnits) - occupiedUnits, 0);
+    aggregate.occGapUnits = Math.max(Math.round(((aggregate.budgetOccPct || 0) / 100) * totalUnits) - occupiedUnits, 0);
     const dateLabels = [...new Set(communityReports.map(report => String(report.reportDateLabel || "").trim()).filter(Boolean))];
     const reportDateLabel = dateLabels.length === 1 ? dateLabels[0] : (dlrWorkbookReportState.reportDateLabel || "");
     const notes = buildPortfolioDlrOverviewNotes({
@@ -25511,11 +24710,8 @@ function buildPortfolioDlrOverviewDocument(report) {
     </div>`).join("");
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(report.title)}</title><style>
     *{box-sizing:border-box}
-    @page{size:Letter portrait;margin:0.42in}
-    html{background:#ffffff}
-    body{font-family:'DM Sans',Arial,sans-serif;margin:0 auto;max-width:960px;padding:20px 22px;color:#0f172a;background:#ffffff}
-    table{width:100%;border-collapse:collapse;table-layout:fixed}
-    img,svg{max-width:100%}
+    body{font-family:'DM Sans',Arial,sans-serif;padding:28px;color:#0f172a;background:#ffffff}
+    table{width:100%;border-collapse:collapse}
     .section{margin-bottom:18px}
     .section-card{border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff}
     .hero-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px}
@@ -25682,18 +24878,7 @@ function renderPortfolioDlrReportingWorkspace() {
 async function runReportHubAction() {
   ensureValidReportHubAction();
   const type = normalizeReportHubType(reportHubType);
-  if (reportHubAction === "preview_leaseup") {
-    if (type === "leasing_velocity") return openLeasingVelocityReportTemplate("leaseup", false);
-    return null;
-  }
-  if (reportHubAction === "blank_template") {
-    if (type === "leasing_velocity") {
-      window.open(LVR_TEMPLATE_HREF, "_blank", "noopener");
-    }
-    return null;
-  }
   if (reportHubAction === "preview") {
-    if (type === "leasing_velocity") return openLeasingVelocityReportTemplate("stabilized", false);
     if (["investor_snapshot", "investor_marketing_report", "monthly_investor_deck", "bonus_payout"].includes(type)) {
       renderTab();
       const target = document.getElementById("reporting-inline-preview");
@@ -25721,7 +24906,6 @@ async function runReportHubAction() {
   if (reportHubAction === "print") {
     if (["investor_snapshot", "investor_marketing_report"].includes(type)) return openPortfolioPerformanceReport(true);
     if (type === "monthly_investor_deck") return openMonthlyInvestorPresentation(true);
-    if (type === "leasing_velocity") return openLeasingVelocityReportTemplate("stabilized", true);
     if (type === "community_progress") return openCommunityProgressReport(true);
     if (type === "market_comparison") return openMarketComparisonReport(true);
     if (type === "dlr") {
@@ -25820,20 +25004,12 @@ function estimateSnapshotUnitsForRecordMonth(record, totalUnits, targetMonth, sn
   const anchorMonth = Number.isInteger(record?.currentMonth) ? record.currentMonth : DEFAULT_CURRENT_MONTH;
   const corporateUnits = normalizeCorporateLeaseUnits(record?.corporateLeaseUnits, totalUnits);
   const occupancyBaseUnits = getOccupancyBaseUnits(totalUnits, corporateUnits);
-  const monthEntries = getRecordMonthlyDataForYear(record, record?.reportYear);
-  const anchorEntry = monthEntries[anchorMonth] ?? {};
-  const explicitAnchorSnapshot = Number(anchorEntry?.[snapshotKey] ?? 0);
-  let runningUnits = explicitAnchorSnapshot > 0
-    ? getComparableOccupancyUnits(explicitAnchorSnapshot, corporateUnits)
-    : (snapshotKey === "leasedSnapshot"
-        ? Math.max(0, Number(record?.currentLeased) || 0)
-        : Math.max(0, Number(record?.currentOccupied) || 0));
+  let runningUnits = snapshotKey === "leasedSnapshot"
+    ? Math.max(0, Number(record?.currentLeased) || 0)
+    : Math.max(0, Number(record?.currentOccupied) || 0);
   if (!Number.isInteger(targetMonth)) return getComparableOccupancyUnits(runningUnits, corporateUnits);
-  if (targetMonth === anchorMonth) {
-    return occupancyBaseUnits > 0
-      ? Math.min(getComparableOccupancyUnits(runningUnits, corporateUnits), occupancyBaseUnits)
-      : getComparableOccupancyUnits(runningUnits, corporateUnits);
-  }
+  if (targetMonth === anchorMonth) return getComparableOccupancyUnits(runningUnits, corporateUnits);
+  const monthEntries = getRecordMonthlyDataForYear(record, record?.reportYear);
   if (targetMonth < anchorMonth) {
     for (let month = anchorMonth; month > targetMonth; month -= 1) {
       const priorSnapshot = Number(monthEntries[month - 1]?.[snapshotKey] ?? 0);
@@ -25859,19 +25035,6 @@ function estimateSnapshotUnitsForRecordMonth(record, totalUnits, targetMonth, sn
   return occupancyBaseUnits > 0
     ? Math.min(getComparableOccupancyUnits(runningUnits, corporateUnits), occupancyBaseUnits)
     : getComparableOccupancyUnits(runningUnits, corporateUnits);
-}
-
-function getRecordComparableSnapshotUnits(record, totalUnits, monthIdx, snapshotKey) {
-  const corporateUnits = getCorporateLeaseUnitsForRecord(record, totalUnits);
-  const occupancyBaseUnits = getOccupancyBaseUnits(totalUnits, corporateUnits);
-  const monthEntries = getRecordMonthlyDataForYear(record, record?.reportYear);
-  const monthEntry = Array.isArray(monthEntries) ? (monthEntries[monthIdx] ?? {}) : {};
-  const explicitSnapshot = Number(monthEntry?.[snapshotKey] ?? 0);
-  if (explicitSnapshot > 0) {
-    const comparableUnits = getComparableOccupancyUnits(explicitSnapshot, corporateUnits);
-    return occupancyBaseUnits > 0 ? Math.min(comparableUnits, occupancyBaseUnits) : comparableUnits;
-  }
-  return estimateSnapshotUnitsForRecordMonth(record, totalUnits, monthIdx, snapshotKey);
 }
 
 function computeProjectedEndingPhysicalOccupancy(record, totalUnits, startMonth, horizonMonths = 3) {
@@ -26161,7 +25324,7 @@ function buildDlrFloorPlanVarianceChart(report) {
   };
   const rowHtml = rowsWithVariance.map(row => {
     const variance = row.variance == null ? null : (Number(row.variance) || 0);
-    const varianceWidth = variance == null ? 0 : Math.max(8, Math.min((Math.abs(variance) / maxAbsVariance) * 100, 100));
+    const varianceWidth = variance == null ? 0 : Math.max(4, Math.min((Math.abs(variance) / maxAbsVariance) * 50, 50));
     const varianceColor = variance == null ? "#94a3b8" : variance >= 0 ? "#22c55e" : "#f97316";
     const recommendation = buildRecommendation(row);
     const communityIdentifier = String(row.communityIdentifier || "").trim();
@@ -26173,7 +25336,7 @@ function buildDlrFloorPlanVarianceChart(report) {
       row.baths != null ? `${row.baths} ba` : "",
       row.sqft != null ? `${Math.round(row.sqft).toLocaleString()} sf` : ""
     ].filter(Boolean).join(" · ");
-    return `<div style="display:grid;grid-template-columns:88px minmax(110px,0.95fr) minmax(132px,1fr) 60px 60px 44px 54px 54px minmax(88px,0.85fr);gap:6px;align-items:center;padding:7px 0;border-top:1px solid #e5e7eb">
+    return `<div style="display:grid;grid-template-columns:118px minmax(128px,0.9fr) minmax(178px,1fr) 76px 76px 56px 74px 74px minmax(102px,0.85fr);gap:8px;align-items:center;padding:7px 0;border-top:1px solid #e5e7eb">
   <div style="font-size:10px;color:#334155;line-height:1.3">
     <div style="font-size:11px;font-weight:700;color:#0f172a;line-height:1.2">${escapeHtml(communityDisplayLabel)}</div>
     ${communityDisplayMeta ? `<div style="font-size:9px;color:#64748b;margin-top:2px;line-height:1.3">${escapeHtml(communityDisplayMeta)}</div>` : ""}
@@ -26185,12 +25348,9 @@ function buildDlrFloorPlanVarianceChart(report) {
   <div>
     <div style="position:relative;height:11px;border-radius:999px;background:#eef2f7;overflow:hidden;border:1px solid #dbe4f0">
       <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:#94a3b8"></div>
-      <div style="position:absolute;left:0;top:0;bottom:0;width:50%;display:flex;justify-content:flex-end;padding:1px 0 1px 1px">
-        ${variance == null || variance >= 0 ? "" : `<div style="width:${varianceWidth}%;background:${varianceColor};border-radius:999px 0 0 999px"></div>`}
-      </div>
-      <div style="position:absolute;right:0;top:0;bottom:0;width:50%;display:flex;justify-content:flex-start;padding:1px 1px 1px 0">
-        ${variance == null || variance < 0 ? "" : `<div style="width:${varianceWidth}%;background:${varianceColor};border-radius:0 999px 999px 0"></div>`}
-      </div>
+      ${variance == null ? "" : variance >= 0
+        ? `<div style="position:absolute;left:50%;top:1px;bottom:1px;width:${varianceWidth}%;background:${varianceColor};border-radius:0 999px 999px 0"></div>`
+        : `<div style="position:absolute;right:50%;top:1px;bottom:1px;width:${varianceWidth}%;background:${varianceColor};border-radius:999px 0 0 999px"></div>`}
     </div>
     <div style="display:flex;justify-content:space-between;gap:6px;font-size:8px;color:#64748b;margin-top:3px;line-height:1.2">
       <span>Below</span>
@@ -26205,13 +25365,13 @@ function buildDlrFloorPlanVarianceChart(report) {
   <div style="font-size:10px;color:#334155;line-height:1.2"><strong>% Lsd</strong><br>${compCalcFormatPercentValue(row.leasedPct)}</div>
   <div>
     <div style="font-size:8px;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-bottom:3px">Recommendation</div>
-    <div style="display:inline-flex;align-items:center;justify-content:center;min-height:28px;max-width:100%;padding:5px 7px;border-radius:999px;background:${recommendation.bg};border:1px solid ${recommendation.color}33;font-size:9px;font-weight:700;line-height:1.2;color:${recommendation.color};text-align:center;white-space:normal;overflow-wrap:anywhere">
+    <div style="display:inline-flex;align-items:center;justify-content:center;min-height:28px;padding:5px 7px;border-radius:999px;background:${recommendation.bg};border:1px solid ${recommendation.color}33;font-size:9px;font-weight:700;line-height:1.2;color:${recommendation.color};text-align:center">
       ${escapeHtml(recommendation.label)}
     </div>
   </div>
 </div>`;
   }).join("");
-  return `<div style="padding:12px 12px 14px;border:1px solid #dbe4f0;border-radius:16px;background:#ffffff;overflow:hidden">
+  return `<div style="padding:12px 12px 14px;border:1px solid #dbe4f0;border-radius:16px;background:#ffffff">
     <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:12px">
       <div>
         <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#64748b">Floor Plan Rent Variance</div>
@@ -26228,18 +25388,16 @@ function buildDlrFloorPlanVarianceChart(report) {
 
 function buildSideBySideComparisonChart(title, rows = [], options = {}) {
   const cleaned = (Array.isArray(rows) ? rows : []).filter(row => {
-    const subject = Number(row?.subjectValue);
-    const market = Number(row?.marketValue);
+    const subject = Number(row?.subjectValue ?? 0) || 0;
+    const market = Number(row?.marketValue ?? 0) || 0;
     return subject > 0 || market > 0 || Boolean(row?.forceRow);
   });
   if (cleaned.length === 0) {
     return `<div style="padding:14px;border:1px dashed #cbd5e1;border-radius:16px;background:#f8fafc;font-size:12px;color:#64748b">No comparison data is saved yet for the selected communities.</div>`;
   }
   const formatValue = (value, kind = "number", formatter = null) => {
-    if (value === null || value === undefined || value === "") return "—";
     if (typeof formatter === "function") return formatter(value);
-    const numeric = Number(value);
-    if (!Number.isFinite(numeric)) return "—";
+    const numeric = Number(value ?? 0) || 0;
     if (kind === "currency") return formatDlrCurrency(numeric);
     if (kind === "pct") return formatDlrPercent(numeric, 1);
     return formatDlrMetricValue(numeric);
@@ -26249,11 +25407,11 @@ function buildSideBySideComparisonChart(title, rows = [], options = {}) {
   const subjectLabelDefault = options.subjectLabel || "Subject";
   const marketLabelDefault = options.marketLabel || "Market";
   const subtitle = String(options.subtitle || "").trim();
+  const totalSubject = cleaned.reduce((sum, row) => sum + Math.max(0, Number(row.subjectValue ?? 0) || 0), 0);
+  const totalMarket = cleaned.reduce((sum, row) => sum + Math.max(0, Number(row.marketValue ?? 0) || 0), 0);
   const rowsHtml = cleaned.map(row => {
-    const subjectRawValue = row.subjectValue;
-    const marketRawValue = row.marketValue;
-    const subjectValue = Math.max(0, Number(subjectRawValue) || 0);
-    const marketValue = Math.max(0, Number(marketRawValue) || 0);
+    const subjectValue = Math.max(0, Number(row.subjectValue ?? 0) || 0);
+    const marketValue = Math.max(0, Number(row.marketValue ?? 0) || 0);
     const rowMax = Math.max(subjectValue, marketValue, 1);
     const subjectWidth = subjectValue > 0 ? Math.max(8, Math.min((subjectValue / rowMax) * 100, 100)) : 0;
     const marketWidth = marketValue > 0 ? Math.max(8, Math.min((marketValue / rowMax) * 100, 100)) : 0;
@@ -26272,15 +25430,15 @@ function buildSideBySideComparisonChart(title, rows = [], options = {}) {
           ${rowNote ? `<div style="font-size:11px;color:#64748b;margin-top:3px;line-height:1.45">${escapeHtml(rowNote)}</div>` : ""}
         </div>
         <div style="font-size:11px;color:#64748b;text-align:right;line-height:1.5">
-          <div>${escapeHtml(formatValue(subjectRawValue, kind, formatter))}</div>
-          <div>${escapeHtml(formatValue(marketRawValue, kind, formatter))}</div>
+          <div>${escapeHtml(formatValue(subjectValue, kind, formatter))}</div>
+          <div>${escapeHtml(formatValue(marketValue, kind, formatter))}</div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:10px">
         <div style="padding:10px;border:1px solid #dbe4f0;border-radius:12px;background:linear-gradient(180deg,#f8fbff 0%,#f0f7ff 100%)">
           <div style="display:flex;justify-content:space-between;gap:10px;font-size:11px;color:#475569;margin-bottom:7px">
             <span style="font-weight:700">${escapeHtml(subjectLabel)}</span>
-            <span>${escapeHtml(formatValue(subjectRawValue, kind, formatter))}</span>
+            <span>${escapeHtml(formatValue(subjectValue, kind, formatter))}</span>
           </div>
           <div style="height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden">
             <div style="height:100%;width:${subjectWidth}%;background:${subjectColor};border-radius:999px"></div>
@@ -26290,7 +25448,7 @@ function buildSideBySideComparisonChart(title, rows = [], options = {}) {
         <div style="padding:10px;border:1px solid #dbe4f0;border-radius:12px;background:linear-gradient(180deg,#f8fffd 0%,#effaf7 100%)">
           <div style="display:flex;justify-content:space-between;gap:10px;font-size:11px;color:#475569;margin-bottom:7px">
             <span style="font-weight:700">${escapeHtml(marketLabel)}</span>
-            <span>${escapeHtml(formatValue(marketRawValue, kind, formatter))}</span>
+            <span>${escapeHtml(formatValue(marketValue, kind, formatter))}</span>
           </div>
           <div style="height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden">
             <div style="height:100%;width:${marketWidth}%;background:${marketColor};border-radius:999px"></div>
@@ -26312,6 +25470,10 @@ function buildSideBySideComparisonChart(title, rows = [], options = {}) {
       </div>
     </div>
     <div style="display:grid;gap:12px">${rowsHtml}</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+      <div style="padding:6px 10px;border:1px solid #dbe4f0;border-radius:999px;background:#f8fbff;font-size:11px;color:#475569"><strong>${formatDlrMetricValue(totalSubject)}</strong> subject total</div>
+      <div style="padding:6px 10px;border:1px solid #dbe4f0;border-radius:999px;background:#f8fffd;font-size:11px;color:#475569"><strong>${formatDlrMetricValue(totalMarket)}</strong> market total</div>
+    </div>
   </div>`;
 }
 
@@ -26891,13 +26053,7 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
   const generatedNotes = buildDlrInvestorNotes({
     reportDateLabel: hasDailyBoxScore ? (dailyBoxScore.reportDateLabel || effectiveDlrSummary.reportDateLabel) : effectiveDlrSummary.reportDateLabel,
     monthLabel: formatDlrMonthYear(reportMetricMonthIdx, year),
-    leadSources: {
-      walkIn: mtdTraffic.walkIn,
-      offSiteEvent: mtdTraffic.offSiteEvent,
-      phoneCalls: mtdTraffic.phoneCalls,
-      emailsOnline: mtdTraffic.emailsOnline,
-      textChatOther: mtdTraffic.textChatOther
-    },
+    leadSources: mtdTraffic,
     dailyTraffic,
     mtdTraffic,
     prevMonthTraffic,
@@ -27293,7 +26449,7 @@ function buildCommunityProgressTrendRows(report) {
         moveIns: aggregate.moveIns,
         moveOuts: aggregate.moveOuts,
         netAbsorption: aggregate.monthAbsorption,
-        tourToLeasePct: aggregate.tours > 0 ? (aggregate.leasesSigned / aggregate.tours) * 100 : null,
+        tourToLeasePct: aggregate.tours > 0 ? (aggregate.applicationsApproved / aggregate.tours) * 100 : null,
         renewalRetention: renewalHasData ? aggregate.renewalRetentionRate : null,
         budgetOccPct: budgetOccPct != null ? Number(budgetOccPct) : null,
         marketLeasedPct: Number(marketPerformance.compAverageLeasedPct) || null,
@@ -27332,7 +26488,9 @@ function buildCommunityProgressTrendRows(report) {
       : Math.max(0, Number(monthEntry.applications) || 0);
     const approvals = Number.isFinite(Number(summary.applicationsApproved))
       ? Number(summary.applicationsApproved)
-      : Math.max(0, Number(monthEntry.applicationsApproved) || 0);
+      : Number.isFinite(Number(summary.leasesSigned))
+        ? Number(summary.leasesSigned)
+        : Math.max(0, Number(monthEntry.applicationsApproved ?? monthEntry.leasesSignedActual) || 0);
     const moveIns = Number.isFinite(Number(summary.moveIns))
       ? Number(summary.moveIns)
       : Math.max(0, Number(monthEntry.moveIns) || 0);
@@ -27688,7 +26846,7 @@ function buildCommunityProgressOccupancyTrendCard(rows = [], { showPointLabels =
   const submarketNote = submarketPct !== null
     ? `${formatDlrPercent(submarketPct, 1)} current submarket benchmark`
     : "No submarket benchmark saved yet";
-  return `<div class="progress-card progress-card-occupancy-trend">
+  return `<div class="progress-card">
     <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:10px">
       <div>
         <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#64748b">Occupancy, Leased, Budget, and Submarket Avg.</div>
@@ -27709,8 +26867,6 @@ function buildCommunityProgressOccupancyTrendCard(rows = [], { showPointLabels =
       market: row.marketLeasedPct
     })), {
       kind: "pct",
-      width: 760,
-      height: 280,
       minClamp: 0,
       maxClampMinimum: 100,
       axisFormatter: value => formatDlrPercent(value, 0),
@@ -28400,7 +27556,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
     monthlyData: monthEntries
   };
   const monthEntry = monthEntries[monthIdx] ?? {};
-  const previousMonthEntry = monthIdx > 0 ? (monthEntries[monthIdx - 1] ?? {}) : null;
+  const previousMonthEntry = monthEntries[Math.max(monthIdx - 1, 0)] ?? {};
   const schedule = computeScheduleFromContext({
     totalUnits,
     corporateLeaseUnits: corporateUnits,
@@ -28450,7 +27606,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
   const hasGuestCards = Object.prototype.hasOwnProperty.call(monthEntry, "guestCards");
   const hasTours = Object.prototype.hasOwnProperty.call(monthEntry, "tours");
   const hasApplications = Object.prototype.hasOwnProperty.call(monthEntry, "applications");
-  const hasApprovals = Object.prototype.hasOwnProperty.call(monthEntry, "applicationsApproved");
+  const hasApprovals = Object.prototype.hasOwnProperty.call(monthEntry, "applicationsApproved") || Object.prototype.hasOwnProperty.call(monthEntry, "leasesSignedActual");
   const hasDenied = Object.prototype.hasOwnProperty.call(monthEntry, "denied");
   const hasCancelled = Object.prototype.hasOwnProperty.call(monthEntry, "cancelled");
   const hasPending = Object.prototype.hasOwnProperty.call(monthEntry, "pendingDecision");
@@ -28475,7 +27631,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
     rolledGuestCards: hasGuestCards ? Math.max(0, Number(monthEntry.guestCards) || 0) : Math.max(0, Number(summary.guestCards) || leadSourceBreakdownTotal || 0),
     tours: hasTours ? Math.max(0, Number(monthEntry.tours) || 0) : Math.max(0, Number(summary.tours) || 0),
     applications: Number.isFinite(Number(monthEntry.applications)) ? Math.max(0, Number(monthEntry.applications) || 0) : Math.max(0, Number(summary.applications) || 0),
-    approvals: hasApprovals ? Math.max(0, Number(monthEntry.applicationsApproved) || 0) : Math.max(0, Number(summary.applicationsApproved) || 0),
+    approvals: hasApprovals ? Math.max(0, Number(monthEntry.applicationsApproved ?? monthEntry.leasesSignedActual ?? summary.applicationsApproved) || 0) : Math.max(0, Number(summary.applicationsApproved) || 0),
     denials: hasDenied ? Math.max(0, Number(monthEntry.denied) || 0) : null,
     cancelled: hasCancelled ? Math.max(0, Number(monthEntry.cancelled) || 0) : null,
     pendingDecision: hasPending ? Math.max(0, Number(monthEntry.pendingDecision) || 0) : null,
@@ -28487,9 +27643,9 @@ function buildCommunityProgressSingleReportData(options = {}) {
   };
   trafficMetrics.guestToTourPct = trafficMetrics.guestCards > 0 ? (trafficMetrics.tours / trafficMetrics.guestCards) * 100 : 0;
   trafficMetrics.tourToAppPct = trafficMetrics.tours > 0 ? (trafficMetrics.applications / trafficMetrics.tours) * 100 : 0;
-  trafficMetrics.appToLeasePct = trafficMetrics.applications > 0 ? (trafficMetrics.leases / trafficMetrics.applications) * 100 : 0;
-  trafficMetrics.tourToLeasePct = trafficMetrics.tours > 0 ? (trafficMetrics.leases / trafficMetrics.tours) * 100 : 0;
-  trafficMetrics.leadToLeasePct = trafficMetrics.guestCards > 0 ? (trafficMetrics.leases / trafficMetrics.guestCards) * 100 : 0;
+  trafficMetrics.appToLeasePct = trafficMetrics.applications > 0 ? (trafficMetrics.approvals / trafficMetrics.applications) * 100 : 0;
+  trafficMetrics.tourToLeasePct = trafficMetrics.tours > 0 ? (trafficMetrics.approvals / trafficMetrics.tours) * 100 : 0;
+  trafficMetrics.leadToLeasePct = trafficMetrics.guestCards > 0 ? (trafficMetrics.approvals / trafficMetrics.guestCards) * 100 : 0;
   const renewalSummary = getRenewalSummaryForMonth(monthEntry);
   const floorPlanVarianceData = buildCommunityFloorPlanVarianceRows(scopedRecord.communityFloorPlans, activeSurveyData);
   const floorPlanRentComparisonRows = buildCommunityProgressBedroomRentComparisonRows(scopedRecord.communityFloorPlans, activeSurveyData);
@@ -28600,7 +27756,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
       undecided: renewalSummary.undecided,
       projectedAttrition: renewalSummary.projectedAttrition,
       retentionRate: renewalSummary.retentionRate,
-      previousRetentionRate: previousMonthEntry ? getRenewalSummaryForMonth(previousMonthEntry).retentionRate : null
+      previousRetentionRate: getRenewalSummaryForMonth(previousMonthEntry).retentionRate
     },
     pricing: {
       totalUnits,
@@ -28721,9 +27877,9 @@ function buildCommunityProgressReportData(options = {}) {
   };
   trafficMetrics.guestToTourPct = trafficMetrics.guestCards > 0 ? (trafficMetrics.tours / trafficMetrics.guestCards) * 100 : 0;
   trafficMetrics.tourToAppPct = trafficMetrics.tours > 0 ? (trafficMetrics.applications / trafficMetrics.tours) * 100 : 0;
-  trafficMetrics.appToLeasePct = trafficMetrics.applications > 0 ? (trafficMetrics.leases / trafficMetrics.applications) * 100 : 0;
-  trafficMetrics.tourToLeasePct = trafficMetrics.tours > 0 ? (trafficMetrics.leases / trafficMetrics.tours) * 100 : 0;
-  trafficMetrics.leadToLeasePct = trafficMetrics.guestCards > 0 ? (trafficMetrics.leases / trafficMetrics.guestCards) * 100 : 0;
+  trafficMetrics.appToLeasePct = trafficMetrics.applications > 0 ? (trafficMetrics.approvals / trafficMetrics.applications) * 100 : 0;
+  trafficMetrics.tourToLeasePct = trafficMetrics.tours > 0 ? (trafficMetrics.approvals / trafficMetrics.tours) * 100 : 0;
+  trafficMetrics.leadToLeasePct = trafficMetrics.guestCards > 0 ? (trafficMetrics.approvals / trafficMetrics.guestCards) * 100 : 0;
   const renewalSummary = {
     expirations: aggregateSummary.renewalExpirations,
     signed: aggregateSummary.renewalsSigned,
@@ -29074,7 +28230,7 @@ function buildCommunityProgressReportDocument(report) {
     .progress-snapshot-widget-value{font-size:28px;font-weight:800;line-height:1;margin-top:8px}
     .progress-snapshot-widget-sub{font-size:12px;line-height:1.6;color:#475569;margin-top:8px}
     .progress-snapshot-widget-detail{font-size:11px;line-height:1.6;color:#64748b;margin-top:4px}
-    .progress-card{border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff;overflow:hidden}
+    .progress-card{border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff}
     .progress-alert-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-bottom:18px}
     .progress-alert{border-radius:14px;padding:14px 16px;border:1px solid #dbe4f0;background:#f8fafc}
     .progress-alert.critical{background:#fef2f2;border-color:#fecaca}
@@ -29095,9 +28251,8 @@ function buildCommunityProgressReportDocument(report) {
     .progress-community-export-body .progress-shell{margin-bottom:18px}
     .section{margin-bottom:18px}
     @media print {
-      body{max-width:none;padding:0}
+      body{padding:18px}
       .progress-grid-2,.progress-grid-equal{grid-template-columns:1fr 1fr}
-      .progress-card-occupancy-trend{grid-column:1 / -1}
       .progress-card.section,.progress-grid-2 > .progress-card,.progress-grid-equal > .progress-card{
         break-inside:avoid;
         page-break-inside:avoid;
@@ -29827,10 +28982,6 @@ function buildMarketComparisonReportData(options = {}) {
     return null;
   }
   if (communityReports.length === 1) return communityReports[0];
-  const mixedPhotoPool = collectMonthlyPresentationPhotos(
-    communityReports.map(item => item.detail).filter(Boolean),
-    4
-  );
   const aggregate = buildMarketComparisonAggregateForDetails(communityReports.map(item => item.detail || buildCommunityDetailForMonth(item.communityName, item.sourceRecord, monthIdx, year)).filter(Boolean), monthIdx);
   const subject = {
     occupancyPct: aggregate.subjectOccupancyPct,
@@ -31940,10 +31091,10 @@ async function processRonaldoFloorPlanSnapshotRows(workbook, fileName = "", opti
       nextPlans.push({
         id: existing?.id || makeFloorPlanId(),
         name: String(existing?.name || rate.name || "").trim(),
-        sqft: Number.isFinite(Number(rate.sqft)) ? Number(rate.sqft) : (existing?.sqft ?? null),
-        budgetRent: Number.isFinite(Number(rate.budgetRent)) ? Number(rate.budgetRent) : (existing?.budgetRent ?? null),
+        sqft: existing?.sqft ?? rate.sqft ?? null,
+        budgetRent: existing?.budgetRent ?? rate.budgetRent ?? null,
         marketedRent: importedMarketedRent,
-        occupancyPct: Number.isFinite(Number(rate.occupancyPct)) ? Number(rate.occupancyPct) : (existing?.occupancyPct ?? null),
+        occupancyPct: existing?.occupancyPct ?? rate.occupancyPct ?? null,
         leasedPct: Number.isFinite(Number(rate.leasedPct)) ? Number(rate.leasedPct) : (existing?.leasedPct ?? null),
         marketedRentSource: importedMarketedRent != null ? `${fileName} · Scheduled Rent` : (existing?.marketedRentSource || fileName),
         beds: existing?.beds ?? rate.beds ?? null,
@@ -33051,12 +32202,26 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
       renderTab();
       return;
     }
+    let replacedScopeCommunities = 0;
     if (!forcedTarget.community) {
       touchedPeriods.forEach((importedNames, periodKey) => {
         if (atlasWorkbookImportMode !== "replace_scope") {
           setPortfolioMonthScopeForPeriod(periodKey, []);
           return;
         }
+        const [monthPart] = String(periodKey).split("-");
+        const monthIdx = parseMonthIndexValue(monthPart);
+        if (monthIdx == null) return;
+        const parsedPeriod = parsePeriodKey(periodKey);
+        const periodYear = parsedPeriod?.year ?? new Date().getFullYear();
+        const savedNames = Object.keys(savedData ?? {}).filter(Boolean);
+        savedNames.forEach(name => {
+          if (importedNames.has(name)) return;
+          const record = normalizeSavedCommunityRecord(name, savedData[name]);
+          resetAtlasMonthlyUploadMonthForRecord(record, monthIdx, periodYear);
+          savedData[name] = normalizeSavedCommunityRecord(name, record);
+          replacedScopeCommunities += 1;
+        });
         const orderedImportedNames = PROPERTIES
           .map(prop => prop.name)
           .filter(name => importedNames.has(name));
@@ -33086,7 +32251,7 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
     csvLog = [`✅ Imported ${included} ATLAS Monthly_Upload row(s) from ${file.name} using ${modeLabel}.`, ...log];
     if (skipped > 0) csvLog.push(`ℹ Skipped ${skipped} row(s) marked ERROR or missing community/month mapping.`);
     if (!forcedTarget.community && atlasWorkbookImportMode === "replace_scope") {
-      csvLog.push(`✅ Replace scope mode reset the selected month rollup to ${touchedCommunities.size} uploaded communit${touchedCommunities.size === 1 ? "y" : "ies"} while preserving prior community history in ATLAS.`);
+      csvLog.push(`✅ Replace scope mode reset the selected month rollup to ${touchedCommunities.size} uploaded communit${touchedCommunities.size === 1 ? "y" : "ies"} and cleared stale month data from ${replacedScopeCommunities} previously saved communit${replacedScopeCommunities === 1 ? "y" : "ies"}.`);
     }
     if (!forcedTarget.community && activeMasterCommunities.length > 0) {
       const missingMasterCommunities = activeMasterCommunities.filter(item => !seenWorkbookCommunityIds.has(item.id));

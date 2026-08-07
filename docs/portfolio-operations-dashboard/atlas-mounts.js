@@ -20,7 +20,7 @@
       note: "The weekly intake, reconciliation and one-page export run in the report generator itself — upload the three Entrata exports here and the figures above are what they roll up to.",
       barTitle: "RISE Weekly Maintenance Report",
       barSub: "Runs as its own application — intake, validation, MSOE rollover and print export, logic untouched",
-      src: "mounts/RISE-Weekly-Maintenance-Report.html",
+      src: "RISE-Weekly-Maintenance-Report.html",
       background: "#F4F7F9",
       icon: "ph-wrench"
     },
@@ -31,7 +31,7 @@
       note: "Intake, the AI creative brief, approvals, routing and team metrics run in the Command Center itself — this is the portfolio read of it.",
       barTitle: "RISE Marketing Command Center",
       barSub: "Runs as its own application against its own database — logic and integrations untouched",
-      src: "mounts/RISE-Marketing-Command-Center.html",
+      src: "RISE-Marketing-Command-Center.html",
       background: "#F0F4F6",
       icon: "ph-megaphone"
     },
@@ -42,7 +42,7 @@
       note: "Property budget, monthly view, GL detail, actuals and the exception report all run in the Budget Builder itself — ATLAS reads the published scenario.",
       barTitle: "RISE Budget Builder",
       barSub: "Runs as its own application, on the RISE finance theme — logic and exports untouched",
-      src: "mounts/RISE-Budget-Builder.html",
+      src: "RISE-Budget-Builder.html",
       background: "#F1F4F6",
       icon: "ph-calculator"
     },
@@ -53,7 +53,7 @@
       note: "Reviews, coaching plans, training and accountability run in the RISE Performance Platform. It reads the same roster keyed by employee ID, so a reassignment in Communities lands here without a second import.",
       barTitle: "RISE Performance Platform",
       barSub: "Runs as its own application — reviews, training plans and accountability, logic untouched",
-      src: "mounts/RISE-Performance-Platform.html",
+      src: "RISE-Performance-Platform.html",
       background: "#F3F6F8",
       icon: "ph-trophy"
     }

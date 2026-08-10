@@ -3930,6 +3930,8 @@ document.getElementById("weekEnding").addEventListener("change",e=>{
    beside this file on an http(s) server, load it automatically.               */
 function tryAutoLoad(cb){
   if(!/^https?:$/.test(location.protocol)) return cb(false);
+  const params = new URLSearchParams(location.search);
+  if(params.get("autoload")!=="1") return cb(false);
   fetch("rise-weekly-data.json",{cache:"no-store"})
     .then(r=>r.ok?r.json():Promise.reject())
     .then(o=>{ DB=migrate(o.db||o); ACTIVE=Object.keys(DB.weeks).sort().pop()||null; cb(true); })

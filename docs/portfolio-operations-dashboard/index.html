@@ -10199,7 +10199,7 @@ function renderPortfolioScopedSetupTab() {
   try {
   const selectedMonth = getSelectedDashboardMonthIndex();
   const setupDetails = getPortfolioScopedCommunityRecordsForMonth(selectedMonth, savedData, {
-    includeCurrent: true,
+    includeCurrent: false,
     includeInactive: true
   }).map(entry => buildCommunityDetailForMonth(entry.name, entry.record, selectedMonth)).filter(Boolean);
   const activeDetails = setupDetails.filter(detail => isCommunityStatusActive(detail.record));
@@ -10567,18 +10567,25 @@ function renderDashboardDataMigrationPanel() {
 
 function renderPortfolioScopedImportTab() {
   const { details } = getWorkspaceScopedAggregate(getSelectedDashboardMonthIndex());
+  const isCurrentMonth = isSelectedDashboardMonthCurrentCalendarMonth();
   const readinessDetails = details.map(detail => ({
     ...detail,
     readiness: getImportReadinessStatus(detail.record, getSelectedDashboardMonthIndex())
   }));
   const dlrLoaded = readinessDetails.filter(detail => detail.readiness.dlrLoaded).length;
+  const dlrHasData = readinessDetails.filter(detail => detail.readiness.dlrHasData).length;
   const surveyLoaded = readinessDetails.filter(detail => detail.readiness.surveyLoaded).length;
+  const surveyHasData = readinessDetails.filter(detail => detail.readiness.surveyHasData).length;
   const renewalLoaded = readinessDetails.filter(detail => detail.readiness.renewalLoaded).length;
+  const renewalHasData = readinessDetails.filter(detail => detail.readiness.renewalHasData).length;
   const errorHTML = csvError ? `<div class="${getCsvAlertClass(csvError)}" style="margin-top:12px">${csvError}</div>` : "";
   const logHTML = csvLog.length > 0 ? `<div class="alert-green" style="margin-top:12px">${csvLog.map((line, idx) => `<div style="${idx===0?"color:#3fb950;font-weight:600":"color:var(--muted)"}">${escapeHtml(line)}</div>`).join("")}</div>` : "";
   const marketSurveyLogHTML = marketSurveyImportLog.length > 0
     ? `<div class="alert-green" style="margin-top:12px">${marketSurveyImportLog.map((line, idx) => `<div style="${idx===0?"color:#3fb950;font-weight:600":"color:var(--muted)"}">${escapeHtml(line)}</div>`).join("")}</div>`
     : "";
+  const readinessHeaderCopy = isCurrentMonth
+    ? "Current-month rows separate fresh uploads from saved-but-stale records so the dashboard does not read like data is missing when it simply has not been refreshed in the current cycle."
+    : "The portfolio workspace above is now the primary staging area for bulk rows and workbook uploads. Use the community import view when you need a one-off, community-specific deep dive.";
   const bulkImportWorkspaceHTML = `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
       <div>
@@ -10738,27 +10745,24 @@ function renderPortfolioScopedImportTab() {
       ${marketSurveyImportSourceLabel ? `<div style="font-size:0.68rem;color:var(--muted);margin-top:8px">Latest market survey sync: ${escapeHtml(marketSurveyImportSourceLabel)}</div>` : ""}
       ${marketSurveyLogHTML}
     </div>
-    <div class="tbl-header"><h2>Import readiness by community</h2><p>The portfolio workspace above is now the primary staging area for bulk rows and workbook uploads. Use the community import view when you need a one-off, community-specific deep dive.</p></div>
+    <div class="tbl-header"><h2>${isCurrentMonth ? "Current-cycle import status by community" : "Import readiness by community"}</h2><p>${readinessHeaderCopy}</p></div>
     <table>
-      <thead><tr><th class="l">Community</th><th>DLR Box Score</th><th>Market Survey</th><th>Renewals</th><th>Action</th></tr></thead>
+      <thead><tr><th class="l">Community</th><th>${isCurrentMonth ? "DLR Status" : "DLR Box Score"}</th><th>${isCurrentMonth ? "Market Survey Status" : "Market Survey"}</th><th>${isCurrentMonth ? "Renewal Status" : "Renewals"}</th><th>Action</th></tr></thead>
       <tbody>${readinessDetails.map(detail => {
-        const hasDlr = detail.readiness.dlrLoaded;
-        const hasSurvey = detail.readiness.surveyLoaded;
-        const hasRenewal = detail.readiness.renewalLoaded;
         return `<tr>
           <td class="l" style="font-weight:700">${escapeHtml(detail.name)}</td>
-          <td>${hasDlr ? "Loaded" : "Pending"}</td>
-          <td>${hasSurvey ? "Loaded" : "Pending"}</td>
-          <td>${hasRenewal ? "Loaded" : "Pending"}</td>
+          <td>${escapeHtml(detail.readiness.dlrStatusLabel)}</td>
+          <td>${escapeHtml(detail.readiness.surveyStatusLabel)}</td>
+          <td>${escapeHtml(detail.readiness.renewalStatusLabel)}</td>
           <td><button type="button" class="btn btn-gray btn-sm" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(detail.name)}, 7)'>Open Import</button></td>
         </tr>`;
       }).join("")}</tbody>
     </table>
   </div>`;
   const cardsHtml = `<div class="grid-4">
-    ${statBox("DLR Coverage", `${dlrLoaded}/${details.length}`, isSelectedDashboardMonthCurrentCalendarMonth() ? "Communities refreshed with today's DLR box score" : "Communities with historical DLR support for the selected month", "#4493f8")}
-    ${statBox("Survey Coverage", `${surveyLoaded}/${details.length}`, isSelectedDashboardMonthCurrentCalendarMonth() ? "Resets to Pending every Sunday until Monday uploads refresh" : "Communities with historical market survey snapshots for the selected month", "#3fb950")}
-    ${statBox("Renewal Coverage", `${renewalLoaded}/${details.length}`, isSelectedDashboardMonthCurrentCalendarMonth() ? "Resets to Pending every Sunday until Monday uploads refresh" : "Communities with historical renewal data for the selected month", "#d29922")}
+    ${statBox(isCurrentMonth ? "DLR Fresh Today" : "DLR Coverage", `${dlrLoaded}/${details.length}`, isCurrentMonth ? `${dlrHasData}/${details.length} communities still have saved DLR month data` : "Communities with historical DLR support for the selected month", "#4493f8")}
+    ${statBox(isCurrentMonth ? "Survey Fresh Cycle" : "Survey Coverage", `${surveyLoaded}/${details.length}`, isCurrentMonth ? `${surveyHasData}/${details.length} communities still have saved survey snapshots` : "Communities with historical market survey snapshots for the selected month", "#3fb950")}
+    ${statBox(isCurrentMonth ? "Renewals Fresh Cycle" : "Renewal Coverage", `${renewalLoaded}/${details.length}`, isCurrentMonth ? `${renewalHasData}/${details.length} communities still have saved renewal data` : "Communities with historical renewal data for the selected month", "#d29922")}
     ${statBox("Contacts Loaded", details.filter(detail => normalizeInvestorEmailContacts(detail.record?.investorEmailContacts).length > 0).length, "Communities with report recipients saved", "#a371f7")}
   </div>`;
   return renderPortfolioScopePanel("Portfolio Data Import Workspace", "Stage, validate, and apply portfolio uploads here before they flow into reporting and dashboard screens.", cardsHtml, bodyHtml);
@@ -14996,26 +15000,41 @@ function getImportReadinessStatus(record, monthIdx = getSelectedDashboardMonthIn
   const isCurrentMonth = buildPeriodKey(monthIdx, year) === getCurrentCalendarPeriodKey();
   const dlrStamp = getPeriodImportStamp(normalizedRecord, "dlrExports", periodKey);
   const dlrExportDate = parseDateSafe(dlrStamp.importedAt);
+  const dlrHasData = buildDlrHistoricalCoverageKey(normalizedRecord, monthIdx, year);
   const dlrLoaded = isCurrentMonth
     ? !!dlrExportDate && isSameLocalCalendarDay(dlrExportDate, new Date())
-    : buildDlrHistoricalCoverageKey(normalizedRecord, monthIdx, year);
+    : dlrHasData;
   const surveySnapshot = isCurrentMonth
     ? normalizeMarketSurveyData(normalizedRecord.marketSurveyData)
     : normalizeMarketSurveyData(normalizedRecord.marketSurveyHistory?.[periodKey]);
+  const surveyHasData = hasMarketSurveyData(surveySnapshot);
   const surveyStamp = isCurrentMonth
     ? normalizePeriodImportStamp({
         importedAt: surveySnapshot.uploadedAt,
         sourceFileName: surveySnapshot.sourceFileName
       })
     : getPeriodImportStamp(normalizedRecord, "marketSurvey", periodKey);
-  const surveyLoaded = hasMarketSurveyData(surveySnapshot) && (isCurrentMonth ? isTimestampInCurrentMondayUploadCycle(surveyStamp.importedAt) : !!surveyStamp.importedAt);
+  const surveyLoaded = surveyHasData && (isCurrentMonth ? isTimestampInCurrentMondayUploadCycle(surveyStamp.importedAt) : !!surveyStamp.importedAt);
   const renewalEntry = getRenewalMonthEntryForRecord(normalizedRecord, monthIdx, year);
   const renewalStamp = getPeriodImportStamp(normalizedRecord, "renewals", periodKey);
-  const renewalLoaded = hasRenewalMonthData(renewalEntry) && (isCurrentMonth ? isTimestampInCurrentMondayUploadCycle(renewalStamp.importedAt) : true);
+  const renewalHasData = hasRenewalMonthData(renewalEntry);
+  const renewalLoaded = renewalHasData && (isCurrentMonth ? isTimestampInCurrentMondayUploadCycle(renewalStamp.importedAt) : true);
+  const getStatusLabel = (hasData, isFresh, freshLabel) => {
+    if (!isCurrentMonth) return hasData ? "Loaded" : "Missing";
+    if (!hasData) return "No data saved";
+    return isFresh ? freshLabel : "Saved, refresh due";
+  };
   return {
     dlrLoaded,
+    dlrHasData,
+    dlrStatusLabel: getStatusLabel(dlrHasData, dlrLoaded, "Fresh today"),
     surveyLoaded,
-    renewalLoaded
+    surveyHasData,
+    surveyStatusLabel: getStatusLabel(surveyHasData, surveyLoaded, "Fresh this cycle"),
+    renewalLoaded,
+    renewalHasData,
+    renewalStatusLabel: getStatusLabel(renewalHasData, renewalLoaded, "Fresh this cycle"),
+    isCurrentMonth
   };
 }
 
@@ -19224,6 +19243,9 @@ function renderPortfolioHomeTab() {
     );
     const aggregateRenewalExpirations = Math.max(0, Number(aggregate.renewalExpirations ?? 0) || 0);
     const aggregateRenewalSigned = Math.max(0, Number(aggregate.renewalsSigned ?? 0) || 0);
+    const budgetedCommunityCount = Math.max(0, Number(aggregate.trackedBudgetOccCount ?? 0) || 0);
+    const missingBudgetCommunityCount = Math.max(details.length - budgetedCommunityCount, 0);
+    const hasPartialBudgetCoverage = budgetedCommunityCount > 0 && missingBudgetCommunityCount > 0;
     const tiles = [
       {
         label: "Saved Communities",
@@ -19254,13 +19276,17 @@ function renderPortfolioHomeTab() {
       {
         label: "Physical Occupancy",
         value: `${getSummaryOccPct(aggregate).toFixed(1)}%`,
-        sub: `${Math.max(aggregate.occGapUnits ?? 0, 0)} unit${Math.abs(aggregate.occGapUnits ?? 0) === 1 ? "" : "s"} below saved budget`
+        sub: budgetedCommunityCount > 0
+          ? `${Math.max(aggregate.occGapUnits ?? 0, 0)} unit${Math.abs(aggregate.occGapUnits ?? 0) === 1 ? "" : "s"} below saved budget${hasPartialBudgetCoverage ? ` across ${budgetedCommunityCount}/${details.length} communities` : ""}`
+          : "No saved occupancy budgets in scope yet"
       },
       {
-        label: "Avg Occ Variance to Budget",
+        label: hasPartialBudgetCoverage ? "Avg Occ Variance to Budget (Partial)" : "Avg Occ Variance to Budget",
         value: formatSignedDisplay(aggregate.avgOccGapPts ?? 0, 1, " pts"),
-        sub: (aggregate.trackedBudgetOccCount ?? 0) > 0
-          ? `Average physical occupancy variance across ${aggregate.trackedBudgetOccCount} budgeted communit${aggregate.trackedBudgetOccCount === 1 ? "y" : "ies"}`
+        sub: budgetedCommunityCount > 0
+          ? hasPartialBudgetCoverage
+            ? `Average physical occupancy variance across ${budgetedCommunityCount}/${details.length} communities with saved budget occupancy`
+            : `Average physical occupancy variance across ${budgetedCommunityCount} budgeted communit${budgetedCommunityCount === 1 ? "y" : "ies"}`
           : "No saved occupancy budgets in scope yet"
       },
       {

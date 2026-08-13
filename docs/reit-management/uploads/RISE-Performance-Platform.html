@@ -382,14 +382,17 @@ const ACCESS_SCOPE_OPTIONS = [
   {value:'all', label:'All employees'}
 ];
 const DEFAULT_USERS = [
-  {id:'admin',name:'Admin',email:'',pin:'0000',role:'admin',scopeType:'all',scopeValue:''},
-  {id:'mgr_west',name:'West Manager',email:'',pin:'1111',role:'manager',scopeType:'region',scopeValue:'west'},
-  {id:'mgr_east',name:'East Manager',email:'',pin:'2222',role:'manager',scopeType:'region',scopeValue:'east'},
-  {id:'mgr_student1',name:'Student Manager 1',email:'',pin:'3333',role:'manager',scopeType:'region',scopeValue:'student'},
-  {id:'mgr_student2',name:'Student Manager 2',email:'',pin:'4444',role:'manager',scopeType:'region',scopeValue:'student'},
-  {id:'mgr_valdosta',name:'Valdosta Manager',email:'',pin:'5555',role:'manager',scopeType:'region',scopeValue:'valdosta'},
-  {id:'mgr_jax',name:'JAX Manager',email:'',pin:'6666',role:'manager',scopeType:'region',scopeValue:'jax'}
+  {id:'admin',name:'Admin',email:'',pin:'',role:'admin',scopeType:'all',scopeValue:''}
 ];
+const LEGACY_DEFAULT_PASSCODES = {
+  admin:'0000',
+  mgr_west:'1111',
+  mgr_east:'2222',
+  mgr_student1:'3333',
+  mgr_student2:'4444',
+  mgr_valdosta:'5555',
+  mgr_jax:'6666'
+};
 const DEFAULT_SETTINGS = {
   benchmarks: {
     benchmarkTarget: 84,
@@ -800,8 +803,6 @@ function makeDefaultUsers(){
 function ensureAdminAccess(users){
   const list = Array.isArray(users) ? [...users] : [];
 
-  // Always ensure there is a usable admin at passcode 0000 so the platform can be recovered
-  // even if localStorage was edited or a prior settings change removed admin access.
   let admin = list.find(user => user && user.id === 'admin');
   if(!admin){
     admin = normalizeUser(DEFAULT_USERS[0]);
@@ -810,14 +811,7 @@ function ensureAdminAccess(users){
   admin.role = 'admin';
   admin.scopeType = 'all';
   admin.scopeValue = '';
-  admin.pin = '0000';
   admin.name = admin.name || 'Admin';
-
-  // If any non-admin uses 0000, clear it so only the admin unlocks with that code.
-  list.forEach(user => {
-    if(!user || user.id === 'admin') return;
-    if(user.pin === '0000') user.pin = '';
-  });
 
   // Ensure at least one admin exists.
   if(!list.some(user => user && user.role === 'admin')){
@@ -868,6 +862,24 @@ function makeDefaultSettings(){
   return normalizeSettings(DEFAULT_SETTINGS);
 }
 
+function sanitizeLegacyDefaultUsers(users){
+  return (Array.isArray(users) ? users : []).map(user => {
+    const normalized = normalizeUser(user);
+    if(LEGACY_DEFAULT_PASSCODES[normalized.id] && normalized.pin === LEGACY_DEFAULT_PASSCODES[normalized.id]){
+      normalized.pin = '';
+    }
+    return normalized;
+  });
+}
+
+function hasConfiguredAccessCodes(users){
+  return (Array.isArray(users) ? users : []).some(user => String(user && user.pin || '').trim());
+}
+
+function isValidPasscodeFormat(passcode){
+  return /^\d{4,12}$/.test(String(passcode || '').trim());
+}
+
 let STATE = loadState();
 let UI = {
   currentView: STATE.currentView || 'dashboard',
@@ -887,7 +899,7 @@ let UI = {
 function loadState(){
   try{
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    const rawUsers = Array.isArray(stored.users) && stored.users.length ? stored.users.map(normalizeUser) : makeDefaultUsers();
+    const rawUsers = Array.isArray(stored.users) && stored.users.length ? sanitizeLegacyDefaultUsers(stored.users) : makeDefaultUsers();
     const users = ensureAdminAccess(rawUsers);
     return {
       users,
@@ -3030,7 +3042,7 @@ function getUpcomingMeetings(){
 function render(){
   const app = document.getElementById('app');
   if(!STATE.currentUser){
-    app.innerHTML = renderLogin();
+    app.innerHTML = hasConfiguredAccessCodes(STATE.users) ? renderLogin() : renderBootstrapAccessSetup();
     refreshBuildInfoBadge();
     return;
   }
@@ -3065,11 +3077,92 @@ function renderLogin(){
           <button class="btn btn-primary" onclick="doLogin()">Unlock</button>
         </div>
         <div class="login-note">
-          This static-site unlock screen is a privacy gate, not true server-backed security. Use the admin account to create manager passcodes, assign access by employee assignment, area, or community, and keep visibility limited to the right teams on trusted devices.
+          This static-site unlock screen is a privacy gate, not true server-backed security. Use an admin account to create manager passcodes, assign access by employee assignment, area, or community, and keep visibility limited to the right teams on trusted devices.
         </div>
       </div>
     </div>
   `;
+}
+
+function renderBootstrapAccessSetup(){
+  const admin = STATE.users.find(user => user && user.id === 'admin') || normalizeUser(DEFAULT_USERS[0]);
+  return `
+    <div class="login-shell">
+      <div class="login-card">
+        <div class="login-brand">
+          <div class="brand-mark">${riseWordmark(44)}</div>
+          <div>
+            <div class="login-title">Performance Platform</div>
+            <div class="login-sub">Create the first admin access code for this browser</div>
+          </div>
+        </div>
+        <div class="alert alert-warn">Legacy shared default passcodes were removed from the published build. Set a unique admin passcode before unlocking the platform.</div>
+        <div class="form-grid cols-2" style="margin-top:14px">
+          <div>
+            <label>Admin name</label>
+            <input id="setup-admin-name" value="${escapeHtml(admin.name || 'Admin')}" placeholder="Admin">
+          </div>
+          <div>
+            <label>Alert email</label>
+            <input id="setup-admin-email" type="email" value="${escapeHtml(admin.email || '')}" placeholder="leader@risere.com">
+          </div>
+          <div>
+            <label>New passcode</label>
+            <input id="setup-admin-passcode" type="password" maxlength="12" inputmode="numeric" placeholder="4-12 digits" onkeydown="if(event.key==='Enter')completeBootstrapAccessSetup()">
+          </div>
+          <div>
+            <label>Confirm passcode</label>
+            <input id="setup-admin-passcode-confirm" type="password" maxlength="12" inputmode="numeric" placeholder="Re-enter passcode" onkeydown="if(event.key==='Enter')completeBootstrapAccessSetup()">
+          </div>
+        </div>
+        <div id="setup-admin-err" class="alert alert-danger hidden" style="margin-top:14px"></div>
+        <div class="inline" style="margin-top:18px;justify-content:flex-end">
+          <button class="btn btn-primary" onclick="completeBootstrapAccessSetup()">Create Admin Access</button>
+        </div>
+        <div class="login-note">
+          This setup only secures the current browser storage. After unlock, create any additional manager access codes in Settings.
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function completeBootstrapAccessSetup(){
+  const name = String(document.getElementById('setup-admin-name').value || '').trim() || 'Admin';
+  const email = String(document.getElementById('setup-admin-email').value || '').trim();
+  const passcode = String(document.getElementById('setup-admin-passcode').value || '').trim();
+  const confirmPasscode = String(document.getElementById('setup-admin-passcode-confirm').value || '').trim();
+  const errorBox = document.getElementById('setup-admin-err');
+  const showError = message => {
+    if(!errorBox) return;
+    errorBox.textContent = message;
+    errorBox.classList.remove('hidden');
+  };
+
+  if(!isValidPasscodeFormat(passcode)){
+    showError('Passcodes must be 4 to 12 digits.');
+    return;
+  }
+  if(passcode !== confirmPasscode){
+    showError('Passcodes do not match.');
+    return;
+  }
+
+  let admin = STATE.users.find(user => user && user.id === 'admin');
+  if(!admin){
+    admin = normalizeUser(DEFAULT_USERS[0]);
+    STATE.users.unshift(admin);
+  }
+  admin.name = name;
+  admin.email = email;
+  admin.role = 'admin';
+  admin.scopeType = 'all';
+  admin.scopeValue = '';
+  admin.pin = passcode;
+  STATE.currentUser = admin;
+  UI.currentView = 'dashboard';
+  saveState();
+  render();
 }
 
 function doLogin(){
@@ -3279,7 +3372,7 @@ function renderDashboard(){
   const shopOrdered = plans.filter(plan => plan.status === 'shop_ordered');
   const upcoming = getUpcomingMeetings().slice(0,8);
   const attention = active.filter(plan => getPlanAlerts(plan).length);
-  const employees = activeVisibleEmployees();
+  const employees = sortedVisibleEmployees();
   const writeupAreas = writeupAreaSummary();
   const pendingApprovals = (STATE.currentUser && STATE.currentUser.role === 'admin') ? pendingHrApprovalPlans() : [];
 
@@ -10362,6 +10455,10 @@ function saveNewUser(){
     alert('Name and passcode are required.');
     return;
   }
+  if(!isValidPasscodeFormat(pin)){
+    alert('Passcodes must be 4 to 12 digits.');
+    return;
+  }
   if(isPasscodeTaken(pin)){
     alert('That passcode is already assigned to another user. Use a unique passcode.');
     return;
@@ -10432,10 +10529,6 @@ function saveEditUser(userId){
   const user = STATE.users.find(item => item.id === userId);
   if(!user) return;
 
-  if(user.id === 'admin'){
-    alert('The Admin access code is fixed to passcode 0000 for recovery. Create a second admin if you need a different admin passcode.');
-  }
-
   const nextRole = document.getElementById('eu-role').value;
   if(user.role === 'admin' && nextRole !== 'admin' && countAdmins() === 1){
     alert('At least one admin account must remain.');
@@ -10458,29 +10551,34 @@ function saveEditUser(userId){
     return;
   }
 
-  user.name = String(document.getElementById('eu-name').value || '').trim() || user.name;
-  user.email = String(document.getElementById('eu-email').value || '').trim();
-  user.role = nextRole;
-  user.scopeType = scopeType;
-  user.scopeValue = scopeValue;
+  const nextName = String(document.getElementById('eu-name').value || '').trim() || user.name;
+  const nextEmail = String(document.getElementById('eu-email').value || '').trim();
   const nextPin = String(document.getElementById('eu-pin').value || '').trim();
-  if(nextPin && user.id !== 'admin'){
+  if(nextPin){
+    if(!isValidPasscodeFormat(nextPin)){
+      alert('Passcodes must be 4 to 12 digits.');
+      return;
+    }
     if(isPasscodeTaken(nextPin, user.id)){
       alert('That passcode is already assigned to another user. Use a unique passcode.');
       return;
     }
-    user.pin = nextPin;
   }
-  if(user.role === 'admin'){
-    user.scopeType = 'all';
-    user.scopeValue = '';
+  const effectiveRole = user.id === 'admin' ? 'admin' : nextRole;
+  const effectiveScopeType = effectiveRole === 'admin' ? 'all' : scopeType;
+  const effectiveScopeValue = effectiveRole === 'admin' ? '' : scopeValue;
+  const effectivePin = nextPin || user.pin;
+  if(effectiveRole === 'admin' && !String(effectivePin || '').trim()){
+    alert('Admin access requires a passcode.');
+    return;
   }
-  if(user.id === 'admin'){
-    user.role = 'admin';
-    user.pin = '0000';
-    user.scopeType = 'all';
-    user.scopeValue = '';
-  }
+
+  user.name = nextName;
+  user.email = nextEmail;
+  user.role = effectiveRole;
+  user.scopeType = effectiveScopeType;
+  user.scopeValue = effectiveScopeValue;
+  user.pin = effectivePin;
 
   syncEmployeeManagerReferences(user);
   STATE.users = ensureAdminAccess(STATE.users);

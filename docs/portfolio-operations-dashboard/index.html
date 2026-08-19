@@ -982,6 +982,7 @@
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const FULL_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DEFAULT_CURRENT_MONTH = Math.max(0, Math.min(11, new Date().getMonth()));
+const BONUS_QUARTERS = ["Q1", "Q2", "Q3", "Q4"];
 const PORTFOLIO_SCOPE_VALUE = "__rise_portfolio__";
 const PORTFOLIO_SCOPE_LABEL = "ATLAS RISE Portfolio";
 const ATLAS_COMMUNITY_ID_ALIASES = {
@@ -3557,7 +3558,8 @@ function defaultCommissionData() {
 
 let bonusRolesByQ = { Q1: defaultBonusRoles(), Q2: defaultBonusRoles(), Q3: defaultBonusRoles(), Q4: defaultBonusRoles() };
 let commissionData = defaultCommissionData();
-let bonusQuarter = "Q1";
+let bonusQuarter = getBonusQuarterForMonth(DEFAULT_CURRENT_MONTH);
+let bonusQuarterManualOverride = false;
 let bonusCalcView = "property";
 let jacsTeamBonus = defaultJacsTeamBonus();
 let regionalAssignments = defaultRegionalAssignments();
@@ -3931,6 +3933,8 @@ function normalizeSharedEmployeeRecord(employee = {}) {
     communityName: String(source.communityName ?? "").trim(),
     communityInput: String(source.communityInput ?? "").trim(),
     bonusRoleType: String(source.bonusRoleType ?? source.roleType ?? "").trim(),
+    effectiveStart: normalizeSharedDate(source.effectiveStart),
+    effectiveEnd: normalizeSharedDate(source.effectiveEnd),
     active: source.active !== false,
     source: String(source.source ?? "people").trim(),
     sourceUpdatedAt: String(source.sourceUpdatedAt ?? "").trim()
@@ -4028,6 +4032,8 @@ function normalizePeopleEmployeeForSharedData(employee = {}, meta = {}) {
     communityName: community.communityName,
     communityInput: community.sourceValue,
     bonusRoleType,
+    effectiveStart: getSharedDateFromEmployee(employee),
+    effectiveEnd: getSharedDateFromEmployee(employee, SHARED_ASSIGNMENT_END_DATE_FIELDS),
     active: isSharedPeopleEmployeeActive(employee),
     source: meta.source || "people",
     sourceUpdatedAt: meta.syncedAt || ""
@@ -4213,13 +4219,13 @@ function syncSharedPeopleAssignments(options = {}) {
 }
 
 function getBonusQuarterDateRange(quarter = bonusQuarter, year = new Date().getFullYear()) {
-  const qIndex = Math.max(0, ["Q1", "Q2", "Q3", "Q4"].indexOf(quarter));
+  const qIndex = Math.max(0, BONUS_QUARTERS.indexOf(quarter));
   const startMonth = qIndex * 3;
   const start = new Date(year, startMonth, 1);
   const end = new Date(year, startMonth + 3, 0);
   return {
     year,
-    quarter: ["Q1", "Q2", "Q3", "Q4"][qIndex],
+    quarter: BONUS_QUARTERS[qIndex],
     start: getAtlasTodayISODate(start),
     end: getAtlasTodayISODate(end)
   };
@@ -4259,6 +4265,16 @@ function getSharedAssignmentsByRoleType(propName = getProp().name, options = {})
     acc[assignment.bonusRoleType].push(assignment);
     return acc;
   }, {});
+}
+
+function getPropertyTeamConfigWithSharedAssignments(propName = getProp().name, teamConfig = propertyTeamConfig, options = {}) {
+  const assignmentsByRoleType = getSharedAssignmentsByRoleType(propName, options);
+  const normalized = normalizePropertyTeamConfig(teamConfig);
+  PROPERTY_TEAM_ROLE_ORDER.forEach(roleType => {
+    const sharedCount = assignmentsByRoleType[roleType]?.length || 0;
+    if (sharedCount > (Number(normalized[roleType]) || 0)) normalized[roleType] = sharedCount;
+  });
+  return normalized;
 }
 
 function getSharedLeasingAssignmentsForCurrentProperty() {
@@ -4308,8 +4324,12 @@ function normalizeWindowshadeState(data) {
 
 function normalizeOpsGlobalData(data) {
   const input = data ?? {};
+  const periodQuarter = getBonusQuarterForMonth(currentMonth);
+  const storedQuarter = BONUS_QUARTERS.includes(input.bonusQuarter) ? input.bonusQuarter : periodQuarter;
+  const manualQuarterOverride = input.bonusQuarterManualOverride === true;
   return {
-    bonusQuarter: ["Q1", "Q2", "Q3", "Q4"].includes(input.bonusQuarter) ? input.bonusQuarter : "Q1",
+    bonusQuarter: manualQuarterOverride ? storedQuarter : periodQuarter,
+    bonusQuarterManualOverride: manualQuarterOverride,
     bonusCalcView: input.bonusCalcView === "jac" ? "jac" : "property",
     jacsTeamBonus: normalizeJacsTeamBonus(input.jacsTeamBonus),
     regionalAssignments: normalizeRegionalAssignments(input.regionalAssignments),
@@ -4341,6 +4361,7 @@ function getLegacyOpsGlobalSeed() {
   const legacy = entries.find(entry => entry && (entry.jacsTeamBonus || entry.bonusCalcView || entry.bonusQuarter || entry.regionalAssignments));
   return legacy ? {
     bonusQuarter: legacy.bonusQuarter,
+    bonusQuarterManualOverride: legacy.bonusQuarterManualOverride,
     bonusCalcView: legacy.bonusCalcView,
     jacsTeamBonus: legacy.jacsTeamBonus,
     regionalAssignments: legacy.regionalAssignments,
@@ -4364,6 +4385,7 @@ function getLegacyOpsGlobalSeed() {
 function applyOpsGlobalData(data) {
   const normalized = normalizeOpsGlobalData(data);
   bonusQuarter = normalized.bonusQuarter;
+  bonusQuarterManualOverride = normalized.bonusQuarterManualOverride;
   bonusCalcView = normalized.bonusCalcView;
   jacsTeamBonus = normalized.jacsTeamBonus;
   regionalAssignments = normalized.regionalAssignments;
@@ -4422,6 +4444,7 @@ function queuePersistedPhotoStorageCompaction() {
 function persistOpsGlobalData() {
   applyOpsGlobalData({
     bonusQuarter,
+    bonusQuarterManualOverride,
     bonusCalcView,
     jacsTeamBonus: serializeJacsTeamBonus(jacsTeamBonus),
     regionalAssignments,
@@ -5257,6 +5280,10 @@ function getProp() { return PROPERTIES[selectedPropIdx]; }
 function getWorkspacePeriodString(monthIdx = currentMonth, year = new Date().getFullYear()) {
   const numericMonth = Number.isInteger(monthIdx) ? monthIdx : DEFAULT_CURRENT_MONTH;
   return `${year}-${String(numericMonth + 1).padStart(2, "0")}`;
+}
+function getBonusQuarterForMonth(monthIdx = currentMonth) {
+  const numericMonth = Number.isFinite(Number(monthIdx)) ? Math.max(0, Math.min(11, Number(monthIdx))) : DEFAULT_CURRENT_MONTH;
+  return BONUS_QUARTERS[Math.floor(numericMonth / 3)] || BONUS_QUARTERS[0];
 }
 function getSelectedDashboardMonthIndex() {
   return clampNumber(Number.isInteger(currentMonth) ? currentMonth : DEFAULT_CURRENT_MONTH, 0, 11);
@@ -7218,11 +7245,26 @@ function getScopedTurnoverTotalsForSummaries(summaries = [], roleId = "") {
 
 function getCommunityQuarterlyBonusRoles(propName, sourceData, quarter = bonusQuarter) {
   const record = normalizeSavedCommunityRecord(propName, sourceData);
-  const roles = buildPropertyBonusRoles(record.propertyTeamConfig, record.bonusRolesByQ?.[quarter]);
+  const effectiveTeamConfig = getPropertyTeamConfigWithSharedAssignments(propName, record.propertyTeamConfig, { quarter });
+  const roles = buildPropertyBonusRoles(effectiveTeamConfig, record.bonusRolesByQ?.[quarter]);
+  const assignmentMap = getBonusRoleAssignmentBySlot(roles, propName, quarter);
   const summary = getCommunitySummary(propName, record);
   const quarterlyAbsorption = getQuarterlyAbsorptionTotals(record.monthlyData);
   const quarterlyRenewals = getQuarterlyRenewalTotals(record.monthlyData, record.currentMonth);
   roles.forEach(role => {
+    const sharedAssignment = assignmentMap[role.id];
+    if (sharedAssignment) {
+      role.name = sharedAssignment.employeeName || role.name;
+      role.employeeId = sharedAssignment.employeeId || "";
+      role.sharedAssignmentId = sharedAssignment.assignmentId || "";
+      role.assignmentSource = "People assignment";
+      role.assignmentCommunityName = sharedAssignment.communityName || propName;
+      role.assignmentEffectiveLabel = formatSharedAssignmentDateRange(sharedAssignment);
+    } else {
+      role.assignmentSource = role.name ? "Manual fallback" : "Unassigned";
+      role.assignmentCommunityName = propName;
+      role.assignmentEffectiveLabel = "";
+    }
     role.metrics.forEach(metric => {
       if (String(metric.cat ?? "").toLowerCase() === "ora") {
         metric.actual = Number(record.reputationData?.oraScore) || 0;
@@ -7235,7 +7277,7 @@ function getCommunityQuarterlyBonusRoles(propName, sourceData, quarter = bonusQu
       }
     });
   });
-  return { record, roles, summary };
+  return { record, roles, summary, assignmentMap, effectiveTeamConfig };
 }
 
 function getLeasingLeaderboardEntries(quarter = bonusQuarter) {
@@ -7245,6 +7287,7 @@ function getLeasingLeaderboardEntries(quarter = bonusQuarter) {
     scoped.roles
       .filter(role => ["lm", "lp"].includes(role.roleType))
       .forEach(role => {
+        if (!String(role.name ?? "").trim()) return;
         const currentMonthData = scoped.record.monthlyData[scoped.record.currentMonth] ?? {};
         const appActual = Number(currentMonthData.applications) || 0;
         const leaseActual = Number(currentMonthData.leasesSignedActual) || 0;
@@ -7263,9 +7306,11 @@ function getLeasingLeaderboardEntries(quarter = bonusQuarter) {
           : 0;
         const quarterlyPoints = role.metrics.reduce((sum, metric) => sum + (Number(metric.weight || 0) * getMetricOutcome(metric).multiplier), 0);
         entries.push({
-          employee: role.name || `${role.title} — Name Needed`,
+          employee: role.name,
           community: name,
           roleTitle: role.title,
+          assignmentSource: role.assignmentSource || (role.name ? "Manual fallback" : "Unassigned"),
+          assignmentEffectiveLabel: role.assignmentEffectiveLabel || "",
           currentMonthLabel: MONTHS[scoped.record.currentMonth],
           monthlyScore,
           quarterlyPoints,
@@ -7299,17 +7344,18 @@ function renderLeasingLeaderboardSection(entries, quarter = bonusQuarter) {
       <div style="font-family:'JetBrains Mono',monospace;font-size:0.82rem;color:var(--muted)">#${idx + 1}</div>
       <div>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:0.78rem">
-          <strong>${entry.employee}</strong>
-          <span style="color:var(--muted)">${entry.community}</span>
+          <strong>${escapeHtml(entry.employee)}</strong>
+          <span style="color:var(--muted)">${escapeHtml(entry.community)}</span>
         </div>
         <div style="margin-top:6px;background:var(--bg3);height:8px;border-radius:999px;overflow:hidden">
           <div style="height:100%;width:${barPct}%;background:${mode === "monthly" ? "linear-gradient(90deg,#58a6ff,#3fb950)" : "linear-gradient(90deg,#a371f7,#58a6ff)"}"></div>
         </div>
-        <div style="margin-top:6px;font-size:0.66rem;color:var(--muted)">${subLabel}</div>
+        <div style="margin-top:6px;font-size:0.66rem;color:var(--muted)">${escapeHtml(subLabel)}</div>
+        <div style="margin-top:3px;font-size:0.62rem;color:${entry.assignmentSource === "People assignment" ? "#3fb950" : "var(--muted)"}">${escapeHtml(entry.assignmentSource)}${entry.assignmentEffectiveLabel ? ` · ${escapeHtml(entry.assignmentEffectiveLabel)}` : ""}</div>
       </div>
       <div style="font-family:'JetBrains Mono',monospace;font-size:0.82rem;font-weight:700;color:${mode === "monthly" ? "#58a6ff" : "#a371f7"}">${scoreLabel}</div>
     </div>`;
-  }).join("") : `<div style="font-size:0.72rem;color:var(--muted)">Name your Leasing Managers and Leasing Professionals in the community bonus cards to populate the leaderboard.</div>`;
+  }).join("") : `<div style="font-size:0.72rem;color:var(--muted)">People assignments or saved community bonus names will populate the leaderboard.</div>`;
   return `<div class="bonus-tab-section">
     <div class="bonus-group-title">🏁 Leasing Leaderboard<span class="bonus-role-count">${entries.length} leasing roles tracked</span></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px">
@@ -7320,7 +7366,7 @@ function renderLeasingLeaderboardSection(entries, quarter = bonusQuarter) {
       </div>
       <div class="bonus-role-card">
         <div style="font-size:0.82rem;font-weight:700">${quarter} Quarterly Goal Leaders</div>
-        <div style="font-size:0.68rem;color:var(--muted);margin-top:4px">Ranks saved Leasing Managers and Leasing Professionals by weighted bonus-point achievement. Payouts are intentionally hidden.</div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-top:4px">Ranks active People-assigned Leasing Managers and Leasing Professionals by weighted bonus-point achievement. Payouts are intentionally hidden.</div>
         <div style="margin-top:10px">${renderRows(quarterlyLeaders, "quarterly")}</div>
       </div>
     </div>
@@ -10127,6 +10173,7 @@ function attachEventListeners() {
         reportHubMonth = currentMonth;
         reportHubYear = new Date().getFullYear();
         workspaceMonthOverride = currentMonth;
+        if (!bonusQuarterManualOverride) bonusQuarter = getBonusQuarterForMonth(currentMonth);
         restoreCurrentMonthSnapshots(currentMonth, {
           anchorMonth: prevCurrentMonth,
           occupiedUnits: currentOccupied,
@@ -15853,7 +15900,9 @@ function updateCommission(field, val) {
 }
 
 function setBonusQuarter(q) {
+  if (!BONUS_QUARTERS.includes(q)) return;
   bonusQuarter = q;
+  bonusQuarterManualOverride = q !== getBonusQuarterForMonth(currentMonth);
   persistOpsGlobalData();
   renderTab();
 }

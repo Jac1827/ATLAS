@@ -976,6 +976,7 @@
 
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js"></script>
+<script src="./centralization/atlas-central-client.js"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -1052,6 +1053,7 @@ const WINDOWSHADE_DEFAULTS = {
   reputation_rollup: false,
   import_historical_reports: true,
   import_dlr_summary: true,
+  import_central_migration: true,
   import_browser_transfer: false,
   import_report_export: false,
   import_weekly_report: true,
@@ -1173,6 +1175,17 @@ const DASHBOARD_STORAGE_MIGRATION_KEYS = [
   OPS_PROPERTY_CATALOG_KEY,
   SIDE_NAV_STORAGE_KEY,
   PERFORMANCE_PLATFORM_STORAGE_KEY
+];
+const ATLAS_LEGACY_MIGRATION_STORAGE_KEYS = [
+  ...DASHBOARD_STORAGE_MIGRATION_KEYS,
+  "rise_wmr_v1",
+  "rise-b2b-v6",
+  "rise-b2b-acts-v3"
+];
+const ATLAS_SENSITIVE_LOCAL_STORAGE_KEYS = [
+  "rise-apikey-v1",
+  "rise-b2b-ses",
+  "rise-users-v1"
 ];
 const DASHBOARD_SHARED_SYNC_SCOPE = "atlas_dashboard_v1";
 const DASHBOARD_SHARED_SYNC_WORKER_ORIGIN = "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev";
@@ -3552,6 +3565,38 @@ let opsGlobalData = null;
 let propertyTurnoverConfig = defaultPropertyTurnoverConfig();
 let propertyTurnoverByQuarter = defaultPropertyTurnoverByQuarter();
 let msoeByQuarter = defaultMsoeByQuarter();
+let maintenanceInspectionSnapshot = defaultMaintenanceInspectionSnapshot();
+
+function defaultMaintenanceInspectionSnapshot() {
+  return {
+    source: "Atlas Maintenance",
+    generatedAt: "",
+    moonriseSync: { status: "not_synced", lastSyncedAt: null, exceptions: [] },
+    records: [],
+    archive: {}
+  };
+}
+
+function normalizeMaintenanceInspectionSnapshot(payload) {
+  const input = payload && typeof payload === "object" ? payload : {};
+  return {
+    ...defaultMaintenanceInspectionSnapshot(),
+    ...input,
+    moonriseSync: {
+      ...defaultMaintenanceInspectionSnapshot().moonriseSync,
+      ...(input.moonriseSync || {})
+    },
+    records: Array.isArray(input.records) ? input.records : [],
+    archive: input.archive && typeof input.archive === "object" ? input.archive : {}
+  };
+}
+
+window.addEventListener("message", event => {
+  const sameOrigin = event.origin === window.location.origin || event.origin === "null" || event.origin === "";
+  if (!sameOrigin || event.data?.type !== "atlas-maintenance-inspections-updated") return;
+  maintenanceInspectionSnapshot = normalizeMaintenanceInspectionSnapshot(event.data.payload);
+  window.ATLAS_MAINTENANCE_INSPECTION_SNAPSHOT = maintenanceInspectionSnapshot;
+});
 
 function defaultJacsTeamBonus() {
   const metric = (cat, weight, goal, options = {}) => ({
@@ -3723,6 +3768,536 @@ function normalizeRegionalAssignments(data) {
   }));
 }
 
+const ATLAS_SHARED_DATA_SCHEMA_VERSION = 1;
+const SHARED_COMMUNITY_ALIASES = {
+  "bartram": "Bartram Park",
+  "beacon": "UTK - Beacon Hall",
+  "beacon hall": "UTK - Beacon Hall",
+  "beacon poplar hall": "UTK - Beacon Hall",
+  "doro high rise": "Doro",
+  "gkp": "Glen Kernan Park",
+  "glen kernan park gkp": "Glen Kernan Park",
+  "maple hall njit": "NJIT - Maple Hall",
+  "njit maple hall": "NJIT - Maple Hall",
+  "nicholson gateway": "LSU - Nicholson Gateway",
+  "pilots pointe": "Pilots Pointe at LSUS",
+  "poplar hall": "UTK - Poplar Hall",
+  "prosper on fayette": "Prosper On Fayette",
+  "rise st augustine": "St Augustine",
+  "st augustine": "St Augustine",
+  "st augustine fl": "St Augustine",
+  "the preserve": "The Preserve at Tech"
+};
+const SHARED_BONUS_ROLE_LABELS = {
+  gm: "General Manager",
+  am: "Assistant Manager",
+  ms: "Maintenance Supervisor",
+  mt: "Maintenance Tech",
+  lm: "Leasing Manager",
+  lp: "Leasing Professional"
+};
+const SHARED_ASSIGNMENT_DATE_FIELDS = ["effectiveStart", "assignmentStartDate", "assignmentEffectiveDate", "startDate", "hireDate"];
+const SHARED_ASSIGNMENT_END_DATE_FIELDS = ["effectiveEnd", "assignmentEndDate", "endDate"];
+
+function getAtlasTodayISODate(date = new Date()) {
+  return new Date(date).toISOString().slice(0, 10);
+}
+
+function normalizeSharedDate(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    const normalized = `${isoMatch[1]}-${String(Number(isoMatch[2])).padStart(2, "0")}-${String(Number(isoMatch[3])).padStart(2, "0")}`;
+    const parsed = Date.parse(`${normalized}T00:00:00`);
+    return Number.isFinite(parsed) ? normalized : "";
+  }
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? getAtlasTodayISODate(parsed) : "";
+}
+
+function sharedDateTime(value) {
+  const normalized = normalizeSharedDate(value);
+  const parsed = normalized ? Date.parse(`${normalized}T00:00:00`) : NaN;
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getPreviousSharedDate(value) {
+  const normalized = normalizeSharedDate(value) || getAtlasTodayISODate();
+  const date = new Date(`${normalized}T00:00:00`);
+  date.setDate(date.getDate() - 1);
+  return getAtlasTodayISODate(date);
+}
+
+function getSharedAssignmentCloseDate(assignment = {}, requestedEndDate = getAtlasTodayISODate()) {
+  const closeDate = normalizeSharedDate(requestedEndDate) || getAtlasTodayISODate();
+  const startDate = normalizeSharedDate(assignment.effectiveStart) || closeDate;
+  return sharedDateTime(closeDate) < sharedDateTime(startDate) ? startDate : closeDate;
+}
+
+function getSharedEmployeeStableId(employee = {}) {
+  const employeeNumber = String(employee.employeeNumber ?? employee["Employee Number"] ?? "").replace(/[^\w-]/g, "").trim();
+  if (employeeNumber) return `empnum:${employeeNumber}`;
+  const email = String(employee.email ?? employee.workEmail ?? employee["Work Email"] ?? "").trim().toLowerCase();
+  if (email) return `email:${email}`;
+  const peopleId = String(employee.id ?? "").trim();
+  if (peopleId) return `people:${peopleId}`;
+  return `people:${simpleHash([employee.name, employee.role, employee.community].join("|"))}`;
+}
+
+function parseSharedDepartmentCommunity(department = "") {
+  const value = String(department || "").trim();
+  if (!value.includes(" - ")) return "";
+  const community = value.split(" - ", 2)[1].trim();
+  return community === "Development JAX" ? "" : community;
+}
+
+function getSharedDateFromEmployee(employee = {}, fields = SHARED_ASSIGNMENT_DATE_FIELDS) {
+  for (const field of fields) {
+    const normalized = normalizeSharedDate(employee?.[field]);
+    if (normalized) return normalized;
+  }
+  return "";
+}
+
+function findCanonicalCommunityName(value = "") {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const normalized = normalizeCommunityLookupName(raw);
+  const aliasTarget = SHARED_COMMUNITY_ALIASES[normalized];
+  const communities = getAllCommunityNames();
+  const strictMatch = candidate => communities.find(name => normalizeCommunityLookupName(name) === normalizeCommunityLookupName(candidate)) || "";
+  if (aliasTarget) return strictMatch(aliasTarget) || aliasTarget;
+  const exact = strictMatch(raw);
+  if (exact) return exact;
+  const matched = matchPropertyName(raw, { fallbackToCurrent: false });
+  return strictMatch(matched) || "";
+}
+
+function resolveSharedCommunityForEmployee(employee = {}) {
+  const candidates = [
+    employee.community,
+    employee.communityName,
+    employee.property,
+    employee.propertyName,
+    parseSharedDepartmentCommunity(employee.department)
+  ].map(value => String(value ?? "").trim()).filter(Boolean);
+  for (const candidate of candidates) {
+    const matched = findCanonicalCommunityName(candidate);
+    if (matched) return { communityName: matched, sourceValue: candidate };
+  }
+  return { communityName: "", sourceValue: candidates[0] || "" };
+}
+
+function inferSharedBonusRoleType(title = "") {
+  const value = String(title ?? "").toLowerCase().replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
+  if (!value) return "";
+  if (value.includes("regional") || value.includes("director") || value.includes("vice president") || value.includes("vp ")) return "";
+  if (value.includes("assistant manager") || value === "am") return "am";
+  if (value.includes("leasing manager") || value === "lm") return "lm";
+  if (value.includes("maintenance supervisor") || value.includes("service manager") || value.includes("maintenance manager") || value === "ms") return "ms";
+  if (value.includes("maintenance tech") || value.includes("maintenance technician") || value.includes("service technician") || value.includes("make ready") || value === "mt") return "mt";
+  if (value.includes("leasing professional") || value.includes("leasing consultant") || value.includes("leasing specialist") || value === "lp") return "lp";
+  if (value.includes("general manager") || value.includes("community manager") || value.includes("property manager") || value === "gm") return "gm";
+  return "";
+}
+
+function defaultAtlasSharedData() {
+  return {
+    schemaVersion: ATLAS_SHARED_DATA_SCHEMA_VERSION,
+    employees: {},
+    assignments: [],
+    lastPeopleSyncAt: "",
+    lastPeopleRosterVersion: "",
+    lastPeopleSource: "",
+    validationIssues: []
+  };
+}
+
+let atlasSharedData = defaultAtlasSharedData();
+
+function normalizeSharedEmployeeRecord(employee = {}) {
+  const source = employee && typeof employee === "object" ? employee : {};
+  return {
+    employeeId: String(source.employeeId ?? "").trim(),
+    peopleEmployeeId: String(source.peopleEmployeeId ?? source.id ?? "").trim(),
+    employeeNumber: String(source.employeeNumber ?? "").trim(),
+    email: String(source.email ?? "").trim().toLowerCase(),
+    name: String(source.name ?? "").trim(),
+    title: String(source.title ?? source.role ?? "").trim(),
+    status: String(source.status ?? "Active").trim() || "Active",
+    statusType: String(source.statusType ?? "").trim(),
+    terminationDate: normalizeSharedDate(source.terminationDate),
+    communityName: String(source.communityName ?? "").trim(),
+    communityInput: String(source.communityInput ?? "").trim(),
+    bonusRoleType: String(source.bonusRoleType ?? source.roleType ?? "").trim(),
+    active: source.active !== false,
+    source: String(source.source ?? "people").trim(),
+    sourceUpdatedAt: String(source.sourceUpdatedAt ?? "").trim()
+  };
+}
+
+function normalizeSharedAssignmentRecord(assignment = {}) {
+  const source = assignment && typeof assignment === "object" ? assignment : {};
+  const employeeId = String(source.employeeId ?? "").trim();
+  const communityName = String(source.communityName ?? source.communityId ?? "").trim();
+  const bonusRoleType = String(source.bonusRoleType ?? source.roleType ?? "").trim();
+  const effectiveStart = normalizeSharedDate(source.effectiveStart) || getAtlasTodayISODate();
+  const title = String(source.title ?? SHARED_BONUS_ROLE_LABELS[bonusRoleType] ?? "").trim();
+  return {
+    assignmentId: String(source.assignmentId ?? makeSharedAssignmentId(employeeId, communityName, bonusRoleType, effectiveStart)).trim(),
+    employeeId,
+    employeeName: String(source.employeeName ?? "").trim(),
+    communityId: communityName,
+    communityName,
+    roleId: bonusRoleType ? `bonus:${bonusRoleType}` : "",
+    bonusRoleType,
+    title,
+    status: String(source.status ?? "Active").trim() || "Active",
+    primary: source.primary !== false,
+    effectiveStart,
+    effectiveEnd: normalizeSharedDate(source.effectiveEnd),
+    source: String(source.source ?? "people").trim(),
+    sourceUpdatedAt: String(source.sourceUpdatedAt ?? "").trim()
+  };
+}
+
+function normalizeAtlasSharedData(data = {}) {
+  const defaults = defaultAtlasSharedData();
+  const input = data && typeof data === "object" ? data : {};
+  const employees = {};
+  Object.entries(input.employees && typeof input.employees === "object" ? input.employees : {}).forEach(([key, value]) => {
+    const employee = normalizeSharedEmployeeRecord({ employeeId: key, ...value });
+    if (employee.employeeId && employee.name) employees[employee.employeeId] = employee;
+  });
+  return {
+    ...defaults,
+    schemaVersion: ATLAS_SHARED_DATA_SCHEMA_VERSION,
+    employees,
+    assignments: (Array.isArray(input.assignments) ? input.assignments : []).map(normalizeSharedAssignmentRecord).filter(item => item.employeeId && item.communityName && item.bonusRoleType),
+    lastPeopleSyncAt: String(input.lastPeopleSyncAt ?? ""),
+    lastPeopleRosterVersion: String(input.lastPeopleRosterVersion ?? ""),
+    lastPeopleSource: String(input.lastPeopleSource ?? ""),
+    validationIssues: Array.isArray(input.validationIssues) ? input.validationIssues.slice(0, 100) : []
+  };
+}
+
+function makeSharedAssignmentId(employeeId, communityName, roleType, effectiveStart) {
+  return `assign_${simpleHash([employeeId, communityName, roleType, effectiveStart].join("|"))}`;
+}
+
+function loadPeoplePlatformStateForSharedData() {
+  try {
+    const raw = localStorage.getItem(PERFORMANCE_PLATFORM_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return {
+      employees: Array.isArray(parsed.employees) ? parsed.employees : [],
+      rosterVersion: String(parsed.rosterVersion ?? ""),
+      source: PERFORMANCE_PLATFORM_STORAGE_KEY
+    };
+  } catch {
+    return { employees: [], rosterVersion: "", source: PERFORMANCE_PLATFORM_STORAGE_KEY };
+  }
+}
+
+function isSharedPeopleEmployeeActive(employee = {}) {
+  const status = String(employee.status ?? "").trim().toLowerCase();
+  if (status.includes("terminated") || status.includes("inactive")) return false;
+  if (normalizeSharedDate(employee.terminationDate)) return false;
+  const explicitEnd = getSharedDateFromEmployee(employee, SHARED_ASSIGNMENT_END_DATE_FIELDS);
+  const todayTime = sharedDateTime(getAtlasTodayISODate());
+  const endTime = explicitEnd ? sharedDateTime(explicitEnd) : null;
+  return endTime == null || endTime >= todayTime;
+}
+
+function normalizePeopleEmployeeForSharedData(employee = {}, meta = {}) {
+  const stableId = getSharedEmployeeStableId(employee);
+  const community = resolveSharedCommunityForEmployee(employee);
+  const title = String(employee.role ?? employee.title ?? "").trim();
+  const bonusRoleType = inferSharedBonusRoleType(title);
+  return normalizeSharedEmployeeRecord({
+    employeeId: stableId,
+    peopleEmployeeId: employee.id,
+    employeeNumber: employee.employeeNumber,
+    email: employee.email,
+    name: employee.name,
+    title,
+    status: employee.status || "Active",
+    statusType: employee.statusType,
+    terminationDate: employee.terminationDate,
+    communityName: community.communityName,
+    communityInput: community.sourceValue,
+    bonusRoleType,
+    active: isSharedPeopleEmployeeActive(employee),
+    source: meta.source || "people",
+    sourceUpdatedAt: meta.syncedAt || ""
+  });
+}
+
+function sameSharedAssignmentCurrentState(assignment, employee) {
+  return assignment
+    && assignment.communityName === employee.communityName
+    && assignment.bonusRoleType === employee.bonusRoleType
+    && normalizeCommunityLookupName(assignment.title) === normalizeCommunityLookupName(employee.title)
+    && String(assignment.status || "Active") === String(employee.status || "Active");
+}
+
+function closeOpenSharedAssignments(sharedData, employeeId, endDate, reason = "superseded") {
+  let changed = false;
+  sharedData.assignments = sharedData.assignments.map(assignment => {
+    if (assignment.employeeId !== employeeId || assignment.effectiveEnd) return assignment;
+    const closeDate = getSharedAssignmentCloseDate(assignment, endDate);
+    changed = true;
+    return {
+      ...assignment,
+      effectiveEnd: closeDate,
+      status: reason === "terminated" ? "Terminated" : assignment.status,
+      sourceUpdatedAt: new Date().toISOString()
+    };
+  });
+  return changed;
+}
+
+function upsertSharedAssignmentForEmployee(sharedData, employee, options = {}) {
+  const today = getAtlasTodayISODate();
+  const requestedStart = normalizeSharedDate(options.effectiveStart) || today;
+  const explicitStart = getSharedDateFromEmployee(employee);
+  const effectiveStart = explicitStart || requestedStart;
+  const openAssignments = sharedData.assignments.filter(assignment => assignment.employeeId === employee.employeeId && !assignment.effectiveEnd);
+  const matchingOpen = openAssignments.find(assignment => sameSharedAssignmentCurrentState(assignment, employee));
+  if (matchingOpen) {
+    matchingOpen.employeeName = employee.name;
+    matchingOpen.sourceUpdatedAt = options.syncedAt || new Date().toISOString();
+    return false;
+  }
+  let changed = false;
+  openAssignments.forEach(assignment => {
+    if (assignment.effectiveStart === effectiveStart) {
+      assignment.communityId = employee.communityName;
+      assignment.communityName = employee.communityName;
+      assignment.roleId = `bonus:${employee.bonusRoleType}`;
+      assignment.bonusRoleType = employee.bonusRoleType;
+      assignment.title = employee.title || SHARED_BONUS_ROLE_LABELS[employee.bonusRoleType] || "";
+      assignment.status = employee.status || "Active";
+      assignment.employeeName = employee.name;
+      assignment.sourceUpdatedAt = options.syncedAt || new Date().toISOString();
+    } else {
+      assignment.effectiveEnd = getSharedAssignmentCloseDate(assignment, getPreviousSharedDate(effectiveStart));
+      assignment.sourceUpdatedAt = options.syncedAt || new Date().toISOString();
+    }
+    changed = true;
+  });
+  const alreadyExists = sharedData.assignments.some(assignment =>
+    assignment.employeeId === employee.employeeId
+    && assignment.communityName === employee.communityName
+    && assignment.bonusRoleType === employee.bonusRoleType
+    && assignment.effectiveStart === effectiveStart
+    && !assignment.effectiveEnd
+  );
+  if (!alreadyExists) {
+    sharedData.assignments.push(normalizeSharedAssignmentRecord({
+      assignmentId: makeSharedAssignmentId(employee.employeeId, employee.communityName, employee.bonusRoleType, effectiveStart),
+      employeeId: employee.employeeId,
+      employeeName: employee.name,
+      communityName: employee.communityName,
+      bonusRoleType: employee.bonusRoleType,
+      title: employee.title || SHARED_BONUS_ROLE_LABELS[employee.bonusRoleType] || "",
+      status: employee.status || "Active",
+      effectiveStart,
+      source: employee.source || "people",
+      sourceUpdatedAt: options.syncedAt || new Date().toISOString()
+    }));
+    changed = true;
+  }
+  return changed;
+}
+
+function sharedRoleLooksPropertyBased(title = "") {
+  const value = String(title ?? "").toLowerCase();
+  return /(leasing|community manager|property manager|general manager|maintenance|service manager|make ready)/.test(value);
+}
+
+function validateAtlasSharedData(data = atlasSharedData) {
+  const sharedData = normalizeAtlasSharedData(data);
+  const issues = [];
+  const addIssue = (severity, code, message, context = {}) => {
+    issues.push({ severity, code, message, ...context });
+  };
+  Object.values(sharedData.employees).forEach(employee => {
+    if (!employee.active) return;
+    if (sharedRoleLooksPropertyBased(employee.title) && !employee.communityName) {
+      addIssue("warn", "missing_community", `${employee.name} has a property role but no matched Atlas community.`, { employeeId: employee.employeeId, sourceValue: employee.communityInput });
+    }
+    if (employee.communityName && sharedRoleLooksPropertyBased(employee.title) && !employee.bonusRoleType) {
+      addIssue("warn", "missing_role_mapping", `${employee.name}'s title is not mapped to a Bonus role.`, { employeeId: employee.employeeId, title: employee.title });
+    }
+  });
+  const openByEmployee = {};
+  sharedData.assignments.forEach(assignment => {
+    const startTime = sharedDateTime(assignment.effectiveStart);
+    const endTime = assignment.effectiveEnd ? sharedDateTime(assignment.effectiveEnd) : null;
+    if (startTime == null || (assignment.effectiveEnd && endTime == null)) {
+      addIssue("error", "invalid_effective_date", `${assignment.employeeName || assignment.employeeId} has an invalid assignment date.`, { assignmentId: assignment.assignmentId });
+    } else if (endTime != null && startTime > endTime) {
+      addIssue("error", "invalid_effective_range", `${assignment.employeeName || assignment.employeeId} has an assignment ending before it starts.`, { assignmentId: assignment.assignmentId });
+    }
+    if (!assignment.effectiveEnd) {
+      openByEmployee[assignment.employeeId] = openByEmployee[assignment.employeeId] || [];
+      openByEmployee[assignment.employeeId].push(assignment);
+    }
+  });
+  Object.entries(openByEmployee).forEach(([employeeId, assignments]) => {
+    if (assignments.length > 1) {
+      const label = assignments[0].employeeName || sharedData.employees[employeeId]?.name || employeeId;
+      addIssue("error", "conflicting_current_assignments", `${label} has ${assignments.length} open community assignments.`, { employeeId });
+    }
+  });
+  return issues.slice(0, 100);
+}
+
+function syncSharedPeopleAssignments(options = {}) {
+  const peopleState = loadPeoplePlatformStateForSharedData();
+  const syncedAt = new Date().toISOString();
+  const sharedData = normalizeAtlasSharedData(atlasSharedData);
+  if (!peopleState.employees.length) {
+    sharedData.validationIssues = [
+      { severity: "info", code: "people_roster_unavailable", message: "People roster state is not available in this browser yet." },
+      ...validateAtlasSharedData(sharedData)
+    ].slice(0, 100);
+    atlasSharedData = sharedData;
+    return { changed: false, employeeCount: 0, assignmentCount: sharedData.assignments.length };
+  }
+  const previousComparable = JSON.stringify({
+    employees: sharedData.employees,
+    assignments: sharedData.assignments,
+    rosterVersion: sharedData.lastPeopleRosterVersion
+  });
+  const employees = {};
+  const normalizedPeople = peopleState.employees
+    .map(employee => normalizePeopleEmployeeForSharedData(employee, { source: peopleState.source, syncedAt }))
+    .filter(employee => employee.name);
+  normalizedPeople.forEach(employee => {
+    employees[employee.employeeId] = employee;
+  });
+  sharedData.employees = employees;
+  const hasExistingAssignments = sharedData.assignments.length > 0;
+  const rosterVersionDate = normalizeSharedDate(peopleState.rosterVersion);
+  normalizedPeople.forEach(employee => {
+    if (!employee.active) {
+      closeOpenSharedAssignments(sharedData, employee.employeeId, employee.terminationDate || getAtlasTodayISODate(), "terminated");
+      return;
+    }
+    if (!employee.communityName || !employee.bonusRoleType) return;
+    const existingOpen = sharedData.assignments.some(assignment => assignment.employeeId === employee.employeeId && !assignment.effectiveEnd);
+    const start = existingOpen || hasExistingAssignments ? getAtlasTodayISODate() : (rosterVersionDate || getAtlasTodayISODate());
+    upsertSharedAssignmentForEmployee(sharedData, employee, { effectiveStart: start, syncedAt });
+  });
+  sharedData.lastPeopleRosterVersion = peopleState.rosterVersion;
+  sharedData.lastPeopleSource = peopleState.source;
+  sharedData.validationIssues = validateAtlasSharedData(sharedData);
+  const nextComparable = JSON.stringify({
+    employees: sharedData.employees,
+    assignments: sharedData.assignments,
+    rosterVersion: sharedData.lastPeopleRosterVersion
+  });
+  const changed = previousComparable !== nextComparable;
+  if (changed || !sharedData.lastPeopleSyncAt) sharedData.lastPeopleSyncAt = syncedAt;
+  atlasSharedData = sharedData;
+  if (changed && options.persist) persistOpsGlobalData();
+  return {
+    changed,
+    employeeCount: normalizedPeople.length,
+    assignmentCount: sharedData.assignments.length,
+    currentAssignmentCount: sharedData.assignments.filter(assignment => !assignment.effectiveEnd).length
+  };
+}
+
+function getBonusQuarterDateRange(quarter = bonusQuarter, year = new Date().getFullYear()) {
+  const qIndex = Math.max(0, ["Q1", "Q2", "Q3", "Q4"].indexOf(quarter));
+  const startMonth = qIndex * 3;
+  const start = new Date(year, startMonth, 1);
+  const end = new Date(year, startMonth + 3, 0);
+  return {
+    year,
+    quarter: ["Q1", "Q2", "Q3", "Q4"][qIndex],
+    start: getAtlasTodayISODate(start),
+    end: getAtlasTodayISODate(end)
+  };
+}
+
+function getBonusAssignmentAsOfDate(quarter = bonusQuarter, year = new Date().getFullYear()) {
+  const range = getBonusQuarterDateRange(quarter, year);
+  const today = getAtlasTodayISODate();
+  return today >= range.start && today <= range.end ? today : range.end;
+}
+
+function isSharedAssignmentActiveOnDate(assignment, asOfDate) {
+  const asOfTime = sharedDateTime(asOfDate);
+  const startTime = sharedDateTime(assignment.effectiveStart);
+  const endTime = assignment.effectiveEnd ? sharedDateTime(assignment.effectiveEnd) : null;
+  if (asOfTime == null || startTime == null) return false;
+  return startTime <= asOfTime && (endTime == null || endTime >= asOfTime);
+}
+
+function getSharedAssignmentsForCommunity(propName = getProp().name, options = {}) {
+  const matched = findCanonicalCommunityName(propName) || propName;
+  const asOfDate = normalizeSharedDate(options.asOfDate) || getBonusAssignmentAsOfDate(options.quarter || bonusQuarter);
+  const order = Object.fromEntries(PROPERTY_TEAM_ROLE_ORDER.map((roleType, index) => [roleType, index]));
+  return normalizeAtlasSharedData(atlasSharedData).assignments
+    .filter(assignment => assignment.communityName === matched)
+    .filter(assignment => !options.roleType || assignment.bonusRoleType === options.roleType)
+    .filter(assignment => isSharedAssignmentActiveOnDate(assignment, asOfDate))
+    .sort((a, b) =>
+      (order[a.bonusRoleType] ?? 99) - (order[b.bonusRoleType] ?? 99)
+      || String(a.employeeName).localeCompare(String(b.employeeName))
+    );
+}
+
+function getSharedAssignmentsByRoleType(propName = getProp().name, options = {}) {
+  return getSharedAssignmentsForCommunity(propName, options).reduce((acc, assignment) => {
+    acc[assignment.bonusRoleType] = acc[assignment.bonusRoleType] || [];
+    acc[assignment.bonusRoleType].push(assignment);
+    return acc;
+  }, {});
+}
+
+function getSharedLeasingAssignmentsForCurrentProperty() {
+  return getSharedAssignmentsForCommunity(getProp().name)
+    .filter(assignment => assignment.bonusRoleType === "lp" || assignment.bonusRoleType === "lm");
+}
+
+function syncPropertyBonusStructureFromSharedAssignments(propName = getProp().name) {
+  const assignmentsByRoleType = getSharedAssignmentsByRoleType(propName);
+  let changed = false;
+  PROPERTY_TEAM_ROLE_ORDER.forEach(roleType => {
+    const sharedCount = assignmentsByRoleType[roleType]?.length || 0;
+    const currentCount = Number(propertyTeamConfig?.[roleType] ?? 0);
+    if (sharedCount > currentCount) {
+      propertyTeamConfig = { ...propertyTeamConfig, [roleType]: sharedCount };
+      changed = true;
+    }
+  });
+  if (changed) {
+    communityTeamProfiles = normalizeCommunityTeamProfiles(communityTeamProfiles, propertyTeamConfig);
+    bonusRolesByQ = rebuildBonusRolesByQuarter(bonusRolesByQ, propertyTeamConfig);
+  }
+  return changed;
+}
+
+function getSharedCommissionAgents(baseAgents = getCommissionAgents(false)) {
+  const sharedLeasingAssignments = getSharedLeasingAssignmentsForCurrentProperty();
+  if (!sharedLeasingAssignments.length) return baseAgents;
+  return sharedLeasingAssignments.map((assignment, index) => ({
+    ...(baseAgents[index] || {}),
+    name: assignment.employeeName || baseAgents[index]?.name || `Agent ${index + 1}`,
+    employeeId: assignment.employeeId,
+    sharedAssignmentId: assignment.assignmentId,
+    roleTitle: assignment.title || SHARED_BONUS_ROLE_LABELS[assignment.bonusRoleType] || "Leasing",
+    communityName: assignment.communityName,
+    sourceLabel: "People"
+  }));
+}
+
 function normalizeWindowshadeState(data) {
   const input = data ?? {};
   return Object.fromEntries(Object.keys(WINDOWSHADE_DEFAULTS).map(key => [
@@ -3756,7 +4331,8 @@ function normalizeOpsGlobalData(data) {
     reportHubMonth: Number.isInteger(input.reportHubMonth) ? clampNumber(input.reportHubMonth, 0, 11) : DEFAULT_CURRENT_MONTH,
     reportHubYear: Number.isFinite(Number(input.reportHubYear)) ? Number(input.reportHubYear) : new Date().getFullYear(),
     reportRecommendationOverrides: normalizeReportRecommendationOverrides(input.reportRecommendationOverrides),
-    windowshadeState: normalizeWindowshadeState(input.windowshadeState)
+    windowshadeState: normalizeWindowshadeState(input.windowshadeState),
+    sharedData: normalizeAtlasSharedData(input.sharedData)
   };
 }
 
@@ -3780,7 +4356,8 @@ function getLegacyOpsGlobalSeed() {
     reportHubMonth: legacy.reportHubMonth,
     reportHubYear: legacy.reportHubYear,
     reportRecommendationOverrides: legacy.reportRecommendationOverrides,
-    windowshadeState: legacy.windowshadeState
+    windowshadeState: legacy.windowshadeState,
+    sharedData: legacy.sharedData
   } : {};
 }
 
@@ -3806,6 +4383,7 @@ function applyOpsGlobalData(data) {
   reportHubYear = normalized.reportHubYear;
   reportRecommendationOverrides = normalized.reportRecommendationOverrides;
   windowshadeState = normalized.windowshadeState;
+  atlasSharedData = normalized.sharedData;
   monthlyTemplateImportTargetTouched = false;
   syncMonthlyTemplateImportTarget({ force: true });
   if (!salarySecurity.enabled) salaryUnlocked = false;
@@ -3862,7 +4440,8 @@ function persistOpsGlobalData() {
     reportHubMonth,
     reportHubYear,
     reportRecommendationOverrides,
-    windowshadeState
+    windowshadeState,
+    sharedData: atlasSharedData
   });
   return persistJsonToLocalStorage(OPS_GLOBAL_STORAGE_KEY, opsGlobalData, "Bonus and presentation settings");
 }
@@ -4170,11 +4749,11 @@ function getMonthsToStabilization() {
   };
 }
 
-function getCommissionAgents() {
+function getCommissionAgents(useSharedAssignments = true) {
   if (!Array.isArray(commissionData.agents) || commissionData.agents.length === 0) {
     commissionData = normalizeCommissionData(commissionData);
   }
-  return commissionData.agents;
+  return useSharedAssignments ? getSharedCommissionAgents(commissionData.agents) : commissionData.agents;
 }
 
 function normalizeCommunityStatus(value) {
@@ -8873,6 +9452,264 @@ async function buildDashboardStorageBundle() {
   };
 }
 
+function parseAtlasMigrationJson(rawValue) {
+  if (typeof rawValue !== "string" || !rawValue.trim()) return null;
+  try { return JSON.parse(rawValue); } catch { return null; }
+}
+
+function cloneAtlasMigrationPayload(value) {
+  try { return JSON.parse(JSON.stringify(value)); } catch { return value; }
+}
+
+async function hashAtlasMigrationPayload(value) {
+  const text = typeof value === "string" ? value : JSON.stringify(value ?? null);
+  if (window.crypto?.subtle && window.TextEncoder) {
+    try {
+      const bytes = new TextEncoder().encode(text);
+      const digest = await window.crypto.subtle.digest("SHA-256", bytes);
+      return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, "0")).join("");
+    } catch {}
+  }
+  return `simple:${simpleHash(text)}`;
+}
+
+function redactAtlasMigrationStorageValue(key, rawValue) {
+  const parsed = parseAtlasMigrationJson(rawValue);
+  const redactedFields = [];
+  if (key === PERFORMANCE_PLATFORM_STORAGE_KEY && parsed && typeof parsed === "object") {
+    const next = cloneAtlasMigrationPayload(parsed);
+    if (Array.isArray(next.users)) {
+      next.users = next.users.map(user => {
+        const sanitized = { ...user };
+        if (sanitized.pin) {
+          sanitized.pin = "[redacted]";
+          redactedFields.push("users.pin");
+        }
+        if (sanitized.passwordHash) {
+          sanitized.passwordHash = "[redacted]";
+          redactedFields.push("users.passwordHash");
+        }
+        return sanitized;
+      });
+    }
+    return { value: JSON.stringify(next), parsed: next, redactedFields: [...new Set(redactedFields)] };
+  }
+  return { value: rawValue, parsed, redactedFields };
+}
+
+function sumAtlasNumericLeaves(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (Array.isArray(value)) return value.reduce((sum, item) => sum + sumAtlasNumericLeaves(item), 0);
+  if (value && typeof value === "object") return Object.values(value).reduce((sum, item) => sum + sumAtlasNumericLeaves(item), 0);
+  return 0;
+}
+
+function atlasMonthlyEntryHasMigrationData(entry) {
+  return Boolean(entry && typeof entry === "object" && Object.values(entry).some(value => {
+    if (typeof value === "number") return Number.isFinite(value) && value !== 0;
+    if (typeof value === "string") return value.trim().length > 0;
+    return Boolean(value);
+  }));
+}
+
+function buildAtlasMigrationReconciliationSummary(communityData = {}, storageEntries = {}, indexedDbPayload = {}) {
+  const communityRecords = communityData && typeof communityData === "object" ? communityData : {};
+  const peopleStorage = storageEntries[PERFORMANCE_PLATFORM_STORAGE_KEY]?.parsed || {};
+  const maintenanceStorage = storageEntries.rise_wmr_v1?.parsed || {};
+  const marketingContacts = storageEntries["rise-b2b-v6"]?.parsed || [];
+  const marketingActivities = storageEntries["rise-b2b-acts-v3"]?.parsed || [];
+  const sharedData = normalizeAtlasSharedData(atlasSharedData);
+  const summary = {
+    recordCounts: {
+      communities: Object.keys(communityRecords).length,
+      activeCommunities: 0,
+      inactiveCommunities: 0,
+      peopleEmployees: Array.isArray(peopleStorage.employees) ? peopleStorage.employees.length : 0,
+      peoplePlans: Array.isArray(peopleStorage.plans) ? peopleStorage.plans.length : 0,
+      peopleWriteups: Array.isArray(peopleStorage.writeups) ? peopleStorage.writeups.length : 0,
+      sharedEmployees: Object.keys(sharedData.employees || {}).length,
+      sharedAssignments: Array.isArray(sharedData.assignments) ? sharedData.assignments.length : 0,
+      currentSharedAssignments: Array.isArray(sharedData.assignments) ? sharedData.assignments.filter(assignment => !assignment.effectiveEnd).length : 0,
+      maintenanceWeeks: maintenanceStorage?.db?.weeks ? Object.keys(maintenanceStorage.db.weeks).length : 0,
+      maintenanceInspectionRecords: Array.isArray(maintenanceStorage?.db?.maintenanceInspectionRecords)
+        ? maintenanceStorage.db.maintenanceInspectionRecords.length
+        : maintenanceInspectionSnapshot.records.length,
+      maintenanceInspectionSnapshots: maintenanceStorage?.db?.maintenanceInspectionArchive
+        ? Object.keys(maintenanceStorage.db.maintenanceInspectionArchive).length
+        : Object.keys(maintenanceInspectionSnapshot.archive || {}).length,
+      moonriseInspectionExceptions: Array.isArray(maintenanceStorage?.db?.moonriseSync?.exceptions)
+        ? maintenanceStorage.db.moonriseSync.exceptions.length
+        : (maintenanceInspectionSnapshot.moonriseSync?.exceptions || []).length,
+      marketingContacts: Array.isArray(marketingContacts) ? marketingContacts.length : 0,
+      marketingActivities: Array.isArray(marketingActivities) ? marketingActivities.length : 0,
+      indexedDbDailyBackups: indexedDbPayload?.dailyBackups ? Object.keys(indexedDbPayload.dailyBackups).length : 0
+    },
+    financialTotals: {
+      actualLedgerNumericTotal: 0,
+      budgetLedgerNumericTotal: 0,
+      savedBudgetOccupancyTotal: 0
+    },
+    operatingTotals: {
+      monthlyRowsWithData: 0,
+      guestCards: 0,
+      tours: 0,
+      applications: 0,
+      approvedApplications: 0,
+      leasesSigned: 0,
+      moveIns: 0,
+      moveOuts: 0,
+      renewalExpirations: 0,
+      renewalsSigned: 0
+    },
+    marketingData: {
+      marketSurveyCompRows: 0,
+      floorPlanRateRows: 0
+    },
+    bonusData: {
+      roleSlots: 0,
+      metricRows: 0,
+      commissionAgents: 0,
+      configuredTeamProfiles: 0
+    },
+    contractData: {
+      detectedContractRows: 0,
+      detectedContractAmountTotal: 0
+    }
+  };
+
+  Object.values(communityRecords).forEach(record => {
+    const normalized = normalizeSavedCommunityRecord(record?.name || "", record);
+    if (normalized.communityStatus === "inactive") summary.recordCounts.inactiveCommunities += 1;
+    else summary.recordCounts.activeCommunities += 1;
+    summary.financialTotals.actualLedgerNumericTotal += sumAtlasNumericLeaves(normalized.financialLedger);
+    summary.financialTotals.budgetLedgerNumericTotal += sumAtlasNumericLeaves(normalized.financialBudgetLedger);
+    summary.financialTotals.savedBudgetOccupancyTotal += (normalized.savedBudgetTargets || []).reduce((sum, value) => sum + (Number(value) || 0), 0);
+    (normalized.monthlyData || []).forEach(entry => {
+      if (!atlasMonthlyEntryHasMigrationData(entry)) return;
+      summary.operatingTotals.monthlyRowsWithData += 1;
+      summary.operatingTotals.guestCards += Number(entry.guestCards || 0);
+      summary.operatingTotals.tours += Number(entry.tours || 0);
+      summary.operatingTotals.applications += Number(entry.applications || 0);
+      summary.operatingTotals.approvedApplications += Number(entry.applicationsApproved || 0);
+      summary.operatingTotals.leasesSigned += Number(entry.leasesSignedActual || 0);
+      summary.operatingTotals.moveIns += Number(entry.moveIns || 0);
+      summary.operatingTotals.moveOuts += Number(entry.moveOuts || 0);
+      summary.operatingTotals.renewalExpirations += Number(entry.renewalExpirations || 0);
+      summary.operatingTotals.renewalsSigned += Number(entry.renewalSigned || 0);
+    });
+    const survey = normalized.marketSurveyData || {};
+    summary.marketingData.marketSurveyCompRows += Array.isArray(survey.surveyComps) ? survey.surveyComps.length : 0;
+    summary.marketingData.floorPlanRateRows += Array.isArray(survey.floorPlanRates) ? survey.floorPlanRates.length : 0;
+    Object.values(normalized.bonusRolesByQ || {}).forEach(roles => {
+      (Array.isArray(roles) ? roles : []).forEach(role => {
+        summary.bonusData.roleSlots += 1;
+        summary.bonusData.metricRows += Array.isArray(role.metrics) ? role.metrics.length : 0;
+      });
+    });
+    summary.bonusData.commissionAgents += Array.isArray(normalized.commissionData?.agents) ? normalized.commissionData.agents.length : 0;
+    summary.bonusData.configuredTeamProfiles += Array.isArray(normalized.communityTeamProfiles) ? normalized.communityTeamProfiles.length : 0;
+    const contractRows = Array.isArray(normalized.contracts) ? normalized.contracts : (Array.isArray(normalized.documents) ? normalized.documents : []);
+    summary.contractData.detectedContractRows += contractRows.length;
+    summary.contractData.detectedContractAmountTotal += contractRows.reduce((sum, item) => sum + (Number(item?.amount || item?.contractAmount || 0) || 0), 0);
+  });
+
+  return summary;
+}
+
+async function collectAtlasCentralMigrationSnapshot() {
+  await atlasStateWritePromise.catch(() => null);
+  const centralStatus = window.ATLAS_CENTRAL?.getStatus ? window.ATLAS_CENTRAL.getStatus() : { configured: false, mode: "legacy-migration", message: "Central client not loaded." };
+  const storageEntries = {};
+  for (const key of [...new Set(ATLAS_LEGACY_MIGRATION_STORAGE_KEYS)]) {
+    let rawValue = null;
+    try { rawValue = localStorage.getItem(key); } catch {}
+    if (rawValue === null) continue;
+    const redacted = redactAtlasMigrationStorageValue(key, rawValue);
+    storageEntries[key] = {
+      present: true,
+      value: redacted.value,
+      parsed: redacted.parsed,
+      sha256: await hashAtlasMigrationPayload(redacted.value),
+      redactedFields: redacted.redactedFields
+    };
+  }
+  const excludedSensitiveKeys = ATLAS_SENSITIVE_LOCAL_STORAGE_KEYS.filter(key => {
+    try { return localStorage.getItem(key) !== null; } catch { return false; }
+  });
+  const indexedDbPayload = await buildAtlasIndexedDbBundlePayload();
+  const communityData = savedData && typeof savedData === "object" ? cloneAtlasMigrationPayload(savedData) : {};
+  const sharedData = normalizeAtlasSharedData(atlasSharedData);
+  return {
+    app: "atlas-rise-ops-dashboard",
+    snapshotType: "atlas_central_migration_read_only_snapshot_v1",
+    generatedAt: new Date().toISOString(),
+    centralStatus,
+    readOnly: true,
+    migrationSafety: {
+      noWritesPerformed: true,
+      noDeletesPerformed: true,
+      reversibleMigrationRequired: true,
+      legacyStorageRetained: true,
+      sensitiveLocalKeysExcluded: excludedSensitiveKeys
+    },
+    sourceInventory: {
+      localStorageKeysCaptured: Object.keys(storageEntries),
+      localStorageKeysExcluded: excludedSensitiveKeys,
+      indexedDbStoresCaptured: ["community_data", "weekly_snapshot", "daily_backups"],
+      projectSnapshotManifest: "outputs/atlas_migration_safety/backup_2026-08-19_1805_manifest.json"
+    },
+    reconciliation: buildAtlasMigrationReconciliationSummary(communityData, storageEntries, indexedDbPayload),
+    exceptions: [
+      ...(!centralStatus.configured ? [{ severity: "blocker", code: "central_data_not_configured", message: centralStatus.message }] : []),
+      ...excludedSensitiveKeys.map(key => ({ severity: "info", code: "sensitive_key_excluded", message: `${key} was excluded from the migration snapshot and must be recreated through secure hosted auth.` })),
+      ...(Array.isArray(sharedData.validationIssues) ? sharedData.validationIssues : [])
+    ],
+    storageEntries,
+    indexedDb: indexedDbPayload,
+    sharedData,
+    currentWorkspaceDraft: {
+      community: getProp().name,
+      record: cloneAtlasMigrationPayload(getCurrentCommunityRecord())
+    }
+  };
+}
+
+async function downloadAtlasCentralMigrationSnapshot() {
+  try {
+    const snapshot = await collectAtlasCentralMigrationSnapshot();
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `atlas_central_migration_snapshot_${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    alert("Read-only migration snapshot exported. No central data was changed.");
+  } catch (error) {
+    alert(`Migration snapshot failed: ${error?.message || error}`);
+  }
+}
+
+function renderAtlasCentralPlatformPanel() {
+  const status = window.ATLAS_CENTRAL?.getStatus ? window.ATLAS_CENTRAL.getStatus() : { configured: false, mode: "legacy-migration", message: "Central client not loaded." };
+  const badgeColor = status.configured ? "#3fb950" : "#d29922";
+  return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+      <div>
+        <div class="card-title" style="margin-bottom:6px">Central Platform Migration Gate</div>
+        <div style="font-size:0.68rem;color:var(--muted);line-height:1.55">Atlas is currently running as a browser-storage app. Before any hosted migration, export this read-only snapshot and reconcile counts, totals, assignments, contracts, marketing records, and bonus inputs against the central dry run.</div>
+      </div>
+      <span class="bonus-scope-pill" style="border-color:${badgeColor};color:${badgeColor}">${escapeHtml(status.mode || "legacy-migration")}</span>
+    </div>
+    <div style="font-size:0.66rem;color:var(--muted);margin-bottom:10px">${escapeHtml(status.message || "")}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-blue btn-sm" onclick="downloadAtlasCentralMigrationSnapshot()">Export Read-Only Migration Snapshot</button>
+      <a class="btn btn-gray btn-sm" href="./centralization/atlas-central-migration-plan.md" target="_blank" rel="noopener">Migration Plan</a>
+      <a class="btn btn-gray btn-sm" href="./centralization/atlas-central-schema.sql" target="_blank" rel="noopener">Database Schema</a>
+    </div>
+    <div style="font-size:0.62rem;color:var(--muted);margin-top:8px">Legacy JSON and browser bundles remain available only for controlled backup, export, or migration. They should not be treated as the collaboration system of record.</div>
+  </div>`;
+}
+
 function mergeDashboardStorageBundles(baseBundle, incomingBundle) {
   const base = baseBundle && typeof baseBundle === "object" ? baseBundle : {};
   const incoming = incomingBundle && typeof incomingBundle === "object" ? incomingBundle : {};
@@ -9848,13 +10685,13 @@ function renderDashboardDataMigrationPanel() {
   return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
       <div>
-        <div class="card-title" style="margin-bottom:6px">Browser Data Migration</div>
-        <div style="font-size:0.68rem;color:var(--muted)">Use this to align Playground and live browser data for both ATLAS apps. Browser storage is local to each browser profile unless you use the cloud sync buttons or import a bundle file.</div>
+        <div class="card-title" style="margin-bottom:6px">Legacy Browser Transfer</div>
+        <div style="font-size:0.68rem;color:var(--muted)">Use this only for controlled backup or migration. Browser storage is local to each browser profile and is not the Atlas collaboration source of truth.</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-gray btn-sm" onclick="verifyDashboardSharedSyncConnection()">🔌 Check Cloud</button>
-        <button class="btn btn-blue btn-sm" onclick="pushDashboardSharedState({ silent:false, source:'manual_push' })">☁ Save To Cloud</button>
-        <button class="btn btn-gray btn-sm" onclick="pullDashboardSharedState({ silent:false, applyRemoteIfNewer:true })">☁ Pull From Cloud</button>
+        <button class="btn btn-gray btn-sm" onclick="pushDashboardSharedState({ silent:false, source:'manual_push' })">Legacy Bundle Save</button>
+        <button class="btn btn-gray btn-sm" onclick="pullDashboardSharedState({ silent:false, applyRemoteIfNewer:true })">Legacy Bundle Pull</button>
         <button class="btn btn-gray btn-sm" onclick="copyDashboardStorageBundleToClipboard()">📋 Copy Bundle</button>
         <button class="btn btn-blue btn-sm" onclick="document.getElementById('atlas-bundle-file-input').click()">⬇ Import Bundle</button>
         <button class="btn btn-gray btn-sm" onclick="importDashboardStorageBundleFromClipboard()">📋 Paste Bundle</button>
@@ -9862,6 +10699,7 @@ function renderDashboardDataMigrationPanel() {
     </div>
     <input type="file" id="atlas-bundle-file-input" accept=".json,application/json" style="display:none" onchange="importDashboardStorageBundleFromFile(this.files && this.files[0]); this.value = ''">
     <div style="font-size:0.66rem;color:var(--muted)">Bundle includes dashboard saves, workspace context, reporting baseline, property catalog, nav state, and Performance Platform browser state. Use Import Bundle for the downloaded file, or Paste Bundle if you copied JSON directly.</div>
+    <div style="font-size:0.64rem;color:#d29922;margin-top:6px">Legacy bundle import can update browser storage. Export the read-only central migration snapshot first and reconcile before applying any bundle.</div>
     <div style="font-size:0.64rem;color:var(--muted);margin-top:6px">${escapeHtml(getDashboardSharedSyncStatusLine())}</div>
   </div>`;
 }
@@ -14974,14 +15812,14 @@ function updateBonusMetric(roleIdx, metIdx, field, val) {
 function updateCommission(field, val) {
   if (field === "totalAgents") {
     const totalAgents = Math.max(1, Number(val));
-    const existingAgents = getCommissionAgents().map(agent => ({ ...agent }));
+    const existingAgents = getCommissionAgents(false).map(agent => ({ ...agent }));
     while (existingAgents.length < totalAgents) existingAgents.push({ name: `Agent ${existingAgents.length + 1}` });
     commissionData.totalAgents = totalAgents;
     commissionData.agents = existingAgents.slice(0, totalAgents);
   }
   else if (field.startsWith("agentName_")) {
     const idx = Number(field.split("_")[1]);
-    const agents = getCommissionAgents();
+    const agents = getCommissionAgents(false);
     if (agents[idx]) agents[idx].name = val;
   }
   else if (field === "baseTierCost") commissionData.baseTier.costPerLease = Number(val);
@@ -15471,6 +16309,8 @@ function getEarnedMetricDetails(role) {
 }
 
 function getBonusExportData() {
+  syncSharedPeopleAssignments({ persist: true });
+  syncPropertyBonusStructureFromSharedAssignments(getProp().name);
   syncAbsorptionMetricsFromMonthlyData();
   syncPropertyOraMetrics();
   syncPropertyMsoeMetrics();
@@ -15491,7 +16331,10 @@ function getBonusExportData() {
     return {
       type: "leasing_agent",
       name: agent.name || `Agent ${idx + 1}`,
-      role: "Leasing Agent",
+      role: agent.roleTitle || "Leasing Agent",
+      community: agent.communityName || getProp().name,
+      assignmentSource: agent.sourceLabel || "Manual fallback",
+      employeeId: agent.employeeId || "",
       monthly,
       quarterly,
       currentMonthProjected: commission.agentPayouts[idx]?.total ?? 0,
@@ -15504,13 +16347,19 @@ function getBonusExportData() {
 
   const roleEmployees = [];
   Object.entries(bonusRolesByQ).forEach(([quarter, roles]) => {
+    const assignmentMap = getBonusRoleAssignmentBySlot(roles, getProp().name, quarter);
     roles.forEach(role => {
       const payout = calcRolePayout(role);
       const earnedMetrics = getEarnedMetricDetails(role);
+      const display = getBonusRoleDisplayContext(role, assignmentMap[role.id] || null);
       roleEmployees.push({
         type: "bonus_role",
-        name: role.name || getRoleDisplayTitle(role),
-        role: getRoleDisplayTitle(role),
+        name: display.name || getRoleDisplayTitle(role),
+        role: display.title || getRoleDisplayTitle(role),
+        community: display.communityName,
+        assignmentSource: display.sourceLabel,
+        employeeId: display.employeeId,
+        assignmentId: display.assignmentId,
         quarter,
         quarterlyPayout: payout.earned,
         absorptionActual: quarterTotals[quarter] ?? 0,
@@ -15531,14 +16380,14 @@ function getBonusExportData() {
 
 function exportBonusPayoutCSV() {
   const data = getBonusExportData();
-  const lines = [["category","name","role_or_period","period_type","payout"]];
+  const lines = [["category","name","community","role_or_period","period_type","payout","assignment_source"]];
   data.leasingAgents.forEach(agent => {
-    agent.monthly.forEach(item => lines.push(["Leasing Agent", agent.name, item.month, "Monthly", item.payout.toFixed(2)]));
-    agent.quarterly.forEach(item => lines.push(["Leasing Agent", agent.name, item.quarter, "Quarterly", item.payout.toFixed(2)]));
-    lines.push(["Leasing Agent", agent.name, data.currentMonth, "Current Month Projection", agent.currentMonthProjected.toFixed(2)]);
+    agent.monthly.forEach(item => lines.push(["Leasing Agent", agent.name, agent.community, item.month, "Monthly", item.payout.toFixed(2), agent.assignmentSource]));
+    agent.quarterly.forEach(item => lines.push(["Leasing Agent", agent.name, agent.community, item.quarter, "Quarterly", item.payout.toFixed(2), agent.assignmentSource]));
+    lines.push(["Leasing Agent", agent.name, agent.community, data.currentMonth, "Current Month Projection", agent.currentMonthProjected.toFixed(2), agent.assignmentSource]);
   });
   data.roleEmployees.forEach(role => {
-    lines.push(["Bonus Role", role.name, `${role.quarter} (${role.role})`, "Quarterly", role.quarterlyPayout.toFixed(2)]);
+    lines.push(["Bonus Role", role.name, role.community, `${role.quarter} (${role.role})`, "Quarterly", role.quarterlyPayout.toFixed(2), role.assignmentSource]);
   });
   const csv = lines.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
@@ -15560,9 +16409,11 @@ function buildBonusPayoutReportDocument() {
         : `<p>No earned metrics for this quarter.</p>`;
       return `<div class="card">
         <div class="eyebrow">Bonus Role</div>
-        <h3>${role.name}</h3>
-        <div class="meta-row"><span>Role</span><strong>${role.role}</strong></div>
-        <div class="meta-row"><span>Quarter</span><strong>${role.quarter}</strong></div>
+        <h3>${escapeHtml(role.name)}</h3>
+        <div class="meta-row"><span>Role</span><strong>${escapeHtml(role.role)}</strong></div>
+        <div class="meta-row"><span>Community</span><strong>${escapeHtml(role.community)}</strong></div>
+        <div class="meta-row"><span>Quarter</span><strong>${escapeHtml(role.quarter)}</strong></div>
+        <div class="meta-row"><span>Assignment Source</span><strong>${escapeHtml(role.assignmentSource)}</strong></div>
         <div class="meta-row"><span>Absorption</span><strong>${role.absorptionActual > 0 ? "+" : ""}${role.absorptionActual}</strong></div>
         <div class="total">Total Payout Due: $${role.quarterlyPayout.toLocaleString(undefined,{maximumFractionDigits:2})}</div>
         <div class="detail-title">Earned Metrics</div>
@@ -15573,7 +16424,10 @@ function buildBonusPayoutReportDocument() {
       const quarterSummary = agent.quarterly.map(item => `${item.quarter}: $${item.payout.toLocaleString(undefined,{maximumFractionDigits:2})}`).join(" · ");
       return `<div class="card">
         <div class="eyebrow">Leasing Agent</div>
-        <h3>${agent.name}</h3>
+        <h3>${escapeHtml(agent.name)}</h3>
+        <div class="meta-row"><span>Role</span><strong>${escapeHtml(agent.role)}</strong></div>
+        <div class="meta-row"><span>Community</span><strong>${escapeHtml(agent.community)}</strong></div>
+        <div class="meta-row"><span>Assignment Source</span><strong>${escapeHtml(agent.assignmentSource)}</strong></div>
         <div class="meta-row"><span>Current Month</span><strong>${data.currentMonth}</strong></div>
         <div class="meta-row"><span>Base Commission Share</span><strong>$${agent.detail.baseCommission.toLocaleString(undefined,{maximumFractionDigits:2})}</strong></div>
         <div class="meta-row"><span>App Kicker Share</span><strong>$${agent.detail.appKicker.toLocaleString(undefined,{maximumFractionDigits:2})}</strong></div>
@@ -15603,16 +16457,104 @@ function openBonusPayoutReport(printImmediately=false) {
   if (printImmediately) win.print();
 }
 
+function formatSharedAssignmentDateRange(assignment = {}) {
+  const start = assignment.effectiveStart || "Unknown start";
+  const end = assignment.effectiveEnd || "Current";
+  return `${start} - ${end}`;
+}
+
+function getBonusRoleAssignmentBySlot(roles = [], propName = getProp().name, quarter = bonusQuarter) {
+  const assignmentsByType = getSharedAssignmentsByRoleType(propName, { quarter });
+  const slotCountByType = {};
+  return Object.fromEntries((Array.isArray(roles) ? roles : []).map(role => {
+    const roleType = role?.roleType || inferSharedBonusRoleType(role?.title);
+    const slotIndex = slotCountByType[roleType] || 0;
+    slotCountByType[roleType] = slotIndex + 1;
+    return [role.id, assignmentsByType[roleType]?.[slotIndex] || null];
+  }));
+}
+
+function getBonusRoleDisplayContext(role, assignment = null) {
+  const fallbackName = String(role?.name ?? "").trim();
+  return {
+    employeeId: assignment?.employeeId || "",
+    assignmentId: assignment?.assignmentId || "",
+    name: assignment?.employeeName || fallbackName,
+    title: assignment?.title || role?.title || "",
+    communityName: assignment?.communityName || getProp().name,
+    sourceLabel: assignment ? "People assignment" : (fallbackName ? "Manual fallback" : "Unassigned"),
+    isShared: Boolean(assignment),
+    effectiveLabel: assignment ? formatSharedAssignmentDateRange(assignment) : ""
+  };
+}
+
+function renderBonusSharedDataPanel(propName = getProp().name) {
+  const sharedData = normalizeAtlasSharedData(atlasSharedData);
+  const assignments = getSharedAssignmentsForCommunity(propName);
+  const employeeCount = Object.keys(sharedData.employees || {}).length;
+  const currentAssignmentCount = sharedData.assignments.filter(assignment => !assignment.effectiveEnd).length;
+  const issues = Array.isArray(sharedData.validationIssues) ? sharedData.validationIssues : [];
+  const propertyIssues = issues.filter(issue =>
+    !issue.communityName
+    || normalizeCommunityLookupName(issue.communityName) === normalizeCommunityLookupName(propName)
+    || String(issue.message || "").toLowerCase().includes(String(propName || "").toLowerCase())
+  );
+  const roleCounts = PROPERTY_TEAM_ROLE_ORDER
+    .map(roleType => {
+      const count = assignments.filter(assignment => assignment.bonusRoleType === roleType).length;
+      return count ? `${SHARED_BONUS_ROLE_LABELS[roleType]}: ${count}` : "";
+    })
+    .filter(Boolean)
+    .join(" · ");
+  const assignmentRows = assignments.length
+    ? assignments.map(assignment => `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--border2)">
+        <div>
+          <div style="font-size:0.74rem;font-weight:700;color:var(--text)">${escapeHtml(assignment.employeeName)}</div>
+          <div style="font-size:0.64rem;color:var(--muted)">${escapeHtml(assignment.title || SHARED_BONUS_ROLE_LABELS[assignment.bonusRoleType] || "Role")} · ${escapeHtml(formatSharedAssignmentDateRange(assignment))}</div>
+        </div>
+        <span class="bonus-scope-pill">${escapeHtml(SHARED_BONUS_ROLE_LABELS[assignment.bonusRoleType] || assignment.bonusRoleType)}</span>
+      </div>`).join("")
+    : `<div style="font-size:0.7rem;color:var(--muted);padding-top:6px">No current People assignments are mapped to ${escapeHtml(propName)} for ${bonusQuarter}. Manual bonus entries remain visible as fallback rows.</div>`;
+  const issueRows = propertyIssues.length
+    ? `<div style="margin-top:10px;padding:10px;border:1px solid rgba(217,153,34,0.32);background:rgba(217,153,34,0.06);border-radius:8px">
+        <div style="font-size:0.68rem;font-weight:700;color:#d29922;margin-bottom:6px">Shared data validation</div>
+        ${propertyIssues.slice(0, 5).map(issue => `<div style="font-size:0.66rem;color:var(--muted);line-height:1.45">${escapeHtml(String(issue.severity || "warn").toUpperCase())}: ${escapeHtml(issue.message || issue.code || "Review shared data")}</div>`).join("")}
+        ${propertyIssues.length > 5 ? `<div style="font-size:0.62rem;color:var(--muted);margin-top:4px">+${propertyIssues.length - 5} more issue${propertyIssues.length - 5 === 1 ? "" : "s"} in shared validation.</div>` : ""}
+      </div>`
+    : `<div style="margin-top:10px;font-size:0.66rem;color:#3fb950">No assignment validation issues for this community.</div>`;
+  return `<div class="bonus-role-card" style="border-color:rgba(68,147,248,0.26)">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+      <div>
+        <div class="bonus-role-name" style="font-size:0.84rem">Shared People Assignment Feed</div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-top:4px">People is the source for employee identity, status, title, and current community assignment. Bonus uses the assignment active for ${bonusQuarter} ${new Date().getFullYear()}.</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <span class="bonus-scope-pill">${employeeCount} People employees</span>
+        <span class="bonus-scope-pill">${currentAssignmentCount} current assignments</span>
+        <span class="bonus-scope-pill">${sharedData.lastPeopleRosterVersion ? `Roster ${escapeHtml(sharedData.lastPeopleRosterVersion)}` : "Roster not versioned"}</span>
+      </div>
+    </div>
+    <div style="font-size:0.68rem;color:var(--muted);margin-bottom:8px">${roleCounts || "No bonus-eligible People roles mapped here yet."}</div>
+    ${assignmentRows}
+    ${issueRows}
+  </div>`;
+}
+
 function renderPropertyBonusTab() {
+  syncSharedPeopleAssignments({ persist: true });
+  syncPropertyBonusStructureFromSharedAssignments(getProp().name);
   syncAbsorptionMetricsFromMonthlyData();
   syncPropertyOraMetrics();
   syncPropertyMsoeMetrics();
   const qLabel = bonusQuarter;
   const roles = getBonusRoles();
   const agents = getCommissionAgents();
+  const roleAssignmentMap = getBonusRoleAssignmentBySlot(roles, getProp().name, qLabel);
+  const hasSharedCommissionAgents = agents.some(agent => agent.sharedAssignmentId);
   const propertyPlan = getCommunityPerformancePlan(getProp().name, getCurrentCommunityRecord());
   const salaryAccessAllowed = isSalaryAccessAllowed();
   const rosterSummary = getPropertyTeamCountSummary();
+  const sharedDataPanel = renderBonusSharedDataPanel(getProp().name);
 
   // ── Quarterly Summary ──
   let totalPotential = 0, totalEarned = 0;
@@ -15672,6 +16614,8 @@ function renderPropertyBonusTab() {
   const roleCards = roles.map((role, ri) => {
     const p = calcRolePayout(role);
     const isCollapsed = bonusCollapsed[role.id] ?? false;
+    const sharedAssignment = roleAssignmentMap[role.id] || null;
+    const display = getBonusRoleDisplayContext(role, sharedAssignment);
 
     const metricsHTML = role.metrics.map((m, mi) => {
       const outcome = getMetricOutcome(m);
@@ -15749,10 +16693,12 @@ function renderPropertyBonusTab() {
     return `<div class="bonus-role-card">
       <div class="bonus-role-header" onclick="toggleBonusRole('${role.id}')">
         <div>
-          <span class="bonus-role-name">${role.title}</span>
-          <span class="bonus-role-meta" style="margin-left:8px">
-            <input class="bonus-inp-sm" type="text" value="${role.name}" placeholder="Name" onclick="event.stopPropagation()" onchange="updateBonusRole(${ri},'name',this.value)" style="width:100px">
-          </span>
+          <span class="bonus-role-name">${escapeHtml(display.title || role.title)}</span>
+          ${display.isShared
+            ? `<span class="bonus-role-meta" style="margin-left:8px;color:#3fb950">${escapeHtml(display.name)}</span>`
+            : `<span class="bonus-role-meta" style="margin-left:8px">
+                <input class="bonus-inp-sm" type="text" value="${escapeHtml(display.name)}" placeholder="Name" onclick="event.stopPropagation()" onchange="updateBonusRole(${ri},'name',this.value)" style="width:110px">
+              </span>`}
         </div>
         <div class="bonus-role-summary">
           <span class="earned">Earned: $${p.earned.toFixed(0)}</span>
@@ -15778,6 +16724,10 @@ function renderPropertyBonusTab() {
             Quarterly: <strong style="color:#a371f7">${salaryAccessAllowed ? `$${(role.salary * role.bonusRate / 100 / 4).toLocaleString(undefined,{maximumFractionDigits:0})}` : formatSalaryMask()}</strong>
           </div>
         </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">
+          <span class="bonus-scope-pill">${escapeHtml(display.sourceLabel)}</span>
+          <span style="font-size:0.68rem;color:var(--muted)">${display.isShared ? `${escapeHtml(display.communityName)} · ${escapeHtml(display.effectiveLabel)}` : "Not linked to a current People assignment"}</span>
+        </div>
         <div class="bonus-metrics-grid">${metricsHTML}</div>
       </div>
     </div>`;
@@ -15792,9 +16742,11 @@ function renderPropertyBonusTab() {
 
   const agentRows = agents.map((agent, idx) => {
     const payout = comm.agentPayouts[idx]?.total ?? 0;
+    const isSharedAgent = Boolean(agent.sharedAssignmentId);
     return `<div class="bonus-comm-cell" style="border-color:rgba(68,147,248,0.35)">
-      <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Agent ${idx + 1}</div>
-      <input class="bonus-inp-sm" type="text" value="${agent.name}" onchange="updateCommission('agentName_${idx}',this.value)" style="width:100%;margin-bottom:8px;text-align:left">
+      <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Agent ${idx + 1}${isSharedAgent ? " · People sync" : ""}</div>
+      <input class="bonus-inp-sm" type="text" value="${escapeHtml(agent.name)}" onchange="updateCommission('agentName_${idx}',this.value)" style="width:100%;margin-bottom:6px;text-align:left" ${isSharedAgent ? `disabled title="Synced from People assignment"` : ""}>
+      <div style="font-size:0.60rem;color:${isSharedAgent ? "#3fb950" : "var(--muted)"};margin-bottom:8px">${escapeHtml(isSharedAgent ? `${agent.roleTitle || "Leasing"} · ${agent.communityName || getProp().name}` : "Manual fallback")}</div>
       <div style="font-size:0.62rem;color:var(--muted)">Current month projected payout</div>
       <div style="font-size:1rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:#4493f8">$${payout.toLocaleString(undefined,{maximumFractionDigits:2})}</div>
       <div style="font-size:0.62rem;color:var(--muted);margin-top:4px">Equal split of team commission + kickers</div>
@@ -15845,8 +16797,8 @@ function renderPropertyBonusTab() {
   const commissionCard = `<div class="bonus-role-card">
     <h2 style="font-size:0.9rem;font-weight:700;margin-bottom:12px">💰 Monthly Leasing Commission Calculator</h2>
     <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:14px;font-size:0.72rem;color:var(--muted)">
-      <div>Total Agents: <input class="bonus-inp-sm" type="number" value="${commissionData.totalAgents}" min="1" max="10" onchange="updateCommission('totalAgents',this.value)" style="width:50px"></div>
-      <div>Entering a new total instantly creates or trims individual agent rows below.</div>
+      <div>Total Agents: <input class="bonus-inp-sm" type="number" value="${hasSharedCommissionAgents ? agents.length : commissionData.totalAgents}" min="1" max="10" onchange="updateCommission('totalAgents',this.value)" style="width:50px" ${hasSharedCommissionAgents ? `disabled title="Agent count is synced from People assignments"` : ""}></div>
+      <div>${hasSharedCommissionAgents ? "Leasing participants are synced from active People assignments for this community." : "Entering a new total instantly creates or trims individual agent rows below."}</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:14px">${agentRows}</div>
     <div style="font-size:0.68rem;color:var(--muted);margin-bottom:12px;padding:10px;background:var(--bg3);border-radius:6px">
@@ -15922,7 +16874,7 @@ function renderPropertyBonusTab() {
     </div>
   </div>`;
 
-  return summaryCard + roleCards + commissionCard;
+  return summaryCard + sharedDataPanel + roleCards + commissionCard;
 }
 
 function formatJacMetricDisplay(metric, value) {
@@ -30369,6 +31321,14 @@ function renderCSVTab() {
 
   return [
     renderWindowshadeCard({
+      key: "import_central_migration",
+      title: "Central Platform Migration Gate",
+      subtitle: "Read-only snapshot, reconciliation, and rollback controls before hosted database import.",
+      countLabel: "Required",
+      bodyHtml: renderAtlasCentralPlatformPanel(),
+      collapsedPreview: "Export read-only snapshot before central migration"
+    }),
+    renderWindowshadeCard({
       key: "import_daily_backup",
       title: "Daily JSON Backup",
       subtitle: "Automatic once-per-day snapshot of all local community data in this browser.",
@@ -32717,6 +33677,7 @@ function runAtlasStartupStep(label, step) {
 }
 
 function runAtlasInitialRenderPass() {
+  runAtlasStartupStep("sync shared people assignments", () => syncSharedPeopleAssignments({ persist: true }));
   runAtlasStartupStep("load property data", () => loadPropertyData(getProp().name));
   runAtlasStartupStep("render property workspace", () => renderPropGrid());
   runAtlasStartupStep("render active tab", () => renderTab());

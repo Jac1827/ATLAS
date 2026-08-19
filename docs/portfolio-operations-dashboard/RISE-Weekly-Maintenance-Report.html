@@ -319,8 +319,9 @@ table.sh .mid{color:#C67A12;font-weight:700}
 
 <div class="toolbar noprint">
   <button class="btn primary" id="btnUpload">&#8679; Upload Weekly Exports</button>
-  <button class="btn" id="btnLoad">&#128193; Load Data File</button>
-  <button class="btn" id="btnSave">&#128190; Save Data File</button>
+  <button class="btn" id="btnMoonriseSync">&#8635; Sync Moonrise</button>
+  <button class="btn" id="btnLoad">&#128193; Import JSON Backup</button>
+  <button class="btn" id="btnSave">&#128190; Export JSON Backup</button>
   <div class="tbsep"></div>
   <button class="btn ghost" id="btnExcel">&#8681; Excel</button>
   <button class="btn ghost" id="btnPrint">&#128424; Print / PDF</button>
@@ -330,6 +331,7 @@ table.sh .mid{color:#C67A12;font-weight:700}
   <div class="hspace" style="flex:1"></div>
   <span class="tbnote" id="statusNote">No data loaded &mdash; upload this week's exports or load a saved data file.</span>
   <input type="file" id="fileCsv"  class="hidefile" multiple accept=".csv,.txt,.xlsx,.xlsm,.xltx,.pdf">
+  <input type="file" id="fileMoonrise" class="hidefile" multiple accept=".csv,.txt,.xlsx,.xlsm,.xltx,.pdf,.json">
   <input type="file" id="fileJson" class="hidefile" accept=".json">
   <input type="file" id="fileConv" class="hidefile" multiple accept=".xlsx,.xlsm,.xltx,.csv,.txt,.pdf">
   <input type="file" id="fileLogo" class="hidefile" accept="image/*">
@@ -339,7 +341,7 @@ table.sh .mid{color:#C67A12;font-weight:700}
   <button data-p="report" class="on">Weekly Report</button>
   <button data-p="onepager">One-Page Export</button>
   <button data-p="msoe">MSOE &mdash; Current Month</button>
-  <button data-p="msoeprior">MSOE &mdash; Prior Month</button>
+  <button data-p="soe">SOE</button>
   <button data-p="perf">Portfolio Performance</button>
   <button data-p="audit">Validation &amp; Audit <span class="pill" id="auditPill">0</span></button>
   <button data-p="sourcemap">Source Map</button>
@@ -350,7 +352,7 @@ table.sh .mid{color:#C67A12;font-weight:700}
   <section class="panel on" id="p-report"></section>
   <section class="panel" id="p-onepager"></section>
   <section class="panel" id="p-msoe"></section>
-  <section class="panel" id="p-msoeprior"></section>
+  <section class="panel" id="p-soe"></section>
   <section class="panel" id="p-perf"></section>
   <section class="panel" id="p-audit"></section>
   <section class="panel" id="p-sourcemap"></section>
@@ -358,10 +360,11 @@ table.sh .mid{color:#C67A12;font-weight:700}
 </main>
 
 <footer>
-  RISE Weekly Maintenance Report Generator &middot; v1.0 &middot; Runs entirely in your browser &mdash; no data leaves this machine.
-  Share by placing this file plus its <span class="mono">.json</span> data file on a common network share or intranet path.
+  RISE Weekly Maintenance Report Generator &middot; v1.0 &middot; Legacy standalone mode.
+  Use hosted Atlas for shared multi-user work; JSON remains for controlled backup, export, import, and migration only.
 </footer>
 
+<script src="./centralization/atlas-central-client.js"></script>
 <script>
 "use strict";
 /* ============================================================================
@@ -472,13 +475,32 @@ const QTR_SEED = {
 };
 
 /* ------------------------------ STATE ----------------------------------- */
-const APP_VERSION = "1.0";
+const APP_VERSION = "1.1";
 let DB = null;          // the whole persisted database
 let ACTIVE = null;      // active week key "YYYY-MM-DD"
 let PANEL = "report";
 
+function slugId(s){
+  return String(s||"").toLowerCase().trim()
+    .replace(/&/g," and ")
+    .replace(/[^a-z0-9]+/g,"-")
+    .replace(/^-+|-+$/g,"") || "unknown";
+}
+function propertyIdFromRow(r){
+  const code=String((r&&r.code)||"").replace(/^0+/,"");
+  return code ? "property-"+code : "property-"+slugId((r&&r.prop)||(r&&r.p)||"");
+}
+function defaultMoonriseSync(){
+  return {source:"Moonrise maintenance dashboard", mode:"controlled-export",
+    status:"not_synced", lastSyncedAt:null, lastImportAt:null, lastSource:null,
+    lastReportingPeriods:[], imported:0, inserted:0, updated:0, unchanged:0,
+    exceptions:[], schedule:{enabled:false, cadence:"daily", nextRunAt:null,
+      status:"disabled_until_central_api_configured"}};
+}
+
 function blankDB(){
   const roster = ROSTER_SEED.map(x=>({
+    propertyId:propertyIdFromRow(x),
     prop:x.p, region:x.r, gm:x.gm, sm:x.sm, team:x.team, doors:x.doors,
     code:x.code, alias:x.alias.slice(),
     qtrScore: (QTR_SEED[x.p]||{}).q ?? "", qtrPrior:(QTR_SEED[x.p]||{}).qp ?? ""
@@ -487,6 +509,10 @@ function blankDB(){
           weeks:{},            // key = week-ending ISO date
           msoeCurrentMonth:null,// "YYYY-MM"
           msoeArchive:{},      // "YYYY-MM" -> {rows:[], portfolio:{}}
+          maintenanceInspectionRecords:[],
+          maintenanceInspectionArchive:{},
+          moonriseSync:defaultMoonriseSync(),
+          migrationLog:[],
           manualMap:{},        // unmatched source name -> roster prop
           logo:null};
 }
@@ -667,12 +693,319 @@ function resolveProp(name, code, idx){
   return null;
 }
 
+function propertyIdForProp(prop){
+  const r=(DB&&DB.roster||[]).find(x=>x.prop===prop);
+  return r ? (r.propertyId||(r.propertyId=propertyIdFromRow(r))) : "";
+}
+function textVal(v){ return String(v??"").replace(/\s+/g," ").trim(); }
+function pctNum(v){
+  if(v===""||v==null) return null;
+  const n=num(v);
+  return n>1 ? n/100 : n;
+}
+function isoDateValue(v){
+  const s=textVal(v);
+  if(!s) return "";
+  let m=s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/);
+  if(m) return m[1]+"-"+String(+m[2]).padStart(2,"0")+"-"+String(+m[3]).padStart(2,"0");
+  m=s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/);
+  if(m){
+    const y=+m[3]<100 ? 2000+(+m[3]) : +m[3];
+    return y+"-"+String(+m[1]).padStart(2,"0")+"-"+String(+m[2]).padStart(2,"0");
+  }
+  const d=new Date(s);
+  return isNaN(d.getTime()) ? "" : d.toISOString().slice(0,10);
+}
+function reportingMonthValue(v, fallbackDate, fallbackMonth){
+  const s=textVal(v);
+  let m=s.match(/^(\d{4})[-\/.](\d{1,2})$/);
+  if(m) return m[1]+"-"+String(+m[2]).padStart(2,"0");
+  m=s.match(/^(\d{1,2})[-\/.](\d{4})$/);
+  if(m) return m[2]+"-"+String(+m[1]).padStart(2,"0");
+  m=s.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+(\d{4})\b/i);
+  if(m){
+    const ix=["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"]
+      .indexOf(m[1].slice(0,3).toLowerCase());
+    if(ix>=0) return m[2]+"-"+String(ix+1).padStart(2,"0");
+  }
+  if(fallbackDate) return fallbackDate.slice(0,7);
+  return fallbackMonth||"";
+}
+function stableHash(s){
+  let h=2166136261;
+  s=String(s||"");
+  for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); }
+  return (h>>>0).toString(36);
+}
+function canonicalInspectionType(v){
+  const s=textVal(v).toUpperCase();
+  if(/\bMSOE\b/.test(s)) return "MSOE";
+  if(/\bSOE\b/.test(s)) return "SOE";
+  return s.indexOf("MAINTENANCE")>=0 ? "MSOE" : "";
+}
+function sourceApprovedForReporting(status, approval, signoff){
+  const s=(textVal(status)+" "+textVal(approval)+" "+textVal(signoff)).toLowerCase();
+  if(/reject|denied|void|cancel|not approved|pending|under review|in progress|not started/.test(s)) return false;
+  return /approved|signed|sign off|sign-off|complete|completed|passed|closed/.test(s);
+}
+function sourcePastDue(status, dueDate){
+  const s=textVal(status).toLowerCase();
+  if(/past due|overdue/.test(s)) return true;
+  const d=isoDateValue(dueDate);
+  return !!(d && d<iso(new Date()));
+}
+
+const MOONRISE_COL_SPEC=[
+  ["Property",[/^propert(y|ies)$/i,/property name/i,/^community$/i,/community name/i,/^site$/i]],
+  ["Property Look-Up Code",[/look.?up/i,/property.*code/i,/community.*code/i,/^code$/i]],
+  ["Permanent Property ID",[/permanent.*property.*id/i,/property.*id/i,/community.*id/i]],
+  ["Source Record ID",[/inspection.*id/i,/record.*id/i,/source.*id/i,/^id$/i]],
+  ["Inspection Type",[/inspection.*type/i,/template/i,/^type$/i]],
+  ["Inspection Date",[/inspection.*date/i,/completed.*date/i,/performed.*date/i,/date.*inspected/i,/^date$/i]],
+  ["Status",[/inspection.*status/i,/^status$/i,/result.*status/i]],
+  ["Findings",[/finding/i,/correction/i,/deficien/i,/notes?/i,/exception/i]],
+  ["Due Date",[/due.*date/i,/deadline/i,/target.*date/i]],
+  ["Approval Status",[/approval/i,/approved/i]],
+  ["Sign-Off Status",[/sign.?off/i,/signed/i,/final.*review/i]],
+  ["Reporting Month",[/reporting.*month/i,/reporting.*period/i,/period/i,/month/i]],
+  ["Last Updated",[/last.*updated/i,/updated/i,/modified/i,/source.*timestamp/i]],
+  ["% Completed",[/%.*complet/i,/complet.*%/i,/completion.*rate/i]],
+  ["Created Count",[/created.*count/i,/inspection.*count/i,/created/i]],
+  ["Approved Count",[/approved.*count/i,/approved/i]],
+  ["Under Review",[/under.*review/i,/review/i]],
+  ["In Progress",[/in.?progress/i,/progress/i]],
+  ["Not Started",[/not.?start/i]],
+  ["Past Due",[/past.?due/i,/overdue/i]]
+];
+
+function moonriseField(row, map, key){
+  const k=map[key];
+  return k!==undefined ? textVal(row[k]) : "";
+}
+function moonriseRecordFromRow(row, map, unit, rowNo, importedAt){
+  const idx=buildIndex();
+  const rawProp=moonriseField(row,map,"Property");
+  const code=moonriseField(row,map,"Property Look-Up Code");
+  const sourcePropertyId=moonriseField(row,map,"Permanent Property ID");
+  const prop=resolveProp(rawProp,code,idx);
+  const propertyId=prop ? propertyIdForProp(prop) : sourcePropertyId;
+  const type=canonicalInspectionType(moonriseField(row,map,"Inspection Type") || unit.sheet || unit.file);
+  const inspectionDate=isoDateValue(moonriseField(row,map,"Inspection Date"));
+  const reportingMonth=reportingMonthValue(moonriseField(row,map,"Reporting Month"),
+    inspectionDate, ACTIVE?monthKey(ACTIVE):"");
+  const status=moonriseField(row,map,"Status");
+  const findings=moonriseField(row,map,"Findings");
+  const dueDate=isoDateValue(moonriseField(row,map,"Due Date"));
+  const approvalStatus=moonriseField(row,map,"Approval Status");
+  const signOffStatus=moonriseField(row,map,"Sign-Off Status");
+  const sourceRecordId=moonriseField(row,map,"Source Record ID");
+  const fallbackKey=[reportingMonth,propertyId||normName(rawProp),type,inspectionDate].join("|");
+  const sourceKey="moonrise|"+(sourceRecordId||fallbackKey);
+  const createdCount=moonriseField(row,map,"Created Count");
+  const approvedCount=moonriseField(row,map,"Approved Count");
+  const reviewCount=moonriseField(row,map,"Under Review");
+  const progressCount=moonriseField(row,map,"In Progress");
+  const notStartedCount=moonriseField(row,map,"Not Started");
+  const pastDueCount=moonriseField(row,map,"Past Due");
+  const approvedForReporting=sourceApprovedForReporting(status,approvalStatus,signOffStatus);
+  const rec={id:"inspection-"+stableHash(sourceKey), sourceSystem:"Moonrise maintenance dashboard",
+    sourceRecordId, sourceKey, sourceFile:unit.file||"", sourceSheet:unit.sheet||"",
+    sourceRow:rowNo, sourcePropertyName:rawProp, sourcePropertyId, propertyId,
+    property:prop||"", code, inspectionType:type, inspectionDate, status, findings,
+    dueDate, approvalStatus, signOffStatus, reportingMonth,
+    lastUpdatedAt:isoDateValue(moonriseField(row,map,"Last Updated"))||moonriseField(row,map,"Last Updated"),
+    completionPct:pctNum(moonriseField(row,map,"% Completed")),
+    createdCount:createdCount===""?null:num(createdCount),
+    approvedCount:approvedCount===""?null:num(approvedCount),
+    reviewCount:reviewCount===""?null:num(reviewCount),
+    progressCount:progressCount===""?null:num(progressCount),
+    notStartedCount:notStartedCount===""?null:num(notStartedCount),
+    pastDueCount:pastDueCount===""?null:num(pastDueCount),
+    approvedForReporting, firstImportedAt:importedAt, lastSyncedAt:importedAt,
+    sourcePayload:{...row}, exceptions:[], history:[]};
+  if(!rawProp) rec.exceptions.push({code:"missing_property",message:"Moonrise row has no property/community value."});
+  if(rawProp&&!prop) rec.exceptions.push({code:"unmatched_property",message:"Property is not matched to the Atlas roster."});
+  if(!type) rec.exceptions.push({code:"missing_inspection_type",message:"Inspection type is missing or is not MSOE/SOE."});
+  if(!inspectionDate) rec.exceptions.push({code:"missing_inspection_date",message:"Inspection date is missing or could not be read."});
+  if(!reportingMonth) rec.exceptions.push({code:"missing_reporting_month",message:"Reporting month is missing or could not be derived."});
+  if(!status) rec.exceptions.push({code:"missing_status",message:"Inspection status is missing."});
+  if(!approvalStatus&&!signOffStatus) rec.exceptions.push({code:"missing_approval",message:"Approval/sign-off status is missing."});
+  if(dueDate&&inspectionDate&&dueDate<inspectionDate)
+    rec.exceptions.push({code:"invalid_due_date",message:"Due date is before the inspection date."});
+  if(sourcePastDue(status,dueDate)) rec.pastDueCount=rec.pastDueCount==null?1:rec.pastDueCount;
+  rec.sourceHash=stableHash(JSON.stringify({
+    sourceRecordId, rawProp, sourcePropertyId, propertyId, type, inspectionDate, status,
+    findings, dueDate, approvalStatus, signOffStatus, reportingMonth,
+    lastUpdatedAt:rec.lastUpdatedAt, completionPct:rec.completionPct,
+    createdCount:rec.createdCount, approvedCount:rec.approvedCount,
+    reviewCount:rec.reviewCount, progressCount:rec.progressCount,
+    notStartedCount:rec.notStartedCount, pastDueCount:rec.pastDueCount
+  }));
+  return rec;
+}
+function inspectionPeriodRows(type, mk){
+  return (DB&&DB.maintenanceInspectionRecords||[]).filter(r=>
+    !r.deletedAt && r.inspectionType===type && r.reportingMonth===mk);
+}
+function aggregateInspectionRows(type, mk){
+  const by={};
+  inspectionPeriodRows(type,mk).filter(r=>r.sourceSystem==="Moonrise maintenance dashboard").forEach(rec=>{
+    const key=rec.property||rec.sourcePropertyName||rec.sourceKey;
+    const b=by[key]||(by[key]={srcName:rec.sourcePropertyName, code:rec.code||"",
+      prop:rec.property||"", propertyId:rec.propertyId||"", template:type,
+      created:0, approved:0, review:0, progress:0, notStarted:0, pastDue:0,
+      pct:null, findings:[], sourceSystem:"Moonrise maintenance dashboard",
+      importedAt:rec.firstImportedAt, lastSyncedAt:rec.lastSyncedAt,
+      approvalStatus:"", sourceKeys:[], exceptions:[]});
+    const created=rec.createdCount==null?1:rec.createdCount;
+    const approved=rec.approvedCount==null?(rec.approvedForReporting?created:0):rec.approvedCount;
+    b.created+=created;
+    b.approved+=approved;
+    b.review+=rec.reviewCount==null?(!rec.approvedForReporting&&/review/i.test(rec.status||"")?1:0):rec.reviewCount;
+    b.progress+=rec.progressCount==null?(!rec.approvedForReporting&&/progress/i.test(rec.status||"")?1:0):rec.progressCount;
+    b.notStarted+=rec.notStartedCount==null?(!rec.approvedForReporting&&/not started/i.test(rec.status||"")?1:0):rec.notStartedCount;
+    b.pastDue+=rec.pastDueCount==null?0:rec.pastDueCount;
+    if(rec.findings) b.findings.push(rec.findings);
+    if(rec.approvalStatus||rec.signOffStatus) b.approvalStatus=[rec.approvalStatus,rec.signOffStatus].filter(Boolean).join(" / ");
+    if(rec.lastSyncedAt>b.lastSyncedAt) b.lastSyncedAt=rec.lastSyncedAt;
+    b.sourceKeys.push(rec.sourceKey);
+    (rec.exceptions||[]).forEach(e=>b.exceptions.push(e));
+  });
+  return Object.values(by).map(b=>{
+    b.pct=b.created?b.approved/b.created:null;
+    return b;
+  });
+}
+function currentMsoeRows(wk){
+  if(!wk) return [];
+  const rows=aggregateInspectionRows("MSOE",monthKey(wk.weekEnding));
+  return rows.length ? rows : (wk.msoeRaw||[]);
+}
+function currentMsoeByProp(wk){
+  const by={};
+  currentMsoeRows(wk).forEach(r=>{ if(r.prop) by[r.prop]=r; });
+  return by;
+}
+function inspectionArchiveSnapshot(periods, at){
+  DB.maintenanceInspectionArchive=DB.maintenanceInspectionArchive||{};
+  periods.forEach(mk=>{
+    if(!mk) return;
+    const records=(DB.maintenanceInspectionRecords||[]).filter(r=>
+      r.reportingMonth===mk && !r.deletedAt && r.sourceSystem==="Moonrise maintenance dashboard");
+    const payload=records.map(r=>({id:r.id,sourceKey:r.sourceKey,sourceHash:r.sourceHash,
+      propertyId:r.propertyId,property:r.property,sourcePropertyName:r.sourcePropertyName,
+      inspectionType:r.inspectionType,inspectionDate:r.inspectionDate,status:r.status,
+      findings:r.findings,dueDate:r.dueDate,approvalStatus:r.approvalStatus,
+      signOffStatus:r.signOffStatus,approvedForReporting:r.approvedForReporting,
+      completionPct:r.completionPct,lastSyncedAt:r.lastSyncedAt,exceptions:r.exceptions||[]}));
+    const snapHash=stableHash(JSON.stringify(payload));
+    const arch=DB.maintenanceInspectionArchive[mk]||
+      (DB.maintenanceInspectionArchive[mk]={month:mk,versions:[]});
+    const last=arch.versions[arch.versions.length-1];
+    if(!last||last.snapshotHash!==snapHash){
+      arch.versions.push({snapshotId:"maintenance-inspection-"+mk+"-"+snapHash,
+        capturedAt:at, source:"Moonrise maintenance dashboard", snapshotHash:snapHash,
+        counts:{records:records.length, msoe:records.filter(r=>r.inspectionType==="MSOE").length,
+          soe:records.filter(r=>r.inspectionType==="SOE").length,
+          exceptions:records.reduce((s,r)=>s+(r.exceptions||[]).length,0)},
+        records:payload});
+    }
+    arch.latestSnapshotHash=snapHash;
+    arch.latestCapturedAt=at;
+  });
+}
+function syncMoonriseUnits(units, sourceLabel){
+  const at=new Date().toISOString();
+  DB.maintenanceInspectionRecords=DB.maintenanceInspectionRecords||[];
+  DB.moonriseSync=DB.moonriseSync||defaultMoonriseSync();
+  const incoming=[];
+  const exceptions=[];
+  units.forEach(unit=>{
+    const map=resolveCols(unit.header||Object.keys(unit.rows[0]||{}), MOONRISE_COL_SPEC);
+    (unit.rows||[]).forEach((row,i)=>{
+      const rec=moonriseRecordFromRow(row,map,unit,row.__rowIndex??i,at);
+      if(rec.inspectionType) incoming.push(rec);
+    });
+  });
+  const grouped={};
+  incoming.forEach(r=>{ (grouped[r.sourceKey]=grouped[r.sourceKey]||[]).push(r); });
+  Object.values(grouped).forEach(group=>{
+    const hashes=[...new Set(group.map(r=>r.sourceHash))];
+    if(group.length>1){
+      group.forEach(r=>r.exceptions.push({code:hashes.length>1?"duplicate_conflict":"duplicate_source_record",
+        message:hashes.length>1
+          ?"Multiple Moonrise rows share one source key but disagree."
+          :"Duplicate Moonrise row shares the same source key."}));
+    }
+  });
+  const byKey={};
+  DB.maintenanceInspectionRecords.forEach(r=>{ byKey[r.sourceKey]=r; });
+  let inserted=0, updated=0, unchanged=0;
+  incoming.forEach(rec=>{
+    const prev=byKey[rec.sourceKey];
+    if(prev){
+      if(prev.sourceHash!==rec.sourceHash){
+        const history=(prev.history||[]).concat([{at,action:"source_update",
+          previous:{sourceHash:prev.sourceHash,status:prev.status,findings:prev.findings,
+            dueDate:prev.dueDate,approvalStatus:prev.approvalStatus,
+            signOffStatus:prev.signOffStatus,reportingMonth:prev.reportingMonth,
+            property:prev.property,propertyId:prev.propertyId}}]).slice(-25);
+        Object.assign(prev,rec,{id:prev.id,firstImportedAt:prev.firstImportedAt||prev.firstImportedAt||at,
+          history});
+        updated++;
+      }else{
+        prev.lastSyncedAt=at;
+        unchanged++;
+      }
+    }else{
+      DB.maintenanceInspectionRecords.push(rec);
+      byKey[rec.sourceKey]=rec;
+      inserted++;
+    }
+  });
+  (DB.maintenanceInspectionRecords||[]).forEach(r=>{
+    if((r.exceptions||[]).length) (r.exceptions||[]).forEach(e=>exceptions.push({
+      sourceKey:r.sourceKey, property:r.property||r.sourcePropertyName||"", type:r.inspectionType,
+      reportingMonth:r.reportingMonth, code:e.code, message:e.message}));
+  });
+  const periods=[...new Set(incoming.map(r=>r.reportingMonth).filter(Boolean))].sort();
+  inspectionArchiveSnapshot(periods,at);
+  DB.moonriseSync={...DB.moonriseSync, source:"Moonrise maintenance dashboard",
+    mode:sourceLabel||"controlled-export", status:exceptions.length?"review_required":"synced",
+    lastSyncedAt:at, lastImportAt:at, lastSource:sourceLabel||"Moonrise export",
+    lastReportingPeriods:periods, imported:incoming.length, inserted, updated, unchanged,
+    exceptions:exceptions.slice(0,200)};
+  DB.migrationLog=DB.migrationLog||[];
+  DB.migrationLog.push({at, phase:"moonrise_inspection_sync", source:sourceLabel||"Moonrise export",
+    imported:incoming.length, inserted, updated, unchanged, exceptionCount:exceptions.length,
+    periods});
+  return {imported:incoming.length, inserted, updated, unchanged, exceptions, periods};
+}
+function maintenanceInspectionSnapshot(){
+  return {source:"Atlas Maintenance", generatedAt:new Date().toISOString(),
+    moonriseSync:DB&&DB.moonriseSync||defaultMoonriseSync(),
+    records:DB&&DB.maintenanceInspectionRecords||[],
+    archive:DB&&DB.maintenanceInspectionArchive||{}};
+}
+function publishMaintenanceInspectionSnapshot(){
+  if(!DB) return;
+  window.ATLAS_MAINTENANCE_INSPECTIONS=maintenanceInspectionSnapshot();
+  try{
+    const target=location.origin==="null" ? "*" : location.origin;
+    window.parent&&window.parent.postMessage({type:"atlas-maintenance-inspections-updated",
+      payload:window.ATLAS_MAINTENANCE_INSPECTIONS},target);
+  }catch(e){}
+}
+
 /* =========================== INGEST ==================================== */
 /** Classify an uploaded CSV by its header signature. */
 function classify(rows){
   if(!rows.length) return "unknown";
   const h=Object.keys(rows[0]).map(x=>x.toLowerCase());
   const has=s=>h.some(x=>x.indexOf(s)>=0);
+  if((has("inspection")||has("sign")||has("finding")||has("moonrise"))
+     && (has("status")||has("due")||has("approval")||has("msoe")||has("soe")))
+    return "moonrise";
   if(has("resident portal")&&has("property total"))      return "origin";
   if(has("template name")&&has("% completed"))           return "msoe";
   if(has("completion - total")||has("completion - new")) return "perf";
@@ -1260,7 +1593,8 @@ function segmentByProperty(objects, header){
 
 
 const KIND_LABEL={origin:"Work Order Origin",perf:"Work Order Performance",
-  msoe:"MSOE Inspections Status",unknown:"Unrecognised"};
+  msoe:"MSOE Inspections Status",moonrise:"Moonrise MSOE/SOE Inspections",
+  unknown:"Unrecognised"};
 
 /** Ingest one upload into one week.
  *
@@ -1385,6 +1719,12 @@ function ingest(units, weekISO){
         if(!prop){ wk.unmatched.push({file:f.name,kind:"msoe",name:src}); return; }
         wk.msoe[prop]=rec;
       });
+    }
+    else if(kind==="moonrise"){
+      const sync=syncMoonriseUnits([{file:p.file,sheet:p.sheet,rows,header:p.header,
+        rawRows:rows.length}], "weekly upload: "+p.name);
+      log[log.length-1].scope="Moonrise MSOE/SOE sync ("+sync.imported+" records)";
+      log[log.length-1].properties=[...new Set(rows.map(r=>r.Property||r.property||r.Community||r.community).filter(Boolean))];
     }
     else if(kind==="perf"){
       const data=perfDataRows(rows);                 // excludes any "… Total:" row
@@ -1578,7 +1918,7 @@ function rollMSOE(weekISO){
 /** Compute every report column for one property in one week. */
 function computeRow(r, wk){
   const o=(wk.origin||{})[r.prop]||null;
-  const m=(wk.msoe||{})[r.prop]||null;
+  const m=currentMsoeByProp(wk)[r.prop]||null;
   const man=(wk.manual||{})[r.prop]||{};
 
   const portal = o? o.portal : "";
@@ -1673,7 +2013,7 @@ function portfolioRoll(wk){
     A.notc+=num(x.notc);A.doors+=num(x.doors);
     if(x.newWO!==""&&x.newWO!=null) A.active++;});
   A.sla = A.sub>0? A.comp/A.sub : null;
-  const mr=wk.msoeRaw||[];
+  const mr=currentMsoeRows(wk);
   A.msoeCount=mr.length; A.msoeApproved=mr.reduce((s,x)=>s+x.approved,0);
   A.msoePastDue=mr.reduce((s,x)=>s+x.pastDue,0);
   A.msoePct = mr.length? A.msoeApproved/mr.length : null;
@@ -1726,15 +2066,17 @@ function render(){
   const issues = wk? auditIssues(wk) : [];
   document.getElementById("auditPill").textContent=issues.length;
   document.getElementById("auditPill").style.display=issues.length?"":"none";
+  const moonCount=(DB.maintenanceInspectionRecords||[]).length;
   document.getElementById("statusNote").textContent = wk
     ? ("Loaded: "+Object.keys(wk.origin||{}).length+" properties with WO data · "
-       +(wk.msoeRaw||[]).length+" MSOE rows · "+issues.length+" validation flag(s)")
+       +currentMsoeRows(wk).length+" MSOE rows · "+moonCount+" Moonrise inspection record(s) · "
+       +issues.length+" validation flag(s)")
     : "No data loaded — upload this week's exports or load a saved data file.";
 
   document.getElementById("p-report").innerHTML     = wk? viewReport(wk)   : emptyState();
   document.getElementById("p-onepager").innerHTML   = viewOnePager(wk);
   document.getElementById("p-msoe").innerHTML       = wk? viewMSOE(wk)     : emptyState();
-  document.getElementById("p-msoeprior").innerHTML  = viewMSOEPrior();
+  document.getElementById("p-soe").innerHTML        = viewSOE(wk);
   document.getElementById("p-perf").innerHTML       = wk? viewPerf(wk)     : emptyState();
   document.getElementById("p-audit").innerHTML      = wk? viewAudit(wk,issues) : emptyState();
   document.getElementById("p-sourcemap").innerHTML  = viewSourceMap();
@@ -1760,7 +2102,7 @@ function viewReport(wk){
     T.prev+=num(x.prevWO); T.sub+=num(x.submitted); T.comp+=num(x.comp);
     T.notc+=num(x.notc); T.doors+=num(x.doors); T.vac+=num(x.vac); T.vnr+=num(x.vnr); });
   const slaT=T.sub>0?T.comp/T.sub:null;
-  const msoeRows=(wk.msoeRaw||[]);
+  const msoeRows=currentMsoeRows(wk);
   const msoeApproved=msoeRows.reduce((s,x)=>s+x.approved,0);
   const msoePast=msoeRows.reduce((s,x)=>s+x.pastDue,0);
   const p=wk.perf;
@@ -2043,6 +2385,12 @@ function kpi(k,v,s,cls){
 }
 function priorMSOEPortfolio(){
   const pmk=DB.msoeCurrentMonth?priorMonthKey(DB.msoeCurrentMonth):null;
+  const moon=pmk?aggregateInspectionRows("MSOE",pmk):[];
+  if(moon.length){
+    const ap=moon.reduce((s,x)=>s+x.approved,0);
+    const cr=moon.reduce((s,x)=>s+x.created,0);
+    return cr?((ap/cr)*100).toFixed(0)+"%":"—";
+  }
   const a=pmk?DB.msoeArchive[pmk]:null;
   if(!a||!a.rows.length) return "—";
   const ap=a.rows.reduce((s,x)=>s+x.approved,0);
@@ -2052,6 +2400,7 @@ function priorMSOEPortfolio(){
 /* ------------------------------ MSOE VIEWS ------------------------------ */
 function msoeTable(rows,label){
   if(!rows||!rows.length) return '<p class="small">No MSOE rows for '+esc(label)+'.</p>';
+  const hasSync=rows.some(x=>x.sourceSystem||x.lastSyncedAt||x.importedAt);
   const T={created:0,approved:0,review:0,progress:0,notStarted:0,pastDue:0};
   rows.forEach(x=>{T.created+=x.created;T.approved+=x.approved;T.review+=x.review;
     T.progress+=x.progress;T.notStarted+=x.notStarted;T.pastDue+=x.pastDue;});
@@ -2059,6 +2408,7 @@ function msoeTable(rows,label){
    +'<th class="l prop">Property</th><th>Look-Up<br>Code</th><th class="l">Template</th>'
    +'<th>Created</th><th>Approved</th><th>Under<br>Review</th><th>In<br>Progress</th>'
    +'<th>Not<br>Started</th><th>Past<br>Due</th><th>%<br>Completed</th><th>Status</th>'
+   +(hasSync?'<th class="l">Source</th><th>Last<br>Sync</th>':'')
    +'</tr></thead><tbody>';
   rows.slice().sort((a,b)=>(a.prop||a.srcName).localeCompare(b.prop||b.srcName)).forEach(x=>{
     const st=msoeStatus(x);
@@ -2068,37 +2418,158 @@ function msoeTable(rows,label){
      +'<td>'+x.created+'</td><td>'+x.approved+'</td><td>'+x.review+'</td><td>'+x.progress+'</td>'
      +'<td>'+x.notStarted+'</td><td>'+(x.pastDue?'<span class="r">'+x.pastDue+'</span>':0)+'</td>'
      +'<td>'+pctRAG(x.pct,0.999,0.80,0)+'</td>'
-     +'<td><span class="tag '+st.c+'">'+st.t+'</span></td></tr>';
+     +'<td><span class="tag '+st.c+'">'+st.t+'</span></td>'
+     +(hasSync?'<td class="l small">'+esc(x.sourceSystem||"Legacy MSOE export")+'</td>'
+       +'<td class="mono small">'+esc(x.lastSyncedAt?x.lastSyncedAt.slice(0,10):"")+'</td>':'')
+     +'</tr>';
   });
   h+='<tr class="tot"><td class="l prop">TOTAL ('+rows.length+' properties)</td><td colspan="2"></td>'
    +'<td>'+T.created+'</td><td>'+T.approved+'</td><td>'+T.review+'</td><td>'+T.progress+'</td>'
    +'<td>'+T.notStarted+'</td><td>'+T.pastDue+'</td>'
-   +'<td>'+((T.approved/rows.length)*100).toFixed(1)+'%</td><td></td></tr>';
+   +'<td>'+(T.created?((T.approved/T.created)*100).toFixed(1):"—")+'%</td><td></td>'
+   +(hasSync?'<td colspan="2"></td>':'')+'</tr>';
   return h+'</tbody></table></div>';
 }
 function viewMSOE(wk){
-  const mk=monthKey(wk.weekEnding), rows=wk.msoeRaw||[];
+  const mk=monthKey(wk.weekEnding), rows=currentMsoeRows(wk);
+  const moonRows=aggregateInspectionRows("MSOE",mk);
+  const moon=moonRows.length>0;
   const past=rows.filter(x=>x.pastDue>0);
   let h='<div class="kpis">';
   h+=kpi("Reporting Month",monthName(mk),"auto-derived from week-ending date");
-  h+=kpi("Inspections Created",rows.length,"MSOE template");
+  h+=kpi("Inspections Created",rows.reduce((s,x)=>s+x.created,0)||rows.length,
+    moon?"Moonrise source":"MSOE template");
   h+=kpi("Approved",rows.reduce((s,x)=>s+x.approved,0),"complete and signed off","good");
   h+=kpi("Past Due",past.length,past.length?"action required":"none", past.length?"bad":"good");
-  h+=kpi("Completion Rate",rows.length?((rows.reduce((s,x)=>s+x.approved,0)/rows.length)*100).toFixed(0)+"%":"—","approved ÷ created");
+  const created=rows.reduce((s,x)=>s+x.created,0);
+  h+=kpi("Completion Rate",created?((rows.reduce((s,x)=>s+x.approved,0)/created)*100).toFixed(0)+"%":"—","approved ÷ created");
+  h+=kpi("Last Sync",moon&&DB.moonriseSync.lastSyncedAt?DB.moonriseSync.lastSyncedAt.slice(0,16).replace("T"," "):"—",
+    moon?DB.moonriseSync.status:"legacy MSOE export");
   h+='</div>';
   if(past.length) h+='<div class="note bad"><b>Past due MSOE inspections:</b> '
     +past.map(x=>esc(x.prop||x.srcName)).join(", ")+'.</div>';
   h+='<div class="card"><div class="hd"><h3>MSOE Inspections — '+monthName(mk)+' (Current Month)</h3>'
-   +'<span class="sub">Source: RISE - MSOE Inspections Status export &middot; joined on Property Look-Up Code</span></div>'
+   +'<span class="sub">Source: '+(moon?'Moonrise maintenance dashboard':'RISE - MSOE Inspections Status export')
+   +' &middot; joined on permanent property ID / Property Look-Up Code</span></div>'
    +'<div class="bd">'+msoeTable(rows,monthName(mk))+'</div></div>';
   h+='<div class="note"><b>Month rollover:</b> when the first upload of '
    +monthName(nextMonthKey(mk))+' is processed, this '+monthName(mk)
-   +' snapshot is frozen automatically and moves to the <b>MSOE — Prior Month</b> tab. '
-   +'Nothing to click.</div>';
+   +' snapshot is frozen automatically. Legacy prior-month MSOE remains preserved in the archive, '
+   +'and Moonrise monthly snapshots are versioned in the SOE tab.</div>';
   return h;
 }
 function nextMonthKey(mk){let[y,m]=mk.split("-").map(Number);m++;if(m>12){m=1;y++;}
   return y+"-"+String(m).padStart(2,"0");}
+function inspectionTag(rec){
+  const s=textVal(rec.status).toLowerCase();
+  if((rec.exceptions||[]).length) return {t:"Review",c:"pd"};
+  if(/past due|overdue/.test(s)) return {t:"Past Due",c:"pd"};
+  if(rec.approvedForReporting) return {t:"Approved",c:"ok"};
+  if(/review|progress|pending/.test(s)) return {t:"In Review",c:"rev"};
+  return {t:rec.status||"Open",c:"ns"};
+}
+function inspectionRecordTable(records,label){
+  if(!records.length) return '<p class="small">No '+esc(label)+' records are loaded for this period.</p>';
+  let h='<div class="scroll"><table><thead><tr>'
+   +'<th class="l prop">Property</th><th>Property<br>ID</th><th>Type</th>'
+   +'<th>Inspection<br>Date</th><th>Status</th><th>Due<br>Date</th>'
+   +'<th class="l">Approval / Sign-Off</th><th class="l">Findings</th>'
+   +'<th>Reporting<br>Month</th><th class="l">Source</th><th>Imported</th>'
+   +'<th>Last<br>Sync</th><th class="l">Review Flags</th></tr></thead><tbody>';
+  records.slice().sort((a,b)=>(b.reportingMonth||"").localeCompare(a.reportingMonth||"")
+    ||(a.property||a.sourcePropertyName||"").localeCompare(b.property||b.sourcePropertyName||""))
+    .forEach(r=>{
+      const st=inspectionTag(r);
+      const flags=(r.exceptions||[]).map(e=>e.message||e.code).join("; ");
+      h+='<tr><td class="prop">'+esc(r.property||r.sourcePropertyName||"")
+       +(r.property?'':' <span class="tag ns">unmapped</span>')+'</td>'
+       +'<td class="mono small">'+esc(r.propertyId||r.sourcePropertyId||"")+'</td>'
+       +'<td>'+esc(r.inspectionType||"")+'</td>'
+       +'<td class="mono">'+esc(r.inspectionDate||"")+'</td>'
+       +'<td><span class="tag '+st.c+'">'+esc(st.t)+'</span></td>'
+       +'<td class="mono">'+esc(r.dueDate||"")+'</td>'
+       +'<td class="l small">'+esc([r.approvalStatus,r.signOffStatus].filter(Boolean).join(" / ")||"")+'</td>'
+       +'<td class="l small" style="white-space:normal;min-width:220px">'+esc(r.findings||"")+'</td>'
+       +'<td class="mono">'+esc(r.reportingMonth||"")+'</td>'
+       +'<td class="l small">'+esc(r.sourceSystem||"Moonrise")
+          +(r.sourceFile?' · '+esc(r.sourceFile):'')+'</td>'
+       +'<td class="mono small">'+esc(r.firstImportedAt?r.firstImportedAt.slice(0,10):"")+'</td>'
+       +'<td class="mono small">'+esc(r.lastSyncedAt?r.lastSyncedAt.slice(0,10):"")+'</td>'
+       +'<td class="l small" style="white-space:normal;min-width:190px">'
+          +(flags?esc(flags):'<span class="tag ok">clear</span>')+'</td></tr>';
+    });
+  return h+'</tbody></table></div>';
+}
+function legacyMsoeArchiveSummary(){
+  const keys=Object.keys(DB&&DB.msoeArchive||{}).sort().reverse();
+  if(!keys.length) return '<p class="small">No legacy prior-month MSOE archive has been created yet.</p>';
+  let h='<table><thead><tr><th class="l">Month</th><th>Frozen From Tab</th><th>Properties</th>'
+   +'<th>Approved</th><th>Past Due</th><th>Completion %</th></tr></thead><tbody>';
+  keys.forEach(k=>{const z=DB.msoeArchive[k];
+    const ap=z.rows.reduce((s,x)=>s+x.approved,0);
+    const cr=z.rows.reduce((s,x)=>s+x.created,0);
+    h+='<tr><td class="l">'+monthName(k)+'</td><td class="mono">'+esc(z.tab||"")+'</td>'
+     +'<td>'+z.rows.length+'</td><td>'+ap+'</td>'
+     +'<td>'+z.rows.reduce((s,x)=>s+x.pastDue,0)+'</td>'
+     +'<td>'+(cr?((ap/cr)*100).toFixed(0):"—")+'%</td></tr>';});
+  return h+'</tbody></table>';
+}
+function inspectionArchiveSummary(){
+  const keys=Object.keys(DB&&DB.maintenanceInspectionArchive||{}).sort().reverse();
+  if(!keys.length) return '<p class="small">No Moonrise monthly snapshots have been captured yet.</p>';
+  let h='<table><thead><tr><th class="l">Reporting Month</th><th>Snapshots</th><th>Latest Capture</th>'
+   +'<th>Total Records</th><th>MSOE</th><th>SOE</th><th>Flags</th></tr></thead><tbody>';
+  keys.forEach(k=>{
+    const a=DB.maintenanceInspectionArchive[k], last=a.versions[a.versions.length-1]||{counts:{}};
+    h+='<tr><td class="l">'+monthName(k)+'</td><td>'+a.versions.length+'</td>'
+     +'<td class="mono small">'+esc(a.latestCapturedAt?a.latestCapturedAt.slice(0,16).replace("T"," "):"")+'</td>'
+     +'<td>'+num(last.counts.records)+'</td><td>'+num(last.counts.msoe)+'</td>'
+     +'<td>'+num(last.counts.soe)+'</td><td>'+num(last.counts.exceptions)+'</td></tr>';
+  });
+  return h+'</tbody></table>';
+}
+function viewSOE(wk){
+  const mk=wk?monthKey(wk.weekEnding):(DB.moonriseSync.lastReportingPeriods||[]).slice(-1)[0];
+  const all=(DB&&DB.maintenanceInspectionRecords||[]);
+  const soe=mk?inspectionPeriodRows("SOE",mk):all.filter(r=>r.inspectionType==="SOE");
+  const status=DB&&DB.moonriseSync||defaultMoonriseSync();
+  const flags=status.exceptions||[];
+  let h='<div class="toolbar noprint" style="position:static;border:1px solid var(--line);border-radius:8px;margin-bottom:13px">'
+   +'<button class="btn primary" id="moonriseSyncNow">&#8635; Sync Moonrise Now</button>'
+   +'<span class="hspace" style="flex:1"></span>'
+   +'<span class="tbnote">Moonrise remains the source of truth for MSOE/SOE inspection results.</span></div>';
+  h+='<div class="kpis">';
+  h+=kpi("Sync Status",status.status||"not_synced",status.mode||"controlled-export",flags.length?"bad":"good");
+  h+=kpi("Last Sync",status.lastSyncedAt?status.lastSyncedAt.slice(0,16).replace("T"," "):"—",status.lastSource||"Moonrise export");
+  h+=kpi("SOE Records",soe.length,mk?monthName(mk):"all loaded periods",soe.length?"good":"");
+  h+=kpi("Review Flags",flags.length,flags.length?"open mapping or data issue(s)":"none",flags.length?"bad":"good");
+  h+=kpi("Schedule",status.schedule&&status.schedule.enabled?"Enabled":"Not enabled",
+    status.schedule&&status.schedule.status?status.schedule.status:"central API required");
+  h+='</div>';
+  h+='<div class="note"><b>Connection method.</b> No local Moonrise API or database connection was found in this workspace. '
+   +'Atlas now supports a controlled Moonrise export/API adapter: use <b>Sync Moonrise Now</b> to read a Moonrise CSV, Excel, PDF, or JSON export today. '
+   +'When hosted Atlas central API credentials are configured, the same button can call the central Moonrise endpoint and the stored schedule can run server-side.</div>';
+  if(flags.length){
+    h+='<div class="note bad"><b>'+flags.length+' Moonrise record(s) need review.</b> '
+     +'Unmatched properties, duplicate source keys, missing fields, and conflicting results are held with the source record and are not guessed.</div>';
+  }
+  h+='<div class="card"><div class="hd"><h3>SOE Inspections'
+   +(mk?' — '+monthName(mk):'')+'</h3><span class="sub">Source, import date, reporting period, and sync status preserved per row</span></div>'
+   +'<div class="bd">'+inspectionRecordTable(soe,"SOE")+'</div></div>';
+  const msoe=mk?inspectionPeriodRows("MSOE",mk):all.filter(r=>r.inspectionType==="MSOE");
+  if(msoe.length){
+    h+='<div class="card"><div class="hd"><h3>Moonrise MSOE Records'
+      +(mk?' — '+monthName(mk):'')+'</h3><span class="sub">Used by the current MSOE tab when present</span></div>'
+      +'<div class="bd">'+inspectionRecordTable(msoe,"MSOE")+'</div></div>';
+  }
+  h+='<div class="card"><div class="hd"><h3>Moonrise Monthly Snapshots</h3>'
+   +'<span class="sub">Versioned snapshots preserve historical months and source changes</span></div>'
+   +'<div class="bd">'+inspectionArchiveSummary()+'</div></div>';
+  h+='<div class="card"><div class="hd"><h3>Legacy Prior-Month MSOE Archive</h3>'
+   +'<span class="sub">Preserved for rollback and historical audit after the SOE tab replacement</span></div>'
+   +'<div class="bd">'+legacyMsoeArchiveSummary()+'</div></div>';
+  return h;
+}
 function viewMSOEPrior(){
   const cur=DB&&DB.msoeCurrentMonth;
   const pmk=cur?priorMonthKey(cur):null;
@@ -2267,7 +2738,7 @@ function auditIssues(wk){
   }
 
   // 4. MSOE integrity
-  const mr=wk.msoeRaw||[];
+  const mr=currentMsoeRows(wk);
   if(mr.length){
     const bad=mr.filter(x=>x.approved+x.review+x.progress+x.notStarted+x.pastDue!==x.created);
     if(bad.length) add("warn","MSOE","Status columns do not sum to Created Count for "+bad.length+" row(s).",
@@ -2280,6 +2751,17 @@ function auditIssues(wk){
     if(noRoster.length) add("bad","Mapping",noRoster.length+" MSOE row(s) could not be matched to a roster property.",
       noRoster.map(x=>x.srcName).join("; ")+" — map them on the Data Intake tab.");
   }
+
+  // 4b. Moonrise inspection sync integrity
+  const moon=(DB.moonriseSync&&DB.moonriseSync.exceptions)||[];
+  if(moon.length) add("bad","Moonrise",
+    moon.length+" imported Moonrise inspection mapping/data issue(s) need review.",
+    moon.slice(0,12).map(x=>(x.property||x.sourceKey)+" ("+x.code+")").join("; ")
+      +(moon.length>12?" ...":""));
+  const activeSoe=inspectionPeriodRows("SOE",monthKey(wk.weekEnding));
+  if((DB.maintenanceInspectionRecords||[]).length && !activeSoe.length) add("info","Moonrise",
+    "No SOE records are loaded for "+monthName(monthKey(wk.weekEnding))+".",
+    "Use the SOE tab to sync Moonrise or review available historical periods.");
 
   // 5. Unmatched source rows
   if((wk.unmatched||[]).length) add("bad","Mapping",
@@ -2356,7 +2838,7 @@ function viewAudit(wk,issues){
    +cor("Two identical MSOE exports were uploaded with no indication which was used.",
         "Duplicate exports are detected and reported; the last file loaded wins and the intake log records exactly which files fed the week.")
    +cor("Prior-month MSOE had to be moved by hand and quarterly context was lost.",
-        "Month rollover is automatic. The completed month's snapshot is frozen to the Prior Month tab on the first upload of the new month, and a 12-month archive is retained.")
+        "Month rollover is automatic. The completed month's snapshot is frozen to the legacy archive on the first upload of the new month, and Moonrise snapshots are versioned on the SOE tab.")
    +cor("Week boundaries were applied inconsistently across tabs.",
         "The reporting week is derived from a single week-ending Thursday: previous Friday through that Thursday, with the M.DD.YY tab label generated to match your existing convention.")
    +cor("Division-by-zero errors (#DIV/0!) displayed throughout the sheet.",
@@ -2406,7 +2888,7 @@ function viewAudit(wk,issues){
    +'<li><b>Corrected names clear immediately.</b> Unmatched-property flags for a section are discarded '
    +'when that section is re-uploaded, so a fixed export does not leave a stale warning behind.</li>'
    +'<li><b>MSOE months only move forward.</b> Uploading a later week freezes the outgoing month to the '
-   +'Prior Month tab. Going back to correct an earlier week refreshes that month&rsquo;s snapshot in place '
+   +'legacy archive. Going back to correct an earlier week refreshes that month&rsquo;s snapshot in place '
    +'and never rolls the current month backwards.</li>'
    +'</ul></div></div>';
   return h;
@@ -2453,6 +2935,15 @@ function viewSourceMap(){
    ["MSOE Monthly Score","MSOE Inspections Status export","% Completed",
     "Joined on Property Look-Up Code first, normalised name second.",
     "Must equal Approved ÷ Created Count; status columns must sum to Created.","Automatic"],
+   ["Moonrise MSOE/SOE Property Match","Moonrise maintenance dashboard","Property / Community + permanent property identifier",
+    "Joined to Atlas roster on permanent property ID or Property Look-Up Code first, then controlled alias mapping.",
+    "Unmatched properties are flagged for review and never guessed.","Automatic"],
+   ["Moonrise MSOE/SOE Result","Moonrise maintenance dashboard","Inspection Type, Inspection Date, Status, Findings, Due Date, Approval / Sign-Off, Reporting Month",
+    "Stored as canonical maintenance inspection records at one row per Moonrise source record, with original source identifier and payload retained.",
+    "Missing type/date/status/approval, invalid dates, duplicate source keys, and conflicting results are flagged.","Automatic"],
+   ["Moonrise Monthly Snapshot","Atlas Maintenance inspection archive","Reporting Month + source record hash",
+    "Each sync captures a versioned monthly snapshot so corrected source rows update current status without rewriting prior snapshot history.",
+    "Snapshot hash changes create a new version; legacy MSOE archives remain read-only.","Automatic"],
    ["MSOE Monthly (Prior Mo.)","MSOE archive (this file)","Archived % Completed",
     "Frozen automatically at month rollover from the last week of the outgoing month.",
     "—","Automatic"],
@@ -2465,8 +2956,8 @@ function viewSourceMap(){
   ];
   let h='<div class="note ok"><b>How the weekly refresh works.</b> Set the week-ending Thursday, upload the Entrata '
    +'exports in Excel, PDF or CSV form &mdash; a single workbook with a tab per community is enough &mdash; '
-   +'check Import Diagnostics, fill or confirm any remaining cream cells, then press <b>Save Data File</b>. Place the saved '
-   +'<span class="mono">.json</span> next to this HTML file on your share and everyone opening it sees the same numbers.</div>';
+   +'check Import Diagnostics, fill or confirm any remaining cream cells, then publish through hosted Atlas once central Maintenance is enabled. '
+   +'Use <span class="mono">.json</span> only for controlled backup, restore, or migration snapshots.</div>';
   h+='<div class="card"><div class="hd"><h3>Source Map &mdash; Repeatable Extraction &amp; Validation Guide</h3>'
    +'<span class="sub">Every field, where it comes from, and the rule that proves it is right</span></div>'
    +'<div class="scroll"><table><thead><tr>'
@@ -2491,18 +2982,13 @@ function viewSourceMap(){
    +'<p>If you enter a date that is not a Thursday, it snaps back to the most recent Thursday so weeks never overlap or gap.</p>'
    +'</div></div>';
 
-  h+='<div class="card"><div class="hd"><h3>Sharing This Report</h3></div><div class="bd legend">'
+  h+='<div class="card"><div class="hd"><h3>Central Atlas Collaboration</h3></div><div class="bd legend">'
    +'<p><b>Accepted uploads:</b> Excel (.xlsx, .xlsm), PDF and CSV. One file or many; one worksheet '
    +'tab or many; one property per report or every property in a single report.</p>'
-   +'<ul><li>Put <span class="mono">RISE-Weekly-Maintenance-Report.html</span> on a shared network path, '
-   +'SharePoint document library, or internal web server. Anyone who can reach that path can open it &mdash; '
-   +'from any IP, no install, no login.</li>'
-   +'<li>Keep the saved <span class="mono">.json</span> data file beside it. Viewers press '
-   +'<b>Load Data File</b> and pick it to see the published week.</li>'
-   +'<li>If you host it on an internal web server, name the data file '
-   +'<span class="mono">rise-weekly-data.json</span> and place it in the same folder &mdash; this page '
-   +'will then load it automatically on open, so viewers see the current week with no clicks.</li>'
-   +'<li>The report never sends data anywhere. All parsing and calculation happens in the browser.</li></ul>'
+   +'<ul><li>The collaboration target is the hosted Atlas platform with login, role-based permissions, audit logs, and central Maintenance metrics.</li>'
+   +'<li>This standalone page remains available for controlled migration, backup, restore, and offline validation while the central platform is being cut over.</li>'
+   +'<li>Use <b>Export JSON Backup</b> to preserve a point-in-time copy before migration or recovery work.</li>'
+   +'<li>Use <b>Import JSON Backup</b> only to restore or inspect a controlled backup. Do not use JSON files as the shared source of truth.</li></ul>'
    +'</div></div>';
   return h;
 }
@@ -3211,6 +3697,9 @@ function viewUpload(wk){
    +row2("MSOE reporting month", ACTIVE?monthName(monthKey(ACTIVE)):"—")
    +row2("MSOE prior month (archived)", DB.msoeCurrentMonth&&DB.msoeArchive[priorMonthKey(DB.msoeCurrentMonth)]
         ? monthName(priorMonthKey(DB.msoeCurrentMonth)) : "none yet")
+   +row2("Moonrise sync status", DB.moonriseSync&&DB.moonriseSync.lastSyncedAt
+        ? DB.moonriseSync.status+" · "+DB.moonriseSync.lastSyncedAt.slice(0,10)
+        : "not synced")
    +'</tbody></table></div></div>';
 
   h+=viewConverter();
@@ -3233,7 +3722,11 @@ function viewUpload(wk){
   /* unmatched mapping */
   const un=(wk&&wk.unmatched)||[];
   const unmapped=((wk&&wk.msoeRaw)||[]).filter(x=>!x.prop).map(x=>({name:x.srcName,kind:"msoe"}));
-  const all=un.concat(unmapped.filter(u=>!un.some(v=>v.name===u.name)));
+  const moonUnmatched=(DB.maintenanceInspectionRecords||[])
+    .filter(r=>(r.exceptions||[]).some(e=>e.code==="unmatched_property"))
+    .map(r=>({name:r.sourcePropertyName,kind:"moonrise"}));
+  const all=un.concat(unmapped.filter(u=>!un.some(v=>v.name===u.name)))
+    .concat(moonUnmatched.filter(u=>u.name&&!un.some(v=>v.name===u.name)));
   h+='<div class="card"><div class="hd"><h3>4. Property Mapping</h3>'
    +'<span class="sub">'+(all.length? all.length+' source name(s) need a roster match'
      :'Every source row matched a roster property')+'</span></div><div class="bd">';
@@ -3521,6 +4014,8 @@ function wireDynamic(){
       +css+'</style></head><body>'+buildSheet(wk)+'</body></html>';
     download("RISE-Weekly-"+OP_LAYOUT+"-"+tabLabel(ACTIVE).replace(/\./g,"-")+".html","text/html",doc);
   });
+  const moonriseInline=document.getElementById("moonriseSyncNow");
+  if(moonriseInline) moonriseInline.addEventListener("click",runMoonriseSyncNow);
 
   // ---- converter ----
   const cz=document.getElementById("convZone");
@@ -3625,6 +4120,18 @@ function reprocess(){
       wk.origin[p]=o;
     });
   }
+  const periods=[];
+  (DB.maintenanceInspectionRecords||[]).forEach(r=>{
+    if(r.sourceSystem!=="Moonrise maintenance dashboard") return;
+    const p=resolveProp(r.sourcePropertyName,r.code,idx);
+    r.property=p||"";
+    r.propertyId=p?propertyIdForProp(p):(r.sourcePropertyId||"");
+    r.exceptions=(r.exceptions||[]).filter(e=>e.code!=="unmatched_property");
+    if(r.sourcePropertyName&&!p) r.exceptions.push({code:"unmatched_property",
+      message:"Property is not matched to the Atlas roster."});
+    if(r.reportingMonth) periods.push(r.reportingMonth);
+  });
+  if(periods.length) inspectionArchiveSnapshot([...new Set(periods)],new Date().toISOString());
   carryForward(ACTIVE);
 }
 
@@ -3757,10 +4264,104 @@ async function handleFiles(fileList){
   }
 }
 
+async function expandMoonriseFile(file){
+  const name=file.name||"Moonrise export";
+  if(/\.json$/i.test(name)){
+    const payload=JSON.parse(await file.text());
+    const rows=Array.isArray(payload) ? payload
+      : Array.isArray(payload.records) ? payload.records
+      : Array.isArray(payload.inspections) ? payload.inspections
+      : Array.isArray(payload.data) ? payload.data
+      : Array.isArray(payload.items) ? payload.items
+      : [];
+    const header=[...new Set(rows.flatMap(r=>Object.keys(r||{})))];
+    return [{file:name,sheet:"JSON",rows,header,headerRow:0,rawRows:rows.length,
+      note:"Moonrise JSON export",kind:"moonrise"}];
+  }
+  const units=await expandToUnits(file);
+  return units.filter(u=>u.rows&&u.rows.length).map(u=>({...u,kind:"moonrise",
+    note:(u.note?u.note+"; ":"")+"Moonrise sync import"}));
+}
+async function handleMoonriseFiles(fileList){
+  const all=Array.from(fileList);
+  const files=all.filter(f=>/\.(csv|txt|xlsx|xlsm|xltx|xls|pdf|json)$/i.test(f.name));
+  const rejected=all.filter(f=>files.indexOf(f)<0);
+  if(!files.length){
+    alert("Choose a Moonrise CSV, Excel, PDF, or JSON export."
+      +(rejected.length? "\n\nIgnored:\n"+rejected.map(f=>"   • "+f.name).join("\n") : ""));
+    return;
+  }
+  const note=document.getElementById("statusNote");
+  if(note) note.textContent="Reading Moonrise inspection export...";
+  const units=[]; const readErrors=[];
+  for(const f of files){
+    try{ (await expandMoonriseFile(f)).forEach(u=>units.push(u)); }
+    catch(e){ readErrors.push({name:f.name,msg:e.message||String(e)}); }
+  }
+  const usable=units.filter(u=>u.rows&&u.rows.length);
+  if(!usable.length){
+    DB.moonriseSync={...defaultMoonriseSync(),...(DB.moonriseSync||{}),
+      status:"blocked", lastSource:"Moonrise export",
+      exceptions:readErrors.map(e=>({sourceKey:e.name,property:"",type:"",
+        reportingMonth:"",code:"read_error",message:e.msg}))};
+    persist(); setPanel("soe"); render();
+    alert("Atlas could not read any Moonrise inspection rows.\n\n"
+      +(readErrors.length? readErrors.map(e=>"   • "+e.name+": "+e.msg).join("\n"):""));
+    return;
+  }
+  const res=syncMoonriseUnits(usable,"Moonrise export");
+  persist(); setPanel("soe"); render();
+  const msg=["Moonrise inspection sync complete.","",
+    "Imported: "+res.imported,
+    "Inserted: "+res.inserted,
+    "Updated: "+res.updated,
+    "Unchanged: "+res.unchanged,
+    "Reporting periods: "+(res.periods.map(monthName).join(", ")||"not detected"),
+    "Review flags: "+res.exceptions.length];
+  if(readErrors.length){
+    msg.push("");
+    msg.push("Could not read:");
+    readErrors.forEach(e=>msg.push("   • "+e.name+": "+e.msg));
+  }
+  alert(msg.join("\n"));
+}
+async function syncMoonriseFromCentral(){
+  if(!window.ATLAS_CENTRAL) throw new Error("Atlas central client is not loaded.");
+  const status=window.ATLAS_CENTRAL.getStatus();
+  if(!status.configured) throw new Error(status.message);
+  const payload=await window.ATLAS_CENTRAL.fetchJson("/integrations/moonrise/maintenance-inspections?types=MSOE,SOE");
+  const rows=Array.isArray(payload.records) ? payload.records
+    : Array.isArray(payload.inspections) ? payload.inspections
+    : Array.isArray(payload.data) ? payload.data : [];
+  const header=[...new Set(rows.flatMap(r=>Object.keys(r||{})))];
+  return syncMoonriseUnits([{file:"Atlas Central Moonrise API",sheet:"API",
+    rows,header,headerRow:0,rawRows:rows.length,note:"Central API",kind:"moonrise"}],
+    "central Moonrise API");
+}
+async function runMoonriseSyncNow(){
+  const central=window.ATLAS_CENTRAL&&window.ATLAS_CENTRAL.getStatus
+    ? window.ATLAS_CENTRAL.getStatus() : {configured:false};
+  if(central.configured){
+    try{
+      const res=await syncMoonriseFromCentral();
+      persist(); setPanel("soe"); render();
+      alert("Moonrise central sync complete.\n\nImported: "+res.imported
+        +"\nInserted: "+res.inserted+"\nUpdated: "+res.updated
+        +"\nUnchanged: "+res.unchanged+"\nReview flags: "+res.exceptions.length);
+      return;
+    }catch(e){
+      alert("Central Moonrise sync did not complete:\n"+(e.message||e)
+        +"\n\nChoose a controlled Moonrise export instead.");
+    }
+  }
+  document.getElementById("fileMoonrise").click();
+}
+
 /* ------------------------------ PERSISTENCE ---------------------------- */
 const LS_KEY="rise_wmr_v1";
 function persist(){
   try{ localStorage.setItem(LS_KEY, JSON.stringify({db:DB,active:ACTIVE})); }catch(e){}
+  publishMaintenanceInspectionSnapshot();
 }
 function restore(){
   try{
@@ -3771,6 +4372,53 @@ function restore(){
     return true;
   }catch(e){ return false; }
 }
+function dbPropertyId(db, prop){
+  const r=(db.roster||[]).find(x=>x.prop===prop);
+  return r ? (r.propertyId||(r.propertyId=propertyIdFromRow(r))) : "";
+}
+function legacyMsoeInspectionRecord(db, row, key, weekISO, archiveMonthKey){
+  const reportingMonth=archiveMonthKey||monthKey(weekISO);
+  const sourceKey="legacy-msoe|"+(archiveMonthKey?"archive":"week")+"|"+(archiveMonthKey||weekISO)+"|"+(row.prop||row.srcName||"");
+  const approved=row.approved==null?0:num(row.approved);
+  const created=row.created==null?1:num(row.created);
+  return {id:"inspection-"+stableHash(sourceKey), sourceSystem:"Atlas legacy MSOE export",
+    sourceRecordId:"", sourceKey, sourceFile:"legacy Atlas data", sourceSheet:archiveMonthKey?"archive":"week",
+    sourceRow:null, sourcePropertyName:row.srcName||row.prop||"", sourcePropertyId:"",
+    propertyId:dbPropertyId(db,row.prop), property:row.prop||"", code:row.code||"",
+    inspectionType:"MSOE", inspectionDate:weekISO||"", status:msoeStatus(row).t,
+    findings:"", dueDate:"", approvalStatus:approved>=created&&created>0?"Approved":"Not fully approved",
+    signOffStatus:"", reportingMonth, lastUpdatedAt:"", completionPct:row.pct==null?null:row.pct,
+    createdCount:created, approvedCount:approved, reviewCount:num(row.review),
+    progressCount:num(row.progress), notStartedCount:num(row.notStarted),
+    pastDueCount:num(row.pastDue), approvedForReporting:approved>=created&&created>0,
+    firstImportedAt:null, lastSyncedAt:null, sourcePayload:{...row}, exceptions:[], history:[{
+      at:new Date().toISOString(), action:"legacy_seed",
+      note:"Canonical inspection copy created without modifying legacy MSOE rows."}],
+    sourceHash:stableHash(JSON.stringify(row))};
+}
+function seedLegacyMsoeRecords(db){
+  db.maintenanceInspectionRecords=db.maintenanceInspectionRecords||[];
+  const existing={}; db.maintenanceInspectionRecords.forEach(r=>existing[r.sourceKey]=1);
+  let added=0;
+  Object.keys(db.weeks||{}).forEach(k=>{
+    (db.weeks[k].msoeRaw||[]).forEach(row=>{
+      const rec=legacyMsoeInspectionRecord(db,row,k,null);
+      if(!existing[rec.sourceKey]){ db.maintenanceInspectionRecords.push(rec); existing[rec.sourceKey]=1; added++; }
+    });
+  });
+  Object.keys(db.msoeArchive||{}).forEach(mk=>{
+    const a=db.msoeArchive[mk];
+    (a.rows||[]).forEach(row=>{
+      const rec=legacyMsoeInspectionRecord(db,row,a.sourceWeek||"",mk);
+      if(!existing[rec.sourceKey]){ db.maintenanceInspectionRecords.push(rec); existing[rec.sourceKey]=1; added++; }
+    });
+  });
+  if(added){
+    db.migrationLog=db.migrationLog||[];
+    db.migrationLog.push({at:new Date().toISOString(), phase:"legacy_msoe_to_inspection_model",
+      source:"Atlas legacy MSOE rows", inserted:added, note:"Original weekly and archived MSOE rows were preserved unchanged."});
+  }
+}
 /** Bring an older/foreign data file up to the current shape. */
 function migrate(db){
   const base=blankDB();
@@ -3779,15 +4427,21 @@ function migrate(db){
   // ensure every seeded roster property exists (additive, non-destructive)
   const have={}; db.roster.forEach(r=>have[r.prop]=r);
   base.roster.forEach(r=>{ if(!have[r.prop]) db.roster.push(r); });
-  db.roster.forEach(r=>{ r.alias=r.alias||[]; if(!("qtrScore" in r)) r.qtrScore="";
+  db.roster.forEach(r=>{ r.propertyId=r.propertyId||propertyIdFromRow(r);
+                         r.alias=r.alias||[]; if(!("qtrScore" in r)) r.qtrScore="";
                          if(!("qtrPrior" in r)) r.qtrPrior=""; });
   db.weeks=db.weeks||{}; db.msoeArchive=db.msoeArchive||{}; db.manualMap=db.manualMap||{};
+  db.maintenanceInspectionRecords=db.maintenanceInspectionRecords||[];
+  db.maintenanceInspectionArchive=db.maintenanceInspectionArchive||{};
+  db.moonriseSync={...defaultMoonriseSync(),...(db.moonriseSync||{})};
+  db.migrationLog=db.migrationLog||[];
   Object.keys(db.weeks).forEach(k=>{const w=db.weeks[k];
     w.origin=w.origin||{}; w.msoe=w.msoe||{}; w.msoeRaw=w.msoeRaw||[];
     w.manual=w.manual||{}; w.files=w.files||[]; w.unmatched=w.unmatched||[];
     w.perfByProp=w.perfByProp||{};
     if(w.perf && !w.perf.source) w.perf.source="combined export (portfolio only)";
     w.weekStart=weekStart(k); w.tab=tabLabel(k); w.quarter=quarterOf(k);});
+  seedLegacyMsoeRecords(db);
   db.version=APP_VERSION;
   return db;
 }
@@ -3868,6 +4522,10 @@ document.getElementById("btnUpload").addEventListener("click",()=>
 document.getElementById("fileCsv").addEventListener("change",e=>{
   handleFiles(e.target.files); e.target.value="";});
 
+document.getElementById("btnMoonriseSync").addEventListener("click",runMoonriseSyncNow);
+document.getElementById("fileMoonrise").addEventListener("change",e=>{
+  handleMoonriseFiles(e.target.files); e.target.value="";});
+
 document.getElementById("btnLoad").addEventListener("click",()=>
   document.getElementById("fileJson").click());
 document.getElementById("fileJson").addEventListener("change",e=>{
@@ -3910,6 +4568,7 @@ function applyLogo(){
 document.getElementById("btnReset").addEventListener("click",()=>{
   if(!confirm("Clear all locally stored data from this browser?\n\nSaved .json data files are not affected."))return;
   localStorage.removeItem(LS_KEY); DB=blankDB(); ACTIVE=null; applyLogo(); setPanel("upload"); render();
+  publishMaintenanceInspectionSnapshot();
 });
 
 document.getElementById("weekEnding").addEventListener("change",e=>{
@@ -3926,8 +4585,8 @@ document.getElementById("weekEnding").addEventListener("change",e=>{
   persist(); render();
 });
 
-/* Optional zero-click load for intranet hosting: if rise-weekly-data.json sits
-   beside this file on an http(s) server, load it automatically.               */
+/* Controlled recovery load: if rise-weekly-data.json sits beside this file on an
+   http(s) server and autoload=1 is explicitly present, load the backup.        */
 function tryAutoLoad(cb){
   if(!/^https?:$/.test(location.protocol)) return cb(false);
   const params = new URLSearchParams(location.search);
@@ -3950,7 +4609,7 @@ function tryAutoLoad(cb){
       document.getElementById("qtrLabel").textContent=quarterOf(iso(lastThursday(new Date())));
       setPanel("upload");
     }
-    applyLogo(); render(); applyPageStyle();
+    applyLogo(); render(); applyPageStyle(); publishMaintenanceInspectionSnapshot();
   };
   if(!had) tryAutoLoad(ok=>finish()); else finish();
 })();

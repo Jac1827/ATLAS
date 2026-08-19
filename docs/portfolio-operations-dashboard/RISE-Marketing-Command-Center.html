@@ -2246,6 +2246,11 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
     </div>
     <div class="modal-body">
       <div class="form-grid">
+        <div class="form-group full">
+          <label>Employee Directory</label>
+          <select id="m-people-select" onchange="applyPeopleDirectorySelection('member', this.value)"></select>
+          <div id="m-people-meta" style="font-size:11px;color:#7a9aaa;margin-top:6px">Choose an employee from People to fill name, email, title, status, and community assignment.</div>
+        </div>
         <div class="form-group">
           <label>First Name</label>
           <input type="text" id="m-fname" placeholder="e.g. Renee">
@@ -3429,6 +3434,175 @@ let surveyContext     = {};
 
 // SHARED HELPERS — must be defined before any engine runs
 function initials(m) { return ((m.fname||'')[0] + (m.lname||'')[0]).toUpperCase(); }
+
+const PEOPLE_DIRECTORY_STORAGE_KEY = 'rise_performance_platform_github_v1';
+const PEOPLE_PROPERTY_ALIASES = {
+  'bartram park': 'Bartram',
+  'beacon': 'Beacon / Poplar Hall',
+  'beacon hall': 'Beacon / Poplar Hall',
+  'doro': 'Doro High Rise',
+  'glen kernan park': 'Glen Kernan Park',
+  'gkp': 'Glen Kernan Park',
+  'njit maple': 'Maple Hall (NJIT)',
+  'njit maple hall': 'Maple Hall (NJIT)',
+  'st augustine': 'St. Augustine',
+  'st. augustine': 'St. Augustine',
+  'utk beacon hall': 'Beacon / Poplar Hall'
+};
+
+function marketingNormalizeText(value) {
+  return String(value || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function splitPeopleDirectoryName(name) {
+  const parts = String(name || '').trim().replace(/\s+/g, ' ').split(' ').filter(Boolean);
+  const firstName = parts[0] || '';
+  const lastName = parts.length > 1 ? parts[parts.length - 1].replace(/\.$/, '') : '';
+  return { firstName, lastName, lastInitial: lastName ? lastName[0].toUpperCase() : '' };
+}
+
+function getPeopleDirectoryCommunity(employee = {}) {
+  const direct = String(employee.community || employee.communityName || employee.property || employee.propertyName || '').trim();
+  if (direct) return direct;
+  const dept = String(employee.department || '').trim();
+  if (dept.includes(' - ')) return dept.split(' - ').slice(1).join(' - ').trim();
+  return '';
+}
+
+function isPeopleDirectoryEmployeeActive(employee = {}) {
+  const status = String(employee.status || '').toLowerCase();
+  if (status.includes('terminated') || status.includes('inactive')) return false;
+  return !String(employee.terminationDate || employee.effectiveEnd || employee.endDate || '').trim();
+}
+
+function getPeopleDirectoryEmployees() {
+  try {
+    const raw = localStorage.getItem(PEOPLE_DIRECTORY_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    const employees = Array.isArray(parsed.employees) ? parsed.employees : [];
+    return employees.map(employee => {
+      const name = String(employee.name || '').trim();
+      const email = String(employee.email || employee.workEmail || employee['Work Email'] || '').trim();
+      const title = String(employee.role || employee.title || '').trim();
+      const community = getPeopleDirectoryCommunity(employee);
+      const employeeNumber = String(employee.employeeNumber || employee['Employee Number'] || '').trim();
+      const id = String(employee.id || employeeNumber || email || name).trim();
+      const nameParts = splitPeopleDirectoryName(name);
+      return {
+        id,
+        employeeNumber,
+        name,
+        firstName: nameParts.firstName,
+        lastName: nameParts.lastName,
+        lastInitial: nameParts.lastInitial,
+        email,
+        title,
+        community,
+        status: String(employee.status || 'Active').trim() || 'Active',
+        active: isPeopleDirectoryEmployeeActive(employee)
+      };
+    }).filter(employee => employee.id && employee.name)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch (error) {
+    console.warn('People directory could not be read', error);
+    return [];
+  }
+}
+
+function findMarketingPropertyMatches(communityName = '') {
+  const normalized = marketingNormalizeText(communityName);
+  if (!normalized) return [];
+  const alias = PEOPLE_PROPERTY_ALIASES[normalized] || '';
+  const wanted = marketingNormalizeText(alias || communityName);
+  const activeProperties = propertiesData.filter(property => property.status === 'active');
+  const exact = activeProperties.find(property => marketingNormalizeText(property.name) === wanted);
+  if (exact) return [exact.name];
+  const fuzzy = activeProperties.find(property => {
+    const candidate = marketingNormalizeText(property.name);
+    return candidate && wanted && (candidate.includes(wanted) || wanted.includes(candidate));
+  });
+  return fuzzy ? [fuzzy.name] : [];
+}
+
+function inferMarketingRoleTypeFromTitle(title = '') {
+  const normalized = marketingNormalizeText(title);
+  if (normalized.includes('vice president') || normalized.includes(' vp ') || normalized.startsWith('vp') || normalized.includes('executive')) return 'vp';
+  if (normalized.includes('director')) return 'director';
+  return 'staff';
+}
+
+function inferApproverRoleFromTitle(title = '') {
+  const normalized = marketingNormalizeText(title);
+  if (normalized.includes('legal') || normalized.includes('compliance')) return 'Legal';
+  if (normalized.includes('owner') || normalized.includes('investor')) return 'Owner';
+  if (normalized.includes('vice president') || normalized.includes(' vp ') || normalized.startsWith('vp') || normalized.includes('executive')) return 'VP';
+  if (normalized.includes('regional') || normalized.includes('area manager')) return 'Regional';
+  if (normalized.includes('general manager') || normalized.includes('community manager') || normalized.includes('property manager') || normalized === 'gm') return 'GM';
+  return 'Other';
+}
+
+function setPeopleDirectoryMeta(kind, text) {
+  const id = kind === 'approver' ? 'ap-people-meta' : 'm-people-meta';
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+function populatePeopleDirectorySelect(selectId, kind = 'member', selectedEmail = '') {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  const employees = getPeopleDirectoryEmployees();
+  select.innerHTML = '';
+  const manual = document.createElement('option');
+  manual.value = '';
+  manual.textContent = employees.length ? 'Manual entry / choose an employee...' : 'No People employees found in this browser';
+  select.appendChild(manual);
+  employees.forEach(employee => {
+    const option = document.createElement('option');
+    option.value = employee.id;
+    option.textContent = [
+      employee.name,
+      employee.title || 'No title',
+      employee.community || '',
+      employee.active ? '' : 'inactive'
+    ].filter(Boolean).join(' · ');
+    select.appendChild(option);
+  });
+  select.disabled = employees.length === 0;
+  const matching = selectedEmail ? employees.find(employee => marketingNormalizeText(employee.email) === marketingNormalizeText(selectedEmail)) : null;
+  select.value = matching ? matching.id : '';
+  setPeopleDirectoryMeta(kind, employees.length
+    ? 'Choose an employee from People to fill this screen. Module-specific routing fields stay editable.'
+    : 'Open or import the People roster first, then this list will populate automatically.');
+}
+
+function applyPeopleDirectorySelection(kind, employeeId) {
+  if (!employeeId) return;
+  const employee = getPeopleDirectoryEmployees().find(item => item.id === employeeId);
+  if (!employee) return;
+  const matchedProperties = findMarketingPropertyMatches(employee.community);
+  if (kind === 'approver') {
+    document.getElementById('ap-fname').value = employee.firstName;
+    document.getElementById('ap-lname').value = employee.lastName;
+    document.getElementById('ap-email').value = employee.email;
+    document.getElementById('ap-role').value = inferApproverRoleFromTitle(employee.title);
+    document.getElementById('ap-status').value = employee.active ? 'active' : 'inactive';
+    buildApproverPropertyCheckboxes(matchedProperties);
+  } else {
+    document.getElementById('m-fname').value = employee.firstName;
+    document.getElementById('m-lname').value = employee.lastInitial;
+    document.getElementById('m-email').value = employee.email;
+    document.getElementById('m-role').value = employee.title;
+    document.getElementById('m-roletype').value = inferMarketingRoleTypeFromTitle(employee.title);
+    document.getElementById('m-status').value = employee.active ? 'active' : 'inactive';
+    buildPropertyCheckboxes(matchedProperties);
+    wireTierExplainer();
+    const explainer = document.getElementById('tier-explainer');
+    if (explainer) explainer.style.display = document.getElementById('m-roletype').value !== 'staff' ? 'block' : 'none';
+  }
+  const propertyText = matchedProperties.length ? ' Property assignment matched: ' + matchedProperties.join(', ') + '.' : ' No matching Marketing property was found; review property assignments before saving.';
+  setPeopleDirectoryMeta(kind, 'Imported from People: ' + employee.name + '.' + propertyText);
+  showToast(employee.name + ' imported from People', 'success');
+}
 
 // USER CYCLE
 // AUTH — plain global fallback so onclick="handleSignIn()" always works
@@ -5852,6 +6026,7 @@ function openAddApprover() {
   document.getElementById('ap-status').value = 'active';
   document.getElementById('delete-approver-btn').style.display = 'none';
   buildApproverPropertyCheckboxes([]);
+  populatePeopleDirectorySelect('ap-people-select', 'approver');
   document.getElementById('add-approver-modal').classList.add('open');
 }
 
@@ -5869,6 +6044,7 @@ function openEditApprover(id) {
   document.getElementById('ap-status').value = ap.status;
   document.getElementById('delete-approver-btn').style.display = 'inline-flex';
   buildApproverPropertyCheckboxes(ap.properties || []);
+  populatePeopleDirectorySelect('ap-people-select', 'approver', ap.email);
   document.getElementById('add-approver-modal').classList.add('open');
 }
 
@@ -5897,6 +6073,14 @@ async function saveApprover() {
   const lname = document.getElementById('ap-lname').value.trim();
   const email = document.getElementById('ap-email').value.trim();
   if (!fname || !email) { showToast('Name and email are required', 'warn'); return; }
+  const duplicate = approversData.find(approver =>
+    approver.id !== editingApproverId
+    && marketingNormalizeText(approver.email) === marketingNormalizeText(email)
+  );
+  if (duplicate) {
+    showToast(email + ' is already listed as an approver. Open that row to update their properties.', 'warn');
+    return;
+  }
 
   const ap = {
     id: editingApproverId || ('ap-' + Date.now()),
@@ -6170,6 +6354,7 @@ function openAddMember() {
   document.getElementById('delete-member-btn').style.display = 'none';
   buildSkillCheckboxes([]);
   buildPropertyCheckboxes([]);
+  populatePeopleDirectorySelect('m-people-select', 'member');
   wireTierExplainer();
   document.getElementById('add-member-modal').classList.add('open');
 }
@@ -6199,6 +6384,7 @@ function openEditMember(id) {
   document.getElementById('delete-member-btn').style.display = 'inline-flex';
   buildSkillCheckboxes(m.skills);
   buildPropertyCheckboxes(m.properties || []);
+  populatePeopleDirectorySelect('m-people-select', 'member', m.email);
   wireTierExplainer();
   document.getElementById('add-member-modal').classList.add('open');
 }
@@ -6248,6 +6434,14 @@ async function saveMember() {
   const email = document.getElementById('m-email').value.trim();
   const role = document.getElementById('m-role').value.trim();
   if (!fname || !email) { showToast('Name and email are required', 'warn'); return; }
+  const duplicate = teamData.find(member =>
+    member.id !== editingMemberId
+    && marketingNormalizeText(member.email) === marketingNormalizeText(email)
+  );
+  if (duplicate) {
+    showToast(email + ' is already on the Marketing team. Open that card to update their routing settings.', 'warn');
+    return;
+  }
   const member = {
     id: editingMemberId || ('m-' + Date.now()),
     _dbId: editingMemberId ? (teamData.find(x=>x.id===editingMemberId)||{})._dbId : null,
@@ -7778,6 +7972,7 @@ Object.assign(window, {
 
   // Settings — Approvers
   openAddApprover, openEditApprover, saveApprover, deleteApprover, closeAddApprover,
+  applyPeopleDirectorySelection,
 
   // Lead Sources
   handleCSVUpload, handleDocUpload,
@@ -8974,6 +9169,11 @@ function mktInit(){
     </div>
     <div class="modal-body">
       <div class="form-grid">
+        <div class="form-group full">
+          <label>Employee Directory</label>
+          <select id="ap-people-select" onchange="applyPeopleDirectorySelection('approver', this.value)"></select>
+          <div id="ap-people-meta" style="font-size:11px;color:#7a9aaa;margin-top:6px">Choose an employee from People to fill name, email, role, status, and property assignment.</div>
+        </div>
         <div class="form-group">
           <label>First Name</label>
           <input type="text" id="ap-fname" placeholder="e.g. Sarah">

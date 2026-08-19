@@ -818,109 +818,6 @@
   /* Move-in badge */
   .movein-badge { background: rgba(45,212,191,0.12); border: 1px solid rgba(45,212,191,0.3); color: #2dd4bf; font-size: 0.62rem; font-weight: 700; padding: 1px 5px; border-radius: 4px; margin-left: 4px; }
 
-  /* Scout presence */
-  .scout-presence-layer{position:fixed;inset:0;pointer-events:none;z-index:45}
-  .scout-orb{
-    position:absolute;left:0;top:0;width:78px;height:78px;opacity:.94;
-    filter:drop-shadow(0 14px 24px rgba(8,31,48,0.20));
-    transition:width .28s ease,height .28s ease,opacity .18s ease,box-shadow .18s ease;
-    --scout-color:#6db6ff;--scout-deep:#1270d0;--scout-glow:rgba(109,182,255,0.30);
-    pointer-events:auto;cursor:pointer;border:0;background:transparent;padding:0;
-  }
-  .scout-orb:focus-visible{outline:2px solid rgba(68,147,248,0.45);outline-offset:4px;border-radius:50%}
-  .scout-orb::before{
-    content:"";position:absolute;inset:-12px;border-radius:50%;
-    background:radial-gradient(circle, var(--scout-glow) 0%, rgba(109,182,255,0.08) 46%, transparent 72%);
-    animation:scoutHalo 5.2s ease-in-out infinite;
-  }
-  .scout-ring,.scout-core,.scout-scan,.scout-grid,.scout-pulse{position:absolute;border-radius:50%;inset:0}
-  .scout-ring{border:1px solid rgba(255,255,255,0.18)}
-  .scout-ring.r1{inset:6px;animation:scoutRingForward 8s linear infinite}
-  .scout-ring.r2{inset:14px;border-color:rgba(255,255,255,0.14);animation:scoutRingReverse 11s linear infinite}
-  .scout-ring.r3{inset:24px;border-color:rgba(255,255,255,0.16);border-style:dashed;animation:scoutRingForward 14s linear infinite}
-  .scout-core{
-    inset:15px;border:1px solid rgba(255,255,255,0.16);
-    background:
-      radial-gradient(circle at 34% 32%, rgba(255,255,255,0.88) 0%, rgba(255,255,255,0.24) 22%, transparent 38%),
-      radial-gradient(circle at 60% 70%, rgba(255,255,255,0.15) 0%, transparent 42%),
-      linear-gradient(145deg, var(--scout-color) 0%, rgba(255,255,255,0.14) 30%, var(--scout-deep) 100%);
-    box-shadow:inset 0 0 24px rgba(255,255,255,0.12),0 0 24px var(--scout-glow);
-    animation:scoutCoreBreathe 6.2s ease-in-out infinite;
-  }
-  .scout-grid{
-    inset:20px;overflow:hidden;opacity:.30;mix-blend-mode:screen;
-    background:
-      linear-gradient(90deg, transparent 0 43%, rgba(255,255,255,0.26) 50%, transparent 57%),
-      linear-gradient(180deg, transparent 0 43%, rgba(255,255,255,0.16) 50%, transparent 57%);
-    animation:scoutGridRotate 9s linear infinite;
-  }
-  .scout-scan{inset:10px;overflow:hidden;mask-image:radial-gradient(circle, transparent 22%, #000 24%);-webkit-mask-image:radial-gradient(circle, transparent 22%, #000 24%)}
-  .scout-scan::after{
-    content:"";position:absolute;left:12%;right:12%;top:47%;height:2px;border-radius:999px;
-    background:linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.0) 10%, rgba(255,255,255,0.84) 50%, rgba(255,255,255,0.0) 90%, transparent 100%);
-    box-shadow:0 0 14px rgba(255,255,255,0.44);animation:scoutScanSweep 5s ease-in-out infinite;
-  }
-  .scout-pulse{inset:-2px;border:1px solid rgba(255,255,255,0.10);opacity:0}
-  .scout-orb.is-processing .scout-pulse{animation:scoutProcessPulse 1.2s ease-out infinite}
-  .scout-orb.is-speaking{width:92px;height:92px}
-  .scout-orb.is-speaking .scout-core{animation-duration:3.2s}
-  .scout-orb.is-open{opacity:1}
-  .scout-orb.is-critical .scout-core{box-shadow:inset 0 0 24px rgba(255,255,255,0.10),0 0 30px rgba(239,85,85,0.34)}
-  .scout-orb.is-critical .scout-scan::after{animation-duration:2.8s}
-  .scout-assistant{
-    position:fixed;right:28px;bottom:118px;width:min(420px,calc(100vw - 24px));max-height:min(72vh,760px);
-    background:rgba(249,252,255,0.97);border:1px solid rgba(15,47,87,0.12);border-radius:22px;
-    box-shadow:0 24px 60px rgba(10,36,58,0.18);backdrop-filter:blur(14px);
-    display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;overflow:hidden;pointer-events:auto;
-    transform:translateY(18px) scale(.98);opacity:0;visibility:hidden;transition:opacity .2s ease,transform .2s ease,visibility .2s ease;
-    z-index:46;
-  }
-  .scout-assistant.is-open{opacity:1;visibility:visible;transform:translateY(0) scale(1)}
-  .scout-assistant-header{
-    display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:18px 18px 14px;
-    background:linear-gradient(180deg, rgba(18,112,208,0.08) 0%, rgba(18,112,208,0.02) 100%);
-    border-bottom:1px solid rgba(15,47,87,0.08);
-  }
-  .scout-assistant-title{font-size:0.98rem;font-weight:800;color:#12324b}
-  .scout-assistant-sub{font-size:0.7rem;color:#567086;margin-top:4px;line-height:1.45}
-  .scout-assistant-close{
-    border:0;background:rgba(15,47,87,0.06);color:#35566f;border-radius:999px;padding:8px 10px;cursor:pointer;font-weight:700
-  }
-  .scout-assistant-prompts{display:flex;gap:8px;flex-wrap:wrap;padding:12px 18px 0}
-  .scout-prompt-chip{
-    border:1px solid rgba(18,112,208,0.14);background:#fff;color:#184c70;border-radius:999px;padding:8px 12px;cursor:pointer;font-size:0.68rem;font-weight:700
-  }
-  .scout-assistant-log{padding:14px 18px 12px;overflow:auto;display:flex;flex-direction:column;gap:10px;background:linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(241,247,252,0.96) 100%)}
-  .scout-msg{max-width:92%;padding:12px 14px;border-radius:16px;font-size:0.75rem;line-height:1.5;white-space:pre-wrap}
-  .scout-msg.user{align-self:flex-end;background:#12324b;color:#fff;border-bottom-right-radius:6px}
-  .scout-msg.assistant{align-self:flex-start;background:#fff;color:#23435b;border:1px solid rgba(15,47,87,0.08);border-bottom-left-radius:6px}
-  .scout-msg-media{margin-top:10px;border-radius:12px;overflow:hidden;border:1px solid rgba(15,47,87,0.08);background:#edf4fb}
-  .scout-msg-media img{display:block;width:100%;max-height:180px;object-fit:cover}
-  .scout-msg-meta{display:block;font-size:0.62rem;color:#6a8599;margin-top:6px}
-  .scout-assistant-compose{display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:12px 18px 18px;border-top:1px solid rgba(15,47,87,0.08);background:#f8fbfe}
-  .scout-assistant-compose input{
-    min-width:0;border:1px solid rgba(15,47,87,0.14);border-radius:14px;padding:12px 14px;font:inherit;background:#fff;color:#14324b
-  }
-  .scout-assistant-compose button{
-    border:0;border-radius:14px;padding:0 14px;font-weight:800;cursor:pointer
-  }
-  .scout-mic-btn{background:rgba(18,112,208,0.10);color:#0f5caa}
-  .scout-mic-btn.is-listening{background:#ef5555;color:#fff}
-  .scout-send-btn{background:#12324b;color:#fff}
-  .scout-compose-note{padding:0 18px 12px;font-size:0.64rem;color:#6b8293;background:#f8fbfe}
-  @media(max-width:760px){
-    .scout-assistant{right:12px;left:12px;bottom:96px;width:auto;max-height:min(70vh,680px)}
-    .scout-assistant-compose{grid-template-columns:1fr auto}
-    .scout-send-btn{grid-column:span 2}
-  }
-  @keyframes scoutHalo{0%,100%{transform:scale(.97);opacity:.72}50%{transform:scale(1.06);opacity:1}}
-  @keyframes scoutCoreBreathe{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
-  @keyframes scoutGridRotate{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-  @keyframes scoutRingForward{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-  @keyframes scoutRingReverse{from{transform:rotate(360deg)}to{transform:rotate(0deg)}}
-  @keyframes scoutScanSweep{0%,100%{transform:translateY(-12px);opacity:.32}50%{transform:translateY(14px);opacity:1}}
-  @keyframes scoutProcessPulse{0%{transform:scale(.84);opacity:0}30%{opacity:.46}100%{transform:scale(1.16);opacity:0}}
-  @media(max-width:760px){.scout-orb{width:66px;height:66px}.scout-orb.is-speaking{width:78px;height:78px}}
 </style>
 <!-- ATLAS Redesign v2 presentation layer — loaded last so it overrides the base
      styles above. Presentation only; no dashboard logic depends on it. -->
@@ -968,10 +865,6 @@
           </select>
         </label>
       </div>
-      <button type="button" class="side-nav-action" onclick="openFinancialAccountabilityPage()" aria-label="Financials" title="Financials">
-        <img class="side-nav-action-icon" src="assets/atlas-icon.png" alt="">
-        <span class="side-nav-action-label">Financials</span>
-      </button>
       <!-- Merged navigation: the redesign's flow and grouping, carrying every
            destination from the live dashboard plus the four embedded RISE
            platforms. Active state is keyed off data-tab, not DOM order, so the
@@ -1033,7 +926,6 @@
     <div class="atlas-topbar-chips">
       <span class="atlas-chip is-accent" id="atlas-chip-budget"><i class="ph ph-file-text" aria-hidden="true"></i><span>Monthly upload</span></span>
       <span class="atlas-chip" id="atlas-chip-freshness"><i class="ph ph-database" aria-hidden="true"></i><span>No rows in review</span></span>
-      <button type="button" class="atlas-chip atlas-chip-action" onclick="openFinancialAccountabilityPage()"><i class="ph ph-currency-dollar" aria-hidden="true"></i><span>Financials</span></button>
     </div>
   </header>
 
@@ -1082,39 +974,6 @@
 
 </div>
 
-<div class="scout-presence-layer" aria-hidden="true">
-  <button type="button" class="scout-orb" id="scout-orb" aria-label="Open Scout assistant" title="Ask Scout">
-    <div class="scout-ring r1"></div>
-    <div class="scout-ring r2"></div>
-    <div class="scout-ring r3"></div>
-    <div class="scout-scan"></div>
-    <div class="scout-pulse"></div>
-    <div class="scout-core"></div>
-    <div class="scout-grid"></div>
-  </button>
-</div>
-<section class="scout-assistant" id="scout-assistant" aria-label="Scout assistant" aria-hidden="true">
-  <div class="scout-assistant-header">
-    <div>
-      <div class="scout-assistant-title">Scout</div>
-      <div class="scout-assistant-sub">ATLAS intelligence layer. Ask by typing or microphone. Answers are grounded in the current dashboard state.</div>
-    </div>
-    <button type="button" class="scout-assistant-close" id="scout-assistant-close" aria-label="Close Scout">Close</button>
-  </div>
-  <div class="scout-assistant-prompts">
-    <button type="button" class="scout-prompt-chip" data-scout-prompt="What changed this month?">What changed?</button>
-    <button type="button" class="scout-prompt-chip" data-scout-prompt="Which communities need the most attention right now?">Top risks</button>
-    <button type="button" class="scout-prompt-chip" data-scout-prompt="What lease and app goals should I set this month?">Goal guidance</button>
-  </div>
-  <div class="scout-assistant-log" id="scout-assistant-log"></div>
-  <div class="scout-assistant-compose">
-    <input id="scout-assistant-input" type="text" placeholder="Ask Scout about occupancy, goals, apps, conversion, priorities..." autocomplete="off">
-    <button type="button" class="scout-mic-btn" id="scout-mic-btn" aria-label="Use microphone">Mic</button>
-    <button type="button" class="scout-send-btn" id="scout-send-btn">Ask Scout</button>
-  </div>
-  <div class="scout-compose-note" id="scout-compose-note">Mic works in supported browsers. Scout uses live ATLAS data on this page.</div>
-</section>
-
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js"></script>
 <script>
@@ -1123,26 +982,6 @@ const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov
 const FULL_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DEFAULT_CURRENT_MONTH = Math.max(0, Math.min(11, new Date().getMonth()));
 const PORTFOLIO_SCOPE_VALUE = "__rise_portfolio__";
-const scoutPresenceState = {
-  initialized: false,
-  currentState: "normal",
-  currentAnchor: "dock",
-  x: 0,
-  y: 0,
-  targetX: 0,
-  targetY: 0,
-  driftX: 0,
-  driftY: 0,
-  rafId: 0,
-  speakingTimer: null
-};
-const scoutAssistantState = {
-  isOpen: false,
-  listening: false,
-  recognition: null,
-  messages: [],
-  uiBound: false
-};
 const PORTFOLIO_SCOPE_LABEL = "ATLAS RISE Portfolio";
 const ATLAS_COMMUNITY_ID_ALIASES = {
   ANTHEM_HOUSE: "Anthem House",
@@ -4958,17 +4797,6 @@ function persistOperationsWorkspaceContext() {
     localStorage.setItem(OPS_WORKSPACE_CONTEXT_KEY, JSON.stringify(buildOperationsWorkspaceContext()));
   } catch {}
 }
-function buildFinancialAccountabilityHref() {
-  const context = buildOperationsWorkspaceContext();
-  const params = new URLSearchParams();
-  params.set("community", context.community);
-  params.set("period", context.period);
-  return `financial-accountability.html?${params.toString()}`;
-}
-function openFinancialAccountabilityPage() {
-  persistOperationsWorkspaceContext();
-  window.location.href = buildFinancialAccountabilityHref();
-}
 function applyIncomingWorkspaceNavigation() {
   try {
     const params = new URLSearchParams(window.location.search);
@@ -5236,6 +5064,142 @@ function buildDlrTrafficMetricsFromSummary(dlrSummary = {}, monthEntry = {}, dai
     renewals: Math.max(0, Number(renewals) || 0),
     notices: Math.max(0, Number(getDlrActivityMetric(activity, "Notices Received")) || 0),
     sourceMode: derivedLeadValues.length > 0 || Object.keys(activity).length > 0 ? "dlr_summary" : "dashboard_mtd"
+  };
+}
+
+function getRawRecordMonthEntryForPeriod(record, monthIdx, year = new Date().getFullYear()) {
+  if (!record || monthIdx < 0 || monthIdx > 11) return {};
+  const periodKey = buildPeriodKey(monthIdx, year);
+  const historyEntry = record?.monthlyHistoryByPeriod?.[periodKey];
+  if (historyEntry && typeof historyEntry === "object") return historyEntry;
+  const monthlyEntry = Array.isArray(record?.monthlyData) ? record.monthlyData[monthIdx] : null;
+  return monthlyEntry && typeof monthlyEntry === "object" ? monthlyEntry : {};
+}
+
+function hasExplicitMonthMetrics(monthEntry = {}, keys = []) {
+  return keys.some(key => Object.prototype.hasOwnProperty.call(monthEntry ?? {}, key));
+}
+
+function getCommunityTrafficMetricsForPeriod(record, normalizedMonthEntry = {}, monthIdx = currentMonth, year = new Date().getFullYear(), rawRecord = record) {
+  const safeMonth = Math.max(0, Math.min(11, Number(monthIdx) || 0));
+  const safeYear = Number.isFinite(Number(year)) ? Number(year) : new Date().getFullYear();
+  const rawMonthEntry = getRawRecordMonthEntryForPeriod(rawRecord, safeMonth, safeYear);
+  const normalizedSummary = normalizeDlrSummary(record?.latestDlrSummary);
+  const hasMatchingDlrSummary = isDlrSummaryForRequestedPeriod(normalizedSummary, safeMonth, safeYear) && hasMeaningfulDlrSummary(normalizedSummary);
+  const dailyBoxScore = normalizeDlrBoxScoreSnapshot(normalizedSummary.dailyBoxScore);
+  const dailyBoxScoreDate = parseDlrSpecificDate(dailyBoxScore.reportDateIso);
+  const hasMatchingDailyBoxScore = hasMatchingDlrSummary
+    && hasDlrBoxScoreSnapshot(dailyBoxScore)
+    && (!dailyBoxScoreDate || (dailyBoxScoreDate.getMonth() === safeMonth && dailyBoxScoreDate.getFullYear() === safeYear));
+  const activity = hasMatchingDlrSummary ? (normalizedSummary.activity || {}) : {};
+
+  const hasMonthLeadMetrics = hasExplicitMonthMetrics(rawMonthEntry, ["guestCards", "walkIn", "offSiteEvent", "phoneCalls", "emailsOnline", "textChatOther"]);
+  const hasMonthTourMetric = hasExplicitMonthMetrics(rawMonthEntry, ["tours"]);
+  const hasMonthApplicationMetrics = hasExplicitMonthMetrics(rawMonthEntry, ["applications", "applicationsApproved", "denied", "cancelled", "pendingDecision"]);
+  const hasMonthLeaseMetric = hasExplicitMonthMetrics(rawMonthEntry, ["leasesSignedActual"]);
+  const hasMonthMoveInMetric = hasExplicitMonthMetrics(rawMonthEntry, ["moveIns"]);
+  const hasMonthMoveOutMetric = hasExplicitMonthMetrics(rawMonthEntry, ["moveOuts"]);
+  const hasMonthRenewalMetric = hasExplicitMonthMetrics(rawMonthEntry, ["renewals", "renewalSigned"]);
+
+  const monthLeadSources = getLeadSourceBreakdown(normalizedMonthEntry);
+  const monthApplications = getApplicationDecisionMetrics(normalizedMonthEntry);
+  const fallbackLeadSources = {
+    walkIn: hasMatchingDailyBoxScore && dailyBoxScore.walkIn !== null ? Math.max(0, Number(dailyBoxScore.walkIn) || 0) : Math.max(0, Number(getDlrActivityMetric(activity, "Walk In")) || 0),
+    offSiteEvent: hasMatchingDailyBoxScore && dailyBoxScore.offSiteEvent !== null ? Math.max(0, Number(dailyBoxScore.offSiteEvent) || 0) : Math.max(0, Number(getDlrActivityMetric(activity, "Off Site Event")) || 0),
+    phoneCalls: hasMatchingDailyBoxScore && dailyBoxScore.phoneCalls !== null ? Math.max(0, Number(dailyBoxScore.phoneCalls) || 0) : Math.max(0, Number(getDlrActivityMetric(activity, "Phone Calls")) || 0),
+    emailsOnline: hasMatchingDailyBoxScore && dailyBoxScore.emailsOnline !== null ? Math.max(0, Number(dailyBoxScore.emailsOnline) || 0) : Math.max(0, Number(getDlrActivityMetric(activity, "Emails/Online")) || 0),
+    textChatOther: hasMatchingDailyBoxScore && dailyBoxScore.textChatOther !== null ? Math.max(0, Number(dailyBoxScore.textChatOther) || 0) : Math.max(0, Number(getDlrActivityMetric(activity, "Text/Chat/Other")) || 0)
+  };
+  const fallbackLeadTotal = hasMatchingDailyBoxScore
+    ? (
+        dailyBoxScore.newLeads !== null && dailyBoxScore.newLeads !== undefined
+          ? Math.max(0, Number(dailyBoxScore.newLeads) || 0)
+          : (dailyBoxScore.guestCards !== null && dailyBoxScore.guestCards !== undefined
+            ? Math.max(0, Number(dailyBoxScore.guestCards) || 0)
+            : Object.values(fallbackLeadSources).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0))
+      )
+    : (
+        Math.max(0, Number(getDlrActivityMetric(activity, "Guest Cards")) || 0)
+        || Object.values(fallbackLeadSources).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0)
+      );
+  const fallbackTours = hasMatchingDailyBoxScore
+    ? Math.max(0, Number(dailyBoxScore.firstVisitsTours ?? dailyBoxScore.tours) || 0)
+    : Math.max(0, Number(getDlrActivityMetric(activity, "Tours")) || 0);
+  const fallbackApprovals = hasMatchingDailyBoxScore
+    ? Math.max(0, Number(dailyBoxScore.applicationsApproved) || 0)
+    : Math.max(0, Number(getDlrActivityMetric(activity, "Approved")) || 0);
+  const fallbackDenied = hasMatchingDailyBoxScore
+    ? Math.max(0, Number(dailyBoxScore.denied) || 0)
+    : Math.max(0, Number(getDlrActivityMetric(activity, "Denied")) || 0);
+  const fallbackCancelled = hasMatchingDailyBoxScore
+    ? Math.max(0, Number(dailyBoxScore.cancelled) || 0)
+    : Math.max(0, Number(getDlrActivityMetric(activity, "Cancelled")) || 0);
+  const fallbackPending = hasMatchingDailyBoxScore
+    ? (dailyBoxScore.pendingDecision !== null && dailyBoxScore.pendingDecision !== undefined
+      ? Math.max(0, Number(dailyBoxScore.pendingDecision) || 0)
+      : 0)
+    : Math.max(0, Number(getDlrActivityMetric(activity, "Pending / Partial")) || 0);
+  const fallbackApplicationsRaw = hasMatchingDailyBoxScore
+    ? ((dailyBoxScore.applications !== null && dailyBoxScore.applications !== undefined)
+      ? Math.max(0, Number(dailyBoxScore.applications) || 0)
+      : 0)
+    : (
+        Math.max(0, Number(getDlrActivityMetric(activity, "Applications")) || 0)
+        || Math.max(0, Number(getDlrActivityMetric(activity, "Gross New Applications")) || 0)
+        || Math.max(0, Number(getDlrActivityMetric(activity, "Net New Applications")) || 0)
+      );
+  const fallbackApplications = fallbackApplicationsRaw > 0
+    ? fallbackApplicationsRaw
+    : (fallbackApprovals + fallbackDenied + fallbackCancelled + fallbackPending);
+  const fallbackLeases = hasMatchingDailyBoxScore
+    ? Math.max(0, Number(dailyBoxScore.leasesSigned) || 0)
+    : fallbackApprovals;
+  const fallbackMoveIns = hasMatchingDailyBoxScore
+    ? Math.max(0, Number(dailyBoxScore.moveIns) || 0)
+    : Math.max(0, Number(getDlrActivityMetric(activity, "Move-Ins")) || 0);
+  const fallbackMoveOuts = hasMatchingDailyBoxScore
+    ? Math.max(0, Number(dailyBoxScore.moveOuts) || 0)
+    : Math.max(0, Number(getDlrActivityMetric(activity, "Move-Outs")) || 0);
+  const fallbackRenewals = hasMatchingDailyBoxScore
+    ? Math.max(0, Number(dailyBoxScore.renewals) || 0)
+    : Math.max(0, Number(getDlrActivityMetric(activity, "Renewals")) || 0);
+
+  const guestCards = hasMonthLeadMetrics ? getLeadSourceTotal(normalizedMonthEntry) : fallbackLeadTotal;
+  const tours = hasMonthTourMetric ? Math.max(0, Number(normalizedMonthEntry.tours) || 0) : fallbackTours;
+  const applications = hasMonthApplicationMetrics ? monthApplications.applications : fallbackApplications;
+  const approvals = hasMonthApplicationMetrics ? monthApplications.approvals : fallbackApprovals;
+  const denials = hasMonthApplicationMetrics ? monthApplications.denials : fallbackDenied;
+  const cancelled = hasMonthApplicationMetrics ? monthApplications.cancelled : fallbackCancelled;
+  const pendingDecision = hasMonthApplicationMetrics
+    ? monthApplications.pendingDecision
+    : Math.max(fallbackPending, Math.max(fallbackApplications - fallbackApprovals - fallbackDenied - fallbackCancelled, 0));
+  const leases = hasMonthLeaseMetric ? Math.max(0, Number(normalizedMonthEntry.leasesSignedActual) || 0) : Math.max(fallbackLeases, approvals);
+  const moveIns = hasMonthMoveInMetric ? Math.max(0, Number(normalizedMonthEntry.moveIns) || 0) : fallbackMoveIns;
+  const moveOuts = hasMonthMoveOutMetric ? Math.max(0, Number(normalizedMonthEntry.moveOuts) || 0) : fallbackMoveOuts;
+  const renewals = hasMonthRenewalMetric
+    ? Math.max(0, Number(normalizedMonthEntry.renewals ?? normalizedMonthEntry.renewalSigned) || 0)
+    : fallbackRenewals;
+
+  return {
+    walkIn: hasMonthLeadMetrics ? monthLeadSources.walkIn : fallbackLeadSources.walkIn,
+    offSiteEvent: hasMonthLeadMetrics ? monthLeadSources.offSiteEvent : fallbackLeadSources.offSiteEvent,
+    phoneCalls: hasMonthLeadMetrics ? monthLeadSources.phoneCalls : fallbackLeadSources.phoneCalls,
+    emailsOnline: hasMonthLeadMetrics ? monthLeadSources.emailsOnline : fallbackLeadSources.emailsOnline,
+    textChatOther: hasMonthLeadMetrics ? monthLeadSources.textChatOther : fallbackLeadSources.textChatOther,
+    guestCards: Math.max(0, Number(guestCards) || 0),
+    tours: Math.max(0, Number(tours) || 0),
+    applications: Math.max(0, Number(applications) || 0),
+    approvals: Math.max(0, Number(approvals) || 0),
+    denials: Math.max(0, Number(denials) || 0),
+    cancelled: Math.max(0, Number(cancelled) || 0),
+    pendingDecision: Math.max(0, Number(pendingDecision) || 0),
+    leases: Math.max(0, Number(leases) || 0),
+    moveIns: Math.max(0, Number(moveIns) || 0),
+    moveOuts: Math.max(0, Number(moveOuts) || 0),
+    renewals: Math.max(0, Number(renewals) || 0),
+    sourceMode: hasMatchingDailyBoxScore
+      ? (hasMonthLeadMetrics || hasMonthTourMetric || hasMonthApplicationMetrics || hasMonthLeaseMetric ? "dashboard_mtd" : "daily_box_score")
+      : (hasMatchingDlrSummary && !(hasMonthLeadMetrics || hasMonthTourMetric || hasMonthApplicationMetrics || hasMonthLeaseMetric) ? "dlr_summary" : "dashboard_mtd")
   };
 }
 
@@ -5968,7 +5932,7 @@ function toggleCurrentCommunityRegionalScope(roleId) {
   toggleRegionalAssignment(roleId, getProp().name);
 }
 
-function getCommunitySummary(propName, sourceData) {
+function getCommunitySummary(propName, sourceData, rawSourceData = sourceData) {
   if (!sourceData) return null;
   const record = normalizeSavedCommunityRecord(propName, sourceData);
   const prop = getPropertyByName(propName);
@@ -6017,29 +5981,47 @@ function getCommunitySummary(propName, sourceData) {
   const budgetOccPct = getRecordSavedBudgetOccPct(record, scopeCurrentMonth, record.reportYear);
   const budgetLeasedPct = Number(nextRow.budgetLeased ?? currentRow.budgetLeased ?? 0) || 0;
   const latestDlrSummary = normalizeDlrSummary(record.latestDlrSummary);
+  const currentTrafficMetrics = getCommunityTrafficMetricsForPeriod(record, curMonthData, scopeCurrentMonth, record.reportYear, rawSourceData);
+  const previousTrafficMetrics = previousMonthIdx != null
+    ? getCommunityTrafficMetricsForPeriod(record, prevMonthData, previousMonthIdx, record.reportYear, rawSourceData)
+    : {
+        guestCards: 0,
+        tours: 0,
+        applications: 0,
+        approvals: 0,
+        denials: 0,
+        cancelled: 0,
+        pendingDecision: 0,
+        leases: 0,
+        moveIns: 0,
+        moveOuts: 0,
+        renewals: 0
+      };
   const occPct = getOccupancyPctFromUnitsOrFallback(occupied, totalUnits, corporateUnits, latestDlrSummary.occupancyPct);
   const leasedPct = getOccupancyPctFromUnitsOrFallback(leased, totalUnits, corporateUnits, latestDlrSummary.leasedPct);
   const guestCardGoal = Number(currentRow.guestCardsNeeded ?? 0) || 0;
-  const guestCards = getLeadSourceTotal(curMonthData);
-  const tours = Number(curMonthData.tours) || 0;
-  const applicationMetrics = getApplicationDecisionMetrics(curMonthData);
-  const prevApplicationMetrics = getApplicationDecisionMetrics(prevMonthData);
+  const guestCards = currentTrafficMetrics.guestCards;
+  const tours = currentTrafficMetrics.tours;
   const renewalSummary = getRenewalSummaryForMonth(curRenewalMonthData);
   const previousRenewalSummary = previousMonthIdx != null
     ? getRenewalSummaryForMonth(prevRenewalMonthData)
     : { expirations: 0, signed: 0, ntv: 0, transfers: 0, undecided: 0, earlyTermination: 0, projectedAttrition: 0, retentionRate: 0 };
   const closedQuarterRetention = getClosedOutRetentionAverageForMonths(scopeMonthlyData, getQuarterMonths(bonusQuarter), scopeCurrentMonth);
-  const applications = applicationMetrics.applications;
-  const previousGuestCards = getLeadSourceTotal(prevMonthData);
-  const previousTours = Number(prevMonthData.tours) || 0;
-  const previousApplicationsApproved = prevApplicationMetrics.approvals;
-  const previousApplicationsDenied = prevApplicationMetrics.denials;
-  const leasesSigned = Number(curMonthData.leasesSignedActual) || 0;
-  const previousLeasesSigned = Number(prevMonthData.leasesSignedActual) || 0;
-  const moveOuts = getEffectiveMoveOutsForMonth(scopeCurrentMonth, scopeMonthlyData).effective;
-  const moveIns = Number(curMonthData.moveIns) || 0;
-  const previousMoveOuts = previousMonthIdx != null ? getEffectiveMoveOutsForMonth(previousMonthIdx, scopeMonthlyData).effective : 0;
-  const previousMoveIns = Number(prevMonthData.moveIns) || 0;
+  const applications = currentTrafficMetrics.applications;
+  const previousGuestCards = previousTrafficMetrics.guestCards;
+  const previousTours = previousTrafficMetrics.tours;
+  const previousApplicationsApproved = previousTrafficMetrics.approvals;
+  const previousApplicationsDenied = previousTrafficMetrics.denials;
+  const leasesSigned = currentTrafficMetrics.leases;
+  const previousLeasesSigned = previousTrafficMetrics.leases;
+  const moveOuts = currentTrafficMetrics.moveOuts > 0
+    ? currentTrafficMetrics.moveOuts
+    : getEffectiveMoveOutsForMonth(scopeCurrentMonth, scopeMonthlyData).effective;
+  const moveIns = currentTrafficMetrics.moveIns;
+  const previousMoveOuts = previousMonthIdx != null
+    ? (previousTrafficMetrics.moveOuts > 0 ? previousTrafficMetrics.moveOuts : getEffectiveMoveOutsForMonth(previousMonthIdx, scopeMonthlyData).effective)
+    : 0;
+  const previousMoveIns = previousTrafficMetrics.moveIns;
   const budgetOccUnits = occupancyBaseUnits > 0 && budgetOccPct > 0 ? Math.ceil(occupancyBaseUnits * budgetOccPct / 100) : 0;
   const budgetLeasedUnits = occupancyBaseUnits > 0 && budgetLeasedPct > 0 ? Math.ceil(occupancyBaseUnits * budgetLeasedPct / 100) : 0;
   const moveInGoal = budgetOccUnits > 0 ? Math.max(budgetOccUnits - occupied + moveOuts, 0) : 0;
@@ -6073,16 +6055,16 @@ function getCommunitySummary(propName, sourceData) {
     tours,
     previousTours,
     applications,
-    applicationsApproved: applicationMetrics.approvals,
-    applicationsDenied: applicationMetrics.denials,
-    applicationsCancelled: applicationMetrics.cancelled,
-    applicationsPendingDecision: applicationMetrics.pendingDecision,
+    applicationsApproved: currentTrafficMetrics.approvals,
+    applicationsDenied: currentTrafficMetrics.denials,
+    applicationsCancelled: currentTrafficMetrics.cancelled,
+    applicationsPendingDecision: currentTrafficMetrics.pendingDecision,
     previousApplicationsApproved,
-    applicationApprovalPct: applicationMetrics.approvalPct,
-    applicationDenialPct: applicationMetrics.denialPct,
-    tourToLeasePct: getTourToLeasePctForMonth(scopeMonthlyData, scopeCurrentMonth, scopeCurrentMonth),
-    previousTourToLeasePct: previousMonthIdx != null ? getTourToLeasePctForMonth(scopeMonthlyData, previousMonthIdx, previousMonthIdx) : 0,
-    previousApplications: prevApplicationMetrics.applications,
+    applicationApprovalPct: applications > 0 ? (currentTrafficMetrics.approvals / applications) * 100 : 0,
+    applicationDenialPct: applications > 0 ? (currentTrafficMetrics.denials / applications) * 100 : 0,
+    tourToLeasePct: tours > 0 ? (leasesSigned / tours) * 100 : 0,
+    previousTourToLeasePct: previousTours > 0 ? (previousLeasesSigned / previousTours) * 100 : 0,
+    previousApplications: previousTrafficMetrics.applications,
     leasesSigned,
     previousLeasesSigned,
     previousApplicationsDenied,
@@ -8416,689 +8398,6 @@ function queueAtlasPortfolioMapHydration() {
   });
 }
 
-function getScoutOrbElement() {
-  return document.getElementById("scout-orb");
-}
-
-function getScoutDockPoint() {
-  const orb = getScoutOrbElement();
-  const size = orb ? (orb.offsetWidth || 78) : 78;
-  return {
-    x: window.innerWidth - size - 28,
-    y: window.innerHeight - size - 28
-  };
-}
-
-function getScoutElementPoint(element, xBias = 0.94, yBias = 0.24) {
-  if (!element) return getScoutDockPoint();
-  const orb = getScoutOrbElement();
-  const size = orb ? (orb.offsetWidth || 78) : 78;
-  const rect = element.getBoundingClientRect();
-  return {
-    x: rect.left + (rect.width * xBias) - (size / 2),
-    y: rect.top + (rect.height * yBias) - (size / 2)
-  };
-}
-
-function setScoutOrbState(stateName = "normal") {
-  const orb = getScoutOrbElement();
-  if (!orb) return;
-  const palette = {
-    normal: { color: "#6db6ff", deep: "#1270d0", glow: "rgba(109,182,255,0.30)" },
-    opportunity: { color: "#2ab9b0", deep: "#0d8d87", glow: "rgba(42,185,176,0.28)" },
-    warning: { color: "#f5a623", deep: "#c47900", glow: "rgba(245,166,35,0.28)" },
-    critical: { color: "#ef5555", deep: "#bd1e1e", glow: "rgba(239,85,85,0.30)" },
-    processing: { color: "#f4fbff", deep: "#b9d8e7", glow: "rgba(244,251,255,0.34)" }
-  };
-  const next = palette[stateName] || palette.normal;
-  orb.style.setProperty("--scout-color", next.color);
-  orb.style.setProperty("--scout-deep", next.deep);
-  orb.style.setProperty("--scout-glow", next.glow);
-  orb.classList.toggle("is-critical", stateName === "critical");
-  orb.classList.toggle("is-processing", stateName === "processing");
-  scoutPresenceState.currentState = stateName;
-}
-
-function pulseScoutSpeaking(duration = 1400) {
-  const orb = getScoutOrbElement();
-  if (!orb) return;
-  if (scoutPresenceState.speakingTimer) clearTimeout(scoutPresenceState.speakingTimer);
-  orb.classList.add("is-speaking");
-  scoutPresenceState.speakingTimer = setTimeout(() => orb.classList.remove("is-speaking"), duration);
-}
-
-function ensureScoutPresence() {
-  const orb = getScoutOrbElement();
-  if (!orb || scoutPresenceState.initialized) return;
-  const dock = getScoutDockPoint();
-  scoutPresenceState.x = dock.x;
-  scoutPresenceState.y = dock.y;
-  scoutPresenceState.targetX = dock.x;
-  scoutPresenceState.targetY = dock.y;
-  scoutPresenceState.initialized = true;
-  setScoutOrbState("normal");
-  const tick = () => {
-    const orbEl = getScoutOrbElement();
-    if (!orbEl) return;
-    const t = performance.now() / 1000;
-    scoutPresenceState.driftX = Math.sin(t * 0.88) * 4;
-    scoutPresenceState.driftY = Math.cos(t * 1.04) * 6;
-    scoutPresenceState.x += (scoutPresenceState.targetX - scoutPresenceState.x) * 0.085;
-    scoutPresenceState.y += (scoutPresenceState.targetY - scoutPresenceState.y) * 0.085;
-    orbEl.style.transform = `translate3d(${scoutPresenceState.x + scoutPresenceState.driftX}px, ${scoutPresenceState.y + scoutPresenceState.driftY}px, 0)`;
-    scoutPresenceState.rafId = requestAnimationFrame(tick);
-  };
-  scoutPresenceState.rafId = requestAnimationFrame(tick);
-}
-
-function getScoutDashboardSignal() {
-  const currentEntry = monthlyData[currentMonth] ?? {};
-  const budgetOcc = getBudgetOccPctForMonth(currentEntry, savedBudgetTargets, currentMonth);
-  const occPct = typeof currentOccPct === "function" ? currentOccPct() : 0;
-  const occGap = budgetOcc > 0 ? budgetOcc - occPct : 0;
-  const applicationMetrics = typeof getApplicationDecisionMetrics === "function"
-    ? getApplicationDecisionMetrics(currentEntry)
-    : { approvalPct: 0, appToLeasePct: 0 };
-  const renewalSummary = typeof getRenewalSummaryForMonth === "function"
-    ? getRenewalSummaryForMonth(currentEntry)
-    : { projectedAttrition: 0, undecided: 0 };
-
-  if (activeTab === 7) {
-    return { state: "processing", selector: `#tab-panel-${activeTab} .tbl-wrap, #tab-panel-${activeTab} .card`, speak: false };
-  }
-  if (occGap >= 3 || renewalSummary.projectedAttrition >= 6) {
-    return { state: "critical", selector: `#tab-panel-${activeTab} .alert-banner, #tab-panel-${activeTab} .portfolio-priority-item, #tab-panel-${activeTab} .current-row, #tab-panel-${activeTab} .card`, speak: true };
-  }
-  if (occGap >= 1 || applicationMetrics.appToLeasePct < 35 || applicationMetrics.approvalPct < 60) {
-    return { state: "warning", selector: `#tab-panel-${activeTab} .alert-banner, #tab-panel-${activeTab} .current-row, #tab-panel-${activeTab} .card, #tab-panel-${activeTab} .tbl-wrap`, speak: false };
-  }
-  if ((budgetOcc > 0 && occGap <= -0.5) || applicationMetrics.appToLeasePct >= 50) {
-    return { state: "opportunity", selector: `#tab-panel-${activeTab} .portfolio-priority-item, #tab-panel-${activeTab} .stat-box, #tab-panel-${activeTab} .card`, speak: false };
-  }
-  return { state: "normal", selector: "", speak: false };
-}
-
-function updateScoutPresence() {
-  ensureScoutPresence();
-  if (scoutAssistantState.isOpen) {
-    const dock = getScoutDockPoint();
-    scoutPresenceState.targetX = dock.x;
-    scoutPresenceState.targetY = dock.y;
-    setScoutOrbState("normal");
-    return;
-  }
-  const signal = getScoutDashboardSignal();
-  const previousState = scoutPresenceState.currentState;
-  setScoutOrbState(signal.state);
-  const targetElement = signal.selector ? document.querySelector(signal.selector) : null;
-  const point = targetElement ? getScoutElementPoint(targetElement) : getScoutDockPoint();
-  scoutPresenceState.targetX = point.x;
-  scoutPresenceState.targetY = point.y;
-  if (signal.speak || previousState !== signal.state) {
-    pulseScoutSpeaking(signal.state === "processing" ? 1000 : 1350);
-  }
-}
-
-function getScoutAssistantElement() {
-  return document.getElementById("scout-assistant");
-}
-
-function getScoutAssistantLogElement() {
-  return document.getElementById("scout-assistant-log");
-}
-
-function getScoutAssistantInputElement() {
-  return document.getElementById("scout-assistant-input");
-}
-
-function formatScoutDateLabel(monthIdx = getSelectedDashboardMonthIndex()) {
-  const year = new Date().getFullYear();
-  return `${FULL_MONTHS[Math.max(0, Math.min(11, monthIdx))]} ${year}`;
-}
-
-function resolveScoutCommunityName(question = "") {
-  const raw = String(question ?? "").trim();
-  if (!raw) return "";
-  const rawLower = raw.toLowerCase();
-  const normalizedQuestion = ` ${normalizeCommunityLookupName(raw)} `;
-  const names = getAllCommunityNames().slice().sort((left, right) => right.length - left.length);
-  for (const name of names) {
-    const normalizedName = normalizeCommunityLookupName(name);
-    if (!normalizedName) continue;
-    if (rawLower.includes(name.toLowerCase())) return name;
-    if (normalizedQuestion.includes(` ${normalizedName} `) || normalizedQuestion.includes(normalizedName)) return name;
-  }
-  return "";
-}
-
-function getScoutQuestionScope(question = "") {
-  const monthIdx = getSelectedDashboardMonthIndex();
-  const text = String(question ?? "").trim();
-  const detailPool = buildPortfolioDetailsForMonth(monthIdx);
-  const lower = text.toLowerCase();
-  const matchedCommunity = resolveScoutCommunityName(text);
-  const currentName = getProp().name;
-  const explicitPortfolio = /\bportfolio\b|\ball communities\b|\bentire portfolio\b|\bwhole portfolio\b|\bacross the portfolio\b/.test(lower);
-  const refersToSelectedCommunity = /\b(this|selected|current)\s+(community|property|asset)\b/.test(lower);
-  const targetName = matchedCommunity || (refersToSelectedCommunity ? currentName : (!isPortfolioWorkspaceSelected() && !explicitPortfolio ? currentName : ""));
-  if (!targetName) {
-    return {
-      type: "portfolio",
-      monthIdx,
-      details: getWorkspaceScopedDetails(monthIdx),
-      aggregate: aggregateCommunitySummaries(getWorkspaceScopedDetails(monthIdx).map(detail => detail.summary))
-    };
-  }
-  const detail = detailPool.find(item => item.name === targetName) || getCurrentRegionalPricingDetail(monthIdx);
-  return { type: "community", monthIdx, detail, targetName };
-}
-
-function buildScoutRecommendationSummary(detail) {
-  const recommendations = Array.isArray(detail?.recommendations) ? detail.recommendations : [];
-  if (recommendations.length === 0) {
-    return "No active watchlist item is flagged from the current dashboard sections.";
-  }
-  const top = recommendations.slice(0, 2).map(item => `${item.title}: ${item.body}`).join(" ");
-  return top;
-}
-
-function buildScoutNarrative(...parts) {
-  return parts
-    .flat()
-    .map(part => String(part ?? "").trim())
-    .filter(Boolean)
-    .join(" ")
-    .replace(/\s+\n/g, " ")
-    .replace(/\n+\s*/g, " ")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-}
-
-function getScoutPhotoAssetForScope(scope = null) {
-  if (!scope || scope.type !== "community") return null;
-  const photo = normalizeCommunityPhotoBank(scope.detail?.record?.photoBank)?.[0] || null;
-  if (!photo?.src) return null;
-  return {
-    src: photo.src,
-    alt: `${scope.detail?.name || "Community"} photo`,
-    caption: `Atlas community photo · ${scope.detail?.name || "Selected community"}`
-  };
-}
-
-function getScoutConversationalReply(question = "") {
-  const lower = String(question ?? "").trim().toLowerCase();
-  if (!lower) return null;
-  if (/\b(thank you|thanks|thank u|thx)\b/.test(lower)) {
-    return {
-      body: "You're welcome.",
-      photo: null
-    };
-  }
-  if (/\b(stupid|idiot|dumb|useless|shut up|i hate you|you suck|moron)\b/.test(lower)) {
-    return {
-      body: "That wasn't very nice of you. I'm telling my creator.",
-      photo: null
-    };
-  }
-  return null;
-}
-
-function getScoutShortcutIntent(question = "") {
-  const lower = String(question ?? "").trim().toLowerCase();
-  if (!lower) return "";
-  if (/\bwhat changed\b|\bwhat changed this month\b/.test(lower)) return "what_changed";
-  if (/\btop risks\b|\bmost attention\b|\bneed the most attention\b/.test(lower)) return "top_risks";
-  if (/\bgoal guidance\b|\bwhat lease and app goals should i set this month\b/.test(lower)) return "goal_guidance";
-  return "";
-}
-
-function getScoutMetricIntent(question = "") {
-  const lower = String(question ?? "").toLowerCase();
-  if (/\boccupied units?\b|\boccupied count\b|\bhow many occupied\b/.test(lower)) return "occupied_units";
-  if (/\bphysical occupancy\b|\boccupancy\b|\bocc\b/.test(lower)) return "physical_occupancy";
-  if (/\bleased units?\b|\bleased count\b|\bhow many leased\b/.test(lower)) return "leased_units";
-  if (/\bleased occupancy\b|\bleased\b/.test(lower)) return "leased_occupancy";
-  if (/\bguest cards?\b|\bleads?\b|\btraffic\b/.test(lower)) return "guest_cards";
-  if (/\btours?\b/.test(lower)) return "tours";
-  if (/\bapproved apps?\b|\bapproved applications?\b/.test(lower)) return "approved_applications";
-  if (/\bpending apps?\b|\bpending applications?\b|\bpending decision\b/.test(lower)) return "pending_applications";
-  if (/\bapplications?\b|\bapps?\b/.test(lower)) return "applications";
-  if (/\bmove[\s-]?ins?\b/.test(lower)) return "move_ins";
-  if (/\bmove[\s-]?outs?\b/.test(lower)) return "move_outs";
-  if (/\babsorption\b/.test(lower)) return "absorption";
-  if (/\blease goal\b|\bgross lease goal\b/.test(lower)) return "lease_goal";
-  if (/\bapp goal\b|\bapplication goal\b/.test(lower)) return "app_goal";
-  if (/\bretention\b|\brenewal retention\b/.test(lower)) return "renewal_retention";
-  if (/\bexpirations?\b/.test(lower)) return "renewal_expirations";
-  if (/\bntv\b/.test(lower)) return "renewal_ntv";
-  if (/\bmarket rent\b/.test(lower)) return "market_rent";
-  if (/\bner\b|\bnet effective rent\b|\bnet effective\b/.test(lower)) return "ner";
-  if (/\bbudget gap\b|\bgap units?\b/.test(lower)) return "budget_gap";
-  if (/\btour to app\b|\btour-to-app\b/.test(lower)) return "tour_to_app";
-  if (/\btour to lease\b|\btour-to-lease\b|\bclose rate\b|\bconversion rate\b/.test(lower)) return "tour_to_lease";
-  if (/\bapproval rate\b/.test(lower)) return "approval_rate";
-  if (/\brenewals signed\b/.test(lower)) return "renewals_signed";
-  return "";
-}
-
-function formatScoutMetricAnswer(label = "", value = "", context = "", source = "") {
-  return buildScoutNarrative(
-    `${label} is ${value}${context ? ` for ${context}` : ""}.`,
-    source ? `This is coming from ${source}.` : ""
-  );
-}
-
-function buildScoutWhatChangedAnswer(scope = null) {
-  if (!scope) return "";
-  const monthLabel = formatScoutDateLabel(scope.monthIdx);
-  if (scope.type === "portfolio") {
-    const aggregate = scope.aggregate || {};
-    const details = Array.isArray(scope.details) ? scope.details : [];
-    const topPressure = [...details].sort((left, right) =>
-      Math.max(Number(right.summary?.occGapUnits ?? 0) || 0, Number(right.summary?.leasedGapUnits ?? 0) || 0)
-      - Math.max(Number(left.summary?.occGapUnits ?? 0) || 0, Number(left.summary?.leasedGapUnits ?? 0) || 0)
-    )[0];
-    return buildScoutNarrative(
-      `For ${monthLabel}, the portfolio is sitting at ${getSummaryOccPct(aggregate).toFixed(1)}% physical occupancy and ${getSummaryLeasedPct(aggregate).toFixed(1)}% leased occupancy.`,
-      `${Math.round(aggregate.guestCards ?? 0)} guest cards, ${Math.round(aggregate.tours ?? 0)} tours, ${Math.round(aggregate.applications ?? 0)} applications, and ${Math.round(aggregate.applicationsApproved ?? 0)} approved applications are saved month to date.`,
-      topPressure ? `${topPressure.name} is showing the most visible strain with ${Math.max(topPressure.summary?.occGapUnits ?? 0, 0)} budget-gap units and ${(topPressure.summary?.tourToLeasePct ?? 0).toFixed(1)}% tour-to-lease conversion.` : "No single community is standing out as the top risk from the saved ATLAS view.",
-      "Use this as a portfolio brief, then open the highest-pressure communities for the decision detail behind the numbers."
-    );
-  }
-  const detail = scope.detail;
-  if (!detail) return "";
-  const summary = detail.summary || {};
-  return buildScoutNarrative(
-    `${detail.name} is at ${getSummaryOccPct(summary).toFixed(1)}% physical occupancy and ${getSummaryLeasedPct(summary).toFixed(1)}% leased occupancy for ${monthLabel}.`,
-    `${Math.round(summary.guestCards ?? 0)} guest cards, ${Math.round(summary.tours ?? 0)} tours, ${Math.round(summary.applications ?? 0)} applications, and ${Math.round(summary.applicationsApproved ?? 0)} approved applications are saved month to date.`,
-    `${Math.max(summary.occGapUnits ?? 0, 0)} budget-gap units and ${(summary.tourToLeasePct ?? 0).toFixed(1)}% tour-to-lease conversion are shaping the current leasing pressure.`,
-    buildScoutRecommendationSummary(detail)
-  );
-}
-
-function buildScoutTopRisksAnswer(scope = null) {
-  if (!scope) return "";
-  const monthLabel = formatScoutDateLabel(scope.monthIdx);
-  if (scope.type === "portfolio") {
-    const details = [...(scope.details || [])].sort((left, right) =>
-      Math.max(Number(right.summary?.occGapUnits ?? 0) || 0, Number(right.summary?.leasedGapUnits ?? 0) || 0)
-      - Math.max(Number(left.summary?.occGapUnits ?? 0) || 0, Number(left.summary?.leasedGapUnits ?? 0) || 0)
-    ).slice(0, 3);
-    const ranked = details.map((detail, idx) => {
-      const summary = detail.summary || {};
-      return `${idx + 1}. ${detail.name}: ${Math.max(summary.occGapUnits ?? 0, 0)} gap units, ${(summary.tourToLeasePct ?? 0).toFixed(1)}% tour-to-lease, ${Math.round(summary.applicationsApproved ?? 0)} approved apps.`;
-    }).join(" ");
-    return buildScoutNarrative(
-      `For ${monthLabel}, Scout’s highest-risk communities are ranked by budget-gap pressure first and current funnel strength second.`,
-      ranked || "No ranked risk set is available from the current ATLAS scope.",
-      "The strongest next move is to review the first one or two communities where gap units are high and approved application depth is still thin."
-    );
-  }
-  const detail = scope.detail;
-  if (!detail) return "";
-  const summary = detail.summary || {};
-  return buildScoutNarrative(
-    `${detail.name}'s main risks for ${monthLabel} are occupancy pressure, close-rate strength, and approved application depth.`,
-    `The asset is carrying ${Math.max(summary.occGapUnits ?? 0, 0)} budget-gap units, ${(summary.tourToLeasePct ?? 0).toFixed(1)}% tour-to-lease conversion, and ${Math.round(summary.applicationsApproved ?? 0)} approved applications.`,
-    buildScoutRecommendationSummary(detail),
-    "If the approved pipeline does not convert quickly enough, the occupancy gap is the first number likely to stay under pressure."
-  );
-}
-
-function buildScoutGoalGuidanceAnswer(scope = null) {
-  if (!scope) return "";
-  const monthLabel = formatScoutDateLabel(scope.monthIdx);
-  if (scope.type === "portfolio") {
-    const details = (scope.details || []).slice(0, 5);
-    const lines = details.map(detail => {
-      const plan = getCommunityPerformancePlan(detail.name, detail.record) || {};
-      const summary = detail.summary || {};
-      return `${detail.name}: ${Math.round(plan.currentGrossLeaseNeed ?? 0)} lease goal, ${Math.round(plan.currentAppNeed ?? 0)} app goal, ${Math.max(summary.occGapUnits ?? 0, 0)} gap units, ${(summary.tourToLeasePct ?? 0).toFixed(1)}% close rate.`;
-    }).join(" ");
-    return buildScoutNarrative(
-      `For ${monthLabel}, the monthly goal editor should be anchored to budget-gap units first, then filtered through each community’s current close rate and approved pipeline depth.`,
-      lines || "Open the portfolio goal editor to see the current community recommendations.",
-      "Communities with higher gap units and weaker close rates should carry the heavier app goals because they need more funnel volume to hit the same lease outcome."
-    );
-  }
-  const detail = scope.detail;
-  if (!detail) return "";
-  const plan = getCommunityPerformancePlan(detail.name, detail.record) || {};
-  const summary = detail.summary || {};
-  return buildScoutNarrative(
-    `For ${detail.name} in ${monthLabel}, Scout would start with ${Math.round(plan.currentGrossLeaseNeed ?? 0)} leases and ${Math.round(plan.currentAppNeed ?? 0)} applications as the working monthly goal.`,
-    `That recommendation is based on ${Math.max(summary.occGapUnits ?? 0, 0)} budget-gap units, ${(summary.tourToLeasePct ?? 0).toFixed(1)}% current close rate, and ${Math.round(summary.applicationsApproved ?? 0)} approved applications already in the funnel.`,
-    `The needed close rate is ${(plan.currentTourToLeaseNeededPct ?? 0).toFixed(1)}%, so if the current team is closing below that pace the app goal should stay heavier than the lease goal.`,
-    "Save the target in the portfolio goal editor once you decide whether this community should stay at recommendation or stretch above it."
-  );
-}
-
-function getScoutShortcutAnswer(question = "", scope = null) {
-  const shortcutIntent = getScoutShortcutIntent(question);
-  if (!shortcutIntent) return "";
-  if (shortcutIntent === "what_changed") return buildScoutWhatChangedAnswer(scope);
-  if (shortcutIntent === "top_risks") return buildScoutTopRisksAnswer(scope);
-  if (shortcutIntent === "goal_guidance") return buildScoutGoalGuidanceAnswer(scope);
-  return "";
-}
-
-function answerScoutPortfolioQuestion(question = "", scope = null) {
-  const resolvedScope = scope || getScoutQuestionScope(question);
-  const shortcutAnswer = getScoutShortcutAnswer(question, resolvedScope);
-  if (shortcutAnswer) return shortcutAnswer;
-  const aggregate = resolvedScope.aggregate;
-  const details = resolvedScope.details || [];
-  const monthLabel = formatScoutDateLabel(resolvedScope.monthIdx);
-  const topRiskDetail = [...details].sort((left, right) =>
-    Math.max(Number(right.summary?.occGapUnits ?? 0) || 0, Number(right.summary?.leasedGapUnits ?? 0) || 0)
-    - Math.max(Number(left.summary?.occGapUnits ?? 0) || 0, Number(left.summary?.leasedGapUnits ?? 0) || 0)
-  )[0];
-  const lower = String(question ?? "").toLowerCase();
-  const metricIntent = getScoutMetricIntent(question);
-  if (metricIntent) {
-    if (metricIntent === "occupied_units") return formatScoutMetricAnswer("Portfolio occupied units", `${Math.round(aggregate.occupied ?? 0)}`, monthLabel, "the live ATLAS portfolio snapshot");
-    if (metricIntent === "leased_units") return formatScoutMetricAnswer("Portfolio leased units", `${Math.round(aggregate.leased ?? 0)}`, monthLabel, "the live ATLAS portfolio snapshot");
-    if (metricIntent === "physical_occupancy") return formatScoutMetricAnswer("Portfolio physical occupancy", `${getSummaryOccPct(aggregate).toFixed(1)}%`, monthLabel, "the live ATLAS portfolio snapshot");
-    if (metricIntent === "leased_occupancy") return formatScoutMetricAnswer("Portfolio leased occupancy", `${getSummaryLeasedPct(aggregate).toFixed(1)}%`, monthLabel, "the live ATLAS portfolio snapshot");
-    if (metricIntent === "guest_cards") return formatScoutMetricAnswer("Portfolio guest cards", `${Math.round(aggregate.guestCards ?? 0)}`, monthLabel, "saved Traffic & Funnel data across the current scope");
-    if (metricIntent === "tours") return formatScoutMetricAnswer("Portfolio tours", `${Math.round(aggregate.tours ?? 0)}`, monthLabel, "saved Traffic & Funnel data across the current scope");
-    if (metricIntent === "applications") return formatScoutMetricAnswer("Portfolio applications", `${Math.round(aggregate.applications ?? 0)}`, monthLabel, "saved Traffic & Funnel data across the current scope");
-    if (metricIntent === "approved_applications") return formatScoutMetricAnswer("Portfolio approved applications", `${Math.round(aggregate.applicationsApproved ?? 0)}`, monthLabel, "saved Traffic & Funnel data across the current scope");
-    if (metricIntent === "pending_applications") return formatScoutMetricAnswer("Portfolio pending applications", `${Math.round(aggregate.applicationsPendingDecision ?? 0)}`, monthLabel, "saved Traffic & Funnel data across the current scope");
-    if (metricIntent === "move_ins") return formatScoutMetricAnswer("Portfolio move-ins", `${Math.round(aggregate.moveIns ?? 0)}`, monthLabel, "saved Overview and Funnel data across the current scope");
-    if (metricIntent === "move_outs") return formatScoutMetricAnswer("Portfolio move-outs", `${Math.round(aggregate.moveOuts ?? 0)}`, monthLabel, "saved Overview data across the current scope");
-    if (metricIntent === "absorption") return formatScoutMetricAnswer("Portfolio net absorption", `${formatSignedDisplay(aggregate.monthAbsorption ?? 0)}`, monthLabel, "saved move-in and move-out activity across the current scope");
-    if (metricIntent === "renewal_retention") return formatScoutMetricAnswer("Portfolio renewal retention", `${(aggregate.renewalRetentionRate ?? 0).toFixed(1)}%`, monthLabel, "saved renewals data across the current scope");
-    if (metricIntent === "budget_gap") return formatScoutMetricAnswer("Portfolio budget occupancy gap", `${Math.max(aggregate.occGapUnits ?? 0, 0)} units`, monthLabel, "current occupancy against saved budget targets");
-    if (metricIntent === "tour_to_app") return formatScoutMetricAnswer("Portfolio tour-to-app conversion", `${(aggregate.tourToAppPct ?? 0).toFixed(1)}%`, monthLabel, "saved Traffic & Funnel conversion data");
-    if (metricIntent === "tour_to_lease") return formatScoutMetricAnswer("Portfolio tour-to-lease conversion", `${(aggregate.tourToLeasePct ?? 0).toFixed(1)}%`, monthLabel, "saved Traffic & Funnel conversion data");
-    if (metricIntent === "approval_rate") return formatScoutMetricAnswer("Portfolio application approval rate", `${(aggregate.applicationApprovalPct ?? 0).toFixed(1)}%`, monthLabel, "saved application decision data");
-  }
-  if (/\bgoal\b|\bgoals\b|\blease goal\b|\bapp goal\b/.test(lower)) {
-    const targets = details.slice(0, 5).map(detail => {
-      const plan = getCommunityPerformancePlan(detail.name, detail.record) ?? {};
-      return `${detail.name}: ${Math.round(plan.currentGrossLeaseNeed ?? 0)} lease goal, ${Math.round(plan.currentAppNeed ?? 0)} app goal`;
-    }).join("; ");
-    return buildScoutNarrative(
-      `For ${monthLabel}, the portfolio goal editor is the source of truth for monthly lease and app targets.`,
-      `Those recommendations are being driven by budget occupancy pressure, current close rate, and current funnel depth across the selected communities.`,
-      targets || "Set community-level lease and app goals from the portfolio overview tab.",
-      "The only thing I cannot confirm cleanly from the current data is true 7-day pacing where a fresh box score has not been saved."
-    );
-  }
-  if (/\battention\b|\brisk\b|\bpriority\b|\bfocus\b/.test(lower)) {
-    return buildScoutNarrative(
-      `${details.length} communities are in scope for ${monthLabel}, and the selected portfolio is running at ${getSummaryOccPct(aggregate).toFixed(1)}% physical occupancy and ${getSummaryLeasedPct(aggregate).toFixed(1)}% leased occupancy.`,
-      `The highest visible pressure is ${topRiskDetail ? `${topRiskDetail.name}, with ${Math.max(topRiskDetail.summary?.occGapUnits ?? 0, 0)} occupancy gap units and ${(topRiskDetail.summary?.tourToLeasePct ?? 0).toFixed(1)}% tour-to-lease conversion` : "the current budget gap across the selected communities"}.`,
-      `The clearest next review set is ${details.slice(0, 3).map(detail => `${detail.name} (${Math.max(detail.summary?.occGapUnits ?? 0, 0)} gap units)`).join(", ") || "the portfolio overview goal guidance table"}.`,
-      "Anything that depends on unsaved notes or external actions still sits outside what I can verify from ATLAS."
-    );
-  }
-  return buildScoutNarrative(
-    `For ${monthLabel}, the portfolio is at ${getSummaryOccPct(aggregate).toFixed(1)}% physical occupancy and ${getSummaryLeasedPct(aggregate).toFixed(1)}% leased occupancy.`,
-    `${Math.round(aggregate.applications ?? 0)} applications and ${Math.round(aggregate.applicationsApproved ?? 0)} approved applications are saved month to date, with ${Math.max(aggregate.occGapUnits ?? 0, 0)} budget gap units across the current scope.`,
-    topRiskDetail ? `${topRiskDetail.name} is the clearest first review because it combines occupancy pressure with current funnel needs.` : "The portfolio overview goal guidance table is the best next place to review current recommendations.",
-    "Any pricing or operating context that has not been written into ATLAS is still outside what I can confirm."
-  );
-}
-
-function answerScoutCommunityQuestion(question = "", scope = null) {
-  const resolvedScope = scope || getScoutQuestionScope(question);
-  const shortcutAnswer = getScoutShortcutAnswer(question, resolvedScope);
-  if (shortcutAnswer) return shortcutAnswer;
-  const detail = resolvedScope.detail;
-  if (!detail) {
-    return "Here’s what I can’t confirm from the current data: I could not resolve a community in the saved ATLAS scope for that question.";
-  }
-  const monthLabel = formatScoutDateLabel(resolvedScope.monthIdx);
-  const summary = detail.summary || {};
-  const plan = getCommunityPerformancePlan(detail.name, detail.record) || {};
-  const monthEntry = detail.record?.monthlyData?.[resolvedScope.monthIdx] ?? {};
-  const lower = String(question ?? "").toLowerCase();
-  const metricIntent = getScoutMetricIntent(question);
-  if (metricIntent) {
-    if (metricIntent === "occupied_units") return formatScoutMetricAnswer(`${detail.name} occupied units`, `${Math.round(summary.occupied ?? 0)}`, monthLabel, "the saved ATLAS community record");
-    if (metricIntent === "leased_units") return formatScoutMetricAnswer(`${detail.name} leased units`, `${Math.round(summary.leased ?? 0)}`, monthLabel, "the saved ATLAS community record");
-    if (metricIntent === "physical_occupancy") return formatScoutMetricAnswer(`${detail.name} physical occupancy`, `${getSummaryOccPct(summary).toFixed(1)}%`, monthLabel, "the saved ATLAS community record");
-    if (metricIntent === "leased_occupancy") return formatScoutMetricAnswer(`${detail.name} leased occupancy`, `${getSummaryLeasedPct(summary).toFixed(1)}%`, monthLabel, "the saved ATLAS community record");
-    if (metricIntent === "guest_cards") return formatScoutMetricAnswer(`${detail.name} guest cards`, `${Math.round(summary.guestCards ?? 0)}`, monthLabel, "the saved Traffic & Funnel data");
-    if (metricIntent === "tours") return formatScoutMetricAnswer(`${detail.name} tours`, `${Math.round(summary.tours ?? 0)}`, monthLabel, "the saved Traffic & Funnel data");
-    if (metricIntent === "applications") return formatScoutMetricAnswer(`${detail.name} applications`, `${Math.round(summary.applications ?? 0)}`, monthLabel, "the saved Traffic & Funnel data");
-    if (metricIntent === "approved_applications") return formatScoutMetricAnswer(`${detail.name} approved applications`, `${Math.round(summary.applicationsApproved ?? 0)}`, monthLabel, "the saved Traffic & Funnel data");
-    if (metricIntent === "pending_applications") return formatScoutMetricAnswer(`${detail.name} pending applications`, `${Math.round(summary.applicationsPendingDecision ?? 0)}`, monthLabel, "the saved Traffic & Funnel data");
-    if (metricIntent === "move_ins") return formatScoutMetricAnswer(`${detail.name} move-ins`, `${Math.round(summary.moveIns ?? 0)}`, monthLabel, "the saved Overview and Funnel data");
-    if (metricIntent === "move_outs") return formatScoutMetricAnswer(`${detail.name} move-outs`, `${Math.round(summary.moveOuts ?? 0)}`, monthLabel, "the saved Overview data");
-    if (metricIntent === "absorption") return formatScoutMetricAnswer(`${detail.name} net absorption`, `${formatSignedDisplay(summary.monthAbsorption ?? 0)}`, monthLabel, "the saved move-in and move-out activity");
-    if (metricIntent === "lease_goal") return formatScoutMetricAnswer(`${detail.name} recommended lease goal`, `${Math.round(plan.currentGrossLeaseNeed ?? 0)}`, monthLabel, "the current leasing plan");
-    if (metricIntent === "app_goal") return formatScoutMetricAnswer(`${detail.name} recommended app goal`, `${Math.round(plan.currentAppNeed ?? 0)}`, monthLabel, "the current leasing plan");
-    if (metricIntent === "renewal_retention") return formatScoutMetricAnswer(`${detail.name} renewal retention`, `${(summary.renewalRetentionRate ?? 0).toFixed(1)}%`, monthLabel, "the saved renewals data");
-    if (metricIntent === "renewal_expirations") return formatScoutMetricAnswer(`${detail.name} renewal expirations`, `${Math.round(summary.renewalExpirations ?? 0)}`, monthLabel, "the saved renewals data");
-    if (metricIntent === "renewals_signed") return formatScoutMetricAnswer(`${detail.name} renewals signed`, `${Math.round(summary.renewalsSigned ?? 0)}`, monthLabel, "the saved renewals data");
-    if (metricIntent === "renewal_ntv") return formatScoutMetricAnswer(`${detail.name} NTVs`, `${Math.round(summary.renewalNTV ?? 0)}`, monthLabel, "the saved renewals data");
-    if (metricIntent === "market_rent") return formatScoutMetricAnswer(`${detail.name} market rent`, `${Number(monthEntry.marketRent ?? 0) > 0 ? formatDlrCurrency(monthEntry.marketRent) : "not saved"}`, monthLabel, "the saved monthly pricing data");
-    if (metricIntent === "ner") return formatScoutMetricAnswer(`${detail.name} net effective rent`, `${Number(monthEntry.nerActual ?? summary.currentNer ?? 0) > 0 ? formatDlrCurrency(monthEntry.nerActual ?? summary.currentNer ?? 0) : "not saved"}`, monthLabel, "the saved monthly pricing data");
-    if (metricIntent === "budget_gap") return formatScoutMetricAnswer(`${detail.name} budget occupancy gap`, `${Math.max(summary.occGapUnits ?? 0, 0)} units`, monthLabel, "current occupancy against the saved budget target");
-    if (metricIntent === "tour_to_app") return formatScoutMetricAnswer(`${detail.name} tour-to-app conversion`, `${(summary.tourToAppPct ?? 0).toFixed(1)}%`, monthLabel, "the saved Traffic & Funnel conversion data");
-    if (metricIntent === "tour_to_lease") return formatScoutMetricAnswer(`${detail.name} tour-to-lease conversion`, `${(summary.tourToLeasePct ?? 0).toFixed(1)}%`, monthLabel, "the saved Traffic & Funnel conversion data");
-    if (metricIntent === "approval_rate") return formatScoutMetricAnswer(`${detail.name} application approval rate`, `${(summary.applicationApprovalPct ?? 0).toFixed(1)}%`, monthLabel, "the saved application decision data");
-  }
-  if (/\blead\b|\bleads\b|\bguest cards?\b|\btraffic\b|\btours?\b|\bwalk[\s-]?in\b|\bphone\b|\bemail\b|\bonline\b|\btext\b|\bchat\b/.test(lower)) {
-    const walkIn = Number(monthEntry.walkIn ?? 0) || 0;
-    const offSiteEvent = Number(monthEntry.offSiteEvent ?? 0) || 0;
-    const phoneCalls = Number(monthEntry.phoneCalls ?? 0) || 0;
-    const emailsOnline = Number(monthEntry.emailsOnline ?? 0) || 0;
-    const textChatOther = Number(monthEntry.textChatOther ?? 0) || 0;
-    return buildScoutNarrative(
-      `${detail.name} has ${Math.round(summary.guestCards ?? 0)} guest cards and ${Math.round(summary.tours ?? 0)} tours saved month to date for ${monthLabel}.`,
-      `The current source mix shows ${walkIn} walk-ins, ${offSiteEvent} off-site/event, ${phoneCalls} phone, ${emailsOnline} email/online, and ${textChatOther} text/chat/other.`,
-      `${Math.round(summary.guestCardGoal ?? 0)} guest cards are needed against the current pace, and ${(summary.tourToAppPct ?? 0).toFixed(1)}% of tours are converting to applications.`,
-      "Any lead-source activity that has not been uploaded into ATLAS yet is still outside what I can verify."
-    );
-  }
-  if (/\boccup|leased|budget gap\b/.test(lower)) {
-    return buildScoutNarrative(
-      `${detail.name} is at ${getSummaryOccPct(summary).toFixed(1)}% physical occupancy and ${getSummaryLeasedPct(summary).toFixed(1)}% leased occupancy for ${monthLabel}.`,
-      `The asset is ${Math.max(summary.occGapUnits ?? 0, 0)} units from budget occupancy and is pacing ${(summary.tourToLeasePct ?? 0).toFixed(1)}% tour-to-lease.`,
-      buildScoutRecommendationSummary(detail),
-      "I still cannot confirm whether pending approvals will convert without updated follow-up notes."
-    );
-  }
-  if (/\bapplication|\bapps?\b|\bapproved\b|\bconversion\b|\bclose\b/.test(lower)) {
-    return buildScoutNarrative(
-      `${detail.name} has ${Math.round(summary.applications ?? 0)} applications and ${Math.round(summary.applicationsApproved ?? 0)} approved applications saved month to date.`,
-      `Current conversion is ${(summary.tourToAppPct ?? 0).toFixed(1)}% from tour to app and ${(summary.tourToLeasePct ?? 0).toFixed(1)}% from tour to lease.`,
-      `The current operating plan points to ${Math.round(plan.currentGrossLeaseNeed ?? 0)} lease goal and ${Math.round(plan.currentAppNeed ?? 0)} app goal for this month.`,
-      "I cannot see the exact blocker on any one approval unless the team logs it in ATLAS."
-    );
-  }
-  if (/\bmove[\s-]?in\b|\bmove[\s-]?out\b|\babsorption\b/.test(lower)) {
-    return buildScoutNarrative(
-      `${detail.name} has ${Math.round(summary.moveIns ?? 0)} move-ins and ${Math.round(summary.moveOuts ?? 0)} move-outs saved for ${monthLabel}, for net absorption of ${formatSignedDisplay(summary.monthAbsorption ?? 0)}.`,
-      `The current move-in goal is ${Math.round(summary.moveInGoal ?? 0)} and the asset is carrying ${Math.max(summary.occGapUnits ?? 0, 0)} occupancy gap units.`,
-      "The next priority is closing the approved application pipeline quickly enough to recover exposure before additional move-outs hit.",
-      "I cannot confirm whether scheduled move-ins are at risk unless updated applicant notes are in ATLAS."
-    );
-  }
-  if (/\brent\b|\bpricing\b|\bner\b|\bnet effective\b|\bmarket rent\b/.test(lower)) {
-    const marketRent = Number(monthEntry.marketRent ?? 0) || 0;
-    const nerActual = Number(monthEntry.nerActual ?? summary.currentNer ?? 0) || 0;
-    return buildScoutNarrative(
-      `${detail.name} is carrying ${marketRent > 0 ? formatDlrCurrency(marketRent) : "no saved market rent"} and ${nerActual > 0 ? formatDlrCurrency(nerActual) : "no saved NER"} for ${monthLabel}.`,
-      "Pricing position in ATLAS is tied to the saved monthly operating data and the current comp/recommendation workflow.",
-      "The best next review is the regional pricing worksheet so the saved subject metrics can be compared against the latest comp averages before changing strategy.",
-      "Any pricing call that has not been written back into ATLAS is still outside what I can confirm."
-    );
-  }
-  if (/\bgoal\b|\bgoals\b|\blease goal\b|\bapp goal\b/.test(lower)) {
-    return buildScoutNarrative(
-      `${detail.name} is carrying a recommended target of ${Math.round(plan.currentGrossLeaseNeed ?? 0)} leases and ${Math.round(plan.currentAppNeed ?? 0)} applications for ${monthLabel}.`,
-      `That recommendation is being driven by ${Math.max(summary.occGapUnits ?? 0, 0)} budget-gap units and a current close rate of ${(summary.tourToLeasePct ?? 0).toFixed(1)}% against a needed ${(plan.currentTourToLeaseNeededPct ?? 0).toFixed(1)}%.`,
-      "Use the portfolio overview goal editor to save the monthly target and keep the funnel aligned to approved applications and follow-up speed.",
-      "I cannot determine from the current data alone whether you want to stretch above the recommendation for a strategic reason."
-    );
-  }
-  if (/\brenewal\b|\bretention\b|\bntv\b|\bexpirations?\b/.test(lower)) {
-    return buildScoutNarrative(
-      `${detail.name} has ${Math.round(summary.renewalExpirations ?? 0)} expirations, ${Math.round(summary.renewalsSigned ?? 0)} signed renewals, and ${(summary.renewalRetentionRate ?? 0).toFixed(1)}% retention for ${monthLabel}.`,
-      `${Math.round(summary.renewalNTV ?? 0)} NTVs and ${Math.round(summary.renewalUndecided ?? 0)} undecided renewals are still influencing the final result.`,
-      "The cleanest next step is closing undecided renewals before they flow into move-out exposure and next-month leasing need.",
-      "I cannot see resident-level reasons behind unsigned renewals unless those notes are stored in ATLAS."
-    );
-  }
-  return buildScoutNarrative(
-    `${detail.name} is operating at ${getSummaryOccPct(summary).toFixed(1)}% physical occupancy with ${Math.round(summary.applicationsApproved ?? 0)} approved apps month to date in ${monthLabel}.`,
-    "Budget gap, current conversion, and move-out pressure are the main leasing drivers in the saved record.",
-    buildScoutRecommendationSummary(detail),
-    "Anything that lives outside the dashboard, such as pricing calls or unsaved team notes, is still outside what I can verify."
-  );
-}
-
-function generateScoutAnswer(question = "") {
-  const conversationalReply = getScoutConversationalReply(question);
-  if (conversationalReply) return conversationalReply;
-  const scope = getScoutQuestionScope(question);
-  const body = scope.type === "portfolio"
-    ? answerScoutPortfolioQuestion(question, scope)
-    : answerScoutCommunityQuestion(question, scope);
-  return {
-    body,
-    photo: getScoutPhotoAssetForScope(scope)
-  };
-}
-
-function renderScoutAssistantMessages() {
-  const log = getScoutAssistantLogElement();
-  if (!log) return;
-  log.innerHTML = scoutAssistantState.messages.map(message => `<div class="scout-msg ${message.role}">
-    ${escapeHtml(message.body)}
-    ${message.photo?.src ? `<div class="scout-msg-media"><img src="${message.photo.src}" alt="${escapeHtml(message.photo.alt || "Scout response image")}"></div>` : ""}
-    ${message.meta ? `<span class="scout-msg-meta">${escapeHtml(message.meta)}</span>` : ""}
-  </div>`).join("");
-  log.scrollTop = log.scrollHeight;
-}
-
-function pushScoutMessage(role, body, meta = "", options = {}) {
-  const photo = options?.photo?.src ? {
-    src: String(options.photo.src),
-    alt: String(options.photo.alt || "").trim()
-  } : null;
-  scoutAssistantState.messages.push({
-    role,
-    body: String(body ?? "").trim(),
-    meta: String(meta ?? "").trim(),
-    photo
-  });
-  renderScoutAssistantMessages();
-}
-
-function primeScoutAssistant() {
-  if (scoutAssistantState.messages.length > 0) return;
-  const scopeLabel = isPortfolioWorkspaceSelected() ? "the full ATLAS portfolio" : getProp().name;
-  pushScoutMessage("assistant", `Scout is live in beta. I can answer questions about ${scopeLabel}, current occupancy, leasing goals, applications, conversion, and current recommendations.`, `Grounded in ${formatScoutDateLabel(getSelectedDashboardMonthIndex())} dashboard data`);
-}
-
-function setScoutAssistantOpen(nextOpen = true) {
-  const panel = getScoutAssistantElement();
-  const orb = getScoutOrbElement();
-  if (!panel || !orb) return;
-  scoutAssistantState.isOpen = Boolean(nextOpen);
-  panel.classList.toggle("is-open", scoutAssistantState.isOpen);
-  panel.setAttribute("aria-hidden", scoutAssistantState.isOpen ? "false" : "true");
-  orb.classList.toggle("is-open", scoutAssistantState.isOpen);
-  if (scoutAssistantState.isOpen) {
-    primeScoutAssistant();
-    requestAnimationFrame(() => getScoutAssistantInputElement()?.focus());
-  }
-  updateScoutPresence();
-}
-
-function submitScoutQuestion(rawQuestion = "") {
-  const question = String(rawQuestion ?? "").trim();
-  if (!question) return false;
-  pushScoutMessage("user", question);
-  setScoutOrbState("processing");
-  pulseScoutSpeaking(900);
-  const answer = generateScoutAnswer(question);
-  window.setTimeout(() => {
-    pushScoutMessage("assistant", answer.body, `Source: live ATLAS dashboard · ${formatScoutDateLabel(getSelectedDashboardMonthIndex())}${answer.photo?.src ? " · Atlas photo enabled" : ""}`, { photo: answer.photo });
-    setScoutOrbState("normal");
-    pulseScoutSpeaking(1450);
-  }, 220);
-  return true;
-}
-
-function toggleScoutVoiceInput() {
-  const note = document.getElementById("scout-compose-note");
-  const button = document.getElementById("scout-mic-btn");
-  const RecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!RecognitionCtor) {
-    if (note) note.textContent = "Mic is not available in this browser. Type to ask Scout a question.";
-    return;
-  }
-  if (scoutAssistantState.listening && scoutAssistantState.recognition) {
-    scoutAssistantState.recognition.stop();
-    return;
-  }
-  const recognition = new RecognitionCtor();
-  scoutAssistantState.recognition = recognition;
-  recognition.lang = "en-US";
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
-  recognition.onstart = () => {
-    scoutAssistantState.listening = true;
-    button?.classList.add("is-listening");
-    if (note) note.textContent = "Listening… ask Scout a question.";
-  };
-  recognition.onresult = (event) => {
-    const transcript = Array.from(event.results || []).map(result => result?.[0]?.transcript || "").join(" ").trim();
-    const input = getScoutAssistantInputElement();
-    if (input) input.value = transcript;
-    if (transcript) submitScoutQuestion(transcript);
-  };
-  recognition.onerror = () => {
-    if (note) note.textContent = "Scout could not read the microphone input. Try again or type your question.";
-  };
-  recognition.onend = () => {
-    scoutAssistantState.listening = false;
-    button?.classList.remove("is-listening");
-    if (note) note.textContent = "Mic works in supported browsers. Scout uses live ATLAS data on this page.";
-  };
-  recognition.start();
-}
-
-function bindScoutAssistantUi() {
-  if (scoutAssistantState.uiBound) return;
-  const orb = getScoutOrbElement();
-  const closeButton = document.getElementById("scout-assistant-close");
-  const sendButton = document.getElementById("scout-send-btn");
-  const micButton = document.getElementById("scout-mic-btn");
-  const input = getScoutAssistantInputElement();
-  orb?.addEventListener("click", () => setScoutAssistantOpen(!scoutAssistantState.isOpen));
-  closeButton?.addEventListener("click", () => setScoutAssistantOpen(false));
-  sendButton?.addEventListener("click", () => {
-    if (!input) return;
-    const submitted = submitScoutQuestion(input.value);
-    if (submitted) input.value = "";
-  });
-  micButton?.addEventListener("click", () => toggleScoutVoiceInput());
-  input?.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    const submitted = submitScoutQuestion(input.value);
-    if (submitted) input.value = "";
-  });
-  document.querySelectorAll("[data-scout-prompt]").forEach(button => {
-    button.addEventListener("click", () => {
-      const prompt = button.getAttribute("data-scout-prompt") || "";
-      submitScoutQuestion(prompt);
-    });
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && scoutAssistantState.isOpen) setScoutAssistantOpen(false);
-  });
-  scoutAssistantState.uiBound = true;
-}
-
 // ─── Auto Conv Rate ──────────────────────────────────────────────────────────
 function autoCalcConvRate() {
   const documentedMonths = monthlyData.slice(0, currentMonth + 1).filter(m =>
@@ -9241,7 +8540,6 @@ function renderTab() {
     queueActiveTabPhotoAssetHydration();
     queueAtlasPortfolioMapHydration();
   }
-  requestAnimationFrame(updateScoutPresence);
 }
 
 // Keeps the sticky header's scope/period selects and status chips in step with
@@ -10162,7 +9460,7 @@ function renderPortfolioPresentationImageLibrary() {
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
       <div>
         <div class="card-title" style="margin-bottom:6px">Presentation Image Library</div>
-        <div style="font-size:0.72rem;color:var(--muted)">Portfolio-level image inventory for Scout responses and reporting fill-ins. This library is only shown in the RISE portfolio workspace; individual property setup keeps only that community's own images.</div>
+        <div style="font-size:0.72rem;color:var(--muted)">Portfolio-level image inventory for reporting fill-ins. This library is only shown in the RISE portfolio workspace; individual property setup keeps only that community's own images.</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-gray btn-sm" onclick="optimizeSavedPresentationImages()">Optimize Saved Images</button>
@@ -10174,7 +9472,7 @@ function renderPortfolioPresentationImageLibrary() {
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Community Photos</div>
         <div style="font-size:1.4rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:#4493f8">${imageInventory.communityPhotos}</div>
-        <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">Used for deck covers, DLR image treatments, and Scout/reporting content.</div>
+        <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">Used for deck covers, DLR image treatments, and reporting content.</div>
       </div>
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Site Team Headshots</div>
@@ -10224,6 +9522,9 @@ function renderPortfolioScopedSetupTab() {
     const plans = normalizeCommunityFloorPlans(detail.record?.communityFloorPlans).filter(plan => String(plan.name || "").trim()).length;
     const contactText = contacts.map(entry => entry.email).filter(Boolean).join("; ");
     const status = normalizeCommunityStatus(detail.record?.communityStatus);
+    const effectiveUnitsValue = String(detail.record?.customUnits ?? "").trim() !== ""
+      ? detail.record.customUnits
+      : (detail.summary.totalUnits || "");
     return `<tr>
       <td class="l" style="font-weight:700">${escapeHtml(detail.name)}</td>
       <td>
@@ -10232,7 +9533,7 @@ function renderPortfolioScopedSetupTab() {
           <button type="button" class="community-status-chip${status === "inactive" ? " is-current-inactive" : ""}" onclick='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "communityStatus", "inactive")'>Inactive</button>
         </div>
       </td>
-      <td><input type="number" min="1" value="${escapeHtml(detail.record?.customUnits || "")}" placeholder="${escapeHtml(String(detail.summary.totalUnits || ""))}" onchange='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "customUnits", this.value)' style="width:96px"></td>
+      <td><input type="number" min="1" value="${escapeHtml(String(effectiveUnitsValue))}" placeholder="${escapeHtml(String(detail.summary.totalUnits || ""))}" onchange='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "customUnits", this.value)' style="width:96px"></td>
       <td><input type="number" min="0" value="${escapeHtml(String(detail.record?.corporateLeaseUnits || ""))}" placeholder="0" onchange='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "corporateLeaseUnits", this.value)' style="width:92px"></td>
       <td class="l"><input type="text" value="${escapeHtml(detail.record?.communityAddress || "")}" placeholder="Community address" onchange='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "communityAddress", this.value)' style="width:100%"></td>
       <td class="l"><input type="text" value="${escapeHtml(detail.record?.investorName || "")}" placeholder="Investor / ownership group" onchange='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "investorName", this.value)' style="width:100%"></td>
@@ -10397,7 +9698,7 @@ function renderPortfolioScopedOverviewTab() {
       ? recs.map(item => `${item.title}: ${item.body}`).join(" ")
       : "No active watchlist items surfaced from the current dashboard sections.";
     return `<div style="min-width:280px;text-align:left">
-      <div style="font-weight:700;color:var(--text);margin-bottom:4px">Scout guidance</div>
+      <div style="font-weight:700;color:var(--text);margin-bottom:4px">Goal guidance</div>
       <div style="font-size:0.67rem;color:var(--muted);line-height:1.45;margin-bottom:6px">${escapeHtml(recommendationText)}</div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:0.65rem;color:var(--muted)">
         <span><strong style="color:${budgetGapUnits > 0 ? "#f97316" : "#3fb950"}">${budgetGapUnits}</strong> budget gap units</span>
@@ -10684,7 +9985,7 @@ function renderPortfolioScopedImportTab() {
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
       <div>
         <div class="card-title" style="margin-bottom:6px">Ronaldo Monthly Backfill / Bulk DLR</div>
-        <div style="font-size:0.68rem;color:var(--muted)">Upload the completed <span class="mono">ATLAS_Advanced_Monthly_Upload_Template.xlsx</span> workbook or report-generator exports here. It writes the selected month into every saved community record so Overview, Traffic, Renewals, Reputation, and DLR rollups stay aligned. Any lead-source data included in the Ronaldo upload is mapped into the portfolio Overview / Traffic &amp; Funnel rollups and the matching individual community Traffic &amp; Funnel month records from the same import.</div>
+        <div style="font-size:0.68rem;color:var(--muted)">Upload the completed <span class="mono">ATLAS_Advanced_Monthly_Upload_Template.xlsx</span> workbook or report-generator exports here. It writes the selected month into every saved community record so Overview, Traffic, Renewals, Reputation, and DLR rollups stay aligned. Traffic and funnel rollups populate from the same import only when the workbook or attached box-score references include those fields.</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
         <div>
@@ -10702,10 +10003,10 @@ function renderPortfolioScopedImportTab() {
     <label class="csv-dropzone" style="padding:20px;cursor:pointer">
       <div class="csv-drop-icon">⬆</div>
       <div style="font-size:0.82rem;color:#4493f8;font-weight:600">Click to upload the monthly template, generator workbook, and optional box-score references</div>
-      <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">Supports <span class="mono">.xlsx</span>, <span class="mono">.xlsm</span>, <span class="mono">.xls</span>, <span class="mono">.csv</span>, and <span class="mono">.pdf</span>. The workbook is applied to the target month; generator sheet exports and box-score files are mapped into the same community month record so lead totals, lead-source buckets, tours, and applications stay consistent between Overview, portfolio Traffic &amp; Funnel, and each community Traffic &amp; Funnel tab.</div>
+      <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">Supports <span class="mono">.xlsx</span>, <span class="mono">.xlsm</span>, <span class="mono">.xls</span>, <span class="mono">.csv</span>, and <span class="mono">.pdf</span>. The workbook is applied to the target month; any generator sheet exports and box-score files attached to that import are mapped into the same community month record so lead totals, lead-source buckets, tours, and applications stay consistent between Overview, portfolio Traffic &amp; Funnel, and each community Traffic &amp; Funnel tab.</div>
       <input type="file" accept=".xlsx,.xls,.xlsm,.csv,.pdf" id="ronaldo-monthly-upload-input" multiple onchange="processRonaldoMonthlyBackfillFiles(this.files); this.value = ''"/>
     </label>
-    <div style="font-size:0.66rem;color:var(--muted);margin-top:8px">Use this when Ronaldo fills out the template and you want the import to populate every relevant community month record in one pass. The same upload should carry each community's lead-source breakdown into both portfolio reporting and the individual community funnel screens.</div>
+    <div style="font-size:0.66rem;color:var(--muted);margin-top:8px">Use this when Ronaldo fills out the template and you want the import to populate every relevant community month record in one pass. Attach the matching box-score or generator exports whenever you need that same import to populate lead-source and funnel fields too.</div>
   </div>`;
   const renewalTrackerUploadHTML = `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
@@ -10760,7 +10061,7 @@ function renderPortfolioScopedImportTab() {
     </table>
   </div>`;
   const cardsHtml = `<div class="grid-4">
-    ${statBox(isCurrentMonth ? "DLR Fresh Today" : "DLR Coverage", `${dlrLoaded}/${details.length}`, isCurrentMonth ? `${dlrHasData}/${details.length} communities still have saved DLR month data` : "Communities with historical DLR support for the selected month", "#4493f8")}
+    ${statBox(isCurrentMonth ? "DLR Fresh Today" : "DLR Coverage", `${dlrLoaded}/${details.length}`, isCurrentMonth ? `${dlrHasData}/${details.length} communities still have saved DLR snapshot data` : "Communities with historical DLR support for the selected month", "#4493f8")}
     ${statBox(isCurrentMonth ? "Survey Fresh Cycle" : "Survey Coverage", `${surveyLoaded}/${details.length}`, isCurrentMonth ? `${surveyHasData}/${details.length} communities still have saved survey snapshots` : "Communities with historical market survey snapshots for the selected month", "#3fb950")}
     ${statBox(isCurrentMonth ? "Renewals Fresh Cycle" : "Renewal Coverage", `${renewalLoaded}/${details.length}`, isCurrentMonth ? `${renewalHasData}/${details.length} communities still have saved renewal data` : "Communities with historical renewal data for the selected month", "#d29922")}
     ${statBox("Contacts Loaded", details.filter(detail => normalizeInvestorEmailContacts(detail.record?.investorEmailContacts).length > 0).length, "Communities with report recipients saved", "#a371f7")}
@@ -17241,25 +16542,6 @@ function buildPortfolioHomePriorities(details = [], selectedMonth = getSelectedD
       });
     }
 
-    const financial = getFinancialSummaryForMonth(record, selectedMonth);
-    if (financial.hasData && financial.noiVariance <= -1000) {
-      const isUnderBudget = financial.noiVariance < 0;
-      priorities.push({
-        community: detail.name,
-        title: isUnderBudget
-          ? `NOI is ${formatDlrCurrency(Math.abs(financial.noiVariance))} under budget`
-          : `NOI is ${formatDlrCurrency(Math.abs(financial.noiVariance))} over budget`,
-        body: isUnderBudget
-          ? `${detail.name} is tracking ${formatDlrCurrency(financial.noiActual)} in NOI versus ${formatDlrCurrency(financial.noiBudget)} budget for ${FULL_MONTHS[selectedMonth]}. Revenue is ${formatSignedFinancialCurrency(financial.revenueVariance)} to budget and expenses are ${formatSignedFinancialCurrency(financial.expenseVariance)} to budget.`
-          : `${detail.name} is tracking ${formatDlrCurrency(financial.noiActual)} in NOI versus ${formatDlrCurrency(financial.noiBudget)} budget for ${FULL_MONTHS[selectedMonth]}. Revenue is ${formatSignedFinancialCurrency(financial.revenueVariance)} to budget and expenses are ${formatSignedFinancialCurrency(financial.expenseVariance)} to budget.`,
-        value: formatSignedFinancialCurrency(financial.noiVariance),
-        valueSub: "NOI vs budget",
-        tone: isUnderBudget ? "critical" : "good",
-        severity: (isUnderBudget ? 72 : 52) + Math.min(Math.abs(financial.noiVariance) / 2500, 18),
-        actionType: "financial",
-        actionLabel: "Open Financials"
-      });
-    }
   });
   return priorities
     .sort((a, b) => (Number(b.severity) || 0) - (Number(a.severity) || 0) || String(a.community).localeCompare(String(b.community)))
@@ -17268,9 +16550,7 @@ function buildPortfolioHomePriorities(details = [], selectedMonth = getSelectedD
 
 function renderPortfolioPriorityItem(priority) {
   const color = getPortfolioPriorityToneColor(priority.tone);
-  const actionHtml = priority.actionType === "financial"
-    ? `<button type="button" class="portfolio-priority-chip" onmousedown='window.location.href=${JSON.stringify(`financial-accountability.html?community=${encodeURIComponent(String(priority.community || ""))}&period=${encodeURIComponent(getWorkspacePeriodString(getSelectedDashboardMonthIndex()))}`)}; return false;'>${escapeHtml(priority.actionLabel || "Open Financials")}</button>`
-    : `<button type="button" class="portfolio-priority-chip" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(priority.community)}, ${Number(priority.tabIdx) || 0})'>${escapeHtml(priority.actionLabel || "Open")}</button>`;
+  const actionHtml = `<button type="button" class="portfolio-priority-chip" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(priority.community)}, ${Number(priority.tabIdx) || 0})'>${escapeHtml(priority.actionLabel || "Open")}</button>`;
   return `<div class="portfolio-rank-item portfolio-priority-item" style="border-left-color:${color}">
     <div>
       <div class="portfolio-priority-title">${escapeHtml(priority.title)}</div>
@@ -19318,35 +18598,6 @@ function renderPortfolioHomeTab() {
         : `<div class="alert-green">No high-priority operating issues are currently surfacing for ${selectedLabel}. Keep monitoring renewals, pace to budget, conversion, and NOI pressure.</div>`,
       `<div class="alert alert-info">Portfolio priorities are temporarily unavailable for this snapshot.</div>`
     );
-    const portfolioMapHtml = renderSafeSection(
-      () => isPortfolioWorkspaceSelected()
-        ? (() => {
-            const mappedDetails = details
-              .map(detail => buildCommunityMapDetails(detail.name))
-              .filter(detail => detail.address || detail.geo);
-            const mappedList = mappedDetails.length > 0
-              ? mappedDetails.map(detail => `<div class="atlas-map-card">
-                  <div class="atlas-map-card-title">${escapeHtml(detail.icon)} ${escapeHtml(detail.name)}</div>
-                  <div style="font-size:0.68rem;color:var(--muted);line-height:1.5">${escapeHtml(detail.address || "Add a community address in Community Setup to pin this asset.")}</div>
-                  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;font-size:0.66rem;color:var(--muted)">
-                    <span><strong style="color:var(--text)">${detail.units || "—"}</strong> units</span>
-                    <span><strong style="color:#4493f8">${Number.isFinite(detail.occPct) ? `${detail.occPct.toFixed(1)}%` : "—"}</strong> occ</span>
-                    <span><strong style="color:#a371f7">${Number.isFinite(detail.leasedPct) ? `${detail.leasedPct.toFixed(1)}%` : "—"}</strong> leased</span>
-                  </div>
-                </div>`).join("")
-              : `<div class="atlas-map-card">Add community addresses in Community Setup to populate the RISE portfolio map.</div>`;
-            return `<div class="atlas-map-shell">
-              <h3>RISE Portfolio Map</h3>
-              <p>Community pins and addresses stay tied to the same saved records used throughout ATLAS, so address cleanup in Community Setup immediately improves this view.</p>
-              <div class="atlas-map-grid">
-                <div id="atlas-portfolio-map" aria-label="RISE portfolio map"></div>
-                <div class="atlas-map-list">${mappedList}</div>
-              </div>
-            </div>`;
-          })()
-        : "",
-      ""
-    );
     const trendScopeTitle = isPortfolioWorkspaceSelected() ? "Portfolio" : getProp().name;
     const trendRows = renderSafeSection(
       () => buildPortfolioHomeMonthlyTrendRows(selectedMonth),
@@ -19532,7 +18783,6 @@ function renderPortfolioHomeTab() {
       <p>${isPortfolioWorkspaceSelected() ? "Internally-facing items that may need a management touch before they show up as missed outcomes." : "Internally-facing items that may need a management touch before they show up as missed outcomes for this community."}</p>
       <div class="portfolio-rank-list">${prioritiesHtml}</div>
   </div>
-  ${portfolioMapHtml}
   ${marketComparisonHtml}
   <div class="portfolio-section-grid" style="margin-top:16px">
     ${guestCardTrendCard}
@@ -33474,8 +32724,6 @@ function runAtlasInitialRenderPass() {
 }
 
 async function initializeAtlasDashboard() {
-  ensureScoutPresence();
-  bindScoutAssistantUi();
   sideNavCollapsed = loadSideNavCollapsed();
   applySideNavState();
   currentMonth = DEFAULT_CURRENT_MONTH;
@@ -33505,8 +32753,6 @@ async function initializeAtlasDashboard() {
 }
 
 initializeAtlasDashboard().catch((error) => {
-  ensureScoutPresence();
-  bindScoutAssistantUi();
   markAtlasPersistenceError(error, "ATLAS could not finish loading browser data.");
   currentMonth = DEFAULT_CURRENT_MONTH;
   workspaceMonthOverride = null;

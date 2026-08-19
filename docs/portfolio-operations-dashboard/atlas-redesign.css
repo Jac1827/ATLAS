@@ -1044,29 +1044,7 @@ tbody tr:hover td {
 }
 
 /* --------------------------------------------------------------------------
-   8. Scout assistant — reconciled with the redesign palette
-   -------------------------------------------------------------------------- */
-.scout-assistant {
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-neutral-700);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-lg);
-}
-
-.scout-prompt-chip {
-  border-radius: 99px;
-  border: 1px solid var(--color-neutral-700);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: 12px;
-}
-
-.scout-prompt-chip:hover {
-  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
-}
-
-/* --------------------------------------------------------------------------
-   9. Responsive
+   8. Responsive
    -------------------------------------------------------------------------- */
 @media (max-width: 1100px) {
   .tab-panel {

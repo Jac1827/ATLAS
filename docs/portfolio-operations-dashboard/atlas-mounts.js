@@ -31,7 +31,7 @@
       title: "Marketing Command Center",
       note: "Intake, the AI creative brief, approvals, routing and team metrics run in the Command Center itself — this is the portfolio read of it.",
       barTitle: "RISE Marketing Command Center",
-      barSub: "Partially centralized today — moving to shared Atlas data contracts",
+      barSub: "Shares team, routing, and bonus settings with Atlas Bonus & Incentives",
       src: "RISE-Marketing-Command-Center.html",
       background: "#F0F4F6",
       icon: "ph-megaphone"

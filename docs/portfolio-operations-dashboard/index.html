@@ -1031,6 +1031,9 @@ const ATLAS_STATE_DAILY_BACKUP_INDEX_KEY = "daily_backup_index";
 const ATLAS_STATE_DAILY_BACKUP_PREFIX = "daily_backup:";
 const ATLAS_PERSISTENCE_META_KEY = "atlas_persistence_meta_v1";
 const DASHBOARD_DAILY_BACKUP_RETENTION = 45;
+const MARKETING_MCC_SUPABASE_URL = "https://dgkedyzdhneiypqeimhd.supabase.co";
+const MARKETING_MCC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRna2VkeXpkaG5laXlwcWVpbWhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MTc1MDEsImV4cCI6MjA5NzI5MzUwMX0.X2BacSn45_s7ODDNvTLy-70oinVncghmxV-ycECiCSc";
+const MARKETING_BONUS_REFRESH_MS = 5 * 60 * 1000;
 const WINDOWSHADE_DEFAULTS = {
   recommendations: false,
   setup_foundation: false,
@@ -3562,6 +3565,8 @@ let bonusQuarter = getBonusQuarterForMonth(DEFAULT_CURRENT_MONTH);
 let bonusQuarterManualOverride = false;
 let bonusCalcView = "property";
 let jacsTeamBonus = defaultJacsTeamBonus();
+let marketingBonusState = defaultMarketingBonusState();
+let marketingBonusLoadPromise = null;
 let regionalAssignments = defaultRegionalAssignments();
 let opsGlobalData = null;
 let propertyTurnoverConfig = defaultPropertyTurnoverConfig();
@@ -4471,6 +4476,378 @@ function persistOpsGlobalData() {
 
 function getBonusRoles() { return bonusRolesByQ[bonusQuarter]; }
 function getJacsTeamRoles() { return jacsTeamBonus; }
+
+function defaultMarketingBonusWeights() {
+  return [
+    { id: "tickets", label: "Ticket Closures", weight: 25, enabled: true },
+    { id: "ontime", label: "On-Time Delivery", weight: 25, enabled: true },
+    { id: "satisfaction", label: "Satisfaction Score", weight: 20, enabled: true },
+    { id: "savings", label: "Cost Savings", weight: 15, enabled: true },
+    { id: "quality", label: "Brief Accuracy / Revisions", weight: 15, enabled: true }
+  ];
+}
+
+function defaultMarketingBonusTargets() {
+  return [
+    { id: "tickets", label: "Tickets closed per period", target: 10, unit: "tickets" },
+    { id: "ontime", label: "On-time delivery rate", target: 90, unit: "%" },
+    { id: "satisfaction", label: "Avg satisfaction rating", target: 4, unit: "stars" },
+    { id: "savings", label: "Cost savings identified", target: 500, unit: "$" },
+    { id: "revisions", label: "Max revisions per ticket", target: 1.5, unit: "avg" }
+  ];
+}
+
+function defaultMarketingBonusState() {
+  return {
+    status: "idle",
+    error: "",
+    loadedAt: "",
+    settingsUpdatedAt: "",
+    settingsUpdatedBy: "",
+    teamMembers: [],
+    tickets: [],
+    ratings: [],
+    leadSources: [],
+    weights: defaultMarketingBonusWeights(),
+    targets: defaultMarketingBonusTargets()
+  };
+}
+
+function isMarketingManagedJacRole(role = {}) {
+  return String(role.id || "").startsWith("marketing_")
+    || role.group === "Marketing Team"
+    || role.group === "Marketing Specialists";
+}
+
+function normalizeMarketingBonusWeight(weight = {}) {
+  const defaults = defaultMarketingBonusWeights();
+  const fallback = defaults.find(item => item.id === weight.id) || {};
+  return {
+    id: String(weight.id || fallback.id || "").trim(),
+    label: String(weight.label || fallback.label || weight.id || "").trim(),
+    weight: Math.max(0, Number(weight.weight ?? fallback.weight ?? 0) || 0),
+    enabled: weight.enabled !== false
+  };
+}
+
+function normalizeMarketingBonusTarget(target = {}) {
+  const defaults = defaultMarketingBonusTargets();
+  const fallback = defaults.find(item => item.id === target.id) || {};
+  return {
+    id: String(target.id || fallback.id || "").trim(),
+    label: String(target.label || fallback.label || target.id || "").trim(),
+    target: Number(target.target ?? fallback.target ?? 0) || 0,
+    unit: String(target.unit || fallback.unit || "").trim()
+  };
+}
+
+function normalizeMarketingBonusSettings(rows = []) {
+  const latest = Array.isArray(rows) && rows.length ? rows[0] : {};
+  const weights = Array.isArray(latest.weights) && latest.weights.length
+    ? latest.weights.map(normalizeMarketingBonusWeight).filter(item => item.id)
+    : defaultMarketingBonusWeights();
+  const targets = Array.isArray(latest.targets) && latest.targets.length
+    ? latest.targets.map(normalizeMarketingBonusTarget).filter(item => item.id)
+    : defaultMarketingBonusTargets();
+  return {
+    weights,
+    targets,
+    settingsUpdatedAt: String(latest.updated_at || ""),
+    settingsUpdatedBy: String(latest.updated_by || "")
+  };
+}
+
+function normalizeMarketingTeamMember(row = {}) {
+  return {
+    id: String(row.id || "").trim(),
+    fname: String(row.fname || "").trim(),
+    lname: String(row.lname || "").trim(),
+    email: String(row.email || "").trim().toLowerCase(),
+    role: String(row.role || "").trim(),
+    roleType: String(row.role_type || "staff").trim() || "staff",
+    status: String(row.status || "active").trim() || "active",
+    maxTickets: Number(row.max_tickets || 0) || 0,
+    color: String(row.avatar_color || "#013e51").trim(),
+    properties: Array.isArray(row.properties) ? row.properties : []
+  };
+}
+
+function normalizeMarketingTicket(row = {}) {
+  return {
+    id: String(row.id || "").trim(),
+    assignedTo: String(row.assigned_to || "").trim(),
+    status: String(row.status || "").trim(),
+    dueDate: String(row.due_date || "").trim(),
+    closedAt: String(row.closed_at || "").trim(),
+    createdAt: String(row.created_at || "").trim(),
+    marketingTimeSeconds: Number(row.marketing_time_seconds || 0) || 0
+  };
+}
+
+function normalizeMarketingRating(row = {}) {
+  return {
+    id: String(row.id || "").trim(),
+    assigneeName: String(row.assignee_name || "").trim(),
+    quality: Number(row.quality || 0) || 0,
+    timeliness: Number(row.timeliness || 0) || 0,
+    createdAt: String(row.created_at || "").trim()
+  };
+}
+
+function normalizeMarketingLeadSource(row = {}) {
+  return {
+    id: String(row.id || "").trim(),
+    monthlyCost: Number(row.monthly_cost || 0) || 0,
+    leads: Number(row.leads || 0) || 0,
+    leases: Number(row.leases || 0) || 0,
+    period: String(row.period || "").trim()
+  };
+}
+
+async function fetchMarketingMccTable(tableName, query = "") {
+  const url = `${MARKETING_MCC_SUPABASE_URL}/rest/v1/${tableName}${query ? `?${query}` : ""}`;
+  const response = await fetch(url, {
+    headers: {
+      apikey: MARKETING_MCC_SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${MARKETING_MCC_SUPABASE_ANON_KEY}`,
+      Accept: "application/json"
+    }
+  });
+  if (!response.ok) throw new Error(`${tableName} returned ${response.status}`);
+  return response.json();
+}
+
+async function loadMarketingBonusData(options = {}) {
+  const now = Date.now();
+  const lastLoadedTime = marketingBonusState.loadedAt ? Date.parse(marketingBonusState.loadedAt) : 0;
+  if (!options.force && marketingBonusState.status === "ready" && Number.isFinite(lastLoadedTime) && now - lastLoadedTime < MARKETING_BONUS_REFRESH_MS) {
+    return marketingBonusState;
+  }
+  if (marketingBonusLoadPromise) return marketingBonusLoadPromise;
+  marketingBonusState = { ...marketingBonusState, status: "loading", error: "" };
+  marketingBonusLoadPromise = Promise.all([
+    fetchMarketingMccTable("team_members", "select=id,fname,lname,email,role,role_type,status,max_tickets,avatar_color,properties&order=fname.asc"),
+    fetchMarketingMccTable("tickets", "select=id,assigned_to,status,due_date,closed_at,created_at,marketing_time_seconds&order=created_at.desc"),
+    fetchMarketingMccTable("satisfaction_ratings", "select=id,assignee_name,quality,timeliness,created_at&order=created_at.desc"),
+    fetchMarketingMccTable("lead_sources", "select=id,monthly_cost,leads,leases,period"),
+    fetchMarketingMccTable("bonus_settings", "select=weights,targets,updated_at,updated_by&order=updated_at.desc&limit=1")
+  ]).then(([teamRows, ticketRows, ratingRows, leadRows, settingsRows]) => {
+    const settings = normalizeMarketingBonusSettings(settingsRows);
+    marketingBonusState = {
+      status: "ready",
+      error: "",
+      loadedAt: new Date().toISOString(),
+      settingsUpdatedAt: settings.settingsUpdatedAt,
+      settingsUpdatedBy: settings.settingsUpdatedBy,
+      teamMembers: (Array.isArray(teamRows) ? teamRows : []).map(normalizeMarketingTeamMember).filter(member => member.id && member.fname),
+      tickets: (Array.isArray(ticketRows) ? ticketRows : []).map(normalizeMarketingTicket),
+      ratings: (Array.isArray(ratingRows) ? ratingRows : []).map(normalizeMarketingRating),
+      leadSources: (Array.isArray(leadRows) ? leadRows : []).map(normalizeMarketingLeadSource),
+      weights: settings.weights,
+      targets: settings.targets
+    };
+    return marketingBonusState;
+  }).catch(error => {
+    marketingBonusState = {
+      ...marketingBonusState,
+      status: "error",
+      error: error?.message || "Marketing bonus data could not be loaded.",
+      loadedAt: new Date().toISOString()
+    };
+    return marketingBonusState;
+  }).finally(() => {
+    marketingBonusLoadPromise = null;
+  });
+  return marketingBonusLoadPromise;
+}
+
+function queueMarketingBonusDataLoad(options = {}) {
+  const lastLoadedTime = marketingBonusState.loadedAt ? Date.parse(marketingBonusState.loadedAt) : 0;
+  if (!options.force && marketingBonusState.status === "ready" && Number.isFinite(lastLoadedTime) && Date.now() - lastLoadedTime < MARKETING_BONUS_REFRESH_MS) return;
+  if (marketingBonusLoadPromise) return;
+  if (!options.force && marketingBonusState.status === "loading") return;
+  loadMarketingBonusData(options).then(() => {
+    if (activeTab === 9) renderTab();
+  });
+}
+
+function getMarketingBonusTarget(id, fallback = 0, state = marketingBonusState) {
+  const found = state.targets.find(target => target.id === id);
+  const value = Number(found?.target);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function formatMarketingBonusValue(value, unit = "") {
+  if (value === null || value === undefined || value === "") return "Not tracked";
+  const number = Number(value);
+  if (!Number.isFinite(number)) return String(value);
+  if (unit === "$") return `$${number.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  if (unit === "%") return `${number.toFixed(0)}%`;
+  if (unit === "stars") return `${number.toFixed(1)} / 5`;
+  if (unit === "avg") return number.toFixed(1);
+  return number.toLocaleString(undefined, { maximumFractionDigits: 1 });
+}
+
+function marketingRatingBelongsToMember(rating = {}, member = {}) {
+  const assignee = String(rating.assigneeName || "").trim().toLowerCase();
+  const first = String(member.fname || "").trim().toLowerCase();
+  const full = `${member.fname || ""} ${member.lname || ""}`.trim().toLowerCase();
+  return Boolean(assignee && (assignee === first || assignee === full || assignee.startsWith(`${first} `)));
+}
+
+function getMarketingBonusMetricResults(member, state = marketingBonusState) {
+  const memberId = member.id;
+  const myTickets = state.tickets.filter(ticket => ticket.assignedTo === memberId);
+  const myClosed = myTickets.filter(ticket => ticket.status === "complete");
+  const myOpen = myTickets.filter(ticket => !["complete", "cancelled"].includes(ticket.status));
+  const dueAndClosed = myClosed.filter(ticket => ticket.dueDate && ticket.closedAt);
+  const onTimeCount = dueAndClosed.filter(ticket => ticket.closedAt <= `${ticket.dueDate}T23:59:59`).length;
+  const onTimePct = dueAndClosed.length ? (onTimeCount / dueAndClosed.length) * 100 : null;
+  const myRatings = state.ratings.filter(rating => marketingRatingBelongsToMember(rating, member));
+  const avgRating = myRatings.length
+    ? myRatings.reduce((sum, rating) => sum + (((rating.quality || 0) + (rating.timeliness || 0)) / 2), 0) / myRatings.length
+    : null;
+
+  const targets = {
+    tickets: getMarketingBonusTarget("tickets", member.maxTickets || 10, state),
+    ontime: getMarketingBonusTarget("ontime", 90, state),
+    satisfaction: getMarketingBonusTarget("satisfaction", 4, state),
+    savings: getMarketingBonusTarget("savings", 500, state),
+    revisions: getMarketingBonusTarget("revisions", 1.5, state)
+  };
+  const enabledWeights = state.weights.filter(weight => weight.enabled !== false && weight.weight > 0);
+  const metrics = enabledWeights.map(weight => {
+    let actual = null;
+    let target = 0;
+    let unit = "";
+    let available = true;
+    let scorePct = 0;
+    let note = "";
+    if (weight.id === "tickets") {
+      actual = myClosed.length;
+      target = targets.tickets;
+      unit = "tickets";
+      scorePct = target > 0 ? Math.min(100, (actual / target) * 100) : 0;
+    } else if (weight.id === "ontime") {
+      actual = onTimePct;
+      target = targets.ontime;
+      unit = "%";
+      available = onTimePct !== null;
+      scorePct = available && target > 0 ? Math.min(100, (actual / target) * 100) : 0;
+      note = available ? `${onTimeCount}/${dueAndClosed.length} due-dated closed ticket${dueAndClosed.length === 1 ? "" : "s"}` : "No due-dated closed tickets yet";
+    } else if (weight.id === "satisfaction") {
+      actual = avgRating;
+      target = targets.satisfaction;
+      unit = "stars";
+      available = avgRating !== null;
+      scorePct = available && target > 0 ? Math.min(100, (actual / target) * 100) : 0;
+      note = available ? `${myRatings.length} rating response${myRatings.length === 1 ? "" : "s"}` : "No satisfaction ratings yet";
+    } else if (weight.id === "savings") {
+      target = targets.savings;
+      unit = "$";
+      available = false;
+      note = "Person-level savings events are not captured yet";
+    } else if (weight.id === "quality") {
+      target = targets.revisions;
+      unit = "avg";
+      available = false;
+      note = "Revision counts are not captured yet";
+    } else {
+      available = false;
+      note = "Metric is not mapped to a Marketing data source";
+    }
+    return { ...weight, actual, target, unit, available, scorePct, note };
+  });
+  const availableMetrics = metrics.filter(metric => metric.available);
+  const availableWeight = availableMetrics.reduce((sum, metric) => sum + metric.weight, 0);
+  const score = availableWeight > 0
+    ? Math.round(availableMetrics.reduce((sum, metric) => sum + (metric.scorePct * metric.weight), 0) / availableWeight)
+    : 0;
+  return {
+    memberId,
+    score,
+    metrics,
+    availableWeight,
+    skippedWeight: metrics.reduce((sum, metric) => sum + (metric.available ? 0 : metric.weight), 0),
+    ticketsClosed: myClosed.length,
+    openTickets: myOpen.length,
+    ratingCount: myRatings.length,
+    onTimePct
+  };
+}
+
+function renderMarketingBonusIncentiveSection() {
+  queueMarketingBonusDataLoad();
+  const state = marketingBonusState;
+  if (state.status === "idle" || state.status === "loading") {
+    return `<div class="bonus-tab-section" id="marketing-bonus-incentives">
+      <div class="bonus-role-card">
+        <div class="bonus-role-name">Marketing Command Center Incentives</div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-top:6px">Loading Marketing employees, tickets, ratings, and saved bonus settings.</div>
+      </div>
+    </div>`;
+  }
+  if (state.status === "error") {
+    return `<div class="bonus-tab-section" id="marketing-bonus-incentives">
+      <div class="bonus-role-card">
+        <div class="bonus-role-name">Marketing Command Center Incentives</div>
+        <div style="font-size:0.72rem;color:#d29922;margin-top:6px">Marketing data could not be loaded: ${escapeHtml(state.error)}.</div>
+      </div>
+    </div>`;
+  }
+  const staff = state.teamMembers.filter(member => member.status === "active" && member.roleType !== "vp");
+  const scores = staff.map(member => ({ member, detail: getMarketingBonusMetricResults(member, state) }));
+  const avgScore = scores.length
+    ? Math.round(scores.reduce((sum, item) => sum + item.detail.score, 0) / scores.length)
+    : 0;
+  const enabledWeightTotal = state.weights.filter(weight => weight.enabled !== false).reduce((sum, weight) => sum + Number(weight.weight || 0), 0);
+  const settingsLabel = state.settingsUpdatedAt
+    ? `Settings updated ${new Date(state.settingsUpdatedAt).toLocaleDateString()}${state.settingsUpdatedBy ? ` by ${state.settingsUpdatedBy}` : ""}`
+    : "Using Marketing Command Center default settings";
+  const cards = scores.map(({ member, detail }) => {
+    const scoreColor = detail.score >= 80 ? "#3fb950" : detail.score >= 60 ? "#d29922" : "#f85149";
+    const metricRows = detail.metrics.map(metric => {
+      const metricColor = metric.available
+        ? metric.scorePct >= 90 ? "#3fb950" : metric.scorePct >= 60 ? "#d29922" : "#f85149"
+        : "var(--muted)";
+      return `<div style="padding:8px;border:1px solid var(--border2);border-radius:8px;background:var(--bg3)">
+        <div style="display:flex;justify-content:space-between;gap:8px;font-size:0.66rem">
+          <strong style="color:var(--text)">${escapeHtml(metric.label)}</strong>
+          <span style="color:${metricColor}">${metric.available ? `${Math.round(metric.scorePct)}%` : "Data gap"}</span>
+        </div>
+        <div style="font-size:0.62rem;color:var(--muted);margin-top:4px">${formatMarketingBonusValue(metric.actual, metric.unit)} vs ${formatMarketingBonusValue(metric.target, metric.unit)} target · weight ${metric.weight}%</div>
+        ${metric.note ? `<div style="font-size:0.6rem;color:var(--muted);margin-top:3px">${escapeHtml(metric.note)}</div>` : ""}
+      </div>`;
+    }).join("");
+    return `<div class="bonus-role-card">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px">
+        <div>
+          <div class="bonus-role-name">${escapeHtml(`${member.fname} ${member.lname || ""}`.trim())}</div>
+          <div class="bonus-role-meta">${escapeHtml(member.role || "Marketing team member")}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:1.6rem;font-weight:800;font-family:'JetBrains Mono',monospace;color:${scoreColor}">${detail.score}%</div>
+          <div style="font-size:0.62rem;color:var(--muted)">Bonus score</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
+        <div class="bonus-comm-cell"><strong>${detail.ticketsClosed}</strong><br><span>closed tickets</span></div>
+        <div class="bonus-comm-cell"><strong>${detail.onTimePct === null ? "N/A" : `${Math.round(detail.onTimePct)}%`}</strong><br><span>on time</span></div>
+        <div class="bonus-comm-cell"><strong>${detail.ratingCount}</strong><br><span>ratings</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">${metricRows}</div>
+      ${detail.skippedWeight > 0 ? `<div style="font-size:0.62rem;color:#d29922;margin-top:8px">Skipped ${detail.skippedWeight}% of enabled Marketing weight because the source metric is not captured at employee level yet.</div>` : ""}
+    </div>`;
+  }).join("");
+  return `<div class="bonus-tab-section" id="marketing-bonus-incentives">
+    <div class="bonus-group-title">Marketing Command Center Incentives<span class="bonus-role-count">${staff.length} active employee${staff.length === 1 ? "" : "s"}</span></div>
+    <div class="bonus-framework-note">
+      <strong style="color:#4493f8">Source:</strong> Marketing owns employees, tickets, ratings, lead sources, and bonus settings for this panel. Bonus &amp; Incentives consumes those records without manual re-entry.
+      <div style="margin-top:4px">${escapeHtml(settingsLabel)} · enabled weight total ${enabledWeightTotal}% · average score ${avgScore}%.</div>
+    </div>
+    ${staff.length ? `<div class="bonus-jac-role-grid">${cards}</div>` : `<div class="bonus-role-card"><div style="font-size:0.72rem;color:var(--muted)">No active Marketing employees are saved in the Marketing Command Center yet.</div></div>`}
+  </div>`;
+}
 
 function defaultMonthly() {
   return Array.from({length:12}, () => ({
@@ -17032,7 +17409,7 @@ function renderRegionalAssignmentMatrix(scopedRoles, roleScopeMap) {
 
 function renderJacsTeamBonusTab() {
   syncJacsTeamMetricsFromDashboard();
-  const roles = getJacsTeamRoles();
+  const roles = getJacsTeamRoles().filter(role => !isMarketingManagedJacRole(role));
   const salaryAccessAllowed = isSalaryAccessAllowed();
   const roleScopeMap = Object.fromEntries(roles.map(role => [role.id, getJacRoleScope(role)]));
   const rolePayoutMap = Object.fromEntries(roles.map(role => [role.id, calcRolePayout(role)]));
@@ -17053,7 +17430,7 @@ function renderJacsTeamBonusTab() {
     acc[role.group].push(role);
     return acc;
   }, {});
-  const groupOrder = ["Leadership", "Regionals", "Specialists", "Operations Support", "Marketing Team", "Marketing Specialists"];
+  const groupOrder = ["Leadership", "Regionals", "Specialists", "Operations Support"];
   const summaryStats = [
     { label: "Roles In Framework", value: roles.length, sub: `${autoMetricCount} auto-synced metrics across Jac's team` },
     { label: "Saved Communities", value: portfolioScope.savedNames.length, sub: portfolioScope.savedNames.length > 0 ? `${portfolioScope.metrics.totalUnits.toLocaleString()} units powering portfolio-wide roles` : "Save community data to activate portfolio rollups" },
@@ -17083,6 +17460,7 @@ function renderJacsTeamBonusTab() {
   const turnoverRollupSection = renderQuarterlyTurnoverRollupSection(portfolioScope, regionalRoles, roleScopeMap);
   const regionalPointSystemSection = renderRegionalPointSystemSection(regionalRoles, roleScopeMap);
   const leasingLeaderboardSection = renderLeasingLeaderboardSection(getLeasingLeaderboardEntries(bonusQuarter), bonusQuarter);
+  const marketingBonusSection = renderMarketingBonusIncentiveSection();
 
   const groupSections = groupOrder
     .filter(group => groupedRoles[group]?.length)
@@ -17257,7 +17635,7 @@ function renderJacsTeamBonusTab() {
       </div>`;
     }).join("");
 
-  return summaryCard + frameworkNote + assignmentSection + turnoverRollupSection + regionalPointSystemSection + leasingLeaderboardSection + groupSections;
+  return summaryCard + frameworkNote + assignmentSection + turnoverRollupSection + regionalPointSystemSection + leasingLeaderboardSection + marketingBonusSection + groupSections;
 }
 
 function renderBonusTab() {
@@ -17266,12 +17644,12 @@ function renderBonusTab() {
     : (bonusCalcView === "jac" ? "jac" : "property");
   const innerTabs = isPortfolioWorkspaceSelected()
     ? `<div class="bonus-inner-tabs">
-        <button class="bonus-inner-tab active" type="button">👥 Jac's Team</button>
+        <button class="bonus-inner-tab active" type="button">Jac's Team</button>
       </div>
       <div style="margin:-6px 0 12px;font-size:0.72rem;color:var(--muted)">Portfolio scope keeps Bonus Calc on Jac's Team because property-team payouts are community specific.</div>`
     : `<div class="bonus-inner-tabs">
-        <button class="bonus-inner-tab ${effectiveBonusCalcView==="property"?"active":""}" onclick="setBonusCalcView('property')">🏢 Property Team</button>
-        <button class="bonus-inner-tab ${effectiveBonusCalcView==="jac"?"active":""}" onclick="setBonusCalcView('jac')">👥 Jac's Team</button>
+        <button class="bonus-inner-tab ${effectiveBonusCalcView==="property"?"active":""}" onclick="setBonusCalcView('property')">Property Team</button>
+        <button class="bonus-inner-tab ${effectiveBonusCalcView==="jac"?"active":""}" onclick="setBonusCalcView('jac')">Jac's Team</button>
       </div>`;
   return innerTabs + (effectiveBonusCalcView === "jac" ? renderJacsTeamBonusTab() : renderPropertyBonusTab());
 }

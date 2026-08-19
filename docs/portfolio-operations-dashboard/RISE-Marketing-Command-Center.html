@@ -943,15 +943,15 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
 <!-- NAV -->
 <div class="nav">
   <button class="nav-tab active" onclick="showTab('dashboard')">Dashboard</button>
-  <button class="nav-tab" onclick="showTab('new-request')">➕ New Request</button>
-  <button class="nav-tab" onclick="showTab('tickets')">🎫 All Tickets <span class="nav-badge" id="ticketCount">7</span></button>
-  <button class="nav-tab" onclick="showTab('approvals')">✅ Approvals <span class="nav-badge" id="approvalCount">0</span></button>
-  <button class="nav-tab" onclick="showTab('lead-sources')">📈 Lead Sources</button>
-  <button class="nav-tab" onclick="showTab('metrics')">⚡ Team Metrics</button>
-  <button class="nav-tab" onclick="showTab('reporting')">📊 Reporting</button>
-  <button class="nav-tab" id="bonus-tab" onclick="showTab('bonus')" style="display:none">🏆 Bonus</button>
-  <button class="nav-tab" onclick="showTab('settings')">⚙️ Settings</button>
-  <button class="nav-tab" onclick="showTab('marketing')" id="mkt-nav-tab">📣 Grassroots Marketing</button>
+  <button class="nav-tab" onclick="showTab('new-request')">New Request</button>
+  <button class="nav-tab" onclick="showTab('tickets')">All Tickets <span class="nav-badge" id="ticketCount">7</span></button>
+  <button class="nav-tab" onclick="showTab('approvals')">Approvals <span class="nav-badge" id="approvalCount">0</span></button>
+  <button class="nav-tab" onclick="showTab('lead-sources')">Lead Sources</button>
+  <button class="nav-tab" onclick="showTab('metrics')">Team Metrics</button>
+  <button class="nav-tab" onclick="showTab('reporting')">Reporting</button>
+  <button class="nav-tab" id="bonus-tab" onclick="showTab('bonus')" style="display:none">Bonus</button>
+  <button class="nav-tab" onclick="showTab('settings')">Settings</button>
+  <button class="nav-tab" onclick="showTab('marketing')" id="mkt-nav-tab">Grassroots Marketing</button>
 </div>
 
 <!-- MAIN -->
@@ -1950,7 +1950,7 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
     <div id="bonus-content">
       <div class="section-header">
         <div>
-          <div class="section-title">🏆 Team Bonus Tracker</div>
+          <div class="section-title">Team Bonus Tracker</div>
           <div class="section-sub">Performance-based bonus tracking · Current period: Jun 2026</div>
         </div>
         <div style="display:flex;gap:8px">
@@ -1960,7 +1960,7 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
             <option value="q2-26">Q2 2026</option>
             <option value="ytd26">YTD 2026</option>
           </select>
-          <button class="btn btn-secondary btn-sm" onclick="showSettingsTab('bonus-settings');showTab('settings')">⚙ Bonus Settings</button>
+          <button class="btn btn-secondary btn-sm" onclick="showSettingsTab('bonus-settings');showTab('settings')">Bonus Settings</button>
         </div>
       </div>
 
@@ -2017,13 +2017,13 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
 
     <!-- SETTINGS SUB-NAV -->
     <div style="display:flex;gap:0;border-bottom:var(--border-mid);margin-bottom:20px;background:white;border-radius:var(--radius) var(--radius) 0 0;padding:0 16px;box-shadow:var(--shadow);flex-wrap:wrap">
-      <button class="settings-tab active" onclick="showSettingsTab('team')" id="stab-team" style="padding:13px 16px;font-size:13px;font-weight:500;color:#5a7a86;background:none;border:none;border-bottom:2.5px solid var(--rise-light);cursor:pointer;font-family:var(--font);color:var(--rise-dark)">👥 Team Members</button>
-      <button class="settings-tab" onclick="showSettingsTab('skills')" id="stab-skills" style="padding:13px 16px;font-size:13px;font-weight:500;color:#5a7a86;background:none;border:none;border-bottom:2.5px solid transparent;cursor:pointer;font-family:var(--font)">🎯 Skills & Routing</button>
-      <button class="settings-tab" onclick="showSettingsTab('approvals')" id="stab-approvals" style="padding:13px 16px;font-size:13px;font-weight:500;color:#5a7a86;background:none;border:none;border-bottom:2.5px solid transparent;cursor:pointer;font-family:var(--font)">✅ Approval Rules</button>
-      <button class="settings-tab" onclick="showSettingsTab('approvers')" id="stab-approvers" style="padding:13px 16px;font-size:13px;font-weight:500;color:#5a7a86;background:none;border:none;border-bottom:2.5px solid transparent;cursor:pointer;font-family:var(--font)">👤 Approvers</button>
-      <button class="settings-tab" onclick="showSettingsTab('properties')" id="stab-properties" style="padding:13px 16px;font-size:13px;font-weight:500;color:#5a7a86;background:none;border:none;border-bottom:2.5px solid transparent;cursor:pointer;font-family:var(--font)">🏢 Properties</button>
-      <button class="settings-tab" onclick="showSettingsTab('sla')" id="stab-sla" style="padding:13px 16px;font-size:13px;font-weight:500;color:#5a7a86;background:none;border:none;border-bottom:2.5px solid transparent;cursor:pointer;font-family:var(--font)">⏱ SLA Rules</button>
-      <button class="settings-tab" onclick="showSettingsTab('bonus-settings')" id="stab-bonus-settings" style="padding:13px 16px;font-size:13px;font-weight:500;color:#5a7a86;background:none;border:none;border-bottom:2.5px solid transparent;cursor:pointer;font-family:var(--font)">🏆 Bonus Settings</button>
+      <button class="settings-tab active" onclick="showSettingsTab('team')" id="stab-team" style="padding:13px 16px;font-size:13px;font-weight:500;color:#5a7a86;background:none;border:none;border-bottom:2.5px solid var(--rise-light);cursor:pointer;font-family:var(--font);color:var(--rise-dark)">Team Members</button>
+      <button class="settings-tab" onclick="showSettingsTab('skills')" id="stab-skills" style="padding:13px 16px;font-size:13px;font-weight:500;color:#5a7a86;background:none;border:none;border-bottom:2.5px solid transparent;cursor:pointer;font-family:var(--font)">Skills & Routing</button>
+      <button class="settings-tab" onclick="showSettingsTab('approvals')" id="stab-approvals" style="padding:13px 16px;font-size:13px;font-weight:500;color:#5a7a86;background:none;border:none;border-bottom:2.5px solid transparent;cursor:pointer;font-family:var(--font)">Approval Rules</button>
+      <button class="settings-tab" onclick="showSettingsTab('approvers')" id="stab-approvers" style="padding:13px 16px;font-size:13px;font-weight:500;color:#5a7a86;background:none;border:none;border-bottom:2.5px solid transparent;cursor:pointer;font-family:var(--font)">Approvers</button>
+      <button class="settings-tab" onclick="showSettingsTab('properties')" id="stab-properties" style="padding:13px 16px;font-size:13px;font-weight:500;color:#5a7a86;background:none;border:none;border-bottom:2.5px solid transparent;cursor:pointer;font-family:var(--font)">Properties</button>
+      <button class="settings-tab" onclick="showSettingsTab('sla')" id="stab-sla" style="padding:13px 16px;font-size:13px;font-weight:500;color:#5a7a86;background:none;border:none;border-bottom:2.5px solid transparent;cursor:pointer;font-family:var(--font)">SLA Rules</button>
+      <button class="settings-tab" onclick="showSettingsTab('bonus-settings')" id="stab-bonus-settings" style="padding:13px 16px;font-size:13px;font-weight:500;color:#5a7a86;background:none;border:none;border-bottom:2.5px solid transparent;cursor:pointer;font-family:var(--font)">Bonus Settings</button>
     </div>
 
     <!-- TEAM MEMBERS -->
@@ -7607,19 +7607,72 @@ async function runVelocityReport() {
 // BONUS ENGINE
 // =============================================
 
-function calcBonusScore(perf) {
-  let score = 0;
-  const totalWeight = bonusWeights.filter(w=>w.enabled).reduce((s,w)=>s+w.weight,0)||100;
-  bonusWeights.filter(w=>w.enabled).forEach(w => {
-    let pct = 0;
-    if (w.id==='tickets')     pct = Math.min(100, (perf.tickets/(perf.ticketsTarget||10))*100);
-    if (w.id==='ontime')      pct = perf.ontime;
-    if (w.id==='satisfaction') pct = Math.min(100, (perf.sat/5)*100);
-    if (w.id==='savings')     { const t = bonusTargets.find(x=>x.id==='savings'); pct = t ? Math.min(100,(perf.savings/t.target)*100) : 0; }
-    if (w.id==='quality')     { const t = bonusTargets.find(x=>x.id==='revisions'); pct = t ? Math.max(0, Math.min(100, (1-(perf.revisions-1)/(t.target))*100)) : 100; }
-    score += (pct * w.weight / totalWeight);
+function getBonusTargetValue(id, fallback = 0) {
+  const target = bonusTargets.find(t => t.id === id);
+  const value = Number(target?.target);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function getEnabledBonusWeights() {
+  const enabled = bonusWeights
+    .filter(w => w && w.enabled !== false && Number(w.weight) > 0)
+    .map(w => ({ ...w, weight: Number(w.weight) || 0 }));
+  return enabled.length ? enabled : DEFAULT_BONUS_WEIGHTS.filter(w => w.enabled !== false);
+}
+
+function calcBonusScoreDetails(perf = {}) {
+  const weights = getEnabledBonusWeights();
+  const metrics = weights.map(w => {
+    let actual = null;
+    let target = 0;
+    let available = true;
+    let scorePct = 0;
+    let note = '';
+    if (w.id === 'tickets') {
+      actual = Number(perf.tickets || 0);
+      target = Number(perf.ticketsTarget || getBonusTargetValue('tickets', 10));
+      scorePct = target > 0 ? Math.min(100, (actual / target) * 100) : 0;
+    } else if (w.id === 'ontime') {
+      actual = Number(perf.ontime);
+      target = getBonusTargetValue('ontime', 90);
+      available = Number.isFinite(actual);
+      scorePct = available && target > 0 ? Math.min(100, (actual / target) * 100) : 0;
+      note = available ? '' : 'No due-dated closed tickets yet';
+    } else if (w.id === 'satisfaction') {
+      actual = Number(perf.sat);
+      target = getBonusTargetValue('satisfaction', 4);
+      available = Number.isFinite(actual);
+      scorePct = available && target > 0 ? Math.min(100, (actual / target) * 100) : 0;
+      note = available ? '' : 'No satisfaction ratings yet';
+    } else if (w.id === 'savings') {
+      actual = Number(perf.savings);
+      target = getBonusTargetValue('savings', 500);
+      available = perf.savings !== null && perf.savings !== undefined && Number.isFinite(actual);
+      scorePct = available && target > 0 ? Math.min(100, (actual / target) * 100) : 0;
+      note = available ? '' : 'Person-level savings events are not captured yet';
+    } else if (w.id === 'quality') {
+      actual = Number(perf.revisions);
+      target = getBonusTargetValue('revisions', 1.5);
+      available = perf.revisions !== null && perf.revisions !== undefined && Number.isFinite(actual);
+      scorePct = available && target > 0 ? Math.max(0, Math.min(100, actual <= target ? 100 : 100 - (((actual - target) / target) * 100))) : 0;
+      note = available ? '' : 'Revision counts are not captured yet';
+    } else {
+      available = false;
+      note = 'Metric is not mapped to a Marketing data source';
+    }
+    return { ...w, actual, target, available, scorePct, note };
   });
-  return Math.round(score);
+  const availableMetrics = metrics.filter(m => m.available);
+  const availableWeight = availableMetrics.reduce((s,m) => s + m.weight, 0);
+  const skippedWeight = metrics.reduce((s,m) => s + (m.available ? 0 : m.weight), 0);
+  const score = availableWeight > 0
+    ? Math.round(availableMetrics.reduce((s,m) => s + (m.scorePct * m.weight), 0) / availableWeight)
+    : 0;
+  return { score, metrics, availableWeight, skippedWeight };
+}
+
+function calcBonusScore(perf) {
+  return calcBonusScoreDetails(perf).score;
 }
 
 async function renderBonusCards() {
@@ -7631,7 +7684,6 @@ async function renderBonusCards() {
   let allTickets = [];
   try { allTickets = await window.DB.loadTickets(); } catch(e) {}
   const closed = allTickets.filter(t => t.status === 'complete');
-  const totalSpend = leadSourcesData.reduce((s,l) => s + (l.monthlyCost||0), 0);
 
   // Update bonus KPI strip with live data
   const staffRatings = satisfactionRatings;
@@ -7650,7 +7702,7 @@ async function renderBonusCards() {
   if (avgScoreEl) avgScoreEl.textContent = staffRatings.length > 0 ? avgSat + '/5' : '—';
   if (avgSatEl)   avgSatEl.textContent   = avgSat !== '—' ? avgSat + '★' : '—';
   if (ontimeEl)   ontimeEl.textContent   = onTimePct;
-  if (savingsEl)  savingsEl.textContent  = totalSpend > 0 ? '$' + totalSpend.toLocaleString() : '$0';
+  if (savingsEl)  savingsEl.textContent  = 'N/A';
 
   grid.innerHTML = '';
   const staffMembers = teamData.filter(m => m.status === 'active' && m.roleType !== 'vp');
@@ -7664,18 +7716,25 @@ async function renderBonusCards() {
 
     // Live perf metrics
     const ticketCount   = myClosed.length;
-    const ticketTarget  = m.maxTickets || 5;
+    const ticketTarget  = getBonusTargetValue('tickets', m.maxTickets || 10);
     const dueAndClosedM = myClosed.filter(t => t.due_date);
     const onTimeM       = dueAndClosedM.filter(t => t.closed_at <= t.due_date+'T23:59:59').length;
-    const onTimePctM    = dueAndClosedM.length > 0 ? Math.round((onTimeM / dueAndClosedM.length) * 100) : 0;
+    const onTimePctM    = dueAndClosedM.length > 0 ? Math.round((onTimeM / dueAndClosedM.length) * 100) : null;
     const avgQuality    = myRatings.length > 0 ? (myRatings.reduce((s,r) => s+(r.quality||0), 0) / myRatings.length).toFixed(1) : '—';
     const avgTimeliness = myRatings.length > 0 ? (myRatings.reduce((s,r) => s+(r.timeliness||0), 0) / myRatings.length).toFixed(1) : '—';
+    const avgSatisfaction = myRatings.length > 0
+      ? myRatings.reduce((s,r) => s + (((r.quality||0) + (r.timeliness||0)) / 2), 0) / myRatings.length
+      : null;
 
-    // Composite score
-    const closureScore  = Math.min(100, ticketTarget > 0 ? Math.round((ticketCount / ticketTarget) * 100) : 0);
-    const ratingScore   = myRatings.length > 0 ? Math.round(((parseFloat(avgQuality)||0) / 5) * 100) : 50;
-    const loadScore     = myOpen.length <= (m.maxTickets||5) ? 100 : Math.max(0, 100 - ((myOpen.length - (m.maxTickets||5)) * 20));
-    const score         = Math.round((closureScore * 0.40) + (ratingScore * 0.40) + (loadScore * 0.20));
+    const scoreDetails  = calcBonusScoreDetails({
+      tickets: ticketCount,
+      ticketsTarget: ticketTarget,
+      ontime: onTimePctM,
+      sat: avgSatisfaction,
+      savings: null,
+      revisions: null
+    });
+    const score         = scoreDetails.score;
     const scoreColor    = score >= 80 ? '#2a9d6e' : score >= 60 ? '#d47b1a' : '#e85c4a';
 
     const card = document.createElement('div');
@@ -7702,6 +7761,7 @@ async function renderBonusCards() {
           <span style="font-weight:600;color:${scoreColor}">${score}%</span>
         </div>
         <div class="metric-bar-bg"><div class="metric-bar-fill" style="width:${score}%;background:${scoreColor}"></div></div>
+        <div style="font-size:10px;color:#7a9aaa;margin-top:4px">Uses saved Bonus Settings weights${scoreDetails.skippedWeight > 0 ? ' · ' + scoreDetails.skippedWeight + '% awaiting employee-level source data' : ''}</div>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">

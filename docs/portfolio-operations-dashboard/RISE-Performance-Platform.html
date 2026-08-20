@@ -292,6 +292,18 @@
 <div id="modal-root"></div>
 <script>
 const STORAGE_KEY = 'rise_performance_platform_github_v1';
+const PEOPLE_HISTORY_SCHEMA_VERSION = 1;
+const PEOPLE_HISTORY_MIGRATION_PHASE = 'phase1_effective_dated_employee_history';
+const PEOPLE_CONNECTED_MODULES = [
+  'People/Roster',
+  'Bonus & Incentives',
+  'Marketing',
+  'Operations',
+  'Maintenance',
+  'Finance',
+  'Portfolio Planning',
+  'Outputs'
+];
 const DASHBOARD_STORAGE_MIGRATION_KEYS = [
   'rise_leasing_v5',
   'rise_ops_global_v1',
@@ -636,6 +648,58 @@ function normalizeComparable(value){
   return String(value || '').trim().toLowerCase();
 }
 
+function normalizeIsoDate(value){
+  const raw = String(value || '').trim();
+  if(!raw) return '';
+  const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(iso){
+    const normalized = `${iso[1]}-${String(Number(iso[2])).padStart(2,'0')}-${String(Number(iso[3])).padStart(2,'0')}`;
+    return Number.isNaN(new Date(normalized + 'T00:00:00').getTime()) ? '' : normalized;
+  }
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0,10);
+}
+
+function compareIsoDates(a, b){
+  const left = normalizeIsoDate(a);
+  const right = normalizeIsoDate(b);
+  if(!left && !right) return 0;
+  if(!left) return -1;
+  if(!right) return 1;
+  return left.localeCompare(right);
+}
+
+function previousIsoDate(value){
+  const normalized = normalizeIsoDate(value) || today();
+  const date = new Date(normalized + 'T00:00:00');
+  date.setDate(date.getDate() - 1);
+  return date.toISOString().slice(0,10);
+}
+
+function employeeIdentityKey(employee){
+  const employeeNumber = String(employee && employee.employeeNumber || '').replace(/[^\w-]/g,'').trim();
+  if(employeeNumber) return `empnum:${employeeNumber}`;
+  const email = String(employee && employee.email || '').trim().toLowerCase();
+  if(email) return `email:${email}`;
+  const id = String(employee && employee.id || '').trim();
+  if(id) return `people:${id}`;
+  return `name:${normalizeComparable(employee && employee.name)}:${normalizeComparable(employee && employee.community)}`;
+}
+
+function safeAssignmentId(employeeId, effectiveStart, source){
+  return `assign_${String(employeeId || 'emp').replace(/[^\w-]/g,'_')}_${String(effectiveStart || today()).replace(/[^\w-]/g,'_')}_${String(source || 'people').replace(/[^\w-]/g,'_')}`;
+}
+
+function makeEmptyPeopleHistoryState(){
+  return {
+    employeeAssignments: [],
+    employeeChangeEvents: [],
+    migrationBatches: [],
+    auditLog: [],
+    readOnlySnapshots: []
+  };
+}
+
 function fallbackId(prefix){
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2,6)}`;
 }
@@ -685,7 +749,8 @@ function normalizeEmployee(employee){
     statusType: String(employee && employee.statusType || '').trim(),
     status: String(employee && employee.status || 'Active').trim(),
     terminationReason: String(employee && employee.terminationReason || '').trim(),
-    terminationDate: String(employee && employee.terminationDate || '').trim()
+    terminationDate: String(employee && employee.terminationDate || '').trim(),
+    archived: Boolean(employee && employee.archived)
   };
 }
 
@@ -793,6 +858,128 @@ function normalizeEmployeeEvent(entry){
     title: String(entry && entry.title || 'Employee record updated'),
     detail: String(entry && entry.detail || ''),
     createdBy: String(entry && entry.createdBy || '')
+  };
+}
+
+function employeeAssignmentSnapshot(employee){
+  return {
+    employeeId: String(employee && employee.id || ''),
+    employeeStableId: employeeIdentityKey(employee || {}),
+    employeeName: String(employee && employee.name || '').trim(),
+    community: String(employee && employee.community || '').trim(),
+    role: String(employee && employee.role || '').trim(),
+    managerId: String(employee && employee.managerId || '').trim(),
+    managerName: String(employee && employee.managerName || '').trim(),
+    regionalManagerId: String(employee && employee.regionalManagerId || '').trim(),
+    regionalManagerName: String(employee && employee.regionalManagerName || '').trim(),
+    region: String(employee && employee.region || '').trim(),
+    status: String(employee && employee.status || 'Active').trim() || 'Active',
+    statusType: String(employee && employee.statusType || '').trim(),
+    terminationDate: normalizeIsoDate(employee && employee.terminationDate),
+    terminationReason: String(employee && employee.terminationReason || '').trim()
+  };
+}
+
+function normalizeEmployeeAssignment(entry){
+  const source = entry && typeof entry === 'object' ? entry : {};
+  const employeeId = String(source.employeeId || '').trim();
+  const effectiveStart = normalizeIsoDate(source.effectiveStart || source.effectiveDate || source.startDate) || today();
+  return {
+    id: String(source.id || source.assignmentId || safeAssignmentId(employeeId, effectiveStart, source.sourceChangeId || source.source || 'people')),
+    employeeId,
+    employeeStableId: String(source.employeeStableId || '').trim(),
+    employeeName: String(source.employeeName || '').trim(),
+    community: String(source.community || source.communityName || '').trim(),
+    role: String(source.role || source.title || '').trim(),
+    managerId: String(source.managerId || '').trim(),
+    managerName: String(source.managerName || '').trim(),
+    regionalManagerId: String(source.regionalManagerId || '').trim(),
+    regionalManagerName: String(source.regionalManagerName || '').trim(),
+    region: String(source.region || '').trim(),
+    status: String(source.status || 'Active').trim() || 'Active',
+    statusType: String(source.statusType || '').trim(),
+    terminationDate: normalizeIsoDate(source.terminationDate),
+    terminationReason: String(source.terminationReason || '').trim(),
+    effectiveStart,
+    effectiveEnd: normalizeIsoDate(source.effectiveEnd || source.endDate),
+    recordStatus: String(source.recordStatus || 'active').trim() || 'active',
+    source: String(source.source || 'people').trim(),
+    sourceChangeId: String(source.sourceChangeId || '').trim(),
+    migrationBatchId: String(source.migrationBatchId || '').trim(),
+    createdAt: String(source.createdAt || new Date().toISOString()),
+    createdBy: String(source.createdBy || '')
+  };
+}
+
+function normalizeEmployeeChangeEvent(entry){
+  const source = entry && typeof entry === 'object' ? entry : {};
+  return {
+    id: String(source.id || fallbackId('chg')),
+    employeeId: String(source.employeeId || '').trim(),
+    employeeStableId: String(source.employeeStableId || '').trim(),
+    changeType: String(source.changeType || source.type || 'assignment_change').trim(),
+    effectiveDate: normalizeIsoDate(source.effectiveDate || source.date) || today(),
+    createdAt: String(source.createdAt || new Date().toISOString()),
+    createdBy: String(source.createdBy || ''),
+    reason: String(source.reason || '').trim(),
+    previousValues: source.previousValues && typeof source.previousValues === 'object' ? source.previousValues : {},
+    newValues: source.newValues && typeof source.newValues === 'object' ? source.newValues : {},
+    changedFields: Array.isArray(source.changedFields) ? source.changedFields.map(String) : [],
+    updatedModules: Array.isArray(source.updatedModules) ? source.updatedModules.map(String) : PEOPLE_CONNECTED_MODULES.slice(),
+    exceptions: Array.isArray(source.exceptions) ? source.exceptions : [],
+    source: String(source.source || 'people_roster').trim(),
+    migrationBatchId: String(source.migrationBatchId || '').trim(),
+    rollbackOfChangeId: String(source.rollbackOfChangeId || '').trim(),
+    status: String(source.status || 'applied').trim() || 'applied'
+  };
+}
+
+function normalizePeopleMigrationBatch(entry){
+  const source = entry && typeof entry === 'object' ? entry : {};
+  return {
+    id: String(source.id || fallbackId('mig')),
+    phase: String(source.phase || PEOPLE_HISTORY_MIGRATION_PHASE),
+    createdAt: String(source.createdAt || new Date().toISOString()),
+    createdBy: String(source.createdBy || 'Atlas migration'),
+    source: String(source.source || 'legacy_people_roster').trim(),
+    status: String(source.status || 'applied').trim(),
+    beforeCounts: source.beforeCounts && typeof source.beforeCounts === 'object' ? source.beforeCounts : {},
+    afterCounts: source.afterCounts && typeof source.afterCounts === 'object' ? source.afterCounts : {},
+    mappings: Array.isArray(source.mappings) ? source.mappings : [],
+    exceptions: Array.isArray(source.exceptions) ? source.exceptions : [],
+    rollbackPlan: String(source.rollbackPlan || 'Restore the paired read-only snapshot, then remove assignments/change events created by this batch id.').trim()
+  };
+}
+
+function normalizePeopleAuditEntry(entry){
+  const source = entry && typeof entry === 'object' ? entry : {};
+  return {
+    id: String(source.id || fallbackId('audit')),
+    createdAt: String(source.createdAt || new Date().toISOString()),
+    actor: String(source.actor || ''),
+    action: String(source.action || '').trim(),
+    entityType: String(source.entityType || '').trim(),
+    entityId: String(source.entityId || '').trim(),
+    batchId: String(source.batchId || '').trim(),
+    beforeValues: source.beforeValues && typeof source.beforeValues === 'object' ? source.beforeValues : {},
+    afterValues: source.afterValues && typeof source.afterValues === 'object' ? source.afterValues : {},
+    result: String(source.result || 'logged').trim(),
+    exceptions: Array.isArray(source.exceptions) ? source.exceptions : []
+  };
+}
+
+function normalizeReadOnlySnapshot(entry){
+  const source = entry && typeof entry === 'object' ? entry : {};
+  return {
+    id: String(source.id || fallbackId('snapshot')),
+    schemaVersion: Number(source.schemaVersion || PEOPLE_HISTORY_SCHEMA_VERSION),
+    phase: String(source.phase || PEOPLE_HISTORY_MIGRATION_PHASE),
+    createdAt: String(source.createdAt || new Date().toISOString()),
+    createdBy: String(source.createdBy || 'Atlas migration'),
+    readOnly: source.readOnly !== false,
+    reason: String(source.reason || '').trim(),
+    recordCounts: source.recordCounts && typeof source.recordCounts === 'object' ? source.recordCounts : {},
+    snapshotData: source.snapshotData && typeof source.snapshotData === 'object' ? source.snapshotData : {}
   };
 }
 
@@ -909,12 +1096,17 @@ function loadState(){
       writeups: Array.isArray(stored.writeups) ? stored.writeups.map(normalizeWriteup).filter(writeup => writeup.employeeId) : [],
       correspondence: Array.isArray(stored.correspondence) ? stored.correspondence.map(normalizeCorrespondence).filter(entry => entry.employeeId) : makeCorrespondenceLog(),
       employeeEvents: Array.isArray(stored.employeeEvents) ? stored.employeeEvents.map(normalizeEmployeeEvent).filter(entry => entry.employeeId) : makeEmployeeEventLog(),
+      employeeAssignments: Array.isArray(stored.employeeAssignments) ? stored.employeeAssignments.map(normalizeEmployeeAssignment).filter(entry => entry.employeeId) : [],
+      employeeChangeEvents: Array.isArray(stored.employeeChangeEvents) ? stored.employeeChangeEvents.map(normalizeEmployeeChangeEvent).filter(entry => entry.employeeId) : [],
+      migrationBatches: Array.isArray(stored.migrationBatches) ? stored.migrationBatches.map(normalizePeopleMigrationBatch) : [],
+      auditLog: Array.isArray(stored.auditLog) ? stored.auditLog.map(normalizePeopleAuditEntry) : [],
+      readOnlySnapshots: Array.isArray(stored.readOnlySnapshots) ? stored.readOnlySnapshots.map(normalizeReadOnlySnapshot) : [],
       rosterVersion: stored.rosterVersion || '',
       currentView: stored.currentView || 'dashboard',
       currentUser: null
     };
   }catch(err){
-    return {users:makeDefaultUsers(),settings:makeDefaultSettings(),employees:[],plans:[],writeups:[],correspondence:makeCorrespondenceLog(),employeeEvents:makeEmployeeEventLog(),rosterVersion:'',currentView:'dashboard',currentUser:null};
+    return {users:makeDefaultUsers(),settings:makeDefaultSettings(),employees:[],plans:[],writeups:[],correspondence:makeCorrespondenceLog(),employeeEvents:makeEmployeeEventLog(),...makeEmptyPeopleHistoryState(),rosterVersion:'',currentView:'dashboard',currentUser:null};
   }
 }
 
@@ -928,6 +1120,11 @@ function saveState(){
     writeups: STATE.writeups,
     correspondence: STATE.correspondence,
     employeeEvents: STATE.employeeEvents,
+    employeeAssignments: STATE.employeeAssignments || [],
+    employeeChangeEvents: STATE.employeeChangeEvents || [],
+    migrationBatches: STATE.migrationBatches || [],
+    auditLog: STATE.auditLog || [],
+    readOnlySnapshots: STATE.readOnlySnapshots || [],
     rosterVersion: STATE.rosterVersion,
     currentView: STATE.currentView
   }));
@@ -1463,7 +1660,8 @@ function sortedVisibleEmployees(){
 }
 
 function isEmployeeTerminated(employee){
-  return Boolean(employee && (normalizeComparable(employee.status) === 'terminated' || employee.terminationDate));
+  const status = normalizeComparable(employee && employee.status);
+  return Boolean(employee && (status === 'terminated' || status === 'inactive' || status === 'archived' || employee.archived || employee.terminationDate));
 }
 
 function activeVisibleEmployees(){
@@ -1568,7 +1766,8 @@ function currentDefaultCommunity(){
 }
 
 function employeeStatusLabel(employee){
-  return isEmployeeTerminated(employee) ? 'Terminated' : (employee && employee.status ? employee.status : 'Active');
+  if(employee && employee.archived) return 'Archived';
+  return isEmployeeTerminated(employee) ? (employee && employee.status && normalizeComparable(employee.status) !== 'active' ? employee.status : 'Terminated') : (employee && employee.status ? employee.status : 'Active');
 }
 
 function generateUserIdFromName(name, excludeId){
@@ -2155,6 +2354,395 @@ function logEmployeeEvent(entry){
   return record;
 }
 
+function peopleStateCounts(state = STATE){
+  const employees = Array.isArray(state.employees) ? state.employees : [];
+  return {
+    employees: employees.length,
+    activeEmployees: employees.filter(employee => !isEmployeeTerminated(employee)).length,
+    terminatedEmployees: employees.filter(isEmployeeTerminated).length,
+    plans: Array.isArray(state.plans) ? state.plans.length : 0,
+    writeups: Array.isArray(state.writeups) ? state.writeups.length : 0,
+    correspondence: Array.isArray(state.correspondence) ? state.correspondence.length : 0,
+    employeeEvents: Array.isArray(state.employeeEvents) ? state.employeeEvents.length : 0,
+    employeeAssignments: Array.isArray(state.employeeAssignments) ? state.employeeAssignments.length : 0,
+    employeeChangeEvents: Array.isArray(state.employeeChangeEvents) ? state.employeeChangeEvents.length : 0
+  };
+}
+
+function createPeopleReadOnlySnapshot(reason, batchId){
+  if(!STATE.readOnlySnapshots) STATE.readOnlySnapshots = [];
+  const snapshot = normalizeReadOnlySnapshot({
+    id: fallbackId('snapshot'),
+    phase: PEOPLE_HISTORY_MIGRATION_PHASE,
+    createdAt: new Date().toISOString(),
+    createdBy: STATE.currentUser ? STATE.currentUser.name : 'Atlas migration',
+    readOnly: true,
+    reason,
+    recordCounts: peopleStateCounts(),
+    snapshotData: {
+      users: STATE.users || [],
+      settings: STATE.settings || {},
+      employees: STATE.employees || [],
+      plans: STATE.plans || [],
+      writeups: STATE.writeups || [],
+      correspondence: STATE.correspondence || [],
+      employeeEvents: STATE.employeeEvents || [],
+      employeeAssignments: STATE.employeeAssignments || [],
+      employeeChangeEvents: STATE.employeeChangeEvents || [],
+      rosterVersion: STATE.rosterVersion || '',
+      batchId: batchId || ''
+    }
+  });
+  STATE.readOnlySnapshots.push(snapshot);
+  return snapshot;
+}
+
+function logPeopleAudit(entry){
+  if(!STATE.auditLog) STATE.auditLog = [];
+  const record = normalizePeopleAuditEntry({
+    ...entry,
+    actor: entry && entry.actor || (STATE.currentUser ? STATE.currentUser.name : 'Atlas system')
+  });
+  STATE.auditLog.push(record);
+  return record;
+}
+
+function createInitialEmployeeAssignment(employee, batchId){
+  const start = normalizeIsoDate(STATE.rosterVersion) || normalizeIsoDate(COMPANY_ROSTER_VERSION) || today();
+  return normalizeEmployeeAssignment({
+    ...employeeAssignmentSnapshot(employee),
+    id: safeAssignmentId(employee.id, start, batchId || 'initial'),
+    effectiveStart: start,
+    source: 'legacy_people_roster_snapshot',
+    migrationBatchId: batchId || '',
+    createdBy: 'Atlas migration'
+  });
+}
+
+function assignmentActiveOnDate(assignment, asOfDate = today()){
+  const record = normalizeEmployeeAssignment(assignment);
+  if(record.recordStatus === 'superseded') return false;
+  const status = normalizeComparable(record.status);
+  if(status === 'terminated' || status === 'inactive' || status === 'archived') return false;
+  const target = normalizeIsoDate(asOfDate) || today();
+  if(compareIsoDates(record.effectiveStart, target) > 0) return false;
+  if(record.effectiveEnd && compareIsoDates(record.effectiveEnd, target) < 0) return false;
+  return true;
+}
+
+function employeeAssignmentsFor(employeeId){
+  return (STATE.employeeAssignments || [])
+    .filter(assignment => assignment.employeeId === employeeId)
+    .map(normalizeEmployeeAssignment)
+    .sort((left, right) => compareIsoDates(right.effectiveStart, left.effectiveStart) || String(right.createdAt).localeCompare(String(left.createdAt)));
+}
+
+function employeeAssignmentAsOf(employeeId, asOfDate = today()){
+  return employeeAssignmentsFor(employeeId).find(assignment => assignmentActiveOnDate(assignment, asOfDate)) || null;
+}
+
+function applyAssignmentToCurrentEmployee(employee, assignment){
+  if(!employee || !assignment) return false;
+  const before = employeeAssignmentSnapshot(employee);
+  employee.community = assignment.community || employee.community;
+  employee.role = assignment.role || employee.role;
+  employee.managerId = assignment.managerId || '';
+  employee.managerName = assignment.managerName || '';
+  employee.regionalManagerId = assignment.regionalManagerId || '';
+  employee.regionalManagerName = assignment.regionalManagerName || '';
+  employee.region = assignment.region || '';
+  employee.status = assignment.status || 'Active';
+  employee.archived = normalizeComparable(assignment.status) === 'archived';
+  employee.statusType = assignment.statusType || employee.statusType || '';
+  employee.terminationDate = normalizeComparable(assignment.status) === 'terminated' ? (assignment.terminationDate || assignment.effectiveStart) : '';
+  employee.terminationReason = normalizeComparable(assignment.status) === 'terminated' ? (assignment.terminationReason || '') : '';
+  const after = employeeAssignmentSnapshot(employee);
+  return JSON.stringify(before) !== JSON.stringify(after);
+}
+
+function refreshEmployeeCurrentAssignment(employeeId){
+  const employee = STATE.employees.find(item => item.id === employeeId);
+  if(!employee) return false;
+  const current = employeeAssignmentAsOf(employeeId, today());
+  if(current) return applyAssignmentToCurrentEmployee(employee, current);
+  const latestTerminated = employeeAssignmentsFor(employeeId).find(assignment => normalizeComparable(assignment.status) === 'terminated' && compareIsoDates(assignment.effectiveStart, today()) <= 0);
+  return latestTerminated ? applyAssignmentToCurrentEmployee(employee, latestTerminated) : false;
+}
+
+function validatePeopleAssignmentHistory(assignments = STATE.employeeAssignments || []){
+  const issues = [];
+  const byEmployee = {};
+  const add = (severity, code, message, context = {}) => issues.push({ severity, code, message, ...context });
+  (STATE.employees || []).forEach(employee => {
+    const key = employeeIdentityKey(employee);
+    if(!key || key.startsWith('name::')) return;
+    byEmployee[key] = byEmployee[key] || [];
+    byEmployee[key].push(employee);
+  });
+  Object.entries(byEmployee).forEach(([key, employees]) => {
+    if(employees.length > 1){
+      add('error', 'duplicate_employee_identity', `${employees.length} roster records share ${key}.`, { employeeIds: employees.map(employee => employee.id) });
+    }
+  });
+  const grouped = {};
+  assignments.map(normalizeEmployeeAssignment).forEach(assignment => {
+    if(!assignment.employeeId) return;
+    if(!assignment.effectiveStart){
+      add('error', 'missing_effective_start', `${assignment.employeeName || assignment.employeeId} has an assignment without an effective start date.`, { assignmentId: assignment.id });
+    }
+    if(assignment.effectiveEnd && compareIsoDates(assignment.effectiveEnd, assignment.effectiveStart) < 0){
+      add('error', 'invalid_effective_range', `${assignment.employeeName || assignment.employeeId} has an assignment ending before it starts.`, { assignmentId: assignment.id });
+    }
+    grouped[assignment.employeeId] = grouped[assignment.employeeId] || [];
+    grouped[assignment.employeeId].push(assignment);
+  });
+  Object.entries(grouped).forEach(([employeeId, rows]) => {
+    const open = rows.filter(row => row.recordStatus !== 'superseded' && !row.effectiveEnd && normalizeComparable(row.status) !== 'terminated');
+    if(open.length > 1){
+      add('error', 'conflicting_active_assignments', `${rows[0].employeeName || employeeId} has ${open.length} open active assignments.`, { employeeId, assignmentIds: open.map(row => row.id) });
+    }
+  });
+  return issues.slice(0, 100);
+}
+
+function ensureEmployeeHistoryState(options = {}){
+  const defaults = makeEmptyPeopleHistoryState();
+  STATE.employeeAssignments = Array.isArray(STATE.employeeAssignments) ? STATE.employeeAssignments.map(normalizeEmployeeAssignment).filter(row => row.employeeId) : defaults.employeeAssignments;
+  STATE.employeeChangeEvents = Array.isArray(STATE.employeeChangeEvents) ? STATE.employeeChangeEvents.map(normalizeEmployeeChangeEvent).filter(row => row.employeeId) : defaults.employeeChangeEvents;
+  STATE.migrationBatches = Array.isArray(STATE.migrationBatches) ? STATE.migrationBatches.map(normalizePeopleMigrationBatch) : defaults.migrationBatches;
+  STATE.auditLog = Array.isArray(STATE.auditLog) ? STATE.auditLog.map(normalizePeopleAuditEntry) : defaults.auditLog;
+  STATE.readOnlySnapshots = Array.isArray(STATE.readOnlySnapshots) ? STATE.readOnlySnapshots.map(normalizeReadOnlySnapshot) : defaults.readOnlySnapshots;
+
+  if(STATE.employeeAssignments.length || !STATE.employees.length) return { changed:false, issues: validatePeopleAssignmentHistory() };
+
+  const batchId = fallbackId('mig');
+  const beforeCounts = peopleStateCounts();
+  let snapshot = null;
+  try{
+    snapshot = createPeopleReadOnlySnapshot('Before Phase 1 employee assignment history migration', batchId);
+  }catch(error){
+    const exception = { severity:'error', code:'snapshot_failed', message:`Unable to create a read-only snapshot before migration: ${error.message}` };
+    STATE.migrationBatches.push(normalizePeopleMigrationBatch({
+      id: batchId,
+      status: 'blocked',
+      beforeCounts,
+      afterCounts: beforeCounts,
+      exceptions: [exception]
+    }));
+    return { changed:false, issues:[exception] };
+  }
+
+  const mappings = [];
+  STATE.employeeAssignments = STATE.employees.map(employee => {
+    const assignment = createInitialEmployeeAssignment(employee, batchId);
+    mappings.push({
+      legacyEmployeeId: employee.id,
+      sharedEmployeeKey: employeeIdentityKey(employee),
+      assignmentId: assignment.id,
+      name: employee.name,
+      community: employee.community,
+      role: employee.role,
+      effectiveStart: assignment.effectiveStart,
+      sourceOfTruth: 'People/Roster'
+    });
+    return assignment;
+  });
+  const issues = validatePeopleAssignmentHistory();
+  const afterCounts = peopleStateCounts();
+  STATE.migrationBatches.push(normalizePeopleMigrationBatch({
+    id: batchId,
+    status: issues.some(issue => issue.severity === 'error') ? 'review_required' : 'applied',
+    beforeCounts,
+    afterCounts,
+    mappings,
+    exceptions: issues,
+    rollbackPlan: `Restore read-only snapshot ${snapshot.id}, then remove assignments with migrationBatchId ${batchId}.`
+  }));
+  logPeopleAudit({
+    action: 'phase1_initial_employee_history_migration',
+    entityType: 'people_roster',
+    entityId: STORAGE_KEY,
+    batchId,
+    beforeValues: beforeCounts,
+    afterValues: afterCounts,
+    result: issues.length ? 'review_required' : 'applied',
+    exceptions: issues
+  });
+  if(options.persist){
+    try{
+      saveState();
+    }catch(error){
+      console.error('Phase 1 employee history migration could not be persisted.', error);
+      logPeopleAudit({
+        action: 'phase1_initial_employee_history_migration_persist_failed',
+        entityType: 'people_roster',
+        entityId: STORAGE_KEY,
+        batchId,
+        beforeValues: beforeCounts,
+        afterValues: afterCounts,
+        result: 'persist_failed',
+        exceptions: [{ severity:'error', code:'persist_failed', message:error.message }]
+      });
+    }
+  }
+  return { changed:true, issues };
+}
+
+function changedEmployeeFields(previousValues, newValues){
+  return ['community','role','managerId','managerName','regionalManagerId','regionalManagerName','region','status','statusType','terminationDate','terminationReason']
+    .filter(field => normalizeComparable(previousValues[field]) !== normalizeComparable(newValues[field]));
+}
+
+function closeCurrentAssignmentsForChange(employeeId, effectiveDate, changeId){
+  const closeDate = previousIsoDate(effectiveDate);
+  (STATE.employeeAssignments || []).forEach(assignment => {
+    if(assignment.employeeId !== employeeId || assignment.effectiveEnd || assignment.recordStatus === 'superseded') return;
+    if(compareIsoDates(assignment.effectiveStart, effectiveDate) >= 0){
+      assignment.recordStatus = 'superseded';
+      assignment.sourceChangeId = assignment.sourceChangeId || changeId;
+      assignment.effectiveEnd = assignment.effectiveStart;
+      return;
+    }
+    assignment.effectiveEnd = closeDate;
+    assignment.sourceChangeId = assignment.sourceChangeId || changeId;
+  });
+}
+
+function validateEmployeeChange(employee, nextValues, effectiveDate){
+  const issues = [];
+  if(!normalizeIsoDate(effectiveDate)) issues.push({ severity:'error', code:'missing_effective_date', message:'An effective date is required for every employee change.' });
+  if(!employee) issues.push({ severity:'error', code:'missing_employee', message:'The employee record could not be found.' });
+  if(nextValues && normalizeComparable(nextValues.status) !== 'terminated'){
+    if(!String(nextValues.community || '').trim()) issues.push({ severity:'error', code:'missing_community', message:'Active employee assignments require a community/property.' });
+    if(!String(nextValues.role || '').trim()) issues.push({ severity:'error', code:'missing_role', message:'Active employee assignments require a role/title.' });
+  }
+  const futureOpen = (STATE.employeeAssignments || []).filter(assignment =>
+    assignment.employeeId === (employee && employee.id)
+    && assignment.recordStatus !== 'superseded'
+    && !assignment.effectiveEnd
+    && compareIsoDates(assignment.effectiveStart, effectiveDate) > 0
+  );
+  if(futureOpen.length){
+    issues.push({ severity:'error', code:'future_assignment_conflict', message:'This employee already has a future open assignment. Review the future record before adding another change.', assignmentIds: futureOpen.map(row => row.id) });
+  }
+  return issues;
+}
+
+function recordEmployeeChange(employeeId, changeType, nextPartialValues, options = {}){
+  ensureEmployeeHistoryState();
+  const employee = STATE.employees.find(item => item.id === employeeId);
+  const effectiveDate = normalizeIsoDate(options.effectiveDate || nextPartialValues.effectiveDate);
+  const previousValues = employeeAssignmentSnapshot(employee);
+  const nextValues = {
+    ...previousValues,
+    ...nextPartialValues,
+    employeeId: employee ? employee.id : employeeId,
+    employeeStableId: employee ? employeeIdentityKey(employee) : '',
+    employeeName: employee ? employee.name : '',
+    status: nextPartialValues.status || previousValues.status || 'Active'
+  };
+  if(normalizeComparable(changeType) === 'termination'){
+    nextValues.status = 'Terminated';
+    nextValues.terminationDate = effectiveDate;
+  }
+  if(normalizeComparable(changeType) === 'reactivation'){
+    nextValues.status = 'Active';
+    nextValues.terminationDate = '';
+    nextValues.terminationReason = '';
+  }
+  const issues = validateEmployeeChange(employee, nextValues, effectiveDate);
+  if(issues.some(issue => issue.severity === 'error')){
+    return { ok:false, message:issues[0].message, issues };
+  }
+  const changedFields = changedEmployeeFields(previousValues, nextValues);
+  if(!changedFields.length && !String(options.reason || '').trim()){
+    return { ok:false, message:'Update at least one field or add a change note before saving.', issues:[] };
+  }
+  const changeId = fallbackId('chg');
+  closeCurrentAssignmentsForChange(employee.id, effectiveDate, changeId);
+  const assignment = normalizeEmployeeAssignment({
+    ...nextValues,
+    id: safeAssignmentId(employee.id, effectiveDate, changeId),
+    effectiveStart: effectiveDate,
+    effectiveEnd: '',
+    source: 'people_change',
+    sourceChangeId: changeId,
+    createdBy: STATE.currentUser ? STATE.currentUser.name : ''
+  });
+  STATE.employeeAssignments.push(assignment);
+  const change = normalizeEmployeeChangeEvent({
+    id: changeId,
+    employeeId: employee.id,
+    employeeStableId: employeeIdentityKey(employee),
+    changeType,
+    effectiveDate,
+    createdBy: STATE.currentUser ? STATE.currentUser.name : '',
+    reason: options.reason || '',
+    previousValues,
+    newValues: nextValues,
+    changedFields,
+    updatedModules: PEOPLE_CONNECTED_MODULES,
+    exceptions: [],
+    source: options.source || 'people_roster'
+  });
+  if(!STATE.employeeChangeEvents) STATE.employeeChangeEvents = [];
+  STATE.employeeChangeEvents.push(change);
+  refreshEmployeeCurrentAssignment(employee.id);
+  logPeopleAudit({
+    action: `employee_${changeType}`,
+    entityType: 'employee',
+    entityId: employee.id,
+    beforeValues: previousValues,
+    afterValues: employeeAssignmentSnapshot(employee),
+    result: 'applied'
+  });
+  logEmployeeEvent({
+    employeeId: employee.id,
+    type: changeType,
+    date: effectiveDate,
+    title: employeeChangeTitle(changeType),
+    detail: employeeChangeDetail(previousValues, nextValues, changedFields, options.reason),
+    createdBy: STATE.currentUser ? STATE.currentUser.name : ''
+  });
+  return { ok:true, change, assignment, updatedModules: PEOPLE_CONNECTED_MODULES, issues: validatePeopleAssignmentHistory() };
+}
+
+function employeeChangeTitle(changeType){
+  const label = String(changeType || '').replace(/_/g,' ');
+  if(label === 'termination') return 'Employee terminated';
+  if(label === 'reactivation') return 'Employee reactivated';
+  if(label === 'promotion') return 'Promotion / assignment update';
+  if(label === 'bulk assignment') return 'Bulk assignment update';
+  return label ? label.replace(/\b\w/g, char => char.toUpperCase()) : 'Employee assignment update';
+}
+
+function employeeChangeDetail(previousValues, nextValues, changedFields, reason){
+  const labels = {
+    community: 'Community',
+    role: 'Role',
+    managerName: 'Manager',
+    regionalManagerName: 'Regional owner',
+    region: 'Area',
+    status: 'Status',
+    terminationDate: 'Termination date',
+    terminationReason: 'Termination reason'
+  };
+  const lines = changedFields
+    .filter(field => labels[field])
+    .map(field => `${labels[field]}: ${previousValues[field] || 'Not set'} -> ${nextValues[field] || 'Not set'}`);
+  if(reason) lines.push(`Note: ${reason}`);
+  return lines.join('. ') || 'Employee assignment history updated.';
+}
+
+function showEmployeeChangeConfirmation(result){
+  if(!result || !result.ok) return;
+  const modules = (result.updatedModules || PEOPLE_CONNECTED_MODULES).join(', ');
+  const issueText = result.issues && result.issues.length
+    ? `\n\nReview needed: ${result.issues.slice(0,3).map(issue => issue.message || issue.code).join('; ')}`
+    : '';
+  alert(`Employee change saved with an effective-dated history record.\n\nUpdated modules: ${modules}.${issueText}`);
+}
+
 function renderEmployeeProfileLink(employee, fallbackLabel){
   if(!employee) return escapeHtml(fallbackLabel || 'Unknown employee');
   return `<button class="profile-link" onclick="openEmployeeProfile('${employee.id}')">${escapeHtml(employee.name)}</button>`;
@@ -2191,6 +2779,9 @@ function employeeActivityFeed(employeeId){
   const writeups = writeupsForEmployee(employeeId);
   const correspondence = correspondenceForEmployee(employeeId);
   const employeeEvents = employeeEventsForEmployee(employeeId);
+  const employeeChangeEvents = (STATE.employeeChangeEvents || [])
+    .filter(entry => entry.employeeId === employeeId)
+    .map(normalizeEmployeeChangeEvent);
   const events = [];
 
   plans.forEach(plan => {
@@ -2215,6 +2806,17 @@ function employeeActivityFeed(employeeId){
 
   employeeEvents.forEach(entry => {
     events.push({date: entry.date || '', kind: entry.type || 'note', tone: 'badge-soft', title: entry.title || 'Employee record updated', detail: entry.detail || 'Employee record updated.', employeeEventId: entry.id});
+  });
+
+  employeeChangeEvents.forEach(entry => {
+    events.push({
+      date: entry.effectiveDate || entry.createdAt || '',
+      kind: entry.changeType || 'employee_change',
+      tone: entry.status === 'applied' ? 'badge-active' : 'badge-alert',
+      title: `${employeeChangeTitle(entry.changeType)} effective ${formatDate(entry.effectiveDate)}`,
+      detail: employeeChangeDetail(entry.previousValues || {}, entry.newValues || {}, entry.changedFields || [], entry.reason),
+      employeeChangeEventId: entry.id
+    });
   });
 
   correspondence.forEach(entry => {
@@ -2906,19 +3508,51 @@ async function loadCompanyRosterFromAsset(options){
   const rows = XLSX.utils.sheet_to_json(sheet, {header:1});
   const employees = parseCompanyRosterSheet(rows);
 
-  STATE.employees = employees;
+  ensureEmployeeHistoryState();
+  let added = 0;
+  let updated = 0;
+  const exceptions = [];
+  employees.forEach(employee => {
+    try{
+      const outcome = upsertEmployeeRecord({
+        ...employee,
+        effectiveDate: COMPANY_ROSTER_VERSION,
+        source: 'published_company_roster',
+        changeReason: `Published company roster ${COMPANY_ROSTER_VERSION}`
+      });
+      if(outcome === 'added') added += 1;
+      else updated += 1;
+    }catch(error){
+      exceptions.push({ employee: employee.name, message: error.message });
+    }
+  });
   STATE.rosterVersion = COMPANY_ROSTER_VERSION;
   syncEmployeeManagerReferences();
   if(settings.clearRelated){
-    STATE.plans = [];
-    if(Array.isArray(STATE.writeups)) STATE.writeups = [];
-    STATE.correspondence = makeCorrespondenceLog();
-    STATE.employeeEvents = makeEmployeeEventLog();
+    logPeopleAudit({
+      action: 'published_roster_reload_preserved_related_records',
+      entityType: 'people_roster',
+      entityId: COMPANY_ROSTER_VERSION,
+      beforeValues: { requestedClearRelated: true },
+      afterValues: { plans: STATE.plans.length, writeups: (STATE.writeups || []).length, correspondence: (STATE.correspondence || []).length },
+      result: 'preserved'
+    });
     UI.selectedWeeklyPlanId = null;
+  }
+  if(exceptions.length){
+    STATE.migrationBatches.push(normalizePeopleMigrationBatch({
+      id: fallbackId('mig'),
+      phase: 'published_company_roster_import',
+      source: COMPANY_ROSTER_ASSET,
+      status: 'review_required',
+      beforeCounts: {},
+      afterCounts: peopleStateCounts(),
+      exceptions
+    }));
   }
   saveState();
   if(settings.render !== false) render();
-  return employees;
+  return { employees, added, updated, exceptions };
 }
 
 async function bootstrapCompanyRoster(){
@@ -2933,9 +3567,9 @@ async function bootstrapCompanyRoster(){
 
 function reloadCompanyRoster(){
   if(!(STATE.currentUser && STATE.currentUser.role === 'admin')) return;
-  if(!confirm('Replace the current roster with the published company roster file? Existing plans and write-ups will be cleared because they are tied to employee records.')) return;
+  if(!confirm('Import the published company roster as effective-dated People changes? Existing employees, assignments, plans, write-ups, and historical records will be preserved.')) return;
   loadCompanyRosterFromAsset({clearRelated:true}).then(() => {
-    alert('Company roster loaded from the published HR file.');
+    alert('Company roster imported from the published HR file. Existing records were preserved and assignment changes were logged.');
   }).catch(error => {
     alert(`Roster load failed. ${error.message}`);
   });
@@ -5501,6 +6135,34 @@ function clearEmployeeRosterFilters(){
   render();
 }
 
+function renderPeopleHistoryStatusPanel(){
+  ensureEmployeeHistoryState();
+  const issues = validatePeopleAssignmentHistory();
+  const latestBatch = (STATE.migrationBatches || []).slice().sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))[0];
+  const currentAssignments = (STATE.employeeAssignments || []).filter(assignment => assignment.recordStatus !== 'superseded' && !assignment.effectiveEnd && normalizeComparable(assignment.status) !== 'terminated').length;
+  const issueRows = issues.length
+    ? `<div style="margin-top:10px">${issues.slice(0,5).map(issue => `<div class="small muted">${escapeHtml(String(issue.severity || 'warn').toUpperCase())}: ${escapeHtml(issue.message || issue.code || 'Review assignment history')}</div>`).join('')}${issues.length > 5 ? `<div class="tiny muted">+${issues.length - 5} more validation issue${issues.length - 5 === 1 ? '' : 's'}.</div>` : ''}</div>`
+    : '<div class="small" style="margin-top:10px;color:#0b7f55">No assignment-history validation issues found.</div>';
+  return `
+    <div class="card" style="margin-top:16px;background:#f8fbfc">
+      <div class="section-title">
+        <div>
+          <h2>Employee change history</h2>
+          <p>People/Roster is now the source for effective-dated employee status, role, manager, regional owner, area, and community assignments.</p>
+        </div>
+      </div>
+      <div class="inline">
+        <span class="badge badge-soft">${(STATE.employeeAssignments || []).length} assignment history rows</span>
+        <span class="badge badge-soft">${currentAssignments} current active assignments</span>
+        <span class="badge badge-soft">${(STATE.employeeChangeEvents || []).length} saved employee changes</span>
+        <span class="badge badge-soft">${(STATE.readOnlySnapshots || []).length} read-only snapshot${(STATE.readOnlySnapshots || []).length === 1 ? '' : 's'}</span>
+        ${latestBatch ? `<span class="badge ${latestBatch.status === 'applied' ? 'badge-active' : 'badge-alert'}">Last migration: ${escapeHtml(latestBatch.status)}</span>` : ''}
+      </div>
+      ${issueRows}
+    </div>
+  `;
+}
+
 function renderEmployees(){
   const employees = sortedVisibleEmployees();
   const filteredEmployees = filteredRosterEmployees();
@@ -5523,12 +6185,12 @@ function renderEmployees(){
           </div>
           <div class="file-box">
             <strong>Upload employee roster</strong>
-            <div class="small muted">Accepted columns: Name, Community, Region, Role, Department, Work Email, Employee Number, Status, Status Type, Manager, Manager ID, Regional Manager, or Regional Manager ID</div>
+            <div class="small muted">Accepted columns: Name, Community, Effective Date, Region, Role, Department, Work Email, Employee Number, Status, Status Type, Manager, Manager ID, Regional Manager, or Regional Manager ID</div>
             <div style="margin-top:12px">
               <input id="roster-upload" type="file" accept=".csv,.xlsx,.xls" onchange="handleRosterUpload(event)">
             </div>
           </div>
-          <div id="roster-status" style="margin-top:12px"><div class="alert alert-info">Uploads will add new employees and update matching roster records when the same name/community already exists.</div></div>
+          <div id="roster-status" style="margin-top:12px"><div class="alert alert-info">Uploads now create effective-dated assignment history. Rows without an Effective Date are flagged for review instead of silently changing employee assignments.</div></div>
           <div class="inline" style="margin-top:12px">
             <button class="btn btn-soft" onclick="downloadRosterTemplate()">Download template CSV</button>
             ${isAdmin ? `<button class="btn btn-primary" onclick="reloadCompanyRoster()">Reload published company roster</button>` : ''}
@@ -5572,6 +6234,10 @@ function renderEmployees(){
             <div><label>Employee number</label><input id="emp-number" placeholder="681151"></div>
             <div><label>Status type</label><input id="emp-status-type" placeholder="Full Time"></div>
           </div>
+          <div style="margin-top:12px">
+            <label>Effective date</label>
+            <input id="emp-effective-date" type="date" value="${today()}">
+          </div>
           <div style="margin-top:14px">
             <button class="btn btn-primary" onclick="addEmployee()">Add employee</button>
           </div>
@@ -5613,12 +6279,18 @@ function renderEmployees(){
               <select id="bulk-set-regional-manager">${renderManagerOptions('', 'Leave unchanged', managerUsers())}</select>
             </div>
           </div>
+          <div style="margin-top:12px">
+            <label>Effective date</label>
+            <input id="bulk-effective-date" type="date" value="${today()}">
+          </div>
           <div class="inline" style="margin-top:14px">
             <button class="btn btn-primary" onclick="applyBulkAssignments()">Apply to matching employees</button>
             <div id="bulk-assign-status" class="small muted">Only active employees in your current admin scope will be updated.</div>
           </div>
         </div>
       ` : ''}
+
+      ${renderPeopleHistoryStatusPanel()}
 
       <div class="card" style="margin-top:16px">
         <div class="section-title">
@@ -6023,21 +6695,33 @@ function addEmployee(){
   const regionalManagerField = document.getElementById('emp-regional-manager');
   const regionalManagerId = regionalManagerField ? regionalManagerField.value : '';
   const regionalManagerLabel = regionalManagerId ? managerName(regionalManagerId) : '';
-  const outcome = upsertEmployeeRecord({
-    name,
-    role: document.getElementById('emp-role').value.trim() || 'Leasing Professional',
-    community: document.getElementById('emp-community').value.trim() || currentDefaultCommunity(),
-    region: document.getElementById('emp-region').value || currentDefaultRegion(),
-    managerId,
-    managerName: managerLabel,
-    regionalManagerId,
-    regionalManagerName: regionalManagerLabel,
-    department: document.getElementById('emp-department').value.trim(),
-    email: document.getElementById('emp-email').value.trim(),
-    employeeNumber: document.getElementById('emp-number').value.trim(),
-    statusType: document.getElementById('emp-status-type').value.trim(),
-    status: 'Active'
-  });
+  const effectiveDate = normalizeIsoDate(document.getElementById('emp-effective-date').value);
+  if(!effectiveDate){
+    alert('Choose an effective date for this employee record.');
+    return;
+  }
+  let outcome = 'added';
+  try{
+    outcome = upsertEmployeeRecord({
+      name,
+      role: document.getElementById('emp-role').value.trim() || 'Leasing Professional',
+      community: document.getElementById('emp-community').value.trim() || currentDefaultCommunity(),
+      region: document.getElementById('emp-region').value || currentDefaultRegion(),
+      managerId,
+      managerName: managerLabel,
+      regionalManagerId,
+      regionalManagerName: regionalManagerLabel,
+      department: document.getElementById('emp-department').value.trim(),
+      email: document.getElementById('emp-email').value.trim(),
+      employeeNumber: document.getElementById('emp-number').value.trim(),
+      statusType: document.getElementById('emp-status-type').value.trim(),
+      status: 'Active',
+      effectiveDate
+    });
+  }catch(error){
+    alert(error.message || 'The employee could not be saved.');
+    return;
+  }
 
   saveState();
   render();
@@ -6054,38 +6738,112 @@ function findEmployeeMatch(name, community){
   });
 }
 
+function findEmployeeRecordMatch(record){
+  const normalized = normalizeEmployee(record);
+  const byId = normalized.id ? STATE.employees.find(employee => employee.id === normalized.id) : null;
+  if(byId) return byId;
+  const employeeNumber = String(normalized.employeeNumber || '').replace(/[^\w-]/g,'').trim();
+  if(employeeNumber){
+    const byNumber = STATE.employees.find(employee => String(employee.employeeNumber || '').replace(/[^\w-]/g,'').trim() === employeeNumber);
+    if(byNumber) return byNumber;
+  }
+  const email = String(normalized.email || '').trim().toLowerCase();
+  if(email){
+    const byEmail = STATE.employees.find(employee => String(employee.email || '').trim().toLowerCase() === email);
+    if(byEmail) return byEmail;
+  }
+  return findEmployeeMatch(normalized.name, normalized.community);
+}
+
 function upsertEmployeeRecord(record){
   const normalized = normalizeEmployee(record);
+  const effectiveDate = normalizeIsoDate(record && record.effectiveDate) || today();
   if(!normalized.managerId && normalized.managerName){
     normalized.managerId = resolveManagerId('', normalized.managerName);
   }
   if(!normalized.regionalManagerId && normalized.regionalManagerName){
     normalized.regionalManagerId = resolveManagerId('', normalized.regionalManagerName);
   }
-  const existing = normalized.id ? STATE.employees.find(employee => employee.id === normalized.id) : findEmployeeMatch(normalized.name, normalized.community);
+  const existing = findEmployeeRecordMatch(normalized);
   if(existing){
-    const terminated = normalizeComparable(normalized.status) === 'terminated';
-    Object.assign(existing, {
-      ...existing,
-      role: normalized.role || existing.role,
+    const nextValues = {
       community: normalized.community || existing.community,
+      role: normalized.role || existing.role,
       region: normalized.region || existing.region,
       managerId: normalized.managerId || existing.managerId,
       managerName: normalized.managerName || existing.managerName,
       regionalManagerId: normalized.regionalManagerId || existing.regionalManagerId,
       regionalManagerName: normalized.regionalManagerName || existing.regionalManagerName,
-      email: normalized.email || existing.email,
-      department: normalized.department || existing.department,
-      employeeNumber: normalized.employeeNumber || existing.employeeNumber,
       statusType: normalized.statusType || existing.statusType,
       status: normalized.status || existing.status,
-      terminationReason: terminated ? (normalized.terminationReason || existing.terminationReason) : '',
-      terminationDate: terminated ? (normalized.terminationDate || existing.terminationDate) : ''
+      terminationReason: normalized.terminationReason || existing.terminationReason,
+      terminationDate: normalized.terminationDate || existing.terminationDate
+    };
+    if(normalized.email) existing.email = normalized.email;
+    if(normalized.department) existing.department = normalized.department;
+    if(normalized.employeeNumber) existing.employeeNumber = normalized.employeeNumber;
+    if(!changedEmployeeFields(employeeAssignmentSnapshot(existing), nextValues).length){
+      logPeopleAudit({
+        action: 'employee_identity_refresh',
+        entityType: 'employee',
+        entityId: existing.id,
+        beforeValues: {},
+        afterValues: { email: existing.email, employeeNumber: existing.employeeNumber, department: existing.department },
+        result: 'no_assignment_change'
+      });
+      return 'updated';
+    }
+    const result = recordEmployeeChange(existing.id, 'roster_import', nextValues, {
+      effectiveDate,
+      reason: record && record.changeReason || 'Roster import or manual roster update',
+      source: record && record.source || 'people_roster'
     });
+    if(!result.ok) throw new Error(result.message || 'The roster update could not be applied.');
     return 'updated';
   }
+  normalized.id = normalized.id || fallbackId('emp');
   STATE.employees.push(normalized);
+  ensureEmployeeHistoryState();
+  const changeId = fallbackId('chg');
+  const assignment = normalizeEmployeeAssignment({
+    ...employeeAssignmentSnapshot(normalized),
+    id: safeAssignmentId(normalized.id, effectiveDate, changeId),
+    effectiveStart: effectiveDate,
+    source: record && record.source || 'people_roster_new_employee',
+    sourceChangeId: changeId,
+    createdBy: STATE.currentUser ? STATE.currentUser.name : ''
+  });
+  STATE.employeeAssignments.push(assignment);
+  STATE.employeeChangeEvents.push(normalizeEmployeeChangeEvent({
+    id: changeId,
+    employeeId: normalized.id,
+    employeeStableId: employeeIdentityKey(normalized),
+    changeType: 'new_employee',
+    effectiveDate,
+    createdBy: STATE.currentUser ? STATE.currentUser.name : '',
+    previousValues: {},
+    newValues: employeeAssignmentSnapshot(normalized),
+    changedFields: ['community','role','managerName','regionalManagerName','region','status'],
+    updatedModules: PEOPLE_CONNECTED_MODULES,
+    source: record && record.source || 'people_roster'
+  }));
+  logPeopleAudit({
+    action: 'employee_added',
+    entityType: 'employee',
+    entityId: normalized.id,
+    beforeValues: {},
+    afterValues: employeeAssignmentSnapshot(normalized),
+    result: 'applied'
+  });
   return 'added';
+}
+
+function promptEmployeeChangeDate(label){
+  const value = prompt(`${label}\n\nEnter the effective date for this employee change (YYYY-MM-DD).`, today());
+  if(value == null) return '';
+  const normalized = normalizeIsoDate(value);
+  if(!normalized) alert('A valid effective date is required. The change was not saved.');
+  return normalized;
 }
 
 function inferRegionFromText(value){
@@ -6101,10 +6859,33 @@ function inferRegionFromText(value){
 function updateEmployeeField(id, field, value){
   const employee = STATE.employees.find(item => item.id === id);
   if(!employee || !canUserAccessEmployee(STATE.currentUser, employee)) return;
-  if(field === 'managerId' && STATE.currentUser.role !== 'admin') return;
-  employee[field] = String(value || '').trim();
+  if(!(STATE.currentUser && STATE.currentUser.role === 'admin')){
+    alert('Only authorized admin users can change employee assignments.');
+    render();
+    return;
+  }
+  if(!['role','community','region','statusType'].includes(field)){
+    employee[field] = String(value || '').trim();
+    saveState();
+    render();
+    return;
+  }
+  const effectiveDate = promptEmployeeChangeDate(`Update ${employee.name}'s ${field}`);
+  if(!effectiveDate){
+    render();
+    return;
+  }
+  const result = recordEmployeeChange(id, field === 'role' ? 'role_change' : field === 'community' ? 'community_reassignment' : 'assignment_change', {
+    [field]: String(value || '').trim()
+  }, { effectiveDate });
+  if(!result.ok){
+    alert(result.message || 'The employee change was not saved.');
+    render();
+    return;
+  }
   saveState();
   render();
+  showEmployeeChangeConfirmation(result);
 }
 
 function updateEmployeeManager(id, managerId){
@@ -6112,27 +6893,57 @@ function updateEmployeeManager(id, managerId){
   if(!employee || !canUserAccessEmployee(STATE.currentUser, employee)) return;
   if(STATE.currentUser.role !== 'admin') return;
   const selected = String(managerId || '').trim();
+  const effectiveDate = promptEmployeeChangeDate(`Update ${employee.name}'s manager`);
+  if(!effectiveDate){
+    render();
+    return;
+  }
+  let nextManagerId = '';
+  let nextManagerName = '';
   if(selected.startsWith('emp:')){
     const empId = selected.slice(4);
     const managerEmployee = (STATE.employees || []).find(item => item && item.id === empId);
-    employee.managerId = '';
-    employee.managerName = managerEmployee ? managerEmployee.name : '';
+    nextManagerName = managerEmployee ? managerEmployee.name : '';
   }else{
-    employee.managerId = selected;
-    employee.managerName = employee.managerId ? managerName(employee.managerId) : '';
+    nextManagerId = selected;
+    nextManagerName = nextManagerId ? managerName(nextManagerId) : '';
+  }
+  const result = recordEmployeeChange(id, 'manager_change', {
+    managerId: nextManagerId,
+    managerName: nextManagerName
+  }, { effectiveDate });
+  if(!result.ok){
+    alert(result.message || 'The manager change was not saved.');
+    render();
+    return;
   }
   saveState();
   render();
+  showEmployeeChangeConfirmation(result);
 }
 
 function updateEmployeeRegionalManager(id, managerId){
   const employee = STATE.employees.find(item => item.id === id);
   if(!employee || !canUserAccessEmployee(STATE.currentUser, employee)) return;
   if(STATE.currentUser.role !== 'admin') return;
-  employee.regionalManagerId = String(managerId || '').trim();
-  employee.regionalManagerName = employee.regionalManagerId ? managerName(employee.regionalManagerId) : '';
+  const effectiveDate = promptEmployeeChangeDate(`Update ${employee.name}'s regional alert owner`);
+  if(!effectiveDate){
+    render();
+    return;
+  }
+  const nextRegionalManagerId = String(managerId || '').trim();
+  const result = recordEmployeeChange(id, 'regional_owner_change', {
+    regionalManagerId: nextRegionalManagerId,
+    regionalManagerName: nextRegionalManagerId ? managerName(nextRegionalManagerId) : ''
+  }, { effectiveDate });
+  if(!result.ok){
+    alert(result.message || 'The regional owner change was not saved.');
+    render();
+    return;
+  }
   saveState();
   render();
+  showEmployeeChangeConfirmation(result);
 }
 
 function updateEmployeeRegion(id, region){
@@ -6147,15 +6958,29 @@ function openPromoteEmployeeModal(id){
     <div class="modal narrow">
       <button class="close-btn" onclick="closeModal()">x</button>
       <h3>Promote / reassign employee</h3>
-      <div class="sub">Update the title, area, and direct manager, then log the change on the employee profile timeline.</div>
+      <div class="sub">Record an effective-dated role, community, manager, regional-owner, or area change. Past assignments stay in history.</div>
+      <div style="margin-bottom:12px">
+        <label>Effective date</label>
+        <input id="promote-effective-date" type="date" value="${today()}">
+      </div>
       <div class="form-grid cols-2">
         <div>
           <label>New title</label>
           <input id="promote-role" list="role-options" value="${escapeHtml(employee.role || '')}">
         </div>
         <div>
+          <label>New community/property</label>
+          <input id="promote-community" list="community-options" value="${escapeHtml(employee.community || '')}">
+        </div>
+      </div>
+      <div class="form-grid cols-2" style="margin-top:12px">
+        <div>
           <label>New direct manager</label>
           <select id="promote-manager">${renderManagerOptions(employee.managerId || '', 'Select manager', managerUsers())}</select>
+        </div>
+        <div>
+          <label>New regional alert owner</label>
+          <select id="promote-regional-manager">${renderManagerOptions(employee.regionalManagerId || '', 'Select regional alert owner', managerUsers())}</select>
         </div>
       </div>
       <div style="margin-top:12px">
@@ -6180,42 +7005,37 @@ function openPromoteEmployeeModal(id){
 function saveEmployeePromotion(id){
   const employee = STATE.employees.find(item => item.id === id);
   if(!employee) return;
+  const effectiveDate = normalizeIsoDate(document.getElementById('promote-effective-date').value);
   const nextRole = String(document.getElementById('promote-role').value || '').trim() || employee.role || 'Employee';
+  const nextCommunity = String(document.getElementById('promote-community').value || '').trim() || employee.community || '';
   const nextManagerId = String(document.getElementById('promote-manager').value || '').trim();
+  const nextRegionalManagerId = String(document.getElementById('promote-regional-manager').value || '').trim();
   const nextRegion = String(document.getElementById('promote-region').value || '').trim();
   const note = String(document.getElementById('promote-note').value || '').trim();
 
-  const previousRole = employee.role || 'Not set';
-  const previousManager = managerDisplayName(employee) || 'Unassigned';
-  const previousRegion = employee.region && REGIONS[employee.region] ? REGIONS[employee.region].name : (employee.region || 'Unassigned');
-  const nextManager = nextManagerId ? managerName(nextManagerId) : 'Unassigned';
-  const nextRegionLabel = nextRegion && REGIONS[nextRegion] ? REGIONS[nextRegion].name : (nextRegion || 'Unassigned');
-  const noChange = normalizeComparable(previousRole) === normalizeComparable(nextRole)
-    && String(employee.managerId || '') === nextManagerId
-    && String(employee.region || '') === nextRegion;
-
-  if(noChange && !note){
-    alert('Update at least one field or add a change note before saving.');
+  if(!effectiveDate){
+    alert('Choose an effective date for this employee change.');
     return;
   }
 
-  employee.role = nextRole;
-  employee.managerId = nextManagerId;
-  employee.managerName = nextManagerId ? managerName(nextManagerId) : '';
-  employee.region = nextRegion;
-
-  logEmployeeEvent({
-    employeeId: employee.id,
-    type: 'promotion',
-    date: today(),
-    title: 'Promotion / assignment update',
-    detail: `Role: ${previousRole} -> ${nextRole}. Area: ${previousRegion} -> ${nextRegionLabel}. Manager: ${previousManager} -> ${nextManager}.${note ? ' Note: ' + note : ''}`,
-    createdBy: STATE.currentUser ? STATE.currentUser.name : ''
-  });
+  const result = recordEmployeeChange(id, 'promotion', {
+    role: nextRole,
+    community: nextCommunity,
+    managerId: nextManagerId,
+    managerName: nextManagerId ? managerName(nextManagerId) : '',
+    regionalManagerId: nextRegionalManagerId,
+    regionalManagerName: nextRegionalManagerId ? managerName(nextRegionalManagerId) : '',
+    region: nextRegion
+  }, { effectiveDate, reason: note });
+  if(!result.ok){
+    alert(result.message || 'The employee change was not saved.');
+    return;
+  }
 
   saveState();
   closeModal();
   render();
+  showEmployeeChangeConfirmation(result);
 }
 
 function openTerminateEmployeeModal(id){
@@ -6244,40 +7064,93 @@ function openTerminateEmployeeModal(id){
 function saveEmployeeTermination(id){
   const employee = STATE.employees.find(item => item.id === id);
   if(!employee) return;
-  employee.status = 'Terminated';
-  employee.terminationDate = document.getElementById('term-date').value || today();
-  employee.terminationReason = String(document.getElementById('term-reason').value || '').trim();
-  logEmployeeEvent({
-    employeeId: employee.id,
-    type: 'status_change',
-    date: employee.terminationDate || today(),
-    title: 'Employee terminated',
-    detail: employee.terminationReason ? `Termination reason: ${employee.terminationReason}` : 'Employee marked as terminated in the roster.',
-    createdBy: STATE.currentUser ? STATE.currentUser.name : ''
-  });
+  const effectiveDate = normalizeIsoDate(document.getElementById('term-date').value);
+  const reason = String(document.getElementById('term-reason').value || '').trim();
+  if(!effectiveDate){
+    alert('Choose an effective termination date.');
+    return;
+  }
+  const result = recordEmployeeChange(id, 'termination', {
+    status: 'Terminated',
+    terminationDate: effectiveDate,
+    terminationReason: reason
+  }, { effectiveDate, reason });
+  if(!result.ok){
+    alert(result.message || 'The termination was not saved.');
+    return;
+  }
   saveState();
   closeModal();
   render();
+  showEmployeeChangeConfirmation(result);
 }
 
 function reactivateEmployee(id){
   if(!(STATE.currentUser && STATE.currentUser.role === 'admin')) return;
   const employee = STATE.employees.find(item => item.id === id);
   if(!employee) return;
-  if(!confirm(`Reactivate ${employee.name}?`)) return;
-  employee.status = 'Active';
-  employee.terminationDate = '';
-  employee.terminationReason = '';
-  logEmployeeEvent({
-    employeeId: employee.id,
-    type: 'status_change',
-    date: today(),
-    title: 'Employee reactivated',
-    detail: 'Employee was returned to active status in the roster.',
-    createdBy: STATE.currentUser ? STATE.currentUser.name : ''
-  });
+  openModal(`
+    <div class="modal narrow">
+      <button class="close-btn" onclick="closeModal()">x</button>
+      <h3>Reactivate employee</h3>
+      <div class="sub">Choose the effective date and assignment the employee should return to. Historical termination records stay on file.</div>
+      <div class="form-grid cols-2">
+        <div><label>Effective date</label><input id="reactivate-effective-date" type="date" value="${today()}"></div>
+        <div><label>Role/title</label><input id="reactivate-role" list="role-options" value="${escapeHtml(employee.role || 'Leasing Professional')}"></div>
+      </div>
+      <div class="form-grid cols-2" style="margin-top:12px">
+        <div><label>Community/property</label><input id="reactivate-community" list="community-options" value="${escapeHtml(employee.community || currentDefaultCommunity())}"></div>
+        <div><label>Area / region</label><select id="reactivate-region">
+          <option value="">Unassigned</option>
+          ${Object.entries(REGIONS).map(([key, value]) => `<option value="${key}" ${employee.region === key ? 'selected' : ''}>${value.name}</option>`).join('')}
+        </select></div>
+      </div>
+      <div class="form-grid cols-2" style="margin-top:12px">
+        <div><label>Direct manager</label><select id="reactivate-manager">${renderManagerOptions(employee.managerId || '', 'Select manager', managerUsers())}</select></div>
+        <div><label>Regional alert owner</label><select id="reactivate-regional-manager">${renderManagerOptions(employee.regionalManagerId || '', 'Select regional alert owner', managerUsers())}</select></div>
+      </div>
+      <div style="margin-top:12px">
+        <label>Reactivation note</label>
+        <textarea id="reactivate-note" placeholder="Optional note about the reactivation."></textarea>
+      </div>
+      <div class="inline" style="justify-content:flex-end;margin-top:18px">
+        <button class="btn btn-soft" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveEmployeeReactivation('${employee.id}')">Save reactivation</button>
+      </div>
+    </div>
+  `);
+}
+
+function saveEmployeeReactivation(id){
+  const employee = STATE.employees.find(item => item.id === id);
+  if(!employee) return;
+  const effectiveDate = normalizeIsoDate(document.getElementById('reactivate-effective-date').value);
+  if(!effectiveDate){
+    alert('Choose an effective reactivation date.');
+    return;
+  }
+  const managerId = String(document.getElementById('reactivate-manager').value || '').trim();
+  const regionalManagerId = String(document.getElementById('reactivate-regional-manager').value || '').trim();
+  const result = recordEmployeeChange(id, 'reactivation', {
+    status: 'Active',
+    role: String(document.getElementById('reactivate-role').value || '').trim() || employee.role || 'Employee',
+    community: String(document.getElementById('reactivate-community').value || '').trim() || employee.community || '',
+    region: String(document.getElementById('reactivate-region').value || '').trim(),
+    managerId,
+    managerName: managerId ? managerName(managerId) : '',
+    regionalManagerId,
+    regionalManagerName: regionalManagerId ? managerName(regionalManagerId) : '',
+    terminationDate: '',
+    terminationReason: ''
+  }, { effectiveDate, reason: String(document.getElementById('reactivate-note').value || '').trim() });
+  if(!result.ok){
+    alert(result.message || 'The reactivation was not saved.');
+    return;
+  }
   saveState();
+  closeModal();
   render();
+  showEmployeeChangeConfirmation(result);
 }
 
 function applyBulkAssignments(){
@@ -6287,10 +7160,15 @@ function applyBulkAssignments(){
   const matchManagerId = document.getElementById('bulk-match-manager').value;
   const setManagerId = document.getElementById('bulk-set-manager').value;
   const setRegionalManagerId = document.getElementById('bulk-set-regional-manager').value;
+  const effectiveDate = normalizeIsoDate(document.getElementById('bulk-effective-date').value);
   const status = document.getElementById('bulk-assign-status');
 
   if(!setManagerId && !setRegionalManagerId){
     if(status) status.innerHTML = '<span class="alert alert-warn">Choose a primary manager and/or regional alert owner to apply.</span>';
+    return;
+  }
+  if(!effectiveDate){
+    if(status) status.innerHTML = '<span class="alert alert-warn">Choose an effective date for the bulk assignment.</span>';
     return;
   }
 
@@ -6310,37 +7188,64 @@ function applyBulkAssignments(){
     return true;
   });
 
+  let updated = 0;
+  const exceptions = [];
   matches.forEach(employee => {
+    const nextValues = {};
     if(setManagerId){
       const selected = String(setManagerId || '').trim();
       if(selected.startsWith('emp:')){
         const empId = selected.slice(4);
         const managerEmployee = (STATE.employees || []).find(item => item && item.id === empId);
-        employee.managerId = '';
-        employee.managerName = managerEmployee ? managerEmployee.name : '';
+        nextValues.managerId = '';
+        nextValues.managerName = managerEmployee ? managerEmployee.name : '';
       }else{
-        employee.managerId = selected;
-        employee.managerName = managerName(selected);
+        nextValues.managerId = selected;
+        nextValues.managerName = managerName(selected);
       }
     }
     if(setRegionalManagerId){
-      employee.regionalManagerId = setRegionalManagerId;
-      employee.regionalManagerName = managerName(setRegionalManagerId);
+      nextValues.regionalManagerId = setRegionalManagerId;
+      nextValues.regionalManagerName = managerName(setRegionalManagerId);
+    }
+    const result = recordEmployeeChange(employee.id, 'bulk_assignment', nextValues, {
+      effectiveDate,
+      reason: 'Bulk assignment update'
+    });
+    if(result.ok){
+      updated += 1;
+    }else{
+      exceptions.push(`${employee.name}: ${result.message || 'not updated'}`);
     }
   });
 
   saveState();
   render();
   const nextStatus = document.getElementById('bulk-assign-status');
-  if(nextStatus) nextStatus.innerHTML = `<span class="alert alert-success">${matches.length} employee${matches.length === 1 ? '' : 's'} updated.</span>`;
+  if(nextStatus) nextStatus.innerHTML = `<span class="alert ${exceptions.length ? 'alert-warn' : 'alert-success'}">${updated} employee${updated === 1 ? '' : 's'} updated.${exceptions.length ? ` ${exceptions.length} exception${exceptions.length === 1 ? '' : 's'} require review.` : ''}</span>`;
 }
 
 function removeEmployee(id){
   if(!(STATE.currentUser && STATE.currentUser.role === 'admin')) return;
-  if(!confirm('Remove this employee from the roster?')) return;
-  STATE.employees = STATE.employees.filter(employee => employee.id !== id);
+  const employee = STATE.employees.find(item => item.id === id);
+  if(!employee) return;
+  const effectiveDate = promptEmployeeChangeDate(`Archive ${employee.name}`);
+  if(!effectiveDate) return;
+  if(!confirm('Archive this employee from active rosters? Historical records, plans, assignments, and audit logs will remain available.')) return;
+  employee.archived = true;
+  const result = recordEmployeeChange(id, 'archive', {
+    status: 'Archived',
+    archived: true
+  }, { effectiveDate, reason: 'Archived from active roster' });
+  if(!result.ok){
+    employee.archived = false;
+    alert(result.message || 'The employee was not archived.');
+    render();
+    return;
+  }
   saveState();
   render();
+  showEmployeeChangeConfirmation(result);
 }
 
 function handleRosterUpload(event){
@@ -6364,6 +7269,7 @@ function handleRosterUpload(event){
       const nameIndex = headers.findIndex(header => header.includes('name'));
       const communityIndex = headers.findIndex(header => header.includes('community'));
       const roleIndex = headers.findIndex(header => header.includes('role') || header.includes('title'));
+      const effectiveDateIndex = headers.findIndex(header => header.includes('effective date') || header.includes('effective start') || header === 'effective');
       const regionIndex = headers.findIndex(header => header.includes('region') || header.includes('area'));
       const departmentIndex = headers.findIndex(header => header.includes('department'));
       const emailIndex = headers.findIndex(header => header.includes('email'));
@@ -6381,11 +7287,17 @@ function handleRosterUpload(event){
 
       let added = 0;
       let updated = 0;
+      const exceptions = [];
 
       rows.slice(1).forEach(row => {
         const name = String(row[nameIndex] || '').trim();
         if(!name) return;
 
+        const effectiveDate = effectiveDateIndex >= 0 ? normalizeIsoDate(row[effectiveDateIndex]) : '';
+        if(!effectiveDate){
+          exceptions.push(`${name}: missing Effective Date`);
+          return;
+        }
         const community = communityIndex >= 0 ? String(row[communityIndex] || '').trim() : currentDefaultCommunity();
         const role = roleIndex >= 0 ? String(row[roleIndex] || '').trim() : 'Leasing Professional';
         const region = regionIndex >= 0 ? inferRegionFromText(row[regionIndex]) : currentDefaultRegion();
@@ -6398,29 +7310,36 @@ function handleRosterUpload(event){
           ? resolveManagerId(regionalManagerIdIndex >= 0 ? row[regionalManagerIdIndex] : '', regionalManagerName)
           : '';
 
-        const outcome = upsertEmployeeRecord({
-          name,
-          community,
-          role,
-          region,
-          managerId,
-          managerName,
-          regionalManagerId,
-          regionalManagerName,
-          department: departmentIndex >= 0 ? String(row[departmentIndex] || '').trim() : '',
-          email: emailIndex >= 0 ? String(row[emailIndex] || '').trim() : '',
-          employeeNumber: numberIndex >= 0 ? String(row[numberIndex] || '').trim() : '',
-          status: statusIndex >= 0 ? String(row[statusIndex] || '').trim() || 'Active' : 'Active',
-          statusType: statusTypeIndex >= 0 ? String(row[statusTypeIndex] || '').trim() : ''
-        });
-        if(outcome === 'added') added += 1;
-        else updated += 1;
+        try{
+          const outcome = upsertEmployeeRecord({
+            name,
+            community,
+            role,
+            region,
+            managerId,
+            managerName,
+            regionalManagerId,
+            regionalManagerName,
+            department: departmentIndex >= 0 ? String(row[departmentIndex] || '').trim() : '',
+            email: emailIndex >= 0 ? String(row[emailIndex] || '').trim() : '',
+            employeeNumber: numberIndex >= 0 ? String(row[numberIndex] || '').trim() : '',
+            status: statusIndex >= 0 ? String(row[statusIndex] || '').trim() || 'Active' : 'Active',
+            statusType: statusTypeIndex >= 0 ? String(row[statusTypeIndex] || '').trim() : '',
+            effectiveDate,
+            source: 'roster_upload',
+            changeReason: `Roster upload: ${file.name}`
+          });
+          if(outcome === 'added') added += 1;
+          else updated += 1;
+        }catch(error){
+          exceptions.push(`${name}: ${error.message}`);
+        }
       });
 
       saveState();
       render();
       const nextStatus = document.getElementById('roster-status');
-      if(nextStatus) nextStatus.innerHTML = `<div class="alert alert-success">${added} employee${added === 1 ? '' : 's'} added and ${updated} updated from ${escapeHtml(file.name)}.</div>`;
+      if(nextStatus) nextStatus.innerHTML = `<div class="alert ${exceptions.length ? 'alert-warn' : 'alert-success'}">${added} employee${added === 1 ? '' : 's'} added and ${updated} updated from ${escapeHtml(file.name)}.${exceptions.length ? ` ${exceptions.length} row${exceptions.length === 1 ? '' : 's'} flagged for review: ${escapeHtml(exceptions.slice(0,4).join('; '))}${exceptions.length > 4 ? '...' : ''}` : ''}</div>`;
     }catch(error){
       if(status) status.innerHTML = `<div class="alert alert-danger">Upload error: ${escapeHtml(error.message)}</div>`;
     }
@@ -6430,9 +7349,9 @@ function handleRosterUpload(event){
 
 function downloadRosterTemplate(){
   const csv = [
-    '"Name","Community","Region","Role","Department","Work Email","Employee Number","Status","Status Type","Manager","Regional Manager"',
-    '"Jane Smith","Nocatee","east","Leasing Professional","LP - Nocatee","jane.smith@risere.com","681151","Active","Full Time","West Manager","East Manager"',
-    '"John Doe","Pilots Pointe","east","Leasing Manager","LM - Pilots Pointe","john.doe@risere.com","681152","Active","Full Time","Student Manager 1","West Manager"'
+    '"Name","Community","Effective Date","Region","Role","Department","Work Email","Employee Number","Status","Status Type","Manager","Regional Manager"',
+    '"Jane Smith","Nocatee","2026-08-01","east","Leasing Professional","LP - Nocatee","jane.smith@risere.com","681151","Active","Full Time","West Manager","East Manager"',
+    '"John Doe","Pilots Pointe","2026-08-01","east","Leasing Manager","LM - Pilots Pointe","john.doe@risere.com","681152","Active","Full Time","Student Manager 1","West Manager"'
   ].join('\n');
   const link = document.createElement('a');
   link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
@@ -10632,6 +11551,18 @@ function resetAllData(){
     return;
   }
   if(!confirm('Clear all saved users, settings, employees, plans, and write-ups from this browser, then reload the published company roster?')) return;
+  try{
+    const resetBatchId = fallbackId('reset');
+    createPeopleReadOnlySnapshot('Before admin reset all People data', resetBatchId);
+    saveState();
+    localStorage.setItem(`${STORAGE_KEY}_pre_reset_backup_${Date.now()}`, JSON.stringify({
+      createdAt: new Date().toISOString(),
+      batchId: resetBatchId,
+      state: STATE
+    }));
+  }catch(error){
+    if(!confirm(`Atlas could not create the pre-reset snapshot (${error.message}). Continue anyway?`)) return;
+  }
   STATE = {
     users: makeDefaultUsers(),
     settings: makeDefaultSettings(),
@@ -10640,6 +11571,7 @@ function resetAllData(){
     writeups: [],
     correspondence: makeCorrespondenceLog(),
     employeeEvents: makeEmployeeEventLog(),
+    ...makeEmptyPeopleHistoryState(),
     rosterVersion: '',
     currentView: 'dashboard',
     currentUser: null
@@ -10663,6 +11595,7 @@ function resetAllData(){
   bootstrapCompanyRoster();
 }
 
+ensureEmployeeHistoryState({ persist:true });
 render();
 bootstrapCompanyRoster();
 setTimeout(() => {

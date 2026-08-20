@@ -3775,7 +3775,7 @@ function normalizeRegionalAssignments(data) {
   }));
 }
 
-const ATLAS_SHARED_DATA_SCHEMA_VERSION = 1;
+const ATLAS_SHARED_DATA_SCHEMA_VERSION = 2;
 const SHARED_COMMUNITY_ALIASES = {
   "bartram": "Bartram Park",
   "beacon": "UTK - Beacon Hall",
@@ -3914,7 +3914,12 @@ function defaultAtlasSharedData() {
     schemaVersion: ATLAS_SHARED_DATA_SCHEMA_VERSION,
     employees: {},
     assignments: [],
+    employeeChangeEvents: [],
+    migrationBatches: [],
+    readOnlySnapshotCount: 0,
+    historyBacked: false,
     lastPeopleSyncAt: "",
+    lastPeopleHistorySyncAt: "",
     lastPeopleRosterVersion: "",
     lastPeopleSource: "",
     validationIssues: []
@@ -3938,6 +3943,13 @@ function normalizeSharedEmployeeRecord(employee = {}) {
     communityName: String(source.communityName ?? "").trim(),
     communityInput: String(source.communityInput ?? "").trim(),
     bonusRoleType: String(source.bonusRoleType ?? source.roleType ?? "").trim(),
+    managerId: String(source.managerId ?? "").trim(),
+    managerName: String(source.managerName ?? "").trim(),
+    regionalManagerId: String(source.regionalManagerId ?? "").trim(),
+    regionalManagerName: String(source.regionalManagerName ?? "").trim(),
+    region: String(source.region ?? "").trim(),
+    sourceChangeId: String(source.sourceChangeId ?? "").trim(),
+    historyBacked: Boolean(source.historyBacked),
     effectiveStart: normalizeSharedDate(source.effectiveStart),
     effectiveEnd: normalizeSharedDate(source.effectiveEnd),
     active: source.active !== false,
@@ -3963,9 +3975,18 @@ function normalizeSharedAssignmentRecord(assignment = {}) {
     bonusRoleType,
     title,
     status: String(source.status ?? "Active").trim() || "Active",
+    peopleEmployeeId: String(source.peopleEmployeeId ?? "").trim(),
+    managerId: String(source.managerId ?? "").trim(),
+    managerName: String(source.managerName ?? "").trim(),
+    regionalManagerId: String(source.regionalManagerId ?? "").trim(),
+    regionalManagerName: String(source.regionalManagerName ?? "").trim(),
+    region: String(source.region ?? "").trim(),
     primary: source.primary !== false,
     effectiveStart,
     effectiveEnd: normalizeSharedDate(source.effectiveEnd),
+    recordStatus: String(source.recordStatus ?? "active").trim() || "active",
+    sourceChangeId: String(source.sourceChangeId ?? "").trim(),
+    migrationBatchId: String(source.migrationBatchId ?? "").trim(),
     source: String(source.source ?? "people").trim(),
     sourceUpdatedAt: String(source.sourceUpdatedAt ?? "").trim()
   };
@@ -3984,7 +4005,12 @@ function normalizeAtlasSharedData(data = {}) {
     schemaVersion: ATLAS_SHARED_DATA_SCHEMA_VERSION,
     employees,
     assignments: (Array.isArray(input.assignments) ? input.assignments : []).map(normalizeSharedAssignmentRecord).filter(item => item.employeeId && item.communityName && item.bonusRoleType),
+    employeeChangeEvents: Array.isArray(input.employeeChangeEvents) ? input.employeeChangeEvents.slice(0, 500) : [],
+    migrationBatches: Array.isArray(input.migrationBatches) ? input.migrationBatches.slice(0, 100) : [],
+    readOnlySnapshotCount: Number(input.readOnlySnapshotCount || 0),
+    historyBacked: Boolean(input.historyBacked),
     lastPeopleSyncAt: String(input.lastPeopleSyncAt ?? ""),
+    lastPeopleHistorySyncAt: String(input.lastPeopleHistorySyncAt ?? ""),
     lastPeopleRosterVersion: String(input.lastPeopleRosterVersion ?? ""),
     lastPeopleSource: String(input.lastPeopleSource ?? ""),
     validationIssues: Array.isArray(input.validationIssues) ? input.validationIssues.slice(0, 100) : []
@@ -4001,17 +4027,22 @@ function loadPeoplePlatformStateForSharedData() {
     const parsed = raw ? JSON.parse(raw) : {};
     return {
       employees: Array.isArray(parsed.employees) ? parsed.employees : [],
+      employeeAssignments: Array.isArray(parsed.employeeAssignments) ? parsed.employeeAssignments : [],
+      employeeChangeEvents: Array.isArray(parsed.employeeChangeEvents) ? parsed.employeeChangeEvents : [],
+      migrationBatches: Array.isArray(parsed.migrationBatches) ? parsed.migrationBatches : [],
+      readOnlySnapshotCount: Array.isArray(parsed.readOnlySnapshots) ? parsed.readOnlySnapshots.length : 0,
       rosterVersion: String(parsed.rosterVersion ?? ""),
       source: PERFORMANCE_PLATFORM_STORAGE_KEY
     };
   } catch {
-    return { employees: [], rosterVersion: "", source: PERFORMANCE_PLATFORM_STORAGE_KEY };
+    return { employees: [], employeeAssignments: [], employeeChangeEvents: [], migrationBatches: [], readOnlySnapshotCount: 0, rosterVersion: "", source: PERFORMANCE_PLATFORM_STORAGE_KEY };
   }
 }
 
 function isSharedPeopleEmployeeActive(employee = {}) {
   const status = String(employee.status ?? "").trim().toLowerCase();
-  if (status.includes("terminated") || status.includes("inactive")) return false;
+  if (status.includes("terminated") || status.includes("inactive") || status.includes("archived")) return false;
+  if (employee.archived) return false;
   if (normalizeSharedDate(employee.terminationDate)) return false;
   const explicitEnd = getSharedDateFromEmployee(employee, SHARED_ASSIGNMENT_END_DATE_FIELDS);
   const todayTime = sharedDateTime(getAtlasTodayISODate());
@@ -4037,10 +4068,62 @@ function normalizePeopleEmployeeForSharedData(employee = {}, meta = {}) {
     communityName: community.communityName,
     communityInput: community.sourceValue,
     bonusRoleType,
+    managerId: employee.managerId,
+    managerName: employee.managerName,
+    regionalManagerId: employee.regionalManagerId,
+    regionalManagerName: employee.regionalManagerName,
+    region: employee.region,
+    historyBacked: Array.isArray(employee.employeeAssignments),
     effectiveStart: getSharedDateFromEmployee(employee),
     effectiveEnd: getSharedDateFromEmployee(employee, SHARED_ASSIGNMENT_END_DATE_FIELDS),
     active: isSharedPeopleEmployeeActive(employee),
     source: meta.source || "people",
+    sourceUpdatedAt: meta.syncedAt || ""
+  });
+}
+
+function normalizePeopleAssignmentForSharedData(assignment = {}, employeeLookup = new Map(), meta = {}) {
+  const source = assignment && typeof assignment === "object" ? assignment : {};
+  if (String(source.recordStatus ?? "active") === "superseded") return null;
+  const peopleEmployee = employeeLookup.get(String(source.employeeId ?? "")) || {};
+  const employeeForIdentity = {
+    ...peopleEmployee,
+    id: source.employeeId || peopleEmployee.id,
+    employeeNumber: peopleEmployee.employeeNumber,
+    email: peopleEmployee.email,
+    name: source.employeeName || peopleEmployee.name,
+    role: source.role || peopleEmployee.role,
+    community: source.community || peopleEmployee.community
+  };
+  const stableId = getSharedEmployeeStableId(employeeForIdentity);
+  const community = resolveSharedCommunityForEmployee({
+    ...peopleEmployee,
+    community: source.community || peopleEmployee.community,
+    department: peopleEmployee.department
+  });
+  const title = String(source.role ?? peopleEmployee.role ?? "").trim();
+  const bonusRoleType = inferSharedBonusRoleType(title);
+  const status = String(source.status ?? peopleEmployee.status ?? "Active").trim() || "Active";
+  return normalizeSharedAssignmentRecord({
+    assignmentId: String(source.id || makeSharedAssignmentId(stableId, community.communityName, bonusRoleType, source.effectiveStart)),
+    employeeId: stableId,
+    peopleEmployeeId: String(source.employeeId || peopleEmployee.id || ""),
+    employeeName: String(source.employeeName || peopleEmployee.name || "").trim(),
+    communityName: community.communityName,
+    bonusRoleType,
+    title,
+    status,
+    managerId: source.managerId || peopleEmployee.managerId,
+    managerName: source.managerName || peopleEmployee.managerName,
+    regionalManagerId: source.regionalManagerId || peopleEmployee.regionalManagerId,
+    regionalManagerName: source.regionalManagerName || peopleEmployee.regionalManagerName,
+    region: source.region || peopleEmployee.region,
+    effectiveStart: source.effectiveStart,
+    effectiveEnd: source.effectiveEnd,
+    recordStatus: source.recordStatus || "active",
+    sourceChangeId: source.sourceChangeId || "",
+    migrationBatchId: source.migrationBatchId || "",
+    source: source.source || meta.source || "people_assignment_history",
     sourceUpdatedAt: meta.syncedAt || ""
   });
 }
@@ -4152,7 +4235,8 @@ function validateAtlasSharedData(data = atlasSharedData) {
     } else if (endTime != null && startTime > endTime) {
       addIssue("error", "invalid_effective_range", `${assignment.employeeName || assignment.employeeId} has an assignment ending before it starts.`, { assignmentId: assignment.assignmentId });
     }
-    if (!assignment.effectiveEnd) {
+    const assignmentStatus = String(assignment.status || "").toLowerCase();
+    if (!assignment.effectiveEnd && assignment.recordStatus !== "superseded" && !assignmentStatus.includes("terminated") && !assignmentStatus.includes("inactive") && !assignmentStatus.includes("archived")) {
       openByEmployee[assignment.employeeId] = openByEmployee[assignment.employeeId] || [];
       openByEmployee[assignment.employeeId].push(assignment);
     }
@@ -4181,9 +4265,13 @@ function syncSharedPeopleAssignments(options = {}) {
   const previousComparable = JSON.stringify({
     employees: sharedData.employees,
     assignments: sharedData.assignments,
-    rosterVersion: sharedData.lastPeopleRosterVersion
+    employeeChangeEvents: sharedData.employeeChangeEvents,
+    migrationBatches: sharedData.migrationBatches,
+    rosterVersion: sharedData.lastPeopleRosterVersion,
+    historyBacked: sharedData.historyBacked
   });
   const employees = {};
+  const employeeLookup = new Map(peopleState.employees.map(employee => [String(employee.id ?? ""), employee]));
   const normalizedPeople = peopleState.employees
     .map(employee => normalizePeopleEmployeeForSharedData(employee, { source: peopleState.source, syncedAt }))
     .filter(employee => employee.name);
@@ -4191,25 +4279,52 @@ function syncSharedPeopleAssignments(options = {}) {
     employees[employee.employeeId] = employee;
   });
   sharedData.employees = employees;
-  const hasExistingAssignments = sharedData.assignments.length > 0;
-  const rosterVersionDate = normalizeSharedDate(peopleState.rosterVersion);
-  normalizedPeople.forEach(employee => {
-    if (!employee.active) {
-      closeOpenSharedAssignments(sharedData, employee.employeeId, employee.terminationDate || getAtlasTodayISODate(), "terminated");
-      return;
-    }
-    if (!employee.communityName || !employee.bonusRoleType) return;
-    const existingOpen = sharedData.assignments.some(assignment => assignment.employeeId === employee.employeeId && !assignment.effectiveEnd);
-    const start = existingOpen || hasExistingAssignments ? getAtlasTodayISODate() : (rosterVersionDate || getAtlasTodayISODate());
-    upsertSharedAssignmentForEmployee(sharedData, employee, { effectiveStart: start, syncedAt });
-  });
+  const historyAssignments = peopleState.employeeAssignments
+    .map(assignment => normalizePeopleAssignmentForSharedData(assignment, employeeLookup, { source: peopleState.source, syncedAt }))
+    .filter(assignment => assignment && assignment.employeeId && assignment.communityName && assignment.bonusRoleType);
+  if (historyAssignments.length) {
+    const peopleSources = new Set([
+      "people",
+      peopleState.source,
+      "legacy_people_roster_snapshot",
+      "people_change",
+      "roster_upload",
+      "published_company_roster",
+      "people_roster_new_employee",
+      "people_assignment_history"
+    ]);
+    const nonPeopleAssignments = sharedData.assignments.filter(assignment => !peopleSources.has(String(assignment.source || "")));
+    sharedData.assignments = [...nonPeopleAssignments, ...historyAssignments];
+    sharedData.historyBacked = true;
+    sharedData.employeeChangeEvents = peopleState.employeeChangeEvents.slice(0, 500);
+    sharedData.migrationBatches = peopleState.migrationBatches.slice(0, 100);
+    sharedData.readOnlySnapshotCount = peopleState.readOnlySnapshotCount;
+    sharedData.lastPeopleHistorySyncAt = syncedAt;
+  } else {
+    const hasExistingAssignments = sharedData.assignments.length > 0;
+    const rosterVersionDate = normalizeSharedDate(peopleState.rosterVersion);
+    normalizedPeople.forEach(employee => {
+      if (!employee.active) {
+        closeOpenSharedAssignments(sharedData, employee.employeeId, employee.terminationDate || getAtlasTodayISODate(), "terminated");
+        return;
+      }
+      if (!employee.communityName || !employee.bonusRoleType) return;
+      const existingOpen = sharedData.assignments.some(assignment => assignment.employeeId === employee.employeeId && !assignment.effectiveEnd);
+      const start = existingOpen || hasExistingAssignments ? getAtlasTodayISODate() : (rosterVersionDate || getAtlasTodayISODate());
+      upsertSharedAssignmentForEmployee(sharedData, employee, { effectiveStart: start, syncedAt });
+    });
+    sharedData.historyBacked = false;
+  }
   sharedData.lastPeopleRosterVersion = peopleState.rosterVersion;
   sharedData.lastPeopleSource = peopleState.source;
   sharedData.validationIssues = validateAtlasSharedData(sharedData);
   const nextComparable = JSON.stringify({
     employees: sharedData.employees,
     assignments: sharedData.assignments,
-    rosterVersion: sharedData.lastPeopleRosterVersion
+    employeeChangeEvents: sharedData.employeeChangeEvents,
+    migrationBatches: sharedData.migrationBatches,
+    rosterVersion: sharedData.lastPeopleRosterVersion,
+    historyBacked: sharedData.historyBacked
   });
   const changed = previousComparable !== nextComparable;
   if (changed || !sharedData.lastPeopleSyncAt) sharedData.lastPeopleSyncAt = syncedAt;
@@ -4219,7 +4334,7 @@ function syncSharedPeopleAssignments(options = {}) {
     changed,
     employeeCount: normalizedPeople.length,
     assignmentCount: sharedData.assignments.length,
-    currentAssignmentCount: sharedData.assignments.filter(assignment => !assignment.effectiveEnd).length
+    currentAssignmentCount: sharedData.assignments.filter(assignment => isSharedAssignmentActiveOnDate(assignment, getAtlasTodayISODate())).length
   };
 }
 
@@ -4243,6 +4358,8 @@ function getBonusAssignmentAsOfDate(quarter = bonusQuarter, year = new Date().ge
 }
 
 function isSharedAssignmentActiveOnDate(assignment, asOfDate) {
+  const status = String(assignment.status ?? "").trim().toLowerCase();
+  if (assignment.recordStatus === "superseded" || status.includes("terminated") || status.includes("inactive") || status.includes("archived")) return false;
   const asOfTime = sharedDateTime(asOfDate);
   const startTime = sharedDateTime(assignment.effectiveStart);
   const endTime = assignment.effectiveEnd ? sharedDateTime(assignment.effectiveEnd) : null;
@@ -16918,7 +17035,9 @@ function renderBonusSharedDataPanel(propName = getProp().name) {
   const sharedData = normalizeAtlasSharedData(atlasSharedData);
   const assignments = getSharedAssignmentsForCommunity(propName);
   const employeeCount = Object.keys(sharedData.employees || {}).length;
-  const currentAssignmentCount = sharedData.assignments.filter(assignment => !assignment.effectiveEnd).length;
+  const currentAssignmentCount = sharedData.assignments.filter(assignment => isSharedAssignmentActiveOnDate(assignment, getAtlasTodayISODate())).length;
+  const changeCount = Array.isArray(sharedData.employeeChangeEvents) ? sharedData.employeeChangeEvents.length : 0;
+  const migrationCount = Array.isArray(sharedData.migrationBatches) ? sharedData.migrationBatches.length : 0;
   const issues = Array.isArray(sharedData.validationIssues) ? sharedData.validationIssues : [];
   const propertyIssues = issues.filter(issue =>
     !issue.communityName
@@ -16957,6 +17076,10 @@ function renderBonusSharedDataPanel(propName = getProp().name) {
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <span class="bonus-scope-pill">${employeeCount} People employees</span>
         <span class="bonus-scope-pill">${currentAssignmentCount} current assignments</span>
+        <span class="bonus-scope-pill">${sharedData.historyBacked ? "Effective-dated history" : "Current-row fallback"}</span>
+        <span class="bonus-scope-pill">${changeCount} employee changes</span>
+        <span class="bonus-scope-pill">${sharedData.readOnlySnapshotCount || 0} snapshots</span>
+        ${migrationCount ? `<span class="bonus-scope-pill">${migrationCount} migration batch${migrationCount === 1 ? "" : "es"}</span>` : ""}
         <span class="bonus-scope-pill">${sharedData.lastPeopleRosterVersion ? `Roster ${escapeHtml(sharedData.lastPeopleRosterVersion)}` : "Roster not versioned"}</span>
       </div>
     </div>

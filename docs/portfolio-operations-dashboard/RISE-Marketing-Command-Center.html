@@ -2536,6 +2536,7 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
 <!-- TOAST CONTAINER -->
 <div class="toast-container" id="toast-container"></div>
 
+<script src="centralization/atlas-central-client.js"></script>
 <script type="module">
 // ============================================================
 // SUPABASE CLIENT
@@ -2680,6 +2681,9 @@ const DB = {
       if (bs.weights && bs.weights.length) bonusWeights = bs.weights;
       if (bs.targets && bs.targets.length) bonusTargets = bs.targets;
     }
+    await pullMarketingSharedPropertyGraphFromCentral({ silent: true });
+    syncMarketingSharedGraphFromLoadedData({ source: 'marketing_load', persist: true });
+    applySharedPropertiesToMarketingState();
   },
 
   // ---- TEAM MEMBERS ----
@@ -2905,15 +2909,19 @@ function mapTeamMember(row) {
     peopleEmployeeCommunity: row.people_employee_community || '',
     peopleEmployeeRole: row.people_employee_role || '',
     peopleLinkedAt: row.people_linked_at || '',
+    communityIds: Array.isArray(row.community_ids) ? row.community_ids : [],
+    atlasCommunityIds: Array.isArray(row.atlas_community_ids) ? row.atlas_community_ids : [],
     peopleLinkPersistence: row.people_employee_id ? 'supabase_columns' : ''
   });
 }
 function teamMemberToRow(m, options = {}) {
   const row = { fname: m.fname, lname: m.lname, email: m.email, role: m.role,
     role_type: m.roleType, avatar_color: m.color, max_tickets: m.maxTickets,
-    skills: m.skills, properties: m.properties, status: m.status };
+    skills: m.skills, properties: m.properties, status: m.status,
+    community_ids: marketingCommunityLinkIdsForProperties(m.properties),
+    atlas_community_ids: marketingAtlasCommunityLinkIdsForProperties(m.properties) };
   if (options.includePeopleLink !== false) {
-    row.people_employee_id = m.peopleEmployeeId || null;
+    row.people_employee_id = marketingUuidOrNull(m.peopleEmployeeId);
     row.people_employee_number = m.peopleEmployeeNumber || null;
     row.people_employee_name = m.peopleEmployeeName || null;
     row.people_employee_status = m.peopleEmployeeStatus || null;
@@ -2924,25 +2932,65 @@ function teamMemberToRow(m, options = {}) {
   return row;
 }
 function mapProperty(row) {
-  return { _dbId: row.id, id: row.id, name: row.name, market: row.market,
-    type: row.property_type, gm: row.gm_name, gmEmail: row.gm_email,
-    regional: row.regional_name, regionalEmail: row.regional_email, status: row.status };
+  return {
+    _dbId: row.id,
+    id: row.id,
+    communityId: row.community_id || row.atlas_community_id || '',
+    atlasCommunityId: row.atlas_community_id || '',
+    canonicalName: row.canonical_name || marketingNormalizeText(row.name),
+    aliases: Array.isArray(row.aliases) ? row.aliases : [],
+    name: row.name,
+    market: row.market,
+    type: row.property_type,
+    gm: row.gm_name,
+    gmEmail: marketingNormalizeEmail(row.gm_email || ''),
+    regional: row.regional_name,
+    regionalEmail: marketingNormalizeEmail(row.regional_email || ''),
+    status: row.status,
+    owningPortfolio: row.owning_portfolio || '',
+    scopeSelections: Array.isArray(row.scope_selections) ? row.scope_selections : [],
+    gmEmployeeId: row.gm_employee_id || '',
+    regionalEmployeeId: row.regional_employee_id || '',
+    sharedSyncStatus: row.shared_sync_status || '',
+    sharedSyncSource: row.shared_sync_source || '',
+    sharedSyncUpdatedAt: row.shared_sync_updated_at || '',
+    sharedReviewFlags: Array.isArray(row.shared_review_flags) ? row.shared_review_flags : [],
+    _updatedAt: row.shared_sync_updated_at || row.updated_at || row.created_at || ''
+  };
 }
 function propertyToRow(p) {
-  return { name: p.name, market: p.market, property_type: p.type,
-    gm_name: p.gm, gm_email: p.gmEmail, regional_name: p.regional,
-    regional_email: p.regionalEmail, status: p.status };
+  return {
+    name: p.name,
+    market: p.market,
+    property_type: p.type,
+    gm_name: p.gm,
+    gm_email: p.gmEmail,
+    regional_name: p.regional,
+    regional_email: p.regionalEmail,
+    status: p.status,
+    ...marketingPropertySharedRowFields(p)
+  };
 }
 function mapApprover(row) {
   return { _dbId: row.id, id: row.id, fname: row.fname, lname: row.lname || '',
     email: row.email, role: row.role, authority: row.authority,
     spendLimit: row.spend_limit ? String(row.spend_limit) : '',
-    properties: row.properties || [], status: row.status };
+    properties: row.properties || [], status: row.status,
+    peopleEmployeeId: row.people_employee_id || '',
+    peopleEmployeeNumber: row.people_employee_number || '',
+    peopleLinkedAt: row.people_linked_at || '',
+    communityIds: Array.isArray(row.community_ids) ? row.community_ids : [],
+    atlasCommunityIds: Array.isArray(row.atlas_community_ids) ? row.atlas_community_ids : [] };
 }
 function approverToRow(ap) {
   return { fname: ap.fname, lname: ap.lname, email: ap.email, role: ap.role,
     authority: ap.authority, spend_limit: ap.spendLimit ? parseFloat(ap.spendLimit) : null,
-    properties: ap.properties, status: ap.status };
+    properties: ap.properties, status: ap.status,
+    people_employee_id: marketingUuidOrNull(ap.peopleEmployeeId),
+    people_employee_number: ap.peopleEmployeeNumber || null,
+    people_linked_at: ap.peopleLinkedAt || null,
+    community_ids: marketingCommunityLinkIdsForProperties(ap.properties),
+    atlas_community_ids: marketingAtlasCommunityLinkIdsForProperties(ap.properties) };
 }
 function mapLeadSource(row) {
   return { _dbId: row.id, id: row.id, name: row.name, type: row.source_type,
@@ -2970,9 +3018,19 @@ function ticketToRow(t) {
     'cost_type','budget_line','vendor','assigned_to',
     'submitted_by_name','submitted_by_email',
     'ai_brief','visual_style','vibe','audience','dimensions',
-    'opened_at','closed_at','marketing_time_seconds','timer_paused'
+    'opened_at','closed_at','marketing_time_seconds','timer_paused',
+    'community_id','atlas_community_id','assigned_employee_id','submitted_by_user_id'
   ];
   allowed.forEach(k => { if (t[k] !== undefined) row[k] = t[k]; });
+  if (row.property_name) {
+    row.property_name = canonicalMarketingPropertyName(row.property_name);
+    const property = findMarketingPropertyByName(row.property_name);
+    row.community_id = row.community_id || property?.communityId || null;
+    row.atlas_community_id = marketingUuidOrNull(row.atlas_community_id || property?.atlasCommunityId || property?.communityId);
+  }
+  const assignee = teamData.find(member => String(member.id) === String(row.assigned_to) || String(member._dbId) === String(row.assigned_to));
+  row.assigned_employee_id = marketingUuidOrNull(row.assigned_employee_id || assignee?.peopleEmployeeId);
+  row.submitted_by_user_id = marketingUuidOrNull(row.submitted_by_user_id || currentUserProfile?.id || currentUser?.id);
   return row;
 }
 
@@ -3312,6 +3370,7 @@ async function bootApp() {
   updateUserChip();
   showToast('Loading data...', 'info');
   try { await DB.loadAll(); } catch (e) { console.warn('loadAll:', e); }
+  refreshMarketingSharedViews({ renderProperties: false });
   syncPropertyDropdown();
   syncRoutingMap();
   initLeadSources();
@@ -3475,6 +3534,13 @@ function initials(m) { return ((m.fname||'')[0] + (m.lname||'')[0]).toUpperCase(
 
 const PEOPLE_DIRECTORY_STORAGE_KEY = 'rise_performance_platform_github_v1';
 const MARKETING_PEOPLE_LINKS_STORAGE_KEY = 'atlas_marketing_people_links_v1';
+const OPS_PROPERTY_CATALOG_KEY = 'rise_ops_property_catalog_v1';
+const ATLAS_SHARED_PROPERTY_GRAPH_KEY = 'atlas_shared_property_graph_v1';
+const ATLAS_SHARED_PROPERTY_GRAPH_SCHEMA_VERSION = 1;
+const ATLAS_SHARED_PROPERTY_SOURCE_ID = 'marketing_command_center';
+const MARKETING_SHARED_VALID_MARKETS = ['Florida', 'Mid-Atlantic', 'Southeast', 'Northeast'];
+const MARKETING_SHARED_VALID_PROPERTY_TYPES = ['Multifamily', 'Student Housing', 'Active Adult (55+)', 'High Rise', 'Manufactured Home'];
+const MARKETING_SHARED_VALID_STATUSES = ['active', 'inactive'];
 const MARKETING_PEOPLE_LINK_COLUMNS = [
   'people_employee_id',
   'people_employee_number',
@@ -3499,8 +3565,737 @@ const PEOPLE_PROPERTY_ALIASES = {
 };
 
 function marketingNormalizeText(value) {
-  return String(value || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+  return String(value || '').toLowerCase().replace(/&/g, ' and ').replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
 }
+
+function marketingUuidOrNull(value) {
+  const clean = String(value || "").trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean) ? clean : null;
+}
+
+function marketingCompactStrings(values) {
+  const list = Array.isArray(values) ? values : [values];
+  return Array.from(new Set(list.map(item => String(item ?? "").trim()).filter(Boolean)));
+}
+
+function findMarketingPropertyByName(value) {
+  const signatures = marketingPropertySignatureSet(value);
+  return propertiesData.find(prop => marketingSetsOverlap(marketingPropertySignatureSet([prop.name, prop.communityId, prop.atlasCommunityId]), signatures));
+}
+
+function marketingCommunityLinkIdsForProperties(values) {
+  return marketingCompactStrings((Array.isArray(values) ? values : []).map(name => findMarketingPropertyByName(name)?.communityId));
+}
+
+function marketingAtlasCommunityLinkIdsForProperties(values) {
+  return marketingCompactStrings((Array.isArray(values) ? values : []).map(name => {
+    const property = findMarketingPropertyByName(name);
+    return marketingUuidOrNull(property?.atlasCommunityId || property?.communityId);
+  }));
+}
+
+function applyMarketingSharedRecordToProperty(prop, record = {}) {
+  if (!prop || !record) return prop;
+  prop.communityId = record.communityId || prop.communityId || "";
+  prop.atlasCommunityId = record.sourceIds?.atlasCommunityId || record.atlasCommunityId || prop.atlasCommunityId || "";
+  prop.canonicalName = record.canonicalName || prop.canonicalName || marketingNormalizeText(prop.name);
+  prop.aliases = marketingCompactStrings([...(Array.isArray(prop.aliases) ? prop.aliases : []), ...(Array.isArray(record.aliases) ? record.aliases : []), prop.name]);
+  prop.owningPortfolio = record.owningPortfolio || prop.owningPortfolio || "RISE Residential";
+  prop.scopeSelections = marketingCompactStrings(record.scopeSelections?.length ? record.scopeSelections : [prop.owningPortfolio, prop.name]);
+  prop.gmEmployeeId = marketingUuidOrNull(record.generalManagerUserId) || prop.gmEmployeeId || "";
+  prop.regionalEmployeeId = marketingUuidOrNull(record.regionalManagerUserId) || prop.regionalEmployeeId || "";
+  prop.sharedReviewFlags = Array.isArray(record.reviewFlags) ? record.reviewFlags : [];
+  prop.sharedSyncStatus = prop.sharedReviewFlags.length ? "review" : "synced";
+  prop.sharedSyncSource = record.fieldMeta?.displayName?.source || prop.sharedSyncSource || "marketing_settings_properties";
+  prop.sharedSyncUpdatedAt = record.updatedAt || prop.sharedSyncUpdatedAt || marketingSharedNow();
+  return prop;
+}
+
+function marketingPropertySharedRowFields(p = {}) {
+  const communityId = String(p.communityId || p.community_id || p.atlasCommunityId || "").trim() || marketingSharedCommunityId(p.name);
+  const reviewFlags = Array.isArray(p.sharedReviewFlags) ? p.sharedReviewFlags : [];
+  const scopeSelections = marketingCompactStrings(
+    p.scopeSelections?.length ? p.scopeSelections : [p.owningPortfolio, p.name]
+  );
+  return {
+    community_id: communityId || null,
+    atlas_community_id: marketingUuidOrNull(p.atlasCommunityId || p.atlas_community_id || communityId),
+    canonical_name: String(p.canonicalName || marketingNormalizeText(p.name)).trim() || null,
+    aliases: marketingCompactStrings([...(Array.isArray(p.aliases) ? p.aliases : []), p.name, communityId]),
+    owning_portfolio: String(p.owningPortfolio || "RISE Residential").trim(),
+    scope_selections: scopeSelections,
+    gm_employee_id: marketingUuidOrNull(p.gmEmployeeId || p.generalManagerUserId),
+    regional_employee_id: marketingUuidOrNull(p.regionalEmployeeId || p.regionalManagerUserId),
+    shared_sync_status: reviewFlags.length ? "review" : "synced",
+    shared_sync_source: String(p.sharedSyncSource || "marketing_settings_properties").trim(),
+    shared_sync_updated_at: String(p.sharedSyncUpdatedAt || p._updatedAt || marketingSharedNow()),
+    shared_review_flags: reviewFlags
+  };
+}
+
+function marketingEscapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function marketingSharedNow() {
+  return new Date().toISOString();
+}
+
+function marketingSharedObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function marketingNormalizeEmail(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function marketingValidEmail(value) {
+  const email = marketingNormalizeEmail(value);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function marketingSharedSlug(value) {
+  return marketingNormalizeText(value).replace(/\s+/g, "-") || "unassigned";
+}
+
+function marketingSharedCommunityId(name) {
+  return `community:${marketingSharedSlug(name)}`;
+}
+
+function marketingDefaultSharedGraph() {
+  return {
+    schemaVersion: ATLAS_SHARED_PROPERTY_GRAPH_SCHEMA_VERSION,
+    updatedAt: "",
+    lastWriter: "",
+    properties: {},
+    people: {},
+    settings: { routingRules: [], approvalRules: [], slaRules: [], bonusSettings: {}, updatedAt: "" },
+    mappingIssues: [],
+    auditTrail: []
+  };
+}
+
+function marketingNormalizeSharedPropertyRecord(record, fallbackKey = "") {
+  const raw = marketingSharedObject(record);
+  const displayName = String(raw.displayName || raw.name || raw.propertyName || fallbackKey || "").trim();
+  const communityId = String(raw.communityId || raw.id || marketingSharedCommunityId(displayName)).trim();
+  const aliases = Array.isArray(raw.aliases) ? raw.aliases.map(item => String(item ?? "").trim()).filter(Boolean) : [];
+  if (displayName && !aliases.some(alias => marketingNormalizeText(alias) === marketingNormalizeText(displayName))) aliases.push(displayName);
+  return {
+    communityId,
+    canonicalName: String(raw.canonicalName || marketingNormalizeText(displayName) || communityId).trim(),
+    displayName,
+    aliases: Array.from(new Set(aliases)),
+    market: String(raw.market || "").trim(),
+    regionalGrouping: String(raw.regionalGrouping || raw.region || raw.market || "").trim(),
+    propertyType: String(raw.propertyType || raw.type || "").trim(),
+    generalManagerName: String(raw.generalManagerName || raw.gm || "").trim(),
+    generalManagerEmail: marketingNormalizeEmail(raw.generalManagerEmail || raw.gmEmail || ""),
+    generalManagerUserId: String(raw.generalManagerUserId || raw.gmUserId || "").trim(),
+    regionalManagerName: String(raw.regionalManagerName || raw.regional || "").trim(),
+    regionalManagerEmail: marketingNormalizeEmail(raw.regionalManagerEmail || raw.regionalEmail || ""),
+    regionalManagerUserId: String(raw.regionalManagerUserId || raw.regionalUserId || "").trim(),
+    status: String(raw.status || "active").trim().toLowerCase() === "inactive" ? "inactive" : "active",
+    owningPortfolio: String(raw.owningPortfolio || raw.portfolio || "").trim(),
+    scopeSelections: Array.isArray(raw.scopeSelections) ? raw.scopeSelections.map(item => String(item ?? "").trim()).filter(Boolean) : [],
+    sourceIds: marketingSharedObject(raw.sourceIds),
+    sourceUpdatedAt: marketingSharedObject(raw.sourceUpdatedAt),
+    fieldMeta: marketingSharedObject(raw.fieldMeta),
+    reviewFlags: Array.isArray(raw.reviewFlags) ? raw.reviewFlags.map(item => String(item ?? "").trim()).filter(Boolean) : [],
+    createdAt: String(raw.createdAt || raw.updatedAt || marketingSharedNow()),
+    updatedAt: String(raw.updatedAt || "")
+  };
+}
+
+function marketingNormalizeSharedGraph(input) {
+  const defaults = marketingDefaultSharedGraph();
+  const raw = marketingSharedObject(input);
+  const graph = {
+    ...defaults,
+    ...raw,
+    schemaVersion: ATLAS_SHARED_PROPERTY_GRAPH_SCHEMA_VERSION,
+    properties: {},
+    people: {},
+    settings: { ...defaults.settings, ...marketingSharedObject(raw.settings) },
+    mappingIssues: Array.isArray(raw.mappingIssues) ? raw.mappingIssues.slice(-80) : [],
+    auditTrail: Array.isArray(raw.auditTrail) ? raw.auditTrail.slice(-200) : []
+  };
+  Object.entries(marketingSharedObject(raw.properties)).forEach(([key, value]) => {
+    const record = marketingNormalizeSharedPropertyRecord(value, key);
+    if (record.displayName) graph.properties[record.communityId] = record;
+  });
+  Object.entries(marketingSharedObject(raw.people)).forEach(([key, value]) => {
+    const person = marketingSharedObject(value);
+    const email = marketingNormalizeEmail(person.email);
+    const personId = String(person.personId || person.userId || person.peopleEmployeeId || (email ? `email:${email}` : key)).trim();
+    if (!personId) return;
+    graph.people[personId] = {
+      personId,
+      userId: String(person.userId || person.peopleEmployeeId || "").trim(),
+      email,
+      displayName: String(person.displayName || person.name || "").trim(),
+      role: String(person.role || "").trim(),
+      sourceIds: marketingSharedObject(person.sourceIds),
+      fieldMeta: marketingSharedObject(person.fieldMeta),
+      updatedAt: String(person.updatedAt || "")
+    };
+  });
+  return graph;
+}
+
+function readMarketingSharedPropertyGraph() {
+  try {
+    const raw = localStorage.getItem(ATLAS_SHARED_PROPERTY_GRAPH_KEY);
+    return marketingNormalizeSharedGraph(raw ? JSON.parse(raw) : null);
+  } catch {
+    return marketingDefaultSharedGraph();
+  }
+}
+
+function writeMarketingSharedPropertyGraph(graph, options = {}) {
+  const normalized = marketingNormalizeSharedGraph(graph);
+  normalized.updatedAt = String(options.updatedAt || normalized.updatedAt || marketingSharedNow());
+  normalized.lastWriter = String(options.source || normalized.lastWriter || ATLAS_SHARED_PROPERTY_SOURCE_ID);
+  try {
+    localStorage.setItem(ATLAS_SHARED_PROPERTY_GRAPH_KEY, JSON.stringify(normalized));
+  } catch (error) {
+    console.warn("Shared property graph could not be saved", error);
+  }
+  const centralStatus = window.ATLAS_CENTRAL?.getStatus ? window.ATLAS_CENTRAL.getStatus() : null;
+  if (window.ATLAS_CENTRAL?.saveSharedPropertyGraph && centralStatus?.configured && centralStatus?.signedIn && options.central !== false) {
+    void window.ATLAS_CENTRAL.saveSharedPropertyGraph(normalized, {
+      sourceModule: options.source || ATLAS_SHARED_PROPERTY_SOURCE_ID,
+      metadata: { syncSource: options.source || ATLAS_SHARED_PROPERTY_SOURCE_ID }
+    }).catch(() => null);
+  }
+  return normalized;
+}
+
+async function pullMarketingSharedPropertyGraphFromCentral(options = {}) {
+  try {
+    const centralStatus = window.ATLAS_CENTRAL?.getStatus ? window.ATLAS_CENTRAL.getStatus() : null;
+    if (!centralStatus?.configured || !centralStatus?.signedIn || !window.ATLAS_CENTRAL?.readSharedPropertyGraph) return null;
+    const document = await window.ATLAS_CENTRAL.readSharedPropertyGraph();
+    if (!document?.payload) return null;
+    const remoteGraph = marketingNormalizeSharedGraph(document.payload);
+    const graph = readMarketingSharedPropertyGraph();
+    let changed = false;
+    Object.values(remoteGraph.people || {}).forEach(person => {
+      const result = marketingUpsertSharedPerson(graph, {
+        userId: person.userId,
+        displayName: person.displayName,
+        email: person.email,
+        role: person.role,
+        sourceIds: person.sourceIds,
+        updatedAt: person.updatedAt
+      }, { source: "atlas_central_shared_graph", timestamp: person.updatedAt || remoteGraph.updatedAt || document.updated_at || marketingSharedNow() });
+      changed = result.changed || changed;
+    });
+    Object.values(remoteGraph.properties || {}).forEach(record => {
+      const result = marketingUpsertSharedProperty(graph, {
+        communityId: record.communityId,
+        atlasCommunityId: record.sourceIds?.atlasCommunityId || "",
+        name: record.displayName,
+        market: record.market,
+        regionalGrouping: record.regionalGrouping,
+        propertyType: record.propertyType,
+        generalManagerName: record.generalManagerName,
+        generalManagerEmail: record.generalManagerEmail,
+        generalManagerUserId: record.generalManagerUserId,
+        regionalManagerName: record.regionalManagerName,
+        regionalManagerEmail: record.regionalManagerEmail,
+        regionalManagerUserId: record.regionalManagerUserId,
+        status: record.status,
+        owningPortfolio: record.owningPortfolio,
+        scopeSelections: record.scopeSelections,
+        sourceIds: record.sourceIds,
+        _updatedAt: record.updatedAt || remoteGraph.updatedAt || document.updated_at || marketingSharedNow()
+      }, {
+        source: "atlas_central_shared_graph",
+        timestamp: record.updatedAt || remoteGraph.updatedAt || document.updated_at || marketingSharedNow(),
+        requireContacts: false,
+        blockInvalid: false
+      });
+      if (result.record && Array.isArray(record.reviewFlags)) {
+        result.record.reviewFlags = Array.from(new Set([...(result.record.reviewFlags || []), ...record.reviewFlags])).slice(0, 8);
+      }
+      changed = result.changed || changed;
+    });
+    if (remoteGraph.settings?.updatedAt && (!graph.settings?.updatedAt || remoteGraph.settings.updatedAt >= graph.settings.updatedAt)) {
+      graph.settings = { ...graph.settings, ...remoteGraph.settings };
+      changed = true;
+    }
+    if (changed) {
+      writeMarketingSharedPropertyGraph(graph, {
+        source: "atlas_central_shared_graph",
+        updatedAt: remoteGraph.updatedAt || document.updated_at || marketingSharedNow(),
+        central: false
+      });
+      applySharedPropertiesToMarketingState();
+    }
+    return { changed, properties: Object.keys(remoteGraph.properties || {}).length, people: Object.keys(remoteGraph.people || {}).length };
+  } catch (error) {
+    if (!options.silent) console.warn("Central shared property graph could not be pulled", error);
+    return null;
+  }
+}
+
+function marketingPropertySignatureSet(value) {
+  const names = Array.isArray(value) ? value : [value];
+  const signatures = new Set();
+  names.forEach(name => {
+    const normalized = marketingNormalizeText(name);
+    if (!normalized) return;
+    signatures.add(normalized);
+    signatures.add(normalized.replace(/\b(the|at|rise)\b/g, " ").replace(/\s+/g, " ").trim());
+    if (PEOPLE_PROPERTY_ALIASES[normalized]) signatures.add(marketingNormalizeText(PEOPLE_PROPERTY_ALIASES[normalized]));
+    Object.entries(PEOPLE_PROPERTY_ALIASES).forEach(([alias, canonical]) => {
+      if (marketingNormalizeText(canonical) === normalized) signatures.add(marketingNormalizeText(alias));
+    });
+  });
+  return new Set(Array.from(signatures).filter(Boolean));
+}
+
+function marketingSetsOverlap(a, b) {
+  for (const value of a) if (b.has(value)) return true;
+  return false;
+}
+
+function marketingSharedRecordSignatures(record) {
+  return marketingPropertySignatureSet([
+    record?.displayName,
+    record?.canonicalName,
+    record?.sourceIds?.portfolioName,
+    record?.sourceIds?.marketingPropertyName,
+    ...(Array.isArray(record?.aliases) ? record.aliases : [])
+  ]);
+}
+
+function findMarketingSharedPropertyMatch(graph, input = {}) {
+  const sourceIds = marketingSharedObject(input.sourceIds);
+  const directId = String(input.communityId || sourceIds.communityId || "").trim();
+  if (directId && graph.properties[directId]) return { record: graph.properties[directId] };
+  const entries = Object.values(graph.properties);
+  const marketingPropertyId = String(sourceIds.marketingPropertyId || input._dbId || "").trim();
+  if (marketingPropertyId) {
+    const byMarketingId = entries.find(record => String(record.sourceIds?.marketingPropertyId || "").trim() === marketingPropertyId);
+    if (byMarketingId) return { record: byMarketingId };
+  }
+  const targetSignatures = marketingPropertySignatureSet([
+    input.name,
+    input.displayName,
+    input.propertyName,
+    sourceIds.portfolioName,
+    sourceIds.marketingPropertyName
+  ]);
+  if (!targetSignatures.size) return { record: null };
+  const matches = entries.filter(record => marketingSetsOverlap(marketingSharedRecordSignatures(record), targetSignatures));
+  if (matches.length === 1) return { record: matches[0] };
+  if (matches.length > 1) return { ambiguous: true, matches };
+  const fuzzy = entries.filter(record => {
+    const recordSignatures = marketingSharedRecordSignatures(record);
+    for (const a of recordSignatures) {
+      for (const b of targetSignatures) {
+        if ((a.length >= 5 && b.length >= 5) && (a.includes(b) || b.includes(a))) return true;
+      }
+    }
+    return false;
+  });
+  if (fuzzy.length === 1) return { record: fuzzy[0] };
+  if (fuzzy.length > 1) return { ambiguous: true, matches: fuzzy };
+  return { record: null };
+}
+
+function marketingPushIssue(graph, issue = {}) {
+  graph.mappingIssues = [
+    ...(Array.isArray(graph.mappingIssues) ? graph.mappingIssues : []),
+    {
+      id: `issue-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      source: issue.source || ATLAS_SHARED_PROPERTY_SOURCE_ID,
+      severity: issue.severity || "review",
+      message: issue.message || "Shared data mapping needs review.",
+      entity: issue.entity || "",
+      createdAt: issue.createdAt || marketingSharedNow()
+    }
+  ].slice(-80);
+}
+
+function marketingPushAudit(graph, entry = {}) {
+  graph.auditTrail = [
+    ...(Array.isArray(graph.auditTrail) ? graph.auditTrail : []),
+    {
+      id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      source: entry.source || ATLAS_SHARED_PROPERTY_SOURCE_ID,
+      action: entry.action || "update",
+      entityType: entry.entityType || "property",
+      entityId: entry.entityId || "",
+      fields: entry.fields || {},
+      createdAt: entry.createdAt || marketingSharedNow()
+    }
+  ].slice(-200);
+}
+
+function marketingApplySharedField(record, field, value, source, timestamp, auditFields, options = {}) {
+  let cleanValue = value;
+  if (Array.isArray(cleanValue)) {
+    cleanValue = cleanValue.map(item => String(item ?? "").trim()).filter(Boolean);
+  } else if (field.toLowerCase().includes("email")) {
+    cleanValue = marketingNormalizeEmail(cleanValue);
+  } else if (field === "status") {
+    cleanValue = String(cleanValue ?? "").trim().toLowerCase() === "inactive" ? "inactive" : "active";
+  } else {
+    cleanValue = String(cleanValue ?? "").trim();
+  }
+  const isBlank = Array.isArray(cleanValue) ? cleanValue.length === 0 : cleanValue === "";
+  if (isBlank && !options.allowBlank) return false;
+  const previousTimestamp = String(record.fieldMeta?.[field]?.updatedAt || "");
+  const nextTimestamp = String(timestamp || marketingSharedNow());
+  if (previousTimestamp && previousTimestamp > nextTimestamp && !options.force) return false;
+  const previous = record[field];
+  const changed = JSON.stringify(previous ?? (Array.isArray(cleanValue) ? [] : "")) !== JSON.stringify(cleanValue);
+  record.fieldMeta = marketingSharedObject(record.fieldMeta);
+  record.fieldMeta[field] = { source, updatedAt: nextTimestamp };
+  record[field] = cleanValue;
+  if (changed) auditFields[field] = { before: previous ?? "", after: cleanValue };
+  return changed;
+}
+
+function marketingUpsertSharedPerson(graph, input = {}, options = {}) {
+  const timestamp = String(options.timestamp || input.updatedAt || marketingSharedNow());
+  const source = String(options.source || input.source || ATLAS_SHARED_PROPERTY_SOURCE_ID);
+  const email = marketingNormalizeEmail(input.email);
+  const userId = String(input.userId || input.peopleEmployeeId || input.employeeId || "").trim();
+  const displayName = String(input.displayName || input.name || "").trim();
+  if (!userId && !email && !displayName) return { person: null, changed: false };
+  if (email && !marketingValidEmail(email)) {
+    marketingPushIssue(graph, { source, severity: "error", entity: displayName || email, message: `${email} is not a valid shared person email.` });
+    return { person: null, changed: false };
+  }
+  const existing = Object.values(graph.people || {}).find(person =>
+    (userId && String(person.userId || "").trim() === userId) ||
+    (email && marketingNormalizeEmail(person.email) === email)
+  );
+  const personId = String(existing?.personId || userId || (email ? `email:${email}` : `person:${marketingSharedSlug(displayName)}`));
+  const person = existing ? { ...existing } : { personId, userId: "", email: "", displayName: "", role: "", sourceIds: {}, fieldMeta: {}, updatedAt: "" };
+  const auditFields = {};
+  marketingApplySharedField(person, "displayName", displayName, source, timestamp, auditFields);
+  marketingApplySharedField(person, "email", email, source, timestamp, auditFields);
+  marketingApplySharedField(person, "role", input.role || "", source, timestamp, auditFields);
+  marketingApplySharedField(person, "userId", userId, source, timestamp, auditFields);
+  person.sourceIds = { ...marketingSharedObject(person.sourceIds), ...marketingSharedObject(input.sourceIds) };
+  if (Object.keys(auditFields).length) person.updatedAt = timestamp;
+  graph.people[personId] = person;
+  return { person, changed: Object.keys(auditFields).length > 0 };
+}
+
+function marketingValidateSharedProperty(input = {}, options = {}) {
+  const issues = [];
+  const name = String(input.name || "").trim();
+  if (!name) issues.push("Property / Community Name is required.");
+  if (!MARKETING_SHARED_VALID_MARKETS.includes(String(input.market || "").trim())) issues.push("Market / Region must use an allowed value.");
+  if (!MARKETING_SHARED_VALID_PROPERTY_TYPES.includes(String(input.type || input.propertyType || "").trim())) issues.push("Property Type must use an allowed value.");
+  if (!MARKETING_SHARED_VALID_STATUSES.includes(String(input.status || "").trim().toLowerCase())) issues.push("Status must be active or inactive.");
+  if (options.requireContacts !== false) {
+    if (!String(input.gm || input.generalManagerName || "").trim()) issues.push("GM Name is required.");
+    if (!marketingValidEmail(input.gmEmail || input.generalManagerEmail)) issues.push("GM Email must be valid.");
+    if (!String(input.regional || input.regionalManagerName || "").trim()) issues.push("Regional Manager is required.");
+    if (!marketingValidEmail(input.regionalEmail || input.regionalManagerEmail)) issues.push("Regional Email must be valid.");
+  } else {
+    if ((input.gmEmail || input.generalManagerEmail) && !marketingValidEmail(input.gmEmail || input.generalManagerEmail)) issues.push("GM Email must be valid.");
+    if ((input.regionalEmail || input.regionalManagerEmail) && !marketingValidEmail(input.regionalEmail || input.regionalManagerEmail)) issues.push("Regional Email must be valid.");
+  }
+  return { ok: issues.length === 0, issues, message: issues.join(" ") };
+}
+
+function marketingUpsertSharedProperty(graph, input = {}, options = {}) {
+  const timestamp = String(options.timestamp || input._updatedAt || input.updatedAt || marketingSharedNow());
+  const source = String(options.source || input.source || ATLAS_SHARED_PROPERTY_SOURCE_ID);
+  const name = String(input.name || input.displayName || "").trim();
+  if (!name) {
+    marketingPushIssue(graph, { source, severity: "error", message: "Property / Community Name is required before sync." });
+    return { record: null, changed: false };
+  }
+  const validation = marketingValidateSharedProperty({
+    name,
+    market: input.market,
+    type: input.type || input.propertyType,
+    gm: input.gm || input.generalManagerName,
+    gmEmail: input.gmEmail || input.generalManagerEmail,
+    regional: input.regional || input.regionalManagerName,
+    regionalEmail: input.regionalEmail || input.regionalManagerEmail,
+    status: input.status || "active"
+  }, { requireContacts: options.requireContacts });
+  if (!validation.ok && options.blockInvalid) {
+    validation.issues.forEach(message => marketingPushIssue(graph, { source, severity: "error", entity: name, message }));
+    return { record: null, changed: false, issues: validation.issues };
+  }
+  const match = findMarketingSharedPropertyMatch(graph, input);
+  if (match.ambiguous) {
+    marketingPushIssue(graph, { source, severity: "review", entity: name, message: `${name} matched more than one shared community. Review before assigning.` });
+    return { record: null, changed: false, issues: ["Ambiguous property match."] };
+  }
+  const communityId = String(match.record?.communityId || input.communityId || input.sourceIds?.communityId || marketingSharedCommunityId(name));
+  const record = match.record
+    ? marketingNormalizeSharedPropertyRecord(match.record, communityId)
+    : marketingNormalizeSharedPropertyRecord({ communityId, displayName: name, aliases: [name], createdAt: timestamp }, communityId);
+  const auditFields = {};
+  record.sourceIds = {
+    ...marketingSharedObject(record.sourceIds),
+    ...marketingSharedObject(input.sourceIds),
+    communityId
+  };
+  if (input._dbId || input.id) record.sourceIds.marketingPropertyId = String(input._dbId || input.id);
+  record.sourceIds.marketingPropertyName = name;
+  record.sourceUpdatedAt = { ...marketingSharedObject(record.sourceUpdatedAt), [source]: timestamp };
+  marketingApplySharedField(record, "displayName", name, source, timestamp, auditFields);
+  record.canonicalName = marketingNormalizeText(record.displayName) || record.canonicalName;
+  marketingApplySharedField(record, "market", input.market || "", source, timestamp, auditFields);
+  marketingApplySharedField(record, "regionalGrouping", input.regionalGrouping || input.market || "", source, timestamp, auditFields);
+  marketingApplySharedField(record, "propertyType", input.type || input.propertyType || "", source, timestamp, auditFields);
+  marketingApplySharedField(record, "generalManagerName", input.gm || input.generalManagerName || "", source, timestamp, auditFields);
+  marketingApplySharedField(record, "generalManagerEmail", input.gmEmail || input.generalManagerEmail || "", source, timestamp, auditFields);
+  marketingApplySharedField(record, "regionalManagerName", input.regional || input.regionalManagerName || "", source, timestamp, auditFields);
+  marketingApplySharedField(record, "regionalManagerEmail", input.regionalEmail || input.regionalManagerEmail || "", source, timestamp, auditFields);
+  marketingApplySharedField(record, "status", input.status || "active", source, timestamp, auditFields);
+  marketingApplySharedField(record, "owningPortfolio", input.owningPortfolio || "", source, timestamp, auditFields);
+  marketingApplySharedField(record, "scopeSelections", input.scopeSelections || [], source, timestamp, auditFields);
+  record.aliases = Array.from(new Set([...(record.aliases || []), name, input.sourceIds?.portfolioName].map(item => String(item ?? "").trim()).filter(Boolean)));
+  const gm = marketingUpsertSharedPerson(graph, {
+    displayName: record.generalManagerName,
+    email: record.generalManagerEmail,
+    role: "General Manager",
+    userId: record.generalManagerUserId,
+    sourceIds: { communityId, role: "general_manager" }
+  }, { source, timestamp }).person;
+  if (gm?.personId) marketingApplySharedField(record, "generalManagerUserId", gm.personId, source, timestamp, auditFields);
+  const regional = marketingUpsertSharedPerson(graph, {
+    displayName: record.regionalManagerName,
+    email: record.regionalManagerEmail,
+    role: "Regional Manager",
+    userId: record.regionalManagerUserId,
+    sourceIds: { communityId, role: "regional_manager" }
+  }, { source, timestamp }).person;
+  if (regional?.personId) marketingApplySharedField(record, "regionalManagerUserId", regional.personId, source, timestamp, auditFields);
+  record.reviewFlags = validation.issues.slice(0, 8);
+  if (Object.keys(auditFields).length || !match.record) {
+    record.updatedAt = timestamp;
+    marketingPushAudit(graph, { source, action: match.record ? "update" : "create", entityId: communityId, fields: auditFields, createdAt: timestamp });
+  }
+  graph.properties[communityId] = record;
+  return { record, changed: Object.keys(auditFields).length > 0 || !match.record, issues: validation.issues };
+}
+
+function readOpsPropertyCatalogForMarketing() {
+  try {
+    const raw = localStorage.getItem(OPS_PROPERTY_CATALOG_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed?.properties) ? parsed.properties.map(prop => ({ ...prop, _catalogUpdatedAt: parsed.updatedAt || prop.sharedSyncUpdatedAt || "" })) : [];
+  } catch {
+    return [];
+  }
+}
+
+function syncMarketingSharedGraphFromLoadedData(options = {}) {
+  const graph = readMarketingSharedPropertyGraph();
+  const source = options.source || ATLAS_SHARED_PROPERTY_SOURCE_ID;
+  let changed = false;
+  readOpsPropertyCatalogForMarketing().forEach(prop => {
+    const result = marketingUpsertSharedProperty(graph, {
+      communityId: prop.communityId,
+      name: prop.name,
+      market: prop.market,
+      regionalGrouping: prop.regionalGrouping,
+      propertyType: prop.propertyType,
+      gm: prop.generalManagerName,
+      gmEmail: prop.generalManagerEmail,
+      regional: prop.regionalManagerName,
+      regionalEmail: prop.regionalManagerEmail,
+      status: prop.status || "active",
+      owningPortfolio: prop.owningPortfolio,
+      scopeSelections: prop.scopeSelections || [],
+      sourceIds: { portfolioName: prop.name, communityId: prop.communityId },
+      _updatedAt: prop.sharedSyncUpdatedAt || prop._catalogUpdatedAt || "1970-01-01T00:00:00.000Z"
+    }, { source: "portfolio_property_catalog", requireContacts: false, blockInvalid: false });
+    changed = result.changed || changed;
+  });
+  propertiesData.forEach(prop => {
+    const result = marketingUpsertSharedProperty(graph, {
+      ...prop,
+      sourceIds: {
+        marketingPropertyId: prop._dbId || prop.id,
+        marketingPropertyName: prop.name,
+        communityId: prop.communityId,
+        atlasCommunityId: prop.atlasCommunityId
+      },
+      generalManagerUserId: prop.gmEmployeeId,
+      regionalManagerUserId: prop.regionalEmployeeId,
+      owningPortfolio: prop.owningPortfolio,
+      scopeSelections: prop.scopeSelections || [],
+      _updatedAt: prop._updatedAt || prop.sharedSyncUpdatedAt || "1970-01-01T00:00:00.000Z"
+    }, { source, requireContacts: false, blockInvalid: false });
+    changed = result.changed || changed;
+  });
+  teamData.forEach(member => {
+    const person = marketingUpsertSharedPerson(graph, {
+      userId: member.peopleEmployeeId || member.id,
+      displayName: `${member.fname || ""} ${member.lname || ""}`.trim(),
+      email: member.email,
+      role: member.role,
+      sourceIds: { marketingTeamMemberId: member._dbId || member.id, peopleEmployeeId: member.peopleEmployeeId || "" }
+    }, { source: "marketing_team_members", timestamp: marketingSharedNow() });
+    changed = person.changed || changed;
+  });
+  approversData.forEach(approver => {
+    const person = marketingUpsertSharedPerson(graph, {
+      userId: approver.peopleEmployeeId || approver.id,
+      displayName: `${approver.fname || ""} ${approver.lname || ""}`.trim(),
+      email: approver.email,
+      role: approver.role,
+      sourceIds: { marketingApproverId: approver._dbId || approver.id }
+    }, { source: "marketing_approvers", timestamp: marketingSharedNow() });
+    changed = person.changed || changed;
+  });
+  graph.settings = {
+    routingRules: routingData.map(rule => ({ ...rule })),
+    approvalRules: approvalRulesData.map(rule => ({ ...rule, gates: Array.isArray(rule.gates) ? [...rule.gates] : [] })),
+    slaRules: slaData.map(rule => ({ ...rule })),
+    bonusSettings: {
+      weights: bonusWeights.map(weight => ({ ...weight })),
+      targets: bonusTargets.map(target => ({ ...target }))
+    },
+    updatedAt: marketingSharedNow(),
+    source
+  };
+  if (changed || options.persist) writeMarketingSharedPropertyGraph(graph, { source });
+  return graph;
+}
+
+function findMarketingPropertyStateMatch(recordOrProp) {
+  const signatures = marketingSharedRecordSignatures(recordOrProp);
+  return propertiesData.find(prop => marketingSetsOverlap(marketingPropertySignatureSet([prop.name, prop.communityId]), signatures));
+}
+
+function applySharedPropertiesToMarketingState(options = {}) {
+  const graph = readMarketingSharedPropertyGraph();
+  let changed = false;
+  const mergedById = new Map();
+  propertiesData.forEach(prop => {
+    const normalizedProp = {
+      ...prop,
+      name: canonicalMarketingPropertyName(prop.name) || prop.name,
+      market: prop.market || "Florida",
+      type: prop.type || "Multifamily",
+      status: String(prop.status || "active").toLowerCase() === "inactive" ? "inactive" : "active"
+    };
+    mergedById.set(String(normalizedProp.id || normalizedProp._dbId || normalizedProp.name), normalizedProp);
+  });
+  Object.values(graph.properties).forEach(record => {
+    const existing = findMarketingPropertyStateMatch(record);
+    const projected = {
+      ...(existing || {}),
+      id: existing?.id || record.sourceIds?.marketingPropertyId || record.communityId,
+      _dbId: existing?._dbId || (record.sourceIds?.marketingPropertyId && !String(record.sourceIds.marketingPropertyId).startsWith("community:") ? record.sourceIds.marketingPropertyId : null),
+      communityId: record.communityId,
+      atlasCommunityId: record.sourceIds?.atlasCommunityId || existing?.atlasCommunityId || "",
+      canonicalName: record.canonicalName,
+      aliases: Array.isArray(record.aliases) ? record.aliases : [],
+      name: record.displayName,
+      market: record.market || existing?.market || "Florida",
+      type: record.propertyType || existing?.type || "Multifamily",
+      gm: record.generalManagerName || existing?.gm || "",
+      gmEmail: record.generalManagerEmail || existing?.gmEmail || "",
+      regional: record.regionalManagerName || existing?.regional || "",
+      regionalEmail: record.regionalManagerEmail || existing?.regionalEmail || "",
+      status: record.status || existing?.status || "active",
+      owningPortfolio: record.owningPortfolio || existing?.owningPortfolio || "",
+      scopeSelections: Array.isArray(record.scopeSelections) ? record.scopeSelections : [],
+      gmEmployeeId: record.generalManagerUserId || existing?.gmEmployeeId || "",
+      regionalEmployeeId: record.regionalManagerUserId || existing?.regionalEmployeeId || "",
+      sharedSyncSource: record.fieldMeta?.displayName?.source || existing?.sharedSyncSource || "",
+      sharedSyncUpdatedAt: record.updatedAt,
+      sharedReviewFlags: Array.isArray(record.reviewFlags) ? record.reviewFlags : []
+    };
+    mergedById.set(String(projected.id || projected.communityId), projected);
+  });
+  const nextProperties = Array.from(mergedById.values())
+    .filter(prop => prop.name)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  if (JSON.stringify(nextProperties) !== JSON.stringify(propertiesData)) {
+    propertiesData = nextProperties;
+    changed = true;
+  }
+  teamData = teamData.map(member => ({ ...member, properties: canonicalMarketingProperties(member.properties || []) }));
+  approversData = approversData.map(approver => ({ ...approver, properties: canonicalMarketingProperties(approver.properties || []) }));
+  return changed;
+}
+
+function canonicalMarketingPropertyName(value) {
+  const clean = String(value ?? "").trim();
+  if (!clean) return "";
+  const graph = readMarketingSharedPropertyGraph();
+  const match = findMarketingSharedPropertyMatch(graph, { name: clean });
+  if (match.record?.displayName) return match.record.displayName;
+  const signatures = marketingPropertySignatureSet(clean);
+  const existing = propertiesData.find(prop => marketingSetsOverlap(marketingPropertySignatureSet(prop.name), signatures));
+  return existing?.name || PEOPLE_PROPERTY_ALIASES[marketingNormalizeText(clean)] || clean;
+}
+
+function canonicalMarketingProperties(values) {
+  return Array.from(new Set((Array.isArray(values) ? values : []).map(canonicalMarketingPropertyName).filter(Boolean)));
+}
+
+function findMarketingPropertyDuplicate(prop, excludeId = "") {
+  const target = marketingPropertySignatureSet([prop.name, prop.communityId]);
+  return propertiesData.find(existing => {
+    if (excludeId && (existing.id === excludeId || existing._dbId === excludeId)) return false;
+    return marketingSetsOverlap(marketingPropertySignatureSet([existing.name, existing.communityId]), target);
+  });
+}
+
+function getMarketingPropertySyncStatus(prop) {
+  const graph = readMarketingSharedPropertyGraph();
+  const match = findMarketingSharedPropertyMatch(graph, {
+    name: prop.name,
+    communityId: prop.communityId,
+    sourceIds: { marketingPropertyId: prop._dbId || prop.id }
+  });
+  const record = match.record;
+  if (!record) return { label: "Pending", detail: "", reviewFlags: [] };
+  const flags = Array.isArray(record.reviewFlags) ? record.reviewFlags : [];
+  const hasRealSyncTimestamp = record.updatedAt && !String(record.updatedAt).startsWith("1970-01-01");
+  return {
+    label: flags.length ? "Review" : "Synced",
+    detail: hasRealSyncTimestamp ? new Date(record.updatedAt).toLocaleString() : "",
+    reviewFlags: flags
+  };
+}
+
+function renderMarketingPropertySyncBadge(prop) {
+  const status = getMarketingPropertySyncStatus(prop);
+  const bg = status.label === "Review" ? "#fff4e0" : "#e6f7ee";
+  const color = status.label === "Review" ? "#7a4400" : "#2a6b50";
+  return `<div style="margin-top:5px"><span class="badge" style="font-size:10px;background:${bg};color:${color};border:1px solid rgba(1,62,81,0.12)">${marketingEscapeHtml(status.label)}</span>${status.detail ? `<span style="font-size:10px;color:#7a9aaa;margin-left:5px">${marketingEscapeHtml(status.detail)}</span>` : ""}</div>`;
+}
+
+function refreshMarketingSharedViews(options = {}) {
+  applySharedPropertiesToMarketingState();
+  if (options.renderProperties && document.getElementById("property-tbody")) renderProperties();
+  syncPropertyDropdown();
+  if (options.renderTeam && document.getElementById("team-cards-grid")) renderTeamCards();
+  if (options.renderApprovers && document.getElementById("approver-list")) renderApprovers();
+  if (typeof applySharedCommunitiesToGrassrootsList === "function") applySharedCommunitiesToGrassrootsList();
+}
+
+window.addEventListener("storage", (event) => {
+  if (event.key !== ATLAS_SHARED_PROPERTY_GRAPH_KEY || event.newValue === event.oldValue) return;
+  refreshMarketingSharedViews({ renderProperties: true });
+});
+
 
 function splitPeopleDirectoryName(name) {
   const parts = String(name || '').trim().replace(/\s+/g, ' ').split(' ').filter(Boolean);
@@ -4065,7 +4860,7 @@ const routingMap = {
 };
 async function updateRouting() {
   const type = document.getElementById('req-type').value;
-  const property = document.getElementById('req-property').value;
+  const property = canonicalMarketingPropertyName(document.getElementById('req-property').value);
   const preview = document.getElementById('routing-preview');
   const content = document.getElementById('routing-content');
   if (!type) {
@@ -4124,7 +4919,7 @@ async function updateRouting() {
     const directors = members.filter(m => m.role_type === 'director');
 
     // Property specialization check
-    const specialized = staff.filter(m => (m.properties||[]).includes(property));
+    const specialized = staff.filter(m => canonicalMarketingProperties(m.properties || []).includes(property));
     const pool = specialized.length > 0 ? specialized : staff;
     pool.sort((a,b) => (countMap[a.id]||0) - (countMap[b.id]||0));
 
@@ -4134,7 +4929,7 @@ async function updateRouting() {
       const max = m.max_tickets || 5;
       const pct = Math.round((load/max)*100);
       const barColor = pct >= 100 ? '#e85c4a' : pct >= 80 ? '#d47b1a' : 'var(--rise-light)';
-      const isPropertySpec = (m.properties||[]).includes(property);
+      const isPropertySpec = canonicalMarketingProperties(m.properties || []).includes(property);
       return `
         <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:${bg};border-radius:var(--radius-sm)">
           <div style="width:32px;height:32px;border-radius:50%;background:${m.avatar_color||'var(--rise-dark)'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;flex-shrink:0">${ini}</div>
@@ -4442,7 +5237,7 @@ function selectExample(el, style) {
 
 // SUBMIT TICKET
 async function submitTicket() {
-  const property = document.getElementById('req-property').value;
+  const property = canonicalMarketingPropertyName(document.getElementById('req-property').value);
   const title = document.getElementById('req-title').value.trim();
   const desc = document.getElementById('req-desc').value.trim();
   const type = document.getElementById('req-type').value;
@@ -4494,7 +5289,7 @@ async function submitTicket() {
       // Property specialization check
       const specialized = eligibleMembers.filter(m =>
         m.role_type === 'staff' &&
-        (m.properties || []).includes(property)
+        canonicalMarketingProperties(m.properties || []).includes(property)
       );
       const staffPool = eligibleMembers.filter(m => m.role_type === 'staff');
       const directorPool = eligibleMembers.filter(m => m.role_type === 'director');
@@ -6280,11 +7075,12 @@ function openEditApprover(id) {
 function buildApproverPropertyCheckboxes(selected) {
   const wrap = document.getElementById('approver-property-checkboxes');
   wrap.innerHTML = '';
+  const selectedNames = canonicalMarketingProperties(selected || []);
   propertiesData.filter(p => p.status === 'active').forEach(p => {
-    const checked = selected.includes(p.name);
+    const checked = selectedNames.includes(canonicalMarketingPropertyName(p.name));
     const label = document.createElement('label');
     label.style.cssText = 'display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:16px;cursor:pointer;font-size:11px;font-weight:500;border:1px solid rgba(1,62,81,0.15);background:' + (checked ? 'var(--rise-light)' : 'white') + ';color:' + (checked ? 'white' : '#5a7a86') + ';transition:all 0.15s';
-    label.innerHTML = `<input type="checkbox" data-prop="${p.name}" ${checked ? 'checked' : ''} style="display:none"> ${p.name}`;
+    label.innerHTML = `<input type="checkbox" data-prop="${marketingEscapeHtml(canonicalMarketingPropertyName(p.name))}" ${checked ? 'checked' : ''} style="display:none"> ${marketingEscapeHtml(p.name)}`;
     label.querySelector('input').addEventListener('change', function() {
       label.style.background = this.checked ? 'var(--rise-light)' : 'white';
       label.style.color = this.checked ? 'white' : '#5a7a86';
@@ -6294,7 +7090,7 @@ function buildApproverPropertyCheckboxes(selected) {
 }
 
 function getCheckedApproverProps() {
-  return [...document.querySelectorAll('#approver-property-checkboxes input[type=checkbox]:checked')].map(i => i.dataset.prop);
+  return canonicalMarketingProperties([...document.querySelectorAll('#approver-property-checkboxes input[type=checkbox]:checked')].map(i => i.dataset.prop));
 }
 
 async function saveApprover() {
@@ -6343,6 +7139,7 @@ async function saveApprover() {
     return;
   }
 
+  syncMarketingSharedGraphFromLoadedData({ source: 'marketing_approver_save', persist: true });
   closeAddApprover();
   renderApprovers();
 }
@@ -6363,6 +7160,7 @@ async function deleteApprover() {
     return;
   }
 
+  syncMarketingSharedGraphFromLoadedData({ source: 'marketing_approver_delete', persist: true });
   closeAddApprover();
   renderApprovers();
 }
@@ -6395,6 +7193,7 @@ async function saveApprovalRule(ri) {
       .update({ gates: rule.gates, involves_spend: rule.spend })
       .eq('type_id', rule.typeId);
   } catch(e) { console.error('saveApprovalRule:', e); }
+  syncMarketingSharedGraphFromLoadedData({ source: 'marketing_approval_rules', persist: true });
 }
 
 async function saveSLARule(typeId, days) {
@@ -6404,6 +7203,7 @@ async function saveSLARule(typeId, days) {
       .update({ days })
       .eq('type_id', typeId);
   } catch(e) { console.error('saveSLARule:', e); }
+  syncMarketingSharedGraphFromLoadedData({ source: 'marketing_sla_rules', persist: true });
 }
 
 // SETTINGS SUB-NAV
@@ -6643,11 +7443,12 @@ function buildSkillCheckboxes(selected) {
 function buildPropertyCheckboxes(selected) {
   const wrap = document.getElementById('property-checkboxes');
   wrap.innerHTML = '';
+  const selectedNames = canonicalMarketingProperties(selected || []);
   propertiesData.filter(p => p.status === 'active').forEach(p => {
-    const checked = selected.includes(p.name);
+    const checked = selectedNames.includes(canonicalMarketingPropertyName(p.name));
     const label = document.createElement('label');
     label.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:16px;cursor:pointer;font-size:11px;font-weight:500;border:1px solid rgba(1,62,81,0.15);background:' + (checked ? 'var(--rise-light)' : 'white') + ';color:' + (checked ? 'white' : '#5a7a86') + ';transition:all 0.15s';
-    label.innerHTML = `<input type="checkbox" data-prop="${p.name}" ${checked ? 'checked' : ''} style="display:none"> ${p.name}`;
+    label.innerHTML = `<input type="checkbox" data-prop="${marketingEscapeHtml(canonicalMarketingPropertyName(p.name))}" ${checked ? 'checked' : ''} style="display:none"> ${marketingEscapeHtml(p.name)}`;
     label.querySelector('input').addEventListener('change', function() {
       label.style.background = this.checked ? 'var(--rise-light)' : 'white';
       label.style.color = this.checked ? 'white' : '#5a7a86';
@@ -6660,7 +7461,7 @@ function getCheckedSkills() {
   return [...document.querySelectorAll('#skill-checkboxes input[type=checkbox]:checked')].map(i => i.dataset.skill);
 }
 function getCheckedProperties() {
-  return [...document.querySelectorAll('#property-checkboxes input[type=checkbox]:checked')].map(i => i.dataset.prop);
+  return canonicalMarketingProperties([...document.querySelectorAll('#property-checkboxes input[type=checkbox]:checked')].map(i => i.dataset.prop));
 }
 
 async function saveMember() {
@@ -6706,6 +7507,7 @@ async function saveMember() {
     showToast(fname + ' added to the team', 'success');
   }
   closeAddMember();
+  syncMarketingSharedGraphFromLoadedData({ source: 'marketing_team_save', persist: true });
   renderMarketingPeopleLinkSummary();
   renderTeamCards();
   syncRoutingMap();
@@ -6749,6 +7551,7 @@ async function deleteMember() {
     teamData = teamData.filter(x => x.id !== editingMemberId);
     showToast(m.fname + ' removed from team', 'info');
   } catch(e) { showToast('Failed to remove: ' + e.message, 'error'); return; }
+  syncMarketingSharedGraphFromLoadedData({ source: 'marketing_team_delete', persist: true });
   closeAddMember();
   renderMarketingPeopleLinkSummary();
   renderTeamCards();
@@ -6795,6 +7598,7 @@ async function updateRoutingRule(typeId, skillId) {
   const r = routingData.find(x => x.typeId === typeId);
   if (r) r.skillId = skillId;
   try { await window.DB.updateRoutingRule(typeId, skillId); } catch(e) { console.error('updateRoutingRule:', e); }
+  syncMarketingSharedGraphFromLoadedData({ source: 'marketing_routing_rules', persist: true });
   showToast('Routing rule updated', 'success');
 }
 
@@ -6803,6 +7607,7 @@ async function deleteSkill(id) {
   skillsData = skillsData.filter(s => s.id !== id);
   teamData.forEach(m => { m.skills = (m.skills||[]).filter(s => s !== id); });
   try { await window.DB.deleteSkill(id); } catch(e) { console.error('deleteSkill:', e); }
+  syncMarketingSharedGraphFromLoadedData({ source: 'marketing_skills_routing', persist: true });
   renderSkills();
   showToast('Skill removed', 'info');
 }
@@ -6817,6 +7622,7 @@ async function saveSkill() {
   skillsData.push({id, name, desc});
   routingData.push({type: name, typeId: id, skillId: id});
   try { await window.DB.saveSkill({id, name, desc}); } catch(e) { console.error('saveSkill:', e); }
+  syncMarketingSharedGraphFromLoadedData({ source: 'marketing_skills_routing', persist: true });
   document.getElementById('add-skill-modal').classList.remove('open');
   document.getElementById('skill-name-input').value = '';
   document.getElementById('skill-desc-input').value = '';
@@ -6864,13 +7670,14 @@ function openAddApprovalRule() { showToast('Select a request type from Skills & 
 function renderProperties() {
   const tbody = document.getElementById('property-tbody');
   tbody.innerHTML = '';
+  applySharedPropertiesToMarketingState();
   propertiesData.forEach(p => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><strong style="color:var(--rise-dark)">${p.name}</strong></td>
-      <td style="color:#5a7a86;font-size:12px">${p.market}</td>
-      <td style="font-size:12px">${p.gm}<br><span style="color:#7a9aaa;font-size:11px">${p.gmEmail}</span></td>
-      <td style="font-size:12px">${p.regional}<br><span style="color:#7a9aaa;font-size:11px">${p.regionalEmail}</span></td>
+      <td><strong style="color:var(--rise-dark)">${marketingEscapeHtml(p.name)}</strong>${renderMarketingPropertySyncBadge(p)}</td>
+      <td style="color:#5a7a86;font-size:12px">${marketingEscapeHtml(p.market || '')}</td>
+      <td style="font-size:12px">${marketingEscapeHtml(p.gm || '')}<br><span style="color:#7a9aaa;font-size:11px">${marketingEscapeHtml(p.gmEmail || '')}</span></td>
+      <td style="font-size:12px">${marketingEscapeHtml(p.regional || '')}<br><span style="color:#7a9aaa;font-size:11px">${marketingEscapeHtml(p.regionalEmail || '')}</span></td>
       <td><span class="badge ${p.status==='active' ? 'badge-complete' : 'badge-urgent'}">${p.status==='active'?'Active':'Inactive'}</span></td>
       <td><button class="btn btn-secondary btn-sm" onclick="openEditProperty('${p.id}')">Edit</button></td>
     `;
@@ -6908,28 +7715,80 @@ function openEditProperty(id) {
 
 async function saveProperty() {
   const name = document.getElementById('p-name').value.trim();
-  if (!name) { showToast('Property name is required', 'warn'); return; }
+  const existingProperty = editingPropertyId ? (propertiesData.find(x => x.id === editingPropertyId || x._dbId === editingPropertyId) || {}) : {};
   const prop = {
+    ...existingProperty,
     id: editingPropertyId || ('p-' + Date.now()),
-    _dbId: editingPropertyId ? (propertiesData.find(x=>x.id===editingPropertyId)||{})._dbId : null,
-    name, market: document.getElementById('p-market').value,
+    _dbId: editingPropertyId ? (existingProperty._dbId || null) : null,
+    name,
+    market: document.getElementById('p-market').value,
     type: document.getElementById('p-type').value,
-    gm: document.getElementById('p-gm').value,
-    gmEmail: document.getElementById('p-gm-email').value,
-    regional: document.getElementById('p-regional').value,
-    regionalEmail: document.getElementById('p-regional-email').value,
+    gm: document.getElementById('p-gm').value.trim(),
+    gmEmail: marketingNormalizeEmail(document.getElementById('p-gm-email').value),
+    regional: document.getElementById('p-regional').value.trim(),
+    regionalEmail: marketingNormalizeEmail(document.getElementById('p-regional-email').value),
     status: document.getElementById('p-status').value,
   };
+  const validation = marketingValidateSharedProperty(prop, { requireContacts: true });
+  if (!validation.ok) { showToast(validation.message, 'warn'); return; }
+  const duplicate = findMarketingPropertyDuplicate(prop, editingPropertyId);
+  const targetId = duplicate ? duplicate.id : editingPropertyId;
+  if (duplicate) {
+    Object.assign(prop, duplicate, {
+      name: prop.name,
+      market: prop.market,
+      type: prop.type,
+      gm: prop.gm,
+      gmEmail: prop.gmEmail,
+      regional: prop.regional,
+      regionalEmail: prop.regionalEmail,
+      status: prop.status
+    });
+  }
+  const timestamp = marketingSharedNow();
+  prop.communityId = prop.communityId || marketingSharedCommunityId(prop.name);
+  prop.sharedSyncUpdatedAt = timestamp;
+  prop.sharedSyncSource = 'marketing_settings_properties';
+  const graph = readMarketingSharedPropertyGraph();
+  const syncResult = marketingUpsertSharedProperty(graph, {
+    ...prop,
+    sourceIds: {
+      marketingPropertyId: prop._dbId,
+      marketingPropertyName: prop.name,
+      communityId: prop.communityId,
+      atlasCommunityId: prop.atlasCommunityId
+    }
+  }, { source: 'marketing_settings_properties', timestamp, requireContacts: true, blockInvalid: true });
+  if (!syncResult.record) {
+    showToast(syncResult.issues?.join(' ') || 'Property could not be mapped confidently. Review the highlighted fields.', 'warn');
+    return;
+  }
+  applyMarketingSharedRecordToProperty(prop, syncResult.record);
   const saved = await DB.saveProperty(prop);
-  if (saved) prop._dbId = saved.id;
-  if (editingPropertyId) {
-    const idx = propertiesData.findIndex(x => x.id === editingPropertyId);
-    propertiesData[idx] = prop;
+  if (!saved) { showToast('Property could not be saved. Check the mapped fields and try again.', 'error'); return; }
+  prop._dbId = saved.id;
+  prop.id = saved.id;
+  prop._updatedAt = saved.shared_sync_updated_at || saved.updated_at || timestamp;
+  const finalSync = marketingUpsertSharedProperty(graph, {
+    ...prop,
+    sourceIds: {
+      marketingPropertyId: prop._dbId,
+      marketingPropertyName: prop.name,
+      communityId: prop.communityId,
+      atlasCommunityId: prop.atlasCommunityId
+    }
+  }, { source: 'marketing_settings_properties', timestamp: prop._updatedAt, requireContacts: true, blockInvalid: true });
+  if (finalSync.record) applyMarketingSharedRecordToProperty(prop, finalSync.record);
+  writeMarketingSharedPropertyGraph(graph, { source: 'marketing_settings_properties', updatedAt: prop._updatedAt });
+  if (targetId) {
+    const idx = propertiesData.findIndex(x => x.id === targetId || x._dbId === targetId);
+    if (idx >= 0) propertiesData[idx] = prop; else propertiesData.push(prop);
     showToast(name + ' updated', 'success');
   } else {
     propertiesData.push(prop);
     showToast(name + ' added to portfolio', 'success');
   }
+  syncMarketingSharedGraphFromLoadedData({ source: 'marketing_property_save', persist: true });
   closeAddProperty();
   renderProperties();
   syncPropertyDropdown();
@@ -6940,6 +7799,9 @@ async function deleteProperty() {
   const p = propertiesData.find(x => x.id === editingPropertyId);
   if (!p || !confirm('Remove ' + p.name + ' from the system?')) return;
   try {
+    const graph = readMarketingSharedPropertyGraph();
+    marketingUpsertSharedProperty(graph, { ...p, status: 'inactive', sourceIds: { marketingPropertyId: p._dbId || p.id, marketingPropertyName: p.name, communityId: p.communityId } }, { source: 'marketing_settings_properties_delete', timestamp: marketingSharedNow(), requireContacts: false, blockInvalid: false });
+    writeMarketingSharedPropertyGraph(graph, { source: 'marketing_settings_properties_delete' });
     if (p._dbId) await window.DB.deleteProperty(p._dbId);
     propertiesData = propertiesData.filter(x => x.id !== editingPropertyId);
     showToast(p.name + ' removed', 'info');
@@ -6953,14 +7815,16 @@ function closeAddProperty() { document.getElementById('add-property-modal').clas
 
 // Sync property dropdown in New Request form
 function syncPropertyDropdown() {
+  applySharedPropertiesToMarketingState();
   const sel = document.getElementById('req-property');
-  const current = sel.value;
+  if (!sel) return;
+  const current = canonicalMarketingPropertyName(sel.value);
   sel.innerHTML = '<option value="">— Select property —</option>';
   propertiesData.filter(p => p.status === 'active').forEach(p => {
     const opt = document.createElement('option');
-    opt.value = p.name;
+    opt.value = canonicalMarketingPropertyName(p.name);
     opt.textContent = p.name;
-    if (p.name === current) opt.selected = true;
+    if (canonicalMarketingPropertyName(p.name) === current) opt.selected = true;
     sel.appendChild(opt);
   });
 }
@@ -8081,6 +8945,7 @@ function saveBonusWeights() {
   const total = bonusWeights.filter(w=>w.enabled).reduce((s,w)=>s+w.weight,0);
   if (total !== 100) { showToast('Enabled weights must total exactly 100% — currently ' + total + '%', 'warn'); return; }
   if (window.DB) window.DB.saveBonusSettings(bonusWeights, bonusTargets);
+  syncMarketingSharedGraphFromLoadedData({ source: 'marketing_bonus_settings', persist: true });
   showToast('Bonus weights saved', 'success');
 }
 
@@ -8102,6 +8967,7 @@ function renderBonusTargetSettings() {
 
 function saveBonusTargets() {
   if (window.DB) window.DB.saveBonusSettings(bonusWeights, bonusTargets);
+  syncMarketingSharedGraphFromLoadedData({ source: 'marketing_bonus_settings', persist: true });
   showToast('Bonus targets saved', 'success');
 }
 
@@ -8335,6 +9201,18 @@ function getAllUsers(){
 }
 
 var COMM_LIST=['Nocatee','Glen Kernan Park','Viera','Florence Villa','Doro High Rise','Beacon / Poplar Hall','Maple Hall (NJIT)','Flagler','Sereno','Portfolio-Wide'];
+function applySharedCommunitiesToGrassrootsList(){
+  try{
+    var graph=readMarketingSharedPropertyGraph();
+    var names=Object.values(graph.properties||{}).filter(function(p){return (p.status||'active')==='active'&&p.displayName;}).map(function(p){return p.displayName;});
+    if(!names.length)return;
+    var combined=COMM_LIST.filter(function(c){return c==='Portfolio-Wide';});
+    names.sort().forEach(function(name){if(combined.indexOf(name)<0)combined.push(name);});
+    if(combined.indexOf('Portfolio-Wide')<0)combined.push('Portfolio-Wide');
+    COMM_LIST=combined;
+  }catch(e){}
+}
+
 var BIZ_TYPES=['Employer','Realtor','Apartment Locator','University / College','Hospital / Medical','Military / Government','Corporate Housing','Local Business','Senior Services','Relocation Company','Vendor Partner','Other'];
 
 

@@ -1449,12 +1449,147 @@ function writeAtlasSharedPropertyGraph(graph, options = {}) {
   return normalized;
 }
 
+function atlasLatestTimestamp(left = "", right = "") {
+  const a = String(left || "");
+  const b = String(right || "");
+  if (!a) return b;
+  if (!b) return a;
+  return a > b ? a : b;
+}
+
+function atlasMergeSharedFieldByTimestamp(target, remote, field, source, fallbackTimestamp) {
+  const remoteTimestamp = String(remote.fieldMeta?.[field]?.updatedAt || remote.updatedAt || fallbackTimestamp || atlasSharedNow());
+  const targetTimestamp = String(target.fieldMeta?.[field]?.updatedAt || target.updatedAt || "");
+  if (targetTimestamp && targetTimestamp > remoteTimestamp) return false;
+  const previous = target[field];
+  target.fieldMeta = atlasSharedObject(target.fieldMeta);
+  target.fieldMeta[field] = remote.fieldMeta?.[field] || { source, updatedAt: remoteTimestamp };
+  target[field] = Array.isArray(remote[field]) ? [...remote[field]] : remote[field];
+  return JSON.stringify(previous ?? "") !== JSON.stringify(target[field] ?? "");
+}
+
+function atlasMergeSharedPropertyRecord(graph, incomingRecord, options = {}) {
+  const source = options.source || "atlas_central_shared_graph";
+  const fallbackTimestamp = options.timestamp || atlasSharedNow();
+  const remote = atlasNormalizeSharedPropertyRecord(incomingRecord, incomingRecord?.communityId);
+  if (!remote.displayName) return false;
+  const match = atlasFindSharedPropertyMatch(graph, {
+    communityId: remote.communityId,
+    atlasCommunityId: remote.sourceIds?.atlasCommunityId,
+    name: remote.displayName,
+    sourceIds: remote.sourceIds
+  });
+  if (match.ambiguous) {
+    atlasPushSharedIssue(graph, { source, severity: "review", entity: remote.displayName, message: `${remote.displayName} matched more than one shared community during cloud hydration.` });
+    return true;
+  }
+  const targetKey = match.record?.communityId || remote.communityId;
+  const target = atlasNormalizeSharedPropertyRecord(match.record || { communityId: targetKey, displayName: remote.displayName }, targetKey);
+  let changed = false;
+  [
+    "displayName",
+    "market",
+    "regionalGrouping",
+    "propertyType",
+    "generalManagerName",
+    "generalManagerEmail",
+    "generalManagerUserId",
+    "regionalManagerName",
+    "regionalManagerEmail",
+    "regionalManagerUserId",
+    "status",
+    "owningPortfolio",
+    "scopeSelections"
+  ].forEach(field => {
+    changed = atlasMergeSharedFieldByTimestamp(target, remote, field, source, fallbackTimestamp) || changed;
+  });
+  target.canonicalName = remote.canonicalName || target.canonicalName || atlasNormalizeSharedText(target.displayName);
+  const nextAliases = Array.from(new Set([...(target.aliases || []), ...(remote.aliases || [])].map(item => String(item ?? "").trim()).filter(Boolean)));
+  if (JSON.stringify(nextAliases) !== JSON.stringify(target.aliases || [])) {
+    target.aliases = nextAliases;
+    changed = true;
+  }
+  const nextSourceIds = { ...atlasSharedObject(target.sourceIds), ...atlasSharedObject(remote.sourceIds), communityId: targetKey };
+  if (JSON.stringify(nextSourceIds) !== JSON.stringify(target.sourceIds || {})) {
+    target.sourceIds = nextSourceIds;
+    changed = true;
+  }
+  target.sourceUpdatedAt = { ...atlasSharedObject(target.sourceUpdatedAt), ...atlasSharedObject(remote.sourceUpdatedAt), [source]: fallbackTimestamp };
+  target.reviewFlags = Array.from(new Set([...(target.reviewFlags || []), ...(remote.reviewFlags || [])].map(item => String(item ?? "").trim()).filter(Boolean))).slice(0, 8);
+  target.updatedAt = atlasLatestTimestamp(target.updatedAt, remote.updatedAt || fallbackTimestamp);
+  graph.properties = { ...atlasSharedObject(graph.properties), [targetKey]: target };
+  return changed;
+}
+
+function atlasMergeSharedPersonRecord(graph, incomingPerson, options = {}) {
+  const source = options.source || "atlas_central_shared_graph";
+  const fallbackTimestamp = options.timestamp || atlasSharedNow();
+  const remoteRaw = atlasSharedObject(incomingPerson);
+  const email = atlasNormalizeSharedEmail(remoteRaw.email);
+  const userId = String(remoteRaw.userId || remoteRaw.peopleEmployeeId || "").trim();
+  const personId = String(remoteRaw.personId || userId || (email ? `email:${email}` : "")).trim();
+  if (!personId && !email) return false;
+  const people = atlasSharedObject(graph.people);
+  const existing = Object.values(people).find(person =>
+    (userId && String(person.userId || "").trim() === userId) ||
+    (email && atlasNormalizeSharedEmail(person.email) === email) ||
+    (personId && String(person.personId || "").trim() === personId)
+  );
+  const targetId = existing?.personId || personId;
+  const target = { personId: targetId, sourceIds: {}, fieldMeta: {}, updatedAt: "", displayName: "", email: "", role: "", userId: "", ...(existing || {}) };
+  const remote = { personId: targetId, sourceIds: {}, fieldMeta: {}, updatedAt: "", displayName: "", email: "", role: "", userId: "", ...remoteRaw };
+  let changed = false;
+  ["displayName", "email", "role", "userId"].forEach(field => {
+    changed = atlasMergeSharedFieldByTimestamp(target, remote, field, source, fallbackTimestamp) || changed;
+  });
+  const nextSourceIds = { ...atlasSharedObject(target.sourceIds), ...atlasSharedObject(remote.sourceIds) };
+  if (JSON.stringify(nextSourceIds) !== JSON.stringify(target.sourceIds || {})) {
+    target.sourceIds = nextSourceIds;
+    changed = true;
+  }
+  target.updatedAt = atlasLatestTimestamp(target.updatedAt, remote.updatedAt || fallbackTimestamp);
+  graph.people = { ...people, [targetId]: target };
+  return changed;
+}
+
+async function pullAtlasSharedPropertyGraphFromCentral(options = {}) {
+  try {
+    const status = getAtlasCentralStatus();
+    if (!status.configured || !status.signedIn || !window.ATLAS_CENTRAL?.readSharedPropertyGraph) return null;
+    const document = await window.ATLAS_CENTRAL.readSharedPropertyGraph();
+    if (!document?.payload) return null;
+    const remoteGraph = normalizeAtlasSharedPropertyGraph(document.payload);
+    const graph = readAtlasSharedPropertyGraph();
+    const timestamp = remoteGraph.updatedAt || document.updated_at || atlasSharedNow();
+    let changed = false;
+    Object.values(remoteGraph.people || {}).forEach(person => {
+      changed = atlasMergeSharedPersonRecord(graph, person, { source: "atlas_central_shared_graph", timestamp }) || changed;
+    });
+    Object.values(remoteGraph.properties || {}).forEach(record => {
+      changed = atlasMergeSharedPropertyRecord(graph, record, { source: "atlas_central_shared_graph", timestamp }) || changed;
+    });
+    if (remoteGraph.settings?.updatedAt && (!graph.settings?.updatedAt || remoteGraph.settings.updatedAt >= graph.settings.updatedAt)) {
+      graph.settings = { ...graph.settings, ...remoteGraph.settings };
+      changed = true;
+    }
+    if (changed) {
+      writeAtlasSharedPropertyGraph(graph, { source: "atlas_central_shared_graph", updatedAt: timestamp, central: false });
+      if (options.applyToPortfolio) applySharedPropertyGraphToPortfolio({ persistCommunityData: true });
+    }
+    return { changed, properties: Object.keys(remoteGraph.properties || {}).length, people: Object.keys(remoteGraph.people || {}).length };
+  } catch (error) {
+    if (!options.silent) markAtlasPersistenceError(error, "Shared property graph could not be pulled from Central Atlas.");
+    return null;
+  }
+}
+
 function readAtlasSharedPropertyCatalogEntries() {
   const graph = readAtlasSharedPropertyGraph();
   return Object.values(graph.properties).map(record => ({
     name: record.displayName,
     units: null,
     communityId: record.communityId,
+    atlasCommunityId: record.sourceIds?.atlasCommunityId || "",
     market: record.market,
     regionalGrouping: record.regionalGrouping,
     propertyType: record.propertyType,
@@ -1495,6 +1630,9 @@ function atlasSharedPropertyRecordSignatures(record) {
   return atlasSharedPropertySignatureSet([
     record?.displayName,
     record?.canonicalName,
+    record?.communityId,
+    sourceIds.communityId,
+    sourceIds.atlasCommunityId,
     sourceIds.portfolioName,
     sourceIds.marketingPropertyName,
     ...(Array.isArray(record?.aliases) ? record.aliases : [])
@@ -1511,6 +1649,15 @@ function atlasFindSharedPropertyMatch(graph, input = {}) {
   const directId = String(input.communityId || sourceIds.communityId || "").trim();
   if (directId && graph.properties[directId]) return { record: graph.properties[directId] };
   const entries = Object.values(graph.properties);
+  const atlasCommunityId = String(input.atlasCommunityId || sourceIds.atlasCommunityId || sourceIds.atlas_community_id || "").trim();
+  if (atlasCommunityId) {
+    const byAtlasId = entries.find(record =>
+      String(record.communityId || "").trim() === atlasCommunityId ||
+      String(record.sourceIds?.communityId || "").trim() === atlasCommunityId ||
+      String(record.sourceIds?.atlasCommunityId || "").trim() === atlasCommunityId
+    );
+    if (byAtlasId) return { record: byAtlasId };
+  }
   const marketingId = String(sourceIds.marketingPropertyId || "").trim();
   if (marketingId) {
     const byMarketingId = entries.find(record => String(record.sourceIds?.marketingPropertyId || "").trim() === marketingId);
@@ -5562,6 +5709,63 @@ async function fetchMarketingMccTable(tableName, query = "") {
   });
   if (!response.ok) throw new Error(`${tableName} returned ${response.status}`);
   return response.json();
+}
+
+async function hydrateSharedPropertiesFromMarketingDatabase(options = {}) {
+  try {
+    const query = [
+      "select=id,name,market,property_type,gm_name,gm_email,regional_name,regional_email,status,community_id,atlas_community_id,canonical_name,aliases,owning_portfolio,scope_selections,gm_employee_id,regional_employee_id,shared_sync_status,shared_sync_source,shared_sync_updated_at,shared_review_flags,updated_at,created_at",
+      "order=name.asc"
+    ].join("&");
+    const rows = await fetchMarketingMccTable("properties", query);
+    const graph = readAtlasSharedPropertyGraph();
+    let changed = false;
+    (Array.isArray(rows) ? rows : []).forEach(row => {
+      const timestamp = String(row.shared_sync_updated_at || row.updated_at || row.created_at || atlasSharedNow());
+      const result = atlasUpsertSharedProperty(graph, {
+        communityId: row.community_id || row.atlas_community_id || "",
+        atlasCommunityId: row.atlas_community_id || "",
+        name: row.name,
+        market: row.market,
+        regionalGrouping: row.market,
+        propertyType: row.property_type,
+        generalManagerName: row.gm_name,
+        generalManagerEmail: row.gm_email,
+        generalManagerUserId: row.gm_employee_id,
+        regionalManagerName: row.regional_name,
+        regionalManagerEmail: row.regional_email,
+        regionalManagerUserId: row.regional_employee_id,
+        status: row.status,
+        owningPortfolio: row.owning_portfolio,
+        scopeSelections: Array.isArray(row.scope_selections) ? row.scope_selections : [],
+        sourceIds: {
+          communityId: row.community_id || row.atlas_community_id || "",
+          atlasCommunityId: row.atlas_community_id || "",
+          marketingPropertyId: row.id,
+          marketingPropertyName: row.name
+        }
+      }, {
+        source: row.shared_sync_source || "marketing_command_center_db",
+        timestamp,
+        requireName: true,
+        strictMarket: false,
+        strictPropertyType: false
+      });
+      if (result.record && Array.isArray(row.shared_review_flags) && row.shared_review_flags.length) {
+        result.record.reviewFlags = Array.from(new Set([...(result.record.reviewFlags || []), ...row.shared_review_flags])).slice(0, 8);
+      }
+      changed = result.changed || changed;
+    });
+    if (changed || options.persist) {
+      writeAtlasSharedPropertyGraph(graph, { source: "marketing_command_center_db", updatedAt: atlasSharedNow(), central: options.central !== false });
+      if (options.applyToPortfolio) applySharedPropertyGraphToPortfolio({ persistCommunityData: true });
+      persistOpsPropertyCatalog();
+    }
+    return { changed, properties: Array.isArray(rows) ? rows.length : 0 };
+  } catch (error) {
+    if (!options.silent) markAtlasPersistenceError(error, "Marketing property records could not be loaded into the shared ATLAS graph.");
+    return null;
+  }
 }
 
 async function fetchMarketingTeamMembersForBonus() {
@@ -36274,6 +36478,8 @@ async function initializeAtlasDashboard() {
     } catch (error) {
       markAtlasPersistenceError(error, "ATLAS could not finish loading browser data.");
     }
+    await pullAtlasSharedPropertyGraphFromCentral({ silent: true, applyToPortfolio: true });
+    await hydrateSharedPropertiesFromMarketingDatabase({ silent: true, applyToPortfolio: true, central: true });
     runAtlasStartupStep("rehydrate global ATLAS settings", () => hydrateOpsGlobalData());
     runAtlasInitialRenderPass();
     if (savedData && Object.keys(savedData).length > 0) {

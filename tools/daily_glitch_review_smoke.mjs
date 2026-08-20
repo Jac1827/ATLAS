@@ -59,7 +59,7 @@ const publishedPages = [
     relativePath: "docs/portfolio-operations-dashboard/index.html",
     markers: [
       "<title>ATLAS RISE Ops Dashboard</title>",
-      "ATLAS Portfolio Tracker Reports for RISE logo",
+      "ATLAS RISE logo",
       "Portfolio Home",
       "Community Setup",
       "Data Import",
@@ -276,7 +276,7 @@ async function main() {
     console.log(
       `Daily Glitch Review smoke passed static coverage for docs/index.html, docs/performance-platform.html, docs/portfolio-operations-dashboard/index.html, and docs/portfolio-operations-dashboard/financial-accountability.html. Browser checks were skipped: ${browserResult.reason}`,
     );
-    return;
+    process.exit(0);
   }
   console.log(
     "Daily Glitch Review smoke passed static and browser coverage for docs/index.html, docs/performance-platform.html, docs/portfolio-operations-dashboard/index.html, and docs/portfolio-operations-dashboard/financial-accountability.html.",

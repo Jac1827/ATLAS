@@ -1034,6 +1034,7 @@ const DASHBOARD_DAILY_BACKUP_RETENTION = 45;
 const MARKETING_MCC_SUPABASE_URL = "https://dgkedyzdhneiypqeimhd.supabase.co";
 const MARKETING_MCC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRna2VkeXpkaG5laXlwcWVpbWhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MTc1MDEsImV4cCI6MjA5NzI5MzUwMX0.X2BacSn45_s7ODDNvTLy-70oinVncghmxV-ycECiCSc";
 const MARKETING_BONUS_REFRESH_MS = 5 * 60 * 1000;
+const MARKETING_PEOPLE_LINKS_STORAGE_KEY = "atlas_marketing_people_links_v1";
 const WINDOWSHADE_DEFAULTS = {
   recommendations: false,
   setup_foundation: false,
@@ -3916,6 +3917,8 @@ function defaultAtlasSharedData() {
     assignments: [],
     employeeChangeEvents: [],
     migrationBatches: [],
+    marketingBonusSnapshots: [],
+    marketingDataExceptions: [],
     readOnlySnapshotCount: 0,
     historyBacked: false,
     lastPeopleSyncAt: "",
@@ -4007,6 +4010,8 @@ function normalizeAtlasSharedData(data = {}) {
     assignments: (Array.isArray(input.assignments) ? input.assignments : []).map(normalizeSharedAssignmentRecord).filter(item => item.employeeId && item.communityName && item.bonusRoleType),
     employeeChangeEvents: Array.isArray(input.employeeChangeEvents) ? input.employeeChangeEvents.slice(0, 500) : [],
     migrationBatches: Array.isArray(input.migrationBatches) ? input.migrationBatches.slice(0, 100) : [],
+    marketingBonusSnapshots: Array.isArray(input.marketingBonusSnapshots) ? input.marketingBonusSnapshots.slice(0, 100) : [],
+    marketingDataExceptions: Array.isArray(input.marketingDataExceptions) ? input.marketingDataExceptions.slice(0, 200) : [],
     readOnlySnapshotCount: Number(input.readOnlySnapshotCount || 0),
     historyBacked: Boolean(input.historyBacked),
     lastPeopleSyncAt: String(input.lastPeopleSyncAt ?? ""),
@@ -4625,6 +4630,7 @@ function defaultMarketingBonusState() {
     tickets: [],
     ratings: [],
     leadSources: [],
+    exceptions: [],
     weights: defaultMarketingBonusWeights(),
     targets: defaultMarketingBonusTargets()
   };
@@ -4674,8 +4680,40 @@ function normalizeMarketingBonusSettings(rows = []) {
   };
 }
 
-function normalizeMarketingTeamMember(row = {}) {
+function loadMarketingPeopleLinksForBonus() {
+  try {
+    const raw = localStorage.getItem(MARKETING_PEOPLE_LINKS_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function mergeMarketingPeopleLinkForBonus(member = {}) {
+  if (member.peopleEmployeeId) return member;
+  const links = loadMarketingPeopleLinksForBonus();
+  const keys = [
+    String(member.id || "").trim(),
+    String(member.email || "").trim().toLowerCase()
+  ].filter(Boolean);
+  const stored = keys.map(key => links[key]).find(Boolean);
+  if (!stored) return member;
   return {
+    ...member,
+    peopleEmployeeId: stored.peopleEmployeeId || "",
+    peopleEmployeeNumber: stored.peopleEmployeeNumber || "",
+    peopleEmployeeName: stored.peopleEmployeeName || "",
+    peopleEmployeeStatus: stored.peopleEmployeeStatus || "",
+    peopleEmployeeCommunity: stored.peopleEmployeeCommunity || "",
+    peopleEmployeeRole: stored.peopleEmployeeRole || "",
+    peopleLinkedAt: stored.linkedAt || "",
+    peopleLinkPersistence: stored.persistence || "local_fallback"
+  };
+}
+
+function normalizeMarketingTeamMember(row = {}) {
+  return mergeMarketingPeopleLinkForBonus({
     id: String(row.id || "").trim(),
     fname: String(row.fname || "").trim(),
     lname: String(row.lname || "").trim(),
@@ -4685,8 +4723,15 @@ function normalizeMarketingTeamMember(row = {}) {
     status: String(row.status || "active").trim() || "active",
     maxTickets: Number(row.max_tickets || 0) || 0,
     color: String(row.avatar_color || "#013e51").trim(),
-    properties: Array.isArray(row.properties) ? row.properties : []
-  };
+    properties: Array.isArray(row.properties) ? row.properties : [],
+    peopleEmployeeId: String(row.people_employee_id || row.peopleEmployeeId || "").trim(),
+    peopleEmployeeNumber: String(row.people_employee_number || row.peopleEmployeeNumber || "").trim(),
+    peopleEmployeeName: String(row.people_employee_name || row.peopleEmployeeName || "").trim(),
+    peopleEmployeeStatus: String(row.people_employee_status || row.peopleEmployeeStatus || "").trim(),
+    peopleEmployeeCommunity: String(row.people_employee_community || row.peopleEmployeeCommunity || "").trim(),
+    peopleEmployeeRole: String(row.people_employee_role || row.peopleEmployeeRole || "").trim(),
+    peopleLinkedAt: String(row.people_linked_at || row.peopleLinkedAt || "").trim()
+  });
 }
 
 function normalizeMarketingTicket(row = {}) {
@@ -4697,6 +4742,8 @@ function normalizeMarketingTicket(row = {}) {
     dueDate: String(row.due_date || "").trim(),
     closedAt: String(row.closed_at || "").trim(),
     createdAt: String(row.created_at || "").trim(),
+    propertyName: String(row.property_name || "").trim(),
+    approvedCost: Number(row.approved_cost || 0) || 0,
     marketingTimeSeconds: Number(row.marketing_time_seconds || 0) || 0
   };
 }
@@ -4704,6 +4751,8 @@ function normalizeMarketingTicket(row = {}) {
 function normalizeMarketingRating(row = {}) {
   return {
     id: String(row.id || "").trim(),
+    ticketId: String(row.ticket_id || "").trim(),
+    propertyName: String(row.property_name || "").trim(),
     assigneeName: String(row.assignee_name || "").trim(),
     quality: Number(row.quality || 0) || 0,
     timeliness: Number(row.timeliness || 0) || 0,
@@ -4734,6 +4783,26 @@ async function fetchMarketingMccTable(tableName, query = "") {
   return response.json();
 }
 
+async function fetchMarketingTeamMembersForBonus() {
+  const extended = "select=id,fname,lname,email,role,role_type,status,max_tickets,avatar_color,properties,people_employee_id,people_employee_number,people_employee_name,people_employee_status,people_employee_community,people_employee_role,people_linked_at&order=fname.asc";
+  const legacy = "select=id,fname,lname,email,role,role_type,status,max_tickets,avatar_color,properties&order=fname.asc";
+  try {
+    return {
+      rows: await fetchMarketingMccTable("team_members", extended),
+      exceptions: []
+    };
+  } catch (error) {
+    return {
+      rows: await fetchMarketingMccTable("team_members", legacy),
+      exceptions: [{
+        severity: "warn",
+        code: "marketing_people_columns_unavailable",
+        message: "Marketing team member People-link columns are not available from Supabase yet. Existing rows loaded, but unlinked employees require review."
+      }]
+    };
+  }
+}
+
 async function loadMarketingBonusData(options = {}) {
   const now = Date.now();
   const lastLoadedTime = marketingBonusState.loadedAt ? Date.parse(marketingBonusState.loadedAt) : 0;
@@ -4743,12 +4812,12 @@ async function loadMarketingBonusData(options = {}) {
   if (marketingBonusLoadPromise) return marketingBonusLoadPromise;
   marketingBonusState = { ...marketingBonusState, status: "loading", error: "" };
   marketingBonusLoadPromise = Promise.all([
-    fetchMarketingMccTable("team_members", "select=id,fname,lname,email,role,role_type,status,max_tickets,avatar_color,properties&order=fname.asc"),
-    fetchMarketingMccTable("tickets", "select=id,assigned_to,status,due_date,closed_at,created_at,marketing_time_seconds&order=created_at.desc"),
-    fetchMarketingMccTable("satisfaction_ratings", "select=id,assignee_name,quality,timeliness,created_at&order=created_at.desc"),
+    fetchMarketingTeamMembersForBonus(),
+    fetchMarketingMccTable("tickets", "select=id,assigned_to,status,due_date,closed_at,created_at,property_name,approved_cost,marketing_time_seconds&order=created_at.desc"),
+    fetchMarketingMccTable("satisfaction_ratings", "select=id,ticket_id,property_name,assignee_name,quality,timeliness,created_at&order=created_at.desc"),
     fetchMarketingMccTable("lead_sources", "select=id,monthly_cost,leads,leases,period"),
     fetchMarketingMccTable("bonus_settings", "select=weights,targets,updated_at,updated_by&order=updated_at.desc&limit=1")
-  ]).then(([teamRows, ticketRows, ratingRows, leadRows, settingsRows]) => {
+  ]).then(([teamResult, ticketRows, ratingRows, leadRows, settingsRows]) => {
     const settings = normalizeMarketingBonusSettings(settingsRows);
     marketingBonusState = {
       status: "ready",
@@ -4756,10 +4825,11 @@ async function loadMarketingBonusData(options = {}) {
       loadedAt: new Date().toISOString(),
       settingsUpdatedAt: settings.settingsUpdatedAt,
       settingsUpdatedBy: settings.settingsUpdatedBy,
-      teamMembers: (Array.isArray(teamRows) ? teamRows : []).map(normalizeMarketingTeamMember).filter(member => member.id && member.fname),
+      teamMembers: (Array.isArray(teamResult.rows) ? teamResult.rows : []).map(normalizeMarketingTeamMember).filter(member => member.id && member.fname),
       tickets: (Array.isArray(ticketRows) ? ticketRows : []).map(normalizeMarketingTicket),
       ratings: (Array.isArray(ratingRows) ? ratingRows : []).map(normalizeMarketingRating),
       leadSources: (Array.isArray(leadRows) ? leadRows : []).map(normalizeMarketingLeadSource),
+      exceptions: Array.isArray(teamResult.exceptions) ? teamResult.exceptions : [],
       weights: settings.weights,
       targets: settings.targets
     };
@@ -4805,22 +4875,146 @@ function formatMarketingBonusValue(value, unit = "") {
   return number.toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
 
-function marketingRatingBelongsToMember(rating = {}, member = {}) {
+function getMarketingBonusPeriodRange(quarter = bonusQuarter, year = new Date().getFullYear()) {
+  const range = getBonusQuarterDateRange(quarter, year);
+  const today = getAtlasTodayISODate();
+  return {
+    ...range,
+    asOfDate: today >= range.start && today <= range.end ? today : range.end,
+    isClosed: today > range.end,
+    periodKey: `${range.year}-${range.quarter}`
+  };
+}
+
+function marketingMemberDisplayName(member = {}) {
+  return `${member.fname || ""} ${member.lname || ""}`.trim();
+}
+
+function marketingMemberPeopleMatchCandidates(member = {}) {
+  return {
+    peopleEmployeeId: String(member.peopleEmployeeId || "").trim(),
+    employeeNumber: String(member.peopleEmployeeNumber || "").replace(/[^\w-]/g, "").trim(),
+    email: String(member.email || "").trim().toLowerCase(),
+    peopleName: String(member.peopleEmployeeName || "").trim().toLowerCase(),
+    memberName: marketingMemberDisplayName(member).toLowerCase()
+  };
+}
+
+function findPeopleEmployeeForMarketingMember(member = {}, peopleState = loadPeoplePlatformStateForSharedData()) {
+  const employees = Array.isArray(peopleState.employees) ? peopleState.employees : [];
+  const candidates = marketingMemberPeopleMatchCandidates(member);
+  if (candidates.peopleEmployeeId) {
+    const byId = employees.find(employee => String(employee.id || "") === candidates.peopleEmployeeId);
+    if (byId) return byId;
+  }
+  if (candidates.employeeNumber) {
+    const byNumber = employees.find(employee => String(employee.employeeNumber || "").replace(/[^\w-]/g, "").trim() === candidates.employeeNumber);
+    if (byNumber) return byNumber;
+  }
+  if (candidates.email) {
+    const byEmail = employees.find(employee => String(employee.email || "").trim().toLowerCase() === candidates.email);
+    if (byEmail) return byEmail;
+  }
+  if (candidates.peopleName || candidates.memberName) {
+    const wanted = candidates.peopleName || candidates.memberName;
+    const byName = employees.filter(employee => String(employee.name || "").trim().toLowerCase() === wanted);
+    if (byName.length === 1) return byName[0];
+  }
+  return null;
+}
+
+function peopleAssignmentActiveOnDateForMarketing(assignment = {}, asOfDate = getAtlasTodayISODate()) {
+  if (String(assignment.recordStatus || "active") === "superseded") return false;
+  const start = normalizeSharedDate(assignment.effectiveStart);
+  const end = normalizeSharedDate(assignment.effectiveEnd);
+  const asOfTime = sharedDateTime(asOfDate);
+  const startTime = start ? sharedDateTime(start) : null;
+  const endTime = end ? sharedDateTime(end) : null;
+  if (asOfTime == null || startTime == null || startTime > asOfTime) return false;
+  return endTime == null || endTime >= asOfTime;
+}
+
+function findPeopleAssignmentForMarketingMember(member = {}, peopleEmployee = null, period = getMarketingBonusPeriodRange()) {
+  const peopleState = loadPeoplePlatformStateForSharedData();
+  const employee = peopleEmployee || findPeopleEmployeeForMarketingMember(member, peopleState);
+  if (!employee) return null;
+  const assignments = (peopleState.employeeAssignments || [])
+    .filter(assignment => String(assignment.employeeId || "") === String(employee.id || ""))
+    .filter(assignment => peopleAssignmentActiveOnDateForMarketing(assignment, period.asOfDate))
+    .sort((a, b) => String(b.effectiveStart || "").localeCompare(String(a.effectiveStart || "")));
+  return assignments[0] || null;
+}
+
+function isPeopleStatusActiveForMarketing(status = "", terminationDate = "", asOfDate = getAtlasTodayISODate()) {
+  const normalized = String(status || "Active").toLowerCase();
+  if (normalized.includes("terminated") || normalized.includes("inactive") || normalized.includes("archived")) return false;
+  const term = normalizeSharedDate(terminationDate);
+  return !(term && sharedDateTime(term) <= sharedDateTime(asOfDate));
+}
+
+function getMarketingPeopleEligibility(member = {}, period = getMarketingBonusPeriodRange()) {
+  const peopleState = loadPeoplePlatformStateForSharedData();
+  const exceptions = [];
+  if (!member.peopleEmployeeId && !member.peopleEmployeeNumber) {
+    exceptions.push({ severity: "error", code: "missing_people_link", message: `${marketingMemberDisplayName(member) || member.email} is not linked to a People employee record.`, memberId: member.id });
+  }
+  const peopleEmployee = findPeopleEmployeeForMarketingMember(member, peopleState);
+  if (!peopleEmployee) {
+    exceptions.push({ severity: "error", code: "people_employee_not_found", message: `${marketingMemberDisplayName(member) || member.email} could not be matched to People.`, memberId: member.id });
+    return { eligible: false, peopleEmployee: null, assignment: null, exceptions };
+  }
+  const assignment = findPeopleAssignmentForMarketingMember(member, peopleEmployee, period);
+  const status = assignment?.status || peopleEmployee.status || member.peopleEmployeeStatus || "Active";
+  const terminationDate = assignment?.terminationDate || peopleEmployee.terminationDate || "";
+  if (!isPeopleStatusActiveForMarketing(status, terminationDate, period.asOfDate)) {
+    exceptions.push({ severity: "warn", code: "people_inactive_for_period", message: `${peopleEmployee.name || marketingMemberDisplayName(member)} is not active in People as of ${period.asOfDate}.`, memberId: member.id, peopleEmployeeId: peopleEmployee.id });
+  }
+  if (!assignment && Array.isArray(peopleState.employeeAssignments) && peopleState.employeeAssignments.length) {
+    exceptions.push({ severity: "warn", code: "missing_effective_assignment", message: `${peopleEmployee.name || marketingMemberDisplayName(member)} has no effective-dated People assignment active on ${period.asOfDate}.`, memberId: member.id, peopleEmployeeId: peopleEmployee.id });
+  }
+  return {
+    eligible: exceptions.every(issue => issue.severity !== "error") && isPeopleStatusActiveForMarketing(status, terminationDate, period.asOfDate),
+    peopleEmployee,
+    assignment,
+    exceptions
+  };
+}
+
+function isMarketingTicketApprovedForBonus(ticket = {}, period = getMarketingBonusPeriodRange()) {
+  if (ticket.status !== "complete") return false;
+  const closed = String(ticket.closedAt || "").slice(0, 10);
+  if (!normalizeSharedDate(closed)) return false;
+  return closed >= period.start && closed <= period.end;
+}
+
+function getApprovedMarketingTicketsForMember(member = {}, state = marketingBonusState, period = getMarketingBonusPeriodRange()) {
+  return state.tickets.filter(ticket => ticket.assignedTo === member.id && isMarketingTicketApprovedForBonus(ticket, period));
+}
+
+function marketingRatingBelongsToMember(rating = {}, member = {}, approvedTicketIds = new Set()) {
+  if (rating.ticketId) return approvedTicketIds.has(rating.ticketId);
+  return false;
+}
+
+function marketingRatingNameMatchesMember(rating = {}, member = {}) {
   const assignee = String(rating.assigneeName || "").trim().toLowerCase();
   const first = String(member.fname || "").trim().toLowerCase();
   const full = `${member.fname || ""} ${member.lname || ""}`.trim().toLowerCase();
   return Boolean(assignee && (assignee === first || assignee === full || assignee.startsWith(`${first} `)));
 }
 
-function getMarketingBonusMetricResults(member, state = marketingBonusState) {
+function getMarketingBonusMetricResults(member, state = marketingBonusState, options = {}) {
+  const period = options.period || getMarketingBonusPeriodRange();
   const memberId = member.id;
   const myTickets = state.tickets.filter(ticket => ticket.assignedTo === memberId);
-  const myClosed = myTickets.filter(ticket => ticket.status === "complete");
+  const myClosed = getApprovedMarketingTicketsForMember(member, state, period);
   const myOpen = myTickets.filter(ticket => !["complete", "cancelled"].includes(ticket.status));
   const dueAndClosed = myClosed.filter(ticket => ticket.dueDate && ticket.closedAt);
   const onTimeCount = dueAndClosed.filter(ticket => ticket.closedAt <= `${ticket.dueDate}T23:59:59`).length;
   const onTimePct = dueAndClosed.length ? (onTimeCount / dueAndClosed.length) * 100 : null;
-  const myRatings = state.ratings.filter(rating => marketingRatingBelongsToMember(rating, member));
+  const approvedTicketIds = new Set(myClosed.map(ticket => ticket.id).filter(Boolean));
+  const myRatings = state.ratings.filter(rating => marketingRatingBelongsToMember(rating, member, approvedTicketIds));
+  const unapprovedRatings = state.ratings.filter(rating => !rating.ticketId && marketingRatingNameMatchesMember(rating, member));
   const avgRating = myRatings.length
     ? myRatings.reduce((sum, rating) => sum + (((rating.quality || 0) + (rating.timeliness || 0)) / 2), 0) / myRatings.length
     : null;
@@ -4889,13 +5083,69 @@ function getMarketingBonusMetricResults(member, state = marketingBonusState) {
     ticketsClosed: myClosed.length,
     openTickets: myOpen.length,
     ratingCount: myRatings.length,
-    onTimePct
+    onTimePct,
+    period,
+    sourceTicketIds: myClosed.map(ticket => ticket.id),
+    sourceProperties: [...new Set(myClosed.map(ticket => ticket.propertyName).filter(Boolean))],
+    sourceStatus: "approved_completed_tickets_only",
+    sourceExceptions: unapprovedRatings.length ? [{
+      severity: "warn",
+      code: "unlinked_rating_excluded",
+      message: `${unapprovedRatings.length} satisfaction rating${unapprovedRatings.length === 1 ? "" : "s"} lacked a completed ticket link and were excluded.`
+    }] : []
   };
 }
 
+function buildMarketingBonusSnapshot(period, scores, state, exceptions = []) {
+  return {
+    id: `marketing_bonus_${period.periodKey}`,
+    quarter: period.quarter,
+    year: period.year,
+    periodStart: period.start,
+    periodEnd: period.end,
+    asOfDate: period.asOfDate,
+    locked: Boolean(period.isClosed),
+    updatedAt: new Date().toISOString(),
+    settingsUpdatedAt: state.settingsUpdatedAt || "",
+    settingsUpdatedBy: state.settingsUpdatedBy || "",
+    weights: state.weights,
+    targets: state.targets,
+    employees: scores.map(({ member, detail, eligibility }) => ({
+      marketingMemberId: member.id,
+      peopleEmployeeId: eligibility.peopleEmployee?.id || member.peopleEmployeeId || "",
+      name: eligibility.peopleEmployee?.name || marketingMemberDisplayName(member),
+      role: eligibility.assignment?.role || eligibility.peopleEmployee?.role || member.role || "",
+      eligible: Boolean(eligibility.eligible),
+      score: detail.score,
+      ticketsClosed: detail.ticketsClosed,
+      sourceTicketIds: detail.sourceTicketIds,
+      sourceProperties: detail.sourceProperties,
+      exceptions: [...(eligibility.exceptions || []), ...(detail.sourceExceptions || [])]
+    })),
+    exceptions
+  };
+}
+
+function upsertMarketingBonusSnapshot(period, scores, state, exceptions = []) {
+  const sharedData = normalizeAtlasSharedData(atlasSharedData);
+  const existing = (sharedData.marketingBonusSnapshots || []).find(snapshot => snapshot.id === `marketing_bonus_${period.periodKey}`);
+  if (existing && existing.locked) return existing;
+  const snapshot = buildMarketingBonusSnapshot(period, scores, state, exceptions);
+  sharedData.marketingBonusSnapshots = [
+    ...(sharedData.marketingBonusSnapshots || []).filter(item => item.id !== snapshot.id),
+    snapshot
+  ].slice(-100);
+  sharedData.marketingDataExceptions = exceptions.slice(0, 200);
+  atlasSharedData = sharedData;
+  persistOpsGlobalData();
+  return snapshot;
+}
+
 function renderMarketingBonusIncentiveSection() {
+  syncSharedPeopleAssignments({ persist: true });
   queueMarketingBonusDataLoad();
   const state = marketingBonusState;
+  const period = getMarketingBonusPeriodRange(bonusQuarter);
   if (state.status === "idle" || state.status === "loading") {
     return `<div class="bonus-tab-section" id="marketing-bonus-incentives">
       <div class="bonus-role-card">
@@ -4913,16 +5163,38 @@ function renderMarketingBonusIncentiveSection() {
     </div>`;
   }
   const staff = state.teamMembers.filter(member => member.status === "active" && member.roleType !== "vp");
-  const scores = staff.map(member => ({ member, detail: getMarketingBonusMetricResults(member, state) }));
-  const avgScore = scores.length
-    ? Math.round(scores.reduce((sum, item) => sum + item.detail.score, 0) / scores.length)
+  const scores = staff.map(member => {
+    const eligibility = getMarketingPeopleEligibility(member, period);
+    const detail = getMarketingBonusMetricResults(member, state, { period });
+    return { member, detail, eligibility };
+  });
+  const eligibleScores = scores.filter(item => item.eligibility.eligible);
+  const exceptionRows = [
+    ...(state.exceptions || []),
+    ...scores.flatMap(({ eligibility, detail }) => [...(eligibility.exceptions || []), ...(detail.sourceExceptions || [])])
+  ];
+  const avgScore = eligibleScores.length
+    ? Math.round(eligibleScores.reduce((sum, item) => sum + item.detail.score, 0) / eligibleScores.length)
     : 0;
+  const snapshot = upsertMarketingBonusSnapshot(period, scores, state, exceptionRows);
   const enabledWeightTotal = state.weights.filter(weight => weight.enabled !== false).reduce((sum, weight) => sum + Number(weight.weight || 0), 0);
   const settingsLabel = state.settingsUpdatedAt
     ? `Settings updated ${new Date(state.settingsUpdatedAt).toLocaleDateString()}${state.settingsUpdatedBy ? ` by ${state.settingsUpdatedBy}` : ""}`
     : "Using Marketing Command Center default settings";
-  const cards = scores.map(({ member, detail }) => {
+  const exceptionPanel = exceptionRows.length ? `<div class="bonus-role-card" style="border-color:rgba(217,153,34,0.35);background:rgba(217,153,34,0.05)">
+    <div class="bonus-role-name" style="font-size:0.82rem;color:#d29922">Marketing data review needed</div>
+    <div style="font-size:0.66rem;color:var(--muted);line-height:1.45;margin-top:6px">
+      ${exceptionRows.slice(0,6).map(issue => `${escapeHtml(String(issue.severity || "warn").toUpperCase())}: ${escapeHtml(issue.message || issue.code || "Review Marketing source data")}`).join("<br>")}
+      ${exceptionRows.length > 6 ? `<br>+${exceptionRows.length - 6} more exception${exceptionRows.length - 6 === 1 ? "" : "s"}` : ""}
+    </div>
+  </div>` : "";
+  const cards = scores.map(({ member, detail, eligibility }) => {
     const scoreColor = detail.score >= 80 ? "#3fb950" : detail.score >= 60 ? "#d29922" : "#f85149";
+    const personName = eligibility.peopleEmployee?.name || marketingMemberDisplayName(member);
+    const personRole = eligibility.assignment?.role || eligibility.peopleEmployee?.role || member.role || "Marketing team member";
+    const sourceProperties = detail.sourceProperties.length ? detail.sourceProperties.join(", ") : "No completed-ticket property source";
+    const eligibilityLabel = eligibility.eligible ? "People eligible" : "Review required";
+    const eligibilityColor = eligibility.eligible ? "#3fb950" : "#d29922";
     const metricRows = detail.metrics.map(metric => {
       const metricColor = metric.available
         ? metric.scorePct >= 90 ? "#3fb950" : metric.scorePct >= 60 ? "#d29922" : "#f85149"
@@ -4936,16 +5208,20 @@ function renderMarketingBonusIncentiveSection() {
         ${metric.note ? `<div style="font-size:0.6rem;color:var(--muted);margin-top:3px">${escapeHtml(metric.note)}</div>` : ""}
       </div>`;
     }).join("");
-    return `<div class="bonus-role-card">
+    return `<div class="bonus-role-card" style="${eligibility.eligible ? "" : "border-color:rgba(217,153,34,0.36)"}">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px">
         <div>
-          <div class="bonus-role-name">${escapeHtml(`${member.fname} ${member.lname || ""}`.trim())}</div>
-          <div class="bonus-role-meta">${escapeHtml(member.role || "Marketing team member")}</div>
+          <div class="bonus-role-name">${escapeHtml(personName)}</div>
+          <div class="bonus-role-meta">${escapeHtml(personRole)}</div>
+          <div style="font-size:0.62rem;color:${eligibilityColor};margin-top:4px">${eligibilityLabel}${eligibility.peopleEmployee?.id ? ` · People ${escapeHtml(eligibility.peopleEmployee.id)}` : ""}</div>
         </div>
         <div style="text-align:right">
           <div style="font-size:1.6rem;font-weight:800;font-family:'JetBrains Mono',monospace;color:${scoreColor}">${detail.score}%</div>
           <div style="font-size:0.62rem;color:var(--muted)">Bonus score</div>
         </div>
+      </div>
+      <div style="font-size:0.62rem;color:var(--muted);line-height:1.45;margin-bottom:10px">
+        Period: ${escapeHtml(period.quarter)} ${period.year} (${escapeHtml(period.start)} to ${escapeHtml(period.end)}) · Source: ${detail.sourceStatus.replace(/_/g, " ")} · Properties: ${escapeHtml(sourceProperties)}
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
         <div class="bonus-comm-cell"><strong>${detail.ticketsClosed}</strong><br><span>closed tickets</span></div>
@@ -4954,14 +5230,17 @@ function renderMarketingBonusIncentiveSection() {
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">${metricRows}</div>
       ${detail.skippedWeight > 0 ? `<div style="font-size:0.62rem;color:#d29922;margin-top:8px">Skipped ${detail.skippedWeight}% of enabled Marketing weight because the source metric is not captured at employee level yet.</div>` : ""}
+      ${eligibility.exceptions?.length ? `<div style="font-size:0.62rem;color:#d29922;margin-top:8px">${eligibility.exceptions.map(issue => escapeHtml(issue.message || issue.code)).join("<br>")}</div>` : ""}
+      ${detail.sourceExceptions?.length ? `<div style="font-size:0.62rem;color:#d29922;margin-top:8px">${detail.sourceExceptions.map(issue => escapeHtml(issue.message || issue.code)).join("<br>")}</div>` : ""}
     </div>`;
   }).join("");
   return `<div class="bonus-tab-section" id="marketing-bonus-incentives">
-    <div class="bonus-group-title">Marketing Command Center Incentives<span class="bonus-role-count">${staff.length} active employee${staff.length === 1 ? "" : "s"}</span></div>
+    <div class="bonus-group-title">Marketing Command Center Incentives<span class="bonus-role-count">${eligibleScores.length}/${staff.length} eligible employee${staff.length === 1 ? "" : "s"}</span></div>
     <div class="bonus-framework-note">
-      <strong style="color:#4493f8">Source:</strong> Marketing owns employees, tickets, ratings, lead sources, and bonus settings for this panel. Bonus &amp; Incentives consumes those records without manual re-entry.
-      <div style="margin-top:4px">${escapeHtml(settingsLabel)} · enabled weight total ${enabledWeightTotal}% · average score ${avgScore}%.</div>
+      <strong style="color:#4493f8">Source:</strong> People owns employee identity, status, role, and eligibility. Marketing owns completed ticket metrics, satisfaction ratings tied to completed tickets, lead sources, and bonus settings.
+      <div style="margin-top:4px">${escapeHtml(settingsLabel)} · enabled weight total ${enabledWeightTotal}% · eligible average score ${avgScore}% · snapshot ${snapshot.locked ? "locked" : "refreshing"} for ${period.periodKey}.</div>
     </div>
+    ${exceptionPanel}
     ${staff.length ? `<div class="bonus-jac-role-grid">${cards}</div>` : `<div class="bonus-role-card"><div style="font-size:0.72rem;color:var(--muted)">No active Marketing employees are saved in the Marketing Command Center yet.</div></div>`}
   </div>`;
 }

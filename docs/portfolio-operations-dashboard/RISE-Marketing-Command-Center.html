@@ -2033,6 +2033,7 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
         <button class="btn btn-primary" onclick="openAddMember()">+ Add Team Member</button>
       </div>
 
+      <div id="marketing-people-link-summary"></div>
       <div id="team-cards-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px"></div>
 
       <!-- ASSIGNMENT ORDER VISUALIZER -->
@@ -2250,6 +2251,13 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
           <label>Employee Directory</label>
           <select id="m-people-select" onchange="applyPeopleDirectorySelection('member', this.value)"></select>
           <div id="m-people-meta" style="font-size:11px;color:#7a9aaa;margin-top:6px">Choose an employee from People to fill name, email, title, status, and community assignment.</div>
+          <input type="hidden" id="m-people-id">
+          <input type="hidden" id="m-people-number">
+          <input type="hidden" id="m-people-name">
+          <input type="hidden" id="m-people-status">
+          <input type="hidden" id="m-people-community">
+          <input type="hidden" id="m-people-role">
+          <input type="hidden" id="m-people-linked-at">
         </div>
         <div class="form-group">
           <label>First Name</label>
@@ -2676,11 +2684,22 @@ const DB = {
 
   // ---- TEAM MEMBERS ----
   async saveTeamMember(m) {
-    const row = teamMemberToRow(m);
+    const row = teamMemberToRow(m, { includePeopleLink: true });
     const { data, error } = m._dbId
       ? await sb.from('team_members').update(row).eq('id', m._dbId).select().single()
       : await sb.from('team_members').insert(row).select().single();
+    if (error && MARKETING_PEOPLE_LINK_COLUMNS.some(column => String(error.message || '').includes(column) || String(error.details || '').includes(column))) {
+      console.warn('saveTeamMember: People link columns are not available yet; saving legacy row and preserving link metadata locally.', error);
+      const legacyRow = teamMemberToRow(m, { includePeopleLink: false });
+      const fallback = m._dbId
+        ? await sb.from('team_members').update(legacyRow).eq('id', m._dbId).select().single()
+        : await sb.from('team_members').insert(legacyRow).select().single();
+      if (fallback.error) { console.error('saveTeamMember fallback:', fallback.error); return null; }
+      persistMarketingPeopleLink({ ...m, _dbId: fallback.data?.id || m._dbId }, m, { persistence: 'local_fallback_missing_db_columns' });
+      return { ...fallback.data, _peopleLinkPersistence: 'local_fallback_missing_db_columns' };
+    }
     if (error) { console.error('saveTeamMember:', error); return null; }
+    persistMarketingPeopleLink({ ...m, _dbId: data?.id || m._dbId }, m, { persistence: 'supabase_columns' });
     return data;
   },
   async deleteTeamMember(dbId) {
@@ -2875,15 +2894,34 @@ const DB = {
 // DATA MAPPERS — DB rows ↔ app objects
 // ============================================================
 function mapTeamMember(row) {
-  return { _dbId: row.id, id: row.id, fname: row.fname, lname: row.lname || '',
+  return mergeStoredMarketingPeopleLink({ _dbId: row.id, id: row.id, fname: row.fname, lname: row.lname || '',
     email: row.email, role: row.role || '', roleType: row.role_type,
     color: row.avatar_color, maxTickets: row.max_tickets,
-    skills: row.skills || [], properties: row.properties || [], status: row.status };
+    skills: row.skills || [], properties: row.properties || [], status: row.status,
+    peopleEmployeeId: row.people_employee_id || '',
+    peopleEmployeeNumber: row.people_employee_number || '',
+    peopleEmployeeName: row.people_employee_name || '',
+    peopleEmployeeStatus: row.people_employee_status || '',
+    peopleEmployeeCommunity: row.people_employee_community || '',
+    peopleEmployeeRole: row.people_employee_role || '',
+    peopleLinkedAt: row.people_linked_at || '',
+    peopleLinkPersistence: row.people_employee_id ? 'supabase_columns' : ''
+  });
 }
-function teamMemberToRow(m) {
-  return { fname: m.fname, lname: m.lname, email: m.email, role: m.role,
+function teamMemberToRow(m, options = {}) {
+  const row = { fname: m.fname, lname: m.lname, email: m.email, role: m.role,
     role_type: m.roleType, avatar_color: m.color, max_tickets: m.maxTickets,
     skills: m.skills, properties: m.properties, status: m.status };
+  if (options.includePeopleLink !== false) {
+    row.people_employee_id = m.peopleEmployeeId || null;
+    row.people_employee_number = m.peopleEmployeeNumber || null;
+    row.people_employee_name = m.peopleEmployeeName || null;
+    row.people_employee_status = m.peopleEmployeeStatus || null;
+    row.people_employee_community = m.peopleEmployeeCommunity || null;
+    row.people_employee_role = m.peopleEmployeeRole || null;
+    row.people_linked_at = m.peopleLinkedAt || null;
+  }
+  return row;
 }
 function mapProperty(row) {
   return { _dbId: row.id, id: row.id, name: row.name, market: row.market,
@@ -3436,6 +3474,16 @@ let surveyContext     = {};
 function initials(m) { return ((m.fname||'')[0] + (m.lname||'')[0]).toUpperCase(); }
 
 const PEOPLE_DIRECTORY_STORAGE_KEY = 'rise_performance_platform_github_v1';
+const MARKETING_PEOPLE_LINKS_STORAGE_KEY = 'atlas_marketing_people_links_v1';
+const MARKETING_PEOPLE_LINK_COLUMNS = [
+  'people_employee_id',
+  'people_employee_number',
+  'people_employee_name',
+  'people_employee_status',
+  'people_employee_community',
+  'people_employee_role',
+  'people_linked_at'
+];
 const PEOPLE_PROPERTY_ALIASES = {
   'bartram park': 'Bartram',
   'beacon': 'Beacon / Poplar Hall',
@@ -3471,8 +3519,91 @@ function getPeopleDirectoryCommunity(employee = {}) {
 
 function isPeopleDirectoryEmployeeActive(employee = {}) {
   const status = String(employee.status || '').toLowerCase();
-  if (status.includes('terminated') || status.includes('inactive')) return false;
+  if (status.includes('terminated') || status.includes('inactive') || status.includes('archived') || employee.archived) return false;
   return !String(employee.terminationDate || employee.effectiveEnd || employee.endDate || '').trim();
+}
+
+function marketingPeopleIdentityKey(employee = {}) {
+  const employeeNumber = String(employee.employeeNumber || employee['Employee Number'] || '').replace(/[^\w-]/g, '').trim();
+  if (employeeNumber) return `empnum:${employeeNumber}`;
+  const email = String(employee.email || employee.workEmail || employee['Work Email'] || '').trim().toLowerCase();
+  if (email) return `email:${email}`;
+  const id = String(employee.id || '').trim();
+  return id ? `people:${id}` : '';
+}
+
+function loadMarketingPeopleLinks() {
+  try {
+    const raw = localStorage.getItem(MARKETING_PEOPLE_LINKS_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (error) {
+    console.warn('Marketing People links could not be read', error);
+    return {};
+  }
+}
+
+function saveMarketingPeopleLinks(links) {
+  try {
+    localStorage.setItem(MARKETING_PEOPLE_LINKS_STORAGE_KEY, JSON.stringify(links || {}));
+  } catch (error) {
+    console.warn('Marketing People links could not be saved locally', error);
+  }
+}
+
+function marketingLinkKeyForMember(member = {}) {
+  return String(member._dbId || member.id || member.email || '').trim();
+}
+
+function getStoredMarketingPeopleLink(member = {}) {
+  const links = loadMarketingPeopleLinks();
+  const keys = [
+    marketingLinkKeyForMember(member),
+    String(member.id || '').trim(),
+    String(member.email || '').trim().toLowerCase()
+  ].filter(Boolean);
+  for (const key of keys) {
+    if (links[key]) return links[key];
+  }
+  return null;
+}
+
+function persistMarketingPeopleLink(member = {}, link = {}, options = {}) {
+  if (!link || !link.peopleEmployeeId) return;
+  const links = loadMarketingPeopleLinks();
+  const record = {
+    peopleEmployeeId: String(link.peopleEmployeeId || '').trim(),
+    peopleEmployeeNumber: String(link.peopleEmployeeNumber || '').trim(),
+    peopleEmployeeName: String(link.peopleEmployeeName || '').trim(),
+    peopleEmployeeStatus: String(link.peopleEmployeeStatus || '').trim(),
+    peopleEmployeeCommunity: String(link.peopleEmployeeCommunity || '').trim(),
+    peopleEmployeeRole: String(link.peopleEmployeeRole || '').trim(),
+    linkedAt: String(link.peopleLinkedAt || link.linkedAt || new Date().toISOString()),
+    source: options.source || 'marketing_people_picker',
+    persistence: options.persistence || 'local_fallback'
+  };
+  [
+    marketingLinkKeyForMember(member),
+    String(member.id || '').trim(),
+    String(member.email || '').trim().toLowerCase()
+  ].filter(Boolean).forEach(key => { links[key] = record; });
+  saveMarketingPeopleLinks(links);
+}
+
+function mergeStoredMarketingPeopleLink(member = {}) {
+  const stored = getStoredMarketingPeopleLink(member);
+  if (!stored) return member;
+  return {
+    ...member,
+    peopleEmployeeId: member.peopleEmployeeId || stored.peopleEmployeeId || '',
+    peopleEmployeeNumber: member.peopleEmployeeNumber || stored.peopleEmployeeNumber || '',
+    peopleEmployeeName: member.peopleEmployeeName || stored.peopleEmployeeName || '',
+    peopleEmployeeStatus: member.peopleEmployeeStatus || stored.peopleEmployeeStatus || '',
+    peopleEmployeeCommunity: member.peopleEmployeeCommunity || stored.peopleEmployeeCommunity || '',
+    peopleEmployeeRole: member.peopleEmployeeRole || stored.peopleEmployeeRole || '',
+    peopleLinkedAt: member.peopleLinkedAt || stored.linkedAt || '',
+    peopleLinkPersistence: member.peopleLinkPersistence || stored.persistence || 'local_fallback'
+  };
 }
 
 function getPeopleDirectoryEmployees() {
@@ -3480,6 +3611,7 @@ function getPeopleDirectoryEmployees() {
     const raw = localStorage.getItem(PEOPLE_DIRECTORY_STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : {};
     const employees = Array.isArray(parsed.employees) ? parsed.employees : [];
+    const assignments = Array.isArray(parsed.employeeAssignments) ? parsed.employeeAssignments : [];
     return employees.map(employee => {
       const name = String(employee.name || '').trim();
       const email = String(employee.email || employee.workEmail || employee['Work Email'] || '').trim();
@@ -3487,18 +3619,25 @@ function getPeopleDirectoryEmployees() {
       const community = getPeopleDirectoryCommunity(employee);
       const employeeNumber = String(employee.employeeNumber || employee['Employee Number'] || '').trim();
       const id = String(employee.id || employeeNumber || email || name).trim();
+      const activeAssignment = assignments
+        .filter(assignment => String(assignment.employeeId || '') === String(employee.id || ''))
+        .filter(assignment => !assignment.effectiveEnd && String(assignment.recordStatus || 'active') !== 'superseded')
+        .sort((a, b) => String(b.effectiveStart || '').localeCompare(String(a.effectiveStart || '')))[0] || null;
       const nameParts = splitPeopleDirectoryName(name);
       return {
         id,
+        stableId: marketingPeopleIdentityKey(employee),
         employeeNumber,
         name,
         firstName: nameParts.firstName,
         lastName: nameParts.lastName,
         lastInitial: nameParts.lastInitial,
         email,
-        title,
-        community,
-        status: String(employee.status || 'Active').trim() || 'Active',
+        title: String(activeAssignment?.role || title || '').trim(),
+        community: String(activeAssignment?.community || community || '').trim(),
+        status: String(activeAssignment?.status || employee.status || 'Active').trim() || 'Active',
+        effectiveStart: String(activeAssignment?.effectiveStart || '').trim(),
+        effectiveEnd: String(activeAssignment?.effectiveEnd || '').trim(),
         active: isPeopleDirectoryEmployeeActive(employee)
       };
     }).filter(employee => employee.id && employee.name)
@@ -3547,7 +3686,94 @@ function setPeopleDirectoryMeta(kind, text) {
   if (el) el.textContent = text;
 }
 
-function populatePeopleDirectorySelect(selectId, kind = 'member', selectedEmail = '') {
+function clearMemberPeopleLinkFields() {
+  ['id','number','name','status','community','role','linked-at'].forEach(key => {
+    const el = document.getElementById(`m-people-${key}`);
+    if (el) el.value = '';
+  });
+}
+
+function setMemberPeopleLinkFields(employee = {}) {
+  const fields = {
+    id: employee.id || '',
+    number: employee.employeeNumber || '',
+    name: employee.name || '',
+    status: employee.status || '',
+    community: employee.community || '',
+    role: employee.title || '',
+    'linked-at': new Date().toISOString()
+  };
+  Object.entries(fields).forEach(([key, value]) => {
+    const el = document.getElementById(`m-people-${key}`);
+    if (el) el.value = value;
+  });
+}
+
+function setMemberPeopleLinkFieldsFromMember(member = {}) {
+  const fields = {
+    id: member.peopleEmployeeId || '',
+    number: member.peopleEmployeeNumber || '',
+    name: member.peopleEmployeeName || '',
+    status: member.peopleEmployeeStatus || '',
+    community: member.peopleEmployeeCommunity || '',
+    role: member.peopleEmployeeRole || '',
+    'linked-at': member.peopleLinkedAt || ''
+  };
+  Object.entries(fields).forEach(([key, value]) => {
+    const el = document.getElementById(`m-people-${key}`);
+    if (el) el.value = value || '';
+  });
+}
+
+function readMemberPeopleLinkFields() {
+  return {
+    peopleEmployeeId: String(document.getElementById('m-people-id')?.value || '').trim(),
+    peopleEmployeeNumber: String(document.getElementById('m-people-number')?.value || '').trim(),
+    peopleEmployeeName: String(document.getElementById('m-people-name')?.value || '').trim(),
+    peopleEmployeeStatus: String(document.getElementById('m-people-status')?.value || '').trim(),
+    peopleEmployeeCommunity: String(document.getElementById('m-people-community')?.value || '').trim(),
+    peopleEmployeeRole: String(document.getElementById('m-people-role')?.value || '').trim(),
+    peopleLinkedAt: String(document.getElementById('m-people-linked-at')?.value || '').trim()
+  };
+}
+
+function marketingPeopleLinkStatus(member = {}) {
+  if (!member.peopleEmployeeId) return { ok:false, label:'Needs People link', detail:'No People employee is linked yet.' };
+  const status = String(member.peopleEmployeeStatus || '').toLowerCase();
+  if (status.includes('terminated') || status.includes('inactive') || status.includes('archived')) {
+    return { ok:false, label:'People inactive', detail:`People status is ${member.peopleEmployeeStatus || 'inactive'}.` };
+  }
+  return { ok:true, label:'Linked to People', detail: member.peopleEmployeeName || member.peopleEmployeeId };
+}
+
+function renderMarketingPeopleLinkSummary() {
+  const wrap = document.getElementById('marketing-people-link-summary');
+  if (!wrap) return;
+  const members = (teamData || []).map(mergeStoredMarketingPeopleLink);
+  const active = members.filter(member => member.status === 'active');
+  const linked = active.filter(member => marketingPeopleLinkStatus(member).ok);
+  const exceptions = active.filter(member => !marketingPeopleLinkStatus(member).ok);
+  wrap.innerHTML = `
+    <div class="card" style="margin-bottom:16px;background:#f8fbfc">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap">
+        <div>
+          <div class="card-title" style="margin-bottom:4px">People directory links</div>
+          <div style="font-size:12px;color:#5a7a86;line-height:1.5">Marketing keeps routing settings here, but employee identity, status, role, and eligibility should come from People.</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <span class="badge badge-complete">${linked.length} linked</span>
+          <span class="badge ${exceptions.length ? 'badge-urgent' : 'badge-complete'}">${exceptions.length} review needed</span>
+        </div>
+      </div>
+      ${exceptions.length ? `<div style="margin-top:10px;font-size:12px;color:#7a3300">${exceptions.slice(0,4).map(member => {
+        const status = marketingPeopleLinkStatus(member);
+        return `${member.fname} ${member.lname || ''}: ${status.detail}`;
+      }).join('<br>')}${exceptions.length > 4 ? `<br>+${exceptions.length - 4} more` : ''}</div>` : `<div style="margin-top:10px;font-size:12px;color:#1a6b3e">All active Marketing team members are linked to People.</div>`}
+    </div>
+  `;
+}
+
+function populatePeopleDirectorySelect(selectId, kind = 'member', selectedEmail = '', selectedPeopleId = '') {
   const select = document.getElementById(selectId);
   if (!select) return;
   const employees = getPeopleDirectoryEmployees();
@@ -3568,7 +3794,9 @@ function populatePeopleDirectorySelect(selectId, kind = 'member', selectedEmail 
     select.appendChild(option);
   });
   select.disabled = employees.length === 0;
-  const matching = selectedEmail ? employees.find(employee => marketingNormalizeText(employee.email) === marketingNormalizeText(selectedEmail)) : null;
+  const matching = selectedPeopleId
+    ? employees.find(employee => String(employee.id) === String(selectedPeopleId))
+    : selectedEmail ? employees.find(employee => marketingNormalizeText(employee.email) === marketingNormalizeText(selectedEmail)) : null;
   select.value = matching ? matching.id : '';
   setPeopleDirectoryMeta(kind, employees.length
     ? 'Choose an employee from People to fill this screen. Module-specific routing fields stay editable.'
@@ -3588,6 +3816,7 @@ function applyPeopleDirectorySelection(kind, employeeId) {
     document.getElementById('ap-status').value = employee.active ? 'active' : 'inactive';
     buildApproverPropertyCheckboxes(matchedProperties);
   } else {
+    setMemberPeopleLinkFields(employee);
     document.getElementById('m-fname').value = employee.firstName;
     document.getElementById('m-lname').value = employee.lastInitial;
     document.getElementById('m-email').value = employee.email;
@@ -6189,7 +6418,7 @@ function showSettingsTab(tab) {
       btn.style.fontWeight = t === tab ? '600' : '500';
     }
   });
-  if (tab === 'team') renderTeamCards();
+  if (tab === 'team') { renderMarketingPeopleLinkSummary(); renderTeamCards(); }
   if (tab === 'skills') renderSkills();
   if (tab === 'approvals') renderApprovalRules();
   if (tab === 'approvers') {
@@ -6227,7 +6456,7 @@ async function renderTeamCards() {
   } catch(e) {}
 
   grid.innerHTML = '';
-  const sorted = [...teamData].sort((a,b) => tierOrder(a) - tierOrder(b) || a.fname.localeCompare(b.fname));
+  const sorted = [...teamData].map(mergeStoredMarketingPeopleLink).sort((a,b) => tierOrder(a) - tierOrder(b) || a.fname.localeCompare(b.fname));
 
   sorted.forEach(m => {
     const skillNames = (m.skills||[]).map(sid => {
@@ -6236,6 +6465,7 @@ async function renderTeamCards() {
     });
     const tm = TIER_META[m.roleType||'staff'];
     const dbId = m._dbId || m.id;
+    const peopleStatus = marketingPeopleLinkStatus(m);
     const activeTickets = countMap[dbId] || 0; // LIVE count, not random
     const pct = Math.round((activeTickets / (m.maxTickets||5)) * 100);
     const barColor = pct >= 100 ? '#e85c4a' : pct >= 80 ? '#d47b1a' : 'var(--rise-light)';
@@ -6254,8 +6484,10 @@ async function renderTeamCards() {
       </div>
       <div style="margin-bottom:10px">
         <span class="badge ${tm?.badge||'badge-new'}" style="font-size:10px">${tm?.label||'Staff'}</span>
+        <span class="badge ${peopleStatus.ok ? 'badge-complete' : 'badge-urgent'}" style="font-size:10px;margin-left:4px">${peopleStatus.label}</span>
         <span style="font-size:11px;color:#7a9aaa;margin-left:6px">${tm?.desc||'Primary assignee'}</span>
       </div>
+      ${m.peopleEmployeeId ? `<div style="font-size:11px;color:#5a7a86;margin-bottom:10px">People: ${m.peopleEmployeeName || m.peopleEmployeeId}${m.peopleEmployeeCommunity ? ' · ' + m.peopleEmployeeCommunity : ''}${m.peopleLinkPersistence === 'local_fallback_missing_db_columns' ? ' · DB column pending' : ''}</div>` : `<div style="font-size:11px;color:#7a3300;margin-bottom:10px">Select this person from the People directory before Bonus eligibility is calculated.</div>`}
       <div style="margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;font-size:11px;color:#7a9aaa;margin-bottom:4px">
           <span>Current load</span>
@@ -6342,6 +6574,7 @@ function renderRoutingOrderVisual() {
 function openAddMember() {
   editingMemberId = null;
   document.getElementById('member-modal-title').textContent = 'Add Team Member';
+  clearMemberPeopleLinkFields();
   document.getElementById('m-fname').value = '';
   document.getElementById('m-lname').value = '';
   document.getElementById('m-email').value = '';
@@ -6369,8 +6602,9 @@ function wireTierExplainer() {
 
 function openEditMember(id) {
   editingMemberId = id;
-  const m = teamData.find(x => x.id === id);
-  if (!m) return;
+  const rawMember = teamData.find(x => x.id === id);
+  if (!rawMember) return;
+  const m = mergeStoredMarketingPeopleLink(rawMember);
   document.getElementById('member-modal-title').textContent = 'Edit Team Member';
   document.getElementById('m-fname').value = m.fname;
   document.getElementById('m-lname').value = m.lname;
@@ -6384,7 +6618,8 @@ function openEditMember(id) {
   document.getElementById('delete-member-btn').style.display = 'inline-flex';
   buildSkillCheckboxes(m.skills);
   buildPropertyCheckboxes(m.properties || []);
-  populatePeopleDirectorySelect('m-people-select', 'member', m.email);
+  setMemberPeopleLinkFieldsFromMember(m);
+  populatePeopleDirectorySelect('m-people-select', 'member', m.email, m.peopleEmployeeId);
   wireTierExplainer();
   document.getElementById('add-member-modal').classList.add('open');
 }
@@ -6452,9 +6687,16 @@ async function saveMember() {
     skills: getCheckedSkills(),
     properties: getCheckedProperties(),
     status: document.getElementById('m-status').value,
+    ...readMemberPeopleLinkFields(),
   };
+  if (!member.peopleEmployeeId) {
+    showToast('Choose this team member from the People directory before saving so Bonus can validate eligibility.', 'warn');
+    return;
+  }
   const saved = await DB.saveTeamMember(member);
   if (saved) member._dbId = saved.id;
+  if (saved && saved._peopleLinkPersistence) member.peopleLinkPersistence = saved._peopleLinkPersistence;
+  persistMarketingPeopleLink(member, member, { persistence: member.peopleLinkPersistence || 'supabase_columns' });
   if (editingMemberId) {
     const idx = teamData.findIndex(x => x.id === editingMemberId);
     teamData[idx] = member;
@@ -6464,6 +6706,7 @@ async function saveMember() {
     showToast(fname + ' added to the team', 'success');
   }
   closeAddMember();
+  renderMarketingPeopleLinkSummary();
   renderTeamCards();
   syncRoutingMap();
 }
@@ -6507,6 +6750,7 @@ async function deleteMember() {
     showToast(m.fname + ' removed from team', 'info');
   } catch(e) { showToast('Failed to remove: ' + e.message, 'error'); return; }
   closeAddMember();
+  renderMarketingPeopleLinkSummary();
   renderTeamCards();
   await window.renderLiveTickets();
 }

@@ -75,6 +75,8 @@ Validation:
 
 ## Phase 1: Central Schema And Auth
 
+Status: foundation implemented, hosted environment setup required.
+
 Actions:
 
 - Apply `atlas-central-schema.sql` to the hosted database.
@@ -82,6 +84,8 @@ Actions:
 - Enable row-level security on every shared table.
 - Add service-role access only to backend migration jobs, never browser code.
 - Create scheduled backups and document restore test.
+- Use `atlas-central-config.example.js` as the browser-safe runtime config template.
+- Confirm the public browser anon key can only perform operations allowed by RLS.
 
 Rollback:
 
@@ -118,17 +122,23 @@ Validation:
 
 ## Phase 3: People And Assignments Cutover
 
+Status: started.
+
 Actions:
 
 - Promote employees, roles, communities, and effective-dated assignments.
 - People becomes the write owner for employee identity/status/title/assignment data.
 - Bonus reads assignments from the central database.
 - Legacy People local storage remains export-only.
+- Use Central Platform Control to sign in, upload read-only snapshots, save the versioned Atlas app document, and block stale central writes.
+- Keep central autosave disabled until counts, assignments, budgets, marketing records, maintenance records, and bonus calculations reconcile.
 
 Rollback:
 
 - Switch Bonus assignment reads back to the local shared assignment layer.
 - Keep central rows soft-active but do not delete them.
+- Pull operations download a local rollback snapshot before changing browser data.
+- Mark the matching migration run `rolled_back` or `blocked`; do not delete the central document or legacy snapshots.
 
 Validation:
 
@@ -136,6 +146,9 @@ Validation:
 - Current assignments by community/role match approved crosswalk.
 - Past assignment rows remain effective-dated.
 - Bonus eligible employee count matches pre-cutover snapshot.
+- Central app-document writes are rejected when the caller's expected version is stale.
+- Audit rows and document-version rows are created for every central document write.
+- Anonymous browsers cannot read central documents, snapshots, or shared tables.
 
 ## Phase 4: Marketing Metrics To Bonus
 

@@ -1232,6 +1232,7 @@ function getDashboardSharedSyncWriteAccess() {
   return { ok: true, writeToken };
 }
 const DASHBOARD_SHARED_SYNC_META_KEY = "atlas_dashboard_shared_sync_meta_v1";
+const ATLAS_CENTRAL_RUNTIME_META_KEY = "atlas_central_runtime_meta_v1";
 const DASHBOARD_DAILY_BACKUP_INDEX_KEY = "atlas_dashboard_daily_backup_index_v1";
 const DASHBOARD_DAILY_BACKUP_KEY_PREFIX = "atlas_dashboard_daily_backup_v1:";
 function persistOpsPropertyCatalog() {
@@ -10061,6 +10062,7 @@ function saveCommunityData(silent = false) {
   if (!suppressDashboardSharedSyncPush) {
     queueDashboardSharedSyncPush("dashboard_save");
   }
+  queueAtlasCentralDocumentPush("dashboard_save");
 }
 
 function loadDashboardSharedSyncMeta() {
@@ -10081,6 +10083,52 @@ function loadDashboardSharedSyncMeta() {
 let dashboardSharedSyncMeta = loadDashboardSharedSyncMeta();
 let dashboardSharedSyncPushTimer = null;
 let suppressDashboardSharedSyncPush = false;
+let atlasCentralDocumentPushTimer = null;
+let suppressAtlasCentralAutosave = false;
+
+function loadAtlasCentralRuntimeMeta() {
+  try {
+    const raw = localStorage.getItem(ATLAS_CENTRAL_RUNTIME_META_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return {
+      lastCheckedAt: String(parsed?.lastCheckedAt || ""),
+      lastSavedAt: String(parsed?.lastSavedAt || ""),
+      lastPulledAt: String(parsed?.lastPulledAt || ""),
+      lastSnapshotUploadedAt: String(parsed?.lastSnapshotUploadedAt || ""),
+      lastDocumentVersion: Number(parsed?.lastDocumentVersion || 0),
+      lastDocumentHash: String(parsed?.lastDocumentHash || ""),
+      lastRemoteVersion: Number(parsed?.lastRemoteVersion || 0),
+      lastRemoteHash: String(parsed?.lastRemoteHash || ""),
+      lastError: String(parsed?.lastError || ""),
+      lastMessage: String(parsed?.lastMessage || "")
+    };
+  } catch {
+    return {
+      lastCheckedAt: "",
+      lastSavedAt: "",
+      lastPulledAt: "",
+      lastSnapshotUploadedAt: "",
+      lastDocumentVersion: 0,
+      lastDocumentHash: "",
+      lastRemoteVersion: 0,
+      lastRemoteHash: "",
+      lastError: "",
+      lastMessage: ""
+    };
+  }
+}
+
+let atlasCentralRuntimeMeta = loadAtlasCentralRuntimeMeta();
+
+function persistAtlasCentralRuntimeMeta() {
+  try { localStorage.setItem(ATLAS_CENTRAL_RUNTIME_META_KEY, JSON.stringify(atlasCentralRuntimeMeta)); } catch {}
+}
+
+function setAtlasCentralRuntimeMessage(message = "", error = "") {
+  atlasCentralRuntimeMeta.lastMessage = String(message || "");
+  atlasCentralRuntimeMeta.lastError = String(error || "");
+  persistAtlasCentralRuntimeMeta();
+}
 
 function persistDashboardSharedSyncMeta() {
   try {
@@ -10247,10 +10295,12 @@ async function buildAtlasIndexedDbBundlePayload() {
 
 async function buildDashboardStorageBundle() {
   suppressDashboardSharedSyncPush = true;
+  suppressAtlasCentralAutosave = true;
   try {
     saveCommunityData(true);
   } finally {
     suppressDashboardSharedSyncPush = false;
+    suppressAtlasCentralAutosave = false;
   }
   persistOperationsWorkspaceContext();
   persistOpsPropertyCatalog();
@@ -10496,34 +10546,393 @@ async function collectAtlasCentralMigrationSnapshot() {
 async function downloadAtlasCentralMigrationSnapshot() {
   try {
     const snapshot = await collectAtlasCentralMigrationSnapshot();
-    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `atlas_central_migration_snapshot_${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    downloadAtlasJsonFile(snapshot, `atlas_central_migration_snapshot_${new Date().toISOString().slice(0, 10)}.json`);
     alert("Read-only migration snapshot exported. No central data was changed.");
   } catch (error) {
     alert(`Migration snapshot failed: ${error?.message || error}`);
   }
 }
 
+function downloadAtlasJsonFile(payload, filename) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function getAtlasCentralStatus() {
+  return window.ATLAS_CENTRAL?.getStatus ? window.ATLAS_CENTRAL.getStatus() : {
+    configured: false,
+    signedIn: false,
+    mode: "legacy-migration",
+    message: "Central client not loaded."
+  };
+}
+
+function getAtlasCentralConfig() {
+  return window.ATLAS_CENTRAL?.getConfig ? window.ATLAS_CENTRAL.getConfig() : {};
+}
+
+function getAtlasCentralDocumentKey() {
+  const config = getAtlasCentralConfig();
+  return String(config.documentKey || "atlas_dashboard_state_v1").trim() || "atlas_dashboard_state_v1";
+}
+
+function atlasCentralCanUseDatabase({ requireSignIn = true } = {}) {
+  const status = getAtlasCentralStatus();
+  if (!status.configured) return { ok: false, message: status.message || "Central database is not configured." };
+  if (requireSignIn && !status.signedIn) return { ok: false, message: "Sign in before using central Atlas data." };
+  return { ok: true, status };
+}
+
+function getAtlasCentralInputValue(id) {
+  return String(document.getElementById(id)?.value || "").trim();
+}
+
+function getAtlasCentralInputChecked(id) {
+  return Boolean(document.getElementById(id)?.checked);
+}
+
+function saveAtlasCentralRuntimeConfigFromPanel() {
+  if (!window.ATLAS_CENTRAL?.saveLocalConfig) {
+    alert("Central client is not loaded.");
+    return;
+  }
+  const supabaseUrl = getAtlasCentralInputValue("atlas-central-url");
+  const supabaseAnonKey = getAtlasCentralInputValue("atlas-central-anon-key");
+  const documentKey = getAtlasCentralInputValue("atlas-central-document-key") || "atlas_dashboard_state_v1";
+  const domains = getAtlasCentralInputValue("atlas-central-domains")
+    .split(",")
+    .map(item => item.trim().replace(/^@/, "").toLowerCase())
+    .filter(Boolean);
+  if (!supabaseUrl || !supabaseAnonKey) {
+    alert("Enter the hosted Supabase URL and public anon key before enabling central Atlas.");
+    return;
+  }
+  window.ATLAS_CENTRAL.saveLocalConfig({
+    enabled: true,
+    supabaseUrl,
+    supabaseAnonKey,
+    documentKey,
+    allowedEmailDomains: domains,
+    realtime: getAtlasCentralInputChecked("atlas-central-realtime"),
+    autosave: getAtlasCentralInputChecked("atlas-central-autosave"),
+    autoPullOnStartup: getAtlasCentralInputChecked("atlas-central-autopull")
+  });
+  setAtlasCentralRuntimeMessage("Central runtime config saved in this browser.");
+  renderTab();
+}
+
+function clearAtlasCentralRuntimeConfigFromPanel() {
+  if (!confirm("Clear the central Atlas runtime config from this browser? Existing local Atlas records will not be changed.")) return;
+  window.ATLAS_CENTRAL?.clearLocalConfig?.();
+  setAtlasCentralRuntimeMessage("Central runtime config cleared from this browser.");
+  renderTab();
+}
+
+async function sendAtlasCentralMagicLink() {
+  try {
+    const email = getAtlasCentralInputValue("atlas-central-email");
+    await window.ATLAS_CENTRAL.sendMagicLink(email);
+    setAtlasCentralRuntimeMessage(`Sign-in link sent to ${email}.`);
+    alert("Sign-in link sent. Check that inbox and return to this Atlas page.");
+    renderTab();
+  } catch (error) {
+    setAtlasCentralRuntimeMessage("", error?.message || String(error));
+    alert(`Central sign-in link failed: ${error?.message || error}`);
+  }
+}
+
+async function signInAtlasCentralWithPassword() {
+  try {
+    const email = getAtlasCentralInputValue("atlas-central-email");
+    const password = getAtlasCentralInputValue("atlas-central-password");
+    await window.ATLAS_CENTRAL.signInWithPassword(email, password);
+    await window.ATLAS_CENTRAL.fetchProfile().catch(() => null);
+    setAtlasCentralRuntimeMessage(`Signed in to central Atlas as ${email}.`);
+    renderTab();
+  } catch (error) {
+    setAtlasCentralRuntimeMessage("", error?.message || String(error));
+    alert(`Central sign-in failed: ${error?.message || error}`);
+  }
+}
+
+async function signOutAtlasCentral() {
+  try {
+    await window.ATLAS_CENTRAL?.signOut?.();
+    setAtlasCentralRuntimeMessage("Signed out of central Atlas.");
+    renderTab();
+  } catch (error) {
+    setAtlasCentralRuntimeMessage("", error?.message || String(error));
+    alert(`Central sign-out failed: ${error?.message || error}`);
+  }
+}
+
+async function verifyAtlasCentralConnection() {
+  try {
+    const access = atlasCentralCanUseDatabase({ requireSignIn: false });
+    if (!access.ok) throw new Error(access.message);
+    const profile = access.status.signedIn ? await window.ATLAS_CENTRAL.fetchProfile().catch(() => null) : null;
+    const document = access.status.signedIn ? await window.ATLAS_CENTRAL.readDocument(getAtlasCentralDocumentKey()).catch(() => null) : null;
+    atlasCentralRuntimeMeta.lastCheckedAt = new Date().toISOString();
+    atlasCentralRuntimeMeta.lastRemoteVersion = Number(document?.version || 0);
+    atlasCentralRuntimeMeta.lastRemoteHash = String(document?.payload_hash || "");
+    setAtlasCentralRuntimeMessage(profile ? `Central connection verified for ${profile.email || access.status.userEmail}.` : "Central connection verified. Sign in to read shared data.");
+    renderTab();
+    alert("Central Atlas connection check complete.");
+    return true;
+  } catch (error) {
+    atlasCentralRuntimeMeta.lastCheckedAt = new Date().toISOString();
+    setAtlasCentralRuntimeMessage("", error?.message || String(error));
+    renderTab();
+    alert(`Central connection check failed: ${error?.message || error}`);
+    return false;
+  }
+}
+
+function redactAtlasCentralStorageBundle(bundle = {}) {
+  const next = cloneAtlasMigrationPayload(bundle) || {};
+  const redactions = {};
+  next.keys = next.keys && typeof next.keys === "object" ? next.keys : {};
+  Object.entries(next.keys).forEach(([key, rawValue]) => {
+    const redacted = redactAtlasMigrationStorageValue(key, rawValue);
+    next.keys[key] = redacted.value;
+    if (redacted.redactedFields?.length) redactions[key] = redacted.redactedFields;
+  });
+  if (Object.keys(redactions).length) {
+    next.redactedFields = redactions;
+  }
+  return next;
+}
+
+async function buildAtlasCentralAppStatePayload() {
+  const migrationSnapshot = await collectAtlasCentralMigrationSnapshot();
+  const bundle = redactAtlasCentralStorageBundle(await buildDashboardStorageBundle());
+  return {
+    app: "atlas-rise-ops-dashboard",
+    documentType: "atlas_central_app_state_v1",
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
+    source: "phase_3_central_runtime",
+    safety: {
+      reversible: true,
+      localRecordsRetained: true,
+      destructiveWrite: false,
+      versionChecked: true
+    },
+    workspace: buildOperationsWorkspaceContext(),
+    bundle,
+    sharedData: normalizeAtlasSharedData(atlasSharedData),
+    reconciliation: migrationSnapshot.reconciliation,
+    exceptions: migrationSnapshot.exceptions,
+    migrationSnapshotHash: await hashAtlasMigrationPayload(migrationSnapshot)
+  };
+}
+
+async function saveAtlasCentralAppState({ silent = false, source = "manual_central_save" } = {}) {
+  try {
+    const access = atlasCentralCanUseDatabase();
+    if (!access.ok) throw new Error(access.message);
+    const documentKey = getAtlasCentralDocumentKey();
+    const localPayload = await buildAtlasCentralAppStatePayload();
+    const localHash = await window.ATLAS_CENTRAL.computeSha256(localPayload);
+    const remote = await window.ATLAS_CENTRAL.readDocument(documentKey);
+    const knownVersion = Number(atlasCentralRuntimeMeta.lastDocumentVersion || 0);
+    if (remote && remote.payload_hash === localHash) {
+      atlasCentralRuntimeMeta.lastDocumentVersion = Number(remote.version || 0);
+      atlasCentralRuntimeMeta.lastDocumentHash = String(remote.payload_hash || "");
+      atlasCentralRuntimeMeta.lastRemoteVersion = Number(remote.version || 0);
+      atlasCentralRuntimeMeta.lastRemoteHash = String(remote.payload_hash || "");
+      atlasCentralRuntimeMeta.lastCheckedAt = new Date().toISOString();
+      setAtlasCentralRuntimeMessage(`Central Atlas already matches this browser at version ${remote.version}.`);
+      if (!silent) alert("Central Atlas already matches this browser.");
+      renderTab();
+      return true;
+    }
+    if (remote && !knownVersion) {
+      throw new Error(`Central Atlas already has version ${remote.version}. Pull and reconcile it before saving from this browser.`);
+    }
+    if (remote && knownVersion !== Number(remote.version || 0)) {
+      throw new Error(`Central Atlas changed from version ${knownVersion} to ${remote.version}. Pull and reconcile before saving so no one else's work is overwritten.`);
+    }
+    const result = await window.ATLAS_CENTRAL.saveDocument({
+      documentKey,
+      moduleKey: "dashboard",
+      payload: localPayload,
+      expectedVersion: remote ? Number(remote.version || 0) : null,
+      sourceModule: "atlas_dashboard",
+      sourceHash: localHash,
+      metadata: {
+        source,
+        reconciliation: localPayload.reconciliation,
+        exceptions: localPayload.exceptions
+      }
+    });
+    atlasCentralRuntimeMeta.lastSavedAt = new Date().toISOString();
+    atlasCentralRuntimeMeta.lastDocumentVersion = Number(result?.version || 0);
+    atlasCentralRuntimeMeta.lastDocumentHash = String(result?.payload_hash || localHash);
+    atlasCentralRuntimeMeta.lastRemoteVersion = atlasCentralRuntimeMeta.lastDocumentVersion;
+    atlasCentralRuntimeMeta.lastRemoteHash = atlasCentralRuntimeMeta.lastDocumentHash;
+    setAtlasCentralRuntimeMessage(`Central Atlas saved at version ${atlasCentralRuntimeMeta.lastDocumentVersion}.`);
+    if (!silent) alert(`Saved to central Atlas version ${atlasCentralRuntimeMeta.lastDocumentVersion}.`);
+    renderTab();
+    return true;
+  } catch (error) {
+    setAtlasCentralRuntimeMessage("", error?.message || String(error));
+    if (!silent) alert(`Central Atlas save failed: ${error?.message || error}`);
+    renderTab();
+    return false;
+  }
+}
+
+async function pullAtlasCentralAppState({ silent = false } = {}) {
+  try {
+    const access = atlasCentralCanUseDatabase();
+    if (!access.ok) throw new Error(access.message);
+    const remote = await window.ATLAS_CENTRAL.readDocument(getAtlasCentralDocumentKey());
+    if (!remote?.payload?.bundle) throw new Error("No central Atlas app document is available yet.");
+    if (!silent) {
+      const ok = confirm(`Apply central Atlas version ${remote.version} to this browser? A local rollback snapshot will be downloaded first. Existing central records will not be changed.`);
+      if (!ok) return false;
+    }
+    const rollbackSnapshot = await collectAtlasCentralMigrationSnapshot();
+    downloadAtlasJsonFile(rollbackSnapshot, `atlas_local_rollback_before_central_pull_${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
+    suppressAtlasCentralAutosave = true;
+    try {
+      await applyDashboardStorageBundle(remote.payload.bundle);
+    } finally {
+      suppressAtlasCentralAutosave = false;
+    }
+    atlasCentralRuntimeMeta.lastPulledAt = new Date().toISOString();
+    atlasCentralRuntimeMeta.lastDocumentVersion = Number(remote.version || 0);
+    atlasCentralRuntimeMeta.lastDocumentHash = String(remote.payload_hash || "");
+    atlasCentralRuntimeMeta.lastRemoteVersion = Number(remote.version || 0);
+    atlasCentralRuntimeMeta.lastRemoteHash = String(remote.payload_hash || "");
+    setAtlasCentralRuntimeMessage(`Pulled central Atlas version ${remote.version}.`);
+    if (!silent) alert("Pulled central Atlas data. Reloading now.");
+    window.location.reload();
+    return true;
+  } catch (error) {
+    setAtlasCentralRuntimeMessage("", error?.message || String(error));
+    if (!silent) alert(`Central Atlas pull failed: ${error?.message || error}`);
+    renderTab();
+    return false;
+  }
+}
+
+async function uploadAtlasCentralMigrationSnapshot({ silent = false } = {}) {
+  try {
+    const access = atlasCentralCanUseDatabase();
+    if (!access.ok) throw new Error(access.message);
+    const snapshot = await collectAtlasCentralMigrationSnapshot();
+    const result = await window.ATLAS_CENTRAL.uploadReadOnlySnapshot(snapshot, {
+      phase: "phase_3_runtime_snapshot",
+      sourceModule: "atlas_browser",
+      sourceLabel: "Atlas Phase 3 runtime snapshot"
+    });
+    atlasCentralRuntimeMeta.lastSnapshotUploadedAt = new Date().toISOString();
+    setAtlasCentralRuntimeMessage(`Read-only migration snapshot uploaded. Hash ${result.sourceHash.slice(0, 12)}.`);
+    if (!silent) alert("Read-only migration snapshot uploaded to central Atlas. No mapped rows were promoted.");
+    renderTab();
+    return true;
+  } catch (error) {
+    setAtlasCentralRuntimeMessage("", error?.message || String(error));
+    if (!silent) alert(`Central snapshot upload failed: ${error?.message || error}`);
+    renderTab();
+    return false;
+  }
+}
+
+function queueAtlasCentralDocumentPush(source = "autosave") {
+  if (suppressAtlasCentralAutosave) return;
+  const status = getAtlasCentralStatus();
+  if (!status.configured || !status.signedIn || !status.autosave) return;
+  if (atlasCentralDocumentPushTimer) clearTimeout(atlasCentralDocumentPushTimer);
+  atlasCentralDocumentPushTimer = setTimeout(() => {
+    saveAtlasCentralAppState({ silent: true, source });
+  }, 1800);
+}
+
 function renderAtlasCentralPlatformPanel() {
-  const status = window.ATLAS_CENTRAL?.getStatus ? window.ATLAS_CENTRAL.getStatus() : { configured: false, mode: "legacy-migration", message: "Central client not loaded." };
+  const status = getAtlasCentralStatus();
+  const config = getAtlasCentralConfig();
+  const profile = window.ATLAS_CENTRAL?.getStoredProfile ? window.ATLAS_CENTRAL.getStoredProfile() : null;
   const badgeColor = status.configured ? "#3fb950" : "#d29922";
+  const authColor = status.signedIn ? "#3fb950" : "#d29922";
+  const documentVersion = atlasCentralRuntimeMeta.lastDocumentVersion
+    ? `Local browser is aligned to central version ${atlasCentralRuntimeMeta.lastDocumentVersion}.`
+    : "This browser has not been aligned to a central document version yet.";
+  const lastActivity = [
+    atlasCentralRuntimeMeta.lastSavedAt ? `saved ${new Date(atlasCentralRuntimeMeta.lastSavedAt).toLocaleString()}` : "",
+    atlasCentralRuntimeMeta.lastPulledAt ? `pulled ${new Date(atlasCentralRuntimeMeta.lastPulledAt).toLocaleString()}` : "",
+    atlasCentralRuntimeMeta.lastSnapshotUploadedAt ? `snapshot uploaded ${new Date(atlasCentralRuntimeMeta.lastSnapshotUploadedAt).toLocaleString()}` : ""
+  ].filter(Boolean).join(" · ") || "No central activity from this browser yet.";
   return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
       <div>
-        <div class="card-title" style="margin-bottom:6px">Central Platform Migration Gate</div>
-        <div style="font-size:0.68rem;color:var(--muted);line-height:1.55">Atlas is currently running as a browser-storage app. Before any hosted migration, export this read-only snapshot and reconcile counts, totals, assignments, contracts, marketing records, and bonus inputs against the central dry run.</div>
+        <div class="card-title" style="margin-bottom:6px">Central Platform Control</div>
+        <div style="font-size:0.68rem;color:var(--muted);line-height:1.55">Phase 3 adds hosted database connection, authenticated access, read-only migration snapshots, audit-backed central document saves, and version conflict checks. Local records stay intact until an authorized user explicitly pushes or pulls central state.</div>
       </div>
-      <span class="bonus-scope-pill" style="border-color:${badgeColor};color:${badgeColor}">${escapeHtml(status.mode || "legacy-migration")}</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+        <span class="bonus-scope-pill" style="border-color:${badgeColor};color:${badgeColor}">${escapeHtml(status.mode || "legacy-migration")}</span>
+        <span class="bonus-scope-pill" style="border-color:${authColor};color:${authColor}">${status.signedIn ? "signed in" : "signed out"}</span>
+      </div>
     </div>
     <div style="font-size:0.66rem;color:var(--muted);margin-bottom:10px">${escapeHtml(status.message || "")}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-bottom:10px">
+      <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">
+        <div class="card-title" style="font-size:0.72rem;margin-bottom:8px">Hosted Database</div>
+        <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Supabase URL</label>
+        <input id="atlas-central-url" type="url" value="${escapeHtml(config.supabaseUrl || "")}" placeholder="https://project.supabase.co" style="margin:5px 0 8px">
+        <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Public anon key</label>
+        <input id="atlas-central-anon-key" type="password" value="${escapeHtml(config.supabaseAnonKey || "")}" placeholder="Public browser anon key" style="margin:5px 0 8px">
+        <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Central document key</label>
+        <input id="atlas-central-document-key" value="${escapeHtml(config.documentKey || "atlas_dashboard_state_v1")}" style="margin:5px 0 8px">
+        <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Allowed email domains</label>
+        <input id="atlas-central-domains" value="${escapeHtml((config.allowedEmailDomains || []).join(", "))}" placeholder="riseresidential.com" style="margin:5px 0 8px">
+        <label style="display:flex;gap:8px;align-items:center;font-size:0.68rem;color:var(--muted);margin-top:4px"><input id="atlas-central-autosave" type="checkbox" ${config.autosave ? "checked" : ""}> Save dashboard changes to central after local save</label>
+        <label style="display:flex;gap:8px;align-items:center;font-size:0.68rem;color:var(--muted);margin-top:4px"><input id="atlas-central-realtime" type="checkbox" ${config.realtime ? "checked" : ""}> Enable realtime when the hosted database is ready</label>
+        <label style="display:flex;gap:8px;align-items:center;font-size:0.68rem;color:var(--muted);margin-top:4px"><input id="atlas-central-autopull" type="checkbox" ${config.autoPullOnStartup ? "checked" : ""}> Check central version on startup</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="btn btn-blue btn-sm" onclick="saveAtlasCentralRuntimeConfigFromPanel()">Save Central Config</button>
+          <button class="btn btn-gray btn-sm" onclick="clearAtlasCentralRuntimeConfigFromPanel()">Clear Browser Config</button>
+        </div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">
+        <div class="card-title" style="font-size:0.72rem;margin-bottom:8px">User Access</div>
+        <div style="font-size:0.66rem;color:var(--muted);margin-bottom:8px">${status.signedIn ? `Signed in as ${escapeHtml(status.userEmail || profile?.email || "authenticated user")}${status.role ? ` · ${escapeHtml(status.role)}` : ""}` : "Sign in with an approved Atlas account before reading or saving central data."}</div>
+        <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Email</label>
+        <input id="atlas-central-email" type="email" value="${escapeHtml(status.userEmail || "")}" placeholder="name@riseresidential.com" style="margin:5px 0 8px">
+        <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Password</label>
+        <input id="atlas-central-password" type="password" placeholder="Optional if using email link" style="margin:5px 0 8px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-gray btn-sm" onclick="sendAtlasCentralMagicLink()">Send Login Link</button>
+          <button class="btn btn-blue btn-sm" onclick="signInAtlasCentralWithPassword()">Sign In</button>
+          <button class="btn btn-gray btn-sm" onclick="signOutAtlasCentral()" ${status.signedIn ? "" : "disabled"}>Sign Out</button>
+          <button class="btn btn-gray btn-sm" onclick="verifyAtlasCentralConnection()">Check Central</button>
+        </div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">
+        <div class="card-title" style="font-size:0.72rem;margin-bottom:8px">Migration-Safe Central Data</div>
+        <div style="font-size:0.66rem;color:var(--muted);line-height:1.5;margin-bottom:8px">${escapeHtml(documentVersion)} ${escapeHtml(lastActivity)}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-blue btn-sm" onclick="saveAtlasCentralAppState({ silent:false, source:'manual_central_save' })" ${status.signedIn ? "" : "disabled"}>Save Current State To Central</button>
+          <button class="btn btn-gray btn-sm" onclick="pullAtlasCentralAppState({ silent:false })" ${status.signedIn ? "" : "disabled"}>Pull Central State</button>
+          <button class="btn btn-gray btn-sm" onclick="uploadAtlasCentralMigrationSnapshot({ silent:false })" ${status.signedIn ? "" : "disabled"}>Upload Read-Only Snapshot</button>
+          <button class="btn btn-gray btn-sm" onclick="downloadAtlasCentralMigrationSnapshot()">Export Snapshot JSON</button>
+        </div>
+        <div style="font-size:0.62rem;color:#d29922;margin-top:8px">Pulling central state downloads a rollback snapshot before changing this browser. Saving central state is blocked if the central version changed since this browser last pulled or saved.</div>
+      </div>
+    </div>
+    ${atlasCentralRuntimeMeta.lastMessage ? `<div class="alert-green" style="margin-top:10px">${escapeHtml(atlasCentralRuntimeMeta.lastMessage)}</div>` : ""}
+    ${atlasCentralRuntimeMeta.lastError ? `<div class="alert-red" style="margin-top:10px">${escapeHtml(atlasCentralRuntimeMeta.lastError)}</div>` : ""}
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-blue btn-sm" onclick="downloadAtlasCentralMigrationSnapshot()">Export Read-Only Migration Snapshot</button>
       <a class="btn btn-gray btn-sm" href="./centralization/atlas-central-migration-plan.md" target="_blank" rel="noopener">Migration Plan</a>
       <a class="btn btn-gray btn-sm" href="./centralization/atlas-central-schema.sql" target="_blank" rel="noopener">Database Schema</a>
+      <a class="btn btn-gray btn-sm" href="./centralization/atlas-central-config.example.js" target="_blank" rel="noopener">Config Template</a>
+      <a class="btn btn-gray btn-sm" href="./centralization/atlas-central-rollout-checklist.md" target="_blank" rel="noopener">Rollout Checklist</a>
     </div>
     <div style="font-size:0.62rem;color:var(--muted);margin-top:8px">Legacy JSON and browser bundles remain available only for controlled backup, export, or migration. They should not be treated as the collaboration system of record.</div>
   </div>`;
@@ -11681,6 +12090,7 @@ function renderPortfolioScopedImportTab() {
     </label>
   </div>`;
   const bodyHtml = `<div class="tbl-wrap">
+    ${renderAtlasCentralPlatformPanel()}
     ${bulkImportWorkspaceHTML}
     ${extractPreviewHTML}
     ${extractedDashboardRows.length > 0 ? renderExtractFieldMapControls() : ""}
@@ -34538,6 +34948,13 @@ async function initializeAtlasDashboard() {
       setTimeout(() => {
         pullDashboardSharedState({ silent: true, applyRemoteIfNewer: true });
       }, 320);
+      setTimeout(() => {
+        const status = getAtlasCentralStatus();
+        const config = getAtlasCentralConfig();
+        if (status.configured && status.signedIn && config.autoPullOnStartup) {
+          verifyAtlasCentralConnection();
+        }
+      }, 900);
     }
   })();
 }

@@ -35,6 +35,56 @@ create table if not exists atlas_audit_log (
   created_at timestamptz not null default now()
 );
 
+create table if not exists atlas_app_documents (
+  document_id uuid primary key default gen_random_uuid(),
+  document_key text not null unique,
+  module_key text not null,
+  payload jsonb not null default '{}',
+  payload_hash text not null,
+  version integer not null default 1,
+  source_module text not null default 'atlas',
+  source_hash text,
+  created_by uuid references auth.users(id),
+  updated_by uuid references auth.users(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz,
+  check (version > 0)
+);
+
+create table if not exists atlas_app_document_versions (
+  document_version_id uuid primary key default gen_random_uuid(),
+  document_id uuid not null references atlas_app_documents(document_id),
+  document_key text not null,
+  module_key text not null,
+  version integer not null,
+  payload jsonb not null,
+  payload_hash text not null,
+  source_module text not null default 'atlas',
+  source_hash text,
+  saved_by uuid references auth.users(id),
+  saved_at timestamptz not null default now(),
+  metadata jsonb not null default '{}',
+  unique (document_id, version)
+);
+
+create table if not exists atlas_edit_locks (
+  edit_lock_id uuid primary key default gen_random_uuid(),
+  entity_table text not null,
+  entity_id text not null,
+  lock_owner uuid not null references auth.users(id),
+  lock_reason text,
+  locked_at timestamptz not null default now(),
+  expires_at timestamptz not null default (now() + interval '15 minutes'),
+  released_at timestamptz,
+  metadata jsonb not null default '{}',
+  check (expires_at > locked_at)
+);
+
+create unique index if not exists idx_atlas_edit_locks_active
+on atlas_edit_locks(entity_table, entity_id)
+where released_at is null;
+
 create table if not exists atlas_migration_runs (
   migration_run_id uuid primary key default gen_random_uuid(),
   phase text not null,
@@ -399,6 +449,8 @@ create or replace function atlas_current_role()
 returns text
 language sql
 stable
+security definer
+set search_path = public
 as $$
   select coalesce((select role from atlas_user_profiles where user_id = auth.uid() and status = 'active'), 'anonymous');
 $$;
@@ -407,12 +459,187 @@ create or replace function atlas_can_write(required_roles text[])
 returns boolean
 language sql
 stable
+security definer
+set search_path = public
 as $$
   select atlas_current_role() = any(required_roles);
 $$;
 
+create or replace function atlas_hash_payload(payload jsonb)
+returns text
+language sql
+immutable
+as $$
+  select encode(digest(coalesce(payload::text, ''), 'sha256'), 'hex');
+$$;
+
+create or replace function atlas_update_app_document(
+  p_document_key text,
+  p_module_key text,
+  p_payload jsonb,
+  p_expected_version integer default null,
+  p_source_module text default 'atlas',
+  p_source_hash text default null,
+  p_metadata jsonb default '{}'
+)
+returns table (
+  document_id uuid,
+  document_key text,
+  module_key text,
+  version integer,
+  payload_hash text,
+  updated_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_doc atlas_app_documents%rowtype;
+  v_before jsonb;
+  v_hash text;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication is required to update Atlas central data.';
+  end if;
+
+  if not atlas_can_write(array['admin']) then
+    raise exception 'Only Atlas admins may update the migration-wide app document.';
+  end if;
+
+  if nullif(trim(p_document_key), '') is null then
+    raise exception 'Document key is required.';
+  end if;
+
+  if p_payload is null then
+    raise exception 'Payload is required.';
+  end if;
+
+  v_hash := coalesce(nullif(trim(p_source_hash), ''), atlas_hash_payload(p_payload));
+
+  select *
+  into v_doc
+  from atlas_app_documents d
+  where d.document_key = trim(p_document_key)
+    and d.deleted_at is null
+  for update;
+
+  if not found then
+    if p_expected_version is not null then
+      raise exception 'Atlas central document conflict: document does not exist but caller expected version %.', p_expected_version;
+    end if;
+
+    insert into atlas_app_documents (
+      document_key,
+      module_key,
+      payload,
+      payload_hash,
+      version,
+      source_module,
+      source_hash,
+      created_by,
+      updated_by
+    )
+    values (
+      trim(p_document_key),
+      trim(coalesce(nullif(p_module_key, ''), 'dashboard')),
+      p_payload,
+      v_hash,
+      1,
+      trim(coalesce(nullif(p_source_module, ''), 'atlas')),
+      v_hash,
+      auth.uid(),
+      auth.uid()
+    )
+    returning * into v_doc;
+
+    v_before := null;
+  else
+    if p_expected_version is null or v_doc.version <> p_expected_version then
+      raise exception 'Atlas central document conflict: expected version %, found version %.', coalesce(p_expected_version, -1), v_doc.version;
+    end if;
+
+    v_before := v_doc.payload;
+
+    update atlas_app_documents d
+    set payload = p_payload,
+        payload_hash = v_hash,
+        version = d.version + 1,
+        source_module = trim(coalesce(nullif(p_source_module, ''), 'atlas')),
+        source_hash = v_hash,
+        updated_by = auth.uid(),
+        updated_at = now()
+    where d.document_id = v_doc.document_id
+    returning * into v_doc;
+  end if;
+
+  insert into atlas_app_document_versions (
+    document_id,
+    document_key,
+    module_key,
+    version,
+    payload,
+    payload_hash,
+    source_module,
+    source_hash,
+    saved_by,
+    metadata
+  )
+  values (
+    v_doc.document_id,
+    v_doc.document_key,
+    v_doc.module_key,
+    v_doc.version,
+    v_doc.payload,
+    v_doc.payload_hash,
+    v_doc.source_module,
+    v_doc.source_hash,
+    auth.uid(),
+    coalesce(p_metadata, '{}')
+  );
+
+  insert into atlas_audit_log (
+    actor_user_id,
+    action,
+    entity_table,
+    entity_id,
+    source_module,
+    before_payload,
+    after_payload,
+    metadata
+  )
+  values (
+    auth.uid(),
+    case when v_before is null then 'insert' else 'update' end,
+    'atlas_app_documents',
+    v_doc.document_id::text,
+    v_doc.source_module,
+    v_before,
+    v_doc.payload,
+    jsonb_build_object(
+      'document_key', v_doc.document_key,
+      'module_key', v_doc.module_key,
+      'version', v_doc.version,
+      'source_hash', v_doc.source_hash
+    ) || coalesce(p_metadata, '{}')
+  );
+
+  return query
+  select
+    v_doc.document_id,
+    v_doc.document_key,
+    v_doc.module_key,
+    v_doc.version,
+    v_doc.payload_hash,
+    v_doc.updated_at;
+end;
+$$;
+
 alter table atlas_user_profiles enable row level security;
 alter table atlas_audit_log enable row level security;
+alter table atlas_app_documents enable row level security;
+alter table atlas_app_document_versions enable row level security;
+alter table atlas_edit_locks enable row level security;
 alter table atlas_migration_runs enable row level security;
 alter table atlas_legacy_snapshots enable row level security;
 alter table atlas_mapping_log enable row level security;
@@ -434,6 +661,43 @@ alter table atlas_bonus_periods enable row level security;
 alter table atlas_incentive_plans enable row level security;
 alter table atlas_bonus_calculation_runs enable row level security;
 alter table atlas_bonus_calculation_lines enable row level security;
+
+create policy "users can read own atlas profile"
+on atlas_user_profiles for select to authenticated
+using (user_id = auth.uid() or atlas_can_write(array['admin']));
+
+create policy "admins manage atlas profiles"
+on atlas_user_profiles for all to authenticated
+using (atlas_can_write(array['admin']))
+with check (atlas_can_write(array['admin']));
+
+create policy "authenticated users can append audit log"
+on atlas_audit_log for insert to authenticated
+with check (actor_user_id = auth.uid() or actor_user_id is null);
+
+create policy "authenticated users can read app documents"
+on atlas_app_documents for select to authenticated using (deleted_at is null);
+
+create policy "admins manage app documents"
+on atlas_app_documents for all to authenticated
+using (atlas_can_write(array['admin']))
+with check (atlas_can_write(array['admin']));
+
+create policy "authenticated users can read app document versions"
+on atlas_app_document_versions for select to authenticated using (true);
+
+create policy "admins manage app document versions"
+on atlas_app_document_versions for all to authenticated
+using (atlas_can_write(array['admin']))
+with check (atlas_can_write(array['admin']));
+
+create policy "authenticated users can read active edit locks"
+on atlas_edit_locks for select to authenticated using (released_at is null);
+
+create policy "authenticated users manage own edit locks"
+on atlas_edit_locks for all to authenticated
+using (lock_owner = auth.uid() or atlas_can_write(array['admin']))
+with check (lock_owner = auth.uid() or atlas_can_write(array['admin']));
 
 create policy "authenticated users can read shared atlas data"
 on atlas_communities for select to authenticated using (deleted_at is null);
@@ -539,6 +803,12 @@ with check (atlas_can_write(array['admin']));
 
 create policy "authenticated users can read audit log"
 on atlas_audit_log for select to authenticated using (true);
+
+create index if not exists idx_atlas_app_documents_key
+on atlas_app_documents(document_key, deleted_at);
+
+create index if not exists idx_atlas_app_document_versions_key
+on atlas_app_document_versions(document_key, version desc);
 
 create index if not exists idx_atlas_employee_assignments_effective
 on atlas_employee_assignments(employee_id, community_id, effective_start, effective_end);

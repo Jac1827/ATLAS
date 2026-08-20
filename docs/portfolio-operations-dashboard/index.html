@@ -4,6 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>ATLAS RISE Ops Dashboard</title>
+<link rel="icon" type="image/png" href="./assets/atlas-icon.png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -1171,6 +1172,12 @@ const COMMUNITY_MARKER_ICONS = {
   "Glen Kernan Park": "⛳"
 };
 const OPS_PROPERTY_CATALOG_KEY = "rise_ops_property_catalog_v1";
+const ATLAS_SHARED_PROPERTY_GRAPH_KEY = "atlas_shared_property_graph_v1";
+const ATLAS_SHARED_PROPERTY_GRAPH_SCHEMA_VERSION = 1;
+const ATLAS_SHARED_PROPERTY_SOURCE_ID = "portfolio_communities";
+const ATLAS_SHARED_VALID_MARKETS = ["Florida", "Mid-Atlantic", "Southeast", "Northeast"];
+const ATLAS_SHARED_VALID_PROPERTY_TYPES = ["Multifamily", "Student Housing", "Active Adult (55+)", "High Rise", "Manufactured Home"];
+const ATLAS_SHARED_VALID_STATUSES = ["active", "inactive"];
 const PERFORMANCE_PLATFORM_STORAGE_KEY = "rise_performance_platform_github_v1";
 const DASHBOARD_STORAGE_MIGRATION_KEYS = [
   "rise_leasing_v5",
@@ -1178,6 +1185,7 @@ const DASHBOARD_STORAGE_MIGRATION_KEYS = [
   OPS_WORKSPACE_CONTEXT_KEY,
   WEEKLY_SNAPSHOT_STORAGE_KEY,
   OPS_PROPERTY_CATALOG_KEY,
+  ATLAS_SHARED_PROPERTY_GRAPH_KEY,
   SIDE_NAV_STORAGE_KEY,
   PERFORMANCE_PLATFORM_STORAGE_KEY
 ];
@@ -1244,15 +1252,19 @@ function persistOpsPropertyCatalog() {
       (Array.isArray(entries) ? entries : []).forEach((prop) => {
         const name = String(prop?.name ?? "").trim();
         if(!name) return;
-        const current = merged.get(name) || { name, units: null };
-        merged.set(name, {
-          name,
+        const key = atlasNormalizeSharedText(name) || name;
+        const current = merged.get(key) || { name, units: null };
+        merged.set(key, {
+          ...current,
+          ...prop,
+          name: current.name || name,
           units: current.units ?? prop?.units ?? null
         });
       });
     };
     collect(PROPERTIES.map((prop) => ({ name: prop.name, units: prop.units ?? null })));
     collect(existing?.properties);
+    collect(readAtlasSharedPropertyCatalogEntries());
     localStorage.setItem(
       OPS_PROPERTY_CATALOG_KEY,
       JSON.stringify({
@@ -1263,6 +1275,753 @@ function persistOpsPropertyCatalog() {
   } catch {}
 }
 persistOpsPropertyCatalog();
+
+const ATLAS_SHARED_PROPERTY_ALIASES = {
+  "bartram": ["Bartram Park"],
+  "bartram park": ["Bartram"],
+  "doro": ["Doro High Rise"],
+  "doro high rise": ["Doro"],
+  "gkp": ["Glen Kernan Park"],
+  "glen kernan park gkp": ["Glen Kernan Park"],
+  "st augustine": ["St. Augustine", "St Augustine"],
+  "st. augustine": ["St Augustine"],
+  "maple hall njit": ["NJIT - Maple Hall"],
+  "njit maple hall": ["Maple Hall (NJIT)"],
+  "utk beacon hall": ["Beacon / Poplar Hall"],
+  "utk poplar hall": ["Beacon / Poplar Hall"],
+  "beacon poplar hall": ["UTK - Beacon Hall", "UTK - Poplar Hall"]
+};
+
+function atlasSharedNow() {
+  return new Date().toISOString();
+}
+
+function atlasSharedObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function atlasSharedClone(value) {
+  try { return JSON.parse(JSON.stringify(value)); } catch { return value; }
+}
+
+function atlasNormalizeSharedText(value) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function atlasNormalizeSharedEmail(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function atlasIsValidSharedEmail(value) {
+  const email = atlasNormalizeSharedEmail(value);
+  return !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function atlasSharedSlug(value) {
+  return atlasNormalizeSharedText(value).replace(/\s+/g, "-") || "unassigned";
+}
+
+function atlasSharedCommunityId(name) {
+  return `community:${atlasSharedSlug(name)}`;
+}
+
+function atlasDefaultSharedPropertyGraph() {
+  return {
+    schemaVersion: ATLAS_SHARED_PROPERTY_GRAPH_SCHEMA_VERSION,
+    updatedAt: "",
+    lastWriter: "",
+    properties: {},
+    people: {},
+    settings: {
+      routingRules: [],
+      approvalRules: [],
+      slaRules: [],
+      bonusSettings: {},
+      updatedAt: ""
+    },
+    mappingIssues: [],
+    auditTrail: []
+  };
+}
+
+function atlasNormalizeSharedPropertyRecord(record, fallbackKey = "") {
+  const raw = atlasSharedObject(record);
+  const displayName = String(raw.displayName || raw.name || raw.propertyName || raw.canonicalName || fallbackKey || "").trim();
+  const communityId = String(raw.communityId || raw.id || atlasSharedCommunityId(displayName)).trim();
+  const aliases = Array.isArray(raw.aliases) ? raw.aliases.map(item => String(item ?? "").trim()).filter(Boolean) : [];
+  if (displayName && !aliases.some(alias => atlasNormalizeSharedText(alias) === atlasNormalizeSharedText(displayName))) aliases.push(displayName);
+  const status = normalizeCommunityStatus(raw.status || raw.communityStatus || "active");
+  return {
+    communityId,
+    canonicalName: String(raw.canonicalName || atlasNormalizeSharedText(displayName) || communityId).trim(),
+    displayName,
+    aliases: Array.from(new Set(aliases)),
+    market: String(raw.market || raw.communityMarket || "").trim(),
+    regionalGrouping: String(raw.regionalGrouping || raw.region || raw.communityRegionalGrouping || raw.market || "").trim(),
+    propertyType: String(raw.propertyType || raw.type || raw.communityPropertyType || "").trim(),
+    generalManagerName: String(raw.generalManagerName || raw.gm || raw.generalManager || "").trim(),
+    generalManagerEmail: atlasNormalizeSharedEmail(raw.generalManagerEmail || raw.gmEmail || ""),
+    generalManagerUserId: String(raw.generalManagerUserId || raw.gmUserId || "").trim(),
+    regionalManagerName: String(raw.regionalManagerName || raw.regional || raw.regionalManager || "").trim(),
+    regionalManagerEmail: atlasNormalizeSharedEmail(raw.regionalManagerEmail || raw.regionalEmail || ""),
+    regionalManagerUserId: String(raw.regionalManagerUserId || raw.regionalUserId || "").trim(),
+    status,
+    owningPortfolio: String(raw.owningPortfolio || raw.portfolio || raw.ownerEntity || "").trim(),
+    scopeSelections: Array.isArray(raw.scopeSelections) ? raw.scopeSelections.map(item => String(item ?? "").trim()).filter(Boolean) : [],
+    sourceIds: atlasSharedObject(raw.sourceIds),
+    sourceUpdatedAt: atlasSharedObject(raw.sourceUpdatedAt),
+    fieldMeta: atlasSharedObject(raw.fieldMeta),
+    reviewFlags: Array.isArray(raw.reviewFlags) ? raw.reviewFlags.map(item => String(item ?? "").trim()).filter(Boolean) : [],
+    createdAt: String(raw.createdAt || raw.updatedAt || atlasSharedNow()),
+    updatedAt: String(raw.updatedAt || "")
+  };
+}
+
+function normalizeAtlasSharedPropertyGraph(input) {
+  const defaults = atlasDefaultSharedPropertyGraph();
+  const raw = atlasSharedObject(input);
+  const graph = {
+    ...defaults,
+    ...raw,
+    schemaVersion: ATLAS_SHARED_PROPERTY_GRAPH_SCHEMA_VERSION,
+    properties: {},
+    people: {},
+    settings: {
+      ...defaults.settings,
+      ...atlasSharedObject(raw.settings)
+    },
+    mappingIssues: Array.isArray(raw.mappingIssues) ? raw.mappingIssues.slice(-80) : [],
+    auditTrail: Array.isArray(raw.auditTrail) ? raw.auditTrail.slice(-200) : []
+  };
+  Object.entries(atlasSharedObject(raw.properties)).forEach(([key, value]) => {
+    const record = atlasNormalizeSharedPropertyRecord(value, key);
+    if (record.displayName) graph.properties[record.communityId] = record;
+  });
+  Object.entries(atlasSharedObject(raw.people)).forEach(([key, value]) => {
+    const person = atlasSharedObject(value);
+    const email = atlasNormalizeSharedEmail(person.email);
+    const personId = String(person.personId || person.userId || person.peopleEmployeeId || (email ? `email:${email}` : key)).trim();
+    if (!personId) return;
+    graph.people[personId] = {
+      personId,
+      userId: String(person.userId || person.peopleEmployeeId || "").trim(),
+      email,
+      displayName: String(person.displayName || person.name || "").trim(),
+      role: String(person.role || "").trim(),
+      sourceIds: atlasSharedObject(person.sourceIds),
+      fieldMeta: atlasSharedObject(person.fieldMeta),
+      updatedAt: String(person.updatedAt || "")
+    };
+  });
+  return graph;
+}
+
+function readAtlasSharedPropertyGraph() {
+  try {
+    const raw = localStorage.getItem(ATLAS_SHARED_PROPERTY_GRAPH_KEY);
+    return normalizeAtlasSharedPropertyGraph(raw ? JSON.parse(raw) : null);
+  } catch {
+    return atlasDefaultSharedPropertyGraph();
+  }
+}
+
+function writeAtlasSharedPropertyGraph(graph, options = {}) {
+  const normalized = normalizeAtlasSharedPropertyGraph(graph);
+  normalized.updatedAt = String(options.updatedAt || normalized.updatedAt || atlasSharedNow());
+  normalized.lastWriter = String(options.source || normalized.lastWriter || ATLAS_SHARED_PROPERTY_SOURCE_ID);
+  try {
+    localStorage.setItem(ATLAS_SHARED_PROPERTY_GRAPH_KEY, JSON.stringify(normalized));
+  } catch (error) {
+    markAtlasPersistenceError(error, "Shared property graph could not be saved locally.");
+  }
+  const centralStatus = window.ATLAS_CENTRAL?.getStatus ? window.ATLAS_CENTRAL.getStatus() : null;
+  if (window.ATLAS_CENTRAL?.saveSharedPropertyGraph && centralStatus?.configured && centralStatus?.signedIn && options.central !== false) {
+    void window.ATLAS_CENTRAL.saveSharedPropertyGraph(normalized, {
+      sourceModule: options.source || ATLAS_SHARED_PROPERTY_SOURCE_ID,
+      metadata: { syncSource: options.source || ATLAS_SHARED_PROPERTY_SOURCE_ID }
+    }).catch(() => null);
+  }
+  return normalized;
+}
+
+function readAtlasSharedPropertyCatalogEntries() {
+  const graph = readAtlasSharedPropertyGraph();
+  return Object.values(graph.properties).map(record => ({
+    name: record.displayName,
+    units: null,
+    communityId: record.communityId,
+    market: record.market,
+    regionalGrouping: record.regionalGrouping,
+    propertyType: record.propertyType,
+    generalManagerName: record.generalManagerName,
+    generalManagerEmail: record.generalManagerEmail,
+    regionalManagerName: record.regionalManagerName,
+    regionalManagerEmail: record.regionalManagerEmail,
+    status: record.status,
+    owningPortfolio: record.owningPortfolio,
+    scopeSelections: record.scopeSelections,
+    sharedSyncUpdatedAt: record.updatedAt,
+    sharedReviewFlags: record.reviewFlags
+  })).filter(entry => entry.name);
+}
+
+function atlasSharedPropertySignatureSet(value) {
+  const names = Array.isArray(value) ? value : [value];
+  const signatures = new Set();
+  names.forEach((name) => {
+    const clean = String(name ?? "").trim();
+    const normalized = atlasNormalizeSharedText(clean);
+    if (!normalized) return;
+    signatures.add(normalized);
+    signatures.add(normalized.replace(/\b(the|at|rise)\b/g, " ").replace(/\s+/g, " ").trim());
+    if (ATLAS_SHARED_PROPERTY_ALIASES[normalized]) {
+      ATLAS_SHARED_PROPERTY_ALIASES[normalized].forEach(alias => signatures.add(atlasNormalizeSharedText(alias)));
+    }
+    Object.entries(ATLAS_SHARED_PROPERTY_ALIASES).forEach(([alias, values]) => {
+      const aliasNorm = atlasNormalizeSharedText(alias);
+      if (values.some(item => atlasNormalizeSharedText(item) === normalized)) signatures.add(aliasNorm);
+    });
+  });
+  return new Set(Array.from(signatures).filter(Boolean));
+}
+
+function atlasSharedPropertyRecordSignatures(record) {
+  const sourceIds = atlasSharedObject(record?.sourceIds);
+  return atlasSharedPropertySignatureSet([
+    record?.displayName,
+    record?.canonicalName,
+    sourceIds.portfolioName,
+    sourceIds.marketingPropertyName,
+    ...(Array.isArray(record?.aliases) ? record.aliases : [])
+  ]);
+}
+
+function atlasSharedSetsOverlap(a, b) {
+  for (const value of a) if (b.has(value)) return true;
+  return false;
+}
+
+function atlasFindSharedPropertyMatch(graph, input = {}) {
+  const sourceIds = atlasSharedObject(input.sourceIds);
+  const directId = String(input.communityId || sourceIds.communityId || "").trim();
+  if (directId && graph.properties[directId]) return { record: graph.properties[directId] };
+  const entries = Object.values(graph.properties);
+  const marketingId = String(sourceIds.marketingPropertyId || "").trim();
+  if (marketingId) {
+    const byMarketingId = entries.find(record => String(record.sourceIds?.marketingPropertyId || "").trim() === marketingId);
+    if (byMarketingId) return { record: byMarketingId };
+  }
+  const portfolioName = String(sourceIds.portfolioName || input.portfolioName || "").trim();
+  if (portfolioName) {
+    const target = atlasNormalizeSharedText(portfolioName);
+    const byPortfolioName = entries.find(record => atlasNormalizeSharedText(record.sourceIds?.portfolioName || "") === target);
+    if (byPortfolioName) return { record: byPortfolioName };
+  }
+  const targetSignatures = atlasSharedPropertySignatureSet([input.name, input.displayName, input.propertyName, portfolioName]);
+  if (!targetSignatures.size) return { record: null };
+  const matches = entries.filter(record => atlasSharedSetsOverlap(atlasSharedPropertyRecordSignatures(record), targetSignatures));
+  if (matches.length === 1) return { record: matches[0] };
+  if (matches.length > 1) return { ambiguous: true, matches };
+  const fuzzy = entries.filter(record => {
+    const recordSignatures = atlasSharedPropertyRecordSignatures(record);
+    for (const a of recordSignatures) {
+      for (const b of targetSignatures) {
+        if ((a.length >= 5 && b.length >= 5) && (a.includes(b) || b.includes(a))) return true;
+      }
+    }
+    return false;
+  });
+  if (fuzzy.length === 1) return { record: fuzzy[0] };
+  if (fuzzy.length > 1) return { ambiguous: true, matches: fuzzy };
+  return { record: null };
+}
+
+function atlasPushSharedIssue(graph, issue = {}) {
+  graph.mappingIssues = [
+    ...(Array.isArray(graph.mappingIssues) ? graph.mappingIssues : []),
+    {
+      id: `issue-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      source: issue.source || ATLAS_SHARED_PROPERTY_SOURCE_ID,
+      severity: issue.severity || "review",
+      message: issue.message || "Shared record mapping needs review.",
+      entity: issue.entity || "",
+      createdAt: issue.createdAt || atlasSharedNow()
+    }
+  ].slice(-80);
+}
+
+function atlasPushSharedAudit(graph, entry = {}) {
+  graph.auditTrail = [
+    ...(Array.isArray(graph.auditTrail) ? graph.auditTrail : []),
+    {
+      id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      source: entry.source || ATLAS_SHARED_PROPERTY_SOURCE_ID,
+      action: entry.action || "update",
+      entityType: entry.entityType || "property",
+      entityId: entry.entityId || "",
+      fields: entry.fields || {},
+      createdAt: entry.createdAt || atlasSharedNow()
+    }
+  ].slice(-200);
+}
+
+function atlasApplySharedField(record, field, value, source, timestamp, auditFields, options = {}) {
+  let cleanValue = value;
+  if (Array.isArray(cleanValue)) {
+    cleanValue = cleanValue.map(item => String(item ?? "").trim()).filter(Boolean);
+  } else if (field.toLowerCase().includes("email")) {
+    cleanValue = atlasNormalizeSharedEmail(cleanValue);
+  } else if (field === "status") {
+    cleanValue = normalizeCommunityStatus(cleanValue);
+  } else {
+    cleanValue = String(cleanValue ?? "").trim();
+  }
+  const isBlank = Array.isArray(cleanValue) ? cleanValue.length === 0 : cleanValue === "";
+  if (isBlank && !options.allowBlank) return false;
+  const previous = record[field];
+  const previousTimestamp = String(record.fieldMeta?.[field]?.updatedAt || "");
+  const nextTimestamp = String(timestamp || atlasSharedNow());
+  if (previousTimestamp && previousTimestamp > nextTimestamp && !options.force) return false;
+  const previousSerialized = JSON.stringify(previous ?? (Array.isArray(cleanValue) ? [] : ""));
+  const nextSerialized = JSON.stringify(cleanValue);
+  record.fieldMeta = atlasSharedObject(record.fieldMeta);
+  record.fieldMeta[field] = { source, updatedAt: nextTimestamp };
+  if (previousSerialized !== nextSerialized) {
+    auditFields[field] = { before: previous ?? "", after: cleanValue };
+    record[field] = cleanValue;
+    return true;
+  }
+  record[field] = cleanValue;
+  return false;
+}
+
+function validateAtlasSharedPropertyInput(input = {}, options = {}) {
+  const issues = [];
+  const name = String(input.name || input.displayName || input.propertyName || "").trim();
+  if (!name && options.requireName !== false) {
+    issues.push({ severity: "error", field: "name", message: "Property / Community Name is required." });
+  }
+  const market = String(input.market || "").trim();
+  if (market && !ATLAS_SHARED_VALID_MARKETS.includes(market)) {
+    issues.push({ severity: options.strictMarket ? "error" : "review", field: "market", message: `${market} is not an allowed market value.` });
+  }
+  const propertyType = String(input.propertyType || input.type || "").trim();
+  if (propertyType && !ATLAS_SHARED_VALID_PROPERTY_TYPES.includes(propertyType)) {
+    issues.push({ severity: options.strictPropertyType ? "error" : "review", field: "propertyType", message: `${propertyType} is not an allowed property type.` });
+  }
+  const status = String(input.status || input.communityStatus || "").trim();
+  if (status && !ATLAS_SHARED_VALID_STATUSES.includes(normalizeCommunityStatus(status))) {
+    issues.push({ severity: "error", field: "status", message: "Status must be active or inactive." });
+  }
+  [
+    ["generalManagerEmail", input.generalManagerEmail || input.gmEmail],
+    ["regionalManagerEmail", input.regionalManagerEmail || input.regionalEmail]
+  ].forEach(([field, value]) => {
+    if (!atlasIsValidSharedEmail(value)) {
+      issues.push({ severity: "error", field, message: `${field === "generalManagerEmail" ? "GM" : "Regional"} email must be valid.` });
+    }
+  });
+  return { ok: !issues.some(issue => issue.severity === "error"), issues };
+}
+
+function atlasUpsertSharedPerson(graph, input = {}, options = {}) {
+  const timestamp = String(options.timestamp || input.updatedAt || atlasSharedNow());
+  const source = String(options.source || input.source || ATLAS_SHARED_PROPERTY_SOURCE_ID);
+  const email = atlasNormalizeSharedEmail(input.email);
+  const userId = String(input.userId || input.peopleEmployeeId || input.employeeId || "").trim();
+  const displayName = String(input.displayName || input.name || "").trim();
+  if (!userId && !email && !displayName) return { person: null, changed: false };
+  if (email && !atlasIsValidSharedEmail(email)) {
+    atlasPushSharedIssue(graph, { source, severity: "error", entity: displayName || email, message: `${email} is not a valid email for a shared person record.` });
+    return { person: null, changed: false };
+  }
+  const people = atlasSharedObject(graph.people);
+  const existing = Object.values(people).find(person =>
+    (userId && String(person.userId || "").trim() === userId) ||
+    (email && atlasNormalizeSharedEmail(person.email) === email)
+  );
+  const personId = String(existing?.personId || userId || (email ? `email:${email}` : `person:${atlasSharedSlug(displayName)}`));
+  const person = existing ? { ...existing } : { personId, sourceIds: {}, fieldMeta: {}, updatedAt: "", displayName: "", email: "", role: "", userId: "" };
+  const fields = {};
+  atlasApplySharedField(person, "displayName", displayName, source, timestamp, fields);
+  atlasApplySharedField(person, "email", email, source, timestamp, fields);
+  atlasApplySharedField(person, "role", input.role || "", source, timestamp, fields);
+  atlasApplySharedField(person, "userId", userId, source, timestamp, fields);
+  person.sourceIds = { ...atlasSharedObject(person.sourceIds), ...atlasSharedObject(input.sourceIds) };
+  if (Object.keys(fields).length) person.updatedAt = timestamp;
+  graph.people = { ...people, [personId]: person };
+  return { person, changed: Object.keys(fields).length > 0 };
+}
+
+function atlasUpsertSharedProperty(graph, input = {}, options = {}) {
+  const timestamp = String(options.timestamp || input.updatedAt || atlasSharedNow());
+  const source = String(options.source || input.source || ATLAS_SHARED_PROPERTY_SOURCE_ID);
+  const name = String(input.name || input.displayName || input.propertyName || "").trim();
+  const validation = validateAtlasSharedPropertyInput(input, options);
+  validation.issues.forEach(issue => {
+    if (issue.severity !== "error") atlasPushSharedIssue(graph, { source, severity: issue.severity, entity: name, message: issue.message });
+  });
+  if (!validation.ok || !name) {
+    validation.issues.filter(issue => issue.severity === "error").forEach(issue => atlasPushSharedIssue(graph, { source, severity: "error", entity: name, message: issue.message }));
+    return { record: null, changed: false, issues: validation.issues };
+  }
+  const match = atlasFindSharedPropertyMatch(graph, input);
+  if (match.ambiguous) {
+    atlasPushSharedIssue(graph, {
+      source,
+      severity: "review",
+      entity: name,
+      message: `${name} matched more than one shared community. Review before assigning.`
+    });
+    return { record: null, changed: false, issues: [{ severity: "review", message: "Ambiguous property match." }] };
+  }
+  const communityId = String(match.record?.communityId || input.communityId || input.sourceIds?.communityId || atlasSharedCommunityId(name));
+  const record = match.record
+    ? atlasNormalizeSharedPropertyRecord(match.record, communityId)
+    : atlasNormalizeSharedPropertyRecord({ communityId, displayName: name, aliases: [name], createdAt: timestamp }, communityId);
+  const auditFields = {};
+  record.sourceIds = { ...atlasSharedObject(record.sourceIds), ...atlasSharedObject(input.sourceIds), communityId };
+  if (input.sourceIds?.portfolioName) record.sourceIds.portfolioName = String(input.sourceIds.portfolioName).trim();
+  if (input.sourceIds?.marketingPropertyId) record.sourceIds.marketingPropertyId = String(input.sourceIds.marketingPropertyId).trim();
+  record.sourceUpdatedAt = { ...atlasSharedObject(record.sourceUpdatedAt), [source]: timestamp };
+  atlasApplySharedField(record, "displayName", name, source, timestamp, auditFields);
+  record.canonicalName = atlasNormalizeSharedText(record.displayName) || record.canonicalName;
+  atlasApplySharedField(record, "market", input.market || "", source, timestamp, auditFields);
+  atlasApplySharedField(record, "regionalGrouping", input.regionalGrouping || input.market || "", source, timestamp, auditFields);
+  atlasApplySharedField(record, "propertyType", input.propertyType || input.type || "", source, timestamp, auditFields);
+  atlasApplySharedField(record, "generalManagerName", input.generalManagerName || input.gm || "", source, timestamp, auditFields);
+  atlasApplySharedField(record, "generalManagerEmail", input.generalManagerEmail || input.gmEmail || "", source, timestamp, auditFields);
+  atlasApplySharedField(record, "regionalManagerName", input.regionalManagerName || input.regional || "", source, timestamp, auditFields);
+  atlasApplySharedField(record, "regionalManagerEmail", input.regionalManagerEmail || input.regionalEmail || "", source, timestamp, auditFields);
+  atlasApplySharedField(record, "status", input.status || "active", source, timestamp, auditFields);
+  atlasApplySharedField(record, "owningPortfolio", input.owningPortfolio || input.portfolio || "", source, timestamp, auditFields);
+  atlasApplySharedField(record, "scopeSelections", input.scopeSelections || [], source, timestamp, auditFields);
+  record.aliases = Array.from(new Set([
+    ...(Array.isArray(record.aliases) ? record.aliases : []),
+    name,
+    input.sourceIds?.portfolioName,
+    input.sourceIds?.marketingPropertyName
+  ].map(item => String(item ?? "").trim()).filter(Boolean)));
+  const gmPerson = atlasUpsertSharedPerson(graph, {
+    displayName: record.generalManagerName,
+    email: record.generalManagerEmail,
+    role: "General Manager",
+    userId: record.generalManagerUserId,
+    sourceIds: { communityId, role: "general_manager" }
+  }, { source, timestamp });
+  if (gmPerson.person?.personId) atlasApplySharedField(record, "generalManagerUserId", gmPerson.person.personId, source, timestamp, auditFields);
+  const regionalPerson = atlasUpsertSharedPerson(graph, {
+    displayName: record.regionalManagerName,
+    email: record.regionalManagerEmail,
+    role: "Regional Manager",
+    userId: record.regionalManagerUserId,
+    sourceIds: { communityId, role: "regional_manager" }
+  }, { source, timestamp });
+  if (regionalPerson.person?.personId) atlasApplySharedField(record, "regionalManagerUserId", regionalPerson.person.personId, source, timestamp, auditFields);
+  record.reviewFlags = validation.issues
+    .filter(issue => issue.severity !== "error")
+    .map(issue => issue.message)
+    .concat(Array.isArray(record.reviewFlags) ? record.reviewFlags : [])
+    .slice(0, 8);
+  if (Object.keys(auditFields).length || !match.record) {
+    record.updatedAt = timestamp;
+    atlasPushSharedAudit(graph, { source, entityId: communityId, fields: auditFields, action: match.record ? "update" : "create", createdAt: timestamp });
+  }
+  graph.properties = { ...atlasSharedObject(graph.properties), [communityId]: record };
+  return { record, changed: Object.keys(auditFields).length > 0 || !match.record, issues: validation.issues };
+}
+
+function getAtlasSharedRecordForPortfolioName(propName) {
+  const graph = readAtlasSharedPropertyGraph();
+  const match = atlasFindSharedPropertyMatch(graph, {
+    name: propName,
+    sourceIds: { portfolioName: propName }
+  });
+  return match.record || null;
+}
+
+function atlasResolvePortfolioCommunityName(record) {
+  const signatures = atlasSharedPropertyRecordSignatures(record);
+  const candidates = [
+    record?.sourceIds?.portfolioName,
+    record?.displayName,
+    ...(Array.isArray(record?.aliases) ? record.aliases : [])
+  ].map(item => String(item ?? "").trim()).filter(Boolean);
+  for (const candidate of candidates) {
+    const matched = matchPropertyName(candidate, { fallbackToCurrent: false });
+    if (matched) return matched;
+  }
+  const existing = PROPERTIES.find(prop => atlasSharedSetsOverlap(atlasSharedPropertySignatureSet(prop.name), signatures));
+  return existing?.name || record?.displayName || "";
+}
+
+function ensurePortfolioPropertyListEntry(propName, units = null) {
+  const cleanName = String(propName ?? "").trim();
+  if (!cleanName) return;
+  const exists = PROPERTIES.some(prop => atlasNormalizeSharedText(prop.name) === atlasNormalizeSharedText(cleanName));
+  if (!exists) PROPERTIES.push({ name: cleanName, units });
+}
+
+function atlasProjectSharedPropertyToCommunityRecord(record, existingRecord = {}) {
+  return {
+    ...existingRecord,
+    communityId: record.communityId,
+    communityMarket: record.market || existingRecord.communityMarket || "",
+    communityRegionalGrouping: record.regionalGrouping || existingRecord.communityRegionalGrouping || record.market || "",
+    communityPropertyType: record.propertyType || existingRecord.communityPropertyType || "",
+    generalManagerName: record.generalManagerName || existingRecord.generalManagerName || "",
+    generalManagerEmail: record.generalManagerEmail || existingRecord.generalManagerEmail || "",
+    generalManagerUserId: record.generalManagerUserId || existingRecord.generalManagerUserId || "",
+    regionalManagerName: record.regionalManagerName || existingRecord.regionalManagerName || "",
+    regionalManagerEmail: record.regionalManagerEmail || existingRecord.regionalManagerEmail || "",
+    regionalManagerUserId: record.regionalManagerUserId || existingRecord.regionalManagerUserId || "",
+    communityStatus: normalizeCommunityStatus(record.status || existingRecord.communityStatus),
+    investorName: record.owningPortfolio || existingRecord.investorName || "",
+    communityScopeSelections: Array.isArray(record.scopeSelections) ? record.scopeSelections : (existingRecord.communityScopeSelections || []),
+    sharedSyncUpdatedAt: record.updatedAt || existingRecord.sharedSyncUpdatedAt || "",
+    sharedSyncSource: record.fieldMeta?.displayName?.source || record.sourceIds?.lastSource || "",
+    sharedSyncReviewFlags: Array.isArray(record.reviewFlags) ? record.reviewFlags : []
+  };
+}
+
+function syncSharedPropertyFromPortfolioRecord(propName, record, options = {}) {
+  const normalized = normalizeSavedCommunityRecord(propName, record);
+  const timestamp = String(options.timestamp || atlasSharedNow());
+  const graph = readAtlasSharedPropertyGraph();
+  const result = atlasUpsertSharedProperty(graph, {
+    communityId: normalized.communityId,
+    name: propName,
+    market: normalized.communityMarket,
+    regionalGrouping: normalized.communityRegionalGrouping,
+    propertyType: normalized.communityPropertyType,
+    generalManagerName: normalized.generalManagerName,
+    generalManagerEmail: normalized.generalManagerEmail,
+    generalManagerUserId: normalized.generalManagerUserId,
+    regionalManagerName: normalized.regionalManagerName,
+    regionalManagerEmail: normalized.regionalManagerEmail,
+    regionalManagerUserId: normalized.regionalManagerUserId,
+    status: normalized.communityStatus,
+    owningPortfolio: normalized.investorName,
+    scopeSelections: Array.from(new Set([
+      ...(Array.isArray(normalized.communityScopeSelections) ? normalized.communityScopeSelections : []),
+      normalized.investorName,
+      propName
+    ].map(item => String(item ?? "").trim()).filter(Boolean))),
+    sourceIds: {
+      portfolioName: propName,
+      communityId: normalized.communityId
+    }
+  }, {
+    source: options.source || ATLAS_SHARED_PROPERTY_SOURCE_ID,
+    timestamp,
+    strictMarket: true,
+    strictPropertyType: true
+  });
+  if (result.record) {
+    Object.assign(record, atlasProjectSharedPropertyToCommunityRecord(result.record, record));
+  }
+  if (options.persist !== false) writeAtlasSharedPropertyGraph(graph, { source: options.source || ATLAS_SHARED_PROPERTY_SOURCE_ID, updatedAt: timestamp });
+  return result;
+}
+
+function syncSharedPeopleDirectoryIntoPropertyGraph(options = {}) {
+  if (typeof atlasSharedData === "undefined" || !atlasSharedData) return false;
+  const employees = Array.isArray(atlasSharedData.employees)
+    ? atlasSharedData.employees
+    : Object.values(atlasSharedObject(atlasSharedData.employees));
+  const assignments = Array.isArray(atlasSharedData.assignments)
+    ? atlasSharedData.assignments
+    : Object.values(atlasSharedObject(atlasSharedData.assignments));
+  if (!employees.length && !assignments.length) return false;
+  const employeesById = new Map(employees.map(employee => [String(employee.employeeId || employee.id || employee.peopleEmployeeId || "").trim(), employee]));
+  const graph = readAtlasSharedPropertyGraph();
+  let changed = false;
+  const timestamp = String(options.timestamp || atlasSharedNow());
+  employees.forEach(employee => {
+    const personResult = atlasUpsertSharedPerson(graph, {
+      userId: employee.employeeId || employee.id || employee.peopleEmployeeId,
+      displayName: employee.displayName || employee.name || employee.employeeName,
+      email: employee.email || employee.workEmail,
+      role: employee.role || employee.title,
+      sourceIds: { peopleEmployeeId: employee.employeeId || employee.id || employee.peopleEmployeeId }
+    }, { source: "people_team_members", timestamp });
+    changed = personResult.changed || changed;
+  });
+  assignments.forEach(assignment => {
+    const roleText = atlasNormalizeSharedText(assignment.roleType || assignment.role || assignment.title || assignment.assignmentRole);
+    const isGm = roleText.includes("general manager") || roleText === "gm";
+    const isRegional = roleText.includes("regional");
+    if (!isGm && !isRegional) return;
+    const communityName = String(assignment.communityName || assignment.propertyName || assignment.community || assignment.property || "").trim();
+    if (!communityName) return;
+    const employeeId = String(assignment.employeeId || assignment.peopleEmployeeId || "").trim();
+    const employee = employeesById.get(employeeId) || {};
+    const person = atlasUpsertSharedPerson(graph, {
+      userId: employeeId || employee.employeeId || employee.id,
+      displayName: employee.displayName || employee.name || assignment.employeeName || assignment.name,
+      email: employee.email || employee.workEmail || assignment.email,
+      role: isGm ? "General Manager" : "Regional Manager",
+      sourceIds: { assignmentId: assignment.assignmentId || assignment.id || "" }
+    }, { source: "people_team_members", timestamp }).person;
+    const input = {
+      name: communityName,
+      sourceIds: { portfolioName: communityName },
+      ...(isGm ? {
+        generalManagerName: person?.displayName || assignment.employeeName || "",
+        generalManagerEmail: person?.email || assignment.email || "",
+        generalManagerUserId: person?.personId || ""
+      } : {
+        regionalManagerName: person?.displayName || assignment.employeeName || "",
+        regionalManagerEmail: person?.email || assignment.email || "",
+        regionalManagerUserId: person?.personId || ""
+      })
+    };
+    const propertyResult = atlasUpsertSharedProperty(graph, input, { source: "people_team_members", timestamp, requireName: true });
+    changed = propertyResult.changed || changed;
+  });
+  if (changed && options.persist !== false) writeAtlasSharedPropertyGraph(graph, { source: "people_team_members", updatedAt: timestamp });
+  return changed;
+}
+
+function syncSharedPropertiesFromPortfolio(options = {}) {
+  const graph = readAtlasSharedPropertyGraph();
+  let changed = false;
+  const source = options.source || ATLAS_SHARED_PROPERTY_SOURCE_ID;
+  const seen = new Set();
+  const syncOne = (propName, record, propUnits = null) => {
+    const cleanName = String(propName ?? "").trim();
+    if (!cleanName || seen.has(atlasNormalizeSharedText(cleanName))) return;
+    seen.add(atlasNormalizeSharedText(cleanName));
+    const normalized = normalizeSavedCommunityRecord(cleanName, record || savedData[cleanName]);
+    const timestamp = String(options.timestamp || normalized.sharedSyncUpdatedAt || normalized.financialUpdatedAt || "1970-01-01T00:00:00.000Z");
+    const result = atlasUpsertSharedProperty(graph, {
+      communityId: normalized.communityId,
+      name: cleanName,
+      market: normalized.communityMarket,
+      regionalGrouping: normalized.communityRegionalGrouping,
+      propertyType: normalized.communityPropertyType,
+      generalManagerName: normalized.generalManagerName,
+      generalManagerEmail: normalized.generalManagerEmail,
+      generalManagerUserId: normalized.generalManagerUserId,
+      regionalManagerName: normalized.regionalManagerName,
+      regionalManagerEmail: normalized.regionalManagerEmail,
+      regionalManagerUserId: normalized.regionalManagerUserId,
+      status: normalized.communityStatus,
+      owningPortfolio: normalized.investorName,
+      scopeSelections: Array.from(new Set([normalized.investorName, cleanName].map(item => String(item ?? "").trim()).filter(Boolean))),
+      sourceIds: { portfolioName: cleanName, communityId: normalized.communityId },
+      units: propUnits
+    }, { source, timestamp, strictMarket: true, strictPropertyType: true });
+    changed = result.changed || changed;
+  };
+  PROPERTIES.forEach(prop => syncOne(prop.name, savedData[prop.name], prop.units ?? null));
+  Object.entries(savedData || {}).forEach(([propName, record]) => syncOne(propName, record));
+  if (changed && options.persist !== false) writeAtlasSharedPropertyGraph(graph, { source });
+  return changed;
+}
+
+function applySharedPropertyGraphToPortfolio(options = {}) {
+  const graph = readAtlasSharedPropertyGraph();
+  let changed = false;
+  Object.values(graph.properties).forEach(record => {
+    const portfolioName = atlasResolvePortfolioCommunityName(record);
+    if (!portfolioName) return;
+    ensurePortfolioPropertyListEntry(portfolioName);
+    const existing = normalizeSavedCommunityRecord(portfolioName, savedData[portfolioName]);
+    const projected = normalizeSavedCommunityRecord(portfolioName, atlasProjectSharedPropertyToCommunityRecord(record, existing));
+    if (JSON.stringify(savedData[portfolioName] || null) !== JSON.stringify(projected)) {
+      savedData[portfolioName] = projected;
+      changed = true;
+    }
+  });
+  if (changed && options.persistCommunityData) {
+    persistSaved();
+    persistOpsPropertyCatalog();
+  }
+  return changed;
+}
+
+function validateCurrentSharedCommunityFields() {
+  const validation = validateAtlasSharedPropertyInput({
+    name: getProp().name,
+    market: communityMarket,
+    propertyType: communityPropertyType,
+    generalManagerEmail: communityGeneralManagerEmail,
+    regionalManagerEmail: communityRegionalManagerEmail,
+    status: communityStatus
+  }, { strictMarket: true, strictPropertyType: true, requireName: true });
+  return {
+    ok: validation.ok,
+    message: validation.issues.filter(issue => issue.severity === "error").map(issue => issue.message).join("\n")
+  };
+}
+
+function atlasRenderSharedSelectOptions(values, currentValue) {
+  const cleanCurrent = String(currentValue ?? "").trim();
+  const allValues = cleanCurrent && !values.includes(cleanCurrent) ? [...values, cleanCurrent] : values;
+  return [`<option value="">Select</option>`].concat(allValues.map(value => `<option value="${escapeHtml(value)}" ${value === cleanCurrent ? "selected" : ""}>${escapeHtml(value)}</option>`)).join("");
+}
+
+function renderPortfolioSharedPropertyFields() {
+  const sharedRecord = getAtlasSharedRecordForPortfolioName(getProp().name);
+  const reviewFlags = Array.from(new Set([
+    ...(Array.isArray(sharedRecord?.reviewFlags) ? sharedRecord.reviewFlags : []),
+    ...(Array.isArray(communitySharedSyncMeta?.reviewFlags) ? communitySharedSyncMeta.reviewFlags : [])
+  ])).slice(0, 3);
+  const syncedAt = sharedRecord?.updatedAt || communitySharedSyncMeta?.updatedAt || "";
+  const hasRealSyncTimestamp = syncedAt && !syncedAt.startsWith("1970-01-01");
+  const syncLabel = hasRealSyncTimestamp ? `Synced ${new Date(syncedAt).toLocaleString()}` : "Sync pending";
+  const issueHtml = reviewFlags.length
+    ? `<div style="margin-top:10px;padding:9px 10px;border-radius:8px;background:rgba(210,153,34,0.12);color:#7a4f00;font-size:0.68rem">${reviewFlags.map(flag => escapeHtml(flag)).join("<br>")}</div>`
+    : "";
+  return `
+    <div style="grid-column:1/-1;margin-top:2px;padding:12px;border-radius:10px;border:1px solid rgba(68,147,248,0.22);background:rgba(68,147,248,0.04)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+        <div>
+          <div style="font-size:0.76rem;font-weight:700;color:var(--text)">Shared Portfolio / Marketing Record</div>
+          <div style="font-size:0.63rem;color:var(--muted);margin-top:2px">Stable ID: ${escapeHtml(sharedRecord?.communityId || communitySharedSyncMeta?.communityId || "assigned on save")}</div>
+        </div>
+        <span class="badge" style="border:1px solid rgba(68,147,248,0.25);background:#eef6ff;color:#1f6feb">${escapeHtml(syncLabel)}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px">
+        <div>
+          <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Market / Region</div>
+          <select style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" onchange="updateCommunitySharedField('market', this.value)">${atlasRenderSharedSelectOptions(ATLAS_SHARED_VALID_MARKETS, communityMarket)}</select>
+        </div>
+        <div>
+          <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Regional Grouping</div>
+          <input type="text" value="${escapeHtml(communityRegionalGrouping)}" placeholder="e.g. Central Florida" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" onchange="updateCommunitySharedField('regionalGrouping', this.value)">
+        </div>
+        <div>
+          <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Property Type</div>
+          <select style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" onchange="updateCommunitySharedField('propertyType', this.value)">${atlasRenderSharedSelectOptions(ATLAS_SHARED_VALID_PROPERTY_TYPES, communityPropertyType)}</select>
+        </div>
+        <div>
+          <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">GM Name</div>
+          <input type="text" value="${escapeHtml(communityGeneralManagerName)}" placeholder="General Manager" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" onchange="updateCommunitySharedField('generalManagerName', this.value)">
+        </div>
+        <div>
+          <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">GM Email</div>
+          <input type="email" value="${escapeHtml(communityGeneralManagerEmail)}" placeholder="gm@riseresidential.com" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" onchange="updateCommunitySharedField('generalManagerEmail', this.value)">
+        </div>
+        <div>
+          <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Regional Manager</div>
+          <input type="text" value="${escapeHtml(communityRegionalManagerName)}" placeholder="Regional Manager" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" onchange="updateCommunitySharedField('regionalManagerName', this.value)">
+        </div>
+        <div>
+          <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Regional Email</div>
+          <input type="email" value="${escapeHtml(communityRegionalManagerEmail)}" placeholder="regional@riseresidential.com" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" onchange="updateCommunitySharedField('regionalManagerEmail', this.value)">
+        </div>
+      </div>
+      ${issueHtml}
+    </div>`;
+}
+
 const CURVES = [
   { key:"budget",    label:"📋 Budget",     color:"#238636", textColor:"#4ade80", lineColor:"#4ade80" },
   { key:"aggressive",label:"🚀 Aggressive", color:"#b91c1c", textColor:"#f87171", lineColor:"#f87171" },
@@ -1413,6 +2172,14 @@ let marketSurveyHistory = {};
 let communityFloorPlans = [];
 let floorPlanSelectionState = { community: {}, survey: {} };
 let communityAddress = "";
+let communityMarket = "";
+let communityRegionalGrouping = "";
+let communityPropertyType = "";
+let communityGeneralManagerName = "";
+let communityGeneralManagerEmail = "";
+let communityRegionalManagerName = "";
+let communityRegionalManagerEmail = "";
+let communitySharedSyncMeta = {};
 let communityWebsiteUrl = "";
 let floorPlanRatesPageUrl = "";
 let portfolioSetupCommunityName = "";
@@ -4257,6 +5024,19 @@ function validateAtlasSharedData(data = atlasSharedData) {
 }
 
 function syncSharedPeopleAssignments(options = {}) {
+  const centralStatus = getAtlasCentralStatus();
+  if (!options.forceLocal && centralStatus.configured && centralStatus.signedIn && atlasSharedData?.lastPeopleSource === "atlas_central_people") {
+    const sharedData = normalizeAtlasSharedData(atlasSharedData);
+    sharedData.validationIssues = validateAtlasSharedData(sharedData);
+    atlasSharedData = sharedData;
+    return {
+      changed: false,
+      employeeCount: Object.keys(sharedData.employees || {}).length,
+      assignmentCount: sharedData.assignments.length,
+      currentAssignmentCount: sharedData.assignments.filter(assignment => isSharedAssignmentActiveOnDate(assignment, getAtlasTodayISODate())).length,
+      source: "atlas_central_people"
+    };
+  }
   const peopleState = loadPeoplePlatformStateForSharedData();
   const syncedAt = new Date().toISOString();
   const sharedData = normalizeAtlasSharedData(atlasSharedData);
@@ -5597,6 +6377,20 @@ function defaultSavedCommunityRecord(propName = getProp().name) {
     corporateLeaseUnits: 0,
     investorName: "",
     communityStatus: "active",
+    communityId: "",
+    communityMarket: "",
+    communityRegionalGrouping: "",
+    communityPropertyType: "",
+    generalManagerName: "",
+    generalManagerEmail: "",
+    generalManagerUserId: "",
+    regionalManagerName: "",
+    regionalManagerEmail: "",
+    regionalManagerUserId: "",
+    communityScopeSelections: [],
+    sharedSyncUpdatedAt: "",
+    sharedSyncSource: "",
+    sharedSyncReviewFlags: [],
     investorEmailContacts: [],
     communityFloorPlans: defaultCommunityFloorPlans(),
     communityAddress: "",
@@ -5669,6 +6463,20 @@ function normalizeSavedCommunityRecord(propName, data) {
     corporateLeaseUnits: normalizeCorporateLeaseUnits(input.corporateLeaseUnits ?? defaults.corporateLeaseUnits, getTotalUnitsFor(getPropertyByName(propName), input.customUnits ?? defaults.customUnits)),
     investorName: input.investorName ?? defaults.investorName,
     communityStatus: normalizeCommunityStatus(input.communityStatus ?? defaults.communityStatus),
+    communityId: String(input.communityId ?? defaults.communityId).trim(),
+    communityMarket: String(input.communityMarket ?? defaults.communityMarket).trim(),
+    communityRegionalGrouping: String(input.communityRegionalGrouping ?? input.communityMarket ?? defaults.communityRegionalGrouping).trim(),
+    communityPropertyType: String(input.communityPropertyType ?? defaults.communityPropertyType).trim(),
+    generalManagerName: String(input.generalManagerName ?? defaults.generalManagerName).trim(),
+    generalManagerEmail: atlasNormalizeSharedEmail(input.generalManagerEmail ?? defaults.generalManagerEmail),
+    generalManagerUserId: String(input.generalManagerUserId ?? defaults.generalManagerUserId).trim(),
+    regionalManagerName: String(input.regionalManagerName ?? defaults.regionalManagerName).trim(),
+    regionalManagerEmail: atlasNormalizeSharedEmail(input.regionalManagerEmail ?? defaults.regionalManagerEmail),
+    regionalManagerUserId: String(input.regionalManagerUserId ?? defaults.regionalManagerUserId).trim(),
+    communityScopeSelections: Array.isArray(input.communityScopeSelections) ? input.communityScopeSelections.map(item => String(item ?? "").trim()).filter(Boolean) : defaults.communityScopeSelections,
+    sharedSyncUpdatedAt: String(input.sharedSyncUpdatedAt ?? defaults.sharedSyncUpdatedAt).trim(),
+    sharedSyncSource: String(input.sharedSyncSource ?? defaults.sharedSyncSource).trim(),
+    sharedSyncReviewFlags: Array.isArray(input.sharedSyncReviewFlags) ? input.sharedSyncReviewFlags.map(item => String(item ?? "").trim()).filter(Boolean) : defaults.sharedSyncReviewFlags,
     investorEmailContacts: normalizeInvestorEmailContacts(input.investorEmailContacts),
     communityFloorPlans: normalizeCommunityFloorPlans(input.communityFloorPlans),
     communityAddress: String(input.communityAddress ?? defaults.communityAddress).trim(),
@@ -5726,6 +6534,20 @@ function getCurrentCommunityRecord() {
     corporateLeaseUnits,
     investorName,
     communityStatus,
+    communityId: communitySharedSyncMeta.communityId || "",
+    communityMarket,
+    communityRegionalGrouping,
+    communityPropertyType,
+    generalManagerName: communityGeneralManagerName,
+    generalManagerEmail: communityGeneralManagerEmail,
+    generalManagerUserId: communitySharedSyncMeta.generalManagerUserId || "",
+    regionalManagerName: communityRegionalManagerName,
+    regionalManagerEmail: communityRegionalManagerEmail,
+    regionalManagerUserId: communitySharedSyncMeta.regionalManagerUserId || "",
+    communityScopeSelections: Array.from(new Set([investorName, getProp().name].map(item => String(item ?? "").trim()).filter(Boolean))),
+    sharedSyncUpdatedAt: communitySharedSyncMeta.updatedAt || "",
+    sharedSyncSource: communitySharedSyncMeta.source || "",
+    sharedSyncReviewFlags: Array.isArray(communitySharedSyncMeta.reviewFlags) ? communitySharedSyncMeta.reviewFlags : [],
     investorEmailContacts,
     communityFloorPlans,
     communityAddress,
@@ -7027,6 +7849,21 @@ function loadPropertyData(propName) {
   investorEmailContacts = normalizeInvestorEmailContacts(d.investorEmailContacts);
   communityFloorPlans = normalizeCommunityFloorPlans(d.communityFloorPlans);
   communityAddress = String(d.communityAddress ?? "").trim();
+  communityMarket = String(d.communityMarket ?? "").trim();
+  communityRegionalGrouping = String(d.communityRegionalGrouping ?? d.communityMarket ?? "").trim();
+  communityPropertyType = String(d.communityPropertyType ?? "").trim();
+  communityGeneralManagerName = String(d.generalManagerName ?? "").trim();
+  communityGeneralManagerEmail = atlasNormalizeSharedEmail(d.generalManagerEmail ?? "");
+  communityRegionalManagerName = String(d.regionalManagerName ?? "").trim();
+  communityRegionalManagerEmail = atlasNormalizeSharedEmail(d.regionalManagerEmail ?? "");
+  communitySharedSyncMeta = {
+    communityId: String(d.communityId ?? "").trim(),
+    generalManagerUserId: String(d.generalManagerUserId ?? "").trim(),
+    regionalManagerUserId: String(d.regionalManagerUserId ?? "").trim(),
+    updatedAt: String(d.sharedSyncUpdatedAt ?? "").trim(),
+    source: String(d.sharedSyncSource ?? "").trim(),
+    reviewFlags: Array.isArray(d.sharedSyncReviewFlags) ? d.sharedSyncReviewFlags : []
+  };
   communityWebsiteUrl = String(d.communityWebsiteUrl ?? "").trim();
   floorPlanRatesPageUrl = String(d.floorPlanRatesPageUrl ?? "").trim();
   communityGeo = d.communityGeo && Number.isFinite(Number(d.communityGeo?.lat)) && Number.isFinite(Number(d.communityGeo?.lng))
@@ -9917,7 +10754,12 @@ function renderTab() {
   const renderer = renderers[activeTab];
   if (panel && typeof renderer === "function") {
     try {
-      panel.innerHTML = renderer();
+      if (shouldBlockAtlasSensitiveAccess()) {
+        panel.innerHTML = renderAtlasCentralLoginRequiredPanel();
+      } else {
+        panel.innerHTML = renderer();
+        queueAtlasCentralPeopleLoad();
+      }
     } catch (error) {
       console.error("Tab failed to render", { activeTab, error });
       const activeLabel = document.querySelector(`.tab[data-tab="${activeTab}"]`)?.textContent?.trim() || `Tab ${activeTab}`;
@@ -10037,12 +10879,19 @@ function saveCommunityData(silent = false) {
     ? getProp().name
     : (matchPropertyName(workspaceScopeValue, { fallbackToCurrent: false }) || getProp().name);
   const key = scopeCommunityName;
+  const sharedValidation = validateCurrentSharedCommunityFields();
+  if (!sharedValidation.ok) {
+    alert(`Shared property fields need review before saving:\n${sharedValidation.message}`);
+    return;
+  }
   carryForwardMonthlyData(currentMonth);
   storeCurrentMonthSnapshots(currentMonth, currentOccupied, currentLeased);
   savedBudgetTargets = Array.from({ length: 12 }, (_, idx) =>
     getBudgetOccPctForMonth(monthlyData[idx], savedBudgetTargets, idx)
   );
   savedData[key] = getCurrentCommunityRecord();
+  syncSharedPropertyFromPortfolioRecord(key, savedData[key], { source: "portfolio_community_save", persist: true });
+  persistOpsPropertyCatalog();
   const savedResult = persistSaved();
   queueDailyBackupSnapshotWrite("save_community_data");
   const globalResult = persistOpsGlobalData();
@@ -10059,7 +10908,7 @@ function saveCommunityData(silent = false) {
       : key;
     alert(`✅ Saved data for ${saveScopeLabel}`);
   }
-  if (!suppressDashboardSharedSyncPush) {
+  if (!suppressDashboardSharedSyncPush && !atlasCentralLegacyBundleDisabled()) {
     queueDashboardSharedSyncPush("dashboard_save");
   }
   queueAtlasCentralDocumentPush("dashboard_save");
@@ -10085,6 +10934,7 @@ let dashboardSharedSyncPushTimer = null;
 let suppressDashboardSharedSyncPush = false;
 let atlasCentralDocumentPushTimer = null;
 let suppressAtlasCentralAutosave = false;
+let atlasCentralPeopleLoadPromise = null;
 
 function loadAtlasCentralRuntimeMeta() {
   try {
@@ -10095,6 +10945,16 @@ function loadAtlasCentralRuntimeMeta() {
       lastSavedAt: String(parsed?.lastSavedAt || ""),
       lastPulledAt: String(parsed?.lastPulledAt || ""),
       lastSnapshotUploadedAt: String(parsed?.lastSnapshotUploadedAt || ""),
+      lastPeopleDryRunAt: String(parsed?.lastPeopleDryRunAt || ""),
+      lastPeopleAppliedAt: String(parsed?.lastPeopleAppliedAt || ""),
+      lastMarketingDryRunAt: String(parsed?.lastMarketingDryRunAt || ""),
+      lastMarketingAppliedAt: String(parsed?.lastMarketingAppliedAt || ""),
+      lastMaintenanceDryRunAt: String(parsed?.lastMaintenanceDryRunAt || ""),
+      lastMaintenanceAppliedAt: String(parsed?.lastMaintenanceAppliedAt || ""),
+      lastBonusRecordedAt: String(parsed?.lastBonusRecordedAt || ""),
+      reconciliationReviewedAt: String(parsed?.reconciliationReviewedAt || ""),
+      rollbackTestedAt: String(parsed?.rollbackTestedAt || ""),
+      legacyBundleDisabledAt: String(parsed?.legacyBundleDisabledAt || ""),
       lastDocumentVersion: Number(parsed?.lastDocumentVersion || 0),
       lastDocumentHash: String(parsed?.lastDocumentHash || ""),
       lastRemoteVersion: Number(parsed?.lastRemoteVersion || 0),
@@ -10108,6 +10968,16 @@ function loadAtlasCentralRuntimeMeta() {
       lastSavedAt: "",
       lastPulledAt: "",
       lastSnapshotUploadedAt: "",
+      lastPeopleDryRunAt: "",
+      lastPeopleAppliedAt: "",
+      lastMarketingDryRunAt: "",
+      lastMarketingAppliedAt: "",
+      lastMaintenanceDryRunAt: "",
+      lastMaintenanceAppliedAt: "",
+      lastBonusRecordedAt: "",
+      reconciliationReviewedAt: "",
+      rollbackTestedAt: "",
+      legacyBundleDisabledAt: "",
       lastDocumentVersion: 0,
       lastDocumentHash: "",
       lastRemoteVersion: 0,
@@ -10595,6 +11465,380 @@ function getAtlasCentralInputChecked(id) {
   return Boolean(document.getElementById(id)?.checked);
 }
 
+function atlasCentralAutosaveGateSatisfied() {
+  return Boolean(
+    atlasCentralRuntimeMeta.lastSnapshotUploadedAt &&
+    atlasCentralRuntimeMeta.reconciliationReviewedAt &&
+    atlasCentralRuntimeMeta.rollbackTestedAt
+  );
+}
+
+function atlasCentralLegacyBundleDisabled() {
+  const status = getAtlasCentralStatus();
+  return Boolean(status.configured && atlasCentralRuntimeMeta.legacyBundleDisabledAt);
+}
+
+function shouldBlockAtlasSensitiveAccess() {
+  const status = getAtlasCentralStatus();
+  if (!status.configured || status.signedIn) return false;
+  return activeTab !== 7;
+}
+
+function renderAtlasCentralLoginRequiredPanel() {
+  const status = getAtlasCentralStatus();
+  return `<div class="card mb4">
+    <div class="card-title" style="margin-bottom:8px">Atlas Sign-In Required</div>
+    <div class="alert-red">Central Atlas is enabled for this browser. Sign in before viewing shared People, Bonus, Marketing, Maintenance, Finance, Operations, Portfolio Planning, or reporting data.</div>
+    <div style="font-size:0.72rem;color:var(--muted);line-height:1.55;margin:10px 0">Open Data Import to use Central Platform Control. This protects sensitive Atlas records from loading anonymously while still allowing an admin to manage the connection.</div>
+    <button class="btn btn-blue btn-sm" onclick="setTab(7)">Open Central Platform Control</button>
+    <div style="font-size:0.62rem;color:var(--muted);margin-top:10px">${escapeHtml(status.message || "")}</div>
+  </div>`;
+}
+
+function buildAtlasCentralPeoplePayload() {
+  syncSharedPeopleAssignments({ persist: true });
+  const sharedData = normalizeAtlasSharedData(atlasSharedData);
+  const assignmentByEmployee = sharedData.assignments.reduce((acc, assignment) => {
+    acc[assignment.employeeId] = acc[assignment.employeeId] || [];
+    acc[assignment.employeeId].push(assignment);
+    return acc;
+  }, {});
+  return {
+    source: "atlas_people_roster",
+    generatedAt: new Date().toISOString(),
+    employees: Object.values(sharedData.employees || {}).map(employee => ({
+      ...employee,
+      assignments: assignmentByEmployee[employee.employeeId] || []
+    })),
+    validationIssues: sharedData.validationIssues || []
+  };
+}
+
+async function loadAtlasCentralPeopleAssignments({ silent = true, force = false } = {}) {
+  try {
+    const status = getAtlasCentralStatus();
+    if (!status.configured || !status.signedIn || !window.ATLAS_CENTRAL?.fetchJson) return null;
+    if (atlasCentralPeopleLoadPromise && !force) return atlasCentralPeopleLoadPromise;
+    atlasCentralPeopleLoadPromise = (async () => {
+      const query = [
+        "deleted_at=is.null",
+        "select=assignment_id,effective_start,effective_end,title,employment_status,primary_assignment,source_module,source_identifier,updated_at,atlas_employees(employee_id,employee_number,email,full_name,status,status_type),atlas_communities(community_id,display_name,canonical_name),atlas_roles(role_id,role_code,title,bonus_role_type)",
+        "order=effective_start.desc"
+      ].join("&");
+      const rows = await window.ATLAS_CENTRAL.fetchJson(`/atlas_employee_assignments?${query}`);
+      const sharedData = normalizeAtlasSharedData(atlasSharedData);
+      const employees = {};
+      const assignments = [];
+      (Array.isArray(rows) ? rows : []).forEach(row => {
+        const employee = row.atlas_employees || {};
+        const community = row.atlas_communities || {};
+        const role = row.atlas_roles || {};
+        const employeeId = String(employee.employee_id || row.employee_id || "").trim();
+        const communityName = String(community.display_name || community.canonical_name || "").trim();
+        const title = String(row.title || role.title || "").trim();
+        const bonusRoleType = String(role.bonus_role_type || inferSharedBonusRoleType(title)).trim();
+        if (!employeeId || !communityName) return;
+        employees[employeeId] = normalizeSharedEmployeeRecord({
+          employeeId,
+          peopleEmployeeId: employeeId,
+          employeeNumber: employee.employee_number || "",
+          email: employee.email || "",
+          name: employee.full_name || "",
+          title,
+          status: employee.status || row.employment_status || "Active",
+          statusType: employee.status_type || "",
+          communityName,
+          bonusRoleType,
+          active: !String(employee.status || "").toLowerCase().includes("terminated"),
+          source: "atlas_central_people",
+          sourceUpdatedAt: row.updated_at || ""
+        });
+        assignments.push(normalizeSharedAssignmentRecord({
+          assignmentId: row.assignment_id,
+          employeeId,
+          peopleEmployeeId: employeeId,
+          employeeName: employee.full_name || "",
+          communityName,
+          bonusRoleType,
+          title,
+          status: row.employment_status || employee.status || "Active",
+          primary: row.primary_assignment !== false,
+          effectiveStart: row.effective_start,
+          effectiveEnd: row.effective_end,
+          source: "atlas_central_people",
+          sourceUpdatedAt: row.updated_at || ""
+        }));
+      });
+      sharedData.employees = employees;
+      sharedData.assignments = assignments;
+      sharedData.historyBacked = true;
+      sharedData.lastPeopleSource = "atlas_central_people";
+      sharedData.lastPeopleSyncAt = new Date().toISOString();
+      sharedData.validationIssues = validateAtlasSharedData(sharedData);
+      atlasSharedData = sharedData;
+      persistOpsGlobalData();
+      if (!silent) {
+        setAtlasCentralRuntimeMessage(`Loaded ${Object.keys(employees).length} central People employees and ${assignments.length} assignments.`);
+        renderTab();
+      }
+      return { employees: Object.keys(employees).length, assignments: assignments.length };
+    })();
+    return await atlasCentralPeopleLoadPromise;
+  } catch (error) {
+    if (!silent) {
+      setAtlasCentralRuntimeMessage("", error?.message || String(error));
+      alert(`Central People load failed: ${error?.message || error}`);
+      renderTab();
+    }
+    return null;
+  } finally {
+    atlasCentralPeopleLoadPromise = null;
+  }
+}
+
+function queueAtlasCentralPeopleLoad(options = {}) {
+  const status = getAtlasCentralStatus();
+  if (!status.configured || !status.signedIn) return;
+  if (![9, 10, 13].includes(activeTab)) return;
+  const lastSync = Date.parse(atlasSharedData?.lastPeopleSyncAt || "");
+  if (!options.force && atlasSharedData?.lastPeopleSource === "atlas_central_people" && Number.isFinite(lastSync) && Date.now() - lastSync < 60000) return;
+  loadAtlasCentralPeopleAssignments({ silent: true, force: Boolean(options.force) }).then((result) => {
+    if (result && [9, 10, 13].includes(activeTab)) renderTab();
+  });
+}
+
+function atlasCentralMonthDate(value = "") {
+  const raw = String(value || "").trim();
+  if (/^\d{4}-\d{2}$/.test(raw)) return `${raw}-01`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw.slice(0, 10);
+  return raw;
+}
+
+function buildAtlasCentralMarketingMetricsPayload(state = marketingBonusState, period = getMarketingBonusPeriodRange()) {
+  const groups = {};
+  const approvedTickets = (state.tickets || [])
+    .filter(ticket => isMarketingTicketApprovedForBonus(ticket, period))
+    .filter(ticket => ticket.propertyName);
+  approvedTickets.forEach(ticket => {
+    const propertyName = findCanonicalCommunityName(ticket.propertyName) || ticket.propertyName;
+    groups[propertyName] = groups[propertyName] || {
+      propertyName,
+      tickets: [],
+      approvedCost: 0,
+      dueCount: 0,
+      onTimeCount: 0,
+      marketingTimeSeconds: 0
+    };
+    groups[propertyName].tickets.push(ticket);
+    groups[propertyName].approvedCost += Number(ticket.approvedCost || 0);
+    groups[propertyName].marketingTimeSeconds += Number(ticket.marketingTimeSeconds || 0);
+    if (ticket.dueDate && ticket.closedAt) {
+      groups[propertyName].dueCount += 1;
+      if (ticket.closedAt <= `${ticket.dueDate}T23:59:59`) groups[propertyName].onTimeCount += 1;
+    }
+  });
+  const metrics = [];
+  Object.values(groups).forEach(group => {
+    const base = {
+      communityName: group.propertyName,
+      periodKey: period.periodKey,
+      grain: "quarter",
+      approved: true,
+      sourceTable: "marketing_command_center.tickets"
+    };
+    metrics.push({
+      ...base,
+      metricKey: "tickets_closed",
+      metricValue: group.tickets.length,
+      sourceIdentifier: `${period.periodKey}|${group.propertyName}|tickets_closed`
+    });
+    metrics.push({
+      ...base,
+      metricKey: "approved_cost_total",
+      metricValue: Math.round(group.approvedCost * 100) / 100,
+      sourceIdentifier: `${period.periodKey}|${group.propertyName}|approved_cost_total`
+    });
+    if (group.dueCount) {
+      metrics.push({
+        ...base,
+        metricKey: "on_time_delivery_rate",
+        metricValue: Math.round((group.onTimeCount / group.dueCount) * 10000) / 100,
+        sourceIdentifier: `${period.periodKey}|${group.propertyName}|on_time_delivery_rate`
+      });
+    }
+    if (group.marketingTimeSeconds) {
+      metrics.push({
+        ...base,
+        metricKey: "marketing_hours",
+        metricValue: Math.round((group.marketingTimeSeconds / 3600) * 100) / 100,
+        sourceIdentifier: `${period.periodKey}|${group.propertyName}|marketing_hours`
+      });
+    }
+  });
+  return metrics;
+}
+
+function buildAtlasCentralMaintenanceInspectionPayload() {
+  const records = Array.isArray(maintenanceInspectionSnapshot?.records) ? maintenanceInspectionSnapshot.records : [];
+  return records.map(record => ({
+    ...record,
+    sourceKey: record.sourceKey || record.id || record.sourceRecordId,
+    sourceRecordId: record.sourceRecordId || "",
+    property: record.property || record.sourcePropertyName || "",
+    sourcePropertyName: record.sourcePropertyName || record.property || "",
+    sourcePropertyId: record.sourcePropertyId || record.propertyId || "",
+    inspectionType: String(record.inspectionType || "").toUpperCase(),
+    reportingMonth: atlasCentralMonthDate(record.reportingMonth),
+    approvedForReporting: Boolean(record.approvedForReporting)
+  }));
+}
+
+function buildAtlasCentralBonusCalculationPayload() {
+  const period = getMarketingBonusPeriodRange(bonusQuarter);
+  const sharedData = normalizeAtlasSharedData(atlasSharedData);
+  const marketingSnapshot = (sharedData.marketingBonusSnapshots || []).find(snapshot => snapshot.id === `marketing_bonus_${period.periodKey}`);
+  return {
+    source: "atlas_bonus_and_incentives",
+    periodKey: period.periodKey,
+    year: period.year,
+    quarter: period.quarter,
+    periodStart: period.start,
+    periodEnd: period.end,
+    totalPayout: 0,
+    sharedAssignmentCount: sharedData.assignments.length,
+    currentAssignmentCount: sharedData.assignments.filter(assignment => isSharedAssignmentActiveOnDate(assignment, period.asOfDate)).length,
+    marketingBonusSnapshot: marketingSnapshot || null,
+    bonusRoles: cloneAtlasMigrationPayload(bonusRolesByQ?.[bonusQuarter] || []),
+    exceptions: [
+      ...(Array.isArray(sharedData.validationIssues) ? sharedData.validationIssues : []),
+      ...((marketingSnapshot && Array.isArray(marketingSnapshot.exceptions)) ? marketingSnapshot.exceptions : [])
+    ],
+    lines: []
+  };
+}
+
+async function claimAtlasCentralFirstAdmin() {
+  try {
+    const access = atlasCentralCanUseDatabase();
+    if (!access.ok) throw new Error(access.message);
+    const displayName = getAtlasCentralInputValue("atlas-central-display-name");
+    const profile = await window.ATLAS_CENTRAL.claimFirstAdmin(displayName);
+    await window.ATLAS_CENTRAL.fetchProfile().catch(() => null);
+    setAtlasCentralRuntimeMessage(`First Atlas admin activated for ${profile?.email || access.status.userEmail}.`);
+    renderTab();
+  } catch (error) {
+    setAtlasCentralRuntimeMessage("", error?.message || String(error));
+    alert(`First admin activation failed: ${error?.message || error}`);
+    renderTab();
+  }
+}
+
+function markAtlasCentralReconciliationReviewed() {
+  const ok = confirm("Mark central migration reconciliation reviewed? Do this only after counts and totals match for communities, employees, assignments, budgets, actuals, contracts, marketing, maintenance, and bonus calculations.");
+  if (!ok) return;
+  atlasCentralRuntimeMeta.reconciliationReviewedAt = new Date().toISOString();
+  setAtlasCentralRuntimeMessage("Migration reconciliation marked reviewed for this browser.");
+  renderTab();
+}
+
+async function testAtlasCentralRollbackSnapshot() {
+  try {
+    const snapshot = await collectAtlasCentralMigrationSnapshot();
+    if (!snapshot?.storageEntries || !snapshot?.indexedDb) throw new Error("Rollback snapshot did not include the required local storage and IndexedDB sections.");
+    downloadAtlasJsonFile(snapshot, `atlas_rollback_test_snapshot_${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
+    atlasCentralRuntimeMeta.rollbackTestedAt = new Date().toISOString();
+    setAtlasCentralRuntimeMessage("Rollback snapshot test passed and a rollback JSON file was downloaded.");
+    renderTab();
+  } catch (error) {
+    setAtlasCentralRuntimeMessage("", error?.message || String(error));
+    alert(`Rollback snapshot test failed: ${error?.message || error}`);
+    renderTab();
+  }
+}
+
+function disableAtlasLegacySharedBundle() {
+  if (!atlasCentralAutosaveGateSatisfied()) {
+    alert("Complete snapshot upload, reconciliation review, and rollback test before disabling the legacy shared bundle.");
+    return;
+  }
+  const ok = confirm("Disable the older whole-dashboard shared cloud bundle from future dashboard saves in this browser? JSON export/import remains available for controlled backup and migration.");
+  if (!ok) return;
+  atlasCentralRuntimeMeta.legacyBundleDisabledAt = new Date().toISOString();
+  setAtlasCentralRuntimeMessage("Legacy whole-dashboard shared bundle disabled for future saves in this browser.");
+  renderTab();
+}
+
+async function promoteAtlasCentralPeopleDirectory(dryRun = true) {
+  try {
+    const access = atlasCentralCanUseDatabase();
+    if (!access.ok) throw new Error(access.message);
+    const payload = buildAtlasCentralPeoplePayload();
+    const result = await window.ATLAS_CENTRAL.upsertPeopleDirectory(payload, { dryRun });
+    if (dryRun) atlasCentralRuntimeMeta.lastPeopleDryRunAt = new Date().toISOString();
+    else atlasCentralRuntimeMeta.lastPeopleAppliedAt = new Date().toISOString();
+    setAtlasCentralRuntimeMessage(`People ${dryRun ? "dry run" : "promotion"} complete: ${JSON.stringify(result)}.`);
+    renderTab();
+  } catch (error) {
+    setAtlasCentralRuntimeMessage("", error?.message || String(error));
+    alert(`People central promotion failed: ${error?.message || error}`);
+    renderTab();
+  }
+}
+
+async function promoteAtlasCentralMarketingMetrics(dryRun = true) {
+  try {
+    const access = atlasCentralCanUseDatabase();
+    if (!access.ok) throw new Error(access.message);
+    const state = await loadMarketingBonusData({ force: true });
+    if (state.status !== "ready") throw new Error(state.error || "Marketing bonus source data is not ready.");
+    const period = getMarketingBonusPeriodRange(bonusQuarter);
+    const metrics = buildAtlasCentralMarketingMetricsPayload(state, period);
+    const result = await window.ATLAS_CENTRAL.upsertMarketingMetrics(metrics, { dryRun });
+    if (dryRun) atlasCentralRuntimeMeta.lastMarketingDryRunAt = new Date().toISOString();
+    else atlasCentralRuntimeMeta.lastMarketingAppliedAt = new Date().toISOString();
+    setAtlasCentralRuntimeMessage(`Marketing metrics ${dryRun ? "dry run" : "promotion"} complete: ${JSON.stringify(result)}.`);
+    renderTab();
+  } catch (error) {
+    setAtlasCentralRuntimeMessage("", error?.message || String(error));
+    alert(`Marketing central promotion failed: ${error?.message || error}`);
+    renderTab();
+  }
+}
+
+async function promoteAtlasCentralMaintenanceInspections(dryRun = true) {
+  try {
+    const access = atlasCentralCanUseDatabase();
+    if (!access.ok) throw new Error(access.message);
+    const records = buildAtlasCentralMaintenanceInspectionPayload();
+    const result = await window.ATLAS_CENTRAL.upsertMaintenanceInspections(records, { dryRun });
+    if (dryRun) atlasCentralRuntimeMeta.lastMaintenanceDryRunAt = new Date().toISOString();
+    else atlasCentralRuntimeMeta.lastMaintenanceAppliedAt = new Date().toISOString();
+    setAtlasCentralRuntimeMessage(`Maintenance MSOE/SOE ${dryRun ? "dry run" : "promotion"} complete: ${JSON.stringify(result)}.`);
+    renderTab();
+  } catch (error) {
+    setAtlasCentralRuntimeMessage("", error?.message || String(error));
+    alert(`Maintenance central promotion failed: ${error?.message || error}`);
+    renderTab();
+  }
+}
+
+async function recordAtlasCentralBonusCalculation() {
+  try {
+    const access = atlasCentralCanUseDatabase();
+    if (!access.ok) throw new Error(access.message);
+    const period = getMarketingBonusPeriodRange(bonusQuarter);
+    const payload = buildAtlasCentralBonusCalculationPayload();
+    const runId = await window.ATLAS_CENTRAL.recordBonusCalculation(payload, { period, status: "draft" });
+    atlasCentralRuntimeMeta.lastBonusRecordedAt = new Date().toISOString();
+    setAtlasCentralRuntimeMessage(`Bonus calculation draft recorded in central Atlas: ${runId}.`);
+    renderTab();
+  } catch (error) {
+    setAtlasCentralRuntimeMessage("", error?.message || String(error));
+    alert(`Bonus central calculation record failed: ${error?.message || error}`);
+    renderTab();
+  }
+}
+
 function saveAtlasCentralRuntimeConfigFromPanel() {
   if (!window.ATLAS_CENTRAL?.saveLocalConfig) {
     alert("Central client is not loaded.");
@@ -10608,7 +11852,12 @@ function saveAtlasCentralRuntimeConfigFromPanel() {
     .map(item => item.trim().replace(/^@/, "").toLowerCase())
     .filter(Boolean);
   if (!supabaseUrl || !supabaseAnonKey) {
-    alert("Enter the hosted Supabase URL and public anon key before enabling central Atlas.");
+    alert("Enter the hosted Supabase URL and public publishable or anon key before enabling central Atlas.");
+    return;
+  }
+  const autosaveRequested = getAtlasCentralInputChecked("atlas-central-autosave");
+  if (autosaveRequested && !atlasCentralAutosaveGateSatisfied()) {
+    alert("Central autosave stays locked until the read-only snapshot is uploaded, reconciliation is reviewed, and rollback snapshot testing is complete.");
     return;
   }
   window.ATLAS_CENTRAL.saveLocalConfig({
@@ -10618,8 +11867,9 @@ function saveAtlasCentralRuntimeConfigFromPanel() {
     documentKey,
     allowedEmailDomains: domains,
     realtime: getAtlasCentralInputChecked("atlas-central-realtime"),
-    autosave: getAtlasCentralInputChecked("atlas-central-autosave"),
-    autoPullOnStartup: getAtlasCentralInputChecked("atlas-central-autopull")
+    autosave: autosaveRequested,
+    autoPullOnStartup: getAtlasCentralInputChecked("atlas-central-autopull"),
+    allowMagicLinkSignup: getAtlasCentralInputChecked("atlas-central-allow-signup")
   });
   setAtlasCentralRuntimeMessage("Central runtime config saved in this browser.");
   renderTab();
@@ -10635,7 +11885,9 @@ function clearAtlasCentralRuntimeConfigFromPanel() {
 async function sendAtlasCentralMagicLink() {
   try {
     const email = getAtlasCentralInputValue("atlas-central-email");
-    await window.ATLAS_CENTRAL.sendMagicLink(email);
+    await window.ATLAS_CENTRAL.sendMagicLink(email, {
+      createUser: getAtlasCentralInputChecked("atlas-central-create-user")
+    });
     setAtlasCentralRuntimeMessage(`Sign-in link sent to ${email}.`);
     alert("Sign-in link sent. Check that inbox and return to this Atlas page.");
     renderTab();
@@ -10735,6 +11987,9 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
   try {
     const access = atlasCentralCanUseDatabase();
     if (!access.ok) throw new Error(access.message);
+    if (!atlasCentralAutosaveGateSatisfied()) {
+      throw new Error("Complete the read-only snapshot upload, reconciliation review, and rollback snapshot test before saving Atlas state to central.");
+    }
     const documentKey = getAtlasCentralDocumentKey();
     const localPayload = await buildAtlasCentralAppStatePayload();
     const localHash = await window.ATLAS_CENTRAL.computeSha256(localPayload);
@@ -10869,6 +12124,21 @@ function renderAtlasCentralPlatformPanel() {
     atlasCentralRuntimeMeta.lastPulledAt ? `pulled ${new Date(atlasCentralRuntimeMeta.lastPulledAt).toLocaleString()}` : "",
     atlasCentralRuntimeMeta.lastSnapshotUploadedAt ? `snapshot uploaded ${new Date(atlasCentralRuntimeMeta.lastSnapshotUploadedAt).toLocaleString()}` : ""
   ].filter(Boolean).join(" · ") || "No central activity from this browser yet.";
+  const autosaveReady = atlasCentralAutosaveGateSatisfied();
+  const safetyItems = [
+    atlasCentralRuntimeMeta.lastSnapshotUploadedAt ? `Snapshot uploaded ${new Date(atlasCentralRuntimeMeta.lastSnapshotUploadedAt).toLocaleString()}` : "Snapshot upload pending",
+    atlasCentralRuntimeMeta.reconciliationReviewedAt ? `Reconciliation reviewed ${new Date(atlasCentralRuntimeMeta.reconciliationReviewedAt).toLocaleString()}` : "Reconciliation review pending",
+    atlasCentralRuntimeMeta.rollbackTestedAt ? `Rollback tested ${new Date(atlasCentralRuntimeMeta.rollbackTestedAt).toLocaleString()}` : "Rollback test pending"
+  ];
+  const migrationActivity = [
+    atlasCentralRuntimeMeta.lastPeopleDryRunAt ? `People dry run ${new Date(atlasCentralRuntimeMeta.lastPeopleDryRunAt).toLocaleString()}` : "",
+    atlasCentralRuntimeMeta.lastPeopleAppliedAt ? `People applied ${new Date(atlasCentralRuntimeMeta.lastPeopleAppliedAt).toLocaleString()}` : "",
+    atlasCentralRuntimeMeta.lastMarketingDryRunAt ? `Marketing dry run ${new Date(atlasCentralRuntimeMeta.lastMarketingDryRunAt).toLocaleString()}` : "",
+    atlasCentralRuntimeMeta.lastMarketingAppliedAt ? `Marketing applied ${new Date(atlasCentralRuntimeMeta.lastMarketingAppliedAt).toLocaleString()}` : "",
+    atlasCentralRuntimeMeta.lastMaintenanceDryRunAt ? `Maintenance dry run ${new Date(atlasCentralRuntimeMeta.lastMaintenanceDryRunAt).toLocaleString()}` : "",
+    atlasCentralRuntimeMeta.lastMaintenanceAppliedAt ? `Maintenance applied ${new Date(atlasCentralRuntimeMeta.lastMaintenanceAppliedAt).toLocaleString()}` : "",
+    atlasCentralRuntimeMeta.lastBonusRecordedAt ? `Bonus recorded ${new Date(atlasCentralRuntimeMeta.lastBonusRecordedAt).toLocaleString()}` : ""
+  ].filter(Boolean).join(" · ") || "No canonical table promotion has run from this browser yet.";
   return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
       <div>
@@ -10886,15 +12156,16 @@ function renderAtlasCentralPlatformPanel() {
         <div class="card-title" style="font-size:0.72rem;margin-bottom:8px">Hosted Database</div>
         <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Supabase URL</label>
         <input id="atlas-central-url" type="url" value="${escapeHtml(config.supabaseUrl || "")}" placeholder="https://project.supabase.co" style="margin:5px 0 8px">
-        <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Public anon key</label>
+        <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Public publishable / anon key</label>
         <input id="atlas-central-anon-key" type="password" value="${escapeHtml(config.supabaseAnonKey || "")}" placeholder="Public browser anon key" style="margin:5px 0 8px">
         <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Central document key</label>
         <input id="atlas-central-document-key" value="${escapeHtml(config.documentKey || "atlas_dashboard_state_v1")}" style="margin:5px 0 8px">
         <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Allowed email domains</label>
         <input id="atlas-central-domains" value="${escapeHtml((config.allowedEmailDomains || []).join(", "))}" placeholder="riseresidential.com" style="margin:5px 0 8px">
-        <label style="display:flex;gap:8px;align-items:center;font-size:0.68rem;color:var(--muted);margin-top:4px"><input id="atlas-central-autosave" type="checkbox" ${config.autosave ? "checked" : ""}> Save dashboard changes to central after local save</label>
+        <label style="display:flex;gap:8px;align-items:center;font-size:0.68rem;color:var(--muted);margin-top:4px"><input id="atlas-central-autosave" type="checkbox" ${config.autosave ? "checked" : ""} ${autosaveReady ? "" : "disabled"}> Save dashboard changes to central after local save</label>
         <label style="display:flex;gap:8px;align-items:center;font-size:0.68rem;color:var(--muted);margin-top:4px"><input id="atlas-central-realtime" type="checkbox" ${config.realtime ? "checked" : ""}> Enable realtime when the hosted database is ready</label>
         <label style="display:flex;gap:8px;align-items:center;font-size:0.68rem;color:var(--muted);margin-top:4px"><input id="atlas-central-autopull" type="checkbox" ${config.autoPullOnStartup ? "checked" : ""}> Check central version on startup</label>
+        <label style="display:flex;gap:8px;align-items:center;font-size:0.68rem;color:var(--muted);margin-top:4px"><input id="atlas-central-allow-signup" type="checkbox" ${config.allowMagicLinkSignup ? "checked" : ""}> Allow login links to create approved-domain accounts</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
           <button class="btn btn-blue btn-sm" onclick="saveAtlasCentralRuntimeConfigFromPanel()">Save Central Config</button>
           <button class="btn btn-gray btn-sm" onclick="clearAtlasCentralRuntimeConfigFromPanel()">Clear Browser Config</button>
@@ -10903,13 +12174,17 @@ function renderAtlasCentralPlatformPanel() {
       <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">
         <div class="card-title" style="font-size:0.72rem;margin-bottom:8px">User Access</div>
         <div style="font-size:0.66rem;color:var(--muted);margin-bottom:8px">${status.signedIn ? `Signed in as ${escapeHtml(status.userEmail || profile?.email || "authenticated user")}${status.role ? ` · ${escapeHtml(status.role)}` : ""}` : "Sign in with an approved Atlas account before reading or saving central data."}</div>
+        <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Display name</label>
+        <input id="atlas-central-display-name" value="${escapeHtml(profile?.display_name || "")}" placeholder="Atlas admin name" style="margin:5px 0 8px">
         <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Email</label>
         <input id="atlas-central-email" type="email" value="${escapeHtml(status.userEmail || "")}" placeholder="name@riseresidential.com" style="margin:5px 0 8px">
         <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Password</label>
         <input id="atlas-central-password" type="password" placeholder="Optional if using email link" style="margin:5px 0 8px">
+        <label style="display:flex;gap:8px;align-items:center;font-size:0.68rem;color:var(--muted);margin:4px 0 8px"><input id="atlas-central-create-user" type="checkbox" ${config.allowMagicLinkSignup ? "checked" : ""}> Create account if it does not exist</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-gray btn-sm" onclick="sendAtlasCentralMagicLink()">Send Login Link</button>
           <button class="btn btn-blue btn-sm" onclick="signInAtlasCentralWithPassword()">Sign In</button>
+          <button class="btn btn-blue btn-sm" onclick="claimAtlasCentralFirstAdmin()" ${status.signedIn ? "" : "disabled"}>Activate First Admin</button>
           <button class="btn btn-gray btn-sm" onclick="signOutAtlasCentral()" ${status.signedIn ? "" : "disabled"}>Sign Out</button>
           <button class="btn btn-gray btn-sm" onclick="verifyAtlasCentralConnection()">Check Central</button>
         </div>
@@ -10917,13 +12192,32 @@ function renderAtlasCentralPlatformPanel() {
       <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">
         <div class="card-title" style="font-size:0.72rem;margin-bottom:8px">Migration-Safe Central Data</div>
         <div style="font-size:0.66rem;color:var(--muted);line-height:1.5;margin-bottom:8px">${escapeHtml(documentVersion)} ${escapeHtml(lastActivity)}</div>
+        <div style="font-size:0.64rem;color:${autosaveReady ? "#3fb950" : "#d29922"};line-height:1.5;margin-bottom:8px">${safetyItems.map(item => escapeHtml(item)).join(" · ")}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-blue btn-sm" onclick="saveAtlasCentralAppState({ silent:false, source:'manual_central_save' })" ${status.signedIn ? "" : "disabled"}>Save Current State To Central</button>
           <button class="btn btn-gray btn-sm" onclick="pullAtlasCentralAppState({ silent:false })" ${status.signedIn ? "" : "disabled"}>Pull Central State</button>
           <button class="btn btn-gray btn-sm" onclick="uploadAtlasCentralMigrationSnapshot({ silent:false })" ${status.signedIn ? "" : "disabled"}>Upload Read-Only Snapshot</button>
           <button class="btn btn-gray btn-sm" onclick="downloadAtlasCentralMigrationSnapshot()">Export Snapshot JSON</button>
+          <button class="btn btn-gray btn-sm" onclick="markAtlasCentralReconciliationReviewed()">Mark Reconciliation Reviewed</button>
+          <button class="btn btn-gray btn-sm" onclick="testAtlasCentralRollbackSnapshot()">Test Rollback Snapshot</button>
+          <button class="btn btn-gray btn-sm" onclick="disableAtlasLegacySharedBundle()" ${autosaveReady ? "" : "disabled"}>Disable Legacy Shared Bundle</button>
         </div>
-        <div style="font-size:0.62rem;color:#d29922;margin-top:8px">Pulling central state downloads a rollback snapshot before changing this browser. Saving central state is blocked if the central version changed since this browser last pulled or saved.</div>
+        <div style="font-size:0.62rem;color:#d29922;margin-top:8px">Pulling central state downloads a rollback snapshot before changing this browser. Saving central state is blocked if the central version changed since this browser last pulled or saved. Autosave unlocks only after snapshot upload, reconciliation review, and rollback testing.</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">
+        <div class="card-title" style="font-size:0.72rem;margin-bottom:8px">Canonical Table Cutover</div>
+        <div style="font-size:0.66rem;color:var(--muted);line-height:1.5;margin-bottom:8px">${escapeHtml(migrationActivity)}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-gray btn-sm" onclick="promoteAtlasCentralPeopleDirectory(true)" ${status.signedIn ? "" : "disabled"}>Dry Run People</button>
+          <button class="btn btn-blue btn-sm" onclick="promoteAtlasCentralPeopleDirectory(false)" ${status.signedIn ? "" : "disabled"}>Apply People</button>
+          <button class="btn btn-gray btn-sm" onclick="loadAtlasCentralPeopleAssignments({ silent:false, force:true })" ${status.signedIn ? "" : "disabled"}>Refresh Central People</button>
+          <button class="btn btn-gray btn-sm" onclick="promoteAtlasCentralMarketingMetrics(true)" ${status.signedIn ? "" : "disabled"}>Dry Run Marketing Metrics</button>
+          <button class="btn btn-blue btn-sm" onclick="promoteAtlasCentralMarketingMetrics(false)" ${status.signedIn ? "" : "disabled"}>Apply Marketing Metrics</button>
+          <button class="btn btn-gray btn-sm" onclick="promoteAtlasCentralMaintenanceInspections(true)" ${status.signedIn ? "" : "disabled"}>Dry Run MSOE/SOE</button>
+          <button class="btn btn-blue btn-sm" onclick="promoteAtlasCentralMaintenanceInspections(false)" ${status.signedIn ? "" : "disabled"}>Apply MSOE/SOE</button>
+          <button class="btn btn-gray btn-sm" onclick="recordAtlasCentralBonusCalculation()" ${status.signedIn ? "" : "disabled"}>Record Bonus Draft</button>
+        </div>
+        <div style="font-size:0.62rem;color:var(--muted);margin-top:8px">People remains the source for employee identity/status/assignment. Marketing metrics and Moonrise MSOE/SOE imports promote only approved or reviewable source records and retain original identifiers.</div>
       </div>
     </div>
     ${atlasCentralRuntimeMeta.lastMessage ? `<div class="alert-green" style="margin-top:10px">${escapeHtml(atlasCentralRuntimeMeta.lastMessage)}</div>` : ""}
@@ -12571,6 +13865,7 @@ function renderSetupTab() {
           <input type="text" value="${escapeHtml(communityAddress)}" placeholder="Street, City, State ZIP" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" onchange="updateCommunityAddress(this.value)">
           <div style="font-size:0.63rem;color:var(--muted);margin-top:3px">${communityGeo ? `Pinned at ${Number(communityGeo.lat).toFixed(4)}, ${Number(communityGeo.lng).toFixed(4)}` : "Used by the RISE portfolio map and hover details."}</div>
         </div>
+        ${renderPortfolioSharedPropertyFields()}
         <div>
           <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Community website URL</div>
           <input type="url" value="${escapeHtml(communityWebsiteUrl)}" placeholder="https://communitysite.com" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" onchange="updateCommunityWebsiteUrl(this.value)">
@@ -21421,8 +22716,11 @@ function getPropertyRecordForApply(propName, options = {}) {
 }
 
 function persistPortfolioCommunityRecord(propName, record) {
-  const normalized = normalizeSavedCommunityRecord(propName, record);
+  let normalized = normalizeSavedCommunityRecord(propName, record);
+  syncSharedPropertyFromPortfolioRecord(propName, normalized, { source: "portfolio_community_record_save", persist: true });
+  normalized = normalizeSavedCommunityRecord(propName, normalized);
   savedData[propName] = normalized;
+  persistOpsPropertyCatalog();
   if (propName === getProp().name) {
     loadPropertyData(propName);
   }
@@ -21434,6 +22732,26 @@ function persistPortfolioCommunityRecord(propName, record) {
   renderPropGrid();
   renderTab();
   return true;
+}
+
+
+function updateCommunitySharedField(field, value) {
+  if (field === "market") {
+    communityMarket = String(value ?? "").trim();
+    if (!communityRegionalGrouping) communityRegionalGrouping = communityMarket;
+  } else if (field === "regionalGrouping") {
+    communityRegionalGrouping = String(value ?? "").trim();
+  } else if (field === "propertyType") {
+    communityPropertyType = String(value ?? "").trim();
+  } else if (field === "generalManagerName") {
+    communityGeneralManagerName = String(value ?? "").trim();
+  } else if (field === "generalManagerEmail") {
+    communityGeneralManagerEmail = atlasNormalizeSharedEmail(value);
+  } else if (field === "regionalManagerName") {
+    communityRegionalManagerName = String(value ?? "").trim();
+  } else if (field === "regionalManagerEmail") {
+    communityRegionalManagerEmail = atlasNormalizeSharedEmail(value);
+  }
 }
 
 function parseInvestorEmailContactsText(value) {
@@ -21460,6 +22778,20 @@ function updatePortfolioCommunityField(propName, field, value) {
     record.investorName = String(value ?? "").trim();
   } else if (field === "communityStatus") {
     record.communityStatus = normalizeCommunityStatus(value);
+  } else if (field === "communityMarket") {
+    record.communityMarket = String(value ?? "").trim();
+  } else if (field === "communityRegionalGrouping") {
+    record.communityRegionalGrouping = String(value ?? "").trim();
+  } else if (field === "communityPropertyType") {
+    record.communityPropertyType = String(value ?? "").trim();
+  } else if (field === "generalManagerName") {
+    record.generalManagerName = String(value ?? "").trim();
+  } else if (field === "generalManagerEmail") {
+    record.generalManagerEmail = atlasNormalizeSharedEmail(value);
+  } else if (field === "regionalManagerName") {
+    record.regionalManagerName = String(value ?? "").trim();
+  } else if (field === "regionalManagerEmail") {
+    record.regionalManagerEmail = atlasNormalizeSharedEmail(value);
   } else if (field === "investorEmailContacts") {
     record.investorEmailContacts = parseInvestorEmailContactsText(value);
   } else {
@@ -34917,6 +36249,9 @@ function runAtlasStartupStep(label, step) {
 
 function runAtlasInitialRenderPass() {
   runAtlasStartupStep("sync shared people assignments", () => syncSharedPeopleAssignments({ persist: true }));
+  runAtlasStartupStep("sync shared property graph", () => syncSharedPropertiesFromPortfolio({ persist: true, source: "portfolio_startup" }));
+  runAtlasStartupStep("sync people into shared property graph", () => syncSharedPeopleDirectoryIntoPropertyGraph({ persist: true }));
+  runAtlasStartupStep("apply shared property graph", () => applySharedPropertyGraphToPortfolio({ persistCommunityData: true }));
   runAtlasStartupStep("load property data", () => loadPropertyData(getProp().name));
   runAtlasStartupStep("render property workspace", () => renderPropGrid());
   runAtlasStartupStep("render active tab", () => renderTab());

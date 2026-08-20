@@ -7,19 +7,21 @@
   const CONFIG_STORAGE_KEY = "atlas_central_runtime_config_v1";
   const SESSION_STORAGE_KEY = "atlas_central_auth_session_v1";
   const PROFILE_STORAGE_KEY = "atlas_central_profile_v1";
+  const SHARED_PROPERTY_GRAPH_DOCUMENT_KEY = "atlas_shared_property_graph_v1";
 
   const DEFAULT_CONFIG = {
-    enabled: false,
+    enabled: true,
     provider: "supabase-postgres",
     appBaseUrl: "",
     apiBaseUrl: "",
-    supabaseUrl: "",
-    supabaseAnonKey: "",
+    supabaseUrl: "https://rmyhmvjcswfwaracgriy.supabase.co",
+    supabaseAnonKey: "sb_publishable_2DEqeCNZFn6sNeVrSEfW8A_EI6tRb_1",
     documentKey: "atlas_dashboard_state_v1",
     realtime: false,
     autosave: false,
     autoPullOnStartup: false,
-    allowedEmailDomains: []
+    allowMagicLinkSignup: false,
+    allowedEmailDomains: ["riseresidential.com"]
   };
 
   function safeJsonParse(value, fallback = null) {
@@ -46,16 +48,17 @@
   function normalizeConfig(input) {
     const raw = input && typeof input === "object" ? input : {};
     const config = { ...DEFAULT_CONFIG, ...raw };
-    config.enabled = Boolean(config.enabled);
+    config.enabled = DEFAULT_CONFIG.enabled || Boolean(config.enabled);
     config.provider = String(config.provider || DEFAULT_CONFIG.provider).trim();
     config.appBaseUrl = trimTrailingSlash(config.appBaseUrl);
     config.apiBaseUrl = trimTrailingSlash(config.apiBaseUrl);
-    config.supabaseUrl = trimTrailingSlash(config.supabaseUrl);
-    config.supabaseAnonKey = String(config.supabaseAnonKey || "").trim();
+    config.supabaseUrl = trimTrailingSlash(config.supabaseUrl || DEFAULT_CONFIG.supabaseUrl);
+    config.supabaseAnonKey = String(config.supabaseAnonKey || DEFAULT_CONFIG.supabaseAnonKey || "").trim();
     config.documentKey = String(config.documentKey || DEFAULT_CONFIG.documentKey).trim() || DEFAULT_CONFIG.documentKey;
     config.realtime = Boolean(config.realtime);
     config.autosave = Boolean(config.autosave);
     config.autoPullOnStartup = Boolean(config.autoPullOnStartup);
+    config.allowMagicLinkSignup = Boolean(config.allowMagicLinkSignup);
     config.allowedEmailDomains = Array.isArray(config.allowedEmailDomains)
       ? config.allowedEmailDomains.map(item => String(item || "").trim().toLowerCase()).filter(Boolean)
       : [];
@@ -251,7 +254,7 @@
     return payload;
   }
 
-  async function sendMagicLink(email) {
+  async function sendMagicLink(email, options = {}) {
     const config = requireConfigured();
     const cleanEmail = String(email || "").trim().toLowerCase();
     if (!isEmailAllowed(cleanEmail, config)) throw new Error("This email domain is not approved for Atlas.");
@@ -262,7 +265,7 @@
       auth: false,
       body: JSON.stringify({
         email: cleanEmail,
-        create_user: false,
+        create_user: Boolean(options.createUser || config.allowMagicLinkSignup),
         options: redirectTo ? { email_redirect_to: redirectTo } : {}
       })
     });
@@ -335,6 +338,24 @@
     return profile || null;
   }
 
+  async function rpc(functionName, args = {}) {
+    await refreshSession().catch(() => null);
+    const result = await fetchJson(`/rpc/${encodeURIComponent(functionName)}`, {
+      method: "POST",
+      headers: { prefer: "params=single-object" },
+      body: JSON.stringify(args && typeof args === "object" ? args : {})
+    });
+    return Array.isArray(result) ? result[0] : result;
+  }
+
+  async function claimFirstAdmin(displayName = "") {
+    const profile = await rpc("atlas_claim_first_admin", {
+      p_display_name: String(displayName || "").trim() || null
+    });
+    saveProfile(profile || null);
+    return profile;
+  }
+
   async function computeSha256(value) {
     const text = typeof value === "string" ? value : JSON.stringify(value ?? null);
     if (window.crypto?.subtle && window.TextEncoder) {
@@ -370,12 +391,25 @@
       p_source_hash: sourceHash,
       p_metadata: options.metadata && typeof options.metadata === "object" ? options.metadata : {}
     };
-    const result = await fetchJson("/rpc/atlas_update_app_document", {
-      method: "POST",
-      headers: { prefer: "params=single-object" },
-      body: JSON.stringify(args)
+    return rpc("atlas_update_app_document", args);
+  }
+
+  async function readSharedPropertyGraph(documentKey = SHARED_PROPERTY_GRAPH_DOCUMENT_KEY) {
+    return readDocument(documentKey);
+  }
+
+  async function saveSharedPropertyGraph(payload = {}, options = {}) {
+    return saveDocument({
+      documentKey: options.documentKey || SHARED_PROPERTY_GRAPH_DOCUMENT_KEY,
+      moduleKey: options.moduleKey || "shared-data",
+      payload,
+      expectedVersion: options.expectedVersion,
+      sourceModule: options.sourceModule || "atlas_shared_data",
+      metadata: {
+        sharedDataType: "property_graph",
+        ...(options.metadata || {})
+      }
     });
-    return Array.isArray(result) ? result[0] : result;
   }
 
   async function insertRows(table, rows, options = {}) {
@@ -392,37 +426,65 @@
     await refreshSession().catch(() => null);
     if (!snapshot || typeof snapshot !== "object") throw new Error("Snapshot payload is required.");
     const hash = await computeSha256(snapshot);
-    const migrationRows = await insertRows("atlas_migration_runs", {
-      phase: options.phase || "phase_3_central_runtime",
-      source_module: options.sourceModule || "atlas_browser",
-      status: "snapshot_captured",
-      dry_run: true,
-      pre_counts: snapshot.reconciliation?.recordCounts || {},
-      pre_totals: {
-        financialTotals: snapshot.reconciliation?.financialTotals || {},
-        operatingTotals: snapshot.reconciliation?.operatingTotals || {},
-        bonusData: snapshot.reconciliation?.bonusData || {}
-      },
-      reconciliation_status: "snapshot_only",
-      exception_count: Array.isArray(snapshot.exceptions) ? snapshot.exceptions.length : 0,
-      notes: "Read-only browser snapshot captured by Atlas central runtime. No mapped rows promoted."
-    });
-    const migrationRun = Array.isArray(migrationRows) ? migrationRows[0] : migrationRows;
-    const snapshotRows = await insertRows("atlas_legacy_snapshots", {
-      migration_run_id: migrationRun?.migration_run_id || null,
-      source_module: options.sourceModule || "atlas_browser",
-      source_key: snapshot.snapshotType || "atlas_central_migration_read_only_snapshot_v1",
-      source_label: options.sourceLabel || "Atlas browser read-only migration snapshot",
-      source_version: snapshot.generatedAt || "",
-      source_payload: snapshot,
-      source_hash: hash,
-      read_only_locked: true
+    const result = await rpc("atlas_upload_legacy_snapshot", {
+      p_source_module: options.sourceModule || "atlas_browser",
+      p_source_key: snapshot.snapshotType || "atlas_central_migration_read_only_snapshot_v1",
+      p_source_label: options.sourceLabel || "Atlas browser read-only migration snapshot",
+      p_source_version: snapshot.generatedAt || "",
+      p_source_payload: snapshot,
+      p_metadata: {
+        phase: options.phase || "phase_3_central_runtime",
+        pre_counts: snapshot.reconciliation?.recordCounts || {},
+        pre_totals: {
+          financialTotals: snapshot.reconciliation?.financialTotals || {},
+          operatingTotals: snapshot.reconciliation?.operatingTotals || {},
+          bonusData: snapshot.reconciliation?.bonusData || {}
+        },
+        exception_count: Array.isArray(snapshot.exceptions) ? snapshot.exceptions.length : 0,
+        notes: "Read-only browser snapshot captured by Atlas central runtime. No mapped rows promoted.",
+        browserHash: hash
+      }
     });
     return {
-      migrationRun,
-      snapshot: Array.isArray(snapshotRows) ? snapshotRows[0] : snapshotRows,
-      sourceHash: hash
+      migrationRun: result?.migration_run_id ? { migration_run_id: result.migration_run_id } : null,
+      snapshot: result?.snapshot_id ? { snapshot_id: result.snapshot_id } : null,
+      sourceHash: result?.source_hash || hash
     };
+  }
+
+  async function upsertPeopleDirectory(payload, options = {}) {
+    return rpc("atlas_upsert_people_directory", {
+      p_payload: payload && typeof payload === "object" ? payload : {},
+      p_migration_run_id: options.migrationRunId || null,
+      p_dry_run: options.dryRun !== false
+    });
+  }
+
+  async function upsertMarketingMetrics(metrics, options = {}) {
+    return rpc("atlas_upsert_marketing_metrics", {
+      p_metrics: Array.isArray(metrics) ? metrics : [],
+      p_dry_run: options.dryRun !== false
+    });
+  }
+
+  async function upsertMaintenanceInspections(records, options = {}) {
+    return rpc("atlas_upsert_maintenance_inspections", {
+      p_records: Array.isArray(records) ? records : [],
+      p_dry_run: options.dryRun !== false
+    });
+  }
+
+  async function recordBonusCalculation(payload, options = {}) {
+    const period = options.period && typeof options.period === "object" ? options.period : {};
+    return rpc("atlas_record_bonus_calculation", {
+      p_period_key: String(period.periodKey || payload?.periodKey || ""),
+      p_year: Number(period.year || payload?.year || new Date().getFullYear()),
+      p_quarter: String(period.quarter || payload?.quarter || "Q1"),
+      p_start_date: String(period.start || payload?.periodStart || ""),
+      p_end_date: String(period.end || payload?.periodEnd || ""),
+      p_payload: payload && typeof payload === "object" ? payload : {},
+      p_status: String(options.status || "draft")
+    });
   }
 
   handleAuthRedirect();
@@ -436,15 +498,23 @@
     getStoredProfile,
     requireConfigured,
     fetchJson,
+    rpc,
     sendMagicLink,
     signInWithPassword,
     signOut,
     fetchUser,
     fetchProfile,
+    claimFirstAdmin,
     computeSha256,
     readDocument,
     saveDocument,
+    readSharedPropertyGraph,
+    saveSharedPropertyGraph,
     insertRows,
-    uploadReadOnlySnapshot
+    uploadReadOnlySnapshot,
+    upsertPeopleDirectory,
+    upsertMarketingMetrics,
+    upsertMaintenanceInspections,
+    recordBonusCalculation
   };
 })();

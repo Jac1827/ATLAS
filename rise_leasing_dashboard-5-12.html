@@ -128,6 +128,21 @@
 
   /* App shell + navigation */
   .app-shell { display:grid; grid-template-columns:236px minmax(0,1fr); gap:14px; align-items:start; }
+  .atlas-live-users { display:flex; align-items:center; gap:8px; min-width:220px; max-width:520px; padding:7px 10px; border:1px solid var(--border); border-radius:999px; background:rgba(255,255,255,0.72); color:var(--accent); font-size:0.68rem; font-weight:700; white-space:nowrap; overflow:hidden; }
+  .atlas-live-users i { font-size:1rem; color:#2a8f83; flex:0 0 auto; }
+  .atlas-live-users span { overflow:hidden; text-overflow:ellipsis; }
+  .atlas-live-users.is-muted { color:var(--muted); }
+  .tab.is-locked { opacity:0.42; cursor:not-allowed; }
+  .tab.is-locked .tab-label::after { content:" Locked"; font-size:0.58rem; color:#8b0000; margin-left:4px; }
+  .atlas-access-grid { display:grid; grid-template-columns:1.05fr 0.95fr; gap:12px; align-items:start; }
+  .atlas-access-table { width:100%; border-collapse:collapse; font-size:0.7rem; }
+  .atlas-access-table th,
+  .atlas-access-table td { padding:8px 7px; border-bottom:1px solid var(--border2); vertical-align:top; }
+  .atlas-access-table th { text-align:left; color:var(--muted); font-size:0.62rem; letter-spacing:0.06em; text-transform:uppercase; }
+  .atlas-access-pill { display:inline-flex; align-items:center; gap:4px; border:1px solid var(--border); border-radius:999px; padding:3px 7px; font-size:0.62rem; font-weight:700; color:var(--accent); background:var(--bg2); margin:2px 4px 2px 0; }
+  .atlas-access-checks { display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:6px 10px; max-height:210px; overflow:auto; padding:8px; border:1px solid var(--border2); border-radius:8px; background:var(--bg2); }
+  .atlas-access-checks label { display:flex; align-items:center; gap:7px; font-size:0.68rem; color:var(--text); }
+  @media(max-width:980px){ .atlas-access-grid { grid-template-columns:1fr; } .atlas-live-users { max-width:100%; width:100%; } }
   .content-shell { min-width:0; }
   .side-nav { position:sticky; top:14px; align-self:start; background:rgba(255,255,255,0.94); border:1px solid var(--border); border-radius:16px; padding:10px; box-shadow:0 12px 28px rgba(15,23,42,0.06); transition:width 0.18s ease,padding 0.18s ease; }
   .side-nav-brand { display:grid; justify-items:center; gap:8px; padding:6px 4px 12px; border-bottom:1px solid var(--border2); margin-bottom:8px; }
@@ -928,6 +943,10 @@
       <span class="atlas-chip is-accent" id="atlas-chip-budget"><i class="ph ph-file-text" aria-hidden="true"></i><span>Monthly upload</span></span>
       <span class="atlas-chip" id="atlas-chip-freshness"><i class="ph ph-database" aria-hidden="true"></i><span>No rows in review</span></span>
     </div>
+    <div class="atlas-live-users is-muted" id="atlas-live-users" title="Signed-in ATLAS users active in the last few minutes">
+      <i class="ph ph-broadcast" aria-hidden="true"></i>
+      <span>Live users unavailable</span>
+    </div>
   </header>
 
   <!-- Property Selector -->
@@ -1013,6 +1032,7 @@ const ATLAS_COMMUNITY_ID_ALIASES = {
   SUT: "Sutton House",
   UTK_BEACON: "UTK - Beacon Hall",
   UTK_POPLAR: "UTK - Poplar Hall",
+  UTK_TORCHBEARER: "UTK - Torchbearer Hall",
   VIE: "Viera"
 };
 const WEEKLY_SNAPSHOT_STORAGE_KEY = "rise_weekly_portfolio_snapshot_v1";
@@ -1107,6 +1127,7 @@ const PROPERTIES = [
   { name: "The Preserve at Tech", units: 588 },
   { name: "UTK - Beacon Hall", units: 600 },
   { name: "UTK - Poplar Hall", units: 411 },
+  { name: "UTK - Torchbearer Hall", units: null },
   { name: "Viera", units: 166 },
   { name: "Florence Villa", units: 224 },
   { name: "Citrus Ridge", units: 222 },
@@ -1136,6 +1157,7 @@ const COMMUNITY_MARKET_AREA_FALLBACKS = {
   "The Preserve at Tech": { city: "Student Housing", marketArea: "The Preserve at Tech" },
   "UTK - Beacon Hall": { city: "Student Housing", marketArea: "UTK - Beacon Hall" },
   "UTK - Poplar Hall": { city: "Student Housing", marketArea: "UTK - Poplar Hall" },
+  "UTK - Torchbearer Hall": { city: "Student Housing", marketArea: "UTK - Torchbearer Hall" },
   "Viera": { city: "Melbourne", marketArea: "Viera / Space Coast" },
   "Florence Villa": { city: "Winter Haven", marketArea: "Winter Haven" },
   "Citrus Ridge": { city: "Kissimmee", marketArea: "Citrus Ridge / Four Corners" },
@@ -1165,6 +1187,7 @@ const COMMUNITY_MARKER_ICONS = {
   "The Preserve at Tech": "🎓",
   "UTK - Beacon Hall": "🎓",
   "UTK - Poplar Hall": "🎓",
+  "UTK - Torchbearer Hall": "🎓",
   "Viera": "🚀",
   "Florence Villa": "🌺",
   "Citrus Ridge": "🍊",
@@ -1289,7 +1312,11 @@ const ATLAS_SHARED_PROPERTY_ALIASES = {
   "njit maple hall": ["Maple Hall (NJIT)"],
   "utk beacon hall": ["Beacon / Poplar Hall"],
   "utk poplar hall": ["Beacon / Poplar Hall"],
-  "beacon poplar hall": ["UTK - Beacon Hall", "UTK - Poplar Hall"]
+  "utk torchbearer hall": ["Torchbearer Hall", "UTK Torchbearer"],
+  "torchbearer hall": ["UTK - Torchbearer Hall"],
+  "utk torchbearer": ["UTK - Torchbearer Hall"],
+  "beacon poplar hall": ["UTK - Beacon Hall", "UTK - Poplar Hall"],
+  "utk buildings": ["UTK - Torchbearer Hall", "UTK - Beacon Hall", "UTK - Poplar Hall"]
 };
 
 function atlasSharedNow() {
@@ -4709,7 +4736,11 @@ const SHARED_COMMUNITY_ALIASES = {
   "rise st augustine": "St Augustine",
   "st augustine": "St Augustine",
   "st augustine fl": "St Augustine",
-  "the preserve": "The Preserve at Tech"
+  "the preserve": "The Preserve at Tech",
+  "torchbearer": "UTK - Torchbearer Hall",
+  "torchbearer hall": "UTK - Torchbearer Hall",
+  "utk torchbearer": "UTK - Torchbearer Hall",
+  "utk torchbearer hall": "UTK - Torchbearer Hall"
 };
 const SHARED_BONUS_ROLE_LABELS = {
   gm: "General Manager",
@@ -6810,6 +6841,24 @@ function normalizeSavedCommunityMap(data = {}) {
     normalizeSavedCommunityRecord(name, record)
   ]));
 }
+
+function seedMissingSavedCommunityBaselines(recordMap = {}) {
+  const merged = normalizeSavedCommunityMap(recordMap);
+  let changed = false;
+  PROPERTIES.forEach(prop => {
+    const name = String(prop?.name || "").trim();
+    if (!name || merged[name]) return;
+    merged[name] = normalizeSavedCommunityRecord(name, {
+      customUnits: prop.units ?? "",
+      communityStatus: "active",
+      sharedSyncSource: "property_catalog_baseline",
+      sharedSyncUpdatedAt: atlasSharedNow()
+    });
+    changed = true;
+  });
+  return { data: merged, changed };
+}
+
 function getAtlasHistoricalRecoveryCommunityMap() {
   const source = window.ATLAS_HISTORICAL_RESTORE_COMMUNITY_DATA;
   if (!source || typeof source !== "object") return {};
@@ -7066,6 +7115,15 @@ async function hydrateDashboardPersistentState() {
   if (JSON.stringify(normalizedSavedData) !== JSON.stringify(savedData)) {
     savedData = normalizedSavedData;
     persistSaved();
+  }
+  const baselineResult = seedMissingSavedCommunityBaselines(savedData);
+  if (baselineResult.changed) {
+    savedData = baselineResult.data;
+    persistSaved();
+    csvLog = [
+      "Added baseline ATLAS community records for catalogue properties that did not already have saved data.",
+      ...csvLog
+    ].slice(0, 40);
   }
   await hydrateDailyBackupState();
   await hydrateWeeklySnapshotState();
@@ -10916,7 +10974,9 @@ const MOUNT_TABS = [10, 11, 12, 13];
 const MAX_TAB = 13;
 
 function setTab(i) {
-  activeTab = Math.max(0, Math.min(MAX_TAB, Number(i) || 0));
+  const requestedTab = Math.max(0, Math.min(MAX_TAB, Number(i) || 0));
+  const requestedDecision = atlasAccessDecision(requestedTab);
+  activeTab = requestedDecision.ok ? requestedTab : requestedTab;
   if (activeTab === 8) {
     syncReportHubToWorkspacePeriod();
     persistOpsGlobalData();
@@ -10960,6 +11020,8 @@ function renderTab() {
     try {
       if (shouldBlockAtlasSensitiveAccess()) {
         panel.innerHTML = renderAtlasCentralLoginRequiredPanel();
+      } else if (!atlasAccessDecision(activeTab).ok) {
+        panel.innerHTML = renderAtlasAccessDeniedPanel(atlasAccessDecision(activeTab).reason);
       } else {
         panel.innerHTML = renderer();
         queueAtlasCentralPeopleLoad();
@@ -10980,6 +11042,8 @@ function renderTab() {
   });
   applyDashboardBackdrop();
   syncAtlasTopbar();
+  applyAtlasAccessControlsToNavigation();
+  refreshAtlasLivePresence({ silent: true });
   if (!MOUNT_TABS.includes(activeTab)) {
     attachEventListeners();
     queueActiveTabPhotoAssetHydration();
@@ -11139,6 +11203,82 @@ let suppressDashboardSharedSyncPush = false;
 let atlasCentralDocumentPushTimer = null;
 let suppressAtlasCentralAutosave = false;
 let atlasCentralPeopleLoadPromise = null;
+let atlasLivePresenceTimer = null;
+let atlasSharedRealtimeTimer = null;
+let atlasSharedRealtimeVisibilityBound = false;
+let atlasAccessAdminState = {
+  loading: false,
+  loaded: false,
+  error: "",
+  profiles: [],
+  invites: [],
+  communities: [],
+  employees: [],
+  lastLoadedAt: ""
+};
+let atlasLivePresenceState = {
+  sessionId: "",
+  users: [],
+  lastUpdatedAt: "",
+  error: ""
+};
+let atlasSharedRealtimeState = {
+  running: false,
+  lastPulledAt: "",
+  lastAppliedAt: "",
+  lastError: ""
+};
+
+const ATLAS_ACCESS_TABS = [
+  { id: "0", label: "Portfolio Home", key: "portfolio_home" },
+  { id: "1", label: "Communities", key: "communities" },
+  { id: "2", label: "Portfolio Overview", key: "portfolio_overview" },
+  { id: "3", label: "Traffic & Funnel", key: "traffic" },
+  { id: "4", label: "Comp Calculator", key: "comp_calculator" },
+  { id: "5", label: "Renewals", key: "renewals" },
+  { id: "6", label: "Reputation", key: "reputation" },
+  { id: "7", label: "Data Import", key: "data_import" },
+  { id: "8", label: "Reports", key: "reports" },
+  { id: "9", label: "Bonus & Incentives", key: "bonus" },
+  { id: "10", label: "Maintenance", key: "maintenance" },
+  { id: "11", label: "Marketing", key: "marketing" },
+  { id: "12", label: "Budget Builder", key: "budget" },
+  { id: "13", label: "People", key: "people" }
+];
+
+const ATLAS_ACCESS_ROLE_TABS = {
+  admin: ATLAS_ACCESS_TABS.map(tab => tab.id),
+  executive: ["0","1","2","3","4","5","6","8","9","10","11","12","13"],
+  regional: ["0","1","2","3","4","5","6","8","9","10","11","12","13"],
+  community_manager: ["0","1","2","3","4","5","6","8","9","10","11"],
+  people: ["0","1","8","9","13"],
+  marketing: ["0","1","8","9","11"],
+  maintenance: ["0","1","8","10"],
+  finance: ["0","1","2","4","8","9","12"],
+  bonus: ["0","1","8","9"],
+  viewer: ["0","2","8"]
+};
+
+const ATLAS_ACCESS_ROLES = [
+  ["admin", "Admin"],
+  ["executive", "Executive"],
+  ["regional", "Regional"],
+  ["community_manager", "Community Manager"],
+  ["people", "People"],
+  ["marketing", "Marketing"],
+  ["maintenance", "Maintenance"],
+  ["finance", "Finance"],
+  ["bonus", "Bonus"],
+  ["viewer", "Viewer"]
+];
+
+const ATLAS_ACCESS_STATUSES = [
+  ["pending", "Pending"],
+  ["active", "Active"],
+  ["suspended", "Suspended"],
+  ["disabled", "Disabled"],
+  ["revoked", "Revoked"]
+];
 
 function loadAtlasCentralRuntimeMeta() {
   try {
@@ -11661,6 +11801,240 @@ function atlasCentralCanUseDatabase({ requireSignIn = true } = {}) {
   return { ok: true, status };
 }
 
+function getAtlasAccessProfile() {
+  return window.ATLAS_CENTRAL?.getStoredProfile ? (window.ATLAS_CENTRAL.getStoredProfile() || null) : null;
+}
+
+function getAtlasAccessTab(tabId = activeTab) {
+  const id = String(tabId);
+  return ATLAS_ACCESS_TABS.find(tab => tab.id === id) || ATLAS_ACCESS_TABS[0];
+}
+
+function normalizeAtlasAccessList(value) {
+  if (Array.isArray(value)) return value.map(item => String(item || "").trim()).filter(Boolean);
+  if (typeof value === "string") {
+    return value.split(",").map(item => item.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function atlasAccessCurrentRoleAllowsTab(profile, tabId = activeTab) {
+  const role = String(profile?.role || "").trim();
+  if (role === "admin") return true;
+  const allowedTabs = ATLAS_ACCESS_ROLE_TABS[role] || [];
+  return allowedTabs.includes(String(tabId));
+}
+
+function getAtlasSharedPropertyByName(name = "") {
+  const normalizedName = atlasNormalizeSharedText(name);
+  if (!normalizedName) return null;
+  const graph = readAtlasSharedPropertyGraph();
+  return Object.values(atlasSharedObject(graph.properties)).find(record => {
+    const aliases = Array.isArray(record.aliases) ? record.aliases : [];
+    return atlasNormalizeSharedText(record.displayName) === normalizedName
+      || atlasNormalizeSharedText(record.canonicalName) === normalizedName
+      || aliases.some(alias => atlasNormalizeSharedText(alias) === normalizedName);
+  }) || null;
+}
+
+function atlasAccessProfileCanUseCurrentScope(profile = getAtlasAccessProfile()) {
+  if (!profile || String(profile.status || "") !== "active") return { ok: false, reason: "This ATLAS account is not active." };
+  const role = String(profile.role || "");
+  if (role === "admin" || isPortfolioWorkspaceSelected()) return { ok: true };
+  const property = getAtlasSharedPropertyByName(getProp().name);
+  if (!property) return { ok: true };
+  const allowedCommunityIds = normalizeAtlasAccessList(profile.allowed_community_ids);
+  const allowedMarkets = normalizeAtlasAccessList(profile.allowed_market_values).map(atlasNormalizeSharedText);
+  const allowedRegions = normalizeAtlasAccessList(profile.allowed_region_values).map(atlasNormalizeSharedText);
+  const hasRestrictions = allowedCommunityIds.length || allowedMarkets.length || allowedRegions.length;
+  if (!hasRestrictions && ["executive"].includes(role)) return { ok: true };
+  if (!hasRestrictions) return { ok: false, reason: "No property, market, or region scope is assigned to this account yet." };
+  const atlasCommunityId = String(property.atlasCommunityId || property.sourceIds?.atlasCommunityId || "").trim();
+  const market = atlasNormalizeSharedText(property.market);
+  const region = atlasNormalizeSharedText(property.regionalGrouping || property.market);
+  if (atlasCommunityId && allowedCommunityIds.includes(atlasCommunityId)) return { ok: true };
+  if (market && allowedMarkets.includes(market)) return { ok: true };
+  if (region && allowedRegions.includes(region)) return { ok: true };
+  return { ok: false, reason: `${getProp().name} is outside this account's assigned property, market, or region scope.` };
+}
+
+function atlasAccessDecision(tabId = activeTab) {
+  const status = getAtlasCentralStatus();
+  if (!status.configured) return { ok: true };
+  if (!status.signedIn) return { ok: String(tabId) === "7", reason: "Sign in before viewing shared ATLAS data." };
+  const profile = getAtlasAccessProfile();
+  if (!profile) return { ok: String(tabId) === "7", reason: "This login does not have an active ATLAS access profile yet." };
+  if (String(profile.status || "") !== "active") return { ok: String(tabId) === "7", reason: `This ATLAS account is ${profile.status || "not active"}.` };
+  const tab = getAtlasAccessTab(tabId);
+  const lockedTabs = normalizeAtlasAccessList(profile.locked_tab_ids);
+  const lockedPages = normalizeAtlasAccessList(profile.locked_page_keys);
+  if (lockedTabs.includes(tab.id) || lockedPages.includes(tab.key)) return { ok: false, reason: `${tab.label} is locked for this account.` };
+  if (!atlasAccessCurrentRoleAllowsTab(profile, tab.id)) return { ok: false, reason: `${profile.role || "This role"} does not include ${tab.label}.` };
+  if (!["0","7","8"].includes(tab.id)) {
+    const scopeDecision = atlasAccessProfileCanUseCurrentScope(profile);
+    if (!scopeDecision.ok) return scopeDecision;
+  }
+  return { ok: true };
+}
+
+function atlasUserCanAccessTab(tabId) {
+  return atlasAccessDecision(tabId).ok;
+}
+
+function renderAtlasAccessDeniedPanel(reason = "") {
+  const tab = getAtlasAccessTab(activeTab);
+  return `<div class="card mb4">
+    <div class="card-title" style="margin-bottom:8px">${escapeHtml(tab.label)}</div>
+    <div class="alert-red">${escapeHtml(reason || "This section is not available to your ATLAS account.")}</div>
+    <div style="font-size:0.72rem;color:var(--muted);line-height:1.55;margin-top:10px">Ask an ATLAS admin to adjust your employee role, property, region, or page access from the People tab.</div>
+  </div>`;
+}
+
+function applyAtlasAccessControlsToNavigation() {
+  document.querySelectorAll(".tab").forEach(tabEl => {
+    const tabId = String(tabEl.dataset.tab || "");
+    const allowed = atlasUserCanAccessTab(tabId);
+    tabEl.classList.toggle("is-locked", !allowed);
+    tabEl.setAttribute("aria-disabled", allowed ? "false" : "true");
+    if (!allowed) tabEl.title = atlasAccessDecision(tabId).reason || "Locked for this account";
+    else tabEl.removeAttribute("title");
+  });
+  const profile = getAtlasAccessProfile();
+  const roleLabel = document.getElementById("side-nav-role-label");
+  if (roleLabel) {
+    roleLabel.textContent = profile?.role
+      ? `Role view · ${profile.role.replace(/_/g, " ")}`
+      : "Role view · Portfolio manager";
+  }
+}
+
+function getAtlasLiveSessionId() {
+  if (atlasLivePresenceState.sessionId) return atlasLivePresenceState.sessionId;
+  try {
+    const stored = sessionStorage.getItem("atlas_live_session_id_v1");
+    if (stored) {
+      atlasLivePresenceState.sessionId = stored;
+      return stored;
+    }
+    const next = `atlas-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    sessionStorage.setItem("atlas_live_session_id_v1", next);
+    atlasLivePresenceState.sessionId = next;
+    return next;
+  } catch {
+    const next = `atlas-${Date.now().toString(36)}`;
+    atlasLivePresenceState.sessionId = next;
+    return next;
+  }
+}
+
+function renderAtlasLiveUsersTicker() {
+  const el = document.getElementById("atlas-live-users");
+  if (!el) return;
+  const status = getAtlasCentralStatus();
+  if (!status.configured) {
+    el.classList.add("is-muted");
+    el.lastElementChild.textContent = "Live users off";
+    return;
+  }
+  if (!status.signedIn) {
+    el.classList.add("is-muted");
+    el.lastElementChild.textContent = "Sign in for live users";
+    return;
+  }
+  if (atlasLivePresenceState.error) {
+    el.classList.add("is-muted");
+    el.lastElementChild.textContent = "Live users unavailable";
+    el.title = atlasLivePresenceState.error;
+    return;
+  }
+  const users = Array.isArray(atlasLivePresenceState.users) ? atlasLivePresenceState.users : [];
+  el.classList.toggle("is-muted", users.length === 0);
+  const names = users.slice(0, 4).map(user => user.display_name || user.email || "ATLAS user");
+  const overflow = users.length > names.length ? ` +${users.length - names.length}` : "";
+  el.lastElementChild.textContent = users.length ? `Live now: ${names.join(", ")}${overflow}` : "Live now: only you";
+  el.title = users.map(user => {
+    const when = user.last_seen_at ? new Date(user.last_seen_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+    return `${user.display_name || user.email || "ATLAS user"}${user.current_page ? ` · ${user.current_page}` : ""}${when ? ` · ${when}` : ""}`;
+  }).join("\n") || "Signed-in ATLAS users active in the last few minutes";
+}
+
+async function refreshAtlasLivePresence({ silent = true } = {}) {
+  const status = getAtlasCentralStatus();
+  if (!status.configured || !status.signedIn || !window.ATLAS_CENTRAL?.upsertLiveSession) {
+    renderAtlasLiveUsersTicker();
+    return null;
+  }
+  try {
+    const tab = getAtlasAccessTab(activeTab);
+    const property = getAtlasSharedPropertyByName(getProp().name);
+    await window.ATLAS_CENTRAL.upsertLiveSession({
+      sessionId: getAtlasLiveSessionId(),
+      currentTab: tab.id,
+      currentPage: tab.label,
+      currentCommunityId: property?.atlasCommunityId || property?.sourceIds?.atlasCommunityId || null,
+      currentCommunityName: isPortfolioWorkspaceSelected() ? PORTFOLIO_SCOPE_LABEL : getProp().name
+    });
+    atlasLivePresenceState.users = await window.ATLAS_CENTRAL.readLiveSessions({ activeWithinSeconds: 180 });
+    atlasLivePresenceState.lastUpdatedAt = new Date().toISOString();
+    atlasLivePresenceState.error = "";
+  } catch (error) {
+    atlasLivePresenceState.error = error?.message || String(error);
+    if (!silent) setAtlasCentralRuntimeMessage("", atlasLivePresenceState.error);
+  }
+  renderAtlasLiveUsersTicker();
+  return atlasLivePresenceState.users;
+}
+
+function startAtlasLivePresence() {
+  if (atlasLivePresenceTimer) clearInterval(atlasLivePresenceTimer);
+  refreshAtlasLivePresence({ silent: true });
+  atlasLivePresenceTimer = setInterval(() => refreshAtlasLivePresence({ silent: true }), 45000);
+  window.addEventListener("beforeunload", () => {
+    const sessionId = atlasLivePresenceState.sessionId;
+    if (sessionId && window.ATLAS_CENTRAL?.endLiveSession) {
+      window.ATLAS_CENTRAL.endLiveSession(sessionId).catch(() => null);
+    }
+  }, { once: true });
+}
+
+async function refreshAtlasSharedRealtime({ silent = true } = {}) {
+  const status = getAtlasCentralStatus();
+  if (!status.configured || !status.signedIn) return atlasSharedRealtimeState;
+  if (atlasSharedRealtimeState.running) return atlasSharedRealtimeState;
+  atlasSharedRealtimeState.running = true;
+  try {
+    const [centralResult, marketingResult] = await Promise.all([
+      pullAtlasSharedPropertyGraphFromCentral({ silent: true, applyToPortfolio: true }),
+      hydrateSharedPropertiesFromMarketingDatabase({ silent: true, applyToPortfolio: true, central: false })
+    ]);
+    const changed = Boolean(centralResult?.changed || marketingResult?.changed);
+    atlasSharedRealtimeState.lastPulledAt = new Date().toISOString();
+    atlasSharedRealtimeState.lastError = "";
+    if (changed) {
+      atlasSharedRealtimeState.lastAppliedAt = atlasSharedRealtimeState.lastPulledAt;
+      runAtlasInitialRenderPass();
+    }
+  } catch (error) {
+    atlasSharedRealtimeState.lastError = error?.message || String(error);
+    if (!silent) setAtlasCentralRuntimeMessage("", atlasSharedRealtimeState.lastError);
+  } finally {
+    atlasSharedRealtimeState.running = false;
+  }
+  return atlasSharedRealtimeState;
+}
+
+function startAtlasSharedRealtime() {
+  if (atlasSharedRealtimeTimer) clearInterval(atlasSharedRealtimeTimer);
+  refreshAtlasSharedRealtime({ silent: true });
+  atlasSharedRealtimeTimer = setInterval(() => refreshAtlasSharedRealtime({ silent: true }), 60000);
+  if (!atlasSharedRealtimeVisibilityBound) {
+    atlasSharedRealtimeVisibilityBound = true;
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") refreshAtlasSharedRealtime({ silent: true });
+    });
+  }
+}
+
 function getAtlasCentralInputValue(id) {
   return String(document.getElementById(id)?.value || "").trim();
 }
@@ -12107,6 +12481,8 @@ async function signInAtlasCentralWithPassword() {
     const password = getAtlasCentralInputValue("atlas-central-password");
     await window.ATLAS_CENTRAL.signInWithPassword(email, password);
     await window.ATLAS_CENTRAL.fetchProfile().catch(() => null);
+    startAtlasLivePresence();
+    startAtlasSharedRealtime();
     setAtlasCentralRuntimeMessage(`Signed in to central Atlas as ${email}.`);
     renderTab();
   } catch (error) {
@@ -12115,9 +12491,33 @@ async function signInAtlasCentralWithPassword() {
   }
 }
 
+async function signUpAtlasCentralWithPassword() {
+  try {
+    const email = getAtlasCentralInputValue("atlas-central-email");
+    const password = getAtlasCentralInputValue("atlas-central-password");
+    const displayName = getAtlasCentralInputValue("atlas-central-display-name");
+    await window.ATLAS_CENTRAL.signUpWithPassword(email, password, displayName);
+    await window.ATLAS_CENTRAL.fetchProfile().catch(() => null);
+    startAtlasLivePresence();
+    startAtlasSharedRealtime();
+    setAtlasCentralRuntimeMessage(`ATLAS account created for ${email}. If email confirmation is required, use the confirmation email before signing in.`);
+    alert("ATLAS account created. If Supabase requires email confirmation, confirm the email before signing in.");
+    renderTab();
+  } catch (error) {
+    setAtlasCentralRuntimeMessage("", error?.message || String(error));
+    alert(`Central account creation failed: ${error?.message || error}`);
+  }
+}
+
 async function signOutAtlasCentral() {
   try {
     await window.ATLAS_CENTRAL?.signOut?.();
+    if (atlasSharedRealtimeTimer) clearInterval(atlasSharedRealtimeTimer);
+    atlasSharedRealtimeTimer = null;
+    atlasSharedRealtimeState.running = false;
+    atlasLivePresenceState.users = [];
+    atlasLivePresenceState.error = "";
+    renderAtlasLiveUsersTicker();
     setAtlasCentralRuntimeMessage("Signed out of central Atlas.");
     renderTab();
   } catch (error) {
@@ -12314,6 +12714,262 @@ function queueAtlasCentralDocumentPush(source = "autosave") {
   }, 1800);
 }
 
+function getAtlasAccessStatusBadge(status = "") {
+  const value = String(status || "pending").toLowerCase();
+  const color = value === "active" ? "#3fb950" : value === "pending" ? "#d29922" : "#f85149";
+  return `<span class="atlas-access-pill" style="border-color:${color};color:${color}">${escapeHtml(value)}</span>`;
+}
+
+function queueAtlasAccessAdminLoad(options = {}) {
+  if (atlasAccessAdminState.loading) return;
+  const profile = getAtlasAccessProfile();
+  const status = getAtlasCentralStatus();
+  if (!status.configured || !status.signedIn || profile?.role !== "admin") return;
+  if (atlasAccessAdminState.loaded && !options.force) return;
+  loadAtlasAccessAdminData(options);
+}
+
+async function loadAtlasAccessAdminData({ force = false, silent = true } = {}) {
+  try {
+    const profile = getAtlasAccessProfile();
+    if (profile?.role !== "admin") throw new Error("Only Atlas admins can load employee access records.");
+    if (atlasAccessAdminState.loading && !force) return atlasAccessAdminState;
+    atlasAccessAdminState.loading = true;
+    atlasAccessAdminState.error = "";
+    const [profiles, invites, communities, employees] = await Promise.all([
+      window.ATLAS_CENTRAL.readUserProfiles(),
+      window.ATLAS_CENTRAL.readAccessInvites(),
+      window.ATLAS_CENTRAL.readCommunitiesForAccess(),
+      window.ATLAS_CENTRAL.readEmployeesForAccess()
+    ]);
+    atlasAccessAdminState = {
+      loading: false,
+      loaded: true,
+      error: "",
+      profiles,
+      invites,
+      communities,
+      employees,
+      lastLoadedAt: new Date().toISOString()
+    };
+    if (!silent || activeTab === 13) renderTab();
+    return atlasAccessAdminState;
+  } catch (error) {
+    atlasAccessAdminState.loading = false;
+    atlasAccessAdminState.error = error?.message || String(error);
+    if (!silent) alert(`Employee access load failed: ${atlasAccessAdminState.error}`);
+    if (activeTab === 13) renderTab();
+    return atlasAccessAdminState;
+  }
+}
+
+function getAtlasAccessCheckedValues(name) {
+  return Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map(input => input.value).filter(Boolean);
+}
+
+function renderAtlasAccessCheckboxes(name, options = [], selectedValues = []) {
+  const selected = new Set(normalizeAtlasAccessList(selectedValues));
+  return `<div class="atlas-access-checks">${options.map(option => {
+    const value = String(option.value || "").trim();
+    return `<label><input type="checkbox" name="${escapeHtml(name)}" value="${escapeHtml(value)}" ${selected.has(value) ? "checked" : ""}>${escapeHtml(option.label || value)}</label>`;
+  }).join("")}</div>`;
+}
+
+function renderAtlasEmployeeAccessRows() {
+  const profilesByEmail = new Map((atlasAccessAdminState.profiles || []).map(profile => [String(profile.email || "").toLowerCase(), profile]));
+  const rows = [...(atlasAccessAdminState.invites || [])];
+  (atlasAccessAdminState.profiles || []).forEach(profile => {
+    const email = String(profile.email || "").toLowerCase();
+    if (!rows.some(row => String(row.email || "").toLowerCase() === email)) rows.push(profile);
+  });
+  if (!rows.length) {
+    return `<tr><td colspan="5" style="color:var(--muted)">No employee access records have been created yet.</td></tr>`;
+  }
+  return rows.map(row => {
+    const email = String(row.email || "").toLowerCase();
+    const profile = profilesByEmail.get(email);
+    const status = row.status || profile?.status || "pending";
+    const allowedCount = normalizeAtlasAccessList(row.allowed_community_ids || profile?.allowed_community_ids).length;
+    const lockedTabs = normalizeAtlasAccessList(row.locked_tab_ids || profile?.locked_tab_ids);
+    const payload = encodeURIComponent(JSON.stringify({
+      email,
+      displayName: row.display_name || profile?.display_name || "",
+      role: row.role || profile?.role || "viewer",
+      status,
+      employeeId: row.employee_id || profile?.employee_id || "",
+      allowedCommunityIds: normalizeAtlasAccessList(row.allowed_community_ids || profile?.allowed_community_ids),
+      allowedMarketValues: normalizeAtlasAccessList(row.allowed_market_values || profile?.allowed_market_values),
+      allowedRegionValues: normalizeAtlasAccessList(row.allowed_region_values || profile?.allowed_region_values),
+      lockedTabIds: lockedTabs,
+      lockedPageKeys: normalizeAtlasAccessList(row.locked_page_keys || profile?.locked_page_keys),
+      accessNotes: row.access_notes || profile?.access_notes || ""
+    }));
+    return `<tr>
+      <td><strong>${escapeHtml(row.display_name || profile?.display_name || email)}</strong><div style="color:var(--muted);font-size:0.64rem">${escapeHtml(email)}</div></td>
+      <td>${escapeHtml((row.role || profile?.role || "viewer").replace(/_/g, " "))}</td>
+      <td>${getAtlasAccessStatusBadge(status)}</td>
+      <td>${allowedCount ? `${allowedCount} properties` : "Role/default scope"}${lockedTabs.length ? `<div style="color:#8b0000;font-size:0.64rem">${lockedTabs.length} locked tabs</div>` : ""}</td>
+      <td style="text-align:right"><button class="btn btn-gray btn-sm" onclick="prefillAtlasUserAccess('${payload}')">Edit</button></td>
+    </tr>`;
+  }).join("");
+}
+
+function prefillAtlasUserAccess(encodedPayload = "") {
+  try {
+    const record = JSON.parse(decodeURIComponent(encodedPayload));
+    const setValue = (id, value) => {
+      const el = document.getElementById(id);
+      if (el) el.value = value || "";
+    };
+    setValue("atlas-access-email", record.email);
+    setValue("atlas-access-display-name", record.displayName);
+    setValue("atlas-access-role", record.role);
+    setValue("atlas-access-status", record.status);
+    setValue("atlas-access-employee", record.employeeId);
+    setValue("atlas-access-notes", record.accessNotes);
+    const checkedSets = {
+      "atlas-access-communities": new Set(record.allowedCommunityIds || []),
+      "atlas-access-markets": new Set(record.allowedMarketValues || []),
+      "atlas-access-regions": new Set(record.allowedRegionValues || []),
+      "atlas-access-tabs": new Set(record.lockedTabIds || [])
+    };
+    Object.entries(checkedSets).forEach(([name, values]) => {
+      document.querySelectorAll(`input[name="${name}"]`).forEach(input => {
+        input.checked = values.has(input.value);
+      });
+    });
+  } catch (error) {
+    alert(`Could not load that access record: ${error?.message || error}`);
+  }
+}
+
+async function submitAtlasUserAccessForm() {
+  try {
+    const profile = getAtlasAccessProfile();
+    if (profile?.role !== "admin") throw new Error("Only Atlas admins can save employee access.");
+    const email = getAtlasCentralInputValue("atlas-access-email").toLowerCase();
+    const displayName = getAtlasCentralInputValue("atlas-access-display-name");
+    const role = getAtlasCentralInputValue("atlas-access-role");
+    const status = getAtlasCentralInputValue("atlas-access-status");
+    if (!email || !role) throw new Error("Email and role are required.");
+    await window.ATLAS_CENTRAL.adminUpsertUserAccess({
+      email,
+      displayName,
+      role,
+      status,
+      employeeId: getAtlasCentralInputValue("atlas-access-employee") || null,
+      allowedCommunityIds: getAtlasAccessCheckedValues("atlas-access-communities"),
+      allowedMarketValues: getAtlasAccessCheckedValues("atlas-access-markets"),
+      allowedRegionValues: getAtlasAccessCheckedValues("atlas-access-regions"),
+      lockedTabIds: getAtlasAccessCheckedValues("atlas-access-tabs"),
+      lockedPageKeys: getAtlasAccessCheckedValues("atlas-access-tabs").map(tabId => getAtlasAccessTab(tabId).key),
+      accessNotes: getAtlasCentralInputValue("atlas-access-notes")
+    });
+    setAtlasCentralRuntimeMessage(`Employee access saved for ${email}.`);
+    await loadAtlasAccessAdminData({ force: true, silent: true });
+    renderTab();
+  } catch (error) {
+    alert(`Employee access save failed: ${error?.message || error}`);
+  }
+}
+
+async function copyAtlasAccessSetupInstructions() {
+  const email = getAtlasCentralInputValue("atlas-access-email").toLowerCase();
+  if (!email) {
+    alert("Enter an employee email first.");
+    return;
+  }
+  const url = window.location.href.split("#")[0];
+  const message = `Your ATLAS access has been prepared for ${email}.\n\nOpen ${url}, enter your email, create a password with the Create Account button, then sign in. ATLAS will apply your employee role and page/property access automatically after login.`;
+  try {
+    await navigator.clipboard.writeText(message);
+    alert("Access setup instructions copied.");
+  } catch {
+    alert(message);
+  }
+}
+
+function renderAtlasEmployeeAccessPanel() {
+  const status = getAtlasCentralStatus();
+  const profile = getAtlasAccessProfile();
+  if (!status.configured) {
+    return `<div class="card mb4"><div class="card-title">Employee Access</div><div class="alert-red">Central ATLAS must be configured before employee access can be managed.</div></div>`;
+  }
+  if (!status.signedIn) {
+    return `<div class="card mb4"><div class="card-title">Employee Access</div><div class="alert-red">Sign in from Data Import before managing employee access.</div></div>`;
+  }
+  if (profile?.role !== "admin") {
+    const lockedTabs = normalizeAtlasAccessList(profile?.locked_tab_ids).map(tabId => getAtlasAccessTab(tabId).label);
+    const scopeCount = normalizeAtlasAccessList(profile?.allowed_community_ids).length;
+    return `<div class="card mb4">
+      <div class="card-title">My ATLAS Access</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <span class="atlas-access-pill">${escapeHtml(profile?.display_name || status.userEmail || "Signed-in user")}</span>
+        <span class="atlas-access-pill">${escapeHtml((profile?.role || "viewer").replace(/_/g, " "))}</span>
+        ${getAtlasAccessStatusBadge(profile?.status || "active")}
+      </div>
+      <div style="font-size:0.7rem;color:var(--muted);line-height:1.55">Assigned property scope: ${scopeCount || "role/default"}. Locked pages: ${lockedTabs.length ? escapeHtml(lockedTabs.join(", ")) : "none"}.</div>
+    </div>`;
+  }
+  queueAtlasAccessAdminLoad();
+  const communityOptions = (atlasAccessAdminState.communities || []).map(community => ({
+    value: community.community_id,
+    label: `${community.display_name}${community.market ? ` · ${community.market}` : ""}`
+  }));
+  const marketOptions = Array.from(new Set((atlasAccessAdminState.communities || []).map(c => c.market).filter(Boolean))).sort().map(value => ({ value, label: value }));
+  const regionOptions = Array.from(new Set((atlasAccessAdminState.communities || []).map(c => c.regional_grouping || c.market).filter(Boolean))).sort().map(value => ({ value, label: value }));
+  const employeeOptions = (atlasAccessAdminState.employees || []).map(employee => `<option value="${escapeHtml(employee.employee_id)}">${escapeHtml(employee.full_name || employee.email || employee.employee_id)}${employee.email ? ` · ${escapeHtml(employee.email)}` : ""}</option>`).join("");
+  const tabOptions = ATLAS_ACCESS_TABS.map(tab => ({ value: tab.id, label: tab.label }));
+  return `<div class="card mb4">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div>
+        <div class="card-title" style="margin-bottom:6px">Employee Access</div>
+        <div style="font-size:0.7rem;color:var(--muted);line-height:1.55">Create or update ATLAS access by employee email, role, property, market, region, and page locks. Passwords are created through the secure sign-up flow, not stored in ATLAS.</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-gray btn-sm" onclick="loadAtlasAccessAdminData({ force:true, silent:false })">${atlasAccessAdminState.loading ? "Loading..." : "Refresh Access"}</button>
+        <button class="btn btn-gray btn-sm" onclick="copyAtlasAccessSetupInstructions()">Copy Setup Instructions</button>
+      </div>
+    </div>
+    ${atlasAccessAdminState.error ? `<div class="alert-red" style="margin-bottom:10px">${escapeHtml(atlasAccessAdminState.error)}</div>` : ""}
+    <div class="atlas-access-grid">
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div class="card-title">Create / Edit Access</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:10px">
+          <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Email</span><input id="atlas-access-email" type="email" placeholder="employee@risere.com"></label>
+          <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Display name</span><input id="atlas-access-display-name" placeholder="Employee name"></label>
+          <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Role</span><select id="atlas-access-role">${ATLAS_ACCESS_ROLES.map(([value,label]) => `<option value="${value}">${label}</option>`).join("")}</select></label>
+          <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Status</span><select id="atlas-access-status">${ATLAS_ACCESS_STATUSES.map(([value,label]) => `<option value="${value}">${label}</option>`).join("")}</select></label>
+        </div>
+        <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Linked employee</span><select id="atlas-access-employee"><option value="">No employee link</option>${employeeOptions}</select></label>
+        <div style="display:grid;gap:10px;margin-top:10px">
+          <div><div class="card-title">Property Scope</div>${renderAtlasAccessCheckboxes("atlas-access-communities", communityOptions)}</div>
+          <div><div class="card-title">Market Scope</div>${renderAtlasAccessCheckboxes("atlas-access-markets", marketOptions)}</div>
+          <div><div class="card-title">Region Scope</div>${renderAtlasAccessCheckboxes("atlas-access-regions", regionOptions)}</div>
+          <div><div class="card-title">Locked Tabs / Pages</div>${renderAtlasAccessCheckboxes("atlas-access-tabs", tabOptions)}</div>
+          <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Access notes</span><textarea id="atlas-access-notes" placeholder="Optional admin note"></textarea></label>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="btn btn-blue btn-sm" onclick="submitAtlasUserAccessForm()">Save Employee Access</button>
+          <button class="btn btn-gray btn-sm" onclick="copyAtlasAccessSetupInstructions()">Copy Setup Instructions</button>
+        </div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div class="card-title">Current Access Records</div>
+        <div style="font-size:0.66rem;color:var(--muted);margin-bottom:8px">${atlasAccessAdminState.lastLoadedAt ? `Loaded ${new Date(atlasAccessAdminState.lastLoadedAt).toLocaleString()}` : "Access records load after sign-in."}</div>
+        <div class="tbl-wrap" style="margin:0;max-height:520px;overflow:auto">
+          <table class="atlas-access-table">
+            <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Scope</th><th></th></tr></thead>
+            <tbody>${renderAtlasEmployeeAccessRows()}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+window.renderAtlasEmployeeAccessPanel = renderAtlasEmployeeAccessPanel;
+
 function renderAtlasCentralPlatformPanel() {
   const status = getAtlasCentralStatus();
   const config = getAtlasCentralConfig();
@@ -12387,6 +13043,7 @@ function renderAtlasCentralPlatformPanel() {
         <label style="display:flex;gap:8px;align-items:center;font-size:0.68rem;color:var(--muted);margin:4px 0 8px"><input id="atlas-central-create-user" type="checkbox" ${config.allowMagicLinkSignup ? "checked" : ""}> Create account if it does not exist</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-gray btn-sm" onclick="sendAtlasCentralMagicLink()">Send Login Link</button>
+          <button class="btn btn-gray btn-sm" onclick="signUpAtlasCentralWithPassword()">Create Account</button>
           <button class="btn btn-blue btn-sm" onclick="signInAtlasCentralWithPassword()">Sign In</button>
           <button class="btn btn-blue btn-sm" onclick="claimAtlasCentralFirstAdmin()" ${status.signedIn ? "" : "disabled"}>Activate First Admin</button>
           <button class="btn btn-gray btn-sm" onclick="signOutAtlasCentral()" ${status.signedIn ? "" : "disabled"}>Sign Out</button>
@@ -36470,6 +37127,8 @@ async function initializeAtlasDashboard() {
   runAtlasStartupStep("apply incoming workspace navigation", () => applyIncomingWorkspaceNavigation());
   runAtlasStartupStep("hydrate global ATLAS settings", () => hydrateOpsGlobalData());
   runAtlasInitialRenderPass();
+  runAtlasStartupStep("start live presence", () => startAtlasLivePresence());
+  runAtlasStartupStep("start shared data refresh", () => startAtlasSharedRealtime());
   queuePersistedPhotoStorageCompaction();
 
   void (async () => {

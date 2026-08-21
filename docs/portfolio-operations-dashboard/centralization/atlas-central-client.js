@@ -21,7 +21,7 @@
     autosave: false,
     autoPullOnStartup: false,
     allowMagicLinkSignup: false,
-    allowedEmailDomains: ["riseresidential.com"]
+    allowedEmailDomains: ["risere.com", "riseresidential.com"]
   };
 
   function safeJsonParse(value, fallback = null) {
@@ -331,11 +331,35 @@
     const user = getSignedInUser() || await fetchUser();
     const userId = user?.id;
     if (!userId) return null;
-    const query = `?user_id=eq.${encodeURIComponent(userId)}&select=user_id,email,display_name,role,status,allowed_community_ids,updated_at&limit=1`;
+    const query = `?user_id=eq.${encodeURIComponent(userId)}&select=user_id,email,display_name,role,status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,last_access_reviewed_at,updated_at&limit=1`;
     const rows = await fetchJson(`/atlas_user_profiles${query}`);
-    const profile = Array.isArray(rows) ? rows[0] : null;
+    let profile = Array.isArray(rows) ? rows[0] : null;
+    if (!profile) {
+      profile = await claimInvitedProfile().catch(() => null);
+    }
     saveProfile(profile || null);
     return profile || null;
+  }
+
+  async function signUpWithPassword(email, password, displayName = "") {
+    const config = requireConfigured();
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    if (!isEmailAllowed(cleanEmail, config)) throw new Error("This email domain is not approved for Atlas.");
+    if (!password || String(password).length < 8) throw new Error("Use a password with at least 8 characters.");
+    const payload = await request(authUrl("/signup"), {
+      method: "POST",
+      auth: false,
+      body: JSON.stringify({
+        email: cleanEmail,
+        password,
+        data: { display_name: String(displayName || "").trim() }
+      })
+    });
+    if (payload?.access_token) {
+      saveSession(payload);
+      await fetchProfile().catch(() => null);
+    }
+    return payload;
   }
 
   async function rpc(functionName, args = {}) {
@@ -350,6 +374,14 @@
 
   async function claimFirstAdmin(displayName = "") {
     const profile = await rpc("atlas_claim_first_admin", {
+      p_display_name: String(displayName || "").trim() || null
+    });
+    saveProfile(profile || null);
+    return profile;
+  }
+
+  async function claimInvitedProfile(displayName = "") {
+    const profile = await rpc("atlas_claim_invited_profile", {
       p_display_name: String(displayName || "").trim() || null
     });
     saveProfile(profile || null);
@@ -419,6 +451,77 @@
       method: "POST",
       headers: { prefer: options.returning === false ? "return=minimal" : "return=representation" },
       body: JSON.stringify(payload)
+    });
+  }
+
+  async function readLiveSessions({ activeWithinSeconds = 180 } = {}) {
+    await refreshSession().catch(() => null);
+    const cutoff = new Date(Date.now() - (Math.max(30, Number(activeWithinSeconds) || 180) * 1000)).toISOString();
+    const query = [
+      `last_seen_at=gte.${encodeURIComponent(cutoff)}`,
+      "select=session_id,user_id,email,display_name,role,current_tab,current_page,current_community_id,current_community_name,signed_in_at,last_seen_at",
+      "order=last_seen_at.desc"
+    ].join("&");
+    const rows = await fetchJson(`/atlas_live_sessions?${query}`);
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  async function upsertLiveSession(details = {}) {
+    return rpc("atlas_upsert_live_session", {
+      p_session_id: String(details.sessionId || "").trim(),
+      p_current_tab: String(details.currentTab || "").trim() || null,
+      p_current_page: String(details.currentPage || "").trim() || null,
+      p_current_community_id: details.currentCommunityId || null,
+      p_current_community_name: String(details.currentCommunityName || "").trim() || null,
+      p_user_agent: String(details.userAgent || (typeof navigator !== "undefined" ? navigator.userAgent : "") || "").slice(0, 500)
+    });
+  }
+
+  async function endLiveSession(sessionId = "") {
+    return rpc("atlas_end_live_session", { p_session_id: String(sessionId || "").trim() });
+  }
+
+  async function readAccessInvites() {
+    await refreshSession().catch(() => null);
+    const query = "select=invite_id,email,employee_id,display_name,role,status,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,claimed_user_id,claimed_at,updated_at&order=updated_at.desc";
+    const rows = await fetchJson(`/atlas_user_access_invites?${query}`);
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  async function readUserProfiles() {
+    await refreshSession().catch(() => null);
+    const query = "select=user_id,email,display_name,role,status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,last_access_reviewed_at,updated_at&order=display_name.asc";
+    const rows = await fetchJson(`/atlas_user_profiles?${query}`);
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  async function readCommunitiesForAccess() {
+    await refreshSession().catch(() => null);
+    const query = "deleted_at=is.null&status=eq.active&select=community_id,display_name,market,regional_grouping,property_type&order=display_name.asc";
+    const rows = await fetchJson(`/atlas_communities?${query}`);
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  async function readEmployeesForAccess() {
+    await refreshSession().catch(() => null);
+    const query = "deleted_at=is.null&select=employee_id,employee_number,email,full_name,status,status_type&order=full_name.asc";
+    const rows = await fetchJson(`/atlas_employees?${query}`);
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  async function adminUpsertUserAccess(access = {}) {
+    return rpc("atlas_admin_upsert_user_access", {
+      p_email: String(access.email || "").trim().toLowerCase(),
+      p_display_name: String(access.displayName || access.display_name || "").trim(),
+      p_role: String(access.role || "").trim(),
+      p_status: String(access.status || "pending").trim(),
+      p_employee_id: access.employeeId || access.employee_id || null,
+      p_allowed_community_ids: Array.isArray(access.allowedCommunityIds) ? access.allowedCommunityIds : [],
+      p_allowed_market_values: Array.isArray(access.allowedMarketValues) ? access.allowedMarketValues : [],
+      p_allowed_region_values: Array.isArray(access.allowedRegionValues) ? access.allowedRegionValues : [],
+      p_locked_tab_ids: Array.isArray(access.lockedTabIds) ? access.lockedTabIds : [],
+      p_locked_page_keys: Array.isArray(access.lockedPageKeys) ? access.lockedPageKeys : [],
+      p_access_notes: String(access.accessNotes || access.access_notes || "").trim() || null
     });
   }
 
@@ -501,16 +604,26 @@
     rpc,
     sendMagicLink,
     signInWithPassword,
+    signUpWithPassword,
     signOut,
     fetchUser,
     fetchProfile,
     claimFirstAdmin,
+    claimInvitedProfile,
     computeSha256,
     readDocument,
     saveDocument,
     readSharedPropertyGraph,
     saveSharedPropertyGraph,
     insertRows,
+    readLiveSessions,
+    upsertLiveSession,
+    endLiveSession,
+    readAccessInvites,
+    readUserProfiles,
+    readCommunitiesForAccess,
+    readEmployeesForAccess,
+    adminUpsertUserAccess,
     uploadReadOnlySnapshot,
     upsertPeopleDirectory,
     upsertMarketingMetrics,

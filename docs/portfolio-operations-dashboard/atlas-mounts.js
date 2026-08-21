@@ -90,6 +90,14 @@
     var m = MOUNTS[key];
     if (!m) return "";
     var meta = contextMeta();
+    var accessPanel = "";
+    try {
+      accessPanel = key === "people" && typeof window.renderAtlasEmployeeAccessPanel === "function"
+        ? window.renderAtlasEmployeeAccessPanel()
+        : "";
+    } catch (err) {
+      accessPanel = "";
+    }
     return [
       '<div class="atlas-screen-head">',
       "  <div>",
@@ -97,6 +105,7 @@
       "    <p>" + esc(m.lede) + "</p>",
       "  </div>",
       "</div>",
+      accessPanel,
       '<section class="atlas-mount-section" id="atlas-mount-' + esc(key) + '">',
       '  <div class="atlas-mount-head">',
       "    <h3>" + esc(m.title) + "</h3>",

@@ -241,13 +241,20 @@
   }
 
   async function request(url, options = {}) {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...baseHeaders(getConfig(), options.auth !== false),
-        ...(options.headers || {})
-      }
-    });
+    let response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers: {
+          ...baseHeaders(getConfig(), options.auth !== false),
+          ...(options.headers || {})
+        }
+      });
+    } catch (error) {
+      const method = String(options.method || "GET").toUpperCase();
+      const target = String(url || "").replace(getConfig().supabaseUrl || "", "");
+      throw new Error(`Central ${method} request could not reach Supabase${target ? ` (${target})` : ""}. ${error?.message || error || "The browser blocked or interrupted the request."}`);
+    }
     const payload = await parseJsonResponse(response);
     if (!response.ok) {
       throw new Error(errorFromPayload(payload, `Central request failed with HTTP ${response.status}`));
@@ -388,7 +395,6 @@
     await refreshSession().catch(() => null);
     const result = await fetchJson(`/rpc/${encodeURIComponent(functionName)}`, {
       method: "POST",
-      headers: { prefer: "params=single-object" },
       body: JSON.stringify(args && typeof args === "object" ? args : {})
     });
     return Array.isArray(result) ? result[0] : result;
@@ -469,9 +475,10 @@
   async function insertRows(table, rows, options = {}) {
     await refreshSession().catch(() => null);
     const payload = Array.isArray(rows) ? rows : [rows];
+    const headers = options.returning === false ? {} : { prefer: "return=representation" };
     return fetchJson(`/${table}`, {
       method: "POST",
-      headers: { prefer: options.returning === false ? "return=minimal" : "return=representation" },
+      headers,
       body: JSON.stringify(payload)
     });
   }
@@ -547,42 +554,231 @@
     });
   }
 
+  function generateAtlasCentralUuid() {
+    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, token => {
+      const value = Math.floor(Math.random() * 16);
+      const digit = token === "x" ? value : ((value & 0x3) | 0x8);
+      return digit.toString(16);
+    });
+  }
+
+  function getSignedInUserId() {
+    const value = String(getSignedInUser()?.id || "").trim();
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value) ? value : null;
+  }
+
+  async function writeFallbackAuditLog({ action, entityTable, entityId, sourceModule, afterPayload, metadata }) {
+    await insertRows("atlas_audit_log", {
+      actor_user_id: getSignedInUserId(),
+      action: String(action || "central_fallback_write"),
+      entity_table: String(entityTable || "atlas_migration_runs"),
+      entity_id: String(entityId || "direct"),
+      source_module: String(sourceModule || "atlas_browser"),
+      before_payload: null,
+      after_payload: afterPayload && typeof afterPayload === "object" ? afterPayload : {},
+      metadata: metadata && typeof metadata === "object" ? metadata : {}
+    }, { returning: false }).catch(() => null);
+  }
+
+  async function uploadReadOnlySnapshotViaTables({ snapshot, hash, sourceModule, sourceKey, sourceLabel, sourceVersion, metadata, rpcError }) {
+    const now = new Date().toISOString();
+    const migrationRunId = generateAtlasCentralUuid();
+    const snapshotId = generateAtlasCentralUuid();
+    const reason = rpcError?.message || String(rpcError || "RPC write path was unavailable.");
+    const versionKey = sourceVersion || now;
+    const fallbackSourceKey = `${sourceKey || "atlas_central_migration_read_only_snapshot_v1"}:${versionKey}:${snapshotId.slice(0, 8)}`;
+    const currentUserId = getSignedInUserId();
+
+    await insertRows("atlas_migration_runs", {
+      migration_run_id: migrationRunId,
+      phase: String(metadata?.phase || "phase_3_central_runtime"),
+      source_module: String(sourceModule || "atlas_browser"),
+      status: "snapshot_captured",
+      dry_run: true,
+      started_by: currentUserId,
+      started_at: now,
+      pre_counts: metadata?.pre_counts || {},
+      pre_totals: metadata?.pre_totals || {},
+      post_counts: {},
+      post_totals: {},
+      reconciliation_status: "snapshot_only",
+      exception_count: Number(metadata?.exception_count || 0),
+      notes: `${String(metadata?.notes || "Read-only Atlas snapshot captured before central migration. No source rows were changed.")} RPC fallback used because the browser write call could not complete: ${reason}`.slice(0, 1800)
+    }, { returning: false });
+
+    await insertRows("atlas_legacy_snapshots", {
+      snapshot_id: snapshotId,
+      migration_run_id: migrationRunId,
+      source_module: String(sourceModule || "atlas_browser"),
+      source_key: fallbackSourceKey,
+      source_label: sourceLabel || "Atlas browser read-only migration snapshot",
+      source_version: sourceVersion || now,
+      source_payload: snapshot,
+      source_hash: hash,
+      captured_by: currentUserId,
+      captured_at: now,
+      read_only_locked: true
+    }, { returning: false });
+
+    await writeFallbackAuditLog({
+      action: "snapshot_upload_fallback",
+      entityTable: "atlas_legacy_snapshots",
+      entityId: snapshotId,
+      sourceModule,
+      afterPayload: { source_hash: hash, read_only_locked: true },
+      metadata: { ...(metadata || {}), rpc_error: reason, fallback: "direct_table_insert" }
+    });
+
+    return {
+      snapshot_id: snapshotId,
+      migration_run_id: migrationRunId,
+      source_hash: hash,
+      captured_at: now,
+      fallback: true,
+      rpc_error: reason
+    };
+  }
+
+  function summarizePeopleDryRunPayload(payload = {}) {
+    const employees = Array.isArray(payload.employees) ? payload.employees : [];
+    const communityKeys = new Set();
+    const roleKeys = new Set();
+    let assignmentCount = 0;
+
+    employees.forEach(employee => {
+      const assignments = Array.isArray(employee.assignments) ? employee.assignments : [];
+      const employeeCommunity = String(employee.communityName || employee.community || employee.property || employee.propertyName || "").trim().toLowerCase();
+      const employeeRole = String(employee.title || employee.role || employee.position || "").trim().toLowerCase();
+      if (employeeCommunity) communityKeys.add(employeeCommunity);
+      if (employeeRole) roleKeys.add(employeeRole);
+      if (assignments.length) {
+        assignmentCount += assignments.length;
+        assignments.forEach(assignment => {
+          const communityKey = String(assignment.communityId || assignment.communityName || assignment.community || assignment.property || "").trim().toLowerCase();
+          const roleKey = String(assignment.roleId || assignment.title || assignment.role || assignment.bonusRoleType || "").trim().toLowerCase();
+          if (communityKey) communityKeys.add(communityKey);
+          if (roleKey) roleKeys.add(roleKey);
+        });
+      } else if (employeeCommunity || employeeRole) {
+        assignmentCount += 1;
+      }
+    });
+
+    return {
+      employees: employees.length,
+      communities: communityKeys.size,
+      roles: roleKeys.size,
+      assignments: assignmentCount,
+      exceptions: Array.isArray(payload.validationIssues) ? payload.validationIssues.length : 0,
+      dryRun: true,
+      fallback: true
+    };
+  }
+
+  async function recordPeopleDryRunViaTables(payload = {}, rpcError) {
+    const now = new Date().toISOString();
+    const migrationRunId = generateAtlasCentralUuid();
+    const result = summarizePeopleDryRunPayload(payload);
+    const reason = rpcError?.message || String(rpcError || "RPC write path was unavailable.");
+
+    await insertRows("atlas_migration_runs", {
+      migration_run_id: migrationRunId,
+      phase: "people_directory",
+      source_module: "people",
+      status: "dry_run",
+      dry_run: true,
+      started_by: getSignedInUserId(),
+      started_at: now,
+      pre_counts: result,
+      post_counts: result,
+      pre_totals: {},
+      post_totals: {},
+      reconciliation_status: "dry_run_recorded",
+      exception_count: result.exceptions,
+      notes: `People dry run summary recorded by direct table fallback because the browser RPC write call could not complete: ${reason}`.slice(0, 1800)
+    }, { returning: false });
+
+    await writeFallbackAuditLog({
+      action: "people_promotion_dry_run_fallback",
+      entityTable: "atlas_employees",
+      entityId: migrationRunId,
+      sourceModule: "people",
+      afterPayload: payload,
+      metadata: { ...result, migrationRunId, rpc_error: reason, fallback: "direct_table_insert" }
+    });
+
+    return {
+      ...result,
+      migrationRunId,
+      rpcError: reason
+    };
+  }
+
   async function uploadReadOnlySnapshot(snapshot, options = {}) {
     await refreshSession().catch(() => null);
     if (!snapshot || typeof snapshot !== "object") throw new Error("Snapshot payload is required.");
     const hash = await computeSha256(snapshot);
-    const result = await rpc("atlas_upload_legacy_snapshot", {
-      p_source_module: options.sourceModule || "atlas_browser",
-      p_source_key: snapshot.snapshotType || "atlas_central_migration_read_only_snapshot_v1",
-      p_source_label: options.sourceLabel || "Atlas browser read-only migration snapshot",
-      p_source_version: snapshot.generatedAt || "",
-      p_source_payload: snapshot,
-      p_metadata: {
-        phase: options.phase || "phase_3_central_runtime",
-        pre_counts: snapshot.reconciliation?.recordCounts || {},
-        pre_totals: {
-          financialTotals: snapshot.reconciliation?.financialTotals || {},
-          operatingTotals: snapshot.reconciliation?.operatingTotals || {},
-          bonusData: snapshot.reconciliation?.bonusData || {}
-        },
-        exception_count: Array.isArray(snapshot.exceptions) ? snapshot.exceptions.length : 0,
-        notes: "Read-only browser snapshot captured by Atlas central runtime. No mapped rows promoted.",
-        browserHash: hash
-      }
-    });
+    const sourceModule = options.sourceModule || "atlas_browser";
+    const sourceKey = snapshot.snapshotType || "atlas_central_migration_read_only_snapshot_v1";
+    const sourceLabel = options.sourceLabel || "Atlas browser read-only migration snapshot";
+    const sourceVersion = snapshot.generatedAt || "";
+    const metadata = {
+      phase: options.phase || "phase_3_central_runtime",
+      pre_counts: snapshot.reconciliation?.recordCounts || {},
+      pre_totals: {
+        financialTotals: snapshot.reconciliation?.financialTotals || {},
+        operatingTotals: snapshot.reconciliation?.operatingTotals || {},
+        bonusData: snapshot.reconciliation?.bonusData || {}
+      },
+      exception_count: Array.isArray(snapshot.exceptions) ? snapshot.exceptions.length : 0,
+      notes: "Read-only browser snapshot captured by Atlas central runtime. No mapped rows promoted.",
+      browserHash: hash
+    };
+    let result;
+    try {
+      result = await rpc("atlas_upload_legacy_snapshot", {
+        p_source_module: sourceModule,
+        p_source_key: sourceKey,
+        p_source_label: sourceLabel,
+        p_source_version: sourceVersion,
+        p_source_payload: snapshot,
+        p_metadata: metadata
+      });
+    } catch (error) {
+      result = await uploadReadOnlySnapshotViaTables({
+        snapshot,
+        hash,
+        sourceModule,
+        sourceKey,
+        sourceLabel,
+        sourceVersion,
+        metadata,
+        rpcError: error
+      });
+    }
     return {
       migrationRun: result?.migration_run_id ? { migration_run_id: result.migration_run_id } : null,
       snapshot: result?.snapshot_id ? { snapshot_id: result.snapshot_id } : null,
-      sourceHash: result?.source_hash || hash
+      sourceHash: result?.source_hash || hash,
+      fallback: Boolean(result?.fallback),
+      rpcError: result?.rpc_error || ""
     };
   }
 
   async function upsertPeopleDirectory(payload, options = {}) {
-    return rpc("atlas_upsert_people_directory", {
-      p_payload: payload && typeof payload === "object" ? payload : {},
-      p_migration_run_id: options.migrationRunId || null,
-      p_dry_run: options.dryRun !== false
-    });
+    const cleanPayload = payload && typeof payload === "object" ? payload : {};
+    const dryRun = options.dryRun !== false;
+    try {
+      return await rpc("atlas_upsert_people_directory", {
+        p_payload: cleanPayload,
+        p_migration_run_id: options.migrationRunId || null,
+        p_dry_run: dryRun
+      });
+    } catch (error) {
+      if (!dryRun) throw error;
+      return recordPeopleDryRunViaTables(cleanPayload, error);
+    }
   }
 
   async function upsertMarketingMetrics(metrics, options = {}) {

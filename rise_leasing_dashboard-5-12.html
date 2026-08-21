@@ -11334,6 +11334,8 @@ function loadAtlasCentralRuntimeMeta() {
 
 let atlasCentralRuntimeMeta = loadAtlasCentralRuntimeMeta();
 let atlasCentralSnapshotUploadInProgress = false;
+let atlasCentralPeoplePromotionInProgress = false;
+let atlasCentralPeoplePromotionMode = "";
 
 function persistAtlasCentralRuntimeMeta() {
   try { localStorage.setItem(ATLAS_CENTRAL_RUNTIME_META_KEY, JSON.stringify(atlasCentralRuntimeMeta)); } catch {}
@@ -12434,18 +12436,38 @@ function disableAtlasLegacySharedBundle() {
 }
 
 async function promoteAtlasCentralPeopleDirectory(dryRun = true) {
+  if (atlasCentralPeoplePromotionInProgress) {
+    alert("People central promotion is already running. Wait for the status message before clicking again.");
+    return false;
+  }
+  atlasCentralPeoplePromotionInProgress = true;
+  atlasCentralPeoplePromotionMode = dryRun ? "dry_run" : "apply";
   try {
     const access = atlasCentralCanUseDatabase();
     if (!access.ok) throw new Error(access.message);
+    setAtlasCentralRuntimeMessage(`Preparing People ${dryRun ? "dry run" : "promotion"} payload.`);
+    renderTab();
+    await new Promise(resolve => setTimeout(resolve, 40));
     const payload = buildAtlasCentralPeoplePayload();
+    const employeeCount = Array.isArray(payload.employees) ? payload.employees.length : 0;
+    setAtlasCentralRuntimeMessage(`People payload prepared. Recording central ${dryRun ? "dry run" : "promotion"} for ${employeeCount} employees.`);
+    renderTab();
+    await new Promise(resolve => setTimeout(resolve, 40));
     const result = await window.ATLAS_CENTRAL.upsertPeopleDirectory(payload, { dryRun });
     if (dryRun) atlasCentralRuntimeMeta.lastPeopleDryRunAt = new Date().toISOString();
     else atlasCentralRuntimeMeta.lastPeopleAppliedAt = new Date().toISOString();
-    setAtlasCentralRuntimeMessage(`People ${dryRun ? "dry run" : "promotion"} complete: ${JSON.stringify(result)}.`);
+    const fallbackNote = result?.fallback ? " via browser fallback" : "";
+    setAtlasCentralRuntimeMessage(`People ${dryRun ? "dry run" : "promotion"} recorded${fallbackNote}: ${JSON.stringify(result)}.`);
     renderTab();
+    return true;
   } catch (error) {
     setAtlasCentralRuntimeMessage("", error?.message || String(error));
     alert(`People central promotion failed: ${error?.message || error}`);
+    renderTab();
+    return false;
+  } finally {
+    atlasCentralPeoplePromotionInProgress = false;
+    atlasCentralPeoplePromotionMode = "";
     renderTab();
   }
 }
@@ -13181,8 +13203,8 @@ function renderAtlasCentralPlatformPanel() {
         <div class="card-title" style="font-size:0.72rem;margin-bottom:8px">Canonical Table Cutover</div>
         <div style="font-size:0.66rem;color:var(--muted);line-height:1.5;margin-bottom:8px">${escapeHtml(migrationActivity)}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-gray btn-sm" onclick="promoteAtlasCentralPeopleDirectory(true)" ${status.signedIn ? "" : "disabled"}>Dry Run People</button>
-          <button class="btn btn-blue btn-sm" onclick="promoteAtlasCentralPeopleDirectory(false)" ${status.signedIn ? "" : "disabled"}>Apply People</button>
+          <button class="btn btn-gray btn-sm" onclick="promoteAtlasCentralPeopleDirectory(true)" ${status.signedIn && !atlasCentralPeoplePromotionInProgress ? "" : "disabled"}>${atlasCentralPeoplePromotionMode === "dry_run" ? "Dry Running People..." : "Dry Run People"}</button>
+          <button class="btn btn-blue btn-sm" onclick="promoteAtlasCentralPeopleDirectory(false)" ${status.signedIn && !atlasCentralPeoplePromotionInProgress ? "" : "disabled"}>${atlasCentralPeoplePromotionMode === "apply" ? "Applying People..." : "Apply People"}</button>
           <button class="btn btn-gray btn-sm" onclick="loadAtlasCentralPeopleAssignments({ silent:false, force:true })" ${status.signedIn ? "" : "disabled"}>Refresh Central People</button>
           <button class="btn btn-gray btn-sm" onclick="promoteAtlasCentralMarketingMetrics(true)" ${status.signedIn ? "" : "disabled"}>Dry Run Marketing Metrics</button>
           <button class="btn btn-blue btn-sm" onclick="promoteAtlasCentralMarketingMetrics(false)" ${status.signedIn ? "" : "disabled"}>Apply Marketing Metrics</button>

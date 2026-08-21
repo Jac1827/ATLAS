@@ -334,6 +334,13 @@ const PERFORMANCE_SHARED_SYNC_ENDPOINT = `${PERFORMANCE_SHARED_SYNC_BASE_URL}/ap
 const PERFORMANCE_SHARED_SYNC_HEALTH_ENDPOINT = `${PERFORMANCE_SHARED_SYNC_BASE_URL}/api/health`;
 const PERFORMANCE_SHARED_SYNC_WRITE_TOKEN = String(window.ATLAS_SHARED_SYNC_WRITE_TOKEN || '').trim();
 const PERFORMANCE_SHARED_SYNC_META_KEY = 'atlas_performance_shared_sync_meta_v1';
+const ATLAS_EMBEDDED_MODE = (() => {
+  try{
+    return window.parent !== window && new URLSearchParams(window.location.search || '').get('atlasEmbedded') === '1';
+  }catch(err){
+    return false;
+  }
+})();
 const COMPANY_ROSTER_ASSET = './company-active-employee-roster.xlsx';
 const COMPANY_ROSTER_VERSION = '2026-03-31';
 const HR_ALERT_EMAIL = 'hr@risere.com';
@@ -732,6 +739,29 @@ function normalizeUser(user){
   };
 }
 
+function readAtlasEmbeddedAccessUser(){
+  if(!ATLAS_EMBEDDED_MODE) return null;
+  let profile = null;
+  let status = null;
+  try{
+    const central = window.parent && window.parent !== window ? window.parent.ATLAS_CENTRAL : null;
+    profile = central && typeof central.getStoredProfile === 'function' ? central.getStoredProfile() : null;
+    status = central && typeof central.getStatus === 'function' ? central.getStatus() : null;
+  }catch(err){}
+  const email = String(profile?.email || status?.userEmail || '').trim().toLowerCase();
+  const name = String(profile?.display_name || profile?.displayName || profile?.name || email || 'ATLAS user').trim();
+  const atlasRole = String(profile?.role || status?.role || '').trim().toLowerCase();
+  const canAdminPeople = ['admin', 'executive', 'people'].includes(atlasRole) || !atlasRole;
+  return normalizeUser({
+    id: String(profile?.user_id || profile?.userId || profile?.id || email || 'atlas_session_user'),
+    name,
+    email,
+    role: canAdminPeople ? 'admin' : 'manager',
+    scopeType: canAdminPeople ? 'all' : 'manager_only',
+    scopeValue: ''
+  });
+}
+
 function normalizeEmployee(employee){
   return {
     id: String(employee && employee.id || fallbackId('emp')),
@@ -1083,6 +1113,19 @@ let UI = {
   employeeRosterFilters: makeEmployeeRosterFilters()
 };
 
+function activateAtlasEmbeddedAccess(){
+  if(!ATLAS_EMBEDDED_MODE) return;
+  const atlasUser = readAtlasEmbeddedAccessUser();
+  if(atlasUser){
+    STATE.currentUser = atlasUser;
+  }
+  if(UI.currentView === 'settings'){
+    UI.currentView = 'dashboard';
+  }
+}
+
+activateAtlasEmbeddedAccess();
+
 function loadState(){
   try{
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
@@ -1128,7 +1171,7 @@ function saveState(){
     rosterVersion: STATE.rosterVersion,
     currentView: STATE.currentView
   }));
-  if(!suppressPerformanceSharedSyncPush){
+  if(!ATLAS_EMBEDDED_MODE && !suppressPerformanceSharedSyncPush){
     queuePerformanceSharedSyncPush('save_state');
   }
 }
@@ -1169,6 +1212,7 @@ function getPerformanceSharedSyncStatusLine(){
 }
 
 function queuePerformanceSharedSyncPush(source = 'autosave'){
+  if(ATLAS_EMBEDDED_MODE) return;
   if(performanceSharedSyncPushTimer) clearTimeout(performanceSharedSyncPushTimer);
   performanceSharedSyncPushTimer = setTimeout(() => {
     pushPerformanceSharedState({ silent:true, source });
@@ -1176,6 +1220,10 @@ function queuePerformanceSharedSyncPush(source = 'autosave'){
 }
 
 async function verifyPerformanceSharedSyncConnection(){
+  if(ATLAS_EMBEDDED_MODE){
+    alert('People access and persistence are managed by ATLAS on this page.');
+    return true;
+  }
   try{
     const response = await fetch(PERFORMANCE_SHARED_SYNC_HEALTH_ENDPOINT, {
       method:'GET',
@@ -1309,6 +1357,10 @@ function mergePerformancePlatformPayload(localRaw, remoteRaw){
 }
 
 async function pullPerformanceSharedState({ silent = false, applyRemoteIfNewer = true } = {}){
+  if(ATLAS_EMBEDDED_MODE){
+    if(!silent) alert('People data is managed by ATLAS on this page.');
+    return false;
+  }
   try{
     const response = await fetch(`${PERFORMANCE_SHARED_SYNC_ENDPOINT}?scope=${encodeURIComponent(PERFORMANCE_SHARED_SYNC_SCOPE)}`, { method:'GET' });
     if(!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -1349,6 +1401,10 @@ async function pullPerformanceSharedState({ silent = false, applyRemoteIfNewer =
 }
 
 async function pushPerformanceSharedState({ silent = false, source = 'manual' } = {}){
+  if(ATLAS_EMBEDDED_MODE){
+    if(!silent) alert('People data is managed by ATLAS on this page.');
+    return false;
+  }
   try{
     // To avoid overwriting other users' work, pull the latest remote snapshot and merge it with
     // the local browser state before pushing an updated combined dataset back to the cloud.
@@ -3675,6 +3731,7 @@ function getUpcomingMeetings(){
 
 function render(){
   const app = document.getElementById('app');
+  activateAtlasEmbeddedAccess();
   if(!STATE.currentUser){
     app.innerHTML = hasConfiguredAccessCodes(STATE.users) ? renderLogin() : renderBootstrapAccessSetup();
     refreshBuildInfoBadge();
@@ -3830,7 +3887,7 @@ function renderShell(){
     ['employees','Employees'],
     ['writeups','Write Ups'],
     ['export','Reporting'],
-    ...(user.role === 'admin' ? [['settings','Settings']] : [])
+    ...(!ATLAS_EMBEDDED_MODE && user.role === 'admin' ? [['settings','Settings']] : [])
   ];
   return `
     <div class="topbar">
@@ -3849,11 +3906,12 @@ function renderShell(){
           <div class="user-meta">
             <span class="badge ${user.role === 'admin' ? 'badge-admin' : 'badge-soft'}">${user.role === 'admin' ? 'Admin' : 'Manager'}</span>
             <span class="badge badge-soft">${escapeHtml(userScopeLabel(user))}</span>
+            ${ATLAS_EMBEDDED_MODE ? '<span class="badge badge-soft">ATLAS managed</span>' : ''}
             <span id="build-info-badge" class="badge badge-soft">Build info loading</span>
             <span class="small muted">${escapeHtml(user.name)}</span>
-            <a class="btn btn-soft btn-sm" href="https://jac1827.github.io/ATLAS/" target="_blank" rel="noopener noreferrer">Open ATLAS</a>
-            <button class="btn btn-soft btn-sm" onclick="openPlatformDataTransferModal()">Data Transfer</button>
-            <button class="btn btn-soft btn-sm" onclick="logout()">Lock</button>
+            ${ATLAS_EMBEDDED_MODE ? '' : '<a class="btn btn-soft btn-sm" href="https://jac1827.github.io/ATLAS/" target="_blank" rel="noopener noreferrer">Open ATLAS</a>'}
+            ${ATLAS_EMBEDDED_MODE ? '' : '<button class="btn btn-soft btn-sm" onclick="openPlatformDataTransferModal()">Data Transfer</button>'}
+            ${ATLAS_EMBEDDED_MODE ? '' : '<button class="btn btn-soft btn-sm" onclick="logout()">Lock</button>'}
           </div>
         </div>
       </div>
@@ -3881,6 +3939,13 @@ function refreshBuildInfoBadge(){
   if(window.__BUILD_INFO_BADGE_LOADING){
     return;
   }
+  const host = String(window.location?.hostname || '').toLowerCase();
+  const staticPreviewHost = !host || host === 'localhost' || host === '127.0.0.1' || host.endsWith('.github.io');
+  if(staticPreviewHost){
+    window.__BUILD_INFO_BADGE_READY = fallbackLabel;
+    badge.textContent = fallbackLabel;
+    return;
+  }
   window.__BUILD_INFO_BADGE_LOADING = true;
   fetch('/api/build-info', { headers: { accept: 'application/json' } })
     .then(response => response.ok ? response.json() : null)
@@ -3899,12 +3964,21 @@ function refreshBuildInfoBadge(){
 }
 
 function switchView(view){
+  if(ATLAS_EMBEDDED_MODE && view === 'settings'){
+    view = 'dashboard';
+  }
   UI.currentView = view;
   saveState();
   render();
 }
 
 function logout(){
+  if(ATLAS_EMBEDDED_MODE){
+    activateAtlasEmbeddedAccess();
+    UI.currentView = 'dashboard';
+    render();
+    return;
+  }
   STATE.currentUser = null;
   UI.currentView = 'dashboard';
   render();
@@ -11598,9 +11672,11 @@ function resetAllData(){
 ensureEmployeeHistoryState({ persist:true });
 render();
 bootstrapCompanyRoster();
-setTimeout(() => {
-  pullPerformanceSharedState({ silent:true, applyRemoteIfNewer:true });
-}, 320);
+if(!ATLAS_EMBEDDED_MODE){
+  setTimeout(() => {
+    pullPerformanceSharedState({ silent:true, applyRemoteIfNewer:true });
+  }, 320);
+}
 </script>
 </body>
 </html>

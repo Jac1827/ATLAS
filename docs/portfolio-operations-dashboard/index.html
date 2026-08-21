@@ -995,7 +995,7 @@
 </div>
 
 <script src="./atlas_historical_restore_data.js"></script>
-<script src="./atlas-mounts.js"></script>
+<script src="./atlas-mounts.js?v=20260821-people-access"></script>
 <script src="./centralization/atlas-central-client.js?v=20260821-central-fallback"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -1264,6 +1264,8 @@ function getDashboardSharedSyncWriteAccess() {
 }
 const DASHBOARD_SHARED_SYNC_META_KEY = "atlas_dashboard_shared_sync_meta_v1";
 const ATLAS_CENTRAL_RUNTIME_META_KEY = "atlas_central_runtime_meta_v1";
+const ATLAS_SHARED_MANUAL_FIELD_LOCKS_KEY = "atlas_shared_manual_field_locks_v1";
+const ATLAS_SHARED_MANUAL_FIELD_LOCK_WINDOW_MS = 72 * 60 * 60 * 1000;
 const DASHBOARD_DAILY_BACKUP_INDEX_KEY = "atlas_dashboard_daily_backup_index_v1";
 const DASHBOARD_DAILY_BACKUP_KEY_PREFIX = "atlas_dashboard_daily_backup_v1:";
 function persistOpsPropertyCatalog() {
@@ -1304,6 +1306,7 @@ const ATLAS_SHARED_PROPERTY_ALIASES = {
   "bartram park": ["Bartram"],
   "doro": ["Doro High Rise"],
   "doro high rise": ["Doro"],
+  "flagler": ["St Augustine", "St. Augustine", "RISE St. Augustine"],
   "gkp": ["Glen Kernan Park"],
   "glen kernan park gkp": ["Glen Kernan Park"],
   "st augustine": ["St. Augustine", "St Augustine"],
@@ -1482,6 +1485,105 @@ function atlasLatestTimestamp(left = "", right = "") {
   if (!a) return b;
   if (!b) return a;
   return a > b ? a : b;
+}
+
+const ATLAS_PORTFOLIO_SHARED_FIELD_MAP = {
+  communityStatus: "status",
+  communityMarket: "market",
+  communityRegionalGrouping: "regionalGrouping",
+  communityPropertyType: "propertyType",
+  generalManagerName: "generalManagerName",
+  generalManagerEmail: "generalManagerEmail",
+  regionalManagerName: "regionalManagerName",
+  regionalManagerEmail: "regionalManagerEmail",
+  investorName: "owningPortfolio",
+  communityScopeSelections: "scopeSelections"
+};
+
+function readAtlasSharedManualFieldLocks() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ATLAS_SHARED_MANUAL_FIELD_LOCKS_KEY) || "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeAtlasSharedManualFieldLocks(locks) {
+  try {
+    localStorage.setItem(ATLAS_SHARED_MANUAL_FIELD_LOCKS_KEY, JSON.stringify(locks && typeof locks === "object" ? locks : {}));
+  } catch {}
+}
+
+function atlasSharedManualFieldLockKey(propName, field) {
+  return `${atlasNormalizeSharedText(propName)}:${String(field || "").trim()}`;
+}
+
+function atlasCleanManualFieldLockValue(field, value) {
+  if (field === "communityStatus") return normalizeCommunityStatus(value);
+  if (field && field.toLowerCase().includes("email")) return atlasNormalizeSharedEmail(value);
+  if (Array.isArray(value)) return value.map(item => String(item ?? "").trim()).filter(Boolean);
+  return String(value ?? "").trim();
+}
+
+function markAtlasSharedManualFieldLock(propName, field, value, timestamp = atlasSharedNow()) {
+  const key = atlasSharedManualFieldLockKey(propName, field);
+  if (!key.includes(":")) return;
+  const locks = readAtlasSharedManualFieldLocks();
+  locks[key] = {
+    propName: String(propName || "").trim(),
+    field: String(field || "").trim(),
+    sharedField: ATLAS_PORTFOLIO_SHARED_FIELD_MAP[field] || "",
+    value: atlasCleanManualFieldLockValue(field, value),
+    updatedAt: String(timestamp || atlasSharedNow())
+  };
+  writeAtlasSharedManualFieldLocks(locks);
+}
+
+function getAtlasSharedManualFieldLock(propName, field) {
+  const locks = readAtlasSharedManualFieldLocks();
+  const key = atlasSharedManualFieldLockKey(propName, field);
+  const lock = locks[key];
+  if (!lock) return null;
+  const updatedAtMs = Date.parse(String(lock.updatedAt || ""));
+  if (Number.isFinite(updatedAtMs) && Date.now() - updatedAtMs > ATLAS_SHARED_MANUAL_FIELD_LOCK_WINDOW_MS) {
+    delete locks[key];
+    writeAtlasSharedManualFieldLocks(locks);
+    return null;
+  }
+  return lock;
+}
+
+function clearAtlasSharedManualFieldLock(propName, field) {
+  const locks = readAtlasSharedManualFieldLocks();
+  const key = atlasSharedManualFieldLockKey(propName, field);
+  if (locks[key]) {
+    delete locks[key];
+    writeAtlasSharedManualFieldLocks(locks);
+  }
+}
+
+function applyAtlasSharedManualFieldLocks(propName, projectedRecord, sharedRecord) {
+  const next = { ...projectedRecord };
+  Object.entries(ATLAS_PORTFOLIO_SHARED_FIELD_MAP).forEach(([portfolioField, sharedField]) => {
+    const lock = getAtlasSharedManualFieldLock(propName, portfolioField);
+    if (!lock) return;
+    const remoteTimestamp = String(sharedRecord?.fieldMeta?.[sharedField]?.updatedAt || sharedRecord?.updatedAt || "");
+    const lockTimestamp = String(lock.updatedAt || "");
+    const lockedValue = atlasCleanManualFieldLockValue(portfolioField, lock.value);
+    const projectedValue = atlasCleanManualFieldLockValue(portfolioField, next[portfolioField]);
+    if (remoteTimestamp && lockTimestamp && remoteTimestamp > lockTimestamp) {
+      clearAtlasSharedManualFieldLock(propName, portfolioField);
+      return;
+    }
+    if (remoteTimestamp && lockTimestamp && remoteTimestamp >= lockTimestamp && projectedValue === lockedValue) {
+      clearAtlasSharedManualFieldLock(propName, portfolioField);
+      return;
+    }
+    next[portfolioField] = lockedValue;
+    next.sharedSyncUpdatedAt = atlasLatestTimestamp(next.sharedSyncUpdatedAt, lockTimestamp);
+  });
+  return next;
 }
 
 function atlasMergeSharedFieldByTimestamp(target, remote, field, source, fallbackTimestamp) {
@@ -1836,6 +1938,8 @@ function atlasUpsertSharedProperty(graph, input = {}, options = {}) {
   const timestamp = String(options.timestamp || input.updatedAt || atlasSharedNow());
   const source = String(options.source || input.source || ATLAS_SHARED_PROPERTY_SOURCE_ID);
   const name = String(input.name || input.displayName || input.propertyName || "").trim();
+  const forceFields = new Set((Array.isArray(options.forceFields) ? options.forceFields : []).map(field => String(field || "").trim()).filter(Boolean));
+  const fieldOptions = field => (options.force || forceFields.has(field) ? { force: true } : undefined);
   const validation = validateAtlasSharedPropertyInput(input, options);
   validation.issues.forEach(issue => {
     if (issue.severity !== "error") atlasPushSharedIssue(graph, { source, severity: issue.severity, entity: name, message: issue.message });
@@ -1863,18 +1967,18 @@ function atlasUpsertSharedProperty(graph, input = {}, options = {}) {
   if (input.sourceIds?.portfolioName) record.sourceIds.portfolioName = String(input.sourceIds.portfolioName).trim();
   if (input.sourceIds?.marketingPropertyId) record.sourceIds.marketingPropertyId = String(input.sourceIds.marketingPropertyId).trim();
   record.sourceUpdatedAt = { ...atlasSharedObject(record.sourceUpdatedAt), [source]: timestamp };
-  atlasApplySharedField(record, "displayName", name, source, timestamp, auditFields);
+  atlasApplySharedField(record, "displayName", name, source, timestamp, auditFields, fieldOptions("displayName"));
   record.canonicalName = atlasNormalizeSharedText(record.displayName) || record.canonicalName;
-  atlasApplySharedField(record, "market", input.market || "", source, timestamp, auditFields);
-  atlasApplySharedField(record, "regionalGrouping", input.regionalGrouping || input.market || "", source, timestamp, auditFields);
-  atlasApplySharedField(record, "propertyType", input.propertyType || input.type || "", source, timestamp, auditFields);
-  atlasApplySharedField(record, "generalManagerName", input.generalManagerName || input.gm || "", source, timestamp, auditFields);
-  atlasApplySharedField(record, "generalManagerEmail", input.generalManagerEmail || input.gmEmail || "", source, timestamp, auditFields);
-  atlasApplySharedField(record, "regionalManagerName", input.regionalManagerName || input.regional || "", source, timestamp, auditFields);
-  atlasApplySharedField(record, "regionalManagerEmail", input.regionalManagerEmail || input.regionalEmail || "", source, timestamp, auditFields);
-  atlasApplySharedField(record, "status", input.status || "active", source, timestamp, auditFields);
-  atlasApplySharedField(record, "owningPortfolio", input.owningPortfolio || input.portfolio || "", source, timestamp, auditFields);
-  atlasApplySharedField(record, "scopeSelections", input.scopeSelections || [], source, timestamp, auditFields);
+  atlasApplySharedField(record, "market", input.market || "", source, timestamp, auditFields, fieldOptions("market"));
+  atlasApplySharedField(record, "regionalGrouping", input.regionalGrouping || input.market || "", source, timestamp, auditFields, fieldOptions("regionalGrouping"));
+  atlasApplySharedField(record, "propertyType", input.propertyType || input.type || "", source, timestamp, auditFields, fieldOptions("propertyType"));
+  atlasApplySharedField(record, "generalManagerName", input.generalManagerName || input.gm || "", source, timestamp, auditFields, fieldOptions("generalManagerName"));
+  atlasApplySharedField(record, "generalManagerEmail", input.generalManagerEmail || input.gmEmail || "", source, timestamp, auditFields, fieldOptions("generalManagerEmail"));
+  atlasApplySharedField(record, "regionalManagerName", input.regionalManagerName || input.regional || "", source, timestamp, auditFields, fieldOptions("regionalManagerName"));
+  atlasApplySharedField(record, "regionalManagerEmail", input.regionalManagerEmail || input.regionalEmail || "", source, timestamp, auditFields, fieldOptions("regionalManagerEmail"));
+  atlasApplySharedField(record, "status", input.status || "active", source, timestamp, auditFields, fieldOptions("status"));
+  atlasApplySharedField(record, "owningPortfolio", input.owningPortfolio || input.portfolio || "", source, timestamp, auditFields, fieldOptions("owningPortfolio"));
+  atlasApplySharedField(record, "scopeSelections", input.scopeSelections || [], source, timestamp, auditFields, fieldOptions("scopeSelections"));
   record.aliases = Array.from(new Set([
     ...(Array.isArray(record.aliases) ? record.aliases : []),
     name,
@@ -1888,7 +1992,7 @@ function atlasUpsertSharedProperty(graph, input = {}, options = {}) {
     userId: record.generalManagerUserId,
     sourceIds: { communityId, role: "general_manager" }
   }, { source, timestamp });
-  if (gmPerson.person?.personId) atlasApplySharedField(record, "generalManagerUserId", gmPerson.person.personId, source, timestamp, auditFields);
+  if (gmPerson.person?.personId) atlasApplySharedField(record, "generalManagerUserId", gmPerson.person.personId, source, timestamp, auditFields, fieldOptions("generalManagerUserId"));
   const regionalPerson = atlasUpsertSharedPerson(graph, {
     displayName: record.regionalManagerName,
     email: record.regionalManagerEmail,
@@ -1896,7 +2000,7 @@ function atlasUpsertSharedProperty(graph, input = {}, options = {}) {
     userId: record.regionalManagerUserId,
     sourceIds: { communityId, role: "regional_manager" }
   }, { source, timestamp });
-  if (regionalPerson.person?.personId) atlasApplySharedField(record, "regionalManagerUserId", regionalPerson.person.personId, source, timestamp, auditFields);
+  if (regionalPerson.person?.personId) atlasApplySharedField(record, "regionalManagerUserId", regionalPerson.person.personId, source, timestamp, auditFields, fieldOptions("regionalManagerUserId"));
   record.reviewFlags = validation.issues
     .filter(issue => issue.severity !== "error")
     .map(issue => issue.message)
@@ -1993,6 +2097,7 @@ function syncSharedPropertyFromPortfolioRecord(propName, record, options = {}) {
   }, {
     source: options.source || ATLAS_SHARED_PROPERTY_SOURCE_ID,
     timestamp,
+    forceFields: options.forceFields,
     strictMarket: true,
     strictPropertyType: true
   });
@@ -2107,7 +2212,8 @@ function applySharedPropertyGraphToPortfolio(options = {}) {
     if (!portfolioName) return;
     ensurePortfolioPropertyListEntry(portfolioName);
     const existing = normalizeSavedCommunityRecord(portfolioName, savedData[portfolioName]);
-    const projected = normalizeSavedCommunityRecord(portfolioName, atlasProjectSharedPropertyToCommunityRecord(record, existing));
+    const projectedInput = applyAtlasSharedManualFieldLocks(portfolioName, atlasProjectSharedPropertyToCommunityRecord(record, existing), record);
+    const projected = normalizeSavedCommunityRecord(portfolioName, projectedInput);
     if (JSON.stringify(savedData[portfolioName] || null) !== JSON.stringify(projected)) {
       savedData[portfolioName] = projected;
       changed = true;
@@ -4725,6 +4831,7 @@ const SHARED_COMMUNITY_ALIASES = {
   "beacon hall": "UTK - Beacon Hall",
   "beacon poplar hall": "UTK - Beacon Hall",
   "doro high rise": "Doro",
+  "flagler": "St Augustine",
   "gkp": "Glen Kernan Park",
   "glen kernan park gkp": "Glen Kernan Park",
   "maple hall njit": "NJIT - Maple Hall",
@@ -4734,6 +4841,7 @@ const SHARED_COMMUNITY_ALIASES = {
   "poplar hall": "UTK - Poplar Hall",
   "prosper on fayette": "Prosper On Fayette",
   "rise st augustine": "St Augustine",
+  "rise flagler": "St Augustine",
   "st augustine": "St Augustine",
   "st augustine fl": "St Augustine",
   "the preserve": "The Preserve at Tech",
@@ -23682,6 +23790,11 @@ function matchPropertyName(rawName, options = {}) {
   if (!cleaned) return fallbackToCurrent ? getProp().name : "";
   const normalized = normalizeCommunityLookupName(cleaned);
   const communities = getAllCommunityNames();
+  const aliasTarget = SHARED_COMMUNITY_ALIASES[normalized];
+  if (aliasTarget) {
+    const aliasExact = communities.find(name => normalizeCommunityLookupName(name) === normalizeCommunityLookupName(aliasTarget));
+    if (aliasExact) return aliasExact;
+  }
   const exact = communities.find(name => {
     const communityNorm = normalizeCommunityLookupName(name);
     return name.toLowerCase() === cleaned.toLowerCase() || (normalized && communityNorm === normalized);
@@ -23711,9 +23824,20 @@ function getPropertyRecordForApply(propName, options = {}) {
   return normalizeSavedCommunityRecord(propName, savedData[propName]);
 }
 
-function persistPortfolioCommunityRecord(propName, record) {
+function persistPortfolioCommunityRecord(propName, record, options = {}) {
   let normalized = normalizeSavedCommunityRecord(propName, record);
-  syncSharedPropertyFromPortfolioRecord(propName, normalized, { source: "portfolio_community_record_save", persist: true });
+  const timestamp = String(options.timestamp || atlasSharedNow());
+  const manualField = String(options.manualField || "").trim();
+  if (manualField) {
+    normalized.sharedSyncUpdatedAt = atlasLatestTimestamp(normalized.sharedSyncUpdatedAt, timestamp);
+    markAtlasSharedManualFieldLock(propName, manualField, normalized[manualField], timestamp);
+  }
+  syncSharedPropertyFromPortfolioRecord(propName, normalized, {
+    source: options.source || "portfolio_community_record_save",
+    persist: true,
+    timestamp,
+    forceFields: options.forceFields
+  });
   normalized = normalizeSavedCommunityRecord(propName, normalized);
   savedData[propName] = normalized;
   persistOpsPropertyCatalog();
@@ -23793,7 +23917,14 @@ function updatePortfolioCommunityField(propName, field, value) {
   } else {
     return;
   }
-  persistPortfolioCommunityRecord(propName, record);
+  const timestamp = atlasSharedNow();
+  const sharedField = ATLAS_PORTFOLIO_SHARED_FIELD_MAP[field] || "";
+  persistPortfolioCommunityRecord(propName, record, {
+    source: "portfolio_roster_manual_edit",
+    timestamp,
+    manualField: field,
+    forceFields: sharedField ? [sharedField] : []
+  });
 }
 
 function updatePortfolioCommunityMonthField(propName, monthIdx, targetKey, value) {

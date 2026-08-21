@@ -66,6 +66,18 @@
     });
   }
 
+  function appendParams(src, params) {
+    var separator = src.indexOf("?") >= 0 ? "&" : "?";
+    return src + separator + params;
+  }
+
+  function iframeSrc(key, mount) {
+    if (key === "people") {
+      return appendParams(mount.src, "atlasEmbedded=1&v=20260821-people-access");
+    }
+    return mount.src;
+  }
+
   /* Best-effort context line. Falls back silently so a change in the host
      dashboard's globals can never break the mount from rendering. */
   function contextMeta() {
@@ -98,6 +110,14 @@
     } catch (err) {
       accessPanel = "";
     }
+    var embeddedSrc = iframeSrc(key, m);
+    var openLink = key === "people"
+      ? ""
+      : [
+        '    <a class="atlas-mount-open" href="' + esc(m.src) + '" target="_blank" rel="noopener">',
+        '      <i class="ph ph-arrow-square-out" aria-hidden="true"></i>Open full screen',
+        "    </a>"
+      ].join("\n");
     return [
       '<div class="atlas-screen-head">',
       "  <div>",
@@ -109,9 +129,7 @@
       '<section class="atlas-mount-section" id="atlas-mount-' + esc(key) + '">',
       '  <div class="atlas-mount-head">',
       "    <h3>" + esc(m.title) + "</h3>",
-      '    <a class="atlas-mount-open" href="' + esc(m.src) + '" target="_blank" rel="noopener">',
-      '      <i class="ph ph-arrow-square-out" aria-hidden="true"></i>Open full screen',
-      "    </a>",
+      openLink,
       "  </div>",
       '  <div class="atlas-mount-note">' + esc(m.note) + "</div>",
       '  <div class="atlas-mount-frame">',
@@ -121,7 +139,7 @@
       '      <span class="atlas-mount-bar-sub">' + esc(m.barSub) + "</span>",
       meta ? '      <span class="atlas-mount-bar-meta">' + esc(meta) + "</span>" : "",
       "    </div>",
-      '    <iframe src="' + esc(m.src) + '" title="' + esc(m.barTitle) + '"',
+      '    <iframe src="' + esc(embeddedSrc) + '" title="' + esc(m.barTitle) + '"',
       '            loading="lazy" style="background:' + esc(m.background) + '"></iframe>',
       "  </div>",
       "</section>"

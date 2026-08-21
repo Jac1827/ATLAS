@@ -12,7 +12,7 @@
   const DEFAULT_CONFIG = {
     enabled: true,
     provider: "supabase-postgres",
-    appBaseUrl: "",
+    appBaseUrl: "https://jac1827.github.io/ATLAS/portfolio-operations-dashboard/index.html",
     apiBaseUrl: "",
     supabaseUrl: "https://rmyhmvjcswfwaracgriy.supabase.co",
     supabaseAnonKey: "sb_publishable_2DEqeCNZFn6sNeVrSEfW8A_EI6tRb_1",
@@ -50,7 +50,7 @@
     const config = { ...DEFAULT_CONFIG, ...raw };
     config.enabled = DEFAULT_CONFIG.enabled || Boolean(config.enabled);
     config.provider = String(config.provider || DEFAULT_CONFIG.provider).trim();
-    config.appBaseUrl = trimTrailingSlash(config.appBaseUrl);
+    config.appBaseUrl = trimTrailingSlash(config.appBaseUrl || DEFAULT_CONFIG.appBaseUrl);
     config.apiBaseUrl = trimTrailingSlash(config.apiBaseUrl);
     config.supabaseUrl = trimTrailingSlash(config.supabaseUrl || DEFAULT_CONFIG.supabaseUrl);
     config.supabaseAnonKey = String(config.supabaseAnonKey || DEFAULT_CONFIG.supabaseAnonKey || "").trim();
@@ -184,6 +184,26 @@
     return `${config.supabaseUrl}/auth/v1${path}`;
   }
 
+  function isLocalBrowserUrl(value) {
+    return /^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::|\/|$)/i.test(String(value || "").trim());
+  }
+
+  function currentPageAuthUrl() {
+    const current = trimTrailingSlash(window.location?.href?.split("#")[0] || "");
+    return current && !isLocalBrowserUrl(current) ? current : "";
+  }
+
+  function authRedirectUrl(config = getConfig()) {
+    return currentPageAuthUrl() || config.appBaseUrl || DEFAULT_CONFIG.appBaseUrl || "";
+  }
+
+  function withRedirectTo(path, redirectTo) {
+    const url = String(redirectTo || "").trim();
+    if (!url) return path;
+    const separator = path.includes("?") ? "&" : "?";
+    return `${path}${separator}redirect_to=${encodeURIComponent(url)}`;
+  }
+
   function restUrl(path) {
     const config = requireConfigured();
     if (hasDatabaseConfig(config)) return `${config.supabaseUrl}/rest/v1${path}`;
@@ -259,8 +279,8 @@
     const cleanEmail = String(email || "").trim().toLowerCase();
     if (!isEmailAllowed(cleanEmail, config)) throw new Error("This email domain is not approved for Atlas.");
     if (!cleanEmail) throw new Error("Email is required.");
-    const redirectTo = window.location?.href?.split("#")[0] || config.appBaseUrl || undefined;
-    return request(authUrl("/otp"), {
+    const redirectTo = authRedirectUrl(config);
+    return request(authUrl(withRedirectTo("/otp", redirectTo)), {
       method: "POST",
       auth: false,
       body: JSON.stringify({
@@ -346,13 +366,15 @@
     const cleanEmail = String(email || "").trim().toLowerCase();
     if (!isEmailAllowed(cleanEmail, config)) throw new Error("This email domain is not approved for Atlas.");
     if (!password || String(password).length < 8) throw new Error("Use a password with at least 8 characters.");
-    const payload = await request(authUrl("/signup"), {
+    const redirectTo = authRedirectUrl(config);
+    const payload = await request(authUrl(withRedirectTo("/signup", redirectTo)), {
       method: "POST",
       auth: false,
       body: JSON.stringify({
         email: cleanEmail,
         password,
-        data: { display_name: String(displayName || "").trim() }
+        data: { display_name: String(displayName || "").trim() },
+        ...(redirectTo ? { email_redirect_to: redirectTo } : {})
       })
     });
     if (payload?.access_token) {
@@ -603,6 +625,7 @@
     fetchJson,
     rpc,
     sendMagicLink,
+    authRedirectUrl,
     signInWithPassword,
     signUpWithPassword,
     signOut,

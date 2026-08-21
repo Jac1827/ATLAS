@@ -10,6 +10,7 @@
 window.ATLAS_CENTRAL_CONFIG = {
   enabled: true,
   provider: "supabase-postgres",
+  appBaseUrl: "https://jac1827.github.io/ATLAS/portfolio-operations-dashboard/index.html",
   supabaseUrl: "https://rmyhmvjcswfwaracgriy.supabase.co",
   supabaseAnonKey: "sb_publishable_2DEqeCNZFn6sNeVrSEfW8A_EI6tRb_1",
   documentKey: "atlas_dashboard_state_v1",
@@ -17,5 +18,5 @@ window.ATLAS_CENTRAL_CONFIG = {
   autosave: false,
   autoPullOnStartup: false,
   allowMagicLinkSignup: false,
-  allowedEmailDomains: ["riseresidential.com"]
+  allowedEmailDomains: ["risere.com", "riseresidential.com"]
 };

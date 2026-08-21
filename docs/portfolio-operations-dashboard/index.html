@@ -12422,6 +12422,7 @@ function saveAtlasCentralRuntimeConfigFromPanel() {
     alert("Central client is not loaded.");
     return;
   }
+  const appBaseUrl = getAtlasCentralInputValue("atlas-central-app-url");
   const supabaseUrl = getAtlasCentralInputValue("atlas-central-url");
   const supabaseAnonKey = getAtlasCentralInputValue("atlas-central-anon-key");
   const documentKey = getAtlasCentralInputValue("atlas-central-document-key") || "atlas_dashboard_state_v1";
@@ -12433,6 +12434,10 @@ function saveAtlasCentralRuntimeConfigFromPanel() {
     alert("Enter the hosted Supabase URL and public publishable or anon key before enabling central Atlas.");
     return;
   }
+  if (appBaseUrl && /^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::|\/|$)/i.test(appBaseUrl)) {
+    alert("Use the hosted ATLAS page URL here. Localhost links only work on the machine running the test server.");
+    return;
+  }
   const autosaveRequested = getAtlasCentralInputChecked("atlas-central-autosave");
   if (autosaveRequested && !atlasCentralAutosaveGateSatisfied()) {
     alert("Central autosave stays locked until the read-only snapshot is uploaded, reconciliation is reviewed, and rollback snapshot testing is complete.");
@@ -12440,6 +12445,7 @@ function saveAtlasCentralRuntimeConfigFromPanel() {
   }
   window.ATLAS_CENTRAL.saveLocalConfig({
     enabled: true,
+    appBaseUrl,
     supabaseUrl,
     supabaseAnonKey,
     documentKey,
@@ -12879,7 +12885,9 @@ async function copyAtlasAccessSetupInstructions() {
     alert("Enter an employee email first.");
     return;
   }
-  const url = window.location.href.split("#")[0];
+  const config = window.ATLAS_CENTRAL?.getConfig ? window.ATLAS_CENTRAL.getConfig() : {};
+  const authUrl = window.ATLAS_CENTRAL?.authRedirectUrl ? window.ATLAS_CENTRAL.authRedirectUrl(config) : "";
+  const url = authUrl || config.appBaseUrl || window.location.href.split("#")[0];
   const message = `Your ATLAS access has been prepared for ${email}.\n\nOpen ${url}, enter your email, create a password with the Create Account button, then sign in. ATLAS will apply your employee role and page/property access automatically after login.`;
   try {
     await navigator.clipboard.writeText(message);
@@ -13014,6 +13022,8 @@ function renderAtlasCentralPlatformPanel() {
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-bottom:10px">
       <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">
         <div class="card-title" style="font-size:0.72rem;margin-bottom:8px">Hosted Database</div>
+        <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">ATLAS app URL</label>
+        <input id="atlas-central-app-url" type="url" value="${escapeHtml(config.appBaseUrl || "")}" placeholder="https://jac1827.github.io/ATLAS/portfolio-operations-dashboard/index.html" style="margin:5px 0 8px">
         <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Supabase URL</label>
         <input id="atlas-central-url" type="url" value="${escapeHtml(config.supabaseUrl || "")}" placeholder="https://project.supabase.co" style="margin:5px 0 8px">
         <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Public publishable / anon key</label>

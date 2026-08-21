@@ -11333,6 +11333,7 @@ function loadAtlasCentralRuntimeMeta() {
 }
 
 let atlasCentralRuntimeMeta = loadAtlasCentralRuntimeMeta();
+let atlasCentralSnapshotUploadInProgress = false;
 
 function persistAtlasCentralRuntimeMeta() {
   try { localStorage.setItem(ATLAS_CENTRAL_RUNTIME_META_KEY, JSON.stringify(atlasCentralRuntimeMeta)); } catch {}
@@ -11754,6 +11755,92 @@ async function collectAtlasCentralMigrationSnapshot() {
       community: getProp().name,
       record: cloneAtlasMigrationPayload(getCurrentCommunityRecord())
     }
+  };
+}
+
+function summarizeAtlasMigrationPayloadShape(value) {
+  if (Array.isArray(value)) {
+    return { type: "array", itemCount: value.length };
+  }
+  if (value && typeof value === "object") {
+    const keys = Object.keys(value);
+    return { type: "object", keyCount: keys.length, sampleKeys: keys.slice(0, 30) };
+  }
+  return { type: value === null ? "null" : typeof value };
+}
+
+function countAtlasSnapshotCommunityEntries(value) {
+  if (!value || typeof value !== "object") return 0;
+  if (value.communityData && typeof value.communityData === "object") return Object.keys(value.communityData).length;
+  if (value.data?.communityData && typeof value.data.communityData === "object") return Object.keys(value.data.communityData).length;
+  if (value.data && typeof value.data === "object") return Object.keys(value.data).length;
+  return 0;
+}
+
+function buildAtlasCentralUploadSnapshot(snapshot = {}) {
+  const storageEntries = {};
+  Object.entries(snapshot.storageEntries || {}).forEach(([key, entry]) => {
+    storageEntries[key] = {
+      present: Boolean(entry?.present),
+      sha256: String(entry?.sha256 || ""),
+      valueLength: typeof entry?.value === "string" ? entry.value.length : 0,
+      redactedFields: Array.isArray(entry?.redactedFields) ? entry.redactedFields : [],
+      parsedSummary: summarizeAtlasMigrationPayloadShape(entry?.parsed)
+    };
+  });
+  const indexedDb = snapshot.indexedDb && typeof snapshot.indexedDb === "object" ? snapshot.indexedDb : {};
+  const communityData = indexedDb.communityData && typeof indexedDb.communityData === "object" ? indexedDb.communityData : {};
+  const dailyBackups = indexedDb.dailyBackups && typeof indexedDb.dailyBackups === "object" ? indexedDb.dailyBackups : {};
+  const dailyBackupIndex = Array.isArray(indexedDb.dailyBackupIndex) ? indexedDb.dailyBackupIndex.filter(Boolean) : Object.keys(dailyBackups);
+  const dailyBackupSummary = {};
+  dailyBackupIndex.forEach(dateKey => {
+    const backup = dailyBackups[dateKey];
+    dailyBackupSummary[dateKey] = {
+      present: Boolean(backup),
+      savedAt: String(backup?.savedAt || ""),
+      reason: String(backup?.reason || ""),
+      schema: String(backup?.schema || ""),
+      communityCount: countAtlasSnapshotCommunityEntries(backup)
+    };
+  });
+  const sharedData = snapshot.sharedData && typeof snapshot.sharedData === "object" ? snapshot.sharedData : {};
+  return {
+    app: snapshot.app || "atlas-rise-ops-dashboard",
+    snapshotType: snapshot.snapshotType || "atlas_central_migration_read_only_snapshot_v1",
+    uploadType: "atlas_central_read_only_manifest_v1",
+    generatedAt: snapshot.generatedAt || new Date().toISOString(),
+    manifestGeneratedAt: new Date().toISOString(),
+    centralStatus: snapshot.centralStatus || {},
+    readOnly: true,
+    migrationSafety: snapshot.migrationSafety || {},
+    sourceInventory: snapshot.sourceInventory || {},
+    reconciliation: snapshot.reconciliation || {},
+    exceptions: Array.isArray(snapshot.exceptions) ? snapshot.exceptions : [],
+    storageEntries,
+    indexedDbSummary: {
+      communityCount: Object.keys(communityData).length,
+      communityNames: Object.keys(communityData),
+      weeklySnapshotPresent: Boolean(indexedDb.weeklySnapshot),
+      dailyBackupCount: dailyBackupIndex.length,
+      dailyBackupIndex,
+      dailyBackups: dailyBackupSummary
+    },
+    sharedDataSummary: {
+      schemaVersion: sharedData.schemaVersion || null,
+      employeeCount: Object.keys(sharedData.employees || {}).length,
+      assignmentCount: Array.isArray(sharedData.assignments) ? sharedData.assignments.length : 0,
+      currentAssignmentCount: Array.isArray(sharedData.assignments) ? sharedData.assignments.filter(assignment => !assignment.effectiveEnd).length : 0,
+      migrationBatchCount: Array.isArray(sharedData.migrationBatches) ? sharedData.migrationBatches.length : 0,
+      marketingBonusSnapshotCount: Array.isArray(sharedData.marketingBonusSnapshots) ? sharedData.marketingBonusSnapshots.length : 0,
+      validationIssueCount: Array.isArray(sharedData.validationIssues) ? sharedData.validationIssues.length : 0,
+      lastPeopleSyncAt: String(sharedData.lastPeopleSyncAt || ""),
+      lastPeopleSource: String(sharedData.lastPeopleSource || "")
+    },
+    currentWorkspaceDraftSummary: {
+      community: String(snapshot.currentWorkspaceDraft?.community || ""),
+      recordSummary: summarizeAtlasMigrationPayloadShape(snapshot.currentWorkspaceDraft?.record)
+    },
+    fullBrowserSnapshotNote: "The central database stores this read-only manifest, hashes, and reconciliation counts. Use Export Snapshot JSON or Test Rollback Snapshot for a full local rollback file."
   };
 }
 
@@ -12688,18 +12775,30 @@ async function pullAtlasCentralAppState({ silent = false } = {}) {
 }
 
 async function uploadAtlasCentralMigrationSnapshot({ silent = false } = {}) {
+  if (atlasCentralSnapshotUploadInProgress) {
+    if (!silent) alert("Snapshot upload is already running. Wait for the status message before clicking again.");
+    return false;
+  }
+  atlasCentralSnapshotUploadInProgress = true;
   try {
     const access = atlasCentralCanUseDatabase();
     if (!access.ok) throw new Error(access.message);
+    setAtlasCentralRuntimeMessage("Preparing read-only migration snapshot. This can take a moment with browser backups.");
+    renderTab();
+    await new Promise(resolve => setTimeout(resolve, 40));
     const snapshot = await collectAtlasCentralMigrationSnapshot();
-    const result = await window.ATLAS_CENTRAL.uploadReadOnlySnapshot(snapshot, {
+    const uploadSnapshot = buildAtlasCentralUploadSnapshot(snapshot);
+    setAtlasCentralRuntimeMessage(`Snapshot prepared. Uploading central manifest for ${uploadSnapshot.reconciliation?.recordCounts?.communities || 0} communities and ${uploadSnapshot.indexedDbSummary.dailyBackupCount || 0} daily backups.`);
+    renderTab();
+    await new Promise(resolve => setTimeout(resolve, 40));
+    const result = await window.ATLAS_CENTRAL.uploadReadOnlySnapshot(uploadSnapshot, {
       phase: "phase_3_runtime_snapshot",
       sourceModule: "atlas_browser",
       sourceLabel: "Atlas Phase 3 runtime snapshot"
     });
     atlasCentralRuntimeMeta.lastSnapshotUploadedAt = new Date().toISOString();
-    setAtlasCentralRuntimeMessage(`Read-only migration snapshot uploaded. Hash ${result.sourceHash.slice(0, 12)}.`);
-    if (!silent) alert("Read-only migration snapshot uploaded to central Atlas. No mapped rows were promoted.");
+    setAtlasCentralRuntimeMessage(`Read-only migration snapshot manifest uploaded. Hash ${result.sourceHash.slice(0, 12)}. Use Export Snapshot JSON for the full local rollback file.`);
+    if (!silent) alert("Read-only migration snapshot manifest uploaded to central Atlas. No mapped rows were promoted.");
     renderTab();
     return true;
   } catch (error) {
@@ -12707,6 +12806,9 @@ async function uploadAtlasCentralMigrationSnapshot({ silent = false } = {}) {
     if (!silent) alert(`Central snapshot upload failed: ${error?.message || error}`);
     renderTab();
     return false;
+  } finally {
+    atlasCentralSnapshotUploadInProgress = false;
+    renderTab();
   }
 }
 
@@ -13067,7 +13169,7 @@ function renderAtlasCentralPlatformPanel() {
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-blue btn-sm" onclick="saveAtlasCentralAppState({ silent:false, source:'manual_central_save' })" ${status.signedIn ? "" : "disabled"}>Save Current State To Central</button>
           <button class="btn btn-gray btn-sm" onclick="pullAtlasCentralAppState({ silent:false })" ${status.signedIn ? "" : "disabled"}>Pull Central State</button>
-          <button class="btn btn-gray btn-sm" onclick="uploadAtlasCentralMigrationSnapshot({ silent:false })" ${status.signedIn ? "" : "disabled"}>Upload Read-Only Snapshot</button>
+          <button class="btn btn-gray btn-sm" onclick="uploadAtlasCentralMigrationSnapshot({ silent:false })" ${status.signedIn && !atlasCentralSnapshotUploadInProgress ? "" : "disabled"}>${atlasCentralSnapshotUploadInProgress ? "Uploading Snapshot..." : "Upload Read-Only Snapshot"}</button>
           <button class="btn btn-gray btn-sm" onclick="downloadAtlasCentralMigrationSnapshot()">Export Snapshot JSON</button>
           <button class="btn btn-gray btn-sm" onclick="markAtlasCentralReconciliationReviewed()">Mark Reconciliation Reviewed</button>
           <button class="btn btn-gray btn-sm" onclick="testAtlasCentralRollbackSnapshot()">Test Rollback Snapshot</button>

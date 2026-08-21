@@ -12819,8 +12819,9 @@ async function uploadAtlasCentralMigrationSnapshot({ silent = false } = {}) {
       sourceLabel: "Atlas Phase 3 runtime snapshot"
     });
     atlasCentralRuntimeMeta.lastSnapshotUploadedAt = new Date().toISOString();
-    setAtlasCentralRuntimeMessage(`Read-only migration snapshot manifest uploaded. Hash ${result.sourceHash.slice(0, 12)}. Use Export Snapshot JSON for the full local rollback file.`);
-    if (!silent) alert("Read-only migration snapshot manifest uploaded to central Atlas. No mapped rows were promoted.");
+    const fallbackNote = result?.fallback ? " via browser fallback" : "";
+    setAtlasCentralRuntimeMessage(`Read-only migration snapshot manifest uploaded${fallbackNote}. Hash ${result.sourceHash.slice(0, 12)}. Use Export Snapshot JSON for the full local rollback file.`);
+    if (!silent) alert(`Read-only migration snapshot manifest uploaded${fallbackNote} to central Atlas. No mapped rows were promoted.`);
     renderTab();
     return true;
   } catch (error) {

@@ -493,7 +493,7 @@ stable
 security definer
 set search_path = public
 as $$
-  select coalesce((select role from atlas_user_profiles where user_id = auth.uid() and status = 'active'), 'anonymous');
+  select coalesce((select aup.role from atlas_user_profiles aup where aup.user_id = auth.uid() and aup.status = 'active'), 'anonymous');
 $$;
 
 create or replace function atlas_can_write(required_roles text[])
@@ -525,9 +525,9 @@ set search_path = public
 as $$
   select coalesce((
     select allowed_community_ids
-    from atlas_user_profiles
-    where user_id = auth.uid()
-      and status = 'active'
+    from atlas_user_profiles aup
+    where aup.user_id = auth.uid()
+      and aup.status = 'active'
   ), '{}'::uuid[]);
 $$;
 
@@ -576,9 +576,9 @@ begin
 
   if exists (
     select 1
-    from atlas_user_profiles
-    where role = 'admin'
-      and status = 'active'
+    from atlas_user_profiles aup
+    where aup.role = 'admin'
+      and aup.status = 'active'
   ) then
     raise exception 'An active Atlas admin already exists.' using errcode = '42501';
   end if;
@@ -1979,9 +1979,9 @@ begin
 
   if exists (
     select 1
-    from atlas_user_profiles
-    where role = 'admin'
-      and status = 'active'
+    from atlas_user_profiles aup
+    where aup.role = 'admin'
+      and aup.status = 'active'
   ) then
     raise exception 'An active Atlas admin already exists.' using errcode = '42501';
   end if;
@@ -2050,10 +2050,10 @@ begin
 
   select *
   into v_invite
-  from atlas_user_access_invites
-  where lower(email) = v_email
-    and status in ('pending','active')
-  order by updated_at desc
+  from atlas_user_access_invites aui
+  where lower(aui.email) = v_email
+    and aui.status in ('pending','active')
+  order by aui.updated_at desc
   limit 1;
 
   if v_invite.invite_id is null then
@@ -2096,12 +2096,12 @@ begin
         updated_at = now()
   returning * into v_profile;
 
-  update atlas_user_access_invites
+  update atlas_user_access_invites aui
   set status = 'active',
       claimed_user_id = v_user_id,
-      claimed_at = coalesce(claimed_at, now()),
+      claimed_at = coalesce(aui.claimed_at, now()),
       updated_at = now()
-  where invite_id = v_invite.invite_id;
+  where aui.invite_id = v_invite.invite_id;
 
   insert into atlas_audit_log(actor_user_id, action, entity_table, entity_id, source_module, before_payload, after_payload, metadata)
   values (v_user_id, 'access_invite_claimed', 'atlas_user_profiles', v_profile.user_id::text, 'user_access', to_jsonb(v_invite), to_jsonb(v_profile), jsonb_build_object('invite_id', v_invite.invite_id));
@@ -2153,11 +2153,11 @@ begin
     raise exception 'Invalid Atlas access status.' using errcode = '22023';
   end if;
 
-  select id
+  select u.id
   into v_user_id
-  from auth.users
-  where lower(email) = v_email
-  order by created_at desc
+  from auth.users u
+  where lower(u.email) = v_email
+  order by u.created_at desc
   limit 1;
 
   insert into atlas_user_access_invites(
@@ -2271,9 +2271,9 @@ begin
 
   select *
   into v_profile
-  from atlas_user_profiles
-  where user_id = auth.uid()
-    and status = 'active';
+  from atlas_user_profiles aup
+  where aup.user_id = auth.uid()
+    and aup.status = 'active';
 
   if v_profile.user_id is null then
     raise exception 'An active Atlas user profile is required for live presence.' using errcode = '42501';

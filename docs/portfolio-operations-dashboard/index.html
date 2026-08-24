@@ -14113,7 +14113,7 @@ async function downloadAtlasSettingsMemoryBundle() {
 
 function renderAtlasSettingsSetupPanel() {
   const details = buildPortfolioDetailsForMonth(getSelectedDashboardMonthIndex());
-  const activeCount = details.filter(detail => String(detail.record?.status || "").trim().toLowerCase() !== "inactive").length;
+  const activeCount = details.filter(detail => isCommunityStatusActive(detail.record)).length;
   const addressCount = details.filter(detail => String(detail.record?.address || "").trim()).length;
   const floorPlanCount = details.reduce((sum, detail) => sum + (Array.isArray(detail.record?.communityFloorPlans) ? detail.record.communityFloorPlans.length : 0), 0);
   const investorCount = details.filter(detail => normalizeInvestorEmailContacts(detail.record?.investorEmailContacts).length > 0).length;
@@ -14291,6 +14291,7 @@ function mergeMonthlyHistoryByPeriod(baseHistory, incomingHistory) {
 }
 
 function mergeDashboardCommunityRecord(baseRecord, incomingRecord, name) {
+  const incomingRaw = incomingRecord && typeof incomingRecord === "object" ? incomingRecord : {};
   const base = normalizeSavedCommunityRecord(name, baseRecord);
   const incoming = normalizeSavedCommunityRecord(name, incomingRecord);
   const mergedMonthlyData = mergeDashboardMonthlyData(base.monthlyData, incoming.monthlyData);
@@ -14316,7 +14317,7 @@ function mergeDashboardCommunityRecord(baseRecord, incomingRecord, name) {
     ...(base.importTracking || {}),
     ...(incoming.importTracking || {})
   });
-  return {
+  const merged = {
     ...base,
     ...incoming,
     monthlyData: nextMonthlyData,
@@ -14344,6 +14345,10 @@ function mergeDashboardCommunityRecord(baseRecord, incomingRecord, name) {
     },
     latestDlrSummary: Object.keys(incoming.latestDlrSummary || {}).length > 0 ? incoming.latestDlrSummary : base.latestDlrSummary
   };
+  if (!Object.prototype.hasOwnProperty.call(incomingRaw, "communityStatus") && !Object.prototype.hasOwnProperty.call(incomingRaw, "status")) {
+    merged.communityStatus = base.communityStatus;
+  }
+  return merged;
 }
 
 function mergeDashboardCommunityDataMaps(baseMap, incomingMap) {

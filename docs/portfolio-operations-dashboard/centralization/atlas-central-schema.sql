@@ -2302,7 +2302,7 @@ begin
     now(),
     now()
   )
-  on conflict (session_id) do update
+  on conflict on constraint atlas_live_sessions_pkey do update
     set email = excluded.email,
         display_name = excluded.display_name,
         role = excluded.role,
@@ -2331,9 +2331,9 @@ begin
   if auth.uid() is null then
     return false;
   end if;
-  delete from atlas_live_sessions
-  where session_id = p_session_id
-    and user_id = auth.uid();
+  delete from atlas_live_sessions als
+  where als.session_id = p_session_id
+    and als.user_id = auth.uid();
   return true;
 end;
 $$;

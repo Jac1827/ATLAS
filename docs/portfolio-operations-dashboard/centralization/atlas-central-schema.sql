@@ -2240,7 +2240,7 @@ begin
     v_user_id,
     case when v_user_id is null then null else now() end
   )
-  on conflict (email) do update
+  on conflict on constraint atlas_user_access_invites_email_key do update
     set employee_id = excluded.employee_id,
         display_name = excluded.display_name,
         role = excluded.role,

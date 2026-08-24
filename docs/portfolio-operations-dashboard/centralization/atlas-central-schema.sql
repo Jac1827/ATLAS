@@ -2141,11 +2141,11 @@ begin
     raise exception 'Authentication is required before updating the Atlas profile.' using errcode = '28000';
   end if;
 
-  update atlas_user_profiles
-  set display_name = coalesce(nullif(trim(p_display_name), ''), display_name),
+  update atlas_user_profiles aup
+  set display_name = coalesce(nullif(trim(p_display_name), ''), aup.display_name),
       profile_image_url = nullif(trim(coalesce(p_profile_image_url, '')), ''),
       updated_at = now()
-  where user_id = v_user_id
+  where aup.user_id = v_user_id
   returning * into v_profile;
 
   if v_profile.user_id is null then

@@ -914,6 +914,7 @@
         <button class="tab" data-tab="13" onclick="setTab(13)" aria-label="People"><i class="tab-icon ph ph-users-three" aria-hidden="true"></i><span class="tab-label">People</span></button>
 
         <div class="nav-group-label">Output</div>
+        <button class="tab" data-tab="14" onclick="setTab(14)" aria-label="ATLAS Settings"><i class="tab-icon ph ph-sliders-horizontal" aria-hidden="true"></i><span class="tab-label">ATLAS Settings</span></button>
         <button class="tab" data-tab="8" onclick="setTab(8)" aria-label="Reports and Presentations"><i class="tab-icon ph ph-presentation-chart" aria-hidden="true"></i><span class="tab-label">Reports &amp; Presentations</span></button>
         <button class="tab" data-tab="7" onclick="setTab(7)" aria-label="Data Import"><i class="tab-icon ph ph-download-simple" aria-hidden="true"></i><span class="tab-label">Data Import</span></button>
       </div>
@@ -1000,6 +1001,7 @@
   <div id="tab-panel-11" class="tab-panel" style="display:none"></div>
   <div id="tab-panel-12" class="tab-panel" style="display:none"></div>
   <div id="tab-panel-13" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-14" class="tab-panel" style="display:none"></div>
 
     </main>
   </div>
@@ -11183,7 +11185,8 @@ function renderTab() {
     window.renderMaintenanceTab,
     window.renderMarketingTab,
     window.renderBudgetBuilderTab,
-    window.renderPeopleTab
+    window.renderPeopleTab,
+    renderAtlasSettingsTab
   ];
   if (activeTab >= renderers.length) activeTab = renderers.length - 1;
   const panel = document.getElementById(`tab-panel-${activeTab}`);
@@ -11427,7 +11430,8 @@ const ATLAS_ACCESS_TABS = [
   { id: "10", label: "Maintenance", key: "maintenance" },
   { id: "11", label: "Marketing", key: "marketing" },
   { id: "12", label: "Budget Builder", key: "budget" },
-  { id: "13", label: "People", key: "people" }
+  { id: "13", label: "People", key: "people" },
+  { id: "14", label: "ATLAS Settings", key: "atlas_settings" }
 ];
 
 const ATLAS_ACCESS_ROLE_TABS = {
@@ -12370,8 +12374,12 @@ function setAtlasAccessFormDraft(nextDraft = {}) {
   return atlasAccessFormDraft;
 }
 
+function getAtlasAdminAccessPanelHost() {
+  return document.getElementById("atlas-settings-access-panel") || document.getElementById("atlas-people-access-panel");
+}
+
 function atlasPeopleAccessPanelIsInteracting() {
-  const host = document.getElementById("atlas-people-access-panel");
+  const host = getAtlasAdminAccessPanelHost();
   const active = document.activeElement;
   if (!host || !active) return false;
   return host.contains(active) && ["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(active.tagName);
@@ -12442,7 +12450,7 @@ function applyAtlasAccessFormDraftToPanel() {
 }
 
 function refreshAtlasPeopleAccessPanel({ deferWhileInteracting = false } = {}) {
-  const host = document.getElementById("atlas-people-access-panel");
+  const host = getAtlasAdminAccessPanelHost();
   if (!host || typeof window.renderAtlasEmployeeAccessPanel !== "function") return false;
   if (deferWhileInteracting && atlasPeopleAccessPanelIsInteracting()) {
     if (atlasAccessPanelRefreshTimer) clearTimeout(atlasAccessPanelRefreshTimer);
@@ -12570,7 +12578,7 @@ function removeAtlasCurrentProfileImage() {
 
 function atlasAccessCurrentRoleAllowsTab(profile, tabId = activeTab) {
   const role = String(profile?.role || "").trim();
-  if (role === "admin") return true;
+  if (role === "admin" || role === "centra") return true;
   const allowedTabs = ATLAS_ACCESS_ROLE_TABS[role] || [];
   return allowedTabs.includes(String(tabId));
 }
@@ -12590,7 +12598,7 @@ function getAtlasSharedPropertyByName(name = "") {
 function atlasAccessProfileCanUseCurrentScope(profile = getAtlasAccessProfile()) {
   if (!profile || String(profile.status || "") !== "active") return { ok: false, reason: "This ATLAS account is not active." };
   const role = String(profile.role || "");
-  if (role === "admin" || isPortfolioWorkspaceSelected()) return { ok: true };
+  if (role === "admin" || role === "centra" || isPortfolioWorkspaceSelected()) return { ok: true };
   const property = getAtlasSharedPropertyByName(getProp().name);
   if (!property) return { ok: true };
   const allowedCommunityIds = normalizeAtlasAccessList(profile.allowed_community_ids);
@@ -12611,10 +12619,10 @@ function atlasAccessProfileCanUseCurrentScope(profile = getAtlasAccessProfile())
 function atlasAccessDecision(tabId = activeTab) {
   const status = getAtlasCentralStatus();
   if (!status.configured) return { ok: true };
-  if (!status.signedIn) return { ok: String(tabId) === "7", reason: "Sign in before viewing shared ATLAS data." };
+  if (!status.signedIn) return { ok: ["7", "14"].includes(String(tabId)), reason: "Sign in before viewing shared ATLAS data." };
   const profile = getAtlasAccessProfile();
-  if (!profile) return { ok: String(tabId) === "7", reason: "This login does not have an active ATLAS access profile yet." };
-  if (String(profile.status || "") !== "active") return { ok: String(tabId) === "7", reason: `This ATLAS account is ${profile.status || "not active"}.` };
+  if (!profile) return { ok: ["7", "14"].includes(String(tabId)), reason: "This login does not have an active ATLAS access profile yet." };
+  if (String(profile.status || "") !== "active") return { ok: ["7", "14"].includes(String(tabId)), reason: `This ATLAS account is ${profile.status || "not active"}.` };
   const tab = getAtlasAccessTab(tabId);
   const lockedTabs = normalizeAtlasAccessList(profile.locked_tab_ids);
   const lockedPages = normalizeAtlasAccessList(profile.locked_page_keys);
@@ -12636,7 +12644,7 @@ function renderAtlasAccessDeniedPanel(reason = "") {
   return `<div class="card mb4">
     <div class="card-title" style="margin-bottom:8px">${escapeHtml(tab.label)}</div>
     <div class="alert-red">${escapeHtml(reason || "This section is not available to your ATLAS account.")}</div>
-    <div style="font-size:0.72rem;color:var(--muted);line-height:1.55;margin-top:10px">Ask an ATLAS admin to adjust your employee role, property, region, or page access from the People tab.</div>
+    <div style="font-size:0.72rem;color:var(--muted);line-height:1.55;margin-top:10px">Ask an ATLAS admin to adjust your employee role, property, region, or page access from ATLAS Settings.</div>
   </div>`;
 }
 
@@ -12814,10 +12822,15 @@ function atlasCentralLegacyBundleDisabled() {
   return Boolean(status.configured && atlasCentralRuntimeMeta.legacyBundleDisabledAt);
 }
 
+function atlasProfileCanManageSettings(profile = getAtlasAccessProfile()) {
+  const role = String(profile?.role || "").trim().toLowerCase();
+  return role === "admin" || role === "centra";
+}
+
 function shouldBlockAtlasSensitiveAccess() {
   const status = getAtlasCentralStatus();
   if (!status.configured || status.signedIn) return false;
-  return activeTab !== 7;
+  return !["7", "14"].includes(String(activeTab));
 }
 
 function renderAtlasCentralLoginRequiredPanel() {
@@ -12825,8 +12838,8 @@ function renderAtlasCentralLoginRequiredPanel() {
   return `<div class="card mb4">
     <div class="card-title" style="margin-bottom:8px">Atlas Sign-In Required</div>
     <div class="alert-red">Central Atlas is enabled for this browser. Sign in before viewing shared People, Bonus, Marketing, Maintenance, Finance, Operations, Portfolio Planning, or reporting data.</div>
-    <div style="font-size:0.72rem;color:var(--muted);line-height:1.55;margin:10px 0">Open Data Import to use Central Platform Control. This protects sensitive Atlas records from loading anonymously while still allowing an admin to manage the connection.</div>
-    <button class="btn btn-blue btn-sm" onclick="setTab(7)">Open Central Platform Control</button>
+    <div style="font-size:0.72rem;color:var(--muted);line-height:1.55;margin:10px 0">Open ATLAS Settings to use Central Platform Control. This protects sensitive Atlas records from loading anonymously while still allowing an admin to manage the connection.</div>
+    <button class="btn btn-blue btn-sm" onclick="setTab(14)">Open ATLAS Settings</button>
     <div style="font-size:0.62rem;color:var(--muted);margin-top:10px">${escapeHtml(status.message || "")}</div>
   </div>`;
 }
@@ -13531,7 +13544,7 @@ function queueAtlasAccessAdminLoad(options = {}) {
   if (atlasAccessAdminState.loading) return;
   const profile = getAtlasAccessProfile();
   const status = getAtlasCentralStatus();
-  if (!status.configured || !status.signedIn || profile?.role !== "admin") return;
+  if (!status.configured || !status.signedIn || !atlasProfileCanManageSettings(profile)) return;
   if (atlasAccessAdminState.loaded && !options.force) return;
   loadAtlasAccessAdminData(options);
 }
@@ -13539,7 +13552,7 @@ function queueAtlasAccessAdminLoad(options = {}) {
 async function loadAtlasAccessAdminData({ force = false, silent = true } = {}) {
   try {
     const profile = getAtlasAccessProfile();
-    if (profile?.role !== "admin") throw new Error("Only Atlas admins can load employee access records.");
+    if (!atlasProfileCanManageSettings(profile)) throw new Error("Only Atlas admins can load employee access records.");
     if (atlasAccessAdminState.loading && !force) return atlasAccessAdminState;
     atlasAccessAdminState.loading = true;
     atlasAccessAdminState.error = "";
@@ -13640,7 +13653,7 @@ function prefillAtlasUserAccess(encodedPayload = "") {
 async function submitAtlasUserAccessForm() {
   try {
     const profile = getAtlasAccessProfile();
-    if (profile?.role !== "admin") throw new Error("Only Atlas admins can save employee access.");
+    if (!atlasProfileCanManageSettings(profile)) throw new Error("Only Atlas admins can save employee access.");
     const draft = syncAtlasAccessFormDraftFromPanel();
     const selectedEmployee = getAtlasAccessEmployeeRecord(draft.employeeId);
     const email = draft.email.toLowerCase();
@@ -13696,9 +13709,9 @@ function renderAtlasEmployeeAccessPanel() {
     return `<div class="card mb4"><div class="card-title">Employee Access</div><div class="alert-red">Central ATLAS must be configured before employee access can be managed.</div></div>`;
   }
   if (!status.signedIn) {
-    return `<div class="card mb4"><div class="card-title">Employee Access</div><div class="alert-red">Sign in from Data Import before managing employee access.</div></div>`;
+    return `<div class="card mb4"><div class="card-title">Employee Access</div><div class="alert-red">Sign in from ATLAS Settings before managing employee access.</div></div>`;
   }
-  if (profile?.role !== "admin") {
+  if (!atlasProfileCanManageSettings(profile)) {
     const lockedTabs = normalizeAtlasAccessList(profile?.locked_tab_ids).map(tabId => getAtlasAccessTab(tabId).label);
     const scopeCount = normalizeAtlasAccessList(profile?.allowed_community_ids).length;
     return `${profileEditorHtml}<div class="card mb4">
@@ -13927,6 +13940,123 @@ function renderAtlasCentralPlatformPanel() {
     </div>
     <div style="font-size:0.62rem;color:var(--muted);margin-top:8px">Legacy JSON and browser bundles remain available only for controlled backup, export, or migration. They should not be treated as the collaboration system of record.</div>
   </div>`;
+}
+
+async function downloadAtlasSettingsMemoryBundle() {
+  try {
+    const payload = await buildDashboardStorageBundle();
+    downloadAtlasJsonFile(payload, `atlas_settings_memory_bundle_${new Date().toISOString().slice(0, 10)}.json`);
+    alert("ATLAS memory bundle exported.");
+  } catch (error) {
+    alert(`ATLAS memory export failed: ${error?.message || error}`);
+  }
+}
+
+function renderAtlasSettingsSetupPanel() {
+  const details = buildPortfolioDetailsForMonth(getSelectedDashboardMonthIndex());
+  const activeCount = details.filter(detail => String(detail.record?.status || "").trim().toLowerCase() !== "inactive").length;
+  const addressCount = details.filter(detail => String(detail.record?.address || "").trim()).length;
+  const floorPlanCount = details.reduce((sum, detail) => sum + (Array.isArray(detail.record?.communityFloorPlans) ? detail.record.communityFloorPlans.length : 0), 0);
+  const investorCount = details.filter(detail => normalizeInvestorEmailContacts(detail.record?.investorEmailContacts).length > 0).length;
+  return `<div class="card mb4">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div>
+        <div class="card-title" style="margin-bottom:6px">Community Setup Governance</div>
+        <div style="font-size:0.68rem;color:var(--muted);line-height:1.55">Use Communities to manage live property setup, but treat this settings space as the admin control point for what must stay configured across the platform.</div>
+      </div>
+      <button class="btn btn-gray btn-sm" onclick="setTab(1)">Open Communities</button>
+    </div>
+    <div class="grid-4">
+      ${statBox("Active Communities", activeCount, `${details.length} communities in current portfolio scope`, "#4493f8")}
+      ${statBox("Addresses Saved", addressCount, "Properties with map-ready community addresses", "#3fb950")}
+      ${statBox("Floor Plans", floorPlanCount, "Saved floor-plan rows powering budget and comp views", "#d29922")}
+      ${statBox("Report Contacts", investorCount, "Communities with saved recipient memory", "#a371f7")}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn btn-gray btn-sm" onclick="setTab(1)">Open Community Setup</button>
+      <button class="btn btn-gray btn-sm" onclick="setTab(7)">Open Data Import</button>
+      <button class="btn btn-gray btn-sm" onclick="setTab(8)">Open Reporting</button>
+    </div>
+  </div>`;
+}
+
+function renderAtlasSettingsIntegrationsPanel() {
+  const centralStatus = getAtlasCentralStatus();
+  const syncStatus = getDashboardSharedSyncStatusLine();
+  const liveUsers = uniqueAtlasLiveUsers(atlasLivePresenceState.users || []);
+  const embeddedApps = ["People", "Maintenance", "Marketing", "Budget Builder"];
+  return `<div class="card mb4">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div>
+        <div class="card-title" style="margin-bottom:6px">Integrations</div>
+        <div style="font-size:0.68rem;color:var(--muted);line-height:1.55">Monitor the live connection points that control how ATLAS behaves across shared cloud sync, central Supabase state, and the embedded RISE operating surfaces.</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-gray btn-sm" onclick="verifyDashboardSharedSyncConnection()">Check Cloud Sync</button>
+        <button class="btn btn-gray btn-sm" onclick="verifyAtlasCentralConnection()">Check Central</button>
+      </div>
+    </div>
+    <div class="grid-4">
+      ${statBox("Central Mode", centralStatus.configured ? (centralStatus.mode || "centralized") : "legacy", centralStatus.signedIn ? `Signed in as ${centralStatus.userEmail || "approved user"}` : "Not signed into central yet", centralStatus.signedIn ? "#3fb950" : "#d29922")}
+      ${statBox("Cloud Sync", dashboardSharedSyncMeta.lastError ? "Issue" : "Healthy", syncStatus, dashboardSharedSyncMeta.lastError ? "#f85149" : "#4493f8")}
+      ${statBox("Live Users", liveUsers.length || 0, liveUsers.length ? liveUsers.map(user => atlasUserDisplayName(user)).join(", ") : "No active live-user sessions recorded", "#a371f7")}
+      ${statBox("Embedded Apps", embeddedApps.length, embeddedApps.join(" · "), "#58a6ff")}
+    </div>
+  </div>`;
+}
+
+function renderAtlasSettingsMemoryPanel() {
+  const dailyBackups = loadDailyBackupIndex();
+  const lastBundleActivity = [
+    atlasCentralRuntimeMeta.lastSnapshotUploadedAt ? `Central snapshot ${new Date(atlasCentralRuntimeMeta.lastSnapshotUploadedAt).toLocaleString()}` : "",
+    atlasCentralRuntimeMeta.rollbackTestedAt ? `Rollback tested ${new Date(atlasCentralRuntimeMeta.rollbackTestedAt).toLocaleString()}` : "",
+    dashboardSharedSyncMeta.lastAppliedAt ? `Cloud applied ${new Date(dashboardSharedSyncMeta.lastAppliedAt).toLocaleString()}` : ""
+  ].filter(Boolean).join(" · ") || "No recent recovery activity recorded in this browser.";
+  return `<div class="card mb4">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div>
+        <div class="card-title" style="margin-bottom:6px">Memory + Recovery</div>
+        <div style="font-size:0.68rem;color:var(--muted);line-height:1.55">Manage browser-state memory, rollback exports, and backup coverage from one place before changing central behavior.</div>
+      </div>
+      <button class="btn btn-gray btn-sm" onclick="setTab(7)">Open Import / Restore Tools</button>
+    </div>
+    <div class="grid-4">
+      ${statBox("Daily Backups", dailyBackups.length, dailyBackups.length ? `Newest ${dailyBackups[0]}` : "No browser daily backups found yet", "#4493f8")}
+      ${statBox("Central Safety Gate", atlasCentralAutosaveGateSatisfied() ? "Ready" : "Pending", atlasCentralAutosaveGateSatisfied() ? "Snapshot, reconciliation, and rollback are complete" : "Finish the snapshot, reconciliation, and rollback checks", atlasCentralAutosaveGateSatisfied() ? "#3fb950" : "#d29922")}
+      ${statBox("Legacy Bundle", atlasCentralLegacyBundleDisabled() ? "Disabled" : "Available", atlasCentralLegacyBundleDisabled() ? "Legacy shared bundle disabled after safety gate" : "Legacy bundle still available for controlled recovery", atlasCentralLegacyBundleDisabled() ? "#3fb950" : "#d29922")}
+      ${statBox("Recovery Activity", dailyBackups.length + (atlasCentralRuntimeMeta.lastSnapshotUploadedAt ? 1 : 0), lastBundleActivity, "#a371f7")}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn btn-gray btn-sm" onclick="downloadAtlasSettingsMemoryBundle()">Export Browser Memory Bundle</button>
+      <button class="btn btn-gray btn-sm" onclick="downloadAtlasCentralMigrationSnapshot()">Export Central Snapshot</button>
+      <button class="btn btn-gray btn-sm" onclick="testAtlasCentralRollbackSnapshot()">Run Rollback Test</button>
+    </div>
+  </div>`;
+}
+
+function renderAtlasSettingsTab() {
+  const status = getAtlasCentralStatus();
+  const profile = getAtlasAccessProfile();
+  const canManage = atlasProfileCanManageSettings(profile);
+  const cardsHtml = `<div class="grid-4">
+    ${statBox("Access Control", canManage ? "Admin Ready" : (status.signedIn ? "Viewer" : "Sign In"), canManage ? "Manage roles, scope, and page access here." : "Settings opens for connection and profile review first.", canManage ? "#3fb950" : "#d29922")}
+    ${statBox("Central Platform", status.configured ? (status.signedIn ? "Connected" : "Configured") : "Not Configured", status.message || "Use this page to configure or verify central Atlas.", status.signedIn ? "#4493f8" : "#d29922")}
+    ${statBox("Portfolio Setup", buildPortfolioDetailsForMonth(getSelectedDashboardMonthIndex()).length, "Community setup, imports, and outputs route through this admin page.", "#a371f7")}
+    ${statBox("Memory", loadDailyBackupIndex().length, "Daily backups plus export and rollback controls live here.", "#58a6ff")}
+  </div>`;
+  const bodyHtml = `<div class="tbl-wrap">
+    ${cardsHtml}
+    <div class="card mb4" style="margin-top:12px">
+      <div class="card-title" style="margin-bottom:6px">ATLAS Settings</div>
+      <div style="font-size:0.72rem;color:var(--muted);line-height:1.6">This admin landing page is the operating system for how ATLAS behaves. Keep employee access, community-governance controls, integrations, memory, and Central Platform Control here so they are no longer scattered between People and Data Import.</div>
+    </div>
+    <div id="atlas-settings-access-panel">${renderAtlasEmployeeAccessPanel()}</div>
+    ${renderAtlasSettingsSetupPanel()}
+    ${renderAtlasSettingsIntegrationsPanel()}
+    ${renderAtlasSettingsMemoryPanel()}
+    ${renderAtlasCentralPlatformPanel()}
+  </div>`;
+  return renderPortfolioScopePanel("ATLAS Settings", "Admin-only controls for access, community setup, integrations, memory, and central platform behavior.", "", bodyHtml);
 }
 
 function mergeDashboardStorageBundles(baseBundle, incomingBundle) {
@@ -15085,7 +15215,15 @@ function renderPortfolioScopedImportTab() {
     </label>
   </div>`;
   const bodyHtml = `<div class="tbl-wrap">
-    ${renderAtlasCentralPlatformPanel()}
+    <div class="card mb4">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div>
+          <div class="card-title" style="margin-bottom:6px">ATLAS Settings Moved</div>
+          <div style="font-size:0.68rem;color:var(--muted);line-height:1.55">Central Platform Control, access management, integrations, memory, and platform-level setup now live in the new ATLAS Settings page under Output. Data Import stays focused on staging and applying uploads.</div>
+        </div>
+        <button class="btn btn-blue btn-sm" onclick="setTab(14)">Open ATLAS Settings</button>
+      </div>
+    </div>
     ${bulkImportWorkspaceHTML}
     ${extractPreviewHTML}
     ${extractedDashboardRows.length > 0 ? renderExtractFieldMapControls() : ""}

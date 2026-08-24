@@ -207,28 +207,6 @@
     var m = MOUNTS[key];
     if (!m) return "";
     var meta = contextMeta();
-    var accessPanel = "";
-    var peopleAccessWorkspace = "";
-    try {
-      accessPanel = key === "people" && typeof window.renderAtlasEmployeeAccessPanel === "function"
-        ? window.renderAtlasEmployeeAccessPanel()
-        : "";
-    } catch (err) {
-      accessPanel = "";
-    }
-    if (key === "people") {
-      peopleAccessWorkspace = [
-        '<section class="atlas-people-access-workspace">',
-        '  <div class="atlas-people-access-head">',
-        '    <div>',
-        '      <h3>Employee Access Workspace</h3>',
-        '      <p>Review the employee roster first, then manage ATLAS access in this workspace. The People roster stays primary and the access editor no longer sits above the full-page roster view.</p>',
-        "    </div>",
-        "  </div>",
-        '  <div id="atlas-people-access-panel">' + accessPanel + "</div>",
-        "</section>"
-      ].join("");
-    }
     var embeddedSrc = iframeSrc(key, m);
     return [
       '<div class="atlas-screen-head">',
@@ -252,8 +230,7 @@
       '    <iframe src="' + esc(embeddedSrc) + '" title="' + esc(m.barTitle) + '" data-atlas-mount-key="' + esc(key) + '" onload="window.handleAtlasMountLoad && window.handleAtlasMountLoad(this, \'' + esc(key) + '\')"',
       '            loading="lazy" style="background:' + esc(m.background) + '"></iframe>',
       "  </div>",
-      "</section>",
-      peopleAccessWorkspace
+      "</section>"
     ].filter(Boolean).join("\n");
   }
 

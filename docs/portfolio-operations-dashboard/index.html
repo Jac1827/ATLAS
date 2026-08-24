@@ -996,7 +996,7 @@
 
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=20260821-people-access"></script>
-<script src="./centralization/atlas-central-client.js?v=20260821-central-fallback"></script>
+<script src="./centralization/atlas-central-client.js?v=20260821-central-fallback" data-atlas-central-client="true"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -11407,6 +11407,75 @@ const ATLAS_ACCESS_STATUSES = [
   ["revoked", "Revoked"]
 ];
 
+const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=20260821-central-fallback";
+let atlasCentralClientLoadPromise = null;
+
+function getAtlasCentralClientScriptUrl({ forceReload = false } = {}) {
+  try {
+    const url = new URL(ATLAS_CENTRAL_CLIENT_SRC, window.location.href);
+    if (forceReload) url.searchParams.set("retry", String(Date.now()));
+    return url.toString();
+  } catch {
+    const separator = ATLAS_CENTRAL_CLIENT_SRC.includes("?") ? "&" : "?";
+    return forceReload
+      ? `${ATLAS_CENTRAL_CLIENT_SRC}${separator}retry=${Date.now()}`
+      : ATLAS_CENTRAL_CLIENT_SRC;
+  }
+}
+
+function waitForAtlasCentralClient(timeoutMs = 8000) {
+  if (window.ATLAS_CENTRAL?.getStatus) return Promise.resolve(window.ATLAS_CENTRAL);
+  return new Promise((resolve, reject) => {
+    const startedAt = Date.now();
+    const check = () => {
+      if (window.ATLAS_CENTRAL?.getStatus) {
+        resolve(window.ATLAS_CENTRAL);
+        return;
+      }
+      if (Date.now() - startedAt >= timeoutMs) {
+        reject(new Error("Central runtime script did not finish loading in this browser. Refresh the page or reload the central client and try again."));
+        return;
+      }
+      setTimeout(check, 75);
+    };
+    check();
+  });
+}
+
+function loadAtlasCentralClientScript({ forceReload = false, timeoutMs = 8000 } = {}) {
+  if (window.ATLAS_CENTRAL?.getStatus) return Promise.resolve(window.ATLAS_CENTRAL);
+  if (atlasCentralClientLoadPromise && !forceReload) return atlasCentralClientLoadPromise;
+  atlasCentralClientLoadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = getAtlasCentralClientScriptUrl({ forceReload });
+    script.async = true;
+    script.dataset.atlasCentralClient = "retry";
+    script.addEventListener("error", () => {
+      atlasCentralClientLoadPromise = null;
+      reject(new Error("The central runtime script could not be loaded from the published ATLAS site."));
+    }, { once: true });
+    script.addEventListener("load", async () => {
+      try {
+        resolve(await waitForAtlasCentralClient(timeoutMs));
+      } catch (error) {
+        atlasCentralClientLoadPromise = null;
+        reject(error);
+      }
+    }, { once: true });
+    document.head.appendChild(script);
+  });
+  return atlasCentralClientLoadPromise;
+}
+
+async function ensureAtlasCentralClientLoaded(options = {}) {
+  if (window.ATLAS_CENTRAL?.getStatus) return window.ATLAS_CENTRAL;
+  const existingScript = document.querySelector('script[data-atlas-central-client]');
+  if (existingScript && !options.forceReload) {
+    return waitForAtlasCentralClient(options.timeoutMs || 8000);
+  }
+  return loadAtlasCentralClientScript(options);
+}
+
 function loadAtlasCentralRuntimeMeta() {
   try {
     const raw = localStorage.getItem(ATLAS_CENTRAL_RUNTIME_META_KEY);
@@ -12930,6 +12999,11 @@ async function uploadAtlasCentralMigrationSnapshot({ silent = false } = {}) {
   }
   atlasCentralSnapshotUploadInProgress = true;
   try {
+    if (!window.ATLAS_CENTRAL?.uploadReadOnlySnapshot) {
+      setAtlasCentralRuntimeMessage("Central runtime was missing in this browser. Reloading the ATLAS central client now.");
+      renderTab();
+      await ensureAtlasCentralClientLoaded({ forceReload: true, timeoutMs: 10000 });
+    }
     const access = atlasCentralCanUseDatabase();
     if (!access.ok) throw new Error(access.message);
     setAtlasCentralRuntimeMessage("Preparing read-only migration snapshot. This can take a moment with browser backups.");

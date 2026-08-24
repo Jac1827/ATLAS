@@ -1148,6 +1148,44 @@ const PROPERTIES = [
   { name: "Sereno", units: 320 },
   { name: "Glen Kernan Park", units: 308 },
 ];
+const RETIRED_ATLAS_PROPERTY_KEYS = new Set(["flagler"]);
+
+function isRetiredAtlasPropertyName(value = "") {
+  return RETIRED_ATLAS_PROPERTY_KEYS.has(atlasNormalizeSharedText(value));
+}
+
+function pruneRetiredAtlasPropertyCatalogEntries() {
+  try {
+    const raw = localStorage.getItem(OPS_PROPERTY_CATALOG_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    const properties = Array.isArray(parsed?.properties) ? parsed.properties : [];
+    const filtered = properties.filter(prop => !isRetiredAtlasPropertyName(prop?.name));
+    if (filtered.length === properties.length) return false;
+    localStorage.setItem(OPS_PROPERTY_CATALOG_KEY, JSON.stringify({
+      ...(parsed && typeof parsed === "object" ? parsed : {}),
+      updatedAt: new Date().toISOString(),
+      properties: filtered
+    }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function pruneRetiredAtlasPropertiesFromSavedData(data = savedData) {
+  const source = data && typeof data === "object" ? data : {};
+  let changed = false;
+  const next = {};
+  Object.entries(source).forEach(([name, record]) => {
+    if (isRetiredAtlasPropertyName(name)) {
+      changed = true;
+      return;
+    }
+    next[name] = record;
+  });
+  return { changed, data: changed ? next : source };
+}
 const COMMUNITY_MARKET_AREA_FALLBACKS = {
   "Anthem House": { city: "Student Housing", marketArea: "Anthem House" },
   "Bartram Park": { city: "Jacksonville", marketArea: "South Jacksonville" },
@@ -1290,7 +1328,7 @@ function persistOpsPropertyCatalog() {
     const collect = (entries) => {
       (Array.isArray(entries) ? entries : []).forEach((prop) => {
         const name = String(prop?.name ?? "").trim();
-        if(!name) return;
+        if(!name || isRetiredAtlasPropertyName(name)) return;
         const key = atlasNormalizeSharedText(name) || name;
         const current = merged.get(key) || { name, units: null };
         merged.set(key, {
@@ -1320,7 +1358,6 @@ const ATLAS_SHARED_PROPERTY_ALIASES = {
   "bartram park": ["Bartram"],
   "doro": ["Doro High Rise"],
   "doro high rise": ["Doro"],
-  "flagler": ["St Augustine", "St. Augustine", "RISE St. Augustine"],
   "gkp": ["Glen Kernan Park"],
   "glen kernan park gkp": ["Glen Kernan Park"],
   "st augustine": ["St. Augustine", "St Augustine"],
@@ -1335,6 +1372,34 @@ const ATLAS_SHARED_PROPERTY_ALIASES = {
   "beacon poplar hall": ["UTK - Beacon Hall", "UTK - Poplar Hall"],
   "utk buildings": ["UTK - Torchbearer Hall", "UTK - Beacon Hall", "UTK - Poplar Hall"]
 };
+
+function pruneRetiredAtlasPropertiesFromSharedGraph() {
+  const graph = readAtlasSharedPropertyGraph();
+  const nextProperties = {};
+  let changed = false;
+  Object.entries(graph.properties || {}).forEach(([communityId, record]) => {
+    const candidates = [
+      communityId,
+      record?.displayName,
+      record?.canonicalName,
+      record?.sourceIds?.portfolioName,
+      ...(Array.isArray(record?.aliases) ? record.aliases : [])
+    ];
+    if (candidates.some(value => isRetiredAtlasPropertyName(value))) {
+      changed = true;
+      return;
+    }
+    nextProperties[communityId] = record;
+  });
+  if (changed) {
+    writeAtlasSharedPropertyGraph({ ...graph, properties: nextProperties }, {
+      source: "retired_property_cleanup",
+      updatedAt: new Date().toISOString(),
+      central: false
+    });
+  }
+  return changed;
+}
 
 function atlasSharedNow() {
   return new Date().toISOString();
@@ -4848,7 +4913,6 @@ const SHARED_COMMUNITY_ALIASES = {
   "beacon hall": "UTK - Beacon Hall",
   "beacon poplar hall": "UTK - Beacon Hall",
   "doro high rise": "Doro",
-  "flagler": "St Augustine",
   "gkp": "Glen Kernan Park",
   "glen kernan park gkp": "Glen Kernan Park",
   "maple hall njit": "NJIT - Maple Hall",
@@ -4858,7 +4922,6 @@ const SHARED_COMMUNITY_ALIASES = {
   "poplar hall": "UTK - Poplar Hall",
   "prosper on fayette": "Prosper On Fayette",
   "rise st augustine": "St Augustine",
-  "rise flagler": "St Augustine",
   "st augustine": "St Augustine",
   "st augustine fl": "St Augustine",
   "the preserve": "The Preserve at Tech",
@@ -7280,6 +7343,13 @@ async function hydrateWeeklySnapshotState() {
 
 async function hydrateDashboardPersistentState() {
   savedData = await loadSaved();
+  const retiredCleanup = pruneRetiredAtlasPropertiesFromSavedData(savedData);
+  if (retiredCleanup.changed) {
+    savedData = retiredCleanup.data;
+    persistSaved();
+  }
+  pruneRetiredAtlasPropertyCatalogEntries();
+  pruneRetiredAtlasPropertiesFromSharedGraph();
   const historicalRestoreResult = restoreHistoricalCommunityData(savedData);
   if (historicalRestoreResult.changed) {
     savedData = historicalRestoreResult.data;

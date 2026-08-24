@@ -1067,7 +1067,6 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
                 <option>Doro High Rise</option>
                 <option>Beacon / Poplar Hall</option>
                 <option>Maple Hall (NJIT)</option>
-                <option>Flagler</option>
                 <option>Sereno</option>
                 <option>Citrus Ridge</option>
                 <option>Bartram</option>
@@ -1905,7 +1904,7 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
           <option>Nocatee</option><option>Glen Kernan Park</option><option>Viera</option>
           <option>Florence Villa</option><option>Sereno</option><option>Doro High Rise</option>
           <option>Beacon / Poplar Hall</option><option>Maple Hall (NJIT)</option>
-          <option>Flagler</option><option>St. Augustine</option><option>Portfolio-Wide</option>
+          <option>St. Augustine</option><option>Portfolio-Wide</option>
         </select>
         <select id="vel-filter-submitter" style="font-size:12px;min-width:140px">
           <option value="">All Submitters</option>
@@ -3472,7 +3471,6 @@ const DEFAULT_PROPERTIES = [
   {id:'doro', name:'Doro High Rise', market:'Florida', type:'High Rise', gm:'GM Webb', gmEmail:'gm.doro@rise.com', regional:'Sarah R.', regionalEmail:'sarah.r@rise.com', status:'active'},
   {id:'beacon', name:'Beacon / Poplar Hall', market:'Mid-Atlantic', type:'Multifamily', gm:'GM Adams', gmEmail:'gm.beacon@rise.com', regional:'Mike T.', regionalEmail:'mike.t@rise.com', status:'active'},
   {id:'maple', name:'Maple Hall (NJIT)', market:'Mid-Atlantic', type:'Student Housing', gm:'GM Kim', gmEmail:'gm.maple@rise.com', regional:'Mike T.', regionalEmail:'mike.t@rise.com', status:'active'},
-  {id:'flagler', name:'Flagler', market:'Florida', type:'Multifamily', gm:'GM Leon', gmEmail:'gm.flagler@rise.com', regional:'Sarah R.', regionalEmail:'sarah.r@rise.com', status:'active'},
   {id:'sereno', name:'Sereno', market:'Florida', type:'Multifamily', gm:'GM Cruz', gmEmail:'gm.sereno@rise.com', regional:'Sarah R.', regionalEmail:'sarah.r@rise.com', status:'active'},
   {id:'citrus', name:'Citrus Ridge', market:'Florida', type:'Multifamily', gm:'GM Patel', gmEmail:'gm.citrus@rise.com', regional:'Sarah R.', regionalEmail:'sarah.r@rise.com', status:'active'},
   {id:'bartram', name:'Bartram', market:'Florida', type:'Multifamily', gm:'GM Jones', gmEmail:'gm.bartram@rise.com', regional:'Sarah R.', regionalEmail:'sarah.r@rise.com', status:'active'},
@@ -9200,7 +9198,7 @@ function getAllUsers(){
   }));
 }
 
-var COMM_LIST=['Nocatee','Glen Kernan Park','Viera','Florence Villa','Doro High Rise','Beacon / Poplar Hall','Maple Hall (NJIT)','Flagler','Sereno','Portfolio-Wide'];
+var COMM_LIST=['Nocatee','Glen Kernan Park','Viera','Florence Villa','Doro High Rise','Beacon / Poplar Hall','Maple Hall (NJIT)','Sereno','Portfolio-Wide'];
 function applySharedCommunitiesToGrassrootsList(){
   try{
     var graph=readMarketingSharedPropertyGraph();
@@ -10612,7 +10610,7 @@ function mktInit(){
   <button class="btn small" onclick="clearDates()" style="white-space:nowrap">Clear Dates</button>
   <span id="date-count" style="font-size:11px;color:var(--mid);font-weight:700;margin-left:4px"></span>
 </div>
-<div class="toolbar"><input type="text" class="ts f1" id="dsrch" placeholder="Search business, contact, community, campaign..." oninput="rdt()"><select class="ts" id="fcomm" onchange="rdt()"><option value="">All Communities</option><option>Nocatee</option><option>Glen Kernan Park</option><option>Viera</option><option>Florence Villa</option><option>Doro High Rise</option><option>Beacon / Poplar Hall</option><option>Maple Hall (NJIT)</option><option>Flagler</option><option>Sereno</option><option>Portfolio-Wide</option></select><select class="ts" id="fbtype" onchange="rdt()"><option value="">All Types</option><option>Employer</option><option>Realtor</option><option>Apartment Locator</option><option>University / College</option><option>Hospital / Medical</option><option>Military / Government</option><option>Corporate Housing</option><option>Local Business</option><option>Senior Services</option><option>Relocation Company</option><option>Vendor Partner</option><option>Other</option></select><select class="ts" id="fstatus" onchange="rdt()"><option value="">All Statuses</option><option>Active</option><option>Prospect</option><option>Warm</option><option>Dormant</option><option>Inactive</option><option>Do Not Contact</option></select><select class="ts" id="ftier" onchange="rdt()"><option value="">All Tiers</option><option value="A">Preferred Employer</option><option value="B">Active Partner</option><option value="C">General Contact</option></select><select class="ts" id="ffu" onchange="rdt()"><option value="">All Follow-Ups</option><option value="overdue">Overdue</option><option value="today">Due Today</option><option value="pending">Pending</option><option value="closed">Closed</option></select><button class="btn primary" onclick="sv('form')">+ Add Contact</button><button class="btn" onclick="xcsv()">&#11015; CSV</button></div>
+<div class="toolbar"><input type="text" class="ts f1" id="dsrch" placeholder="Search business, contact, community, campaign..." oninput="rdt()"><select class="ts" id="fcomm" onchange="rdt()"><option value="">All Communities</option><option>Nocatee</option><option>Glen Kernan Park</option><option>Viera</option><option>Florence Villa</option><option>Doro High Rise</option><option>Beacon / Poplar Hall</option><option>Maple Hall (NJIT)</option><option>Sereno</option><option>Portfolio-Wide</option></select><select class="ts" id="fbtype" onchange="rdt()"><option value="">All Types</option><option>Employer</option><option>Realtor</option><option>Apartment Locator</option><option>University / College</option><option>Hospital / Medical</option><option>Military / Government</option><option>Corporate Housing</option><option>Local Business</option><option>Senior Services</option><option>Relocation Company</option><option>Vendor Partner</option><option>Other</option></select><select class="ts" id="fstatus" onchange="rdt()"><option value="">All Statuses</option><option>Active</option><option>Prospect</option><option>Warm</option><option>Dormant</option><option>Inactive</option><option>Do Not Contact</option></select><select class="ts" id="ftier" onchange="rdt()"><option value="">All Tiers</option><option value="A">Preferred Employer</option><option value="B">Active Partner</option><option value="C">General Contact</option></select><select class="ts" id="ffu" onchange="rdt()"><option value="">All Follow-Ups</option><option value="overdue">Overdue</option><option value="today">Due Today</option><option value="pending">Pending</option><option value="closed">Closed</option></select><button class="btn primary" onclick="sv('form')">+ Add Contact</button><button class="btn" onclick="xcsv()">&#11015; CSV</button></div>
 <div class="tw"><table class="dt"><thead><tr><th class="rn">#</th><th>Business / Organization</th><th>Type</th><th>Contact(s)</th><th>Phone</th><th>Email</th><th>Communities</th><th>Tier</th><th>Status</th><th>Last Outreach</th><th>Method</th><th>Follow-Up</th><th>Activity</th><th>Actions</th></tr></thead><tbody id="dtb"></tbody></table></div>
 <div style="font-size:11px;color:var(--muted);margin-top:7px;padding:0 3px" id="rcount"></div></div>
 <div id="view-form" class="view"><div class="fw">

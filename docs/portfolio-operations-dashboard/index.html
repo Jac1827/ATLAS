@@ -13667,7 +13667,7 @@ async function loadAtlasAccessAdminData({ force = false, silent = true } = {}) {
       employees,
       lastLoadedAt: new Date().toISOString()
     };
-    if (activeTab === 13) {
+    if (activeTab === 13 || activeTab === 14) {
       if (!document.getElementById("atlas-access-email")) refreshAtlasPeopleAccessPanel();
     } else if (!silent) {
       renderTab();
@@ -13677,7 +13677,7 @@ async function loadAtlasAccessAdminData({ force = false, silent = true } = {}) {
     atlasAccessAdminState.loading = false;
     atlasAccessAdminState.error = error?.message || String(error);
     if (!silent) alert(`Employee access load failed: ${atlasAccessAdminState.error}`);
-    if (activeTab === 13) {
+    if (activeTab === 13 || activeTab === 14) {
       if (!document.getElementById("atlas-access-email")) refreshAtlasPeopleAccessPanel();
     }
     return atlasAccessAdminState;

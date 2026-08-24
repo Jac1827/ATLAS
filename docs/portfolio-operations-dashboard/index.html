@@ -15449,13 +15449,13 @@ function renderPortfolioScopedImportTab() {
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
       <div>
         <div class="card-title" style="margin-bottom:6px">Renewal Tracker Upload</div>
-        <div style="font-size:0.68rem;color:var(--muted)">Upload one community renewal workbook at a time. ATLAS reads the SETUP tab for the property name, then maps each month tab into that community's saved renewal history and the portfolio renewals rollup.</div>
+        <div style="font-size:0.68rem;color:var(--muted)">Upload one or many community renewal workbooks at once. ATLAS first tries to read the property from the SETUP tab, month-sheet title, or file name, then maps each month tab into that community's saved renewal history and the portfolio renewals rollup. If a workbook is ambiguous, ATLAS prompts you to identify the property before saving.</div>
       </div>
     </div>
     <label class="csv-dropzone" style="padding:20px;cursor:pointer">
       <div class="csv-drop-icon">🔁</div>
-      <div style="font-size:0.82rem;color:#4493f8;font-weight:600">Click to upload a renewal tracker workbook</div>
-      <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">Supports <span class="mono">.xlsx</span>, <span class="mono">.xlsm</span>, and <span class="mono">.xls</span>. Each month tab is imported into the matching renewal month for that property.</div>
+      <div style="font-size:0.82rem;color:#4493f8;font-weight:600">Click to upload renewal tracker workbook(s)</div>
+      <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">Supports <span class="mono">.xlsx</span>, <span class="mono">.xlsm</span>, and <span class="mono">.xls</span>. Each month tab is imported into the matching renewal month for the mapped property, and bulk uploads can be routed across multiple communities in one pass.</div>
       <input type="file" accept=".xlsx,.xls,.xlsm" id="portfolio-renewal-input" multiple/>
     </label>
   </div>`;
@@ -17485,6 +17485,80 @@ function extractRenewalDetailStatusSummary(rows) {
   return summary;
 }
 
+function extractRenewalTrackerColumnSummary(rows) {
+  const summary = {
+    expirations: 0,
+    renewalsSigned: 0,
+    ntv: 0,
+    transfers: 0,
+    undecided: 0,
+    earlyTermination: 0,
+    retentionRate: 0,
+    decidedRetentionRate: 0
+  };
+  const normalizedRows = Array.isArray(rows) ? rows : [];
+  let headerRowIdx = -1;
+  let nameColIdx = -1;
+  let unitColIdx = -1;
+  let expirationColIdx = -1;
+  let renewalSignedColIdx = -1;
+  let transferColIdx = -1;
+  let ntvColIdx = -1;
+  let notesColIdx = -1;
+  for (let idx = 0; idx < normalizedRows.length; idx++) {
+    const row = Array.isArray(normalizedRows[idx]) ? normalizedRows[idx] : [];
+    const lowered = row.map(cell => String(cell ?? "").replace(/\s+/g, " ").trim().toLowerCase());
+    const nameIdx = lowered.findIndex(cell => cell === "name");
+    const renewalIdx = lowered.findIndex(cell => /renewal signed/.test(cell));
+    const transferIdx = lowered.findIndex(cell => cell === "transfer" || /transfer/.test(cell));
+    const ntvIdx = lowered.findIndex(cell => /ntv/.test(cell) || /notice to vacate/.test(cell));
+    if (nameIdx === -1 || renewalIdx === -1 || transferIdx === -1 || ntvIdx === -1) continue;
+    headerRowIdx = idx;
+    nameColIdx = nameIdx;
+    renewalSignedColIdx = renewalIdx;
+    transferColIdx = transferIdx;
+    ntvColIdx = ntvIdx;
+    unitColIdx = lowered.findIndex(cell => cell === "unit");
+    expirationColIdx = lowered.findIndex(cell => /expiration date/.test(cell) || cell === "expiration");
+    notesColIdx = lowered.findIndex(cell => cell === "notes" || /notes/.test(cell));
+    break;
+  }
+  if (headerRowIdx === -1) return summary;
+
+  const hasRealEntry = value => {
+    const text = String(value ?? "").trim();
+    if (!text) return false;
+    if (/^▼ enter$/i.test(text) || /^◀ auto$/i.test(text) || /^select$/i.test(text)) return false;
+    return true;
+  };
+
+  for (let idx = headerRowIdx + 1; idx < normalizedRows.length; idx++) {
+    const row = Array.isArray(normalizedRows[idx]) ? normalizedRows[idx] : [];
+    const firstCell = String(row[0] ?? "").trim().toLowerCase();
+    if (/retention analysis|legend|retention rate/.test(firstCell)) break;
+    const residentName = nameColIdx >= 0 ? String(row[nameColIdx] ?? "").trim() : "";
+    const unitValue = unitColIdx >= 0 ? String(row[unitColIdx] ?? "").trim() : "";
+    const expirationValue = expirationColIdx >= 0 ? String(row[expirationColIdx] ?? "").trim() : "";
+    if (!residentName || /^▼ enter$/i.test(residentName)) continue;
+    if (!unitValue && !expirationValue) continue;
+    summary.expirations += 1;
+    const signedValue = renewalSignedColIdx >= 0 ? row[renewalSignedColIdx] : "";
+    const transferValue = transferColIdx >= 0 ? row[transferColIdx] : "";
+    const ntvValue = ntvColIdx >= 0 ? row[ntvColIdx] : "";
+    const notesValue = notesColIdx >= 0 ? String(row[notesColIdx] ?? "").trim() : "";
+    if (hasRealEntry(signedValue)) summary.renewalsSigned += 1;
+    else if (hasRealEntry(transferValue)) summary.transfers += 1;
+    else if (hasRealEntry(ntvValue)) summary.ntv += 1;
+    if (/early termination|early term/i.test(notesValue)) summary.earlyTermination += 1;
+  }
+
+  summary.undecided = Math.max(summary.expirations - summary.renewalsSigned - summary.ntv - summary.transfers - summary.earlyTermination, 0);
+  summary.retentionRate = summary.expirations > 0 ? (summary.renewalsSigned / summary.expirations) * 100 : 0;
+  const decidedPool = summary.renewalsSigned + summary.ntv + summary.transfers;
+  summary.decidedRetentionRate = decidedPool > 0 ? (summary.renewalsSigned / decidedPool) * 100 : 0;
+  return summary;
+}
+
 function extractRenewalSheetSummary(rows) {
   const expirations = normalizeWorkbookNumber(findWorksheetRowValue(rows, [/total lease expirations/i, /total expirations/i]));
   const renewalsSigned = normalizeWorkbookNumber(findWorksheetRowValue(rows, /renewals signed/i));
@@ -17495,17 +17569,45 @@ function extractRenewalSheetSummary(rows) {
   const retentionRate = normalizeWorkbookPercent(findWorksheetRowValue(rows, /retention rate.*total expirations/i));
   const decidedRetentionRate = normalizeWorkbookPercent(findWorksheetRowValue(rows, /retention rate.*renewals.*ntv/i));
   const labeledSummary = { expirations, renewalsSigned, ntv, transfers, undecided, earlyTermination, retentionRate, decidedRetentionRate };
+  const trackerSummary = extractRenewalTrackerColumnSummary(rows);
   const detailSummary = extractRenewalDetailStatusSummary(rows);
   const labeledTotal = expirations + renewalsSigned + ntv + transfers + undecided + earlyTermination;
+  const trackerTotal = trackerSummary.expirations + trackerSummary.renewalsSigned + trackerSummary.ntv + trackerSummary.transfers + trackerSummary.undecided + trackerSummary.earlyTermination;
   const detailTotal = detailSummary.expirations + detailSummary.renewalsSigned + detailSummary.ntv + detailSummary.transfers + detailSummary.undecided + detailSummary.earlyTermination;
+  if (trackerSummary.expirations > 0 && trackerTotal >= labeledTotal && trackerTotal >= detailTotal) return trackerSummary;
   return detailSummary.expirations > 0 && detailTotal >= labeledTotal ? detailSummary : labeledSummary;
 }
 
-function getRenewalWorkbookPropertyName(workbook) {
+function getRenewalWorkbookHeaderPropertyName(workbook) {
+  const firstMonthSheet = workbook?.SheetNames?.find(sheetName => parseMonthIndexValue(sheetName) !== null);
+  if (!firstMonthSheet || !workbook?.Sheets?.[firstMonthSheet] || typeof XLSX === "undefined") return "";
+  const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstMonthSheet], { header: 1, defval: "", raw: false });
+  const titleCell = String(rows?.[0]?.[0] ?? "").trim();
+  return titleCell.replace(/\s*-\s*.*renewals?$/i, "").trim();
+}
+
+function resolveRenewalWorkbookPropertyName(workbook, fileName = "") {
   const setupRows = getWorkbookSheetRows(workbook, [/^setup$/i]);
   const setupPropertyName = findWorksheetRowValue(setupRows, /property name/i);
-  const matchedProperty = matchPropertyName(setupPropertyName, { fallbackToCurrent: false });
-  return matchedProperty || getProp().name;
+  const headerPropertyName = getRenewalWorkbookHeaderPropertyName(workbook);
+  const filePropertyName = String(fileName || "").replace(/\.[^.]+$/, "");
+  const candidates = [setupPropertyName, headerPropertyName, filePropertyName]
+    .map(value => String(value || "").trim())
+    .filter(Boolean);
+  for (const candidate of candidates) {
+    const matchedProperty = getKnownAtlasCommunityName(candidate) || matchPropertyName(candidate, { fallbackToCurrent: false });
+    if (matchedProperty) return matchedProperty;
+  }
+  const portfolioOptions = getPortfolioScopedCommunityNamesForPeriod(getPortfolioScopePeriodKey(getSelectedDashboardMonthIndex()));
+  const fallbackOptions = portfolioOptions.length ? portfolioOptions : Object.keys(savedData || {});
+  if (typeof window !== "undefined" && typeof window.prompt === "function" && fallbackOptions.length) {
+    const response = window.prompt(
+      `ATLAS could not auto-match "${fileName || "renewal workbook"}" to a community. Enter the property name for this tracker:\n\n${fallbackOptions.join(", ")}`
+    );
+    const matchedPromptProperty = getKnownAtlasCommunityName(response) || matchPropertyName(response, { fallbackToCurrent: false });
+    if (matchedPromptProperty) return matchedPromptProperty;
+  }
+  return "";
 }
 
 function applyRenewalSummaryToRecord(record, monthIdx, summary, year = new Date().getFullYear()) {
@@ -17578,8 +17680,16 @@ async function handleRenewalWorkbook(file) {
     return;
   }
   const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
-  const targetPropertyName = getRenewalWorkbookPropertyName(workbook);
+  const targetPropertyName = resolveRenewalWorkbookPropertyName(workbook, file.name);
+  if (!targetPropertyName) {
+    renewalImportLog.push(`⚠️ ${file.name} could not be matched to a saved ATLAS community. Re-upload and choose the correct property when prompted.`);
+    return;
+  }
   const targetRecord = getPropertyRecordForApply(targetPropertyName);
+  if (!targetRecord) {
+    renewalImportLog.push(`⚠️ ${file.name} matched "${targetPropertyName}", but ATLAS could not open that community record for writing.`);
+    return;
+  }
   const setupRows = getWorkbookSheetRows(workbook, [/^setup$/i]);
   const setupMonthYear = findWorksheetRowValue(setupRows, /month\s*\/\s*year/i);
   const setupYear = parseYearFromValue(setupMonthYear, new Date().getFullYear());

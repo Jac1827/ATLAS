@@ -15,7 +15,8 @@ create table if not exists atlas_user_profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   email text not null unique,
   display_name text not null,
-  role text not null check (role in ('admin','executive','regional','community_manager','people','marketing','maintenance','finance','bonus','viewer')),
+  profile_image_url text,
+  role text not null check (role in ('admin','centra','executive','regional','community_manager','people','marketing','maintenance','finance','bonus','viewer')),
   status text not null default 'active' check (status in ('active','suspended','disabled')),
   allowed_community_ids uuid[] not null default '{}',
   created_at timestamptz not null default now(),
@@ -539,7 +540,7 @@ security definer
 set search_path = public
 as $$
   select
-    atlas_has_role(array['admin','executive'])
+    atlas_has_role(array['admin','centra','executive'])
     or (
       p_community_id is not null
       and p_community_id = any(atlas_current_allowed_community_ids())
@@ -560,7 +561,7 @@ create or replace function atlas_claim_first_admin(
 )
 returns table(user_id uuid, email text, display_name text, role text, status text)
 language plpgsql
-security definer
+security invoker
 set search_path = public
 as $$
 declare
@@ -639,7 +640,7 @@ returns table (
   updated_at timestamptz
 )
 language plpgsql
-security definer
+security invoker
 set search_path = public
 as $$
 declare
@@ -807,7 +808,7 @@ begin
   end if;
 
   v_role := atlas_current_role();
-  if v_role not in ('admin','executive','regional','people','marketing','maintenance','finance','bonus') then
+  if v_role not in ('admin','centra','executive','regional','people','marketing','maintenance','finance','bonus') then
     raise exception 'Atlas snapshot upload denied for role %', v_role using errcode = '42501';
   end if;
 
@@ -976,7 +977,7 @@ begin
   end if;
 
   v_role := atlas_current_role();
-  if v_role not in ('admin','executive','regional','people') then
+  if v_role not in ('admin','centra','executive','regional','people') then
     raise exception 'Atlas People promotion denied for role %', v_role using errcode = '42501';
   end if;
 
@@ -1139,7 +1140,7 @@ begin
   end if;
 
   v_role := atlas_current_role();
-  if v_role not in ('admin','executive','regional','marketing') then
+  if v_role not in ('admin','centra','executive','regional','marketing') then
     raise exception 'Atlas Marketing metric promotion denied for role %', v_role using errcode = '42501';
   end if;
 
@@ -1216,7 +1217,7 @@ begin
   end if;
 
   v_role := atlas_current_role();
-  if v_role not in ('admin','executive','regional','maintenance') then
+  if v_role not in ('admin','centra','executive','regional','maintenance') then
     raise exception 'Atlas Maintenance inspection promotion denied for role %', v_role using errcode = '42501';
   end if;
 
@@ -1366,7 +1367,7 @@ begin
   end if;
 
   v_role := atlas_current_role();
-  if v_role not in ('admin','executive','regional','bonus','finance') then
+  if v_role not in ('admin','centra','executive','regional','bonus','finance') then
     raise exception 'Atlas Bonus calculation write denied for role %', v_role using errcode = '42501';
   end if;
 
@@ -1449,6 +1450,11 @@ create policy "atlas profile self or admin read"
 on atlas_user_profiles for select to authenticated
 using (user_id = auth.uid() or atlas_has_role(array['admin']));
 
+create policy "atlas users update own profile"
+on atlas_user_profiles for update to authenticated
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
 create policy "atlas admin manages profiles"
 on atlas_user_profiles for all to authenticated
 using (atlas_has_role(array['admin']))
@@ -1460,11 +1466,11 @@ with check (actor_user_id = auth.uid() or actor_user_id is null);
 
 create policy "atlas audit admin executive read"
 on atlas_audit_log for select to authenticated
-using (atlas_has_role(array['admin','executive']));
+using (atlas_has_role(array['admin','centra','executive']));
 
 create policy "atlas app documents admin executive read"
 on atlas_app_documents for select to authenticated
-using (deleted_at is null and atlas_has_role(array['admin','executive']));
+using (deleted_at is null and atlas_has_role(array['admin','centra','executive']));
 
 create policy "atlas admin manages app documents"
 on atlas_app_documents for all to authenticated
@@ -1473,7 +1479,7 @@ with check (atlas_has_role(array['admin']));
 
 create policy "atlas app document versions admin executive read"
 on atlas_app_document_versions for select to authenticated
-using (atlas_has_role(array['admin','executive']));
+using (atlas_has_role(array['admin','centra','executive']));
 
 create policy "atlas admin manages app document versions"
 on atlas_app_document_versions for all to authenticated
@@ -1494,7 +1500,7 @@ on atlas_communities for select to authenticated
 using (
   deleted_at is null
   and (
-    atlas_has_role(array['admin','executive','people'])
+    atlas_has_role(array['admin','centra','executive','people'])
     or atlas_can_access_community(community_id)
   )
 );
@@ -1507,7 +1513,7 @@ using (
     select 1 from atlas_communities c
     where c.community_id = atlas_community_aliases.community_id
       and c.deleted_at is null
-      and (atlas_has_role(array['admin','executive','people']) or atlas_can_access_community(c.community_id))
+      and (atlas_has_role(array['admin','centra','executive','people']) or atlas_can_access_community(c.community_id))
   )
 );
 
@@ -1520,7 +1526,7 @@ on atlas_employees for select to authenticated
 using (
   deleted_at is null
   and (
-    atlas_has_role(array['admin','executive','people'])
+    atlas_has_role(array['admin','centra','executive','people'])
     or exists (
       select 1
       from atlas_employee_assignments a
@@ -1542,7 +1548,7 @@ with check (atlas_has_role(array['admin','operations','marketing','people']));
 
 create policy "atlas shared sync events scoped read"
 on atlas_shared_sync_events for select to authenticated
-using (atlas_has_role(array['admin','executive','operations','marketing','people']));
+using (atlas_has_role(array['admin','centra','executive','operations','marketing','people']));
 
 create policy "atlas shared owners append sync events"
 on atlas_shared_sync_events for insert to authenticated
@@ -1550,7 +1556,7 @@ with check (atlas_has_role(array['admin','operations','marketing','people']));
 
 create policy "atlas mapping review scoped read"
 on atlas_mapping_review_queue for select to authenticated
-using (atlas_has_role(array['admin','executive','operations','marketing','people']));
+using (atlas_has_role(array['admin','centra','executive','operations','marketing','people']));
 
 create policy "atlas shared owners insert mapping reviews"
 on atlas_mapping_review_queue for insert to authenticated
@@ -1566,7 +1572,7 @@ on atlas_employee_assignments for select to authenticated
 using (
   deleted_at is null
   and (
-    atlas_has_role(array['admin','executive','people'])
+    atlas_has_role(array['admin','centra','executive','people'])
     or atlas_can_access_community(community_id)
   )
 );
@@ -1586,7 +1592,7 @@ on atlas_budget_lines for select to authenticated
 using (
   deleted_at is null
   and (
-    atlas_has_role(array['admin','executive','finance'])
+    atlas_has_role(array['admin','centra','executive','finance'])
     or atlas_can_access_community(community_id)
   )
 );
@@ -1601,7 +1607,7 @@ on atlas_actual_lines for select to authenticated
 using (
   deleted_at is null
   and (
-    atlas_has_role(array['admin','executive','finance'])
+    atlas_has_role(array['admin','centra','executive','finance'])
     or atlas_can_access_community(community_id)
   )
 );
@@ -1616,7 +1622,7 @@ on atlas_contracts for select to authenticated
 using (
   deleted_at is null
   and (
-    atlas_has_role(array['admin','executive','finance','maintenance'])
+    atlas_has_role(array['admin','centra','executive','finance','maintenance'])
     or atlas_can_access_community(community_id)
   )
 );
@@ -1632,7 +1638,7 @@ using (
   deleted_at is null
   and approved is true
   and (
-    atlas_has_role(array['admin','executive'])
+    atlas_has_role(array['admin','centra','executive'])
     or (atlas_has_role(array['marketing','bonus','regional','community_manager']) and atlas_can_access_community(community_id))
   )
 );
@@ -1647,7 +1653,7 @@ on atlas_maintenance_metrics for select to authenticated
 using (
   deleted_at is null
   and (
-    atlas_has_role(array['admin','executive'])
+    atlas_has_role(array['admin','centra','executive'])
     or (atlas_has_role(array['maintenance','regional','community_manager']) and atlas_can_access_community(community_id))
   )
 );
@@ -1659,7 +1665,7 @@ with check (atlas_has_role(array['admin','maintenance']) and atlas_can_access_co
 
 create policy "atlas moonrise sync admin maintenance read"
 on atlas_moonrise_sync_runs for select to authenticated
-using (atlas_has_role(array['admin','executive','maintenance']));
+using (atlas_has_role(array['admin','centra','executive','maintenance']));
 
 create policy "atlas maintenance writes moonrise sync runs"
 on atlas_moonrise_sync_runs for all to authenticated
@@ -1671,7 +1677,7 @@ on atlas_maintenance_inspections for select to authenticated
 using (
   deleted_at is null
   and (
-    atlas_has_role(array['admin','executive'])
+    atlas_has_role(array['admin','centra','executive'])
     or (atlas_has_role(array['maintenance','regional','community_manager','viewer']) and atlas_can_access_community(community_id))
   )
 );
@@ -1684,7 +1690,7 @@ with check (atlas_has_role(array['admin','maintenance']) and atlas_can_access_co
 create policy "atlas maintenance inspection exceptions scoped read"
 on atlas_maintenance_inspection_exceptions for select to authenticated
 using (
-  atlas_has_role(array['admin','executive'])
+  atlas_has_role(array['admin','centra','executive'])
   or exists (
     select 1 from atlas_maintenance_inspections i
     where i.maintenance_inspection_id = atlas_maintenance_inspection_exceptions.maintenance_inspection_id
@@ -1700,7 +1706,7 @@ with check (atlas_has_role(array['admin','maintenance']));
 
 create policy "atlas maintenance inspection snapshots read"
 on atlas_maintenance_inspection_snapshots for select to authenticated
-using (read_only_locked is true and atlas_has_role(array['admin','executive','maintenance']));
+using (read_only_locked is true and atlas_has_role(array['admin','centra','executive','maintenance']));
 
 create policy "atlas maintenance writes inspection snapshots"
 on atlas_maintenance_inspection_snapshots for all to authenticated
@@ -1709,7 +1715,7 @@ with check (atlas_has_role(array['admin','maintenance']));
 
 create policy "atlas bonus periods role read"
 on atlas_bonus_periods for select to authenticated
-using (atlas_has_role(array['admin','executive','regional','community_manager','bonus','finance']));
+using (atlas_has_role(array['admin','centra','executive','regional','community_manager','bonus','finance']));
 
 create policy "atlas bonus writes periods"
 on atlas_bonus_periods for all to authenticated
@@ -1718,7 +1724,7 @@ with check (atlas_has_role(array['admin','bonus']));
 
 create policy "atlas incentive plans role read"
 on atlas_incentive_plans for select to authenticated
-using (deleted_at is null and atlas_has_role(array['admin','executive','regional','community_manager','bonus','finance']));
+using (deleted_at is null and atlas_has_role(array['admin','centra','executive','regional','community_manager','bonus','finance']));
 
 create policy "atlas bonus writes incentive plans"
 on atlas_incentive_plans for all to authenticated
@@ -1730,7 +1736,7 @@ on atlas_bonus_calculation_runs for select to authenticated
 using (
   deleted_at is null
   and (
-    atlas_has_role(array['admin','executive','bonus','finance'])
+    atlas_has_role(array['admin','centra','executive','bonus','finance'])
     or atlas_can_access_community(community_id)
   )
 );
@@ -1745,7 +1751,7 @@ on atlas_bonus_calculation_lines for select to authenticated
 using (
   deleted_at is null
   and (
-    atlas_has_role(array['admin','executive','bonus','finance'])
+    atlas_has_role(array['admin','centra','executive','bonus','finance'])
     or exists (
       select 1 from atlas_bonus_calculation_runs r
       where r.bonus_calculation_run_id = atlas_bonus_calculation_lines.bonus_calculation_run_id
@@ -1768,7 +1774,7 @@ with check (atlas_has_role(array['admin','bonus','finance']));
 
 create policy "atlas migration runs admin executive read"
 on atlas_migration_runs for select to authenticated
-using (atlas_has_role(array['admin','executive']));
+using (atlas_has_role(array['admin','centra','executive']));
 
 create policy "atlas admin manages migration runs"
 on atlas_migration_runs for all to authenticated
@@ -1777,7 +1783,7 @@ with check (atlas_has_role(array['admin']));
 
 create policy "atlas snapshots admin executive read"
 on atlas_legacy_snapshots for select to authenticated
-using (atlas_has_role(array['admin','executive']));
+using (atlas_has_role(array['admin','centra','executive']));
 
 create policy "atlas admin manages immutable legacy snapshots"
 on atlas_legacy_snapshots for all to authenticated
@@ -1786,7 +1792,7 @@ with check (atlas_has_role(array['admin']));
 
 create policy "atlas mapping logs admin executive read"
 on atlas_mapping_log for select to authenticated
-using (atlas_has_role(array['admin','executive']));
+using (atlas_has_role(array['admin','centra','executive']));
 
 create policy "atlas admin manages mapping logs"
 on atlas_mapping_log for all to authenticated
@@ -1849,6 +1855,7 @@ revoke execute on function atlas_upload_legacy_snapshot(text, text, text, text, 
 revoke execute on function atlas_upload_legacy_snapshot(text, text, text, text, jsonb, jsonb) from anon;
 revoke execute on function atlas_lookup_or_create_community(text, text, boolean) from public;
 revoke execute on function atlas_lookup_or_create_community(text, text, boolean) from anon;
+revoke execute on function atlas_lookup_or_create_community(text, text, boolean) from authenticated;
 revoke execute on function atlas_upsert_people_directory(jsonb, uuid, boolean) from public;
 revoke execute on function atlas_upsert_people_directory(jsonb, uuid, boolean) from anon;
 revoke execute on function atlas_upsert_marketing_metrics(jsonb, boolean) from public;
@@ -1858,12 +1865,12 @@ revoke execute on function atlas_upsert_maintenance_inspections(jsonb, boolean) 
 revoke execute on function atlas_record_bonus_calculation(text, integer, text, date, date, jsonb, text) from public;
 revoke execute on function atlas_record_bonus_calculation(text, integer, text, date, date, jsonb, text) from anon;
 
+grant execute on function atlas_claim_first_admin(text) to authenticated;
 grant execute on function atlas_current_role() to authenticated;
 grant execute on function atlas_can_write(text[]) to authenticated;
 grant execute on function atlas_has_role(text[]) to authenticated;
 grant execute on function atlas_current_allowed_community_ids() to authenticated;
 grant execute on function atlas_can_access_community(uuid) to authenticated;
-grant execute on function atlas_claim_first_admin(text) to authenticated;
 
 -- Phase 4: live access controls, pending employee access, and presence.
 -- Browser users can never hold a service-role key, so employee access records
@@ -1872,6 +1879,7 @@ grant execute on function atlas_claim_first_admin(text) to authenticated;
 
 alter table atlas_user_profiles
   add column if not exists employee_id uuid references atlas_employees(employee_id),
+  add column if not exists profile_image_url text,
   add column if not exists allowed_market_values text[] not null default '{}',
   add column if not exists allowed_region_values text[] not null default '{}',
   add column if not exists locked_tab_ids text[] not null default '{}',
@@ -1887,7 +1895,7 @@ create table if not exists atlas_user_access_invites (
   email text not null unique,
   employee_id uuid references atlas_employees(employee_id),
   display_name text not null,
-  role text not null check (role in ('admin','executive','regional','community_manager','people','marketing','maintenance','finance','bonus','viewer')),
+  role text not null check (role in ('admin','centra','executive','regional','community_manager','people','marketing','maintenance','finance','bonus','viewer')),
   status text not null default 'pending' check (status in ('pending','active','suspended','disabled','revoked')),
   allowed_community_ids uuid[] not null default '{}',
   allowed_market_values text[] not null default '{}',
@@ -1911,6 +1919,7 @@ create table if not exists atlas_live_sessions (
   user_id uuid not null references auth.users(id) on delete cascade,
   email text not null,
   display_name text not null,
+  profile_image_url text,
   role text not null,
   current_tab text,
   current_page text,
@@ -1926,6 +1935,9 @@ on atlas_live_sessions(last_seen_at desc);
 
 create index if not exists idx_atlas_live_sessions_user_id
 on atlas_live_sessions(user_id);
+
+alter table atlas_live_sessions
+  add column if not exists profile_image_url text;
 
 alter table atlas_user_access_invites enable row level security;
 alter table atlas_live_sessions enable row level security;
@@ -2111,6 +2123,52 @@ begin
 end;
 $$;
 
+create or replace function atlas_update_current_profile(
+  p_display_name text default null,
+  p_profile_image_url text default null
+)
+returns table(user_id uuid, email text, display_name text, profile_image_url text, role text, status text)
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_user_id uuid;
+  v_profile atlas_user_profiles%rowtype;
+begin
+  v_user_id := auth.uid();
+  if v_user_id is null then
+    raise exception 'Authentication is required before updating the Atlas profile.' using errcode = '28000';
+  end if;
+
+  update atlas_user_profiles
+  set display_name = coalesce(nullif(trim(p_display_name), ''), display_name),
+      profile_image_url = nullif(trim(coalesce(p_profile_image_url, '')), ''),
+      updated_at = now()
+  where user_id = v_user_id
+  returning * into v_profile;
+
+  if v_profile.user_id is null then
+    raise exception 'An active Atlas user profile is required before updating profile settings.' using errcode = '42501';
+  end if;
+
+  insert into atlas_audit_log(actor_user_id, action, entity_table, entity_id, source_module, before_payload, after_payload, metadata)
+  values (
+    v_user_id,
+    'profile_updated',
+    'atlas_user_profiles',
+    v_profile.user_id::text,
+    'user_profile',
+    null,
+    jsonb_build_object('display_name', v_profile.display_name, 'profile_image_url', v_profile.profile_image_url),
+    jsonb_build_object('self_service', true)
+  );
+
+  return query
+  select v_profile.user_id, v_profile.email, v_profile.display_name, v_profile.profile_image_url, v_profile.role, v_profile.status;
+end;
+$$;
+
 create or replace function atlas_admin_upsert_user_access(
   p_email text,
   p_display_name text,
@@ -2145,7 +2203,7 @@ begin
     raise exception 'Enter a valid RISE company email address.' using errcode = '22023';
   end if;
 
-  if p_role is null or p_role not in ('admin','executive','regional','community_manager','people','marketing','maintenance','finance','bonus','viewer') then
+  if p_role is null or p_role not in ('admin','centra','executive','regional','community_manager','people','marketing','maintenance','finance','bonus','viewer') then
     raise exception 'Invalid Atlas role.' using errcode = '22023';
   end if;
 
@@ -2258,7 +2316,7 @@ create or replace function atlas_upsert_live_session(
 )
 returns table(session_id text, user_id uuid, email text, display_name text, role text, current_page text, current_community_name text, last_seen_at timestamptz)
 language plpgsql
-security definer
+security invoker
 set search_path = public
 as $$
 declare
@@ -2285,7 +2343,7 @@ begin
   end if;
 
   insert into atlas_live_sessions(
-    session_id, user_id, email, display_name, role, current_tab, current_page,
+    session_id, user_id, email, display_name, profile_image_url, role, current_tab, current_page,
     current_community_id, current_community_name, user_agent, signed_in_at, last_seen_at
   )
   values (
@@ -2293,6 +2351,7 @@ begin
     v_profile.user_id,
     v_profile.email,
     v_profile.display_name,
+    v_profile.profile_image_url,
     v_profile.role,
     p_current_tab,
     p_current_page,
@@ -2305,6 +2364,7 @@ begin
   on conflict on constraint atlas_live_sessions_pkey do update
     set email = excluded.email,
         display_name = excluded.display_name,
+        profile_image_url = excluded.profile_image_url,
         role = excluded.role,
         current_tab = excluded.current_tab,
         current_page = excluded.current_page,
@@ -2324,7 +2384,7 @@ $$;
 create or replace function atlas_end_live_session(p_session_id text)
 returns boolean
 language plpgsql
-security definer
+security invoker
 set search_path = public
 as $$
 begin
@@ -2359,3 +2419,11 @@ grant execute on function atlas_upsert_people_directory(jsonb, uuid, boolean) to
 grant execute on function atlas_upsert_marketing_metrics(jsonb, boolean) to authenticated;
 grant execute on function atlas_upsert_maintenance_inspections(jsonb, boolean) to authenticated;
 grant execute on function atlas_record_bonus_calculation(text, integer, text, date, date, jsonb, text) to authenticated;
+
+alter table if exists atlas.state_store enable row level security;
+revoke all on table atlas.state_store from anon, authenticated;
+drop policy if exists "atlas state_store deny client access" on atlas.state_store;
+create policy "atlas state_store deny client access"
+on atlas.state_store for all to authenticated
+using (false)
+with check (false);

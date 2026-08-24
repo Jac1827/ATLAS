@@ -358,7 +358,7 @@
     const user = getSignedInUser() || await fetchUser();
     const userId = user?.id;
     if (!userId) return null;
-    const query = `?user_id=eq.${encodeURIComponent(userId)}&select=user_id,email,display_name,role,status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,last_access_reviewed_at,updated_at&limit=1`;
+    const query = `?user_id=eq.${encodeURIComponent(userId)}&select=user_id,email,display_name,profile_image_url,role,status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,last_access_reviewed_at,updated_at&limit=1`;
     const rows = await fetchJson(`/atlas_user_profiles${query}`);
     let profile = Array.isArray(rows) ? rows[0] : null;
     if (!profile) {
@@ -411,6 +411,15 @@
   async function claimInvitedProfile(displayName = "") {
     const profile = await rpc("atlas_claim_invited_profile", {
       p_display_name: String(displayName || "").trim() || null
+    });
+    saveProfile(profile || null);
+    return profile;
+  }
+
+  async function updateCurrentProfile({ displayName = "", profileImageUrl = null } = {}) {
+    const profile = await rpc("atlas_update_current_profile", {
+      p_display_name: String(displayName || "").trim() || null,
+      p_profile_image_url: String(profileImageUrl || "").trim() || null
     });
     saveProfile(profile || null);
     return profile;
@@ -488,7 +497,7 @@
     const cutoff = new Date(Date.now() - (Math.max(30, Number(activeWithinSeconds) || 180) * 1000)).toISOString();
     const query = [
       `last_seen_at=gte.${encodeURIComponent(cutoff)}`,
-      "select=session_id,user_id,email,display_name,role,current_tab,current_page,current_community_id,current_community_name,signed_in_at,last_seen_at",
+      "select=session_id,user_id,email,display_name,profile_image_url,role,current_tab,current_page,current_community_id,current_community_name,signed_in_at,last_seen_at",
       "order=last_seen_at.desc"
     ].join("&");
     const rows = await fetchJson(`/atlas_live_sessions?${query}`);
@@ -519,7 +528,7 @@
 
   async function readUserProfiles() {
     await refreshSession().catch(() => null);
-    const query = "select=user_id,email,display_name,role,status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,last_access_reviewed_at,updated_at&order=display_name.asc";
+    const query = "select=user_id,email,display_name,profile_image_url,role,status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,last_access_reviewed_at,updated_at&order=display_name.asc";
     const rows = await fetchJson(`/atlas_user_profiles?${query}`);
     return Array.isArray(rows) ? rows : [];
   }
@@ -829,6 +838,7 @@
     fetchProfile,
     claimFirstAdmin,
     claimInvitedProfile,
+    updateCurrentProfile,
     computeSha256,
     readDocument,
     saveDocument,

@@ -111,13 +111,6 @@
       accessPanel = "";
     }
     var embeddedSrc = iframeSrc(key, m);
-    var openLink = key === "people"
-      ? ""
-      : [
-        '    <a class="atlas-mount-open" href="' + esc(m.src) + '" target="_blank" rel="noopener">',
-        '      <i class="ph ph-arrow-square-out" aria-hidden="true"></i>Open full screen',
-        "    </a>"
-      ].join("\n");
     return [
       '<div class="atlas-screen-head">',
       "  <div>",
@@ -125,11 +118,10 @@
       "    <p>" + esc(m.lede) + "</p>",
       "  </div>",
       "</div>",
-      accessPanel,
+      '<div id="atlas-people-access-panel">' + accessPanel + "</div>",
       '<section class="atlas-mount-section" id="atlas-mount-' + esc(key) + '">',
       '  <div class="atlas-mount-head">',
       "    <h3>" + esc(m.title) + "</h3>",
-      openLink,
       "  </div>",
       '  <div class="atlas-mount-note">' + esc(m.note) + "</div>",
       '  <div class="atlas-mount-frame">',

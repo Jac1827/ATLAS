@@ -7779,6 +7779,17 @@ function buildDlrTrafficMetricsFromSummary(dlrSummary = {}, monthEntry = {}, dai
   };
 }
 
+function hasDlrDisplayMetricValue(value) {
+  return value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
+}
+
+function pickDlrDisplayMetricValue(...values) {
+  for (const value of values) {
+    if (hasDlrDisplayMetricValue(value)) return Number(value);
+  }
+  return null;
+}
+
 function getRawRecordMonthEntryForPeriod(record, monthIdx, year = new Date().getFullYear()) {
   if (!record || monthIdx < 0 || monthIdx > 11) return {};
   const periodKey = buildPeriodKey(monthIdx, year);
@@ -18069,7 +18080,7 @@ function resolveDlrEditableNotes(summary, generatedNotes, options = {}) {
   DLR_EDITABLE_NOTE_SECTIONS.forEach(section => {
     const generatedLines = Array.isArray(generatedNotes?.[section.key]) ? generatedNotes[section.key] : [];
     const generatedText = formatDlrEditableNoteText(generatedLines);
-    const persistedText = String(scopedNotes?.[section.key] ?? normalizedSummary.editableNotes?.[section.key] ?? "").trim();
+    const persistedText = String(scopedNotes?.[section.key] ?? "").trim();
     const domText = domValues && typeof domValues[section.key] === "string" ? domValues[section.key].trim() : "";
     const finalText = domText || persistedText || generatedText;
     editorValues[section.key] = finalText;
@@ -30126,19 +30137,9 @@ function renderDlrReportingWorkspace() {
         </div>
         <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
           <div class="card-title" style="margin-bottom:8px">Pricing & Renewal Snapshot</div>
-          <div style="font-size:0.72rem;line-height:1.7">
-            <div>Total Units: <strong>${formatDlrMetricValue(report.pricing?.totalUnits)}</strong></div>
-            <div>Leased Units: <strong>${formatDlrMetricValue(report.pricing?.leasedUnits)}</strong></div>
-            <div>Occupied Units: <strong>${formatDlrMetricValue(report.pricing?.occupiedUnits)}</strong></div>
-            <div>Avg Budget Rent: <strong>${formatDlrCurrency(report.pricing?.avgBudgetRent)}</strong></div>
-            <div>Avg In-Place Rent: <strong>${formatDlrCurrency(report.pricing?.avgInPlaceRent)}</strong></div>
-            <div>Avg Net Effective Rent: <strong>${formatDlrCurrency(report.pricing?.avgNetEffectiveRent)}</strong></div>
-            <div>Renewals Signed: <strong>${formatDlrMetricValue(report.renewalSnapshot?.signed)}</strong></div>
-            <div>Undecided / M2M: <strong>${formatDlrMetricValue(report.renewalSnapshot?.undecided)}</strong></div>
-          </div>
-          <div style="font-size:0.64rem;color:var(--muted);margin-top:8px">${workbookMode
+          ${renderDlrPricingRenewalSnapshot(report, workbookMode
             ? `Built from the uploaded Ronaldo workbook for ${escapeHtml(report.reportDateLabel || report.reportMonthLabel)} · generated ${escapeHtml(formatSavedTimestampLabel(report.generatedAt))}`
-            : `Built from saved ATLAS RISE values for ${escapeHtml(report.reportMonthLabel)} · ${escapeHtml(sourceModeText)} · generated ${escapeHtml(formatSavedTimestampLabel(report.generatedAt))}`}</div>
+            : `Built from saved ATLAS RISE values for ${escapeHtml(report.reportMonthLabel)} · ${escapeHtml(sourceModeText)} · generated ${escapeHtml(formatSavedTimestampLabel(report.generatedAt))}`)}
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -31487,33 +31488,58 @@ function buildDlrInvestorNotes({
   const secondarySource = topSources[1] || null;
   const occupancyAhead = occupancyPct >= budgetOccPct;
   const leasedAhead = leasedPct >= budgetOccPct;
-  const appVolumeDelta = (mtdTraffic.applications || 0) - (prevMonthTraffic.applications || 0);
-  const approvalDelta = (mtdTraffic.approvals || 0) - (prevMonthTraffic.approvals || 0);
-  const tourDelta = (mtdTraffic.tours || 0) - (prevMonthTraffic.tours || 0);
-  const netAbsorption = (mtdTraffic.moveIns || 0) - (mtdTraffic.moveOuts || 0);
-  const budgetRentDelta = (Number(avgInPlaceRent) || 0) - (Number(avgBudgetRent) || 0);
+  const hasMtdApplications = hasDlrDisplayMetricValue(mtdTraffic.applications);
+  const hasPrevApplications = hasDlrDisplayMetricValue(prevMonthTraffic.applications);
+  const hasMtdTours = hasDlrDisplayMetricValue(mtdTraffic.tours);
+  const hasPrevTours = hasDlrDisplayMetricValue(prevMonthTraffic.tours);
+  const hasMoveIns = hasDlrDisplayMetricValue(mtdTraffic.moveIns);
+  const hasMoveOuts = hasDlrDisplayMetricValue(mtdTraffic.moveOuts);
+  const hasRenewalData = hasDlrDisplayMetricValue(expirations) || hasDlrDisplayMetricValue(renewalsSigned) || hasDlrDisplayMetricValue(retentionRate);
+  const appVolumeDelta = hasMtdApplications && hasPrevApplications
+    ? Number(mtdTraffic.applications) - Number(prevMonthTraffic.applications)
+    : null;
+  const approvalDelta = hasDlrDisplayMetricValue(mtdTraffic.approvals) && hasDlrDisplayMetricValue(prevMonthTraffic.approvals)
+    ? Number(mtdTraffic.approvals) - Number(prevMonthTraffic.approvals)
+    : null;
+  const tourDelta = hasMtdTours && hasPrevTours
+    ? Number(mtdTraffic.tours) - Number(prevMonthTraffic.tours)
+    : null;
+  const netAbsorption = hasMoveIns && hasMoveOuts
+    ? Number(mtdTraffic.moveIns) - Number(mtdTraffic.moveOuts)
+    : null;
+  const budgetRentDelta = hasDlrDisplayMetricValue(avgInPlaceRent) && hasDlrDisplayMetricValue(avgBudgetRent)
+    ? Number(avgInPlaceRent) - Number(avgBudgetRent)
+    : null;
   const tours = [
     `Report-period activity reflects ${reportDateLabel || monthLabel}.`,
     dailyTraffic.guestCards > 0
       ? `${dailyTraffic.guestCards} new lead${dailyTraffic.guestCards === 1 ? "" : "s"} and ${dailyTraffic.tours || 0} tour${dailyTraffic.tours === 1 ? "" : "s"} were logged on the report date.`
-      : `${mtdTraffic.guestCards || 0} guest cards and ${mtdTraffic.tours || 0} tours are currently recorded month to date.`,
+      : (hasDlrDisplayMetricValue(mtdTraffic.guestCards) || hasDlrDisplayMetricValue(mtdTraffic.tours)
+        ? `${formatDlrMetricValue(mtdTraffic.guestCards)} guest cards and ${formatDlrMetricValue(mtdTraffic.tours)} tours are currently recorded month to date.`
+        : `Month-to-date guest card and tour detail is not saved for ${monthLabel} yet, so ATLAS is only showing today's imported activity.`),
     primarySource
       ? `${primarySource.label} leads the month-to-date source mix at ${primarySource.value}${secondarySource ? `, followed by ${secondarySource.label} at ${secondarySource.value}` : ""}.`
-      : "Lead-source mix will populate here as source buckets are saved.",
-    tourDelta > 0
+      : "Lead-source mix will populate here when lead-source buckets are saved into ATLAS for the selected month.",
+    tourDelta !== null && tourDelta > 0
       ? `Tours are trending positively versus the prior month, pacing ${tourDelta} tour${tourDelta === 1 ? "" : "s"} ahead.`
-      : `Month-to-date tours are ${formatDeltaWord(mtdTraffic.tours, prevMonthTraffic.tours, "tour")} for ${monthLabel}.`
+      : (tourDelta !== null
+        ? `Month-to-date tours are ${formatDeltaWord(mtdTraffic.tours, prevMonthTraffic.tours, "tour")} for ${monthLabel}.`
+        : `Prior-month tour comparison will populate after ATLAS has saved comparable tour counts for both months.`)
   ].filter(Boolean);
   const applications = [
-    `${mtdTraffic.applications || 0} applications are recorded month to date, including ${mtdTraffic.approvals || 0} approved, ${mtdTraffic.denials || 0} denied, ${mtdTraffic.cancelled || 0} cancelled, and ${mtdTraffic.pendingDecision || 0} pending decision.`,
+    hasMtdApplications
+      ? `${formatDlrMetricValue(mtdTraffic.applications)} applications are recorded month to date, including ${formatDlrMetricValue(mtdTraffic.approvals)} approved, ${formatDlrMetricValue(mtdTraffic.denials)} denied, ${formatDlrMetricValue(mtdTraffic.cancelled)} cancelled, and ${formatDlrMetricValue(mtdTraffic.pendingDecision)} pending decision.`
+      : `Month-to-date application funnel detail is not yet saved for ${monthLabel}.`,
     dailyTraffic.applications > 0
       ? `The report date contributed ${dailyTraffic.applications} application${dailyTraffic.applications === 1 ? "" : "s"} (${dailyTraffic.approvals || 0} approved / ${dailyTraffic.denials || 0} denied / ${dailyTraffic.cancelled || 0} cancelled / ${dailyTraffic.pendingDecision || 0} pending).`
-      : `No new applications were logged on the report date; the DLR is showing the saved month-to-date application funnel.`,
-    appVolumeDelta > 0
+      : `No new applications were logged on the report date; the DLR is showing the saved ATLAS application funnel for the selected period where available.`,
+    appVolumeDelta !== null && appVolumeDelta > 0
       ? `Application flow is trending positively versus the prior month with ${appVolumeDelta} more application${appVolumeDelta === 1 ? "" : "s"} month to date.`
-      : approvalDelta > 0
+      : approvalDelta !== null && approvalDelta > 0
         ? `Approved applications are running ${approvalDelta} ahead of the prior month at the same point in the cycle.`
-        : `Applications are currently ${formatDeltaWord(mtdTraffic.applications, prevMonthTraffic.applications, "application")} versus the prior month.`
+        : (appVolumeDelta !== null
+          ? `Applications are currently ${formatDeltaWord(mtdTraffic.applications, prevMonthTraffic.applications, "application")} versus the prior month.`
+          : `Prior-month application comparisons will populate once both monthly snapshots are saved in ATLAS.`)
   ].filter(Boolean);
   const highlights = [
     occupancyAhead
@@ -31522,14 +31548,18 @@ function buildDlrInvestorNotes({
     leasedAhead
       ? `Leased exposure is trending positively at ${formatDlrPercent(leasedPct, 1)}, and ending physical occupancy over the next 90 days is projected at ${formatDlrPercent(trendingOccupancyPct, 1)} from saved move-ins and move-outs.`
       : `Leased exposure is ${formatDlrPercent(leasedPct, 1)}, and ending physical occupancy over the next 90 days is projected at ${formatDlrPercent(trendingOccupancyPct, 1)} from saved move-ins and move-outs.`,
-    `${renewalsSigned} renewals have been secured from ${expirations} expirations (${formatDlrPercent(retentionRate, 0)} retention) while net absorption is ${formatDlrSignedNumber(netAbsorption)} unit${Math.abs(netAbsorption) === 1 ? "" : "s"} month to date.`,
-    Number(avgInPlaceRent) > 0
+    hasRenewalData
+      ? `${formatDlrMetricValue(renewalsSigned)} renewals have been secured from ${formatDlrMetricValue(expirations)} expirations (${formatDlrPercent(retentionRate, 0)} retention)${netAbsorption !== null ? ` while net absorption is ${formatDlrSignedNumber(netAbsorption)} unit${Math.abs(netAbsorption) === 1 ? "" : "s"} month to date.` : "."}`
+      : (netAbsorption !== null
+        ? `Renewal snapshot detail is not loaded for ${monthLabel}, but net absorption is ${formatDlrSignedNumber(netAbsorption)} unit${Math.abs(netAbsorption) === 1 ? "" : "s"} month to date.`
+        : `Renewal snapshot detail is not loaded for ${monthLabel} yet.`),
+    budgetRentDelta !== null
       ? `${budgetRentDelta >= 0 ? "In-place rent is outperforming the current budget" : "In-place rent is currently below budget"} by ${formatDlrCurrency(Math.abs(budgetRentDelta))}.`
       : ""
   ].filter(Boolean);
   const wins = [
-    netAbsorption > 0 ? `Positive net absorption of ${formatDlrSignedNumber(netAbsorption)} units is supporting occupancy momentum.` : "",
-    approvalDelta > 0 ? `Approved applications are ahead of the prior month by ${approvalDelta}.` : "",
+    netAbsorption !== null && netAbsorption > 0 ? `Positive net absorption of ${formatDlrSignedNumber(netAbsorption)} units is supporting occupancy momentum.` : "",
+    approvalDelta !== null && approvalDelta > 0 ? `Approved applications are ahead of the prior month by ${approvalDelta}.` : "",
     occupancyAhead && trendingOccupancyPct >= occupancyPct ? `Both current occupancy and the 90-day projected ending physical occupancy are pacing positively to the saved schedule.` : "",
     primarySource && primarySource.value >= 5 ? `${primarySource.label} is the strongest source driver so far this month with ${primarySource.value} leads.` : ""
   ].filter(Boolean);
@@ -31971,6 +32001,8 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
   const prevRenewalSummary = getRenewalSummaryForMonth(prevMonthEntry);
   const appMetrics = getApplicationDecisionMetrics(monthEntry);
   const prevAppMetrics = getApplicationDecisionMetrics(prevMonthEntry);
+  const monthLeadSources = getLeadSourceBreakdown(monthEntry);
+  const leadSourceTotal = getLeadSourceTotal(monthEntry);
   const scheduleRow = schedule[reportMetricMonthIdx] ?? {};
   const scheduledNextRows = MONTHS.map((_, idx) => idx)
     .filter(idx => idx >= reportMetricMonthIdx)
@@ -32134,12 +32166,133 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
       ? Number(reportSummary.currentNer ?? currentNer) * occupiedUnits
       : 0);
   const floorPlanRentMetrics = getCommunityFloorPlanRentMetrics(record, surveyData);
-  const resolvedAvgInPlaceRent = Number(monthEntry.marketRent) || floorPlanRentMetrics.marketRent || Number(effectiveDlrSummary.pricing?.avgInPlaceRent) || 0;
-  const resolvedAvgBudgetRent = Number(monthEntry.proformaRent) || floorPlanRentMetrics.budgetRent || Number(effectiveDlrSummary.pricing?.avgBudgetRent) || 0;
-  const resolvedRenewalsSigned = dailyBoxScoreRenewalsSigned ?? renewalSummary.signed;
-  const resolvedRetentionRate = renewalSummary.expirations > 0
-    ? (resolvedRenewalsSigned / renewalSummary.expirations) * 100
-    : renewalSummary.retentionRate;
+  const resolvedAvgInPlaceRent = pickDlrDisplayMetricValue(
+    monthEntry.marketRent,
+    floorPlanRentMetrics.marketRent,
+    effectiveDlrSummary.pricing?.avgInPlaceRent
+  );
+  const resolvedAvgBudgetRent = pickDlrDisplayMetricValue(
+    monthEntry.proformaRent,
+    floorPlanRentMetrics.budgetRent,
+    effectiveDlrSummary.pricing?.avgBudgetRent
+  );
+  const resolvedAvgNetEffectiveRent = pickDlrDisplayMetricValue(
+    reportSummary.currentNer,
+    currentNer,
+    effectiveDlrSummary.pricing?.avgNetEffectiveRent
+  );
+  const hasRenewalSnapshotData = hasExplicitMonthMetrics(monthEntry, [
+    "renewalExpirations",
+    "renewalSigned",
+    "renewalNTV",
+    "renewalTransfers",
+    "renewalEarlyTermination"
+  ]) || Boolean(
+    effectiveDlrSummary?.renewalSnapshot
+    && Object.keys(effectiveDlrSummary.renewalSnapshot).length
+    && hasMatchingDlrSummary
+  );
+  const resolvedRenewalsSigned = hasRenewalSnapshotData
+    ? (dailyBoxScoreRenewalsSigned ?? renewalSummary.signed)
+    : null;
+  const resolvedRetentionRate = hasRenewalSnapshotData && renewalSummary.expirations > 0
+    ? (Number(resolvedRenewalsSigned) / renewalSummary.expirations) * 100
+    : (hasRenewalSnapshotData ? renewalSummary.retentionRate : null);
+  const activitySummary = effectiveDlrSummary.activity || {};
+  const resolvedMtdTraffic = {
+    walkIn: pickDlrDisplayMetricValue(
+      getDlrActivityMetric(activitySummary, "Walk In"),
+      monthLeadSources.walkIn
+    ),
+    offSiteEvent: pickDlrDisplayMetricValue(
+      getDlrActivityMetric(activitySummary, "Off Site Event"),
+      monthLeadSources.offSiteEvent
+    ),
+    phoneCalls: pickDlrDisplayMetricValue(
+      getDlrActivityMetric(activitySummary, "Phone Calls"),
+      monthLeadSources.phoneCalls
+    ),
+    emailsOnline: pickDlrDisplayMetricValue(
+      getDlrActivityMetric(activitySummary, "Emails/Online"),
+      monthLeadSources.emailsOnline
+    ),
+    textChatOther: pickDlrDisplayMetricValue(
+      getDlrActivityMetric(activitySummary, "Text/Chat/Other"),
+      monthLeadSources.textChatOther
+    ),
+    guestCards: pickDlrDisplayMetricValue(
+      reportSummary.guestCards,
+      getDlrActivityMetric(activitySummary, "Guest Cards"),
+      getDlrActivityMetric(activitySummary, "Applications"),
+      leadSourceTotal
+    ),
+    tours: pickDlrDisplayMetricValue(
+      reportSummary.tours,
+      getDlrActivityMetric(activitySummary, "Tours"),
+      monthEntry.tours
+    ),
+    applications: pickDlrDisplayMetricValue(
+      reportSummary.applications,
+      getDlrActivityMetric(activitySummary, "Applications"),
+      getDlrActivityMetric(activitySummary, "Gross New Applications"),
+      getDlrActivityMetric(activitySummary, "Net New Applications"),
+      appMetrics.applications
+    ),
+    approvals: pickDlrDisplayMetricValue(
+      reportSummary.applicationsApproved,
+      getDlrActivityMetric(activitySummary, "Approved"),
+      appMetrics.approvals
+    ),
+    denials: pickDlrDisplayMetricValue(
+      reportSummary.applicationsDenied,
+      getDlrActivityMetric(activitySummary, "Denied"),
+      appMetrics.denials
+    ),
+    cancelled: pickDlrDisplayMetricValue(
+      reportSummary.applicationsCancelled,
+      getDlrActivityMetric(activitySummary, "Cancelled"),
+      appMetrics.cancelled
+    ),
+    pendingDecision: pickDlrDisplayMetricValue(
+      reportSummary.applicationsPendingDecision,
+      getDlrActivityMetric(activitySummary, "Pending / Partial"),
+      appMetrics.pendingDecision
+    ),
+    leases: pickDlrDisplayMetricValue(
+      reportSummary.leasesSigned,
+      appMetrics.leases
+    ),
+    renewals: pickDlrDisplayMetricValue(
+      reportSummary.renewalsSigned,
+      getDlrActivityMetric(activitySummary, "Renewals"),
+      hasRenewalSnapshotData ? renewalSummary.signed : null
+    ),
+    moveIns: pickDlrDisplayMetricValue(
+      reportSummary.moveIns,
+      monthEntry.moveIns
+    ),
+    moveOuts: pickDlrDisplayMetricValue(
+      reportSummary.moveOuts,
+      monthEntry.moveOuts,
+      hasRenewalSnapshotData ? getEffectiveMoveOutsForMonth(reportMetricMonthIdx, scopeMonthlyData).effective : null
+    )
+  };
+  resolvedMtdTraffic.rolledGuestCards = resolvedMtdTraffic.guestCards;
+  resolvedMtdTraffic.monthAbsorption = hasDlrDisplayMetricValue(resolvedMtdTraffic.moveIns) && hasDlrDisplayMetricValue(resolvedMtdTraffic.moveOuts)
+    ? Number(resolvedMtdTraffic.moveIns) - Number(resolvedMtdTraffic.moveOuts)
+    : null;
+  resolvedMtdTraffic.guestToTourPct = hasDlrDisplayMetricValue(resolvedMtdTraffic.guestCards) && Number(resolvedMtdTraffic.guestCards) > 0 && hasDlrDisplayMetricValue(resolvedMtdTraffic.tours)
+    ? (Number(resolvedMtdTraffic.tours) / Number(resolvedMtdTraffic.guestCards)) * 100
+    : null;
+  resolvedMtdTraffic.tourToAppPct = hasDlrDisplayMetricValue(resolvedMtdTraffic.tours) && Number(resolvedMtdTraffic.tours) > 0 && hasDlrDisplayMetricValue(resolvedMtdTraffic.applications)
+    ? (Number(resolvedMtdTraffic.applications) / Number(resolvedMtdTraffic.tours)) * 100
+    : null;
+  resolvedMtdTraffic.appToLeasePct = hasDlrDisplayMetricValue(resolvedMtdTraffic.applications) && Number(resolvedMtdTraffic.applications) > 0 && hasDlrDisplayMetricValue(resolvedMtdTraffic.leases)
+    ? (Number(resolvedMtdTraffic.leases) / Number(resolvedMtdTraffic.applications)) * 100
+    : null;
+  const pricingDataReady = hasDlrDisplayMetricValue(resolvedAvgBudgetRent)
+    || hasDlrDisplayMetricValue(resolvedAvgInPlaceRent)
+    || hasDlrDisplayMetricValue(resolvedAvgNetEffectiveRent);
   const status = occupancyPct + 0.5 >= budgetOccPct
     ? "On Track"
     : occupancyPct + 2 >= budgetOccPct
@@ -32156,7 +32309,7 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
       textChatOther: mtdTraffic.textChatOther
     },
     dailyTraffic,
-    mtdTraffic,
+    mtdTraffic: resolvedMtdTraffic,
     prevMonthTraffic,
     trafficMetricsSourceMode: reportTrafficSourceMode,
     occupancyPct,
@@ -32167,7 +32320,7 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
     avgBudgetRent: resolvedAvgBudgetRent,
     retentionRate: resolvedRetentionRate,
     renewalsSigned: resolvedRenewalsSigned,
-    expirations: renewalSummary.expirations
+    expirations: hasRenewalSnapshotData ? renewalSummary.expirations : null
   });
   const floorPlanVarianceData = buildCommunityFloorPlanVarianceRows(record.communityFloorPlans, surveyData);
   const resolvedNoteState = resolveDlrEditableNotes(effectiveDlrSummary, generatedNotes, {
@@ -32203,9 +32356,9 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
     budgetOccPct,
     moveInGoalPerWeek,
     moveInsNeeded,
-    monthAbsorption: Number(reportSummary.monthAbsorption ?? mtdTraffic.monthAbsorption ?? 0) || 0,
+    monthAbsorption: pickDlrDisplayMetricValue(reportSummary.monthAbsorption, resolvedMtdTraffic.monthAbsorption),
     trafficMetrics: {
-      ...mtdTraffic,
+      ...resolvedMtdTraffic,
       sourceMode: reportTrafficSourceMode
     },
     dailyTraffic,
@@ -32213,20 +32366,26 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
       totalUnits,
       leasedUnits,
       occupiedUnits,
-      avgBudgetRent: resolvedAvgBudgetRent || null,
-      avgInPlaceRent: resolvedAvgInPlaceRent || null,
-      avgNetEffectiveRent: Number(reportSummary.currentNer ?? currentNer) || null,
+      avgBudgetRent: resolvedAvgBudgetRent,
+      avgInPlaceRent: resolvedAvgInPlaceRent,
+      avgNetEffectiveRent: resolvedAvgNetEffectiveRent,
       rentRollTotal: resolvedRentRollTotal || null,
       concessions: Number(monthEntry.concessions) || null
     },
     forwardLook: nextRows,
     renewalSnapshot: {
-      expirations: renewalSummary.expirations,
+      expirations: hasRenewalSnapshotData ? renewalSummary.expirations : null,
       signed: resolvedRenewalsSigned,
-      undecided: renewalSummary.undecided,
-      projectedAttrition: renewalSummary.projectedAttrition,
+      undecided: hasRenewalSnapshotData ? renewalSummary.undecided : null,
+      projectedAttrition: hasRenewalSnapshotData ? renewalSummary.projectedAttrition : null,
       retentionRate: resolvedRetentionRate,
-      previousRetentionRate: prevRenewalSummary.retentionRate
+      previousRetentionRate: hasExplicitMonthMetrics(prevMonthEntry, [
+        "renewalExpirations",
+        "renewalSigned",
+        "renewalNTV",
+        "renewalTransfers",
+        "renewalEarlyTermination"
+      ]) ? prevRenewalSummary.retentionRate : null
     },
     dailyBoxScoreSourceFile: dailyBoxScore.sourceFileName || "",
     dailyBoxScoreImportedAt: dailyBoxScore.importedAt || "",
@@ -32236,6 +32395,16 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
     communityPhotoAsset: primaryCommunityPhotoAsset,
     communityPhotoPreviewSrc: String(primaryCommunityPhotoAsset?.previewSrc || primaryCommunityPhotoAsset?.src || ""),
     sourceSummary: `${communityName} · ${reportPeriodLabel} · ${hasMatchingDailyBoxScore ? "today's leasing activity imported from box score with month-to-date metrics sourced from ATLAS RISE" : (hasMatchingDlrSummary ? "month-to-date report sections sourced from the uploaded DLR summary" : "generated from ATLAS RISE saved month-to-date data")}`,
+    dataAvailability: {
+      pricingReady: pricingDataReady,
+      renewalReady: hasRenewalSnapshotData,
+      pricingMessage: pricingDataReady
+        ? "Pricing fields are sourced from saved ATLAS rent metrics for the selected month."
+        : `Pricing fields are not loaded for ${formatDlrMonthYear(reportMetricMonthIdx, year)} yet, so ATLAS is only showing occupancy and unit counts from the saved property snapshot.`,
+      renewalMessage: hasRenewalSnapshotData
+        ? "Renewal retention and attrition are sourced from the saved renewal snapshot for the selected month."
+        : `Renewal template data has not been loaded for ${formatDlrMonthYear(reportMetricMonthIdx, year)} yet, so retention and attrition stay unavailable until the weekly renewal feed is saved.`
+    },
     floorPlanVarianceRows: floorPlanVarianceData.rows.map(row => ({
       ...row,
       communityIdentifier: String(workbookOverlay?.communityId || communityName || "").trim()
@@ -32341,6 +32510,26 @@ function renderDashboardDlrActivityMiniTable(report) {
       </tr>`).join("")}
     </tbody>
   </table>`;
+}
+
+function renderDlrPricingRenewalSnapshot(report, sourceLine = "") {
+  const availability = report?.dataAvailability || {};
+  const messages = [
+    availability.pricingReady === false ? availability.pricingMessage : "",
+    availability.renewalReady === false ? availability.renewalMessage : ""
+  ].filter(Boolean);
+  return `<div style="font-size:0.72rem;line-height:1.7">
+      <div>Total Units: <strong>${formatDlrMetricValue(report.pricing?.totalUnits)}</strong></div>
+      <div>Leased Units: <strong>${formatDlrMetricValue(report.pricing?.leasedUnits)}</strong></div>
+      <div>Occupied Units: <strong>${formatDlrMetricValue(report.pricing?.occupiedUnits)}</strong></div>
+      <div>Avg Budget Rent: <strong>${formatDlrCurrency(report.pricing?.avgBudgetRent)}</strong></div>
+      <div>Avg In-Place Rent: <strong>${formatDlrCurrency(report.pricing?.avgInPlaceRent)}</strong></div>
+      <div>Avg Net Effective Rent: <strong>${formatDlrCurrency(report.pricing?.avgNetEffectiveRent)}</strong></div>
+      <div>Renewals Signed: <strong>${formatDlrMetricValue(report.renewalSnapshot?.signed)}</strong></div>
+      <div>Undecided / M2M: <strong>${formatDlrMetricValue(report.renewalSnapshot?.undecided)}</strong></div>
+    </div>
+    ${messages.length ? `<div style="font-size:0.64rem;color:var(--warning);margin-top:8px">${escapeHtml(messages.join(" "))}</div>` : ""}
+    ${sourceLine ? `<div style="font-size:0.64rem;color:var(--muted);margin-top:8px">${sourceLine}</div>` : ""}`;
 }
 
 function buildDlrInvestorOverviewDocument(report) {
@@ -35695,17 +35884,10 @@ function renderCSVTab() {
         </div>
         <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
           <div class="card-title" style="margin-bottom:8px">Pricing & Renewal Snapshot</div>
-          <div style="font-size:0.72rem;line-height:1.7">
-            <div>Total Units: <strong>${formatDlrMetricValue(historicalDlrSummary.pricing?.totalUnits)}</strong></div>
-            <div>Leased Units: <strong>${formatDlrMetricValue(historicalDlrSummary.pricing?.leasedUnits)}</strong></div>
-            <div>Occupied Units: <strong>${formatDlrMetricValue(historicalDlrSummary.pricing?.occupiedUnits)}</strong></div>
-            <div>Avg Budget Rent: <strong>${formatDlrCurrency(historicalDlrSummary.pricing?.avgBudgetRent)}</strong></div>
-            <div>Avg In-Place Rent: <strong>${formatDlrCurrency(historicalDlrSummary.pricing?.avgInPlaceRent)}</strong></div>
-            <div>Avg Net Effective Rent: <strong>${formatDlrCurrency(historicalDlrSummary.pricing?.avgNetEffectiveRent)}</strong></div>
-            <div>Renewals Signed: <strong>${formatDlrMetricValue(historicalDlrSummary.renewalSnapshot?.signed)}</strong></div>
-            <div>Undecided / M2M: <strong>${formatDlrMetricValue(historicalDlrSummary.renewalSnapshot?.undecided)}</strong></div>
-          </div>
-          <div style="font-size:0.64rem;color:var(--muted);margin-top:8px">Built from saved ATLAS RISE values for ${escapeHtml(historicalDlrSummary.reportMonthLabel)} · ${historicalDlrSummary.trafficMetrics?.sourceMode === "daily_box_score" ? "today's leasing activity is sourced from the uploaded box score while month-to-date values stay tied to the dashboard" : "leasing activity is currently using the saved month-to-date values"} · ${formatDlrPercent(historicalDlrSummary.renewalSnapshot?.retentionRate,0)} retention across ${formatDlrMetricValue(historicalDlrSummary.renewalSnapshot?.expirations)} expirations · generated ${escapeHtml(formatSavedTimestampLabel(historicalDlrSummary.generatedAt))}</div>
+          ${renderDlrPricingRenewalSnapshot(
+            historicalDlrSummary,
+            `Built from saved ATLAS RISE values for ${escapeHtml(historicalDlrSummary.reportMonthLabel)} · ${historicalDlrSummary.trafficMetrics?.sourceMode === "daily_box_score" ? "today's leasing activity is sourced from the uploaded box score while month-to-date values stay tied to the dashboard" : "leasing activity is currently using the saved month-to-date values"} · ${formatDlrPercent(historicalDlrSummary.renewalSnapshot?.retentionRate,0)} retention across ${formatDlrMetricValue(historicalDlrSummary.renewalSnapshot?.expirations)} expirations · generated ${escapeHtml(formatSavedTimestampLabel(historicalDlrSummary.generatedAt))}`
+          )}
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">

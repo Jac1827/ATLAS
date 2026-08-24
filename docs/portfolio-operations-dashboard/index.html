@@ -8288,6 +8288,12 @@ function renderPropGrid() {
   const totalUnitsForCurrent = !isPortfolioWorkspaceSelected()
     ? getTotalUnitsFor(p, currentRecord.customUnits)
     : aggregate.totalUnits;
+  const portfolioComparableUnits = isPortfolioWorkspaceSelected()
+    ? Math.max(0, Number(aggregate.occupancyBaseUnits ?? aggregate.totalUnits ?? 0))
+    : 0;
+  const portfolioCorporateLeaseUnits = isPortfolioWorkspaceSelected()
+    ? Math.max(0, Number(aggregate.corporateLeaseUnits ?? 0))
+    : 0;
   const primaryAddress = isPortfolioWorkspaceSelected()
     ? `${details.length} communities combined for the selected reporting month.`
     : (currentRecord.communityAddress
@@ -8339,7 +8345,7 @@ function renderPropGrid() {
       <button type="button" class="workspace-snapshot-tile" onmousedown="return queueCurrentWorkspaceTab(2)">
         <div class="workspace-snapshot-label">Physical Occupancy</div>
         <div class="workspace-snapshot-value">${occupiedPct.toFixed(1)}%</div>
-        <div class="workspace-snapshot-sub">${occupiedUnits} occupied of ${occupancyBaseUnits || 0} total units</div>
+        <div class="workspace-snapshot-sub">${occupiedUnits} occupied of ${occupancyBaseUnits || 0} ${isPortfolioWorkspaceSelected() ? "comparable" : "total"} units</div>
         <div class="workspace-snapshot-link">Open Overview</div>
       </button>
       <button type="button" class="workspace-snapshot-tile" onmousedown="return queueCurrentWorkspaceTab(2)">
@@ -8413,7 +8419,9 @@ function renderPropGrid() {
   }
   if (workspaceUnitNote) {
     workspaceUnitNote.textContent = isPortfolioWorkspaceSelected()
-      ? `Select an individual community whenever you need to edit setup details or run a community-specific DLR import.`
+      ? (portfolioCorporateLeaseUnits > 0
+          ? `Select an individual community whenever you need to edit setup details or run a community-specific DLR import. Occupancy percentages use ${portfolioComparableUnits.toLocaleString()} comparable units after excluding ${portfolioCorporateLeaseUnits.toLocaleString()} corporate lease units from the ${aggregate.totalUnits.toLocaleString()} total-unit scope.`
+          : `Select an individual community whenever you need to edit setup details or run a community-specific DLR import.`)
       : (p.units
       ? `Default for ${p.name}: ${p.units} units. Leave the override blank to keep the default.`
       : `This community still needs a saved unit count before occupancy and leasing goals can calculate accurately.`);
@@ -8933,6 +8941,17 @@ function aggregateCommunitySummaries(summaries) {
     googleQuarterlyRating: totals.googleQuarterlyCount > 0 ? totals.googleQuarterlyTotal / totals.googleQuarterlyCount : 0,
     googleLifetimeRating: totals.googleLifetimeCount > 0 ? totals.googleLifetimeTotal / totals.googleLifetimeCount : 0
   };
+}
+
+function formatOccupancyBasisSubtext(primaryUnits, aggregate = {}, unitLabel = "occupied") {
+  const comparableUnits = Math.max(0, Number(aggregate?.occupancyBaseUnits ?? aggregate?.totalUnits ?? 0));
+  const totalUnits = Math.max(0, Number(aggregate?.totalUnits ?? comparableUnits));
+  const corporateLeaseUnits = Math.max(0, Number(aggregate?.corporateLeaseUnits ?? 0));
+  const basisLabel = (comparableUnits !== totalUnits || corporateLeaseUnits > 0) ? "comparable" : "total";
+  const base = `${Math.round(Number(primaryUnits) || 0).toLocaleString()} ${unitLabel} of ${comparableUnits.toLocaleString()} ${basisLabel} units`;
+  return corporateLeaseUnits > 0 && totalUnits > comparableUnits
+    ? `${base} · ${corporateLeaseUnits.toLocaleString()} corporate lease unit${corporateLeaseUnits === 1 ? "" : "s"} excluded`
+    : base;
 }
 
 function clampNumber(value, min, max) {
@@ -13902,6 +13921,10 @@ function monthGoalInpField(i, field, manualValue, recommendedValue, actualValue,
 }
 
 function renderPortfolioScopePanel(title, subtitle, cardsHtml, bodyHtml) {
+  const primaryActionLabel = isPortfolioWorkspaceSelected() ? "Open Communities" : `Open ${getProp().name}`;
+  const primaryActionHandler = isPortfolioWorkspaceSelected()
+    ? "return queueWorkspaceNavigation('', 1, { portfolio: true })"
+    : `return queueWorkspaceNavigation(${JSON.stringify(getProp().name)}, ${activeTab})`;
   return `<div class="card mb4">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
       <div>
@@ -13909,7 +13932,7 @@ function renderPortfolioScopePanel(title, subtitle, cardsHtml, bodyHtml) {
         <p style="font-size:0.72rem;color:var(--muted)">${subtitle}</p>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button type="button" class="btn btn-gray btn-sm" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(getProp().name)}, ${activeTab})'>Open ${escapeHtml(getProp().name)}</button>
+        <button type="button" class="btn btn-gray btn-sm" onmousedown="${primaryActionHandler}">${escapeHtml(primaryActionLabel)}</button>
         <button type="button" class="btn btn-blue btn-sm" onmousedown="return queueWorkspaceNavigation('', 8, { portfolio: true })">Open Reporting</button>
       </div>
     </div>
@@ -14173,8 +14196,8 @@ function renderPortfolioScopedOverviewTab() {
     </div>`;
   };
   const cardsHtml = `<div class="grid-4">
-    ${statBox("Physical Occupancy", `${getSummaryOccPct(aggregate).toFixed(1)}%`, `${aggregate.occupied.toLocaleString()} occupied units`, "#4493f8")}
-    ${statBox("Leased Occupancy", `${getSummaryLeasedPct(aggregate).toFixed(1)}%`, `${aggregate.leased.toLocaleString()} leased units`, "#a371f7")}
+    ${statBox("Physical Occupancy", `${getSummaryOccPct(aggregate).toFixed(1)}%`, formatOccupancyBasisSubtext(aggregate.occupied, aggregate, "occupied"), "#4493f8")}
+    ${statBox("Leased Occupancy", `${getSummaryLeasedPct(aggregate).toFixed(1)}%`, formatOccupancyBasisSubtext(aggregate.leased, aggregate, "leased"), "#a371f7")}
     ${statBox("Net Absorption", formatSignedDisplay(aggregate.monthAbsorption ?? 0), `${Math.round(aggregate.moveIns ?? 0)} move-ins · ${Math.round(aggregate.moveOuts ?? 0)} move-outs`, "#3fb950")}
     ${statBox("Budget Gap Units", Math.max(aggregate.occGapUnits ?? 0, 0), `${aggregate.onTrackBudgetOccCount ?? 0}/${aggregate.trackedBudgetOccCount ?? 0} communities on budget pace`, "#d29922")}
   </div>`;
@@ -15446,6 +15469,28 @@ function buildRecommendationsForRecord(propName, sourceData) {
   const occPct = getOccupancyPctFromUnits(Number(record.currentOccupied) || 0, totalUnits, corporateUnits);
   const budgetOccPct = getRecordSavedBudgetOccPct(record, monthIdx);
   const recommendations = [];
+  const readiness = getImportReadinessStatus(record, monthIdx, Number(record.reportYear) || new Date().getFullYear());
+  const hasReportableData = Boolean(readiness.dlrHasData || readiness.surveyHasData || readiness.renewalHasData);
+  const hasOperatingSignal = Boolean(
+    budgetOccPct > 0 ||
+    occPct > 0 ||
+    Number(monthEntry.occupiedSnapshot ?? 0) > 0 ||
+    Number(monthEntry.leasedSnapshot ?? 0) > 0 ||
+    guestCards > 0 ||
+    tours > 0 ||
+    applicationMetrics.applications > 0 ||
+    renewalSummary.expirations > 0
+  );
+
+  if (!hasReportableData) {
+    recommendations.push({
+      source: "Overview",
+      tone: "#d29922",
+      title: "Health Status Pending",
+      body: `${propName} does not have reportable DLR, survey, or renewal data saved for ${monthLabel} yet. Import or save the current month before treating this community as healthy or at risk.`
+    });
+    return recommendations;
+  }
 
   if (budgetOccPct > 0 && occPct + 0.5 < budgetOccPct) {
     recommendations.push({
@@ -15520,6 +15565,15 @@ function buildRecommendationsForRecord(propName, sourceData) {
     });
   }
   if (recommendations.length === 0) {
+    if (!hasOperatingSignal) {
+      recommendations.push({
+        source: "Overview",
+        tone: "#d29922",
+        title: "Operating Read Pending",
+        body: `${propName} has saved records for ${monthLabel}, but there is not enough operating signal yet to label current trends as healthy. Validate occupancy, traffic, and renewal inputs before sharing this community status.`
+      });
+      return recommendations;
+    }
     recommendations.push({
       source: "Overview",
       tone: "#3fb950",
@@ -37392,37 +37446,33 @@ async function initializeAtlasDashboard() {
   workspaceMonthOverride = null;
   runAtlasStartupStep("apply incoming workspace navigation", () => applyIncomingWorkspaceNavigation());
   runAtlasStartupStep("hydrate global ATLAS settings", () => hydrateOpsGlobalData());
+  try {
+    await hydrateDashboardPersistentState();
+  } catch (error) {
+    markAtlasPersistenceError(error, "ATLAS could not finish loading browser data.");
+  }
+  await pullAtlasSharedPropertyGraphFromCentral({ silent: true, applyToPortfolio: true });
+  await hydrateSharedPropertiesFromMarketingDatabase({ silent: true, applyToPortfolio: true, central: true });
+  runAtlasStartupStep("rehydrate global ATLAS settings", () => hydrateOpsGlobalData());
   runAtlasInitialRenderPass();
   runAtlasStartupStep("start live presence", () => startAtlasLivePresence());
   runAtlasStartupStep("start shared data refresh", () => startAtlasSharedRealtime());
   queuePersistedPhotoStorageCompaction();
-
-  void (async () => {
-    try {
-      await hydrateDashboardPersistentState();
-    } catch (error) {
-      markAtlasPersistenceError(error, "ATLAS could not finish loading browser data.");
-    }
-    await pullAtlasSharedPropertyGraphFromCentral({ silent: true, applyToPortfolio: true });
-    await hydrateSharedPropertiesFromMarketingDatabase({ silent: true, applyToPortfolio: true, central: true });
-    runAtlasStartupStep("rehydrate global ATLAS settings", () => hydrateOpsGlobalData());
-    runAtlasInitialRenderPass();
-    if (savedData && Object.keys(savedData).length > 0) {
-      queueDailyBackupSnapshotWrite("startup_retain");
-    }
-    if (!isDashboardLoadedFromFileProtocol()) {
-      setTimeout(() => {
-        pullDashboardSharedState({ silent: true, applyRemoteIfNewer: true });
-      }, 320);
-      setTimeout(() => {
-        const status = getAtlasCentralStatus();
-        const config = getAtlasCentralConfig();
-        if (status.configured && status.signedIn && config.autoPullOnStartup) {
-          verifyAtlasCentralConnection();
-        }
-      }, 900);
-    }
-  })();
+  if (savedData && Object.keys(savedData).length > 0) {
+    queueDailyBackupSnapshotWrite("startup_retain");
+  }
+  if (!isDashboardLoadedFromFileProtocol()) {
+    setTimeout(() => {
+      pullDashboardSharedState({ silent: true, applyRemoteIfNewer: true });
+    }, 320);
+    setTimeout(() => {
+      const status = getAtlasCentralStatus();
+      const config = getAtlasCentralConfig();
+      if (status.configured && status.signedIn && config.autoPullOnStartup) {
+        verifyAtlasCentralConnection();
+      }
+    }, 900);
+  }
 }
 
 initializeAtlasDashboard().catch((error) => {

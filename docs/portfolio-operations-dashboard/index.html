@@ -1010,7 +1010,7 @@
 
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=20260821-people-access"></script>
-<script src="./centralization/atlas-central-client.js?v=20260821-central-fallback" data-atlas-central-client="true"></script>
+<script src="./centralization/atlas-central-client.js?v=20260824-auth-singleflight" data-atlas-central-client="true"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -11532,6 +11532,9 @@ function renderTab() {
         && atlasAccessDecision(activeTab).ok;
       if (shouldPreservePeopleMount) {
         queueAtlasCentralPeopleLoad();
+      } else if (shouldRenderAtlasWelcomeDashboard()) {
+        if (activeTab === 13) delete panel.dataset.atlasPeopleMounted;
+        panel.innerHTML = renderAtlasWelcomeDashboard();
       } else if (shouldBlockAtlasSensitiveAccess()) {
         if (activeTab === 13) delete panel.dataset.atlasPeopleMounted;
         panel.innerHTML = renderAtlasCentralLoginRequiredPanel();
@@ -11720,7 +11723,15 @@ let suppressDashboardSharedSyncPush = false;
 let atlasCentralDocumentPushTimer = null;
 let suppressAtlasCentralAutosave = false;
 let atlasCentralPeopleLoadPromise = null;
+let atlasCentralAuthActionState = {
+  magicLink: false,
+  passwordSignIn: false,
+  passwordSignUp: false,
+  passwordReset: false
+};
 let atlasLivePresenceTimer = null;
+let atlasLivePresenceRefreshPromise = null;
+let atlasLivePresenceUnloadBound = false;
 let atlasSharedRealtimeTimer = null;
 let atlasSharedRealtimeVisibilityBound = false;
 let atlasAccessAdminState = {
@@ -11819,8 +11830,19 @@ function defaultAtlasAccessFormDraft() {
 
 atlasAccessFormDraft = defaultAtlasAccessFormDraft();
 
-const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=20260821-central-fallback";
+const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=20260824-auth-singleflight";
+const ATLAS_AUTH_UI_STORAGE_KEY = "atlas_auth_ui_state_v1";
+const ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY = "atlas_dashboard_preferences_v1";
 let atlasCentralClientLoadPromise = null;
+
+const ATLAS_CUSTOM_DASHBOARD_WIDGETS = [
+  { key: "overview", label: "Portfolio Overview", tabId: 2, accent: "#1d4ed8", description: "Occupancy and budget pacing across the current scope." },
+  { key: "traffic", label: "Traffic & Funnel", tabId: 3, accent: "#7c3aed", description: "Leads, tours, applications, and closing efficiency." },
+  { key: "renewals", label: "Renewals", tabId: 5, accent: "#ea580c", description: "Retention pace, undecided renewals, and projected attrition." },
+  { key: "reputation", label: "Reputation", tabId: 6, accent: "#0f766e", description: "Resident sentiment, ORA, and review quality." },
+  { key: "reports", label: "Reports", tabId: 8, accent: "#475569", description: "Exports, investor reporting, and presentation output." },
+  { key: "settings", label: "Dashboard Settings", tabId: 14, accent: "#8b5cf6", description: "Choose which widgets you want on your home dashboard." }
+];
 
 function getAtlasCentralClientScriptUrl({ forceReload = false } = {}) {
   try {
@@ -11953,6 +11975,277 @@ function setAtlasCentralRuntimeMessage(message = "", error = "") {
   atlasCentralRuntimeMeta.lastMessage = String(message || "");
   atlasCentralRuntimeMeta.lastError = String(error || "");
   persistAtlasCentralRuntimeMeta();
+}
+
+function defaultAtlasAuthUiState() {
+  return {
+    mode: "login",
+    pendingEmail: "",
+    activationEmail: "",
+    notice: "",
+    error: "",
+    justSignedInAt: "",
+    firstLoginWalkthroughSeenAt: ""
+  };
+}
+
+function normalizeAtlasAuthUiState(input = {}) {
+  const raw = input && typeof input === "object" ? input : {};
+  const defaults = defaultAtlasAuthUiState();
+  return {
+    mode: ["login", "activate", "forgot", "help"].includes(String(raw.mode || "").trim()) ? String(raw.mode).trim() : defaults.mode,
+    pendingEmail: String(raw.pendingEmail || "").trim().toLowerCase(),
+    activationEmail: String(raw.activationEmail || "").trim().toLowerCase(),
+    notice: String(raw.notice || ""),
+    error: String(raw.error || ""),
+    justSignedInAt: String(raw.justSignedInAt || ""),
+    firstLoginWalkthroughSeenAt: String(raw.firstLoginWalkthroughSeenAt || "")
+  };
+}
+
+function loadAtlasAuthUiState() {
+  try {
+    const raw = localStorage.getItem(ATLAS_AUTH_UI_STORAGE_KEY);
+    return normalizeAtlasAuthUiState(raw ? JSON.parse(raw) : {});
+  } catch {
+    return defaultAtlasAuthUiState();
+  }
+}
+
+let atlasAuthUiState = loadAtlasAuthUiState();
+
+function persistAtlasAuthUiState() {
+  try { localStorage.setItem(ATLAS_AUTH_UI_STORAGE_KEY, JSON.stringify(atlasAuthUiState)); } catch {}
+}
+
+function setAtlasAuthUiState(next = {}) {
+  atlasAuthUiState = normalizeAtlasAuthUiState({ ...atlasAuthUiState, ...(next && typeof next === "object" ? next : {}) });
+  persistAtlasAuthUiState();
+  return atlasAuthUiState;
+}
+
+function clearAtlasAuthUiMessages() {
+  setAtlasAuthUiState({ notice: "", error: "" });
+}
+
+function defaultAtlasDashboardPreferences() {
+  return {
+    visibleWidgets: ATLAS_CUSTOM_DASHBOARD_WIDGETS.map(widget => widget.key),
+    hasSeenWelcome: false,
+    walkthroughCompletedAt: "",
+    customDashboardUpdatedAt: ""
+  };
+}
+
+function normalizeAtlasDashboardPreferences(input = {}) {
+  const raw = input && typeof input === "object" ? input : {};
+  const defaults = defaultAtlasDashboardPreferences();
+  const visibleWidgetSet = new Set(
+    (Array.isArray(raw.visibleWidgets) ? raw.visibleWidgets : defaults.visibleWidgets)
+      .map(value => String(value || "").trim())
+      .filter(value => ATLAS_CUSTOM_DASHBOARD_WIDGETS.some(widget => widget.key === value))
+  );
+  if (!visibleWidgetSet.size) defaults.visibleWidgets.forEach(value => visibleWidgetSet.add(value));
+  return {
+    visibleWidgets: Array.from(visibleWidgetSet),
+    hasSeenWelcome: Boolean(raw.hasSeenWelcome),
+    walkthroughCompletedAt: String(raw.walkthroughCompletedAt || ""),
+    customDashboardUpdatedAt: String(raw.customDashboardUpdatedAt || "")
+  };
+}
+
+function loadAtlasDashboardPreferences() {
+  try {
+    const raw = localStorage.getItem(ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY);
+    return normalizeAtlasDashboardPreferences(raw ? JSON.parse(raw) : {});
+  } catch {
+    return defaultAtlasDashboardPreferences();
+  }
+}
+
+let atlasDashboardPreferences = loadAtlasDashboardPreferences();
+
+function persistAtlasDashboardPreferences() {
+  try { localStorage.setItem(ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY, JSON.stringify(atlasDashboardPreferences)); } catch {}
+}
+
+function setAtlasDashboardPreferences(next = {}) {
+  atlasDashboardPreferences = normalizeAtlasDashboardPreferences({ ...atlasDashboardPreferences, ...(next && typeof next === "object" ? next : {}) });
+  persistAtlasDashboardPreferences();
+  return atlasDashboardPreferences;
+}
+
+function applyAtlasAuthEntryFromLocation() {
+  try {
+    const url = new URL(window.location.href);
+    const entry = String(url.searchParams.get("atlas-entry") || "").trim().toLowerCase();
+    const email = String(url.searchParams.get("email") || "").trim().toLowerCase();
+    if (!entry && !email) return;
+    const nextMode = ["login", "activate", "forgot", "help"].includes(entry) ? entry : atlasAuthUiState.mode;
+    setAtlasAuthUiState({
+      mode: nextMode,
+      pendingEmail: email || atlasAuthUiState.pendingEmail,
+      activationEmail: nextMode === "activate" ? (email || atlasAuthUiState.activationEmail) : atlasAuthUiState.activationEmail
+    });
+  } catch {}
+}
+
+function applyAtlasAuthRedirectEvent() {
+  try {
+    const event = window.ATLAS_CENTRAL?.consumeLastAuthEvent ? window.ATLAS_CENTRAL.consumeLastAuthEvent() : null;
+    if (!event) return;
+    if (event.type === "recovery") {
+      setAtlasAuthUiState({
+        mode: "forgot",
+        pendingEmail: event.email || atlasAuthUiState.pendingEmail,
+        notice: "Choose a new password to finish resetting your ATLAS account password.",
+        error: ""
+      });
+      return;
+    }
+    if (["signup", "password_sign_up", "invite", "email_change"].includes(String(event.type || "").toLowerCase())) {
+      setAtlasAuthUiState({
+        mode: "activate",
+        pendingEmail: event.email || atlasAuthUiState.pendingEmail,
+        activationEmail: event.email || atlasAuthUiState.activationEmail,
+        notice: "Your ATLAS activation was received. Complete your profile, then continue to your dashboard.",
+        error: ""
+      });
+      return;
+    }
+    if (String(event.type || "").trim()) {
+      setAtlasAuthUiState({
+        mode: "login",
+        pendingEmail: event.email || atlasAuthUiState.pendingEmail,
+        justSignedInAt: new Date().toISOString(),
+        notice: "",
+        error: ""
+      });
+    }
+  } catch {}
+}
+
+function atlasCurrentUserDisplayName() {
+  const profile = getAtlasAccessProfile();
+  const status = getAtlasCentralStatus();
+  return atlasUserDisplayName(profile || { email: status.userEmail || "" });
+}
+
+function shouldRenderAtlasWelcomeDashboard() {
+  const status = getAtlasCentralStatus();
+  if (!status.configured || !status.signedIn || activeTab !== 0) return false;
+  if (atlasPasswordRecoveryCompletionPending()) return false;
+  return true;
+}
+
+function completeAtlasFirstLoginWalkthrough() {
+  setAtlasDashboardPreferences({
+    hasSeenWelcome: true,
+    walkthroughCompletedAt: new Date().toISOString()
+  });
+  setAtlasAuthUiState({ firstLoginWalkthroughSeenAt: new Date().toISOString() });
+  renderTab();
+}
+
+function openAtlasAuthMode(mode = "login", options = {}) {
+  setAtlasAuthUiState({
+    mode,
+    pendingEmail: options.email !== undefined ? String(options.email || "").trim().toLowerCase() : atlasAuthUiState.pendingEmail,
+    activationEmail: mode === "activate"
+      ? (options.email !== undefined ? String(options.email || "").trim().toLowerCase() : atlasAuthUiState.activationEmail)
+      : atlasAuthUiState.activationEmail,
+    notice: String(options.notice !== undefined ? options.notice : atlasAuthUiState.notice),
+    error: String(options.error !== undefined ? options.error : atlasAuthUiState.error)
+  });
+  renderTab();
+}
+
+function getAtlasAuthFormEmailValue() {
+  return String(document.getElementById("atlas-auth-email")?.value || atlasAuthUiState.pendingEmail || "").trim().toLowerCase();
+}
+
+function getAtlasAuthFormPasswordValue() {
+  return String(document.getElementById("atlas-auth-password")?.value || "").trim();
+}
+
+function getAtlasAuthFormDisplayNameValue() {
+  return String(document.getElementById("atlas-auth-display-name")?.value || "").trim();
+}
+
+function atlasPasswordRecoveryCompletionPending() {
+  const status = getAtlasCentralStatus();
+  return status.signedIn && atlasAuthUiState.mode === "forgot" && atlasAuthUiState.notice.startsWith("Choose a new password");
+}
+
+function syncAtlasAuthEmailFromForm() {
+  setAtlasAuthUiState({ pendingEmail: getAtlasAuthFormEmailValue() });
+}
+
+function buildAtlasDashboardWidgetSnapshots() {
+  const monthIdx = getSelectedDashboardMonthIndex();
+  const details = buildPortfolioDetailsForMonth(monthIdx);
+  const activeDetails = details.filter(detail => isCommunityStatusActive(detail.record));
+  const aggregate = aggregateCommunitySummaries(activeDetails.map(detail => detail.summary));
+  const occupancyPct = aggregate.occupancyBaseUnits > 0 ? (aggregate.occupied / aggregate.occupancyBaseUnits) * 100 : 0;
+  const settingsDue = atlasDashboardPreferences.walkthroughCompletedAt ? "Personalization saved" : "Walkthrough ready";
+  return {
+    overview: {
+      value: `${occupancyPct.toFixed(1)}%`,
+      sub: `${Math.round(aggregate.occupied || 0)} occupied of ${Math.round(aggregate.occupancyBaseUnits || 0)} comparable units`
+    },
+    traffic: {
+      value: `${Math.round(aggregate.guestCards || 0)}`,
+      sub: `${Math.round(aggregate.tours || 0)} tours · ${Math.round(aggregate.applications || 0)} applications`
+    },
+    renewals: {
+      value: `${(aggregate.renewalRetentionRate || 0).toFixed(0)}%`,
+      sub: `${Math.round(aggregate.renewalsSigned || 0)} signed of ${Math.round(aggregate.renewalExpirations || 0)} expirations`
+    },
+    reputation: {
+      value: `${(aggregate.oraScore || 0).toFixed(1)}`,
+      sub: `${(aggregate.googleQuarterlyRating || 0).toFixed(1)} Google quarterly rating`
+    },
+    reports: {
+      value: `${details.filter(detail => normalizeInvestorEmailContacts(detail.record?.investorEmailContacts).length > 0).length}`,
+      sub: "Communities with saved report recipients"
+    },
+    settings: {
+      value: settingsDue,
+      sub: `${atlasDashboardPreferences.visibleWidgets.length} widgets selected for your home dashboard`
+    }
+  };
+}
+
+function toggleAtlasDashboardWidget(widgetKey = "") {
+  const key = String(widgetKey || "").trim();
+  if (!ATLAS_CUSTOM_DASHBOARD_WIDGETS.some(widget => widget.key === key)) return;
+  const current = new Set(atlasDashboardPreferences.visibleWidgets);
+  if (current.has(key)) current.delete(key);
+  else current.add(key);
+  const nextVisible = current.size ? Array.from(current) : [key];
+  setAtlasDashboardPreferences({
+    visibleWidgets: nextVisible,
+    customDashboardUpdatedAt: new Date().toISOString()
+  });
+  renderTab();
+}
+
+function openAtlasDashboardWalkthrough() {
+  setAtlasDashboardPreferences({ hasSeenWelcome: true });
+  setAtlasAuthUiState({ firstLoginWalkthroughSeenAt: new Date().toISOString() });
+  setTab(14);
+}
+
+function buildAtlasInviteActivationUrl(email = "") {
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set("atlas-entry", "activate");
+    if (email) url.searchParams.set("email", email);
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return window.location.href.split("#")[0];
+  }
 }
 
 function persistDashboardSharedSyncMeta() {
@@ -13151,42 +13444,51 @@ function renderAtlasLiveUsersTicker() {
 }
 
 async function refreshAtlasLivePresence({ silent = true } = {}) {
-  const status = getAtlasCentralStatus();
-  if (!status.configured || !status.signedIn || !window.ATLAS_CENTRAL?.upsertLiveSession) {
+  if (atlasLivePresenceRefreshPromise) return atlasLivePresenceRefreshPromise;
+  atlasLivePresenceRefreshPromise = (async () => {
+    const status = getAtlasCentralStatus();
+    if (!status.configured || !status.signedIn || !window.ATLAS_CENTRAL?.upsertLiveSession) {
+      renderAtlasLiveUsersTicker();
+      return null;
+    }
+    try {
+      const tab = getAtlasAccessTab(activeTab);
+      const property = getAtlasSharedPropertyByName(getProp().name);
+      await window.ATLAS_CENTRAL.upsertLiveSession({
+        sessionId: getAtlasLiveSessionId(),
+        currentTab: tab.id,
+        currentPage: tab.label,
+        currentCommunityId: property?.atlasCommunityId || property?.sourceIds?.atlasCommunityId || null,
+        currentCommunityName: isPortfolioWorkspaceSelected() ? PORTFOLIO_SCOPE_LABEL : getProp().name
+      });
+      atlasLivePresenceState.users = await window.ATLAS_CENTRAL.readLiveSessions({ activeWithinSeconds: 180 });
+      atlasLivePresenceState.lastUpdatedAt = new Date().toISOString();
+      atlasLivePresenceState.error = "";
+    } catch (error) {
+      atlasLivePresenceState.error = error?.message || String(error);
+      if (!silent) setAtlasCentralRuntimeMessage("", atlasLivePresenceState.error);
+    }
     renderAtlasLiveUsersTicker();
-    return null;
-  }
-  try {
-    const tab = getAtlasAccessTab(activeTab);
-    const property = getAtlasSharedPropertyByName(getProp().name);
-    await window.ATLAS_CENTRAL.upsertLiveSession({
-      sessionId: getAtlasLiveSessionId(),
-      currentTab: tab.id,
-      currentPage: tab.label,
-      currentCommunityId: property?.atlasCommunityId || property?.sourceIds?.atlasCommunityId || null,
-      currentCommunityName: isPortfolioWorkspaceSelected() ? PORTFOLIO_SCOPE_LABEL : getProp().name
-    });
-    atlasLivePresenceState.users = await window.ATLAS_CENTRAL.readLiveSessions({ activeWithinSeconds: 180 });
-    atlasLivePresenceState.lastUpdatedAt = new Date().toISOString();
-    atlasLivePresenceState.error = "";
-  } catch (error) {
-    atlasLivePresenceState.error = error?.message || String(error);
-    if (!silent) setAtlasCentralRuntimeMessage("", atlasLivePresenceState.error);
-  }
-  renderAtlasLiveUsersTicker();
-  return atlasLivePresenceState.users;
+    return atlasLivePresenceState.users;
+  })().finally(() => {
+    atlasLivePresenceRefreshPromise = null;
+  });
+  return atlasLivePresenceRefreshPromise;
 }
 
 function startAtlasLivePresence() {
   if (atlasLivePresenceTimer) clearInterval(atlasLivePresenceTimer);
   refreshAtlasLivePresence({ silent: true });
   atlasLivePresenceTimer = setInterval(() => refreshAtlasLivePresence({ silent: true }), 45000);
-  window.addEventListener("beforeunload", () => {
-    const sessionId = atlasLivePresenceState.sessionId;
-    if (sessionId && window.ATLAS_CENTRAL?.endLiveSession) {
-      window.ATLAS_CENTRAL.endLiveSession(sessionId).catch(() => null);
-    }
-  }, { once: true });
+  if (!atlasLivePresenceUnloadBound) {
+    atlasLivePresenceUnloadBound = true;
+    window.addEventListener("beforeunload", () => {
+      const sessionId = atlasLivePresenceState.sessionId;
+      if (sessionId && window.ATLAS_CENTRAL?.endLiveSession) {
+        window.ATLAS_CENTRAL.endLiveSession(sessionId).catch(() => null);
+      }
+    });
+  }
 }
 
 async function refreshAtlasSharedRealtime({ silent = true } = {}) {
@@ -13261,12 +13563,182 @@ function shouldBlockAtlasSensitiveAccess() {
 
 function renderAtlasCentralLoginRequiredPanel() {
   const status = getAtlasCentralStatus();
-  return `<div class="card mb4">
-    <div class="card-title" style="margin-bottom:8px">Atlas Sign-In Required</div>
-    <div class="alert-red">Central Atlas is enabled for this browser. Sign in before viewing shared People, Bonus, Marketing, Maintenance, Finance, Operations, Portfolio Planning, or reporting data.</div>
-    <div style="font-size:0.72rem;color:var(--muted);line-height:1.55;margin:10px 0">Open ATLAS Settings to use Central Platform Control. This protects sensitive Atlas records from loading anonymously while still allowing an admin to manage the connection.</div>
-    <button class="btn btn-blue btn-sm" onclick="setTab(14)">Open ATLAS Settings</button>
-    <div style="font-size:0.62rem;color:var(--muted);margin-top:10px">${escapeHtml(status.message || "")}</div>
+  const mode = atlasAuthUiState.mode || "login";
+  const busy = atlasCentralAnyAuthActionIsRunning();
+  const activationSteps = [
+    "1. Verify your invite",
+    "2. Create your password",
+    "3. Confirm your email",
+    "4. Complete your profile",
+    "5. Access granted"
+  ];
+  const helperLinks = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn btn-gray btn-sm" onclick="openAtlasAuthMode('login', { notice:'', error:'' })">Sign In</button>
+      <button class="btn btn-gray btn-sm" onclick="openAtlasAuthMode('activate', { notice:'', error:'' })">Activate Account</button>
+      <button class="btn btn-gray btn-sm" onclick="openAtlasAuthMode('forgot', { notice:'', error:'' })">Forgot Password</button>
+      <button class="btn btn-gray btn-sm" onclick="openAtlasAuthMode('help', { notice:'', error:'' })">Help</button>
+    </div>`;
+  const loginForm = `
+    <div style="display:grid;gap:12px">
+      <div>
+        <div style="font-size:1.55rem;font-weight:800;color:#102a43;letter-spacing:-0.03em">Sign in to ATLAS</div>
+        <div style="font-size:0.76rem;color:#5b6b7a;line-height:1.6;margin-top:6px">Use your work email and password to open your dashboard. If you are new to ATLAS, use <strong>Activate Account</strong> instead of creating a second login path.</div>
+      </div>
+      <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Email</span><input id="atlas-auth-email" type="email" value="${escapeHtml(atlasAuthUiState.pendingEmail || "")}" placeholder="name@riseresidential.com" oninput="syncAtlasAuthEmailFromForm()" style="margin-top:6px"></label>
+      <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Password</span><input id="atlas-auth-password" type="password" placeholder="Enter your password" style="margin-top:6px"></label>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-blue" onclick="signInAtlasCentralWithPassword()" ${busy ? "disabled" : ""}>${atlasCentralAuthActionState.passwordSignIn ? "Signing In..." : "Sign In"}</button>
+        <button class="btn btn-gray btn-sm" onclick="openAtlasAuthMode('forgot', { pendingEmail:getAtlasAuthFormEmailValue(), notice:'', error:'' })">Forgot password?</button>
+      </div>
+      <div style="font-size:0.68rem;color:#5b6b7a;line-height:1.6">Need help getting in? Use the help links below or contact an ATLAS admin if your access has not been activated yet.</div>
+      ${helperLinks}
+    </div>`;
+  const activationForm = `
+    <div style="display:grid;gap:12px">
+      <div>
+        <div style="font-size:1.55rem;font-weight:800;color:#102a43;letter-spacing:-0.03em">Activate your ATLAS account</div>
+        <div style="font-size:0.76rem;color:#5b6b7a;line-height:1.6;margin-top:6px">This flow is only for invited users who are activating ATLAS for the first time. It is intentionally separate from everyday sign-in.</div>
+      </div>
+      <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Work email</span><input id="atlas-auth-email" type="email" value="${escapeHtml(atlasAuthUiState.pendingEmail || atlasAuthUiState.activationEmail || "")}" placeholder="name@riseresidential.com" oninput="syncAtlasAuthEmailFromForm()" style="margin-top:6px"></label>
+      <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Display name</span><input id="atlas-auth-display-name" value="${escapeHtml(atlasCurrentUserDisplayName() === "ATLAS user" ? "" : atlasCurrentUserDisplayName())}" placeholder="Your name as it should appear in ATLAS" style="margin-top:6px"></label>
+      <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Create password</span><input id="atlas-auth-password" type="password" placeholder="Use at least 8 characters" style="margin-top:6px"></label>
+      <button class="btn btn-blue" onclick="signUpAtlasCentralWithPassword()" ${busy ? "disabled" : ""}>${atlasCentralAuthActionState.passwordSignUp ? "Activating..." : "Activate My Account"}</button>
+      <div style="padding:12px;border-radius:14px;background:linear-gradient(180deg,#f8fbff 0%,#eef5ff 100%);border:1px solid #d7e6fb">
+        <div style="font-size:0.68rem;font-weight:800;color:#1d4ed8;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px">Activation steps</div>
+        <div style="display:grid;gap:7px">${activationSteps.map(step => `<div style="font-size:0.72rem;color:#334e68">${step}</div>`).join("")}</div>
+      </div>
+      ${helperLinks}
+    </div>`;
+  const forgotForm = atlasPasswordRecoveryCompletionPending() ? `
+    <div style="display:grid;gap:12px">
+      <div>
+        <div style="font-size:1.55rem;font-weight:800;color:#102a43;letter-spacing:-0.03em">Set your new password</div>
+        <div style="font-size:0.76rem;color:#5b6b7a;line-height:1.6;margin-top:6px">Your reset link is verified. Choose a new password below, then ATLAS will send you to your dashboard.</div>
+      </div>
+      <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">New password</span><input id="atlas-auth-password" type="password" placeholder="Use at least 8 characters" style="margin-top:6px"></label>
+      <button class="btn btn-blue" onclick="completeAtlasCentralPasswordReset()" ${busy ? "disabled" : ""}>${atlasCentralAuthActionState.passwordReset ? "Saving..." : "Save New Password"}</button>
+      ${helperLinks}
+    </div>` : `
+    <div style="display:grid;gap:12px">
+      <div>
+        <div style="font-size:1.55rem;font-weight:800;color:#102a43;letter-spacing:-0.03em">Reset your password</div>
+        <div style="font-size:0.76rem;color:#5b6b7a;line-height:1.6;margin-top:6px">Enter your work email and ATLAS will send a reset link. The email explains what to do next in plain language.</div>
+      </div>
+      <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Work email</span><input id="atlas-auth-email" type="email" value="${escapeHtml(atlasAuthUiState.pendingEmail || "")}" placeholder="name@riseresidential.com" oninput="syncAtlasAuthEmailFromForm()" style="margin-top:6px"></label>
+      <button class="btn btn-blue" onclick="requestAtlasCentralPasswordReset()" ${busy ? "disabled" : ""}>${atlasCentralAuthActionState.passwordReset ? "Sending..." : "Send Reset Link"}</button>
+      <div style="font-size:0.68rem;color:#5b6b7a;line-height:1.6">If you never received an invite, go back to <strong>Help</strong> and contact an ATLAS admin.</div>
+      ${helperLinks}
+    </div>`;
+  const helpPanel = `
+    <div style="display:grid;gap:12px">
+      <div>
+        <div style="font-size:1.55rem;font-weight:800;color:#102a43;letter-spacing:-0.03em">ATLAS access help</div>
+        <div style="font-size:0.76rem;color:#5b6b7a;line-height:1.6;margin-top:6px">Use the path that matches your situation. This keeps login, activation, and recovery from getting mixed together.</div>
+      </div>
+      <div style="display:grid;gap:10px">
+        <div style="padding:12px;border:1px solid var(--border);border-radius:14px;background:#fff"><strong>Already have an account?</strong><div style="font-size:0.72rem;color:var(--muted);margin-top:4px">Choose Sign In and use your work email plus password.</div></div>
+        <div style="padding:12px;border:1px solid var(--border);border-radius:14px;background:#fff"><strong>First time here?</strong><div style="font-size:0.72rem;color:var(--muted);margin-top:4px">Choose Activate Account. You need an ATLAS invite before that will work.</div></div>
+        <div style="padding:12px;border:1px solid var(--border);border-radius:14px;background:#fff"><strong>Forgot your password?</strong><div style="font-size:0.72rem;color:var(--muted);margin-top:4px">Choose Forgot Password and ATLAS will email you a reset link.</div></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-blue btn-sm" onclick="openAtlasAuthMode('login', { notice:'', error:'' })">Back To Sign In</button>
+        <button class="btn btn-gray btn-sm" onclick="setTab(14)">Open ATLAS Settings</button>
+      </div>
+      <div style="font-size:0.66rem;color:var(--muted)">${escapeHtml(status.message || "")}</div>
+    </div>`;
+  const panelByMode = {
+    login: loginForm,
+    activate: activationForm,
+    forgot: forgotForm,
+    help: helpPanel
+  };
+  return `<div class="card mb4" style="padding:0;overflow:hidden;border-radius:24px">
+    <div style="display:grid;grid-template-columns:minmax(280px,0.92fr) minmax(420px,1.08fr);min-height:620px">
+      <div style="padding:28px 26px;background:linear-gradient(155deg,#0b2239 0%,#163b63 48%,#2b5d87 100%);color:#f8fbff;display:grid;align-content:space-between;gap:22px">
+        <div>
+          <div style="font-size:0.7rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.72);font-weight:800">ATLAS Access</div>
+          <div style="font-size:2rem;font-weight:800;line-height:1.04;letter-spacing:-0.04em;margin-top:10px">A cleaner front door for ATLAS.</div>
+          <div style="font-size:0.82rem;line-height:1.7;color:rgba(255,255,255,0.8);margin-top:12px">Login, first-time activation, and password recovery are separated here so users do not have to guess which action to take.</div>
+        </div>
+        <div style="display:grid;gap:10px">
+          <div style="padding:14px;border-radius:16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12)">
+            <div style="font-size:0.66rem;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.7);font-weight:800">For invited users</div>
+            <div style="font-size:0.76rem;line-height:1.65;margin-top:8px">Use the <strong>Activate My Account</strong> path. ATLAS will verify your invite, let you create a password, and guide you through profile completion before opening the dashboard.</div>
+          </div>
+          <div style="padding:14px;border-radius:16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12)">
+            <div style="font-size:0.66rem;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.7);font-weight:800">For returning users</div>
+            <div style="font-size:0.76rem;line-height:1.65;margin-top:8px">Use Sign In with email and password. Only one ATLAS auth request is sent per attempt, and duplicate refresh loops are blocked in the current build.</div>
+          </div>
+        </div>
+      </div>
+      <div style="padding:28px 28px 24px;background:linear-gradient(180deg,#fcfdff 0%,#f4f7fb 100%)">
+        ${atlasAuthUiState.notice ? `<div class="alert-green" style="margin-bottom:12px">${escapeHtml(atlasAuthUiState.notice)}</div>` : ""}
+        ${atlasAuthUiState.error ? `<div class="alert-red" style="margin-bottom:12px">${escapeHtml(atlasAuthUiState.error)}</div>` : ""}
+        ${panelByMode[mode] || loginForm}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderAtlasWelcomeDashboard() {
+  const profile = getAtlasAccessProfile();
+  const status = getAtlasCentralStatus();
+  const visibleWidgets = ATLAS_CUSTOM_DASHBOARD_WIDGETS.filter(widget => atlasDashboardPreferences.visibleWidgets.includes(widget.key));
+  const widgetSnapshots = buildAtlasDashboardWidgetSnapshots();
+  const monthLabel = FULL_MONTHS[getSelectedDashboardMonthIndex()] || "Current Month";
+  const welcomeCopy = atlasDashboardPreferences.hasSeenWelcome
+    ? "Your custom dashboard is ready. Use ATLAS Settings any time to change what appears here."
+    : "Welcome to ATLAS. Start with the widgets you care about most, then use the guided setup to personalize your dashboard.";
+  return `<div class="card mb4" style="padding:0;overflow:hidden;border-radius:24px">
+    <div style="padding:24px;background:linear-gradient(140deg,#08263f 0%,#123d63 54%,#5f90bf 155%);color:#fff">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
+        <div style="max-width:780px">
+          <div style="font-size:0.68rem;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.76);font-weight:800">Welcome Dashboard</div>
+          <div style="font-size:2rem;font-weight:800;line-height:1.02;letter-spacing:-0.04em;margin-top:10px">Welcome, ${escapeHtml(atlasUserDisplayName(profile || { email: status.userEmail || "" }))}.</div>
+          <div style="font-size:0.8rem;line-height:1.7;color:rgba(255,255,255,0.84);margin-top:10px">${escapeHtml(welcomeCopy)} Reporting month: ${escapeHtml(monthLabel)}.</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-blue btn-sm" onclick="openAtlasDashboardWalkthrough()">Walk Through Settings</button>
+          <button class="btn btn-gray btn-sm" onclick="setTab(2)">Open Full Portfolio</button>
+        </div>
+      </div>
+    </div>
+    <div style="padding:22px">
+      ${!atlasDashboardPreferences.hasSeenWelcome ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:18px">
+        ${[
+          "1. Review the widgets below.",
+          "2. Open Dashboard Settings.",
+          "3. Pick the information you want on your home dashboard.",
+          "4. Save your profile and return here."
+        ].map(step => `<div style="padding:12px;border-radius:14px;background:#f8fbff;border:1px solid #dbe7f5;font-size:0.72rem;color:#334e68">${escapeHtml(step)}</div>`).join("")}
+      </div>` : ""}
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+        <div>
+          <div class="card-title" style="margin-bottom:6px">My Custom Widgets</div>
+          <div style="font-size:0.72rem;color:var(--muted)">Turn widgets on or off in ATLAS Settings. The cards below open the full workspace behind each metric.</div>
+        </div>
+        <button class="btn btn-gray btn-sm" onclick="setTab(14)">Customize Dashboard</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+        ${visibleWidgets.map(widget => {
+          const snapshot = widgetSnapshots[widget.key] || { value: "Open", sub: widget.description };
+          return `<button type="button" class="workspace-snapshot-tile" style="background:linear-gradient(180deg,#ffffff 0%,#f7fafc 100%);min-height:148px" onclick="setTab(${widget.tabId})">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+              <div class="workspace-snapshot-label">${escapeHtml(widget.label)}</div>
+              <span style="width:10px;height:10px;border-radius:999px;background:${widget.accent};display:inline-block"></span>
+            </div>
+            <div style="font-size:1.55rem;font-weight:800;color:${widget.accent};letter-spacing:-0.03em">${escapeHtml(String(snapshot.value || "Open"))}</div>
+            <div class="workspace-snapshot-sub">${escapeHtml(snapshot.sub || widget.description)}</div>
+            <div class="workspace-snapshot-link">Open ${escapeHtml(widget.label)}</div>
+          </button>`;
+        }).join("")}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
+        ${!atlasDashboardPreferences.walkthroughCompletedAt ? `<button class="btn btn-blue btn-sm" onclick="openAtlasDashboardWalkthrough()">Start Guided Setup</button>` : ""}
+        ${!atlasDashboardPreferences.walkthroughCompletedAt ? `<button class="btn btn-gray btn-sm" onclick="completeAtlasFirstLoginWalkthrough()">Skip For Now</button>` : ""}
+      </div>
+    </div>
   </div>`;
 }
 
@@ -13686,53 +14158,171 @@ function clearAtlasCentralRuntimeConfigFromPanel() {
   renderTab();
 }
 
-async function sendAtlasCentralMagicLink() {
-  try {
-    const email = getAtlasCentralInputValue("atlas-central-email");
-    await window.ATLAS_CENTRAL.sendMagicLink(email, {
-      createUser: getAtlasCentralInputChecked("atlas-central-create-user")
-    });
-    setAtlasCentralRuntimeMessage(`Sign-in link sent to ${email}.`);
-    alert("Sign-in link sent. Check that inbox and return to this Atlas page.");
+function atlasCentralAuthActionIsRunning(actionKey) {
+  return Boolean(atlasCentralAuthActionState[actionKey]);
+}
+
+function atlasCentralAnyAuthActionIsRunning() {
+  return Object.values(atlasCentralAuthActionState).some(Boolean);
+}
+
+async function runAtlasCentralAuthAction(actionKey, label, task) {
+  if (atlasCentralAuthActionIsRunning(actionKey)) {
+    setAtlasCentralRuntimeMessage(`${label} is already in progress.`);
     renderTab();
-  } catch (error) {
-    setAtlasCentralRuntimeMessage("", error?.message || String(error));
-    alert(`Central sign-in link failed: ${error?.message || error}`);
+    return false;
   }
+  atlasCentralAuthActionState[actionKey] = true;
+  renderTab();
+  try {
+    return await task();
+  } finally {
+    atlasCentralAuthActionState[actionKey] = false;
+    renderTab();
+  }
+}
+
+async function sendAtlasCentralMagicLink() {
+  const email = getAtlasAuthFormEmailValue() || getAtlasCentralInputValue("atlas-central-email");
+  const createUser = getAtlasCentralInputChecked("atlas-central-create-user");
+  return runAtlasCentralAuthAction("magicLink", "Sign-in link request", async () => {
+    try {
+      if (!window.ATLAS_CENTRAL?.sendMagicLink) throw new Error("Central client is not loaded.");
+      await window.ATLAS_CENTRAL.sendMagicLink(email, {
+        createUser
+      });
+      setAtlasAuthUiState({
+        pendingEmail: email,
+        notice: `A sign-in link was sent to ${email}. Open the email and continue back into ATLAS from that link.`,
+        error: ""
+      });
+      setAtlasCentralRuntimeMessage(`Sign-in link sent to ${email}.`);
+      renderTab();
+      return true;
+    } catch (error) {
+      const message = error?.message || String(error);
+      setAtlasAuthUiState({ pendingEmail: email, error: message, notice: "" });
+      setAtlasCentralRuntimeMessage("", message);
+      renderTab();
+      return false;
+    }
+  });
 }
 
 async function signInAtlasCentralWithPassword() {
-  try {
-    const email = getAtlasCentralInputValue("atlas-central-email");
-    const password = getAtlasCentralInputValue("atlas-central-password");
-    await window.ATLAS_CENTRAL.signInWithPassword(email, password);
-    await window.ATLAS_CENTRAL.fetchProfile().catch(() => null);
-    startAtlasLivePresence();
-    startAtlasSharedRealtime();
-    setAtlasCentralRuntimeMessage(`Signed in to central Atlas as ${email}.`);
-    renderTab();
-  } catch (error) {
-    setAtlasCentralRuntimeMessage("", error?.message || String(error));
-    alert(`Central sign-in failed: ${error?.message || error}`);
-  }
+  const email = getAtlasAuthFormEmailValue() || getAtlasCentralInputValue("atlas-central-email");
+  const password = getAtlasAuthFormPasswordValue() || getAtlasCentralInputValue("atlas-central-password");
+  return runAtlasCentralAuthAction("passwordSignIn", "Password sign-in", async () => {
+    try {
+      if (!window.ATLAS_CENTRAL?.signInWithPassword) throw new Error("Central client is not loaded.");
+      await window.ATLAS_CENTRAL.signInWithPassword(email, password);
+      startAtlasLivePresence();
+      startAtlasSharedRealtime();
+      setAtlasAuthUiState({
+        mode: "login",
+        pendingEmail: email,
+        activationEmail: "",
+        notice: "",
+        error: "",
+        justSignedInAt: new Date().toISOString()
+      });
+      setAtlasDashboardPreferences({ hasSeenWelcome: false });
+      activeTab = 0;
+      setAtlasCentralRuntimeMessage(`Signed in to central Atlas as ${email}.`);
+      renderTab();
+      return true;
+    } catch (error) {
+      const message = error?.message || String(error);
+      setAtlasAuthUiState({ pendingEmail: email, error: message, notice: "" });
+      setAtlasCentralRuntimeMessage("", message);
+      renderTab();
+      return false;
+    }
+  });
 }
 
 async function signUpAtlasCentralWithPassword() {
-  try {
-    const email = getAtlasCentralInputValue("atlas-central-email");
-    const password = getAtlasCentralInputValue("atlas-central-password");
-    const displayName = getAtlasCentralInputValue("atlas-central-display-name");
-    await window.ATLAS_CENTRAL.signUpWithPassword(email, password, displayName);
-    await window.ATLAS_CENTRAL.fetchProfile().catch(() => null);
-    startAtlasLivePresence();
-    startAtlasSharedRealtime();
-    setAtlasCentralRuntimeMessage(`ATLAS account created for ${email}. If email confirmation is required, use the confirmation email before signing in.`);
-    alert("ATLAS account created. If Supabase requires email confirmation, confirm the email before signing in.");
-    renderTab();
-  } catch (error) {
-    setAtlasCentralRuntimeMessage("", error?.message || String(error));
-    alert(`Central account creation failed: ${error?.message || error}`);
-  }
+  const email = getAtlasAuthFormEmailValue() || getAtlasCentralInputValue("atlas-central-email");
+  const password = getAtlasAuthFormPasswordValue() || getAtlasCentralInputValue("atlas-central-password");
+  const displayName = getAtlasAuthFormDisplayNameValue() || getAtlasCentralInputValue("atlas-central-display-name");
+  return runAtlasCentralAuthAction("passwordSignUp", "Account creation", async () => {
+    try {
+      if (!window.ATLAS_CENTRAL?.signUpWithPassword) throw new Error("Central client is not loaded.");
+      await window.ATLAS_CENTRAL.signUpWithPassword(email, password, displayName);
+      startAtlasLivePresence();
+      startAtlasSharedRealtime();
+      setAtlasAuthUiState({
+        mode: "activate",
+        pendingEmail: email,
+        activationEmail: email,
+        notice: `ATLAS received your activation for ${email}. Confirm your email if prompted, complete your profile, then continue to your dashboard.`,
+        error: "",
+        justSignedInAt: new Date().toISOString()
+      });
+      setAtlasDashboardPreferences({ hasSeenWelcome: false });
+      activeTab = 0;
+      setAtlasCentralRuntimeMessage(`ATLAS account created for ${email}.`);
+      renderTab();
+      return true;
+    } catch (error) {
+      const message = error?.message || String(error);
+      setAtlasAuthUiState({ mode: "activate", pendingEmail: email, activationEmail: email, error: message, notice: "" });
+      setAtlasCentralRuntimeMessage("", message);
+      renderTab();
+      return false;
+    }
+  });
+}
+
+async function requestAtlasCentralPasswordReset() {
+  const email = getAtlasAuthFormEmailValue();
+  return runAtlasCentralAuthAction("passwordReset", "Password reset", async () => {
+    try {
+      if (!window.ATLAS_CENTRAL?.requestPasswordReset) throw new Error("Central client is not loaded.");
+      await window.ATLAS_CENTRAL.requestPasswordReset(email);
+      setAtlasAuthUiState({
+        mode: "forgot",
+        pendingEmail: email,
+        notice: `A password reset link was sent to ${email}. Open that email to set a new ATLAS password.`,
+        error: ""
+      });
+      renderTab();
+      return true;
+    } catch (error) {
+      const message = error?.message || String(error);
+      setAtlasAuthUiState({ mode: "forgot", pendingEmail: email, error: message, notice: "" });
+      renderTab();
+      return false;
+    }
+  });
+}
+
+async function completeAtlasCentralPasswordReset() {
+  const password = getAtlasAuthFormPasswordValue();
+  return runAtlasCentralAuthAction("passwordReset", "Password reset", async () => {
+    try {
+      if (!window.ATLAS_CENTRAL?.updatePassword) throw new Error("Central client is not loaded.");
+      await window.ATLAS_CENTRAL.updatePassword(password);
+      setAtlasAuthUiState({
+        mode: "login",
+        notice: "Your ATLAS password was updated. You are signed in and can continue to your dashboard.",
+        error: "",
+        justSignedInAt: new Date().toISOString()
+      });
+      setAtlasDashboardPreferences({ hasSeenWelcome: false });
+      activeTab = 0;
+      renderTab();
+      return true;
+    } catch (error) {
+      setAtlasAuthUiState({
+        mode: "forgot",
+        error: error?.message || String(error),
+        notice: "Choose a new password to finish resetting your ATLAS account password."
+      });
+      renderTab();
+      return false;
+    }
+  });
 }
 
 async function signOutAtlasCentral() {
@@ -13743,6 +14333,12 @@ async function signOutAtlasCentral() {
     atlasSharedRealtimeState.running = false;
     atlasLivePresenceState.users = [];
     atlasLivePresenceState.error = "";
+    setAtlasAuthUiState({
+      mode: "login",
+      notice: "You signed out of ATLAS.",
+      error: "",
+      justSignedInAt: ""
+    });
     renderAtlasLiveUsersTicker();
     setAtlasCentralRuntimeMessage("Signed out of central Atlas.");
     renderTab();
@@ -14116,13 +14712,27 @@ async function copyAtlasAccessSetupInstructions() {
     alert("Enter an employee email first.");
     return;
   }
-  const config = window.ATLAS_CENTRAL?.getConfig ? window.ATLAS_CENTRAL.getConfig() : {};
-  const authUrl = window.ATLAS_CENTRAL?.authRedirectUrl ? window.ATLAS_CENTRAL.authRedirectUrl(config) : "";
-  const url = authUrl || config.appBaseUrl || window.location.href.split("#")[0];
-  const message = `Your ATLAS access has been prepared for ${email}.\n\nOpen ${url}, enter your email, create a password with the Create Account button, then sign in. ATLAS will apply your employee role and page/property access automatically after login.`;
+  const url = buildAtlasInviteActivationUrl(email);
+  const message = `Subject: Activate your ATLAS account
+
+Hello,
+
+Your ATLAS access is ready.
+
+Activate My Account:
+${url}
+
+When you open the link:
+1. Verify your invite
+2. Create your password
+3. Confirm your email
+4. Complete your profile
+5. Access your dashboard
+
+If you already activated your account, use the regular Sign In page instead.`;
   try {
     await navigator.clipboard.writeText(message);
-    alert("Access setup instructions copied.");
+    alert("Activation instructions copied.");
   } catch {
     alert(message);
   }
@@ -14260,6 +14870,10 @@ function renderAtlasCentralPlatformPanel() {
   const profile = window.ATLAS_CENTRAL?.getStoredProfile ? window.ATLAS_CENTRAL.getStoredProfile() : null;
   const badgeColor = status.configured ? "#3fb950" : "#d29922";
   const authColor = status.signedIn ? "#3fb950" : "#d29922";
+  const authActionBusy = atlasCentralAnyAuthActionIsRunning();
+  const magicLinkBusy = atlasCentralAuthActionState.magicLink;
+  const passwordSignInBusy = atlasCentralAuthActionState.passwordSignIn;
+  const passwordSignUpBusy = atlasCentralAuthActionState.passwordSignUp;
   const documentVersion = atlasCentralRuntimeMeta.lastDocumentVersion
     ? `Local browser is aligned to central version ${atlasCentralRuntimeMeta.lastDocumentVersion}.`
     : "This browser has not been aligned to a central document version yet.";
@@ -14319,21 +14933,21 @@ function renderAtlasCentralPlatformPanel() {
       </div>
       <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">
         <div class="card-title" style="font-size:0.72rem;margin-bottom:8px">User Access</div>
-        <div style="font-size:0.66rem;color:var(--muted);margin-bottom:8px">${status.signedIn ? `Signed in as ${escapeHtml(status.userEmail || profile?.email || "authenticated user")}${status.role ? ` · ${escapeHtml(status.role)}` : ""}` : "Sign in with an approved Atlas account before reading or saving central data."}</div>
+        <div style="font-size:0.66rem;color:var(--muted);margin-bottom:8px">${status.signedIn ? `Signed in as ${escapeHtml(status.userEmail || profile?.email || "authenticated user")}${status.role ? ` · ${escapeHtml(status.role)}` : ""}` : "Use the dedicated ATLAS login page for everyday sign-in. This admin card is only a backup path while settings are being configured."}</div>
         <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Display name</label>
         <input id="atlas-central-display-name" value="${escapeHtml(profile?.display_name || "")}" placeholder="Atlas admin name" style="margin:5px 0 8px">
         <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Email</label>
         <input id="atlas-central-email" type="email" value="${escapeHtml(status.userEmail || "")}" placeholder="name@riseresidential.com" style="margin:5px 0 8px">
         <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Password</label>
-        <input id="atlas-central-password" type="password" placeholder="Optional if using email link" style="margin:5px 0 8px">
+        <input id="atlas-central-password" type="password" placeholder="Required for sign-in or activation" style="margin:5px 0 8px">
         <label style="display:flex;gap:8px;align-items:center;font-size:0.68rem;color:var(--muted);margin:4px 0 8px"><input id="atlas-central-create-user" type="checkbox" ${config.allowMagicLinkSignup ? "checked" : ""}> Create account if it does not exist</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-gray btn-sm" onclick="sendAtlasCentralMagicLink()">Send Login Link</button>
-          <button class="btn btn-gray btn-sm" onclick="signUpAtlasCentralWithPassword()">Create Account</button>
-          <button class="btn btn-blue btn-sm" onclick="signInAtlasCentralWithPassword()">Sign In</button>
+          <button class="btn btn-gray btn-sm" onclick="sendAtlasCentralMagicLink()" ${authActionBusy ? "disabled" : ""}>${magicLinkBusy ? "Sending Link..." : "Send Sign-In Link"}</button>
+          <button class="btn btn-gray btn-sm" onclick="signUpAtlasCentralWithPassword()" ${authActionBusy ? "disabled" : ""}>${passwordSignUpBusy ? "Activating..." : "Activate Account"}</button>
+          <button class="btn btn-blue btn-sm" onclick="signInAtlasCentralWithPassword()" ${authActionBusy ? "disabled" : ""}>${passwordSignInBusy ? "Signing In..." : "Sign In"}</button>
           <button class="btn btn-blue btn-sm" onclick="claimAtlasCentralFirstAdmin()" ${status.signedIn ? "" : "disabled"}>Activate First Admin</button>
-          <button class="btn btn-gray btn-sm" onclick="signOutAtlasCentral()" ${status.signedIn ? "" : "disabled"}>Sign Out</button>
-          <button class="btn btn-gray btn-sm" onclick="verifyAtlasCentralConnection()">Check Central</button>
+          <button class="btn btn-gray btn-sm" onclick="signOutAtlasCentral()" ${status.signedIn && !authActionBusy ? "" : "disabled"}>Sign Out</button>
+          <button class="btn btn-gray btn-sm" onclick="verifyAtlasCentralConnection()" ${authActionBusy ? "disabled" : ""}>Check Central</button>
         </div>
       </div>
       <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">
@@ -14471,6 +15085,35 @@ function renderAtlasSettingsMemoryPanel() {
   </div>`;
 }
 
+function renderAtlasSettingsDashboardPanel() {
+  const selectedKeys = new Set(atlasDashboardPreferences.visibleWidgets);
+  return `<div class="card mb4">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div>
+        <div class="card-title" style="margin-bottom:6px">Dashboard Personalization</div>
+        <div style="font-size:0.68rem;color:var(--muted);line-height:1.55">Choose which informational widgets appear on the ATLAS home dashboard. First-time users are guided here after their first login so they can shape the dashboard around the information they use most.</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-gray btn-sm" onclick="setTab(0)">Preview Home Dashboard</button>
+        <button class="btn btn-blue btn-sm" onclick="completeAtlasFirstLoginWalkthrough()">Mark Walkthrough Complete</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+      ${ATLAS_CUSTOM_DASHBOARD_WIDGETS.map(widget => {
+        const isSelected = selectedKeys.has(widget.key);
+        return `<button type="button" onclick="toggleAtlasDashboardWidget(${JSON.stringify(widget.key)})" style="text-align:left;padding:14px;border-radius:16px;border:1px solid ${isSelected ? widget.accent : "var(--border)"};background:${isSelected ? "linear-gradient(180deg,#ffffff 0%,#f6faff 100%)" : "var(--bg2)"};box-shadow:${isSelected ? "0 10px 24px rgba(15,23,42,0.06)" : "none"};cursor:pointer">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+            <div style="font-size:0.76rem;font-weight:800;color:var(--text)">${escapeHtml(widget.label)}</div>
+            <span style="font-size:0.62rem;font-weight:800;color:${isSelected ? widget.accent : "var(--muted)"}">${isSelected ? "Shown" : "Hidden"}</span>
+          </div>
+          <div style="font-size:0.68rem;color:var(--muted);line-height:1.55;margin-top:8px">${escapeHtml(widget.description)}</div>
+        </button>`;
+      }).join("")}
+    </div>
+    <div style="font-size:0.66rem;color:var(--muted);margin-top:12px">Selected widgets: ${atlasDashboardPreferences.visibleWidgets.length}. Last updated: ${atlasDashboardPreferences.customDashboardUpdatedAt ? escapeHtml(new Date(atlasDashboardPreferences.customDashboardUpdatedAt).toLocaleString()) : "Not updated yet"}.</div>
+  </div>`;
+}
+
 function renderAtlasSettingsTab() {
   const status = getAtlasCentralStatus();
   const profile = getAtlasAccessProfile();
@@ -14490,6 +15133,7 @@ function renderAtlasSettingsTab() {
     <div id="atlas-settings-access-panel">${renderAtlasEmployeeAccessPanel()}</div>
     ${renderAtlasSettingsSetupPanel()}
     ${renderAtlasSettingsIntegrationsPanel()}
+    ${renderAtlasSettingsDashboardPanel()}
     ${renderAtlasSettingsMemoryPanel()}
     ${renderAtlasCentralPlatformPanel()}
   </div>`;
@@ -39795,6 +40439,8 @@ async function initializeAtlasDashboard() {
   applySideNavState();
   currentMonth = DEFAULT_CURRENT_MONTH;
   workspaceMonthOverride = null;
+  applyAtlasAuthEntryFromLocation();
+  applyAtlasAuthRedirectEvent();
   runAtlasStartupStep("apply incoming workspace navigation", () => applyIncomingWorkspaceNavigation());
   runAtlasStartupStep("hydrate global ATLAS settings", () => hydrateOpsGlobalData());
   try {

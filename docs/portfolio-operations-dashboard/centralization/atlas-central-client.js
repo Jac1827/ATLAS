@@ -7,8 +7,11 @@
   const CONFIG_STORAGE_KEY = "atlas_central_runtime_config_v1";
   const SESSION_STORAGE_KEY = "atlas_central_auth_session_v1";
   const PROFILE_STORAGE_KEY = "atlas_central_profile_v1";
+  const LAST_AUTH_EVENT_STORAGE_KEY = "atlas_central_last_auth_event_v1";
   const MAGIC_LINK_COOLDOWN_STORAGE_KEY = "atlas_central_magic_link_cooldowns_v1";
   const SHARED_PROPERTY_GRAPH_DOCUMENT_KEY = "atlas_shared_property_graph_v1";
+  const authRequestPromises = new Map();
+  let refreshSessionPromise = null;
 
   const DEFAULT_CONFIG = {
     enabled: true,
@@ -249,6 +252,53 @@
     return error;
   }
 
+  function normalizeAtlasAuthErrorMessage(rawMessage, status = 0, context = {}) {
+    const message = String(rawMessage || "").trim();
+    const lower = message.toLowerCase();
+    const email = String(context.email || "").trim().toLowerCase();
+    const emailSuffix = email ? ` for ${email}` : "";
+    if (!message) {
+      if (status === 401 || status === 400) return "ATLAS could not sign you in with that email and password.";
+      return "ATLAS could not finish that request.";
+    }
+    if (lower.includes("invalid login credentials")) return `ATLAS could not sign you in${emailSuffix}. Check your email and password, then try again.`;
+    if (lower.includes("email not confirmed")) return `Confirm your ATLAS email${emailSuffix ? emailSuffix : ""} before signing in.`;
+    if (lower.includes("user already registered")) return `An ATLAS account already exists${emailSuffix}. Use Sign In instead of Activate My Account.`;
+    if (lower.includes("signup is disabled")) return "ATLAS account activation is not available from this screen right now. Use your invite flow or contact an ATLAS admin.";
+    if (lower.includes("password should be at least")) return "Choose a stronger password with at least 8 characters.";
+    if (lower.includes("this email domain is not approved")) return "Use your approved ATLAS work email address to continue.";
+    if (lower.includes("no active atlas access invite was found")) return `ATLAS could not find an active invite${emailSuffix}. Ask an ATLAS admin to send a fresh activation invite.`;
+    if (lower.includes("authentication is required") || lower.includes("jwt expired") || lower.includes("refresh token")) return "Your ATLAS session expired. Sign in again to continue.";
+    if (lower.includes("rate-limiting repeated auth requests")) return "Too many ATLAS sign-in attempts were sent too quickly. Wait a moment, then try again.";
+    return message;
+  }
+
+  function saveLastAuthEvent(event = null) {
+    if (!event) {
+      try { sessionStorage.removeItem(LAST_AUTH_EVENT_STORAGE_KEY); } catch {}
+      return null;
+    }
+    const normalized = {
+      type: String(event.type || "").trim(),
+      email: String(event.email || "").trim().toLowerCase(),
+      at: String(event.at || new Date().toISOString())
+    };
+    try { sessionStorage.setItem(LAST_AUTH_EVENT_STORAGE_KEY, JSON.stringify(normalized)); } catch {}
+    return normalized;
+  }
+
+  function consumeLastAuthEvent() {
+    try {
+      const raw = sessionStorage.getItem(LAST_AUTH_EVENT_STORAGE_KEY);
+      if (!raw) return null;
+      sessionStorage.removeItem(LAST_AUTH_EVENT_STORAGE_KEY);
+      const parsed = safeJsonParse(raw, null);
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
   function getRetryAfterSeconds(response) {
     const headerValue = String(response?.headers?.get("retry-after") || "").trim();
     const numeric = Number(headerValue);
@@ -298,6 +348,20 @@
     return safeSeconds;
   }
 
+  function runSingleAuthRequest(key, task) {
+    const requestKey = String(key || "").trim();
+    if (!requestKey) return task();
+    const existing = authRequestPromises.get(requestKey);
+    if (existing) return existing;
+    const promise = Promise.resolve()
+      .then(task)
+      .finally(() => {
+        authRequestPromises.delete(requestKey);
+      });
+    authRequestPromises.set(requestKey, promise);
+    return promise;
+  }
+
   async function request(url, options = {}) {
     let response;
     try {
@@ -335,15 +399,26 @@
     const config = requireConfigured();
     const cleanEmail = String(email || "").trim().toLowerCase();
     if (!isEmailAllowed(cleanEmail, config)) throw new Error("This email domain is not approved for Atlas.");
+    if (!cleanEmail) throw new Error("Email is required.");
     if (!password) throw new Error("Password is required.");
-    const payload = await request(authUrl("/token?grant_type=password"), {
-      method: "POST",
-      auth: false,
-      body: JSON.stringify({ email: cleanEmail, password })
+    return runSingleAuthRequest(`password:${cleanEmail}`, async () => {
+      try {
+        const payload = await request(authUrl("/token?grant_type=password"), {
+          method: "POST",
+          auth: false,
+          body: JSON.stringify({ email: cleanEmail, password })
+        });
+        saveSession(payload);
+        await fetchProfile().catch(() => null);
+        saveLastAuthEvent({ type: "password_sign_in", email: cleanEmail });
+        return payload;
+      } catch (error) {
+        throw createCentralError(normalizeAtlasAuthErrorMessage(error?.message, Number(error?.status) || 0, { email: cleanEmail, action: "sign_in" }), {
+          status: Number(error?.status) || 0,
+          retryAfterSeconds: Number(error?.retryAfterSeconds) || 0
+        });
+      }
     });
-    saveSession(payload);
-    await fetchProfile().catch(() => null);
-    return payload;
   }
 
   async function sendMagicLink(email, options = {}) {
@@ -358,47 +433,96 @@
         retryAfterSeconds: existingCooldown
       });
     }
-    const redirectTo = authRedirectUrl(config);
-    try {
-      const payload = await request(authUrl(withRedirectTo("/otp", redirectTo)), {
-        method: "POST",
-        auth: false,
-        body: JSON.stringify({
-          email: cleanEmail,
-          create_user: Boolean(options.createUser || config.allowMagicLinkSignup),
-          options: redirectTo ? { email_redirect_to: redirectTo } : {}
-        })
-      });
-      setMagicLinkCooldown(cleanEmail, 60);
-      return payload;
-    } catch (error) {
-      const retryAfterSeconds = Math.max(0, Number(error?.retryAfterSeconds) || 0);
-      if (Number(error?.status) === 429) {
-        setMagicLinkCooldown(cleanEmail, retryAfterSeconds || 60);
-        throw createCentralError(
-          `ATLAS sign-in links were requested too quickly for ${cleanEmail}. Wait ${retryAfterSeconds || 60} seconds before trying again, or use Create Account / Sign In with password if the account already exists.`,
-          {
-            status: 429,
-            retryAfterSeconds: retryAfterSeconds || 60
-          }
-        );
+    const createUser = Boolean(options.createUser || config.allowMagicLinkSignup);
+    return runSingleAuthRequest(`magic-link:${cleanEmail}`, async () => {
+      const redirectTo = authRedirectUrl(config);
+      try {
+        const payload = await request(authUrl(withRedirectTo("/otp", redirectTo)), {
+          method: "POST",
+          auth: false,
+          body: JSON.stringify({
+            email: cleanEmail,
+            create_user: createUser,
+            options: redirectTo ? { email_redirect_to: redirectTo } : {}
+          })
+        });
+        setMagicLinkCooldown(cleanEmail, 60);
+        return payload;
+      } catch (error) {
+        const retryAfterSeconds = Math.max(0, Number(error?.retryAfterSeconds) || 0);
+        if (Number(error?.status) === 429) {
+          setMagicLinkCooldown(cleanEmail, retryAfterSeconds || 60);
+          throw createCentralError(
+            `ATLAS sign-in links were requested too quickly for ${cleanEmail}. Wait ${retryAfterSeconds || 60} seconds before trying again, or use Create Account / Sign In with password if the account already exists.`,
+            {
+              status: 429,
+              retryAfterSeconds: retryAfterSeconds || 60
+            }
+          );
+        }
+        throw createCentralError(normalizeAtlasAuthErrorMessage(error?.message, Number(error?.status) || 0, { email: cleanEmail, action: "magic_link" }), {
+          status: Number(error?.status) || 0,
+          retryAfterSeconds
+        });
       }
-      throw error;
-    }
+    });
+  }
+
+  async function requestPasswordReset(email) {
+    const config = requireConfigured();
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    if (!isEmailAllowed(cleanEmail, config)) throw new Error("This email domain is not approved for Atlas.");
+    if (!cleanEmail) throw new Error("Email is required.");
+    return runSingleAuthRequest(`password-reset:${cleanEmail}`, async () => {
+      const redirectTo = authRedirectUrl(config);
+      try {
+        const payload = await request(authUrl(withRedirectTo("/recover", redirectTo)), {
+          method: "POST",
+          auth: false,
+          body: JSON.stringify({
+            email: cleanEmail,
+            ...(redirectTo ? { redirect_to: redirectTo } : {})
+          })
+        });
+        saveLastAuthEvent({ type: "password_reset_requested", email: cleanEmail });
+        return payload;
+      } catch (error) {
+        throw createCentralError(normalizeAtlasAuthErrorMessage(error?.message, Number(error?.status) || 0, { email: cleanEmail, action: "password_reset" }), {
+          status: Number(error?.status) || 0,
+          retryAfterSeconds: Number(error?.retryAfterSeconds) || 0
+        });
+      }
+    });
   }
 
   async function refreshSession() {
-    const session = getSession();
-    if (!session?.refresh_token) return session;
-    const expiresAt = Number(session.expires_at || 0);
+    const currentSession = getSession();
+    if (!currentSession?.refresh_token) return currentSession;
+    const expiresAt = Number(currentSession.expires_at || 0);
     const nowSeconds = Math.floor(Date.now() / 1000);
-    if (expiresAt && expiresAt - nowSeconds > 90) return session;
-    const payload = await request(authUrl("/token?grant_type=refresh_token"), {
-      method: "POST",
-      auth: false,
-      body: JSON.stringify({ refresh_token: session.refresh_token })
+    if (expiresAt && expiresAt - nowSeconds > 90) return currentSession;
+    if (refreshSessionPromise) return refreshSessionPromise;
+    refreshSessionPromise = (async () => {
+      const session = getSession();
+      if (!session?.refresh_token) return session;
+      const latestExpiresAt = Number(session.expires_at || 0);
+      const latestNowSeconds = Math.floor(Date.now() / 1000);
+      if (latestExpiresAt && latestExpiresAt - latestNowSeconds > 90) return session;
+      try {
+        const payload = await request(authUrl("/token?grant_type=refresh_token"), {
+          method: "POST",
+          auth: false,
+          body: JSON.stringify({ refresh_token: session.refresh_token })
+        });
+        return saveSession(payload);
+      } catch (error) {
+        if ([400, 401, 403].includes(Number(error?.status))) saveSession(null);
+        throw error;
+      }
+    })().finally(() => {
+      refreshSessionPromise = null;
     });
-    return saveSession(payload);
+    return refreshSessionPromise;
   }
 
   async function signOut() {
@@ -410,6 +534,25 @@
     }
     saveSession(null);
     return true;
+  }
+
+  async function updatePassword(password) {
+    await refreshSession().catch(() => null);
+    const cleanPassword = String(password || "");
+    if (cleanPassword.length < 8) throw new Error("Choose a stronger password with at least 8 characters.");
+    try {
+      const payload = await request(authUrl("/user"), {
+        method: "PUT",
+        body: JSON.stringify({ password: cleanPassword })
+      });
+      saveLastAuthEvent({ type: "password_updated", email: userEmail() });
+      return payload;
+    } catch (error) {
+      throw createCentralError(normalizeAtlasAuthErrorMessage(error?.message, Number(error?.status) || 0, { email: userEmail(), action: "update_password" }), {
+        status: Number(error?.status) || 0,
+        retryAfterSeconds: Number(error?.retryAfterSeconds) || 0
+      });
+    }
   }
 
   function handleAuthRedirect() {
@@ -426,6 +569,10 @@
       expires_in: expiresIn,
       expires_at: Math.floor(Date.now() / 1000) + expiresIn,
       user: { email: params.get("email") || "" }
+    });
+    saveLastAuthEvent({
+      type: params.get("type") || "redirect_sign_in",
+      email: params.get("email") || ""
     });
     if (window.history?.replaceState) {
       window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
@@ -461,23 +608,34 @@
     const config = requireConfigured();
     const cleanEmail = String(email || "").trim().toLowerCase();
     if (!isEmailAllowed(cleanEmail, config)) throw new Error("This email domain is not approved for Atlas.");
+    if (!cleanEmail) throw new Error("Email is required.");
     if (!password || String(password).length < 8) throw new Error("Use a password with at least 8 characters.");
-    const redirectTo = authRedirectUrl(config);
-    const payload = await request(authUrl(withRedirectTo("/signup", redirectTo)), {
-      method: "POST",
-      auth: false,
-      body: JSON.stringify({
-        email: cleanEmail,
-        password,
-        data: { display_name: String(displayName || "").trim() },
-        ...(redirectTo ? { email_redirect_to: redirectTo } : {})
-      })
+    return runSingleAuthRequest(`signup:${cleanEmail}`, async () => {
+      try {
+        const redirectTo = authRedirectUrl(config);
+        const payload = await request(authUrl(withRedirectTo("/signup", redirectTo)), {
+          method: "POST",
+          auth: false,
+          body: JSON.stringify({
+            email: cleanEmail,
+            password,
+            data: { display_name: String(displayName || "").trim() },
+            ...(redirectTo ? { email_redirect_to: redirectTo } : {})
+          })
+        });
+        if (payload?.access_token) {
+          saveSession(payload);
+          await fetchProfile().catch(() => null);
+        }
+        saveLastAuthEvent({ type: "password_sign_up", email: cleanEmail });
+        return payload;
+      } catch (error) {
+        throw createCentralError(normalizeAtlasAuthErrorMessage(error?.message, Number(error?.status) || 0, { email: cleanEmail, action: "sign_up" }), {
+          status: Number(error?.status) || 0,
+          retryAfterSeconds: Number(error?.retryAfterSeconds) || 0
+        });
+      }
     });
-    if (payload?.access_token) {
-      saveSession(payload);
-      await fetchProfile().catch(() => null);
-    }
-    return payload;
   }
 
   async function rpc(functionName, args = {}) {
@@ -919,11 +1077,14 @@
     fetchJson,
     rpc,
     sendMagicLink,
+    requestPasswordReset,
     getMagicLinkCooldownSeconds,
+    consumeLastAuthEvent,
     authRedirectUrl,
     signInWithPassword,
     signUpWithPassword,
     signOut,
+    updatePassword,
     fetchUser,
     fetchProfile,
     claimFirstAdmin,

@@ -4471,6 +4471,7 @@ function buildWorkbookOnlyDlrInvestorOverview(communityName, overlay, monthIdx, 
     notes: generatedNotes,
     editableNotes,
     marketing: { ready: false, narrative: "", entries: [], completedCount: 0 },
+    sourceRecord: record || null,
     communityPhotoAsset: normalizeCommunityPhotoBank(record?.photoBank)[0] || null,
     communityPhotoPreviewSrc: String(normalizeCommunityPhotoBank(record?.photoBank)[0]?.previewSrc || normalizeCommunityPhotoBank(record?.photoBank)[0]?.src || ""),
     sourceSummary: `${matchedName} · ${overlay.reportDateLabel || formatDlrMonthYear(monthIdx, year)} · report-only Ronaldo daily upload`,
@@ -6802,6 +6803,9 @@ function defaultDlrDeliverySettings() {
     notifyIfDataMissing: true,
     requireApprovalIfCritical: true,
     autoSendWhenDataReady: false,
+    emailContentMode: "executive_snapshot_commentary",
+    attachmentMode: "none",
+    emailCharts: ["forward_occupancy", "application_trend"],
     lastDailyDraftDate: "",
     lastWeeklyDraftWeek: "",
     lastDailySentDate: "",
@@ -6842,6 +6846,12 @@ function normalizeDlrDeliverySettings(input = {}) {
   const roleRecipients = Array.isArray(input.roleRecipients)
     ? input.roleRecipients.map(role => String(role || "").trim()).filter(Boolean)
     : [];
+  const validEmailContentModes = ["executive_snapshot", "executive_snapshot_commentary", "detailed_email"];
+  const validAttachmentModes = ["none", "attach_detailed_pdf"];
+  const validEmailCharts = ["forward_occupancy", "application_trend", "application_outcomes"];
+  const emailCharts = Array.isArray(input.emailCharts)
+    ? input.emailCharts.map(item => String(item || "").trim()).filter(item => validEmailCharts.includes(item))
+    : [];
   return {
     frequencyMode,
     selectedWeekdays: Array.from(new Set(
@@ -6865,6 +6875,13 @@ function normalizeDlrDeliverySettings(input = {}) {
     notifyIfDataMissing: input.notifyIfDataMissing !== undefined ? Boolean(input.notifyIfDataMissing) : defaults.notifyIfDataMissing,
     requireApprovalIfCritical: input.requireApprovalIfCritical !== undefined ? Boolean(input.requireApprovalIfCritical) : defaults.requireApprovalIfCritical,
     autoSendWhenDataReady: Boolean(input.autoSendWhenDataReady),
+    emailContentMode: validEmailContentModes.includes(String(input.emailContentMode || "").trim())
+      ? String(input.emailContentMode).trim()
+      : defaults.emailContentMode,
+    attachmentMode: validAttachmentModes.includes(String(input.attachmentMode || "").trim())
+      ? String(input.attachmentMode).trim()
+      : defaults.attachmentMode,
+    emailCharts: Array.from(new Set(emailCharts.length ? emailCharts : defaults.emailCharts)),
     lastDailyDraftDate: String(input.lastDailyDraftDate || defaults.lastDailyDraftDate).trim(),
     lastWeeklyDraftWeek: String(input.lastWeeklyDraftWeek || defaults.lastWeeklyDraftWeek).trim(),
     lastDailySentDate: String(input.lastDailySentDate || defaults.lastDailySentDate).trim(),
@@ -7585,6 +7602,8 @@ function applyIncomingWorkspaceNavigation() {
     const params = new URLSearchParams(window.location.search);
     const incomingCommunity = params.get("community");
     const incomingPeriod = params.get("period") || params.get("month");
+    const incomingTab = params.get("tab");
+    const incomingReport = params.get("report") || params.get("reportType");
     if (incomingCommunity) {
       const matchedCommunity = matchPropertyName(incomingCommunity);
       const matchedIdx = PROPERTIES.findIndex(prop => prop.name === matchedCommunity);
@@ -7601,6 +7620,18 @@ function applyIncomingWorkspaceNavigation() {
       workspaceMonthOverride = incomingMonthIdx;
       importMonthOverride = incomingMonthIdx;
       syncMonthlyTemplateImportTarget();
+    }
+    if (incomingReport) {
+      reportHubType = normalizeReportHubType(incomingReport);
+    }
+    if (incomingTab) {
+      const normalizedTab = String(incomingTab).trim().toLowerCase();
+      if (normalizedTab === "reporting" || normalizedTab === "reports" || normalizedTab === "dlr") {
+        activeTab = 8;
+      } else {
+        const parsedTab = Number(incomingTab);
+        if (Number.isFinite(parsedTab)) activeTab = Math.max(0, Math.min(14, Math.round(parsedTab)));
+      }
     }
   } catch {}
 }
@@ -29868,6 +29899,17 @@ function getPrimaryReportCommunityName() {
   return scoped[0]?.name || reportableNames[0] || getProp().name;
 }
 
+function resolveDlrReportCommunityName(candidateName = "", monthIdx = getReportHubMonthIndex()) {
+  const reportableNames = getReportableCommunityNames(monthIdx);
+  const matchedCandidate = matchPropertyName(candidateName, { fallbackToCurrent: false });
+  if (matchedCandidate && reportableNames.includes(matchedCandidate)) return matchedCandidate;
+  const matchedHistorical = matchPropertyName(historicalImportTarget.community, { fallbackToCurrent: false });
+  if (matchedHistorical && reportableNames.includes(matchedHistorical)) return matchedHistorical;
+  const primary = matchPropertyName(getPrimaryReportCommunityName(), { fallbackToCurrent: false });
+  if (primary && reportableNames.includes(primary)) return primary;
+  return reportableNames[0] || primary || matchedCandidate || matchedHistorical || getProp().name;
+}
+
 function getLvrReportCommunityName() {
   const reportableNames = getReportableCommunityNames(getReportHubMonthIndex());
   const selected = matchPropertyName(reportHubLvrCommunity, { fallbackToCurrent: false });
@@ -29883,19 +29925,25 @@ function setLvrReportCommunity(value) {
 }
 
 function getDlrReportCommunityName() {
-  return matchPropertyName(historicalImportTarget.community, { fallbackToCurrent: false }) || getPrimaryReportCommunityName();
+  return resolveDlrReportCommunityName(historicalImportTarget.community, getReportHubMonthIndex());
 }
 
 function syncDlrTargetFromReportHub(options = {}) {
+  const monthIdx = Number.isInteger(options.monthIdx) ? options.monthIdx : getReportHubMonthIndex();
+  const year = Number.isInteger(options.year) ? options.year : getReportHubYear();
   const communityName = options.community
-    ? (matchPropertyName(options.community, { fallbackToCurrent: false }) || getPrimaryReportCommunityName())
-    : (options.preserveCommunity === false ? getPrimaryReportCommunityName() : getDlrReportCommunityName());
+    ? resolveDlrReportCommunityName(options.community, monthIdx)
+    : (options.preserveCommunity === false
+      ? resolveDlrReportCommunityName("", monthIdx)
+      : resolveDlrReportCommunityName(historicalImportTarget.community, monthIdx));
   historicalImportTarget = normalizeHistoricalImportTarget({
     ...historicalImportTarget,
     community: communityName,
-    month: getReportHubMonthIndex(),
-    year: getReportHubYear()
+    month: monthIdx,
+    year
   });
+  persistOpsGlobalData();
+  return communityName;
 }
 
 function getLvrBenchmarks(mode = "stabilized") {
@@ -30398,6 +30446,15 @@ function renderDlrReportingWorkspace() {
             ["approval_required", "Draft + Approval Required"],
             ["fully_automated", "Fully Automated"]
           ].map(([value, label]) => `<option value="${value}" ${deliverySettings.automationMode === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
+          <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Email content</span><select onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'emailContentMode', this.value)">${[
+            ["executive_snapshot", "Executive Snapshot"],
+            ["executive_snapshot_commentary", "Executive Snapshot + Commentary"],
+            ["detailed_email", "Detailed Email"]
+          ].map(([value, label]) => `<option value="${value}" ${deliverySettings.emailContentMode === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
+          <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Attachment</span><select onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'attachmentMode', this.value)">${[
+            ["none", "No Attachment"],
+            ["attach_detailed_pdf", "Attach Detailed DLR PDF"]
+          ].map(([value, label]) => `<option value="${value}" ${deliverySettings.attachmentMode === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
           <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Generate / draft time</span><input type="time" value="${escapeHtml(deliverySettings.generateTime)}" onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'generateTime', this.value)"></label>
           <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Send time</span><input type="time" value="${escapeHtml(deliverySettings.sendTime)}" onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'sendTime', this.value)"></label>
           <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Weekly send day</span><select onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'weeklySendDay', this.value)">${["monday","tuesday","wednesday","thursday","friday","saturday","sunday"].map(day => `<option value="${day}" ${deliverySettings.weeklySendDay === day ? "selected" : ""}>${day.charAt(0).toUpperCase()}${day.slice(1)}</option>`).join("")}</select></label>
@@ -30416,6 +30473,10 @@ function renderDlrReportingWorkspace() {
           <div style="grid-column:1/-1">
             <div style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Internal role recipients</div>
             <div style="display:flex;flex-wrap:wrap;gap:10px">${getDlrInternalRecipientRoleOptions().map(role => `<label style="display:flex;align-items:center;gap:6px"><input type="checkbox" ${deliverySettings.roleRecipients.includes(role.key) ? "checked" : ""} onchange="updateDlrDeliveryRoleRecipient(${JSON.stringify(communityName)}, '${role.key}', this.checked)"><span>${escapeHtml(role.label)}</span></label>`).join("")}</div>
+          </div>
+          <div style="grid-column:1/-1">
+            <div style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Charts included in email</div>
+            <div style="display:flex;flex-wrap:wrap;gap:10px">${["forward_occupancy","application_trend","application_outcomes"].map(chartKey => `<label style="display:flex;align-items:center;gap:6px"><input type="checkbox" ${deliverySettings.emailCharts.includes(chartKey) ? "checked" : ""} onchange="updateDlrEmailChartSelection(${JSON.stringify(communityName)}, '${chartKey}', this.checked)"><span>${escapeHtml(getDlrEmailChartLabel(chartKey))}</span></label>`).join("")}</div>
           </div>
           <label style="grid-column:1/-1"><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">CC</span><input type="text" value="${escapeHtml(deliverySettings.cc || "")}" placeholder="regional@risere.com; vp@risere.com" onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'cc', this.value)"></label>
           <label style="grid-column:1/-1"><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">BCC</span><input type="text" value="${escapeHtml(deliverySettings.bcc || "")}" placeholder="asset@risere.com" onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'bcc', this.value)"></label>
@@ -31204,8 +31265,13 @@ async function runReportHubAction() {
     if (type === "community_progress") return openCommunityProgressReport(true);
     if (type === "market_comparison") return openMarketComparisonReport(true);
     if (type === "dlr") {
-      syncDlrTargetFromReportHub({ preserveCommunity: true });
-      return openDlrInvestorOverview(true);
+      const communityName = syncDlrTargetFromReportHub({ preserveCommunity: true });
+      return openDlrInvestorOverview({
+        communityName,
+        monthIdx: getReportHubMonthIndex(),
+        year: getReportHubYear(),
+        printImmediately: true
+      });
     }
     return openBonusPayoutReport(true);
   }
@@ -31218,8 +31284,12 @@ async function runReportHubAction() {
     if (type === "monthly_investor_deck") return downloadMonthlyInvestorPresentationBrief();
     if (type === "community_progress") return downloadCommunityProgressReportHtml();
     if (type === "market_comparison") return downloadMarketComparisonReportHtml();
-    syncDlrTargetFromReportHub({ preserveCommunity: true });
-    return downloadDlrInvestorOverviewHtml();
+    const communityName = syncDlrTargetFromReportHub({ preserveCommunity: true });
+    return downloadDlrInvestorOverviewHtml({
+      communityName,
+      monthIdx: getReportHubMonthIndex(),
+      year: getReportHubYear()
+    });
   }
   if (reportHubAction === "export_individual_pdfs") {
     if (type === "community_progress") {
@@ -32038,6 +32108,229 @@ function buildDlrInvestorNotes({
   return { tours, applications, highlights, wins };
 }
 
+function buildAtlasDlrDeepLink(report) {
+  const baseUrl = `${window.location.origin}${window.location.pathname}`;
+  const params = new URLSearchParams();
+  params.set("community", report?.communityName || getDlrReportCommunityName());
+  params.set("period", report?.reportMonthLabel || `${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`);
+  params.set("tab", "reporting");
+  params.set("report", "dlr");
+  return `${baseUrl}?${params.toString()}`;
+}
+
+function formatDlrTrendDelta(currentValue, previousValue, digits = 1) {
+  const current = Number(currentValue);
+  const previous = Number(previousValue);
+  if (!Number.isFinite(current) || !Number.isFinite(previous) || previous <= 0) return "";
+  const deltaPct = ((current - previous) / previous) * 100;
+  const arrow = deltaPct > 0 ? "▲" : deltaPct < 0 ? "▼" : "■";
+  return `${arrow} ${deltaPct >= 0 ? "+" : ""}${deltaPct.toFixed(digits)}%`;
+}
+
+function getDlrExecutiveSummaryLines(report) {
+  const lines = [];
+  const occupancyDelta = Number(report.trendingOccupancyPct ?? 0) - Number(report.occupancyPct ?? 0);
+  const appTrend = report.applicationTrendRows?.find(row => row.windowKey === "mtd") || null;
+  const renewals = report.renewalSnapshot || {};
+  const netMoveIns = (Number(report.trafficMetrics?.moveIns) || 0) - (Number(report.trafficMetrics?.moveOuts) || 0);
+  if (Number.isFinite(occupancyDelta) && Math.abs(occupancyDelta) >= 0.2) {
+    lines.push(
+      occupancyDelta > 0
+        ? `Physical occupancy is projected to improve from ${formatDlrPercent(report.occupancyPct, 1)} to ${formatDlrPercent(report.trendingOccupancyPct, 1)} based on scheduled move-ins and move-outs already saved in ATLAS.`
+        : `Physical occupancy is projected to soften from ${formatDlrPercent(report.occupancyPct, 1)} to ${formatDlrPercent(report.trendingOccupancyPct, 1)} based on scheduled move-outs currently on the books.`
+    );
+  }
+  if (appTrend && Number.isFinite(Number(appTrend.deltaValue))) {
+    lines.push(
+      Number(appTrend.deltaValue) >= 0
+        ? `Application volume is trending ahead of the prior comparable period at ${formatDlrMetricValue(appTrend.currentValue)} MTD versus ${formatDlrMetricValue(appTrend.previousValue)} prior (${formatDlrTrendDelta(appTrend.currentValue, appTrend.previousValue)}).`
+        : `Application volume is trailing the prior comparable period at ${formatDlrMetricValue(appTrend.currentValue)} MTD versus ${formatDlrMetricValue(appTrend.previousValue)} prior (${formatDlrTrendDelta(appTrend.currentValue, appTrend.previousValue)}).`
+    );
+  }
+  if (Number(netMoveIns) !== 0) {
+    lines.push(
+      netMoveIns > 0
+        ? `Net move-ins are positive month to date at ${formatDlrSignedNumber(netMoveIns)}, supporting near-term occupancy momentum.`
+        : `Net move-ins are negative month to date at ${formatDlrSignedNumber(netMoveIns)}, which is creating near-term occupancy pressure.`
+    );
+  }
+  if (Number.isFinite(Number(renewals.retentionRate)) && Number(renewals.expirations) > 0) {
+    lines.push(`Renewal retention is ${formatDlrPercent(renewals.retentionRate, 0)} from ${formatDlrMetricValue(renewals.expirations)} expirations with ${formatDlrMetricValue(renewals.undecided)} undecided / month-to-month households still in play.`);
+  }
+  if (!lines.length) {
+    lines.push(`ATLAS generated this DLR from the saved ${report.reportMonthLabel} operating record for ${report.communityName}.`);
+  }
+  return lines.slice(0, 4);
+}
+
+function buildDlrEmailForwardLookRows(report) {
+  return (Array.isArray(report.forwardLook) ? report.forwardLook : []).slice(0, 4).map(row => ({
+    label: row.label,
+    projectedOccupancy: formatDlrPercent(row.projectedOccupancy, 1),
+    budgetedOccupancy: formatDlrPercent(row.budgetedOccupancy, 1),
+    moveIns: formatDlrMetricValue(row.pendingMoveIns),
+    moveOuts: formatDlrMetricValue(row.pendingMoveOuts)
+  }));
+}
+
+function buildDlrEmailApplicationOutcomeRows(report) {
+  const mtd = report.trafficMetrics || {};
+  return [
+    ["Applications MTD", formatDlrMetricValue(mtd.applications)],
+    ["Approved", formatDlrMetricValue(mtd.approvals)],
+    ["Denied / Cancelled", `${formatDlrMetricValue(mtd.denials)} / ${formatDlrMetricValue(mtd.cancelled)}`],
+    ["Pending", formatDlrMetricValue(mtd.pendingDecision)]
+  ];
+}
+
+function buildDlrEmailHtml(report, settings = {}) {
+  const normalizedSettings = normalizeDlrDeliverySettings(settings);
+  const record = report?.sourceRecord || {};
+  const emailCharts = new Set(Array.isArray(normalizedSettings.emailCharts) ? normalizedSettings.emailCharts : []);
+  const commentaryEnabled = normalizedSettings.emailContentMode !== "executive_snapshot";
+  const detailMode = normalizedSettings.emailContentMode === "detailed_email";
+  const summaryLines = commentaryEnabled ? getDlrExecutiveSummaryLines(report) : [];
+  const appTrend = report.applicationTrendRows?.find(row => row.windowKey === "mtd") || null;
+  const forwardRows = buildDlrEmailForwardLookRows(report);
+  const applicationOutcomeRows = buildDlrEmailApplicationOutcomeRows(report);
+  const kpis = [
+    { label: "Physical Occupancy", value: formatDlrPercent(report.occupancyPct, 1), sub: `${formatDlrMetricValue(report.occupiedUnits)} occupied units` },
+    { label: "Leased", value: formatDlrPercent(report.leasedPct, 1), sub: `${formatDlrMetricValue(report.leasedUnits)} leased units` },
+    { label: "90-Day Projection", value: formatDlrPercent(report.trendingOccupancyPct, 1), sub: "Forward occupancy" },
+    { label: "MTD Applications", value: formatDlrMetricValue(report.trafficMetrics?.applications), sub: `${formatDlrMetricValue(report.trafficMetrics?.approvals)} approved` },
+    { label: "MTD Move-Ins", value: formatDlrMetricValue(report.trafficMetrics?.moveIns), sub: `Goal / week ${formatDlrMetricValue(report.moveInGoalPerWeek)}` },
+    { label: "MTD Move-Outs", value: formatDlrMetricValue(report.trafficMetrics?.moveOuts), sub: `Net ${formatDlrSignedNumber((Number(report.trafficMetrics?.moveIns) || 0) - (Number(report.trafficMetrics?.moveOuts) || 0))}` },
+    { label: "Retention", value: formatDlrPercent(report.renewalSnapshot?.retentionRate, 0), sub: `${formatDlrMetricValue(report.renewalSnapshot?.signed)} signed` }
+  ];
+  const compactKpis = detailMode ? kpis : kpis.slice(0, 6);
+  const activityRows = [
+    ["Leads", formatDlrMetricValue(report.trafficMetrics?.rolledGuestCards ?? report.trafficMetrics?.guestCards)],
+    ["Tours", formatDlrMetricValue(report.trafficMetrics?.tours)],
+    ["Applications", formatDlrMetricValue(report.trafficMetrics?.applications)],
+    ["Approvals", formatDlrMetricValue(report.trafficMetrics?.approvals)],
+    ["Denials / Cancels", `${formatDlrMetricValue(report.trafficMetrics?.denials)} / ${formatDlrMetricValue(report.trafficMetrics?.cancelled)}`],
+    ["Move-Ins", formatDlrMetricValue(report.trafficMetrics?.moveIns)],
+    ["Move-Outs", formatDlrMetricValue(report.trafficMetrics?.moveOuts)],
+    ["Net Move-Ins", formatDlrSignedNumber((Number(report.trafficMetrics?.moveIns) || 0) - (Number(report.trafficMetrics?.moveOuts) || 0))]
+  ];
+  const attributionMeta = [
+    String(record.investorName || "").trim(),
+    String(record.communityMarket || record.communityRegionalGrouping || "").trim()
+  ].filter(Boolean).join(" • ");
+  const linkUrl = buildAtlasDlrDeepLink(report);
+  const cardCell = card => `<td width="50%" valign="top" style="padding:6px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #dbe4f0;border-radius:12px;background:#f8fbff;">
+        <tr><td style="padding:12px 14px;">
+          <div style="font-family:Arial,sans-serif;font-size:11px;line-height:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;">${escapeHtml(card.label)}</div>
+          <div style="font-family:Arial,sans-serif;font-size:24px;line-height:28px;font-weight:800;color:#0f172a;padding-top:6px;">${escapeHtml(card.value)}</div>
+          <div style="font-family:Arial,sans-serif;font-size:12px;line-height:17px;color:#475569;padding-top:4px;">${escapeHtml(card.sub)}</div>
+        </td></tr>
+      </table>
+    </td>`;
+  const kpiRowsHtml = [];
+  for (let idx = 0; idx < compactKpis.length; idx += 2) {
+    const left = compactKpis[idx];
+    const right = compactKpis[idx + 1];
+    kpiRowsHtml.push(`<tr>${cardCell(left)}${right ? cardCell(right) : `<td width="50%" style="padding:6px;"></td>`}</tr>`);
+  }
+  const commentaryHtml = summaryLines.length ? `<tr><td style="padding:0 24px 18px 24px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #dbe4f0;border-radius:14px;background:#ffffff;">
+        <tr><td style="padding:16px 18px;">
+          <div style="font-family:Arial,sans-serif;font-size:11px;line-height:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;padding-bottom:8px;">Performance Summary</div>
+          ${summaryLines.map(line => `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:21px;color:#334155;padding-bottom:8px;">${escapeHtml(line)}</div>`).join("")}
+        </td></tr>
+      </table>
+    </td></tr>` : "";
+  const forwardLookHtml = emailCharts.has("forward_occupancy") ? `<tr><td style="padding:0 24px 18px 24px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #dbe4f0;border-radius:14px;background:#ffffff;">
+        <tr><td style="padding:16px 18px;">
+          <div style="font-family:Arial,sans-serif;font-size:11px;line-height:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;padding-bottom:8px;">Forward Occupancy Trend</div>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+            <tr>
+              ${forwardRows.map(row => `<td width="${Math.round(100 / Math.max(forwardRows.length, 1))}%" valign="top" style="padding:8px;border-top:1px solid #e5e7eb;">
+                <div style="font-family:Arial,sans-serif;font-size:13px;line-height:18px;font-weight:700;color:#0f172a;">${escapeHtml(row.label)}</div>
+                <div style="font-family:Arial,sans-serif;font-size:22px;line-height:26px;font-weight:800;color:#1d4ed8;padding-top:4px;">${escapeHtml(row.projectedOccupancy)}</div>
+                <div style="font-family:Arial,sans-serif;font-size:12px;line-height:17px;color:#475569;padding-top:4px;">Budget ${escapeHtml(row.budgetedOccupancy)}</div>
+                <div style="font-family:Arial,sans-serif;font-size:12px;line-height:17px;color:#64748b;">+${escapeHtml(row.moveIns)} ins / -${escapeHtml(row.moveOuts)} outs</div>
+              </td>`).join("")}
+            </tr>
+          </table>
+        </td></tr>
+      </table>
+    </td></tr>` : "";
+  const applicationTrendHtml = emailCharts.has("application_trend") && appTrend ? `<tr><td style="padding:0 24px 18px 24px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #dbe4f0;border-radius:14px;background:#ffffff;">
+        <tr><td style="padding:16px 18px;">
+          <div style="font-family:Arial,sans-serif;font-size:11px;line-height:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;padding-bottom:8px;">Application Trend</div>
+          <div style="font-family:Arial,sans-serif;font-size:14px;line-height:21px;color:#334155;">
+            Applications MTD: <strong>${escapeHtml(formatDlrMetricValue(appTrend.currentValue))}</strong><br>
+            Prior comparable period: <strong>${escapeHtml(formatDlrMetricValue(appTrend.previousValue))}</strong><br>
+            <span style="font-weight:700;color:${Number(appTrend.deltaValue) >= 0 ? "#166534" : "#991b1b"}">${escapeHtml(formatDlrTrendDelta(appTrend.currentValue, appTrend.previousValue) || "■ 0.0%")}</span>
+          </div>
+        </td></tr>
+      </table>
+    </td></tr>` : "";
+  const applicationOutcomesHtml = (detailMode || emailCharts.has("application_outcomes")) ? `<tr><td style="padding:0 24px 18px 24px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #dbe4f0;border-radius:14px;background:#ffffff;">
+        <tr><td style="padding:16px 18px;">
+          <div style="font-family:Arial,sans-serif;font-size:11px;line-height:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;padding-bottom:8px;">Application Outcomes</div>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+            ${applicationOutcomeRows.map(row => `<tr><td style="padding:4px 0;font-family:Arial,sans-serif;font-size:13px;line-height:18px;color:#334155;">${escapeHtml(row[0])}</td><td align="right" style="padding:4px 0;font-family:Arial,sans-serif;font-size:13px;line-height:18px;font-weight:700;color:#0f172a;">${escapeHtml(row[1])}</td></tr>`).join("")}
+          </table>
+        </td></tr>
+      </table>
+    </td></tr>` : "";
+  return `<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background:#eef4fb;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#eef4fb;">
+      <tr>
+        <td align="center" style="padding:24px 12px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;max-width:720px;background:#ffffff;border:1px solid #dbe4f0;border-radius:18px;overflow:hidden;">
+            <tr>
+              <td style="padding:22px 24px;background:#0f2f57;">
+                <div style="font-family:Arial,sans-serif;font-size:12px;line-height:16px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#bfdbfe;">RISE / ATLAS</div>
+                <div style="font-family:Arial,sans-serif;font-size:34px;line-height:38px;font-weight:800;color:#ffffff;padding-top:8px;">Daily Leasing Report</div>
+                <div style="font-family:Arial,sans-serif;font-size:18px;line-height:24px;font-weight:700;color:#ffffff;padding-top:12px;">${escapeHtml(report.communityName)}</div>
+                <div style="font-family:Arial,sans-serif;font-size:13px;line-height:18px;color:#dbeafe;padding-top:4px;">${escapeHtml(report.reportPeriodLabel)}</div>
+                ${attributionMeta ? `<div style="font-family:Arial,sans-serif;font-size:12px;line-height:17px;color:#cbd5e1;padding-top:6px;">${escapeHtml(attributionMeta)}</div>` : ""}
+              </td>
+            </tr>
+            <tr><td style="padding:18px 18px 12px 18px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${kpiRowsHtml.join("")}</table>
+            </td></tr>
+            <tr><td style="padding:0 24px 18px 24px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #dbe4f0;border-radius:14px;background:#ffffff;">
+                <tr><td style="padding:16px 18px;">
+                  <div style="font-family:Arial,sans-serif;font-size:11px;line-height:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;padding-bottom:8px;">MTD Leasing Activity</div>
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                    ${activityRows.map(row => `<tr><td style="padding:4px 0;font-family:Arial,sans-serif;font-size:13px;line-height:18px;color:#334155;">${escapeHtml(row[0])}</td><td align="right" style="padding:4px 0;font-family:Arial,sans-serif;font-size:13px;line-height:18px;font-weight:700;color:#0f172a;">${escapeHtml(row[1])}</td></tr>`).join("")}
+                  </table>
+                </td></tr>
+              </table>
+            </td></tr>
+            ${commentaryHtml}
+            ${forwardLookHtml}
+            ${applicationTrendHtml}
+            ${applicationOutcomesHtml}
+            <tr><td style="padding:0 24px 24px 24px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                <tr>
+                  <td align="left">
+                    <a href="${escapeHtml(linkUrl)}" style="display:inline-block;padding:12px 18px;background:#1d4ed8;color:#ffffff;text-decoration:none;font-family:Arial,sans-serif;font-size:13px;line-height:18px;font-weight:700;border-radius:999px;">View Full Report in ATLAS</a>
+                  </td>
+                </tr>
+                <tr><td style="padding-top:10px;font-family:Arial,sans-serif;font-size:11px;line-height:16px;color:#64748b;">This email uses the same normalized ATLAS DLR data as the reporting workspace and detailed printable report.</td></tr>
+              </table>
+            </td></tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
 function buildDlrEmailSnapshotSvg(report) {
   const today = report.dailyTraffic || {};
   const mtd = report.trafficMetrics || {};
@@ -32102,26 +32395,26 @@ function buildDlrEmailSnapshotSvg(report) {
 }
 
 function buildDlrEmailPlainTextBody(report) {
-  const today = report.dailyTraffic || {};
   const mtd = report.trafficMetrics || {};
-  const moveInsLine = `Move-Ins: ${mtd.moveIns || 0} | Move-Outs: ${mtd.moveOuts || 0} | Renewals: ${mtd.renewals || 0}`;
-  const bulletLines = (report.notes?.wins?.length ? report.notes.wins : report.notes?.highlights || []).map(line => `- ${line}`);
-  const marketingLines = report.marketing?.ready ? ["", "Marketing", report.marketing.narrative] : [];
+  const summaryLines = getDlrExecutiveSummaryLines(report);
+  const appTrend = report.applicationTrendRows?.find(row => row.windowKey === "mtd") || null;
+  const trendLine = appTrend
+    ? `Applications MTD: ${formatDlrMetricValue(appTrend.currentValue)} vs ${formatDlrMetricValue(appTrend.previousValue)} prior (${formatDlrTrendDelta(appTrend.currentValue, appTrend.previousValue) || "■ 0.0%"})`
+    : "";
   return [
-    `ATLAS RISE DLR Investor Overview - ${report.communityName}`,
+    `ATLAS RISE Daily Leasing Report - ${report.communityName}`,
     report.reportPeriodLabel,
     "",
-    `Occupancy: ${formatDlrPercent(report.occupancyPct, 1)} | Leased: ${formatDlrPercent(report.leasedPct, 1)} | 90-Day Projection: ${formatDlrPercent(report.trendingOccupancyPct, 1)}`,
-    `Today's Activity: ${today.guestCards || 0} leads | ${today.tours || 0} tours | ${today.applications || 0} apps | ${today.approvals || 0} approved`,
-    `Month to Date: ${mtd.rolledGuestCards || 0} leads | ${mtd.tours || 0} tours | ${mtd.applications || 0} apps | ${mtd.approvals || 0} approved`,
-    moveInsLine,
+    `Physical Occupancy: ${formatDlrPercent(report.occupancyPct, 1)} | Leased: ${formatDlrPercent(report.leasedPct, 1)} | 90-Day Projection: ${formatDlrPercent(report.trendingOccupancyPct, 1)}`,
+    `MTD Activity: ${formatDlrMetricValue(mtd.rolledGuestCards || mtd.guestCards)} leads | ${formatDlrMetricValue(mtd.tours)} tours | ${formatDlrMetricValue(mtd.applications)} apps | ${formatDlrMetricValue(mtd.approvals)} approved`,
+    `Move-Ins: ${formatDlrMetricValue(mtd.moveIns)} | Move-Outs: ${formatDlrMetricValue(mtd.moveOuts)} | Net Move-Ins: ${formatDlrSignedNumber((Number(mtd.moveIns) || 0) - (Number(mtd.moveOuts) || 0))}`,
+    trendLine,
     "",
-    "Highlights & Wins",
-    ...(bulletLines.length ? bulletLines : ["- Investor-facing highlights will populate here as activity is saved."]),
-    ...marketingLines,
+    "Performance Summary",
+    ...(summaryLines.length ? summaryLines.map(line => `- ${line}`) : ["- ATLAS generated this DLR from the saved operating data."]),
     "",
-    "The branded DLR snapshot image has been prepared from the dashboard data for email sharing."
-  ].join("\n");
+    `View Full Report in ATLAS: ${buildAtlasDlrDeepLink(report)}`
+  ].filter(Boolean).join("\n");
 }
 
 function getDlrInternalRecipientRoleOptions() {
@@ -32234,6 +32527,22 @@ function updateDlrSelectedWeekday(propName, weekday, enabled) {
   else nextDays.delete(weekday);
   persistDlrDeliverySettingsForCommunity(propName, { selectedWeekdays: [...nextDays] });
   renderTab();
+}
+
+function updateDlrEmailChartSelection(propName, chartKey, enabled) {
+  const current = getDlrDeliverySettingsForCommunity(propName);
+  const nextCharts = new Set(Array.isArray(current.emailCharts) ? current.emailCharts : []);
+  if (enabled) nextCharts.add(chartKey);
+  else nextCharts.delete(chartKey);
+  persistDlrDeliverySettingsForCommunity(propName, { emailCharts: [...nextCharts] });
+  renderTab();
+}
+
+function getDlrEmailChartLabel(chartKey = "") {
+  if (chartKey === "forward_occupancy") return "Forward Occupancy Trend";
+  if (chartKey === "application_trend") return "Application Trend";
+  if (chartKey === "application_outcomes") return "Application Outcomes";
+  return chartKey;
 }
 
 function formatDlrTimeLabel(value = "") {
@@ -32470,13 +32779,12 @@ function buildDlrDeliveryQueue(monthIdx = getReportHubMonthIndex(), year = getRe
 }
 
 async function copyDlrEmailAssetsToClipboard(report) {
-  const svgMarkup = buildDlrEmailSnapshotSvg(report);
-  const htmlBody = `<div style="margin:0;padding:0"><img src="data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgMarkup)))}" alt="${escapeHtml(report.communityName)} DLR snapshot" style="display:block;max-width:100%;height:auto;border:0;margin:0"></div>`;
+  const deliverySettings = getDlrDeliverySettingsForCommunity(report.communityName);
+  const htmlBody = buildDlrEmailHtml(report, deliverySettings);
   if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
     const items = {
       "text/html": new Blob([htmlBody], { type: "text/html" }),
-      "text/plain": new Blob([buildDlrEmailPlainTextBody(report)], { type: "text/plain" }),
-      "image/svg+xml": new Blob([svgMarkup], { type: "image/svg+xml" })
+      "text/plain": new Blob([buildDlrEmailPlainTextBody(report)], { type: "text/plain" })
     };
     await navigator.clipboard.write([new ClipboardItem(items)]);
     return true;
@@ -32498,10 +32806,11 @@ async function draftDlrOutlookEmail(options = {}) {
   const toLine = getDlrInvestorRecipientLine(report);
   const deliverySettings = getDlrDeliverySettingsForCommunity(report.communityName);
   const ccLine = deliverySettings.cc;
+  const bccLine = deliverySettings.bcc;
   const copiedRichContent = await copyDlrEmailAssetsToClipboard(report).catch(() => false);
   const subject = `ATLAS RISE DLR Investor Overview | ${report.communityName} | ${report.reportDateLabel || report.reportMonthLabel}`;
   const body = copiedRichContent ? "" : buildDlrEmailPlainTextBody(report);
-  openOutlookComposeDraft({ to: toLine, cc: ccLine, subject, body });
+  openOutlookComposeDraft({ to: toLine, cc: ccLine, bcc: bccLine, subject, body });
   if (cadence === "daily" || cadence === "weekly" || cadence === "selected_days") {
     markDlrDeliveryTriggered(report.communityName, cadence === "selected_days" ? "daily" : cadence, new Date(), {
       markSent: deliverySettings.automationMode === "fully_automated"
@@ -32509,9 +32818,12 @@ async function draftDlrOutlookEmail(options = {}) {
   }
   setTimeout(() => {
     const cadenceLabel = cadence ? `${cadence} ` : "";
+    const attachmentNote = deliverySettings.attachmentMode === "attach_detailed_pdf"
+      ? " Detailed DLR attachment is enabled in settings; export the print layout to PDF and attach it in Outlook before sending."
+      : "";
     alert(copiedRichContent
-      ? `${cadenceLabel.charAt(0).toUpperCase()}${cadenceLabel.slice(1)}DLR Outlook draft requested${toLine ? " with the assigned recipients pre-addressed" : ""}. The email body was left clean, and the branded DLR image was copied to your clipboard so you can paste once to place the report inline.`
-      : `${cadenceLabel.charAt(0).toUpperCase()}${cadenceLabel.slice(1)}DLR Outlook draft requested${toLine ? " with the assigned recipients pre-addressed" : ""}. Your browser only copied the plain-text summary automatically, so use Export DLR / Print if you also want the branded image view.`);
+      ? `${cadenceLabel.charAt(0).toUpperCase()}${cadenceLabel.slice(1)}DLR Outlook draft requested${toLine ? " with the assigned recipients pre-addressed" : ""}. The email-safe executive DLR HTML was copied to your clipboard, so paste once into the email body to place the report inline.${attachmentNote}`
+      : `${cadenceLabel.charAt(0).toUpperCase()}${cadenceLabel.slice(1)}DLR Outlook draft requested${toLine ? " with the assigned recipients pre-addressed" : ""}. Your browser copied the executive plain-text summary, so use the DLR preview or export if you need the rich HTML email layout.${attachmentNote}`);
   }, 250);
 }
 
@@ -32540,20 +32852,22 @@ function runDlrDeliveryQueue() {
   });
 }
 
-function buildOutlookComposeParams({ to = "", cc = "", subject = "", body = "" } = {}) {
+function buildOutlookComposeParams({ to = "", cc = "", bcc = "", subject = "", body = "" } = {}) {
   const params = new URLSearchParams();
   if (to) params.set("to", to);
   if (cc) params.set("cc", cc);
+  if (bcc) params.set("bcc", bcc);
   if (subject) params.set("subject", subject);
   if (body) params.set("body", body);
   return params;
 }
 
-function openOutlookComposeDraft({ to = "", cc = "", subject = "", body = "" } = {}) {
-  const params = buildOutlookComposeParams({ to, cc, subject, body });
+function openOutlookComposeDraft({ to = "", cc = "", bcc = "", subject = "", body = "" } = {}) {
+  const params = buildOutlookComposeParams({ to, cc, bcc, subject, body });
   const protocolUrl = `ms-outlook://compose?${params.toString()}`;
   const mailtoParams = new URLSearchParams();
   if (cc) mailtoParams.set("cc", cc);
+  if (bcc) mailtoParams.set("bcc", bcc);
   if (subject) mailtoParams.set("subject", subject);
   if (body) mailtoParams.set("body", body);
   const mailtoUrl = `mailto:${encodeURIComponent(to || "")}${mailtoParams.toString() ? `?${mailtoParams.toString()}` : ""}`;
@@ -32650,8 +32964,9 @@ function hasMeaningfulDlrSummary(summary) {
 }
 
 function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(), monthIdx = getHistoricalImportMonthIndex(), year = getHistoricalImportYear()) {
-  const communityName = matchPropertyName(propName, { fallbackToCurrent: false }) || getProp().name;
   const normalizedMonthIdx = clampNumber(monthIdx, 0, 11);
+  const communityName = resolveDlrReportCommunityName(propName, normalizedMonthIdx);
+  if (!communityName) return null;
   const workbookOverlay = getDlrWorkbookOverlayForCommunity(communityName, normalizedMonthIdx, year);
   const record = getPersistedCommunityRecordForScope(communityName, { allowCurrentFallback: true });
   if (!record && workbookOverlay) {
@@ -33136,6 +33451,7 @@ function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(
     notes,
     editableNotes: resolvedNoteState.editorValues,
     marketing,
+    sourceRecord: record,
     communityPhotoAsset: primaryCommunityPhotoAsset,
     communityPhotoPreviewSrc: String(primaryCommunityPhotoAsset?.previewSrc || primaryCommunityPhotoAsset?.src || ""),
     sourceSummary: `${communityName} · ${reportPeriodLabel} · ${hasMatchingDailyBoxScore ? "daily box score overlay applied while month-to-date metrics stay sourced from ATLAS RISE" : (hasMatchingDlrSummary ? "month-to-date report sections sourced from the uploaded DLR summary" : "generated from ATLAS RISE saved month-to-date data")}`,

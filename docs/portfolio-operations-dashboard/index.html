@@ -2458,6 +2458,7 @@ let corporateLeaseUnits = 0;
 let investorName = "";
 let communityStatus = "active";
 let investorEmailContacts = [];
+let dlrAutoDeliveryTriggeredKeys = new Set();
 let activeTab = 0;
 let reputationData = defaultReputationData();
 let communityPhotoBank = [];
@@ -6717,6 +6718,57 @@ function normalizeRenewalDetailRowsByMonth(input) {
   );
 }
 
+function defaultDlrDeliverySettings() {
+  return {
+    dailyEnabled: false,
+    weeklyEnabled: false,
+    weeklySendDay: "monday",
+    autoDraftOnOpen: false,
+    cc: "",
+    lastDailyDraftDate: "",
+    lastWeeklyDraftWeek: "",
+    lastTriggeredAt: ""
+  };
+}
+
+function normalizeDlrDeliverySettings(input = {}) {
+  const defaults = defaultDlrDeliverySettings();
+  const weeklySendDay = String(input.weeklySendDay || defaults.weeklySendDay).trim().toLowerCase();
+  const validDays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+  return {
+    dailyEnabled: Boolean(input.dailyEnabled),
+    weeklyEnabled: Boolean(input.weeklyEnabled),
+    weeklySendDay: validDays.includes(weeklySendDay) ? weeklySendDay : defaults.weeklySendDay,
+    autoDraftOnOpen: Boolean(input.autoDraftOnOpen),
+    cc: normalizeEmailListInput(String(input.cc || defaults.cc)),
+    lastDailyDraftDate: String(input.lastDailyDraftDate || defaults.lastDailyDraftDate).trim(),
+    lastWeeklyDraftWeek: String(input.lastWeeklyDraftWeek || defaults.lastWeeklyDraftWeek).trim(),
+    lastTriggeredAt: String(input.lastTriggeredAt || defaults.lastTriggeredAt).trim()
+  };
+}
+
+function getDlrDeliveryTodayIso(dateLike = new Date()) {
+  const date = dateLike instanceof Date ? new Date(dateLike.getTime()) : new Date(dateLike);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getDlrDeliveryWeekKey(dateLike = new Date()) {
+  const date = dateLike instanceof Date ? new Date(dateLike.getTime()) : new Date(dateLike);
+  if (Number.isNaN(date.getTime())) return "";
+  const shift = (date.getDay() + 6) % 7;
+  date.setDate(date.getDate() - shift);
+  return getDlrDeliveryTodayIso(date);
+}
+
+function getDlrDeliveryWeekday(dateLike = new Date()) {
+  const date = dateLike instanceof Date ? dateLike : new Date(dateLike);
+  return ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][date.getDay()] || "monday";
+}
+
 function defaultSavedCommunityRecord(propName = getProp().name) {
   const prop = getPropertyByName(propName);
   return {
@@ -6751,6 +6803,7 @@ function defaultSavedCommunityRecord(propName = getProp().name) {
     sharedSyncSource: "",
     sharedSyncReviewFlags: [],
     investorEmailContacts: [],
+    dlrDeliverySettings: defaultDlrDeliverySettings(),
     communityFloorPlans: defaultCommunityFloorPlans(),
     communityAddress: "",
     communityWebsiteUrl: "",
@@ -6837,6 +6890,7 @@ function normalizeSavedCommunityRecord(propName, data) {
     sharedSyncSource: String(input.sharedSyncSource ?? defaults.sharedSyncSource).trim(),
     sharedSyncReviewFlags: Array.isArray(input.sharedSyncReviewFlags) ? input.sharedSyncReviewFlags.map(item => String(item ?? "").trim()).filter(Boolean) : defaults.sharedSyncReviewFlags,
     investorEmailContacts: normalizeInvestorEmailContacts(input.investorEmailContacts),
+    dlrDeliverySettings: normalizeDlrDeliverySettings(input.dlrDeliverySettings),
     communityFloorPlans: normalizeCommunityFloorPlans(input.communityFloorPlans),
     communityAddress: String(input.communityAddress ?? defaults.communityAddress).trim(),
     communityWebsiteUrl: String(input.communityWebsiteUrl ?? defaults.communityWebsiteUrl).trim(),
@@ -24785,6 +24839,11 @@ function updatePortfolioCommunityField(propName, field, value) {
     record.regionalManagerEmail = atlasNormalizeSharedEmail(value);
   } else if (field === "investorEmailContacts") {
     record.investorEmailContacts = parseInvestorEmailContactsText(value);
+  } else if (field === "dlrDeliverySettings" && value && typeof value === "object") {
+    record.dlrDeliverySettings = normalizeDlrDeliverySettings({
+      ...record.dlrDeliverySettings,
+      ...value
+    });
   } else {
     return;
   }
@@ -29405,7 +29464,6 @@ function buildReportHubEmailDraft(type = reportHubType) {
     syncDlrTargetFromReportHub({ preserveCommunity: true });
     const report = buildDashboardDlrInvestorOverview();
     if (!report) return null;
-    if (!requireDlrDailyBoxScoreForReport(report)) return null;
     return {
       to,
       subject: `${report.communityName} DLR | ${report.reportPeriodLabel}`,
@@ -29414,7 +29472,7 @@ function buildReportHubEmailDraft(type = reportHubType) {
         report.reportPeriodLabel,
         "",
         "The latest DLR snapshot is ready from the dashboard.",
-        "Use Print / PDF or Download Editable HTML before sending."
+        "Use Print / PDF, Download Editable HTML, or Draft Outlook Email before sending."
       ].join("\n")
     };
   }
@@ -29843,13 +29901,9 @@ function requireDlrDailyBoxScoreForReport(report, options = {}) {
   if (isDlrDailyBoxScoreReady(report)) return true;
   if (options.alert !== false) {
     const communityName = report?.communityName || getDlrReportCommunityName();
-    const reportDate = report?.reportDateLabel || report?.reportPeriodLabel || "the selected DLR date";
-    const sourceLabel = isDlrReportOnlyWorkbook(report)
-      ? "Upload a Ronaldo DLR workbook for the selected date"
-      : `Upload a daily box score for ${communityName}`;
-    alert(`${sourceLabel} before exporting this DLR. The DLR report now uses the uploaded report-only daily source for ${reportDate} instead of falling back to saved month-to-date traffic.`);
+    alert(`${communityName} does not have a daily box score uploaded for this report date, so ATLAS is building the DLR from the saved dashboard data already in the system. Uploading a box score remains optional when you want a same-day leasing overlay.`);
   }
-  return false;
+  return true;
 }
 
 function focusReportingDlrPreview() {
@@ -29873,38 +29927,51 @@ function renderDlrReportingWorkspace() {
   const report = buildDashboardDlrInvestorOverview(communityName, monthIdx, year);
   if (!report) {
     return `<div id="reporting-dlr-workspace" class="report-hub-card" style="margin-top:14px">
-      <div class="alert-red">Save community data first, then the DLR workspace can build a preview from the selected daily box score.</div>
+      <div class="alert-red">Save community data first, then the DLR workspace can build a branded Daily Leasing Report from the selected property's saved ATLAS data.</div>
     </div>`;
   }
+  const deliverySettings = getDlrDeliverySettingsForCommunity(communityName);
+  const dueQueue = buildDlrDeliveryQueue(monthIdx, year);
+  const dueQueueCount = dueQueue.filter(item => item.dueCadences.length > 0).length;
   const dateInput = escapeHtml(buildDlrDateInputValue(report.reportDateIso));
   const reportDateLabel = report.reportDateLabel || report.reportPeriodLabel || "Select the daily report date";
   const sourceLine = report.dailyBoxScoreSourceFile
     ? `${report.dailyBoxScoreSourceFile}${report.dailyBoxScoreImportedAt ? ` · uploaded ${formatSavedTimestampLabel(report.dailyBoxScoreImportedAt)}` : ""}`
-    : "No daily box score uploaded yet";
+    : "No daily box score uploaded. Using saved ATLAS activity and pacing data.";
   const ready = isDlrDailyBoxScoreReady(report);
   const sourceModeText = workbookMode
     ? "This DLR preview is running from the uploaded Ronaldo workbook. It is report-only and does not update saved dashboard tabs, sections, or communities."
     : (ready
       ? "Today's leasing activity is sourced from the uploaded daily box score."
-      : "Upload the daily box score to activate the export, print, email, and editable HTML controls.");
+      : "No daily box score is loaded for this date, so ATLAS is generating the DLR directly from the saved dashboard data already in the system.");
   const dateHelperText = workbookMode
     ? `${reportDateLabel} · locked to the Ronaldo workbook report date`
     : reportDateLabel;
   const notesHelperText = workbookMode
     ? "These note edits stay only in this workbook-backed DLR session. They flow into exports, but they do not save back to the dashboard."
     : "Edit these notes before you export, print, or draft the DLR email. Your edits flow into the investor-facing output for this selected community.";
+  const dueDaily = isDlrDailyDeliveryDue(deliverySettings);
+  const dueWeekly = isDlrWeeklyDeliveryDue(deliverySettings);
+  const autoTriggerKey = `${communityName}|${monthIdx}|${year}|${dueDaily ? "daily" : ""}|${dueWeekly ? "weekly" : ""}`;
+  if (deliverySettings.autoDraftOnOpen && (dueDaily || dueWeekly) && !dlrAutoDeliveryTriggeredKeys.has(autoTriggerKey)) {
+    dlrAutoDeliveryTriggeredKeys.add(autoTriggerKey);
+    setTimeout(() => {
+      if (dueDaily) draftDlrOutlookEmail({ communityName, monthIdx, year, cadence: "daily" });
+      if (dueWeekly) draftDlrOutlookEmail({ communityName, monthIdx, year, cadence: "weekly" });
+    }, 250);
+  }
   return `<div id="reporting-dlr-workspace" class="report-hub-card" style="margin-top:14px">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
       <div>
-        <div class="card-title" style="margin-bottom:6px">DLR Daily Box Score Setup</div>
+        <div class="card-title" style="margin-bottom:6px">Daily Leasing Report Workspace</div>
         <p>${workbookMode
           ? "The DLR is currently using a Ronaldo daily upload. Each community can be previewed and exported separately, and the same upload also powers the portfolio-wide DLR for that date."
-          : "The DLR reports one community and one daily box score at a time. Pick the community, set the DLR date, upload the daily box score or Ronaldo daily workbook, then review the in-screen preview below before exporting."}</p>
+          : "The DLR now builds from saved ATLAS data first. Pick the community, set the report date, optionally upload a same-day box score overlay, then review the RISE-branded preview before exporting or drafting delivery."}</p>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-gray btn-sm" onclick="draftDlrOutlookEmail()" ${ready ? "" : "disabled"}>✉ Draft Outlook Email</button>
-        <button class="btn btn-gray btn-sm" onclick="downloadDlrInvestorOverviewHtml()" ${ready ? "" : "disabled"}>⬇ Editable HTML</button>
-        <button class="btn btn-blue btn-sm" onclick="openDlrInvestorOverview(true)" ${ready ? "" : "disabled"}>🖨 Export DLR / Print</button>
+        <button class="btn btn-gray btn-sm" onclick="draftDlrOutlookEmail({ communityName: ${JSON.stringify(communityName)}, monthIdx: ${monthIdx}, year: ${year} })">✉ Draft Outlook Email</button>
+        <button class="btn btn-gray btn-sm" onclick="downloadDlrInvestorOverviewHtml()">⬇ Editable HTML</button>
+        <button class="btn btn-blue btn-sm" onclick="openDlrInvestorOverview(true)">🖨 Export DLR / Print</button>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:12px">
@@ -29922,15 +29989,51 @@ function renderDlrReportingWorkspace() {
         <div style="font-size:0.64rem;color:var(--muted);margin-top:6px">${escapeHtml(dateHelperText)}</div>
       </div>
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
-        <div class="card-title" style="margin-bottom:6px">Daily Box Score Upload</div>
+        <div class="card-title" style="margin-bottom:6px">Optional Daily Box Score Upload</div>
         <label class="btn btn-gray btn-sm" style="cursor:pointer">⬆ Upload Daily Box Score
           <input type="file" accept=".csv,.pdf,.xlsx,.xls,.xlsm" class="dlr-box-score-input" style="display:none" multiple>
         </label>
         <div style="font-size:0.64rem;color:var(--muted);margin-top:8px">${escapeHtml(sourceLine)}</div>
-        <div style="font-size:0.64rem;color:var(--muted);margin-top:4px">${workbookMode ? "Ronaldo uploads are report-only and only populate DLR reports." : "Ronaldo workbook uploads are accepted here for report-only DLR generation."}</div>
+        <div style="font-size:0.64rem;color:var(--muted);margin-top:4px">${workbookMode ? "Ronaldo uploads are report-only and only populate DLR reports." : "Ronaldo workbook uploads are still accepted here, but they are no longer required to build or send the branded DLR."}</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
+        <div class="card-title" style="margin-bottom:6px">Delivery Cadence</div>
+        <div style="font-size:0.78rem;color:var(--text);line-height:1.5">${escapeHtml(getDlrDeliveryCadenceLabel(deliverySettings))}</div>
+        <div style="font-size:0.64rem;color:${dueDaily || dueWeekly ? "#1d4ed8" : "var(--muted)"};margin-top:6px">${dueDaily || dueWeekly ? `${dueDaily ? "Daily" : ""}${dueDaily && dueWeekly ? " + " : ""}${dueWeekly ? "Weekly" : ""} delivery is due now.` : "No delivery is due right now for this community."}</div>
+        <div style="font-size:0.64rem;color:var(--muted);margin-top:4px">${dueQueueCount} communit${dueQueueCount === 1 ? "y" : "ies"} currently due across the selected reporting month.</div>
       </div>
     </div>
-    <div class="${ready ? "alert-green" : "alert-red"}" style="margin-bottom:12px">${escapeHtml(sourceModeText)}</div>
+    <div class="alert-green" style="margin-bottom:12px">${escapeHtml(sourceModeText)}</div>
+    <div style="display:grid;grid-template-columns:1.15fr 0.85fr;gap:12px;margin-bottom:12px">
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
+        <div class="card-title" style="margin-bottom:8px">DLR Delivery Settings</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">
+          <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" ${deliverySettings.dailyEnabled ? "checked" : ""} onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'dailyEnabled', this.checked)"><span>Enable daily DLR draft</span></label>
+          <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" ${deliverySettings.weeklyEnabled ? "checked" : ""} onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'weeklyEnabled', this.checked)"><span>Enable weekly DLR draft</span></label>
+          <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" ${deliverySettings.autoDraftOnOpen ? "checked" : ""} onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'autoDraftOnOpen', this.checked)"><span>Auto-draft when due</span></label>
+          <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Weekly send day</span><select onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'weeklySendDay', this.value)">${["monday","tuesday","wednesday","thursday","friday","saturday","sunday"].map(day => `<option value="${day}" ${deliverySettings.weeklySendDay === day ? "selected" : ""}>${day.charAt(0).toUpperCase()}${day.slice(1)}</option>`).join("")}</select></label>
+          <label style="grid-column:1/-1"><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">CC line</span><input type="text" value="${escapeHtml(deliverySettings.cc || "")}" placeholder="regional@risere.com; vp@risere.com" onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'cc', this.value)"></label>
+        </div>
+        <div style="font-size:0.64rem;color:var(--muted);margin-top:8px">Recipients come from the investor contacts already saved for this community in Community Setup.</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <div class="card-title" style="margin-bottom:0">Due Delivery Queue</div>
+          <button class="btn btn-gray btn-sm" onclick="runDlrDeliveryQueue()">Run Due DLR Queue</button>
+        </div>
+        <div style="display:grid;gap:8px;max-height:210px;overflow:auto">
+          ${dueQueue.length ? dueQueue.map(item => `<div style="padding:10px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2)">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+              <div>
+                <div style="font-size:0.72rem;font-weight:700;color:var(--text)">${escapeHtml(item.communityName)}</div>
+                <div style="font-size:0.62rem;color:var(--muted);margin-top:4px">${item.recipientCount} recipient${item.recipientCount === 1 ? "" : "s"} · ${escapeHtml(getDlrDeliveryCadenceLabel(item.settings))}</div>
+              </div>
+              <div style="font-size:0.62rem;color:${item.dueCadences.length ? "#1d4ed8" : "var(--muted)"}">${item.dueCadences.length ? item.dueCadences.map(cadence => cadence.charAt(0).toUpperCase() + cadence.slice(1)).join(" + ") : "Up to date"}</div>
+            </div>
+          </div>`).join("") : `<div style="font-size:0.68rem;color:var(--muted)">No communities have investor contacts plus DLR delivery settings yet.</div>`}
+        </div>
+      </div>
+    </div>
     <div id="reporting-dlr-preview">
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px">
         <div class="bonus-framework-stat"><div class="k">Occupancy</div><div class="v" style="font-size:1rem">${formatDlrPercent(report.occupancyPct)}</div></div>
@@ -31458,6 +31561,84 @@ function getInvestorRecipientCountForCommunity(propName) {
   return normalizeInvestorEmailContacts(getPersistedCommunityRecordForScope(propName)?.investorEmailContacts).filter(entry => entry.email).length;
 }
 
+function getDlrDeliverySettingsForCommunity(propName) {
+  return normalizeDlrDeliverySettings(getPersistedCommunityRecordForScope(propName)?.dlrDeliverySettings);
+}
+
+function persistDlrDeliverySettingsForCommunity(propName, nextSettings = {}) {
+  const matchedName = matchPropertyName(propName, { fallbackToCurrent: false }) || propName;
+  const record = getPropertyRecordForApply(matchedName);
+  if (!record) return false;
+  record.dlrDeliverySettings = normalizeDlrDeliverySettings({
+    ...record.dlrDeliverySettings,
+    ...nextSettings
+  });
+  return persistPortfolioCommunityRecord(matchedName, record, { source: "dlr_delivery_settings_save" });
+}
+
+function updateDlrDeliverySetting(propName, field, value) {
+  const nextSettings = { [field]: value };
+  persistDlrDeliverySettingsForCommunity(propName, nextSettings);
+}
+
+function getDlrDeliveryCadenceLabel(settings = {}) {
+  const normalized = normalizeDlrDeliverySettings(settings);
+  const parts = [];
+  if (normalized.dailyEnabled) parts.push("Daily");
+  if (normalized.weeklyEnabled) parts.push(`Weekly (${normalized.weeklySendDay.charAt(0).toUpperCase()}${normalized.weeklySendDay.slice(1)})`);
+  return parts.length ? parts.join(" · ") : "Manual only";
+}
+
+function isDlrDailyDeliveryDue(settings = {}, referenceDate = new Date()) {
+  const normalized = normalizeDlrDeliverySettings(settings);
+  const todayIso = getDlrDeliveryTodayIso(referenceDate);
+  return Boolean(normalized.dailyEnabled && todayIso && normalized.lastDailyDraftDate !== todayIso);
+}
+
+function isDlrWeeklyDeliveryDue(settings = {}, referenceDate = new Date()) {
+  const normalized = normalizeDlrDeliverySettings(settings);
+  const weekKey = getDlrDeliveryWeekKey(referenceDate);
+  return Boolean(
+    normalized.weeklyEnabled &&
+    weekKey &&
+    normalized.weeklySendDay === getDlrDeliveryWeekday(referenceDate) &&
+    normalized.lastWeeklyDraftWeek !== weekKey
+  );
+}
+
+function markDlrDeliveryTriggered(propName, cadence = "", referenceDate = new Date()) {
+  const matchedName = matchPropertyName(propName, { fallbackToCurrent: false }) || propName;
+  const currentSettings = getDlrDeliverySettingsForCommunity(matchedName);
+  const nextSettings = {
+    ...currentSettings,
+    lastTriggeredAt: new Date().toISOString()
+  };
+  if (cadence === "daily") nextSettings.lastDailyDraftDate = getDlrDeliveryTodayIso(referenceDate);
+  if (cadence === "weekly") nextSettings.lastWeeklyDraftWeek = getDlrDeliveryWeekKey(referenceDate);
+  persistDlrDeliverySettingsForCommunity(matchedName, nextSettings);
+}
+
+function buildDlrDeliveryQueue(monthIdx = getReportHubMonthIndex(), year = getReportHubYear(), referenceDate = new Date()) {
+  return getReportableCommunityNames(monthIdx)
+    .map(name => {
+      const report = buildDashboardDlrInvestorOverview(name, monthIdx, year);
+      const recipients = normalizeInvestorEmailContacts(getPersistedCommunityRecordForScope(name)?.investorEmailContacts).filter(entry => entry.email);
+      const settings = getDlrDeliverySettingsForCommunity(name);
+      const dueCadences = [];
+      if (isDlrDailyDeliveryDue(settings, referenceDate)) dueCadences.push("daily");
+      if (isDlrWeeklyDeliveryDue(settings, referenceDate)) dueCadences.push("weekly");
+      return {
+        communityName: name,
+        report,
+        recipientCount: recipients.length,
+        recipients,
+        settings,
+        dueCadences
+      };
+    })
+    .filter(item => item.report && item.recipientCount > 0);
+}
+
 async function copyDlrEmailAssetsToClipboard(report) {
   const svgMarkup = buildDlrEmailSnapshotSvg(report);
   const htmlBody = `<div style="margin:0;padding:0"><img src="data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgMarkup)))}" alt="${escapeHtml(report.communityName)} DLR snapshot" style="display:block;max-width:100%;height:auto;border:0;margin:0"></div>`;
@@ -31477,20 +31658,50 @@ async function copyDlrEmailAssetsToClipboard(report) {
   return false;
 }
 
-async function draftDlrOutlookEmail() {
-  const report = buildDashboardDlrInvestorOverview();
+async function draftDlrOutlookEmail(options = {}) {
+  const communityName = options.communityName || getDlrReportCommunityName();
+  const monthIdx = Number.isInteger(options.monthIdx) ? options.monthIdx : getReportHubMonthIndex();
+  const year = Number.isInteger(options.year) ? options.year : getReportHubYear();
+  const cadence = String(options.cadence || "").trim().toLowerCase();
+  const report = buildDashboardDlrInvestorOverview(communityName, monthIdx, year);
   if (!report) return;
-  if (!requireDlrDailyBoxScoreForReport(report)) return;
   const toLine = getDlrInvestorRecipientLine(report);
+  const ccLine = getDlrDeliverySettingsForCommunity(report.communityName).cc;
   const copiedRichContent = await copyDlrEmailAssetsToClipboard(report).catch(() => false);
   const subject = `ATLAS RISE DLR Investor Overview | ${report.communityName} | ${report.reportDateLabel || report.reportMonthLabel}`;
   const body = copiedRichContent ? "" : buildDlrEmailPlainTextBody(report);
-  openOutlookComposeDraft({ to: toLine, subject, body });
+  openOutlookComposeDraft({ to: toLine, cc: ccLine, subject, body });
+  if (cadence === "daily" || cadence === "weekly") {
+    markDlrDeliveryTriggered(report.communityName, cadence);
+  }
   setTimeout(() => {
+    const cadenceLabel = cadence ? `${cadence} ` : "";
     alert(copiedRichContent
-      ? `Outlook draft requested${toLine ? " with the assigned investor recipients pre-addressed" : ""}. The email body was left clean, and the DLR image with investor-facing highlights was copied to your clipboard so you can paste once to place the report inline.`
-      : `Outlook draft requested${toLine ? " with the assigned investor recipients pre-addressed" : ""}. Your browser only copied the plain-text summary automatically, so use Export DLR / Print if you also want the branded image view.`);
+      ? `${cadenceLabel.charAt(0).toUpperCase()}${cadenceLabel.slice(1)}DLR Outlook draft requested${toLine ? " with the assigned recipients pre-addressed" : ""}. The email body was left clean, and the branded DLR image was copied to your clipboard so you can paste once to place the report inline.`
+      : `${cadenceLabel.charAt(0).toUpperCase()}${cadenceLabel.slice(1)}DLR Outlook draft requested${toLine ? " with the assigned recipients pre-addressed" : ""}. Your browser only copied the plain-text summary automatically, so use Export DLR / Print if you also want the branded image view.`);
   }, 250);
+}
+
+function runDlrDeliveryQueue() {
+  const monthIdx = getReportHubMonthIndex();
+  const year = getReportHubYear();
+  const dueItems = buildDlrDeliveryQueue(monthIdx, year).filter(item => item.dueCadences.length > 0);
+  if (!dueItems.length) {
+    alert("No DLR deliveries are currently due from the saved ATLAS delivery settings.");
+    return;
+  }
+  dueItems.forEach((item, idx) => {
+    item.dueCadences.forEach((cadence, cadenceIdx) => {
+      setTimeout(() => {
+        draftDlrOutlookEmail({
+          communityName: item.communityName,
+          monthIdx,
+          year,
+          cadence
+        });
+      }, (idx * 2 + cadenceIdx) * 900);
+    });
+  });
 }
 
 function buildOutlookComposeParams({ to = "", cc = "", subject = "", body = "" } = {}) {
@@ -35161,7 +35372,6 @@ function draftMarketComparisonEmail() {
 async function openDlrInvestorOverview(printImmediately = false) {
   const report = buildDashboardDlrInvestorOverview();
   if (!report) return;
-  if (!requireDlrDailyBoxScoreForReport(report)) return;
   const win = openPopupReportWindow("ATLAS RISE DLR Investor Overview");
   if (!win) return;
   try {
@@ -35210,7 +35420,6 @@ async function openPortfolioDlrOverview(printImmediately = false) {
 async function downloadDlrInvestorOverviewHtml() {
   const report = buildDashboardDlrInvestorOverview();
   if (!report) return;
-  if (!requireDlrDailyBoxScoreForReport(report)) return;
   report.communityPhotoSrc = await resolveDlrInvestorOverviewPhotoSrc(report.communityPhotoAsset);
   const matchedCommunity = matchPropertyName(report.communityName, { fallbackToCurrent: false }) || report.communityName;
   const record = isDlrReportOnlyWorkbook(report) ? null : getPropertyRecordForApply(matchedCommunity);
@@ -35308,7 +35517,7 @@ function renderCSVTab() {
   const dlrReportDateLabel = historicalDlrSummary?.reportDateLabel || historicalDlrSummary?.reportPeriodLabel || "No specific daily report date saved";
   const dlrSourceLine = historicalDlrSummary?.dailyBoxScoreSourceFile
     ? `${historicalDlrSummary.dailyBoxScoreSourceFile}${historicalDlrSummary.dailyBoxScoreImportedAt ? ` · uploaded ${formatSavedTimestampLabel(historicalDlrSummary.dailyBoxScoreImportedAt)}` : ""}`
-    : "No daily box score uploaded yet";
+    : "No daily box score uploaded. Using saved ATLAS activity and pacing data.";
   const historicalImportHTML = `<div class="card mb4">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
       <div>
@@ -35350,7 +35559,7 @@ function renderCSVTab() {
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
       <div>
         <h3 style="font-size:0.85rem;font-weight:600;margin-bottom:6px">📘 ATLAS RISE Daily Leasing Report (DLR)</h3>
-        <p style="font-size:0.72rem;color:var(--muted)">Generate a clean, investor-facing DLR overview for the selected community from the saved ATLAS RISE data. Choose the community here first, then upload that day’s Box Score so today’s leasing activity comes from the selected report date while occupancy, renewals, pricing, and forward-look projections stay tied to the saved community metrics.</p>
+        <p style="font-size:0.72rem;color:var(--muted)">Generate a clean, investor-facing DLR overview for the selected community from the saved ATLAS RISE data already living in the system. Choose the community here first, then set the report date. Uploading a same-day box score is optional when you want to overlay daily activity on top of the saved occupancy, renewals, pricing, and forward-look metrics.</p>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-gray btn-sm" onclick="draftDlrOutlookEmail()">✉ Draft Outlook Email</button>
@@ -35393,7 +35602,7 @@ function renderCSVTab() {
               <input type="file" accept=".csv,.pdf,.xlsx,.xls,.xlsm" id="dlr-box-score-input" style="display:none" multiple>
             </label>
           </div>
-          <div style="font-size:0.64rem;color:var(--muted);margin-top:6px">The uploaded box score sets the report-period date and today’s leasing activity for this DLR, while occupancy, pricing, renewals, and the forward look continue to pull from the saved ATLAS RISE month-to-date data. Budget occupancy is read from the saved budget column in the community overview monthly leasing schedule.</div>
+          <div style="font-size:0.64rem;color:var(--muted);margin-top:6px">ATLAS can build this DLR directly from the saved property data already in the platform. When a same-day box score is uploaded, it overrides only the current-day activity layer for this report while occupancy, pricing, renewals, and the forward look continue to pull from the saved ATLAS month-to-date data. Budget occupancy is read from the saved budget column in the community overview monthly leasing schedule.</div>
           <div style="font-size:0.64rem;color:var(--muted);margin-top:4px">${escapeHtml(dlrSourceLine)}</div>
         </div>
         <div class="bonus-framework-stat"><div class="k">Occupancy</div><div class="v" style="font-size:1rem">${formatDlrPercent(historicalDlrSummary.occupancyPct)}</div></div>

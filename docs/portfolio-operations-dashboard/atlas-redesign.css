@@ -154,6 +154,10 @@ a:hover {
   width: 100%;
 }
 
+.tab-panel[data-atlas-mount-active="1"] {
+  max-width: none;
+}
+
 /* --------------------------------------------------------------------------
    4. Sidebar navigation
    -------------------------------------------------------------------------- */
@@ -948,6 +952,7 @@ tbody tr:hover td {
    -------------------------------------------------------------------------- */
 .atlas-mount-section {
   margin-top: 6px;
+  width: 100%;
 }
 
 .atlas-mount-head {
@@ -997,6 +1002,7 @@ tbody tr:hover td {
   overflow: hidden;
   background: var(--color-surface);
   box-shadow: var(--shadow-sm);
+  width: 100%;
 }
 
 .atlas-mount-bar {

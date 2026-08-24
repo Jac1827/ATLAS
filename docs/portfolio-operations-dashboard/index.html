@@ -139,6 +139,11 @@
   .tab.is-locked { opacity:0.42; cursor:not-allowed; }
   .tab.is-locked .tab-label::after { content:" Locked"; font-size:0.58rem; color:#8b0000; margin-left:4px; }
   .atlas-access-grid { display:grid; grid-template-columns:1.05fr 0.95fr; gap:12px; align-items:start; }
+  .atlas-access-workspace { display:grid; gap:12px; }
+  .atlas-people-access-workspace { margin-top:18px; width:100%; display:grid; gap:12px; }
+  .atlas-people-access-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .atlas-people-access-head h3 { margin:0; font-size:1rem; color:var(--accent); }
+  .atlas-people-access-head p { margin:6px 0 0; max-width:90ch; font-size:0.72rem; line-height:1.55; color:var(--muted); }
   .atlas-access-table { width:100%; border-collapse:collapse; font-size:0.7rem; }
   .atlas-access-table th,
   .atlas-access-table td { padding:8px 7px; border-bottom:1px solid var(--border2); vertical-align:top; }
@@ -11184,6 +11189,7 @@ function renderTab() {
   const panel = document.getElementById(`tab-panel-${activeTab}`);
   const renderer = renderers[activeTab];
   if (panel && typeof renderer === "function") {
+    panel.dataset.atlasMountActive = MOUNT_TABS.includes(activeTab) ? "1" : "0";
     try {
       const shouldPreservePeopleMount = activeTab === 13
         && panel.dataset.atlasPeopleMounted === "1"
@@ -11393,6 +11399,7 @@ let atlasAccessAdminState = {
   lastLoadedAt: ""
 };
 let atlasAccessFormDraft = null;
+let atlasAccessPanelRefreshTimer = null;
 let atlasLivePresenceState = {
   sessionId: "",
   users: [],
@@ -12239,6 +12246,18 @@ function atlasEmployeeIsSelectableForAccess(employee = {}) {
   return Boolean(employeeNumber);
 }
 
+function isAtlasUuid(value = "") {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || "").trim());
+}
+
+function buildAtlasAccessAutofillKey(employee = {}) {
+  const email = String(employee.email || "").trim().toLowerCase();
+  if (email) return `autofill:${email}`;
+  const fullName = String(employee.fullName || employee.full_name || employee.name || "").trim().toLowerCase();
+  if (fullName) return `autofill-name:${fullName.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`;
+  return "";
+}
+
 function buildAtlasAccessEmployeeDirectoryEntries() {
   const entries = new Map();
   (atlasAccessAdminState.employees || []).forEach(employee => {
@@ -12247,6 +12266,7 @@ function buildAtlasAccessEmployeeDirectoryEntries() {
     if (!employeeId) return;
     entries.set(employeeId, {
       employeeId,
+      linkedEmployeeId: employeeId,
       email: String(employee.email || "").trim().toLowerCase(),
       fullName: String(employee.full_name || "").trim(),
       status: String(employee.status || employee.status_type || "").trim(),
@@ -12260,6 +12280,7 @@ function buildAtlasAccessEmployeeDirectoryEntries() {
     if (!employeeId) return;
     const existing = entries.get(employeeId) || {
       employeeId,
+      linkedEmployeeId: isAtlasUuid(employeeId) ? employeeId : "",
       email: String(profile.email || "").trim().toLowerCase(),
       fullName: "",
       status: String(profile.status || "").trim(),
@@ -12273,21 +12294,30 @@ function buildAtlasAccessEmployeeDirectoryEntries() {
     entries.set(employeeId, existing);
   });
   atlasEmbeddedPeopleRosterEntries().forEach(employee => {
-    const employeeId = String(employee.employeeId || "").trim();
+    const rawEmployeeId = String(employee.employeeId || "").trim();
+    const email = String(employee.email || "").trim().toLowerCase();
+    const fullName = String(employee.fullName || "").trim();
+    const linkedEmployeeId = isAtlasUuid(rawEmployeeId) ? rawEmployeeId : "";
+    const existing = (linkedEmployeeId && entries.get(linkedEmployeeId))
+      || [...entries.values()].find(entry => entry.email && entry.email === email)
+      || null;
+    const employeeId = existing?.employeeId || linkedEmployeeId || buildAtlasAccessAutofillKey({ email, fullName });
     if (!employeeId) return;
-    const existing = entries.get(employeeId) || {
+    const nextEntry = existing || {
       employeeId,
-      email: String(employee.email || "").trim().toLowerCase(),
-      fullName: String(employee.fullName || "").trim(),
+      linkedEmployeeId,
+      email,
+      fullName,
       status: String(employee.status || "").trim(),
       profileDisplayName: "",
       sourceModule: "embedded_roster",
-      sourceIdentifier: String(employee.employeeNumber || employee.email || employeeId).trim()
+      sourceIdentifier: String(employee.employeeNumber || employee.email || rawEmployeeId || employeeId).trim()
     };
-    if (!existing.fullName) existing.fullName = String(employee.fullName || "").trim();
-    if (!existing.email) existing.email = String(employee.email || "").trim().toLowerCase();
-    if (!existing.status) existing.status = String(employee.status || "").trim();
-    entries.set(employeeId, existing);
+    if (!nextEntry.linkedEmployeeId && linkedEmployeeId) nextEntry.linkedEmployeeId = linkedEmployeeId;
+    if (!nextEntry.fullName) nextEntry.fullName = fullName;
+    if (!nextEntry.email) nextEntry.email = email;
+    if (!nextEntry.status) nextEntry.status = String(employee.status || "").trim();
+    entries.set(employeeId, nextEntry);
   });
   return [...entries.values()].sort((a, b) => {
     const aLabel = atlasUserDisplayName({ display_name: a.profileDisplayName, full_name: a.fullName, email: a.email });
@@ -12338,6 +12368,13 @@ function normalizeAtlasAccessFormDraft(input = {}) {
 function setAtlasAccessFormDraft(nextDraft = {}) {
   atlasAccessFormDraft = normalizeAtlasAccessFormDraft(nextDraft);
   return atlasAccessFormDraft;
+}
+
+function atlasPeopleAccessPanelIsInteracting() {
+  const host = document.getElementById("atlas-people-access-panel");
+  const active = document.activeElement;
+  if (!host || !active) return false;
+  return host.contains(active) && ["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(active.tagName);
 }
 
 function readAtlasAccessFormDraftFromDom() {
@@ -12404,10 +12441,23 @@ function applyAtlasAccessFormDraftToPanel() {
   return true;
 }
 
-function refreshAtlasPeopleAccessPanel() {
+function refreshAtlasPeopleAccessPanel({ deferWhileInteracting = false } = {}) {
   const host = document.getElementById("atlas-people-access-panel");
   if (!host || typeof window.renderAtlasEmployeeAccessPanel !== "function") return false;
+  if (deferWhileInteracting && atlasPeopleAccessPanelIsInteracting()) {
+    if (atlasAccessPanelRefreshTimer) clearTimeout(atlasAccessPanelRefreshTimer);
+    atlasAccessPanelRefreshTimer = setTimeout(() => {
+      refreshAtlasPeopleAccessPanel({ deferWhileInteracting: true });
+    }, 240);
+    return false;
+  }
+  if (atlasAccessPanelRefreshTimer) {
+    clearTimeout(atlasAccessPanelRefreshTimer);
+    atlasAccessPanelRefreshTimer = null;
+  }
+  if (document.getElementById("atlas-access-email")) syncAtlasAccessFormDraftFromPanel();
   host.innerHTML = window.renderAtlasEmployeeAccessPanel();
+  applyAtlasAccessFormDraftToPanel();
   return true;
 }
 
@@ -12889,7 +12939,9 @@ function queueAtlasCentralPeopleLoad(options = {}) {
   const lastSync = Date.parse(atlasSharedData?.lastPeopleSyncAt || "");
   if (!options.force && atlasSharedData?.lastPeopleSource === "atlas_central_people" && Number.isFinite(lastSync) && Date.now() - lastSync < 60000) return;
   loadAtlasCentralPeopleAssignments({ silent: true, force: Boolean(options.force) }).then((result) => {
-    if (result && [9, 10, 13].includes(activeTab)) renderTab();
+    if (!result || ![9, 10, 13].includes(activeTab)) return;
+    if (activeTab === 13) return;
+    renderTab();
   });
 }
 
@@ -13508,8 +13560,7 @@ async function loadAtlasAccessAdminData({ force = false, silent = true } = {}) {
       lastLoadedAt: new Date().toISOString()
     };
     if (activeTab === 13) {
-      refreshAtlasPeopleAccessPanel();
-      applyAtlasAccessFormDraftToPanel();
+      if (!document.getElementById("atlas-access-email")) refreshAtlasPeopleAccessPanel();
     } else if (!silent) {
       renderTab();
     }
@@ -13519,8 +13570,7 @@ async function loadAtlasAccessAdminData({ force = false, silent = true } = {}) {
     atlasAccessAdminState.error = error?.message || String(error);
     if (!silent) alert(`Employee access load failed: ${atlasAccessAdminState.error}`);
     if (activeTab === 13) {
-      refreshAtlasPeopleAccessPanel();
-      applyAtlasAccessFormDraftToPanel();
+      if (!document.getElementById("atlas-access-email")) refreshAtlasPeopleAccessPanel();
     }
     return atlasAccessAdminState;
   }
@@ -13592,6 +13642,7 @@ async function submitAtlasUserAccessForm() {
     const profile = getAtlasAccessProfile();
     if (profile?.role !== "admin") throw new Error("Only Atlas admins can save employee access.");
     const draft = syncAtlasAccessFormDraftFromPanel();
+    const selectedEmployee = getAtlasAccessEmployeeRecord(draft.employeeId);
     const email = draft.email.toLowerCase();
     const displayName = draft.displayName;
     const role = draft.role;
@@ -13602,7 +13653,7 @@ async function submitAtlasUserAccessForm() {
       displayName,
       role,
       status,
-      employeeId: draft.employeeId || null,
+      employeeId: isAtlasUuid(selectedEmployee?.linkedEmployeeId || draft.employeeId) ? String(selectedEmployee?.linkedEmployeeId || draft.employeeId).trim() : null,
       allowedCommunityIds: draft.allowedCommunityIds,
       allowedMarketValues: draft.allowedMarketValues,
       allowedRegionValues: draft.allowedRegionValues,
@@ -13661,6 +13712,15 @@ function renderAtlasEmployeeAccessPanel() {
     </div>`;
   }
   queueAtlasAccessAdminLoad();
+  if (!atlasAccessAdminState.loaded) {
+    return `${profileEditorHtml}<div class="card mb4">
+      <div class="card-title">Employee Access</div>
+      <div style="font-size:0.7rem;color:var(--muted);line-height:1.55;margin-bottom:10px">Loading employee access records, active employee roster, and scope options for this admin session.</div>
+      ${atlasAccessAdminState.error
+        ? `<div class="alert-red">${escapeHtml(atlasAccessAdminState.error)}</div>`
+        : `<div class="alert-green">${atlasAccessAdminState.loading ? "Loading access panel..." : "Preparing access panel..."}</div>`}
+    </div>`;
+  }
   const draft = normalizeAtlasAccessFormDraft(atlasAccessFormDraft);
   const communityOptions = (atlasAccessAdminState.communities || []).map(community => ({
     value: community.community_id,
@@ -13679,8 +13739,8 @@ function renderAtlasEmployeeAccessPanel() {
   return `${profileEditorHtml}<div class="card mb4">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
       <div>
-        <div class="card-title" style="margin-bottom:6px">Employee Access</div>
-        <div style="font-size:0.7rem;color:var(--muted);line-height:1.55">Create or update ATLAS access by employee email, role, property, market, region, and page locks. Passwords are created through the secure sign-up flow, not stored in ATLAS.</div>
+        <div class="card-title" style="margin-bottom:6px">Employee Details + Access</div>
+        <div style="font-size:0.7rem;color:var(--muted);line-height:1.55">Create or update ATLAS access inside the People workspace after checking the roster. Use linked employee autofill to pull roster identity into the access form, then finalize scope and page permissions here.</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-gray btn-sm" onclick="loadAtlasAccessAdminData({ force:true, silent:false })">${atlasAccessAdminState.loading ? "Loading..." : "Refresh Access"}</button>
@@ -13688,9 +13748,25 @@ function renderAtlasEmployeeAccessPanel() {
       </div>
     </div>
     ${atlasAccessAdminState.error ? `<div class="alert-red" style="margin-bottom:10px">${escapeHtml(atlasAccessAdminState.error)}</div>` : ""}
-    <div class="atlas-access-grid">
+    <div class="atlas-access-workspace">
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+          <div>
+            <div class="card-title">Current Access Records</div>
+            <div style="font-size:0.66rem;color:var(--muted);margin-top:4px">${atlasAccessAdminState.lastLoadedAt ? `Loaded ${new Date(atlasAccessAdminState.lastLoadedAt).toLocaleString()}` : "Access records load after sign-in."}</div>
+          </div>
+          <div style="font-size:0.66rem;color:var(--muted)">Choose an existing record to edit, or stay in create mode for a new employee.</div>
+        </div>
+        <div class="tbl-wrap" style="margin:0;max-height:320px;overflow:auto">
+          <table class="atlas-access-table">
+            <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Scope</th><th></th></tr></thead>
+            <tbody>${renderAtlasEmployeeAccessRows()}</tbody>
+          </table>
+        </div>
+      </div>
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px">
         <div class="card-title">Create / Edit Access</div>
+        <div style="font-size:0.66rem;color:var(--muted);margin:4px 0 10px">This workspace stays below the roster so the People page can use the full desktop height before you enter access details.</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:10px">
           <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Email</span><input id="atlas-access-email" type="email" value="${escapeHtml(draft.email)}" placeholder="employee@risere.com" oninput="syncAtlasAccessFormDraftFromPanel()"></label>
           <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Display name</span><input id="atlas-access-display-name" value="${escapeHtml(draft.displayName)}" placeholder="Employee name" oninput="syncAtlasAccessFormDraftFromPanel()"></label>
@@ -13720,16 +13796,6 @@ function renderAtlasEmployeeAccessPanel() {
           <button class="btn btn-blue btn-sm" onclick="submitAtlasUserAccessForm()">Save Employee Access</button>
           <button class="btn btn-gray btn-sm" onclick="copyAtlasAccessSetupInstructions()">Copy Setup Instructions</button>
           <button class="btn btn-gray btn-sm" onclick="clearAtlasUserAccessForm()">Clear Form</button>
-        </div>
-      </div>
-      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px">
-        <div class="card-title">Current Access Records</div>
-        <div style="font-size:0.66rem;color:var(--muted);margin-bottom:8px">${atlasAccessAdminState.lastLoadedAt ? `Loaded ${new Date(atlasAccessAdminState.lastLoadedAt).toLocaleString()}` : "Access records load after sign-in."}</div>
-        <div class="tbl-wrap" style="margin:0;max-height:520px;overflow:auto">
-          <table class="atlas-access-table">
-            <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Scope</th><th></th></tr></thead>
-            <tbody>${renderAtlasEmployeeAccessRows()}</tbody>
-          </table>
         </div>
       </div>
     </div>

@@ -13,6 +13,8 @@
 (function () {
   "use strict";
 
+  var lastPublishedPeopleRosterKey = "";
+
   var MOUNTS = {
     maintenance: {
       screen: "Maintenance",
@@ -136,15 +138,22 @@
 
   function publishPeopleRoster(roster) {
     if (!Array.isArray(roster) || !roster.length) return;
-    window.ATLAS_EMBEDDED_PEOPLE_ROSTER = roster;
+    var rosterKey = "";
     try {
-      if (typeof activeTab !== "undefined" && Number(activeTab) === 13 && typeof refreshAtlasPeopleAccessPanel === "function") {
-        refreshAtlasPeopleAccessPanel();
-        if (typeof applyAtlasAccessFormDraftToPanel === "function") applyAtlasAccessFormDraftToPanel();
-      }
+      rosterKey = JSON.stringify(roster.map(function (employee) {
+        return [
+          String(employee.employeeId || "").trim(),
+          String(employee.email || "").trim().toLowerCase(),
+          String(employee.fullName || "").trim(),
+          String(employee.status || "").trim()
+        ];
+      }));
     } catch (err) {
-      // Ignore refresh failures; the embedded roster cache is still updated.
+      rosterKey = "";
     }
+    if (rosterKey && rosterKey === lastPublishedPeopleRosterKey) return;
+    lastPublishedPeopleRosterKey = rosterKey;
+    window.ATLAS_EMBEDDED_PEOPLE_ROSTER = roster;
   }
 
   function syncMountFrame(iframe, key) {
@@ -199,12 +208,26 @@
     if (!m) return "";
     var meta = contextMeta();
     var accessPanel = "";
+    var peopleAccessWorkspace = "";
     try {
       accessPanel = key === "people" && typeof window.renderAtlasEmployeeAccessPanel === "function"
         ? window.renderAtlasEmployeeAccessPanel()
         : "";
     } catch (err) {
       accessPanel = "";
+    }
+    if (key === "people") {
+      peopleAccessWorkspace = [
+        '<section class="atlas-people-access-workspace">',
+        '  <div class="atlas-people-access-head">',
+        '    <div>',
+        '      <h3>Employee Access Workspace</h3>',
+        '      <p>Review the employee roster first, then manage ATLAS access in this workspace. The People roster stays primary and the access editor no longer sits above the full-page roster view.</p>',
+        "    </div>",
+        "  </div>",
+        '  <div id="atlas-people-access-panel">' + accessPanel + "</div>",
+        "</section>"
+      ].join("");
     }
     var embeddedSrc = iframeSrc(key, m);
     return [
@@ -214,7 +237,6 @@
       "    <p>" + esc(m.lede) + "</p>",
       "  </div>",
       "</div>",
-      '<div id="atlas-people-access-panel">' + accessPanel + "</div>",
       '<section class="atlas-mount-section" id="atlas-mount-' + esc(key) + '">',
       '  <div class="atlas-mount-head">',
       "    <h3>" + esc(m.title) + "</h3>",
@@ -230,7 +252,8 @@
       '    <iframe src="' + esc(embeddedSrc) + '" title="' + esc(m.barTitle) + '" data-atlas-mount-key="' + esc(key) + '" onload="window.handleAtlasMountLoad && window.handleAtlasMountLoad(this, \'' + esc(key) + '\')"',
       '            loading="lazy" style="background:' + esc(m.background) + '"></iframe>',
       "  </div>",
-      "</section>"
+      "</section>",
+      peopleAccessWorkspace
     ].filter(Boolean).join("\n");
   }
 

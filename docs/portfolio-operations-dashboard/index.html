@@ -12189,10 +12189,30 @@ function atlasEmployeeStatusIsActive(employee = {}) {
   return value.includes("active") && !value.includes("inactive") && !value.includes("terminated");
 }
 
+function atlasEmployeeEmailIsInternal(email = "") {
+  const value = String(email || "").trim().toLowerCase();
+  return value.endsWith("@risere.com") || value.endsWith("@riseresidential.com");
+}
+
+function atlasEmployeeIsSelectableForAccess(employee = {}) {
+  if (!atlasEmployeeStatusIsActive(employee)) return false;
+  const status = String(employee?.status || employee?.status_type || "").trim().toLowerCase();
+  const sourceModule = String(employee?.source_module || employee?.sourceModule || "").trim().toLowerCase();
+  const sourceIdentifier = String(employee?.source_identifier || employee?.sourceIdentifier || "").trim().toLowerCase();
+  const employeeNumber = String(employee?.employee_number || employee?.employeeNumber || "").trim();
+  const fullName = String(employee?.full_name || employee?.fullName || employee?.name || "").trim();
+  const email = String(employee?.email || "").trim().toLowerCase();
+  if (status.includes("merged")) return false;
+  if (sourceIdentifier.startsWith("email:gm.") || /^gm\b/i.test(fullName)) return false;
+  if (sourceModule === "shared_data_backfill" && !atlasEmployeeEmailIsInternal(email)) return false;
+  if (email && atlasEmployeeEmailIsInternal(email)) return true;
+  return Boolean(employeeNumber);
+}
+
 function buildAtlasAccessEmployeeDirectoryEntries() {
   const entries = new Map();
   (atlasAccessAdminState.employees || []).forEach(employee => {
-    if (!atlasEmployeeStatusIsActive(employee)) return;
+    if (!atlasEmployeeIsSelectableForAccess(employee)) return;
     const employeeId = String(employee.employee_id || "").trim();
     if (!employeeId) return;
     entries.set(employeeId, {
@@ -12200,7 +12220,9 @@ function buildAtlasAccessEmployeeDirectoryEntries() {
       email: String(employee.email || "").trim().toLowerCase(),
       fullName: String(employee.full_name || "").trim(),
       status: String(employee.status || employee.status_type || "").trim(),
-      profileDisplayName: ""
+      profileDisplayName: "",
+      sourceModule: String(employee.source_module || "").trim(),
+      sourceIdentifier: String(employee.source_identifier || "").trim()
     });
   });
   (atlasAccessAdminState.profiles || []).forEach(profile => {
@@ -12211,27 +12233,13 @@ function buildAtlasAccessEmployeeDirectoryEntries() {
       email: String(profile.email || "").trim().toLowerCase(),
       fullName: "",
       status: String(profile.status || "").trim(),
-      profileDisplayName: ""
+      profileDisplayName: "",
+      sourceModule: "",
+      sourceIdentifier: ""
     };
     existing.profileDisplayName = String(profile.display_name || "").trim();
     if (!existing.email) existing.email = String(profile.email || "").trim().toLowerCase();
-    entries.set(employeeId, existing);
-  });
-  const sharedEmployees = atlasSharedData?.employees && typeof atlasSharedData.employees === "object"
-    ? Object.values(atlasSharedData.employees)
-    : [];
-  sharedEmployees.forEach(employee => {
-    const employeeId = String(employee.employeeId || employee.peopleEmployeeId || "").trim();
-    if (!employeeId || !Boolean(employee.active)) return;
-    const existing = entries.get(employeeId) || {
-      employeeId,
-      email: String(employee.email || "").trim().toLowerCase(),
-      fullName: String(employee.name || "").trim(),
-      status: String(employee.status || "").trim(),
-      profileDisplayName: ""
-    };
-    if (!existing.fullName) existing.fullName = String(employee.name || "").trim();
-    if (!existing.email) existing.email = String(employee.email || "").trim().toLowerCase();
+    if (!existing.fullName) existing.fullName = String(profile.display_name || "").trim();
     entries.set(employeeId, existing);
   });
   return [...entries.values()].sort((a, b) => {

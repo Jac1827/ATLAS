@@ -542,7 +542,7 @@
 
   async function readEmployeesForAccess() {
     await refreshSession().catch(() => null);
-    const query = "deleted_at=is.null&select=employee_id,employee_number,email,full_name,status,status_type&order=full_name.asc";
+    const query = "deleted_at=is.null&select=employee_id,employee_number,email,full_name,status,status_type,source_module,source_identifier,updated_at&order=full_name.asc";
     const rows = await fetchJson(`/atlas_employees?${query}`);
     return Array.isArray(rows) ? rows : [];
   }

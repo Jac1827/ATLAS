@@ -7,6 +7,7 @@
   const CONFIG_STORAGE_KEY = "atlas_central_runtime_config_v1";
   const SESSION_STORAGE_KEY = "atlas_central_auth_session_v1";
   const PROFILE_STORAGE_KEY = "atlas_central_profile_v1";
+  const MAGIC_LINK_COOLDOWN_STORAGE_KEY = "atlas_central_magic_link_cooldowns_v1";
   const SHARED_PROPERTY_GRAPH_DOCUMENT_KEY = "atlas_shared_property_graph_v1";
 
   const DEFAULT_CONFIG = {
@@ -240,6 +241,63 @@
     return String(payload || fallback);
   }
 
+  function createCentralError(message, meta = {}) {
+    const error = new Error(String(message || "Central request failed."));
+    Object.entries(meta || {}).forEach(([key, value]) => {
+      error[key] = value;
+    });
+    return error;
+  }
+
+  function getRetryAfterSeconds(response) {
+    const headerValue = String(response?.headers?.get("retry-after") || "").trim();
+    const numeric = Number(headerValue);
+    if (Number.isFinite(numeric) && numeric > 0) return Math.ceil(numeric);
+    const parsedDate = Date.parse(headerValue);
+    if (Number.isFinite(parsedDate)) {
+      return Math.max(1, Math.ceil((parsedDate - Date.now()) / 1000));
+    }
+    return 0;
+  }
+
+  function normalizeCooldownMap(raw = {}) {
+    const source = raw && typeof raw === "object" ? raw : {};
+    const now = Date.now();
+    return Object.fromEntries(
+      Object.entries(source)
+        .map(([email, expiresAt]) => [String(email || "").trim().toLowerCase(), Number(expiresAt) || 0])
+        .filter(([email, expiresAt]) => email && expiresAt > now)
+    );
+  }
+
+  function getMagicLinkCooldownMap() {
+    return normalizeCooldownMap(readLocalStorageJson(MAGIC_LINK_COOLDOWN_STORAGE_KEY, {}));
+  }
+
+  function saveMagicLinkCooldownMap(map = {}) {
+    const normalized = normalizeCooldownMap(map);
+    writeLocalStorageJson(MAGIC_LINK_COOLDOWN_STORAGE_KEY, normalized);
+    return normalized;
+  }
+
+  function getMagicLinkCooldownSeconds(email = "") {
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    if (!cleanEmail) return 0;
+    const expiresAt = Number(getMagicLinkCooldownMap()[cleanEmail]) || 0;
+    if (!expiresAt) return 0;
+    return Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000));
+  }
+
+  function setMagicLinkCooldown(email = "", seconds = 60) {
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    const safeSeconds = Math.max(0, Number(seconds) || 0);
+    if (!cleanEmail || !safeSeconds) return 0;
+    const next = getMagicLinkCooldownMap();
+    next[cleanEmail] = Date.now() + (safeSeconds * 1000);
+    saveMagicLinkCooldownMap(next);
+    return safeSeconds;
+  }
+
   async function request(url, options = {}) {
     let response;
     try {
@@ -257,7 +315,14 @@
     }
     const payload = await parseJsonResponse(response);
     if (!response.ok) {
-      throw new Error(errorFromPayload(payload, `Central request failed with HTTP ${response.status}`));
+      const retryAfterSeconds = getRetryAfterSeconds(response);
+      const fallback = response.status === 429
+        ? `Central request failed with HTTP 429. Supabase is rate-limiting repeated auth requests${retryAfterSeconds ? ` for about ${retryAfterSeconds} seconds` : ""}.`
+        : `Central request failed with HTTP ${response.status}`;
+      throw createCentralError(errorFromPayload(payload, fallback), {
+        status: Number(response.status) || 0,
+        retryAfterSeconds
+      });
     }
     return payload;
   }
@@ -286,16 +351,40 @@
     const cleanEmail = String(email || "").trim().toLowerCase();
     if (!isEmailAllowed(cleanEmail, config)) throw new Error("This email domain is not approved for Atlas.");
     if (!cleanEmail) throw new Error("Email is required.");
+    const existingCooldown = getMagicLinkCooldownSeconds(cleanEmail);
+    if (existingCooldown > 0) {
+      throw createCentralError(`Wait ${existingCooldown} seconds before requesting another ATLAS sign-in link for ${cleanEmail}.`, {
+        status: 429,
+        retryAfterSeconds: existingCooldown
+      });
+    }
     const redirectTo = authRedirectUrl(config);
-    return request(authUrl(withRedirectTo("/otp", redirectTo)), {
-      method: "POST",
-      auth: false,
-      body: JSON.stringify({
-        email: cleanEmail,
-        create_user: Boolean(options.createUser || config.allowMagicLinkSignup),
-        options: redirectTo ? { email_redirect_to: redirectTo } : {}
-      })
-    });
+    try {
+      const payload = await request(authUrl(withRedirectTo("/otp", redirectTo)), {
+        method: "POST",
+        auth: false,
+        body: JSON.stringify({
+          email: cleanEmail,
+          create_user: Boolean(options.createUser || config.allowMagicLinkSignup),
+          options: redirectTo ? { email_redirect_to: redirectTo } : {}
+        })
+      });
+      setMagicLinkCooldown(cleanEmail, 60);
+      return payload;
+    } catch (error) {
+      const retryAfterSeconds = Math.max(0, Number(error?.retryAfterSeconds) || 0);
+      if (Number(error?.status) === 429) {
+        setMagicLinkCooldown(cleanEmail, retryAfterSeconds || 60);
+        throw createCentralError(
+          `ATLAS sign-in links were requested too quickly for ${cleanEmail}. Wait ${retryAfterSeconds || 60} seconds before trying again, or use Create Account / Sign In with password if the account already exists.`,
+          {
+            status: 429,
+            retryAfterSeconds: retryAfterSeconds || 60
+          }
+        );
+      }
+      throw error;
+    }
   }
 
   async function refreshSession() {
@@ -830,6 +919,7 @@
     fetchJson,
     rpc,
     sendMagicLink,
+    getMagicLinkCooldownSeconds,
     authRedirectUrl,
     signInWithPassword,
     signUpWithPassword,

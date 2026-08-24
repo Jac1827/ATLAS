@@ -2595,6 +2595,7 @@ let reportHubRecipientKeys = [];
 let reportHubPerspective = "csuite";
 let reportHubMonth = DEFAULT_CURRENT_MONTH;
 let reportHubYear = new Date().getFullYear();
+let reportingDlrApplicationWindow = "mtd";
 let reportRecommendationOverrides = {};
 let sideNavCollapsed = false;
 const COMMUNITY_PROGRESS_VIEW_MODE_KEY = "rise_community_progress_view_mode_v1";
@@ -6783,14 +6784,35 @@ function normalizeRenewalDetailRowsByMonth(input) {
 
 function defaultDlrDeliverySettings() {
   return {
-    dailyEnabled: false,
-    weeklyEnabled: false,
+    frequencyMode: "manual",
+    selectedWeekdays: [],
     weeklySendDay: "monday",
+    generateTime: "07:00",
+    sendTime: "08:00",
+    automationMode: "draft_only",
     autoDraftOnOpen: false,
+    toInvestorContacts: true,
+    roleRecipients: [],
     cc: "",
+    bcc: "",
+    sendOnWeekends: false,
+    sendOnHolidays: false,
+    sendWithoutBoxScore: true,
+    useMostRecentAtlasData: true,
+    notifyIfDataMissing: true,
+    requireApprovalIfCritical: true,
+    autoSendWhenDataReady: false,
     lastDailyDraftDate: "",
     lastWeeklyDraftWeek: "",
-    lastTriggeredAt: ""
+    lastDailySentDate: "",
+    lastWeeklySentWeek: "",
+    lastTriggeredAt: "",
+    lastGeneratedAt: "",
+    lastSentAt: "",
+    lastStatus: "",
+    lastStatusDetail: "",
+    pendingApproval: false,
+    pendingApprovalAt: ""
   };
 }
 
@@ -6798,15 +6820,64 @@ function normalizeDlrDeliverySettings(input = {}) {
   const defaults = defaultDlrDeliverySettings();
   const weeklySendDay = String(input.weeklySendDay || defaults.weeklySendDay).trim().toLowerCase();
   const validDays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+  const normalizeTime = (value, fallback) => {
+    const text = String(value || "").trim();
+    return /^\d{2}:\d{2}$/.test(text) ? text : fallback;
+  };
+  const selectedWeekdays = Array.isArray(input.selectedWeekdays)
+    ? input.selectedWeekdays.map(day => String(day || "").trim().toLowerCase()).filter(day => validDays.includes(day))
+    : [];
+  const legacyDailyEnabled = Boolean(input.dailyEnabled);
+  const legacyWeeklyEnabled = Boolean(input.weeklyEnabled);
+  const legacyFrequencyMode = legacyDailyEnabled && legacyWeeklyEnabled
+    ? "daily_and_weekly"
+    : legacyDailyEnabled
+      ? "daily"
+      : legacyWeeklyEnabled
+        ? "weekly"
+        : defaults.frequencyMode;
+  const frequencyMode = ["manual", "daily", "weekly", "selected_days", "daily_and_weekly"].includes(String(input.frequencyMode || "").trim())
+    ? String(input.frequencyMode).trim()
+    : legacyFrequencyMode;
+  const roleRecipients = Array.isArray(input.roleRecipients)
+    ? input.roleRecipients.map(role => String(role || "").trim()).filter(Boolean)
+    : [];
   return {
-    dailyEnabled: Boolean(input.dailyEnabled),
-    weeklyEnabled: Boolean(input.weeklyEnabled),
+    frequencyMode,
+    selectedWeekdays: Array.from(new Set(
+      (selectedWeekdays.length ? selectedWeekdays : (frequencyMode === "selected_days" && validDays.includes(weeklySendDay) ? [weeklySendDay] : []))
+    )),
     weeklySendDay: validDays.includes(weeklySendDay) ? weeklySendDay : defaults.weeklySendDay,
+    generateTime: normalizeTime(input.generateTime, defaults.generateTime),
+    sendTime: normalizeTime(input.sendTime, defaults.sendTime),
+    automationMode: ["draft_only", "approval_required", "fully_automated"].includes(String(input.automationMode || "").trim())
+      ? String(input.automationMode).trim()
+      : defaults.automationMode,
     autoDraftOnOpen: Boolean(input.autoDraftOnOpen),
+    toInvestorContacts: input.toInvestorContacts !== undefined ? Boolean(input.toInvestorContacts) : defaults.toInvestorContacts,
+    roleRecipients: Array.from(new Set(roleRecipients)),
     cc: normalizeEmailListInput(String(input.cc || defaults.cc)),
+    bcc: normalizeEmailListInput(String(input.bcc || defaults.bcc)),
+    sendOnWeekends: Boolean(input.sendOnWeekends),
+    sendOnHolidays: Boolean(input.sendOnHolidays),
+    sendWithoutBoxScore: input.sendWithoutBoxScore !== undefined ? Boolean(input.sendWithoutBoxScore) : defaults.sendWithoutBoxScore,
+    useMostRecentAtlasData: input.useMostRecentAtlasData !== undefined ? Boolean(input.useMostRecentAtlasData) : defaults.useMostRecentAtlasData,
+    notifyIfDataMissing: input.notifyIfDataMissing !== undefined ? Boolean(input.notifyIfDataMissing) : defaults.notifyIfDataMissing,
+    requireApprovalIfCritical: input.requireApprovalIfCritical !== undefined ? Boolean(input.requireApprovalIfCritical) : defaults.requireApprovalIfCritical,
+    autoSendWhenDataReady: Boolean(input.autoSendWhenDataReady),
     lastDailyDraftDate: String(input.lastDailyDraftDate || defaults.lastDailyDraftDate).trim(),
     lastWeeklyDraftWeek: String(input.lastWeeklyDraftWeek || defaults.lastWeeklyDraftWeek).trim(),
-    lastTriggeredAt: String(input.lastTriggeredAt || defaults.lastTriggeredAt).trim()
+    lastDailySentDate: String(input.lastDailySentDate || defaults.lastDailySentDate).trim(),
+    lastWeeklySentWeek: String(input.lastWeeklySentWeek || defaults.lastWeeklySentWeek).trim(),
+    lastTriggeredAt: String(input.lastTriggeredAt || defaults.lastTriggeredAt).trim(),
+    lastGeneratedAt: String(input.lastGeneratedAt || defaults.lastGeneratedAt).trim(),
+    lastSentAt: String(input.lastSentAt || defaults.lastSentAt).trim(),
+    lastStatus: String(input.lastStatus || defaults.lastStatus).trim(),
+    lastStatusDetail: String(input.lastStatusDetail || defaults.lastStatusDetail).trim(),
+    pendingApproval: Boolean(input.pendingApproval),
+    pendingApprovalAt: String(input.pendingApprovalAt || defaults.pendingApprovalAt).trim(),
+    dailyEnabled: frequencyMode === "daily" || frequencyMode === "daily_and_weekly",
+    weeklyEnabled: frequencyMode === "weekly" || frequencyMode === "daily_and_weekly"
   };
 }
 
@@ -7788,6 +7859,101 @@ function pickDlrDisplayMetricValue(...values) {
     if (hasDlrDisplayMetricValue(value)) return Number(value);
   }
   return null;
+}
+
+function buildDlrReportingPeriodRangeLabel(monthIdx, year, reportDateIso = "") {
+  const safeMonth = clampNumber(monthIdx, 0, 11);
+  const safeYear = Number.isFinite(Number(year)) ? Number(year) : new Date().getFullYear();
+  const endDate = parseDlrSpecificDate(reportDateIso) || new Date(safeYear, safeMonth + 1, 0);
+  const startDate = new Date(safeYear, safeMonth, 1);
+  const sameMonthEnd = endDate.getMonth() === safeMonth && endDate.getFullYear() === safeYear
+    ? endDate
+    : new Date(safeYear, safeMonth + 1, 0);
+  return `${FULL_MONTHS[safeMonth]} ${startDate.getDate()} – ${FULL_MONTHS[sameMonthEnd.getMonth()]} ${sameMonthEnd.getDate()}, ${sameMonthEnd.getFullYear()}`;
+}
+
+function buildDlrApplicationWindowMetricsFromMonths(monthEntries = [], summaryOverrides = null) {
+  const totals = {
+    applications: 0,
+    approvals: 0,
+    denials: 0,
+    cancelled: 0,
+    pendingDecision: 0
+  };
+  (Array.isArray(monthEntries) ? monthEntries : []).forEach(entry => {
+    const metrics = getApplicationDecisionMetrics(entry);
+    totals.applications += Math.max(0, Number(metrics.applications) || 0);
+    totals.approvals += Math.max(0, Number(metrics.approvals) || 0);
+    totals.denials += Math.max(0, Number(metrics.denials) || 0);
+    totals.cancelled += Math.max(0, Number(metrics.cancelled) || 0);
+    totals.pendingDecision += Math.max(0, Number(metrics.pendingDecision) || 0);
+  });
+  if (summaryOverrides && typeof summaryOverrides === "object") {
+    totals.applications = Math.max(totals.applications, Math.max(0, Number(summaryOverrides.applications) || 0));
+    totals.approvals = Math.max(totals.approvals, Math.max(0, Number(summaryOverrides.approvals) || 0));
+    totals.denials = Math.max(totals.denials, Math.max(0, Number(summaryOverrides.denials) || 0));
+    totals.cancelled = Math.max(totals.cancelled, Math.max(0, Number(summaryOverrides.cancelled) || 0));
+    totals.pendingDecision = Math.max(totals.pendingDecision, Math.max(0, Number(summaryOverrides.pendingDecision) || 0));
+  }
+  return totals;
+}
+
+function buildDlrApplicationWindows(record, monthIdx, year, currentWindowMetrics = null) {
+  const monthEntries = getRecordMonthlyDataForYear(record, year);
+  const previousMonthIdx = monthIdx > 0 ? monthIdx - 1 : 11;
+  const previousYear = monthIdx > 0 ? year : year - 1;
+  const previousMonthEntry = previousYear === year
+    ? (monthEntries[previousMonthIdx] || {})
+    : getRawRecordMonthEntryForPeriod(record, previousMonthIdx, previousYear);
+  const lastNinetyEntries = [];
+  for (let offset = 0; offset < 3; offset += 1) {
+    const targetMonth = monthIdx - offset;
+    if (targetMonth >= 0) lastNinetyEntries.unshift(monthEntries[targetMonth] || {});
+  }
+  return {
+    mtd: buildDlrApplicationWindowMetricsFromMonths([monthEntries[monthIdx] || {}], currentWindowMetrics),
+    previous_month: buildDlrApplicationWindowMetricsFromMonths([previousMonthEntry || {}]),
+    last_90_days: buildDlrApplicationWindowMetricsFromMonths(lastNinetyEntries),
+    ytd: buildDlrApplicationWindowMetricsFromMonths(monthEntries.slice(0, monthIdx + 1))
+  };
+}
+
+function buildDlrApplicationTrendRows(record, monthIdx, year, currentApplications = null) {
+  const rows = [];
+  for (let idx = Math.max(0, monthIdx - 11); idx <= monthIdx; idx += 1) {
+    const entry = getRawRecordMonthEntryForPeriod(record, idx, year);
+    const metrics = getApplicationDecisionMetrics(entry);
+    const applications = idx === monthIdx && Number.isFinite(Number(currentApplications))
+      ? Math.max(Number(currentApplications), Math.max(0, Number(metrics.applications) || 0))
+      : Math.max(0, Number(metrics.applications) || 0);
+    rows.push({
+      monthIdx: idx,
+      monthLabel: `${FULL_MONTHS[idx]} ${year}`,
+      shortLabel: `${FULL_MONTHS[idx].slice(0, 3)}${idx === monthIdx ? " MTD" : ""}`,
+      applications
+    });
+  }
+  return rows;
+}
+
+function buildDlrForwardOccupancyTrendPoints(report) {
+  const currentPoint = {
+    shortLabel: "Now",
+    monthLabel: "Current occupancy",
+    projectedOccupancy: Number(report?.occupancyPct) || 0,
+    budgetedOccupancy: Number(report?.budgetOccPct) || 0,
+    moveIns: 0,
+    moveOuts: 0
+  };
+  const futureRows = Array.isArray(report?.forwardLook) ? report.forwardLook.slice(0, 4) : [];
+  return [currentPoint, ...futureRows.map(row => ({
+    shortLabel: FULL_MONTHS[row.monthIdx].slice(0, 3),
+    monthLabel: row.label,
+    projectedOccupancy: Number(row.projectedOccupancy) || 0,
+    budgetedOccupancy: Number(row.budgetedOccupancy) || 0,
+    moveIns: Number(row.pendingMoveIns) || 0,
+    moveOuts: Number(row.pendingMoveOuts) || 0
+  }))];
 }
 
 function getRawRecordMonthEntryForPeriod(record, monthIdx, year = new Date().getFullYear()) {
@@ -19035,12 +19201,17 @@ async function processDlrBoxScoreFiles(files) {
       if (isWorkbookCandidate) {
         const workbookOverlay = await parseRonaldoDailyDlrWorkbook(file);
         if (workbookOverlay) {
+          const existingTargetCommunity = getHistoricalImportCommunityName();
+          const workbookCommunities = getDlrWorkbookOverlayCommunityNames();
+          const nextTargetCommunity = workbookCommunities.includes(existingTargetCommunity)
+            ? existingTargetCommunity
+            : (workbookCommunities[0] || targetCommunity);
           dlrWorkbookReportState = workbookOverlay;
           reportHubMonth = workbookOverlay.reportMonthIdx ?? reportHubMonth;
           reportHubYear = workbookOverlay.reportYear ?? reportHubYear;
           historicalImportTarget = normalizeHistoricalImportTarget({
             ...historicalImportTarget,
-            community: getDlrWorkbookOverlayCommunityNames()[0] || targetCommunity,
+            community: nextTargetCommunity,
             month: workbookOverlay.reportMonthIdx ?? getHistoricalImportMonthIndex(),
             year: workbookOverlay.reportYear ?? getHistoricalImportYear()
           });
@@ -30089,6 +30260,12 @@ function setReportingDlrDate(value) {
   setDlrReportDateFromInput(value);
 }
 
+function setReportingDlrApplicationWindow(value) {
+  const allowed = new Set(["mtd", "previous_month", "last_90_days", "ytd"]);
+  reportingDlrApplicationWindow = allowed.has(String(value || "").trim()) ? String(value).trim() : "mtd";
+  renderTab();
+}
+
 function isDlrDailyBoxScoreReady(report) {
   return !!report && report.trafficMetrics?.sourceMode === "daily_box_score" && !!(report.dailyBoxScoreSourceFile || report.dailyBoxScoreImportedAt);
 }
@@ -30128,7 +30305,10 @@ function renderDlrReportingWorkspace() {
   }
   const deliverySettings = getDlrDeliverySettingsForCommunity(communityName);
   const dueQueue = buildDlrDeliveryQueue(monthIdx, year);
-  const dueQueueCount = dueQueue.filter(item => item.dueCadences.length > 0).length;
+  const dueQueueCount = dueQueue.filter(item => item.status === "ready_to_generate" || item.status === "ready_for_approval").length;
+  const currentQueueItem = dueQueue.find(item => item.communityName === communityName) || null;
+  const resolvedRecipients = resolveDlrRecipientsForCommunity(communityName, deliverySettings);
+  const recipientPreview = resolvedRecipients.map(entry => entry.email).join("; ");
   const dateInput = escapeHtml(buildDlrDateInputValue(report.reportDateIso));
   const reportDateLabel = report.reportDateLabel || report.reportPeriodLabel || "Select the daily report date";
   const sourceLine = report.dailyBoxScoreSourceFile
@@ -30148,12 +30328,14 @@ function renderDlrReportingWorkspace() {
     : "Edit these notes before you export, print, or draft the DLR email. Your edits flow into the investor-facing output for this selected community.";
   const dueDaily = isDlrDailyDeliveryDue(deliverySettings);
   const dueWeekly = isDlrWeeklyDeliveryDue(deliverySettings);
-  const autoTriggerKey = `${communityName}|${monthIdx}|${year}|${dueDaily ? "daily" : ""}|${dueWeekly ? "weekly" : ""}`;
-  if (deliverySettings.autoDraftOnOpen && (dueDaily || dueWeekly) && !dlrAutoDeliveryTriggeredKeys.has(autoTriggerKey)) {
+  const dueSelectedDays = isDlrSelectedDayDeliveryDue(deliverySettings);
+  const autoTriggerKey = `${communityName}|${monthIdx}|${year}|${dueDaily ? "daily" : ""}|${dueWeekly ? "weekly" : ""}|${dueSelectedDays ? "selected_days" : ""}`;
+  if (deliverySettings.autoDraftOnOpen && (dueDaily || dueWeekly || dueSelectedDays) && !dlrAutoDeliveryTriggeredKeys.has(autoTriggerKey)) {
     dlrAutoDeliveryTriggeredKeys.add(autoTriggerKey);
     setTimeout(() => {
       if (dueDaily) draftDlrOutlookEmail({ communityName, monthIdx, year, cadence: "daily" });
       if (dueWeekly) draftDlrOutlookEmail({ communityName, monthIdx, year, cadence: "weekly" });
+      if (dueSelectedDays) draftDlrOutlookEmail({ communityName, monthIdx, year, cadence: "selected_days" });
     }, 250);
   }
   return `<div id="reporting-dlr-workspace" class="report-hub-card" style="margin-top:14px">
@@ -30166,8 +30348,8 @@ function renderDlrReportingWorkspace() {
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-gray btn-sm" onclick="draftDlrOutlookEmail({ communityName: ${JSON.stringify(communityName)}, monthIdx: ${monthIdx}, year: ${year} })">✉ Draft Outlook Email</button>
-        <button class="btn btn-gray btn-sm" onclick="downloadDlrInvestorOverviewHtml()">⬇ Editable HTML</button>
-        <button class="btn btn-blue btn-sm" onclick="openDlrInvestorOverview(true)">🖨 Export DLR / Print</button>
+        <button class="btn btn-gray btn-sm" onclick="downloadDlrInvestorOverviewHtml({ communityName: ${JSON.stringify(communityName)}, monthIdx: ${monthIdx}, year: ${year} })">⬇ Editable HTML</button>
+        <button class="btn btn-blue btn-sm" onclick="openDlrInvestorOverview({ communityName: ${JSON.stringify(communityName)}, monthIdx: ${monthIdx}, year: ${year}, printImmediately: true })">🖨 Export DLR / Print</button>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:12px">
@@ -30195,26 +30377,62 @@ function renderDlrReportingWorkspace() {
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
         <div class="card-title" style="margin-bottom:6px">Delivery Cadence</div>
         <div style="font-size:0.78rem;color:var(--text);line-height:1.5">${escapeHtml(getDlrDeliveryCadenceLabel(deliverySettings))}</div>
-        <div style="font-size:0.64rem;color:${dueDaily || dueWeekly ? "#1d4ed8" : "var(--muted)"};margin-top:6px">${dueDaily || dueWeekly ? `${dueDaily ? "Daily" : ""}${dueDaily && dueWeekly ? " + " : ""}${dueWeekly ? "Weekly" : ""} delivery is due now.` : "No delivery is due right now for this community."}</div>
+        <div style="font-size:0.64rem;color:${currentQueueItem && (currentQueueItem.status === "ready_to_generate" || currentQueueItem.status === "ready_for_approval") ? "#1d4ed8" : "var(--muted)"};margin-top:6px">${escapeHtml(currentQueueItem?.why || "No delivery is due right now for this community.")}</div>
         <div style="font-size:0.64rem;color:var(--muted);margin-top:4px">${dueQueueCount} communit${dueQueueCount === 1 ? "y" : "ies"} currently due across the selected reporting month.</div>
       </div>
     </div>
     <div class="alert-green" style="margin-bottom:12px">${escapeHtml(sourceModeText)}</div>
     <div style="display:grid;grid-template-columns:1.15fr 0.85fr;gap:12px;margin-bottom:12px">
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
-        <div class="card-title" style="margin-bottom:8px">DLR Delivery Settings</div>
+        <div class="card-title" style="margin-bottom:8px">DLR Automation</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">
-          <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" ${deliverySettings.dailyEnabled ? "checked" : ""} onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'dailyEnabled', this.checked)"><span>Enable daily DLR draft</span></label>
-          <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" ${deliverySettings.weeklyEnabled ? "checked" : ""} onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'weeklyEnabled', this.checked)"><span>Enable weekly DLR draft</span></label>
-          <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" ${deliverySettings.autoDraftOnOpen ? "checked" : ""} onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'autoDraftOnOpen', this.checked)"><span>Auto-draft when due</span></label>
+          <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Delivery frequency</span><select onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'frequencyMode', this.value)">${[
+            ["manual", "Manual only"],
+            ["daily", "Daily"],
+            ["weekly", "Weekly"],
+            ["selected_days", "Selected days"],
+            ["daily_and_weekly", "Daily + Weekly"]
+          ].map(([value, label]) => `<option value="${value}" ${deliverySettings.frequencyMode === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
+          <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Automation mode</span><select onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'automationMode', this.value)">${[
+            ["draft_only", "Draft Only"],
+            ["approval_required", "Draft + Approval Required"],
+            ["fully_automated", "Fully Automated"]
+          ].map(([value, label]) => `<option value="${value}" ${deliverySettings.automationMode === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
+          <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Generate / draft time</span><input type="time" value="${escapeHtml(deliverySettings.generateTime)}" onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'generateTime', this.value)"></label>
+          <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Send time</span><input type="time" value="${escapeHtml(deliverySettings.sendTime)}" onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'sendTime', this.value)"></label>
           <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Weekly send day</span><select onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'weeklySendDay', this.value)">${["monday","tuesday","wednesday","thursday","friday","saturday","sunday"].map(day => `<option value="${day}" ${deliverySettings.weeklySendDay === day ? "selected" : ""}>${day.charAt(0).toUpperCase()}${day.slice(1)}</option>`).join("")}</select></label>
-          <label style="grid-column:1/-1"><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">CC line</span><input type="text" value="${escapeHtml(deliverySettings.cc || "")}" placeholder="regional@risere.com; vp@risere.com" onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'cc', this.value)"></label>
+          <div style="grid-column:1/-1">
+            <div style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Selected weekdays</div>
+            <div style="display:flex;flex-wrap:wrap;gap:10px">${["monday","tuesday","wednesday","thursday","friday","saturday","sunday"].map(day => `<label style="display:flex;align-items:center;gap:6px"><input type="checkbox" ${deliverySettings.selectedWeekdays.includes(day) ? "checked" : ""} onchange="updateDlrSelectedWeekday(${JSON.stringify(communityName)}, '${day}', this.checked)"><span>${day.charAt(0).toUpperCase()}${day.slice(1,3)}</span></label>`).join("")}</div>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" ${deliverySettings.toInvestorContacts ? "checked" : ""} onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'toInvestorContacts', this.checked)"><span>Use investor contacts from Community Setup</span></label>
+          <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" ${deliverySettings.autoDraftOnOpen ? "checked" : ""} onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'autoDraftOnOpen', this.checked)"><span>Auto-run in browser when due</span></label>
+          <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" ${deliverySettings.sendWithoutBoxScore ? "checked" : ""} onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'sendWithoutBoxScore', this.checked)"><span>Allow send without same-day box score</span></label>
+          <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" ${deliverySettings.useMostRecentAtlasData ? "checked" : ""} onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'useMostRecentAtlasData', this.checked)"><span>Use most recent ATLAS data</span></label>
+          <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" ${deliverySettings.notifyIfDataMissing ? "checked" : ""} onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'notifyIfDataMissing', this.checked)"><span>Notify if data is missing</span></label>
+          <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" ${deliverySettings.requireApprovalIfCritical ? "checked" : ""} onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'requireApprovalIfCritical', this.checked)"><span>Require approval if critical data is missing</span></label>
+          <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" ${deliverySettings.sendOnWeekends ? "checked" : ""} onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'sendOnWeekends', this.checked)"><span>Send on weekends</span></label>
+          <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" ${deliverySettings.sendOnHolidays ? "checked" : ""} onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'sendOnHolidays', this.checked)"><span>Send on holidays</span></label>
+          <div style="grid-column:1/-1">
+            <div style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Internal role recipients</div>
+            <div style="display:flex;flex-wrap:wrap;gap:10px">${getDlrInternalRecipientRoleOptions().map(role => `<label style="display:flex;align-items:center;gap:6px"><input type="checkbox" ${deliverySettings.roleRecipients.includes(role.key) ? "checked" : ""} onchange="updateDlrDeliveryRoleRecipient(${JSON.stringify(communityName)}, '${role.key}', this.checked)"><span>${escapeHtml(role.label)}</span></label>`).join("")}</div>
+          </div>
+          <label style="grid-column:1/-1"><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">CC</span><input type="text" value="${escapeHtml(deliverySettings.cc || "")}" placeholder="regional@risere.com; vp@risere.com" onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'cc', this.value)"></label>
+          <label style="grid-column:1/-1"><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">BCC</span><input type="text" value="${escapeHtml(deliverySettings.bcc || "")}" placeholder="asset@risere.com" onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'bcc', this.value)"></label>
         </div>
-        <div style="font-size:0.64rem;color:var(--muted);margin-top:8px">Recipients come from the investor contacts already saved for this community in Community Setup.</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:10px">
+          <div style="font-size:0.64rem;color:var(--muted)">Next generation:<br><strong style="color:var(--text)">${escapeHtml(currentQueueItem?.nextGenerateAt ? formatDlrScheduleTimestamp(currentQueueItem.nextGenerateAt) : "Not scheduled")}</strong></div>
+          <div style="font-size:0.64rem;color:var(--muted)">Next delivery:<br><strong style="color:var(--text)">${escapeHtml(currentQueueItem?.nextSendAt ? formatDlrScheduleTimestamp(currentQueueItem.nextSendAt) : "Not scheduled")}</strong></div>
+          <div style="font-size:0.64rem;color:var(--muted)">Last generated:<br><strong style="color:var(--text)">${escapeHtml(formatDlrScheduleTimestamp(deliverySettings.lastGeneratedAt))}</strong></div>
+          <div style="font-size:0.64rem;color:var(--muted)">Last sent:<br><strong style="color:var(--text)">${escapeHtml(formatDlrScheduleTimestamp(deliverySettings.lastSentAt))}</strong></div>
+          <div style="font-size:0.64rem;color:var(--muted)">Status:<br><strong style="color:var(--text)">${escapeHtml(currentQueueItem?.statusLabel || "Manual only")}</strong></div>
+          <div style="font-size:0.64rem;color:var(--muted)">Recipients:<br><strong style="color:var(--text)">${escapeHtml(recipientPreview || "No recipients configured")}</strong></div>
+        </div>
+        <div style="font-size:0.64rem;color:var(--muted);margin-top:8px">Recipients resolve from Community Setup investor contacts plus any role-based community assignments selected here.</div>
       </div>
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-          <div class="card-title" style="margin-bottom:0">Due Delivery Queue</div>
+          <div class="card-title" style="margin-bottom:0">DLR Queue</div>
           <button class="btn btn-gray btn-sm" onclick="runDlrDeliveryQueue()">Run Due DLR Queue</button>
         </div>
         <div style="display:grid;gap:8px;max-height:210px;overflow:auto">
@@ -30223,8 +30441,9 @@ function renderDlrReportingWorkspace() {
               <div>
                 <div style="font-size:0.72rem;font-weight:700;color:var(--text)">${escapeHtml(item.communityName)}</div>
                 <div style="font-size:0.62rem;color:var(--muted);margin-top:4px">${item.recipientCount} recipient${item.recipientCount === 1 ? "" : "s"} · ${escapeHtml(getDlrDeliveryCadenceLabel(item.settings))}</div>
+                <div style="font-size:0.62rem;color:var(--muted);margin-top:4px">${escapeHtml(item.why)}</div>
               </div>
-              <div style="font-size:0.62rem;color:${item.dueCadences.length ? "#1d4ed8" : "var(--muted)"}">${item.dueCadences.length ? item.dueCadences.map(cadence => cadence.charAt(0).toUpperCase() + cadence.slice(1)).join(" + ") : "Up to date"}</div>
+              <div style="font-size:0.62rem;color:${item.status === "ready_to_generate" || item.status === "ready_for_approval" ? "#1d4ed8" : "var(--muted)"}">${escapeHtml(item.statusLabel)}</div>
             </div>
           </div>`).join("") : `<div style="font-size:0.68rem;color:var(--muted)">No communities have investor contacts plus DLR delivery settings yet.</div>`}
         </div>
@@ -30238,11 +30457,11 @@ function renderDlrReportingWorkspace() {
         <div class="bonus-framework-stat"><div class="k">Retention</div><div class="v" style="font-size:1rem">${formatDlrPercent(report.renewalSnapshot?.retentionRate,0)}</div></div>
         <div class="bonus-framework-stat"><div class="k">Projected Attrition</div><div class="v" style="font-size:1rem">${formatDlrMetricValue(report.renewalSnapshot?.projectedAttrition)}</div></div>
         <div class="bonus-framework-stat"><div class="k">Move-In Goal / Week</div><div class="v" style="font-size:1rem">${formatDlrMetricValue(report.moveInGoalPerWeek)}</div></div>
-        <div class="bonus-framework-stat"><div class="k">Property Status</div><div class="v" style="font-size:1rem">${escapeHtml(report.status || "—")}</div></div>
       </div>
       <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:12px;margin-bottom:12px">
         <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
-          <div class="card-title" style="margin-bottom:8px">Activity Snapshot</div>
+          <div class="card-title" style="margin-bottom:4px">Month-to-Date Activity Snapshot</div>
+          <div style="font-size:0.64rem;color:var(--muted);margin-bottom:8px">Reporting Period: ${escapeHtml(report.reportingPeriodRangeLabel || report.reportPeriodLabel)}</div>
           ${renderDashboardDlrActivityMiniTable(report)}
         </div>
         <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
@@ -30254,18 +30473,8 @@ function renderDlrReportingWorkspace() {
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
-          <div class="card-title" style="margin-bottom:8px">Forward Look</div>
-          <div style="margin-bottom:10px">${buildDlrForwardLookChart(report)}</div>
-          <div style="display:grid;grid-template-columns:repeat(${Math.max(report.forwardLook.length,1)},1fr);gap:8px">
-            ${report.forwardLook.map(row => `<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">
-              <div style="font-size:0.68rem;font-weight:700;color:#4493f8">${escapeHtml(row.label)}</div>
-              <div style="font-size:0.64rem;color:var(--muted);margin-top:6px">Expirations ${formatDlrMetricValue(row.leaseExpirations)}</div>
-              <div style="font-size:0.64rem;color:var(--muted)">Pending outs ${formatDlrMetricValue(row.pendingMoveOuts)}</div>
-              <div style="font-size:0.64rem;color:var(--muted)">Pending ins ${formatDlrMetricValue(row.pendingMoveIns)}</div>
-              <div style="font-size:0.64rem;color:var(--muted)">Budget occ ${formatDlrPercent(row.budgetedOccupancy)}</div>
-              <div style="font-size:0.64rem;color:var(--muted)">Projected occ ${formatDlrPercent(row.projectedOccupancy)}</div>
-            </div>`).join("") || `<div style="font-size:0.68rem;color:var(--muted)">No forward-looking dashboard months are available yet.</div>`}
-          </div>
+          <div class="card-title" style="margin-bottom:8px">Forward Occupancy Trend</div>
+          ${buildDlrForwardOccupancyPanel(report)}
         </div>
         <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
@@ -30279,6 +30488,16 @@ function renderDlrReportingWorkspace() {
               <textarea id="${getDlrEditableNoteFieldId(section.key)}" rows="${section.key === "wins" ? 4 : 5}" onchange="persistDlrEditableNoteField(${JSON.stringify(section.key)}, this.value)" style="width:100%;min-height:${section.key === "wins" ? "96px" : "112px"};padding:10px 12px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2);color:var(--text);font:inherit;line-height:1.55;resize:vertical">${escapeHtml(report.editableNotes?.[section.key] || "")}</textarea>
             </label>`).join("")}
           </div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
+          <div class="card-title" style="margin-bottom:8px">Application Outcomes</div>
+          ${buildDlrApplicationOutcomeChart(report)}
+        </div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
+          <div class="card-title" style="margin-bottom:8px">Application Trend</div>
+          ${buildDlrApplicationTrendChart(report)}
         </div>
       </div>
     </div>
@@ -31171,6 +31390,50 @@ function computeProjectedEndingPhysicalOccupancy(record, totalUnits, startMonth,
   };
 }
 
+function buildDlrForwardLookRows(record, totalUnits, startMonth, year, options = {}) {
+  const monthEntries = getRecordMonthlyDataForYear(record, record?.reportYear);
+  const corporateUnits = normalizeCorporateLeaseUnits(record?.corporateLeaseUnits, totalUnits);
+  const occupancyBaseUnits = getOccupancyBaseUnits(totalUnits, corporateUnits);
+  const horizon = Math.max(1, Number(options.horizonMonths) || 4);
+  const startIdx = clampNumber(startMonth, 0, 11);
+  let runningComparableOccupied = getRecordComparableSnapshotUnits(record, totalUnits, startIdx, "occupiedSnapshot");
+  return MONTHS.map((_, idx) => idx)
+    .filter(idx => idx >= startIdx)
+    .slice(0, horizon)
+    .map((idx, offset) => {
+      const entry = monthEntries[idx] ?? {};
+      const renewals = getRenewalSummaryForMonth(entry);
+      const explicitSnapshot = Number(entry?.occupiedSnapshot ?? 0);
+      if (offset === 0) {
+        runningComparableOccupied = getRecordComparableSnapshotUnits(record, totalUnits, idx, "occupiedSnapshot");
+      } else if (explicitSnapshot > 0) {
+        runningComparableOccupied = getComparableOccupancyUnits(explicitSnapshot, corporateUnits);
+      } else {
+        runningComparableOccupied = Math.max(
+          runningComparableOccupied
+            - getEffectiveMoveOutsForMonth(idx, monthEntries).effective
+            + (Number(entry.moveIns) || 0),
+          0
+        );
+      }
+      if (occupancyBaseUnits > 0) {
+        runningComparableOccupied = Math.min(runningComparableOccupied, occupancyBaseUnits);
+      }
+      return {
+        monthIdx: idx,
+        label: formatDlrMonthYear(idx, year),
+        leaseExpirations: renewals.expirations,
+        mtm: renewals.undecided,
+        pendingMoveOuts: getEffectiveMoveOutsForMonth(idx, monthEntries).effective,
+        pendingMoveIns: Number(entry.moveIns) || 0,
+        budgetedOccupancy: getRecordSavedBudgetOccPct(record, idx, year),
+        projectedOccupancy: occupancyBaseUnits > 0 ? (runningComparableOccupied / occupancyBaseUnits) * 100 : 0,
+        projectedOccupiedUnits: runningComparableOccupied,
+        moveInsNeeded: 0
+      };
+    });
+}
+
 function formatDlrSignedNumber(value) {
   const numeric = Number(value) || 0;
   return numeric > 0 ? `+${numeric}` : `${numeric}`;
@@ -31281,9 +31544,9 @@ function buildDlrForwardLookChart(report) {
       <text x="${left - 8}" y="${tick.y + 4}" text-anchor="end" font-size="10" fill="#7d8590">${escapeHtml(formatDlrPercent(tick.value, 0))}</text>
     </g>`).join("")}
     <line x1="${left}" y1="${top + chartHeight}" x2="${width - right}" y2="${top + chartHeight}" stroke="#cbd5e1" stroke-width="1"/>
-    ${hasBudgetData ? `<polyline fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 4" points="${budgetPath}"/>` : ""}
-    ${hasMarketLine ? `<polyline fill="none" stroke="#0f766e" stroke-width="2" stroke-dasharray="3 3" points="${marketPath}"/>` : ""}
-    <polyline fill="none" stroke="#2563eb" stroke-width="3" points="${projectedPath}"/>
+    ${hasBudgetData ? `<polyline fill="none" stroke="#8da0b8" stroke-width="2" stroke-dasharray="5 4" points="${budgetPath}"/>` : ""}
+    ${hasMarketLine ? `<polyline fill="none" stroke="#1f8a78" stroke-width="2" stroke-dasharray="3 3" points="${marketPath}"/>` : ""}
+    <polyline fill="none" stroke="#0f4c81" stroke-width="3" points="${projectedPath}"/>
     ${budgetDots}
     ${marketDots}
     ${projectedDots}
@@ -31291,11 +31554,110 @@ function buildDlrForwardLookChart(report) {
     ${labels}
   </svg>
   <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:8px;font-size:11px;color:#475569">
-    ${hasBudgetData ? `<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:18px;height:0;border-top:2px dashed #94a3b8;display:inline-block"></span>Budget</span>` : ""}
-    <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:18px;height:0;border-top:3px solid #2563eb;display:inline-block"></span>Projected</span>
-    ${hasMarketLine ? `<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:18px;height:0;border-top:2px solid #0f766e;display:inline-block"></span>${escapeHtml(marketLegendLabel)}</span>` : ""}
+    ${hasBudgetData ? `<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:18px;height:0;border-top:2px dashed #8da0b8;display:inline-block"></span>Budget</span>` : ""}
+    <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:18px;height:0;border-top:3px solid #0f4c81;display:inline-block"></span>Projected</span>
+    ${hasMarketLine ? `<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:18px;height:0;border-top:2px solid #1f8a78;display:inline-block"></span>${escapeHtml(marketLegendLabel)}</span>` : ""}
   </div>
   ${hasMarketLine ? `<div style="font-size:11px;color:#64748b;margin-top:4px">${escapeHtml(marketBenchmarkNote)}</div>` : ""}`;
+}
+
+function buildDlrApplicationOutcomeChart(report, windowKey = reportingDlrApplicationWindow) {
+  const windows = report?.applicationWindows || {};
+  const metricSet = windows[windowKey] || windows.mtd || {};
+  const rows = [
+    { label: "Received", value: Number(metricSet.applications) || 0, color: "#0f4c81" },
+    { label: "Approved", value: Number(metricSet.approvals) || 0, color: "#1f8a78" },
+    { label: "Denied", value: Number(metricSet.denials) || 0, color: "#d97706" },
+    { label: "Cancelled", value: Number(metricSet.cancelled) || 0, color: "#dc2626" },
+    { label: "Pending", value: Number(metricSet.pendingDecision) || 0, color: "#7c3aed" }
+  ];
+  const maxValue = Math.max(1, ...rows.map(row => row.value));
+  return `<div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <div style="font-size:0.66rem;color:var(--muted)">Window: ${escapeHtml(windowKey.replace(/_/g, " "))}</div>
+      <select onchange="setReportingDlrApplicationWindow(this.value)" style="max-width:180px">
+        <option value="mtd" ${windowKey === "mtd" ? "selected" : ""}>MTD</option>
+        <option value="previous_month" ${windowKey === "previous_month" ? "selected" : ""}>Previous Month</option>
+        <option value="last_90_days" ${windowKey === "last_90_days" ? "selected" : ""}>Last 90 Days</option>
+        <option value="ytd" ${windowKey === "ytd" ? "selected" : ""}>YTD</option>
+      </select>
+    </div>
+    <div style="display:grid;gap:10px">
+      ${rows.map(row => `<div>
+        <div style="display:flex;justify-content:space-between;gap:12px;font-size:0.74rem;margin-bottom:4px">
+          <span>${escapeHtml(row.label)}</span>
+          <strong>${formatDlrMetricValue(row.value)}</strong>
+        </div>
+        <div style="height:10px;border-radius:999px;background:var(--bg2);overflow:hidden">
+          <div style="height:100%;width:${Math.max(0, Math.min((row.value / maxValue) * 100, 100))}%;background:${row.color};border-radius:999px"></div>
+        </div>
+      </div>`).join("")}
+    </div>
+  </div>`;
+}
+
+function buildDlrApplicationTrendChart(report) {
+  const rows = Array.isArray(report?.applicationTrendRows) ? report.applicationTrendRows : [];
+  if (!rows.length) {
+    return `<div style="font-size:0.68rem;color:var(--muted)">Save additional months of application data to unlock the month-over-month trend.</div>`;
+  }
+  const current = rows[rows.length - 1] || { applications: 0 };
+  const previous = rows[rows.length - 2] || { applications: 0 };
+  const delta = (Number(current.applications) || 0) - (Number(previous.applications) || 0);
+  const pctDelta = Number(previous.applications) > 0 ? (delta / Number(previous.applications)) * 100 : null;
+  const direction = delta > 0 ? "Increasing" : delta < 0 ? "Decreasing" : "Flat";
+  const directionSymbol = delta > 0 ? "↑" : delta < 0 ? "↓" : "→";
+  const maxValue = Math.max(1, ...rows.map(row => Number(row.applications) || 0));
+  return `<div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <div>
+        <div style="font-size:0.78rem;font-weight:700;color:var(--text)">${escapeHtml(current.shortLabel)}: ${formatDlrMetricValue(current.applications)} applications</div>
+        <div style="font-size:0.66rem;color:var(--muted);margin-top:4px">${escapeHtml(rows.length > 1 ? `${previous.shortLabel}: ${formatDlrMetricValue(previous.applications)} · Change ${delta >= 0 ? "+" : ""}${delta}${pctDelta !== null ? ` / ${pctDelta >= 0 ? "+" : ""}${pctDelta.toFixed(1)}%` : ""}` : "First saved month in trend history.")}</div>
+      </div>
+      <div style="font-size:0.74rem;font-weight:700;color:${delta > 0 ? "#15803d" : delta < 0 ? "#dc2626" : "var(--muted)"}">${directionSymbol} ${direction}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(${rows.length},minmax(0,1fr));gap:8px;align-items:end;min-height:170px">
+      ${rows.map(row => {
+        const value = Number(row.applications) || 0;
+        const height = Math.max(8, (value / maxValue) * 120);
+        return `<div style="display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px">
+          <div style="font-size:0.68rem;font-weight:700;color:var(--text)">${formatDlrMetricValue(value)}</div>
+          <div style="width:100%;max-width:58px;height:${height}px;background:linear-gradient(180deg,#0f4c81 0%,#1f8a78 100%);border-radius:10px 10px 4px 4px"></div>
+          <div style="font-size:0.62rem;color:var(--muted);text-align:center">${escapeHtml(row.shortLabel)}</div>
+        </div>`;
+      }).join("")}
+    </div>
+  </div>`;
+}
+
+function buildDlrForwardOccupancyPanel(report) {
+  const points = buildDlrForwardOccupancyTrendPoints(report);
+  if (points.length <= 1) {
+    return `<div style="font-size:0.68rem;color:var(--muted)">Projected occupancy will appear here once future move-ins and move-outs are saved.</div>`;
+  }
+  const maxPct = Math.max(100, ...points.map(point => Math.max(Number(point.projectedOccupancy) || 0, Number(point.budgetedOccupancy) || 0)));
+  return `<div>
+    <div style="margin-bottom:10px">${buildCommunityProgressDualLineChart(points, {
+      kind: "pct",
+      minClamp: 0,
+      maxClampMinimum: maxPct,
+      showPointLabels: true,
+      series: [
+        { key: "budgetedOccupancy", label: "Budget", lineColor: "#94a3b8", dotColor: "#94a3b8", dash: "5 4" },
+        { key: "projectedOccupancy", label: "Projected physical occupancy", lineColor: "#0f4c81", dotColor: "#0f4c81" }
+      ],
+      pointLabelFormatter: value => formatDlrPercent(value, 1),
+      axisFormatter: value => formatDlrPercent(value, 0)
+    })}</div>
+    <div style="display:grid;grid-template-columns:repeat(${points.length},minmax(0,1fr));gap:8px">
+      ${points.map(point => `<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">
+        <div style="font-size:0.68rem;font-weight:700;color:#4493f8">${escapeHtml(point.monthLabel)}</div>
+        <div style="font-size:0.64rem;color:var(--muted);margin-top:6px">Projected occ ${formatDlrPercent(point.projectedOccupancy)}</div>
+        <div style="font-size:0.64rem;color:var(--muted)">Scheduled ins ${formatDlrMetricValue(point.moveIns)}</div>
+        <div style="font-size:0.64rem;color:var(--muted)">Scheduled outs ${formatDlrMetricValue(point.moveOuts)}</div>
+      </div>`).join("")}
+    </div>
+  </div>`;
 }
 
 function buildDlrOccupancyPositionChart(report) {
@@ -31762,18 +32124,77 @@ function buildDlrEmailPlainTextBody(report) {
   ].join("\n");
 }
 
-function getDlrInvestorRecipientLine(report) {
-  const record = getPersistedCommunityRecordForScope(report?.communityName || getHistoricalImportCommunityName());
-  return normalizeEmailListInput(
-    normalizeInvestorEmailContacts(record?.investorEmailContacts)
-      .map(entry => entry.email)
-      .filter(Boolean)
-      .join("; ")
-  );
+function getDlrInternalRecipientRoleOptions() {
+  return [
+    { key: "general_manager", label: "General Manager" },
+    { key: "regional_manager", label: "Regional Manager" }
+  ];
 }
 
-function getInvestorRecipientCountForCommunity(propName) {
-  return normalizeInvestorEmailContacts(getPersistedCommunityRecordForScope(propName)?.investorEmailContacts).filter(entry => entry.email).length;
+function getDlrInvestorRecipientsForCommunity(propName) {
+  return normalizeInvestorEmailContacts(getPersistedCommunityRecordForScope(propName)?.investorEmailContacts)
+    .filter(entry => entry.email);
+}
+
+function resolveDlrRoleRecipientEntries(propName, settings = {}) {
+  const record = getPersistedCommunityRecordForScope(propName, { allowCurrentFallback: true });
+  if (!record) return [];
+  const normalized = normalizeDlrDeliverySettings(settings);
+  const wanted = new Set(Array.isArray(normalized.roleRecipients) ? normalized.roleRecipients : []);
+  const entries = [];
+  if (wanted.has("general_manager") && record.generalManagerEmail) {
+    entries.push({
+      type: "role",
+      roleKey: "general_manager",
+      label: "General Manager",
+      email: atlasNormalizeSharedEmail(record.generalManagerEmail),
+      name: String(record.generalManagerName || "General Manager").trim()
+    });
+  }
+  if (wanted.has("regional_manager") && record.regionalManagerEmail) {
+    entries.push({
+      type: "role",
+      roleKey: "regional_manager",
+      label: "Regional Manager",
+      email: atlasNormalizeSharedEmail(record.regionalManagerEmail),
+      name: String(record.regionalManagerName || "Regional Manager").trim()
+    });
+  }
+  return entries.filter(entry => entry.email);
+}
+
+function resolveDlrRecipientsForCommunity(propName, settings = {}) {
+  const normalized = normalizeDlrDeliverySettings(settings);
+  const recipients = [];
+  if (normalized.toInvestorContacts) {
+    getDlrInvestorRecipientsForCommunity(propName).forEach(entry => {
+      recipients.push({
+        type: "investor",
+        label: entry.name || "Investor Contact",
+        email: entry.email,
+        name: entry.name || entry.email
+      });
+    });
+  }
+  resolveDlrRoleRecipientEntries(propName, normalized).forEach(entry => recipients.push(entry));
+  const unique = new Map();
+  recipients.forEach(entry => {
+    const email = atlasNormalizeSharedEmail(entry?.email);
+    if (!email) return;
+    if (!unique.has(email)) unique.set(email, { ...entry, email });
+  });
+  return [...unique.values()];
+}
+
+function getDlrInvestorRecipientLine(report, settings = null) {
+  const communityName = report?.communityName || getHistoricalImportCommunityName();
+  const resolvedSettings = settings || getDlrDeliverySettingsForCommunity(communityName);
+  return normalizeEmailListInput(resolveDlrRecipientsForCommunity(communityName, resolvedSettings).map(entry => entry.email).join("; "));
+}
+
+function getInvestorRecipientCountForCommunity(propName, settings = null) {
+  const resolvedSettings = settings || getDlrDeliverySettingsForCommunity(propName);
+  return resolveDlrRecipientsForCommunity(propName, resolvedSettings).length;
 }
 
 function getDlrDeliverySettingsForCommunity(propName) {
@@ -31794,64 +32215,258 @@ function persistDlrDeliverySettingsForCommunity(propName, nextSettings = {}) {
 function updateDlrDeliverySetting(propName, field, value) {
   const nextSettings = { [field]: value };
   persistDlrDeliverySettingsForCommunity(propName, nextSettings);
+  renderTab();
+}
+
+function updateDlrDeliveryRoleRecipient(propName, roleKey, enabled) {
+  const current = getDlrDeliverySettingsForCommunity(propName);
+  const nextRoles = new Set(Array.isArray(current.roleRecipients) ? current.roleRecipients : []);
+  if (enabled) nextRoles.add(roleKey);
+  else nextRoles.delete(roleKey);
+  persistDlrDeliverySettingsForCommunity(propName, { roleRecipients: [...nextRoles] });
+  renderTab();
+}
+
+function updateDlrSelectedWeekday(propName, weekday, enabled) {
+  const current = getDlrDeliverySettingsForCommunity(propName);
+  const nextDays = new Set(Array.isArray(current.selectedWeekdays) ? current.selectedWeekdays : []);
+  if (enabled) nextDays.add(weekday);
+  else nextDays.delete(weekday);
+  persistDlrDeliverySettingsForCommunity(propName, { selectedWeekdays: [...nextDays] });
+  renderTab();
+}
+
+function formatDlrTimeLabel(value = "") {
+  const text = String(value || "").trim();
+  if (!/^\d{2}:\d{2}$/.test(text)) return "Not set";
+  const [hourText, minuteText] = text.split(":");
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return text;
+  const period = hour >= 12 ? "PM" : "AM";
+  const displayHour = ((hour + 11) % 12) + 1;
+  return `${displayHour}:${String(minute).padStart(2, "0")} ${period}`;
+}
+
+function getDlrDeliveryFrequencyLabel(settings = {}) {
+  const normalized = normalizeDlrDeliverySettings(settings);
+  if (normalized.frequencyMode === "daily") return "Daily";
+  if (normalized.frequencyMode === "weekly") return `Weekly (${normalized.weeklySendDay.charAt(0).toUpperCase()}${normalized.weeklySendDay.slice(1)})`;
+  if (normalized.frequencyMode === "selected_days") {
+    return normalized.selectedWeekdays.length
+      ? `Selected days (${normalized.selectedWeekdays.map(day => day.charAt(0).toUpperCase() + day.slice(1, 3)).join(", ")})`
+      : "Selected days";
+  }
+  if (normalized.frequencyMode === "daily_and_weekly") return `Daily + Weekly (${normalized.weeklySendDay.charAt(0).toUpperCase()}${normalized.weeklySendDay.slice(1)})`;
+  return "Manual only";
 }
 
 function getDlrDeliveryCadenceLabel(settings = {}) {
   const normalized = normalizeDlrDeliverySettings(settings);
-  const parts = [];
-  if (normalized.dailyEnabled) parts.push("Daily");
-  if (normalized.weeklyEnabled) parts.push(`Weekly (${normalized.weeklySendDay.charAt(0).toUpperCase()}${normalized.weeklySendDay.slice(1)})`);
-  return parts.length ? parts.join(" · ") : "Manual only";
+  return `${getDlrDeliveryFrequencyLabel(normalized)} · ${normalized.automationMode === "fully_automated"
+    ? "Fully automated"
+    : normalized.automationMode === "approval_required"
+      ? "Draft + approval required"
+      : "Draft only"}`;
+}
+
+function doesDlrScheduleIncludeWeekday(settings = {}, weekday = getDlrDeliveryWeekday(new Date())) {
+  const normalized = normalizeDlrDeliverySettings(settings);
+  if (normalized.frequencyMode === "manual") return false;
+  if (normalized.frequencyMode === "daily") return true;
+  if (normalized.frequencyMode === "weekly") return normalized.weeklySendDay === weekday;
+  if (normalized.frequencyMode === "selected_days") return normalized.selectedWeekdays.includes(weekday);
+  if (normalized.frequencyMode === "daily_and_weekly") return true;
+  return false;
+}
+
+function buildDlrDeliveryTimestamp(referenceDate = new Date(), timeValue = "08:00") {
+  const date = referenceDate instanceof Date ? new Date(referenceDate.getTime()) : new Date(referenceDate);
+  if (Number.isNaN(date.getTime())) return null;
+  const [hourText, minuteText] = String(timeValue || "").split(":");
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  date.setHours(Number.isFinite(hour) ? hour : 8, Number.isFinite(minute) ? minute : 0, 0, 0);
+  return date;
+}
+
+function getDlrNextScheduledOccurrence(settings = {}, referenceDate = new Date(), stage = "generate") {
+  const normalized = normalizeDlrDeliverySettings(settings);
+  if (normalized.frequencyMode === "manual") return null;
+  const targetTime = stage === "send" ? normalized.sendTime : normalized.generateTime;
+  for (let offset = 0; offset < 14; offset += 1) {
+    const probe = new Date(referenceDate.getTime());
+    probe.setHours(12, 0, 0, 0);
+    probe.setDate(probe.getDate() + offset);
+    const weekday = getDlrDeliveryWeekday(probe);
+    if (!doesDlrScheduleIncludeWeekday(normalized, weekday)) continue;
+    if (!normalized.sendOnWeekends && (weekday === "saturday" || weekday === "sunday")) continue;
+    const candidate = buildDlrDeliveryTimestamp(probe, targetTime);
+    if (!candidate) continue;
+    if (offset === 0 && candidate.getTime() < referenceDate.getTime()) continue;
+    return candidate;
+  }
+  return null;
+}
+
+function formatDlrScheduleTimestamp(value = "") {
+  const text = String(value || "").trim();
+  if (!text) return "Not yet";
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return text;
+  return date.toLocaleString();
 }
 
 function isDlrDailyDeliveryDue(settings = {}, referenceDate = new Date()) {
   const normalized = normalizeDlrDeliverySettings(settings);
   const todayIso = getDlrDeliveryTodayIso(referenceDate);
-  return Boolean(normalized.dailyEnabled && todayIso && normalized.lastDailyDraftDate !== todayIso);
+  if (!todayIso) return false;
+  if (!(normalized.frequencyMode === "daily" || normalized.frequencyMode === "daily_and_weekly")) return false;
+  const generateAt = buildDlrDeliveryTimestamp(referenceDate, normalized.generateTime);
+  return Boolean(generateAt && referenceDate.getTime() >= generateAt.getTime() && normalized.lastDailyDraftDate !== todayIso);
 }
 
 function isDlrWeeklyDeliveryDue(settings = {}, referenceDate = new Date()) {
   const normalized = normalizeDlrDeliverySettings(settings);
   const weekKey = getDlrDeliveryWeekKey(referenceDate);
+  const generateAt = buildDlrDeliveryTimestamp(referenceDate, normalized.generateTime);
   return Boolean(
-    normalized.weeklyEnabled &&
+    generateAt &&
+    referenceDate.getTime() >= generateAt.getTime() &&
+    (normalized.frequencyMode === "weekly" || normalized.frequencyMode === "daily_and_weekly") &&
     weekKey &&
     normalized.weeklySendDay === getDlrDeliveryWeekday(referenceDate) &&
     normalized.lastWeeklyDraftWeek !== weekKey
   );
 }
 
-function markDlrDeliveryTriggered(propName, cadence = "", referenceDate = new Date()) {
+function isDlrSelectedDayDeliveryDue(settings = {}, referenceDate = new Date()) {
+  const normalized = normalizeDlrDeliverySettings(settings);
+  if (normalized.frequencyMode !== "selected_days") return false;
+  const weekday = getDlrDeliveryWeekday(referenceDate);
+  const todayIso = getDlrDeliveryTodayIso(referenceDate);
+  const generateAt = buildDlrDeliveryTimestamp(referenceDate, normalized.generateTime);
+  return Boolean(
+    todayIso &&
+    generateAt &&
+    referenceDate.getTime() >= generateAt.getTime() &&
+    normalized.selectedWeekdays.includes(weekday) &&
+    normalized.lastDailyDraftDate !== todayIso
+  );
+}
+
+function markDlrDeliveryTriggered(propName, cadence = "", referenceDate = new Date(), options = {}) {
   const matchedName = matchPropertyName(propName, { fallbackToCurrent: false }) || propName;
   const currentSettings = getDlrDeliverySettingsForCommunity(matchedName);
+  const markSent = options.markSent === true;
+  const nowIso = new Date().toISOString();
   const nextSettings = {
     ...currentSettings,
-    lastTriggeredAt: new Date().toISOString()
+    lastTriggeredAt: nowIso,
+    lastGeneratedAt: nowIso,
+    lastStatus: markSent ? "sent" : (currentSettings.automationMode === "approval_required" ? "awaiting_approval" : "generated"),
+    lastStatusDetail: markSent
+      ? "Delivery action triggered from the ATLAS DLR queue."
+      : (currentSettings.automationMode === "approval_required"
+        ? "DLR drafted and waiting for approval before send."
+        : "DLR drafted from the saved ATLAS delivery schedule."),
+    pendingApproval: !markSent && currentSettings.automationMode === "approval_required",
+    pendingApprovalAt: !markSent && currentSettings.automationMode === "approval_required" ? nowIso : ""
   };
   if (cadence === "daily") nextSettings.lastDailyDraftDate = getDlrDeliveryTodayIso(referenceDate);
   if (cadence === "weekly") nextSettings.lastWeeklyDraftWeek = getDlrDeliveryWeekKey(referenceDate);
+  if (markSent) {
+    nextSettings.lastSentAt = nowIso;
+    if (cadence === "daily") nextSettings.lastDailySentDate = getDlrDeliveryTodayIso(referenceDate);
+    if (cadence === "weekly") nextSettings.lastWeeklySentWeek = getDlrDeliveryWeekKey(referenceDate);
+  }
   persistDlrDeliverySettingsForCommunity(matchedName, nextSettings);
 }
 
 function buildDlrDeliveryQueue(monthIdx = getReportHubMonthIndex(), year = getReportHubYear(), referenceDate = new Date()) {
-  return getReportableCommunityNames(monthIdx)
+  const queue = getReportableCommunityNames(monthIdx)
     .map(name => {
       const report = buildDashboardDlrInvestorOverview(name, monthIdx, year);
-      const recipients = normalizeInvestorEmailContacts(getPersistedCommunityRecordForScope(name)?.investorEmailContacts).filter(entry => entry.email);
       const settings = getDlrDeliverySettingsForCommunity(name);
+      const recipients = resolveDlrRecipientsForCommunity(name, settings);
       const dueCadences = [];
       if (isDlrDailyDeliveryDue(settings, referenceDate)) dueCadences.push("daily");
       if (isDlrWeeklyDeliveryDue(settings, referenceDate)) dueCadences.push("weekly");
+      if (isDlrSelectedDayDeliveryDue(settings, referenceDate)) dueCadences.push("selected_days");
+      const missingReasons = [];
+      if (settings.frequencyMode === "manual") missingReasons.push("No delivery schedule has been configured.");
+      if (!recipients.length) missingReasons.push("No investor or role-based recipients are configured.");
+      if (report && !settings.sendWithoutBoxScore && !isDlrDailyBoxScoreReady(report)) {
+        missingReasons.push("Today's box score is missing and this community is set to wait for a same-day upload.");
+      }
+      const criticalMissing = report
+        ? [
+            Number(report.trafficMetrics?.applications ?? 0),
+            Number(report.trafficMetrics?.guestCards ?? 0),
+            Number(report.trafficMetrics?.tours ?? 0),
+            Number(report.occupancyPct ?? 0),
+            Number(report.leasedPct ?? 0)
+          ].every(value => !Number.isFinite(value) || value === 0)
+        : true;
+      if (criticalMissing) missingReasons.push("Required operating data is still sparse for this DLR.");
+      const nextGenerateAt = getDlrNextScheduledOccurrence(settings, referenceDate, "generate");
+      const nextSendAt = getDlrNextScheduledOccurrence(settings, referenceDate, "send");
+      const generatedToday = settings.lastDailyDraftDate === getDlrDeliveryTodayIso(referenceDate);
+      let status = "scheduled_later";
+      let statusLabel = "Scheduled later";
+      let why = nextGenerateAt
+        ? `Next scheduled delivery is ${nextGenerateAt.toLocaleString()}.`
+        : "No delivery schedule has been configured.";
+      if (settings.frequencyMode === "manual") {
+        status = "manual_only";
+        statusLabel = "Manual only";
+      } else if (!recipients.length) {
+        status = "missing_recipients";
+        statusLabel = "Missing recipients";
+        why = "No investor recipients or role-based contacts are currently configured.";
+      } else if (settings.pendingApproval) {
+        status = "awaiting_approval";
+        statusLabel = "Awaiting approval";
+        why = settings.lastStatusDetail || "The DLR draft is waiting for an authorized approval step.";
+      } else if (missingReasons.length && settings.requireApprovalIfCritical && criticalMissing) {
+        status = "missing_data";
+        statusLabel = "Missing data";
+        why = missingReasons[0];
+      } else if (dueCadences.length > 0) {
+        status = settings.automationMode === "approval_required"
+          ? "ready_for_approval"
+          : "ready_to_generate";
+        statusLabel = settings.automationMode === "approval_required" ? "Ready for approval queue" : "Ready to generate";
+        why = settings.automationMode === "fully_automated"
+          ? "ATLAS can generate the next DLR now and prepare delivery."
+          : "ATLAS can generate the next DLR now from the saved schedule.";
+      } else if (generatedToday) {
+        status = "generated_today";
+        statusLabel = "Generated today";
+        why = settings.lastStatusDetail || "The daily DLR has already been generated for today.";
+      } else if (settings.lastSentAt) {
+        status = "delivered";
+        statusLabel = "Delivered";
+        why = `Last delivery action was ${formatDlrScheduleTimestamp(settings.lastSentAt)}.`;
+      }
       return {
         communityName: name,
         report,
         recipientCount: recipients.length,
         recipients,
         settings,
-        dueCadences
+        dueCadences: Array.from(new Set(dueCadences)),
+        nextGenerateAt: nextGenerateAt ? nextGenerateAt.toISOString() : "",
+        nextSendAt: nextSendAt ? nextSendAt.toISOString() : "",
+        status,
+        statusLabel,
+        why,
+        missingReasons
       };
     })
-    .filter(item => item.report && item.recipientCount > 0);
+    .filter(item => item.report);
+  const order = ["ready_to_generate", "ready_for_approval", "awaiting_approval", "missing_data", "missing_recipients", "scheduled_later", "generated_today", "delivered", "manual_only"];
+  return queue.sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status) || a.communityName.localeCompare(b.communityName));
 }
 
 async function copyDlrEmailAssetsToClipboard(report) {
@@ -31881,13 +32496,16 @@ async function draftDlrOutlookEmail(options = {}) {
   const report = buildDashboardDlrInvestorOverview(communityName, monthIdx, year);
   if (!report) return;
   const toLine = getDlrInvestorRecipientLine(report);
-  const ccLine = getDlrDeliverySettingsForCommunity(report.communityName).cc;
+  const deliverySettings = getDlrDeliverySettingsForCommunity(report.communityName);
+  const ccLine = deliverySettings.cc;
   const copiedRichContent = await copyDlrEmailAssetsToClipboard(report).catch(() => false);
   const subject = `ATLAS RISE DLR Investor Overview | ${report.communityName} | ${report.reportDateLabel || report.reportMonthLabel}`;
   const body = copiedRichContent ? "" : buildDlrEmailPlainTextBody(report);
   openOutlookComposeDraft({ to: toLine, cc: ccLine, subject, body });
-  if (cadence === "daily" || cadence === "weekly") {
-    markDlrDeliveryTriggered(report.communityName, cadence);
+  if (cadence === "daily" || cadence === "weekly" || cadence === "selected_days") {
+    markDlrDeliveryTriggered(report.communityName, cadence === "selected_days" ? "daily" : cadence, new Date(), {
+      markSent: deliverySettings.automationMode === "fully_automated"
+    });
   }
   setTimeout(() => {
     const cadenceLabel = cadence ? `${cadence} ` : "";
@@ -31900,9 +32518,12 @@ async function draftDlrOutlookEmail(options = {}) {
 function runDlrDeliveryQueue() {
   const monthIdx = getReportHubMonthIndex();
   const year = getReportHubYear();
-  const dueItems = buildDlrDeliveryQueue(monthIdx, year).filter(item => item.dueCadences.length > 0);
+  const dueItems = buildDlrDeliveryQueue(monthIdx, year).filter(item => item.status === "ready_to_generate" || item.status === "ready_for_approval");
   if (!dueItems.length) {
-    alert("No DLR deliveries are currently due from the saved ATLAS delivery settings.");
+    const nextBlocked = buildDlrDeliveryQueue(monthIdx, year)[0] || null;
+    alert(nextBlocked
+      ? `No DLR deliveries are currently due. ${nextBlocked.communityName}: ${nextBlocked.why}`
+      : "No DLR deliveries are currently due from the saved ATLAS delivery settings.");
     return;
   }
   dueItems.forEach((item, idx) => {
@@ -32028,7 +32649,7 @@ function hasMeaningfulDlrSummary(summary) {
   return false;
 }
 
-function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommunityName(), monthIdx = getHistoricalImportMonthIndex(), year = getHistoricalImportYear()) {
+function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(), monthIdx = getHistoricalImportMonthIndex(), year = getHistoricalImportYear()) {
   const communityName = matchPropertyName(propName, { fallbackToCurrent: false }) || getProp().name;
   const normalizedMonthIdx = clampNumber(monthIdx, 0, 11);
   const workbookOverlay = getDlrWorkbookOverlayForCommunity(communityName, normalizedMonthIdx, year);
@@ -32084,12 +32705,14 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
   const scopeSeasonal = Array.isArray(record.seasonal) && record.seasonal.length === 12 ? record.seasonal : [...DEFAULT_SEASONAL];
   const scopeCurrentMonth = Number.isInteger(record.currentMonth) ? record.currentMonth : DEFAULT_CURRENT_MONTH;
   const reportMetricMonthIdx = normalizedMonthIdx;
+  const reportSummaryOccupiedRaw = Number.isFinite(Number(reportSummary.occupiedRaw)) ? Math.max(0, Number(reportSummary.occupiedRaw)) : null;
+  const reportSummaryLeasedRaw = Number.isFinite(Number(reportSummary.leasedRaw)) ? Math.max(0, Number(reportSummary.leasedRaw)) : null;
   const savedReportAnchorOccupiedUnits = reportMetricMonthIdx === scopeCurrentMonth
-    ? Math.max(0, Number(record.currentOccupied) || 0)
-    : estimateSnapshotUnitsForRecordMonth(scopedRecord, totalUnits, reportMetricMonthIdx, "occupiedSnapshot");
+    ? Math.max(0, Number(record.currentOccupied) || reportSummaryOccupiedRaw || 0)
+    : (reportSummaryOccupiedRaw ?? estimateSnapshotUnitsForRecordMonth(scopedRecord, totalUnits, reportMetricMonthIdx, "occupiedSnapshot"));
   const savedReportAnchorLeasedUnits = reportMetricMonthIdx === scopeCurrentMonth
-    ? Math.max(0, Number(record.currentLeased) || 0)
-    : estimateSnapshotUnitsForRecordMonth(scopedRecord, totalUnits, reportMetricMonthIdx, "leasedSnapshot");
+    ? Math.max(0, Number(record.currentLeased) || reportSummaryLeasedRaw || 0)
+    : (reportSummaryLeasedRaw ?? estimateSnapshotUnitsForRecordMonth(scopedRecord, totalUnits, reportMetricMonthIdx, "leasedSnapshot"));
   const reportAnchorOccupiedUnits = dailyBoxScoreOccupiedUnits ?? savedReportAnchorOccupiedUnits;
   const reportAnchorLeasedUnits = dailyBoxScoreLeasedUnits ?? savedReportAnchorLeasedUnits;
   const schedule = computeScheduleFromContext({
@@ -32114,25 +32737,11 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
   const monthLeadSources = getLeadSourceBreakdown(monthEntry);
   const leadSourceTotal = getLeadSourceTotal(monthEntry);
   const scheduleRow = schedule[reportMetricMonthIdx] ?? {};
-  const scheduledNextRows = MONTHS.map((_, idx) => idx)
-    .filter(idx => idx >= reportMetricMonthIdx)
-    .slice(0, 4)
-    .map(idx => {
-      const entry = scopeMonthlyData[idx] ?? {};
-      const row = schedule[idx] ?? {};
-      const renewals = getRenewalSummaryForMonth(entry);
-      return {
-        monthIdx: idx,
-        label: formatDlrMonthYear(idx, year),
-        leaseExpirations: renewals.expirations,
-        mtm: renewals.undecided,
-        pendingMoveOuts: getEffectiveMoveOutsForMonth(idx, scopeMonthlyData).effective,
-        pendingMoveIns: Number(entry.moveIns) || 0,
-        budgetedOccupancy: getRecordSavedBudgetOccPct(record, idx, year),
-        projectedOccupancy: Number(row.occPct) || 0,
-        moveInsNeeded: Number(row.netOccLeases) || 0
-      };
-    });
+  const scheduledNextRows = buildDlrForwardLookRows(scopedRecord, totalUnits, reportMetricMonthIdx, year, { horizonMonths: 4 })
+    .map(row => ({
+      ...row,
+      moveInsNeeded: Number((schedule[row.monthIdx] ?? {}).netOccLeases) || 0
+    }));
   const summaryForwardLook = effectiveDlrSummary.forwardLook;
   const summaryNextRows = Array.isArray(summaryForwardLook.months) && summaryForwardLook.months.length > 0
     ? summaryForwardLook.months.slice(0, 4).map((label, idx) => ({
@@ -32278,15 +32887,27 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
   const floorPlanRentMetrics = getCommunityFloorPlanRentMetrics(record, surveyData);
   const resolvedAvgInPlaceRent = pickDlrDisplayMetricValue(
     monthEntry.marketRent,
+    reportSummary.marketRent,
     floorPlanRentMetrics.marketRent,
     effectiveDlrSummary.pricing?.avgInPlaceRent
   );
   const resolvedAvgBudgetRent = pickDlrDisplayMetricValue(
     monthEntry.proformaRent,
+    reportSummary.proformaRent,
     floorPlanRentMetrics.budgetRent,
     effectiveDlrSummary.pricing?.avgBudgetRent
   );
+  const rawConcessionsValue = Number(monthEntry.concessions) || 0;
+  const resolvedConcessionPerUnit = rawConcessionsValue > 0
+    ? (resolvedAvgBudgetRent > 0 && rawConcessionsValue <= resolvedAvgBudgetRent * 1.5
+      ? rawConcessionsValue
+      : (occupiedUnits > 0 ? rawConcessionsValue / occupiedUnits : 0))
+    : 0;
+  const budgetDrivenNetEffectiveRent = resolvedAvgBudgetRent > 0
+    ? Math.max(resolvedAvgBudgetRent - resolvedConcessionPerUnit, 0)
+    : null;
   const resolvedAvgNetEffectiveRent = pickDlrDisplayMetricValue(
+    budgetDrivenNetEffectiveRent,
     reportSummary.currentNer,
     currentNer,
     effectiveDlrSummary.pricing?.avgNetEffectiveRent
@@ -32445,6 +33066,15 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
     ? (dailyBoxScore.reportDateLabel || effectiveDlrSummary.reportDateLabel)
     : effectiveDlrSummary.reportDateLabel;
   const reportPeriodLabel = reportDateLabel || effectiveDlrSummary.reportPeriodLabel || `${formatDlrMonthYear(reportMetricMonthIdx, year)} operating snapshot`;
+  const reportingPeriodRangeLabel = buildDlrReportingPeriodRangeLabel(reportMetricMonthIdx, year, reportDateIso);
+  const applicationWindows = buildDlrApplicationWindows(record, reportMetricMonthIdx, year, {
+    applications: resolvedMtdTraffic.applications,
+    approvals: resolvedMtdTraffic.approvals,
+    denials: resolvedMtdTraffic.denials,
+    cancelled: resolvedMtdTraffic.cancelled,
+    pendingDecision: resolvedMtdTraffic.pendingDecision
+  });
+  const applicationTrendRows = buildDlrApplicationTrendRows(record, reportMetricMonthIdx, year, resolvedMtdTraffic.applications);
   const baseReport = {
     communityName,
     communityId: String(workbookOverlay?.communityId || "").trim(),
@@ -32453,6 +33083,7 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
     reportYear: year,
     reportMonthLabel: formatDlrMonthYear(reportMetricMonthIdx, year),
     reportPeriodLabel,
+    reportingPeriodRangeLabel,
     reportDateIso,
     reportDateLabel,
     generatedAt: new Date(),
@@ -32471,6 +33102,7 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
       ...resolvedMtdTraffic,
       sourceMode: reportTrafficSourceMode
     },
+    previousTrafficMetrics: prevMonthTraffic,
     dailyTraffic,
     pricing: {
       totalUnits,
@@ -32499,12 +33131,14 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
     },
     dailyBoxScoreSourceFile: dailyBoxScore.sourceFileName || "",
     dailyBoxScoreImportedAt: dailyBoxScore.importedAt || "",
+    applicationWindows,
+    applicationTrendRows,
     notes,
     editableNotes: resolvedNoteState.editorValues,
     marketing,
     communityPhotoAsset: primaryCommunityPhotoAsset,
     communityPhotoPreviewSrc: String(primaryCommunityPhotoAsset?.previewSrc || primaryCommunityPhotoAsset?.src || ""),
-    sourceSummary: `${communityName} · ${reportPeriodLabel} · ${hasMatchingDailyBoxScore ? "today's leasing activity imported from box score with month-to-date metrics sourced from ATLAS RISE" : (hasMatchingDlrSummary ? "month-to-date report sections sourced from the uploaded DLR summary" : "generated from ATLAS RISE saved month-to-date data")}`,
+    sourceSummary: `${communityName} · ${reportPeriodLabel} · ${hasMatchingDailyBoxScore ? "daily box score overlay applied while month-to-date metrics stay sourced from ATLAS RISE" : (hasMatchingDlrSummary ? "month-to-date report sections sourced from the uploaded DLR summary" : "generated from ATLAS RISE saved month-to-date data")}`,
     dataAvailability: {
       pricingReady: pricingDataReady,
       renewalReady: hasRenewalSnapshotData,
@@ -32525,79 +33159,75 @@ function buildDashboardDlrInvestorOverview(propName = getHistoricalImportCommuni
       compAverageLeasedPct: Number(surveyData.compAverageLeasedPct) || 0,
       compAverageExposurePct: Number(surveyData.compAverageExposurePct) || 0,
       subjectOccPct: Number(surveyData.subjectOccPct) || 0
-    }
+    },
+    rawMonthEntry: monthEntry
   };
   return workbookOverlay ? applyWorkbookOverlayToDlrReport(baseReport, workbookOverlay) : baseReport;
 }
 
 function renderDashboardDlrActivityMiniTable(report) {
-  const reportDateLabel = report.reportDateLabel || report.reportPeriodLabel || report.reportMonthLabel;
-  const today = report.dailyTraffic || {};
   const mtd = report.trafficMetrics || {};
+  const previous = report.previousTrafficMetrics || {};
+  const deltaText = (currentValue, previousValue, noun) => {
+    if (!Number.isFinite(Number(previousValue))) return "";
+    const delta = (Number(currentValue) || 0) - (Number(previousValue) || 0);
+    if (delta > 0) return `, up ${Math.abs(delta)} ${noun}${Math.abs(delta) === 1 ? "" : "s"} versus the prior month`;
+    if (delta < 0) return `, down ${Math.abs(delta)} ${noun}${Math.abs(delta) === 1 ? "" : "s"} versus the prior month`;
+    return ", flat versus the prior month";
+  };
   const rows = [
     {
       label: "Walk In",
-      today: today.walkIn,
       mtd: mtd.walkIn,
-      sub: `${formatDlrMetricValue(today.walkIn)} walk-in lead${Number(today.walkIn) === 1 ? "" : "s"} on ${reportDateLabel}`
+      sub: `${formatDlrMetricValue(mtd.walkIn)} walk-in lead${Number(mtd.walkIn) === 1 ? "" : "s"} month to date${deltaText(mtd.walkIn, previous.walkIn, "walk-in lead")}`
     },
     {
       label: "Off Site Event",
-      today: today.offSiteEvent,
       mtd: mtd.offSiteEvent,
-      sub: `${formatDlrMetricValue(today.offSiteEvent)} off-site event lead${Number(today.offSiteEvent) === 1 ? "" : "s"} on ${reportDateLabel}`
+      sub: `${formatDlrMetricValue(mtd.offSiteEvent)} off-site event lead${Number(mtd.offSiteEvent) === 1 ? "" : "s"} month to date${deltaText(mtd.offSiteEvent, previous.offSiteEvent, "event lead")}`
     },
     {
       label: "Phone Calls",
-      today: today.phoneCalls,
       mtd: mtd.phoneCalls,
-      sub: `${formatDlrMetricValue(today.activityCalls)} call touch${Number(today.activityCalls) === 1 ? "" : "es"} logged today`
+      sub: `${formatDlrMetricValue(mtd.phoneCalls)} call touch${Number(mtd.phoneCalls) === 1 ? "" : "es"} month to date${deltaText(mtd.phoneCalls, previous.phoneCalls, "call touch")}`
     },
     {
       label: "Emails / Online",
-      today: today.emailsOnline,
       mtd: mtd.emailsOnline,
-      sub: `${formatDlrMetricValue(today.activityEmails)} email touch${Number(today.activityEmails) === 1 ? "" : "es"} logged today`
+      sub: `${formatDlrMetricValue(mtd.emailsOnline)} email / online touch${Number(mtd.emailsOnline) === 1 ? "" : "es"} month to date${deltaText(mtd.emailsOnline, previous.emailsOnline, "email touch")}`
     },
     {
       label: "Text / Chat / Other",
-      today: today.textChatOther,
       mtd: mtd.textChatOther,
-      sub: `${formatDlrMetricValue((today.activityChats || 0) + (today.activityTexts || 0))} chat / text touch${(((today.activityChats || 0) + (today.activityTexts || 0)) === 1) ? "" : "es"} logged today`
+      sub: `${formatDlrMetricValue(mtd.textChatOther)} chat / text touch${Number(mtd.textChatOther) === 1 ? "" : "es"} month to date${deltaText(mtd.textChatOther, previous.textChatOther, "chat touch")}`
     },
     {
       label: "Guest Cards",
-      today: today.guestCards,
       mtd: mtd.rolledGuestCards,
-      sub: `${formatDlrMetricValue(today.newLeads || today.guestCards)} new lead${Number(today.newLeads || today.guestCards) === 1 ? "" : "s"} captured on ${reportDateLabel}`
+      sub: `${formatDlrMetricValue(mtd.rolledGuestCards)} guest card${Number(mtd.rolledGuestCards) === 1 ? "" : "s"} captured month to date${deltaText(mtd.rolledGuestCards, previous.rolledGuestCards ?? previous.guestCards, "guest card")}`
     },
     {
       label: "Tours",
-      today: today.tours,
       mtd: mtd.tours,
-      sub: `${formatDlrMetricValue(today.firstVisitsTours || today.tours)} first visit / tour activity logged today`
+      sub: `${formatDlrMetricValue(mtd.tours)} tours month to date${deltaText(mtd.tours, previous.tours, "tour")}`
     },
     {
       label: "Applications",
-      today: today.applications,
       mtd: mtd.applications,
-      sub: `${formatDlrMetricValue(today.approvals)} approved · ${formatDlrMetricValue(today.denials)} denied · ${formatDlrMetricValue(today.cancelled)} cancelled · ${formatDlrMetricValue(today.pendingDecision)} pending`
+      sub: `${formatDlrMetricValue(mtd.approvals)} approved · ${formatDlrMetricValue(mtd.denials)} denied · ${formatDlrMetricValue(mtd.cancelled)} cancelled · ${formatDlrMetricValue(mtd.pendingDecision)} pending month to date`
     },
     {
       label: "Application Decisions",
-      today: `${formatDlrMetricValue(today.approvals)} / ${formatDlrMetricValue(today.denials)} / ${formatDlrMetricValue(today.cancelled)} / ${formatDlrMetricValue(today.pendingDecision)}`,
       mtd: `${formatDlrMetricValue(mtd.approvals)} / ${formatDlrMetricValue(mtd.denials)} / ${formatDlrMetricValue(mtd.cancelled)} / ${formatDlrMetricValue(mtd.pendingDecision)}`,
       sub: "Approved / Denied / Cancelled / Pending decision"
     },
     {
       label: "Move-Ins",
-      today: today.moveIns,
       mtd: mtd.moveIns,
-      sub: `${formatDlrMetricValue(today.moveOuts)} move-out${Number(today.moveOuts) === 1 ? "" : "s"} were also logged on the report date`
+      sub: `${formatDlrMetricValue(mtd.moveOuts)} move-out${Number(mtd.moveOuts) === 1 ? "" : "s"} month to date${deltaText(mtd.moveIns, previous.moveIns, "move-in")}`
     },
     {
       label: "Renewals",
-      today: today.renewals,
       mtd: mtd.renewals,
       sub: `${formatDlrPercent(report.renewalSnapshot.retentionRate, 0)} retention across ${formatDlrMetricValue(report.renewalSnapshot.expirations)} expirations`
     }
@@ -32606,16 +33236,14 @@ function renderDashboardDlrActivityMiniTable(report) {
     <thead>
       <tr>
         <th style="text-align:left;padding:6px 4px;color:var(--muted);font-weight:600">Metric</th>
-        <th style="text-align:center;padding:6px 4px;color:var(--muted);font-weight:600">Today</th>
         <th style="text-align:center;padding:6px 4px;color:var(--muted);font-weight:600">Month to Date</th>
-        <th style="text-align:left;padding:6px 4px;color:var(--muted);font-weight:600">Today's Leasing Activity</th>
+        <th style="text-align:left;padding:6px 4px;color:var(--muted);font-weight:600">Leasing Activity</th>
       </tr>
     </thead>
     <tbody>
       ${rows.map(row => `<tr>
         <td style="padding:6px 4px;border-top:1px solid var(--border2)">${escapeHtml(row.label)}</td>
-        <td style="padding:6px 4px;border-top:1px solid var(--border2);text-align:center;font-weight:700">${typeof row.today === "string" ? escapeHtml(row.today) : formatDlrMetricValue(row.today)}</td>
-        <td style="padding:6px 4px;border-top:1px solid var(--border2);text-align:center">${typeof row.mtd === "string" ? escapeHtml(row.mtd) : formatDlrMetricValue(row.mtd)}</td>
+        <td style="padding:6px 4px;border-top:1px solid var(--border2);text-align:center;font-weight:700">${typeof row.mtd === "string" ? escapeHtml(row.mtd) : formatDlrMetricValue(row.mtd)}</td>
         <td style="padding:6px 4px;border-top:1px solid var(--border2);color:var(--muted)">${escapeHtml(row.sub || "—")}</td>
       </tr>`).join("")}
     </tbody>
@@ -35743,8 +36371,16 @@ function draftMarketComparisonEmail() {
   }, 250);
 }
 
-async function openDlrInvestorOverview(printImmediately = false) {
-  const report = buildDashboardDlrInvestorOverview();
+async function openDlrInvestorOverview(options = {}) {
+  const printImmediately = typeof options === "boolean" ? options : options.printImmediately === true;
+  const communityName = typeof options === "object" && options ? options.communityName : undefined;
+  const monthIdx = typeof options === "object" && Number.isInteger(options.monthIdx) ? options.monthIdx : undefined;
+  const year = typeof options === "object" && Number.isInteger(options.year) ? options.year : undefined;
+  const report = buildDashboardDlrInvestorOverview(
+    communityName || getDlrReportCommunityName(),
+    Number.isInteger(monthIdx) ? monthIdx : getHistoricalImportMonthIndex(),
+    Number.isInteger(year) ? year : getHistoricalImportYear()
+  );
   if (!report) return;
   const win = openPopupReportWindow("ATLAS RISE DLR Investor Overview");
   if (!win) return;
@@ -35791,8 +36427,15 @@ async function openPortfolioDlrOverview(printImmediately = false) {
   }
 }
 
-async function downloadDlrInvestorOverviewHtml() {
-  const report = buildDashboardDlrInvestorOverview();
+async function downloadDlrInvestorOverviewHtml(options = {}) {
+  const communityName = typeof options === "object" && options ? options.communityName : undefined;
+  const monthIdx = typeof options === "object" && Number.isInteger(options.monthIdx) ? options.monthIdx : undefined;
+  const year = typeof options === "object" && Number.isInteger(options.year) ? options.year : undefined;
+  const report = buildDashboardDlrInvestorOverview(
+    communityName || getDlrReportCommunityName(),
+    Number.isInteger(monthIdx) ? monthIdx : getHistoricalImportMonthIndex(),
+    Number.isInteger(year) ? year : getHistoricalImportYear()
+  );
   if (!report) return;
   report.communityPhotoSrc = await resolveDlrInvestorOverviewPhotoSrc(report.communityPhotoAsset);
   const matchedCommunity = matchPropertyName(report.communityName, { fallbackToCurrent: false }) || report.communityName;
@@ -35985,7 +36628,6 @@ function renderCSVTab() {
         <div class="bonus-framework-stat"><div class="k">Retention</div><div class="v" style="font-size:1rem">${formatDlrPercent(historicalDlrSummary.renewalSnapshot?.retentionRate,0)}</div></div>
         <div class="bonus-framework-stat"><div class="k">Projected Attrition</div><div class="v" style="font-size:1rem">${formatDlrMetricValue(historicalDlrSummary.renewalSnapshot?.projectedAttrition)}</div></div>
         <div class="bonus-framework-stat"><div class="k">Move-In Goal / Week</div><div class="v" style="font-size:1rem">${formatDlrMetricValue(historicalDlrSummary.moveInGoalPerWeek)}</div></div>
-        <div class="bonus-framework-stat"><div class="k">Property Status</div><div class="v" style="font-size:1rem">${escapeHtml(historicalDlrSummary.status || "—")}</div></div>
       </div>
       <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:12px;margin-bottom:12px">
         <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">

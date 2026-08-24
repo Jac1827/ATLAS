@@ -48,8 +48,22 @@ body { font-family:var(--sans); font-size:12.5px; color:var(--ink); background:v
 a { color:var(--rise-3); text-decoration:none; }
 a:hover { text-decoration:underline; }
 
+html.atlas-embedded,
+body.atlas-embedded {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+
 /* ================================================================ layout == */
 #app { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
+
+html.atlas-embedded #app {
+  display: block;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
 
 .topbar { display:flex; align-items:center; gap:14px; background:var(--rise); color:#fff;
   padding:0 16px; height:54px; flex:0 0 54px; box-shadow:0 2px 8px rgba(1,62,81,.18); z-index:20; }
@@ -113,6 +127,18 @@ a:hover { text-decoration:underline; }
 .nav .badge.g { background:var(--pos-bg); color:var(--pos); }
 .nav .badge.new { background:var(--sky); color:var(--rise); }
 .main { flex:1; overflow:auto; padding:16px 18px 56px; min-width:0; }
+
+html.atlas-embedded .body {
+  display: block;
+  flex: none;
+  min-height: 0;
+}
+
+html.atlas-embedded .nav,
+html.atlas-embedded .main {
+  overflow: visible;
+  max-height: none;
+}
 
 /* ================================================================ panels == */
 .h1 { font-size:19px; font-weight:600; margin:0 0 3px; color:var(--rise); letter-spacing:-.01em; }
@@ -343,6 +369,16 @@ svg.chart { display:block; width:100%; height:auto; }
 </style>
 </head>
 <body>
+<script>
+  (function () {
+    try {
+      var embedded = window.parent !== window && new URLSearchParams(window.location.search || '').get('atlasEmbedded') === '1';
+      if (!embedded) return;
+      document.documentElement.classList.add('atlas-embedded');
+      document.body.classList.add('atlas-embedded');
+    } catch (err) {}
+  })();
+</script>
 <div id="app">
   <div class="topbar"></div>
   <div class="body">

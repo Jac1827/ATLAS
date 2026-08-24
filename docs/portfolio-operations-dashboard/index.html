@@ -12194,6 +12194,36 @@ function atlasEmployeeEmailIsInternal(email = "") {
   return value.endsWith("@risere.com") || value.endsWith("@riseresidential.com");
 }
 
+function atlasEmbeddedPeopleRosterEntries() {
+  const cached = Array.isArray(window.ATLAS_EMBEDDED_PEOPLE_ROSTER) ? window.ATLAS_EMBEDDED_PEOPLE_ROSTER : [];
+  if (cached.length) return cached;
+  try {
+    const iframe = document.querySelector('iframe[data-atlas-mount-key="people"]');
+    const win = iframe?.contentWindow;
+    if (!win) return [];
+    const source = typeof win.activeVisibleEmployees === "function"
+      ? win.activeVisibleEmployees()
+      : (typeof win.sortedVisibleEmployees === "function" ? win.sortedVisibleEmployees() : []);
+    const isTerminated = typeof win.isEmployeeTerminated === "function"
+      ? win.isEmployeeTerminated
+      : employee => String(employee?.status || "").trim().toLowerCase().includes("terminated");
+    return (Array.isArray(source) ? source : [])
+      .filter(employee => employee && !isTerminated(employee))
+      .map(employee => ({
+        employeeId: String(employee.peopleEmployeeId || employee.employeeId || employee.id || "").trim(),
+        employeeNumber: String(employee.employeeNumber || "").trim(),
+        email: String(employee.email || "").trim().toLowerCase(),
+        fullName: String(employee.name || employee.fullName || "").trim(),
+        status: String(employee.status || "").trim(),
+        active: true,
+        source: "embedded_roster"
+      }))
+      .filter(employee => employee.employeeId || employee.email || employee.fullName);
+  } catch (error) {
+    return [];
+  }
+}
+
 function atlasEmployeeIsSelectableForAccess(employee = {}) {
   if (!atlasEmployeeStatusIsActive(employee)) return false;
   const status = String(employee?.status || employee?.status_type || "").trim().toLowerCase();
@@ -12240,6 +12270,23 @@ function buildAtlasAccessEmployeeDirectoryEntries() {
     existing.profileDisplayName = String(profile.display_name || "").trim();
     if (!existing.email) existing.email = String(profile.email || "").trim().toLowerCase();
     if (!existing.fullName) existing.fullName = String(profile.display_name || "").trim();
+    entries.set(employeeId, existing);
+  });
+  atlasEmbeddedPeopleRosterEntries().forEach(employee => {
+    const employeeId = String(employee.employeeId || "").trim();
+    if (!employeeId) return;
+    const existing = entries.get(employeeId) || {
+      employeeId,
+      email: String(employee.email || "").trim().toLowerCase(),
+      fullName: String(employee.fullName || "").trim(),
+      status: String(employee.status || "").trim(),
+      profileDisplayName: "",
+      sourceModule: "embedded_roster",
+      sourceIdentifier: String(employee.employeeNumber || employee.email || employeeId).trim()
+    };
+    if (!existing.fullName) existing.fullName = String(employee.fullName || "").trim();
+    if (!existing.email) existing.email = String(employee.email || "").trim().toLowerCase();
+    if (!existing.status) existing.status = String(employee.status || "").trim();
     entries.set(employeeId, existing);
   });
   return [...entries.values()].sort((a, b) => {

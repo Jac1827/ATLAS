@@ -72,11 +72,107 @@
   }
 
   function iframeSrc(key, mount) {
-    if (key === "people") {
-      return appendParams(mount.src, "atlasEmbedded=1&v=20260821-people-access");
-    }
-    return mount.src;
+    return appendParams(mount.src, "atlasEmbedded=1&atlasMountKey=" + encodeURIComponent(key) + "&v=20260824-inline");
   }
+
+  function frameDoc(iframe) {
+    try {
+      return iframe && iframe.contentDocument ? iframe.contentDocument : (iframe && iframe.contentWindow ? iframe.contentWindow.document : null);
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function measureFrameHeight(iframe) {
+    var doc = frameDoc(iframe);
+    if (!doc) return 1180;
+    var body = doc.body;
+    var root = doc.documentElement;
+    var next = Math.max(
+      body ? body.scrollHeight : 0,
+      body ? body.offsetHeight : 0,
+      root ? root.scrollHeight : 0,
+      root ? root.offsetHeight : 0,
+      720
+    );
+    return Math.min(Math.max(next, 720), 12000);
+  }
+
+  function applyFrameHeight(iframe, height) {
+    if (!iframe) return;
+    iframe.style.height = Math.max(720, Number(height) || 1180) + "px";
+  }
+
+  function readEmbeddedPeopleRoster(iframe) {
+    try {
+      var win = iframe && iframe.contentWindow;
+      if (!win) return [];
+      var source = typeof win.activeVisibleEmployees === "function"
+        ? win.activeVisibleEmployees()
+        : (typeof win.sortedVisibleEmployees === "function" ? win.sortedVisibleEmployees() : []);
+      var isTerminated = typeof win.isEmployeeTerminated === "function"
+        ? win.isEmployeeTerminated
+        : function (employee) {
+          return String(employee && employee.status || "").trim().toLowerCase().indexOf("terminated") >= 0;
+        };
+      return (Array.isArray(source) ? source : [])
+        .filter(function (employee) { return employee && !isTerminated(employee); })
+        .map(function (employee) {
+          return {
+            employeeId: String(employee.peopleEmployeeId || employee.employeeId || employee.id || "").trim(),
+            employeeNumber: String(employee.employeeNumber || "").trim(),
+            email: String(employee.email || "").trim().toLowerCase(),
+            fullName: String(employee.name || employee.fullName || "").trim(),
+            status: String(employee.status || "").trim(),
+            active: true,
+            source: "embedded_roster"
+          };
+        })
+        .filter(function (employee) { return employee.employeeId || employee.email || employee.fullName; });
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function publishPeopleRoster(roster) {
+    if (!Array.isArray(roster) || !roster.length) return;
+    window.ATLAS_EMBEDDED_PEOPLE_ROSTER = roster;
+    try {
+      if (typeof activeTab !== "undefined" && Number(activeTab) === 13 && typeof refreshAtlasPeopleAccessPanel === "function") {
+        refreshAtlasPeopleAccessPanel();
+        if (typeof applyAtlasAccessFormDraftToPanel === "function") applyAtlasAccessFormDraftToPanel();
+      }
+    } catch (err) {
+      // Ignore refresh failures; the embedded roster cache is still updated.
+    }
+  }
+
+  function syncMountFrame(iframe, key) {
+    if (!iframe) return;
+    applyFrameHeight(iframe, measureFrameHeight(iframe));
+    if (key === "people") publishPeopleRoster(readEmbeddedPeopleRoster(iframe));
+  }
+
+  window.handleAtlasMountLoad = function (iframe, key) {
+    if (!iframe) return;
+    iframe.dataset.atlasMountKey = key || "";
+    if (iframe.__atlasSyncTimer) window.clearInterval(iframe.__atlasSyncTimer);
+    syncMountFrame(iframe, key);
+    window.setTimeout(function () { syncMountFrame(iframe, key); }, 150);
+    window.setTimeout(function () { syncMountFrame(iframe, key); }, 700);
+    window.setTimeout(function () { syncMountFrame(iframe, key); }, 1600);
+    iframe.__atlasSyncTimer = window.setInterval(function () {
+      syncMountFrame(iframe, key);
+    }, 2000);
+  };
+
+  window.addEventListener("message", function (event) {
+    var data = event && event.data;
+    if (!data || data.type !== "atlas-embedded-height") return;
+    var iframe = document.querySelector('iframe[data-atlas-mount-key="' + String(data.key || "") + '"]');
+    if (iframe) applyFrameHeight(iframe, data.height);
+    if (data.key === "people" && Array.isArray(data.activeEmployees)) publishPeopleRoster(data.activeEmployees);
+  });
 
   /* Best-effort context line. Falls back silently so a change in the host
      dashboard's globals can never break the mount from rendering. */
@@ -131,7 +227,7 @@
       '      <span class="atlas-mount-bar-sub">' + esc(m.barSub) + "</span>",
       meta ? '      <span class="atlas-mount-bar-meta">' + esc(meta) + "</span>" : "",
       "    </div>",
-      '    <iframe src="' + esc(embeddedSrc) + '" title="' + esc(m.barTitle) + '"',
+      '    <iframe src="' + esc(embeddedSrc) + '" title="' + esc(m.barTitle) + '" data-atlas-mount-key="' + esc(key) + '" onload="window.handleAtlasMountLoad && window.handleAtlasMountLoad(this, \'' + esc(key) + '\')"',
       '            loading="lazy" style="background:' + esc(m.background) + '"></iframe>',
       "  </div>",
       "</section>"

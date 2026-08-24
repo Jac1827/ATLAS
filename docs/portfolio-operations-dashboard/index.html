@@ -12205,6 +12205,49 @@ function atlasEmployeeEmailIsInternal(email = "") {
   return value.endsWith("@risere.com") || value.endsWith("@riseresidential.com");
 }
 
+const ATLAS_LOCATION_SCOPE_OPTIONS = [
+  { value: "east", label: "East" },
+  { value: "central", label: "Central" },
+  { value: "west", label: "West" }
+];
+
+function atlasNormalizeLocationScopeGroup(value = "") {
+  const normalized = atlasNormalizeSharedText(value);
+  if (!normalized) return "";
+  if (["east", "east coast", "mid atlantic", "mid-atlantic", "atlantic", "northeast"].includes(normalized)) return "east";
+  if (["central", "central florida", "florida", "southeast", "south east", "student housing", "gulf coast"].includes(normalized)) return "central";
+  if (["west", "west coast", "southwest", "south west", "mountain west"].includes(normalized)) return "west";
+  if (normalized.includes("atlantic") || normalized.includes("east")) return "east";
+  if (normalized.includes("central") || normalized.includes("florida") || normalized.includes("southeast")) return "central";
+  if (normalized.includes("west")) return "west";
+  return "";
+}
+
+function atlasLocationScopeLabel(value = "") {
+  const normalized = atlasNormalizeLocationScopeGroup(value);
+  return ATLAS_LOCATION_SCOPE_OPTIONS.find(option => option.value === normalized)?.label || "";
+}
+
+function atlasCommunityLocationScopeValue(community = {}) {
+  return atlasNormalizeLocationScopeGroup(
+    community.location_scope
+    || community.regional_grouping
+    || community.market
+    || community.region
+    || community.market_area
+    || ""
+  );
+}
+
+function atlasAccessLocationScopeValues(input = {}) {
+  const rawValues = [
+    ...normalizeAtlasAccessList(input.allowedLocationValues || input.allowed_location_values),
+    ...normalizeAtlasAccessList(input.allowedMarketValues || input.allowed_market_values),
+    ...normalizeAtlasAccessList(input.allowedRegionValues || input.allowed_region_values)
+  ];
+  return Array.from(new Set(rawValues.map(atlasNormalizeLocationScopeGroup).filter(Boolean)));
+}
+
 function atlasEmbeddedPeopleRosterEntries() {
   const cached = Array.isArray(window.ATLAS_EMBEDDED_PEOPLE_ROSTER) ? window.ATLAS_EMBEDDED_PEOPLE_ROSTER : [];
   if (cached.length) return cached;
@@ -12264,19 +12307,67 @@ function buildAtlasAccessAutofillKey(employee = {}) {
 
 function buildAtlasAccessEmployeeDirectoryEntries() {
   const entries = new Map();
+  const upsertEntry = (candidate = {}) => {
+    if (!candidate || !atlasEmployeeIsSelectableForAccess(candidate)) return;
+    const employeeId = String(candidate.employeeId || candidate.employee_id || "").trim();
+    const email = String(candidate.email || "").trim().toLowerCase();
+    const fullName = String(candidate.fullName || candidate.full_name || candidate.name || "").trim();
+    const linkedEmployeeId = String(candidate.linkedEmployeeId || candidate.linked_employee_id || employeeId || "").trim();
+    const key = employeeId || (email ? `autofill:${email}` : buildAtlasAccessAutofillKey({ email, fullName }));
+    if (!key) return;
+    const existing = entries.get(key) || [...entries.values()].find(entry => entry.email && entry.email === email) || null;
+    const nextEntry = existing || {
+      employeeId: key,
+      linkedEmployeeId: isAtlasUuid(linkedEmployeeId) ? linkedEmployeeId : "",
+      email,
+      fullName,
+      status: String(candidate.status || candidate.status_type || "").trim(),
+      profileDisplayName: "",
+      sourceModule: String(candidate.sourceModule || candidate.source_module || "").trim(),
+      sourceIdentifier: String(candidate.sourceIdentifier || candidate.source_identifier || "").trim()
+    };
+    if (!nextEntry.linkedEmployeeId && isAtlasUuid(linkedEmployeeId)) nextEntry.linkedEmployeeId = linkedEmployeeId;
+    if (!nextEntry.email) nextEntry.email = email;
+    if (!nextEntry.fullName) nextEntry.fullName = fullName;
+    if (!nextEntry.status) nextEntry.status = String(candidate.status || candidate.status_type || "").trim();
+    if (!nextEntry.sourceModule) nextEntry.sourceModule = String(candidate.sourceModule || candidate.source_module || "").trim();
+    if (!nextEntry.sourceIdentifier) nextEntry.sourceIdentifier = String(candidate.sourceIdentifier || candidate.source_identifier || "").trim();
+    entries.set(existing?.employeeId || key, nextEntry);
+  };
   (atlasAccessAdminState.employees || []).forEach(employee => {
-    if (!atlasEmployeeIsSelectableForAccess(employee)) return;
-    const employeeId = String(employee.employee_id || "").trim();
-    if (!employeeId) return;
-    entries.set(employeeId, {
-      employeeId,
-      linkedEmployeeId: employeeId,
+    upsertEntry({
+      employeeId: String(employee.employee_id || "").trim(),
+      linkedEmployeeId: String(employee.employee_id || "").trim(),
       email: String(employee.email || "").trim().toLowerCase(),
       fullName: String(employee.full_name || "").trim(),
       status: String(employee.status || employee.status_type || "").trim(),
-      profileDisplayName: "",
       sourceModule: String(employee.source_module || "").trim(),
       sourceIdentifier: String(employee.source_identifier || "").trim()
+    });
+  });
+  Object.values(normalizeAtlasSharedData(atlasSharedData).employees || {}).forEach(employee => {
+    upsertEntry({
+      employeeId: String(employee.employeeId || employee.peopleEmployeeId || "").trim(),
+      linkedEmployeeId: String(employee.employeeId || employee.peopleEmployeeId || "").trim(),
+      email: String(employee.email || "").trim().toLowerCase(),
+      fullName: String(employee.name || "").trim(),
+      status: String(employee.status || employee.statusType || "").trim(),
+      employeeNumber: String(employee.employeeNumber || "").trim(),
+      sourceModule: String(employee.source || "").trim(),
+      sourceIdentifier: String(employee.peopleEmployeeId || employee.employeeNumber || employee.employeeId || "").trim()
+    });
+  });
+  (loadPeoplePlatformStateForSharedData().employees || []).forEach(employee => {
+    const normalized = normalizePeopleEmployeeForSharedData(employee, { source: PERFORMANCE_PLATFORM_STORAGE_KEY });
+    upsertEntry({
+      employeeId: String(normalized.employeeId || normalized.peopleEmployeeId || "").trim(),
+      linkedEmployeeId: String(normalized.employeeId || normalized.peopleEmployeeId || "").trim(),
+      email: String(normalized.email || "").trim().toLowerCase(),
+      fullName: String(normalized.name || "").trim(),
+      status: String(normalized.status || normalized.statusType || "").trim(),
+      employeeNumber: String(normalized.employeeNumber || "").trim(),
+      sourceModule: String(normalized.source || "").trim(),
+      sourceIdentifier: String(normalized.peopleEmployeeId || normalized.employeeNumber || normalized.employeeId || "").trim()
     });
   });
   (atlasAccessAdminState.profiles || []).forEach(profile => {
@@ -12355,6 +12446,7 @@ function normalizeAtlasAccessFormDraft(input = {}) {
   const defaults = defaultAtlasAccessFormDraft();
   const role = String(input.role || defaults.role).trim();
   const status = String(input.status || defaults.status).trim();
+  const allowedLocationValues = atlasAccessLocationScopeValues(input);
   return {
     email: String(input.email || defaults.email).trim().toLowerCase(),
     displayName: String(input.displayName || input.display_name || defaults.displayName).trim(),
@@ -12362,8 +12454,8 @@ function normalizeAtlasAccessFormDraft(input = {}) {
     status: status || defaults.status,
     employeeId: String(input.employeeId || input.employee_id || defaults.employeeId).trim(),
     allowedCommunityIds: normalizeAtlasAccessList(input.allowedCommunityIds || input.allowed_community_ids || defaults.allowedCommunityIds),
-    allowedMarketValues: normalizeAtlasAccessList(input.allowedMarketValues || input.allowed_market_values || defaults.allowedMarketValues),
-    allowedRegionValues: normalizeAtlasAccessList(input.allowedRegionValues || input.allowed_region_values || defaults.allowedRegionValues),
+    allowedMarketValues: allowedLocationValues,
+    allowedRegionValues: allowedLocationValues,
     lockedTabIds: normalizeAtlasAccessList(input.lockedTabIds || input.locked_tab_ids || defaults.lockedTabIds),
     accessNotes: String(input.accessNotes || input.access_notes || defaults.accessNotes).trim()
   };
@@ -12395,8 +12487,8 @@ function readAtlasAccessFormDraftFromDom() {
     status: document.getElementById("atlas-access-status")?.value || "",
     employeeId: document.getElementById("atlas-access-employee")?.value || "",
     allowedCommunityIds: getAtlasAccessCheckedValues("atlas-access-communities"),
-    allowedMarketValues: getAtlasAccessCheckedValues("atlas-access-markets"),
-    allowedRegionValues: getAtlasAccessCheckedValues("atlas-access-regions"),
+    allowedMarketValues: getAtlasAccessCheckedValues("atlas-access-locations"),
+    allowedRegionValues: getAtlasAccessCheckedValues("atlas-access-locations"),
     lockedTabIds: getAtlasAccessCheckedValues("atlas-access-tabs"),
     accessNotes: document.getElementById("atlas-access-notes")?.value || ""
   });
@@ -12415,7 +12507,7 @@ function setAtlasAccessCheckedInputs(name, selectedValues = []) {
 
 function buildAtlasAccessPropertyScopeSummary(selectedCount = 0, totalCount = 0) {
   if (!totalCount) return "No active properties are available for access scoping yet.";
-  if (!selectedCount) return "No properties selected. Access falls back to role, market, or region scope only.";
+  if (!selectedCount) return "No properties selected. Access falls back to role or location scope only.";
   if (selectedCount === totalCount) return `All ${totalCount} properties selected for view/edit access.`;
   return `${selectedCount} of ${totalCount} properties selected for view/edit access.`;
 }
@@ -12436,8 +12528,7 @@ function applyAtlasAccessFormDraftToPanel() {
   const notesInput = document.getElementById("atlas-access-notes");
   if (notesInput) notesInput.value = draft.accessNotes;
   setAtlasAccessCheckedInputs("atlas-access-communities", draft.allowedCommunityIds);
-  setAtlasAccessCheckedInputs("atlas-access-markets", draft.allowedMarketValues);
-  setAtlasAccessCheckedInputs("atlas-access-regions", draft.allowedRegionValues);
+  setAtlasAccessCheckedInputs("atlas-access-locations", atlasAccessLocationScopeValues(draft));
   setAtlasAccessCheckedInputs("atlas-access-tabs", draft.lockedTabIds);
   const propertySummary = document.getElementById("atlas-access-community-summary");
   if (propertySummary) {
@@ -12604,16 +12695,19 @@ function atlasAccessProfileCanUseCurrentScope(profile = getAtlasAccessProfile())
   const allowedCommunityIds = normalizeAtlasAccessList(profile.allowed_community_ids);
   const allowedMarkets = normalizeAtlasAccessList(profile.allowed_market_values).map(atlasNormalizeSharedText);
   const allowedRegions = normalizeAtlasAccessList(profile.allowed_region_values).map(atlasNormalizeSharedText);
-  const hasRestrictions = allowedCommunityIds.length || allowedMarkets.length || allowedRegions.length;
+  const allowedLocationGroups = atlasAccessLocationScopeValues(profile);
+  const hasRestrictions = allowedCommunityIds.length || allowedMarkets.length || allowedRegions.length || allowedLocationGroups.length;
   if (!hasRestrictions && ["executive"].includes(role)) return { ok: true };
-  if (!hasRestrictions) return { ok: false, reason: "No property, market, or region scope is assigned to this account yet." };
+  if (!hasRestrictions) return { ok: false, reason: "No property or location scope is assigned to this account yet." };
   const atlasCommunityId = String(property.atlasCommunityId || property.sourceIds?.atlasCommunityId || "").trim();
   const market = atlasNormalizeSharedText(property.market);
   const region = atlasNormalizeSharedText(property.regionalGrouping || property.market);
+  const locationGroup = atlasCommunityLocationScopeValue(property);
   if (atlasCommunityId && allowedCommunityIds.includes(atlasCommunityId)) return { ok: true };
   if (market && allowedMarkets.includes(market)) return { ok: true };
   if (region && allowedRegions.includes(region)) return { ok: true };
-  return { ok: false, reason: `${getProp().name} is outside this account's assigned property, market, or region scope.` };
+  if (locationGroup && allowedLocationGroups.includes(locationGroup)) return { ok: true };
+  return { ok: false, reason: `${getProp().name} is outside this account's assigned property or location scope.` };
 }
 
 function atlasAccessDecision(tabId = activeTab) {
@@ -12948,13 +13042,14 @@ async function loadAtlasCentralPeopleAssignments({ silent = true, force = false 
 function queueAtlasCentralPeopleLoad(options = {}) {
   const status = getAtlasCentralStatus();
   if (!status.configured || !status.signedIn) return;
-  if (![9, 10, 13].includes(activeTab)) return;
+  if (![9, 10, 13, 14].includes(activeTab)) return;
   const lastSync = Date.parse(atlasSharedData?.lastPeopleSyncAt || "");
   if (!options.force && atlasSharedData?.lastPeopleSource === "atlas_central_people" && Number.isFinite(lastSync) && Date.now() - lastSync < 60000) return;
   loadAtlasCentralPeopleAssignments({ silent: true, force: Boolean(options.force) }).then((result) => {
-    if (!result || ![9, 10, 13].includes(activeTab)) return;
+    if (!result || ![9, 10, 13, 14].includes(activeTab)) return;
     if (activeTab === 13) return;
-    renderTab();
+    if (activeTab === 14) refreshAtlasPeopleAccessPanel({ deferWhileInteracting: true });
+    else renderTab();
   });
 }
 
@@ -13725,6 +13820,7 @@ function renderAtlasEmployeeAccessPanel() {
     </div>`;
   }
   queueAtlasAccessAdminLoad();
+  queueAtlasCentralPeopleLoad({ force: false });
   if (!atlasAccessAdminState.loaded) {
     return `${profileEditorHtml}<div class="card mb4">
       <div class="card-title">Employee Access</div>
@@ -13739,8 +13835,18 @@ function renderAtlasEmployeeAccessPanel() {
     value: community.community_id,
     label: `${community.display_name}${community.market ? ` · ${community.market}` : ""}`
   }));
-  const marketOptions = Array.from(new Set((atlasAccessAdminState.communities || []).map(c => c.market).filter(Boolean))).sort().map(value => ({ value, label: value }));
-  const regionOptions = Array.from(new Set((atlasAccessAdminState.communities || []).map(c => c.regional_grouping || c.market).filter(Boolean))).sort().map(value => ({ value, label: value }));
+  const locationCounts = (atlasAccessAdminState.communities || []).reduce((acc, community) => {
+    const key = atlasCommunityLocationScopeValue(community);
+    if (!key) return acc;
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const locationOptions = ATLAS_LOCATION_SCOPE_OPTIONS
+    .filter(option => (locationCounts[option.value] || 0) > 0 || option.value === "west")
+    .map(option => ({
+      value: option.value,
+      label: locationCounts[option.value] ? `${option.label} · ${locationCounts[option.value]} properties` : option.label
+    }));
   const employeeOptions = buildAtlasAccessEmployeeDirectoryEntries().map(employee => {
     const displayName = employee.profileDisplayName || employee.fullName || employee.email || employee.employeeId;
     const suffix = employee.profileDisplayName && employee.fullName && employee.profileDisplayName !== employee.fullName
@@ -13800,8 +13906,7 @@ function renderAtlasEmployeeAccessPanel() {
             <div id="atlas-access-community-summary" style="font-size:0.64rem;color:var(--muted);margin:6px 0 8px">${buildAtlasAccessPropertyScopeSummary(draft.allowedCommunityIds.length, communityOptions.length)}</div>
             ${renderAtlasAccessCheckboxes("atlas-access-communities", communityOptions, draft.allowedCommunityIds)}
           </div>
-          <div><div class="card-title">Market Scope</div>${renderAtlasAccessCheckboxes("atlas-access-markets", marketOptions, draft.allowedMarketValues)}</div>
-          <div><div class="card-title">Region Scope</div>${renderAtlasAccessCheckboxes("atlas-access-regions", regionOptions, draft.allowedRegionValues)}</div>
+          <div><div class="card-title">Location Scope</div><div style="font-size:0.64rem;color:var(--muted);margin:4px 0 8px">Markets and regions are consolidated here into consistent East, Central, and West access groupings.</div>${renderAtlasAccessCheckboxes("atlas-access-locations", locationOptions, atlasAccessLocationScopeValues(draft))}</div>
           <div><div class="card-title">Locked Tabs / Pages</div>${renderAtlasAccessCheckboxes("atlas-access-tabs", tabOptions, draft.lockedTabIds)}</div>
           <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Access notes</span><textarea id="atlas-access-notes" placeholder="Optional admin note" oninput="syncAtlasAccessFormDraftFromPanel()">${escapeHtml(draft.accessNotes)}</textarea></label>
         </div>

@@ -10,6 +10,7 @@
   const LAST_AUTH_EVENT_STORAGE_KEY = "atlas_central_last_auth_event_v1";
   const MAGIC_LINK_COOLDOWN_STORAGE_KEY = "atlas_central_magic_link_cooldowns_v1";
   const SHARED_PROPERTY_GRAPH_DOCUMENT_KEY = "atlas_shared_property_graph_v1";
+  const DEFAULT_ACCESS_API_BASE_URL = "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev";
   const authRequestPromises = new Map();
   let refreshSessionPromise = null;
 
@@ -18,7 +19,7 @@
     provider: "supabase-postgres",
     appBaseUrl: "https://jac1827.github.io/ATLAS/portfolio-operations-dashboard/index.html",
     apiBaseUrl: "",
-    accessApiBaseUrl: "",
+    accessApiBaseUrl: DEFAULT_ACCESS_API_BASE_URL,
     supabaseUrl: "https://rmyhmvjcswfwaracgriy.supabase.co",
     supabaseAnonKey: "sb_publishable_2DEqeCNZFn6sNeVrSEfW8A_EI6tRb_1",
     documentKey: "atlas_dashboard_state_v1",
@@ -57,7 +58,7 @@
     config.provider = String(config.provider || DEFAULT_CONFIG.provider).trim();
     config.appBaseUrl = trimTrailingSlash(config.appBaseUrl || DEFAULT_CONFIG.appBaseUrl);
     config.apiBaseUrl = trimTrailingSlash(config.apiBaseUrl);
-    config.accessApiBaseUrl = trimTrailingSlash(config.accessApiBaseUrl || config.apiBaseUrl);
+    config.accessApiBaseUrl = trimTrailingSlash(config.accessApiBaseUrl || config.apiBaseUrl || DEFAULT_ACCESS_API_BASE_URL);
     config.supabaseUrl = trimTrailingSlash(config.supabaseUrl || DEFAULT_CONFIG.supabaseUrl);
     config.supabaseAnonKey = String(config.supabaseAnonKey || DEFAULT_CONFIG.supabaseAnonKey || "").trim();
     config.documentKey = String(config.documentKey || DEFAULT_CONFIG.documentKey).trim() || DEFAULT_CONFIG.documentKey;
@@ -222,9 +223,19 @@
     return origin && /^https?:\/\//i.test(origin) && !isLocalBrowserUrl(origin) ? origin : "";
   }
 
+  function isGithubPagesBaseUrl(value) {
+    try {
+      const host = new URL(String(value || "").trim()).hostname.toLowerCase();
+      return host === "github.io" || host.endsWith(".github.io");
+    } catch {
+      return false;
+    }
+  }
+
   function accessApiUrl(path) {
     const config = requireConfigured();
-    const base = trimTrailingSlash(config.accessApiBaseUrl || currentOriginApiBaseUrl());
+    let base = trimTrailingSlash(config.accessApiBaseUrl || currentOriginApiBaseUrl() || DEFAULT_ACCESS_API_BASE_URL);
+    if (isGithubPagesBaseUrl(base)) base = DEFAULT_ACCESS_API_BASE_URL;
     if (!base) throw new Error("ATLAS invitation service is not available from this page.");
     return `${base}${path.startsWith("/") ? path : `/${path}`}`;
   }

@@ -43,6 +43,7 @@ const SYNC_WRITE_TOKEN = "atlas-rise-shared-sync-2026";
 const DEFAULT_SUPABASE_URL = "https://rmyhmvjcswfwaracgriy.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_2DEqeCNZFn6sNeVrSEfW8A_EI6tRb_1";
 const DEFAULT_ATLAS_APP_PATH = "/portfolio-operations-dashboard/index.html";
+const API_CORS_ALLOW_HEADERS = "content-type, authorization, apikey";
 const COMPANY_EMAIL_PATTERN = /^[^@\s]+@(risere|riseresidential)[.]com$/i;
 const ATLAS_AUTH_ALIAS_ROUTES = new Map([
   ["/invite", "activate"],
@@ -81,7 +82,7 @@ function apiResponse(data, init = {}) {
   const headers = new Headers(response.headers);
   headers.set("access-control-allow-origin", "*");
   headers.set("access-control-allow-methods", "GET,POST,OPTIONS");
-  headers.set("access-control-allow-headers", "content-type, authorization");
+  headers.set("access-control-allow-headers", API_CORS_ALLOW_HEADERS);
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -95,7 +96,7 @@ function noContent() {
     headers: {
       "access-control-allow-origin": "*",
       "access-control-allow-methods": "GET,POST,OPTIONS",
-      "access-control-allow-headers": "content-type, authorization",
+      "access-control-allow-headers": API_CORS_ALLOW_HEADERS,
     },
   });
 }

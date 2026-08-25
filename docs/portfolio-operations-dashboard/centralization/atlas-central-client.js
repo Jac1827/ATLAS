@@ -240,12 +240,13 @@
     return `${base}${path.startsWith("/") ? path : `/${path}`}`;
   }
 
-  function baseHeaders(config = getConfig(), includeAuth = true) {
+  function baseHeaders(config = getConfig(), includeAuth = true, options = {}) {
+    const includeSupabasePublicHeaders = options.supabasePublicHeaders !== false;
     const headers = {
       accept: "application/json",
       "content-type": "application/json"
     };
-    if (config.supabaseAnonKey) {
+    if (includeSupabasePublicHeaders && config.supabaseAnonKey) {
       headers.apikey = config.supabaseAnonKey;
       headers.Authorization = `Bearer ${config.supabaseAnonKey}`;
     }
@@ -414,7 +415,7 @@
       response = await fetch(url, {
         ...options,
         headers: {
-          ...baseHeaders(getConfig(), options.auth !== false),
+          ...baseHeaders(getConfig(), options.auth !== false, options),
           ...(options.headers || {})
         }
       });
@@ -622,6 +623,7 @@
     };
     return request(accessApiUrl("/api/atlas/access/invite"), {
       method: "POST",
+      supabasePublicHeaders: false,
       body: JSON.stringify(payload)
     });
   }
@@ -630,7 +632,8 @@
     const cleanEmail = String(email || "").trim().toLowerCase();
     if (!cleanEmail) throw new Error("Email is required.");
     return request(accessApiUrl(`/api/atlas/access/diagnose?email=${encodeURIComponent(cleanEmail)}`), {
-      method: "GET"
+      method: "GET",
+      supabasePublicHeaders: false
     });
   }
 

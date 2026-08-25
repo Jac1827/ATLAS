@@ -18,6 +18,7 @@
     provider: "supabase-postgres",
     appBaseUrl: "https://jac1827.github.io/ATLAS/portfolio-operations-dashboard/index.html",
     apiBaseUrl: "",
+    accessApiBaseUrl: "",
     supabaseUrl: "https://rmyhmvjcswfwaracgriy.supabase.co",
     supabaseAnonKey: "sb_publishable_2DEqeCNZFn6sNeVrSEfW8A_EI6tRb_1",
     documentKey: "atlas_dashboard_state_v1",
@@ -56,6 +57,7 @@
     config.provider = String(config.provider || DEFAULT_CONFIG.provider).trim();
     config.appBaseUrl = trimTrailingSlash(config.appBaseUrl || DEFAULT_CONFIG.appBaseUrl);
     config.apiBaseUrl = trimTrailingSlash(config.apiBaseUrl);
+    config.accessApiBaseUrl = trimTrailingSlash(config.accessApiBaseUrl || config.apiBaseUrl);
     config.supabaseUrl = trimTrailingSlash(config.supabaseUrl || DEFAULT_CONFIG.supabaseUrl);
     config.supabaseAnonKey = String(config.supabaseAnonKey || DEFAULT_CONFIG.supabaseAnonKey || "").trim();
     config.documentKey = String(config.documentKey || DEFAULT_CONFIG.documentKey).trim() || DEFAULT_CONFIG.documentKey;
@@ -215,6 +217,18 @@
     throw new Error("Central API base URL is not configured.");
   }
 
+  function currentOriginApiBaseUrl() {
+    const origin = String(window.location?.origin || "").trim();
+    return origin && /^https?:\/\//i.test(origin) && !isLocalBrowserUrl(origin) ? origin : "";
+  }
+
+  function accessApiUrl(path) {
+    const config = requireConfigured();
+    const base = trimTrailingSlash(config.accessApiBaseUrl || currentOriginApiBaseUrl());
+    if (!base) throw new Error("ATLAS invitation service is not available from this page.");
+    return `${base}${path.startsWith("/") ? path : `/${path}`}`;
+  }
+
   function baseHeaders(config = getConfig(), includeAuth = true) {
     const headers = {
       accept: "application/json",
@@ -252,6 +266,26 @@
     return error;
   }
 
+  function isMissingProvisioningColumnError(error) {
+    const message = String(error?.message || error || "").toLowerCase();
+    return [
+      "access_status",
+      "account_status",
+      "auth_user_id",
+      "invitation_sent_at",
+      "invitation_expires_at",
+      "invitation_accepted_at",
+      "password_reset_sent_at",
+      "last_invite_error"
+    ].some(column => message.includes(column))
+      && (
+        message.includes("column")
+        || message.includes("schema cache")
+        || message.includes("could not find")
+        || message.includes("does not exist")
+      );
+  }
+
   function normalizeAtlasAuthErrorMessage(rawMessage, status = 0, context = {}) {
     const message = String(rawMessage || "").trim();
     const lower = message.toLowerCase();
@@ -281,6 +315,7 @@
     const normalized = {
       type: String(event.type || "").trim(),
       email: String(event.email || "").trim().toLowerCase(),
+      message: String(event.message || "").trim(),
       at: String(event.at || new Date().toISOString())
     };
     try { sessionStorage.setItem(LAST_AUTH_EVENT_STORAGE_KEY, JSON.stringify(normalized)); } catch {}
@@ -555,10 +590,56 @@
     }
   }
 
+  async function completeInviteActivation(password, displayName = "") {
+    await updatePassword(password);
+    const profile = await claimInvitedProfile(displayName).catch(async (error) => {
+      await fetchProfile().catch(() => null);
+      throw error;
+    });
+    saveLastAuthEvent({ type: "invite_activation_completed", email: userEmail() });
+    return profile;
+  }
+
+  async function sendAccessInvitation(access = {}, options = {}) {
+    const email = String(access.email || "").trim().toLowerCase();
+    if (!email) throw new Error("Email is required.");
+    const payload = {
+      ...access,
+      email,
+      action: String(options.action || access.action || "invite").trim(),
+      appBaseUrl: authRedirectUrl()
+    };
+    return request(accessApiUrl("/api/atlas/access/invite"), {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async function diagnoseAccessProvisioning(email = "") {
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    if (!cleanEmail) throw new Error("Email is required.");
+    return request(accessApiUrl(`/api/atlas/access/diagnose?email=${encodeURIComponent(cleanEmail)}`), {
+      method: "GET"
+    });
+  }
+
   function handleAuthRedirect() {
     const hash = String(window.location?.hash || "");
-    if (!hash || !hash.includes("access_token")) return null;
-    const params = new URLSearchParams(hash.replace(/^#/, ""));
+    const search = String(window.location?.search || "");
+    const params = hash ? new URLSearchParams(hash.replace(/^#/, "")) : new URLSearchParams(search.replace(/^\?/, ""));
+    const errorMessage = params.get("error_description") || params.get("error") || "";
+    if (errorMessage) {
+      saveLastAuthEvent({
+        type: "auth_error",
+        email: params.get("email") || "",
+        message: errorMessage
+      });
+      if (window.history?.replaceState) {
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.search.replace(/([?&])(error|error_description|error_code)=[^&]*/g, "").replace(/[?&]$/, ""));
+      }
+      return null;
+    }
+    if (!params.get("access_token")) return null;
     const accessToken = params.get("access_token");
     if (!accessToken) return null;
     const expiresIn = Number(params.get("expires_in") || 3600);
@@ -728,6 +809,30 @@
     });
   }
 
+  async function readDashboardViews() {
+    await refreshSession().catch(() => null);
+    return rpc("atlas_read_dashboard_views", {});
+  }
+
+  async function saveDashboardView(view = {}) {
+    const payload = view && typeof view === "object" ? view : {};
+    return rpc("atlas_save_dashboard_view", {
+      p_view_key: String(payload.viewKey || payload.view_key || "").trim(),
+      p_view_name: String(payload.viewName || payload.view_name || "My Dashboard").trim(),
+      p_is_default: Boolean(payload.isDefault || payload.is_default),
+      p_role_template_key: String(payload.roleTemplateKey || payload.role_template_key || "").trim() || null,
+      p_layout: payload.layout && typeof payload.layout === "object" ? payload.layout : {},
+      p_widgets: Array.isArray(payload.widgets) ? payload.widgets : [],
+      p_source: String(payload.source || "atlas_dashboard_builder").trim()
+    });
+  }
+
+  async function deleteDashboardView(viewKey = "") {
+    return rpc("atlas_delete_dashboard_view", {
+      p_view_key: String(viewKey || "").trim()
+    });
+  }
+
   async function insertRows(table, rows, options = {}) {
     await refreshSession().catch(() => null);
     const payload = Array.isArray(rows) ? rows : [rows];
@@ -768,15 +873,44 @@
 
   async function readAccessInvites() {
     await refreshSession().catch(() => null);
-    const query = "select=invite_id,email,employee_id,display_name,role,status,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,claimed_user_id,claimed_at,updated_at&order=updated_at.desc";
-    const rows = await fetchJson(`/atlas_user_access_invites?${query}`);
+    const query = "select=invite_id,email,employee_id,display_name,role,status,access_status,account_status,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,auth_user_id,claimed_user_id,claimed_at,invitation_sent_at,invitation_expires_at,invitation_accepted_at,password_reset_sent_at,last_invite_error,updated_at&order=updated_at.desc";
+    let rows;
+    try {
+      rows = await fetchJson(`/atlas_user_access_invites?${query}`);
+    } catch (error) {
+      if (!isMissingProvisioningColumnError(error)) throw error;
+      const fallbackQuery = "select=invite_id,email,employee_id,display_name,role,status,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,claimed_user_id,claimed_at,updated_at&order=updated_at.desc";
+      rows = await fetchJson(`/atlas_user_access_invites?${fallbackQuery}`);
+      rows = (Array.isArray(rows) ? rows : []).map(row => ({
+        ...row,
+        access_status: ["suspended", "disabled", "revoked"].includes(String(row.status || "").toLowerCase()) ? "disabled" : "active",
+        account_status: row.claimed_at ? "active" : "not_invited",
+        auth_user_id: row.claimed_user_id || null,
+        invitation_sent_at: "",
+        invitation_expires_at: "",
+        invitation_accepted_at: row.claimed_at || "",
+        password_reset_sent_at: "",
+        last_invite_error: ""
+      }));
+    }
     return Array.isArray(rows) ? rows : [];
   }
 
   async function readUserProfiles() {
     await refreshSession().catch(() => null);
-    const query = "select=user_id,email,display_name,profile_image_url,role,status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,last_access_reviewed_at,updated_at&order=display_name.asc";
-    const rows = await fetchJson(`/atlas_user_profiles?${query}`);
+    const query = "select=user_id,email,display_name,profile_image_url,role,status,account_status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,last_access_reviewed_at,updated_at&order=display_name.asc";
+    let rows;
+    try {
+      rows = await fetchJson(`/atlas_user_profiles?${query}`);
+    } catch (error) {
+      if (!isMissingProvisioningColumnError(error)) throw error;
+      const fallbackQuery = "select=user_id,email,display_name,profile_image_url,role,status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,last_access_reviewed_at,updated_at&order=display_name.asc";
+      rows = await fetchJson(`/atlas_user_profiles?${fallbackQuery}`);
+      rows = (Array.isArray(rows) ? rows : []).map(row => ({
+        ...row,
+        account_status: "active"
+      }));
+    }
     return Array.isArray(rows) ? rows : [];
   }
 
@@ -1085,6 +1219,7 @@
     signUpWithPassword,
     signOut,
     updatePassword,
+    completeInviteActivation,
     fetchUser,
     fetchProfile,
     claimFirstAdmin,
@@ -1095,6 +1230,9 @@
     saveDocument,
     readSharedPropertyGraph,
     saveSharedPropertyGraph,
+    readDashboardViews,
+    saveDashboardView,
+    deleteDashboardView,
     insertRows,
     readLiveSessions,
     upsertLiveSession,
@@ -1104,6 +1242,8 @@
     readCommunitiesForAccess,
     readEmployeesForAccess,
     adminUpsertUserAccess,
+    sendAccessInvitation,
+    diagnoseAccessProvisioning,
     uploadReadOnlySnapshot,
     upsertPeopleDirectory,
     upsertMarketingMetrics,

@@ -151,6 +151,50 @@
   .atlas-access-pill { display:inline-flex; align-items:center; gap:4px; border:1px solid var(--border); border-radius:999px; padding:3px 7px; font-size:0.62rem; font-weight:700; color:var(--accent); background:var(--bg2); margin:2px 4px 2px 0; }
   .atlas-access-checks { display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:6px 10px; max-height:210px; overflow:auto; padding:8px; border:1px solid var(--border2); border-radius:8px; background:var(--bg2); }
   .atlas-access-checks label { display:flex; align-items:center; gap:7px; font-size:0.68rem; color:var(--text); }
+  .atlas-dashboard-builder { display:grid; gap:14px; }
+  .atlas-dashboard-builder-head { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+  .atlas-dashboard-builder-title { font-size:1.08rem; font-weight:800; color:var(--accent); letter-spacing:-0.02em; }
+  .atlas-dashboard-builder-sub { font-size:0.72rem; color:var(--muted); line-height:1.5; margin-top:4px; max-width:82ch; }
+  .atlas-dashboard-toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .atlas-dashboard-toolbar .btn i { font-size:0.92rem; }
+  .atlas-dashboard-controls { display:grid; grid-template-columns:minmax(210px,0.8fr) minmax(210px,0.8fr) minmax(280px,1.3fr); gap:10px; align-items:end; }
+  .atlas-dashboard-field { display:grid; gap:6px; }
+  .atlas-dashboard-field label,
+  .atlas-dashboard-section-label { font-size:0.62rem; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); }
+  .atlas-dashboard-field .sub { font-size:0.66rem; color:var(--muted); line-height:1.45; }
+  .atlas-dashboard-view-summary { display:flex; flex-wrap:wrap; gap:6px; }
+  .atlas-dashboard-library { display:grid; gap:10px; border:1px solid var(--border); border-radius:12px; padding:12px; background:linear-gradient(180deg,#ffffff 0%,#f8fafc 100%); }
+  .atlas-dashboard-library-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; }
+  .atlas-dashboard-library-card { display:grid; gap:8px; padding:12px; border:1px solid var(--border2); border-radius:10px; background:#fff; text-align:left; min-height:154px; }
+  .atlas-dashboard-library-card.is-planned { opacity:0.68; background:#f7f7f3; }
+  .atlas-dashboard-library-meta { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .atlas-dashboard-category-pill,
+  .atlas-dashboard-status-pill { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--border2); background:var(--bg3); color:var(--muted); border-radius:999px; padding:3px 8px; font-size:0.58rem; font-weight:800; letter-spacing:0.05em; text-transform:uppercase; }
+  .atlas-dashboard-layout-grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:12px; align-items:stretch; }
+  .atlas-dashboard-widget-card { position:relative; grid-column:span 4; display:grid; gap:9px; padding:14px; border:1px solid var(--border); border-radius:12px; background:linear-gradient(180deg,#fff 0%,#f8fbff 100%); min-height:154px; box-shadow:0 8px 20px rgba(15,23,42,0.04); }
+  .atlas-dashboard-widget-card.is-compact { grid-column:span 3; min-height:132px; }
+  .atlas-dashboard-widget-card.is-expanded { grid-column:span 6; min-height:190px; }
+  .atlas-dashboard-widget-card.is-pinned { border-color:rgba(27,58,75,0.35); box-shadow:0 12px 24px rgba(27,58,75,0.08); }
+  .atlas-dashboard-widget-card.is-dragging { opacity:0.5; }
+  .atlas-dashboard-widget-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+  .atlas-dashboard-widget-title { font-size:0.78rem; font-weight:800; color:var(--text); line-height:1.25; }
+  .atlas-dashboard-widget-kicker { font-size:0.6rem; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); }
+  .atlas-dashboard-widget-value { font-size:1.62rem; font-weight:800; line-height:1; color:var(--accent); }
+  .atlas-dashboard-widget-sub { font-size:0.7rem; line-height:1.45; color:var(--muted); }
+  .atlas-dashboard-widget-actions { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .atlas-dashboard-icon-btn { width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--accent); cursor:pointer; }
+  .atlas-dashboard-icon-btn:hover { background:var(--bg3); }
+  .atlas-dashboard-size-group { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:#fff; }
+  .atlas-dashboard-size-group button { border:0; border-right:1px solid var(--border); background:#fff; color:var(--muted); width:30px; height:28px; font-size:0.62rem; font-weight:800; cursor:pointer; }
+  .atlas-dashboard-size-group button:last-child { border-right:0; }
+  .atlas-dashboard-size-group button.active { background:var(--accent); color:#fff; }
+  .atlas-dashboard-config-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+  .atlas-dashboard-config-card { border:1px solid var(--border); border-radius:12px; padding:12px; background:#fff; }
+  .atlas-dashboard-property-checks { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:6px 10px; max-height:170px; overflow:auto; border:1px solid var(--border2); border-radius:8px; padding:8px; background:var(--bg2); }
+  .atlas-dashboard-property-checks label { display:flex; gap:7px; align-items:center; font-size:0.68rem; color:var(--text); }
+  .atlas-dashboard-empty { border:1px dashed var(--border); border-radius:12px; padding:18px; color:var(--muted); font-size:0.72rem; background:#fff; }
+  @media(max-width:1100px){ .atlas-dashboard-widget-card,.atlas-dashboard-widget-card.is-compact,.atlas-dashboard-widget-card.is-expanded { grid-column:span 6; } .atlas-dashboard-controls,.atlas-dashboard-config-grid { grid-template-columns:1fr 1fr; } }
+  @media(max-width:700px){ .atlas-dashboard-layout-grid,.atlas-dashboard-controls,.atlas-dashboard-config-grid { grid-template-columns:1fr; } .atlas-dashboard-widget-card,.atlas-dashboard-widget-card.is-compact,.atlas-dashboard-widget-card.is-expanded { grid-column:auto; } }
   @media(max-width:980px){ .atlas-access-grid { grid-template-columns:1fr; } .atlas-live-users { max-width:100%; width:100%; } }
   .content-shell { min-width:0; }
   .side-nav { position:sticky; top:14px; align-self:start; background:rgba(255,255,255,0.94); border:1px solid var(--border); border-radius:16px; padding:10px; box-shadow:0 12px 28px rgba(15,23,42,0.06); transition:width 0.18s ease,padding 0.18s ease; }
@@ -1010,7 +1054,7 @@
 
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=20260821-people-access"></script>
-<script src="./centralization/atlas-central-client.js?v=20260824-auth-singleflight" data-atlas-central-client="true"></script>
+<script src="./centralization/atlas-central-client.js?v=20260825-dashboard-builder" data-atlas-central-client="true"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -11479,6 +11523,13 @@ function autoPopulateLeasingPace() {
 const MOUNT_TABS = [10, 11, 12, 13];
 const MAX_TAB = 14;
 
+function syncAtlasWorkspaceCardVisibility() {
+  const workspaceCard = document.getElementById("prop-selector-card");
+  if (!workspaceCard) return;
+  const authFrontDoorActive = activeTab === 0 && shouldBlockAtlasSensitiveAccess();
+  workspaceCard.style.display = (MOUNT_TABS.includes(activeTab) || authFrontDoorActive) ? "none" : "";
+}
+
 function setTab(i) {
   const requestedTab = Math.max(0, Math.min(MAX_TAB, Number(i) || 0));
   const requestedDecision = atlasAccessDecision(requestedTab);
@@ -11496,9 +11547,7 @@ function setTab(i) {
     const idx = Number(String(p.id).replace("tab-panel-", ""));
     p.style.display = idx === activeTab ? "" : "none";
   });
-  // The Community Workspace header is meaningless on a mounted platform.
-  const workspaceCard = document.getElementById("prop-selector-card");
-  if (workspaceCard) workspaceCard.style.display = MOUNT_TABS.includes(activeTab) ? "none" : "";
+  syncAtlasWorkspaceCardVisibility();
   renderTab();
 }
 
@@ -11560,6 +11609,7 @@ function renderTab() {
     const idx = Number(String(p.id).replace("tab-panel-", ""));
     p.style.display = idx === activeTab ? "" : "none";
   });
+  syncAtlasWorkspaceCardVisibility();
   applyDashboardBackdrop();
   syncAtlasTopbar();
   applyAtlasAccessControlsToNavigation();
@@ -11727,7 +11777,9 @@ let atlasCentralAuthActionState = {
   magicLink: false,
   passwordSignIn: false,
   passwordSignUp: false,
-  passwordReset: false
+  passwordReset: false,
+  accessInvite: false,
+  accessReset: false
 };
 let atlasLivePresenceTimer = null;
 let atlasLivePresenceRefreshPromise = null;
@@ -11777,18 +11829,20 @@ const ATLAS_ACCESS_TABS = [
   { id: "14", label: "ATLAS Settings", key: "atlas_settings" }
 ];
 
+const ATLAS_SELF_SERVICE_TAB_IDS = ["14"];
+
 const ATLAS_ACCESS_ROLE_TABS = {
   admin: ATLAS_ACCESS_TABS.map(tab => tab.id),
   centra: ATLAS_ACCESS_TABS.map(tab => tab.id),
-  executive: ["0","1","2","3","4","5","6","8","9","10","11","12","13"],
-  regional: ["0","1","2","3","4","5","6","8","9","10","11","12","13"],
-  community_manager: ["0","1","2","3","4","5","6","8","9","10","11"],
-  people: ["0","1","8","9","13"],
-  marketing: ["0","1","8","9","11"],
-  maintenance: ["0","1","8","10"],
-  finance: ["0","1","2","4","8","9","12"],
-  bonus: ["0","1","8","9"],
-  viewer: ["0","2","8"]
+  executive: ["0","1","2","3","4","5","6","8","9","10","11","12","13","14"],
+  regional: ["0","1","2","3","4","5","6","8","9","10","11","12","13","14"],
+  community_manager: ["0","1","2","3","4","5","6","8","9","10","11","14"],
+  people: ["0","1","8","9","13","14"],
+  marketing: ["0","1","8","9","11","14"],
+  maintenance: ["0","1","8","10","14"],
+  finance: ["0","1","2","4","8","9","12","14"],
+  bonus: ["0","1","8","9","14"],
+  viewer: ["0","2","8","14"]
 };
 
 const ATLAS_ACCESS_ROLES = [
@@ -11806,11 +11860,23 @@ const ATLAS_ACCESS_ROLES = [
 ];
 
 const ATLAS_ACCESS_STATUSES = [
-  ["pending", "Pending"],
   ["active", "Active"],
-  ["suspended", "Suspended"],
   ["disabled", "Disabled"],
+  ["pending", "Pending"],
+  ["suspended", "Suspended"],
   ["revoked", "Revoked"]
+];
+
+const ATLAS_ACCOUNT_STATUSES = [
+  ["not_invited", "Not Invited"],
+  ["invitation_sent", "Invitation Sent"],
+  ["invitation_expired", "Invitation Expired"],
+  ["activation_pending", "Activation Pending"],
+  ["active", "Active"],
+  ["password_reset_required", "Password Reset Required"],
+  ["authentication_error", "Authentication Error"],
+  ["email_review", "Email Review"],
+  ["roster_inactive", "Inactive"]
 ];
 
 function defaultAtlasAccessFormDraft() {
@@ -11818,7 +11884,7 @@ function defaultAtlasAccessFormDraft() {
     email: "",
     displayName: "",
     role: "admin",
-    status: "pending",
+    status: "active",
     employeeId: "",
     allowedCommunityIds: [],
     allowedMarketValues: [],
@@ -11830,19 +11896,271 @@ function defaultAtlasAccessFormDraft() {
 
 atlasAccessFormDraft = defaultAtlasAccessFormDraft();
 
-const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=20260824-auth-singleflight";
+const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=20260825-dashboard-builder";
 const ATLAS_AUTH_UI_STORAGE_KEY = "atlas_auth_ui_state_v1";
 const ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY = "atlas_dashboard_preferences_v1";
 let atlasCentralClientLoadPromise = null;
 
 const ATLAS_CUSTOM_DASHBOARD_WIDGETS = [
-  { key: "overview", label: "Portfolio Overview", tabId: 2, accent: "#1d4ed8", description: "Occupancy and budget pacing across the current scope." },
-  { key: "traffic", label: "Traffic & Funnel", tabId: 3, accent: "#7c3aed", description: "Leads, tours, applications, and closing efficiency." },
-  { key: "renewals", label: "Renewals", tabId: 5, accent: "#ea580c", description: "Retention pace, undecided renewals, and projected attrition." },
-  { key: "reputation", label: "Reputation", tabId: 6, accent: "#0f766e", description: "Resident sentiment, ORA, and review quality." },
-  { key: "reports", label: "Reports", tabId: 8, accent: "#475569", description: "Exports, investor reporting, and presentation output." },
-  { key: "settings", label: "Dashboard Settings", tabId: 14, accent: "#8b5cf6", description: "Choose which widgets you want on your home dashboard." }
+  {
+    key: "portfolio_overview",
+    legacyKeys: ["overview"],
+    label: "Portfolio Overview",
+    category: "Portfolio",
+    dataSource: "Portfolio",
+    tabId: 2,
+    accent: "#1d4ed8",
+    phase: 1,
+    defaultMetric: "Physical Occupancy",
+    metrics: ["Physical Occupancy", "Leased Occupancy", "Budget Occupancy", "Occupancy Variance", "Exposure", "Average Rent", "Revenue vs. Budget"],
+    visualizations: ["KPI Card", "Trend Card", "Comparison Table"],
+    description: "Occupancy, exposure, rent, and budget pacing across the selected scope."
+  },
+  {
+    key: "traffic_funnel",
+    legacyKeys: ["traffic"],
+    label: "Traffic & Funnel",
+    category: "Leasing",
+    dataSource: "Traffic & Funnel",
+    tabId: 3,
+    accent: "#7c3aed",
+    phase: 1,
+    defaultMetric: "Guest Cards",
+    metrics: ["Leads", "Guest Cards", "Tours", "Applications", "Approvals", "Move-Ins", "Lead -> Tour", "Tour -> Application", "Application -> Approval", "Lead -> Move-In"],
+    visualizations: ["KPI Card", "Funnel", "Trend Card"],
+    description: "Leads, tours, applications, approvals, move-ins, and configurable conversions."
+  },
+  {
+    key: "renewals_retention",
+    legacyKeys: ["renewals"],
+    label: "Renewals & Retention",
+    category: "Renewals",
+    dataSource: "Renewals",
+    tabId: 5,
+    accent: "#ea580c",
+    phase: 1,
+    defaultMetric: "Renewal Conversion",
+    metrics: ["Renewal Offers", "Renewals Completed", "Renewal Conversion", "Retention %", "Upcoming Expirations", "Undecided Renewals", "Notices", "Projected Attrition"],
+    visualizations: ["KPI Card", "Trend Card", "Exception List"],
+    description: "Renewal progress, undecided expirations, notices, and retention risk."
+  },
+  {
+    key: "reputation_pulse",
+    legacyKeys: ["reputation"],
+    label: "Reputation Pulse",
+    category: "Reputation",
+    dataSource: "Reputation",
+    tabId: 6,
+    accent: "#0f766e",
+    phase: 1,
+    defaultMetric: "ORA Score",
+    metrics: ["ORA Score", "Google Rating", "Review Volume", "Resident Sentiment"],
+    visualizations: ["KPI Card", "Trend Card", "Ranking"],
+    description: "Resident sentiment, ORA, review quality, and reputation movement."
+  },
+  {
+    key: "reporting_exports",
+    legacyKeys: ["reports"],
+    label: "Reporting",
+    category: "Reports",
+    dataSource: "Reports",
+    tabId: 8,
+    accent: "#475569",
+    phase: 1,
+    defaultMetric: "Report Recipients",
+    metrics: ["Report Recipients", "Investor Packet Readiness", "Scheduled Exports", "Printable Views"],
+    visualizations: ["KPI Card", "Readiness List"],
+    description: "Report readiness, export workflows, and investor output coverage."
+  },
+  {
+    key: "dashboard_builder",
+    legacyKeys: ["settings"],
+    label: "Dashboard Builder",
+    category: "Reports",
+    dataSource: "ATLAS Settings",
+    tabId: 14,
+    accent: "#64748b",
+    phase: 1,
+    defaultMetric: "Saved Views",
+    metrics: ["Saved Views", "Visible Widgets", "Default Landing View"],
+    visualizations: ["KPI Card"],
+    description: "Saved views, layout state, and personalization status."
+  },
+  {
+    key: "forward_occupancy",
+    label: "Forward Occupancy",
+    category: "Occupancy",
+    dataSource: "Portfolio",
+    tabId: 2,
+    accent: "#2563eb",
+    phase: 2,
+    defaultMetric: "30 Day Forecast",
+    metrics: ["30 Day Forecast", "60 Day Forecast", "90 Day Forecast"],
+    visualizations: ["Forecast Chart", "KPI Card"],
+    description: "Projected occupancy using current occupancy, scheduled move-ins, and scheduled move-outs."
+  },
+  {
+    key: "maintenance_exceptions",
+    label: "Maintenance Exceptions",
+    category: "Maintenance",
+    dataSource: "Maintenance",
+    tabId: 10,
+    accent: "#dc2626",
+    phase: 2,
+    defaultMetric: "Open Work Orders",
+    metrics: ["Open Work Orders", "Open >24 Hours", "Emergency Work Orders", "Average Completion Time", "Resident-Impacting Work Orders"],
+    visualizations: ["Exception List", "KPI Card"],
+    description: "Work order volume, aging, emergencies, and resident-impacting maintenance."
+  },
+  {
+    key: "move_in_risk",
+    label: "Move-In Risk",
+    category: "Turns",
+    dataSource: "Maintenance",
+    tabId: 10,
+    accent: "#b45309",
+    phase: 2,
+    defaultMetric: "Move-In Risk",
+    metrics: ["Upcoming Move-Ins Without Ready Units", "Turns Exceeding Target", "Vacant Not Ready"],
+    visualizations: ["Exception List", "KPI Card"],
+    description: "Upcoming move-ins, readiness blockers, and turn exceptions."
+  },
+  {
+    key: "financial_variance",
+    label: "Financial Variance",
+    category: "Financial",
+    dataSource: "Budget Builder",
+    tabId: 12,
+    accent: "#0f766e",
+    phase: 2,
+    defaultMetric: "Budget Variance",
+    metrics: ["Revenue Variance", "Payroll Variance", "R&M Variance", "Utilities Variance", "Bad Debt Variance", "CapEx Variance"],
+    visualizations: ["Exception List", "Variance Table", "KPI Card"],
+    description: "Actual, budget, variance, and forecast exceptions by account category."
+  },
+  {
+    key: "vendor_scorecard",
+    label: "Vendor Scorecard",
+    category: "Vendors",
+    dataSource: "Vendor Management",
+    tabId: 10,
+    accent: "#0891b2",
+    phase: 2,
+    defaultMetric: "Vendor Compliance",
+    metrics: ["Vendor Compliance", "Expiring COIs", "Open Vendor Work Orders", "Vendor Spend", "Vendor Quality"],
+    visualizations: ["Scorecard", "Exception List"],
+    description: "Compliance, cost, response, completion, and quality scoring."
+  }
 ];
+
+const ATLAS_LEGACY_DASHBOARD_WIDGET_KEY_MAP = ATLAS_CUSTOM_DASHBOARD_WIDGETS.reduce((acc, widget) => {
+  acc[widget.key] = widget.key;
+  (widget.legacyKeys || []).forEach(key => { acc[key] = widget.key; });
+  return acc;
+}, {});
+
+const ATLAS_DASHBOARD_LIBRARY_CATEGORIES = [
+  "All",
+  "Portfolio",
+  "Leasing",
+  "Occupancy",
+  "Renewals",
+  "Maintenance",
+  "Turns",
+  "Inspections",
+  "Vendors",
+  "Financial",
+  "People",
+  "Reputation",
+  "Reports",
+  "Exceptions"
+];
+
+const ATLAS_DASHBOARD_SCOPE_OPTIONS = [
+  ["assigned_portfolio", "Assigned Portfolio"],
+  ["single_property", "Single Property"],
+  ["multiple_properties", "Multiple Properties"],
+  ["region", "Region"],
+  ["regional_manager", "Regional Manager Portfolio"],
+  ["ownership_group", "Ownership Group"],
+  ["asset_type", "Asset Type"],
+  ["custom_group", "Custom Property Group"]
+];
+
+const ATLAS_DASHBOARD_TIMEFRAME_OPTIONS = [
+  "Today",
+  "Yesterday",
+  "WTD",
+  "MTD",
+  "QTD",
+  "YTD",
+  "Rolling 7 Days",
+  "Rolling 30 Days",
+  "Rolling 60 Days",
+  "Rolling 90 Days",
+  "Trailing 12 Months",
+  "Custom Date Range"
+];
+
+const ATLAS_DASHBOARD_COMPARISON_OPTIONS = [
+  "Budget",
+  "Target",
+  "Prior Day",
+  "Prior Week",
+  "Prior Month",
+  "Prior Year",
+  "Same Period Prior Year",
+  "Portfolio Average",
+  "Regional Average",
+  "Property Peer Group"
+];
+
+const ATLAS_DASHBOARD_ASSET_TYPE_OPTIONS = [
+  "Conventional Multifamily",
+  "Student",
+  "BTR",
+  "55+ / Active Adult",
+  "Military",
+  "Lease-Up",
+  "Stabilized"
+];
+
+const ATLAS_DASHBOARD_WIDGET_SIZES = [
+  ["compact", "S"],
+  ["standard", "M"],
+  ["expanded", "L"]
+];
+
+const ATLAS_DASHBOARD_ROLE_TEMPLATES = {
+  executive: {
+    label: "Executive / VP",
+    widgets: ["portfolio_overview", "traffic_funnel", "renewals_retention", "reporting_exports", "reputation_pulse"]
+  },
+  regional: {
+    label: "Regional Manager",
+    widgets: ["portfolio_overview", "traffic_funnel", "renewals_retention", "reputation_pulse", "reporting_exports"]
+  },
+  community_manager: {
+    label: "General Manager",
+    widgets: ["portfolio_overview", "traffic_funnel", "renewals_retention", "reputation_pulse"]
+  },
+  leasing: {
+    label: "Leasing",
+    widgets: ["traffic_funnel", "renewals_retention", "portfolio_overview"]
+  },
+  maintenance: {
+    label: "Maintenance Supervisor",
+    widgets: ["maintenance_exceptions", "move_in_risk", "portfolio_overview"]
+  },
+  central_operations: {
+    label: "Central Operations",
+    widgets: ["portfolio_overview", "traffic_funnel", "renewals_retention", "reporting_exports"]
+  },
+  vendor_management: {
+    label: "Vendor Management",
+    widgets: ["vendor_scorecard", "maintenance_exceptions", "financial_variance"]
+  }
+};
 
 function getAtlasCentralClientScriptUrl({ forceReload = false } = {}) {
   try {
@@ -12028,29 +12346,242 @@ function clearAtlasAuthUiMessages() {
   setAtlasAuthUiState({ notice: "", error: "" });
 }
 
-function defaultAtlasDashboardPreferences() {
+function atlasDashboardClone(value, fallback = null) {
+  try {
+    return JSON.parse(JSON.stringify(value ?? fallback));
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeAtlasDashboardWidgetKey(key = "") {
+  const value = String(key || "").trim();
+  return ATLAS_LEGACY_DASHBOARD_WIDGET_KEY_MAP[value] || value;
+}
+
+function getAtlasDashboardWidgetDefinition(widgetKey = "") {
+  const key = normalizeAtlasDashboardWidgetKey(widgetKey);
+  return ATLAS_CUSTOM_DASHBOARD_WIDGETS.find(widget => widget.key === key) || null;
+}
+
+function atlasDashboardWidgetIsAvailable(widget = {}) {
+  return Number(widget.phase || 1) <= 1;
+}
+
+function getAtlasDashboardAvailableWidgetDefinitions() {
+  return ATLAS_CUSTOM_DASHBOARD_WIDGETS.filter(atlasDashboardWidgetIsAvailable);
+}
+
+function atlasDashboardTemplateKeyForRole(profile = getAtlasAccessProfile()) {
+  const role = String(profile?.role || "").trim().toLowerCase();
+  if (role === "regional") return "regional";
+  if (role === "community_manager") return "community_manager";
+  if (role === "maintenance") return "maintenance";
+  if (role === "marketing") return "leasing";
+  if (role === "people" || role === "centra") return "central_operations";
+  if (role === "finance" || role === "admin" || role === "executive" || role === "bonus") return "executive";
+  return "executive";
+}
+
+function atlasDashboardTemplateLabel(templateKey = "") {
+  return ATLAS_DASHBOARD_ROLE_TEMPLATES[templateKey]?.label || ATLAS_DASHBOARD_ROLE_TEMPLATES.executive.label;
+}
+
+function normalizeAtlasDashboardScopeConfig(input = {}) {
+  const raw = input && typeof input === "object" ? input : {};
+  const validTypes = new Set(ATLAS_DASHBOARD_SCOPE_OPTIONS.map(([key]) => key));
+  const type = validTypes.has(String(raw.type || "")) ? String(raw.type) : "assigned_portfolio";
   return {
-    visibleWidgets: ATLAS_CUSTOM_DASHBOARD_WIDGETS.map(widget => widget.key),
+    type,
+    propertyName: String(raw.propertyName || raw.property_name || "").trim(),
+    propertyNames: normalizeAtlasAccessList(raw.propertyNames || raw.property_names),
+    region: String(raw.region || "").trim(),
+    regionalManager: String(raw.regionalManager || raw.regional_manager || "").trim(),
+    ownershipGroup: String(raw.ownershipGroup || raw.ownership_group || "").trim(),
+    assetType: String(raw.assetType || raw.asset_type || "").trim(),
+    customGroupName: String(raw.customGroupName || raw.custom_group_name || "").trim()
+  };
+}
+
+function normalizeAtlasDashboardThreshold(input = {}) {
+  const raw = input && typeof input === "object" ? input : {};
+  return {
+    enabled: Boolean(raw.enabled),
+    operator: ["<", "<=", ">", ">=", "=", "between"].includes(String(raw.operator || "")) ? String(raw.operator) : ">",
+    value: String(raw.value ?? "").trim(),
+    secondaryValue: String(raw.secondaryValue ?? raw.secondary_value ?? "").trim(),
+    duration: String(raw.duration || "").trim(),
+    onlyShowExceptions: Boolean(raw.onlyShowExceptions || raw.only_show_exceptions)
+  };
+}
+
+function normalizeAtlasDashboardAlert(input = {}) {
+  const raw = input && typeof input === "object" ? input : {};
+  return {
+    enabled: Boolean(raw.enabled),
+    recipient: String(raw.recipient || "self").trim() || "self",
+    method: String(raw.method || "dashboard").trim() || "dashboard"
+  };
+}
+
+function normalizeAtlasDashboardDrillDown(input = {}, definition = {}) {
+  const raw = input && typeof input === "object" ? input : {};
+  return {
+    enabled: raw.enabled !== false,
+    mode: String(raw.mode || "module").trim() || "module",
+    targetTabId: Number.isFinite(Number(raw.targetTabId ?? raw.target_tab_id))
+      ? Number(raw.targetTabId ?? raw.target_tab_id)
+      : Number(definition.tabId || 0)
+  };
+}
+
+function buildAtlasDashboardWidgetInstance(widgetKey = "", options = {}) {
+  const definition = getAtlasDashboardWidgetDefinition(widgetKey) || getAtlasDashboardAvailableWidgetDefinitions()[0];
+  const nowToken = `${Date.now()}_${Math.round(Math.random() * 100000)}`;
+  const position = Number.isFinite(Number(options.position)) ? Number(options.position) : 0;
+  const metric = definition.metrics?.includes(options.metric) ? options.metric : definition.defaultMetric;
+  const visualization = definition.visualizations?.includes(options.visualization) ? options.visualization : (definition.visualizations?.[0] || "KPI Card");
+  const timeframe = ATLAS_DASHBOARD_TIMEFRAME_OPTIONS.includes(options.timeframe) ? options.timeframe : "MTD";
+  const comparison = ATLAS_DASHBOARD_COMPARISON_OPTIONS.includes(options.comparison) ? options.comparison : "Budget";
+  return {
+    instanceId: String(options.instanceId || options.instance_id || `widget_${definition.key}_${simpleHash(nowToken)}`).trim(),
+    widgetKey: definition.key,
+    position,
+    size: ATLAS_DASHBOARD_WIDGET_SIZES.some(([key]) => key === options.size) ? options.size : "standard",
+    pinned: Boolean(options.pinned),
+    collapsed: Boolean(options.collapsed),
+    metric,
+    scope: normalizeAtlasDashboardScopeConfig(options.scope),
+    timeframe,
+    comparison,
+    visualization,
+    threshold: normalizeAtlasDashboardThreshold(options.threshold),
+    drillDown: normalizeAtlasDashboardDrillDown(options.drillDown || options.drill_down, definition),
+    alert: normalizeAtlasDashboardAlert(options.alert),
+    updatedAt: String(options.updatedAt || options.updated_at || new Date().toISOString())
+  };
+}
+
+function normalizeAtlasDashboardWidgetInstance(input = {}, index = 0) {
+  const raw = input && typeof input === "object" ? input : {};
+  const definition = getAtlasDashboardWidgetDefinition(raw.widgetKey || raw.widget_key || raw.key);
+  if (!definition) return null;
+  return buildAtlasDashboardWidgetInstance(definition.key, {
+    ...raw,
+    instanceId: raw.instanceId || raw.instance_id || `${definition.key}_${index + 1}`,
+    position: Number.isFinite(Number(raw.position)) ? Number(raw.position) : index,
+    widgetKey: definition.key
+  });
+}
+
+function atlasDashboardDefaultWidgetKeys(templateKey = atlasDashboardTemplateKeyForRole()) {
+  const template = ATLAS_DASHBOARD_ROLE_TEMPLATES[templateKey] || ATLAS_DASHBOARD_ROLE_TEMPLATES.executive;
+  const available = new Set(getAtlasDashboardAvailableWidgetDefinitions().map(widget => widget.key));
+  const keys = (template.widgets || []).map(normalizeAtlasDashboardWidgetKey).filter(key => available.has(key));
+  return keys.length ? keys : getAtlasDashboardAvailableWidgetDefinitions().slice(0, 5).map(widget => widget.key);
+}
+
+function buildAtlasDashboardDefaultView(templateKey = atlasDashboardTemplateKeyForRole(), options = {}) {
+  const viewKey = String(options.viewKey || options.view_key || `default_${templateKey}`).replace(/[^\w-]+/g, "_");
+  const widgetKeys = Array.isArray(options.widgetKeys) && options.widgetKeys.length ? options.widgetKeys : atlasDashboardDefaultWidgetKeys(templateKey);
+  return {
+    viewKey,
+    viewName: String(options.viewName || options.view_name || atlasDashboardTemplateLabel(templateKey)).trim(),
+    isDefault: options.isDefault !== false,
+    roleTemplateKey: templateKey,
+    layout: { mode: "responsive-grid", density: "standard" },
+    widgets: widgetKeys.map((widgetKey, index) => buildAtlasDashboardWidgetInstance(widgetKey, {
+      instanceId: `${viewKey}_${normalizeAtlasDashboardWidgetKey(widgetKey)}_${index + 1}`,
+      position: index,
+      size: index === 0 ? "expanded" : "standard"
+    })).filter(Boolean),
+    createdAt: String(options.createdAt || options.created_at || new Date().toISOString()),
+    updatedAt: String(options.updatedAt || options.updated_at || new Date().toISOString())
+  };
+}
+
+function normalizeAtlasDashboardView(input = {}, index = 0) {
+  const raw = input && typeof input === "object" ? input : {};
+  const templateKey = ATLAS_DASHBOARD_ROLE_TEMPLATES[raw.roleTemplateKey || raw.role_template_key]
+    ? String(raw.roleTemplateKey || raw.role_template_key)
+    : atlasDashboardTemplateKeyForRole();
+  const viewKey = String(raw.viewKey || raw.view_key || `view_${index + 1}`).trim().replace(/[^\w-]+/g, "_") || `view_${index + 1}`;
+  const legacyVisible = Array.isArray(raw.visibleWidgets) ? raw.visibleWidgets : [];
+  const rawWidgets = Array.isArray(raw.widgets) && raw.widgets.length
+    ? raw.widgets
+    : legacyVisible.map((key, widgetIndex) => ({ widgetKey: key, position: widgetIndex }));
+  let widgets = rawWidgets
+    .map((item, widgetIndex) => normalizeAtlasDashboardWidgetInstance(item, widgetIndex))
+    .filter(Boolean)
+    .filter(instance => getAtlasDashboardWidgetDefinition(instance.widgetKey));
+  if (!widgets.length) {
+    widgets = buildAtlasDashboardDefaultView(templateKey, { viewKey }).widgets;
+  }
+  widgets = widgets
+    .sort((a, b) => (Number(a.position) || 0) - (Number(b.position) || 0))
+    .map((item, widgetIndex) => ({ ...item, position: widgetIndex }));
+  return {
+    viewKey,
+    viewName: String(raw.viewName || raw.view_name || atlasDashboardTemplateLabel(templateKey)).trim() || "My Dashboard",
+    isDefault: Boolean(raw.isDefault || raw.is_default),
+    roleTemplateKey: templateKey,
+    layout: raw.layout && typeof raw.layout === "object" ? raw.layout : { mode: "responsive-grid", density: "standard" },
+    widgets,
+    createdAt: String(raw.createdAt || raw.created_at || new Date().toISOString()),
+    updatedAt: String(raw.updatedAt || raw.updated_at || new Date().toISOString())
+  };
+}
+
+function defaultAtlasDashboardPreferences() {
+  const templateKey = atlasDashboardTemplateKeyForRole();
+  const defaultView = buildAtlasDashboardDefaultView(templateKey);
+  return {
+    schemaVersion: 2,
+    activeViewKey: defaultView.viewKey,
+    defaultViewKey: defaultView.viewKey,
+    savedViews: [defaultView],
+    visibleWidgets: defaultView.widgets.map(widget => widget.widgetKey),
     hasSeenWelcome: false,
     walkthroughCompletedAt: "",
-    customDashboardUpdatedAt: ""
+    customDashboardUpdatedAt: "",
+    centralHydratedAt: "",
+    centralSavedAt: "",
+    centralLastError: ""
   };
 }
 
 function normalizeAtlasDashboardPreferences(input = {}) {
   const raw = input && typeof input === "object" ? input : {};
   const defaults = defaultAtlasDashboardPreferences();
-  const visibleWidgetSet = new Set(
-    (Array.isArray(raw.visibleWidgets) ? raw.visibleWidgets : defaults.visibleWidgets)
-      .map(value => String(value || "").trim())
-      .filter(value => ATLAS_CUSTOM_DASHBOARD_WIDGETS.some(widget => widget.key === value))
-  );
-  if (!visibleWidgetSet.size) defaults.visibleWidgets.forEach(value => visibleWidgetSet.add(value));
+  let savedViews = Array.isArray(raw.savedViews) && raw.savedViews.length
+    ? raw.savedViews.map(normalizeAtlasDashboardView).filter(Boolean)
+    : [];
+  if (!savedViews.length) {
+    const legacyKeys = (Array.isArray(raw.visibleWidgets) && raw.visibleWidgets.length ? raw.visibleWidgets : defaults.visibleWidgets)
+      .map(normalizeAtlasDashboardWidgetKey)
+      .filter(key => getAtlasDashboardWidgetDefinition(key));
+    savedViews = [buildAtlasDashboardDefaultView(atlasDashboardTemplateKeyForRole(), {
+      widgetKeys: legacyKeys.length ? legacyKeys : defaults.visibleWidgets,
+      viewName: "My Dashboard"
+    })];
+  }
+  if (!savedViews.some(view => view.isDefault)) savedViews[0].isDefault = true;
+  const defaultView = savedViews.find(view => view.isDefault) || savedViews[0];
+  const activeView = savedViews.find(view => view.viewKey === raw.activeViewKey) || defaultView;
+  const visibleWidgets = activeView.widgets.map(widget => widget.widgetKey);
   return {
-    visibleWidgets: Array.from(visibleWidgetSet),
+    ...defaults,
+    schemaVersion: 2,
+    activeViewKey: activeView.viewKey,
+    defaultViewKey: defaultView.viewKey,
+    savedViews,
+    visibleWidgets,
     hasSeenWelcome: Boolean(raw.hasSeenWelcome),
     walkthroughCompletedAt: String(raw.walkthroughCompletedAt || ""),
-    customDashboardUpdatedAt: String(raw.customDashboardUpdatedAt || "")
+    customDashboardUpdatedAt: String(raw.customDashboardUpdatedAt || defaultView.updatedAt || ""),
+    centralHydratedAt: String(raw.centralHydratedAt || ""),
+    centralSavedAt: String(raw.centralSavedAt || ""),
+    centralLastError: String(raw.centralLastError || "")
   };
 }
 
@@ -12064,14 +12595,30 @@ function loadAtlasDashboardPreferences() {
 }
 
 let atlasDashboardPreferences = loadAtlasDashboardPreferences();
+let atlasDashboardBuilderState = {
+  search: "",
+  category: "All",
+  editingInstanceId: "",
+  layoutMode: false,
+  libraryOpen: true,
+  draggedInstanceId: "",
+  savingCentral: false,
+  loadingCentral: false
+};
+let atlasDashboardCentralSaveTimer = null;
+let atlasDashboardCentralHydratePromise = null;
+let suppressAtlasDashboardCentralSave = false;
 
-function persistAtlasDashboardPreferences() {
+function persistAtlasDashboardPreferences(options = {}) {
   try { localStorage.setItem(ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY, JSON.stringify(atlasDashboardPreferences)); } catch {}
+  if (options.pushCentral !== false && !suppressAtlasDashboardCentralSave) {
+    queueAtlasDashboardPreferencesCentralSave(options.source || "dashboard_preferences");
+  }
 }
 
-function setAtlasDashboardPreferences(next = {}) {
+function setAtlasDashboardPreferences(next = {}, options = {}) {
   atlasDashboardPreferences = normalizeAtlasDashboardPreferences({ ...atlasDashboardPreferences, ...(next && typeof next === "object" ? next : {}) });
-  persistAtlasDashboardPreferences();
+  persistAtlasDashboardPreferences(options);
   return atlasDashboardPreferences;
 }
 
@@ -12082,6 +12629,7 @@ function applyAtlasAuthEntryFromLocation() {
     const email = String(url.searchParams.get("email") || "").trim().toLowerCase();
     if (!entry && !email) return;
     const nextMode = ["login", "activate", "forgot", "help"].includes(entry) ? entry : atlasAuthUiState.mode;
+    if (entry) activeTab = 0;
     setAtlasAuthUiState({
       mode: nextMode,
       pendingEmail: email || atlasAuthUiState.pendingEmail,
@@ -12090,15 +12638,47 @@ function applyAtlasAuthEntryFromLocation() {
   } catch {}
 }
 
+function atlasAuthEntryFromLocation() {
+  try {
+    const url = new URL(window.location.href);
+    return String(url.searchParams.get("atlas-entry") || "").trim().toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
 function applyAtlasAuthRedirectEvent() {
   try {
     const event = window.ATLAS_CENTRAL?.consumeLastAuthEvent ? window.ATLAS_CENTRAL.consumeLastAuthEvent() : null;
     if (!event) return;
+    if (event.type === "auth_error") {
+      const rawMessage = String(event.message || "This ATLAS invitation link is invalid or has expired.");
+      const expired = /expired|invalid|token/i.test(rawMessage);
+      setAtlasAuthUiState({
+        mode: "help",
+        pendingEmail: event.email || atlasAuthUiState.pendingEmail,
+        error: expired
+          ? "This ATLAS invitation has expired. Please request a new invitation from your administrator."
+          : rawMessage,
+        notice: ""
+      });
+      return;
+    }
     if (event.type === "recovery") {
       setAtlasAuthUiState({
         mode: "forgot",
         pendingEmail: event.email || atlasAuthUiState.pendingEmail,
         notice: "Choose a new password to finish resetting your ATLAS account password.",
+        error: ""
+      });
+      return;
+    }
+    if (event.type === "invite_activation_completed") {
+      setAtlasAuthUiState({
+        mode: "login",
+        pendingEmail: event.email || atlasAuthUiState.pendingEmail,
+        justSignedInAt: new Date().toISOString(),
+        notice: "Your ATLAS account is active.",
         error: ""
       });
       return;
@@ -12135,14 +12715,16 @@ function shouldRenderAtlasWelcomeDashboard() {
   const status = getAtlasCentralStatus();
   if (!status.configured || !status.signedIn || activeTab !== 0) return false;
   if (atlasPasswordRecoveryCompletionPending()) return false;
+  if (atlasInviteActivationCompletionPending()) return false;
   return true;
 }
 
 function completeAtlasFirstLoginWalkthrough() {
   setAtlasDashboardPreferences({
     hasSeenWelcome: true,
-    walkthroughCompletedAt: new Date().toISOString()
-  });
+    walkthroughCompletedAt: new Date().toISOString(),
+    customDashboardUpdatedAt: new Date().toISOString()
+  }, { source: "complete_dashboard_walkthrough" });
   setAtlasAuthUiState({ firstLoginWalkthroughSeenAt: new Date().toISOString() });
   renderTab();
 }
@@ -12177,62 +12759,633 @@ function atlasPasswordRecoveryCompletionPending() {
   return status.signedIn && atlasAuthUiState.mode === "forgot" && atlasAuthUiState.notice.startsWith("Choose a new password");
 }
 
+function atlasInviteActivationCompletionPending() {
+  const status = getAtlasCentralStatus();
+  const profile = getAtlasAccessProfile();
+  return status.signedIn && atlasAuthUiState.mode === "activate" && String(profile?.account_status || "").toLowerCase() !== "active";
+}
+
 function syncAtlasAuthEmailFromForm() {
   setAtlasAuthUiState({ pendingEmail: getAtlasAuthFormEmailValue() });
 }
 
-function buildAtlasDashboardWidgetSnapshots() {
-  const monthIdx = getSelectedDashboardMonthIndex();
-  const details = buildPortfolioDetailsForMonth(monthIdx);
-  const activeDetails = details.filter(detail => isCommunityStatusActive(detail.record));
-  const aggregate = aggregateCommunitySummaries(activeDetails.map(detail => detail.summary));
-  const occupancyPct = aggregate.occupancyBaseUnits > 0 ? (aggregate.occupied / aggregate.occupancyBaseUnits) * 100 : 0;
-  const settingsDue = atlasDashboardPreferences.walkthroughCompletedAt ? "Personalization saved" : "Walkthrough ready";
-  return {
-    overview: {
-      value: `${occupancyPct.toFixed(1)}%`,
-      sub: `${Math.round(aggregate.occupied || 0)} occupied of ${Math.round(aggregate.occupancyBaseUnits || 0)} comparable units`
-    },
-    traffic: {
-      value: `${Math.round(aggregate.guestCards || 0)}`,
-      sub: `${Math.round(aggregate.tours || 0)} tours · ${Math.round(aggregate.applications || 0)} applications`
-    },
-    renewals: {
-      value: `${(aggregate.renewalRetentionRate || 0).toFixed(0)}%`,
-      sub: `${Math.round(aggregate.renewalsSigned || 0)} signed of ${Math.round(aggregate.renewalExpirations || 0)} expirations`
-    },
-    reputation: {
-      value: `${(aggregate.oraScore || 0).toFixed(1)}`,
-      sub: `${(aggregate.googleQuarterlyRating || 0).toFixed(1)} Google quarterly rating`
-    },
-    reports: {
-      value: `${details.filter(detail => normalizeInvestorEmailContacts(detail.record?.investorEmailContacts).length > 0).length}`,
-      sub: "Communities with saved report recipients"
-    },
-    settings: {
-      value: settingsDue,
-      sub: `${atlasDashboardPreferences.visibleWidgets.length} widgets selected for your home dashboard`
-    }
-  };
+function getAtlasDashboardSavedViews() {
+  return Array.isArray(atlasDashboardPreferences.savedViews) ? atlasDashboardPreferences.savedViews : [];
 }
 
-function toggleAtlasDashboardWidget(widgetKey = "") {
-  const key = String(widgetKey || "").trim();
-  if (!ATLAS_CUSTOM_DASHBOARD_WIDGETS.some(widget => widget.key === key)) return;
-  const current = new Set(atlasDashboardPreferences.visibleWidgets);
-  if (current.has(key)) current.delete(key);
-  else current.add(key);
-  const nextVisible = current.size ? Array.from(current) : [key];
-  setAtlasDashboardPreferences({
-    visibleWidgets: nextVisible,
-    customDashboardUpdatedAt: new Date().toISOString()
+function getAtlasActiveDashboardView() {
+  const views = getAtlasDashboardSavedViews();
+  return views.find(view => view.viewKey === atlasDashboardPreferences.activeViewKey)
+    || views.find(view => view.isDefault)
+    || views[0]
+    || buildAtlasDashboardDefaultView();
+}
+
+function getAtlasDefaultDashboardView() {
+  const views = getAtlasDashboardSavedViews();
+  return views.find(view => view.viewKey === atlasDashboardPreferences.defaultViewKey)
+    || views.find(view => view.isDefault)
+    || views[0]
+    || getAtlasActiveDashboardView();
+}
+
+function getAtlasDashboardViewWidgets(view = getAtlasActiveDashboardView()) {
+  return (Array.isArray(view.widgets) ? view.widgets : [])
+    .filter(widget => getAtlasDashboardWidgetDefinition(widget.widgetKey))
+    .slice()
+    .sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return (Number(a.position) || 0) - (Number(b.position) || 0);
+    })
+    .map((widget, index) => ({ ...widget, position: index }));
+}
+
+function updateAtlasDashboardActiveView(mutator, options = {}) {
+  const active = atlasDashboardClone(getAtlasActiveDashboardView(), buildAtlasDashboardDefaultView());
+  const nextView = typeof mutator === "function" ? mutator(active) : { ...active, ...(mutator || {}) };
+  const normalizedView = normalizeAtlasDashboardView({
+    ...nextView,
+    updatedAt: new Date().toISOString(),
+    isDefault: active.isDefault
   });
+  const savedViews = getAtlasDashboardSavedViews().map(view => view.viewKey === active.viewKey ? normalizedView : view);
+  setAtlasDashboardPreferences({
+    savedViews,
+    activeViewKey: normalizedView.viewKey,
+    defaultViewKey: savedViews.find(view => view.isDefault)?.viewKey || normalizedView.viewKey,
+    customDashboardUpdatedAt: normalizedView.updatedAt
+  }, options);
+  return normalizedView;
+}
+
+function atlasDashboardSelectView(viewKey = "") {
+  const target = getAtlasDashboardSavedViews().find(view => view.viewKey === String(viewKey || "").trim());
+  if (!target) return;
+  setAtlasDashboardPreferences({ activeViewKey: target.viewKey }, { source: "select_dashboard_view" });
   renderTab();
 }
 
+function atlasDashboardSetDefaultView(viewKey = getAtlasActiveDashboardView().viewKey) {
+  const key = String(viewKey || "").trim();
+  const savedViews = getAtlasDashboardSavedViews().map(view => ({ ...view, isDefault: view.viewKey === key }));
+  const defaultViewKey = savedViews.find(view => view.isDefault)?.viewKey || key;
+  setAtlasDashboardPreferences({
+    savedViews,
+    defaultViewKey,
+    activeViewKey: key || atlasDashboardPreferences.activeViewKey,
+    customDashboardUpdatedAt: new Date().toISOString()
+  }, { source: "set_default_dashboard_view" });
+  renderTab();
+}
+
+function atlasDashboardSaveAsNewView() {
+  const current = getAtlasActiveDashboardView();
+  const name = prompt("Name this dashboard view", `${current.viewName} Copy`);
+  if (!name) return;
+  const viewKey = `view_${simpleHash(`${name}_${Date.now()}`)}`;
+  const clone = normalizeAtlasDashboardView({
+    ...atlasDashboardClone(current, {}),
+    viewKey,
+    viewName: name,
+    isDefault: false,
+    widgets: current.widgets.map((widget, index) => ({
+      ...atlasDashboardClone(widget, {}),
+      instanceId: `${viewKey}_${widget.widgetKey}_${index + 1}`,
+      position: index
+    })),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  });
+  setAtlasDashboardPreferences({
+    savedViews: [...getAtlasDashboardSavedViews(), clone],
+    activeViewKey: clone.viewKey,
+    customDashboardUpdatedAt: clone.updatedAt
+  }, { source: "save_dashboard_view_as" });
+  renderTab();
+}
+
+function atlasDashboardRenameCurrentView() {
+  const current = getAtlasActiveDashboardView();
+  const name = prompt("View name", current.viewName || "My Dashboard");
+  if (!name) return;
+  updateAtlasDashboardActiveView(view => ({ ...view, viewName: name }), { source: "rename_dashboard_view" });
+  renderTab();
+}
+
+function atlasDashboardApplyRoleTemplate(templateKey = atlasDashboardTemplateKeyForRole()) {
+  const key = ATLAS_DASHBOARD_ROLE_TEMPLATES[templateKey] ? templateKey : atlasDashboardTemplateKeyForRole();
+  const active = getAtlasActiveDashboardView();
+  const templateView = buildAtlasDashboardDefaultView(key, {
+    viewKey: active.viewKey,
+    viewName: active.viewName,
+    isDefault: active.isDefault
+  });
+  updateAtlasDashboardActiveView(() => templateView, { source: "apply_dashboard_role_template" });
+  renderTab();
+}
+
+function atlasDashboardRestoreDefaultLayout() {
+  if (!confirm("Restore this view to its role template?")) return;
+  atlasDashboardApplyRoleTemplate(getAtlasActiveDashboardView().roleTemplateKey || atlasDashboardTemplateKeyForRole());
+}
+
+function atlasDashboardAddWidget(widgetKey = "") {
+  const definition = getAtlasDashboardWidgetDefinition(widgetKey);
+  if (!definition || !atlasDashboardWidgetIsAvailable(definition)) return;
+  const view = getAtlasActiveDashboardView();
+  const next = buildAtlasDashboardWidgetInstance(definition.key, {
+    position: view.widgets.length,
+    size: view.widgets.length ? "standard" : "expanded"
+  });
+  updateAtlasDashboardActiveView(current => ({ ...current, widgets: [...current.widgets, next] }), { source: "add_dashboard_widget" });
+  atlasDashboardBuilderState.editingInstanceId = next.instanceId;
+  renderTab();
+}
+
+function atlasDashboardRemoveWidget(instanceId = "") {
+  const target = String(instanceId || "").trim();
+  updateAtlasDashboardActiveView(view => ({
+    ...view,
+    widgets: view.widgets.filter(widget => widget.instanceId !== target)
+  }), { source: "remove_dashboard_widget" });
+  if (atlasDashboardBuilderState.editingInstanceId === target) atlasDashboardBuilderState.editingInstanceId = "";
+  renderTab();
+}
+
+function atlasDashboardDuplicateWidget(instanceId = "") {
+  const view = getAtlasActiveDashboardView();
+  const source = view.widgets.find(widget => widget.instanceId === instanceId);
+  if (!source) return;
+  const clone = buildAtlasDashboardWidgetInstance(source.widgetKey, {
+    ...atlasDashboardClone(source, {}),
+    instanceId: `widget_${source.widgetKey}_${simpleHash(`${Date.now()}_${source.instanceId}`)}`,
+    position: view.widgets.length,
+    updatedAt: new Date().toISOString()
+  });
+  updateAtlasDashboardActiveView(current => ({ ...current, widgets: [...current.widgets, clone] }), { source: "duplicate_dashboard_widget" });
+  atlasDashboardBuilderState.editingInstanceId = clone.instanceId;
+  renderTab();
+}
+
+function atlasDashboardMoveWidget(instanceId = "", direction = 0) {
+  const delta = Number(direction) || 0;
+  if (!delta) return;
+  updateAtlasDashboardActiveView(view => {
+    const widgets = getAtlasDashboardViewWidgets(view);
+    const index = widgets.findIndex(widget => widget.instanceId === instanceId);
+    const targetIndex = Math.max(0, Math.min(widgets.length - 1, index + delta));
+    if (index < 0 || index === targetIndex) return view;
+    const [item] = widgets.splice(index, 1);
+    widgets.splice(targetIndex, 0, item);
+    return { ...view, widgets: widgets.map((widget, widgetIndex) => ({ ...widget, position: widgetIndex })) };
+  }, { source: "move_dashboard_widget" });
+  renderTab();
+}
+
+function atlasDashboardSetWidgetSize(instanceId = "", size = "standard") {
+  updateAtlasDashboardWidget(instanceId, widget => ({ ...widget, size }));
+}
+
+function atlasDashboardToggleWidgetPin(instanceId = "") {
+  updateAtlasDashboardWidget(instanceId, widget => ({ ...widget, pinned: !widget.pinned }));
+}
+
+function atlasDashboardToggleWidgetCollapse(instanceId = "") {
+  updateAtlasDashboardWidget(instanceId, widget => ({ ...widget, collapsed: !widget.collapsed }));
+}
+
+function atlasDashboardEditWidget(instanceId = "") {
+  atlasDashboardBuilderState.editingInstanceId = atlasDashboardBuilderState.editingInstanceId === instanceId ? "" : String(instanceId || "").trim();
+  renderTab();
+}
+
+function updateAtlasDashboardWidget(instanceId = "", mutator = widget => widget) {
+  const target = String(instanceId || "").trim();
+  updateAtlasDashboardActiveView(view => ({
+    ...view,
+    widgets: view.widgets.map(widget => widget.instanceId === target ? normalizeAtlasDashboardWidgetInstance(mutator({ ...widget }), widget.position) : widget).filter(Boolean)
+  }), { source: "update_dashboard_widget" });
+  renderTab();
+}
+
+function atlasDashboardUpdateWidgetConfig(instanceId = "", field = "", value = "") {
+  updateAtlasDashboardWidget(instanceId, widget => {
+    const next = { ...widget, scope: { ...widget.scope }, threshold: { ...widget.threshold }, drillDown: { ...widget.drillDown }, alert: { ...widget.alert } };
+    const definition = getAtlasDashboardWidgetDefinition(next.widgetKey) || {};
+    if (field === "metric" && definition.metrics?.includes(value)) next.metric = value;
+    if (field === "timeframe" && ATLAS_DASHBOARD_TIMEFRAME_OPTIONS.includes(value)) next.timeframe = value;
+    if (field === "comparison" && ATLAS_DASHBOARD_COMPARISON_OPTIONS.includes(value)) next.comparison = value;
+    if (field === "visualization" && definition.visualizations?.includes(value)) next.visualization = value;
+    if (field === "scope.type") {
+      next.scope.type = value;
+      const first = getAtlasDashboardAuthorizedCommunityOptions()[0]?.name || "";
+      if (value === "single_property" && !next.scope.propertyName) next.scope.propertyName = first;
+      if (value === "multiple_properties" && !next.scope.propertyNames.length && first) next.scope.propertyNames = [first];
+    }
+    if (field === "scope.propertyName") next.scope.propertyName = value;
+    if (field === "scope.region") next.scope.region = value;
+    if (field === "scope.regionalManager") next.scope.regionalManager = value;
+    if (field === "scope.ownershipGroup") next.scope.ownershipGroup = value;
+    if (field === "scope.assetType") next.scope.assetType = value;
+    if (field === "scope.customGroupName") next.scope.customGroupName = value;
+    if (field === "threshold.enabled") next.threshold.enabled = Boolean(value);
+    if (field === "threshold.operator") next.threshold.operator = value;
+    if (field === "threshold.value") next.threshold.value = value;
+    if (field === "threshold.secondaryValue") next.threshold.secondaryValue = value;
+    if (field === "threshold.duration") next.threshold.duration = value;
+    if (field === "threshold.onlyShowExceptions") next.threshold.onlyShowExceptions = Boolean(value);
+    if (field === "alert.enabled") next.alert.enabled = Boolean(value);
+    if (field === "alert.recipient") next.alert.recipient = value;
+    if (field === "alert.method") next.alert.method = value;
+    if (field === "drillDown.mode") next.drillDown.mode = value;
+    next.updatedAt = new Date().toISOString();
+    return next;
+  });
+}
+
+function atlasDashboardToggleScopeProperty(instanceId = "", propertyName = "") {
+  updateAtlasDashboardWidget(instanceId, widget => {
+    const current = new Set(normalizeAtlasAccessList(widget.scope?.propertyNames));
+    const value = String(propertyName || "").trim();
+    if (current.has(value)) current.delete(value);
+    else current.add(value);
+    return {
+      ...widget,
+      scope: {
+        ...widget.scope,
+        type: "multiple_properties",
+        propertyNames: Array.from(current)
+      }
+    };
+  });
+}
+
+function atlasDashboardDragStart(event, instanceId = "") {
+  atlasDashboardBuilderState.draggedInstanceId = String(instanceId || "").trim();
+  if (event?.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", atlasDashboardBuilderState.draggedInstanceId);
+  }
+}
+
+function atlasDashboardDragOver(event) {
+  if (event?.preventDefault) event.preventDefault();
+}
+
+function atlasDashboardDrop(event, targetInstanceId = "") {
+  if (event?.preventDefault) event.preventDefault();
+  const sourceId = atlasDashboardBuilderState.draggedInstanceId || event?.dataTransfer?.getData("text/plain") || "";
+  const targetId = String(targetInstanceId || "").trim();
+  atlasDashboardBuilderState.draggedInstanceId = "";
+  if (!sourceId || !targetId || sourceId === targetId) return;
+  updateAtlasDashboardActiveView(view => {
+    const widgets = getAtlasDashboardViewWidgets(view);
+    const sourceIndex = widgets.findIndex(widget => widget.instanceId === sourceId);
+    const targetIndex = widgets.findIndex(widget => widget.instanceId === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return view;
+    const [item] = widgets.splice(sourceIndex, 1);
+    widgets.splice(targetIndex, 0, item);
+    return { ...view, widgets: widgets.map((widget, index) => ({ ...widget, position: index })) };
+  }, { source: "drag_dashboard_widget" });
+  renderTab();
+}
+
+function atlasDashboardSetLibrarySearch(value = "") {
+  atlasDashboardBuilderState.search = String(value || "");
+  renderTab();
+}
+
+function atlasDashboardSetLibraryCategory(value = "All") {
+  atlasDashboardBuilderState.category = ATLAS_DASHBOARD_LIBRARY_CATEGORIES.includes(value) ? value : "All";
+  renderTab();
+}
+
+function atlasDashboardToggleLayoutMode() {
+  atlasDashboardBuilderState.layoutMode = !atlasDashboardBuilderState.layoutMode;
+  renderTab();
+}
+
+function atlasDashboardToggleLibrary() {
+  atlasDashboardBuilderState.libraryOpen = !atlasDashboardBuilderState.libraryOpen;
+  renderTab();
+}
+
+function atlasDashboardUserCanSeeCommunityName(name = "", profile = getAtlasAccessProfile()) {
+  const communityName = String(name || "").trim();
+  if (!communityName) return false;
+  const status = getAtlasCentralStatus();
+  if (!status.configured || !status.signedIn || !profile) return true;
+  if (String(profile.status || "") !== "active") return false;
+  const role = String(profile.role || "");
+  if (["admin", "centra", "executive"].includes(role)) return true;
+  const property = getAtlasSharedPropertyByName(communityName);
+  const allowedCommunityIds = normalizeAtlasAccessList(profile.allowed_community_ids);
+  const allowedMarkets = normalizeAtlasAccessList(profile.allowed_market_values).map(atlasNormalizeSharedText);
+  const allowedRegions = normalizeAtlasAccessList(profile.allowed_region_values).map(atlasNormalizeSharedText);
+  const allowedLocationGroups = atlasAccessLocationScopeValues(profile);
+  const hasRestrictions = allowedCommunityIds.length || allowedMarkets.length || allowedRegions.length || allowedLocationGroups.length;
+  if (!hasRestrictions) return false;
+  if (!property) return false;
+  const atlasCommunityId = String(property.atlasCommunityId || property.sourceIds?.atlasCommunityId || "").trim();
+  const market = atlasNormalizeSharedText(property.market);
+  const region = atlasNormalizeSharedText(property.regionalGrouping || property.market);
+  const locationGroup = atlasCommunityLocationScopeValue(property);
+  return Boolean(
+    (atlasCommunityId && allowedCommunityIds.includes(atlasCommunityId))
+    || (market && allowedMarkets.includes(market))
+    || (region && allowedRegions.includes(region))
+    || (locationGroup && allowedLocationGroups.includes(locationGroup))
+  );
+}
+
+function getAtlasDashboardAuthorizedCommunityOptions() {
+  const detailNames = new Set(buildPortfolioDetailsForMonth(getSelectedDashboardMonthIndex()).map(detail => detail.name));
+  return getAllCommunityNames()
+    .filter(name => detailNames.has(name) || savedData?.[name])
+    .filter(name => atlasDashboardUserCanSeeCommunityName(name))
+    .map(name => {
+      const property = getAtlasSharedPropertyByName(name) || {};
+      const record = savedData?.[name] || {};
+      return {
+        name,
+        region: property.regionalGrouping || property.market || record.region || "",
+        regionalManager: property.regionalManagerName || record.regionalManager || "",
+        ownershipGroup: property.ownershipGroup || record.ownershipGroup || "",
+        assetType: property.propertyType || record.propertyType || "",
+        atlasCommunityId: property.atlasCommunityId || property.sourceIds?.atlasCommunityId || ""
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function atlasDashboardDistinctOptionValues(field = "") {
+  return Array.from(new Set(getAtlasDashboardAuthorizedCommunityOptions().map(item => String(item[field] || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+}
+
+function buildAtlasDashboardScopedDetails(instance = {}) {
+  const monthIdx = getSelectedDashboardMonthIndex();
+  const scope = normalizeAtlasDashboardScopeConfig(instance.scope);
+  const authorized = getAtlasDashboardAuthorizedCommunityOptions();
+  const authorizedNames = new Set(authorized.map(item => item.name));
+  const metaByName = new Map(authorized.map(item => [item.name, item]));
+  let details = buildPortfolioDetailsForMonth(monthIdx)
+    .filter(detail => isCommunityStatusActive(detail.record))
+    .filter(detail => authorizedNames.has(detail.name));
+  if (scope.type === "single_property") {
+    const name = scope.propertyName || authorized[0]?.name || "";
+    details = details.filter(detail => detail.name === name);
+  } else if (scope.type === "multiple_properties" || scope.type === "custom_group") {
+    const selected = new Set(normalizeAtlasAccessList(scope.propertyNames));
+    if (selected.size) details = details.filter(detail => selected.has(detail.name));
+  } else if (scope.type === "region" && scope.region) {
+    const target = atlasNormalizeSharedText(scope.region);
+    details = details.filter(detail => atlasNormalizeSharedText(metaByName.get(detail.name)?.region) === target);
+  } else if (scope.type === "regional_manager" && scope.regionalManager) {
+    const target = atlasNormalizeSharedText(scope.regionalManager);
+    details = details.filter(detail => atlasNormalizeSharedText(metaByName.get(detail.name)?.regionalManager) === target);
+  } else if (scope.type === "ownership_group" && scope.ownershipGroup) {
+    const target = atlasNormalizeSharedText(scope.ownershipGroup);
+    details = details.filter(detail => atlasNormalizeSharedText(metaByName.get(detail.name)?.ownershipGroup) === target);
+  } else if (scope.type === "asset_type" && scope.assetType) {
+    const target = atlasNormalizeSharedText(scope.assetType);
+    details = details.filter(detail => atlasNormalizeSharedText(metaByName.get(detail.name)?.assetType) === target);
+  }
+  return details;
+}
+
+function atlasDashboardScopeLabel(instance = {}) {
+  const scope = normalizeAtlasDashboardScopeConfig(instance.scope);
+  if (scope.type === "single_property") return scope.propertyName || "Single property";
+  if (scope.type === "multiple_properties") return `${scope.propertyNames.length || 0} selected properties`;
+  if (scope.type === "region") return scope.region || "Region";
+  if (scope.type === "regional_manager") return scope.regionalManager || "Regional manager portfolio";
+  if (scope.type === "ownership_group") return scope.ownershipGroup || "Ownership group";
+  if (scope.type === "asset_type") return scope.assetType || "Asset type";
+  if (scope.type === "custom_group") return scope.customGroupName || `${scope.propertyNames.length || 0} property custom group`;
+  return "Assigned portfolio";
+}
+
+function atlasDashboardFormatNumber(value = 0) {
+  const num = Number(value) || 0;
+  return Math.round(num).toLocaleString();
+}
+
+function atlasDashboardFormatPct(value = 0, decimals = 1) {
+  return `${(Number(value) || 0).toFixed(decimals)}%`;
+}
+
+function atlasDashboardComparisonLine(instance = {}, aggregate = {}) {
+  const comparison = String(instance.comparison || "Budget");
+  if (comparison === "Budget" && Number(aggregate.budgetOccPct || 0) > 0) {
+    return `Budget ${atlasDashboardFormatPct(aggregate.budgetOccPct)} · variance ${atlasDashboardFormatPct(aggregate.occGapPts || 0, 1)}`;
+  }
+  if (comparison === "Prior Month" && Number(aggregate.previousApplications || 0) > 0 && instance.widgetKey === "traffic_funnel") {
+    return `Prior month ${atlasDashboardFormatNumber(aggregate.previousApplications)} applications`;
+  }
+  if (comparison === "Prior Year" || comparison === "Same Period Prior Year") return `${comparison} ready when historical peer rows are available`;
+  return `${comparison} comparison`;
+}
+
+function buildAtlasDashboardWidgetSnapshot(instance = {}) {
+  const definition = getAtlasDashboardWidgetDefinition(instance.widgetKey) || {};
+  const scopedDetails = buildAtlasDashboardScopedDetails(instance);
+  const aggregate = aggregateCommunitySummaries(scopedDetails.map(detail => detail.summary));
+  const scopeSuffix = `${scopedDetails.length} ${scopedDetails.length === 1 ? "property" : "properties"} · ${instance.timeframe || "MTD"}`;
+  const metric = String(instance.metric || definition.defaultMetric || "");
+  if (instance.widgetKey === "portfolio_overview") {
+    const metricMap = {
+      "Physical Occupancy": [atlasDashboardFormatPct(aggregate.occupancyBaseUnits > 0 ? (aggregate.occupied / aggregate.occupancyBaseUnits) * 100 : 0), formatOccupancyBasisSubtext(aggregate.occupied, aggregate)],
+      "Leased Occupancy": [atlasDashboardFormatPct(aggregate.occupancyBaseUnits > 0 ? (aggregate.leased / aggregate.occupancyBaseUnits) * 100 : 0), `${atlasDashboardFormatNumber(aggregate.leased)} leased units · ${scopeSuffix}`],
+      "Budget Occupancy": [atlasDashboardFormatPct(aggregate.budgetOccPct || 0), `${atlasDashboardFormatNumber(aggregate.budgetOccUnits)} budget occupied units · ${scopeSuffix}`],
+      "Occupancy Variance": [atlasDashboardFormatPct(aggregate.occGapPts || 0), atlasDashboardComparisonLine(instance, aggregate)],
+      "Exposure": [atlasDashboardFormatNumber(aggregate.exposureGapUnits || 0), `${atlasDashboardFormatNumber(aggregate.moveOuts)} move-outs vs ${atlasDashboardFormatNumber(aggregate.moveIns)} move-ins`],
+      "Average Rent": [`$${atlasDashboardFormatNumber(aggregate.nerWeightUnits > 0 ? (aggregate.nerActualWeight || 0) / aggregate.nerWeightUnits : 0)}`, `${scopeSuffix} · NER weighted by occupied units`],
+      "Revenue vs. Budget": [`$${atlasDashboardFormatNumber(aggregate.nerDelta || 0)}`, atlasDashboardComparisonLine(instance, aggregate)]
+    };
+    const [value, sub] = metricMap[metric] || metricMap["Physical Occupancy"];
+    return { value, sub, detail: atlasDashboardComparisonLine(instance, aggregate), scopedDetails };
+  }
+  if (instance.widgetKey === "traffic_funnel") {
+    const metricMap = {
+      "Leads": [aggregate.guestCards, `${atlasDashboardFormatNumber(aggregate.tours)} tours · ${atlasDashboardFormatNumber(aggregate.applications)} applications`],
+      "Guest Cards": [aggregate.guestCards, `${atlasDashboardFormatNumber(aggregate.tours)} tours · ${atlasDashboardFormatNumber(aggregate.applications)} applications`],
+      "Tours": [aggregate.tours, `${atlasDashboardFormatNumber(aggregate.applications)} applications · ${scopeSuffix}`],
+      "Applications": [aggregate.applications, `${atlasDashboardFormatNumber(aggregate.applicationsApproved)} approvals · ${atlasDashboardFormatNumber(aggregate.applicationsPendingDecision)} pending`],
+      "Approvals": [aggregate.applicationsApproved, `${atlasDashboardFormatPct(aggregate.applicationApprovalPct || 0)} approval rate`],
+      "Move-Ins": [aggregate.moveIns, `${atlasDashboardFormatNumber(aggregate.moveOuts)} move-outs · goal ${atlasDashboardFormatNumber(aggregate.moveInGoal || 0)}`],
+      "Lead -> Tour": [atlasDashboardFormatPct(aggregate.guestCards > 0 ? (aggregate.tours / aggregate.guestCards) * 100 : 0), `${atlasDashboardFormatNumber(aggregate.tours)} of ${atlasDashboardFormatNumber(aggregate.guestCards)} leads`],
+      "Tour -> Application": [atlasDashboardFormatPct(aggregate.tourToAppPct || 0), `${atlasDashboardFormatNumber(aggregate.applications)} of ${atlasDashboardFormatNumber(aggregate.tours)} tours`],
+      "Application -> Approval": [atlasDashboardFormatPct(aggregate.applicationApprovalPct || 0), `${atlasDashboardFormatNumber(aggregate.applicationsApproved)} of ${atlasDashboardFormatNumber(aggregate.applications)} applications`],
+      "Lead -> Move-In": [atlasDashboardFormatPct(aggregate.guestCards > 0 ? (aggregate.moveIns / aggregate.guestCards) * 100 : 0), `${atlasDashboardFormatNumber(aggregate.moveIns)} move-ins from ${atlasDashboardFormatNumber(aggregate.guestCards)} leads`]
+    };
+    const [rawValue, sub] = metricMap[metric] || metricMap["Guest Cards"];
+    return { value: typeof rawValue === "string" ? rawValue : atlasDashboardFormatNumber(rawValue), sub, detail: atlasDashboardComparisonLine(instance, aggregate), scopedDetails };
+  }
+  if (instance.widgetKey === "renewals_retention") {
+    const metricMap = {
+      "Renewal Offers": [aggregate.renewalExpirations, `${atlasDashboardFormatNumber(aggregate.renewalsSigned)} completed · ${scopeSuffix}`],
+      "Renewals Completed": [aggregate.renewalsSigned, `${atlasDashboardFormatNumber(aggregate.renewalExpirations)} expirations`],
+      "Renewal Conversion": [atlasDashboardFormatPct(aggregate.renewalRetentionRate || 0, 0), `${atlasDashboardFormatNumber(aggregate.renewalsSigned)} signed of ${atlasDashboardFormatNumber(aggregate.renewalExpirations)} expirations`],
+      "Retention %": [atlasDashboardFormatPct(aggregate.renewalRetentionRate || 0, 0), `${atlasDashboardFormatPct(aggregate.previousRenewalRetentionRate || 0, 0)} prior-period retention`],
+      "Upcoming Expirations": [aggregate.renewalExpirations, `${scopeSuffix}`],
+      "Undecided Renewals": [aggregate.renewalUndecided, `${atlasDashboardFormatNumber(aggregate.renewalNTV)} notices`],
+      "Notices": [aggregate.renewalNTV, `${atlasDashboardFormatNumber(aggregate.renewalProjectedAttrition)} projected attrition`],
+      "Projected Attrition": [aggregate.renewalProjectedAttrition, `${scopeSuffix}`]
+    };
+    const [rawValue, sub] = metricMap[metric] || metricMap["Renewal Conversion"];
+    return { value: typeof rawValue === "string" ? rawValue : atlasDashboardFormatNumber(rawValue), sub, detail: atlasDashboardComparisonLine(instance, aggregate), scopedDetails };
+  }
+  if (instance.widgetKey === "reputation_pulse") {
+    const metricMap = {
+      "ORA Score": [atlasDashboardFormatPct(aggregate.oraScore || 0, 1).replace("%", ""), `${atlasDashboardFormatPct(aggregate.googleQuarterlyRating || 0, 1).replace("%", "")} Google quarterly rating`],
+      "Google Rating": [atlasDashboardFormatPct(aggregate.googleQuarterlyRating || 0, 1).replace("%", ""), `${scopeSuffix}`],
+      "Review Volume": [scopedDetails.length, "Reputation records by active property"],
+      "Resident Sentiment": [atlasDashboardFormatPct(aggregate.googleLifetimeRating || 0, 1).replace("%", ""), "Lifetime Google rating proxy"]
+    };
+    const [value, sub] = metricMap[metric] || metricMap["ORA Score"];
+    return { value, sub, detail: `${scopeSuffix}`, scopedDetails };
+  }
+  if (instance.widgetKey === "reporting_exports") {
+    const recipientCount = scopedDetails.filter(detail => normalizeInvestorEmailContacts(detail.record?.investorEmailContacts).length > 0).length;
+    const readyCount = scopedDetails.filter(detail => detail.record && dashboardMonthlyEntryHasData(getRecordMonthlyDataForYear(detail.record, detail.record.reportYear)[getSelectedDashboardMonthIndex()])).length;
+    const metricMap = {
+      "Report Recipients": [recipientCount, `${scopedDetails.length} scoped properties · ${readyCount} with month data`],
+      "Investor Packet Readiness": [readyCount, `${scopedDetails.length} scoped properties`],
+      "Scheduled Exports": [recipientCount, "Uses saved reporting recipients"],
+      "Printable Views": [scopedDetails.length, "Open reporting drill-down"]
+    };
+    const [rawValue, sub] = metricMap[metric] || metricMap["Report Recipients"];
+    return { value: atlasDashboardFormatNumber(rawValue), sub, detail: `${scopeSuffix}`, scopedDetails };
+  }
+  if (instance.widgetKey === "dashboard_builder") {
+    const view = getAtlasActiveDashboardView();
+    const value = `${getAtlasDashboardSavedViews().length}`;
+    return {
+      value,
+      sub: `${view.widgets.length} widgets in ${view.viewName}`,
+      detail: atlasDashboardPreferences.centralSavedAt ? `Central save ${new Date(atlasDashboardPreferences.centralSavedAt).toLocaleString()}` : "Local view saved",
+      scopedDetails
+    };
+  }
+  return {
+    value: "Phase 2",
+    sub: definition.description || "Widget shell registered for a future operational data source.",
+    detail: `${definition.dataSource || "ATLAS"} source`,
+    scopedDetails
+  };
+}
+
+function buildAtlasDashboardWidgetSnapshots() {
+  return Object.fromEntries(getAtlasDashboardViewWidgets().map(instance => [instance.instanceId, buildAtlasDashboardWidgetSnapshot(instance)]));
+}
+
+function toggleAtlasDashboardWidget(widgetKey = "") {
+  const key = normalizeAtlasDashboardWidgetKey(widgetKey);
+  const view = getAtlasActiveDashboardView();
+  const existing = view.widgets.find(widget => widget.widgetKey === key);
+  if (existing) atlasDashboardRemoveWidget(existing.instanceId);
+  else atlasDashboardAddWidget(key);
+}
+
+async function hydrateAtlasDashboardPreferencesFromCentral({ silent = true, force = false } = {}) {
+  const status = getAtlasCentralStatus();
+  if (!status.configured || !status.signedIn || !window.ATLAS_CENTRAL?.readDashboardViews) return false;
+  if (atlasDashboardCentralHydratePromise && !force) return atlasDashboardCentralHydratePromise;
+  atlasDashboardBuilderState.loadingCentral = true;
+  atlasDashboardCentralHydratePromise = (async () => {
+    try {
+      const rows = await window.ATLAS_CENTRAL.readDashboardViews();
+      if (Array.isArray(rows) && rows.length) {
+        const views = rows.map(row => normalizeAtlasDashboardView({
+          viewKey: row.view_key,
+          viewName: row.view_name,
+          isDefault: row.is_default,
+          roleTemplateKey: row.role_template_key,
+          layout: row.layout,
+          widgets: row.widgets,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at
+        })).filter(Boolean);
+        const defaultView = views.find(view => view.isDefault) || views[0];
+        suppressAtlasDashboardCentralSave = true;
+        setAtlasDashboardPreferences({
+          savedViews: views,
+          defaultViewKey: defaultView.viewKey,
+          activeViewKey: atlasDashboardPreferences.activeViewKey && views.some(view => view.viewKey === atlasDashboardPreferences.activeViewKey)
+            ? atlasDashboardPreferences.activeViewKey
+            : defaultView.viewKey,
+          centralHydratedAt: new Date().toISOString(),
+          centralLastError: ""
+        }, { pushCentral: false });
+        suppressAtlasDashboardCentralSave = false;
+      } else {
+        await saveAtlasDashboardPreferencesToCentral({ silent: true, source: "seed_user_dashboard_views" });
+      }
+      return true;
+    } catch (error) {
+      suppressAtlasDashboardCentralSave = false;
+      setAtlasDashboardPreferences({ centralLastError: error?.message || String(error) }, { pushCentral: false });
+      if (!silent) alert(`Dashboard views could not load from central ATLAS: ${error?.message || error}`);
+      return false;
+    } finally {
+      atlasDashboardBuilderState.loadingCentral = false;
+      atlasDashboardCentralHydratePromise = null;
+      if (!silent && activeTab === 14) renderTab();
+    }
+  })();
+  return atlasDashboardCentralHydratePromise;
+}
+
+function queueAtlasDashboardPreferencesCentralSave(source = "dashboard_preferences") {
+  const status = getAtlasCentralStatus();
+  if (!status.configured || !status.signedIn || !window.ATLAS_CENTRAL?.saveDashboardView) return;
+  if (atlasDashboardCentralSaveTimer) clearTimeout(atlasDashboardCentralSaveTimer);
+  atlasDashboardCentralSaveTimer = setTimeout(() => {
+    saveAtlasDashboardPreferencesToCentral({ silent: true, source });
+  }, 900);
+}
+
+async function saveAtlasDashboardPreferencesToCentral({ silent = false, source = "manual_dashboard_save" } = {}) {
+  const status = getAtlasCentralStatus();
+  if (!status.configured || !status.signedIn || !window.ATLAS_CENTRAL?.saveDashboardView) {
+    if (!silent) alert("Sign in before saving dashboard views to central ATLAS.");
+    return false;
+  }
+  atlasDashboardBuilderState.savingCentral = true;
+  try {
+    const views = getAtlasDashboardSavedViews();
+    for (const view of views) {
+      await window.ATLAS_CENTRAL.saveDashboardView({
+        viewKey: view.viewKey,
+        viewName: view.viewName,
+        isDefault: view.viewKey === atlasDashboardPreferences.defaultViewKey || view.isDefault,
+        roleTemplateKey: view.roleTemplateKey,
+        layout: view.layout,
+        widgets: view.widgets,
+        source
+      });
+    }
+    setAtlasDashboardPreferences({
+      centralSavedAt: new Date().toISOString(),
+      centralLastError: ""
+    }, { pushCentral: false });
+    if (!silent) alert("Dashboard views saved to central ATLAS.");
+    return true;
+  } catch (error) {
+    setAtlasDashboardPreferences({ centralLastError: error?.message || String(error) }, { pushCentral: false });
+    if (!silent) alert(`Dashboard view save failed: ${error?.message || error}`);
+    return false;
+  } finally {
+    atlasDashboardBuilderState.savingCentral = false;
+    if (!silent && activeTab === 14) renderTab();
+  }
+}
+
 function openAtlasDashboardWalkthrough() {
-  setAtlasDashboardPreferences({ hasSeenWelcome: true });
+  const templateKey = atlasDashboardTemplateKeyForRole();
+  setAtlasDashboardPreferences({ hasSeenWelcome: true }, { source: "open_dashboard_walkthrough" });
   setAtlasAuthUiState({ firstLoginWalkthroughSeenAt: new Date().toISOString() });
+  if (!getAtlasActiveDashboardView().widgets.length) atlasDashboardApplyRoleTemplate(templateKey);
   setTab(14);
 }
 
@@ -13081,7 +14234,8 @@ function normalizeAtlasAccessFormDraft(input = {}) {
     allowedCommunityIds: normalizeAtlasAccessList(input.allowedCommunityIds || input.allowed_community_ids || defaults.allowedCommunityIds),
     allowedMarketValues: allowedLocationValues,
     allowedRegionValues: allowedLocationValues,
-    lockedTabIds: normalizeAtlasAccessList(input.lockedTabIds || input.locked_tab_ids || defaults.lockedTabIds),
+    lockedTabIds: normalizeAtlasAccessList(input.lockedTabIds || input.locked_tab_ids || defaults.lockedTabIds)
+      .filter(tabId => !ATLAS_SELF_SERVICE_TAB_IDS.includes(tabId)),
     accessNotes: String(input.accessNotes || input.access_notes || defaults.accessNotes).trim()
   };
 }
@@ -13343,11 +14497,12 @@ function atlasAccessDecision(tabId = activeTab) {
   if (!profile) return { ok: ["7", "14"].includes(String(tabId)), reason: "This login does not have an active ATLAS access profile yet." };
   if (String(profile.status || "") !== "active") return { ok: ["7", "14"].includes(String(tabId)), reason: `This ATLAS account is ${profile.status || "not active"}.` };
   const tab = getAtlasAccessTab(tabId);
+  const isSelfServiceTab = ATLAS_SELF_SERVICE_TAB_IDS.includes(tab.id);
   const lockedTabs = normalizeAtlasAccessList(profile.locked_tab_ids);
   const lockedPages = normalizeAtlasAccessList(profile.locked_page_keys);
-  if (lockedTabs.includes(tab.id) || lockedPages.includes(tab.key)) return { ok: false, reason: `${tab.label} is locked for this account.` };
-  if (!atlasAccessCurrentRoleAllowsTab(profile, tab.id)) return { ok: false, reason: `${profile.role || "This role"} does not include ${tab.label}.` };
-  if (!["0","7","8"].includes(tab.id)) {
+  if (!isSelfServiceTab && (lockedTabs.includes(tab.id) || lockedPages.includes(tab.key))) return { ok: false, reason: `${tab.label} is locked for this account.` };
+  if (!isSelfServiceTab && !atlasAccessCurrentRoleAllowsTab(profile, tab.id)) return { ok: false, reason: `${profile.role || "This role"} does not include ${tab.label}.` };
+  if (!["0","7","8", ...ATLAS_SELF_SERVICE_TAB_IDS].includes(tab.id)) {
     const scopeDecision = atlasAccessProfileCanUseCurrentScope(profile);
     if (!scopeDecision.ok) return scopeDecision;
   }
@@ -13552,11 +14707,14 @@ function atlasCentralLegacyBundleDisabled() {
 
 function atlasProfileCanManageSettings(profile = getAtlasAccessProfile()) {
   const role = String(profile?.role || "").trim().toLowerCase();
-  return role === "admin" || role === "centra";
+  return role === "admin";
 }
 
 function shouldBlockAtlasSensitiveAccess() {
   const status = getAtlasCentralStatus();
+  const entry = atlasAuthEntryFromLocation();
+  if (!status.signedIn && ["login", "activate", "forgot", "help"].includes(entry) && activeTab === 0) return true;
+  if (atlasInviteActivationCompletionPending()) return true;
   if (!status.configured || status.signedIn) return false;
   return !["7", "14"].includes(String(activeTab));
 }
@@ -13579,6 +14737,7 @@ function renderAtlasCentralLoginRequiredPanel() {
       <button class="btn btn-gray btn-sm" onclick="openAtlasAuthMode('forgot', { notice:'', error:'' })">Forgot Password</button>
       <button class="btn btn-gray btn-sm" onclick="openAtlasAuthMode('help', { notice:'', error:'' })">Help</button>
     </div>`;
+  const inviteSessionReady = atlasInviteActivationCompletionPending();
   const loginForm = `
     <div style="display:grid;gap:12px">
       <div>
@@ -13597,13 +14756,13 @@ function renderAtlasCentralLoginRequiredPanel() {
   const activationForm = `
     <div style="display:grid;gap:12px">
       <div>
-        <div style="font-size:1.55rem;font-weight:800;color:#102a43;letter-spacing:-0.03em">Activate your ATLAS account</div>
-        <div style="font-size:0.76rem;color:#5b6b7a;line-height:1.6;margin-top:6px">This flow is only for invited users who are activating ATLAS for the first time. It is intentionally separate from everyday sign-in.</div>
+        <div style="font-size:1.55rem;font-weight:800;color:#102a43;letter-spacing:-0.03em">${inviteSessionReady ? "Set your ATLAS password" : "Activate your ATLAS account"}</div>
+        <div style="font-size:0.76rem;color:#5b6b7a;line-height:1.6;margin-top:6px">${inviteSessionReady ? "Your invitation link is verified. Create your password to finish activation." : "This flow is only for invited users who are activating ATLAS for the first time. It is intentionally separate from everyday sign-in."}</div>
       </div>
-      <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Work email</span><input id="atlas-auth-email" type="email" value="${escapeHtml(atlasAuthUiState.pendingEmail || atlasAuthUiState.activationEmail || "")}" placeholder="name@riseresidential.com" oninput="syncAtlasAuthEmailFromForm()" style="margin-top:6px"></label>
+      ${inviteSessionReady ? `<div class="alert-green">Invitation verified for ${escapeHtml(status.userEmail || atlasAuthUiState.pendingEmail || "this account")}.</div>` : `<label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Work email</span><input id="atlas-auth-email" type="email" value="${escapeHtml(atlasAuthUiState.pendingEmail || atlasAuthUiState.activationEmail || "")}" placeholder="name@riseresidential.com" oninput="syncAtlasAuthEmailFromForm()" style="margin-top:6px"></label>`}
       <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Display name</span><input id="atlas-auth-display-name" value="${escapeHtml(atlasCurrentUserDisplayName() === "ATLAS user" ? "" : atlasCurrentUserDisplayName())}" placeholder="Your name as it should appear in ATLAS" style="margin-top:6px"></label>
       <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Create password</span><input id="atlas-auth-password" type="password" placeholder="Use at least 8 characters" style="margin-top:6px"></label>
-      <button class="btn btn-blue" onclick="signUpAtlasCentralWithPassword()" ${busy ? "disabled" : ""}>${atlasCentralAuthActionState.passwordSignUp ? "Activating..." : "Activate My Account"}</button>
+      <button class="btn btn-blue" onclick="${inviteSessionReady ? "completeAtlasCentralInviteActivation()" : "signUpAtlasCentralWithPassword()"}" ${busy ? "disabled" : ""}>${atlasCentralAuthActionState.passwordSignUp ? "Activating..." : "Activate My Account"}</button>
       <div style="padding:12px;border-radius:14px;background:linear-gradient(180deg,#f8fbff 0%,#eef5ff 100%);border:1px solid #d7e6fb">
         <div style="font-size:0.68rem;font-weight:800;color:#1d4ed8;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px">Activation steps</div>
         <div style="display:grid;gap:7px">${activationSteps.map(step => `<div style="font-size:0.72rem;color:#334e68">${step}</div>`).join("")}</div>
@@ -13681,62 +14840,89 @@ function renderAtlasCentralLoginRequiredPanel() {
   </div>`;
 }
 
+function atlasOpenDashboardWidget(instanceId = "") {
+  const view = getAtlasActiveDashboardView();
+  const instance = view.widgets.find(widget => widget.instanceId === instanceId);
+  const definition = getAtlasDashboardWidgetDefinition(instance?.widgetKey);
+  if (!definition) return;
+  const scope = normalizeAtlasDashboardScopeConfig(instance.scope);
+  if (scope.type === "single_property" && scope.propertyName && atlasDashboardUserCanSeeCommunityName(scope.propertyName)) {
+    workspaceScopeValue = scope.propertyName;
+    loadPropertyData(scope.propertyName);
+  } else {
+    workspaceScopeValue = PORTFOLIO_SCOPE_VALUE;
+    loadPropertyData(getProp().name);
+  }
+  const decision = atlasAccessDecision(definition.tabId);
+  if (!decision.ok) {
+    alert(decision.reason || "This ATLAS section is not available to your account.");
+    return;
+  }
+  setTab(definition.tabId);
+}
+
+function renderAtlasDashboardHomeWidget(instance = {}) {
+  const definition = getAtlasDashboardWidgetDefinition(instance.widgetKey) || {};
+  const snapshot = buildAtlasDashboardWidgetSnapshot(instance);
+  const sizeClass = instance.size === "compact" ? "is-compact" : instance.size === "expanded" ? "is-expanded" : "";
+  const pinnedClass = instance.pinned ? "is-pinned" : "";
+  return `<button type="button" class="atlas-dashboard-widget-card ${sizeClass} ${pinnedClass}" onclick="atlasOpenDashboardWidget(${atlasDashboardJsArg(instance.instanceId)})" style="text-align:left;cursor:pointer">
+    <div class="atlas-dashboard-widget-head">
+      <div>
+        <div class="atlas-dashboard-widget-kicker">${escapeHtml(definition.category || "ATLAS")}</div>
+        <div class="atlas-dashboard-widget-title">${escapeHtml(definition.label || "Dashboard Widget")}</div>
+      </div>
+      <span style="width:10px;height:10px;border-radius:999px;background:${definition.accent || "var(--accent)"};display:inline-block;margin-top:4px"></span>
+    </div>
+    <div class="atlas-dashboard-widget-value" style="color:${definition.accent || "var(--accent)"}">${escapeHtml(String(snapshot.value || "Open"))}</div>
+    <div class="atlas-dashboard-widget-sub">${escapeHtml(instance.metric || definition.defaultMetric || "")} · ${escapeHtml(atlasDashboardScopeLabel(instance))}</div>
+    ${!instance.collapsed ? `<div class="atlas-dashboard-widget-sub">${escapeHtml(snapshot.sub || definition.description || "")}</div>` : ""}
+    <div class="workspace-snapshot-link">Open ${escapeHtml(definition.label || "section")}</div>
+  </button>`;
+}
+
 function renderAtlasWelcomeDashboard() {
   const profile = getAtlasAccessProfile();
   const status = getAtlasCentralStatus();
-  const visibleWidgets = ATLAS_CUSTOM_DASHBOARD_WIDGETS.filter(widget => atlasDashboardPreferences.visibleWidgets.includes(widget.key));
-  const widgetSnapshots = buildAtlasDashboardWidgetSnapshots();
+  const view = getAtlasActiveDashboardView();
+  const defaultView = getAtlasDefaultDashboardView();
+  const widgets = getAtlasDashboardViewWidgets(view);
   const monthLabel = FULL_MONTHS[getSelectedDashboardMonthIndex()] || "Current Month";
-  const welcomeCopy = atlasDashboardPreferences.hasSeenWelcome
-    ? "Your custom dashboard is ready. Use ATLAS Settings any time to change what appears here."
-    : "Welcome to ATLAS. Start with the widgets you care about most, then use the guided setup to personalize your dashboard.";
-  return `<div class="card mb4" style="padding:0;overflow:hidden;border-radius:24px">
+  const firstTimePanel = !atlasDashboardPreferences.walkthroughCompletedAt ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:18px">
+    ${[
+      `Role template: ${atlasDashboardTemplateLabel(view.roleTemplateKey)}`,
+      `Assigned scope: ${getAtlasDashboardAuthorizedCommunityOptions().length || "role/default"} properties`,
+      `Default view: ${defaultView.viewName}`,
+      `Central status: ${status.configured && status.signedIn ? "ready" : "local fallback"}`
+    ].map(item => `<div style="padding:12px;border-radius:12px;background:#f8fbff;border:1px solid #dbe7f5;font-size:0.72rem;color:#334e68">${escapeHtml(item)}</div>`).join("")}
+  </div>` : "";
+  return `<div class="card mb4" style="padding:0;overflow:hidden;border-radius:16px">
     <div style="padding:24px;background:linear-gradient(140deg,#08263f 0%,#123d63 54%,#5f90bf 155%);color:#fff">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
-        <div style="max-width:780px">
-          <div style="font-size:0.68rem;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.76);font-weight:800">Welcome Dashboard</div>
-          <div style="font-size:2rem;font-weight:800;line-height:1.02;letter-spacing:-0.04em;margin-top:10px">Welcome, ${escapeHtml(atlasUserDisplayName(profile || { email: status.userEmail || "" }))}.</div>
-          <div style="font-size:0.8rem;line-height:1.7;color:rgba(255,255,255,0.84);margin-top:10px">${escapeHtml(welcomeCopy)} Reporting month: ${escapeHtml(monthLabel)}.</div>
+        <div style="max-width:820px">
+          <div style="font-size:0.68rem;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.76);font-weight:800">My Dashboard</div>
+          <div style="font-size:2rem;font-weight:800;line-height:1.02;margin-top:10px">Welcome, ${escapeHtml(atlasUserDisplayName(profile || { email: status.userEmail || "" }))}.</div>
+          <div style="font-size:0.8rem;line-height:1.7;color:rgba(255,255,255,0.84);margin-top:10px">Current view: ${escapeHtml(view.viewName)} · Reporting month: ${escapeHtml(monthLabel)} · Default landing view: ${escapeHtml(defaultView.viewName)}.</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-blue btn-sm" onclick="openAtlasDashboardWalkthrough()">Walk Through Settings</button>
-          <button class="btn btn-gray btn-sm" onclick="setTab(2)">Open Full Portfolio</button>
+          <button class="btn btn-blue btn-sm" onclick="openAtlasDashboardWalkthrough()"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i> Build My Dashboard</button>
+          <button class="btn btn-gray btn-sm" onclick="setTab(2)"><i class="ph ph-squares-four" aria-hidden="true"></i> Full Portfolio</button>
         </div>
       </div>
     </div>
     <div style="padding:22px">
-      ${!atlasDashboardPreferences.hasSeenWelcome ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:18px">
-        ${[
-          "1. Review the widgets below.",
-          "2. Open Dashboard Settings.",
-          "3. Pick the information you want on your home dashboard.",
-          "4. Save your profile and return here."
-        ].map(step => `<div style="padding:12px;border-radius:14px;background:#f8fbff;border:1px solid #dbe7f5;font-size:0.72rem;color:#334e68">${escapeHtml(step)}</div>`).join("")}
-      </div>` : ""}
+      ${firstTimePanel}
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
         <div>
-          <div class="card-title" style="margin-bottom:6px">My Custom Widgets</div>
-          <div style="font-size:0.72rem;color:var(--muted)">Turn widgets on or off in ATLAS Settings. The cards below open the full workspace behind each metric.</div>
+          <div class="card-title" style="margin-bottom:6px">${escapeHtml(view.viewName)}</div>
+          <div style="font-size:0.72rem;color:var(--muted)">${widgets.length} widgets · ${escapeHtml(atlasDashboardTemplateLabel(view.roleTemplateKey))} starting template · ${escapeHtml(status.configured && status.signedIn ? "central preferences enabled" : "local preferences active")}</div>
         </div>
-        <button class="btn btn-gray btn-sm" onclick="setTab(14)">Customize Dashboard</button>
+        <button class="btn btn-gray btn-sm" onclick="setTab(14)"><i class="ph ph-gear-six" aria-hidden="true"></i> Customize</button>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
-        ${visibleWidgets.map(widget => {
-          const snapshot = widgetSnapshots[widget.key] || { value: "Open", sub: widget.description };
-          return `<button type="button" class="workspace-snapshot-tile" style="background:linear-gradient(180deg,#ffffff 0%,#f7fafc 100%);min-height:148px" onclick="setTab(${widget.tabId})">
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
-              <div class="workspace-snapshot-label">${escapeHtml(widget.label)}</div>
-              <span style="width:10px;height:10px;border-radius:999px;background:${widget.accent};display:inline-block"></span>
-            </div>
-            <div style="font-size:1.55rem;font-weight:800;color:${widget.accent};letter-spacing:-0.03em">${escapeHtml(String(snapshot.value || "Open"))}</div>
-            <div class="workspace-snapshot-sub">${escapeHtml(snapshot.sub || widget.description)}</div>
-            <div class="workspace-snapshot-link">Open ${escapeHtml(widget.label)}</div>
-          </button>`;
-        }).join("")}
-      </div>
+      ${widgets.length ? `<div class="atlas-dashboard-layout-grid">${widgets.map(renderAtlasDashboardHomeWidget).join("")}</div>` : `<div class="atlas-dashboard-empty">No widgets are saved in this view.</div>`}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
-        ${!atlasDashboardPreferences.walkthroughCompletedAt ? `<button class="btn btn-blue btn-sm" onclick="openAtlasDashboardWalkthrough()">Start Guided Setup</button>` : ""}
-        ${!atlasDashboardPreferences.walkthroughCompletedAt ? `<button class="btn btn-gray btn-sm" onclick="completeAtlasFirstLoginWalkthrough()">Skip For Now</button>` : ""}
+        ${!atlasDashboardPreferences.walkthroughCompletedAt ? `<button class="btn btn-blue btn-sm" onclick="openAtlasDashboardWalkthrough()">Start Setup</button>` : ""}
+        ${!atlasDashboardPreferences.walkthroughCompletedAt ? `<button class="btn btn-gray btn-sm" onclick="completeAtlasFirstLoginWalkthrough()">Mark Complete</button>` : ""}
       </div>
     </div>
   </div>`;
@@ -14115,6 +15301,7 @@ function saveAtlasCentralRuntimeConfigFromPanel() {
     return;
   }
   const appBaseUrl = getAtlasCentralInputValue("atlas-central-app-url");
+  const accessApiBaseUrl = getAtlasCentralInputValue("atlas-central-access-api-url");
   const supabaseUrl = getAtlasCentralInputValue("atlas-central-url");
   const supabaseAnonKey = getAtlasCentralInputValue("atlas-central-anon-key");
   const documentKey = getAtlasCentralInputValue("atlas-central-document-key") || "atlas_dashboard_state_v1";
@@ -14138,6 +15325,7 @@ function saveAtlasCentralRuntimeConfigFromPanel() {
   window.ATLAS_CENTRAL.saveLocalConfig({
     enabled: true,
     appBaseUrl,
+    accessApiBaseUrl,
     supabaseUrl,
     supabaseAnonKey,
     documentKey,
@@ -14267,6 +15455,39 @@ async function signUpAtlasCentralWithPassword() {
     } catch (error) {
       const message = error?.message || String(error);
       setAtlasAuthUiState({ mode: "activate", pendingEmail: email, activationEmail: email, error: message, notice: "" });
+      setAtlasCentralRuntimeMessage("", message);
+      renderTab();
+      return false;
+    }
+  });
+}
+
+async function completeAtlasCentralInviteActivation() {
+  const password = getAtlasAuthFormPasswordValue();
+  const displayName = getAtlasAuthFormDisplayNameValue();
+  const status = getAtlasCentralStatus();
+  return runAtlasCentralAuthAction("passwordSignUp", "Invite activation", async () => {
+    try {
+      if (!window.ATLAS_CENTRAL?.completeInviteActivation) throw new Error("Central client is not loaded.");
+      await window.ATLAS_CENTRAL.completeInviteActivation(password, displayName);
+      startAtlasLivePresence();
+      startAtlasSharedRealtime();
+      setAtlasAuthUiState({
+        mode: "login",
+        pendingEmail: status.userEmail || atlasAuthUiState.pendingEmail,
+        activationEmail: "",
+        notice: "Your ATLAS account is active.",
+        error: "",
+        justSignedInAt: new Date().toISOString()
+      });
+      setAtlasDashboardPreferences({ hasSeenWelcome: false });
+      activeTab = 0;
+      setAtlasCentralRuntimeMessage(`ATLAS account activated for ${status.userEmail || "this user"}.`);
+      renderTab();
+      return true;
+    } catch (error) {
+      const message = error?.message || String(error);
+      setAtlasAuthUiState({ mode: "activate", error: message, notice: "" });
       setAtlasCentralRuntimeMessage("", message);
       renderTab();
       return false;
@@ -14558,9 +15779,191 @@ function queueAtlasCentralDocumentPush(source = "autosave") {
 }
 
 function getAtlasAccessStatusBadge(status = "") {
-  const value = String(status || "pending").toLowerCase();
-  const color = value === "active" ? "#3fb950" : value === "pending" ? "#d29922" : "#f85149";
-  return `<span class="atlas-access-pill" style="border-color:${color};color:${color}">${escapeHtml(value)}</span>`;
+  const value = String(status || "active").toLowerCase();
+  const label = ATLAS_ACCESS_STATUSES.find(([key]) => key === value)?.[1] || value.replace(/_/g, " ");
+  const color = value === "active" ? "#3fb950" : value === "pending" ? "#d29922" : value === "not_configured" ? "#6b7280" : "#f85149";
+  return `<span class="atlas-access-pill" style="border-color:${color};color:${color}">${escapeHtml(label)}</span>`;
+}
+
+function getAtlasAccountStatusLabel(status = "") {
+  const value = String(status || "not_invited").toLowerCase();
+  return ATLAS_ACCOUNT_STATUSES.find(([key]) => key === value)?.[1] || value.replace(/_/g, " ");
+}
+
+function getAtlasAccountStatusBadge(status = "") {
+  const value = String(status || "not_invited").toLowerCase();
+  const color = value === "active" ? "#3fb950"
+    : value === "authentication_error" || value === "invitation_expired" ? "#f85149"
+    : value === "not_invited" || value === "email_review" || value === "roster_inactive" ? "#6b7280"
+    : "#d29922";
+  return `<span class="atlas-access-pill" style="border-color:${color};color:${color}">${escapeHtml(getAtlasAccountStatusLabel(value))}</span>`;
+}
+
+function formatAtlasProvisioningDate(value = "") {
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return "";
+  return new Date(parsed).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function getAtlasProvisioningAccountStatus(row = {}, profile = null) {
+  const explicit = String(row.account_status || profile?.account_status || "").trim().toLowerCase();
+  if (explicit) return explicit;
+  if (row.claimed_at || profile?.user_id) return "active";
+  return "not_invited";
+}
+
+function getAtlasRosterProvisioningEligibility(employee = {}) {
+  const email = String(employee.email || "").trim().toLowerCase();
+  if (!atlasEmployeeStatusIsActive(employee)) {
+    return { eligible: false, accountStatus: "roster_inactive", message: "Inactive roster employee" };
+  }
+  if (!email) {
+    return { eligible: false, accountStatus: "email_review", message: "Missing work email" };
+  }
+  if (!atlasEmployeeEmailIsInternal(email)) {
+    return { eligible: false, accountStatus: "email_review", message: "Use a RISE company email before inviting" };
+  }
+  return { eligible: true, accountStatus: "not_invited", message: "Ready for access setup" };
+}
+
+function buildAtlasEmployeeAccessDisplayRows() {
+  const rowsByKey = new Map();
+  const profilesByEmail = new Map((atlasAccessAdminState.profiles || []).map(profile => [String(profile.email || "").toLowerCase(), profile]));
+  const rosterByEmail = new Map();
+  const rosterEntriesByKey = new Map();
+  const upsertRosterEntry = (candidate = {}) => {
+    const email = String(candidate.email || "").trim().toLowerCase();
+    const employeeId = String(candidate.employeeId || candidate.employee_id || "").trim();
+    const linkedEmployeeId = String(candidate.linkedEmployeeId || candidate.linked_employee_id || employeeId || "").trim();
+    const fullName = String(candidate.fullName || candidate.full_name || candidate.name || "").trim();
+    const key = email || employeeId || linkedEmployeeId || buildAtlasAccessAutofillKey({ email, fullName });
+    if (!key) return;
+    const existing = rosterEntriesByKey.get(key) || (email ? rosterByEmail.get(email) : null) || {};
+    const next = {
+      ...existing,
+      employeeId: existing.employeeId || employeeId || linkedEmployeeId || key,
+      linkedEmployeeId: existing.linkedEmployeeId || (isAtlasUuid(linkedEmployeeId) ? linkedEmployeeId : ""),
+      email: existing.email || email,
+      fullName: existing.fullName || fullName,
+      status: existing.status || String(candidate.status || candidate.status_type || "").trim(),
+      profileDisplayName: existing.profileDisplayName || String(candidate.profileDisplayName || candidate.profile_display_name || "").trim(),
+      sourceModule: existing.sourceModule || String(candidate.sourceModule || candidate.source_module || "").trim(),
+      sourceIdentifier: existing.sourceIdentifier || String(candidate.sourceIdentifier || candidate.source_identifier || candidate.employeeNumber || candidate.employee_number || "").trim()
+    };
+    rosterEntriesByKey.set(key, next);
+    if (next.email) rosterByEmail.set(next.email, next);
+  };
+  (atlasAccessAdminState.employees || []).forEach(employee => {
+    upsertRosterEntry({
+      employeeId: String(employee.employee_id || "").trim(),
+      linkedEmployeeId: String(employee.employee_id || "").trim(),
+      employeeNumber: String(employee.employee_number || "").trim(),
+      email: String(employee.email || "").trim().toLowerCase(),
+      fullName: String(employee.full_name || "").trim(),
+      status: String(employee.status || employee.status_type || "").trim(),
+      sourceModule: String(employee.source_module || "").trim(),
+      sourceIdentifier: String(employee.source_identifier || "").trim()
+    });
+  });
+  buildAtlasAccessEmployeeDirectoryEntries().forEach(employee => {
+    upsertRosterEntry(employee);
+  });
+  const rosterEntries = [...rosterEntriesByKey.values()];
+  rosterEntries.forEach(employee => {
+    const email = String(employee.email || "").trim().toLowerCase();
+    const key = email || String(employee.employeeId || employee.linkedEmployeeId || "").trim();
+    if (!key) return;
+    const existing = email ? rosterByEmail.get(email) : null;
+    if (!existing) rosterByEmail.set(email || key, employee);
+  });
+
+  const upsertRow = (row = {}, source = "access") => {
+    const email = String(row.email || "").trim().toLowerCase();
+    const employeeId = String(row.employee_id || row.employeeId || "").trim();
+    const key = email ? `email:${email}` : `employee:${employeeId}`;
+    if (!email && !employeeId) return;
+    const profile = email ? profilesByEmail.get(email) : null;
+    const rosterEmployee = email ? rosterByEmail.get(email) : null;
+    const existing = rowsByKey.get(key) || {};
+    rowsByKey.set(key, {
+      ...existing,
+      ...row,
+      email: email || existing.email || "",
+      display_name: row.display_name || row.displayName || existing.display_name || profile?.display_name || rosterEmployee?.profileDisplayName || rosterEmployee?.fullName || "",
+      employee_id: employeeId || existing.employee_id || profile?.employee_id || rosterEmployee?.linkedEmployeeId || rosterEmployee?.employeeId || "",
+      role: row.role || existing.role || profile?.role || "viewer",
+      status: row.status || existing.status || profile?.status || "active",
+      allowed_community_ids: row.allowed_community_ids || row.allowedCommunityIds || existing.allowed_community_ids || profile?.allowed_community_ids || [],
+      allowed_market_values: row.allowed_market_values || row.allowedMarketValues || existing.allowed_market_values || profile?.allowed_market_values || [],
+      allowed_region_values: row.allowed_region_values || row.allowedRegionValues || existing.allowed_region_values || profile?.allowed_region_values || [],
+      locked_tab_ids: row.locked_tab_ids || row.lockedTabIds || existing.locked_tab_ids || profile?.locked_tab_ids || [],
+      locked_page_keys: row.locked_page_keys || row.lockedPageKeys || existing.locked_page_keys || profile?.locked_page_keys || [],
+      access_notes: row.access_notes || row.accessNotes || existing.access_notes || profile?.access_notes || "",
+      _atlasRowSource: source,
+      _atlasRosterEmployee: rosterEmployee || existing._atlasRosterEmployee || null,
+      _atlasRosterOnly: false
+    });
+  };
+
+  (atlasAccessAdminState.invites || []).forEach(invite => upsertRow(invite, "invite"));
+  (atlasAccessAdminState.profiles || []).forEach(profile => upsertRow(profile, "profile"));
+
+  rosterEntries.forEach(employee => {
+    const email = String(employee.email || "").trim().toLowerCase();
+    const employeeId = String(employee.linkedEmployeeId || employee.employeeId || "").trim();
+    const key = email ? `email:${email}` : `employee:${employeeId}`;
+    if (!email && !employeeId) return;
+    const eligibility = getAtlasRosterProvisioningEligibility(employee);
+    const existing = rowsByKey.get(key);
+    if (existing) {
+      existing._atlasRosterEmployee = employee;
+      existing._atlasRosterEligibility = eligibility;
+      existing._atlasRosterOnly = false;
+      if (!existing.employee_id) existing.employee_id = employee.linkedEmployeeId || employee.employeeId || "";
+      if (!existing.display_name) existing.display_name = employee.profileDisplayName || employee.fullName || email;
+      rowsByKey.set(key, existing);
+      return;
+    }
+    rowsByKey.set(key, {
+      email,
+      display_name: employee.profileDisplayName || employee.fullName || email || "Roster employee",
+      employee_id: employee.linkedEmployeeId || employee.employeeId || "",
+      role: "viewer",
+      status: "active",
+      account_status: eligibility.accountStatus,
+      allowed_community_ids: [],
+      allowed_market_values: [],
+      allowed_region_values: [],
+      locked_tab_ids: [],
+      locked_page_keys: [],
+      access_notes: "",
+      _atlasRowSource: "roster",
+      _atlasRosterEmployee: employee,
+      _atlasRosterEligibility: eligibility,
+      _atlasRosterOnly: true
+    });
+  });
+
+  return [...rowsByKey.values()].sort((a, b) => {
+    const aLabel = atlasUserDisplayName({ display_name: a.display_name, email: a.email });
+    const bLabel = atlasUserDisplayName({ display_name: b.display_name, email: b.email });
+    return aLabel.localeCompare(bLabel);
+  });
+}
+
+function buildAtlasAccessRosterCoverage(rows = buildAtlasEmployeeAccessDisplayRows()) {
+  const rosterRows = rows.filter(row => row._atlasRosterEmployee);
+  const eligibleRows = rosterRows.filter(row => row._atlasRosterEligibility?.eligible);
+  const eligibleWithAccess = eligibleRows.filter(row => !row._atlasRosterOnly);
+  const eligibleWithoutAccess = eligibleRows.filter(row => row._atlasRosterOnly);
+  const emailReviewRows = rosterRows.filter(row => row._atlasRosterEligibility && !row._atlasRosterEligibility.eligible);
+  return {
+    rosterTotal: rosterRows.length,
+    eligibleTotal: eligibleRows.length,
+    eligibleWithAccess: eligibleWithAccess.length,
+    eligibleWithoutAccess: eligibleWithoutAccess.length,
+    emailReviewTotal: emailReviewRows.length
+  };
 }
 
 function queueAtlasAccessAdminLoad(options = {}) {
@@ -14575,7 +15978,7 @@ function queueAtlasAccessAdminLoad(options = {}) {
 async function loadAtlasAccessAdminData({ force = false, silent = true } = {}) {
   try {
     const profile = getAtlasAccessProfile();
-    if (!atlasProfileCanManageSettings(profile)) throw new Error("Only Atlas admins can load employee access records.");
+    if (!atlasProfileCanManageSettings(profile)) throw new Error("Only ATLAS Admins can load employee access records.");
     if (atlasAccessAdminState.loading && !force) return atlasAccessAdminState;
     atlasAccessAdminState.loading = true;
     atlasAccessAdminState.error = "";
@@ -14624,27 +16027,29 @@ function renderAtlasAccessCheckboxes(name, options = [], selectedValues = []) {
   }).join("")}</div>`;
 }
 
-function renderAtlasEmployeeAccessRows() {
+function renderAtlasEmployeeAccessRows(displayRows = buildAtlasEmployeeAccessDisplayRows()) {
   const profilesByEmail = new Map((atlasAccessAdminState.profiles || []).map(profile => [String(profile.email || "").toLowerCase(), profile]));
-  const rows = [...(atlasAccessAdminState.invites || [])];
-  (atlasAccessAdminState.profiles || []).forEach(profile => {
-    const email = String(profile.email || "").toLowerCase();
-    if (!rows.some(row => String(row.email || "").toLowerCase() === email)) rows.push(profile);
-  });
+  const rows = Array.isArray(displayRows) ? displayRows : [];
   if (!rows.length) {
-    return `<tr><td colspan="5" style="color:var(--muted)">No employee access records have been created yet.</td></tr>`;
+    return `<tr><td colspan="5" style="color:var(--muted)">No employee roster or access records are available yet.</td></tr>`;
   }
   return rows.map(row => {
     const email = String(row.email || "").toLowerCase();
     const profile = profilesByEmail.get(email);
-    const status = row.status || profile?.status || "pending";
+    const rosterEligibility = row._atlasRosterEligibility || getAtlasRosterProvisioningEligibility(row._atlasRosterEmployee || row);
+    const accessStatus = row._atlasRosterOnly ? "not_configured" : (row.access_status || row.status || profile?.status || "active");
+    const accountStatus = getAtlasProvisioningAccountStatus(row, profile);
     const allowedCount = normalizeAtlasAccessList(row.allowed_community_ids || profile?.allowed_community_ids).length;
-    const lockedTabs = normalizeAtlasAccessList(row.locked_tab_ids || profile?.locked_tab_ids);
+    const lockedTabs = normalizeAtlasAccessList(row.locked_tab_ids || profile?.locked_tab_ids)
+      .filter(tabId => !ATLAS_SELF_SERVICE_TAB_IDS.includes(tabId));
+    const lastInvite = formatAtlasProvisioningDate(row.invitation_sent_at || row.password_reset_sent_at || row.updated_at);
     const payload = encodeURIComponent(JSON.stringify({
       email,
       displayName: row.display_name || profile?.display_name || "",
       role: row.role || profile?.role || "viewer",
-      status,
+      status: row.status || profile?.status || "active",
+      accessStatus,
+      accountStatus,
       employeeId: row.employee_id || profile?.employee_id || "",
       allowedCommunityIds: normalizeAtlasAccessList(row.allowed_community_ids || profile?.allowed_community_ids),
       allowedMarketValues: normalizeAtlasAccessList(row.allowed_market_values || profile?.allowed_market_values),
@@ -14653,12 +16058,24 @@ function renderAtlasEmployeeAccessRows() {
       lockedPageKeys: normalizeAtlasAccessList(row.locked_page_keys || profile?.locked_page_keys),
       accessNotes: row.access_notes || profile?.access_notes || ""
     }));
+    const inviteLabel = ["not_invited", "invitation_expired"].includes(accountStatus) ? "Send Invite" : "Resend Invite";
+    const primaryAction = !rosterEligibility.eligible
+      ? `<button class="btn btn-gray btn-sm" onclick="prefillAtlasUserAccess('${payload}')">Review</button>`
+      : row._atlasRosterOnly
+        ? `<button class="btn btn-gray btn-sm" onclick="prefillAtlasUserAccess('${payload}')">Set Up</button>`
+        : accountStatus === "active"
+      ? `<button class="btn btn-gray btn-sm" onclick="sendAtlasAccessProvisioningAction('${payload}','password_reset')">Reset</button>`
+      : `<button class="btn btn-gray btn-sm" onclick="sendAtlasAccessProvisioningAction('${payload}','invite')">${inviteLabel}</button>`;
+    const rosterNote = row._atlasRosterOnly
+      ? `<span style="color:#6b7280">Roster only · ${escapeHtml(rosterEligibility.message)}</span>`
+      : (row._atlasRosterEmployee ? `<span style="color:#6b7280">Roster linked</span>` : "");
+    const emailLine = email || rosterEligibility.message || "Email needed";
     return `<tr>
-      <td><strong>${escapeHtml(row.display_name || profile?.display_name || email)}</strong><div style="color:var(--muted);font-size:0.64rem">${escapeHtml(email)}</div></td>
+      <td><strong>${escapeHtml(row.display_name || profile?.display_name || emailLine)}</strong><div style="color:var(--muted);font-size:0.64rem">${escapeHtml(emailLine)}</div>${rosterNote ? `<div style="font-size:0.62rem;margin-top:3px">${rosterNote}</div>` : ""}</td>
       <td>${escapeHtml((row.role || profile?.role || "viewer").replace(/_/g, " "))}</td>
-      <td>${getAtlasAccessStatusBadge(status)}</td>
+      <td>${getAtlasAccessStatusBadge(accessStatus)}<div style="height:4px"></div>${getAtlasAccountStatusBadge(accountStatus)}${lastInvite ? `<div style="color:var(--muted);font-size:0.62rem;margin-top:4px">Last invite: ${escapeHtml(lastInvite)}</div>` : ""}</td>
       <td>${allowedCount ? `${allowedCount} properties` : "Role/default scope"}${lockedTabs.length ? `<div style="color:#8b0000;font-size:0.64rem">${lockedTabs.length} locked tabs</div>` : ""}</td>
-      <td style="text-align:right"><button class="btn btn-gray btn-sm" onclick="prefillAtlasUserAccess('${payload}')">Edit</button></td>
+      <td style="text-align:right"><div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">${primaryAction}<button class="btn btn-gray btn-sm" onclick="prefillAtlasUserAccess('${payload}')">Edit</button></div></td>
     </tr>`;
   }).join("");
 }
@@ -14676,7 +16093,7 @@ function prefillAtlasUserAccess(encodedPayload = "") {
 async function submitAtlasUserAccessForm() {
   try {
     const profile = getAtlasAccessProfile();
-    if (!atlasProfileCanManageSettings(profile)) throw new Error("Only Atlas admins can save employee access.");
+    if (!atlasProfileCanManageSettings(profile)) throw new Error("Only ATLAS Admins can save employee access.");
     const draft = syncAtlasAccessFormDraftFromPanel();
     const selectedEmployee = getAtlasAccessEmployeeRecord(draft.employeeId);
     const email = draft.email.toLowerCase();
@@ -14684,6 +16101,7 @@ async function submitAtlasUserAccessForm() {
     const role = draft.role;
     const status = draft.status;
     if (!email || !role) throw new Error("Email and role are required.");
+    if (!atlasEmployeeEmailIsInternal(email)) throw new Error("Use a RISE company email before saving ATLAS access.");
     await window.ATLAS_CENTRAL.adminUpsertUserAccess({
       email,
       displayName,
@@ -14701,15 +16119,63 @@ async function submitAtlasUserAccessForm() {
     await loadAtlasAccessAdminData({ force: true, silent: true });
     refreshAtlasPeopleAccessPanel();
     applyAtlasAccessFormDraftToPanel();
+    return true;
   } catch (error) {
     alert(`Employee access save failed: ${error?.message || error}`);
+    return false;
   }
+}
+
+async function sendAtlasAccessProvisioningAction(encodedPayload = "", action = "invite") {
+  const actionKey = action === "password_reset" ? "accessReset" : "accessInvite";
+  if (atlasCentralAuthActionIsRunning(actionKey)) {
+    alert("An ATLAS provisioning request is already running.");
+    return false;
+  }
+  atlasCentralAuthActionState[actionKey] = true;
+  refreshAtlasPeopleAccessPanel();
+  try {
+    if (!window.ATLAS_CENTRAL?.sendAccessInvitation) throw new Error("ATLAS invitation service is not available in this browser yet.");
+    const payload = JSON.parse(decodeURIComponent(encodedPayload || "%7B%7D"));
+    const email = String(payload.email || "").trim().toLowerCase();
+    if (!email) throw new Error("Choose an employee access record first.");
+    if (!atlasEmployeeEmailIsInternal(email)) throw new Error("Use a RISE company email before sending an ATLAS invite.");
+    const result = await window.ATLAS_CENTRAL.sendAccessInvitation(payload, { action });
+    const label = result?.action === "password_reset" ? "Password reset" : result?.action === "resend_confirmation" ? "Activation email" : "Invitation";
+    setAtlasCentralRuntimeMessage(`${label} sent to ${email}.`);
+    await loadAtlasAccessAdminData({ force: true, silent: true });
+    refreshAtlasPeopleAccessPanel();
+    alert(`${label} sent to ${email}.`);
+    return true;
+  } catch (error) {
+    const message = error?.message || String(error);
+    setAtlasCentralRuntimeMessage("", message);
+    await loadAtlasAccessAdminData({ force: true, silent: true }).catch(() => null);
+    refreshAtlasPeopleAccessPanel();
+    alert(`ATLAS provisioning failed: ${message}`);
+    return false;
+  } finally {
+    atlasCentralAuthActionState[actionKey] = false;
+    refreshAtlasPeopleAccessPanel();
+  }
+}
+
+async function saveAndSendAtlasUserInvitation(action = "invite") {
+  const saved = await submitAtlasUserAccessForm();
+  if (!saved) return false;
+  const draft = normalizeAtlasAccessFormDraft(atlasAccessFormDraft);
+  const payload = encodeURIComponent(JSON.stringify(draft));
+  return sendAtlasAccessProvisioningAction(payload, action);
 }
 
 async function copyAtlasAccessSetupInstructions() {
   const email = (document.getElementById("atlas-access-email") ? syncAtlasAccessFormDraftFromPanel().email : getAtlasCentralInputValue("atlas-access-email")).toLowerCase();
   if (!email) {
     alert("Enter an employee email first.");
+    return;
+  }
+  if (!atlasEmployeeEmailIsInternal(email)) {
+    alert("Use a RISE company email before copying ATLAS activation instructions.");
     return;
   }
   const url = buildAtlasInviteActivationUrl(email);
@@ -14749,7 +16215,9 @@ function renderAtlasEmployeeAccessPanel() {
     return `<div class="card mb4"><div class="card-title">Employee Access</div><div class="alert-red">Sign in from ATLAS Settings before managing employee access.</div></div>`;
   }
   if (!atlasProfileCanManageSettings(profile)) {
-    const lockedTabs = normalizeAtlasAccessList(profile?.locked_tab_ids).map(tabId => getAtlasAccessTab(tabId).label);
+    const lockedTabs = normalizeAtlasAccessList(profile?.locked_tab_ids)
+      .filter(tabId => !ATLAS_SELF_SERVICE_TAB_IDS.includes(tabId))
+      .map(tabId => getAtlasAccessTab(tabId).label);
     const scopeCount = normalizeAtlasAccessList(profile?.allowed_community_ids).length;
     return `${profileEditorHtml}<div class="card mb4">
       <div class="card-title">My ATLAS Access</div>
@@ -14773,6 +16241,11 @@ function renderAtlasEmployeeAccessPanel() {
     </div>`;
   }
   const draft = normalizeAtlasAccessFormDraft(atlasAccessFormDraft);
+  const accessDisplayRows = buildAtlasEmployeeAccessDisplayRows();
+  const rosterCoverage = buildAtlasAccessRosterCoverage(accessDisplayRows);
+  const rosterCoverageText = rosterCoverage.rosterTotal
+    ? `${rosterCoverage.rosterTotal} roster employees · ${rosterCoverage.eligibleWithAccess}/${rosterCoverage.eligibleTotal} eligible employees configured · ${rosterCoverage.eligibleWithoutAccess} ready to set up · ${rosterCoverage.emailReviewTotal} need email review`
+    : "No roster employees loaded yet.";
   const communityOptions = (atlasAccessAdminState.communities || []).map(community => ({
     value: community.community_id,
     label: `${community.display_name}${community.market ? ` · ${community.market}` : ""}`
@@ -14796,7 +16269,9 @@ function renderAtlasEmployeeAccessPanel() {
       : "";
     return `<option value="${escapeHtml(employee.employeeId)}" ${employee.employeeId === draft.employeeId ? "selected" : ""}>${escapeHtml(displayName)}${employee.email ? ` · ${escapeHtml(employee.email)}` : ""}${suffix}</option>`;
   }).join("");
-  const tabOptions = ATLAS_ACCESS_TABS.map(tab => ({ value: tab.id, label: tab.label }));
+  const tabOptions = ATLAS_ACCESS_TABS
+    .filter(tab => !ATLAS_SELF_SERVICE_TAB_IDS.includes(tab.id))
+    .map(tab => ({ value: tab.id, label: tab.label }));
   return `${profileEditorHtml}<div class="card mb4">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
       <div>
@@ -14805,7 +16280,7 @@ function renderAtlasEmployeeAccessPanel() {
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-gray btn-sm" onclick="loadAtlasAccessAdminData({ force:true, silent:false })">${atlasAccessAdminState.loading ? "Loading..." : "Refresh Access"}</button>
-        <button class="btn btn-gray btn-sm" onclick="copyAtlasAccessSetupInstructions()">Copy Setup Instructions</button>
+        <button class="btn btn-gray btn-sm" onclick="copyAtlasAccessSetupInstructions()">Copy Backup Instructions</button>
       </div>
     </div>
     ${atlasAccessAdminState.error ? `<div class="alert-red" style="margin-bottom:10px">${escapeHtml(atlasAccessAdminState.error)}</div>` : ""}
@@ -14813,15 +16288,16 @@ function renderAtlasEmployeeAccessPanel() {
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">
           <div>
-            <div class="card-title">Current Access Records</div>
+            <div class="card-title">Roster + Access Records</div>
             <div style="font-size:0.66rem;color:var(--muted);margin-top:4px">${atlasAccessAdminState.lastLoadedAt ? `Loaded ${new Date(atlasAccessAdminState.lastLoadedAt).toLocaleString()}` : "Access records load after sign-in."}</div>
+            <div style="font-size:0.66rem;color:var(--muted);margin-top:4px">${escapeHtml(rosterCoverageText)}</div>
           </div>
-          <div style="font-size:0.66rem;color:var(--muted)">Choose an existing record to edit, or stay in create mode for a new employee.</div>
+          <div style="font-size:0.66rem;color:var(--muted)">Choose an existing record to edit, or set up a roster employee before sending an invite.</div>
         </div>
         <div class="tbl-wrap" style="margin:0;max-height:320px;overflow:auto">
           <table class="atlas-access-table">
-            <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Scope</th><th></th></tr></thead>
-            <tbody>${renderAtlasEmployeeAccessRows()}</tbody>
+            <thead><tr><th>User</th><th>Role</th><th>Access / Account</th><th>Scope</th><th></th></tr></thead>
+            <tbody>${renderAtlasEmployeeAccessRows(accessDisplayRows)}</tbody>
           </table>
         </div>
       </div>
@@ -14854,7 +16330,9 @@ function renderAtlasEmployeeAccessPanel() {
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
           <button class="btn btn-blue btn-sm" onclick="submitAtlasUserAccessForm()">Save Employee Access</button>
-          <button class="btn btn-gray btn-sm" onclick="copyAtlasAccessSetupInstructions()">Copy Setup Instructions</button>
+          <button class="btn btn-blue btn-sm" onclick="saveAndSendAtlasUserInvitation('invite')">${atlasCentralAuthActionState.accessInvite ? "Sending..." : "Save & Send Invitation"}</button>
+          <button class="btn btn-gray btn-sm" onclick="saveAndSendAtlasUserInvitation('password_reset')">${atlasCentralAuthActionState.accessReset ? "Sending..." : "Send Password Reset"}</button>
+          <button class="btn btn-gray btn-sm" onclick="copyAtlasAccessSetupInstructions()">Copy Backup Instructions</button>
           <button class="btn btn-gray btn-sm" onclick="clearAtlasUserAccessForm()">Clear Form</button>
         </div>
       </div>
@@ -14914,6 +16392,8 @@ function renderAtlasCentralPlatformPanel() {
         <div class="card-title" style="font-size:0.72rem;margin-bottom:8px">Hosted Database</div>
         <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">ATLAS app URL</label>
         <input id="atlas-central-app-url" type="url" value="${escapeHtml(config.appBaseUrl || "")}" placeholder="https://jac1827.github.io/ATLAS/portfolio-operations-dashboard/index.html" style="margin:5px 0 8px">
+        <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Invitation service URL</label>
+        <input id="atlas-central-access-api-url" type="url" value="${escapeHtml(config.accessApiBaseUrl || "")}" placeholder="https://your-atlas-worker.example.com" style="margin:5px 0 8px">
         <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Supabase URL</label>
         <input id="atlas-central-url" type="url" value="${escapeHtml(config.supabaseUrl || "")}" placeholder="https://project.supabase.co" style="margin:5px 0 8px">
         <label style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Public publishable / anon key</label>
@@ -15085,32 +16565,232 @@ function renderAtlasSettingsMemoryPanel() {
   </div>`;
 }
 
-function renderAtlasSettingsDashboardPanel() {
-  const selectedKeys = new Set(atlasDashboardPreferences.visibleWidgets);
-  return `<div class="card mb4">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+function renderAtlasDashboardSelectOptions(options = [], value = "") {
+  return options.map(option => {
+    const tuple = Array.isArray(option) ? option : [option, option];
+    return `<option value="${escapeHtml(tuple[0])}" ${String(tuple[0]) === String(value) ? "selected" : ""}>${escapeHtml(tuple[1])}</option>`;
+  }).join("");
+}
+
+function atlasDashboardJsArg(value = "") {
+  return escapeHtml(JSON.stringify(String(value ?? "")));
+}
+
+function renderAtlasDashboardSelectField(label = "", value = "", options = [], changeHandler = "") {
+  return `<div class="atlas-dashboard-field">
+    <label>${escapeHtml(label)}</label>
+    <select onchange="${changeHandler}">${renderAtlasDashboardSelectOptions(options, value)}</select>
+  </div>`;
+}
+
+function atlasDashboardCentralStatusText() {
+  const status = getAtlasCentralStatus();
+  if (atlasDashboardBuilderState.loadingCentral) return "Loading central views";
+  if (atlasDashboardBuilderState.savingCentral) return "Saving central views";
+  if (atlasDashboardPreferences.centralLastError) return `Central issue: ${atlasDashboardPreferences.centralLastError}`;
+  if (atlasDashboardPreferences.centralSavedAt) return `Central saved ${new Date(atlasDashboardPreferences.centralSavedAt).toLocaleString()}`;
+  if (atlasDashboardPreferences.centralHydratedAt) return `Central loaded ${new Date(atlasDashboardPreferences.centralHydratedAt).toLocaleString()}`;
+  return status.configured && status.signedIn ? "Central ready" : "Local fallback";
+}
+
+function renderAtlasDashboardViewControls() {
+  const views = getAtlasDashboardSavedViews();
+  const active = getAtlasActiveDashboardView();
+  const defaultView = getAtlasDefaultDashboardView();
+  const templateOptions = Object.entries(ATLAS_DASHBOARD_ROLE_TEMPLATES).map(([key, template]) => [key, template.label]);
+  return `<div class="atlas-dashboard-controls">
+    <div class="atlas-dashboard-field">
+      <label>Current View</label>
+      <select onchange="atlasDashboardSelectView(this.value)">
+        ${views.map(view => `<option value="${escapeHtml(view.viewKey)}" ${view.viewKey === active.viewKey ? "selected" : ""}>${escapeHtml(view.viewName)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="atlas-dashboard-field">
+      <label>Default Landing View</label>
+      <select onchange="atlasDashboardSetDefaultView(this.value)">
+        ${views.map(view => `<option value="${escapeHtml(view.viewKey)}" ${view.viewKey === defaultView.viewKey ? "selected" : ""}>${escapeHtml(view.viewName)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="atlas-dashboard-field">
+      <label>Starting Template</label>
+      <select onchange="atlasDashboardApplyRoleTemplate(this.value)">
+        ${renderAtlasDashboardSelectOptions(templateOptions, active.roleTemplateKey)}
+      </select>
+    </div>
+  </div>`;
+}
+
+function renderAtlasDashboardActiveWidgetCard(instance = {}) {
+  const definition = getAtlasDashboardWidgetDefinition(instance.widgetKey) || {};
+  const snapshot = buildAtlasDashboardWidgetSnapshot(instance);
+  const sizeClass = instance.size === "compact" ? "is-compact" : instance.size === "expanded" ? "is-expanded" : "";
+  const pinnedClass = instance.pinned ? "is-pinned" : "";
+  const editing = atlasDashboardBuilderState.editingInstanceId === instance.instanceId;
+  return `<div class="atlas-dashboard-widget-card ${sizeClass} ${pinnedClass}" draggable="${atlasDashboardBuilderState.layoutMode ? "true" : "false"}" ondragstart="atlasDashboardDragStart(event,${atlasDashboardJsArg(instance.instanceId)})" ondragover="atlasDashboardDragOver(event)" ondrop="atlasDashboardDrop(event,${atlasDashboardJsArg(instance.instanceId)})">
+    <div class="atlas-dashboard-widget-head">
       <div>
-        <div class="card-title" style="margin-bottom:6px">Dashboard Personalization</div>
-        <div style="font-size:0.68rem;color:var(--muted);line-height:1.55">Choose which informational widgets appear on the ATLAS home dashboard. First-time users are guided here after their first login so they can shape the dashboard around the information they use most.</div>
+        <div class="atlas-dashboard-widget-kicker">${escapeHtml(definition.category || "ATLAS")}</div>
+        <div class="atlas-dashboard-widget-title">${escapeHtml(definition.label || "Dashboard Widget")}</div>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-gray btn-sm" onclick="setTab(0)">Preview Home Dashboard</button>
-        <button class="btn btn-blue btn-sm" onclick="completeAtlasFirstLoginWalkthrough()">Mark Walkthrough Complete</button>
+      <span class="atlas-dashboard-status-pill">${instance.pinned ? "Priority" : instance.size}</span>
+    </div>
+    <div class="atlas-dashboard-widget-value" style="color:${definition.accent || "var(--accent)"}">${escapeHtml(String(snapshot.value || "Open"))}</div>
+    <div class="atlas-dashboard-widget-sub">${escapeHtml(instance.metric || definition.defaultMetric || "")} · ${escapeHtml(atlasDashboardScopeLabel(instance))}</div>
+    ${!instance.collapsed ? `<div class="atlas-dashboard-widget-sub">${escapeHtml(snapshot.sub || definition.description || "")}</div>` : ""}
+    <div class="atlas-dashboard-widget-actions">
+      <button type="button" class="atlas-dashboard-icon-btn" title="Move earlier" onclick="atlasDashboardMoveWidget(${atlasDashboardJsArg(instance.instanceId)},-1)"><i class="ph ph-arrow-left" aria-hidden="true"></i></button>
+      <button type="button" class="atlas-dashboard-icon-btn" title="Move later" onclick="atlasDashboardMoveWidget(${atlasDashboardJsArg(instance.instanceId)},1)"><i class="ph ph-arrow-right" aria-hidden="true"></i></button>
+      <button type="button" class="atlas-dashboard-icon-btn" title="Priority" onclick="atlasDashboardToggleWidgetPin(${atlasDashboardJsArg(instance.instanceId)})"><i class="ph ph-star${instance.pinned ? "-fill" : ""}" aria-hidden="true"></i></button>
+      <button type="button" class="atlas-dashboard-icon-btn" title="Collapse" onclick="atlasDashboardToggleWidgetCollapse(${atlasDashboardJsArg(instance.instanceId)})"><i class="ph ph-caret-${instance.collapsed ? "down" : "up"}" aria-hidden="true"></i></button>
+      <button type="button" class="atlas-dashboard-icon-btn" title="Configure" onclick="atlasDashboardEditWidget(${atlasDashboardJsArg(instance.instanceId)})"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i></button>
+      <button type="button" class="atlas-dashboard-icon-btn" title="Duplicate" onclick="atlasDashboardDuplicateWidget(${atlasDashboardJsArg(instance.instanceId)})"><i class="ph ph-copy" aria-hidden="true"></i></button>
+      <button type="button" class="atlas-dashboard-icon-btn" title="Remove" onclick="atlasDashboardRemoveWidget(${atlasDashboardJsArg(instance.instanceId)})"><i class="ph ph-trash" aria-hidden="true"></i></button>
+      <span class="atlas-dashboard-size-group" aria-label="Widget size">
+        ${ATLAS_DASHBOARD_WIDGET_SIZES.map(([size, label]) => `<button type="button" class="${instance.size === size ? "active" : ""}" onclick="atlasDashboardSetWidgetSize(${atlasDashboardJsArg(instance.instanceId)},${atlasDashboardJsArg(size)})">${escapeHtml(label)}</button>`).join("")}
+      </span>
+    </div>
+    ${editing ? renderAtlasDashboardWidgetConfigPanel(instance) : ""}
+  </div>`;
+}
+
+function renderAtlasDashboardActiveLayout() {
+  const view = getAtlasActiveDashboardView();
+  const widgets = getAtlasDashboardViewWidgets(view);
+  if (!widgets.length) {
+    return `<div class="atlas-dashboard-empty">No widgets are saved in this view.</div>`;
+  }
+  return `<div class="atlas-dashboard-layout-grid">${widgets.map(renderAtlasDashboardActiveWidgetCard).join("")}</div>`;
+}
+
+function renderAtlasDashboardWidgetLibrary() {
+  const search = atlasNormalizeSharedText(atlasDashboardBuilderState.search);
+  const category = atlasDashboardBuilderState.category || "All";
+  const activeCounts = getAtlasDashboardViewWidgets().reduce((acc, widget) => {
+    acc[widget.widgetKey] = (acc[widget.widgetKey] || 0) + 1;
+    return acc;
+  }, {});
+  const widgets = ATLAS_CUSTOM_DASHBOARD_WIDGETS.filter(widget => {
+    const matchesCategory = category === "All" || widget.category === category;
+    const matchesSearch = !search || atlasNormalizeSharedText(`${widget.label} ${widget.category} ${widget.dataSource} ${widget.metrics?.join(" ")}`).includes(search);
+    return matchesCategory && matchesSearch;
+  });
+  return `<div class="atlas-dashboard-library">
+    <div class="atlas-dashboard-controls">
+      <div class="atlas-dashboard-field">
+        <label>Widget Search</label>
+        <input type="text" value="${escapeHtml(atlasDashboardBuilderState.search)}" oninput="atlasDashboardSetLibrarySearch(this.value)" placeholder="Search widgets, metrics, or sources">
+      </div>
+      <div class="atlas-dashboard-field">
+        <label>Category</label>
+        <select onchange="atlasDashboardSetLibraryCategory(this.value)">
+          ${renderAtlasDashboardSelectOptions(ATLAS_DASHBOARD_LIBRARY_CATEGORIES, category)}
+        </select>
+      </div>
+      <div class="atlas-dashboard-view-summary">
+        ${ATLAS_DASHBOARD_LIBRARY_CATEGORIES.filter(item => item !== "All").slice(0, 8).map(item => `<button type="button" class="btn btn-gray btn-sm" onclick="atlasDashboardSetLibraryCategory(${atlasDashboardJsArg(item)})">${escapeHtml(item)}</button>`).join("")}
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-      ${ATLAS_CUSTOM_DASHBOARD_WIDGETS.map(widget => {
-        const isSelected = selectedKeys.has(widget.key);
-        return `<button type="button" onclick="toggleAtlasDashboardWidget(${JSON.stringify(widget.key)})" style="text-align:left;padding:14px;border-radius:16px;border:1px solid ${isSelected ? widget.accent : "var(--border)"};background:${isSelected ? "linear-gradient(180deg,#ffffff 0%,#f6faff 100%)" : "var(--bg2)"};box-shadow:${isSelected ? "0 10px 24px rgba(15,23,42,0.06)" : "none"};cursor:pointer">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
-            <div style="font-size:0.76rem;font-weight:800;color:var(--text)">${escapeHtml(widget.label)}</div>
-            <span style="font-size:0.62rem;font-weight:800;color:${isSelected ? widget.accent : "var(--muted)"}">${isSelected ? "Shown" : "Hidden"}</span>
+    <div class="atlas-dashboard-library-grid">
+      ${widgets.map(widget => {
+        const available = atlasDashboardWidgetIsAvailable(widget);
+        return `<div class="atlas-dashboard-library-card ${available ? "" : "is-planned"}">
+          <div class="atlas-dashboard-library-meta">
+            <span class="atlas-dashboard-category-pill">${escapeHtml(widget.category)}</span>
+            <span class="atlas-dashboard-status-pill">${available ? "Available" : `Phase ${widget.phase}`}</span>
           </div>
-          <div style="font-size:0.68rem;color:var(--muted);line-height:1.55;margin-top:8px">${escapeHtml(widget.description)}</div>
-        </button>`;
-      }).join("")}
+          <div>
+            <div class="atlas-dashboard-widget-title">${escapeHtml(widget.label)}</div>
+            <div class="atlas-dashboard-widget-sub" style="margin-top:5px">${escapeHtml(widget.description)}</div>
+          </div>
+          <div class="atlas-dashboard-widget-sub">${escapeHtml((widget.metrics || []).slice(0, 4).join(" · "))}</div>
+          <div class="atlas-dashboard-toolbar">
+            <button type="button" class="btn ${available ? "btn-blue" : "btn-gray"} btn-sm" onclick="atlasDashboardAddWidget(${atlasDashboardJsArg(widget.key)})" ${available ? "" : "disabled"}><i class="ph ph-plus" aria-hidden="true"></i> Add Widget</button>
+            ${activeCounts[widget.key] ? `<span class="atlas-dashboard-status-pill">${activeCounts[widget.key]} active</span>` : ""}
+          </div>
+        </div>`;
+      }).join("") || `<div class="atlas-dashboard-empty">No widgets match this filter.</div>`}
     </div>
-    <div style="font-size:0.66rem;color:var(--muted);margin-top:12px">Selected widgets: ${atlasDashboardPreferences.visibleWidgets.length}. Last updated: ${atlasDashboardPreferences.customDashboardUpdatedAt ? escapeHtml(new Date(atlasDashboardPreferences.customDashboardUpdatedAt).toLocaleString()) : "Not updated yet"}.</div>
+  </div>`;
+}
+
+function renderAtlasDashboardWidgetConfigPanel(instance = {}) {
+  const definition = getAtlasDashboardWidgetDefinition(instance.widgetKey) || {};
+  const scope = normalizeAtlasDashboardScopeConfig(instance.scope);
+  const propertyOptions = getAtlasDashboardAuthorizedCommunityOptions();
+  const propertyNameOptions = propertyOptions.map(item => [item.name, item.name]);
+  const regionOptions = atlasDashboardDistinctOptionValues("region").map(item => [item, item]);
+  const regionalManagerOptions = atlasDashboardDistinctOptionValues("regionalManager").map(item => [item, item]);
+  const ownershipOptions = atlasDashboardDistinctOptionValues("ownershipGroup").map(item => [item, item]);
+  const assetTypeOptions = Array.from(new Set([...ATLAS_DASHBOARD_ASSET_TYPE_OPTIONS, ...atlasDashboardDistinctOptionValues("assetType")])).filter(Boolean).map(item => [item, item]);
+  const propertyChecks = propertyOptions.map(item => {
+    const checked = scope.propertyNames.includes(item.name);
+    return `<label><input type="checkbox" ${checked ? "checked" : ""} onchange="atlasDashboardToggleScopeProperty(${atlasDashboardJsArg(instance.instanceId)},${atlasDashboardJsArg(item.name)})"> ${escapeHtml(item.name)}</label>`;
+  }).join("");
+  const threshold = normalizeAtlasDashboardThreshold(instance.threshold);
+  return `<div class="atlas-dashboard-config-card">
+    <div class="atlas-dashboard-section-label" style="margin-bottom:10px">Widget Configuration</div>
+    <div class="atlas-dashboard-config-grid">
+      ${renderAtlasDashboardSelectField("Data Source", definition.dataSource || "ATLAS", [[definition.dataSource || "ATLAS", definition.dataSource || "ATLAS"]], "")}
+      ${renderAtlasDashboardSelectField("Metric", instance.metric, definition.metrics || [], `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"metric",this.value)`)}
+      ${renderAtlasDashboardSelectField("Property Scope", scope.type, ATLAS_DASHBOARD_SCOPE_OPTIONS, `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"scope.type",this.value)`)}
+      ${scope.type === "single_property" ? renderAtlasDashboardSelectField("Property", scope.propertyName, propertyNameOptions, `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"scope.propertyName",this.value)`) : ""}
+      ${scope.type === "region" ? renderAtlasDashboardSelectField("Region", scope.region, regionOptions, `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"scope.region",this.value)`) : ""}
+      ${scope.type === "regional_manager" ? renderAtlasDashboardSelectField("Regional Manager", scope.regionalManager, regionalManagerOptions, `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"scope.regionalManager",this.value)`) : ""}
+      ${scope.type === "ownership_group" ? renderAtlasDashboardSelectField("Ownership Group", scope.ownershipGroup, ownershipOptions, `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"scope.ownershipGroup",this.value)`) : ""}
+      ${scope.type === "asset_type" ? renderAtlasDashboardSelectField("Asset Type", scope.assetType, assetTypeOptions, `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"scope.assetType",this.value)`) : ""}
+      ${renderAtlasDashboardSelectField("Timeframe", instance.timeframe, ATLAS_DASHBOARD_TIMEFRAME_OPTIONS, `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"timeframe",this.value)`)}
+      ${renderAtlasDashboardSelectField("Comparison", instance.comparison, ATLAS_DASHBOARD_COMPARISON_OPTIONS, `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"comparison",this.value)`)}
+      ${renderAtlasDashboardSelectField("Visualization", instance.visualization, definition.visualizations || ["KPI Card"], `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"visualization",this.value)`)}
+      ${renderAtlasDashboardSelectField("Drill-Down", instance.drillDown?.mode || "module", [["module", "Open Source Module"], ["records", "Underlying Records"], ["report", "Reporting View"]], `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"drillDown.mode",this.value)`)}
+      ${renderAtlasDashboardSelectField("Alert", instance.alert?.enabled ? "on" : "off", [["off", "Dashboard Only"], ["on", "Alert Enabled"]], `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"alert.enabled",this.value==="on")`)}
+      ${renderAtlasDashboardSelectField("Threshold Operator", threshold.operator, [["<", "<"], ["<=", "<="], [">", ">"], [">=", ">="], ["=", "="], ["between", "Between"]], `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"threshold.operator",this.value)`)}
+      <div class="atlas-dashboard-field">
+        <label>Threshold</label>
+        <input type="text" value="${escapeHtml(threshold.value)}" onchange="atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},'threshold.value',this.value)" placeholder="Value">
+      </div>
+      <div class="atlas-dashboard-field">
+        <label>Duration</label>
+        <input type="text" value="${escapeHtml(threshold.duration)}" onchange="atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},'threshold.duration',this.value)" placeholder="Optional">
+      </div>
+    </div>
+    ${(scope.type === "multiple_properties" || scope.type === "custom_group") ? `<div style="margin-top:10px">
+      <div class="atlas-dashboard-section-label" style="margin-bottom:8px">Properties</div>
+      <div class="atlas-dashboard-property-checks">${propertyChecks || `<div class="atlas-dashboard-widget-sub">No authorized properties are available.</div>`}</div>
+    </div>` : ""}
+  </div>`;
+}
+
+function renderAtlasSettingsDashboardPanel() {
+  const status = getAtlasCentralStatus();
+  const active = getAtlasActiveDashboardView();
+  const defaultView = getAtlasDefaultDashboardView();
+  const widgets = getAtlasDashboardViewWidgets(active);
+  return `<div class="card mb4">
+    <div class="atlas-dashboard-builder">
+      <div class="atlas-dashboard-builder-head">
+        <div>
+          <div class="card-title" style="margin-bottom:6px">Build My Dashboard</div>
+          <div class="atlas-dashboard-builder-title">${escapeHtml(active.viewName)}</div>
+          <div class="atlas-dashboard-builder-sub">Default landing view: ${escapeHtml(defaultView.viewName)} · ${widgets.length} widgets · ${escapeHtml(atlasDashboardCentralStatusText())}</div>
+        </div>
+        <div class="atlas-dashboard-toolbar">
+          <button class="btn btn-blue btn-sm" onclick="atlasDashboardToggleLibrary()"><i class="ph ph-plus" aria-hidden="true"></i> Add Widget</button>
+          <button class="btn btn-gray btn-sm" onclick="atlasDashboardToggleLayoutMode()"><i class="ph ph-arrows-out-cardinal" aria-hidden="true"></i> ${atlasDashboardBuilderState.layoutMode ? "Done Layout" : "Edit Layout"}</button>
+          <button class="btn btn-gray btn-sm" onclick="saveAtlasDashboardPreferencesToCentral({ silent:false, source:'manual_dashboard_save' })" ${status.configured && status.signedIn ? "" : "disabled"}><i class="ph ph-cloud-arrow-up" aria-hidden="true"></i> Save View</button>
+          <button class="btn btn-gray btn-sm" onclick="atlasDashboardSaveAsNewView()"><i class="ph ph-copy" aria-hidden="true"></i> Save As</button>
+          <button class="btn btn-gray btn-sm" onclick="atlasDashboardRestoreDefaultLayout()"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i> Restore Default</button>
+          <button class="btn btn-blue btn-sm" onclick="completeAtlasFirstLoginWalkthrough()"><i class="ph ph-check" aria-hidden="true"></i> Mark Complete</button>
+        </div>
+      </div>
+      ${renderAtlasDashboardViewControls()}
+      <div class="atlas-dashboard-view-summary">
+        <span class="atlas-dashboard-status-pill">${escapeHtml(atlasDashboardTemplateLabel(active.roleTemplateKey))}</span>
+        <span class="atlas-dashboard-status-pill">${escapeHtml(atlasDashboardScopeLabel(widgets[0] || {}))}</span>
+        <span class="atlas-dashboard-status-pill">${escapeHtml(active.layout?.density || "standard")}</span>
+      </div>
+      ${renderAtlasDashboardActiveLayout()}
+      ${atlasDashboardBuilderState.libraryOpen ? renderAtlasDashboardWidgetLibrary() : ""}
+    </div>
   </div>`;
 }
 
@@ -15128,7 +16808,7 @@ function renderAtlasSettingsTab() {
     ${cardsHtml}
     <div class="card mb4" style="margin-top:12px">
       <div class="card-title" style="margin-bottom:6px">ATLAS Settings</div>
-      <div style="font-size:0.72rem;color:var(--muted);line-height:1.6">This admin landing page is the operating system for how ATLAS behaves. Keep employee access, community-governance controls, integrations, memory, and Central Platform Control here so they are no longer scattered between People and Data Import.</div>
+      <div style="font-size:0.72rem;color:var(--muted);line-height:1.6">This page keeps profile setup, dashboard personalization, community-governance controls, integrations, memory, and Central Platform Control in one place. Admin-only tools remain hidden unless the signed-in role can manage them.</div>
     </div>
     <div id="atlas-settings-access-panel">${renderAtlasEmployeeAccessPanel()}</div>
     ${renderAtlasSettingsSetupPanel()}
@@ -15137,7 +16817,7 @@ function renderAtlasSettingsTab() {
     ${renderAtlasSettingsMemoryPanel()}
     ${renderAtlasCentralPlatformPanel()}
   </div>`;
-  return renderPortfolioScopePanel("ATLAS Settings", "Admin-only controls for access, community setup, integrations, memory, and central platform behavior.", "", bodyHtml);
+  return renderPortfolioScopePanel("ATLAS Settings", "Profile, dashboard personalization, access, integrations, memory, and central platform behavior.", "", bodyHtml);
 }
 
 function mergeDashboardStorageBundles(baseBundle, incomingBundle) {
@@ -40450,7 +42130,10 @@ async function initializeAtlasDashboard() {
   }
   await pullAtlasSharedPropertyGraphFromCentral({ silent: true, applyToPortfolio: true });
   await hydrateSharedPropertiesFromMarketingDatabase({ silent: true, applyToPortfolio: true, central: true });
+  await hydrateAtlasDashboardPreferencesFromCentral({ silent: true });
   runAtlasStartupStep("rehydrate global ATLAS settings", () => hydrateOpsGlobalData());
+  applyAtlasAuthEntryFromLocation();
+  applyAtlasAuthRedirectEvent();
   runAtlasInitialRenderPass();
   runAtlasStartupStep("start live presence", () => startAtlasLivePresence());
   runAtlasStartupStep("start shared data refresh", () => startAtlasSharedRealtime());

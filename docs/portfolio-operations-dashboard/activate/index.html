@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Opening ATLAS</title>
+</head>
+<body>
+  <p>Opening ATLAS...</p>
+  <script>
+    (function () {
+      var path = window.location.pathname;
+      var marker = "/portfolio-operations-dashboard/";
+      var targetPath = path.indexOf(marker) >= 0
+        ? path.slice(0, path.indexOf(marker) + marker.length) + "index.html"
+        : path.replace(/\/(?:invite|activate|set-password|auth\/callback)\/?$/i, "/portfolio-operations-dashboard/index.html");
+      var target = new URL(targetPath, window.location.origin);
+      var params = new URLSearchParams(window.location.search);
+      params.forEach(function (value, key) { target.searchParams.set(key, value); });
+      if (/set-password/i.test(path)) target.searchParams.set("atlas-entry", "forgot");
+      else if (!/auth\/callback/i.test(path)) target.searchParams.set("atlas-entry", "activate");
+      target.hash = window.location.hash || "";
+      window.location.replace(target.toString());
+    }());
+  </script>
+</body>
+</html>

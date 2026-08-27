@@ -457,6 +457,39 @@ body.nav-collapsed .side-nav-action {
   flex-wrap: wrap;
 }
 
+.atlas-topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: max-content;
+}
+
+.atlas-topbar-brand img {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  object-fit: cover;
+  box-shadow: 0 5px 12px rgba(6, 35, 59, 0.18);
+}
+
+.atlas-topbar-brand-word {
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  line-height: 1;
+}
+
+.atlas-topbar-brand-subtitle {
+  margin-top: 4px;
+  color: color-mix(in srgb, var(--color-text) 54%, transparent);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
 .atlas-topbar-field {
   display: flex;
   align-items: center;
@@ -1097,5 +1130,15 @@ tbody tr:hover td {
 
   .atlas-mount-frame iframe {
     height: 900px;
+  }
+}
+
+@media (max-width: 620px) {
+  .atlas-topbar-brand-subtitle {
+    display: none;
+  }
+
+  .atlas-topbar-chips {
+    margin-left: 0;
   }
 }

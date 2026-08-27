@@ -891,6 +891,7 @@
 <!-- ATLAS Redesign v2 presentation layer — loaded last so it overrides the base
      styles above. Presentation only; no dashboard logic depends on it. -->
 <link rel="stylesheet" href="atlas-redesign.css"/>
+<link rel="stylesheet" href="central-services.css"/>
 </head>
 <body>
 <div class="container">
@@ -945,6 +946,7 @@
         <button class="tab" data-tab="1" onclick="setTab(1)" aria-label="Communities"><i class="tab-icon ph ph-buildings" aria-hidden="true"></i><span class="tab-label">Communities</span></button>
 
         <div class="nav-group-label">Operations</div>
+        <button class="tab" data-tab="15" onclick="setTab(15)" aria-label="Central Services"><i class="tab-icon ph ph-command" aria-hidden="true"></i><span class="tab-label">Central Services</span></button>
         <button class="tab" data-tab="3" onclick="setTab(3)" aria-label="Traffic and Funnel"><i class="tab-icon ph ph-funnel" aria-hidden="true"></i><span class="tab-label">Traffic &amp; Funnel</span></button>
         <button class="tab" data-tab="4" onclick="setTab(4)" aria-label="Comp Calculator"><i class="tab-icon ph ph-calculator" aria-hidden="true"></i><span class="tab-label">Comp Calculator</span></button>
         <button class="tab" data-tab="5" onclick="setTab(5)" aria-label="Renewals"><i class="tab-icon ph ph-arrows-clockwise" aria-hidden="true"></i><span class="tab-label">Renewals</span></button>
@@ -969,33 +971,18 @@
     </aside>
     <main class="content-shell">
 
-  <!-- Sticky context header (redesign): scope + period mirror the sidebar
-       selects, chips report budget state and upload freshness. -->
+  <!-- Sticky context header: the sidebar owns community and reporting-month selection. -->
   <header class="atlas-topbar" id="atlas-topbar">
-    <div class="atlas-topbar-field">
-      <span class="atlas-topbar-label">Scope</span>
-      <select id="atlas-topbar-scope" onchange="onWorkspaceCommunitySelect(this.value)" aria-label="Scope"></select>
-    </div>
-    <div class="atlas-topbar-field">
-      <span class="atlas-topbar-label">Period</span>
-      <select id="atlas-topbar-period" aria-label="Period">
-        <option value="0">January</option>
-        <option value="1">February</option>
-        <option value="2">March</option>
-        <option value="3">April</option>
-        <option value="4">May</option>
-        <option value="5">June</option>
-        <option value="6">July</option>
-        <option value="7">August</option>
-        <option value="8">September</option>
-        <option value="9">October</option>
-        <option value="10">November</option>
-        <option value="11">December</option>
-      </select>
+    <div class="atlas-topbar-brand" aria-label="ATLAS Portfolio Tracker Reports">
+      <img src="assets/atlas-icon.png" alt="" aria-hidden="true">
+      <div>
+        <div class="atlas-topbar-brand-word">ATLAS</div>
+        <div class="atlas-topbar-brand-subtitle">Portfolio · Tracker · Reports</div>
+      </div>
     </div>
     <div class="atlas-topbar-chips">
       <span class="atlas-chip is-accent" id="atlas-chip-budget"><i class="ph ph-file-text" aria-hidden="true"></i><span>Monthly upload</span></span>
-      <span class="atlas-chip" id="atlas-chip-freshness"><i class="ph ph-database" aria-hidden="true"></i><span>No rows in review</span></span>
+      <span class="atlas-chip" id="atlas-chip-freshness"><i class="ph ph-database" aria-hidden="true"></i><span>Viewing data</span></span>
     </div>
     <div class="atlas-live-users is-muted" id="atlas-live-users" title="Signed-in ATLAS users active in the last few minutes">
       <i class="ph ph-broadcast" aria-hidden="true"></i>
@@ -1046,6 +1033,7 @@
   <div id="tab-panel-12" class="tab-panel" style="display:none"></div>
   <div id="tab-panel-13" class="tab-panel" style="display:none"></div>
   <div id="tab-panel-14" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-15" class="tab-panel" style="display:none"></div>
 
     </main>
   </div>
@@ -1055,6 +1043,7 @@
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=20260821-people-access"></script>
 <script src="./centralization/atlas-central-client.js?v=20260825-access-cors" data-atlas-central-client="true"></script>
+<script src="./central-services.js?v=20260826-phase1-v2"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -2221,8 +2210,10 @@ function syncSharedPropertyFromPortfolioRecord(propName, record, options = {}) {
     source: options.source || ATLAS_SHARED_PROPERTY_SOURCE_ID,
     timestamp,
     forceFields: options.forceFields,
-    strictMarket: true,
-    strictPropertyType: true
+    // A status-only change must not be blocked by incomplete optional setup
+    // fields such as market or property type.
+    strictMarket: options.strictMarket !== false,
+    strictPropertyType: options.strictPropertyType !== false
   });
   if (result.record) {
     Object.assign(record, atlasProjectSharedPropertyToCommunityRecord(result.record, record));
@@ -9111,6 +9102,10 @@ function aggregateCommunitySummaries(summaries) {
     }
     acc.budgetOccUnits += summary.budgetOccUnits;
     acc.budgetLeasedUnits += summary.budgetLeasedUnits;
+    // Portfolio budget gaps represent the total recovery needed across
+    // communities; a surplus at one property cannot close another's gap.
+    acc.occGapUnits += Math.max(Number(summary.occGapUnits) || 0, 0);
+    acc.leasedGapUnits += Math.max(Number(summary.leasedGapUnits) || 0, 0);
     acc.guestCards += summary.guestCards;
     acc.previousGuestCards += summary.previousGuestCards;
     acc.guestCardGoal += summary.guestCardGoal;
@@ -9195,6 +9190,8 @@ function aggregateCommunitySummaries(summaries) {
     avgOccGapPtsCount: 0,
     budgetOccUnits: 0,
     budgetLeasedUnits: 0,
+    occGapUnits: 0,
+    leasedGapUnits: 0,
     guestCards: 0,
     previousGuestCards: 0,
     guestCardGoal: 0,
@@ -9287,8 +9284,8 @@ function aggregateCommunitySummaries(summaries) {
     msoeCompletionPct: totals.msoeCompletionWeight > 0
       ? totals.msoeCompletionWeightedTotal / totals.msoeCompletionWeight
       : (totals.msoeCompletionCount > 0 ? totals.msoeCompletionTotal / totals.msoeCompletionCount : 0),
-    occGapUnits: Math.max(totals.budgetOccUnits - totals.occupied, 0),
-    leasedGapUnits: Math.max(totals.budgetLeasedUnits - totals.leased, 0),
+    occGapUnits: totals.occGapUnits,
+    leasedGapUnits: totals.leasedGapUnits,
     avgBudgetOccAttainmentPct: totals.avgBudgetOccAttainmentPctCount > 0 ? totals.avgBudgetOccAttainmentPctTotal / totals.avgBudgetOccAttainmentPctCount : 0,
     onTrackBudgetOccCount: totals.onTrackBudgetOccCount,
     trackedBudgetOccCount: totals.trackedBudgetOccCount,
@@ -9963,9 +9960,7 @@ function updateInvestorName(val) {
 }
 
 function updateCommunityStatus(value) {
-  communityStatus = normalizeCommunityStatus(value);
-  saveCommunityData(true);
-  renderTab();
+  updatePortfolioCommunityField(getProp().name, "communityStatus", value);
 }
 
 function addInvestorEmailContact() {
@@ -10052,6 +10047,20 @@ function getPortfolioSetupCommunityName() {
 function setPortfolioSetupCommunityName(name) {
   portfolioSetupCommunityName = matchPropertyName(name, { fallbackToCurrent: false }) || getProp().name;
   renderTab();
+}
+
+function openPortfolioCommunityFloorPlans(name) {
+  const matchedName = matchPropertyName(name, { fallbackToCurrent: false });
+  if (!matchedName) return false;
+  portfolioSetupCommunityName = matchedName;
+  renderTab();
+  // The editor is rendered below the roster. Move the user to the selected
+  // community's floor-plan workspace so the action has an immediate outcome.
+  setTimeout(() => {
+    const editor = document.getElementById("portfolio-floor-plan-editor");
+    if (editor?.scrollIntoView) editor.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, 40);
+  return false;
 }
 
 function getPortfolioSetupCommunityRecord(propName = getPortfolioSetupCommunityName()) {
@@ -11517,17 +11526,19 @@ function autoPopulateLeasingPace() {
 }
 
 // ─── Tab ──────────────────────────────────────────────────────────────────────
-// Tabs 0–9 are the original dashboard screens; 10–13 are the embedded RISE
+// Tabs 0–9 are the original dashboard screens; 10–13 and 15 are embedded RISE
 // platforms added by the redesign merge. MOUNT_TABS render a tool inline and
 // have no community-workspace context of their own.
-const MOUNT_TABS = [10, 11, 12, 13];
-const MAX_TAB = 14;
+const MOUNT_TABS = [10, 11, 12, 13, 15];
+const MAX_TAB = 15;
 
 function syncAtlasWorkspaceCardVisibility() {
   const workspaceCard = document.getElementById("prop-selector-card");
   if (!workspaceCard) return;
   const authFrontDoorActive = activeTab === 0 && shouldBlockAtlasSensitiveAccess();
-  workspaceCard.style.display = (MOUNT_TABS.includes(activeTab) || authFrontDoorActive) ? "none" : "";
+  // Home is a personalized landing page. Community and month controls live in
+  // the navigation, while widget-level scope lives in dashboard customization.
+  workspaceCard.style.display = (activeTab === 0 || MOUNT_TABS.includes(activeTab) || authFrontDoorActive) ? "none" : "";
 }
 
 function setTab(i) {
@@ -11567,7 +11578,8 @@ function renderTab() {
     window.renderMarketingTab,
     window.renderBudgetBuilderTab,
     window.renderPeopleTab,
-    renderAtlasSettingsTab
+    renderAtlasSettingsTab,
+    window.renderCentralServicesTab
   ];
   if (activeTab >= renderers.length) activeTab = renderers.length - 1;
   const panel = document.getElementById(`tab-panel-${activeTab}`);
@@ -11621,45 +11633,26 @@ function renderTab() {
   }
 }
 
-// Keeps the sticky header's scope/period selects and status chips in step with
-// the sidebar workspace controls. Read-only mirror — the sidebar remains the
-// source of truth for community and month selection.
+// Keeps compact status chips in step with the sidebar workspace controls.
 function syncAtlasTopbar() {
   try {
-    const sourceSelect = document.getElementById("workspace-community-select");
-    const topScope = document.getElementById("atlas-topbar-scope");
-    if (sourceSelect && topScope && topScope.innerHTML !== sourceSelect.innerHTML) {
-      topScope.innerHTML = sourceSelect.innerHTML;
-    }
-    if (sourceSelect && topScope) topScope.value = sourceSelect.value;
-
     const monthSelect = document.getElementById("workspace-current-month");
-    const topPeriod = document.getElementById("atlas-topbar-period");
-    if (monthSelect && topPeriod) {
-      topPeriod.value = monthSelect.value;
-      topPeriod.onchange = () => {
-        monthSelect.value = topPeriod.value;
-        monthSelect.dispatchEvent(new Event("change", { bubbles: true }));
-      };
-    }
-
     const scopeLabel = document.getElementById("side-nav-scope-summary");
-    if (scopeLabel && topScope) {
-      scopeLabel.textContent = topScope.options[topScope.selectedIndex]?.textContent?.trim() || "All communities";
+    const sourceSelect = document.getElementById("workspace-community-select");
+    if (scopeLabel && sourceSelect) {
+      scopeLabel.textContent = sourceSelect.options[sourceSelect.selectedIndex]?.textContent?.trim() || "All communities";
     }
 
     const budgetChip = document.getElementById("atlas-chip-budget");
     if (budgetChip) {
       const monthLabel = FULL_MONTHS[Number(monthSelect?.value) || 0] || "";
-      budgetChip.lastElementChild.textContent = `Monthly upload · ${monthLabel} ${new Date().getFullYear()}`;
+      budgetChip.lastElementChild.textContent = `Reporting period · ${monthLabel} ${new Date().getFullYear()}`;
     }
 
     const freshChip = document.getElementById("atlas-chip-freshness");
     if (freshChip) {
-      const count = Object.keys(savedData || {}).length;
-      freshChip.lastElementChild.textContent = count
-        ? `${count} ${count === 1 ? "community" : "communities"} saved`
-        : "No saved communities yet";
+      const count = getWorkspaceScopedDetails(getSelectedDashboardMonthIndex()).length;
+      freshChip.lastElementChild.textContent = `Viewing data for ${count} ${count === 1 ? "community" : "communities"}`;
     }
   } catch (error) {
     console.warn("Topbar sync skipped", error);
@@ -11826,7 +11819,8 @@ const ATLAS_ACCESS_TABS = [
   { id: "11", label: "Marketing", key: "marketing" },
   { id: "12", label: "Budget Builder", key: "budget" },
   { id: "13", label: "People", key: "people" },
-  { id: "14", label: "ATLAS Settings", key: "atlas_settings" }
+  { id: "14", label: "ATLAS Settings", key: "atlas_settings" },
+  { id: "15", label: "Central Services", key: "central_services" }
 ];
 
 const ATLAS_SELF_SERVICE_TAB_IDS = ["14"];
@@ -11834,13 +11828,13 @@ const ATLAS_SELF_SERVICE_TAB_IDS = ["14"];
 const ATLAS_ACCESS_ROLE_TABS = {
   admin: ATLAS_ACCESS_TABS.map(tab => tab.id),
   centra: ATLAS_ACCESS_TABS.map(tab => tab.id),
-  executive: ["0","1","2","3","4","5","6","8","9","10","11","12","13","14"],
-  regional: ["0","1","2","3","4","5","6","8","9","10","11","12","13","14"],
-  community_manager: ["0","1","2","3","4","5","6","8","9","10","11","14"],
+  executive: ["0","1","2","3","4","5","6","8","9","10","11","12","13","14","15"],
+  regional: ["0","1","2","3","4","5","6","8","9","10","11","12","13","14","15"],
+  community_manager: ["0","1","2","3","4","5","6","8","9","10","11","14","15"],
   people: ["0","1","8","9","13","14"],
   marketing: ["0","1","8","9","11","14"],
   maintenance: ["0","1","8","10","14"],
-  finance: ["0","1","2","4","8","9","12","14"],
+  finance: ["0","1","2","4","8","9","12","14","15"],
   bonus: ["0","1","8","9","14"],
   viewer: ["0","2","8","14"]
 };
@@ -14881,28 +14875,56 @@ function renderAtlasDashboardHomeWidget(instance = {}) {
   </button>`;
 }
 
+function getAtlasDashboardLatestDataUploadAt(monthIdx = getSelectedDashboardMonthIndex()) {
+  const candidates = [];
+  const scopedNames = getWorkspaceScopedDetails(monthIdx).map(detail => detail.name).filter(Boolean);
+  scopedNames.forEach(name => {
+    const record = name === getProp().name
+      ? getCurrentCommunityRecord()
+      : normalizeSavedCommunityRecord(name, savedData[name]);
+    const importTracking = normalizeImportTracking(record.importTracking);
+    candidates.push(
+      record.latestDlrSummary?.dailyBoxScoreImportedAt,
+      record.latestDlrSummary?.importedAt,
+      normalizeMarketSurveyData(record.marketSurveyData).uploadedAt
+    );
+    Object.values(importTracking).forEach(periods => {
+      Object.values(periods || {}).forEach(entry => candidates.push(entry?.importedAt));
+    });
+  });
+  return candidates.reduce((latest, value) => {
+    const timestamp = Date.parse(String(value || ""));
+    return Number.isFinite(timestamp) && timestamp > latest ? timestamp : latest;
+  }, 0);
+}
+
+function getAtlasDashboardDataContext(monthIdx = getSelectedDashboardMonthIndex()) {
+  const communityCount = getWorkspaceScopedDetails(monthIdx).length;
+  const reportingPeriod = `${FULL_MONTHS[monthIdx] || "Current Month"} ${new Date().getFullYear()}`;
+  const today = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  });
+  const latestUploadAt = getAtlasDashboardLatestDataUploadAt(monthIdx);
+  const lastUpload = latestUploadAt ? formatSavedTimestampLabel(new Date(latestUploadAt).toISOString()) : "Not recorded";
+  return `Reporting period: ${reportingPeriod} · Today: ${today} · Last data upload: ${lastUpload} · ${communityCount} ${communityCount === 1 ? "community" : "communities"} included.`;
+}
+
 function renderAtlasWelcomeDashboard() {
   const profile = getAtlasAccessProfile();
   const status = getAtlasCentralStatus();
   const view = getAtlasActiveDashboardView();
-  const defaultView = getAtlasDefaultDashboardView();
   const widgets = getAtlasDashboardViewWidgets(view);
-  const monthLabel = FULL_MONTHS[getSelectedDashboardMonthIndex()] || "Current Month";
-  const firstTimePanel = !atlasDashboardPreferences.walkthroughCompletedAt ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:18px">
-    ${[
-      `Role template: ${atlasDashboardTemplateLabel(view.roleTemplateKey)}`,
-      `Assigned scope: ${getAtlasDashboardAuthorizedCommunityOptions().length || "role/default"} properties`,
-      `Default view: ${defaultView.viewName}`,
-      `Central status: ${status.configured && status.signedIn ? "ready" : "local fallback"}`
-    ].map(item => `<div style="padding:12px;border-radius:12px;background:#f8fbff;border:1px solid #dbe7f5;font-size:0.72rem;color:#334e68">${escapeHtml(item)}</div>`).join("")}
-  </div>` : "";
+  const dataContext = getAtlasDashboardDataContext();
   return `<div class="card mb4" style="padding:0;overflow:hidden;border-radius:16px">
     <div style="padding:24px;background:linear-gradient(140deg,#08263f 0%,#123d63 54%,#5f90bf 155%);color:#fff">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
         <div style="max-width:820px">
           <div style="font-size:0.68rem;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.76);font-weight:800">My Dashboard</div>
           <div style="font-size:2rem;font-weight:800;line-height:1.02;margin-top:10px">Welcome, ${escapeHtml(atlasUserDisplayName(profile || { email: status.userEmail || "" }))}.</div>
-          <div style="font-size:0.8rem;line-height:1.7;color:rgba(255,255,255,0.84);margin-top:10px">Current view: ${escapeHtml(view.viewName)} · Reporting month: ${escapeHtml(monthLabel)} · Default landing view: ${escapeHtml(defaultView.viewName)}.</div>
+          <div style="font-size:0.8rem;line-height:1.7;color:rgba(255,255,255,0.84);margin-top:10px">${escapeHtml(dataContext)}</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-blue btn-sm" onclick="openAtlasDashboardWalkthrough()"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i> Build My Dashboard</button>
@@ -14911,11 +14933,10 @@ function renderAtlasWelcomeDashboard() {
       </div>
     </div>
     <div style="padding:22px">
-      ${firstTimePanel}
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
         <div>
           <div class="card-title" style="margin-bottom:6px">${escapeHtml(view.viewName)}</div>
-          <div style="font-size:0.72rem;color:var(--muted)">${widgets.length} widgets · ${escapeHtml(atlasDashboardTemplateLabel(view.roleTemplateKey))} starting template · ${escapeHtml(status.configured && status.signedIn ? "central preferences enabled" : "local preferences active")}</div>
+          <div style="font-size:0.72rem;color:var(--muted)">${widgets.length} widgets selected for this dashboard.</div>
         </div>
         <button class="btn btn-gray btn-sm" onclick="setTab(14)"><i class="ph ph-gear-six" aria-hidden="true"></i> Customize</button>
       </div>
@@ -17496,7 +17517,7 @@ function renderPortfolioScopedSetupTab() {
       <td class="l"><input type="text" value="${escapeHtml(detail.record?.investorName || "")}" placeholder="Investor / ownership group" onchange='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "investorName", this.value)' style="width:100%"></td>
       <td class="l"><textarea rows="2" onchange='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "investorEmailContacts", this.value)' style="width:100%;min-height:58px">${escapeHtml(contactText)}</textarea></td>
       <td>${plans}</td>
-      <td><button type="button" class="btn btn-gray btn-sm" onmousedown='return setPortfolioSetupCommunityName(${JSON.stringify(detail.name)})'>Edit Floor Plans</button></td>
+      <td><button type="button" class="btn btn-gray btn-sm" onclick='return openPortfolioCommunityFloorPlans(${JSON.stringify(detail.name)})'>Edit Floor Plans</button></td>
     </tr>`;
   }).join("");
   const selectedFloorPlanData = buildCommunityFloorPlanVarianceRows(selectedRecord.communityFloorPlans, selectedRecord.marketSurveyData);
@@ -17553,7 +17574,7 @@ function renderPortfolioScopedSetupTab() {
         </div>`;
       }).join("")
     : `<div style="font-size:0.72rem;color:var(--muted)">No floor plans saved yet for ${escapeHtml(selectedName)}. Add each plan here so the exported DLR can compare budgeted rent against the current marketed rent by floor plan.</div>`;
-  const selectedCommunityEditor = `<div class="card mb4">
+  const selectedCommunityEditor = `<div class="card mb4" id="portfolio-floor-plan-editor" tabindex="-1">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
       <div>
         <div class="card-title" style="margin-bottom:6px">Selected Community Editor</div>
@@ -17628,7 +17649,7 @@ function renderPortfolioScopedSetupTab() {
       <tbody>${rows}</tbody>
     </table>
   </div>`;
-  return renderPortfolioScopePanel("Portfolio Community Setup", "A read-through of saved setup data across the full portfolio.", cardsHtml, bodyHtml + renderPortfolioPresentationImageLibrary() + selectedCommunityEditor);
+  return renderPortfolioScopePanel("Portfolio Community Setup", "A read-through of saved setup data across the full portfolio.", cardsHtml, bodyHtml + selectedCommunityEditor + renderPortfolioPresentationImageLibrary());
   } catch (error) {
     console.error("Portfolio Community Setup failed to render", error);
     const errorDetail = String(error?.message || error || "Unknown render error");
@@ -27483,7 +27504,9 @@ function persistPortfolioCommunityRecord(propName, record, options = {}) {
     source: options.source || "portfolio_community_record_save",
     persist: true,
     timestamp,
-    forceFields: options.forceFields
+    forceFields: options.forceFields,
+    strictMarket: options.strictMarket,
+    strictPropertyType: options.strictPropertyType
   });
   normalized = normalizeSavedCommunityRecord(propName, normalized);
   savedData[propName] = normalized;
@@ -27575,7 +27598,11 @@ function updatePortfolioCommunityField(propName, field, value) {
     source: "portfolio_roster_manual_edit",
     timestamp,
     manualField: field,
-    forceFields: sharedField ? [sharedField] : []
+    forceFields: sharedField ? [sharedField] : [],
+    // Community status is an independent reporting control. Do not make it
+    // contingent on unrelated community setup fields being complete.
+    strictMarket: field === "communityStatus" ? false : undefined,
+    strictPropertyType: field === "communityStatus" ? false : undefined
   });
 }
 

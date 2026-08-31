@@ -197,6 +197,23 @@
   @media(max-width:700px){ .atlas-dashboard-layout-grid,.atlas-dashboard-controls,.atlas-dashboard-config-grid { grid-template-columns:1fr; } .atlas-dashboard-widget-card,.atlas-dashboard-widget-card.is-compact,.atlas-dashboard-widget-card.is-expanded { grid-column:auto; } }
   @media(max-width:980px){ .atlas-access-grid { grid-template-columns:1fr; } .atlas-live-users { max-width:100%; width:100%; } }
   .content-shell { min-width:0; }
+  #atlas-topbar .atlas-topbar-brand {
+    display:flex;
+    align-items:center;
+    gap:9px;
+    min-width:max-content;
+  }
+  #atlas-topbar .atlas-topbar-brand > img {
+    display:block;
+    width:34px !important;
+    height:34px !important;
+    min-width:34px;
+    max-width:34px !important;
+    max-height:34px !important;
+    flex:0 0 34px;
+    object-fit:cover;
+    border-radius:10px;
+  }
   .side-nav { position:sticky; top:14px; align-self:start; background:rgba(255,255,255,0.94); border:1px solid var(--border); border-radius:16px; padding:10px; box-shadow:0 12px 28px rgba(15,23,42,0.06); transition:width 0.18s ease,padding 0.18s ease; }
   .side-nav-brand { display:grid; justify-items:center; gap:8px; padding:6px 4px 12px; border-bottom:1px solid var(--border2); margin-bottom:8px; }
   .side-nav-brand-logo { width:100%; max-width:206px; height:82px; object-fit:contain; justify-self:center; }
@@ -1043,7 +1060,7 @@
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=20260821-people-access"></script>
 <script src="./centralization/atlas-central-client.js?v=20260825-access-cors" data-atlas-central-client="true"></script>
-<script src="./central-services.js?v=20260826-phase1-v2"></script>
+<script src="./central-services.js?v=20260831-mobile-inspection-morf"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -11981,6 +11998,20 @@ const ATLAS_CUSTOM_DASHBOARD_WIDGETS = [
     description: "Saved views, layout state, and personalization status."
   },
   {
+    key: "central_services_command_center",
+    legacyKeys: ["central_services"],
+    label: "Central Services Command Center",
+    category: "Central Services",
+    dataSource: "Central Services",
+    tabId: 15,
+    accent: "#2e6b8c",
+    phase: 1,
+    defaultMetric: "Operational Queues",
+    metrics: ["My Work", "Legal Deadline Risk", "Hold Overs", "Regional Approval", "Move-Out Inspections", "MORFs", "Invoices", "Vendor Issues", "Accounting Handoffs"],
+    visualizations: ["Command Center", "Widget Grid", "Exception List"],
+    description: "Personal work, legal-deadline risk, move-outs, MORFs, Regional approvals, invoices, vendor issues, and Accounting handoffs."
+  },
+  {
     key: "forward_occupancy",
     label: "Forward Occupancy",
     category: "Occupancy",
@@ -12061,6 +12092,7 @@ const ATLAS_DASHBOARD_LIBRARY_CATEGORIES = [
   "Renewals",
   "Maintenance",
   "Turns",
+  "Central Services",
   "Inspections",
   "Vendors",
   "Financial",
@@ -12148,7 +12180,7 @@ const ATLAS_DASHBOARD_ROLE_TEMPLATES = {
   },
   central_operations: {
     label: "Central Operations",
-    widgets: ["portfolio_overview", "traffic_funnel", "renewals_retention", "reporting_exports"]
+    widgets: ["central_services_command_center", "portfolio_overview", "renewals_retention", "maintenance_exceptions", "vendor_scorecard"]
   },
   vendor_management: {
     label: "Vendor Management",
@@ -13258,6 +13290,14 @@ function buildAtlasDashboardWidgetSnapshot(instance = {}) {
       value,
       sub: `${view.widgets.length} widgets in ${view.viewName}`,
       detail: atlasDashboardPreferences.centralSavedAt ? `Central save ${new Date(atlasDashboardPreferences.centralSavedAt).toLocaleString()}` : "Local view saved",
+      scopedDetails
+    };
+  }
+  if (instance.widgetKey === "central_services_command_center") {
+    return {
+      value: "Open",
+      sub: "My Work, legal deadlines, inspections, MORFs, Regional approvals, invoices, vendors, and Accounting",
+      detail: "Central Services opens as a configurable operational command center.",
       scopedDetails
     };
   }
@@ -14853,6 +14893,19 @@ function atlasOpenDashboardWidget(instanceId = "") {
     return;
   }
   setTab(definition.tabId);
+}
+
+function atlasOpenCentralServicesDashboardPreferences() {
+  setTab(15);
+  const openPreferences = () => {
+    if (typeof window.atlasCsSetModule === "function") {
+      window.atlasCsSetModule("settings");
+      setTimeout(() => window.atlasCsScrollToDashboardPreferences?.(), 80);
+      return;
+    }
+    setTimeout(() => window.atlasCsScrollToDashboardPreferences?.(), 160);
+  };
+  setTimeout(openPreferences, 80);
 }
 
 function renderAtlasDashboardHomeWidget(instance = {}) {
@@ -16810,6 +16863,23 @@ function renderAtlasSettingsDashboardPanel() {
         <span class="atlas-dashboard-status-pill">${escapeHtml(active.layout?.density || "standard")}</span>
       </div>
       ${renderAtlasDashboardActiveLayout()}
+      <div class="atlas-dashboard-library">
+        <div class="atlas-dashboard-builder-head">
+          <div>
+            <div class="atlas-dashboard-section-label" style="margin-bottom:6px">Dashboard Preferences / Central Services</div>
+            <div class="atlas-dashboard-widget-title">Central Services Dashboard</div>
+            <div class="atlas-dashboard-widget-sub" style="margin-top:5px">Manage the default command-center layout, personal widgets, scopes, filters, date ranges, sizes, visualizations, and restore option for Central Services.</div>
+          </div>
+          <div class="atlas-dashboard-toolbar">
+            <button type="button" class="btn btn-blue btn-sm" onclick="atlasOpenCentralServicesDashboardPreferences()"><i class="ph ph-command" aria-hidden="true"></i> Open Central Services Preferences</button>
+          </div>
+        </div>
+        <div class="atlas-dashboard-view-summary">
+          <span class="atlas-dashboard-status-pill">Personal layout</span>
+          <span class="atlas-dashboard-status-pill">Default available</span>
+          <span class="atlas-dashboard-status-pill">People roster assignments</span>
+        </div>
+      </div>
       ${atlasDashboardBuilderState.libraryOpen ? renderAtlasDashboardWidgetLibrary() : ""}
     </div>
   </div>`;

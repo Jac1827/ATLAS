@@ -462,11 +462,17 @@ body.nav-collapsed .side-nav-action {
   align-items: center;
   gap: 9px;
   min-width: max-content;
+  flex: 0 0 auto;
 }
 
-.atlas-topbar-brand img {
-  width: 34px;
-  height: 34px;
+#atlas-topbar .atlas-topbar-brand > img {
+  display: block;
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px;
+  max-width: 34px !important;
+  max-height: 34px !important;
+  flex: 0 0 34px;
   border-radius: 10px;
   object-fit: cover;
   box-shadow: 0 5px 12px rgba(6, 35, 59, 0.18);

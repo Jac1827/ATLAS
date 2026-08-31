@@ -3867,10 +3867,26 @@
     }).join("") || `<div class="cs-dashboard-empty-inline">No chartable records.</div>`}</div>`;
   }
 
+  function centralDashboardWidgetUrgency(definition = {}, rows = []) {
+    if (!rows.length) return "green";
+    const urgent = rows.some(row => {
+      const due = row.dueDate ? daysUntil(row.dueDate) : null;
+      return row.priority >= 80 || (due !== null && due < 0);
+    });
+    if (urgent || definition.priority) return "red";
+    const watch = rows.some(row => {
+      const due = row.dueDate ? daysUntil(row.dueDate) : null;
+      return row.priority >= 60 || due === 0;
+    });
+    if (watch) return "amber";
+    return "teal";
+  }
+
   function renderCentralDashboardWidget(state, widget, employees) {
     const definition = getCentralDashboardWidgetDefinition(widget.widgetKey) || {};
     const rows = buildCentralDashboardWidgetRows(state, widget, employees);
     const visualization = normalizeCentralDashboardVisualization(widget.visualization, definition);
+    const urgency = centralDashboardWidgetUrgency(definition, rows);
     const body = !rows.length
       ? `<div class="cs-dashboard-empty-inline">No records are currently in this queue.</div>`
       : visualization === "Cards"
@@ -3882,24 +3898,15 @@
             : visualization === "Chart"
               ? renderCentralDashboardChart(rows)
               : renderCentralDashboardTable(definition, rows);
-    return `<section class="cs-dashboard-widget is-${escapeAttr(widget.size)} ${definition.priority ? "is-priority" : ""}" data-tone="${escapeAttr(definition.tone || "")}" draggable="true" ondragstart="atlasCsDashboardDragStart(event,'${escapeAttr(widget.instanceId)}')" ondragover="atlasCsDashboardDragOver(event)" ondrop="atlasCsDashboardDrop(event,'${escapeAttr(widget.instanceId)}')">
+    return `<section class="cs-dashboard-widget is-${escapeAttr(widget.size)} ${definition.priority ? "is-priority" : ""}" data-tone="${escapeAttr(definition.tone || "")}">
       <div class="cs-dashboard-widget-head">
         <div>
           <div class="cs-dashboard-widget-kicker">${escapeHtml(definition.category || "Central Services")}</div>
           <h3>${escapeHtml(definition.label || "Dashboard Widget")}</h3>
         </div>
-        <div class="cs-dashboard-widget-count" title="${escapeAttr(definition.defaultMetric || "Open records")}">${escapeHtml(formatNumber(rows.length))}</div>
+        <div class="cs-dashboard-widget-count" data-urgency="${escapeAttr(urgency)}" title="${escapeAttr(definition.defaultMetric || "Open records")}">${escapeHtml(formatNumber(rows.length))}</div>
       </div>
       ${!widget.collapsed ? `<p>${escapeHtml(definition.description || "")}</p>` : ""}
-      <div class="cs-dashboard-widget-toolbar">
-        <button type="button" class="cs-icon-btn" title="Move earlier" onclick="atlasCsDashboardMoveWidget('${escapeAttr(widget.instanceId)}',-1)">${icon("arrow-left")}</button>
-        <button type="button" class="cs-icon-btn" title="Move later" onclick="atlasCsDashboardMoveWidget('${escapeAttr(widget.instanceId)}',1)">${icon("arrow-right")}</button>
-        <button type="button" class="cs-icon-btn" title="${escapeAttr(widget.collapsed ? "Expand" : "Collapse")}" onclick="atlasCsDashboardToggleWidget('${escapeAttr(widget.instanceId)}','collapsed')">${icon(widget.collapsed ? "caret-down" : "caret-up")}</button>
-        <button type="button" class="cs-icon-btn" title="Configure widget" onclick="atlasCsDashboardEditWidget('${escapeAttr(widget.instanceId)}')">${icon("sliders-horizontal")}</button>
-        <button type="button" class="cs-icon-btn" title="Remove widget" onclick="atlasCsDashboardRemoveWidget('${escapeAttr(widget.instanceId)}')">${icon("trash")}</button>
-        <span class="cs-dashboard-size-group">${CENTRAL_DASHBOARD_WIDGET_SIZES.map(([size, label]) => `<button type="button" class="${widget.size === size ? "is-active" : ""}" onclick="atlasCsDashboardSetWidgetSize('${escapeAttr(widget.instanceId)}','${escapeAttr(size)}')">${escapeHtml(label)}</button>`).join("")}</span>
-      </div>
-      ${state.ui.dashboardConfigId === widget.instanceId ? renderCentralDashboardWidgetConfig(state, widget) : ""}
       <div class="cs-dashboard-widget-body">${body}</div>
     </section>`;
   }
@@ -3959,8 +3966,6 @@
         </div>
         <div class="cs-command-actions">
           <button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsSetModule('settings');setTimeout(()=>atlasCsScrollToDashboardPreferences(),0)">${icon("sliders-horizontal")} Dashboard Preferences</button>
-          <button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsDashboardSaveView()">${icon("floppy-disk")} Save View</button>
-          <button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsDashboardRestoreDefault()">${icon("arrow-counter-clockwise")} Restore Central Services Default</button>
         </div>
       </div>
       <div class="cs-dashboard-signal-row">

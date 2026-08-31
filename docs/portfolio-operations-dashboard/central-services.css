@@ -403,7 +403,7 @@
 .cs-dashboard-widget {
   grid-column: span 4;
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 10px;
   min-width: 0;
   min-height: 250px;
@@ -499,6 +499,30 @@
   font-size: 0.9rem;
   font-weight: 850;
   padding: 0 8px;
+}
+
+.cs-dashboard-widget-count[data-urgency="green"] {
+  color: var(--cs-green);
+  border-color: rgba(47, 107, 69, 0.24);
+  background: #f1f8f2;
+}
+
+.cs-dashboard-widget-count[data-urgency="amber"] {
+  color: var(--cs-amber);
+  border-color: rgba(166, 103, 23, 0.28);
+  background: #fff8ed;
+}
+
+.cs-dashboard-widget-count[data-urgency="red"] {
+  color: var(--cs-red);
+  border-color: rgba(163, 59, 55, 0.28);
+  background: #fff6f5;
+}
+
+.cs-dashboard-widget-count[data-urgency="teal"] {
+  color: var(--cs-teal);
+  border-color: rgba(35, 122, 118, 0.24);
+  background: #f0faf9;
 }
 
 .cs-dashboard-widget-toolbar {

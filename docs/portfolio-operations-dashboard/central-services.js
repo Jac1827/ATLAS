@@ -1635,6 +1635,7 @@
   }
 
   function normalizeInspectionRecord(record = {}) {
+    record = asObject(record);
     const id = cleanString(record.id) || makeId("inspection", [record.propertyName, record.unit, Date.now()]);
     return {
       ...record,
@@ -1646,7 +1647,7 @@
       inspectionProperty: cleanString(record.inspectionProperty || record.propertyName),
       temporaryOperationalAssignment: asObject(record.temporaryOperationalAssignment),
       assignmentHistory: asArray(record.assignmentHistory),
-      findings: asArray(record.findings).map(finding => ({
+      findings: asArray(record.findings).filter(finding => finding && typeof finding === "object").map(finding => ({
         ...finding,
         id: cleanString(finding.id) || makeId("finding", [id, Date.now(), Math.random()]),
         photos: asArray(finding.photos),
@@ -2978,24 +2979,28 @@
   }
 
   function findingHasResidentCharge(finding) {
+    finding = asObject(finding);
     return cleanString(finding.residentResponsibility) === "Recommended" && cleanString(finding.chargebackId);
   }
 
   function findingHasPhoto(finding) {
+    finding = asObject(finding);
     return asArray(finding.photos).length > 0;
   }
 
   function findingHasPhotoOverride(finding) {
+    finding = asObject(finding);
     return Boolean(finding.photoRequirementOverride?.reason);
   }
 
   function getInspectionMissingPhotoChargeCount(inspection) {
+    inspection = asObject(inspection);
     return asArray(inspection.findings).filter(finding => findingHasResidentCharge(finding) && !findingHasPhoto(finding) && !findingHasPhotoOverride(finding)).length;
   }
 
   function getApprovedInspectionChargesForCase(state, caseRecord) {
     return state.inspections
-      .filter(inspection => inspection.relatedMoveOutId === caseRecord.id && isInspectionApprovedStatus(inspection.status))
+      .filter(inspection => inspection && inspection.relatedMoveOutId === caseRecord.id && isInspectionApprovedStatus(inspection.status))
       .flatMap(inspection => asArray(inspection.findings)
         .filter(findingHasResidentCharge)
         .map(finding => ({ inspection, finding })));
@@ -4630,7 +4635,7 @@
       }));
     }
     if (widget.widgetKey === "inspection_repairs") {
-      return centralDashboardPrepareRows(state, widget, state.inspections.filter(inspection => rowMatchesCentralDashboardScope(state, widget, inspection)).flatMap(inspection => asArray(inspection.findings).filter(finding => normalizeKey(finding.actionRouting).includes("work") || normalizeKey(finding.actionRouting).includes("repair")).map(finding => centralDashboardRow({
+      return centralDashboardPrepareRows(state, widget, state.inspections.filter(inspection => inspection && rowMatchesCentralDashboardScope(state, widget, inspection)).flatMap(inspection => asArray(inspection.findings).filter(finding => normalizeKey(finding?.actionRouting).includes("work") || normalizeKey(finding?.actionRouting).includes("repair")).map(finding => centralDashboardRow({
         "Finding": `${finding.room || "Area"} / ${finding.component || "Component"}`,
         "Property / Unit": `${inspection.propertyName} / ${getInspectionLocationLabel(inspection)}`,
         "Assigned": finding.assignedParty || "Unassigned",
@@ -10971,6 +10976,7 @@
       chargeAudit: [],
       createdAt: new Date().toISOString()
     };
+    inspection.findings = asArray(inspection.findings);
     inspection.findings.unshift(finding);
     inspection.updatedAt = new Date().toISOString();
     pushInspectionAudit(inspection, "Finding added.", { room, component, condition });

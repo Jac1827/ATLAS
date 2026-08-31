@@ -846,8 +846,8 @@
     status: ["status", "renewal status", "decision", "response", "resident response"],
     renewalSigned: ["renewal signed", "signed", "renewed"],
     transfer: ["transfer", "transfer renewal"],
-    ntvReceived: ["ntv received", "notice to vacate", "ntv", "notice received"],
-    ntvReceivedDate: ["ntv received date", "notice received date", "notice date"],
+    ntvReceived: ["ntv received", "ntv rcvd", "ntv rcv'd", "ntv rcv d", "notice to vacate", "ntv", "notice received"],
+    ntvReceivedDate: ["ntv received date", "ntv rcvd date", "ntv rcv'd date", "ntv rcv d", "notice received date", "notice date"],
     scheduledMoveOutDate: ["scheduled move-out date", "scheduled move out date", "scheduled move-out", "scheduled move out", "move-out date", "move out date", "move-out", "move out", "scheduled vacate date"],
     inspectionDate: ["inspection date", "scheduled inspection date", "move-out inspection", "move out inspection", "move-out inspection date", "move out inspection date"],
     phone: ["phone", "mobile", "cell", "resident phone"],
@@ -5843,6 +5843,8 @@
       headers.forEach((header, idx) => {
         if (header) object[header] = row[idx];
       });
+      if (row?.__atlasRenewalVisualStatus) object.__atlasRenewalVisualStatus = row.__atlasRenewalVisualStatus;
+      if (row?.__atlasRenewalHighlightedNtv) object.__atlasRenewalHighlightedNtv = true;
       return object;
     }).filter(row => Object.values(row).some(value => cleanString(value)));
   }
@@ -5875,12 +5877,16 @@
     return !/^(?:0|no|n\/a|na|select|▼\s*enter|◀\s*auto)$/i.test(text);
   }
 
+  function renewalRowMarkedNtv(row) {
+    return cleanString(row?.__atlasRenewalVisualStatus).toLowerCase() === "ntv" || row?.__atlasRenewalHighlightedNtv === true;
+  }
+
   function inferRenewalStatus(row) {
     const explicit = cleanString(findAliasedValue(row, "status"));
     if (explicit) return explicit;
     if (yesValue(findAliasedValue(row, "renewalSigned")) || realTrackerEntry(findAliasedValue(row, "renewalSigned"))) return "Renewal Signed";
     if (yesValue(findAliasedValue(row, "transfer")) || realTrackerEntry(findAliasedValue(row, "transfer"))) return "Transfer";
-    if (yesValue(findAliasedValue(row, "ntvReceived")) || realTrackerEntry(findAliasedValue(row, "ntvReceived")) || normalizeDate(findAliasedValue(row, "ntvReceivedDate"))) return "NTV Received";
+    if (renewalRowMarkedNtv(row) || yesValue(findAliasedValue(row, "ntvReceived")) || realTrackerEntry(findAliasedValue(row, "ntvReceived")) || normalizeDate(findAliasedValue(row, "ntvReceivedDate"))) return "NTV Received";
     return "Pending Decision";
   }
 
@@ -5973,9 +5979,12 @@
       rows = rowsToObjects(parseCsvRows(await file.text()));
     } else {
       if (typeof XLSX === "undefined") throw new Error("The spreadsheet parser is not available in this ATLAS session.");
-      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, cellStyles: true });
       workbook.SheetNames.forEach(sheetName => {
-        const sheetRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false });
+        const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false, blankrows: true });
+        const sheetRows = typeof window !== "undefined" && typeof window.annotateRenewalRowsWithWorkbookVisualStatus === "function"
+          ? window.annotateRenewalRowsWithWorkbookVisualStatus(rawRows, workbook.Sheets[sheetName])
+          : rawRows;
         rows = rows.concat(rowsToObjects(sheetRows));
       });
     }

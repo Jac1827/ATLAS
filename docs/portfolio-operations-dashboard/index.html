@@ -1060,7 +1060,7 @@
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=20260821-people-access"></script>
 <script src="./centralization/atlas-central-client.js?v=20260825-access-cors" data-atlas-central-client="true"></script>
-<script src="./central-services.js?v=20260831-renewal-ntv-sync"></script>
+<script src="./central-services.js?v=20260831-ntv-highlight-sync"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -20036,6 +20036,69 @@ function parseYearFromValue(value, fallbackYear = new Date().getFullYear()) {
   return match ? Number(match[1]) : fallbackYear;
 }
 
+function normalizeSpreadsheetColor(value) {
+  const hex = String(value ?? "").replace(/[^a-fA-F0-9]/g, "").toUpperCase();
+  return hex.length >= 6 ? hex.slice(-6) : "";
+}
+
+function isRenewalNtvFillColor(value) {
+  const hex = normalizeSpreadsheetColor(value);
+  if (hex.length !== 6) return false;
+  const red = parseInt(hex.slice(0, 2), 16);
+  const green = parseInt(hex.slice(2, 4), 16);
+  const blue = parseInt(hex.slice(4, 6), 16);
+  if (![red, green, blue].every(Number.isFinite)) return false;
+  return red >= 120 && green <= 225 && blue <= 225 && red >= green + 20 && red >= blue + 20;
+}
+
+function getSpreadsheetCellFillColors(cell) {
+  const style = cell?.s || {};
+  const fill = style.fill || {};
+  return [
+    style.fgColor?.rgb,
+    style.bgColor?.rgb,
+    fill.fgColor?.rgb,
+    fill.bgColor?.rgb,
+    cell?.fgColor?.rgb,
+    cell?.bgColor?.rgb
+  ].filter(Boolean);
+}
+
+function isRenewalNtvStyledCell(cell) {
+  return getSpreadsheetCellFillColors(cell).some(isRenewalNtvFillColor);
+}
+
+function annotateRenewalRowsWithWorkbookVisualStatus(rows, sheet) {
+  const normalizedRows = Array.isArray(rows) ? rows : [];
+  if (!sheet || typeof XLSX === "undefined" || !XLSX.utils?.encode_cell) return normalizedRows;
+  let startRow = 0;
+  let endCol = normalizedRows.reduce((max, row) => Math.max(max, Array.isArray(row) ? row.length - 1 : 0), 0);
+  try {
+    const range = XLSX.utils.decode_range(sheet["!ref"] || "A1:A1");
+    startRow = range.s.r;
+    endCol = Math.max(endCol, range.e.c);
+  } catch {
+    startRow = 0;
+  }
+  normalizedRows.forEach((row, rowIndex) => {
+    if (!Array.isArray(row)) return;
+    const worksheetRow = startRow + rowIndex;
+    const visibleWidth = Math.max(row.length - 1, Math.min(endCol, 40));
+    let redCellCount = 0;
+    for (let colIndex = 0; colIndex <= visibleWidth; colIndex += 1) {
+      const cell = sheet[XLSX.utils.encode_cell({ r: worksheetRow, c: colIndex })];
+      if (isRenewalNtvStyledCell(cell)) redCellCount += 1;
+    }
+    if (redCellCount > 0) {
+      row.__atlasRenewalVisualStatus = "ntv";
+      row.__atlasRenewalHighlightedNtv = true;
+    }
+  });
+  return normalizedRows;
+}
+
+window.annotateRenewalRowsWithWorkbookVisualStatus = annotateRenewalRowsWithWorkbookVisualStatus;
+
 function classifyRenewalStatusValue(value) {
   const raw = String(value ?? "").trim().toLowerCase();
   if (!raw) return "undecided";
@@ -20087,12 +20150,11 @@ function extractRenewalDetailStatusSummary(rows) {
     if (!residentName && !statusValue) continue;
     if (residentName && /total|renewals signed|ntv|transfer|pending|legend/i.test(residentName)) continue;
     summary.expirations += 1;
-    switch (classifyRenewalStatusValue(statusValue)) {
+    const visuallyMarkedNtv = row.__atlasRenewalVisualStatus === "ntv" || row.__atlasRenewalHighlightedNtv === true;
+    const classifiedStatus = classifyRenewalStatusValue(statusValue);
+    switch (classifiedStatus) {
       case "signed":
         summary.renewalsSigned += 1;
-        break;
-      case "ntv":
-        summary.ntv += 1;
         break;
       case "transfer":
         summary.transfers += 1;
@@ -20101,7 +20163,11 @@ function extractRenewalDetailStatusSummary(rows) {
         summary.earlyTermination += 1;
         break;
       default:
-        summary.undecided += 1;
+        if (classifiedStatus === "ntv" || visuallyMarkedNtv) {
+          summary.ntv += 1;
+        } else {
+          summary.undecided += 1;
+        }
         break;
     }
   }
@@ -20172,9 +20238,10 @@ function extractRenewalTrackerColumnSummary(rows) {
     const transferValue = transferColIdx >= 0 ? row[transferColIdx] : "";
     const ntvValue = ntvColIdx >= 0 ? row[ntvColIdx] : "";
     const notesValue = notesColIdx >= 0 ? String(row[notesColIdx] ?? "").trim() : "";
+    const visuallyMarkedNtv = row.__atlasRenewalVisualStatus === "ntv" || row.__atlasRenewalHighlightedNtv === true;
     if (hasRealEntry(signedValue)) summary.renewalsSigned += 1;
     else if (hasRealEntry(transferValue)) summary.transfers += 1;
-    else if (hasRealEntry(ntvValue)) summary.ntv += 1;
+    else if (hasRealEntry(ntvValue) || visuallyMarkedNtv) summary.ntv += 1;
     if (/early termination|early term/i.test(notesValue)) summary.earlyTermination += 1;
   }
 
@@ -20350,7 +20417,7 @@ async function handleRenewalWorkbook(file) {
     renewalImportLog.push("❌ Renewal workbook parser is unavailable because the XLSX library did not load.");
     return;
   }
-  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, cellStyles: true });
   const targetPropertyName = resolveRenewalWorkbookPropertyName(workbook, file.name);
   if (!targetPropertyName) {
     renewalImportLog.push(`⚠️ ${file.name} could not be matched to a saved ATLAS community. Re-upload and choose the correct property when prompted.`);
@@ -20369,7 +20436,10 @@ async function handleRenewalWorkbook(file) {
     const monthIdx = parseMonthIndexValue(sheetName);
     if (monthIdx === null || monthIdx < 0 || monthIdx > 11) return;
     const sheetYear = parseYearFromValue(sheetName, setupYear);
-    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" });
+    const rows = annotateRenewalRowsWithWorkbookVisualStatus(
+      XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", blankrows: true }),
+      workbook.Sheets[sheetName]
+    );
     const summary = extractRenewalSheetSummary(rows);
     if ([summary.expirations, summary.renewalsSigned, summary.ntv, summary.transfers, summary.undecided, summary.earlyTermination].every(v => v === 0)) return;
     const centralSync = syncRenewalSheetRowsToCentralServices(targetRecord, {

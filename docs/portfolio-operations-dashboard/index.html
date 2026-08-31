@@ -908,7 +908,7 @@
 <!-- ATLAS Redesign v2 presentation layer — loaded last so it overrides the base
      styles above. Presentation only; no dashboard logic depends on it. -->
 <link rel="stylesheet" href="atlas-redesign.css"/>
-<link rel="stylesheet" href="central-services.css?v=20260831-renewal-month-workflow"/>
+<link rel="stylesheet" href="central-services.css?v=20260831-eviction-stipulation-workflow"/>
 </head>
 <body>
 <div class="container">
@@ -1060,7 +1060,7 @@
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=20260821-people-access"></script>
 <script src="./centralization/atlas-central-client.js?v=20260825-access-cors" data-atlas-central-client="true"></script>
-<script src="./central-services.js?v=20260831-renewal-month-workflow"></script>
+<script src="./central-services.js?v=20260831-eviction-stipulation-workflow"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -3213,7 +3213,11 @@ function normalizeReportHubType(value) {
     leasing_velocity_report: "leasing_velocity",
     renewal_performance_report: "renewal_performance",
     renewal_report: "renewal_performance",
-    renewals: "renewal_performance"
+    renewals: "renewal_performance",
+    eviction_report: "eviction_report",
+    evictions: "eviction_report",
+    delinquency_report: "eviction_report",
+    stipulation_report: "eviction_report"
   };
   const mapped = legacyMap[normalized] || normalized || "investor_snapshot";
   return [
@@ -3225,7 +3229,8 @@ function normalizeReportHubType(value) {
     "community_progress",
     "market_comparison",
     "leasing_velocity",
-    "renewal_performance"
+    "renewal_performance",
+    "eviction_report"
   ].includes(mapped) ? mapped : "investor_snapshot";
 }
 
@@ -27398,10 +27403,10 @@ function renderPortfolioHomeTab() {
 function renderReportingTab() {
   ensureValidReportHubAction();
   reportHubType = normalizeReportHubType(reportHubType);
-  if (!["dlr", "bonus_payout", "community_progress", "market_comparison", "leasing_velocity", "renewal_performance"].includes(reportHubType) && reportHubPerspective === "regional") {
+  if (!["dlr", "bonus_payout", "community_progress", "market_comparison", "leasing_velocity", "renewal_performance", "eviction_report"].includes(reportHubType) && reportHubPerspective === "regional") {
     reportHubPerspective = "investor";
   }
-  if (reportHubType === "community_progress" || reportHubType === "market_comparison" || reportHubType === "leasing_velocity" || reportHubType === "renewal_performance") {
+  if (reportHubType === "community_progress" || reportHubType === "market_comparison" || reportHubType === "leasing_velocity" || reportHubType === "renewal_performance" || reportHubType === "eviction_report") {
     reportHubPerspective = "csuite";
   }
   if (normalizeReportHubType(reportHubType) === "dlr") {
@@ -27440,8 +27445,8 @@ function renderReportingTab() {
   const selectedReportSections = getSelectedPortfolioReportSections();
   const ownerFilterSummary = `${(portfolioReportFilters.investorGroups ?? []).length} investor group(s) · ${(portfolioReportFilters.investorCommunities ?? []).length} highlighted communit${(portfolioReportFilters.investorCommunities ?? []).length === 1 ? "y" : "ies"}`;
   const communityProgressFilterSummary = `${communityProgressSelectionNames.length} communit${communityProgressSelectionNames.length === 1 ? "y" : "ies"} selected`;
-  const reportNeedsScopeBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && normalizedType !== "renewal_performance" && !["community_progress", "market_comparison"].includes(normalizedType);
-  const reportNeedsSectionBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && normalizedType !== "renewal_performance" && !["community_progress", "market_comparison"].includes(normalizedType);
+  const reportNeedsScopeBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && normalizedType !== "renewal_performance" && normalizedType !== "eviction_report" && !["community_progress", "market_comparison"].includes(normalizedType);
+  const reportNeedsSectionBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && normalizedType !== "renewal_performance" && normalizedType !== "eviction_report" && !["community_progress", "market_comparison"].includes(normalizedType);
   const reportTypeDescription = normalizedType === "investor_marketing_report"
     ? "Combines traffic and funnel performance with comp calculator and market-survey context."
     : normalizedType === "monthly_investor_deck"
@@ -27454,6 +27459,8 @@ function renderReportingTab() {
             ? "Portable ATLAS LVR export with stabilized and lease-up views, image slots, and print-ready Letter pages."
           : normalizedType === "renewal_performance"
             ? "Central Services renewal conversion, rent growth, pricing discipline, and employee performance from imported tracker records."
+          : normalizedType === "eviction_report"
+            ? "Central Services eviction, stipulation, court-funds, exception, attorney, judge, and outcome reporting from imported delinquency cases."
           : normalizedType === "community_progress"
             ? "C-suite month-to-date community progress report with photo-led visuals, pace analysis, and explicit data alerts when source fields are incomplete."
             : normalizedType === "market_comparison"
@@ -27560,12 +27567,13 @@ function renderReportingTab() {
           <option value="market_comparison" ${reportHubType==="market_comparison"?"selected":""}>Market Comparison Report</option>
           <option value="leasing_velocity" ${reportHubType==="leasing_velocity"?"selected":""}>Leasing Velocity Report</option>
           <option value="renewal_performance" ${reportHubType==="renewal_performance"?"selected":""}>Renewal Performance Report</option>
+          <option value="eviction_report" ${reportHubType==="eviction_report"?"selected":""}>Eviction Report</option>
         </select>
         <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${escapeHtml(reportTypeDescription)}</div>
       </div>
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Report View</div>
-        ${normalizedType === "community_progress" || normalizedType === "leasing_velocity" || normalizedType === "renewal_performance"
+        ${normalizedType === "community_progress" || normalizedType === "leasing_velocity" || normalizedType === "renewal_performance" || normalizedType === "eviction_report"
           ? `<div style="padding:8px 10px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2);font-size:0.78rem;font-weight:700;color:var(--accent)">${normalizedType === "leasing_velocity" ? "LVR Template" : "C-Suite View"}</div>
              <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${normalizedType === "leasing_velocity" ? "The exported template contains its own stabilized / lease-up mode control." : "This report is locked to a c-suite lens so the output stays focused on operating performance and data confidence checks."}</div>`
           : `<select onchange="setReportHubPerspective(this.value)">
@@ -27682,6 +27690,11 @@ function renderReportHubInlinePreview(type = normalizeReportHubType(reportHubTyp
     return typeof window.renderAtlasRenewalPerformanceReport === "function"
       ? `<div class="card mb4" id="reporting-inline-preview">${window.renderAtlasRenewalPerformanceReport({ monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" })}</div>`
       : `<div class="card mb4" id="reporting-inline-preview"><div class="report-hub-card"><div class="alert-red">Renewal Performance Report is unavailable until Central Services finishes loading.</div></div></div>`;
+  }
+  if (type === "eviction_report") {
+    return typeof window.renderAtlasEvictionReport === "function"
+      ? `<div class="card mb4" id="reporting-inline-preview">${window.renderAtlasEvictionReport({ monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" })}</div>`
+      : `<div class="card mb4" id="reporting-inline-preview"><div class="report-hub-card"><div class="alert-red">Eviction Report is unavailable until Central Services finishes loading.</div></div></div>`;
   }
   if (selectedSections.length === 0) {
     return `<div class="card mb4" id="reporting-inline-preview">
@@ -28170,7 +28183,8 @@ function getReportHubTypeLabel(type = reportHubType) {
     community_progress: "Community Progress Report",
     market_comparison: "Market Comparison Report",
     leasing_velocity: "Leasing Velocity Report",
-    renewal_performance: "Renewal Performance Report"
+    renewal_performance: "Renewal Performance Report",
+    eviction_report: "Eviction Report"
   }[normalizeReportHubType(type)] || "Investor Snapshot";
 }
 
@@ -28273,6 +28287,8 @@ function configureReportHubDefaultsForType(type) {
   } else if (normalized === "bonus_payout") {
     reportHubPerspective = "csuite";
   } else if (normalized === "renewal_performance") {
+    reportHubPerspective = "csuite";
+  } else if (normalized === "eviction_report") {
     reportHubPerspective = "csuite";
   } else if (normalized === "community_progress" || normalized === "market_comparison") {
     reportHubPerspective = "csuite";
@@ -32477,6 +32493,7 @@ function getReportHubActionOptions(type = reportHubType) {
   if (normalizedType === "community_progress") return [...common, { value: "export_html", label: "Download Editable HTML" }, { value: "export_individual_pdfs", label: "Separate PDFs" }];
   if (normalizedType === "market_comparison") return [...common, { value: "export_html", label: "Download Editable HTML" }];
   if (normalizedType === "renewal_performance") return [...common, { value: "export_csv", label: "Export CSV" }, { value: "export_excel", label: "Export Excel" }];
+  if (normalizedType === "eviction_report") return [...common, { value: "export_csv", label: "Export CSV" }, { value: "export_excel", label: "Export Excel" }];
   if (normalizedType === "bonus_payout") return [...common, { value: "export_csv", label: "Export CSV" }];
   return common;
 }
@@ -32575,6 +32592,19 @@ function buildReportHubEmailDraft(type = reportHubType) {
         "",
         "The renewal performance report is ready from the Reporting Hub.",
         "Use CSV, Excel, or Print / PDF before sending so the current month, community, employee, and resident-level details are attached or included."
+      ].join("\n")
+    };
+  }
+  if (normalizedType === "eviction_report") {
+    return {
+      to,
+      subject: `${scopeLabel} Eviction Report | ${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`,
+      body: [
+        `${scopeLabel} Eviction Report`,
+        `${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`,
+        "",
+        "The eviction and stipulation report is ready from the Reporting Hub.",
+        "Use CSV, Excel, or Print / PDF before sending so case status, legal dates, court funds, stipulation exceptions, and outcomes are included."
       ].join("\n")
     };
   }
@@ -33954,7 +33984,7 @@ async function runReportHubAction() {
   }
   if (reportHubAction === "preview") {
     if (type === "leasing_velocity") return openLeasingVelocityReportTemplate("stabilized", false);
-    if (["investor_snapshot", "investor_marketing_report", "monthly_investor_deck", "bonus_payout", "renewal_performance"].includes(type)) {
+    if (["investor_snapshot", "investor_marketing_report", "monthly_investor_deck", "bonus_payout", "renewal_performance", "eviction_report"].includes(type)) {
       renderTab();
       const target = document.getElementById("reporting-inline-preview");
       if (target?.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -33985,6 +34015,7 @@ async function runReportHubAction() {
     if (type === "community_progress") return openCommunityProgressReport(true);
     if (type === "market_comparison") return openMarketComparisonReport(true);
     if (type === "renewal_performance" && typeof window.atlasCsExportRenewalReport === "function") return window.atlasCsExportRenewalReport("print", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
+    if (type === "eviction_report" && typeof window.atlasCsExportEvictionReport === "function") return window.atlasCsExportEvictionReport("print", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
     if (type === "dlr") {
       const communityName = syncDlrTargetFromReportHub({ preserveCommunity: true });
       return openDlrInvestorOverview({
@@ -33999,10 +34030,12 @@ async function runReportHubAction() {
   if (reportHubAction === "export_csv") {
     if (["investor_snapshot", "investor_marketing_report"].includes(type)) return exportPortfolioReportCSV();
     if (type === "renewal_performance" && typeof window.atlasCsExportRenewalReport === "function") return window.atlasCsExportRenewalReport("csv", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
+    if (type === "eviction_report" && typeof window.atlasCsExportEvictionReport === "function") return window.atlasCsExportEvictionReport("csv", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
     return exportBonusPayoutCSV();
   }
   if (reportHubAction === "export_excel") {
     if (type === "renewal_performance" && typeof window.atlasCsExportRenewalReport === "function") return window.atlasCsExportRenewalReport("excel", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
+    if (type === "eviction_report" && typeof window.atlasCsExportEvictionReport === "function") return window.atlasCsExportEvictionReport("excel", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
     return exportPortfolioReportExcel();
   }
   if (reportHubAction === "export_html") {

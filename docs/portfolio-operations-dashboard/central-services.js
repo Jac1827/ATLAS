@@ -45,6 +45,7 @@
     "auditTrail",
     "importHistory",
     "removedRenewalImportBatches",
+    "removedEvictionImportBatches",
     "accountingContacts",
     "potentialMoveOutUpdates"
   ];
@@ -117,6 +118,152 @@
     "dueDate",
     "notes"
   ];
+  const EVICTION_WORKSPACE_VIEWS = [
+    ["active", "Active Evictions"],
+    ["stipulations", "Active Stipulations"],
+    ["exceptions", "Urgent / Exceptions"],
+    ["completed", "Completed"]
+  ];
+  const EVICTION_STATUS_OPTIONS = [
+    "Delinquency Review",
+    "Notice Pending",
+    "Notice Served",
+    "Ready to File",
+    "Filed",
+    "Pending Hearing",
+    "Pending Judgment",
+    "Judgment Entered",
+    "Pending Writ",
+    "Writ Ordered",
+    "Writ Scheduled",
+    "Writ Posted",
+    "Awaiting Court Released Funds",
+    "Stipulation Active",
+    "Stipulation Failure",
+    "Account Current",
+    "Stipulation Completed / Account Current",
+    "Evicted",
+    "Closed"
+  ];
+  const EVICTION_WORKFLOW_STEPS = [
+    "Delinquency Review",
+    "Notice Pending",
+    "Notice Served",
+    "Ready to File",
+    "Filed",
+    "Pending Hearing",
+    "Pending Judgment",
+    "Judgment Entered",
+    "Pending Writ",
+    "Writ Ordered",
+    "Writ Scheduled",
+    "Writ Posted",
+    "Awaiting Court Released Funds",
+    "Possession / Eviction"
+  ];
+  const EVICTION_COMPLETED_STATUSES = [
+    "Account Current",
+    "Stipulation Completed / Account Current",
+    "Evicted",
+    "Closed"
+  ];
+  const EVICTION_STIPULATION_STATUSES = [
+    "Stipulation Active"
+  ];
+  const STIPULATION_HEALTH_STATUSES = [
+    "Current",
+    "Due Soon",
+    "Payment Verification Required",
+    "Late Payment",
+    "Partial Payment",
+    "At Risk",
+    "Stipulation Failure",
+    "Completed"
+  ];
+  const STIPULATION_INSTALLMENT_STATUSES = [
+    "Upcoming",
+    "Due",
+    "On Time",
+    "Partial",
+    "Late",
+    "Past Due / Not Received",
+    "Resolved"
+  ];
+  const STIPULATION_EXCEPTION_STATUSES = [
+    "Payment Verification Required",
+    "Site Researching Payment",
+    "Payment Not Received",
+    "Attorney Guidance Requested",
+    "Exception Resolved"
+  ];
+  const EVICTION_DATE_FIELDS = {
+    noticeDate: "Notice Served",
+    fileDate: "Filed",
+    complaintFiledDate: "Filed",
+    hearingDate: "Pending Hearing",
+    judgmentDate: "Judgment Entered",
+    writRequestedDate: "Pending Writ",
+    writDate: "Writ Scheduled",
+    writPostedDate: "Writ Posted",
+    possessionDate: "Evicted",
+    completionDate: "Closed"
+  };
+  const EVICTION_WORKFLOW_SOURCE_PROTECTED_FIELDS = [
+    "status",
+    "owner",
+    "assignedCentralServicesUser",
+    "noticeDate",
+    "fileDate",
+    "complaintFiledDate",
+    "hearingDate",
+    "hearingTime",
+    "judgmentDate",
+    "writRequestedDate",
+    "writDate",
+    "writTime",
+    "writPostedDate",
+    "possessionDate",
+    "completionDate",
+    "assignedJudge",
+    "attorney",
+    "attorneyContact",
+    "courtReceivedFunds",
+    "stipulation",
+    "attorneyActivity",
+    "notes",
+    "activity"
+  ];
+  const EVICTION_FIELD_ALIASES = {
+    propertyName: ["property", "property name", "community", "community name", "site"],
+    residentName: ["resident name", "resident", "name", "tenant name", "lease holder"],
+    residentId: ["resident id", "residentid", "tenant id", "customer id"],
+    leaseId: ["lease id", "leaseid", "lease number"],
+    unit: ["unit", "apartment", "apt", "apartment number", "unit number"],
+    phone: ["phone", "mobile", "cell", "resident phone"],
+    email: ["email", "resident email", "e-mail"],
+    delinquentBalance: ["delinquent balance", "balance", "amount owed", "total due", "resident balance", "past due balance", "delinquency amount", "amount delinquent"],
+    totalCharges: ["total charges", "charges", "monthly charges"],
+    totalPayments: ["total payments", "payments", "credits"],
+    currentRent: ["current rent", "rent", "market rent"],
+    daysDelinquent: ["days delinquent", "days late", "age", "aging", "delinquency days"],
+    status: ["status", "legal status", "case status", "eviction status", "account status"],
+    noticeDate: ["notice date", "notice served", "notice served date", "demand date", "three day notice", "3 day notice"],
+    fileDate: ["file date", "filed date", "filing date"],
+    complaintFiledDate: ["complaint filed date", "complaint date", "complaint filed"],
+    hearingDate: ["hearing date", "court date"],
+    hearingTime: ["hearing time", "court time"],
+    judgmentDate: ["judgment date", "judgement date", "judgment entered", "judgement entered"],
+    writRequestedDate: ["writ requested date", "writ request date", "writ ordered date"],
+    writDate: ["writ date", "writ scheduled date"],
+    writTime: ["writ time", "writ scheduled time"],
+    writPostedDate: ["writ posted date", "writ posted"],
+    possessionDate: ["possession date", "eviction date", "lockout date"],
+    completionDate: ["completion date", "closed date", "case closed date"],
+    assignedJudge: ["assigned judge", "judge", "court judge"],
+    attorney: ["attorney", "law firm", "attorney firm"],
+    attorneyContact: ["attorney contact", "legal contact"],
+    notes: ["notes", "comments", "legal notes", "central services notes"]
+  };
   const MOVE_OUT_STEPS = [
     "On Notice",
     "Upcoming Move Out",
@@ -344,6 +491,8 @@
   const CENTRAL_DASHBOARD_CORE_WIDGETS = [
     "my_work",
     "open_renewals",
+    "active_evictions",
+    "stipulation_payment_exceptions",
     "legal_deadline_risk",
     "holdover_move_outs",
     "po_regional_approval",
@@ -359,6 +508,10 @@
   const CENTRAL_DASHBOARD_OPTIONAL_WIDGETS = [
     "archived_morfs",
     "disputes",
+    "active_stipulations",
+    "upcoming_eviction_hearings",
+    "pending_writs",
+    "court_funds_awaiting_release",
     "sla_exceptions",
     "waiting_information",
     "task_aging",
@@ -450,6 +603,92 @@
       description: "Total active renewal workload across imported expiration months, excluding signed-and-executed, NTV, transfer, and non-renewal outcomes.",
       columns: ["Resident", "Property / Unit", "Expiration Month", "Status", "Due", "Owner", "Target Growth"],
       visualizations: ["Table", "Cards", "KPI", "Pipeline"]
+    },
+    {
+      key: "active_evictions",
+      label: "Active Evictions",
+      category: "Evictions",
+      module: "evictions",
+      filter: "active",
+      icon: "gavel",
+      tone: "red",
+      priority: true,
+      defaultSize: "expanded",
+      defaultMetric: "Open Cases",
+      description: "Resident eviction cases created from monthly delinquency report imports and Central Services actions.",
+      columns: ["Resident", "Property / Unit", "Balance", "Status", "Next Date", "Owner"],
+      visualizations: ["Table", "Cards", "KPI", "Pipeline"]
+    },
+    {
+      key: "stipulation_payment_exceptions",
+      label: "Stipulation Payment Verification",
+      category: "Evictions",
+      module: "evictions",
+      filter: "exceptions",
+      icon: "warning-circle",
+      tone: "red",
+      priority: true,
+      defaultSize: "expanded",
+      defaultMetric: "Urgent Exceptions",
+      description: "Late, partial, or missing stipulation payments requiring site verification before legal escalation.",
+      columns: ["Resident", "Property / Unit", "Installment", "Due", "Received", "Exception", "Action"],
+      visualizations: ["Table", "Cards", "KPI"]
+    },
+    {
+      key: "active_stipulations",
+      label: "Active Stipulations",
+      category: "Evictions",
+      module: "evictions",
+      filter: "stipulations",
+      icon: "receipt",
+      tone: "amber",
+      defaultSize: "expanded",
+      defaultMetric: "Payment Plans",
+      description: "Court/payment stipulations monitored outside the normal monthly eviction list.",
+      columns: ["Resident", "Property / Unit", "Outstanding", "Next Payment", "Health", "Owner"],
+      visualizations: ["Table", "Cards", "KPI"]
+    },
+    {
+      key: "upcoming_eviction_hearings",
+      label: "Upcoming Hearings",
+      category: "Evictions",
+      module: "evictions",
+      filter: "hearings",
+      icon: "calendar-dots",
+      tone: "amber",
+      defaultSize: "standard",
+      defaultMetric: "Hearings",
+      description: "Eviction hearings scheduled soon or awaiting court preparation.",
+      columns: ["Resident", "Property / Unit", "Hearing", "Judge", "Status", "Owner"],
+      visualizations: ["Table", "Cards", "KPI"]
+    },
+    {
+      key: "pending_writs",
+      label: "Pending Writs",
+      category: "Evictions",
+      module: "evictions",
+      filter: "writs",
+      icon: "file-arrow-down",
+      tone: "red",
+      defaultSize: "standard",
+      defaultMetric: "Writ Queue",
+      description: "Cases waiting on writ request, writ scheduling, posting, or possession follow-up.",
+      columns: ["Resident", "Property / Unit", "Writ Date", "Status", "Attorney", "Owner"],
+      visualizations: ["Table", "Cards", "KPI"]
+    },
+    {
+      key: "court_funds_awaiting_release",
+      label: "Court Funds Awaiting Release",
+      category: "Evictions",
+      module: "evictions",
+      filter: "court_funds",
+      icon: "bank",
+      tone: "violet",
+      defaultSize: "standard",
+      defaultMetric: "Court Funds",
+      description: "Eviction cases tracking received court funds that still need release or accounting follow-up.",
+      columns: ["Resident", "Property / Unit", "Court Funds", "Status", "Last Receipt", "Owner"],
+      visualizations: ["Table", "Cards", "KPI"]
     },
     {
       key: "legal_deadline_risk",
@@ -1712,7 +1951,12 @@
       renewalOwnerFilter: "all",
       renewalUnitTypeFilter: "all",
       renewalOutcomeFilter: "all",
+      evictionView: "active",
+      evictionStatusFilter: "all",
+      evictionOwnerFilter: "all",
+      stipulationHealthFilter: "all",
       selectedRenewalId: "",
+      selectedEvictionId: "",
       selectedMoveOutId: "",
       selectedTaskId: "",
       selectedInspectionId: "",
@@ -1750,6 +1994,7 @@
       auditTrail: [],
       importHistory: [],
       removedRenewalImportBatches: [],
+      removedEvictionImportBatches: [],
       accountingContacts: [],
       potentialMoveOutUpdates: [],
       dashboardPreferencesByUser: {},
@@ -1792,6 +2037,7 @@
     normalized.moveOutCases = normalized.moveOutCases.map(normalizeMoveOutCaseRecord).filter(item => item.id && item.propertyName);
     normalized.inspections = normalized.inspections.map(normalizeInspectionRecord);
     normalized.morfRecords = normalized.morfRecords.map(normalizeMorfRecord);
+    normalized.evictions = normalized.evictions.map(normalizeEvictionCase).filter(item => item.id && item.propertyName);
     normalized.vendorProfiles = normalized.vendorProfiles.map(normalizeVendorProfile).filter(item => item.id);
     normalized.residentDisputes = normalized.residentDisputes.map(normalizeDisputeRecord);
     normalized.dashboardPreferencesByUser = normalizeCentralDashboardPreferencesByUser(source.dashboardPreferencesByUser);
@@ -4087,6 +4333,107 @@
     return [...directRows, ...profileRows];
   }
 
+  function getScopedEvictions(state) {
+    const property = cleanString(state.ui.propertyId || "all");
+    const search = normalizeKey(state.ui.search);
+    return asArray(state.evictions)
+      .map(normalizeEvictionCase)
+      .filter(row => property === "all" || row.propertyName === property)
+      .filter(row => !search || evictionMatchesSearch(row, search));
+  }
+
+  function evictionMatchesSearch(row = {}, search = "") {
+    const query = normalizeKey(search);
+    if (!query) return true;
+    return normalizeKey([
+      row.residentName,
+      row.unit,
+      row.propertyName,
+      row.status,
+      row.assignedJudge,
+      row.attorney,
+      row.owner,
+      row.notes
+    ].join(" ")).includes(query);
+  }
+
+  function dashboardEvictionRow(row = {}, widget = {}) {
+    const hearingSoon = row.hearingDate && daysUntil(row.hearingDate) !== null && daysUntil(row.hearingDate) <= 7;
+    const writSoon = row.writDate && daysUntil(row.writDate) !== null && daysUntil(row.writDate) <= 7;
+    const priority = row.status === "Writ Posted" || row.status === "Writ Scheduled"
+      ? 95
+      : row.status === "Pending Writ" || row.status === "Writ Ordered"
+        ? 85
+        : hearingSoon
+          ? 75
+          : whole(row.daysDelinquent);
+    return centralDashboardRow({
+      "Resident": row.residentName,
+      "Property / Unit": `${row.propertyName} / Unit ${row.unit || "n/a"}`,
+      "Balance": formatMoney(row.delinquentBalance) || "$0",
+      "Status": row.status,
+      "Next Date": formatDate(row.hearingDate || row.writDate || row.nextDueDate || row.noticeDate) || "Not dated",
+      "Owner": row.owner || "Unassigned"
+    }, {
+      id: row.id,
+      recordType: "eviction",
+      module: "evictions",
+      filter: "active",
+      title: row.residentName,
+      subtitle: `${row.propertyName} / Unit ${row.unit || "n/a"}`,
+      status: row.status,
+      dueDate: row.hearingDate || row.writDate || row.nextDueDate,
+      priority: writSoon ? Math.max(priority, 95) : priority
+    });
+  }
+
+  function dashboardStipulationRow(row = {}, widget = {}) {
+    const stip = asObject(row.stipulation);
+    return centralDashboardRow({
+      "Resident": row.residentName,
+      "Property / Unit": `${row.propertyName} / Unit ${row.unit || "n/a"}`,
+      "Outstanding": formatMoney(stip.outstandingBalance) || "$0",
+      "Next Payment": formatMoney(stip.nextPaymentDue) || "$0",
+      "Next Due": formatDate(stip.nextDueDate) || "Not scheduled",
+      "Health": stip.health || "Current"
+    }, {
+      id: row.id,
+      recordType: "eviction",
+      module: "evictions",
+      filter: "stipulations",
+      title: row.residentName,
+      subtitle: `${row.propertyName} stipulation`,
+      status: stip.health || "Current",
+      dueDate: stip.nextDueDate,
+      priority: ["Payment Verification Required", "Late Payment", "Partial Payment", "At Risk"].includes(stip.health) ? 90 : 40
+    });
+  }
+
+  function dashboardStipulationExceptionRows(state, widget = {}) {
+    return getScopedEvictions(state)
+      .flatMap(row => asArray(row.exceptions)
+        .filter(exception => exception.status !== "Exception Resolved")
+        .map(exception => centralDashboardRow({
+          "Resident": row.residentName,
+          "Property / Unit": `${row.propertyName} / Unit ${row.unit || "n/a"}`,
+          "Installment": asArray(row.stipulation?.installments).find(item => item.id === exception.installmentId)?.label || "Payment",
+          "Due": formatMoney(exception.amountDue) || "$0",
+          "Received": formatMoney(exception.amountReceived) || "$0",
+          "Exception": exception.status,
+          "Action": exception.requiredAction || "Confirm payment status"
+        }, {
+          id: `${row.id}::${exception.id}`,
+          recordType: "stipulationException",
+          module: "evictions",
+          filter: "exceptions",
+          title: `${row.residentName} payment verification`,
+          subtitle: `${row.propertyName} / Unit ${row.unit || "n/a"}`,
+          status: exception.status,
+          dueDate: exception.dueDate,
+          priority: 100
+        })));
+  }
+
   function buildCentralDashboardWidgetRows(state, widget, employees) {
     const definition = getCentralDashboardWidgetDefinition(widget.widgetKey) || {};
     const buckets = moveOutBucketsForDashboardWidget(state, widget);
@@ -4100,6 +4447,30 @@
           .filter(renewalIsOpen)
           .map(row => dashboardRenewalRow(row, widget))
       );
+    }
+    if (widget.widgetKey === "active_evictions") {
+      return centralDashboardPrepareRows(state, widget, getScopedEvictions(state).filter(evictionIsActive).map(row => dashboardEvictionRow(row, widget)));
+    }
+    if (widget.widgetKey === "stipulation_payment_exceptions") {
+      return centralDashboardPrepareRows(state, widget, dashboardStipulationExceptionRows(state, widget));
+    }
+    if (widget.widgetKey === "active_stipulations") {
+      return centralDashboardPrepareRows(state, widget, getScopedEvictions(state).filter(evictionIsStipulationActive).map(row => dashboardStipulationRow(row, widget)));
+    }
+    if (widget.widgetKey === "upcoming_eviction_hearings") {
+      return centralDashboardPrepareRows(state, widget, getScopedEvictions(state)
+        .filter(row => !evictionIsCompleted(row) && row.hearingDate && daysUntil(row.hearingDate) !== null && daysUntil(row.hearingDate) <= 14)
+        .map(row => dashboardEvictionRow(row, widget)));
+    }
+    if (widget.widgetKey === "pending_writs") {
+      return centralDashboardPrepareRows(state, widget, getScopedEvictions(state)
+        .filter(row => ["Pending Writ", "Writ Ordered", "Writ Scheduled", "Writ Posted", "Stipulation Failure"].includes(row.status))
+        .map(row => dashboardEvictionRow(row, widget)));
+    }
+    if (widget.widgetKey === "court_funds_awaiting_release") {
+      return centralDashboardPrepareRows(state, widget, getScopedEvictions(state)
+        .filter(row => row.status === "Awaiting Court Released Funds" || totalCourtReceivedFunds(row) > 0)
+        .map(row => dashboardEvictionRow(row, widget)));
     }
     if (widget.widgetKey === "my_work") {
       const taskRows = state.tasks
@@ -4930,6 +5301,341 @@
         </div>
       </div>
       ${renderRenewalDetail(state, employees)}
+    </div>`;
+  }
+
+  function getEvictionsForCurrentPeriod(state) {
+    const monthIdx = selectedMonthIdx(state);
+    const year = selectedYear(state);
+    return getScopedEvictions(state).filter(row => row.monthIdx === monthIdx && row.year === year);
+  }
+
+  function getVisibleEvictions(state) {
+    const view = cleanString(state.ui.evictionView || "active");
+    const statusFilter = cleanString(state.ui.evictionStatusFilter || "all");
+    const ownerFilter = cleanString(state.ui.evictionOwnerFilter || "all");
+    const healthFilter = cleanString(state.ui.stipulationHealthFilter || "all");
+    let rows = view === "stipulations" || view === "exceptions"
+      ? getScopedEvictions(state)
+      : view === "completed"
+        ? getScopedEvictions(state)
+        : getEvictionsForCurrentPeriod(state);
+    if (view === "active") rows = rows.filter(evictionIsActive);
+    if (view === "stipulations") rows = rows.filter(evictionIsStipulationActive);
+    if (view === "exceptions") rows = rows.filter(row => asArray(row.exceptions).some(exception => exception.status !== "Exception Resolved") || ["Writ Scheduled", "Writ Posted", "Stipulation Failure"].includes(row.status));
+    if (view === "completed") rows = rows.filter(evictionIsCompleted);
+    if (statusFilter !== "all") rows = rows.filter(row => row.status === statusFilter);
+    if (ownerFilter !== "all") rows = rows.filter(row => row.owner === ownerFilter || row.assignedCentralServicesUser === ownerFilter);
+    if (healthFilter !== "all" && (view === "stipulations" || view === "exceptions")) rows = rows.filter(row => row.stipulation?.health === healthFilter);
+    return rows.sort((left, right) => {
+      const leftDate = dateValue(left.nextDueDate || left.hearingDate || left.writDate) || Infinity;
+      const rightDate = dateValue(right.nextDueDate || right.hearingDate || right.writDate) || Infinity;
+      return leftDate - rightDate || cleanString(left.propertyName).localeCompare(cleanString(right.propertyName));
+    });
+  }
+
+  function renderEvictionImportPanel(state) {
+    const selected = state.ui.propertyId === "all" ? "" : state.ui.propertyId;
+    return `<div class="cs-panel">
+      <div class="cs-panel-head">
+        <div>
+          <div class="cs-panel-title">Import Delinquency Report</div>
+          <div class="cs-panel-sub">Monthly delinquency uploads create resident eviction cases, update open balances, and preserve Central Services workflow activity already entered in ATLAS.</div>
+        </div>
+      </div>
+      <div class="cs-panel-body">
+        <div class="cs-control-grid">
+          <label class="cs-field"><span>Import Property</span><select id="atlas-cs-eviction-property">${propertyOptionsHtml(selected || "all", true)}</select></label>
+          <label class="cs-field"><span>Reporting Month</span><select id="atlas-cs-eviction-month">${monthOptionsHtml(selectedMonthIdx(state))}</select></label>
+          <label class="cs-field"><span>Reporting Year</span><input id="atlas-cs-eviction-year" type="number" min="2020" max="2099" value="${escapeAttr(selectedYear(state))}"></label>
+          <label class="cs-field" style="grid-column:span 3">
+            <span>Delinquency Report</span>
+            <input type="file" accept=".xlsx,.xls,.csv" onchange="atlasCsHandleDelinquencyUpload(this)">
+          </label>
+        </div>
+        <div class="cs-chip-row" style="margin-top:10px">
+          <span class="cs-chip is-strong">Duplicate match: Community + Unit + Resident + active case</span>
+          <span class="cs-chip" data-tone="amber">Uploads do not replace legal dates, receipts, stipulations, attorney notes, or user-entered status</span>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function renderEvictionWorkspaceTabs(state) {
+    const view = cleanString(state.ui.evictionView || "active");
+    const rows = getScopedEvictions(state);
+    const counts = {
+      active: rows.filter(evictionIsActive).length,
+      stipulations: rows.filter(evictionIsStipulationActive).length,
+      exceptions: rows.filter(row => asArray(row.exceptions).some(exception => exception.status !== "Exception Resolved") || ["Writ Scheduled", "Writ Posted", "Stipulation Failure"].includes(row.status)).length,
+      completed: rows.filter(evictionIsCompleted).length
+    };
+    return `<div class="cs-renewal-month-strip cs-eviction-view-strip">
+      ${EVICTION_WORKSPACE_VIEWS.map(([key, label]) => `<button type="button" class="${view === key ? "is-active" : ""}" onclick="atlasCsSetEvictionView('${escapeAttr(key)}')"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(formatNumber(counts[key] || 0))} records</span></button>`).join("")}
+    </div>`;
+  }
+
+  function renderEvictionMonthNavigator(state) {
+    const rows = getScopedEvictions(state);
+    const selectedKey = localPeriodKey(selectedMonthIdx(state), selectedYear(state));
+    const contexts = new Map();
+    rows.forEach(row => {
+      const key = cleanString(row.periodKey) || localPeriodKey(row.monthIdx, row.year);
+      const existing = contexts.get(key) || { monthIdx: row.monthIdx, year: row.year, total: 0, open: 0 };
+      existing.total += 1;
+      if (evictionIsActive(row)) existing.open += 1;
+      contexts.set(key, existing);
+    });
+    const currentKey = selectedKey;
+    if (!contexts.has(currentKey)) contexts.set(currentKey, { monthIdx: selectedMonthIdx(state), year: selectedYear(state), total: 0, open: 0 });
+    const periods = [...contexts.values()].sort((left, right) => cleanString(localPeriodKey(left.monthIdx, left.year)).localeCompare(localPeriodKey(right.monthIdx, right.year)));
+    return `<div class="cs-renewal-month-strip">
+      ${periods.map(period => {
+        const key = localPeriodKey(period.monthIdx, period.year);
+        return `<button type="button" class="${key === selectedKey ? "is-active" : ""}" onclick="atlasCsSelectEvictionMonth(${period.monthIdx},${period.year})"><strong>${escapeHtml(monthYearLabel(period.monthIdx, period.year))}</strong><span>${escapeHtml(formatNumber(period.open))} open / ${escapeHtml(formatNumber(period.total))} total</span></button>`;
+      }).join("")}
+    </div>`;
+  }
+
+  function renderEvictionMetrics(state) {
+    const rows = getScopedEvictions(state);
+    const active = rows.filter(evictionIsActive);
+    const stipulations = rows.filter(evictionIsStipulationActive);
+    const exceptions = rows.flatMap(row => asArray(row.exceptions).filter(exception => exception.status !== "Exception Resolved"));
+    const hearings = active.filter(row => row.hearingDate && daysUntil(row.hearingDate) !== null && daysUntil(row.hearingDate) <= 14);
+    const writs = active.filter(row => ["Pending Writ", "Writ Ordered", "Writ Scheduled", "Writ Posted", "Stipulation Failure"].includes(row.status));
+    return `<div class="cs-kpi-grid">
+      ${renderKpi({ label: "Active Evictions", value: active.length, sub: `${formatMoney(active.reduce((sum, row) => sum + numberValue(row.delinquentBalance), 0)) || "$0"} open delinquency`, icon: "gavel", tone: "red", module: "evictions", filter: "active" })}
+      ${renderKpi({ label: "Upcoming Hearings", value: hearings.length, sub: "Due within 14 days", icon: "calendar", tone: hearings.length ? "amber" : "green", module: "evictions", filter: "active" })}
+      ${renderKpi({ label: "Pending Writs", value: writs.length, sub: "Includes failed stipulations returning to legal flow", icon: "warning-octagon", tone: writs.length ? "red" : "green", module: "evictions", filter: "exceptions" })}
+      ${renderKpi({ label: "Stipulation Exceptions", value: exceptions.length, sub: `${stipulations.length} active stipulations`, icon: "receipt", tone: exceptions.length ? "red" : "green", module: "evictions", filter: "exceptions" })}
+    </div>`;
+  }
+
+  function renderEvictionFilterBar(state, employees) {
+    const statusFilter = cleanString(state.ui.evictionStatusFilter || "all");
+    const ownerFilter = cleanString(state.ui.evictionOwnerFilter || "all");
+    const healthFilter = cleanString(state.ui.stipulationHealthFilter || "all");
+    return `<div class="cs-renewal-filter-bar">
+      <label class="cs-field"><span>Status</span><select onchange="atlasCsSetEvictionFilter('evictionStatusFilter',this.value)"><option value="all">All statuses</option>${genericOptionsHtml(EVICTION_STATUS_OPTIONS, statusFilter)}</select></label>
+      <label class="cs-field"><span>Assigned User</span><select onchange="atlasCsSetEvictionFilter('evictionOwnerFilter',this.value)"><option value="all">All users</option>${ownerOptionsHtml(employees, ownerFilter).replace('<option value="Unassigned"', '<option value="Unassigned"')}</select></label>
+      <label class="cs-field"><span>Stipulation Health</span><select onchange="atlasCsSetEvictionFilter('stipulationHealthFilter',this.value)"><option value="all">All health</option>${genericOptionsHtml(STIPULATION_HEALTH_STATUSES, healthFilter)}</select></label>
+    </div>`;
+  }
+
+  function renderEvictionTable(state) {
+    const rows = getVisibleEvictions(state);
+    if (!rows.length) return `<div class="cs-empty"><div><strong>No eviction records in this view.</strong><br>Import the monthly delinquency report or adjust the month, property, status, and search filters.</div></div>`;
+    return `<div class="cs-table-wrap">
+      <table class="cs-table cs-eviction-table">
+        <thead><tr><th>Resident</th><th>Property / Unit</th><th>Balance</th><th>Status</th><th>Next Legal Date</th><th>Judge / Attorney</th><th>Owner</th><th></th></tr></thead>
+        <tbody>${rows.map(row => `<tr class="${state.ui.selectedEvictionId === row.id ? "is-selected" : ""}" data-tone="${escapeAttr(evictionStatusTone(row.status))}">
+          <td><div class="cs-name-cell"><strong>${escapeHtml(row.residentName)}</strong><span>${escapeHtml(row.phone || row.email || "Resident contact not imported")}</span></div></td>
+          <td><div class="cs-name-cell"><strong>${escapeHtml(row.propertyName)}</strong><span>Unit ${escapeHtml(row.unit || "n/a")}</span></div></td>
+          <td>${escapeHtml(formatMoney(row.delinquentBalance) || "$0")}</td>
+          <td>${statusPill(row.status)}</td>
+          <td>${escapeHtml(formatDate(row.hearingDate || row.writDate || row.nextDueDate || row.noticeDate) || "Needed")}</td>
+          <td><div class="cs-name-cell"><strong>${escapeHtml(row.assignedJudge || "Judge pending")}</strong><span>${escapeHtml(row.attorney || "Attorney not entered")}</span></div></td>
+          <td>${escapeHtml(row.owner || "Unassigned")}</td>
+          <td class="right"><button type="button" class="cs-btn cs-btn-sm" data-id="${escapeAttr(row.id)}" onclick="atlasCsSelectEviction(this.dataset.id)">Open</button></td>
+        </tr>`).join("")}</tbody>
+      </table>
+    </div>`;
+  }
+
+  function renderStipulationLedger(caseRecord) {
+    const stip = asObject(caseRecord.stipulation);
+    const installments = asArray(stip.installments);
+    return `<div class="cs-detail-section">
+      <div class="cs-section-grid">
+        ${[
+          ["Original Amount", formatMoney(stip.originalAmount)],
+          ["Total Scheduled", formatMoney(stip.totalScheduled)],
+          ["Total Received", formatMoney(stip.totalReceived)],
+          ["Outstanding", formatMoney(stip.outstandingBalance)],
+          ["Past Due", formatMoney(stip.pastDueAmount)],
+          ["Next Due", `${formatMoney(stip.nextPaymentDue) || "$0"} ${stip.nextDueDate ? `on ${formatDate(stip.nextDueDate)}` : ""}`],
+          ["Late Payments", formatNumber(stip.latePayments || 0)],
+          ["Missed Payments", formatNumber(stip.missedPayments || 0)]
+        ].map(([label, value]) => `<div class="cs-data-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || "$0")}</strong></div>`).join("")}
+      </div>
+      <div class="cs-table-wrap">
+        <table class="cs-table">
+          <thead><tr><th>Installment</th><th>Due Date</th><th class="right">Amount Due</th><th class="right">Amount Received</th><th>Received Date</th><th class="right">Variance</th><th class="right">Running Balance</th><th>Status</th><th></th></tr></thead>
+          <tbody>${installments.map(installment => `<tr>
+            <td>${escapeHtml(installment.label)}</td>
+            <td>${escapeHtml(formatDate(installment.dueDate) || "Not dated")}</td>
+            <td class="right">${escapeHtml(formatMoney(installment.amountDue) || "$0")}</td>
+            <td class="right">${escapeHtml(formatMoney(installment.amountReceived) || "$0")}</td>
+            <td>${escapeHtml(formatDate(installment.receivedDate) || "Not received")}</td>
+            <td class="right">${escapeHtml(formatMoney(installment.variance) || "$0")}</td>
+            <td class="right">${escapeHtml(formatMoney(installment.runningBalance) || "$0")}</td>
+            <td>${statusPill(installment.status)}</td>
+            <td class="right"><button type="button" class="cs-btn cs-btn-sm" data-case="${escapeAttr(caseRecord.id)}" data-installment="${escapeAttr(installment.id)}" onclick="atlasCsAddStipulationReceipt(this.dataset.case,this.dataset.installment)">${icon("plus")} Receipt</button></td>
+          </tr>`).join("") || `<tr><td colspan="9">No scheduled stipulation installments have been entered yet.</td></tr>`}</tbody>
+        </table>
+      </div>
+      <div class="cs-control-grid">
+        <label class="cs-field"><span>Due Date</span><input id="atlas-cs-stip-due" type="date"></label>
+        <label class="cs-field"><span>Amount Due</span><input id="atlas-cs-stip-amount" type="number" min="0" step="0.01"></label>
+        <label class="cs-field" style="grid-column:span 2"><span>Label</span><input id="atlas-cs-stip-label" placeholder="Payment 1"></label>
+        <div class="cs-field"><span>&nbsp;</span><button type="button" class="cs-btn cs-btn-sm" data-id="${escapeAttr(caseRecord.id)}" onclick="atlasCsAddStipulationInstallment(this.dataset.id)">${icon("calendar-plus")} Add Installment</button></div>
+      </div>
+    </div>`;
+  }
+
+  function renderCourtFunds(caseRecord) {
+    const receipts = asArray(caseRecord.courtReceivedFunds);
+    return `<div class="cs-detail-section">
+      <div class="cs-data-row"><span>Total Court Received Funds</span><strong>${escapeHtml(formatMoney(totalCourtReceivedFunds(caseRecord)) || "$0")}</strong></div>
+      <div class="cs-table-wrap">
+        <table class="cs-table">
+          <thead><tr><th>Date Received</th><th class="right">Amount</th><th>Source</th><th>Notes</th><th>Entered By</th></tr></thead>
+          <tbody>${receipts.map(receipt => `<tr><td>${escapeHtml(formatDate(receipt.dateReceived) || "Not dated")}</td><td class="right">${escapeHtml(formatMoney(receipt.amount) || "$0")}</td><td>${escapeHtml(receipt.source || "Court")}</td><td>${escapeHtml(receipt.notes || "")}</td><td>${escapeHtml(receipt.enteredBy || "ATLAS user")}</td></tr>`).join("") || `<tr><td colspan="5">No court received funds have been entered yet.</td></tr>`}</tbody>
+        </table>
+      </div>
+      <div class="cs-control-grid">
+        <label class="cs-field"><span>Date Received</span><input id="atlas-cs-court-fund-date" type="date"></label>
+        <label class="cs-field"><span>Amount</span><input id="atlas-cs-court-fund-amount" type="number" min="0" step="0.01"></label>
+        <label class="cs-field"><span>Source</span><input id="atlas-cs-court-fund-source" placeholder="Court / resident / attorney"></label>
+        <label class="cs-field" style="grid-column:span 2"><span>Notes</span><input id="atlas-cs-court-fund-notes" placeholder="Receipt detail"></label>
+        <div class="cs-field"><span>&nbsp;</span><button type="button" class="cs-btn cs-btn-sm" data-id="${escapeAttr(caseRecord.id)}" onclick="atlasCsAddCourtFundReceipt(this.dataset.id)">${icon("plus")} Add Receipt</button></div>
+      </div>
+    </div>`;
+  }
+
+  function renderEvictionExceptionsPanel(caseRecord) {
+    const exceptions = asArray(caseRecord.exceptions);
+    if (!exceptions.length) return `<div class="cs-alert">No stipulation payment exceptions are open for this case.</div>`;
+    return `<div class="cs-table-wrap">
+      <table class="cs-table">
+        <thead><tr><th>Exception</th><th>Due</th><th class="right">Expected</th><th class="right">Recorded</th><th>Status</th><th>Action</th><th></th></tr></thead>
+        <tbody>${exceptions.map(exception => `<tr>
+          <td>${escapeHtml(exception.label || "Payment verification")}</td>
+          <td>${escapeHtml(formatDate(exception.dueDate) || "Not dated")}</td>
+          <td class="right">${escapeHtml(formatMoney(exception.amountDue) || "$0")}</td>
+          <td class="right">${escapeHtml(formatMoney(exception.amountReceived) || "$0")}</td>
+          <td>${statusPill(exception.status)}</td>
+          <td>${escapeHtml(exception.requiredAction || "Confirm payment status with onsite team")}</td>
+          <td class="right"><button type="button" class="cs-btn cs-btn-sm" data-case="${escapeAttr(caseRecord.id)}" data-exception="${escapeAttr(exception.id)}" onclick="atlasCsResolveStipulationException(this.dataset.case,this.dataset.exception)">Resolve</button></td>
+        </tr>`).join("")}</tbody>
+      </table>
+    </div>`;
+  }
+
+  function renderEvictionDetail(state, employees) {
+    const rows = getScopedEvictions(state);
+    const item = rows.find(row => row.id === state.ui.selectedEvictionId) || getVisibleEvictions(state)[0] || rows[0];
+    if (!item) return `<div class="cs-detail-panel"><div class="cs-detail-title"><h3>Eviction Case Detail</h3></div><div class="cs-alert">Import a delinquency report to create resident eviction cases and begin the legal workflow.</div></div>`;
+    const legalDateFields = [
+      ["Notice Date", "noticeDate", "date"],
+      ["File Date", "fileDate", "date"],
+      ["Complaint Filed Date", "complaintFiledDate", "date"],
+      ["Hearing Date", "hearingDate", "date"],
+      ["Hearing Time", "hearingTime", "time"],
+      ["Judgment Date", "judgmentDate", "date"],
+      ["Writ Requested Date", "writRequestedDate", "date"],
+      ["Writ Date", "writDate", "date"],
+      ["Writ Time", "writTime", "time"],
+      ["Writ Posted Date", "writPostedDate", "date"],
+      ["Possession Date", "possessionDate", "date"],
+      ["Case Completion Date", "completionDate", "date"]
+    ];
+    return `<div class="cs-detail-panel">
+      <div class="cs-detail-title">
+        <div>
+          <h3>${escapeHtml(item.residentName)}</h3>
+          <div class="cs-detail-meta">${escapeHtml(item.propertyName)} - Unit ${escapeHtml(item.unit || "n/a")} - ${escapeHtml(monthYearLabel(item.monthIdx, item.year))}</div>
+        </div>
+        ${statusPill(item.status)}
+      </div>
+      <div class="cs-chip-row">
+        <span class="cs-chip" data-tone="${escapeAttr(evictionStatusTone(item.status))}">${escapeHtml(item.nextAction || "Advance eviction workflow")}</span>
+        ${item.stipulation?.health ? `<span class="cs-chip" data-tone="${["Payment Verification Required","Late Payment","Partial Payment","At Risk","Stipulation Failure"].includes(item.stipulation.health) ? "red" : "green"}">Stipulation: ${escapeHtml(item.stipulation.health)}</span>` : ""}
+      </div>
+      <div class="cs-workflow">
+        ${EVICTION_WORKFLOW_STEPS.map((step, idx) => {
+          const activeIdx = Math.max(0, EVICTION_WORKFLOW_STEPS.indexOf(item.status === "Evicted" ? "Possession / Eviction" : item.status));
+          const className = idx < activeIdx ? "is-done" : idx === activeIdx ? "is-active" : "";
+          return `<div class="cs-step ${className}"><span class="cs-step-index">${idx + 1}</span><strong>${escapeHtml(step)}</strong><span>${idx === activeIdx ? "Current stage" : "Workflow stage"}</span></div>`;
+        }).join("")}
+      </div>
+      <div class="cs-detail-section">
+        <div class="cs-panel-title">Resident Information</div>
+        <div class="cs-section-grid">
+          ${[
+            ["Resident", item.residentName],
+            ["Property", item.propertyName],
+            ["Unit", item.unit],
+            ["Phone", item.phone],
+            ["Email", item.email],
+            ["Delinquent Balance", formatMoney(item.delinquentBalance)],
+            ["Days Delinquent", item.daysDelinquent ? `${item.daysDelinquent} days` : ""],
+            ["Source", item.sourceFileName || "Delinquency import"]
+          ].map(([label, value]) => `<div class="cs-data-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || "Not captured")}</strong></div>`).join("")}
+        </div>
+      </div>
+      <div class="cs-detail-section">
+        <div class="cs-panel-title">Workflow</div>
+        <div class="cs-control-grid">
+          <label class="cs-field"><span>Status</span><select data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionStatus(this.dataset.id,this.value)">${genericOptionsHtml(EVICTION_STATUS_OPTIONS, item.status)}</select></label>
+          <label class="cs-field"><span>Assigned User</span><select data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'owner',this.value)">${ownerOptionsHtml(employees, item.owner)}</select></label>
+          <label class="cs-field"><span>Assigned Judge</span><input value="${escapeAttr(item.assignedJudge || "")}" data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'assignedJudge',this.value)"></label>
+          <label class="cs-field"><span>Attorney / Law Firm</span><input value="${escapeAttr(item.attorney || "")}" data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'attorney',this.value)"></label>
+          <label class="cs-field" style="grid-column:span 2"><span>Next Action</span><input value="${escapeAttr(item.nextAction || "")}" data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'nextAction',this.value)"></label>
+          ${legalDateFields.map(([label, field, type]) => `<label class="cs-field"><span>${escapeHtml(label)}</span><input type="${escapeAttr(type)}" value="${escapeAttr(item[field] || "")}" data-id="${escapeAttr(item.id)}" data-field="${escapeAttr(field)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,this.dataset.field,this.value)"></label>`).join("")}
+          <label class="cs-field" style="grid-column:span 6"><span>Case Notes</span><textarea data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'notes',this.value)">${escapeHtml(item.notes || "")}</textarea></label>
+        </div>
+      </div>
+      <div class="cs-detail-section"><div class="cs-panel-title">Court Received Funds</div>${renderCourtFunds(item)}</div>
+      <div class="cs-detail-section">
+        <div class="cs-panel-title">Stipulation Mini AR Ledger</div>
+        <div class="cs-control-grid">
+          <label class="cs-field"><span>Original Stipulation Amount</span><input type="number" min="0" step="0.01" value="${escapeAttr(item.stipulation?.originalAmount || item.delinquentBalance || 0)}" data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'stipulation.originalAmount',this.value)"></label>
+          <label class="cs-field"><span>Stipulation Start</span><input type="date" value="${escapeAttr(item.stipulation?.startDate || "")}" data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'stipulation.startDate',this.value)"></label>
+          <label class="cs-field" style="grid-column:span 4"><span>Terms</span><input value="${escapeAttr(item.stipulation?.terms || "")}" data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'stipulation.terms',this.value)"></label>
+        </div>
+        ${renderStipulationLedger(item)}
+      </div>
+      <div class="cs-detail-section"><div class="cs-panel-title">Urgent Exceptions</div>${renderEvictionExceptionsPanel(item)}</div>
+      <div class="cs-detail-section">
+        <div class="cs-panel-title">Attorney Activity</div>
+        <div class="cs-chip-row">
+          <button type="button" class="cs-btn cs-btn-sm" data-id="${escapeAttr(item.id)}" onclick="atlasCsRecordAttorneyActivity(this.dataset.id)">${icon("note-pencil")} Add Attorney Note</button>
+          <button type="button" class="cs-btn cs-btn-sm cs-btn-danger" data-id="${escapeAttr(item.id)}" onclick="atlasCsMarkStipulationFailure(this.dataset.id)">${icon("warning")} Mark Stipulation Failure</button>
+        </div>
+        ${renderMiniTimeline(asArray(item.attorneyActivity).map(row => ({ at: row.at || row.date, label: row.label || row.note || row.reason, user: row.user })))}
+      </div>
+      <div class="cs-detail-section"><div class="cs-panel-title">Activity History</div>${renderMiniTimeline(item.activity)}</div>
+    </div>`;
+  }
+
+  function renderEvictions(state, employees) {
+    return `<div class="cs-two-col">
+      <div style="display:grid;gap:14px">
+        ${renderEvictionImportPanel(state)}
+        <div class="cs-panel">
+          <div class="cs-panel-head">
+            <div>
+              <div class="cs-panel-title">Eviction Case Management</div>
+              <div class="cs-panel-sub">Delinquency uploads create individual resident cases. Stipulations move into their own tab while staying connected to the original eviction record.</div>
+            </div>
+            <div class="cs-command-actions">
+              <button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsExportEvictionReport('csv')">${icon("download-simple")} CSV</button>
+              <button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsExportEvictionReport('excel')">${icon("microsoft-excel-logo")} Excel</button>
+              <button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsExportEvictionReport('print')">${icon("printer")} Print / PDF</button>
+            </div>
+          </div>
+          <div class="cs-panel-body">
+            ${renderEvictionMetrics(state)}
+            ${renderEvictionWorkspaceTabs(state)}
+            ${renderEvictionMonthNavigator(state)}
+            ${renderEvictionFilterBar(state, employees)}
+            ${renderEvictionTable(state)}
+          </div>
+        </div>
+      </div>
+      ${renderEvictionDetail(state, employees)}
     </div>`;
   }
 
@@ -6486,12 +7192,7 @@
       sub: "Waiting on the real delinquency source, ownership rules, and follow-up cadence.",
       empty: "No collection records are connected. This module will stay empty until the source report or system integration is defined."
     });
-    if (state.ui.module === "evictions") return renderEmptyWorkflowModule(state, {
-      key: "evictions",
-      title: "Evictions",
-      sub: "Waiting on legal status source, role permissions, and attorney/court workflow rules.",
-      empty: "No eviction records are connected. Once the source and stages are confirmed, drilldowns can become real legal workflow records."
-    });
+    if (state.ui.module === "evictions") return renderEvictions(state, employees);
     if (state.ui.module === "vendors") return renderVendorProfiles(state);
     if (state.ui.module === "invoices") return renderEmptyWorkflowModule(state, {
       key: "invoices",
@@ -6991,6 +7692,605 @@
       return rows.map(row => normalizeStructuredRenewalImportRow(row, context, employees)).filter(Boolean);
     }
     return mapRenewalRows(rows, context, employees);
+  }
+
+  function normalizeEvictionStatus(value) {
+    const raw = cleanString(value);
+    const key = normalizeKey(raw);
+    if (!key) return "Delinquency Review";
+    if (EVICTION_STATUS_OPTIONS.includes(raw)) return raw;
+    if (key.includes("stip") && key.includes("fail")) return "Stipulation Failure";
+    if (key.includes("stip")) return "Stipulation Active";
+    if (key.includes("current") || key.includes("paid")) return "Account Current";
+    if (key.includes("evict") || key.includes("possession")) return "Evicted";
+    if (key.includes("closed")) return "Closed";
+    if (key.includes("writ") && key.includes("post")) return "Writ Posted";
+    if (key.includes("writ") && (key.includes("sched") || key.includes("date"))) return "Writ Scheduled";
+    if (key.includes("writ") && (key.includes("order") || key.includes("request"))) return "Writ Ordered";
+    if (key.includes("writ")) return "Pending Writ";
+    if (key.includes("judg")) return "Judgment Entered";
+    if (key.includes("hearing")) return "Pending Hearing";
+    if (key.includes("filed") || key.includes("complaint")) return "Filed";
+    if (key.includes("file")) return "Ready to File";
+    if (key.includes("notice") && key.includes("serv")) return "Notice Served";
+    if (key.includes("notice")) return "Notice Pending";
+    return "Delinquency Review";
+  }
+
+  function evictionIsCompleted(caseRecord = {}) {
+    return EVICTION_COMPLETED_STATUSES.includes(normalizeEvictionStatus(caseRecord.status));
+  }
+
+  function evictionIsStipulationActive(caseRecord = {}) {
+    return EVICTION_STIPULATION_STATUSES.includes(normalizeEvictionStatus(caseRecord.status));
+  }
+
+  function evictionIsActive(caseRecord = {}) {
+    return !evictionIsCompleted(caseRecord) && !evictionIsStipulationActive(caseRecord);
+  }
+
+  function evictionStatusTone(status = "") {
+    const normalized = normalizeEvictionStatus(status);
+    if (["Account Current", "Stipulation Completed / Account Current", "Stipulation Active"].includes(normalized)) return "green";
+    if (["Pending Hearing", "Payment Verification Required"].includes(normalized)) return "amber";
+    if (["Pending Judgment", "Judgment Entered", "Ready to File"].includes(normalized)) return "orange";
+    if (["Pending Writ", "Writ Ordered"].includes(normalized)) return "dark-orange";
+    if (["Writ Scheduled", "Writ Posted", "Stipulation Failure"].includes(normalized)) return "red";
+    if (normalized === "Awaiting Court Released Funds") return "violet";
+    if (["Evicted", "Closed"].includes(normalized)) return "gray";
+    if (normalized === "Filed") return "blue";
+    return "teal";
+  }
+
+  function normalizeStipulationInstallment(installment = {}, idx = 0) {
+    return {
+      id: cleanString(installment.id) || makeId("stip_pay", [idx, installment.dueDate, installment.amountDue, Date.now()]),
+      label: cleanString(installment.label) || `Payment ${idx + 1}`,
+      dueDate: normalizeDate(installment.dueDate),
+      amountDue: numberValue(installment.amountDue),
+      receipts: asArray(installment.receipts).map((receipt, receiptIdx) => ({
+        id: cleanString(receipt.id) || makeId("stip_receipt", [idx, receiptIdx, receipt.dateReceived, receipt.amount]),
+        amount: numberValue(receipt.amount),
+        dateReceived: normalizeDate(receipt.dateReceived),
+        source: cleanString(receipt.source),
+        notes: cleanString(receipt.notes),
+        enteredBy: cleanString(receipt.enteredBy) || currentActor().name,
+        enteredAt: cleanString(receipt.enteredAt) || new Date().toISOString()
+      })).filter(receipt => receipt.amount || receipt.dateReceived || receipt.notes),
+      manuallyResolved: Boolean(installment.manuallyResolved),
+      resolutionNotes: cleanString(installment.resolutionNotes)
+    };
+  }
+
+  function normalizeEvictionCase(caseRecord = {}) {
+    const importedAt = cleanString(caseRecord.importedAt) || new Date().toISOString();
+    const monthIdx = Number.isFinite(Number(caseRecord.monthIdx)) ? Math.max(0, Math.min(11, Number(caseRecord.monthIdx))) : new Date().getMonth();
+    const year = Number.isFinite(Number(caseRecord.year)) ? Number(caseRecord.year) : new Date().getFullYear();
+    const periodKey = cleanString(caseRecord.periodKey) || localPeriodKey(monthIdx, year);
+    const status = normalizeEvictionStatus(caseRecord.status);
+    const courtReceivedFunds = asArray(caseRecord.courtReceivedFunds).map((receipt, idx) => ({
+      id: cleanString(receipt.id) || makeId("court_fund", [idx, receipt.dateReceived, receipt.amount]),
+      amount: numberValue(receipt.amount),
+      dateReceived: normalizeDate(receipt.dateReceived),
+      source: cleanString(receipt.source),
+      notes: cleanString(receipt.notes),
+      enteredBy: cleanString(receipt.enteredBy) || currentActor().name,
+      enteredAt: cleanString(receipt.enteredAt) || importedAt
+    })).filter(receipt => receipt.amount || receipt.dateReceived || receipt.notes);
+    const stipulation = asObject(caseRecord.stipulation);
+    const normalized = {
+      ...caseRecord,
+      id: cleanString(caseRecord.id) || makeId("eviction", [caseRecord.propertyName, caseRecord.residentName, caseRecord.unit, "active"]),
+      source: cleanString(caseRecord.source) || "delinquency_import",
+      sourceFileName: cleanString(caseRecord.sourceFileName),
+      sourceSheetName: cleanString(caseRecord.sourceSheetName),
+      importId: cleanString(caseRecord.importId || caseRecord.importBatchId),
+      importBatchId: cleanString(caseRecord.importBatchId || caseRecord.importId),
+      importedAt,
+      propertyName: cleanString(caseRecord.propertyName),
+      portfolio: cleanString(caseRecord.portfolio),
+      residentName: cleanString(caseRecord.residentName),
+      residentId: cleanString(caseRecord.residentId),
+      leaseId: cleanString(caseRecord.leaseId),
+      unit: cleanString(caseRecord.unit),
+      phone: cleanString(caseRecord.phone),
+      email: cleanString(caseRecord.email).toLowerCase(),
+      monthIdx,
+      year,
+      periodKey,
+      delinquentBalance: numberValue(caseRecord.delinquentBalance),
+      originalDelinquentBalance: numberValue(caseRecord.originalDelinquentBalance || caseRecord.delinquentBalance),
+      totalCharges: numberValue(caseRecord.totalCharges),
+      totalPayments: numberValue(caseRecord.totalPayments),
+      currentRent: numberValue(caseRecord.currentRent),
+      daysDelinquent: whole(caseRecord.daysDelinquent),
+      status,
+      owner: cleanString(caseRecord.owner || caseRecord.assignedCentralServicesUser) || "Unassigned",
+      assignedCentralServicesUser: cleanString(caseRecord.assignedCentralServicesUser || caseRecord.owner),
+      noticeDate: normalizeDate(caseRecord.noticeDate),
+      fileDate: normalizeDate(caseRecord.fileDate),
+      complaintFiledDate: normalizeDate(caseRecord.complaintFiledDate),
+      hearingDate: normalizeDate(caseRecord.hearingDate),
+      hearingTime: cleanString(caseRecord.hearingTime),
+      judgmentDate: normalizeDate(caseRecord.judgmentDate),
+      writRequestedDate: normalizeDate(caseRecord.writRequestedDate),
+      writDate: normalizeDate(caseRecord.writDate),
+      writTime: cleanString(caseRecord.writTime),
+      writPostedDate: normalizeDate(caseRecord.writPostedDate),
+      possessionDate: normalizeDate(caseRecord.possessionDate),
+      completionDate: normalizeDate(caseRecord.completionDate),
+      assignedJudge: cleanString(caseRecord.assignedJudge),
+      attorney: cleanString(caseRecord.attorney),
+      attorneyContact: cleanString(caseRecord.attorneyContact),
+      attorneyActivity: asArray(caseRecord.attorneyActivity),
+      courtReceivedFunds,
+      stipulation: {
+        originalAmount: numberValue(stipulation.originalAmount),
+        startDate: normalizeDate(stipulation.startDate),
+        terms: cleanString(stipulation.terms),
+        health: cleanString(stipulation.health) || "Current",
+        failureDate: normalizeDate(stipulation.failureDate),
+        failureReason: cleanString(stipulation.failureReason),
+        attorneyNotifiedDate: normalizeDate(stipulation.attorneyNotifiedDate),
+        notificationMethod: cleanString(stipulation.notificationMethod),
+        writRequested: Boolean(stipulation.writRequested),
+        writRequestDate: normalizeDate(stipulation.writRequestDate),
+        attorneyResponse: cleanString(stipulation.attorneyResponse),
+        nextFollowUpDate: normalizeDate(stipulation.nextFollowUpDate),
+        installments: asArray(stipulation.installments).map(normalizeStipulationInstallment)
+      },
+      exceptions: asArray(caseRecord.exceptions).map((exception, idx) => ({
+        id: cleanString(exception.id) || makeId("stip_exception", [caseRecord.id, idx, exception.installmentId]),
+        installmentId: cleanString(exception.installmentId),
+        status: STIPULATION_EXCEPTION_STATUSES.includes(exception.status) ? exception.status : "Payment Verification Required",
+        label: cleanString(exception.label) || "Stipulation payment verification required",
+        requiredAction: cleanString(exception.requiredAction) || "Confirm payment status with onsite team",
+        createdAt: cleanString(exception.createdAt) || new Date().toISOString(),
+        resolvedAt: cleanString(exception.resolvedAt),
+        notes: cleanString(exception.notes),
+        amountDue: numberValue(exception.amountDue),
+        amountReceived: numberValue(exception.amountReceived),
+        dueDate: normalizeDate(exception.dueDate)
+      })),
+      notes: cleanString(caseRecord.notes),
+      nextAction: cleanString(caseRecord.nextAction),
+      nextDueDate: normalizeDate(caseRecord.nextDueDate),
+      activity: asArray(caseRecord.activity).length
+        ? asArray(caseRecord.activity)
+        : [{ at: importedAt, label: "Delinquency imported into eviction workflow.", user: "ATLAS" }]
+    };
+    return refreshEvictionDerivedFields(normalized);
+  }
+
+  function totalCourtReceivedFunds(caseRecord = {}) {
+    return asArray(caseRecord.courtReceivedFunds).reduce((sum, receipt) => sum + numberValue(receipt.amount), 0);
+  }
+
+  function totalStipulationReceived(caseRecord = {}) {
+    return asArray(caseRecord.stipulation?.installments).reduce((sum, installment) => {
+      return sum + asArray(installment.receipts).reduce((receiptSum, receipt) => receiptSum + numberValue(receipt.amount), 0);
+    }, 0);
+  }
+
+  function totalStipulationScheduled(caseRecord = {}) {
+    return asArray(caseRecord.stipulation?.installments).reduce((sum, installment) => sum + numberValue(installment.amountDue), 0);
+  }
+
+  function evaluateStipulationLedger(caseRecord = {}) {
+    const installments = asArray(caseRecord.stipulation?.installments).map(normalizeStipulationInstallment);
+    const originalAmount = numberValue(caseRecord.stipulation?.originalAmount) || totalStipulationScheduled({ stipulation: { installments } }) || numberValue(caseRecord.delinquentBalance);
+    let cumulativeReceived = 0;
+    let latePayments = 0;
+    let missedPayments = 0;
+    let partialPayments = 0;
+    let pastDueAmount = 0;
+    const evaluatedInstallments = installments.map((installment, idx) => {
+      const amountDue = numberValue(installment.amountDue);
+      const receipts = asArray(installment.receipts);
+      const amountReceived = receipts.reduce((sum, receipt) => sum + numberValue(receipt.amount), 0);
+      cumulativeReceived += amountReceived;
+      const dueDelta = daysUntil(installment.dueDate);
+      const latestReceiptDate = receipts.map(receipt => normalizeDate(receipt.dateReceived)).filter(Boolean).sort().at(-1) || "";
+      const firstFullReceiptDate = (() => {
+        let running = 0;
+        const ordered = receipts.slice().sort((left, right) => (dateValue(left.dateReceived) || 0) - (dateValue(right.dateReceived) || 0));
+        for (const receipt of ordered) {
+          running += numberValue(receipt.amount);
+          if (running >= amountDue) return normalizeDate(receipt.dateReceived);
+        }
+        return "";
+      })();
+      let status = "Upcoming";
+      if (installment.manuallyResolved) status = "Resolved";
+      else if (amountDue && amountReceived >= amountDue) {
+        status = firstFullReceiptDate && installment.dueDate && dateValue(firstFullReceiptDate) > dateValue(installment.dueDate) ? "Late" : "On Time";
+      } else if (amountReceived > 0) {
+        status = dueDelta !== null && dueDelta < 0 ? "Partial" : "Partial";
+      } else if (dueDelta === 0) {
+        status = "Due";
+      } else if (dueDelta !== null && dueDelta < 0) {
+        status = "Past Due / Not Received";
+      }
+      if (status === "Late") latePayments += 1;
+      if (status === "Partial") partialPayments += 1;
+      if (status === "Past Due / Not Received") missedPayments += 1;
+      if (["Partial", "Past Due / Not Received"].includes(status) && dueDelta !== null && dueDelta < 0) pastDueAmount += Math.max(0, amountDue - amountReceived);
+      return {
+        ...installment,
+        label: installment.label || `Payment ${idx + 1}`,
+        amountReceived,
+        receivedDate: latestReceiptDate,
+        variance: amountReceived - amountDue,
+        runningBalance: Math.max(0, originalAmount - cumulativeReceived),
+        status
+      };
+    });
+    const totalScheduled = evaluatedInstallments.reduce((sum, installment) => sum + numberValue(installment.amountDue), 0);
+    const totalReceived = evaluatedInstallments.reduce((sum, installment) => sum + numberValue(installment.amountReceived), 0);
+    const outstandingBalance = Math.max(0, (originalAmount || totalScheduled) - totalReceived);
+    const nextInstallment = evaluatedInstallments
+      .filter(installment => ["Upcoming", "Due", "Partial", "Past Due / Not Received"].includes(installment.status))
+      .sort((left, right) => (dateValue(left.dueDate) || Infinity) - (dateValue(right.dueDate) || Infinity))[0] || null;
+    const dueSoon = evaluatedInstallments.some(installment => {
+      const delta = daysUntil(installment.dueDate);
+      return installment.status === "Upcoming" && delta !== null && delta >= 0 && delta <= 7;
+    });
+    const verificationRequired = evaluatedInstallments.some(installment => ["Partial", "Past Due / Not Received"].includes(installment.status));
+    const late = evaluatedInstallments.some(installment => installment.status === "Late");
+    let health = "Current";
+    if (normalizeEvictionStatus(caseRecord.status) === "Stipulation Failure") health = "Stipulation Failure";
+    else if (verificationRequired) health = partialPayments ? "Partial Payment" : "Payment Verification Required";
+    else if (late) health = "Late Payment";
+    else if (dueSoon) health = "Due Soon";
+    else if (outstandingBalance === 0 && evaluatedInstallments.length) health = "Completed";
+    return {
+      installments: evaluatedInstallments,
+      originalAmount,
+      totalScheduled,
+      totalReceived,
+      outstandingBalance,
+      pastDueAmount,
+      nextPaymentDue: nextInstallment ? numberValue(nextInstallment.amountDue) : 0,
+      nextDueDate: nextInstallment?.dueDate || "",
+      latePayments,
+      missedPayments,
+      partialPayments,
+      health
+    };
+  }
+
+  function syncStipulationExceptions(caseRecord = {}, ledger = evaluateStipulationLedger(caseRecord)) {
+    const existing = new Map(asArray(caseRecord.exceptions).map(exception => [cleanString(exception.installmentId), exception]));
+    const next = [];
+    asArray(ledger.installments).forEach(installment => {
+      if (!["Late", "Partial", "Past Due / Not Received"].includes(installment.status)) return;
+      const prior = existing.get(installment.id) || {};
+      if (prior.status === "Exception Resolved") {
+        next.push(prior);
+        return;
+      }
+      next.push({
+        ...prior,
+        id: cleanString(prior.id) || makeId("stip_exception", [caseRecord.id, installment.id]),
+        installmentId: installment.id,
+        status: prior.status || "Payment Verification Required",
+        label: `${installment.label} requires payment verification`,
+        requiredAction: prior.requiredAction || "Confirm payment status with onsite team",
+        createdAt: prior.createdAt || new Date().toISOString(),
+        dueDate: installment.dueDate,
+        amountDue: installment.amountDue,
+        amountReceived: installment.amountReceived,
+        notes: cleanString(prior.notes)
+      });
+    });
+    asArray(caseRecord.exceptions).forEach(exception => {
+      if (exception.status === "Exception Resolved" && !next.some(item => item.id === exception.id)) next.push(exception);
+    });
+    caseRecord.exceptions = next;
+    return next;
+  }
+
+  function refreshEvictionDerivedFields(caseRecord = {}) {
+    caseRecord.status = normalizeEvictionStatus(caseRecord.status);
+    if (!caseRecord.nextAction) {
+      caseRecord.nextAction = caseRecord.status === "Delinquency Review" ? "Review delinquency and notice status" : "Advance eviction workflow";
+    }
+    const nextDate = caseRecord.hearingDate || caseRecord.writDate || caseRecord.nextDueDate || caseRecord.noticeDate || caseRecord.fileDate;
+    caseRecord.nextDueDate = normalizeDate(caseRecord.nextDueDate || nextDate);
+    caseRecord.totalCourtReceivedFunds = totalCourtReceivedFunds(caseRecord);
+    if (evictionIsStipulationActive(caseRecord) || asArray(caseRecord.stipulation?.installments).length) {
+      const ledger = evaluateStipulationLedger(caseRecord);
+      caseRecord.stipulation = {
+        ...asObject(caseRecord.stipulation),
+        originalAmount: ledger.originalAmount,
+        totalScheduled: ledger.totalScheduled,
+        totalReceived: ledger.totalReceived,
+        outstandingBalance: ledger.outstandingBalance,
+        pastDueAmount: ledger.pastDueAmount,
+        nextPaymentDue: ledger.nextPaymentDue,
+        nextDueDate: ledger.nextDueDate,
+        latePayments: ledger.latePayments,
+        missedPayments: ledger.missedPayments,
+        partialPayments: ledger.partialPayments,
+        health: ledger.health,
+        installments: ledger.installments
+      };
+      syncStipulationExceptions(caseRecord, ledger);
+      if (caseRecord.status === "Stipulation Active") {
+        caseRecord.nextAction = ledger.health === "Current" || ledger.health === "Due Soon"
+          ? "Monitor stipulation payment schedule"
+          : "Confirm stipulation payment with onsite team";
+        caseRecord.nextDueDate = ledger.nextDueDate || caseRecord.nextDueDate;
+      }
+    }
+    return caseRecord;
+  }
+
+  function centralMatchPropertyName(value = "", fallback = "") {
+    const raw = cleanString(value);
+    const properties = getPortfolioProperties();
+    if (!raw) return cleanString(fallback);
+    const key = normalizeKey(raw);
+    const exact = properties.find(property => normalizeKey(property.name) === key);
+    if (exact) return exact.name;
+    const contained = properties.find(property => {
+      const propertyKey = normalizeKey(property.name);
+      return propertyKey && (key.includes(propertyKey) || propertyKey.includes(key));
+    });
+    return contained?.name || raw || cleanString(fallback);
+  }
+
+  function findGenericHeaderIndex(rows, aliasesByField = {}) {
+    const requiredSignals = Object.values(aliasesByField).flat().map(normalizeKey).filter(Boolean);
+    return asArray(rows).findIndex(row => {
+      const keys = asArray(row).map(normalizeKey).filter(Boolean);
+      if (!keys.length) return false;
+      const joined = keys.join(" ");
+      const hits = requiredSignals.filter(alias => alias && joined.includes(alias)).length;
+      return hits >= 2 || (/(resident|tenant|name)/.test(joined) && /(unit|apartment|apt)/.test(joined));
+    });
+  }
+
+  function rowsToGenericObjects(rows, aliasesByField = {}) {
+    const headerIndex = findGenericHeaderIndex(rows, aliasesByField);
+    if (headerIndex < 0) return [];
+    const headers = asArray(rows[headerIndex]).map(header => normalizeKey(header));
+    return asArray(rows).slice(headerIndex + 1).map(row => {
+      const object = {};
+      headers.forEach((header, idx) => {
+        if (header) object[header] = row[idx];
+      });
+      return object;
+    }).filter(row => Object.values(row).some(value => cleanString(value)));
+  }
+
+  function findEvictionAliasedValue(row = {}, fieldName = "") {
+    const aliases = EVICTION_FIELD_ALIASES[fieldName] || [];
+    const directKeys = [
+      fieldName,
+      fieldName.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`),
+      normalizeKey(fieldName)
+    ];
+    for (const key of directKeys) {
+      if (row[key] !== undefined && cleanString(row[key])) return row[key];
+    }
+    for (const alias of aliases) {
+      const key = normalizeKey(alias);
+      if (row[key] !== undefined && cleanString(row[key])) return row[key];
+    }
+    return "";
+  }
+
+  function inferEvictionStatus(row = {}) {
+    const explicit = cleanString(findEvictionAliasedValue(row, "status"));
+    if (explicit) return normalizeEvictionStatus(explicit);
+    const fieldOrder = [
+      ["completionDate", "Closed"],
+      ["possessionDate", "Evicted"],
+      ["writPostedDate", "Writ Posted"],
+      ["writDate", "Writ Scheduled"],
+      ["writRequestedDate", "Pending Writ"],
+      ["judgmentDate", "Judgment Entered"],
+      ["hearingDate", "Pending Hearing"],
+      ["complaintFiledDate", "Filed"],
+      ["fileDate", "Filed"],
+      ["noticeDate", "Notice Served"]
+    ];
+    const matched = fieldOrder.find(([field]) => normalizeDate(findEvictionAliasedValue(row, field)));
+    if (matched) return matched[1];
+    const balance = numberValue(findEvictionAliasedValue(row, "delinquentBalance"));
+    return balance <= 0 && cleanString(findEvictionAliasedValue(row, "delinquentBalance")) ? "Account Current" : "Delinquency Review";
+  }
+
+  function evictionDateFieldValue(row = {}, field = "") {
+    return normalizeDate(findEvictionAliasedValue(row, field));
+  }
+
+  function mapDelinquencyRecord(row = {}, context = {}, employees = []) {
+    const propertyName = centralMatchPropertyName(findEvictionAliasedValue(row, "propertyName"), context.propertyName);
+    const residentName = cleanString(findEvictionAliasedValue(row, "residentName"));
+    const unit = cleanString(findEvictionAliasedValue(row, "unit"));
+    if (!propertyName || propertyName === "all" || !residentName || !unit) return null;
+    const importedAt = cleanString(context.importedAt) || new Date().toISOString();
+    const monthIdx = Number.isFinite(Number(row.monthIdx ?? context.monthIdx)) ? Math.max(0, Math.min(11, Number(row.monthIdx ?? context.monthIdx))) : new Date().getMonth();
+    const year = Number.isFinite(Number(row.year ?? context.year)) ? Number(row.year ?? context.year) : new Date().getFullYear();
+    const sourceFileName = cleanString(row.sourceFileName || context.fileName || context.sourceFileName);
+    const sourceSheetName = cleanString(row.sourceSheetName || context.sourceSheetName || context.sheetName);
+    const importId = cleanString(row.importId || row.importBatchId || context.importId || context.importBatchId);
+    const residentId = cleanString(findEvictionAliasedValue(row, "residentId"));
+    const leaseId = cleanString(findEvictionAliasedValue(row, "leaseId"));
+    const delinquentBalance = numberValue(findEvictionAliasedValue(row, "delinquentBalance"));
+    const status = inferEvictionStatus(row);
+    const id = makeId("eviction", [
+      propertyName,
+      residentId,
+      leaseId,
+      residentName,
+      unit,
+      "active"
+    ]);
+    const owner = defaultOwner(employees);
+    const mapped = normalizeEvictionCase({
+      id,
+      source: "delinquency_import",
+      sourceFileName,
+      sourceSheetName,
+      importId,
+      importBatchId: importId,
+      importedAt,
+      propertyName,
+      portfolio: cleanString(row.portfolio || context.portfolio),
+      residentName,
+      residentId,
+      leaseId,
+      unit,
+      phone: cleanString(findEvictionAliasedValue(row, "phone")),
+      email: cleanString(findEvictionAliasedValue(row, "email")).toLowerCase(),
+      monthIdx,
+      year,
+      periodKey: localPeriodKey(monthIdx, year),
+      delinquentBalance,
+      originalDelinquentBalance: delinquentBalance,
+      totalCharges: numberValue(findEvictionAliasedValue(row, "totalCharges")),
+      totalPayments: numberValue(findEvictionAliasedValue(row, "totalPayments")),
+      currentRent: numberValue(findEvictionAliasedValue(row, "currentRent")),
+      daysDelinquent: whole(findEvictionAliasedValue(row, "daysDelinquent")),
+      status,
+      owner,
+      assignedCentralServicesUser: owner,
+      noticeDate: evictionDateFieldValue(row, "noticeDate"),
+      fileDate: evictionDateFieldValue(row, "fileDate"),
+      complaintFiledDate: evictionDateFieldValue(row, "complaintFiledDate"),
+      hearingDate: evictionDateFieldValue(row, "hearingDate"),
+      hearingTime: cleanString(findEvictionAliasedValue(row, "hearingTime")),
+      judgmentDate: evictionDateFieldValue(row, "judgmentDate"),
+      writRequestedDate: evictionDateFieldValue(row, "writRequestedDate"),
+      writDate: evictionDateFieldValue(row, "writDate"),
+      writTime: cleanString(findEvictionAliasedValue(row, "writTime")),
+      writPostedDate: evictionDateFieldValue(row, "writPostedDate"),
+      possessionDate: evictionDateFieldValue(row, "possessionDate"),
+      completionDate: evictionDateFieldValue(row, "completionDate"),
+      assignedJudge: cleanString(findEvictionAliasedValue(row, "assignedJudge")),
+      attorney: cleanString(findEvictionAliasedValue(row, "attorney")),
+      attorneyContact: cleanString(findEvictionAliasedValue(row, "attorneyContact")),
+      notes: cleanString(findEvictionAliasedValue(row, "notes")),
+      activity: [{
+        at: importedAt,
+        user: "ATLAS",
+        label: `Delinquency imported from ${sourceFileName || "monthly delinquency report"}.`
+      }]
+    });
+    mapped.nextAction = status === "Account Current" ? "Confirm account current and close" : mapped.nextAction;
+    return mapped;
+  }
+
+  function mapDelinquencyRows(rows, context = {}, employees = []) {
+    const sourceRows = asArray(rows);
+    const objectRows = Array.isArray(sourceRows[0]) ? rowsToGenericObjects(sourceRows, EVICTION_FIELD_ALIASES) : sourceRows;
+    return objectRows.map(row => mapDelinquencyRecord(row, context, employees)).filter(Boolean);
+  }
+
+  function evictionWorkflowHasStarted(row = {}) {
+    return Boolean(
+      row.status && normalizeEvictionStatus(row.status) !== "Delinquency Review" ||
+      EVICTION_WORKFLOW_SOURCE_PROTECTED_FIELDS.some(field => valueIsMeaningful(row[field])) ||
+      asArray(row.activity).length > 1
+    );
+  }
+
+  function mergeEvictionCase(existing = null, incoming = {}) {
+    if (!existing) return refreshEvictionDerivedFields(normalizeEvictionCase(incoming));
+    const workflowStarted = evictionWorkflowHasStarted(existing);
+    const next = {
+      ...existing,
+      ...incoming,
+      owner: existing.owner && existing.owner !== "Unassigned" ? existing.owner : incoming.owner,
+      assignedCentralServicesUser: existing.assignedCentralServicesUser || incoming.assignedCentralServicesUser,
+      notes: existing.notes || incoming.notes,
+      originalDelinquentBalance: existing.originalDelinquentBalance || incoming.originalDelinquentBalance || incoming.delinquentBalance
+    };
+    if (workflowStarted) {
+      preserveExistingRenewalFields(next, existing, EVICTION_WORKFLOW_SOURCE_PROTECTED_FIELDS);
+      next.status = existing.status || incoming.status;
+    }
+    next.activity = [...asArray(existing.activity), ...asArray(incoming.activity)]
+      .filter((item, index, all) => item && all.findIndex(candidate => cleanString(candidate?.at) === cleanString(item.at) && cleanString(candidate?.label) === cleanString(item.label)) === index)
+      .slice(-100);
+    return refreshEvictionDerivedFields(normalizeEvictionCase(next));
+  }
+
+  function upsertEvictionCases(state, rows = []) {
+    const byId = new Map(asArray(state.evictions).map(row => [row.id, row]));
+    asArray(rows).forEach(row => {
+      const existing = byId.get(row.id);
+      byId.set(row.id, mergeEvictionCase(existing, row));
+    });
+    state.evictions = [...byId.values()].map(normalizeEvictionCase);
+  }
+
+  function importDelinquencyRowsToCentralServices(state, rawRows, context = {}, options = {}) {
+    const employees = getCentralServicesEmployees();
+    const importId = cleanString(context.importId || context.importBatchId) || makeId("eviction_import", [context.propertyName, context.fileName, Date.now()]);
+    const importedAt = new Date().toISOString();
+    const rows = mapDelinquencyRows(rawRows, {
+      ...context,
+      importId,
+      importBatchId: importId,
+      importedAt
+    }, employees);
+    if (!rows.length) return { rowsImported: 0, evictionRows: [], importId };
+    upsertEvictionCases(state, rows);
+    if (options.importHistory !== false) {
+      state.importHistory.unshift({
+        id: importId,
+        importId,
+        importBatchId: importId,
+        type: "delinquency_import",
+        label: "Delinquency Report",
+        propertyName: context.propertyName || "Multiple properties",
+        monthIdx: Number.isFinite(Number(context.monthIdx)) ? Number(context.monthIdx) : selectedMonthIdx(state),
+        year: Number.isFinite(Number(context.year)) ? Number(context.year) : selectedYear(state),
+        periodKey: localPeriodKey(Number.isFinite(Number(context.monthIdx)) ? Number(context.monthIdx) : selectedMonthIdx(state), Number.isFinite(Number(context.year)) ? Number(context.year) : selectedYear(state)),
+        fileName: cleanString(context.fileName) || "Delinquency report",
+        sourceSheetName: cleanString(context.sourceSheetName),
+        rowCount: rows.length,
+        importedAt
+      });
+      state.importHistory = state.importHistory.slice(0, 50);
+    }
+    addAudit(state, "Imported delinquency report", { importId, rows: rows.length, propertyName: context.propertyName });
+    return { rowsImported: rows.length, evictionRows: rows, importId };
+  }
+
+  async function parseDelinquencyFile(file, context = {}, employees = []) {
+    const lower = cleanString(file.name).toLowerCase();
+    let rows = [];
+    if (lower.endsWith(".csv")) {
+      rows = rowsToGenericObjects(parseCsvRows(await file.text()), EVICTION_FIELD_ALIASES);
+      return rows;
+    }
+    if (typeof XLSX === "undefined") throw new Error("The spreadsheet parser is not available in this ATLAS session.");
+    const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false });
+    workbook.SheetNames.forEach(sheetName => {
+      if (renewalSheetLooksLikeTemplate(sheetName)) return;
+      const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false, blankrows: true });
+      const sheetObjects = rowsToGenericObjects(rawRows, EVICTION_FIELD_ALIASES);
+      if (!sheetObjects.length) return;
+      const sheetMonthIdx = parseMonthIndexValue(sheetName);
+      const sheetContext = {
+        ...context,
+        monthIdx: sheetMonthIdx === null ? context.monthIdx : sheetMonthIdx,
+        year: parseYearFromValue(sheetName, context.year),
+        sourceSheetName: sheetName
+      };
+      rows = rows.concat(sheetObjects.map(row => ({
+        ...row,
+        sourceSheetName: sheetName,
+        monthIdx: sheetContext.monthIdx,
+        year: sheetContext.year
+      })));
+    });
+    return rows;
   }
 
   function renewalSheetLooksLikeTemplate(sheetName = "") {
@@ -8676,6 +9976,214 @@
     downloadText(`atlas-renewal-performance-${stamp}.csv`, renewalReportCsv(payload), "text/csv");
   }
 
+  function evictionReportState(options = {}) {
+    const state = loadState();
+    state.ui = {
+      ...state.ui,
+      propertyId: cleanString(options.propertyName || options.propertyId || state.ui.propertyId || "all") || "all",
+      monthIdx: Number.isFinite(Number(options.monthIdx)) ? Math.max(0, Math.min(11, Number(options.monthIdx))) : selectedMonthIdx(state),
+      year: Number.isFinite(Number(options.year)) ? Number(options.year) : selectedYear(state),
+      search: cleanString(options.search || state.ui.search)
+    };
+    return state;
+  }
+
+  function buildEvictionReportPayload(state, options = {}) {
+    const selectedPeriodOnly = options.selectedPeriodOnly === true;
+    const monthIdx = selectedMonthIdx(state);
+    const year = selectedYear(state);
+    const rows = getScopedEvictions(state).filter(row => !selectedPeriodOnly || (row.monthIdx === monthIdx && row.year === year));
+    const completed = rows.filter(evictionIsCompleted);
+    const active = rows.filter(evictionIsActive);
+    const stipulations = rows.filter(evictionIsStipulationActive);
+    const exceptions = rows.flatMap(row => asArray(row.exceptions).filter(exception => exception.status !== "Exception Resolved").map(exception => ({ ...exception, caseRecord: row })));
+    const groupBy = (getter) => {
+      const map = new Map();
+      rows.forEach(row => {
+        const key = cleanString(getter(row)) || "Unassigned";
+        const bucket = map.get(key) || [];
+        bucket.push(row);
+        map.set(key, bucket);
+      });
+      return [...map.entries()].map(([label, bucket]) => ({
+        label,
+        total: bucket.length,
+        active: bucket.filter(evictionIsActive).length,
+        stipulations: bucket.filter(evictionIsStipulationActive).length,
+        completed: bucket.filter(evictionIsCompleted).length,
+        evicted: bucket.filter(row => row.status === "Evicted").length,
+        accountCurrent: bucket.filter(row => row.status === "Account Current" || row.status === "Stipulation Completed / Account Current").length,
+        delinquencyBalance: bucket.reduce((sum, row) => sum + numberValue(row.delinquentBalance), 0),
+        courtFunds: bucket.reduce((sum, row) => sum + totalCourtReceivedFunds(row), 0)
+      })).sort((left, right) => right.active - left.active || left.label.localeCompare(right.label));
+    };
+    const stipTotals = stipulations.reduce((acc, row) => {
+      const stip = asObject(row.stipulation);
+      acc.original += numberValue(stip.originalAmount);
+      acc.scheduled += numberValue(stip.totalScheduled);
+      acc.received += numberValue(stip.totalReceived);
+      acc.outstanding += numberValue(stip.outstandingBalance);
+      acc.pastDue += numberValue(stip.pastDueAmount);
+      acc.late += whole(stip.latePayments);
+      acc.missed += whole(stip.missedPayments);
+      acc.partial += whole(stip.partialPayments);
+      return acc;
+    }, { original: 0, scheduled: 0, received: 0, outstanding: 0, pastDue: 0, late: 0, missed: 0, partial: 0 });
+    return {
+      title: "ATLAS Eviction Report",
+      generatedAt: new Date(),
+      selectedPeriodLabel: monthYearLabel(monthIdx, year),
+      scopeLabel: state.ui.propertyId === "all" ? "All ATLAS properties" : state.ui.propertyId,
+      rows,
+      metrics: {
+        importedCases: rows.length,
+        activeEvictions: active.length,
+        pendingHearings: active.filter(row => row.status === "Pending Hearing" || row.hearingDate).length,
+        pendingWrits: active.filter(row => ["Pending Writ", "Writ Ordered", "Writ Scheduled", "Writ Posted", "Stipulation Failure"].includes(row.status)).length,
+        activeStipulations: stipulations.length,
+        openExceptions: exceptions.length,
+        completedCases: completed.length,
+        evicted: rows.filter(row => row.status === "Evicted").length,
+        accountCurrent: rows.filter(row => row.status === "Account Current" || row.status === "Stipulation Completed / Account Current").length,
+        courtFunds: rows.reduce((sum, row) => sum + totalCourtReceivedFunds(row), 0),
+        delinquencyBalance: rows.reduce((sum, row) => sum + numberValue(row.delinquentBalance), 0)
+      },
+      stipTotals,
+      exceptions,
+      communityGroups: groupBy(row => row.propertyName),
+      employeeGroups: groupBy(row => row.owner || row.assignedCentralServicesUser),
+      statusGroups: groupBy(row => row.status)
+    };
+  }
+
+  function evictionReportCsv(payload = {}) {
+    const headers = [
+      "Property",
+      "Resident",
+      "Unit",
+      "Balance",
+      "Status",
+      "Owner",
+      "Judge",
+      "Attorney",
+      "Notice Date",
+      "File Date",
+      "Hearing Date",
+      "Writ Date",
+      "Court Funds",
+      "Stipulation Health",
+      "Outstanding Stipulation Balance",
+      "Open Exceptions",
+      "Final Outcome"
+    ];
+    const rows = asArray(payload.rows).map(row => [
+      row.propertyName,
+      row.residentName,
+      row.unit,
+      numberValue(row.delinquentBalance),
+      row.status,
+      row.owner,
+      row.assignedJudge,
+      row.attorney,
+      row.noticeDate,
+      row.fileDate,
+      row.hearingDate,
+      row.writDate,
+      totalCourtReceivedFunds(row),
+      row.stipulation?.health || "",
+      numberValue(row.stipulation?.outstandingBalance),
+      asArray(row.exceptions).filter(exception => exception.status !== "Exception Resolved").length,
+      evictionIsCompleted(row) ? row.status : ""
+    ]);
+    return [headers, ...rows].map(row => row.map(value => `"${String(value ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+  }
+
+  function evictionReportDocument(payload = {}) {
+    const metricCells = [
+      ["Imported Cases", formatNumber(payload.metrics?.importedCases || 0)],
+      ["Active Evictions", formatNumber(payload.metrics?.activeEvictions || 0)],
+      ["Pending Hearings", formatNumber(payload.metrics?.pendingHearings || 0)],
+      ["Pending Writs", formatNumber(payload.metrics?.pendingWrits || 0)],
+      ["Active Stipulations", formatNumber(payload.metrics?.activeStipulations || 0)],
+      ["Open Exceptions", formatNumber(payload.metrics?.openExceptions || 0)],
+      ["Court Funds Received", formatMoney(payload.metrics?.courtFunds) || "$0"],
+      ["Open Delinquency", formatMoney(payload.metrics?.delinquencyBalance) || "$0"]
+    ];
+    const groupTable = (groups = []) => `<table><thead><tr><th>Group</th><th>Total</th><th>Active</th><th>Stipulations</th><th>Completed</th><th>Evicted</th><th>Account Current</th><th>Balance</th><th>Court Funds</th></tr></thead><tbody>
+      ${groups.map(group => `<tr><td>${escapeHtml(group.label)}</td><td>${escapeHtml(formatNumber(group.total))}</td><td>${escapeHtml(formatNumber(group.active))}</td><td>${escapeHtml(formatNumber(group.stipulations))}</td><td>${escapeHtml(formatNumber(group.completed))}</td><td>${escapeHtml(formatNumber(group.evicted))}</td><td>${escapeHtml(formatNumber(group.accountCurrent))}</td><td>${escapeHtml(formatMoney(group.delinquencyBalance) || "$0")}</td><td>${escapeHtml(formatMoney(group.courtFunds) || "$0")}</td></tr>`).join("")}
+    </tbody></table>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(payload.title || "ATLAS Eviction Report")}</title><style>
+      body{font-family:Inter,Arial,sans-serif;color:#14344a;margin:0;padding:24px;background:#fff;font-size:12px}
+      h1{font-size:24px;margin:0 0 6px} h2{font-size:15px;margin:22px 0 8px}
+      p{color:#64778a;margin:0 0 14px}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:16px 0}
+      .metric{border:1px solid #dce3e9;border-radius:8px;padding:12px}.metric span{display:block;color:#64778a;text-transform:uppercase;letter-spacing:.06em;font-size:10px}.metric strong{display:block;margin-top:6px;font-size:18px}
+      table{width:100%;border-collapse:collapse;margin-top:8px}th,td{border:1px solid #dce3e9;padding:7px;text-align:left;vertical-align:top}th{background:#eef5f9;color:#64778a;text-transform:uppercase;letter-spacing:.05em;font-size:10px}
+      @media print{body{padding:16px}.metrics{grid-template-columns:repeat(4,minmax(0,1fr))}}
+    </style></head><body>
+      <h1>${escapeHtml(payload.title || "ATLAS Eviction Report")}</h1>
+      <p>${escapeHtml(payload.scopeLabel || "All ATLAS properties")} · ${escapeHtml(payload.selectedPeriodLabel || "")} · generated ${escapeHtml(payload.generatedAt?.toLocaleString?.() || "")}</p>
+      <div class="metrics">${metricCells.map(([label, value]) => `<div class="metric"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div>
+      <h2>Stipulation Financial Summary</h2>
+      <table><tbody>
+        <tr><th>Original stipulated dollars</th><td>${escapeHtml(formatMoney(payload.stipTotals?.original) || "$0")}</td><th>Total scheduled</th><td>${escapeHtml(formatMoney(payload.stipTotals?.scheduled) || "$0")}</td></tr>
+        <tr><th>Total received</th><td>${escapeHtml(formatMoney(payload.stipTotals?.received) || "$0")}</td><th>Outstanding balance</th><td>${escapeHtml(formatMoney(payload.stipTotals?.outstanding) || "$0")}</td></tr>
+        <tr><th>Past-due dollars</th><td>${escapeHtml(formatMoney(payload.stipTotals?.pastDue) || "$0")}</td><th>Late / missed / partial</th><td>${escapeHtml(`${payload.stipTotals?.late || 0} late / ${payload.stipTotals?.missed || 0} missed / ${payload.stipTotals?.partial || 0} partial`)}</td></tr>
+      </tbody></table>
+      <h2>Community Comparison</h2>${groupTable(payload.communityGroups)}
+      <h2>Central Services Performance</h2>${groupTable(payload.employeeGroups)}
+      <h2>Status Summary</h2>${groupTable(payload.statusGroups)}
+      <h2>Urgent Exceptions</h2>
+      <table><thead><tr><th>Community</th><th>Resident</th><th>Unit</th><th>Due Date</th><th>Amount Due</th><th>Recorded Received</th><th>Status</th><th>Required Action</th></tr></thead><tbody>
+        ${asArray(payload.exceptions).map(exception => `<tr><td>${escapeHtml(exception.caseRecord?.propertyName || "")}</td><td>${escapeHtml(exception.caseRecord?.residentName || "")}</td><td>${escapeHtml(exception.caseRecord?.unit || "")}</td><td>${escapeHtml(formatDate(exception.dueDate) || "")}</td><td>${escapeHtml(formatMoney(exception.amountDue) || "$0")}</td><td>${escapeHtml(formatMoney(exception.amountReceived) || "$0")}</td><td>${escapeHtml(exception.status)}</td><td>${escapeHtml(exception.requiredAction || "")}</td></tr>`).join("") || `<tr><td colspan="8">No urgent stipulation payment exceptions are open.</td></tr>`}
+      </tbody></table>
+      <h2>Resident Cases</h2>
+      <table><thead><tr><th>Community</th><th>Resident</th><th>Unit</th><th>Balance</th><th>Status</th><th>Owner</th><th>Judge</th><th>Attorney</th><th>Hearing</th><th>Writ</th><th>Court Funds</th><th>Stipulation</th></tr></thead><tbody>
+        ${asArray(payload.rows).map(row => `<tr><td>${escapeHtml(row.propertyName)}</td><td>${escapeHtml(row.residentName)}</td><td>${escapeHtml(row.unit)}</td><td>${escapeHtml(formatMoney(row.delinquentBalance) || "$0")}</td><td>${escapeHtml(row.status)}</td><td>${escapeHtml(row.owner || "")}</td><td>${escapeHtml(row.assignedJudge || "")}</td><td>${escapeHtml(row.attorney || "")}</td><td>${escapeHtml(formatDate(row.hearingDate) || "")}</td><td>${escapeHtml(formatDate(row.writDate) || "")}</td><td>${escapeHtml(formatMoney(totalCourtReceivedFunds(row)) || "$0")}</td><td>${escapeHtml(row.stipulation?.health || "")}</td></tr>`).join("")}
+      </tbody></table>
+    </body></html>`;
+  }
+
+  function renderEvictionReportPreview(payload = {}) {
+    const doc = evictionReportDocument(payload);
+    return `<div class="cs-report-preview">
+      <div class="cs-panel">
+        <div class="cs-panel-head">
+          <div>
+            <div class="cs-panel-title">Eviction Report</div>
+            <div class="cs-panel-sub">Searchable case, legal, court-funds, stipulation, exception, and outcome reporting for ${escapeHtml(payload.scopeLabel || "the selected scope")}.</div>
+          </div>
+          <div class="cs-command-actions">
+            <button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsExportEvictionReport('csv')">${icon("download-simple")} CSV</button>
+            <button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsExportEvictionReport('excel')">${icon("microsoft-excel-logo")} Excel</button>
+            <button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsExportEvictionReport('print')">${icon("printer")} Print / PDF</button>
+          </div>
+        </div>
+        <div class="cs-panel-body"><iframe title="Eviction Report Preview" srcdoc="${escapeHtml(doc)}" style="width:100%;min-height:980px;border:1px solid var(--cs-line);border-radius:8px;background:#fff"></iframe></div>
+      </div>
+    </div>`;
+  }
+
+  function exportEvictionReport(format = "csv", options = {}) {
+    const payload = buildEvictionReportPayload(evictionReportState(options), {
+      selectedPeriodOnly: options.selectedPeriodOnly === true || options.scopeMode === "month" || options.periodMode === "month"
+    });
+    const stamp = new Date().toISOString().slice(0, 10);
+    if (format === "excel") {
+      downloadText(`atlas-eviction-report-${stamp}.xls`, evictionReportDocument(payload), "application/vnd.ms-excel");
+      return;
+    }
+    if (format === "print") {
+      const win = window.open("", "_blank");
+      if (!win) return;
+      win.document.write(evictionReportDocument(payload));
+      win.document.close();
+      win.focus();
+      setTimeout(() => win.print(), 200);
+      return;
+    }
+    downloadText(`atlas-eviction-report-${stamp}.csv`, evictionReportCsv(payload), "text/csv");
+  }
+
   window.renderCentralServicesTab = renderCentralServices;
 
   window.atlasCsIngestRenewalSheetRows = function (sheetRows, context = {}, options = {}) {
@@ -8791,6 +10299,10 @@
       state.ui.renewalStatusFilter = cleanString(filter) || "open";
       state.ui.workflowFilter = "all";
     }
+    if (state.ui.module === "evictions") {
+      state.ui.evictionView = EVICTION_WORKSPACE_VIEWS.some(([key]) => key === filter) ? filter : "active";
+      state.ui.workflowFilter = "all";
+    }
     saveState(state);
     renderActiveTab();
   };
@@ -8846,10 +10358,25 @@
         state.ui.monthIdx = Math.max(0, Math.min(11, Number(renewal.monthIdx) || selectedMonthIdx(state)));
         state.ui.year = Number.isFinite(Number(renewal.year)) ? Number(renewal.year) : selectedYear(state);
       }
+    } else if (type === "eviction" || type === "stipulationException") {
+      const caseId = type === "stipulationException" ? recordId.split("::")[0] : recordId;
+      const eviction = state.evictions.find(item => cleanString(item.id) === cleanString(caseId));
+      state.ui.module = "evictions";
+      state.ui.selectedEvictionId = caseId;
+      state.ui.evictionView = cleanString(filter) || (evictionIsStipulationActive(eviction) ? "stipulations" : "active");
+      if (eviction) {
+        state.ui.propertyId = cleanString(eviction.propertyName) || state.ui.propertyId;
+        state.ui.monthIdx = Math.max(0, Math.min(11, Number(eviction.monthIdx) || selectedMonthIdx(state)));
+        state.ui.year = Number.isFinite(Number(eviction.year)) ? Number(eviction.year) : selectedYear(state);
+      }
     } else if (type === "bucket") {
       state.ui.workflowFilter = recordId || state.ui.workflowFilter;
       if (state.ui.module === "renewals") {
         state.ui.renewalStatusFilter = recordId || filter || "open";
+        state.ui.workflowFilter = "all";
+      }
+      if (state.ui.module === "evictions") {
+        state.ui.evictionView = EVICTION_WORKSPACE_VIEWS.some(([key]) => key === recordId) ? recordId : state.ui.evictionView || "active";
         state.ui.workflowFilter = "all";
       }
     }
@@ -9745,6 +11272,358 @@
       alert(`Renewal import failed: ${error?.message || error}`);
       input.value = "";
     }
+  };
+
+  window.atlasCsHandleDelinquencyUpload = async function (input) {
+    const file = input?.files?.[0];
+    if (!file) return;
+    const propertyName = getImportControlValue("atlas-cs-eviction-property") || "all";
+    const monthIdx = Math.max(0, Math.min(11, Number(getImportControlValue("atlas-cs-eviction-month")) || 0));
+    const year = Number(getImportControlValue("atlas-cs-eviction-year")) || new Date().getFullYear();
+    const state = loadState();
+    const employees = getCentralServicesEmployees();
+    try {
+      const rows = await parseDelinquencyFile(file, { propertyName, monthIdx, year, fileName: file.name }, employees);
+      const result = importDelinquencyRowsToCentralServices(state, rows, {
+        propertyName,
+        monthIdx,
+        year,
+        fileName: file.name,
+        source: "Monthly delinquency report upload"
+      });
+      if (!result.rowsImported) {
+        alert("No resident-level delinquency rows could be imported. Check that the file includes resident name, unit, property, and balance columns.");
+        input.value = "";
+        return;
+      }
+      state.ui.module = "evictions";
+      state.ui.evictionView = "active";
+      state.ui.propertyId = propertyName && propertyName !== "all" ? propertyName : state.ui.propertyId;
+      state.ui.monthIdx = monthIdx;
+      state.ui.year = year;
+      state.ui.selectedEvictionId = result.evictionRows[0]?.id || state.ui.selectedEvictionId;
+      saveState(state);
+      input.value = "";
+      renderActiveTab();
+    } catch (error) {
+      alert(`Delinquency import failed: ${error?.message || error}`);
+      input.value = "";
+    }
+  };
+
+  window.atlasCsIngestDelinquencyRows = function (sheetRows, context = {}, options = {}) {
+    const state = loadState();
+    const result = importDelinquencyRowsToCentralServices(state, sheetRows, context, {
+      importHistory: options.importHistory !== false
+    });
+    if (options.setUi === true && result.evictionRows[0]) {
+      const first = result.evictionRows[0];
+      state.ui.module = "evictions";
+      state.ui.evictionView = "active";
+      state.ui.propertyId = first.propertyName || state.ui.propertyId;
+      state.ui.monthIdx = Number.isFinite(Number(first.monthIdx)) ? Number(first.monthIdx) : selectedMonthIdx(state);
+      state.ui.year = Number.isFinite(Number(first.year)) ? Number(first.year) : selectedYear(state);
+      state.ui.selectedEvictionId = first.id;
+    }
+    saveState(state);
+    if (options.render !== false) renderActiveTab();
+    return {
+      ...result,
+      totalEvictionCases: state.evictions.length
+    };
+  };
+
+  window.atlasCsSetEvictionView = function (view) {
+    const state = loadState();
+    state.ui.module = "evictions";
+    state.ui.evictionView = EVICTION_WORKSPACE_VIEWS.some(([key]) => key === view) ? view : "active";
+    saveState(state);
+    renderActiveTab();
+  };
+
+  window.atlasCsSelectEvictionMonth = function (monthIdx, year) {
+    const state = loadState();
+    state.ui.module = "evictions";
+    state.ui.evictionView = "active";
+    state.ui.monthIdx = Math.max(0, Math.min(11, Number(monthIdx) || 0));
+    state.ui.year = Number.isFinite(Number(year)) ? Number(year) : selectedYear(state);
+    saveState(state);
+    renderActiveTab();
+  };
+
+  window.atlasCsSetEvictionFilter = function (field, value) {
+    const state = loadState();
+    const allowed = new Set(["evictionStatusFilter", "evictionOwnerFilter", "stipulationHealthFilter"]);
+    if (!allowed.has(field)) return;
+    state.ui[field] = cleanString(value) || "all";
+    state.ui.module = "evictions";
+    saveState(state);
+    renderActiveTab();
+  };
+
+  window.atlasCsSelectEviction = function (id) {
+    const state = loadState();
+    state.ui.selectedEvictionId = cleanString(id);
+    state.ui.module = "evictions";
+    saveState(state);
+    renderActiveTab();
+  };
+
+  function findEvictionCase(state, id) {
+    const target = cleanString(id);
+    return asArray(state.evictions).find(row => cleanString(row.id) === target) || null;
+  }
+
+  function pushEvictionActivity(caseRecord, label, extra = {}) {
+    caseRecord.activity = asArray(caseRecord.activity);
+    caseRecord.activity.unshift({
+      at: new Date().toISOString(),
+      user: currentActor().name,
+      label,
+      ...extra
+    });
+    caseRecord.activity = caseRecord.activity.slice(0, 100);
+  }
+
+  function maybeAdvanceEvictionFromDate(caseRecord, field) {
+    const nextStatus = EVICTION_DATE_FIELDS[field];
+    if (!nextStatus || !caseRecord[field]) return;
+    if (evictionIsCompleted(caseRecord) || caseRecord.status === "Stipulation Active") return;
+    caseRecord.status = nextStatus;
+    if (field === "possessionDate") caseRecord.status = "Evicted";
+  }
+
+  window.atlasCsUpdateEvictionField = function (id, field, value) {
+    const state = loadState();
+    const item = findEvictionCase(state, id);
+    if (!item) return;
+    const allowed = new Set([
+      "owner",
+      "assignedCentralServicesUser",
+      "assignedJudge",
+      "attorney",
+      "attorneyContact",
+      "nextAction",
+      "notes",
+      "noticeDate",
+      "fileDate",
+      "complaintFiledDate",
+      "hearingDate",
+      "hearingTime",
+      "judgmentDate",
+      "writRequestedDate",
+      "writDate",
+      "writTime",
+      "writPostedDate",
+      "possessionDate",
+      "completionDate",
+      "stipulation.originalAmount",
+      "stipulation.startDate",
+      "stipulation.terms"
+    ]);
+    if (!allowed.has(field)) return;
+    if (field.startsWith("stipulation.")) {
+      item.stipulation = asObject(item.stipulation);
+      const stipField = field.split(".")[1];
+      item.stipulation[stipField] = stipField === "originalAmount" ? numberValue(value) : stipField === "startDate" ? normalizeDate(value) : cleanString(value);
+      if (item.status !== "Stipulation Active") item.status = "Stipulation Active";
+    } else if (["noticeDate", "fileDate", "complaintFiledDate", "hearingDate", "judgmentDate", "writRequestedDate", "writDate", "writPostedDate", "possessionDate", "completionDate"].includes(field)) {
+      item[field] = normalizeDate(value);
+      maybeAdvanceEvictionFromDate(item, field);
+    } else if (field === "owner") {
+      item.owner = cleanString(value);
+      item.assignedCentralServicesUser = cleanString(value);
+    } else {
+      item[field] = cleanString(value);
+    }
+    refreshEvictionDerivedFields(item);
+    pushEvictionActivity(item, `Updated ${field.replace("stipulation.", "stipulation ")}.`);
+    addAudit(state, "Updated eviction case", { id, field });
+    saveState(state);
+    renderActiveTab();
+  };
+
+  window.atlasCsUpdateEvictionStatus = function (id, status) {
+    const state = loadState();
+    const item = findEvictionCase(state, id);
+    if (!item) return;
+    const nextStatus = normalizeEvictionStatus(status);
+    item.status = nextStatus;
+    if (nextStatus === "Stipulation Active") {
+      item.stipulation = {
+        originalAmount: numberValue(item.stipulation?.originalAmount) || numberValue(item.delinquentBalance),
+        startDate: normalizeDate(item.stipulation?.startDate) || TODAY_ISO,
+        terms: cleanString(item.stipulation?.terms),
+        installments: asArray(item.stipulation?.installments)
+      };
+      state.ui.evictionView = "stipulations";
+    }
+    if (evictionIsCompleted(item) && !item.completionDate) item.completionDate = TODAY_ISO;
+    refreshEvictionDerivedFields(item);
+    pushEvictionActivity(item, `Status changed to ${nextStatus}.`);
+    addAudit(state, "Updated eviction status", { id, status: nextStatus });
+    saveState(state);
+    renderActiveTab();
+  };
+
+  window.atlasCsAddCourtFundReceipt = function (id) {
+    const state = loadState();
+    const item = findEvictionCase(state, id);
+    if (!item) return;
+    const amount = numberValue(getImportControlValue("atlas-cs-court-fund-amount"));
+    const dateReceived = normalizeDate(getImportControlValue("atlas-cs-court-fund-date")) || TODAY_ISO;
+    if (!amount) {
+      alert("Enter the court received funds amount before adding the receipt.");
+      return;
+    }
+    item.courtReceivedFunds = asArray(item.courtReceivedFunds);
+    item.courtReceivedFunds.unshift({
+      id: makeId("court_fund", [id, amount, dateReceived, Date.now()]),
+      amount,
+      dateReceived,
+      source: getImportControlValue("atlas-cs-court-fund-source") || "Court",
+      notes: getImportControlValue("atlas-cs-court-fund-notes"),
+      enteredBy: currentActor().name,
+      enteredAt: new Date().toISOString()
+    });
+    if (!evictionIsCompleted(item)) item.status = "Awaiting Court Released Funds";
+    refreshEvictionDerivedFields(item);
+    pushEvictionActivity(item, `Court received funds receipt added for ${formatMoney(amount)}.`);
+    addAudit(state, "Added court funds receipt", { id, amount, dateReceived });
+    saveState(state);
+    renderActiveTab();
+  };
+
+  window.atlasCsAddStipulationInstallment = function (id) {
+    const state = loadState();
+    const item = findEvictionCase(state, id);
+    if (!item) return;
+    const dueDate = normalizeDate(getImportControlValue("atlas-cs-stip-due"));
+    const amountDue = numberValue(getImportControlValue("atlas-cs-stip-amount"));
+    if (!dueDate || !amountDue) {
+      alert("Enter a due date and amount before adding the stipulation payment.");
+      return;
+    }
+    item.status = "Stipulation Active";
+    item.stipulation = asObject(item.stipulation);
+    item.stipulation.originalAmount = numberValue(item.stipulation.originalAmount) || numberValue(item.delinquentBalance) || amountDue;
+    item.stipulation.startDate = normalizeDate(item.stipulation.startDate) || TODAY_ISO;
+    item.stipulation.installments = asArray(item.stipulation.installments);
+    item.stipulation.installments.push({
+      id: makeId("stip_pay", [id, dueDate, amountDue, Date.now()]),
+      label: getImportControlValue("atlas-cs-stip-label") || `Payment ${item.stipulation.installments.length + 1}`,
+      dueDate,
+      amountDue,
+      receipts: []
+    });
+    refreshEvictionDerivedFields(item);
+    pushEvictionActivity(item, `Stipulation installment added for ${formatMoney(amountDue)} due ${formatDate(dueDate)}.`);
+    addAudit(state, "Added stipulation installment", { id, amountDue, dueDate });
+    state.ui.evictionView = "stipulations";
+    saveState(state);
+    renderActiveTab();
+  };
+
+  window.atlasCsAddStipulationReceipt = function (caseId, installmentId) {
+    const state = loadState();
+    const item = findEvictionCase(state, caseId);
+    const installment = asArray(item?.stipulation?.installments).find(row => row.id === installmentId);
+    if (!item || !installment) return;
+    const amount = numberValue(prompt("Amount received for this stipulation payment."));
+    const dateReceived = normalizeDate(prompt("Date received.", TODAY_ISO)) || TODAY_ISO;
+    if (!amount) {
+      alert("Enter the payment amount before saving the receipt.");
+      return;
+    }
+    installment.receipts = asArray(installment.receipts);
+    installment.receipts.push({
+      id: makeId("stip_receipt", [caseId, installmentId, amount, dateReceived, Date.now()]),
+      amount,
+      dateReceived,
+      source: cleanString(prompt("Receipt source or reference.", "Site confirmation")) || "Site confirmation",
+      notes: cleanString(prompt("Receipt notes.", "")),
+      enteredBy: currentActor().name,
+      enteredAt: new Date().toISOString()
+    });
+    refreshEvictionDerivedFields(item);
+    pushEvictionActivity(item, `Stipulation receipt recorded for ${formatMoney(amount)}.`);
+    addAudit(state, "Recorded stipulation receipt", { caseId, installmentId, amount, dateReceived });
+    saveState(state);
+    renderActiveTab();
+  };
+
+  window.atlasCsResolveStipulationException = function (caseId, exceptionId) {
+    const state = loadState();
+    const item = findEvictionCase(state, caseId);
+    const exception = asArray(item?.exceptions).find(row => row.id === exceptionId);
+    if (!item || !exception) return;
+    const outcome = cleanString(prompt("Resolution: Payment Received, Site Researching Payment, Payment Not Received, Attorney Guidance Requested, or Exception Resolved.", exception.status));
+    if (!outcome) return;
+    const normalized = STIPULATION_EXCEPTION_STATUSES.find(status => normalizeKey(status) === normalizeKey(outcome)) || "Exception Resolved";
+    exception.status = normalized;
+    exception.resolvedAt = normalized === "Exception Resolved" ? new Date().toISOString() : exception.resolvedAt;
+    exception.notes = cleanString(prompt("Resolution notes.", exception.notes || "")) || exception.notes;
+    if (normalized === "Payment Not Received") item.stipulation.health = "At Risk";
+    refreshEvictionDerivedFields(item);
+    pushEvictionActivity(item, `Stipulation exception updated to ${normalized}.`, { memo: exception.notes });
+    addAudit(state, "Resolved stipulation exception", { caseId, exceptionId, outcome: normalized });
+    saveState(state);
+    renderActiveTab();
+  };
+
+  window.atlasCsMarkStipulationFailure = function (id) {
+    const state = loadState();
+    const item = findEvictionCase(state, id);
+    if (!item) return;
+    const reason = cleanString(prompt("Reason for confirmed stipulation failure."));
+    if (!reason) return;
+    item.status = "Stipulation Failure";
+    item.stipulation = asObject(item.stipulation);
+    item.stipulation.health = "Stipulation Failure";
+    item.stipulation.failureDate = TODAY_ISO;
+    item.stipulation.failureReason = reason;
+    item.nextAction = "Notify attorney and request writ guidance";
+    item.attorneyActivity = asArray(item.attorneyActivity);
+    item.attorneyActivity.unshift({
+      at: new Date().toISOString(),
+      user: currentActor().name,
+      label: "Stipulation failure confirmed; eviction lifecycle reopened.",
+      reason
+    });
+    refreshEvictionDerivedFields(item);
+    pushEvictionActivity(item, "Stipulation Failure confirmed by Central Services.", { memo: reason });
+    addAudit(state, "Marked stipulation failure", { id, reason });
+    state.ui.evictionView = "exceptions";
+    saveState(state);
+    renderActiveTab();
+  };
+
+  window.atlasCsRecordAttorneyActivity = function (id) {
+    const state = loadState();
+    const item = findEvictionCase(state, id);
+    if (!item) return;
+    const note = cleanString(prompt("Attorney activity note."));
+    if (!note) return;
+    item.attorneyActivity = asArray(item.attorneyActivity);
+    item.attorneyActivity.unshift({
+      at: new Date().toISOString(),
+      user: currentActor().name,
+      label: note
+    });
+    pushEvictionActivity(item, "Attorney activity recorded.", { memo: note });
+    addAudit(state, "Recorded attorney activity", { id });
+    saveState(state);
+    renderActiveTab();
+  };
+
+  window.atlasCsExportEvictionReport = function (format, options = {}) {
+    exportEvictionReport(format || "csv", options);
+  };
+
+  window.renderAtlasEvictionReport = function (options = {}) {
+    return renderEvictionReportPreview(buildEvictionReportPayload(evictionReportState(options), {
+      selectedPeriodOnly: options.selectedPeriodOnly === true || options.scopeMode === "month" || options.periodMode === "month"
+    }));
   };
 
   window.atlasCsSelectMoveOut = function (id) {

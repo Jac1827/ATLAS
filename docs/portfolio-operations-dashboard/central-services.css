@@ -328,6 +328,15 @@
   color: var(--cs-teal);
 }
 
+.cs-chip[data-tone="blue"] {
+  color: var(--cs-blue);
+}
+
+.cs-chip[data-tone="orange"],
+.cs-chip[data-tone="dark-orange"] {
+  color: #b65012;
+}
+
 .cs-chip-row {
   display: flex;
   flex-wrap: wrap;
@@ -978,6 +987,11 @@
 .cs-status[data-status="Renewal Signed"],
 .cs-status[data-status="Completed"],
 .cs-status[data-status="Signed & Executed"],
+.cs-status[data-status="Account Current"],
+.cs-status[data-status="Stipulation Completed / Account Current"],
+.cs-status[data-status="Stipulation Active"],
+.cs-status[data-status="Current"],
+.cs-status[data-status="On Time"],
 .cs-status[data-status="Resolved"],
 .cs-status[data-status="Returned"],
 .cs-status[data-status="Accounting Confirmed"],
@@ -998,6 +1012,13 @@
 
 .cs-status[data-status="Pending Decision"],
 .cs-status[data-status="On Notice"],
+.cs-status[data-status="Delinquency Review"],
+.cs-status[data-status="Notice Pending"],
+.cs-status[data-status="Notice Served"],
+.cs-status[data-status="Pending Hearing"],
+.cs-status[data-status="Due"],
+.cs-status[data-status="Due Soon"],
+.cs-status[data-status="Payment Verification Required"],
 .cs-status[data-status="Offer Ready"],
 .cs-status[data-status="Offer Sent"],
 .cs-status[data-status="Resident Contacted"],
@@ -1030,6 +1051,14 @@
 .cs-status[data-status="NTV Received"],
 .cs-status[data-status="Declined / Non-Renewal"],
 .cs-status[data-status="Expired / Holdover Review"],
+.cs-status[data-status="Writ Scheduled"],
+.cs-status[data-status="Writ Posted"],
+.cs-status[data-status="Stipulation Failure"],
+.cs-status[data-status="Late"],
+.cs-status[data-status="Late Payment"],
+.cs-status[data-status="Past Due / Not Received"],
+.cs-status[data-status="At Risk"],
+.cs-status[data-status="Evicted"],
 .cs-status[data-status="Overdue"],
 .cs-status[data-status="Exception"],
 .cs-status[data-status="Legal Review"],
@@ -1051,6 +1080,14 @@
 
 .cs-status[data-status="Transfer"],
 .cs-status[data-status="Negotiating"],
+.cs-status[data-status="Ready to File"],
+.cs-status[data-status="Pending Judgment"],
+.cs-status[data-status="Judgment Entered"],
+.cs-status[data-status="Pending Writ"],
+.cs-status[data-status="Writ Ordered"],
+.cs-status[data-status="Awaiting Court Released Funds"],
+.cs-status[data-status="Partial"],
+.cs-status[data-status="Partial Payment"],
 .cs-status[data-status="Verbal Acceptance"],
 .cs-status[data-status="Lease Sent"],
 .cs-status[data-status="Signed - Awaiting Execution"],
@@ -1065,6 +1102,46 @@
 .cs-status[data-status="Review Required"] {
   color: var(--cs-violet);
   background: #f5f3ff;
+}
+
+.cs-status[data-status="Filed"] {
+  color: var(--cs-blue);
+  background: #eef5f9;
+}
+
+.cs-status[data-status="Closed"],
+.cs-status[data-status="Resolved"] {
+  color: #6b7280;
+  background: #f3f4f6;
+}
+
+.cs-eviction-table tr[data-tone] td:first-child {
+  border-left: 4px solid var(--cs-teal);
+}
+
+.cs-eviction-table tr[data-tone="green"] td:first-child {
+  border-left-color: var(--cs-green);
+}
+
+.cs-eviction-table tr[data-tone="amber"] td:first-child {
+  border-left-color: var(--cs-amber);
+}
+
+.cs-eviction-table tr[data-tone="orange"] td:first-child,
+.cs-eviction-table tr[data-tone="dark-orange"] td:first-child {
+  border-left-color: #b65012;
+}
+
+.cs-eviction-table tr[data-tone="red"] td:first-child {
+  border-left-color: var(--cs-red);
+}
+
+.cs-eviction-table tr[data-tone="violet"] td:first-child {
+  border-left-color: var(--cs-violet);
+}
+
+.cs-eviction-view-strip {
+  margin-top: 12px;
 }
 
 .cs-detail-panel {

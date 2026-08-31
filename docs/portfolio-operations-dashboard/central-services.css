@@ -355,6 +355,94 @@
   color: var(--cs-blue-dark);
 }
 
+.cs-renewal-month-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cs-renewal-month-strip button {
+  display: grid;
+  gap: 4px;
+  min-height: 62px;
+  border: 1px solid var(--cs-line);
+  border-radius: 8px;
+  background: var(--cs-panel);
+  color: var(--cs-ink);
+  cursor: pointer;
+  padding: 10px 11px;
+  text-align: left;
+}
+
+.cs-renewal-month-strip button:hover,
+.cs-renewal-month-strip button.is-active {
+  border-color: rgba(46, 107, 140, 0.3);
+  background: #eef5f9;
+}
+
+.cs-renewal-month-strip strong {
+  font-size: 0.75rem;
+}
+
+.cs-renewal-month-strip span {
+  color: var(--cs-muted);
+  font-size: 0.64rem;
+  line-height: 1.3;
+}
+
+.cs-renewal-filter-bar,
+.cs-renewal-editor-grid,
+.cs-renewal-report-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.cs-renewal-filter-bar {
+  margin-bottom: 12px;
+}
+
+.cs-renewal-performance {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.cs-renewal-table tr[data-urgency="red"] td:first-child,
+.cs-renewal-table tr[data-urgency="amber"] td:first-child,
+.cs-renewal-table tr[data-urgency="teal"] td:first-child,
+.cs-renewal-table tr[data-urgency="green"] td:first-child,
+.cs-renewal-table tr[data-urgency="violet"] td:first-child {
+  border-left: 4px solid var(--cs-teal);
+}
+
+.cs-renewal-table tr[data-urgency="red"] td:first-child {
+  border-left-color: var(--cs-red);
+}
+
+.cs-renewal-table tr[data-urgency="amber"] td:first-child {
+  border-left-color: var(--cs-amber);
+}
+
+.cs-renewal-table tr[data-urgency="green"] td:first-child {
+  border-left-color: var(--cs-green);
+}
+
+.cs-renewal-table tr[data-urgency="violet"] td:first-child {
+  border-left-color: var(--cs-violet);
+}
+
+.cs-detail-section {
+  display: grid;
+  gap: 9px;
+}
+
+.cs-report-preview {
+  display: grid;
+  gap: 14px;
+}
+
 .cs-dashboard-builder {
   display: grid;
   gap: 12px;
@@ -889,6 +977,7 @@
 
 .cs-status[data-status="Renewal Signed"],
 .cs-status[data-status="Completed"],
+.cs-status[data-status="Signed & Executed"],
 .cs-status[data-status="Resolved"],
 .cs-status[data-status="Returned"],
 .cs-status[data-status="Accounting Confirmed"],
@@ -909,6 +998,10 @@
 
 .cs-status[data-status="Pending Decision"],
 .cs-status[data-status="On Notice"],
+.cs-status[data-status="Offer Ready"],
+.cs-status[data-status="Offer Sent"],
+.cs-status[data-status="Resident Contacted"],
+.cs-status[data-status="Follow-Up Required"],
 .cs-status[data-status="Upcoming Move Out"],
 .cs-status[data-status="Not Confirmed"],
 .cs-status[data-status="Not Returned"],
@@ -935,6 +1028,8 @@
 }
 
 .cs-status[data-status="NTV Received"],
+.cs-status[data-status="Declined / Non-Renewal"],
+.cs-status[data-status="Expired / Holdover Review"],
 .cs-status[data-status="Overdue"],
 .cs-status[data-status="Exception"],
 .cs-status[data-status="Legal Review"],
@@ -955,6 +1050,10 @@
 }
 
 .cs-status[data-status="Transfer"],
+.cs-status[data-status="Negotiating"],
+.cs-status[data-status="Verbal Acceptance"],
+.cs-status[data-status="Lease Sent"],
+.cs-status[data-status="Signed - Awaiting Execution"],
 .cs-status[data-status="Inspection Scheduled"],
 .cs-status[data-status="Move-Out Inspection"],
 .cs-status[data-status="Inspection Approval"],

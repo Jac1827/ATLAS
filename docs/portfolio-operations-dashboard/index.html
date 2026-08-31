@@ -908,7 +908,7 @@
 <!-- ATLAS Redesign v2 presentation layer — loaded last so it overrides the base
      styles above. Presentation only; no dashboard logic depends on it. -->
 <link rel="stylesheet" href="atlas-redesign.css"/>
-<link rel="stylesheet" href="central-services.css"/>
+<link rel="stylesheet" href="central-services.css?v=20260831-renewal-month-workflow"/>
 </head>
 <body>
 <div class="container">
@@ -1060,7 +1060,7 @@
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=20260821-people-access"></script>
 <script src="./centralization/atlas-central-client.js?v=20260825-access-cors" data-atlas-central-client="true"></script>
-<script src="./central-services.js?v=20260831-renewal-upload-remove"></script>
+<script src="./central-services.js?v=20260831-renewal-month-workflow"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -3210,7 +3210,10 @@ function normalizeReportHubType(value) {
     market_to_subject_report: "market_comparison",
     lvr: "leasing_velocity",
     lvr_template: "leasing_velocity",
-    leasing_velocity_report: "leasing_velocity"
+    leasing_velocity_report: "leasing_velocity",
+    renewal_performance_report: "renewal_performance",
+    renewal_report: "renewal_performance",
+    renewals: "renewal_performance"
   };
   const mapped = legacyMap[normalized] || normalized || "investor_snapshot";
   return [
@@ -3221,7 +3224,8 @@ function normalizeReportHubType(value) {
     "bonus_payout",
     "community_progress",
     "market_comparison",
-    "leasing_velocity"
+    "leasing_velocity",
+    "renewal_performance"
   ].includes(mapped) ? mapped : "investor_snapshot";
 }
 
@@ -20377,6 +20381,58 @@ function syncRenewalSummaryNtvCountToCentralServices(context = {}, summary = {})
   }, summary, { render: false });
 }
 
+function getImportedRenewalPeriod(row = {}, fallbackMonthIdx = 0, fallbackYear = new Date().getFullYear()) {
+  const rowMonth = Number.isFinite(Number(row.monthIdx)) ? Number(row.monthIdx) : Number(row.expirationMonthIdx);
+  const rowYear = Number.isFinite(Number(row.year)) ? Number(row.year) : Number(row.expirationYear);
+  const safeMonth = Number.isFinite(rowMonth) ? Math.max(0, Math.min(11, rowMonth)) : Math.max(0, Math.min(11, Number(fallbackMonthIdx) || 0));
+  const safeYear = Number.isFinite(rowYear) ? rowYear : (Number.isFinite(Number(fallbackYear)) ? Number(fallbackYear) : new Date().getFullYear());
+  return {
+    monthIdx: safeMonth,
+    year: safeYear,
+    periodKey: row.periodKey || buildPeriodKey(safeMonth, safeYear)
+  };
+}
+
+function summarizeImportedRenewalDetailRows(rows = []) {
+  const summary = {
+    expirations: 0,
+    renewalsSigned: 0,
+    ntv: 0,
+    transfers: 0,
+    undecided: 0,
+    earlyTermination: 0,
+    retentionRate: 0,
+    decidedRetentionRate: 0
+  };
+  (Array.isArray(rows) ? rows : []).forEach(row => {
+    const status = String(row?.status || "").toLowerCase();
+    summary.expirations += 1;
+    if (status.includes("signed") || status.includes("executed") || row.renewalSignedDate || row.leaseExecutedDate) summary.renewalsSigned += 1;
+    else if (status.includes("transfer")) summary.transfers += 1;
+    else if (status.includes("ntv") || status.includes("vacate") || status.includes("declined") || row.ntvReceivedDate) summary.ntv += 1;
+    else summary.undecided += 1;
+    if (status.includes("early")) summary.earlyTermination += 1;
+  });
+  summary.undecided = Math.max(summary.expirations - summary.renewalsSigned - summary.ntv - summary.transfers - summary.earlyTermination, 0);
+  summary.retentionRate = summary.expirations > 0 ? (summary.renewalsSigned / summary.expirations) * 100 : 0;
+  const decidedPool = summary.renewalsSigned + summary.ntv + summary.transfers;
+  summary.decidedRetentionRate = decidedPool > 0 ? (summary.renewalsSigned / decidedPool) * 100 : 0;
+  return summary;
+}
+
+function groupImportedRenewalDetailRowsByPeriod(rows = [], fallbackMonthIdx = 0, fallbackYear = new Date().getFullYear()) {
+  const grouped = new Map();
+  (Array.isArray(rows) ? rows : []).forEach(row => {
+    const period = getImportedRenewalPeriod(row, fallbackMonthIdx, fallbackYear);
+    if (!grouped.has(period.periodKey)) grouped.set(period.periodKey, { ...period, rows: [] });
+    grouped.get(period.periodKey).rows.push(row);
+  });
+  return Array.from(grouped.values()).map(period => ({
+    ...period,
+    summary: summarizeImportedRenewalDetailRows(period.rows)
+  }));
+}
+
 function syncRenewalSheetRowsToCentralServices(targetRecord, context = {}, sheetRows = [], summary = {}) {
   if (!targetRecord || typeof window.atlasCsIngestRenewalSheetRows !== "function") return null;
   const monthIdx = Math.max(0, Math.min(11, Number(context.monthIdx) || 0));
@@ -20387,6 +20443,8 @@ function syncRenewalSheetRowsToCentralServices(targetRecord, context = {}, sheet
     year,
     fileName: context.fileName,
     sourceSheetName: context.sourceSheetName,
+    importId: context.importId,
+    importBatchId: context.importBatchId || context.importId,
     source: "Portfolio Renewal Tracker upload",
     syncAtlasSummary: false
   }, {
@@ -20402,8 +20460,17 @@ function syncRenewalSheetRowsToCentralServices(targetRecord, context = {}, sheet
     if (!targetRecord.renewalDetailRowsByPeriod || typeof targetRecord.renewalDetailRowsByPeriod !== "object") {
       targetRecord.renewalDetailRowsByPeriod = {};
     }
-    targetRecord.renewalDetailRowsByMonth[monthIdx] = detailRows;
-    targetRecord.renewalDetailRowsByPeriod[buildPeriodKey(monthIdx, year)] = detailRows;
+    groupImportedRenewalDetailRowsByPeriod(detailRows, monthIdx, year).forEach(period => {
+      const existingPeriodRows = Array.isArray(targetRecord.renewalDetailRowsByPeriod[period.periodKey]) ? targetRecord.renewalDetailRowsByPeriod[period.periodKey] : [];
+      const incomingImportId = String(result?.importId || result?.importBatchId || context.importId || "").trim();
+      const preservedRows = incomingImportId
+        ? existingPeriodRows.filter(row => String(row?.importId || row?.importBatchId || "").trim() !== incomingImportId)
+        : [];
+      const nextRows = [...preservedRows, ...period.rows];
+      targetRecord.renewalDetailRowsByPeriod[period.periodKey] = nextRows;
+      targetRecord.renewalDetailRowsByMonth[period.monthIdx] = nextRows;
+    });
+    result.periodSummaries = groupImportedRenewalDetailRowsByPeriod(detailRows, monthIdx, year);
   }
   if (Number(summary?.ntv || 0) > Number(result?.ntvCount || 0)) {
     const fallback = syncRenewalSummaryNtvCountToCentralServices(context, summary);
@@ -20431,6 +20498,40 @@ async function handleRenewalWorkbook(file) {
   const setupRows = getWorkbookSheetRows(workbook, [/^setup$/i]);
   const setupMonthYear = findWorksheetRowValue(setupRows, /month\s*\/\s*year/i);
   const setupYear = parseYearFromValue(setupMonthYear, new Date().getFullYear());
+  const workbookImportId = `renewal-import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const workbookPeriodSummaries = new Map();
+  const addWorkbookPeriodSummary = period => {
+    const safeMonth = Math.max(0, Math.min(11, Number(period?.monthIdx) || 0));
+    const safeYear = Number.isFinite(Number(period?.year)) ? Number(period.year) : setupYear;
+    const periodKey = period?.periodKey || buildPeriodKey(safeMonth, safeYear);
+    const summary = period?.summary || {};
+    const existing = workbookPeriodSummaries.get(periodKey) || {
+      monthIdx: safeMonth,
+      year: safeYear,
+      periodKey,
+      sourceSheetNames: [],
+      rowCount: 0,
+      summary: {
+        expirations: 0,
+        renewalsSigned: 0,
+        ntv: 0,
+        transfers: 0,
+        undecided: 0,
+        earlyTermination: 0,
+        retentionRate: 0,
+        decidedRetentionRate: 0
+      }
+    };
+    existing.sourceSheetNames = Array.from(new Set([...existing.sourceSheetNames, period?.sourceSheetName].filter(Boolean)));
+    existing.rowCount += Number(period?.rows?.length || period?.rowCount || summary.expirations || 0);
+    ["expirations", "renewalsSigned", "ntv", "transfers", "undecided", "earlyTermination"].forEach(key => {
+      existing.summary[key] += Number(summary[key] || 0);
+    });
+    existing.summary.retentionRate = existing.summary.expirations > 0 ? (existing.summary.renewalsSigned / existing.summary.expirations) * 100 : 0;
+    const decidedPool = existing.summary.renewalsSigned + existing.summary.ntv + existing.summary.transfers;
+    existing.summary.decidedRetentionRate = decidedPool > 0 ? (existing.summary.renewalsSigned / decidedPool) * 100 : 0;
+    workbookPeriodSummaries.set(periodKey, existing);
+  };
   let appliedMonths = 0;
   workbook.SheetNames.forEach(sheetName => {
     const monthIdx = parseMonthIndexValue(sheetName);
@@ -20447,17 +20548,14 @@ async function handleRenewalWorkbook(file) {
       monthIdx,
       year: sheetYear,
       fileName: file.name,
-      sourceSheetName: sheetName
-    }, rows, summary);
-    applyRenewalSummaryToRecord(targetRecord, monthIdx, summary, sheetYear);
-    setRecordPeriodImportStamp(targetRecord, "renewals", buildPeriodKey(monthIdx, sheetYear), {
-      importedAt: new Date().toISOString(),
-      sourceFileName: file.name,
       sourceSheetName: sheetName,
-      propertyName: targetPropertyName,
-      residentRowCount: centralSync?.rowsImported || 0,
-      ntvLifecycleCount: centralSync?.ntvCount || summary.ntv || 0
-    });
+      importId: workbookImportId,
+      importBatchId: workbookImportId
+    }, rows, summary);
+    const syncedPeriods = Array.isArray(centralSync?.periodSummaries) && centralSync.periodSummaries.length
+      ? centralSync.periodSummaries
+      : [{ monthIdx, year: sheetYear, periodKey: buildPeriodKey(monthIdx, sheetYear), sourceSheetName: sheetName, rowCount: summary.expirations, summary }];
+    syncedPeriods.forEach(period => addWorkbookPeriodSummary({ ...period, sourceSheetName: sheetName }));
     renewalImportLog.push(`✅ ${targetPropertyName} · ${file.name} → ${MONTHS[monthIdx]} ${sheetYear} renewals mapped (${summary.expirations} expirations, ${summary.renewalsSigned} signed, ${summary.ntv} NTV, ${summary.transfers} transfers, ${summary.undecided} undecided / M2M${summary.earlyTermination > 0 ? `, ${summary.earlyTermination} early terminations` : ""}).`);
     if (centralSync?.ntvCount > 0) {
       renewalImportLog.push(`↳ Central Services synced ${centralSync.ntvCount} NTV lifecycle record${centralSync.ntvCount === 1 ? "" : "s"} from resident-level rows${centralSync.moveOutCasesCreated ? `, including ${centralSync.moveOutCasesCreated} new move-out workflow record${centralSync.moveOutCasesCreated === 1 ? "" : "s"}` : ""}.`);
@@ -20469,6 +20567,18 @@ async function handleRenewalWorkbook(file) {
   if (appliedMonths === 0) {
     renewalImportLog.push(`⚠️ ${targetPropertyName} · ${file.name} did not contain any month sheets the dashboard could map. Use month-named tabs like "Mar 2026" or update the summary labels.`);
   } else {
+    workbookPeriodSummaries.forEach(period => {
+      applyRenewalSummaryToRecord(targetRecord, period.monthIdx, period.summary, period.year);
+      setRecordPeriodImportStamp(targetRecord, "renewals", period.periodKey, {
+        importedAt: new Date().toISOString(),
+        sourceFileName: file.name,
+        sourceSheetName: period.sourceSheetNames.length === 1 ? period.sourceSheetNames[0] : `${period.sourceSheetNames.length} sheets`,
+        sourceSheetNames: period.sourceSheetNames,
+        propertyName: targetPropertyName,
+        residentRowCount: period.rowCount,
+        ntvLifecycleCount: period.summary.ntv || 0
+      });
+    });
     const normalizedTargetRecord = normalizeSavedCommunityRecord(targetPropertyName, targetRecord);
     savedData[targetPropertyName] = normalizedTargetRecord;
     if (targetPropertyName === getProp().name) {
@@ -27288,10 +27398,10 @@ function renderPortfolioHomeTab() {
 function renderReportingTab() {
   ensureValidReportHubAction();
   reportHubType = normalizeReportHubType(reportHubType);
-  if (!["dlr", "bonus_payout", "community_progress", "market_comparison", "leasing_velocity"].includes(reportHubType) && reportHubPerspective === "regional") {
+  if (!["dlr", "bonus_payout", "community_progress", "market_comparison", "leasing_velocity", "renewal_performance"].includes(reportHubType) && reportHubPerspective === "regional") {
     reportHubPerspective = "investor";
   }
-  if (reportHubType === "community_progress" || reportHubType === "market_comparison" || reportHubType === "leasing_velocity") {
+  if (reportHubType === "community_progress" || reportHubType === "market_comparison" || reportHubType === "leasing_velocity" || reportHubType === "renewal_performance") {
     reportHubPerspective = "csuite";
   }
   if (normalizeReportHubType(reportHubType) === "dlr") {
@@ -27330,8 +27440,8 @@ function renderReportingTab() {
   const selectedReportSections = getSelectedPortfolioReportSections();
   const ownerFilterSummary = `${(portfolioReportFilters.investorGroups ?? []).length} investor group(s) · ${(portfolioReportFilters.investorCommunities ?? []).length} highlighted communit${(portfolioReportFilters.investorCommunities ?? []).length === 1 ? "y" : "ies"}`;
   const communityProgressFilterSummary = `${communityProgressSelectionNames.length} communit${communityProgressSelectionNames.length === 1 ? "y" : "ies"} selected`;
-  const reportNeedsScopeBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && !["community_progress", "market_comparison"].includes(normalizedType);
-  const reportNeedsSectionBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && !["community_progress", "market_comparison"].includes(normalizedType);
+  const reportNeedsScopeBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && normalizedType !== "renewal_performance" && !["community_progress", "market_comparison"].includes(normalizedType);
+  const reportNeedsSectionBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && normalizedType !== "renewal_performance" && !["community_progress", "market_comparison"].includes(normalizedType);
   const reportTypeDescription = normalizedType === "investor_marketing_report"
     ? "Combines traffic and funnel performance with comp calculator and market-survey context."
     : normalizedType === "monthly_investor_deck"
@@ -27342,6 +27452,8 @@ function renderReportingTab() {
           ? "Single-community daily leasing report with upload-backed activity checks."
           : normalizedType === "leasing_velocity"
             ? "Portable ATLAS LVR export with stabilized and lease-up views, image slots, and print-ready Letter pages."
+          : normalizedType === "renewal_performance"
+            ? "Central Services renewal conversion, rent growth, pricing discipline, and employee performance from imported tracker records."
           : normalizedType === "community_progress"
             ? "C-suite month-to-date community progress report with photo-led visuals, pace analysis, and explicit data alerts when source fields are incomplete."
             : normalizedType === "market_comparison"
@@ -27447,14 +27559,15 @@ function renderReportingTab() {
           <option value="community_progress" ${reportHubType==="community_progress"?"selected":""}>Community Progress Report</option>
           <option value="market_comparison" ${reportHubType==="market_comparison"?"selected":""}>Market Comparison Report</option>
           <option value="leasing_velocity" ${reportHubType==="leasing_velocity"?"selected":""}>Leasing Velocity Report</option>
+          <option value="renewal_performance" ${reportHubType==="renewal_performance"?"selected":""}>Renewal Performance Report</option>
         </select>
         <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${escapeHtml(reportTypeDescription)}</div>
       </div>
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Report View</div>
-        ${normalizedType === "community_progress" || normalizedType === "leasing_velocity"
+        ${normalizedType === "community_progress" || normalizedType === "leasing_velocity" || normalizedType === "renewal_performance"
           ? `<div style="padding:8px 10px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2);font-size:0.78rem;font-weight:700;color:var(--accent)">${normalizedType === "leasing_velocity" ? "LVR Template" : "C-Suite View"}</div>
-             <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${normalizedType === "leasing_velocity" ? "The exported template contains its own stabilized / lease-up mode control." : "This report is locked to a c-suite lens so the output stays focused on operating progress and data confidence checks."}</div>`
+             <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${normalizedType === "leasing_velocity" ? "The exported template contains its own stabilized / lease-up mode control." : "This report is locked to a c-suite lens so the output stays focused on operating performance and data confidence checks."}</div>`
           : `<select onchange="setReportHubPerspective(this.value)">
               <option value="investor" ${reportHubPerspective==="investor"?"selected":""}>Investor facing</option>
               <option value="csuite" ${reportHubPerspective==="csuite"?"selected":""}>C-Suite View</option>
@@ -27564,6 +27677,11 @@ function renderReportHubInlinePreview(type = normalizeReportHubType(reportHubTyp
       buildBonusPayoutReportDocument(),
       `<button class="btn btn-gray btn-sm" onclick="exportBonusPayoutCSV()">⬇ CSV</button><button class="btn btn-blue btn-sm" onclick="openBonusPayoutReport(true)">🖨 PDF / Print</button>`
     );
+  }
+  if (type === "renewal_performance") {
+    return typeof window.renderAtlasRenewalPerformanceReport === "function"
+      ? `<div class="card mb4" id="reporting-inline-preview">${window.renderAtlasRenewalPerformanceReport({ monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" })}</div>`
+      : `<div class="card mb4" id="reporting-inline-preview"><div class="report-hub-card"><div class="alert-red">Renewal Performance Report is unavailable until Central Services finishes loading.</div></div></div>`;
   }
   if (selectedSections.length === 0) {
     return `<div class="card mb4" id="reporting-inline-preview">
@@ -28051,7 +28169,8 @@ function getReportHubTypeLabel(type = reportHubType) {
     bonus_payout: "Bonus Payout Report",
     community_progress: "Community Progress Report",
     market_comparison: "Market Comparison Report",
-    leasing_velocity: "Leasing Velocity Report"
+    leasing_velocity: "Leasing Velocity Report",
+    renewal_performance: "Renewal Performance Report"
   }[normalizeReportHubType(type)] || "Investor Snapshot";
 }
 
@@ -28152,6 +28271,8 @@ function configureReportHubDefaultsForType(type) {
   } else if (normalized === "dlr") {
     reportHubPerspective = "csuite";
   } else if (normalized === "bonus_payout") {
+    reportHubPerspective = "csuite";
+  } else if (normalized === "renewal_performance") {
     reportHubPerspective = "csuite";
   } else if (normalized === "community_progress" || normalized === "market_comparison") {
     reportHubPerspective = "csuite";
@@ -32355,6 +32476,7 @@ function getReportHubActionOptions(type = reportHubType) {
   ];
   if (normalizedType === "community_progress") return [...common, { value: "export_html", label: "Download Editable HTML" }, { value: "export_individual_pdfs", label: "Separate PDFs" }];
   if (normalizedType === "market_comparison") return [...common, { value: "export_html", label: "Download Editable HTML" }];
+  if (normalizedType === "renewal_performance") return [...common, { value: "export_csv", label: "Export CSV" }, { value: "export_excel", label: "Export Excel" }];
   if (normalizedType === "bonus_payout") return [...common, { value: "export_csv", label: "Export CSV" }];
   return common;
 }
@@ -32440,6 +32562,19 @@ function buildReportHubEmailDraft(type = reportHubType) {
         "",
         "The ATLAS Leasing Velocity Report is ready from the Reporting Hub.",
         "Use Preview Stabilized, Preview Lease-up, or Print / PDF before sending. The template includes both stabilized and lease-up variation modes."
+      ].join("\n")
+    };
+  }
+  if (normalizedType === "renewal_performance") {
+    return {
+      to,
+      subject: `${scopeLabel} Renewal Performance Report | ${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`,
+      body: [
+        `${scopeLabel} Renewal Performance Report`,
+        `${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`,
+        "",
+        "The renewal performance report is ready from the Reporting Hub.",
+        "Use CSV, Excel, or Print / PDF before sending so the current month, community, employee, and resident-level details are attached or included."
       ].join("\n")
     };
   }
@@ -33819,7 +33954,7 @@ async function runReportHubAction() {
   }
   if (reportHubAction === "preview") {
     if (type === "leasing_velocity") return openLeasingVelocityReportTemplate("stabilized", false);
-    if (["investor_snapshot", "investor_marketing_report", "monthly_investor_deck", "bonus_payout"].includes(type)) {
+    if (["investor_snapshot", "investor_marketing_report", "monthly_investor_deck", "bonus_payout", "renewal_performance"].includes(type)) {
       renderTab();
       const target = document.getElementById("reporting-inline-preview");
       if (target?.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -33849,6 +33984,7 @@ async function runReportHubAction() {
     if (type === "leasing_velocity") return openLeasingVelocityReportTemplate("stabilized", true);
     if (type === "community_progress") return openCommunityProgressReport(true);
     if (type === "market_comparison") return openMarketComparisonReport(true);
+    if (type === "renewal_performance" && typeof window.atlasCsExportRenewalReport === "function") return window.atlasCsExportRenewalReport("print", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
     if (type === "dlr") {
       const communityName = syncDlrTargetFromReportHub({ preserveCommunity: true });
       return openDlrInvestorOverview({
@@ -33862,9 +33998,13 @@ async function runReportHubAction() {
   }
   if (reportHubAction === "export_csv") {
     if (["investor_snapshot", "investor_marketing_report"].includes(type)) return exportPortfolioReportCSV();
+    if (type === "renewal_performance" && typeof window.atlasCsExportRenewalReport === "function") return window.atlasCsExportRenewalReport("csv", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
     return exportBonusPayoutCSV();
   }
-  if (reportHubAction === "export_excel") return exportPortfolioReportExcel();
+  if (reportHubAction === "export_excel") {
+    if (type === "renewal_performance" && typeof window.atlasCsExportRenewalReport === "function") return window.atlasCsExportRenewalReport("excel", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
+    return exportPortfolioReportExcel();
+  }
   if (reportHubAction === "export_html") {
     if (type === "monthly_investor_deck") return downloadMonthlyInvestorPresentationBrief();
     if (type === "community_progress") return downloadCommunityProgressReportHtml();

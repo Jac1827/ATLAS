@@ -44,6 +44,7 @@
     "notifications",
     "auditTrail",
     "importHistory",
+    "removedRenewalImportBatches",
     "accountingContacts",
     "potentialMoveOutUpdates"
   ];
@@ -1374,6 +1375,12 @@
       workflowStatus,
       lifecycleStatus: workflowStatus,
       source: cleanString(record.source || "central_services"),
+      sourceFileName: cleanString(record.sourceFileName),
+      sourceSheetName: cleanString(record.sourceSheetName || record.sheetName),
+      importId: cleanString(record.importId || record.importBatchId),
+      importBatchId: cleanString(record.importBatchId || record.importId),
+      importedAt: cleanString(record.importedAt),
+      renewalId: cleanString(record.renewalId),
       residentName: cleanString(record.residentName),
       residentId: cleanString(record.residentId),
       leaseId: cleanString(record.leaseId),
@@ -1625,6 +1632,7 @@
       notifications: [],
       auditTrail: [],
       importHistory: [],
+      removedRenewalImportBatches: [],
       accountingContacts: [],
       potentialMoveOutUpdates: [],
       dashboardPreferencesByUser: {},
@@ -4082,6 +4090,53 @@
     </div>`;
   }
 
+  function recentRenewalImportEntries(state, limit = 6) {
+    const periodKey = localPeriodKey(selectedMonthIdx(state), selectedYear(state));
+    const selectedProperty = cleanString(state.ui.propertyId);
+    return asArray(state.importHistory)
+      .filter(entry => {
+        const sourceText = normalizeKey([entry.source, entry.fileName, entry.sourceSheetName].join(" "));
+        return sourceText.includes("renewal") || entry.ntvCount !== undefined;
+      })
+      .filter(entry => importEntryPeriodKey(entry) === periodKey)
+      .filter(entry => selectedProperty === "all" || cleanString(entry.propertyName) === selectedProperty)
+      .slice(0, limit);
+  }
+
+  function renderRecentRenewalUploads(state) {
+    const rows = recentRenewalImportEntries(state);
+    if (!rows.length) return "";
+    return `<div class="cs-panel">
+      <div class="cs-panel-head">
+        <div>
+          <div class="cs-panel-title">Recent Renewal Uploads</div>
+          <div class="cs-panel-sub">Current reporting-period renewal upload history for this Central Services view.</div>
+        </div>
+      </div>
+      <div class="cs-panel-body">
+        <div class="cs-table-wrap">
+          <table class="cs-table">
+            <thead><tr><th>Uploaded</th><th>Property / Period</th><th>File</th><th class="right">Rows</th><th class="right">NTV</th><th></th></tr></thead>
+            <tbody>
+              ${rows.map(row => {
+                const safeMonth = Math.max(0, Math.min(11, Number(row.monthIdx) || 0));
+                const year = Number.isFinite(Number(row.year)) ? Number(row.year) : selectedYear(state);
+                return `<tr>
+                  <td>${escapeHtml(formatDate(row.importedAt) || row.importedAt || "Recent")}</td>
+                  <td><div class="cs-name-cell"><strong>${escapeHtml(row.propertyName || "ATLAS property")}</strong><span>${escapeHtml(MONTH_LABELS[safeMonth])} ${escapeHtml(year)}</span></div></td>
+                  <td><span class="cs-chip ${row.sourceSheetName ? "is-strong" : ""}">${escapeHtml(row.fileName || "Renewal upload")}${row.sourceSheetName ? ` - ${escapeHtml(row.sourceSheetName)}` : ""}</span></td>
+                  <td class="right">${formatNumber(row.rowCount)}</td>
+                  <td class="right">${formatNumber(row.ntvCount)}</td>
+                  <td class="right"><button type="button" class="cs-btn cs-btn-sm cs-btn-danger" data-id="${escapeAttr(row.id || row.importId || row.importBatchId)}" onclick="atlasCsConfirmRemoveRenewalUpload(this.dataset.id)">Remove</button></td>
+                </tr>`;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+  }
+
   function renderRenewalTable(state, employees) {
     const rows = getScopedRenewals(state);
     if (!rows.length) {
@@ -4161,6 +4216,7 @@
     return `<div class="cs-two-col">
       <div style="display:grid;gap:14px">
         ${renderImportPanel(state)}
+        ${renderRecentRenewalUploads(state)}
         <div class="cs-panel">
           <div class="cs-panel-head">
             <div>
@@ -5895,8 +5951,10 @@
     const unit = cleanString(findAliasedValue(row, "unit"));
     const expirationDate = normalizeDate(findAliasedValue(row, "expirationDate"));
     if (!residentName || !unit || !expirationDate) return null;
-    const importedAt = cleanString(row.importedAt || row.imported_at) || new Date().toISOString();
+    const importedAt = cleanString(row.importedAt || row.imported_at || context.importedAt) || new Date().toISOString();
     const sourceFileName = cleanString(row.sourceFileName || row.source_file_name || context.fileName);
+    const sourceSheetName = cleanString(row.sourceSheetName || row.source_sheet_name || context.sourceSheetName || context.sheetName);
+    const importId = cleanString(row.importId || row.import_id || row.importBatchId || row.import_batch_id || context.importId || context.importBatchId);
     const residentId = cleanString(findAliasedValue(row, "residentId"));
     const leaseId = cleanString(findAliasedValue(row, "leaseId"));
     const ntvReceivedDate = normalizeDate(findAliasedValue(row, "ntvReceivedDate")) || normalizeDate(findAliasedValue(row, "ntvReceived"));
@@ -5913,11 +5971,16 @@
       id,
       source: "renewal_import",
       sourceFileName,
+      sourceSheetName,
+      importId,
+      importBatchId: importId,
       importedAt,
       propertyName: context.propertyName,
       monthIdx: context.monthIdx,
       year: context.year,
       periodKey: localPeriodKey(context.monthIdx, context.year),
+      renewalVisualStatus: cleanString(row.__atlasRenewalVisualStatus || row.renewalVisualStatus),
+      renewalHighlightedNtv: row.__atlasRenewalHighlightedNtv === true || row.renewalHighlightedNtv === true,
       residentName,
       residentId,
       leaseId,
@@ -5985,7 +6048,7 @@
         const sheetRows = typeof window !== "undefined" && typeof window.annotateRenewalRowsWithWorkbookVisualStatus === "function"
           ? window.annotateRenewalRowsWithWorkbookVisualStatus(rawRows, workbook.Sheets[sheetName])
           : rawRows;
-        rows = rows.concat(rowsToObjects(sheetRows));
+        rows = rows.concat(rowsToObjects(sheetRows).map(row => ({ ...row, sourceSheetName: sheetName })));
       });
     }
     return mapRenewalRows(rows, context, employees);
@@ -6115,6 +6178,10 @@
       forwardingAddress: cleanString(incoming.forwardingAddress),
       communityEmail: cleanString(incoming.communityEmail || getCommunityEmail(incoming.propertyName)).toLowerCase(),
       depositHeld: numberValue(incoming.depositHeld),
+      importId: cleanString(incoming.importId || incoming.importBatchId),
+      importBatchId: cleanString(incoming.importBatchId || incoming.importId),
+      importedAt: cleanString(incoming.importedAt),
+      sourceSheetName: cleanString(incoming.sourceSheetName || incoming.sheetName),
       owner: cleanString(incoming.owner || incoming.assignedCentralServicesUser || "Unassigned")
     };
     const existing = findExistingMoveOutMatch(state, prepared);
@@ -6143,7 +6210,11 @@
       renewalId: prepared.renewalId,
       source: prepared.source || "manual",
       sourceFileName: prepared.sourceFileName,
+      sourceSheetName: prepared.sourceSheetName,
       renewalTrackerSource: prepared.renewalTrackerSource || prepared.sourceFileName,
+      importId: prepared.importId,
+      importBatchId: prepared.importBatchId,
+      importedAt: prepared.importedAt,
       createdAt,
       periodKey: prepared.periodKey || localPeriodKey(selectedMonthIdx(state), selectedYear(state)),
       summaryPlaceholder: Boolean(prepared.summaryPlaceholder),
@@ -6193,6 +6264,8 @@
       id: makeId("task", [id, "possession-confirmation"]),
       sourceCaseId: id,
       sourceRenewalId: prepared.renewalId,
+      importId: prepared.importId,
+      importBatchId: prepared.importBatchId,
       type: "Move-Out",
       propertyName: prepared.propertyName,
       residentName: prepared.residentName,
@@ -6213,7 +6286,11 @@
       renewalId: row.id,
       source: "renewal_tracker",
       sourceFileName: row.sourceFileName,
+      sourceSheetName: row.sourceSheetName,
       renewalTrackerSource: row.sourceFileName,
+      importId: row.importId || row.importBatchId,
+      importBatchId: row.importBatchId || row.importId,
+      importedAt: row.importedAt,
       periodKey: row.periodKey,
       propertyName: row.propertyName,
       residentName: row.residentName,
@@ -6277,6 +6354,160 @@
       !asArray(caseRecord.communications).length;
   }
 
+  function importEntryPeriodKey(entry = {}) {
+    return cleanString(entry.periodKey) || localPeriodKey(
+      Math.max(0, Math.min(11, Number(entry.monthIdx) || 0)),
+      Number.isFinite(Number(entry.year)) ? Number(entry.year) : new Date().getFullYear()
+    );
+  }
+
+  function importMatchesPeriod(row = {}, entry = {}) {
+    const rowPeriod = cleanString(row.periodKey) || localPeriodKey(
+      Math.max(0, Math.min(11, Number(row.monthIdx) || 0)),
+      Number.isFinite(Number(row.year)) ? Number(row.year) : Number(entry.year)
+    );
+    return rowPeriod === importEntryPeriodKey(entry);
+  }
+
+  function rowMatchesRenewalImport(row = {}, entry = {}, importId = "") {
+    const rowImportId = cleanString(row.importId || row.importBatchId);
+    if (importId && rowImportId === importId) return true;
+    if (!entry?.id) return false;
+    const sameFile = cleanString(row.sourceFileName) === cleanString(entry.fileName);
+    const sameProperty = cleanString(row.propertyName) === cleanString(entry.propertyName);
+    const sameSheet = !cleanString(entry.sourceSheetName) || !cleanString(row.sourceSheetName) || cleanString(row.sourceSheetName) === cleanString(entry.sourceSheetName);
+    return sameFile && sameProperty && sameSheet && importMatchesPeriod(row, entry);
+  }
+
+  function renewalImportEntryMatchesContext(entry = {}, context = {}) {
+    const entryImportId = cleanString(entry.id || entry.importId || entry.importBatchId);
+    const contextImportId = cleanString(context.importId || context.importBatchId);
+    if (contextImportId && entryImportId === contextImportId) return true;
+    const sameFile = cleanString(entry.fileName) === cleanString(context.fileName);
+    const sameProperty = cleanString(entry.propertyName) === cleanString(context.propertyName);
+    const sameSheet = !cleanString(entry.sourceSheetName) || !cleanString(context.sourceSheetName) || cleanString(entry.sourceSheetName) === cleanString(context.sourceSheetName);
+    return sameFile && sameProperty && sameSheet && importEntryPeriodKey(entry) === cleanString(context.periodKey);
+  }
+
+  function clearRemovedRenewalImportMarker(state, context = {}) {
+    state.removedRenewalImportBatches = asArray(state.removedRenewalImportBatches)
+      .filter(entry => !renewalImportEntryMatchesContext(entry, context));
+  }
+
+  function markRenewalImportRemoved(state, entry = {}, importId = "") {
+    const removedAt = new Date().toISOString();
+    const record = {
+      id: importId,
+      importId,
+      importBatchId: importId,
+      removedAt,
+      fileName: cleanString(entry.fileName),
+      sourceSheetName: cleanString(entry.sourceSheetName),
+      propertyName: cleanString(entry.propertyName),
+      monthIdx: Number.isFinite(Number(entry.monthIdx)) ? Number(entry.monthIdx) : selectedMonthIdx(state),
+      year: Number.isFinite(Number(entry.year)) ? Number(entry.year) : selectedYear(state),
+      periodKey: cleanString(entry.periodKey || importEntryPeriodKey(entry))
+    };
+    state.removedRenewalImportBatches = [
+      record,
+      ...asArray(state.removedRenewalImportBatches).filter(item => !renewalImportEntryMatchesContext(item, record))
+    ].slice(0, 100);
+  }
+
+  function renewalDetailRowWasRemoved(state, row = {}, propertyName = "", periodKey = "") {
+    return asArray(state.removedRenewalImportBatches).some(entry => {
+      const rowImportId = cleanString(row.importId || row.importBatchId);
+      if (rowImportId && rowImportId === cleanString(entry.id || entry.importId || entry.importBatchId)) return true;
+      const rowPeriod = cleanString(row.periodKey) || periodKey;
+      const sameFile = cleanString(row.sourceFileName) === cleanString(entry.fileName);
+      const sameProperty = cleanString(row.propertyName || propertyName) === cleanString(entry.propertyName);
+      const sameSheet = !cleanString(entry.sourceSheetName) || !cleanString(row.sourceSheetName) || cleanString(row.sourceSheetName) === cleanString(entry.sourceSheetName);
+      return sameFile && sameProperty && sameSheet && rowPeriod === cleanString(entry.periodKey);
+    });
+  }
+
+  function moveOutCaseMatchesRenewalImport(caseRecord = {}, entry = {}, importId = "", removedRenewalIds = new Set()) {
+    const caseImportId = cleanString(caseRecord.importId || caseRecord.importBatchId);
+    if (importId && caseImportId === importId) return true;
+    if (caseRecord.renewalId && removedRenewalIds.has(caseRecord.renewalId)) return true;
+    if (!entry?.id) return false;
+    const source = cleanString(caseRecord.source);
+    if (!["renewal_tracker", "renewal_import", "renewal_summary_ntv_intake"].includes(source)) return false;
+    const sameFile = cleanString(caseRecord.sourceFileName || caseRecord.renewalTrackerSource) === cleanString(entry.fileName);
+    const sameProperty = cleanString(caseRecord.propertyName) === cleanString(entry.propertyName);
+    return sameFile && sameProperty && importMatchesPeriod(caseRecord, entry);
+  }
+
+  function moveOutCaseCanBeRemovedWithUpload(state, caseRecord = {}) {
+    if (isCaseArchivedOrClosed(caseRecord)) return false;
+    if (getActualPossessionDate(caseRecord)) return false;
+    if (asArray(state.inspections).some(inspection => cleanString(inspection.relatedMoveOutId) === cleanString(caseRecord.id))) return false;
+    if (asArray(caseRecord.memos).length || asArray(caseRecord.communications).length || asArray(caseRecord.dateAdjustments).length) return false;
+    if (asArray(caseRecord.mogUploads).length || cleanString(caseRecord.mogCompletedAt)) return false;
+    const accountingStatus = normalizeKey(caseRecord.accountingStatus);
+    if (cleanString(caseRecord.morfId) || (accountingStatus && accountingStatus !== "not sent")) return false;
+    return true;
+  }
+
+  function findRenewalImportEntry(state, importId = "") {
+    const target = cleanString(importId);
+    if (!target) return null;
+    return asArray(state.importHistory).find(entry => cleanString(entry.id || entry.importId || entry.importBatchId) === target) || null;
+  }
+
+  function removeRenewalImportBatch(state, importId = "") {
+    const target = cleanString(importId);
+    if (!target) return { removed: false, reason: "missing_import_id", renewalRowsRemoved: 0, moveOutCasesRemoved: 0, blockedMoveOutCases: 0 };
+    const entry = findRenewalImportEntry(state, target) || { id: target };
+    const removedRenewalIds = new Set();
+    const beforeRenewalCount = state.renewals.length;
+    state.renewals = state.renewals.filter(row => {
+      if (!rowMatchesRenewalImport(row, entry, target)) return true;
+      removedRenewalIds.add(row.id);
+      return false;
+    });
+    const removedCaseIds = new Set();
+    let blockedMoveOutCases = 0;
+    const beforeMoveOutCount = state.moveOutCases.length;
+    state.moveOutCases = state.moveOutCases.filter(caseRecord => {
+      if (!moveOutCaseMatchesRenewalImport(caseRecord, entry, target, removedRenewalIds)) return true;
+      if (!moveOutCaseCanBeRemovedWithUpload(state, caseRecord)) {
+        blockedMoveOutCases += 1;
+        return true;
+      }
+      removedCaseIds.add(caseRecord.id);
+      return false;
+    });
+    const beforeTaskCount = state.tasks.length;
+    state.tasks = state.tasks.filter(task => !removedCaseIds.has(task.sourceCaseId));
+    const beforeReviewCount = asArray(state.potentialMoveOutUpdates).length;
+    state.potentialMoveOutUpdates = asArray(state.potentialMoveOutUpdates).filter(review => {
+      const incoming = asObject(review.incoming);
+      const incomingImportId = cleanString(incoming.importId || incoming.importBatchId);
+      if (incomingImportId && incomingImportId === target) return false;
+      return !removedRenewalIds.has(cleanString(incoming.renewalId || review.sourceRenewalId));
+    });
+    state.importHistory = asArray(state.importHistory).filter(history => cleanString(history.id || history.importId || history.importBatchId) !== target);
+    markRenewalImportRemoved(state, entry, target);
+    if (entry.propertyName && Number.isFinite(Number(entry.monthIdx))) {
+      syncRenewalSummaryToAtlas(entry.propertyName, Math.max(0, Math.min(11, Number(entry.monthIdx) || 0)), Number(entry.year) || selectedYear(state), state);
+    }
+    const result = {
+      removed: true,
+      importId: target,
+      propertyName: cleanString(entry.propertyName),
+      periodKey: cleanString(entry.periodKey || importEntryPeriodKey(entry)),
+      fileName: cleanString(entry.fileName),
+      renewalRowsRemoved: Math.max(0, beforeRenewalCount - state.renewals.length),
+      moveOutCasesRemoved: Math.max(0, beforeMoveOutCount - state.moveOutCases.length),
+      tasksRemoved: Math.max(0, beforeTaskCount - state.tasks.length),
+      potentialUpdatesRemoved: Math.max(0, beforeReviewCount - asArray(state.potentialMoveOutUpdates).length),
+      blockedMoveOutCases
+    };
+    addAudit(state, "Removed renewal upload", result);
+    return result;
+  }
+
   function importRenewalRowsToCentralServices(state, rawRows, context = {}, options = {}) {
     const propertyName = cleanString(context.propertyName);
     if (!propertyName) return { rowsImported: 0, ntvCount: 0, moveOutCasesCreated: 0, potentialUpdatesQueued: 0, renewalRows: [] };
@@ -6285,8 +6516,23 @@
     const fileName = cleanString(context.fileName || context.sourceFileName || "Renewal Tracker upload");
     const sourceSheetName = cleanString(context.sourceSheetName || context.sheetName);
     const periodKey = localPeriodKey(monthIdx, year);
-    const rows = mapRenewalRows(rawRows, { propertyName, monthIdx, year, fileName }, getCentralServicesEmployees());
-    if (!rows.length) return { rowsImported: 0, ntvCount: 0, moveOutCasesCreated: 0, potentialUpdatesQueued: 0, renewalRows: [] };
+    const importedAt = cleanString(context.importedAt || context.imported_at) || new Date().toISOString();
+    const importId = cleanString(context.importId || context.import_id || context.importBatchId || context.import_batch_id) ||
+      makeId("import", [fileName, propertyName, periodKey, sourceSheetName || "sheet", importedAt]);
+    if (options.importHistory !== false) {
+      clearRemovedRenewalImportMarker(state, { importId, importBatchId: importId, fileName, sourceSheetName, propertyName, periodKey });
+    }
+    const rows = mapRenewalRows(rawRows, {
+      propertyName,
+      monthIdx,
+      year,
+      fileName,
+      sourceSheetName,
+      importId,
+      importBatchId: importId,
+      importedAt
+    }, getCentralServicesEmployees());
+    if (!rows.length) return { importId, rowsImported: 0, ntvCount: 0, moveOutCasesCreated: 0, potentialUpdatesQueued: 0, renewalRows: [] };
     if (options.audit === false) rows.forEach(row => { row.suppressDuplicateAudit = true; });
     const ntvCount = rows.filter(renewalIsNtv).length;
     if (ntvCount) removeRenewalSummaryPlaceholders(state, propertyName, periodKey);
@@ -6298,14 +6544,18 @@
       syncRenewalSummaryToAtlas(propertyName, monthIdx, year, state);
     }
     if (options.importHistory !== false) {
+      state.importHistory = state.importHistory.filter(entry => cleanString(entry.id) !== importId);
       state.importHistory.unshift({
-        id: makeId("import", [fileName, propertyName, periodKey, sourceSheetName || "sheet", Date.now()]),
-        importedAt: new Date().toISOString(),
+        id: importId,
+        importId,
+        importBatchId: importId,
+        importedAt,
         fileName,
         sourceSheetName,
         propertyName,
         monthIdx,
         year,
+        periodKey,
         rowCount: rows.length,
         ntvCount,
         source: context.source || "Renewal Tracker upload"
@@ -6316,6 +6566,10 @@
       addAudit(state, "Imported renewal rows into Central Services", { propertyName, periodKey, rows: rows.length, ntvCount, source: fileName });
     }
     return {
+      importId,
+      importBatchId: importId,
+      importedAt,
+      sourceSheetName,
       rowsImported: rows.length,
       ntvCount,
       moveOutCasesCreated: Math.max(0, state.moveOutCases.length - beforeCaseCount),
@@ -6324,14 +6578,14 @@
     };
   }
 
-  function getAtlasRenewalDetailRows(property = {}, monthIdx, year) {
+  function getAtlasRenewalDetailRows(state, property = {}, monthIdx, year) {
     const periodKey = localPeriodKey(monthIdx, year);
     const periodRows = asArray(property.record?.renewalDetailRowsByPeriod?.[periodKey]);
-    if (periodRows.length) return periodRows;
-    return asArray(property.record?.renewalDetailRowsByMonth?.[monthIdx]).filter(row => {
+    const rows = periodRows.length ? periodRows : asArray(property.record?.renewalDetailRowsByMonth?.[monthIdx]).filter(row => {
       const rowYear = Number(row?.year);
       return !Number.isFinite(rowYear) || rowYear === Number(year);
     });
+    return rows.filter(row => !renewalDetailRowWasRemoved(state, row, property.name, periodKey));
   }
 
   function countRenewalMoveOutCasesForPeriod(state, propertyName, periodKey) {
@@ -6405,7 +6659,7 @@
     const year = selectedYear(state);
     const periodKey = localPeriodKey(monthIdx, year);
     getScopedProperties(state).forEach(property => {
-      const detailRows = getAtlasRenewalDetailRows(property, monthIdx, year);
+      const detailRows = getAtlasRenewalDetailRows(state, property, monthIdx, year);
       if (detailRows.length) {
         const beforeState = JSON.stringify({
           renewals: state.renewals,
@@ -6440,12 +6694,16 @@
   }
 
   function syncRenewalSummaryToAtlas(propertyName, monthIdx, year, state) {
-    const rows = state.renewals.filter(row => row.propertyName === propertyName && row.periodKey === localPeriodKey(monthIdx, year));
-    if (!rows.length) return;
+    const periodKey = localPeriodKey(monthIdx, year);
+    const rows = state.renewals.filter(row => row.propertyName === propertyName && row.periodKey === periodKey);
     const summary = summarizeRenewalRows(rows);
+    const detailRows = rows.map(row => ({ ...row }));
+    const latestRow = [...rows].sort((left, right) => cleanString(right.importedAt).localeCompare(cleanString(left.importedAt)))[0] || {};
     try {
       if (typeof savedData === "undefined") return;
-      const matched = typeof matchPropertyName === "function" ? matchPropertyName(propertyName, { fallbackToCurrent: false }) || propertyName : propertyName;
+      const exactSavedName = Object.keys(savedData || {}).find(name => normalizeKey(name) === normalizeKey(propertyName));
+      const exactAtlasName = getAtlasPropertyNames().find(name => normalizeKey(name) === normalizeKey(propertyName));
+      const matched = exactSavedName || exactAtlasName || propertyName;
       const record = typeof normalizeSavedCommunityRecord === "function"
         ? normalizeSavedCommunityRecord(matched, savedData?.[matched] || {})
         : asObject(savedData?.[matched]);
@@ -6470,18 +6728,38 @@
           renewalEarlyTermination: summary.earlyTermination
         };
       }
+      if (!Array.isArray(record.renewalDetailRowsByMonth)) record.renewalDetailRowsByMonth = [];
+      while (record.renewalDetailRowsByMonth.length < 12) record.renewalDetailRowsByMonth.push([]);
+      record.renewalDetailRowsByMonth[monthIdx] = detailRows;
+      if (!record.renewalDetailRowsByPeriod || typeof record.renewalDetailRowsByPeriod !== "object") {
+        record.renewalDetailRowsByPeriod = {};
+      }
+      record.renewalDetailRowsByPeriod[periodKey] = detailRows;
       try {
         if (typeof setRecordPeriodImportStamp === "function") {
-          setRecordPeriodImportStamp(record, "renewals", localPeriodKey(monthIdx, year), {
+          setRecordPeriodImportStamp(record, "renewals", periodKey, {
             importedAt: new Date().toISOString(),
-            sourceFileName: "Central Services detailed renewal import",
-            propertyName
+            sourceFileName: rows.length ? cleanString(latestRow.sourceFileName) || "Central Services detailed renewal import" : "Central Services renewal upload removed",
+            sourceSheetName: rows.length ? cleanString(latestRow.sourceSheetName) : "",
+            propertyName,
+            residentRowCount: rows.length,
+            ntvLifecycleCount: summary.ntv
           });
         }
       } catch {
         // Import tracking is optional.
       }
       savedData[matched] = record;
+      try {
+        const currentPropertyName = typeof getProp === "function" ? cleanString(getProp()?.name) : "";
+        if (currentPropertyName && normalizeKey(currentPropertyName) === normalizeKey(matched)) {
+          if (typeof monthlyData !== "undefined") monthlyData = record.monthlyData;
+          if (typeof renewalDetailRowsByMonth !== "undefined") renewalDetailRowsByMonth = record.renewalDetailRowsByMonth;
+          if (typeof importTracking !== "undefined") importTracking = record.importTracking;
+        }
+      } catch {
+        // The Renewal tab globals may not exist in older embedded builds.
+      }
       if (typeof persistSaved === "function") persistSaved();
       if (typeof renderPropGrid === "function") renderPropGrid();
     } catch (error) {
@@ -6815,7 +7093,8 @@
     const beforeCaseCount = state.moveOutCases.length;
     const beforeReviewCount = asArray(state.potentialMoveOutUpdates).length;
     const result = importRenewalRowsToCentralServices(state, sheetRows, context, {
-      importHistory: options.importHistory !== false
+      importHistory: options.importHistory !== false,
+      audit: options.audit
     });
     const shouldSetUi = options.setUi === true;
     if (shouldSetUi && context.propertyName) {
@@ -6833,6 +7112,35 @@
       totalMoveOutCaseDelta: Math.max(0, state.moveOutCases.length - beforeCaseCount),
       totalPotentialUpdateDelta: Math.max(0, asArray(state.potentialMoveOutUpdates).length - beforeReviewCount)
     };
+  };
+
+  window.atlasCsRemoveRenewalUpload = function (importId, options = {}) {
+    const state = loadState();
+    const result = removeRenewalImportBatch(state, importId);
+    if (!result.removed) return result;
+    saveState(state);
+    if (options.render !== false) renderActiveTab();
+    return result;
+  };
+
+  window.atlasCsConfirmRemoveRenewalUpload = function (importId) {
+    const state = loadState();
+    const entry = findRenewalImportEntry(state, importId);
+    if (!entry) {
+      alert("That renewal upload could not be found.");
+      return;
+    }
+    const confirmed = typeof confirm === "function"
+      ? confirm(`Remove ${entry.fileName || "this renewal upload"} for ${entry.propertyName || "this property"}?`)
+      : true;
+    if (!confirmed) return;
+    const result = removeRenewalImportBatch(state, importId);
+    saveState(state);
+    renderActiveTab();
+    const blockedCopy = result.blockedMoveOutCases
+      ? ` ${result.blockedMoveOutCases} worked lifecycle record${result.blockedMoveOutCases === 1 ? "" : "s"} stayed in place.`
+      : "";
+    alert(`Removed ${result.renewalRowsRemoved} renewal row${result.renewalRowsRemoved === 1 ? "" : "s"} and ${result.moveOutCasesRemoved} unworked move-out record${result.moveOutCasesRemoved === 1 ? "" : "s"}.${blockedCopy}`);
   };
 
   window.atlasCsSyncRenewalSummaryNtvIntake = function (context = {}, summary = {}, options = {}) {
@@ -7759,31 +8067,23 @@
     const employees = getCentralServicesEmployees();
     try {
       const rows = await parseRenewalFile(file, { propertyName, monthIdx, year, fileName: file.name }, employees);
-      if (!rows.length) {
+      const result = importRenewalRowsToCentralServices(state, rows, {
+        propertyName,
+        monthIdx,
+        year,
+        fileName: file.name,
+        source: "Entrata renewal report upload"
+      });
+      if (!result.rowsImported) {
         alert("No resident-level renewal rows could be imported. Check that the file includes resident name, unit, and lease expiration columns.");
         input.value = "";
         return;
       }
-      upsertRenewals(state, rows);
-      createMoveOutCasesForNtvRows(state, rows);
-      syncRenewalSummaryToAtlas(propertyName, monthIdx, year, state);
-      state.importHistory.unshift({
-        id: makeId("import", [file.name, propertyName, Date.now()]),
-        importedAt: new Date().toISOString(),
-        fileName: file.name,
-        propertyName,
-        monthIdx,
-        year,
-        rowCount: rows.length,
-        ntvCount: rows.filter(renewalIsNtv).length,
-        source: "Entrata renewal report upload"
-      });
-      state.importHistory = state.importHistory.slice(0, 50);
       state.ui.module = "renewals";
       state.ui.propertyId = propertyName;
       state.ui.monthIdx = monthIdx;
       state.ui.year = year;
-      addAudit(state, "Imported renewal report", { propertyName, fileName: file.name, rows: rows.length });
+      addAudit(state, "Imported renewal report", { propertyName, fileName: file.name, rows: result.rowsImported, ntvCount: result.ntvCount });
       saveState(state);
       input.value = "";
       renderActiveTab();

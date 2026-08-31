@@ -1060,7 +1060,7 @@
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=20260821-people-access"></script>
 <script src="./centralization/atlas-central-client.js?v=20260825-access-cors" data-atlas-central-client="true"></script>
-<script src="./central-services.js?v=20260831-mobile-inspection-morf"></script>
+<script src="./central-services.js?v=20260831-renewal-ntv-sync"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -6835,6 +6835,17 @@ function normalizeRenewalDetailRowsByMonth(input) {
   );
 }
 
+function normalizeRenewalDetailRowsByPeriod(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  return Object.fromEntries(Object.entries(input).flatMap(([periodKey, rows]) => {
+    const parsed = parsePeriodKey(periodKey);
+    if (!parsed || !Array.isArray(rows)) return [];
+    return [[buildPeriodKey(parsed.monthIdx, parsed.year), rows
+      .map(row => (row && typeof row === "object" ? { ...row } : row))
+      .filter(Boolean)]];
+  }));
+}
+
 function defaultDlrDeliverySettings() {
   return {
     frequencyMode: "manual",
@@ -6983,6 +6994,7 @@ function defaultSavedCommunityRecord(propName = getProp().name) {
     conversionRate: 65,
     monthlyData: defaultMonthly(),
     renewalDetailRowsByMonth: defaultRenewalDetailRowsByMonth(),
+    renewalDetailRowsByPeriod: {},
     savedBudgetTargets: Array(12).fill(0),
     seasonal: [...DEFAULT_SEASONAL],
     importMonthOverride: DEFAULT_CURRENT_MONTH,
@@ -7070,6 +7082,7 @@ function normalizeSavedCommunityRecord(propName, data) {
     conversionRate: Number(input.conversionRate ?? defaults.conversionRate),
     monthlyData: repairedMonthlyData,
     renewalDetailRowsByMonth: normalizeRenewalDetailRowsByMonth(input.renewalDetailRowsByMonth),
+    renewalDetailRowsByPeriod: normalizeRenewalDetailRowsByPeriod(input.renewalDetailRowsByPeriod),
     savedBudgetTargets: normalizedSavedBudgetTargets,
     seasonal: Array.isArray(input.seasonal) && input.seasonal.length === 12 ? input.seasonal : defaults.seasonal,
     importMonthOverride: Number.isInteger(input.importMonthOverride) ? input.importMonthOverride : Number(input.importMonthOverride ?? defaults.importMonthOverride),
@@ -7142,6 +7155,7 @@ function getCurrentCommunityRecord() {
     conversionRate,
     monthlyData,
     renewalDetailRowsByMonth,
+    renewalDetailRowsByPeriod: baseRecord.renewalDetailRowsByPeriod,
     savedBudgetTargets,
     seasonal,
     importMonthOverride,
@@ -20286,6 +20300,51 @@ function stampRenewalImportForMonth(monthIdx, fileName = "", year = new Date().g
   });
 }
 
+function syncRenewalSummaryNtvCountToCentralServices(context = {}, summary = {}) {
+  if (typeof window.atlasCsSyncRenewalSummaryNtvIntake !== "function") return null;
+  return window.atlasCsSyncRenewalSummaryNtvIntake({
+    propertyName: context.propertyName,
+    monthIdx: context.monthIdx,
+    year: context.year,
+    sourceFileName: context.fileName || context.sourceFileName || "ATLAS renewal summary"
+  }, summary, { render: false });
+}
+
+function syncRenewalSheetRowsToCentralServices(targetRecord, context = {}, sheetRows = [], summary = {}) {
+  if (!targetRecord || typeof window.atlasCsIngestRenewalSheetRows !== "function") return null;
+  const monthIdx = Math.max(0, Math.min(11, Number(context.monthIdx) || 0));
+  const year = Number.isFinite(Number(context.year)) ? Number(context.year) : new Date().getFullYear();
+  const result = window.atlasCsIngestRenewalSheetRows(sheetRows, {
+    propertyName: context.propertyName,
+    monthIdx,
+    year,
+    fileName: context.fileName,
+    sourceSheetName: context.sourceSheetName,
+    source: "Portfolio Renewal Tracker upload",
+    syncAtlasSummary: false
+  }, {
+    importHistory: true,
+    render: false,
+    setUi: false
+  });
+  const detailRows = Array.isArray(result?.renewalRows) ? result.renewalRows : [];
+  if (detailRows.length) {
+    if (!Array.isArray(targetRecord.renewalDetailRowsByMonth) || targetRecord.renewalDetailRowsByMonth.length !== 12) {
+      targetRecord.renewalDetailRowsByMonth = defaultRenewalDetailRowsByMonth();
+    }
+    if (!targetRecord.renewalDetailRowsByPeriod || typeof targetRecord.renewalDetailRowsByPeriod !== "object") {
+      targetRecord.renewalDetailRowsByPeriod = {};
+    }
+    targetRecord.renewalDetailRowsByMonth[monthIdx] = detailRows;
+    targetRecord.renewalDetailRowsByPeriod[buildPeriodKey(monthIdx, year)] = detailRows;
+  }
+  if (Number(summary?.ntv || 0) > Number(result?.ntvCount || 0)) {
+    const fallback = syncRenewalSummaryNtvCountToCentralServices(context, summary);
+    if (fallback) result.summaryFallback = fallback;
+  }
+  return result;
+}
+
 async function handleRenewalWorkbook(file) {
   if (typeof XLSX === "undefined") {
     renewalImportLog.push("❌ Renewal workbook parser is unavailable because the XLSX library did not load.");
@@ -20313,14 +20372,28 @@ async function handleRenewalWorkbook(file) {
     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" });
     const summary = extractRenewalSheetSummary(rows);
     if ([summary.expirations, summary.renewalsSigned, summary.ntv, summary.transfers, summary.undecided, summary.earlyTermination].every(v => v === 0)) return;
+    const centralSync = syncRenewalSheetRowsToCentralServices(targetRecord, {
+      propertyName: targetPropertyName,
+      monthIdx,
+      year: sheetYear,
+      fileName: file.name,
+      sourceSheetName: sheetName
+    }, rows, summary);
     applyRenewalSummaryToRecord(targetRecord, monthIdx, summary, sheetYear);
     setRecordPeriodImportStamp(targetRecord, "renewals", buildPeriodKey(monthIdx, sheetYear), {
       importedAt: new Date().toISOString(),
       sourceFileName: file.name,
       sourceSheetName: sheetName,
-      propertyName: targetPropertyName
+      propertyName: targetPropertyName,
+      residentRowCount: centralSync?.rowsImported || 0,
+      ntvLifecycleCount: centralSync?.ntvCount || summary.ntv || 0
     });
     renewalImportLog.push(`✅ ${targetPropertyName} · ${file.name} → ${MONTHS[monthIdx]} ${sheetYear} renewals mapped (${summary.expirations} expirations, ${summary.renewalsSigned} signed, ${summary.ntv} NTV, ${summary.transfers} transfers, ${summary.undecided} undecided / M2M${summary.earlyTermination > 0 ? `, ${summary.earlyTermination} early terminations` : ""}).`);
+    if (centralSync?.ntvCount > 0) {
+      renewalImportLog.push(`↳ Central Services synced ${centralSync.ntvCount} NTV lifecycle record${centralSync.ntvCount === 1 ? "" : "s"} from resident-level rows${centralSync.moveOutCasesCreated ? `, including ${centralSync.moveOutCasesCreated} new move-out workflow record${centralSync.moveOutCasesCreated === 1 ? "" : "s"}` : ""}.`);
+    } else if (summary.ntv > 0) {
+      renewalImportLog.push(`↳ Central Services will create ${summary.ntv} NTV intake placeholder${summary.ntv === 1 ? "" : "s"} for ${targetPropertyName} because resident-level NTV rows were not available on this sheet.`);
+    }
     appliedMonths++;
   });
   if (appliedMonths === 0) {
@@ -20330,6 +20403,7 @@ async function handleRenewalWorkbook(file) {
     savedData[targetPropertyName] = normalizedTargetRecord;
     if (targetPropertyName === getProp().name) {
       monthlyData = normalizedTargetRecord.monthlyData;
+      renewalDetailRowsByMonth = normalizedTargetRecord.renewalDetailRowsByMonth;
       importTracking = normalizedTargetRecord.importTracking;
     }
     renewalImportSourceLabel = `${targetPropertyName} · ${file.name}`;
@@ -20353,10 +20427,12 @@ async function handleRenewalCsv(file) {
     return null;
   };
   let appliedMonths = 0;
+  let centralPlaceholderCount = 0;
   lines.slice(1).forEach(line => {
     const cols = line.split(",").map(value => value.trim().replace(/^"|"$/g, ""));
     const monthIdx = parseMonthIndexValue(headerValue(cols, ["month","period","sheet","reporting_month"]));
     if (monthIdx === null || monthIdx < 0 || monthIdx > 11) return;
+    const reportingYear = parseYearFromValue(headerValue(cols, ["year","reporting_year","period","sheet","reporting_month"]), new Date().getFullYear());
     const summary = {
       expirations: normalizeWorkbookNumber(headerValue(cols, ["renewal_expirations","total_lease_expirations","expirations"])),
       renewalsSigned: normalizeWorkbookNumber(headerValue(cols, ["renewals_signed","renewal_signed","signed"])),
@@ -20368,7 +20444,14 @@ async function handleRenewalCsv(file) {
       decidedRetentionRate: normalizeWorkbookPercent(headerValue(cols, ["decided_retention_rate"]))
     };
     applyRenewalSummaryToMonth(monthIdx, summary);
-    stampRenewalImportForMonth(monthIdx, file.name);
+    stampRenewalImportForMonth(monthIdx, file.name, reportingYear);
+    const centralSync = syncRenewalSummaryNtvCountToCentralServices({
+      propertyName: getProp().name,
+      monthIdx,
+      year: reportingYear,
+      fileName: file.name
+    }, summary);
+    centralPlaceholderCount += Number(centralSync?.created || 0);
     appliedMonths++;
   });
   if (appliedMonths === 0) {
@@ -20376,6 +20459,9 @@ async function handleRenewalCsv(file) {
   } else {
     renewalImportSourceLabel = file.name;
     renewalImportLog.push(`✅ ${file.name} → imported renewal summaries for ${appliedMonths} month(s).`);
+    if (centralPlaceholderCount > 0) {
+      renewalImportLog.push(`↳ Central Services created ${centralPlaceholderCount} NTV intake placeholder${centralPlaceholderCount === 1 ? "" : "s"} from the uploaded renewal summary count${centralPlaceholderCount === 1 ? "" : "s"}.`);
+    }
   }
 }
 
@@ -27695,6 +27781,14 @@ function updatePortfolioCommunityMonthField(propName, monthIdx, targetKey, value
     applyValueToRecord(record, normalizedMonth, targetKey, numericValue);
   }
   persistPortfolioCommunityRecord(propName, record);
+  if (targetKey === "renewal_ntvs") {
+    syncRenewalSummaryNtvCountToCentralServices({
+      propertyName: propName,
+      monthIdx: normalizedMonth,
+      year: new Date().getFullYear(),
+      sourceFileName: "Portfolio renewal editor"
+    }, { ntv: numericValue });
+  }
 }
 
 function updatePortfolioCommunityReputationField(propName, field, value) {
@@ -40122,6 +40216,16 @@ function applyExtractedDashboardRows(options = {}) {
       if (applyValueToRecord(record, monthIdx, targetKey, numericValue, targetYear)) applied++;
     };
     EXTRACT_MAPPABLE_FIELDS.forEach(sourceKey => applyMappedValue(sourceKey, row[sourceKey] ?? ""));
+    const ntvSourceKey = EXTRACT_MAPPABLE_FIELDS.find(sourceKey => (extractFieldMap[sourceKey] ?? sourceKey) === "renewal_ntvs");
+    const ntvCount = ntvSourceKey ? Number(row[ntvSourceKey] ?? "") : null;
+    if (Number.isFinite(ntvCount)) {
+      syncRenewalSummaryNtvCountToCentralServices({
+        propertyName: propName,
+        monthIdx,
+        year: targetYear,
+        sourceFileName: extractedSourceLabel || "Dashboard renewal import"
+      }, { ntv: ntvCount });
+    }
     savedData[propName] = normalizeSavedCommunityRecord(propName, record);
     touchedProps.add(propName);
   });

@@ -13,6 +13,11 @@
     "ATLAS_DLR_EMAIL_PROVIDER": "cloudflare_email_service",
     "ATLAS_DLR_FROM_EMAIL": "central@risere.com"
   },
+  "secrets": {
+    "required": [
+      "SUPABASE_SERVICE_ROLE_KEY"
+    ]
+  },
   "triggers": {
     "crons": [
       "*/15 * * * MON-FRI"

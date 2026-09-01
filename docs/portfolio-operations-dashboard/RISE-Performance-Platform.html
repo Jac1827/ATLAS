@@ -210,9 +210,17 @@
     position:fixed;inset:0;background:rgba(7,24,34,0.48);display:flex;
     align-items:center;justify-content:center;padding:20px;z-index:50;
   }
+  .modal-overlay.embedded-modal{
+    align-items:flex-start;overflow:auto;
+  }
   .modal{
     width:min(980px,100%);max-height:92vh;overflow:auto;background:#fff;
     border-radius:24px;padding:24px;box-shadow:0 30px 80px rgba(0,0,0,0.22);position:relative;
+  }
+  .modal-overlay.embedded-modal .modal{
+    max-height:var(--embedded-modal-max-height, 92vh);
+    margin-top:var(--embedded-modal-offset, 20px);
+    margin-bottom:20px;
   }
   .modal.narrow{width:min(560px,100%)}
   .close-btn{
@@ -353,7 +361,7 @@ const COMPANY_ROSTER_VERSION = '2026-03-31';
 const HR_ALERT_EMAIL = 'hr@risere.com';
 // Keep this as a simple relative path so GitHub Pages + local file runs both work.
 const RISE_LOGO_DATA_URI = './assets/rise_logo.png';
-const ROLE_OPTIONS = ['Leasing Professional','Leasing Manager','Assistant Manager','Community Manager','Maintenance Technician','Maintenance Supervisor','Regional Manager','Administrative Assistant','Leasing Consultant','Property Manager'];
+const ROLE_OPTIONS = ['Leasing Professional','Leasing Consultant','Leasing Manager','Assistant Manager','Assistant Community Manager','Community Manager','Property Manager','General Manager','Area Manager','Regional Manager','Regional Sales Manager','Maintenance Technician','Maintenance Supervisor','Administrative Assistant'];
 const COMMUNITY_OPTIONS = ['Anthem House','Bartram Park','Baymeadows','Beacon Hall','Citrus Ridge','Doro','Florence Villa','Glen Kernan Park','Ivy & Elm','Maple Hall - NJIT','Nicholson Gateway','Nocatee','Pilots Pointe','Poplar Hall','Prosper on Fayette','RISE 34th','RISE St. Augustine','Sereno','The Preserve at Tech','Viera'];
 const REGIONS = {
   west:{name:'Central / South Florida',short:'Central / South'},
@@ -1613,6 +1621,67 @@ function managerUsers(){
   }));
 }
 
+function isPlaceholderManagerLabel(value){
+  const label = normalizeComparable(value);
+  if(!label) return false;
+  return /^(west|east|student|valdosta|jax)\s+manager(\s+\d+)?$/.test(label);
+}
+
+function isPlaceholderManagerUser(user){
+  const id = normalizeComparable(user && user.id);
+  return id.startsWith('mgr_') || isPlaceholderManagerLabel(user && user.name);
+}
+
+function managerFallbackLabel(value, emptyLabel){
+  const label = String(value || '').trim();
+  if(!label || isPlaceholderManagerLabel(label)) return emptyLabel || '';
+  return label;
+}
+
+function employeeChoiceId(employee){
+  return employee && employee.id ? `emp:${employee.id}` : '';
+}
+
+function rosterManagerChoice(employee){
+  const title = String(employee && employee.role || '').trim();
+  const name = String(employee && employee.name || '').trim();
+  return {
+    id: employeeChoiceId(employee),
+    name,
+    label: title ? `${name} - ${title}` : name,
+    email: String(employee && employee.email || '').trim()
+  };
+}
+
+function employeeLeadershipText(employee){
+  return normalizeComparable([
+    employee && employee.role,
+    employee && employee.department,
+    employee && employee.statusType
+  ].join(' '));
+}
+
+function isRosterManagerCandidate(employee){
+  const text = employeeLeadershipText(employee);
+  return Boolean(text && (
+    text.includes('manager') ||
+    text.includes('supervisor') ||
+    text.includes('director') ||
+    text.includes('president') ||
+    text.includes(' vp ') ||
+    text.startsWith('vp ')
+  ));
+}
+
+function isRosterRegionalCandidate(employee){
+  const text = employeeLeadershipText(employee);
+  return Boolean(text && (
+    text.includes('regional') ||
+    text.includes('area manager') ||
+    text.includes('portfolio manager')
+  ));
+}
+
 function communityChoices(){
   return [...new Set([
     ...COMMUNITY_OPTIONS,
@@ -1628,14 +1697,37 @@ function roleChoices(){
   ])].sort((left, right) => left.localeCompare(right));
 }
 
+function managerEmployeeFromChoiceId(managerId){
+  const value = String(managerId || '').trim();
+  if(!value.startsWith('emp:')) return null;
+  return STATE.employees.find(item => item && item.id === value.slice(4)) || null;
+}
+
+function managerEmployeeFromName(name){
+  const target = normalizeComparable(name);
+  if(!target) return null;
+  return (STATE.employees || []).find(employee => normalizeComparable(employee && employee.name) === target) || null;
+}
+
 function managerName(managerId){
+  const managerEmployee = managerEmployeeFromChoiceId(managerId);
+  if(managerEmployee) return managerEmployee.name || '';
   const user = STATE.users.find(item => item.id === managerId);
   return user ? user.name : '';
 }
 
 function userEmail(userId){
+  const managerEmployee = managerEmployeeFromChoiceId(userId);
+  if(managerEmployee) return managerEmployee.email || '';
   const user = STATE.users.find(item => item.id === userId);
   return user ? user.email : '';
+}
+
+function managerEmailFromAssignment(managerId, managerLabel){
+  const directEmail = userEmail(managerId);
+  if(directEmail) return directEmail;
+  const managerEmployee = managerEmployeeFromName(managerLabel);
+  return managerEmployee ? managerEmployee.email || '' : '';
 }
 
 function managerDisplayName(employee){
@@ -1645,35 +1737,34 @@ function managerDisplayName(employee){
 
 function managerEmail(employee){
   if(!employee) return '';
-  if(employee.managerId && employee.managerId.startsWith('emp:')){
-    const managerEmployee = STATE.employees.find(item => item.id === employee.managerId.slice(4));
-    return managerEmployee ? managerEmployee.email || '' : '';
-  }
-  return userEmail(employee.managerId);
+  return managerEmailFromAssignment(employee.managerId, employee.managerName);
 }
 
-function employeeManagerCandidates(){
+function employeeManagerCandidates(options = {}){
+  const regionalOnly = Boolean(options.regionalOnly);
   return sortEmployeesByName((STATE.employees || []).filter(employee =>
     employee
     && !isEmployeeTerminated(employee)
-    && normalizeComparable(employee.role).includes('manager')
-  )).map(employee => ({id:`emp:${employee.id}`, name: employee.name}));
+    && (regionalOnly ? isRosterRegionalCandidate(employee) : isRosterManagerCandidate(employee))
+  )).map(rosterManagerChoice);
+}
+
+function legacyManagerUserChoices(){
+  return managerUsers()
+    .filter(user => !isPlaceholderManagerUser(user))
+    .map(user => ({...user, label: user.name}));
 }
 
 function primaryManagerChoices(){
-  const seen = new Set();
-  const merged = [];
+  const rosterManagers = employeeManagerCandidates();
+  return rosterManagers.length ? rosterManagers : legacyManagerUserChoices();
+}
 
-  [...managerUsers(), ...employeeManagerCandidates()].forEach(item => {
-    const id = String(item && item.id || '').trim();
-    const name = String(item && item.name || '').trim();
-    if(!id || !name) return;
-    if(seen.has(id)) return;
-    seen.add(id);
-    merged.push({id, name});
-  });
-
-  return sortedUsers(merged);
+function regionalManagerChoices(){
+  const regionalEmployees = employeeManagerCandidates({ regionalOnly: true });
+  if(regionalEmployees.length) return regionalEmployees;
+  const rosterManagers = employeeManagerCandidates();
+  return rosterManagers.length ? rosterManagers : legacyManagerUserChoices();
 }
 
 function primaryManagerSelectionValue(employee){
@@ -1681,8 +1772,38 @@ function primaryManagerSelectionValue(employee){
   if(employee.managerId) return employee.managerId;
   const target = normalizeComparable(employee.managerName);
   if(!target) return '';
-  const match = employeeManagerCandidates().find(candidate => normalizeComparable(candidate.name) === target);
+  const match = primaryManagerChoices().find(candidate => normalizeComparable(candidate.name) === target);
   return match ? match.id : '';
+}
+
+function regionalManagerSelectionValue(employee){
+  if(!employee) return '';
+  if(employee.regionalManagerId) return employee.regionalManagerId;
+  const target = normalizeComparable(employee.regionalManagerName);
+  if(!target) return '';
+  const match = regionalManagerChoices().find(candidate => normalizeComparable(candidate.name) === target);
+  return match ? match.id : '';
+}
+
+function managerAssignmentFromSelection(selectionId){
+  const selected = String(selectionId || '').trim();
+  if(!selected) return { id: '', name: '' };
+  const selectedName = managerName(selected);
+  if(selected.startsWith('emp:')) return { id: '', name: selectedName };
+  return { id: selected, name: selectedName };
+}
+
+function employeeMatchesManagerSelection(employee, selectedId, idField, nameField){
+  const selected = String(selectedId || '').trim();
+  if(!selected) return true;
+  if(String(employee && employee[idField] || '').trim() === selected) return true;
+  const selectedName = managerName(selected);
+  if(selectedName && normalizeComparable(employee && employee[nameField]) === normalizeComparable(selectedName)) return true;
+  if(selected.startsWith('emp:')){
+    const selectedEmployee = managerEmployeeFromChoiceId(selected);
+    return Boolean(selectedEmployee && normalizeComparable(employee && employee[nameField]) === normalizeComparable(selectedEmployee.name));
+  }
+  return false;
 }
 
 function regionalManagerDisplayName(employee){
@@ -1692,7 +1813,7 @@ function regionalManagerDisplayName(employee){
 
 function regionalManagerEmail(employee){
   if(!employee) return '';
-  return userEmail(employee.regionalManagerId);
+  return managerEmailFromAssignment(employee.regionalManagerId, employee.regionalManagerName);
 }
 
 function preHrReviewOverrideAllowed(employee){
@@ -1746,8 +1867,8 @@ function filteredRosterEmployees(){
   const roleSearch = normalizeComparable(filters.role);
   const community = normalizeComparable(filters.community);
   return sortedVisibleEmployees().filter(employee => {
-    if(filters.managerId && employee.managerId !== filters.managerId) return false;
-    if(filters.regionalManagerId && employee.regionalManagerId !== filters.regionalManagerId) return false;
+    if(filters.managerId && !employeeMatchesManagerSelection(employee, filters.managerId, 'managerId', 'managerName')) return false;
+    if(filters.regionalManagerId && !employeeMatchesManagerSelection(employee, filters.regionalManagerId, 'regionalManagerId', 'regionalManagerName')) return false;
     if(filters.region && employee.region !== filters.region) return false;
     if(community && !normalizeComparable(employee.community).includes(community)) return false;
     if(roleSearch && !normalizeComparable(employee.role).includes(roleSearch)) return false;
@@ -1773,7 +1894,7 @@ function filteredRosterEmployees(){
 function assignableManagers(){
   if(!STATE.currentUser) return [];
   return STATE.currentUser.role === 'admin'
-    ? managerUsers()
+    ? primaryManagerChoices()
     : managerUsers().filter(user => user.id === STATE.currentUser.id);
 }
 
@@ -1782,12 +1903,14 @@ function renderManagerOptions(selectedId, blankLabel, list, fallbackSelectedLabe
   const selectedExists = selectedId && users.some(user => user.id === selectedId);
   const options = [
     `<option value="" ${!selectedExists && fallbackSelectedLabel ? 'selected' : ''}>${escapeHtml(fallbackSelectedLabel || blankLabel || 'Select manager')}</option>`,
-    ...users.map(user => `<option value="${user.id}" ${user.id === selectedId ? 'selected' : ''}>${escapeHtml(user.name)}</option>`)
+    ...users.map(user => `<option value="${escapeHtml(user.id)}" ${user.id === selectedId ? 'selected' : ''}>${escapeHtml(user.label || user.name)}</option>`)
   ];
   return options.join('');
 }
 
 function resolveManagerId(rawId, rawName){
+  const rawValue = String(rawId || '').trim();
+  if(rawValue.startsWith('emp:') && managerEmployeeFromChoiceId(rawValue)) return rawValue;
   const byId = normalizeComparable(rawId);
   if(byId){
     const idMatch = STATE.users.find(user => normalizeComparable(user.id) === byId);
@@ -1796,6 +1919,11 @@ function resolveManagerId(rawId, rawName){
 
   const byName = normalizeComparable(rawName);
   if(byName){
+    const employeeMatch = employeeManagerCandidates().find(employee => {
+      const name = normalizeComparable(employee.name);
+      return name === byName || name.replace(/\s+/g, '_') === byName;
+    });
+    if(employeeMatch) return employeeMatch.id;
     const nameMatch = STATE.users.find(user => {
       const name = normalizeComparable(user.name);
       return name === byName || name.replace(/\s+/g, '_') === byName;
@@ -6199,16 +6327,25 @@ async function handlePlanSourceUpload(event){
 }
 
 function applyEmployeeRosterFilters(){
-  UI.employeeRosterFilters = {
-    search: String(document.getElementById('roster-filter-search').value || '').trim(),
-    role: String(document.getElementById('roster-filter-role').value || '').trim(),
-    managerId: String(document.getElementById('roster-filter-manager').value || ''),
-    regionalManagerId: String(document.getElementById('roster-filter-regional-manager').value || ''),
-    region: String(document.getElementById('roster-filter-region').value || ''),
-    community: String(document.getElementById('roster-filter-community').value || '').trim(),
-    status: String(document.getElementById('roster-filter-status').value || 'all')
-  };
+  UI.employeeRosterFilters = readEmployeeRosterFiltersFromDom();
   render();
+}
+
+function readEmployeeRosterFiltersFromDom(){
+  const current = employeeRosterFilters();
+  const fieldValue = (id, fallback = '') => {
+    const field = document.getElementById(id);
+    return field ? String(field.value || '') : fallback;
+  };
+  return {
+    search: fieldValue('roster-filter-search', current.search).trim(),
+    role: fieldValue('roster-filter-role', current.role).trim(),
+    managerId: fieldValue('roster-filter-manager', current.managerId),
+    regionalManagerId: fieldValue('roster-filter-regional-manager', current.regionalManagerId),
+    region: fieldValue('roster-filter-region', current.region),
+    community: fieldValue('roster-filter-community', current.community).trim(),
+    status: fieldValue('roster-filter-status', current.status || 'all') || 'all'
+  };
 }
 
 function clearEmployeeRosterFilters(){
@@ -6297,7 +6434,7 @@ function renderEmployees(){
             </select></div>
           </div>
           <div class="form-grid cols-2" style="margin-top:12px">
-            <div><label>Regional alert owner</label><select id="emp-regional-manager" ${isAdmin ? '' : 'disabled'}>${renderManagerOptions(defaultRegionalManagerId, 'Select regional alert owner', managerUsers())}</select></div>
+            <div><label>Regional alert owner</label><select id="emp-regional-manager" ${isAdmin ? '' : 'disabled'}>${renderManagerOptions(defaultRegionalManagerId, 'Select regional alert owner', regionalManagerChoices())}</select></div>
             <div><label>Status</label><input value="Active" disabled></div>
           </div>
           <div class="form-grid cols-2" style="margin-top:12px">
@@ -6357,7 +6494,7 @@ function renderEmployees(){
             </div>
             <div>
               <label>Set regional alert owner</label>
-              <select id="bulk-set-regional-manager">${renderManagerOptions('', 'Leave unchanged', managerUsers())}</select>
+              <select id="bulk-set-regional-manager">${renderManagerOptions('', 'Leave unchanged', regionalManagerChoices())}</select>
             </div>
           </div>
           <div style="margin-top:12px">
@@ -6399,11 +6536,11 @@ function renderEmployees(){
               </div>
               <div>
                 <label>Manager</label>
-                <select id="roster-filter-manager">${renderManagerOptions(rosterFilters.managerId, 'All managers', managerUsers())}</select>
+                <select id="roster-filter-manager">${renderManagerOptions(rosterFilters.managerId, 'All managers', primaryManagerChoices())}</select>
               </div>
               <div>
                 <label>Regional alert owner</label>
-                <select id="roster-filter-regional-manager">${renderManagerOptions(rosterFilters.regionalManagerId, 'All regional owners', managerUsers())}</select>
+                <select id="roster-filter-regional-manager">${renderManagerOptions(rosterFilters.regionalManagerId, 'All regional owners', regionalManagerChoices())}</select>
               </div>
             </div>
             <div class="form-grid cols-3" style="margin-top:12px">
@@ -6430,6 +6567,7 @@ function renderEmployees(){
             <div class="inline" style="margin-top:14px">
               <button class="btn btn-primary" onclick="applyEmployeeRosterFilters()">Apply filters</button>
               <button class="btn btn-soft" onclick="clearEmployeeRosterFilters()">Clear filters</button>
+              <button class="btn btn-soft" onclick="downloadFilteredRosterExport()">Export filtered roster</button>
             </div>
           </div>
           <div class="table-wrap">
@@ -6459,12 +6597,12 @@ function renderEmployees(){
                       </td>
                       <td>
                         <select onchange="updateEmployeeManager('${employee.id}', this.value)" ${isAdmin ? '' : 'disabled'}>
-                          ${renderManagerOptions(primaryManagerSelectionValue(employee), isAdmin ? 'Unassigned' : (managerDisplayName(employee) || 'Assigned to you'), isAdmin ? primaryManagerChoices() : assignableManagers(), primaryManagerSelectionValue(employee) ? '' : (managerDisplayName(employee) || 'Unlinked manager mapping'))}
+                          ${renderManagerOptions(primaryManagerSelectionValue(employee), isAdmin ? 'Unassigned' : (managerDisplayName(employee) || 'Assigned to you'), isAdmin ? primaryManagerChoices() : assignableManagers(), primaryManagerSelectionValue(employee) ? '' : managerFallbackLabel(managerDisplayName(employee), 'Unlinked manager mapping'))}
                         </select>
                       </td>
                       <td>
                         <select onchange="updateEmployeeRegionalManager('${employee.id}', this.value)" ${isAdmin ? '' : 'disabled'}>
-                          ${renderManagerOptions(employee.regionalManagerId || '', isAdmin ? 'Unassigned' : (regionalManagerDisplayName(employee) || 'Restricted'), managerUsers(), employee.regionalManagerId ? '' : (regionalManagerDisplayName(employee) || 'No regional owner'))}
+                          ${renderManagerOptions(regionalManagerSelectionValue(employee), isAdmin ? 'Unassigned' : (regionalManagerDisplayName(employee) || 'Restricted'), regionalManagerChoices(), regionalManagerSelectionValue(employee) ? '' : managerFallbackLabel(regionalManagerDisplayName(employee), 'No regional owner'))}
                         </select>
                       </td>
                       <td><input value="${escapeHtml(employee.role || '')}" list="role-options" onchange="updateEmployeeField('${employee.id}','role', this.value)"></td>
@@ -6771,11 +6909,14 @@ function addEmployee(){
   }
 
   const managerField = document.getElementById('emp-manager');
-  const managerId = (STATE.currentUser && STATE.currentUser.role !== 'admin') ? STATE.currentUser.id : (managerField ? managerField.value : '');
-  const managerLabel = managerId ? managerName(managerId) : (STATE.currentUser && STATE.currentUser.role !== 'admin' ? STATE.currentUser.name : '');
+  const selectedManagerId = (STATE.currentUser && STATE.currentUser.role !== 'admin') ? STATE.currentUser.id : (managerField ? managerField.value : '');
+  const managerAssignment = selectedManagerId ? managerAssignmentFromSelection(selectedManagerId) : { id: '', name: STATE.currentUser && STATE.currentUser.role !== 'admin' ? STATE.currentUser.name : '' };
+  const managerId = managerAssignment.id;
+  const managerLabel = managerAssignment.name;
   const regionalManagerField = document.getElementById('emp-regional-manager');
-  const regionalManagerId = regionalManagerField ? regionalManagerField.value : '';
-  const regionalManagerLabel = regionalManagerId ? managerName(regionalManagerId) : '';
+  const regionalManagerAssignment = managerAssignmentFromSelection(regionalManagerField ? regionalManagerField.value : '');
+  const regionalManagerId = regionalManagerAssignment.id;
+  const regionalManagerLabel = regionalManagerAssignment.name;
   const effectiveDate = normalizeIsoDate(document.getElementById('emp-effective-date').value);
   if(!effectiveDate){
     alert('Choose an effective date for this employee record.');
@@ -6981,14 +7122,9 @@ function updateEmployeeManager(id, managerId){
   }
   let nextManagerId = '';
   let nextManagerName = '';
-  if(selected.startsWith('emp:')){
-    const empId = selected.slice(4);
-    const managerEmployee = (STATE.employees || []).find(item => item && item.id === empId);
-    nextManagerName = managerEmployee ? managerEmployee.name : '';
-  }else{
-    nextManagerId = selected;
-    nextManagerName = nextManagerId ? managerName(nextManagerId) : '';
-  }
+  const managerAssignment = managerAssignmentFromSelection(selected);
+  nextManagerId = managerAssignment.id;
+  nextManagerName = managerAssignment.name;
   const result = recordEmployeeChange(id, 'manager_change', {
     managerId: nextManagerId,
     managerName: nextManagerName
@@ -7012,10 +7148,10 @@ function updateEmployeeRegionalManager(id, managerId){
     render();
     return;
   }
-  const nextRegionalManagerId = String(managerId || '').trim();
+  const regionalManagerAssignment = managerAssignmentFromSelection(managerId);
   const result = recordEmployeeChange(id, 'regional_owner_change', {
-    regionalManagerId: nextRegionalManagerId,
-    regionalManagerName: nextRegionalManagerId ? managerName(nextRegionalManagerId) : ''
+    regionalManagerId: regionalManagerAssignment.id,
+    regionalManagerName: regionalManagerAssignment.name
   }, { effectiveDate });
   if(!result.ok){
     alert(result.message || 'The regional owner change was not saved.');
@@ -7046,8 +7182,8 @@ function openPromoteEmployeeModal(id){
       </div>
       <div class="form-grid cols-2">
         <div>
-          <label>New title</label>
-          <input id="promote-role" list="role-options" value="${escapeHtml(employee.role || '')}">
+          <label>New job title</label>
+          <input id="promote-role" list="role-options" value="${escapeHtml(employee.role || '')}" placeholder="Select or type job title">
         </div>
         <div>
           <label>New community/property</label>
@@ -7057,11 +7193,11 @@ function openPromoteEmployeeModal(id){
       <div class="form-grid cols-2" style="margin-top:12px">
         <div>
           <label>New direct manager</label>
-          <select id="promote-manager">${renderManagerOptions(employee.managerId || '', 'Select manager', managerUsers())}</select>
+          <select id="promote-manager">${renderManagerOptions(primaryManagerSelectionValue(employee), 'Select manager', primaryManagerChoices(), primaryManagerSelectionValue(employee) ? '' : managerFallbackLabel(managerDisplayName(employee), 'Select manager'))}</select>
         </div>
         <div>
           <label>New regional alert owner</label>
-          <select id="promote-regional-manager">${renderManagerOptions(employee.regionalManagerId || '', 'Select regional alert owner', managerUsers())}</select>
+          <select id="promote-regional-manager">${renderManagerOptions(regionalManagerSelectionValue(employee), 'Select regional alert owner', regionalManagerChoices(), regionalManagerSelectionValue(employee) ? '' : managerFallbackLabel(regionalManagerDisplayName(employee), 'Select regional alert owner'))}</select>
         </div>
       </div>
       <div style="margin-top:12px">
@@ -7093,6 +7229,8 @@ function saveEmployeePromotion(id){
   const nextRegionalManagerId = String(document.getElementById('promote-regional-manager').value || '').trim();
   const nextRegion = String(document.getElementById('promote-region').value || '').trim();
   const note = String(document.getElementById('promote-note').value || '').trim();
+  const managerAssignment = managerAssignmentFromSelection(nextManagerId);
+  const regionalManagerAssignment = managerAssignmentFromSelection(nextRegionalManagerId);
 
   if(!effectiveDate){
     alert('Choose an effective date for this employee change.');
@@ -7102,10 +7240,10 @@ function saveEmployeePromotion(id){
   const result = recordEmployeeChange(id, 'promotion', {
     role: nextRole,
     community: nextCommunity,
-    managerId: nextManagerId,
-    managerName: nextManagerId ? managerName(nextManagerId) : '',
-    regionalManagerId: nextRegionalManagerId,
-    regionalManagerName: nextRegionalManagerId ? managerName(nextRegionalManagerId) : '',
+    managerId: managerAssignment.id,
+    managerName: managerAssignment.name,
+    regionalManagerId: regionalManagerAssignment.id,
+    regionalManagerName: regionalManagerAssignment.name,
     region: nextRegion
   }, { effectiveDate, reason: note });
   if(!result.ok){
@@ -7187,8 +7325,8 @@ function reactivateEmployee(id){
         </select></div>
       </div>
       <div class="form-grid cols-2" style="margin-top:12px">
-        <div><label>Direct manager</label><select id="reactivate-manager">${renderManagerOptions(employee.managerId || '', 'Select manager', managerUsers())}</select></div>
-        <div><label>Regional alert owner</label><select id="reactivate-regional-manager">${renderManagerOptions(employee.regionalManagerId || '', 'Select regional alert owner', managerUsers())}</select></div>
+        <div><label>Direct manager</label><select id="reactivate-manager">${renderManagerOptions(primaryManagerSelectionValue(employee), 'Select manager', primaryManagerChoices(), primaryManagerSelectionValue(employee) ? '' : managerFallbackLabel(managerDisplayName(employee), 'Select manager'))}</select></div>
+        <div><label>Regional alert owner</label><select id="reactivate-regional-manager">${renderManagerOptions(regionalManagerSelectionValue(employee), 'Select regional alert owner', regionalManagerChoices(), regionalManagerSelectionValue(employee) ? '' : managerFallbackLabel(regionalManagerDisplayName(employee), 'Select regional alert owner'))}</select></div>
       </div>
       <div style="margin-top:12px">
         <label>Reactivation note</label>
@@ -7212,15 +7350,17 @@ function saveEmployeeReactivation(id){
   }
   const managerId = String(document.getElementById('reactivate-manager').value || '').trim();
   const regionalManagerId = String(document.getElementById('reactivate-regional-manager').value || '').trim();
+  const managerAssignment = managerAssignmentFromSelection(managerId);
+  const regionalManagerAssignment = managerAssignmentFromSelection(regionalManagerId);
   const result = recordEmployeeChange(id, 'reactivation', {
     status: 'Active',
     role: String(document.getElementById('reactivate-role').value || '').trim() || employee.role || 'Employee',
     community: String(document.getElementById('reactivate-community').value || '').trim() || employee.community || '',
     region: String(document.getElementById('reactivate-region').value || '').trim(),
-    managerId,
-    managerName: managerId ? managerName(managerId) : '',
-    regionalManagerId,
-    regionalManagerName: regionalManagerId ? managerName(regionalManagerId) : '',
+    managerId: managerAssignment.id,
+    managerName: managerAssignment.name,
+    regionalManagerId: regionalManagerAssignment.id,
+    regionalManagerName: regionalManagerAssignment.name,
     terminationDate: '',
     terminationReason: ''
   }, { effectiveDate, reason: String(document.getElementById('reactivate-note').value || '').trim() });
@@ -7257,15 +7397,7 @@ function applyBulkAssignments(){
     if(isEmployeeTerminated(employee)) return false;
     if(matchRegion && employee.region !== matchRegion) return false;
     if(matchCommunity && normalizeComparable(employee.community) !== normalizeComparable(matchCommunity)) return false;
-    if(matchManagerId){
-      if(matchManagerId.startsWith('emp:')){
-        const empId = matchManagerId.slice(4);
-        const managerEmployee = (STATE.employees || []).find(item => item && item.id === empId);
-        if(!managerEmployee || normalizeComparable(employee.managerName) !== normalizeComparable(managerEmployee.name)) return false;
-      }else if(employee.managerId !== matchManagerId){
-        return false;
-      }
-    }
+    if(matchManagerId && !employeeMatchesManagerSelection(employee, matchManagerId, 'managerId', 'managerName')) return false;
     return true;
   });
 
@@ -7274,20 +7406,14 @@ function applyBulkAssignments(){
   matches.forEach(employee => {
     const nextValues = {};
     if(setManagerId){
-      const selected = String(setManagerId || '').trim();
-      if(selected.startsWith('emp:')){
-        const empId = selected.slice(4);
-        const managerEmployee = (STATE.employees || []).find(item => item && item.id === empId);
-        nextValues.managerId = '';
-        nextValues.managerName = managerEmployee ? managerEmployee.name : '';
-      }else{
-        nextValues.managerId = selected;
-        nextValues.managerName = managerName(selected);
-      }
+      const managerAssignment = managerAssignmentFromSelection(setManagerId);
+      nextValues.managerId = managerAssignment.id;
+      nextValues.managerName = managerAssignment.name;
     }
     if(setRegionalManagerId){
-      nextValues.regionalManagerId = setRegionalManagerId;
-      nextValues.regionalManagerName = managerName(setRegionalManagerId);
+      const regionalManagerAssignment = managerAssignmentFromSelection(setRegionalManagerId);
+      nextValues.regionalManagerId = regionalManagerAssignment.id;
+      nextValues.regionalManagerName = regionalManagerAssignment.name;
     }
     const result = recordEmployeeChange(employee.id, 'bulk_assignment', nextValues, {
       effectiveDate,
@@ -7431,13 +7557,70 @@ function handleRosterUpload(event){
 function downloadRosterTemplate(){
   const csv = [
     '"Name","Community","Effective Date","Region","Role","Department","Work Email","Employee Number","Status","Status Type","Manager","Regional Manager"',
-    '"Jane Smith","Nocatee","2026-08-01","east","Leasing Professional","LP - Nocatee","jane.smith@risere.com","681151","Active","Full Time","West Manager","East Manager"',
-    '"John Doe","Pilots Pointe","2026-08-01","east","Leasing Manager","LM - Pilots Pointe","john.doe@risere.com","681152","Active","Full Time","Student Manager 1","West Manager"'
+    '"Jane Smith","Nocatee","2026-08-01","east","Leasing Professional","LP - Nocatee","jane.smith@risere.com","681151","Active","Full Time","Olivia Gill","Alana Savoi"',
+    '"John Doe","Pilots Pointe","2026-08-01","east","Leasing Manager","LM - Pilots Pointe","john.doe@risere.com","681152","Active","Full Time","Marcus Dall","Ashley Brov"'
   ].join('\n');
   const link = document.createElement('a');
   link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
   link.download = 'RISE_Roster_Template.csv';
   link.click();
+}
+
+function csvCell(value){
+  const text = String(value == null ? '' : value);
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function downloadFilteredRosterExport(){
+  UI.employeeRosterFilters = readEmployeeRosterFiltersFromDom();
+  const rows = filteredRosterEmployees();
+  if(!rows.length){
+    alert('No roster rows match the current filters.');
+    return;
+  }
+  const header = [
+    'Name',
+    'Work Email',
+    'Employee Number',
+    'Department',
+    'Role',
+    'Community',
+    'Area / Region',
+    'Status',
+    'Status Type',
+    'Manager',
+    'Regional Alert Owner',
+    'Termination Date',
+    'Termination Reason',
+    'Active Plan Count'
+  ];
+  const csvRows = [header, ...rows.map(employee => {
+    const activePlanCount = visiblePlans().filter(plan => plan.employeeId === employee.id && plan.status === 'active').length;
+    return [
+      employee.name || '',
+      employee.email || '',
+      employee.employeeNumber || '',
+      employee.department || '',
+      employee.role || '',
+      employee.community || '',
+      employee.region && REGIONS[employee.region] ? REGIONS[employee.region].name : (employee.region || ''),
+      employeeStatusLabel(employee),
+      employee.statusType || '',
+      managerDisplayName(employee),
+      regionalManagerDisplayName(employee),
+      employee.terminationDate || '',
+      employee.terminationReason || '',
+      activePlanCount
+    ];
+  })].map(row => row.map(csvCell).join(','));
+  const csv = csvRows.join('\n');
+  const link = document.createElement('a');
+  const blob = new Blob([`\ufeff${csv}`], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  link.href = url;
+  link.download = `RISE_Filtered_Roster_${today()}.csv`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function renderShopScoreSummary(scores){
@@ -9160,8 +9343,8 @@ function employeeMatchesReportFilters(employee){
   if(!employee) return false;
   const filters = UI.reportFilters;
   if(filters.employeeId && employee.id !== filters.employeeId) return false;
-  if(filters.managerId && employee.managerId !== filters.managerId) return false;
-  if(filters.regionalManagerId && employee.regionalManagerId !== filters.regionalManagerId) return false;
+  if(filters.managerId && !employeeMatchesManagerSelection(employee, filters.managerId, 'managerId', 'managerName')) return false;
+  if(filters.regionalManagerId && !employeeMatchesManagerSelection(employee, filters.regionalManagerId, 'regionalManagerId', 'regionalManagerName')) return false;
   if(filters.region && employee.region !== filters.region) return false;
   if(filters.community && normalizeComparable(employee.community) !== normalizeComparable(filters.community)) return false;
   return true;
@@ -9454,11 +9637,11 @@ function renderCallReviewDashboard(){
           <div class="form-grid cols-3">
             <div>
               <label>Manager</label>
-              <select onchange="setReportFilter('managerId', this.value)">${renderManagerOptions(UI.reportFilters.managerId, 'All managers', managerUsers())}</select>
+              <select onchange="setReportFilter('managerId', this.value)">${renderManagerOptions(UI.reportFilters.managerId, 'All managers', primaryManagerChoices())}</select>
             </div>
             <div>
               <label>Regional alert owner</label>
-              <select onchange="setReportFilter('regionalManagerId', this.value)">${renderManagerOptions(UI.reportFilters.regionalManagerId, 'All regional owners', managerUsers())}</select>
+              <select onchange="setReportFilter('regionalManagerId', this.value)">${renderManagerOptions(UI.reportFilters.regionalManagerId, 'All regional owners', regionalManagerChoices())}</select>
             </div>
             <div>
               <label>Employee</label>
@@ -9787,11 +9970,11 @@ function renderExport(){
           <div class="form-grid cols-3">
             <div>
               <label>Manager</label>
-              <select onchange="setReportFilter('managerId', this.value)">${renderManagerOptions(UI.reportFilters.managerId, 'All managers', managerUsers())}</select>
+              <select onchange="setReportFilter('managerId', this.value)">${renderManagerOptions(UI.reportFilters.managerId, 'All managers', primaryManagerChoices())}</select>
             </div>
             <div>
               <label>Regional alert owner</label>
-              <select onchange="setReportFilter('regionalManagerId', this.value)">${renderManagerOptions(UI.reportFilters.regionalManagerId, 'All regional owners', managerUsers())}</select>
+              <select onchange="setReportFilter('regionalManagerId', this.value)">${renderManagerOptions(UI.reportFilters.regionalManagerId, 'All regional owners', regionalManagerChoices())}</select>
             </div>
             <div>
               <label>Employee</label>
@@ -11609,8 +11792,38 @@ function removeUser(userId){
   render();
 }
 
+function embeddedModalViewport(){
+  if(!ATLAS_EMBEDDED_MODE) return null;
+  try{
+    const frame = window.frameElement;
+    const parentWindow = window.parent;
+    if(!frame || !parentWindow || parentWindow === window) return null;
+    const rect = frame.getBoundingClientRect();
+    const parentHeight = Number(parentWindow.innerHeight) || 0;
+    const visibleTop = Math.max(0, -rect.top);
+    const visibleBottom = Math.min(rect.height, parentHeight - rect.top);
+    const visibleHeight = Math.max(360, visibleBottom - visibleTop);
+    return { top: visibleTop, height: visibleHeight };
+  }catch(err){
+    return null;
+  }
+}
+
+function positionEmbeddedModal(overlay){
+  const viewport = embeddedModalViewport();
+  if(!overlay || !viewport) return;
+  const top = Math.max(20, viewport.top + 24);
+  const maxHeight = Math.max(320, Math.min(viewport.height - 48, 820));
+  overlay.classList.add('embedded-modal');
+  overlay.style.setProperty('--embedded-modal-offset', `${top}px`);
+  overlay.style.setProperty('--embedded-modal-max-height', `${maxHeight}px`);
+}
+
 function openModal(html){
-  document.getElementById('modal-root').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">${html}</div>`;
+  const root = document.getElementById('modal-root');
+  if(!root) return;
+  root.innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">${html}</div>`;
+  positionEmbeddedModal(root.querySelector('.modal-overlay'));
 }
 
 function closeModal(){

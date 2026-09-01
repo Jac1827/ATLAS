@@ -162,6 +162,7 @@
   .atlas-dashboard-field label,
   .atlas-dashboard-section-label { font-size:0.62rem; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); }
   .atlas-dashboard-field .sub { font-size:0.66rem; color:var(--muted); line-height:1.45; }
+  .atlas-dashboard-readonly-value { min-height:38px; display:flex; align-items:center; padding:0 12px; border:1px solid var(--border); border-radius:8px; background:var(--soft); color:var(--text); font-size:0.78rem; font-weight:700; }
   .atlas-dashboard-view-summary { display:flex; flex-wrap:wrap; gap:6px; }
   .atlas-dashboard-library { display:grid; gap:10px; border:1px solid var(--border); border-radius:12px; padding:12px; background:linear-gradient(180deg,#ffffff 0%,#f8fafc 100%); }
   .atlas-dashboard-library-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; }
@@ -197,6 +198,23 @@
   @media(max-width:700px){ .atlas-dashboard-layout-grid,.atlas-dashboard-controls,.atlas-dashboard-config-grid { grid-template-columns:1fr; } .atlas-dashboard-widget-card,.atlas-dashboard-widget-card.is-compact,.atlas-dashboard-widget-card.is-expanded { grid-column:auto; } }
   @media(max-width:980px){ .atlas-access-grid { grid-template-columns:1fr; } .atlas-live-users { max-width:100%; width:100%; } }
   .content-shell { min-width:0; }
+  #atlas-topbar .atlas-topbar-brand {
+    display:flex;
+    align-items:center;
+    gap:9px;
+    min-width:max-content;
+  }
+  #atlas-topbar .atlas-topbar-brand > img {
+    display:block;
+    width:34px !important;
+    height:34px !important;
+    min-width:34px;
+    max-width:34px !important;
+    max-height:34px !important;
+    flex:0 0 34px;
+    object-fit:cover;
+    border-radius:10px;
+  }
   .side-nav { position:sticky; top:14px; align-self:start; background:rgba(255,255,255,0.94); border:1px solid var(--border); border-radius:16px; padding:10px; box-shadow:0 12px 28px rgba(15,23,42,0.06); transition:width 0.18s ease,padding 0.18s ease; }
   .side-nav-brand { display:grid; justify-items:center; gap:8px; padding:6px 4px 12px; border-bottom:1px solid var(--border2); margin-bottom:8px; }
   .side-nav-brand-logo { width:100%; max-width:206px; height:82px; object-fit:contain; justify-self:center; }
@@ -891,6 +909,7 @@
 <!-- ATLAS Redesign v2 presentation layer — loaded last so it overrides the base
      styles above. Presentation only; no dashboard logic depends on it. -->
 <link rel="stylesheet" href="atlas-redesign.css"/>
+<link rel="stylesheet" href="central-services.css?v=20260831-eviction-renderfix"/>
 </head>
 <body>
 <div class="container">
@@ -945,6 +964,7 @@
         <button class="tab" data-tab="1" onclick="setTab(1)" aria-label="Communities"><i class="tab-icon ph ph-buildings" aria-hidden="true"></i><span class="tab-label">Communities</span></button>
 
         <div class="nav-group-label">Operations</div>
+        <button class="tab" data-tab="15" onclick="setTab(15)" aria-label="Central Services"><i class="tab-icon ph ph-command" aria-hidden="true"></i><span class="tab-label">Central Services</span></button>
         <button class="tab" data-tab="3" onclick="setTab(3)" aria-label="Traffic and Funnel"><i class="tab-icon ph ph-funnel" aria-hidden="true"></i><span class="tab-label">Traffic &amp; Funnel</span></button>
         <button class="tab" data-tab="4" onclick="setTab(4)" aria-label="Comp Calculator"><i class="tab-icon ph ph-calculator" aria-hidden="true"></i><span class="tab-label">Comp Calculator</span></button>
         <button class="tab" data-tab="5" onclick="setTab(5)" aria-label="Renewals"><i class="tab-icon ph ph-arrows-clockwise" aria-hidden="true"></i><span class="tab-label">Renewals</span></button>
@@ -969,33 +989,18 @@
     </aside>
     <main class="content-shell">
 
-  <!-- Sticky context header (redesign): scope + period mirror the sidebar
-       selects, chips report budget state and upload freshness. -->
+  <!-- Sticky context header: the sidebar owns community and reporting-month selection. -->
   <header class="atlas-topbar" id="atlas-topbar">
-    <div class="atlas-topbar-field">
-      <span class="atlas-topbar-label">Scope</span>
-      <select id="atlas-topbar-scope" onchange="onWorkspaceCommunitySelect(this.value)" aria-label="Scope"></select>
-    </div>
-    <div class="atlas-topbar-field">
-      <span class="atlas-topbar-label">Period</span>
-      <select id="atlas-topbar-period" aria-label="Period">
-        <option value="0">January</option>
-        <option value="1">February</option>
-        <option value="2">March</option>
-        <option value="3">April</option>
-        <option value="4">May</option>
-        <option value="5">June</option>
-        <option value="6">July</option>
-        <option value="7">August</option>
-        <option value="8">September</option>
-        <option value="9">October</option>
-        <option value="10">November</option>
-        <option value="11">December</option>
-      </select>
+    <div class="atlas-topbar-brand" aria-label="ATLAS Portfolio Tracker Reports">
+      <img src="assets/atlas-icon.png" alt="" aria-hidden="true">
+      <div>
+        <div class="atlas-topbar-brand-word">ATLAS</div>
+        <div class="atlas-topbar-brand-subtitle">Portfolio · Tracker · Reports</div>
+      </div>
     </div>
     <div class="atlas-topbar-chips">
       <span class="atlas-chip is-accent" id="atlas-chip-budget"><i class="ph ph-file-text" aria-hidden="true"></i><span>Monthly upload</span></span>
-      <span class="atlas-chip" id="atlas-chip-freshness"><i class="ph ph-database" aria-hidden="true"></i><span>No rows in review</span></span>
+      <span class="atlas-chip" id="atlas-chip-freshness"><i class="ph ph-database" aria-hidden="true"></i><span>Viewing data</span></span>
     </div>
     <div class="atlas-live-users is-muted" id="atlas-live-users" title="Signed-in ATLAS users active in the last few minutes">
       <i class="ph ph-broadcast" aria-hidden="true"></i>
@@ -1046,6 +1051,7 @@
   <div id="tab-panel-12" class="tab-panel" style="display:none"></div>
   <div id="tab-panel-13" class="tab-panel" style="display:none"></div>
   <div id="tab-panel-14" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-15" class="tab-panel" style="display:none"></div>
 
     </main>
   </div>
@@ -1054,7 +1060,8 @@
 
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=20260821-people-access"></script>
-<script src="./centralization/atlas-central-client.js?v=20260825-access-cors" data-atlas-central-client="true"></script>
+<script src="./centralization/atlas-central-client.js?v=20260901-dlr-reporting" data-atlas-central-client="true"></script>
+<script src="./central-services.js?v=20260831-eviction-renderfix"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -2221,8 +2228,10 @@ function syncSharedPropertyFromPortfolioRecord(propName, record, options = {}) {
     source: options.source || ATLAS_SHARED_PROPERTY_SOURCE_ID,
     timestamp,
     forceFields: options.forceFields,
-    strictMarket: true,
-    strictPropertyType: true
+    // A status-only change must not be blocked by incomplete optional setup
+    // fields such as market or property type.
+    strictMarket: options.strictMarket !== false,
+    strictPropertyType: options.strictPropertyType !== false
   });
   if (result.record) {
     Object.assign(record, atlasProjectSharedPropertyToCommunityRecord(result.record, record));
@@ -2567,7 +2576,9 @@ let corporateLeaseUnits = 0;
 let investorName = "";
 let communityStatus = "active";
 let investorEmailContacts = [];
-let dlrAutoDeliveryTriggeredKeys = new Set();
+let dlrCentralStatusByCommunity = {};
+let dlrCentralPublishBusy = false;
+let dlrCentralRunBusy = false;
 let activeTab = 0;
 let reputationData = defaultReputationData();
 let communityPhotoBank = [];
@@ -3202,7 +3213,17 @@ function normalizeReportHubType(value) {
     market_to_subject_report: "market_comparison",
     lvr: "leasing_velocity",
     lvr_template: "leasing_velocity",
-    leasing_velocity_report: "leasing_velocity"
+    leasing_velocity_report: "leasing_velocity",
+    renewal_performance_report: "renewal_performance",
+    renewal_report: "renewal_performance",
+    renewals: "renewal_performance",
+    budget_vs_actual_financial_review: "financial_review",
+    financial_review_report: "financial_review",
+    budget_actual_review: "financial_review",
+    eviction_report: "eviction_report",
+    evictions: "eviction_report",
+    delinquency_report: "eviction_report",
+    stipulation_report: "eviction_report"
   };
   const mapped = legacyMap[normalized] || normalized || "investor_snapshot";
   return [
@@ -3213,7 +3234,10 @@ function normalizeReportHubType(value) {
     "bonus_payout",
     "community_progress",
     "market_comparison",
-    "leasing_velocity"
+    "leasing_velocity",
+    "renewal_performance",
+    "financial_review",
+    "eviction_report"
   ].includes(mapped) ? mapped : "investor_snapshot";
 }
 
@@ -6827,6 +6851,17 @@ function normalizeRenewalDetailRowsByMonth(input) {
   );
 }
 
+function normalizeRenewalDetailRowsByPeriod(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  return Object.fromEntries(Object.entries(input).flatMap(([periodKey, rows]) => {
+    const parsed = parsePeriodKey(periodKey);
+    if (!parsed || !Array.isArray(rows)) return [];
+    return [[buildPeriodKey(parsed.monthIdx, parsed.year), rows
+      .map(row => (row && typeof row === "object" ? { ...row } : row))
+      .filter(Boolean)]];
+  }));
+}
+
 function defaultDlrDeliverySettings() {
   return {
     frequencyMode: "manual",
@@ -6975,6 +7010,7 @@ function defaultSavedCommunityRecord(propName = getProp().name) {
     conversionRate: 65,
     monthlyData: defaultMonthly(),
     renewalDetailRowsByMonth: defaultRenewalDetailRowsByMonth(),
+    renewalDetailRowsByPeriod: {},
     savedBudgetTargets: Array(12).fill(0),
     seasonal: [...DEFAULT_SEASONAL],
     importMonthOverride: DEFAULT_CURRENT_MONTH,
@@ -7062,6 +7098,7 @@ function normalizeSavedCommunityRecord(propName, data) {
     conversionRate: Number(input.conversionRate ?? defaults.conversionRate),
     monthlyData: repairedMonthlyData,
     renewalDetailRowsByMonth: normalizeRenewalDetailRowsByMonth(input.renewalDetailRowsByMonth),
+    renewalDetailRowsByPeriod: normalizeRenewalDetailRowsByPeriod(input.renewalDetailRowsByPeriod),
     savedBudgetTargets: normalizedSavedBudgetTargets,
     seasonal: Array.isArray(input.seasonal) && input.seasonal.length === 12 ? input.seasonal : defaults.seasonal,
     importMonthOverride: Number.isInteger(input.importMonthOverride) ? input.importMonthOverride : Number(input.importMonthOverride ?? defaults.importMonthOverride),
@@ -7134,6 +7171,7 @@ function getCurrentCommunityRecord() {
     conversionRate,
     monthlyData,
     renewalDetailRowsByMonth,
+    renewalDetailRowsByPeriod: baseRecord.renewalDetailRowsByPeriod,
     savedBudgetTargets,
     seasonal,
     importMonthOverride,
@@ -9111,6 +9149,10 @@ function aggregateCommunitySummaries(summaries) {
     }
     acc.budgetOccUnits += summary.budgetOccUnits;
     acc.budgetLeasedUnits += summary.budgetLeasedUnits;
+    // Portfolio budget gaps represent the total recovery needed across
+    // communities; a surplus at one property cannot close another's gap.
+    acc.occGapUnits += Math.max(Number(summary.occGapUnits) || 0, 0);
+    acc.leasedGapUnits += Math.max(Number(summary.leasedGapUnits) || 0, 0);
     acc.guestCards += summary.guestCards;
     acc.previousGuestCards += summary.previousGuestCards;
     acc.guestCardGoal += summary.guestCardGoal;
@@ -9195,6 +9237,8 @@ function aggregateCommunitySummaries(summaries) {
     avgOccGapPtsCount: 0,
     budgetOccUnits: 0,
     budgetLeasedUnits: 0,
+    occGapUnits: 0,
+    leasedGapUnits: 0,
     guestCards: 0,
     previousGuestCards: 0,
     guestCardGoal: 0,
@@ -9287,8 +9331,8 @@ function aggregateCommunitySummaries(summaries) {
     msoeCompletionPct: totals.msoeCompletionWeight > 0
       ? totals.msoeCompletionWeightedTotal / totals.msoeCompletionWeight
       : (totals.msoeCompletionCount > 0 ? totals.msoeCompletionTotal / totals.msoeCompletionCount : 0),
-    occGapUnits: Math.max(totals.budgetOccUnits - totals.occupied, 0),
-    leasedGapUnits: Math.max(totals.budgetLeasedUnits - totals.leased, 0),
+    occGapUnits: totals.occGapUnits,
+    leasedGapUnits: totals.leasedGapUnits,
     avgBudgetOccAttainmentPct: totals.avgBudgetOccAttainmentPctCount > 0 ? totals.avgBudgetOccAttainmentPctTotal / totals.avgBudgetOccAttainmentPctCount : 0,
     onTrackBudgetOccCount: totals.onTrackBudgetOccCount,
     trackedBudgetOccCount: totals.trackedBudgetOccCount,
@@ -9963,9 +10007,7 @@ function updateInvestorName(val) {
 }
 
 function updateCommunityStatus(value) {
-  communityStatus = normalizeCommunityStatus(value);
-  saveCommunityData(true);
-  renderTab();
+  updatePortfolioCommunityField(getProp().name, "communityStatus", value);
 }
 
 function addInvestorEmailContact() {
@@ -10052,6 +10094,20 @@ function getPortfolioSetupCommunityName() {
 function setPortfolioSetupCommunityName(name) {
   portfolioSetupCommunityName = matchPropertyName(name, { fallbackToCurrent: false }) || getProp().name;
   renderTab();
+}
+
+function openPortfolioCommunityFloorPlans(name) {
+  const matchedName = matchPropertyName(name, { fallbackToCurrent: false });
+  if (!matchedName) return false;
+  portfolioSetupCommunityName = matchedName;
+  renderTab();
+  // The editor is rendered below the roster. Move the user to the selected
+  // community's floor-plan workspace so the action has an immediate outcome.
+  setTimeout(() => {
+    const editor = document.getElementById("portfolio-floor-plan-editor");
+    if (editor?.scrollIntoView) editor.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, 40);
+  return false;
 }
 
 function getPortfolioSetupCommunityRecord(propName = getPortfolioSetupCommunityName()) {
@@ -11517,17 +11573,19 @@ function autoPopulateLeasingPace() {
 }
 
 // ─── Tab ──────────────────────────────────────────────────────────────────────
-// Tabs 0–9 are the original dashboard screens; 10–13 are the embedded RISE
+// Tabs 0–9 are the original dashboard screens; 10–13 and 15 are embedded RISE
 // platforms added by the redesign merge. MOUNT_TABS render a tool inline and
 // have no community-workspace context of their own.
-const MOUNT_TABS = [10, 11, 12, 13];
-const MAX_TAB = 14;
+const MOUNT_TABS = [10, 11, 12, 13, 15];
+const MAX_TAB = 15;
 
 function syncAtlasWorkspaceCardVisibility() {
   const workspaceCard = document.getElementById("prop-selector-card");
   if (!workspaceCard) return;
   const authFrontDoorActive = activeTab === 0 && shouldBlockAtlasSensitiveAccess();
-  workspaceCard.style.display = (MOUNT_TABS.includes(activeTab) || authFrontDoorActive) ? "none" : "";
+  // Home is a personalized landing page. Community and month controls live in
+  // the navigation, while widget-level scope lives in dashboard customization.
+  workspaceCard.style.display = (activeTab === 0 || MOUNT_TABS.includes(activeTab) || authFrontDoorActive) ? "none" : "";
 }
 
 function setTab(i) {
@@ -11567,7 +11625,8 @@ function renderTab() {
     window.renderMarketingTab,
     window.renderBudgetBuilderTab,
     window.renderPeopleTab,
-    renderAtlasSettingsTab
+    renderAtlasSettingsTab,
+    window.renderCentralServicesTab
   ];
   if (activeTab >= renderers.length) activeTab = renderers.length - 1;
   const panel = document.getElementById(`tab-panel-${activeTab}`);
@@ -11621,45 +11680,26 @@ function renderTab() {
   }
 }
 
-// Keeps the sticky header's scope/period selects and status chips in step with
-// the sidebar workspace controls. Read-only mirror — the sidebar remains the
-// source of truth for community and month selection.
+// Keeps compact status chips in step with the sidebar workspace controls.
 function syncAtlasTopbar() {
   try {
-    const sourceSelect = document.getElementById("workspace-community-select");
-    const topScope = document.getElementById("atlas-topbar-scope");
-    if (sourceSelect && topScope && topScope.innerHTML !== sourceSelect.innerHTML) {
-      topScope.innerHTML = sourceSelect.innerHTML;
-    }
-    if (sourceSelect && topScope) topScope.value = sourceSelect.value;
-
     const monthSelect = document.getElementById("workspace-current-month");
-    const topPeriod = document.getElementById("atlas-topbar-period");
-    if (monthSelect && topPeriod) {
-      topPeriod.value = monthSelect.value;
-      topPeriod.onchange = () => {
-        monthSelect.value = topPeriod.value;
-        monthSelect.dispatchEvent(new Event("change", { bubbles: true }));
-      };
-    }
-
     const scopeLabel = document.getElementById("side-nav-scope-summary");
-    if (scopeLabel && topScope) {
-      scopeLabel.textContent = topScope.options[topScope.selectedIndex]?.textContent?.trim() || "All communities";
+    const sourceSelect = document.getElementById("workspace-community-select");
+    if (scopeLabel && sourceSelect) {
+      scopeLabel.textContent = sourceSelect.options[sourceSelect.selectedIndex]?.textContent?.trim() || "All communities";
     }
 
     const budgetChip = document.getElementById("atlas-chip-budget");
     if (budgetChip) {
       const monthLabel = FULL_MONTHS[Number(monthSelect?.value) || 0] || "";
-      budgetChip.lastElementChild.textContent = `Monthly upload · ${monthLabel} ${new Date().getFullYear()}`;
+      budgetChip.lastElementChild.textContent = `Reporting period · ${monthLabel} ${new Date().getFullYear()}`;
     }
 
     const freshChip = document.getElementById("atlas-chip-freshness");
     if (freshChip) {
-      const count = Object.keys(savedData || {}).length;
-      freshChip.lastElementChild.textContent = count
-        ? `${count} ${count === 1 ? "community" : "communities"} saved`
-        : "No saved communities yet";
+      const count = getWorkspaceScopedDetails(getSelectedDashboardMonthIndex()).length;
+      freshChip.lastElementChild.textContent = `Viewing data for ${count} ${count === 1 ? "community" : "communities"}`;
     }
   } catch (error) {
     console.warn("Topbar sync skipped", error);
@@ -11826,7 +11866,8 @@ const ATLAS_ACCESS_TABS = [
   { id: "11", label: "Marketing", key: "marketing" },
   { id: "12", label: "Budget Builder", key: "budget" },
   { id: "13", label: "People", key: "people" },
-  { id: "14", label: "ATLAS Settings", key: "atlas_settings" }
+  { id: "14", label: "ATLAS Settings", key: "atlas_settings" },
+  { id: "15", label: "Central Services", key: "central_services" }
 ];
 
 const ATLAS_SELF_SERVICE_TAB_IDS = ["14"];
@@ -11834,13 +11875,13 @@ const ATLAS_SELF_SERVICE_TAB_IDS = ["14"];
 const ATLAS_ACCESS_ROLE_TABS = {
   admin: ATLAS_ACCESS_TABS.map(tab => tab.id),
   centra: ATLAS_ACCESS_TABS.map(tab => tab.id),
-  executive: ["0","1","2","3","4","5","6","8","9","10","11","12","13","14"],
-  regional: ["0","1","2","3","4","5","6","8","9","10","11","12","13","14"],
-  community_manager: ["0","1","2","3","4","5","6","8","9","10","11","14"],
+  executive: ["0","1","2","3","4","5","6","8","9","10","11","12","13","14","15"],
+  regional: ["0","1","2","3","4","5","6","8","9","10","11","12","13","14","15"],
+  community_manager: ["0","1","2","3","4","5","6","8","9","10","11","14","15"],
   people: ["0","1","8","9","13","14"],
   marketing: ["0","1","8","9","11","14"],
   maintenance: ["0","1","8","10","14"],
-  finance: ["0","1","2","4","8","9","12","14"],
+  finance: ["0","1","2","4","8","9","12","14","15"],
   bonus: ["0","1","8","9","14"],
   viewer: ["0","2","8","14"]
 };
@@ -11896,7 +11937,7 @@ function defaultAtlasAccessFormDraft() {
 
 atlasAccessFormDraft = defaultAtlasAccessFormDraft();
 
-const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=20260825-access-cors";
+const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=20260901-dlr-reporting";
 const ATLAS_AUTH_UI_STORAGE_KEY = "atlas_auth_ui_state_v1";
 const ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY = "atlas_dashboard_preferences_v1";
 let atlasCentralClientLoadPromise = null;
@@ -11987,6 +12028,20 @@ const ATLAS_CUSTOM_DASHBOARD_WIDGETS = [
     description: "Saved views, layout state, and personalization status."
   },
   {
+    key: "central_services_command_center",
+    legacyKeys: ["central_services"],
+    label: "Central Services Command Center",
+    category: "Central Services",
+    dataSource: "Central Services",
+    tabId: 15,
+    accent: "#2e6b8c",
+    phase: 1,
+    defaultMetric: "Operational Queues",
+    metrics: ["My Work", "Legal Deadline Risk", "Hold Overs", "Regional Approval", "Move-Out Inspections", "MORFs", "Invoices", "Vendor Issues", "Accounting Handoffs"],
+    visualizations: ["Command Center", "Widget Grid", "Exception List"],
+    description: "Personal work, legal-deadline risk, move-outs, MORFs, Regional approvals, invoices, vendor issues, and Accounting handoffs."
+  },
+  {
     key: "forward_occupancy",
     label: "Forward Occupancy",
     category: "Occupancy",
@@ -12067,6 +12122,7 @@ const ATLAS_DASHBOARD_LIBRARY_CATEGORIES = [
   "Renewals",
   "Maintenance",
   "Turns",
+  "Central Services",
   "Inspections",
   "Vendors",
   "Financial",
@@ -12154,7 +12210,7 @@ const ATLAS_DASHBOARD_ROLE_TEMPLATES = {
   },
   central_operations: {
     label: "Central Operations",
-    widgets: ["portfolio_overview", "traffic_funnel", "renewals_retention", "reporting_exports"]
+    widgets: ["central_services_command_center", "portfolio_overview", "renewals_retention", "maintenance_exceptions", "vendor_scorecard"]
   },
   vendor_management: {
     label: "Vendor Management",
@@ -12608,6 +12664,7 @@ let atlasDashboardBuilderState = {
 let atlasDashboardCentralSaveTimer = null;
 let atlasDashboardCentralHydratePromise = null;
 let suppressAtlasDashboardCentralSave = false;
+let atlasDashboardLocalPreferenceEditedAt = 0;
 
 function persistAtlasDashboardPreferences(options = {}) {
   try { localStorage.setItem(ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY, JSON.stringify(atlasDashboardPreferences)); } catch {}
@@ -12617,6 +12674,9 @@ function persistAtlasDashboardPreferences(options = {}) {
 }
 
 function setAtlasDashboardPreferences(next = {}, options = {}) {
+  if (options.trackLocalEdit !== false && options.pushCentral !== false && !suppressAtlasDashboardCentralSave) {
+    atlasDashboardLocalPreferenceEditedAt = Date.now();
+  }
   atlasDashboardPreferences = normalizeAtlasDashboardPreferences({ ...atlasDashboardPreferences, ...(next && typeof next === "object" ? next : {}) });
   persistAtlasDashboardPreferences(options);
   return atlasDashboardPreferences;
@@ -13267,6 +13327,14 @@ function buildAtlasDashboardWidgetSnapshot(instance = {}) {
       scopedDetails
     };
   }
+  if (instance.widgetKey === "central_services_command_center") {
+    return {
+      value: "Open",
+      sub: "My Work, legal deadlines, inspections, MORFs, Regional approvals, invoices, vendors, and Accounting",
+      detail: "Central Services opens as a configurable operational command center.",
+      scopedDetails
+    };
+  }
   return {
     value: "Phase 2",
     sub: definition.description || "Widget shell registered for a future operational data source.",
@@ -13291,6 +13359,7 @@ async function hydrateAtlasDashboardPreferencesFromCentral({ silent = true, forc
   const status = getAtlasCentralStatus();
   if (!status.configured || !status.signedIn || !window.ATLAS_CENTRAL?.readDashboardViews) return false;
   if (atlasDashboardCentralHydratePromise && !force) return atlasDashboardCentralHydratePromise;
+  const hydrateStartedAt = Date.now();
   atlasDashboardBuilderState.loadingCentral = true;
   atlasDashboardCentralHydratePromise = (async () => {
     try {
@@ -13306,6 +13375,16 @@ async function hydrateAtlasDashboardPreferencesFromCentral({ silent = true, forc
           createdAt: row.created_at,
           updatedAt: row.updated_at
         })).filter(Boolean);
+        const remoteUpdatedAt = Math.max(0, ...views.map(view => Date.parse(view.updatedAt || "") || 0));
+        const localUpdatedAt = Date.parse(atlasDashboardPreferences.customDashboardUpdatedAt || "") || 0;
+        if (!force && atlasDashboardLocalPreferenceEditedAt > hydrateStartedAt) {
+          queueAtlasDashboardPreferencesCentralSave("dashboard_preferences_local_edit_during_load");
+          return true;
+        }
+        if (!force && localUpdatedAt && remoteUpdatedAt && localUpdatedAt > remoteUpdatedAt + 1000) {
+          queueAtlasDashboardPreferencesCentralSave("dashboard_preferences_local_newer_than_central");
+          return true;
+        }
         const defaultView = views.find(view => view.isDefault) || views[0];
         suppressAtlasDashboardCentralSave = true;
         setAtlasDashboardPreferences({
@@ -13316,7 +13395,7 @@ async function hydrateAtlasDashboardPreferencesFromCentral({ silent = true, forc
             : defaultView.viewKey,
           centralHydratedAt: new Date().toISOString(),
           centralLastError: ""
-        }, { pushCentral: false });
+        }, { pushCentral: false, trackLocalEdit: false });
         suppressAtlasDashboardCentralSave = false;
       } else {
         await saveAtlasDashboardPreferencesToCentral({ silent: true, source: "seed_user_dashboard_views" });
@@ -13324,7 +13403,7 @@ async function hydrateAtlasDashboardPreferencesFromCentral({ silent = true, forc
       return true;
     } catch (error) {
       suppressAtlasDashboardCentralSave = false;
-      setAtlasDashboardPreferences({ centralLastError: error?.message || String(error) }, { pushCentral: false });
+      setAtlasDashboardPreferences({ centralLastError: error?.message || String(error) }, { pushCentral: false, trackLocalEdit: false });
       if (!silent) alert(`Dashboard views could not load from central ATLAS: ${error?.message || error}`);
       return false;
     } finally {
@@ -13368,11 +13447,11 @@ async function saveAtlasDashboardPreferencesToCentral({ silent = false, source =
     setAtlasDashboardPreferences({
       centralSavedAt: new Date().toISOString(),
       centralLastError: ""
-    }, { pushCentral: false });
+    }, { pushCentral: false, trackLocalEdit: false });
     if (!silent) alert("Dashboard views saved to central ATLAS.");
     return true;
   } catch (error) {
-    setAtlasDashboardPreferences({ centralLastError: error?.message || String(error) }, { pushCentral: false });
+    setAtlasDashboardPreferences({ centralLastError: error?.message || String(error) }, { pushCentral: false, trackLocalEdit: false });
     if (!silent) alert(`Dashboard view save failed: ${error?.message || error}`);
     return false;
   } finally {
@@ -14861,6 +14940,19 @@ function atlasOpenDashboardWidget(instanceId = "") {
   setTab(definition.tabId);
 }
 
+function atlasOpenCentralServicesDashboardPreferences() {
+  setTab(15);
+  const openPreferences = () => {
+    if (typeof window.atlasCsSetModule === "function") {
+      window.atlasCsSetModule("settings");
+      setTimeout(() => window.atlasCsScrollToDashboardPreferences?.(), 80);
+      return;
+    }
+    setTimeout(() => window.atlasCsScrollToDashboardPreferences?.(), 160);
+  };
+  setTimeout(openPreferences, 80);
+}
+
 function renderAtlasDashboardHomeWidget(instance = {}) {
   const definition = getAtlasDashboardWidgetDefinition(instance.widgetKey) || {};
   const snapshot = buildAtlasDashboardWidgetSnapshot(instance);
@@ -14881,28 +14973,56 @@ function renderAtlasDashboardHomeWidget(instance = {}) {
   </button>`;
 }
 
+function getAtlasDashboardLatestDataUploadAt(monthIdx = getSelectedDashboardMonthIndex()) {
+  const candidates = [];
+  const scopedNames = getWorkspaceScopedDetails(monthIdx).map(detail => detail.name).filter(Boolean);
+  scopedNames.forEach(name => {
+    const record = name === getProp().name
+      ? getCurrentCommunityRecord()
+      : normalizeSavedCommunityRecord(name, savedData[name]);
+    const importTracking = normalizeImportTracking(record.importTracking);
+    candidates.push(
+      record.latestDlrSummary?.dailyBoxScoreImportedAt,
+      record.latestDlrSummary?.importedAt,
+      normalizeMarketSurveyData(record.marketSurveyData).uploadedAt
+    );
+    Object.values(importTracking).forEach(periods => {
+      Object.values(periods || {}).forEach(entry => candidates.push(entry?.importedAt));
+    });
+  });
+  return candidates.reduce((latest, value) => {
+    const timestamp = Date.parse(String(value || ""));
+    return Number.isFinite(timestamp) && timestamp > latest ? timestamp : latest;
+  }, 0);
+}
+
+function getAtlasDashboardDataContext(monthIdx = getSelectedDashboardMonthIndex()) {
+  const communityCount = getWorkspaceScopedDetails(monthIdx).length;
+  const reportingPeriod = `${FULL_MONTHS[monthIdx] || "Current Month"} ${new Date().getFullYear()}`;
+  const today = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  });
+  const latestUploadAt = getAtlasDashboardLatestDataUploadAt(monthIdx);
+  const lastUpload = latestUploadAt ? formatSavedTimestampLabel(new Date(latestUploadAt).toISOString()) : "Not recorded";
+  return `Reporting period: ${reportingPeriod} · Today: ${today} · Last data upload: ${lastUpload} · ${communityCount} ${communityCount === 1 ? "community" : "communities"} included.`;
+}
+
 function renderAtlasWelcomeDashboard() {
   const profile = getAtlasAccessProfile();
   const status = getAtlasCentralStatus();
   const view = getAtlasActiveDashboardView();
-  const defaultView = getAtlasDefaultDashboardView();
   const widgets = getAtlasDashboardViewWidgets(view);
-  const monthLabel = FULL_MONTHS[getSelectedDashboardMonthIndex()] || "Current Month";
-  const firstTimePanel = !atlasDashboardPreferences.walkthroughCompletedAt ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:18px">
-    ${[
-      `Role template: ${atlasDashboardTemplateLabel(view.roleTemplateKey)}`,
-      `Assigned scope: ${getAtlasDashboardAuthorizedCommunityOptions().length || "role/default"} properties`,
-      `Default view: ${defaultView.viewName}`,
-      `Central status: ${status.configured && status.signedIn ? "ready" : "local fallback"}`
-    ].map(item => `<div style="padding:12px;border-radius:12px;background:#f8fbff;border:1px solid #dbe7f5;font-size:0.72rem;color:#334e68">${escapeHtml(item)}</div>`).join("")}
-  </div>` : "";
+  const dataContext = getAtlasDashboardDataContext();
   return `<div class="card mb4" style="padding:0;overflow:hidden;border-radius:16px">
     <div style="padding:24px;background:linear-gradient(140deg,#08263f 0%,#123d63 54%,#5f90bf 155%);color:#fff">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
         <div style="max-width:820px">
           <div style="font-size:0.68rem;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.76);font-weight:800">My Dashboard</div>
           <div style="font-size:2rem;font-weight:800;line-height:1.02;margin-top:10px">Welcome, ${escapeHtml(atlasUserDisplayName(profile || { email: status.userEmail || "" }))}.</div>
-          <div style="font-size:0.8rem;line-height:1.7;color:rgba(255,255,255,0.84);margin-top:10px">Current view: ${escapeHtml(view.viewName)} · Reporting month: ${escapeHtml(monthLabel)} · Default landing view: ${escapeHtml(defaultView.viewName)}.</div>
+          <div style="font-size:0.8rem;line-height:1.7;color:rgba(255,255,255,0.84);margin-top:10px">${escapeHtml(dataContext)}</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-blue btn-sm" onclick="openAtlasDashboardWalkthrough()"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i> Build My Dashboard</button>
@@ -14911,11 +15031,10 @@ function renderAtlasWelcomeDashboard() {
       </div>
     </div>
     <div style="padding:22px">
-      ${firstTimePanel}
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
         <div>
           <div class="card-title" style="margin-bottom:6px">${escapeHtml(view.viewName)}</div>
-          <div style="font-size:0.72rem;color:var(--muted)">${widgets.length} widgets · ${escapeHtml(atlasDashboardTemplateLabel(view.roleTemplateKey))} starting template · ${escapeHtml(status.configured && status.signedIn ? "central preferences enabled" : "local preferences active")}</div>
+          <div style="font-size:0.72rem;color:var(--muted)">${widgets.length} widgets selected for this dashboard.</div>
         </div>
         <button class="btn btn-gray btn-sm" onclick="setTab(14)"><i class="ph ph-gear-six" aria-hidden="true"></i> Customize</button>
       </div>
@@ -16583,6 +16702,13 @@ function renderAtlasDashboardSelectField(label = "", value = "", options = [], c
   </div>`;
 }
 
+function renderAtlasDashboardReadonlyField(label = "", value = "") {
+  return `<div class="atlas-dashboard-field">
+    <label>${escapeHtml(label)}</label>
+    <div class="atlas-dashboard-readonly-value">${escapeHtml(value)}</div>
+  </div>`;
+}
+
 function atlasDashboardCentralStatusText() {
   const status = getAtlasCentralStatus();
   if (atlasDashboardBuilderState.loadingCentral) return "Loading central views";
@@ -16730,7 +16856,7 @@ function renderAtlasDashboardWidgetConfigPanel(instance = {}) {
   return `<div class="atlas-dashboard-config-card">
     <div class="atlas-dashboard-section-label" style="margin-bottom:10px">Widget Configuration</div>
     <div class="atlas-dashboard-config-grid">
-      ${renderAtlasDashboardSelectField("Data Source", definition.dataSource || "ATLAS", [[definition.dataSource || "ATLAS", definition.dataSource || "ATLAS"]], "")}
+      ${renderAtlasDashboardReadonlyField("Data Source", definition.dataSource || "ATLAS")}
       ${renderAtlasDashboardSelectField("Metric", instance.metric, definition.metrics || [], `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"metric",this.value)`)}
       ${renderAtlasDashboardSelectField("Property Scope", scope.type, ATLAS_DASHBOARD_SCOPE_OPTIONS, `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"scope.type",this.value)`)}
       ${scope.type === "single_property" ? renderAtlasDashboardSelectField("Property", scope.propertyName, propertyNameOptions, `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"scope.propertyName",this.value)`) : ""}
@@ -16789,6 +16915,23 @@ function renderAtlasSettingsDashboardPanel() {
         <span class="atlas-dashboard-status-pill">${escapeHtml(active.layout?.density || "standard")}</span>
       </div>
       ${renderAtlasDashboardActiveLayout()}
+      <div class="atlas-dashboard-library">
+        <div class="atlas-dashboard-builder-head">
+          <div>
+            <div class="atlas-dashboard-section-label" style="margin-bottom:6px">Dashboard Preferences / Central Services</div>
+            <div class="atlas-dashboard-widget-title">Central Services Dashboard</div>
+            <div class="atlas-dashboard-widget-sub" style="margin-top:5px">Manage the default command-center layout, personal widgets, scopes, filters, date ranges, sizes, visualizations, and restore option for Central Services.</div>
+          </div>
+          <div class="atlas-dashboard-toolbar">
+            <button type="button" class="btn btn-blue btn-sm" onclick="atlasOpenCentralServicesDashboardPreferences()"><i class="ph ph-command" aria-hidden="true"></i> Open Central Services Preferences</button>
+          </div>
+        </div>
+        <div class="atlas-dashboard-view-summary">
+          <span class="atlas-dashboard-status-pill">Personal layout</span>
+          <span class="atlas-dashboard-status-pill">Default available</span>
+          <span class="atlas-dashboard-status-pill">People roster assignments</span>
+        </div>
+      </div>
       ${atlasDashboardBuilderState.libraryOpen ? renderAtlasDashboardWidgetLibrary() : ""}
     </div>
   </div>`;
@@ -17496,7 +17639,7 @@ function renderPortfolioScopedSetupTab() {
       <td class="l"><input type="text" value="${escapeHtml(detail.record?.investorName || "")}" placeholder="Investor / ownership group" onchange='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "investorName", this.value)' style="width:100%"></td>
       <td class="l"><textarea rows="2" onchange='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "investorEmailContacts", this.value)' style="width:100%;min-height:58px">${escapeHtml(contactText)}</textarea></td>
       <td>${plans}</td>
-      <td><button type="button" class="btn btn-gray btn-sm" onmousedown='return setPortfolioSetupCommunityName(${JSON.stringify(detail.name)})'>Edit Floor Plans</button></td>
+      <td><button type="button" class="btn btn-gray btn-sm" onclick='return openPortfolioCommunityFloorPlans(${JSON.stringify(detail.name)})'>Edit Floor Plans</button></td>
     </tr>`;
   }).join("");
   const selectedFloorPlanData = buildCommunityFloorPlanVarianceRows(selectedRecord.communityFloorPlans, selectedRecord.marketSurveyData);
@@ -17553,7 +17696,7 @@ function renderPortfolioScopedSetupTab() {
         </div>`;
       }).join("")
     : `<div style="font-size:0.72rem;color:var(--muted)">No floor plans saved yet for ${escapeHtml(selectedName)}. Add each plan here so the exported DLR can compare budgeted rent against the current marketed rent by floor plan.</div>`;
-  const selectedCommunityEditor = `<div class="card mb4">
+  const selectedCommunityEditor = `<div class="card mb4" id="portfolio-floor-plan-editor" tabindex="-1">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
       <div>
         <div class="card-title" style="margin-bottom:6px">Selected Community Editor</div>
@@ -17628,7 +17771,7 @@ function renderPortfolioScopedSetupTab() {
       <tbody>${rows}</tbody>
     </table>
   </div>`;
-  return renderPortfolioScopePanel("Portfolio Community Setup", "A read-through of saved setup data across the full portfolio.", cardsHtml, bodyHtml + renderPortfolioPresentationImageLibrary() + selectedCommunityEditor);
+  return renderPortfolioScopePanel("Portfolio Community Setup", "A read-through of saved setup data across the full portfolio.", cardsHtml, bodyHtml + selectedCommunityEditor + renderPortfolioPresentationImageLibrary());
   } catch (error) {
     console.error("Portfolio Community Setup failed to render", error);
     const errorDetail = String(error?.message || error || "Unknown render error");
@@ -19931,6 +20074,69 @@ function parseYearFromValue(value, fallbackYear = new Date().getFullYear()) {
   return match ? Number(match[1]) : fallbackYear;
 }
 
+function normalizeSpreadsheetColor(value) {
+  const hex = String(value ?? "").replace(/[^a-fA-F0-9]/g, "").toUpperCase();
+  return hex.length >= 6 ? hex.slice(-6) : "";
+}
+
+function isRenewalNtvFillColor(value) {
+  const hex = normalizeSpreadsheetColor(value);
+  if (hex.length !== 6) return false;
+  const red = parseInt(hex.slice(0, 2), 16);
+  const green = parseInt(hex.slice(2, 4), 16);
+  const blue = parseInt(hex.slice(4, 6), 16);
+  if (![red, green, blue].every(Number.isFinite)) return false;
+  return red >= 120 && green <= 225 && blue <= 225 && red >= green + 20 && red >= blue + 20;
+}
+
+function getSpreadsheetCellFillColors(cell) {
+  const style = cell?.s || {};
+  const fill = style.fill || {};
+  return [
+    style.fgColor?.rgb,
+    style.bgColor?.rgb,
+    fill.fgColor?.rgb,
+    fill.bgColor?.rgb,
+    cell?.fgColor?.rgb,
+    cell?.bgColor?.rgb
+  ].filter(Boolean);
+}
+
+function isRenewalNtvStyledCell(cell) {
+  return getSpreadsheetCellFillColors(cell).some(isRenewalNtvFillColor);
+}
+
+function annotateRenewalRowsWithWorkbookVisualStatus(rows, sheet) {
+  const normalizedRows = Array.isArray(rows) ? rows : [];
+  if (!sheet || typeof XLSX === "undefined" || !XLSX.utils?.encode_cell) return normalizedRows;
+  let startRow = 0;
+  let endCol = normalizedRows.reduce((max, row) => Math.max(max, Array.isArray(row) ? row.length - 1 : 0), 0);
+  try {
+    const range = XLSX.utils.decode_range(sheet["!ref"] || "A1:A1");
+    startRow = range.s.r;
+    endCol = Math.max(endCol, range.e.c);
+  } catch {
+    startRow = 0;
+  }
+  normalizedRows.forEach((row, rowIndex) => {
+    if (!Array.isArray(row)) return;
+    const worksheetRow = startRow + rowIndex;
+    const visibleWidth = Math.max(row.length - 1, Math.min(endCol, 40));
+    let redCellCount = 0;
+    for (let colIndex = 0; colIndex <= visibleWidth; colIndex += 1) {
+      const cell = sheet[XLSX.utils.encode_cell({ r: worksheetRow, c: colIndex })];
+      if (isRenewalNtvStyledCell(cell)) redCellCount += 1;
+    }
+    if (redCellCount > 0) {
+      row.__atlasRenewalVisualStatus = "ntv";
+      row.__atlasRenewalHighlightedNtv = true;
+    }
+  });
+  return normalizedRows;
+}
+
+window.annotateRenewalRowsWithWorkbookVisualStatus = annotateRenewalRowsWithWorkbookVisualStatus;
+
 function classifyRenewalStatusValue(value) {
   const raw = String(value ?? "").trim().toLowerCase();
   if (!raw) return "undecided";
@@ -19982,12 +20188,11 @@ function extractRenewalDetailStatusSummary(rows) {
     if (!residentName && !statusValue) continue;
     if (residentName && /total|renewals signed|ntv|transfer|pending|legend/i.test(residentName)) continue;
     summary.expirations += 1;
-    switch (classifyRenewalStatusValue(statusValue)) {
+    const visuallyMarkedNtv = row.__atlasRenewalVisualStatus === "ntv" || row.__atlasRenewalHighlightedNtv === true;
+    const classifiedStatus = classifyRenewalStatusValue(statusValue);
+    switch (classifiedStatus) {
       case "signed":
         summary.renewalsSigned += 1;
-        break;
-      case "ntv":
-        summary.ntv += 1;
         break;
       case "transfer":
         summary.transfers += 1;
@@ -19996,7 +20201,11 @@ function extractRenewalDetailStatusSummary(rows) {
         summary.earlyTermination += 1;
         break;
       default:
-        summary.undecided += 1;
+        if (classifiedStatus === "ntv" || visuallyMarkedNtv) {
+          summary.ntv += 1;
+        } else {
+          summary.undecided += 1;
+        }
         break;
     }
   }
@@ -20067,9 +20276,10 @@ function extractRenewalTrackerColumnSummary(rows) {
     const transferValue = transferColIdx >= 0 ? row[transferColIdx] : "";
     const ntvValue = ntvColIdx >= 0 ? row[ntvColIdx] : "";
     const notesValue = notesColIdx >= 0 ? String(row[notesColIdx] ?? "").trim() : "";
+    const visuallyMarkedNtv = row.__atlasRenewalVisualStatus === "ntv" || row.__atlasRenewalHighlightedNtv === true;
     if (hasRealEntry(signedValue)) summary.renewalsSigned += 1;
     else if (hasRealEntry(transferValue)) summary.transfers += 1;
-    else if (hasRealEntry(ntvValue)) summary.ntv += 1;
+    else if (hasRealEntry(ntvValue) || visuallyMarkedNtv) summary.ntv += 1;
     if (/early termination|early term/i.test(notesValue)) summary.earlyTermination += 1;
   }
 
@@ -20195,12 +20405,120 @@ function stampRenewalImportForMonth(monthIdx, fileName = "", year = new Date().g
   });
 }
 
+function syncRenewalSummaryNtvCountToCentralServices(context = {}, summary = {}) {
+  if (typeof window.atlasCsSyncRenewalSummaryNtvIntake !== "function") return null;
+  return window.atlasCsSyncRenewalSummaryNtvIntake({
+    propertyName: context.propertyName,
+    monthIdx: context.monthIdx,
+    year: context.year,
+    sourceFileName: context.fileName || context.sourceFileName || "ATLAS renewal summary"
+  }, summary, { render: false });
+}
+
+function getImportedRenewalPeriod(row = {}, fallbackMonthIdx = 0, fallbackYear = new Date().getFullYear()) {
+  const rowMonth = Number.isFinite(Number(row.monthIdx)) ? Number(row.monthIdx) : Number(row.expirationMonthIdx);
+  const rowYear = Number.isFinite(Number(row.year)) ? Number(row.year) : Number(row.expirationYear);
+  const safeMonth = Number.isFinite(rowMonth) ? Math.max(0, Math.min(11, rowMonth)) : Math.max(0, Math.min(11, Number(fallbackMonthIdx) || 0));
+  const safeYear = Number.isFinite(rowYear) ? rowYear : (Number.isFinite(Number(fallbackYear)) ? Number(fallbackYear) : new Date().getFullYear());
+  return {
+    monthIdx: safeMonth,
+    year: safeYear,
+    periodKey: row.periodKey || buildPeriodKey(safeMonth, safeYear)
+  };
+}
+
+function summarizeImportedRenewalDetailRows(rows = []) {
+  const summary = {
+    expirations: 0,
+    renewalsSigned: 0,
+    ntv: 0,
+    transfers: 0,
+    undecided: 0,
+    earlyTermination: 0,
+    retentionRate: 0,
+    decidedRetentionRate: 0
+  };
+  (Array.isArray(rows) ? rows : []).forEach(row => {
+    const status = String(row?.status || "").toLowerCase();
+    summary.expirations += 1;
+    if (status.includes("signed") || status.includes("executed") || row.renewalSignedDate || row.leaseExecutedDate) summary.renewalsSigned += 1;
+    else if (status.includes("transfer")) summary.transfers += 1;
+    else if (status.includes("ntv") || status.includes("vacate") || status.includes("declined") || row.ntvReceivedDate) summary.ntv += 1;
+    else summary.undecided += 1;
+    if (status.includes("early")) summary.earlyTermination += 1;
+  });
+  summary.undecided = Math.max(summary.expirations - summary.renewalsSigned - summary.ntv - summary.transfers - summary.earlyTermination, 0);
+  summary.retentionRate = summary.expirations > 0 ? (summary.renewalsSigned / summary.expirations) * 100 : 0;
+  const decidedPool = summary.renewalsSigned + summary.ntv + summary.transfers;
+  summary.decidedRetentionRate = decidedPool > 0 ? (summary.renewalsSigned / decidedPool) * 100 : 0;
+  return summary;
+}
+
+function groupImportedRenewalDetailRowsByPeriod(rows = [], fallbackMonthIdx = 0, fallbackYear = new Date().getFullYear()) {
+  const grouped = new Map();
+  (Array.isArray(rows) ? rows : []).forEach(row => {
+    const period = getImportedRenewalPeriod(row, fallbackMonthIdx, fallbackYear);
+    if (!grouped.has(period.periodKey)) grouped.set(period.periodKey, { ...period, rows: [] });
+    grouped.get(period.periodKey).rows.push(row);
+  });
+  return Array.from(grouped.values()).map(period => ({
+    ...period,
+    summary: summarizeImportedRenewalDetailRows(period.rows)
+  }));
+}
+
+function syncRenewalSheetRowsToCentralServices(targetRecord, context = {}, sheetRows = [], summary = {}) {
+  if (!targetRecord || typeof window.atlasCsIngestRenewalSheetRows !== "function") return null;
+  const monthIdx = Math.max(0, Math.min(11, Number(context.monthIdx) || 0));
+  const year = Number.isFinite(Number(context.year)) ? Number(context.year) : new Date().getFullYear();
+  const result = window.atlasCsIngestRenewalSheetRows(sheetRows, {
+    propertyName: context.propertyName,
+    monthIdx,
+    year,
+    fileName: context.fileName,
+    sourceSheetName: context.sourceSheetName,
+    importId: context.importId,
+    importBatchId: context.importBatchId || context.importId,
+    source: "Portfolio Renewal Tracker upload",
+    syncAtlasSummary: false
+  }, {
+    importHistory: true,
+    render: false,
+    setUi: false
+  });
+  const detailRows = Array.isArray(result?.renewalRows) ? result.renewalRows : [];
+  if (detailRows.length) {
+    if (!Array.isArray(targetRecord.renewalDetailRowsByMonth) || targetRecord.renewalDetailRowsByMonth.length !== 12) {
+      targetRecord.renewalDetailRowsByMonth = defaultRenewalDetailRowsByMonth();
+    }
+    if (!targetRecord.renewalDetailRowsByPeriod || typeof targetRecord.renewalDetailRowsByPeriod !== "object") {
+      targetRecord.renewalDetailRowsByPeriod = {};
+    }
+    groupImportedRenewalDetailRowsByPeriod(detailRows, monthIdx, year).forEach(period => {
+      const existingPeriodRows = Array.isArray(targetRecord.renewalDetailRowsByPeriod[period.periodKey]) ? targetRecord.renewalDetailRowsByPeriod[period.periodKey] : [];
+      const incomingImportId = String(result?.importId || result?.importBatchId || context.importId || "").trim();
+      const preservedRows = incomingImportId
+        ? existingPeriodRows.filter(row => String(row?.importId || row?.importBatchId || "").trim() !== incomingImportId)
+        : [];
+      const nextRows = [...preservedRows, ...period.rows];
+      targetRecord.renewalDetailRowsByPeriod[period.periodKey] = nextRows;
+      targetRecord.renewalDetailRowsByMonth[period.monthIdx] = nextRows;
+    });
+    result.periodSummaries = groupImportedRenewalDetailRowsByPeriod(detailRows, monthIdx, year);
+  }
+  if (Number(summary?.ntv || 0) > Number(result?.ntvCount || 0)) {
+    const fallback = syncRenewalSummaryNtvCountToCentralServices(context, summary);
+    if (fallback) result.summaryFallback = fallback;
+  }
+  return result;
+}
+
 async function handleRenewalWorkbook(file) {
   if (typeof XLSX === "undefined") {
     renewalImportLog.push("❌ Renewal workbook parser is unavailable because the XLSX library did not load.");
     return;
   }
-  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, cellStyles: true });
   const targetPropertyName = resolveRenewalWorkbookPropertyName(workbook, file.name);
   if (!targetPropertyName) {
     renewalImportLog.push(`⚠️ ${file.name} could not be matched to a saved ATLAS community. Re-upload and choose the correct property when prompted.`);
@@ -20214,31 +20532,92 @@ async function handleRenewalWorkbook(file) {
   const setupRows = getWorkbookSheetRows(workbook, [/^setup$/i]);
   const setupMonthYear = findWorksheetRowValue(setupRows, /month\s*\/\s*year/i);
   const setupYear = parseYearFromValue(setupMonthYear, new Date().getFullYear());
+  const workbookImportId = `renewal-import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const workbookPeriodSummaries = new Map();
+  const addWorkbookPeriodSummary = period => {
+    const safeMonth = Math.max(0, Math.min(11, Number(period?.monthIdx) || 0));
+    const safeYear = Number.isFinite(Number(period?.year)) ? Number(period.year) : setupYear;
+    const periodKey = period?.periodKey || buildPeriodKey(safeMonth, safeYear);
+    const summary = period?.summary || {};
+    const existing = workbookPeriodSummaries.get(periodKey) || {
+      monthIdx: safeMonth,
+      year: safeYear,
+      periodKey,
+      sourceSheetNames: [],
+      rowCount: 0,
+      summary: {
+        expirations: 0,
+        renewalsSigned: 0,
+        ntv: 0,
+        transfers: 0,
+        undecided: 0,
+        earlyTermination: 0,
+        retentionRate: 0,
+        decidedRetentionRate: 0
+      }
+    };
+    existing.sourceSheetNames = Array.from(new Set([...existing.sourceSheetNames, period?.sourceSheetName].filter(Boolean)));
+    existing.rowCount += Number(period?.rows?.length || period?.rowCount || summary.expirations || 0);
+    ["expirations", "renewalsSigned", "ntv", "transfers", "undecided", "earlyTermination"].forEach(key => {
+      existing.summary[key] += Number(summary[key] || 0);
+    });
+    existing.summary.retentionRate = existing.summary.expirations > 0 ? (existing.summary.renewalsSigned / existing.summary.expirations) * 100 : 0;
+    const decidedPool = existing.summary.renewalsSigned + existing.summary.ntv + existing.summary.transfers;
+    existing.summary.decidedRetentionRate = decidedPool > 0 ? (existing.summary.renewalsSigned / decidedPool) * 100 : 0;
+    workbookPeriodSummaries.set(periodKey, existing);
+  };
   let appliedMonths = 0;
   workbook.SheetNames.forEach(sheetName => {
     const monthIdx = parseMonthIndexValue(sheetName);
     if (monthIdx === null || monthIdx < 0 || monthIdx > 11) return;
     const sheetYear = parseYearFromValue(sheetName, setupYear);
-    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" });
+    const rows = annotateRenewalRowsWithWorkbookVisualStatus(
+      XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", blankrows: true }),
+      workbook.Sheets[sheetName]
+    );
     const summary = extractRenewalSheetSummary(rows);
     if ([summary.expirations, summary.renewalsSigned, summary.ntv, summary.transfers, summary.undecided, summary.earlyTermination].every(v => v === 0)) return;
-    applyRenewalSummaryToRecord(targetRecord, monthIdx, summary, sheetYear);
-    setRecordPeriodImportStamp(targetRecord, "renewals", buildPeriodKey(monthIdx, sheetYear), {
-      importedAt: new Date().toISOString(),
-      sourceFileName: file.name,
+    const centralSync = syncRenewalSheetRowsToCentralServices(targetRecord, {
+      propertyName: targetPropertyName,
+      monthIdx,
+      year: sheetYear,
+      fileName: file.name,
       sourceSheetName: sheetName,
-      propertyName: targetPropertyName
-    });
+      importId: workbookImportId,
+      importBatchId: workbookImportId
+    }, rows, summary);
+    const syncedPeriods = Array.isArray(centralSync?.periodSummaries) && centralSync.periodSummaries.length
+      ? centralSync.periodSummaries
+      : [{ monthIdx, year: sheetYear, periodKey: buildPeriodKey(monthIdx, sheetYear), sourceSheetName: sheetName, rowCount: summary.expirations, summary }];
+    syncedPeriods.forEach(period => addWorkbookPeriodSummary({ ...period, sourceSheetName: sheetName }));
     renewalImportLog.push(`✅ ${targetPropertyName} · ${file.name} → ${MONTHS[monthIdx]} ${sheetYear} renewals mapped (${summary.expirations} expirations, ${summary.renewalsSigned} signed, ${summary.ntv} NTV, ${summary.transfers} transfers, ${summary.undecided} undecided / M2M${summary.earlyTermination > 0 ? `, ${summary.earlyTermination} early terminations` : ""}).`);
+    if (centralSync?.ntvCount > 0) {
+      renewalImportLog.push(`↳ Central Services synced ${centralSync.ntvCount} NTV lifecycle record${centralSync.ntvCount === 1 ? "" : "s"} from resident-level rows${centralSync.moveOutCasesCreated ? `, including ${centralSync.moveOutCasesCreated} new move-out workflow record${centralSync.moveOutCasesCreated === 1 ? "" : "s"}` : ""}.`);
+    } else if (summary.ntv > 0) {
+      renewalImportLog.push(`↳ Central Services will create ${summary.ntv} NTV intake placeholder${summary.ntv === 1 ? "" : "s"} for ${targetPropertyName} because resident-level NTV rows were not available on this sheet.`);
+    }
     appliedMonths++;
   });
   if (appliedMonths === 0) {
     renewalImportLog.push(`⚠️ ${targetPropertyName} · ${file.name} did not contain any month sheets the dashboard could map. Use month-named tabs like "Mar 2026" or update the summary labels.`);
   } else {
+    workbookPeriodSummaries.forEach(period => {
+      applyRenewalSummaryToRecord(targetRecord, period.monthIdx, period.summary, period.year);
+      setRecordPeriodImportStamp(targetRecord, "renewals", period.periodKey, {
+        importedAt: new Date().toISOString(),
+        sourceFileName: file.name,
+        sourceSheetName: period.sourceSheetNames.length === 1 ? period.sourceSheetNames[0] : `${period.sourceSheetNames.length} sheets`,
+        sourceSheetNames: period.sourceSheetNames,
+        propertyName: targetPropertyName,
+        residentRowCount: period.rowCount,
+        ntvLifecycleCount: period.summary.ntv || 0
+      });
+    });
     const normalizedTargetRecord = normalizeSavedCommunityRecord(targetPropertyName, targetRecord);
     savedData[targetPropertyName] = normalizedTargetRecord;
     if (targetPropertyName === getProp().name) {
       monthlyData = normalizedTargetRecord.monthlyData;
+      renewalDetailRowsByMonth = normalizedTargetRecord.renewalDetailRowsByMonth;
       importTracking = normalizedTargetRecord.importTracking;
     }
     renewalImportSourceLabel = `${targetPropertyName} · ${file.name}`;
@@ -20262,10 +20641,12 @@ async function handleRenewalCsv(file) {
     return null;
   };
   let appliedMonths = 0;
+  let centralPlaceholderCount = 0;
   lines.slice(1).forEach(line => {
     const cols = line.split(",").map(value => value.trim().replace(/^"|"$/g, ""));
     const monthIdx = parseMonthIndexValue(headerValue(cols, ["month","period","sheet","reporting_month"]));
     if (monthIdx === null || monthIdx < 0 || monthIdx > 11) return;
+    const reportingYear = parseYearFromValue(headerValue(cols, ["year","reporting_year","period","sheet","reporting_month"]), new Date().getFullYear());
     const summary = {
       expirations: normalizeWorkbookNumber(headerValue(cols, ["renewal_expirations","total_lease_expirations","expirations"])),
       renewalsSigned: normalizeWorkbookNumber(headerValue(cols, ["renewals_signed","renewal_signed","signed"])),
@@ -20277,7 +20658,14 @@ async function handleRenewalCsv(file) {
       decidedRetentionRate: normalizeWorkbookPercent(headerValue(cols, ["decided_retention_rate"]))
     };
     applyRenewalSummaryToMonth(monthIdx, summary);
-    stampRenewalImportForMonth(monthIdx, file.name);
+    stampRenewalImportForMonth(monthIdx, file.name, reportingYear);
+    const centralSync = syncRenewalSummaryNtvCountToCentralServices({
+      propertyName: getProp().name,
+      monthIdx,
+      year: reportingYear,
+      fileName: file.name
+    }, summary);
+    centralPlaceholderCount += Number(centralSync?.created || 0);
     appliedMonths++;
   });
   if (appliedMonths === 0) {
@@ -20285,6 +20673,9 @@ async function handleRenewalCsv(file) {
   } else {
     renewalImportSourceLabel = file.name;
     renewalImportLog.push(`✅ ${file.name} → imported renewal summaries for ${appliedMonths} month(s).`);
+    if (centralPlaceholderCount > 0) {
+      renewalImportLog.push(`↳ Central Services created ${centralPlaceholderCount} NTV intake placeholder${centralPlaceholderCount === 1 ? "" : "s"} from the uploaded renewal summary count${centralPlaceholderCount === 1 ? "" : "s"}.`);
+    }
   }
 }
 
@@ -22380,22 +22771,20 @@ function hasMarketSurveyData(data) {
   );
 }
 
+function isDlrImportStamp(stamp = {}) {
+  const sourceFileName = String(stamp?.sourceFileName ?? "").trim().toLowerCase();
+  return Boolean(stamp?.importedAt) && !["dlr_reporting_export", "dlr_html_export"].includes(sourceFileName);
+}
+
 function buildDlrHistoricalCoverageKey(record, monthIdx, year = new Date().getFullYear()) {
-  const monthEntry = record?.monthlyData?.[monthIdx] ?? {};
+  const periodKey = buildPeriodKey(monthIdx, year);
+  const importStamp = getPeriodImportStamp(record, "dlrExports", periodKey);
+  if (isDlrImportStamp(importStamp)) return true;
+
+  // Legacy records did not retain period-level import stamps. Preserve only a
+  // dated, meaningful DLR summary for the requested month as their fallback.
   const summary = normalizeDlrSummary(record?.latestDlrSummary);
-  const boxScore = normalizeDlrBoxScoreSnapshot(summary.dailyBoxScore);
-  const summaryDate = parseDlrSpecificDate(boxScore.reportDateIso || summary.reportDateIso);
-  const summaryMatchesPeriod = !!summaryDate && summaryDate.getMonth() === monthIdx && summaryDate.getFullYear() === year;
-  return Boolean(
-    summaryMatchesPeriod ||
-    Number(monthEntry.occupiedSnapshot ?? 0) > 0 ||
-    Number(monthEntry.leasedSnapshot ?? 0) > 0 ||
-    Number(monthEntry.guestCards ?? 0) > 0 ||
-    Number(monthEntry.tours ?? 0) > 0 ||
-    Number(monthEntry.applications ?? 0) > 0 ||
-    Number(monthEntry.moveIns ?? 0) > 0 ||
-    Number(monthEntry.moveOuts ?? 0) > 0
-  );
+  return isDlrSummaryForRequestedPeriod(summary, monthIdx, year) && hasMeaningfulDlrSummary(summary);
 }
 
 function hasRenewalMonthData(entry = {}) {
@@ -22414,7 +22803,7 @@ function getImportReadinessStatus(record, monthIdx = getSelectedDashboardMonthIn
   const periodKey = buildPeriodKey(monthIdx, year);
   const isCurrentMonth = buildPeriodKey(monthIdx, year) === getCurrentCalendarPeriodKey();
   const dlrStamp = getPeriodImportStamp(normalizedRecord, "dlrExports", periodKey);
-  const dlrExportDate = parseDateSafe(dlrStamp.importedAt);
+  const dlrExportDate = isDlrImportStamp(dlrStamp) ? parseDateSafe(dlrStamp.importedAt) : null;
   const dlrHasData = buildDlrHistoricalCoverageKey(normalizedRecord, monthIdx, year);
   const dlrLoaded = isCurrentMonth
     ? !!dlrExportDate && isSameLocalCalendarDay(dlrExportDate, new Date())
@@ -27041,10 +27430,10 @@ function renderPortfolioHomeTab() {
 function renderReportingTab() {
   ensureValidReportHubAction();
   reportHubType = normalizeReportHubType(reportHubType);
-  if (!["dlr", "bonus_payout", "community_progress", "market_comparison", "leasing_velocity"].includes(reportHubType) && reportHubPerspective === "regional") {
+  if (!["dlr", "bonus_payout", "community_progress", "market_comparison", "leasing_velocity", "renewal_performance", "financial_review", "eviction_report"].includes(reportHubType) && reportHubPerspective === "regional") {
     reportHubPerspective = "investor";
   }
-  if (reportHubType === "community_progress" || reportHubType === "market_comparison" || reportHubType === "leasing_velocity") {
+  if (reportHubType === "community_progress" || reportHubType === "market_comparison" || reportHubType === "leasing_velocity" || reportHubType === "renewal_performance" || reportHubType === "financial_review" || reportHubType === "eviction_report") {
     reportHubPerspective = "csuite";
   }
   if (normalizeReportHubType(reportHubType) === "dlr") {
@@ -27083,8 +27472,8 @@ function renderReportingTab() {
   const selectedReportSections = getSelectedPortfolioReportSections();
   const ownerFilterSummary = `${(portfolioReportFilters.investorGroups ?? []).length} investor group(s) · ${(portfolioReportFilters.investorCommunities ?? []).length} highlighted communit${(portfolioReportFilters.investorCommunities ?? []).length === 1 ? "y" : "ies"}`;
   const communityProgressFilterSummary = `${communityProgressSelectionNames.length} communit${communityProgressSelectionNames.length === 1 ? "y" : "ies"} selected`;
-  const reportNeedsScopeBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && !["community_progress", "market_comparison"].includes(normalizedType);
-  const reportNeedsSectionBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && !["community_progress", "market_comparison"].includes(normalizedType);
+  const reportNeedsScopeBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && normalizedType !== "renewal_performance" && normalizedType !== "financial_review" && normalizedType !== "eviction_report" && !["community_progress", "market_comparison"].includes(normalizedType);
+  const reportNeedsSectionBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && normalizedType !== "renewal_performance" && normalizedType !== "financial_review" && normalizedType !== "eviction_report" && !["community_progress", "market_comparison"].includes(normalizedType);
   const reportTypeDescription = normalizedType === "investor_marketing_report"
     ? "Combines traffic and funnel performance with comp calculator and market-survey context."
     : normalizedType === "monthly_investor_deck"
@@ -27095,6 +27484,12 @@ function renderReportingTab() {
           ? "Single-community daily leasing report with upload-backed activity checks."
           : normalizedType === "leasing_velocity"
             ? "Portable ATLAS LVR export with stabilized and lease-up views, image slots, and print-ready Letter pages."
+          : normalizedType === "renewal_performance"
+            ? "Central Services renewal conversion, rent growth, pricing discipline, and employee performance from imported tracker records."
+          : normalizedType === "financial_review"
+            ? "Budget Builder financial operating review using preserved budgets, uploaded actuals, variance drivers, commentary, exceptions, forecast and report packs."
+          : normalizedType === "eviction_report"
+            ? "Central Services eviction, stipulation, court-funds, exception, attorney, judge, and outcome reporting from imported delinquency cases."
           : normalizedType === "community_progress"
             ? "C-suite month-to-date community progress report with photo-led visuals, pace analysis, and explicit data alerts when source fields are incomplete."
             : normalizedType === "market_comparison"
@@ -27200,14 +27595,17 @@ function renderReportingTab() {
           <option value="community_progress" ${reportHubType==="community_progress"?"selected":""}>Community Progress Report</option>
           <option value="market_comparison" ${reportHubType==="market_comparison"?"selected":""}>Market Comparison Report</option>
           <option value="leasing_velocity" ${reportHubType==="leasing_velocity"?"selected":""}>Leasing Velocity Report</option>
+          <option value="renewal_performance" ${reportHubType==="renewal_performance"?"selected":""}>Renewal Performance Report</option>
+          <option value="financial_review" ${reportHubType==="financial_review"?"selected":""}>Budget vs Actual Financial Review</option>
+          <option value="eviction_report" ${reportHubType==="eviction_report"?"selected":""}>Eviction Report</option>
         </select>
         <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${escapeHtml(reportTypeDescription)}</div>
       </div>
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Report View</div>
-        ${normalizedType === "community_progress" || normalizedType === "leasing_velocity"
+        ${normalizedType === "community_progress" || normalizedType === "leasing_velocity" || normalizedType === "renewal_performance" || normalizedType === "financial_review" || normalizedType === "eviction_report"
           ? `<div style="padding:8px 10px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2);font-size:0.78rem;font-weight:700;color:var(--accent)">${normalizedType === "leasing_velocity" ? "LVR Template" : "C-Suite View"}</div>
-             <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${normalizedType === "leasing_velocity" ? "The exported template contains its own stabilized / lease-up mode control." : "This report is locked to a c-suite lens so the output stays focused on operating progress and data confidence checks."}</div>`
+             <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${normalizedType === "leasing_velocity" ? "The exported template contains its own stabilized / lease-up mode control." : "This report is locked to a c-suite lens so the output stays focused on operating performance and data confidence checks."}</div>`
           : `<select onchange="setReportHubPerspective(this.value)">
               <option value="investor" ${reportHubPerspective==="investor"?"selected":""}>Investor facing</option>
               <option value="csuite" ${reportHubPerspective==="csuite"?"selected":""}>C-Suite View</option>
@@ -27297,6 +27695,43 @@ function renderReportHubPreviewFrame(title, description, documentHtml, controlsH
   </div>`;
 }
 
+function openAtlasBudgetFinancialReview(view = "financialreview") {
+  window.ATLAS_PENDING_BUDGET_VIEW = String(view || "financialreview");
+  return queueCurrentWorkspaceTab(12, { portfolio: true });
+}
+
+function renderReportHubFinancialReviewBridge() {
+  const reportOutputs = [
+    "Property Financial Review",
+    "Budget vs Actual Report",
+    "YTD Variance Report",
+    "Monthly Financial Review",
+    "Executive Financial Summary",
+    "Portfolio Financial Comparison",
+    "Material Variance Report",
+    "Unmapped Account Report"
+  ];
+  return `<div class="card mb4" id="reporting-inline-preview">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div>
+        <h3 style="font-size:0.9rem;font-weight:700;margin-bottom:6px">Budget vs Actual Financial Review Preview</h3>
+        <p style="font-size:0.72rem;color:var(--muted)">The financial review runs inside Budget Builder so it can use the preserved annual budget, uploaded monthly actuals, account mapping, variance drivers, commentary and report packs without duplicating financial state.</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-blue btn-sm" onmousedown="return openAtlasBudgetFinancialReview('financialreview')">Open Financial Review</button>
+        <button class="btn btn-gray btn-sm" onmousedown="return openAtlasBudgetFinancialReview('reports')">Open Report Packs</button>
+      </div>
+    </div>
+    <div class="report-hub-card" style="margin-bottom:14px">
+      <div class="card-title" style="margin-bottom:8px">Financial Reporting Outputs</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">
+        ${reportOutputs.map(name => `<div style="padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--bg2);font-size:0.72rem;font-weight:700;color:var(--text)">${escapeHtml(name)}</div>`).join("")}
+      </div>
+      <p style="font-size:0.72rem;color:var(--muted);margin-top:10px">Doro is the first working property for this review. Additional properties will appear in the comparison view once their monthly actuals are uploaded.</p>
+    </div>
+  </div>`;
+}
+
 function renderReportHubInlinePreview(type = normalizeReportHubType(reportHubType), selectedSections = getSelectedPortfolioReportSections()) {
   if (type === "dlr") {
     return `<div class="card mb4" id="reporting-inline-preview">${renderDlrReportingWorkspace()}</div>`;
@@ -27310,6 +27745,9 @@ function renderReportHubInlinePreview(type = normalizeReportHubType(reportHubTyp
   if (type === "market_comparison") {
     return renderMarketComparisonReportingWorkspace();
   }
+  if (type === "financial_review") {
+    return renderReportHubFinancialReviewBridge();
+  }
   if (type === "bonus_payout") {
     return renderReportHubPreviewFrame(
       "Bonus Payout Report",
@@ -27317,6 +27755,16 @@ function renderReportHubInlinePreview(type = normalizeReportHubType(reportHubTyp
       buildBonusPayoutReportDocument(),
       `<button class="btn btn-gray btn-sm" onclick="exportBonusPayoutCSV()">⬇ CSV</button><button class="btn btn-blue btn-sm" onclick="openBonusPayoutReport(true)">🖨 PDF / Print</button>`
     );
+  }
+  if (type === "renewal_performance") {
+    return typeof window.renderAtlasRenewalPerformanceReport === "function"
+      ? `<div class="card mb4" id="reporting-inline-preview">${window.renderAtlasRenewalPerformanceReport({ monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" })}</div>`
+      : `<div class="card mb4" id="reporting-inline-preview"><div class="report-hub-card"><div class="alert-red">Renewal Performance Report is unavailable until Central Services finishes loading.</div></div></div>`;
+  }
+  if (type === "eviction_report") {
+    return typeof window.renderAtlasEvictionReport === "function"
+      ? `<div class="card mb4" id="reporting-inline-preview">${window.renderAtlasEvictionReport({ monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" })}</div>`
+      : `<div class="card mb4" id="reporting-inline-preview"><div class="report-hub-card"><div class="alert-red">Eviction Report is unavailable until Central Services finishes loading.</div></div></div>`;
   }
   if (selectedSections.length === 0) {
     return `<div class="card mb4" id="reporting-inline-preview">
@@ -27483,7 +27931,9 @@ function persistPortfolioCommunityRecord(propName, record, options = {}) {
     source: options.source || "portfolio_community_record_save",
     persist: true,
     timestamp,
-    forceFields: options.forceFields
+    forceFields: options.forceFields,
+    strictMarket: options.strictMarket,
+    strictPropertyType: options.strictPropertyType
   });
   normalized = normalizeSavedCommunityRecord(propName, normalized);
   savedData[propName] = normalized;
@@ -27575,7 +28025,11 @@ function updatePortfolioCommunityField(propName, field, value) {
     source: "portfolio_roster_manual_edit",
     timestamp,
     manualField: field,
-    forceFields: sharedField ? [sharedField] : []
+    forceFields: sharedField ? [sharedField] : [],
+    // Community status is an independent reporting control. Do not make it
+    // contingent on unrelated community setup fields being complete.
+    strictMarket: field === "communityStatus" ? false : undefined,
+    strictPropertyType: field === "communityStatus" ? false : undefined
   });
 }
 
@@ -27598,6 +28052,14 @@ function updatePortfolioCommunityMonthField(propName, monthIdx, targetKey, value
     applyValueToRecord(record, normalizedMonth, targetKey, numericValue);
   }
   persistPortfolioCommunityRecord(propName, record);
+  if (targetKey === "renewal_ntvs") {
+    syncRenewalSummaryNtvCountToCentralServices({
+      propertyName: propName,
+      monthIdx: normalizedMonth,
+      year: new Date().getFullYear(),
+      sourceFileName: "Portfolio renewal editor"
+    }, { ntv: numericValue });
+  }
 }
 
 function updatePortfolioCommunityReputationField(propName, field, value) {
@@ -27790,7 +28252,10 @@ function getReportHubTypeLabel(type = reportHubType) {
     bonus_payout: "Bonus Payout Report",
     community_progress: "Community Progress Report",
     market_comparison: "Market Comparison Report",
-    leasing_velocity: "Leasing Velocity Report"
+    leasing_velocity: "Leasing Velocity Report",
+    renewal_performance: "Renewal Performance Report",
+    financial_review: "Budget vs Actual Financial Review",
+    eviction_report: "Eviction Report"
   }[normalizeReportHubType(type)] || "Investor Snapshot";
 }
 
@@ -27891,6 +28356,12 @@ function configureReportHubDefaultsForType(type) {
   } else if (normalized === "dlr") {
     reportHubPerspective = "csuite";
   } else if (normalized === "bonus_payout") {
+    reportHubPerspective = "csuite";
+  } else if (normalized === "renewal_performance") {
+    reportHubPerspective = "csuite";
+  } else if (normalized === "financial_review") {
+    reportHubPerspective = "csuite";
+  } else if (normalized === "eviction_report") {
     reportHubPerspective = "csuite";
   } else if (normalized === "community_progress" || normalized === "market_comparison") {
     reportHubPerspective = "csuite";
@@ -32094,6 +32565,13 @@ function getReportHubActionOptions(type = reportHubType) {
   ];
   if (normalizedType === "community_progress") return [...common, { value: "export_html", label: "Download Editable HTML" }, { value: "export_individual_pdfs", label: "Separate PDFs" }];
   if (normalizedType === "market_comparison") return [...common, { value: "export_html", label: "Download Editable HTML" }];
+  if (normalizedType === "renewal_performance") return [...common, { value: "export_csv", label: "Export CSV" }, { value: "export_excel", label: "Export Excel" }];
+  if (normalizedType === "financial_review") return [
+    { value: "preview", label: "Preview" },
+    { value: "open_review", label: "Open Financial Review" },
+    { value: "open_reports", label: "Open Report Packs" }
+  ];
+  if (normalizedType === "eviction_report") return [...common, { value: "export_csv", label: "Export CSV" }, { value: "export_excel", label: "Export Excel" }];
   if (normalizedType === "bonus_payout") return [...common, { value: "export_csv", label: "Export CSV" }];
   return common;
 }
@@ -32179,6 +32657,32 @@ function buildReportHubEmailDraft(type = reportHubType) {
         "",
         "The ATLAS Leasing Velocity Report is ready from the Reporting Hub.",
         "Use Preview Stabilized, Preview Lease-up, or Print / PDF before sending. The template includes both stabilized and lease-up variation modes."
+      ].join("\n")
+    };
+  }
+  if (normalizedType === "renewal_performance") {
+    return {
+      to,
+      subject: `${scopeLabel} Renewal Performance Report | ${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`,
+      body: [
+        `${scopeLabel} Renewal Performance Report`,
+        `${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`,
+        "",
+        "The renewal performance report is ready from the Reporting Hub.",
+        "Use CSV, Excel, or Print / PDF before sending so the current month, community, employee, and resident-level details are attached or included."
+      ].join("\n")
+    };
+  }
+  if (normalizedType === "eviction_report") {
+    return {
+      to,
+      subject: `${scopeLabel} Eviction Report | ${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`,
+      body: [
+        `${scopeLabel} Eviction Report`,
+        `${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`,
+        "",
+        "The eviction and stipulation report is ready from the Reporting Hub.",
+        "Use CSV, Excel, or Print / PDF before sending so case status, legal dates, court funds, stipulation exceptions, and outcomes are included."
       ].join("\n")
     };
   }
@@ -32698,18 +33202,7 @@ function renderDlrReportingWorkspace() {
   const notesHelperText = workbookMode
     ? "These note edits stay only in this workbook-backed DLR session. They flow into exports, but they do not save back to the dashboard."
     : "Edit these notes before you export, print, or draft the DLR email. Your edits flow into the investor-facing output for this selected community.";
-  const dueDaily = isDlrDailyDeliveryDue(deliverySettings);
-  const dueWeekly = isDlrWeeklyDeliveryDue(deliverySettings);
-  const dueSelectedDays = isDlrSelectedDayDeliveryDue(deliverySettings);
-  const autoTriggerKey = `${communityName}|${monthIdx}|${year}|${dueDaily ? "daily" : ""}|${dueWeekly ? "weekly" : ""}|${dueSelectedDays ? "selected_days" : ""}`;
-  if (deliverySettings.autoDraftOnOpen && (dueDaily || dueWeekly || dueSelectedDays) && !dlrAutoDeliveryTriggeredKeys.has(autoTriggerKey)) {
-    dlrAutoDeliveryTriggeredKeys.add(autoTriggerKey);
-    setTimeout(() => {
-      if (dueDaily) draftDlrOutlookEmail({ communityName, monthIdx, year, cadence: "daily" });
-      if (dueWeekly) draftDlrOutlookEmail({ communityName, monthIdx, year, cadence: "weekly" });
-      if (dueSelectedDays) draftDlrOutlookEmail({ communityName, monthIdx, year, cadence: "selected_days" });
-    }, 250);
-  }
+  const centralStatus = getDlrCentralStatusSummary(communityName);
   return `<div id="reporting-dlr-workspace" class="report-hub-card" style="margin-top:14px">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
       <div>
@@ -32719,6 +33212,9 @@ function renderDlrReportingWorkspace() {
           : "The DLR now builds from saved ATLAS data first. Pick the community, set the report date, optionally upload a same-day box score overlay, then review the RISE-branded preview before exporting or drafting delivery."}</p>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-gray btn-sm" onclick="publishDlrSnapshotToCentral({ communityName: ${JSON.stringify(communityName)}, monthIdx: ${monthIdx}, year: ${year} })" ${dlrCentralPublishBusy ? "disabled" : ""}>${dlrCentralPublishBusy ? "Publishing..." : "Publish Server Snapshot"}</button>
+        <button class="btn btn-gray btn-sm" onclick="refreshDlrCentralStatus(${JSON.stringify(communityName)})">Refresh Server Status</button>
+        <button class="btn btn-blue btn-sm" onclick="runDlrServerDeliveryQueue({ communityName: ${JSON.stringify(communityName)} })" ${dlrCentralRunBusy ? "disabled" : ""}>${dlrCentralRunBusy ? "Checking..." : "Run Server Queue"}</button>
         <button class="btn btn-gray btn-sm" onclick="draftDlrOutlookEmail({ communityName: ${JSON.stringify(communityName)}, monthIdx: ${monthIdx}, year: ${year} })">✉ Draft Outlook Email</button>
         <button class="btn btn-gray btn-sm" onclick="downloadDlrInvestorOverviewHtml({ communityName: ${JSON.stringify(communityName)}, monthIdx: ${monthIdx}, year: ${year} })">⬇ Editable HTML</button>
         <button class="btn btn-blue btn-sm" onclick="openDlrInvestorOverview({ communityName: ${JSON.stringify(communityName)}, monthIdx: ${monthIdx}, year: ${year}, printImmediately: true })">🖨 Export DLR / Print</button>
@@ -32754,6 +33250,7 @@ function renderDlrReportingWorkspace() {
       </div>
     </div>
     <div class="alert-green" style="margin-bottom:12px">${escapeHtml(sourceModeText)}</div>
+    <div class="alert-${centralStatus.status === "ready" ? "green" : "yellow"}" style="margin-bottom:12px"><strong>${escapeHtml(centralStatus.title)}</strong><br>${escapeHtml(centralStatus.body)}</div>
     <div style="display:grid;grid-template-columns:1.15fr 0.85fr;gap:12px;margin-bottom:12px">
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
         <div class="card-title" style="margin-bottom:8px">DLR Automation</div>
@@ -32787,7 +33284,6 @@ function renderDlrReportingWorkspace() {
             <div style="display:flex;flex-wrap:wrap;gap:10px">${["monday","tuesday","wednesday","thursday","friday","saturday","sunday"].map(day => `<label style="display:flex;align-items:center;gap:6px"><input type="checkbox" ${deliverySettings.selectedWeekdays.includes(day) ? "checked" : ""} onchange="updateDlrSelectedWeekday(${JSON.stringify(communityName)}, '${day}', this.checked)"><span>${day.charAt(0).toUpperCase()}${day.slice(1,3)}</span></label>`).join("")}</div>
           </div>
           <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" ${deliverySettings.toInvestorContacts ? "checked" : ""} onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'toInvestorContacts', this.checked)"><span>Use investor contacts from Community Setup</span></label>
-          <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" ${deliverySettings.autoDraftOnOpen ? "checked" : ""} onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'autoDraftOnOpen', this.checked)"><span>Auto-run in browser when due</span></label>
           <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" ${deliverySettings.sendWithoutBoxScore ? "checked" : ""} onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'sendWithoutBoxScore', this.checked)"><span>Allow send without same-day box score</span></label>
           <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" ${deliverySettings.useMostRecentAtlasData ? "checked" : ""} onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'useMostRecentAtlasData', this.checked)"><span>Use most recent ATLAS data</span></label>
           <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" ${deliverySettings.notifyIfDataMissing ? "checked" : ""} onchange="updateDlrDeliverySetting(${JSON.stringify(communityName)}, 'notifyIfDataMissing', this.checked)"><span>Notify if data is missing</span></label>
@@ -32818,7 +33314,7 @@ function renderDlrReportingWorkspace() {
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px">
           <div class="card-title" style="margin-bottom:0">DLR Queue</div>
-          <button class="btn btn-gray btn-sm" onclick="runDlrDeliveryQueue()">Run Due DLR Queue</button>
+          <button class="btn btn-gray btn-sm" onclick="runDlrDeliveryQueue()">Draft Due Outlook Emails</button>
         </div>
         <div style="display:grid;gap:8px;max-height:210px;overflow:auto">
           ${dueQueue.length ? dueQueue.map(item => `<div style="padding:10px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2)">
@@ -33556,9 +34052,17 @@ async function runReportHubAction() {
     }
     return null;
   }
+  if (reportHubAction === "open_review") {
+    if (type === "financial_review") return openAtlasBudgetFinancialReview("financialreview");
+    return null;
+  }
+  if (reportHubAction === "open_reports") {
+    if (type === "financial_review") return openAtlasBudgetFinancialReview("reports");
+    return null;
+  }
   if (reportHubAction === "preview") {
     if (type === "leasing_velocity") return openLeasingVelocityReportTemplate("stabilized", false);
-    if (["investor_snapshot", "investor_marketing_report", "monthly_investor_deck", "bonus_payout"].includes(type)) {
+    if (["investor_snapshot", "investor_marketing_report", "monthly_investor_deck", "bonus_payout", "renewal_performance", "financial_review", "eviction_report"].includes(type)) {
       renderTab();
       const target = document.getElementById("reporting-inline-preview");
       if (target?.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -33588,6 +34092,8 @@ async function runReportHubAction() {
     if (type === "leasing_velocity") return openLeasingVelocityReportTemplate("stabilized", true);
     if (type === "community_progress") return openCommunityProgressReport(true);
     if (type === "market_comparison") return openMarketComparisonReport(true);
+    if (type === "renewal_performance" && typeof window.atlasCsExportRenewalReport === "function") return window.atlasCsExportRenewalReport("print", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
+    if (type === "eviction_report" && typeof window.atlasCsExportEvictionReport === "function") return window.atlasCsExportEvictionReport("print", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
     if (type === "dlr") {
       const communityName = syncDlrTargetFromReportHub({ preserveCommunity: true });
       return openDlrInvestorOverview({
@@ -33601,9 +34107,15 @@ async function runReportHubAction() {
   }
   if (reportHubAction === "export_csv") {
     if (["investor_snapshot", "investor_marketing_report"].includes(type)) return exportPortfolioReportCSV();
+    if (type === "renewal_performance" && typeof window.atlasCsExportRenewalReport === "function") return window.atlasCsExportRenewalReport("csv", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
+    if (type === "eviction_report" && typeof window.atlasCsExportEvictionReport === "function") return window.atlasCsExportEvictionReport("csv", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
     return exportBonusPayoutCSV();
   }
-  if (reportHubAction === "export_excel") return exportPortfolioReportExcel();
+  if (reportHubAction === "export_excel") {
+    if (type === "renewal_performance" && typeof window.atlasCsExportRenewalReport === "function") return window.atlasCsExportRenewalReport("excel", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
+    if (type === "eviction_report" && typeof window.atlasCsExportEvictionReport === "function") return window.atlasCsExportEvictionReport("excel", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
+    return exportPortfolioReportExcel();
+  }
   if (reportHubAction === "export_html") {
     if (type === "monthly_investor_deck") return downloadMonthlyInvestorPresentationBrief();
     if (type === "community_progress") return downloadCommunityProgressReportHtml();
@@ -35102,6 +35614,172 @@ function buildDlrDeliveryQueue(monthIdx = getReportHubMonthIndex(), year = getRe
   return queue.sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status) || a.communityName.localeCompare(b.communityName));
 }
 
+function sanitizeDlrReportForCentralSnapshot(report = {}) {
+  const clone = JSON.parse(JSON.stringify(report || {}));
+  delete clone.communityPhotoAsset;
+  delete clone.communityPhotoPreviewSrc;
+  if (clone.sourceRecord && typeof clone.sourceRecord === "object") {
+    delete clone.sourceRecord.photoBank;
+    delete clone.sourceRecord.communityPhotoBank;
+    delete clone.sourceRecord.communityPhotoAsset;
+  }
+  return clone;
+}
+
+function buildDlrCentralSnapshotPayload(report, deliverySettings = null) {
+  const normalizedReport = sanitizeDlrReportForCentralSnapshot(report || {});
+  const settings = normalizeDlrDeliverySettings(deliverySettings || getDlrDeliverySettingsForCommunity(normalizedReport.communityName));
+  const recipients = resolveDlrRecipientsForCommunity(normalizedReport.communityName, settings);
+  return {
+    communityName: normalizedReport.communityName,
+    communityId: normalizedReport.communityId || normalizedReport.communityIdentifier || "",
+    reportingDate: buildDlrDateInputValue(normalizedReport.reportDateIso || normalizedReport.generatedAt || new Date()),
+    reportPeriodLabel: normalizedReport.reportPeriodLabel || normalizedReport.reportingPeriodRangeLabel || normalizedReport.reportMonthLabel,
+    status: settings.automationMode === "approval_required" ? "reviewed" : "approved",
+    sourceModule: "atlas_dlr_browser",
+    sourceIdentifier: normalizedReport.dailyBoxScoreSourceFile || normalizedReport.sourceSummary || "",
+    report: normalizedReport,
+    deliverySettings: settings,
+    recipients,
+    readiness: {
+      dailyBoxScoreReady: isDlrDailyBoxScoreReady(normalizedReport),
+      pricingReady: normalizedReport.dataAvailability?.pricingReady !== false,
+      renewalReady: normalizedReport.dataAvailability?.renewalReady !== false,
+      criticalMissing: [
+        normalizedReport.trafficMetrics?.applications,
+        normalizedReport.trafficMetrics?.guestCards,
+        normalizedReport.trafficMetrics?.tours,
+        normalizedReport.occupancyPct,
+        normalizedReport.leasedPct
+      ].every(value => !Number.isFinite(Number(value)) || Number(value) === 0)
+    }
+  };
+}
+
+function updateDlrCentralStatusCache(communityName, payload = {}) {
+  const key = matchPropertyName(communityName, { fallbackToCurrent: false }) || String(communityName || "").trim();
+  if (!key) return;
+  dlrCentralStatusByCommunity = {
+    ...dlrCentralStatusByCommunity,
+    [key]: {
+      ...(dlrCentralStatusByCommunity[key] || {}),
+      ...payload,
+      checkedAt: new Date().toISOString()
+    }
+  };
+}
+
+function getDlrCentralStatusSummary(communityName) {
+  const key = matchPropertyName(communityName, { fallbackToCurrent: false }) || String(communityName || "").trim();
+  const cached = dlrCentralStatusByCommunity[key] || {};
+  const latestSnapshot = Array.isArray(cached.snapshots) ? cached.snapshots[0] : cached.snapshot;
+  const latestDelivery = Array.isArray(cached.deliveries) ? cached.deliveries[0] : null;
+  const caps = cached.capabilities || {};
+  if (!cached.checkedAt && !latestSnapshot) {
+    return {
+      title: "Server snapshot not published yet",
+      body: "Publish the reviewed DLR snapshot before relying on weekday delivery.",
+      status: "pending"
+    };
+  }
+  const capabilityWarnings = [
+    caps.persistentDatabase === false ? "database missing" : "",
+    caps.transactionalEmail === false ? "email binding missing" : "",
+    caps.senderConfigured === false ? "sender missing" : ""
+  ].filter(Boolean);
+  const deliveryLine = latestDelivery
+    ? `Last delivery record: ${latestDelivery.status || "recorded"}${latestDelivery.scheduled_date ? ` for ${latestDelivery.scheduled_date}` : ""}.`
+    : "No delivery attempt has been recorded yet.";
+  return {
+    title: latestSnapshot
+      ? `Server snapshot: ${latestSnapshot.status || "reviewed"} ${latestSnapshot.reporting_date || ""}`.trim()
+      : "Server status checked",
+    body: `${deliveryLine}${capabilityWarnings.length ? ` Needs setup: ${capabilityWarnings.join(", ")}.` : " Weekday server delivery is configured."}`,
+    status: capabilityWarnings.length ? "warning" : "ready"
+  };
+}
+
+async function refreshDlrCentralStatus(communityName = getDlrReportCommunityName(), options = {}) {
+  const status = getAtlasCentralStatus();
+  if (!status.configured || !status.signedIn || !window.ATLAS_CENTRAL?.readDlrDeliveryStatus) {
+    if (!options.silent) alert(status.signedIn ? "Central DLR reporting is not available yet." : "Sign in to ATLAS before checking server delivery status.");
+    return null;
+  }
+  try {
+    const payload = await window.ATLAS_CENTRAL.readDlrDeliveryStatus({ communityName, limit: 5 });
+    updateDlrCentralStatusCache(communityName, payload);
+    if (!options.silent) renderTab();
+    return payload;
+  } catch (error) {
+    updateDlrCentralStatusCache(communityName, { error: error?.message || String(error) });
+    if (!options.silent) alert(`Server DLR status check failed: ${error?.message || error}`);
+    return null;
+  }
+}
+
+async function publishDlrSnapshotToCentral(options = {}) {
+  if (dlrCentralPublishBusy) return;
+  const status = getAtlasCentralStatus();
+  if (!status.configured || !status.signedIn || !window.ATLAS_CENTRAL?.publishDlrSnapshot) {
+    alert(status.signedIn ? "Central DLR reporting is not available yet." : "Sign in to ATLAS before publishing a server DLR snapshot.");
+    return;
+  }
+  const communityName = options.communityName || getDlrReportCommunityName();
+  const monthIdx = Number.isInteger(options.monthIdx) ? options.monthIdx : getReportHubMonthIndex();
+  const year = Number.isInteger(options.year) ? options.year : getReportHubYear();
+  const report = buildDashboardDlrInvestorOverview(communityName, monthIdx, year);
+  if (!report) {
+    alert("Build and review the DLR preview before publishing a server snapshot.");
+    return;
+  }
+  const deliverySettings = getDlrDeliverySettingsForCommunity(report.communityName);
+  const payload = buildDlrCentralSnapshotPayload(report, deliverySettings);
+  dlrCentralPublishBusy = true;
+  renderTab();
+  try {
+    const result = await window.ATLAS_CENTRAL.publishDlrSnapshot(payload);
+    updateDlrCentralStatusCache(report.communityName, {
+      capabilities: result?.capabilities,
+      snapshot: result?.snapshot,
+      snapshots: result?.snapshot ? [result.snapshot] : [],
+      subscriptions: result?.subscription ? [result.subscription] : []
+    });
+    alert(`Server DLR snapshot published for ${report.communityName}. Weekday delivery will use this persisted snapshot and subscription settings.`);
+  } catch (error) {
+    alert(`Server DLR snapshot publish failed: ${error?.message || error}`);
+  } finally {
+    dlrCentralPublishBusy = false;
+    renderTab();
+  }
+}
+
+async function runDlrServerDeliveryQueue(options = {}) {
+  if (dlrCentralRunBusy) return;
+  const status = getAtlasCentralStatus();
+  if (!status.configured || !status.signedIn || !window.ATLAS_CENTRAL?.runDlrDeliveryProcessor) {
+    alert(status.signedIn ? "Central DLR delivery is not available yet." : "Sign in to ATLAS before running the server DLR queue.");
+    return;
+  }
+  const communityName = options.communityName || getDlrReportCommunityName();
+  dlrCentralRunBusy = true;
+  renderTab();
+  try {
+    const result = await window.ATLAS_CENTRAL.runDlrDeliveryProcessor({
+      communityName,
+      force: Boolean(options.force),
+      dryRun: Boolean(options.dryRun)
+    });
+    await refreshDlrCentralStatus(communityName, { silent: true });
+    const processed = Number(result?.processed || 0);
+    alert(`Server DLR queue checked ${result?.checked || 0} subscription${Number(result?.checked || 0) === 1 ? "" : "s"} and processed ${processed} item${processed === 1 ? "" : "s"}.`);
+  } catch (error) {
+    alert(`Server DLR queue failed: ${error?.message || error}`);
+  } finally {
+    dlrCentralRunBusy = false;
+    renderTab();
+  }
+}
+
 async function copyDlrEmailAssetsToClipboard(report) {
   const deliverySettings = getDlrDeliverySettingsForCommunity(report.communityName);
   const htmlBody = buildDlrEmailHtml(report, deliverySettings);
@@ -35137,7 +35815,7 @@ async function draftDlrOutlookEmail(options = {}) {
   openOutlookComposeDraft({ to: toLine, cc: ccLine, bcc: bccLine, subject, body });
   if (cadence === "daily" || cadence === "weekly" || cadence === "selected_days") {
     markDlrDeliveryTriggered(report.communityName, cadence === "selected_days" ? "daily" : cadence, new Date(), {
-      markSent: deliverySettings.automationMode === "fully_automated"
+      markSent: false
     });
   }
   setTimeout(() => {
@@ -39026,20 +39704,6 @@ async function openDlrInvestorOverview(options = {}) {
   if (!win) return;
   try {
     report.communityPhotoSrc = await resolveDlrInvestorOverviewPhotoSrc(report.communityPhotoAsset);
-    const matchedCommunity = matchPropertyName(report.communityName, { fallbackToCurrent: false }) || report.communityName;
-    const record = isDlrReportOnlyWorkbook(report) ? null : getPropertyRecordForApply(matchedCommunity);
-    if (record) {
-      const periodKey = buildPeriodKey(report.reportMonthIdx, report.reportYear);
-      const nextTracking = setRecordPeriodImportStamp(record, "dlrExports", periodKey, {
-        importedAt: new Date().toISOString(),
-        sourceFileName: "dlr_reporting_export"
-      });
-      savedData[matchedCommunity] = normalizeSavedCommunityRecord(matchedCommunity, record);
-      if (matchedCommunity === getProp().name) importTracking = nextTracking;
-      persistSaved();
-      renderPropGrid();
-      renderTab();
-    }
     finalizePopupReportWindow(win, buildDlrInvestorOverviewDocument(report), printImmediately, 220);
   } catch (error) {
     console.error("Could not open the DLR investor overview.", error);
@@ -39078,20 +39742,6 @@ async function downloadDlrInvestorOverviewHtml(options = {}) {
   );
   if (!report) return;
   report.communityPhotoSrc = await resolveDlrInvestorOverviewPhotoSrc(report.communityPhotoAsset);
-  const matchedCommunity = matchPropertyName(report.communityName, { fallbackToCurrent: false }) || report.communityName;
-  const record = isDlrReportOnlyWorkbook(report) ? null : getPropertyRecordForApply(matchedCommunity);
-  if (record) {
-    const periodKey = buildPeriodKey(report.reportMonthIdx, report.reportYear);
-    const nextTracking = setRecordPeriodImportStamp(record, "dlrExports", periodKey, {
-      importedAt: new Date().toISOString(),
-      sourceFileName: "dlr_html_export"
-    });
-    savedData[matchedCommunity] = normalizeSavedCommunityRecord(matchedCommunity, record);
-    if (matchedCommunity === getProp().name) importTracking = nextTracking;
-    persistSaved();
-    renderPropGrid();
-    renderTab();
-  }
   const blob = new Blob([buildDlrInvestorOverviewDocument(report)], { type: "text/html" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
@@ -40025,6 +40675,16 @@ function applyExtractedDashboardRows(options = {}) {
       if (applyValueToRecord(record, monthIdx, targetKey, numericValue, targetYear)) applied++;
     };
     EXTRACT_MAPPABLE_FIELDS.forEach(sourceKey => applyMappedValue(sourceKey, row[sourceKey] ?? ""));
+    const ntvSourceKey = EXTRACT_MAPPABLE_FIELDS.find(sourceKey => (extractFieldMap[sourceKey] ?? sourceKey) === "renewal_ntvs");
+    const ntvCount = ntvSourceKey ? Number(row[ntvSourceKey] ?? "") : null;
+    if (Number.isFinite(ntvCount)) {
+      syncRenewalSummaryNtvCountToCentralServices({
+        propertyName: propName,
+        monthIdx,
+        year: targetYear,
+        sourceFileName: extractedSourceLabel || "Dashboard renewal import"
+      }, { ntv: ntvCount });
+    }
     savedData[propName] = normalizeSavedCommunityRecord(propName, record);
     touchedProps.add(propName);
   });
@@ -41311,6 +41971,11 @@ async function handlePDF(file, options = {}) {
       if (dlr.marketRent !== null) { writeMonthField("marketRent", dlr.marketRent); matched++; log.push(`→ ${MONTHS[targetMonth]} market rent: $${md.marketRent}`); }
       if (dlr.budgetRent !== null) { writeMonthField("proformaRent", dlr.budgetRent); matched++; log.push(`→ ${MONTHS[targetMonth]} budget rent: $${md.proformaRent}`); }
       targetRecord.latestDlrSummary = normalizeDlrSummary(dlr.summary);
+      const periodKey = buildPeriodKey(targetMonth, targetYear);
+      const nextTracking = setRecordPeriodImportStamp(targetRecord, "dlrExports", periodKey, {
+        importedAt: new Date().toISOString(),
+        sourceFileName: file.name
+      });
 
       Object.entries(dlr.pendingMoveOutsByMonth).forEach(([monthIdx, value]) => {
         const idx = Number(monthIdx);
@@ -41338,8 +42003,11 @@ async function handlePDF(file, options = {}) {
       }
 
       savedData[targetCommunity] = normalizeSavedCommunityRecord(targetCommunity, targetRecord);
+      if (targetCommunity === getProp().name) {
+        importTracking = nextTracking;
+        loadPropertyData(getProp().name);
+      }
       persistSaved();
-      if (targetCommunity === getProp().name) loadPropertyData(getProp().name);
 
       csvLog = [
         `✅ Extracted ${matched} mapped DLR values into the preview for ${MONTHS[targetMonth]}`,

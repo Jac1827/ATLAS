@@ -1212,6 +1212,37 @@
     });
   }
 
+  async function publishDlrSnapshot(payload = {}) {
+    return request(accessApiUrl("/api/atlas/dlr/snapshots"), {
+      method: "POST",
+      headers: baseHeaders(getConfig(), true, { supabasePublicHeaders: false }),
+      body: JSON.stringify(payload && typeof payload === "object" ? payload : {})
+    });
+  }
+
+  async function readDlrDeliveryStatus(options = {}) {
+    const params = new URLSearchParams();
+    if (options.communityName) params.set("communityName", String(options.communityName));
+    if (options.limit) params.set("limit", String(options.limit));
+    const query = params.toString();
+    return request(accessApiUrl(`/api/atlas/dlr/status${query ? `?${query}` : ""}`), {
+      method: "GET",
+      headers: baseHeaders(getConfig(), true, { supabasePublicHeaders: false })
+    });
+  }
+
+  async function runDlrDeliveryProcessor(options = {}) {
+    return request(accessApiUrl("/api/atlas/dlr/deliveries/run"), {
+      method: "POST",
+      headers: baseHeaders(getConfig(), true, { supabasePublicHeaders: false }),
+      body: JSON.stringify({
+        communityName: String(options.communityName || ""),
+        force: Boolean(options.force),
+        dryRun: Boolean(options.dryRun)
+      })
+    });
+  }
+
   handleAuthRedirect();
 
   window.ATLAS_CENTRAL = {
@@ -1262,6 +1293,9 @@
     upsertPeopleDirectory,
     upsertMarketingMetrics,
     upsertMaintenanceInspections,
-    recordBonusCalculation
+    recordBonusCalculation,
+    publishDlrSnapshot,
+    readDlrDeliveryStatus,
+    runDlrDeliveryProcessor
   };
 })();

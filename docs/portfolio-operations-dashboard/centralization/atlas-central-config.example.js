@@ -11,6 +11,7 @@ window.ATLAS_CENTRAL_CONFIG = {
   enabled: true,
   provider: "supabase-postgres",
   appBaseUrl: "https://jac1827.github.io/ATLAS/portfolio-operations-dashboard/index.html",
+  accessApiBaseUrl: "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev",
   supabaseUrl: "https://rmyhmvjcswfwaracgriy.supabase.co",
   supabaseAnonKey: "sb_publishable_2DEqeCNZFn6sNeVrSEfW8A_EI6tRb_1",
   documentKey: "atlas_dashboard_state_v1",

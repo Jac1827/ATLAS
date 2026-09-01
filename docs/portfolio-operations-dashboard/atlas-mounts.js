@@ -40,9 +40,9 @@
     },
     budget: {
       screen: "Budget Builder",
-      lede: "Property budgets, scenarios and month-end review on the RISE finance theme. Approved scenarios lock and publish back to ATLAS.",
+      lede: "Property budgets, scenarios, actuals, budget-vs-actual review and financial performance reports on the RISE finance theme. Approved scenarios lock and publish back to ATLAS.",
       title: "Budget Builder",
-      note: "Property budget, monthly view, GL detail, actuals and the exception report all run in the Budget Builder itself — ATLAS reads the published scenario.",
+      note: "Property budget, monthly view, GL detail, actuals, financial review and exception reporting all run in Budget Builder itself — ATLAS reads the published scenario.",
       barTitle: "RISE Budget Builder",
       barSub: "Standalone finance tool — central Budget and actuals migration required",
       src: "RISE-Budget-Builder.html",
@@ -73,8 +73,22 @@
     return src + separator + params;
   }
 
+  function initialViewFor(key) {
+    try {
+      if (key !== "budget" || !window.ATLAS_PENDING_BUDGET_VIEW) return "";
+      var view = String(window.ATLAS_PENDING_BUDGET_VIEW || "").trim();
+      window.ATLAS_PENDING_BUDGET_VIEW = "";
+      return view;
+    } catch (err) {
+      return "";
+    }
+  }
+
   function iframeSrc(key, mount) {
-    return appendParams(mount.src, "atlasEmbedded=1&atlasMountKey=" + encodeURIComponent(key) + "&v=20260824-inline");
+    var params = "atlasEmbedded=1&atlasMountKey=" + encodeURIComponent(key) + "&v=20260901-financial-review";
+    var initialView = initialViewFor(key);
+    if (initialView) params += "&atlasView=" + encodeURIComponent(initialView);
+    return appendParams(mount.src, params);
   }
 
   function frameDoc(iframe) {

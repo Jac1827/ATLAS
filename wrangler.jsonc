@@ -2,7 +2,31 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "rise-performance-platform-site",
   "main": "./src/worker.mjs",
-  "compatibility_date": "2026-05-22",
+  "compatibility_date": "2026-09-01",
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    "ATLAS_DLR_DELIVERY_TIMEZONE": "America/New_York",
+    "ATLAS_DLR_SCHEDULE_WINDOW_MINUTES": "15",
+    "ATLAS_DLR_EMAIL_PROVIDER": "cloudflare_email_service",
+    "ATLAS_DLR_FROM_EMAIL": "central@risere.com"
+  },
+  "triggers": {
+    "crons": [
+      "*/15 * * * MON-FRI"
+    ]
+  },
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "allowed_sender_addresses": [
+        "central@risere.com"
+      ],
+      "remote": true
+    }
+  ],
   "durable_objects": {
     "bindings": [
       {

@@ -10,6 +10,7 @@ Atlas is currently a browser-based static web application, not a secure centrali
 - Budget Builder is a standalone browser tool.
 - Marketing is partially centralized through Supabase tables, but still contains local/session login remnants and is not yet part of a shared Atlas data model.
 - The current main dashboard cloud sync is a whole-browser-bundle sync. It is useful for transition but is not a normalized database, not role-secured per record, and can merge/overwrite fields.
+- DLR report generation has browser-side mappings and manual Outlook/`mailto:` drafting. Before the September 1, 2026 automation guardrail work, it did not have persistent reviewed snapshots, server-side weekday scheduling, or provider-backed delivery history.
 
 ## Target Architecture
 
@@ -23,6 +24,9 @@ Atlas should become a hosted web application with:
 - Realtime subscriptions for shared records that users are authorized to see.
 - Append-only audit logs for every mutation.
 - Immutable legacy snapshots before every migration.
+- Persistent reviewed DLR snapshots, delivery subscriptions, and delivery history.
+- Server-side weekday scheduled jobs for DLR sends.
+- Transactional email delivery from the backend only.
 - Backup, point-in-time recovery, and export procedures.
 
 ## Data Preservation Rules
@@ -188,6 +192,41 @@ Validation:
 - Actual totals by account/period/community match source.
 - Contract counts and amounts match source.
 - Maintenance weekly metric totals match source.
+
+## Phase 5A: DLR Automated Reporting
+
+Status: foundation implemented, provider/domain setup required before production sends.
+
+Actions:
+
+- Apply the additive `atlas_dlr_snapshots`, `atlas_dlr_delivery_subscriptions`, and `atlas_dlr_delivery_history` schema.
+- Deploy the Cloudflare Worker with the weekday cron trigger and `send_email` binding.
+- Store the Supabase service-role key only in the Worker environment.
+- Configure `ATLAS_DLR_FROM_EMAIL` and verify its domain with the transactional email provider before enabling fully automated sends.
+- Keep the existing browser DLR parser and report builder as the reviewed report authoring surface.
+- Publish reviewed DLR snapshots from the DLR workspace to the central backend before the schedule is allowed to send.
+- Treat Outlook/`mailto:` drafts as manual convenience actions only; they do not update server delivery history.
+
+Migration impact:
+
+- No existing DLR mappings, monthly fields, floor-plan variance rows, renewal metrics, or traffic rollups are renamed.
+- Reviewed report payloads are stored in the central database as immutable delivery inputs.
+- Delivery settings move from browser-only state into `atlas_dlr_delivery_subscriptions` when a reviewed snapshot is published.
+- Each scheduled run records a delivery outcome, including skipped, awaiting approval, missing provider, failed, or sent.
+
+Rollback:
+
+- Pause or remove the Worker cron trigger.
+- Set affected subscriptions to `paused` or `disabled`.
+- Keep published snapshots and delivery history for audit; do not delete them.
+- Continue using manual DLR export or Outlook draft actions while central delivery is paused.
+
+Validation:
+
+- Publish a reviewed DLR snapshot and confirm the row appears in `atlas_dlr_snapshots`.
+- Confirm a matching subscription appears in `atlas_dlr_delivery_subscriptions`.
+- Run the server queue in a non-production sender/domain setup and confirm `provider_not_configured`, `awaiting_approval`, or `sent` is recorded truthfully.
+- Confirm no browser local storage value or generated `mailto:` link is treated as the system of record.
 
 ## Phase 6: Hosted App Cutover
 

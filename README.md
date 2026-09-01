@@ -9,8 +9,8 @@ This repo carries two separate static HTML experiences:
 ## What is included
 
 - Performance Platform: employee roster management, coaching/PIP plans, write-ups, reporting center, and RISE-branded exports
-- Operations Dashboard: community setup, staffing + regional assignment, leasing/traffic/renewals/reputation workflows, data import, bonus calculations, investor/weekly reporting, and presentation exports
-- GitHub Pages-ready static publishing from the `docs` folder
+- Operations Dashboard: community setup, staffing + regional assignment, leasing/traffic/renewals/reputation workflows, data import, bonus calculations, investor/weekly reporting, DLR snapshot publishing, and presentation exports
+- Cloudflare Worker delivery from the `docs` folder, with central ATLAS APIs for access and DLR reporting automation
 
 ## Publish on GitHub Pages
 
@@ -22,10 +22,12 @@ This repo carries two separate static HTML experiences:
 
 ## Notes
 
-- All dashboard data is stored in the browser with `localStorage`.
+- Most legacy dashboard data is still stored in the browser with `localStorage`/IndexedDB until each module is cut over.
+- DLR automated reporting uses the centralized ATLAS backend: reviewed snapshots are written to persistent database tables, weekday sends run from the Cloudflare Worker schedule, and outbound delivery uses the configured transactional email binding.
 - The passcode screen is a client-side privacy layer for trusted devices, not server-enforced security.
 - When the bundled company roster version changes, the app replaces the saved employee roster and clears saved plans/write-ups because those records are tied to employee IDs.
 - The Tea notification uses `mailto:` because this is a static site with no mail backend.
+- Outlook/`mailto:` drafts in the DLR workspace are manual convenience actions only and are not treated as automation or delivery history.
 - Signed documents are also stored in browser storage, so extremely large files are not recommended.
 - Presentation images and related assets use browser storage, so occasional cleanup is still recommended for very large image libraries.
 - The published site root `docs/index.html` redirects to the ATLAS operations dashboard.

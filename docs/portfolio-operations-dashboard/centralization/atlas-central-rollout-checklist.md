@@ -32,6 +32,19 @@
 11. Apply canonical People first, then Marketing metrics, then MSOE/SOE.
 12. Save current Atlas state or enable autosave only after the safety gate is complete.
 
+## DLR Automated Reporting Setup
+
+1. Apply the additive DLR tables in `atlas-central-schema.sql`.
+2. Deploy the Cloudflare Worker from `wrangler.jsonc` so the weekday cron trigger and `send_email` binding are active.
+3. Add the Supabase service-role key only as a Worker secret.
+4. Verify the outbound email domain with the transactional email provider.
+5. Set `ATLAS_DLR_FROM_EMAIL` and, optionally, `ATLAS_DLR_FROM_NAME` in the Worker environment.
+6. In ATLAS > Reports & Presentations > DLR, review the generated report and select the delivery cadence, recipients, and automation mode.
+7. Click `Publish Server Snapshot` to write the reviewed DLR snapshot and subscription into the central database.
+8. Use `Refresh Server Status` to confirm the persisted snapshot and delivery history.
+9. Keep `Draft Only` or `Draft + Approval Required` until a real sender domain and recipient list have passed testing.
+10. Treat `Run Server Queue` as a backend delivery check; Outlook drafts and `mailto:` links are not delivery history.
+
 ## Reconciliation Gate
 
 Before enabling autosave, confirm:

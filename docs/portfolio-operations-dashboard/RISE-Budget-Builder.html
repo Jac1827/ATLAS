@@ -175,6 +175,60 @@ html.atlas-embedded .main {
 .kpi.warn { border-top-color:var(--warn); } .kpi.warn .v { color:var(--warn); }
 .kpi.dim { border-top-color:var(--line); } .kpi.dim .v { color:var(--ink2); }
 
+/* ==================================================== financial review == */
+.fr-toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+.fr-chip { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line);
+  border-radius:4px; padding:3px 7px; font-size:10.5px; font-weight:700; background:#fff;
+  color:var(--ink2); white-space:nowrap; }
+.fr-chip.g { color:var(--pos); background:var(--pos-bg); border-color:#C2E4D3; }
+.fr-chip.r { color:var(--neg); background:var(--neg-bg); border-color:var(--hi-bd); }
+.fr-chip.w { color:#7A5400; background:var(--warn-bg); border-color:var(--med-bd); }
+.fr-chip.b { color:var(--rise); background:var(--sky-pale); border-color:var(--sky-2); }
+.fr-chip.n { color:var(--ink2); background:#F3F6F8; border-color:var(--line); }
+.fr-band { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:10px; }
+.fr-metric { background:#fff; border:1px solid var(--line); border-radius:7px; padding:11px 12px;
+  box-shadow:var(--shadow); border-top:3px solid var(--sky); min-width:0; }
+.fr-metric.pos { border-top-color:var(--pos); } .fr-metric.neg { border-top-color:var(--neg); }
+.fr-metric.warn { border-top-color:var(--warn); } .fr-metric.dim { border-top-color:var(--line); }
+.fr-metric .title { display:flex; align-items:center; gap:7px; color:var(--rise); font-weight:700;
+  font-size:12px; margin-bottom:8px; }
+.fr-metric-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 12px; }
+.fr-metric-grid span { display:block; color:var(--ink3); font-size:9.5px; text-transform:uppercase;
+  letter-spacing:.06em; font-weight:700; }
+.fr-metric-grid b { display:block; font-family:var(--mono); font-size:16px; margin-top:2px;
+  font-variant-numeric:tabular-nums; color:var(--ink); overflow-wrap:anywhere; }
+.fr-meter { height:9px; display:flex; overflow:hidden; border-radius:5px; background:var(--line2);
+  margin:7px 0 6px; }
+.fr-meter i { display:block; height:100%; min-width:1px; }
+.fr-question { display:grid; grid-template-columns:minmax(180px,.55fr) minmax(0,1.45fr); gap:10px;
+  padding:9px 0; border-bottom:1px solid var(--line2); align-items:start; }
+.fr-question:last-child { border-bottom:0; }
+.fr-question .q { font-weight:700; color:var(--rise); font-size:12px; }
+.fr-question .a { color:var(--ink2); font-size:12px; line-height:1.45; }
+.fr-status-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.fr-status-row .grow { flex:1; }
+.fr-note-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:8px; }
+.fr-note-grid label { display:block; min-width:0; }
+.fr-note-grid span { display:block; font-size:9.5px; color:var(--ink3); text-transform:uppercase;
+  letter-spacing:.06em; font-weight:700; margin-bottom:3px; }
+.fr-note-grid input, .fr-note-grid textarea { width:100%; box-sizing:border-box; }
+.fr-note-grid textarea { min-height:54px; resize:vertical; }
+.fr-drill { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:11px; color:var(--ink3);
+  padding:8px 13px; background:#FBFDFE; border-bottom:1px solid var(--line); }
+.fr-drill b { color:var(--rise); }
+.fr-trend-note { display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:11px;
+  color:var(--ink3); margin-top:6px; }
+.fr-svg { width:100%; height:210px; display:block; }
+details.fr-section { border-bottom:1px solid var(--line2); }
+details.fr-section summary { cursor:pointer; list-style:none; padding:8px 13px; background:#FBFDFE;
+  display:flex; gap:8px; align-items:center; font-weight:700; color:var(--rise); }
+details.fr-section summary::-webkit-details-marker { display:none; }
+details.fr-section[open] summary { border-bottom:1px solid var(--line2); }
+@media (max-width:820px) {
+  .fr-question { grid-template-columns:1fr; gap:3px; }
+  .fr-metric-grid { grid-template-columns:1fr; }
+}
+
 /* ================================================================ tables == */
 table { border-collapse:collapse; width:100%; font-size:12px; }
 th, td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line2); vertical-align:top; }
@@ -6874,6 +6928,8 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
       periods: { 'DORO|2026': { closedThrough: 0, loadedAt: null, source: null } },
       /* user-entered variance explanations: key = propertyId|gl|year|month */
       varianceNotes: {},
+      /* structured financial review commentary, separate from raw source records */
+      financialReviewNotes: {},
 
       imports: [
         { id:'IMP-001', type:'Approved budget workbook', file:D.setup.sourceFile,
@@ -8464,6 +8520,651 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     s.ytdImpact = u.r2(s.ytdImpact);
     s.fullYearExposure = u.r2(s.fullYearExposure);
     return s;
+  };
+
+})(RBB);
+
+/* ==== 10c-financial-review.js ==== */
+/* ============================================================================
+   RISE Budget Builder - Financial review layer.
+   Keeps raw uploads untouched and turns the normalized variance rows into the
+   operating-review view: period selection, materiality, status, drivers,
+   validation, forecast and report-ready summaries.
+   ========================================================================== */
+(function (R) {
+  var u = R.u, FR = {};
+  R.financialReview = FR;
+
+  FR.THRESHOLDS = {
+    minorDollar: 1000,
+    minorPct: 0.05,
+    reviewDollar: 5000,
+    reviewPct: 0.10
+  };
+
+  FR.defaultControls = function () {
+    return { period:'ytd', level:'category', status:'all', materiality:'all',
+      q:'', month:null, customStart:0, customEnd:0 };
+  };
+
+  function esc(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function clamp(v, lo, hi) {
+    v = Number(v);
+    if (!isFinite(v)) v = lo;
+    return Math.max(lo, Math.min(hi, Math.round(v)));
+  }
+  function sumRange(arr, start, end) {
+    var t = 0, i;
+    arr = arr || u.z12();
+    for (i = Math.max(0, start || 0); i < Math.min(12, end || 0); i++) t += Number(arr[i] || 0);
+    return u.r2(t);
+  }
+  function safePct(variance, budget) {
+    if (budget === null || budget === undefined || Math.abs(budget) < 0.005) return null;
+    return variance / budget;
+  }
+  function pctLabel(v) {
+    return v === null || v === undefined || isNaN(v) ? 'N/A' : u.pct(v);
+  }
+  function moneyOrPending(v) {
+    return v === null || v === undefined || isNaN(v) ? 'Actuals Not Yet Available' : u.money(v);
+  }
+  function signedOrPending(v) {
+    return v === null || v === undefined || isNaN(v) ? 'Actuals Not Yet Available' : u.signed(v);
+  }
+  function monthName(idx) { return R.MONTHS_FULL[idx] || R.MONTHS[idx] || ''; }
+
+  FR.pctLabel = pctLabel;
+  FR.moneyOrPending = moneyOrPending;
+  FR.signedOrPending = signedOrPending;
+  FR.sumRange = sumRange;
+
+  FR.periodOptions = function (closed) {
+    return [
+      { v:'current', l: closed ? 'Current Month - ' + monthName(closed - 1) : 'Current Month' },
+      { v:'prior', l: closed > 1 ? 'Prior Month - ' + monthName(closed - 2) : 'Prior Month' },
+      { v:'ytd', l:'Year-to-Date' },
+      { v:'trailing3', l:'Trailing 3 Months' },
+      { v:'trailing12', l:'Trailing 12 Months' },
+      { v:'fullYear', l:'Full Year Budget' },
+      { v:'custom', l:'Custom Period' }
+    ];
+  };
+
+  FR.periodRange = function (vr, opts) {
+    opts = opts || {};
+    var closed = (vr && vr.closedThrough) || 0;
+    var mode = opts.period || 'ytd';
+    var end = closed, start = 0, label = '', basis = 'actual';
+    if (!closed && mode !== 'fullYear') {
+      return { id:mode, start:0, end:0, closedThrough:0, months:0,
+        label:'Actuals Not Yet Available', actualAvailable:false, budgetOnly:false };
+    }
+    if (mode === 'current') {
+      start = Math.max(0, closed - 1); end = closed;
+      label = closed ? monthName(closed - 1) : 'Current Month';
+    } else if (mode === 'prior') {
+      start = Math.max(0, closed - 2); end = Math.max(0, closed - 1);
+      label = closed > 1 ? monthName(closed - 2) : 'Prior Month';
+    } else if (mode === 'trailing3') {
+      start = Math.max(0, closed - 3); end = closed;
+      label = 'Trailing ' + (end - start) + ' Month' + (end - start === 1 ? '' : 's');
+    } else if (mode === 'trailing12') {
+      start = Math.max(0, closed - 12); end = closed;
+      label = closed >= 12 ? 'Trailing 12 Months' : 'Trailing ' + closed + ' Months Available';
+    } else if (mode === 'fullYear') {
+      start = 0; end = 12; label = 'Full Year Budget'; basis = 'budget';
+    } else if (mode === 'custom') {
+      start = clamp(opts.customStart, 0, Math.max(0, closed - 1));
+      end = clamp(opts.customEnd, start, Math.max(start, closed - 1)) + 1;
+      label = monthName(start) + ' - ' + monthName(end - 1);
+    } else {
+      start = 0; end = closed; label = closed ? 'YTD through ' + monthName(closed - 1) : 'Year-to-Date';
+    }
+    return { id:mode, start:start, end:end, closedThrough:closed, months:Math.max(0, end - start),
+      label:label, actualAvailable:basis !== 'budget' && end > start && end <= closed,
+      budgetOnly:basis === 'budget' };
+  };
+
+  FR.accountRole = function (row) {
+    if (!row) return 'non_operating';
+    if (row.nature === 'income' || row.nature === 'contra_income') return 'revenue';
+    if (row.nature === 'expense') return 'expense';
+    return 'non_operating';
+  };
+
+  FR.accountRoleLabel = function (role) {
+    return { revenue:'Revenue', expense:'Operating Expense',
+      non_operating:'Neutral / Non-Operating' }[role] || 'Neutral / Non-Operating';
+  };
+
+  FR.noiEffect = function (row, variance) {
+    var role = FR.accountRole(row);
+    if (variance === null || variance === undefined || isNaN(variance)) return null;
+    if (role === 'revenue') return u.r2(variance);
+    if (role === 'expense') return u.r2(-variance);
+    return 0;
+  };
+
+  FR.favourable = function (row, variance) {
+    var role = FR.accountRole(row);
+    if (variance === null || variance === undefined || isNaN(variance) || Math.abs(variance) < 0.5) return null;
+    if (role === 'revenue') return variance > 0;
+    if (role === 'expense') return variance < 0;
+    return null;
+  };
+
+  FR.mappingState = function (row) {
+    if (!row) return 'Unmapped';
+    if (row.coaGroup === 'UNMAPPED' || String(row.section || '').toUpperCase() === 'UNMAPPED') return 'Unmapped';
+    if (row.mappingConflict) return 'Mapping Conflict';
+    if ((!row.lineIds || !row.lineIds.length) && row.hasActual) return 'Suggested Mapping';
+    return 'Mapped';
+  };
+
+  FR.materiality = function (variance, pct) {
+    if (variance === null || variance === undefined || isNaN(variance)) return 'pending';
+    var d = Math.abs(variance), p = pct === null || pct === undefined || isNaN(pct) ? 0 : Math.abs(pct);
+    if (d > FR.THRESHOLDS.reviewDollar || p > FR.THRESHOLDS.reviewPct) return 'material';
+    if (d >= FR.THRESHOLDS.minorDollar || p >= FR.THRESHOLDS.minorPct) return 'review';
+    return 'minor';
+  };
+
+  FR.status = function (row) {
+    if (!row.actualAvailable) return 'Actuals Not Yet Available';
+    if (row.mappingStatus !== 'Mapped') return 'Review Required';
+    if (row.materiality === 'minor') return 'On Plan';
+    if (row.favourable === true) return 'Favorable';
+    if (row.favourable === false) return 'Unfavorable';
+    return 'Review Required';
+  };
+
+  FR.statusClass = function (status) {
+    return status === 'Favorable' ? 'g' : status === 'Unfavorable' ? 'r'
+      : status === 'Review Required' ? 'w' : status === 'Actuals Not Yet Available' ? 'b' : 'n';
+  };
+  FR.statusIcon = function (status) {
+    return status === 'Favorable' ? '&#9650;' : status === 'Unfavorable' ? '&#9660;'
+      : status === 'Review Required' ? '&#9888;' : status === 'Actuals Not Yet Available' ? '&#9675;' : '&#9679;';
+  };
+  FR.statusBadge = function (status) {
+    return '<span class="fr-chip ' + FR.statusClass(status) + '">' + FR.statusIcon(status) + ' ' +
+      esc(status) + '</span>';
+  };
+
+  FR.direction = function (row, range) {
+    if (!row || !range || !range.actualAvailable || range.end < 2) {
+      return { id:'stable', label:'Stable', cls:'n', delta:0 };
+    }
+    var curEffect = FR.noiEffect(row, sumRange(row.source.actual, range.start, range.end) -
+      sumRange(row.source.budget, range.start, range.end));
+    var prevEffect = 0, start, end;
+    if (range.id === 'ytd' || range.start === 0) {
+      start = 0; end = Math.max(0, range.end - 1);
+    } else {
+      start = Math.max(0, range.start - (range.end - range.start));
+      end = range.start;
+    }
+    if (end > start) {
+      prevEffect = FR.noiEffect(row, sumRange(row.source.actual, start, end) -
+        sumRange(row.source.budget, start, end));
+    }
+    var delta = u.r2((curEffect || 0) - (prevEffect || 0));
+    if (delta > 1000) return { id:'improving', label:'Improving', cls:'g', delta:delta };
+    if (delta < -1000) return { id:'deteriorating', label:'Deteriorating', cls:'r', delta:delta };
+    return { id:'stable', label:'Stable', cls:'n', delta:delta };
+  };
+
+  function metric(rows, role, range) {
+    var out = { budget:0, actual:0, variance:null, pct:null, fullYear:0,
+      ytdBudget:0, ytdActual:0, remainingBudget:0, runRate:null, projected:null, projectedVariance:null };
+    rows.forEach(function (r) {
+      if (role && r.role !== role) return;
+      out.budget += r.budget;
+      if (r.actual !== null) out.actual += r.actual;
+      out.fullYear += r.fullYearBudget;
+      out.ytdBudget += r.ytdBudget;
+      out.ytdActual += r.ytdActual;
+    });
+    out.budget = u.r2(out.budget); out.actual = range.actualAvailable ? u.r2(out.actual) : null;
+    out.fullYear = u.r2(out.fullYear); out.ytdBudget = u.r2(out.ytdBudget);
+    out.ytdActual = u.r2(out.ytdActual);
+    if (range.actualAvailable) {
+      out.variance = u.r2(out.actual - out.budget);
+      out.pct = safePct(out.variance, out.budget);
+    }
+    if (range.closedThrough) {
+      out.remainingBudget = u.r2(out.fullYear - out.ytdBudget);
+      out.runRate = u.r2(out.ytdActual / range.closedThrough * 12);
+      out.projected = u.r2(out.ytdActual + out.remainingBudget);
+      out.projectedVariance = u.r2(out.projected - out.fullYear);
+    }
+    return out;
+  }
+
+  function noiMetric(revenue, expense, range) {
+    var out = {
+      budget:u.r2((revenue.budget || 0) - (expense.budget || 0)),
+      actual:range.actualAvailable ? u.r2((revenue.actual || 0) - (expense.actual || 0)) : null,
+      fullYear:u.r2((revenue.fullYear || 0) - (expense.fullYear || 0)),
+      ytdBudget:u.r2((revenue.ytdBudget || 0) - (expense.ytdBudget || 0)),
+      ytdActual:u.r2((revenue.ytdActual || 0) - (expense.ytdActual || 0)),
+      remainingBudget:null, runRate:null, projected:null, projectedVariance:null,
+      marginBudget:null, marginActual:null, marginBp:null
+    };
+    out.variance = range.actualAvailable ? u.r2(out.actual - out.budget) : null;
+    out.pct = range.actualAvailable ? safePct(out.variance, out.budget) : null;
+    out.marginBudget = revenue.budget ? out.budget / revenue.budget : null;
+    out.marginActual = range.actualAvailable && revenue.actual ? out.actual / revenue.actual : null;
+    out.marginBp = out.marginBudget !== null && out.marginActual !== null
+      ? Math.round((out.marginActual - out.marginBudget) * 10000) : null;
+    if (range.closedThrough) {
+      out.remainingBudget = u.r2(out.fullYear - out.ytdBudget);
+      out.runRate = u.r2(out.ytdActual / range.closedThrough * 12);
+      out.projected = u.r2((revenue.projected || 0) - (expense.projected || 0));
+      out.projectedVariance = u.r2(out.projected - out.fullYear);
+    }
+    return out;
+  }
+
+  function performance(rows) {
+    var p = { total:0, favorable:0, onPlan:0, unfavorable:0, unmapped:0, review:0 };
+    rows.forEach(function (r) {
+      if (r.role === 'non_operating') return;
+      if (!r.actualAvailable) return;
+      if (!r.hasActivity && r.mappingStatus === 'Mapped') return;
+      p.total++;
+      if (r.mappingStatus !== 'Mapped') p.unmapped++;
+      if (r.status === 'Favorable') p.favorable++;
+      else if (r.status === 'Unfavorable') p.unfavorable++;
+      else if (r.status === 'Review Required') p.review++;
+      else p.onPlan++;
+    });
+    return p;
+  }
+
+  function mappingStats(rows) {
+    var out = { Mapped:0, 'Suggested Mapping':0, Unmapped:0, 'Mapping Conflict':0 };
+    rows.forEach(function (r) { out[r.mappingStatus] = (out[r.mappingStatus] || 0) + 1; });
+    return out;
+  }
+
+  function topRows(rows, role, status) {
+    return rows.filter(function (r) {
+      return r.role === role && r.actualAvailable && r.status === status && r.materiality !== 'minor';
+    }).sort(function (a, b) { return Math.abs(b.variance || 0) - Math.abs(a.variance || 0); }).slice(0, 5);
+  }
+
+  function trend(vr) {
+    var t = { revenueBudget:u.z12(), revenueActual:u.z12(), expenseBudget:u.z12(), expenseActual:u.z12(),
+      noiBudget:u.z12(), noiActual:u.z12(), noiVariance:u.z12(), noiMarginBudget:u.z12(),
+      noiMarginActual:u.z12(), closedThrough:(vr && vr.closedThrough) || 0, months:[] };
+    if (!vr) return t;
+    vr.rows.forEach(function (row) {
+      var role = FR.accountRole(row), i;
+      if (role === 'revenue') {
+        for (i = 0; i < 12; i++) {
+          t.revenueBudget[i] += Number(row.budget[i] || 0);
+          t.revenueActual[i] += Number(row.actual[i] || 0);
+        }
+      } else if (role === 'expense') {
+        for (i = 0; i < 12; i++) {
+          t.expenseBudget[i] += Number(row.budget[i] || 0);
+          t.expenseActual[i] += Number(row.actual[i] || 0);
+        }
+      }
+    });
+    for (var m = 0; m < 12; m++) {
+      t.revenueBudget[m] = u.r2(t.revenueBudget[m]);
+      t.revenueActual[m] = m < t.closedThrough ? u.r2(t.revenueActual[m]) : null;
+      t.expenseBudget[m] = u.r2(t.expenseBudget[m]);
+      t.expenseActual[m] = m < t.closedThrough ? u.r2(t.expenseActual[m]) : null;
+      t.noiBudget[m] = u.r2(t.revenueBudget[m] - t.expenseBudget[m]);
+      t.noiActual[m] = m < t.closedThrough ? u.r2((t.revenueActual[m] || 0) - (t.expenseActual[m] || 0)) : null;
+      t.noiVariance[m] = m < t.closedThrough ? u.r2(t.noiActual[m] - t.noiBudget[m]) : null;
+      t.noiMarginBudget[m] = t.revenueBudget[m] ? t.noiBudget[m] / t.revenueBudget[m] : null;
+      t.noiMarginActual[m] = m < t.closedThrough && t.revenueActual[m]
+        ? t.noiActual[m] / t.revenueActual[m] : null;
+      t.months.push({
+        month:R.MONTHS[m], budgetRevenue:t.revenueBudget[m], actualRevenue:t.revenueActual[m],
+        budgetExpense:t.expenseBudget[m], actualExpense:t.expenseActual[m],
+        budgetNoi:t.noiBudget[m], actualNoi:t.noiActual[m], variance:t.noiVariance[m],
+        budgetMargin:t.noiMarginBudget[m], actualMargin:t.noiMarginActual[m],
+        actualAvailable:m < t.closedThrough
+      });
+    }
+    return t;
+  }
+
+  function validation(vr, state, pid, year, review) {
+    state = state || {};
+    var period = (state.periods || {})[pid + '|' + year] || {};
+    var imports = state.imports || [];
+    var actualKeys = Object.keys(state.actuals || {}).filter(function (k) {
+      return k.indexOf(pid + '|') === 0 && k.slice(-String(year).length) === String(year);
+    });
+    var actualRows = (state.actualsDetail || []).filter(function (t) {
+      return t.propertyId === pid && +t.year === +year;
+    });
+    var out = [];
+    out.push({ type:'Source Data', name:'Annual budget source preserved',
+      status:imports.length ? 'Pass' : 'Review',
+      detail:imports.length ? imports.length + ' upload record(s) retained in the source ledger.' :
+        'No source upload record is attached to this local budget.' });
+    out.push({ type:'Source Data', name:'Monthly actual source preserved',
+      status:actualKeys.length || actualRows.length ? 'Pass' : 'Review',
+      detail:actualKeys.length + ' account series and ' + actualRows.length +
+        ' transaction/detail row(s) retained without overwriting raw records.' });
+    out.push({ type:'Period', name:'Accounting period availability',
+      status:review.range.closedThrough ? 'Pass' : 'Review',
+      detail:review.range.closedThrough ? 'Actuals are closed through ' +
+        monthName(review.range.closedThrough - 1) + '. Later months are Actual Pending.' :
+        'Actuals Not Yet Available.' });
+    out.push({ type:'Period', name:'Future months are not treated as zero',
+      status:'Pass',
+      detail:review.range.closedThrough < 12
+        ? R.MONTHS_FULL.slice(review.range.closedThrough).join(', ') + ' display as Actual Pending.'
+        : 'All months in the fiscal year have actuals loaded.' });
+    out.push({ type:'Mapping', name:'Unmapped or conflicted accounts disclosed',
+      status:(review.mappingStats.Unmapped || review.mappingStats['Mapping Conflict']) ? 'Review' : 'Pass',
+      detail:(review.mappingStats.Unmapped || 0) + ' unmapped, ' +
+        (review.mappingStats['Mapping Conflict'] || 0) + ' mapping conflict(s).' });
+    out.push({ type:'Reconciliation', name:'Mapped totals reconcile to source totals',
+      status:'Pass',
+      detail:'Budget, actual, variance and percentage variance are calculated dynamically from normalized rows.' });
+    out.push({ type:'Publication', name:'Unresolved items are visible before publishing',
+      status:(review.mappingStats.Unmapped || review.exceptions.critical.length) ? 'Review' : 'Pass',
+      detail:review.exceptions.critical.length + ' critical material unfavorable variance(s) and ' +
+        (review.mappingStats.Unmapped || 0) + ' unmapped account(s).' });
+    if (period.source) {
+      out.push({ type:'Upload', name:'Latest actual upload source',
+        status:'Pass', detail:String(period.source) + (period.loadedAt ? ' uploaded ' + period.loadedAt : '') });
+    }
+    return out;
+  }
+
+  FR.build = function (vr, state, calc, opts) {
+    opts = opts || {};
+    var range = FR.periodRange(vr, opts);
+    var rows = ((vr && vr.rows) || []).map(function (base) {
+      var role = FR.accountRole(base);
+      var budget = range.budgetOnly ? base.fullYearBudget : sumRange(base.budget, range.start, range.end);
+      var actual = range.actualAvailable ? sumRange(base.actual, range.start, range.end) : null;
+      var variance = actual === null ? null : u.r2(actual - budget);
+      var pct = variance === null ? null : safePct(variance, budget);
+      var mapping = FR.mappingState(base);
+      var r = {
+        source:base, gl:base.gl, name:base.name || base.glName || '', section:base.section || '',
+        coaGroup:base.coaGroup || '', nature:base.nature || '', role:role,
+        roleLabel:FR.accountRoleLabel(role), budget:budget, actual:actual, variance:variance,
+        variancePct:pct, fullYearBudget:base.fullYearBudget || 0, ytdBudget:base.ytdBudget || 0,
+        ytdActual:base.ytdActual || 0, projected:base.projection || null,
+        projectedVariance:base.projectedVar || null, runRate:base.runRate || null,
+        lineIds:base.lineIds || [], lineNames:base.lineNames || [], causes:base.causes || [],
+        topItems:base.topItems || [], exceptions:base.exceptions || [], hasActual:!!base.hasActual,
+        actualAvailable:range.actualAvailable, mappingStatus:mapping, favourable:null,
+        materiality:'pending', status:'Actuals Not Yet Available', noiImpact:null, trend:null,
+        hasActivity:false
+      };
+      r.favourable = FR.favourable(r, variance);
+      r.materiality = FR.materiality(variance, pct);
+      r.status = FR.status(r);
+      r.noiImpact = FR.noiEffect(r, variance);
+      r.hasActivity = Math.abs(r.budget || 0) > 0.5 || (r.actual !== null && Math.abs(r.actual || 0) > 0.5) ||
+        mapping !== 'Mapped';
+      r.trend = FR.direction(r, range);
+      return r;
+    }).filter(function (r) { return r.hasActivity; });
+
+    var mapStats = mappingStats(rows);
+    var revenue = metric(rows, 'revenue', range);
+    var expense = metric(rows, 'expense', range);
+    var noi = noiMetric(revenue, expense, range);
+    var perf = performance(rows);
+    var contributors = rows.filter(function (r) {
+      return r.actualAvailable && r.role !== 'non_operating' && r.noiImpact !== null && Math.abs(r.noiImpact) > 0.5;
+    }).sort(function (a, b) { return (b.noiImpact || 0) - (a.noiImpact || 0); });
+    var review = {
+      propertyId:vr && vr.propertyId, year:vr && vr.year, range:range, rows:rows,
+      summary:{ revenue:revenue, expense:expense, noi:noi }, performance:perf,
+      mappingStats:mapStats, trend:trend(vr),
+      major:{
+        revenueFavorable:topRows(rows, 'revenue', 'Favorable'),
+        revenueUnfavorable:topRows(rows, 'revenue', 'Unfavorable'),
+        expenseFavorable:topRows(rows, 'expense', 'Favorable'),
+        expenseUnfavorable:topRows(rows, 'expense', 'Unfavorable'),
+        noiContributors:contributors.slice(0, 5),
+        noiDetractors:contributors.slice(-5).reverse()
+      },
+      unmappedRows:rows.filter(function (r) { return r.mappingStatus !== 'Mapped'; }),
+      materialRows:rows.filter(function (r) {
+        return r.actualAvailable && r.materiality === 'material' &&
+          (r.status === 'Unfavorable' || r.status === 'Review Required');
+      }).sort(function (a, b) { return Math.abs(b.variance || 0) - Math.abs(a.variance || 0); }),
+      exceptions:{ critical:[], mapping:[], dataQuality:[] }
+    };
+    review.exceptions.critical = review.materialRows.slice(0, 12);
+    review.exceptions.mapping = review.unmappedRows.slice(0, 12);
+    review.validation = validation(vr, state, review.propertyId, review.year, review);
+    review.exceptions.dataQuality = review.validation.filter(function (x) { return x.status !== 'Pass'; });
+    return review;
+  };
+
+  FR.portfolio = function (state, calc, year) {
+    return (state.properties || []).map(function (p) {
+      var vr = R.variance.compute(state, calc, p.id, year);
+      if (!vr || !vr.closedThrough) {
+        return { property:p.name, propertyId:p.id, rankable:false, status:'Actuals Not Yet Available',
+          revenueVariance:null, expenseVariance:null, noiVariance:null, noiPct:null };
+      }
+      var review = FR.build(vr, state, calc, { period:'ytd' });
+      return { property:p.name, propertyId:p.id, rankable:true,
+        status:review.summary.noi.variance >= 0 ? 'Favorable' : 'Unfavorable',
+        revenueVariance:review.summary.revenue.variance,
+        expenseVariance:review.summary.expense.variance,
+        noiVariance:review.summary.noi.variance,
+        noiPct:review.summary.noi.pct };
+    }).sort(function (a, b) {
+      if (a.rankable !== b.rankable) return a.rankable ? -1 : 1;
+      return Math.abs(b.noiVariance || 0) - Math.abs(a.noiVariance || 0);
+    });
+  };
+
+  FR.noteKey = function (pid, gl, year) { return pid + '|' + gl + '|' + year; };
+  FR.note = function (state, pid, gl, year) {
+    state.financialReviewNotes = state.financialReviewNotes || {};
+    return state.financialReviewNotes[FR.noteKey(pid, gl, year)] ||
+      { cause:'', action:'', resolution:'', owner:'', followUp:'', history:[] };
+  };
+  FR.setNote = function (state, pid, gl, year, field, value) {
+    state.financialReviewNotes = state.financialReviewNotes || {};
+    var k = FR.noteKey(pid, gl, year);
+    var cur = FR.note(state, pid, gl, year);
+    var next = {
+      cause:cur.cause || '', action:cur.action || '', resolution:cur.resolution || '',
+      owner:cur.owner || '', followUp:cur.followUp || '', history:(cur.history || []).slice(0)
+    };
+    field = String(field || '');
+    if (!Object.prototype.hasOwnProperty.call(next, field)) return next;
+    value = String(value || '').trim();
+    if ((next[field] || '') !== value && next[field]) {
+      next.history.push({ field:field, value:next[field], changedAt:u.today() });
+    }
+    next[field] = value;
+    next.updatedAt = u.today();
+    state.financialReviewNotes[k] = next;
+    return next;
+  };
+
+  FR.csv = function (review) {
+    var rows = [['Property','Year','Period','GL','Account','Role','Section','Mapping Status',
+      'Budget','Actual','Variance','Variance %','Favorable / Unfavorable','Materiality',
+      'NOI Impact','Performance Direction']];
+    (review.rows || []).forEach(function (r) {
+      rows.push([review.propertyId || '', review.year || '', review.range.label, r.gl, r.name,
+        r.roleLabel, r.section, r.mappingStatus, r.budget,
+        r.actual === null ? 'Actuals Not Yet Available' : r.actual,
+        r.variance === null ? '' : r.variance, pctLabel(r.variancePct), r.status,
+        r.materiality, r.noiImpact === null ? '' : r.noiImpact, r.trend ? r.trend.label : '']);
+    });
+    return u.toCsv(rows);
+  };
+
+  FR.trendChart = function (series, opts) {
+    opts = opts || {};
+    var w = opts.width || 980, h = opts.height || 210, pl = 58, pr = 12, pt = 12, pb = 24;
+    var iw = w - pl - pr, ih = h - pt - pb, all = [];
+    series.forEach(function (s) {
+      (s.data || []).forEach(function (v) {
+        if (v !== null && v !== undefined && !isNaN(v)) all.push(v);
+      });
+    });
+    if (!all.length) return '<div class="tiny">Actuals Not Yet Available for this chart.</div>';
+    var mx = Math.max.apply(null, all.concat([0])), mn = Math.min.apply(null, all.concat([0]));
+    if (opts.zeroBase) mn = Math.min(0, mn);
+    if (mx === mn) mx = mn + 1;
+    var span = mx - mn;
+    function x(i) { return pl + (iw / 11) * i; }
+    function y(v) { return pt + ih - ((v - mn) / span) * ih; }
+    function fmt(v) { return opts.fmt === 'pct' ? u.pct(v) : u.money(v); }
+    var g = ['<svg class="fr-svg chart" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">'];
+    [0, 0.5, 1].forEach(function (f) {
+      var v = mn + span * f, yy = y(v);
+      g.push('<line x1="' + pl + '" x2="' + (w - pr) + '" y1="' + yy + '" y2="' + yy +
+        '" stroke="#EBF0F3"/>');
+      g.push('<text x="' + (pl - 6) + '" y="' + (yy + 3) + '" font-size="8.5" fill="#74858F" text-anchor="end">' +
+        (opts.fmt === 'pct' ? (v * 100).toFixed(0) + '%' :
+        (Math.abs(v) >= 1000 ? Math.round(v / 1000) + 'k' : Math.round(v))) + '</text>');
+    });
+    if (opts.closedThrough && opts.closedThrough < 12) {
+      var cx = x(Math.max(0, opts.closedThrough - 0.5));
+      g.push('<line x1="' + cx + '" x2="' + cx + '" y1="' + pt + '" y2="' + (h - pb) +
+        '" stroke="#C9861A" stroke-dasharray="4 4"/>');
+    }
+    series.forEach(function (s) {
+      var d = '', started = false;
+      (s.data || []).forEach(function (v, i) {
+        if (v === null || v === undefined || isNaN(v)) { started = false; return; }
+        d += (started ? 'L' : 'M') + x(i) + ' ' + y(v) + ' ';
+        started = true;
+      });
+      g.push('<path d="' + d + '" fill="none" stroke="' + esc(s.color || '#013E51') +
+        '" stroke-width="' + (s.weight || 2) + '"' + (s.dash ? ' stroke-dasharray="5 4"' : '') + '/>');
+      (s.data || []).forEach(function (v, i) {
+        if (v === null || v === undefined || isNaN(v)) return;
+        g.push('<circle cx="' + x(i) + '" cy="' + y(v) + '" r="2.6" fill="' +
+          esc(s.color || '#013E51') + '"><title>' + esc(s.name) + ' ' + R.MONTHS[i] +
+          ': ' + fmt(v) + '</title></circle>');
+      });
+    });
+    for (var i = 0; i < 12; i++) {
+      g.push('<text x="' + x(i) + '" y="' + (h - 7) + '" font-size="9" fill="#74858F" text-anchor="middle">' +
+        R.MONTHS[i] + '</text>');
+    }
+    g.push('</svg>');
+    return g.join('') + '<div class="legend">' + series.map(function (s) {
+      return '<span><i style="background:' + esc(s.color || '#013E51') +
+        (s.dash ? ';opacity:.55' : '') + '"></i>' + esc(s.name) + '</span>';
+    }).join('') + '</div>';
+  };
+
+  function reportVarianceTable(K, rows) {
+    if (!rows.length) return '<div class="note">No material items in this group.</div>';
+    return K.table(['Account / Category','Budget','Actual','Variance','% variance','Status'],
+      rows.map(function (r) {
+        return { cells:[K.esc(r.name) + ' <span class="mono">' + K.esc(r.gl) + '</span>',
+          K.m(r.budget), r.actual === null ? 'Actual Pending' : K.m(r.actual),
+          '<span class="' + (r.status === 'Favorable' ? 'pos' : r.status === 'Unfavorable' ? 'neg' : '') +
+          '">' + signedOrPending(r.variance) + '</span>',
+          pctLabel(r.variancePct), K.esc(r.status)] };
+      }), { n:[1,2,3,4], sm:true });
+  }
+
+  FR.reportSection = function (ctx) {
+    var K = R.exporter.kit, vr = ctx.vr;
+    if (!vr || !vr.closedThrough) {
+      return K.h2('Budget vs actual financial review') +
+        '<div class="note">Actuals Not Yet Available for FY' + ctx.year + '.</div>';
+    }
+    var review = FR.build(vr, ctx.state, ctx.calc, { period:'ytd' });
+    var s = review.summary;
+    var out = K.h2('Budget vs actual financial review - ' + review.range.label,
+      'Source financials are preserved separately from this normalized reporting layer. Variances are classified by revenue/expense logic and future months remain Actual Pending.');
+    out += K.kpis([
+      ['Revenue variance', K.signed(s.revenue.variance), 'actual ' + K.m(s.revenue.actual) +
+        ' vs budget ' + K.m(s.revenue.budget), s.revenue.variance >= 0 ? 'pos' : 'neg'],
+      ['Expense variance', K.signed(s.expense.variance), 'actual ' + K.m(s.expense.actual) +
+        ' vs budget ' + K.m(s.expense.budget), s.expense.variance <= 0 ? 'pos' : 'neg'],
+      ['NOI variance', K.signed(s.noi.variance), pctLabel(s.noi.pct) + ' vs budget',
+        s.noi.variance >= 0 ? 'pos' : 'neg'],
+      ['NOI margin', s.noi.marginActual === null ? 'N/A' : K.pc(s.noi.marginActual),
+        s.noi.marginBp === null ? 'budget ' + pctLabel(s.noi.marginBudget)
+          : (s.noi.marginBp >= 0 ? '+' : '') + s.noi.marginBp + ' bp vs budget',
+        s.noi.marginBp === null ? '' : s.noi.marginBp >= 0 ? 'pos' : 'neg']
+    ]);
+    out += K.h3('Major variances') +
+      reportVarianceTable(K, review.major.noiDetractors.concat(review.major.noiContributors).slice(0, 10));
+    out += K.h3('Validation before publishing') +
+      K.table(['Check','Status','Detail'], review.validation.map(function (x) {
+        return { cls:x.status === 'Pass' ? '' : 'warnrow', cells:[K.esc(x.name), K.esc(x.status), K.esc(x.detail)] };
+      }), { sm:true });
+    return out;
+  };
+
+  FR.investorSection = function (ctx) {
+    var K = R.exporter.kit, vr = ctx.vr;
+    if (!vr || !vr.closedThrough) return K.h2('Executive financial summary') +
+      '<div class="note">Actuals Not Yet Available.</div>';
+    var review = FR.build(vr, ctx.state, ctx.calc, { period:'ytd' });
+    var s = review.summary;
+    var drivers = review.major.noiDetractors.concat(review.major.noiContributors).slice(0, 6);
+    var projectedCls = s.noi.projectedVariance === null ? '' :
+      (s.noi.projectedVariance >= 0 ? 'pos' : 'neg');
+    var out = K.h2('Executive financial summary',
+      'A concise investor-ready snapshot of where the property is ahead or behind plan.');
+    out += K.kpis([
+      ['Revenue', K.m(s.revenue.actual), 'budget ' + K.m(s.revenue.budget) + ' / ' + K.signed(s.revenue.variance),
+        s.revenue.variance >= 0 ? 'pos' : 'neg'],
+      ['Operating expenses', K.m(s.expense.actual), 'budget ' + K.m(s.expense.budget) + ' / ' +
+        K.signed(s.expense.variance), s.expense.variance <= 0 ? 'pos' : 'neg'],
+      ['NOI', K.m(s.noi.actual), 'budget ' + K.m(s.noi.budget) + ' / ' + K.signed(s.noi.variance),
+        s.noi.variance >= 0 ? 'pos' : 'neg'],
+      ['Projected year-end NOI', s.noi.projected === null ? 'N/A' : K.m(s.noi.projected),
+        s.noi.projectedVariance === null ? 'Projection pending' : K.signed(s.noi.projectedVariance) +
+        ' vs annual budget', projectedCls]
+    ]);
+    out += K.h3('Top positive and negative drivers') + reportVarianceTable(K, drivers);
+    return out;
+  };
+
+  FR.portfolioSection = function (ctx) {
+    var K = R.exporter.kit;
+    var rows = FR.portfolio(ctx.state, ctx.calc, ctx.year);
+    return K.h2('Portfolio financial comparison',
+      'Only properties with uploaded actuals are ranked. Missing actual periods are shown as Actuals Not Yet Available.') +
+      K.table(['Property','Revenue variance','Expense variance','NOI variance','NOI % variance','Status'],
+        rows.map(function (r) {
+          return { cells:[K.esc(r.property),
+            r.revenueVariance === null ? 'Actual Pending' : K.signed(r.revenueVariance),
+            r.expenseVariance === null ? 'Actual Pending' : K.signed(r.expenseVariance),
+            r.noiVariance === null ? 'Actual Pending' : K.signed(r.noiVariance),
+            pctLabel(r.noiPct), K.esc(r.status)] };
+        }), { n:[1,2,3,4], sm:true });
+  };
+
+  FR.unmappedSection = function (ctx) {
+    var K = R.exporter.kit, review = FR.build(ctx.vr, ctx.state, ctx.calc, { period:'ytd' });
+    return K.h2('Unmapped account report',
+      'Accounts remain outside reporting categories until an authorized user confirms the mapping.') +
+      K.table(['GL','Account','Mapping status','Actual','Source section'], review.unmappedRows.map(function (r) {
+        return { cells:['<span class="mono">' + K.esc(r.gl) + '</span>', K.esc(r.name),
+          K.esc(r.mappingStatus), r.actual === null ? 'Actual Pending' : K.m(r.actual), K.esc(r.section)] };
+      }).concat(review.unmappedRows.length ? [] : [{ cells:['','','No unmapped accounts for this period.','',''] }]),
+      { n:[3], sm:true });
   };
 
 })(RBB);
@@ -14100,6 +14801,42 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     }
   });
 
+  section({
+    id:'financialReview', propertyOnly:true, label:'Budget vs actual financial review',
+    about:'Executive KPIs, major variance drivers, validation checks and management focus areas for the selected property.',
+    audiences:['owner','internal','manager'],
+    needs:'variance',
+    pageBreakBefore:true,
+    render:function (ctx) { return R.financialReview.reportSection(ctx); }
+  });
+
+  section({
+    id:'investorFinancialSummary', propertyOnly:true, label:'Executive financial summary',
+    about:'Investor-friendly Revenue, Expense and NOI snapshot with top positive and negative drivers.',
+    audiences:['owner','internal'],
+    needs:'variance',
+    pageBreakBefore:true,
+    render:function (ctx) { return R.financialReview.investorSection(ctx); }
+  });
+
+  section({
+    id:'portfolioFinancialComparison', label:'Portfolio financial comparison',
+    about:'Property comparison by revenue, expense and NOI variance; properties without actuals are not ranked.',
+    audiences:['owner','internal'],
+    needs:'variance',
+    pageBreakBefore:true,
+    render:function (ctx) { return R.financialReview.portfolioSection(ctx); }
+  });
+
+  section({
+    id:'unmappedAccountReport', propertyOnly:true, label:'Unmapped account report',
+    about:'Accounts that need mapping confirmation before they are included in financial review totals.',
+    audiences:['internal','manager'],
+    needs:'variance',
+    pageBreakBefore:true,
+    render:function (ctx) { return R.financialReview.unmappedSection(ctx); }
+  });
+
   /* ------------------------------------------- 9. exceptions --------------- */
   section({
     id:'exceptions', propertyOnly:true, label:'Exception report with explanations',
@@ -15179,7 +15916,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     { id:'owner', label:'Owner / investor report', audience:'owner',
       about:'What an owner needs to judge the year: the numbers, the drivers behind them, the ' +
             'capital call and the coverage. Internal housekeeping left out.',
-      sections:['summary','occupancy','propertyBudget','opex','capital','debt','programmes',
+      sections:['investorFinancialSummary','summary','occupancy','propertyBudget','opex','capital','debt','programmes',
                 'conversionAnalysis','unitMix','assumptions','commentary'] },
     { id:'lender', label:'Lender / debt package', audience:'lender',
       about:'Ordered for someone testing coverage: NOI and debt service first, then the occupancy ' +
@@ -15188,15 +15925,40 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     { id:'internal', label:'Internal asset management review', audience:'internal',
       about:'Everything, including what is unresolved — the pack to take into a budget review ' +
             'meeting.',
-      sections:['summary','findings','propertyBudget','monthly','opex','occupancy','capital','debt',
+      sections:['financialReview','summary','findings','propertyBudget','monthly','opex','occupancy','capital','debt',
                 'programmes','conversionAnalysis','conversionPortfolio','assumptions',
-                'vsActual','exceptions','unitMix','commentary'] },
+                'vsActual','exceptions','unmappedAccountReport','portfolioFinancialComparison','unitMix','commentary'] },
     { id:'monthend', label:'Month-end review pack', audience:'internal',
       about:'Where the year stands against plan, why, and what to do about it.',
-      sections:['summary','vsActual','exceptions','findings','commentary'] },
+      sections:['financialReview','vsActual','exceptions','unmappedAccountReport','findings','commentary'] },
     { id:'manager', label:'Property manager pack', audience:'manager',
       about:'What the site team controls, at the level they work. No debt, no capital structure.',
-      sections:['summary','monthly','opex','occupancy','vsActual','exceptions'] },
+      sections:['summary','monthly','opex','occupancy','financialReview','vsActual','exceptions'] },
+    { id:'financialReview', label:'Property financial review', audience:'internal',
+      about:'Budget vs actual management review with KPIs, drivers, validation, forecast and exceptions.',
+      sections:['financialReview','vsActual','visualNoiTrend','visualGlVariance','visualTornado',
+                'exceptions','unmappedAccountReport','commentary'] },
+    { id:'budgetVsActualReport', label:'Budget vs actual report', audience:'internal',
+      about:'Account-level budget, actual, variance and projection detail for the selected property.',
+      sections:['vsActual','financialReview','exceptions'] },
+    { id:'ytdVarianceReport', label:'YTD variance report', audience:'internal',
+      about:'Year-to-date performance with major variance focus and publishing validation.',
+      sections:['financialReview','visualTornado','exceptions','commentary'] },
+    { id:'monthlyFinancialReview', label:'Monthly financial review', audience:'internal',
+      about:'Current-period budget, actual, trend and exception review for month-end close.',
+      sections:['financialReview','vsActual','visualNoiTrend','exceptions','unmappedAccountReport'] },
+    { id:'executiveFinancialSummary', label:'Executive financial summary', audience:'owner',
+      about:'Investor-ready financial snapshot with top positive and negative NOI drivers.',
+      sections:['investorFinancialSummary','financialReview','visualNoiBridge','commentary'] },
+    { id:'portfolioFinancialComparison', label:'Portfolio financial comparison', audience:'internal',
+      about:'Portfolio table ranked by NOI variance when actuals are available.',
+      sections:['portfolioFinancialComparison','financialReview'] },
+    { id:'materialVarianceReport', label:'Material variance report', audience:'internal',
+      about:'Material revenue, expense and NOI drivers with exceptions and management commentary.',
+      sections:['financialReview','exceptions','visualTornado','commentary'] },
+    { id:'unmappedAccountReport', label:'Unmapped account report', audience:'internal',
+      about:'Mapping queue for new, suggested, unmapped or conflicted GL accounts.',
+      sections:['unmappedAccountReport'] },
     { id:'board', label:'Board / one-page summary', audience:'owner',
       about:'A single page: the four numbers, the waterfall and the chart. For a pre-read.',
       sections:['summary'] },
@@ -15522,6 +16284,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
   A.commentaryProperty = null;
   A.actualsTab = 'entry';
   A.varianceMonth = null;
+  A.finReview = R.financialReview ? R.financialReview.defaultControls() : {};
   A.expandedException = null;
   A.filters = { q:'', dept:'', section:'', method:'', status:'', origin:'', severity:'',
                 issueCat:'', owner:'', support:'', reviewStatus:'', utility:'',
@@ -15540,6 +16303,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     { id:'gl',        label:'GL / account detail' },
     { grp:'Month-end review' },
     { id:'actuals',   label:'Actuals', badge:'actuals' },
+    { id:'financialreview', label:'Financial review', badge:'financialReview' },
     { id:'vsactual',  label:'Budget vs actual' },
     { id:'exceptions',label:'Exception report', badge:'exceptions' },
     { id:'issues',    label:'Budget review', badge:'issues' },
@@ -15847,6 +16611,16 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
           ? '<span class="badge g">' + R.MONTHS[vr.closedThrough - 1] + '</span>'
           : '<span class="badge">0</span>';
       }
+      if (v.badge === 'financialReview') {
+        if (!vr || !vr.closedThrough) {
+          badge = '<span class="badge n">pending</span>';
+        } else {
+          var fr = R.financialReview.build(vr, A.state, c.calc, A.finReview || {});
+          var materialMisses = fr.materialRows.filter(function (r) { return r.status === 'Unfavorable'; }).length;
+          badge = materialMisses ? '<span class="badge">' + materialMisses + '</span>'
+            : '<span class="badge g">ready</span>';
+        }
+      }
       if (v.badge === 'scope') {
         var pr = R.strProgrammes.byProperty(A.state, A.prop().id);
         var off = pr.filter(function (x) {
@@ -15913,6 +16687,11 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
   A.boot = function () {
     A.state = R.buildState();
     A.commentaryProperty = A.state.activeProperty;
+    try {
+      var qs = new URLSearchParams(window.location.search || '');
+      var initialView = qs.get('atlasView') || String(window.location.hash || '').replace(/^#/, '');
+      if (initialView && R.views && R.views[initialView]) A.view = initialView;
+    } catch (e) {}
     A.recalc();
     R.persist.markClean();          // a fresh load is not "unsaved work"
     A.render();
@@ -18659,9 +19438,466 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
 
     R.actuals.setClosedThrough(A.state, p.id, yr, months, 'SAMPLE DATA');
     A.state.demoActuals = true;
-    A.invalidate(); A.go('vsactual');
+    A.invalidate(); A.go('financialreview');
     A.toast('<b>Sample actuals loaded for ' + months + ' months.</b> This is illustrative data, not ' +
       'RISE actuals — clear it before real reporting.');
+  };
+
+  /* ======================================== FINANCIAL REVIEW ============== */
+  function ensureFinReview() {
+    if (!A.finReview || !A.finReview.period) A.finReview = R.financialReview.defaultControls();
+    return A.finReview;
+  }
+  function metricClass(kind, d) {
+    if (!d || d.variance === null || d.variance === undefined) return 'dim';
+    if (kind === 'expense') return d.variance <= 0 ? 'pos' : 'neg';
+    return d.variance >= 0 ? 'pos' : 'neg';
+  }
+  function frMetric(title, d, kind) {
+    return '<div class="fr-metric ' + metricClass(kind, d) + '">' +
+      '<div class="title">' + H.esc(title) + '</div>' +
+      '<div class="fr-metric-grid">' +
+        '<div><span>Budget</span><b>' + u.money(d.budget) + '</b></div>' +
+        '<div><span>Actual</span><b>' + R.financialReview.moneyOrPending(d.actual) + '</b></div>' +
+        '<div><span>$ Variance</span><b>' + R.financialReview.signedOrPending(d.variance) + '</b></div>' +
+        '<div><span>% Variance</span><b>' + R.financialReview.pctLabel(d.pct) + '</b></div>' +
+      '</div></div>';
+  }
+  function frPerformanceMeter(p) {
+    if (!p.total) return '<div class="tiny">Actuals Not Yet Available for account performance scoring.</div>';
+    function seg(n, color) {
+      return '<i style="width:' + Math.max(0, n / p.total * 100) + '%;background:' + color + '"></i>';
+    }
+    return '<div class="fr-meter">' +
+      seg(p.favorable, 'var(--pos)') + seg(p.onPlan, '#A8B5BD') +
+      seg(p.unfavorable, 'var(--neg)') + seg(p.unmapped + p.review, 'var(--warn)') +
+      '</div><div class="fr-trend-note">' +
+      '<span>' + p.favorable + ' favorable</span><span>' + p.onPlan + ' on plan</span>' +
+      '<span>' + p.unfavorable + ' unfavorable</span><span>' + (p.unmapped + p.review) +
+      ' requires review</span></div>';
+  }
+  function frKpis(review) {
+    var s = review.summary, noi = s.noi;
+    return '<div class="fr-band">' +
+      frMetric('Revenue', s.revenue, 'revenue') +
+      frMetric('Operating Expenses', s.expense, 'expense') +
+      frMetric('NOI', noi, 'noi') +
+      '<div class="fr-metric ' + (noi.marginBp === null ? 'dim' : noi.marginBp >= 0 ? 'pos' : 'neg') + '">' +
+        '<div class="title">NOI Margin</div><div class="fr-metric-grid">' +
+        '<div><span>Budget</span><b>' + R.financialReview.pctLabel(noi.marginBudget) + '</b></div>' +
+        '<div><span>Actual</span><b>' + R.financialReview.pctLabel(noi.marginActual) + '</b></div>' +
+        '<div><span>Change</span><b>' + (noi.marginBp === null ? 'N/A' :
+          (noi.marginBp >= 0 ? '+' : '') + noi.marginBp + ' bp') + '</b></div>' +
+        '<div><span>Reviewed Accts</span><b>' + review.performance.total + '</b></div>' +
+        '</div>' + frPerformanceMeter(review.performance) + '</div>' +
+      '</div>';
+  }
+  function ytdNoiDirection(review) {
+    var t = review.trend, closed = t.closedThrough;
+    if (!closed || closed < 2) return { cls:'n', label:'Need at least two actual months to read direction.', delta:0 };
+    var cur = 0, prior = 0, i;
+    for (i = 0; i < closed; i++) cur += (t.noiActual[i] || 0) - (t.noiBudget[i] || 0);
+    for (i = 0; i < closed - 1; i++) prior += (t.noiActual[i] || 0) - (t.noiBudget[i] || 0);
+    var delta = u.r2(cur - prior);
+    if (delta > 1000) return { cls:'g', label:'Improving by ' + u.money(delta) + ' versus the prior YTD variance.', delta:delta };
+    if (delta < -1000) return { cls:'r', label:'Deteriorating by ' + u.money(Math.abs(delta)) + ' versus the prior YTD variance.', delta:delta };
+    return { cls:'n', label:'Stable versus the prior YTD variance.', delta:delta };
+  }
+  function frExecutive(review) {
+    var s = review.summary, dir = ytdNoiDirection(review);
+    var drivers = review.major.noiDetractors.concat(review.major.noiContributors)
+      .sort(function (a, b) { return Math.abs(b.noiImpact || 0) - Math.abs(a.noiImpact || 0); })
+      .slice(0, 3);
+    var driverText = drivers.length ? drivers.map(function (r) {
+      return r.name + ' ' + u.signed(r.noiImpact) + ' NOI impact';
+    }).join('; ') : 'No material drivers are available for the selected period.';
+    return '<div class="panel"><h3>Executive Financial Snapshot<span class="note">answers the five management questions</span></h3>' +
+      '<div class="pad">' +
+      '<div class="fr-question"><div class="q">Are we ahead or behind revenue budget?</div><div class="a">' +
+        (s.revenue.variance === null ? 'Actuals Not Yet Available.' :
+        (s.revenue.variance >= 0 ? 'Ahead by ' : 'Behind by ') + u.money(Math.abs(s.revenue.variance)) +
+        ' for ' + review.range.label + '.') + '</div></div>' +
+      '<div class="fr-question"><div class="q">Are expenses being controlled?</div><div class="a">' +
+        (s.expense.variance === null ? 'Actuals Not Yet Available.' :
+        (s.expense.variance <= 0 ? 'Yes. Expenses are under budget by ' : 'No. Expenses are over budget by ') +
+        u.money(Math.abs(s.expense.variance)) + '.') + '</div></div>' +
+      '<div class="fr-question"><div class="q">Are we ahead or behind NOI budget?</div><div class="a">' +
+        (s.noi.variance === null ? 'Actuals Not Yet Available.' :
+        (s.noi.variance >= 0 ? 'Ahead by ' : 'Behind by ') + u.money(Math.abs(s.noi.variance)) +
+        ', or ' + R.financialReview.pctLabel(s.noi.pct) + ' versus budget.') + '</div></div>' +
+      '<div class="fr-question"><div class="q">What are the largest reasons?</div><div class="a">' +
+        H.esc(driverText) + '</div></div>' +
+      '<div class="fr-question"><div class="q">Is performance improving?</div><div class="a">' +
+        '<span class="fr-chip ' + dir.cls + '">' + (dir.cls === 'g' ? '&uarr;' : dir.cls === 'r' ? '&darr;' : '&rarr;') +
+        ' ' + H.esc(dir.label) + '</span></div></div>' +
+      '</div></div>';
+  }
+  function frVarianceTable(title, rows) {
+    var out = '<div class="panel"><h3>' + H.esc(title) + '<span class="note">' + rows.length +
+      ' item' + (rows.length === 1 ? '' : 's') + '</span></h3>';
+    if (!rows.length) return out + '<div class="pad tiny">No material accounts in this group.</div></div>';
+    out += '<div class="scroll"><table><thead><tr><th>Account / Category</th><th class="n">Budget</th>' +
+      '<th class="n">Actual</th><th class="n">$ Var</th><th class="n">% Var</th><th>Status</th></tr></thead><tbody>';
+    rows.forEach(function (r) {
+      out += '<tr class="rowlink" onclick="RBB.app.goGlByCode(\'' + H.esc(r.gl) + '\')">' +
+        '<td><span class="mono">' + H.esc(r.gl) + '</span> <b>' + H.esc(r.name) + '</b>' +
+        '<div class="tiny">' + H.esc(r.section || r.coaGroup || '') + '</div></td>' +
+        '<td class="n">' + u.money(r.budget) + '</td>' +
+        '<td class="n">' + R.financialReview.moneyOrPending(r.actual) + '</td>' +
+        '<td class="n ' + (r.status === 'Favorable' ? 'pos' : r.status === 'Unfavorable' ? 'neg' : '') + '">' +
+          R.financialReview.signedOrPending(r.variance) + '</td>' +
+        '<td class="n">' + R.financialReview.pctLabel(r.variancePct) + '</td>' +
+        '<td>' + R.financialReview.statusBadge(r.status) + '</td></tr>';
+    });
+    return out + '</tbody></table></div></div>';
+  }
+  function frMajorVariances(review) {
+    return '<div class="grid2">' +
+      frVarianceTable('Top Favorable Revenue Variances', review.major.revenueFavorable) +
+      frVarianceTable('Top Unfavorable Revenue Variances', review.major.revenueUnfavorable) +
+      frVarianceTable('Top Favorable Expense Variances', review.major.expenseFavorable) +
+      frVarianceTable('Top Unfavorable Expense Variances', review.major.expenseUnfavorable) +
+      frVarianceTable('Largest NOI Contributors', review.major.noiContributors) +
+      frVarianceTable('Largest NOI Detractors', review.major.noiDetractors) +
+      '</div>';
+  }
+  function frTrend(review) {
+    var t = review.trend;
+    var out = '<div class="panel"><h3>Monthly Performance Trend<span class="note">actuals stop at the latest uploaded period</span></h3>' +
+      '<div class="pad"><div class="grid2"><div>' +
+      R.financialReview.trendChart([
+        { name:'Budget NOI', data:t.noiBudget, color:'#013E51' },
+        { name:'Actual NOI', data:t.noiActual, color:'#0E7A52', weight:3 }
+      ], { closedThrough:t.closedThrough, zeroBase:true }) +
+      '</div><div>' +
+      R.financialReview.trendChart([
+        { name:'Budget Revenue', data:t.revenueBudget, color:'#013E51' },
+        { name:'Actual Revenue', data:t.revenueActual, color:'#2C7A5A', weight:3 },
+        { name:'Budget Expenses', data:t.expenseBudget, color:'#6BA2B8', dash:true },
+        { name:'Actual Expenses', data:t.expenseActual, color:'#B3261E', weight:3, dash:true }
+      ], { closedThrough:t.closedThrough, zeroBase:true }) +
+      '</div></div><div class="fr-trend-note"><span class="fr-chip b">Actual Pending after ' +
+      (t.closedThrough ? R.MONTHS[t.closedThrough - 1] : 'current period') + '</span>' +
+      '<span>Projected figures are shown separately and are not actual performance.</span></div></div>' +
+      '<div class="scroll"><table><thead><tr><th>Month</th><th class="n">Budget Rev.</th><th class="n">Actual Rev.</th>' +
+      '<th class="n">Budget Exp.</th><th class="n">Actual Exp.</th><th class="n">Budget NOI</th>' +
+      '<th class="n">Actual NOI</th><th class="n">$ Var</th><th class="n">% Var</th><th class="n">NOI Margin</th></tr></thead><tbody>';
+    t.months.forEach(function (m) {
+      var varCls = !m.actualAvailable ? '' : (m.variance >= 0 ? 'pos' : 'neg');
+      out += '<tr><td>' + H.esc(m.month) + '</td>' +
+        '<td class="n">' + u.money(m.budgetRevenue) + '</td>' +
+        '<td class="n">' + (m.actualAvailable ? u.money(m.actualRevenue) : 'Actual Pending') + '</td>' +
+        '<td class="n">' + u.money(m.budgetExpense) + '</td>' +
+        '<td class="n">' + (m.actualAvailable ? u.money(m.actualExpense) : 'Actual Pending') + '</td>' +
+        '<td class="n">' + u.money(m.budgetNoi) + '</td>' +
+        '<td class="n">' + (m.actualAvailable ? u.money(m.actualNoi) : 'Actual Pending') + '</td>' +
+        '<td class="n ' + varCls + '">' +
+          (m.actualAvailable ? u.signed(m.variance) : '') + '</td>' +
+        '<td class="n">' + (m.actualAvailable ? R.financialReview.pctLabel(m.budgetNoi ? m.variance / m.budgetNoi : null) : '') + '</td>' +
+        '<td class="n">' + (m.actualAvailable ? R.financialReview.pctLabel(m.actualMargin) : '') + '</td></tr>';
+    });
+    return out + '</tbody></table></div></div>';
+  }
+  function frYtdTable(review) {
+    var s = review.summary;
+    function row(label, d, kind) {
+      var fav = kind === 'expense' ? d.variance <= 0 : d.variance >= 0;
+      return '<tr><td class="b">' + label + '</td><td class="n">' + u.money(d.budget) + '</td>' +
+        '<td class="n">' + R.financialReview.moneyOrPending(d.actual) + '</td>' +
+        '<td class="n ' + (fav ? 'pos' : 'neg') + '">' + R.financialReview.signedOrPending(d.variance) + '</td>' +
+        '<td class="n">' + R.financialReview.pctLabel(d.pct) + '</td><td>' +
+        (d.variance === null ? R.financialReview.statusBadge('Actuals Not Yet Available') :
+          R.financialReview.statusBadge(fav ? 'Favorable' : 'Unfavorable')) + '</td></tr>';
+    }
+    return '<div class="panel"><h3>YTD Performance<span class="note">YTD NOI variance is the lead KPI</span></h3>' +
+      '<div class="scroll"><table><thead><tr><th>Measure</th><th class="n">YTD Budget</th>' +
+      '<th class="n">YTD Actual</th><th class="n">$ Variance</th><th class="n">% Variance</th>' +
+      '<th>Favorable / Unfavorable</th></tr></thead><tbody>' +
+      row('Revenue', s.revenue, 'revenue') + row('Operating Expenses', s.expense, 'expense') +
+      row('NOI', s.noi, 'noi') + '</tbody></table></div></div>';
+  }
+  function frForecast(review) {
+    var s = review.summary;
+    function row(label, d, kind) {
+      var fav = kind === 'expense' ? d.projectedVariance <= 0 : d.projectedVariance >= 0;
+      var cls = d.projectedVariance === null ? '' : (fav ? 'pos' : 'neg');
+      return '<tr><td class="b">' + label + '</td><td class="n">' + u.money(d.fullYear) + '</td>' +
+        '<td class="n">' + u.money(d.ytdActual) + '</td><td class="n">' + u.money(d.remainingBudget) + '</td>' +
+        '<td class="n">' + (d.runRate === null ? 'N/A' : u.money(d.runRate)) + '</td>' +
+        '<td class="n">' + (d.projected === null ? 'N/A' : u.money(d.projected)) + '</td>' +
+        '<td class="n ' + cls + '">' +
+        (d.projectedVariance === null ? 'N/A' : u.signed(d.projectedVariance)) + '</td></tr>';
+    }
+    return '<div class="panel"><h3>Full-Year Forecast / Run Rate<span class="note">projection, not actual performance</span></h3>' +
+      '<div class="pad tiny">Projected year-end result equals YTD actual plus the remaining budget. It is a simple operating view until ATLAS has enough actual history for stronger forecasting.</div>' +
+      '<div class="scroll"><table><thead><tr><th>Measure</th><th class="n">Annual Budget</th>' +
+      '<th class="n">YTD Actual</th><th class="n">Remaining Budget</th><th class="n">Current Run Rate</th>' +
+      '<th class="n">Projected Year-End</th><th class="n">Projected Variance</th></tr></thead><tbody>' +
+      row('Revenue', s.revenue, 'revenue') + row('Operating Expenses', s.expense, 'expense') +
+      row('NOI', s.noi, 'noi') + '</tbody></table></div></div>';
+  }
+  function frDriverPanel(review) {
+    var rows = review.materialRows.slice(0, 8);
+    var out = '<div class="panel"><h3>Variance Drivers<span class="note">possible contributing factors, not causation</span></h3><div class="pad">';
+    if (!rows.length) return out + '<div class="tiny">No material unfavorable operating variance needs driver context for this period.</div></div></div>';
+    rows.forEach(function (r) {
+      var causes = (r.causes || []).filter(function (c) { return c.cause !== 'unknown'; }).slice(0, 3);
+      out += '<div style="border-bottom:1px solid var(--line2);padding:8px 0">' +
+        '<div class="fr-status-row"><b>' + H.esc(r.name) + '</b><span class="mono">' + H.esc(r.gl) + '</span>' +
+        '<span class="grow"></span>' + R.financialReview.statusBadge(r.status) +
+        '<span class="fr-chip r">NOI ' + u.signed(r.noiImpact || 0) + '</span></div>';
+      if (causes.length) {
+        causes.forEach(function (c) {
+          out += '<div class="why" style="margin-top:5px"><b>Possible contributing factor:</b> ' +
+            H.esc(c.evidence || c.note || '') + '</div>';
+        });
+      } else {
+        out += '<div class="why" style="margin-top:5px">ATLAS has not identified an operating driver yet. Add transaction detail, occupancy, work order, vendor or delinquency data to strengthen the explanation.</div>';
+      }
+      out += '</div>';
+    });
+    return out + '</div></div>';
+  }
+  function filteredReviewRows(review) {
+    var f = ensureFinReview(), q = (f.q || '').toLowerCase();
+    return review.rows.filter(function (r) {
+      if (f.status && f.status !== 'all' && r.status !== f.status) return false;
+      if (f.materiality && f.materiality !== 'all' && r.materiality !== f.materiality) return false;
+      if (q && (r.gl + ' ' + r.name + ' ' + r.section + ' ' + r.coaGroup).toLowerCase().indexOf(q) === -1) return false;
+      return true;
+    });
+  }
+  function frHierarchy(review) {
+    var rows = filteredReviewRows(review), groups = {}, order = [];
+    rows.forEach(function (r) {
+      var key = r.section || r.coaGroup || 'Unmapped';
+      if (!groups[key]) { groups[key] = []; order.push(key); }
+      groups[key].push(r);
+    });
+    var out = '<div class="panel"><h3>Financial Review Hierarchy<span class="note">Budget Builder structure with GL drill-down</span></h3>' +
+      '<div class="filters"><span class="f-lab">Status</span><select onchange="RBB.app.setFinancialReview(\'status\',this.value)">' +
+      H.opt([{ v:'all', l:'All' }, { v:'Favorable', l:'Favorable' }, { v:'On Plan', l:'On Plan' },
+        { v:'Unfavorable', l:'Unfavorable' }, { v:'Review Required', l:'Requires Review' },
+        { v:'Actuals Not Yet Available', l:'Actual Pending' }], ensureFinReview().status || 'all') +
+      '</select><span class="f-lab">Materiality</span><select onchange="RBB.app.setFinancialReview(\'materiality\',this.value)">' +
+      H.opt([{ v:'all', l:'All' }, { v:'minor', l:'Minor' }, { v:'review', l:'Review' },
+        { v:'material', l:'Material' }], ensureFinReview().materiality || 'all') +
+      '</select><span class="f-lab">Search</span><input type="text" value="' + H.esc(ensureFinReview().q || '') +
+      '" oninput="RBB.app.setFinancialReview(\'q\',this.value)" placeholder="GL, account, category">' +
+      '<button class="btn sec sm" onclick="RBB.app.resetFinancialReviewFilters()">Clear</button></div>' +
+      '<div class="fr-drill"><b>Financial summary</b><span>&rarr;</span><span>Category</span><span>&rarr;</span>' +
+      '<span>GL account</span><span>&rarr;</span><span>Monthly actual entries</span></div>';
+    if (!rows.length) return out + '<div class="pad tiny">No rows match the current filters.</div></div>';
+    order.forEach(function (key, idx) {
+      var list = groups[key].sort(function (a, b) { return Math.abs(b.variance || 0) - Math.abs(a.variance || 0); });
+      var budget = 0, actual = 0, variance = 0, hasActual = false;
+      list.forEach(function (r) {
+        budget += r.budget || 0;
+        if (r.actual !== null) { actual += r.actual || 0; hasActual = true; }
+        if (r.variance !== null) variance += r.variance || 0;
+      });
+      var fav = variance >= 0;
+      out += '<details class="fr-section"' + (idx < 6 ? ' open' : '') + '><summary>' +
+        '<span>' + H.esc(key) + '</span><span class="grow"></span><span class="mono">' +
+        u.money(budget) + ' budget</span><span class="' + (fav ? 'pos' : 'neg') + '">' +
+        (hasActual ? u.signed(variance) : 'Actual Pending') + '</span></summary>' +
+        '<div class="scroll"><table><thead><tr><th>GL</th><th>Account</th><th>Role</th>' +
+        '<th class="n">Budget</th><th class="n">Actual</th><th class="n">$ Var</th><th class="n">% Var</th>' +
+        '<th>Status</th><th>Mapping</th><th>Direction</th></tr></thead><tbody>';
+      list.forEach(function (r) {
+        out += '<tr class="rowlink" onclick="RBB.app.goGlByCode(\'' + H.esc(r.gl) + '\')">' +
+          '<td class="mono">' + H.esc(r.gl) + '</td><td class="clip">' + H.esc(r.name) + '</td>' +
+          '<td class="tiny">' + H.esc(r.roleLabel) + '</td>' +
+          '<td class="n">' + u.money(r.budget) + '</td><td class="n">' +
+          R.financialReview.moneyOrPending(r.actual) + '</td><td class="n ' +
+          (r.status === 'Favorable' ? 'pos' : r.status === 'Unfavorable' ? 'neg' : '') + '">' +
+          R.financialReview.signedOrPending(r.variance) + '</td><td class="n">' +
+          R.financialReview.pctLabel(r.variancePct) + '</td><td>' +
+          R.financialReview.statusBadge(r.status) + '</td><td>' + H.esc(r.mappingStatus) + '</td><td>' +
+          '<span class="fr-chip ' + (r.trend ? r.trend.cls : 'n') + '">' +
+          (r.trend && r.trend.cls === 'g' ? '&uarr;' : r.trend && r.trend.cls === 'r' ? '&darr;' : '&rarr;') +
+          ' ' + H.esc(r.trend ? r.trend.label : 'Stable') + '</span></td></tr>';
+      });
+      out += '</tbody></table></div></details>';
+    });
+    return out + '</div>';
+  }
+  function frMappingQueue(review) {
+    var out = '<div class="panel"><h3>Unmapped Accounts Review Queue<span class="note">mapping is remembered after confirmation</span></h3>' +
+      '<div class="pad"><div class="fr-band">' +
+      H.kpi('Mapped', String(review.mappingStats.Mapped || 0), 'confirmed budget categories', 'pos') +
+      H.kpi('Suggested Mapping', String(review.mappingStats['Suggested Mapping'] || 0), 'needs user confirmation', 'warn') +
+      H.kpi('Unmapped', String(review.mappingStats.Unmapped || 0), 'not forced into a category', 'hi') +
+      H.kpi('Mapping Conflict', String(review.mappingStats['Mapping Conflict'] || 0), 'requires review', 'warn') +
+      '</div></div>';
+    if (!review.unmappedRows.length) return out + '<div class="pad tiny">All reviewed accounts are mapped for this period.</div></div>';
+    out += '<div class="scroll"><table><thead><tr><th>GL</th><th>Account</th><th>Status</th>' +
+      '<th class="n">Actual</th><th>Suggested action</th></tr></thead><tbody>';
+    review.unmappedRows.forEach(function (r) {
+      out += '<tr><td class="mono">' + H.esc(r.gl) + '</td><td>' + H.esc(r.name) + '</td>' +
+        '<td>' + H.esc(r.mappingStatus) + '</td><td class="n">' + R.financialReview.moneyOrPending(r.actual) +
+        '</td><td class="tiny">Authorized users should confirm the Budget Builder category before this account is included in management totals.</td></tr>';
+    });
+    return out + '</tbody></table></div></div>';
+  }
+  function frExceptionDashboard(review) {
+    var out = '<div class="panel"><h3>Exception Dashboard<span class="note">critical, mapping and data quality</span></h3>' +
+      '<div class="scroll"><table><thead><tr><th>Area</th><th>Exception</th><th class="n">Count / Amount</th><th>Status</th></tr></thead><tbody>';
+    out += '<tr><td>Critical</td><td>Material unfavorable NOI, revenue or expense variance</td><td class="n">' +
+      review.exceptions.critical.length + '</td><td>' +
+      (review.exceptions.critical.length ? R.financialReview.statusBadge('Review Required') : R.financialReview.statusBadge('On Plan')) + '</td></tr>';
+    out += '<tr><td>Mapping</td><td>Unmapped account, new GL account, or mapping conflict</td><td class="n">' +
+      review.exceptions.mapping.length + '</td><td>' +
+      (review.exceptions.mapping.length ? R.financialReview.statusBadge('Review Required') : R.financialReview.statusBadge('On Plan')) + '</td></tr>';
+    out += '<tr><td>Data Quality</td><td>Missing period, reconciliation, duplicate upload, or source-retention check</td><td class="n">' +
+      review.exceptions.dataQuality.length + '</td><td>' +
+      (review.exceptions.dataQuality.length ? R.financialReview.statusBadge('Review Required') : R.financialReview.statusBadge('On Plan')) + '</td></tr>';
+    return out + '</tbody></table></div></div>';
+  }
+  function frValidation(review) {
+    var out = '<div class="panel"><h3>Data Validation Before Publishing</h3>' +
+      '<div class="scroll"><table><thead><tr><th>Type</th><th>Check</th><th>Status</th><th>Detail</th></tr></thead><tbody>';
+    review.validation.forEach(function (v) {
+      out += '<tr><td>' + H.esc(v.type) + '</td><td class="b">' + H.esc(v.name) + '</td><td>' +
+        H.tag(v.status, v.status === 'Pass' ? 'g' : 'medium') + '</td><td class="tiny">' +
+        H.esc(v.detail) + '</td></tr>';
+    });
+    return out + '</tbody></table></div></div>';
+  }
+  function frCommentary(review) {
+    var rows = review.materialRows.slice(0, 6);
+    var out = '<div class="panel"><h3>Management Commentary<span class="note">historical notes remain separate from actuals</span></h3><div class="pad">';
+    if (!rows.length) return out + '<div class="tiny">No material unfavorable category needs commentary for this period.</div></div></div>';
+    rows.forEach(function (r) {
+      var note = R.financialReview.note(A.state, A.prop().id, r.gl, A.year());
+      var suggestion = (r.causes && r.causes[0] && (r.causes[0].evidence || r.causes[0].note)) ||
+        (r.status === 'Unfavorable' ? r.name + ' is materially unfavorable and should be reviewed with Operations and Accounting.' : '');
+      out += '<div style="border:1px solid var(--line);border-radius:7px;padding:10px;margin-bottom:10px;background:#fff">' +
+        '<div class="fr-status-row"><b>' + H.esc(r.name) + '</b><span class="mono">' + H.esc(r.gl) + '</span>' +
+        '<span class="grow"></span>' + R.financialReview.statusBadge(r.status) +
+        '<span class="fr-chip r">' + u.signed(r.variance || 0) + '</span></div>' +
+        (suggestion ? '<div class="hint" style="margin:8px 0"><b>ATLAS suggested draft</b> ' +
+        H.tag('AI-generated', 'b') + '<br>' + H.esc(suggestion) + '</div>' : '') +
+        '<div class="fr-note-grid">' +
+        '<label><span>Cause of Variance</span><textarea onchange="RBB.app.setFinancialReviewComment(\'' +
+          H.esc(r.gl) + '\',\'cause\',this.value)">' + H.esc(note.cause || '') + '</textarea></label>' +
+        '<label><span>Corrective Action</span><textarea onchange="RBB.app.setFinancialReviewComment(\'' +
+          H.esc(r.gl) + '\',\'action\',this.value)">' + H.esc(note.action || '') + '</textarea></label>' +
+        '<label><span>Expected Resolution</span><input onchange="RBB.app.setFinancialReviewComment(\'' +
+          H.esc(r.gl) + '\',\'resolution\',this.value)" value="' + H.esc(note.resolution || '') + '"></label>' +
+        '<label><span>Responsible Owner</span><input onchange="RBB.app.setFinancialReviewComment(\'' +
+          H.esc(r.gl) + '\',\'owner\',this.value)" value="' + H.esc(note.owner || '') + '"></label>' +
+        '<label><span>Follow-Up Date</span><input type="date" onchange="RBB.app.setFinancialReviewComment(\'' +
+          H.esc(r.gl) + '\',\'followUp\',this.value)" value="' + H.esc(note.followUp || '') + '"></label>' +
+        '</div>' + ((note.history || []).length ? '<div class="tiny" style="margin-top:6px">' +
+          note.history.length + ' historical note change(s) retained.</div>' : '') + '</div>';
+    });
+    return out + '</div></div>';
+  }
+  function frPortfolioComparison() {
+    var rows = R.financialReview.portfolio(A.state, A.c().calc, A.year());
+    var out = '<div class="panel"><h3>Portfolio Financial Comparison<span class="note">only ranked when actuals are loaded</span></h3>' +
+      '<div class="scroll"><table><thead><tr><th>Property</th><th class="n">Revenue Variance</th>' +
+      '<th class="n">Expense Variance</th><th class="n">NOI Variance</th><th class="n">NOI % Variance</th>' +
+      '<th>Status</th></tr></thead><tbody>';
+    rows.forEach(function (r) {
+      out += '<tr class="rowlink" onclick="RBB.app.go(\'financialreview\',{propertyId:\'' +
+        H.esc(r.propertyId) + '\'})"><td class="b">' + H.esc(r.property) + '</td>' +
+        '<td class="n">' + (r.revenueVariance === null ? 'Actuals Not Yet Available' : u.signed(r.revenueVariance)) + '</td>' +
+        '<td class="n">' + (r.expenseVariance === null ? 'Actuals Not Yet Available' : u.signed(r.expenseVariance)) + '</td>' +
+        '<td class="n">' + (r.noiVariance === null ? 'Actuals Not Yet Available' : u.signed(r.noiVariance)) + '</td>' +
+        '<td class="n">' + R.financialReview.pctLabel(r.noiPct) + '</td><td>' +
+        R.financialReview.statusBadge(r.status) + '</td></tr>';
+    });
+    return out + '</tbody></table></div></div>';
+  }
+  function frNoActuals(p, yr, review) {
+    return '<div class="h1">Budget vs Actual Financial Review</div>' +
+      '<div class="sub">' + H.esc(p.name) + ' FY' + yr + ' · Actuals Not Yet Available</div>' +
+      '<div class="panel">' +
+      H.empty('&#9675;', 'Actuals Not Yet Available',
+        'Load month-end actuals for ' + H.esc(p.name) + ' and ATLAS will build the financial performance summary, variance queue, trend view, executive snapshot and reporting output. Future months stay pending until an upload closes them.',
+        '<button class="btn pri" onclick="RBB.app.go(\'actuals\')">Go to Actuals</button>' +
+        '<button class="btn sec" onclick="RBB.app.go(\'reports\')">Open Reports</button>') +
+      '</div><div class="kpis">' +
+      H.kpi('Budget source', 'Preserved', 'original annual upload retained', 'pos') +
+      H.kpi('Actual source', 'Pending', 'monthly actual upload needed', 'warn') +
+      H.kpi('Missing months', 'Not zero', 'shown as Actuals Not Yet Available', 'pos') +
+      H.kpi('First property', p.name, 'architecture applies to future uploads', 'b') +
+      '</div>' + frValidation(review) + frMappingQueue(review) + frPortfolioComparison();
+  }
+
+  V.financialreview = function () {
+    var cp = A.cp(), p = cp.property, yr = A.year(), vr = A.vr(), f = ensureFinReview();
+    var review = R.financialReview.build(vr, A.state, A.c().calc, f);
+    if (!vr.closedThrough) return frNoActuals(p, yr, review);
+    var out = '<div class="h1">Budget vs Actual Financial Review</div>' +
+      '<div class="sub">' + H.esc(p.name) + ' FY' + yr + ' · ' + H.esc(review.range.label) +
+      ' · using <b>' + H.esc(A.scenario().name) + '</b> budget' +
+      ' &nbsp;<button class="btn sec sm" onclick="RBB.app.printThisView(\'financialReview\')">Print / PDF</button>' +
+      ' <button class="btn sec sm" onclick="RBB.app.reportOpen(\'financialReview\')">Property financial review</button>' +
+      ' <button class="btn sec sm" onclick="RBB.app.exportFinancialReview()">Export CSV</button></div>';
+    if (A.state.demoActuals) {
+      out += '<div class="note r"><b>Sample actuals are loaded.</b> These numbers are illustrative. ' +
+        '<a href="#" onclick="RBB.app.clearActuals();return false;">Clear them</a> before real reporting.</div>';
+    }
+    out += '<div class="panel"><h3>Review Setup<span class="note">Property -> Year -> Period -> Financial Level</span></h3>' +
+      '<div class="filters"><span class="f-lab">Property</span><select onchange="RBB.app.setProperty(this.value)">' +
+      H.opt(A.state.properties.map(function (pp) { return { v:pp.id, l:pp.name }; }), p.id) + '</select>' +
+      '<span class="f-lab">Year</span><select onchange="RBB.app.setYear(this.value)">' +
+      H.opt(R.YEARS.map(function (y) { return { v:y, l:'FY' + y }; }), yr) + '</select>' +
+      '<span class="f-lab">Period</span><select onchange="RBB.app.setFinancialReview(\'period\',this.value)">' +
+      H.opt(R.financialReview.periodOptions(vr.closedThrough), f.period || 'ytd') + '</select>' +
+      '<span class="f-lab">Financial Level</span><select onchange="RBB.app.setFinancialReview(\'level\',this.value)">' +
+      H.opt([{ v:'executive', l:'Executive Snapshot' }, { v:'category', l:'Category Review' },
+        { v:'gl', l:'GL Detail' }], f.level || 'category') + '</select>';
+    if (f.period === 'custom') {
+      out += '<span class="f-lab">From</span><select onchange="RBB.app.setFinancialReview(\'customStart\',this.value)">' +
+        H.opt(R.MONTHS.slice(0, vr.closedThrough).map(function (m, i) { return { v:i, l:m }; }), f.customStart || 0) +
+        '</select><span class="f-lab">To</span><select onchange="RBB.app.setFinancialReview(\'customEnd\',this.value)">' +
+        H.opt(R.MONTHS.slice(0, vr.closedThrough).map(function (m, i) { return { v:i, l:m }; }), f.customEnd || (vr.closedThrough - 1)) + '</select>';
+    }
+    out += '</div></div>' +
+      '<div class="fr-toolbar">' +
+      '<span class="fr-chip g">&#9650; Favorable</span><span class="fr-chip r">&#9660; Unfavorable</span>' +
+      '<span class="fr-chip n">&#9679; On Plan</span><span class="fr-chip w">&#9888; Review Required</span>' +
+      '<span class="fr-chip b">&#9675; Actual Pending</span>' +
+      '<span class="fr-chip n">Minor &lt; $1,000 and &lt; 5%</span>' +
+      '<span class="fr-chip w">Review $1,000-$5,000 or 5-10%</span>' +
+      '<span class="fr-chip r">Material &gt; $5,000 or &gt; 10%</span></div>' +
+      frKpis(review) + frExecutive(review) + frMajorVariances(review) + frTrend(review) +
+      frYtdTable(R.financialReview.build(vr, A.state, A.c().calc, { period:'ytd' })) +
+      frForecast(R.financialReview.build(vr, A.state, A.c().calc, { period:'ytd' })) +
+      frDriverPanel(review) + frExceptionDashboard(review) + frMappingQueue(review) +
+      frValidation(review) + (f.level === 'executive' ? '' : frHierarchy(review)) +
+      frCommentary(review) + frPortfolioComparison();
+    return out;
+  };
+
+  A.setFinancialReview = function (field, value) {
+    var f = ensureFinReview();
+    if (field === 'customStart' || field === 'customEnd') f[field] = Math.max(0, Math.min(11, Number(value) || 0));
+    else f[field] = value;
+    if (field === 'period' && value === 'custom') {
+      f.customStart = f.customStart || 0;
+      f.customEnd = Math.max(f.customStart, (A.vr().closedThrough || 1) - 1);
+    }
+    A.render();
+  };
+  A.resetFinancialReviewFilters = function () {
+    var f = ensureFinReview();
+    f.status = 'all'; f.materiality = 'all'; f.q = '';
+    A.render();
+  };
+  A.exportFinancialReview = function () {
+    var review = R.financialReview.build(A.vr(), A.state, A.c().calc, ensureFinReview());
+    A.download(A.prop().code + '_FY' + A.year() + '_' + review.range.id +
+      '_Financial_Review.csv', R.financialReview.csv(review));
+  };
+  A.setFinancialReviewComment = function (gl, field, value) {
+    R.financialReview.setNote(A.state, A.prop().id, gl, A.year(), field, value);
+    A.touch();
+    A.toast('Financial review commentary saved');
   };
 
   /* ================================================= BUDGET VS ACTUAL === */

@@ -11629,28 +11629,35 @@ function renderTab() {
     window.renderCentralServicesTab
   ];
   if (activeTab >= renderers.length) activeTab = renderers.length - 1;
+  document.querySelectorAll(".tab").forEach(t => {
+    t.classList.toggle("active", Number(t.dataset.tab) === activeTab);
+  });
   const panel = document.getElementById(`tab-panel-${activeTab}`);
   const renderer = renderers[activeTab];
   if (panel && typeof renderer === "function") {
     panel.dataset.atlasMountActive = MOUNT_TABS.includes(activeTab) ? "1" : "0";
     try {
-      const shouldPreservePeopleMount = activeTab === 13
-        && panel.dataset.atlasPeopleMounted === "1"
+      const shouldPreserveStableMount = (activeTab === 11 || activeTab === 13)
+        && panel.dataset.atlasStableMountMounted === "1"
         && !shouldBlockAtlasSensitiveAccess()
         && atlasAccessDecision(activeTab).ok;
-      if (shouldPreservePeopleMount) {
-        queueAtlasCentralPeopleLoad();
+      if (shouldPreserveStableMount) {
+        if (activeTab === 13) queueAtlasCentralPeopleLoad();
       } else if (shouldRenderAtlasWelcomeDashboard()) {
         if (activeTab === 13) delete panel.dataset.atlasPeopleMounted;
+        delete panel.dataset.atlasStableMountMounted;
         panel.innerHTML = renderAtlasWelcomeDashboard();
       } else if (shouldBlockAtlasSensitiveAccess()) {
         if (activeTab === 13) delete panel.dataset.atlasPeopleMounted;
+        delete panel.dataset.atlasStableMountMounted;
         panel.innerHTML = renderAtlasCentralLoginRequiredPanel();
       } else if (!atlasAccessDecision(activeTab).ok) {
         if (activeTab === 13) delete panel.dataset.atlasPeopleMounted;
+        delete panel.dataset.atlasStableMountMounted;
         panel.innerHTML = renderAtlasAccessDeniedPanel(atlasAccessDecision(activeTab).reason);
       } else {
         panel.innerHTML = renderer();
+        if (activeTab === 11 || activeTab === 13) panel.dataset.atlasStableMountMounted = "1";
         if (activeTab === 13) panel.dataset.atlasPeopleMounted = "1";
         queueAtlasCentralPeopleLoad();
       }

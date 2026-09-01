@@ -892,6 +892,481 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
 .toast.inf{background:#edf5fb;color:var(--info);border:1px solid #a8cce8}
 @media(max-width:900px){.ai-grid,.atlas-grid{grid-template-columns:1fr}.dsplit{grid-template-columns:1fr}.fg2,.fg3{grid-template-columns:1fr}.dg{grid-template-columns:1fr}}
 
+/* New request studio */
+#page-new-request {
+  --studio-ink: #12384a;
+  --studio-soft: #eef5f8;
+  --studio-line: rgba(1,62,81,.16);
+}
+.request-studio-shell {
+  max-width: 1510px;
+  margin: 0 auto;
+}
+.request-studio-top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.request-studio-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--studio-line);
+  background: #fff;
+  color: #4a6a7a;
+  border-radius: 999px;
+  min-height: 34px;
+  padding: 7px 13px;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(1,62,81,.05);
+}
+.request-studio-grid {
+  display: grid;
+  grid-template-columns: minmax(420px, .9fr) minmax(500px, 1.1fr);
+  gap: 18px;
+  align-items: start;
+}
+.request-card,
+.concept-card,
+.brand-kit-card {
+  background: #fff;
+  border: 1px solid var(--studio-line);
+  border-radius: 8px;
+  box-shadow: 0 8px 26px rgba(1,62,81,.08);
+}
+.request-card {
+  padding: 20px;
+}
+.request-eyebrow,
+.concept-eyebrow {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--studio-ink);
+}
+.request-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 13px 16px;
+}
+.request-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.request-field.full {
+  grid-column: 1 / -1;
+}
+.request-field label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #507083;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.request-field input,
+.request-field select,
+.request-field textarea {
+  min-height: 39px;
+  border: 1px solid rgba(1,62,81,.2);
+  border-radius: 6px;
+  padding: 9px 12px;
+  color: var(--studio-ink);
+  background: #fff;
+  font-size: 13px;
+}
+.request-field textarea {
+  min-height: 102px;
+}
+.request-cost-box {
+  grid-column: 1 / -1;
+  background: #e9f4f8;
+  border: 1px solid rgba(107,162,184,.28);
+  border-radius: 8px;
+  padding: 14px;
+}
+.request-cost-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+.request-upload {
+  border: 2px dashed rgba(107,162,184,.45);
+  border-radius: 8px;
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #7899aa;
+  cursor: pointer;
+  text-align: center;
+  background: #fbfdfe;
+}
+.routing-preview-card {
+  margin-top: 16px;
+  padding: 18px 20px;
+}
+.brand-kit-card {
+  margin-top: 14px;
+  padding: 18px 20px;
+  color: #fff;
+  border-color: rgba(255,255,255,.12);
+  background:
+    radial-gradient(circle at 18% 18%, rgba(107,162,184,.28), transparent 34%),
+    linear-gradient(145deg, #013e51 0%, #004b61 100%);
+}
+.brand-kit-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.brand-kit-title {
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: .02em;
+}
+.brand-kit-status {
+  color: #b8e6ce;
+  font-size: 12px;
+  font-weight: 700;
+}
+.brand-kit-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-top: 16px;
+}
+.brand-kit-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255,255,255,.86);
+  font-size: 13px;
+  font-weight: 700;
+}
+.brand-kit-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.18);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.concept-card {
+  padding: 18px;
+  border-top: 3px solid #6ba2b8;
+}
+.concept-header {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 14px;
+}
+.concept-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  flex: 0 0 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 900;
+  background: linear-gradient(135deg, #013e51, #02708d);
+  box-shadow: 0 8px 20px rgba(1,62,81,.22);
+  cursor: pointer;
+}
+.concept-beta {
+  margin-left: auto;
+  background: #d8edf5;
+  color: #30687c;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.concept-sub {
+  color: #648596;
+  font-size: 12px;
+  font-weight: 700;
+}
+.concept-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin: 16px 0;
+}
+.concept-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.concept-control label {
+  font-size: 10px;
+  font-weight: 800;
+  color: #507083;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.concept-pill-control,
+.concept-control select {
+  min-height: 40px;
+  border: 1px solid rgba(1,62,81,.2);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--studio-ink);
+  padding: 9px 11px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.concept-pill-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.concept-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  margin: 12px 0;
+  border: 1px solid rgba(1,62,81,.14);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.concept-tab {
+  min-height: 36px;
+  border: 0;
+  border-right: 1px solid rgba(1,62,81,.14);
+  background: #fff;
+  color: #4a6a7a;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.concept-tab:last-child {
+  border-right: 0;
+}
+.concept-tab.active {
+  color: #fff;
+  background: #013e51;
+}
+.concept-preview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 12px;
+}
+.concept-main-preview,
+.concept-mini,
+.concept-more {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(1,62,81,.12);
+  background: #eef5f8;
+}
+.concept-main-preview {
+  min-height: 360px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  color: #fff;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.18) 0%, rgba(1,62,81,.18) 32%, rgba(1,62,81,.92) 100%),
+    radial-gradient(circle at 16% 22%, rgba(252,211,141,.8), transparent 17%),
+    radial-gradient(circle at 85% 28%, rgba(107,162,184,.6), transparent 18%),
+    linear-gradient(135deg, #97c6d4 0%, #dbeaf0 42%, #0a5a73 100%);
+}
+.concept-main-preview::before,
+.concept-main-preview::after {
+  content: "";
+  position: absolute;
+  background: rgba(255,255,255,.58);
+  border-radius: 999px;
+  transform: rotate(-8deg);
+}
+.concept-main-preview::before {
+  width: 160px;
+  height: 18px;
+  left: 62px;
+  bottom: 124px;
+}
+.concept-main-preview::after {
+  width: 96px;
+  height: 14px;
+  right: 72px;
+  bottom: 146px;
+}
+.concept-preview-copy {
+  position: relative;
+  z-index: 1;
+  padding: 24px 20px 18px;
+  text-align: center;
+}
+.concept-kicker {
+  color: rgba(1,62,81,.82);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  margin-bottom: 7px;
+}
+.concept-title {
+  color: #013e51;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 66px;
+  line-height: .84;
+  letter-spacing: .02em;
+  font-weight: 700;
+  text-shadow: 0 2px 0 rgba(255,255,255,.28);
+}
+.concept-tag {
+  display: inline-flex;
+  margin-top: 12px;
+  background: #013e51;
+  color: #fff;
+  border-radius: 5px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: .05em;
+}
+.concept-footer {
+  position: relative;
+  z-index: 1;
+  padding: 12px 16px;
+  text-align: center;
+  background: rgba(1,62,81,.94);
+}
+.concept-footer img {
+  display: block;
+  width: 84px;
+  height: auto;
+  margin: 8px auto 0;
+  filter: brightness(0) invert(1);
+}
+.concept-side {
+  display: grid;
+  grid-template-rows: 1fr 1fr .55fr;
+  gap: 10px;
+}
+.concept-mini {
+  min-height: 112px;
+  padding: 14px;
+  display: flex;
+  align-items: flex-end;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+.concept-mini.one {
+  background: linear-gradient(135deg, rgba(1,62,81,.92), rgba(1,62,81,.4)), url("assets/portfolio-scope-backdrop.png") center/cover;
+}
+.concept-mini.two {
+  color: #013e51;
+  background:
+    radial-gradient(circle at 16% 18%, rgba(107,162,184,.26), transparent 26%),
+    linear-gradient(135deg, #f9fbfc, #dceef4);
+}
+.concept-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #3f7084;
+  font-size: 12px;
+  font-weight: 800;
+}
+.creative-signal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 14px 0;
+}
+.creative-signal-grid .request-field.full {
+  grid-column: 1 / -1;
+}
+.concept-feedback {
+  margin-top: 14px;
+  border: 1px solid rgba(1,62,81,.12);
+  border-radius: 8px;
+  padding: 13px;
+}
+.feedback-buttons,
+.concept-action-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.concept-action-row {
+  margin-top: 14px;
+}
+.concept-action-row .btn,
+.feedback-buttons .btn {
+  justify-content: center;
+  min-height: 38px;
+}
+.concept-action-row .btn-primary {
+  margin-left: auto;
+  min-width: 230px;
+}
+#page-new-request .ai-panel {
+  margin-top: 16px;
+  border-radius: 8px;
+}
+@media(max-width:1180px){
+  .request-studio-grid,
+  .concept-preview-grid {
+    grid-template-columns: 1fr;
+  }
+  .concept-side {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: auto;
+  }
+}
+@media(max-width:760px){
+  .request-studio-top {
+    justify-content: flex-start;
+  }
+  .request-form-grid,
+  .request-cost-grid,
+  .concept-controls,
+  .creative-signal-grid,
+  .brand-kit-row,
+  .concept-side {
+    grid-template-columns: 1fr;
+  }
+  .request-studio-grid {
+    grid-template-columns: 1fr;
+  }
+  .concept-tabs {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .concept-title {
+    font-size: 48px;
+  }
+  .concept-action-row .btn-primary {
+    margin-left: 0;
+    min-width: 0;
+    width: 100%;
+  }
+}
+
 
 
 </style>
@@ -1044,202 +1519,269 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
 
   <!-- ======== NEW REQUEST ======== -->
   <div class="page" id="page-new-request">
-    <div class="section-header">
-      <div>
-        <div class="section-title">Submit a Creative Request</div>
-        <div class="section-sub">Fill out the brief below. Our team will be auto-assigned based on availability.</div>
+    <div class="request-studio-shell">
+      <div class="request-studio-top" aria-label="Request context">
+        <div class="request-studio-chip">Reporting period · September 2026</div>
+        <div class="request-studio-chip">Viewing data for 20 communities</div>
+        <div class="request-studio-chip">Live now: Jac</div>
       </div>
-    </div>
 
-    <div class="grid-2" style="align-items:start">
-      <div>
-        <div class="card">
-          <div class="card-title">Request Details</div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Property / Community</label>
-              <select id="req-property">
-                <option value="">— Select property —</option>
-                <option>Nocatee</option>
-                <option>Glen Kernan Park (GKP)</option>
-                <option>Viera</option>
-                <option>Florence Villa</option>
-                <option>Doro High Rise</option>
-                <option>Beacon / Poplar Hall</option>
-                <option>Maple Hall (NJIT)</option>
-                <option>Sereno</option>
-                <option>Citrus Ridge</option>
-                <option>Bartram</option>
-                <option>St. Augustine</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Request Type</label>
-              <select id="req-type" onchange="updateRouting()">
-                <option value="">— Select type —</option>
-                <option value="social">Social Media Post / Reel / Story</option>
-                <option value="ads">Paid Ad Design (Google, Meta)</option>
-                <option value="print">Print / Flyer / Signage</option>
-                <option value="swag">Promotional Swag / Items</option>
-                <option value="website">Website Change</option>
-                <option value="email">Email Campaign</option>
-                <option value="package">Marketing Package Change</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Priority</label>
-              <select id="req-priority">
-                <option value="normal">Normal</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Needed By</label>
-              <input type="date" id="req-due">
-            </div>
-            <div class="form-group full">
-              <label>Request Title</label>
-              <input type="text" id="req-title" placeholder="e.g. Summer move-in Instagram reel for GKP">
-            </div>
-            <div class="form-group full">
-              <label>Description / Creative Direction</label>
-              <textarea id="req-desc" rows="4" placeholder="Describe what you need. Include tone, audience, key message, any specific details the team should know..."></textarea>
-            </div>
-            <div class="form-group full">
-              <label>Size / Dimensions (if applicable)</label>
-              <input type="text" id="req-size" placeholder="e.g. 1080×1350px Instagram portrait, or 8.5×11 flyer">
-            </div>
+      <div class="request-studio-grid">
+        <div>
+          <div class="request-card">
+            <div class="request-eyebrow" style="margin-bottom:16px">Request Details</div>
+            <div class="request-form-grid">
+              <div class="request-field">
+                <label for="req-property">Property / Community</label>
+                <select id="req-property">
+                  <option value="">— Select property —</option>
+                  <option>Nocatee</option>
+                  <option>Glen Kernan Park (GKP)</option>
+                  <option>Viera</option>
+                  <option>Florence Villa</option>
+                  <option>Doro High Rise</option>
+                  <option>Beacon / Poplar Hall</option>
+                  <option>Maple Hall (NJIT)</option>
+                  <option>Sereno</option>
+                  <option>Citrus Ridge</option>
+                  <option>Bartram</option>
+                  <option>St. Augustine</option>
+                </select>
+              </div>
+              <div class="request-field">
+                <label for="req-type">Request Type</label>
+                <select id="req-type" onchange="updateRouting()">
+                  <option value="">— Select type —</option>
+                  <option value="social">Social Media Post / Reel / Story</option>
+                  <option value="ads">Paid Ad Design (Google, Meta)</option>
+                  <option value="print">Print / Flyer / Signage</option>
+                  <option value="swag">Promotional Swag / Items</option>
+                  <option value="website">Website Change</option>
+                  <option value="email">Email Campaign</option>
+                  <option value="package">Marketing Package Change</option>
+                </select>
+              </div>
+              <div class="request-field">
+                <label for="req-priority">Priority</label>
+                <select id="req-priority">
+                  <option value="normal">Normal</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </div>
+              <div class="request-field">
+                <label for="req-due">Needed By</label>
+                <input type="date" id="req-due">
+              </div>
+              <div class="request-field full">
+                <label for="req-title">Request Title</label>
+                <input type="text" id="req-title" placeholder="e.g. Summer move-in Instagram reel for GKP">
+              </div>
+              <div class="request-field full">
+                <label for="req-desc">Description / Creative Direction</label>
+                <textarea id="req-desc" rows="4" placeholder="Describe what you need. Include tone, audience, key message, any specific details the team should know..."></textarea>
+              </div>
+              <div class="request-field full">
+                <label for="req-size">Size / Dimensions (if applicable)</label>
+                <input type="text" id="req-size" placeholder="e.g. 1080x1350px Instagram portrait, or 8.5x11 flyer">
+              </div>
 
-            <!-- COST SECTION -->
-            <div class="form-group full" style="background:var(--rise-pale);border-radius:var(--radius-sm);padding:14px;margin-top:4px">
-              <div style="font-size:12px;font-weight:600;color:var(--rise-dark);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">💰 Cost Information</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
-                <div class="form-group">
-                  <label>Estimated Cost ($)</label>
-                  <input type="number" id="req-cost-est" placeholder="0.00" min="0" step="0.01">
+              <div class="request-cost-box">
+                <div class="request-eyebrow" style="margin-bottom:12px">Cost Information</div>
+                <div class="request-cost-grid">
+                  <div class="request-field">
+                    <label for="req-cost-est">Estimated Cost ($)</label>
+                    <input type="number" id="req-cost-est" placeholder="0.00" min="0" step="0.01">
+                  </div>
+                  <div class="request-field">
+                    <label for="req-cost-type">Cost Type</label>
+                    <select id="req-cost-type">
+                      <option value="">— Select —</option>
+                      <option>One-time purchase</option>
+                      <option>Monthly recurring</option>
+                      <option>Per unit / quantity</option>
+                      <option>No cost</option>
+                    </select>
+                  </div>
+                  <div class="request-field">
+                    <label for="req-budget-line">Budget Line Item</label>
+                    <select id="req-budget-line">
+                      <option value="">— Select —</option>
+                      <option>Promotional Materials</option>
+                      <option>Digital Advertising</option>
+                      <option>Print & Signage</option>
+                      <option>Photography / Video</option>
+                      <option>Events & Sponsorships</option>
+                      <option>Swag & Merchandise</option>
+                      <option>Website</option>
+                      <option>Other / TBD</option>
+                    </select>
+                  </div>
                 </div>
-                <div class="form-group">
-                  <label>Cost Type</label>
-                  <select id="req-cost-type">
-                    <option value="">— Select —</option>
-                    <option>One-time purchase</option>
-                    <option>Monthly recurring</option>
-                    <option>Per unit / quantity</option>
-                    <option>No cost</option>
-                  </select>
+                <div class="request-field" style="margin-top:10px">
+                  <label for="req-vendor">Vendor / Supplier (if known)</label>
+                  <input type="text" id="req-vendor" placeholder="e.g. Printful Direct, Vista Print, internal">
                 </div>
-                <div class="form-group">
-                  <label>Budget Line Item</label>
-                  <select id="req-budget-line">
-                    <option value="">— Select —</option>
-                    <option>Promotional Materials</option>
-                    <option>Digital Advertising</option>
-                    <option>Print & Signage</option>
-                    <option>Photography / Video</option>
-                    <option>Events & Sponsorships</option>
-                    <option>Swag & Merchandise</option>
-                    <option>Website</option>
-                    <option>Other / TBD</option>
-                  </select>
-                </div>
+                <div class="form-hint" style="margin-top:8px">Cost details will be visible to the GM and Regional approvers during the approval stage.</div>
               </div>
-              <div class="form-group" style="margin-top:8px">
-                <label>Vendor / Supplier (if known)</label>
-                <input type="text" id="req-vendor" placeholder="e.g. Printful Direct, Vista Print, internal">
-              </div>
-              <div style="font-size:11px;color:#7a9aaa;margin-top:6px">Cost details will be visible to the GM and Regional approvers during the approval stage.</div>
-            </div>
 
-            <div class="form-group full">
-              <label>Attachments / Reference Files</label>
-              <div class="file-upload-area" onclick="document.getElementById('req-attachments').click()" id="attachment-drop-zone">
-                📎 Click to attach photos, logos, or reference examples
-                <div id="attachment-list" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"></div>
+              <div class="request-field full">
+                <label for="req-attachments">Attachments / Reference Files</label>
+                <div class="request-upload" onclick="document.getElementById('req-attachments').click()" id="attachment-drop-zone">
+                  <span>Click to attach photos, logos, or reference examples</span>
+                  <div id="attachment-list" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center"></div>
+                </div>
+                <input type="file" id="req-attachments" accept="image/*,.pdf" multiple style="display:none" onchange="handleAttachmentUpload(this)">
+                <div class="form-hint">Images and PDFs accepted · Max 10MB per file</div>
               </div>
-              <input type="file" id="req-attachments" accept="image/*,.pdf" multiple style="display:none" onchange="handleAttachmentUpload(this)">
-              <div class="form-hint">Images and PDFs accepted · Max 10MB per file</div>
+            </div>
+          </div>
+
+          <div class="request-card routing-preview-card" id="routing-preview">
+            <div class="request-eyebrow" style="margin-bottom:14px">Auto-Assignment Preview</div>
+            <div id="routing-content">
+              <div style="color:#7a9aaa;font-size:13px">Select a request type to see who will be assigned based on current workload.</div>
+            </div>
+          </div>
+
+          <div class="brand-kit-card">
+            <div class="brand-kit-head">
+              <div>
+                <div class="brand-kit-title">RISE Brand Kit</div>
+                <div style="font-size:12px;color:rgba(255,255,255,.66);margin-top:2px">Consistent. Elevated. On brand.</div>
+              </div>
+              <div class="brand-kit-status">RISE brand applied</div>
+            </div>
+            <div class="brand-kit-row">
+              <div class="brand-kit-item"><span class="brand-kit-icon">C</span>Colors</div>
+              <div class="brand-kit-item"><span class="brand-kit-icon">T</span>Typography</div>
+              <div class="brand-kit-item"><span class="brand-kit-icon">L</span>Logo</div>
+              <div class="brand-kit-item"><span class="brand-kit-icon">I</span>Imagery</div>
             </div>
           </div>
         </div>
 
-        <!-- ROUTING PREVIEW -->
-        <div class="card" style="margin-top:16px" id="routing-preview" style="display:none">
-          <div class="card-title">Auto-Assignment Preview</div>
-          <div id="routing-content">
-            <div style="color:#7a9aaa;font-size:13px">Select a request type to see who will be assigned based on current workload.</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ARTHUR "ART" — AI CREATIVE BRIEF ASSISTANT -->
-      <div>
-        <div class="card" style="border-top:3px solid #6ba2b8">
-
-          <!-- ART Header -->
-          <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
-            <div id="art-avatar" style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#013e51,#2a9d6e);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;box-shadow:0 4px 12px rgba(1,62,81,0.3);cursor:pointer;transition:transform 0.3s"
-                 onclick="artDance()" title="Click me!">🎨</div>
+        <div class="concept-card">
+          <div class="concept-header">
+            <div id="art-avatar" class="concept-avatar" onclick="artDance()" title="Click me">ART</div>
             <div>
-              <div style="font-weight:700;font-size:16px;color:var(--rise-dark)">Arthur <span style="color:#6ba2b8">"ART"</span></div>
-              <div style="font-size:11px;color:#7a9aaa">AI Creative Brief Assistant · Powered by Claude</div>
+              <div class="concept-eyebrow">ART's Concept Preview</div>
+              <div class="concept-sub">AI-generated concepts based on your brief</div>
             </div>
-            <div id="art-mood" style="margin-left:auto;font-size:11px;color:#7a9aaa;font-style:italic">Ready to create ✦</div>
+            <div class="concept-beta">Beta · AI Powered</div>
           </div>
 
-          <p style="font-size:13px;color:#5a7a86;margin-bottom:14px;line-height:1.6">Hey! I'm ART. Tell me about your request and I'll write a full creative brief, suggest visuals, and even generate a concept image — so your team knows exactly what to build.</p>
+          <div class="concept-controls">
+            <div class="concept-control">
+              <label>Brand Kit</label>
+              <div class="concept-pill-control"><span>Apply RISE Branding</span><span>On</span></div>
+            </div>
+            <div class="concept-control">
+              <label for="req-asset-audience">Asset Type / Audience</label>
+              <select id="req-asset-audience">
+                <option>Conventional / Multifamily</option>
+                <option>Student Housing</option>
+                <option>Senior Living</option>
+                <option>Lease-Up</option>
+              </select>
+            </div>
+            <div class="concept-control">
+              <label for="req-creative-direction">Creative Direction</label>
+              <select id="req-creative-direction">
+                <option>Relaxed Luxury Living</option>
+                <option>Bold Leasing Push</option>
+                <option>Warm Community Event</option>
+                <option>Resident Retention</option>
+              </select>
+            </div>
+          </div>
 
-          <!-- Creative prompting questions -->
-          <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
-            <div>
-              <label style="display:block;margin-bottom:4px;font-size:12px;font-weight:600;color:var(--rise-dark)">🎭 Vibe / Feeling</label>
-              <input type="text" id="req-vibe" placeholder="e.g. summer fun, luxury, energetic, playful, cozy fall...">
+          <div class="creative-signal-grid">
+            <div class="request-field">
+              <label for="req-vibe">Vibe / Feeling</label>
+              <input type="text" id="req-vibe" placeholder="e.g. summer fun, luxury, energetic, playful...">
             </div>
-            <div>
-              <label style="display:block;margin-bottom:4px;font-size:12px;font-weight:600;color:var(--rise-dark)">👥 Target Audience</label>
-              <input type="text" id="req-audience" placeholder="e.g. young professionals, 55+ active adults, college students...">
+            <div class="request-field">
+              <label for="req-audience">Target Audience</label>
+              <input type="text" id="req-audience" placeholder="e.g. young professionals, 55+ active adults...">
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              <div>
-                <label style="display:block;margin-bottom:4px;font-size:12px;font-weight:600;color:var(--rise-dark)">📐 Format / Size</label>
-                <input type="text" id="req-size" placeholder="e.g. 1080×1350px, 8.5×11 flyer...">
-              </div>
-              <div>
-                <label style="display:block;margin-bottom:4px;font-size:12px;font-weight:600;color:var(--rise-dark)">🎯 Main CTA</label>
-                <input type="text" id="req-cta" placeholder="e.g. Schedule a Tour, Apply Today...">
-              </div>
+            <div class="request-field">
+              <label for="req-format-size">Format / Size</label>
+              <input type="text" id="req-format-size" placeholder="e.g. 1080x1080px, 8.5x11 flyer...">
             </div>
-            <div>
-              <label style="display:block;margin-bottom:4px;font-size:12px;font-weight:600;color:var(--rise-dark)">🚫 Anything to avoid?</label>
+            <div class="request-field">
+              <label for="req-cta">Main CTA</label>
+              <input type="text" id="req-cta" placeholder="e.g. Schedule a Tour, Apply Today...">
+            </div>
+            <div class="request-field full">
+              <label for="req-avoid">Anything to avoid?</label>
               <input type="text" id="req-avoid" placeholder="e.g. no red, no competitor references, avoid stock photo feel...">
             </div>
           </div>
 
-          <!-- ART Generate Button -->
-          <button class="btn-ai" onclick="generateBrief()" id="ai-btn" style="width:100%;justify-content:center;margin-bottom:12px">
-            <span id="ai-btn-text">✨ Ask ART to Build Brief</span>
-          </button>
+          <div class="concept-tabs">
+            <button type="button" class="concept-tab active" onclick="selectConceptTab(this)">Concept 1</button>
+            <button type="button" class="concept-tab" onclick="selectConceptTab(this)">Concept 2</button>
+            <button type="button" class="concept-tab" onclick="selectConceptTab(this)">Concept 3</button>
+            <button type="button" class="concept-tab" onclick="generateBrief()">View more</button>
+          </div>
 
-          <!-- Always-visible Submit without brief -->
-          <button class="btn btn-secondary btn-sm" onclick="submitTicket()" style="width:100%;justify-content:center;margin-bottom:6px">
-            Submit Without Brief →
-          </button>
-          <div style="font-size:11px;color:#aac0ca;text-align:center;margin-bottom:8px">You can always submit and add the brief later</div>
+          <div class="concept-preview-grid">
+            <div class="concept-main-preview">
+              <div class="concept-preview-copy">
+                <div class="concept-kicker">Relax. Connect. Enjoy.</div>
+                <div class="concept-title">Pool<br>Vibes</div>
+                <div class="concept-tag">At Glen Kernan Park</div>
+              </div>
+              <div class="concept-footer">
+                <div>Resort-style living. Right where you belong.</div>
+                <img src="assets/rise_logo.png" alt="RISE">
+              </div>
+            </div>
+            <div class="concept-side">
+              <div class="concept-mini one">Make every day a pool day</div>
+              <div class="concept-mini two">Live the good life</div>
+              <div class="concept-more"><span>+2 more concepts</span><button type="button" class="btn btn-secondary btn-sm" onclick="generateBrief()">View all</button></div>
+            </div>
+          </div>
 
-          <!-- ART Output Panel -->
+          <div class="concept-feedback">
+            <div style="font-weight:800;color:var(--rise-dark);font-size:13px">What do you think of these concepts?</div>
+            <div style="font-size:12px;color:#7a9aaa;margin:2px 0 10px">Your feedback helps ART refine the direction.</div>
+            <div class="feedback-buttons">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="selectExample(this,'Love it')">Love it</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="selectExample(this,'Looks good')">Looks good</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="selectExample(this,'Not quite')">Not quite</button>
+              <button type="button" class="btn btn-primary btn-sm" onclick="generateBrief()" style="margin-left:auto">Refine with Feedback</button>
+            </div>
+          </div>
+
+          <div class="concept-action-row">
+            <button type="button" class="btn btn-secondary" onclick="regenerateBrief()">Regenerate Concepts</button>
+            <button type="button" class="btn btn-secondary" onclick="generateBrief()">Edit Brief</button>
+            <button type="button" class="btn btn-primary" onclick="submitTicket()">Approve Concept & Continue</button>
+          </div>
+
+          <button class="btn-ai" onclick="generateBrief()" id="ai-btn" style="width:100%;justify-content:center;margin-top:14px">
+            <span id="ai-btn-text">Ask ART to Build Brief</span>
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="submitTicket()" style="width:100%;justify-content:center;margin-top:8px">
+            Submit Without Brief
+          </button>
+          <div id="art-mood" style="font-size:11px;color:#7a9aaa;text-align:center;margin-top:8px">Ready to create</div>
+
           <div class="ai-panel" id="ai-panel">
-            <div class="ai-panel-header" style="background:linear-gradient(135deg,#013e51,#0a5a73)">
-              <div id="art-avatar-mini" style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#6ba2b8,#2a9d6e);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🎨</div>
+            <div class="ai-panel-header" style="background:linear-gradient(135deg,#013e51,#0a5a73);border-radius:8px;padding:12px">
+              <div id="art-avatar-mini" style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#6ba2b8,#2a9d6e);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:white;flex-shrink:0">ART</div>
               <div>
                 <div class="ai-panel-title" style="color:white">ART's Creative Brief</div>
                 <div class="ai-panel-sub" style="color:#aac0ca">Review and confirm before submitting</div>
               </div>
             </div>
 
-            <!-- AI Generated Image -->
             <div id="art-image-section" style="display:none;margin:12px 0">
-              <div style="font-size:11px;font-weight:600;color:#013e51;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">🖼 ART's Concept Sketch</div>
-              <div id="art-image-container" style="border-radius:10px;overflow:hidden;background:var(--rise-pale);min-height:160px;display:flex;align-items:center;justify-content:center">
+              <div style="font-size:11px;font-weight:600;color:#013e51;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">ART's Concept Sketch</div>
+              <div id="art-image-container" style="border-radius:8px;overflow:hidden;background:var(--rise-pale);min-height:160px;display:flex;align-items:center;justify-content:center">
                 <div style="text-align:center;padding:20px;color:#7a9aaa;font-size:12px">Generating concept...</div>
               </div>
               <div style="font-size:10px;color:#aac0ca;margin-top:4px;text-align:center">AI concept sketch — for direction only, not final deliverable</div>
@@ -1251,24 +1793,19 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
               <div style="font-size:12px;font-weight:600;color:#4a6a7a;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px">Visual Style Direction</div>
               <div class="visual-examples" id="visual-examples">
                 <div class="visual-example" onclick="selectExample(this,'Bright & airy')">
-                  <div class="visual-example-img" style="background:linear-gradient(135deg,#e8f5f0,#c2e8d8)">☀️</div>
+                  <div class="visual-example-img" style="background:linear-gradient(135deg,#e8f5f0,#c2e8d8)">A</div>
                   <div class="visual-example-label">Bright & Airy</div>
                 </div>
                 <div class="visual-example" onclick="selectExample(this,'Bold & graphic')">
-                  <div class="visual-example-img" style="background:linear-gradient(135deg,#013e51,#0a5a73)">◼️</div>
+                  <div class="visual-example-img" style="background:linear-gradient(135deg,#013e51,#0a5a73);color:white">B</div>
                   <div class="visual-example-label">Bold & Graphic</div>
                 </div>
                 <div class="visual-example" onclick="selectExample(this,'Warm & lifestyle')">
-                  <div class="visual-example-img" style="background:linear-gradient(135deg,#fdf0e0,#f7d4a0)">🌅</div>
+                  <div class="visual-example-img" style="background:linear-gradient(135deg,#fdf0e0,#f7d4a0)">C</div>
                   <div class="visual-example-label">Warm & Lifestyle</div>
                 </div>
               </div>
               <div class="form-hint" style="margin-top:6px">Select your preferred visual direction — this will be attached to the ticket.</div>
-            </div>
-
-            <div style="margin-top:16px;display:flex;gap:8px">
-              <button class="btn btn-primary" onclick="submitTicket()">Submit Request ↗</button>
-              <button class="btn btn-secondary" onclick="regenerateBrief()">Regenerate ↺</button>
             </div>
           </div>
         </div>
@@ -3378,6 +3915,9 @@ async function bootApp() {
   showBonusTabIfAuthorized();
   setupRealtime();
   await refreshTicketCount();
+  if (typeof setupMarketingRequestDraftPersistence === 'function') setupMarketingRequestDraftPersistence();
+  if (typeof restoreMarketingRequestDraft === 'function') restoreMarketingRequestDraft();
+  if (typeof showTab === 'function') showTab(typeof getInitialMarketingTab === 'function' ? getInitialMarketingTab() : 'dashboard');
   showToast('Welcome back, ' + (currentUserProfile.full_name || currentUserProfile.email.split('@')[0]) + '!', 'success');
   // Workload renders after tickets load
   if (typeof renderLiveWorkload === 'function') renderLiveWorkload();
@@ -3416,6 +3956,17 @@ boot();
 // ============================================================
 
 const AVATAR_COLORS = ['#013e51','#6ba2b8','#2a9d6e','#d47b1a','#8a4fa8','#e85c4a'];
+const MARKETING_ACTIVE_TAB_STORAGE_KEY = 'rise_mcc_active_tab_v2';
+const MARKETING_REQUEST_DRAFT_STORAGE_KEY = 'rise_mcc_new_request_draft_v2';
+const MARKETING_TAB_IDS = ['dashboard','new-request','tickets','approvals','lead-sources','metrics','reporting','bonus','settings','marketing'];
+const MARKETING_REQUEST_DRAFT_FIELDS = [
+  'req-property','req-type','req-priority','req-due','req-title','req-desc','req-size',
+  'req-cost-est','req-cost-type','req-budget-line','req-vendor','req-vibe','req-audience',
+  'req-format-size','req-cta','req-avoid','req-asset-audience','req-creative-direction'
+];
+var ticketAttachments = window.ticketAttachments || [];
+window.ticketAttachments = ticketAttachments;
+let marketingDraftSaveTimer = null;
 
 const DEFAULT_SKILLS = [
   {id:'social', name:'Social Media', desc:'Instagram, Facebook, TikTok posts, reels, stories'},
@@ -4868,13 +5419,7 @@ async function updateRouting() {
   preview.style.display = 'block';
   content.innerHTML = '<div style="color:#7a9aaa;font-size:13px">⏳ Loading assignment preview...</div>';
 
-  const typeId = type === 'Social Media Post / Reel / Story' ? 'social'
-    : type === 'Paid Ad Design (Google, Meta)' ? 'ads'
-    : type === 'Print / Flyer / Signage' ? 'print'
-    : type === 'Promotional Swag / Items' ? 'swag'
-    : type === 'Website Change' ? 'website'
-    : type === 'Email Campaign' ? 'email'
-    : type === 'Marketing Package Change' ? 'package' : '';
+  const typeId = getMarketingRequestTypeId(type);
 
   // Find required skill from routing rules
   const skillRule = routingData.find(r => r.typeId === typeId);
@@ -4981,11 +5526,11 @@ function artDance() {
 async function generateBrief() {
   const title    = document.getElementById('req-title')?.value || '';
   const desc     = document.getElementById('req-desc')?.value || '';
-  const type     = document.getElementById('req-type')?.value || '';
+  const type     = getMarketingRequestTypeLabel(document.getElementById('req-type')?.value || '');
   const property = document.getElementById('req-property')?.value || '';
   const vibe     = document.getElementById('req-vibe')?.value || '';
   const audience = document.getElementById('req-audience')?.value || '';
-  const size     = document.getElementById('req-size')?.value || '';
+  const size     = getRequestDimensionsValue();
   const cta      = document.getElementById('req-cta')?.value || '';
   const avoid    = document.getElementById('req-avoid')?.value || '';
 
@@ -5148,6 +5693,7 @@ IMPORTANT DETAILS: All content requires marketing team review before posting or 
   if (artMood) artMood.textContent = 'Brief complete — how\'s that? ✦';
   btn.disabled = false;
   btnTxt.innerHTML = '✨ Ask ART to Build Brief';
+  saveMarketingRequestDraft();
 }
 
 // ART concept image generator — canvas-based
@@ -5230,6 +5776,7 @@ async function regenerateBrief() {
 function selectExample(el, style) {
   document.querySelectorAll('.visual-example').forEach(e => e.classList.remove('selected'));
   el.classList.add('selected');
+  queueMarketingRequestDraftSave();
   showToast('Visual style "' + style + '" noted in brief', 'success');
 }
 
@@ -5238,10 +5785,11 @@ async function submitTicket() {
   const property = canonicalMarketingPropertyName(document.getElementById('req-property').value);
   const title = document.getElementById('req-title').value.trim();
   const desc = document.getElementById('req-desc').value.trim();
-  const type = document.getElementById('req-type').value;
+  const rawType = document.getElementById('req-type').value;
+  const type = getMarketingRequestTypeLabel(rawType);
   const priority = document.getElementById('req-priority').value;
   const dueDate = document.getElementById('req-due').value;
-  const size = document.getElementById('req-size') ? document.getElementById('req-size').value : '';
+  const size = getRequestDimensionsValue();
   const estCost = document.getElementById('req-cost-est') ? document.getElementById('req-cost-est').value : '';
   const costType = document.getElementById('req-cost-type') ? document.getElementById('req-cost-type').value : '';
   const budgetLine = document.getElementById('req-budget-line') ? document.getElementById('req-budget-line').value : '';
@@ -5261,13 +5809,7 @@ async function submitTicket() {
   const submitterEmail = profile ? profile.email : '';
 
   // Auto-assign — query Supabase directly for most reliable UUID
-  const typeId = type === 'Social Media Post / Reel / Story' ? 'social'
-    : type === 'Paid Ad Design (Google, Meta)' ? 'ads'
-    : type === 'Print / Flyer / Signage' ? 'print'
-    : type === 'Promotional Swag / Items' ? 'swag'
-    : type === 'Website Change' ? 'website'
-    : type === 'Email Campaign' ? 'email'
-    : type === 'Marketing Package Change' ? 'package' : '';
+  const typeId = getMarketingRequestTypeId(rawType);
 
   const skillRule = routingData.find(r => r.typeId === typeId);
   const requiredSkill = skillRule ? skillRule.skillId : typeId;
@@ -5373,7 +5915,7 @@ async function submitTicket() {
     }
 
     // Clear form
-    ['req-title','req-desc','req-vibe','req-audience','req-size','req-vendor',
+    ['req-title','req-desc','req-vibe','req-audience','req-size','req-format-size','req-cta','req-avoid','req-vendor',
      'req-cost-est'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
     ['req-property','req-type','req-priority','req-cost-type','req-budget-line']
       .forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
@@ -5381,6 +5923,8 @@ async function submitTicket() {
     document.getElementById('ai-panel').classList.remove('visible');
     document.getElementById('attachment-list') && (document.getElementById('attachment-list').innerHTML = '');
     ticketAttachments = [];
+    window.ticketAttachments = ticketAttachments;
+    clearMarketingRequestDraft();
 
     // Refresh counts and navigate
     await window.renderLiveTickets();
@@ -5904,6 +6448,32 @@ async function executeBulkReassign() {
 
 // ATTACHMENT UPLOAD // holds {name, url, size} for current ticket draft
 
+function safeAttachmentPathName(fileName) {
+  return String(fileName || 'attachment').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+function renderAttachmentChipContent(chip, file, statusText) {
+  chip.textContent = '';
+  const name = document.createElement('span');
+  name.textContent = file?.name || 'Attachment';
+  chip.appendChild(name);
+  if (statusText) {
+    const status = document.createElement('span');
+    status.textContent = statusText;
+    status.style.cssText = 'color:#7a9aaa;font-size:10px';
+    chip.appendChild(status);
+  }
+  if (file?.path) {
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.textContent = 'x';
+    remove.setAttribute('aria-label', 'Remove attachment');
+    remove.style.cssText = 'cursor:pointer;color:#e85c4a;margin-left:2px;border:0;background:transparent;padding:0 2px;font:inherit;font-weight:700';
+    remove.onclick = function() { removeAttachment(file.path, chip); };
+    chip.appendChild(remove);
+  }
+}
+
 async function handleAttachmentUpload(input) {
   const files = Array.from(input.files);
   if (!files.length) return;
@@ -5916,12 +6486,12 @@ async function handleAttachmentUpload(input) {
     // Show pending chip immediately
     const chip = document.createElement('div');
     chip.style.cssText = 'display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--rise-pale);border-radius:12px;font-size:11px;color:var(--rise-dark)';
-    chip.innerHTML = `<span>⏳</span> <span>${file.name}</span>`;
+    renderAttachmentChipContent(chip, { name: file.name }, '(uploading)');
     list.appendChild(chip);
 
     try {
       // Upload to Supabase Storage bucket "ticket-attachments"
-      const path = `tickets/${Date.now()}_${file.name.replace(/\s+/g,'_')}`;
+      const path = `tickets/${Date.now()}_${safeAttachmentPathName(file.name)}`;
       const { data, error } = await window.DB?.uploadAttachment
         ? await window.DB.uploadAttachment(path, file)
         : { data: null, error: { message: 'Storage not configured yet' } };
@@ -5929,13 +6499,16 @@ async function handleAttachmentUpload(input) {
       if (error) throw new Error(error.message);
 
       ticketAttachments.push({ name: file.name, path, url: data?.path || path });
-      chip.innerHTML = `<span>📎</span> <span>${file.name}</span> <span onclick="removeAttachment('${path}', this.parentElement)" style="cursor:pointer;color:#e85c4a;margin-left:2px">×</span>`;
+      window.ticketAttachments = ticketAttachments;
+      renderAttachmentChipContent(chip, { name: file.name, path, url: data?.path || path });
       chip.style.background = '#e6f7ee';
       showToast(file.name + ' attached', 'success');
     } catch(e) {
       // Graceful fallback — store file reference locally for now
-      ticketAttachments.push({ name: file.name, path: '', url: '', local: true });
-      chip.innerHTML = `<span>📎</span> <span>${file.name}</span> <span style="color:#7a9aaa;font-size:10px"> (local)</span> <span onclick="this.parentElement.remove()" style="cursor:pointer;color:#e85c4a;margin-left:2px">×</span>`;
+      const localPath = `local:${Date.now()}_${safeAttachmentPathName(file.name)}`;
+      ticketAttachments.push({ name: file.name, path: localPath, url: '', local: true });
+      window.ticketAttachments = ticketAttachments;
+      renderAttachmentChipContent(chip, { name: file.name, path: localPath, local: true }, '(local)');
       chip.style.background = '#fff4e0';
     }
   }
@@ -5946,13 +6519,20 @@ async function handleAttachmentUpload(input) {
   // Update drop zone text
   const fileCount = ticketAttachments.length;
   if (fileCount > 0 && zone) {
-    zone.firstChild.textContent = `📎 ${fileCount} file${fileCount > 1 ? 's' : ''} attached — click to add more`;
+    const label = zone.querySelector('span');
+    if (label) label.textContent = `${fileCount} file${fileCount > 1 ? 's' : ''} attached — click to add more`;
   }
+  saveMarketingRequestDraft();
 }
 
 function removeAttachment(path, chipEl) {
   ticketAttachments = ticketAttachments.filter(a => a.path !== path);
+  window.ticketAttachments = ticketAttachments;
   chipEl.remove();
+  const zone = document.getElementById('attachment-drop-zone');
+  const label = zone?.querySelector('span');
+  if (label && ticketAttachments.length === 0) label.textContent = 'Click to attach photos, logos, or reference examples';
+  saveMarketingRequestDraft();
 }
 
 // LIVE WORKLOAD — reads from teamData (loaded from Supabase) + live ticket counts
@@ -8020,12 +8600,170 @@ async function approveItem(btn, ticketId, ticketDbId) {
   showToast('Ticket ' + ticketId + ' approved — notification email opened', 'success');
 }
 
+function normalizeMarketingTabId(value) {
+  const cleaned = String(value || '').replace(/^#/, '').replace(/^page-/, '').trim();
+  return MARKETING_TAB_IDS.includes(cleaned) ? cleaned : '';
+}
+
+function getInitialMarketingTab() {
+  let fromQuery = '';
+  try {
+    const params = new URLSearchParams(window.location.search || '');
+    fromQuery = params.get('mccTab') || params.get('atlasMarketingTab') || '';
+  } catch(e) {}
+  const fromHash = normalizeMarketingTabId(window.location.hash || '');
+  const fromStorage = (() => {
+    try { return localStorage.getItem(MARKETING_ACTIVE_TAB_STORAGE_KEY) || ''; }
+    catch(e) { return ''; }
+  })();
+  return normalizeMarketingTabId(fromQuery) || fromHash || normalizeMarketingTabId(fromStorage) || 'dashboard';
+}
+
+function rememberMarketingActiveTab(tabId) {
+  const normalized = normalizeMarketingTabId(tabId);
+  if (!normalized) return;
+  try { localStorage.setItem(MARKETING_ACTIVE_TAB_STORAGE_KEY, normalized); } catch(e) {}
+  try {
+    const nextUrl = window.location.pathname + window.location.search + '#' + normalized;
+    window.history.replaceState(null, '', nextUrl);
+  } catch(e) {}
+}
+
+function getRequestDimensionsValue() {
+  const primary = String(document.getElementById('req-size')?.value || '').trim();
+  const secondary = String(document.getElementById('req-format-size')?.value || '').trim();
+  return primary || secondary;
+}
+
+function getMarketingRequestTypeId(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const direct = DEFAULT_ROUTING.find(item => item.typeId === raw);
+  if (direct) return direct.typeId;
+  const byLabel = DEFAULT_ROUTING.find(item => item.type === raw);
+  if (byLabel) return byLabel.typeId;
+  const lowered = raw.toLowerCase();
+  if (lowered.includes('social')) return 'social';
+  if (lowered.includes('paid') || lowered.includes('google') || lowered.includes('meta')) return 'ads';
+  if (lowered.includes('print') || lowered.includes('flyer') || lowered.includes('signage')) return 'print';
+  if (lowered.includes('swag') || lowered.includes('promotional')) return 'swag';
+  if (lowered.includes('website')) return 'website';
+  if (lowered.includes('email')) return 'email';
+  if (lowered.includes('package')) return 'package';
+  return raw;
+}
+
+function getMarketingRequestTypeLabel(value) {
+  const typeId = getMarketingRequestTypeId(value);
+  return DEFAULT_ROUTING.find(item => item.typeId === typeId)?.type || String(value || '').trim();
+}
+
+function setDraftFieldValue(id, value) {
+  const el = document.getElementById(id);
+  if (!el || value == null) return;
+  el.value = String(value);
+}
+
+function saveMarketingRequestDraft() {
+  const page = document.getElementById('page-new-request');
+  if (!page) return;
+  const draft = { updatedAt: new Date().toISOString(), fields: {}, attachments: [] };
+  MARKETING_REQUEST_DRAFT_FIELDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) draft.fields[id] = el.value || '';
+  });
+  const output = document.getElementById('ai-brief-output');
+  const panel = document.getElementById('ai-panel');
+  if (output && output.textContent.trim()) {
+    draft.aiBriefHtml = output.innerHTML;
+    draft.aiBriefText = output.textContent;
+    draft.aiBriefVisible = panel?.classList.contains('visible') || false;
+  }
+  draft.visualStyle = document.querySelector('.visual-example.selected .visual-example-label')?.textContent || '';
+  draft.attachments = (ticketAttachments || []).map(file => ({ name: file.name || '', path: file.path || '', url: file.url || '', local: !!file.local }));
+  try { localStorage.setItem(MARKETING_REQUEST_DRAFT_STORAGE_KEY, JSON.stringify(draft)); } catch(e) {}
+}
+
+function queueMarketingRequestDraftSave() {
+  if (marketingDraftSaveTimer) window.clearTimeout(marketingDraftSaveTimer);
+  marketingDraftSaveTimer = window.setTimeout(saveMarketingRequestDraft, 120);
+}
+
+function setupMarketingRequestDraftPersistence() {
+  const page = document.getElementById('page-new-request');
+  if (!page || page.dataset.draftPersistenceReady === '1') return;
+  page.dataset.draftPersistenceReady = '1';
+  MARKETING_REQUEST_DRAFT_FIELDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', queueMarketingRequestDraftSave);
+    el.addEventListener('change', queueMarketingRequestDraftSave);
+  });
+}
+
+function restoreMarketingRequestDraft() {
+  let draft = null;
+  try { draft = JSON.parse(localStorage.getItem(MARKETING_REQUEST_DRAFT_STORAGE_KEY) || 'null'); }
+  catch(e) { draft = null; }
+  if (!draft || !draft.fields) return;
+  Object.entries(draft.fields).forEach(([id, value]) => setDraftFieldValue(id, value));
+  if (!document.getElementById('req-size')?.value && draft.fields['req-format-size']) {
+    setDraftFieldValue('req-size', draft.fields['req-format-size']);
+  }
+  const output = document.getElementById('ai-brief-output');
+  const panel = document.getElementById('ai-panel');
+  if (output && draft.aiBriefHtml) {
+    output.innerHTML = draft.aiBriefHtml;
+    if (panel && draft.aiBriefVisible) panel.classList.add('visible');
+  }
+  if (draft.visualStyle) {
+    document.querySelectorAll('.visual-example').forEach(el => {
+      const label = el.querySelector('.visual-example-label')?.textContent || '';
+      el.classList.toggle('selected', label === draft.visualStyle);
+    });
+  }
+  if (Array.isArray(draft.attachments) && draft.attachments.length) {
+    ticketAttachments = draft.attachments;
+    window.ticketAttachments = ticketAttachments;
+    renderDraftAttachmentList();
+  }
+  if (document.getElementById('req-type')?.value) window.setTimeout(updateRouting, 50);
+}
+
+function renderDraftAttachmentList() {
+  const list = document.getElementById('attachment-list');
+  const zone = document.getElementById('attachment-drop-zone');
+  if (!list) return;
+  list.innerHTML = '';
+  (ticketAttachments || []).forEach(file => {
+    const chip = document.createElement('div');
+    chip.style.cssText = 'display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:#fff4e0;border-radius:12px;font-size:11px;color:var(--rise-dark)';
+    renderAttachmentChipContent(chip, file, file.local ? '(local)' : '(saved name)');
+    list.appendChild(chip);
+  });
+  const label = zone?.querySelector('span');
+  if (label && ticketAttachments.length > 0) label.textContent = `${ticketAttachments.length} file${ticketAttachments.length > 1 ? 's' : ''} attached — click to add more`;
+}
+
+function clearMarketingRequestDraft() {
+  try { localStorage.removeItem(MARKETING_REQUEST_DRAFT_STORAGE_KEY); } catch(e) {}
+}
+
+function selectConceptTab(btn) {
+  const wrap = btn?.closest('.concept-tabs');
+  if (!wrap) return;
+  wrap.querySelectorAll('.concept-tab').forEach(tab => tab.classList.remove('active'));
+  btn.classList.add('active');
+  queueMarketingRequestDraftSave();
+}
+
 // Unified showTab — handles all tab-switch side effects in one place
 function showTab(tabId) {
   document.querySelectorAll('.page').forEach(p => { p.classList.remove('active'); p.style.display = ''; });
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   const page = document.getElementById('page-' + tabId);
   if (page) page.classList.add('active');
+  rememberMarketingActiveTab(tabId);
   const tabMap = {'dashboard':0,'new-request':1,'tickets':2,'approvals':3,'lead-sources':4,'metrics':5,'reporting':6,'bonus':7,'settings':8,'marketing':9};
   const tabs = document.querySelectorAll('.nav-tab');
   if (tabMap[tabId] !== undefined && tabs[tabMap[tabId]]) tabs[tabMap[tabId]].classList.add('active');
@@ -9117,7 +9855,7 @@ function showBonusTabIfAuthorized() {
 // =============================================
 Object.assign(window, {
   // Nav & UI
-  showTab, cycleUser, openTicket, closeModal,
+  showTab, selectConceptTab, cycleUser, openTicket, closeModal,
   filterTickets, sendConvMessage, selectExample,
   showToast, showSettingsTab, initials,
   handleSignIn, signOut,
@@ -9125,6 +9863,7 @@ Object.assign(window, {
   // New Request
   updateRouting, generateBrief, regenerateBrief, submitTicket,
   handleAttachmentUpload, removeAttachment,
+  setupMarketingRequestDraftPersistence, restoreMarketingRequestDraft, clearMarketingRequestDraft,
   artDance, generateConceptImage,
 
   // Tickets & Approvals

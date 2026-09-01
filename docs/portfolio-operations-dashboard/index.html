@@ -162,6 +162,7 @@
   .atlas-dashboard-field label,
   .atlas-dashboard-section-label { font-size:0.62rem; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); }
   .atlas-dashboard-field .sub { font-size:0.66rem; color:var(--muted); line-height:1.45; }
+  .atlas-dashboard-readonly-value { min-height:38px; display:flex; align-items:center; padding:0 12px; border:1px solid var(--border); border-radius:8px; background:var(--soft); color:var(--text); font-size:0.78rem; font-weight:700; }
   .atlas-dashboard-view-summary { display:flex; flex-wrap:wrap; gap:6px; }
   .atlas-dashboard-library { display:grid; gap:10px; border:1px solid var(--border); border-radius:12px; padding:12px; background:linear-gradient(180deg,#ffffff 0%,#f8fafc 100%); }
   .atlas-dashboard-library-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; }
@@ -12657,6 +12658,7 @@ let atlasDashboardBuilderState = {
 let atlasDashboardCentralSaveTimer = null;
 let atlasDashboardCentralHydratePromise = null;
 let suppressAtlasDashboardCentralSave = false;
+let atlasDashboardLocalPreferenceEditedAt = 0;
 
 function persistAtlasDashboardPreferences(options = {}) {
   try { localStorage.setItem(ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY, JSON.stringify(atlasDashboardPreferences)); } catch {}
@@ -12666,6 +12668,9 @@ function persistAtlasDashboardPreferences(options = {}) {
 }
 
 function setAtlasDashboardPreferences(next = {}, options = {}) {
+  if (options.trackLocalEdit !== false && options.pushCentral !== false && !suppressAtlasDashboardCentralSave) {
+    atlasDashboardLocalPreferenceEditedAt = Date.now();
+  }
   atlasDashboardPreferences = normalizeAtlasDashboardPreferences({ ...atlasDashboardPreferences, ...(next && typeof next === "object" ? next : {}) });
   persistAtlasDashboardPreferences(options);
   return atlasDashboardPreferences;
@@ -13348,6 +13353,7 @@ async function hydrateAtlasDashboardPreferencesFromCentral({ silent = true, forc
   const status = getAtlasCentralStatus();
   if (!status.configured || !status.signedIn || !window.ATLAS_CENTRAL?.readDashboardViews) return false;
   if (atlasDashboardCentralHydratePromise && !force) return atlasDashboardCentralHydratePromise;
+  const hydrateStartedAt = Date.now();
   atlasDashboardBuilderState.loadingCentral = true;
   atlasDashboardCentralHydratePromise = (async () => {
     try {
@@ -13363,6 +13369,16 @@ async function hydrateAtlasDashboardPreferencesFromCentral({ silent = true, forc
           createdAt: row.created_at,
           updatedAt: row.updated_at
         })).filter(Boolean);
+        const remoteUpdatedAt = Math.max(0, ...views.map(view => Date.parse(view.updatedAt || "") || 0));
+        const localUpdatedAt = Date.parse(atlasDashboardPreferences.customDashboardUpdatedAt || "") || 0;
+        if (!force && atlasDashboardLocalPreferenceEditedAt > hydrateStartedAt) {
+          queueAtlasDashboardPreferencesCentralSave("dashboard_preferences_local_edit_during_load");
+          return true;
+        }
+        if (!force && localUpdatedAt && remoteUpdatedAt && localUpdatedAt > remoteUpdatedAt + 1000) {
+          queueAtlasDashboardPreferencesCentralSave("dashboard_preferences_local_newer_than_central");
+          return true;
+        }
         const defaultView = views.find(view => view.isDefault) || views[0];
         suppressAtlasDashboardCentralSave = true;
         setAtlasDashboardPreferences({
@@ -13373,7 +13389,7 @@ async function hydrateAtlasDashboardPreferencesFromCentral({ silent = true, forc
             : defaultView.viewKey,
           centralHydratedAt: new Date().toISOString(),
           centralLastError: ""
-        }, { pushCentral: false });
+        }, { pushCentral: false, trackLocalEdit: false });
         suppressAtlasDashboardCentralSave = false;
       } else {
         await saveAtlasDashboardPreferencesToCentral({ silent: true, source: "seed_user_dashboard_views" });
@@ -13381,7 +13397,7 @@ async function hydrateAtlasDashboardPreferencesFromCentral({ silent = true, forc
       return true;
     } catch (error) {
       suppressAtlasDashboardCentralSave = false;
-      setAtlasDashboardPreferences({ centralLastError: error?.message || String(error) }, { pushCentral: false });
+      setAtlasDashboardPreferences({ centralLastError: error?.message || String(error) }, { pushCentral: false, trackLocalEdit: false });
       if (!silent) alert(`Dashboard views could not load from central ATLAS: ${error?.message || error}`);
       return false;
     } finally {
@@ -13425,11 +13441,11 @@ async function saveAtlasDashboardPreferencesToCentral({ silent = false, source =
     setAtlasDashboardPreferences({
       centralSavedAt: new Date().toISOString(),
       centralLastError: ""
-    }, { pushCentral: false });
+    }, { pushCentral: false, trackLocalEdit: false });
     if (!silent) alert("Dashboard views saved to central ATLAS.");
     return true;
   } catch (error) {
-    setAtlasDashboardPreferences({ centralLastError: error?.message || String(error) }, { pushCentral: false });
+    setAtlasDashboardPreferences({ centralLastError: error?.message || String(error) }, { pushCentral: false, trackLocalEdit: false });
     if (!silent) alert(`Dashboard view save failed: ${error?.message || error}`);
     return false;
   } finally {
@@ -16680,6 +16696,13 @@ function renderAtlasDashboardSelectField(label = "", value = "", options = [], c
   </div>`;
 }
 
+function renderAtlasDashboardReadonlyField(label = "", value = "") {
+  return `<div class="atlas-dashboard-field">
+    <label>${escapeHtml(label)}</label>
+    <div class="atlas-dashboard-readonly-value">${escapeHtml(value)}</div>
+  </div>`;
+}
+
 function atlasDashboardCentralStatusText() {
   const status = getAtlasCentralStatus();
   if (atlasDashboardBuilderState.loadingCentral) return "Loading central views";
@@ -16827,7 +16850,7 @@ function renderAtlasDashboardWidgetConfigPanel(instance = {}) {
   return `<div class="atlas-dashboard-config-card">
     <div class="atlas-dashboard-section-label" style="margin-bottom:10px">Widget Configuration</div>
     <div class="atlas-dashboard-config-grid">
-      ${renderAtlasDashboardSelectField("Data Source", definition.dataSource || "ATLAS", [[definition.dataSource || "ATLAS", definition.dataSource || "ATLAS"]], "")}
+      ${renderAtlasDashboardReadonlyField("Data Source", definition.dataSource || "ATLAS")}
       ${renderAtlasDashboardSelectField("Metric", instance.metric, definition.metrics || [], `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"metric",this.value)`)}
       ${renderAtlasDashboardSelectField("Property Scope", scope.type, ATLAS_DASHBOARD_SCOPE_OPTIONS, `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"scope.type",this.value)`)}
       ${scope.type === "single_property" ? renderAtlasDashboardSelectField("Property", scope.propertyName, propertyNameOptions, `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"scope.propertyName",this.value)`) : ""}

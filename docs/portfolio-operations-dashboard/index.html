@@ -121,6 +121,24 @@
   .workspace-snapshot-value { font-size:1.25rem; font-weight:700; color:var(--accent); letter-spacing:-0.03em; }
   .workspace-snapshot-sub { font-size:0.72rem; line-height:1.4; color:var(--muted); }
   .workspace-snapshot-link { font-size:0.68rem; font-weight:700; color:#1d4ed8; }
+  .application-tracker-card { overflow:hidden; }
+  .application-tracker-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:14px; }
+  .application-tracker-head h2 { margin:0 0 5px; font-size:1.02rem; color:var(--text); }
+  .application-tracker-head p { margin:0; max-width:760px; font-size:0.72rem; line-height:1.5; color:var(--muted); }
+  .application-tracker-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:12px; }
+  .application-tracker-metric { border:1px solid var(--border); border-radius:12px; padding:12px; background:linear-gradient(180deg,#fff 0%,#f7f9fc 100%); }
+  .application-tracker-metric .label { color:var(--muted); font-size:0.63rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+  .application-tracker-metric .value { margin-top:6px; color:var(--accent); font-family:'JetBrains Mono',monospace; font-size:1.3rem; font-weight:700; }
+  .application-tracker-metric .sub { margin-top:5px; color:var(--muted); font-size:0.66rem; line-height:1.4; }
+  .application-tracker-coverage { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:10px 12px; border:1px solid #d8e5f1; border-radius:11px; background:#f5f9fd; }
+  .application-tracker-coverage-copy { color:var(--muted); font-size:0.68rem; line-height:1.45; }
+  .application-tracker-coverage-copy strong { color:var(--text); }
+  .application-tracker-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:8px; margin-top:12px; }
+  .application-tracker-row { border-left:3px solid #d29922; border-radius:8px; padding:8px 10px; background:var(--bg3); }
+  .application-tracker-row strong { display:block; font-size:0.71rem; color:var(--text); }
+  .application-tracker-row span { display:block; margin-top:3px; color:var(--muted); font-size:0.65rem; line-height:1.4; }
+  @media(max-width:820px){ .application-tracker-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  @media(max-width:460px){ .application-tracker-grid { grid-template-columns:1fr; } }
   .tbd-input-row { display:flex; align-items:center; gap:10px; margin-top: 10px; }
   .tbd-input-row label { font-size: 0.72rem; color: #d29922; }
   @media(max-width:980px){ .workspace-snapshot { grid-template-columns:repeat(2,minmax(0,1fr)); } }
@@ -1033,6 +1051,10 @@
     </div>
     <div class="workspace-snapshot" id="workspace-community-snapshot"></div>
   </div>
+
+  <section class="card mb4 application-tracker-card" id="application-tracking-section" aria-label="Application tracking">
+    <div id="application-tracking-content"></div>
+  </section>
 
   <!-- TAB CONTENT -->
   <div id="tab-panel-0" class="tab-panel"></div>
@@ -8709,6 +8731,53 @@ function loadPropertyData(propName) {
   restoreCurrentMonthSnapshots(currentMonth);
 }
 
+function renderApplicationTrackingSection(details = [], selectedMonth = getSelectedDashboardMonthIndex()) {
+  const host = document.getElementById("application-tracking-content");
+  if (!host) return;
+  const rows = details.map(detail => {
+    const entry = detail.record?.monthlyData?.[selectedMonth] ?? {};
+    const metrics = getApplicationDecisionMetrics(entry);
+    const leadSources = getLeadSourceBreakdown(entry);
+    const mappedLeadSources = Object.values(leadSources).reduce((sum, value) => sum + (Number(value) || 0), 0);
+    return { name: detail.name, metrics, mappedLeadSources };
+  });
+  const totals = rows.reduce((sum, row) => ({
+    applications: sum.applications + row.metrics.applications,
+    approvals: sum.approvals + row.metrics.approvals,
+    pending: sum.pending + row.metrics.pendingDecision,
+    leases: sum.leases + row.metrics.leases
+  }), { applications: 0, approvals: 0, pending: 0, leases: 0 });
+  const approvalRate = totals.applications > 0 ? (totals.approvals / totals.applications) * 100 : 0;
+  const appToLeaseRate = totals.applications > 0 ? (totals.leases / totals.applications) * 100 : 0;
+  const sourceMappedCount = rows.filter(row => row.mappedLeadSources > 0).length;
+  const activeApplicationCount = rows.filter(row => row.metrics.applications > 0 || row.metrics.approvals > 0 || row.metrics.pendingDecision > 0).length;
+  const missingSourceCount = Math.max(rows.length - sourceMappedCount, 0);
+  const watchlist = rows
+    .filter(row => row.metrics.applications > 0 || row.metrics.pendingDecision > 0)
+    .sort((left, right) => right.metrics.pendingDecision - left.metrics.pendingDecision || right.metrics.applications - left.metrics.applications)
+    .slice(0, 4);
+  const scopeLabel = isPortfolioWorkspaceSelected() ? "selected portfolio scope" : "selected community";
+  host.innerHTML = `
+    <div class="application-tracker-head">
+      <div>
+        <h2>Application Tracking</h2>
+        <p>Application outcomes and lead-source coverage for the ${escapeHtml(scopeLabel)} in ${escapeHtml(FULL_MONTHS[selectedMonth])}. This section surfaces pending decisions and data gaps before traffic performance is reviewed.</p>
+      </div>
+      <button type="button" class="btn btn-blue btn-sm" onmousedown="return queueCurrentWorkspaceTab(3)">Open Traffic &amp; Funnel</button>
+    </div>
+    <div class="application-tracker-grid">
+      <div class="application-tracker-metric"><div class="label">Applications MTD</div><div class="value">${Math.round(totals.applications)}</div><div class="sub">${activeApplicationCount} of ${rows.length} communities reporting activity</div></div>
+      <div class="application-tracker-metric"><div class="label">Approved</div><div class="value">${Math.round(totals.approvals)}</div><div class="sub">${approvalRate.toFixed(1)}% of applications</div></div>
+      <div class="application-tracker-metric"><div class="label">Pending Decision</div><div class="value">${Math.round(totals.pending)}</div><div class="sub">Prioritize follow-up before the next funnel review</div></div>
+      <div class="application-tracker-metric"><div class="label">Application to Lease</div><div class="value">${appToLeaseRate.toFixed(1)}%</div><div class="sub">${Math.round(totals.leases)} signed lease${totals.leases === 1 ? "" : "s"} from current applications</div></div>
+    </div>
+    <div class="application-tracker-coverage">
+      <div class="application-tracker-coverage-copy"><strong>Lead-source coverage:</strong> ${sourceMappedCount} of ${rows.length} communities have mapped source volume. ${missingSourceCount ? `${missingSourceCount} ${missingSourceCount === 1 ? "community is" : "communities are"} missing source-level activity for this month.` : "All communities in scope have source-level activity."}</div>
+      <button type="button" class="btn btn-gray btn-sm" onmousedown="return queueCurrentWorkspaceTab(3)">Review Coverage</button>
+    </div>
+    ${watchlist.length ? `<div class="application-tracker-list">${watchlist.map(row => `<button type="button" class="application-tracker-row" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(row.name)}, 3)'><strong>${escapeHtml(row.name)}</strong><span>${Math.round(row.metrics.applications)} applications · ${Math.round(row.metrics.approvals)} approved · ${Math.round(row.metrics.pendingDecision)} pending</span></button>`).join("")}</div>` : `<div class="application-tracker-list"><div class="application-tracker-row"><strong>No application activity reported</strong><span>Use Traffic &amp; Funnel to enter application outcomes and lead-source detail for ${escapeHtml(FULL_MONTHS[selectedMonth])}.</span></div></div>`}`;
+}
+
 function renderPropGrid() {
   const communitySelect = document.getElementById("workspace-community-select");
   const snapshot = document.getElementById("workspace-community-snapshot");
@@ -8722,6 +8791,7 @@ function renderPropGrid() {
   const summary = !isPortfolioWorkspaceSelected() ? getCommunitySummary(p.name, currentRecord) : null;
   const monthEntry = currentRecord.monthlyData?.[getSelectedDashboardMonthIndex()] ?? {};
   const appMetrics = getApplicationDecisionMetrics(monthEntry);
+  renderApplicationTrackingSection(details, getSelectedDashboardMonthIndex());
   const totalUnitsForCurrent = !isPortfolioWorkspaceSelected()
     ? getTotalUnitsFor(p, currentRecord.customUnits)
     : aggregate.totalUnits;
@@ -11588,11 +11658,14 @@ const MAX_TAB = 15;
 
 function syncAtlasWorkspaceCardVisibility() {
   const workspaceCard = document.getElementById("prop-selector-card");
-  if (!workspaceCard) return;
+  const applicationTracking = document.getElementById("application-tracking-section");
+  if (!workspaceCard && !applicationTracking) return;
   const authFrontDoorActive = activeTab === 0 && shouldBlockAtlasSensitiveAccess();
   // Home is a personalized landing page. Community and month controls live in
   // the navigation, while widget-level scope lives in dashboard customization.
-  workspaceCard.style.display = (activeTab === 0 || MOUNT_TABS.includes(activeTab) || authFrontDoorActive) ? "none" : "";
+  const hidden = activeTab === 0 || MOUNT_TABS.includes(activeTab) || authFrontDoorActive;
+  if (workspaceCard) workspaceCard.style.display = hidden ? "none" : "";
+  if (applicationTracking) applicationTracking.style.display = hidden ? "none" : "";
 }
 
 function setTab(i) {

@@ -4743,14 +4743,16 @@ function rebuildBonusRolesByQuarter(existingByQ, teamConfig) {
   };
 }
 
-function getPropertyTeamConfiguredCount() {
-  return PROPERTY_TEAM_ROLE_ORDER.reduce((sum, type) => sum + (propertyTeamConfig[type] ?? 0), 0);
+function getPropertyTeamConfiguredCount(teamConfig = propertyTeamConfig) {
+  const normalized = normalizePropertyTeamConfig(teamConfig);
+  return PROPERTY_TEAM_ROLE_ORDER.reduce((sum, type) => sum + (normalized[type] ?? 0), 0);
 }
 
-function getPropertyTeamCountSummary() {
+function getPropertyTeamCountSummary(teamConfig = propertyTeamConfig) {
+  const normalized = normalizePropertyTeamConfig(teamConfig);
   return PROPERTY_TEAM_ROLE_ORDER
-    .filter(type => (propertyTeamConfig[type] ?? 0) > 0)
-    .map(type => `${PROPERTY_TEAM_ROLE_DEFS[type].title}: ${propertyTeamConfig[type]}`)
+    .filter(type => (normalized[type] ?? 0) > 0)
+    .map(type => `${PROPERTY_TEAM_ROLE_DEFS[type].title}: ${normalized[type]}`)
     .join(" · ");
 }
 
@@ -5642,14 +5644,153 @@ function getSharedAssignmentsByRoleType(propName = getProp().name, options = {})
   }, {});
 }
 
-function getPropertyTeamConfigWithSharedAssignments(propName = getProp().name, teamConfig = propertyTeamConfig, options = {}) {
-  const assignmentsByRoleType = getSharedAssignmentsByRoleType(propName, options);
-  const normalized = normalizePropertyTeamConfig(teamConfig);
-  PROPERTY_TEAM_ROLE_ORDER.forEach(roleType => {
-    const sharedCount = assignmentsByRoleType[roleType]?.length || 0;
-    if (sharedCount > (Number(normalized[roleType]) || 0)) normalized[roleType] = sharedCount;
+function atlasPeopleRosterStaffingAvailable() {
+  const sharedData = normalizeAtlasSharedData(atlasSharedData);
+  return Object.keys(sharedData.employees || {}).length > 0 || sharedData.assignments.length > 0;
+}
+
+function blankPropertyRoleCountMap() {
+  return Object.fromEntries(PROPERTY_TEAM_ROLE_ORDER.map(roleType => [roleType, 0]));
+}
+
+function getPeopleRosterTeamConfigForCommunity(propName = getProp().name, options = {}) {
+  const fallback = normalizePropertyTeamConfig(options.fallbackTeamConfig || propertyTeamConfig);
+  if (!atlasPeopleRosterStaffingAvailable()) return { teamConfig: fallback, rosterSourced: false, activeAssignments: [] };
+  const activeAssignments = getSharedAssignmentsForCommunity(propName, options);
+  const teamConfig = blankPropertyRoleCountMap();
+  activeAssignments.forEach(assignment => {
+    if (PROPERTY_TEAM_ROLE_DEFS[assignment.bonusRoleType]) {
+      teamConfig[assignment.bonusRoleType] = (teamConfig[assignment.bonusRoleType] || 0) + 1;
+    }
   });
-  return normalized;
+  return { teamConfig, rosterSourced: true, activeAssignments };
+}
+
+function getPeopleRosterTurnoverEventDate(assignment = {}, employee = {}) {
+  const assignmentStatus = String(assignment.status || "").toLowerCase();
+  const employeeStatus = String(employee.status || employee.statusType || "").toLowerCase();
+  const isTermination = assignmentStatus.includes("terminated") || employeeStatus.includes("terminated");
+  if (!isTermination) return "";
+  return normalizeSharedDate(employee.terminationDate) || normalizeSharedDate(assignment.effectiveEnd) || "";
+}
+
+function getPeopleRosterTurnoverByQuarterForCommunity(propName = getProp().name, options = {}) {
+  const fallback = normalizePropertyTurnoverByQuarter(options.fallbackTurnoverByQuarter, options.fallbackTurnoverConfig);
+  if (!atlasPeopleRosterStaffingAvailable()) return { turnoverByQuarter: fallback, rosterSourced: false };
+  const year = Number(options.year || new Date().getFullYear());
+  const matched = findCanonicalCommunityName(propName) || propName;
+  const sharedData = normalizeAtlasSharedData(atlasSharedData);
+  const employees = sharedData.employees || {};
+  const turnoverByQuarter = defaultPropertyTurnoverByQuarter();
+  const counted = new Set();
+  const addTurnover = (communityName, roleType, eventDate, employeeId = "", sourceId = "") => {
+    const resolvedCommunity = findCanonicalCommunityName(communityName) || communityName;
+    if (resolvedCommunity !== matched || !PROPERTY_TEAM_ROLE_DEFS[roleType] || !eventDate) return;
+    const eventTime = sharedDateTime(eventDate);
+    if (eventTime == null) return;
+    const quarter = BONUS_QUARTERS.find(q => {
+      const range = getBonusQuarterDateRange(q, year);
+      return eventDate >= range.start && eventDate <= range.end;
+    });
+    if (!quarter) return;
+    const countKey = [resolvedCommunity, roleType, employeeId || sourceId || eventDate].join("|");
+    if (counted.has(countKey)) return;
+    counted.add(countKey);
+    turnoverByQuarter[quarter][roleType] = (turnoverByQuarter[quarter][roleType] || 0) + 1;
+  };
+  sharedData.assignments.forEach(assignment => {
+    const employee = employees[assignment.employeeId] || {};
+    addTurnover(
+      assignment.communityName,
+      assignment.bonusRoleType,
+      getPeopleRosterTurnoverEventDate(assignment, employee),
+      assignment.employeeId,
+      assignment.assignmentId
+    );
+  });
+  Object.values(employees).forEach(employee => {
+    addTurnover(
+      employee.communityName,
+      employee.bonusRoleType,
+      normalizeSharedDate(employee.terminationDate),
+      employee.employeeId,
+      employee.peopleEmployeeId
+    );
+  });
+  return { turnoverByQuarter, rosterSourced: true };
+}
+
+function getPeopleRosterStaffingModel(propName = getProp().name, record = {}, options = {}) {
+  const fallbackTeamConfig = normalizePropertyTeamConfig(record.propertyTeamConfig || propertyTeamConfig);
+  const fallbackTurnoverConfig = normalizePropertyTurnoverConfig(record.propertyTurnoverConfig || propertyTurnoverConfig);
+  const fallbackTurnoverByQuarter = normalizePropertyTurnoverByQuarter(record.propertyTurnoverByQuarter || propertyTurnoverByQuarter, fallbackTurnoverConfig);
+  const team = getPeopleRosterTeamConfigForCommunity(propName, {
+    ...options,
+    fallbackTeamConfig
+  });
+  const turnover = getPeopleRosterTurnoverByQuarterForCommunity(propName, {
+    ...options,
+    fallbackTurnoverByQuarter,
+    fallbackTurnoverConfig
+  });
+  const turnoverConfig = getPropertyTurnoverTotalsFromQuarterMap(turnover.turnoverByQuarter);
+  return {
+    rosterSourced: team.rosterSourced || turnover.rosterSourced,
+    teamConfig: team.teamConfig,
+    turnoverByQuarter: turnover.turnoverByQuarter,
+    turnoverConfig,
+    activeAssignments: team.activeAssignments || []
+  };
+}
+
+function getPropertyTeamConfigWithSharedAssignments(propName = getProp().name, teamConfig = propertyTeamConfig, options = {}) {
+  return getPeopleRosterStaffingModel(propName, { propertyTeamConfig: teamConfig }, options).teamConfig;
+}
+
+function applyPeopleRosterStaffingToCommunityRecord(propName, record = {}, options = {}) {
+  const normalized = normalizeSavedCommunityRecord(propName, record);
+  const staffing = getPeopleRosterStaffingModel(propName, normalized, options);
+  if (!staffing.rosterSourced) return normalized;
+  const teamConfig = normalizePropertyTeamConfig(staffing.teamConfig);
+  return normalizeSavedCommunityRecord(propName, {
+    ...normalized,
+    propertyTeamConfig: teamConfig,
+    propertyTurnoverConfig: staffing.turnoverConfig,
+    propertyTurnoverByQuarter: staffing.turnoverByQuarter,
+    communityTeamProfiles: normalizeCommunityTeamProfiles(normalized.communityTeamProfiles, teamConfig),
+    bonusRolesByQ: rebuildBonusRolesByQuarter(normalized.bonusRolesByQ, teamConfig)
+  });
+}
+
+function syncAllCommunityStaffingFromPeopleRoster(options = {}) {
+  syncSharedPeopleAssignments({ persist: false });
+  if (!atlasPeopleRosterStaffingAvailable()) return { changed: false, synced: 0 };
+  let changed = false;
+  let synced = 0;
+  getAllCommunityNames().forEach(name => {
+    const before = normalizeSavedCommunityRecord(name, savedData[name]);
+    const after = applyPeopleRosterStaffingToCommunityRecord(name, before, { year: options.year || new Date().getFullYear() });
+    const beforeComparable = JSON.stringify({
+      propertyTeamConfig: before.propertyTeamConfig,
+      propertyTurnoverConfig: before.propertyTurnoverConfig,
+      propertyTurnoverByQuarter: before.propertyTurnoverByQuarter
+    });
+    const afterComparable = JSON.stringify({
+      propertyTeamConfig: after.propertyTeamConfig,
+      propertyTurnoverConfig: after.propertyTurnoverConfig,
+      propertyTurnoverByQuarter: after.propertyTurnoverByQuarter
+    });
+    if (beforeComparable !== afterComparable) {
+      savedData[name] = after;
+      changed = true;
+    }
+    synced += 1;
+  });
+  if (changed && options.persist !== false) {
+    persistSaved();
+    persistOpsGlobalData();
+  }
+  return { changed, synced };
 }
 
 function getSharedLeasingAssignmentsForCurrentProperty() {
@@ -7192,6 +7333,14 @@ function normalizeSavedCommunityRecord(propName, data) {
 function getCurrentCommunityRecord() {
   const baseRecord = normalizeSavedCommunityRecord(getProp().name, savedData[getProp().name]);
   syncRecordMonthlyDataToHistory(baseRecord, monthlyData, new Date().getFullYear());
+  const staffing = getPeopleRosterStaffingModel(getProp().name, {
+    propertyTeamConfig,
+    propertyTurnoverConfig,
+    propertyTurnoverByQuarter
+  });
+  const recordTeamConfig = staffing.rosterSourced ? staffing.teamConfig : propertyTeamConfig;
+  const recordTurnoverByQuarter = staffing.rosterSourced ? staffing.turnoverByQuarter : propertyTurnoverByQuarter;
+  const recordTurnoverConfig = staffing.rosterSourced ? staffing.turnoverConfig : propertyTurnoverConfig;
   return normalizeSavedCommunityRecord(getProp().name, {
     ...baseRecord,
     currentOccupied,
@@ -7236,10 +7385,10 @@ function getCurrentCommunityRecord() {
     bonusConvGoal,
     bonusRolesByQ,
     commissionData,
-    propertyTeamConfig,
-    communityTeamProfiles,
-    propertyTurnoverConfig,
-    propertyTurnoverByQuarter,
+    propertyTeamConfig: recordTeamConfig,
+    communityTeamProfiles: normalizeCommunityTeamProfiles(communityTeamProfiles, recordTeamConfig),
+    propertyTurnoverConfig: recordTurnoverConfig,
+    propertyTurnoverByQuarter: recordTurnoverByQuarter,
     msoeByQuarter,
     reputationData,
     marketSurveyData,
@@ -8664,7 +8813,8 @@ function computeSchedule() {
 
 // ─── Property Selector ────────────────────────────────────────────────────────
 function loadPropertyData(propName) {
-  const d = normalizeSavedCommunityRecord(propName, savedData[propName]);
+  const d = applyPeopleRosterStaffingToCommunityRecord(propName, savedData[propName]);
+  if (atlasPeopleRosterStaffingAvailable()) savedData[propName] = d;
   currentOccupied = d.currentOccupied;
   currentLeased = d.currentLeased;
   occupancyGoal = d.occupancyGoal;
@@ -9721,8 +9871,9 @@ function getPortfolioCommunityRecordEntries(includeCurrentSelection = true, opti
 
 function getCommunityQuarterTurnoverBreakdown(propName, sourceData, quarter = bonusQuarter) {
   const record = normalizeSavedCommunityRecord(propName, sourceData);
-  const teamConfig = normalizePropertyTeamConfig(record.propertyTeamConfig);
-  const turnoverByQuarter = normalizePropertyTurnoverByQuarter(record.propertyTurnoverByQuarter, record.propertyTurnoverConfig);
+  const staffing = getPeopleRosterStaffingModel(propName, record, { quarter });
+  const teamConfig = normalizePropertyTeamConfig(staffing.teamConfig);
+  const turnoverByQuarter = normalizePropertyTurnoverByQuarter(staffing.turnoverByQuarter, staffing.turnoverConfig);
   const quarterConfig = getPropertyTurnoverConfigForQuarter(quarter, turnoverByQuarter);
   const rollup = getPropertyTeamTurnoverRate(teamConfig, quarterConfig);
   const byRole = PROPERTY_TEAM_ROLE_ORDER
@@ -15225,6 +15376,7 @@ async function loadAtlasCentralPeopleAssignments({ silent = true, force = false 
       sharedData.lastPeopleSyncAt = new Date().toISOString();
       sharedData.validationIssues = validateAtlasSharedData(sharedData);
       atlasSharedData = sharedData;
+      syncAllCommunityStaffingFromPeopleRoster({ persist: false });
       persistOpsGlobalData();
       if (!silent) {
         setAtlasCentralRuntimeMessage(`Loaded ${Object.keys(employees).length} central People employees and ${assignments.length} assignments.`);
@@ -15248,11 +15400,12 @@ async function loadAtlasCentralPeopleAssignments({ silent = true, force = false 
 function queueAtlasCentralPeopleLoad(options = {}) {
   const status = getAtlasCentralStatus();
   if (!status.configured || !status.signedIn) return;
-  if (![9, 10, 13, 14].includes(activeTab)) return;
+  if (![1, 9, 10, 13, 14].includes(activeTab)) return;
   const lastSync = Date.parse(atlasSharedData?.lastPeopleSyncAt || "");
   if (!options.force && atlasSharedData?.lastPeopleSource === "atlas_central_people" && Number.isFinite(lastSync) && Date.now() - lastSync < 60000) return;
   loadAtlasCentralPeopleAssignments({ silent: true, force: Boolean(options.force) }).then((result) => {
-    if (!result || ![9, 10, 13, 14].includes(activeTab)) return;
+    if (!result || ![1, 9, 10, 13, 14].includes(activeTab)) return;
+    syncAllCommunityStaffingFromPeopleRoster({ persist: true });
     if (activeTab === 13) return;
     if (activeTab === 14) refreshAtlasPeopleAccessPanel({ deferWhileInteracting: true });
     else renderTab();
@@ -18292,10 +18445,20 @@ function renderSetupTab() {
   propertyTurnoverByQuarter = normalizePropertyTurnoverByQuarter(propertyTurnoverByQuarter, propertyTurnoverConfig);
   msoeByQuarter = normalizeMsoeByQuarter(msoeByQuarter);
   const p = getProp();
+  const staffingModel = getPeopleRosterStaffingModel(p.name, {
+    propertyTeamConfig,
+    propertyTurnoverConfig,
+    propertyTurnoverByQuarter
+  }, { quarter: bonusQuarter });
+  const displayedTeamConfig = staffingModel.teamConfig;
+  const displayedTurnoverByQuarter = staffingModel.turnoverByQuarter;
+  const displayedTurnoverConfig = staffingModel.turnoverConfig;
+  const staffingIsPeopleSourced = Boolean(staffingModel.rosterSourced);
+  const displayedTeamProfiles = getConfiguredCommunityTeamProfiles(displayedTeamConfig, communityTeamProfiles);
   const totalUnits = getTotalUnits();
   const unitsIsOverridden = parseInt(customUnits) > 0;
-  const turnoverRollup = getPropertyTeamTurnoverRate();
-  const quarterTurnoverRollup = getPropertyTeamTurnoverRate(propertyTeamConfig, getPropertyTurnoverConfigForQuarter(bonusQuarter, propertyTurnoverByQuarter));
+  const turnoverRollup = getPropertyTeamTurnoverRate(displayedTeamConfig, displayedTurnoverConfig);
+  const quarterTurnoverRollup = getPropertyTeamTurnoverRate(displayedTeamConfig, getPropertyTurnoverConfigForQuarter(bonusQuarter, displayedTurnoverByQuarter));
   const normalizedMsoeByQuarter = normalizeMsoeByQuarter(msoeByQuarter);
   const activeMsoe = normalizedMsoeByQuarter[bonusQuarter];
   const assignedCommunityRoles = getAssignedCommunityRoles();
@@ -18324,24 +18487,28 @@ function renderSetupTab() {
     : `<div style="font-size:0.72rem;color:var(--muted)">No photos saved yet. Add up to 4 optimized community images here and the monthly investor presentation will use them for cover and breakout slide design.</div>`;
   const teamCells = PROPERTY_TEAM_ROLE_ORDER.map(type => {
     const def = PROPERTY_TEAM_ROLE_DEFS[type];
-    const count = propertyTeamConfig[type] ?? def.defaultCount;
-    const turnoverCount = propertyTurnoverConfig[type] ?? 0;
-    const activeQuarterCount = propertyTurnoverByQuarter?.[bonusQuarter]?.[type] ?? 0;
+    const count = displayedTeamConfig[type] ?? 0;
+    const turnoverCount = displayedTurnoverConfig[type] ?? 0;
+    const activeQuarterCount = displayedTurnoverByQuarter?.[bonusQuarter]?.[type] ?? 0;
+    const roleAssignments = staffingModel.activeAssignments.filter(assignment => assignment.bonusRoleType === type);
+    const peopleSourceLabel = staffingIsPeopleSourced
+      ? (roleAssignments.length ? roleAssignments.map(assignment => assignment.employeeName || assignment.title).filter(Boolean).join(", ") : "No active People assignments")
+      : `Default: ${def.defaultCount}`;
     const quarterInputs = ["Q1", "Q2", "Q3", "Q4"].map(q => {
-      const qCount = propertyTurnoverByQuarter?.[q]?.[type] ?? 0;
+      const qCount = displayedTurnoverByQuarter?.[q]?.[type] ?? 0;
       return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px">
         <div style="font-size:0.6rem;color:var(--muted);margin-bottom:4px">${q}</div>
-        <input type="number" min="0" max="99" value="${qCount}" onchange="updatePropertyTurnoverCount('${type}','${q}',this.value)" style="width:100%;background:transparent;border:0;color:var(--text);font-size:0.82rem">
+        <input type="number" min="0" max="99" value="${qCount}" onchange="updatePropertyTurnoverCount('${type}','${q}',this.value)" style="width:100%;background:transparent;border:0;color:var(--text);font-size:0.82rem" ${staffingIsPeopleSourced ? "disabled title=\"Synced from People roster terminations\"" : ""}>
       </div>`;
     }).join("");
     return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px">
       <div style="font-size:0.72rem;font-weight:700">${def.title}</div>
-      <div style="font-size:0.63rem;color:var(--muted);margin:4px 0 8px">Default: ${def.defaultCount}</div>
+      <div style="font-size:0.63rem;color:var(--muted);margin:4px 0 8px">${escapeHtml(peopleSourceLabel)}</div>
       <div style="font-size:0.63rem;color:var(--muted);margin-bottom:4px">Total employees in role</div>
-      <input type="number" min="0" max="25" value="${count}" onchange="updatePropertyTeamCount('${type}',this.value)" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text)">
+      <input type="number" min="0" max="25" value="${count}" onchange="updatePropertyTeamCount('${type}',this.value)" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text)" ${staffingIsPeopleSourced ? "disabled title=\"Synced from People roster assignments\"" : ""}>
       <div style="font-size:0.63rem;color:var(--muted);margin:8px 0 4px">Employees turned over by quarter</div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">${quarterInputs}</div>
-      <div style="font-size:0.62rem;color:${count>0 ? "#d29922" : "var(--muted)"};margin-top:6px">${count > 0 ? `${bonusQuarter}: ${((activeQuarterCount / count) * 100).toFixed(1)}% · YTD events: ${turnoverCount}` : "Add headcount to calculate turnover"}</div>
+      <div style="font-size:0.62rem;color:${count>0 ? "#d29922" : "var(--muted)"};margin-top:6px">${count > 0 ? `${bonusQuarter}: ${((activeQuarterCount / count) * 100).toFixed(1)}% · YTD events: ${turnoverCount}` : (staffingIsPeopleSourced ? "No active People assignments" : "Add headcount to calculate turnover")}</div>
     </div>`;
   }).join("");
   const regionalPricingDetail = getCurrentRegionalPricingDetail(currentMonth);
@@ -18353,7 +18520,7 @@ function renderSetupTab() {
     down: "Decrease Rent",
     hold: "Hold Rate"
   })[regionalPricingWorksheetData.rentAdjustmentDirection] ?? "Hold Rate";
-  const communityRosterCards = getConfiguredCommunityTeamProfiles(propertyTeamConfig, communityTeamProfiles)
+  const communityRosterCards = displayedTeamProfiles
     .map(profile => {
       const photo = normalizePhotoAsset(profile.photo);
       return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px">
@@ -18861,7 +19028,7 @@ function renderSetupTab() {
           <div style="font-size:0.72rem;color:var(--muted)">Add names and optional headshots for the site team at this community. Headshots auto-save and stay attached to this community until you remove them.</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <div style="font-size:0.68rem;color:var(--muted)">${getConfiguredCommunityTeamProfiles(propertyTeamConfig, communityTeamProfiles).length} role slot${getConfiguredCommunityTeamProfiles(propertyTeamConfig, communityTeamProfiles).length === 1 ? "" : "s"} configured</div>
+          <div style="font-size:0.68rem;color:var(--muted)">${displayedTeamProfiles.length} role slot${displayedTeamProfiles.length === 1 ? "" : "s"} configured</div>
           <button class="btn btn-gray btn-sm" onclick="clearCurrentCommunityTeamHeadshots()">Clear Team Headshots</button>
         </div>
       </div>
@@ -18875,16 +19042,16 @@ function renderSetupTab() {
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
         <div>
           <div class="card-title" style="margin-bottom:6px">👥 Community Team Setup</div>
-          <div style="font-size:0.72rem;color:var(--muted)">Set the number of employees in each role and log turnover by quarter for this property. Saving this community updates the quarter-specific turnover rollups used in Bonus Calc.</div>
+          <div style="font-size:0.72rem;color:var(--muted)">${staffingIsPeopleSourced ? "People roster assignments and terminations are feeding this property's role counts and quarter-specific turnover rollups." : "Set the number of employees in each role and log turnover by quarter for this property. Saving this community updates the quarter-specific turnover rollups used in Bonus Calc."}</div>
         </div>
         <div style="text-align:right">
-          <div style="font-size:1.6rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:#4493f8">${getPropertyTeamConfiguredCount()}</div>
+          <div style="font-size:1.6rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:#4493f8">${getPropertyTeamConfiguredCount(displayedTeamConfig)}</div>
           <div style="font-size:0.66rem;color:var(--muted)">configured team positions</div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">${teamCells}</div>
       <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:16px;font-size:0.68rem;color:var(--muted)">
-        <span>Current mix: ${getPropertyTeamCountSummary() || "No community roles configured yet"}</span>
+        <span>Current mix: ${getPropertyTeamCountSummary(displayedTeamConfig) || "No community roles configured yet"}</span>
         <span>Turnover tracked: <strong style="color:#d29922">${turnoverRollup.totalTurnover}</strong></span>
         <span>${bonusQuarter} turnover rate: <strong style="color:${quarterTurnoverRollup.turnoverPct <= 40 ? "#3fb950" : quarterTurnoverRollup.turnoverPct <= 55 ? "#d29922" : "#f85149"}">${quarterTurnoverRollup.totalEmployees > 0 ? quarterTurnoverRollup.turnoverPct.toFixed(1) + "%" : "—"}</strong></span>
         <span>YTD turnover rate: <strong style="color:${turnoverRollup.turnoverPct <= 40 ? "#3fb950" : turnoverRollup.turnoverPct <= 55 ? "#d29922" : "#f85149"}">${turnoverRollup.totalEmployees > 0 ? turnoverRollup.turnoverPct.toFixed(1) + "%" : "—"}</strong></span>
@@ -18919,13 +19086,13 @@ function renderSetupTab() {
       subtitle: "Photo library, market-survey-driven pricing worksheet, and community presentation roster.",
       countLabel: `${communityPhotoBank.length} photo${communityPhotoBank.length === 1 ? "" : "s"}`,
       bodyHtml: presentationSection,
-      collapsedPreview: `${communityPhotoBank.length} saved photo${communityPhotoBank.length === 1 ? "" : "s"} · ${getConfiguredCommunityTeamProfiles(propertyTeamConfig, communityTeamProfiles).length} roster slot${getConfiguredCommunityTeamProfiles(propertyTeamConfig, communityTeamProfiles).length === 1 ? "" : "s"}`
+      collapsedPreview: `${communityPhotoBank.length} saved photo${communityPhotoBank.length === 1 ? "" : "s"} · ${displayedTeamProfiles.length} roster slot${displayedTeamProfiles.length === 1 ? "" : "s"}`
     }),
     renderWindowshadeCard({
       key: "setup_staffing",
       title: "Team & Compensation",
       subtitle: "Community staffing, turnover tracking, and compensation privacy controls.",
-      countLabel: `${getPropertyTeamConfiguredCount()} roles`,
+      countLabel: `${getPropertyTeamConfiguredCount(displayedTeamConfig)} roles`,
       bodyHtml: staffingSection,
       collapsedPreview: `${bonusQuarter} turnover ${quarterTurnoverRollup.totalEmployees > 0 ? quarterTurnoverRollup.turnoverPct.toFixed(1) + "%" : "not set"} · Salaries ${salarySecurity.enabled ? "locked" : "open"}`
     })
@@ -43747,6 +43914,7 @@ function runAtlasStartupStep(label, step) {
 
 function runAtlasInitialRenderPass() {
   runAtlasStartupStep("sync shared people assignments", () => syncSharedPeopleAssignments({ persist: true }));
+  runAtlasStartupStep("sync community staffing from People roster", () => syncAllCommunityStaffingFromPeopleRoster({ persist: true }));
   runAtlasStartupStep("sync shared property graph", () => syncSharedPropertiesFromPortfolio({ persist: true, source: "portfolio_startup" }));
   runAtlasStartupStep("sync people into shared property graph", () => syncSharedPeopleDirectoryIntoPropertyGraph({ persist: true }));
   runAtlasStartupStep("apply shared property graph", () => applySharedPropertyGraphToPortfolio({ persistCommunityData: true }));

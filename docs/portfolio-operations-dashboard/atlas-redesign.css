@@ -142,6 +142,8 @@ a:hover {
 .content-shell {
   flex: 1;
   min-width: 0;
+  width: 100%;
+  max-width: none;
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -150,8 +152,9 @@ a:hover {
 /* Every tab panel gets the redesign's page gutter */
 .tab-panel {
   padding: 30px 32px 72px;
-  max-width: 1560px;
+  max-width: none;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .tab-panel[data-atlas-mount-active="1"] {
@@ -986,12 +989,23 @@ tbody tr:hover td {
    gutter applied directly to stay aligned with every screen below it. */
 #prop-selector-card {
   margin: 30px 32px 0;
-  max-width: calc(1560px - 64px);
+  max-width: none;
+  box-sizing: border-box;
+}
+
+#application-tracking-section {
+  margin: 0 32px 16px;
+  max-width: none;
+  box-sizing: border-box;
 }
 
 @media (max-width: 1100px) {
   #prop-selector-card {
     margin: 24px 20px 0;
+  }
+
+  #application-tracking-section {
+    margin: 0 20px 16px;
   }
 }
 
@@ -1179,29 +1193,41 @@ tbody tr:hover td {
 
 @media (max-width: 900px) {
   .app-shell {
-    flex-direction: column;
+    flex-direction: row;
+    align-items: stretch;
   }
 
   .side-nav,
   body.nav-collapsed .side-nav {
-    width: 100%;
-    flex: 0 0 auto;
-    height: auto;
-    position: static;
-    border-right: 0;
-    border-bottom: 1px solid rgba(255, 255, 255, .12);
-    padding: 14px 16px;
+    width: 68px;
+    flex: 0 0 68px;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    border-right: 1px solid rgba(255, 255, 255, .12);
+    border-bottom: 0;
+    padding: 14px 8px;
   }
 
   .side-nav .tabs {
-    flex-direction: row;
-    flex-wrap: wrap;
+    flex-direction: column;
+    flex-wrap: nowrap;
   }
 
   .side-nav .tab {
-    width: auto;
+    width: 100%;
+    justify-content: center;
+    padding: 10px 0;
   }
 
+  .side-nav-brand-text,
+  .side-nav-date,
+  .side-nav-context,
+  .side-nav-title,
+  .side-nav-footer,
+  .side-nav-action-label,
+  .tab-label,
+  .tab-badge,
   .nav-group-label {
     display: none;
   }

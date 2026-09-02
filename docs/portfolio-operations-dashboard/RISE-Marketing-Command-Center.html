@@ -897,17 +897,49 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
   --studio-ink: #12384a;
   --studio-soft: #eef5f8;
   --studio-line: rgba(1,62,81,.16);
+  --studio-hairline: rgba(18,56,74,.1);
+  --studio-warm: #c4894a;
+  --preview-base: #013e51;
+  --preview-mid: #0a5a73;
+  --preview-accent: #6ba2b8;
+  --preview-soft: #f2f6f8;
+  --preview-image: url("assets/portfolio-scope-backdrop.png");
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.65), rgba(240,244,246,0) 190px),
+    #f0f4f6;
 }
 .request-studio-shell {
-  max-width: 1510px;
+  max-width: 1740px;
   margin: 0 auto;
+  width: 100%;
 }
 .request-studio-top {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.request-studio-title {
+  min-width: 280px;
+}
+.request-studio-title h2 {
+  color: var(--studio-ink);
+  font-size: 18px;
+  line-height: 1.1;
+  font-weight: 800;
+}
+.request-studio-title p {
+  color: #6d8793;
+  font-size: 12px;
+  margin-top: 3px;
+}
+.request-studio-context {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
   flex-wrap: wrap;
 }
 .request-studio-chip {
@@ -926,9 +958,17 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
 }
 .request-studio-grid {
   display: grid;
-  grid-template-columns: minmax(420px, .9fr) minmax(500px, 1.1fr);
-  gap: 18px;
+  grid-template-columns: minmax(350px, 35fr) minmax(690px, 65fr);
+  gap: 20px;
   align-items: start;
+}
+.request-form-column {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.request-preview-column {
+  min-width: 0;
 }
 .request-card,
 .concept-card,
@@ -939,61 +979,101 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
   box-shadow: 0 8px 26px rgba(1,62,81,.08);
 }
 .request-card {
-  padding: 20px;
+  padding: 16px;
 }
 .request-eyebrow,
 .concept-eyebrow {
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: .08em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: var(--studio-ink);
+}
+.request-section {
+  padding: 14px 0 15px;
+  border-top: 1px solid var(--studio-hairline);
+}
+.request-section:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.request-section:last-child {
+  padding-bottom: 0;
+}
+.request-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.request-section-title {
+  color: var(--studio-ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+.request-section-sub {
+  color: #7894a0;
+  font-size: 11px;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+.request-mini-status {
+  color: #2a6b4d;
+  background: #e8f6ee;
+  border: 1px solid #b7dfc8;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 .request-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 13px 16px;
+  gap: 11px 12px;
 }
 .request-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
 }
 .request-field.full {
   grid-column: 1 / -1;
 }
 .request-field label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
   color: #507083;
   text-transform: uppercase;
-  letter-spacing: .06em;
+  letter-spacing: 0;
 }
 .request-field input,
 .request-field select,
 .request-field textarea {
-  min-height: 39px;
+  min-height: 36px;
   border: 1px solid rgba(1,62,81,.2);
   border-radius: 6px;
-  padding: 9px 12px;
+  padding: 8px 10px;
   color: var(--studio-ink);
   background: #fff;
-  font-size: 13px;
+  font-size: 12px;
 }
 .request-field textarea {
-  min-height: 102px;
+  min-height: 86px;
+  resize: vertical;
 }
 .request-cost-box {
   grid-column: 1 / -1;
-  background: #e9f4f8;
-  border: 1px solid rgba(107,162,184,.28);
+  background: #edf6f8;
+  border: 1px solid rgba(107,162,184,.24);
   border-radius: 8px;
-  padding: 14px;
+  padding: 12px;
 }
 .request-cost-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
 .request-upload {
@@ -1010,17 +1090,98 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
   text-align: center;
   background: #fbfdfe;
 }
+.request-upload:hover {
+  border-color: rgba(1,62,81,.34);
+  background: #fff;
+}
 .routing-preview-card {
-  margin-top: 16px;
-  padding: 18px 20px;
+  padding: 15px 16px;
+}
+.art-assist-card {
+  padding: 15px 16px;
+  background:
+    linear-gradient(135deg, #ffffff 0%, #f7fbfd 100%);
+}
+.art-assist-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.art-readiness {
+  min-width: 112px;
+}
+.art-readiness-label {
+  color: #567785;
+  font-size: 10px;
+  font-weight: 800;
+  margin-bottom: 4px;
+  text-align: right;
+}
+.art-readiness-track {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dbe8ee;
+}
+.art-readiness-fill {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--studio-warm), #2a9d6e);
+  transition: width .18s ease;
+}
+.art-suggestion-list {
+  display: grid;
+  gap: 7px;
+}
+.art-suggestion {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid rgba(1,62,81,.1);
+  border-radius: 8px;
+  background: rgba(255,255,255,.76);
+  padding: 9px 10px;
+}
+.art-suggestion-title {
+  color: var(--studio-ink);
+  font-size: 12px;
+  font-weight: 800;
+}
+.art-suggestion-body {
+  color: #5e7c89;
+  font-size: 11px;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+.art-suggestion .btn {
+  min-height: 30px;
+  padding: 5px 10px;
+}
+.art-missing-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.art-missing-chip {
+  border-radius: 999px;
+  background: #fff7e9;
+  border: 1px solid #efd2a4;
+  color: #7a5428;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 8px;
 }
 .brand-kit-card {
-  margin-top: 14px;
-  padding: 18px 20px;
+  padding: 15px 16px;
   color: #fff;
   border-color: rgba(255,255,255,.12);
   background:
-    radial-gradient(circle at 18% 18%, rgba(107,162,184,.28), transparent 34%),
+    linear-gradient(135deg, rgba(255,255,255,.06), rgba(255,255,255,0) 40%),
     linear-gradient(145deg, #013e51 0%, #004b61 100%);
 }
 .brand-kit-head {
@@ -1029,10 +1190,50 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
   align-items: flex-start;
   gap: 12px;
 }
+.brand-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: #d9edf4;
+  font-size: 11px;
+  font-weight: 800;
+}
+.brand-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.brand-toggle-track {
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.22);
+  background: rgba(255,255,255,.14);
+  position: relative;
+}
+.brand-toggle-track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.78);
+  transition: transform .16s ease, background .16s ease;
+}
+.brand-toggle input:checked + .brand-toggle-track {
+  background: #2a9d6e;
+}
+.brand-toggle input:checked + .brand-toggle-track::after {
+  transform: translateX(16px);
+  background: #fff;
+}
 .brand-kit-title {
   font-size: 15px;
   font-weight: 900;
-  letter-spacing: .02em;
+  letter-spacing: 0;
 }
 .brand-kit-status {
   color: #b8e6ce;
@@ -1042,8 +1243,8 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
 .brand-kit-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-  margin-top: 16px;
+  gap: 8px;
+  margin-top: 14px;
 }
 .brand-kit-item {
   display: flex;
@@ -1064,14 +1265,27 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
   justify-content: center;
 }
 .concept-card {
-  padding: 18px;
-  border-top: 3px solid #6ba2b8;
+  padding: 0;
+  overflow: hidden;
+  border-top: 0;
+  position: sticky;
+  top: 12px;
 }
 .concept-header {
   display: flex;
   align-items: center;
   gap: 13px;
-  margin-bottom: 14px;
+  margin-bottom: 0;
+  padding: 16px 18px;
+  color: #fff;
+  background:
+    linear-gradient(90deg, #013e51 0%, #0a5a73 66%, #315e73 100%);
+}
+.concept-header .concept-eyebrow {
+  color: #fff;
+}
+.concept-header .concept-sub {
+  color: rgba(255,255,255,.68);
 }
 .concept-avatar {
   width: 50px;
@@ -1089,8 +1303,9 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
 }
 .concept-beta {
   margin-left: auto;
-  background: #d8edf5;
-  color: #30687c;
+  background: rgba(255,255,255,.15);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.2);
   border-radius: 999px;
   padding: 5px 9px;
   font-size: 11px;
@@ -1101,11 +1316,15 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
   font-size: 12px;
   font-weight: 700;
 }
+.concept-shell {
+  padding: 16px 18px 18px;
+}
 .concept-controls {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr auto;
   gap: 12px;
-  margin: 16px 0;
+  align-items: end;
+  margin: 0 0 14px;
 }
 .concept-control {
   display: flex;
@@ -1117,7 +1336,7 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
   font-weight: 800;
   color: #507083;
   text-transform: uppercase;
-  letter-spacing: .06em;
+  letter-spacing: 0;
 }
 .concept-pill-control,
 .concept-control select {
@@ -1136,36 +1355,97 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
   justify-content: space-between;
   gap: 10px;
 }
-.concept-tabs {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0;
-  margin: 12px 0;
+.concept-view-toggle {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
   border: 1px solid rgba(1,62,81,.14);
-  border-radius: 7px;
+  border-radius: 8px;
   overflow: hidden;
+  min-width: 210px;
 }
-.concept-tab {
-  min-height: 36px;
+.concept-view-toggle button {
   border: 0;
-  border-right: 1px solid rgba(1,62,81,.14);
+  min-height: 38px;
   background: #fff;
-  color: #4a6a7a;
+  color: #507083;
   font-family: inherit;
   font-size: 12px;
   font-weight: 800;
   cursor: pointer;
 }
+.concept-view-toggle button.active {
+  color: #fff;
+  background: var(--studio-ink);
+}
+.preview-status-strip {
+  display: grid;
+  grid-template-columns: 1.1fr .9fr .9fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.preview-status-pill {
+  border: 1px solid rgba(1,62,81,.1);
+  border-radius: 8px;
+  background: #f8fbfc;
+  padding: 9px 10px;
+}
+.preview-status-label {
+  color: #7894a0;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.preview-status-value {
+  color: var(--studio-ink);
+  font-size: 12px;
+  font-weight: 800;
+  margin-top: 2px;
+}
+.concept-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 12px;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+.concept-tab {
+  min-height: 54px;
+  border: 1px solid rgba(1,62,81,.12);
+  border-radius: 8px;
+  background: #f8fbfc;
+  color: #4a6a7a;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 8px 9px;
+  text-align: left;
+}
 .concept-tab:last-child {
-  border-right: 0;
+  border-right: 1px solid rgba(1,62,81,.12);
 }
 .concept-tab.active {
   color: #fff;
   background: #013e51;
+  border-color: #013e51;
+  box-shadow: 0 10px 20px rgba(1,62,81,.15);
+}
+.concept-tab span {
+  display: block;
+}
+.concept-tab small {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  color: inherit;
+  opacity: .72;
+  margin-top: 2px;
 }
 .concept-preview-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px;
+  grid-template-columns: minmax(0, 1fr) minmax(148px, 185px);
   gap: 12px;
 }
 .concept-main-preview,
@@ -1177,71 +1457,165 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
   background: #eef5f8;
 }
 .concept-main-preview {
-  min-height: 360px;
+  min-height: 520px;
   position: relative;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   color: #fff;
+  isolation: isolate;
   background:
-    linear-gradient(180deg, rgba(255,255,255,.18) 0%, rgba(1,62,81,.18) 32%, rgba(1,62,81,.92) 100%),
-    radial-gradient(circle at 16% 22%, rgba(252,211,141,.8), transparent 17%),
-    radial-gradient(circle at 85% 28%, rgba(107,162,184,.6), transparent 18%),
-    linear-gradient(135deg, #97c6d4 0%, #dbeaf0 42%, #0a5a73 100%);
+    linear-gradient(180deg, rgba(247,251,252,.12) 0%, rgba(1,62,81,.08) 34%, rgba(1,62,81,.92) 100%),
+    linear-gradient(90deg, rgba(1,62,81,.2), rgba(1,62,81,0)),
+    var(--preview-image) center/cover,
+    linear-gradient(135deg, var(--preview-soft) 0%, var(--preview-accent) 46%, var(--preview-base) 100%);
 }
 .concept-main-preview::before,
 .concept-main-preview::after {
   content: "";
   position: absolute;
   background: rgba(255,255,255,.58);
-  border-radius: 999px;
+  border-radius: 6px;
   transform: rotate(-8deg);
+  opacity: .65;
 }
 .concept-main-preview::before {
-  width: 160px;
-  height: 18px;
-  left: 62px;
-  bottom: 124px;
+  width: 38%;
+  height: 16px;
+  left: 8%;
+  bottom: 165px;
 }
 .concept-main-preview::after {
-  width: 96px;
-  height: 14px;
-  right: 72px;
-  bottom: 146px;
+  width: 24%;
+  height: 12px;
+  right: 9%;
+  bottom: 195px;
+}
+.concept-main-preview[data-audience="student"] {
+  --preview-base: #013e51;
+  --preview-mid: #2c6d8f;
+  --preview-accent: #f0b457;
+}
+.concept-main-preview[data-audience="senior"] {
+  --preview-base: #284b55;
+  --preview-mid: #6a8f8a;
+  --preview-accent: #d2a66a;
+}
+.concept-main-preview[data-audience="military"] {
+  --preview-base: #203b36;
+  --preview-mid: #5e735f;
+  --preview-accent: #c8b46a;
+}
+.concept-main-preview[data-audience="vacation"] {
+  --preview-base: #014458;
+  --preview-mid: #0b7487;
+  --preview-accent: #e9c56d;
+}
+.concept-main-preview[data-concept="1"] {
+  --preview-image: linear-gradient(135deg, rgba(1,62,81,.92), rgba(10,90,115,.48)), url("assets/portfolio-scope-backdrop.png");
+}
+.concept-main-preview[data-concept="2"] {
+  --preview-image: linear-gradient(135deg, rgba(255,255,255,.72), rgba(107,162,184,.22)), url("assets/atlas-rise-tagline.png");
+}
+.concept-main-preview[data-concept="3"] {
+  --preview-image: linear-gradient(135deg, rgba(18,56,74,.78), rgba(196,137,74,.34)), url("assets/portfolio-scope-backdrop.png");
+}
+.preview-atlas-imagery {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(255,255,255,.24);
+  background: rgba(1,62,81,.55);
+  color: #fff;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  backdrop-filter: blur(8px);
+}
+.preview-readiness {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  width: 155px;
+  border: 1px solid rgba(255,255,255,.24);
+  background: rgba(1,62,81,.55);
+  border-radius: 8px;
+  padding: 8px;
+  backdrop-filter: blur(8px);
+}
+.preview-readiness-top {
+  display: flex;
+  justify-content: space-between;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.preview-readiness-track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.18);
+  overflow: hidden;
+}
+.preview-readiness-fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: #b8e6ce;
+  transition: width .18s ease;
 }
 .concept-preview-copy {
   position: relative;
   z-index: 1;
-  padding: 24px 20px 18px;
+  padding: 110px 28px 22px;
   text-align: center;
 }
 .concept-kicker {
-  color: rgba(1,62,81,.82);
+  color: rgba(255,255,255,.78);
   font-size: 12px;
   font-weight: 900;
-  letter-spacing: .16em;
+  letter-spacing: 0;
   text-transform: uppercase;
   margin-bottom: 7px;
 }
 .concept-title {
-  color: #013e51;
+  color: #fff;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 66px;
+  font-size: 72px;
   line-height: .84;
-  letter-spacing: .02em;
+  letter-spacing: 0;
   font-weight: 700;
-  text-shadow: 0 2px 0 rgba(255,255,255,.28);
+  text-shadow: 0 3px 18px rgba(0,0,0,.28);
+  text-transform: uppercase;
+  white-space: pre-line;
 }
 .concept-tag {
   display: inline-flex;
   margin-top: 12px;
-  background: #013e51;
-  color: #fff;
+  background: rgba(255,255,255,.92);
+  color: #013e51;
+  border: 1px solid rgba(255,255,255,.65);
+  box-shadow: 0 8px 20px rgba(0,0,0,.12);
   border-radius: 5px;
   padding: 7px 14px;
   font-size: 13px;
   font-weight: 900;
-  letter-spacing: .05em;
+  letter-spacing: 0;
+}
+.concept-copy-note {
+  max-width: 580px;
+  margin: 14px auto 0;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+  text-shadow: 0 2px 12px rgba(0,0,0,.24);
 }
 .concept-footer {
   position: relative;
@@ -1249,6 +1623,10 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
   padding: 12px 16px;
   text-align: center;
   background: rgba(1,62,81,.94);
+}
+.concept-footer-caption {
+  font-size: 12px;
+  color: rgba(255,255,255,.78);
 }
 .concept-footer img {
   display: block;
@@ -1259,28 +1637,48 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
 }
 .concept-side {
   display: grid;
-  grid-template-rows: 1fr 1fr .55fr;
+  grid-template-rows: repeat(3, 1fr);
   gap: 10px;
 }
 .concept-mini {
-  min-height: 112px;
+  min-height: 150px;
   padding: 14px;
+  border: 1px solid rgba(1,62,81,.12);
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
   color: #fff;
+  font-family: inherit;
   font-size: 13px;
   font-weight: 900;
   line-height: 1.2;
   text-transform: uppercase;
+  cursor: pointer;
+  text-align: left;
+}
+.concept-mini.active {
+  border-color: #013e51;
+  box-shadow: 0 0 0 2px rgba(1,62,81,.12);
 }
 .concept-mini.one {
-  background: linear-gradient(135deg, rgba(1,62,81,.92), rgba(1,62,81,.4)), url("assets/portfolio-scope-backdrop.png") center/cover;
+  background: linear-gradient(135deg, rgba(1,62,81,.92), rgba(1,62,81,.44)), url("assets/portfolio-scope-backdrop.png") center/cover;
 }
 .concept-mini.two {
   color: #013e51;
-  background:
-    radial-gradient(circle at 16% 18%, rgba(107,162,184,.26), transparent 26%),
-    linear-gradient(135deg, #f9fbfc, #dceef4);
+  background: linear-gradient(135deg, #f9fbfc, #dceef4);
+}
+.concept-mini.three {
+  background: linear-gradient(135deg, rgba(18,56,74,.86), rgba(196,137,74,.54)), url("assets/atlas-rise-tagline.png") center/cover;
+}
+.concept-mini-label {
+  font-size: 10px;
+  font-weight: 800;
+  opacity: .78;
+}
+.concept-mini-title {
+  font-size: 13px;
+  font-weight: 900;
 }
 .concept-more {
   display: flex;
@@ -1292,6 +1690,66 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
   font-size: 12px;
   font-weight: 800;
 }
+.concept-mode-panel {
+  display: none;
+}
+.concept-mode-panel.active {
+  display: block;
+}
+.concept-comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.concept-comparison-card {
+  min-height: 430px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  border-radius: 8px;
+  border: 1px solid rgba(1,62,81,.12);
+  overflow: hidden;
+  background: #f8fbfc;
+  display: grid;
+  grid-template-rows: 1fr auto;
+}
+.comparison-art {
+  min-height: 330px;
+  padding: 20px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  color: #fff;
+  background: linear-gradient(145deg, #013e51, #6ba2b8);
+}
+.comparison-art.two {
+  background: linear-gradient(145deg, #f6fafb, #d8eaf1);
+  color: #013e51;
+}
+.comparison-art.three {
+  background: linear-gradient(145deg, #203b36, #c4894a);
+}
+.comparison-title {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 31px;
+  line-height: 1;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.comparison-meta {
+  padding: 12px;
+}
+.comparison-name {
+  color: var(--studio-ink);
+  font-size: 12px;
+  font-weight: 900;
+}
+.comparison-copy {
+  color: #5e7c89;
+  font-size: 11px;
+  line-height: 1.4;
+  margin-top: 4px;
+}
 .creative-signal-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1302,10 +1760,11 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
   grid-column: 1 / -1;
 }
 .concept-feedback {
-  margin-top: 14px;
+  margin-top: 12px;
   border: 1px solid rgba(1,62,81,.12);
   border-radius: 8px;
-  padding: 13px;
+  padding: 12px;
+  background: #fbfdfe;
 }
 .feedback-buttons,
 .concept-action-row {
@@ -1314,7 +1773,7 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
   flex-wrap: wrap;
 }
 .concept-action-row {
-  margin-top: 14px;
+  margin-top: 12px;
 }
 .concept-action-row .btn,
 .feedback-buttons .btn {
@@ -1325,18 +1784,114 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
   margin-left: auto;
   min-width: 230px;
 }
+.art-chat-card {
+  margin-top: 12px;
+  border: 1px solid rgba(1,62,81,.12);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+.art-chat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 12px;
+  background: #f2f7f9;
+  border-bottom: 1px solid rgba(1,62,81,.1);
+}
+.art-chat-title {
+  color: var(--studio-ink);
+  font-size: 12px;
+  font-weight: 900;
+}
+.art-chat-thread {
+  min-height: 150px;
+  max-height: 230px;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.art-chat-message {
+  max-width: 86%;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.art-chat-message.art {
+  align-self: flex-start;
+  background: #eef5f8;
+  color: #234858;
+}
+.art-chat-message.user {
+  align-self: flex-end;
+  background: #013e51;
+  color: #fff;
+}
+.art-chat-quick {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 0 12px 10px;
+}
+.art-chat-input-row {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid rgba(1,62,81,.1);
+}
+.art-chat-input-row input {
+  flex: 1;
+}
+.concept-package-note {
+  display: none;
+  margin-top: 10px;
+  border: 1px solid rgba(42,157,110,.24);
+  border-radius: 8px;
+  padding: 9px 10px;
+  color: #236145;
+  background: #edf8f2;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.concept-package-note.visible {
+  display: block;
+}
 #page-new-request .ai-panel {
   margin-top: 16px;
   border-radius: 8px;
 }
-@media(max-width:1180px){
-  .request-studio-grid,
-  .concept-preview-grid {
+@media(min-width:1500px){
+  .concept-main-preview {
+    min-height: 610px;
+  }
+}
+@media(max-width:1240px){
+  .request-studio-grid {
+    grid-template-columns: 1fr;
+  }
+  .concept-card {
+    position: static;
+  }
+  .concept-main-preview {
+    min-height: 480px;
+  }
+}
+@media(max-width:980px){
+  .concept-preview-grid,
+  .preview-status-strip,
+  .concept-comparison-grid {
     grid-template-columns: 1fr;
   }
   .concept-side {
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: auto;
+  }
+  .concept-mini {
+    min-height: 120px;
   }
 }
 @media(max-width:760px){
@@ -1346,7 +1901,6 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
   .request-form-grid,
   .request-cost-grid,
   .concept-controls,
-  .creative-signal-grid,
   .brand-kit-row,
   .concept-side {
     grid-template-columns: 1fr;
@@ -1355,10 +1909,15 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
     grid-template-columns: 1fr;
   }
   .concept-tabs {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
+  }
+  .preview-readiness,
+  .preview-atlas-imagery {
+    position: static;
+    margin: 12px 12px 0;
   }
   .concept-title {
-    font-size: 48px;
+    font-size: 46px;
   }
   .concept-action-row .btn-primary {
     margin-left: 0;
@@ -1521,73 +2080,140 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
   <div class="page" id="page-new-request">
     <div class="request-studio-shell">
       <div class="request-studio-top" aria-label="Request context">
-        <div class="request-studio-chip">Reporting period · September 2026</div>
-        <div class="request-studio-chip">Viewing data for 20 communities</div>
-        <div class="request-studio-chip">Live now: Jac</div>
+        <div class="request-studio-title">
+          <h2>New Creative Request</h2>
+          <p>Build the request, preview the direction, and send a cleaner package to Marketing.</p>
+        </div>
+        <div class="request-studio-context">
+          <div class="request-studio-chip">Reporting period · September 2026</div>
+          <div class="request-studio-chip">Viewing data for 20 communities</div>
+          <div class="request-studio-chip">Live now: Jac</div>
+        </div>
       </div>
 
       <div class="request-studio-grid">
-        <div>
+        <div class="request-form-column">
           <div class="request-card">
-            <div class="request-eyebrow" style="margin-bottom:16px">Request Details</div>
-            <div class="request-form-grid">
-              <div class="request-field">
-                <label for="req-property">Property / Community</label>
-                <select id="req-property">
-                  <option value="">— Select property —</option>
-                  <option>Nocatee</option>
-                  <option>Glen Kernan Park (GKP)</option>
-                  <option>Viera</option>
-                  <option>Florence Villa</option>
-                  <option>Doro High Rise</option>
-                  <option>Beacon / Poplar Hall</option>
-                  <option>Maple Hall (NJIT)</option>
-                  <option>Sereno</option>
-                  <option>Citrus Ridge</option>
-                  <option>Bartram</option>
-                  <option>St. Augustine</option>
-                </select>
+            <div class="request-section">
+              <div class="request-section-head">
+                <div>
+                  <div class="request-section-title">Primary Request Details</div>
+                  <div class="request-section-sub">The core ticket information used for routing, assignment, and approval.</div>
+                </div>
               </div>
-              <div class="request-field">
-                <label for="req-type">Request Type</label>
-                <select id="req-type" onchange="updateRouting()">
-                  <option value="">— Select type —</option>
-                  <option value="social">Social Media Post / Reel / Story</option>
-                  <option value="ads">Paid Ad Design (Google, Meta)</option>
-                  <option value="print">Print / Flyer / Signage</option>
-                  <option value="swag">Promotional Swag / Items</option>
-                  <option value="website">Website Change</option>
-                  <option value="email">Email Campaign</option>
-                  <option value="package">Marketing Package Change</option>
-                </select>
+              <div class="request-form-grid">
+                <div class="request-field">
+                  <label for="req-property">Property / Community</label>
+                  <select id="req-property">
+                    <option value="">— Select property —</option>
+                    <option>Nocatee</option>
+                    <option>Glen Kernan Park (GKP)</option>
+                    <option>Viera</option>
+                    <option>Florence Villa</option>
+                    <option>Doro High Rise</option>
+                    <option>Beacon / Poplar Hall</option>
+                    <option>Maple Hall (NJIT)</option>
+                    <option>Sereno</option>
+                    <option>Citrus Ridge</option>
+                    <option>Bartram</option>
+                    <option>St. Augustine</option>
+                  </select>
+                </div>
+                <div class="request-field">
+                  <label for="req-type">Request Type</label>
+                  <select id="req-type" onchange="updateRouting(); updateArtStudioState();">
+                    <option value="">— Select type —</option>
+                    <option value="social">Social Media Post / Reel / Story</option>
+                    <option value="ads">Paid Ad Design (Google, Meta)</option>
+                    <option value="print">Print / Flyer / Signage</option>
+                    <option value="swag">Promotional Swag / Items</option>
+                    <option value="website">Website Change</option>
+                    <option value="email">Email Campaign</option>
+                    <option value="package">Marketing Package Change</option>
+                  </select>
+                </div>
+                <div class="request-field">
+                  <label for="req-priority">Priority</label>
+                  <select id="req-priority">
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+                <div class="request-field">
+                  <label for="req-due">Needed By</label>
+                  <input type="date" id="req-due">
+                </div>
+                <div class="request-field full">
+                  <label for="req-title">Request Title</label>
+                  <input type="text" id="req-title" placeholder="e.g. August lifestyle social post - pool vibes at GKP">
+                </div>
+                <div class="request-field full">
+                  <label for="req-desc">Description / Creative Direction</label>
+                  <textarea id="req-desc" rows="4" placeholder="Describe what you need. Include objective, audience, key message, offer, and any must-use details..."></textarea>
+                </div>
               </div>
-              <div class="request-field">
-                <label for="req-priority">Priority</label>
-                <select id="req-priority">
-                  <option value="normal">Normal</option>
-                  <option value="high">High</option>
-                  <option value="urgent">Urgent</option>
-                </select>
-              </div>
-              <div class="request-field">
-                <label for="req-due">Needed By</label>
-                <input type="date" id="req-due">
-              </div>
-              <div class="request-field full">
-                <label for="req-title">Request Title</label>
-                <input type="text" id="req-title" placeholder="e.g. Summer move-in Instagram reel for GKP">
-              </div>
-              <div class="request-field full">
-                <label for="req-desc">Description / Creative Direction</label>
-                <textarea id="req-desc" rows="4" placeholder="Describe what you need. Include tone, audience, key message, any specific details the team should know..."></textarea>
-              </div>
-              <div class="request-field full">
-                <label for="req-size">Size / Dimensions (if applicable)</label>
-                <input type="text" id="req-size" placeholder="e.g. 1080x1350px Instagram portrait, or 8.5x11 flyer">
-              </div>
+            </div>
 
+            <div class="request-section">
+              <div class="request-section-head">
+                <div>
+                  <div class="request-section-title">Creative Inputs</div>
+                  <div class="request-section-sub">Signals that shape the ART preview, concept options, copy tone, and handoff brief.</div>
+                </div>
+              </div>
+              <div class="request-form-grid">
+                <div class="request-field">
+                  <label for="req-asset-audience">Asset Type / Audience</label>
+                  <select id="req-asset-audience">
+                    <option>Conventional / Multifamily</option>
+                    <option>Senior / Active Adult</option>
+                    <option>Student</option>
+                    <option>Military</option>
+                    <option>Short Term / Vacation Rental</option>
+                  </select>
+                </div>
+                <div class="request-field">
+                  <label for="req-creative-direction">Creative Direction</label>
+                  <select id="req-creative-direction">
+                    <option>Relaxed Luxury Living</option>
+                    <option>Bold Leasing Push</option>
+                    <option>Warm Community Event</option>
+                    <option>Resident Retention</option>
+                    <option>Modern Lease-Up</option>
+                  </select>
+                </div>
+                <div class="request-field">
+                  <label for="req-vibe">Vibe / Feeling</label>
+                  <input type="text" id="req-vibe" placeholder="e.g. elevated, sunny, calm, energetic">
+                </div>
+                <div class="request-field">
+                  <label for="req-audience">Target Audience</label>
+                  <input type="text" id="req-audience" placeholder="e.g. young professionals, 55+ active adults">
+                </div>
+                <div class="request-field">
+                  <label for="req-size">Format / Size</label>
+                  <input type="text" id="req-size" placeholder="e.g. 1080x1350px, 8.5x11 flyer">
+                </div>
+                <div class="request-field">
+                  <label for="req-cta">Main CTA</label>
+                  <input type="text" id="req-cta" placeholder="e.g. Schedule a Tour">
+                </div>
+                <div class="request-field full">
+                  <label for="req-avoid">Anything to avoid?</label>
+                  <input type="text" id="req-avoid" placeholder="e.g. no competitor references, avoid stock-photo feel">
+                </div>
+              </div>
+            </div>
+
+            <div class="request-section">
+              <div class="request-section-head">
+                <div>
+                  <div class="request-section-title">Operational / Admin Details</div>
+                  <div class="request-section-sub">Budget, vendor, attachments, and routing context for the workflow.</div>
+                </div>
+              </div>
               <div class="request-cost-box">
-                <div class="request-eyebrow" style="margin-bottom:12px">Cost Information</div>
                 <div class="request-cost-grid">
                   <div class="request-field">
                     <label for="req-cost-est">Estimated Cost ($)</label>
@@ -1617,15 +2243,15 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
                       <option>Other / TBD</option>
                     </select>
                   </div>
+                  <div class="request-field">
+                    <label for="req-vendor">Vendor / Supplier</label>
+                    <input type="text" id="req-vendor" placeholder="e.g. Printful Direct, Vista Print, internal">
+                  </div>
                 </div>
-                <div class="request-field" style="margin-top:10px">
-                  <label for="req-vendor">Vendor / Supplier (if known)</label>
-                  <input type="text" id="req-vendor" placeholder="e.g. Printful Direct, Vista Print, internal">
-                </div>
-                <div class="form-hint" style="margin-top:8px">Cost details will be visible to the GM and Regional approvers during the approval stage.</div>
+                <div class="form-hint" style="margin-top:8px">Cost details will be visible to the GM and Regional approvers during approval.</div>
               </div>
 
-              <div class="request-field full">
+              <div class="request-field full" style="margin-top:12px">
                 <label for="req-attachments">Attachments / Reference Files</label>
                 <div class="request-upload" onclick="document.getElementById('req-attachments').click()" id="attachment-drop-zone">
                   <span>Click to attach photos, logos, or reference examples</span>
@@ -1635,6 +2261,21 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
                 <div class="form-hint">Images and PDFs accepted · Max 10MB per file</div>
               </div>
             </div>
+          </div>
+
+          <div class="art-assist-card request-card">
+            <div class="art-assist-head">
+              <div>
+                <div class="request-eyebrow">ART Brief Assist</div>
+                <div class="request-section-sub">Suggestions update from the draft. Apply only what helps.</div>
+              </div>
+              <div class="art-readiness">
+                <div class="art-readiness-label" id="art-assist-readiness-label">0% ready</div>
+                <div class="art-readiness-track"><div class="art-readiness-fill" id="art-assist-readiness-fill"></div></div>
+              </div>
+            </div>
+            <div class="art-suggestion-list" id="art-suggestion-list"></div>
+            <div class="art-missing-row" id="art-missing-row"></div>
           </div>
 
           <div class="request-card routing-preview-card" id="routing-preview">
@@ -1648,9 +2289,14 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
             <div class="brand-kit-head">
               <div>
                 <div class="brand-kit-title">RISE Brand Kit</div>
-                <div style="font-size:12px;color:rgba(255,255,255,.66);margin-top:2px">Consistent. Elevated. On brand.</div>
+                <div style="font-size:12px;color:rgba(255,255,255,.66);margin-top:2px">Consistent palette, typography, logo use, and approved imagery cues.</div>
               </div>
-              <div class="brand-kit-status">RISE brand applied</div>
+              <label class="brand-toggle">
+                <span>Apply RISE Branding</span>
+                <input type="checkbox" id="req-branding" checked onchange="handleBrandingToggle()">
+                <span class="brand-toggle-track" aria-hidden="true"></span>
+                <span id="brand-toggle-label">On</span>
+              </label>
             </div>
             <div class="brand-kit-row">
               <div class="brand-kit-item"><span class="brand-kit-icon">C</span>Colors</div>
@@ -1661,151 +2307,222 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
           </div>
         </div>
 
-        <div class="concept-card">
+        <div class="request-preview-column">
+          <div class="concept-card">
           <div class="concept-header">
             <div id="art-avatar" class="concept-avatar" onclick="artDance()" title="Click me">ART</div>
             <div>
-              <div class="concept-eyebrow">ART's Concept Preview</div>
-              <div class="concept-sub">AI-generated concepts based on your brief</div>
+              <div class="concept-eyebrow">ART Creative Studio</div>
+              <div class="concept-sub">Live concept direction shaped by your request details</div>
             </div>
             <div class="concept-beta">Beta · AI Powered</div>
           </div>
 
-          <div class="concept-controls">
-            <div class="concept-control">
-              <label>Brand Kit</label>
-              <div class="concept-pill-control"><span>Apply RISE Branding</span><span>On</span></div>
-            </div>
-            <div class="concept-control">
-              <label for="req-asset-audience">Asset Type / Audience</label>
-              <select id="req-asset-audience">
-                <option>Conventional / Multifamily</option>
-                <option>Student Housing</option>
-                <option>Senior Living</option>
-                <option>Lease-Up</option>
-              </select>
-            </div>
-            <div class="concept-control">
-              <label for="req-creative-direction">Creative Direction</label>
-              <select id="req-creative-direction">
-                <option>Relaxed Luxury Living</option>
-                <option>Bold Leasing Push</option>
-                <option>Warm Community Event</option>
-                <option>Resident Retention</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="creative-signal-grid">
-            <div class="request-field">
-              <label for="req-vibe">Vibe / Feeling</label>
-              <input type="text" id="req-vibe" placeholder="e.g. summer fun, luxury, energetic, playful...">
-            </div>
-            <div class="request-field">
-              <label for="req-audience">Target Audience</label>
-              <input type="text" id="req-audience" placeholder="e.g. young professionals, 55+ active adults...">
-            </div>
-            <div class="request-field">
-              <label for="req-format-size">Format / Size</label>
-              <input type="text" id="req-format-size" placeholder="e.g. 1080x1080px, 8.5x11 flyer...">
-            </div>
-            <div class="request-field">
-              <label for="req-cta">Main CTA</label>
-              <input type="text" id="req-cta" placeholder="e.g. Schedule a Tour, Apply Today...">
-            </div>
-            <div class="request-field full">
-              <label for="req-avoid">Anything to avoid?</label>
-              <input type="text" id="req-avoid" placeholder="e.g. no red, no competitor references, avoid stock photo feel...">
-            </div>
-          </div>
-
-          <div class="concept-tabs">
-            <button type="button" class="concept-tab active" onclick="selectConceptTab(this)">Concept 1</button>
-            <button type="button" class="concept-tab" onclick="selectConceptTab(this)">Concept 2</button>
-            <button type="button" class="concept-tab" onclick="selectConceptTab(this)">Concept 3</button>
-            <button type="button" class="concept-tab" onclick="generateBrief()">View more</button>
-          </div>
-
-          <div class="concept-preview-grid">
-            <div class="concept-main-preview">
-              <div class="concept-preview-copy">
-                <div class="concept-kicker">Relax. Connect. Enjoy.</div>
-                <div class="concept-title">Pool<br>Vibes</div>
-                <div class="concept-tag">At Glen Kernan Park</div>
-              </div>
-              <div class="concept-footer">
-                <div>Resort-style living. Right where you belong.</div>
-                <img src="assets/rise_logo.png" alt="RISE">
-              </div>
-            </div>
-            <div class="concept-side">
-              <div class="concept-mini one">Make every day a pool day</div>
-              <div class="concept-mini two">Live the good life</div>
-              <div class="concept-more"><span>+2 more concepts</span><button type="button" class="btn btn-secondary btn-sm" onclick="generateBrief()">View all</button></div>
-            </div>
-          </div>
-
-          <div class="concept-feedback">
-            <div style="font-weight:800;color:var(--rise-dark);font-size:13px">What do you think of these concepts?</div>
-            <div style="font-size:12px;color:#7a9aaa;margin:2px 0 10px">Your feedback helps ART refine the direction.</div>
-            <div class="feedback-buttons">
-              <button type="button" class="btn btn-secondary btn-sm" onclick="selectExample(this,'Love it')">Love it</button>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="selectExample(this,'Looks good')">Looks good</button>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="selectExample(this,'Not quite')">Not quite</button>
-              <button type="button" class="btn btn-primary btn-sm" onclick="generateBrief()" style="margin-left:auto">Refine with Feedback</button>
-            </div>
-          </div>
-
-          <div class="concept-action-row">
-            <button type="button" class="btn btn-secondary" onclick="regenerateBrief()">Regenerate Concepts</button>
-            <button type="button" class="btn btn-secondary" onclick="generateBrief()">Edit Brief</button>
-            <button type="button" class="btn btn-primary" onclick="submitTicket()">Approve Concept & Continue</button>
-          </div>
-
-          <button class="btn-ai" onclick="generateBrief()" id="ai-btn" style="width:100%;justify-content:center;margin-top:14px">
-            <span id="ai-btn-text">Ask ART to Build Brief</span>
-          </button>
-          <button class="btn btn-secondary btn-sm" onclick="submitTicket()" style="width:100%;justify-content:center;margin-top:8px">
-            Submit Without Brief
-          </button>
-          <div id="art-mood" style="font-size:11px;color:#7a9aaa;text-align:center;margin-top:8px">Ready to create</div>
-
-          <div class="ai-panel" id="ai-panel">
-            <div class="ai-panel-header" style="background:linear-gradient(135deg,#013e51,#0a5a73);border-radius:8px;padding:12px">
-              <div id="art-avatar-mini" style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#6ba2b8,#2a9d6e);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:white;flex-shrink:0">ART</div>
-              <div>
-                <div class="ai-panel-title" style="color:white">ART's Creative Brief</div>
-                <div class="ai-panel-sub" style="color:#aac0ca">Review and confirm before submitting</div>
-              </div>
-            </div>
-
-            <div id="art-image-section" style="display:none;margin:12px 0">
-              <div style="font-size:11px;font-weight:600;color:#013e51;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">ART's Concept Sketch</div>
-              <div id="art-image-container" style="border-radius:8px;overflow:hidden;background:var(--rise-pale);min-height:160px;display:flex;align-items:center;justify-content:center">
-                <div style="text-align:center;padding:20px;color:#7a9aaa;font-size:12px">Generating concept...</div>
-              </div>
-              <div style="font-size:10px;color:#aac0ca;margin-top:4px;text-align:center">AI concept sketch — for direction only, not final deliverable</div>
-            </div>
-
-            <div id="ai-brief-output" class="ai-output" style="margin-top:12px"></div>
-
-            <div style="margin-top:16px">
-              <div style="font-size:12px;font-weight:600;color:#4a6a7a;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px">Visual Style Direction</div>
-              <div class="visual-examples" id="visual-examples">
-                <div class="visual-example" onclick="selectExample(this,'Bright & airy')">
-                  <div class="visual-example-img" style="background:linear-gradient(135deg,#e8f5f0,#c2e8d8)">A</div>
-                  <div class="visual-example-label">Bright & Airy</div>
-                </div>
-                <div class="visual-example" onclick="selectExample(this,'Bold & graphic')">
-                  <div class="visual-example-img" style="background:linear-gradient(135deg,#013e51,#0a5a73);color:white">B</div>
-                  <div class="visual-example-label">Bold & Graphic</div>
-                </div>
-                <div class="visual-example" onclick="selectExample(this,'Warm & lifestyle')">
-                  <div class="visual-example-img" style="background:linear-gradient(135deg,#fdf0e0,#f7d4a0)">C</div>
-                  <div class="visual-example-label">Warm & Lifestyle</div>
+          <div class="concept-shell">
+            <div class="concept-controls">
+              <div class="concept-control">
+                <label>Creative Mode</label>
+                <div class="concept-pill-control">
+                  <span id="concept-mode-copy">Single preview with thumbnails</span>
+                  <span id="concept-selected-pill">Concept 1</span>
                 </div>
               </div>
-              <div class="form-hint" style="margin-top:6px">Select your preferred visual direction — this will be attached to the ticket.</div>
+              <div class="concept-view-toggle" aria-label="Concept view">
+                <button type="button" id="concept-mode-single" class="active" onclick="setConceptViewMode('single')">Single</button>
+                <button type="button" id="concept-mode-compare" onclick="setConceptViewMode('compare')">Compare</button>
+              </div>
+            </div>
+
+            <div class="preview-status-strip">
+              <div class="preview-status-pill">
+                <div class="preview-status-label">Audience Signal</div>
+                <div class="preview-status-value" id="preview-audience-signal">Conventional / Multifamily</div>
+              </div>
+              <div class="preview-status-pill">
+                <div class="preview-status-label">Asset Intelligence</div>
+                <div class="preview-status-value" id="preview-asset-signal">RISE imagery ready</div>
+              </div>
+              <div class="preview-status-pill">
+                <div class="preview-status-label">Brief Quality</div>
+                <div class="preview-status-value" id="preview-quality-signal">Starter draft</div>
+              </div>
+            </div>
+
+            <div class="concept-tabs">
+              <button type="button" class="concept-tab active" id="concept-tab-0" onclick="selectConceptByIndex(0)">
+                <span id="concept-tab-0-name">Concept 1</span>
+                <small id="concept-tab-0-sub">Lifestyle hero</small>
+              </button>
+              <button type="button" class="concept-tab" id="concept-tab-1" onclick="selectConceptByIndex(1)">
+                <span id="concept-tab-1-name">Concept 2</span>
+                <small id="concept-tab-1-sub">Message first</small>
+              </button>
+              <button type="button" class="concept-tab" id="concept-tab-2" onclick="selectConceptByIndex(2)">
+                <span id="concept-tab-2-name">Concept 3</span>
+                <small id="concept-tab-2-sub">Brand frame</small>
+              </button>
+            </div>
+
+            <div class="concept-mode-panel active" id="concept-single-view">
+              <div class="concept-preview-grid">
+                <div class="concept-main-preview" id="concept-main-preview" data-audience="conventional" data-concept="1">
+                  <div class="preview-atlas-imagery" id="preview-atlas-imagery">ATLAS imagery ready</div>
+                  <div class="preview-readiness">
+                    <div class="preview-readiness-top">
+                      <span>Brief depth</span>
+                      <span id="preview-readiness-label">0%</span>
+                    </div>
+                    <div class="preview-readiness-track"><div class="preview-readiness-fill" id="preview-readiness-fill"></div></div>
+                  </div>
+                  <div class="concept-preview-copy">
+                    <div class="concept-kicker" id="concept-kicker-live">Relaxed Luxury Living</div>
+                    <div class="concept-title" id="concept-title-live">RISE<br>Living</div>
+                    <div class="concept-tag" id="concept-tag-live">Select a property</div>
+                    <div class="concept-copy-note" id="concept-copy-note">The visual direction will respond as request details are entered.</div>
+                  </div>
+                  <div class="concept-footer">
+                    <div class="concept-footer-caption" id="concept-footer-live">Brand-led creative direction with room for property imagery.</div>
+                    <img src="assets/rise_logo.png" alt="RISE">
+                  </div>
+                </div>
+                <div class="concept-side">
+                  <button type="button" class="concept-mini one active" id="concept-mini-0" onclick="selectConceptByIndex(0)">
+                    <span class="concept-mini-label">Concept 1</span>
+                    <span class="concept-mini-title" id="concept-mini-title-0">Lifestyle hero</span>
+                  </button>
+                  <button type="button" class="concept-mini two" id="concept-mini-1" onclick="selectConceptByIndex(1)">
+                    <span class="concept-mini-label">Concept 2</span>
+                    <span class="concept-mini-title" id="concept-mini-title-1">Message first</span>
+                  </button>
+                  <button type="button" class="concept-mini three" id="concept-mini-2" onclick="selectConceptByIndex(2)">
+                    <span class="concept-mini-label">Concept 3</span>
+                    <span class="concept-mini-title" id="concept-mini-title-2">Brand frame</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="concept-mode-panel" id="concept-compare-view">
+              <div class="concept-comparison-grid">
+                <div class="concept-comparison-card">
+                  <div class="comparison-art">
+                    <div class="comparison-title" id="compare-title-0">RISE Living</div>
+                  </div>
+                  <div class="comparison-meta">
+                    <div class="comparison-name" id="compare-name-0">Lifestyle Hero</div>
+                    <div class="comparison-copy" id="compare-copy-0">Amenity-led visual with warm lifestyle copy.</div>
+                    <button type="button" class="btn btn-secondary btn-sm" style="width:100%;justify-content:center;margin-top:10px" onclick="selectConceptByIndex(0);setConceptViewMode('single')">Use Concept 1</button>
+                  </div>
+                </div>
+                <div class="concept-comparison-card">
+                  <div class="comparison-art two">
+                    <div class="comparison-title" id="compare-title-1">Tour Today</div>
+                  </div>
+                  <div class="comparison-meta">
+                    <div class="comparison-name" id="compare-name-1">Message First</div>
+                    <div class="comparison-copy" id="compare-copy-1">Clear CTA and concise benefit hierarchy.</div>
+                    <button type="button" class="btn btn-secondary btn-sm" style="width:100%;justify-content:center;margin-top:10px" onclick="selectConceptByIndex(1);setConceptViewMode('single')">Use Concept 2</button>
+                  </div>
+                </div>
+                <div class="concept-comparison-card">
+                  <div class="comparison-art three">
+                    <div class="comparison-title" id="compare-title-2">Good Life</div>
+                  </div>
+                  <div class="comparison-meta">
+                    <div class="comparison-name" id="compare-name-2">Brand Frame</div>
+                    <div class="comparison-copy" id="compare-copy-2">Premium brand panel with refined image treatment.</div>
+                    <button type="button" class="btn btn-secondary btn-sm" style="width:100%;justify-content:center;margin-top:10px" onclick="selectConceptByIndex(2);setConceptViewMode('single')">Use Concept 3</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="concept-feedback">
+              <div style="font-weight:800;color:var(--rise-dark);font-size:13px">Concept Feedback</div>
+              <div style="font-size:12px;color:#7a9aaa;margin:2px 0 10px">Feedback is saved into the concept package for the Marketing team.</div>
+              <div class="feedback-buttons">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="quickArtRefinement('I like this direction. Make it feel polished and ready for production.')">Love it</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="quickArtRefinement('This is close. Tighten the copy and make the layout feel more refined.')">Looks good</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="quickArtRefinement('Not quite. Explore a calmer, more premium direction.')">Not quite</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="generateBrief()" style="margin-left:auto">Build Brief</button>
+              </div>
+            </div>
+
+            <div class="art-chat-card">
+              <div class="art-chat-head">
+                <div>
+                  <div class="art-chat-title">Refine With ART</div>
+                  <div class="concept-sub" style="color:#7a9aaa" id="art-chat-state">0 refinements captured</div>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="clearArtRefinementChat()">Clear</button>
+              </div>
+              <div class="art-chat-thread" id="art-chat-thread">
+                <div class="art-chat-message art">Tell me what to dial up or down. I will keep the request workflow intact and package the final direction for Marketing.</div>
+              </div>
+              <div class="art-chat-quick">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="quickArtRefinement('Make this feel more elevated and less playful.')">More elevated</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="quickArtRefinement('Use more community lifestyle imagery.')">More lifestyle imagery</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="quickArtRefinement('Tone down the tropical look.')">Tone down tropical</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="quickArtRefinement('Make it look more luxury multifamily.')">Luxury multifamily</button>
+              </div>
+              <div class="art-chat-input-row">
+                <input type="text" id="art-chat-input" placeholder="e.g. Make the headline softer but keep the CTA direct" onkeydown="if(event.key==='Enter') sendArtRefinement()">
+                <button type="button" class="btn btn-primary" onclick="sendArtRefinement()">Send</button>
+              </div>
+            </div>
+
+            <div class="concept-action-row">
+              <button type="button" class="btn btn-secondary" onclick="regenerateBrief()">Regenerate Concepts</button>
+              <button type="button" class="btn btn-secondary" onclick="generateBrief()">Edit Brief</button>
+              <button type="button" class="btn btn-primary" onclick="approveConceptAndContinue()">Approve Concept & Continue</button>
+            </div>
+
+            <button class="btn-ai" onclick="generateBrief()" id="ai-btn" style="width:100%;justify-content:center;margin-top:14px">
+              <span id="ai-btn-text">Ask ART to Build Brief</span>
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="submitTicket()" style="width:100%;justify-content:center;margin-top:8px">
+              Submit Without Brief
+            </button>
+            <div id="art-mood" style="font-size:11px;color:#7a9aaa;text-align:center;margin-top:8px">Ready to create</div>
+            <div class="concept-package-note" id="concept-package-note">Concept package attached to this request.</div>
+
+            <div class="ai-panel" id="ai-panel">
+              <div class="ai-panel-header" style="background:linear-gradient(135deg,#013e51,#0a5a73);border-radius:8px;padding:12px">
+                <div id="art-avatar-mini" style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#6ba2b8,#2a9d6e);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:white;flex-shrink:0">ART</div>
+                <div>
+                  <div class="ai-panel-title" style="color:white">ART's Creative Brief</div>
+                  <div class="ai-panel-sub" style="color:#aac0ca">Review and confirm before submitting</div>
+                </div>
+              </div>
+
+              <div id="art-image-section" style="display:none;margin:12px 0">
+                <div style="font-size:11px;font-weight:600;color:#013e51;text-transform:uppercase;margin-bottom:6px">ART's Concept Sketch</div>
+                <div id="art-image-container" style="border-radius:8px;overflow:hidden;background:var(--rise-pale);min-height:160px;display:flex;align-items:center;justify-content:center">
+                  <div style="text-align:center;padding:20px;color:#7a9aaa;font-size:12px">Generating concept...</div>
+                </div>
+                <div style="font-size:10px;color:#aac0ca;margin-top:4px;text-align:center">AI concept sketch for direction only, not final deliverable</div>
+              </div>
+
+              <div id="ai-brief-output" class="ai-output" style="margin-top:12px"></div>
+
+              <div style="margin-top:16px">
+                <div style="font-size:12px;font-weight:600;color:#4a6a7a;text-transform:uppercase;margin-bottom:10px">Visual Style Direction</div>
+                <div class="visual-examples" id="visual-examples">
+                  <div class="visual-example" onclick="selectExample(this,'Bright & airy')">
+                    <div class="visual-example-img" style="background:linear-gradient(135deg,#e8f5f0,#c2e8d8)">A</div>
+                    <div class="visual-example-label">Bright & Airy</div>
+                  </div>
+                  <div class="visual-example" onclick="selectExample(this,'Bold & graphic')">
+                    <div class="visual-example-img" style="background:linear-gradient(135deg,#013e51,#0a5a73);color:white">B</div>
+                    <div class="visual-example-label">Bold & Graphic</div>
+                  </div>
+                  <div class="visual-example" onclick="selectExample(this,'Warm & lifestyle')">
+                    <div class="visual-example-img" style="background:linear-gradient(135deg,#fdf0e0,#f7d4a0)">C</div>
+                    <div class="visual-example-label">Warm & Lifestyle</div>
+                  </div>
+                </div>
+                <div class="form-hint" style="margin-top:6px">Selected style is attached to the request.</div>
+              </div>
             </div>
           </div>
         </div>
@@ -3962,11 +4679,74 @@ const MARKETING_TAB_IDS = ['dashboard','new-request','tickets','approvals','lead
 const MARKETING_REQUEST_DRAFT_FIELDS = [
   'req-property','req-type','req-priority','req-due','req-title','req-desc','req-size',
   'req-cost-est','req-cost-type','req-budget-line','req-vendor','req-vibe','req-audience',
-  'req-format-size','req-cta','req-avoid','req-asset-audience','req-creative-direction'
+  'req-cta','req-avoid','req-asset-audience','req-creative-direction','req-branding'
 ];
 var ticketAttachments = window.ticketAttachments || [];
 window.ticketAttachments = ticketAttachments;
 let marketingDraftSaveTimer = null;
+let selectedConceptIndex = 0;
+let conceptViewMode = 'single';
+let artRefinementHistory = [];
+let approvedConceptPackage = null;
+
+const ART_AUDIENCE_PRESETS = {
+  conventional: {
+    match: ['conventional', 'multifamily'],
+    label: 'Conventional / Multifamily',
+    audience: 'renters who want polished lifestyle, strong amenities, and a smooth leasing experience',
+    cta: 'Schedule a Tour',
+    size: '1080x1350px portrait, 1080x1080px square, and 1200x628px paid social',
+    tone: 'polished lifestyle',
+    kicker: 'Relax. Connect. Enjoy.',
+    palette: ['#013e51', '#0a5a73', '#6ba2b8']
+  },
+  senior: {
+    match: ['senior', 'active adult', '55'],
+    label: 'Senior / Active Adult',
+    audience: 'active adults and downsizers who value ease, comfort, community, and quality of life',
+    cta: 'Explore the Community',
+    size: '1200x628px social ad, 8.5x11 flyer, and email header crop',
+    tone: 'warm, reassuring, premium',
+    kicker: 'Comfort. Ease. Belonging.',
+    palette: ['#284b55', '#6a8f8a', '#d2a66a']
+  },
+  student: {
+    match: ['student', 'university', 'college'],
+    label: 'Student',
+    audience: 'students and guarantors comparing convenience, lifestyle, value, and proximity',
+    cta: 'Apply Today',
+    size: '1080x1920px story, 1080x1080px feed, and 300x250px display ad',
+    tone: 'fresh, direct, energetic',
+    kicker: 'Live Close. Live Well.',
+    palette: ['#013e51', '#2c6d8f', '#f0b457']
+  },
+  military: {
+    match: ['military', 'base', 'service'],
+    label: 'Military',
+    audience: 'military households looking for stability, convenience, responsive service, and an easy move',
+    cta: 'Ask About Availability',
+    size: '1200x628px ad, 1080x1080px feed, and leasing office flyer',
+    tone: 'clear, grounded, trustworthy',
+    kicker: 'Settle In With Confidence.',
+    palette: ['#203b36', '#5e735f', '#c8b46a']
+  },
+  vacation: {
+    match: ['short term', 'vacation', 'rental'],
+    label: 'Short Term / Vacation Rental',
+    audience: 'guests seeking a polished stay, easy booking, local access, and memorable amenities',
+    cta: 'Book Your Stay',
+    size: '1080x1350px feed, 1080x1920px story, and listing hero crop',
+    tone: 'escapist, refined, inviting',
+    kicker: 'Arrive. Unwind. Stay Awhile.',
+    palette: ['#014458', '#0b7487', '#e9c56d']
+  }
+};
+
+const ART_CONCEPTS = [
+  { name: 'Lifestyle Hero', sub: 'Amenity-led', title: 'RISE Living', copy: 'Large aspirational image, soft editorial headline, and a calm RISE brand lockup.' },
+  { name: 'Message First', sub: 'CTA-forward', title: 'Tour Today', copy: 'Sharper headline hierarchy, clear benefit stack, and stronger conversion framing.' },
+  { name: 'Brand Frame', sub: 'Premium system', title: 'Good Life', copy: 'Refined brand panel, controlled color field, and flexible space for approved imagery.' }
+];
 
 const DEFAULT_SKILLS = [
   {id:'social', name:'Social Media', desc:'Instagram, Facebook, TikTok posts, reels, stories'},
@@ -5523,6 +6303,467 @@ function artDance() {
   document.getElementById('art-mood').textContent = ['Feeling inspired ✦', 'Let\'s make something ✦', 'Creativity loading... ✦', 'Picasso vibes ✦'][Math.floor(Math.random()*4)];
 }
 
+function requestFieldValue(id) {
+  const el = document.getElementById(id);
+  if (!el) return '';
+  if (el.type === 'checkbox') return el.checked ? 'true' : 'false';
+  return String(el.value || '').trim();
+}
+
+function setRequestFieldValue(id, value) {
+  const el = document.getElementById(id);
+  if (!el || value == null) return false;
+  if (el.type === 'checkbox') {
+    el.checked = value === true || value === 'true' || value === 'on';
+  } else {
+    el.value = String(value);
+  }
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  return true;
+}
+
+function getAudiencePresetKey(value = requestFieldValue('req-asset-audience')) {
+  const normalized = String(value || '').toLowerCase();
+  const match = Object.entries(ART_AUDIENCE_PRESETS).find(([, preset]) =>
+    preset.match.some(term => normalized.includes(term))
+  );
+  return match ? match[0] : 'conventional';
+}
+
+function getAudiencePreset(value) {
+  return ART_AUDIENCE_PRESETS[getAudiencePresetKey(value)] || ART_AUDIENCE_PRESETS.conventional;
+}
+
+function compactTitleWords(value = '', fallback = 'RISE Living') {
+  const cleaned = String(value || '').replace(/[^a-zA-Z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const stop = new Set(['the','and','for','with','from','that','this','post','request','creative','marketing','social','media','campaign','flyer','design']);
+  const words = cleaned.split(' ').filter(word => word && !stop.has(word.toLowerCase())).slice(0, 2);
+  if (!words.length) return fallback;
+  return words.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('\n');
+}
+
+function oneLineConceptTitle(value = '') {
+  return String(value || '').replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function selectedVisualStyleLabel() {
+  return document.querySelector('.visual-example.selected .visual-example-label')?.textContent || '';
+}
+
+function buildArtStudioSnapshot() {
+  const rawType = requestFieldValue('req-type');
+  const type = getMarketingRequestTypeLabel(rawType);
+  const property = canonicalMarketingPropertyName(requestFieldValue('req-property'));
+  const audiencePreset = getAudiencePreset();
+  const attachments = Array.isArray(ticketAttachments) ? ticketAttachments : [];
+  const brandingApplied = requestFieldValue('req-branding') !== 'false';
+  const fields = {
+    property,
+    type,
+    typeId: getMarketingRequestTypeId(rawType),
+    title: requestFieldValue('req-title'),
+    description: requestFieldValue('req-desc'),
+    priority: requestFieldValue('req-priority'),
+    dueDate: requestFieldValue('req-due'),
+    assetAudience: requestFieldValue('req-asset-audience') || audiencePreset.label,
+    creativeDirection: requestFieldValue('req-creative-direction') || 'Relaxed Luxury Living',
+    vibe: requestFieldValue('req-vibe'),
+    audience: requestFieldValue('req-audience'),
+    size: getRequestDimensionsValue(),
+    cta: requestFieldValue('req-cta'),
+    avoid: requestFieldValue('req-avoid'),
+    estimatedCost: requestFieldValue('req-cost-est'),
+    costType: requestFieldValue('req-cost-type'),
+    budgetLine: requestFieldValue('req-budget-line'),
+    vendor: requestFieldValue('req-vendor'),
+    brandingApplied,
+    visualStyle: selectedVisualStyleLabel(),
+    attachments
+  };
+  const readinessInputs = [
+    fields.property,
+    fields.typeId,
+    fields.title,
+    fields.description,
+    fields.assetAudience,
+    fields.creativeDirection,
+    fields.vibe,
+    fields.audience,
+    fields.size,
+    fields.cta
+  ];
+  const completed = readinessInputs.filter(Boolean).length;
+  fields.readinessPct = Math.round((completed / readinessInputs.length) * 100);
+  fields.missing = [
+    !fields.property ? 'Property' : '',
+    !fields.typeId ? 'Request type' : '',
+    !fields.title ? 'Title' : '',
+    !fields.description ? 'Description' : '',
+    !fields.vibe ? 'Vibe' : '',
+    !fields.audience ? 'Audience' : '',
+    !fields.size ? 'Format' : '',
+    !fields.cta ? 'CTA' : ''
+  ].filter(Boolean);
+  fields.audiencePreset = audiencePreset;
+  fields.latestRefinement = [...artRefinementHistory].reverse().find(item => item.role === 'user')?.body || '';
+  return fields;
+}
+
+function buildConceptVariants(snapshot = buildArtStudioSnapshot()) {
+  const preset = snapshot.audiencePreset || ART_AUDIENCE_PRESETS.conventional;
+  const propertyLabel = snapshot.property || 'RISE Community';
+  const fallbackTitle = snapshot.typeId === 'ads'
+    ? 'Tour\nToday'
+    : snapshot.typeId === 'email'
+      ? 'Fresh\nUpdate'
+      : snapshot.typeId === 'print'
+        ? 'Open\nHouse'
+        : 'RISE\nLiving';
+  const primaryTitle = compactTitleWords(snapshot.title || snapshot.vibe || snapshot.creativeDirection, fallbackTitle);
+  const ctaTitle = compactTitleWords(snapshot.cta || snapshot.type || 'Tour Today', 'Tour\nToday');
+  const audienceTitle = compactTitleWords(snapshot.audience || preset.label || 'Good Life', 'Good\nLife');
+  const refinement = snapshot.latestRefinement ? ` Refinement note: ${snapshot.latestRefinement}` : '';
+  return [
+    {
+      ...ART_CONCEPTS[0],
+      title: primaryTitle,
+      kicker: preset.kicker,
+      tag: snapshot.property ? `At ${propertyLabel}` : preset.label,
+      footer: snapshot.cta || preset.cta,
+      copy: `${snapshot.creativeDirection || 'Relaxed Luxury Living'} with ${snapshot.vibe || preset.tone} imagery.${refinement}`
+    },
+    {
+      ...ART_CONCEPTS[1],
+      title: ctaTitle,
+      kicker: snapshot.type || 'Marketing request',
+      tag: snapshot.cta || preset.cta,
+      footer: snapshot.audience || preset.audience,
+      copy: 'Lead with the action, support it with one crisp benefit, and keep the brand system prominent.'
+    },
+    {
+      ...ART_CONCEPTS[2],
+      title: audienceTitle,
+      kicker: snapshot.assetAudience || preset.label,
+      tag: snapshot.visualStyle || 'RISE Brand Kit',
+      footer: snapshot.avoid ? `Avoid: ${snapshot.avoid}` : 'Use approved brand and community imagery.',
+      copy: `A more controlled brand frame for ${snapshot.audience || preset.audience}.`
+    }
+  ];
+}
+
+function updateElementText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+function notifyMarketingEmbeddedHeight() {
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({
+        type: 'atlas-embedded-height',
+        key: 'marketing',
+        height: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, 900)
+      }, '*');
+    }
+  } catch(e) {}
+}
+
+function updateArtStudioState() {
+  const snapshot = buildArtStudioSnapshot();
+  const concepts = buildConceptVariants(snapshot);
+  selectedConceptIndex = Math.max(0, Math.min(concepts.length - 1, Number(selectedConceptIndex) || 0));
+  const concept = concepts[selectedConceptIndex];
+  const preview = document.getElementById('concept-main-preview');
+  if (preview) {
+    preview.dataset.audience = getAudiencePresetKey(snapshot.assetAudience);
+    preview.dataset.concept = String(selectedConceptIndex + 1);
+    const palette = snapshot.brandingApplied ? snapshot.audiencePreset.palette : ['#3f4a50', '#7b878d', '#d7dee2'];
+    preview.style.setProperty('--preview-base', palette[0]);
+    preview.style.setProperty('--preview-mid', palette[1]);
+    preview.style.setProperty('--preview-accent', palette[2]);
+  }
+
+  updateElementText('concept-kicker-live', concept.kicker);
+  updateElementText('concept-title-live', concept.title);
+  updateElementText('concept-tag-live', concept.tag);
+  updateElementText('concept-copy-note', concept.copy);
+  updateElementText('concept-footer-live', concept.footer);
+  updateElementText('concept-selected-pill', `Concept ${selectedConceptIndex + 1}`);
+  updateElementText('concept-mode-copy', conceptViewMode === 'compare' ? 'Comparing concept routes' : 'Single preview with thumbnails');
+  updateElementText('preview-audience-signal', snapshot.assetAudience || snapshot.audiencePreset.label);
+  updateElementText('preview-asset-signal', snapshot.attachments.length ? `${snapshot.attachments.length} reference file${snapshot.attachments.length === 1 ? '' : 's'}` : (snapshot.property ? 'ATLAS community imagery ready' : 'RISE imagery ready'));
+  updateElementText('preview-quality-signal', snapshot.readinessPct >= 80 ? 'Ready for brief' : snapshot.readinessPct >= 45 ? 'Needs a few details' : 'Starter draft');
+  updateElementText('preview-atlas-imagery', snapshot.attachments.length ? 'Reference files attached' : (snapshot.property ? `${snapshot.property} imagery cue` : 'ATLAS imagery ready'));
+  updateElementText('preview-readiness-label', `${snapshot.readinessPct}%`);
+  updateElementText('art-assist-readiness-label', `${snapshot.readinessPct}% ready`);
+  updateElementText('brand-toggle-label', snapshot.brandingApplied ? 'On' : 'Off');
+
+  const previewFill = document.getElementById('preview-readiness-fill');
+  if (previewFill) previewFill.style.width = `${snapshot.readinessPct}%`;
+  const assistFill = document.getElementById('art-assist-readiness-fill');
+  if (assistFill) assistFill.style.width = `${snapshot.readinessPct}%`;
+
+  concepts.forEach((item, index) => {
+    updateElementText(`concept-tab-${index}-name`, `Concept ${index + 1}`);
+    updateElementText(`concept-tab-${index}-sub`, item.sub || item.name);
+    updateElementText(`concept-mini-title-${index}`, item.name);
+    updateElementText(`compare-title-${index}`, oneLineConceptTitle(item.title));
+    updateElementText(`compare-name-${index}`, item.name);
+    updateElementText(`compare-copy-${index}`, item.copy);
+    document.getElementById(`concept-tab-${index}`)?.classList.toggle('active', index === selectedConceptIndex);
+    document.getElementById(`concept-mini-${index}`)?.classList.toggle('active', index === selectedConceptIndex);
+  });
+
+  document.getElementById('concept-single-view')?.classList.toggle('active', conceptViewMode === 'single');
+  document.getElementById('concept-compare-view')?.classList.toggle('active', conceptViewMode === 'compare');
+  document.getElementById('concept-mode-single')?.classList.toggle('active', conceptViewMode === 'single');
+  document.getElementById('concept-mode-compare')?.classList.toggle('active', conceptViewMode === 'compare');
+  renderArtAssist(snapshot);
+  const refinementCount = artRefinementHistory.filter(item => item.role === 'user').length;
+  updateElementText('art-chat-state', `${refinementCount} refinement${refinementCount === 1 ? '' : 's'} captured`);
+  notifyMarketingEmbeddedHeight();
+}
+
+function buildSuggestedTitle(snapshot) {
+  const property = snapshot.property || 'RISE Community';
+  const type = snapshot.typeId === 'ads' ? 'Leasing Ad' : snapshot.typeId === 'print' ? 'Flyer' : snapshot.typeId === 'email' ? 'Email' : 'Social Post';
+  const angle = snapshot.vibe || snapshot.creativeDirection || snapshot.audiencePreset.tone;
+  return `${property} ${type} - ${angle}`;
+}
+
+function buildSuggestedDescription(snapshot) {
+  return `Create a ${snapshot.type || 'marketing asset'} for ${snapshot.property || 'the selected community'} that highlights ${snapshot.creativeDirection || 'the main leasing message'}. Use a ${snapshot.vibe || snapshot.audiencePreset.tone} tone for ${snapshot.audience || snapshot.audiencePreset.audience}. Primary action: ${snapshot.cta || snapshot.audiencePreset.cta}.`;
+}
+
+function buildArtSuggestions(snapshot = buildArtStudioSnapshot()) {
+  const suggestions = [];
+  if (!snapshot.title) {
+    suggestions.push({ target: 'req-title', title: 'Suggested title', value: buildSuggestedTitle(snapshot), body: buildSuggestedTitle(snapshot) });
+  } else if (snapshot.title.length < 24) {
+    const polished = `${snapshot.title} - ${snapshot.property || snapshot.audiencePreset.label}`;
+    suggestions.push({ target: 'req-title', title: 'Tighten title', value: polished, body: polished });
+  }
+  if (!snapshot.description || snapshot.description.length < 80) {
+    suggestions.push({ target: 'req-desc', title: 'Strengthen creative direction', value: buildSuggestedDescription(snapshot), body: 'Add objective, tone, audience, message, and final action in one clear handoff.' });
+  }
+  if (!snapshot.audience) {
+    suggestions.push({ target: 'req-audience', title: 'Target audience', value: snapshot.audiencePreset.audience, body: snapshot.audiencePreset.audience });
+  }
+  if (!snapshot.cta) {
+    suggestions.push({ target: 'req-cta', title: 'Main CTA', value: snapshot.audiencePreset.cta, body: snapshot.audiencePreset.cta });
+  }
+  if (!snapshot.size) {
+    suggestions.push({ target: 'req-size', title: 'Format set', value: snapshot.audiencePreset.size, body: snapshot.audiencePreset.size });
+  }
+  if (!snapshot.vibe) {
+    suggestions.push({ target: 'req-vibe', title: 'Vibe direction', value: snapshot.audiencePreset.tone, body: snapshot.audiencePreset.tone });
+  }
+  return suggestions.slice(0, 5);
+}
+
+function renderArtAssist(snapshot = buildArtStudioSnapshot()) {
+  const list = document.getElementById('art-suggestion-list');
+  const missing = document.getElementById('art-missing-row');
+  if (!list || !missing) return;
+  const suggestions = buildArtSuggestions(snapshot);
+  list.innerHTML = suggestions.length ? suggestions.map(suggestion => `
+    <div class="art-suggestion">
+      <div>
+        <div class="art-suggestion-title">${marketingEscapeHtml(suggestion.title)}</div>
+        <div class="art-suggestion-body">${marketingEscapeHtml(suggestion.body)}</div>
+      </div>
+      <button type="button" class="btn btn-secondary btn-sm" data-target="${marketingEscapeHtml(suggestion.target)}" data-value="${marketingEscapeHtml(suggestion.value)}" onclick="applyArtSuggestionFromButton(this)">Apply</button>
+    </div>
+  `).join('') : `<div class="art-suggestion"><div><div class="art-suggestion-title">Brief is in good shape</div><div class="art-suggestion-body">ART has enough detail to package a useful creative direction.</div></div><button type="button" class="btn btn-secondary btn-sm" onclick="generateBrief()">Build</button></div>`;
+  missing.innerHTML = snapshot.missing.length
+    ? snapshot.missing.map(item => `<span class="art-missing-chip">${marketingEscapeHtml(item)}</span>`).join('')
+    : '<span class="art-missing-chip" style="background:#edf8f2;border-color:#badfc9;color:#236145">Ready for review</span>';
+}
+
+function applyArtSuggestionFromButton(btn) {
+  const target = btn?.dataset?.target || '';
+  const value = btn?.dataset?.value || '';
+  if (!target || !value) return;
+  setRequestFieldValue(target, value);
+  approvedConceptPackage = null;
+  document.getElementById('concept-package-note')?.classList.remove('visible');
+  updateArtStudioState();
+  saveMarketingRequestDraft();
+  showToast('ART suggestion applied', 'success');
+}
+
+function setConceptViewMode(mode) {
+  conceptViewMode = mode === 'compare' ? 'compare' : 'single';
+  updateArtStudioState();
+  saveMarketingRequestDraft();
+}
+
+function selectConceptByIndex(index) {
+  selectedConceptIndex = Math.max(0, Math.min(2, Number(index) || 0));
+  updateArtStudioState();
+  saveMarketingRequestDraft();
+}
+
+function handleBrandingToggle() {
+  updateArtStudioState();
+  saveMarketingRequestDraft();
+}
+
+function buildArtRefinementResponse(message) {
+  const value = String(message || '').toLowerCase();
+  if (value.includes('elevated') || value.includes('luxury') || value.includes('premium')) {
+    return 'Captured. I will steer the package toward quieter typography, more negative space, restrained color, and a more polished lifestyle image treatment.';
+  }
+  if (value.includes('lifestyle') || value.includes('community') || value.includes('imagery')) {
+    return 'Captured. I will prioritize real community imagery, amenity moments, and copy that feels lived-in instead of generic.';
+  }
+  if (value.includes('tropical') || value.includes('playful') || value.includes('tone down')) {
+    return 'Captured. I will reduce the playful visual cues and keep the color, headline, and image treatment more refined.';
+  }
+  if (value.includes('headline') || value.includes('copy') || value.includes('tone')) {
+    return 'Captured. I will keep the headline cleaner, the CTA direct, and the supporting copy more specific to the audience.';
+  }
+  return 'Captured. I will include that direction in the concept package and reflect it in the preview tone.';
+}
+
+function renderArtChat() {
+  const thread = document.getElementById('art-chat-thread');
+  if (!thread) return;
+  const starter = '<div class="art-chat-message art">Tell me what to dial up or down. I will keep the request workflow intact and package the final direction for Marketing.</div>';
+  thread.innerHTML = starter + artRefinementHistory.map(item =>
+    `<div class="art-chat-message ${item.role === 'user' ? 'user' : 'art'}">${marketingEscapeHtml(item.body)}</div>`
+  ).join('');
+  thread.scrollTop = thread.scrollHeight;
+  const refinementCount = artRefinementHistory.filter(item => item.role === 'user').length;
+  updateElementText('art-chat-state', `${refinementCount} refinement${refinementCount === 1 ? '' : 's'} captured`);
+}
+
+function addArtRefinement(role, body) {
+  const text = String(body || '').trim();
+  if (!text) return;
+  artRefinementHistory.push({ role, body: text, at: new Date().toISOString(), conceptIndex: selectedConceptIndex });
+  renderArtChat();
+  approvedConceptPackage = null;
+  document.getElementById('concept-package-note')?.classList.remove('visible');
+  updateArtStudioState();
+  saveMarketingRequestDraft();
+}
+
+function quickArtRefinement(message) {
+  const text = String(message || '').trim();
+  if (!text) return;
+  addArtRefinement('user', text);
+  addArtRefinement('art', buildArtRefinementResponse(text));
+  showToast('ART refinement captured', 'success');
+}
+
+function sendArtRefinement() {
+  const input = document.getElementById('art-chat-input');
+  const text = String(input?.value || '').trim();
+  if (!text) return;
+  if (input) input.value = '';
+  quickArtRefinement(text);
+}
+
+function clearArtRefinementChat() {
+  artRefinementHistory = [];
+  approvedConceptPackage = null;
+  renderArtChat();
+  updateArtStudioState();
+  saveMarketingRequestDraft();
+}
+
+function buildConceptPackage() {
+  const snapshot = buildArtStudioSnapshot();
+  const concepts = buildConceptVariants(snapshot);
+  const selected = concepts[selectedConceptIndex] || concepts[0];
+  return {
+    createdAt: new Date().toISOString(),
+    request: {
+      property: snapshot.property,
+      type: snapshot.type,
+      title: snapshot.title,
+      description: snapshot.description,
+      priority: snapshot.priority,
+      dueDate: snapshot.dueDate,
+      audience: snapshot.audience,
+      audiencePreset: snapshot.assetAudience,
+      creativeDirection: snapshot.creativeDirection,
+      vibe: snapshot.vibe,
+      size: snapshot.size,
+      cta: snapshot.cta,
+      avoid: snapshot.avoid,
+      estimatedCost: snapshot.estimatedCost,
+      costType: snapshot.costType,
+      budgetLine: snapshot.budgetLine,
+      vendor: snapshot.vendor
+    },
+    brandKit: {
+      riseBrandingApplied: snapshot.brandingApplied,
+      colors: snapshot.brandingApplied ? '#013e51, #6ba2b8, supporting RISE palette' : 'Custom direction requested',
+      typography: 'RISE-approved hierarchy',
+      logo: 'RISE logo lockup',
+      imagery: snapshot.attachments.length ? snapshot.attachments.map(item => item.name) : ['Use relevant ATLAS-stored community and amenity imagery when available']
+    },
+    selectedConcept: {
+      index: selectedConceptIndex + 1,
+      name: selected.name,
+      headline: oneLineConceptTitle(selected.title),
+      kicker: selected.kicker,
+      tag: selected.tag,
+      footer: selected.footer,
+      copy: selected.copy
+    },
+    conceptOptions: concepts.map((item, index) => ({
+      index: index + 1,
+      name: item.name,
+      headline: oneLineConceptTitle(item.title),
+      copy: item.copy
+    })),
+    refinementHistory: artRefinementHistory,
+    briefReadinessPct: snapshot.readinessPct,
+    missingDetails: snapshot.missing
+  };
+}
+
+function formatConceptPackageText(pkg) {
+  if (!pkg) return '';
+  return `ART CONCEPT PACKAGE:
+Selected concept: Concept ${pkg.selectedConcept.index} - ${pkg.selectedConcept.name}
+Headline direction: ${pkg.selectedConcept.headline}
+Kicker: ${pkg.selectedConcept.kicker}
+Tag: ${pkg.selectedConcept.tag}
+Footer/CTA: ${pkg.selectedConcept.footer}
+Audience preset: ${pkg.request.audiencePreset || 'Not selected'}
+Creative direction: ${pkg.request.creativeDirection || 'Not selected'}
+RISE branding applied: ${pkg.brandKit.riseBrandingApplied ? 'Yes' : 'No'}
+Imagery direction: ${pkg.brandKit.imagery.join(', ')}
+Refinement history: ${pkg.refinementHistory.length ? pkg.refinementHistory.map(item => `${item.role}: ${item.body}`).join(' | ') : 'None yet'}
+Missing details disclosed: ${pkg.missingDetails.length ? pkg.missingDetails.join(', ') : 'None'}`;
+}
+
+function attachConceptPackageToBrief() {
+  approvedConceptPackage = buildConceptPackage();
+  const output = document.getElementById('ai-brief-output');
+  const panel = document.getElementById('ai-panel');
+  const packageText = formatConceptPackageText(approvedConceptPackage);
+  const existing = String(output?.textContent || '').trim();
+  if (output) {
+    const cleanExisting = existing.replace(/ART CONCEPT PACKAGE:[\s\S]*$/m, '').trim();
+    output.innerHTML = `${cleanExisting ? `<div style="margin-bottom:12px">${marketingEscapeHtml(cleanExisting).replace(/\n/g,'<br>')}</div>` : ''}<div style="background:#edf8f2;border:1px solid #badfc9;border-radius:8px;padding:12px;color:#1f5f43;font-size:12px;line-height:1.6"><strong>Concept Package Attached</strong><br>${marketingEscapeHtml(packageText).replace(/\n/g,'<br>')}</div>`;
+  }
+  if (panel) panel.classList.add('visible');
+  document.getElementById('concept-package-note')?.classList.add('visible');
+  saveMarketingRequestDraft();
+  return approvedConceptPackage;
+}
+
+async function approveConceptAndContinue() {
+  attachConceptPackageToBrief();
+  await submitTicket();
+}
+
 async function generateBrief() {
   const title    = document.getElementById('req-title')?.value || '';
   const desc     = document.getElementById('req-desc')?.value || '';
@@ -5533,6 +6774,8 @@ async function generateBrief() {
   const size     = getRequestDimensionsValue();
   const cta      = document.getElementById('req-cta')?.value || '';
   const avoid    = document.getElementById('req-avoid')?.value || '';
+  const snapshot = buildArtStudioSnapshot();
+  const selectedConcept = buildConceptVariants(snapshot)[selectedConceptIndex] || ART_CONCEPTS[0];
 
   if (!title && !desc) {
     showToast('Give ART something to work with — fill in the Request Title and Description first', 'warn');
@@ -5570,6 +6813,11 @@ Request Details:
 - Format/Size: ${size || 'Confirm with submitter'}
 - CTA: ${cta || 'Standard — Schedule a Tour or Apply Today'}
 - Things to avoid: ${avoid || 'None specified'}
+- Audience preset: ${snapshot.assetAudience || 'Not specified'}
+- Design direction preset: ${snapshot.creativeDirection || 'Not specified'}
+- Selected concept route: Concept ${selectedConceptIndex + 1} - ${selectedConcept.name || 'Not selected'}
+- RISE branding applied: ${snapshot.brandingApplied ? 'Yes' : 'No'}
+- Refinement history: ${artRefinementHistory.length ? artRefinementHistory.map(item => item.role + ': ' + item.body).join(' | ') : 'None'}
 ${attachedFiles ? `- Reference files: ${attachedFiles}` : ''}
 
 Write EXACTLY in this format (use the section labels precisely):
@@ -5687,6 +6935,7 @@ IMPORTANT DETAILS: All content requires marketing team review before posting or 
 
   // Generate concept image using canvas
   generateConceptImage(title, type, vibe, property);
+  updateArtStudioState();
 
   // ART finishes
   if (artAv) { artAv.classList.remove('thinking'); artAv.classList.add('dancing'); setTimeout(() => artAv.classList.remove('dancing'), 850); }
@@ -5796,7 +7045,10 @@ async function submitTicket() {
   const vendor = document.getElementById('req-vendor') ? document.getElementById('req-vendor').value : '';
   const vibe = document.getElementById('req-vibe').value;
   const audience = document.getElementById('req-audience').value;
-  const aibrief = document.getElementById('ai-brief-output') ? document.getElementById('ai-brief-output').textContent : '';
+  let aibrief = document.getElementById('ai-brief-output') ? document.getElementById('ai-brief-output').textContent : '';
+  if (approvedConceptPackage && !aibrief.includes('ART CONCEPT PACKAGE')) {
+    aibrief = [aibrief, formatConceptPackageText(approvedConceptPackage)].filter(Boolean).join('\n\n');
+  }
 
   if (!property || !title) {
     showToast('Property and request title are required', 'warn');
@@ -5897,7 +7149,7 @@ async function submitTicket() {
   };
 
   // Disable button while saving
-  const btn = document.querySelector('button[onclick="submitTicket()"]');
+  const btn = document.querySelector('button[onclick="approveConceptAndContinue()"], button[onclick="submitTicket()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Submitting...'; }
 
   try {
@@ -5913,17 +7165,28 @@ async function submitTicket() {
       await window.DB.logTicketEvent(saved.id, 'assigned',
         'System', `Auto-assigned to ${assigneeName} (routing by skill: ${requiredSkill || typeId})`, {});
     }
+    if (approvedConceptPackage) {
+      await window.DB.logTicketEvent(saved.id, 'system',
+        'ART', `ART concept package attached: Concept ${approvedConceptPackage.selectedConcept.index} - ${approvedConceptPackage.selectedConcept.name}`,
+        { concept_package: approvedConceptPackage });
+    }
 
     // Clear form
-    ['req-title','req-desc','req-vibe','req-audience','req-size','req-format-size','req-cta','req-avoid','req-vendor',
+    ['req-title','req-desc','req-vibe','req-audience','req-size','req-cta','req-avoid','req-vendor',
      'req-cost-est'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
     ['req-property','req-type','req-priority','req-cost-type','req-budget-line']
       .forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
     document.getElementById('req-due') && (document.getElementById('req-due').value = '');
+    const branding = document.getElementById('req-branding');
+    if (branding) branding.checked = true;
     document.getElementById('ai-panel').classList.remove('visible');
     document.getElementById('attachment-list') && (document.getElementById('attachment-list').innerHTML = '');
     ticketAttachments = [];
     window.ticketAttachments = ticketAttachments;
+    artRefinementHistory = [];
+    approvedConceptPackage = null;
+    renderArtChat();
+    updateArtStudioState();
     clearMarketingRequestDraft();
 
     // Refresh counts and navigate
@@ -5938,7 +7201,7 @@ async function submitTicket() {
     showToast('Failed to submit ticket — please try again. Error: ' + e.message, 'error');
   }
 
-  if (btn) { btn.disabled = false; btn.textContent = 'Submit Request ↗'; }
+  if (btn) { btn.disabled = false; btn.textContent = btn.getAttribute('onclick') === 'approveConceptAndContinue()' ? 'Approve Concept & Continue' : 'Submit Without Brief'; }
 }
 
 // SEND CONV MESSAGE
@@ -8397,8 +9660,10 @@ function syncPropertyDropdown() {
   const sel = document.getElementById('req-property');
   if (!sel) return;
   const current = canonicalMarketingPropertyName(sel.value);
+  const activeProperties = propertiesData.filter(p => p.status === 'active');
+  const sourceProperties = activeProperties.length ? activeProperties : DEFAULT_PROPERTIES.filter(p => p.status === 'active');
   sel.innerHTML = '<option value="">— Select property —</option>';
-  propertiesData.filter(p => p.status === 'active').forEach(p => {
+  sourceProperties.forEach(p => {
     const opt = document.createElement('option');
     opt.value = canonicalMarketingPropertyName(p.name);
     opt.textContent = p.name;
@@ -8661,7 +9926,20 @@ function getMarketingRequestTypeLabel(value) {
 function setDraftFieldValue(id, value) {
   const el = document.getElementById(id);
   if (!el || value == null) return;
-  el.value = String(value);
+  let nextValue = value;
+  if (id === 'req-asset-audience') {
+    const aliases = {
+      'Student Housing': 'Student',
+      'Senior Living': 'Senior / Active Adult',
+      'Lease-Up': 'Conventional / Multifamily'
+    };
+    nextValue = aliases[String(value)] || value;
+  }
+  if (el.type === 'checkbox') {
+    el.checked = nextValue === true || nextValue === 'true' || nextValue === 'on';
+  } else {
+    el.value = String(nextValue);
+  }
 }
 
 function saveMarketingRequestDraft() {
@@ -8670,7 +9948,7 @@ function saveMarketingRequestDraft() {
   const draft = { updatedAt: new Date().toISOString(), fields: {}, attachments: [] };
   MARKETING_REQUEST_DRAFT_FIELDS.forEach(id => {
     const el = document.getElementById(id);
-    if (el) draft.fields[id] = el.value || '';
+    if (el) draft.fields[id] = el.type === 'checkbox' ? Boolean(el.checked) : (el.value || '');
   });
   const output = document.getElementById('ai-brief-output');
   const panel = document.getElementById('ai-panel');
@@ -8681,6 +9959,10 @@ function saveMarketingRequestDraft() {
   }
   draft.visualStyle = document.querySelector('.visual-example.selected .visual-example-label')?.textContent || '';
   draft.attachments = (ticketAttachments || []).map(file => ({ name: file.name || '', path: file.path || '', url: file.url || '', local: !!file.local }));
+  draft.selectedConceptIndex = selectedConceptIndex;
+  draft.conceptViewMode = conceptViewMode;
+  draft.artRefinementHistory = artRefinementHistory;
+  draft.approvedConceptPackage = approvedConceptPackage;
   try { localStorage.setItem(MARKETING_REQUEST_DRAFT_STORAGE_KEY, JSON.stringify(draft)); } catch(e) {}
 }
 
@@ -8696,9 +9978,17 @@ function setupMarketingRequestDraftPersistence() {
   MARKETING_REQUEST_DRAFT_FIELDS.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
-    el.addEventListener('input', queueMarketingRequestDraftSave);
-    el.addEventListener('change', queueMarketingRequestDraftSave);
+    const handleDraftChange = () => {
+      approvedConceptPackage = null;
+      document.getElementById('concept-package-note')?.classList.remove('visible');
+      updateArtStudioState();
+      queueMarketingRequestDraftSave();
+    };
+    el.addEventListener('input', handleDraftChange);
+    el.addEventListener('change', handleDraftChange);
   });
+  updateArtStudioState();
+  renderArtChat();
 }
 
 function restoreMarketingRequestDraft() {
@@ -8727,6 +10017,13 @@ function restoreMarketingRequestDraft() {
     window.ticketAttachments = ticketAttachments;
     renderDraftAttachmentList();
   }
+  selectedConceptIndex = Math.max(0, Math.min(2, Number(draft.selectedConceptIndex) || 0));
+  conceptViewMode = draft.conceptViewMode === 'compare' ? 'compare' : 'single';
+  artRefinementHistory = Array.isArray(draft.artRefinementHistory) ? draft.artRefinementHistory : [];
+  approvedConceptPackage = draft.approvedConceptPackage || null;
+  renderArtChat();
+  updateArtStudioState();
+  document.getElementById('concept-package-note')?.classList.toggle('visible', Boolean(approvedConceptPackage));
   if (document.getElementById('req-type')?.value) window.setTimeout(updateRouting, 50);
 }
 
@@ -8743,6 +10040,7 @@ function renderDraftAttachmentList() {
   });
   const label = zone?.querySelector('span');
   if (label && ticketAttachments.length > 0) label.textContent = `${ticketAttachments.length} file${ticketAttachments.length > 1 ? 's' : ''} attached — click to add more`;
+  updateArtStudioState();
 }
 
 function clearMarketingRequestDraft() {
@@ -8752,9 +10050,9 @@ function clearMarketingRequestDraft() {
 function selectConceptTab(btn) {
   const wrap = btn?.closest('.concept-tabs');
   if (!wrap) return;
-  wrap.querySelectorAll('.concept-tab').forEach(tab => tab.classList.remove('active'));
-  btn.classList.add('active');
-  queueMarketingRequestDraftSave();
+  const tabs = [...wrap.querySelectorAll('.concept-tab')];
+  const index = tabs.indexOf(btn);
+  selectConceptByIndex(index >= 0 ? index : 0);
 }
 
 // Unified showTab — handles all tab-switch side effects in one place
@@ -8767,6 +10065,7 @@ function showTab(tabId) {
   const tabMap = {'dashboard':0,'new-request':1,'tickets':2,'approvals':3,'lead-sources':4,'metrics':5,'reporting':6,'bonus':7,'settings':8,'marketing':9};
   const tabs = document.querySelectorAll('.nav-tab');
   if (tabMap[tabId] !== undefined && tabs[tabMap[tabId]]) tabs[tabMap[tabId]].classList.add('active');
+  if (tabId === 'new-request') window.setTimeout(updateArtStudioState, 0);
   if (tabId === 'lead-sources') initLeadSources();
   if (tabId === 'settings') showSettingsTab('team');
   if (tabId === 'reporting') { loadChartJS(() => { renderReportHistory(); renderReportCharts(); updateReportKPIs(); }); window.DB && window.DB.loadTickets().then(t => populateVelocityFilters(t)); }
@@ -9855,13 +11154,16 @@ function showBonusTabIfAuthorized() {
 // =============================================
 Object.assign(window, {
   // Nav & UI
-  showTab, selectConceptTab, cycleUser, openTicket, closeModal,
+  showTab, selectConceptTab, selectConceptByIndex, setConceptViewMode, cycleUser, openTicket, closeModal,
   filterTickets, sendConvMessage, selectExample,
   showToast, showSettingsTab, initials,
   handleSignIn, signOut,
 
   // New Request
   updateRouting, generateBrief, regenerateBrief, submitTicket,
+  applyArtSuggestionFromButton, updateArtStudioState,
+  quickArtRefinement, sendArtRefinement, clearArtRefinementChat,
+  handleBrandingToggle, approveConceptAndContinue, attachConceptPackageToBrief,
   handleAttachmentUpload, removeAttachment,
   setupMarketingRequestDraftPersistence, restoreMarketingRequestDraft, clearMarketingRequestDraft,
   artDance, generateConceptImage,

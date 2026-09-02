@@ -2671,7 +2671,9 @@ let reportHubCommunityProgressCommunities = [];
 let reportHubLvrCommunity = "";
 let weeklyExecutiveEmail = defaultWeeklyExecutiveEmailSettings();
 let workspaceScopeValue = PORTFOLIO_SCOPE_VALUE;
-let reportHubType = "investor_snapshot";
+const RISE_WEEKLY_LEASING_REPORT_TYPE = "rise_weekly_leasing";
+const RISE_WEEKLY_LEASING_REPORT_TITLE = "RISE Portfolio Leasing Weekly Report";
+let reportHubType = RISE_WEEKLY_LEASING_REPORT_TYPE;
 let reportHubAction = "preview";
 let reportHubRecipientKeys = [];
 let reportHubPerspective = "csuite";
@@ -3229,7 +3231,9 @@ function normalizeReportHubType(value) {
   const normalized = String(value ?? "").trim();
   const legacyMap = {
     weekly_csuite: "weekly_portfolio_snapshot",
-    portfolio_report: "investor_snapshot",
+    portfolio_report: RISE_WEEKLY_LEASING_REPORT_TYPE,
+    investor_snapshot: RISE_WEEKLY_LEASING_REPORT_TYPE,
+    investor_snapshot_report: RISE_WEEKLY_LEASING_REPORT_TYPE,
     investor_deck: "monthly_investor_deck",
     dlr_overview: "dlr",
     monthly_report: "monthly_investor_deck",
@@ -3252,9 +3256,9 @@ function normalizeReportHubType(value) {
     delinquency_report: "eviction_report",
     stipulation_report: "eviction_report"
   };
-  const mapped = legacyMap[normalized] || normalized || "investor_snapshot";
+  const mapped = legacyMap[normalized] || normalized || RISE_WEEKLY_LEASING_REPORT_TYPE;
   return [
-    "investor_snapshot",
+    RISE_WEEKLY_LEASING_REPORT_TYPE,
     "monthly_investor_deck",
     "investor_marketing_report",
     "dlr",
@@ -3265,7 +3269,7 @@ function normalizeReportHubType(value) {
     "renewal_performance",
     "financial_review",
     "eviction_report"
-  ].includes(mapped) ? mapped : "investor_snapshot";
+  ].includes(mapped) ? mapped : RISE_WEEKLY_LEASING_REPORT_TYPE;
 }
 
 function normalizeReportHubPerspective(value) {
@@ -18238,7 +18242,7 @@ function renderPortfolioScopedImportTab() {
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
         <div>
           <div class="card-title" style="margin-bottom:6px">APTIQ Market Survey Upload</div>
-          <div style="font-size:0.68rem;color:var(--muted)">Upload one or more APTIQ market workbooks here. Each file routes to its matching community and powers the Portfolio Home market survey / investor snapshot section.</div>
+          <div style="font-size:0.68rem;color:var(--muted)">Upload one or more APTIQ market workbooks here. Each file routes to its matching community and powers the Portfolio Home market survey and pricing snapshot section.</div>
         </div>
         <button class="btn btn-gray btn-sm" onclick="clearCurrentWorkspaceMarketSurveys()">Clear Current Portfolio Scope</button>
       </div>
@@ -18492,12 +18496,12 @@ function renderSetupTab() {
       <div>
         <div class="card-title" style="margin-bottom:6px">📈 Regional Pricing Worksheet</div>
         <div style="font-size:0.72rem;color:var(--muted)">Built around the APTIQ Property Summary + Market Survey layout. Regionals can use this section to capture comp-average rent and NER, concession language, exposure, and application velocity before filling in the pricing recommendation slide.</div>
-        <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${regionalPricingWorksheetData.sourceFileName ? `Comp source: ${escapeHtml(regionalPricingWorksheetData.sourceFileName)}${regionalPricingWorksheetData.uploadedAt ? ` · saved ${escapeHtml(formatSavedTimestampLabel(regionalPricingWorksheetData.uploadedAt))}` : ""}` : "Upload an ATLAS RISE Investor Snapshot to prefill comp pricing fields."}</div>
+        <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${regionalPricingWorksheetData.sourceFileName ? `Comp source: ${escapeHtml(regionalPricingWorksheetData.sourceFileName)}${regionalPricingWorksheetData.uploadedAt ? ` · saved ${escapeHtml(formatSavedTimestampLabel(regionalPricingWorksheetData.uploadedAt))}` : ""}` : "Upload an ATLAS RISE market survey or pricing snapshot to prefill comp pricing fields."}</div>
         <div style="font-size:0.64rem;color:var(--muted);margin-top:4px">Comp fields below are sourced from the most recent APTIQ upload. Subject performance fields pull from the selected community's saved operating data.</div>
       </div>
       <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
         <label class="btn btn-gray btn-sm" style="cursor:pointer">
-          ⬆ Upload Investor Snapshot
+          Upload Market Survey
           <input type="file" accept=".pdf,.xlsx,.xls,.xlsm,.csv" style="display:none" onchange="handleRegionalPricingSnapshotUpload(this)">
         </label>
         <div style="text-align:right">
@@ -23202,7 +23206,7 @@ function parseInvestorSnapshotText(rawText = "", fileName = "") {
     pricingNotes: rationaleMatch ? rationaleMatch[1].trim() : "",
     sourceFileName: String(fileName ?? "").trim(),
     uploadedAt: new Date().toISOString(),
-    sourceKind: "investor_snapshot_pdf"
+    sourceKind: "market_pricing_snapshot_pdf"
   };
 }
 
@@ -23219,12 +23223,12 @@ async function handleRegionalPricingSnapshotUpload(input) {
       const appliedCommunity = await handleMarketSurveyWorkbook(file);
       if (input) input.value = "";
       if (appliedCommunity) {
-        alert(`Investor snapshot fields were refreshed for ${appliedCommunity}. Review the worksheet and keep editing as needed.`);
+        alert(`Market pricing fields were refreshed for ${appliedCommunity}. Review the worksheet and keep editing as needed.`);
       }
       return;
     }
     if (!parsed) {
-      alert("The investor snapshot could not be read from that upload. Try a text-based PDF, CSV, or Excel export.");
+      alert("The market pricing snapshot could not be read from that upload. Try a text-based PDF, CSV, or Excel export.");
       if (input) input.value = "";
       return;
     }
@@ -23232,12 +23236,12 @@ async function handleRegionalPricingSnapshotUpload(input) {
     if (applied) {
       persistSaved();
       renderTab();
-      alert(`Investor snapshot values were applied to the Regional Pricing Worksheet for ${applied.matchedName}. You can keep editing any field after the prefill.`);
+      alert(`Market pricing values were applied to the Regional Pricing Worksheet for ${applied.matchedName}. You can keep editing any field after the prefill.`);
     } else {
-      alert("The investor snapshot was parsed, but the current community could not be matched in this dashboard.");
+      alert("The market pricing snapshot was parsed, but the current community could not be matched in this dashboard.");
     }
   } catch (err) {
-    alert(`Investor snapshot upload failed: ${err.message}`);
+    alert(`Market pricing snapshot upload failed: ${err.message}`);
   } finally {
     if (input) input.value = "";
   }
@@ -26376,7 +26380,7 @@ function renderCompCalculatorPortfolioView(rows, monthIdx) {
 function buildCompCalculatorInvestorSnapshotDocument(data) {
   const logoSrc = resolveExportBrandLogoSrc();
   const { detail, market, activity, recommendation, playbook, pricingRows, floorPlanRows, floorPlanSummary, landscapeRows, meta, monthIdx } = data;
-  const title = `${detail.name} Investor Snapshot`;
+  const title = `${detail.name} Market Pricing Snapshot`;
   const subjectLabel = recommendation.mode === "aggressive"
     ? "AGGRESSIVE"
     : recommendation.mode === "conservative"
@@ -26435,7 +26439,7 @@ function buildCompCalculatorInvestorSnapshotDocument(data) {
             <div>
               <img src="${logoSrc}" alt="RISE logo">
               <h1>${escapeHtml(title)}</h1>
-              <p>${escapeHtml(meta.city)} · ${escapeHtml(meta.marketArea)} · ${escapeHtml(FULL_MONTHS[monthIdx])}. This report uses the saved Ronaldo activity for the subject property and the uploaded comp survey for the market read, then blends both into a printable investor snapshot.</p>
+              <p>${escapeHtml(meta.city)} · ${escapeHtml(meta.marketArea)} · ${escapeHtml(FULL_MONTHS[monthIdx])}. This report uses the saved Ronaldo activity for the subject property and the uploaded comp survey for the market read, then blends both into a printable pricing snapshot.</p>
             </div>
             <div class="meta">
               <div>${escapeHtml(activity.sourceLabel)}</div>
@@ -26586,7 +26590,7 @@ function buildCompCalculatorInvestorSnapshotDocument(data) {
               </table>
             </div>
           </div>
-          <div class="footer">This investor snapshot is generated from ATLAS RISE dashboard data and is meant to match the market-table layout in the attached examples while keeping RISE branding and subject-property data intact.</div>
+          <div class="footer">This pricing snapshot is generated from ATLAS RISE dashboard data and is meant to match the market-table layout in the attached examples while keeping RISE branding and subject-property data intact.</div>
         </div>
       </div>
     </body>
@@ -26604,7 +26608,7 @@ function openCompCalculatorInvestorSnapshot(detailName, monthIdx = getSelectedDa
   const data = buildCompCalculatorSnapshotData(detail, market, monthIdx);
   const win = window.open("", "_blank");
   if (!win) {
-    alert("The investor snapshot could not be opened because the browser blocked the popup.");
+    alert("The pricing snapshot could not be opened because the browser blocked the popup.");
     return false;
   }
   win.document.write(buildCompCalculatorInvestorSnapshotDocument(data));
@@ -26706,7 +26710,7 @@ function renderCompCalculatorCommunityView(detail, market, monthIdx) {
         <div class="comp-calc-controls">${controlHtml}</div>
         <div class="comp-calc-toolbar-actions">
           <button type="button" class="btn btn-sm btn-primary" onclick="renderTab()">Analyze &amp; Generate</button>
-          <button type="button" class="btn btn-sm btn-gray" onclick='return openCompCalculatorInvestorSnapshot(${JSON.stringify(detail.name)}, ${monthIdx})'>Investor Snapshot</button>
+          <button type="button" class="btn btn-sm btn-gray" onclick='return openCompCalculatorInvestorSnapshot(${JSON.stringify(detail.name)}, ${monthIdx})'>Pricing Snapshot</button>
         </div>
       </div>
       <div class="comp-calc-kpi-grid">
@@ -26879,7 +26883,7 @@ function renderCompCalculatorCommunityView(detail, market, monthIdx) {
         <div class="comp-calc-section-title">
           <div>
             <h3>Marketing Expert Recommendation</h3>
-            <div class="comp-calc-sub">This narrative is what you can carry straight into the investor snapshot export.</div>
+            <div class="comp-calc-sub">This narrative is what you can carry straight into the pricing snapshot export.</div>
           </div>
           <div class="comp-calc-section-badge">Narrative</div>
         </div>
@@ -27102,7 +27106,7 @@ function renderPortfolioHomeTab() {
                 ${note ? `<div class="meta" style="grid-column:1/-1">${escapeHtml(note)}</div>` : ""}
               </div>`;
             }).join("")
-        : `<div class="alert alert-info">Upload APTIQ market surveys in Data Import or investor snapshots in Community Setup to surface pricing highlights here.</div>`,
+        : `<div class="alert alert-info">Upload APTIQ market surveys in Data Import or pricing snapshots in Community Setup to surface pricing highlights here.</div>`,
       `<div class="alert alert-info">Market survey highlights are temporarily unavailable for this snapshot.</div>`
     );
     const marketSurveyCommunitySnapshotHtml = renderSafeSection(
@@ -27568,11 +27572,15 @@ function renderReportingTab() {
     : `<div style="font-size:0.72rem;color:var(--muted)">No saved community contacts are available in the current scope yet.</div>`;
   const reportMonthLabel = `${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`;
   const selectedReportSections = getSelectedPortfolioReportSections();
-  const ownerFilterSummary = `${(portfolioReportFilters.investorGroups ?? []).length} investor group(s) · ${(portfolioReportFilters.investorCommunities ?? []).length} highlighted communit${(portfolioReportFilters.investorCommunities ?? []).length === 1 ? "y" : "ies"}`;
+  const ownerFilterSummary = normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE
+    ? `${(portfolioReportFilters.investorGroups ?? []).length} distribution group(s) · ${(portfolioReportFilters.investorCommunities ?? []).length} property override${(portfolioReportFilters.investorCommunities ?? []).length === 1 ? "" : "s"}`
+    : `${(portfolioReportFilters.investorGroups ?? []).length} investor group(s) · ${(portfolioReportFilters.investorCommunities ?? []).length} highlighted communit${(portfolioReportFilters.investorCommunities ?? []).length === 1 ? "y" : "ies"}`;
   const communityProgressFilterSummary = `${communityProgressSelectionNames.length} communit${communityProgressSelectionNames.length === 1 ? "y" : "ies"} selected`;
   const reportNeedsScopeBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && normalizedType !== "renewal_performance" && normalizedType !== "financial_review" && normalizedType !== "eviction_report" && !["community_progress", "market_comparison"].includes(normalizedType);
-  const reportNeedsSectionBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && normalizedType !== "renewal_performance" && normalizedType !== "financial_review" && normalizedType !== "eviction_report" && !["community_progress", "market_comparison"].includes(normalizedType);
-  const reportTypeDescription = normalizedType === "investor_marketing_report"
+  const reportNeedsSectionBuilder = normalizedType !== RISE_WEEKLY_LEASING_REPORT_TYPE && normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && normalizedType !== "renewal_performance" && normalizedType !== "financial_review" && normalizedType !== "eviction_report" && !["community_progress", "market_comparison"].includes(normalizedType);
+  const reportTypeDescription = normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE
+    ? "Two-page document-style leasing weekly report built from approved ATLAS operating data."
+    : normalizedType === "investor_marketing_report"
     ? "Combines traffic and funnel performance with comp calculator and market-survey context."
     : normalizedType === "monthly_investor_deck"
       ? "Builds the branded monthly report deck from the selected investor scope."
@@ -27595,16 +27603,16 @@ function renderReportingTab() {
           : "Investor-facing operating snapshot across the selected investor groups and highlighted communities.";
   const scopeFilterHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
       <div class="report-hub-card">
-        <div class="card-title" style="margin-bottom:8px">Investor Groups</div>
+        <div class="card-title" style="margin-bottom:8px">${normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE ? "Portfolio / Distribution Groups" : "Investor Groups"}</div>
         <div class="bonus-assignment-chip-wrap">
           ${getInvestorReportFilterOptions().length > 0 ? getInvestorReportFilterOptions().map(name => {
             const isActive = (portfolioReportFilters.investorGroups ?? []).includes(name);
             return `<button class="bonus-community-chip ${isActive ? "active" : ""}" onclick='togglePortfolioReportFilter("investorGroups", ${JSON.stringify(name)})'>${escapeHtml(name)}</button>`;
-          }).join("") : `<div style="font-size:0.72rem;color:var(--muted)">Add investor names in Community Setup to group communities here.</div>`}
+          }).join("") : `<div style="font-size:0.72rem;color:var(--muted)">${normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE ? "Add group names in Community Setup to filter or distribute this report." : "Add investor names in Community Setup to group communities here."}</div>`}
         </div>
       </div>
       <div class="report-hub-card">
-        <div class="card-title" style="margin-bottom:8px">Highlighted Communities</div>
+        <div class="card-title" style="margin-bottom:8px">${normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE ? "Property / Portfolio Scope" : "Highlighted Communities"}</div>
         <div class="bonus-assignment-chip-wrap">
           ${reportBuilderDetails.map(detail => {
             const name = detail.name;
@@ -27685,8 +27693,8 @@ function renderReportingTab() {
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Report Type</div>
         <select onchange="setReportHubType(this.value)">
+          <option value="${RISE_WEEKLY_LEASING_REPORT_TYPE}" ${reportHubType===RISE_WEEKLY_LEASING_REPORT_TYPE?"selected":""}>${RISE_WEEKLY_LEASING_REPORT_TITLE}</option>
           <option value="dlr" ${reportHubType==="dlr"?"selected":""}>DLR</option>
-          <option value="investor_snapshot" ${reportHubType==="investor_snapshot"?"selected":""}>Investor Snapshot</option>
           <option value="investor_marketing_report" ${reportHubType==="investor_marketing_report"?"selected":""}>Marketing Report</option>
           <option value="bonus_payout" ${reportHubType==="bonus_payout"?"selected":""}>Bonus Payout Report</option>
           <option value="monthly_investor_deck" ${reportHubType==="monthly_investor_deck"?"selected":""}>Monthly Report</option>
@@ -27701,9 +27709,9 @@ function renderReportingTab() {
       </div>
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Report View</div>
-        ${normalizedType === "community_progress" || normalizedType === "leasing_velocity" || normalizedType === "renewal_performance" || normalizedType === "financial_review" || normalizedType === "eviction_report"
-          ? `<div style="padding:8px 10px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2);font-size:0.78rem;font-weight:700;color:var(--accent)">${normalizedType === "leasing_velocity" ? "LVR Template" : "C-Suite View"}</div>
-             <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${normalizedType === "leasing_velocity" ? "The exported template contains its own stabilized / lease-up mode control." : "This report is locked to a c-suite lens so the output stays focused on operating performance and data confidence checks."}</div>`
+        ${normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE || normalizedType === "community_progress" || normalizedType === "leasing_velocity" || normalizedType === "renewal_performance" || normalizedType === "financial_review" || normalizedType === "eviction_report"
+          ? `<div style="padding:8px 10px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2);font-size:0.78rem;font-weight:700;color:var(--accent)">${normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE ? "Portfolio Leasing Weekly" : (normalizedType === "leasing_velocity" ? "LVR Template" : "C-Suite View")}</div>
+             <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE ? "This report is locked to the source operating-report structure so the preview and export stay presentation-ready." : (normalizedType === "leasing_velocity" ? "The exported template contains its own stabilized / lease-up mode control." : "This report is locked to a c-suite lens so the output stays focused on operating performance and data confidence checks.")}</div>`
           : `<select onchange="setReportHubPerspective(this.value)">
               <option value="investor" ${reportHubPerspective==="investor"?"selected":""}>Investor facing</option>
               <option value="csuite" ${reportHubPerspective==="csuite"?"selected":""}>C-Suite View</option>
@@ -27736,8 +27744,8 @@ function renderReportingTab() {
     ${reportNeedsScopeBuilder ? `<div class="report-hub-card" style="margin-bottom:14px">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
         <div>
-          <div class="card-title" style="margin-bottom:6px">Portfolio Report Builder</div>
-          <p style="font-size:0.72rem;color:var(--muted)">Use investor groups and highlighted communities to define the reporting scope. The live preview below updates from this builder.</p>
+          <div class="card-title" style="margin-bottom:6px">${normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE ? "Property / Portfolio Scope" : "Portfolio Report Builder"}</div>
+          <p style="font-size:0.72rem;color:var(--muted)">${normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE ? "Default output is the full RISE portfolio. Select a group or property only when the weekly report needs a narrower scope." : "Use investor groups and highlighted communities to define the reporting scope. The live preview below updates from this builder."}</p>
         </div>
         <div style="font-size:0.68rem;color:var(--muted)">${ownerFilterSummary}</div>
       </div>
@@ -27831,6 +27839,9 @@ function renderReportHubFinancialReviewBridge() {
 }
 
 function renderReportHubInlinePreview(type = normalizeReportHubType(reportHubType), selectedSections = getSelectedPortfolioReportSections()) {
+  if (type === RISE_WEEKLY_LEASING_REPORT_TYPE) {
+    return renderRisePortfolioLeasingWeeklyWorkspace();
+  }
   if (type === "dlr") {
     return `<div class="card mb4" id="reporting-inline-preview">${renderDlrReportingWorkspace()}</div>`;
   }
@@ -27882,10 +27893,10 @@ function renderReportHubInlinePreview(type = normalizeReportHubType(reportHubTyp
   }
   const payload = buildPortfolioReportRows({ silent: true });
   return renderReportHubPreviewFrame(
-    type === "investor_marketing_report" ? "Marketing Report" : "Investor Snapshot",
+    "Marketing Report",
     type === "investor_marketing_report"
       ? "Preview blends traffic and funnel momentum with comp calculator and market-survey context."
-      : "Preview shows the current investor-facing operating snapshot for the selected scope.",
+      : "Preview shows the current investor-facing operating report for the selected scope.",
     payload ? buildPortfolioPerformanceReportDocument(payload.report) : "",
     `<button class="btn btn-gray btn-sm" onclick="exportPortfolioReportCSV()">⬇ CSV</button><button class="btn btn-gray btn-sm" onclick="exportPortfolioReportExcel()">📊 Excel</button><button class="btn btn-blue btn-sm" onclick="openPortfolioPerformanceReport(true)">🖨 PDF / Print</button>`
   );
@@ -28343,7 +28354,7 @@ function setReportHubPerspective(value) {
 
 function getReportHubTypeLabel(type = reportHubType) {
   return {
-    investor_snapshot: "Investor Snapshot",
+    [RISE_WEEKLY_LEASING_REPORT_TYPE]: RISE_WEEKLY_LEASING_REPORT_TITLE,
     monthly_investor_deck: "Monthly Report",
     investor_marketing_report: "Marketing Report",
     dlr: "DLR",
@@ -28354,7 +28365,7 @@ function getReportHubTypeLabel(type = reportHubType) {
     renewal_performance: "Renewal Performance Report",
     financial_review: "Budget vs Actual Financial Review",
     eviction_report: "Eviction Report"
-  }[normalizeReportHubType(type)] || "Investor Snapshot";
+  }[normalizeReportHubType(type)] || RISE_WEEKLY_LEASING_REPORT_TITLE;
 }
 
 function getReportPerspectiveLabel(value = reportHubPerspective) {
@@ -28438,7 +28449,7 @@ function configureReportHubDefaultsForType(type) {
       reputation: true,
       finances: false
     });
-  } else if (normalized === "investor_snapshot") {
+  } else if (normalized === RISE_WEEKLY_LEASING_REPORT_TYPE) {
     portfolioReportMode = "owner";
     reportHubPerspective = "investor";
     portfolioReportSections = normalizePortfolioReportSections({
@@ -29623,7 +29634,7 @@ function buildPortfolioReportData() {
   const type = normalizeReportHubType(reportHubType);
   const reportTitle = type === "investor_marketing_report"
       ? "ATLAS RISE Investor Marketing Report"
-      : "ATLAS RISE Investor Snapshot";
+      : "ATLAS RISE Portfolio Operating Report";
   const reportSubtitle = `${getReportPerspectiveLabel()} · selected investor groups and highlighted communities`;
   const aggregate = aggregateCommunitySummaries(details.map(detail => detail.summary));
   aggregate.marketSurveyAggregate = buildMarketSurveyAggregateForDetails(details);
@@ -29865,10 +29876,10 @@ function openPortfolioPerformanceReport(printImmediately = false) {
   if (!payload) return;
   const documentHtml = buildPortfolioPerformanceReportDocument(payload.report);
   if (printImmediately) {
-    printReportHtmlInHiddenFrame(documentHtml, { title: payload.report?.title || "ATLAS RISE Investor Snapshot" });
+    printReportHtmlInHiddenFrame(documentHtml, { title: payload.report?.title || "ATLAS RISE Portfolio Operating Report" });
     return;
   }
-  const win = openPopupReportWindow(payload.report?.title || "ATLAS RISE Investor Snapshot");
+  const win = openPopupReportWindow(payload.report?.title || "ATLAS RISE Portfolio Operating Report");
   if (!win) return;
   finalizePopupReportWindow(win, documentHtml, false, 200);
 }
@@ -32651,7 +32662,8 @@ function getReportHubActionOptions(type = reportHubType) {
     { value: "print", label: "Print / PDF" },
     { value: "email", label: "Draft Email" }
   ];
-  if (["investor_snapshot", "investor_marketing_report"].includes(normalizedType)) return [...common, { value: "export_csv", label: "Export CSV" }, { value: "export_excel", label: "Export Excel" }];
+  if (normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE) return [...common, { value: "export_html", label: "Download Editable HTML" }, { value: "export_csv", label: "Export CSV" }, { value: "export_excel", label: "Export Excel" }];
+  if (normalizedType === "investor_marketing_report") return [...common, { value: "export_csv", label: "Export CSV" }, { value: "export_excel", label: "Export Excel" }];
   if (normalizedType === "monthly_investor_deck") return [...common, { value: "export_html", label: "Download Editable HTML" }];
   if (normalizedType === "dlr") return [...common, { value: "export_html", label: "Download Editable HTML" }];
   if (normalizedType === "leasing_velocity") return [
@@ -32684,7 +32696,22 @@ function buildReportHubEmailDraft(type = reportHubType) {
   const selectedRecipients = ensureReportHubRecipientSelection().filter(contact => reportHubRecipientKeys.includes(contact.key));
   const to = selectedRecipients.map(contact => contact.email).join("; ");
   const scopeLabel = getWorkspaceScopeDisplayName();
-  if (["investor_snapshot", "investor_marketing_report"].includes(normalizedType)) {
+  if (normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE) {
+    const report = buildRisePortfolioLeasingWeeklyReportData();
+    if (!report) return null;
+    return {
+      to,
+      subject: `${report.title} | ${report.reportPeriodLabel}`,
+      body: [
+        report.title,
+        `${report.scopeLabel} | ${report.reportPeriodLabel}`,
+        "",
+        "The latest RISE Portfolio Leasing Weekly Report is ready from the ATLAS Reporting Hub.",
+        "Use Preview, Print / PDF, or Download Editable HTML before sending so the two-page operating-report layout is included."
+      ].join("\n")
+    };
+  }
+  if (normalizedType === "investor_marketing_report") {
     const payload = buildPortfolioReportRows();
     if (!payload) return null;
     return {
@@ -34086,6 +34113,844 @@ function buildPortfolioDlrOverviewDocument(report) {
   </body></html>`;
 }
 
+function hasRiseWeeklyMetric(value) {
+  return value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
+}
+
+function pickRiseWeeklyMetric(...values) {
+  for (const value of values) {
+    if (hasRiseWeeklyMetric(value)) return Number(value);
+  }
+  return null;
+}
+
+function formatRiseWeeklyCount(value) {
+  return hasRiseWeeklyMetric(value) ? Math.round(Number(value)).toLocaleString() : "N/A";
+}
+
+function formatRiseWeeklyPct(value, digits = 1) {
+  return hasRiseWeeklyMetric(value) ? `${Number(value).toFixed(digits)}%` : "N/A";
+}
+
+function formatRiseWeeklySignedPp(value) {
+  if (!hasRiseWeeklyMetric(value)) return "N/A";
+  const numeric = Number(value);
+  return `${numeric >= 0 ? "+" : ""}${numeric.toFixed(1)} pp`;
+}
+
+function getRiseWeeklyChangeClass(value) {
+  if (!hasRiseWeeklyMetric(value) || Math.abs(Number(value)) < 0.05) return "neutral";
+  return Number(value) > 0 ? "positive" : "negative";
+}
+
+function getRiseWeeklyPreviousPeriod(monthIdx = getReportHubMonthIndex(), year = getReportHubYear()) {
+  return getPreviousMonthForReport(monthIdx, year);
+}
+
+function getRiseWeeklyReportThroughDate(report = {}) {
+  const dates = [];
+  const addDate = value => {
+    const parsed = parseDlrSpecificDate(value) || new Date(value);
+    if (parsed instanceof Date && !isNaN(parsed)) dates.push(parsed);
+  };
+  addDate(report.reportDateIso);
+  addDate(report.reportDateLabel);
+  (Array.isArray(report.communityReports) ? report.communityReports : []).forEach(item => {
+    addDate(item?.reportDateIso);
+    addDate(item?.reportDateLabel);
+  });
+  if (dates.length > 0) {
+    return new Date(Math.max(...dates.map(date => date.getTime())));
+  }
+  const monthIdx = Number.isInteger(report.reportMonthIdx) ? report.reportMonthIdx : getReportHubMonthIndex();
+  const year = Number.isFinite(Number(report.reportYear)) ? Number(report.reportYear) : getReportHubYear();
+  const now = new Date();
+  if (now.getMonth() === monthIdx && now.getFullYear() === year) return now;
+  return new Date(year, monthIdx + 1, 0);
+}
+
+function getRiseWeeklyMonthEndProjectedPct(report = {}) {
+  const monthIdx = Number.isInteger(report.reportMonthIdx) ? report.reportMonthIdx : getReportHubMonthIndex();
+  const currentMonthRow = (Array.isArray(report.forwardLook) ? report.forwardLook : []).find(row => Number(row?.monthIdx) === monthIdx);
+  const firstRow = Array.isArray(report.forwardLook) ? report.forwardLook[0] : null;
+  return pickRiseWeeklyMetric(
+    currentMonthRow?.projectedOccupancy,
+    firstRow?.projectedOccupancy,
+    report.trendingOccupancyPct,
+    report.occupancyPct
+  );
+}
+
+function getRiseWeeklyMakeReadyMetrics(communityReport = {}) {
+  const monthIdx = Number.isInteger(communityReport.reportMonthIdx) ? communityReport.reportMonthIdx : getReportHubMonthIndex();
+  const year = Number.isFinite(Number(communityReport.reportYear)) ? Number(communityReport.reportYear) : getReportHubYear();
+  const overlay = getDlrWorkbookOverlayForCommunity(communityReport.communityName, monthIdx, year);
+  const monthEntry = communityReport.rawMonthEntry || {};
+  const dailyBoxScore = normalizeDlrSummary(communityReport.sourceRecord?.latestDlrSummary).dailyBoxScore || {};
+  const totalVacantFromUnits = hasRiseWeeklyMetric(communityReport.totalUnits) && hasRiseWeeklyMetric(communityReport.occupiedUnits)
+    ? Math.max(0, Number(communityReport.totalUnits) - Number(communityReport.occupiedUnits))
+    : null;
+  const readyVacant = pickRiseWeeklyMetric(
+    overlay?.readyVacant,
+    monthEntry.ready_units,
+    monthEntry.readyVacant
+  );
+  const notReadyVacant = pickRiseWeeklyMetric(
+    overlay?.notReadyVacant,
+    monthEntry.not_ready_units,
+    monthEntry.notReadyVacant
+  );
+  const totalVacant = pickRiseWeeklyMetric(
+    overlay?.vacantUnits,
+    monthEntry.total_vacant,
+    monthEntry.vacantUnits,
+    dailyBoxScore.vacantUnits,
+    totalVacantFromUnits,
+    hasRiseWeeklyMetric(readyVacant) || hasRiseWeeklyMetric(notReadyVacant)
+      ? (Number(readyVacant) || 0) + (Number(notReadyVacant) || 0)
+      : null
+  );
+  return {
+    totalVacant,
+    readyVacant,
+    notReadyVacant,
+    hasBreakdown: hasRiseWeeklyMetric(readyVacant) || hasRiseWeeklyMetric(notReadyVacant),
+    hasAny: hasRiseWeeklyMetric(totalVacant) || hasRiseWeeklyMetric(readyVacant) || hasRiseWeeklyMetric(notReadyVacant)
+  };
+}
+
+function buildRiseWeeklyPropertyRows(report = {}) {
+  const monthIdx = Number.isInteger(report.reportMonthIdx) ? report.reportMonthIdx : getReportHubMonthIndex();
+  const year = Number.isFinite(Number(report.reportYear)) ? Number(report.reportYear) : getReportHubYear();
+  const previousPeriod = getRiseWeeklyPreviousPeriod(monthIdx, year);
+  const reports = Array.isArray(report.communityReports) ? report.communityReports : [];
+  const rows = reports.map(communityReport => {
+    const previousReport = buildDashboardDlrInvestorOverview(communityReport.communityName, previousPeriod.monthIdx, previousPeriod.year);
+    const traffic = communityReport.trafficMetrics || {};
+    const projectedPct = getRiseWeeklyMonthEndProjectedPct(communityReport);
+    const previousOccPct = pickRiseWeeklyMetric(previousReport?.occupancyPct);
+    const currentOccPct = pickRiseWeeklyMetric(communityReport.occupancyPct);
+    const makeReady = getRiseWeeklyMakeReadyMetrics(communityReport);
+    return {
+      property: communityReport.communityName,
+      currentOccPct,
+      leasedPct: pickRiseWeeklyMetric(communityReport.leasedPct),
+      projectedPct,
+      previousOccPct,
+      changePp: hasRiseWeeklyMetric(previousOccPct) && hasRiseWeeklyMetric(projectedPct)
+        ? Number(projectedPct) - Number(previousOccPct)
+        : (hasRiseWeeklyMetric(projectedPct) && hasRiseWeeklyMetric(currentOccPct) ? Number(projectedPct) - Number(currentOccPct) : null),
+      leads: pickRiseWeeklyMetric(traffic.guestCards, traffic.rolledGuestCards),
+      tours: pickRiseWeeklyMetric(traffic.tours),
+      leases: pickRiseWeeklyMetric(traffic.leases),
+      apps: pickRiseWeeklyMetric(traffic.applications),
+      moveIns: pickRiseWeeklyMetric(traffic.moveIns),
+      moveOuts: pickRiseWeeklyMetric(traffic.moveOuts),
+      sourceBreakdown: {
+        walkIn: Math.max(0, Number(traffic.walkIn) || 0),
+        offSiteEvent: Math.max(0, Number(traffic.offSiteEvent) || 0),
+        phoneCalls: Math.max(0, Number(traffic.phoneCalls) || 0),
+        emailsOnline: Math.max(0, Number(traffic.emailsOnline) || 0),
+        textChatOther: Math.max(0, Number(traffic.textChatOther) || 0)
+      },
+      totalUnits: pickRiseWeeklyMetric(communityReport.totalUnits, communityReport.pricing?.totalUnits),
+      occupancyBaseUnits: pickRiseWeeklyMetric(communityReport.occupancyBaseUnits, communityReport.totalUnits, communityReport.pricing?.totalUnits),
+      occupiedUnits: pickRiseWeeklyMetric(communityReport.occupiedUnits),
+      makeReady,
+      isPortfolio: false
+    };
+  });
+  const previousReports = reports
+    .map(communityReport => buildDashboardDlrInvestorOverview(communityReport.communityName, previousPeriod.monthIdx, previousPeriod.year))
+    .filter(Boolean);
+  const previousBaseUnits = previousReports.reduce((sum, item) => sum + (Number(item.occupancyBaseUnits ?? item.totalUnits) || 0), 0);
+  const previousOccupiedUnits = previousReports.reduce((sum, item) => sum + (Number(item.occupiedUnits) || 0), 0);
+  const previousPortfolioOccPct = previousBaseUnits > 0 ? (previousOccupiedUnits / previousBaseUnits) * 100 : null;
+  const projectedBaseUnits = rows.reduce((sum, row) => sum + (Number(row.occupancyBaseUnits ?? row.totalUnits) || 0), 0);
+  const projectedUnits = rows.reduce((sum, row) => {
+    const baseUnits = Number(row.occupancyBaseUnits ?? row.totalUnits) || 0;
+    return sum + (hasRiseWeeklyMetric(row.projectedPct) ? (Number(row.projectedPct) / 100) * baseUnits : 0);
+  }, 0);
+  const portfolioProjectedPct = projectedBaseUnits > 0
+    ? (projectedUnits / projectedBaseUnits) * 100
+    : getRiseWeeklyMonthEndProjectedPct(report);
+  const traffic = report.trafficMetrics || {};
+  const makeReadyTotals = rows.reduce((acc, row) => {
+    acc.totalVacant += Number(row.makeReady?.totalVacant) || 0;
+    acc.readyVacant += Number(row.makeReady?.readyVacant) || 0;
+    acc.notReadyVacant += Number(row.makeReady?.notReadyVacant) || 0;
+    acc.hasAny = acc.hasAny || Boolean(row.makeReady?.hasAny);
+    acc.hasBreakdown = acc.hasBreakdown || Boolean(row.makeReady?.hasBreakdown);
+    return acc;
+  }, { totalVacant: 0, readyVacant: 0, notReadyVacant: 0, hasAny: false, hasBreakdown: false });
+  rows.push({
+    property: "PORTFOLIO",
+    currentOccPct: pickRiseWeeklyMetric(report.occupancyPct),
+    leasedPct: pickRiseWeeklyMetric(report.leasedPct),
+    projectedPct: portfolioProjectedPct,
+    previousOccPct: previousPortfolioOccPct,
+    changePp: hasRiseWeeklyMetric(previousPortfolioOccPct) && hasRiseWeeklyMetric(portfolioProjectedPct)
+      ? Number(portfolioProjectedPct) - Number(previousPortfolioOccPct)
+      : null,
+    leads: pickRiseWeeklyMetric(traffic.guestCards, traffic.rolledGuestCards),
+    tours: pickRiseWeeklyMetric(traffic.tours),
+    leases: pickRiseWeeklyMetric(traffic.leases),
+    apps: pickRiseWeeklyMetric(traffic.applications),
+    moveIns: pickRiseWeeklyMetric(traffic.moveIns),
+    moveOuts: pickRiseWeeklyMetric(traffic.moveOuts),
+    sourceBreakdown: {
+      walkIn: Math.max(0, Number(traffic.walkIn) || 0),
+      offSiteEvent: Math.max(0, Number(traffic.offSiteEvent) || 0),
+      phoneCalls: Math.max(0, Number(traffic.phoneCalls) || 0),
+      emailsOnline: Math.max(0, Number(traffic.emailsOnline) || 0),
+      textChatOther: Math.max(0, Number(traffic.textChatOther) || 0)
+    },
+    totalUnits: pickRiseWeeklyMetric(report.totalUnits, report.pricing?.totalUnits),
+    occupancyBaseUnits: pickRiseWeeklyMetric(report.occupancyBaseUnits, report.totalUnits, report.pricing?.totalUnits),
+    occupiedUnits: pickRiseWeeklyMetric(report.occupiedUnits),
+    makeReady: {
+      totalVacant: makeReadyTotals.hasAny ? makeReadyTotals.totalVacant : null,
+      readyVacant: makeReadyTotals.hasBreakdown ? makeReadyTotals.readyVacant : null,
+      notReadyVacant: makeReadyTotals.hasBreakdown ? makeReadyTotals.notReadyVacant : null,
+      hasAny: makeReadyTotals.hasAny,
+      hasBreakdown: makeReadyTotals.hasBreakdown
+    },
+    isPortfolio: true
+  });
+  return rows;
+}
+
+function buildRiseWeeklyOccupancyTrendPoints(report = {}) {
+  const monthIdx = Number.isInteger(report.reportMonthIdx) ? report.reportMonthIdx : getReportHubMonthIndex();
+  const year = Number.isFinite(Number(report.reportYear)) ? Number(report.reportYear) : getReportHubYear();
+  const communityNames = (Array.isArray(report.communityReports) ? report.communityReports : [])
+    .map(item => item.communityName)
+    .filter(Boolean);
+  const points = [];
+  for (let offset = 5; offset >= 0; offset -= 1) {
+    let targetMonth = monthIdx - offset;
+    let targetYear = year;
+    while (targetMonth < 0) {
+      targetMonth += 12;
+      targetYear -= 1;
+    }
+    const monthlyReports = communityNames
+      .map(name => buildDashboardDlrInvestorOverview(name, targetMonth, targetYear))
+      .filter(Boolean);
+    const baseUnits = monthlyReports.reduce((sum, item) => sum + (Number(item.occupancyBaseUnits ?? item.totalUnits) || 0), 0);
+    const occupiedUnits = monthlyReports.reduce((sum, item) => sum + (Number(item.occupiedUnits) || 0), 0);
+    const value = baseUnits > 0 ? (occupiedUnits / baseUnits) * 100 : (offset === 0 ? Number(report.occupancyPct) : null);
+    if (!hasRiseWeeklyMetric(value)) continue;
+    points.push({
+      label: `${FULL_MONTHS[targetMonth].slice(0, 3)} ${String(targetYear).slice(-2)}`,
+      value
+    });
+  }
+  if (points.length === 0 && hasRiseWeeklyMetric(report.occupancyPct)) {
+    points.push({ label: FULL_MONTHS[monthIdx].slice(0, 3), value: Number(report.occupancyPct) });
+  }
+  return points;
+}
+
+function buildRiseWeeklyLeadSourceRows(report = {}) {
+  const traffic = report.trafficMetrics || {};
+  const baseRows = [
+    {
+      rawMethods: "Email, Online, Chat, Text",
+      mappedChannel: "Digital",
+      leads: Math.max(0, Number(traffic.emailsOnline) || 0)
+    },
+    {
+      rawMethods: "Call",
+      mappedChannel: "Phone",
+      leads: Math.max(0, Number(traffic.phoneCalls) || 0)
+    },
+    {
+      rawMethods: "Walk In",
+      mappedChannel: "Walk-in",
+      leads: Math.max(0, Number(traffic.walkIn) || 0)
+    }
+  ];
+  const eventLeads = Math.max(0, Number(traffic.offSiteEvent) || 0);
+  if (eventLeads > 0) {
+    baseRows.push({
+      rawMethods: "Off Site Event",
+      mappedChannel: "Event",
+      leads: eventLeads
+    });
+  }
+  baseRows.push({
+    rawMethods: "Other",
+    mappedChannel: "Other / Unattributed",
+    leads: Math.max(0, Number(traffic.textChatOther) || 0)
+  });
+  const sourceTotal = baseRows.reduce((sum, row) => sum + row.leads, 0);
+  const reportLeadTotal = Math.max(0, Number(traffic.guestCards ?? traffic.rolledGuestCards) || 0);
+  if (sourceTotal === 0 && reportLeadTotal > 0) {
+    baseRows[baseRows.length - 1].leads = reportLeadTotal;
+  }
+  const denominator = Math.max(baseRows.reduce((sum, row) => sum + row.leads, 0), reportLeadTotal, 1);
+  return baseRows.map(row => ({
+    ...row,
+    sharePct: denominator > 0 ? (row.leads / denominator) * 100 : 0
+  }));
+}
+
+function buildRiseWeeklyDataQualityNotes(report = {}, propertyRows = [], leadSourceRows = []) {
+  const notes = [];
+  const traffic = report.trafficMetrics || {};
+  const leadTotal = Math.max(0, Number(traffic.guestCards ?? traffic.rolledGuestCards) || 0);
+  const mappedSourceTotal = leadSourceRows.reduce((sum, row) => sum + Math.max(0, Number(row.leads) || 0), 0);
+  if (leadTotal > 0 && Math.abs(mappedSourceTotal - leadTotal) > 0.5) {
+    notes.push(`${formatRiseWeeklyCount(Math.abs(mappedSourceTotal - leadTotal))} lead${Math.abs(mappedSourceTotal - leadTotal) === 1 ? "" : "s"} do not reconcile between total leads and mapped source rows. Review contact-method totals before distribution.`);
+  }
+  const otherSourceRow = leadSourceRows.find(row => row.mappedChannel === "Other / Unattributed");
+  if (leadTotal > 0 && Number(otherSourceRow?.leads || 0) >= Math.max(10, leadTotal * 0.1)) {
+    notes.push(`${formatRiseWeeklyCount(otherSourceRow.leads)} leads sit in Other / Unattributed. This is separate from total lead capture: those leads retain activity volume but need contact-method cleanup.`);
+  }
+  const makeReadyMissing = propertyRows
+    .filter(row => !row.isPortfolio && Number(row.makeReady?.totalVacant || 0) > 0 && !row.makeReady?.hasBreakdown)
+    .map(row => row.property);
+  if (makeReadyMissing.length > 0) {
+    notes.push(`${makeReadyMissing.length} propert${makeReadyMissing.length === 1 ? "y has" : "ies have"} vacant inventory without ready / not-ready detail: ${makeReadyMissing.slice(0, 4).join(", ")}${makeReadyMissing.length > 4 ? ", plus more" : ""}.`);
+  }
+  return notes;
+}
+
+function buildRiseWeeklyOperatingSignals(data = {}) {
+  const portfolioRow = (data.propertyRows || []).find(row => row.isPortfolio) || {};
+  const leads = Math.max(0, Number(portfolioRow.leads) || 0);
+  const tours = Math.max(0, Number(portfolioRow.tours) || 0);
+  const apps = Math.max(0, Number(portfolioRow.apps) || 0);
+  const leases = Math.max(0, Number(portfolioRow.leases) || 0);
+  const leadToLeasePct = leads > 0 ? (leases / leads) * 100 : 0;
+  const moveIns = Math.max(0, Number(portfolioRow.moveIns) || 0);
+  const moveOuts = Math.max(0, Number(portfolioRow.moveOuts) || 0);
+  const netOccupied = moveIns - moveOuts;
+  const makeReady = portfolioRow.makeReady || {};
+  const notReadyLeaders = (data.propertyRows || [])
+    .filter(row => !row.isPortfolio && Number(row.makeReady?.notReadyVacant || 0) > 0)
+    .sort((a, b) => Number(b.makeReady.notReadyVacant) - Number(a.makeReady.notReadyVacant))
+    .slice(0, 3);
+  return [
+    {
+      label: "DEMAND",
+      body: `${formatRiseWeeklyCount(leads)} leads, ${formatRiseWeeklyCount(tours)} tours, ${formatRiseWeeklyCount(apps)} completed applications, and ${formatRiseWeeklyCount(leases)} completed leases are recorded month to date. Lead-to-lease activity is ${formatRiseWeeklyPct(leadToLeasePct, 1)}.`
+    },
+    {
+      label: "MOVE ACTIVITY",
+      body: `${formatRiseWeeklyCount(moveIns)} move-ins and ${formatRiseWeeklyCount(moveOuts)} move-outs produce a ${formatRiseWeeklySignedPp(netOccupied).replace(" pp", "")} occupied-unit ${netOccupied >= 0 ? "gain" : "loss"} for the period.`
+    },
+    {
+      label: "MAKE-READY",
+      body: makeReady?.hasAny
+        ? `${formatRiseWeeklyCount(makeReady.totalVacant)} total vacant units are identified, including ${formatRiseWeeklyCount(makeReady.readyVacant)} vacant ready and ${formatRiseWeeklyCount(makeReady.notReadyVacant)} vacant not ready.${notReadyLeaders.length > 0 ? ` Highest not-ready inventory: ${notReadyLeaders.map(row => `${row.property} (${formatRiseWeeklyCount(row.makeReady.notReadyVacant)})`).join(", ")}.` : ""}`
+        : "Make-ready detail is not loaded for this scope yet, so vacant ready and vacant not-ready counts are held out of the narrative."
+    }
+  ];
+}
+
+function buildRiseWeeklyManagementAttention(data = {}) {
+  const propertyRows = (data.propertyRows || []).filter(row => !row.isPortfolio);
+  const pressureRows = propertyRows
+    .filter(row => hasRiseWeeklyMetric(row.changePp) && Number(row.changePp) < -0.05)
+    .sort((a, b) => Number(a.changePp) - Number(b.changePp))
+    .slice(0, 4);
+  const momentumRows = propertyRows
+    .filter(row => hasRiseWeeklyMetric(row.changePp) && Number(row.changePp) > 0.05)
+    .sort((a, b) => Number(b.changePp) - Number(a.changePp))
+    .slice(0, 4);
+  const conversionRows = propertyRows
+    .filter(row => Number(row.leads || 0) > 0)
+    .map(row => ({
+      ...row,
+      leadToLeasePct: (Number(row.leases || 0) / Math.max(Number(row.leads || 0), 1)) * 100
+    }))
+    .sort((a, b) => {
+      const pctDelta = a.leadToLeasePct - b.leadToLeasePct;
+      if (Math.abs(pctDelta) > 0.1) return pctDelta;
+      return Number(b.leads || 0) - Number(a.leads || 0);
+    });
+  const conversionWatch = conversionRows[0] || null;
+  const otherRow = (data.leadSourceRows || []).find(row => row.mappedChannel === "Other / Unattributed");
+  const topOtherProperties = propertyRows
+    .filter(row => Number(row.sourceBreakdown?.textChatOther || 0) > 0)
+    .sort((a, b) => Number(b.sourceBreakdown.textChatOther || 0) - Number(a.sourceBreakdown.textChatOther || 0))
+    .slice(0, 3);
+  return [
+    {
+      label: "PROJECTED OCCUPANCY PRESSURE",
+      body: pressureRows.length > 0
+        ? `${pressureRows.map(row => `${row.property} (${formatRiseWeeklySignedPp(row.changePp)})`).join(", ")} are projected to lose occupancy by month end.`
+        : "No selected property is projected to lose occupancy by month end."
+    },
+    {
+      label: "LEASE-UP MOMENTUM",
+      body: momentumRows.length > 0
+        ? `${momentumRows.map(row => `${row.property} (${formatRiseWeeklySignedPp(row.changePp)})`).join(", ")} show the strongest projected occupancy gains.`
+        : "No selected property shows a material projected occupancy gain in the current data."
+    },
+    {
+      label: "CONVERSION WATCH",
+      body: conversionWatch
+        ? `${conversionWatch.property} has ${formatRiseWeeklyCount(conversionWatch.leads)} leads and ${formatRiseWeeklyCount(conversionWatch.leases)} completed leases, a ${formatRiseWeeklyPct(conversionWatch.leadToLeasePct, 1)} lead-to-lease conversion.`
+        : "No lead volume is loaded yet, so conversion watch will populate once source activity and leases are available."
+    },
+    {
+      label: "ATTRIBUTION CLEANUP",
+      body: Number(otherRow?.leads || 0) > 0
+        ? `${formatRiseWeeklyCount(otherRow.leads)} leads are mapped to Other / Unattributed (${formatRiseWeeklyPct(otherRow.sharePct, 1)} of mapped leads).${topOtherProperties.length > 0 ? ` Largest contributors: ${topOtherProperties.map(row => `${row.property} (${formatRiseWeeklyCount(row.sourceBreakdown.textChatOther)})`).join(", ")}.` : ""}`
+        : "No Other / Unattributed lead activity is present in the current mapped source mix."
+    }
+  ];
+}
+
+function buildRiseWeeklySourceMethod(data = {}) {
+  const report = data.sourceReport || {};
+  const methodItems = [
+    "Actual and month-to-date metrics are read from approved ATLAS Box Score uploads and saved community month-to-date records.",
+    "Projected month-end occupancy uses ATLAS trending data, scheduled move-ins, scheduled move-outs, and current unit counts for the selected reporting period.",
+    "Lead source mapping uses saved ATLAS contact-method buckets: Email / Online maps to Digital, Call maps to Phone, Walk In maps to Walk-in, Off Site Event maps to Event, and the combined Text / Chat / Other bucket is held as Other / Unattributed until raw method splits are available.",
+    "Make-ready counts use imported ready, not-ready, and total vacant fields when present, with vacant unit totals reconciled back to current occupied and total units."
+  ];
+  const exceptions = [];
+  const corporateUnits = (Array.isArray(report.communityReports) ? report.communityReports : [])
+    .reduce((sum, item) => sum + (Number(item.sourceRecord?.corporateLeaseUnits) || 0), 0);
+  if (corporateUnits > 0) {
+    exceptions.push(`${formatRiseWeeklyCount(corporateUnits)} corporate or excluded units are removed from the occupancy denominator where configured.`);
+  }
+  if (data.dataQualityNotes?.length) {
+    exceptions.push("Data-quality conditions detected above remain disclosed in the report output.");
+  }
+  return `${methodItems.join(" ")}${exceptions.length ? ` ${exceptions.join(" ")}` : ""}`;
+}
+
+function buildRisePortfolioLeasingWeeklyReportData(options = {}) {
+  const silent = options?.silent === true;
+  const sourceReport = buildPortfolioDlrOverviewData({ silent });
+  if (!sourceReport) return null;
+  const monthIdx = Number.isInteger(sourceReport.reportMonthIdx) ? sourceReport.reportMonthIdx : getReportHubMonthIndex();
+  const year = Number.isFinite(Number(sourceReport.reportYear)) ? Number(sourceReport.reportYear) : getReportHubYear();
+  const throughDate = getRiseWeeklyReportThroughDate(sourceReport);
+  const propertyRows = buildRiseWeeklyPropertyRows(sourceReport);
+  const portfolioRow = propertyRows.find(row => row.isPortfolio) || {};
+  const leadSourceRows = buildRiseWeeklyLeadSourceRows(sourceReport);
+  const dataQualityNotes = buildRiseWeeklyDataQualityNotes(sourceReport, propertyRows, leadSourceRows);
+  const scopeLabel = propertyRows.filter(row => !row.isPortfolio).length === 1
+    ? propertyRows.find(row => !row.isPortfolio)?.property || "RISE PORTFOLIO"
+    : "RISE PORTFOLIO";
+  const data = {
+    title: RISE_WEEKLY_LEASING_REPORT_TITLE,
+    headerLabel: "ATLAS OPERATING REPORT | RISE PORTFOLIO",
+    scopeLabel,
+    reportMonthIdx: monthIdx,
+    reportYear: year,
+    reportMonthLabel: FULL_MONTHS[monthIdx],
+    reportingThroughDate: throughDate,
+    reportPeriodLabel: `${FULL_MONTHS[monthIdx]}-to-Date | Reporting through ${formatPresentationDate(throughDate)}`,
+    generatedAt: new Date(),
+    currentOccupancyPct: portfolioRow.currentOccPct,
+    projectedMonthEndPct: portfolioRow.projectedPct,
+    previousMonthChangePp: portfolioRow.changePp,
+    mtdLeads: portfolioRow.leads,
+    applications: portfolioRow.apps,
+    leasesCompleted: portfolioRow.leases,
+    propertyRows,
+    leadSourceRows,
+    occupancyTrendPoints: buildRiseWeeklyOccupancyTrendPoints(sourceReport),
+    operatingSignals: [],
+    dataQualityNotes,
+    managementAttention: [],
+    sourceReport
+  };
+  const priorMonthPhrase = hasRiseWeeklyMetric(data.previousMonthChangePp)
+    ? `${formatRiseWeeklySignedPp(data.previousMonthChangePp)} ${Number(data.previousMonthChangePp) >= 0 ? "above" : "below"} the prior month`
+    : "with no prior-month comparison available";
+  data.executiveReadout = `Current occupancy is ${formatRiseWeeklyPct(data.currentOccupancyPct, 1)}. Scheduled ${FULL_MONTHS[monthIdx]} activity projects a ${formatRiseWeeklyPct(data.projectedMonthEndPct, 1)} month-end finish, ${priorMonthPhrase}.`;
+  data.operatingSignals = buildRiseWeeklyOperatingSignals(data);
+  data.managementAttention = buildRiseWeeklyManagementAttention(data);
+  data.sourceMethod = buildRiseWeeklySourceMethod(data);
+  return data;
+}
+
+function buildRiseWeeklyOccupancyChartSvg(points = []) {
+  const validPoints = (Array.isArray(points) ? points : []).filter(point => hasRiseWeeklyMetric(point.value));
+  if (validPoints.length === 0) {
+    return `<div class="rise-empty-chart">Occupancy trend will populate once historical occupancy is available.</div>`;
+  }
+  const width = 430;
+  const height = 190;
+  const padX = 38;
+  const padTop = 24;
+  const padBottom = 34;
+  const values = validPoints.map(point => Number(point.value));
+  let minValue = Math.max(0, Math.floor(Math.min(...values) - 1));
+  let maxValue = Math.min(100, Math.ceil(Math.max(...values) + 1));
+  if (Math.abs(maxValue - minValue) < 1) {
+    minValue = Math.max(0, minValue - 1);
+    maxValue = Math.min(100, maxValue + 1);
+  }
+  const innerWidth = width - (padX * 2);
+  const innerHeight = height - padTop - padBottom;
+  const xFor = index => validPoints.length === 1 ? width / 2 : padX + (index * innerWidth / Math.max(validPoints.length - 1, 1));
+  const yFor = value => padTop + ((maxValue - value) / Math.max(maxValue - minValue, 1)) * innerHeight;
+  const linePoints = validPoints.map((point, index) => `${xFor(index).toFixed(1)},${yFor(Number(point.value)).toFixed(1)}`).join(" ");
+  const dots = validPoints.map((point, index) => {
+    const x = xFor(index);
+    const y = yFor(Number(point.value));
+    return `<g><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4.2" fill="#163247"></circle><text x="${x.toFixed(1)}" y="${Math.max(11, y - 9).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="#163247">${formatRiseWeeklyPct(point.value, 1)}</text><text x="${x.toFixed(1)}" y="${height - 11}" text-anchor="middle" font-size="9" fill="#5b6b7a">${escapeHtml(point.label)}</text></g>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Portfolio ending occupancy trend">
+    <line x1="${padX}" y1="${height - padBottom}" x2="${width - padX}" y2="${height - padBottom}" stroke="#d9e3ec" stroke-width="1"></line>
+    <line x1="${padX}" y1="${padTop}" x2="${padX}" y2="${height - padBottom}" stroke="#d9e3ec" stroke-width="1"></line>
+    <text x="6" y="${padTop + 4}" font-size="9" fill="#748392">${formatRiseWeeklyPct(maxValue, 0)}</text>
+    <text x="6" y="${height - padBottom + 3}" font-size="9" fill="#748392">${formatRiseWeeklyPct(minValue, 0)}</text>
+    <polyline points="${linePoints}" fill="none" stroke="#163247" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
+    ${dots}
+  </svg>`;
+}
+
+function buildRiseWeeklyLeadSourceChartSvg(rows = []) {
+  const items = (Array.isArray(rows) ? rows : []).filter(row => Number(row.leads) > 0 || ["Digital", "Phone", "Walk-in", "Other / Unattributed"].includes(row.mappedChannel));
+  const width = 430;
+  const rowHeight = 30;
+  const height = Math.max(178, 46 + items.length * rowHeight);
+  const maxLeads = Math.max(1, ...items.map(row => Number(row.leads) || 0));
+  const bars = items.map((row, index) => {
+    const y = 32 + index * rowHeight;
+    const barWidth = Math.max(2, (Number(row.leads) || 0) / maxLeads * 250);
+    return `<g>
+      <text x="8" y="${y + 13}" font-size="10" font-weight="700" fill="#163247">${escapeHtml(row.mappedChannel)}</text>
+      <rect x="122" y="${y}" width="250" height="16" rx="3" fill="#e9f3fb"></rect>
+      <rect x="122" y="${y}" width="${barWidth.toFixed(1)}" height="16" rx="3" fill="#2f6f9f"></rect>
+      <text x="384" y="${y + 12}" text-anchor="end" font-size="10" fill="#1f3447">${formatRiseWeeklyCount(row.leads)} | ${formatRiseWeeklyPct(row.sharePct, 1)}</text>
+    </g>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Leads by mapped source">
+    <text x="8" y="15" font-size="10" text-transform="uppercase" fill="#748392">Mapped lead source</text>
+    ${bars}
+  </svg>`;
+}
+
+function buildRisePortfolioLeasingWeeklyReportDocument(data) {
+  if (!data) return "";
+  const kpiCards = [
+    { label: "CURRENT OCCUPANCY", value: formatRiseWeeklyPct(data.currentOccupancyPct, 1) },
+    { label: "PROJECTED MONTH END", value: formatRiseWeeklyPct(data.projectedMonthEndPct, 1) },
+    { label: "MONTH-TO-DATE LEADS", value: formatRiseWeeklyCount(data.mtdLeads) },
+    { label: "APPLICATIONS", value: formatRiseWeeklyCount(data.applications) },
+    { label: "LEASES COMPLETED", value: formatRiseWeeklyCount(data.leasesCompleted) }
+  ];
+  const propertyRowsHtml = data.propertyRows.map(row => {
+    const changeClass = getRiseWeeklyChangeClass(row.changePp);
+    return `<tr class="${row.isPortfolio ? "portfolio-total" : ""}">
+      <td class="property-name">${escapeHtml(row.property)}</td>
+      <td>${formatRiseWeeklyPct(row.currentOccPct, 1)}</td>
+      <td>${formatRiseWeeklyPct(row.leasedPct, 1)}</td>
+      <td>${formatRiseWeeklyPct(row.projectedPct, 1)}</td>
+      <td class="${changeClass}">${formatRiseWeeklySignedPp(row.changePp)}</td>
+      <td>${formatRiseWeeklyCount(row.leads)}</td>
+      <td>${formatRiseWeeklyCount(row.tours)}</td>
+      <td>${formatRiseWeeklyCount(row.leases)}</td>
+      <td>${formatRiseWeeklyCount(row.apps)}</td>
+    </tr>`;
+  }).join("");
+  const signalHtml = data.operatingSignals.map(signal => `<div class="signal-panel">
+    <div class="signal-label">${escapeHtml(signal.label)}</div>
+    <p>${escapeHtml(signal.body)}</p>
+  </div>`).join("");
+  const leadRowsHtml = data.leadSourceRows.map(row => `<tr>
+    <td>${escapeHtml(row.rawMethods)}</td>
+    <td>${escapeHtml(row.mappedChannel)}</td>
+    <td>${formatRiseWeeklyCount(row.leads)}</td>
+    <td>${formatRiseWeeklyPct(row.sharePct, 1)}</td>
+  </tr>`).join("");
+  const dataQualityHtml = data.dataQualityNotes.length > 0
+    ? `<section class="quality-note"><div class="section-kicker">DATA QUALITY NOTE</div><p>${data.dataQualityNotes.map(escapeHtml).join(" ")}</p></section>`
+    : "";
+  const attentionHtml = data.managementAttention.map(item => `<div class="attention-item">
+    <div class="attention-label">${escapeHtml(item.label)}</div>
+    <p>${escapeHtml(item.body)}</p>
+  </div>`).join("");
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(data.title)}</title><style>
+    *{box-sizing:border-box}
+    @page{size:Letter portrait;margin:0}
+    html{background:#eef2f6}
+    body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#17324a;background:#eef2f6}
+    .report-shell{width:8.5in;margin:0 auto;background:#ffffff}
+    .report-page{width:8.5in;min-height:11in;padding:0.42in 0.48in 0.34in;background:#ffffff;page-break-after:always;position:relative}
+    .report-page:last-child{page-break-after:auto}
+    .topline{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px}
+    .brand-logo{height:42px;width:auto;object-fit:contain;display:block}
+    .header-kicker{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#445d73;font-weight:700;text-align:right;margin-bottom:26px}
+    h1{font-size:25px;line-height:1.08;margin:0 0 5px;color:#14324a;font-weight:800}
+    .period{font-size:12px;color:#5c6f80;font-weight:700}
+    .section-kicker{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:#2c6b99;font-weight:800;margin-bottom:6px}
+    .readout{border-left:5px solid #d49b25;background:#edf5fb;padding:13px 15px;margin-bottom:15px}
+    .readout p{font-size:13px;line-height:1.45;margin:0;color:#1d344a}
+    .kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px}
+    .kpi-card{border:1px solid #d7e2ec;background:#f7fafc;border-radius:6px;padding:10px 10px 11px;min-height:78px}
+    .kpi-label{font-size:9px;letter-spacing:.07em;text-transform:uppercase;color:#607386;font-weight:800;margin-bottom:11px;line-height:1.25}
+    .kpi-value{font-size:22px;color:#14324a;font-weight:800;line-height:1}
+    .section-title{font-size:14px;letter-spacing:.07em;text-transform:uppercase;color:#14324a;font-weight:800;margin:0 0 8px}
+    table{width:100%;border-collapse:collapse;table-layout:fixed}
+    .performance-table{font-size:9.5px;margin-bottom:15px;border:1px solid #cfdae5}
+    .performance-table th{background:#14324a;color:#ffffff;padding:7px 5px;text-align:center;font-size:8.2px;letter-spacing:.04em;text-transform:uppercase}
+    .performance-table th:first-child{text-align:left;width:19%}
+    .performance-table td{padding:6px 5px;text-align:center;border-top:1px solid #dbe3eb;color:#20384d}
+    .performance-table td:first-child{text-align:left}
+    .performance-table tbody tr:nth-child(odd){background:#f6f9fc}
+    .performance-table tbody tr:nth-child(even){background:#ffffff}
+    .performance-table .property-name{font-weight:700;color:#142f45}
+    .performance-table .portfolio-total{background:#e8f1f8!important;font-weight:800;border-top:2px solid #14324a}
+    .positive{color:#1f7a4f!important;font-weight:800}
+    .negative{color:#b42318!important;font-weight:800}
+    .neutral{color:#46596b!important;font-weight:800}
+    .signals{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:16px}
+    .signal-panel{border:1px solid #d7e2ec;background:#f8fbfd;border-radius:6px;padding:10px;min-height:106px}
+    .signal-label{font-size:10px;color:#14324a;font-weight:800;letter-spacing:.08em;margin-bottom:6px}
+    .signal-panel p,.quality-note p,.attention-item p{font-size:11px;line-height:1.45;color:#314a60;margin:0}
+    .footer{position:absolute;left:0.48in;right:0.48in;bottom:0.22in;display:flex;justify-content:space-between;border-top:1px solid #d9e3ec;padding-top:7px;font-size:9px;color:#748392}
+    .page-heading{margin-bottom:17px}
+    .page-heading h2{font-size:18px;color:#14324a;margin:0 0 3px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+    .page-heading p{margin:0;font-size:12px;color:#607386}
+    .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:14px}
+    .chart-card{border:1px solid #d7e2ec;border-radius:6px;padding:11px;background:#ffffff;min-height:238px}
+    .chart-title{font-size:12px;color:#14324a;font-weight:800;margin-bottom:6px}
+    .rise-empty-chart{height:175px;border:1px dashed #bdcbd8;border-radius:6px;background:#f8fafc;color:#6a7b8b;font-size:11px;display:flex;align-items:center;justify-content:center;text-align:center;padding:14px}
+    .source-table{font-size:10.5px;margin-bottom:12px;border:1px solid #cfdae5}
+    .source-table th{background:#e8f1f8;color:#14324a;text-align:left;padding:7px;font-size:9px;letter-spacing:.06em;text-transform:uppercase}
+    .source-table td{padding:7px;border-top:1px solid #dbe3eb;color:#233d54}
+    .source-table td:nth-child(3),.source-table td:nth-child(4){text-align:right;font-weight:700}
+    .quality-note{background:#fff5cf;border-left:5px solid #d49b25;padding:10px 12px;margin-bottom:13px}
+    .attention-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px}
+    .attention-item{border-top:3px solid #2f6f9f;background:#f8fbfd;padding:9px 10px;min-height:86px}
+    .attention-label{font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:#14324a;font-weight:800;margin-bottom:6px}
+    .method{border-top:1px solid #d9e3ec;padding-top:9px;font-size:9.5px;line-height:1.48;color:#5f7181}
+    @media screen and (max-width:900px){
+      html,body{background:#ffffff}
+      .report-shell,.report-page{width:100%;min-height:auto}
+      .report-page{padding:24px 18px 34px}
+      .kpi-grid,.signals,.chart-grid,.attention-grid{grid-template-columns:1fr}
+      .footer{position:static;margin-top:20px}
+      .performance-table{font-size:8.2px}
+      .performance-table th,.performance-table td{padding:5px 3px}
+    }
+    @media print{
+      html,body{background:#ffffff}
+      .report-shell{width:8.5in;margin:0;background:#ffffff}
+      .report-page{margin:0;box-shadow:none}
+    }
+  </style></head><body>
+    <main class="report-shell">
+      <section class="report-page">
+        <header class="topline">
+          <div><img class="brand-logo" src="${resolveExportBrandLogoSrc()}" alt="RISE logo"></div>
+          <div>
+            <div class="header-kicker">${escapeHtml(data.headerLabel)}</div>
+            <h1>${escapeHtml(data.title)}</h1>
+            <div class="period">${escapeHtml(data.reportPeriodLabel)}</div>
+          </div>
+        </header>
+        <section class="readout">
+          <div class="section-kicker">EXECUTIVE READOUT</div>
+          <p>${escapeHtml(data.executiveReadout)}</p>
+        </section>
+        <section class="kpi-grid">
+          ${kpiCards.map(card => `<div class="kpi-card"><div class="kpi-label">${escapeHtml(card.label)}</div><div class="kpi-value">${escapeHtml(card.value)}</div></div>`).join("")}
+        </section>
+        <section>
+          <h2 class="section-title">PROPERTY PERFORMANCE</h2>
+          <table class="performance-table">
+            <thead><tr><th>Property</th><th>Current Occ</th><th>Leased</th><th>Month-End Projected</th><th>Change (pp)</th><th>Leads</th><th>Tours</th><th>Leases</th><th>Apps</th></tr></thead>
+            <tbody>${propertyRowsHtml}</tbody>
+          </table>
+        </section>
+        <section>
+          <h2 class="section-title">${escapeHtml(data.reportMonthLabel)} FUNNEL AND OPERATING SIGNALS</h2>
+          <div class="signals">${signalHtml}</div>
+        </section>
+        <footer class="footer"><span>${escapeHtml(data.scopeLabel)}</span><span>Page 1</span></footer>
+      </section>
+      <section class="report-page">
+        <div class="page-heading">
+          <h2>TREND, ATTRIBUTION, AND EXCEPTIONS</h2>
+          <p>${escapeHtml(data.reportMonthLabel)}-to-date portfolio diagnostics</p>
+        </div>
+        <section class="chart-grid">
+          <div class="chart-card">
+            <div class="chart-title">Portfolio ending occupancy</div>
+            ${buildRiseWeeklyOccupancyChartSvg(data.occupancyTrendPoints)}
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">${escapeHtml(data.reportMonthLabel)} leads by mapped source</div>
+            ${buildRiseWeeklyLeadSourceChartSvg(data.leadSourceRows)}
+          </div>
+        </section>
+        <section>
+          <h2 class="section-title">LEAD SOURCE MAPPING</h2>
+          <table class="source-table">
+            <thead><tr><th>Raw Contact Method(s)</th><th>Mapped Channel</th><th>Leads</th><th>Share</th></tr></thead>
+            <tbody>${leadRowsHtml}</tbody>
+          </table>
+        </section>
+        ${dataQualityHtml}
+        <section>
+          <h2 class="section-title">MANAGEMENT ATTENTION</h2>
+          <div class="attention-grid">${attentionHtml}</div>
+        </section>
+        <section>
+          <h2 class="section-title">SOURCE AND METHOD</h2>
+          <div class="method">${escapeHtml(data.sourceMethod)}</div>
+        </section>
+        <footer class="footer"><span>${escapeHtml(data.scopeLabel)}</span><span>Page 2</span></footer>
+      </section>
+    </main>
+  </body></html>`;
+}
+
+function renderRisePortfolioLeasingWeeklyWorkspace() {
+  const report = buildRisePortfolioLeasingWeeklyReportData({ silent: true });
+  if (!report) {
+    return `<div class="card mb4" id="reporting-inline-preview">
+      <div class="report-hub-card">
+        <div class="alert-red">Save approved ATLAS operating data for at least one active property before building the RISE Portfolio Leasing Weekly Report.</div>
+      </div>
+    </div>`;
+  }
+  return renderReportHubPreviewFrame(
+    RISE_WEEKLY_LEASING_REPORT_TITLE,
+    "Document-style preview that mirrors the source operating report and refreshes from approved ATLAS data.",
+    buildRisePortfolioLeasingWeeklyReportDocument(report),
+    `<button class="btn btn-gray btn-sm" onclick="renderTab()">Refresh Data</button><button class="btn btn-gray btn-sm" onclick="downloadRisePortfolioLeasingWeeklyHtml()">Download HTML</button><button class="btn btn-blue btn-sm" onclick="openRisePortfolioLeasingWeeklyReport(true)">Print / PDF</button>`
+  );
+}
+
+function getRisePortfolioLeasingWeeklyCsvRows(data = buildRisePortfolioLeasingWeeklyReportData()) {
+  if (!data) return null;
+  const rows = [];
+  data.propertyRows.forEach(row => {
+    rows.push({
+      section: "Property Performance",
+      property: row.property,
+      metric: "Current Occ",
+      value: formatRiseWeeklyPct(row.currentOccPct, 1),
+      note: ""
+    });
+    rows.push({
+      section: "Property Performance",
+      property: row.property,
+      metric: "Leased",
+      value: formatRiseWeeklyPct(row.leasedPct, 1),
+      note: ""
+    });
+    rows.push({
+      section: "Property Performance",
+      property: row.property,
+      metric: "Month-End Projected",
+      value: formatRiseWeeklyPct(row.projectedPct, 1),
+      note: formatRiseWeeklySignedPp(row.changePp)
+    });
+    [
+      ["Leads", row.leads],
+      ["Tours", row.tours],
+      ["Leases", row.leases],
+      ["Apps", row.apps]
+    ].forEach(([metric, value]) => rows.push({
+      section: "Property Performance",
+      property: row.property,
+      metric,
+      value: formatRiseWeeklyCount(value),
+      note: ""
+    }));
+  });
+  data.leadSourceRows.forEach(row => rows.push({
+    section: "Lead Source Mapping",
+    property: data.scopeLabel,
+    metric: row.mappedChannel,
+    value: formatRiseWeeklyCount(row.leads),
+    note: `${row.rawMethods} | ${formatRiseWeeklyPct(row.sharePct, 1)}`
+  }));
+  data.managementAttention.forEach(item => rows.push({
+    section: "Management Attention",
+    property: data.scopeLabel,
+    metric: item.label,
+    value: item.body,
+    note: ""
+  }));
+  return { data, rows };
+}
+
+function exportRisePortfolioLeasingWeeklyCSV() {
+  const payload = getRisePortfolioLeasingWeeklyCsvRows();
+  if (!payload) return;
+  const headers = ["section", "property", "metric", "value", "note"];
+  const lines = [
+    headers.join(","),
+    ...payload.rows.map(row => headers.map(key => `"${String(row[key] ?? "").replace(/"/g, '""')}"`).join(","))
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `rise_portfolio_leasing_weekly_report_${payload.data.reportYear}-${String(payload.data.reportMonthIdx + 1).padStart(2, "0")}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function exportRisePortfolioLeasingWeeklyExcel() {
+  const payload = getRisePortfolioLeasingWeeklyCsvRows();
+  if (!payload) return;
+  const rowsHtml = payload.rows.map(row => `<tr>
+    <td>${escapeHtml(row.section)}</td>
+    <td>${escapeHtml(row.property)}</td>
+    <td>${escapeHtml(row.metric)}</td>
+    <td>${escapeHtml(row.value)}</td>
+    <td>${escapeHtml(row.note)}</td>
+  </tr>`).join("");
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    body{font-family:Arial,sans-serif;padding:20px;color:#17324a}
+    h1{font-size:20px;margin:0 0 4px;color:#14324a}
+    p{font-size:12px;color:#5f7181;margin:0 0 14px}
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid #d7e2ec;padding:7px 8px;font-size:12px;text-align:left}
+    th{background:#14324a;color:#fff}
+  </style></head><body>
+    <h1>${escapeHtml(payload.data.title)}</h1>
+    <p>${escapeHtml(payload.data.reportPeriodLabel)}</p>
+    <table><thead><tr><th>Section</th><th>Property</th><th>Metric</th><th>Value</th><th>Note</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+  </body></html>`;
+  const blob = new Blob([html], { type: "application/vnd.ms-excel" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `rise_portfolio_leasing_weekly_report_${payload.data.reportYear}-${String(payload.data.reportMonthIdx + 1).padStart(2, "0")}.xls`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function openRisePortfolioLeasingWeeklyReport(printImmediately = false) {
+  const report = buildRisePortfolioLeasingWeeklyReportData();
+  if (!report) return;
+  const documentHtml = buildRisePortfolioLeasingWeeklyReportDocument(report);
+  if (printImmediately) {
+    printReportHtmlInHiddenFrame(documentHtml, { title: report.title });
+    return;
+  }
+  const win = openPopupReportWindow(report.title);
+  if (!win) return;
+  finalizePopupReportWindow(win, documentHtml, false, 200);
+}
+
+function downloadRisePortfolioLeasingWeeklyHtml() {
+  const report = buildRisePortfolioLeasingWeeklyReportData();
+  if (!report) return;
+  const blob = new Blob([buildRisePortfolioLeasingWeeklyReportDocument(report)], { type: "text/html" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `rise_portfolio_leasing_weekly_report_${report.reportYear}-${String(report.reportMonthIdx + 1).padStart(2, "0")}.html`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 function renderPortfolioDlrReportingWorkspace() {
   const report = buildPortfolioDlrOverviewData({ silent: true });
   if (!report) {
@@ -34160,7 +35025,7 @@ async function runReportHubAction() {
   }
   if (reportHubAction === "preview") {
     if (type === "leasing_velocity") return openLeasingVelocityReportTemplate("stabilized", false);
-    if (["investor_snapshot", "investor_marketing_report", "monthly_investor_deck", "bonus_payout", "renewal_performance", "financial_review", "eviction_report"].includes(type)) {
+    if ([RISE_WEEKLY_LEASING_REPORT_TYPE, "investor_marketing_report", "monthly_investor_deck", "bonus_payout", "renewal_performance", "financial_review", "eviction_report"].includes(type)) {
       renderTab();
       const target = document.getElementById("reporting-inline-preview");
       if (target?.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -34185,7 +35050,8 @@ async function runReportHubAction() {
     return;
   }
   if (reportHubAction === "print") {
-    if (["investor_snapshot", "investor_marketing_report"].includes(type)) return openPortfolioPerformanceReport(true);
+    if (type === RISE_WEEKLY_LEASING_REPORT_TYPE) return openRisePortfolioLeasingWeeklyReport(true);
+    if (type === "investor_marketing_report") return openPortfolioPerformanceReport(true);
     if (type === "monthly_investor_deck") return openMonthlyInvestorPresentation(true);
     if (type === "leasing_velocity") return openLeasingVelocityReportTemplate("stabilized", true);
     if (type === "community_progress") return openCommunityProgressReport(true);
@@ -34204,17 +35070,20 @@ async function runReportHubAction() {
     return openBonusPayoutReport(true);
   }
   if (reportHubAction === "export_csv") {
-    if (["investor_snapshot", "investor_marketing_report"].includes(type)) return exportPortfolioReportCSV();
+    if (type === RISE_WEEKLY_LEASING_REPORT_TYPE) return exportRisePortfolioLeasingWeeklyCSV();
+    if (type === "investor_marketing_report") return exportPortfolioReportCSV();
     if (type === "renewal_performance" && typeof window.atlasCsExportRenewalReport === "function") return window.atlasCsExportRenewalReport("csv", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
     if (type === "eviction_report" && typeof window.atlasCsExportEvictionReport === "function") return window.atlasCsExportEvictionReport("csv", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
     return exportBonusPayoutCSV();
   }
   if (reportHubAction === "export_excel") {
+    if (type === RISE_WEEKLY_LEASING_REPORT_TYPE) return exportRisePortfolioLeasingWeeklyExcel();
     if (type === "renewal_performance" && typeof window.atlasCsExportRenewalReport === "function") return window.atlasCsExportRenewalReport("excel", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
     if (type === "eviction_report" && typeof window.atlasCsExportEvictionReport === "function") return window.atlasCsExportEvictionReport("excel", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
     return exportPortfolioReportExcel();
   }
   if (reportHubAction === "export_html") {
+    if (type === RISE_WEEKLY_LEASING_REPORT_TYPE) return downloadRisePortfolioLeasingWeeklyHtml();
     if (type === "monthly_investor_deck") return downloadMonthlyInvestorPresentationBrief();
     if (type === "community_progress") return downloadCommunityProgressReportHtml();
     if (type === "market_comparison") return downloadMarketComparisonReportHtml();

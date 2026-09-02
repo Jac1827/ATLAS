@@ -984,6 +984,7 @@
         <div class="nav-group-label">Operations</div>
         <button class="tab" data-tab="15" onclick="setTab(15)" aria-label="Central Services"><i class="tab-icon ph ph-command" aria-hidden="true"></i><span class="tab-label">Central Services</span></button>
         <button class="tab" data-tab="3" onclick="setTab(3)" aria-label="Traffic and Funnel"><i class="tab-icon ph ph-funnel" aria-hidden="true"></i><span class="tab-label">Traffic &amp; Funnel</span></button>
+        <button class="tab" data-tab="16" onclick="setTab(16)" aria-label="Application Performance"><i class="tab-icon ph ph-chart-bar" aria-hidden="true"></i><span class="tab-label">Application Performance</span></button>
         <button class="tab" data-tab="4" onclick="setTab(4)" aria-label="Comp Calculator"><i class="tab-icon ph ph-calculator" aria-hidden="true"></i><span class="tab-label">Comp Calculator</span></button>
         <button class="tab" data-tab="5" onclick="setTab(5)" aria-label="Renewals"><i class="tab-icon ph ph-arrows-clockwise" aria-hidden="true"></i><span class="tab-label">Renewals</span></button>
         <button class="tab" data-tab="6" onclick="setTab(6)" aria-label="Reputation"><i class="tab-icon ph ph-star" aria-hidden="true"></i><span class="tab-label">Reputation</span></button>
@@ -1074,6 +1075,7 @@
   <div id="tab-panel-13" class="tab-panel" style="display:none"></div>
   <div id="tab-panel-14" class="tab-panel" style="display:none"></div>
   <div id="tab-panel-15" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-16" class="tab-panel" style="display:none"></div>
 
     </main>
   </div>
@@ -1084,6 +1086,8 @@
 <script src="./atlas-mounts.js?v=20260902-marketing-studio"></script>
 <script src="./centralization/atlas-central-client.js?v=20260901-dlr-reporting" data-atlas-central-client="true"></script>
 <script src="./central-services.js?v=20260902-render-guard"></script>
+<link rel="stylesheet" href="./application-performance.css?v=20260902-application-intelligence">
+<script src="./application-performance.js?v=20260902-application-intelligence"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -11654,7 +11658,7 @@ function autoPopulateLeasingPace() {
 // platforms added by the redesign merge. MOUNT_TABS render a tool inline and
 // have no community-workspace context of their own.
 const MOUNT_TABS = [10, 11, 12, 13, 15];
-const MAX_TAB = 15;
+const MAX_TAB = 16;
 
 function syncAtlasWorkspaceCardVisibility() {
   const workspaceCard = document.getElementById("prop-selector-card");
@@ -11706,7 +11710,8 @@ function renderTab() {
     window.renderBudgetBuilderTab,
     window.renderPeopleTab,
     renderAtlasSettingsTab,
-    window.renderCentralServicesTab
+    window.renderCentralServicesTab,
+    window.renderApplicationPerformanceTab
   ];
   if (activeTab >= renderers.length) activeTab = renderers.length - 1;
   document.querySelectorAll(".tab").forEach(t => {
@@ -18263,7 +18268,10 @@ function renderPortfolioScopedImportTab() {
     ${statBox(isCurrentMonth ? "Renewals Fresh Cycle" : "Renewal Coverage", `${renewalLoaded}/${details.length}`, isCurrentMonth ? `${renewalHasData}/${details.length} communities still have saved renewal data` : "Communities with historical renewal data for the selected month", "#d29922")}
     ${statBox("Contacts Loaded", details.filter(detail => normalizeInvestorEmailContacts(detail.record?.investorEmailContacts).length > 0).length, "Communities with report recipients saved", "#a371f7")}
   </div>`;
-  return renderPortfolioScopePanel("Portfolio Data Import Workspace", "Stage, validate, and apply portfolio uploads here before they flow into reporting and dashboard screens.", cardsHtml, bodyHtml);
+  const residentDataImport = typeof window.renderApplicationResidentDataImportPanel === "function"
+    ? window.renderApplicationResidentDataImportPanel()
+    : "";
+  return residentDataImport + renderPortfolioScopePanel("Portfolio Data Import Workspace", "Stage, validate, and apply portfolio uploads here before they flow into reporting and dashboard screens.", cardsHtml, bodyHtml);
 }
 
 function renderSetupTab() {
@@ -40486,7 +40494,11 @@ function renderCSVTab() {
     <button class="btn btn-gray btn-sm" style="margin-top:10px" onclick="downloadTemplate()">⬇ Download Template CSV</button>
   </div>`;
 
+  const residentDataImport = typeof window.renderApplicationResidentDataImportPanel === "function"
+    ? window.renderApplicationResidentDataImportPanel()
+    : "";
   return [
+    residentDataImport,
     renderWindowshadeCard({
       key: "import_central_migration",
       title: "Central Platform Migration Gate",

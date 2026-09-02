@@ -36852,6 +36852,9 @@ function buildCommunityProgressTrendRows(report) {
     const approvals = Number.isFinite(Number(summary.applicationsApproved))
       ? Number(summary.applicationsApproved)
       : Math.max(0, Number(monthEntry.applicationsApproved) || 0);
+    const leases = Number.isFinite(Number(summary.leasesSigned))
+      ? Number(summary.leasesSigned)
+      : Math.max(0, Number(monthEntry.leasesSignedActual) || 0);
     const moveIns = Number.isFinite(Number(summary.moveIns))
       ? Number(summary.moveIns)
       : Math.max(0, Number(monthEntry.moveIns) || 0);
@@ -36876,7 +36879,7 @@ function buildCommunityProgressTrendRows(report) {
       moveIns,
       moveOuts,
       netAbsorption: moveIns - moveOuts,
-      tourToLeasePct: tours > 0 ? (trafficMetrics.leases / tours) * 100 : null,
+      tourToLeasePct: tours > 0 ? (leases / tours) * 100 : null,
       renewalRetention,
       budgetOccPct: Number.isFinite(Number(budgetOccPct)) && Number(budgetOccPct) > 0 ? Number(budgetOccPct) : null,
       marketLeasedPct: Number(marketPerformance.compAverageLeasedPct) || null,

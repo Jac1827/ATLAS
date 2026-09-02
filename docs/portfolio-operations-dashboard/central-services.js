@@ -6107,6 +6107,7 @@
   }
 
   function renderInspectionFindingCards(state, inspection) {
+    inspection = asObject(inspection);
     const findings = asArray(inspection.findings);
     if (!findings.length) return `<div class="cs-empty"><div><strong>No findings documented yet.</strong><br>Add room-by-room findings as the inspector walks the unit or property.</div></div>`;
     return `<div class="cs-finding-list">${findings.map(finding => {

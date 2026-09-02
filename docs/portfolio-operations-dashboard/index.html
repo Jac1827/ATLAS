@@ -1061,7 +1061,7 @@
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=20260821-people-access"></script>
 <script src="./centralization/atlas-central-client.js?v=20260901-dlr-reporting" data-atlas-central-client="true"></script>
-<script src="./central-services.js?v=20260831-eviction-renderfix"></script>
+<script src="./central-services.js?v=20260902-render-guard"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -8095,13 +8095,20 @@ function getCommunityTrafficMetricsForPeriod(record, normalizedMonthEntry = {}, 
     && (!dailyBoxScoreDate || (dailyBoxScoreDate.getMonth() === safeMonth && dailyBoxScoreDate.getFullYear() === safeYear));
   const activity = hasMatchingDlrSummary ? (normalizedSummary.activity || {}) : {};
 
-  const hasMonthLeadMetrics = hasExplicitMonthMetrics(rawMonthEntry, ["guestCards", "walkIn", "offSiteEvent", "phoneCalls", "emailsOnline", "textChatOther"]);
-  const hasMonthTourMetric = hasExplicitMonthMetrics(rawMonthEntry, ["tours"]);
-  const hasMonthApplicationMetrics = hasExplicitMonthMetrics(rawMonthEntry, ["applications", "applicationsApproved", "denied", "cancelled", "pendingDecision"]);
-  const hasMonthLeaseMetric = hasExplicitMonthMetrics(rawMonthEntry, ["leasesSignedActual"]);
-  const hasMonthMoveInMetric = hasExplicitMonthMetrics(rawMonthEntry, ["moveIns"]);
-  const hasMonthMoveOutMetric = hasExplicitMonthMetrics(rawMonthEntry, ["moveOuts"]);
-  const hasMonthRenewalMetric = hasExplicitMonthMetrics(rawMonthEntry, ["renewals", "renewalSigned"]);
+  // Default monthly rows contain zeroes. They must not hide a dated DLR import
+  // when no actual dashboard activity has been entered for the same period.
+  const useMonthMetric = (keys) => !hasMatchingDlrSummary
+    || keys.some(key => Math.max(0, Number(rawMonthEntry?.[key]) || 0) > 0);
+  const hasMonthLeadMetrics = hasExplicitMonthMetrics(rawMonthEntry, ["guestCards", "walkIn", "offSiteEvent", "phoneCalls", "emailsOnline", "textChatOther"])
+    && useMonthMetric(["guestCards", "walkIn", "offSiteEvent", "phoneCalls", "emailsOnline", "textChatOther"]);
+  const hasMonthTourMetric = hasExplicitMonthMetrics(rawMonthEntry, ["tours"]) && useMonthMetric(["tours"]);
+  const hasMonthApplicationMetrics = hasExplicitMonthMetrics(rawMonthEntry, ["applications", "applicationsApproved", "denied", "cancelled", "pendingDecision"])
+    && useMonthMetric(["applications", "applicationsApproved", "denied", "cancelled", "pendingDecision"]);
+  const hasMonthLeaseMetric = hasExplicitMonthMetrics(rawMonthEntry, ["leasesSignedActual"]) && useMonthMetric(["leasesSignedActual"]);
+  const hasMonthMoveInMetric = hasExplicitMonthMetrics(rawMonthEntry, ["moveIns"]) && useMonthMetric(["moveIns"]);
+  const hasMonthMoveOutMetric = hasExplicitMonthMetrics(rawMonthEntry, ["moveOuts"]) && useMonthMetric(["moveOuts"]);
+  const hasMonthRenewalMetric = hasExplicitMonthMetrics(rawMonthEntry, ["renewals", "renewalSigned"])
+    && useMonthMetric(["renewals", "renewalSigned"]);
 
   const monthLeadSources = getLeadSourceBreakdown(normalizedMonthEntry);
   const monthApplications = getApplicationDecisionMetrics(normalizedMonthEntry);

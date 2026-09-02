@@ -418,15 +418,7 @@ const ACCESS_SCOPE_OPTIONS = [
 const DEFAULT_USERS = [
   {id:'admin',name:'Admin',email:'',pin:'',role:'admin',scopeType:'all',scopeValue:''}
 ];
-const LEGACY_DEFAULT_PASSCODES = {
-  admin:'0000',
-  mgr_west:'1111',
-  mgr_east:'2222',
-  mgr_student1:'3333',
-  mgr_student2:'4444',
-  mgr_valdosta:'5555',
-  mgr_jax:'6666'
-};
+const PASSCODE_SECURITY_VERSION = 1;
 const DEFAULT_SETTINGS = {
   benchmarks: {
     benchmarkTarget: 84,
@@ -1094,12 +1086,10 @@ function makeDefaultSettings(){
   return normalizeSettings(DEFAULT_SETTINGS);
 }
 
-function sanitizeLegacyDefaultUsers(users){
+function sanitizeLegacyDefaultUsers(users, requirePasscodeReset = false){
   return (Array.isArray(users) ? users : []).map(user => {
     const normalized = normalizeUser(user);
-    if(LEGACY_DEFAULT_PASSCODES[normalized.id] && normalized.pin === LEGACY_DEFAULT_PASSCODES[normalized.id]){
-      normalized.pin = '';
-    }
+    if(requirePasscodeReset) normalized.pin = '';
     return normalized;
   });
 }
@@ -1144,7 +1134,8 @@ activateAtlasEmbeddedAccess();
 function loadState(){
   try{
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    const rawUsers = Array.isArray(stored.users) && stored.users.length ? sanitizeLegacyDefaultUsers(stored.users) : makeDefaultUsers();
+    const requiresPasscodeReset = Number(stored.passcodeSecurityVersion || 0) < PASSCODE_SECURITY_VERSION;
+    const rawUsers = Array.isArray(stored.users) && stored.users.length ? sanitizeLegacyDefaultUsers(stored.users, requiresPasscodeReset) : makeDefaultUsers();
     const users = ensureAdminAccess(rawUsers);
     return {
       users,
@@ -1160,6 +1151,7 @@ function loadState(){
       auditLog: Array.isArray(stored.auditLog) ? stored.auditLog.map(normalizePeopleAuditEntry) : [],
       readOnlySnapshots: Array.isArray(stored.readOnlySnapshots) ? stored.readOnlySnapshots.map(normalizeReadOnlySnapshot) : [],
       rosterVersion: stored.rosterVersion || '',
+      passcodeSecurityVersion: PASSCODE_SECURITY_VERSION,
       currentView: stored.currentView || 'dashboard',
       currentUser: null
     };
@@ -1184,6 +1176,7 @@ function saveState(){
     auditLog: STATE.auditLog || [],
     readOnlySnapshots: STATE.readOnlySnapshots || [],
     rosterVersion: STATE.rosterVersion,
+    passcodeSecurityVersion: PASSCODE_SECURITY_VERSION,
     currentView: STATE.currentView
   }));
   if(!ATLAS_EMBEDDED_MODE && !suppressPerformanceSharedSyncPush){

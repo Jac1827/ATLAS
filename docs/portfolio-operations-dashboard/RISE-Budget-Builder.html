@@ -16591,6 +16591,11 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     }
   };
 
+  A.returnToAtlas = function () {
+    if (window.parent === window) return;
+    window.parent.postMessage({ type: 'atlas-budget-return-home' }, '*');
+  };
+
   window.addEventListener('message', function (event) {
     var data = event && event.data;
     if (!data) return;
@@ -16661,6 +16666,9 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
 
   A.renderNav = function () {
     var c = A.c(), vr = A.vr(), out = '';
+    if (window.parent !== window) {
+      out += '<a href="#atlas-home" onclick="RBB.app.returnToAtlas();return false;">← Return to ATLAS main</a>';
+    }
     A.VIEWS.forEach(function (v) {
       if (v.grp) { out += '<div class="grp">' + v.grp + '</div>'; return; }
       var badge = '';

@@ -270,6 +270,10 @@
   window.addEventListener("message", function (event) {
     var data = event && event.data;
     if (!data) return;
+    if (data.type === "atlas-budget-return-home" && isBudgetFrameSource(event.source)) {
+      if (typeof setTab === "function") setTab(0);
+      return;
+    }
     if (data.type === "atlas-budget-publish" && isBudgetFrameSource(event.source)) {
       var result = publishBudgetToAtlas(data.payload);
       try { event.source.postMessage({ type: "atlas-budget-publish-result", result: result }, "*"); } catch (err) {}

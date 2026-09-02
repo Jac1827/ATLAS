@@ -1059,7 +1059,7 @@
 </div>
 
 <script src="./atlas_historical_restore_data.js"></script>
-<script src="./atlas-mounts.js?v=20260821-people-access"></script>
+<script src="./atlas-mounts.js?v=20260902-marketing-studio"></script>
 <script src="./centralization/atlas-central-client.js?v=20260901-dlr-reporting" data-atlas-central-client="true"></script>
 <script src="./central-services.js?v=20260902-render-guard"></script>
 <script>
@@ -11644,7 +11644,7 @@ function renderTab() {
   if (panel && typeof renderer === "function") {
     panel.dataset.atlasMountActive = MOUNT_TABS.includes(activeTab) ? "1" : "0";
     try {
-      const shouldPreserveStableMount = (activeTab === 11 || activeTab === 13)
+      const shouldPreserveStableMount = (activeTab === 11 || activeTab === 12 || activeTab === 13)
         && panel.dataset.atlasStableMountMounted === "1"
         && !shouldBlockAtlasSensitiveAccess()
         && atlasAccessDecision(activeTab).ok;
@@ -11664,7 +11664,7 @@ function renderTab() {
         panel.innerHTML = renderAtlasAccessDeniedPanel(atlasAccessDecision(activeTab).reason);
       } else {
         panel.innerHTML = renderer();
-        if (activeTab === 11 || activeTab === 13) panel.dataset.atlasStableMountMounted = "1";
+        if (activeTab === 11 || activeTab === 12 || activeTab === 13) panel.dataset.atlasStableMountMounted = "1";
         if (activeTab === 13) panel.dataset.atlasPeopleMounted = "1";
         queueAtlasCentralPeopleLoad();
       }

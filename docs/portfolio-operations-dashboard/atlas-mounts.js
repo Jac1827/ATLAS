@@ -85,7 +85,7 @@
   }
 
   function iframeSrc(key, mount) {
-    var params = "atlasEmbedded=1&atlasMountKey=" + encodeURIComponent(key) + "&v=20260901-financial-review";
+    var params = "atlasEmbedded=1&atlasMountKey=" + encodeURIComponent(key) + "&v=20260902-marketing-studio";
     var initialView = initialViewFor(key);
     if (initialView) params += "&atlasView=" + encodeURIComponent(initialView);
     return appendParams(mount.src, params);
@@ -172,7 +172,9 @@
 
   function syncMountFrame(iframe, key) {
     if (!iframe) return;
-    applyFrameHeight(iframe, measureFrameHeight(iframe));
+    // Budget Builder is a navigable application, not a long report. Keep its
+    // own scroll region contained so the surrounding ATLAS workspace stays usable.
+    if (key !== "budget") applyFrameHeight(iframe, measureFrameHeight(iframe));
     if (key === "people") publishPeopleRoster(readEmbeddedPeopleRoster(iframe));
   }
 
@@ -184,14 +186,96 @@
     window.setTimeout(function () { syncMountFrame(iframe, key); }, 150);
     window.setTimeout(function () { syncMountFrame(iframe, key); }, 700);
     window.setTimeout(function () { syncMountFrame(iframe, key); }, 1600);
-    iframe.__atlasSyncTimer = window.setInterval(function () {
-      syncMountFrame(iframe, key);
-    }, 2000);
+    if (key !== "budget") {
+      iframe.__atlasSyncTimer = window.setInterval(function () {
+        syncMountFrame(iframe, key);
+      }, 2000);
+    }
+  };
+
+  function isBudgetFrameSource(source) {
+    try {
+      var frame = document.querySelector('iframe[data-atlas-mount-key="budget"]');
+      return !!frame && frame.contentWindow === source;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function publishBudgetToAtlas(payload) {
+    if (!payload || !payload.locked || !payload.property || !payload.year) {
+      return { ok: false, message: "Only a locked approved scenario can be published to ATLAS." };
+    }
+    try {
+      var propertyName = String(payload.property.name || payload.property.code || "").trim();
+      var matchedName = typeof matchPropertyName === "function"
+        ? matchPropertyName(propertyName, { fallbackToCurrent: false })
+        : propertyName;
+      if (!matchedName && typeof matchPropertyName === "function") {
+        // Budget Builder uses branded property labels (for example, "RISE Doro")
+        // while the shared ATLAS catalog keeps the canonical community name.
+        matchedName = matchPropertyName(propertyName.replace(/^RISE\s+/i, ""), { fallbackToCurrent: false });
+      }
+      if (!matchedName || !savedData || !savedData[matchedName]) {
+        return { ok: false, message: "ATLAS could not match the Budget Builder property to a community." };
+      }
+
+      var timestamp = new Date().toISOString();
+      var record = typeof normalizeSavedCommunityRecord === "function"
+        ? normalizeSavedCommunityRecord(matchedName, savedData[matchedName])
+        : savedData[matchedName];
+      record.financialLedger = Object.assign({}, record.financialLedger || {}, payload.actualsByPeriod || {});
+      record.financialBudgetLedger = Object.assign({}, record.financialBudgetLedger || {}, payload.budgetByPeriod || {}, {
+        sourceKind: "rise_budget_builder",
+        sourceFileName: String(payload.sourceFile || "RISE Budget Builder").trim(),
+        scenarioId: String(payload.scenario.id || "").trim(),
+        scenarioName: String(payload.scenario.name || "").trim(),
+        scenarioStatus: String(payload.scenario.status || "").trim(),
+        budgetYear: Number(payload.year),
+        publishedAt: timestamp
+      });
+      record.financialUpdatedAt = timestamp;
+      record.financialBudgetUpdatedAt = timestamp;
+      record.importTracking = Object.assign({}, record.importTracking || {}, {
+        financialBudget: Object.assign({}, record.importTracking && record.importTracking.financialBudget || {}, {
+          [String(payload.year)]: { importedAt: timestamp, sourceFileName: "RISE Budget Builder", scenario: payload.scenario.name }
+        })
+      });
+      savedData[matchedName] = typeof normalizeSavedCommunityRecord === "function"
+        ? normalizeSavedCommunityRecord(matchedName, record)
+        : record;
+
+      if (typeof getProp === "function" && getProp() && matchedName === getProp().name) {
+        financialLedger = savedData[matchedName].financialLedger;
+        financialBudgetLedger = savedData[matchedName].financialBudgetLedger;
+        financialUpdatedAt = timestamp;
+        financialBudgetUpdatedAt = timestamp;
+      }
+      if (typeof syncSharedPropertyFromPortfolioRecord === "function") {
+        syncSharedPropertyFromPortfolioRecord(matchedName, savedData[matchedName], { timestamp: timestamp });
+      }
+      if (typeof persistSaved === "function") persistSaved();
+      return { ok: true, message: "Published " + payload.scenario.name + " to ATLAS for " + matchedName + "." };
+    } catch (err) {
+      return { ok: false, message: "ATLAS could not save this publication: " + String(err && err.message || err) };
+    }
+  }
+
+  window.navigateAtlasBudgetMount = function (view) {
+    var iframe = document.querySelector('iframe[data-atlas-mount-key="budget"]');
+    if (!iframe || !iframe.contentWindow) return;
+    iframe.contentWindow.postMessage({ type: "atlas-budget-navigate", view: String(view || "dashboard") }, "*");
   };
 
   window.addEventListener("message", function (event) {
     var data = event && event.data;
-    if (!data || data.type !== "atlas-embedded-height") return;
+    if (!data) return;
+    if (data.type === "atlas-budget-publish" && isBudgetFrameSource(event.source)) {
+      var result = publishBudgetToAtlas(data.payload);
+      try { event.source.postMessage({ type: "atlas-budget-publish-result", result: result }, "*"); } catch (err) {}
+      return;
+    }
+    if (data.type !== "atlas-embedded-height") return;
     var iframe = document.querySelector('iframe[data-atlas-mount-key="' + String(data.key || "") + '"]');
     if (iframe) applyFrameHeight(iframe, data.height);
     if (data.key === "people" && Array.isArray(data.activeEmployees)) publishPeopleRoster(data.activeEmployees);
@@ -222,6 +306,25 @@
     if (!m) return "";
     var meta = contextMeta();
     var embeddedSrc = iframeSrc(key, m);
+    if (key === "budget") {
+      return [
+        '<section class="atlas-budget-workspace" id="atlas-mount-budget">',
+        '  <div class="atlas-budget-workspace-bar">',
+        '    <div><span class="atlas-budget-eyebrow">Finance workspace</span><h1>Budget Builder</h1></div>',
+        '    <div class="atlas-budget-workspace-actions">',
+        '      <button type="button" onclick="window.navigateAtlasBudgetMount(\'dashboard\')">Dashboard</button>',
+        '      <button type="button" onclick="window.navigateAtlasBudgetMount(\'actuals\')">Actuals</button>',
+        '      <button type="button" onclick="window.navigateAtlasBudgetMount(\'financialreview\')">Financial review</button>',
+        '      <button type="button" onclick="window.navigateAtlasBudgetMount(\'exports\')">Reports</button>',
+        '    </div>',
+        '  </div>',
+        '  <p class="atlas-budget-workspace-note">Approved, locked scenarios publish GL budgets and month-end actuals to ATLAS financial reporting. The workspace stays open while you move through ATLAS.</p>',
+        '  <div class="atlas-mount-frame atlas-budget-frame">',
+        '    <iframe src="' + esc(embeddedSrc) + '" title="' + esc(m.barTitle) + '" data-atlas-mount-key="budget" onload="window.handleAtlasMountLoad && window.handleAtlasMountLoad(this, \'budget\')" loading="lazy" style="background:' + esc(m.background) + '"></iframe>',
+        '  </div>',
+        '</section>'
+      ].join("\n");
+    }
     return [
       '<div class="atlas-screen-head">',
       "  <div>",

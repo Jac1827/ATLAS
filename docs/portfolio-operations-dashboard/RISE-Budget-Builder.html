@@ -16540,6 +16540,69 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
       'saved copy — keep it somewhere you can find it.');
   };
 
+  // The approved scenario is the financial baseline. Publishing deliberately
+  // copies its GL budget and recorded actuals into ATLAS' canonical ledgers;
+  // working scenarios remain local until they are formally locked.
+  A.publishToAtlas = function () {
+    var sc = A.scenario();
+    if (!sc || !sc.locked) {
+      A.toast('Only a locked approved scenario can be published to ATLAS.', 'r');
+      return;
+    }
+    if (window.parent === window) {
+      A.toast('Open this builder inside ATLAS to publish the approved scenario.', 'r');
+      return;
+    }
+    try {
+      var cp = A.cp(), vr = A.vr(), prop = A.prop(), year = A.year();
+      var budgetByPeriod = {}, actualsByPeriod = {};
+      (vr.rows || []).forEach(function (row) {
+        for (var month = 0; month < 12; month++) {
+          var period = year + '-' + (month + 1 < 10 ? '0' : '') + (month + 1);
+          var budgetRow = {
+            glCode: String(row.gl || ''), gl: String(row.gl || ''), name: String(row.name || ''),
+            section: String(row.section || ''), budget: Number(row.budget && row.budget[month] || 0),
+            annualBudget: Number(row.fullYearBudget || 0), source: 'RISE Budget Builder'
+          };
+          (budgetByPeriod[period] = budgetByPeriod[period] || []).push(budgetRow);
+          if (row.hasActual) {
+            (actualsByPeriod[period] = actualsByPeriod[period] || []).push({
+              glCode: budgetRow.glCode, gl: budgetRow.gl, name: budgetRow.name, section: budgetRow.section,
+              actual: Number(row.actual && row.actual[month] || 0), source: 'RISE Budget Builder'
+            });
+          }
+        }
+      });
+      window.parent.postMessage({
+        type: 'atlas-budget-publish',
+        payload: {
+          locked: true,
+          property: { id: prop.id, code: prop.code, name: prop.name, units: prop.totalUnits },
+          year: year,
+          scenario: { id: sc.id, name: sc.name, status: sc.status },
+          sourceFile: (A.state.imports && A.state.imports[0] && A.state.imports[0].file) || 'RISE Budget Builder',
+          budgetByPeriod: budgetByPeriod,
+          actualsByPeriod: actualsByPeriod
+        }
+      }, '*');
+      A.toast('Publishing the locked scenario to ATLAS...');
+    } catch (e) {
+      A.toast('Could not prepare the ATLAS publication: ' + H.esc(e && e.message || e), 'r');
+    }
+  };
+
+  window.addEventListener('message', function (event) {
+    var data = event && event.data;
+    if (!data) return;
+    if (data.type === 'atlas-budget-navigate' && data.view && R.views[data.view]) {
+      A.go(data.view);
+      return;
+    }
+    if (data.type === 'atlas-budget-publish-result' && data.result) {
+      A.toast(data.result.message || (data.result.ok ? 'Published to ATLAS.' : 'ATLAS could not save this publication.'), data.result.ok ? '' : 'r');
+    }
+  });
+
   A.toast = function (msg, kind) {
     var el = document.getElementById('toast');
     if (!el) return;
@@ -16591,6 +16654,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
       '<button class="btn ghost sm" onclick="RBB.app.cache=null;RBB.app.render();' +
       'RBB.app.toast(\'Recalculated\')">Recalculate</button>' +
       '<button class="btn sm" onclick="RBB.app.quickSave()">Save</button>' +
+      (sc.locked ? '<button class="btn pri sm" onclick="RBB.app.publishToAtlas()">Publish to ATLAS</button>' : '') +
       '<button class="btn ghost sm" onclick="RBB.app.go(\'exports\')">Export</button>';
     return out;
   };

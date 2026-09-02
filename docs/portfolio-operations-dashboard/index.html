@@ -2660,6 +2660,7 @@ let marketSurveyImportSourceLabel = "";
 let historicalImportTarget = defaultHistoricalImportTarget();
 let latestDlrSummary = defaultDlrSummary();
 let importTracking = defaultImportTracking();
+let applicationResidentDataState = defaultApplicationResidentDataState();
 let atlasPortfolioMap = null;
 let atlasPortfolioMapMarkers = [];
 let portfolioReportMode = "owner";
@@ -3248,6 +3249,10 @@ function normalizeReportHubType(value) {
     renewal_performance_report: "renewal_performance",
     renewal_report: "renewal_performance",
     renewals: "renewal_performance",
+    application_resident_data_report: "application_resident_data",
+    application_report: "application_resident_data",
+    resident_data_report: "application_resident_data",
+    resident_data: "application_resident_data",
     budget_vs_actual_financial_review: "financial_review",
     financial_review_report: "financial_review",
     budget_actual_review: "financial_review",
@@ -3267,6 +3272,7 @@ function normalizeReportHubType(value) {
     "market_comparison",
     "leasing_velocity",
     "renewal_performance",
+    "application_resident_data",
     "financial_review",
     "eviction_report"
   ].includes(mapped) ? mapped : RISE_WEEKLY_LEASING_REPORT_TYPE;
@@ -3283,6 +3289,968 @@ function normalizeReportRecommendationOverrides(data) {
     .map(([key, value]) => [String(key || "").trim(), String(value ?? "").trim()])
     .filter(([key]) => key));
 }
+
+const APPLICATION_RESIDENT_DATA_SHEET_NAME = "RISE - Resident Data";
+const APPLICATION_RESIDENT_DATA_EXPECTED_CONTROL = {
+  uniqueApplicationRecords: 219,
+  propertySections: 14,
+  mappedAtlasRecords: 131,
+  duplicateApplicationIds: 0
+};
+const APPLICATION_RESIDENT_DATA_PROPERTY_MAP = {
+  "RISE Bartram Park": { communityId: "BAR", communityName: "Bartram Park", atlasName: "Bartram Park" },
+  "RISE Baymeadows": { communityId: "BAY", communityName: "Baymeadows", atlasName: "Baymeadows" },
+  "RISE Citrus Ridge Townhomes": { communityId: "CIT", communityName: "Citrus Ridge", atlasName: "Citrus Ridge" },
+  "RISE Doro": { communityId: "DOR", communityName: "Doro", atlasName: "Doro" },
+  "RISE Florence Villa Townhomes": { communityId: "FLO", communityName: "Florence Villa", atlasName: "Florence Villa" },
+  "RISE Sereno": { communityId: "SER", communityName: "Sereno", atlasName: "Sereno" },
+  "RISE St. Augustine": { communityId: "STA", communityName: "St Augustine", atlasName: "St Augustine" }
+};
+const APPLICATION_RESIDENT_REQUIRED_HEADERS = [
+  "Name",
+  "New Lead Created On",
+  "Application Partially Completed",
+  "Application Completed",
+  "Leasing Agent (Assigned)",
+  "Lead Source",
+  "First Visit/Tour Date",
+  "Application ID",
+  "Application Status"
+];
+const APPLICATION_RESIDENT_FIELD_ALIASES = {
+  residentName: ["Name", "Resident Name", "Applicant", "Applicant Name"],
+  applicationId: ["Application ID", "Application Id", "ApplicationID"],
+  applicationStatus: ["Application Status", "Status"],
+  leasingAgent: ["Leasing Agent (Assigned)", "Assigned Leasing Agent", "Leasing Agent"],
+  newLeadCreatedOn: ["New Lead Created On", "Lead Created On", "Created On"],
+  applicationPartiallyCompletedOn: ["Application Partially Completed", "Partially Completed", "Application Partial"],
+  applicationCompletedOn: ["Application Completed", "Completed On"],
+  leadSource: ["Lead Source", "Source"],
+  firstVisitTourDate: ["First Visit/Tour Date", "First Visit", "Tour Date"],
+  occupantType: ["Occupant Type"],
+  leaseId: ["Lease ID", "Lease Id", "LeaseID"],
+  leaseStatus: ["Lease Status"],
+  scheduledRent: ["Scheduled Rent"],
+  buildingUnit: ["Bldg-Unit", "Building Unit", "Unit", "Bldg Unit"],
+  primaryPhone: ["Primary Phone"],
+  additionalPhoneNumbers: ["Additional Phone Numbers", "Additional Phone"],
+  email: ["E-mail", "Email"],
+  currentLeaseStart: ["Current Lease Start"],
+  currentLeaseEnd: ["Current Lease End"],
+  moveInDate: ["Move-In Date", "Move In Date"]
+};
+const APPLICATION_RESIDENT_STATUS_ORDER = [
+  "Application: Started",
+  "Application: Partially Completed",
+  "Application: Completed",
+  "Application: Completed (Cancelled)",
+  "Application: Denied",
+  "Application: Approved",
+  "Application: Approved (Cancelled)",
+  "Lease: Completed",
+  "Lease: Completed (Cancelled)",
+  "Lease: Approved"
+];
+const APPLICATION_RESIDENT_RECONCILIATION_METRICS = [
+  { key: "application_completed", label: "Applications", residentStatus: "Application: Completed", atlasField: "applications", eventField: "applicationCompletedOn" },
+  { key: "application_approved", label: "Approved Applications", residentStatus: "Application: Approved", atlasField: "applicationsApproved", eventField: "applicationApprovedOn" },
+  { key: "application_denied", label: "Denials", residentStatus: "Application: Denied", atlasField: "denied", eventField: "applicationDeniedOn" },
+  { key: "application_completed_cancelled", label: "Completed Cancellations", residentStatus: "Application: Completed (Cancelled)", atlasField: "cancelled", eventField: "applicationCompletedCancelledOn" },
+  { key: "application_approved_cancelled", label: "Approved Cancellations", residentStatus: "Application: Approved (Cancelled)", atlasField: "approvedCancelled", eventField: "applicationApprovedCancelledOn" },
+  { key: "lease_completed", label: "Lease Completions", residentStatus: "Lease: Completed", atlasField: "leasesSignedActual", eventField: "leaseCompletedOn" },
+  { key: "lease_completed_cancelled", label: "Lease Cancellations", residentStatus: "Lease: Completed (Cancelled)", atlasField: "leaseCancelled", eventField: "leaseCompletedCancelledOn" },
+  { key: "lease_approved", label: "Lease Approvals", residentStatus: "Lease: Approved", atlasField: "leaseApproved", eventField: "leaseApprovedOn" }
+];
+
+function defaultApplicationResidentDataState() {
+  return {
+    reportMonthIdx: DEFAULT_CURRENT_MONTH,
+    reportYear: new Date().getFullYear(),
+    uploads: [],
+    lastDeletedUpload: null,
+    audit: []
+  };
+}
+
+function normalizeApplicationResidentDateInput(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+  }
+  if (typeof value === "number" && Number.isFinite(value) && typeof XLSX !== "undefined" && XLSX.SSF?.parse_date_code) {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (parsed?.y && parsed?.m && parsed?.d) return `${parsed.y}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
+  }
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) return `${isoMatch[1]}-${String(isoMatch[2]).padStart(2, "0")}-${String(isoMatch[3]).padStart(2, "0")}`;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
+}
+
+function formatApplicationResidentDate(value) {
+  const normalized = normalizeApplicationResidentDateInput(value);
+  if (!normalized) return "";
+  const parsed = new Date(`${normalized}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) return normalized;
+  return parsed.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function normalizeApplicationResidentText(value) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeApplicationResidentIdentifier(value) {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "number" && Number.isFinite(value)) return Number.isInteger(value) ? String(value) : String(value).replace(/\.0+$/, "");
+  return String(value).trim().replace(/\.0+$/, "");
+}
+
+function normalizeApplicationResidentRecord(record = {}) {
+  const propertySource = normalizeApplicationResidentText(record.propertySource || record.property || "");
+  const mapped = APPLICATION_RESIDENT_DATA_PROPERTY_MAP[propertySource] || null;
+  return {
+    batchId: String(record.batchId || ""),
+    sourceFileName: String(record.sourceFileName || ""),
+    sourceRowNumber: Number.isFinite(Number(record.sourceRowNumber)) ? Number(record.sourceRowNumber) : null,
+    reportPeriodKey: String(record.reportPeriodKey || buildPeriodKey(DEFAULT_CURRENT_MONTH, new Date().getFullYear())),
+    reportMonth: String(record.reportMonth || ""),
+    propertySource,
+    communityId: String(record.communityId || mapped?.communityId || ""),
+    communityName: String(record.communityName || mapped?.communityName || ""),
+    atlasName: String(record.atlasName || mapped?.atlasName || ""),
+    mappingStatus: record.mappingStatus === "mapped" || mapped ? "mapped" : "unmapped",
+    residentName: normalizeApplicationResidentText(record.residentName),
+    applicationId: normalizeApplicationResidentIdentifier(record.applicationId),
+    applicationStatus: normalizeApplicationResidentText(record.applicationStatus),
+    leasingAgent: normalizeApplicationResidentText(record.leasingAgent),
+    leadSource: normalizeApplicationResidentText(record.leadSource),
+    newLeadCreatedOn: normalizeApplicationResidentDateInput(record.newLeadCreatedOn),
+    applicationPartiallyCompletedOn: normalizeApplicationResidentDateInput(record.applicationPartiallyCompletedOn),
+    applicationCompletedOn: normalizeApplicationResidentDateInput(record.applicationCompletedOn),
+    firstVisitTourDate: normalizeApplicationResidentDateInput(record.firstVisitTourDate),
+    occupantType: normalizeApplicationResidentText(record.occupantType),
+    leaseId: normalizeApplicationResidentIdentifier(record.leaseId),
+    leaseStatus: normalizeApplicationResidentText(record.leaseStatus),
+    scheduledRent: normalizeOptionalNumber(record.scheduledRent),
+    buildingUnit: normalizeApplicationResidentText(record.buildingUnit),
+    primaryPhone: normalizeApplicationResidentText(record.primaryPhone),
+    additionalPhoneNumbers: normalizeApplicationResidentText(record.additionalPhoneNumbers),
+    email: normalizeApplicationResidentText(record.email),
+    currentLeaseStart: normalizeApplicationResidentDateInput(record.currentLeaseStart),
+    currentLeaseEnd: normalizeApplicationResidentDateInput(record.currentLeaseEnd),
+    moveInDate: normalizeApplicationResidentDateInput(record.moveInDate),
+    statusClassification: classifyApplicationResidentStatus(record.applicationStatus || record.leaseStatus || ""),
+    duplicateReview: Boolean(record.duplicateReview),
+    notes: normalizeApplicationResidentText(record.notes)
+  };
+}
+
+function normalizeApplicationResidentUpload(upload = {}) {
+  const records = Array.isArray(upload.records) ? upload.records.map(normalizeApplicationResidentRecord).filter(record => record.applicationId) : [];
+  const sourceRows = Number.isFinite(Number(upload.sourceRows)) ? Number(upload.sourceRows) : records.length;
+  const propertySections = Array.isArray(upload.propertySections) ? upload.propertySections.map(normalizeApplicationResidentText).filter(Boolean) : [];
+  const mappedProperties = Array.isArray(upload.mappedProperties) ? upload.mappedProperties.map(normalizeApplicationResidentText).filter(Boolean) : [...new Set(records.filter(record => record.mappingStatus === "mapped").map(record => record.propertySource))];
+  const unmappedProperties = Array.isArray(upload.unmappedProperties) ? upload.unmappedProperties.map(normalizeApplicationResidentText).filter(Boolean) : [...new Set(records.filter(record => record.mappingStatus !== "mapped").map(record => record.propertySource))];
+  const validationStatus = ["valid", "needs_review", "failed", "deleted"].includes(upload.validationStatus) ? upload.validationStatus : (records.length ? "valid" : "failed");
+  return {
+    batchId: String(upload.batchId || `resident-data-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
+    fileName: String(upload.fileName || "Resident Data upload"),
+    uploadedAt: String(upload.uploadedAt || new Date().toISOString()),
+    sourceAsOf: normalizeApplicationResidentDateInput(upload.sourceAsOf),
+    reportPeriodKey: String(upload.reportPeriodKey || buildPeriodKey(DEFAULT_CURRENT_MONTH, new Date().getFullYear())),
+    reportMonthLabel: String(upload.reportMonthLabel || ""),
+    sourceRows,
+    validApplicationRecords: Number.isFinite(Number(upload.validApplicationRecords)) ? Number(upload.validApplicationRecords) : records.length,
+    propertySections,
+    mappedProperties,
+    unmappedProperties,
+    duplicateApplicationIds: Array.isArray(upload.duplicateApplicationIds) ? upload.duplicateApplicationIds.map(normalizeApplicationResidentIdentifier).filter(Boolean) : [],
+    validationStatus,
+    validationMessages: Array.isArray(upload.validationMessages) ? upload.validationMessages.map(String).filter(Boolean) : [],
+    deletedAt: String(upload.deletedAt || ""),
+    deletedBy: String(upload.deletedBy || ""),
+    deletedReason: String(upload.deletedReason || ""),
+    records
+  };
+}
+
+function normalizeApplicationResidentDataState(data) {
+  const input = data && typeof data === "object" ? data : {};
+  const defaults = defaultApplicationResidentDataState();
+  const reportMonthIdx = Number.isInteger(input.reportMonthIdx) ? clampNumber(input.reportMonthIdx, 0, 11) : defaults.reportMonthIdx;
+  const reportYear = Number.isFinite(Number(input.reportYear)) ? Number(input.reportYear) : defaults.reportYear;
+  return {
+    reportMonthIdx,
+    reportYear,
+    uploads: Array.isArray(input.uploads) ? input.uploads.map(normalizeApplicationResidentUpload) : [],
+    lastDeletedUpload: input.lastDeletedUpload ? normalizeApplicationResidentUpload(input.lastDeletedUpload) : null,
+    audit: Array.isArray(input.audit) ? input.audit.map(entry => ({
+      at: String(entry?.at || ""),
+      user: String(entry?.user || ""),
+      action: String(entry?.action || ""),
+      batchId: String(entry?.batchId || ""),
+      fileName: String(entry?.fileName || ""),
+      detail: String(entry?.detail || "")
+    })) : []
+  };
+}
+
+function getApplicationResidentReportPeriodKey() {
+  return buildPeriodKey(applicationResidentDataState.reportMonthIdx, applicationResidentDataState.reportYear);
+}
+
+function getApplicationResidentReportMonthLabel(periodKey = getApplicationResidentReportPeriodKey()) {
+  const parsed = parsePeriodKey(periodKey) || { monthIdx: applicationResidentDataState.reportMonthIdx, year: applicationResidentDataState.reportYear };
+  return `${FULL_MONTHS[parsed.monthIdx]} ${parsed.year}`;
+}
+
+function setApplicationResidentDataReportPeriod(field, value) {
+  if (field === "month") applicationResidentDataState.reportMonthIdx = clampNumber(Number(value), 0, 11);
+  if (field === "year") {
+    const parsed = Number(value);
+    applicationResidentDataState.reportYear = Number.isFinite(parsed) && parsed > 2000 ? Math.round(parsed) : new Date().getFullYear();
+  }
+  persistOpsGlobalData();
+  renderTab();
+}
+
+function classifyApplicationResidentStatus(status = "") {
+  const raw = normalizeApplicationResidentText(status);
+  const normalized = raw.toLowerCase();
+  const exact = APPLICATION_RESIDENT_STATUS_ORDER.find(item => item.toLowerCase() === normalized);
+  if (exact) return { status: exact, group: exact.startsWith("Lease:") ? "lease" : "application", reportable: true };
+  if (normalized.startsWith("renewal offer:")) return { status: raw, group: "renewal_offer", reportable: false };
+  if (!normalized) return { status: "", group: "missing", reportable: false };
+  return { status: raw, group: "other", reportable: false };
+}
+
+function parseApplicationResidentPropertySeparator(value = "") {
+  const raw = normalizeApplicationResidentText(value);
+  const match = raw.match(/^Property:\s*(.*?)\s*\(Results:\s*(\d+)\s*\)\s*$/i);
+  if (!match) return null;
+  return {
+    propertyName: normalizeApplicationResidentText(match[1]),
+    resultCount: Number(match[2])
+  };
+}
+
+function findApplicationResidentHeaderRow(rows = []) {
+  const required = APPLICATION_RESIDENT_REQUIRED_HEADERS.map(normalizeAtlasColumnKey);
+  for (let rowIdx = 0; rowIdx < rows.length; rowIdx += 1) {
+    const normalizedCells = (rows[rowIdx] || []).map(normalizeAtlasColumnKey);
+    const foundAll = required.every(requiredKey => normalizedCells.includes(requiredKey));
+    if (foundAll) return rowIdx;
+  }
+  return -1;
+}
+
+function buildApplicationResidentColumnIndex(headerRow = []) {
+  const normalized = headerRow.map(normalizeAtlasColumnKey);
+  const index = {};
+  Object.entries(APPLICATION_RESIDENT_FIELD_ALIASES).forEach(([field, aliases]) => {
+    const aliasKeys = aliases.map(normalizeAtlasColumnKey);
+    const matched = normalized.findIndex(header => aliasKeys.includes(header));
+    if (matched >= 0) index[field] = matched;
+  });
+  return index;
+}
+
+function getApplicationResidentCell(row = [], colIdx = {}, field = "") {
+  const idx = colIdx[field];
+  return Number.isInteger(idx) && idx >= 0 ? row[idx] : "";
+}
+
+function getApplicationResidentSourceAsOf(workbook, file) {
+  const paramsSheet = workbook?.Sheets?.["Report Parameters"];
+  if (paramsSheet && typeof XLSX !== "undefined") {
+    const rows = XLSX.utils.sheet_to_json(paramsSheet, { header: 1, defval: "", raw: false });
+    const generated = rows.find(row => normalizeAtlasColumnKey(row?.[0]).includes("generated") || normalizeAtlasColumnKey(row?.[0]).includes("as_of"));
+    const value = generated?.slice(1).find(cell => String(cell ?? "").trim());
+    if (value) return normalizeApplicationResidentDateInput(value);
+  }
+  return file?.lastModified ? normalizeApplicationResidentDateInput(new Date(file.lastModified)) : normalizeApplicationResidentDateInput(new Date());
+}
+
+function parseApplicationResidentDataWorkbook(workbook, file, options = {}) {
+  const reportMonthIdx = Number.isInteger(options.reportMonthIdx) ? clampNumber(options.reportMonthIdx, 0, 11) : applicationResidentDataState.reportMonthIdx;
+  const reportYear = Number.isFinite(Number(options.reportYear)) ? Number(options.reportYear) : applicationResidentDataState.reportYear;
+  const reportPeriodKey = buildPeriodKey(reportMonthIdx, reportYear);
+  const sheet = workbook?.Sheets?.[APPLICATION_RESIDENT_DATA_SHEET_NAME];
+  if (!sheet) {
+    return normalizeApplicationResidentUpload({
+      fileName: file?.name || "Resident Data upload",
+      reportPeriodKey,
+      reportMonthLabel: getApplicationResidentReportMonthLabel(reportPeriodKey),
+      validationStatus: "failed",
+      validationMessages: [`Missing worksheet named "${APPLICATION_RESIDENT_DATA_SHEET_NAME}".`]
+    });
+  }
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false, blankrows: true });
+  const headerRowIdx = findApplicationResidentHeaderRow(rows);
+  if (headerRowIdx < 0) {
+    return normalizeApplicationResidentUpload({
+      fileName: file?.name || "Resident Data upload",
+      reportPeriodKey,
+      reportMonthLabel: getApplicationResidentReportMonthLabel(reportPeriodKey),
+      sourceRows: rows.length,
+      validationStatus: "failed",
+      validationMessages: ["Header mapping failed. ATLAS could not find Name, Application ID, Application Status, and the expected Resident Data fields."]
+    });
+  }
+  const colIdx = buildApplicationResidentColumnIndex(rows[headerRowIdx] || []);
+  const batchId = `resident-data-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const propertySections = [];
+  const sourceRows = [];
+  const records = [];
+  let currentProperty = "";
+  for (let rowIdx = headerRowIdx + 1; rowIdx < rows.length; rowIdx += 1) {
+    const row = Array.isArray(rows[rowIdx]) ? rows[rowIdx] : [];
+    const firstCell = normalizeApplicationResidentText(row[0]);
+    const separator = parseApplicationResidentPropertySeparator(firstCell);
+    if (separator) {
+      currentProperty = separator.propertyName;
+      propertySections.push(currentProperty);
+      continue;
+    }
+    if (!row.some(cell => String(cell ?? "").trim())) continue;
+    sourceRows.push(rowIdx + 1);
+    const applicationId = normalizeApplicationResidentIdentifier(getApplicationResidentCell(row, colIdx, "applicationId"));
+    if (!applicationId || normalizeAtlasColumnKey(applicationId) === "application_id") continue;
+    const residentName = normalizeApplicationResidentText(getApplicationResidentCell(row, colIdx, "residentName"));
+    if (!residentName || residentName.startsWith("=")) continue;
+    const sourceProperty = currentProperty;
+    const propertyMap = APPLICATION_RESIDENT_DATA_PROPERTY_MAP[sourceProperty] || null;
+    const record = normalizeApplicationResidentRecord({
+      batchId,
+      sourceFileName: file?.name || "Resident Data upload",
+      sourceRowNumber: rowIdx + 1,
+      reportPeriodKey,
+      reportMonth: getApplicationResidentReportMonthLabel(reportPeriodKey),
+      propertySource: sourceProperty,
+      communityId: propertyMap?.communityId || "",
+      communityName: propertyMap?.communityName || "",
+      atlasName: propertyMap?.atlasName || "",
+      mappingStatus: propertyMap ? "mapped" : "unmapped",
+      residentName,
+      applicationId,
+      applicationStatus: getApplicationResidentCell(row, colIdx, "applicationStatus"),
+      leasingAgent: getApplicationResidentCell(row, colIdx, "leasingAgent"),
+      leadSource: getApplicationResidentCell(row, colIdx, "leadSource"),
+      newLeadCreatedOn: getApplicationResidentCell(row, colIdx, "newLeadCreatedOn"),
+      applicationPartiallyCompletedOn: getApplicationResidentCell(row, colIdx, "applicationPartiallyCompletedOn"),
+      applicationCompletedOn: getApplicationResidentCell(row, colIdx, "applicationCompletedOn"),
+      firstVisitTourDate: getApplicationResidentCell(row, colIdx, "firstVisitTourDate"),
+      occupantType: getApplicationResidentCell(row, colIdx, "occupantType"),
+      leaseId: getApplicationResidentCell(row, colIdx, "leaseId"),
+      leaseStatus: getApplicationResidentCell(row, colIdx, "leaseStatus"),
+      scheduledRent: getApplicationResidentCell(row, colIdx, "scheduledRent"),
+      buildingUnit: getApplicationResidentCell(row, colIdx, "buildingUnit"),
+      primaryPhone: getApplicationResidentCell(row, colIdx, "primaryPhone"),
+      additionalPhoneNumbers: getApplicationResidentCell(row, colIdx, "additionalPhoneNumbers"),
+      email: getApplicationResidentCell(row, colIdx, "email"),
+      currentLeaseStart: getApplicationResidentCell(row, colIdx, "currentLeaseStart"),
+      currentLeaseEnd: getApplicationResidentCell(row, colIdx, "currentLeaseEnd"),
+      moveInDate: getApplicationResidentCell(row, colIdx, "moveInDate")
+    });
+    records.push(record);
+  }
+  const idCounts = records.reduce((acc, record) => {
+    acc[record.applicationId] = (acc[record.applicationId] || 0) + 1;
+    return acc;
+  }, {});
+  const duplicateIds = Object.entries(idCounts).filter(([, count]) => count > 1).map(([id]) => id);
+  records.forEach(record => { record.duplicateReview = duplicateIds.includes(record.applicationId); });
+  const mappedProperties = [...new Set(records.filter(record => record.mappingStatus === "mapped").map(record => record.propertySource))];
+  const unmappedProperties = [...new Set(records.filter(record => record.mappingStatus !== "mapped").map(record => record.propertySource).filter(Boolean))];
+  const messages = [];
+  if (records.length === 0 || propertySections.length === 0) {
+    messages.push("Parser rejected this staging result because it detected zero Application IDs or zero property sections. Header or property separator mapping failed.");
+  }
+  if (duplicateIds.length > 0) messages.push(`${duplicateIds.length} duplicate Application ID${duplicateIds.length === 1 ? "" : "s"} flagged for review.`);
+  const isExpectedResidentFile = /rise\s*-\s*resident\s*data/i.test(String(file?.name || ""));
+  if (isExpectedResidentFile) {
+    if (records.length === APPLICATION_RESIDENT_DATA_EXPECTED_CONTROL.uniqueApplicationRecords
+      && propertySections.length === APPLICATION_RESIDENT_DATA_EXPECTED_CONTROL.propertySections
+      && records.filter(record => record.mappingStatus === "mapped").length === APPLICATION_RESIDENT_DATA_EXPECTED_CONTROL.mappedAtlasRecords
+      && duplicateIds.length === APPLICATION_RESIDENT_DATA_EXPECTED_CONTROL.duplicateApplicationIds) {
+      messages.push("Control totals passed for the supplied Resident Data workbook.");
+    } else {
+      messages.push(`Control total review: detected ${records.length} records, ${propertySections.length} property sections, ${records.filter(record => record.mappingStatus === "mapped").length} mapped ATLAS records, and ${duplicateIds.length} duplicate IDs.`);
+    }
+  }
+  const availableStatuses = [...new Set(records.map(record => record.applicationStatus).filter(Boolean))];
+  if (availableStatuses.every(status => /started|partially completed|renewal offer/i.test(status))) {
+    messages.push("Source limitation: this Resident Data export is filtered to started and partially completed application statuses, so it cannot validate completed applications, approvals, denials, or cancellations. Upload a Resident Data export with those statuses and event dates before final reconciliation.");
+  }
+  return normalizeApplicationResidentUpload({
+    batchId,
+    fileName: file?.name || "Resident Data upload",
+    uploadedAt: new Date().toISOString(),
+    sourceAsOf: getApplicationResidentSourceAsOf(workbook, file),
+    reportPeriodKey,
+    reportMonthLabel: getApplicationResidentReportMonthLabel(reportPeriodKey),
+    sourceRows: sourceRows.length,
+    validApplicationRecords: records.length,
+    propertySections,
+    mappedProperties,
+    unmappedProperties,
+    duplicateApplicationIds: duplicateIds,
+    validationStatus: records.length === 0 || propertySections.length === 0 ? "failed" : (duplicateIds.length > 0 || unmappedProperties.length > 0 ? "needs_review" : "valid"),
+    validationMessages: messages,
+    records
+  });
+}
+
+async function processApplicationResidentDataFiles(files) {
+  if (typeof XLSX === "undefined") {
+    csvError = "XLSX parser is unavailable because the spreadsheet library did not load.";
+    renderTab();
+    return;
+  }
+  const accepted = Array.from(files || []);
+  if (!accepted.length) return;
+  const notes = [];
+  for (const file of accepted) {
+    const lowerName = String(file?.name || "").toLowerCase();
+    if (!(/\.(xlsx|xlsm|xls)$/i.test(lowerName))) {
+      notes.push(`${file.name} skipped: Resident Data upload accepts Excel workbooks only.`);
+      continue;
+    }
+    try {
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, cellStyles: true });
+      const upload = parseApplicationResidentDataWorkbook(workbook, file, {
+        reportMonthIdx: applicationResidentDataState.reportMonthIdx,
+        reportYear: applicationResidentDataState.reportYear
+      });
+      applicationResidentDataState.uploads = [
+        upload,
+        ...applicationResidentDataState.uploads.filter(item => item.batchId !== upload.batchId)
+      ];
+      applicationResidentDataState.audit = [
+        {
+          at: new Date().toISOString(),
+          user: getAtlasCurrentUserLabel(),
+          action: "resident_data_upload",
+          batchId: upload.batchId,
+          fileName: upload.fileName,
+          detail: `${upload.validApplicationRecords} valid application records; ${upload.validationStatus}`
+        },
+        ...applicationResidentDataState.audit
+      ].slice(0, 100);
+      notes.push(`${upload.validationStatus === "failed" ? "Failed" : "Imported"} ${upload.fileName}: ${upload.validApplicationRecords} records, ${upload.propertySections.length} property sections, ${upload.mappedProperties.length} mapped properties.`);
+      if (upload.validationMessages.length) notes.push(...upload.validationMessages);
+    } catch (error) {
+      const failedUpload = normalizeApplicationResidentUpload({
+        fileName: file?.name || "Resident Data upload",
+        uploadedAt: new Date().toISOString(),
+        sourceAsOf: file?.lastModified ? normalizeApplicationResidentDateInput(new Date(file.lastModified)) : "",
+        reportPeriodKey: getApplicationResidentReportPeriodKey(),
+        reportMonthLabel: getApplicationResidentReportMonthLabel(),
+        validationStatus: "failed",
+        validationMessages: [`Failed to parse Resident Data workbook: ${error.message}`]
+      });
+      applicationResidentDataState.uploads = [failedUpload, ...applicationResidentDataState.uploads];
+      notes.push(`Failed ${failedUpload.fileName}: ${error.message}`);
+    }
+  }
+  applicationResidentDataState = normalizeApplicationResidentDataState(applicationResidentDataState);
+  const persistResult = persistOpsGlobalData();
+  if (persistResult?.ok === false) csvError = persistResult.message;
+  csvLog = [`Resident Data import updated.`, ...notes].slice(0, 12);
+  renderTab();
+}
+
+function getAtlasCurrentUserLabel() {
+  const authState = typeof atlasAuthUiState !== "undefined" ? atlasAuthUiState : {};
+  const authName = String(authState?.displayName || authState?.name || "").trim();
+  if (authName) return authName;
+  const liveName = String(document.querySelector(".atlas-user-name")?.textContent || "").replace(/^Live now:\s*/i, "").trim();
+  return liveName || "ATLAS user";
+}
+
+function getApplicationResidentActiveUploads() {
+  return normalizeApplicationResidentDataState(applicationResidentDataState).uploads.filter(upload => upload.validationStatus !== "deleted");
+}
+
+function getApplicationResidentActiveRecords(options = {}) {
+  const includeUnmapped = options.includeUnmapped !== false;
+  const uploads = getApplicationResidentActiveUploads().filter(upload => upload.validationStatus !== "failed");
+  const records = uploads.flatMap(upload => upload.records || []);
+  return records.filter(record => includeUnmapped || record.mappingStatus === "mapped");
+}
+
+function getApplicationResidentLatestRecordMap(records = getApplicationResidentActiveRecords()) {
+  const byId = new Map();
+  records.forEach(record => {
+    if (!record.applicationId) return;
+    const existing = byId.get(record.applicationId);
+    if (!existing || String(record.batchId || "") > String(existing.batchId || "")) byId.set(record.applicationId, record);
+  });
+  return byId;
+}
+
+function getApplicationResidentDuplicateIds() {
+  const counts = {};
+  getApplicationResidentActiveRecords().forEach(record => {
+    if (!record.applicationId) return;
+    counts[record.applicationId] = (counts[record.applicationId] || 0) + 1;
+  });
+  return Object.entries(counts).filter(([, count]) => count > 1).map(([id]) => id);
+}
+
+function getApplicationResidentLifecycleSummary(records = Array.from(getApplicationResidentLatestRecordMap().values())) {
+  const summary = {};
+  [...APPLICATION_RESIDENT_STATUS_ORDER, "Renewal Offer", "Other / Unmapped"].forEach(key => { summary[key] = 0; });
+  records.forEach(record => {
+    const classification = classifyApplicationResidentStatus(record.applicationStatus || record.leaseStatus);
+    if (classification.group === "renewal_offer") summary["Renewal Offer"] += 1;
+    else if (summary[classification.status] !== undefined) summary[classification.status] += 1;
+    else summary["Other / Unmapped"] += 1;
+  });
+  return summary;
+}
+
+function getApplicationResidentMonthlyReportEntry(communityId, monthIdx, year) {
+  const communityConfig = Object.values(APPLICATION_RESIDENT_DATA_PROPERTY_MAP).find(item => item.communityId === communityId) || {};
+  const atlasName = communityConfig.atlasName || getKnownAtlasCommunityName(communityId);
+  const record = atlasName ? normalizeSavedCommunityRecord(atlasName, savedData?.[atlasName]) : null;
+  if (!record) return null;
+  return getRecordMonthEntryForPeriod(record, monthIdx, year);
+}
+
+function getApplicationResidentAtlasMetricValue(monthEntry, field) {
+  if (!monthEntry) return null;
+  if (field === "approvedCancelled" || field === "leaseCancelled" || field === "leaseApproved") return null;
+  const value = Number(monthEntry[field]);
+  return Number.isFinite(value) ? Math.max(0, value) : null;
+}
+
+function applicationResidentDateFallsInPeriod(dateValue, periodKey) {
+  const normalized = normalizeApplicationResidentDateInput(dateValue);
+  if (!normalized) return false;
+  const parsed = new Date(`${normalized}T12:00:00`);
+  const period = parsePeriodKey(periodKey);
+  if (!period || Number.isNaN(parsed.getTime())) return false;
+  return parsed.getFullYear() === period.year && parsed.getMonth() === period.monthIdx;
+}
+
+function buildApplicationResidentReconciliationRows(periodKey = getApplicationResidentReportPeriodKey()) {
+  const period = parsePeriodKey(periodKey) || { monthIdx: applicationResidentDataState.reportMonthIdx, year: applicationResidentDataState.reportYear };
+  const latestRecords = Array.from(getApplicationResidentLatestRecordMap(getApplicationResidentActiveRecords({ includeUnmapped: false })).values())
+    .filter(record => record.reportPeriodKey === periodKey);
+  const communityIds = [...new Set([
+    ...Object.values(APPLICATION_RESIDENT_DATA_PROPERTY_MAP).map(item => item.communityId),
+    ...latestRecords.map(record => record.communityId).filter(Boolean)
+  ])];
+  const rows = [];
+  communityIds.forEach(communityId => {
+    const communityConfig = Object.values(APPLICATION_RESIDENT_DATA_PROPERTY_MAP).find(item => item.communityId === communityId) || {};
+    const monthEntry = getApplicationResidentMonthlyReportEntry(communityId, period.monthIdx, period.year);
+    APPLICATION_RESIDENT_RECONCILIATION_METRICS.forEach(metric => {
+      const matchingStatusRecords = latestRecords.filter(record => record.communityId === communityId && record.applicationStatus === metric.residentStatus);
+      const residentCountable = matchingStatusRecords.filter(record => applicationResidentDateFallsInPeriod(record[metric.eventField], periodKey));
+      const hasStatusInExport = matchingStatusRecords.length > 0;
+      const hasEventDateSupport = residentCountable.length > 0 || matchingStatusRecords.some(record => normalizeApplicationResidentDateInput(record[metric.eventField]));
+      const residentAvailable = hasStatusInExport && hasEventDateSupport;
+      const atlasCount = getApplicationResidentAtlasMetricValue(monthEntry, metric.atlasField);
+      const residentCount = residentAvailable ? residentCountable.length : null;
+      const variance = residentAvailable && atlasCount !== null ? residentCount - atlasCount : null;
+      rows.push({
+        periodKey,
+        communityId,
+        communityName: communityConfig.communityName || communityId,
+        metricLabel: metric.label,
+        atlasCount,
+        residentCount,
+        variance,
+        sourceStatus: metric.residentStatus,
+        note: residentAvailable
+          ? (variance === 0 ? "Reconciled" : "Variance flagged for review")
+          : "Not available from this Resident Data export"
+      });
+    });
+  });
+  return rows;
+}
+
+function getApplicationResidentPanelSummary() {
+  const uploads = normalizeApplicationResidentDataState(applicationResidentDataState).uploads;
+  const activeUploads = getApplicationResidentActiveUploads();
+  const latestRecords = Array.from(getApplicationResidentLatestRecordMap().values());
+  const mappedRecords = latestRecords.filter(record => record.mappingStatus === "mapped");
+  const unmappedProperties = [...new Set(latestRecords.filter(record => record.mappingStatus !== "mapped").map(record => record.propertySource).filter(Boolean))];
+  const lifecycle = getApplicationResidentLifecycleSummary(latestRecords);
+  const duplicates = getApplicationResidentDuplicateIds();
+  const activeReconciliation = buildApplicationResidentReconciliationRows().filter(row => row.residentCount !== null && row.atlasCount !== null);
+  return {
+    uploads,
+    activeUploads,
+    latestRecords,
+    mappedRecords,
+    unmappedProperties,
+    lifecycle,
+    duplicates,
+    varianceCount: activeReconciliation.filter(row => row.variance !== 0).length
+  };
+}
+
+function deleteApplicationResidentDataUpload(batchId) {
+  const state = normalizeApplicationResidentDataState(applicationResidentDataState);
+  const upload = state.uploads.find(item => item.batchId === batchId);
+  if (!upload) return;
+  const properties = [...new Set(upload.records.map(record => record.propertySource).filter(Boolean))].join(", ") || "No properties";
+  const periods = [...new Set(upload.records.map(record => record.reportMonth).filter(Boolean))].join(", ") || upload.reportMonthLabel || "No periods";
+  const exactMessage = [
+    `Delete Resident Data upload?`,
+    ``,
+    `File: ${upload.fileName}`,
+    `Uploaded: ${formatSavedTimestampLabel(upload.uploadedAt)}`,
+    `Records: ${upload.validApplicationRecords}`,
+    `Properties: ${properties}`,
+    `Reporting periods affected: ${periods}`,
+    ``,
+    `This removes only resident records and reconciliation results created by this upload batch.`
+  ].join("\n");
+  if (!confirm(exactMessage)) return;
+  const reason = prompt(`Type DELETE to confirm removal of "${upload.fileName}". You can add a reason after DELETE.`, "DELETE");
+  if (!/^DELETE\b/i.test(String(reason || "").trim())) return;
+  const deletedUpload = normalizeApplicationResidentUpload({
+    ...upload,
+    validationStatus: "deleted",
+    deletedAt: new Date().toISOString(),
+    deletedBy: getAtlasCurrentUserLabel(),
+    deletedReason: String(reason || "").replace(/^DELETE\b/i, "").trim() || "User confirmed deletion"
+  });
+  applicationResidentDataState = normalizeApplicationResidentDataState({
+    ...state,
+    uploads: state.uploads.map(item => item.batchId === batchId ? deletedUpload : item),
+    lastDeletedUpload: upload,
+    audit: [
+      {
+        at: new Date().toISOString(),
+        user: getAtlasCurrentUserLabel(),
+        action: "resident_data_delete",
+        batchId,
+        fileName: upload.fileName,
+        detail: `${upload.validApplicationRecords} resident record(s) removed. ${deletedUpload.deletedReason}`
+      },
+      ...state.audit
+    ].slice(0, 100)
+  });
+  persistOpsGlobalData();
+  csvLog = [`Removed ${upload.fileName} from active Resident Data and recalculated resident reconciliation from remaining uploads. ${upload.validApplicationRecords} record${upload.validApplicationRecords === 1 ? "" : "s"} removed.`];
+  renderTab();
+}
+
+function restoreLastApplicationResidentDataUpload() {
+  const state = normalizeApplicationResidentDataState(applicationResidentDataState);
+  if (!state.lastDeletedUpload?.batchId) return;
+  const restored = normalizeApplicationResidentUpload({
+    ...state.lastDeletedUpload,
+    validationStatus: state.lastDeletedUpload.duplicateApplicationIds?.length ? "needs_review" : "valid",
+    deletedAt: "",
+    deletedBy: "",
+    deletedReason: ""
+  });
+  applicationResidentDataState = normalizeApplicationResidentDataState({
+    ...state,
+    uploads: state.uploads.map(item => item.batchId === restored.batchId ? restored : item),
+    lastDeletedUpload: null,
+    audit: [
+      {
+        at: new Date().toISOString(),
+        user: getAtlasCurrentUserLabel(),
+        action: "resident_data_restore",
+        batchId: restored.batchId,
+        fileName: restored.fileName,
+        detail: `${restored.validApplicationRecords} resident record(s) restored.`
+      },
+      ...state.audit
+    ].slice(0, 100)
+  });
+  persistOpsGlobalData();
+  csvLog = [`Restored ${restored.fileName} to active Resident Data.`];
+  renderTab();
+}
+
+function renderApplicationResidentReconciliationTable(rows = buildApplicationResidentReconciliationRows()) {
+  return `<div class="tbl-wrap" style="margin-bottom:0">
+    <table>
+      <thead><tr><th class="l">Community</th><th>Metric</th><th>ATLAS Report</th><th>Resident Data</th><th>Variance</th><th class="l">Status</th></tr></thead>
+      <tbody>${rows.map(row => {
+        const varianceColor = row.variance === null ? "var(--muted)" : row.variance === 0 ? "#3fb950" : "#d29922";
+        return `<tr>
+          <td class="l" style="font-weight:700">${escapeHtml(row.communityId)} / ${escapeHtml(row.communityName)}</td>
+          <td>${escapeHtml(row.metricLabel)}</td>
+          <td>${row.atlasCount === null ? "Not available" : Math.round(row.atlasCount)}</td>
+          <td>${row.residentCount === null ? "Not available from this Resident Data export" : Math.round(row.residentCount)}</td>
+          <td style="color:${varianceColor};font-weight:700">${row.variance === null ? "Review source" : formatSignedDisplay(row.variance)}</td>
+          <td class="l">${escapeHtml(row.note)}</td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table>
+  </div>`;
+}
+
+function renderApplicationResidentUploadHistory() {
+  const state = normalizeApplicationResidentDataState(applicationResidentDataState);
+  if (!state.uploads.length) return `<div style="font-size:0.72rem;color:var(--muted)">No Application/Resident Data uploads have been staged yet.</div>`;
+  return `<div class="tbl-wrap" style="margin-bottom:0">
+    <table>
+      <thead><tr><th class="l">File</th><th>Uploaded</th><th>Source As Of</th><th>Batch ID</th><th>Rows</th><th>Valid Records</th><th>Properties</th><th>Status</th><th>Reporting Month</th><th>Action</th></tr></thead>
+      <tbody>${state.uploads.map(upload => {
+        const statusColor = upload.validationStatus === "valid" ? "#3fb950" : upload.validationStatus === "failed" || upload.validationStatus === "deleted" ? "#f85149" : "#d29922";
+        const propertyLabel = `${upload.mappedProperties.length} mapped / ${upload.unmappedProperties.length} unmapped`;
+        return `<tr>
+          <td class="l"><div style="font-weight:700">${escapeHtml(upload.fileName)}</div><div style="font-size:0.62rem;color:var(--muted)">${escapeHtml(upload.validationMessages.slice(0, 2).join(" "))}</div></td>
+          <td>${escapeHtml(formatSavedTimestampLabel(upload.uploadedAt))}</td>
+          <td>${escapeHtml(formatApplicationResidentDate(upload.sourceAsOf) || "Not captured")}</td>
+          <td><span class="mono">${escapeHtml(upload.batchId)}</span></td>
+          <td>${Math.round(upload.sourceRows || 0)}</td>
+          <td>${Math.round(upload.validApplicationRecords || 0)}</td>
+          <td>${escapeHtml(propertyLabel)}</td>
+          <td style="color:${statusColor};font-weight:700">${escapeHtml(upload.validationStatus.replace(/_/g, " "))}</td>
+          <td>${escapeHtml(upload.reportMonthLabel || getApplicationResidentReportMonthLabel(upload.reportPeriodKey))}</td>
+          <td>${upload.validationStatus === "deleted"
+            ? `<span style="color:var(--muted);font-size:0.68rem">Removed</span>`
+            : `<button type="button" class="btn btn-gray btn-sm" onclick='deleteApplicationResidentDataUpload(${JSON.stringify(upload.batchId)})'>Delete Upload</button>`}</td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table>
+  </div>`;
+}
+
+function renderApplicationResidentRecordPreview(records = Array.from(getApplicationResidentLatestRecordMap().values())) {
+  const visible = records.slice(0, 24);
+  if (!visible.length) return `<div style="font-size:0.72rem;color:var(--muted)">Upload Resident Data to review resident-level application records.</div>`;
+  return `<div class="tbl-wrap" style="margin-bottom:0">
+    <table>
+      <thead><tr><th class="l">Property</th><th>Community ID</th><th class="l">Resident</th><th>Application ID</th><th>Status</th><th>Lead Created</th><th>Partial</th><th>Completed</th><th class="l">Lead Source</th><th class="l">Agent</th></tr></thead>
+      <tbody>${visible.map(record => `<tr>
+        <td class="l">${escapeHtml(record.propertySource || "Unassigned")}</td>
+        <td>${record.communityId ? escapeHtml(record.communityId) : `<span style="color:#d29922">Unmapped</span>`}</td>
+        <td class="l" style="font-weight:700">${escapeHtml(record.residentName)}</td>
+        <td><span class="mono">${escapeHtml(record.applicationId)}</span>${record.duplicateReview ? `<div style="font-size:0.62rem;color:#d29922">Duplicate review</div>` : ""}</td>
+        <td>${escapeHtml(record.applicationStatus || record.leaseStatus || "Blank")}</td>
+        <td>${escapeHtml(formatApplicationResidentDate(record.newLeadCreatedOn) || "-")}</td>
+        <td>${escapeHtml(formatApplicationResidentDate(record.applicationPartiallyCompletedOn) || "-")}</td>
+        <td>${escapeHtml(formatApplicationResidentDate(record.applicationCompletedOn) || "-")}</td>
+        <td class="l">${escapeHtml(record.leadSource || "Not captured")}</td>
+        <td class="l">${escapeHtml(record.leasingAgent || "Unassigned")}</td>
+      </tr>`).join("")}</tbody>
+    </table>
+    ${records.length > visible.length ? `<div style="padding:10px 12px;font-size:0.68rem;color:var(--muted)">Showing ${visible.length} of ${records.length} resident records. Export the report for the full list.</div>` : ""}
+  </div>`;
+}
+
+function renderApplicationResidentDataImportPanel() {
+  const state = normalizeApplicationResidentDataState(applicationResidentDataState);
+  const summary = getApplicationResidentPanelSummary();
+  const periodKey = getApplicationResidentReportPeriodKey();
+  const reconciliationRows = buildApplicationResidentReconciliationRows(periodKey);
+  const lifecycleSummary = summary.lifecycle;
+  const statusChips = Object.entries(lifecycleSummary)
+    .filter(([, count]) => count > 0)
+    .map(([label, count]) => `<span class="atlas-dashboard-status-pill">${escapeHtml(label)}: ${count}</span>`)
+    .join("");
+  const mappedPropertyText = summary.unmappedProperties.length
+    ? `${summary.unmappedProperties.length} unmapped property section${summary.unmappedProperties.length === 1 ? "" : "s"} retained for mapping review`
+    : "All active records are mapped or no resident data is loaded";
+  return `<div class="card mb4" id="application-resident-data-import">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div>
+        <div class="card-title" style="margin-bottom:6px">Application / Resident Data Import</div>
+        <div style="font-size:0.7rem;color:var(--muted);line-height:1.55">Upload the Entrata Resident Data workbook separately from ATLAS Monthly Uploads. Resident records are keyed by Application ID, mapped only through confirmed community IDs, and used to validate lifecycle counts without overwriting monthly report totals.</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
+        <div>
+          <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Report month</div>
+          <select onchange="setApplicationResidentDataReportPeriod('month', this.value)">
+            ${MONTHS.map((m, idx) => `<option value="${idx}" ${idx === state.reportMonthIdx ? "selected" : ""}>${m}</option>`).join("")}
+          </select>
+        </div>
+        <div>
+          <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Report year</div>
+          <input type="number" min="2020" max="2099" value="${state.reportYear}" onchange="setApplicationResidentDataReportPeriod('year', this.value)" style="width:110px">
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:12px">
+      ${statBox("Resident Records", summary.latestRecords.length, `${summary.mappedRecords.length} mapped to confirmed ATLAS communities`, "#4493f8")}
+      ${statBox("Upload Batches", summary.activeUploads.length, `${state.uploads.filter(upload => upload.validationStatus === "failed").length} failed upload${state.uploads.filter(upload => upload.validationStatus === "failed").length === 1 ? "" : "s"} removable`, "#2dd4bf")}
+      ${statBox("Duplicate Review", summary.duplicates.length, "Application IDs flagged before merge", summary.duplicates.length ? "#d29922" : "#3fb950")}
+      ${statBox("Variance Review", summary.varianceCount, "Differences shown without overwriting Monthly Upload totals", summary.varianceCount ? "#d29922" : "#3fb950")}
+    </div>
+    <div class="alert-yellow" style="margin-bottom:12px">Important source limitation: the supplied Resident Data export is filtered to Application: Started and Application: Partially Completed. It cannot validate completed applications, approvals, denials, or cancellations until a Resident Data export includes those statuses and their applicable event dates.</div>
+    <label class="csv-dropzone" style="padding:20px;cursor:pointer;margin-bottom:12px">
+      <div class="csv-drop-icon">⬆</div>
+      <div style="font-size:0.82rem;color:#4493f8;font-weight:600">Click to upload Resident Data workbook(s)</div>
+      <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">ATLAS reads the "${APPLICATION_RESIDENT_DATA_SHEET_NAME}" worksheet, finds the real header row, assigns each resident to its Property section, and preserves Application ID / Lease ID as text.</div>
+      <input type="file" accept=".xlsx,.xls,.xlsm" multiple onchange="processApplicationResidentDataFiles(this.files); this.value = ''">
+    </label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <button type="button" class="btn btn-gray btn-sm" onclick="setReportHubType('application_resident_data')">Open Reporting View</button>
+      <button type="button" class="btn btn-gray btn-sm" onclick="exportApplicationResidentDataReport('csv')">Export CSV</button>
+      <button type="button" class="btn btn-gray btn-sm" onclick="exportApplicationResidentDataReport('excel')">Export Excel</button>
+      <button type="button" class="btn btn-blue btn-sm" onclick="openApplicationResidentDataReport(true)">Print / PDF</button>
+      ${state.lastDeletedUpload ? `<button type="button" class="btn btn-gray btn-sm" onclick="restoreLastApplicationResidentDataUpload()">Undo Last Delete</button>` : ""}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:12px">
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div class="card-title" style="margin-bottom:6px">Lifecycle Summary</div>
+        <div class="bonus-assignment-chip-wrap">${statusChips || `<span style="font-size:0.72rem;color:var(--muted)">No Resident Data statuses loaded yet.</span>`}</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div class="card-title" style="margin-bottom:6px">Property Mapping</div>
+        <div style="font-size:0.72rem;color:var(--muted);line-height:1.6">${escapeHtml(mappedPropertyText)}</div>
+        ${summary.unmappedProperties.length ? `<div style="font-size:0.66rem;color:#d29922;margin-top:6px">${escapeHtml(summary.unmappedProperties.slice(0, 8).join(", "))}</div>` : ""}
+      </div>
+    </div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+        <div>
+          <div class="card-title" style="margin-bottom:6px">MTD Reconciliation</div>
+          <div style="font-size:0.68rem;color:var(--muted)">Report month: ${escapeHtml(getApplicationResidentReportMonthLabel(periodKey))}. Variances are review flags only and do not update Monthly Upload totals automatically.</div>
+        </div>
+      </div>
+      ${renderApplicationResidentReconciliationTable(reconciliationRows)}
+    </div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+      <div class="card-title" style="margin-bottom:10px">Resident Drilldown</div>
+      ${renderApplicationResidentRecordPreview(summary.latestRecords)}
+    </div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px">
+      <div class="card-title" style="margin-bottom:10px">Upload History</div>
+      ${renderApplicationResidentUploadHistory()}
+    </div>
+  </div>`;
+}
+
+function getApplicationResidentReportRows() {
+  const periodKey = getApplicationResidentReportPeriodKey();
+  const rows = [];
+  buildApplicationResidentReconciliationRows(periodKey).forEach(row => rows.push({
+    section: "Reconciliation",
+    community: `${row.communityId} / ${row.communityName}`,
+    resident: "",
+    applicationId: "",
+    metric: row.metricLabel,
+    atlasReportCount: row.atlasCount === null ? "Not available" : row.atlasCount,
+    residentDataCount: row.residentCount === null ? "Not available from this Resident Data export" : row.residentCount,
+    variance: row.variance === null ? "Review source" : row.variance,
+    status: row.note,
+    source: row.sourceStatus
+  }));
+  Array.from(getApplicationResidentLatestRecordMap().values()).forEach(record => rows.push({
+    section: "Resident Record",
+    community: record.communityId ? `${record.communityId} / ${record.communityName}` : `Unmapped / ${record.propertySource}`,
+    resident: record.residentName,
+    applicationId: record.applicationId,
+    metric: record.applicationStatus || record.leaseStatus,
+    atlasReportCount: "",
+    residentDataCount: "",
+    variance: "",
+    status: record.duplicateReview ? "Duplicate Application ID review" : record.mappingStatus,
+    source: record.sourceFileName
+  }));
+  return rows;
+}
+
+function exportApplicationResidentDataReport(format = "csv") {
+  const rows = getApplicationResidentReportRows();
+  const headers = ["section", "community", "resident", "applicationId", "metric", "atlasReportCount", "residentDataCount", "variance", "status", "source"];
+  if (format === "excel") {
+    const bodyRows = rows.map(row => `<tr>${headers.map(key => `<td>${escapeHtml(row[key] ?? "")}</td>`).join("")}</tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><table><thead><tr>${headers.map(header => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead><tbody>${bodyRows}</tbody></table></body></html>`;
+    const blob = new Blob([html], { type: "application/vnd.ms-excel" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `atlas_application_resident_data_${getApplicationResidentReportPeriodKey()}.xls`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    return;
+  }
+  const lines = [
+    headers.join(","),
+    ...rows.map(row => headers.map(key => `"${String(row[key] ?? "").replace(/"/g, '""')}"`).join(","))
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `atlas_application_resident_data_${getApplicationResidentReportPeriodKey()}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function buildApplicationResidentDataReportHtml() {
+  const summary = getApplicationResidentPanelSummary();
+  const periodKey = getApplicationResidentReportPeriodKey();
+  const reconciliationHtml = renderApplicationResidentReconciliationTable(buildApplicationResidentReconciliationRows(periodKey));
+  const recordHtml = renderApplicationResidentRecordPreview(summary.latestRecords);
+  return `<div style="font-family:Arial,sans-serif;color:#17324a;padding:18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid #d7e2ec;padding-bottom:14px;margin-bottom:14px">
+      <div>
+        <h1 style="font-size:22px;margin:0 0 4px">Application / Resident Data Report</h1>
+        <div style="font-size:12px;color:#61758a">${escapeHtml(getApplicationResidentReportMonthLabel(periodKey))} · ${summary.latestRecords.length} resident record${summary.latestRecords.length === 1 ? "" : "s"} · ${summary.varianceCount} variance review${summary.varianceCount === 1 ? "" : "s"}</div>
+      </div>
+      <img src="${resolveExportBrandLogoSrc()}" alt="ATLAS" style="height:38px;width:auto">
+    </div>
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 12px;font-size:12px;color:#92400e;margin-bottom:14px">This report preserves Resident Data uploads as their own source. The supplied export cannot validate completed applications, approvals, denials, or cancellations until those lifecycle statuses and event dates are included.</div>
+    <h2 style="font-size:14px;margin:0 0 8px">Reconciliation</h2>
+    ${reconciliationHtml}
+    <h2 style="font-size:14px;margin:18px 0 8px">Resident Records</h2>
+    ${recordHtml}
+  </div>`;
+}
+
+function openApplicationResidentDataReport(printImmediately = false) {
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Application / Resident Data Report</title><style>
+    body{font-family:Arial,sans-serif;background:#fff;color:#17324a}
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid #d7e2ec;padding:7px 8px;font-size:11px;text-align:center}
+    th{background:#eef5fb;color:#49677f;text-transform:uppercase;letter-spacing:.04em}
+    .l{text-align:left}
+    .mono{font-family:Menlo,Consolas,monospace}
+    .tbl-wrap{overflow:visible}
+    @media print{body{margin:0}.btn{display:none}}
+  </style></head><body>${buildApplicationResidentDataReportHtml()}</body></html>`;
+  if (printImmediately) {
+    printReportHtmlInHiddenFrame(html, { title: "Application / Resident Data Report" });
+    return;
+  }
+  const win = openPopupReportWindow("Application / Resident Data Report");
+  if (!win) return;
+  finalizePopupReportWindow(win, html, false, 200);
+}
+
+function renderApplicationResidentDataReportingWorkspace() {
+  return `<div class="card mb4" id="reporting-inline-preview">
+    <div class="report-hub-card">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+        <div>
+          <div class="card-title" style="margin-bottom:6px">Application / Resident Data Report</div>
+          <div style="font-size:0.72rem;color:var(--muted)">Resident-level import audit, monthly reconciliation, variance review, and upload-delete history for ${escapeHtml(getApplicationResidentReportMonthLabel())}.</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-gray btn-sm" onclick="exportApplicationResidentDataReport('csv')">Export CSV</button>
+          <button class="btn btn-gray btn-sm" onclick="exportApplicationResidentDataReport('excel')">Export Excel</button>
+          <button class="btn btn-blue btn-sm" onclick="openApplicationResidentDataReport(true)">Print / PDF</button>
+        </div>
+      </div>
+      ${buildApplicationResidentDataReportHtml()}
+    </div>
+  </div>`;
+}
+
+window.renderApplicationResidentDataImportPanel = renderApplicationResidentDataImportPanel;
+window.processApplicationResidentDataFiles = processApplicationResidentDataFiles;
+window.deleteApplicationResidentDataUpload = deleteApplicationResidentDataUpload;
+window.restoreLastApplicationResidentDataUpload = restoreLastApplicationResidentDataUpload;
+window.renderApplicationResidentDataReportingWorkspace = renderApplicationResidentDataReportingWorkspace;
+window.exportApplicationResidentDataReport = exportApplicationResidentDataReport;
+window.openApplicationResidentDataReport = openApplicationResidentDataReport;
 
 function defaultPortfolioReportFilters() {
   return {
@@ -5867,6 +6835,7 @@ function normalizeOpsGlobalData(data) {
     reportHubMonth: Number.isInteger(input.reportHubMonth) ? clampNumber(input.reportHubMonth, 0, 11) : DEFAULT_CURRENT_MONTH,
     reportHubYear: Number.isFinite(Number(input.reportHubYear)) ? Number(input.reportHubYear) : new Date().getFullYear(),
     reportRecommendationOverrides: normalizeReportRecommendationOverrides(input.reportRecommendationOverrides),
+    applicationResidentData: normalizeApplicationResidentDataState(input.applicationResidentData),
     windowshadeState: normalizeWindowshadeState(input.windowshadeState),
     sharedData: normalizeAtlasSharedData(input.sharedData)
   };
@@ -5893,6 +6862,7 @@ function getLegacyOpsGlobalSeed() {
     reportHubMonth: legacy.reportHubMonth,
     reportHubYear: legacy.reportHubYear,
     reportRecommendationOverrides: legacy.reportRecommendationOverrides,
+    applicationResidentData: legacy.applicationResidentData,
     windowshadeState: legacy.windowshadeState,
     sharedData: legacy.sharedData
   } : {};
@@ -5920,6 +6890,7 @@ function applyOpsGlobalData(data) {
   reportHubMonth = normalized.reportHubMonth;
   reportHubYear = normalized.reportHubYear;
   reportRecommendationOverrides = normalized.reportRecommendationOverrides;
+  applicationResidentDataState = normalized.applicationResidentData;
   windowshadeState = normalized.windowshadeState;
   atlasSharedData = normalized.sharedData;
   monthlyTemplateImportTargetTouched = false;
@@ -5979,6 +6950,7 @@ function persistOpsGlobalData() {
     reportHubMonth,
     reportHubYear,
     reportRecommendationOverrides,
+    applicationResidentData: applicationResidentDataState,
     windowshadeState,
     sharedData: atlasSharedData
   });
@@ -27699,10 +28671,10 @@ function renderPortfolioHomeTab() {
 function renderReportingTab() {
   ensureValidReportHubAction();
   reportHubType = normalizeReportHubType(reportHubType);
-  if (!["dlr", "bonus_payout", "community_progress", "market_comparison", "leasing_velocity", "renewal_performance", "financial_review", "eviction_report"].includes(reportHubType) && reportHubPerspective === "regional") {
+  if (!["dlr", "bonus_payout", "community_progress", "market_comparison", "leasing_velocity", "renewal_performance", "financial_review", "eviction_report", "application_resident_data"].includes(reportHubType) && reportHubPerspective === "regional") {
     reportHubPerspective = "investor";
   }
-  if (reportHubType === "community_progress" || reportHubType === "market_comparison" || reportHubType === "leasing_velocity" || reportHubType === "renewal_performance" || reportHubType === "financial_review" || reportHubType === "eviction_report") {
+  if (reportHubType === "community_progress" || reportHubType === "market_comparison" || reportHubType === "leasing_velocity" || reportHubType === "renewal_performance" || reportHubType === "financial_review" || reportHubType === "eviction_report" || reportHubType === "application_resident_data") {
     reportHubPerspective = "csuite";
   }
   if (normalizeReportHubType(reportHubType) === "dlr") {
@@ -27743,8 +28715,8 @@ function renderReportingTab() {
     ? `${(portfolioReportFilters.investorGroups ?? []).length} distribution group(s) · ${(portfolioReportFilters.investorCommunities ?? []).length} property override${(portfolioReportFilters.investorCommunities ?? []).length === 1 ? "" : "s"}`
     : `${(portfolioReportFilters.investorGroups ?? []).length} investor group(s) · ${(portfolioReportFilters.investorCommunities ?? []).length} highlighted communit${(portfolioReportFilters.investorCommunities ?? []).length === 1 ? "y" : "ies"}`;
   const communityProgressFilterSummary = `${communityProgressSelectionNames.length} communit${communityProgressSelectionNames.length === 1 ? "y" : "ies"} selected`;
-  const reportNeedsScopeBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && normalizedType !== "renewal_performance" && normalizedType !== "financial_review" && normalizedType !== "eviction_report" && !["community_progress", "market_comparison"].includes(normalizedType);
-  const reportNeedsSectionBuilder = normalizedType !== RISE_WEEKLY_LEASING_REPORT_TYPE && normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && normalizedType !== "renewal_performance" && normalizedType !== "financial_review" && normalizedType !== "eviction_report" && !["community_progress", "market_comparison"].includes(normalizedType);
+  const reportNeedsScopeBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && normalizedType !== "renewal_performance" && normalizedType !== "financial_review" && normalizedType !== "eviction_report" && normalizedType !== "application_resident_data" && !["community_progress", "market_comparison"].includes(normalizedType);
+  const reportNeedsSectionBuilder = normalizedType !== RISE_WEEKLY_LEASING_REPORT_TYPE && normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && normalizedType !== "renewal_performance" && normalizedType !== "financial_review" && normalizedType !== "eviction_report" && normalizedType !== "application_resident_data" && !["community_progress", "market_comparison"].includes(normalizedType);
   const reportTypeDescription = normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE
     ? "Two-page document-style leasing weekly report built from approved ATLAS operating data."
     : normalizedType === "investor_marketing_report"
@@ -27763,6 +28735,8 @@ function renderReportingTab() {
             ? "Budget Builder financial operating review using preserved budgets, uploaded actuals, variance drivers, commentary, exceptions, forecast and report packs."
           : normalizedType === "eviction_report"
             ? "Central Services eviction, stipulation, court-funds, exception, attorney, judge, and outcome reporting from imported delinquency cases."
+          : normalizedType === "application_resident_data"
+            ? "Application and resident-data import validation, property mapping, lifecycle totals, and monthly ATLAS variance review."
           : normalizedType === "community_progress"
             ? "C-suite month-to-date community progress report with photo-led visuals, pace analysis, and explicit data alerts when source fields are incomplete."
             : normalizedType === "market_comparison"
@@ -27871,13 +28845,14 @@ function renderReportingTab() {
           <option value="renewal_performance" ${reportHubType==="renewal_performance"?"selected":""}>Renewal Performance Report</option>
           <option value="financial_review" ${reportHubType==="financial_review"?"selected":""}>Budget vs Actual Financial Review</option>
           <option value="eviction_report" ${reportHubType==="eviction_report"?"selected":""}>Eviction Report</option>
+          <option value="application_resident_data" ${reportHubType==="application_resident_data"?"selected":""}>Application / Resident Data Report</option>
         </select>
         <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${escapeHtml(reportTypeDescription)}</div>
       </div>
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Report View</div>
-        ${normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE || normalizedType === "community_progress" || normalizedType === "leasing_velocity" || normalizedType === "renewal_performance" || normalizedType === "financial_review" || normalizedType === "eviction_report"
-          ? `<div style="padding:8px 10px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2);font-size:0.78rem;font-weight:700;color:var(--accent)">${normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE ? "Portfolio Leasing Weekly" : (normalizedType === "leasing_velocity" ? "LVR Template" : "C-Suite View")}</div>
+        ${normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE || normalizedType === "community_progress" || normalizedType === "leasing_velocity" || normalizedType === "renewal_performance" || normalizedType === "financial_review" || normalizedType === "eviction_report" || normalizedType === "application_resident_data"
+          ? `<div style="padding:8px 10px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2);font-size:0.78rem;font-weight:700;color:var(--accent)">${normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE ? "Portfolio Leasing Weekly" : (normalizedType === "leasing_velocity" ? "LVR Template" : (normalizedType === "application_resident_data" ? "Import Validation View" : "C-Suite View"))}</div>
              <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE ? "This report is locked to the source operating-report structure so the preview and export stay presentation-ready." : (normalizedType === "leasing_velocity" ? "The exported template contains its own stabilized / lease-up mode control." : "This report is locked to a c-suite lens so the output stays focused on operating performance and data confidence checks.")}</div>`
           : `<select onchange="setReportHubPerspective(this.value)">
               <option value="investor" ${reportHubPerspective==="investor"?"selected":""}>Investor facing</option>
@@ -28041,6 +29016,16 @@ function renderReportHubInlinePreview(type = normalizeReportHubType(reportHubTyp
     return typeof window.renderAtlasEvictionReport === "function"
       ? `<div class="card mb4" id="reporting-inline-preview">${window.renderAtlasEvictionReport({ monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" })}</div>`
       : `<div class="card mb4" id="reporting-inline-preview"><div class="report-hub-card"><div class="alert-red">Eviction Report is unavailable until Central Services finishes loading.</div></div></div>`;
+  }
+  if (type === "application_resident_data") {
+    applicationResidentDataState = normalizeApplicationResidentDataState({
+      ...applicationResidentDataState,
+      reportMonthIdx: getReportHubMonthIndex(),
+      reportYear: getReportHubYear()
+    });
+    return typeof window.renderApplicationResidentDataReportingWorkspace === "function"
+      ? window.renderApplicationResidentDataReportingWorkspace()
+      : `<div class="card mb4" id="reporting-inline-preview"><div class="report-hub-card"><div class="alert-red">Application / Resident Data Report is unavailable until Data Import finishes loading.</div></div></div>`;
   }
   if (selectedSections.length === 0) {
     return `<div class="card mb4" id="reporting-inline-preview">
@@ -28531,7 +29516,8 @@ function getReportHubTypeLabel(type = reportHubType) {
     leasing_velocity: "Leasing Velocity Report",
     renewal_performance: "Renewal Performance Report",
     financial_review: "Budget vs Actual Financial Review",
-    eviction_report: "Eviction Report"
+    eviction_report: "Eviction Report",
+    application_resident_data: "Application / Resident Data Report"
   }[normalizeReportHubType(type)] || RISE_WEEKLY_LEASING_REPORT_TITLE;
 }
 
@@ -28638,6 +29624,8 @@ function configureReportHubDefaultsForType(type) {
   } else if (normalized === "financial_review") {
     reportHubPerspective = "csuite";
   } else if (normalized === "eviction_report") {
+    reportHubPerspective = "csuite";
+  } else if (normalized === "application_resident_data") {
     reportHubPerspective = "csuite";
   } else if (normalized === "community_progress" || normalized === "market_comparison") {
     reportHubPerspective = "csuite";
@@ -32843,6 +33831,7 @@ function getReportHubActionOptions(type = reportHubType) {
   if (normalizedType === "community_progress") return [...common, { value: "export_html", label: "Download Editable HTML" }, { value: "export_individual_pdfs", label: "Separate PDFs" }];
   if (normalizedType === "market_comparison") return [...common, { value: "export_html", label: "Download Editable HTML" }];
   if (normalizedType === "renewal_performance") return [...common, { value: "export_csv", label: "Export CSV" }, { value: "export_excel", label: "Export Excel" }];
+  if (normalizedType === "application_resident_data") return [...common, { value: "export_csv", label: "Export CSV" }, { value: "export_excel", label: "Export Excel" }];
   if (normalizedType === "financial_review") return [
     { value: "preview", label: "Preview" },
     { value: "open_review", label: "Open Financial Review" },
@@ -32975,6 +33964,19 @@ function buildReportHubEmailDraft(type = reportHubType) {
         "",
         "The eviction and stipulation report is ready from the Reporting Hub.",
         "Use CSV, Excel, or Print / PDF before sending so case status, legal dates, court funds, stipulation exceptions, and outcomes are included."
+      ].join("\n")
+    };
+  }
+  if (normalizedType === "application_resident_data") {
+    return {
+      to,
+      subject: `${scopeLabel} Application / Resident Data Report | ${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`,
+      body: [
+        `${scopeLabel} Application / Resident Data Report`,
+        `${getDashboardMonthLabel(getReportHubMonthIndex())} ${getReportHubYear()}`,
+        "",
+        "The Application / Resident Data import validation and monthly reconciliation report is ready from the Reporting Hub.",
+        "Review unmapped properties, duplicate Application IDs, source limitations, and ATLAS variance flags before using CSV, Excel, or Print / PDF."
       ].join("\n")
     };
   }
@@ -35192,7 +36194,7 @@ async function runReportHubAction() {
   }
   if (reportHubAction === "preview") {
     if (type === "leasing_velocity") return openLeasingVelocityReportTemplate("stabilized", false);
-    if ([RISE_WEEKLY_LEASING_REPORT_TYPE, "investor_marketing_report", "monthly_investor_deck", "bonus_payout", "renewal_performance", "financial_review", "eviction_report"].includes(type)) {
+    if ([RISE_WEEKLY_LEASING_REPORT_TYPE, "investor_marketing_report", "monthly_investor_deck", "bonus_payout", "renewal_performance", "financial_review", "eviction_report", "application_resident_data"].includes(type)) {
       renderTab();
       const target = document.getElementById("reporting-inline-preview");
       if (target?.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -35225,6 +36227,7 @@ async function runReportHubAction() {
     if (type === "market_comparison") return openMarketComparisonReport(true);
     if (type === "renewal_performance" && typeof window.atlasCsExportRenewalReport === "function") return window.atlasCsExportRenewalReport("print", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
     if (type === "eviction_report" && typeof window.atlasCsExportEvictionReport === "function") return window.atlasCsExportEvictionReport("print", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
+    if (type === "application_resident_data") return openApplicationResidentDataReport(true);
     if (type === "dlr") {
       const communityName = syncDlrTargetFromReportHub({ preserveCommunity: true });
       return openDlrInvestorOverview({
@@ -35241,12 +36244,14 @@ async function runReportHubAction() {
     if (type === "investor_marketing_report") return exportPortfolioReportCSV();
     if (type === "renewal_performance" && typeof window.atlasCsExportRenewalReport === "function") return window.atlasCsExportRenewalReport("csv", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
     if (type === "eviction_report" && typeof window.atlasCsExportEvictionReport === "function") return window.atlasCsExportEvictionReport("csv", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
+    if (type === "application_resident_data") return exportApplicationResidentDataReport("csv");
     return exportBonusPayoutCSV();
   }
   if (reportHubAction === "export_excel") {
     if (type === RISE_WEEKLY_LEASING_REPORT_TYPE) return exportRisePortfolioLeasingWeeklyExcel();
     if (type === "renewal_performance" && typeof window.atlasCsExportRenewalReport === "function") return window.atlasCsExportRenewalReport("excel", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
     if (type === "eviction_report" && typeof window.atlasCsExportEvictionReport === "function") return window.atlasCsExportEvictionReport("excel", { monthIdx: getReportHubMonthIndex(), year: getReportHubYear(), periodMode: "month" });
+    if (type === "application_resident_data") return exportApplicationResidentDataReport("excel");
     return exportPortfolioReportExcel();
   }
   if (reportHubAction === "export_html") {

@@ -1088,6 +1088,7 @@
 <script src="./central-services.js?v=20260902-render-guard"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260902-application-intelligence">
 <script src="./application-performance.js?v=20260902-application-intelligence"></script>
+<script src="./application-performance-ui.js?v=20260902-command-center"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -17966,12 +17967,14 @@ function renderPortfolioScopedTrafficTab() {
       <td><button type="button" class="btn btn-gray btn-sm" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(detail.name)}, 3)'>Open Funnel</button></td>
     </tr>`;
   }).join("");
+  const funnelCollapsed = window.atlasPortfolioFunnelCollapsed === true;
   const bodyHtml = `<div class="tbl-wrap">
-    <div class="tbl-header"><h2>Portfolio funnel by community</h2><p>Traffic and funnel fields are editable directly here for the selected month. Community rows show current-month conversion only so historical fallback rates do not masquerade as live month performance.</p></div>
+    <div class="tbl-header"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><h2>Portfolio funnel by community</h2><p>Traffic and funnel fields are editable directly here for the selected month. Community rows show current-month conversion only so historical fallback rates do not masquerade as live month performance.</p></div><button class="btn btn-gray btn-sm" type="button" onclick="window.atlasPortfolioFunnelCollapsed=!window.atlasPortfolioFunnelCollapsed;renderTab()">${funnelCollapsed ? "Expand community funnel" : "Collapse community funnel"}</button></div></div>
+    ${funnelCollapsed ? `<div style="padding:18px 0;color:var(--muted);font-size:.72rem">Community funnel rows are collapsed. Expand this section to review or edit individual community traffic.</div>` : `
     <table>
       <thead><tr><th class="l">Community</th><th>Leads</th><th>Tours</th><th>Applications</th><th>Approved</th><th>Tour to Lease</th><th>Action</th></tr></thead>
       <tbody>${rows}</tbody>
-    </table>
+    </table>`}
   </div>`;
   return renderPortfolioScopePanel("Portfolio Traffic & Funnel", "Conversion and traffic performance combined across the selected month.", cardsHtml, bodyHtml);
 }

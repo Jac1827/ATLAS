@@ -1037,8 +1037,8 @@
       <div class="workspace-copy">
         <div class="card-title">Community Workspace</div>
         <div class="workspace-title-row">
-          <div class="workspace-title" id="workspace-title">Florence Villa</div>
-          <div class="workspace-pill" id="workspace-status-pill">Draft</div>
+          <div class="workspace-title" id="workspace-title">ATLAS RISE Portfolio</div>
+          <div class="workspace-pill is-saved" id="workspace-status-pill">Portfolio Scope</div>
         </div>
         <div class="workspace-subline" id="workspace-subline">Community, reporting month, and unit-count context stays pinned here so you can swap properties without hunting through the Overview tab.</div>
       </div>
@@ -9879,7 +9879,6 @@ function renderApplicationTrackingSection(details = [], selectedMonth = getSelec
     leases: sum.leases + row.metrics.leases
   }), { applications: 0, approvals: 0, pending: 0, leases: 0 });
   const approvalRate = totals.applications > 0 ? (totals.approvals / totals.applications) * 100 : 0;
-  const appToLeaseRate = totals.applications > 0 ? (totals.leases / totals.applications) * 100 : 0;
   const sourceMappedCount = rows.filter(row => row.mappedLeadSources > 0).length;
   const activeApplicationCount = rows.filter(row => row.metrics.applications > 0 || row.metrics.approvals > 0 || row.metrics.pendingDecision > 0).length;
   const missingSourceCount = Math.max(rows.length - sourceMappedCount, 0);
@@ -9900,7 +9899,7 @@ function renderApplicationTrackingSection(details = [], selectedMonth = getSelec
       <div class="application-tracker-metric"><div class="label">Applications MTD</div><div class="value">${Math.round(totals.applications)}</div><div class="sub">${activeApplicationCount} of ${rows.length} communities reporting activity</div></div>
       <div class="application-tracker-metric"><div class="label">Approved</div><div class="value">${Math.round(totals.approvals)}</div><div class="sub">${approvalRate.toFixed(1)}% of applications</div></div>
       <div class="application-tracker-metric"><div class="label">Pending Decision</div><div class="value">${Math.round(totals.pending)}</div><div class="sub">Prioritize follow-up before the next funnel review</div></div>
-      <div class="application-tracker-metric"><div class="label">Application to Lease</div><div class="value">${appToLeaseRate.toFixed(1)}%</div><div class="sub">${Math.round(totals.leases)} signed lease${totals.leases === 1 ? "" : "s"} from current applications</div></div>
+      <div class="application-tracker-metric"><div class="label">Leases Signed MTD</div><div class="value">${Math.round(totals.leases)}</div><div class="sub">Reported signed leases for the selected reporting month</div></div>
     </div>
     <div class="application-tracker-coverage">
       <div class="application-tracker-coverage-copy"><strong>Lead-source coverage:</strong> ${sourceMappedCount} of ${rows.length} communities have mapped source volume. ${missingSourceCount ? `${missingSourceCount} ${missingSourceCount === 1 ? "community is" : "communities are"} missing source-level activity for this month.` : "All communities in scope have source-level activity."}</div>

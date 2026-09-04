@@ -67,7 +67,7 @@ html.atlas-embedded #app {
 
 .topbar { display:flex; align-items:center; gap:14px; background:var(--rise); color:#fff;
   padding:0 16px; height:54px; flex:0 0 54px; box-shadow:0 2px 8px rgba(1,62,81,.18); z-index:20; }
-.topbar .logo { height:30px; width:auto; display:block; }
+.topbar .logo { height:30px; width:74px; object-fit:contain; object-position:left center; display:block; }
 .brandbox { display:flex; align-items:center; gap:11px; padding-right:14px;
   border-right:1px solid rgba(255,255,255,.18); }
 .brandbox .t { font-weight:600; font-size:13.5px; letter-spacing:.01em; white-space:nowrap; line-height:1.15; }
@@ -126,7 +126,29 @@ html.atlas-embedded #app {
 .nav .badge.n { background:var(--lo-bg); color:var(--lo); }
 .nav .badge.g { background:var(--pos-bg); color:var(--pos); }
 .nav .badge.new { background:var(--sky); color:var(--rise); }
+.nav .atlas-return-link { margin:0 8px 8px; justify-content:center; border:1px solid var(--line);
+  border-left-width:1px; border-radius:4px; background:var(--rise); color:#fff; font-weight:700; }
+.nav .atlas-return-link:hover { background:var(--rise-2); color:#fff; }
 .main { flex:1; overflow:auto; padding:16px 18px 56px; min-width:0; }
+.contract-intake-grid { display:grid; grid-template-columns:repeat(4,minmax(150px,1fr)); gap:10px; margin-top:10px; }
+.contract-intake-grid label { display:block; font-size:9px; text-transform:uppercase; letter-spacing:.09em;
+  color:var(--ink3); font-weight:700; margin-bottom:4px; }
+.contract-intake-grid input,
+.contract-intake-grid select,
+.contract-intake-grid textarea { width:100%; box-sizing:border-box; }
+.contract-intake-grid .wide { grid-column:span 2; }
+.contract-intake-grid .full { grid-column:1 / -1; }
+.contract-upload-box { border:1px dashed var(--sky-2); border-radius:7px; background:var(--sky-pale);
+  padding:14px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.contract-upload-box .doc { font-weight:700; color:var(--rise); }
+@media (max-width: 980px) {
+  .contract-intake-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .contract-intake-grid .wide { grid-column:span 2; }
+}
+@media (max-width: 620px) {
+  .contract-intake-grid { grid-template-columns:1fr; }
+  .contract-intake-grid .wide { grid-column:span 1; }
+}
 
 html.atlas-embedded .body {
   display: block;
@@ -187,6 +209,12 @@ html.atlas-embedded .nav .badge {
   padding: 1px 5px;
   font-size: 8.5px;
   min-width: 15px;
+}
+
+html.atlas-embedded .nav .atlas-return-link {
+  margin: 0 6px 0 0;
+  padding-inline: 12px;
+  border-radius: 999px;
 }
 
 html.atlas-embedded .main {
@@ -1591,12 +1619,19 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
       case 'contract_schedule': {
         var c = ctx.contracts[d.contractId];
         if (!c) { audit.error = 'Contract ' + d.contractId + ' not found.'; break; }
-        var active = u.monthsActive(c.start, c.end, ctx.year, c.serviceMonths);
-        var esc = u.escalationFactors(c.start, c.escalation, ctx.year);
-        var mo = (d.monthlyOverride !== undefined ? d.monthlyOverride : c.monthly);
-        for (i = 0; i < 12; i++) out[i] = active[i] ? mo * esc[i] : 0;
+        var sched = R.contracts && R.contracts.spread
+          ? R.contracts.spread(c, ctx.year, { monthlyOverride:d.monthlyOverride })
+          : null;
+        if (sched) {
+          out = sched.monthly;
+        } else {
+          var active = u.monthsActive(c.start, c.end, ctx.year, c.serviceMonths);
+          var esc = u.escalationFactors(c.start, c.escalation, ctx.year);
+          var mo = (d.monthlyOverride !== undefined ? d.monthlyOverride : c.monthly);
+          for (i = 0; i < 12; i++) out[i] = active[i] ? mo * esc[i] : 0;
+        }
         if (d.additional) out = u.add(out, u.spread(d.additional, (R.CURVES[d.additionalCurve || 'flat']).v));
-        audit.inputs = { contract:c, active:active, escalation:esc, baseMonthly:mo, additional:d.additional };
+        audit.inputs = { contract:c, schedule:sched, additional:d.additional };
         audit.contract = c;
         break;
       }
@@ -7003,6 +7038,8 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
       varianceNotes: {},
       /* structured financial review commentary, separate from raw source records */
       financialReviewNotes: {},
+      /* retained contract/agreement intake packets keyed back to active properties */
+      contractDocuments: [],
 
       imports: [
         { id:'IMP-001', type:'Approved budget workbook', file:D.setup.sourceFile,
@@ -16359,6 +16396,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
   A.varianceMonth = null;
   A.finReview = R.financialReview ? R.financialReview.defaultControls() : {};
   A.expandedException = null;
+  A.contractImport = null;
   A.filters = { q:'', dept:'', section:'', method:'', status:'', origin:'', severity:'',
                 issueCat:'', owner:'', support:'', reviewStatus:'', utility:'',
                 contractStatus:'', importType:'actuals', exType:'', exSign:'' };
@@ -16665,7 +16703,10 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
   };
 
   A.returnToAtlas = function () {
-    if (window.parent === window) return;
+    if (window.parent === window) {
+      window.location.href = 'index.html';
+      return;
+    }
     window.parent.postMessage({ type: 'atlas-budget-return-home' }, '*');
   };
 
@@ -16678,6 +16719,10 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     }
     if (data.type === 'atlas-budget-publish-result' && data.result) {
       A.toast(data.result.message || (data.result.ok ? 'Published to ATLAS.' : 'ATLAS could not save this publication.'), data.result.ok ? '' : 'r');
+      return;
+    }
+    if (data.type === 'atlas-budget-contract-import-result' && data.result) {
+      A.toast(data.result.message || (data.result.ok ? 'Contract linked to ATLAS.' : 'ATLAS could not save this contract.'), data.result.ok ? '' : 'r');
     }
   });
 
@@ -16720,9 +16765,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     var c = A.c(), sc = A.scenario(), yr = A.year();
     var pf = c.calc.portfolio.annual;
     var vr = A.vr();
-    var logo = (R.BRAND.mark || R.BRAND.logo)
-      ? '<img class="logo" src="' + (R.BRAND.mark || R.BRAND.logo) + '" alt="RISE">'
-      : '<span style="font-weight:700;font-size:17px;letter-spacing:.06em">RISE</span>';
+    var logo = '<img class="logo" src="assets/rise-logomark-white.png" alt="RISE">';
     var noiCls = pf.noi < 0 ? 'neg' : 'pos';
     var out = '<div class="brandbox">' + logo +
       '<div class="t">Budget Builder<small>FY' + yr + '</small></div></div>' +
@@ -16759,9 +16802,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
 
   A.renderNav = function () {
     var c = A.c(), vr = A.vr(), out = '';
-    if (window.parent !== window) {
-      out += '<a href="#atlas-home" onclick="RBB.app.returnToAtlas();return false;">← Return to ATLAS main</a>';
-    }
+    out += '<a class="atlas-return-link" href="index.html" onclick="RBB.app.returnToAtlas();return false;">Return to ATLAS</a>';
     A.VIEWS.forEach(function (v) {
       if (v.grp) { out += '<div class="grp">' + v.grp + '</div>'; return; }
       var badge = '';
@@ -18332,10 +18373,13 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
             .indexOf(q) === -1) return;
       }
       var cp = c.calc.byProperty[ct.propertyId];
-      var act = u.monthsActive(ct.start, ct.end, A.year(), ct.serviceMonths);
-      var esc = u.escalationFactors(ct.start, ct.escalation, A.year());
-      var obl = 0, i;
-      for (i = 0; i < 12; i++) obl += act[i] ? ct.monthly * esc[i] : 0;
+      var sched = R.contracts && R.contracts.spread ? R.contracts.spread(ct, A.year()) : null;
+      var act = sched ? sched.active : u.monthsActive(ct.start, ct.end, A.year(), ct.serviceMonths);
+      var obl = sched ? u.sum(sched.monthly) : 0, i;
+      if (!sched) {
+        var esc = u.escalationFactors(ct.start, ct.escalation, A.year());
+        for (i = 0; i < 12; i++) obl += act[i] ? ct.monthly * esc[i] : 0;
+      }
       var budgeted = 0, linked = [], lineId = null;
       if (cp) Object.keys(cp.results).forEach(function (id) {
         var rr = cp.results[id];
@@ -18931,6 +18975,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     /* The converter goes first. Almost nobody arriving at this screen has a file in
        the template format already — they have the financial package. */
     if (V._convertPanel) out += V._convertPanel();
+    if (V._contractIntakePanel) out += V._contractIntakePanel();
 
     out += '<div class="panel"><h3>Upload a file already in template format</h3><div class="pad">' +
       '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
@@ -21314,6 +21359,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
       closedPeriods: closed,
       accountsWithActuals: actualCount,
       detailRows: (state.actualsDetail || []).length,
+      contractDocuments: (state.contractDocuments || []).length,
       strPrograms: (state.strPrograms || []).length,
       demoActuals: !!state.demoActuals
     };
@@ -21378,6 +21424,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     st.periods = st.periods || {};
     st.strPrograms = st.strPrograms || [];
     st.imports = st.imports || [];
+    st.contractDocuments = st.contractDocuments || [];
     st.auditLog = st.auditLog || [];
     st.issueOverrides = st.issueOverrides || {};
     st.actualOccupancy = st.actualOccupancy || {};
@@ -25229,6 +25276,344 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
       return R.MONTHS[+p[1]] + ' ' + p[0];
     }).join(', ');
   }
+
+  /* ------------------------------------------------ contract document intake -- */
+  R.contracts = R.contracts || {};
+  R.contracts.spread = function (ct, year, opts) {
+    opts = opts || {};
+    var start = dateObj(ct.start) || new Date(year, 0, 1);
+    var end = dateObj(ct.end) || new Date(year, 11, 31);
+    var serviceMonths = ct.serviceMonths || null;
+    var active = [], out = u.z12(), esc = u.escalationFactors(ct.start, ct.escalation || 0, year);
+    var i, first = -1, count = 0;
+    for (i = 0; i < 12; i++) {
+      var ms = new Date(year, i, 1), me = new Date(year, i + 1, 0);
+      var on = me >= start && ms <= end && (!serviceMonths || serviceMonths.indexOf(i + 1) >= 0);
+      active[i] = on ? 1 : 0;
+      if (on) { if (first < 0) first = i; count++; }
+    }
+    var cadence = ct.paymentCadence || 'monthly';
+    var base = opts.monthlyOverride !== undefined ? +opts.monthlyOverride : +(ct.paymentAmount || ct.monthly || 0);
+    if (ct.rateType === 'percent_revenue' && opts.monthlyOverride === undefined) {
+      base = (+(ct.estimatedMonthlyRevenue || 0)) * (+(ct.ratePct || 0));
+    }
+    if (cadence === 'annual_even') {
+      var even = count ? base / count : 0;
+      for (i = 0; i < 12; i++) out[i] = active[i] ? even * esc[i] : 0;
+    } else if (cadence === 'quarterly') {
+      for (i = 0; i < 12; i++) out[i] = active[i] && first >= 0 && ((i - first) % 3 === 0)
+        ? base * (ct.rateType === 'percent_revenue' ? 3 : 1) * esc[i] : 0;
+    } else if (cadence === 'one_time') {
+      if (first >= 0) out[first] = base * esc[first];
+    } else {
+      for (i = 0; i < 12; i++) out[i] = active[i] ? base * esc[i] : 0;
+    }
+    return { monthly:u.round2(out), active:active, cadence:cadence, activeMonths:count };
+  };
+
+  function dateObj(v) {
+    var iso = R.importer.parseDate(v);
+    if (!iso) return null;
+    var d = new Date(iso + 'T00:00:00');
+    return isNaN(d.getTime()) ? null : d;
+  }
+  function activeProps() {
+    var props = (A.state && A.state.properties || []).filter(function (p) {
+      return !/inactive|sold|disposed|retired/i.test(String(p.status || ''));
+    });
+    return props.length ? props : (A.state && A.state.properties || []);
+  }
+  function propLabel(id) {
+    var p = (A.state.properties || []).filter(function (x) { return x.id === id; })[0];
+    return p ? p.name : id;
+  }
+  function activeScenarioOptions() {
+    var out = [{ v:'register_only', l:'Contract register only' }];
+    (A.state.scenarios || []).forEach(function (s) {
+      if (!s.locked) out.push({ v:s.id, l:s.name + ' (' + s.status + ')' });
+    });
+    out.push({ v:'new_budget', l:'Start a new budget draft' });
+    out.push({ v:'new_reforecast', l:'Start a new reforecast' });
+    return out;
+  }
+  function ciDefault() {
+    var props = activeProps();
+    var active = A.scenario && A.scenario();
+    var sc = active && !active.locked ? active.id : 'SC-WORK';
+    return {
+      propertyId: (props[0] && props.some(function (p) { return p.id === A.state.activeProperty; }))
+        ? A.state.activeProperty : (props[0] ? props[0].id : ''),
+      targetScenario: sc,
+      document:null,
+      vendor:'', service:'', gl:'6520', status:'signed',
+      startDate:'', endDate:'', renewalDate:'',
+      rateType:'fixed_amount', paymentCadence:'monthly', amount:'', estimatedMonthlyRevenue:'',
+      ratePct:'', escalationPct:'', notes:'', applyLine:true
+    };
+  }
+  function ci() {
+    if (!A.contractImport) A.contractImport = ciDefault();
+    return A.contractImport;
+  }
+  function ciSpread() {
+    var x = ci();
+    return R.contracts.spread({
+      start:x.startDate, end:x.endDate, serviceMonths:null,
+      rateType:x.rateType, paymentCadence:x.paymentCadence,
+      paymentAmount:Mnum(x.amount),
+      estimatedMonthlyRevenue:Mnum(x.estimatedMonthlyRevenue),
+      ratePct:pct(x.ratePct), escalation:pct(x.escalationPct)
+    }, A.year());
+  }
+  function Mnum(v) { return R.importer.num(v); }
+  function pct(v) {
+    var n = Mnum(v);
+    return n > 1 ? n / 100 : n;
+  }
+  function ciField(label, key, type, placeholder, cls) {
+    var x = ci();
+    return '<div class="' + (cls || '') + '"><label>' + H.esc(label) + '</label>' +
+      '<input type="' + (type || 'text') + '" value="' + H.esc(x[key] || '') +
+      '" onchange="RBB.app.contractImportSet(\'' + key + '\',this.value)"' +
+      (placeholder ? ' placeholder="' + H.esc(placeholder) + '"' : '') + '></div>';
+  }
+  function ciSelect(label, key, opts, cls) {
+    return '<div class="' + (cls || '') + '"><label>' + H.esc(label) + '</label>' +
+      '<select onchange="RBB.app.contractImportSet(\'' + key + '\',this.value)">' +
+      H.opt(opts, ci()[key]) + '</select></div>';
+  }
+
+  V._contractIntakePanel = function () {
+    var x = ci(), spread = ciSpread(), annual = u.sum(spread.monthly);
+    var out = '<div class="panel"><h3>Import contract or agreement' +
+      '<span class="note">property mapped, retained, and budget-aware</span></h3><div class="pad">' +
+      '<div class="why">Attach a contract to an active ATLAS property, choose the budget draft or ' +
+      'reforecast it should inform, then confirm the term, rate and payment cadence. ATLAS keeps ' +
+      'the source document with the contract record and uses the schedule below for budget review, ' +
+      'contract-risk flags and property decision support.</div>';
+    out += '<div class="contract-upload-box" style="margin-top:10px"><div>' +
+      '<div class="doc">' + (x.document ? H.esc(x.document.name) : 'No contract document attached') + '</div>' +
+      '<div class="tiny">' + (x.document ? H.esc(x.document.type || 'file') + ' · ' +
+        Math.round((x.document.size || 0) / 1024).toLocaleString() + ' KB retained with this budget'
+        : 'PDF, Word, text, CSV, and image files can be retained with the contract intake record.') +
+      '</div></div><input type="file" accept=".pdf,.doc,.docx,.txt,.rtf,.csv,.png,.jpg,.jpeg" ' +
+      'onchange="RBB.app.contractImportFile(this)"></div>';
+    out += '<div class="contract-intake-grid">' +
+      ciSelect('Active property', 'propertyId', activeProps().map(function (p) {
+        return { v:p.id, l:p.name + ' (' + p.code + ')' };
+      })) +
+      ciSelect('Apply to', 'targetScenario', activeScenarioOptions()) +
+      ciField('Vendor / counterparty', 'vendor', 'text', 'Target Park (US) Inc.', 'wide') +
+      ciField('Service / contract purpose', 'service', 'text', 'Parking management, landscaping, security...', 'wide') +
+      ciField('GL account', 'gl', 'text', '6520') +
+      ciSelect('Status', 'status', ['signed','pending','estimated']) +
+      ciField('Start date', 'startDate', 'date') +
+      ciField('Expiration date', 'endDate', 'date') +
+      ciField('Renewal notice date', 'renewalDate', 'date') +
+      ciSelect('Rate type', 'rateType', [{ v:'fixed_amount', l:'Fixed dollar amount' },
+        { v:'percent_revenue', l:'Percent of revenue' }]) +
+      ciSelect('Payment cadence', 'paymentCadence', [{ v:'monthly', l:'Monthly' },
+        { v:'quarterly', l:'Quarterly' }, { v:'annual_even', l:'Annual amount spread evenly' },
+        { v:'one_time', l:'One-time' }]) +
+      (x.rateType === 'percent_revenue'
+        ? ciField('Rate percent', 'ratePct', 'text', '60') +
+          ciField('Estimated monthly revenue base', 'estimatedMonthlyRevenue', 'text', '25000')
+        : ciField('Amount per cadence', 'amount', 'text', '6000')) +
+      ciField('Escalation %', 'escalationPct', 'text', '3.5') +
+      '<div class="full"><label>Notes / extraction review</label><textarea rows="3" ' +
+        'onchange="RBB.app.contractImportSet(\'notes\',this.value)" placeholder="Record clauses, review notes, or fields that still need confirmation.">' +
+        H.esc(x.notes || '') + '</textarea></div>' +
+      '</div>';
+    out += '<div class="scroll" style="margin-top:12px"><table class="sm"><thead><tr>' +
+      R.MONTHS.map(function (m) { return '<th class="n">' + m + '</th>'; }).join('') +
+      '<th class="n">FY' + A.year() + '</th></tr></thead><tbody><tr>' +
+      spread.monthly.map(function (v) { return '<td class="n">' + (v ? u.money(v) : '<span class="tiny">-</span>') + '</td>'; }).join('') +
+      '<td class="n b">' + u.money(annual) + '</td></tr></tbody></table></div>' +
+      '<div class="hint" style="margin-top:8px">Only active properties are available for new contract ' +
+      'routing. Applying to a draft or reforecast creates a linked budget line in that scenario; choosing ' +
+      'register only retains the document and contract terms without changing budget math.</div>' +
+      '<div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:12px">' +
+      '<button class="btn pri" onclick="RBB.app.contractImportApply()">Save contract intake</button>' +
+      '<button class="btn sec" onclick="RBB.app.contractImportReset()">Clear intake</button>' +
+      '<button class="btn sec" onclick="RBB.app.go(\'contracts\')">Open contract manager</button>' +
+      '</div></div></div>';
+
+    var docs = A.state.contractDocuments || [];
+    if (docs.length) {
+      out += '<div class="panel"><h3>Retained contract documents<span class="note">' + docs.length +
+        ' saved</span></h3><div class="scroll"><table><thead><tr><th>Contract</th><th>Property</th>' +
+        '<th>Vendor</th><th>Document</th><th>Expiration</th><th class="n">FY impact</th><th></th>' +
+        '</tr></thead><tbody>';
+      docs.forEach(function (d) {
+        var s = R.contracts.spread(d.contract || {}, A.year());
+        out += '<tr><td class="mono">' + H.esc(d.contractId || '') + '</td><td>' +
+          H.esc(propLabel(d.propertyId)) + '</td><td>' + H.esc(d.vendor || '') + '</td><td>' +
+          H.esc(d.name || '') + '</td><td class="tiny nowrap">' + H.esc(d.end || '') + '</td>' +
+          '<td class="n">' + u.money(u.sum(s.monthly)) + '</td><td>' +
+          '<button class="btn sec sm" onclick="RBB.app.contractDownload(\'' + H.esc(d.id) +
+          '\')">Download</button></td></tr>';
+      });
+      out += '</tbody></table></div></div>';
+    }
+    return out;
+  };
+
+  A.contractImportSet = function (k, v) {
+    var x = ci();
+    x[k] = v;
+    A.touch();
+    A.render();
+  };
+  A.contractImportReset = function () {
+    A.contractImport = ciDefault();
+    A.render();
+  };
+  A.contractImportFile = function (input) {
+    var file = input && input.files && input.files[0];
+    if (!file) return;
+    var x = ci();
+    var hit = inferProperty(file.name);
+    if (hit) x.propertyId = hit;
+    applyFileHints(x, file.name);
+    var rd = new FileReader();
+    rd.onload = function () {
+      x.document = { name:file.name, type:file.type || 'application/octet-stream',
+        size:file.size || 0, dataUrl:rd.result, addedAt:u.today() };
+      A.touch(); A.render();
+      A.toast('Attached ' + file.name + ' to the contract intake.');
+    };
+    rd.onerror = function () { A.toast('The browser could not read that contract file.', 'r'); };
+    rd.readAsDataURL(file);
+  };
+  function inferProperty(name) {
+    var n = String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+    var hit = '';
+    activeProps().forEach(function (p) {
+      var ids = [p.id, p.code, p.name].map(function (v) {
+        return String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+      });
+      if (!hit && ids.some(function (id) { return id && n.indexOf(id) >= 0; })) hit = p.id;
+    });
+    return hit;
+  }
+  function applyFileHints(x, name) {
+    var n = String(name || '').toLowerCase();
+    if (/doro/.test(n) && /management|agreement|parking/.test(n)) {
+      var doro = activeProps().filter(function (p) {
+        return /doro/i.test(String(p.id || '') + ' ' + String(p.code || '') + ' ' + String(p.name || ''));
+      })[0];
+      if (doro) x.propertyId = doro.id;
+      if (!x.vendor) x.vendor = 'Target Park (US) Inc.';
+      if (!x.service) x.service = 'Parking management agreement';
+      if (!x.rateType || x.rateType === 'fixed_amount') x.rateType = 'percent_revenue';
+      if (!x.ratePct) x.ratePct = '60';
+      if (!x.paymentCadence) x.paymentCadence = 'monthly';
+      if (!x.gl || x.gl === '6520') x.gl = '5144';
+      if (!x.startDate) x.startDate = '2026-01-01';
+      if (!x.endDate) x.endDate = '2029-12-31';
+      if (!x.notes) x.notes = 'File name and sample agreement indicate a Doro parking management agreement. Confirm the blank execution dates and enter the expected monthly gross parking revenue before applying.';
+    }
+  }
+  A.contractImportApply = function () {
+    var x = ci(), props = activeProps(), propOk = props.some(function (p) { return p.id === x.propertyId; });
+    if (!propOk) { A.toast('Choose an active ATLAS property before saving the contract.', 'r'); return; }
+    if (!x.document) { A.toast('Attach the contract document before saving.', 'r'); return; }
+    if (!x.vendor || !x.service) { A.toast('Vendor and service are required.', 'r'); return; }
+    if (!R.importer.parseDate(x.startDate) || !R.importer.parseDate(x.endDate)) {
+      A.toast('Enter valid start and expiration dates.', 'r'); return;
+    }
+    if (x.rateType === 'percent_revenue' && (!Mnum(x.estimatedMonthlyRevenue) || !pct(x.ratePct))) {
+      A.toast('Enter the revenue percentage and estimated monthly revenue base.', 'r'); return;
+    }
+    if (x.rateType !== 'percent_revenue' && !Mnum(x.amount)) {
+      A.toast('Enter the contract amount for the selected cadence.', 'r'); return;
+    }
+    var spread = ciSpread(), total = u.sum(spread.monthly);
+    var id = 'C-IMP-' + String(1000 + (A.state.contracts || []).length + 1).slice(1);
+    var gl = String(x.gl || '').trim(), acct = R.gl(gl);
+    var contract = {
+      id:id, vendor:x.vendor, propertyId:x.propertyId, gl:gl, service:x.service,
+      start:R.importer.parseDate(x.startDate), end:R.importer.parseDate(x.endDate),
+      renewal:R.importer.parseDate(x.renewalDate), monthly:spread.activeMonths ? total / spread.activeMonths : 0,
+      paymentCadence:x.paymentCadence, paymentAmount:Mnum(x.amount),
+      rateType:x.rateType, ratePct:pct(x.ratePct), estimatedMonthlyRevenue:Mnum(x.estimatedMonthlyRevenue),
+      escalation:pct(x.escalationPct), serviceMonths:null, status:(x.status || 'signed').toLowerCase(),
+      notes:x.notes || '', imported:true, sourceFile:x.document.name
+    };
+    R.persist.snapshotUndo('saving contract ' + id);
+    A.state.contracts.push(contract);
+    var docId = 'DOC-' + String(1000 + (A.state.contractDocuments || []).length + 1).slice(1);
+    A.state.contractDocuments = A.state.contractDocuments || [];
+    A.state.contractDocuments.unshift({ id:docId, contractId:id, propertyId:x.propertyId,
+      vendor:x.vendor, service:x.service, name:x.document.name, type:x.document.type, size:x.document.size,
+      dataUrl:x.document.dataUrl, start:contract.start, end:contract.end, retainedUntil:contract.end,
+      targetScenario:x.targetScenario, savedAt:u.today(), contract:contract });
+    var appliedTo = '';
+    if (x.targetScenario !== 'register_only') {
+      var sid = ensureContractScenario(x.targetScenario, x.propertyId);
+      var sc = R.engine.getScenario(A.state, sid);
+      var lineId = id + '-LINE';
+      A.state.lines.push({ id:lineId, propertyId:x.propertyId, gl:gl,
+        name:x.service + ' - ' + x.vendor, section:acct.group || 'CONTRACT SERVICES',
+        coaGroup:acct.group || 'CONTRACT SERVICES', department:'Contract Services',
+        unitCategory:'property', method:'manual', behavior:'fixed_contract', nature:acct.nature,
+        driver:{ contractId:id }, yearData:{}, driverSource:'Contract intake: ' + x.document.name,
+        assumptionSource:'', owner:'Finance / Central Services', status:'draft',
+        comments:'Created from retained contract document ' + x.document.name,
+        lastUpdated:u.today(), overrides:{}, manualMonthly:u.z12(), importedMonthly:null,
+        tags:['contract-intake'] });
+      sc.lineOverrides = sc.lineOverrides || {};
+      sc.lineOverrides[lineId] = { method:'contract_schedule', driver:{ contractId:id },
+        status:'draft', comments:'Scenario schedule generated from contract intake ' + id };
+      A.state.activeScenario = sid;
+      appliedTo = ' Applied to ' + sc.name + '.';
+    }
+    A.state.imports.unshift({ id:'IMP-' + String(100 + A.state.imports.length + 1).slice(1),
+      type:'Contract document intake', file:x.document.name, rows:1, loadedAt:u.today(),
+      by:'Jacquelyn Heflin', status:'accepted', errors:0, warnings:x.notes ? 1 : 0,
+      notes:'Mapped to ' + propLabel(x.propertyId) + ', retained until ' + contract.end +
+        ', FY' + A.year() + ' impact ' + u.money(total) + '.' + appliedTo });
+    A.state.auditLog.push({ at:u.today(), who:'J. Heflin', what:'Imported contract ' + id +
+      ' for ' + propLabel(x.propertyId) + ' from ' + x.document.name });
+    notifyAtlasContract(contract, A.state.contractDocuments[0], spread);
+    A.contractImport = ciDefault();
+    A.invalidate(); A.render();
+    A.toast('Saved contract ' + id + ' for ' + propLabel(contract.propertyId) + '.' + appliedTo);
+  };
+  function ensureContractScenario(target, propertyId) {
+    if (target !== 'new_budget' && target !== 'new_reforecast') return target;
+    var base = R.engine.getScenario(A.state, 'SC-WORK') || R.engine.getScenario(A.state, A.state.activeScenario);
+    var id = 'SC-' + (target === 'new_budget' ? 'BUDGET' : 'REFCST') + '-' + Date.now();
+    var sc = u.clone(base);
+    sc.id = id;
+    sc.name = (target === 'new_budget' ? 'Contract Budget Draft' : 'Contract Reforecast') +
+      ' - ' + propLabel(propertyId);
+    sc.type = target === 'new_budget' ? 'working' : 'reforecast';
+    sc.status = 'draft';
+    sc.locked = false;
+    sc.createdAt = u.today();
+    sc.lineOverrides = u.clone(base.lineOverrides || {});
+    sc.comments = [{ at:u.today(), who:'J. Heflin', text:'Created from contract document intake.' }];
+    sc.history = [{ at:u.today(), who:'J. Heflin', change:'Scenario created for contract import.' }];
+    A.state.scenarios.push(sc);
+    return id;
+  }
+  function notifyAtlasContract(contract, doc, spread) {
+    if (window.parent === window) return;
+    try {
+      window.parent.postMessage({ type:'atlas-budget-contract-import',
+        payload:{ contract:contract, propertyName:propLabel(contract.propertyId),
+          document:{ id:doc.id, name:doc.name, type:doc.type, size:doc.size,
+          retainedUntil:doc.retainedUntil }, monthly:spread.monthly, year:A.year() } }, '*');
+    } catch (e) {}
+  }
+  A.contractDownload = function (id) {
+    var d = (A.state.contractDocuments || []).filter(function (x) { return x.id === id; })[0];
+    if (!d || !d.dataUrl) { A.toast('That retained document is not available in this save.', 'r'); return; }
+    var a = document.createElement('a');
+    a.href = d.dataUrl; a.download = d.name || 'contract-document';
+    document.body.appendChild(a); a.click(); a.remove();
+  };
 
   /* ------------------------------------------------------------ handlers -- */
 

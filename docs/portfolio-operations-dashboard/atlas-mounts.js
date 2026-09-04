@@ -257,6 +257,74 @@
     }
   }
 
+  function publishBudgetContractToAtlas(payload) {
+    if (!payload || !payload.contract) {
+      return { ok: false, message: "ATLAS could not read the contract intake packet." };
+    }
+    try {
+      var rawPropertyName = String(
+        payload.propertyName ||
+        payload.contract.propertyName ||
+        payload.contract.propertyId ||
+        ""
+      ).trim();
+      var matchedName = typeof matchPropertyName === "function"
+        ? matchPropertyName(rawPropertyName, { fallbackToCurrent: false })
+        : rawPropertyName;
+      if (!matchedName && typeof matchPropertyName === "function") {
+        matchedName = matchPropertyName(rawPropertyName.replace(/^RISE\s+/i, ""), { fallbackToCurrent: false });
+      }
+      if (!matchedName || !savedData || !savedData[matchedName]) {
+        return { ok: false, message: "ATLAS could not match this contract to an active community." };
+      }
+
+      var timestamp = new Date().toISOString();
+      var record = typeof normalizeSavedCommunityRecord === "function"
+        ? normalizeSavedCommunityRecord(matchedName, savedData[matchedName])
+        : savedData[matchedName];
+      if (String(record && record.communityStatus || "active").toLowerCase() !== "active") {
+        return { ok: false, message: "This contract was not linked because the matched property is not active in ATLAS." };
+      }
+      var contractId = String(payload.contract.id || ("contract-" + Date.now())).trim();
+      var packet = Object.assign({}, payload, {
+        sourceKind: "rise_budget_builder_contract",
+        importedAt: timestamp,
+        propertyName: matchedName
+      });
+      var existingDocs = Array.isArray(record.financialContractDocuments)
+        ? record.financialContractDocuments.slice()
+        : [];
+      var docIndex = existingDocs.findIndex(function (item) {
+        return String(item && item.contract && item.contract.id || "") === contractId;
+      });
+      if (docIndex >= 0) existingDocs[docIndex] = packet;
+      else existingDocs.unshift(packet);
+
+      record.financialContractDocuments = existingDocs;
+      record.financialContractUpdatedAt = timestamp;
+      record.importTracking = Object.assign({}, record.importTracking || {}, {
+        financialContracts: Object.assign({}, record.importTracking && record.importTracking.financialContracts || {}, {
+          [contractId]: {
+            importedAt: timestamp,
+            sourceFileName: String(payload.document && payload.document.name || payload.contract.sourceFile || "Contract document").trim(),
+            property: matchedName
+          }
+        })
+      });
+      savedData[matchedName] = typeof normalizeSavedCommunityRecord === "function"
+        ? normalizeSavedCommunityRecord(matchedName, record)
+        : record;
+
+      if (typeof syncSharedPropertyFromPortfolioRecord === "function") {
+        syncSharedPropertyFromPortfolioRecord(matchedName, savedData[matchedName], { timestamp: timestamp });
+      }
+      if (typeof persistSaved === "function") persistSaved();
+      return { ok: true, message: "Contract retained and linked to " + matchedName + "." };
+    } catch (err) {
+      return { ok: false, message: "ATLAS could not save this contract: " + String(err && err.message || err) };
+    }
+  }
+
   window.navigateAtlasBudgetMount = function (view) {
     var iframe = document.querySelector('iframe[data-atlas-mount-key="budget"]');
     if (!iframe || !iframe.contentWindow) return;
@@ -273,6 +341,11 @@
     if (data.type === "atlas-budget-publish" && isBudgetFrameSource(event.source)) {
       var result = publishBudgetToAtlas(data.payload);
       try { event.source.postMessage({ type: "atlas-budget-publish-result", result: result }, "*"); } catch (err) {}
+      return;
+    }
+    if (data.type === "atlas-budget-contract-import" && isBudgetFrameSource(event.source)) {
+      var contractResult = publishBudgetContractToAtlas(data.payload);
+      try { event.source.postMessage({ type: "atlas-budget-contract-import-result", result: contractResult }, "*"); } catch (err) {}
       return;
     }
     if (data.type !== "atlas-embedded-height") return;

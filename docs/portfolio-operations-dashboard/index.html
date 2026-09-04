@@ -4807,7 +4807,8 @@ function defaultImportTracking() {
     marketSurvey: {},
     renewals: {},
     dlrExports: {},
-    financialBudget: {}
+    financialBudget: {},
+    financialContracts: {}
   };
 }
 
@@ -4817,7 +4818,8 @@ function normalizeImportTracking(data) {
     marketSurvey: normalizePeriodImportMap(input.marketSurvey),
     renewals: normalizePeriodImportMap(input.renewals),
     dlrExports: normalizePeriodImportMap(input.dlrExports),
-    financialBudget: normalizePeriodImportMap(input.financialBudget)
+    financialBudget: normalizePeriodImportMap(input.financialBudget),
+    financialContracts: normalizePeriodImportMap(input.financialContracts)
   };
 }
 
@@ -8200,6 +8202,8 @@ function defaultSavedCommunityRecord(propName = getProp().name) {
     monthlyHistoryByPeriod: {},
     marketSurveyHistory: {},
     importTracking: defaultImportTracking(),
+    financialContractDocuments: [],
+    financialContractUpdatedAt: "",
     propertyName: prop.name
   };
 }
@@ -8298,6 +8302,8 @@ function normalizeSavedCommunityRecord(propName, data) {
     financialUpdatedAt: String(input.financialUpdatedAt ?? ""),
     financialBudgetLedger: (input.financialBudgetLedger && typeof input.financialBudgetLedger === "object") ? input.financialBudgetLedger : {},
     financialBudgetUpdatedAt: String(input.financialBudgetUpdatedAt ?? ""),
+    financialContractDocuments: Array.isArray(input.financialContractDocuments) ? input.financialContractDocuments : [],
+    financialContractUpdatedAt: String(input.financialContractUpdatedAt ?? ""),
     propertyName: propName
   };
 }
@@ -18256,6 +18262,19 @@ function mergeMonthlyHistoryByPeriod(baseHistory, incomingHistory) {
   return merged;
 }
 
+function mergeFinancialContractDocuments(baseDocs, incomingDocs) {
+  const merged = [];
+  const seen = new Set();
+  [...(Array.isArray(incomingDocs) ? incomingDocs : []), ...(Array.isArray(baseDocs) ? baseDocs : [])].forEach(doc => {
+    if (!doc || typeof doc !== "object") return;
+    const key = String(doc.contract?.id || doc.document?.id || doc.id || "").trim() || JSON.stringify(doc).slice(0, 80);
+    if (seen.has(key)) return;
+    seen.add(key);
+    merged.push(doc);
+  });
+  return merged;
+}
+
 function mergeDashboardCommunityRecord(baseRecord, incomingRecord, name) {
   const incomingRaw = incomingRecord && typeof incomingRecord === "object" ? incomingRecord : {};
   const base = normalizeSavedCommunityRecord(name, baseRecord);
@@ -18300,6 +18319,8 @@ function mergeDashboardCommunityRecord(baseRecord, incomingRecord, name) {
       ...(base.financialBudgetLedger && typeof base.financialBudgetLedger === "object" ? base.financialBudgetLedger : {}),
       ...(incoming.financialBudgetLedger && typeof incoming.financialBudgetLedger === "object" ? incoming.financialBudgetLedger : {})
     },
+    financialContractDocuments: mergeFinancialContractDocuments(base.financialContractDocuments, incoming.financialContractDocuments),
+    financialContractUpdatedAt: incoming.financialContractUpdatedAt || base.financialContractUpdatedAt || "",
     monthlyHistoryByPeriod: mergeMonthlyHistoryByPeriod(base.monthlyHistoryByPeriod, incoming.monthlyHistoryByPeriod),
     marketSurveyHistory: {
       ...(base.marketSurveyHistory && typeof base.marketSurveyHistory === "object" ? base.marketSurveyHistory : {}),

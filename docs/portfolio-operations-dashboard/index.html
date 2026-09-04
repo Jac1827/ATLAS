@@ -9140,6 +9140,46 @@ function getPortfolioScopedCommunityRecordsForMonth(monthIdx, recordMap = savedD
     })
     .filter(entry => entry.record && communityStatusMatchesScope(entry.record, { communityStatusMode }));
 }
+
+function getPortfolioSetupCommunityRecordsForMonth(monthIdx = getSelectedDashboardMonthIndex(), recordMap = savedData, options = {}) {
+  const sourceMap = (recordMap && typeof recordMap === "object") ? recordMap : {};
+  const catalogNames = [];
+  try {
+    readAtlasSharedPropertyCatalogEntries().forEach(entry => {
+      if (entry?.name) catalogNames.push(entry.name);
+    });
+  } catch {}
+  const names = Array.from(new Set([
+    ...getAllCommunityNames(),
+    ...catalogNames,
+    getProp().name
+  ].map(name => {
+    const rawName = String(name ?? "").trim();
+    return matchPropertyName(rawName, { fallbackToCurrent: false }) || rawName;
+  }).filter(name => name && !isRetiredAtlasPropertyName(name))));
+  const communityStatusMode = getCommunityScopeMode({
+    communityStatusMode: options.communityStatusMode,
+    includeInactive: options.includeInactive !== false
+  });
+  return names
+    .map(name => {
+      const sourceRecord = name === getProp().name && options.includeCurrent !== false
+        ? getCurrentCommunityRecord()
+        : sourceMap[name];
+      const prop = getPropertyByName(name);
+      return {
+        name,
+        record: normalizeSavedCommunityRecord(name, sourceRecord || {
+          customUnits: prop.units ?? "",
+          communityStatus: "active",
+          sharedSyncSource: "portfolio_setup_roster_baseline",
+          sharedSyncUpdatedAt: atlasSharedNow()
+        })
+      };
+    })
+    .filter(entry => entry.record && communityStatusMatchesScope(entry.record, { communityStatusMode }));
+}
+
 function getWorkspaceScopedDetails(monthIdx = getSelectedDashboardMonthIndex()) {
   if (isPortfolioWorkspaceSelected()) {
     return buildPortfolioDetailsForMonth(monthIdx);
@@ -13402,8 +13442,13 @@ function syncAtlasTopbar() {
 
     const freshChip = document.getElementById("atlas-chip-freshness");
     if (freshChip) {
-      const count = getWorkspaceScopedDetails(getSelectedDashboardMonthIndex()).length;
-      freshChip.lastElementChild.textContent = `Viewing data for ${count} ${count === 1 ? "community" : "communities"}`;
+      if (isPortfolioWorkspaceSelected() && activeTab === 1) {
+        const count = getPortfolioSetupCommunityRecordsForMonth(getSelectedDashboardMonthIndex(), savedData, { includeInactive: true }).length;
+        freshChip.lastElementChild.textContent = `Community setup roster · ${count} ${count === 1 ? "community" : "communities"}`;
+      } else {
+        const count = getWorkspaceScopedDetails(getSelectedDashboardMonthIndex()).length;
+        freshChip.lastElementChild.textContent = `Viewing data for ${count} ${count === 1 ? "community" : "communities"}`;
+      }
     }
   } catch (error) {
     console.warn("Topbar sync skipped", error);
@@ -19041,7 +19086,7 @@ function renderAtlasSettingsTab() {
   const cardsHtml = `<div class="grid-4">
     ${statBox("Access Control", canManage ? "Admin Ready" : (status.signedIn ? "Viewer" : "Sign In"), canManage ? "Manage roles, scope, and page access here." : "Settings opens for connection and profile review first.", canManage ? "#3fb950" : "#d29922")}
     ${statBox("Central Platform", status.configured ? (status.signedIn ? "Connected" : "Configured") : "Not Configured", status.message || "Use this page to configure or verify central Atlas.", status.signedIn ? "#4493f8" : "#d29922")}
-    ${statBox("Portfolio Setup", buildPortfolioDetailsForMonth(getSelectedDashboardMonthIndex()).length, "Community setup, imports, and outputs route through this admin page.", "#a371f7")}
+    ${statBox("Portfolio Setup", getPortfolioSetupCommunityRecordsForMonth(getSelectedDashboardMonthIndex(), savedData, { includeInactive: true }).length, "Community setup, imports, and outputs route through this admin page.", "#a371f7")}
     ${statBox("Memory", loadDailyBackupIndex().length, "Daily backups plus export and rollback controls live here.", "#58a6ff")}
   </div>`;
   const bodyHtml = `<div class="tbl-wrap">
@@ -19708,8 +19753,8 @@ function renderPortfolioPresentationImageLibrary() {
 function renderPortfolioScopedSetupTab() {
   try {
   const selectedMonth = getSelectedDashboardMonthIndex();
-  const setupDetails = getPortfolioScopedCommunityRecordsForMonth(selectedMonth, savedData, {
-    includeCurrent: false,
+  const setupDetails = getPortfolioSetupCommunityRecordsForMonth(selectedMonth, savedData, {
+    includeCurrent: true,
     includeInactive: true
   }).map(entry => buildCommunityDetailForMonth(entry.name, entry.record, selectedMonth)).filter(Boolean);
   const activeDetails = setupDetails.filter(detail => isCommunityStatusActive(detail.record));
@@ -19724,7 +19769,7 @@ function renderPortfolioScopedSetupTab() {
   const contactCount = setupDetails.reduce((sum, detail) => sum + normalizeInvestorEmailContacts(detail.record?.investorEmailContacts).length, 0);
   const floorPlanCount = setupDetails.reduce((sum, detail) => sum + normalizeCommunityFloorPlans(detail.record?.communityFloorPlans).filter(plan => String(plan.name || "").trim()).length, 0);
   const cardsHtml = `<div class="grid-4">
-    ${statBox("Communities", setupDetails.length, `${activeDetails.length} active · ${Math.max(setupDetails.length - activeDetails.length, 0)} inactive in current scope`, "#4493f8")}
+    ${statBox("Communities", setupDetails.length, `${activeDetails.length} active · ${Math.max(setupDetails.length - activeDetails.length, 0)} inactive in setup roster`, "#4493f8")}
     ${statBox("Saved Contacts", contactCount, "Community recipient records available for reporting", "#3fb950")}
     ${statBox("Floor Plans", floorPlanCount, "Configured floor plans saved in Community Setup", "#d29922")}
     ${statBox("Addresses on File", setupDetails.filter(detail => String(detail.record?.communityAddress || "").trim()).length, `${aggregate.totalUnits.toLocaleString()} active units feeding portfolio totals`, "#a371f7")}

@@ -3299,19 +3299,47 @@ function normalizeReportRecommendationOverrides(data) {
 
 const APPLICATION_RESIDENT_DATA_SHEET_NAME = "RISE - Resident Data";
 const APPLICATION_RESIDENT_DATA_EXPECTED_CONTROL = {
-  uniqueApplicationRecords: 219,
-  propertySections: 14,
-  mappedAtlasRecords: 131,
+  uniqueApplicationRecords: 195,
+  propertySections: 15,
+  mappedAtlasRecords: 195,
   duplicateApplicationIds: 0
 };
 const APPLICATION_RESIDENT_DATA_PROPERTY_MAP = {
+  "Anthem House": { communityId: "ANTHEM_HOUSE", communityName: "Anthem House", atlasName: "Anthem House" },
+  "RISE Anthem House": { communityId: "ANTHEM_HOUSE", communityName: "Anthem House", atlasName: "Anthem House" },
+  "Ivy & Elm": { communityId: "IVY_ELM", communityName: "Ivy & Elm", atlasName: "Ivy & Elm" },
+  "RISE Ivy & Elm": { communityId: "IVY_ELM", communityName: "Ivy & Elm", atlasName: "Ivy & Elm" },
+  "NJIT - Maple Hall": { communityId: "NJIT_MAPLE", communityName: "NJIT - Maple Hall", atlasName: "NJIT - Maple Hall" },
+  "NJIT Maple Hall": { communityId: "NJIT_MAPLE", communityName: "NJIT - Maple Hall", atlasName: "NJIT - Maple Hall" },
+  "Pilots Pointe at LSUS": { communityId: "PILOTS_POINTE", communityName: "Pilots Pointe at LSUS", atlasName: "Pilots Pointe at LSUS" },
+  "Pilots Pointe": { communityId: "PILOTS_POINTE", communityName: "Pilots Pointe at LSUS", atlasName: "Pilots Pointe at LSUS" },
+  "Prosper On Fayette": { communityId: "PROSPER_FAYETTE", communityName: "Prosper On Fayette", atlasName: "Prosper On Fayette" },
+  "Prosper on Fayette": { communityId: "PROSPER_FAYETTE", communityName: "Prosper On Fayette", atlasName: "Prosper On Fayette" },
+  "RISE 34th": { communityId: "RISE_34TH", communityName: "RISE 34th", atlasName: "RISE 34th" },
+  "Rise 34th": { communityId: "RISE_34TH", communityName: "RISE 34th", atlasName: "RISE 34th" },
   "RISE Bartram Park": { communityId: "BAR", communityName: "Bartram Park", atlasName: "Bartram Park" },
+  "Bartram Park": { communityId: "BAR", communityName: "Bartram Park", atlasName: "Bartram Park" },
   "RISE Baymeadows": { communityId: "BAY", communityName: "Baymeadows", atlasName: "Baymeadows" },
+  "Baymeadows": { communityId: "BAY", communityName: "Baymeadows", atlasName: "Baymeadows" },
   "RISE Citrus Ridge Townhomes": { communityId: "CIT", communityName: "Citrus Ridge", atlasName: "Citrus Ridge" },
+  "RISE Citrus Ridge": { communityId: "CIT", communityName: "Citrus Ridge", atlasName: "Citrus Ridge" },
+  "Citrus Ridge": { communityId: "CIT", communityName: "Citrus Ridge", atlasName: "Citrus Ridge" },
   "RISE Doro": { communityId: "DOR", communityName: "Doro", atlasName: "Doro" },
+  "Doro": { communityId: "DOR", communityName: "Doro", atlasName: "Doro" },
   "RISE Florence Villa Townhomes": { communityId: "FLO", communityName: "Florence Villa", atlasName: "Florence Villa" },
+  "RISE Florence Villa": { communityId: "FLO", communityName: "Florence Villa", atlasName: "Florence Villa" },
+  "Florence Villa": { communityId: "FLO", communityName: "Florence Villa", atlasName: "Florence Villa" },
   "RISE Sereno": { communityId: "SER", communityName: "Sereno", atlasName: "Sereno" },
-  "RISE St. Augustine": { communityId: "STA", communityName: "St Augustine", atlasName: "St Augustine" }
+  "Sereno": { communityId: "SER", communityName: "Sereno", atlasName: "Sereno" },
+  "RISE St. Augustine": { communityId: "STA", communityName: "St Augustine", atlasName: "St Augustine" },
+  "RISE St Augustine": { communityId: "STA", communityName: "St Augustine", atlasName: "St Augustine" },
+  "St Augustine": { communityId: "STA", communityName: "St Augustine", atlasName: "St Augustine" },
+  "RISE Sutton Place": { communityId: "SUT", communityName: "Sutton House", atlasName: "Sutton House" },
+  "Sutton Place": { communityId: "SUT", communityName: "Sutton House", atlasName: "Sutton House" },
+  "Sutton House": { communityId: "SUT", communityName: "Sutton House", atlasName: "Sutton House" },
+  "The Preserve at Tech": { communityId: "PRESERVE_TECH", communityName: "The Preserve at Tech", atlasName: "The Preserve at Tech" },
+  "Preserve at Tech": { communityId: "PRESERVE_TECH", communityName: "The Preserve at Tech", atlasName: "The Preserve at Tech" },
+  "RISE The Preserve at Tech": { communityId: "PRESERVE_TECH", communityName: "The Preserve at Tech", atlasName: "The Preserve at Tech" }
 };
 const APPLICATION_RESIDENT_REQUIRED_HEADERS = [
   "Name",
@@ -3414,12 +3442,69 @@ function normalizeApplicationResidentIdentifier(value) {
   return String(value).trim().replace(/\.0+$/, "");
 }
 
+function getApplicationResidentPropertyLookupVariants(value = "") {
+  const raw = normalizeApplicationResidentText(value);
+  if (!raw) return [];
+  const variants = new Set([raw]);
+  variants.add(raw.replace(/^RISE\s+/i, ""));
+  variants.add(raw.replace(/\s+Townhomes?\s*$/i, ""));
+  variants.add(raw.replace(/^RISE\s+/i, "").replace(/\s+Townhomes?\s*$/i, ""));
+  variants.add(raw.replace(/\bSt\.\s*/i, "St "));
+  variants.add(raw.replace(/\s+at\s+LSUS\s*$/i, ""));
+  variants.add(raw.replace(/^The\s+/i, ""));
+  return [...variants].map(normalizeApplicationResidentText).filter(Boolean);
+}
+
+function getApplicationResidentConfiguredPropertyMap(value = "") {
+  const variants = getApplicationResidentPropertyLookupVariants(value);
+  for (const variant of variants) {
+    if (APPLICATION_RESIDENT_DATA_PROPERTY_MAP[variant]) return APPLICATION_RESIDENT_DATA_PROPERTY_MAP[variant];
+  }
+  const configuredEntries = Object.entries(APPLICATION_RESIDENT_DATA_PROPERTY_MAP);
+  for (const variant of variants) {
+    const variantKey = normalizeAtlasColumnKey(variant);
+    const matched = configuredEntries.find(([key]) => normalizeAtlasColumnKey(key) === variantKey);
+    if (matched) return matched[1];
+  }
+  return null;
+}
+
+function getApplicationResidentCommunityIdForAtlasName(atlasName = "") {
+  const normalizedName = normalizeAtlasColumnKey(atlasName);
+  if (!normalizedName) return "";
+  const configured = Object.values(APPLICATION_RESIDENT_DATA_PROPERTY_MAP).find(entry => {
+    return normalizeAtlasColumnKey(entry?.atlasName) === normalizedName || normalizeAtlasColumnKey(entry?.communityName) === normalizedName;
+  });
+  if (configured?.communityId) return configured.communityId;
+  const aliasMatch = Object.entries(ATLAS_COMMUNITY_ID_ALIASES).find(([, name]) => normalizeAtlasColumnKey(name) === normalizedName);
+  if (aliasMatch?.[0]) return aliasMatch[0];
+  return atlasSharedCommunityId(atlasName);
+}
+
+function resolveApplicationResidentPropertyMap(value = "") {
+  const configured = getApplicationResidentConfiguredPropertyMap(value);
+  if (configured) return configured;
+  const variants = getApplicationResidentPropertyLookupVariants(value);
+  for (const variant of variants) {
+    const matchedName = getKnownAtlasCommunityName(variant) || matchPropertyName(variant, { fallbackToCurrent: false });
+    if (matchedName) {
+      return {
+        communityId: getApplicationResidentCommunityIdForAtlasName(matchedName),
+        communityName: matchedName,
+        atlasName: matchedName
+      };
+    }
+  }
+  return null;
+}
+
 function normalizeApplicationResidentRecord(record = {}) {
   const propertySource = normalizeApplicationResidentText(record.propertySource || record.property || "");
-  const mapped = APPLICATION_RESIDENT_DATA_PROPERTY_MAP[propertySource] || null;
+  const mapped = resolveApplicationResidentPropertyMap(propertySource);
   return {
     batchId: String(record.batchId || ""),
     sourceFileName: String(record.sourceFileName || ""),
+    sourceSheetName: String(record.sourceSheetName || ""),
     sourceRowNumber: Number.isFinite(Number(record.sourceRowNumber)) ? Number(record.sourceRowNumber) : null,
     reportPeriodKey: String(record.reportPeriodKey || buildPeriodKey(DEFAULT_CURRENT_MONTH, new Date().getFullYear())),
     reportMonth: String(record.reportMonth || ""),
@@ -3580,88 +3665,167 @@ function getApplicationResidentSourceAsOf(workbook, file) {
   return file?.lastModified ? normalizeApplicationResidentDateInput(new Date(file.lastModified)) : normalizeApplicationResidentDateInput(new Date());
 }
 
+function getApplicationResidentSheetRows(workbook, sheetName = "") {
+  const sheet = workbook?.Sheets?.[sheetName];
+  if (!sheet || typeof XLSX === "undefined") return [];
+  return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false, blankrows: true });
+}
+
+function isApplicationResidentReportParametersSheet(sheetName = "") {
+  return normalizeAtlasColumnKey(sheetName) === "report_parameters";
+}
+
+function getApplicationResidentPropertyNameFromSheet(sheetName = "", rows = [], headerRowIdx = -1) {
+  const blockedKeys = new Set([
+    normalizeAtlasColumnKey(APPLICATION_RESIDENT_DATA_SHEET_NAME),
+    "resident_data",
+    "report_parameters"
+  ]);
+  const candidates = [];
+  const introLimit = headerRowIdx >= 0 ? Math.min(headerRowIdx, 8) : Math.min(rows.length, 8);
+  for (let rowIdx = 0; rowIdx < introLimit; rowIdx += 1) {
+    const value = normalizeApplicationResidentText(rows[rowIdx]?.[0]);
+    if (value) candidates.push(value);
+  }
+  if (sheetName) candidates.push(sheetName);
+  const matched = candidates.find(candidate => {
+    const key = normalizeAtlasColumnKey(candidate);
+    if (!key || blockedKeys.has(key)) return false;
+    if (/^(generated|status group|lease statuses|property group)$/i.test(candidate)) return false;
+    return true;
+  });
+  return normalizeApplicationResidentText(matched);
+}
+
+function getApplicationResidentWorkbookSources(workbook) {
+  const sheetNames = Array.isArray(workbook?.SheetNames) ? workbook.SheetNames : Object.keys(workbook?.Sheets || {});
+  const residentSheetName = sheetNames.find(name => normalizeAtlasColumnKey(name) === normalizeAtlasColumnKey(APPLICATION_RESIDENT_DATA_SHEET_NAME));
+  if (residentSheetName) {
+    const rows = getApplicationResidentSheetRows(workbook, residentSheetName);
+    return [{
+      sheetName: residentSheetName,
+      rows,
+      headerRowIdx: findApplicationResidentHeaderRow(rows),
+      defaultProperty: "",
+      layout: "single-sheet"
+    }];
+  }
+  const residentTitleKeys = new Set([
+    normalizeAtlasColumnKey(APPLICATION_RESIDENT_DATA_SHEET_NAME),
+    "resident_data"
+  ]);
+  return sheetNames.reduce((sources, sheetName) => {
+    if (isApplicationResidentReportParametersSheet(sheetName)) return sources;
+    const rows = getApplicationResidentSheetRows(workbook, sheetName);
+    const headerRowIdx = findApplicationResidentHeaderRow(rows);
+    if (headerRowIdx < 0) return sources;
+    const hasResidentTitle = rows
+      .slice(0, Math.max(headerRowIdx, 4))
+      .some(row => residentTitleKeys.has(normalizeAtlasColumnKey(row?.[0])));
+    const defaultProperty = getApplicationResidentPropertyNameFromSheet(sheetName, rows, headerRowIdx);
+    if (!hasResidentTitle && !defaultProperty) return sources;
+    sources.push({
+      sheetName,
+      rows,
+      headerRowIdx,
+      defaultProperty,
+      layout: "property-sheet"
+    });
+    return sources;
+  }, []);
+}
+
 function parseApplicationResidentDataWorkbook(workbook, file, options = {}) {
   const reportMonthIdx = Number.isInteger(options.reportMonthIdx) ? clampNumber(options.reportMonthIdx, 0, 11) : applicationResidentDataState.reportMonthIdx;
   const reportYear = Number.isFinite(Number(options.reportYear)) ? Number(options.reportYear) : applicationResidentDataState.reportYear;
   const reportPeriodKey = buildPeriodKey(reportMonthIdx, reportYear);
-  const sheet = workbook?.Sheets?.[APPLICATION_RESIDENT_DATA_SHEET_NAME];
-  if (!sheet) {
+  const sources = getApplicationResidentWorkbookSources(workbook);
+  if (!sources.length) {
     return normalizeApplicationResidentUpload({
       fileName: file?.name || "Resident Data upload",
       reportPeriodKey,
       reportMonthLabel: getApplicationResidentReportMonthLabel(reportPeriodKey),
       validationStatus: "failed",
-      validationMessages: [`Missing worksheet named "${APPLICATION_RESIDENT_DATA_SHEET_NAME}".`]
+      validationMessages: [`Missing worksheet named "${APPLICATION_RESIDENT_DATA_SHEET_NAME}" or Resident Data property tabs with the expected headers.`]
     });
   }
-  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false, blankrows: true });
-  const headerRowIdx = findApplicationResidentHeaderRow(rows);
-  if (headerRowIdx < 0) {
-    return normalizeApplicationResidentUpload({
-      fileName: file?.name || "Resident Data upload",
-      reportPeriodKey,
-      reportMonthLabel: getApplicationResidentReportMonthLabel(reportPeriodKey),
-      sourceRows: rows.length,
-      validationStatus: "failed",
-      validationMessages: ["Header mapping failed. ATLAS could not find Name, Application ID, Application Status, and the expected Resident Data fields."]
-    });
-  }
-  const colIdx = buildApplicationResidentColumnIndex(rows[headerRowIdx] || []);
   const batchId = `resident-data-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const propertySections = [];
   const sourceRows = [];
   const records = [];
-  let currentProperty = "";
-  for (let rowIdx = headerRowIdx + 1; rowIdx < rows.length; rowIdx += 1) {
-    const row = Array.isArray(rows[rowIdx]) ? rows[rowIdx] : [];
-    const firstCell = normalizeApplicationResidentText(row[0]);
-    const separator = parseApplicationResidentPropertySeparator(firstCell);
-    if (separator) {
-      currentProperty = separator.propertyName;
-      propertySections.push(currentProperty);
-      continue;
+  const skippedSheets = [];
+  sources.forEach(source => {
+    if (source.headerRowIdx < 0) {
+      skippedSheets.push(source.sheetName);
+      return;
     }
-    if (!row.some(cell => String(cell ?? "").trim())) continue;
-    sourceRows.push(rowIdx + 1);
-    const applicationId = normalizeApplicationResidentIdentifier(getApplicationResidentCell(row, colIdx, "applicationId"));
-    if (!applicationId || normalizeAtlasColumnKey(applicationId) === "application_id") continue;
-    const residentName = normalizeApplicationResidentText(getApplicationResidentCell(row, colIdx, "residentName"));
-    if (!residentName || residentName.startsWith("=")) continue;
-    const sourceProperty = currentProperty;
-    const propertyMap = APPLICATION_RESIDENT_DATA_PROPERTY_MAP[sourceProperty] || null;
-    const record = normalizeApplicationResidentRecord({
-      batchId,
-      sourceFileName: file?.name || "Resident Data upload",
-      sourceRowNumber: rowIdx + 1,
+    const colIdx = buildApplicationResidentColumnIndex(source.rows[source.headerRowIdx] || []);
+    let currentProperty = normalizeApplicationResidentText(source.defaultProperty);
+    if (currentProperty) propertySections.push(currentProperty);
+    for (let rowIdx = source.headerRowIdx + 1; rowIdx < source.rows.length; rowIdx += 1) {
+      const row = Array.isArray(source.rows[rowIdx]) ? source.rows[rowIdx] : [];
+      const firstCell = normalizeApplicationResidentText(row[0]);
+      const separator = parseApplicationResidentPropertySeparator(firstCell);
+      if (separator) {
+        currentProperty = separator.propertyName;
+        propertySections.push(currentProperty);
+        continue;
+      }
+      if (!row.some(cell => String(cell ?? "").trim())) continue;
+      if (/selected report filters returned no data/i.test(firstCell) || /^total\b/i.test(firstCell)) continue;
+      const applicationId = normalizeApplicationResidentIdentifier(getApplicationResidentCell(row, colIdx, "applicationId"));
+      if (!applicationId || normalizeAtlasColumnKey(applicationId) === "application_id") continue;
+      const residentName = normalizeApplicationResidentText(getApplicationResidentCell(row, colIdx, "residentName"));
+      if (!residentName || residentName.startsWith("=")) continue;
+      const sourceProperty = currentProperty || getApplicationResidentPropertyNameFromSheet(source.sheetName, source.rows, source.headerRowIdx);
+      if (sourceProperty) propertySections.push(sourceProperty);
+      sourceRows.push(`${source.sheetName}:${rowIdx + 1}`);
+      const propertyMap = resolveApplicationResidentPropertyMap(sourceProperty);
+      const record = normalizeApplicationResidentRecord({
+        batchId,
+        sourceFileName: file?.name || "Resident Data upload",
+        sourceSheetName: source.sheetName,
+        sourceRowNumber: rowIdx + 1,
+        reportPeriodKey,
+        reportMonth: getApplicationResidentReportMonthLabel(reportPeriodKey),
+        propertySource: sourceProperty,
+        communityId: propertyMap?.communityId || "",
+        communityName: propertyMap?.communityName || "",
+        atlasName: propertyMap?.atlasName || "",
+        mappingStatus: propertyMap ? "mapped" : "unmapped",
+        residentName,
+        applicationId,
+        applicationStatus: getApplicationResidentCell(row, colIdx, "applicationStatus"),
+        leasingAgent: getApplicationResidentCell(row, colIdx, "leasingAgent"),
+        leadSource: getApplicationResidentCell(row, colIdx, "leadSource"),
+        newLeadCreatedOn: getApplicationResidentCell(row, colIdx, "newLeadCreatedOn"),
+        applicationPartiallyCompletedOn: getApplicationResidentCell(row, colIdx, "applicationPartiallyCompletedOn"),
+        applicationCompletedOn: getApplicationResidentCell(row, colIdx, "applicationCompletedOn"),
+        firstVisitTourDate: getApplicationResidentCell(row, colIdx, "firstVisitTourDate"),
+        occupantType: getApplicationResidentCell(row, colIdx, "occupantType"),
+        leaseId: getApplicationResidentCell(row, colIdx, "leaseId"),
+        leaseStatus: getApplicationResidentCell(row, colIdx, "leaseStatus"),
+        scheduledRent: getApplicationResidentCell(row, colIdx, "scheduledRent"),
+        buildingUnit: getApplicationResidentCell(row, colIdx, "buildingUnit"),
+        primaryPhone: getApplicationResidentCell(row, colIdx, "primaryPhone"),
+        additionalPhoneNumbers: getApplicationResidentCell(row, colIdx, "additionalPhoneNumbers"),
+        email: getApplicationResidentCell(row, colIdx, "email"),
+        currentLeaseStart: getApplicationResidentCell(row, colIdx, "currentLeaseStart"),
+        currentLeaseEnd: getApplicationResidentCell(row, colIdx, "currentLeaseEnd"),
+        moveInDate: getApplicationResidentCell(row, colIdx, "moveInDate")
+      });
+      records.push(record);
+    }
+  });
+  const uniquePropertySections = [...new Set(propertySections.map(normalizeApplicationResidentText).filter(Boolean))];
+  if (!records.length && skippedSheets.length) {
+    return normalizeApplicationResidentUpload({
+      fileName: file?.name || "Resident Data upload",
       reportPeriodKey,
-      reportMonth: getApplicationResidentReportMonthLabel(reportPeriodKey),
-      propertySource: sourceProperty,
-      communityId: propertyMap?.communityId || "",
-      communityName: propertyMap?.communityName || "",
-      atlasName: propertyMap?.atlasName || "",
-      mappingStatus: propertyMap ? "mapped" : "unmapped",
-      residentName,
-      applicationId,
-      applicationStatus: getApplicationResidentCell(row, colIdx, "applicationStatus"),
-      leasingAgent: getApplicationResidentCell(row, colIdx, "leasingAgent"),
-      leadSource: getApplicationResidentCell(row, colIdx, "leadSource"),
-      newLeadCreatedOn: getApplicationResidentCell(row, colIdx, "newLeadCreatedOn"),
-      applicationPartiallyCompletedOn: getApplicationResidentCell(row, colIdx, "applicationPartiallyCompletedOn"),
-      applicationCompletedOn: getApplicationResidentCell(row, colIdx, "applicationCompletedOn"),
-      firstVisitTourDate: getApplicationResidentCell(row, colIdx, "firstVisitTourDate"),
-      occupantType: getApplicationResidentCell(row, colIdx, "occupantType"),
-      leaseId: getApplicationResidentCell(row, colIdx, "leaseId"),
-      leaseStatus: getApplicationResidentCell(row, colIdx, "leaseStatus"),
-      scheduledRent: getApplicationResidentCell(row, colIdx, "scheduledRent"),
-      buildingUnit: getApplicationResidentCell(row, colIdx, "buildingUnit"),
-      primaryPhone: getApplicationResidentCell(row, colIdx, "primaryPhone"),
-      additionalPhoneNumbers: getApplicationResidentCell(row, colIdx, "additionalPhoneNumbers"),
-      email: getApplicationResidentCell(row, colIdx, "email"),
-      currentLeaseStart: getApplicationResidentCell(row, colIdx, "currentLeaseStart"),
-      currentLeaseEnd: getApplicationResidentCell(row, colIdx, "currentLeaseEnd"),
-      moveInDate: getApplicationResidentCell(row, colIdx, "moveInDate")
+      reportMonthLabel: getApplicationResidentReportMonthLabel(reportPeriodKey),
+      validationStatus: "failed",
+      validationMessages: [`Header mapping failed on ${skippedSheets.length} worksheet${skippedSheets.length === 1 ? "" : "s"}. ATLAS could not find Name, Application ID, Application Status, and the expected Resident Data fields.`]
     });
-    records.push(record);
   }
   const idCounts = records.reduce((acc, record) => {
     acc[record.applicationId] = (acc[record.applicationId] || 0) + 1;
@@ -3669,26 +3833,29 @@ function parseApplicationResidentDataWorkbook(workbook, file, options = {}) {
   }, {});
   const duplicateIds = Object.entries(idCounts).filter(([, count]) => count > 1).map(([id]) => id);
   records.forEach(record => { record.duplicateReview = duplicateIds.includes(record.applicationId); });
-  const mappedProperties = [...new Set(records.filter(record => record.mappingStatus === "mapped").map(record => record.propertySource))];
-  const unmappedProperties = [...new Set(records.filter(record => record.mappingStatus !== "mapped").map(record => record.propertySource).filter(Boolean))];
+  const mappedProperties = uniquePropertySections.filter(property => Boolean(resolveApplicationResidentPropertyMap(property)));
+  const unmappedProperties = uniquePropertySections.filter(property => !resolveApplicationResidentPropertyMap(property));
   const messages = [];
-  if (records.length === 0 || propertySections.length === 0) {
-    messages.push("Parser rejected this staging result because it detected zero Application IDs or zero property sections. Header or property separator mapping failed.");
+  const propertySheetCount = sources.filter(source => source.layout === "property-sheet").length;
+  if (propertySheetCount) messages.push(`Detected ${propertySheetCount} Resident Data property worksheet${propertySheetCount === 1 ? "" : "s"}.`);
+  if (skippedSheets.length) messages.push(`${skippedSheets.length} worksheet${skippedSheets.length === 1 ? "" : "s"} skipped because the required Resident Data headers were not found.`);
+  if (records.length === 0 || uniquePropertySections.length === 0) {
+    messages.push("Parser rejected this staging result because it detected zero Application IDs or zero property sections. Header or property mapping failed.");
   }
   if (duplicateIds.length > 0) messages.push(`${duplicateIds.length} duplicate Application ID${duplicateIds.length === 1 ? "" : "s"} flagged for review.`);
   const isExpectedResidentFile = /rise\s*-\s*resident\s*data/i.test(String(file?.name || ""));
   if (isExpectedResidentFile) {
     if (records.length === APPLICATION_RESIDENT_DATA_EXPECTED_CONTROL.uniqueApplicationRecords
-      && propertySections.length === APPLICATION_RESIDENT_DATA_EXPECTED_CONTROL.propertySections
+      && uniquePropertySections.length === APPLICATION_RESIDENT_DATA_EXPECTED_CONTROL.propertySections
       && records.filter(record => record.mappingStatus === "mapped").length === APPLICATION_RESIDENT_DATA_EXPECTED_CONTROL.mappedAtlasRecords
       && duplicateIds.length === APPLICATION_RESIDENT_DATA_EXPECTED_CONTROL.duplicateApplicationIds) {
       messages.push("Control totals passed for the supplied Resident Data workbook.");
     } else {
-      messages.push(`Control total review: detected ${records.length} records, ${propertySections.length} property sections, ${records.filter(record => record.mappingStatus === "mapped").length} mapped ATLAS records, and ${duplicateIds.length} duplicate IDs.`);
+      messages.push(`Control total review: detected ${records.length} records, ${uniquePropertySections.length} property sections, ${records.filter(record => record.mappingStatus === "mapped").length} mapped ATLAS records, and ${duplicateIds.length} duplicate IDs.`);
     }
   }
   const availableStatuses = [...new Set(records.map(record => record.applicationStatus).filter(Boolean))];
-  if (availableStatuses.every(status => /started|partially completed|renewal offer/i.test(status))) {
+  if (availableStatuses.length && availableStatuses.every(status => /started|partially completed|renewal offer/i.test(status))) {
     messages.push("Source limitation: this Resident Data export is filtered to started and partially completed application statuses, so it cannot validate completed applications, approvals, denials, or cancellations. Upload a Resident Data export with those statuses and event dates before final reconciliation.");
   }
   return normalizeApplicationResidentUpload({
@@ -3700,11 +3867,11 @@ function parseApplicationResidentDataWorkbook(workbook, file, options = {}) {
     reportMonthLabel: getApplicationResidentReportMonthLabel(reportPeriodKey),
     sourceRows: sourceRows.length,
     validApplicationRecords: records.length,
-    propertySections,
+    propertySections: uniquePropertySections,
     mappedProperties,
     unmappedProperties,
     duplicateApplicationIds: duplicateIds,
-    validationStatus: records.length === 0 || propertySections.length === 0 ? "failed" : (duplicateIds.length > 0 || unmappedProperties.length > 0 ? "needs_review" : "valid"),
+    validationStatus: records.length === 0 || uniquePropertySections.length === 0 ? "failed" : (duplicateIds.length > 0 || unmappedProperties.length > 0 ? "needs_review" : "valid"),
     validationMessages: messages,
     records
   });
@@ -4094,7 +4261,7 @@ function renderApplicationResidentDataImportPanel() {
     <label class="csv-dropzone" style="padding:20px;cursor:pointer;margin-bottom:12px">
       <div class="csv-drop-icon">⬆</div>
       <div style="font-size:0.82rem;color:#4493f8;font-weight:600">Click to upload Resident Data workbook(s)</div>
-      <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">ATLAS reads the "${APPLICATION_RESIDENT_DATA_SHEET_NAME}" worksheet, finds the real header row, assigns each resident to its Property section, and preserves Application ID / Lease ID as text.</div>
+      <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">ATLAS reads either the "${APPLICATION_RESIDENT_DATA_SHEET_NAME}" worksheet or Resident Data property tabs, finds the real header row, maps each property section to ATLAS, and preserves Application ID / Lease ID as text.</div>
       <input type="file" accept=".xlsx,.xls,.xlsm" multiple onchange="processApplicationResidentDataFiles(this.files); this.value = ''">
     </label>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
@@ -7990,6 +8157,85 @@ function isCommunityStatusActive(recordOrStatus) {
   return normalizeCommunityStatus(recordOrStatus) === "active";
 }
 
+function normalizeCommunityScopeMode(value, fallback = "active") {
+  const normalized = String(value ?? "").trim().toLowerCase().replace(/\s+/g, "_");
+  if (["active", "active_only"].includes(normalized)) return "active";
+  if (["inactive", "inactive_only"].includes(normalized)) return "inactive";
+  if (["all", "active_inactive", "active_and_inactive", "active_plus_inactive", "include_inactive"].includes(normalized)) return "all";
+  const normalizedFallback = String(fallback ?? "active").trim().toLowerCase().replace(/\s+/g, "_");
+  if (["inactive", "inactive_only"].includes(normalizedFallback)) return "inactive";
+  if (["all", "active_inactive", "active_and_inactive", "active_plus_inactive", "include_inactive"].includes(normalizedFallback)) return "all";
+  return "active";
+}
+
+function getCommunityScopeMode(options = {}) {
+  if (options.communityStatusMode !== undefined) {
+    return normalizeCommunityScopeMode(options.communityStatusMode, options.includeInactive === true ? "all" : "active");
+  }
+  return options.includeInactive === true ? "all" : "active";
+}
+
+function communityStatusMatchesScope(recordOrStatus, options = {}) {
+  const mode = getCommunityScopeMode(options);
+  if (mode === "all") return true;
+  const active = isCommunityStatusActive(recordOrStatus);
+  return mode === "inactive" ? !active : active;
+}
+
+function getCommunityRecordForStatusScope(name, options = {}) {
+  const propName = String(name ?? "").trim();
+  if (!propName) return null;
+  if (options.includeCurrent !== false && propName === getProp().name) return getCurrentCommunityRecord();
+  if (savedData?.[propName]) return normalizeSavedCommunityRecord(propName, savedData[propName]);
+  return null;
+}
+
+function isAtlasCommunityActiveByName(name) {
+  const record = getCommunityRecordForStatusScope(name, { includeCurrent: true });
+  return record ? isCommunityStatusActive(record) : true;
+}
+
+function getCommunityNamesByStatusScope(options = {}) {
+  const names = getAllCommunityNames();
+  const mode = getCommunityScopeMode(options);
+  return names.filter(name => {
+    const record = getCommunityRecordForStatusScope(name, {
+      includeCurrent: options.includeCurrentSelection !== false
+    });
+    if (!record) return options.includeDraft !== false && mode !== "inactive";
+    return communityStatusMatchesScope(record, { communityStatusMode: mode });
+  });
+}
+
+function getAtlasOperationalCommunityNames(includeCurrentSelection = false) {
+  return getCommunityNamesByStatusScope({
+    communityStatusMode: "active",
+    includeCurrentSelection,
+    includeDraft: true
+  });
+}
+
+function buildInactiveCommunityImportWarning(names = []) {
+  const inactiveNames = [...new Set((Array.isArray(names) ? names : [names])
+    .map(name => String(name ?? "").trim())
+    .filter(name => name && !isAtlasCommunityActiveByName(name)))];
+  if (inactiveNames.length === 0) return "";
+  return `Inactive community import notice: ${inactiveNames.join(", ")} ${inactiveNames.length === 1 ? "is" : "are"} currently inactive. The data was retained on the original community record for historical use, but it will not be included in current active portfolio reporting unless the community is reactivated.`;
+}
+
+function confirmCommunityInactiveChange(propName, record = null) {
+  const currentRecord = record || getCommunityRecordForStatusScope(propName, { includeCurrent: true });
+  if (currentRecord && !isCommunityStatusActive(currentRecord)) return true;
+  if (typeof window === "undefined" || typeof window.confirm !== "function") return true;
+  return window.confirm(`Mark ${propName} inactive?\n\nThe community will be removed from current operational dashboards, active portfolio calculations, reporting selections, and routine property dropdowns. Historical data, configuration, floor plans, contacts, budgets, and imported records will remain preserved and can be restored automatically by reactivating the community.`);
+}
+
+function setPortfolioCommunityStatus(propName, value) {
+  const status = normalizeCommunityStatus(value);
+  if (status === "inactive" && !confirmCommunityInactiveChange(propName)) return;
+  updatePortfolioCommunityField(propName, "communityStatus", status);
+}
+
 function defaultRenewalDetailRowsByMonth() {
   return Array.from({ length: 12 }, () => []);
 }
@@ -8768,6 +9014,7 @@ function getPortfolioScopedCommunityRecordsForMonth(monthIdx, recordMap = savedD
     ? { ...sourceMap }
     : { ...sourceMap, [getProp().name]: getCurrentCommunityRecord() };
   const names = getPortfolioScopeCommunityNames(mergedMap, monthIdx);
+  const communityStatusMode = getCommunityScopeMode(options);
   return names
     .filter(name => options.includeCurrent !== false || Object.prototype.hasOwnProperty.call(sourceMap, name))
     .map(name => {
@@ -8777,7 +9024,7 @@ function getPortfolioScopedCommunityRecordsForMonth(monthIdx, recordMap = savedD
         record: sourceRecord ? normalizeSavedCommunityRecord(name, sourceRecord) : null
       };
     })
-    .filter(entry => entry.record && (options.includeInactive === true || isCommunityStatusActive(entry.record)));
+    .filter(entry => entry.record && communityStatusMatchesScope(entry.record, { communityStatusMode }));
 }
 function getWorkspaceScopedDetails(monthIdx = getSelectedDashboardMonthIndex()) {
   if (isPortfolioWorkspaceSelected()) {
@@ -8971,6 +9218,47 @@ function getApplicationsApprovedCount(monthEntry = {}) {
   return 0;
 }
 
+function getExplicitLeaseSignedCount(monthEntry = {}) {
+  if (Object.prototype.hasOwnProperty.call(monthEntry ?? {}, "leasesSignedActual")) {
+    return Math.max(0, Number(monthEntry.leasesSignedActual) || 0);
+  }
+  return 0;
+}
+
+function calculateFunnelConversionPct(numerator = 0, denominator = 0) {
+  const safeDenominator = Math.max(0, Number(denominator) || 0);
+  if (safeDenominator <= 0) return 0;
+  const safeNumerator = Math.max(0, Number(numerator) || 0);
+  return Math.min(100, (safeNumerator / safeDenominator) * 100);
+}
+
+function getAttributableLeaseConversionCount(input = {}) {
+  const rawLeaseCount = Math.max(0, Number(input.leases ?? input.leasesSigned ?? input.leasesSignedActual) || 0);
+  const applications = Math.max(0, Number(input.applications) || 0);
+  const approvals = Math.max(0, Number(input.approvals ?? input.applicationsApproved) || 0);
+  const visibleLifecycleCount = Math.max(applications, approvals);
+  if (visibleLifecycleCount <= 0) return 0;
+  return Math.min(rawLeaseCount, visibleLifecycleCount);
+}
+
+function buildFunnelConversionMetrics(input = {}) {
+  const guestCards = Math.max(0, Number(input.guestCards ?? input.leads) || 0);
+  const tours = Math.max(0, Number(input.tours) || 0);
+  const applications = Math.max(0, Number(input.applications ?? input.apps) || 0);
+  const approvals = Math.max(0, Number(input.approvals ?? input.applicationsApproved) || 0);
+  const rawLeases = Math.max(0, Number(input.leases ?? input.leasesSigned ?? input.leasesSignedActual) || 0);
+  const attributableLeases = getAttributableLeaseConversionCount({ leases: rawLeases, applications, approvals });
+  return {
+    attributableLeases,
+    guestToTourPct: calculateFunnelConversionPct(tours, guestCards),
+    tourToAppPct: calculateFunnelConversionPct(applications, tours),
+    applicationApprovalPct: calculateFunnelConversionPct(approvals, applications),
+    appToLeasePct: calculateFunnelConversionPct(attributableLeases, applications),
+    tourToLeasePct: calculateFunnelConversionPct(attributableLeases, tours),
+    leadToLeasePct: calculateFunnelConversionPct(attributableLeases, guestCards)
+  };
+}
+
 function getLeadSourceBreakdown(monthEntry = {}) {
   return {
     walkIn: Math.max(0, Number(monthEntry.walkIn) || 0),
@@ -9004,12 +9292,12 @@ function getApplicationDecisionMetrics(monthEntry = {}) {
   const denials = hasDenied ? explicitDenials : Math.max(applications - approvals - explicitCancelled - explicitPending, 0);
   const cancelled = hasCancelled ? explicitCancelled : Math.max(applications - approvals - denials - explicitPending, 0);
   const pendingDecision = hasPending ? explicitPending : Math.max(applications - approvals - denials - cancelled, 0);
-  const leases = Math.max(0, Number(monthEntry.leasesSignedActual) || 0);
-  const approvalPct = applications > 0 ? (approvals / applications) * 100 : 0;
-  const denialPct = applications > 0 ? (denials / applications) * 100 : 0;
-  const cancelledPct = applications > 0 ? (cancelled / applications) * 100 : 0;
-  const pendingPct = applications > 0 ? (pendingDecision / applications) * 100 : 0;
-  const appToLeasePct = applications > 0 ? (leases / applications) * 100 : 0;
+  const leases = getExplicitLeaseSignedCount(monthEntry);
+  const approvalPct = calculateFunnelConversionPct(approvals, applications);
+  const denialPct = calculateFunnelConversionPct(denials, applications);
+  const cancelledPct = calculateFunnelConversionPct(cancelled, applications);
+  const pendingPct = calculateFunnelConversionPct(pendingDecision, applications);
+  const appToLeasePct = buildFunnelConversionMetrics({ applications, approvals, leases }).appToLeasePct;
   return { applications, approvals, denials, cancelled, pendingDecision, leases, approvalPct, denialPct, cancelledPct, pendingPct, appToLeasePct };
 }
 
@@ -9045,35 +9333,43 @@ function buildDlrTrafficMetricsFromSummary(dlrSummary = {}, monthEntry = {}, dai
   const derivedLeadValues = Object.values(leadSources).filter(value => Number.isFinite(value));
   const monthLeadSources = getLeadSourceBreakdown(monthEntry);
   const monthApplications = getApplicationDecisionMetrics(monthEntry);
+  const hasMonthApplicationMetrics = hasExplicitMonthMetrics(monthEntry, ["applications", "applicationsApproved", "denied", "cancelled", "pendingDecision"]);
+  const hasMonthLeaseMetric = hasExplicitMonthMetrics(monthEntry, ["leasesSignedActual"]);
   const dailyApplicationsSource = preferDailyBoxScore ? dailyBoxScore : {};
   const summaryApplications = {
     applications: getDlrActivityMetric(activity, "Applications")
       ?? getDlrActivityMetric(activity, "Gross New Applications")
       ?? getDlrActivityMetric(activity, "Net New Applications")
-      ?? monthApplications.applications
-      ?? Number(dailyApplicationsSource?.applications),
+      ?? (hasMonthApplicationMetrics
+        ? monthApplications.applications
+        : (Number.isFinite(Number(dailyApplicationsSource?.applications)) ? Number(dailyApplicationsSource.applications) : null)),
     approvals: getDlrActivityMetric(activity, "Approved")
-      ?? monthApplications.approvals
-      ?? (Number.isFinite(Number(dailyApplicationsSource?.applicationsApproved))
-        ? Number(dailyApplicationsSource.applicationsApproved)
-        : null),
+      ?? (hasMonthApplicationMetrics
+        ? monthApplications.approvals
+        : (Number.isFinite(Number(dailyApplicationsSource?.applicationsApproved))
+          ? Number(dailyApplicationsSource.applicationsApproved)
+          : null)),
     denials: getDlrActivityMetric(activity, "Denied")
-      ?? monthApplications.denials
-      ?? (Number.isFinite(Number(dailyApplicationsSource?.denied))
-        ? Number(dailyApplicationsSource.denied)
-        : null),
+      ?? (hasMonthApplicationMetrics
+        ? monthApplications.denials
+        : (Number.isFinite(Number(dailyApplicationsSource?.denied))
+          ? Number(dailyApplicationsSource.denied)
+          : null)),
     cancelled: getDlrActivityMetric(activity, "Cancelled")
-      ?? monthApplications.cancelled
-      ?? (Number.isFinite(Number(dailyApplicationsSource?.cancelled))
-        ? Number(dailyApplicationsSource.cancelled)
-        : null),
+      ?? (hasMonthApplicationMetrics
+        ? monthApplications.cancelled
+        : (Number.isFinite(Number(dailyApplicationsSource?.cancelled))
+          ? Number(dailyApplicationsSource.cancelled)
+          : null)),
     pendingDecision: getDlrActivityMetric(activity, "Pending / Partial")
-      ?? monthApplications.pendingDecision
-      ?? (Number.isFinite(Number(dailyApplicationsSource?.pendingDecision))
-        ? Number(dailyApplicationsSource.pendingDecision)
-        : null),
-    leases: monthApplications.leases
-      ?? (Number.isFinite(Number(dailyApplicationsSource?.leasesSigned))
+      ?? (hasMonthApplicationMetrics
+        ? monthApplications.pendingDecision
+        : (Number.isFinite(Number(dailyApplicationsSource?.pendingDecision))
+          ? Number(dailyApplicationsSource.pendingDecision)
+          : null)),
+    leases: hasMonthLeaseMetric
+      ? monthApplications.leases
+      : (Number.isFinite(Number(dailyApplicationsSource?.leasesSigned))
         ? Number(dailyApplicationsSource.leasesSigned)
         : null)
   };
@@ -9327,7 +9623,10 @@ function getCommunityTrafficMetricsForPeriod(record, normalizedMonthEntry = {}, 
     : (fallbackApprovals + fallbackDenied + fallbackCancelled + fallbackPending);
   const fallbackLeases = hasMatchingDailyBoxScore
     ? Math.max(0, Number(dailyBoxScore.leasesSigned) || 0)
-    : fallbackApprovals;
+    : Math.max(0, Number(
+        getDlrActivityMetric(activity, "Leases Signed")
+        ?? getDlrActivityMetric(activity, "Lease Completions")
+      ) || 0);
   const fallbackMoveIns = hasMatchingDailyBoxScore
     ? Math.max(0, Number(dailyBoxScore.moveIns) || 0)
     : Math.max(0, Number(getDlrActivityMetric(activity, "Move-Ins")) || 0);
@@ -9347,7 +9646,7 @@ function getCommunityTrafficMetricsForPeriod(record, normalizedMonthEntry = {}, 
   const pendingDecision = hasMonthApplicationMetrics
     ? monthApplications.pendingDecision
     : Math.max(fallbackPending, Math.max(fallbackApplications - fallbackApprovals - fallbackDenied - fallbackCancelled, 0));
-  const leases = hasMonthLeaseMetric ? Math.max(0, Number(normalizedMonthEntry.leasesSignedActual) || 0) : Math.max(fallbackLeases, approvals);
+  const leases = hasMonthLeaseMetric ? getExplicitLeaseSignedCount(normalizedMonthEntry) : fallbackLeases;
   const moveIns = hasMonthMoveInMetric ? Math.max(0, Number(normalizedMonthEntry.moveIns) || 0) : fallbackMoveIns;
   const moveOuts = hasMonthMoveOutMetric ? Math.max(0, Number(normalizedMonthEntry.moveOuts) || 0) : fallbackMoveOuts;
   const renewals = hasMonthRenewalMetric
@@ -9378,7 +9677,7 @@ function getCommunityTrafficMetricsForPeriod(record, normalizedMonthEntry = {}, 
 }
 
 function getGrossLeaseProgressCount(monthEntry = {}) {
-  const leases = Math.max(0, Number(monthEntry.leasesSignedActual) || 0);
+  const leases = getExplicitLeaseSignedCount(monthEntry);
   if (leases > 0) return leases;
   return getApplicationsApprovedCount(monthEntry);
 }
@@ -9387,18 +9686,28 @@ function getTourToLeasePctForMonth(monthEntries = monthlyData, monthIdx = curren
   const entries = Array.isArray(monthEntries) && monthEntries.length === 12 ? monthEntries : defaultMonthly();
   const currentEntry = entries[monthIdx] ?? {};
   const currentTours = Math.max(0, Number(currentEntry.tours) || 0);
-  const currentLeases = getGrossLeaseProgressCount(currentEntry);
-  if (currentTours > 0) return (currentLeases / currentTours) * 100;
+  const currentMetrics = getApplicationDecisionMetrics(currentEntry);
+  const currentLeases = getAttributableLeaseConversionCount({
+    leases: getExplicitLeaseSignedCount(currentEntry),
+    applications: currentMetrics.applications,
+    approvals: currentMetrics.approvals
+  });
+  if (currentTours > 0) return calculateFunnelConversionPct(currentLeases, currentTours);
   let tourTotal = 0;
   let leaseTotal = 0;
   for (let idx = 0; idx <= Math.max(0, Math.min(11, Number(fallbackThroughMonth) || 0)); idx += 1) {
     const entry = entries[idx] ?? {};
     const tours = Math.max(0, Number(entry.tours) || 0);
     if (tours <= 0) continue;
+    const metrics = getApplicationDecisionMetrics(entry);
     tourTotal += tours;
-    leaseTotal += getGrossLeaseProgressCount(entry);
+    leaseTotal += getAttributableLeaseConversionCount({
+      leases: getExplicitLeaseSignedCount(entry),
+      applications: metrics.applications,
+      approvals: metrics.approvals
+    });
   }
-  return tourTotal > 0 ? (leaseTotal / tourTotal) * 100 : 0;
+  return calculateFunnelConversionPct(leaseTotal, tourTotal);
 }
 
 function getMoveInTargetFromScheduleRow(scheduleRow = {}) {
@@ -9950,13 +10259,18 @@ function renderPropGrid() {
         ? escapeHtml(currentRecord.communityAddress)
         : "Add the community address in Community Setup to pin the asset details here.");
   if (communitySelect) {
-    communitySelect.innerHTML = [`<option value="${PORTFOLIO_SCOPE_VALUE}" ${isPortfolioWorkspaceSelected() ? "selected" : ""}>${PORTFOLIO_SCOPE_LABEL} · ${aggregate.totalUnits || 0} units · ${details.length} communities</option>`, ...PROPERTIES.map((prop, i) => {
+    const activeOptionNames = new Set(getAtlasOperationalCommunityNames(true));
+    const scopedProperties = PROPERTIES.filter(prop => {
+      const isSelected = !isPortfolioWorkspaceSelected() && prop.name === p.name;
+      return isSelected || activeOptionNames.has(prop.name);
+    });
+    communitySelect.innerHTML = [`<option value="${PORTFOLIO_SCOPE_VALUE}" ${isPortfolioWorkspaceSelected() ? "selected" : ""}>${PORTFOLIO_SCOPE_LABEL} · ${aggregate.totalUnits || 0} units · ${details.length} active communities</option>`, ...scopedProperties.map(prop => {
       const isSaved = !!savedData[prop.name];
       const isActiveSaved = isSaved ? isCommunityStatusActive(savedData[prop.name]) : false;
       const effectiveUnits = getTotalUnitsFor(prop, savedData[prop.name]?.customUnits);
       const statusLabel = isSaved ? (isActiveSaved ? "Active" : "Inactive") : "Draft";
       const unitLabel = effectiveUnits > 0 ? `${effectiveUnits} units` : "Units needed";
-      return `<option value="${escapeHtml(prop.name)}" ${(!isPortfolioWorkspaceSelected() && i===selectedPropIdx)?"selected":""}>${escapeHtml(prop.name)} · ${unitLabel} · ${statusLabel}</option>`;
+      return `<option value="${escapeHtml(prop.name)}" ${(!isPortfolioWorkspaceSelected() && prop.name === p.name)?"selected":""}>${escapeHtml(prop.name)} · ${unitLabel} · ${statusLabel}</option>`;
     })].join("");
   }
   if (snapshot) {
@@ -10166,7 +10480,7 @@ function getActiveSavedCommunityNames(includeCurrentSelection = false) {
   const sourceMap = includeCurrentSelection
     ? { ...(savedData ?? {}), [getProp().name]: getCurrentCommunityRecord() }
     : (savedData ?? {});
-  return Object.keys(sourceMap).filter(name => isCommunityStatusActive(sourceMap[name]));
+  return Object.keys(sourceMap).filter(name => communityStatusMatchesScope(sourceMap[name], { communityStatusMode: "active" }));
 }
 
 function getAssignedCommunityRoles() {
@@ -10259,6 +10573,20 @@ function getCommunitySummary(propName, sourceData, rawSourceData = sourceData) {
   const previousApplicationsDenied = previousTrafficMetrics.denials;
   const leasesSigned = currentTrafficMetrics.leases;
   const previousLeasesSigned = previousTrafficMetrics.leases;
+  const currentFunnelConversions = buildFunnelConversionMetrics({
+    guestCards,
+    tours,
+    applications,
+    approvals: currentTrafficMetrics.approvals,
+    leases: leasesSigned
+  });
+  const previousFunnelConversions = buildFunnelConversionMetrics({
+    guestCards: previousGuestCards,
+    tours: previousTours,
+    applications: previousTrafficMetrics.applications,
+    approvals: previousApplicationsApproved,
+    leases: previousLeasesSigned
+  });
   const moveOuts = currentTrafficMetrics.moveOuts > 0
     ? currentTrafficMetrics.moveOuts
     : getEffectiveMoveOutsForMonth(scopeCurrentMonth, scopeMonthlyData).effective;
@@ -10305,10 +10633,12 @@ function getCommunitySummary(propName, sourceData, rawSourceData = sourceData) {
     applicationsCancelled: currentTrafficMetrics.cancelled,
     applicationsPendingDecision: currentTrafficMetrics.pendingDecision,
     previousApplicationsApproved,
-    applicationApprovalPct: applications > 0 ? (currentTrafficMetrics.approvals / applications) * 100 : 0,
-    applicationDenialPct: applications > 0 ? (currentTrafficMetrics.denials / applications) * 100 : 0,
-    tourToLeasePct: tours > 0 ? (leasesSigned / tours) * 100 : 0,
-    previousTourToLeasePct: previousTours > 0 ? (previousLeasesSigned / previousTours) * 100 : 0,
+    applicationApprovalPct: currentFunnelConversions.applicationApprovalPct,
+    applicationDenialPct: calculateFunnelConversionPct(currentTrafficMetrics.denials, applications),
+    attributableLeases: currentFunnelConversions.attributableLeases,
+    previousAttributableLeases: previousFunnelConversions.attributableLeases,
+    tourToLeasePct: currentFunnelConversions.tourToLeasePct,
+    previousTourToLeasePct: previousFunnelConversions.tourToLeasePct,
     previousApplications: previousTrafficMetrics.applications,
     leasesSigned,
     previousLeasesSigned,
@@ -10388,6 +10718,16 @@ function aggregateCommunitySummaries(summaries) {
     acc.previousApplicationsDenied += summary.previousApplicationsDenied || 0;
     acc.leasesSigned += summary.leasesSigned;
     acc.previousLeasesSigned += summary.previousLeasesSigned;
+    acc.attributableLeases += Number(summary.attributableLeases ?? getAttributableLeaseConversionCount({
+      leases: summary.leasesSigned,
+      applications: summary.applications,
+      approvals: summary.applicationsApproved
+    })) || 0;
+    acc.previousAttributableLeases += Number(summary.previousAttributableLeases ?? getAttributableLeaseConversionCount({
+      leases: summary.previousLeasesSigned,
+      applications: summary.previousApplications,
+      approvals: summary.previousApplicationsApproved
+    })) || 0;
     acc.moveOuts += summary.moveOuts;
     acc.moveIns += summary.moveIns;
     acc.previousMoveOuts += summary.previousMoveOuts;
@@ -10474,6 +10814,8 @@ function aggregateCommunitySummaries(summaries) {
     previousApplicationsDenied: 0,
     leasesSigned: 0,
     previousLeasesSigned: 0,
+    attributableLeases: 0,
+    previousAttributableLeases: 0,
     moveOuts: 0,
     moveIns: 0,
     previousMoveOuts: 0,
@@ -10540,6 +10882,8 @@ function aggregateCommunitySummaries(summaries) {
     previousApplicationsDenied: totals.previousApplicationsDenied,
     leasesSigned: totals.leasesSigned,
     previousLeasesSigned: totals.previousLeasesSigned,
+    attributableLeases: totals.attributableLeases,
+    previousAttributableLeases: totals.previousAttributableLeases,
     moveOuts: totals.moveOuts,
     moveIns: totals.moveIns,
     previousMoveOuts: totals.previousMoveOuts,
@@ -10568,16 +10912,16 @@ function aggregateCommunitySummaries(summaries) {
     guestCardGoalPct: totals.guestCardGoal > 0 ? Math.min((totals.guestCards / totals.guestCardGoal) * 100, 200) : 0,
     budgetAttainmentPct: totals.budgetOccUnits > 0 ? Math.min((totals.occupied / totals.budgetOccUnits) * 100, 125) : 0,
     momAppsGrowthPct: totals.previousApplications > 0 ? ((totals.applications - totals.previousApplications) / totals.previousApplications) * 100 : (totals.applications > 0 ? 100 : 0),
-    leadToLeasePct: totals.guestCards > 0 ? (totals.leasesSigned / totals.guestCards) * 100 : 0,
-    previousLeadToLeasePct: totals.previousGuestCards > 0 ? (totals.previousLeasesSigned / totals.previousGuestCards) * 100 : 0,
-    tourToAppPct: totals.tours > 0 ? (totals.applications / totals.tours) * 100 : 0,
-    previousTourToAppPct: totals.previousTours > 0 ? (totals.previousApplications / totals.previousTours) * 100 : 0,
-    tourToLeasePct: totals.tours > 0 ? (totals.leasesSigned / totals.tours) * 100 : 0,
-    previousTourToLeasePct: totals.previousTours > 0 ? (totals.previousLeasesSigned / totals.previousTours) * 100 : 0,
-    applicationApprovalPct: totals.applications > 0 ? (totals.applicationsApproved / totals.applications) * 100 : 0,
-    previousApplicationApprovalPct: totals.previousApplications > 0 ? (totals.previousApplicationsApproved / totals.previousApplications) * 100 : 0,
-    applicationDenialPct: totals.applications > 0 ? (totals.applicationsDenied / totals.applications) * 100 : 0,
-    previousApplicationDenialPct: totals.previousApplications > 0 ? (totals.previousApplicationsDenied / totals.previousApplications) * 100 : 0,
+    leadToLeasePct: calculateFunnelConversionPct(totals.attributableLeases, totals.guestCards),
+    previousLeadToLeasePct: calculateFunnelConversionPct(totals.previousAttributableLeases, totals.previousGuestCards),
+    tourToAppPct: calculateFunnelConversionPct(totals.applications, totals.tours),
+    previousTourToAppPct: calculateFunnelConversionPct(totals.previousApplications, totals.previousTours),
+    tourToLeasePct: calculateFunnelConversionPct(totals.attributableLeases, totals.tours),
+    previousTourToLeasePct: calculateFunnelConversionPct(totals.previousAttributableLeases, totals.previousTours),
+    applicationApprovalPct: calculateFunnelConversionPct(totals.applicationsApproved, totals.applications),
+    previousApplicationApprovalPct: calculateFunnelConversionPct(totals.previousApplicationsApproved, totals.previousApplications),
+    applicationDenialPct: calculateFunnelConversionPct(totals.applicationsDenied, totals.applications),
+    previousApplicationDenialPct: calculateFunnelConversionPct(totals.previousApplicationsDenied, totals.previousApplications),
     moveInGoalPct: totals.moveInGoal > 0 ? Math.min((totals.moveIns / totals.moveInGoal) * 100, 200) : 0,
     renewalExpirations: totals.renewalExpirations,
     renewalsSigned: totals.renewalsSigned,
@@ -10848,9 +11192,10 @@ function getPortfolioCommunityRecordEntries(includeCurrentSelection = true, opti
   if (includeCurrentSelection) {
     entries.set(getProp().name, getCurrentCommunityRecord());
   }
+  const communityStatusMode = getCommunityScopeMode(options);
   return [...entries.entries()]
     .map(([name, record]) => ({ name, record }))
-    .filter(entry => options.includeInactive === true || isCommunityStatusActive(entry.record));
+    .filter(entry => communityStatusMatchesScope(entry.record, { communityStatusMode }));
 }
 
 function getCommunityQuarterTurnoverBreakdown(propName, sourceData, quarter = bonusQuarter) {
@@ -11228,7 +11573,10 @@ function updateInvestorName(val) {
 }
 
 function updateCommunityStatus(value) {
-  updatePortfolioCommunityField(getProp().name, "communityStatus", value);
+  const status = normalizeCommunityStatus(value);
+  const propName = getProp().name;
+  if (status === "inactive" && !confirmCommunityInactiveChange(propName, getCurrentCommunityRecord())) return;
+  updatePortfolioCommunityField(propName, "communityStatus", status);
 }
 
 function addInvestorEmailContact() {
@@ -12672,7 +13020,7 @@ async function initAtlasPortfolioMap() {
     mapEl.innerHTML = `<div style="padding:20px;font-size:0.76rem;color:var(--muted)">Map library is still loading. Refresh once if the RISE portfolio map does not appear.</div>`;
     return;
   }
-  const details = getAllCommunityNames().map(buildCommunityMapDetails);
+  const details = getAtlasOperationalCommunityNames(true).map(buildCommunityMapDetails);
   const withAddress = details.filter(detail => detail.address);
   for (const detail of withAddress) {
     if (!detail.geo) {
@@ -12730,15 +13078,22 @@ function autoCalcConvRate() {
   );
   const totalTours = documentedMonths.reduce((sum, m) => sum + (m?.tours ?? 0), 0);
   const totalApps = documentedMonths.reduce((sum, m) => sum + (m?.applications ?? 0), 0);
-  const totalLeases = documentedMonths.reduce((sum, m) => sum + Math.max(0, Number(m?.leasesSignedActual) || 0), 0);
+  const totalLeases = documentedMonths.reduce((sum, m) => {
+    const metrics = getApplicationDecisionMetrics(m);
+    return sum + getAttributableLeaseConversionCount({
+      leases: getExplicitLeaseSignedCount(m),
+      applications: metrics.applications,
+      approvals: metrics.approvals
+    });
+  }, 0);
   const currentTourToApp = (monthlyData[currentMonth]?.tours ?? 0) > 0
-    ? ((monthlyData[currentMonth]?.applications ?? 0) / (monthlyData[currentMonth]?.tours ?? 0)) * 100
+    ? calculateFunnelConversionPct(monthlyData[currentMonth]?.applications, monthlyData[currentMonth]?.tours)
     : 0;
   const currentAppToLease = (monthlyData[currentMonth]?.applications ?? 0) > 0
-    ? ((Math.max(0, Number(monthlyData[currentMonth]?.leasesSignedActual) || 0) / (monthlyData[currentMonth]?.applications ?? 0)) * 100)
+    ? getApplicationDecisionMetrics(monthlyData[currentMonth]).appToLeasePct
     : 0;
-  const histTourToApp = totalTours > 0 ? (totalApps / totalTours) * 100 : 0;
-  const histAppToLease = totalApps > 0 ? (totalLeases / totalApps) * 100 : 0;
+  const histTourToApp = calculateFunnelConversionPct(totalApps, totalTours);
+  const histAppToLease = calculateFunnelConversionPct(totalLeases, totalApps);
   const historicalTrend = [histTourToApp, histAppToLease].filter(v => v > 0).reduce((sum, v, _, arr) => sum + v / arr.length, 0);
   const blendParts = [
     currentTourToApp > 0 ? { value: currentTourToApp, weight: 0.35 } : null,
@@ -14442,8 +14797,12 @@ function atlasDashboardUserCanSeeCommunityName(name = "", profile = getAtlasAcce
 
 function getAtlasDashboardAuthorizedCommunityOptions() {
   const detailNames = new Set(buildPortfolioDetailsForMonth(getSelectedDashboardMonthIndex()).map(detail => detail.name));
-  return getAllCommunityNames()
-    .filter(name => detailNames.has(name) || savedData?.[name])
+  return getCommunityNamesByStatusScope({
+      communityStatusMode: "active",
+      includeCurrentSelection: true,
+      includeDraft: true
+    })
+    .filter(name => detailNames.has(name) || savedData?.[name] || name === getProp().name)
     .filter(name => atlasDashboardUserCanSeeCommunityName(name))
     .map(name => {
       const property = getAtlasSharedPropertyByName(name) || {};
@@ -19057,9 +19416,10 @@ function renderPortfolioScopedSetupTab() {
       <td class="l" style="font-weight:700">${escapeHtml(detail.name)}</td>
       <td>
         <div class="community-status-chip-group" style="justify-content:center">
-          <button type="button" class="community-status-chip${status === "active" ? " is-current-active" : ""}" onclick='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "communityStatus", "active")'>Active</button>
-          <button type="button" class="community-status-chip${status === "inactive" ? " is-current-inactive" : ""}" onclick='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "communityStatus", "inactive")'>Inactive</button>
+          <button type="button" class="community-status-chip${status === "active" ? " is-current-active" : ""}" onclick='setPortfolioCommunityStatus(${JSON.stringify(detail.name)}, "active")'>Active</button>
+          <button type="button" class="community-status-chip${status === "inactive" ? " is-current-inactive" : ""}" onclick='setPortfolioCommunityStatus(${JSON.stringify(detail.name)}, "inactive")'>Inactive</button>
         </div>
+        ${status === "inactive" ? `<div class="community-status-note" style="margin-top:6px;text-align:left">Inactive - excluded from active portfolio reporting</div>` : ""}
       </td>
       <td><input type="number" min="1" value="${escapeHtml(String(effectiveUnitsValue))}" placeholder="${escapeHtml(String(detail.summary.totalUnits || ""))}" onchange='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "customUnits", this.value)' style="width:96px"></td>
       <td><input type="number" min="0" value="${escapeHtml(String(detail.record?.corporateLeaseUnits || ""))}" placeholder="0" onchange='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "corporateLeaseUnits", this.value)' style="width:92px"></td>
@@ -19285,12 +19645,17 @@ function renderPortfolioScopedTrafficTab() {
     ${statBox("Guest Cards", Math.round(aggregate.guestCards ?? 0), "Month-to-date portfolio lead volume", "#4493f8")}
     ${statBox("Tours", Math.round(aggregate.tours ?? 0), `${(aggregate.tourToAppPct ?? 0).toFixed(1)}% tour to app`, "#a371f7")}
     ${statBox("Applications", Math.round(aggregate.applications ?? 0), `${Math.round(aggregate.applicationsApproved ?? 0)} approved applications`, "#d29922")}
-    ${statBox("Tour to Lease", `${(aggregate.tourToLeasePct ?? 0).toFixed(1)}%`, "Average conversion across included communities", "#3fb950")}
+    ${statBox("Tour to Lease", `${(aggregate.tourToLeasePct ?? 0).toFixed(1)}%`, "Attributable leases ÷ tours across included communities", "#3fb950")}
   </div>`;
   const rows = details.map(detail => {
     const entry = detail.record?.monthlyData?.[selectedMonth] ?? {};
     const currentMonthTourToLeasePct = Number(detail.summary?.tours ?? 0) > 0
-      ? ((Number(detail.summary?.leasesSigned ?? 0) || 0) / (Number(detail.summary?.tours ?? 0) || 1)) * 100
+      ? buildFunnelConversionMetrics({
+          tours: detail.summary?.tours,
+          applications: detail.summary?.applications,
+          approvals: detail.summary?.applicationsApproved,
+          leases: detail.summary?.leasesSigned
+        }).tourToLeasePct
       : null;
     return `<tr>
       <td class="l" style="font-weight:700">${escapeHtml(detail.name)}</td>
@@ -20053,7 +20418,7 @@ function renderSetupTab() {
             <button type="button" class="community-status-chip${communityStatus === "active" ? " is-current-active" : ""}" onclick="updateCommunityStatus('active')">Active</button>
             <button type="button" class="community-status-chip${communityStatus === "inactive" ? " is-current-inactive" : ""}" onclick="updateCommunityStatus('inactive')">Inactive</button>
           </div>
-          <div class="community-status-note">${communityStatus === "active" ? "Included in ATLAS portfolio rollups and reporting outputs." : "Kept editable here, but excluded from combined portfolio reporting and totals."}</div>
+          <div class="community-status-note">${communityStatus === "active" ? "Included in ATLAS portfolio rollups, active dropdowns, and reporting outputs." : "Inactive - excluded from active portfolio reporting, routine dropdowns, and blended portfolio totals. Historical data and setup remain preserved."}</div>
         </div>
         <div>
           <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Community Address</div>
@@ -20530,10 +20895,17 @@ function buildRecommendationsForRecord(propName, sourceData) {
   const renewalSummary = getRenewalSummaryForMonth(monthEntry);
   const guestCards = getLeadSourceTotal(monthEntry);
   const tours = Number(monthEntry.tours) || 0;
-  const tourRate = guestCards > 0 ? (tours / guestCards) * 100 : 0;
-  const appRate = tours > 0 ? (applicationMetrics.applications / tours) * 100 : 0;
-  const closeRate = applicationMetrics.appToLeasePct;
-  const approvalPct = applicationMetrics.approvalPct;
+  const funnelConversions = buildFunnelConversionMetrics({
+    guestCards,
+    tours,
+    applications: applicationMetrics.applications,
+    approvals: applicationMetrics.approvals,
+    leases: getExplicitLeaseSignedCount(monthEntry)
+  });
+  const tourRate = funnelConversions.guestToTourPct;
+  const appRate = funnelConversions.tourToAppPct;
+  const closeRate = funnelConversions.appToLeasePct;
+  const approvalPct = funnelConversions.applicationApprovalPct;
   const occPct = getOccupancyPctFromUnits(Number(record.currentOccupied) || 0, totalUnits, corporateUnits);
   const budgetOccPct = getRecordSavedBudgetOccPct(record, monthIdx);
   const recommendations = [];
@@ -21224,17 +21596,18 @@ function renderTrafficTab() {
   const totalUnits = getTotalUnits();
   const applicationMetrics = getApplicationDecisionMetrics(cm);
   const guestCardTotal = getLeadSourceTotal(cm);
-  const tourRate = guestCardTotal > 0 ? (cm.tours / guestCardTotal) * 100 : 0;
-  const appRate = cm.tours > 0 ? (applicationMetrics.applications / cm.tours) * 100 : 0;
   const grossLeaseActual = getGrossLeaseProgressCount(cm);
-  const closeRate = applicationMetrics.applications > 0 ? (grossLeaseActual / applicationMetrics.applications) * 100 : 0;
-  const overallRateBase = grossLeaseActual;
-  const overallRate = guestCardTotal > 0 ? (overallRateBase / guestCardTotal) * 100 : 0;
+  const trafficConversions = buildFunnelConversionMetrics({
+    guestCards: guestCardTotal,
+    tours: cm.tours,
+    applications: applicationMetrics.applications,
+    approvals: applicationMetrics.approvals,
+    leases: getExplicitLeaseSignedCount(cm)
+  });
 
-  const tourConv    = guestCardTotal > 0 ? (cm.tours / guestCardTotal * 100).toFixed(0) + "%" : "—";
-  const appConv     = cm.tours > 0 ? (applicationMetrics.applications / cm.tours * 100).toFixed(0) + "%" : "—";
-  const approvalConv = applicationMetrics.applications > 0 ? (applicationMetrics.approvals / applicationMetrics.applications * 100).toFixed(0) + "%" : "—";
-  const leaseConv   = applicationMetrics.applications > 0 ? (grossLeaseActual / applicationMetrics.applications * 100).toFixed(0) + "%" : "—";
+  const tourConv    = guestCardTotal > 0 ? trafficConversions.guestToTourPct.toFixed(0) + "%" : "—";
+  const appConv     = cm.tours > 0 ? trafficConversions.tourToAppPct.toFixed(0) + "%" : "—";
+  const leaseConv   = applicationMetrics.applications > 0 ? trafficConversions.appToLeasePct.toFixed(0) + "%" : "—";
   const approvalBreakout = applicationMetrics.applications > 0
     ? `${applicationMetrics.approvalPct.toFixed(0)}% / ${applicationMetrics.denialPct.toFixed(0)}%`
     : "—";
@@ -21244,7 +21617,7 @@ function renderTrafficTab() {
       {label:"Guest Cards → Tour", val:tourConv, sub:`${cm.tours ?? 0} tours / ${guestCardTotal} leads`, color:"#4493f8"},
       {label:"Tour → Application", val:appConv, sub:`${applicationMetrics.applications} apps / ${cm.tours ?? 0} tours`, color:"#a371f7"},
       {label:"Applications Approved", val:String(applicationMetrics.approvals), sub:`${applicationMetrics.approvals} approved out of ${applicationMetrics.applications} apps`, color:"#3fb950"},
-      {label:"App → Lease", val:leaseConv, sub:`${grossLeaseActual} ${applicationMetrics.approvals > 0 ? "approved / gross leases" : "leases"} / ${applicationMetrics.applications} apps`, color:"#d29922"},
+      {label:"App → Lease", val:leaseConv, sub:`${trafficConversions.attributableLeases} attributable leases / ${applicationMetrics.applications} apps`, color:"#d29922"},
       {label:"Approval / Denial", val:approvalBreakout, sub:`${applicationMetrics.denials} denied applications`, color:"#fb923c"},
   ].map(s => statBox(s.label, s.val, s.sub, s.color)).join('')}
   </div>`;
@@ -21370,10 +21743,16 @@ function renderTrafficTab() {
     const d = monthlyData[i] ?? {}, row = schedule[i];
     const decisionMetrics = getApplicationDecisionMetrics(d);
     const sourceTotal = getLeadSourceTotal(d);
-    const rowGrossLeaseActual = getGrossLeaseProgressCount(d);
-    const gcConv = sourceTotal > 0 ? (d.tours / sourceTotal * 100).toFixed(0) + "%" : "—";
-    const tConv  = d.tours > 0 ? (decisionMetrics.applications / d.tours * 100).toFixed(0) + "%" : "—";
-    const aConv  = decisionMetrics.applications > 0 ? (rowGrossLeaseActual / decisionMetrics.applications * 100).toFixed(0) + "%" : "—";
+    const rowConversions = buildFunnelConversionMetrics({
+      guestCards: sourceTotal,
+      tours: d.tours,
+      applications: decisionMetrics.applications,
+      approvals: decisionMetrics.approvals,
+      leases: getExplicitLeaseSignedCount(d)
+    });
+    const gcConv = sourceTotal > 0 ? rowConversions.guestToTourPct.toFixed(0) + "%" : "—";
+    const tConv  = d.tours > 0 ? rowConversions.tourToAppPct.toFixed(0) + "%" : "—";
+    const aConv  = decisionMetrics.applications > 0 ? rowConversions.appToLeasePct.toFixed(0) + "%" : "—";
     const approvalMix = decisionMetrics.applications > 0
       ? `${decisionMetrics.approvalPct.toFixed(0)}% / ${decisionMetrics.denialPct.toFixed(0)}%`
       : "—";
@@ -26053,7 +26432,9 @@ function formatJacMetricSource(metric, scopeTypeLabel, scope) {
 }
 
 function renderRegionalAssignmentMatrix(scopedRoles, roleScopeMap) {
-  const communities = getAllCommunityNames();
+  const activeNames = new Set(getAtlasOperationalCommunityNames());
+  const assignedNames = new Set(scopedRoles.flatMap(role => regionalAssignments[role.id] ?? []));
+  const communities = getAllCommunityNames().filter(name => activeNames.has(name) || assignedNames.has(name));
   if (scopedRoles.length === 0) return "";
   const totalAssigned = scopedRoles.reduce((sum, role) => sum + (regionalAssignments[role.id] ?? []).length, 0);
   const isCollapsed = regionalAssignmentCollapsed;
@@ -26087,9 +26468,10 @@ function renderRegionalAssignmentMatrix(scopedRoles, roleScopeMap) {
                 ${communities.map(name => {
                   const isAssigned = assigned.includes(name);
                   const hasSavedData = communityHasActiveSavedData(name);
+                  const isInactive = !isAtlasCommunityActiveByName(name);
                   return `<button type="button" class="bonus-community-chip${isAssigned ? " active" : ""}${hasSavedData ? "" : " missing"}" onclick='toggleRegionalAssignment(${JSON.stringify(role.id)}, ${JSON.stringify(name)})'>
                     ${name}
-                    <span>${hasSavedData ? "Saved" : "Pending"}</span>
+                    <span>${isInactive ? "Inactive" : (hasSavedData ? "Saved" : "Pending")}</span>
                   </button>`;
                 }).join("")}
               </div>
@@ -26931,6 +27313,13 @@ function getCompCalculatorSubjectActivity(detail, market, monthIdx = getSelected
   const leasesSigned = monthHasValue("leasesSignedActual")
     ? Number(monthEntry.leasesSignedActual ?? 0) || 0
     : (Number(boxScore.leasesSigned ?? 0) || Number(summary.leasesSigned ?? 0) || 0);
+  const funnelConversions = buildFunnelConversionMetrics({
+    guestCards,
+    tours,
+    applications,
+    approvals: applicationsApproved,
+    leases: leasesSigned
+  });
   const currentOccPct = Number(summary.occPct ?? summary.occupancyPct ?? 0) || 0;
   const currentLeasedPct = Number(summary.leasedPct ?? 0) || 0;
   const budgetOccPct = Number(summary.budgetOccPct ?? market?.targetOccupancyPct ?? 0) || 0;
@@ -26941,14 +27330,14 @@ function getCompCalculatorSubjectActivity(detail, market, monthIdx = getSelected
     tours,
     applications,
     applicationsApproved,
-    approvedPct: applicationMetrics.approvalPct,
+    approvedPct: funnelConversions.applicationApprovalPct,
     deniedPct: applicationMetrics.denialPct,
     cancelledPct: applicationMetrics.cancelledPct,
     pendingPct: applicationMetrics.pendingPct,
-    appToLeasePct: applicationMetrics.appToLeasePct,
+    appToLeasePct: funnelConversions.appToLeasePct,
     leasesSigned,
-    guestToTourPct: guestCards > 0 ? (tours / guestCards) * 100 : 0,
-    tourToAppPct: tours > 0 ? (applications / tours) * 100 : 0,
+    guestToTourPct: funnelConversions.guestToTourPct,
+    tourToAppPct: funnelConversions.tourToAppPct,
     currentOccPct,
     currentLeasedPct,
     budgetOccPct,
@@ -29916,6 +30305,7 @@ function getReportableCommunityNames(monthIdx = getReportHubMonthIndex()) {
   const seen = new Set(names);
   getDlrWorkbookOverlayCommunityNames().forEach(name => {
     if (seen.has(name)) return;
+    if (!isAtlasCommunityActiveByName(name)) return;
     seen.add(name);
     names.push(name);
   });
@@ -30227,7 +30617,11 @@ function buildPortfolioHomeMonthlyTrendRows(anchorMonth = getSelectedDashboardMo
       acc.moveIns += Math.max(0, Number(monthEntry.moveIns) || 0);
       acc.moveOuts += getEffectiveMoveOutsForMonth(monthIdx, monthEntries).effective;
       acc.tours += Math.max(0, Number(monthEntry.tours) || 0);
-      acc.closes += getGrossLeaseProgressCount(monthEntry);
+      acc.closes += getAttributableLeaseConversionCount({
+        leases: getExplicitLeaseSignedCount(monthEntry),
+        applications: applicationMetrics.applications,
+        approvals: applicationMetrics.approvals
+      });
       acc.occupancyBaseUnits += baseUnits;
       acc.leasedUnits += baseUnits > 0
         ? estimateSnapshotUnitsForRecordMonth(entry.record, totalUnits, monthIdx, "leasedSnapshot")
@@ -30261,8 +30655,8 @@ function buildPortfolioHomeMonthlyTrendRows(anchorMonth = getSelectedDashboardMo
       tours: totals.tours,
       closes: totals.closes,
       leasedOccupancyPct: totals.occupancyBaseUnits > 0 ? (totals.leasedUnits / totals.occupancyBaseUnits) * 100 : null,
-      tourToLeaseClosedPct: totals.tours > 0 ? (totals.closes / totals.tours) * 100 : null,
-      tourToLeaseTrendPct: monthIdx <= anchorMonth && totals.tours > 0 ? (totals.closes / totals.tours) * 100 : null
+      tourToLeaseClosedPct: totals.tours > 0 ? calculateFunnelConversionPct(totals.closes, totals.tours) : null,
+      tourToLeaseTrendPct: monthIdx <= anchorMonth && totals.tours > 0 ? calculateFunnelConversionPct(totals.closes, totals.tours) : null
     };
   });
 }
@@ -30619,9 +31013,10 @@ function getSummaryLeasedPct(summary) {
 function buildPortfolioDetailsFromRecordMap(recordMap, options = {}) {
   const map = (recordMap && typeof recordMap === "object") ? recordMap : {};
   const targetYear = Number.isFinite(Number(options.year)) ? Number(options.year) : new Date().getFullYear();
+  const communityStatusMode = getCommunityScopeMode(options);
   return Object.keys(map)
     .map(name => buildCommunityDetailForMonth(name, map[name], options.monthIdx ?? getSelectedDashboardMonthIndex(), targetYear))
-    .filter(detail => detail && (options.includeInactive === true || isCommunityStatusActive(detail.record)));
+    .filter(detail => detail && communityStatusMatchesScope(detail.record, { communityStatusMode }));
 }
 
 function getPortfolioScopeCommunityNames(recordMap = savedData, monthIdx = getSelectedDashboardMonthIndex()) {
@@ -34414,11 +34809,13 @@ function buildAtlasLvrVariantData(report, mode = "stabilized") {
   const leads = Math.max(0, Number(traffic.guestCards ?? summary.guestCards ?? 0) || 0);
   const tours = Math.max(0, Number(traffic.tours ?? summary.tours ?? 0) || 0);
   const applications = Math.max(0, Number(traffic.applications ?? summary.applications ?? 0) || 0);
+  const approvals = Math.max(0, Number(traffic.approvals ?? summary.applicationsApproved ?? 0) || 0);
   const leases = Math.max(0, Number(traffic.leases ?? summary.leasesSigned ?? 0) || 0);
-  const leadToTourPct = leads > 0 ? (tours / leads) * 100 : 0;
-  const tourToAppPct = tours > 0 ? (applications / tours) * 100 : 0;
-  const appToLeasePct = applications > 0 ? (leases / applications) * 100 : 0;
-  const leadToLeasePct = leads > 0 ? (leases / leads) * 100 : 0;
+  const funnelConversions = buildFunnelConversionMetrics({ guestCards: leads, tours, applications, approvals, leases });
+  const leadToTourPct = funnelConversions.guestToTourPct;
+  const tourToAppPct = funnelConversions.tourToAppPct;
+  const appToLeasePct = funnelConversions.appToLeasePct;
+  const leadToLeasePct = funnelConversions.leadToLeasePct;
   const benchmarks = getLvrBenchmarks(mode);
   const weeklyLeaseTarget = Math.max(0, Number(report?.moveInGoalPerWeek ?? summary.moveInGoal ?? 0) || 0);
   const leaseGoal = Math.max(weeklyLeaseTarget, Number(report?.paceRows?.find(row => row.label === "Approved Applications")?.goal ?? 0) || 0);
@@ -34463,7 +34860,7 @@ function buildAtlasLvrVariantData(report, mode = "stabilized") {
       { name: "Traffic / Leads", sub: "Saved guest cards", count: formatLvrInt(leads), barPct: "100%", convLabel: "Lead -> Tour", conv: formatLvrPct(leadToTourPct, 1), benchmark: `Benchmark ${formatLvrPct(benchmarks.leadToTour, 0)}`, convNote: formatLvrDelta(leadTourDelta), convStatus: getLvrStatusFromDelta(leadTourDelta) },
       { name: "Tours", sub: "Completed tours", count: formatLvrInt(tours), barPct: leads > 0 ? `${Math.min((tours / leads) * 100, 100).toFixed(0)}%` : "0%", convLabel: "Tour -> App", conv: formatLvrPct(tourToAppPct, 1), benchmark: `Benchmark ${formatLvrPct(benchmarks.tourToApp, 0)}`, convNote: formatLvrDelta(tourAppDelta), convStatus: getLvrStatusFromDelta(tourAppDelta) },
       { name: "Applications", sub: "Submitted", count: formatLvrInt(applications), barPct: leads > 0 ? `${Math.min((applications / leads) * 100, 100).toFixed(0)}%` : "0%", convLabel: "App -> Lease", conv: formatLvrPct(appToLeasePct, 1), benchmark: `Benchmark ${formatLvrPct(benchmarks.appToLease, 0)}`, convNote: formatLvrDelta(appLeaseDelta), convStatus: getLvrStatusFromDelta(appLeaseDelta) },
-      { name: "Signed leases", sub: "Executed this period", count: formatLvrInt(leases), barPct: leads > 0 ? `${Math.min((leases / leads) * 100, 100).toFixed(0)}%` : "0%" }
+      { name: "Signed leases", sub: "Executed this period", count: formatLvrInt(leases), barPct: leads > 0 ? `${funnelConversions.leadToLeasePct.toFixed(0)}%` : "0%" }
     ],
     funnelNote: leadTourDelta < -2
       ? "The largest current LVR watch item is Lead -> Tour conversion. Tighten speed-to-lead, tour setting, and follow-up before adding more top-of-funnel spend."
@@ -35798,7 +36195,7 @@ function buildRiseWeeklyOperatingSignals(data = {}) {
   const tours = Math.max(0, Number(portfolioRow.tours) || 0);
   const apps = Math.max(0, Number(portfolioRow.apps) || 0);
   const leases = Math.max(0, Number(portfolioRow.leases) || 0);
-  const leadToLeasePct = leads > 0 ? (leases / leads) * 100 : 0;
+  const leadToLeasePct = buildFunnelConversionMetrics({ guestCards: leads, tours, applications: apps, leases }).leadToLeasePct;
   const moveIns = Math.max(0, Number(portfolioRow.moveIns) || 0);
   const moveOuts = Math.max(0, Number(portfolioRow.moveOuts) || 0);
   const netOccupied = moveIns - moveOuts;
@@ -35839,7 +36236,12 @@ function buildRiseWeeklyManagementAttention(data = {}) {
     .filter(row => Number(row.leads || 0) > 0)
     .map(row => ({
       ...row,
-      leadToLeasePct: (Number(row.leases || 0) / Math.max(Number(row.leads || 0), 1)) * 100
+      leadToLeasePct: buildFunnelConversionMetrics({
+        guestCards: row.leads,
+        tours: row.tours,
+        applications: row.apps,
+        leases: row.leases
+      }).leadToLeasePct
     }))
     .sort((a, b) => {
       const pctDelta = a.leadToLeasePct - b.leadToLeasePct;
@@ -38461,9 +38863,7 @@ function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(
   mtdTraffic.moveIns = Math.max(0, Number(reportSummary.moveIns ?? monthEntry.moveIns) || 0);
   mtdTraffic.moveOuts = Math.max(0, Number(reportSummary.moveOuts ?? getEffectiveMoveOutsForMonth(reportMetricMonthIdx, scopeMonthlyData).effective) || 0);
   mtdTraffic.monthAbsorption = Number(reportSummary.monthAbsorption ?? (mtdTraffic.moveIns - mtdTraffic.moveOuts)) || 0;
-  mtdTraffic.guestToTourPct = mtdTraffic.guestCards > 0 ? (mtdTraffic.tours / mtdTraffic.guestCards) * 100 : 0;
-  mtdTraffic.tourToAppPct = mtdTraffic.tours > 0 ? (mtdTraffic.applications / mtdTraffic.tours) * 100 : 0;
-  mtdTraffic.appToLeasePct = mtdTraffic.applications > 0 ? (mtdTraffic.leases / mtdTraffic.applications) * 100 : 0;
+  Object.assign(mtdTraffic, buildFunnelConversionMetrics(mtdTraffic));
   const prevMonthTraffic = buildDlrTrafficMetricsFromSummary({}, prevMonthEntry, {}, {
     preferDailyBoxScore: false
   });
@@ -38675,13 +39075,19 @@ function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(
     ? Number(resolvedMtdTraffic.moveIns) - Number(resolvedMtdTraffic.moveOuts)
     : null;
   resolvedMtdTraffic.guestToTourPct = hasDlrDisplayMetricValue(resolvedMtdTraffic.guestCards) && Number(resolvedMtdTraffic.guestCards) > 0 && hasDlrDisplayMetricValue(resolvedMtdTraffic.tours)
-    ? (Number(resolvedMtdTraffic.tours) / Number(resolvedMtdTraffic.guestCards)) * 100
+    ? calculateFunnelConversionPct(resolvedMtdTraffic.tours, resolvedMtdTraffic.guestCards)
     : null;
   resolvedMtdTraffic.tourToAppPct = hasDlrDisplayMetricValue(resolvedMtdTraffic.tours) && Number(resolvedMtdTraffic.tours) > 0 && hasDlrDisplayMetricValue(resolvedMtdTraffic.applications)
-    ? (Number(resolvedMtdTraffic.applications) / Number(resolvedMtdTraffic.tours)) * 100
+    ? calculateFunnelConversionPct(resolvedMtdTraffic.applications, resolvedMtdTraffic.tours)
     : null;
   resolvedMtdTraffic.appToLeasePct = hasDlrDisplayMetricValue(resolvedMtdTraffic.applications) && Number(resolvedMtdTraffic.applications) > 0 && hasDlrDisplayMetricValue(resolvedMtdTraffic.leases)
-    ? (Number(resolvedMtdTraffic.leases) / Number(resolvedMtdTraffic.applications)) * 100
+    ? buildFunnelConversionMetrics(resolvedMtdTraffic).appToLeasePct
+    : null;
+  resolvedMtdTraffic.tourToLeasePct = hasDlrDisplayMetricValue(resolvedMtdTraffic.tours) && Number(resolvedMtdTraffic.tours) > 0 && hasDlrDisplayMetricValue(resolvedMtdTraffic.leases)
+    ? buildFunnelConversionMetrics(resolvedMtdTraffic).tourToLeasePct
+    : null;
+  resolvedMtdTraffic.leadToLeasePct = hasDlrDisplayMetricValue(resolvedMtdTraffic.guestCards) && Number(resolvedMtdTraffic.guestCards) > 0 && hasDlrDisplayMetricValue(resolvedMtdTraffic.leases)
+    ? buildFunnelConversionMetrics(resolvedMtdTraffic).leadToLeasePct
     : null;
   const pricingDataReady = hasDlrDisplayMetricValue(resolvedAvgBudgetRent)
     || hasDlrDisplayMetricValue(resolvedAvgInPlaceRent)
@@ -39143,7 +39549,7 @@ function buildCommunityProgressTrendRows(report) {
         moveIns: aggregate.moveIns,
         moveOuts: aggregate.moveOuts,
         netAbsorption: aggregate.monthAbsorption,
-        tourToLeasePct: aggregate.tours > 0 ? (aggregate.leasesSigned / aggregate.tours) * 100 : null,
+        tourToLeasePct: aggregate.tours > 0 ? calculateFunnelConversionPct(aggregate.attributableLeases, aggregate.tours) : null,
         renewalRetention: renewalHasData ? aggregate.renewalRetentionRate : null,
         budgetOccPct: budgetOccPct != null ? Number(budgetOccPct) : null,
         marketLeasedPct: Number(marketPerformance.compAverageLeasedPct) || null,
@@ -39186,6 +39592,7 @@ function buildCommunityProgressTrendRows(report) {
     const leases = Number.isFinite(Number(summary.leasesSigned))
       ? Number(summary.leasesSigned)
       : Math.max(0, Number(monthEntry.leasesSignedActual) || 0);
+    const attributableLeases = getAttributableLeaseConversionCount({ leases, applications, approvals });
     const moveIns = Number.isFinite(Number(summary.moveIns))
       ? Number(summary.moveIns)
       : Math.max(0, Number(monthEntry.moveIns) || 0);
@@ -39210,7 +39617,7 @@ function buildCommunityProgressTrendRows(report) {
       moveIns,
       moveOuts,
       netAbsorption: moveIns - moveOuts,
-      tourToLeasePct: tours > 0 ? (leases / tours) * 100 : null,
+      tourToLeasePct: tours > 0 ? calculateFunnelConversionPct(attributableLeases, tours) : null,
       renewalRetention,
       budgetOccPct: Number.isFinite(Number(budgetOccPct)) && Number(budgetOccPct) > 0 ? Number(budgetOccPct) : null,
       marketLeasedPct: Number(marketPerformance.compAverageLeasedPct) || null,
@@ -40338,11 +40745,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
     renewals: Number.isFinite(Number(monthEntry.renewalsSigned)) ? Math.max(0, Number(monthEntry.renewalsSigned) || 0) : Math.max(0, Number(summary.renewalsSigned) || 0),
     sourceMode: leadSourceBreakdown ? "community_monthly_source_breakout" : "community_monthly_total_only"
   };
-  trafficMetrics.guestToTourPct = trafficMetrics.guestCards > 0 ? (trafficMetrics.tours / trafficMetrics.guestCards) * 100 : 0;
-  trafficMetrics.tourToAppPct = trafficMetrics.tours > 0 ? (trafficMetrics.applications / trafficMetrics.tours) * 100 : 0;
-  trafficMetrics.appToLeasePct = trafficMetrics.applications > 0 ? (trafficMetrics.leases / trafficMetrics.applications) * 100 : 0;
-  trafficMetrics.tourToLeasePct = trafficMetrics.tours > 0 ? (trafficMetrics.leases / trafficMetrics.tours) * 100 : 0;
-  trafficMetrics.leadToLeasePct = trafficMetrics.guestCards > 0 ? (trafficMetrics.leases / trafficMetrics.guestCards) * 100 : 0;
+  Object.assign(trafficMetrics, buildFunnelConversionMetrics(trafficMetrics));
   const renewalSummary = getRenewalSummaryForMonth(monthEntry);
   const floorPlanVarianceData = buildCommunityFloorPlanVarianceRows(scopedRecord.communityFloorPlans, activeSurveyData);
   const floorPlanRentComparisonRows = buildCommunityProgressBedroomRentComparisonRows(scopedRecord.communityFloorPlans, activeSurveyData);
@@ -40572,11 +40975,7 @@ function buildCommunityProgressReportData(options = {}) {
     renewals: aggregateSummary.renewalsSigned,
     sourceMode: allHaveLeadSourceBreakdown ? "community_monthly_source_breakout" : "community_monthly_total_only"
   };
-  trafficMetrics.guestToTourPct = trafficMetrics.guestCards > 0 ? (trafficMetrics.tours / trafficMetrics.guestCards) * 100 : 0;
-  trafficMetrics.tourToAppPct = trafficMetrics.tours > 0 ? (trafficMetrics.applications / trafficMetrics.tours) * 100 : 0;
-  trafficMetrics.appToLeasePct = trafficMetrics.applications > 0 ? (trafficMetrics.leases / trafficMetrics.applications) * 100 : 0;
-  trafficMetrics.tourToLeasePct = trafficMetrics.tours > 0 ? (trafficMetrics.leases / trafficMetrics.tours) * 100 : 0;
-  trafficMetrics.leadToLeasePct = trafficMetrics.guestCards > 0 ? (trafficMetrics.leases / trafficMetrics.guestCards) * 100 : 0;
+  Object.assign(trafficMetrics, buildFunnelConversionMetrics(trafficMetrics));
   const renewalSummary = {
     expirations: aggregateSummary.renewalExpirations,
     signed: aggregateSummary.renewalsSigned,
@@ -43044,7 +43443,12 @@ function applyExtractedDashboardRows(options = {}) {
   persistSaved();
   renderPropGrid();
   const communityCount = touchedProps.size;
-  csvLog = [`✅ Applied ${applied} extracted values from ${extractedSourceLabel} into ${communityCount} communit${communityCount===1?"y":"ies"}.`, ...csvLog];
+  const inactiveImportWarning = buildInactiveCommunityImportWarning([...touchedProps]);
+  csvLog = [
+    `✅ Applied ${applied} extracted values from ${extractedSourceLabel} into ${communityCount} communit${communityCount===1?"y":"ies"}.`,
+    ...(inactiveImportWarning ? [inactiveImportWarning] : []),
+    ...csvLog
+  ];
   renderTab();
 }
 
@@ -44361,8 +44765,10 @@ async function handlePDF(file, options = {}) {
       }
       persistSaved();
 
+      const inactiveImportWarning = buildInactiveCommunityImportWarning([targetCommunity]);
       csvLog = [
         `✅ Extracted ${matched} mapped DLR values into the preview for ${MONTHS[targetMonth]}`,
+        ...(inactiveImportWarning ? [inactiveImportWarning] : []),
         ...log,
         "ℹ DLR uploads now also save a branded summary snapshot for this community."
       ];
@@ -44491,8 +44897,10 @@ async function handlePDF(file, options = {}) {
       ner: foundValues.nerActual ?? ""
     }];
     mergeExtractedDashboardRows(genericRows, `PDF ${file.name}`);
+    const inactiveImportWarning = buildInactiveCommunityImportWarning([genericRows[0].property]);
     csvLog = [
       `✅ Extracted ${matched} fields from PDF into the preview for ${MONTHS[targetMonth]}`,
+      ...(inactiveImportWarning ? [inactiveImportWarning] : []),
       ...log
     ];
     renderTab();
@@ -44944,6 +45352,8 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
       ? `month override (${MONTHS[forcedTarget.monthIdx ?? getImportTargetMonth()]})`
       : "file month routing";
     csvLog = [`✅ Imported ${included} ATLAS Monthly_Upload row(s) from ${file.name} using ${modeLabel}.`, ...log];
+    const inactiveImportWarning = buildInactiveCommunityImportWarning([...touchedCommunities]);
+    if (inactiveImportWarning) csvLog.push(inactiveImportWarning);
     if (skipped > 0) csvLog.push(`ℹ Skipped ${skipped} row(s) marked ERROR or missing community/month mapping.`);
     if (!forcedTarget.community && atlasWorkbookImportMode === "replace_scope") {
       csvLog.push(`✅ Replace scope mode reset the selected month rollup to ${touchedCommunities.size} uploaded communit${touchedCommunities.size === 1 ? "y" : "ies"} while preserving prior community history in ATLAS.`);

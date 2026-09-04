@@ -820,11 +820,11 @@ begin
   end if;
 
   if coalesce(p_is_default, false) then
-    update atlas_user_dashboard_views
+    update atlas_user_dashboard_views v
     set is_default = false,
         updated_at = now()
-    where user_id = v_user_id
-      and deleted_at is null;
+    where v.user_id = v_user_id
+      and v.deleted_at is null;
   end if;
 
   insert into atlas_user_dashboard_views (
@@ -864,15 +864,15 @@ begin
 
   if not exists (
     select 1
-    from atlas_user_dashboard_views
-    where user_id = v_user_id
-      and deleted_at is null
-      and is_default is true
+    from atlas_user_dashboard_views v
+    where v.user_id = v_user_id
+      and v.deleted_at is null
+      and v.is_default is true
   ) then
-    update atlas_user_dashboard_views
+    update atlas_user_dashboard_views v
     set is_default = true,
         updated_at = now()
-    where dashboard_view_id = v_view.dashboard_view_id
+    where v.dashboard_view_id = v_view.dashboard_view_id
     returning * into v_view;
   end if;
 
@@ -926,13 +926,13 @@ begin
     raise exception 'Dashboard view key is required.' using errcode = '22023';
   end if;
 
-  update atlas_user_dashboard_views
+  update atlas_user_dashboard_views v
   set deleted_at = now(),
       is_default = false,
       updated_at = now()
-  where user_id = v_user_id
-    and view_key = v_key
-    and deleted_at is null
+  where v.user_id = v_user_id
+    and v.view_key = v_key
+    and v.deleted_at is null
   returning * into v_deleted;
 
   if not found then
@@ -941,21 +941,21 @@ begin
 
   select count(*)
   into v_default_count
-  from atlas_user_dashboard_views
-  where user_id = v_user_id
-    and deleted_at is null
-    and is_default is true;
+  from atlas_user_dashboard_views v
+  where v.user_id = v_user_id
+    and v.deleted_at is null
+    and v.is_default is true;
 
   if v_default_count = 0 then
-    update atlas_user_dashboard_views
+    update atlas_user_dashboard_views v
     set is_default = true,
         updated_at = now()
-    where dashboard_view_id = (
-      select dashboard_view_id
-      from atlas_user_dashboard_views
-      where user_id = v_user_id
-        and deleted_at is null
-      order by updated_at desc
+    where v.dashboard_view_id = (
+      select candidate.dashboard_view_id
+      from atlas_user_dashboard_views candidate
+      where candidate.user_id = v_user_id
+        and candidate.deleted_at is null
+      order by candidate.updated_at desc
       limit 1
     );
   end if;

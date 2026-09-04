@@ -207,6 +207,13 @@
   .atlas-dashboard-size-group button { border:0; border-right:1px solid var(--border); background:#fff; color:var(--muted); width:30px; height:28px; font-size:0.62rem; font-weight:800; cursor:pointer; }
   .atlas-dashboard-size-group button:last-child { border-right:0; }
   .atlas-dashboard-size-group button.active { background:var(--accent); color:#fff; }
+  .atlas-dashboard-widget-save-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:2px; padding:8px 10px; border:1px solid rgba(46,107,140,0.22); border-radius:8px; background:#f0f7fb; }
+  .atlas-dashboard-widget-save-row span { font-size:0.66rem; color:var(--muted); line-height:1.35; }
+  .atlas-dashboard-dirty-pill { background:#fff7ed; color:#9a3412; border-color:#fed7aa; }
+  .atlas-dashboard-mini-chart { display:flex; align-items:end; gap:5px; height:48px; padding:7px; border:1px solid var(--border2); border-radius:8px; background:#fff; }
+  .atlas-dashboard-mini-chart span { flex:1; min-width:6px; border-radius:5px 5px 2px 2px; background:linear-gradient(180deg,var(--accent),#8fb7ca); opacity:0.88; }
+  .atlas-dashboard-mini-chart.is-graph { align-items:center; }
+  .atlas-dashboard-mini-chart.is-graph span { height:6px !important; border-radius:999px; transform:translateY(var(--point-offset,0)); }
   .atlas-dashboard-config-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
   .atlas-dashboard-config-card { border:1px solid var(--border); border-radius:12px; padding:12px; background:#fff; }
   .atlas-dashboard-property-checks { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:6px 10px; max-height:170px; overflow:auto; border:1px solid var(--border2); border-radius:8px; padding:8px; background:var(--bg2); }
@@ -13396,6 +13403,12 @@ const ATLAS_DASHBOARD_COMPARISON_OPTIONS = [
   "Property Peer Group"
 ];
 
+const ATLAS_DASHBOARD_UNIVERSAL_VISUALIZATIONS = [
+  "KPI Card",
+  "Chart",
+  "Graph"
+];
+
 const ATLAS_DASHBOARD_ASSET_TYPE_OPTIONS = [
   "Conventional Multifamily",
   "Student",
@@ -13645,6 +13658,10 @@ function getAtlasDashboardWidgetDefinition(widgetKey = "") {
   return ATLAS_CUSTOM_DASHBOARD_WIDGETS.find(widget => widget.key === key) || null;
 }
 
+function atlasDashboardVisualizationOptions(definition = {}) {
+  return Array.from(new Set([...(definition.visualizations || []), ...ATLAS_DASHBOARD_UNIVERSAL_VISUALIZATIONS]));
+}
+
 function atlasDashboardWidgetIsAvailable(widget = {}) {
   return Number(widget.phase || 1) <= 1;
 }
@@ -13688,7 +13705,7 @@ function normalizeAtlasDashboardThreshold(input = {}) {
   const raw = input && typeof input === "object" ? input : {};
   return {
     enabled: Boolean(raw.enabled),
-    operator: ["<", "<=", ">", ">=", "=", "between"].includes(String(raw.operator || "")) ? String(raw.operator) : ">",
+    operator: ["compare_under", "compare_over", "<", "<=", ">", ">=", "=", "between"].includes(String(raw.operator || "")) ? String(raw.operator) : ">",
     value: String(raw.value ?? "").trim(),
     secondaryValue: String(raw.secondaryValue ?? raw.secondary_value ?? "").trim(),
     duration: String(raw.duration || "").trim(),
@@ -13721,7 +13738,8 @@ function buildAtlasDashboardWidgetInstance(widgetKey = "", options = {}) {
   const nowToken = `${Date.now()}_${Math.round(Math.random() * 100000)}`;
   const position = Number.isFinite(Number(options.position)) ? Number(options.position) : 0;
   const metric = definition.metrics?.includes(options.metric) ? options.metric : definition.defaultMetric;
-  const visualization = definition.visualizations?.includes(options.visualization) ? options.visualization : (definition.visualizations?.[0] || "KPI Card");
+  const visualizationOptions = atlasDashboardVisualizationOptions(definition);
+  const visualization = visualizationOptions.includes(options.visualization) ? options.visualization : (definition.visualizations?.[0] || "KPI Card");
   const timeframe = ATLAS_DASHBOARD_TIMEFRAME_OPTIONS.includes(options.timeframe) ? options.timeframe : "MTD";
   const comparison = ATLAS_DASHBOARD_COMPARISON_OPTIONS.includes(options.comparison) ? options.comparison : "Budget";
   return {
@@ -13883,6 +13901,7 @@ let atlasDashboardBuilderState = {
   layoutMode: false,
   libraryOpen: true,
   draggedInstanceId: "",
+  dirtyWidgetIds: {},
   savingCentral: false,
   loadingCentral: false
 };
@@ -14103,6 +14122,18 @@ function updateAtlasDashboardActiveView(mutator, options = {}) {
   return normalizedView;
 }
 
+function atlasDashboardWidgetHasUnsavedChanges(instanceId = "") {
+  return Boolean(atlasDashboardBuilderState.dirtyWidgetIds?.[String(instanceId || "").trim()]);
+}
+
+function atlasDashboardSetWidgetDirty(instanceId = "", dirty = true) {
+  const key = String(instanceId || "").trim();
+  if (!key) return;
+  atlasDashboardBuilderState.dirtyWidgetIds = { ...(atlasDashboardBuilderState.dirtyWidgetIds || {}) };
+  if (dirty) atlasDashboardBuilderState.dirtyWidgetIds[key] = true;
+  else delete atlasDashboardBuilderState.dirtyWidgetIds[key];
+}
+
 function atlasDashboardSelectView(viewKey = "") {
   const target = getAtlasDashboardSavedViews().find(view => view.viewKey === String(viewKey || "").trim());
   if (!target) return;
@@ -14244,23 +14275,49 @@ function atlasDashboardEditWidget(instanceId = "") {
   renderTab();
 }
 
-function updateAtlasDashboardWidget(instanceId = "", mutator = widget => widget) {
+function updateAtlasDashboardWidget(instanceId = "", mutator = widget => widget, options = {}) {
   const target = String(instanceId || "").trim();
+  atlasDashboardLocalPreferenceEditedAt = Date.now();
   updateAtlasDashboardActiveView(view => ({
     ...view,
     widgets: view.widgets.map(widget => widget.instanceId === target ? normalizeAtlasDashboardWidgetInstance(mutator({ ...widget }), widget.position) : widget).filter(Boolean)
-  }), { source: "update_dashboard_widget" });
+  }), {
+    source: options.source || "update_dashboard_widget_draft",
+    pushCentral: options.pushCentral === true,
+    trackLocalEdit: true
+  });
+  if (options.markDirty !== false) atlasDashboardSetWidgetDirty(target, true);
   renderTab();
+}
+
+async function atlasDashboardSaveWidget(instanceId = "") {
+  const target = String(instanceId || "").trim();
+  if (!target) return false;
+  persistAtlasDashboardPreferences({ pushCentral: false, source: "save_dashboard_widget_local" });
+  let savedCentral = false;
+  let attemptedCentral = false;
+  const status = getAtlasCentralStatus();
+  if (status.configured && status.signedIn && window.ATLAS_CENTRAL?.saveDashboardView) {
+    attemptedCentral = true;
+    savedCentral = await saveAtlasDashboardPreferencesToCentral({ silent: true, source: "save_dashboard_widget" });
+  }
+  atlasDashboardSetWidgetDirty(target, false);
+  renderTab();
+  if (savedCentral) alert("Widget changes saved to ATLAS.");
+  else if (attemptedCentral) alert(`Widget changes saved in this browser. Central ATLAS sync needs attention: ${atlasDashboardPreferences.centralLastError || "please try Save View again."}`);
+  else alert("Widget changes saved in this browser. Sign in to sync the view to central ATLAS.");
+  return true;
 }
 
 function atlasDashboardUpdateWidgetConfig(instanceId = "", field = "", value = "") {
   updateAtlasDashboardWidget(instanceId, widget => {
     const next = { ...widget, scope: { ...widget.scope }, threshold: { ...widget.threshold }, drillDown: { ...widget.drillDown }, alert: { ...widget.alert } };
     const definition = getAtlasDashboardWidgetDefinition(next.widgetKey) || {};
+    const visualizationOptions = atlasDashboardVisualizationOptions(definition);
     if (field === "metric" && definition.metrics?.includes(value)) next.metric = value;
     if (field === "timeframe" && ATLAS_DASHBOARD_TIMEFRAME_OPTIONS.includes(value)) next.timeframe = value;
     if (field === "comparison" && ATLAS_DASHBOARD_COMPARISON_OPTIONS.includes(value)) next.comparison = value;
-    if (field === "visualization" && definition.visualizations?.includes(value)) next.visualization = value;
+    if (field === "visualization" && visualizationOptions.includes(value)) next.visualization = value;
     if (field === "scope.type") {
       next.scope.type = value;
       const first = getAtlasDashboardAuthorizedCommunityOptions()[0]?.name || "";
@@ -14459,8 +14516,63 @@ function atlasDashboardFormatPct(value = 0, decimals = 1) {
   return `${(Number(value) || 0).toFixed(decimals)}%`;
 }
 
-function atlasDashboardComparisonLine(instance = {}, aggregate = {}) {
+function atlasDashboardTargetComparisonLine(instance = {}, aggregate = {}, scopedDetails = []) {
+  const metric = String(instance.metric || "");
+  const details = Array.isArray(scopedDetails) ? scopedDetails : [];
+  const weightedGoal = (field, fallback = 0) => {
+    let total = 0;
+    let weight = 0;
+    details.forEach(detail => {
+      const units = Number(detail.summary?.occupancyBaseUnits || detail.summary?.totalUnits || 0);
+      const value = Number(detail.record?.[field] ?? fallback);
+      if (Number.isFinite(value) && value > 0 && units > 0) {
+        total += value * units;
+        weight += units;
+      }
+    });
+    return weight > 0 ? total / weight : Number(fallback) || 0;
+  };
+  const targetUnits = (field) => {
+    const pct = weightedGoal(field, 0);
+    return aggregate.occupancyBaseUnits > 0 ? Math.round(aggregate.occupancyBaseUnits * pct / 100) : 0;
+  };
+  if (instance.widgetKey === "portfolio_overview") {
+    if (metric === "Physical Occupancy") {
+      const target = weightedGoal("occupancyGoal", 95);
+      const actual = aggregate.occupancyBaseUnits > 0 ? (aggregate.occupied / aggregate.occupancyBaseUnits) * 100 : 0;
+      return `Target ${atlasDashboardFormatPct(target)} · variance ${atlasDashboardFormatPct(actual - target, 1)}`;
+    }
+    if (metric === "Leased Occupancy") {
+      const target = weightedGoal("leasedGoal", 97);
+      const actual = aggregate.occupancyBaseUnits > 0 ? (aggregate.leased / aggregate.occupancyBaseUnits) * 100 : 0;
+      return `Target ${atlasDashboardFormatPct(target)} · variance ${atlasDashboardFormatPct(actual - target, 1)}`;
+    }
+    if (metric === "Budget Occupancy" || metric === "Occupancy Variance") {
+      const target = weightedGoal("occupancyGoal", 95);
+      return `Property goal ${atlasDashboardFormatPct(target)} · ${atlasDashboardFormatNumber(targetUnits("occupancyGoal"))} occupied-unit target`;
+    }
+  }
+  if (instance.widgetKey === "traffic_funnel") {
+    if (["Lead -> Tour", "Tour -> Application", "Application -> Approval", "Lead -> Move-In"].includes(metric)) {
+      const target = weightedGoal("conversionRate", 65);
+      return `Target conversion ${atlasDashboardFormatPct(target, 0)} from Community goals`;
+    }
+    if (metric === "Move-Ins" && Number(aggregate.moveInGoal || 0) > 0) {
+      return `Target ${atlasDashboardFormatNumber(aggregate.moveInGoal)} move-ins · variance ${atlasDashboardFormatNumber((aggregate.moveIns || 0) - aggregate.moveInGoal)}`;
+    }
+    if (Number(aggregate.guestCardGoal || 0) > 0 && ["Leads", "Guest Cards"].includes(metric)) {
+      return `Target ${atlasDashboardFormatNumber(aggregate.guestCardGoal)} guest cards · variance ${atlasDashboardFormatNumber((aggregate.guestCards || 0) - aggregate.guestCardGoal)}`;
+    }
+  }
+  if (instance.widgetKey === "renewals_retention" && ["Renewal Conversion", "Retention %"].includes(metric)) {
+    return "Target renewal goal will use saved community renewal goals when configured";
+  }
+  return "Target comparison uses the saved goals in each community record";
+}
+
+function atlasDashboardComparisonLine(instance = {}, aggregate = {}, scopedDetails = []) {
   const comparison = String(instance.comparison || "Budget");
+  if (comparison === "Target") return atlasDashboardTargetComparisonLine(instance, aggregate, scopedDetails);
   if (comparison === "Budget" && Number(aggregate.budgetOccPct || 0) > 0) {
     return `Budget ${atlasDashboardFormatPct(aggregate.budgetOccPct)} · variance ${atlasDashboardFormatPct(aggregate.occGapPts || 0, 1)}`;
   }
@@ -14482,13 +14594,13 @@ function buildAtlasDashboardWidgetSnapshot(instance = {}) {
       "Physical Occupancy": [atlasDashboardFormatPct(aggregate.occupancyBaseUnits > 0 ? (aggregate.occupied / aggregate.occupancyBaseUnits) * 100 : 0), formatOccupancyBasisSubtext(aggregate.occupied, aggregate)],
       "Leased Occupancy": [atlasDashboardFormatPct(aggregate.occupancyBaseUnits > 0 ? (aggregate.leased / aggregate.occupancyBaseUnits) * 100 : 0), `${atlasDashboardFormatNumber(aggregate.leased)} leased units · ${scopeSuffix}`],
       "Budget Occupancy": [atlasDashboardFormatPct(aggregate.budgetOccPct || 0), `${atlasDashboardFormatNumber(aggregate.budgetOccUnits)} budget occupied units · ${scopeSuffix}`],
-      "Occupancy Variance": [atlasDashboardFormatPct(aggregate.occGapPts || 0), atlasDashboardComparisonLine(instance, aggregate)],
+      "Occupancy Variance": [atlasDashboardFormatPct(aggregate.occGapPts || 0), atlasDashboardComparisonLine(instance, aggregate, scopedDetails)],
       "Exposure": [atlasDashboardFormatNumber(aggregate.exposureGapUnits || 0), `${atlasDashboardFormatNumber(aggregate.moveOuts)} move-outs vs ${atlasDashboardFormatNumber(aggregate.moveIns)} move-ins`],
       "Average Rent": [`$${atlasDashboardFormatNumber(aggregate.nerWeightUnits > 0 ? (aggregate.nerActualWeight || 0) / aggregate.nerWeightUnits : 0)}`, `${scopeSuffix} · NER weighted by occupied units`],
-      "Revenue vs. Budget": [`$${atlasDashboardFormatNumber(aggregate.nerDelta || 0)}`, atlasDashboardComparisonLine(instance, aggregate)]
+      "Revenue vs. Budget": [`$${atlasDashboardFormatNumber(aggregate.nerDelta || 0)}`, atlasDashboardComparisonLine(instance, aggregate, scopedDetails)]
     };
     const [value, sub] = metricMap[metric] || metricMap["Physical Occupancy"];
-    return { value, sub, detail: atlasDashboardComparisonLine(instance, aggregate), scopedDetails };
+    return { value, sub, detail: atlasDashboardComparisonLine(instance, aggregate, scopedDetails), scopedDetails };
   }
   if (instance.widgetKey === "traffic_funnel") {
     const metricMap = {
@@ -14504,7 +14616,7 @@ function buildAtlasDashboardWidgetSnapshot(instance = {}) {
       "Lead -> Move-In": [atlasDashboardFormatPct(aggregate.guestCards > 0 ? (aggregate.moveIns / aggregate.guestCards) * 100 : 0), `${atlasDashboardFormatNumber(aggregate.moveIns)} move-ins from ${atlasDashboardFormatNumber(aggregate.guestCards)} leads`]
     };
     const [rawValue, sub] = metricMap[metric] || metricMap["Guest Cards"];
-    return { value: typeof rawValue === "string" ? rawValue : atlasDashboardFormatNumber(rawValue), sub, detail: atlasDashboardComparisonLine(instance, aggregate), scopedDetails };
+    return { value: typeof rawValue === "string" ? rawValue : atlasDashboardFormatNumber(rawValue), sub, detail: atlasDashboardComparisonLine(instance, aggregate, scopedDetails), scopedDetails };
   }
   if (instance.widgetKey === "renewals_retention") {
     const metricMap = {
@@ -14518,7 +14630,7 @@ function buildAtlasDashboardWidgetSnapshot(instance = {}) {
       "Projected Attrition": [aggregate.renewalProjectedAttrition, `${scopeSuffix}`]
     };
     const [rawValue, sub] = metricMap[metric] || metricMap["Renewal Conversion"];
-    return { value: typeof rawValue === "string" ? rawValue : atlasDashboardFormatNumber(rawValue), sub, detail: atlasDashboardComparisonLine(instance, aggregate), scopedDetails };
+    return { value: typeof rawValue === "string" ? rawValue : atlasDashboardFormatNumber(rawValue), sub, detail: atlasDashboardComparisonLine(instance, aggregate, scopedDetails), scopedDetails };
   }
   if (instance.widgetKey === "reputation_pulse") {
     const metricMap = {
@@ -16183,6 +16295,7 @@ function renderAtlasDashboardHomeWidget(instance = {}) {
   const snapshot = buildAtlasDashboardWidgetSnapshot(instance);
   const sizeClass = instance.size === "compact" ? "is-compact" : instance.size === "expanded" ? "is-expanded" : "";
   const pinnedClass = instance.pinned ? "is-pinned" : "";
+  const visualPreview = renderAtlasDashboardWidgetVisualPreview(instance, snapshot, definition);
   return `<button type="button" class="atlas-dashboard-widget-card ${sizeClass} ${pinnedClass}" onclick="atlasOpenDashboardWidget(${atlasDashboardJsArg(instance.instanceId)})" style="text-align:left;cursor:pointer">
     <div class="atlas-dashboard-widget-head">
       <div>
@@ -16194,6 +16307,8 @@ function renderAtlasDashboardHomeWidget(instance = {}) {
     <div class="atlas-dashboard-widget-value" style="color:${definition.accent || "var(--accent)"}">${escapeHtml(String(snapshot.value || "Open"))}</div>
     <div class="atlas-dashboard-widget-sub">${escapeHtml(instance.metric || definition.defaultMetric || "")} · ${escapeHtml(atlasDashboardScopeLabel(instance))}</div>
     ${!instance.collapsed ? `<div class="atlas-dashboard-widget-sub">${escapeHtml(snapshot.sub || definition.description || "")}</div>` : ""}
+    ${!instance.collapsed && snapshot.detail && snapshot.detail !== snapshot.sub ? `<div class="atlas-dashboard-widget-sub">${escapeHtml(snapshot.detail)}</div>` : ""}
+    ${visualPreview}
     <div class="workspace-snapshot-link">Open ${escapeHtml(definition.label || "section")}</div>
   </button>`;
 }
@@ -17936,6 +18051,72 @@ function renderAtlasDashboardReadonlyField(label = "", value = "") {
   </div>`;
 }
 
+function atlasDashboardMetricChartValues(instance = {}, snapshot = {}) {
+  const metric = String(instance.metric || "");
+  const details = Array.isArray(snapshot.scopedDetails) ? snapshot.scopedDetails : [];
+  const values = details.map(detail => {
+    const summary = detail.summary || {};
+    if (instance.widgetKey === "portfolio_overview") {
+      if (metric === "Leased Occupancy") return summary.occupancyBaseUnits > 0 ? (summary.leased / summary.occupancyBaseUnits) * 100 : 0;
+      if (metric === "Budget Occupancy") return summary.budgetOccPct || 0;
+      if (metric === "Occupancy Variance") return Math.abs(summary.occPct - (summary.budgetOccPct || 0));
+      if (metric === "Exposure") return summary.exposureGapUnits || 0;
+      if (metric === "Average Rent") return summary.currentNer || 0;
+      if (metric === "Revenue vs. Budget") return Math.abs((summary.currentNer || 0) - (summary.proformaNer || 0));
+      return summary.occupancyBaseUnits > 0 ? (summary.occupied / summary.occupancyBaseUnits) * 100 : 0;
+    }
+    if (instance.widgetKey === "traffic_funnel") {
+      const trafficMap = {
+        "Leads": summary.guestCards,
+        "Guest Cards": summary.guestCards,
+        "Tours": summary.tours,
+        "Applications": summary.applications,
+        "Approvals": summary.applicationsApproved,
+        "Move-Ins": summary.moveIns,
+        "Lead -> Tour": summary.guestCards > 0 ? (summary.tours / summary.guestCards) * 100 : 0,
+        "Tour -> Application": summary.tours > 0 ? (summary.applications / summary.tours) * 100 : 0,
+        "Application -> Approval": summary.applications > 0 ? (summary.applicationsApproved / summary.applications) * 100 : 0,
+        "Lead -> Move-In": summary.guestCards > 0 ? (summary.moveIns / summary.guestCards) * 100 : 0
+      };
+      return trafficMap[metric] || 0;
+    }
+    if (instance.widgetKey === "renewals_retention") {
+      const renewalMap = {
+        "Renewal Offers": summary.renewalExpirations,
+        "Renewals Completed": summary.renewalsSigned,
+        "Renewal Conversion": summary.renewalRetentionRate,
+        "Retention %": summary.renewalRetentionRate,
+        "Upcoming Expirations": summary.renewalExpirations,
+        "Undecided Renewals": summary.renewalUndecided,
+        "Notices": summary.renewalNTV,
+        "Projected Attrition": summary.renewalProjectedAttrition
+      };
+      return renewalMap[metric] || 0;
+    }
+    if (instance.widgetKey === "reputation_pulse") {
+      if (metric === "Google Rating") return summary.googleQuarterlyRating || 0;
+      if (metric === "Resident Sentiment") return summary.googleLifetimeRating || 0;
+      return summary.oraScore || 0;
+    }
+    return 1;
+  }).filter(value => Number.isFinite(Number(value))).slice(0, 10);
+  return values.length ? values : [Number(String(snapshot.value || "").replace(/[^0-9.-]+/g, "")) || 0];
+}
+
+function renderAtlasDashboardWidgetVisualPreview(instance = {}, snapshot = {}, definition = {}) {
+  const visualization = String(instance.visualization || "");
+  if (!["Chart", "Graph", "Trend Card", "Funnel", "Forecast Chart"].includes(visualization)) return "";
+  const values = atlasDashboardMetricChartValues(instance, snapshot);
+  const max = Math.max(...values.map(value => Math.abs(Number(value) || 0)), 1);
+  const bars = values.map(value => {
+    const pct = Math.max(10, Math.min(100, (Math.abs(Number(value) || 0) / max) * 100));
+    const offset = visualization === "Graph" ? `${50 - pct / 2}%` : "0";
+    return `<span style="height:${pct}%;--point-offset:${offset};background:linear-gradient(180deg,${escapeHtml(definition.accent || "var(--accent)")},#8fb7ca)"></span>`;
+  }).join("");
+  const graphClass = visualization === "Graph" ? " is-graph" : "";
+  return `<div class="atlas-dashboard-mini-chart${graphClass}" aria-label="${escapeHtml(visualization)} preview">${bars}</div>`;
+}
+
 function atlasDashboardCentralStatusText() {
   const status = getAtlasCentralStatus();
   if (atlasDashboardBuilderState.loadingCentral) return "Loading central views";
@@ -17979,17 +18160,21 @@ function renderAtlasDashboardActiveWidgetCard(instance = {}) {
   const sizeClass = instance.size === "compact" ? "is-compact" : instance.size === "expanded" ? "is-expanded" : "";
   const pinnedClass = instance.pinned ? "is-pinned" : "";
   const editing = atlasDashboardBuilderState.editingInstanceId === instance.instanceId;
+  const dirty = atlasDashboardWidgetHasUnsavedChanges(instance.instanceId);
+  const visualPreview = renderAtlasDashboardWidgetVisualPreview(instance, snapshot, definition);
   return `<div class="atlas-dashboard-widget-card ${sizeClass} ${pinnedClass}" draggable="${atlasDashboardBuilderState.layoutMode ? "true" : "false"}" ondragstart="atlasDashboardDragStart(event,${atlasDashboardJsArg(instance.instanceId)})" ondragover="atlasDashboardDragOver(event)" ondrop="atlasDashboardDrop(event,${atlasDashboardJsArg(instance.instanceId)})">
     <div class="atlas-dashboard-widget-head">
       <div>
         <div class="atlas-dashboard-widget-kicker">${escapeHtml(definition.category || "ATLAS")}</div>
         <div class="atlas-dashboard-widget-title">${escapeHtml(definition.label || "Dashboard Widget")}</div>
       </div>
-      <span class="atlas-dashboard-status-pill">${instance.pinned ? "Priority" : instance.size}</span>
+      <span class="atlas-dashboard-status-pill ${dirty ? "atlas-dashboard-dirty-pill" : ""}">${dirty ? "Unsaved" : (instance.pinned ? "Priority" : instance.size)}</span>
     </div>
     <div class="atlas-dashboard-widget-value" style="color:${definition.accent || "var(--accent)"}">${escapeHtml(String(snapshot.value || "Open"))}</div>
     <div class="atlas-dashboard-widget-sub">${escapeHtml(instance.metric || definition.defaultMetric || "")} · ${escapeHtml(atlasDashboardScopeLabel(instance))}</div>
     ${!instance.collapsed ? `<div class="atlas-dashboard-widget-sub">${escapeHtml(snapshot.sub || definition.description || "")}</div>` : ""}
+    ${!instance.collapsed && snapshot.detail && snapshot.detail !== snapshot.sub ? `<div class="atlas-dashboard-widget-sub">${escapeHtml(snapshot.detail)}</div>` : ""}
+    ${visualPreview}
     <div class="atlas-dashboard-widget-actions">
       <button type="button" class="atlas-dashboard-icon-btn" title="Move earlier" onclick="atlasDashboardMoveWidget(${atlasDashboardJsArg(instance.instanceId)},-1)"><i class="ph ph-arrow-left" aria-hidden="true"></i></button>
       <button type="button" class="atlas-dashboard-icon-btn" title="Move later" onclick="atlasDashboardMoveWidget(${atlasDashboardJsArg(instance.instanceId)},1)"><i class="ph ph-arrow-right" aria-hidden="true"></i></button>
@@ -18002,6 +18187,7 @@ function renderAtlasDashboardActiveWidgetCard(instance = {}) {
         ${ATLAS_DASHBOARD_WIDGET_SIZES.map(([size, label]) => `<button type="button" class="${instance.size === size ? "active" : ""}" onclick="atlasDashboardSetWidgetSize(${atlasDashboardJsArg(instance.instanceId)},${atlasDashboardJsArg(size)})">${escapeHtml(label)}</button>`).join("")}
       </span>
     </div>
+    ${dirty ? `<div class="atlas-dashboard-widget-save-row"><span>Changes are ready to save for this widget.</span><button type="button" class="btn btn-blue btn-sm" onclick="atlasDashboardSaveWidget(${atlasDashboardJsArg(instance.instanceId)})"><i class="ph ph-floppy-disk" aria-hidden="true"></i> Save Widget</button></div>` : ""}
     ${editing ? renderAtlasDashboardWidgetConfigPanel(instance) : ""}
   </div>`;
 }
@@ -18093,10 +18279,10 @@ function renderAtlasDashboardWidgetConfigPanel(instance = {}) {
       ${scope.type === "asset_type" ? renderAtlasDashboardSelectField("Asset Type", scope.assetType, assetTypeOptions, `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"scope.assetType",this.value)`) : ""}
       ${renderAtlasDashboardSelectField("Timeframe", instance.timeframe, ATLAS_DASHBOARD_TIMEFRAME_OPTIONS, `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"timeframe",this.value)`)}
       ${renderAtlasDashboardSelectField("Comparison", instance.comparison, ATLAS_DASHBOARD_COMPARISON_OPTIONS, `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"comparison",this.value)`)}
-      ${renderAtlasDashboardSelectField("Visualization", instance.visualization, definition.visualizations || ["KPI Card"], `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"visualization",this.value)`)}
+      ${renderAtlasDashboardSelectField("Visualization", instance.visualization, atlasDashboardVisualizationOptions(definition), `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"visualization",this.value)`)}
       ${renderAtlasDashboardSelectField("Drill-Down", instance.drillDown?.mode || "module", [["module", "Open Source Module"], ["records", "Underlying Records"], ["report", "Reporting View"]], `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"drillDown.mode",this.value)`)}
       ${renderAtlasDashboardSelectField("Alert", instance.alert?.enabled ? "on" : "off", [["off", "Dashboard Only"], ["on", "Alert Enabled"]], `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"alert.enabled",this.value==="on")`)}
-      ${renderAtlasDashboardSelectField("Threshold Operator", threshold.operator, [["<", "<"], ["<=", "<="], [">", ">"], [">=", ">="], ["=", "="], ["between", "Between"]], `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"threshold.operator",this.value)`)}
+      ${renderAtlasDashboardSelectField("Threshold Operator", threshold.operator, [["compare_under", "Under Comparison"], ["compare_over", "Over Comparison"], ["<", "Under Value"], ["<=", "At or Under Value"], [">", "Over Value"], [">=", "At or Over Value"], ["=", "Equals Value"], ["between", "Between Values"]], `atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},"threshold.operator",this.value)`)}
       <div class="atlas-dashboard-field">
         <label>Threshold</label>
         <input type="text" value="${escapeHtml(threshold.value)}" onchange="atlasDashboardUpdateWidgetConfig(${atlasDashboardJsArg(instance.instanceId)},'threshold.value',this.value)" placeholder="Value">

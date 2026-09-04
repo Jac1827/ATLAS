@@ -20108,6 +20108,10 @@ function renderPortfolioScopedImportTab() {
   const readinessHeaderCopy = isCurrentMonth
     ? "Current-month rows separate fresh uploads from saved-but-stale records so the dashboard does not read like data is missing when it simply has not been refreshed in the current cycle."
     : "The portfolio workspace above is now the primary staging area for bulk rows and workbook uploads. Use the community import view when you need a one-off, community-specific deep dive.";
+  const importFreshnessPanel = renderImportFreshnessNeedsPanel(readinessDetails, {
+    scopeLabel: "selected portfolio scope",
+    monthIdx: getSelectedDashboardMonthIndex()
+  });
   const bulkImportWorkspaceHTML = `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
       <div>
@@ -20299,7 +20303,7 @@ function renderPortfolioScopedImportTab() {
   const residentDataImport = typeof window.renderApplicationResidentDataImportPanel === "function"
     ? window.renderApplicationResidentDataImportPanel()
     : "";
-  return residentDataImport + renderPortfolioScopePanel("Portfolio Data Import Workspace", "Stage, validate, and apply portfolio uploads here before they flow into reporting and dashboard screens.", cardsHtml, bodyHtml);
+  return importFreshnessPanel + residentDataImport + renderPortfolioScopePanel("Portfolio Data Import Workspace", "Stage, validate, and apply portfolio uploads here before they flow into reporting and dashboard screens.", cardsHtml, bodyHtml);
 }
 
 function renderSetupTab() {
@@ -24991,6 +24995,98 @@ function getImportReadinessStatus(record, monthIdx = getSelectedDashboardMonthIn
     renewalStatusLabel: getStatusLabel(renewalHasData, renewalLoaded, "Fresh this cycle"),
     isCurrentMonth
   };
+}
+
+function getImportFreshnessNeedRows(details = [], options = {}) {
+  const now = options.now instanceof Date ? options.now : new Date();
+  const monthIdx = Number.isFinite(Number(options.monthIdx)) ? Number(options.monthIdx) : getSelectedDashboardMonthIndex();
+  const year = Number.isFinite(Number(options.year)) ? Number(options.year) : now.getFullYear();
+  const isCurrentMonth = buildPeriodKey(monthIdx, year) === getCurrentCalendarPeriodKey();
+  const isWeekday = now.getDay() >= 1 && now.getDay() <= 5;
+  const rows = Array.isArray(details) ? details : [];
+  return rows.map(detail => {
+    const record = detail?.record || {};
+    const readiness = detail?.readiness || getImportReadinessStatus(record, monthIdx, year);
+    const needs = [];
+    if ((!isCurrentMonth || isWeekday) && !readiness.dlrLoaded) {
+      needs.push({
+        key: "boxScore",
+        label: "Box Score",
+        cadence: "Due every weekday",
+        status: readiness.dlrStatusLabel
+      });
+    }
+    if (!readiness.surveyLoaded) {
+      needs.push({
+        key: "marketing",
+        label: "Marketing Report",
+        cadence: "Due Mondays",
+        status: readiness.surveyStatusLabel
+      });
+    }
+    if (!readiness.renewalLoaded) {
+      needs.push({
+        key: "renewals",
+        label: "Renewals",
+        cadence: "Due weekly",
+        status: readiness.renewalStatusLabel
+      });
+    }
+    return {
+      name: detail?.name || record.propertyName || "Unassigned community",
+      needs,
+      readiness
+    };
+  }).filter(row => row.needs.length > 0)
+    .sort((left, right) => right.needs.length - left.needs.length || left.name.localeCompare(right.name));
+}
+
+function renderImportFreshnessNeedsPanel(details = [], options = {}) {
+  const rows = getImportFreshnessNeedRows(details, options);
+  const total = Array.isArray(details) ? details.length : 0;
+  const scopeLabel = options.scopeLabel || (isPortfolioWorkspaceSelected() ? "selected portfolio scope" : getProp().name);
+  const monthIdx = Number.isFinite(Number(options.monthIdx)) ? Number(options.monthIdx) : getSelectedDashboardMonthIndex();
+  const year = Number.isFinite(Number(options.year)) ? Number(options.year) : new Date().getFullYear();
+  const selectedPeriodLabel = `${FULL_MONTHS[monthIdx] || MONTHS[monthIdx] || "Selected month"} ${year}`;
+  const needCounts = rows.reduce((acc, row) => {
+    row.needs.forEach(need => {
+      acc[need.key] = (acc[need.key] || 0) + 1;
+    });
+    return acc;
+  }, { boxScore: 0, marketing: 0, renewals: 0 });
+  const visibleRows = rows.slice(0, 8);
+  const statusLine = rows.length
+    ? `${rows.length} of ${total || rows.length} propert${(total || rows.length) === 1 ? "y has" : "ies have"} an outdated or missing import for ${selectedPeriodLabel}.`
+    : `${total || 0} propert${(total || 0) === 1 ? "y is" : "ies are"} current for ${selectedPeriodLabel}.`;
+  const bodyHtml = rows.length
+    ? `<div class="tbl-wrap" style="margin-bottom:0">
+        <table>
+          <thead><tr><th class="l">Community</th><th class="l">Needed Reports</th><th class="l">Latest Status</th><th>Action</th></tr></thead>
+          <tbody>${visibleRows.map(row => `<tr>
+            <td class="l" style="font-weight:700">${escapeHtml(row.name)}</td>
+            <td class="l">${row.needs.map(need => `<span class="atlas-dashboard-status-pill">${escapeHtml(need.label)}</span>`).join(" ")}</td>
+            <td class="l" style="font-size:0.68rem;color:var(--muted);line-height:1.55">${row.needs.map(need => `<div><strong style="color:var(--text)">${escapeHtml(need.label)}:</strong> ${escapeHtml(need.status)} - ${escapeHtml(need.cadence)}</div>`).join("")}</td>
+            <td><button type="button" class="btn btn-gray btn-sm" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(row.name)}, 7)'>Open Import</button></td>
+          </tr>`).join("")}</tbody>
+        </table>
+        ${rows.length > visibleRows.length ? `<div style="padding:10px 12px;font-size:0.66rem;color:var(--muted)">Showing ${visibleRows.length} of ${rows.length} properties with import needs.</div>` : ""}
+      </div>`
+    : `<div class="alert-green" style="margin-bottom:0">All properties in this view have the required import coverage for the selected reporting period.</div>`;
+  return `<div class="card mb4" id="outdated-data-imports-panel">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div>
+        <div class="card-title" style="margin-bottom:6px">Outdated Data Imports</div>
+        <div style="font-size:0.7rem;color:var(--muted);line-height:1.55">${escapeHtml(statusLine)} Box scores are expected every weekday. Marketing reports are expected on Mondays. Renewal uploads are expected weekly.</div>
+      </div>
+      <span class="atlas-dashboard-status-pill">${escapeHtml(scopeLabel)}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px">
+      ${statBox("Box Score Needed", needCounts.boxScore, "Every weekday", needCounts.boxScore ? "#d29922" : "#3fb950")}
+      ${statBox("Marketing Needed", needCounts.marketing, "Mondays", needCounts.marketing ? "#d29922" : "#3fb950")}
+      ${statBox("Renewals Needed", needCounts.renewals, "Weekly", needCounts.renewals ? "#d29922" : "#3fb950")}
+    </div>
+    ${bodyHtml}
+  </div>`;
 }
 
 function applyMarketSurveyDataToProperty(propName, surveyInput) {
@@ -44513,6 +44609,16 @@ function renderCSVTab() {
     ? `Weekly comparison baseline synced ${new Date(weeklyBaseline.exportedAt).toLocaleString()}.`
     : "No weekly baseline synced yet. Use Sync This Week as Baseline after you send this week’s report so next week’s export has a true week-over-week comparison.";
   const backupSummaryText = getDailyBackupSummaryText();
+  const currentImportRecord = getCurrentCommunityRecord();
+  const currentImportPropertyName = getProp().name;
+  const importFreshnessPanel = renderImportFreshnessNeedsPanel([{
+    name: currentImportPropertyName,
+    record: currentImportRecord,
+    readiness: getImportReadinessStatus(currentImportRecord, getSelectedDashboardMonthIndex())
+  }], {
+    scopeLabel: currentImportPropertyName,
+    monthIdx: getSelectedDashboardMonthIndex()
+  });
   const dlrReportDateInput = escapeHtml(buildDlrDateInputValue(historicalDlrSummary?.reportDateIso));
   const dlrReportDateLabel = historicalDlrSummary?.reportDateLabel || historicalDlrSummary?.reportPeriodLabel || "No specific daily report date saved";
   const dlrSourceLine = historicalDlrSummary?.dailyBoxScoreSourceFile
@@ -45093,6 +45199,7 @@ function renderCSVTab() {
     ? window.renderApplicationResidentDataImportPanel()
     : "";
   return [
+    importFreshnessPanel,
     residentDataImport,
     renderWindowshadeCard({
       key: "import_central_migration",

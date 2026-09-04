@@ -2668,6 +2668,18 @@
     }
   }
 
+  function currentUserCanDeleteLifecycleMemos() {
+    try {
+      const profile = typeof getAtlasAccessProfile === "function" ? getAtlasAccessProfile() : {};
+      if (typeof atlasProfileCanManageSettings === "function" && atlasProfileCanManageSettings(profile)) return true;
+      const status = window.ATLAS_CENTRAL?.getStatus ? window.ATLAS_CENTRAL.getStatus() : {};
+      const role = normalizeKey(profile?.role || profile?.roleName || profile?.accessRole || status?.role || window.atlasCurrentUser?.role);
+      return ["admin", "administrator", "owner"].some(value => role === value || role.includes(value));
+    } catch {
+      return false;
+    }
+  }
+
   function dateValue(dateIso) {
     const normalized = normalizeDate(dateIso);
     return normalized ? new Date(`${normalized}T00:00:00`).getTime() : null;
@@ -3564,14 +3576,33 @@
     return `<div class="cs-check-list">${asArray(values).map(value => `<label><input type="checkbox" name="${escapeAttr(name)}" value="${escapeAttr(value)}" ${selected.has(value) ? "checked" : ""} ${onchange ? `onchange="${escapeAttr(onchange)}"` : ""}><span>${escapeHtml(value)}</span></label>`).join("")}</div>`;
   }
 
-  function renderMiniTimeline(items) {
+  function isLifecycleMemoTimelineItem(item = {}) {
+    const type = normalizeKey(item.type || item.kind || item.details?.type);
+    const label = normalizeKey(item.label || item.action || item.reason);
+    return type === "lifecycle memo" || type === "lifecycle_memo" || label === "lifecycle memo added";
+  }
+
+  function getLifecycleMemoTimelinePayload(item = {}) {
+    return {
+      id: cleanString(item.memoId || item.details?.memoId || item.id),
+      memo: cleanString(item.memo || item.details?.memo),
+      at: cleanString(item.at || item.date)
+    };
+  }
+
+  function renderMiniTimeline(items, options = {}) {
     const rows = asArray(items).slice(0, 8);
     if (!rows.length) return `<div class="cs-alert">No audit entries have been recorded for this item yet.</div>`;
+    const canDeleteMemo = options.allowMemoDelete && options.caseId && currentUserCanDeleteLifecycleMemos();
     return `<div class="cs-timeline">${rows.map(item => {
       const transition = item.previousStatus || item.newStatus ? ` (${[item.previousStatus, item.newStatus].filter(Boolean).join(" -> ")})` : "";
       const memo = item.memo ? ` - ${item.memo}` : "";
       const user = item.user ? ` by ${item.user}` : "";
-      return `<div class="cs-timeline-item"><div class="cs-timeline-date">${escapeHtml(formatDate(item.at) || formatDate(item.date) || "Now")}</div><div class="cs-timeline-copy">${escapeHtml(`${item.label || item.reason || item.action || "Updated"}${transition}${memo}${user}`)}</div></div>`;
+      const memoPayload = getLifecycleMemoTimelinePayload(item);
+      const deleteButton = canDeleteMemo && isLifecycleMemoTimelineItem(item)
+        ? `<button type="button" class="cs-btn cs-btn-sm cs-btn-danger cs-timeline-delete" data-case-id="${escapeAttr(options.caseId)}" data-memo-id="${escapeAttr(memoPayload.id)}" data-memo="${escapeAttr(memoPayload.memo)}" data-at="${escapeAttr(memoPayload.at)}" onclick="atlasCsDeleteLifecycleMemoActivity(this.dataset.caseId,this.dataset.memoId,this.dataset.memo,this.dataset.at)">Delete</button>`
+        : "";
+      return `<div class="cs-timeline-item${deleteButton ? " has-action" : ""}"><div class="cs-timeline-date">${escapeHtml(formatDate(item.at) || formatDate(item.date) || "Now")}</div><div class="cs-timeline-copy">${escapeHtml(`${item.label || item.reason || item.action || "Updated"}${transition}${memo}${user}`)}</div>${deleteButton ? `<div class="cs-timeline-actions">${deleteButton}</div>` : ""}</div>`;
     }).join("")}</div>`;
   }
 
@@ -5853,11 +5884,11 @@
       </div>
       <div class="cs-field-cluster">
         <div class="cs-field-cluster-title">Lifecycle Memos</div>
-        ${memos.length ? renderMiniTimeline(memos.map(row => ({ at: row.at, label: `${row.user || "Central Services"} - ${row.memo}` }))) : `<div class="cs-alert">No lifecycle memos have been added yet.</div>`}
+        ${memos.length ? renderMiniTimeline(memos.map(row => ({ id: row.id, at: row.at, label: "Lifecycle memo", memo: row.memo, user: row.user, type: "lifecycle_memo" })), { caseId: item.id, allowMemoDelete: true }) : `<div class="cs-alert">No lifecycle memos have been added yet.</div>`}
       </div>
       <div class="cs-field-cluster">
         <div class="cs-field-cluster-title">Permanent Activity History</div>
-        ${renderMiniTimeline(item.activity)}
+        ${renderMiniTimeline(item.activity, { caseId: item.id, allowMemoDelete: true })}
       </div>
     </div>`;
   }
@@ -9341,9 +9372,12 @@
     const actor = currentActor();
     caseRecord.activity = asArray(caseRecord.activity);
     caseRecord.activity.unshift({
+      id: details.activityId || makeId("activity", [caseRecord.id, Date.now(), label, details.memoId || details.memo || ""]),
       at: new Date().toISOString(),
       label,
       action: label,
+      type: details.type || "",
+      memoId: details.memoId || "",
       user: actor.name,
       userId: actor.userId,
       previousStatus: details.previousStatus || "",
@@ -11889,16 +11923,79 @@
     const memo = cleanString(prompt("Add lifecycle memo."));
     if (!memo) return;
     const actor = currentActor();
+    const memoId = makeId("memo", [id, Date.now(), memo]);
     item.memos = asArray(item.memos);
     item.memos.unshift({
-      id: makeId("memo", [id, Date.now(), memo]),
+      id: memoId,
       at: new Date().toISOString(),
       user: actor.name,
       userId: actor.userId,
       memo
     });
-    pushCaseActivity(item, "Lifecycle memo added.", { memo });
-    addAudit(state, "Added lifecycle memo", { caseId: id });
+    pushCaseActivity(item, "Lifecycle memo added.", { type: "lifecycle_memo", memoId, memo });
+    addAudit(state, "Added lifecycle memo", { caseId: id, memoId });
+    saveState(state);
+    renderActiveTab();
+  };
+
+  window.atlasCsDeleteLifecycleMemoActivity = function (caseId, memoId, memoText, memoAt) {
+    if (!currentUserCanDeleteLifecycleMemos()) {
+      alert("Only ATLAS admins can delete lifecycle memos.");
+      return;
+    }
+    const state = loadState();
+    const item = findMoveOutCase(state, caseId);
+    if (!item) return;
+    const targetMemoId = cleanString(memoId);
+    const targetMemo = cleanString(memoText);
+    const targetAt = cleanString(memoAt);
+    const targetTime = Date.parse(targetAt);
+    let removedMemo = null;
+    item.memos = asArray(item.memos).filter(row => {
+      const rowMemoId = cleanString(row.id);
+      const rowMemo = cleanString(row.memo);
+      const rowTime = Date.parse(row.at);
+      const idMatches = targetMemoId && rowMemoId && rowMemoId === targetMemoId;
+      const textMatches = !targetMemoId && targetMemo && rowMemo === targetMemo;
+      const timeMatches = !Number.isFinite(targetTime) || !Number.isFinite(rowTime) || Math.abs(rowTime - targetTime) <= 10000;
+      const matches = idMatches || (textMatches && timeMatches);
+      if (matches && !removedMemo) {
+        removedMemo = row;
+        return false;
+      }
+      return true;
+    });
+    let removedActivity = false;
+    item.activity = asArray(item.activity).filter(row => {
+      if (removedActivity || !isLifecycleMemoTimelineItem(row)) return true;
+      const payload = getLifecycleMemoTimelinePayload(row);
+      const rowTime = Date.parse(payload.at);
+      const idMatches = targetMemoId && payload.id && payload.id === targetMemoId;
+      const textMatches = targetMemo && payload.memo === targetMemo;
+      const timeMatches = !Number.isFinite(targetTime) || !Number.isFinite(rowTime) || Math.abs(rowTime - targetTime) <= 10000;
+      const matches = idMatches || (textMatches && timeMatches);
+      if (!matches) return true;
+      removedActivity = true;
+      return false;
+    });
+    if (!removedMemo && !removedActivity) {
+      alert("ATLAS could not find that lifecycle memo to delete.");
+      return;
+    }
+    const preview = cleanString(removedMemo?.memo || targetMemo).slice(0, 120);
+    if (!confirm(`Delete this lifecycle memo from the resident record?\n\n${preview || "Selected memo"}\n\nThe deletion will be recorded in the audit trail.`)) return;
+    const reason = cleanString(prompt("Reason for deleting this memo (optional).") || "");
+    pushCaseActivity(item, "Lifecycle memo deleted by admin.", {
+      deletedMemoId: targetMemoId || cleanString(removedMemo?.id),
+      deletedMemoAt: cleanString(removedMemo?.at || targetAt),
+      deletedByAdmin: true,
+      reason
+    });
+    addAudit(state, "Deleted lifecycle memo", {
+      caseId,
+      memoId: targetMemoId || cleanString(removedMemo?.id),
+      reason
+    });
     saveState(state);
     renderActiveTab();
   };

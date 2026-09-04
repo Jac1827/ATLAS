@@ -1268,6 +1268,11 @@
   padding-left: 10px;
 }
 
+.cs-timeline-item.has-action {
+  grid-template-columns: 88px minmax(0, 1fr) auto;
+  align-items: start;
+}
+
 .cs-timeline-date {
   color: var(--cs-muted);
   font-size: 0.64rem;
@@ -1278,6 +1283,17 @@
   color: var(--cs-ink);
   font-size: 0.7rem;
   line-height: 1.42;
+}
+
+.cs-timeline-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cs-timeline-delete {
+  min-height: 24px;
+  padding: 4px 8px;
+  font-size: 0.62rem;
 }
 
 .cs-import-flow {

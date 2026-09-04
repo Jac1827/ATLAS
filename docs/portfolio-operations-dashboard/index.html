@@ -4356,21 +4356,24 @@ function renderApplicationResidentDataImportPanel() {
       </div>
     </div>
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+      <div class="card-title" style="margin-bottom:10px">Upload History</div>
+      ${renderApplicationResidentUploadHistory()}
+    </div>
+    <details style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;margin-bottom:12px">
+      <summary style="cursor:pointer;padding:12px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div>
           <div class="card-title" style="margin-bottom:6px">MTD Reconciliation</div>
           <div style="font-size:0.68rem;color:var(--muted)">Report month: ${escapeHtml(getApplicationResidentReportMonthLabel(periodKey))}. Variances are review flags only and do not update Monthly Upload totals automatically.</div>
         </div>
+        <span class="atlas-dashboard-status-pill">${reconciliationRows.length} review row${reconciliationRows.length === 1 ? "" : "s"}</span>
+      </summary>
+      <div style="padding:0 12px 12px">
+        ${renderApplicationResidentReconciliationTable(reconciliationRows)}
       </div>
-      ${renderApplicationResidentReconciliationTable(reconciliationRows)}
-    </div>
+    </details>
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
       <div class="card-title" style="margin-bottom:10px">Resident Drilldown</div>
       ${renderApplicationResidentRecordPreview(summary.latestRecords)}
-    </div>
-    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px">
-      <div class="card-title" style="margin-bottom:10px">Upload History</div>
-      ${renderApplicationResidentUploadHistory()}
     </div>
   </div>`;
 }

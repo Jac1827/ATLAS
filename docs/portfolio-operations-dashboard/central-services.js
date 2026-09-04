@@ -3995,6 +3995,7 @@
   }
 
   function inspectionChargeSummary(state, inspection = {}) {
+    inspection = asObject(inspection);
     const findings = asArray(inspection.findings).filter(findingHasResidentCharge);
     const total = findings.reduce((sum, finding) => {
       const item = getChargebackCatalogItem(state, finding.chargebackId);

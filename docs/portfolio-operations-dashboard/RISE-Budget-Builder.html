@@ -134,10 +134,83 @@ html.atlas-embedded .body {
   min-height: 0;
 }
 
+html.atlas-embedded .nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 18;
+  padding: 8px 10px;
+  border-right: 0;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 8px 18px rgba(1,62,81,.06);
+}
+
+html.atlas-embedded .nav .grp {
+  flex: 0 0 auto;
+  padding: 5px 8px 5px 4px;
+  color: var(--rise);
+  font-size: 8.5px;
+  border-left: 1px solid var(--line);
+}
+
+html.atlas-embedded .nav .grp:first-child {
+  border-left: 0;
+}
+
+html.atlas-embedded .nav a {
+  flex: 0 0 auto;
+  gap: 5px;
+  padding: 6px 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1;
+  background: transparent;
+}
+
+html.atlas-embedded .nav a:hover {
+  border-color: var(--sky-2);
+  background: var(--sky-tint);
+}
+
+html.atlas-embedded .nav a.on {
+  border-color: var(--sky-2);
+  background: var(--sky-pale);
+  color: var(--rise);
+}
+
+html.atlas-embedded .nav .badge {
+  padding: 1px 5px;
+  font-size: 8.5px;
+  min-width: 15px;
+}
+
+html.atlas-embedded .main {
+  padding: 16px 0 56px;
+}
+
 html.atlas-embedded .nav,
 html.atlas-embedded .main {
   overflow: visible;
   max-height: none;
+}
+
+@media (max-width: 900px) {
+  html.atlas-embedded .nav {
+    align-items: flex-start;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 9px;
+  }
+
+  html.atlas-embedded .nav .grp,
+  html.atlas-embedded .nav a {
+    white-space: nowrap;
+  }
 }
 
 /* ================================================================ panels == */
@@ -16618,6 +16691,26 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     A._t = setTimeout(function () { el.style.display = 'none'; }, 4200);
   };
 
+  A.notifyAtlasHeight = function () {
+    try {
+      if (window.parent === window) return;
+      var qs = new URLSearchParams(window.location.search || '');
+      if (qs.get('atlasEmbedded') !== '1') return;
+      var height = Math.max(
+        document.body ? document.body.scrollHeight : 0,
+        document.body ? document.body.offsetHeight : 0,
+        document.documentElement ? document.documentElement.scrollHeight : 0,
+        document.documentElement ? document.documentElement.offsetHeight : 0,
+        720
+      );
+      window.parent.postMessage({
+        type: 'atlas-embedded-height',
+        key: qs.get('atlasMountKey') || 'budget',
+        height: height
+      }, '*');
+    } catch (e) {}
+  };
+
   A.confirmAct = function (msg, fn) {
     if (typeof confirm === 'function' ? confirm(msg) : true) fn();
   };
@@ -16754,6 +16847,9 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
         H.esc(e && e.message) + '<br><span class="tiny">' + H.esc((e && e.stack || '').slice(0, 600)) +
         '</span></div>';
     }
+    A.notifyAtlasHeight();
+    setTimeout(A.notifyAtlasHeight, 120);
+    setTimeout(A.notifyAtlasHeight, 650);
   };
 
   A.boot = function () {

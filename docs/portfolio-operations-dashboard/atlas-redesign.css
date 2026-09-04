@@ -1111,8 +1111,6 @@ tbody tr:hover td {
   height: calc(100vh - 120px);
 }
 
-/* Budget Builder remains a contained application so ATLAS navigation does not
-   disappear behind a document-height iframe. */
 .atlas-budget-workspace {
   width: 100%;
 }
@@ -1173,9 +1171,17 @@ tbody tr:hover td {
   line-height: 1.55;
 }
 
+.atlas-budget-frame {
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  background: transparent;
+  box-shadow: none;
+}
+
 .atlas-budget-frame iframe {
-  height: min(790px, calc(100vh - 210px));
-  min-height: 620px;
+  min-height: 720px;
+  background: transparent;
 }
 
 /* --------------------------------------------------------------------------

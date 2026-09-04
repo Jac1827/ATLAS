@@ -172,9 +172,7 @@
 
   function syncMountFrame(iframe, key) {
     if (!iframe) return;
-    // Budget Builder is a navigable application, not a long report. Keep its
-    // own scroll region contained so the surrounding ATLAS workspace stays usable.
-    if (key !== "budget") applyFrameHeight(iframe, measureFrameHeight(iframe));
+    applyFrameHeight(iframe, measureFrameHeight(iframe));
     if (key === "people") publishPeopleRoster(readEmbeddedPeopleRoster(iframe));
   }
 
@@ -186,11 +184,9 @@
     window.setTimeout(function () { syncMountFrame(iframe, key); }, 150);
     window.setTimeout(function () { syncMountFrame(iframe, key); }, 700);
     window.setTimeout(function () { syncMountFrame(iframe, key); }, 1600);
-    if (key !== "budget") {
-      iframe.__atlasSyncTimer = window.setInterval(function () {
-        syncMountFrame(iframe, key);
-      }, 2000);
-    }
+    iframe.__atlasSyncTimer = window.setInterval(function () {
+      syncMountFrame(iframe, key);
+    }, 2000);
   };
 
   function isBudgetFrameSource(source) {

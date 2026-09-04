@@ -671,6 +671,79 @@
   .bonus-community-chip span { font-size:0.6rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; }
   .bonus-community-chip.active span { color:#cfe2ff; }
   .bonus-scope-pill { display:inline-flex; align-items:center; gap:6px; font-size:0.64rem; color:#4493f8; background:rgba(68,147,248,0.08); border:1px solid rgba(68,147,248,0.22); padding:4px 8px; border-radius:999px; }
+  .bonus-engine-shell { display:grid; gap:16px; color:var(--text); }
+  .bonus-engine-hero { background:linear-gradient(135deg,#003146 0%,#0f5368 64%,#559cb4 132%); color:#fff; border-radius:18px; padding:22px; box-shadow:0 18px 44px rgba(0,49,70,0.18); overflow:hidden; position:relative; }
+  .bonus-engine-hero::after { content:""; position:absolute; right:-96px; bottom:-132px; width:280px; height:280px; border:1px solid rgba(252,181,59,0.32); border-radius:50%; background:rgba(252,181,59,0.08); pointer-events:none; }
+  .bonus-engine-hero h1 { font-size:1.68rem; line-height:1.05; margin:8px 0 8px; color:#fff; font-weight:800; letter-spacing:0; }
+  .bonus-engine-hero p { max-width:980px; color:rgba(255,255,255,0.82); font-size:0.78rem; line-height:1.62; }
+  .bonus-engine-kicker { font-size:0.64rem; font-weight:800; letter-spacing:0.12em; text-transform:uppercase; color:rgba(255,255,255,0.72); }
+  .bonus-engine-toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:16px; position:relative; z-index:1; }
+  .bonus-engine-nav { display:flex; gap:6px; flex-wrap:wrap; padding:6px; border:1px solid var(--border); border-radius:10px; background:var(--bg2); }
+  .bonus-engine-tab { border:0; border-radius:7px; background:transparent; color:var(--muted); font-size:0.68rem; font-weight:800; padding:8px 10px; cursor:pointer; font-family:inherit; }
+  .bonus-engine-tab.active { background:#003146; color:#fff; }
+  .bonus-engine-tab:hover:not(.active) { background:var(--bg3); color:var(--text); }
+  .bonus-engine-filters { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; padding:12px; border:1px solid var(--border); border-radius:12px; background:var(--bg2); }
+  .bonus-engine-field { display:grid; gap:5px; }
+  .bonus-engine-field label { font-size:0.6rem; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); }
+  .bonus-engine-field input,
+  .bonus-engine-field select,
+  .bonus-engine-field textarea { width:100%; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--text); padding:8px 10px; font-size:0.74rem; font-family:inherit; }
+  .bonus-engine-field textarea { min-height:74px; resize:vertical; }
+  .bonus-engine-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; }
+  .bonus-engine-grid.two { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .bonus-engine-grid.three { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  @media(max-width:940px){ .bonus-engine-grid.two,.bonus-engine-grid.three { grid-template-columns:1fr; } }
+  .bonus-engine-card { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:14px; box-shadow:0 8px 22px rgba(15,23,42,0.04); min-width:0; }
+  .bonus-engine-card h2,
+  .bonus-engine-card h3 { margin:0; color:#003146; font-size:0.92rem; font-weight:800; letter-spacing:0; }
+  .bonus-engine-card p { color:var(--muted); font-size:0.7rem; line-height:1.52; margin-top:6px; }
+  .bonus-engine-kpi { border-left:4px solid #559cb4; min-height:132px; display:grid; align-content:space-between; }
+  .bonus-engine-kpi.gold { border-left-color:#fcb53b; }
+  .bonus-engine-kpi.green { border-left-color:#ccbf32; }
+  .bonus-engine-kpi.red { border-left-color:#a33b37; }
+  .bonus-engine-kpi .k { font-size:0.62rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); font-weight:800; }
+  .bonus-engine-kpi .v { font-size:1.62rem; line-height:1.02; font-weight:800; color:#003146; margin-top:7px; font-family:'JetBrains Mono',monospace; word-break:break-word; }
+  .bonus-engine-kpi .s { font-size:0.66rem; line-height:1.42; color:var(--muted); margin-top:6px; }
+  .bonus-engine-link-card { width:100%; border:0; text-align:left; cursor:pointer; font-family:inherit; }
+  .bonus-engine-link-card:hover { transform:translateY(-1px); border-color:rgba(85,156,180,0.48); box-shadow:0 12px 26px rgba(0,49,70,0.08); }
+  .bonus-engine-progress { height:8px; border-radius:999px; background:var(--bg3); overflow:hidden; border:1px solid var(--border2); }
+  .bonus-engine-progress > span { display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,#559cb4,#ccbf32); width:0; }
+  .bonus-engine-table-wrap { overflow:auto; border:1px solid var(--border); border-radius:10px; background:#fff; }
+  .bonus-engine-table { width:100%; border-collapse:collapse; font-size:0.7rem; }
+  .bonus-engine-table th,
+  .bonus-engine-table td { padding:9px 10px; border-bottom:1px solid var(--border2); text-align:left; vertical-align:top; }
+  .bonus-engine-table th { font-size:0.58rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); background:#f8fafc; }
+  .bonus-engine-table tr:last-child td { border-bottom:0; }
+  .bonus-engine-pill { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--border); border-radius:999px; padding:4px 8px; font-size:0.6rem; font-weight:800; text-transform:uppercase; letter-spacing:0.05em; color:#003146; background:var(--bg3); white-space:nowrap; }
+  .bonus-engine-pill.good { color:#27500a; background:#edf5e4; border-color:#c6ddb1; }
+  .bonus-engine-pill.warn { color:#9a6800; background:#fff7e0; border-color:#f5d589; }
+  .bonus-engine-pill.bad { color:#8b0000; background:#fff0f0; border-color:#efcaca; }
+  .bonus-engine-pill.info { color:#003146; background:#eef8fb; border-color:#cbe7ef; }
+  .bonus-engine-pipeline { display:grid; grid-template-columns:repeat(6,minmax(150px,1fr)); gap:10px; overflow:auto; padding-bottom:4px; }
+  .bonus-engine-stage { min-width:150px; border:1px solid var(--border); border-radius:10px; background:var(--bg2); padding:10px; }
+  .bonus-engine-stage-title { font-size:0.64rem; font-weight:800; color:#003146; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px; }
+  .bonus-engine-stage-row { background:var(--bg3); border:1px solid var(--border2); border-radius:8px; padding:8px; margin-bottom:7px; font-size:0.68rem; color:var(--text); }
+  .bonus-engine-section-head { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:flex-start; }
+  .bonus-engine-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .bonus-engine-chart-bars { display:grid; gap:8px; margin-top:12px; }
+  .bonus-engine-bar-row { display:grid; grid-template-columns:minmax(90px,180px) 1fr minmax(72px,auto); gap:9px; align-items:center; font-size:0.68rem; color:var(--muted); }
+  .bonus-engine-bar-row strong { color:#003146; text-align:right; font-family:'JetBrains Mono',monospace; }
+  .bonus-engine-warning { border:1px solid rgba(252,181,59,0.46); background:#fff8e8; color:#7a5212; border-radius:10px; padding:10px 12px; font-size:0.7rem; line-height:1.5; }
+  .bonus-engine-secure-note { border:1px solid rgba(0,49,70,0.18); background:#eef8fb; color:#003146; border-radius:10px; padding:10px 12px; font-size:0.7rem; line-height:1.5; }
+  .bonus-engine-approval-cert { border:1px solid rgba(39,80,10,0.25); background:#f3f8ed; border-radius:12px; padding:12px; display:grid; gap:10px; }
+  .bonus-engine-my-widget { grid-column:span 4; background:linear-gradient(180deg,#fff 0%,#f7fbfc 100%); border-color:rgba(0,49,70,0.2); }
+  .bonus-engine-eye-button { width:30px; height:30px; border:1px solid var(--border); border-radius:8px; background:#fff; color:#003146; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; }
+  .bonus-engine-eye-button:hover { background:#eef8fb; }
+  .bonus-engine-small-list { display:grid; gap:8px; }
+  .bonus-engine-small-row { display:flex; justify-content:space-between; gap:10px; align-items:center; border-top:1px solid var(--border2); padding-top:8px; font-size:0.68rem; color:var(--muted); }
+  .bonus-engine-small-row strong { color:#003146; }
+  @media(max-width:720px){
+    .bonus-engine-hero { border-radius:14px; padding:18px; }
+    .bonus-engine-hero h1 { font-size:1.34rem; }
+    .bonus-engine-pipeline { grid-template-columns:repeat(6,150px); }
+    .bonus-engine-bar-row { grid-template-columns:1fr; }
+    .bonus-engine-bar-row strong { text-align:left; }
+  }
   .dashboard-home-grid { display:grid; grid-template-columns:1.3fr 0.9fr; gap:16px; }
   @media(max-width:1100px) { .dashboard-home-grid { grid-template-columns:1fr; } }
   .comp-calc-shell { display:grid; gap:16px; }
@@ -5951,6 +6024,7 @@ let propertyTurnoverConfig = defaultPropertyTurnoverConfig();
 let propertyTurnoverByQuarter = defaultPropertyTurnoverByQuarter();
 let msoeByQuarter = defaultMsoeByQuarter();
 let maintenanceInspectionSnapshot = defaultMaintenanceInspectionSnapshot();
+let bonusEngineState = null;
 
 function defaultMaintenanceInspectionSnapshot() {
   return {
@@ -6312,6 +6386,15 @@ function defaultAtlasSharedData() {
 
 let atlasSharedData = defaultAtlasSharedData();
 
+function normalizeAtlasBonusBoolean(value, fallback = null) {
+  if (value === true || value === false) return value;
+  const text = String(value ?? "").trim().toLowerCase();
+  if (!text) return fallback;
+  if (["yes", "y", "true", "1", "eligible", "active", "on"].includes(text)) return true;
+  if (["no", "n", "false", "0", "not eligible", "inactive", "off"].includes(text)) return false;
+  return fallback;
+}
+
 function normalizeSharedEmployeeRecord(employee = {}) {
   const source = employee && typeof employee === "object" ? employee : {};
   return {
@@ -6332,6 +6415,19 @@ function normalizeSharedEmployeeRecord(employee = {}) {
     regionalManagerId: String(source.regionalManagerId ?? "").trim(),
     regionalManagerName: String(source.regionalManagerName ?? "").trim(),
     region: String(source.region ?? "").trim(),
+    bonusEligible: (source.bonusEligible !== undefined || source.bonus_eligible !== undefined)
+      ? normalizeAtlasBonusBoolean(source.bonusEligible ?? source.bonus_eligible, null)
+      : undefined,
+    bonusPlan: String(source.bonusPlan ?? source.bonus_plan ?? "").trim(),
+    bonusPlanId: String(source.bonusPlanId ?? source.bonus_plan_id ?? "").trim(),
+    bonusEffectiveDate: normalizeSharedDate(source.bonusEffectiveDate ?? source.bonus_effective_date),
+    targetBonus: Number(source.targetBonus ?? source.target_bonus ?? 0) || 0,
+    salary: Number(source.salary ?? 0) || 0,
+    payrollEmployeeId: String(source.payrollEmployeeId ?? source.payroll_employee_id ?? source.payrollId ?? "").trim(),
+    bonusRole: String(source.bonusRole ?? source.bonus_role ?? "").trim(),
+    overridePlan: String(source.overridePlan ?? source.override_plan ?? "").trim(),
+    overridePlanId: String(source.overridePlanId ?? source.override_plan_id ?? "").trim(),
+    bonusPlanStatus: String(source.bonusPlanStatus ?? source.bonus_plan_status ?? "").trim(),
     sourceChangeId: String(source.sourceChangeId ?? "").trim(),
     historyBacked: Boolean(source.historyBacked),
     effectiveStart: normalizeSharedDate(source.effectiveStart),
@@ -6459,6 +6555,17 @@ function normalizePeopleEmployeeForSharedData(employee = {}, meta = {}) {
     regionalManagerId: employee.regionalManagerId,
     regionalManagerName: employee.regionalManagerName,
     region: employee.region,
+    bonusEligible: employee.bonusEligible,
+    bonusPlan: employee.bonusPlan,
+    bonusPlanId: employee.bonusPlanId,
+    bonusEffectiveDate: employee.bonusEffectiveDate,
+    targetBonus: employee.targetBonus,
+    salary: employee.salary,
+    payrollEmployeeId: employee.payrollEmployeeId,
+    bonusRole: employee.bonusRole,
+    overridePlan: employee.overridePlan,
+    overridePlanId: employee.overridePlanId,
+    bonusPlanStatus: employee.bonusPlanStatus,
     historyBacked: Array.isArray(employee.employeeAssignments),
     effectiveStart: getSharedDateFromEmployee(employee),
     effectiveEnd: getSharedDateFromEmployee(employee, SHARED_ASSIGNMENT_END_DATE_FIELDS),
@@ -6991,6 +7098,7 @@ function normalizeOpsGlobalData(data) {
     bonusQuarter: manualQuarterOverride ? storedQuarter : periodQuarter,
     bonusQuarterManualOverride: manualQuarterOverride,
     bonusCalcView: input.bonusCalcView === "jac" ? "jac" : "property",
+    bonusEngineState: normalizeBonusEngineState(input.bonusEngineState),
     jacsTeamBonus: normalizeJacsTeamBonus(input.jacsTeamBonus),
     regionalAssignments: normalizeRegionalAssignments(input.regionalAssignments),
     salarySecurity: normalizeSalarySecurity(input.salarySecurity),
@@ -7024,6 +7132,7 @@ function getLegacyOpsGlobalSeed() {
     bonusQuarter: legacy.bonusQuarter,
     bonusQuarterManualOverride: legacy.bonusQuarterManualOverride,
     bonusCalcView: legacy.bonusCalcView,
+    bonusEngineState: legacy.bonusEngineState,
     jacsTeamBonus: legacy.jacsTeamBonus,
     regionalAssignments: legacy.regionalAssignments,
     salarySecurity: legacy.salarySecurity,
@@ -7049,6 +7158,7 @@ function applyOpsGlobalData(data) {
   bonusQuarter = normalized.bonusQuarter;
   bonusQuarterManualOverride = normalized.bonusQuarterManualOverride;
   bonusCalcView = normalized.bonusCalcView;
+  bonusEngineState = normalized.bonusEngineState;
   jacsTeamBonus = normalized.jacsTeamBonus;
   regionalAssignments = normalized.regionalAssignments;
   salarySecurity = normalized.salarySecurity;
@@ -7109,6 +7219,7 @@ function persistOpsGlobalData() {
     bonusQuarter,
     bonusQuarterManualOverride,
     bonusCalcView,
+    bonusEngineState,
     jacsTeamBonus: serializeJacsTeamBonus(jacsTeamBonus),
     regionalAssignments,
     salarySecurity,
@@ -13470,7 +13581,7 @@ const ATLAS_ACCESS_ROLE_TABS = {
   maintenance: ["0","1","8","10","14"],
   finance: ["0","1","2","4","8","9","12","14","15"],
   bonus: ["0","1","8","9","14"],
-  viewer: ["0","2","8","14"]
+  viewer: ["0","2","8","9","14"]
 };
 
 const ATLAS_ACCESS_ROLES = [
@@ -13507,6 +13618,22 @@ const ATLAS_ACCOUNT_STATUSES = [
   ["roster_inactive", "Inactive"]
 ];
 
+const ATLAS_BONUS_PERMISSION_DEFS = [
+  ["view_bonus_module", "View Bonus Module"],
+  ["view_own_bonus", "View Own Bonus"],
+  ["view_own_region", "View Own Region"],
+  ["view_portfolio", "View Portfolio"],
+  ["edit_bonus_plans", "Edit Bonus Plans"],
+  ["run_calculations", "Run Calculations"],
+  ["approve_bonuses", "Approve Bonuses"],
+  ["override_calculations", "Override Calculations"],
+  ["view_salary", "View Salary"],
+  ["export_approval_reports", "Export Approval Reports"],
+  ["export_payroll_reports", "Export Payroll Reports"],
+  ["finalize_period", "Finalize / Lock Period"],
+  ["reopen_period", "Reopen Finalized Period"]
+];
+
 function defaultAtlasAccessFormDraft() {
   return {
     email: "",
@@ -13518,6 +13645,7 @@ function defaultAtlasAccessFormDraft() {
     allowedMarketValues: [],
     allowedRegionValues: [],
     lockedTabIds: [],
+    bonusPermissions: [],
     accessNotes: ""
   };
 }
@@ -13599,6 +13727,19 @@ const ATLAS_CUSTOM_DASHBOARD_WIDGETS = [
     metrics: ["Report Recipients", "Investor Packet Readiness", "Scheduled Exports", "Printable Views"],
     visualizations: ["KPI Card", "Readiness List"],
     description: "Report readiness, export workflows, and investor output coverage."
+  },
+  {
+    key: "projected_bonus",
+    label: "Projected Bonus",
+    category: "Compensation",
+    dataSource: "Bonus & Incentives",
+    tabId: 9,
+    accent: "#fcb53b",
+    phase: 1,
+    defaultMetric: "Projected Payout",
+    metrics: ["Projected Payout", "Percent of Potential", "Metric Progress", "Payout History"],
+    visualizations: ["KPI Card", "Progress List"],
+    description: "The signed-in employee's own projected payout and major metric progress."
   },
   {
     key: "dashboard_builder",
@@ -13713,6 +13854,7 @@ const ATLAS_DASHBOARD_LIBRARY_CATEGORIES = [
   "Inspections",
   "Vendors",
   "Financial",
+  "Compensation",
   "People",
   "Reputation",
   "Reports",
@@ -13783,27 +13925,27 @@ const ATLAS_DASHBOARD_WIDGET_SIZES = [
 const ATLAS_DASHBOARD_ROLE_TEMPLATES = {
   executive: {
     label: "Executive / VP",
-    widgets: ["portfolio_overview", "traffic_funnel", "renewals_retention", "reporting_exports", "reputation_pulse"]
+    widgets: ["projected_bonus", "portfolio_overview", "traffic_funnel", "renewals_retention", "reporting_exports", "reputation_pulse"]
   },
   regional: {
     label: "Regional Manager",
-    widgets: ["portfolio_overview", "traffic_funnel", "renewals_retention", "reputation_pulse", "reporting_exports"]
+    widgets: ["projected_bonus", "portfolio_overview", "traffic_funnel", "renewals_retention", "reputation_pulse", "reporting_exports"]
   },
   community_manager: {
     label: "General Manager",
-    widgets: ["portfolio_overview", "traffic_funnel", "renewals_retention", "reputation_pulse"]
+    widgets: ["projected_bonus", "portfolio_overview", "traffic_funnel", "renewals_retention", "reputation_pulse"]
   },
   leasing: {
     label: "Leasing",
-    widgets: ["traffic_funnel", "renewals_retention", "portfolio_overview"]
+    widgets: ["projected_bonus", "traffic_funnel", "renewals_retention", "portfolio_overview"]
   },
   maintenance: {
     label: "Maintenance Supervisor",
-    widgets: ["maintenance_exceptions", "move_in_risk", "portfolio_overview"]
+    widgets: ["projected_bonus", "maintenance_exceptions", "move_in_risk", "portfolio_overview"]
   },
   central_operations: {
     label: "Central Operations",
-    widgets: ["central_services_command_center", "portfolio_overview", "renewals_retention", "maintenance_exceptions", "vendor_scorecard"]
+    widgets: ["projected_bonus", "central_services_command_center", "portfolio_overview", "renewals_retention", "maintenance_exceptions", "vendor_scorecard"]
   },
   vendor_management: {
     label: "Vendor Management",
@@ -15013,6 +15155,16 @@ function buildAtlasDashboardWidgetSnapshot(instance = {}) {
     const [rawValue, sub] = metricMap[metric] || metricMap["Report Recipients"];
     return { value: atlasDashboardFormatNumber(rawValue), sub, detail: `${scopeSuffix}`, scopedDetails };
   }
+  if (instance.widgetKey === "projected_bonus") {
+    const projection = atlasBonusPersonalProjection();
+    const hidden = atlasBonusPayoutHidden();
+    return {
+      value: hidden ? "•••••" : atlasBonusCurrency(projection.projected),
+      sub: `${atlasBonusPct(projection.percent, 0)} of current bonus potential achieved`,
+      detail: projection.rows.length ? `${projection.rows.length} personal bonus record${projection.rows.length === 1 ? "" : "s"} matched this login` : "No personal bonus record matched this login",
+      scopedDetails
+    };
+  }
   if (instance.widgetKey === "dashboard_builder") {
     const view = getAtlasActiveDashboardView();
     const value = `${getAtlasDashboardSavedViews().length}`;
@@ -16011,6 +16163,7 @@ function normalizeAtlasAccessFormDraft(input = {}) {
     allowedRegionValues: allowedLocationValues,
     lockedTabIds: normalizeAtlasAccessList(input.lockedTabIds || input.locked_tab_ids || defaults.lockedTabIds)
       .filter(tabId => !ATLAS_SELF_SERVICE_TAB_IDS.includes(tabId)),
+    bonusPermissions: normalizeAtlasAccessList(input.bonusPermissions || input.bonus_permissions || defaults.bonusPermissions),
     accessNotes: String(input.accessNotes || input.access_notes || defaults.accessNotes).trim()
   };
 }
@@ -16044,6 +16197,7 @@ function readAtlasAccessFormDraftFromDom() {
     allowedMarketValues: getAtlasAccessCheckedValues("atlas-access-locations"),
     allowedRegionValues: getAtlasAccessCheckedValues("atlas-access-locations"),
     lockedTabIds: getAtlasAccessCheckedValues("atlas-access-tabs"),
+    bonusPermissions: getAtlasAccessCheckedValues("atlas-access-bonus-permissions"),
     accessNotes: document.getElementById("atlas-access-notes")?.value || ""
   });
 }
@@ -16084,6 +16238,7 @@ function applyAtlasAccessFormDraftToPanel() {
   setAtlasAccessCheckedInputs("atlas-access-communities", draft.allowedCommunityIds);
   setAtlasAccessCheckedInputs("atlas-access-locations", atlasAccessLocationScopeValues(draft));
   setAtlasAccessCheckedInputs("atlas-access-tabs", draft.lockedTabIds);
+  setAtlasAccessCheckedInputs("atlas-access-bonus-permissions", draft.bonusPermissions);
   const propertySummary = document.getElementById("atlas-access-community-summary");
   if (propertySummary) {
     propertySummary.textContent = buildAtlasAccessPropertyScopeSummary(
@@ -16654,6 +16809,9 @@ function renderAtlasDashboardHomeWidget(instance = {}) {
   const snapshot = buildAtlasDashboardWidgetSnapshot(instance);
   const sizeClass = instance.size === "compact" ? "is-compact" : instance.size === "expanded" ? "is-expanded" : "";
   const pinnedClass = instance.pinned ? "is-pinned" : "";
+  if (instance.widgetKey === "projected_bonus") {
+    return renderAtlasPersonalBonusLandingWidget({ extraClass: `${sizeClass} ${pinnedClass}`.trim() });
+  }
   const visualPreview = renderAtlasDashboardWidgetVisualPreview(instance, snapshot, definition);
   return `<button type="button" class="atlas-dashboard-widget-card ${sizeClass} ${pinnedClass}" onclick="atlasOpenDashboardWidget(${atlasDashboardJsArg(instance.instanceId)})" style="text-align:left;cursor:pointer">
     <div class="atlas-dashboard-widget-head">
@@ -16749,6 +16907,7 @@ function renderAtlasWelcomeDashboard() {
 function buildAtlasCentralPeoplePayload() {
   syncSharedPeopleAssignments({ persist: true });
   const sharedData = normalizeAtlasSharedData(atlasSharedData);
+  const includeSalary = typeof atlasBonusCanViewSalary === "function" && atlasBonusCanViewSalary();
   const assignmentByEmployee = sharedData.assignments.reduce((acc, assignment) => {
     acc[assignment.employeeId] = acc[assignment.employeeId] || [];
     acc[assignment.employeeId].push(assignment);
@@ -16757,10 +16916,17 @@ function buildAtlasCentralPeoplePayload() {
   return {
     source: "atlas_people_roster",
     generatedAt: new Date().toISOString(),
-    employees: Object.values(sharedData.employees || {}).map(employee => ({
-      ...employee,
-      assignments: assignmentByEmployee[employee.employeeId] || []
-    })),
+    salaryDataIncluded: includeSalary,
+    employees: Object.values(sharedData.employees || {}).map(employee => {
+      const { salary, ...safeEmployee } = employee;
+      const payloadEmployee = {
+        ...safeEmployee,
+        ...(includeSalary ? { salary } : {}),
+        assignments: assignmentByEmployee[employee.employeeId] || []
+      };
+      if (payloadEmployee.bonusEligible == null) delete payloadEmployee.bonusEligible;
+      return payloadEmployee;
+    }),
     validationIssues: sharedData.validationIssues || []
   };
 }
@@ -16773,10 +16939,21 @@ async function loadAtlasCentralPeopleAssignments({ silent = true, force = false 
     atlasCentralPeopleLoadPromise = (async () => {
       const query = [
         "deleted_at=is.null",
+        "select=assignment_id,effective_start,effective_end,title,employment_status,primary_assignment,source_module,source_identifier,updated_at,atlas_employees(employee_id,employee_number,email,full_name,status,status_type,bonus_eligible,bonus_plan,bonus_effective_date,target_bonus,payroll_employee_id,bonus_role,override_plan,bonus_plan_status),atlas_communities(community_id,display_name,canonical_name),atlas_roles(role_id,role_code,title,bonus_role_type)",
+        "order=effective_start.desc"
+      ].join("&");
+      const fallbackQuery = [
+        "deleted_at=is.null",
         "select=assignment_id,effective_start,effective_end,title,employment_status,primary_assignment,source_module,source_identifier,updated_at,atlas_employees(employee_id,employee_number,email,full_name,status,status_type),atlas_communities(community_id,display_name,canonical_name),atlas_roles(role_id,role_code,title,bonus_role_type)",
         "order=effective_start.desc"
       ].join("&");
-      const rows = await window.ATLAS_CENTRAL.fetchJson(`/atlas_employee_assignments?${query}`);
+      let rows;
+      try {
+        rows = await window.ATLAS_CENTRAL.fetchJson(`/atlas_employee_assignments?${query}`);
+      } catch (error) {
+        if (!/bonus_|target_bonus|payroll_employee_id|schema cache|column/i.test(String(error?.message || error))) throw error;
+        rows = await window.ATLAS_CENTRAL.fetchJson(`/atlas_employee_assignments?${fallbackQuery}`);
+      }
       const sharedData = normalizeAtlasSharedData(atlasSharedData);
       const employees = {};
       const assignments = [];
@@ -16800,6 +16977,14 @@ async function loadAtlasCentralPeopleAssignments({ silent = true, force = false 
           statusType: employee.status_type || "",
           communityName,
           bonusRoleType,
+          bonusEligible: employee.bonus_eligible,
+          bonusPlan: employee.bonus_plan || "",
+          bonusEffectiveDate: employee.bonus_effective_date || "",
+          targetBonus: employee.target_bonus || 0,
+          payrollEmployeeId: employee.payroll_employee_id || "",
+          bonusRole: employee.bonus_role || "",
+          overridePlan: employee.override_plan || "",
+          bonusPlanStatus: employee.bonus_plan_status || "",
           active: !String(employee.status || "").toLowerCase().includes("terminated"),
           source: "atlas_central_people",
           sourceUpdatedAt: row.updated_at || ""
@@ -16950,9 +17135,102 @@ function buildAtlasCentralMaintenanceInspectionPayload() {
 }
 
 function buildAtlasCentralBonusCalculationPayload() {
-  const period = getMarketingBonusPeriodRange(bonusQuarter);
+  const period = atlasBonusPeriodFromQuarter(bonusQuarter, new Date().getFullYear());
   const sharedData = normalizeAtlasSharedData(atlasSharedData);
   const marketingSnapshot = (sharedData.marketingBonusSnapshots || []).find(snapshot => snapshot.id === `marketing_bonus_${period.periodKey}`);
+  const rows = atlasBonusBuildCalculationRows({
+    filters: {
+      approvalStatus: "all",
+      planId: "all",
+      community: "all",
+      role: "all",
+      employee: "",
+      cadence: "all",
+      operatingType: "all"
+    }
+  });
+  const summary = atlasBonusSummary(rows);
+  const includeSalary = atlasBonusCanViewSalary();
+  const legacyBonusRoles = cloneAtlasMigrationPayload(bonusRolesByQ?.[bonusQuarter] || []);
+  const salarySafeLegacyBonusRoles = (Array.isArray(legacyBonusRoles) ? legacyBonusRoles : []).map(role => {
+    if (includeSalary) return role;
+    const { salary, ...safeRole } = role || {};
+    return safeRole;
+  });
+  const exportLine = row => {
+    const line = {
+      rowId: row.rowId,
+      employeeId: row.employee.employeeId,
+      peopleEmployeeId: row.employee.peopleEmployeeId || "",
+      employeeNumber: row.employee.employeeNumber || "",
+      payrollEmployeeId: row.employee.payrollEmployeeId || "",
+      employeeName: row.employee.name,
+      employeeEmail: row.employee.email || "",
+      communityName: row.employee.communityName || "",
+      region: row.employee.region || "",
+      role: row.employee.bonusRole || "",
+      planId: row.plan?.id || "",
+      planName: row.plan?.name || "",
+      planVersion: row.plan?.version || "",
+      planSource: row.planSource,
+      hierarchy: row.hierarchy,
+      operatingType: row.operatingType,
+      approvalStatus: row.approvalStatus,
+      projectedPayout: Math.round(row.projectedPayout * 100) / 100,
+      finalPayout: Math.round(row.finalPayout * 100) / 100,
+      maximumPotential: Math.round(row.maximumPotential * 100) / 100,
+      proration: {
+        factor: row.proration.factor,
+        eligibleDays: row.proration.eligibleDays,
+        totalDays: row.proration.totalDays,
+        segments: row.proration.segments
+      },
+      metrics: row.metricResults.map(result => ({
+        metricId: result.metric.id,
+        metricKey: result.metric.metricKey,
+        name: result.metric.name,
+        dataSource: result.metric.dataSource,
+        scope: result.metric.scope,
+        cadence: result.metric.cadence,
+        goal: result.metric.goal,
+        goalLogic: result.metric.goalLogic,
+        favorable: result.metric.favorable,
+        actual: result.actual,
+        achievementPct: Math.round(result.achievementPct * 100) / 100,
+        payoutPct: result.payoutPct,
+        earned: Math.round(result.earned * 100) / 100,
+        status: result.status
+      })),
+      exceptions: row.exceptions.map(exception => ({
+        severity: exception.severity,
+        code: exception.code,
+        message: exception.message,
+        metricId: exception.metricId || ""
+      })),
+      override: row.override ? {
+        id: row.override.id,
+        type: row.override.type,
+        originalAmount: row.override.originalAmount,
+        adjustedAmount: row.override.adjustedAmount,
+        reason: row.override.reason,
+        submittedBy: row.override.submittedBy,
+        submittedAt: row.override.submittedAt,
+        approvedBy: row.override.approvedBy || "",
+        approvedAt: row.override.approvedAt || "",
+        status: row.override.status
+      } : null
+    };
+    if (includeSalary) {
+      line.secureCalculationDetail = {
+        salary: Number(row.employee.salary || 0),
+        targetBonus: Number(row.employee.targetBonus || 0),
+        targetBonusPercent: Number(row.plan?.targetBonusPercent || 0),
+        grossPotential: Math.round(row.grossPotential * 100) / 100,
+        grossEarned: Math.round(row.grossEarned * 100) / 100
+      };
+    }
+    return line;
+  };
   return {
     source: "atlas_bonus_and_incentives",
     periodKey: period.periodKey,
@@ -16960,16 +17238,52 @@ function buildAtlasCentralBonusCalculationPayload() {
     quarter: period.quarter,
     periodStart: period.start,
     periodEnd: period.end,
-    totalPayout: 0,
+    generatedAt: new Date().toISOString(),
+    salaryDataIncluded: includeSalary,
+    totalPayout: Math.round(summary.final * 100) / 100,
+    projectedPayout: Math.round(summary.projected * 100) / 100,
+    approvedPayout: Math.round(summary.approved * 100) / 100,
+    bonusBudget: Math.round(summary.budget * 100) / 100,
+    varianceToBudget: Math.round(summary.variance * 100) / 100,
     sharedAssignmentCount: sharedData.assignments.length,
     currentAssignmentCount: sharedData.assignments.filter(assignment => isSharedAssignmentActiveOnDate(assignment, period.asOfDate)).length,
     marketingBonusSnapshot: marketingSnapshot || null,
-    bonusRoles: cloneAtlasMigrationPayload(bonusRolesByQ?.[bonusQuarter] || []),
+    bonusRoles: salarySafeLegacyBonusRoles,
+    planVersions: atlasBonusState().plans.map(plan => ({
+      planId: plan.id,
+      name: plan.name,
+      version: plan.version,
+      status: plan.status,
+      effectiveStart: plan.effectiveStart,
+      effectiveEnd: plan.effectiveEnd,
+      metrics: plan.metrics.map(metric => ({
+        metricId: metric.id,
+        metricKey: metric.metricKey,
+        name: metric.name,
+        goal: metric.goal,
+        weight: metric.weight,
+        payoutStructure: metric.payoutStructure,
+        maximumPayout: metric.maximumPayout,
+        dataSource: metric.dataSource
+      }))
+    })),
+    approvals: atlasBonusState().regionalSignatures || [],
+    overrides: atlasBonusState().overrides || [],
     exceptions: [
       ...(Array.isArray(sharedData.validationIssues) ? sharedData.validationIssues : []),
-      ...((marketingSnapshot && Array.isArray(marketingSnapshot.exceptions)) ? marketingSnapshot.exceptions : [])
+      ...((marketingSnapshot && Array.isArray(marketingSnapshot.exceptions)) ? marketingSnapshot.exceptions : []),
+      ...rows.flatMap(row => row.exceptions.map(exception => ({
+        employeeId: row.employee.employeeId,
+        employeeName: row.employee.name,
+        communityName: row.employee.communityName,
+        planId: row.plan?.id || "",
+        severity: exception.severity,
+        code: exception.code,
+        message: exception.message,
+        metricId: exception.metricId || ""
+      })))
     ],
-    lines: []
+    lines: rows.map(exportLine)
   };
 }
 
@@ -17718,6 +18032,7 @@ function buildAtlasEmployeeAccessDisplayRows() {
       allowed_region_values: row.allowed_region_values || row.allowedRegionValues || existing.allowed_region_values || profile?.allowed_region_values || [],
       locked_tab_ids: row.locked_tab_ids || row.lockedTabIds || existing.locked_tab_ids || profile?.locked_tab_ids || [],
       locked_page_keys: row.locked_page_keys || row.lockedPageKeys || existing.locked_page_keys || profile?.locked_page_keys || [],
+      bonus_permissions: row.bonus_permissions || row.bonusPermissions || existing.bonus_permissions || profile?.bonus_permissions || [],
       access_notes: row.access_notes || row.accessNotes || existing.access_notes || profile?.access_notes || "",
       _atlasRowSource: source,
       _atlasRosterEmployee: rosterEmployee || existing._atlasRosterEmployee || null,
@@ -17756,6 +18071,7 @@ function buildAtlasEmployeeAccessDisplayRows() {
       allowed_region_values: [],
       locked_tab_ids: [],
       locked_page_keys: [],
+      bonus_permissions: [],
       access_notes: "",
       _atlasRowSource: "roster",
       _atlasRosterEmployee: employee,
@@ -17933,6 +18249,7 @@ async function submitAtlasUserAccessForm() {
       allowedRegionValues: draft.allowedRegionValues,
       lockedTabIds: draft.lockedTabIds,
       lockedPageKeys: draft.lockedTabIds.map(tabId => getAtlasAccessTab(tabId).key),
+      bonusPermissions: draft.bonusPermissions,
       accessNotes: draft.accessNotes
     });
     setAtlasCentralRuntimeMessage(`Employee access saved for ${email}.`);
@@ -18092,6 +18409,7 @@ function renderAtlasEmployeeAccessPanel() {
   const tabOptions = ATLAS_ACCESS_TABS
     .filter(tab => !ATLAS_SELF_SERVICE_TAB_IDS.includes(tab.id))
     .map(tab => ({ value: tab.id, label: tab.label }));
+  const bonusPermissionOptions = ATLAS_BONUS_PERMISSION_DEFS.map(([value, label]) => ({ value, label }));
   return `${profileEditorHtml}<div class="card mb4">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
       <div>
@@ -18146,6 +18464,7 @@ function renderAtlasEmployeeAccessPanel() {
           </div>
           <div><div class="card-title">Location Scope</div><div style="font-size:0.64rem;color:var(--muted);margin:4px 0 8px">Markets and regions are consolidated here into consistent East, Central, and West access groupings.</div>${renderAtlasAccessCheckboxes("atlas-access-locations", locationOptions, atlasAccessLocationScopeValues(draft))}</div>
           <div><div class="card-title">Locked Tabs / Pages</div>${renderAtlasAccessCheckboxes("atlas-access-tabs", tabOptions, draft.lockedTabIds)}</div>
+          <div><div class="card-title">Bonus & Incentives Permissions</div><div style="font-size:0.64rem;color:var(--muted);margin:4px 0 8px">Leave blank to use role defaults. Turn on View Salary only for Admin or HR users.</div>${renderAtlasAccessCheckboxes("atlas-access-bonus-permissions", bonusPermissionOptions, draft.bonusPermissions)}</div>
           <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Access notes</span><textarea id="atlas-access-notes" placeholder="Optional admin note" oninput="syncAtlasAccessFormDraftFromPanel()">${escapeHtml(draft.accessNotes)}</textarea></label>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
@@ -26714,20 +27033,1641 @@ function renderJacsTeamBonusTab() {
   return summaryCard + frameworkNote + assignmentSection + turnoverRollupSection + regionalPointSystemSection + leasingLeaderboardSection + marketingBonusSection + groupSections;
 }
 
-function renderBonusTab() {
-  const effectiveBonusCalcView = isPortfolioWorkspaceSelected()
-    ? "jac"
-    : (bonusCalcView === "jac" ? "jac" : "property");
-  const innerTabs = isPortfolioWorkspaceSelected()
-    ? `<div class="bonus-inner-tabs">
-        <button class="bonus-inner-tab active" type="button">Jac's Team</button>
+const BONUS_ENGINE_SECTIONS = [
+  ["overview", "Bonus Overview"],
+  ["my_bonus", "My Bonus"],
+  ["builder", "Plan Builder"],
+  ["assignments", "Plan Assignments"],
+  ["calculations", "Bonus Calculations"],
+  ["projected", "Projected Payouts"],
+  ["approvals", "Approval Center"],
+  ["exceptions", "Exception Queue"],
+  ["forecast", "Expense Forecast"],
+  ["reports", "Reports & Exports"],
+  ["history", "Historical Plans"],
+  ["audit", "Audit Trail"],
+  ["settings", "Settings & Permissions"]
+];
+
+const BONUS_ENGINE_PERMISSION_DEFS = ATLAS_BONUS_PERMISSION_DEFS;
+
+const BONUS_ENGINE_ROLE_PERMISSION_DEFAULTS = {
+  admin: BONUS_ENGINE_PERMISSION_DEFS.map(([key]) => key),
+  centra: BONUS_ENGINE_PERMISSION_DEFS.map(([key]) => key),
+  people: ["view_bonus_module", "view_own_bonus", "view_portfolio", "edit_bonus_plans", "run_calculations", "approve_bonuses", "override_calculations", "view_salary", "export_approval_reports", "export_payroll_reports", "finalize_period", "reopen_period"],
+  executive: ["view_bonus_module", "view_own_bonus", "view_portfolio", "run_calculations", "approve_bonuses", "override_calculations", "export_approval_reports", "finalize_period", "reopen_period"],
+  regional: ["view_bonus_module", "view_own_bonus", "view_own_region", "approve_bonuses", "override_calculations", "export_approval_reports"],
+  community_manager: ["view_bonus_module", "view_own_bonus", "view_own_region"],
+  marketing: ["view_bonus_module", "view_own_bonus"],
+  maintenance: ["view_bonus_module", "view_own_bonus"],
+  finance: ["view_bonus_module", "view_own_bonus", "view_portfolio", "run_calculations", "export_approval_reports", "export_payroll_reports"],
+  bonus: ["view_bonus_module", "view_own_bonus", "view_portfolio", "edit_bonus_plans", "run_calculations", "approve_bonuses", "override_calculations", "export_approval_reports", "export_payroll_reports"],
+  viewer: ["view_own_bonus"]
+};
+
+const BONUS_ENGINE_ROLE_LABELS = {
+  gm: "General Manager",
+  am: "Assistant General Manager",
+  lm: "Leasing Manager",
+  lp: "Leasing Professional",
+  ms: "Maintenance Supervisor",
+  mt: "Maintenance Technician"
+};
+
+const BONUS_ENGINE_INITIAL_ROLES = [
+  "General Manager",
+  "Assistant General Manager",
+  "Leasing Manager",
+  "Leasing Professional",
+  "Maintenance Supervisor",
+  "Maintenance Technician",
+  "Regional Manager",
+  "Central Services",
+  "Marketing"
+];
+
+const BONUS_ENGINE_PAYOUT_STRUCTURES = [
+  ["fixed", "Fixed dollar payout"],
+  ["salary_percent", "Percentage of salary"],
+  ["period_base_percent", "Percentage of base pay"],
+  ["weighted_scorecard", "Weighted scorecard"],
+  ["tiered", "Tiered payout"],
+  ["per_unit", "Per-unit payout"],
+  ["per_lease", "Per-lease payout"],
+  ["per_event", "Per-event payout"],
+  ["flat_team", "Flat team payout"],
+  ["accelerator", "Accelerator structure"],
+  ["threshold_target_stretch", "Threshold / Target / Stretch"]
+];
+
+const BONUS_ENGINE_METRIC_LIBRARY = [
+  ["occupancy", "Occupancy", "Leasing", "Portfolio Overview"],
+  ["leased_pct", "Leased %", "Leasing", "Portfolio Overview"],
+  ["applications", "Applications", "Leasing", "Application Performance"],
+  ["approvals", "Approvals", "Leasing", "Application Performance"],
+  ["conversion", "Conversion", "Leasing", "Traffic & Funnel"],
+  ["move_ins", "Move-ins", "Leasing", "Traffic & Funnel"],
+  ["individual_leases", "Individual leases", "Leasing", "People / Application Performance"],
+  ["leasing_velocity", "Leasing velocity", "Leasing", "Traffic & Funnel"],
+  ["renewal_conversion", "Renewal conversion", "Renewals", "Renewals"],
+  ["rent_growth", "Rent growth", "Renewals", "Budget Builder"],
+  ["retention", "Retention", "Renewals", "Renewals"],
+  ["budget_attainment", "Budget vs. actual", "Financial", "Budget Builder"],
+  ["revenue", "Revenue", "Financial", "Budget Builder"],
+  ["expenses", "Expenses", "Financial", "Financial reporting"],
+  ["noi", "NOI", "Financial", "Budget Builder"],
+  ["delinquency", "Delinquency", "Resident Operations", "Financial reporting"],
+  ["collections", "Collections", "Resident Operations", "Financial reporting"],
+  ["resident_satisfaction", "Resident satisfaction", "Resident Operations", "Resident satisfaction"],
+  ["reputation_score", "Reputation score", "Reputation", "Reputation"],
+  ["review_volume", "Review volume", "Reputation", "Reputation"],
+  ["work_order_completion", "Work-order completion", "Maintenance", "Maintenance"],
+  ["completion_time", "Completion time", "Maintenance", "Maintenance"],
+  ["preventive_maintenance", "Preventive maintenance", "Maintenance", "Maintenance"],
+  ["vendor_performance", "Vendor performance", "Maintenance", "Maintenance"],
+  ["central_productivity", "Productivity", "Central Services", "Central Services"],
+  ["sla_achievement", "SLA achievement", "Central Services", "Central Services"],
+  ["leadership_score", "Leadership Score", "Custom", "Manual"],
+  ["audit_compliance", "Audit Compliance", "Custom", "Manager rated"],
+  ["special_project", "Special Project Completion", "Custom", "Manual"],
+  ["training_completion", "Training Completion", "Custom", "Manual"],
+  ["safety_compliance", "Safety Compliance", "Custom", "Manual"]
+];
+
+const BONUS_ENGINE_DEFAULT_CURVE = [
+  { thresholdPct: 100, payoutPct: 100, label: "Target +" },
+  { thresholdPct: 90, payoutPct: 50, label: "Threshold" },
+  { thresholdPct: 0, payoutPct: 0, label: "Below threshold" }
+];
+
+function atlasBonusClone(value, fallback = null) {
+  try { return JSON.parse(JSON.stringify(value ?? fallback)); } catch { return fallback; }
+}
+
+function atlasBonusJsArg(value) {
+  return JSON.stringify(value ?? "");
+}
+
+function atlasBonusCurrency(value = 0, options = {}) {
+  const amount = Number(value) || 0;
+  const maximumFractionDigits = options.cents ? 2 : 0;
+  return `$${amount.toLocaleString(undefined, { maximumFractionDigits })}`;
+}
+
+function atlasBonusPct(value = 0, decimals = 0) {
+  const num = Number(value) || 0;
+  return `${num.toFixed(decimals)}%`;
+}
+
+function atlasBonusDateLabel(value = "") {
+  const normalized = normalizeSharedDate(value);
+  if (!normalized) return "Not set";
+  const parsed = new Date(`${normalized}T00:00:00`);
+  return Number.isFinite(parsed.getTime()) ? parsed.toLocaleDateString() : normalized;
+}
+
+function atlasBonusPeriodFromQuarter(quarter = bonusQuarter, year = new Date().getFullYear()) {
+  const q = BONUS_QUARTERS.includes(quarter) ? quarter : getBonusQuarterForMonth(currentMonth);
+  const index = BONUS_QUARTERS.indexOf(q);
+  const startMonth = Math.max(0, index * 3);
+  const start = `${year}-${String(startMonth + 1).padStart(2, "0")}-01`;
+  const endDate = new Date(year, startMonth + 3, 0);
+  const end = `${year}-${String(startMonth + 3).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
+  return { periodKey: `${year}-${q}`, year, quarter: q, start, end, asOfDate: end };
+}
+
+function defaultBonusMetric(metricKey, name, options = {}) {
+  const library = BONUS_ENGINE_METRIC_LIBRARY.find(([key]) => key === metricKey) || [metricKey, name, "Custom", "Manual"];
+  return {
+    id: String(options.id || `metric_${metricKey}_${simpleHash(`${name}_${Date.now()}_${Math.random()}`)}`).replace(/[^\w-]/g, "_"),
+    metricKey,
+    name: name || library[1],
+    category: options.category || library[2],
+    dataSource: options.dataSource || library[3],
+    scope: options.scope || "property",
+    inputType: options.inputType || (library[2] === "Custom" ? "manager_rated" : "automatic"),
+    format: options.format || "pct",
+    goalLogic: options.goalLogic || ">=",
+    favorable: options.favorable || (["delinquency", "expenses", "completion_time", "applications_denied", "cancellations"].includes(metricKey) ? "lower" : "higher"),
+    goal: Number(options.goal ?? 100),
+    weight: Number(options.weight ?? 25),
+    cadence: options.cadence || "Quarterly",
+    payoutStructure: options.payoutStructure || "weighted_scorecard",
+    maximumPayout: Number(options.maximumPayout ?? 0),
+    perUnitRate: Number(options.perUnitRate ?? 0),
+    salaryPercent: Number(options.salaryPercent ?? 0),
+    thresholdCurve: Array.isArray(options.thresholdCurve) ? options.thresholdCurve.map(row => ({ ...row })) : BONUS_ENGINE_DEFAULT_CURVE.map(row => ({ ...row })),
+    requiresDocumentation: Boolean(options.requiresDocumentation),
+    notes: String(options.notes || "")
+  };
+}
+
+function defaultBonusPlan(id, name, role, options = {}) {
+  return {
+    id,
+    name,
+    description: String(options.description || ""),
+    version: String(options.version || "2026.1"),
+    status: String(options.status || "active"),
+    eligibleRoles: Array.isArray(options.eligibleRoles) ? options.eligibleRoles : [role],
+    eligibleCommunities: Array.isArray(options.eligibleCommunities) ? options.eligibleCommunities : [],
+    eligibleOperatingType: String(options.eligibleOperatingType || "any"),
+    effectiveStart: String(options.effectiveStart || "2026-01-01"),
+    effectiveEnd: String(options.effectiveEnd || "2026-12-31"),
+    payoutCadence: String(options.payoutCadence || "Quarterly"),
+    targetBonus: Number(options.targetBonus ?? 2500),
+    targetBonusPercent: Number(options.targetBonusPercent ?? 0),
+    maximumPayout: Number(options.maximumPayout ?? options.targetBonus ?? 2500),
+    approvalRequirements: Array.isArray(options.approvalRequirements) ? options.approvalRequirements : ["Regional approval", "HR payroll review"],
+    prorationRules: Array.isArray(options.prorationRules) ? options.prorationRules : ["New hires", "Transfers", "Promotions", "Leaves", "Terminations", "Property transfers", "Mid-period role changes"],
+    notes: String(options.notes || ""),
+    metrics: (options.metrics || []).map(metric => ({ ...metric })),
+    createdAt: String(options.createdAt || "2026-01-01T09:00:00.000Z"),
+    updatedAt: String(options.updatedAt || "2026-01-01T09:00:00.000Z")
+  };
+}
+
+function defaultBonusEnginePlans() {
+  return [
+    defaultBonusPlan("plan_gm_stabilized_2026", "General Manager - Stabilized Community Plan", "General Manager", {
+      description: "Balanced stabilized community scorecard across occupancy, renewals, NOI, delinquency, and reputation.",
+      targetBonus: 3000,
+      targetBonusPercent: 12,
+      maximumPayout: 3000,
+      eligibleOperatingType: "stabilized",
+      metrics: [
+        defaultBonusMetric("occupancy", "Occupancy", { weight: 25, goal: 95, format: "pct", dataSource: "Portfolio Overview" }),
+        defaultBonusMetric("retention", "Renewal retention", { weight: 20, goal: 60, format: "pct", dataSource: "Renewals" }),
+        defaultBonusMetric("noi", "NOI performance", { weight: 25, goal: 100, format: "pct", dataSource: "Budget Builder" }),
+        defaultBonusMetric("delinquency", "Delinquency", { weight: 15, goal: 3, format: "pct", favorable: "lower", dataSource: "Financial reporting" }),
+        defaultBonusMetric("reputation_score", "Reputation", { weight: 15, goal: 72, format: "number", dataSource: "Reputation" })
+      ]
+    }),
+    defaultBonusPlan("plan_gm_leaseup_2026", "General Manager - Lease-Up Community Plan", "General Manager", {
+      description: "Lease-up plan emphasizing velocity, applications, conversion, move-ins, occupancy growth, and budget discipline.",
+      targetBonus: 3600,
+      targetBonusPercent: 12,
+      maximumPayout: 3600,
+      eligibleOperatingType: "lease_up",
+      metrics: [
+        defaultBonusMetric("leasing_velocity", "Leasing velocity", { weight: 25, goal: 100, format: "pct", dataSource: "Traffic & Funnel" }),
+        defaultBonusMetric("applications", "Applications", { weight: 20, goal: 100, format: "pct", dataSource: "Application Performance" }),
+        defaultBonusMetric("conversion", "Conversion", { weight: 20, goal: 28, format: "pct", dataSource: "Traffic & Funnel" }),
+        defaultBonusMetric("move_ins", "Move-ins", { weight: 20, goal: 100, format: "pct", dataSource: "Traffic & Funnel" }),
+        defaultBonusMetric("budget_attainment", "Budget adherence", { weight: 15, goal: 100, format: "pct", dataSource: "Budget Builder" })
+      ]
+    }),
+    defaultBonusPlan("plan_leasing_production_2026", "Leasing Production Monthly Incentive", "Leasing Professional", {
+      description: "Monthly leasing production, application quality, and conversion incentive with per-lease support.",
+      payoutCadence: "Monthly",
+      targetBonus: 950,
+      maximumPayout: 950,
+      metrics: [
+        defaultBonusMetric("individual_leases", "Individual leases", { weight: 45, goal: 5, format: "number", payoutStructure: "per_lease", perUnitRate: 125, maximumPayout: 625, cadence: "Monthly", dataSource: "Application Performance" }),
+        defaultBonusMetric("applications", "Applications", { weight: 25, goal: 100, format: "pct", maximumPayout: 175, cadence: "Monthly", dataSource: "Application Performance" }),
+        defaultBonusMetric("conversion", "Conversion", { weight: 30, goal: 30, format: "pct", maximumPayout: 150, cadence: "Monthly", dataSource: "Traffic & Funnel" })
+      ]
+    }),
+    defaultBonusPlan("plan_maintenance_supervisor_2026", "Maintenance Supervisor Service Plan", "Maintenance Supervisor", {
+      description: "Maintenance scorecard balancing work-order throughput, turn quality, inspections, and resident satisfaction.",
+      targetBonus: 1800,
+      maximumPayout: 1800,
+      metrics: [
+        defaultBonusMetric("work_order_completion", "Work-order completion", { weight: 30, goal: 90, format: "pct", dataSource: "Maintenance" }),
+        defaultBonusMetric("completion_time", "Average completion time", { weight: 20, goal: 3, format: "number", favorable: "lower", dataSource: "Maintenance" }),
+        defaultBonusMetric("preventive_maintenance", "Preventive maintenance", { weight: 20, goal: 95, format: "pct", dataSource: "Maintenance" }),
+        defaultBonusMetric("resident_satisfaction", "Resident satisfaction", { weight: 15, goal: 85, format: "pct", dataSource: "Resident satisfaction" }),
+        defaultBonusMetric("safety_compliance", "Safety compliance", { weight: 15, goal: 100, format: "pct", inputType: "manager_rated", dataSource: "Manual", requiresDocumentation: true })
+      ]
+    }),
+    defaultBonusPlan("plan_regional_manager_2026", "Regional Manager Portfolio Plan", "Regional Manager", {
+      description: "Regional scorecard scoped only to assigned communities and portfolio responsibility.",
+      targetBonus: 6200,
+      targetBonusPercent: 15,
+      maximumPayout: 6200,
+      metrics: [
+        defaultBonusMetric("occupancy", "Assigned portfolio occupancy", { weight: 25, goal: 95, format: "pct", scope: "region" }),
+        defaultBonusMetric("retention", "Renewal retention", { weight: 20, goal: 60, format: "pct", scope: "region" }),
+        defaultBonusMetric("noi", "NOI performance", { weight: 25, goal: 100, format: "pct", scope: "region" }),
+        defaultBonusMetric("employee_turnover", "Employee turnover", { weight: 15, goal: 40, format: "pct", favorable: "lower", scope: "region", dataSource: "People" }),
+        defaultBonusMetric("reputation_score", "Reputation", { weight: 15, goal: 72, format: "number", scope: "region" })
+      ]
+    }),
+    defaultBonusPlan("plan_central_services_2026", "Central Services SLA Incentive", "Central Services", {
+      description: "Central Services incentive for productivity, turnaround, and workflow completion.",
+      payoutCadence: "Monthly",
+      targetBonus: 850,
+      maximumPayout: 850,
+      metrics: [
+        defaultBonusMetric("central_productivity", "Productivity", { weight: 35, goal: 100, format: "pct", dataSource: "Central Services", cadence: "Monthly" }),
+        defaultBonusMetric("sla_achievement", "SLA achievement", { weight: 35, goal: 95, format: "pct", dataSource: "Central Services", cadence: "Monthly" }),
+        defaultBonusMetric("workflow_completion", "Workflow completion", { weight: 30, goal: 100, format: "pct", dataSource: "Central Services", cadence: "Monthly" })
+      ]
+    }),
+    defaultBonusPlan("plan_marketing_2026", "Marketing Performance Incentive", "Marketing", {
+      description: "Marketing incentive tied to approved work, campaign turnaround, savings, and service quality.",
+      payoutCadence: "Quarterly",
+      targetBonus: 1200,
+      maximumPayout: 1200,
+      metrics: [
+        defaultBonusMetric("central_productivity", "Approved work volume", { weight: 30, goal: 100, format: "pct", dataSource: "Marketing" }),
+        defaultBonusMetric("sla_achievement", "On-time delivery", { weight: 30, goal: 90, format: "pct", dataSource: "Marketing" }),
+        defaultBonusMetric("resident_satisfaction", "Internal satisfaction", { weight: 20, goal: 4, format: "number", dataSource: "Marketing" }),
+        defaultBonusMetric("budget_attainment", "Campaign budget adherence", { weight: 20, goal: 100, format: "pct", dataSource: "Budget Builder" })
+      ]
+    }),
+    defaultBonusPlan("plan_custom_leadership_project", "Special Project Completion Incentive", "Individual Employee", {
+      description: "Example individual override plan for temporary projects or special initiatives.",
+      payoutCadence: "One-time",
+      targetBonus: 1500,
+      maximumPayout: 1500,
+      eligibleRoles: ["Individual Employee"],
+      metrics: [
+        defaultBonusMetric("special_project", "Special project completion", { weight: 60, goal: 100, format: "pct", inputType: "manager_rated", dataSource: "Manual", requiresDocumentation: true }),
+        defaultBonusMetric("leadership_score", "Leadership score", { weight: 40, goal: 4, format: "number", inputType: "manager_rated", dataSource: "Manager rated", requiresDocumentation: true })
+      ]
+    }),
+    defaultBonusPlan("plan_gm_2027_scheduled", "2027 GM Bonus Plan", "General Manager", {
+      description: "Future effective-dated copy ready for independent 2027 editing.",
+      status: "scheduled",
+      version: "2027.1",
+      effectiveStart: "2027-01-01",
+      effectiveEnd: "2027-12-31",
+      targetBonus: 3250,
+      maximumPayout: 3250,
+      metrics: [
+        defaultBonusMetric("occupancy", "Occupancy", { weight: 25, goal: 95, format: "pct" }),
+        defaultBonusMetric("retention", "Retention", { weight: 20, goal: 62, format: "pct" }),
+        defaultBonusMetric("noi", "NOI performance", { weight: 25, goal: 100, format: "pct" }),
+        defaultBonusMetric("resident_satisfaction", "Resident satisfaction", { weight: 15, goal: 86, format: "pct" }),
+        defaultBonusMetric("audit_compliance", "Audit compliance", { weight: 15, goal: 100, format: "pct", inputType: "manager_rated", dataSource: "Manual", requiresDocumentation: true })
+      ]
+    })
+  ];
+}
+
+function defaultBonusEngineState() {
+  const period = atlasBonusPeriodFromQuarter(bonusQuarter, new Date().getFullYear());
+  return {
+    schemaVersion: 1,
+    activeSection: "overview",
+    selectedPlanId: "plan_gm_stabilized_2026",
+    selectedReportType: "hr_payroll",
+    filters: {
+      periodKey: period.periodKey,
+      region: "all",
+      community: "all",
+      role: "all",
+      employee: "",
+      planId: "all",
+      approvalStatus: "all",
+      cadence: "all",
+      operatingType: "all"
+    },
+    plans: defaultBonusEnginePlans(),
+    assignments: [
+      { id: "assign_role_gm_stabilized", level: "role", role: "General Manager", operatingType: "stabilized", communityName: "", employeeId: "", planId: "plan_gm_stabilized_2026", effectiveStart: "2026-01-01", effectiveEnd: "2026-12-31", status: "active" },
+      { id: "assign_role_gm_leaseup", level: "role", role: "General Manager", operatingType: "lease_up", communityName: "", employeeId: "", planId: "plan_gm_leaseup_2026", effectiveStart: "2026-01-01", effectiveEnd: "2026-12-31", status: "active" },
+      { id: "assign_role_lp", level: "role", role: "Leasing Professional", operatingType: "any", communityName: "", employeeId: "", planId: "plan_leasing_production_2026", effectiveStart: "2026-01-01", effectiveEnd: "2026-12-31", status: "active" },
+      { id: "assign_role_ms", level: "role", role: "Maintenance Supervisor", operatingType: "any", communityName: "", employeeId: "", planId: "plan_maintenance_supervisor_2026", effectiveStart: "2026-01-01", effectiveEnd: "2026-12-31", status: "active" },
+      { id: "assign_role_regional", level: "role", role: "Regional Manager", operatingType: "any", communityName: "", employeeId: "", planId: "plan_regional_manager_2026", effectiveStart: "2026-01-01", effectiveEnd: "2026-12-31", status: "active" },
+      { id: "assign_role_central", level: "role", role: "Central Services", operatingType: "any", communityName: "", employeeId: "", planId: "plan_central_services_2026", effectiveStart: "2026-01-01", effectiveEnd: "2026-12-31", status: "active" },
+      { id: "assign_role_marketing", level: "role", role: "Marketing", operatingType: "any", communityName: "", employeeId: "", planId: "plan_marketing_2026", effectiveStart: "2026-01-01", effectiveEnd: "2026-12-31", status: "active" },
+      { id: "assign_property_baymeadows_gm", level: "property", role: "General Manager", operatingType: "lease_up", communityName: "Baymeadows", employeeId: "", planId: "plan_gm_leaseup_2026", effectiveStart: "2026-01-01", effectiveEnd: "2026-12-31", status: "active" },
+      { id: "assign_employee_special_project", level: "employee", role: "Individual Employee", operatingType: "any", communityName: "", employeeId: "sample_emp_custom", planId: "plan_custom_leadership_project", effectiveStart: "2026-07-01", effectiveEnd: "2026-09-30", status: "active" }
+    ],
+    communityOperatingTypes: {
+      Baymeadows: "lease_up",
+      Sereno: "stabilized"
+    },
+    employeeComp: {
+      sample_emp_gm: { salary: 92000, targetBonus: 3000, bonusEligible: true, bonusPlanStatus: "Active" },
+      sample_emp_leaseup_gm: { salary: 96000, targetBonus: 3600, bonusEligible: true, bonusPlanStatus: "Active" },
+      sample_emp_lp: { salary: 54000, targetBonus: 950, bonusEligible: true, bonusPlanStatus: "Active" },
+      sample_emp_ms: { salary: 76000, targetBonus: 1800, bonusEligible: true, bonusPlanStatus: "Active" },
+      sample_emp_regional: { salary: 118000, targetBonus: 6200, bonusEligible: true, bonusPlanStatus: "Active" },
+      sample_emp_central: { salary: 66000, targetBonus: 850, bonusEligible: true, bonusPlanStatus: "Active" },
+      sample_emp_marketing: { salary: 70000, targetBonus: 1200, bonusEligible: true, bonusPlanStatus: "Active" },
+      sample_emp_transfer: { salary: 72000, targetBonus: 1800, bonusEligible: true, bonusPlanStatus: "Active" },
+      sample_emp_custom: { salary: 88000, targetBonus: 1500, bonusEligible: true, bonusPlanStatus: "Override" }
+    },
+    approvalStatusByRowId: {},
+    exceptionStatusById: {},
+    overrides: [
+      { id: "override_proration_transfer", employeeId: "sample_emp_transfer", rowId: "", type: "proration", originalAmount: 900, adjustedAmount: 1800, reason: "Approved full-quarter potential after mid-period maintenance transfer.", submittedBy: "Regional Manager", submittedAt: "2026-09-01T14:15:00.000Z", status: "pending_approval", comments: "VP/Admin/HR review required before final." },
+      { id: "override_payout_custom", employeeId: "sample_emp_custom", rowId: "", type: "payout", originalAmount: 1050, adjustedAmount: 1250, reason: "Special project scope expanded after kickoff.", submittedBy: "Regional Manager", submittedAt: "2026-09-02T10:30:00.000Z", status: "pending_approval", comments: "Supporting documentation attached in project notes." }
+    ],
+    periodLocks: {},
+    regionalSignatures: [],
+    notifications: [],
+    hiddenPayoutUsers: {},
+    lastRunAt: "",
+    simulation: null,
+    auditTrail: [
+      { id: "audit_seed_plan", action: "Plan created", entity: "2026 GM Bonus Plan", user: "ATLAS Admin", at: "2026-01-01T09:00:00.000Z", previousValue: "None", newValue: "Version 2026.1", reason: "Initial engine seed" },
+      { id: "audit_seed_assignment", action: "Employee assigned", entity: "Special Project Completion Incentive", user: "HR", at: "2026-07-01T09:00:00.000Z", previousValue: "Role plan", newValue: "Individual employee override", reason: "Temporary incentive program" }
+    ]
+  };
+}
+
+function normalizeBonusEngineMetric(metric = {}) {
+  const source = metric && typeof metric === "object" ? metric : {};
+  return {
+    ...defaultBonusMetric(source.metricKey || "leadership_score", source.name || "Custom Metric"),
+    ...source,
+    id: String(source.id || `metric_${simpleHash(`${source.metricKey || "custom"}_${source.name || ""}`)}`).trim(),
+    goal: Number(source.goal ?? 0),
+    weight: Number(source.weight ?? 0),
+    maximumPayout: Number(source.maximumPayout ?? 0),
+    perUnitRate: Number(source.perUnitRate ?? 0),
+    salaryPercent: Number(source.salaryPercent ?? 0),
+    thresholdCurve: Array.isArray(source.thresholdCurve) && source.thresholdCurve.length ? source.thresholdCurve.map(row => ({
+      thresholdPct: Number(row.thresholdPct ?? 0),
+      payoutPct: Number(row.payoutPct ?? 0),
+      label: String(row.label || "")
+    })) : BONUS_ENGINE_DEFAULT_CURVE.map(row => ({ ...row })),
+    requiresDocumentation: Boolean(source.requiresDocumentation),
+    notes: String(source.notes || "")
+  };
+}
+
+function normalizeBonusEnginePlan(plan = {}) {
+  const source = plan && typeof plan === "object" ? plan : {};
+  const base = defaultBonusPlan(source.id || `plan_${simpleHash(source.name || "bonus")}`, source.name || "Bonus Plan", source.eligibleRoles?.[0] || "Individual Employee");
+  return {
+    ...base,
+    ...source,
+    id: String(source.id || base.id).trim(),
+    name: String(source.name || base.name).trim(),
+    description: String(source.description || ""),
+    version: String(source.version || base.version).trim(),
+    status: ["draft", "scheduled", "active", "expired", "archived"].includes(String(source.status || "").toLowerCase()) ? String(source.status).toLowerCase() : base.status,
+    eligibleRoles: Array.isArray(source.eligibleRoles) ? source.eligibleRoles.map(item => String(item || "").trim()).filter(Boolean) : base.eligibleRoles,
+    eligibleCommunities: Array.isArray(source.eligibleCommunities) ? source.eligibleCommunities.map(item => String(item || "").trim()).filter(Boolean) : [],
+    eligibleOperatingType: ["any", "stabilized", "lease_up"].includes(String(source.eligibleOperatingType || "")) ? String(source.eligibleOperatingType) : "any",
+    effectiveStart: normalizeSharedDate(source.effectiveStart) || base.effectiveStart,
+    effectiveEnd: normalizeSharedDate(source.effectiveEnd) || base.effectiveEnd,
+    payoutCadence: String(source.payoutCadence || base.payoutCadence).trim(),
+    targetBonus: Number(source.targetBonus ?? base.targetBonus),
+    targetBonusPercent: Number(source.targetBonusPercent ?? base.targetBonusPercent),
+    maximumPayout: Number(source.maximumPayout ?? base.maximumPayout),
+    approvalRequirements: Array.isArray(source.approvalRequirements) ? source.approvalRequirements.map(item => String(item || "").trim()).filter(Boolean) : base.approvalRequirements,
+    prorationRules: Array.isArray(source.prorationRules) ? source.prorationRules.map(item => String(item || "").trim()).filter(Boolean) : base.prorationRules,
+    metrics: Array.isArray(source.metrics) && source.metrics.length ? source.metrics.map(normalizeBonusEngineMetric) : base.metrics.map(normalizeBonusEngineMetric),
+    notes: String(source.notes || ""),
+    createdAt: String(source.createdAt || base.createdAt),
+    updatedAt: String(source.updatedAt || new Date().toISOString())
+  };
+}
+
+function normalizeBonusEngineState(input = {}) {
+  const defaults = defaultBonusEngineState();
+  const source = input && typeof input === "object" ? input : {};
+  const sectionIds = new Set(BONUS_ENGINE_SECTIONS.map(([id]) => id));
+  const plans = Array.isArray(source.plans) && source.plans.length ? source.plans.map(normalizeBonusEnginePlan) : defaults.plans;
+  const selectedPlanId = plans.some(plan => plan.id === source.selectedPlanId) ? source.selectedPlanId : plans[0]?.id || "";
+  return {
+    ...defaults,
+    ...source,
+    activeSection: sectionIds.has(source.activeSection) ? source.activeSection : defaults.activeSection,
+    selectedPlanId,
+    selectedReportType: String(source.selectedReportType || defaults.selectedReportType),
+    filters: { ...defaults.filters, ...(source.filters && typeof source.filters === "object" ? source.filters : {}) },
+    plans,
+    assignments: Array.isArray(source.assignments) ? source.assignments.map(item => ({
+      id: String(item.id || `assign_${simpleHash(`${item.level || ""}_${item.role || ""}_${item.planId || ""}`)}`),
+      level: ["employee", "property", "role", "default"].includes(String(item.level || "")) ? String(item.level) : "role",
+      role: String(item.role || ""),
+      operatingType: ["any", "stabilized", "lease_up"].includes(String(item.operatingType || "")) ? String(item.operatingType) : "any",
+      communityName: String(item.communityName || ""),
+      employeeId: String(item.employeeId || ""),
+      planId: String(item.planId || ""),
+      effectiveStart: normalizeSharedDate(item.effectiveStart) || defaults.assignments[0]?.effectiveStart || "2026-01-01",
+      effectiveEnd: normalizeSharedDate(item.effectiveEnd) || "",
+      status: String(item.status || "active")
+    })) : defaults.assignments,
+    communityOperatingTypes: { ...defaults.communityOperatingTypes, ...(source.communityOperatingTypes && typeof source.communityOperatingTypes === "object" ? source.communityOperatingTypes : {}) },
+    employeeComp: { ...defaults.employeeComp, ...(source.employeeComp && typeof source.employeeComp === "object" ? source.employeeComp : {}) },
+    approvalStatusByRowId: source.approvalStatusByRowId && typeof source.approvalStatusByRowId === "object" ? source.approvalStatusByRowId : {},
+    exceptionStatusById: source.exceptionStatusById && typeof source.exceptionStatusById === "object" ? source.exceptionStatusById : {},
+    overrides: Array.isArray(source.overrides) ? source.overrides.map(item => ({ ...item })) : defaults.overrides,
+    periodLocks: source.periodLocks && typeof source.periodLocks === "object" ? source.periodLocks : {},
+    regionalSignatures: Array.isArray(source.regionalSignatures) ? source.regionalSignatures.slice(0, 200) : defaults.regionalSignatures,
+    notifications: Array.isArray(source.notifications) ? source.notifications.slice(0, 200) : defaults.notifications,
+    hiddenPayoutUsers: source.hiddenPayoutUsers && typeof source.hiddenPayoutUsers === "object" ? source.hiddenPayoutUsers : {},
+    lastRunAt: String(source.lastRunAt || ""),
+    simulation: source.simulation && typeof source.simulation === "object" ? source.simulation : null,
+    auditTrail: Array.isArray(source.auditTrail) ? source.auditTrail.slice(0, 400) : defaults.auditTrail
+  };
+}
+
+function atlasBonusState() {
+  bonusEngineState = normalizeBonusEngineState(bonusEngineState);
+  return bonusEngineState;
+}
+
+function atlasBonusAddAudit(action, entity, previousValue = "", newValue = "", reason = "") {
+  const state = atlasBonusState();
+  const profile = getAtlasAccessProfile();
+  state.auditTrail = [
+    {
+      id: `audit_${simpleHash(`${Date.now()}_${action}_${entity}`)}`,
+      action,
+      entity,
+      user: atlasUserDisplayName(profile || { email: getAtlasCentralStatus().userEmail || "Local admin" }),
+      at: new Date().toISOString(),
+      previousValue: String(previousValue || ""),
+      newValue: String(newValue || ""),
+      reason: String(reason || "")
+    },
+    ...(state.auditTrail || [])
+  ].slice(0, 400);
+}
+
+function atlasBonusPersist(action = "", entity = "", previousValue = "", newValue = "", reason = "") {
+  if (action) atlasBonusAddAudit(action, entity, previousValue, newValue, reason);
+  persistOpsGlobalData();
+}
+
+function atlasBonusCurrentRole() {
+  const status = getAtlasCentralStatus();
+  const profile = getAtlasAccessProfile();
+  return String(profile?.role || status.role || (!status.configured ? "admin" : "viewer")).trim().toLowerCase() || "viewer";
+}
+
+function atlasBonusCan(permission = "") {
+  const key = String(permission || "").trim();
+  if (!key) return false;
+  const profile = getAtlasAccessProfile();
+  const explicit = normalizeAtlasAccessList(profile?.bonus_permissions || profile?.bonusPermissions);
+  if (explicit.length) return explicit.includes(key);
+  const role = atlasBonusCurrentRole();
+  return (BONUS_ENGINE_ROLE_PERMISSION_DEFAULTS[role] || BONUS_ENGINE_ROLE_PERMISSION_DEFAULTS.viewer || []).includes(key);
+}
+
+function atlasBonusCanViewSalary() {
+  return atlasBonusCan("view_salary");
+}
+
+function atlasBonusSectionVisible(section = "") {
+  if (section === "my_bonus") return atlasBonusCan("view_own_bonus") || atlasBonusCan("view_bonus_module");
+  if (!atlasBonusCan("view_bonus_module")) return false;
+  if (section === "builder") return atlasBonusCan("edit_bonus_plans");
+  if (section === "calculations") return atlasBonusCan("run_calculations") || atlasBonusCan("approve_bonuses") || atlasBonusCan("view_portfolio");
+  if (section === "approvals") return atlasBonusCan("approve_bonuses");
+  if (section === "reports") return atlasBonusCan("export_approval_reports") || atlasBonusCan("export_payroll_reports");
+  if (section === "settings") return atlasBonusCan("edit_bonus_plans") || atlasBonusCan("view_portfolio");
+  return true;
+}
+
+function atlasBonusVisibleSections() {
+  return BONUS_ENGINE_SECTIONS.filter(([id]) => atlasBonusSectionVisible(id));
+}
+
+function atlasBonusUserKey() {
+  const status = getAtlasCentralStatus();
+  const profile = getAtlasAccessProfile();
+  return String(profile?.user_id || profile?.email || status.userEmail || "local_admin").trim().toLowerCase();
+}
+
+function atlasBonusSalaryMask() {
+  return "Restricted";
+}
+
+function atlasBonusRoleLabelFromType(roleType = "", title = "") {
+  const direct = BONUS_ENGINE_ROLE_LABELS[String(roleType || "").trim()];
+  if (direct) return direct;
+  const raw = String(title || "").toLowerCase();
+  if (raw.includes("regional")) return "Regional Manager";
+  if (raw.includes("central")) return "Central Services";
+  if (raw.includes("marketing")) return "Marketing";
+  return BONUS_ENGINE_ROLE_LABELS[inferSharedBonusRoleType(title)] || String(title || "Individual Employee").trim();
+}
+
+function atlasBonusGetCommunityOperatingType(communityName = "") {
+  const state = atlasBonusState();
+  const community = String(communityName || "").trim();
+  const override = state.communityOperatingTypes[community];
+  if (override) return override;
+  const record = community === getProp().name ? getCurrentCommunityRecord() : normalizeSavedCommunityRecord(community, savedData?.[community]);
+  const text = `${record?.communityPropertyType || ""} ${record?.propertyType || ""} ${community}`.toLowerCase();
+  return text.includes("lease") || text.includes("development") ? "lease_up" : "stabilized";
+}
+
+function atlasBonusSampleEmployees() {
+  const names = getAtlasOperationalCommunityNames(true);
+  const primary = names[0] || getProp().name || "Sereno";
+  const baymeadows = names.find(name => normalizeCommunityLookupName(name) === normalizeCommunityLookupName("Baymeadows"));
+  const secondary = baymeadows || names.find(name => normalizeCommunityLookupName(name) !== normalizeCommunityLookupName(primary)) || "Baymeadows";
+  const region = getAtlasSharedPropertyByName(primary)?.regionalGrouping || "Central Florida";
+  const metric = (values = {}) => values;
+  return [
+    { employeeId: "sample_emp_gm", employeeNumber: "681151", payrollEmployeeId: "681151", email: "alex.gm@risere.com", name: "Alex Morgan", title: "General Manager", bonusRole: "General Manager", communityName: primary, assignedCommunity: primary, region, active: true, source: "seeded_workflow", sampleMetrics: metric({ occupancy: 96.1, retention: 64, noi: 103, delinquency: 2.1, reputation_score: 74 }) },
+    { employeeId: "sample_emp_leaseup_gm", employeeNumber: "681152", payrollEmployeeId: "681152", email: "bri.leaseup@risere.com", name: "Bri Sanders", title: "General Manager", bonusRole: "General Manager", communityName: secondary, assignedCommunity: secondary, region: "Lease-Up", active: true, source: "seeded_workflow", sampleMetrics: metric({ leasing_velocity: 101, applications: 95, conversion: 31, move_ins: 104, budget_attainment: 98 }) },
+    { employeeId: "sample_emp_lp", employeeNumber: "681153", payrollEmployeeId: "681153", email: "casey.leasing@risere.com", name: "Casey Lee", title: "Leasing Professional", bonusRole: "Leasing Professional", communityName: primary, assignedCommunity: primary, region, active: true, source: "seeded_workflow", sampleMetrics: metric({ individual_leases: 6, applications: 94, conversion: 32 }) },
+    { employeeId: "sample_emp_ms", employeeNumber: "681154", payrollEmployeeId: "681154", email: "drew.service@risere.com", name: "Drew Patel", title: "Maintenance Supervisor", bonusRole: "Maintenance Supervisor", communityName: primary, assignedCommunity: primary, region, active: true, source: "seeded_workflow", sampleMetrics: metric({ work_order_completion: 91, completion_time: 2.6, preventive_maintenance: 96, resident_satisfaction: 88, safety_compliance: 100 }) },
+    { employeeId: "sample_emp_regional", employeeNumber: "681155", payrollEmployeeId: "681155", email: "erin.regional@risere.com", name: "Erin Wallace", title: "Regional Manager", bonusRole: "Regional Manager", communityName: primary, assignedCommunity: primary, region, active: true, source: "seeded_workflow", sampleMetrics: metric({ occupancy: 94.7, retention: 63, noi: 101, employee_turnover: 32, reputation_score: 73 }) },
+    { employeeId: "sample_emp_central", employeeNumber: "681156", payrollEmployeeId: "681156", email: "fran.central@risere.com", name: "Fran Chen", title: "Central Services", bonusRole: "Central Services", communityName: "", assignedCommunity: "", region: "Central Services", active: true, source: "seeded_workflow", sampleMetrics: metric({ central_productivity: 108, sla_achievement: 96, workflow_completion: 99 }) },
+    { employeeId: "sample_emp_marketing", employeeNumber: "681157", payrollEmployeeId: "681157", email: "gray.marketing@risere.com", name: "Gray Brooks", title: "Marketing", bonusRole: "Marketing", communityName: "", assignedCommunity: "", region: "Marketing", active: true, source: "seeded_workflow", sampleMetrics: metric({ central_productivity: 112, sla_achievement: 92, resident_satisfaction: 4.4, budget_attainment: 99 }) },
+    { employeeId: "sample_emp_transfer", employeeNumber: "681158", payrollEmployeeId: "681158", email: "harper.transfer@risere.com", name: "Harper Neal", title: "Maintenance Supervisor", bonusRole: "Maintenance Supervisor", communityName: secondary, assignedCommunity: secondary, region, active: true, source: "seeded_workflow", sampleMetrics: metric({ work_order_completion: 88, completion_time: 3.1, preventive_maintenance: 91, resident_satisfaction: 82, safety_compliance: 100 }), transferSegments: [
+      { communityName: primary, start: "2026-07-01", end: "2026-08-14", days: 45 },
+      { communityName: secondary, start: "2026-08-15", end: "2026-09-28", days: 45 }
+    ] },
+    { employeeId: "sample_emp_custom", employeeNumber: "681159", payrollEmployeeId: "681159", email: "indy.project@risere.com", name: "Indy Roberts", title: "General Manager", bonusRole: "General Manager", communityName: primary, assignedCommunity: primary, region, active: true, source: "seeded_workflow", overridePlanId: "plan_custom_leadership_project", sampleMetrics: metric({ special_project: 100, leadership_score: 4.2 }) },
+    { employeeId: "sample_emp_missing", employeeNumber: "681160", payrollEmployeeId: "681160", email: "missing.data@risere.com", name: "Missing Data Example", title: "Leasing Professional", bonusRole: "Leasing Professional", communityName: "", assignedCommunity: "", region, active: true, source: "seeded_workflow", sampleMetrics: metric({ individual_leases: null, applications: null, conversion: null }) }
+  ];
+}
+
+function atlasBonusPeopleEmployees() {
+  const shared = normalizeAtlasSharedData(atlasSharedData);
+  const employees = Object.values(shared.employees || {});
+  if (!employees.length) return [];
+  return employees.map(employee => {
+    const comp = atlasBonusState().employeeComp?.[employee.employeeId] || {};
+    return {
+      employeeId: employee.employeeId,
+      peopleEmployeeId: employee.peopleEmployeeId,
+      employeeNumber: employee.employeeNumber,
+      payrollEmployeeId: comp.payrollEmployeeId || employee.payrollEmployeeId || employee.employeeNumber || employee.peopleEmployeeId || employee.employeeId,
+      email: employee.email,
+      name: employee.name,
+      title: employee.title,
+      bonusRole: comp.bonusRole || employee.bonusRole || atlasBonusRoleLabelFromType(employee.bonusRoleType, employee.title),
+      communityName: employee.communityName,
+      assignedCommunity: employee.communityName,
+      region: employee.region,
+      active: employee.active !== false,
+      source: employee.source || "people",
+      effectiveStart: employee.effectiveStart,
+      effectiveEnd: employee.effectiveEnd,
+      overridePlanId: comp.overridePlanId || employee.overridePlanId || employee.overridePlan || "",
+      bonusPlanId: comp.bonusPlanId || employee.bonusPlanId || employee.bonusPlan || "",
+      bonusPlanStatus: comp.bonusPlanStatus || employee.bonusPlanStatus || "Active",
+      bonusEligible: comp.bonusEligible !== undefined ? Boolean(comp.bonusEligible) : employee.bonusEligible !== false && Boolean(employee.bonusEligible || employee.bonusRoleType || employee.bonusRole || employee.bonusPlanId || employee.bonusPlan || employee.overridePlanId || employee.overridePlan),
+      salary: Number(comp.salary ?? employee.salary ?? 0),
+      targetBonus: Number(comp.targetBonus ?? employee.targetBonus ?? 0)
+    };
+  });
+}
+
+function atlasBonusEmployees() {
+  const real = atlasBonusPeopleEmployees().filter(employee => employee.active !== false);
+  const rows = real.length ? real : atlasBonusSampleEmployees();
+  const state = atlasBonusState();
+  return rows.map(employee => {
+    const comp = state.employeeComp?.[employee.employeeId] || {};
+    const bonusRole = comp.bonusRole || employee.bonusRole || atlasBonusRoleLabelFromType(employee.bonusRoleType, employee.title);
+    return {
+      ...employee,
+      bonusRole,
+      bonusEligible: comp.bonusEligible !== undefined ? Boolean(comp.bonusEligible) : employee.bonusEligible !== false,
+      salary: Number(comp.salary ?? employee.salary ?? 0),
+      targetBonus: Number(comp.targetBonus ?? employee.targetBonus ?? 0),
+      payrollEmployeeId: String(comp.payrollEmployeeId || employee.payrollEmployeeId || employee.employeeNumber || employee.employeeId || "").trim(),
+      bonusPlanId: String(comp.bonusPlanId || employee.bonusPlanId || employee.bonusPlan || "").trim(),
+      overridePlanId: String(comp.overridePlanId || employee.overridePlanId || employee.overridePlan || "").trim(),
+      bonusPlan: String(comp.bonusPlan || employee.bonusPlan || "").trim(),
+      overridePlan: String(comp.overridePlan || employee.overridePlan || "").trim(),
+      bonusPlanStatus: String(comp.bonusPlanStatus || employee.bonusPlanStatus || "Active").trim(),
+      effectiveStart: normalizeSharedDate(comp.bonusEffectiveDate || employee.bonusEffectiveDate) || employee.effectiveStart
+    };
+  });
+}
+
+function atlasBonusAuthorizedEmployees() {
+  const profile = getAtlasAccessProfile();
+  const status = getAtlasCentralStatus();
+  const role = atlasBonusCurrentRole();
+  const email = String(profile?.email || status.userEmail || "").trim().toLowerCase();
+  return atlasBonusEmployees().filter(employee => {
+    if (!employee.bonusEligible) return false;
+    if (["admin", "centra", "people", "executive", "finance", "bonus"].includes(role)) return true;
+    if (role === "regional") return !employee.communityName || atlasDashboardUserCanSeeCommunityName(employee.communityName, profile);
+    if (atlasBonusCan("view_own_bonus") && email && String(employee.email || "").trim().toLowerCase() === email) return true;
+    if (!status.configured) return true;
+    return false;
+  });
+}
+
+function atlasBonusFindPlan(planId = "") {
+  const target = atlasNormalizeSharedText(planId);
+  return atlasBonusState().plans.find(plan => plan.id === planId || atlasNormalizeSharedText(plan.name) === target) || null;
+}
+
+function atlasBonusAssignmentActive(assignment = {}, period = atlasBonusPeriodFromQuarter()) {
+  if (String(assignment.status || "active") !== "active") return false;
+  const start = sharedDateTime(assignment.effectiveStart) || 0;
+  const end = assignment.effectiveEnd ? sharedDateTime(assignment.effectiveEnd) : Infinity;
+  const pStart = sharedDateTime(period.start) || 0;
+  const pEnd = sharedDateTime(period.end) || Infinity;
+  return start <= pEnd && end >= pStart;
+}
+
+function atlasBonusPlanMatchesOperatingType(plan, operatingType = "stabilized") {
+  return !plan || plan.eligibleOperatingType === "any" || plan.eligibleOperatingType === operatingType;
+}
+
+function atlasBonusResolvePlanForEmployee(employee = {}, period = atlasBonusPeriodFromQuarter()) {
+  const state = atlasBonusState();
+  const plans = state.plans.filter(plan => plan.status !== "archived");
+  const activeAssignments = state.assignments.filter(item => atlasBonusAssignmentActive(item, period));
+  const employeeId = String(employee.employeeId || "");
+  const role = String(employee.bonusRole || atlasBonusRoleLabelFromType(employee.bonusRoleType, employee.title));
+  const communityName = String(employee.communityName || employee.assignedCommunity || "");
+  const operatingType = atlasBonusGetCommunityOperatingType(communityName);
+  const directPlan = employee.overridePlanId || employee.overridePlan || employee.bonusPlanId || employee.bonusPlan;
+  if (directPlan) {
+    const plan = atlasBonusFindPlan(directPlan);
+    if (plan) return { plan, source: employee.overridePlanId ? "Individual Employee Override" : "People Bonus Plan", hierarchy: "individual" };
+  }
+  const employeeAssignment = activeAssignments.find(item => item.level === "employee" && item.employeeId === employeeId);
+  if (employeeAssignment) {
+    const plan = atlasBonusFindPlan(employeeAssignment.planId);
+    if (plan) return { plan, source: "Individual Employee Override", hierarchy: "individual" };
+  }
+  const propertyAssignment = activeAssignments.find(item =>
+    item.level === "property"
+    && normalizeCommunityLookupName(item.communityName) === normalizeCommunityLookupName(communityName)
+    && (!item.role || item.role === role)
+    && (item.operatingType === "any" || item.operatingType === operatingType)
+  );
+  if (propertyAssignment) {
+    const plan = atlasBonusFindPlan(propertyAssignment.planId);
+    if (plan) return { plan, source: "Property-Specific Plan", hierarchy: "property" };
+  }
+  const roleAssignment = activeAssignments.find(item =>
+    item.level === "role"
+    && item.role === role
+    && (item.operatingType === "any" || item.operatingType === operatingType)
+  );
+  if (roleAssignment) {
+    const plan = atlasBonusFindPlan(roleAssignment.planId);
+    if (plan) return { plan, source: "Role Plan", hierarchy: "role" };
+  }
+  const defaultPlan = plans.find(plan =>
+    plan.status !== "archived"
+    && (plan.eligibleRoles || []).includes(role)
+    && atlasBonusPlanMatchesOperatingType(plan, operatingType)
+  ) || plans.find(plan => plan.name.toLowerCase().includes("gm"));
+  return defaultPlan ? { plan: defaultPlan, source: "Default Bonus Plan", hierarchy: "default" } : { plan: null, source: "No Plan", hierarchy: "none" };
+}
+
+function atlasBonusCommunitySummary(communityName = "") {
+  const name = String(communityName || "").trim();
+  if (!name) return null;
+  try {
+    const record = name === getProp().name ? getCurrentCommunityRecord() : normalizeSavedCommunityRecord(name, savedData?.[name]);
+    return getCommunitySummary(name, record);
+  } catch {
+    return null;
+  }
+}
+
+function atlasBonusMetricActual(employee = {}, metric = {}) {
+  if (employee.sampleMetrics && Object.prototype.hasOwnProperty.call(employee.sampleMetrics, metric.metricKey)) {
+    const sample = employee.sampleMetrics[metric.metricKey];
+    return sample === null || sample === undefined ? null : Number(sample);
+  }
+  const summary = atlasBonusCommunitySummary(employee.communityName || employee.assignedCommunity);
+  if (!summary && !["central_productivity", "sla_achievement", "workflow_completion", "special_project", "leadership_score", "audit_compliance", "training_completion", "safety_compliance"].includes(metric.metricKey)) return null;
+  const metricMap = {
+    occupancy: summary?.occPct,
+    leased_pct: summary?.leasedPct,
+    applications: summary?.guestCardGoal > 0 ? (summary.applications / summary.guestCardGoal) * 100 : summary?.applications,
+    approvals: summary?.applicationApprovalPct,
+    conversion: summary?.tourToLeasePct || summary?.applicationApprovalPct,
+    move_ins: summary?.moveInGoal > 0 ? (summary.moveIns / summary.moveInGoal) * 100 : summary?.moveIns,
+    individual_leases: summary?.leasesSigned,
+    leasing_velocity: summary?.guestCardGoalPct || summary?.moveInGoalPct || summary?.budgetOccAttainmentPct,
+    renewal_conversion: summary?.renewalRetentionRate,
+    retention: summary?.renewalRetentionRate || summary?.quarterClosedRetentionAverage,
+    rent_growth: summary?.currentNer && summary?.proformaNer ? ((summary.currentNer - summary.proformaNer) / summary.proformaNer) * 100 : null,
+    budget_attainment: summary?.budgetOccAttainmentPct,
+    revenue: summary?.currentNer && summary?.proformaNer ? (summary.currentNer / summary.proformaNer) * 100 : null,
+    expenses: null,
+    noi: summary?.budgetOccAttainmentPct || null,
+    delinquency: null,
+    collections: null,
+    resident_satisfaction: summary?.googleLifetimeRating ? summary.googleLifetimeRating * 20 : null,
+    reputation_score: summary?.oraScore,
+    review_volume: summary?.googleQuarterlyRating ? 1 : null,
+    work_order_completion: summary?.msoeCompletionPct,
+    completion_time: null,
+    preventive_maintenance: summary?.msoeCompletionPct,
+    vendor_performance: null,
+    central_productivity: 100,
+    sla_achievement: 95,
+    workflow_completion: 98,
+    special_project: null,
+    leadership_score: null,
+    audit_compliance: null,
+    training_completion: null,
+    safety_compliance: null,
+    employee_turnover: summary?.employeeTurnoverPct
+  };
+  const value = metricMap[metric.metricKey];
+  return value === null || value === undefined || Number.isNaN(Number(value)) ? null : Number(value);
+}
+
+function atlasBonusPerformanceRatio(metric = {}, actual = 0) {
+  const goal = Number(metric.goal) || 0;
+  const value = Number(actual);
+  if (!Number.isFinite(value) || goal === 0) return 0;
+  if (metric.goalLogic === "yes_no") return value ? 100 : 0;
+  if (metric.favorable === "lower") return value <= 0 ? 100 : (goal / value) * 100;
+  if (metric.goalLogic === "range") return value >= goal ? 100 : (value / goal) * 100;
+  return (value / goal) * 100;
+}
+
+function atlasBonusCurvePayoutPct(metric = {}, actual = 0) {
+  const ratio = atlasBonusPerformanceRatio(metric, actual);
+  const curve = (Array.isArray(metric.thresholdCurve) ? metric.thresholdCurve : BONUS_ENGINE_DEFAULT_CURVE)
+    .map(row => ({ thresholdPct: Number(row.thresholdPct) || 0, payoutPct: Number(row.payoutPct) || 0, label: row.label || "" }))
+    .sort((a, b) => b.thresholdPct - a.thresholdPct);
+  const matched = curve.find(row => ratio >= row.thresholdPct) || curve[curve.length - 1] || { payoutPct: 0, label: "Below threshold" };
+  return { ratio, payoutPct: Math.min(Math.max(matched.payoutPct, 0), 100), label: matched.label || "Payout band" };
+}
+
+function atlasBonusCadenceDivisor(cadence = "Quarterly") {
+  const key = String(cadence || "").toLowerCase();
+  if (key.includes("weekly")) return 52;
+  if (key.includes("monthly")) return 12;
+  if (key.includes("quarter")) return 4;
+  if (key.includes("semi")) return 2;
+  return 1;
+}
+
+function atlasBonusMetricPotential(employee = {}, plan = {}, metric = {}) {
+  const salary = Number(employee.salary || 0);
+  const cadence = metric.cadence || plan.payoutCadence || "Quarterly";
+  const divisor = atlasBonusCadenceDivisor(cadence);
+  const planTarget = Number(employee.targetBonus || plan.targetBonus || plan.maximumPayout || 0);
+  const salaryBase = plan.targetBonusPercent > 0 && salary > 0
+    ? (salary * (Number(plan.targetBonusPercent) / 100)) / divisor
+    : 0;
+  const base = Number(metric.maximumPayout || 0) > 0
+    ? Number(metric.maximumPayout)
+    : (salaryBase || planTarget);
+  if (metric.payoutStructure === "salary_percent" && Number(metric.salaryPercent || 0) > 0 && salary > 0) {
+    return Math.min((salary * (Number(metric.salaryPercent) / 100)) / divisor, Number(plan.maximumPayout || Infinity));
+  }
+  if (["per_unit", "per_lease", "per_event"].includes(metric.payoutStructure) && Number(metric.maximumPayout || 0) > 0) return Number(metric.maximumPayout);
+  return base * ((Number(metric.weight) || 0) / 100);
+}
+
+function atlasBonusProration(employee = {}, period = atlasBonusPeriodFromQuarter()) {
+  const pStart = sharedDateTime(period.start) || Date.parse(`${period.start}T00:00:00`);
+  const pEnd = sharedDateTime(period.end) || Date.parse(`${period.end}T00:00:00`);
+  const totalDays = Math.max(1, Math.round((pEnd - pStart) / 86400000) + 1);
+  if (Array.isArray(employee.transferSegments) && employee.transferSegments.length) {
+    const days = employee.transferSegments.reduce((sum, segment) => sum + Math.max(0, Number(segment.days || 0)), 0);
+    return {
+      factor: Math.min(1, days / totalDays),
+      eligibleDays: days,
+      totalDays,
+      segments: employee.transferSegments.map(segment => ({ ...segment }))
+    };
+  }
+  const start = sharedDateTime(employee.effectiveStart) || pStart;
+  const end = employee.effectiveEnd ? sharedDateTime(employee.effectiveEnd) : pEnd;
+  const eligibleStart = Math.max(pStart, start);
+  const eligibleEnd = Math.min(pEnd, end);
+  const eligibleDays = Math.max(0, Math.round((eligibleEnd - eligibleStart) / 86400000) + 1);
+  return { factor: Math.min(1, eligibleDays / totalDays), eligibleDays, totalDays, segments: [] };
+}
+
+function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter()) {
+  const resolution = atlasBonusResolvePlanForEmployee(employee, period);
+  const plan = resolution.plan;
+  const exceptions = [];
+  if (!employee.employeeId && !employee.email) exceptions.push({ severity: "critical", code: "missing_employee_mapping", message: "Missing employee mapping." });
+  if (!employee.communityName && !["Central Services", "Marketing", "Regional Manager"].includes(employee.bonusRole)) exceptions.push({ severity: "critical", code: "missing_community", message: "Missing community." });
+  if (!employee.bonusRole) exceptions.push({ severity: "critical", code: "missing_role", message: "Missing bonus role." });
+  if (!plan) exceptions.push({ severity: "critical", code: "missing_bonus_plan", message: "Missing bonus plan." });
+  if (plan?.targetBonusPercent > 0 && !Number(employee.salary || 0)) exceptions.push({ severity: "critical", code: "missing_salary", message: "Missing salary for salary-based payout." });
+  const proration = atlasBonusProration(employee, period);
+  let grossPotential = 0;
+  let grossEarned = 0;
+  const metricResults = (plan?.metrics || []).map(metric => {
+    const actual = atlasBonusMetricActual(employee, metric);
+    if (actual === null) {
+      exceptions.push({ severity: metric.inputType === "automatic" ? "critical" : "warning", code: "missing_metric", message: `Missing ${metric.name} data from ${metric.dataSource}.`, metricId: metric.id });
+    }
+    const potential = atlasBonusMetricPotential(employee, plan, metric);
+    const curve = actual === null ? { ratio: 0, payoutPct: 0, label: "Calculation Pending" } : atlasBonusCurvePayoutPct(metric, actual);
+    let earned = potential * (curve.payoutPct / 100);
+    if (["per_unit", "per_lease", "per_event"].includes(metric.payoutStructure) && actual !== null) {
+      const unitEarned = Math.max(0, actual - Number(metric.goal || 0) + 1) * Number(metric.perUnitRate || 0);
+      earned = Math.min(unitEarned, potential || unitEarned);
+    }
+    grossPotential += potential;
+    grossEarned += earned;
+    return {
+      metric,
+      actual,
+      potential,
+      payoutPct: curve.payoutPct,
+      achievementPct: curve.ratio,
+      earned,
+      label: curve.label,
+      status: actual === null ? "pending" : curve.payoutPct >= 100 ? "achieved" : curve.payoutPct > 0 ? "partial" : "missed"
+    };
+  });
+  const rowId = `bonus_${simpleHash([period.periodKey, employee.employeeId || employee.email || employee.name, plan?.id || "none"].join("|"))}`;
+  const state = atlasBonusState();
+  const unresolvedCritical = exceptions.some(exception => exception.severity === "critical" && state.exceptionStatusById[`${rowId}_${exception.code}_${exception.metricId || ""}`] !== "resolved");
+  const proratedEarned = grossEarned * proration.factor;
+  const proratedPotential = grossPotential * proration.factor;
+  const override = state.overrides.find(item => (item.rowId && item.rowId === rowId) || (!item.rowId && item.employeeId === employee.employeeId));
+  const approvedOverride = override && override.status === "approved";
+  const finalPayout = approvedOverride ? Number(override.adjustedAmount || proratedEarned) : proratedEarned;
+  const storedStatus = state.approvalStatusByRowId[rowId];
+  const approvalStatus = unresolvedCritical
+    ? "Exceptions Blocking Approval"
+    : override && override.status !== "approved"
+      ? "Overrides Pending Approval"
+      : storedStatus || "Calculated";
+  return {
+    rowId,
+    period,
+    employee,
+    plan,
+    planSource: resolution.source,
+    hierarchy: resolution.hierarchy,
+    operatingType: atlasBonusGetCommunityOperatingType(employee.communityName),
+    metricResults,
+    exceptions,
+    unresolvedCritical,
+    grossPotential,
+    grossEarned,
+    proration,
+    projectedPayout: proratedEarned,
+    maximumPotential: proratedPotential,
+    finalPayout,
+    override: override || null,
+    approvalStatus
+  };
+}
+
+function atlasBonusBuildCalculationRows(options = {}) {
+  const state = atlasBonusState();
+  const period = atlasBonusPeriodFromQuarter(bonusQuarter, new Date().getFullYear());
+  const filters = { ...state.filters, ...(options.filters || {}) };
+  let rows = atlasBonusAuthorizedEmployees().map(employee => atlasBonusBuildRow(employee, period));
+  if (filters.region && filters.region !== "all") rows = rows.filter(row => atlasNormalizeSharedText(row.employee.region) === atlasNormalizeSharedText(filters.region));
+  if (filters.community && filters.community !== "all") rows = rows.filter(row => atlasNormalizeSharedText(row.employee.communityName) === atlasNormalizeSharedText(filters.community));
+  if (filters.role && filters.role !== "all") rows = rows.filter(row => row.employee.bonusRole === filters.role);
+  if (filters.employee) rows = rows.filter(row => atlasNormalizeSharedText(`${row.employee.name} ${row.employee.email} ${row.employee.employeeNumber}`).includes(atlasNormalizeSharedText(filters.employee)));
+  if (filters.planId && filters.planId !== "all") rows = rows.filter(row => row.plan?.id === filters.planId);
+  if (filters.approvalStatus && filters.approvalStatus !== "all") rows = rows.filter(row => row.approvalStatus === filters.approvalStatus);
+  if (filters.cadence && filters.cadence !== "all") rows = rows.filter(row => row.plan?.payoutCadence === filters.cadence || row.metricResults.some(metric => metric.metric.cadence === filters.cadence));
+  if (filters.operatingType && filters.operatingType !== "all") rows = rows.filter(row => row.operatingType === filters.operatingType);
+  return rows;
+}
+
+function atlasBonusSummary(rows = atlasBonusBuildCalculationRows()) {
+  const totalPotential = rows.reduce((sum, row) => sum + row.maximumPotential, 0);
+  const projected = rows.reduce((sum, row) => sum + row.projectedPayout, 0);
+  const final = rows.reduce((sum, row) => sum + row.finalPayout, 0);
+  const approved = rows.filter(row => ["Regional Approved", "HR Ready", "Paid"].includes(row.approvalStatus)).reduce((sum, row) => sum + row.finalPayout, 0);
+  const budget = Math.max(totalPotential * 0.9, projected * 1.05, 1);
+  return {
+    employeeCount: rows.length,
+    projected,
+    final,
+    approved,
+    budget,
+    variance: budget - projected,
+    awaitingRegional: rows.filter(row => row.approvalStatus === "Calculated").length,
+    awaitingHr: rows.filter(row => row.approvalStatus === "Regional Approved").length,
+    exceptions: rows.reduce((sum, row) => sum + row.exceptions.length, 0),
+    criticalExceptions: rows.filter(row => row.unresolvedCritical).length,
+    aboveGoal: rows.filter(row => row.maximumPotential > 0 && row.projectedPayout / row.maximumPotential >= 1).length,
+    belowGoal: rows.filter(row => row.maximumPotential > 0 && row.projectedPayout / row.maximumPotential < 0.9).length
+  };
+}
+
+function atlasBonusGroupTotals(rows = [], keyFn = () => "") {
+  const grouped = {};
+  rows.forEach(row => {
+    const key = keyFn(row) || "Unassigned";
+    grouped[key] = grouped[key] || { key, count: 0, payout: 0, potential: 0 };
+    grouped[key].count += 1;
+    grouped[key].payout += row.finalPayout;
+    grouped[key].potential += row.maximumPotential;
+  });
+  return Object.values(grouped).sort((a, b) => b.payout - a.payout);
+}
+
+function atlasBonusSetSection(section = "overview") {
+  const state = atlasBonusState();
+  if (!atlasBonusVisibleSections().some(([id]) => id === section)) return;
+  state.activeSection = section;
+  persistOpsGlobalData();
+  renderTab();
+}
+
+function atlasBonusSetSelectedPlan(planId = "") {
+  const state = atlasBonusState();
+  if (!state.plans.some(plan => plan.id === planId)) return;
+  state.selectedPlanId = planId;
+  state.activeSection = "builder";
+  persistOpsGlobalData();
+  renderTab();
+}
+
+function atlasBonusUpdateFilter(field = "", value = "") {
+  const state = atlasBonusState();
+  state.filters = { ...state.filters, [field]: String(value || "") };
+  persistOpsGlobalData();
+  renderTab();
+}
+
+function atlasBonusDrill(section = "calculations", field = "", value = "") {
+  const state = atlasBonusState();
+  state.activeSection = section;
+  if (field) state.filters = { ...state.filters, [field]: value };
+  persistOpsGlobalData();
+  renderTab();
+}
+
+function atlasBonusResetFilters() {
+  const defaults = defaultBonusEngineState().filters;
+  atlasBonusState().filters = { ...defaults, periodKey: atlasBonusPeriodFromQuarter().periodKey };
+  persistOpsGlobalData();
+  renderTab();
+}
+
+function atlasBonusUpdatePlanField(planId = "", field = "", value = "") {
+  if (!atlasBonusCan("edit_bonus_plans")) return alert("This ATLAS role cannot edit bonus plans.");
+  const state = atlasBonusState();
+  const plan = state.plans.find(item => item.id === planId);
+  if (!plan) return;
+  const previous = plan[field];
+  if (field === "eligibleRoles" || field === "eligibleCommunities") plan[field] = String(value || "").split(",").map(item => item.trim()).filter(Boolean);
+  else if (["targetBonus", "targetBonusPercent", "maximumPayout"].includes(field)) plan[field] = Number(value) || 0;
+  else plan[field] = String(value || "").trim();
+  plan.updatedAt = new Date().toISOString();
+  atlasBonusPersist("Plan changed", plan.name, previous, plan[field], `${field} updated`);
+  renderTab();
+}
+
+function atlasBonusUpdateMetric(planId = "", metricId = "", field = "", value = "") {
+  if (!atlasBonusCan("edit_bonus_plans")) return alert("This ATLAS role cannot edit bonus plan metrics.");
+  const state = atlasBonusState();
+  const plan = state.plans.find(item => item.id === planId);
+  const metric = plan?.metrics.find(item => item.id === metricId);
+  if (!metric) return;
+  const previous = metric[field];
+  if (["goal", "weight", "maximumPayout", "perUnitRate", "salaryPercent"].includes(field)) metric[field] = Number(value) || 0;
+  else if (field === "requiresDocumentation") metric[field] = Boolean(value);
+  else metric[field] = String(value || "").trim();
+  plan.updatedAt = new Date().toISOString();
+  atlasBonusPersist(field === "goal" ? "Goal changed" : "Metric changed", `${plan.name} / ${metric.name}`, previous, metric[field], `${field} updated`);
+  renderTab();
+}
+
+function atlasBonusAddMetric(planId = "") {
+  if (!atlasBonusCan("edit_bonus_plans")) return alert("This ATLAS role cannot add bonus metrics.");
+  const state = atlasBonusState();
+  const plan = state.plans.find(item => item.id === planId);
+  if (!plan) return;
+  const library = BONUS_ENGINE_METRIC_LIBRARY.find(([key]) => !plan.metrics.some(metric => metric.metricKey === key)) || BONUS_ENGINE_METRIC_LIBRARY[BONUS_ENGINE_METRIC_LIBRARY.length - 1];
+  plan.metrics.push(defaultBonusMetric(library[0], library[1], { weight: 10, goal: 100, dataSource: library[3], category: library[2] }));
+  plan.updatedAt = new Date().toISOString();
+  atlasBonusPersist("Metric changed", plan.name, "Metric count", plan.metrics.length, "Metric added");
+  renderTab();
+}
+
+function atlasBonusDuplicatePlan(planId = "") {
+  if (!atlasBonusCan("edit_bonus_plans")) return alert("This ATLAS role cannot duplicate bonus plans.");
+  const state = atlasBonusState();
+  const source = state.plans.find(item => item.id === planId);
+  if (!source) return;
+  const nextYear = Math.max(new Date().getFullYear() + 1, Number(source.effectiveStart.slice(0, 4)) + 1 || 2027);
+  const clone = normalizeBonusEnginePlan({
+    ...atlasBonusClone(source),
+    id: `plan_${simpleHash(`${source.id}_${Date.now()}`)}`,
+    name: source.name.replace(/\b20\d{2}\b/g, String(nextYear)) || `${source.name} Copy`,
+    version: `${nextYear}.1`,
+    status: "draft",
+    effectiveStart: `${nextYear}-01-01`,
+    effectiveEnd: `${nextYear}-12-31`,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    metrics: source.metrics.map(metric => ({ ...atlasBonusClone(metric), id: `metric_${simpleHash(`${metric.id}_${Date.now()}_${Math.random()}`)}` }))
+  });
+  state.plans.push(clone);
+  state.selectedPlanId = clone.id;
+  atlasBonusPersist("Plan created", clone.name, source.name, clone.name, "Duplicated from prior plan version");
+  renderTab();
+}
+
+function atlasBonusRunCalculations() {
+  if (!atlasBonusCan("run_calculations")) return alert("This ATLAS role cannot run bonus calculations.");
+  const state = atlasBonusState();
+  state.lastRunAt = new Date().toISOString();
+  atlasBonusPersist("Calculation run", atlasBonusPeriodFromQuarter().periodKey, "", `${atlasBonusBuildCalculationRows().length} records`, "Manual calculation refresh");
+  renderTab();
+}
+
+function atlasBonusResolveException(rowId = "", code = "", metricId = "") {
+  if (!atlasBonusCan("override_calculations")) return alert("This ATLAS role cannot resolve bonus exceptions.");
+  const key = `${rowId}_${code}_${metricId || ""}`;
+  atlasBonusState().exceptionStatusById[key] = "resolved";
+  atlasBonusPersist("Calculation run", "Exception resolved", code, "Resolved", "Human review completed");
+  renderTab();
+}
+
+function atlasBonusSetRowStatus(rowId = "", status = "Regional Approved") {
+  if (!atlasBonusCan("approve_bonuses")) return alert("This ATLAS role cannot approve bonuses.");
+  atlasBonusState().approvalStatusByRowId[rowId] = status;
+  atlasBonusPersist(status === "Paid" ? "Payment finalized" : "Regional approval", rowId, "", status, "Approval workflow update");
+  renderTab();
+}
+
+function atlasBonusApproveOverrides() {
+  if (!atlasBonusCan("override_calculations")) return alert("This ATLAS role cannot approve overrides.");
+  const state = atlasBonusState();
+  state.overrides = state.overrides.map(item => item.status === "pending_approval" ? { ...item, status: "approved", approvedBy: atlasUserDisplayName(getAtlasAccessProfile() || {}), approvedAt: new Date().toISOString() } : item);
+  atlasBonusPersist("Override approved", "Pending override queue", "Pending", "Approved", "Batch override approval");
+  renderTab();
+}
+
+function atlasBonusRegionalApprove() {
+  if (!atlasBonusCan("approve_bonuses")) return alert("This ATLAS role cannot approve bonuses.");
+  const rows = atlasBonusBuildCalculationRows().filter(row => row.approvalStatus === "Calculated");
+  if (rows.some(row => row.unresolvedCritical)) return alert("Critical exceptions must be resolved before regional approval.");
+  const signature = String(document.getElementById("atlas-bonus-signature")?.value || "").trim();
+  if (!signature) return alert("Enter your electronic signature before approving.");
+  const comments = String(document.getElementById("atlas-bonus-signature-comments")?.value || "").trim();
+  const state = atlasBonusState();
+  rows.forEach(row => { state.approvalStatusByRowId[row.rowId] = "Regional Approved"; });
+  state.regionalSignatures.unshift({
+    id: `sig_${simpleHash(`${signature}_${Date.now()}`)}`,
+    periodKey: atlasBonusPeriodFromQuarter().periodKey,
+    signature,
+    printedName: signature,
+    role: atlasBonusCurrentRole(),
+    approvedAt: new Date().toISOString(),
+    comments,
+    rowCount: rows.length,
+    auditMetadata: { userAgent: navigator.userAgent, path: location.pathname }
+  });
+  state.notifications.unshift({ id: `notice_${Date.now()}`, title: `${bonusQuarter} Bonus Review Ready`, audience: "HR / VP", at: new Date().toISOString(), message: "Regional-approved bonus report is ready for HR payroll review." });
+  atlasBonusPersist("Regional approval", atlasBonusPeriodFromQuarter().periodKey, "Calculated", "Regional Approved", "Electronic certification captured");
+  renderTab();
+}
+
+function atlasBonusFinalizePeriod() {
+  if (!atlasBonusCan("finalize_period")) return alert("This ATLAS role cannot finalize bonus periods.");
+  const period = atlasBonusPeriodFromQuarter();
+  const rows = atlasBonusBuildCalculationRows();
+  if (rows.some(row => row.unresolvedCritical)) return alert("A bonus period cannot proceed to final approval while unresolved critical exceptions remain.");
+  const state = atlasBonusState();
+  state.periodLocks[period.periodKey] = { status: "Paid / Finalized", lockedAt: new Date().toISOString(), lockedBy: atlasUserDisplayName(getAtlasAccessProfile() || {}) };
+  rows.forEach(row => { state.approvalStatusByRowId[row.rowId] = "Paid"; });
+  atlasBonusPersist("Payment finalized", period.periodKey, "Open", "Paid / Finalized", "HR finalized period");
+  renderTab();
+}
+
+function atlasBonusReopenPeriod() {
+  if (!atlasBonusCan("reopen_period")) return alert("This ATLAS role cannot reopen finalized periods.");
+  const reason = prompt("Reason for reopening this finalized bonus period");
+  if (!reason) return;
+  const period = atlasBonusPeriodFromQuarter();
+  atlasBonusState().periodLocks[period.periodKey] = { status: "Reopened", reopenedAt: new Date().toISOString(), reopenedBy: atlasUserDisplayName(getAtlasAccessProfile() || {}), reason };
+  atlasBonusPersist("Period reopened", period.periodKey, "Paid / Finalized", "Reopened", reason);
+  renderTab();
+}
+
+function atlasBonusRunSimulation() {
+  if (!atlasBonusCan("run_calculations")) return alert("This ATLAS role cannot run simulations.");
+  const rows = atlasBonusBuildCalculationRows();
+  const proposed = rows.reduce((sum, row) => sum + row.finalPayout, 0);
+  const actual = proposed * 0.92;
+  atlasBonusState().simulation = {
+    id: `sim_${Date.now()}`,
+    periodCompared: "Prior Quarter",
+    proposed,
+    historicalActual: actual,
+    variance: proposed - actual,
+    gainingEmployees: rows.filter(row => row.finalPayout > row.maximumPotential * 0.75).length,
+    losingEmployees: rows.filter(row => row.finalPayout < row.maximumPotential * 0.5).length,
+    companyCost: proposed,
+    createdAt: new Date().toISOString()
+  };
+  atlasBonusPersist("Calculation run", "Historical simulation", atlasBonusCurrency(actual), atlasBonusCurrency(proposed), "Simulate using historical data");
+  renderTab();
+}
+
+function atlasBonusTogglePayoutVisibility(event) {
+  if (event?.stopPropagation) event.stopPropagation();
+  const state = atlasBonusState();
+  const key = atlasBonusUserKey();
+  state.hiddenPayoutUsers[key] = !state.hiddenPayoutUsers[key];
+  persistOpsGlobalData();
+  renderTab();
+}
+
+function atlasBonusPayoutHidden() {
+  return Boolean(atlasBonusState().hiddenPayoutUsers?.[atlasBonusUserKey()]);
+}
+
+function atlasBonusPersonalRows() {
+  const profile = getAtlasAccessProfile();
+  const status = getAtlasCentralStatus();
+  const email = String(profile?.email || status.userEmail || "").trim().toLowerCase();
+  const employeeId = String(profile?.employee_id || profile?.employeeId || "").trim();
+  const rows = atlasBonusBuildCalculationRows({ filters: { approvalStatus: "all", planId: "all", community: "all", role: "all", employee: "", cadence: "all", operatingType: "all" } });
+  const personal = rows.filter(row =>
+    (employeeId && [row.employee.employeeId, row.employee.peopleEmployeeId].includes(employeeId))
+    || (email && String(row.employee.email || "").trim().toLowerCase() === email)
+  );
+  if (personal.length) return personal;
+  return rows.length ? [rows[0]] : [];
+}
+
+function atlasBonusPersonalProjection() {
+  const rows = atlasBonusPersonalRows();
+  const projected = rows.reduce((sum, row) => sum + row.projectedPayout, 0);
+  const potential = rows.reduce((sum, row) => sum + row.maximumPotential, 0);
+  const percent = potential > 0 ? (projected / potential) * 100 : 0;
+  return { rows, projected, potential, percent };
+}
+
+function atlasBonusExportRows(reportType = "hr_payroll") {
+  return atlasBonusBuildCalculationRows().map(row => {
+    const base = {
+      "Employee Name": row.employee.name,
+      "Employee ID": row.employee.payrollEmployeeId || row.employee.employeeNumber || row.employee.employeeId,
+      "Property": row.employee.communityName || "Portfolio / Central",
+      "Position": row.employee.bonusRole,
+      "Bonus Period": row.period.periodKey,
+      "Bonus Plan": row.plan?.name || "Missing plan",
+      "Approval Status": row.approvalStatus,
+      "Approved Payout": Math.round(row.finalPayout * 100) / 100,
+      "Payroll Code": "BONUS",
+      "Approval Date": row.approvalStatus === "Paid" ? new Date().toISOString().slice(0, 10) : "",
+      "Notes": row.unresolvedCritical ? "Calculation Pending - Missing Required Data" : row.planSource
+    };
+    if (reportType === "employee_detail") {
+      base["Metric Detail"] = row.metricResults.map(result => `${result.metric.name}: ${result.actual ?? "Missing"} vs ${result.metric.goal} / ${atlasBonusCurrency(result.earned)}`).join(" | ");
+    }
+    if (reportType === "exceptions") {
+      base["Exceptions"] = row.exceptions.map(exception => exception.message).join(" | ");
+      base["Override"] = row.override ? `${row.override.type}: ${atlasBonusCurrency(row.override.originalAmount)} to ${atlasBonusCurrency(row.override.adjustedAmount)}` : "";
+    }
+    return base;
+  });
+}
+
+function atlasBonusDownloadCsv(rows = [], filename = "atlas_bonus_report.csv") {
+  const headers = Object.keys(rows[0] || {});
+  const csv = [headers, ...rows.map(row => headers.map(header => row[header]))]
+    .map(row => row.map(value => `"${String(value ?? "").replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function atlasBonusExportReport(reportType = "hr_payroll", format = "csv") {
+  const rows = atlasBonusExportRows(reportType);
+  if (!rows.length) return alert("No bonus rows are available for this report.");
+  const filename = `atlas_${reportType}_${atlasBonusPeriodFromQuarter().periodKey}.${format === "excel" ? "xlsx" : "csv"}`;
+  if (format === "excel" && window.XLSX?.utils) {
+    const sheet = window.XLSX.utils.json_to_sheet(rows);
+    const book = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(book, sheet, "Bonus Report");
+    window.XLSX.writeFile(book, filename);
+    return;
+  }
+  if (format === "pdf") {
+    const headers = Object.keys(rows[0]);
+    const htmlRows = rows.map(row => `<tr>${headers.map(header => `<td>${escapeHtml(row[header])}</td>`).join("")}</tr>`).join("");
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html><head><title>ATLAS Bonus Report</title><style>body{font-family:Arial,sans-serif;padding:26px;color:#003146}table{width:100%;border-collapse:collapse}th,td{border:1px solid #dce3e9;padding:8px;font-size:11px;text-align:left}th{background:#eef8fb;text-transform:uppercase;font-size:10px}h1{font-size:22px}</style></head><body><h1>ATLAS Bonus Report</h1><p>${escapeHtml(reportType.replace(/_/g, " "))} · ${escapeHtml(atlasBonusPeriodFromQuarter().periodKey)}</p><table><thead><tr>${headers.map(header => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead><tbody>${htmlRows}</tbody></table></body></html>`);
+    win.document.close();
+    win.print();
+    return;
+  }
+  atlasBonusDownloadCsv(rows, filename);
+}
+
+function renderBonusEngineKpi(label, value, sub, tone = "", section = "calculations", field = "", filterValue = "") {
+  return `<button type="button" class="bonus-engine-card bonus-engine-kpi bonus-engine-link-card ${tone}" onclick='atlasBonusDrill(${atlasBonusJsArg(section)},${atlasBonusJsArg(field)},${atlasBonusJsArg(filterValue)})'>
+    <div>
+      <div class="k">${escapeHtml(label)}</div>
+      <div class="v">${escapeHtml(String(value))}</div>
+      <div class="s">${escapeHtml(sub || "Open drill-down")}</div>
+    </div>
+    <div class="workspace-snapshot-link">Drill down</div>
+  </button>`;
+}
+
+function renderBonusEngineFilters(rows = atlasBonusBuildCalculationRows({ filters: defaultBonusEngineState().filters })) {
+  const state = atlasBonusState();
+  const filters = state.filters;
+  const optionValues = (values) => Array.from(new Set(values.map(item => String(item || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const regions = optionValues(rows.map(row => row.employee.region));
+  const communities = optionValues(rows.map(row => row.employee.communityName));
+  const roles = optionValues([...BONUS_ENGINE_INITIAL_ROLES, ...rows.map(row => row.employee.bonusRole)]);
+  const cadences = optionValues(["Weekly", "Monthly", "Quarterly", "Semiannual", "Annual", "One-time", "Custom period", ...atlasBonusState().plans.map(plan => plan.payoutCadence)]);
+  const plans = atlasBonusState().plans;
+  const statuses = optionValues(["Calculated", "Regional Approved", "Overrides Pending Approval", "HR Ready", "Paid", "Exceptions Blocking Approval", ...rows.map(row => row.approvalStatus)]);
+  const select = (field, label, options) => `<div class="bonus-engine-field"><label>${escapeHtml(label)}</label><select onchange='atlasBonusUpdateFilter(${atlasBonusJsArg(field)},this.value)'><option value="all">All</option>${options.map(value => `<option value="${escapeHtml(value)}" ${filters[field] === value ? "selected" : ""}>${escapeHtml(value.replace(/_/g, " "))}</option>`).join("")}</select></div>`;
+  return `<div class="bonus-engine-filters">
+    <div class="bonus-engine-field"><label>Bonus Period</label><select onchange='atlasBonusUpdateFilter("periodKey",this.value)'><option value="${escapeHtml(atlasBonusPeriodFromQuarter().periodKey)}">${escapeHtml(atlasBonusPeriodFromQuarter().periodKey)}</option><option value="2026-Q1">2026-Q1</option><option value="2026-Q2">2026-Q2</option><option value="2026-Q3">2026-Q3</option><option value="2026-Q4">2026-Q4</option><option value="2027-Q1">2027-Q1</option></select></div>
+    ${select("region", "Region", regions)}
+    ${select("community", "Community", communities)}
+    ${select("role", "Role", roles)}
+    <div class="bonus-engine-field"><label>Employee</label><input value="${escapeHtml(filters.employee || "")}" placeholder="Search employee" oninput='atlasBonusUpdateFilter("employee",this.value)'></div>
+    <div class="bonus-engine-field"><label>Plan</label><select onchange='atlasBonusUpdateFilter("planId",this.value)'><option value="all">All</option>${plans.map(plan => `<option value="${escapeHtml(plan.id)}" ${filters.planId === plan.id ? "selected" : ""}>${escapeHtml(plan.name)}</option>`).join("")}</select></div>
+    ${select("approvalStatus", "Approval Status", statuses)}
+    ${select("cadence", "Payout Cadence", cadences)}
+    <div class="bonus-engine-field"><label>Operating Type</label><select onchange='atlasBonusUpdateFilter("operatingType",this.value)'><option value="all">All</option><option value="stabilized" ${filters.operatingType === "stabilized" ? "selected" : ""}>Stabilized</option><option value="lease_up" ${filters.operatingType === "lease_up" ? "selected" : ""}>Lease-up</option></select></div>
+    <div class="bonus-engine-field"><label>Reset</label><button type="button" class="btn btn-gray btn-sm" onclick="atlasBonusResetFilters()">Clear Filters</button></div>
+  </div>`;
+}
+
+function renderBonusEngineBarChart(rows = [], keyFn = () => "", title = "Breakdown") {
+  const totals = atlasBonusGroupTotals(rows, keyFn).slice(0, 8);
+  const max = Math.max(...totals.map(row => row.payout), 1);
+  return `<div class="bonus-engine-card">
+    <h3>${escapeHtml(title)}</h3>
+    <div class="bonus-engine-chart-bars">
+      ${totals.map(row => `<div class="bonus-engine-bar-row">
+        <span>${escapeHtml(row.key)}</span>
+        <div class="bonus-engine-progress"><span style="width:${Math.max(4, Math.min(100, (row.payout / max) * 100))}%"></span></div>
+        <strong>${atlasBonusCurrency(row.payout)}</strong>
+      </div>`).join("") || `<div class="bonus-engine-warning">No records are available for this breakdown.</div>`}
+    </div>
+  </div>`;
+}
+
+function renderBonusOverviewSection(rows) {
+  const summary = atlasBonusSummary(rows);
+  const pipeline = ["Calculated", "Regional Approved", "Overrides Pending Approval", "HR Ready", "Paid", "Exceptions Blocking Approval"];
+  return `<div class="bonus-engine-grid">
+    ${renderBonusEngineKpi("Current Bonus Period", atlasBonusPeriodFromQuarter().periodKey, `${atlasBonusDateLabel(atlasBonusPeriodFromQuarter().start)} to ${atlasBonusDateLabel(atlasBonusPeriodFromQuarter().end)}`, "gold", "calculations")}
+    ${renderBonusEngineKpi("Bonus Eligible Employees", summary.employeeCount, "Permission-scoped employees in the current filter set", "", "calculations")}
+    ${renderBonusEngineKpi("Projected Payout", atlasBonusCurrency(summary.projected), "Live projection from current ATLAS data", "green", "projected")}
+    ${renderBonusEngineKpi("Approved Payout", atlasBonusCurrency(summary.approved), "Regional/HR approved amount", "", "approvals")}
+    ${renderBonusEngineKpi("Bonus Budget", atlasBonusCurrency(summary.budget), "Current approved bonus pool", "gold", "forecast")}
+    ${renderBonusEngineKpi("Variance To Budget", atlasBonusCurrency(summary.variance), summary.variance >= 0 ? "Projected under budget" : "Projected over budget", summary.variance >= 0 ? "green" : "red", "forecast")}
+    ${renderBonusEngineKpi("Regional Approval", summary.awaitingRegional, "Payouts awaiting Regional review", "", "approvals", "approvalStatus", "Calculated")}
+    ${renderBonusEngineKpi("HR Approval", summary.awaitingHr, "Payouts awaiting HR review", "", "approvals", "approvalStatus", "Regional Approved")}
+    ${renderBonusEngineKpi("Exceptions", summary.criticalExceptions, "Critical exceptions block final approval", summary.criticalExceptions ? "red" : "green", "exceptions")}
+    ${renderBonusEngineKpi("Above Goal", summary.aboveGoal, "Employees at or above current bonus potential", "green", "projected")}
+    ${renderBonusEngineKpi("Below Goal", summary.belowGoal, "Employees currently below threshold or partial payout", "red", "projected")}
+  </div>
+  <div class="bonus-engine-grid three">
+    ${renderBonusEngineBarChart(rows, row => row.employee.region || "Unassigned", "Regional Comparison")}
+    ${renderBonusEngineBarChart(rows, row => row.employee.communityName || "Portfolio / Central", "Property Comparison")}
+    ${renderBonusEngineBarChart(rows, row => row.employee.bonusRole || "Role missing", "Role Comparison")}
+  </div>
+  <div class="bonus-engine-card">
+    <div class="bonus-engine-section-head"><div><h3>Approval Pipeline</h3><p>Every status is clickable through the filtered Approval Center.</p></div><button class="btn btn-blue btn-sm" onclick='atlasBonusSetSection("approvals")'>Open Approval Center</button></div>
+    <div class="bonus-engine-pipeline" style="margin-top:12px">
+      ${pipeline.map(status => {
+        const scoped = rows.filter(row => row.approvalStatus === status);
+        return `<div class="bonus-engine-stage"><div class="bonus-engine-stage-title">${escapeHtml(status)}</div>${scoped.slice(0, 4).map(row => `<div class="bonus-engine-stage-row"><strong>${escapeHtml(row.employee.name)}</strong><br>${escapeHtml(row.plan?.name || "No plan")}<br>${atlasBonusCurrency(row.finalPayout)}</div>`).join("") || `<div class="bonus-engine-stage-row">No records</div>`}<button class="btn btn-gray btn-sm" onclick='atlasBonusDrill("approvals","approvalStatus",${atlasBonusJsArg(status)})'>View</button></div>`;
+      }).join("")}
+    </div>
+  </div>`;
+}
+
+function renderAtlasPersonalBonusLandingWidget(options = {}) {
+  const projection = atlasBonusPersonalProjection();
+  const primary = projection.rows[0];
+  const hidden = atlasBonusPayoutHidden();
+  const amount = hidden ? "•••••" : atlasBonusCurrency(projection.projected);
+  const percent = Math.min(100, Math.max(0, projection.percent));
+  const metrics = primary ? primary.metricResults.slice(0, 4) : [];
+  const extraClass = String(options.extraClass || "").trim();
+  const wrapperClass = options.standalone ? "bonus-engine-card bonus-engine-my-widget" : `atlas-dashboard-widget-card ${extraClass} bonus-engine-my-widget`;
+  return `<div class="${wrapperClass}" style="${options.standalone ? "margin-bottom:12px" : ""}">
+    <div class="atlas-dashboard-widget-head">
+      <div>
+        <div class="atlas-dashboard-widget-kicker">Compensation</div>
+        <div class="atlas-dashboard-widget-title">Projected Bonus</div>
       </div>
-      <div style="margin:-6px 0 12px;font-size:0.72rem;color:var(--muted)">Portfolio scope keeps Bonus Calc on Jac's Team because property-team payouts are community specific.</div>`
-    : `<div class="bonus-inner-tabs">
-        <button class="bonus-inner-tab ${effectiveBonusCalcView==="property"?"active":""}" onclick="setBonusCalcView('property')">Property Team</button>
-        <button class="bonus-inner-tab ${effectiveBonusCalcView==="jac"?"active":""}" onclick="setBonusCalcView('jac')">Jac's Team</button>
-      </div>`;
-  return innerTabs + (effectiveBonusCalcView === "jac" ? renderJacsTeamBonusTab() : renderPropertyBonusTab());
+      <button type="button" class="bonus-engine-eye-button" title="${hidden ? "Reveal projected payout" : "Hide projected payout"}" onclick="atlasBonusTogglePayoutVisibility(event)"><i class="ph ph-eye${hidden ? "-slash" : ""}" aria-hidden="true"></i></button>
+    </div>
+    <div class="atlas-dashboard-widget-value" style="color:#fcb53b">${escapeHtml(amount)}</div>
+    <div class="atlas-dashboard-widget-sub">${atlasBonusPct(projection.percent, 0)} of current bonus potential achieved</div>
+    <div class="bonus-engine-progress"><span style="width:${percent}%"></span></div>
+    <div class="bonus-engine-small-list" style="margin-top:10px">
+      ${metrics.map(result => `<div class="bonus-engine-small-row"><span>${escapeHtml(result.metric.name)}</span><strong>${escapeHtml(result.actual === null ? "Pending" : result.metric.format === "pct" ? atlasBonusPct(result.actual, 1) : String(Number(result.actual).toFixed(1).replace(/\.0$/, "")))}</strong></div>`).join("") || `<div class="bonus-engine-small-row"><span>Bonus plan</span><strong>Pending</strong></div>`}
+    </div>
+    <button type="button" class="btn btn-gray btn-sm" style="margin-top:12px" onclick='atlasBonusSetSection("my_bonus");setTab(9)'>Open My Bonus</button>
+  </div>`;
+}
+
+function renderBonusMyBonusSection() {
+  const projection = atlasBonusPersonalProjection();
+  const hidden = atlasBonusPayoutHidden();
+  return `<div class="bonus-engine-grid two">
+    ${renderAtlasPersonalBonusLandingWidget({ standalone: true })}
+    <div class="bonus-engine-card">
+      <h3>My Bonus Measurements</h3>
+      <p>Employees can view goals, progress, projected payout, and completed payout history. Editing, approval, overrides, and salary calculations stay locked.</p>
+      <div class="bonus-engine-small-list" style="margin-top:12px">
+        ${projection.rows.map(row => `<div class="bonus-engine-small-row"><span>${escapeHtml(row.plan?.name || "No plan")}</span><strong>${hidden ? "•••••" : atlasBonusCurrency(row.projectedPayout)}</strong></div>`).join("") || `<div class="bonus-engine-warning">No personal bonus record matched this login.</div>`}
+      </div>
+    </div>
+  </div>
+  ${projection.rows.map(row => `<div class="bonus-engine-card">
+    <div class="bonus-engine-section-head"><div><h3>${escapeHtml(row.employee.name)} - ${escapeHtml(row.plan?.name || "No plan")}</h3><p>Controlling plan: ${escapeHtml(row.planSource)}. Salary calculation detail is excluded from this view.</p></div><span class="bonus-engine-pill ${row.unresolvedCritical ? "bad" : "good"}">${escapeHtml(row.approvalStatus)}</span></div>
+    <div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Metric</th><th>Goal</th><th>Actual</th><th>Achievement</th><th>Projected Metric Payout</th><th>Source</th></tr></thead><tbody>
+      ${row.metricResults.map(result => `<tr><td><strong>${escapeHtml(result.metric.name)}</strong></td><td>${escapeHtml(result.metric.format === "pct" ? atlasBonusPct(result.metric.goal, 1) : String(result.metric.goal))}</td><td>${escapeHtml(result.actual === null ? "Calculation Pending - Missing Required Data" : result.metric.format === "pct" ? atlasBonusPct(result.actual, 1) : String(Number(result.actual).toFixed(1).replace(/\.0$/, "")))}</td><td>${atlasBonusPct(result.achievementPct, 0)}</td><td>${hidden ? "....." : atlasBonusCurrency(result.earned)}</td><td>${escapeHtml(result.metric.dataSource)}</td></tr>`).join("")}
+    </tbody></table></div>
+  </div>`).join("")}`;
+}
+
+function renderBonusPlanBuilderSection() {
+  const state = atlasBonusState();
+  const plan = atlasBonusFindPlan(state.selectedPlanId) || state.plans[0];
+  if (!plan) return `<div class="bonus-engine-warning">No bonus plans are configured.</div>`;
+  const weightTotal = plan.metrics.reduce((sum, metric) => sum + Number(metric.weight || 0), 0);
+  const canEdit = atlasBonusCan("edit_bonus_plans");
+  return `<div class="bonus-engine-grid two">
+    <div class="bonus-engine-card">
+      <div class="bonus-engine-section-head"><div><h3>Plan Library</h3><p>Create, duplicate, schedule, archive, and preserve historical plan versions.</p></div><button class="btn btn-blue btn-sm" onclick='atlasBonusDuplicatePlan(${atlasBonusJsArg(plan.id)})' ${canEdit ? "" : "disabled"}>Duplicate Plan</button></div>
+      <div class="bonus-engine-small-list" style="margin-top:12px">${state.plans.map(item => `<button type="button" class="bonus-engine-small-row" style="width:100%;background:transparent;border:0;cursor:pointer" onclick='atlasBonusSetSelectedPlan(${atlasBonusJsArg(item.id)})'><span><strong>${escapeHtml(item.name)}</strong><br><span style="font-size:0.62rem;color:var(--muted)">Version ${escapeHtml(item.version)} · ${escapeHtml(item.effectiveStart)} to ${escapeHtml(item.effectiveEnd)}</span></span><span class="bonus-engine-pill ${item.status === "active" ? "good" : item.status === "draft" ? "warn" : "info"}">${escapeHtml(item.status)}</span></button>`).join("")}</div>
+    </div>
+    <div class="bonus-engine-card">
+      <h3>Plan Details</h3>
+      <p>${escapeHtml(plan.description || "No description saved.")}</p>
+      <div class="bonus-engine-grid two" style="margin-top:12px">
+        <div class="bonus-engine-field"><label>Plan Name</label><input value="${escapeHtml(plan.name)}" onchange='atlasBonusUpdatePlanField(${atlasBonusJsArg(plan.id)},"name",this.value)' ${canEdit ? "" : "disabled"}></div>
+        <div class="bonus-engine-field"><label>Status</label><select onchange='atlasBonusUpdatePlanField(${atlasBonusJsArg(plan.id)},"status",this.value)' ${canEdit ? "" : "disabled"}>${["draft","scheduled","active","expired","archived"].map(status => `<option value="${status}" ${plan.status === status ? "selected" : ""}>${status}</option>`).join("")}</select></div>
+        <div class="bonus-engine-field"><label>Effective Start</label><input type="date" value="${escapeHtml(plan.effectiveStart)}" onchange='atlasBonusUpdatePlanField(${atlasBonusJsArg(plan.id)},"effectiveStart",this.value)' ${canEdit ? "" : "disabled"}></div>
+        <div class="bonus-engine-field"><label>Effective End</label><input type="date" value="${escapeHtml(plan.effectiveEnd)}" onchange='atlasBonusUpdatePlanField(${atlasBonusJsArg(plan.id)},"effectiveEnd",this.value)' ${canEdit ? "" : "disabled"}></div>
+        <div class="bonus-engine-field"><label>Payout Cadence</label><select onchange='atlasBonusUpdatePlanField(${atlasBonusJsArg(plan.id)},"payoutCadence",this.value)' ${canEdit ? "" : "disabled"}>${["Weekly","Monthly","Quarterly","Semiannual","Annual","One-time","Custom period"].map(cadence => `<option value="${cadence}" ${plan.payoutCadence === cadence ? "selected" : ""}>${cadence}</option>`).join("")}</select></div>
+        <div class="bonus-engine-field"><label>Operating Type</label><select onchange='atlasBonusUpdatePlanField(${atlasBonusJsArg(plan.id)},"eligibleOperatingType",this.value)' ${canEdit ? "" : "disabled"}>${[["any","Any"],["stabilized","Stabilized"],["lease_up","Lease-up"]].map(([value,label]) => `<option value="${value}" ${plan.eligibleOperatingType === value ? "selected" : ""}>${label}</option>`).join("")}</select></div>
+        <div class="bonus-engine-field"><label>Eligible Roles</label><input value="${escapeHtml(plan.eligibleRoles.join(", "))}" onchange='atlasBonusUpdatePlanField(${atlasBonusJsArg(plan.id)},"eligibleRoles",this.value)' ${canEdit ? "" : "disabled"}></div>
+        <div class="bonus-engine-field"><label>Target / Max Payout</label><input type="number" value="${plan.maximumPayout}" onchange='atlasBonusUpdatePlanField(${atlasBonusJsArg(plan.id)},"maximumPayout",this.value)' ${canEdit ? "" : "disabled"}></div>
+      </div>
+      ${weightTotal > 100 || weightTotal < 75 ? `<div class="bonus-engine-warning" style="margin-top:12px">Metric weights total ${weightTotal}%. ATLAS warns on unusual weighting, but does not block activation solely because weights do not equal 100%.</div>` : ""}
+    </div>
+  </div>
+  <div class="bonus-engine-card">
+    <div class="bonus-engine-section-head"><div><h3>Bonus Metrics</h3><p>Select automatic ATLAS metrics or custom/manual metrics. Multiple payout structures and cadences can coexist inside one plan.</p></div><button class="btn btn-blue btn-sm" onclick='atlasBonusAddMetric(${atlasBonusJsArg(plan.id)})' ${canEdit ? "" : "disabled"}>Add Metric</button></div>
+    <div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Metric</th><th>Goal</th><th>Weight</th><th>Payout Structure</th><th>Cadence</th><th>Data Source</th><th>Favorable</th><th>Max</th></tr></thead><tbody>
+      ${plan.metrics.map(metric => `<tr>
+        <td><input value="${escapeHtml(metric.name)}" onchange='atlasBonusUpdateMetric(${atlasBonusJsArg(plan.id)},${atlasBonusJsArg(metric.id)},"name",this.value)' ${canEdit ? "" : "disabled"}></td>
+        <td><input type="number" value="${metric.goal}" onchange='atlasBonusUpdateMetric(${atlasBonusJsArg(plan.id)},${atlasBonusJsArg(metric.id)},"goal",this.value)' ${canEdit ? "" : "disabled"}></td>
+        <td><input type="number" value="${metric.weight}" onchange='atlasBonusUpdateMetric(${atlasBonusJsArg(plan.id)},${atlasBonusJsArg(metric.id)},"weight",this.value)' ${canEdit ? "" : "disabled"}></td>
+        <td><select onchange='atlasBonusUpdateMetric(${atlasBonusJsArg(plan.id)},${atlasBonusJsArg(metric.id)},"payoutStructure",this.value)' ${canEdit ? "" : "disabled"}>${BONUS_ENGINE_PAYOUT_STRUCTURES.map(([value,label]) => `<option value="${value}" ${metric.payoutStructure === value ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select></td>
+        <td><select onchange='atlasBonusUpdateMetric(${atlasBonusJsArg(plan.id)},${atlasBonusJsArg(metric.id)},"cadence",this.value)' ${canEdit ? "" : "disabled"}>${["Weekly","Monthly","Quarterly","Semiannual","Annual","One-time","Custom period"].map(cadence => `<option value="${cadence}" ${metric.cadence === cadence ? "selected" : ""}>${cadence}</option>`).join("")}</select></td>
+        <td><select onchange='atlasBonusUpdateMetric(${atlasBonusJsArg(plan.id)},${atlasBonusJsArg(metric.id)},"dataSource",this.value)' ${canEdit ? "" : "disabled"}>${Array.from(new Set(BONUS_ENGINE_METRIC_LIBRARY.map(item => item[3]))).map(source => `<option value="${escapeHtml(source)}" ${metric.dataSource === source ? "selected" : ""}>${escapeHtml(source)}</option>`).join("")}</select></td>
+        <td><select onchange='atlasBonusUpdateMetric(${atlasBonusJsArg(plan.id)},${atlasBonusJsArg(metric.id)},"favorable",this.value)' ${canEdit ? "" : "disabled"}><option value="higher" ${metric.favorable === "higher" ? "selected" : ""}>Higher</option><option value="lower" ${metric.favorable === "lower" ? "selected" : ""}>Lower</option></select></td>
+        <td><input type="number" value="${metric.maximumPayout}" onchange='atlasBonusUpdateMetric(${atlasBonusJsArg(plan.id)},${atlasBonusJsArg(metric.id)},"maximumPayout",this.value)' ${canEdit ? "" : "disabled"}></td>
+      </tr>`).join("")}
+    </tbody></table></div>
+  </div>`;
+}
+
+function renderBonusAssignmentsSection(rows) {
+  const state = atlasBonusState();
+  const hierarchy = ["Individual Employee Override", "Property-Specific Plan", "Role Plan", "Default Bonus Plan"];
+  return `<div class="bonus-engine-grid two">
+    <div class="bonus-engine-card"><h3>Assignment Hierarchy</h3><p>${hierarchy.join(" -> ")}</p><div class="bonus-engine-small-list" style="margin-top:12px">${hierarchy.map((item, idx) => `<div class="bonus-engine-small-row"><span>${idx + 1}. ${escapeHtml(item)}</span><strong>${idx === 0 ? "Highest" : idx === hierarchy.length - 1 ? "Fallback" : "Next"}</strong></div>`).join("")}</div></div>
+    <div class="bonus-engine-card"><h3>Operating Type Coverage</h3><p>Community operating type can be managed from Communities or the assignment layer.</p><div class="bonus-engine-small-list" style="margin-top:12px">${Object.entries(state.communityOperatingTypes).map(([name,type]) => `<div class="bonus-engine-small-row"><span>${escapeHtml(name)}</span><strong>${escapeHtml(type === "lease_up" ? "Lease-up" : "Stabilized")}</strong></div>`).join("") || `<div class="bonus-engine-warning">No explicit community operating overrides are saved.</div>`}</div></div>
+  </div>
+  <div class="bonus-engine-card">
+    <h3>Active Assignments</h3>
+    <div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Level</th><th>Role</th><th>Community</th><th>Employee</th><th>Operating Type</th><th>Plan</th><th>Effective Dates</th></tr></thead><tbody>
+      ${state.assignments.map(item => `<tr><td><span class="bonus-engine-pill info">${escapeHtml(item.level)}</span></td><td>${escapeHtml(item.role || "Any")}</td><td>${escapeHtml(item.communityName || "Any")}</td><td>${escapeHtml(item.employeeId || "Any")}</td><td>${escapeHtml(item.operatingType)}</td><td>${escapeHtml(atlasBonusFindPlan(item.planId)?.name || item.planId)}</td><td>${escapeHtml(item.effectiveStart)} - ${escapeHtml(item.effectiveEnd || "Current")}</td></tr>`).join("")}
+    </tbody></table></div>
+  </div>
+  <div class="bonus-engine-card">
+    <h3>Controlling Plan by Employee</h3>
+    <div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Employee</th><th>Role</th><th>Community</th><th>Controlling Plan</th><th>Source</th><th>Hierarchy</th></tr></thead><tbody>
+      ${rows.map(row => `<tr><td><strong>${escapeHtml(row.employee.name)}</strong></td><td>${escapeHtml(row.employee.bonusRole)}</td><td>${escapeHtml(row.employee.communityName || "Portfolio / Central")}</td><td>${escapeHtml(row.plan?.name || "Missing plan")}</td><td>${escapeHtml(row.planSource)}</td><td>${escapeHtml(row.hierarchy)}</td></tr>`).join("")}
+    </tbody></table></div>
+  </div>`;
+}
+
+function renderBonusCalculationRows(rows, options = {}) {
+  const showSalary = options.showSalary && atlasBonusCanViewSalary();
+  return `<div class="bonus-engine-table-wrap"><table class="bonus-engine-table"><thead><tr><th>Employee</th><th>Role / Community</th><th>Plan</th><th>Potential</th><th>Projected</th><th>Final</th><th>Proration</th><th>Status</th><th>${showSalary ? "Salary" : "Actions"}</th></tr></thead><tbody>
+    ${rows.map(row => `<tr>
+      <td><strong>${escapeHtml(row.employee.name)}</strong><div style="color:var(--muted);font-size:0.62rem">${escapeHtml(row.employee.payrollEmployeeId || row.employee.employeeId || "")}</div></td>
+      <td>${escapeHtml(row.employee.bonusRole || "Role missing")}<div style="color:var(--muted);font-size:0.62rem">${escapeHtml(row.employee.communityName || "Portfolio / Central")} · ${escapeHtml(row.operatingType)}</div></td>
+      <td>${escapeHtml(row.plan?.name || "Missing plan")}<div style="color:var(--muted);font-size:0.62rem">${escapeHtml(row.planSource)}</div></td>
+      <td>${atlasBonusCurrency(row.maximumPotential)}</td>
+      <td>${atlasBonusCurrency(row.projectedPayout)}</td>
+      <td><strong>${atlasBonusCurrency(row.finalPayout)}</strong></td>
+      <td>${atlasBonusPct(row.proration.factor * 100, 0)}<div style="color:var(--muted);font-size:0.62rem">${row.proration.eligibleDays}/${row.proration.totalDays} days${row.proration.segments.length ? " · transfer" : ""}</div></td>
+      <td><span class="bonus-engine-pill ${row.unresolvedCritical ? "bad" : row.approvalStatus.includes("Approved") || row.approvalStatus === "Paid" ? "good" : row.approvalStatus.includes("Override") ? "warn" : "info"}">${escapeHtml(row.approvalStatus)}</span></td>
+      <td>${showSalary ? atlasBonusCurrency(row.employee.salary) : `<button class="btn btn-gray btn-sm" onclick='atlasBonusDrill("projected","employee",${atlasBonusJsArg(row.employee.name)})'>Detail</button>`}</td>
+    </tr>`).join("") || `<tr><td colspan="9">No calculation rows match the current filters.</td></tr>`}
+  </tbody></table></div>`;
+}
+
+function renderBonusCalculationsSection(rows) {
+  const period = atlasBonusPeriodFromQuarter();
+  const lock = atlasBonusState().periodLocks[period.periodKey];
+  return `<div class="bonus-engine-card">
+    <div class="bonus-engine-section-head"><div><h3>Bonus Calculation Run</h3><p>Calculations use People eligibility, plan assignments, ATLAS operational metrics, proration, overrides, and approval status.</p></div><div class="bonus-engine-actions"><button class="btn btn-blue btn-sm" onclick="atlasBonusRunCalculations()" ${atlasBonusCan("run_calculations") ? "" : "disabled"}>Run Calculations</button><button class="btn btn-gray btn-sm" onclick="atlasBonusFinalizePeriod()" ${atlasBonusCan("finalize_period") ? "" : "disabled"}>Finalize Period</button><button class="btn btn-gray btn-sm" onclick="atlasBonusReopenPeriod()" ${atlasBonusCan("reopen_period") ? "" : "disabled"}>Reopen Period</button></div></div>
+    <div class="bonus-engine-secure-note" style="margin-top:12px">Period status: ${escapeHtml(lock?.status || "Open")} · Last calculation run: ${atlasBonusState().lastRunAt ? new Date(atlasBonusState().lastRunAt).toLocaleString() : "Not run in this browser yet"}.</div>
+  </div>
+  ${renderBonusCalculationRows(rows)}`;
+}
+
+function renderBonusProjectedSection(rows) {
+  return `<div class="bonus-engine-grid">${rows.map(row => {
+    const pct = row.maximumPotential > 0 ? Math.min(100, (row.projectedPayout / row.maximumPotential) * 100) : 0;
+    return `<div class="bonus-engine-card">
+      <div class="bonus-engine-section-head"><div><h3>${escapeHtml(row.employee.name)}</h3><p>${escapeHtml(row.plan?.name || "Missing plan")} · ${escapeHtml(row.planSource)}</p></div><span class="bonus-engine-pill ${row.unresolvedCritical ? "bad" : "info"}">${escapeHtml(row.approvalStatus)}</span></div>
+      <div class="bonus-engine-kpi" style="border-left-color:#fcb53b;margin-top:12px;min-height:auto"><div class="v">${atlasBonusCurrency(row.projectedPayout)}</div><div class="s">${atlasBonusPct(pct, 0)} of ${atlasBonusCurrency(row.maximumPotential)} maximum potential</div></div>
+      <div class="bonus-engine-progress" style="margin:10px 0 12px"><span style="width:${pct}%"></span></div>
+      <div class="bonus-engine-small-list">${row.metricResults.map(result => `<div class="bonus-engine-small-row"><span>${escapeHtml(result.metric.name)}<br><span style="font-size:0.6rem;color:var(--muted)">${escapeHtml(result.metric.dataSource)} · ${escapeHtml(result.metric.cadence)}</span></span><strong>${result.actual === null ? "Pending" : atlasBonusCurrency(result.earned)}</strong></div>`).join("")}</div>
+      ${row.proration.segments.length ? `<div class="bonus-engine-warning" style="margin-top:12px">Transfer calculation: ${row.proration.segments.map(segment => `${escapeHtml(segment.communityName)} ${segment.days} days`).join(" + ")}. Community-level detail is preserved in the calculation record.</div>` : ""}
+    </div>`;
+  }).join("")}</div>`;
+}
+
+function renderBonusApprovalsSection(rows) {
+  const stages = ["Ready for Regional Review", "Regional Review In Progress", "Regional Approved", "Overrides Pending Approval", "HR Ready", "Paid", "Exceptions Blocking Approval"];
+  const mapStage = row => row.approvalStatus === "Calculated" ? "Ready for Regional Review" : row.approvalStatus;
+  return `<div class="bonus-engine-card">
+    <div class="bonus-engine-section-head"><div><h3>Regional Electronic Certification</h3><p>I certify that I have reviewed these bonus calculations and approve the payouts presented above.</p></div><div class="bonus-engine-actions"><button class="btn btn-blue btn-sm" onclick="atlasBonusRegionalApprove()" ${atlasBonusCan("approve_bonuses") ? "" : "disabled"}>Approve Ready Rows</button><button class="btn btn-gray btn-sm" onclick="atlasBonusApproveOverrides()" ${atlasBonusCan("override_calculations") ? "" : "disabled"}>Approve Overrides</button></div></div>
+    <div class="bonus-engine-approval-cert" style="margin-top:12px"><div class="bonus-engine-grid two"><div class="bonus-engine-field"><label>Electronic Signature</label><input id="atlas-bonus-signature" placeholder="Type your legal name"></div><div class="bonus-engine-field"><label>Comments</label><input id="atlas-bonus-signature-comments" placeholder="Optional approval comments"></div></div></div>
+  </div>
+  <div class="bonus-engine-pipeline">
+    ${stages.map(stage => {
+      const scoped = rows.filter(row => mapStage(row) === stage);
+      return `<div class="bonus-engine-stage"><div class="bonus-engine-stage-title">${escapeHtml(stage)}</div>${scoped.slice(0, 6).map(row => `<div class="bonus-engine-stage-row"><strong>${escapeHtml(row.employee.name)}</strong><br>${escapeHtml(row.employee.communityName || "Portfolio / Central")}<br>${atlasBonusCurrency(row.finalPayout)}<div style="margin-top:6px"><button class="btn btn-gray btn-sm" onclick='atlasBonusSetRowStatus(${atlasBonusJsArg(row.rowId)},"${stage === "Regional Approved" ? "HR Ready" : "Regional Approved"}")'>Move</button></div></div>`).join("") || `<div class="bonus-engine-stage-row">No records</div>`}</div>`;
+    }).join("")}
+  </div>
+  <div class="bonus-engine-card"><h3>Sign-Off History</h3><div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Signature</th><th>Role</th><th>Date / Time</th><th>Rows</th><th>Comments</th></tr></thead><tbody>${atlasBonusState().regionalSignatures.map(sig => `<tr><td>${escapeHtml(sig.signature)}</td><td>${escapeHtml(sig.role)}</td><td>${new Date(sig.approvedAt).toLocaleString()}</td><td>${sig.rowCount}</td><td>${escapeHtml(sig.comments || "")}</td></tr>`).join("") || `<tr><td colspan="5">No electronic signatures captured yet.</td></tr>`}</tbody></table></div></div>`;
+}
+
+function renderBonusExceptionsSection(rows) {
+  const exceptionRows = rows.flatMap(row => row.exceptions.map(exception => ({ row, exception, key: `${row.rowId}_${exception.code}_${exception.metricId || ""}`, status: atlasBonusState().exceptionStatusById[`${row.rowId}_${exception.code}_${exception.metricId || ""}`] || "new" })));
+  return `<div class="bonus-engine-card">
+    <div class="bonus-engine-section-head"><div><h3>Bonus Exception Queue</h3><p>ATLAS does not guess when required data is missing. Critical exceptions block final approval until resolved by a human.</p></div><span class="bonus-engine-pill ${exceptionRows.some(row => row.exception.severity === "critical" && row.status !== "resolved") ? "bad" : "good"}">${exceptionRows.length} exceptions</span></div>
+    <div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Employee</th><th>Community</th><th>Plan</th><th>Exception</th><th>Severity</th><th>Required Action</th><th>Status</th><th>Reviewer</th></tr></thead><tbody>
+      ${exceptionRows.map(item => `<tr><td><strong>${escapeHtml(item.row.employee.name)}</strong></td><td>${escapeHtml(item.row.employee.communityName || "Missing")}</td><td>${escapeHtml(item.row.plan?.name || "Missing plan")}</td><td>${escapeHtml(item.exception.message)}</td><td><span class="bonus-engine-pill ${item.exception.severity === "critical" ? "bad" : "warn"}">${escapeHtml(item.exception.severity)}</span></td><td>${item.exception.code === "missing_salary" ? "HR/Admin must enter salary or assign non-salary plan." : item.exception.code === "missing_metric" ? "Import source data or enter documented manual result." : "Update People mapping or plan assignment."}</td><td>${escapeHtml(item.status)}</td><td><button class="btn btn-gray btn-sm" onclick='atlasBonusResolveException(${atlasBonusJsArg(item.row.rowId)},${atlasBonusJsArg(item.exception.code)},${atlasBonusJsArg(item.exception.metricId || "")})' ${atlasBonusCan("override_calculations") ? "" : "disabled"}>Resolve</button></td></tr>`).join("") || `<tr><td colspan="8">No exceptions in the current filter set.</td></tr>`}
+    </tbody></table></div>
+  </div>`;
+}
+
+function renderBonusForecastSection(rows) {
+  const summary = atlasBonusSummary(rows);
+  return `<div class="bonus-engine-grid">
+    ${renderBonusEngineKpi("Portfolio Projection", atlasBonusCurrency(summary.projected), "Current projected portfolio payout", "green", "projected")}
+    ${renderBonusEngineKpi("Budgeted Bonus Pool", atlasBonusCurrency(summary.budget), "Approved bonus budget", "gold", "forecast")}
+    ${renderBonusEngineKpi("Budget Variance", atlasBonusCurrency(summary.variance), "Positive means remaining budget capacity", summary.variance >= 0 ? "green" : "red", "forecast")}
+    ${renderBonusEngineKpi("Approved Payout", atlasBonusCurrency(summary.approved), "Approved through current workflow", "", "approvals")}
+    ${renderBonusEngineKpi("Remaining Exposure", atlasBonusCurrency(Math.max(summary.budget - summary.approved, 0)), "Budget remaining after approved payouts", "gold", "forecast")}
+  </div>
+  <div class="bonus-engine-grid three">
+    ${renderBonusEngineBarChart(rows, row => row.employee.region || "Unassigned", "Forecast by Region")}
+    ${renderBonusEngineBarChart(rows, row => row.employee.communityName || "Portfolio / Central", "Forecast by Property")}
+    ${renderBonusEngineBarChart(rows, row => row.plan?.name || "Missing Plan", "Forecast by Bonus Plan")}
+  </div>`;
+}
+
+function renderBonusReportsSection() {
+  const reports = [
+    ["regional_summary", "Regional Bonus Approval Summary", "Designed for Regional review and electronic certification."],
+    ["employee_detail", "Employee Detail Calculation", "Metric, actual performance, goal, payout, and final result."],
+    ["property_summary", "Property Bonus Summary", "Bonus-eligible employees by property."],
+    ["exceptions", "Exceptions & Overrides Report", "Manual adjustments and exception-based payouts."],
+    ["hr_payroll", "HR Payroll Processing Report", "Employee ID, property, position, period, approved payout, payroll code, status, approval date, and notes. Salary is excluded."],
+    ["executive_summary", "Executive Portfolio Bonus Summary", "Companywide bonus performance and cost."],
+  ];
+  return `<div class="bonus-engine-card">
+    <div class="bonus-engine-section-head"><div><h3>Reports & Exports</h3><p>PDF is optimized for approval and signatures. Excel/CSV are optimized for HR, payroll, accounting, and finance.</p></div><span class="bonus-engine-pill good">Salary excluded from standard exports</span></div>
+    <div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Report</th><th>Purpose</th><th>Formats</th></tr></thead><tbody>
+      ${reports.map(([key,title,purpose]) => `<tr><td><strong>${escapeHtml(title)}</strong></td><td>${escapeHtml(purpose)}</td><td><div class="bonus-engine-actions"><button class="btn btn-gray btn-sm" onclick='atlasBonusExportReport(${atlasBonusJsArg(key)},"pdf")'>PDF</button><button class="btn btn-gray btn-sm" onclick='atlasBonusExportReport(${atlasBonusJsArg(key)},"excel")'>Excel</button><button class="btn btn-gray btn-sm" onclick='atlasBonusExportReport(${atlasBonusJsArg(key)},"csv")'>CSV</button></div></td></tr>`).join("")}
+    </tbody></table></div>
+  </div>
+  <div class="bonus-engine-secure-note">Secure calculation detail is available only to Admin and HR roles with View Salary permission. Payroll reports intentionally exclude salary even when exported by HR.</div>
+  ${atlasBonusCanViewSalary() ? `<div class="bonus-engine-card"><h3>Secure Calculation Detail</h3><p>Admin/HR salary view. This block is not rendered for unauthorized roles.</p>${renderBonusCalculationRows(atlasBonusBuildCalculationRows(), { showSalary: true })}</div>` : ""}`;
+}
+
+function renderBonusHistorySection(rows) {
+  const state = atlasBonusState();
+  const simulation = state.simulation;
+  return `<div class="bonus-engine-grid two">
+    <div class="bonus-engine-card"><div class="bonus-engine-section-head"><div><h3>Plan Simulation</h3><p>Simulate a proposed bonus plan against historical data without changing actual historical records.</p></div><button class="btn btn-blue btn-sm" onclick="atlasBonusRunSimulation()" ${atlasBonusCan("run_calculations") ? "" : "disabled"}>Simulate Using Historical Data</button></div>${simulation ? `<div class="bonus-engine-grid two" style="margin-top:12px">${renderBonusEngineKpi("Proposed Payout", atlasBonusCurrency(simulation.proposed), "Simulation result", "green", "history")}${renderBonusEngineKpi("Historical Payout", atlasBonusCurrency(simulation.historicalActual), "Actual prior payout", "", "history")}${renderBonusEngineKpi("Variance", atlasBonusCurrency(simulation.variance), "Proposed vs actual", simulation.variance >= 0 ? "gold" : "red", "history")}${renderBonusEngineKpi("Employees Gaining", simulation.gainingEmployees, `${simulation.losingEmployees} losing payout`, "info", "history")}</div>` : `<div class="bonus-engine-warning" style="margin-top:12px">No simulation has been run yet.</div>`}</div>
+    <div class="bonus-engine-card"><h3>Finalized Historical Records</h3><p>Historical records stay tied to the plan version used at calculation time, even when an employee changes role, transfers, leaves RISE, or becomes inactive.</p><div class="bonus-engine-small-list" style="margin-top:12px">${rows.slice(0, 6).map(row => `<div class="bonus-engine-small-row"><span>${escapeHtml(row.period.periodKey)} · ${escapeHtml(row.employee.name)}</span><strong>${escapeHtml(row.plan?.version || "Version pending")}</strong></div>`).join("")}</div></div>
+  </div>
+  <div class="bonus-engine-card"><h3>Historical Bonus Plans</h3><div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Plan</th><th>Version</th><th>Status</th><th>Effective Dates</th><th>Metrics</th><th>Action</th></tr></thead><tbody>${state.plans.map(plan => `<tr><td><strong>${escapeHtml(plan.name)}</strong></td><td>${escapeHtml(plan.version)}</td><td><span class="bonus-engine-pill ${plan.status === "active" ? "good" : plan.status === "draft" ? "warn" : "info"}">${escapeHtml(plan.status)}</span></td><td>${escapeHtml(plan.effectiveStart)} - ${escapeHtml(plan.effectiveEnd)}</td><td>${plan.metrics.length}</td><td><button class="btn btn-gray btn-sm" onclick='atlasBonusSetSelectedPlan(${atlasBonusJsArg(plan.id)})'>Open</button></td></tr>`).join("")}</tbody></table></div></div>`;
+}
+
+function renderBonusAuditSection() {
+  const rows = atlasBonusState().auditTrail || [];
+  return `<div class="bonus-engine-card"><h3>Full Audit Trail</h3><p>Tracks plan changes, metric changes, employee assignments, calculation runs, overrides, approvals, finalization, and reopen actions.</p><div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Action</th><th>Entity</th><th>User</th><th>Date / Time</th><th>Previous</th><th>New</th><th>Reason</th></tr></thead><tbody>${rows.map(row => `<tr><td><strong>${escapeHtml(row.action)}</strong></td><td>${escapeHtml(row.entity)}</td><td>${escapeHtml(row.user)}</td><td>${row.at ? new Date(row.at).toLocaleString() : ""}</td><td>${escapeHtml(row.previousValue)}</td><td>${escapeHtml(row.newValue)}</td><td>${escapeHtml(row.reason)}</td></tr>`).join("") || `<tr><td colspan="7">No audit activity recorded yet.</td></tr>`}</tbody></table></div></div>`;
+}
+
+function renderBonusSettingsSection() {
+  const role = atlasBonusCurrentRole();
+  return `<div class="bonus-engine-grid two">
+    <div class="bonus-engine-card"><h3>Bonus Permissions</h3><p>Granular permissions are surfaced in People -> ATLAS User Setup -> Permissions. Salary is Admin/HR only by default.</p><div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Permission</th><th>This Role</th></tr></thead><tbody>${BONUS_ENGINE_PERMISSION_DEFS.map(([key,label]) => `<tr><td>${escapeHtml(label)}</td><td><span class="bonus-engine-pill ${atlasBonusCan(key) ? "good" : "bad"}">${atlasBonusCan(key) ? "On" : "Off"}</span></td></tr>`).join("")}</tbody></table></div></div>
+    <div class="bonus-engine-card"><h3>People Bonus Fields</h3><p>These fields are now part of the People roster contract and feed this engine when present.</p><div class="bonus-engine-small-list" style="margin-top:12px">${["Bonus Eligible - Yes / No","Bonus Plan","Effective Date","Target Bonus","Assigned Community","Assigned Region","Salary","Payroll / Employee ID","Bonus Role","Override Plan","Bonus Plan Status"].map(field => `<div class="bonus-engine-small-row"><span>${escapeHtml(field)}</span><strong>Ready</strong></div>`).join("")}</div></div>
+  </div>
+  <div class="bonus-engine-secure-note">Current role: ${escapeHtml(role)}. View Salary = ${atlasBonusCanViewSalary() ? "ON" : "OFF"}. When off, salary values are not rendered in screens, tooltips, reports, exports, dashboard widgets, or calculation payloads sent from this module.</div>`;
+}
+
+function renderBonusEngineSection(section, rows) {
+  if (section === "overview") return renderBonusOverviewSection(rows);
+  if (section === "my_bonus") return renderBonusMyBonusSection();
+  if (section === "builder") return renderBonusPlanBuilderSection();
+  if (section === "assignments") return renderBonusAssignmentsSection(rows);
+  if (section === "calculations") return renderBonusCalculationsSection(rows);
+  if (section === "projected") return renderBonusProjectedSection(rows);
+  if (section === "approvals") return renderBonusApprovalsSection(rows);
+  if (section === "exceptions") return renderBonusExceptionsSection(rows);
+  if (section === "forecast") return renderBonusForecastSection(rows);
+  if (section === "reports") return renderBonusReportsSection();
+  if (section === "history") return renderBonusHistorySection(rows);
+  if (section === "audit") return renderBonusAuditSection();
+  if (section === "settings") return renderBonusSettingsSection();
+  return renderBonusOverviewSection(rows);
+}
+
+function renderBonusTab() {
+  syncSharedPeopleAssignments({ persist: true });
+  const state = atlasBonusState();
+  const rows = atlasBonusBuildCalculationRows();
+  const summary = atlasBonusSummary(rows);
+  const period = atlasBonusPeriodFromQuarter();
+  const sections = atlasBonusVisibleSections();
+  if (!sections.length) {
+    return `<div class="card"><div class="card-title">Bonus & Incentives</div><div class="alert-red">This ATLAS account does not have Bonus & Incentives access.</div></div>`;
+  }
+  const activeSection = sections.some(([id]) => id === state.activeSection) ? state.activeSection : sections[0][0];
+  return `<section class="bonus-engine-shell">
+    <div class="bonus-engine-hero">
+      <div class="bonus-engine-kicker">RISE ATLAS / Bonus & Incentives Engine</div>
+      <h1>Performance, compensation, approval, and payroll readiness in one workspace.</h1>
+      <p>ATLAS now resolves eligibility, plan hierarchy, live metrics, projected payout, exceptions, overrides, approvals, HR exports, locked periods, and historical plan versions from the same compensation-engine surface.</p>
+      <div class="bonus-engine-toolbar">
+        <span class="bonus-engine-pill good">${escapeHtml(period.periodKey)}</span>
+        <span class="bonus-engine-pill">${summary.employeeCount} eligible employees</span>
+        <span class="bonus-engine-pill ${summary.criticalExceptions ? "bad" : "good"}">${summary.criticalExceptions} critical exceptions</span>
+        <span class="bonus-engine-pill info">Projected ${atlasBonusCurrency(summary.projected)}</span>
+        ${atlasBonusCan("run_calculations") ? `<button type="button" class="btn btn-blue btn-sm" onclick="atlasBonusRunCalculations()">Run Calculations</button>` : ""}
+        ${atlasBonusSectionVisible("reports") ? `<button type="button" class="btn btn-gray btn-sm" onclick='atlasBonusSetSection("reports")'>Reports</button>` : ""}
+      </div>
+    </div>
+    <div class="bonus-engine-nav">
+      ${sections.map(([id, label]) => `<button type="button" class="bonus-engine-tab ${activeSection === id ? "active" : ""}" onclick='atlasBonusSetSection(${atlasBonusJsArg(id)})'>${escapeHtml(label)}</button>`).join("")}
+    </div>
+    ${renderBonusEngineFilters(atlasBonusBuildCalculationRows({ filters: defaultBonusEngineState().filters }))}
+    ${renderBonusEngineSection(activeSection, rows)}
+  </section>`;
 }
 
 function getPortfolioPriorityToneColor(tone = "watch") {

@@ -746,6 +746,22 @@ function normalizeUser(user){
   };
 }
 
+function normalizeBonusEligibleValue(value, fallback = false){
+  if(value === true || value === false) return value;
+  const text = String(value == null ? '' : value).trim().toLowerCase();
+  if(!text) return fallback;
+  if(['yes','y','true','1','eligible','active','on'].includes(text)) return true;
+  if(['no','n','false','0','not eligible','inactive','off'].includes(text)) return false;
+  return fallback;
+}
+
+function normalizeOptionalNumber(value){
+  const text = String(value == null ? '' : value).replace(/[$,]/g,'').trim();
+  if(!text) return '';
+  const number = Number(text);
+  return Number.isFinite(number) ? number : '';
+}
+
 function readAtlasEmbeddedAccessUser(){
   if(!ATLAS_EMBEDDED_MODE) return null;
   let profile = null;
@@ -787,6 +803,15 @@ function normalizeEmployee(employee){
     status: String(employee && employee.status || 'Active').trim(),
     terminationReason: String(employee && employee.terminationReason || '').trim(),
     terminationDate: String(employee && employee.terminationDate || '').trim(),
+    bonusEligible: normalizeBonusEligibleValue(employee && employee.bonusEligible, ''),
+    bonusPlan: String(employee && (employee.bonusPlan || employee.bonusPlanId) || '').trim(),
+    bonusEffectiveDate: normalizeIsoDate(employee && (employee.bonusEffectiveDate || employee.bonus_effective_date)) || '',
+    targetBonus: normalizeOptionalNumber(employee && employee.targetBonus),
+    salary: normalizeOptionalNumber(employee && employee.salary),
+    payrollEmployeeId: String(employee && (employee.payrollEmployeeId || employee.payrollId) || '').trim(),
+    bonusRole: String(employee && employee.bonusRole || '').trim(),
+    overridePlan: String(employee && (employee.overridePlan || employee.overridePlanId) || '').trim(),
+    bonusPlanStatus: String(employee && employee.bonusPlanStatus || '').trim(),
     archived: Boolean(employee && employee.archived)
   };
 }
@@ -3676,6 +3701,7 @@ function parseCompanyRosterSheet(rows){
       email: record['Work Email'],
       department,
       employeeNumber: record['Employee Number'],
+      payrollEmployeeId: record['Employee Number'],
       statusType: record['Status Type'],
       status: record['Status'] || 'Active'
     });
@@ -6396,7 +6422,7 @@ function renderEmployees(){
           </div>
           <div class="file-box">
             <strong>Upload employee roster</strong>
-            <div class="small muted">Accepted columns: Name, Community, Effective Date, Region, Role, Department, Work Email, Employee Number, Status, Status Type, Manager, Manager ID, Regional Manager, or Regional Manager ID</div>
+            <div class="small muted">Accepted columns: Name, Community, Effective Date, Region, Role, Department, Work Email, Employee Number, Status, Status Type, Manager, Manager ID, Regional Manager, Regional Manager ID, Bonus Eligible, Bonus Plan, Bonus Effective Date, Target Bonus, Salary, Payroll / Employee ID, Bonus Role, Override Plan, or Bonus Plan Status</div>
             <div style="margin-top:12px">
               <input id="roster-upload" type="file" accept=".csv,.xlsx,.xls" onchange="handleRosterUpload(event)">
             </div>
@@ -6448,6 +6474,23 @@ function renderEmployees(){
           <div style="margin-top:12px">
             <label>Effective date</label>
             <input id="emp-effective-date" type="date" value="${today()}">
+          </div>
+          <div class="section-title" style="margin:16px 0 8px">
+            <div>
+              <h2>Bonus & Incentives</h2>
+              <p>These fields feed the ATLAS Bonus & Incentives Engine and preserve payroll-ready employee mapping.</p>
+            </div>
+          </div>
+          <div class="form-grid cols-3">
+            <div><label>Bonus eligible</label><select id="emp-bonus-eligible"><option value="false">No</option><option value="true">Yes</option></select></div>
+            <div><label>Bonus plan</label><input id="emp-bonus-plan" placeholder="Plan name or ID"></div>
+            <div><label>Bonus effective date</label><input id="emp-bonus-effective-date" type="date" value="${today()}"></div>
+            <div><label>Target bonus</label><input id="emp-target-bonus" type="number" min="0" step="50" placeholder="3000"></div>
+            <div><label>Salary</label>${isAdmin ? '<input id="emp-salary" type="number" min="0" step="1000" placeholder="Admin/HR only">' : '<input id="emp-salary" value="" placeholder="Restricted" disabled>'}</div>
+            <div><label>Payroll / Employee ID</label><input id="emp-payroll-id" placeholder="Payroll ID"></div>
+            <div><label>Bonus role</label><input id="emp-bonus-role" list="role-options" placeholder="General Manager"></div>
+            <div><label>Override plan</label><input id="emp-override-plan" placeholder="Optional override plan"></div>
+            <div><label>Bonus plan status</label><input id="emp-bonus-plan-status" placeholder="Active"></div>
           </div>
           <div style="margin-top:14px">
             <button class="btn btn-primary" onclick="addEmployee()">Add employee</button>
@@ -6574,6 +6617,7 @@ function renderEmployees(){
                   <th>Community</th>
                   <th>Area</th>
                   <th>Status</th>
+                  <th>Bonus</th>
                   <th>Active Plans</th>
                   <th></th>
                 </tr>
@@ -6611,6 +6655,24 @@ function renderEmployees(){
                         ${employee.terminationDate ? `<div class="tiny muted" style="margin-top:6px">${formatDate(employee.terminationDate)}${employee.terminationReason ? ` · ${escapeHtml(employee.terminationReason)}` : ''}</div>` : ''}
                       </td>
                       <td>
+                        <select onchange="updateEmployeeField('${employee.id}','bonusEligible', this.value)">
+                          <option value="false" ${employee.bonusEligible ? '' : 'selected'}>Not eligible</option>
+                          <option value="true" ${employee.bonusEligible ? 'selected' : ''}>Eligible</option>
+                        </select>
+                        <input style="margin-top:6px" value="${escapeHtml(employee.bonusPlan || '')}" onchange="updateEmployeeField('${employee.id}','bonusPlan', this.value)" placeholder="Bonus plan">
+                        <input style="margin-top:6px" value="${escapeHtml(employee.bonusRole || '')}" list="role-options" onchange="updateEmployeeField('${employee.id}','bonusRole', this.value)" placeholder="Bonus role">
+                        <div class="tiny muted" style="margin-top:6px">${employee.targetBonus ? `Target $${Number(employee.targetBonus).toLocaleString()}` : 'Target bonus not set'}${employee.payrollEmployeeId ? ` · Payroll ${escapeHtml(employee.payrollEmployeeId)}` : ''}</div>
+                        <details style="margin-top:6px">
+                          <summary class="tiny muted">More bonus fields</summary>
+                          <input style="margin-top:6px" type="date" value="${escapeHtml(employee.bonusEffectiveDate || '')}" onchange="updateEmployeeField('${employee.id}','bonusEffectiveDate', this.value)">
+                          <input style="margin-top:6px" type="number" min="0" step="50" value="${escapeHtml(employee.targetBonus || '')}" onchange="updateEmployeeField('${employee.id}','targetBonus', this.value)" placeholder="Target bonus">
+                          <input style="margin-top:6px" value="${escapeHtml(employee.payrollEmployeeId || '')}" onchange="updateEmployeeField('${employee.id}','payrollEmployeeId', this.value)" placeholder="Payroll / Employee ID">
+                          <input style="margin-top:6px" value="${escapeHtml(employee.overridePlan || '')}" onchange="updateEmployeeField('${employee.id}','overridePlan', this.value)" placeholder="Override plan">
+                          <input style="margin-top:6px" value="${escapeHtml(employee.bonusPlanStatus || '')}" onchange="updateEmployeeField('${employee.id}','bonusPlanStatus', this.value)" placeholder="Bonus plan status">
+                        </details>
+                        ${isAdmin ? `<input style="margin-top:6px" type="number" min="0" step="1000" value="${escapeHtml(employee.salary || '')}" onchange="updateEmployeeField('${employee.id}','salary', this.value)" placeholder="Salary">` : '<div class="tiny muted" style="margin-top:6px">Salary restricted</div>'}
+                      </td>
+                      <td>
                         ${active.length ? active.map(plan => `<span class="badge ${typeBadgeClass(plan.type)}">${planTypeUpperLabel(plan.type)}</span>`).join('') : '<span class="small muted">None</span>'}
                       </td>
                       <td>
@@ -6625,7 +6687,7 @@ function renderEmployees(){
                       </td>
                     </tr>
                   `;
-                }).join('') : `<tr><td colspan="9"><div class="alert alert-info">No employees matched the current roster filters.</div></td></tr>`}
+                }).join('') : `<tr><td colspan="10"><div class="alert alert-info">No employees matched the current roster filters.</div></td></tr>`}
               </tbody>
             </table>
           </div>
@@ -6930,6 +6992,15 @@ function addEmployee(){
       email: document.getElementById('emp-email').value.trim(),
       employeeNumber: document.getElementById('emp-number').value.trim(),
       statusType: document.getElementById('emp-status-type').value.trim(),
+      bonusEligible: document.getElementById('emp-bonus-eligible').value === 'true',
+      bonusPlan: document.getElementById('emp-bonus-plan').value.trim(),
+      bonusEffectiveDate: document.getElementById('emp-bonus-effective-date').value,
+      targetBonus: document.getElementById('emp-target-bonus').value,
+      salary: document.getElementById('emp-salary').value,
+      payrollEmployeeId: document.getElementById('emp-payroll-id').value.trim(),
+      bonusRole: document.getElementById('emp-bonus-role').value.trim(),
+      overridePlan: document.getElementById('emp-override-plan').value.trim(),
+      bonusPlanStatus: document.getElementById('emp-bonus-plan-status').value.trim(),
       status: 'Active',
       effectiveDate
     });
@@ -6997,13 +7068,33 @@ function upsertEmployeeRecord(record){
     if(normalized.email) existing.email = normalized.email;
     if(normalized.department) existing.department = normalized.department;
     if(normalized.employeeNumber) existing.employeeNumber = normalized.employeeNumber;
+    ['bonusEligible','bonusPlan','bonusEffectiveDate','targetBonus','salary','payrollEmployeeId','bonusRole','overridePlan','bonusPlanStatus'].forEach(field => {
+      if(field === 'bonusEligible'){
+        if(record && Object.prototype.hasOwnProperty.call(record, field)) existing[field] = normalized[field];
+        return;
+      }
+      if(normalized[field] !== '' && normalized[field] != null) existing[field] = normalized[field];
+    });
     if(!changedEmployeeFields(employeeAssignmentSnapshot(existing), nextValues).length){
       logPeopleAudit({
         action: 'employee_identity_refresh',
         entityType: 'employee',
         entityId: existing.id,
         beforeValues: {},
-        afterValues: { email: existing.email, employeeNumber: existing.employeeNumber, department: existing.department },
+        afterValues: {
+          email: existing.email,
+          employeeNumber: existing.employeeNumber,
+          department: existing.department,
+          bonusEligible: existing.bonusEligible,
+          bonusPlan: existing.bonusPlan,
+          bonusEffectiveDate: existing.bonusEffectiveDate,
+          targetBonus: existing.targetBonus,
+          salary: existing.salary ? '[restricted]' : '',
+          payrollEmployeeId: existing.payrollEmployeeId,
+          bonusRole: existing.bonusRole,
+          overridePlan: existing.overridePlan,
+          bonusPlanStatus: existing.bonusPlanStatus
+        },
         result: 'no_assignment_change'
       });
       return 'updated';
@@ -7080,7 +7171,9 @@ function updateEmployeeField(id, field, value){
     return;
   }
   if(!['role','community','region','statusType'].includes(field)){
-    employee[field] = String(value || '').trim();
+    if(field === 'bonusEligible') employee[field] = normalizeBonusEligibleValue(value, false);
+    else if(['salary','targetBonus'].includes(field)) employee[field] = normalizeOptionalNumber(value);
+    else employee[field] = String(value || '').trim();
     saveState();
     render();
     return;
@@ -7480,6 +7573,15 @@ function handleRosterUpload(event){
       const managerNameIndex = headers.findIndex(header => header === 'manager' || header === 'manager name' || header.includes('assigned manager'));
       const regionalManagerIdIndex = headers.findIndex(header => header.includes('regional manager id') || header.includes('alert manager id'));
       const regionalManagerNameIndex = headers.findIndex(header => header === 'regional manager' || header.includes('regional alert owner') || header.includes('alert manager'));
+      const bonusEligibleIndex = headers.findIndex(header => header.includes('bonus eligible'));
+      const bonusPlanIndex = headers.findIndex(header => header === 'bonus plan' || header.includes('bonus plan id'));
+      const bonusEffectiveDateIndex = headers.findIndex(header => header.includes('bonus effective'));
+      const targetBonusIndex = headers.findIndex(header => header.includes('target bonus'));
+      const salaryIndex = headers.findIndex(header => header === 'salary' || header.includes('annual salary'));
+      const payrollIdIndex = headers.findIndex(header => header.includes('payroll') || header.includes('payroll id') || header.includes('employee id'));
+      const bonusRoleIndex = headers.findIndex(header => header === 'bonus role' || header.includes('bonus position'));
+      const overridePlanIndex = headers.findIndex(header => header.includes('override plan'));
+      const bonusPlanStatusIndex = headers.findIndex(header => header.includes('bonus plan status'));
 
       if(nameIndex < 0){
         throw new Error('A Name column is required.');
@@ -7525,6 +7627,15 @@ function handleRosterUpload(event){
             employeeNumber: numberIndex >= 0 ? String(row[numberIndex] || '').trim() : '',
             status: statusIndex >= 0 ? String(row[statusIndex] || '').trim() || 'Active' : 'Active',
             statusType: statusTypeIndex >= 0 ? String(row[statusTypeIndex] || '').trim() : '',
+            ...(bonusEligibleIndex >= 0 ? { bonusEligible: normalizeBonusEligibleValue(row[bonusEligibleIndex], false) } : {}),
+            bonusPlan: bonusPlanIndex >= 0 ? String(row[bonusPlanIndex] || '').trim() : '',
+            bonusEffectiveDate: bonusEffectiveDateIndex >= 0 ? normalizeIsoDate(row[bonusEffectiveDateIndex]) : '',
+            targetBonus: targetBonusIndex >= 0 ? row[targetBonusIndex] : '',
+            salary: salaryIndex >= 0 ? row[salaryIndex] : '',
+            payrollEmployeeId: payrollIdIndex >= 0 ? String(row[payrollIdIndex] || '').trim() : '',
+            bonusRole: bonusRoleIndex >= 0 ? String(row[bonusRoleIndex] || '').trim() : '',
+            overridePlan: overridePlanIndex >= 0 ? String(row[overridePlanIndex] || '').trim() : '',
+            bonusPlanStatus: bonusPlanStatusIndex >= 0 ? String(row[bonusPlanStatusIndex] || '').trim() : '',
             effectiveDate,
             source: 'roster_upload',
             changeReason: `Roster upload: ${file.name}`
@@ -7549,9 +7660,9 @@ function handleRosterUpload(event){
 
 function downloadRosterTemplate(){
   const csv = [
-    '"Name","Community","Effective Date","Region","Role","Department","Work Email","Employee Number","Status","Status Type","Manager","Regional Manager"',
-    '"Jane Smith","Nocatee","2026-08-01","east","Leasing Professional","LP - Nocatee","jane.smith@risere.com","681151","Active","Full Time","Olivia Gill","Alana Savoi"',
-    '"John Doe","Pilots Pointe","2026-08-01","east","Leasing Manager","LM - Pilots Pointe","john.doe@risere.com","681152","Active","Full Time","Marcus Dall","Ashley Brov"'
+    '"Name","Community","Effective Date","Region","Role","Department","Work Email","Employee Number","Status","Status Type","Manager","Regional Manager","Bonus Eligible","Bonus Plan","Bonus Effective Date","Target Bonus","Salary","Payroll / Employee ID","Bonus Role","Override Plan","Bonus Plan Status"',
+    '"Jane Smith","Nocatee","2026-08-01","east","Leasing Professional","LP - Nocatee","jane.smith@risere.com","681151","Active","Full Time","Olivia Gill","Alana Savoi","Yes","Leasing Production Monthly Incentive","2026-08-01","950","54000","681151","Leasing Professional","","Active"',
+    '"John Doe","Pilots Pointe","2026-08-01","east","Leasing Manager","LM - Pilots Pointe","john.doe@risere.com","681152","Active","Full Time","Marcus Dall","Ashley Brov","Yes","General Manager - Lease-Up Community Plan","2026-08-01","3600","92000","681152","General Manager","","Active"'
   ].join('\n');
   const link = document.createElement('a');
   link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
@@ -7567,6 +7678,7 @@ function csvCell(value){
 function downloadFilteredRosterExport(){
   UI.employeeRosterFilters = readEmployeeRosterFiltersFromDom();
   const rows = filteredRosterEmployees();
+  const includeSalary = STATE.currentUser && STATE.currentUser.role === 'admin';
   if(!rows.length){
     alert('No roster rows match the current filters.');
     return;
@@ -7585,6 +7697,15 @@ function downloadFilteredRosterExport(){
     'Regional Alert Owner',
     'Termination Date',
     'Termination Reason',
+    'Bonus Eligible',
+    'Bonus Plan',
+    'Bonus Effective Date',
+    'Target Bonus',
+    ...(includeSalary ? ['Salary'] : []),
+    'Payroll / Employee ID',
+    'Bonus Role',
+    'Override Plan',
+    'Bonus Plan Status',
     'Active Plan Count'
   ];
   const csvRows = [header, ...rows.map(employee => {
@@ -7603,6 +7724,15 @@ function downloadFilteredRosterExport(){
       regionalManagerDisplayName(employee),
       employee.terminationDate || '',
       employee.terminationReason || '',
+      employee.bonusEligible ? 'Yes' : 'No',
+      employee.bonusPlan || '',
+      employee.bonusEffectiveDate || '',
+      employee.targetBonus || '',
+      ...(includeSalary ? [employee.salary || ''] : []),
+      employee.payrollEmployeeId || '',
+      employee.bonusRole || '',
+      employee.overridePlan || '',
+      employee.bonusPlanStatus || '',
       activePlanCount
     ];
   })].map(row => row.map(csvCell).join(','));

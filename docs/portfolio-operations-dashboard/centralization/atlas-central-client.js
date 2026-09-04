@@ -288,7 +288,8 @@
       "invitation_expires_at",
       "invitation_accepted_at",
       "password_reset_sent_at",
-      "last_invite_error"
+      "last_invite_error",
+      "bonus_permissions"
     ].some(column => message.includes(column))
       && (
         message.includes("column")
@@ -689,8 +690,16 @@
     const user = getSignedInUser() || await fetchUser();
     const userId = user?.id;
     if (!userId) return null;
-    const query = `?user_id=eq.${encodeURIComponent(userId)}&select=user_id,email,display_name,profile_image_url,role,status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,last_access_reviewed_at,updated_at&limit=1`;
-    const rows = await fetchJson(`/atlas_user_profiles${query}`);
+    const query = `?user_id=eq.${encodeURIComponent(userId)}&select=user_id,email,display_name,profile_image_url,role,status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,bonus_permissions,access_notes,last_access_reviewed_at,updated_at&limit=1`;
+    let rows;
+    try {
+      rows = await fetchJson(`/atlas_user_profiles${query}`);
+    } catch (error) {
+      if (!isMissingProvisioningColumnError(error)) throw error;
+      const fallbackQuery = `?user_id=eq.${encodeURIComponent(userId)}&select=user_id,email,display_name,profile_image_url,role,status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,last_access_reviewed_at,updated_at&limit=1`;
+      rows = await fetchJson(`/atlas_user_profiles${fallbackQuery}`);
+      rows = (Array.isArray(rows) ? rows : []).map(row => ({ ...row, bonus_permissions: [] }));
+    }
     let profile = Array.isArray(rows) ? rows[0] : null;
     if (!profile) {
       profile = await claimInvitedProfile().catch(() => null);
@@ -887,7 +896,7 @@
 
   async function readAccessInvites() {
     await refreshSession().catch(() => null);
-    const query = "select=invite_id,email,employee_id,display_name,role,status,access_status,account_status,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,auth_user_id,claimed_user_id,claimed_at,invitation_sent_at,invitation_expires_at,invitation_accepted_at,password_reset_sent_at,last_invite_error,updated_at&order=updated_at.desc";
+    const query = "select=invite_id,email,employee_id,display_name,role,status,access_status,account_status,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,bonus_permissions,access_notes,auth_user_id,claimed_user_id,claimed_at,invitation_sent_at,invitation_expires_at,invitation_accepted_at,password_reset_sent_at,last_invite_error,updated_at&order=updated_at.desc";
     let rows;
     try {
       rows = await fetchJson(`/atlas_user_access_invites?${query}`);
@@ -912,7 +921,7 @@
 
   async function readUserProfiles() {
     await refreshSession().catch(() => null);
-    const query = "select=user_id,email,display_name,profile_image_url,role,status,account_status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,last_access_reviewed_at,updated_at&order=display_name.asc";
+    const query = "select=user_id,email,display_name,profile_image_url,role,status,account_status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,bonus_permissions,access_notes,last_access_reviewed_at,updated_at&order=display_name.asc";
     let rows;
     try {
       rows = await fetchJson(`/atlas_user_profiles?${query}`);
@@ -943,7 +952,7 @@
   }
 
   async function adminUpsertUserAccess(access = {}) {
-    return rpc("atlas_admin_upsert_user_access", {
+    const payload = {
       p_email: String(access.email || "").trim().toLowerCase(),
       p_display_name: String(access.displayName || access.display_name || "").trim(),
       p_role: String(access.role || "").trim(),
@@ -954,8 +963,18 @@
       p_allowed_region_values: Array.isArray(access.allowedRegionValues) ? access.allowedRegionValues : [],
       p_locked_tab_ids: Array.isArray(access.lockedTabIds) ? access.lockedTabIds : [],
       p_locked_page_keys: Array.isArray(access.lockedPageKeys) ? access.lockedPageKeys : [],
+      p_bonus_permissions: Array.isArray(access.bonusPermissions) ? access.bonusPermissions : [],
       p_access_notes: String(access.accessNotes || access.access_notes || "").trim() || null
-    });
+    };
+    try {
+      return await rpc("atlas_admin_upsert_user_access", payload);
+    } catch (error) {
+      if (/p_bonus_permissions|bonus_permissions|schema cache|function/i.test(String(error?.message || error))) {
+        delete payload.p_bonus_permissions;
+        return rpc("atlas_admin_upsert_user_access", payload);
+      }
+      throw error;
+    }
   }
 
   function generateAtlasCentralUuid() {

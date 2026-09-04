@@ -238,7 +238,7 @@ create table if not exists atlas_roles (
   role_id uuid primary key default gen_random_uuid(),
   role_code text not null unique,
   title text not null,
-  bonus_role_type text check (bonus_role_type in ('gm','am','lm','lp','ms','mt')),
+  bonus_role_type text check (bonus_role_type in ('gm','am','lm','lp','ms','mt','regional','central_services','marketing','individual','custom')),
   source_module text not null default 'atlas',
   active boolean not null default true,
   created_at timestamptz not null default now()
@@ -251,6 +251,14 @@ create table if not exists atlas_employees (
   full_name text not null,
   status text not null,
   status_type text,
+  bonus_eligible boolean not null default false,
+  bonus_plan text,
+  bonus_effective_date date,
+  target_bonus numeric(14,2),
+  payroll_employee_id text,
+  bonus_role text,
+  override_plan text,
+  bonus_plan_status text,
   source_module text not null default 'people',
   source_identifier text,
   source_hash text,
@@ -261,6 +269,33 @@ create table if not exists atlas_employees (
   unique (employee_number),
   unique (email)
 );
+
+create table if not exists atlas_employee_compensation (
+  employee_compensation_id uuid primary key default gen_random_uuid(),
+  employee_id uuid not null references atlas_employees(employee_id) unique,
+  salary numeric(14,2),
+  salary_source text not null default 'manual',
+  effective_start date,
+  source_hash text,
+  updated_by uuid references auth.users(id),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+
+alter table atlas_roles drop constraint if exists atlas_roles_bonus_role_type_check;
+alter table atlas_roles
+  add constraint atlas_roles_bonus_role_type_check
+  check (bonus_role_type in ('gm','am','lm','lp','ms','mt','regional','central_services','marketing','individual','custom'));
+
+alter table atlas_employees
+  add column if not exists bonus_eligible boolean not null default false,
+  add column if not exists bonus_plan text,
+  add column if not exists bonus_effective_date date,
+  add column if not exists target_bonus numeric(14,2),
+  add column if not exists payroll_employee_id text,
+  add column if not exists bonus_role text,
+  add column if not exists override_plan text,
+  add column if not exists bonus_plan_status text;
 
 create table if not exists atlas_employee_assignments (
   assignment_id uuid primary key default gen_random_uuid(),
@@ -638,6 +673,23 @@ security definer
 set search_path = public
 as $$
   select atlas_current_role() = any(required_roles);
+$$;
+
+create or replace function atlas_can_view_salary()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select atlas_has_role(array['admin','people'])
+    or exists (
+      select 1
+      from atlas_user_profiles aup
+      where aup.user_id = auth.uid()
+        and aup.status = 'active'
+        and 'view_salary' = any(coalesce(aup.bonus_permissions, '{}'))
+    );
 $$;
 
 create or replace function atlas_current_allowed_community_ids()
@@ -1334,6 +1386,16 @@ declare
   v_email text;
   v_status text;
   v_title text;
+  v_bonus_eligible_provided boolean;
+  v_bonus_eligible boolean;
+  v_bonus_plan text;
+  v_bonus_effective_date date;
+  v_target_bonus numeric;
+  v_salary numeric;
+  v_payroll_employee_id text;
+  v_bonus_role text;
+  v_override_plan text;
+  v_bonus_plan_status text;
   v_role_code text;
   v_community_name text;
   v_effective_start date;
@@ -1360,6 +1422,16 @@ begin
     v_email := nullif(lower(trim(coalesce(v_employee ->> 'email', v_employee ->> 'emailAddress'))), '');
     v_status := lower(coalesce(nullif(trim(coalesce(v_employee ->> 'status', v_employee ->> 'employmentStatus')), ''), 'active'));
     v_title := nullif(trim(coalesce(v_employee ->> 'title', v_employee ->> 'role', v_employee ->> 'position')), '');
+    v_bonus_eligible_provided := (v_employee ? 'bonusEligible') or (v_employee ? 'bonus_eligible');
+    v_bonus_eligible := lower(trim(coalesce(v_employee ->> 'bonusEligible', v_employee ->> 'bonus_eligible', ''))) in ('true','yes','y','1','eligible','active','on');
+    v_bonus_plan := nullif(trim(coalesce(v_employee ->> 'bonusPlan', v_employee ->> 'bonus_plan', v_employee ->> 'bonusPlanId', v_employee ->> 'bonus_plan_id')), '');
+    v_bonus_effective_date := nullif(coalesce(v_employee ->> 'bonusEffectiveDate', v_employee ->> 'bonus_effective_date'), '')::date;
+    v_target_bonus := nullif(regexp_replace(coalesce(v_employee ->> 'targetBonus', v_employee ->> 'target_bonus', ''), '[^0-9.-]', '', 'g'), '')::numeric;
+    v_salary := nullif(regexp_replace(coalesce(v_employee ->> 'salary', ''), '[^0-9.-]', '', 'g'), '')::numeric;
+    v_payroll_employee_id := nullif(trim(coalesce(v_employee ->> 'payrollEmployeeId', v_employee ->> 'payroll_employee_id', v_employee ->> 'payrollId')), '');
+    v_bonus_role := nullif(trim(coalesce(v_employee ->> 'bonusRole', v_employee ->> 'bonus_role')), '');
+    v_override_plan := nullif(trim(coalesce(v_employee ->> 'overridePlan', v_employee ->> 'override_plan', v_employee ->> 'overridePlanId', v_employee ->> 'override_plan_id')), '');
+    v_bonus_plan_status := nullif(trim(coalesce(v_employee ->> 'bonusPlanStatus', v_employee ->> 'bonus_plan_status')), '');
     v_community_name := nullif(trim(coalesce(v_employee ->> 'communityName', v_employee ->> 'community', v_employee ->> 'property', v_employee ->> 'propertyName')), '');
     v_effective_start := coalesce(nullif(v_employee ->> 'effectiveStart', '')::date, nullif(v_employee ->> 'effectiveDate', '')::date, date_trunc('month', now())::date);
     v_effective_end := nullif(v_employee ->> 'effectiveEnd', '')::date;
@@ -1396,6 +1468,9 @@ begin
           when lower(v_title) like '%service manager%' or lower(v_title) like '%maintenance supervisor%' or lower(v_title) = 'ms' then 'ms'
           when lower(v_title) like '%maintenance tech%' or lower(v_title) like '%service technician%' or lower(v_title) = 'mt' then 'mt'
           when lower(v_title) like '%general manager%' or lower(v_title) like '%community manager%' or lower(v_title) like '%property manager%' or lower(v_title) = 'gm' then 'gm'
+          when lower(v_title) like '%regional%' then 'regional'
+          when lower(v_title) like '%central services%' or lower(v_title) like '%central service%' then 'central_services'
+          when lower(v_title) like '%marketing%' then 'marketing'
           else null
         end,
         'people'
@@ -1408,33 +1483,62 @@ begin
     end if;
 
     if v_employee_number is not null then
-      insert into atlas_employees(employee_number, email, full_name, status, status_type, source_module, source_identifier, source_hash)
-      values (v_employee_number, v_email, v_full_name, v_status, v_status, 'people', v_source_identifier, v_source_hash)
+      insert into atlas_employees(employee_number, email, full_name, status, status_type, bonus_eligible, bonus_plan, bonus_effective_date, target_bonus, payroll_employee_id, bonus_role, override_plan, bonus_plan_status, source_module, source_identifier, source_hash)
+      values (v_employee_number, v_email, v_full_name, v_status, v_status, v_bonus_eligible, v_bonus_plan, v_bonus_effective_date, v_target_bonus, v_payroll_employee_id, v_bonus_role, v_override_plan, v_bonus_plan_status, 'people', v_source_identifier, v_source_hash)
       on conflict (employee_number) do update
         set email = coalesce(excluded.email, atlas_employees.email),
             full_name = excluded.full_name,
             status = excluded.status,
             status_type = excluded.status_type,
+            bonus_eligible = case when v_bonus_eligible_provided then excluded.bonus_eligible else atlas_employees.bonus_eligible end,
+            bonus_plan = coalesce(excluded.bonus_plan, atlas_employees.bonus_plan),
+            bonus_effective_date = coalesce(excluded.bonus_effective_date, atlas_employees.bonus_effective_date),
+            target_bonus = coalesce(excluded.target_bonus, atlas_employees.target_bonus),
+            payroll_employee_id = coalesce(excluded.payroll_employee_id, atlas_employees.payroll_employee_id),
+            bonus_role = coalesce(excluded.bonus_role, atlas_employees.bonus_role),
+            override_plan = coalesce(excluded.override_plan, atlas_employees.override_plan),
+            bonus_plan_status = coalesce(excluded.bonus_plan_status, atlas_employees.bonus_plan_status),
             source_hash = excluded.source_hash,
             version = atlas_employees.version + 1,
             updated_at = now()
       returning employee_id into v_employee_id;
     elsif v_email is not null then
-      insert into atlas_employees(employee_number, email, full_name, status, status_type, source_module, source_identifier, source_hash)
-      values (v_employee_number, v_email, v_full_name, v_status, v_status, 'people', v_source_identifier, v_source_hash)
+      insert into atlas_employees(employee_number, email, full_name, status, status_type, bonus_eligible, bonus_plan, bonus_effective_date, target_bonus, payroll_employee_id, bonus_role, override_plan, bonus_plan_status, source_module, source_identifier, source_hash)
+      values (v_employee_number, v_email, v_full_name, v_status, v_status, v_bonus_eligible, v_bonus_plan, v_bonus_effective_date, v_target_bonus, v_payroll_employee_id, v_bonus_role, v_override_plan, v_bonus_plan_status, 'people', v_source_identifier, v_source_hash)
       on conflict (email) do update
         set employee_number = coalesce(excluded.employee_number, atlas_employees.employee_number),
             full_name = excluded.full_name,
             status = excluded.status,
             status_type = excluded.status_type,
+            bonus_eligible = case when v_bonus_eligible_provided then excluded.bonus_eligible else atlas_employees.bonus_eligible end,
+            bonus_plan = coalesce(excluded.bonus_plan, atlas_employees.bonus_plan),
+            bonus_effective_date = coalesce(excluded.bonus_effective_date, atlas_employees.bonus_effective_date),
+            target_bonus = coalesce(excluded.target_bonus, atlas_employees.target_bonus),
+            payroll_employee_id = coalesce(excluded.payroll_employee_id, atlas_employees.payroll_employee_id),
+            bonus_role = coalesce(excluded.bonus_role, atlas_employees.bonus_role),
+            override_plan = coalesce(excluded.override_plan, atlas_employees.override_plan),
+            bonus_plan_status = coalesce(excluded.bonus_plan_status, atlas_employees.bonus_plan_status),
             source_hash = excluded.source_hash,
             version = atlas_employees.version + 1,
             updated_at = now()
       returning employee_id into v_employee_id;
     else
-      insert into atlas_employees(employee_number, email, full_name, status, status_type, source_module, source_identifier, source_hash)
-      values (v_employee_number, v_email, v_full_name, v_status, v_status, 'people', v_source_identifier, v_source_hash)
+      insert into atlas_employees(employee_number, email, full_name, status, status_type, bonus_eligible, bonus_plan, bonus_effective_date, target_bonus, payroll_employee_id, bonus_role, override_plan, bonus_plan_status, source_module, source_identifier, source_hash)
+      values (v_employee_number, v_email, v_full_name, v_status, v_status, v_bonus_eligible, v_bonus_plan, v_bonus_effective_date, v_target_bonus, v_payroll_employee_id, v_bonus_role, v_override_plan, v_bonus_plan_status, 'people', v_source_identifier, v_source_hash)
       returning employee_id into v_employee_id;
+    end if;
+
+    if v_salary is not null and atlas_can_view_salary() then
+      insert into atlas_employee_compensation(employee_id, salary, salary_source, effective_start, source_hash, updated_by)
+      values (v_employee_id, v_salary, 'manual', v_bonus_effective_date, v_source_hash, auth.uid())
+      on conflict (employee_id) do update
+        set salary = excluded.salary,
+            salary_source = excluded.salary_source,
+            effective_start = coalesce(excluded.effective_start, atlas_employee_compensation.effective_start),
+            source_hash = excluded.source_hash,
+            updated_by = auth.uid(),
+            updated_at = now(),
+            deleted_at = null;
     end if;
 
     update atlas_employee_assignments
@@ -1798,6 +1902,7 @@ alter table atlas_communities enable row level security;
 alter table atlas_community_aliases enable row level security;
 alter table atlas_roles enable row level security;
 alter table atlas_employees enable row level security;
+alter table atlas_employee_compensation enable row level security;
 alter table atlas_employee_assignments enable row level security;
 alter table atlas_budget_lines enable row level security;
 alter table atlas_actual_lines enable row level security;
@@ -1925,6 +2030,15 @@ using (
     )
   )
 );
+
+create policy "atlas employee compensation salary read"
+on atlas_employee_compensation for select to authenticated
+using (deleted_at is null and atlas_can_view_salary());
+
+create policy "atlas employee compensation salary manage"
+on atlas_employee_compensation for all to authenticated
+using (atlas_can_view_salary())
+with check (atlas_can_view_salary());
 
 create policy "atlas shared owners insert communities"
 on atlas_communities for insert to authenticated
@@ -2343,6 +2457,8 @@ revoke execute on function atlas_can_write(text[]) from public;
 revoke execute on function atlas_can_write(text[]) from anon;
 revoke execute on function atlas_has_role(text[]) from public;
 revoke execute on function atlas_has_role(text[]) from anon;
+revoke execute on function atlas_can_view_salary() from public;
+revoke execute on function atlas_can_view_salary() from anon;
 revoke execute on function atlas_current_allowed_community_ids() from public;
 revoke execute on function atlas_current_allowed_community_ids() from anon;
 revoke execute on function atlas_can_access_community(uuid) from public;
@@ -2377,6 +2493,7 @@ grant execute on function atlas_claim_first_admin(text) to authenticated;
 grant execute on function atlas_current_role() to authenticated;
 grant execute on function atlas_can_write(text[]) to authenticated;
 grant execute on function atlas_has_role(text[]) to authenticated;
+grant execute on function atlas_can_view_salary() to authenticated;
 grant execute on function atlas_current_allowed_community_ids() to authenticated;
 grant execute on function atlas_can_access_community(uuid) to authenticated;
 revoke all on table atlas_user_dashboard_views from anon;
@@ -2397,6 +2514,7 @@ alter table atlas_user_profiles
   add column if not exists allowed_region_values text[] not null default '{}',
   add column if not exists locked_tab_ids text[] not null default '{}',
   add column if not exists locked_page_keys text[] not null default '{}',
+  add column if not exists bonus_permissions text[] not null default '{}',
   add column if not exists access_notes text,
   add column if not exists account_status text not null default 'active'
     check (account_status in ('not_invited','invitation_sent','invitation_expired','activation_pending','active','password_reset_required','authentication_error')),
@@ -2420,6 +2538,7 @@ create table if not exists atlas_user_access_invites (
   allowed_region_values text[] not null default '{}',
   locked_tab_ids text[] not null default '{}',
   locked_page_keys text[] not null default '{}',
+  bonus_permissions text[] not null default '{}',
   access_notes text,
   created_by uuid references auth.users(id),
   updated_by uuid references auth.users(id),
@@ -2655,7 +2774,7 @@ begin
   insert into atlas_user_profiles(
     user_id, email, display_name, role, status, employee_id, allowed_community_ids,
     allowed_market_values, allowed_region_values, locked_tab_ids, locked_page_keys,
-    access_notes, account_status, last_access_reviewed_at
+    bonus_permissions, access_notes, account_status, last_access_reviewed_at
   )
   values (
     v_user_id,
@@ -2669,6 +2788,7 @@ begin
     v_invite.allowed_region_values,
     v_invite.locked_tab_ids,
     v_invite.locked_page_keys,
+    v_invite.bonus_permissions,
     v_invite.access_notes,
     'active',
     now()
@@ -2684,6 +2804,7 @@ begin
         allowed_region_values = excluded.allowed_region_values,
         locked_tab_ids = excluded.locked_tab_ids,
         locked_page_keys = excluded.locked_page_keys,
+        bonus_permissions = excluded.bonus_permissions,
         access_notes = excluded.access_notes,
         account_status = 'active',
         last_access_reviewed_at = now(),
@@ -2756,6 +2877,8 @@ begin
 end;
 $$;
 
+drop function if exists atlas_admin_upsert_user_access(text,text,text,text,uuid,uuid[],text[],text[],text[],text[],text);
+
 create or replace function atlas_admin_upsert_user_access(
   p_email text,
   p_display_name text,
@@ -2767,6 +2890,7 @@ create or replace function atlas_admin_upsert_user_access(
   p_allowed_region_values text[] default '{}',
   p_locked_tab_ids text[] default '{}',
   p_locked_page_keys text[] default '{}',
+  p_bonus_permissions text[] default '{}',
   p_access_notes text default null
 )
 returns table(email text, profile_user_id uuid, invite_id uuid, status text, role text)
@@ -2823,7 +2947,7 @@ begin
   insert into atlas_user_access_invites(
     email, employee_id, display_name, role, status, allowed_community_ids,
     allowed_market_values, allowed_region_values, locked_tab_ids, locked_page_keys,
-    access_notes, access_status, account_status, created_by, updated_by,
+    bonus_permissions, access_notes, access_status, account_status, created_by, updated_by,
     auth_user_id, claimed_user_id, claimed_at, invitation_accepted_at, last_invite_error
   )
   values (
@@ -2837,6 +2961,7 @@ begin
     coalesce(p_allowed_region_values, '{}'),
     coalesce(p_locked_tab_ids, '{}'),
     coalesce(p_locked_page_keys, '{}'),
+    coalesce(p_bonus_permissions, '{}'),
     p_access_notes,
     v_access_status,
     v_account_status,
@@ -2865,6 +2990,7 @@ begin
         allowed_region_values = excluded.allowed_region_values,
         locked_tab_ids = excluded.locked_tab_ids,
         locked_page_keys = excluded.locked_page_keys,
+        bonus_permissions = excluded.bonus_permissions,
         access_notes = excluded.access_notes,
         updated_by = v_actor,
         auth_user_id = coalesce(excluded.auth_user_id, atlas_user_access_invites.auth_user_id),
@@ -2886,7 +3012,7 @@ begin
     insert into atlas_user_profiles(
       user_id, email, display_name, role, status, employee_id, allowed_community_ids,
       allowed_market_values, allowed_region_values, locked_tab_ids, locked_page_keys,
-      access_notes, account_status, last_access_reviewed_at
+      bonus_permissions, access_notes, account_status, last_access_reviewed_at
     )
     values (
       v_user_id,
@@ -2904,6 +3030,7 @@ begin
       coalesce(p_allowed_region_values, '{}'),
       coalesce(p_locked_tab_ids, '{}'),
       coalesce(p_locked_page_keys, '{}'),
+      coalesce(p_bonus_permissions, '{}'),
       p_access_notes,
       case when v_email_confirmed_at is not null then 'active' else 'activation_pending' end,
       now()
@@ -2919,6 +3046,7 @@ begin
           allowed_region_values = excluded.allowed_region_values,
           locked_tab_ids = excluded.locked_tab_ids,
           locked_page_keys = excluded.locked_page_keys,
+          bonus_permissions = excluded.bonus_permissions,
           access_notes = excluded.access_notes,
           account_status = excluded.account_status,
           last_access_reviewed_at = now(),
@@ -3231,8 +3359,8 @@ $$;
 
 revoke execute on function atlas_claim_invited_profile(text) from public;
 revoke execute on function atlas_claim_invited_profile(text) from anon;
-revoke execute on function atlas_admin_upsert_user_access(text,text,text,text,uuid,uuid[],text[],text[],text[],text[],text) from public;
-revoke execute on function atlas_admin_upsert_user_access(text,text,text,text,uuid,uuid[],text[],text[],text[],text[],text) from anon;
+revoke execute on function atlas_admin_upsert_user_access(text,text,text,text,uuid,uuid[],text[],text[],text[],text[],text[],text) from public;
+revoke execute on function atlas_admin_upsert_user_access(text,text,text,text,uuid,uuid[],text[],text[],text[],text[],text[],text) from anon;
 revoke execute on function atlas_admin_user_provisioning_state(text) from public;
 revoke execute on function atlas_admin_user_provisioning_state(text) from anon;
 revoke execute on function atlas_admin_record_invitation_delivery(text,uuid,text,timestamptz,timestamptz,text) from public;
@@ -3243,12 +3371,13 @@ revoke execute on function atlas_end_live_session(text) from public;
 revoke execute on function atlas_end_live_session(text) from anon;
 
 grant select, insert, update, delete on atlas_user_access_invites to authenticated;
+grant select, insert, update, delete on atlas_employee_compensation to authenticated;
 grant select, insert, update, delete on atlas_live_sessions to authenticated;
 grant select, insert, update on atlas_dlr_snapshots to authenticated;
 grant select, insert, update on atlas_dlr_delivery_subscriptions to authenticated;
 grant select, insert, update on atlas_dlr_delivery_history to authenticated;
 grant execute on function atlas_claim_invited_profile(text) to authenticated;
-grant execute on function atlas_admin_upsert_user_access(text,text,text,text,uuid,uuid[],text[],text[],text[],text[],text) to authenticated;
+grant execute on function atlas_admin_upsert_user_access(text,text,text,text,uuid,uuid[],text[],text[],text[],text[],text[],text) to authenticated;
 grant execute on function atlas_admin_user_provisioning_state(text) to authenticated;
 grant execute on function atlas_admin_record_invitation_delivery(text,uuid,text,timestamptz,timestamptz,text) to authenticated;
 grant execute on function atlas_upsert_live_session(text,text,text,uuid,text,text) to authenticated;

@@ -1167,7 +1167,7 @@
 <script src="./centralization/atlas-central-client.js?v=20260901-dlr-reporting" data-atlas-central-client="true"></script>
 <script src="./central-services.js?v=20260902-render-guard"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260902-application-intelligence">
-<script src="./application-performance.js?v=20260902-application-intelligence"></script>
+<script src="./application-performance.js?v=20260904-application-scope"></script>
 <script src="./application-performance-ui.js?v=20260902-command-center"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -13271,11 +13271,14 @@ function syncAtlasWorkspaceCardVisibility() {
   const applicationTracking = document.getElementById("application-tracking-section");
   if (!workspaceCard && !applicationTracking) return;
   const authFrontDoorActive = activeTab === 0 && shouldBlockAtlasSensitiveAccess();
+  const shouldShowApplicationTracking = activeTab === 16
+    && !shouldBlockAtlasSensitiveAccess()
+    && atlasAccessDecision(activeTab).ok;
   // Home is a personalized landing page. Community and month controls live in
   // the navigation, while widget-level scope lives in dashboard customization.
   const hidden = activeTab === 0 || MOUNT_TABS.includes(activeTab) || authFrontDoorActive;
   if (workspaceCard) workspaceCard.style.display = hidden ? "none" : "";
-  if (applicationTracking) applicationTracking.style.display = hidden ? "none" : "";
+  if (applicationTracking) applicationTracking.style.display = shouldShowApplicationTracking ? "" : "none";
 }
 
 function setTab(i) {

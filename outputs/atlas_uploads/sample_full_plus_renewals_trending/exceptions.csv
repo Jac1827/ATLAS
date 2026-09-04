@@ -1,4 +1,0 @@
-Severity,Source_File_Name,Source_Location,Issue,Recommended_Action
-REVIEW,02 - RISE - Box Score-11.xlsx,Rise St. Augustine,"RISE St. Augustine maps to STA, which is not in the current Atlas Community_Master.",Add this community to Community_Master or exclude it from production load.
-REVIEW,03 - RISE - Rent Roll-4.pdf,Rent Roll PDF,PDF rows were extracted heuristically; wrapped names and split leases can require review.,Review rent_roll_unit_monthly.csv before production load.
-REVIEW,03 - RISE - Rent Roll-5.pdf,Rent Roll PDF,PDF rows were extracted heuristically; wrapped names and split leases can require review.,Review rent_roll_unit_monthly.csv before production load.

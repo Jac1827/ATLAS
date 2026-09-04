@@ -1,7 +1,0 @@
-Source_File_Name,Source_Path,Detected_Source_Type,Detected_Period,Report_Month,Snapshot_Date,Community_Scope,Rows_Extracted,Status,Notes
-02 - RISE - Box Score-11.xlsx,/Users/jacheflin/Downloads/02 - RISE - Box Score-11.xlsx,Box Score,2026-04-01,2026-04-01,,"BAR, BAY, CIT, DOR, FLO, GKP, NOC, SER, STA, VIE",405,OK,Parsed Box Score workbook.
-03 - RISE - Rent Roll-4.pdf,/Users/jacheflin/Downloads/03 - RISE - Rent Roll-4.pdf,Rent Roll PDF,,,,,0,SKIPPED,PDF parsing skipped by --skip-pdf.
-03 - RISE - Rent Roll-5.pdf,/Users/jacheflin/Downloads/03 - RISE - Rent Roll-5.pdf,Rent Roll PDF,,,,,0,SKIPPED,PDF parsing skipped by --skip-pdf.
-2026_04_29_11_40_RISE_Sereno_Market.xlsx,/Users/jacheflin/Downloads/2026_04_29_11_40_RISE_Sereno_Market.xlsx,Market Survey,Updated on 2026-04-28,2026-04-01,2026-04-28,SER,4827,OK,Parsed market survey workbook.
-2026_04_29_21_07_RISE_at_Glen_Kernan_Park_Market.xlsx,/Users/jacheflin/Downloads/2026_04_29_21_07_RISE_at_Glen_Kernan_Park_Market.xlsx,Market Survey,Updated on 2026-04-29,2026-04-01,2026-04-29,GKP,1875,OK,Parsed market survey workbook.
-2026_04_30_15_23_RISE_Baymeadows_Market.xlsx,/Users/jacheflin/Downloads/2026_04_30_15_23_RISE_Baymeadows_Market.xlsx,Market Survey,Updated on 2026-04-30,2026-04-01,2026-04-30,BAY,5055,OK,Parsed market survey workbook.

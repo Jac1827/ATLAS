@@ -2,3 +2,10 @@
 node_modules
 .wrangler
 rise-performance-platform-site/
+.playwright-cli/
+dist/
+output/
+outputs/*
+!outputs/.gitkeep
+tools/wrangler-cli/node_modules/
+tools/spreadsheet_staffing/

@@ -1,2 +1,0 @@
-Source_File_Name,Source_Path,Detected_Source_Type,Detected_Period,Report_Month,Snapshot_Date,Community_Scope,Rows_Extracted,Status,Notes
-03 - RISE - Rent Roll-5.pdf,/Users/jacheflin/Downloads/03 - RISE - Rent Roll-5.pdf,Rent Roll PDF,2026-03-01,2026-03-01,,"BAR, BAY, CIT, DOR, FLO, GKP, NOC, SER, STA, VIE",2623,OK,PDF unit rows parsed with heuristic extraction; review wrapped lease/resident rows.

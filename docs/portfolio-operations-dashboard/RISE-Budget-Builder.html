@@ -10270,13 +10270,17 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
   }
 
   // Raw DEFLATE stream in, bytes out.
-  Z.inflateRaw = function (bytes, at, expected) {
+  Z.inflateRaw = function (bytes, at, expected, maxBytes) {
     var s = new Bits(bytes, at || 0);
     var out = new Uint8Array(expected && expected > 0 ? expected : 65536);
     var len = 0;
     function push(byteVal) {
+      if (maxBytes && len >= maxBytes) throw new Error('Compressed data exceeds reader limit');
       if (len === out.length) {
-        var bigger = new Uint8Array(out.length * 2);
+        var nextSize = out.length * 2;
+        if (maxBytes) nextSize = Math.min(nextSize, maxBytes);
+        if (nextSize <= out.length) throw new Error('Compressed data exceeds reader limit');
+        var bigger = new Uint8Array(nextSize);
         bigger.set(out);
         out = bigger;
       }
@@ -10641,9 +10645,13 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
 
   Z.readPdfText = function (bytes) {
     var chunks = [], at = 0, streamNeedle = 'stream', endNeedle = 'endstream';
-    while (at >= 0 && at < bytes.length) {
+    var scanLimit = Math.min(bytes.length, 6 * 1024 * 1024);
+    var streamLimit = 768 * 1024;
+    var textLimit = 2 * 1024 * 1024;
+    var textSize = 0;
+    while (at >= 0 && at < scanLimit) {
       var s = byteIndexOf(bytes, streamNeedle, at);
-      if (s < 0) break;
+      if (s < 0 || s > scanLimit) break;
       var e = byteIndexOf(bytes, endNeedle, s + streamNeedle.length);
       if (e < 0) break;
       var dataAt = s + streamNeedle.length;
@@ -10652,8 +10660,19 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
       var dataEnd = e;
       while (dataEnd > dataAt && (bytes[dataEnd - 1] === 10 || bytes[dataEnd - 1] === 13)) dataEnd--;
       var dict = ascii(bytes, Math.max(0, s - 800), Math.min(800, s));
-      var streamText = pdfStreamText(bytes, dataAt, dataEnd, dict);
-      if (streamText) chunks.push(streamText);
+      var streamLen = dataEnd - dataAt;
+      if (!/\/Subtype\s*\/Image|\/Image\b|\/Width\s+\d+|\/Height\s+\d+/i.test(dict) &&
+          streamLen <= streamLimit) {
+        var streamText = pdfStreamText(bytes, dataAt, dataEnd, dict);
+        if (streamText) {
+          var room = textLimit - textSize;
+          if (room <= 0) break;
+          var part = streamText.length > room ? streamText.slice(0, room) : streamText;
+          chunks.push(part);
+          textSize += part.length;
+          if (textSize >= textLimit) break;
+        }
+      }
       at = e + endNeedle.length;
     }
     var content = chunks.join('\n');
@@ -10691,7 +10710,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     if (/\/FlateDecode/.test(dict)) {
       try {
         var off = raw[0] === 0x78 ? 2 : 0; // skip the zlib wrapper when present
-        raw = Z.inflateRaw(raw, off, 0);
+        raw = Z.inflateRaw(raw, off, 0, 1024 * 1024);
       } catch (e) {
         return '';
       }
@@ -25552,6 +25571,20 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
 
   /* ------------------------------------------------ contract document intake -- */
   R.contracts = R.contracts || {};
+  var CONTRACT_ARCHIVE_LIMIT = 4 * 1024 * 1024;
+  var CONTRACT_TEXT_SLICE_LIMIT = 512 * 1024;
+  var CONTRACT_AUTO_READ_LIMITS = {
+    pdf:2 * 1024 * 1024,
+    xlsx:3 * 1024 * 1024,
+    xls:0,
+    docx:3 * 1024 * 1024,
+    doc:0,
+    csv:2 * 1024 * 1024,
+    txt:2 * 1024 * 1024,
+    tsv:2 * 1024 * 1024,
+    rtf:2 * 1024 * 1024
+  };
+
   R.contracts.spread = function (ct, year, opts) {
     opts = opts || {};
     var start = dateObj(ct.start) || new Date(year, 0, 1);
@@ -25765,6 +25798,39 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
   }
   function monthOptions() {
     return R.MONTHS.map(function (m, i) { return { v:i + 1, l:m }; });
+  }
+  function contractExt(file) {
+    return String(file && file.name || '').split('.').pop().toLowerCase();
+  }
+  function contractReadableKind(file) {
+    var ext = contractExt(file);
+    if (ext === 'docx') return 'Word document';
+    if (ext === 'doc') return 'Word document';
+    if (ext === 'xlsx' || ext === 'xls') return 'Excel workbook';
+    if (ext === 'pdf') return 'PDF';
+    if (ext === 'rtf') return 'RTF text';
+    if (ext === 'csv') return 'CSV';
+    if (ext === 'txt' || ext === 'tsv') return 'Text';
+    if (/^(png|jpe?g|gif|tiff?)$/.test(ext)) return 'Image';
+    return 'File';
+  }
+  function contractAutoReadLimit(file) {
+    var ext = contractExt(file);
+    if (CONTRACT_AUTO_READ_LIMITS[ext] !== undefined) return CONTRACT_AUTO_READ_LIMITS[ext];
+    return CONTRACT_TEXT_SLICE_LIMIT;
+  }
+  function contractOversizeExtract(file) {
+    var kind = contractReadableKind(file);
+    var warnings = [];
+    if (contractExt(file) === 'doc' || contractExt(file) === 'xls') {
+      warnings.push('This older file format is attached, but ATLAS needs Word .docx, Excel .xlsx, CSV, or text PDF to read fields automatically.');
+    } else {
+      warnings.push('This file is larger than the responsive in-browser reader limit, so ATLAS attached it for review instead of trying to parse it on this page.');
+    }
+    if ((file.size || 0) > CONTRACT_ARCHIVE_LIMIT) {
+      warnings.push('The file is too large to embed in this browser save; keep the original source file with the budget package.');
+    }
+    return { kind:kind, text:'', warnings:warnings };
   }
   function contractXmlText(xml) {
     return String(xml || '').replace(/<w:tab\/>/g, ' ').replace(/<w:br\/>/g, '\n')
@@ -26148,7 +26214,9 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
       '<div class="doc">' + (x.reading ? 'Reading contract document...' :
         (x.document ? H.esc(x.document.name) : 'No contract document attached')) + '</div>' +
       '<div class="tiny">' + (x.document ? H.esc(x.document.type || 'file') + ' · ' +
-        Math.round((x.document.size || 0) / 1024).toLocaleString() + ' KB retained with this budget'
+        Math.round((x.document.size || 0) / 1024).toLocaleString() +
+        ((x.document.archiveSkipped || x.document.autoReadSkipped)
+          ? ' KB source noted for review' : ' KB retained with this budget')
         : 'PDF, Word, Excel, CSV, text, and image files can be retained with the contract intake record.') +
       '</div></div><input type="file" accept=".pdf,.doc,.docx,.xlsx,.xls,.txt,.rtf,.csv,.png,.jpg,.jpeg" ' +
       'onchange="RBB.app.contractImportFile(this)"></div>';
@@ -26253,30 +26321,51 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     var x = ci();
     x.reading = true;
     A.render();
-    var rd = new FileReader();
-    rd.onload = function () {
-      var bytes = new Uint8Array(rd.result || []);
+    setTimeout(function () {
       var hit = inferProperty(file.name);
       if (hit) x.propertyId = hit;
-      var extracted = contractExtractText(file, bytes);
-      applyContractExtraction(x, file, extracted);
-      x.document = { name:file.name, type:file.type || 'application/octet-stream',
-        size:file.size || 0, dataUrl:contractBytesToDataUrl(file, bytes), addedAt:u.today(),
-        extraction:x.extraction };
-      x.targetScenario = '';
-      x.draftYear = '';
-      x.targetConfirmed = false;
-      x.draftYearConfirmed = false;
-      x.reading = false;
-      A.touch(); A.render();
-      A.toast('Read ' + file.name + ' and filled the contract intake. Confirm Apply to before saving.');
-    };
-    rd.onerror = function () {
-      x.reading = false;
-      A.render();
-      A.toast('The browser could not read that contract file.', 'r');
-    };
-    rd.readAsArrayBuffer(file);
+      var limit = contractAutoReadLimit(file), size = file.size || 0;
+      if (!limit || size > limit) {
+        applyContractExtraction(x, file, contractOversizeExtract(file));
+        x.document = { name:file.name, type:file.type || 'application/octet-stream',
+          size:size, dataUrl:'', addedAt:u.today(), extraction:x.extraction,
+          archiveSkipped:size > CONTRACT_ARCHIVE_LIMIT, autoReadSkipped:true };
+        x.targetScenario = '';
+        x.draftYear = '';
+        x.targetConfirmed = false;
+        x.draftYearConfirmed = false;
+        x.reading = false;
+        if (input) input.value = '';
+        A.touch(); A.render();
+        A.toast('Attached ' + file.name + '. ATLAS skipped the heavy read so the page stays responsive.');
+        return;
+      }
+      var rd = new FileReader();
+      rd.onload = function () {
+        var bytes = new Uint8Array(rd.result || []);
+        var extracted = contractExtractText(file, bytes);
+        applyContractExtraction(x, file, extracted);
+        x.document = { name:file.name, type:file.type || 'application/octet-stream',
+          size:size, dataUrl:size <= CONTRACT_ARCHIVE_LIMIT ? contractBytesToDataUrl(file, bytes) : '',
+          addedAt:u.today(), extraction:x.extraction,
+          archiveSkipped:size > CONTRACT_ARCHIVE_LIMIT };
+        x.targetScenario = '';
+        x.draftYear = '';
+        x.targetConfirmed = false;
+        x.draftYearConfirmed = false;
+        x.reading = false;
+        if (input) input.value = '';
+        A.touch(); A.render();
+        A.toast('Read ' + file.name + ' and filled the contract intake. Confirm Apply to before saving.');
+      };
+      rd.onerror = function () {
+        x.reading = false;
+        if (input) input.value = '';
+        A.render();
+        A.toast('The browser could not read that contract file.', 'r');
+      };
+      rd.readAsArrayBuffer(file);
+    }, 25);
   };
   function inferProperty(name) {
     var n = String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '');

@@ -25654,7 +25654,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
       startDate:'', endDate:'', renewalDate:'',
       rateType:'fixed_amount', paymentCadence:'monthly', amount:'', estimatedMonthlyRevenue:'',
       ratePct:'', escalationPct:'', notes:'', applyLine:true,
-      budgetAmountSource:'contract', draftInflationPct:'',
+      budgetAmountSource:'contract', budgetAmountSourceAuto:false, draftInflationPct:'',
       draftSpreadMode:'match_contract', draftOneTimeMonth:'1',
       extraction:null, reading:false
     };
@@ -25704,6 +25704,23 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
       estimatedMonthlyRevenue:Mnum(x.estimatedMonthlyRevenue),
       ratePct:pct(x.ratePct), escalation:pct(x.escalationPct)
     }, year);
+  }
+  function contractHasTermBasis(x) {
+    if (!x) return false;
+    if (x.rateType === 'percent_revenue') {
+      return Math.abs(Mnum(x.estimatedMonthlyRevenue) * pct(x.ratePct)) > 0.01;
+    }
+    return Math.abs(Mnum(x.amount)) > 0.01;
+  }
+  function contractNormalizeAutoBasis(x) {
+    if (x && x.budgetAmountSource === 'spend_trend' && x.budgetAmountSourceAuto &&
+        contractHasTermBasis(x)) {
+      x.budgetAmountSource = 'contract';
+      x.budgetAmountSourceAuto = false;
+      contractClearAutoBudgetBasis(x);
+      return true;
+    }
+    return false;
   }
   function reshapeContractSchedule(monthly, active, mode, oneTimeMonth) {
     var base = (monthly || u.z12()).slice(), out = u.z12(), total = u.sum(base);
@@ -25757,17 +25774,22 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     return null;
   }
   function contractBudgetSchedule(x, year) {
+    contractNormalizeAutoBasis(x);
     var term = contractTermSchedule(x, year), trend = contractSpendTrend(x, year);
-    var source = x.budgetAmountSource || 'contract';
+    var source = x.budgetAmountSource || 'contract', hasTermBasis = contractHasTermBasis(x);
     var base = term.monthly.slice(), label = 'Contract terms', warnings = [];
-    if ((source === 'spend_trend' || absTotal(base) < 0.01) && trend) {
+    if ((source === 'spend_trend' || (!hasTermBasis && absTotal(base) < 0.01)) && trend) {
       base = trend.monthly.slice();
       source = 'spend_trend';
       label = trend.label;
     } else if (source === 'spend_trend' && !trend) {
       warnings.push('No GL spend trend is available yet, so ATLAS is showing the contract schedule.');
     }
-    if (absTotal(base) < 0.01) warnings.push('No contract amount or GL spend trend has been found yet.');
+    if (hasTermBasis && absTotal(base) < 0.01 && !term.activeMonths) {
+      warnings.push('The selected budget year has no active contract months for the dates entered.');
+    } else if (absTotal(base) < 0.01) {
+      warnings.push('No contract amount or GL spend trend has been found yet.');
+    }
     var mode = contractIsWorkingDraft(x) ? (x.draftSpreadMode || 'match_contract') : 'match_contract';
     var monthly = reshapeContractSchedule(base, term.active, mode, x.draftOneTimeMonth);
     var infl = contractIsWorkingDraft(x) ? pct(x.draftInflationPct) : 0;
@@ -25788,6 +25810,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     var x = ci();
     return '<div class="' + (cls || '') + '"><label>' + H.esc(label) + '</label>' +
       '<input type="' + (type || 'text') + '" value="' + H.esc(x[key] || '') +
+      '" oninput="RBB.app.contractImportInput(\'' + key + '\',this.value)"' +
       '" onchange="RBB.app.contractImportSet(\'' + key + '\',this.value)"' +
       (placeholder ? ' placeholder="' + H.esc(placeholder) + '"' : '') + '></div>';
   }
@@ -25831,6 +25854,12 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
       warnings.push('The file is too large to embed in this browser save; keep the original source file with the budget package.');
     }
     return { kind:kind, text:'', warnings:warnings };
+  }
+  function contractClearAutoBudgetBasis(x) {
+    if (!x || !x.extraction || !x.extraction.fields) return;
+    x.extraction.fields = x.extraction.fields.filter(function (f) {
+      return f.label !== 'Budget basis';
+    });
   }
   function contractXmlText(xml) {
     return String(xml || '').replace(/<w:tab\/>/g, ' ').replace(/<w:br\/>/g, '\n')
@@ -26058,6 +26087,8 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     var text = (extract.text || ''), full = file.name + '\n' + text;
     var summary = { status:text ? 'read' : 'retained', kind:extract.kind, fields:[],
       warnings:(extract.warnings || []).slice(), preview:text.slice(0, 420) };
+    x.budgetAmountSource = 'contract';
+    x.budgetAmountSourceAuto = false;
     var prop = inferProperty(full);
     if (prop && prop !== x.propertyId) { x.propertyId = prop; addExtracted(summary, 'Property', propLabel(prop)); }
     applyFileHints(x, full);
@@ -26101,7 +26132,8 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     if (trend && ((!Mnum(x.amount) && x.rateType !== 'percent_revenue') ||
         (x.rateType === 'percent_revenue' && !Mnum(x.estimatedMonthlyRevenue)))) {
       x.budgetAmountSource = 'spend_trend';
-      addExtracted(summary, 'Budget basis', trend.label);
+      x.budgetAmountSourceAuto = true;
+      summary.warnings.push('No contract amount was read, so ATLAS previewed the GL spend trend until contract rate details are entered.');
     }
     x.extraction = summary;
     if (!x.notes) {
@@ -26200,9 +26232,37 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     out += '</div>';
     return out;
   }
+  function contractIntakePreviewHtml(x) {
+    x = x || ci();
+    var year = contractBudgetYear(x), spread = contractBudgetSchedule(x, year);
+    var annual = u.sum(spread.monthly), budgetTarget = contractIsBudgetTarget(x);
+    var out = contractSourcePanel(x, spread);
+    out += '<div class="scroll" style="margin-top:12px"><table class="sm"><thead><tr>' +
+      R.MONTHS.map(function (m) { return '<th class="n">' + m + '</th>'; }).join('') +
+      '<th class="n">FY' + year + '</th></tr></thead><tbody><tr>' +
+      spread.monthly.map(function (v) { return '<td class="n">' +
+        (v ? u.money(v) : '<span class="tiny">-</span>') + '</td>'; }).join('') +
+      '<td class="n b">' + u.money(annual) + '</td></tr></tbody></table></div>' +
+      '<div class="hint" style="margin-top:8px">' +
+      (budgetTarget && !x.draftYear ? '<b>Select the budget year before saving.</b> ' : '') +
+      (spread.needsAmount ? '<b>No budgetable amount is available yet.</b> Add a contract rate or choose a GL with spend history. ' : '') +
+      'Applying to a draft or reforecast creates a linked budget line in that scenario; choosing register only retains the document and contract terms without changing budget math.</div>' +
+      '<div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:12px">' +
+      '<button class="btn pri" onclick="RBB.app.contractImportApply()">' +
+        (budgetTarget ? 'Save and build draft line' : 'Save contract intake') + '</button>' +
+      '<button class="btn sec" onclick="RBB.app.contractImportReset()">Clear intake</button>' +
+      '<button class="btn sec" onclick="RBB.app.go(\'contracts\')">Open contract manager</button>' +
+      '</div>';
+    return out;
+  }
+  function contractRefreshPreview() {
+    var el = document.getElementById('contract-intake-preview');
+    if (el) el.innerHTML = contractIntakePreviewHtml(ci());
+  }
 
   V._contractIntakePanel = function () {
-    var x = ci(), year = contractBudgetYear(x), spread = ciSpread(), annual = u.sum(spread.monthly);
+    var x = ci();
+    contractNormalizeAutoBasis(x);
     var budgetTarget = contractIsBudgetTarget(x), draftTarget = contractIsWorkingDraft(x);
     var out = '<div class="panel"><h3>Import contract or agreement' +
       '<span class="note">property mapped, retained, and budget-aware</span></h3><div class="pad">' +
@@ -26263,21 +26323,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
         'onchange="RBB.app.contractImportSet(\'notes\',this.value)" placeholder="Record clauses, review notes, or fields that still need confirmation.">' +
         H.esc(x.notes || '') + '</textarea></div>' +
       '</div>';
-    out += contractSourcePanel(x, spread);
-    out += '<div class="scroll" style="margin-top:12px"><table class="sm"><thead><tr>' +
-      R.MONTHS.map(function (m) { return '<th class="n">' + m + '</th>'; }).join('') +
-      '<th class="n">FY' + year + '</th></tr></thead><tbody><tr>' +
-      spread.monthly.map(function (v) { return '<td class="n">' + (v ? u.money(v) : '<span class="tiny">-</span>') + '</td>'; }).join('') +
-      '<td class="n b">' + u.money(annual) + '</td></tr></tbody></table></div>' +
-      '<div class="hint" style="margin-top:8px">' +
-      (budgetTarget && !x.draftYear ? '<b>Select the budget year before saving.</b> ' : '') +
-      (spread.needsAmount ? '<b>No budgetable amount is available yet.</b> Add a contract rate or choose a GL with spend history. ' : '') +
-      'Applying to a draft or reforecast creates a linked budget line in that scenario; choosing register only retains the document and contract terms without changing budget math.</div>' +
-      '<div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:12px">' +
-      '<button class="btn pri" onclick="RBB.app.contractImportApply()">' +
-        (budgetTarget ? 'Save and build draft line' : 'Save contract intake') + '</button>' +
-      '<button class="btn sec" onclick="RBB.app.contractImportReset()">Clear intake</button>' +
-      '<button class="btn sec" onclick="RBB.app.go(\'contracts\')">Open contract manager</button>' +
+    out += '<div id="contract-intake-preview">' + contractIntakePreviewHtml(x) +
       '</div></div></div>';
 
     var docs = A.state.contractDocuments || [];
@@ -26300,14 +26346,25 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     return out;
   };
 
-  A.contractImportSet = function (k, v) {
+  function contractSetValue(k, v) {
     var x = ci();
     x[k] = v;
+    if (k === 'budgetAmountSource') x.budgetAmountSourceAuto = false;
+    contractNormalizeAutoBasis(x);
     if (k === 'targetScenario') {
       x.targetConfirmed = !!v;
       if (v === 'register_only') x.draftYearConfirmed = false;
     }
     if (k === 'draftYear') x.draftYearConfirmed = !!v;
+    return x;
+  }
+  A.contractImportInput = function (k, v) {
+    contractSetValue(k, v);
+    A.touch();
+    contractRefreshPreview();
+  };
+  A.contractImportSet = function (k, v) {
+    contractSetValue(k, v);
     A.touch();
     A.render();
   };

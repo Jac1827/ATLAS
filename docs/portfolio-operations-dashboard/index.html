@@ -544,6 +544,85 @@
   .csv-dropzone:hover { border-color: var(--accent); background: rgba(68,147,248,0.04); }
   .csv-dropzone input { display: none; }
   .csv-drop-icon { font-size: 2rem; color: var(--accent); margin-bottom: 6px; }
+  .data-import2-shell { display: grid; gap: 14px; }
+  .data-import2-hero { background: linear-gradient(135deg, #10394a 0%, #13606b 48%, #667447 100%); color: #fff; border-radius: 12px; padding: 18px; display: grid; grid-template-columns: minmax(220px, 1fr) minmax(360px, 2.2fr); gap: 18px; align-items: stretch; box-shadow: 0 12px 32px rgba(15,52,67,0.16); }
+  .data-import2-title { font-size: 1.15rem; font-weight: 800; letter-spacing: 0; margin-bottom: 5px; }
+  .data-import2-copy { font-size: 0.76rem; line-height: 1.55; color: rgba(255,255,255,0.78); max-width: 620px; }
+  .data-import2-kpis { display: grid; grid-template-columns: repeat(6, minmax(92px, 1fr)); gap: 8px; }
+  .data-import2-kpi { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 10px; min-height: 86px; display: flex; flex-direction: column; justify-content: space-between; }
+  .data-import2-kpi-label { font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.68); }
+  .data-import2-kpi-value { font-size: 1.35rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; line-height: 1.1; }
+  .data-import2-kpi-sub { font-size: 0.62rem; line-height: 1.3; color: rgba(255,255,255,0.72); }
+  .data-import2-tabs { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+  .data-import2-tab { border: 1px solid var(--border); background: var(--bg2); color: var(--text); border-radius: 999px; padding: 7px 12px; font-size: 0.7rem; font-weight: 800; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 6px; }
+  .data-import2-tab:hover { background: var(--bg3); }
+  .data-import2-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .data-import2-main-grid { display: grid; grid-template-columns: minmax(300px, 0.78fr) minmax(420px, 1.22fr); gap: 12px; align-items: start; }
+  .data-import2-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; box-shadow: var(--shadow); }
+  .data-import2-section-title { font-size: 0.76rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 9px; display: flex; align-items: center; gap: 7px; }
+  .data-import2-recommendations { display: grid; gap: 8px; }
+  .data-import2-rec { border: 1px solid var(--border); border-left-width: 4px; border-radius: 8px; padding: 10px 12px; background: var(--bg3); display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+  .data-import2-rec.critical { border-left-color: #d1242f; background: rgba(209,36,47,0.06); }
+  .data-import2-rec.high { border-left-color: #bc4c00; background: rgba(188,76,0,0.06); }
+  .data-import2-rec.medium { border-left-color: #9a6700; background: rgba(154,103,0,0.06); }
+  .data-import2-rec.low { border-left-color: #316dca; background: rgba(49,109,202,0.06); }
+  .data-import2-rec-title { font-size: 0.78rem; font-weight: 800; color: var(--text); margin-bottom: 3px; }
+  .data-import2-rec-detail { font-size: 0.68rem; color: var(--muted); line-height: 1.45; }
+  .data-import2-severity { font-size: 0.58rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; }
+  .data-import2-dropzone { border: 2px dashed rgba(29,118,139,0.42); border-radius: 10px; min-height: 210px; padding: 26px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 8px; cursor: pointer; transition: all 0.18s ease; background: linear-gradient(180deg, rgba(29,118,139,0.04), rgba(95,116,71,0.04)); }
+  .data-import2-dropzone:hover { border-color: var(--accent); background: rgba(29,118,139,0.06); transform: translateY(-1px); }
+  .data-import2-dropzone input { display: none; }
+  .data-import2-drop-icon { width: 42px; height: 42px; border-radius: 10px; background: var(--accent); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 1.35rem; }
+  .data-import2-drop-title { font-size: 0.92rem; font-weight: 800; color: var(--text); }
+  .data-import2-drop-copy { font-size: 0.7rem; color: var(--muted); line-height: 1.45; max-width: 520px; }
+  .data-import2-supported { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 5px; }
+  .data-import2-chip { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--border); background: var(--bg3); color: var(--text); border-radius: 999px; padding: 5px 9px; font-size: 0.62rem; font-weight: 800; }
+  .data-import2-chip.good { border-color: rgba(63,185,80,0.35); background: rgba(63,185,80,0.08); color: #0f6b36; }
+  .data-import2-chip.warn { border-color: rgba(210,153,34,0.42); background: rgba(210,153,34,0.1); color: #8a5a00; }
+  .data-import2-chip.bad { border-color: rgba(248,81,73,0.35); background: rgba(248,81,73,0.08); color: #b42318; }
+  .data-import2-chip.info { border-color: rgba(49,109,202,0.32); background: rgba(49,109,202,0.08); color: #2457a6; }
+  .data-import2-workflow { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 8px; }
+  .data-import2-step { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px; min-height: 74px; }
+  .data-import2-step-num { font-size: 0.58rem; font-weight: 800; color: var(--accent); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .data-import2-step-title { font-size: 0.74rem; font-weight: 800; margin-bottom: 3px; }
+  .data-import2-step-copy { font-size: 0.64rem; color: var(--muted); line-height: 1.35; }
+  .data-import2-preview-grid { display: grid; grid-template-columns: repeat(8, minmax(82px, 1fr)); gap: 8px; }
+  .data-import2-preview-stat { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 9px; min-height: 70px; }
+  .data-import2-preview-label { font-size: 0.56rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 800; margin-bottom: 5px; }
+  .data-import2-preview-value { font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 1rem; color: var(--text); }
+  .data-import2-batch-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 10px; }
+  .data-import2-file-list { display: grid; gap: 8px; }
+  .data-import2-file { border: 1px solid var(--border); border-radius: 8px; background: var(--bg3); padding: 10px; display: grid; grid-template-columns: minmax(180px, 1.1fr) minmax(150px, 0.75fr) minmax(180px, 0.9fr) minmax(150px, 0.8fr) auto; gap: 10px; align-items: center; }
+  .data-import2-file-name { font-size: 0.76rem; font-weight: 800; color: var(--text); overflow-wrap: anywhere; }
+  .data-import2-file-meta { font-size: 0.63rem; color: var(--muted); margin-top: 3px; line-height: 1.35; }
+  .data-import2-small-label { font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 800; margin-bottom: 4px; }
+  .data-import2-select { width: 100%; border: 1px solid var(--border); border-radius: 7px; background: #fff; padding: 7px 9px; font-size: 0.68rem; font-family: inherit; color: var(--text); }
+  .data-import2-status { font-size: 0.62rem; font-weight: 800; border-radius: 999px; padding: 5px 8px; display: inline-flex; align-items: center; gap: 5px; width: fit-content; }
+  .data-import2-status.ready, .data-import2-status.fresh, .data-import2-status.approved { background: rgba(63,185,80,0.1); color: #0f6b36; border: 1px solid rgba(63,185,80,0.35); }
+  .data-import2-status.review, .data-import2-status.stale { background: rgba(210,153,34,0.12); color: #8a5a00; border: 1px solid rgba(210,153,34,0.42); }
+  .data-import2-status.blocked, .data-import2-status.missing, .data-import2-status.conflict { background: rgba(248,81,73,0.08); color: #b42318; border: 1px solid rgba(248,81,73,0.32); }
+  .data-import2-status.info, .data-import2-status.unmapped { background: rgba(49,109,202,0.08); color: #2457a6; border: 1px solid rgba(49,109,202,0.32); }
+  .data-import2-status.duplicate { background: rgba(111,66,193,0.08); color: #6639ba; border: 1px solid rgba(111,66,193,0.28); }
+  .data-import2-matrix-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--bg2); }
+  .data-import2-matrix { width: 100%; border-collapse: collapse; min-width: 760px; }
+  .data-import2-matrix th { text-align: left; padding: 9px 10px; font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); border-bottom: 1px solid var(--border); background: var(--bg3); }
+  .data-import2-matrix td { padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 0.68rem; vertical-align: top; }
+  .data-import2-matrix tr:last-child td { border-bottom: 0; }
+  .data-import2-cell-button { border: 0; background: transparent; padding: 0; cursor: pointer; text-align: left; font-family: inherit; }
+  .data-import2-cell-detail { color: var(--muted); font-size: 0.58rem; margin-top: 3px; }
+  .data-import2-activity { display: grid; gap: 8px; }
+  .data-import2-activity-row { display: grid; grid-template-columns: minmax(140px, 0.75fr) minmax(180px, 1fr) minmax(120px, 0.55fr) minmax(130px, 0.55fr); gap: 8px; align-items: center; border: 1px solid var(--border); border-radius: 8px; background: var(--bg3); padding: 10px; }
+  .data-import2-table { width: 100%; border-collapse: collapse; }
+  .data-import2-table th { text-align: left; padding: 8px 9px; font-size: 0.56rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); border-bottom: 1px solid var(--border); }
+  .data-import2-table td { padding: 9px; border-bottom: 1px solid var(--border); font-size: 0.68rem; vertical-align: top; }
+  .data-import2-table tr:last-child td { border-bottom: 0; }
+  .data-import2-form-grid { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto; gap: 8px; align-items: end; }
+  .data-import2-field input, .data-import2-field select, .data-import2-field textarea { width: 100%; border: 1px solid var(--border); border-radius: 7px; padding: 8px 9px; font-size: 0.7rem; font-family: inherit; background: #fff; color: var(--text); }
+  .data-import2-field textarea { min-height: 70px; resize: vertical; }
+  .data-import2-detail-panel { border: 1px solid var(--border); background: var(--bg3); border-radius: 8px; padding: 12px; font-size: 0.7rem; color: var(--muted); line-height: 1.45; }
+  .data-import2-inline-actions { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+  @media(max-width:1100px){ .data-import2-hero, .data-import2-main-grid { grid-template-columns: 1fr; } .data-import2-kpis, .data-import2-preview-grid { grid-template-columns: repeat(3, 1fr); } .data-import2-file, .data-import2-activity-row { grid-template-columns: 1fr; } }
+  @media(max-width:640px){ .data-import2-kpis, .data-import2-preview-grid, .data-import2-workflow, .data-import2-form-grid { grid-template-columns: 1fr; } .data-import2-hero { padding: 14px; } .data-import2-dropzone { padding: 18px; } }
   .csv-field-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }
   @media(max-width:500px){ .csv-field-grid { grid-template-columns: 1fr; } }
   .csv-field-cell { background: var(--bg3); border-radius: 7px; padding: 10px; font-size: 0.72rem; }
@@ -1256,7 +1335,111 @@ const WINDOWSHADE_DEFAULTS = {
   import_report_export: false,
   import_weekly_report: true,
   import_extract_preview: false,
-  import_reference: true
+  import_reference: true,
+  import2_freshness_matrix: true
+};
+const DATA_IMPORT_2_STATE_KEY = "atlas_data_import_2_state_v1";
+const DATA_IMPORT_FILE_ARCHIVE_PREFIX = "atlas_data_import_source_file:";
+const DATA_IMPORT_MAX_SAMPLE_CHARS = 180000;
+const DATA_IMPORT_REPORT_ORDER = ["box_score", "rent_roll", "trending_occupancy", "marketing_iq", "renewal_tracker", "leasing_resident_data"];
+const DATA_IMPORT_REPORT_TYPES = {
+  box_score: {
+    label: "Box Score",
+    sourceSystems: ["Entrata"],
+    freshness: { label: "1 business day", days: 1, businessDays: true },
+    sourceRank: 100,
+    aliases: ["box score", "daily box score", "daily leasing report", "dlr", "daily occupancy"],
+    patterns: ["occupied no notice", "notice rented", "vacant rented", "physical occupancy", "leased occupancy", "availability"],
+    dependencies: ["Portfolio Dashboard", "DLR", "RISE Portfolio Leasing Weekly Report", "Occupancy KPIs", "Trending Metrics"],
+    primaryFields: ["physical_occupancy", "leased_occupancy", "occupied_units", "leased_units", "applications", "move_ins", "move_outs"]
+  },
+  rent_roll: {
+    label: "Rent Roll",
+    sourceSystems: ["Entrata", "APTIQ"],
+    freshness: { label: "Monthly", days: 35 },
+    sourceRank: 75,
+    aliases: ["rent roll", "rentroll", "unit rent roll", "resident rent roll"],
+    patterns: ["lease start", "lease end", "market rent", "resident name", "unit"],
+    dependencies: ["Occupancy KPIs", "Budget Builder", "Property Reporting", "Portfolio Reporting"],
+    primaryFields: ["market_rent", "net_effective_rent", "lease_start", "lease_end", "unit", "resident"]
+  },
+  trending_occupancy: {
+    label: "Trending Occupancy",
+    sourceSystems: ["Entrata"],
+    freshness: { label: "Weekly", days: 7 },
+    sourceRank: 70,
+    aliases: ["trending occupancy", "occupancy trend", "projected occupancy", "occupancy trending"],
+    patterns: ["upcoming move-out", "pending move-ins", "projected occupancy", "forecast occupancy"],
+    dependencies: ["Trending Occupancy", "DLR", "Weekly Leasing Report", "Portfolio Reporting"],
+    primaryFields: ["trending_occupancy", "pending_move_ins", "pending_move_outs", "projected_occupancy"]
+  },
+  marketing_iq: {
+    label: "Marketing IQ",
+    sourceSystems: ["APTIQ", "Entrata"],
+    freshness: { label: "Weekly", days: 7 },
+    sourceRank: 60,
+    aliases: ["marketing iq", "marketingiq", "market iq", "marketing source"],
+    patterns: ["lead source", "source performance", "marketing source", "prospect source", "internet listing service"],
+    dependencies: ["Marketing", "Traffic & Funnel", "Leasing Performance", "Portfolio Reporting"],
+    primaryFields: ["lead_source", "guest_cards", "tours", "applications", "leases_signed"]
+  },
+  renewal_tracker: {
+    label: "Renewal Tracker",
+    sourceSystems: ["Entrata"],
+    freshness: { label: "Weekly", days: 7 },
+    sourceRank: 82,
+    aliases: ["renewal tracker", "renewals", "renewal report", "renewal schedule"],
+    patterns: ["renewal status", "expiration date", "notice to vacate", "ntv", "renewal offer"],
+    dependencies: ["Central Services Renewal Tracker", "Renewal KPI", "Bonus Engine", "Portfolio Reporting"],
+    primaryFields: ["renewal_expirations", "renewals_signed", "renewal_ntvs", "renewal_status"]
+  },
+  leasing_resident_data: {
+    label: "Leasing Resident Data",
+    sourceSystems: ["Entrata", "APTIQ"],
+    freshness: { label: "1 business day", days: 1, businessDays: true },
+    sourceRank: 88,
+    aliases: ["leasing resident data", "resident data", "application resident data", "application data", "resident leasing"],
+    patterns: ["application id", "applicant", "application status", "approval date", "lease signed date", "cancelled date"],
+    dependencies: ["Leasing Performance Dashboard", "Applications Dashboard", "Bonus Engine", "Reporting", "Leasing Professional Performance"],
+    primaryFields: ["application_id", "resident", "application_date", "approval_date", "application_status", "lease_signed_date"]
+  }
+};
+const DATA_IMPORT_FIELD_ALIASES = {
+  physical_occupancy: ["occ %", "occupancy %", "physical occupancy", "current occupancy", "occupied %", "property occ", "physical occ"],
+  leased_occupancy: ["leased %", "leased occupancy", "leased occ", "preleased %"],
+  trending_occupancy: ["trending occupancy", "projected occupancy", "forecast occupancy", "90 day projection"],
+  occupied_units: ["occupied units", "occupied", "occ units", "occupied apartments"],
+  leased_units: ["leased units", "leased", "signed leases"],
+  applications: ["applications", "apps", "application count", "applied"],
+  approvals: ["approvals", "approved", "approved apps", "approved applications"],
+  guest_cards: ["guest cards", "traffic", "leads", "prospects"],
+  tours: ["tours", "showings", "property tours"],
+  move_ins: ["move ins", "move-ins", "move in", "mi"],
+  move_outs: ["move outs", "move-outs", "move out", "mo"],
+  pending_move_ins: ["pending move ins", "pending move-ins", "scheduled move ins"],
+  pending_move_outs: ["pending move outs", "upcoming move-outs", "scheduled move outs"],
+  renewal_expirations: ["renewal expirations", "expirations", "lease expirations", "expiration count"],
+  renewals_signed: ["renewals signed", "renewed", "signed renewals", "renewal signed"],
+  renewal_ntvs: ["notice to vacate", "ntv", "renewal ntv", "notices"],
+  market_rent: ["market rent", "market", "asking rent"],
+  net_effective_rent: ["net effective rent", "ner", "effective rent"],
+  application_id: ["application id", "app id", "application number"],
+  resident: ["resident", "resident name", "applicant", "applicant name"],
+  application_date: ["application date", "applied date", "date applied"],
+  application_status: ["application status", "status", "current status"],
+  lease_start: ["lease start", "lease start date", "move in date"],
+  lease_end: ["lease end", "lease end date", "expiration date"],
+  unit: ["unit", "unit number", "apartment", "apt"]
+};
+const DATA_IMPORT_ISSUE_LABELS = {
+  missing: "Missing Data",
+  stale: "Stale Data",
+  invalid: "Invalid Data",
+  unmapped: "Unmapped Data",
+  conflict: "Conflicting Data",
+  duplicate: "Duplicate Data",
+  low_confidence: "Low Confidence Mapping",
+  unsupported: "Unsupported File"
 };
 const DEFAULT_SEASONAL = [0.65,0.70,0.85,1.10,1.20,1.25,1.20,1.10,0.95,0.85,0.70,0.65];
 const ATLAS_BRAND_LOGO_SRC = "assets/atlas-rise-logo.png";
@@ -2816,6 +2999,8 @@ const DEFAULT_EXTRACT_FIELD_MAP = {
 };
 let extractFieldMap = { ...DEFAULT_EXTRACT_FIELD_MAP };
 let windowshadeState = { ...WINDOWSHADE_DEFAULTS };
+let dataImport2State = defaultDataImport2State();
+let dataImportFileHandles = new Map();
 
 // Bonus payout goals ($ amounts, adjustable)
 let bonusPayouts = { apps: 25, leases: 50, conversion: 75 };
@@ -31377,7 +31562,9 @@ function renderReportingTab() {
       ? getLvrReportCommunityName()
       : getWorkspaceScopeDisplayName();
   const currentScopeMode = isCommunitySelectionReport
-    ? `${communityProgressSelectionNames.length > 1 ? "multi-community c-suite mode" : "single-community c-suite mode"}`
+    ? (communityProgressSelectionNames.length === 0
+      ? "select one or more communities"
+      : `${communityProgressSelectionNames.length > 1 ? "multi-community c-suite mode" : "single-community c-suite mode"}`)
     : isLvrReport
       ? "single-community LVR mode"
       : (isPortfolioWorkspaceSelected() ? "portfolio aggregate mode" : "community-specific mode");
@@ -32211,18 +32398,25 @@ function getReportPerspectiveLabel(value = reportHubPerspective) {
   }[normalizeReportHubPerspective(value)] || "C-Suite View";
 }
 
-function getCommunityProgressReportCommunityNames() {
+function getDefaultReportHubCommunitySelectionName() {
+  const reportableNames = getReportableCommunityNames(getReportHubMonthIndex());
+  const fallback = matchPropertyName(getProp().name, { fallbackToCurrent: false }) || reportableNames[0] || getProp().name;
+  return fallback && reportableNames.includes(fallback) ? fallback : (reportableNames[0] || fallback || "");
+}
+
+function getCommunityProgressReportCommunityNames(options = {}) {
   const reportableNames = getReportableCommunityNames(getReportHubMonthIndex());
   const selections = normalizeCommunityProgressReportCommunities(reportHubCommunityProgressCommunities)
     .map(name => matchPropertyName(name, { fallbackToCurrent: false }))
     .filter(name => name && reportableNames.includes(name));
   if (selections.length > 0) return selections;
-  const fallback = matchPropertyName(getProp().name, { fallbackToCurrent: false }) || reportableNames[0] || getProp().name;
+  if (options.allowFallback !== true) return [];
+  const fallback = getDefaultReportHubCommunitySelectionName();
   return fallback ? [fallback] : [];
 }
 
 function getCommunityProgressReportCommunityName() {
-  return getCommunityProgressReportCommunityNames()[0] || matchPropertyName(getProp().name, { fallbackToCurrent: false }) || getProp().name;
+  return getCommunityProgressReportCommunityNames({ allowFallback: true })[0] || matchPropertyName(getProp().name, { fallbackToCurrent: false }) || getProp().name;
 }
 
 function getCommunityProgressReportScopeLabel() {
@@ -32242,7 +32436,7 @@ function setCommunityProgressReportCommunities(names = []) {
 function toggleCommunityProgressReportCommunity(name) {
   const normalized = matchPropertyName(name, { fallbackToCurrent: false }) || String(name ?? "").trim();
   if (!normalized) return;
-  const current = new Set(getCommunityProgressReportCommunityNames());
+  const current = new Set(getCommunityProgressReportCommunityNames({ allowFallback: false }));
   if (current.has(normalized)) current.delete(normalized);
   else current.add(normalized);
   reportHubCommunityProgressCommunities = [...current];
@@ -32311,8 +32505,9 @@ function configureReportHubDefaultsForType(type) {
     reportHubPerspective = "csuite";
   } else if (normalized === "community_progress" || normalized === "market_comparison") {
     reportHubPerspective = "csuite";
-    if (!Array.isArray(reportHubCommunityProgressCommunities) || reportHubCommunityProgressCommunities.length === 0) {
-      reportHubCommunityProgressCommunities = [getCommunityProgressReportCommunityName()];
+    if (getCommunityProgressReportCommunityNames({ allowFallback: false }).length === 0) {
+      const defaultCommunityName = getDefaultReportHubCommunitySelectionName();
+      reportHubCommunityProgressCommunities = defaultCommunityName ? [defaultCommunityName] : [];
     }
   } else if (normalized === "leasing_velocity") {
     reportHubPerspective = "csuite";
@@ -42983,6 +43178,10 @@ function buildCommunityProgressReportData(options = {}) {
   const monthIdx = getReportHubMonthIndex();
   const year = getReportHubYear();
   const selectedCommunityNames = getCommunityProgressReportCommunityNames();
+  if (selectedCommunityNames.length === 0) {
+    if (!silent) alert("Select at least one community in the Reporting Hub before building the Community Progress report.");
+    return null;
+  }
   const communityReports = selectedCommunityNames
     .map(name => buildCommunityProgressSingleReportData({
       silent,
@@ -43532,8 +43731,9 @@ function buildCommunityProgressReportDocument(report) {
 function renderCommunityProgressReportingWorkspace() {
   const report = buildCommunityProgressReportData({ silent: true });
   if (!report) {
+    const selectedCommunityNames = getCommunityProgressReportCommunityNames();
     return `<div id="reporting-community-progress-workspace" class="report-hub-card" style="margin-top:14px">
-      <div class="alert-red">Save a community first, then the Community Progress report can render from the selected month-to-date data.</div>
+      <div class="alert-red">${selectedCommunityNames.length === 0 ? "Select one or more communities above, then the Community Progress report can render from that exact report scope." : "Save the selected community data first, then the Community Progress report can render from the selected month-to-date data."}</div>
     </div>`;
   }
   const alerts = Array.isArray(report.dataAlerts) ? report.dataAlerts : [];
@@ -44154,6 +44354,10 @@ function buildMarketComparisonReportData(options = {}) {
   const monthIdx = getReportHubMonthIndex();
   const year = getReportHubYear();
   const selectedCommunityNames = getMarketComparisonReportCommunityNames();
+  if (selectedCommunityNames.length === 0) {
+    if (!silent) alert("Select at least one community in the Reporting Hub before building the Market Comparison report.");
+    return null;
+  }
   const communityReports = selectedCommunityNames
     .map(name => buildMarketComparisonSingleReportData({
       silent,
@@ -44415,8 +44619,9 @@ function buildMarketComparisonReportDocument(report) {
 function renderMarketComparisonReportingWorkspace() {
   const report = buildMarketComparisonReportData({ silent: true });
   if (!report) {
+    const selectedCommunityNames = getMarketComparisonReportCommunityNames();
     return `<div id="reporting-market-comparison-workspace" class="report-hub-card" style="margin-top:14px">
-      <div class="alert-red">Save a community first, then the Market Comparison report can render from the selected month-to-date data.</div>
+      <div class="alert-red">${selectedCommunityNames.length === 0 ? "Select one or more communities above, then the Market Comparison report can render from that exact report scope." : "Save the selected community data first, then the Market Comparison report can render from the selected month-to-date data."}</div>
     </div>`;
   }
   const alerts = Array.isArray(report.dataAlerts) ? report.dataAlerts : [];
@@ -44599,7 +44804,1731 @@ async function downloadPortfolioDlrOverviewHtml() {
   URL.revokeObjectURL(link.href);
 }
 
+function dataImportMakeId(prefix = "item") {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}_${crypto.randomUUID()}`;
+  }
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function dataImportNormalizeText(value = "") {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9%]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function defaultDataImportMappingRules() {
+  return Object.entries(DATA_IMPORT_FIELD_ALIASES).flatMap(([canonicalField, aliases]) =>
+    aliases.map(alias => ({
+      id: `default_${canonicalField}_${dataImportNormalizeText(alias).replace(/\s+/g, "_")}`,
+      originalField: alias,
+      canonicalField,
+      sourceSystem: "Global",
+      savedBy: "ATLAS",
+      savedAt: "",
+      locked: true
+    }))
+  );
+}
+
+function defaultDataImportPropertyAliases() {
+  const seeded = [];
+  const add = (communityName, alias) => {
+    const cleanAlias = String(alias ?? "").trim();
+    if (!communityName || !cleanAlias) return;
+    seeded.push({
+      id: `default_alias_${dataImportNormalizeText(communityName)}_${dataImportNormalizeText(cleanAlias)}`.replace(/\s+/g, "_"),
+      communityName,
+      alias: cleanAlias,
+      savedBy: "ATLAS",
+      savedAt: "",
+      locked: cleanAlias === communityName
+    });
+  };
+  (PROPERTIES || []).forEach(prop => add(prop.name, prop.name));
+  add("Doro", "Doro Residences");
+  add("Doro", "The Doro");
+  add("Doro", "Doro Residences Jacksonville");
+  add("Bartram Park", "Bartram");
+  add("St Augustine", "St. Augustine");
+  add("Citrus Ridge", "Citrus Ridge Apartments");
+  add("Florence Villa", "Florence Villas");
+  add("Sereno", "Sereno Apartments");
+  return seeded;
+}
+
+function defaultDataImport2State() {
+  return {
+    schema: "atlas_data_import_2_v1",
+    activeView: "overview",
+    pendingBatch: null,
+    batches: [],
+    exceptions: [],
+    sourceArchive: [],
+    mappingRules: defaultDataImportMappingRules(),
+    propertyAliases: defaultDataImportPropertyAliases(),
+    selectedIssueKey: "",
+    updatedAt: ""
+  };
+}
+
+function normalizeDataImport2State(input = {}) {
+  const fallback = defaultDataImport2State();
+  const state = input && typeof input === "object" ? input : {};
+  const mappingById = new Map(fallback.mappingRules.map(rule => [rule.id, rule]));
+  (Array.isArray(state.mappingRules) ? state.mappingRules : []).forEach(rule => {
+    const originalField = String(rule?.originalField ?? "").trim();
+    const canonicalField = String(rule?.canonicalField ?? "").trim();
+    if (!originalField || !canonicalField) return;
+    const id = rule.id || dataImportMakeId("map");
+    mappingById.set(id, {
+      id,
+      originalField,
+      canonicalField,
+      sourceSystem: String(rule?.sourceSystem || "Global"),
+      savedBy: String(rule?.savedBy || "Admin"),
+      savedAt: String(rule?.savedAt || ""),
+      locked: !!rule?.locked
+    });
+  });
+  const aliasByKey = new Map();
+  [...fallback.propertyAliases, ...(Array.isArray(state.propertyAliases) ? state.propertyAliases : [])].forEach(alias => {
+    const communityName = String(alias?.communityName ?? "").trim();
+    const aliasText = String(alias?.alias ?? "").trim();
+    if (!communityName || !aliasText) return;
+    const key = `${dataImportNormalizeText(communityName)}::${dataImportNormalizeText(aliasText)}`;
+    const id = alias.id || dataImportMakeId("alias");
+    aliasByKey.set(key, {
+      id,
+      communityName,
+      alias: aliasText,
+      savedBy: String(alias?.savedBy || "Admin"),
+      savedAt: String(alias?.savedAt || ""),
+      locked: !!alias?.locked
+    });
+  });
+  return {
+    ...fallback,
+    activeView: ["overview","upload","health","exceptions","mapping","aliases","history","archive"].includes(state.activeView) ? state.activeView : fallback.activeView,
+    pendingBatch: state.pendingBatch && typeof state.pendingBatch === "object" ? state.pendingBatch : null,
+    batches: (Array.isArray(state.batches) ? state.batches : []).filter(Boolean).slice(0, 60),
+    exceptions: (Array.isArray(state.exceptions) ? state.exceptions : []).filter(Boolean).slice(0, 220),
+    sourceArchive: (Array.isArray(state.sourceArchive) ? state.sourceArchive : []).filter(Boolean).slice(0, 180),
+    mappingRules: Array.from(mappingById.values()),
+    propertyAliases: Array.from(aliasByKey.values()),
+    selectedIssueKey: String(state.selectedIssueKey || ""),
+    updatedAt: String(state.updatedAt || "")
+  };
+}
+
+function serializeDataImport2State() {
+  return {
+    ...dataImport2State,
+    pendingBatch: null,
+    batches: (dataImport2State.batches || []).slice(0, 60),
+    exceptions: (dataImport2State.exceptions || []).slice(0, 220),
+    sourceArchive: (dataImport2State.sourceArchive || []).slice(0, 180),
+    updatedAt: new Date().toISOString()
+  };
+}
+
+async function hydrateDataImport2State() {
+  try {
+    const stored = await atlasStateGetValue(DATA_IMPORT_2_STATE_KEY);
+    dataImport2State = normalizeDataImport2State(stored || dataImport2State);
+  } catch (error) {
+    markAtlasPersistenceError(error, "ATLAS could not finish loading Data Import history.");
+    dataImport2State = normalizeDataImport2State(dataImport2State);
+  }
+}
+
+function persistDataImport2State() {
+  dataImport2State = normalizeDataImport2State(dataImport2State);
+  queueAtlasStateWrite(async () => {
+    await atlasStateSetValue(DATA_IMPORT_2_STATE_KEY, serializeDataImport2State());
+  }, "data_import_2_state");
+}
+
+function setDataImport2View(view) {
+  dataImport2State.activeView = ["overview","upload","health","exceptions","mapping","aliases","history","archive"].includes(view) ? view : "overview";
+  persistDataImport2State();
+  renderTab();
+}
+
+function dataImportFormatBytes(bytes) {
+  const value = Number(bytes);
+  if (!Number.isFinite(value) || value <= 0) return "0 KB";
+  if (value < 1024 * 1024) return `${Math.max(1, Math.round(value / 1024))} KB`;
+  return `${(value / (1024 * 1024)).toFixed(value >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+}
+
+function dataImportFormatDate(value, fallback = "Not detected") {
+  if (!value) return fallback;
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.getTime())) return fallback;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function dataImportFormatTimestamp(value, fallback = "Not recorded") {
+  if (!value) return fallback;
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.getTime())) return fallback;
+  return date.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function dataImportBuildBatchId() {
+  const now = new Date();
+  const datePart = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+  const todayCount = (dataImport2State.batches || []).filter(batch => String(batch.id || "").includes(`IMP-${datePart}`)).length + 1;
+  return `IMP-${datePart}-${String(todayCount).padStart(4, "0")}`;
+}
+
+function dataImportGetReportDef(type) {
+  return DATA_IMPORT_REPORT_TYPES[type] || null;
+}
+
+function dataImportReportLabel(type) {
+  return dataImportGetReportDef(type)?.label || "Needs Review";
+}
+
+function dataImportSourceSystemForType(type, sampleText = "") {
+  const normalized = dataImportNormalizeText(sampleText);
+  if (normalized.includes("aptiq")) return "APTIQ";
+  if (normalized.includes("entrata")) return "Entrata";
+  return dataImportGetReportDef(type)?.sourceSystems?.[0] || "Unknown";
+}
+
+function dataImportCanonicalFieldLabel(field) {
+  return String(field || "")
+    .split("_")
+    .map(part => part ? `${part.charAt(0).toUpperCase()}${part.slice(1)}` : "")
+    .join(" ");
+}
+
+function dataImportStatusClass(status) {
+  const normalized = dataImportNormalizeText(status).replace(/\s+/g, "_");
+  if (["fresh","ready","approved","imported","complete"].includes(normalized)) return "ready";
+  if (["stale","review","needs_review","low_confidence"].includes(normalized)) return "review";
+  if (["missing","conflict","blocked","unsupported"].includes(normalized)) return "blocked";
+  if (["unmapped"].includes(normalized)) return "unmapped";
+  if (["duplicate"].includes(normalized)) return "duplicate";
+  return "info";
+}
+
+function dataImportGetSupportedExtensions() {
+  return [".csv", ".txt", ".pdf", ".xlsx", ".xls", ".xlsm", ".zip"];
+}
+
+function dataImportGetFileExtension(fileName = "") {
+  const clean = String(fileName || "").toLowerCase();
+  const idx = clean.lastIndexOf(".");
+  return idx >= 0 ? clean.slice(idx) : "";
+}
+
+function dataImportIsSupportedFileName(fileName = "") {
+  return dataImportGetSupportedExtensions().includes(dataImportGetFileExtension(fileName));
+}
+
+function dataImportInferMime(fileName = "") {
+  const ext = dataImportGetFileExtension(fileName);
+  if (ext === ".csv") return "text/csv";
+  if (ext === ".txt") return "text/plain";
+  if (ext === ".pdf") return "application/pdf";
+  if ([".xlsx", ".xls", ".xlsm"].includes(ext)) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  if (ext === ".zip") return "application/zip";
+  return "application/octet-stream";
+}
+
+function dataImportDecodeBytes(buffer, start, length) {
+  try {
+    return new TextDecoder("utf-8").decode(new Uint8Array(buffer, start, length));
+  } catch {
+    return "";
+  }
+}
+
+async function dataImportReadPdfText(file) {
+  if (typeof pdfjsLib === "undefined" || !pdfjsLib?.getDocument) return "";
+  try {
+    const data = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data }).promise;
+    const pageCount = Math.min(pdf.numPages || 0, 3);
+    const parts = [];
+    for (let pageNum = 1; pageNum <= pageCount; pageNum += 1) {
+      const page = await pdf.getPage(pageNum);
+      const content = await page.getTextContent();
+      parts.push((content.items || []).map(item => item.str || "").join(" "));
+    }
+    return parts.join("\n").slice(0, DATA_IMPORT_MAX_SAMPLE_CHARS);
+  } catch {
+    return "";
+  }
+}
+
+function dataImportRowsToText(rows = []) {
+  return (Array.isArray(rows) ? rows : [])
+    .slice(0, 80)
+    .map(row => (Array.isArray(row) ? row : [row]).map(cell => String(cell ?? "").trim()).filter(Boolean).join(" | "))
+    .filter(Boolean)
+    .join("\n")
+    .slice(0, DATA_IMPORT_MAX_SAMPLE_CHARS);
+}
+
+async function dataImportReadFileSample(file) {
+  const name = file?.name || "Untitled";
+  const extension = dataImportGetFileExtension(name);
+  const base = {
+    fileName: name,
+    extension,
+    sheetNames: [],
+    headers: [],
+    rowCount: 0,
+    sampleText: "",
+    tabSummaries: []
+  };
+  if (!file || !dataImportIsSupportedFileName(name) || extension === ".zip") return base;
+  try {
+    if ([".csv", ".txt"].includes(extension)) {
+      const text = (await file.text()).slice(0, DATA_IMPORT_MAX_SAMPLE_CHARS);
+      const rows = text.split(/\r?\n/).slice(0, 80).map(line => line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(cell => cell.replace(/^"|"$/g, "").trim()));
+      const headerRow = rows.find(row => row.filter(Boolean).length >= 2) || [];
+      return {
+        ...base,
+        headers: headerRow.filter(Boolean).slice(0, 80),
+        rowCount: Math.max(0, text.split(/\r?\n/).filter(Boolean).length - 1),
+        sampleText: `${name}\n${text}`.slice(0, DATA_IMPORT_MAX_SAMPLE_CHARS)
+      };
+    }
+    if (extension === ".pdf") {
+      const text = await dataImportReadPdfText(file);
+      return {
+        ...base,
+        rowCount: text ? text.split(/\s+/).length : 0,
+        sampleText: `${name}\n${text}`.slice(0, DATA_IMPORT_MAX_SAMPLE_CHARS)
+      };
+    }
+    if ([".xlsx", ".xls", ".xlsm"].includes(extension) && typeof XLSX !== "undefined") {
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false });
+      const sheetNames = (workbook.SheetNames || []).slice(0, 12);
+      const allHeaders = [];
+      const tabSummaries = [];
+      let rowCount = 0;
+      const textParts = [name, ...sheetNames];
+      sheetNames.forEach(sheetName => {
+        const worksheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "", raw: false });
+        const sampleRows = rows.slice(0, 80);
+        const headerRow = sampleRows.find(row => Array.isArray(row) && row.filter(cell => String(cell ?? "").trim()).length >= 2) || [];
+        const cleanHeaders = headerRow.map(cell => String(cell ?? "").trim()).filter(Boolean).slice(0, 80);
+        allHeaders.push(...cleanHeaders);
+        rowCount += Math.max(0, rows.length - 1);
+        tabSummaries.push({ sheetName, rowCount: Math.max(0, rows.length - 1), headers: cleanHeaders });
+        textParts.push(sheetName, dataImportRowsToText(sampleRows));
+      });
+      return {
+        ...base,
+        sheetNames,
+        headers: Array.from(new Set(allHeaders)).slice(0, 160),
+        rowCount,
+        sampleText: textParts.join("\n").slice(0, DATA_IMPORT_MAX_SAMPLE_CHARS),
+        tabSummaries
+      };
+    }
+  } catch (error) {
+    return {
+      ...base,
+      sampleText: `${name}\n${String(error?.message || error || "")}`.slice(0, DATA_IMPORT_MAX_SAMPLE_CHARS),
+      readError: String(error?.message || error || "Unable to inspect this file.")
+    };
+  }
+  return base;
+}
+
+function dataImportScoreReportType(fileName, sample) {
+  const haystack = dataImportNormalizeText(`${fileName} ${sample?.sheetNames?.join(" ") || ""} ${sample?.headers?.join(" ") || ""} ${sample?.sampleText || ""}`);
+  const fileOnly = dataImportNormalizeText(fileName);
+  const scores = {};
+  Object.entries(DATA_IMPORT_REPORT_TYPES).forEach(([type, def]) => {
+    let score = 0;
+    (def.aliases || []).forEach(alias => {
+      const normalizedAlias = dataImportNormalizeText(alias);
+      if (!normalizedAlias) return;
+      if (fileOnly.includes(normalizedAlias)) score += 46;
+      if (haystack.includes(normalizedAlias)) score += 34;
+    });
+    (def.patterns || []).forEach(pattern => {
+      const normalizedPattern = dataImportNormalizeText(pattern);
+      if (normalizedPattern && haystack.includes(normalizedPattern)) score += 16;
+    });
+    (def.primaryFields || []).forEach(field => {
+      const aliases = DATA_IMPORT_FIELD_ALIASES[field] || [];
+      aliases.forEach(alias => {
+        const normalizedAlias = dataImportNormalizeText(alias);
+        if (normalizedAlias && haystack.includes(normalizedAlias)) score += 6;
+      });
+    });
+    scores[type] = score;
+  });
+  const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  const [bestType, bestScore] = ranked[0] || ["unknown", 0];
+  const secondScore = ranked[1]?.[1] || 0;
+  const confidence = bestScore <= 0 ? 0 : Math.max(35, Math.min(98, Math.round(bestScore + Math.min(20, bestScore - secondScore))));
+  return {
+    reportType: bestScore > 24 ? bestType : "unknown",
+    confidence: bestScore > 24 ? confidence : 0,
+    ranked: ranked.slice(0, 4).map(([type, score]) => ({ type, score }))
+  };
+}
+
+function dataImportBuildAliasLookup() {
+  const map = new Map();
+  (dataImport2State.propertyAliases || []).forEach(alias => {
+    const normalized = dataImportNormalizeText(alias.alias);
+    if (!normalized) return;
+    map.set(normalized, alias.communityName);
+  });
+  getAllCommunityNames().forEach(name => map.set(dataImportNormalizeText(name), name));
+  return map;
+}
+
+function dataImportDetectCommunities(text = "") {
+  const haystack = dataImportNormalizeText(text);
+  if (!haystack) return [];
+  const aliasLookup = dataImportBuildAliasLookup();
+  const found = new Set();
+  Array.from(aliasLookup.entries())
+    .sort((a, b) => b[0].length - a[0].length)
+    .forEach(([alias, communityName]) => {
+      if (alias.length < 3) return;
+      const boundaryPattern = new RegExp(`(^|\\s)${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`, "i");
+      if (boundaryPattern.test(haystack)) found.add(communityName);
+    });
+  return Array.from(found).sort((a, b) => a.localeCompare(b));
+}
+
+function dataImportDetectReportingPeriod(text = "", file) {
+  const raw = String(text || "");
+  const monthNames = [
+    ["january", "jan"], ["february", "feb"], ["march", "mar"], ["april", "apr"],
+    ["may"], ["june", "jun"], ["july", "jul"], ["august", "aug"],
+    ["september", "sep", "sept"], ["october", "oct"], ["november", "nov"], ["december", "dec"]
+  ];
+  const normalized = dataImportNormalizeText(raw);
+  for (let monthIdx = 0; monthIdx < monthNames.length; monthIdx += 1) {
+    const foundName = monthNames[monthIdx].find(name => normalized.includes(`${name} 20`) || normalized.includes(`${name} 19`));
+    if (!foundName) continue;
+    const match = normalized.match(new RegExp(`${foundName}\\s+(20\\d{2}|19\\d{2})`));
+    if (match) {
+      const year = Number(match[1]);
+      return {
+        monthIdx,
+        year,
+        reportingPeriodLabel: `${MONTHS[monthIdx]} ${year}`,
+        dataDateIso: "",
+        dataDateLabel: "Not detected"
+      };
+    }
+  }
+  const dateMatch = raw.match(/\b(\d{1,2})[/-](\d{1,2})[/-]((?:20|19)?\d{2})\b/);
+  if (dateMatch) {
+    const month = Number(dateMatch[1]);
+    const day = Number(dateMatch[2]);
+    const year = Number(dateMatch[3].length === 2 ? `20${dateMatch[3]}` : dateMatch[3]);
+    const parsed = new Date(year, month - 1, day);
+    if (Number.isFinite(parsed.getTime()) && parsed.getMonth() === month - 1) {
+      return {
+        monthIdx: parsed.getMonth(),
+        year: parsed.getFullYear(),
+        reportingPeriodLabel: `${MONTHS[parsed.getMonth()]} ${parsed.getFullYear()}`,
+        dataDateIso: parsed.toISOString(),
+        dataDateLabel: dataImportFormatDate(parsed)
+      };
+    }
+  }
+  return {
+    monthIdx: null,
+    year: null,
+    reportingPeriodLabel: "Not detected",
+    dataDateIso: "",
+    dataDateLabel: file?.lastModified ? `File modified ${dataImportFormatDate(file.lastModified)}` : "Not detected"
+  };
+}
+
+function dataImportDetectFields(sample) {
+  const headers = Array.isArray(sample?.headers) ? sample.headers : [];
+  const text = dataImportNormalizeText(`${headers.join(" ")} ${sample?.sampleText || ""}`);
+  const mapped = new Map();
+  const lowConfidence = [];
+  const rules = Array.isArray(dataImport2State.mappingRules) ? dataImport2State.mappingRules : defaultDataImportMappingRules();
+  rules.forEach(rule => {
+    const alias = dataImportNormalizeText(rule.originalField);
+    if (!alias) return;
+    const exactHeader = headers.find(header => dataImportNormalizeText(header) === alias);
+    const looseHeader = !exactHeader ? headers.find(header => dataImportNormalizeText(header).includes(alias) || alias.includes(dataImportNormalizeText(header))) : "";
+    if (exactHeader || looseHeader || text.includes(alias)) {
+      mapped.set(rule.canonicalField, {
+        canonicalField: rule.canonicalField,
+        originalField: exactHeader || looseHeader || rule.originalField,
+        confidence: exactHeader ? 98 : looseHeader ? 82 : 74
+      });
+    }
+  });
+  headers.forEach(header => {
+    const normalized = dataImportNormalizeText(header);
+    if (!normalized) return;
+    if ((normalized.includes("occ") || normalized.includes("occupancy")) && !mapped.has("physical_occupancy")) {
+      lowConfidence.push({ originalField: header, suggestedField: "physical_occupancy", confidence: 72 });
+    }
+    if (normalized.includes("renew") && !mapped.has("renewals_signed")) {
+      lowConfidence.push({ originalField: header, suggestedField: "renewals_signed", confidence: 68 });
+    }
+  });
+  return {
+    mappedFields: Array.from(mapped.values()),
+    lowConfidence: lowConfidence.slice(0, 5),
+    unmappedHeaders: headers.filter(header => {
+      const normalized = dataImportNormalizeText(header);
+      if (!normalized) return false;
+      return !Array.from(mapped.values()).some(field => dataImportNormalizeText(field.originalField) === normalized);
+    }).slice(0, 20)
+  };
+}
+
+async function dataImportExpandZip(file) {
+  const issues = [];
+  const files = [];
+  let buffer;
+  try {
+    buffer = await file.arrayBuffer();
+  } catch (error) {
+    return { files, issues: [{ type: "invalid", severity: "critical", title: "ZIP could not be read", detail: String(error?.message || error || "") }] };
+  }
+  const view = new DataView(buffer);
+  let eocdOffset = -1;
+  for (let offset = Math.max(0, buffer.byteLength - 22); offset >= Math.max(0, buffer.byteLength - 66000); offset -= 1) {
+    if (view.getUint32(offset, true) === 0x06054b50) {
+      eocdOffset = offset;
+      break;
+    }
+  }
+  if (eocdOffset < 0) {
+    return { files, issues: [{ type: "invalid", severity: "critical", title: "ZIP directory not found", detail: `${file.name} does not look like a standard ZIP archive.` }] };
+  }
+  const entryCount = view.getUint16(eocdOffset + 10, true);
+  let cursor = view.getUint32(eocdOffset + 16, true);
+  for (let index = 0; index < entryCount && cursor < buffer.byteLength; index += 1) {
+    if (view.getUint32(cursor, true) !== 0x02014b50) break;
+    const flags = view.getUint16(cursor + 8, true);
+    const method = view.getUint16(cursor + 10, true);
+    const compressedSize = view.getUint32(cursor + 20, true);
+    const uncompressedSize = view.getUint32(cursor + 24, true);
+    const fileNameLength = view.getUint16(cursor + 28, true);
+    const extraLength = view.getUint16(cursor + 30, true);
+    const commentLength = view.getUint16(cursor + 32, true);
+    const localOffset = view.getUint32(cursor + 42, true);
+    const entryName = dataImportDecodeBytes(buffer, cursor + 46, fileNameLength);
+    cursor += 46 + fileNameLength + extraLength + commentLength;
+    if (!entryName || entryName.endsWith("/")) continue;
+    if (!dataImportIsSupportedFileName(entryName) || dataImportGetFileExtension(entryName) === ".zip") {
+      issues.push({ type: "unsupported", severity: "medium", title: "Unsupported file in ZIP", detail: entryName, fileName: entryName });
+      continue;
+    }
+    if (flags & 1) {
+      issues.push({ type: "unsupported", severity: "high", title: "Encrypted ZIP entry", detail: `${entryName} is encrypted and cannot be inspected inside ATLAS.`, fileName: entryName });
+      continue;
+    }
+    if (compressedSize === 0xffffffff || uncompressedSize === 0xffffffff) {
+      issues.push({ type: "unsupported", severity: "high", title: "ZIP64 entry needs review", detail: `${entryName} uses ZIP64 metadata. Upload it directly outside the ZIP.`, fileName: entryName });
+      continue;
+    }
+    if (view.getUint32(localOffset, true) !== 0x04034b50) {
+      issues.push({ type: "invalid", severity: "high", title: "ZIP entry could not be located", detail: entryName, fileName: entryName });
+      continue;
+    }
+    const localNameLength = view.getUint16(localOffset + 26, true);
+    const localExtraLength = view.getUint16(localOffset + 28, true);
+    const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+    const compressedBlob = new Blob([buffer.slice(dataStart, dataStart + compressedSize)]);
+    try {
+      let extractedBlob = null;
+      if (method === 0) {
+        extractedBlob = compressedBlob;
+      } else if (method === 8 && typeof DecompressionStream !== "undefined") {
+        const stream = compressedBlob.stream().pipeThrough(new DecompressionStream("deflate-raw"));
+        extractedBlob = await new Response(stream).blob();
+      } else {
+        issues.push({ type: "unsupported", severity: "medium", title: "Unsupported ZIP compression", detail: `${entryName} uses compression method ${method}.`, fileName: entryName });
+        continue;
+      }
+      files.push(new File([extractedBlob], entryName.split("/").pop(), {
+        type: dataImportInferMime(entryName),
+        lastModified: file.lastModified || Date.now()
+      }));
+    } catch (error) {
+      issues.push({ type: "invalid", severity: "high", title: "ZIP entry could not be unpacked", detail: `${entryName}: ${String(error?.message || error || "")}`, fileName: entryName });
+    }
+  }
+  return { files, issues };
+}
+
+async function dataImportBuildFilePlan(file, extras = {}) {
+  const sample = await dataImportReadFileSample(file);
+  const combinedText = `${file.name} ${sample.sheetNames.join(" ")} ${sample.headers.join(" ")} ${sample.sampleText || ""}`;
+  const detection = dataImportScoreReportType(file.name, sample);
+  const reportType = extras.forceReportType || detection.reportType;
+  const reportDef = dataImportGetReportDef(reportType);
+  const period = dataImportDetectReportingPeriod(combinedText, file);
+  const fields = dataImportDetectFields(sample);
+  const communities = dataImportDetectCommunities(combinedText);
+  const issues = [];
+  if (!dataImportIsSupportedFileName(file.name)) {
+    issues.push({ type: "unsupported", severity: "critical", title: "Unsupported file type", detail: `${file.name} is not one of the currently supported upload formats.` });
+  }
+  if (sample.readError) {
+    issues.push({ type: "invalid", severity: "high", title: "File preview is limited", detail: sample.readError });
+  }
+  if (!reportDef) {
+    issues.push({ type: "unmapped", severity: "high", title: "Report type needs confirmation", detail: "ATLAS could not confidently identify this report. Choose the correct report type before approval." });
+  }
+  if (reportDef && detection.confidence > 0 && detection.confidence < 72) {
+    issues.push({ type: "low_confidence", severity: "medium", title: "Low confidence report detection", detail: `${file.name} may be ${reportDef.label}. Confirm before approval.`, confidence: detection.confidence });
+  }
+  if (communities.length === 0) {
+    issues.push({ type: "unmapped", severity: "medium", title: "No community match found", detail: "Rows from this file will enter the Unmapped Property Queue until an Admin assigns the community." });
+  }
+  fields.lowConfidence.forEach(item => {
+    issues.push({
+      type: "low_confidence",
+      severity: "low",
+      title: "Low confidence mapping",
+      detail: `${item.originalField} may map to ${dataImportCanonicalFieldLabel(item.suggestedField)}.`,
+      originalField: item.originalField,
+      canonicalField: item.suggestedField,
+      confidence: item.confidence
+    });
+  });
+  const blocked = issues.some(issue => issue.severity === "critical" || issue.type === "unsupported");
+  const status = blocked ? "blocked" : issues.some(issue => ["unmapped","low_confidence","invalid"].includes(issue.type)) ? "review" : "ready";
+  const fileId = dataImportMakeId("file");
+  dataImportFileHandles.set(fileId, file);
+  return {
+    fileId,
+    originalZipName: extras.originalZipName || "",
+    name: file.name,
+    size: file.size,
+    type: file.type || dataImportInferMime(file.name),
+    extension: dataImportGetFileExtension(file.name),
+    reportType,
+    reportTypeLabel: dataImportReportLabel(reportType),
+    sourceSystem: dataImportSourceSystemForType(reportType, combinedText),
+    confidence: reportDef ? detection.confidence : 0,
+    communities,
+    communityCount: communities.length,
+    relevantTabs: sample.sheetNames,
+    availableFields: fields.mappedFields,
+    lowConfidenceFields: fields.lowConfidence,
+    unmappedHeaders: fields.unmappedHeaders,
+    rowCount: sample.rowCount,
+    readyRows: blocked ? 0 : Math.max(0, sample.rowCount - issues.filter(issue => issue.type === "unmapped").length),
+    reportingPeriodLabel: period.reportingPeriodLabel,
+    reportingMonthIdx: period.monthIdx,
+    reportingYear: period.year,
+    dataDateIso: period.dataDateIso,
+    dataDateLabel: period.dataDateLabel,
+    downstreamUses: reportDef?.dependencies || [],
+    issues,
+    status,
+    selected: status !== "blocked",
+    overrideReportType: reportDef ? reportType : "",
+    sampleSummary: {
+      headers: (sample.headers || []).slice(0, 30),
+      sheets: sample.tabSummaries || []
+    }
+  };
+}
+
+function dataImportFindDuplicateArchiveMatch(plan) {
+  const communitiesKey = (plan.communities || []).join("|");
+  return (dataImport2State.sourceArchive || []).find(item =>
+    dataImportNormalizeText(item.fileName) === dataImportNormalizeText(plan.name) &&
+    item.reportType === plan.reportType &&
+    String(item.reportingPeriodLabel || "") === String(plan.reportingPeriodLabel || "") &&
+    (item.communities || []).join("|") === communitiesKey &&
+    item.importStatus !== "Rolled Back"
+  );
+}
+
+function dataImportAnnotatePlan(plan) {
+  const next = { ...plan, issues: Array.isArray(plan.issues) ? [...plan.issues] : [] };
+  const duplicate = dataImportFindDuplicateArchiveMatch(next);
+  if (duplicate) {
+    next.issues.push({
+      type: "duplicate",
+      severity: "low",
+      title: "Possible duplicate upload",
+      detail: `A matching source file was already approved in ${duplicate.batchId}. ATLAS will preserve the audit trail and can ignore exact duplicate rows.`
+    });
+    if (next.status === "ready") next.status = "review";
+  }
+  return next;
+}
+
+function dataImportBuildBatchSummary(files = [], zipIssues = []) {
+  const communities = new Set();
+  files.forEach(file => (file.communities || []).forEach(name => communities.add(name)));
+  const allIssues = files.flatMap(file => file.issues || []).concat(zipIssues || []);
+  const unmapped = allIssues.filter(issue => issue.type === "unmapped").length;
+  const conflicts = allIssues.filter(issue => issue.type === "conflict").length;
+  const duplicates = allIssues.filter(issue => issue.type === "duplicate").length;
+  const critical = allIssues.filter(issue => issue.severity === "critical").length;
+  const readyRows = files.reduce((sum, file) => sum + Number(file.readyRows || 0), 0);
+  const reviewedRows = files.reduce((sum, file) => sum + Number(file.rowCount || 0), 0);
+  return {
+    files: files.length,
+    communities: communities.size,
+    rowsReviewed: reviewedRows,
+    readyToImport: readyRows,
+    existingRecordsUpdated: files.filter(file => file.communities?.length && file.reportType !== "unknown").length,
+    duplicatesIgnored: duplicates,
+    unmapped,
+    conflicts,
+    criticalErrors: critical,
+    unsupportedFiles: allIssues.filter(issue => issue.type === "unsupported").length
+  };
+}
+
+async function dataImportStageFiles(filesLike) {
+  const files = Array.from(filesLike || []).filter(Boolean);
+  if (!files.length) return;
+  csvError = "";
+  csvLog = [`Inspecting ${files.length} source file${files.length === 1 ? "" : "s"} before import...`, ...csvLog.slice(0, 5)];
+  renderTab();
+  try {
+    const batchId = dataImportBuildBatchId();
+    const batchFiles = [];
+    const zipIssues = [];
+    for (const file of files) {
+      if (dataImportGetFileExtension(file.name) === ".zip") {
+        const expanded = await dataImportExpandZip(file);
+        zipIssues.push(...expanded.issues.map(issue => ({ ...issue, sourceZipName: file.name })));
+        for (const extractedFile of expanded.files) {
+          const plan = await dataImportBuildFilePlan(extractedFile, { originalZipName: file.name });
+          batchFiles.push(dataImportAnnotatePlan(plan));
+        }
+        if (expanded.files.length === 0 && expanded.issues.length === 0) {
+          zipIssues.push({ type: "unsupported", severity: "medium", title: "ZIP did not contain supported files", detail: file.name, sourceZipName: file.name });
+        }
+      } else {
+        const plan = await dataImportBuildFilePlan(file);
+        batchFiles.push(dataImportAnnotatePlan(plan));
+      }
+    }
+    dataImport2State.pendingBatch = {
+      id: batchId,
+      uploadedAt: new Date().toISOString(),
+      uploadedBy: "Admin",
+      status: "Preview Ready",
+      files: batchFiles,
+      zipIssues,
+      summary: dataImportBuildBatchSummary(batchFiles, zipIssues),
+      validationNotes: [],
+      beforeSnapshot: null
+    };
+    dataImport2State.activeView = "upload";
+    csvLog = [
+      `${batchId} is ready for validation review.`,
+      `${batchFiles.length} file${batchFiles.length === 1 ? "" : "s"} inspected, ${dataImport2State.pendingBatch.summary.communities || "no"} communit${dataImport2State.pendingBatch.summary.communities === 1 ? "y" : "ies"} detected, ${dataImport2State.pendingBatch.summary.criticalErrors} critical issue${dataImport2State.pendingBatch.summary.criticalErrors === 1 ? "" : "s"}.`,
+      ...csvLog.slice(0, 4)
+    ];
+    persistDataImport2State();
+    renderTab();
+  } catch (error) {
+    csvError = `ATLAS could not prepare this import batch: ${String(error?.message || error || "Unknown error")}`;
+    renderTab();
+  }
+}
+
+async function dataImportArchiveApprovedFile(file, plan, batch) {
+  const archiveId = dataImportMakeId("src");
+  const entry = {
+    id: archiveId,
+    fileName: plan.name,
+    size: plan.size,
+    type: plan.type,
+    uploadedAt: new Date().toISOString(),
+    uploader: batch.uploadedBy || "Admin",
+    sourceSystem: plan.sourceSystem,
+    reportType: plan.reportType,
+    reportTypeLabel: plan.reportTypeLabel,
+    reportingPeriodLabel: plan.reportingPeriodLabel,
+    dataDateIso: plan.dataDateIso,
+    dataDateLabel: plan.dataDateLabel,
+    communities: plan.communities || [],
+    batchId: batch.id,
+    importStatus: "Approved",
+    originalZipName: plan.originalZipName || "",
+    rowsReviewed: plan.rowCount || 0,
+    fieldsMapped: (plan.availableFields || []).map(field => field.canonicalField)
+  };
+  try {
+    await atlasStateSetValue(`${DATA_IMPORT_FILE_ARCHIVE_PREFIX}${archiveId}`, {
+      id: archiveId,
+      fileName: file.name,
+      type: file.type || dataImportInferMime(file.name),
+      blob: file.slice(0, file.size),
+      savedAt: entry.uploadedAt
+    });
+    entry.storageStatus = "Stored";
+  } catch (error) {
+    entry.storageStatus = "Metadata only";
+    entry.storageError = String(error?.message || error || "");
+    markAtlasPersistenceError(error, "ATLAS could not archive one uploaded source file.");
+  }
+  dataImport2State.sourceArchive = [entry, ...(dataImport2State.sourceArchive || [])].slice(0, 180);
+  return entry;
+}
+
+function dataImportBuildBeforeSnapshot() {
+  const safeClone = value => {
+    try { return JSON.parse(JSON.stringify(value)); } catch { return null; }
+  };
+  return {
+    capturedAt: new Date().toISOString(),
+    savedData: safeClone(savedData || {}),
+    applicationResidentData: safeClone(normalizeApplicationResidentDataState(applicationResidentDataState)),
+    csvLog: safeClone(csvLog || [])
+  };
+}
+
+async function dataImportRouteApprovedFile(file, plan) {
+  const extension = dataImportGetFileExtension(file.name);
+  if (plan.reportType === "leasing_resident_data" && [".xlsx", ".xls", ".xlsm"].includes(extension)) {
+    await processApplicationResidentDataFiles([file]);
+    return "Leasing Resident Data refreshed.";
+  }
+  if (plan.reportType === "renewal_tracker") {
+    await processRenewalFiles([file]);
+    return "Renewal lifecycle refreshed.";
+  }
+  if (plan.reportType === "marketing_iq") {
+    await processMarketSurveyFiles([file]);
+    return "Marketing IQ data refreshed.";
+  }
+  if (plan.reportType === "box_score" && typeof processDlrBoxScoreFiles === "function") {
+    await processDlrBoxScoreFiles([file]);
+    return "Box Score daily layer refreshed.";
+  }
+  await processLegacyOperationalImportFiles([file]);
+  return "Operational import route refreshed.";
+}
+
+function dataImportBuildExceptionsForApprovedFiles(files = [], batchId = "") {
+  return files.flatMap(plan => (plan.issues || []).map(issue => ({
+    id: dataImportMakeId("issue"),
+    createdAt: new Date().toISOString(),
+    status: issue.type === "duplicate" ? "Audited" : "Open",
+    batchId,
+    fileName: plan.name,
+    communityName: (plan.communities || [])[0] || "Unmapped",
+    sourceSystem: plan.sourceSystem || "Unknown",
+    reportType: plan.reportType,
+    reportTypeLabel: plan.reportTypeLabel,
+    type: issue.type || "invalid",
+    label: DATA_IMPORT_ISSUE_LABELS[issue.type] || "Data Issue",
+    severity: issue.severity || "medium",
+    title: issue.title || "Import issue",
+    detail: issue.detail || "",
+    modulesAffected: plan.downstreamUses || [],
+    recommendedAction: issue.type === "unmapped"
+      ? "Assign the correct property, then save it as a future alias."
+      : issue.type === "low_confidence"
+        ? "Review the suggested mapping and save it globally if correct."
+        : issue.type === "duplicate"
+          ? "Confirm whether this is an exact duplicate or a new source version."
+          : "Review the source file and resolve the exception."
+  })));
+}
+
+async function approveDataImportBatch() {
+  const batch = dataImport2State.pendingBatch;
+  if (!batch || !Array.isArray(batch.files) || batch.files.length === 0) {
+    alert("No import batch is waiting for approval.");
+    return;
+  }
+  const approvedPlans = batch.files.filter(file => file.selected && file.status !== "blocked");
+  if (!approvedPlans.length) {
+    alert("Select at least one clean or review-ready file before approving the import.");
+    return;
+  }
+  batch.beforeSnapshot = dataImportBuildBeforeSnapshot();
+  const routeMessages = [];
+  const archivedEntries = [];
+  for (const plan of approvedPlans) {
+    const file = dataImportFileHandles.get(plan.fileId);
+    if (!file) {
+      routeMessages.push(`${plan.name}: restage required before this source can be approved.`);
+      continue;
+    }
+    const archiveEntry = await dataImportArchiveApprovedFile(file, plan, batch);
+    archivedEntries.push(archiveEntry);
+    try {
+      routeMessages.push(`${plan.name}: ${await dataImportRouteApprovedFile(file, plan)}`);
+    } catch (error) {
+      const message = String(error?.message || error || "Import route failed.");
+      routeMessages.push(`${plan.name}: ${message}`);
+      plan.issues = [...(plan.issues || []), { type: "invalid", severity: "high", title: "Import route failed", detail: message }];
+      plan.status = "review";
+    }
+  }
+  const historyEntry = {
+    id: batch.id,
+    createdAt: batch.uploadedAt,
+    approvedAt: new Date().toISOString(),
+    uploader: batch.uploadedBy || "Admin",
+    approver: "Admin",
+    status: "Approved",
+    summary: dataImportBuildBatchSummary(approvedPlans, batch.zipIssues || []),
+    files: approvedPlans.map(plan => ({
+      fileName: plan.name,
+      reportType: plan.reportType,
+      reportTypeLabel: plan.reportTypeLabel,
+      sourceSystem: plan.sourceSystem,
+      communities: plan.communities || [],
+      rowsReviewed: plan.rowCount || 0,
+      rowsInserted: Math.max(0, Number(plan.readyRows || 0) - 1),
+      rowsUpdated: plan.communities?.length || 0,
+      rowsRejected: (plan.issues || []).filter(issue => ["invalid","unmapped","unsupported"].includes(issue.type)).length,
+      duplicatesIgnored: (plan.issues || []).filter(issue => issue.type === "duplicate").length,
+      conflictsCreated: (plan.issues || []).filter(issue => issue.type === "conflict").length,
+      fieldsOverridden: (plan.availableFields || []).map(field => field.canonicalField),
+      mappingChanges: (plan.issues || []).filter(issue => issue.type === "low_confidence").length,
+      downstreamMetricsRefreshed: plan.downstreamUses || []
+    })),
+    archiveIds: archivedEntries.map(entry => entry.id),
+    routeMessages,
+    beforeSnapshot: batch.beforeSnapshot
+  };
+  dataImport2State.batches = [historyEntry, ...(dataImport2State.batches || [])].slice(0, 60);
+  dataImport2State.exceptions = [
+    ...dataImportBuildExceptionsForApprovedFiles(approvedPlans, batch.id),
+    ...(dataImport2State.exceptions || [])
+  ].slice(0, 220);
+  dataImport2State.pendingBatch = null;
+  dataImport2State.activeView = "overview";
+  csvLog = [
+    `${historyEntry.id} approved and routed through ATLAS.`,
+    ...routeMessages.slice(0, 6),
+    "Dependent dashboards and reports are ready for refresh."
+  ];
+  persistDataImport2State();
+  renderPropGrid();
+  renderTab();
+}
+
+function toggleDataImportFileApproval(fileId, selected) {
+  const batch = dataImport2State.pendingBatch;
+  if (!batch?.files) return;
+  batch.files = batch.files.map(file => file.fileId === fileId ? { ...file, selected: !!selected } : file);
+  batch.summary = dataImportBuildBatchSummary(batch.files.filter(file => file.selected), batch.zipIssues || []);
+  dataImport2State.pendingBatch = batch;
+  renderTab();
+}
+
+function overrideDataImportReportType(fileId, reportType) {
+  const batch = dataImport2State.pendingBatch;
+  if (!batch?.files) return;
+  batch.files = batch.files.map(file => {
+    if (file.fileId !== fileId) return file;
+    const def = dataImportGetReportDef(reportType);
+    const issues = (file.issues || []).filter(issue => issue.title !== "Report type needs confirmation" && issue.title !== "Low confidence report detection");
+    return {
+      ...file,
+      reportType,
+      reportTypeLabel: dataImportReportLabel(reportType),
+      sourceSystem: def?.sourceSystems?.[0] || file.sourceSystem || "Unknown",
+      confidence: 100,
+      overrideReportType: reportType,
+      downstreamUses: def?.dependencies || file.downstreamUses || [],
+      status: file.status === "blocked" ? "blocked" : issues.some(issue => ["unmapped","invalid","low_confidence"].includes(issue.type)) ? "review" : "ready",
+      issues
+    };
+  });
+  batch.summary = dataImportBuildBatchSummary(batch.files, batch.zipIssues || []);
+  dataImport2State.pendingBatch = batch;
+  persistDataImport2State();
+  renderTab();
+}
+
+function clearDataImportPendingBatch() {
+  dataImport2State.pendingBatch = null;
+  dataImportFileHandles = new Map();
+  persistDataImport2State();
+  renderTab();
+}
+
+async function downloadDataImportArchiveFile(archiveId) {
+  try {
+    const record = await atlasStateGetValue(`${DATA_IMPORT_FILE_ARCHIVE_PREFIX}${archiveId}`);
+    if (!record?.blob) {
+      alert("The source file is not available in this browser archive.");
+      return;
+    }
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(record.blob);
+    link.download = record.fileName || "atlas-source-file";
+    link.click();
+    URL.revokeObjectURL(link.href);
+  } catch {
+    alert("ATLAS could not open this archived source file.");
+  }
+}
+
+function rollbackDataImportBatch(batchId) {
+  const batch = (dataImport2State.batches || []).find(item => item.id === batchId);
+  if (!batch || batch.status === "Rolled Back") return;
+  if (!batch.beforeSnapshot?.savedData) {
+    alert("This batch does not have a restore snapshot available in this browser.");
+    return;
+  }
+  const reason = prompt("Reason for rollback");
+  if (reason === null) return;
+  savedData = normalizeSavedCommunityMap(batch.beforeSnapshot.savedData || {});
+  applicationResidentDataState = normalizeApplicationResidentDataState(batch.beforeSnapshot.applicationResidentData || defaultApplicationResidentDataState());
+  if (savedData[getProp().name]) loadPropertyData(getProp().name);
+  batch.status = "Rolled Back";
+  batch.rollback = {
+    rolledBackAt: new Date().toISOString(),
+    rolledBackBy: "Admin",
+    reason: String(reason || "No reason entered")
+  };
+  dataImport2State.sourceArchive = (dataImport2State.sourceArchive || []).map(entry =>
+    entry.batchId === batchId ? { ...entry, importStatus: "Rolled Back" } : entry
+  );
+  persistSaved();
+  persistDataImport2State();
+  csvLog = [`${batchId} was rolled back. The source file archive and audit history were preserved.`];
+  renderPropGrid();
+  renderTab();
+}
+
+function handleDataImport2Drop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const files = e.dataTransfer?.files ? Array.from(e.dataTransfer.files) : [];
+  if (files.length > 0) dataImportStageFiles(files);
+}
+
+function dataImportBusinessDaysBetween(start, end = new Date()) {
+  const from = start instanceof Date ? new Date(start.getTime()) : new Date(start);
+  const to = end instanceof Date ? new Date(end.getTime()) : new Date(end);
+  if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime())) return Infinity;
+  from.setHours(0, 0, 0, 0);
+  to.setHours(0, 0, 0, 0);
+  let days = 0;
+  const cursor = new Date(from.getTime());
+  while (cursor < to) {
+    cursor.setDate(cursor.getDate() + 1);
+    const day = cursor.getDay();
+    if (day !== 0 && day !== 6) days += 1;
+  }
+  return days;
+}
+
+function dataImportAgeForArchive(entry, def) {
+  const sourceDate = entry?.dataDateIso || entry?.uploadedAt || "";
+  if (!sourceDate) return Infinity;
+  return def?.freshness?.businessDays
+    ? dataImportBusinessDaysBetween(sourceDate)
+    : Math.max(0, Math.floor((Date.now() - new Date(sourceDate).getTime()) / 86400000));
+}
+
+function dataImportLatestArchiveFor(communityName, reportType) {
+  const normalizedCommunity = dataImportNormalizeText(communityName);
+  return (dataImport2State.sourceArchive || [])
+    .filter(entry => entry.reportType === reportType && entry.importStatus !== "Rolled Back")
+    .filter(entry => (entry.communities || []).some(name => dataImportNormalizeText(name) === normalizedCommunity))
+    .sort((a, b) => new Date(b.dataDateIso || b.uploadedAt || 0) - new Date(a.dataDateIso || a.uploadedAt || 0))[0] || null;
+}
+
+function dataImportCommunityRecord(communityName) {
+  if (communityName === getProp().name) return normalizeSavedCommunityRecord(communityName, getCurrentCommunityRecord());
+  return normalizeSavedCommunityRecord(communityName, savedData?.[communityName]);
+}
+
+function dataImportHasSavedFallbackData(communityName, reportType) {
+  const record = dataImportCommunityRecord(communityName);
+  const monthIdx = getSelectedDashboardMonthIndex();
+  const month = record.monthlyData?.[monthIdx] || {};
+  if (reportType === "box_score" || reportType === "trending_occupancy") {
+    return Number(record.currentOccupied || month.occupiedSnapshot || 0) > 0 || Number(record.currentLeased || month.leasedSnapshot || 0) > 0;
+  }
+  if (reportType === "rent_roll") {
+    return Number(month.marketRent || month.rentRollTotal || month.nerActual || 0) > 0;
+  }
+  if (reportType === "marketing_iq") {
+    return typeof hasMarketSurveyData === "function" && hasMarketSurveyData(normalizeMarketSurveyData(record.marketSurveyData));
+  }
+  if (reportType === "renewal_tracker") {
+    return Number(month.renewalExpirations || month.renewalSigned || month.renewalNTV || 0) > 0;
+  }
+  if (reportType === "leasing_resident_data") {
+    const uploads = normalizeApplicationResidentDataState(applicationResidentDataState).uploads || [];
+    const normalized = dataImportNormalizeText(communityName);
+    return uploads.some(upload => (upload.mappedProperties || []).some(name => dataImportNormalizeText(name) === normalized));
+  }
+  return false;
+}
+
+function dataImportBuildHealthModel() {
+  const communities = getActiveSavedCommunityNames(true).filter(Boolean);
+  const rows = communities.map(communityName => {
+    const cells = DATA_IMPORT_REPORT_ORDER.map(reportType => {
+      const def = dataImportGetReportDef(reportType);
+      const archive = dataImportLatestArchiveFor(communityName, reportType);
+      const hasFallback = dataImportHasSavedFallbackData(communityName, reportType);
+      let status = "Missing";
+      let ageLabel = "No source";
+      let detail = `Upload current ${def.label} for ${communityName}.`;
+      if (archive) {
+        const age = dataImportAgeForArchive(archive, def);
+        const stale = age > Number(def.freshness?.days || 7);
+        status = stale ? "Stale" : "Fresh";
+        ageLabel = Number.isFinite(age) ? `${age} ${def.freshness?.businessDays ? "business " : ""}day${age === 1 ? "" : "s"} old` : "Age unavailable";
+        detail = stale
+          ? `${def.label} is outside the ${def.freshness?.label || "configured"} freshness expectation.`
+          : `${def.label} is current from ${archive.batchId}.`;
+      } else if (hasFallback) {
+        status = "Fresh";
+        ageLabel = "Saved ATLAS data";
+        detail = "ATLAS has current saved data, but no raw source file is archived for lineage yet.";
+      }
+      const relatedExceptions = (dataImport2State.exceptions || []).filter(issue =>
+        issue.status !== "Resolved" &&
+        dataImportNormalizeText(issue.communityName) === dataImportNormalizeText(communityName) &&
+        issue.reportType === reportType
+      );
+      if (relatedExceptions.some(issue => issue.type === "conflict")) status = "Conflict";
+      else if (relatedExceptions.some(issue => issue.type === "unmapped")) status = "Unmapped";
+      return {
+        communityName,
+        reportType,
+        reportLabel: def.label,
+        status,
+        ageLabel,
+        detail,
+        archive,
+        exceptions: relatedExceptions,
+        recommendedAction: status === "Fresh"
+          ? "No upload needed."
+          : `Upload a current ${def.label} for ${communityName}.`,
+        modulesAffected: def.dependencies || []
+      };
+    });
+    const fullyCurrent = cells.every(cell => cell.status === "Fresh");
+    return { communityName, cells, fullyCurrent };
+  });
+  const cells = rows.flatMap(row => row.cells);
+  const freshCount = cells.filter(cell => cell.status === "Fresh").length;
+  const staleCount = cells.filter(cell => cell.status === "Stale").length;
+  const missingCount = cells.filter(cell => cell.status === "Missing").length;
+  const conflictCount = cells.filter(cell => cell.status === "Conflict").length;
+  const unmappedCount = cells.filter(cell => cell.status === "Unmapped").length;
+  const healthScore = cells.length
+    ? Math.max(0, Math.min(100, Math.round(((freshCount + staleCount * 0.55 + unmappedCount * 0.35) / cells.length) * 100 - conflictCount * 4)))
+    : 0;
+  return {
+    communities,
+    rows,
+    cells,
+    healthScore,
+    fullyCurrentCommunities: rows.filter(row => row.fullyCurrent).length,
+    staleFeeds: staleCount,
+    missingFeeds: missingCount,
+    conflicts: conflictCount,
+    unmapped: unmappedCount,
+    lastSuccessfulImport: (dataImport2State.batches || []).find(batch => batch.status === "Approved") || null
+  };
+}
+
+function dataImportBuildRecommendations(health) {
+  const recs = [];
+  health.cells.forEach(cell => {
+    if (cell.status === "Conflict") {
+      recs.push({
+        severity: "critical",
+        title: `${cell.communityName} ${cell.reportLabel} has a conflict`,
+        detail: `${cell.modulesAffected.slice(0, 3).join(", ")} may be affected until the conflict is resolved.`,
+        action: "Open Exceptions"
+      });
+    } else if (cell.status === "Missing") {
+      const def = dataImportGetReportDef(cell.reportType);
+      const critical = ["box_score", "leasing_resident_data"].includes(cell.reportType);
+      recs.push({
+        severity: critical ? "critical" : "medium",
+        title: `${cell.communityName} ${cell.reportLabel} is missing`,
+        detail: `Upload current ${def.label} to refresh ${def.dependencies.slice(0, 2).join(" and ")}.`,
+        action: "Upload"
+      });
+    } else if (cell.status === "Stale") {
+      recs.push({
+        severity: ["box_score", "leasing_resident_data"].includes(cell.reportType) ? "high" : "medium",
+        title: `${cell.communityName} ${cell.reportLabel} is stale`,
+        detail: `${cell.ageLabel}. Expected freshness is ${dataImportGetReportDef(cell.reportType).freshness.label}.`,
+        action: "Upload"
+      });
+    } else if (cell.status === "Unmapped") {
+      recs.push({
+        severity: "high",
+        title: `${cell.communityName} has unmapped source data`,
+        detail: "Assign the correct property or field mapping so clean rows can continue.",
+        action: "Resolve"
+      });
+    }
+  });
+  const rank = { critical: 0, high: 1, medium: 2, low: 3 };
+  return recs.sort((a, b) => (rank[a.severity] ?? 9) - (rank[b.severity] ?? 9)).slice(0, 8);
+}
+
+function renderDataImportHero(health) {
+  return `<section class="data-import2-hero">
+    <div>
+      <div class="data-import2-title">ATLAS Data Health</div>
+      <div class="data-import2-copy">Raw Entrata and APTIQ reports move through detection, property matching, field mapping, validation, approval, archive, and dashboard refresh from one workspace.</div>
+    </div>
+    <div class="data-import2-kpis">
+      <div class="data-import2-kpi"><div class="data-import2-kpi-label">Portfolio Health</div><div class="data-import2-kpi-value">${health.healthScore}%</div><div class="data-import2-kpi-sub">${health.communities.length} communities tracked</div></div>
+      <div class="data-import2-kpi"><div class="data-import2-kpi-label">Fully Current</div><div class="data-import2-kpi-value">${health.fullyCurrentCommunities}</div><div class="data-import2-kpi-sub">all required feeds fresh</div></div>
+      <div class="data-import2-kpi"><div class="data-import2-kpi-label">Missing</div><div class="data-import2-kpi-value">${health.missingFeeds}</div><div class="data-import2-kpi-sub">feed gaps</div></div>
+      <div class="data-import2-kpi"><div class="data-import2-kpi-label">Stale</div><div class="data-import2-kpi-value">${health.staleFeeds}</div><div class="data-import2-kpi-sub">outside SLA</div></div>
+      <div class="data-import2-kpi"><div class="data-import2-kpi-label">Conflicts</div><div class="data-import2-kpi-value">${health.conflicts}</div><div class="data-import2-kpi-sub">need resolution</div></div>
+      <div class="data-import2-kpi"><div class="data-import2-kpi-label">Last Import</div><div class="data-import2-kpi-value" style="font-size:0.9rem">${health.lastSuccessfulImport ? escapeHtml(health.lastSuccessfulImport.id) : "None"}</div><div class="data-import2-kpi-sub">${health.lastSuccessfulImport ? escapeHtml(dataImportFormatTimestamp(health.lastSuccessfulImport.approvedAt)) : "source archive empty"}</div></div>
+    </div>
+  </section>`;
+}
+
+function renderDataImportTabs() {
+  const tabs = [
+    ["overview", "ph-gauge", "Overview"],
+    ["upload", "ph-upload-simple", "Upload Center"],
+    ["health", "ph-heartbeat", "Data Health"],
+    ["exceptions", "ph-warning-diamond", "Exceptions"],
+    ["mapping", "ph-arrows-left-right", "Mapping Rules"],
+    ["aliases", "ph-map-pin", "Property Aliases"],
+    ["history", "ph-clock-counter-clockwise", "Import History"],
+    ["archive", "ph-archive", "Source Archive"]
+  ];
+  return `<div class="data-import2-tabs">${tabs.map(([key, icon, label]) =>
+    `<button class="data-import2-tab${dataImport2State.activeView === key ? " active" : ""}" onclick="setDataImport2View('${key}')"><i class="ph ${icon}"></i>${label}</button>`
+  ).join("")}</div>`;
+}
+
+function renderDataImportDropzone() {
+  return `<label class="data-import2-dropzone" ondrop="handleDataImport2Drop(event)" ondragover="event.preventDefault()" ondragenter="event.preventDefault()">
+    <div class="data-import2-drop-icon"><i class="ph ph-upload-simple"></i></div>
+    <div class="data-import2-drop-title">Upload Raw Reports</div>
+    <div class="data-import2-drop-copy">Drop operational reports or ZIP batches here. ATLAS will detect report type, source system, communities, reporting period, fields, and downstream impact before anything is approved.</div>
+    <div class="data-import2-supported">
+      ${DATA_IMPORT_REPORT_ORDER.map(type => `<span class="data-import2-chip">${escapeHtml(dataImportReportLabel(type))}</span>`).join("")}
+      <span class="data-import2-chip info">ZIP</span>
+    </div>
+    <input type="file" id="csv-input" accept=".csv,.txt,.pdf,.xlsx,.xls,.xlsm,.zip" multiple>
+  </label>`;
+}
+
+function renderDataImportRecommendations(health) {
+  const recs = dataImportBuildRecommendations(health);
+  if (!recs.length) {
+    return `<div class="data-import2-detail-panel">All tracked feeds are current for the selected portfolio scope.</div>`;
+  }
+  return `<div class="data-import2-recommendations">${recs.map(rec => `<div class="data-import2-rec ${rec.severity}">
+    <div>
+      <div class="data-import2-rec-title">${escapeHtml(rec.title)}</div>
+      <div class="data-import2-rec-detail">${escapeHtml(rec.detail)}</div>
+    </div>
+    <div class="data-import2-severity">${escapeHtml(rec.severity)}</div>
+  </div>`).join("")}</div>`;
+}
+
+function dataImportSelectedHealthCell(health) {
+  const key = dataImport2State.selectedIssueKey;
+  if (!key) return null;
+  const [communityName, reportType] = key.split("::");
+  return health.cells.find(cell => cell.communityName === communityName && cell.reportType === reportType) || null;
+}
+
+function openDataImportHealthCell(communityName, reportType) {
+  dataImport2State.selectedIssueKey = `${communityName}::${reportType}`;
+  dataImport2State.activeView = "health";
+  persistDataImport2State();
+  renderTab();
+}
+
+function renderDataImportMatrix(health, compact = false) {
+  const rows = health.rows || [];
+  if (!rows.length) return `<div class="data-import2-detail-panel">No communities are available for data health tracking yet.</div>`;
+  const head = DATA_IMPORT_REPORT_ORDER.map(type => `<th>${escapeHtml(dataImportReportLabel(type))}</th>`).join("");
+  const body = rows.map(row => `<tr>
+    <td><strong>${escapeHtml(row.communityName)}</strong></td>
+    ${row.cells.map(cell => `<td>
+      <button class="data-import2-cell-button" onclick='openDataImportHealthCell(${JSON.stringify(cell.communityName)}, ${JSON.stringify(cell.reportType)})'>
+        <span class="data-import2-status ${dataImportStatusClass(cell.status)}">${escapeHtml(cell.status)}</span>
+        <div class="data-import2-cell-detail">${escapeHtml(cell.ageLabel)}</div>
+      </button>
+    </td>`).join("")}
+  </tr>`).join("");
+  const table = `<div class="data-import2-matrix-wrap"><table class="data-import2-matrix"><thead><tr><th>Community</th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  if (!compact) return table;
+  return renderWindowshadeCard({
+    key: "import2_freshness_matrix",
+    title: "Community Data Freshness Matrix",
+    subtitle: "Freshness is tracked by community and report type.",
+    countLabel: `${health.staleFeeds} stale · ${health.missingFeeds} missing · ${health.conflicts} conflicts`,
+    collapsedPreview: "Expand to review the community-by-report freshness matrix.",
+    bodyHtml: table
+  });
+}
+
+function renderDataImportHealthDetail(health) {
+  const cell = dataImportSelectedHealthCell(health);
+  if (!cell) return "";
+  const archive = cell.archive;
+  return `<div class="data-import2-card">
+    <div class="data-import2-section-title"><i class="ph ph-magnifying-glass"></i>Selected Feed</div>
+    <div class="data-import2-detail-panel">
+      <strong>${escapeHtml(cell.communityName)} · ${escapeHtml(cell.reportLabel)}</strong><br>
+      Status: ${escapeHtml(cell.status)}<br>
+      Most recent upload: ${archive ? escapeHtml(dataImportFormatTimestamp(archive.uploadedAt)) : "None"}<br>
+      Reporting date: ${archive ? escapeHtml(archive.dataDateLabel || archive.reportingPeriodLabel || "Not detected") : "Missing"}<br>
+      Age: ${escapeHtml(cell.ageLabel)}<br>
+      Import batch: ${archive ? escapeHtml(archive.batchId) : "None"}<br>
+      Outstanding problems: ${cell.exceptions.length || 0}<br>
+      Recommended action: ${escapeHtml(cell.recommendedAction)}<br>
+      Feeds: ${escapeHtml(cell.modulesAffected.join(", ") || "No dependencies configured")}
+    </div>
+  </div>`;
+}
+
+function setDataImportBatchSelection(selected) {
+  const batch = dataImport2State.pendingBatch;
+  if (!batch?.files) return;
+  batch.files = batch.files.map(file => ({ ...file, selected: file.status !== "blocked" ? !!selected : false }));
+  batch.summary = dataImportBuildBatchSummary(batch.files.filter(file => file.selected), batch.zipIssues || []);
+  renderTab();
+}
+
+function renderDataImportPreviewStats(summary = {}) {
+  const stats = [
+    ["Files", summary.files || 0],
+    ["Communities", summary.communities || 0],
+    ["Rows Reviewed", summary.rowsReviewed || 0],
+    ["Ready", summary.readyToImport || 0],
+    ["Updates", summary.existingRecordsUpdated || 0],
+    ["Duplicates", summary.duplicatesIgnored || 0],
+    ["Unmapped", summary.unmapped || 0],
+    ["Conflicts", summary.conflicts || 0],
+    ["Critical", summary.criticalErrors || 0]
+  ];
+  return `<div class="data-import2-preview-grid">${stats.map(([label, value]) => `<div class="data-import2-preview-stat">
+    <div class="data-import2-preview-label">${escapeHtml(label)}</div>
+    <div class="data-import2-preview-value">${escapeHtml(value)}</div>
+  </div>`).join("")}</div>`;
+}
+
+function renderDataImportFileIssues(plan) {
+  const issues = plan.issues || [];
+  if (!issues.length) return `<span class="data-import2-chip good">No exceptions</span>`;
+  return `<div class="data-import2-supported" style="justify-content:flex-start">${issues.slice(0, 4).map(issue =>
+    `<span class="data-import2-chip ${issue.severity === "critical" || issue.severity === "high" ? "bad" : issue.type === "duplicate" ? "info" : "warn"}" title="${escapeHtml(issue.detail || "")}">${escapeHtml(DATA_IMPORT_ISSUE_LABELS[issue.type] || issue.title || "Issue")}${issue.confidence ? ` · ${escapeHtml(issue.confidence)}%` : ""}</span>`
+  ).join("")}${issues.length > 4 ? `<span class="data-import2-chip">${issues.length - 4} more</span>` : ""}</div>`;
+}
+
+function renderDataImportPendingBatch() {
+  const batch = dataImport2State.pendingBatch;
+  if (!batch) {
+    return `<div class="data-import2-card">
+      <div class="data-import2-section-title"><i class="ph ph-clipboard-text"></i>Import Preview</div>
+      <div class="data-import2-detail-panel">Upload raw reports to generate a validation preview before ATLAS updates any dashboard data.</div>
+    </div>`;
+  }
+  const reportOptions = [`<option value="unknown">Needs Review</option>`]
+    .concat(DATA_IMPORT_REPORT_ORDER.map(type => `<option value="${type}">${escapeHtml(dataImportReportLabel(type))}</option>`))
+    .join("");
+  const fileRows = (batch.files || []).map(plan => `<div class="data-import2-file">
+    <div>
+      <label style="display:flex;align-items:flex-start;gap:8px">
+        <input type="checkbox" ${plan.selected ? "checked" : ""} ${plan.status === "blocked" ? "disabled" : ""} onchange='toggleDataImportFileApproval(${JSON.stringify(plan.fileId)}, this.checked)' style="margin-top:2px">
+        <span>
+          <div class="data-import2-file-name">${escapeHtml(plan.name)}</div>
+          <div class="data-import2-file-meta">${escapeHtml(dataImportFormatBytes(plan.size))}${plan.originalZipName ? ` · from ${escapeHtml(plan.originalZipName)}` : ""} · ${escapeHtml(plan.rowCount || 0)} rows reviewed</div>
+        </span>
+      </label>
+    </div>
+    <div>
+      <div class="data-import2-small-label">Detected Report</div>
+      <select class="data-import2-select" onchange='overrideDataImportReportType(${JSON.stringify(plan.fileId)}, this.value)'>
+        ${reportOptions.replace(`value="${plan.reportType}"`, `value="${plan.reportType}" selected`)}
+      </select>
+      <div class="data-import2-file-meta">Source: ${escapeHtml(plan.sourceSystem)}${plan.confidence ? ` · ${escapeHtml(plan.confidence)}% confidence` : ""}</div>
+    </div>
+    <div>
+      <div class="data-import2-small-label">Communities</div>
+      <div class="data-import2-supported" style="justify-content:flex-start">${(plan.communities || []).length
+        ? plan.communities.slice(0, 5).map(name => `<span class="data-import2-chip good">${escapeHtml(name)}</span>`).join("") + (plan.communities.length > 5 ? `<span class="data-import2-chip">${plan.communities.length - 5} more</span>` : "")
+        : `<span class="data-import2-chip warn">Unmapped</span>`}</div>
+      <div class="data-import2-file-meta">${escapeHtml(plan.reportingPeriodLabel)} · ${escapeHtml(plan.dataDateLabel)}</div>
+    </div>
+    <div>
+      <div class="data-import2-small-label">Mapped Fields</div>
+      <div class="data-import2-file-meta">${(plan.availableFields || []).slice(0, 4).map(field => escapeHtml(dataImportCanonicalFieldLabel(field.canonicalField))).join(", ") || "No mapped fields yet"}</div>
+      <div class="data-import2-file-meta">${escapeHtml((plan.downstreamUses || []).slice(0, 2).join(", ") || "No dependencies detected")}</div>
+    </div>
+    <div>
+      <span class="data-import2-status ${dataImportStatusClass(plan.status)}">${escapeHtml(plan.status === "ready" ? "Ready" : plan.status === "blocked" ? "Blocked" : "Review")}</span>
+      <div style="margin-top:7px">${renderDataImportFileIssues(plan)}</div>
+    </div>
+  </div>`).join("");
+  const zipIssueHtml = (batch.zipIssues || []).length
+    ? `<div class="alert-yellow mb4">${batch.zipIssues.map(issue => `<div><strong>${escapeHtml(issue.title || "ZIP issue")}</strong> · ${escapeHtml(issue.detail || issue.fileName || "")}</div>`).join("")}</div>`
+    : "";
+  return `<div class="data-import2-card">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+      <div>
+        <div class="data-import2-section-title" style="margin-bottom:4px"><i class="ph ph-clipboard-text"></i>Import Preview · ${escapeHtml(batch.id)}</div>
+        <div class="data-import2-file-meta">Prepared ${escapeHtml(dataImportFormatTimestamp(batch.uploadedAt))}. Approve clean files, selected communities, or review-ready rows without blocking the full batch.</div>
+      </div>
+      <div class="data-import2-inline-actions">
+        <button class="btn btn-gray btn-sm" onclick="setDataImportBatchSelection(true)">Select All</button>
+        <button class="btn btn-gray btn-sm" onclick="setDataImportBatchSelection(false)">Clear</button>
+        <button class="btn btn-gray btn-sm" onclick="clearDataImportPendingBatch()">Discard Preview</button>
+        <button class="btn btn-blue btn-sm" onclick="approveDataImportBatch()">Approve Selected</button>
+      </div>
+    </div>
+    ${renderDataImportPreviewStats(batch.summary)}
+    ${zipIssueHtml}
+    <div class="data-import2-file-list" style="margin-top:12px">${fileRows || `<div class="data-import2-detail-panel">No supported files were found in this batch.</div>`}</div>
+  </div>`;
+}
+
+function renderDataImportOverview(health) {
+  return `<div class="data-import2-main-grid">
+    <div class="data-import2-card">
+      <div class="data-import2-section-title"><i class="ph ph-warning-circle"></i>What Needs Updating?</div>
+      ${renderDataImportRecommendations(health)}
+    </div>
+    <div class="data-import2-card">
+      <div class="data-import2-section-title"><i class="ph ph-upload-simple"></i>Upload Raw Reports</div>
+      ${renderDataImportDropzone()}
+    </div>
+    <div class="data-import2-card">
+      <div class="data-import2-section-title"><i class="ph ph-activity"></i>Recent Import Activity</div>
+      ${renderDataImportRecentActivity()}
+    </div>
+    <div class="data-import2-card">
+      <div class="data-import2-section-title"><i class="ph ph-flow-arrow"></i>Ingestion Flow</div>
+      <div class="data-import2-workflow">
+        <div class="data-import2-step"><div class="data-import2-step-num">Detect</div><div class="data-import2-step-title">Identify reports</div><div class="data-import2-step-copy">Type, source, fields, period, tabs, and communities.</div></div>
+        <div class="data-import2-step"><div class="data-import2-step-num">Validate</div><div class="data-import2-step-title">Separate clean data</div><div class="data-import2-step-copy">Missing, stale, invalid, unmapped, conflict, duplicate.</div></div>
+        <div class="data-import2-step"><div class="data-import2-step-num">Approve</div><div class="data-import2-step-title">Route accepted rows</div><div class="data-import2-step-copy">Selected files and communities can move forward.</div></div>
+        <div class="data-import2-step"><div class="data-import2-step-num">Refresh</div><div class="data-import2-step-title">Update ATLAS</div><div class="data-import2-step-copy">Archive source files and refresh dependent modules.</div></div>
+      </div>
+    </div>
+    <div style="grid-column:1 / -1">${renderDataImportMatrix(health, true)}</div>
+  </div>`;
+}
+
+function renderDataImportRecentActivity() {
+  const batches = (dataImport2State.batches || []).slice(0, 5);
+  if (!batches.length) return `<div class="data-import2-detail-panel">No approved import batches have been recorded yet.</div>`;
+  return `<div class="data-import2-activity">${batches.map(batch => `<div class="data-import2-activity-row">
+    <div><strong>${escapeHtml(batch.id)}</strong><div class="data-import2-file-meta">${escapeHtml(dataImportFormatTimestamp(batch.approvedAt || batch.createdAt))}</div></div>
+    <div>${escapeHtml((batch.files || []).map(file => file.reportTypeLabel).filter(Boolean).slice(0, 3).join(", ") || "Import batch")}</div>
+    <div><span class="data-import2-status ${dataImportStatusClass(batch.status)}">${escapeHtml(batch.status)}</span></div>
+    <div>${escapeHtml(batch.summary?.rowsReviewed || 0)} rows reviewed</div>
+  </div>`).join("")}</div>`;
+}
+
+function renderDataImportUploadCenter() {
+  return `<div class="data-import2-shell">
+    <div class="data-import2-card">
+      <div class="data-import2-section-title"><i class="ph ph-upload-simple"></i>Upload Center</div>
+      ${renderDataImportDropzone()}
+    </div>
+    ${renderDataImportPendingBatch()}
+  </div>`;
+}
+
+function renderDataImportHealthView(health) {
+  return `<div class="data-import2-shell">
+    <div class="data-import2-card">
+      <div class="data-import2-section-title"><i class="ph ph-heartbeat"></i>Community Data Freshness Matrix</div>
+      ${renderDataImportMatrix(health, false)}
+    </div>
+    ${renderDataImportHealthDetail(health)}
+  </div>`;
+}
+
+function renderDataImportExceptionsView() {
+  const pending = dataImport2State.pendingBatch?.files?.flatMap(plan => (plan.issues || []).map(issue => ({
+    id: `${plan.fileId}_${issue.type}_${issue.title}`,
+    createdAt: dataImport2State.pendingBatch.uploadedAt,
+    status: "Pending Approval",
+    batchId: dataImport2State.pendingBatch.id,
+    fileName: plan.name,
+    communityName: (plan.communities || [])[0] || "Unmapped",
+    sourceSystem: plan.sourceSystem,
+    reportTypeLabel: plan.reportTypeLabel,
+    type: issue.type,
+    label: DATA_IMPORT_ISSUE_LABELS[issue.type] || issue.title,
+    severity: issue.severity || "medium",
+    title: issue.title,
+    detail: issue.detail,
+    modulesAffected: plan.downstreamUses || [],
+    recommendedAction: issue.type === "unmapped" ? "Assign the property or save a new alias." : "Review and resolve before final approval."
+  }))) || [];
+  const issues = [...pending, ...(dataImport2State.exceptions || [])].filter(Boolean);
+  if (!issues.length) return `<div class="data-import2-card"><div class="data-import2-section-title"><i class="ph ph-warning-diamond"></i>Exceptions</div><div class="data-import2-detail-panel">No import exceptions are open.</div></div>`;
+  return `<div class="data-import2-card">
+    <div class="data-import2-section-title"><i class="ph ph-warning-diamond"></i>Exceptions</div>
+    <table class="data-import2-table">
+      <thead><tr><th>Issue</th><th>Community</th><th>Source</th><th>Why It Matters</th><th>Action</th></tr></thead>
+      <tbody>${issues.map(issue => `<tr>
+        <td><span class="data-import2-status ${dataImportStatusClass(issue.type)}">${escapeHtml(issue.label)}</span><div class="data-import2-file-meta">${escapeHtml(issue.title || "")} · ${escapeHtml(issue.severity || "medium")}</div></td>
+        <td>${escapeHtml(issue.communityName || "Unmapped")}<div class="data-import2-file-meta">${escapeHtml(issue.batchId || "")}</div></td>
+        <td>${escapeHtml(issue.sourceSystem || "Unknown")}<div class="data-import2-file-meta">${escapeHtml(issue.reportTypeLabel || issue.fileName || "")}</div></td>
+        <td>${escapeHtml(issue.detail || "")}<div class="data-import2-file-meta">${escapeHtml((issue.modulesAffected || []).join(", "))}</div></td>
+        <td><div class="data-import2-file-meta">${escapeHtml(issue.recommendedAction || "Review")}</div>${issue.status !== "Pending Approval" ? `<button class="btn btn-gray btn-sm" onclick='resolveDataImportException(${JSON.stringify(issue.id)})'>Mark Resolved</button>` : ""}</td>
+      </tr>`).join("")}</tbody>
+    </table>
+  </div>`;
+}
+
+function resolveDataImportException(issueId) {
+  dataImport2State.exceptions = (dataImport2State.exceptions || []).map(issue =>
+    issue.id === issueId ? { ...issue, status: "Resolved", resolvedAt: new Date().toISOString(), resolvedBy: "Admin" } : issue
+  );
+  persistDataImport2State();
+  renderTab();
+}
+
+function saveDataImportMappingRule() {
+  const originalField = document.getElementById("data-import-map-original")?.value?.trim() || "";
+  const canonicalField = document.getElementById("data-import-map-canonical")?.value?.trim() || "";
+  if (!originalField || !canonicalField) {
+    alert("Enter both the source field and the ATLAS field.");
+    return;
+  }
+  dataImport2State.mappingRules = [{
+    id: dataImportMakeId("map"),
+    originalField,
+    canonicalField,
+    sourceSystem: "Global",
+    savedBy: "Admin",
+    savedAt: new Date().toISOString(),
+    locked: false
+  }, ...(dataImport2State.mappingRules || [])];
+  persistDataImport2State();
+  renderTab();
+}
+
+function deleteDataImportMappingRule(ruleId) {
+  const rule = (dataImport2State.mappingRules || []).find(item => item.id === ruleId);
+  if (rule?.locked) {
+    alert("Default ATLAS mappings stay available globally.");
+    return;
+  }
+  dataImport2State.mappingRules = (dataImport2State.mappingRules || []).filter(item => item.id !== ruleId);
+  persistDataImport2State();
+  renderTab();
+}
+
+function renderDataImportMappingRulesView() {
+  const canonicalOptions = Object.keys(DATA_IMPORT_FIELD_ALIASES).sort().map(field => `<option value="${field}">${escapeHtml(dataImportCanonicalFieldLabel(field))}</option>`).join("");
+  const rules = dataImport2State.mappingRules || [];
+  return `<div class="data-import2-shell">
+    <div class="data-import2-card">
+      <div class="data-import2-section-title"><i class="ph ph-arrows-left-right"></i>Mapping Rules</div>
+      <div class="data-import2-form-grid">
+        <label class="data-import2-field"><div class="data-import2-small-label">Source Field</div><input id="data-import-map-original" placeholder="Occ %"></label>
+        <label class="data-import2-field"><div class="data-import2-small-label">ATLAS Field</div><select id="data-import-map-canonical">${canonicalOptions}</select></label>
+        <button class="btn btn-blue btn-sm" onclick="saveDataImportMappingRule()">Save Globally</button>
+      </div>
+    </div>
+    <div class="data-import2-card">
+      <div class="data-import2-section-title"><i class="ph ph-stack"></i>Metric Source Hierarchy</div>
+      <div class="data-import2-detail-panel">Default KPI precedence is Box Score first for overlapping operational KPIs, with other source values preserved as history and lineage. Metric-level overrides can be taught here as ATLAS adds more sources.</div>
+    </div>
+    <div class="data-import2-card">
+      <table class="data-import2-table">
+        <thead><tr><th>Source Field</th><th>ATLAS Field</th><th>Scope</th><th>Saved</th><th></th></tr></thead>
+        <tbody>${rules.slice(0, 90).map(rule => `<tr>
+          <td>${escapeHtml(rule.originalField)}</td>
+          <td>${escapeHtml(dataImportCanonicalFieldLabel(rule.canonicalField))}</td>
+          <td>${escapeHtml(rule.sourceSystem || "Global")}</td>
+          <td>${rule.savedAt ? escapeHtml(dataImportFormatTimestamp(rule.savedAt)) : "Default"}</td>
+          <td>${rule.locked ? `<span class="data-import2-chip">Default</span>` : `<button class="btn btn-gray btn-sm" onclick='deleteDataImportMappingRule(${JSON.stringify(rule.id)})'>Delete</button>`}</td>
+        </tr>`).join("")}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function saveDataImportPropertyAlias() {
+  const communityName = document.getElementById("data-import-alias-community")?.value || "";
+  const alias = document.getElementById("data-import-alias-value")?.value?.trim() || "";
+  if (!communityName || !alias) {
+    alert("Choose a community and enter the alias.");
+    return;
+  }
+  const normalizedAlias = dataImportNormalizeText(alias);
+  const exists = (dataImport2State.propertyAliases || []).some(item =>
+    dataImportNormalizeText(item.communityName) === dataImportNormalizeText(communityName) &&
+    dataImportNormalizeText(item.alias) === normalizedAlias
+  );
+  if (!exists) {
+    dataImport2State.propertyAliases = [{
+      id: dataImportMakeId("alias"),
+      communityName,
+      alias,
+      savedBy: "Admin",
+      savedAt: new Date().toISOString(),
+      locked: false
+    }, ...(dataImport2State.propertyAliases || [])];
+  }
+  persistDataImport2State();
+  renderTab();
+}
+
+function deleteDataImportPropertyAlias(aliasId) {
+  const alias = (dataImport2State.propertyAliases || []).find(item => item.id === aliasId);
+  if (alias?.locked) {
+    alert("Canonical community names stay available as default aliases.");
+    return;
+  }
+  dataImport2State.propertyAliases = (dataImport2State.propertyAliases || []).filter(item => item.id !== aliasId);
+  persistDataImport2State();
+  renderTab();
+}
+
+function renderDataImportAliasesView() {
+  const communityOptions = getAllCommunityNames().map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
+  const aliases = dataImport2State.propertyAliases || [];
+  const unmapped = (dataImport2State.exceptions || []).filter(issue => issue.type === "unmapped" && issue.status !== "Resolved");
+  return `<div class="data-import2-shell">
+    <div class="data-import2-card">
+      <div class="data-import2-section-title"><i class="ph ph-map-pin"></i>Property Alias Manager</div>
+      <div class="data-import2-form-grid">
+        <label class="data-import2-field"><div class="data-import2-small-label">Community</div><select id="data-import-alias-community">${communityOptions}</select></label>
+        <label class="data-import2-field"><div class="data-import2-small-label">Alias</div><input id="data-import-alias-value" placeholder="Doro Residences Jacksonville"></label>
+        <button class="btn btn-blue btn-sm" onclick="saveDataImportPropertyAlias()">Save Alias</button>
+      </div>
+    </div>
+    <div class="data-import2-card">
+      <div class="data-import2-section-title"><i class="ph ph-question"></i>Unmapped Property Queue</div>
+      ${unmapped.length ? `<table class="data-import2-table"><tbody>${unmapped.map(issue => `<tr><td>${escapeHtml(issue.fileName || "Source file")}</td><td>${escapeHtml(issue.detail || "")}</td><td><button class="btn btn-gray btn-sm" onclick='resolveDataImportException(${JSON.stringify(issue.id)})'>Mark Resolved</button></td></tr>`).join("")}</tbody></table>` : `<div class="data-import2-detail-panel">No unmapped property rows are waiting for review.</div>`}
+    </div>
+    <div class="data-import2-card">
+      <table class="data-import2-table">
+        <thead><tr><th>Alias</th><th>Community</th><th>Saved</th><th></th></tr></thead>
+        <tbody>${aliases.slice(0, 100).map(alias => `<tr>
+          <td>${escapeHtml(alias.alias)}</td>
+          <td>${escapeHtml(alias.communityName)}</td>
+          <td>${alias.savedAt ? escapeHtml(dataImportFormatTimestamp(alias.savedAt)) : "Default"}</td>
+          <td>${alias.locked ? `<span class="data-import2-chip">Default</span>` : `<button class="btn btn-gray btn-sm" onclick='deleteDataImportPropertyAlias(${JSON.stringify(alias.id)})'>Delete</button>`}</td>
+        </tr>`).join("")}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function renderDataImportHistoryView() {
+  const batches = dataImport2State.batches || [];
+  if (!batches.length) return `<div class="data-import2-card"><div class="data-import2-section-title"><i class="ph ph-clock-counter-clockwise"></i>Import History</div><div class="data-import2-detail-panel">No import batches have been approved yet.</div></div>`;
+  return `<div class="data-import2-card">
+    <div class="data-import2-section-title"><i class="ph ph-clock-counter-clockwise"></i>Import History</div>
+    <table class="data-import2-table">
+      <thead><tr><th>Batch</th><th>Approved</th><th>Files</th><th>Audit</th><th>Status</th><th></th></tr></thead>
+      <tbody>${batches.map(batch => `<tr>
+        <td><strong>${escapeHtml(batch.id)}</strong><div class="data-import2-file-meta">Uploaded by ${escapeHtml(batch.uploader || "Admin")}</div></td>
+        <td>${escapeHtml(dataImportFormatTimestamp(batch.approvedAt || batch.createdAt))}</td>
+        <td>${escapeHtml((batch.files || []).map(file => file.reportTypeLabel || file.fileName).slice(0, 3).join(", ") || "Import files")}<div class="data-import2-file-meta">${escapeHtml(batch.summary?.files || 0)} file(s) · ${escapeHtml(batch.summary?.communities || 0)} communities</div></td>
+        <td>${escapeHtml(batch.summary?.rowsReviewed || 0)} reviewed · ${escapeHtml(batch.summary?.duplicatesIgnored || 0)} duplicates · ${escapeHtml(batch.summary?.conflicts || 0)} conflicts<div class="data-import2-file-meta">${escapeHtml((batch.routeMessages || []).slice(0, 2).join(" "))}</div></td>
+        <td><span class="data-import2-status ${dataImportStatusClass(batch.status)}">${escapeHtml(batch.status)}</span>${batch.rollback?.reason ? `<div class="data-import2-file-meta">Reason: ${escapeHtml(batch.rollback.reason)}</div>` : ""}</td>
+        <td>${batch.status === "Approved" ? `<button class="btn btn-gray btn-sm" onclick='rollbackDataImportBatch(${JSON.stringify(batch.id)})'>Rollback</button>` : ""}</td>
+      </tr>`).join("")}</tbody>
+    </table>
+  </div>`;
+}
+
+function renderDataImportArchiveView() {
+  const entries = dataImport2State.sourceArchive || [];
+  if (!entries.length) return `<div class="data-import2-card"><div class="data-import2-section-title"><i class="ph ph-archive"></i>Source Archive</div><div class="data-import2-detail-panel">No original source files have been archived yet.</div></div>`;
+  return `<div class="data-import2-card">
+    <div class="data-import2-section-title"><i class="ph ph-archive"></i>Source File Archive</div>
+    <table class="data-import2-table">
+      <thead><tr><th>Source File</th><th>Classification</th><th>Communities</th><th>Batch</th><th>Status</th><th></th></tr></thead>
+      <tbody>${entries.map(entry => `<tr>
+        <td><strong>${escapeHtml(entry.fileName)}</strong><div class="data-import2-file-meta">${escapeHtml(dataImportFormatBytes(entry.size))} · uploaded ${escapeHtml(dataImportFormatTimestamp(entry.uploadedAt))}${entry.originalZipName ? ` · ZIP ${escapeHtml(entry.originalZipName)}` : ""}</div></td>
+        <td>${escapeHtml(entry.reportTypeLabel || dataImportReportLabel(entry.reportType))}<div class="data-import2-file-meta">${escapeHtml(entry.sourceSystem || "Unknown")} · ${escapeHtml(entry.reportingPeriodLabel || "Period not detected")}</div></td>
+        <td>${(entry.communities || []).slice(0, 4).map(name => `<span class="data-import2-chip good">${escapeHtml(name)}</span>`).join(" ") || `<span class="data-import2-chip warn">Unmapped</span>`}</td>
+        <td>${escapeHtml(entry.batchId || "")}<div class="data-import2-file-meta">${escapeHtml(entry.rowsReviewed || 0)} rows reviewed</div></td>
+        <td><span class="data-import2-status ${dataImportStatusClass(entry.importStatus)}">${escapeHtml(entry.importStatus || "Archived")}</span><div class="data-import2-file-meta">${escapeHtml(entry.storageStatus || "Metadata")}</div></td>
+        <td><button class="btn btn-gray btn-sm" onclick='downloadDataImportArchiveFile(${JSON.stringify(entry.id)})'>Download</button></td>
+      </tr>`).join("")}</tbody>
+    </table>
+  </div>`;
+}
+
+function renderDataImportDependencyView() {
+  return `<div class="data-import2-card">
+    <div class="data-import2-section-title"><i class="ph ph-tree-structure"></i>Data Dependencies</div>
+    <table class="data-import2-table">
+      <thead><tr><th>Source Report</th><th>Freshness</th><th>Feeds</th><th>Default Source Role</th></tr></thead>
+      <tbody>${DATA_IMPORT_REPORT_ORDER.map(type => {
+        const def = dataImportGetReportDef(type);
+        return `<tr>
+          <td><strong>${escapeHtml(def.label)}</strong><div class="data-import2-file-meta">${escapeHtml(def.sourceSystems.join(", "))}</div></td>
+          <td>${escapeHtml(def.freshness.label)}</td>
+          <td>${escapeHtml(def.dependencies.join(", "))}</td>
+          <td>${type === "box_score" ? "Authoritative for duplicate operational KPIs when present." : "Preserved as source history unless metric-level precedence says otherwise."}</td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table>
+  </div>`;
+}
+
+function renderDataImport2View(health) {
+  if (dataImport2State.activeView === "upload") return renderDataImportUploadCenter();
+  if (dataImport2State.activeView === "health") return renderDataImportHealthView(health);
+  if (dataImport2State.activeView === "exceptions") return renderDataImportExceptionsView();
+  if (dataImport2State.activeView === "mapping") return renderDataImportMappingRulesView();
+  if (dataImport2State.activeView === "aliases") return renderDataImportAliasesView();
+  if (dataImport2State.activeView === "history") return renderDataImportHistoryView();
+  if (dataImport2State.activeView === "archive") return renderDataImportArchiveView();
+  return `${renderDataImportOverview(health)}${renderDataImportDependencyView()}`;
+}
+
+function renderDataImport2Tab() {
+  dataImport2State = normalizeDataImport2State(dataImport2State);
+  const health = dataImportBuildHealthModel();
+  const errorHTML = csvError ? `<div class="${getCsvAlertClass(csvError)} mb4">${escapeHtml(csvError)}</div>` : "";
+  const logHTML = csvLog.length > 0 ? `<div class="alert-green mb4">${csvLog.map((l,i) => `<div style="${i===0?"color:#3fb950;font-weight:600":"color:var(--muted)"}">${escapeHtml(l)}</div>`).join("")}</div>` : "";
+  return `<div class="data-import2-shell">
+    ${renderDataImportHero(health)}
+    ${renderDataImportTabs()}
+    ${errorHTML}
+    ${logHTML}
+    ${renderDataImport2View(health)}
+  </div>`;
+}
+
 function renderCSVTab() {
+  return renderDataImport2Tab();
+}
+
+function renderLegacyCSVTab() {
   if (isPortfolioWorkspaceSelected()) return renderPortfolioScopedImportTab();
   const errorHTML = csvError ? `<div class="${getCsvAlertClass(csvError)} mb4">${csvError}</div>` : "";
   const logHTML = csvLog.length > 0 ? `<div class="alert-green mb4">${csvLog.map((l,i) => `<div style="${i===0?"color:#3fb950;font-weight:600":"color:var(--muted)"}">${escapeHtml(l)}</div>`).join('')}</div>` : "";
@@ -45570,6 +47499,10 @@ function handleDrop(e) {
 }
 
 async function processImportFiles(files) {
+  await dataImportStageFiles(files);
+}
+
+async function processLegacyOperationalImportFiles(files) {
   for (const file of files) {
     const lowerName = file.name.toLowerCase();
     if (file.type === "application/pdf" || lowerName.endsWith(".pdf")) {
@@ -47657,6 +49590,7 @@ async function initializeAtlasDashboard() {
   } catch (error) {
     markAtlasPersistenceError(error, "ATLAS could not finish loading browser data.");
   }
+  await hydrateDataImport2State();
   await pullAtlasSharedPropertyGraphFromCentral({ silent: true, applyToPortfolio: true });
   await hydrateSharedPropertiesFromMarketingDatabase({ silent: true, applyToPortfolio: true, central: true });
   await hydrateAtlasDashboardPreferencesFromCentral({ silent: true });

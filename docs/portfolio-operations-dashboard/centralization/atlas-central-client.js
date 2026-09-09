@@ -265,7 +265,7 @@
 
   function errorFromPayload(payload, fallback) {
     if (payload && typeof payload === "object") {
-      return payload.message || payload.error_description || payload.error || fallback;
+      return payload.message || payload.msg || payload.error_description || payload.error || payload.error_code || fallback;
     }
     return String(payload || fallback);
   }
@@ -308,7 +308,7 @@
       if (status === 401 || status === 400) return "ATLAS could not sign you in with that email and password.";
       return "ATLAS could not finish that request.";
     }
-    if (lower.includes("invalid login credentials")) return `ATLAS could not sign you in${emailSuffix}. Check your email and password, then try again.`;
+    if (lower.includes("invalid_credentials") || lower.includes("invalid login credentials") || lower.includes("invalid credentials")) return `ATLAS could not sign you in${emailSuffix}. Check the password, use Forgot Password to reset it, or use Activate Account if this is the first ATLAS login.`;
     if (lower.includes("email not confirmed")) return `Confirm your ATLAS email${emailSuffix ? emailSuffix : ""} before signing in.`;
     if (lower.includes("user already registered")) return `An ATLAS account already exists${emailSuffix}. Use Sign In instead of Activate My Account.`;
     if (lower.includes("signup is disabled")) return "ATLAS account activation is not available from this screen right now. Use your invite flow or contact an ATLAS admin.";

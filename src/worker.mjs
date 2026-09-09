@@ -211,6 +211,13 @@ async function parseResponseBody(response) {
   }
 }
 
+function errorMessageFromPayload(payload, fallback) {
+  if (payload && typeof payload === "object") {
+    return payload.message || payload.msg || payload.error_description || payload.error || payload.error_code || fallback;
+  }
+  return payload || fallback;
+}
+
 async function supabaseRequest(config, path, { method = "GET", token = "", service = false, body = null, prefer = "", headers: extraHeaders = {} } = {}) {
   const key = service ? config.serviceKey : config.anonKey;
   const headers = new Headers({
@@ -230,9 +237,7 @@ async function supabaseRequest(config, path, { method = "GET", token = "", servi
   });
   const payload = await parseResponseBody(response);
   if (!response.ok) {
-    const message = payload && typeof payload === "object"
-      ? payload.message || payload.error_description || payload.error || `Supabase request failed with HTTP ${response.status}`
-      : payload || `Supabase request failed with HTTP ${response.status}`;
+    const message = errorMessageFromPayload(payload, `Supabase request failed with HTTP ${response.status}`);
     const error = new Error(message);
     error.status = response.status;
     error.payload = payload;

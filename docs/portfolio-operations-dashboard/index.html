@@ -1273,12 +1273,12 @@
 </div>
 
 <script src="./atlas_historical_restore_data.js"></script>
-<script src="./atlas-mounts.js?v=20260902-marketing-studio"></script>
+<script src="./atlas-mounts.js?v=20260910-embedded-fixes"></script>
 <script src="./centralization/atlas-central-client.js?v=20260909-activation-email" data-atlas-central-client="true"></script>
 <script src="./central-services.js?v=20260904-memo-delete"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260902-application-intelligence">
 <script src="./application-performance.js?v=20260904-application-scope"></script>
-<script src="./application-performance-ui.js?v=20260902-command-center"></script>
+<script src="./application-performance-ui.js?v=20260910-scope-health"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -8592,6 +8592,10 @@ function getAtlasOperationalCommunityNames(includeCurrentSelection = false) {
   });
 }
 
+function getAtlasApplicationScopeCommunityNames() {
+  return getWorkspaceScopedDetails(getSelectedDashboardMonthIndex()).map(detail => detail.name);
+}
+
 function buildInactiveCommunityImportWarning(names = []) {
   const inactiveNames = [...new Set((Array.isArray(names) ? names : [names])
     .map(name => String(name ?? "").trim())
@@ -9618,6 +9622,16 @@ function getOccupancyPctFromUnitsOrFallback(occupiedUnits, totalUnits, corporate
     const comparableUnits = getComparableOccupancyUnits(occupiedUnits, corporateUnits);
     return (comparableUnits / baseUnits) * 100;
   }
+  for (const value of fallbackPctValues) {
+    const pct = normalizeWorkbookPercentToReportPct(value);
+    if (pct !== null && pct !== undefined && Number.isFinite(Number(pct))) return Number(pct);
+  }
+  return 0;
+}
+
+function getOccupancyPctFromComparableUnitsOrFallback(comparableUnits, totalUnits, corporateUnits = 0, ...fallbackPctValues) {
+  const baseUnits = getOccupancyBaseUnits(totalUnits, corporateUnits);
+  if (baseUnits > 0) return (Math.max(0, Number(comparableUnits) || 0) / baseUnits) * 100;
   for (const value of fallbackPctValues) {
     const pct = normalizeWorkbookPercentToReportPct(value);
     if (pct !== null && pct !== undefined && Number.isFinite(Number(pct))) return Number(pct);
@@ -10975,8 +10989,8 @@ function getCommunitySummary(propName, sourceData, rawSourceData = sourceData) {
         moveOuts: 0,
         renewals: 0
       };
-  const occPct = getOccupancyPctFromUnitsOrFallback(occupied, totalUnits, corporateUnits, latestDlrSummary.occupancyPct);
-  const leasedPct = getOccupancyPctFromUnitsOrFallback(leased, totalUnits, corporateUnits, latestDlrSummary.leasedPct);
+  const occPct = getOccupancyPctFromComparableUnitsOrFallback(occupied, totalUnits, corporateUnits, latestDlrSummary.occupancyPct);
+  const leasedPct = getOccupancyPctFromComparableUnitsOrFallback(leased, totalUnits, corporateUnits, latestDlrSummary.leasedPct);
   const guestCardGoal = Number(currentRow.guestCardsNeeded ?? 0) || 0;
   const guestCards = currentTrafficMetrics.guestCards;
   const tours = currentTrafficMetrics.tours;
@@ -15437,11 +15451,18 @@ function buildAtlasDashboardWidgetSnapshot(instance = {}) {
     return { value: typeof rawValue === "string" ? rawValue : atlasDashboardFormatNumber(rawValue), sub, detail: atlasDashboardComparisonLine(instance, aggregate, scopedDetails), scopedDetails };
   }
   if (instance.widgetKey === "renewals_retention") {
+    const hasRenewalDenominator = Number(aggregate.renewalExpirations || 0) > 0;
+    const renewalConversionValue = hasRenewalDenominator
+      ? atlasDashboardFormatPct(aggregate.renewalRetentionRate || 0, 0)
+      : "—";
+    const renewalConversionSub = hasRenewalDenominator
+      ? `${atlasDashboardFormatNumber(aggregate.renewalsSigned)} signed of ${atlasDashboardFormatNumber(aggregate.renewalExpirations)} expirations`
+      : (Number(aggregate.renewalsSigned || 0) > 0 ? "Signed renewals loaded · expirations missing" : "No expirations saved yet");
     const metricMap = {
       "Renewal Offers": [aggregate.renewalExpirations, `${atlasDashboardFormatNumber(aggregate.renewalsSigned)} completed · ${scopeSuffix}`],
       "Renewals Completed": [aggregate.renewalsSigned, `${atlasDashboardFormatNumber(aggregate.renewalExpirations)} expirations`],
-      "Renewal Conversion": [atlasDashboardFormatPct(aggregate.renewalRetentionRate || 0, 0), `${atlasDashboardFormatNumber(aggregate.renewalsSigned)} signed of ${atlasDashboardFormatNumber(aggregate.renewalExpirations)} expirations`],
-      "Retention %": [atlasDashboardFormatPct(aggregate.renewalRetentionRate || 0, 0), `${atlasDashboardFormatPct(aggregate.previousRenewalRetentionRate || 0, 0)} prior-period retention`],
+      "Renewal Conversion": [renewalConversionValue, renewalConversionSub],
+      "Retention %": [renewalConversionValue, hasRenewalDenominator ? `${atlasDashboardFormatPct(aggregate.previousRenewalRetentionRate || 0, 0)} prior-period retention` : renewalConversionSub],
       "Upcoming Expirations": [aggregate.renewalExpirations, `${scopeSuffix}`],
       "Undecided Renewals": [aggregate.renewalUndecided, `${atlasDashboardFormatNumber(aggregate.renewalNTV)} notices`],
       "Notices": [aggregate.renewalNTV, `${atlasDashboardFormatNumber(aggregate.renewalProjectedAttrition)} projected attrition`],
@@ -16739,10 +16760,10 @@ function atlasAccessProfileCanUseCurrentScope(profile = getAtlasAccessProfile())
 function atlasAccessDecision(tabId = activeTab) {
   const status = getAtlasCentralStatus();
   if (!status.configured) return { ok: true };
-  if (!status.signedIn) return { ok: ["7", "14"].includes(String(tabId)), reason: "Sign in before viewing shared ATLAS data." };
+  if (!status.signedIn) return { ok: ATLAS_SELF_SERVICE_TAB_IDS.includes(String(tabId)), reason: "Sign in before viewing shared ATLAS data." };
   const profile = getAtlasAccessProfile();
-  if (!profile) return { ok: ["7", "14"].includes(String(tabId)), reason: "This login does not have an active ATLAS access profile yet." };
-  if (String(profile.status || "") !== "active") return { ok: ["7", "14"].includes(String(tabId)), reason: `This ATLAS account is ${profile.status || "not active"}.` };
+  if (!profile) return { ok: ATLAS_SELF_SERVICE_TAB_IDS.includes(String(tabId)), reason: "This login does not have an active ATLAS access profile yet." };
+  if (String(profile.status || "") !== "active") return { ok: ATLAS_SELF_SERVICE_TAB_IDS.includes(String(tabId)), reason: `This ATLAS account is ${profile.status || "not active"}.` };
   const tab = getAtlasAccessTab(tabId);
   const isSelfServiceTab = ATLAS_SELF_SERVICE_TAB_IDS.includes(tab.id);
   const lockedTabs = normalizeAtlasAccessList(profile.locked_tab_ids);
@@ -43142,8 +43163,8 @@ function buildCommunityProgressSingleReportData(options = {}) {
   const hasBudgetOcc = Number.isFinite(Number(budgetOccPct)) && Number(budgetOccPct) > 0;
   const occupiedUnits = Number.isFinite(Number(summary.occupied)) ? Number(summary.occupied) : getComparableOccupancyUnits(Number(record.currentOccupied) || 0, corporateUnits);
   const leasedUnits = Number.isFinite(Number(summary.leased)) ? Number(summary.leased) : getComparableOccupancyUnits(Number(record.currentLeased) || 0, corporateUnits);
-  const occupancyPct = getOccupancyPctFromUnitsOrFallback(occupiedUnits, totalUnits, corporateUnits, summary.occPct);
-  const leasedPct = getOccupancyPctFromUnitsOrFallback(leasedUnits, totalUnits, corporateUnits, summary.leasedPct);
+  const occupancyPct = getOccupancyPctFromComparableUnitsOrFallback(occupiedUnits, totalUnits, corporateUnits, summary.occPct);
+  const leasedPct = getOccupancyPctFromComparableUnitsOrFallback(leasedUnits, totalUnits, corporateUnits, summary.leasedPct);
   const moveInsNeeded = Number(scheduleRow.netOccLeases) || 0;
   const moveInGoalPerWeek = moveInsNeeded > 0 ? Math.max(1, Math.ceil(moveInsNeeded / 4)) : 0;
   const activeSurveyData = getCompCalculatorSurveySnapshot(detail, monthIdx, year);

@@ -34,7 +34,7 @@
       note: "Intake, the AI creative brief, approvals, routing and team metrics run in the Command Center itself — this is the portfolio read of it.",
       barTitle: "RISE Marketing Command Center",
       barSub: "Shares team, routing, and bonus settings with Atlas Bonus & Incentives",
-      src: "RISE-Marketing-Command-Center.html",
+      src: "RISE-Marketing-Command-Center.html?v=20260910-auth-freshness",
       background: "#F0F4F6",
       icon: "ph-megaphone"
     },
@@ -56,7 +56,7 @@
       note: "Reviews, coaching plans, training and accountability run in the RISE Performance Platform. It reads the same roster keyed by employee ID, so a reassignment in Communities lands here without a second import.",
       barTitle: "RISE Performance Platform",
       barSub: "People source data feeds Atlas migration snapshots and shared assignments",
-      src: "RISE-Performance-Platform.html",
+      src: "RISE-Performance-Platform.html?v=20260910-navigation",
       background: "#F3F6F8",
       icon: "ph-trophy"
     }

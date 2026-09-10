@@ -1952,7 +1952,7 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
   </div>
 </div>
 
-<div id="app-shell">
+<div id="app-shell" style="display:none">
 
 <!-- HEADER -->
 <div class="header">
@@ -1996,7 +1996,7 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
     <div class="section-header" style="margin-bottom:20px">
       <div>
         <div class="section-title">Marketing Health Overview</div>
-        <div class="section-sub">Tuesday, June 16, 2026 · Portfolio-wide</div>
+        <div class="section-sub" id="marketing-reporting-date">Current reporting date · Portfolio-wide</div>
       </div>
       <button class="btn btn-primary btn-sm" onclick="showTab('new-request')">+ New Request</button>
     </div>
@@ -3820,11 +3820,10 @@ async function signIn(email) {
 }
 
 async function signOut() {
-  // Open access: sign-out clears any real session but never locks the app.
   try { await sb.auth.signOut(); } catch (e) { /* no session */ }
-  currentUser = { id: 'open-access', email: 'team@riseresidential.com' };
-  currentUserProfile = { id: 'open-access', email: 'team@riseresidential.com', full_name: 'RISE Marketing', role_type: 'director' };
-  updateUserChip();
+  currentUser = null;
+  currentUserProfile = null;
+  showAuthScreen();
 }
 
 async function getSession() {
@@ -3851,9 +3850,6 @@ async function loadUserProfile(userId, email) {
 // AUTH UI
 // ============================================================
 function showAuthScreen() {
-  // Open access: never show the gate.
-  hideAuthScreen();
-  return;
   document.getElementById('auth-screen').style.display = 'flex';
   document.getElementById('app-shell').style.display = 'none';
 }
@@ -4384,8 +4380,10 @@ async function refreshTicketCount() {
   if (ael && approvalCount != null) ael.textContent = approvalCount;
   // Update dashboard stat cards
   const openEl = document.getElementById('stat-open-tickets');
+  const openSubEl = document.getElementById('stat-open-sub');
   const approvalEl = document.getElementById('stat-approvals');
   if (openEl && count != null) openEl.textContent = count;
+  if (openSubEl) openSubEl.textContent = count == null ? 'Unable to load active ticket count' : 'Excludes completed and cancelled tickets';
   if (approvalEl && approvalCount != null) approvalEl.textContent = approvalCount;
   // Show alert bar if approvals pending
   const alertBar = document.getElementById('dashboard-alert');
@@ -4591,16 +4589,6 @@ async function renderLiveApprovals() {
 // ============================================================
 // APP BOOT
 // ============================================================
-// OPEN ACCESS — the sign-in gate is bypassed. If a real session exists its
-// profile is used; otherwise the app boots against a local director profile so
-// every tab is reachable without a magic link.
-const OPEN_ACCESS_PROFILE = {
-  id: 'open-access',
-  email: 'team@riseresidential.com',
-  full_name: 'RISE Marketing',
-  role_type: 'director'
-};
-
 async function boot() {
   let session = null;
   try { session = await getSession(); } catch (e) { session = null; }
@@ -4612,8 +4600,9 @@ async function boot() {
     } catch (e) { currentUserProfile = null; }
   }
   if (!currentUserProfile) {
-    currentUser = { id: OPEN_ACCESS_PROFILE.id, email: OPEN_ACCESS_PROFILE.email };
-    currentUserProfile = OPEN_ACCESS_PROFILE;
+    currentUser = null;
+    showAuthScreen();
+    return;
   }
   await bootApp();
 }
@@ -4621,6 +4610,8 @@ async function boot() {
 async function bootApp() {
   hideAuthScreen();
   updateUserChip();
+  const reportingDate = document.getElementById('marketing-reporting-date');
+  if (reportingDate) reportingDate.textContent = `${new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date())} · Portfolio-wide`;
   showToast('Loading data...', 'info');
   try { await DB.loadAll(); } catch (e) { console.warn('loadAll:', e); }
   refreshMarketingSharedViews({ renderProperties: false });

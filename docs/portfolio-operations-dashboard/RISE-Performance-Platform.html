@@ -4122,8 +4122,8 @@ function switchView(view){
     view = 'dashboard';
   }
   UI.currentView = view;
-  saveState();
   render();
+  try { saveState(); } catch (error) { console.warn('Unable to persist Performance Platform view state:', error); }
 }
 
 function logout(){

@@ -627,11 +627,35 @@
   .data-import2-table td { padding: 9px; border-bottom: 1px solid var(--border); font-size: 0.68rem; vertical-align: top; }
   .data-import2-table tr:last-child td { border-bottom: 0; }
   .data-import2-form-grid { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto; gap: 8px; align-items: end; }
+  .data-import2-form-grid.wide { grid-template-columns: repeat(4, minmax(140px, 1fr)); }
+  .data-import2-field-wide { grid-column: span 2; }
   .data-import2-field input, .data-import2-field select, .data-import2-field textarea { width: 100%; border: 1px solid var(--border); border-radius: 7px; padding: 8px 9px; font-size: 0.7rem; font-family: inherit; background: #fff; color: var(--text); }
   .data-import2-field textarea { min-height: 70px; resize: vertical; }
   .data-import2-detail-panel { border: 1px solid var(--border); background: var(--bg3); border-radius: 8px; padding: 12px; font-size: 0.7rem; color: var(--muted); line-height: 1.45; }
   .data-import2-inline-actions { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
-  @media(max-width:1100px){ .data-import2-hero, .data-import2-main-grid { grid-template-columns: 1fr; } .data-import2-kpis, .data-import2-preview-grid { grid-template-columns: repeat(3, 1fr); } .data-import2-file, .data-import2-activity-row, .data-import2-audit-row { grid-template-columns: 1fr; } }
+  .data-import2-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 8px; }
+  .data-import2-summary-card { border: 1px solid var(--border); border-radius: 8px; background: var(--bg3); padding: 10px; cursor: pointer; text-align: left; font-family: inherit; color: var(--text); }
+  .data-import2-summary-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(29,118,139,0.16); background: rgba(29,118,139,0.06); }
+  .data-import2-summary-card.warn { border-color: rgba(210,153,34,0.34); background: rgba(210,153,34,0.08); }
+  .data-import2-summary-card.bad { border-color: rgba(248,81,73,0.28); background: rgba(248,81,73,0.07); }
+  .data-import2-summary-value { font-family: 'JetBrains Mono', monospace; font-weight: 900; font-size: 1.1rem; line-height: 1.1; }
+  .data-import2-summary-label { margin-top: 4px; color: var(--muted); font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 800; }
+  .data-import2-review-toolbar { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 8px; align-items: end; margin-top: 10px; }
+  .data-import2-review-list { display: grid; gap: 9px; margin-top: 12px; }
+  .data-import2-review-row { border: 1px solid var(--border); border-radius: 8px; background: var(--bg3); padding: 10px; display: grid; grid-template-columns: 28px minmax(210px, 1.05fr) minmax(190px, 0.95fr) minmax(220px, 1fr) minmax(140px, auto); gap: 10px; align-items: start; }
+  .data-import2-review-row.needs, .data-import2-review-row.new { border-left: 4px solid #d1242f; background: rgba(209,36,47,0.045); }
+  .data-import2-review-row.low { border-left: 4px solid #d29922; background: rgba(210,153,34,0.075); }
+  .data-import2-review-row.conflict { border-left: 4px solid #9a6700; background: rgba(154,103,0,0.08); }
+  .data-import2-review-title { font-size: 0.78rem; font-weight: 900; color: var(--text); overflow-wrap: anywhere; }
+  .data-import2-review-meta { font-size: 0.62rem; color: var(--muted); line-height: 1.42; margin-top: 3px; overflow-wrap: anywhere; }
+  .data-import2-review-flags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+  .data-import2-map-select { width: 100%; min-width: 0; border: 1px solid var(--border); border-radius: 7px; background: #fff; color: var(--text); padding: 7px 8px; font-family: inherit; font-size: 0.66rem; }
+  .data-import2-preview-panel { border: 1px solid rgba(29,118,139,0.24); background: rgba(29,118,139,0.055); border-radius: 8px; padding: 12px; margin-top: 10px; }
+  .data-import2-preview-cols { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 8px; margin-top: 8px; }
+  .data-import2-source-card { border: 1px solid var(--border); background: var(--bg3); border-radius: 8px; padding: 10px; display: grid; grid-template-columns: minmax(180px, 1fr) minmax(160px, 0.7fr) minmax(180px, 1fr) auto; gap: 10px; align-items: start; }
+  .data-import2-compact-table { max-height: 520px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+  .data-import2-compact-table .data-import2-table th { position: sticky; top: 0; background: var(--bg3); z-index: 1; }
+  @media(max-width:1100px){ .data-import2-hero, .data-import2-main-grid { grid-template-columns: 1fr; } .data-import2-kpis, .data-import2-preview-grid, .data-import2-summary-grid, .data-import2-preview-cols { grid-template-columns: repeat(2, 1fr); } .data-import2-file, .data-import2-activity-row, .data-import2-audit-row, .data-import2-review-row, .data-import2-source-card, .data-import2-review-toolbar, .data-import2-form-grid.wide { grid-template-columns: 1fr; } .data-import2-field-wide { grid-column: auto; } }
   @media(max-width:640px){ .data-import2-kpis, .data-import2-preview-grid, .data-import2-workflow, .data-import2-form-grid { grid-template-columns: 1fr; } .data-import2-hero { padding: 14px; } .data-import2-dropzone { padding: 18px; } }
   .csv-field-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }
   @media(max-width:500px){ .csv-field-grid { grid-template-columns: 1fr; } }
@@ -1422,25 +1446,72 @@ const DATA_IMPORT_FIELD_ALIASES = {
   leased_units: ["leased units", "leased", "signed leases"],
   applications: ["applications", "apps", "application count", "applied"],
   approvals: ["approvals", "approved", "approved apps", "approved applications"],
+  denied_applications: ["denied applications", "denials", "denied apps", "declined applications"],
+  cancelled_applications: ["cancelled applications", "canceled applications", "cancelled apps", "canceled apps", "cancel date"],
+  lease_signed_date: ["lease signed date", "signed date", "lease executed date", "lease sign date"],
+  move_in_date: ["move in date", "move-in date", "scheduled move in date"],
+  leasing_professional: ["leasing professional", "leasing agent", "leasing consultant", "agent"],
   guest_cards: ["guest cards", "traffic", "leads", "prospects"],
   tours: ["tours", "showings", "property tours"],
+  traffic_source: ["traffic source", "lead source", "source", "prospect source"],
+  cost_per_lead: ["cost per lead", "cpl", "lead cost"],
+  conversion_rate: ["conversion rate", "conversion %", "lead conversion", "tour conversion"],
   move_ins: ["move ins", "move-ins", "move in", "mi"],
   move_outs: ["move outs", "move-outs", "move out", "mo"],
   pending_move_ins: ["pending move ins", "pending move-ins", "scheduled move ins"],
   pending_move_outs: ["pending move outs", "upcoming move-outs", "scheduled move outs"],
   renewal_expirations: ["renewal expirations", "expirations", "lease expirations", "expiration count"],
+  renewal_offer_date: ["renewal offer date", "offer date"],
+  renewal_expiration: ["renewal expiration", "renewal expiration date", "expiration date"],
+  renewal_status: ["renewal status", "status"],
+  original_offer_increase: ["original offer increase", "offer increase", "proposed increase"],
+  final_executed_rent: ["final executed rent", "executed rent", "renewal rent"],
+  renewal_signed_date: ["renewal signed date", "signed renewal date"],
   renewals_signed: ["renewals signed", "renewed", "signed renewals", "renewal signed"],
   renewal_ntvs: ["notice to vacate", "ntv", "renewal ntv", "notices"],
   market_rent: ["market rent", "market", "asking rent"],
   net_effective_rent: ["net effective rent", "ner", "effective rent"],
   application_id: ["application id", "app id", "application number"],
   resident: ["resident", "resident name", "applicant", "applicant name"],
+  resident_name: ["resident full name", "primary resident", "resident contact"],
   application_date: ["application date", "applied date", "date applied"],
   application_status: ["application status", "status", "current status"],
   lease_start: ["lease start", "lease start date", "move in date"],
   lease_end: ["lease end", "lease end date", "expiration date"],
-  unit: ["unit", "unit number", "apartment", "apt"]
+  unit: ["unit", "unit number", "apartment", "apt"],
+  unit_number: ["unit #", "apartment number", "apt number"],
+  floorplan: ["floorplan", "floor plan", "unit type"],
+  current_rent: ["current rent", "rent amount", "lease rent"],
+  revenue_metric: ["revenue", "income", "total income"],
+  expense_metric: ["expense", "operating expense", "opex"],
+  budget_field: ["budget", "budget amount", "forecast amount"]
 };
+const DATA_IMPORT_DESTINATION_GROUPS = [
+  {
+    label: "Leasing",
+    fields: ["applications", "approvals", "denied_applications", "cancelled_applications", "lease_signed_date", "move_in_date", "leasing_professional", "application_status"]
+  },
+  {
+    label: "Occupancy",
+    fields: ["physical_occupancy", "leased_occupancy", "trending_occupancy", "occupied_units", "leased_units", "move_ins", "move_outs", "pending_move_ins", "pending_move_outs"]
+  },
+  {
+    label: "Renewals",
+    fields: ["renewal_offer_date", "renewal_expiration", "renewal_expirations", "renewal_status", "original_offer_increase", "final_executed_rent", "renewal_signed_date", "renewals_signed", "renewal_ntvs"]
+  },
+  {
+    label: "Marketing",
+    fields: ["guest_cards", "tours", "traffic_source", "cost_per_lead", "conversion_rate"]
+  },
+  {
+    label: "Resident / Unit",
+    fields: ["resident", "resident_name", "unit", "unit_number", "floorplan", "current_rent", "lease_start", "lease_end", "application_id", "application_date"]
+  },
+  {
+    label: "Financial / Other",
+    fields: ["market_rent", "net_effective_rent", "revenue_metric", "expense_metric", "budget_field"]
+  }
+];
 const DATA_IMPORT_ISSUE_LABELS = {
   missing: "Missing Data",
   stale: "Stale Data",
@@ -44879,6 +44950,9 @@ function defaultDataImportMappingRules() {
       originalField: alias,
       canonicalField,
       sourceSystem: "Global",
+      reportType: "",
+      scope: "Global",
+      status: "Mapped",
       savedBy: "ATLAS",
       savedAt: "",
       locked: true
@@ -44912,6 +44986,23 @@ function defaultDataImportPropertyAliases() {
   return seeded;
 }
 
+function defaultDataImportSourceDefinitions() {
+  return Object.entries(DATA_IMPORT_REPORT_TYPES).map(([reportType, def]) => ({
+    id: `default_source_${reportType}`,
+    sourceName: def.label,
+    sourceSystem: (def.sourceSystems || []).join(", "),
+    reportType,
+    description: `${def.label} raw operational source.`,
+    expectedFrequency: def.freshness?.label || "",
+    expectedFields: (def.primaryFields || []).map(dataImportCanonicalFieldLabel).join(", "),
+    modules: (def.dependencies || []).join(", "),
+    active: true,
+    locked: true,
+    createdAt: "",
+    updatedBy: "ATLAS"
+  }));
+}
+
 function defaultDataImport2State() {
   return {
     schema: "atlas_data_import_2_v1",
@@ -44922,6 +45013,17 @@ function defaultDataImport2State() {
     sourceArchive: [],
     mappingRules: defaultDataImportMappingRules(),
     propertyAliases: defaultDataImportPropertyAliases(),
+    sourceDefinitions: defaultDataImportSourceDefinitions(),
+    customFields: [],
+    mappingAuditTrail: [],
+    mappingDrafts: {},
+    selectedMappingIds: [],
+    selectedMappingPreviewId: "",
+    mappingReviewFilter: "needs",
+    mappingSourceFilter: "",
+    mappingReportFilter: "",
+    mappingBatchFilter: "",
+    mappingSearch: "",
     selectedIssueKey: "",
     updatedAt: ""
   };
@@ -44941,8 +45043,19 @@ function normalizeDataImport2State(input = {}) {
       originalField,
       canonicalField,
       sourceSystem: String(rule?.sourceSystem || "Global"),
+      reportType: String(rule?.reportType || ""),
+      sourceFile: String(rule?.sourceFile || ""),
+      sheetName: String(rule?.sheetName || ""),
+      sampleValue: String(rule?.sampleValue || ""),
+      detectedDataType: String(rule?.detectedDataType || ""),
+      scope: String(rule?.scope || "Global"),
+      status: String(rule?.status || (canonicalField === "__ignored__" ? "Ignored" : "Mapped")),
+      confidence: Number.isFinite(Number(rule?.confidence)) ? Number(rule.confidence) : null,
+      suggestedField: String(rule?.suggestedField || ""),
       savedBy: String(rule?.savedBy || "Admin"),
       savedAt: String(rule?.savedAt || ""),
+      updatedBy: String(rule?.updatedBy || rule?.savedBy || "Admin"),
+      updatedAt: String(rule?.updatedAt || rule?.savedAt || ""),
       locked: !!rule?.locked
     });
   });
@@ -44962,6 +45075,49 @@ function normalizeDataImport2State(input = {}) {
       locked: !!alias?.locked
     });
   });
+  const sourceById = new Map(fallback.sourceDefinitions.map(source => [source.id, source]));
+  (Array.isArray(state.sourceDefinitions) ? state.sourceDefinitions : []).forEach(source => {
+    const sourceName = String(source?.sourceName ?? "").trim();
+    if (!sourceName) return;
+    const id = source.id || dataImportMakeId("srcdef");
+    sourceById.set(id, {
+      id,
+      sourceName,
+      sourceSystem: String(source?.sourceSystem || ""),
+      reportType: String(source?.reportType || "unknown"),
+      description: String(source?.description || ""),
+      expectedFrequency: String(source?.expectedFrequency || ""),
+      expectedFields: String(source?.expectedFields || ""),
+      modules: String(source?.modules || ""),
+      active: source?.active !== false,
+      locked: !!source?.locked,
+      createdAt: String(source?.createdAt || ""),
+      updatedBy: String(source?.updatedBy || "Admin")
+    });
+  });
+  const customFieldById = new Map();
+  (Array.isArray(state.customFields) ? state.customFields : []).forEach(field => {
+    const fieldName = String(field?.fieldName ?? "").trim();
+    if (!fieldName) return;
+    const normalizedKey = dataImportNormalizeText(field?.fieldKey || fieldName).replace(/\s+/g, "_");
+    const fieldKey = String(field?.fieldKey || `custom_${normalizedKey}`).replace(/[^a-z0-9_]/gi, "_").toLowerCase();
+    customFieldById.set(fieldKey, {
+      id: field.id || dataImportMakeId("customfield"),
+      fieldKey,
+      fieldName,
+      category: String(field?.category || "Financial / Other"),
+      dataType: String(field?.dataType || "Text"),
+      description: String(field?.description || ""),
+      storesHistory: field?.storesHistory !== false,
+      recordBehavior: String(field?.recordBehavior || "current_state"),
+      modules: String(field?.modules || ""),
+      createdAt: String(field?.createdAt || ""),
+      createdBy: String(field?.createdBy || "Admin")
+    });
+  });
+  const mappingDrafts = state.mappingDrafts && typeof state.mappingDrafts === "object" && !Array.isArray(state.mappingDrafts)
+    ? Object.fromEntries(Object.entries(state.mappingDrafts).map(([key, value]) => [String(key), String(value || "")]))
+    : {};
   return {
     ...fallback,
     activeView: ["overview","upload","health","exceptions","mapping","aliases","history","archive"].includes(state.activeView) ? state.activeView : fallback.activeView,
@@ -44971,6 +45127,17 @@ function normalizeDataImport2State(input = {}) {
     sourceArchive: (Array.isArray(state.sourceArchive) ? state.sourceArchive : []).filter(Boolean).slice(0, 180),
     mappingRules: Array.from(mappingById.values()),
     propertyAliases: Array.from(aliasByKey.values()),
+    sourceDefinitions: Array.from(sourceById.values()),
+    customFields: Array.from(customFieldById.values()),
+    mappingAuditTrail: (Array.isArray(state.mappingAuditTrail) ? state.mappingAuditTrail : []).filter(Boolean).slice(0, 140),
+    mappingDrafts,
+    selectedMappingIds: (Array.isArray(state.selectedMappingIds) ? state.selectedMappingIds : []).map(String).slice(0, 80),
+    selectedMappingPreviewId: String(state.selectedMappingPreviewId || ""),
+    mappingReviewFilter: ["needs","new","low","conflict","mapped","ignored","all"].includes(state.mappingReviewFilter) ? state.mappingReviewFilter : fallback.mappingReviewFilter,
+    mappingSourceFilter: String(state.mappingSourceFilter || ""),
+    mappingReportFilter: String(state.mappingReportFilter || ""),
+    mappingBatchFilter: String(state.mappingBatchFilter || ""),
+    mappingSearch: String(state.mappingSearch || ""),
     selectedIssueKey: String(state.selectedIssueKey || ""),
     updatedAt: String(state.updatedAt || "")
   };
@@ -45063,7 +45230,7 @@ function dataImportCanonicalFieldLabel(field) {
 function dataImportStatusClass(status) {
   const normalized = dataImportNormalizeText(status).replace(/\s+/g, "_");
   if (["fresh","ready","approved","imported","complete"].includes(normalized)) return "ready";
-  if (["stale","review","needs_review","low_confidence"].includes(normalized)) return "review";
+  if (["stale","review","needs_review","needs_mapping","low_confidence"].includes(normalized)) return "review";
   if (["missing","conflict","blocked","unsupported"].includes(normalized)) return "blocked";
   if (["unmapped"].includes(normalized)) return "unmapped";
   if (["duplicate"].includes(normalized)) return "duplicate";
@@ -45137,6 +45304,7 @@ async function dataImportReadFileSample(file) {
     extension,
     sheetNames: [],
     headers: [],
+    headerSamples: {},
     rowCount: 0,
     sampleText: "",
     tabSummaries: []
@@ -45146,10 +45314,21 @@ async function dataImportReadFileSample(file) {
     if ([".csv", ".txt"].includes(extension)) {
       const text = (await file.text()).slice(0, DATA_IMPORT_MAX_SAMPLE_CHARS);
       const rows = text.split(/\r?\n/).slice(0, 80).map(line => line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(cell => cell.replace(/^"|"$/g, "").trim()));
-      const headerRow = rows.find(row => row.filter(Boolean).length >= 2) || [];
+      const headerIndex = Math.max(0, rows.findIndex(row => row.filter(Boolean).length >= 2));
+      const headerRow = rows[headerIndex] || [];
+      const headerCells = headerRow
+        .map((cell, index) => ({ header: String(cell ?? "").trim(), index }))
+        .filter(item => item.header)
+        .slice(0, 80);
+      const headerSamples = {};
+      headerCells.forEach(item => {
+        const sampleRow = rows.slice(headerIndex + 1).find(row => String(row?.[item.index] ?? "").trim());
+        headerSamples[item.header] = sampleRow ? String(sampleRow[item.index] ?? "").trim().slice(0, 80) : "";
+      });
       return {
         ...base,
-        headers: headerRow.filter(Boolean).slice(0, 80),
+        headers: headerCells.map(item => item.header),
+        headerSamples,
         rowCount: Math.max(0, text.split(/\r?\n/).filter(Boolean).length - 1),
         sampleText: `${name}\n${text}`.slice(0, DATA_IMPORT_MAX_SAMPLE_CHARS)
       };
@@ -45167,23 +45346,37 @@ async function dataImportReadFileSample(file) {
       const sheetNames = (workbook.SheetNames || []).slice(0, 12);
       const allHeaders = [];
       const tabSummaries = [];
+      const headerSamples = {};
       let rowCount = 0;
       const textParts = [name, ...sheetNames];
       sheetNames.forEach(sheetName => {
         const worksheet = workbook.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "", raw: false });
         const sampleRows = rows.slice(0, 80);
-        const headerRow = sampleRows.find(row => Array.isArray(row) && row.filter(cell => String(cell ?? "").trim()).length >= 2) || [];
-        const cleanHeaders = headerRow.map(cell => String(cell ?? "").trim()).filter(Boolean).slice(0, 80);
+        const headerIndex = Math.max(0, sampleRows.findIndex(row => Array.isArray(row) && row.filter(cell => String(cell ?? "").trim()).length >= 2));
+        const headerRow = sampleRows[headerIndex] || [];
+        const headerCells = headerRow
+          .map((cell, index) => ({ header: String(cell ?? "").trim(), index }))
+          .filter(item => item.header)
+          .slice(0, 80);
+        const cleanHeaders = headerCells.map(item => item.header);
+        const sampleValues = {};
+        headerCells.forEach(item => {
+          const sampleRow = sampleRows.slice(headerIndex + 1).find(row => String(row?.[item.index] ?? "").trim());
+          const value = sampleRow ? String(sampleRow[item.index] ?? "").trim().slice(0, 80) : "";
+          sampleValues[item.header] = value;
+          if (!headerSamples[item.header]) headerSamples[item.header] = value;
+        });
         allHeaders.push(...cleanHeaders);
         rowCount += Math.max(0, rows.length - 1);
-        tabSummaries.push({ sheetName, rowCount: Math.max(0, rows.length - 1), headers: cleanHeaders });
+        tabSummaries.push({ sheetName, rowCount: Math.max(0, rows.length - 1), headers: cleanHeaders, sampleValues });
         textParts.push(sheetName, dataImportRowsToText(sampleRows));
       });
       return {
         ...base,
         sheetNames,
         headers: Array.from(new Set(allHeaders)).slice(0, 160),
+        headerSamples,
         rowCount,
         sampleText: textParts.join("\n").slice(0, DATA_IMPORT_MAX_SAMPLE_CHARS),
         tabSummaries
@@ -45309,43 +45502,160 @@ function dataImportDetectReportingPeriod(text = "", file) {
   };
 }
 
-function dataImportDetectFields(sample) {
+function dataImportGetOrderedMappingRules() {
+  const rules = Array.isArray(dataImport2State.mappingRules) ? dataImport2State.mappingRules : defaultDataImportMappingRules();
+  return [...rules].sort((a, b) => {
+    if (!!a.locked !== !!b.locked) return a.locked ? 1 : -1;
+    const bTime = Date.parse(b.updatedAt || b.savedAt || "") || 0;
+    const aTime = Date.parse(a.updatedAt || a.savedAt || "") || 0;
+    return bTime - aTime;
+  });
+}
+
+function dataImportHeaderSampleValue(sample = {}, header = "") {
+  const exact = sample?.headerSamples?.[header];
+  if (exact) return String(exact).slice(0, 80);
+  const normalized = dataImportNormalizeText(header);
+  const matchedKey = Object.keys(sample?.headerSamples || {}).find(key => dataImportNormalizeText(key) === normalized);
+  if (matchedKey) return String(sample.headerSamples[matchedKey] || "").slice(0, 80);
+  const sheet = (sample?.tabSummaries || []).find(tab => (tab.headers || []).some(item => dataImportNormalizeText(item) === normalized));
+  if (sheet) {
+    const sheetKey = Object.keys(sheet.sampleValues || {}).find(key => dataImportNormalizeText(key) === normalized);
+    if (sheetKey) return String(sheet.sampleValues[sheetKey] || "").slice(0, 80);
+  }
+  return "";
+}
+
+function dataImportInferFieldDataType(header = "", sampleValue = "") {
+  const normalizedHeader = dataImportNormalizeText(header);
+  const value = String(sampleValue || "").trim();
+  if (normalizedHeader.includes("date") || normalizedHeader.includes("expiration") || normalizedHeader.includes("notice")) return "Date";
+  if (normalizedHeader.includes("%") || normalizedHeader.includes("percent") || normalizedHeader.includes("occupancy") || normalizedHeader.includes("conversion")) return "Percentage";
+  if (normalizedHeader.includes("rent") || normalizedHeader.includes("amount") || normalizedHeader.includes("income") || normalizedHeader.includes("expense") || normalizedHeader.includes("cost")) return "Currency";
+  if (/^\$?\(?-?[\d,]+(?:\.\d+)?\)?%?$/.test(value)) return value.includes("%") ? "Percentage" : "Number";
+  if (/^\d{1,2}[/-]\d{1,2}[/-](?:\d{2}|\d{4})$/.test(value)) return "Date";
+  if (/^(yes|no|true|false|signed|approved|denied|cancelled|canceled|pending)$/i.test(value)) return "Status";
+  return "Text";
+}
+
+function dataImportMappingRuleMatchesHeader(rule = {}, header = "", mode = "exact") {
+  const source = dataImportNormalizeText(rule.originalField);
+  const target = dataImportNormalizeText(header);
+  if (!source || !target) return false;
+  if (mode === "exact") return source === target;
+  return target.includes(source) || source.includes(target);
+}
+
+function dataImportFindSavedRuleForHeader(header = "", context = {}) {
+  const rules = dataImportGetOrderedMappingRules();
+  const reportFields = dataImportGetReportDef(context.reportType)?.primaryFields || [];
+  const pickRule = candidates => {
+    if (!candidates.length) return null;
+    return candidates.find(rule => !rule.locked)
+      || candidates.find(rule => reportFields.includes(rule.canonicalField))
+      || candidates[0];
+  };
+  return pickRule(rules.filter(rule => dataImportMappingRuleMatchesHeader(rule, header, "exact")))
+    || pickRule(rules.filter(rule => dataImportMappingRuleMatchesHeader(rule, header, "loose")))
+    || null;
+}
+
+function dataImportDestinationExists(fieldKey = "") {
+  if (!fieldKey || fieldKey === "__ignored__") return true;
+  if (DATA_IMPORT_FIELD_ALIASES[fieldKey]) return true;
+  if (DATA_IMPORT_DESTINATION_GROUPS.some(group => (group.fields || []).includes(fieldKey))) return true;
+  return (dataImport2State.customFields || []).some(field => field.fieldKey === fieldKey);
+}
+
+function dataImportSuggestDestinationForHeader(header = "", context = {}) {
+  const normalized = dataImportNormalizeText(header);
+  const sampleValue = String(context.sampleValue || "");
+  const savedRule = dataImportFindSavedRuleForHeader(header, context);
+  if (savedRule && dataImportDestinationExists(savedRule.canonicalField)) {
+    return {
+      field: savedRule.canonicalField,
+      confidence: savedRule.locked ? 88 : 98,
+      reason: savedRule.locked ? "ATLAS default alias" : "Saved Admin mapping",
+      ruleId: savedRule.id
+    };
+  }
+  const reportFields = dataImportGetReportDef(context.reportType)?.primaryFields || [];
+  let best = { field: "", confidence: 0, reason: "" };
+  Object.entries(DATA_IMPORT_FIELD_ALIASES).forEach(([field, aliases]) => {
+    const labels = [dataImportCanonicalFieldLabel(field), field, ...(aliases || [])];
+    labels.forEach(alias => {
+      const aliasText = dataImportNormalizeText(alias);
+      if (!aliasText) return;
+      let confidence = 0;
+      if (normalized === aliasText) confidence = 90;
+      else if (normalized.includes(aliasText) || aliasText.includes(normalized)) confidence = 74;
+      else if (aliasText.split(" ").some(part => part.length > 4 && normalized.includes(part))) confidence = 58;
+      if (reportFields.includes(field)) confidence += 8;
+      if (field.includes("occupancy") && (sampleValue.includes("%") || /^\d?\.\d+$/.test(sampleValue))) confidence += 4;
+      if (confidence > best.confidence) best = { field, confidence: Math.min(98, confidence), reason: "Field name and source context" };
+    });
+  });
+  if (!best.field && normalized.includes("occ")) best = { field: "physical_occupancy", confidence: 72, reason: "Occupancy pattern" };
+  if (!best.field && normalized.includes("renew")) best = { field: "renewals_signed", confidence: 68, reason: "Renewal pattern" };
+  if (!best.field && normalized.includes("rent")) best = { field: "current_rent", confidence: 66, reason: "Rent pattern" };
+  return best;
+}
+
+function dataImportDetectFields(sample, context = {}) {
   const headers = Array.isArray(sample?.headers) ? sample.headers : [];
   const text = dataImportNormalizeText(`${headers.join(" ")} ${sample?.sampleText || ""}`);
   const mapped = new Map();
   const lowConfidence = [];
-  const rules = Array.isArray(dataImport2State.mappingRules) ? dataImport2State.mappingRules : defaultDataImportMappingRules();
-  rules.forEach(rule => {
-    const alias = dataImportNormalizeText(rule.originalField);
-    if (!alias) return;
-    const exactHeader = headers.find(header => dataImportNormalizeText(header) === alias);
-    const looseHeader = !exactHeader ? headers.find(header => dataImportNormalizeText(header).includes(alias) || alias.includes(dataImportNormalizeText(header))) : "";
-    if (exactHeader || looseHeader || text.includes(alias)) {
-      mapped.set(rule.canonicalField, {
-        canonicalField: rule.canonicalField,
-        originalField: exactHeader || looseHeader || rule.originalField,
-        confidence: exactHeader ? 98 : looseHeader ? 82 : 74
-      });
-    }
-  });
+  const matchedHeaders = new Set();
   headers.forEach(header => {
     const normalized = dataImportNormalizeText(header);
     if (!normalized) return;
-    if ((normalized.includes("occ") || normalized.includes("occupancy")) && !mapped.has("physical_occupancy")) {
-      lowConfidence.push({ originalField: header, suggestedField: "physical_occupancy", confidence: 72 });
-    }
-    if (normalized.includes("renew") && !mapped.has("renewals_signed")) {
-      lowConfidence.push({ originalField: header, suggestedField: "renewals_signed", confidence: 68 });
+    const sampleValue = dataImportHeaderSampleValue(sample, header);
+    const suggestion = dataImportSuggestDestinationForHeader(header, { ...context, sampleValue });
+    if (suggestion.field && suggestion.confidence >= 80) {
+      matchedHeaders.add(normalized);
+      if (suggestion.field !== "__ignored__") {
+        mapped.set(suggestion.field, {
+          canonicalField: suggestion.field,
+          originalField: header,
+          confidence: suggestion.confidence,
+          sourceRuleId: suggestion.ruleId || "",
+          detectedDataType: dataImportInferFieldDataType(header, sampleValue),
+          sampleValue
+        });
+      }
+    } else if (suggestion.field) {
+      lowConfidence.push({
+        originalField: header,
+        suggestedField: suggestion.field,
+        confidence: suggestion.confidence,
+        sampleValue,
+        detectedDataType: dataImportInferFieldDataType(header, sampleValue)
+      });
     }
   });
+  if (!headers.length) {
+    dataImportGetOrderedMappingRules().forEach(rule => {
+      const alias = dataImportNormalizeText(rule.originalField);
+      if (!alias || rule.canonicalField === "__ignored__" || !text.includes(alias)) return;
+      mapped.set(rule.canonicalField, {
+        canonicalField: rule.canonicalField,
+        originalField: rule.originalField,
+        confidence: rule.locked ? 74 : 84,
+        sourceRuleId: rule.id,
+        detectedDataType: "",
+        sampleValue: ""
+      });
+    });
+  }
   return {
     mappedFields: Array.from(mapped.values()),
-    lowConfidence: lowConfidence.slice(0, 5),
+    lowConfidence: lowConfidence.slice(0, 12),
     unmappedHeaders: headers.filter(header => {
       const normalized = dataImportNormalizeText(header);
-      if (!normalized) return false;
-      return !Array.from(mapped.values()).some(field => dataImportNormalizeText(field.originalField) === normalized);
-    }).slice(0, 20)
+      if (!normalized || matchedHeaders.has(normalized)) return false;
+      return !lowConfidence.some(field => dataImportNormalizeText(field.originalField) === normalized);
+    }).slice(0, 30)
   };
 }
 
@@ -45432,8 +45742,9 @@ async function dataImportBuildFilePlan(file, extras = {}) {
   const detection = dataImportScoreReportType(file.name, sample);
   const reportType = extras.forceReportType || detection.reportType;
   const reportDef = dataImportGetReportDef(reportType);
+  const sourceSystem = dataImportSourceSystemForType(reportType, combinedText);
   const period = dataImportDetectReportingPeriod(combinedText, file);
-  const fields = dataImportDetectFields(sample);
+  const fields = dataImportDetectFields(sample, { reportType, sourceSystem });
   const communities = dataImportDetectCommunities(combinedText);
   const issues = [];
   if (!dataImportIsSupportedFileName(file.name)) {
@@ -45475,7 +45786,7 @@ async function dataImportBuildFilePlan(file, extras = {}) {
     extension: dataImportGetFileExtension(file.name),
     reportType,
     reportTypeLabel: dataImportReportLabel(reportType),
-    sourceSystem: dataImportSourceSystemForType(reportType, combinedText),
+    sourceSystem,
     confidence: reportDef ? detection.confidence : 0,
     communities,
     communityCount: communities.length,
@@ -45497,6 +45808,7 @@ async function dataImportBuildFilePlan(file, extras = {}) {
     overrideReportType: reportDef ? reportType : "",
     sampleSummary: {
       headers: (sample.headers || []).slice(0, 30),
+      headerSamples: sample.headerSamples || {},
       sheets: sample.tabSummaries || []
     }
   };
@@ -46678,6 +46990,373 @@ function resolveDataImportException(issueId) {
   renderTab();
 }
 
+function dataImportSlug(value = "item") {
+  return (dataImportNormalizeText(value).replace(/\s+/g, "_") || "item").replace(/[^a-z0-9_]/g, "");
+}
+
+function dataImportMappingDestinationLabel(fieldKey = "") {
+  if (fieldKey === "__ignored__") return "Intentionally Ignored";
+  if (fieldKey === "__create_custom__") return "+ Create New ATLAS Field";
+  const custom = (dataImport2State.customFields || []).find(field => field.fieldKey === fieldKey);
+  return custom?.fieldName || dataImportCanonicalFieldLabel(fieldKey);
+}
+
+function dataImportDestinationGroups() {
+  const known = new Set([
+    ...Object.keys(DATA_IMPORT_FIELD_ALIASES),
+    ...Object.values(DATA_IMPORT_REPORT_TYPES).flatMap(def => def.primaryFields || [])
+  ]);
+  const used = new Set();
+  const groups = DATA_IMPORT_DESTINATION_GROUPS.map(group => {
+    const fields = (group.fields || [])
+      .filter(field => known.has(field) || (dataImport2State.customFields || []).some(custom => custom.fieldKey === field))
+      .filter(field => {
+        if (used.has(field)) return false;
+        used.add(field);
+        return true;
+      })
+      .map(field => ({ key: field, label: dataImportMappingDestinationLabel(field) }));
+    return { label: group.label, fields };
+  }).filter(group => group.fields.length);
+  const customFields = (dataImport2State.customFields || [])
+    .filter(field => !used.has(field.fieldKey))
+    .map(field => ({ key: field.fieldKey, label: field.fieldName }));
+  if (customFields.length) groups.push({ label: "Custom ATLAS Fields", fields: customFields });
+  groups.push({
+    label: "Admin Actions",
+    fields: [
+      { key: "__ignored__", label: "Intentionally Ignore Field" },
+      { key: "__create_custom__", label: "+ Create New ATLAS Field" }
+    ]
+  });
+  return groups;
+}
+
+function renderDataImportDestinationOptions(selectedField = "", suggestedField = "") {
+  const selected = selectedField || suggestedField || "";
+  const optionHtml = dataImportDestinationGroups().map(group => `<optgroup label="${escapeHtml(group.label)}">
+    ${group.fields.map(field => `<option value="${escapeHtml(field.key)}"${field.key === selected ? " selected" : ""}>${escapeHtml(field.label)}</option>`).join("")}
+  </optgroup>`).join("");
+  return `<option value="">Choose destination</option>${optionHtml}`;
+}
+
+function dataImportDestinationCategory(fieldKey = "") {
+  const group = DATA_IMPORT_DESTINATION_GROUPS.find(item => (item.fields || []).includes(fieldKey));
+  const custom = (dataImport2State.customFields || []).find(field => field.fieldKey === fieldKey);
+  return custom?.category || group?.label || "Custom / Other";
+}
+
+function dataImportDestinationModules(fieldKey = "", explicitModules = []) {
+  if (!fieldKey || fieldKey === "__ignored__" || fieldKey === "__create_custom__") return [];
+  const modules = new Set(Array.isArray(explicitModules) ? explicitModules : []);
+  Object.values(DATA_IMPORT_REPORT_TYPES).forEach(def => {
+    if ((def.primaryFields || []).includes(fieldKey)) (def.dependencies || []).forEach(module => modules.add(module));
+  });
+  const custom = (dataImport2State.customFields || []).find(field => field.fieldKey === fieldKey);
+  String(custom?.modules || "").split(",").map(item => item.trim()).filter(Boolean).forEach(module => modules.add(module));
+  return Array.from(modules);
+}
+
+function dataImportHeaderSheetForPlan(plan = {}, header = "") {
+  const normalized = dataImportNormalizeText(header);
+  const sheet = (plan.sampleSummary?.sheets || []).find(tab => (tab.headers || []).some(item => dataImportNormalizeText(item) === normalized));
+  return sheet?.sheetName || plan.relevantTabs?.[0] || "Not detected";
+}
+
+function dataImportSampleForPlanHeader(plan = {}, header = "") {
+  const exact = plan.sampleSummary?.headerSamples?.[header];
+  if (exact) return String(exact).slice(0, 80);
+  const normalized = dataImportNormalizeText(header);
+  const key = Object.keys(plan.sampleSummary?.headerSamples || {}).find(item => dataImportNormalizeText(item) === normalized);
+  if (key) return String(plan.sampleSummary.headerSamples[key] || "").slice(0, 80);
+  const sheet = (plan.sampleSummary?.sheets || []).find(tab => (tab.headers || []).some(item => dataImportNormalizeText(item) === normalized));
+  if (!sheet) return "";
+  const sheetKey = Object.keys(sheet.sampleValues || {}).find(item => dataImportNormalizeText(item) === normalized);
+  return sheetKey ? String(sheet.sampleValues[sheetKey] || "").slice(0, 80) : "";
+}
+
+function dataImportSourceDefinitionExists(plan = {}) {
+  if (!plan.reportType || plan.reportType === "unknown") return false;
+  const sourceSystem = dataImportNormalizeText(plan.sourceSystem || "");
+  return (dataImport2State.sourceDefinitions || []).some(source => {
+    if (source.active === false || source.reportType !== plan.reportType) return false;
+    const definedSystem = dataImportNormalizeText(source.sourceSystem || "");
+    return !sourceSystem || !definedSystem || definedSystem.includes(sourceSystem) || sourceSystem.includes(definedSystem);
+  });
+}
+
+function dataImportBuildNewSourceReviewItems() {
+  const batch = dataImport2State.pendingBatch;
+  if (!batch?.files?.length) return [];
+  const seen = new Set();
+  return batch.files.filter(plan => !dataImportSourceDefinitionExists(plan)).map(plan => {
+    const key = `${dataImportNormalizeText(plan.sourceSystem)}::${plan.reportType || "unknown"}::${plan.name}`;
+    if (seen.has(key)) return null;
+    seen.add(key);
+    return {
+      id: plan.fileId,
+      fileName: plan.name,
+      sourceSystem: plan.sourceSystem || "Unknown",
+      reportType: plan.reportType || "unknown",
+      reportTypeLabel: plan.reportTypeLabel || "Needs Review",
+      uploadedAt: batch.uploadedAt,
+      communities: plan.communities || [],
+      reason: plan.reportType === "unknown" ? "Report type is not identified yet." : "This source variation is not in the active source definition list."
+    };
+  }).filter(Boolean);
+}
+
+function dataImportMappingConflictKeys() {
+  const groups = new Map();
+  (dataImport2State.mappingRules || []).filter(rule => !rule.locked && rule.status !== "Ignored").forEach(rule => {
+    const key = dataImportNormalizeText(rule.originalField);
+    if (!key) return;
+    if (!groups.has(key)) groups.set(key, new Set());
+    groups.get(key).add(rule.canonicalField);
+  });
+  return new Set(Array.from(groups.entries()).filter(([, destinations]) => destinations.size > 1).map(([key]) => key));
+}
+
+function dataImportBuildMappingReviewItems() {
+  const items = [];
+  const conflicts = dataImportMappingConflictKeys();
+  const batch = dataImport2State.pendingBatch;
+  if (batch?.files?.length) {
+    batch.files.forEach(plan => {
+      const lowFields = plan.lowConfidenceFields || [];
+      const lowKeys = new Set(lowFields.map(field => dataImportNormalizeText(field.originalField)));
+      lowFields.forEach((field, index) => {
+        const sampleValue = field.sampleValue || dataImportSampleForPlanHeader(plan, field.originalField);
+        const savedRule = dataImportFindSavedRuleForHeader(field.originalField, { reportType: plan.reportType, sourceSystem: plan.sourceSystem, sampleValue });
+        if (savedRule && !savedRule.locked) return;
+        const suggestedField = field.suggestedField || dataImportSuggestDestinationForHeader(field.originalField, { reportType: plan.reportType, sourceSystem: plan.sourceSystem, sampleValue }).field;
+        items.push({
+          id: `pending_${batch.id}_${plan.fileId}_low_${index}_${dataImportSlug(field.originalField)}`,
+          kind: "pending",
+          isNew: true,
+          status: "Low Confidence",
+          sourceSystem: plan.sourceSystem || "Unknown",
+          reportType: plan.reportType || "unknown",
+          reportTypeLabel: plan.reportTypeLabel || dataImportReportLabel(plan.reportType),
+          sourceFile: plan.name,
+          sheetName: dataImportHeaderSheetForPlan(plan, field.originalField),
+          originalField: field.originalField,
+          sampleValue,
+          detectedDataType: field.detectedDataType || dataImportInferFieldDataType(field.originalField, sampleValue),
+          currentField: "",
+          suggestedField,
+          confidence: field.confidence || 70,
+          lastUpdated: batch.uploadedAt,
+          updatedBy: "ATLAS detection",
+          uploadBatch: batch.id,
+          downstreamModules: dataImportDestinationModules(suggestedField, plan.downstreamUses)
+        });
+      });
+      (plan.unmappedHeaders || []).forEach((header, index) => {
+        if (lowKeys.has(dataImportNormalizeText(header))) return;
+        const sampleValue = dataImportSampleForPlanHeader(plan, header);
+        const suggestion = dataImportSuggestDestinationForHeader(header, { reportType: plan.reportType, sourceSystem: plan.sourceSystem, sampleValue });
+        const savedRule = dataImportFindSavedRuleForHeader(header, { reportType: plan.reportType, sourceSystem: plan.sourceSystem, sampleValue });
+        if (savedRule && !savedRule.locked) return;
+        items.push({
+          id: `pending_${batch.id}_${plan.fileId}_new_${index}_${dataImportSlug(header)}`,
+          kind: "pending",
+          isNew: true,
+          status: "Needs Mapping",
+          sourceSystem: plan.sourceSystem || "Unknown",
+          reportType: plan.reportType || "unknown",
+          reportTypeLabel: plan.reportTypeLabel || dataImportReportLabel(plan.reportType),
+          sourceFile: plan.name,
+          sheetName: dataImportHeaderSheetForPlan(plan, header),
+          originalField: header,
+          sampleValue,
+          detectedDataType: dataImportInferFieldDataType(header, sampleValue),
+          currentField: "",
+          suggestedField: suggestion.field || "",
+          confidence: suggestion.confidence || null,
+          lastUpdated: batch.uploadedAt,
+          updatedBy: "ATLAS detection",
+          uploadBatch: batch.id,
+          downstreamModules: dataImportDestinationModules(suggestion.field, plan.downstreamUses)
+        });
+      });
+    });
+  }
+  (dataImport2State.mappingRules || []).forEach(rule => {
+    const conflict = conflicts.has(dataImportNormalizeText(rule.originalField));
+    const status = rule.canonicalField === "__ignored__" || rule.status === "Ignored" ? "Ignored" : conflict ? "Conflict" : "Mapped";
+    items.push({
+      id: `rule_${rule.id}`,
+      kind: "rule",
+      ruleId: rule.id,
+      locked: !!rule.locked,
+      isNew: false,
+      status,
+      sourceSystem: rule.sourceSystem || "Global",
+      reportType: rule.reportType || "",
+      reportTypeLabel: rule.reportType ? dataImportReportLabel(rule.reportType) : "Global rule",
+      sourceFile: rule.sourceFile || "Saved mapping rule",
+      sheetName: rule.sheetName || "Any tab",
+      originalField: rule.originalField,
+      sampleValue: rule.sampleValue || "",
+      detectedDataType: rule.detectedDataType || "",
+      currentField: rule.canonicalField,
+      suggestedField: rule.suggestedField || rule.canonicalField,
+      confidence: rule.confidence,
+      lastUpdated: rule.updatedAt || rule.savedAt || "",
+      updatedBy: rule.updatedBy || rule.savedBy || "ATLAS",
+      uploadBatch: "",
+      downstreamModules: dataImportDestinationModules(rule.canonicalField)
+    });
+  });
+  const rank = { "Needs Mapping": 0, "Conflict": 1, "Low Confidence": 2, "Mapped": 3, "Ignored": 4 };
+  return items.sort((a, b) => {
+    const rankDiff = (rank[a.status] ?? 9) - (rank[b.status] ?? 9);
+    if (rankDiff) return rankDiff;
+    if (a.isNew !== b.isNew) return a.isNew ? -1 : 1;
+    const dateDiff = (Date.parse(b.lastUpdated || "") || 0) - (Date.parse(a.lastUpdated || "") || 0);
+    if (dateDiff) return dateDiff;
+    return String(a.originalField || "").localeCompare(String(b.originalField || ""));
+  });
+}
+
+function dataImportMappingReviewCounts(items = []) {
+  return {
+    newSources: dataImportBuildNewSourceReviewItems().length,
+    unmappedFields: items.filter(item => item.status === "Needs Mapping").length,
+    lowConfidence: items.filter(item => item.status === "Low Confidence").length,
+    conflicts: items.filter(item => item.status === "Conflict").length
+  };
+}
+
+function dataImportFilterMappingReviewItems(items = []) {
+  const filter = dataImport2State.mappingReviewFilter || "needs";
+  const sourceFilter = dataImport2State.mappingSourceFilter || "";
+  const reportFilter = dataImport2State.mappingReportFilter || "";
+  const batchFilter = dataImport2State.mappingBatchFilter || "";
+  const search = dataImportNormalizeText(dataImport2State.mappingSearch || "");
+  return items.filter(item => {
+    if (filter === "needs" && !["Needs Mapping", "Conflict", "Low Confidence"].includes(item.status)) return false;
+    if (filter === "new" && !item.isNew) return false;
+    if (filter === "low" && item.status !== "Low Confidence") return false;
+    if (filter === "conflict" && item.status !== "Conflict") return false;
+    if (filter === "mapped" && item.status !== "Mapped") return false;
+    if (filter === "ignored" && item.status !== "Ignored") return false;
+    if (sourceFilter && item.sourceSystem !== sourceFilter) return false;
+    if (reportFilter && item.reportType !== reportFilter) return false;
+    if (batchFilter && item.uploadBatch !== batchFilter) return false;
+    if (search) {
+      const haystack = dataImportNormalizeText(`${item.originalField} ${item.sourceFile} ${item.sourceSystem} ${item.reportTypeLabel} ${dataImportMappingDestinationLabel(item.currentField || item.suggestedField)}`);
+      if (!haystack.includes(search)) return false;
+    }
+    return true;
+  });
+}
+
+function setDataImportMappingReviewFilter(filter) {
+  dataImport2State.mappingReviewFilter = ["needs","new","low","conflict","mapped","ignored","all"].includes(filter) ? filter : "needs";
+  persistDataImport2State();
+  renderTab();
+}
+
+function setDataImportMappingSelectFilter(key, value) {
+  if (["mappingSourceFilter","mappingReportFilter","mappingBatchFilter","mappingSearch"].includes(key)) {
+    dataImport2State[key] = String(value || "");
+    persistDataImport2State();
+    renderTab();
+  }
+}
+
+function updateDataImportMappingDraft(itemId, destination) {
+  dataImport2State.mappingDrafts = {
+    ...(dataImport2State.mappingDrafts || {}),
+    [itemId]: String(destination || "")
+  };
+  if (destination === "__create_custom__") dataImport2State.selectedMappingPreviewId = itemId;
+}
+
+function toggleDataImportMappingSelection(itemId, selected) {
+  const ids = new Set(dataImport2State.selectedMappingIds || []);
+  if (selected) ids.add(itemId);
+  else ids.delete(itemId);
+  dataImport2State.selectedMappingIds = Array.from(ids).slice(0, 80);
+}
+
+function dataImportFindMappingReviewItem(itemId) {
+  return dataImportBuildMappingReviewItems().find(item => item.id === itemId) || null;
+}
+
+function dataImportSelectedDestinationForItem(item = {}) {
+  return (dataImport2State.mappingDrafts || {})[item.id] || item.currentField || item.suggestedField || "";
+}
+
+function dataImportUpsertMappingRuleFromItem(item = {}, canonicalField = "", options = {}) {
+  if (!item.originalField || !canonicalField) return false;
+  if (canonicalField === "__create_custom__") {
+    alert("Create the new ATLAS field first, then choose it from the Map To list.");
+    dataImport2State.selectedMappingPreviewId = item.id;
+    return false;
+  }
+  const priorDestination = item.currentField || "";
+  const destinationChanged = priorDestination && priorDestination !== canonicalField;
+  if (destinationChanged && !options.skipLiveConfirm) {
+    const impacted = Array.from(new Set([...dataImportDestinationModules(priorDestination), ...dataImportDestinationModules(canonicalField)])).slice(0, 6);
+    const warning = impacted.length
+      ? `Changing this mapping may affect: ${impacted.join(", ")}. Continue?`
+      : "Changing this mapping may affect live reporting. Continue?";
+    if (!confirm(warning)) return false;
+  }
+  const now = new Date().toISOString();
+  const existingRule = item.ruleId ? (dataImport2State.mappingRules || []).find(rule => rule.id === item.ruleId) : null;
+  const editableMatch = !existingRule || existingRule.locked
+    ? (dataImport2State.mappingRules || []).find(rule => !rule.locked && dataImportNormalizeText(rule.originalField) === dataImportNormalizeText(item.originalField))
+    : existingRule;
+  const reason = options.reason || (destinationChanged ? "Admin override" : canonicalField === "__ignored__" ? "Field intentionally ignored" : "Mapping approved");
+  const nextRule = {
+    id: editableMatch?.id || dataImportMakeId("map"),
+    originalField: item.originalField,
+    canonicalField,
+    sourceSystem: item.sourceSystem || editableMatch?.sourceSystem || "Global",
+    reportType: item.reportType || editableMatch?.reportType || "",
+    sourceFile: item.sourceFile || editableMatch?.sourceFile || "",
+    sheetName: item.sheetName || editableMatch?.sheetName || "",
+    sampleValue: item.sampleValue || editableMatch?.sampleValue || "",
+    detectedDataType: item.detectedDataType || editableMatch?.detectedDataType || "",
+    scope: "Global",
+    status: canonicalField === "__ignored__" ? "Ignored" : "Mapped",
+    confidence: item.confidence || editableMatch?.confidence || null,
+    suggestedField: item.suggestedField || editableMatch?.suggestedField || canonicalField,
+    savedBy: editableMatch?.savedBy || "Admin",
+    savedAt: editableMatch?.savedAt || now,
+    updatedBy: "Admin",
+    updatedAt: now,
+    locked: false
+  };
+  if (editableMatch) {
+    dataImport2State.mappingRules = (dataImport2State.mappingRules || []).map(rule => rule.id === editableMatch.id ? nextRule : rule);
+  } else {
+    dataImport2State.mappingRules = [nextRule, ...(dataImport2State.mappingRules || [])];
+  }
+  dataImport2State.mappingAuditTrail = [{
+    id: dataImportMakeId("mapaudit"),
+    changedAt: now,
+    changedBy: "Admin",
+    sourceField: item.originalField,
+    previousDestination: priorDestination,
+    newDestination: canonicalField,
+    sourceSystem: item.sourceSystem || "Global",
+    reportType: item.reportType || "",
+    sourceFile: item.sourceFile || "",
+    uploadBatch: item.uploadBatch || "",
+    reason,
+    downstreamModules: dataImportDestinationModules(canonicalField, item.downstreamModules || [])
+  }, ...(dataImport2State.mappingAuditTrail || [])].slice(0, 140);
+  delete dataImport2State.mappingDrafts?.[item.id];
+  dataImport2State.selectedMappingIds = (dataImport2State.selectedMappingIds || []).filter(id => id !== item.id);
+  dataImport2State.selectedMappingPreviewId = "";
+  return true;
+}
+
 function saveDataImportMappingRule() {
   const originalField = document.getElementById("data-import-map-original")?.value?.trim() || "";
   const canonicalField = document.getElementById("data-import-map-canonical")?.value?.trim() || "";
@@ -46685,17 +47364,22 @@ function saveDataImportMappingRule() {
     alert("Enter both the source field and the ATLAS field.");
     return;
   }
-  dataImport2State.mappingRules = [{
-    id: dataImportMakeId("map"),
+  const saved = dataImportUpsertMappingRuleFromItem({
+    id: `manual_${dataImportSlug(originalField)}`,
     originalField,
-    canonicalField,
+    currentField: "",
+    suggestedField: canonicalField,
     sourceSystem: "Global",
-    savedBy: "Admin",
-    savedAt: new Date().toISOString(),
-    locked: false
-  }, ...(dataImport2State.mappingRules || [])];
-  persistDataImport2State();
-  renderTab();
+    sourceFile: "Manual mapping rule",
+    sheetName: "Any tab",
+    detectedDataType: "",
+    sampleValue: "",
+    downstreamModules: dataImportDestinationModules(canonicalField)
+  }, canonicalField, { skipLiveConfirm: true, reason: "Manual global mapping" });
+  if (saved) {
+    persistDataImport2State();
+    renderTab();
+  }
 }
 
 function deleteDataImportMappingRule(ruleId) {
@@ -46709,33 +47393,490 @@ function deleteDataImportMappingRule(ruleId) {
   renderTab();
 }
 
+function previewDataImportMappingItem(itemId) {
+  dataImport2State.selectedMappingPreviewId = itemId;
+  persistDataImport2State();
+  renderTab();
+}
+
+function cancelDataImportMappingPreview() {
+  dataImport2State.selectedMappingPreviewId = "";
+  persistDataImport2State();
+  renderTab();
+}
+
+function saveDataImportMappingReviewItem(itemId) {
+  const item = dataImportFindMappingReviewItem(itemId);
+  if (!item) return;
+  const destination = dataImportSelectedDestinationForItem(item);
+  if (!destination) {
+    alert("Choose a destination before saving this mapping.");
+    return;
+  }
+  if (dataImportUpsertMappingRuleFromItem(item, destination)) {
+    persistDataImport2State();
+    renderTab();
+  }
+}
+
+function acceptDataImportMappingSuggestion(itemId) {
+  const item = dataImportFindMappingReviewItem(itemId);
+  if (!item?.suggestedField) {
+    alert("ATLAS does not have a confident suggestion for this source field yet.");
+    return;
+  }
+  dataImport2State.mappingDrafts = { ...(dataImport2State.mappingDrafts || {}), [itemId]: item.suggestedField };
+  dataImport2State.selectedMappingPreviewId = itemId;
+  persistDataImport2State();
+  renderTab();
+}
+
+function ignoreDataImportMappingItem(itemId) {
+  dataImport2State.mappingDrafts = { ...(dataImport2State.mappingDrafts || {}), [itemId]: "__ignored__" };
+  dataImport2State.selectedMappingPreviewId = itemId;
+  persistDataImport2State();
+  renderTab();
+}
+
+function saveSelectedDataImportMappings() {
+  const selectedIds = new Set(dataImport2State.selectedMappingIds || []);
+  const items = dataImportBuildMappingReviewItems().filter(item => selectedIds.has(item.id));
+  if (!items.length) {
+    alert("Select one or more mapping rows first.");
+    return;
+  }
+  let saved = 0;
+  items.forEach(item => {
+    const destination = dataImportSelectedDestinationForItem(item);
+    if (destination && dataImportUpsertMappingRuleFromItem(item, destination, { skipLiveConfirm: true, reason: "Batch mapping approval" })) saved += 1;
+  });
+  if (!saved) {
+    alert("Choose a destination for selected rows before saving.");
+    return;
+  }
+  persistDataImport2State();
+  renderTab();
+}
+
+function acceptHighConfidenceDataImportMappings() {
+  const items = dataImportBuildMappingReviewItems().filter(item => item.isNew && item.suggestedField && Number(item.confidence || 0) >= 80);
+  if (!items.length) {
+    alert("No high-confidence new suggestions are waiting.");
+    return;
+  }
+  items.forEach(item => dataImportUpsertMappingRuleFromItem(item, item.suggestedField, { skipLiveConfirm: true, reason: "High-confidence suggestion accepted" }));
+  persistDataImport2State();
+  renderTab();
+}
+
+function ignoreSelectedDataImportMappings() {
+  const selectedIds = new Set(dataImport2State.selectedMappingIds || []);
+  const items = dataImportBuildMappingReviewItems().filter(item => selectedIds.has(item.id));
+  if (!items.length) {
+    alert("Select one or more mapping rows first.");
+    return;
+  }
+  items.forEach(item => dataImportUpsertMappingRuleFromItem(item, "__ignored__", { skipLiveConfirm: true, reason: "Batch ignored by Admin" }));
+  persistDataImport2State();
+  renderTab();
+}
+
+function applySameDestinationToSimilarDataImportMappings() {
+  const selectedIds = new Set(dataImport2State.selectedMappingIds || []);
+  const selected = dataImportBuildMappingReviewItems().filter(item => selectedIds.has(item.id));
+  const base = selected[0];
+  if (!base) {
+    alert("Select one source field first.");
+    return;
+  }
+  const destination = dataImportSelectedDestinationForItem(base);
+  if (!destination) {
+    alert("Choose a destination on the selected row first.");
+    return;
+  }
+  const tokens = dataImportNormalizeText(base.originalField).split(" ").filter(token => token.length > 3);
+  if (!tokens.length) {
+    alert("ATLAS needs a more descriptive source field to find similar rows.");
+    return;
+  }
+  const items = dataImportBuildMappingReviewItems().filter(item =>
+    item.isNew &&
+    item.id !== base.id &&
+    tokens.some(token => dataImportNormalizeText(item.originalField).includes(token))
+  );
+  if (!items.length) {
+    alert("No similar new source fields are waiting.");
+    return;
+  }
+  items.forEach(item => dataImportUpsertMappingRuleFromItem(item, destination, { skipLiveConfirm: true, reason: "Applied same destination to similar fields" }));
+  persistDataImport2State();
+  renderTab();
+}
+
+function addDataImportSourceDefinitionFromPending(fileId) {
+  const plan = dataImport2State.pendingBatch?.files?.find(file => file.fileId === fileId);
+  if (!plan) return;
+  if (dataImportSourceDefinitionExists(plan)) {
+    alert("This source definition is already active.");
+    return;
+  }
+  const def = dataImportGetReportDef(plan.reportType);
+  dataImport2State.sourceDefinitions = [{
+    id: dataImportMakeId("srcdef"),
+    sourceName: plan.reportType === "unknown" ? plan.name.replace(/\.[^.]+$/, "") : plan.reportTypeLabel,
+    sourceSystem: plan.sourceSystem || "Unknown",
+    reportType: plan.reportType || "unknown",
+    description: `Added from ${plan.name}.`,
+    expectedFrequency: def?.freshness?.label || "Admin configured",
+    expectedFields: (plan.sampleSummary?.headers || []).slice(0, 10).join(", "),
+    modules: (def?.dependencies || plan.downstreamUses || []).join(", "),
+    active: true,
+    locked: false,
+    createdAt: new Date().toISOString(),
+    updatedBy: "Admin"
+  }, ...(dataImport2State.sourceDefinitions || [])];
+  persistDataImport2State();
+  renderTab();
+}
+
+function saveDataImportSourceDefinition() {
+  const sourceName = document.getElementById("data-import-source-name")?.value?.trim() || "";
+  const sourceSystem = document.getElementById("data-import-source-system")?.value?.trim() || "";
+  const reportType = document.getElementById("data-import-source-report-type")?.value || "unknown";
+  if (!sourceName) {
+    alert("Enter a source name before saving.");
+    return;
+  }
+  dataImport2State.sourceDefinitions = [{
+    id: dataImportMakeId("srcdef"),
+    sourceName,
+    sourceSystem,
+    reportType,
+    description: document.getElementById("data-import-source-description")?.value?.trim() || "",
+    expectedFrequency: document.getElementById("data-import-source-frequency")?.value?.trim() || "",
+    expectedFields: document.getElementById("data-import-source-fields")?.value?.trim() || "",
+    modules: document.getElementById("data-import-source-modules")?.value?.trim() || "",
+    active: true,
+    locked: false,
+    createdAt: new Date().toISOString(),
+    updatedBy: "Admin"
+  }, ...(dataImport2State.sourceDefinitions || [])];
+  persistDataImport2State();
+  renderTab();
+}
+
+function toggleDataImportSourceDefinition(sourceId) {
+  dataImport2State.sourceDefinitions = (dataImport2State.sourceDefinitions || []).map(source =>
+    source.id === sourceId ? { ...source, active: source.active === false, updatedBy: "Admin" } : source
+  );
+  persistDataImport2State();
+  renderTab();
+}
+
+function saveDataImportCustomField() {
+  const fieldName = document.getElementById("data-import-custom-field-name")?.value?.trim() || "";
+  const category = document.getElementById("data-import-custom-field-category")?.value || "Financial / Other";
+  if (!fieldName) {
+    alert("Enter the new ATLAS field name before saving.");
+    return;
+  }
+  const fieldKey = `custom_${dataImportSlug(fieldName)}`;
+  if ((dataImport2State.customFields || []).some(field => field.fieldKey === fieldKey)) {
+    alert("That custom field already exists.");
+    return;
+  }
+  dataImport2State.customFields = [{
+    id: dataImportMakeId("customfield"),
+    fieldKey,
+    fieldName,
+    category,
+    dataType: document.getElementById("data-import-custom-field-type")?.value || "Text",
+    description: document.getElementById("data-import-custom-field-description")?.value?.trim() || "",
+    storesHistory: document.getElementById("data-import-custom-field-history")?.value !== "no",
+    recordBehavior: document.getElementById("data-import-custom-field-behavior")?.value || "current_state",
+    modules: document.getElementById("data-import-custom-field-modules")?.value?.trim() || "",
+    createdAt: new Date().toISOString(),
+    createdBy: "Admin"
+  }, ...(dataImport2State.customFields || [])];
+  const previewId = dataImport2State.selectedMappingPreviewId;
+  if (previewId && (dataImport2State.mappingDrafts || {})[previewId] === "__create_custom__") {
+    dataImport2State.mappingDrafts[previewId] = fieldKey;
+  }
+  persistDataImport2State();
+  renderTab();
+}
+
+function restoreDataImportMappingAudit(auditId) {
+  const audit = (dataImport2State.mappingAuditTrail || []).find(item => item.id === auditId);
+  if (!audit?.previousDestination) {
+    alert("No previous mapping is available to restore.");
+    return;
+  }
+  const item = {
+    id: `restore_${audit.id}`,
+    originalField: audit.sourceField,
+    currentField: audit.newDestination,
+    suggestedField: audit.previousDestination,
+    sourceSystem: audit.sourceSystem,
+    reportType: audit.reportType,
+    sourceFile: audit.sourceFile,
+    sheetName: "Restored from audit",
+    uploadBatch: audit.uploadBatch
+  };
+  dataImportUpsertMappingRuleFromItem(item, audit.previousDestination, { reason: "Restored previous mapping" });
+  persistDataImport2State();
+  renderTab();
+}
+
+function renderDataImportMappingReviewSummary(counts) {
+  const cards = [
+    ["new", counts.newSources, "New Sources", "warn"],
+    ["needs", counts.unmappedFields, "Unmapped Fields", "bad"],
+    ["low", counts.lowConfidence, "Low Confidence", "warn"],
+    ["conflict", counts.conflicts, "Conflicts", "bad"]
+  ];
+  return `<div class="data-import2-summary-grid">${cards.map(([filter, value, label, tone]) =>
+    `<button class="data-import2-summary-card ${tone} ${dataImport2State.mappingReviewFilter === filter ? "active" : ""}" onclick="setDataImportMappingReviewFilter('${filter}')">
+      <div class="data-import2-summary-value">${escapeHtml(value)}</div>
+      <div class="data-import2-summary-label">${escapeHtml(label)}</div>
+    </button>`
+  ).join("")}</div>`;
+}
+
+function renderDataImportNewSourceQueue(rows = []) {
+  return `<div class="data-import2-card">
+    <div class="data-import2-section-title"><i class="ph ph-sparkle"></i>New / Unmapped Sources</div>
+    ${rows.length ? `<div class="data-import2-review-list">${rows.map(row => `<div class="data-import2-source-card">
+      <div><div class="data-import2-review-title">${escapeHtml(row.reportTypeLabel)}</div><div class="data-import2-review-meta">${escapeHtml(row.fileName)} · ${escapeHtml(row.reason)}</div></div>
+      <div><div class="data-import2-small-label">Source System</div><strong>${escapeHtml(row.sourceSystem)}</strong></div>
+      <div><div class="data-import2-small-label">Communities</div><div class="data-import2-review-meta">${escapeHtml((row.communities || []).slice(0, 5).join(", ") || "Not detected")}</div></div>
+      <button class="btn btn-blue btn-sm" onclick='addDataImportSourceDefinitionFromPending(${JSON.stringify(row.id)})'>Add Source</button>
+    </div>`).join("")}</div>` : `<div class="data-import2-detail-panel">No new source definitions are waiting. Newly uploaded report types, tabs, or source system variations will appear here first.</div>`}
+  </div>`;
+}
+
+function renderDataImportMappingPreview() {
+  const item = dataImportFindMappingReviewItem(dataImport2State.selectedMappingPreviewId);
+  if (!item) return "";
+  const destination = dataImportSelectedDestinationForItem(item);
+  const modules = dataImportDestinationModules(destination, item.downstreamModules || []);
+  return `<div class="data-import2-preview-panel">
+    <div class="data-import2-section-title"><i class="ph ph-eye"></i>Proposed Mapping</div>
+    <div class="data-import2-preview-cols">
+      <div><div class="data-import2-small-label">Source</div><strong>${escapeHtml(item.originalField)}</strong><div class="data-import2-review-meta">${escapeHtml(item.sourceSystem)} → ${escapeHtml(item.reportTypeLabel)}<br>${escapeHtml(item.sourceFile)} · ${escapeHtml(item.sheetName)}</div></div>
+      <div><div class="data-import2-small-label">Destination</div><strong>${escapeHtml(dataImportDestinationCategory(destination))}</strong><div class="data-import2-review-meta">${escapeHtml(dataImportMappingDestinationLabel(destination || "Choose destination"))}</div></div>
+      <div><div class="data-import2-small-label">Example Incoming Value</div><strong>${escapeHtml(item.sampleValue || "No sample captured")}</strong><div class="data-import2-review-meta">${escapeHtml(item.detectedDataType || "Type not detected")}</div></div>
+      <div><div class="data-import2-small-label">Downstream Impact</div><div class="data-import2-review-meta">${escapeHtml(modules.slice(0, 6).join(", ") || "No live module dependency configured yet.")}</div></div>
+    </div>
+    <div class="data-import2-inline-actions" style="margin-top:10px">
+      <button class="btn btn-blue btn-sm" onclick='saveDataImportMappingReviewItem(${JSON.stringify(item.id)})'>Save Mapping</button>
+      <button class="btn btn-gray btn-sm" onclick="cancelDataImportMappingPreview()">Cancel</button>
+    </div>
+  </div>`;
+}
+
+function renderDataImportMappingToolbar(items = []) {
+  const sourceOptions = Array.from(new Set(items.map(item => item.sourceSystem).filter(Boolean))).sort();
+  const reportOptions = Array.from(new Map(items.filter(item => item.reportType).map(item => [item.reportType, item.reportTypeLabel || dataImportReportLabel(item.reportType)])).entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  const batchOptions = Array.from(new Set(items.map(item => item.uploadBatch).filter(Boolean))).sort().reverse();
+  const filterButtons = [
+    ["needs", "Needs Mapping"],
+    ["new", "Newly Uploaded"],
+    ["low", "Low Confidence"],
+    ["conflict", "Conflict"],
+    ["mapped", "Mapped"],
+    ["ignored", "Ignored"],
+    ["all", "All"]
+  ];
+  return `<div>
+    <div class="data-import2-tabs" style="margin-top:10px">${filterButtons.map(([key, label]) =>
+      `<button class="data-import2-tab${dataImport2State.mappingReviewFilter === key ? " active" : ""}" onclick="setDataImportMappingReviewFilter('${key}')">${escapeHtml(label)}</button>`
+    ).join("")}</div>
+    <div class="data-import2-review-toolbar">
+      <label class="data-import2-field"><div class="data-import2-small-label">Source System</div><select onchange="setDataImportMappingSelectFilter('mappingSourceFilter', this.value)"><option value="">All</option>${sourceOptions.map(source => `<option value="${escapeHtml(source)}"${dataImport2State.mappingSourceFilter === source ? " selected" : ""}>${escapeHtml(source)}</option>`).join("")}</select></label>
+      <label class="data-import2-field"><div class="data-import2-small-label">Report Type</div><select onchange="setDataImportMappingSelectFilter('mappingReportFilter', this.value)"><option value="">All</option>${reportOptions.map(([value, label]) => `<option value="${escapeHtml(value)}"${dataImport2State.mappingReportFilter === value ? " selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select></label>
+      <label class="data-import2-field"><div class="data-import2-small-label">Upload Batch</div><select onchange="setDataImportMappingSelectFilter('mappingBatchFilter', this.value)"><option value="">All</option>${batchOptions.map(batch => `<option value="${escapeHtml(batch)}"${dataImport2State.mappingBatchFilter === batch ? " selected" : ""}>${escapeHtml(batch)}</option>`).join("")}</select></label>
+      <label class="data-import2-field"><div class="data-import2-small-label">Search</div><input value="${escapeHtml(dataImport2State.mappingSearch || "")}" placeholder="Source field, file, destination" onchange="setDataImportMappingSelectFilter('mappingSearch', this.value)"></label>
+      <div class="data-import2-inline-actions">
+        <button class="btn btn-blue btn-sm" onclick="saveSelectedDataImportMappings()">Save Selected</button>
+        <button class="btn btn-gray btn-sm" onclick="acceptHighConfidenceDataImportMappings()">Accept High Confidence</button>
+        <button class="btn btn-gray btn-sm" onclick="ignoreSelectedDataImportMappings()">Ignore Selected</button>
+        <button class="btn btn-gray btn-sm" onclick="applySameDestinationToSimilarDataImportMappings()">Apply Same Destination</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function dataImportMappingRowClass(item = {}) {
+  if (item.status === "Needs Mapping") return "needs";
+  if (item.status === "Low Confidence") return "low";
+  if (item.status === "Conflict") return "conflict";
+  return item.isNew ? "new" : "";
+}
+
+function renderDataImportMappingReviewList(items = []) {
+  if (!items.length) return `<div class="data-import2-detail-panel" style="margin-top:12px">No mapping records match the current filters.</div>`;
+  const selectedIds = new Set(dataImport2State.selectedMappingIds || []);
+  return `<div class="data-import2-review-list">${items.slice(0, 140).map(item => {
+    const destination = dataImportSelectedDestinationForItem(item);
+    const confidence = Number(item.confidence || 0);
+    return `<div class="data-import2-review-row ${dataImportMappingRowClass(item)}">
+      <div><input type="checkbox" ${selectedIds.has(item.id) ? "checked" : ""} onchange='toggleDataImportMappingSelection(${JSON.stringify(item.id)}, this.checked)' aria-label="Select mapping row"></div>
+      <div>
+        <div class="data-import2-review-title">${escapeHtml(item.originalField)}</div>
+        <div class="data-import2-review-meta">${escapeHtml(item.sourceSystem)} · ${escapeHtml(item.reportTypeLabel)}<br>${escapeHtml(item.sourceFile)} · ${escapeHtml(item.sheetName)}</div>
+        <div class="data-import2-review-flags">
+          ${item.isNew ? `<span class="data-import2-chip bad">New Source</span>` : ""}
+          ${item.status === "Needs Mapping" ? `<span class="data-import2-chip bad">Needs Mapping</span>` : ""}
+          ${item.status === "Low Confidence" ? `<span class="data-import2-chip warn">Review Required</span>` : ""}
+          ${item.status === "Conflict" ? `<span class="data-import2-chip bad">Conflict</span>` : ""}
+          ${item.locked ? `<span class="data-import2-chip">Default</span>` : ""}
+        </div>
+      </div>
+      <div>
+        <div class="data-import2-small-label">Sample / Type</div>
+        <div class="data-import2-review-title">${escapeHtml(item.sampleValue || "No sample")}</div>
+        <div class="data-import2-review-meta">${escapeHtml(item.detectedDataType || "Type not detected")}<br>Updated ${escapeHtml(item.lastUpdated ? dataImportFormatTimestamp(item.lastUpdated) : "Default")} by ${escapeHtml(item.updatedBy || "ATLAS")}</div>
+      </div>
+      <div>
+        <div class="data-import2-small-label">Map To</div>
+        <select class="data-import2-map-select" onchange='updateDataImportMappingDraft(${JSON.stringify(item.id)}, this.value)'>${renderDataImportDestinationOptions(destination, item.suggestedField)}</select>
+        <div class="data-import2-review-meta">Current: ${escapeHtml(dataImportMappingDestinationLabel(item.currentField || "Unmapped"))}<br>Suggested: ${escapeHtml(item.suggestedField ? dataImportMappingDestinationLabel(item.suggestedField) : "ATLAS needs Admin input")}${confidence && confidence < 85 ? ` · ${escapeHtml(confidence)}%` : ""}</div>
+      </div>
+      <div>
+        <span class="data-import2-status ${dataImportStatusClass(item.status)}">${escapeHtml(item.status)}</span>
+        <div class="data-import2-inline-actions" style="margin-top:8px">
+          ${item.suggestedField ? `<button class="btn btn-gray btn-sm" onclick='acceptDataImportMappingSuggestion(${JSON.stringify(item.id)})'>Accept Suggestion</button>` : ""}
+          <button class="btn btn-blue btn-sm" onclick='previewDataImportMappingItem(${JSON.stringify(item.id)})'>Preview</button>
+          <button class="btn btn-gray btn-sm" onclick='ignoreDataImportMappingItem(${JSON.stringify(item.id)})'>Ignore</button>
+        </div>
+      </div>
+    </div>`;
+  }).join("")}</div>`;
+}
+
+function renderDataImportSourceDefinitionsManager() {
+  const reportOptions = [`<option value="unknown">Needs Review / New Report</option>`, ...DATA_IMPORT_REPORT_ORDER.map(type => `<option value="${type}">${escapeHtml(dataImportReportLabel(type))}</option>`)].join("");
+  const rows = (dataImport2State.sourceDefinitions || []).slice(0, 18);
+  return `<div class="data-import2-card">
+    <div class="data-import2-section-title"><i class="ph ph-database"></i>Add Data Source</div>
+    <div class="data-import2-form-grid wide">
+      <label class="data-import2-field"><div class="data-import2-small-label">Source Name</div><input id="data-import-source-name" placeholder="Entrata Box Score"></label>
+      <label class="data-import2-field"><div class="data-import2-small-label">Source System</div><input id="data-import-source-system" placeholder="Entrata"></label>
+      <label class="data-import2-field"><div class="data-import2-small-label">Report Type</div><select id="data-import-source-report-type">${reportOptions}</select></label>
+      <label class="data-import2-field"><div class="data-import2-small-label">Expected Frequency</div><input id="data-import-source-frequency" placeholder="Weekly"></label>
+      <label class="data-import2-field data-import2-field-wide"><div class="data-import2-small-label">Description</div><input id="data-import-source-description" placeholder="What this report contains"></label>
+      <label class="data-import2-field"><div class="data-import2-small-label">Expected Fields</div><input id="data-import-source-fields" placeholder="Occupancy, applications, leads"></label>
+      <label class="data-import2-field"><div class="data-import2-small-label">Feeds Modules</div><input id="data-import-source-modules" placeholder="Portfolio Dashboard, DLR"></label>
+    </div>
+    <div class="data-import2-inline-actions" style="margin-top:10px"><button class="btn btn-blue btn-sm" onclick="saveDataImportSourceDefinition()">+ Add Data Source</button></div>
+    <div class="data-import2-compact-table" style="margin-top:12px">
+      <table class="data-import2-table">
+        <thead><tr><th>Source</th><th>Report Type</th><th>Frequency</th><th>Feeds</th><th>Status</th></tr></thead>
+        <tbody>${rows.map(source => `<tr>
+          <td><strong>${escapeHtml(source.sourceName)}</strong><div class="data-import2-file-meta">${escapeHtml(source.sourceSystem || "Any source system")}</div></td>
+          <td>${escapeHtml(source.reportType ? dataImportReportLabel(source.reportType) : "Needs Review")}</td>
+          <td>${escapeHtml(source.expectedFrequency || "Not set")}</td>
+          <td>${escapeHtml(source.modules || "Not set")}</td>
+          <td><span class="data-import2-status ${source.active === false ? "info" : "ready"}">${escapeHtml(source.active === false ? "Inactive" : "Active")}</span><div style="margin-top:5px"><button class="btn btn-gray btn-sm" onclick='toggleDataImportSourceDefinition(${JSON.stringify(source.id)})'>${source.active === false ? "Activate" : "Deactivate"}</button></div></td>
+        </tr>`).join("")}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function renderDataImportCustomFieldManager() {
+  const categories = DATA_IMPORT_DESTINATION_GROUPS.map(group => group.label);
+  return `<div class="data-import2-card">
+    <div class="data-import2-section-title"><i class="ph ph-plus-circle"></i>Create New ATLAS Field</div>
+    <div class="data-import2-form-grid wide">
+      <label class="data-import2-field"><div class="data-import2-small-label">Field Name</div><input id="data-import-custom-field-name" placeholder="Renewal Risk Score"></label>
+      <label class="data-import2-field"><div class="data-import2-small-label">Category / Module</div><select id="data-import-custom-field-category">${categories.map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("")}</select></label>
+      <label class="data-import2-field"><div class="data-import2-small-label">Data Type</div><select id="data-import-custom-field-type"><option>Text</option><option>Number</option><option>Currency</option><option>Percentage</option><option>Date</option><option>Status</option></select></label>
+      <label class="data-import2-field"><div class="data-import2-small-label">Record Type</div><select id="data-import-custom-field-behavior"><option value="current_state">Current-State Data</option><option value="historical">Historical Snapshot</option><option value="lifecycle">Lifecycle Data</option></select></label>
+      <label class="data-import2-field"><div class="data-import2-small-label">Store History</div><select id="data-import-custom-field-history"><option value="yes">Yes</option><option value="no">No</option></select></label>
+      <label class="data-import2-field data-import2-field-wide"><div class="data-import2-small-label">Description</div><input id="data-import-custom-field-description" placeholder="How ATLAS should interpret this field"></label>
+      <label class="data-import2-field"><div class="data-import2-small-label">Allowed Modules</div><input id="data-import-custom-field-modules" placeholder="Reporting, Bonus Engine"></label>
+    </div>
+    <div class="data-import2-inline-actions" style="margin-top:10px"><button class="btn btn-blue btn-sm" onclick="saveDataImportCustomField()">+ Create New ATLAS Field</button></div>
+  </div>`;
+}
+
+function renderDataImportMappingHistory() {
+  const audits = dataImport2State.mappingAuditTrail || [];
+  if (!audits.length) return `<div class="data-import2-detail-panel">No mapping changes have been saved yet. Each Admin mapping approval will appear here with the previous and new destination.</div>`;
+  return `<div class="data-import2-compact-table">
+    <table class="data-import2-table">
+      <thead><tr><th>Source Field</th><th>Change</th><th>Impact</th><th>Audit</th><th></th></tr></thead>
+      <tbody>${audits.slice(0, 36).map(audit => `<tr>
+        <td><strong>${escapeHtml(audit.sourceField)}</strong><div class="data-import2-file-meta">${escapeHtml(audit.sourceSystem || "Global")} · ${escapeHtml(audit.sourceFile || "Mapping rule")}</div></td>
+        <td>${escapeHtml(dataImportMappingDestinationLabel(audit.previousDestination || "Unmapped"))} → <strong>${escapeHtml(dataImportMappingDestinationLabel(audit.newDestination))}</strong></td>
+        <td>${escapeHtml((audit.downstreamModules || []).slice(0, 5).join(", ") || "No downstream module listed")}</td>
+        <td>${escapeHtml(dataImportFormatTimestamp(audit.changedAt))}<div class="data-import2-file-meta">${escapeHtml(audit.changedBy || "Admin")} · ${escapeHtml(audit.reason || "Mapping updated")}</div></td>
+        <td>${audit.previousDestination ? `<button class="btn btn-gray btn-sm" onclick='restoreDataImportMappingAudit(${JSON.stringify(audit.id)})'>Restore Previous</button>` : ""}</td>
+      </tr>`).join("")}</tbody>
+    </table>
+  </div>`;
+}
+
+function renderDataImportAliasCoverage() {
+  const grouped = new Map();
+  (dataImport2State.mappingRules || []).forEach(rule => {
+    if (!rule.canonicalField || rule.canonicalField === "__ignored__") return;
+    if (!grouped.has(rule.canonicalField)) grouped.set(rule.canonicalField, []);
+    grouped.get(rule.canonicalField).push(rule.originalField);
+  });
+  const rows = Array.from(grouped.entries()).sort((a, b) => dataImportMappingDestinationLabel(a[0]).localeCompare(dataImportMappingDestinationLabel(b[0]))).slice(0, 18);
+  return `<div class="data-import2-compact-table">
+    <table class="data-import2-table">
+      <thead><tr><th>ATLAS Destination</th><th>Source Aliases Feeding It</th></tr></thead>
+      <tbody>${rows.map(([destination, aliases]) => `<tr>
+        <td><strong>${escapeHtml(dataImportMappingDestinationLabel(destination))}</strong><div class="data-import2-file-meta">${escapeHtml(dataImportDestinationCategory(destination))}</div></td>
+        <td>${aliases.slice(0, 8).map(alias => `<span class="data-import2-chip">${escapeHtml(alias)}</span>`).join(" ")}${aliases.length > 8 ? ` <span class="data-import2-chip info">${aliases.length - 8} more</span>` : ""}</td>
+      </tr>`).join("")}</tbody>
+    </table>
+  </div>`;
+}
+
 function renderDataImportMappingRulesView() {
-  const canonicalOptions = Object.keys(DATA_IMPORT_FIELD_ALIASES).sort().map(field => `<option value="${field}">${escapeHtml(dataImportCanonicalFieldLabel(field))}</option>`).join("");
-  const rules = dataImport2State.mappingRules || [];
+  const allItems = dataImportBuildMappingReviewItems();
+  const visibleItems = dataImportFilterMappingReviewItems(allItems);
+  const counts = dataImportMappingReviewCounts(allItems);
+  const newSourceRows = dataImportBuildNewSourceReviewItems();
   return `<div class="data-import2-shell">
     <div class="data-import2-card">
-      <div class="data-import2-section-title"><i class="ph ph-arrows-left-right"></i>Mapping Rules</div>
+      <div class="data-import2-section-title"><i class="ph ph-arrows-left-right"></i>Mapping Review Needed</div>
+      ${renderDataImportMappingReviewSummary(counts)}
+      <div class="data-import2-detail-panel" style="margin-top:10px">ATLAS suggests a destination when it recognizes a source field. Admin users can accept it, choose a different destination, intentionally ignore the field, or create a new ATLAS field before approving future imports.</div>
+      ${renderDataImportMappingPreview()}
+    </div>
+    ${renderDataImportNewSourceQueue(newSourceRows)}
+    <div class="data-import2-card">
+      <div class="data-import2-section-title"><i class="ph ph-list-checks"></i>Source Field Mapping Queue</div>
+      ${renderDataImportMappingToolbar(allItems)}
+      ${renderDataImportMappingReviewList(visibleItems)}
+    </div>
+    <div class="data-import2-card">
+      <div class="data-import2-section-title"><i class="ph ph-arrows-clockwise"></i>Add Global Mapping Rule</div>
       <div class="data-import2-form-grid">
         <label class="data-import2-field"><div class="data-import2-small-label">Source Field</div><input id="data-import-map-original" placeholder="Occ %"></label>
-        <label class="data-import2-field"><div class="data-import2-small-label">ATLAS Field</div><select id="data-import-map-canonical">${canonicalOptions}</select></label>
+        <label class="data-import2-field"><div class="data-import2-small-label">Map To</div><select id="data-import-map-canonical">${renderDataImportDestinationOptions()}</select></label>
         <button class="btn btn-blue btn-sm" onclick="saveDataImportMappingRule()">Save Globally</button>
       </div>
     </div>
+    ${renderDataImportSourceDefinitionsManager()}
+    ${renderDataImportCustomFieldManager()}
     <div class="data-import2-card">
       <div class="data-import2-section-title"><i class="ph ph-stack"></i>Metric Source Hierarchy</div>
       <div class="data-import2-detail-panel">Default KPI precedence is Box Score first for overlapping operational KPIs, with other source values preserved as history and lineage. Metric-level overrides can be taught here as ATLAS adds more sources.</div>
     </div>
     <div class="data-import2-card">
-      <table class="data-import2-table">
-        <thead><tr><th>Source Field</th><th>ATLAS Field</th><th>Scope</th><th>Saved</th><th></th></tr></thead>
-        <tbody>${rules.slice(0, 90).map(rule => `<tr>
-          <td>${escapeHtml(rule.originalField)}</td>
-          <td>${escapeHtml(dataImportCanonicalFieldLabel(rule.canonicalField))}</td>
-          <td>${escapeHtml(rule.sourceSystem || "Global")}</td>
-          <td>${rule.savedAt ? escapeHtml(dataImportFormatTimestamp(rule.savedAt)) : "Default"}</td>
-          <td>${rule.locked ? `<span class="data-import2-chip">Default</span>` : `<button class="btn btn-gray btn-sm" onclick='deleteDataImportMappingRule(${JSON.stringify(rule.id)})'>Delete</button>`}</td>
-        </tr>`).join("")}</tbody>
-      </table>
+      <div class="data-import2-section-title"><i class="ph ph-git-branch"></i>Destination Alias Coverage</div>
+      ${renderDataImportAliasCoverage()}
+    </div>
+    <div class="data-import2-card">
+      <div class="data-import2-section-title"><i class="ph ph-clock-counter-clockwise"></i>Mapping Audit Trail</div>
+      ${renderDataImportMappingHistory()}
     </div>
   </div>`;
 }

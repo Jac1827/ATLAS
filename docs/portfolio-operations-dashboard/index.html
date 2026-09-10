@@ -614,8 +614,12 @@
   .data-import2-matrix th { text-align: left; padding: 9px 10px; font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); border-bottom: 1px solid var(--border); background: var(--bg3); }
   .data-import2-matrix td { padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 0.68rem; vertical-align: top; }
   .data-import2-matrix tr:last-child td { border-bottom: 0; }
+  .data-import2-matrix tr.inactive-community-row td { background: rgba(101,119,134,0.05); color: var(--muted); }
   .data-import2-cell-button { border: 0; background: transparent; padding: 0; cursor: pointer; text-align: left; font-family: inherit; }
+  .data-import2-cell-status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+  .data-import2-cell-date { font-size: 0.58rem; color: var(--muted); line-height: 1.2; }
   .data-import2-cell-detail { color: var(--muted); font-size: 0.58rem; margin-top: 3px; }
+  .data-import2-community-status-note { font-size: 0.58rem; color: var(--muted); margin-top: 3px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
   .data-import2-activity { display: grid; gap: 8px; }
   .data-import2-activity-row { display: grid; grid-template-columns: minmax(140px, 0.75fr) minmax(180px, 1fr) minmax(120px, 0.55fr) minmax(130px, 0.55fr); gap: 8px; align-items: center; border: 1px solid var(--border); border-radius: 8px; background: var(--bg3); padding: 10px; }
   .data-import2-table { width: 100%; border-collapse: collapse; }
@@ -46022,6 +46026,16 @@ function dataImportFilterActiveReportingCommunities(communityNames = []) {
     });
 }
 
+function dataImportCatalogCommunityNames() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(OPS_PROPERTY_CATALOG_KEY) || "{}");
+    const entries = Array.isArray(parsed?.properties) ? parsed.properties : [];
+    return entries.map(entry => String(entry?.name || entry?.displayName || entry?.propertyName || "").trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 function dataImportGetHealthCommunityNames() {
   let reportableNames = [];
   try {
@@ -46036,6 +46050,32 @@ function dataImportGetHealthCommunityNames() {
     : [];
   const primaryNames = reportableNames.length ? reportableNames : savedActiveNames;
   return dataImportFilterActiveReportingCommunities(primaryNames.length ? primaryNames : getAllCommunityNames());
+}
+
+function dataImportGetMatrixCommunityNames(activeCommunityNames = dataImportGetHealthCommunityNames()) {
+  const seen = new Set();
+  const active = [];
+  const inactive = [];
+  const pushName = (name) => {
+    const canonicalName = dataImportCanonicalCommunityName(name);
+    const key = dataImportNormalizeText(canonicalName);
+    if (!key || seen.has(key)) return;
+    if (typeof isRetiredAtlasPropertyName === "function" && isRetiredAtlasPropertyName(canonicalName)) return;
+    const isActive = dataImportIsActiveReportingCommunity(canonicalName);
+    const hasInactiveStatus = dataImportExplicitCommunityStatus(canonicalName) === "inactive"
+      || dataImportCatalogCommunityStatus(canonicalName) === "inactive"
+      || dataImportSharedCommunityStatus(canonicalName) === "inactive";
+    if (!isActive && !hasInactiveStatus) return;
+    seen.add(key);
+    (isActive ? active : inactive).push(canonicalName);
+  };
+  activeCommunityNames.forEach(pushName);
+  [
+    ...getAllCommunityNames(),
+    ...dataImportCatalogCommunityNames()
+  ].forEach(pushName);
+  const byName = (a, b) => a.localeCompare(b);
+  return [...active.sort(byName), ...inactive.sort(byName)];
 }
 
 function dataImportIssueBelongsToActiveCommunity(issue = {}) {
@@ -46135,9 +46175,23 @@ function dataImportSummarizeDownstreamAudit(audits = []) {
   return `${verified}/${rows.length} routed checks verified${needsReview ? ` · ${needsReview} need review` : ""}`;
 }
 
+function dataImportBuildStatusDateLabel(status, archive, hasFallback, checkedAt) {
+  if (archive) {
+    const sourceDate = archive.dataDateIso || archive.uploadedAt || "";
+    return sourceDate ? `Data ${dataImportFormatDate(sourceDate)}` : "Date unavailable";
+  }
+  if (hasFallback) {
+    return `${FULL_MONTHS[getSelectedDashboardMonthIndex()]} saved`;
+  }
+  return `Checked ${dataImportFormatDate(checkedAt, "Today")}`;
+}
+
 function dataImportBuildHealthModel() {
-  const communities = dataImportGetHealthCommunityNames();
+  const activeCommunities = dataImportGetHealthCommunityNames();
+  const communities = dataImportGetMatrixCommunityNames(activeCommunities);
+  const checkedAt = new Date().toISOString();
   const rows = communities.map(communityName => {
+    const isActive = dataImportIsActiveReportingCommunity(communityName);
     const cells = DATA_IMPORT_REPORT_ORDER.map(reportType => {
       const def = dataImportGetReportDef(reportType);
       const archive = dataImportLatestArchiveFor(communityName, reportType);
@@ -46171,6 +46225,7 @@ function dataImportBuildHealthModel() {
         reportLabel: def.label,
         status,
         ageLabel,
+        statusDateLabel: dataImportBuildStatusDateLabel(status, archive, hasFallback, checkedAt),
         detail,
         archive,
         exceptions: relatedExceptions,
@@ -46181,9 +46236,12 @@ function dataImportBuildHealthModel() {
       };
     });
     const fullyCurrent = cells.every(cell => cell.status === "Fresh");
-    return { communityName, cells, fullyCurrent };
+    return { communityName, cells, fullyCurrent, isActive };
   });
-  const cells = rows.flatMap(row => row.cells);
+  const activeRows = rows.filter(row => row.isActive);
+  const inactiveRows = rows.filter(row => !row.isActive);
+  const cells = activeRows.flatMap(row => row.cells);
+  const allCells = rows.flatMap(row => row.cells);
   const freshCount = cells.filter(cell => cell.status === "Fresh").length;
   const staleCount = cells.filter(cell => cell.status === "Stale").length;
   const missingCount = cells.filter(cell => cell.status === "Missing").length;
@@ -46194,10 +46252,13 @@ function dataImportBuildHealthModel() {
     : 0;
   return {
     communities,
+    activeCommunities,
+    inactiveCommunities: inactiveRows.map(row => row.communityName),
     rows,
     cells,
+    allCells,
     healthScore,
-    fullyCurrentCommunities: rows.filter(row => row.fullyCurrent).length,
+    fullyCurrentCommunities: activeRows.filter(row => row.fullyCurrent).length,
     staleFeeds: staleCount,
     missingFeeds: missingCount,
     conflicts: conflictCount,
@@ -46252,7 +46313,7 @@ function renderDataImportHero(health) {
       <div class="data-import2-copy">Raw Entrata and APTIQ reports move through detection, property matching, field mapping, validation, approval, archive, and dashboard refresh from one workspace.</div>
     </div>
     <div class="data-import2-kpis">
-      <div class="data-import2-kpi"><div class="data-import2-kpi-label">Portfolio Health</div><div class="data-import2-kpi-value">${health.healthScore}%</div><div class="data-import2-kpi-sub">${health.communities.length} communities tracked</div></div>
+      <div class="data-import2-kpi"><div class="data-import2-kpi-label">Portfolio Health</div><div class="data-import2-kpi-value">${health.healthScore}%</div><div class="data-import2-kpi-sub">${health.activeCommunities.length} active communities tracked${health.inactiveCommunities.length ? ` · ${health.inactiveCommunities.length} inactive below matrix` : ""}</div></div>
       <div class="data-import2-kpi"><div class="data-import2-kpi-label">Fully Current</div><div class="data-import2-kpi-value">${health.fullyCurrentCommunities}</div><div class="data-import2-kpi-sub">all required feeds fresh</div></div>
       <div class="data-import2-kpi"><div class="data-import2-kpi-label">Missing</div><div class="data-import2-kpi-value">${health.missingFeeds}</div><div class="data-import2-kpi-sub">feed gaps</div></div>
       <div class="data-import2-kpi"><div class="data-import2-kpi-label">Stale</div><div class="data-import2-kpi-value">${health.staleFeeds}</div><div class="data-import2-kpi-sub">outside SLA</div></div>
@@ -46309,7 +46370,7 @@ function dataImportSelectedHealthCell(health) {
   const key = dataImport2State.selectedIssueKey;
   if (!key) return null;
   const [communityName, reportType] = key.split("::");
-  return health.cells.find(cell => cell.communityName === communityName && cell.reportType === reportType) || null;
+  return (health.allCells || health.cells || []).find(cell => cell.communityName === communityName && cell.reportType === reportType) || null;
 }
 
 function openDataImportHealthCell(communityName, reportType) {
@@ -46323,11 +46384,14 @@ function renderDataImportMatrix(health, compact = false) {
   const rows = health.rows || [];
   if (!rows.length) return `<div class="data-import2-detail-panel">No communities are available for data health tracking yet.</div>`;
   const head = DATA_IMPORT_REPORT_ORDER.map(type => `<th>${escapeHtml(dataImportReportLabel(type))}</th>`).join("");
-  const body = rows.map(row => `<tr>
-    <td><strong>${escapeHtml(row.communityName)}</strong></td>
+  const body = rows.map(row => `<tr class="${row.isActive ? "" : "inactive-community-row"}">
+    <td><strong>${escapeHtml(row.communityName)}</strong>${row.isActive ? "" : `<div class="data-import2-community-status-note">Inactive</div>`}</td>
     ${row.cells.map(cell => `<td>
       <button class="data-import2-cell-button" onclick='openDataImportHealthCell(${JSON.stringify(cell.communityName)}, ${JSON.stringify(cell.reportType)})'>
-        <span class="data-import2-status ${dataImportStatusClass(cell.status)}">${escapeHtml(cell.status)}</span>
+        <span class="data-import2-cell-status-line">
+          <span class="data-import2-status ${dataImportStatusClass(cell.status)}">${escapeHtml(cell.status)}</span>
+          <span class="data-import2-cell-date">${escapeHtml(cell.statusDateLabel || cell.ageLabel)}</span>
+        </span>
         <div class="data-import2-cell-detail">${escapeHtml(cell.ageLabel)}</div>
       </button>
     </td>`).join("")}
@@ -46337,8 +46401,8 @@ function renderDataImportMatrix(health, compact = false) {
   return renderWindowshadeCard({
     key: "import2_freshness_matrix",
     title: "Community Data Freshness Matrix",
-    subtitle: "Freshness is tracked by community and report type.",
-    countLabel: `${health.staleFeeds} stale · ${health.missingFeeds} missing · ${health.conflicts} conflicts`,
+    subtitle: "Freshness is tracked by community and report type. Active communities appear first; inactive communities stay at the bottom for reference.",
+    countLabel: `${health.staleFeeds} stale · ${health.missingFeeds} missing · ${health.conflicts} conflicts${health.inactiveCommunities.length ? ` · ${health.inactiveCommunities.length} inactive` : ""}`,
     collapsedPreview: "Expand to review the community-by-report freshness matrix.",
     bodyHtml: table
   });
@@ -46355,6 +46419,7 @@ function renderDataImportHealthDetail(health) {
       Status: ${escapeHtml(cell.status)}<br>
       Most recent upload: ${archive ? escapeHtml(dataImportFormatTimestamp(archive.uploadedAt)) : "None"}<br>
       Reporting date: ${archive ? escapeHtml(archive.dataDateLabel || archive.reportingPeriodLabel || "Not detected") : "Missing"}<br>
+      Status date: ${escapeHtml(cell.statusDateLabel || "Not recorded")}<br>
       Age: ${escapeHtml(cell.ageLabel)}<br>
       Import batch: ${archive ? escapeHtml(archive.batchId) : "None"}<br>
       Outstanding problems: ${cell.exceptions.length || 0}<br>
@@ -46532,15 +46597,6 @@ function renderDataImportOverview(health) {
     <div class="data-import2-card">
       <div class="data-import2-section-title"><i class="ph ph-activity"></i>Recent Import Activity</div>
       ${renderDataImportRecentActivity()}
-    </div>
-    <div class="data-import2-card">
-      <div class="data-import2-section-title"><i class="ph ph-flow-arrow"></i>Ingestion Flow</div>
-      <div class="data-import2-workflow">
-        <div class="data-import2-step"><div class="data-import2-step-num">Detect</div><div class="data-import2-step-title">Identify reports</div><div class="data-import2-step-copy">Type, source, fields, period, tabs, and communities.</div></div>
-        <div class="data-import2-step"><div class="data-import2-step-num">Validate</div><div class="data-import2-step-title">Separate clean data</div><div class="data-import2-step-copy">Missing, stale, invalid, unmapped, conflict, duplicate.</div></div>
-        <div class="data-import2-step"><div class="data-import2-step-num">Approve</div><div class="data-import2-step-title">Route accepted rows</div><div class="data-import2-step-copy">Selected files and communities can move forward.</div></div>
-        <div class="data-import2-step"><div class="data-import2-step-num">Refresh</div><div class="data-import2-step-title">Update ATLAS</div><div class="data-import2-step-copy">Archive source files and refresh dependent modules.</div></div>
-      </div>
     </div>
     <div style="grid-column:1 / -1">${renderDataImportMatrix(health, true)}</div>
   </div>`;

@@ -544,6 +544,24 @@
     });
   }
 
+  async function resendSignupConfirmation(email) {
+    const config = requireConfigured();
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    if (!isEmailAllowed(cleanEmail, config)) throw new Error("This email domain is not approved for Atlas.");
+    if (!cleanEmail) throw new Error("Email is required.");
+    const redirectTo = authRedirectUrl(config);
+    const payload = await request(authUrl(withRedirectTo("/resend", redirectTo)), {
+      method: "POST",
+      auth: false,
+      body: JSON.stringify({
+        email: cleanEmail,
+        type: "signup"
+      })
+    });
+    saveLastAuthEvent({ type: "signup_confirmation_resent", email: cleanEmail });
+    return payload;
+  }
+
   async function refreshSession() {
     const currentSession = getSession();
     if (!currentSession?.refresh_token) return currentSession;
@@ -763,6 +781,17 @@
         saveLastAuthEvent({ type: "invite_activation_requested", email: cleanEmail });
         return payload;
       } catch (error) {
+        const rawMessage = String(error?.message || error || "");
+        if (Number(error?.status) === 503 || rawMessage.toLowerCase().includes("activation email service is not configured")) {
+          await resendSignupConfirmation(cleanEmail);
+          return {
+            ok: true,
+            email: cleanEmail,
+            action: "resend_confirmation",
+            fallback: true,
+            message: `ATLAS requested a pending activation email for ${cleanEmail}. If no email arrives, ask an ATLAS admin to restore the activation email service and resend the invitation.`
+          };
+        }
         throw createCentralError(normalizeAtlasAuthErrorMessage(error?.message, Number(error?.status) || 0, { email: cleanEmail, action: "request_activation" }), {
           status: Number(error?.status) || 0,
           retryAfterSeconds: Number(error?.retryAfterSeconds) || 0

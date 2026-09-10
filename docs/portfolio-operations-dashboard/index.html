@@ -1231,16 +1231,13 @@
         <div class="card-title">Community Workspace</div>
         <div class="workspace-title-row">
           <div class="workspace-title" id="workspace-title">ATLAS RISE Portfolio</div>
-          <div class="workspace-pill is-saved" id="workspace-status-pill">Portfolio Scope</div>
+          <div class="workspace-pill is-saved" id="workspace-status-pill">Updated pending</div>
         </div>
         <div class="workspace-subline" id="workspace-subline">Community, reporting month, and unit-count context stays pinned here so you can swap properties without hunting through the Overview tab.</div>
       </div>
     </div>
     <div class="workspace-footer">
-      <div>
-        <div class="card-title" style="margin-bottom:4px">Community Selection</div>
-        <div class="workspace-community-count" id="workspace-count-summary">Select a community workspace to edit operations, imports, and bonus rollups.</div>
-      </div>
+      <div class="workspace-community-count" id="workspace-count-summary" aria-hidden="true"></div>
       <div class="workspace-community-count" id="workspace-unit-note">Leave unit count blank to use the property default.</div>
     </div>
     <div class="workspace-snapshot" id="workspace-community-snapshot"></div>
@@ -10775,7 +10772,10 @@ function renderPropGrid() {
   if (workspaceTitle) workspaceTitle.textContent = getWorkspaceScopeDisplayName();
   if (workspaceStatus) {
     const isSavedScope = isPortfolioWorkspaceSelected() ? true : !!savedData[p.name];
-    workspaceStatus.textContent = isPortfolioWorkspaceSelected() ? "Portfolio Scope" : (isSavedScope ? "Saved Community" : "Draft Community");
+    const lastUpdatedIso = getWorkspaceLastUpdatedIso(details);
+    workspaceStatus.textContent = lastUpdatedIso
+      ? `Last updated ${formatSavedTimestampLabel(lastUpdatedIso)}`
+      : (isSavedScope ? "Last updated pending" : "Not saved yet");
     workspaceStatus.className = `workspace-pill${isSavedScope ? " is-saved" : ""}`;
   }
   if (workspaceSubline) {
@@ -10797,9 +10797,8 @@ function renderPropGrid() {
     workspaceSubline.textContent = `${isPortfolioWorkspaceSelected() ? `${details.length} communities · ${aggregate.totalUnits.toLocaleString()} units` : getHeaderSubText()} · Reporting month ${FULL_MONTHS[getSelectedDashboardMonthIndex()]} · ${scopeStorageLabel}.`;
   }
   if (workspaceCount) {
-    workspaceCount.textContent = isPortfolioWorkspaceSelected()
-      ? `Portfolio scope combines all saved community data for the selected month across reporting, overview, traffic, renewals, and reputation.`
-      : `Switch between communities here to manage setup, imports, renewals, and bonus logic without leaving the workspace.`;
+    workspaceCount.textContent = "";
+    workspaceCount.style.display = "none";
   }
   if (workspaceUnitNote) {
     workspaceUnitNote.textContent = isPortfolioWorkspaceSelected()
@@ -23258,6 +23257,25 @@ function formatSavedTimestampLabel(value) {
     hour: "numeric",
     minute: "2-digit"
   });
+}
+
+function getWorkspaceLastUpdatedIso(details = []) {
+  const candidates = [];
+  if (isPortfolioWorkspaceSelected()) {
+    (Array.isArray(details) ? details : []).forEach(detail => {
+      const record = savedData?.[detail.name] || {};
+      candidates.push(record.sharedSyncUpdatedAt, record.financialUpdatedAt, record.financialContractUpdatedAt);
+    });
+  } else {
+    const record = savedData?.[getProp().name] || {};
+    candidates.push(record.sharedSyncUpdatedAt, record.financialUpdatedAt, record.financialContractUpdatedAt);
+  }
+  candidates.push(dashboardSharedSyncMeta?.lastAppliedAt, dashboardSharedSyncMeta?.lastPushedAt, atlasPersistenceMeta?.lastSavedAt);
+  const latest = candidates
+    .map(value => ({ value: String(value || ""), time: Date.parse(String(value || "")) || 0 }))
+    .filter(item => item.value && item.time > 0)
+    .sort((a, b) => b.time - a.time)[0];
+  return latest?.value || "";
 }
 
 function buildPeriodKey(monthIdx, year = new Date().getFullYear()) {

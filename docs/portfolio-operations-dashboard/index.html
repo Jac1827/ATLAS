@@ -3018,6 +3018,8 @@ let marketSurveyData = defaultMarketSurveyData();
 let marketSurveyHistory = {};
 let communityFloorPlans = [];
 let floorPlanSelectionState = { community: {}, survey: {} };
+let portfolioPresentationImageLibraryView = "community";
+let portfolioPresentationImageLibraryCommunityName = "";
 let communityAddress = "";
 let communityMarket = "";
 let communityRegionalGrouping = "";
@@ -3359,6 +3361,32 @@ function normalizeFloorPlanLookupName(value) {
     .trim();
 }
 
+function normalizeFloorPlanApprovalStatus(value, fallback = "manual") {
+  const normalized = String(value ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (["needs_review", "approved", "manual", "imported", "rejected"].includes(normalized)) return normalized;
+  return fallback;
+}
+
+function isFloorPlanApprovedForReporting(plan = {}) {
+  const status = normalizeFloorPlanApprovalStatus(plan.approvalStatus, plan.approvedForReporting === false ? "needs_review" : "manual");
+  if (status === "needs_review" || status === "rejected") return Boolean(plan.approvedForReporting);
+  return plan.approvedForReporting !== false;
+}
+
+function getReportableCommunityFloorPlans(floorPlans = []) {
+  return normalizeCommunityFloorPlans(floorPlans).filter(plan => isFloorPlanApprovedForReporting(plan));
+}
+
+function formatFloorPlanBudgetSourceLabel(row = {}) {
+  const source = String(row.budgetRentSource || row.sourceFileName || row.sourceSheet || "").trim();
+  const basis = String(row.budgetRentBasis || "").trim();
+  if (/current[_\s-]*year[_\s-]*projected[_\s-]*target[_\s-]*blend/i.test(basis)) {
+    return `${source || "Budget upload"} · blended current-year projected/target rent`;
+  }
+  if (source) return source;
+  return "Manual setup";
+}
+
 function resolveRonaldoFloorPlanName(propertyName = "", unitType = "", row = {}) {
   const communityName = normalizeCommunityLookupName(matchPropertyName(propertyName, { fallbackToCurrent: false }) || propertyName);
   const planCode = normalizeFloorPlanLookupName(unitType);
@@ -3381,6 +3409,7 @@ function normalizeCommunityFloorPlans(data) {
     const beds = Number(row?.beds);
     const baths = Number(row?.baths);
     const units = Number(row?.units);
+    const approvalStatus = normalizeFloorPlanApprovalStatus(row?.approvalStatus, row?.approvedForReporting === false ? "needs_review" : "manual");
     return {
       id: getOrCreateFloorPlanRowId(row),
       name: String(row?.name ?? "").trim(),
@@ -3392,7 +3421,15 @@ function normalizeCommunityFloorPlans(data) {
       marketedRentSource: String(row?.marketedRentSource ?? "").trim(),
       beds: Number.isFinite(beds) && beds >= 0 ? beds : null,
       baths: Number.isFinite(baths) && baths >= 0 ? baths : null,
-      units: Number.isFinite(units) && units > 0 ? units : null
+      units: Number.isFinite(units) && units > 0 ? units : null,
+      budgetRentSource: String(row?.budgetRentSource ?? row?.sourceFileName ?? row?.sourceSheet ?? "").trim(),
+      budgetRentBasis: String(row?.budgetRentBasis ?? "").trim(),
+      sourceFileName: String(row?.sourceFileName ?? "").trim(),
+      sourceSheet: String(row?.sourceSheet ?? "").trim(),
+      approvalStatus,
+      approvedForReporting: row?.approvedForReporting !== undefined ? Boolean(row.approvedForReporting) : approvalStatus !== "needs_review",
+      approvedAt: String(row?.approvedAt ?? "").trim(),
+      approvedBy: String(row?.approvedBy ?? "").trim()
     };
   });
 }
@@ -3448,7 +3485,7 @@ function calculateWeightedFloorPlanAverage(rows = [], valueAccessor = row => row
 }
 
 function getCommunityFloorPlanRentMetrics(record = {}, surveyData = null) {
-  const varianceData = buildCommunityFloorPlanVarianceRows(record?.communityFloorPlans, surveyData ?? record?.marketSurveyData);
+  const varianceData = buildCommunityFloorPlanVarianceRows(getReportableCommunityFloorPlans(record?.communityFloorPlans), surveyData ?? record?.marketSurveyData);
   return {
     rows: varianceData.rows,
     marketRent: calculateWeightedFloorPlanAverage(varianceData.rows, row => row.marketRent),
@@ -3532,7 +3569,15 @@ function createEmptyCommunityFloorPlanRow() {
     marketedRentSource: "",
     beds: null,
     baths: null,
-    units: null
+    units: null,
+    budgetRentSource: "Manual setup",
+    budgetRentBasis: "manual",
+    sourceFileName: "",
+    sourceSheet: "",
+    approvalStatus: "manual",
+    approvedForReporting: true,
+    approvedAt: "",
+    approvedBy: ""
   };
 }
 
@@ -8847,10 +8892,39 @@ function confirmCommunityInactiveChange(propName, record = null) {
   return window.confirm(`Mark ${propName} inactive?\n\nThe community will be removed from current operational dashboards, active portfolio calculations, reporting selections, and routine property dropdowns. Historical data, configuration, floor plans, contacts, budgets, and imported records will remain preserved and can be restored automatically by reactivating the community.`);
 }
 
+function persistCommunityStatusToggle(propName, value) {
+  const matchedName = matchPropertyName(propName, { fallbackToCurrent: false }) || String(propName ?? "").trim() || getProp().name;
+  const status = normalizeCommunityStatus(value);
+  const timestamp = atlasSharedNow();
+  const record = getPropertyRecordForApply(matchedName, { useCurrentRecord: matchedName === getProp().name });
+  if (!record) return false;
+  record.communityStatus = status;
+  record.sharedSyncUpdatedAt = atlasLatestTimestamp(record.sharedSyncUpdatedAt, timestamp);
+  record.sharedSyncSource = "community_status_toggle";
+  if (matchedName === getProp().name) {
+    communityStatus = status;
+  }
+  const saved = persistPortfolioCommunityRecord(matchedName, record, {
+    source: "community_status_toggle",
+    timestamp,
+    manualField: "communityStatus",
+    forceFields: ["status"],
+    strictMarket: false,
+    strictPropertyType: false
+  });
+  if (saved !== false) {
+    if (!suppressDashboardSharedSyncPush && !atlasCentralLegacyBundleDisabled()) {
+      queueDashboardSharedSyncPush("community_status_toggle");
+    }
+    queueAtlasCentralDocumentPush("community_status_toggle");
+  }
+  return saved !== false;
+}
+
 function setPortfolioCommunityStatus(propName, value) {
   const status = normalizeCommunityStatus(value);
   if (status === "inactive" && !confirmCommunityInactiveChange(propName)) return;
-  updatePortfolioCommunityField(propName, "communityStatus", status);
+  persistCommunityStatusToggle(propName, status);
 }
 
 function defaultRenewalDetailRowsByMonth() {
@@ -12249,7 +12323,7 @@ function updateCommunityStatus(value) {
   const status = normalizeCommunityStatus(value);
   const propName = getProp().name;
   if (status === "inactive" && !confirmCommunityInactiveChange(propName, getCurrentCommunityRecord())) return;
-  updatePortfolioCommunityField(propName, "communityStatus", status);
+  persistCommunityStatusToggle(propName, status);
 }
 
 function addInvestorEmailContact() {
@@ -12289,7 +12363,7 @@ function addCommunityFloorPlanRow() {
 function updateCommunityFloorPlanField(index, field, value) {
   const nextPlans = normalizeCommunityFloorPlans(communityFloorPlans).map(entry => ({ ...entry }));
   while (nextPlans.length <= index) {
-    nextPlans.push({ id: makeFloorPlanId(), name: "", sqft: null, budgetRent: null, marketedRent: null, leasedPct: null, marketedRentSource: "", beds: null, baths: null, units: null });
+    nextPlans.push(createEmptyCommunityFloorPlanRow());
   }
   const target = nextPlans[index];
   if (!target) return;
@@ -12388,7 +12462,7 @@ function updatePortfolioCommunityFloorPlanField(propName, index, field, value) {
   const record = getPortfolioSetupCommunityRecord(propName);
   const nextPlans = normalizeCommunityFloorPlans(record.communityFloorPlans).map(entry => ({ ...entry }));
   while (nextPlans.length <= index) {
-    nextPlans.push({ id: makeFloorPlanId(), name: "", sqft: null, budgetRent: null, marketedRent: null, leasedPct: null, marketedRentSource: "", beds: null, baths: null });
+    nextPlans.push(createEmptyCommunityFloorPlanRow());
   }
   const target = nextPlans[index];
   if (!target) return;
@@ -12396,7 +12470,7 @@ function updatePortfolioCommunityFloorPlanField(propName, index, field, value) {
     target.name = String(value ?? "").trim();
   } else if (field === "marketedRentSource") {
     target.marketedRentSource = String(value ?? "").trim();
-  } else if (["sqft", "budgetRent", "marketedRent", "beds", "baths", "leasedPct"].includes(field)) {
+  } else if (["sqft", "budgetRent", "marketedRent", "beds", "baths", "leasedPct", "units"].includes(field)) {
     const numeric = Number(value);
     if (field === "leasedPct") {
       target[field] = Number.isFinite(numeric) && numeric >= 0 ? Math.min(numeric, 100) : null;
@@ -12543,6 +12617,10 @@ function syncFloorPlanSelectionUi(section, propName) {
   if (deleteButton) {
     deleteButton.disabled = selectedCount === 0;
   }
+  const approveButton = scope.querySelector("[data-floor-plan-approve-button]");
+  if (approveButton) {
+    approveButton.disabled = selectedCount === 0;
+  }
 }
 
 function deleteSelectedCommunityFloorPlans(propName) {
@@ -12557,6 +12635,40 @@ function deleteSelectedCommunityFloorPlans(propName) {
   clearFloorPlanSelection("community", propName);
   persistPortfolioSetupCommunityRecord(propName, record);
   return true;
+}
+
+function approveSelectedCommunityFloorPlans(propName) {
+  const record = getPortfolioSetupCommunityRecord(propName);
+  const selectedIds = new Set(getFloorPlanSelectionIds("community", propName));
+  if (selectedIds.size === 0) {
+    alert("Select one or more floor plans first, then approve them for reporting.");
+    return false;
+  }
+  const timestamp = new Date().toISOString();
+  const approver = typeof communityCommandUserLabel === "function" ? communityCommandUserLabel() : "ATLAS Admin";
+  let approvedCount = 0;
+  record.communityFloorPlans = normalizeCommunityFloorPlans(record.communityFloorPlans).map(plan => {
+    if (!selectedIds.has(String(plan.id || "").trim())) return plan;
+    approvedCount += 1;
+    return {
+      ...plan,
+      approvalStatus: "approved",
+      approvedForReporting: true,
+      approvedAt: timestamp,
+      approvedBy: approver
+    };
+  });
+  syncCommunityFloorPlanRentMetrics(record, record.currentMonth);
+  clearFloorPlanSelection("community", propName);
+  persistPortfolioSetupCommunityRecord(propName, record);
+  alert(`Approved ${approvedCount} floor plan${approvedCount === 1 ? "" : "s"} for reporting.`);
+  return true;
+}
+
+function approvePortfolioCommunityFloorPlanRow(propName, id) {
+  const key = matchPropertyName(propName, { fallbackToCurrent: false }) || getProp().name;
+  setFloorPlanSelectionIds("community", key, [id]);
+  return approveSelectedCommunityFloorPlans(key);
 }
 
 function deleteSelectedMarketSurveyFloorPlanRates(propName) {
@@ -12602,12 +12714,14 @@ function applySelectedCommunityFloorPlanField(propName) {
     const nextPlan = { ...plan };
     if (field === "name" || field === "marketedRentSource") {
       nextPlan[field] = String(rawValue ?? "").trim();
-    } else if (["sqft", "budgetRent", "marketedRent", "beds", "baths", "leasedPct"].includes(field)) {
+    } else if (["sqft", "budgetRent", "marketedRent", "beds", "baths", "leasedPct", "units"].includes(field)) {
       const numeric = Number(rawValue);
       if (!rawValue.toString().trim()) {
         nextPlan[field] = null;
       } else if (field === "leasedPct") {
         nextPlan[field] = Number.isFinite(numeric) && numeric >= 0 ? Math.min(numeric, 100) : nextPlan[field];
+      } else if (field === "units") {
+        nextPlan[field] = Number.isFinite(numeric) && numeric > 0 ? numeric : nextPlan[field];
       } else {
         nextPlan[field] = Number.isFinite(numeric) && numeric >= 0 ? numeric : nextPlan[field];
       }
@@ -13186,6 +13300,230 @@ function getPresentationImageInventory() {
     totalBytes,
     totalMb: totalBytes / (1024 * 1024)
   };
+}
+
+function getPortfolioPresentationImageCommunityNames() {
+  const names = getPortfolioSetupCommunityRecordsForMonth(getSelectedDashboardMonthIndex(), savedData, {
+    includeCurrent: true,
+    includeInactive: true
+  }).map(entry => entry.name);
+  return Array.from(new Set(names.length ? names : [...getAllCommunityNames(), getProp().name])).filter(Boolean);
+}
+
+function getPortfolioPresentationImageSelectedCommunityName() {
+  const names = getPortfolioPresentationImageCommunityNames();
+  const savedChoice = matchPropertyName(portfolioPresentationImageLibraryCommunityName, { fallbackToCurrent: false });
+  if (savedChoice && names.includes(savedChoice)) return savedChoice;
+  const setupChoice = matchPropertyName(portfolioSetupCommunityName, { fallbackToCurrent: false });
+  if (setupChoice && names.includes(setupChoice)) return setupChoice;
+  return names.includes(getProp().name) ? getProp().name : (names[0] || getProp().name);
+}
+
+function setPortfolioPresentationImageLibraryView(view) {
+  const normalized = String(view ?? "").trim().toLowerCase();
+  portfolioPresentationImageLibraryView = ["community", "site_team", "leadership"].includes(normalized) ? normalized : "community";
+  renderTab();
+  return false;
+}
+
+function setPortfolioPresentationImageLibraryCommunityName(name) {
+  portfolioPresentationImageLibraryCommunityName = matchPropertyName(name, { fallbackToCurrent: false }) || getProp().name;
+  renderTab();
+  return false;
+}
+
+function persistPortfolioPresentationImageRecord(propName, record) {
+  const matchedName = matchPropertyName(propName, { fallbackToCurrent: false }) || getProp().name;
+  return persistPortfolioSetupCommunityRecord(matchedName, record);
+}
+
+async function handlePortfolioCommunityPhotoLibraryUpload(input) {
+  const propName = getPortfolioPresentationImageSelectedCommunityName();
+  const fileList = Array.from(input?.files ?? []);
+  if (fileList.length === 0) return;
+  const record = getPortfolioSetupCommunityRecord(propName);
+  const existing = normalizeCommunityPhotoBank(record.photoBank);
+  const availableSlots = Math.max(0, 4 - existing.length);
+  const files = fileList.slice(0, availableSlots);
+  if (files.length === 0) {
+    alert(`${propName} already has 4 saved community photos. Remove one before adding more.`);
+    if (input) input.value = "";
+    return;
+  }
+  try {
+    const processed = await Promise.all(files.map(optimizeCommunityPhotoFile));
+    record.photoBank = [...existing, ...processed].slice(0, 4);
+    persistPortfolioPresentationImageRecord(propName, record);
+  } catch (error) {
+    alert(`Photo upload failed: ${error?.message ?? "Unknown error"}`);
+  } finally {
+    if (input) input.value = "";
+  }
+}
+
+function removePortfolioCommunityPhotoLibraryItem(propName, index) {
+  const matchedName = matchPropertyName(propName, { fallbackToCurrent: false }) || getPortfolioPresentationImageSelectedCommunityName();
+  const record = getPortfolioSetupCommunityRecord(matchedName);
+  const photos = normalizeCommunityPhotoBank(record.photoBank);
+  const removed = photos[index];
+  record.photoBank = photos.filter((_, idx) => idx !== index);
+  deleteStoredPhotoAsset(removed);
+  persistPortfolioPresentationImageRecord(matchedName, record);
+}
+
+function updatePortfolioCommunityTeamProfileLibraryName(propName, roleId, value) {
+  const matchedName = matchPropertyName(propName, { fallbackToCurrent: false }) || getPortfolioPresentationImageSelectedCommunityName();
+  const record = getPortfolioSetupCommunityRecord(matchedName);
+  const profiles = normalizeCommunityTeamProfiles(record.communityTeamProfiles, record.propertyTeamConfig);
+  if (!profiles[roleId]) return false;
+  profiles[roleId].name = String(value ?? "").trim();
+  record.communityTeamProfiles = profiles;
+  persistPortfolioPresentationImageRecord(matchedName, record);
+  return false;
+}
+
+async function handlePortfolioCommunityTeamProfileLibraryUpload(propName, roleId, input) {
+  const matchedName = matchPropertyName(propName, { fallbackToCurrent: false }) || getPortfolioPresentationImageSelectedCommunityName();
+  const file = input?.files?.[0];
+  if (!file) {
+    if (input) input.value = "";
+    return;
+  }
+  const record = getPortfolioSetupCommunityRecord(matchedName);
+  const profiles = normalizeCommunityTeamProfiles(record.communityTeamProfiles, record.propertyTeamConfig);
+  const profile = profiles[roleId];
+  if (!profile) {
+    if (input) input.value = "";
+    alert("That team slot is no longer available for the selected community.");
+    return;
+  }
+  try {
+    const previousPhoto = profile.photo;
+    profile.photo = await optimizeStaffPhotoFile(file);
+    deleteStoredPhotoAsset(previousPhoto);
+    record.communityTeamProfiles = profiles;
+    persistPortfolioPresentationImageRecord(matchedName, record);
+  } catch (error) {
+    alert(`Headshot upload failed: ${error?.message ?? "Unknown error"}`);
+  } finally {
+    if (input) input.value = "";
+  }
+}
+
+function removePortfolioCommunityTeamProfileLibraryPhoto(propName, roleId) {
+  const matchedName = matchPropertyName(propName, { fallbackToCurrent: false }) || getPortfolioPresentationImageSelectedCommunityName();
+  const record = getPortfolioSetupCommunityRecord(matchedName);
+  const profiles = normalizeCommunityTeamProfiles(record.communityTeamProfiles, record.propertyTeamConfig);
+  if (!profiles[roleId]) return false;
+  const previousPhoto = profiles[roleId].photo;
+  profiles[roleId].photo = null;
+  deleteStoredPhotoAsset(previousPhoto);
+  record.communityTeamProfiles = profiles;
+  persistPortfolioPresentationImageRecord(matchedName, record);
+  return false;
+}
+
+function updatePortfolioLeadershipImageLibraryName(roleIdx, value) {
+  const roles = getJacsTeamRoles();
+  if (!roles[roleIdx] || !isPresentationLeadershipRole(roles[roleIdx])) return false;
+  roles[roleIdx].name = String(value ?? "").trim();
+  const result = persistOpsGlobalData();
+  renderTab();
+  if (result?.ok === false) alert(`The name changed in this session, but it could not be saved. ${result.message}`);
+  return false;
+}
+
+function renderPortfolioPresentationImageLibraryDetail() {
+  const selectedView = ["community", "site_team", "leadership"].includes(portfolioPresentationImageLibraryView)
+    ? portfolioPresentationImageLibraryView
+    : "community";
+  const communityNames = getPortfolioPresentationImageCommunityNames();
+  const selectedCommunity = getPortfolioPresentationImageSelectedCommunityName();
+  const communityOptions = communityNames.map(name => `<option value="${escapeHtml(name)}" ${name === selectedCommunity ? "selected" : ""}>${escapeHtml(name)}</option>`).join("");
+  if (selectedView === "leadership") {
+    const leadershipRows = getJacsTeamRoles()
+      .map((role, roleIdx) => ({ role, roleIdx }))
+      .filter(entry => isPresentationLeadershipRole(entry.role))
+      .map(({ role, roleIdx }) => {
+        const photo = normalizePhotoAsset(role.photo);
+        return `<div class="report-hub-card" style="display:grid;grid-template-columns:72px minmax(180px,1fr) auto;gap:12px;align-items:center">
+          <div style="width:64px;height:64px;border-radius:50%;background:${photo ? `url('${photo.src}') center/cover` : "var(--bg2)"};border:1px solid var(--border)"></div>
+          <div>
+            <div style="font-size:0.72rem;font-weight:800;color:var(--text)">${escapeHtml(getRoleDisplayTitle(role))}</div>
+            <div style="font-size:0.64rem;color:var(--muted);margin:5px 0 4px">Person tied to this role</div>
+            <input type="text" value="${escapeHtml(role.name || "")}" placeholder="${escapeHtml(role.title || "Leadership name")}" onchange="updatePortfolioLeadershipImageLibraryName(${roleIdx},this.value)">
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+            <label class="btn btn-gray btn-sm" style="cursor:pointer">${photo ? "Replace" : "Upload"}
+              <input type="file" accept="${PRESENTATION_HEADSHOT_ACCEPT}" style="display:none" onchange="handleJacsRolePhotoUpload(${roleIdx},this)">
+            </label>
+            ${photo ? `<button class="btn btn-gray btn-sm" onclick="removeJacsRolePhoto(${roleIdx})">Delete</button>` : ""}
+          </div>
+        </div>`;
+      }).join("");
+    return `<div style="margin-top:12px;padding:12px;border:1px solid rgba(68,147,248,0.18);border-radius:12px;background:rgba(68,147,248,0.04)">
+      <div class="card-title" style="margin-bottom:8px">VP / Regional Headshots</div>
+      <div style="display:grid;gap:10px">${leadershipRows || `<div style="font-size:0.72rem;color:var(--muted)">No VP or Regional roles are configured yet.</div>`}</div>
+    </div>`;
+  }
+  const record = getPortfolioSetupCommunityRecord(selectedCommunity);
+  const selectorHtml = `<div style="display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+    <div style="min-width:240px">
+      <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Community</div>
+      <select onchange="setPortfolioPresentationImageLibraryCommunityName(this.value)">${communityOptions}</select>
+    </div>
+  </div>`;
+  if (selectedView === "site_team") {
+    const profiles = getConfiguredCommunityTeamProfiles(record.propertyTeamConfig, record.communityTeamProfiles);
+    const profileRows = profiles.map(profile => {
+      const photo = normalizePhotoAsset(profile.photo);
+      return `<div class="report-hub-card" style="display:grid;grid-template-columns:72px minmax(180px,1fr) auto;gap:12px;align-items:center">
+        <div style="width:64px;height:64px;border-radius:50%;background:${photo ? `url('${photo.src}') center/cover` : "var(--bg2)"};border:1px solid var(--border)"></div>
+        <div>
+          <div style="font-size:0.72rem;font-weight:800;color:var(--text)">${escapeHtml(profile.title)}</div>
+          <div style="font-size:0.64rem;color:var(--muted);margin:5px 0 4px">Person tied to ${escapeHtml(selectedCommunity)}</div>
+          <input type="text" value="${escapeHtml(profile.name || "")}" placeholder="${escapeHtml(profile.title)}" onchange='updatePortfolioCommunityTeamProfileLibraryName(${JSON.stringify(selectedCommunity)}, ${JSON.stringify(profile.roleId)}, this.value)'>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+          <label class="btn btn-gray btn-sm" style="cursor:pointer">${photo ? "Replace" : "Upload"}
+            <input type="file" accept="${PRESENTATION_HEADSHOT_ACCEPT}" style="display:none" onchange='handlePortfolioCommunityTeamProfileLibraryUpload(${JSON.stringify(selectedCommunity)}, ${JSON.stringify(profile.roleId)}, this)'>
+          </label>
+          ${photo ? `<button class="btn btn-gray btn-sm" onclick='removePortfolioCommunityTeamProfileLibraryPhoto(${JSON.stringify(selectedCommunity)}, ${JSON.stringify(profile.roleId)})'>Delete</button>` : ""}
+        </div>
+      </div>`;
+    }).join("");
+    return `<div style="margin-top:12px;padding:12px;border:1px solid rgba(68,147,248,0.18);border-radius:12px;background:rgba(68,147,248,0.04)">
+      <div class="card-title" style="margin-bottom:8px">Site Team Headshots</div>
+      ${selectorHtml}
+      <div style="display:grid;gap:10px">${profileRows || `<div style="font-size:0.72rem;color:var(--muted)">No site-team role slots are configured for ${escapeHtml(selectedCommunity)} yet.</div>`}</div>
+    </div>`;
+  }
+  const photos = normalizeCommunityPhotoBank(record.photoBank);
+  const photoRows = photos.map((photo, idx) => `<div class="report-hub-card" style="overflow:hidden">
+    <div style="aspect-ratio:16 / 9;background:#0d1117">
+      <img src="${photo.src}" alt="${escapeHtml(photo.name || `${selectedCommunity} photo ${idx + 1}`)}" style="width:100%;height:100%;object-fit:cover;display:block">
+    </div>
+    <div style="padding:10px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <div>
+        <div style="font-size:0.68rem;font-weight:700;color:var(--text)">${escapeHtml(photo.name || `Community Photo ${idx + 1}`)}</div>
+        <div style="font-size:0.6rem;color:var(--muted);margin-top:3px">${escapeHtml(selectedCommunity)}</div>
+      </div>
+      <button class="btn btn-gray btn-sm" onclick='removePortfolioCommunityPhotoLibraryItem(${JSON.stringify(selectedCommunity)}, ${idx})'>Delete</button>
+    </div>
+  </div>`).join("");
+  return `<div style="margin-top:12px;padding:12px;border:1px solid rgba(68,147,248,0.18);border-radius:12px;background:rgba(68,147,248,0.04)">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:8px">
+      <div>
+        <div class="card-title" style="margin-bottom:6px">Community Photos</div>
+        <div style="font-size:0.68rem;color:var(--muted)">Upload images and tie them directly to a community for reporting covers, DLRs, and presentation content.</div>
+      </div>
+      <label class="btn btn-blue btn-sm" style="cursor:pointer">Upload Photos
+        <input type="file" accept="image/*" multiple style="display:none" onchange="handlePortfolioCommunityPhotoLibraryUpload(this)">
+      </label>
+    </div>
+    ${selectorHtml}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">${photoRows || `<div style="font-size:0.72rem;color:var(--muted)">No community photos are saved for ${escapeHtml(selectedCommunity)} yet.</div>`}</div>
+  </div>`;
 }
 
 async function handleJacsRolePhotoUpload(roleIdx, input) {
@@ -20597,6 +20935,18 @@ function renderPortfolioScopePanel(title, subtitle, cardsHtml, bodyHtml) {
 
 function renderPortfolioPresentationImageLibrary() {
   const imageInventory = getPresentationImageInventory();
+  const activeView = ["community", "site_team", "leadership"].includes(portfolioPresentationImageLibraryView)
+    ? portfolioPresentationImageLibraryView
+    : "community";
+  const cardButtonStyle = (view) => [
+    "text-align:left",
+    "width:100%",
+    "cursor:pointer",
+    "appearance:none",
+    "font:inherit",
+    activeView === view ? "border-color:rgba(68,147,248,0.55)" : "",
+    activeView === view ? "background:rgba(68,147,248,0.08)" : ""
+  ].filter(Boolean).join(";");
   return `<div class="card mb4">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
       <div>
@@ -20610,27 +20960,28 @@ function renderPortfolioPresentationImageLibrary() {
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px">
-      <div class="report-hub-card">
+      <button type="button" class="report-hub-card" style="${cardButtonStyle("community")}" onclick="setPortfolioPresentationImageLibraryView('community')">
         <div class="card-title" style="margin-bottom:6px">Community Photos</div>
         <div style="font-size:1.4rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:#4493f8">${imageInventory.communityPhotos}</div>
         <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">Used for deck covers, DLR image treatments, and reporting content.</div>
-      </div>
-      <div class="report-hub-card">
+      </button>
+      <button type="button" class="report-hub-card" style="${cardButtonStyle("site_team")}" onclick="setPortfolioPresentationImageLibraryView('site_team')">
         <div class="card-title" style="margin-bottom:6px">Site Team Headshots</div>
         <div style="font-size:1.4rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:#2a8f83">${imageInventory.teamHeadshots}</div>
         <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">Managed at the community level and visible here for portfolio inventory.</div>
-      </div>
-      <div class="report-hub-card">
+      </button>
+      <button type="button" class="report-hub-card" style="${cardButtonStyle("leadership")}" onclick="setPortfolioPresentationImageLibraryView('leadership')">
         <div class="card-title" style="margin-bottom:6px">VP / Regional Headshots</div>
         <div style="font-size:1.4rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:#3c3489">${imageInventory.leadershipHeadshots}</div>
         <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">Managed in Jac's Team and available for reporting packages.</div>
-      </div>
+      </button>
       <div class="report-hub-card">
         <div class="card-title" style="margin-bottom:6px">Approx. Saved Size</div>
         <div style="font-size:1.4rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:#c9943c">${imageInventory.totalMb.toFixed(2)} MB</div>
         <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">Optimize images if browser storage starts feeling heavy.</div>
       </div>
     </div>
+    ${renderPortfolioPresentationImageLibraryDetail()}
   </div>`;
 }
 
@@ -20642,7 +20993,6 @@ function renderPortfolioScopedSetupTab() {
     includeInactive: true
   }).map(entry => buildCommunityDetailForMonth(entry.name, entry.record, selectedMonth)).filter(Boolean);
   const activeDetails = setupDetails.filter(detail => isCommunityStatusActive(detail.record));
-  const aggregate = aggregateCommunitySummaries(activeDetails.map(detail => detail.summary));
   const setupNames = setupDetails.map(detail => detail.name);
   const selectedName = setupNames.includes(getPortfolioSetupCommunityName())
     ? getPortfolioSetupCommunityName()
@@ -20650,13 +21000,15 @@ function renderPortfolioScopedSetupTab() {
   const selectedRecord = getPortfolioSetupCommunityRecord(selectedName);
   const selectedProp = getPropertyByName(selectedName);
   const selectedTotalUnits = getTotalUnitsFor(selectedProp, selectedRecord.customUnits);
-  const contactCount = setupDetails.reduce((sum, detail) => sum + normalizeInvestorEmailContacts(detail.record?.investorEmailContacts).length, 0);
-  const floorPlanCount = setupDetails.reduce((sum, detail) => sum + normalizeCommunityFloorPlans(detail.record?.communityFloorPlans).filter(plan => String(plan.name || "").trim()).length, 0);
+  const inactiveDetails = setupDetails.filter(detail => !isCommunityStatusActive(detail.record));
+  const activeUnitCount = activeDetails.reduce((sum, detail) => sum + getResolvedTotalUnitsForRecord(detail.name, detail.record), 0);
+  const inactiveUnitCount = inactiveDetails.reduce((sum, detail) => sum + getResolvedTotalUnitsForRecord(detail.name, detail.record), 0);
+  const activeFloorPlanCount = activeDetails.reduce((sum, detail) => sum + normalizeCommunityFloorPlans(detail.record?.communityFloorPlans).filter(plan => String(plan.name || "").trim()).length, 0);
   const cardsHtml = `<div class="grid-4">
     ${statBox("Communities", setupDetails.length, `${activeDetails.length} active · ${Math.max(setupDetails.length - activeDetails.length, 0)} inactive in setup roster`, "#4493f8")}
-    ${statBox("Saved Contacts", contactCount, "Community recipient records available for reporting", "#3fb950")}
-    ${statBox("Floor Plans", floorPlanCount, "Configured floor plans saved in Community Settings", "#d29922")}
-    ${statBox("Addresses on File", setupDetails.filter(detail => String(detail.record?.communityAddress || "").trim()).length, `${aggregate.totalUnits.toLocaleString()} active units feeding portfolio totals`, "#a371f7")}
+    ${statBox("Active Units", activeUnitCount.toLocaleString(), "Total units from active communities", "#3fb950")}
+    ${statBox("Floor Plans", activeFloorPlanCount, "Configured floor plans from active communities", "#d29922")}
+    ${statBox("Inactive Communities", inactiveDetails.length, `${inactiveUnitCount.toLocaleString()} inactive units preserved outside active rollups`, "#a371f7")}
   </div>`;
   const rows = setupDetails.map(detail => {
     const contacts = normalizeInvestorEmailContacts(detail.record?.investorEmailContacts);
@@ -20692,7 +21044,11 @@ function renderPortfolioScopedSetupTab() {
         const varianceColor = row.variance == null ? "var(--muted)" : row.variance >= 0 ? "#3fb950" : "#f97316";
         const displayedMarketedRent = row.marketedRent ?? row.marketRent;
         const displayedMarketSource = row.marketedRentSource || row.marketSource || "";
-        return `<div style="display:grid;grid-template-columns:28px minmax(150px,1.2fr) 72px 72px 88px 108px 108px 96px minmax(150px,1fr) 98px auto;gap:10px;align-items:end;padding:10px 0;border-top:${idx === 0 ? "0" : "1px solid var(--border2)"}">
+        const budgetSourceLabel = formatFloorPlanBudgetSourceLabel(row);
+        const approvalStatus = normalizeFloorPlanApprovalStatus(row.approvalStatus, row.approvedForReporting === false ? "needs_review" : "manual");
+        const approvalLabel = isFloorPlanApprovedForReporting(row) ? "Approved" : "Needs review";
+        const approvalColor = isFloorPlanApprovedForReporting(row) ? "#1f7a66" : "#9a6700";
+        return `<div style="display:grid;grid-template-columns:28px minmax(150px,1.2fr) 72px 72px 88px 78px 118px 108px 96px minmax(150px,1fr) 98px auto;gap:10px;align-items:end;padding:10px 0;border-top:${idx === 0 ? "0" : "1px solid var(--border2)"}">
           <div style="display:flex;align-items:center;justify-content:center;padding-bottom:6px">
             <input type="checkbox" data-floor-plan-row-checkbox="true" data-floor-plan-id="${escapeHtml(String(row.id || ""))}" aria-label="Select ${escapeHtml(row.name || "floor plan")}" ${selectedCommunityFloorPlanIdSet.has(String(row.id || "")) ? "checked" : ""} onchange="toggleFloorPlanSelection('community', ${JSON.stringify(selectedName)}, ${JSON.stringify(row.id)})" style="width:16px;height:16px;accent-color:#4493f8">
           </div>
@@ -20713,8 +21069,14 @@ function renderPortfolioScopedSetupTab() {
             <input type="number" min="0" step="1" value="${row.sqft ?? ""}" placeholder="1085" onchange='updatePortfolioCommunityFloorPlanField(${JSON.stringify(selectedName)}, ${idx}, "sqft", this.value)'>
           </div>
           <div>
+            <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Units</div>
+            <input type="number" min="0" step="1" value="${row.units ?? ""}" placeholder="12" onchange='updatePortfolioCommunityFloorPlanField(${JSON.stringify(selectedName)}, ${idx}, "units", this.value)'>
+          </div>
+          <div>
             <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Budget rent</div>
             <input type="number" min="0" step="1" value="${row.budgetRent ?? ""}" placeholder="1895" onchange='updatePortfolioCommunityFloorPlanField(${JSON.stringify(selectedName)}, ${idx}, "budgetRent", this.value)'>
+            <div style="font-size:0.58rem;color:${approvalColor};margin-top:4px;font-weight:700">${escapeHtml(approvalLabel)}</div>
+            <div style="font-size:0.58rem;color:var(--muted);margin-top:3px;line-height:1.25">${escapeHtml(budgetSourceLabel)}</div>
           </div>
           <div>
             <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Marketed rent</div>
@@ -20734,10 +21096,13 @@ function renderPortfolioScopedSetupTab() {
             <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Variance</div>
             <div style="height:40px;display:flex;align-items:center;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);color:${varianceColor};font-weight:700">${row.variance == null ? "—" : formatSignedDisplay(row.variance, 0, "")}</div>
           </div>
-          <button class="btn btn-gray btn-sm" type="button" onclick='removePortfolioCommunityFloorPlanRow(${JSON.stringify(selectedName)}, ${idx})'>Remove</button>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${approvalStatus === "needs_review" ? `<button class="btn btn-blue btn-sm" type="button" onclick='approvePortfolioCommunityFloorPlanRow(${JSON.stringify(selectedName)}, ${JSON.stringify(row.id)})'>Approve</button>` : ""}
+            <button class="btn btn-gray btn-sm" type="button" onclick='removePortfolioCommunityFloorPlanRow(${JSON.stringify(selectedName)}, ${idx})'>Remove</button>
+          </div>
         </div>`;
       }).join("")
-    : `<div style="font-size:0.72rem;color:var(--muted)">No floor plans saved yet for ${escapeHtml(selectedName)}. Add each plan here so the exported DLR can compare budgeted rent against the current marketed rent by floor plan.</div>`;
+    : `<div style="font-size:0.72rem;color:var(--muted)">No floor plans saved yet for ${escapeHtml(selectedName)}. Add each plan here so the exported DLR can compare approved blended budget rent against the current marketed rent by floor plan.</div>`;
   const selectedCommunityEditor = `<div class="card mb4" id="portfolio-floor-plan-editor" tabindex="-1">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
       <div>
@@ -20761,7 +21126,7 @@ function renderPortfolioScopedSetupTab() {
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
         <div>
           <div style="font-size:0.76rem;font-weight:700;color:var(--text)">Floor Plan Budget Setup</div>
-          <div style="font-size:0.66rem;color:var(--muted);margin-top:4px">Add the budgeted floor plans for ${escapeHtml(selectedName)} here. The DLR export compares these saved budget rents against the current marketed rents by floor plan, using the value saved here first and imported survey matches as the fallback. Use the checkboxes to select one or more rows for mass delete.</div>
+          <div style="font-size:0.66rem;color:var(--muted);margin-top:4px">Approve imported budget floor plans here before they feed reports. The DLR compares approved blended current-year projected/target budget rent against current marketed rent by floor plan. Use the checkboxes to select one or more rows for mass actions.</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <div style="text-align:right">
@@ -20776,6 +21141,7 @@ function renderPortfolioScopedSetupTab() {
                 <option value="budgetRent">Budget rent</option>
                 <option value="leasedPct">Leased %</option>
                 <option value="sqft">Sqft</option>
+                <option value="units">Units</option>
                 <option value="beds">Beds</option>
                 <option value="baths">Baths</option>
                 <option value="marketedRentSource">Market source</option>
@@ -20791,6 +21157,7 @@ function renderPortfolioScopedSetupTab() {
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-gray btn-sm" type="button" data-floor-plan-select-all-button="true" onclick="selectAllFloorPlans('community', ${JSON.stringify(selectedName)})">Select All</button>
             <button class="btn btn-gray btn-sm" type="button" data-floor-plan-clear-button="true" onclick="clearFloorPlanSelection('community', ${JSON.stringify(selectedName)})" ${selectedCommunityFloorPlanIds.length === 0 ? "disabled" : ""}>Clear</button>
+            <button class="btn btn-blue btn-sm" type="button" data-floor-plan-approve-button="true" onclick="approveSelectedCommunityFloorPlans(${JSON.stringify(selectedName)})" ${selectedCommunityFloorPlanIds.length === 0 ? "disabled" : ""}>Approve Selected</button>
             <button class="btn btn-gray btn-sm" type="button" data-floor-plan-delete-button="true" onclick="deleteSelectedCommunityFloorPlans(${JSON.stringify(selectedName)})" ${selectedCommunityFloorPlanIds.length === 0 ? "disabled" : ""}>Delete Selected</button>
           </div>
           <button class="btn btn-gray btn-sm" type="button" onclick='addPortfolioCommunityFloorPlanRow(${JSON.stringify(selectedName)})'>＋ Add Floor Plan</button>
@@ -21353,7 +21720,11 @@ function renderSetupTab() {
         const varianceColor = row.variance == null ? "var(--muted)" : row.variance >= 0 ? "#3fb950" : "#f97316";
         const displayedMarketedRent = row.marketedRent ?? row.marketRent;
         const displayedMarketSource = row.marketedRentSource || row.marketSource || "";
-        return `<div style="display:grid;grid-template-columns:28px minmax(150px,1.2fr) 72px 72px 88px 108px 108px 96px minmax(150px,1fr) 98px auto;gap:10px;align-items:end;padding:10px 0;border-top:${idx === 0 ? "0" : "1px solid var(--border2)"}">
+        const budgetSourceLabel = formatFloorPlanBudgetSourceLabel(row);
+        const approvalStatus = normalizeFloorPlanApprovalStatus(row.approvalStatus, row.approvedForReporting === false ? "needs_review" : "manual");
+        const approvalLabel = isFloorPlanApprovedForReporting(row) ? "Approved" : "Needs review";
+        const approvalColor = isFloorPlanApprovedForReporting(row) ? "#1f7a66" : "#9a6700";
+        return `<div style="display:grid;grid-template-columns:28px minmax(150px,1.2fr) 72px 72px 88px 78px 118px 108px 96px minmax(150px,1fr) 98px auto;gap:10px;align-items:end;padding:10px 0;border-top:${idx === 0 ? "0" : "1px solid var(--border2)"}">
           <div style="display:flex;align-items:center;justify-content:center;padding-bottom:6px">
             <input type="checkbox" data-floor-plan-row-checkbox="true" data-floor-plan-id="${escapeHtml(String(row.id || ""))}" aria-label="Select ${escapeHtml(row.name || "floor plan")}" ${selectedCommunityFloorPlanIdSet.has(String(row.id || "")) ? "checked" : ""} onchange="toggleFloorPlanSelection('community', ${JSON.stringify(getProp().name)}, ${JSON.stringify(row.id)})" style="width:16px;height:16px;accent-color:#4493f8">
           </div>
@@ -21374,8 +21745,14 @@ function renderSetupTab() {
             <input type="number" min="0" step="1" value="${row.sqft ?? ""}" placeholder="1085" onchange="updateCommunityFloorPlanField(${idx},'sqft',this.value)">
           </div>
           <div>
+            <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Units</div>
+            <input type="number" min="0" step="1" value="${row.units ?? ""}" placeholder="12" onchange="updateCommunityFloorPlanField(${idx},'units',this.value)">
+          </div>
+          <div>
             <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Budget rent</div>
             <input type="number" min="0" step="1" value="${row.budgetRent ?? ""}" placeholder="1895" onchange="updateCommunityFloorPlanField(${idx},'budgetRent',this.value)">
+            <div style="font-size:0.58rem;color:${approvalColor};margin-top:4px;font-weight:700">${escapeHtml(approvalLabel)}</div>
+            <div style="font-size:0.58rem;color:var(--muted);margin-top:3px;line-height:1.25">${escapeHtml(budgetSourceLabel)}</div>
           </div>
           <div>
             <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Marketed rent</div>
@@ -21395,10 +21772,13 @@ function renderSetupTab() {
             <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Variance</div>
             <div style="height:40px;display:flex;align-items:center;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);color:${varianceColor};font-weight:700">${row.variance == null ? "—" : formatSignedDisplay(row.variance, 0, "")}</div>
           </div>
-          <button class="btn btn-gray btn-sm" type="button" onclick="removeCommunityFloorPlanRow(${idx})">Remove</button>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${approvalStatus === "needs_review" ? `<button class="btn btn-blue btn-sm" type="button" onclick='approvePortfolioCommunityFloorPlanRow(${JSON.stringify(getProp().name)}, ${JSON.stringify(row.id)})'>Approve</button>` : ""}
+            <button class="btn btn-gray btn-sm" type="button" onclick="removeCommunityFloorPlanRow(${idx})">Remove</button>
+          </div>
         </div>`;
       }).join("")
-    : `<div style="font-size:0.72rem;color:var(--muted)">No floor plans saved yet. Add each plan here so the exported DLR can compare budgeted rent against the current marketed rent by floor plan.</div>`;
+    : `<div style="font-size:0.72rem;color:var(--muted)">No floor plans saved yet. Add each plan here so the exported DLR can compare approved blended budget rent against the current marketed rent by floor plan.</div>`;
   const unmatchedFloorPlanRatesHtml = floorPlanVarianceData.unmatchedRates.length > 0
     ? `<div style="margin-top:10px;padding:10px 12px;border:1px dashed rgba(217,153,34,0.45);border-radius:10px;background:rgba(217,153,34,0.06)">
         <div style="font-size:0.68rem;font-weight:700;color:#9d5d14;margin-bottom:6px">Unmatched APTIQ floor plans</div>
@@ -21729,7 +22109,7 @@ function renderSetupTab() {
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
           <div>
             <div style="font-size:0.76rem;font-weight:700;color:var(--text)">Floor Plan Budget Setup</div>
-            <div style="font-size:0.66rem;color:var(--muted);margin-top:4px">Add the budgeted floor plans for this community here. The DLR export compares these saved budget rents against the current marketed rents by floor plan, using the value saved here first and imported survey matches as the fallback.</div>
+            <div style="font-size:0.66rem;color:var(--muted);margin-top:4px">Approve imported budget floor plans here before they feed reports. The DLR compares approved blended current-year projected/target budget rent against current marketed rent by floor plan.</div>
           </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <div style="text-align:right">
@@ -21744,6 +22124,7 @@ function renderSetupTab() {
                 <option value="budgetRent">Budget rent</option>
                 <option value="leasedPct">Leased %</option>
                 <option value="sqft">Sqft</option>
+                <option value="units">Units</option>
                 <option value="beds">Beds</option>
                 <option value="baths">Baths</option>
                 <option value="marketedRentSource">Market source</option>
@@ -21759,6 +22140,7 @@ function renderSetupTab() {
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-gray btn-sm" type="button" data-floor-plan-select-all-button="true" onclick="selectAllFloorPlans('community', ${JSON.stringify(p.name)})">${selectedCommunityFloorPlanIds.length === floorPlanVarianceData.rows.length && floorPlanVarianceData.rows.length > 0 ? "Clear All" : "Select All"}</button>
             <button class="btn btn-gray btn-sm" type="button" data-floor-plan-clear-button="true" onclick="clearFloorPlanSelection('community', ${JSON.stringify(p.name)})" ${selectedCommunityFloorPlanIds.length === 0 ? "disabled" : ""}>Clear</button>
+            <button class="btn btn-blue btn-sm" type="button" data-floor-plan-approve-button="true" onclick="approveSelectedCommunityFloorPlans(${JSON.stringify(p.name)})" ${selectedCommunityFloorPlanIds.length === 0 ? "disabled" : ""}>Approve Selected</button>
             <button class="btn btn-gray btn-sm" type="button" data-floor-plan-delete-button="true" onclick="deleteSelectedCommunityFloorPlans(${JSON.stringify(p.name)})" ${selectedCommunityFloorPlanIds.length === 0 ? "disabled" : ""}>Delete Selected</button>
           </div>
           <button class="btn btn-gray btn-sm" type="button" onclick="addCommunityFloorPlanRow()">＋ Add Floor Plan</button>
@@ -23534,9 +23916,9 @@ function renderOverviewTab() {
         <div style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.08em;color:#4493f8;font-weight:700;margin-bottom:8px">📊 Market vs Budget Rent</div>
         <div class="label">Avg Market Rent ($) <span style="font-size:0.62rem;color:var(--muted);font-weight:400">${floorPlanMarketAverageRent > 0 ? "from floor-plan market average" : "manual month value"}</span></div>
         ${numInp("marketRent", cmMR, `data-idx="${currentMonth}"`, 0, 9999999)}
-        <div class="label">Budget Rent ($) <span style="font-size:0.62rem;color:var(--muted);font-weight:400">${floorPlanBudgetAverageRent > 0 ? "from saved floor-plan budget average" : "manual month value"}</span></div>
+        <div class="label">Budget Rent ($) <span style="font-size:0.62rem;color:var(--muted);font-weight:400">${floorPlanBudgetAverageRent > 0 ? "approved blended current-year projected/target rent" : "manual month value"}</span></div>
         ${numInp("proformaRent", cmPFRent, `data-idx="${currentMonth}"`, 0, 9999999)}
-        ${floorPlanBudgetAverageRent > 0 ? `<div style="margin-top:6px;font-size:0.66rem;color:var(--muted)">Auto-pulled from ${communityFloorPlans.filter(plan => Number(plan.budgetRent ?? 0) > 0).length} saved floor-plan budget${communityFloorPlans.filter(plan => Number(plan.budgetRent ?? 0) > 0).length === 1 ? "" : "s"} in Community Setup.</div>` : ""}
+        ${floorPlanBudgetAverageRent > 0 ? `<div style="margin-top:6px;font-size:0.66rem;color:var(--muted)">Auto-pulled from ${getReportableCommunityFloorPlans(communityFloorPlans).filter(plan => Number(plan.budgetRent ?? 0) > 0).length} approved floor-plan budget${getReportableCommunityFloorPlans(communityFloorPlans).filter(plan => Number(plan.budgetRent ?? 0) > 0).length === 1 ? "" : "s"} in Community Setup.</div>` : ""}
         <div style="margin-top:8px;font-size:0.7rem;color:var(--muted)">
           Market vs Budget Rent: ${varSpan(marketVsBudgetRent)}
         </div>
@@ -26417,8 +26799,8 @@ function findBudgetWorkbookRateScheduleHeader(rows = []) {
       if (headerMap.baseRent == null && (text === "base rent" || text.includes("base rent"))) {
         headerMap.baseRent = colIdx;
       }
-      if (headerMap.totalUnits == null && (text.includes("total design units") || text === "total units")) {
-        headerMap.totalUnits = colIdx;
+      if (headerMap.units == null && (text.includes("total design units") || text === "total units" || text === "# of units" || text === "number of units" || text === "units")) {
+        headerMap.units = colIdx;
       }
     });
     if (headerMap.unitType != null && headerMap.baseRent != null) {
@@ -27193,6 +27575,7 @@ function applyBudgetWorkbookFloorPlanRatesToProperty(propName, budgetInput, file
     const normalizedName = normalizeFloorPlanLookupName(rate.name);
     if (!normalizedName) return;
     const existing = existingByName.get(normalizedName);
+    const importedBudgetRent = Number(rate.budgetRent);
     const nextPlan = existing
       ? { ...existing }
       : {
@@ -27204,11 +27587,21 @@ function applyBudgetWorkbookFloorPlanRatesToProperty(propName, budgetInput, file
           leasedPct: null,
           marketedRentSource: "",
           beds: null,
-          baths: null
+          baths: null,
+          units: null,
+          budgetRentSource: String(fileName || rate.sourceSheet || "Budget workbook").trim(),
+          budgetRentBasis: "current_year_projected_target_blend",
+          sourceFileName: String(fileName || "").trim(),
+          sourceSheet: String(rate.sourceSheet || "").trim(),
+          approvalStatus: "needs_review",
+          approvedForReporting: false,
+          approvedAt: "",
+          approvedBy: ""
         };
+    const previousBudgetRent = Number(nextPlan.budgetRent);
     if (!String(nextPlan.name ?? "").trim()) nextPlan.name = String(rate.name ?? "").trim();
-    if ((nextPlan.budgetRent == null || nextPlan.budgetRent <= 0) && Number.isFinite(Number(rate.budgetRent)) && Number(rate.budgetRent) > 0) {
-      nextPlan.budgetRent = Number(rate.budgetRent);
+    if (Number.isFinite(importedBudgetRent) && importedBudgetRent > 0) {
+      nextPlan.budgetRent = importedBudgetRent;
     }
     if ((nextPlan.marketedRent == null || nextPlan.marketedRent <= 0) && Number.isFinite(Number(rate.marketRent)) && Number(rate.marketRent) > 0) {
       nextPlan.marketedRent = Number(rate.marketRent);
@@ -27223,6 +27616,19 @@ function applyBudgetWorkbookFloorPlanRatesToProperty(propName, budgetInput, file
       nextPlan.baths = Number(rate.baths);
     }
     nextPlan.marketedRentSource = String(nextPlan.marketedRentSource || rate.sourceSheet || fileName || "Budget workbook").trim();
+    nextPlan.budgetRentSource = String(fileName || rate.sourceSheet || nextPlan.budgetRentSource || "Budget workbook").trim();
+    nextPlan.budgetRentBasis = "current_year_projected_target_blend";
+    nextPlan.sourceFileName = String(fileName || nextPlan.sourceFileName || "").trim();
+    nextPlan.sourceSheet = String(rate.sourceSheet || nextPlan.sourceSheet || "").trim();
+    const importedBudgetChanged = Number.isFinite(importedBudgetRent)
+      && importedBudgetRent > 0
+      && (!Number.isFinite(previousBudgetRent) || previousBudgetRent !== importedBudgetRent);
+    if (!existing || importedBudgetChanged) {
+      nextPlan.approvalStatus = "needs_review";
+      nextPlan.approvedForReporting = false;
+      nextPlan.approvedAt = "";
+      nextPlan.approvedBy = "";
+    }
     if (existing) {
       const existingIndex = nextPlans.findIndex(plan => String(plan.id) === String(existing.id));
       if (existingIndex >= 0) nextPlans[existingIndex] = nextPlan;
@@ -31830,7 +32236,7 @@ function compLowMonthly(playbook, market) {
 }
 
 function buildCompCalculatorFloorPlanRows(detail, market, activity = {}) {
-  const subjectPlans = normalizeCommunityFloorPlans(detail?.record?.communityFloorPlans);
+  const subjectPlans = getReportableCommunityFloorPlans(detail?.record?.communityFloorPlans);
   const surveyRates = normalizeMarketSurveyFloorPlanRates(market?.floorPlanRates);
   const usedRateIds = new Set();
   const rows = subjectPlans.map(plan => {
@@ -31971,7 +32377,7 @@ function buildCompCalculatorSnapshotData(detail, market, monthIdx = getSelectedD
   const floorPlanSummary = buildCompCalculatorFloorPlanSummary(floorPlanRows);
   const subjectSqft = compCalcAverage(floorPlanRows.map(row => row.marketedRent ? Number(row.sqft ?? 0) : 0).filter(Boolean));
   const compSqft = compCalcAverage((market.floorPlanRates ?? []).map(rate => Number(rate.sqft ?? 0)).filter(Boolean));
-  const subjectPlans = normalizeCommunityFloorPlans(detail?.record?.communityFloorPlans);
+  const subjectPlans = getReportableCommunityFloorPlans(detail?.record?.communityFloorPlans);
   const budgetRents = subjectPlans.map(plan => Number(plan.budgetRent ?? 0)).filter(value => value > 0);
   const marketedRents = subjectPlans.map(plan => Number(plan.marketedRent ?? 0)).filter(value => value > 0);
   const subjectAvgBudgetRent = compCalcAverage(budgetRents);
@@ -41678,7 +42084,7 @@ function buildDlrFloorPlanVarianceChart(report) {
       </div>
       <div style="text-align:right;font-size:12px;color:#475569">
         <div>${report.marketSurveyUpdatedOn ? `APTIQ updated ${escapeHtml(report.marketSurveyUpdatedOn)}` : "Current APTIQ survey in use"}</div>
-        <div style="margin-top:4px">Variance = current marketed rent minus budgeted rent</div>
+        <div style="margin-top:4px">Variance = current marketed rent minus approved blended current-year projected/target budget rent</div>
       </div>
     </div>
     <div style="display:grid">${rowHtml}</div>
@@ -43305,7 +43711,7 @@ function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(
     renewalsSigned: resolvedRenewalsSigned,
     expirations: hasRenewalSnapshotData ? renewalSummary.expirations : null
   });
-  const floorPlanVarianceData = buildCommunityFloorPlanVarianceRows(record.communityFloorPlans, surveyData);
+  const floorPlanVarianceData = buildCommunityFloorPlanVarianceRows(getReportableCommunityFloorPlans(record.communityFloorPlans), surveyData);
   const resolvedNoteState = resolveDlrEditableNotes(effectiveDlrSummary, generatedNotes, {
     periodKey: buildPeriodKey(reportMetricMonthIdx, year)
   });
@@ -43637,7 +44043,7 @@ function buildDlrInvestorOverviewDocument(report) {
     </div>
     <div class="section section-card">
       <div style="font-size:14px;font-weight:700;margin-bottom:10px">Floor Plan Rent Variance vs Budget</div>
-      <div style="font-size:12px;color:#64748b;margin-bottom:12px">This chart compares each saved community floor plan budget rent against the current marketed rent by floor plan, using the saved floor plan rate first and imported market survey matches as fallback.</div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:12px">This chart compares each approved blended current-year projected/target budget rent against the current marketed rent by floor plan, using the saved floor plan rate first and imported market survey matches as fallback.</div>
       ${buildDlrFloorPlanVarianceChart(report)}
     </div>
     <div class="section section-card">
@@ -44931,7 +45337,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
   };
   Object.assign(trafficMetrics, buildFunnelConversionMetrics(trafficMetrics));
   const renewalSummary = getRenewalSummaryForMonth(monthEntry);
-  const floorPlanVarianceData = buildCommunityFloorPlanVarianceRows(scopedRecord.communityFloorPlans, activeSurveyData);
+  const floorPlanVarianceData = buildCommunityFloorPlanVarianceRows(getReportableCommunityFloorPlans(scopedRecord.communityFloorPlans), activeSurveyData);
   const floorPlanRentComparisonRows = buildCommunityProgressBedroomRentComparisonRows(scopedRecord.communityFloorPlans, activeSurveyData);
   const photoPool = collectMonthlyPresentationPhotos([detail], 4);
   const progressPaceRows = [
@@ -45606,7 +46012,7 @@ function buildCommunityProgressReportDocument(report) {
     </div>
     <div class="progress-card section">
       <div style="font-size:14px;font-weight:700;margin-bottom:10px">Floor Plan Rent Variance vs Budget</div>
-      <div style="font-size:12px;color:#64748b;margin-bottom:12px">This chart compares each saved community floor plan budget rent against the current marketed rent by floor plan, using the saved floor plan rate first and imported market survey matches as fallback.</div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:12px">This chart compares each approved blended current-year projected/target budget rent against the current marketed rent by floor plan, using the saved floor plan rate first and imported market survey matches as fallback.</div>
       ${buildDlrFloorPlanVarianceChart(report)}
     </div>
     <div class="progress-card section">
@@ -45773,7 +46179,7 @@ function renderCommunityProgressReportingWorkspace() {
       </div>
       <div class="report-hub-card" style="margin-bottom:12px">
         <div class="card-title" style="margin-bottom:8px">Floor Plan Rent Variance vs Budget</div>
-        <div style="font-size:0.72rem;color:var(--muted);margin-bottom:10px">This chart compares each saved community floor plan budget rent against the current marketed rent by floor plan, using the saved floor plan rate first and imported market survey matches as fallback.</div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-bottom:10px">This chart compares each approved blended current-year projected/target budget rent against the current marketed rent by floor plan, using the saved floor plan rate first and imported market survey matches as fallback.</div>
         ${buildDlrFloorPlanVarianceChart(report)}
       </div>
       <div class="progress-grid-2" style="margin-bottom:12px">

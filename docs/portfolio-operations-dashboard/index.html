@@ -655,6 +655,79 @@
   .data-import2-source-card { border: 1px solid var(--border); background: var(--bg3); border-radius: 8px; padding: 10px; display: grid; grid-template-columns: minmax(180px, 1fr) minmax(160px, 0.7fr) minmax(180px, 1fr) auto; gap: 10px; align-items: start; }
   .data-import2-compact-table { max-height: 520px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
   .data-import2-compact-table .data-import2-table th { position: sticky; top: 0; background: var(--bg3); z-index: 1; }
+  .community-command-shell { display: grid; gap: 14px; }
+  .community-command-head { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+  .community-command-title-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .community-command-title-row h2 { font-size:1.02rem; font-weight:800; margin:0; }
+  .community-command-star { color:#d29922; font-size:0.9rem; line-height:1; }
+  .community-command-sub { font-size:0.68rem; color:var(--muted); line-height:1.45; margin-top:3px; }
+  .community-command-meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .community-command-pill { display:inline-flex; align-items:center; gap:5px; padding:5px 8px; border:1px solid var(--border); border-radius:999px; background:var(--bg3); color:var(--muted); font-size:0.62rem; font-weight:800; }
+  .community-command-pill.strong { color:var(--accent); border-color:rgba(29,118,139,0.24); background:rgba(29,118,139,0.06); }
+  .community-command-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:flex-end; }
+  .community-command-section { border:1px solid var(--border); border-radius:8px; background:var(--bg2); box-shadow:0 2px 9px rgba(1,62,81,0.04); overflow:hidden; }
+  .community-command-section .windowshade-head { padding:12px 14px; margin:0; border-bottom:1px solid var(--border); background:linear-gradient(90deg, rgba(29,118,139,0.06), rgba(255,255,255,0)); }
+  .community-command-section .windowshade-body { padding:14px; }
+  .community-command-section .windowshade-preview { margin:0 14px 14px; }
+  .community-command-grid-4 { display:grid; grid-template-columns:repeat(4,minmax(160px,1fr)); gap:10px; }
+  .community-command-grid-3 { display:grid; grid-template-columns:repeat(3,minmax(190px,1fr)); gap:10px; }
+  .community-command-kpi { min-height:124px; border:1px solid var(--border); border-radius:8px; background:var(--bg3); padding:12px; display:grid; gap:7px; align-content:start; position:relative; overflow:hidden; }
+  .community-command-kpi[data-tone="critical"] { border-left:4px solid #d1242f; background:rgba(209,36,47,0.045); }
+  .community-command-kpi[data-tone="watch"] { border-left:4px solid #d29922; background:rgba(210,153,34,0.07); }
+  .community-command-kpi[data-tone="good"] { border-left:4px solid #2a8f83; background:rgba(42,143,131,0.07); }
+  .community-command-kpi[data-tone="info"] { border-left:4px solid #1d4ed8; background:rgba(29,78,216,0.045); }
+  .community-command-label { font-size:0.58rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); font-weight:900; }
+  .community-command-value { font-size:1.32rem; line-height:1.05; color:var(--text); font-weight:900; font-family:'JetBrains Mono',monospace; }
+  .community-command-kpi-sub { color:var(--muted); font-size:0.66rem; line-height:1.38; }
+  .community-command-source { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-top:auto; font-size:0.6rem; color:var(--muted); }
+  .community-command-override { color:#9a6700; font-weight:900; }
+  .community-command-inline-bar { height:8px; border-radius:999px; overflow:hidden; background:rgba(1,62,81,0.08); display:flex; }
+  .community-command-inline-bar span { min-width:3px; }
+  .community-command-alert-list { display:grid; gap:9px; }
+  .community-command-alert { border:1px solid var(--border); border-radius:8px; padding:10px 12px; background:var(--bg3); display:grid; gap:7px; border-left:4px solid #2a8f83; }
+  .community-command-alert.critical { border-left-color:#d1242f; background:rgba(209,36,47,0.045); }
+  .community-command-alert.watch { border-left-color:#d29922; background:rgba(210,153,34,0.075); }
+  .community-command-alert.opportunity { border-left-color:#1d4ed8; background:rgba(29,78,216,0.045); }
+  .community-command-alert-head { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:flex-start; }
+  .community-command-alert-title { font-size:0.78rem; color:var(--text); font-weight:900; }
+  .community-command-alert-copy { font-size:0.67rem; color:var(--muted); line-height:1.45; }
+  .community-command-alert-meta { display:flex; flex-wrap:wrap; gap:6px; font-size:0.6rem; color:var(--muted); }
+  .community-command-status { display:inline-flex; align-items:center; justify-content:center; min-width:76px; border:1px solid var(--border); border-radius:999px; padding:4px 7px; font-size:0.58rem; font-weight:900; text-transform:uppercase; letter-spacing:0.05em; }
+  .community-command-status.critical { color:#b42318; border-color:rgba(209,36,47,0.28); background:rgba(209,36,47,0.08); }
+  .community-command-status.watch { color:#9a6700; border-color:rgba(210,153,34,0.34); background:rgba(210,153,34,0.1); }
+  .community-command-status.good { color:#1f7a66; border-color:rgba(42,143,131,0.3); background:rgba(42,143,131,0.1); }
+  .community-command-status.info { color:#1d4ed8; border-color:rgba(29,78,216,0.24); background:rgba(29,78,216,0.08); }
+  .community-command-status.muted { color:var(--muted); background:var(--bg); }
+  .community-command-chart-wrap { display:grid; gap:10px; }
+  .community-command-chart { width:100%; min-height:268px; border:1px solid var(--border); border-radius:8px; background:var(--bg3); padding:10px; }
+  .community-command-chart svg { width:100%; height:260px; display:block; overflow:visible; }
+  .community-command-legend { display:flex; flex-wrap:wrap; gap:8px; }
+  .community-command-legend span { display:inline-flex; align-items:center; gap:6px; font-size:0.63rem; color:var(--muted); }
+  .community-command-legend i { width:18px; height:3px; border-radius:999px; display:inline-block; }
+  .community-command-toggle-row { display:flex; flex-wrap:wrap; gap:6px; }
+  .community-command-toggle-row button { border:1px solid var(--border); border-radius:999px; padding:6px 10px; background:var(--bg3); color:var(--muted); font:inherit; font-size:0.64rem; font-weight:800; cursor:pointer; }
+  .community-command-toggle-row button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .community-command-plan-table { width:100%; border-collapse:collapse; min-width:1180px; }
+  .community-command-plan-table th { text-align:left; padding:8px; font-size:0.55rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; border-bottom:1px solid var(--border); background:var(--bg3); position:sticky; top:0; z-index:1; }
+  .community-command-plan-table td { padding:8px; border-bottom:1px solid var(--border); font-size:0.64rem; vertical-align:top; }
+  .community-command-scroll { overflow:auto; border:1px solid var(--border); border-radius:8px; background:var(--bg2); }
+  .community-command-mini-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:8px; }
+  .community-command-mini { border:1px solid var(--border); border-radius:8px; background:var(--bg3); padding:9px; }
+  .community-command-mini strong { display:block; color:var(--text); font-size:0.82rem; margin-bottom:4px; }
+  .community-command-mini span { color:var(--muted); font-size:0.64rem; line-height:1.4; }
+  .community-command-source-list { display:grid; gap:8px; }
+  .community-command-source-row { display:grid; grid-template-columns:minmax(170px,1fr) minmax(160px,0.8fr) minmax(180px,1fr) auto; gap:8px; align-items:center; border:1px solid var(--border); border-radius:8px; background:var(--bg3); padding:9px; font-size:0.65rem; }
+  .community-command-task { border:1px solid var(--border); border-radius:8px; padding:10px; background:var(--bg3); display:grid; gap:7px; }
+  .community-command-task-row { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap; }
+  .community-command-note { font-size:0.66rem; color:var(--muted); line-height:1.5; }
+  .community-command-region-grid { display:grid; grid-template-columns:minmax(260px,0.8fr) minmax(320px,1fr); gap:12px; }
+  .community-command-region-row { display:grid; grid-template-columns:minmax(160px,1fr) minmax(120px,0.6fr) minmax(170px,1fr) auto; gap:8px; align-items:center; padding:9px; border:1px solid var(--border); border-radius:8px; background:var(--bg3); margin-bottom:8px; }
+  .community-command-field-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:8px; align-items:end; }
+  .community-command-field-grid label { display:grid; gap:4px; font-size:0.58rem; color:var(--muted); font-weight:900; text-transform:uppercase; letter-spacing:0.07em; }
+  .community-command-field-grid input, .community-command-field-grid select, .community-command-field-grid textarea { width:100%; border:1px solid var(--border); border-radius:7px; background:#fff; color:var(--text); padding:8px 9px; font:inherit; font-size:0.68rem; text-transform:none; letter-spacing:0; font-weight:600; }
+  .community-command-field-grid textarea { min-height:64px; resize:vertical; }
+  .community-command-empty { border:1px dashed var(--border); border-radius:8px; background:var(--bg3); padding:14px; color:var(--muted); font-size:0.7rem; line-height:1.5; }
+  @media(max-width:1100px){ .community-command-grid-4, .community-command-grid-3, .community-command-region-grid { grid-template-columns:1fr; } .community-command-source-row, .community-command-region-row { grid-template-columns:1fr; } }
   @media(max-width:1100px){ .data-import2-hero, .data-import2-main-grid { grid-template-columns: 1fr; } .data-import2-kpis, .data-import2-preview-grid, .data-import2-summary-grid, .data-import2-preview-cols { grid-template-columns: repeat(2, 1fr); } .data-import2-file, .data-import2-activity-row, .data-import2-audit-row, .data-import2-review-row, .data-import2-source-card, .data-import2-review-toolbar, .data-import2-form-grid.wide { grid-template-columns: 1fr; } .data-import2-field-wide { grid-column: auto; } }
   @media(max-width:640px){ .data-import2-kpis, .data-import2-preview-grid, .data-import2-workflow, .data-import2-form-grid { grid-template-columns: 1fr; } .data-import2-hero { padding: 14px; } .data-import2-dropzone { padding: 18px; } }
   .csv-field-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }
@@ -1171,8 +1244,8 @@
       <div class="tabs" id="tabs">
         <div class="nav-group-label">Portfolio</div>
         <button class="tab active" data-tab="0" onclick="setTab(0)" aria-label="Portfolio Home"><i class="tab-icon ph ph-chart-line-up" aria-hidden="true"></i><span class="tab-label">Portfolio Home</span></button>
-        <button class="tab" data-tab="2" onclick="setTab(2)" aria-label="Portfolio Overview"><i class="tab-icon ph ph-squares-four" aria-hidden="true"></i><span class="tab-label">Portfolio Overview</span></button>
-        <button class="tab" data-tab="1" onclick="setTab(1)" aria-label="Communities"><i class="tab-icon ph ph-buildings" aria-hidden="true"></i><span class="tab-label">Communities</span></button>
+        <button class="tab" data-tab="2" onclick="setTab(2)" aria-label="Community Command"><i class="tab-icon ph ph-squares-four" aria-hidden="true"></i><span class="tab-label">Community Command</span></button>
+        <button class="tab" data-tab="1" onclick="setTab(1)" aria-label="Community Settings"><i class="tab-icon ph ph-buildings" aria-hidden="true"></i><span class="tab-label">Community Settings</span></button>
 
         <div class="nav-group-label">Operations</div>
         <button class="tab" data-tab="15" onclick="setTab(15)" aria-label="Central Services"><i class="tab-icon ph ph-command" aria-hidden="true"></i><span class="tab-label">Central Services</span></button>
@@ -1349,6 +1422,14 @@ const WINDOWSHADE_DEFAULTS = {
   overview_chart: false,
   overview_schedule: false,
   overview_future_months: true,
+  community_command_attention: false,
+  community_command_plan: false,
+  community_command_trend: false,
+  community_command_leasing_plan: false,
+  community_command_stabilization: false,
+  community_command_supporting: false,
+  community_command_assumptions: true,
+  community_command_portfolio_list: false,
   traffic_snapshot: false,
   traffic_funnel: false,
   traffic_monthly_table: false,
@@ -3013,6 +3094,7 @@ let reportHubCommunityProgressCommunities = [];
 let reportHubLvrCommunity = "";
 let weeklyExecutiveEmail = defaultWeeklyExecutiveEmailSettings();
 let workspaceScopeValue = PORTFOLIO_SCOPE_VALUE;
+let communityCommandState = defaultCommunityCommandState();
 const RISE_WEEKLY_LEASING_REPORT_TYPE = "rise_weekly_leasing";
 const RISE_WEEKLY_LEASING_REPORT_TITLE = "RISE Portfolio Leasing Weekly Report";
 let reportHubType = RISE_WEEKLY_LEASING_REPORT_TYPE;
@@ -7355,6 +7437,173 @@ function normalizeWindowshadeState(data) {
   ]));
 }
 
+function defaultCommunityCommandState() {
+  return {
+    trendMode: "12",
+    regionManagementSelectedRegion: "",
+    regions: [],
+    dashboardOverrides: [],
+    approvedGoals: [],
+    performancePlans: [],
+    payoutDecisions: [],
+    auditTrail: []
+  };
+}
+
+function normalizeCommunityCommandRegion(input = {}) {
+  const source = input && typeof input === "object" ? input : {};
+  const name = String(source.name ?? "").trim();
+  const id = String(source.id || (name ? `region_${simpleHash(name)}` : "")).trim();
+  if (!id && !name) return null;
+  return {
+    id: id || `region_${simpleHash(name)}`,
+    name: name || "Unnamed Region",
+    active: source.active !== false,
+    regionalManagerId: String(source.regionalManagerId ?? "").trim(),
+    regionalManagerName: String(source.regionalManagerName ?? "").trim(),
+    regionalManagerEmail: atlasNormalizeSharedEmail(source.regionalManagerEmail ?? ""),
+    communities: Array.isArray(source.communities)
+      ? Array.from(new Set(source.communities.map(item => matchPropertyName(item, { fallbackToCurrent: false }) || String(item ?? "").trim()).filter(Boolean)))
+      : [],
+    updatedAt: String(source.updatedAt ?? "").trim(),
+    updatedBy: String(source.updatedBy ?? "").trim()
+  };
+}
+
+function normalizeCommunityCommandOverride(input = {}) {
+  const source = input && typeof input === "object" ? input : {};
+  const propName = matchPropertyName(source.propName || source.communityName || source.propertyName, { fallbackToCurrent: false }) || String(source.propName || "").trim();
+  const field = String(source.field || "").trim();
+  if (!propName || !field) return null;
+  return {
+    id: String(source.id || `cc_override_${simpleHash(`${propName}_${field}_${source.monthIdx}_${source.year}`)}`).trim(),
+    propName,
+    field,
+    monthIdx: clampNumber(source.monthIdx, 0, 11),
+    year: Number.isFinite(Number(source.year)) ? Number(source.year) : new Date().getFullYear(),
+    originalValue: source.originalValue ?? "",
+    overrideValue: source.overrideValue ?? "",
+    reason: String(source.reason ?? "").trim(),
+    updatedBy: String(source.updatedBy ?? "").trim(),
+    updatedAt: String(source.updatedAt ?? "").trim(),
+    expirationDate: normalizeSharedDate(source.expirationDate) || "",
+    clearedAt: String(source.clearedAt ?? "").trim(),
+    clearedBy: String(source.clearedBy ?? "").trim()
+  };
+}
+
+function normalizeCommunityCommandApprovedGoal(input = {}) {
+  const source = input && typeof input === "object" ? input : {};
+  const propName = matchPropertyName(source.propName || source.communityName || source.propertyName, { fallbackToCurrent: false }) || String(source.propName || "").trim();
+  if (!propName) return null;
+  const monthIdx = clampNumber(source.monthIdx, 0, 11);
+  const year = Number.isFinite(Number(source.year)) ? Number(source.year) : new Date().getFullYear();
+  return {
+    id: String(source.id || `cc_goal_${simpleHash(`${propName}_${monthIdx}_${year}`)}`).trim(),
+    propName,
+    monthIdx,
+    year,
+    applicationGoal: Math.max(0, Math.round(Number(source.applicationGoal) || 0)),
+    grossLeaseGoal: Math.max(0, Math.round(Number(source.grossLeaseGoal) || 0)),
+    netLeaseGoal: Math.max(0, Math.round(Number(source.netLeaseGoal) || 0)),
+    recommendedApplicationGoal: Math.max(0, Math.round(Number(source.recommendedApplicationGoal) || 0)),
+    recommendedGrossLeaseGoal: Math.max(0, Math.round(Number(source.recommendedGrossLeaseGoal) || 0)),
+    recommendedNetLeaseGoal: Math.max(0, Math.round(Number(source.recommendedNetLeaseGoal) || 0)),
+    approver: String(source.approver ?? "").trim(),
+    approvedAt: String(source.approvedAt ?? "").trim(),
+    reason: String(source.reason ?? "").trim(),
+    locked: source.locked !== false
+  };
+}
+
+function normalizeCommunityCommandTask(input = {}) {
+  const source = input && typeof input === "object" ? input : {};
+  const title = String(source.title ?? "").trim();
+  if (!title) return null;
+  return {
+    id: String(source.id || `cc_task_${simpleHash(`${title}_${source.alertId || ""}`)}`).trim(),
+    alertId: String(source.alertId ?? "").trim(),
+    title,
+    description: String(source.description ?? "").trim(),
+    assignedTo: String(source.assignedTo ?? "").trim(),
+    priority: String(source.priority || "Watch").trim(),
+    module: String(source.module || "Community Command").trim(),
+    targetMetric: String(source.targetMetric ?? "").trim(),
+    baselineMetric: String(source.baselineMetric ?? "").trim(),
+    desiredOutcome: String(source.desiredOutcome ?? "").trim(),
+    actualOutcome: String(source.actualOutcome ?? "").trim(),
+    stage: ["open", "completed", "verified"].includes(String(source.stage || "")) ? String(source.stage) : "open",
+    status: String(source.status || "Open").trim(),
+    dueDate: normalizeSharedDate(source.dueDate) || "",
+    completedAt: String(source.completedAt ?? "").trim(),
+    completedBy: String(source.completedBy ?? "").trim(),
+    verifiedAt: String(source.verifiedAt ?? "").trim(),
+    verifiedBy: String(source.verifiedBy ?? "").trim(),
+    notes: String(source.notes ?? "").trim()
+  };
+}
+
+function normalizeCommunityCommandPlan(input = {}) {
+  const source = input && typeof input === "object" ? input : {};
+  const propName = matchPropertyName(source.propName || source.communityName || source.propertyName, { fallbackToCurrent: false }) || String(source.propName || "").trim();
+  if (!propName) return null;
+  const status = ["Draft", "Active", "Improving", "Monitoring", "Ready for Close", "Closed"].includes(String(source.status || ""))
+    ? String(source.status)
+    : "Active";
+  return {
+    id: String(source.id || `cc_plan_${simpleHash(`${propName}_${source.startedAt || ""}`)}`).trim(),
+    propName,
+    status,
+    ownerName: String(source.ownerName ?? "").trim(),
+    ownerEmail: atlasNormalizeSharedEmail(source.ownerEmail ?? ""),
+    gmName: String(source.gmName ?? "").trim(),
+    gmEmail: atlasNormalizeSharedEmail(source.gmEmail ?? ""),
+    startedAt: String(source.startedAt ?? "").trim(),
+    closedAt: String(source.closedAt ?? "").trim(),
+    reason: String(source.reason ?? "").trim(),
+    notes: String(source.notes ?? "").trim(),
+    sourceAlertIds: Array.isArray(source.sourceAlertIds) ? source.sourceAlertIds.map(item => String(item || "").trim()).filter(Boolean) : [],
+    tasks: (Array.isArray(source.tasks) ? source.tasks : []).map(normalizeCommunityCommandTask).filter(Boolean),
+    outcomeLog: Array.isArray(source.outcomeLog) ? source.outcomeLog.slice(0, 100) : []
+  };
+}
+
+function normalizeCommunityCommandPayoutDecision(input = {}) {
+  const source = input && typeof input === "object" ? input : {};
+  const propName = matchPropertyName(source.propName || source.communityName || source.propertyName, { fallbackToCurrent: false }) || String(source.propName || "").trim();
+  if (!propName) return null;
+  const monthIdx = clampNumber(source.monthIdx, 0, 11);
+  const year = Number.isFinite(Number(source.year)) ? Number(source.year) : new Date().getFullYear();
+  return {
+    id: String(source.id || `cc_payout_${simpleHash(`${propName}_${monthIdx}_${year}`)}`).trim(),
+    propName,
+    monthIdx,
+    year,
+    recommendation: String(source.recommendation || "Review").trim(),
+    decision: String(source.decision || "").trim(),
+    decidedBy: String(source.decidedBy || "").trim(),
+    decidedAt: String(source.decidedAt || "").trim(),
+    notes: String(source.notes || "").trim(),
+    supportMetrics: source.supportMetrics && typeof source.supportMetrics === "object" ? { ...source.supportMetrics } : {}
+  };
+}
+
+function normalizeCommunityCommandState(input = {}) {
+  const defaults = defaultCommunityCommandState();
+  const source = input && typeof input === "object" ? input : {};
+  const trendMode = ["12", "ytd", "t12"].includes(String(source.trendMode || "")) ? String(source.trendMode) : defaults.trendMode;
+  return {
+    trendMode,
+    regionManagementSelectedRegion: String(source.regionManagementSelectedRegion ?? "").trim(),
+    regions: (Array.isArray(source.regions) ? source.regions : []).map(normalizeCommunityCommandRegion).filter(Boolean).slice(0, 100),
+    dashboardOverrides: (Array.isArray(source.dashboardOverrides) ? source.dashboardOverrides : []).map(normalizeCommunityCommandOverride).filter(Boolean).slice(0, 500),
+    approvedGoals: (Array.isArray(source.approvedGoals) ? source.approvedGoals : []).map(normalizeCommunityCommandApprovedGoal).filter(Boolean).slice(0, 500),
+    performancePlans: (Array.isArray(source.performancePlans) ? source.performancePlans : []).map(normalizeCommunityCommandPlan).filter(Boolean).slice(0, 250),
+    payoutDecisions: (Array.isArray(source.payoutDecisions) ? source.payoutDecisions : []).map(normalizeCommunityCommandPayoutDecision).filter(Boolean).slice(0, 300),
+    auditTrail: Array.isArray(source.auditTrail) ? source.auditTrail.slice(0, 500) : []
+  };
+}
+
 function normalizeOpsGlobalData(data) {
   const input = data ?? {};
   const periodQuarter = getBonusQuarterForMonth(currentMonth);
@@ -7386,6 +7635,7 @@ function normalizeOpsGlobalData(data) {
     reportHubYear: Number.isFinite(Number(input.reportHubYear)) ? Number(input.reportHubYear) : new Date().getFullYear(),
     reportRecommendationOverrides: normalizeReportRecommendationOverrides(input.reportRecommendationOverrides),
     applicationResidentData: normalizeApplicationResidentDataState(input.applicationResidentData),
+    communityCommandState: normalizeCommunityCommandState(input.communityCommandState),
     windowshadeState: normalizeWindowshadeState(input.windowshadeState),
     sharedData: normalizeAtlasSharedData(input.sharedData)
   };
@@ -7414,6 +7664,7 @@ function getLegacyOpsGlobalSeed() {
     reportHubYear: legacy.reportHubYear,
     reportRecommendationOverrides: legacy.reportRecommendationOverrides,
     applicationResidentData: legacy.applicationResidentData,
+    communityCommandState: legacy.communityCommandState,
     windowshadeState: legacy.windowshadeState,
     sharedData: legacy.sharedData
   } : {};
@@ -7443,6 +7694,7 @@ function applyOpsGlobalData(data) {
   reportHubYear = normalized.reportHubYear;
   reportRecommendationOverrides = normalized.reportRecommendationOverrides;
   applicationResidentDataState = normalized.applicationResidentData;
+  communityCommandState = normalized.communityCommandState;
   windowshadeState = normalized.windowshadeState;
   atlasSharedData = normalized.sharedData;
   monthlyTemplateImportTargetTouched = false;
@@ -7504,6 +7756,7 @@ function persistOpsGlobalData() {
     reportHubYear,
     reportRecommendationOverrides,
     applicationResidentData: applicationResidentDataState,
+    communityCommandState,
     windowshadeState,
     sharedData: atlasSharedData
   });
@@ -10684,24 +10937,22 @@ function renderPropGrid() {
   const portfolioCorporateLeaseUnits = isPortfolioWorkspaceSelected()
     ? Math.max(0, Number(aggregate.corporateLeaseUnits ?? 0))
     : 0;
-  const primaryAddress = isPortfolioWorkspaceSelected()
+    const primaryAddress = isPortfolioWorkspaceSelected()
     ? `${details.length} communities combined for the selected reporting month.`
     : (currentRecord.communityAddress
         ? escapeHtml(currentRecord.communityAddress)
-        : "Add the community address in Community Setup to pin the asset details here.");
+        : "Add the community address in Community Settings to pin the asset details here.");
   if (communitySelect) {
-    const activeOptionNames = new Set(getAtlasOperationalCommunityNames(true));
-    const scopedProperties = PROPERTIES.filter(prop => {
-      const isSelected = !isPortfolioWorkspaceSelected() && prop.name === p.name;
-      return isSelected || activeOptionNames.has(prop.name);
-    });
+    const optionNames = getAtlasWorkspaceCommunityOptionNames();
+    const scopedProperties = optionNames.map(name => getPropertyByName(name)).filter(prop => prop?.name);
     communitySelect.innerHTML = [`<option value="${PORTFOLIO_SCOPE_VALUE}" ${isPortfolioWorkspaceSelected() ? "selected" : ""}>${PORTFOLIO_SCOPE_LABEL} · ${aggregate.totalUnits || 0} units · ${details.length} active communities</option>`, ...scopedProperties.map(prop => {
       const isSaved = !!savedData[prop.name];
       const isActiveSaved = isSaved ? isCommunityStatusActive(savedData[prop.name]) : false;
       const effectiveUnits = getTotalUnitsFor(prop, savedData[prop.name]?.customUnits);
       const statusLabel = isSaved ? (isActiveSaved ? "Active" : "Inactive") : "Draft";
       const unitLabel = effectiveUnits > 0 ? `${effectiveUnits} units` : "Units needed";
-      return `<option value="${escapeHtml(prop.name)}" ${(!isPortfolioWorkspaceSelected() && prop.name === p.name)?"selected":""}>${escapeHtml(prop.name)} · ${unitLabel} · ${statusLabel}</option>`;
+      const planStar = communityCommandHasActivePerformancePlan(prop.name) ? "★ " : "";
+      return `<option value="${escapeHtml(prop.name)}" ${(!isPortfolioWorkspaceSelected() && prop.name === p.name)?"selected":""}>${escapeHtml(planStar + prop.name)} · ${unitLabel} · ${statusLabel}</option>`;
     })].join("");
   }
   if (snapshot) {
@@ -10741,7 +10992,7 @@ function renderPropGrid() {
         <div class="workspace-snapshot-label">Physical Occupancy</div>
         <div class="workspace-snapshot-value">${occupiedPct.toFixed(1)}%</div>
         <div class="workspace-snapshot-sub">${occupiedUnits} occupied of ${occupancyBaseUnits || 0} ${isPortfolioWorkspaceSelected() ? "comparable" : "total"} units</div>
-        <div class="workspace-snapshot-link">Open Overview</div>
+        <div class="workspace-snapshot-link">Open Community Command</div>
       </button>
       <button type="button" class="workspace-snapshot-tile" onmousedown="return queueCurrentWorkspaceTab(2)">
         <div class="workspace-snapshot-label">Leased Occupancy</div>
@@ -10783,7 +11034,13 @@ function renderPropGrid() {
     customUnitsInput.placeholder = "Select a community in Overview to edit units";
     customUnitsInput.disabled = isPortfolioWorkspaceSelected();
   }
-  if (workspaceTitle) workspaceTitle.textContent = getWorkspaceScopeDisplayName();
+  if (workspaceTitle) {
+    const titleLabel = escapeHtml(getWorkspaceScopeDisplayName());
+    const star = !isPortfolioWorkspaceSelected() && communityCommandHasActivePerformancePlan(getProp().name)
+      ? `<span class="community-command-star" title="Active Community Performance Plan">★</span>`
+      : "";
+    workspaceTitle.innerHTML = `<span class="community-command-title-row">${star}<span>${titleLabel}</span></span>`;
+  }
   if (workspaceStatus) {
     const isSavedScope = isPortfolioWorkspaceSelected() ? true : !!savedData[p.name];
     const lastUpdatedIso = getWorkspaceLastUpdatedIso(details);
@@ -13723,7 +13980,7 @@ function syncAtlasTopbar() {
     if (freshChip) {
       if (isPortfolioWorkspaceSelected() && activeTab === 1) {
         const count = getPortfolioSetupCommunityRecordsForMonth(getSelectedDashboardMonthIndex(), savedData, { includeInactive: true }).length;
-        freshChip.lastElementChild.textContent = `Community setup roster · ${count} ${count === 1 ? "community" : "communities"}`;
+        freshChip.lastElementChild.textContent = `Community settings roster · ${count} ${count === 1 ? "community" : "communities"}`;
       } else {
         const count = getWorkspaceScopedDetails(getSelectedDashboardMonthIndex()).length;
         freshChip.lastElementChild.textContent = `Viewing data for ${count} ${count === 1 ? "community" : "communities"}`;
@@ -13882,8 +14139,8 @@ let atlasSharedRealtimeState = {
 
 const ATLAS_ACCESS_TABS = [
   { id: "0", label: "Portfolio Home", key: "portfolio_home" },
-  { id: "1", label: "Communities", key: "communities" },
-  { id: "2", label: "Portfolio Overview", key: "portfolio_overview" },
+  { id: "1", label: "Community Settings", key: "communities" },
+  { id: "2", label: "Community Command", key: "portfolio_overview" },
   { id: "3", label: "Traffic & Funnel", key: "traffic" },
   { id: "4", label: "Comp Calculator", key: "comp_calculator" },
   { id: "5", label: "Renewals", key: "renewals" },
@@ -13992,16 +14249,16 @@ const ATLAS_CUSTOM_DASHBOARD_WIDGETS = [
   {
     key: "portfolio_overview",
     legacyKeys: ["overview"],
-    label: "Portfolio Overview",
-    category: "Portfolio",
-    dataSource: "Portfolio",
+    label: "Community Command",
+    category: "Operations",
+    dataSource: "Community Command",
     tabId: 2,
     accent: "#1d4ed8",
     phase: 1,
     defaultMetric: "Physical Occupancy",
     metrics: ["Physical Occupancy", "Leased Occupancy", "Budget Occupancy", "Occupancy Variance", "Exposure", "Average Rent", "Revenue vs. Budget"],
     visualizations: ["KPI Card", "Trend Card", "Comparison Table"],
-    description: "Occupancy, exposure, rent, and budget pacing across the selected scope."
+    description: "Single-community command view for occupancy, leasing, alerts, plans, and source-linked operating metrics."
   },
   {
     key: "traffic_funnel",
@@ -15230,6 +15487,64 @@ function atlasDashboardSetLibraryCategory(value = "All") {
   renderTab();
 }
 
+function atlasRoleDefaultsToAllActiveCommunities(role = "") {
+  const normalizedRole = String(role || "").trim().toLowerCase();
+  if (["admin", "regional", "viewer", "property"].includes(normalizedRole)) return false;
+  return ["central", "central_services", "executive", "vp", "c_suite", "c-suite", "finance", "marketing", "people", "maintenance", "bonus", "asset_management", "accounting", "hr"].includes(normalizedRole)
+    || normalizedRole.includes("central")
+    || normalizedRole.includes("executive")
+    || normalizedRole.includes("vp")
+    || normalizedRole.includes("corporate");
+}
+
+function atlasProfileCommunityRestrictionValues(profile = getAtlasAccessProfile()) {
+  return {
+    allowedCommunityIds: normalizeAtlasAccessList(profile?.allowed_community_ids || profile?.allowedCommunityIds),
+    allowedMarkets: normalizeAtlasAccessList(profile?.allowed_market_values || profile?.allowedMarketValues).map(atlasNormalizeSharedText),
+    allowedRegions: normalizeAtlasAccessList(profile?.allowed_region_values || profile?.allowedRegionValues).map(atlasNormalizeSharedText),
+    allowedLocationGroups: atlasAccessLocationScopeValues(profile)
+  };
+}
+
+function atlasProfileHasCommunityRestrictions(profile = getAtlasAccessProfile()) {
+  const values = atlasProfileCommunityRestrictionValues(profile);
+  return Boolean(values.allowedCommunityIds.length || values.allowedMarkets.length || values.allowedRegions.length || values.allowedLocationGroups.length);
+}
+
+function atlasRoleCanSeeInactiveCommunities(profile = getAtlasAccessProfile()) {
+  const status = getAtlasCentralStatus();
+  const role = String(profile?.role || status.role || (!status.configured ? "admin" : "")).trim().toLowerCase();
+  return role === "admin";
+}
+
+function atlasRegionalProfileMatchesCommunity(property = {}, profile = getAtlasAccessProfile()) {
+  const role = String(profile?.role || "").trim().toLowerCase();
+  if (role !== "regional" && !role.includes("regional")) return false;
+  const email = atlasNormalizeSharedEmail(profile?.email || getAtlasCentralStatus().userEmail || "");
+  const profileName = atlasNormalizeSharedText(atlasUserDisplayName(profile || {}));
+  const regionalEmail = atlasNormalizeSharedEmail(property?.regionalManagerEmail || property?.regional_manager_email || "");
+  const regionalName = atlasNormalizeSharedText(property?.regionalManagerName || property?.regionalManager || "");
+  return Boolean((email && regionalEmail && email === regionalEmail) || (profileName && regionalName && profileName === regionalName));
+}
+
+function getAtlasWorkspaceCommunityOptionNames() {
+  const canSeeInactive = atlasRoleCanSeeInactiveCommunities();
+  const statusMode = canSeeInactive ? "all" : "active";
+  const optionNames = getCommunityNamesByStatusScope({
+    communityStatusMode: statusMode,
+    includeCurrentSelection: true,
+    includeDraft: true
+  });
+  return optionNames
+    .filter(name => atlasDashboardUserCanSeeCommunityName(name))
+    .sort((a, b) => {
+      const aActive = isAtlasCommunityActiveByName(a);
+      const bActive = isAtlasCommunityActiveByName(b);
+      if (aActive !== bActive) return aActive ? -1 : 1;
+      return a.localeCompare(b);
+    });
+}
+
 function atlasDashboardToggleLayoutMode() {
   atlasDashboardBuilderState.layoutMode = !atlasDashboardBuilderState.layoutMode;
   renderTab();
@@ -15246,16 +15561,15 @@ function atlasDashboardUserCanSeeCommunityName(name = "", profile = getAtlasAcce
   const status = getAtlasCentralStatus();
   if (!status.configured || !status.signedIn || !profile) return true;
   if (String(profile.status || "") !== "active") return false;
-  const role = String(profile.role || "");
-  if (["admin", "centra", "executive"].includes(role)) return true;
+  const role = String(profile.role || "").trim().toLowerCase();
+  if (role === "admin") return true;
   const property = getAtlasSharedPropertyByName(communityName);
-  const allowedCommunityIds = normalizeAtlasAccessList(profile.allowed_community_ids);
-  const allowedMarkets = normalizeAtlasAccessList(profile.allowed_market_values).map(atlasNormalizeSharedText);
-  const allowedRegions = normalizeAtlasAccessList(profile.allowed_region_values).map(atlasNormalizeSharedText);
-  const allowedLocationGroups = atlasAccessLocationScopeValues(profile);
-  const hasRestrictions = allowedCommunityIds.length || allowedMarkets.length || allowedRegions.length || allowedLocationGroups.length;
-  if (!hasRestrictions) return false;
+  const { allowedCommunityIds, allowedMarkets, allowedRegions, allowedLocationGroups } = atlasProfileCommunityRestrictionValues(profile);
+  const hasRestrictions = atlasProfileHasCommunityRestrictions(profile);
+  if (!hasRestrictions && atlasRoleDefaultsToAllActiveCommunities(role)) return true;
   if (!property) return false;
+  if (!hasRestrictions && atlasRegionalProfileMatchesCommunity(property, profile)) return true;
+  if (!hasRestrictions) return false;
   const atlasCommunityId = String(property.atlasCommunityId || property.sourceIds?.atlasCommunityId || "").trim();
   const market = atlasNormalizeSharedText(property.market);
   const region = atlasNormalizeSharedText(property.regionalGrouping || property.market);
@@ -16735,16 +17049,21 @@ function getAtlasSharedPropertyByName(name = "") {
 
 function atlasAccessProfileCanUseCurrentScope(profile = getAtlasAccessProfile()) {
   if (!profile || String(profile.status || "") !== "active") return { ok: false, reason: "This ATLAS account is not active." };
-  const role = String(profile.role || "");
-  if (role === "admin" || role === "centra" || isPortfolioWorkspaceSelected()) return { ok: true };
+  const role = String(profile.role || "").trim().toLowerCase();
+  if (role === "admin") return { ok: true };
+  const hasRestrictions = atlasProfileHasCommunityRestrictions(profile);
+  if (isPortfolioWorkspaceSelected()) {
+    if (atlasRoleDefaultsToAllActiveCommunities(role) || role === "regional" || role.includes("regional") || hasRestrictions) return { ok: true };
+    return { ok: false, reason: "Select your assigned community before opening this page." };
+  }
+  if (!atlasRoleCanSeeInactiveCommunities(profile) && !isAtlasCommunityActiveByName(getProp().name)) {
+    return { ok: false, reason: `${getProp().name} is inactive and only Admin users can include inactive communities.` };
+  }
   const property = getAtlasSharedPropertyByName(getProp().name);
   if (!property) return { ok: true };
-  const allowedCommunityIds = normalizeAtlasAccessList(profile.allowed_community_ids);
-  const allowedMarkets = normalizeAtlasAccessList(profile.allowed_market_values).map(atlasNormalizeSharedText);
-  const allowedRegions = normalizeAtlasAccessList(profile.allowed_region_values).map(atlasNormalizeSharedText);
-  const allowedLocationGroups = atlasAccessLocationScopeValues(profile);
-  const hasRestrictions = allowedCommunityIds.length || allowedMarkets.length || allowedRegions.length || allowedLocationGroups.length;
-  if (!hasRestrictions && ["executive"].includes(role)) return { ok: true };
+  const { allowedCommunityIds, allowedMarkets, allowedRegions, allowedLocationGroups } = atlasProfileCommunityRestrictionValues(profile);
+  if (!hasRestrictions && atlasRoleDefaultsToAllActiveCommunities(role)) return { ok: true };
+  if (!hasRestrictions && atlasRegionalProfileMatchesCommunity(property, profile)) return { ok: true };
   if (!hasRestrictions) return { ok: false, reason: "No property or location scope is assigned to this account yet." };
   const atlasCommunityId = String(property.atlasCommunityId || property.sourceIds?.atlasCommunityId || "").trim();
   const market = atlasNormalizeSharedText(property.market);
@@ -19001,6 +19320,259 @@ async function downloadAtlasSettingsMemoryBundle() {
   }
 }
 
+function getAtlasCommunityRegionName(propName = "", record = {}) {
+  const shared = getAtlasSharedPropertyByName(propName) || {};
+  return String(record?.communityRegionalGrouping || shared.regionalGrouping || record?.communityMarket || shared.market || "Unassigned").trim() || "Unassigned";
+}
+
+function getAtlasRegionalManagerCandidates() {
+  const peopleState = loadPeoplePlatformStateForSharedData();
+  const shared = normalizeAtlasSharedData(atlasSharedData);
+  const candidates = [];
+  const add = (input = {}) => {
+    const name = String(input.displayName || input.name || input.full_name || input.employeeName || "").trim();
+    const email = atlasNormalizeSharedEmail(input.email || input.workEmail || "");
+    const id = String(input.employeeId || input.id || input.peopleEmployeeId || input.user_id || email || name).trim();
+    if (!id && !name && !email) return;
+    const title = String(input.title || input.role || input.bonusRole || "").trim();
+    candidates.push({ id, name: name || email || id, email, title });
+  };
+  Object.values(shared.employees || {}).forEach(employee => {
+    const roleText = atlasNormalizeSharedText(`${employee.title || ""} ${employee.bonusRole || ""} ${employee.bonusRoleType || ""}`);
+    if (roleText.includes("regional") || roleText.includes("vp") || roleText.includes("operations")) add(employee);
+  });
+  (peopleState.employees || []).forEach(employee => {
+    const roleText = atlasNormalizeSharedText(`${employee.role || ""} ${employee.title || ""} ${employee.bonusRole || ""}`);
+    if (roleText.includes("regional") || roleText.includes("vp") || roleText.includes("operations")) add(employee);
+  });
+  Object.values(savedData || {}).forEach(record => {
+    if (record?.regionalManagerName || record?.regionalManagerEmail) {
+      add({
+        employeeId: record.regionalManagerUserId || record.regionalManagerEmail || record.regionalManagerName,
+        name: record.regionalManagerName,
+        email: record.regionalManagerEmail,
+        title: "Regional Manager"
+      });
+    }
+  });
+  const unique = new Map();
+  candidates.forEach(candidate => {
+    const key = atlasNormalizeSharedEmail(candidate.email) || atlasNormalizeSharedText(candidate.name) || candidate.id;
+    if (!key || unique.has(key)) return;
+    unique.set(key, candidate);
+  });
+  return Array.from(unique.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function buildAtlasRegionManagementRows() {
+  const state = normalizeCommunityCommandState(communityCommandState);
+  const byName = new Map();
+  state.regions.forEach(region => {
+    byName.set(atlasNormalizeSharedText(region.name), { ...region, communities: [...region.communities] });
+  });
+  getAllCommunityNames().forEach(name => {
+    const record = normalizeSavedCommunityRecord(name, savedData?.[name]);
+    const regionName = getAtlasCommunityRegionName(name, record);
+    const key = atlasNormalizeSharedText(regionName);
+    const existing = byName.get(key) || normalizeCommunityCommandRegion({
+      name: regionName,
+      active: true,
+      regionalManagerName: record.regionalManagerName,
+      regionalManagerEmail: record.regionalManagerEmail,
+      regionalManagerId: record.regionalManagerUserId,
+      communities: []
+    });
+    if (!existing.communities.includes(name)) existing.communities.push(name);
+    if (!existing.regionalManagerName && record.regionalManagerName) existing.regionalManagerName = record.regionalManagerName;
+    if (!existing.regionalManagerEmail && record.regionalManagerEmail) existing.regionalManagerEmail = record.regionalManagerEmail;
+    if (!existing.regionalManagerId && record.regionalManagerUserId) existing.regionalManagerId = record.regionalManagerUserId;
+    byName.set(key, existing);
+  });
+  return Array.from(byName.values())
+    .filter(Boolean)
+    .sort((a, b) => {
+      if (a.name === "Unassigned") return 1;
+      if (b.name === "Unassigned") return -1;
+      if (a.active !== b.active) return a.active ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+}
+
+function getSelectedAtlasRegionManagementRow() {
+  const rows = buildAtlasRegionManagementRows();
+  const selectedId = normalizeCommunityCommandState(communityCommandState).regionManagementSelectedRegion;
+  return rows.find(row => row.id === selectedId) || rows[0] || normalizeCommunityCommandRegion({ name: "Unassigned" });
+}
+
+function renderAtlasRegionManagementPanel() {
+  const rows = buildAtlasRegionManagementRows();
+  const selected = getSelectedAtlasRegionManagementRow();
+  const candidates = getAtlasRegionalManagerCandidates();
+  const communityOptions = getAllCommunityNames()
+    .sort((a, b) => {
+      const aActive = isAtlasCommunityActiveByName(a);
+      const bActive = isAtlasCommunityActiveByName(b);
+      if (aActive !== bActive) return aActive ? -1 : 1;
+      return a.localeCompare(b);
+    })
+    .map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}${isAtlasCommunityActiveByName(name) ? "" : " - inactive"}</option>`)
+    .join("");
+  const managerOptions = [`<option value="">No assigned Regional Manager</option>`, ...candidates.map(person => `<option value="${escapeHtml(person.id)}" ${person.id === selected.regionalManagerId || (person.email && person.email === selected.regionalManagerEmail) ? "selected" : ""}>${escapeHtml(person.name)}${person.email ? ` - ${escapeHtml(person.email)}` : ""}</option>`)].join("");
+  const rowHtml = rows.map(row => `<div class="community-command-region-row">
+    <strong>${escapeHtml(row.name)}</strong>
+    <span class="community-command-status ${row.active ? "good" : "muted"}">${row.active ? "Active" : "Inactive"}</span>
+    <span>${escapeHtml(row.regionalManagerName || "Regional Manager pending")}<br><span style="color:var(--muted);font-size:0.6rem">${escapeHtml(row.regionalManagerEmail || `${row.communities.length} communities`)}</span></span>
+    <button type="button" class="btn btn-gray btn-sm" onclick='setAtlasRegionManagementSelectedRegion(${JSON.stringify(row.id)})'>Edit</button>
+  </div>`).join("");
+  return `<div class="card mb4">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div>
+        <div class="card-title" style="margin-bottom:6px">Region Management</div>
+        <div style="font-size:0.68rem;color:var(--muted);line-height:1.55">Manage the shared Region relationship that feeds People, Community Settings, Community Command, reporting filters, and scoped dashboard views.</div>
+      </div>
+      <button class="btn btn-gray btn-sm" onclick="addAtlasManagedRegion()">+ Add Region</button>
+    </div>
+    <div class="community-command-region-grid">
+      <div>
+        ${rowHtml || `<div class="community-command-empty">No regions are configured yet.</div>`}
+      </div>
+      <div class="community-command-section" style="box-shadow:none">
+        <div class="windowshade-head">
+          <div>
+            <h2 style="font-size:0.82rem;font-weight:800">Selected Region</h2>
+            <p style="font-size:0.66rem;color:var(--muted);margin-top:2px">${escapeHtml(selected.communities.join(", ") || "No communities assigned yet.")}</p>
+          </div>
+          <span class="community-command-pill strong">${selected.communities.length} communities</span>
+        </div>
+        <div class="windowshade-body">
+          <div class="community-command-field-grid">
+            <label>Region Name<input id="atlas-region-name" value="${escapeHtml(selected.name || "")}" placeholder="Region name"></label>
+            <label>Status<select id="atlas-region-status"><option value="active" ${selected.active ? "selected" : ""}>Active</option><option value="inactive" ${!selected.active ? "selected" : ""}>Inactive</option></select></label>
+            <label>Regional Manager<select id="atlas-region-manager">${managerOptions}</select></label>
+            <label>Move Community<select id="atlas-region-community">${communityOptions}</select></label>
+          </div>
+          <div class="community-command-actions" style="justify-content:flex-start;margin-top:10px">
+            <button type="button" class="btn btn-blue btn-sm" onclick='saveAtlasRegionManagementSelection(${JSON.stringify(selected.id)})'>Save Region</button>
+            <button type="button" class="btn btn-gray btn-sm" onclick='assignAtlasCommunityToManagedRegion(${JSON.stringify(selected.id)})'>Assign Selected Community</button>
+          </div>
+          <div class="community-command-note" style="margin-top:10px">Saving a region writes the same region and Regional Manager details into each assigned community record so Community Settings and People-based scopes stay aligned.</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function setAtlasRegionManagementSelectedRegion(regionId = "") {
+  communityCommandState = normalizeCommunityCommandState({ ...communityCommandState, regionManagementSelectedRegion: String(regionId || "").trim() });
+  persistOpsGlobalData();
+  renderTab();
+}
+
+function getAtlasRegionManagerCandidateById(id = "") {
+  const target = String(id || "").trim();
+  return getAtlasRegionalManagerCandidates().find(candidate => candidate.id === target) || null;
+}
+
+function persistAtlasRegionCommunityAssignments(region = {}) {
+  const normalizedRegion = normalizeCommunityCommandRegion(region);
+  if (!normalizedRegion) return;
+  normalizedRegion.communities.forEach(name => {
+    const record = normalizeSavedCommunityRecord(name, savedData?.[name]);
+    const nextRecord = {
+      ...record,
+      communityRegionalGrouping: normalizedRegion.name,
+      regionalManagerName: normalizedRegion.regionalManagerName,
+      regionalManagerEmail: normalizedRegion.regionalManagerEmail,
+      regionalManagerUserId: normalizedRegion.regionalManagerId,
+      sharedSyncUpdatedAt: atlasSharedNow(),
+      sharedSyncSource: "region_management"
+    };
+    savedData[name] = normalizeSavedCommunityRecord(name, nextRecord);
+    syncSharedPropertyFromPortfolioRecord(name, savedData[name], {
+      source: "region_management",
+      persist: true,
+      timestamp: savedData[name].sharedSyncUpdatedAt,
+      forceFields: ["regionalGrouping", "regionalManagerName", "regionalManagerEmail", "regionalManagerUserId"],
+      strictMarket: false,
+      strictPropertyType: false
+    });
+  });
+}
+
+function saveAtlasRegionManagementSelection(regionId = "") {
+  if (!communityCommandCanOverrideDashboard() && !communityCommandCanApproveGoals()) {
+    alert("Only Admin or Executive roles can manage regions.");
+    return;
+  }
+  const state = normalizeCommunityCommandState(communityCommandState);
+  const existing = buildAtlasRegionManagementRows().find(row => row.id === regionId) || normalizeCommunityCommandRegion({ id: regionId, name: "" });
+  const manager = getAtlasRegionManagerCandidateById(document.getElementById("atlas-region-manager")?.value || "");
+  const nextRegion = normalizeCommunityCommandRegion({
+    ...existing,
+    name: document.getElementById("atlas-region-name")?.value || existing.name,
+    active: (document.getElementById("atlas-region-status")?.value || "active") === "active",
+    regionalManagerId: manager?.id || "",
+    regionalManagerName: manager?.name || "",
+    regionalManagerEmail: manager?.email || "",
+    updatedAt: new Date().toISOString(),
+    updatedBy: communityCommandUserLabel()
+  });
+  state.regions = [nextRegion, ...state.regions.filter(row => row.id !== nextRegion.id && atlasNormalizeSharedText(row.name) !== atlasNormalizeSharedText(nextRegion.name))];
+  state.regionManagementSelectedRegion = nextRegion.id;
+  communityCommandState = state;
+  persistAtlasRegionCommunityAssignments(nextRegion);
+  persistSaved();
+  communityCommandPersist("region_saved", nextRegion.name, existing?.name || "", nextRegion.name, "Region Management");
+}
+
+function assignAtlasCommunityToManagedRegion(regionId = "") {
+  if (!communityCommandCanOverrideDashboard() && !communityCommandCanApproveGoals()) {
+    alert("Only Admin or Executive roles can assign communities to regions.");
+    return;
+  }
+  const communityName = matchPropertyName(document.getElementById("atlas-region-community")?.value || "", { fallbackToCurrent: false });
+  if (!communityName) return;
+  const state = normalizeCommunityCommandState(communityCommandState);
+  let targetRegion = buildAtlasRegionManagementRows().find(row => row.id === regionId) || getSelectedAtlasRegionManagementRow();
+  targetRegion = normalizeCommunityCommandRegion({
+    ...targetRegion,
+    communities: Array.from(new Set([...(targetRegion.communities || []), communityName])),
+    updatedAt: new Date().toISOString(),
+    updatedBy: communityCommandUserLabel()
+  });
+  state.regions = state.regions
+    .map(row => normalizeCommunityCommandRegion({ ...row, communities: (row.communities || []).filter(name => name !== communityName) }))
+    .filter(Boolean)
+    .filter(row => row.id !== targetRegion.id);
+  state.regions.unshift(targetRegion);
+  state.regionManagementSelectedRegion = targetRegion.id;
+  communityCommandState = state;
+  persistAtlasRegionCommunityAssignments(targetRegion);
+  persistSaved();
+  communityCommandPersist("region_community_assigned", targetRegion.name, "", communityName, "Region Management");
+}
+
+function addAtlasManagedRegion() {
+  if (!communityCommandCanOverrideDashboard() && !communityCommandCanApproveGoals()) {
+    alert("Only Admin or Executive roles can add regions.");
+    return;
+  }
+  const name = String(prompt("Region name", "") || "").trim();
+  if (!name) return;
+  const region = normalizeCommunityCommandRegion({
+    name,
+    active: true,
+    communities: [],
+    updatedAt: new Date().toISOString(),
+    updatedBy: communityCommandUserLabel()
+  });
+  const state = normalizeCommunityCommandState(communityCommandState);
+  state.regions = [region, ...state.regions.filter(row => atlasNormalizeSharedText(row.name) !== atlasNormalizeSharedText(region.name))];
+  state.regionManagementSelectedRegion = region.id;
+  communityCommandState = state;
+  communityCommandPersist("region_added", region.name, "", "Active", "Region Management");
+}
+
 function renderAtlasSettingsSetupPanel() {
   const details = buildPortfolioDetailsForMonth(getSelectedDashboardMonthIndex());
   const activeCount = details.filter(detail => isCommunityStatusActive(detail.record)).length;
@@ -19010,10 +19582,10 @@ function renderAtlasSettingsSetupPanel() {
   return `<div class="card mb4">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
       <div>
-        <div class="card-title" style="margin-bottom:6px">Community Setup Governance</div>
-        <div style="font-size:0.68rem;color:var(--muted);line-height:1.55">Use Communities to manage live property setup, but treat this settings space as the admin control point for what must stay configured across the platform.</div>
+        <div class="card-title" style="margin-bottom:6px">Community Settings Governance</div>
+        <div style="font-size:0.68rem;color:var(--muted);line-height:1.55">Use Community Settings to manage live property setup, but treat this settings space as the admin control point for what must stay configured across the platform.</div>
       </div>
-      <button class="btn btn-gray btn-sm" onclick="setTab(1)">Open Communities</button>
+      <button class="btn btn-gray btn-sm" onclick="setTab(1)">Open Community Settings</button>
     </div>
     <div class="grid-4">
       ${statBox("Active Communities", activeCount, `${details.length} communities in current portfolio scope`, "#4493f8")}
@@ -19022,7 +19594,7 @@ function renderAtlasSettingsSetupPanel() {
       ${statBox("Report Contacts", investorCount, "Communities with saved recipient memory", "#a371f7")}
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-      <button class="btn btn-gray btn-sm" onclick="setTab(1)">Open Community Setup</button>
+      <button class="btn btn-gray btn-sm" onclick="setTab(1)">Open Community Settings</button>
       <button class="btn btn-gray btn-sm" onclick="setTab(7)">Open Data Import</button>
       <button class="btn btn-gray btn-sm" onclick="setTab(8)">Open Reporting</button>
     </div>
@@ -19414,7 +19986,7 @@ function renderAtlasSettingsTab() {
   const cardsHtml = `<div class="grid-4">
     ${statBox("Access Control", canManage ? "Admin Ready" : (status.signedIn ? "Viewer" : "Sign In"), canManage ? "Manage roles, scope, and page access here." : "Settings opens for connection and profile review first.", canManage ? "#3fb950" : "#d29922")}
     ${statBox("Central Platform", status.configured ? (status.signedIn ? "Connected" : "Configured") : "Not Configured", status.message || "Use this page to configure or verify central Atlas.", status.signedIn ? "#4493f8" : "#d29922")}
-    ${statBox("Portfolio Setup", getPortfolioSetupCommunityRecordsForMonth(getSelectedDashboardMonthIndex(), savedData, { includeInactive: true }).length, "Community setup, imports, and outputs route through this admin page.", "#a371f7")}
+    ${statBox("Community Settings", getPortfolioSetupCommunityRecordsForMonth(getSelectedDashboardMonthIndex(), savedData, { includeInactive: true }).length, "Community settings, imports, and outputs route through this admin page.", "#a371f7")}
     ${statBox("Memory", loadDailyBackupIndex().length, "Daily backups plus export and rollback controls live here.", "#58a6ff")}
   </div>`;
   const bodyHtml = `<div class="tbl-wrap">
@@ -19425,6 +19997,7 @@ function renderAtlasSettingsTab() {
     </div>
     <div id="atlas-settings-access-panel">${renderAtlasEmployeeAccessPanel()}</div>
     ${renderAtlasSettingsSetupPanel()}
+    ${renderAtlasRegionManagementPanel()}
     ${renderAtlasSettingsIntegrationsPanel()}
     ${renderAtlasSettingsDashboardPanel()}
     ${renderAtlasSettingsMemoryPanel()}
@@ -20019,7 +20592,7 @@ function monthGoalInpField(i, field, manualValue, recommendedValue, actualValue,
 }
 
 function renderPortfolioScopePanel(title, subtitle, cardsHtml, bodyHtml) {
-  const primaryActionLabel = isPortfolioWorkspaceSelected() ? "Open Communities" : `Open ${getProp().name}`;
+  const primaryActionLabel = isPortfolioWorkspaceSelected() ? "Open Community Settings" : `Open ${getProp().name}`;
   const primaryActionHandler = isPortfolioWorkspaceSelected()
     ? "return queueWorkspaceNavigation('', 1, { portfolio: true })"
     : `return queueWorkspaceNavigation(${JSON.stringify(getProp().name)}, ${activeTab})`;
@@ -20099,7 +20672,7 @@ function renderPortfolioScopedSetupTab() {
   const cardsHtml = `<div class="grid-4">
     ${statBox("Communities", setupDetails.length, `${activeDetails.length} active · ${Math.max(setupDetails.length - activeDetails.length, 0)} inactive in setup roster`, "#4493f8")}
     ${statBox("Saved Contacts", contactCount, "Community recipient records available for reporting", "#3fb950")}
-    ${statBox("Floor Plans", floorPlanCount, "Configured floor plans saved in Community Setup", "#d29922")}
+    ${statBox("Floor Plans", floorPlanCount, "Configured floor plans saved in Community Settings", "#d29922")}
     ${statBox("Addresses on File", setupDetails.filter(detail => String(detail.record?.communityAddress || "").trim()).length, `${aggregate.totalUnits.toLocaleString()} active units feeding portfolio totals`, "#a371f7")}
   </div>`;
   const rows = setupDetails.map(detail => {
@@ -20251,19 +20824,19 @@ function renderPortfolioScopedSetupTab() {
     </div>
   </div>`;
   const bodyHtml = `<div class="tbl-wrap">
-    <div class="tbl-header"><h2>Portfolio setup roster</h2><p>Core setup fields are editable directly here. Mark a community inactive to keep it out of combined portfolio reporting while still keeping its saved record available for edits and reactivation.</p></div>
+    <div class="tbl-header"><h2>Portfolio settings roster</h2><p>Core community fields are editable directly here. Mark a community inactive to keep it out of combined portfolio reporting while still keeping its saved record available for edits and reactivation.</p></div>
     <table>
       <thead><tr><th class="l">Community</th><th>Status</th><th>Units</th><th>Corp Leases</th><th class="l">Address</th><th class="l">Investor</th><th class="l">Report Contacts</th><th>Floor Plans</th><th>Action</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   </div>`;
-  return renderPortfolioScopePanel("Portfolio Community Setup", "A read-through of saved setup data across the full portfolio.", cardsHtml, bodyHtml + selectedCommunityEditor + renderPortfolioPresentationImageLibrary());
+  return renderPortfolioScopePanel("Portfolio Community Settings", "A read-through of saved community settings across the full portfolio.", cardsHtml, bodyHtml + selectedCommunityEditor + renderPortfolioPresentationImageLibrary());
   } catch (error) {
-    console.error("Portfolio Community Setup failed to render", error);
+    console.error("Portfolio Community Settings failed to render", error);
     const errorDetail = String(error?.message || error || "Unknown render error");
     return `<div class="card mb4">
-      <div class="card-title" style="margin-bottom:8px">Portfolio Community Setup</div>
-      <div class="alert-red">Portfolio Community Setup hit a render issue after loading saved setup data. ${escapeHtml(errorDetail)}</div>
+      <div class="card-title" style="margin-bottom:8px">Portfolio Community Settings</div>
+      <div class="alert-red">Portfolio Community Settings hit a render issue after loading saved community data. ${escapeHtml(errorDetail)}</div>
     </div>`;
   }
 }
@@ -20333,7 +20906,7 @@ function renderPortfolioScopedOverviewTab() {
       }).join("")}</tbody>
     </table>
   </div>${missingBudgetNotice}`;
-  return renderPortfolioScopePanel("Portfolio Overview", "Aggregate operating position for the selected month across all saved communities.", cardsHtml, bodyHtml);
+  return renderPortfolioScopePanel("Community Command", "Aggregate operating position for the selected month across all saved communities.", cardsHtml, bodyHtml);
 }
 
 function renderPortfolioScopedTrafficTab() {
@@ -21343,11 +21916,11 @@ function renderSetupTab() {
     })
   ].join("");
   } catch (error) {
-    console.error("Community Setup failed to render", error);
+    console.error("Community Settings failed to render", error);
     const errorDetail = String(error?.message || error || "Unknown render error");
     return `<div class="card mb4">
-      <div class="card-title" style="margin-bottom:8px">Community Setup</div>
-      <div class="alert-red">Community Setup hit a render issue after loading saved data. ${escapeHtml(errorDetail)}</div>
+      <div class="card-title" style="margin-bottom:8px">Community Settings</div>
+      <div class="alert-red">Community Settings hit a render issue after loading saved data. ${escapeHtml(errorDetail)}</div>
     </div>`;
   }
 }
@@ -21804,9 +22377,1072 @@ function renderRecommendationsCard(items, title, subtitle) {
   });
 }
 
+function communityCommandUserLabel() {
+  const status = getAtlasCentralStatus();
+  const profile = getAtlasAccessProfile();
+  return atlasUserDisplayName(profile || { email: status.userEmail || getAtlasCurrentUserLabel() });
+}
+
+function communityCommandCanApproveGoals() {
+  const status = getAtlasCentralStatus();
+  const profile = getAtlasAccessProfile();
+  const role = String(profile?.role || status.role || (!status.configured ? "admin" : "viewer")).trim().toLowerCase();
+  return ["admin", "executive", "vp"].includes(role) || role.includes("vp");
+}
+
+function communityCommandCanCreatePerformancePlan() {
+  const status = getAtlasCentralStatus();
+  const profile = getAtlasAccessProfile();
+  const role = String(profile?.role || status.role || (!status.configured ? "admin" : "viewer")).trim().toLowerCase();
+  return ["admin", "executive", "regional", "vp"].includes(role) || role.includes("regional") || role.includes("vp");
+}
+
+function communityCommandCanOverrideDashboard() {
+  const status = getAtlasCentralStatus();
+  const profile = getAtlasAccessProfile();
+  const role = String(profile?.role || status.role || (!status.configured ? "admin" : "viewer")).trim().toLowerCase();
+  return role === "admin";
+}
+
+function communityCommandAudit(action, entity, previousValue = "", newValue = "", reason = "") {
+  communityCommandState = normalizeCommunityCommandState(communityCommandState);
+  communityCommandState.auditTrail = [
+    {
+      id: `cc_audit_${simpleHash(`${Date.now()}_${action}_${entity}`)}`,
+      action,
+      entity,
+      user: communityCommandUserLabel(),
+      at: new Date().toISOString(),
+      previousValue: String(previousValue ?? ""),
+      newValue: String(newValue ?? ""),
+      reason: String(reason ?? "")
+    },
+    ...(communityCommandState.auditTrail || [])
+  ].slice(0, 500);
+}
+
+function communityCommandPersist(action = "", entity = "", previousValue = "", newValue = "", reason = "") {
+  if (action) communityCommandAudit(action, entity, previousValue, newValue, reason);
+  communityCommandState = normalizeCommunityCommandState(communityCommandState);
+  persistOpsGlobalData();
+  renderPropGrid();
+  renderTab();
+}
+
+function communityCommandGoalKey(propName, monthIdx, year = new Date().getFullYear()) {
+  return `${matchPropertyName(propName, { fallbackToCurrent: false }) || propName}|${buildPeriodKey(monthIdx, year)}`;
+}
+
+function getCommunityCommandApprovedGoal(propName, monthIdx, year = new Date().getFullYear()) {
+  const key = communityCommandGoalKey(propName, monthIdx, year);
+  return normalizeCommunityCommandState(communityCommandState).approvedGoals.find(goal =>
+    communityCommandGoalKey(goal.propName, goal.monthIdx, goal.year) === key
+  ) || null;
+}
+
+function getCommunityCommandDashboardOverride(propName, field, monthIdx, year = new Date().getFullYear()) {
+  const normalizedField = String(field || "").trim();
+  const key = communityCommandGoalKey(propName, monthIdx, year);
+  const today = getAtlasTodayISODate();
+  return normalizeCommunityCommandState(communityCommandState).dashboardOverrides.find(item => {
+    if (communityCommandGoalKey(item.propName, item.monthIdx, item.year) !== key) return false;
+    if (String(item.field || "") !== normalizedField) return false;
+    if (item.clearedAt) return false;
+    return !item.expirationDate || item.expirationDate >= today;
+  }) || null;
+}
+
+function communityCommandHasActivePerformancePlan(propName = getProp().name) {
+  const matchedName = matchPropertyName(propName, { fallbackToCurrent: false }) || String(propName || "").trim();
+  return normalizeCommunityCommandState(communityCommandState).performancePlans.some(plan =>
+    plan.propName === matchedName && !["Closed"].includes(plan.status)
+  );
+}
+
+function getCommunityCommandActivePlan(propName = getProp().name) {
+  const matchedName = matchPropertyName(propName, { fallbackToCurrent: false }) || String(propName || "").trim();
+  return normalizeCommunityCommandState(communityCommandState).performancePlans.find(plan =>
+    plan.propName === matchedName && !["Closed"].includes(plan.status)
+  ) || null;
+}
+
+function communityCommandFormatNumber(value, decimals = 0) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "Missing";
+  return numeric.toLocaleString("en-US", { maximumFractionDigits: decimals, minimumFractionDigits: decimals });
+}
+
+function communityCommandFormatPct(value, decimals = 1) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "Missing";
+  return `${numeric.toFixed(decimals)}%`;
+}
+
+function communityCommandMetricValue(model, field, sourceValue, formatter = value => String(value ?? "")) {
+  const override = getCommunityCommandDashboardOverride(model.propName, field, model.monthIdx, model.year);
+  const effective = override ? override.overrideValue : sourceValue;
+  return {
+    value: effective,
+    display: formatter(effective),
+    sourceValue,
+    sourceDisplay: formatter(sourceValue),
+    overridden: Boolean(override),
+    override
+  };
+}
+
+function communityCommandFinancialRowIsRent(row = {}) {
+  const text = `${row.glName || row.name || row.accountName || row.description || ""} ${row.section || ""} ${row.glCode || row.gl || ""}`.toLowerCase();
+  if (!text.includes("rent") && !/^4?0?0?0/.test(String(row.glCode || row.gl || ""))) return false;
+  const excluded = ["utility", "parking", "pest", "internet", "trash", "cable", "fee", "late", "deposit", "pet", "concession", "amenity", "storage", "garage"];
+  return !excluded.some(term => text.includes(term));
+}
+
+function communityCommandSumFinancialRows(rows = [], keys = []) {
+  return rows.reduce((sum, row) => {
+    for (const key of keys) {
+      const numeric = Number(row?.[key]);
+      if (Number.isFinite(numeric) && numeric !== 0) return sum + Math.abs(numeric);
+    }
+    return sum;
+  }, 0);
+}
+
+function getCommunityCommandEconomicOccupancyData(record = {}, monthIdx = getSelectedDashboardMonthIndex(), year = new Date().getFullYear()) {
+  const currentRows = getFinancialLedgerRowsForMonth(record, monthIdx, year).filter(communityCommandFinancialRowIsRent);
+  const currentBudgetRows = getFinancialBudgetLedgerRowsForMonth(record, monthIdx, year).filter(communityCommandFinancialRowIsRent);
+  const previousMonth = monthIdx > 0 ? monthIdx - 1 : 11;
+  const previousYear = monthIdx > 0 ? year : year - 1;
+  const previousRows = getFinancialLedgerRowsForMonth(record, previousMonth, previousYear).filter(communityCommandFinancialRowIsRent);
+  const previousBudgetRows = getFinancialBudgetLedgerRowsForMonth(record, previousMonth, previousYear).filter(communityCommandFinancialRowIsRent);
+  const collected = communityCommandSumFinancialRows(currentRows, ["actual", "yAct", "amount", "collectedRent", "collected"]);
+  const grossCharges = communityCommandSumFinancialRows(currentRows, ["grossRentCharges", "charges", "budget", "yBud"])
+    || communityCommandSumFinancialRows(currentBudgetRows, ["budget", "yBud", "amount", "annualBudget"]);
+  const previousCollected = communityCommandSumFinancialRows(previousRows, ["actual", "yAct", "amount", "collectedRent", "collected"]);
+  const previousGrossCharges = communityCommandSumFinancialRows(previousRows, ["grossRentCharges", "charges", "budget", "yBud"])
+    || communityCommandSumFinancialRows(previousBudgetRows, ["budget", "yBud", "amount", "annualBudget"]);
+  const mtdPct = grossCharges > 0 ? (collected / grossCharges) * 100 : null;
+  const priorPct = previousGrossCharges > 0 ? (previousCollected / previousGrossCharges) * 100 : null;
+  return {
+    mtdPct,
+    priorPct,
+    variance: mtdPct !== null && priorPct !== null ? mtdPct - priorPct : null,
+    collected,
+    grossCharges,
+    rowCount: currentRows.length,
+    sourceLabel: currentRows.length || currentBudgetRows.length ? "Financial actuals and budget rent GLs" : "Missing rent-charge mapping"
+  };
+}
+
+function getCommunityCommandSourceLabel(record = {}, fallback = "ATLAS mapped source") {
+  const latestDlr = normalizeDlrSummary(record.latestDlrSummary);
+  const stamps = [
+    latestDlr.importedAt,
+    latestDlr.dailyBoxScore?.importedAt,
+    record.financialUpdatedAt,
+    record.financialContractUpdatedAt,
+    record.sharedSyncUpdatedAt
+  ].filter(Boolean).sort((a, b) => (Date.parse(b) || 0) - (Date.parse(a) || 0));
+  const source = latestDlr.sourceFileName || latestDlr.dailyBoxScore?.sourceFileName || fallback;
+  return stamps[0] ? `${source} - ${formatSavedTimestampLabel(stamps[0])}` : source;
+}
+
+function buildCommunityCommandModel(propName = getProp().name, sourceRecord = getCurrentCommunityRecord()) {
+  const matchedName = matchPropertyName(propName, { fallbackToCurrent: false }) || propName;
+  const record = normalizeSavedCommunityRecord(matchedName, sourceRecord || savedData?.[matchedName]);
+  const prop = getPropertyByName(matchedName);
+  const year = Number(record.reportYear) || new Date().getFullYear();
+  const monthIdx = getSelectedDashboardMonthIndex();
+  const monthlyDataForYear = getRecordMonthlyDataForYear({ ...record, currentMonth: monthIdx }, year);
+  const totalUnits = getResolvedTotalUnitsForRecord(matchedName, record, { prop });
+  const corporateUnits = getCorporateLeaseUnitsForRecord(record, totalUnits);
+  const occupancyBaseUnits = getOccupancyBaseUnits(totalUnits, corporateUnits);
+  const occupied = getRecordComparableSnapshotUnits({ ...record, currentMonth: monthIdx }, totalUnits, monthIdx, "occupiedSnapshot");
+  const leased = getRecordComparableSnapshotUnits({ ...record, currentMonth: monthIdx }, totalUnits, monthIdx, "leasedSnapshot");
+  const workingRecord = { ...record, currentMonth: monthIdx, monthlyData: monthlyDataForYear };
+  const summary = getCommunitySummary(matchedName, workingRecord, sourceRecord || workingRecord) || {};
+  const schedule = computeScheduleFromContext({
+    totalUnits,
+    corporateLeaseUnits: corporateUnits,
+    currentOccupied: occupied,
+    currentLeased: leased,
+    occupancyGoal: Number(record.occupancyGoal ?? 95),
+    leasedGoal: Number(record.leasedGoal ?? 97),
+    currentMonth: monthIdx,
+    conversionRate: Number(record.conversionRate ?? 65),
+    monthlyData: monthlyDataForYear,
+    savedBudgetTargets: record.savedBudgetTargets,
+    seasonal: record.seasonal
+  });
+  const monthEntry = monthlyDataForYear[monthIdx] || {};
+  const appMetrics = getApplicationDecisionMetrics(monthEntry);
+  const renewal = getRenewalSummaryForMonth(getRenewalMonthEntryForRecord(workingRecord, monthIdx, year));
+  const trendMoveOuts = getEffectiveMoveOutsForMonth(monthIdx, monthlyDataForYear).effective;
+  const trendMoveIns = Math.max(0, Number(monthEntry.moveIns) || 0);
+  const trendingUnits = Math.max(occupied + trendMoveIns - trendMoveOuts, 0);
+  const trendingPct = occupancyBaseUnits > 0 ? (Math.min(trendingUnits, occupancyBaseUnits) / occupancyBaseUnits) * 100 : null;
+  const economic = getCommunityCommandEconomicOccupancyData(workingRecord, monthIdx, year);
+  const plan = getCommunityPerformancePlan(matchedName, workingRecord) || {};
+  const sourceLabel = getCommunityCommandSourceLabel(record);
+  return {
+    propName: matchedName,
+    record,
+    prop,
+    year,
+    monthIdx,
+    monthLabel: FULL_MONTHS[monthIdx],
+    monthlyData: monthlyDataForYear,
+    monthEntry,
+    summary,
+    schedule,
+    plan,
+    totalUnits,
+    corporateUnits,
+    occupancyBaseUnits,
+    occupied,
+    leased,
+    physicalPct: summary.occPct ?? (occupancyBaseUnits > 0 ? (occupied / occupancyBaseUnits) * 100 : null),
+    leasedPct: summary.leasedPct ?? (occupancyBaseUnits > 0 ? (leased / occupancyBaseUnits) * 100 : null),
+    budgetOccPct: getRecordSavedBudgetOccPct(record, monthIdx, year),
+    budgetLeasedPct: Number(summary.budgetLeasedPct ?? 0) || 0,
+    trendingUnits,
+    trendingPct,
+    economic,
+    appMetrics,
+    renewal,
+    netLeasesMtd: Math.max(0, Number(monthEntry.moveIns) || 0) - trendMoveOuts,
+    grossLeasesMtd: getExplicitLeaseSignedCount(monthEntry),
+    traffic: {
+      guestCards: getLeadSourceTotal(monthEntry),
+      tours: Math.max(0, Number(monthEntry.tours) || 0)
+    },
+    activePerformancePlan: getCommunityCommandActivePlan(matchedName),
+    sourceLabel
+  };
+}
+
+function buildCommunityCommandAlerts(model) {
+  const alerts = [];
+  const add = (id, severity, title, copy, actual, expected, module, tabIdx, response, owner = "Regional Manager") => {
+    alerts.push({
+      id,
+      severity,
+      title,
+      copy,
+      actual,
+      expected,
+      module,
+      tabIdx,
+      response,
+      owner,
+      dueDate: getAtlasTodayISODate(),
+      status: severity === "critical" ? "Action Required" : severity === "watch" ? "Watch" : "Opportunity"
+    });
+  };
+  const occGap = model.budgetOccPct > 0 ? model.physicalPct - model.budgetOccPct : null;
+  if (occGap !== null && occGap < -1.5) {
+    add("occ_budget_risk", "critical", "Occupancy materially below budget", `${model.propName} is ${Math.abs(occGap).toFixed(1)} points under the locked budget line for ${model.monthLabel}.`, communityCommandFormatPct(model.physicalPct), communityCommandFormatPct(model.budgetOccPct), "Budget Builder", 12, "Use the leasing plan below to protect move-ins and close approved files.");
+  } else if (occGap !== null && occGap < -0.5) {
+    add("occ_budget_watch", "watch", "Occupancy is drifting under budget", `The current gap is manageable, but the trend needs weekly pacing attention.`, communityCommandFormatPct(model.physicalPct), communityCommandFormatPct(model.budgetOccPct), "Budget Builder", 12, "Review near-term move-ins, move-outs, and approved applications.");
+  } else if (occGap !== null) {
+    add("occ_on_track", "opportunity", "Occupancy is on the planned line", `${model.propName} is holding the current budget occupancy pace.`, communityCommandFormatPct(model.physicalPct), communityCommandFormatPct(model.budgetOccPct), "Community Command", 2, "Maintain leasing follow-up discipline and watch future exposure.");
+  }
+  if (Number(model.plan.currentGrossLeaseNeed || 0) > Math.max(Number(model.grossLeasesMtd || 0), 0) + 3) {
+    add("lease_pace_risk", "critical", "Leasing pace risk", `${Math.round(model.plan.currentGrossLeaseNeed || 0)} gross leases are needed for the current operating plan.`, Math.round(model.grossLeasesMtd || 0), Math.round(model.plan.currentGrossLeaseNeed || 0), "Traffic & Funnel", 3, "Prioritize approvals, same-day close attempts, and aged lead revival.");
+  }
+  if (model.traffic.guestCards < Math.max(1, Number(model.plan.currentGuestCardNeed || 0) * 0.75)) {
+    add("traffic_volume_watch", "watch", "Lead volume below plan", `Lead volume is not yet supporting the recommended leasing target.`, Math.round(model.traffic.guestCards), Math.round(model.plan.currentGuestCardNeed || 0), "Traffic & Funnel", 3, "Refresh paid channels, resident referrals, and local outreach.");
+  }
+  if (model.appMetrics.applications > 0 && model.appMetrics.approvalPct < 70) {
+    add("approval_fallout_watch", "watch", "Application approval fallout", `Approval rate is below the expected quality threshold for current applications.`, communityCommandFormatPct(model.appMetrics.approvalPct, 0), "70%", "Application Performance", 3, "Review denial reasons, qualification messaging, and incomplete document follow-up.");
+  }
+  if (model.renewal.expirations > 0 && Number(model.renewal.retentionRate || 0) < 60) {
+    add("renewal_retention_watch", "watch", "Renewal retention pressure", `${model.monthLabel} retention is below the default 60% save line.`, communityCommandFormatPct(model.renewal.retentionRate || 0, 0), "60%", "Renewals", 5, "Escalate undecided renewals and review renewal pricing.");
+  }
+  if (model.economic.mtdPct === null) {
+    add("economic_missing", "watch", "Economic occupancy needs rent-charge mapping", "ATLAS cannot calculate economic occupancy until rent charges and collected rent revenue are mapped.", "Missing", "Rent charges + collections", "Data Import", 7, "Map rent-charge and collected-rent source fields in Data Import.");
+  } else if (model.economic.variance !== null && model.economic.variance < -2) {
+    add("economic_deterioration", "critical", "Economic occupancy deterioration", `MTD economic occupancy is down ${Math.abs(model.economic.variance).toFixed(1)} points from the prior month.`, communityCommandFormatPct(model.economic.mtdPct), communityCommandFormatPct(model.economic.priorPct), "Central Services", 15, "Review delinquency and collections exceptions.");
+  }
+  return alerts.sort((a, b) => ({ critical: 0, watch: 1, opportunity: 2 }[a.severity] ?? 9) - ({ critical: 0, watch: 1, opportunity: 2 }[b.severity] ?? 9));
+}
+
+function buildCommunityCommandLeasingPlanRows(model) {
+  return model.schedule.map((row, idx) => {
+    const monthEntry = model.monthlyData[idx] || {};
+    const apps = getApplicationDecisionMetrics(monthEntry);
+    const approved = getCommunityCommandApprovedGoal(model.propName, idx, model.year);
+    const beginningUnits = idx === model.monthIdx
+      ? model.occupied
+      : (idx > 0 ? Number(model.schedule[idx - 1]?.occupied || 0) : model.occupied);
+    const actualNet = Math.max(0, Number(monthEntry.moveIns) || 0) - getEffectiveMoveOutsForMonth(idx, model.monthlyData).effective;
+    const variance = Number(row.budgetOcc || 0) > 0 ? Number(row.occPct || 0) - Number(row.budgetOcc || 0) : null;
+    const status = variance === null
+      ? "Missing"
+      : variance < -1.5 ? "Critical" : variance < -0.5 ? "Watch" : "On Track";
+    return {
+      monthIdx: idx,
+      month: FULL_MONTHS[idx],
+      beginningPct: model.occupancyBaseUnits > 0 ? (beginningUnits / model.occupancyBaseUnits) * 100 : null,
+      budgetPct: Number(row.budgetOcc || 0) || null,
+      forecastPct: Number(row.occPct || 0) || null,
+      moveOuts: Number(row.moveOuts || 0),
+      renewalExposure: getRenewalSummaryForMonth(getRenewalMonthEntryForRecord(model.record, idx, model.year)).expirations,
+      requiredMoveIns: Number(row.netOccLeases || 0),
+      recommendedApps: Number(row.recommendedApps || row.apps || 0),
+      approvedApps: approved?.applicationGoal ?? null,
+      recommendedGrossLeases: Number(row.recommendedGrossLeases || row.grossLeases || 0),
+      approvedGrossLeases: approved?.grossLeaseGoal ?? null,
+      actualApplications: apps.applications,
+      actualGrossLeases: getExplicitLeaseSignedCount(monthEntry),
+      netLeaseGoal: Number(row.netOccLeases || 0),
+      approvedNetLeases: approved?.netLeaseGoal ?? null,
+      actualNetLeases: actualNet,
+      endingForecastPct: Number(row.occPct || 0) || null,
+      variance,
+      status,
+      approved
+    };
+  });
+}
+
+function getCommunityCommandTrendPoints(model) {
+  const mode = normalizeCommunityCommandState(communityCommandState).trendMode;
+  const start = mode === "ytd" ? 0 : 0;
+  const end = mode === "ytd" ? model.monthIdx : 11;
+  const rows = [];
+  for (let idx = start; idx <= end; idx += 1) {
+    const entry = model.monthlyData[idx] || {};
+    const occupied = idx === model.monthIdx
+      ? model.occupied
+      : getRecordComparableSnapshotUnits(model.record, model.totalUnits, idx, "occupiedSnapshot");
+    const leased = idx === model.monthIdx
+      ? model.leased
+      : getRecordComparableSnapshotUnits(model.record, model.totalUnits, idx, "leasedSnapshot");
+    const physical = model.occupancyBaseUnits > 0 ? (occupied / model.occupancyBaseUnits) * 100 : null;
+    const leasedPct = model.occupancyBaseUnits > 0 ? (leased / model.occupancyBaseUnits) * 100 : null;
+    const scheduledMoveIns = Math.max(0, Number(entry.moveIns) || 0);
+    const scheduledMoveOuts = getEffectiveMoveOutsForMonth(idx, model.monthlyData).effective;
+    const trending = model.occupancyBaseUnits > 0 ? ((Math.max(occupied + scheduledMoveIns - scheduledMoveOuts, 0) / model.occupancyBaseUnits) * 100) : null;
+    const budget = getRecordSavedBudgetOccPct(model.record, idx, model.year) || null;
+    rows.push({
+      idx,
+      label: MONTHS[idx],
+      physical,
+      leased: leasedPct,
+      trending,
+      budget,
+      variance: budget !== null && physical !== null ? physical - budget : null
+    });
+  }
+  return rows;
+}
+
+function renderCommunityCommandTrendSvg(points = []) {
+  const width = 920;
+  const height = 260;
+  const pad = { left: 42, right: 18, top: 22, bottom: 34 };
+  const values = points.flatMap(row => [row.physical, row.leased, row.trending, row.budget]).filter(value => Number.isFinite(Number(value)));
+  const minValue = Math.max(0, Math.floor((Math.min(...values, 90) - 5) / 5) * 5);
+  const maxValue = Math.min(105, Math.ceil((Math.max(...values, 100) + 5) / 5) * 5);
+  const span = Math.max(maxValue - minValue, 10);
+  const xFor = index => pad.left + ((width - pad.left - pad.right) * (points.length <= 1 ? 0 : index / (points.length - 1)));
+  const yFor = value => pad.top + ((maxValue - Number(value)) / span) * (height - pad.top - pad.bottom);
+  const series = [
+    ["physical", "Physical", "#1d4ed8"],
+    ["leased", "Leased", "#7c3aed"],
+    ["trending", "Trending", "#2a8f83"],
+    ["budget", "Budget", "#d29922"]
+  ];
+  const line = ([key, label, color]) => {
+    const usable = points.map((row, idx) => ({ row, idx, value: row[key] })).filter(item => Number.isFinite(Number(item.value)));
+    if (usable.length < 2) return "";
+    const pointString = usable.map(item => `${xFor(item.idx).toFixed(1)},${yFor(item.value).toFixed(1)}`).join(" ");
+    const dots = usable.map(item => `<circle cx="${xFor(item.idx).toFixed(1)}" cy="${yFor(item.value).toFixed(1)}" r="3.2" fill="${color}"><title>${escapeHtml(`${item.row.label}: ${label} ${Number(item.value).toFixed(1)}%${Number.isFinite(Number(item.row.variance)) ? `, variance ${formatSignedDisplay(item.row.variance, 1, "%")}` : ""}`)}</title></circle>`).join("");
+    return `<polyline fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="${pointString}"></polyline>${dots}`;
+  };
+  const grid = [minValue, Math.round((minValue + maxValue) / 2), maxValue].map(value => {
+    const y = yFor(value);
+    return `<line x1="${pad.left}" x2="${width - pad.right}" y1="${y}" y2="${y}" stroke="rgba(1,62,81,0.12)"></line><text x="8" y="${y + 4}" fill="#698094" font-size="11">${value}%</text>`;
+  }).join("");
+  const xLabels = points.map((row, idx) => `<text x="${xFor(idx)}" y="${height - 10}" fill="#698094" font-size="11" text-anchor="middle">${escapeHtml(row.label)}</text>`).join("");
+  return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Community occupancy trend chart">${grid}${series.map(line).join("")}${xLabels}</svg>`;
+}
+
+function renderCommunityCommandKpi(model, field, label, sourceValue, formatter, sub, tone = "info", tabIdx = 2) {
+  const metric = communityCommandMetricValue(model, field, sourceValue, formatter);
+  const canOverride = communityCommandCanOverrideDashboard();
+  return `<button type="button" class="community-command-kpi" data-tone="${tone}" onmousedown="return queueWorkspaceNavigation(${JSON.stringify(model.propName)}, ${tabIdx})">
+    <div class="community-command-label">${escapeHtml(label)}</div>
+    <div class="community-command-value">${escapeHtml(metric.display)}</div>
+    <div class="community-command-kpi-sub">${escapeHtml(sub)}</div>
+    <div class="community-command-source">
+      <span>${metric.overridden ? `<span class="community-command-override">Dashboard override</span> · Source ${escapeHtml(metric.sourceDisplay)}` : escapeHtml(model.sourceLabel)}</span>
+      ${canOverride ? `<span class="community-command-override" role="button" tabindex="0" onmousedown="event.stopPropagation()" onclick="event.stopPropagation(); addCommunityCommandDashboardOverride('${field}')">${metric.overridden ? "Edit override" : "Override"}</span>` : ""}
+    </div>
+  </button>`;
+}
+
+function renderCommunityCommandHealthSnapshot(model) {
+  const economicDisplay = model.economic.mtdPct === null ? "Missing" : communityCommandFormatPct(model.economic.mtdPct);
+  const economicSub = model.economic.mtdPct === null
+    ? "Map rent charges and collected rent revenue to calculate."
+    : `Prior ${model.economic.priorPct === null ? "Missing" : communityCommandFormatPct(model.economic.priorPct)} · ${model.economic.variance === null ? "variance pending" : formatSignedDisplay(model.economic.variance, 1, "%")} variance`;
+  const outcomesTotal = model.appMetrics.approvals + model.appMetrics.denials + model.appMetrics.cancelled;
+  const approvedPct = outcomesTotal > 0 ? (model.appMetrics.approvals / outcomesTotal) * 100 : 0;
+  const deniedPct = outcomesTotal > 0 ? (model.appMetrics.denials / outcomesTotal) * 100 : 0;
+  const cancelledPct = outcomesTotal > 0 ? (model.appMetrics.cancelled / outcomesTotal) * 100 : 0;
+  const renewalConversionValue = model.renewal.expirations > 0 ? model.renewal.retentionRate : null;
+  const renewalConversionSub = renewalConversionValue === null
+    ? "Renewal expirations or signed renewals are missing for this month."
+    : `${Math.round(model.renewal.signed)} signed of ${Math.round(model.renewal.expirations)} expirations`;
+  return `<div class="community-command-grid-4">
+    ${renderCommunityCommandKpi(model, "physical_occupancy", "Physical Occupancy", model.physicalPct, value => communityCommandFormatPct(value), `${Math.round(model.occupied)} occupied of ${Math.round(model.occupancyBaseUnits || model.totalUnits)} comparable units`, model.budgetOccPct > 0 && model.physicalPct < model.budgetOccPct ? "critical" : "good", 2)}
+    ${renderCommunityCommandKpi(model, "leased_occupancy", "Leased Occupancy", model.leasedPct, value => communityCommandFormatPct(value), `${Math.round(model.leased)} leased units in the current snapshot`, model.budgetLeasedPct > 0 && model.leasedPct < model.budgetLeasedPct ? "watch" : "good", 2)}
+    ${renderCommunityCommandKpi(model, "economic_occupancy", "MTD Economic Occupancy", model.economic.mtdPct, value => value === null || value === undefined || value === "" ? "Missing" : communityCommandFormatPct(value), economicSub, model.economic.mtdPct === null ? "watch" : "info", 15)}
+    ${renderCommunityCommandKpi(model, "trending_occupancy", "Trending Occupancy", model.trendingPct, value => value === null ? "Missing" : communityCommandFormatPct(value), `Current occupied + ${Math.round(model.monthEntry.moveIns || 0)} move-ins - ${Math.round(getEffectiveMoveOutsForMonth(model.monthIdx, model.monthlyData).effective)} move-outs`, model.trendingPct !== null && model.budgetOccPct > 0 && model.trendingPct < model.budgetOccPct ? "watch" : "good", 2)}
+    ${renderCommunityCommandKpi(model, "budget_occupancy", "Budget Occupancy", model.budgetOccPct || null, value => value ? communityCommandFormatPct(value) : "Missing", "Locked Budget Builder or approved reforecast source.", model.budgetOccPct ? "info" : "watch", 12)}
+    ${renderCommunityCommandKpi(model, "applications_mtd", "Applications MTD", model.appMetrics.applications, value => communityCommandFormatNumber(value), `${model.appMetrics.approvals} approved · ${model.appMetrics.pendingDecision} pending`, model.appMetrics.applications >= Number(model.plan.currentAppNeed || 0) ? "good" : "watch", 3)}
+    ${renderCommunityCommandKpi(model, "net_leases_mtd", "Net Leases MTD", model.netLeasesMtd, value => communityCommandFormatNumber(value), `${Math.round(model.monthEntry.moveIns || 0)} move-ins · ${Math.round(getEffectiveMoveOutsForMonth(model.monthIdx, model.monthlyData).effective)} move-outs`, model.netLeasesMtd >= Number(model.plan.currentMoveInNeed || 0) ? "good" : "watch", 3)}
+    ${renderCommunityCommandKpi(model, "renewal_conversion", "Renewal Conversion", renewalConversionValue, value => value === null || value === undefined || value === "" ? "Missing" : communityCommandFormatPct(value, 0), renewalConversionSub, renewalConversionValue === null ? "watch" : renewalConversionValue >= 60 ? "good" : "watch", 5)}
+    <button type="button" class="community-command-kpi" data-tone="${outcomesTotal ? "info" : "watch"}" onmousedown="return queueWorkspaceNavigation(${JSON.stringify(model.propName)}, 3)">
+      <div class="community-command-label">Application Outcomes</div>
+      <div class="community-command-value">${Math.round(outcomesTotal)}</div>
+      <div class="community-command-kpi-sub">${model.appMetrics.approvals} approved · ${model.appMetrics.denials} denied · ${model.appMetrics.cancelled} cancelled</div>
+      <div class="community-command-inline-bar" title="Approved, denied, cancelled mix">
+        <span style="width:${approvedPct}%;background:#2a8f83"></span>
+        <span style="width:${deniedPct}%;background:#d1242f"></span>
+        <span style="width:${cancelledPct}%;background:#d29922"></span>
+      </div>
+      <div class="community-command-source"><span>${escapeHtml(model.sourceLabel)}</span></div>
+    </button>
+  </div>`;
+}
+
+function renderCommunityCommandAttentionCenter(model) {
+  const alerts = buildCommunityCommandAlerts(model);
+  const critical = alerts.filter(alert => alert.severity === "critical").length;
+  const watch = alerts.filter(alert => alert.severity === "watch").length;
+  const opportunities = alerts.filter(alert => alert.severity === "opportunity").length;
+  const bodyHtml = `<div class="community-command-alert-list">
+    ${alerts.map(alert => `<div class="community-command-alert ${escapeHtml(alert.severity)}">
+      <div class="community-command-alert-head">
+        <div>
+          <div class="community-command-label">${escapeHtml(alert.module)}</div>
+          <div class="community-command-alert-title">${escapeHtml(alert.title)}</div>
+        </div>
+        <span class="community-command-status ${alert.severity === "critical" ? "critical" : alert.severity === "watch" ? "watch" : "info"}">${escapeHtml(alert.severity === "opportunity" ? "Opportunity" : alert.severity)}</span>
+      </div>
+      <div class="community-command-alert-copy">${escapeHtml(alert.copy)}</div>
+      <div class="community-command-alert-meta">
+        <span>Actual: ${escapeHtml(alert.actual)}</span>
+        <span>Target: ${escapeHtml(alert.expected)}</span>
+        <span>Owner: ${escapeHtml(alert.owner)}</span>
+        <span>Status: ${escapeHtml(alert.status)}</span>
+        <span>Due: ${escapeHtml(alert.dueDate)}</span>
+      </div>
+      <div class="community-command-alert-copy">${escapeHtml(alert.response)}</div>
+      <div class="community-command-actions" style="justify-content:flex-start">
+        <button class="btn btn-gray btn-sm" onmousedown="return queueWorkspaceNavigation(${JSON.stringify(model.propName)}, ${alert.tabIdx})">Open ${escapeHtml(alert.module)}</button>
+        ${communityCommandCanCreatePerformancePlan() && alert.severity !== "opportunity" ? `<button class="btn btn-blue btn-sm" onclick='communityCommandAddAlertToPerformancePlan(${JSON.stringify(alert.id)})'>Add to Performance Plan</button>` : ""}
+      </div>
+    </div>`).join("") || `<div class="community-command-empty">No active operating alerts are currently flagged for ${escapeHtml(model.propName)}.</div>`}
+  </div>`;
+  return renderWindowshadeCard({
+    key: "community_command_attention",
+    title: "Community Attention Center",
+    subtitle: "Cross-module risks, watch items, and opportunities for the selected month.",
+    countLabel: `${critical} critical · ${watch} watch · ${opportunities} opportunity`,
+    bodyHtml,
+    collapsedPreview: alerts.slice(0, 2).map(alert => alert.title).join(" · ") || "No urgent attention items."
+  }).replace('class="card mb4"', 'class="community-command-section mb4"');
+}
+
+function renderCommunityCommandPerformancePlan(model) {
+  const plan = model.activePerformancePlan;
+  const canCreate = communityCommandCanCreatePerformancePlan();
+  if (!plan) {
+    return renderWindowshadeCard({
+      key: "community_command_plan",
+      title: "Community Performance Plan",
+      subtitle: "Formal accountability plan created from attention-center alerts when Regional review is needed.",
+      countLabel: "No active plan",
+      bodyHtml: `<div class="community-command-empty">No active performance plan is open for ${escapeHtml(model.propName)}. ${canCreate ? "Start one from current alerts when a corrective action needs ownership and verification." : "Plans become visible here when opened by an authorized Regional or Admin."}</div>${canCreate ? `<div class="community-command-actions" style="justify-content:flex-start;margin-top:10px"><button class="btn btn-blue btn-sm" onclick="startCommunityPerformancePlan()">Start Performance Plan</button></div>` : ""}`,
+      collapsedPreview: "No active plan."
+    }).replace('class="card mb4"', 'class="community-command-section mb4"');
+  }
+  const tasks = plan.tasks || [];
+  const completed = tasks.filter(task => task.stage === "completed" || task.stage === "verified").length;
+  const verified = tasks.filter(task => task.stage === "verified").length;
+  const taskHtml = tasks.map(task => `<div class="community-command-task">
+    <div class="community-command-task-row">
+      <div>
+        <div class="community-command-alert-title">${escapeHtml(task.title)}</div>
+        <div class="community-command-alert-copy">${escapeHtml(task.description || task.desiredOutcome || "Task details pending.")}</div>
+      </div>
+      <span class="community-command-status ${task.stage === "verified" ? "good" : task.stage === "completed" ? "info" : "watch"}">${escapeHtml(task.stage === "verified" ? "Verified" : task.stage === "completed" ? "Completed" : "Open")}</span>
+    </div>
+    <div class="community-command-alert-meta">
+      <span>Assigned: ${escapeHtml(task.assignedTo || plan.gmName || "GM")}</span>
+      <span>Due: ${escapeHtml(task.dueDate || "Set due date")}</span>
+      <span>Module: ${escapeHtml(task.module)}</span>
+      <span>Target: ${escapeHtml(task.targetMetric || "Metric target pending")}</span>
+      ${task.actualOutcome ? `<span>Result: ${escapeHtml(task.actualOutcome)}</span>` : ""}
+    </div>
+    <div class="community-command-actions" style="justify-content:flex-start">
+      ${task.stage === "open" ? `<button class="btn btn-gray btn-sm" onclick='communityCommandUpdateTaskStage(${JSON.stringify(plan.id)}, ${JSON.stringify(task.id)}, "completed")'>Mark Completed</button>` : ""}
+      ${task.stage !== "verified" && communityCommandCanCreatePerformancePlan() ? `<button class="btn btn-blue btn-sm" onclick='communityCommandUpdateTaskStage(${JSON.stringify(plan.id)}, ${JSON.stringify(task.id)}, "verified")'>Verify</button>` : ""}
+    </div>
+  </div>`).join("");
+  return renderWindowshadeCard({
+    key: "community_command_plan",
+    title: "Community Performance Plan",
+    subtitle: "Visible plan ownership, tasks, verification status, and measurable outcomes.",
+    countLabel: `${plan.status} · ${completed}/${tasks.length} complete · ${verified} verified`,
+    bodyHtml: `<div class="community-command-mini-grid" style="margin-bottom:10px">
+      <div class="community-command-mini"><strong>${escapeHtml(plan.status)}</strong><span>Plan lifecycle stage</span></div>
+      <div class="community-command-mini"><strong>${escapeHtml(plan.ownerName || model.record.regionalManagerName || "Regional Manager")}</strong><span>Plan owner / verifier</span></div>
+      <div class="community-command-mini"><strong>${escapeHtml(plan.gmName || model.record.generalManagerName || "GM")}</strong><span>Primary execution owner</span></div>
+      <div class="community-command-mini"><strong>${tasks.length}</strong><span>Task count with two-stage completion</span></div>
+    </div>
+    <div class="community-command-alert-copy" style="margin-bottom:10px">${escapeHtml(plan.reason || "Opened from Community Command alerts.")}</div>
+    <div class="community-command-alert-list">${taskHtml || `<div class="community-command-empty">No plan tasks have been added yet.</div>`}</div>`,
+    collapsedPreview: `${plan.status} plan · ${tasks.length} task${tasks.length === 1 ? "" : "s"} · ${verified} verified`
+  }).replace('class="card mb4"', 'class="community-command-section mb4"');
+}
+
+function renderCommunityCommandTrend(model) {
+  const points = getCommunityCommandTrendPoints(model);
+  const state = normalizeCommunityCommandState(communityCommandState);
+  const bodyHtml = `<div class="community-command-chart-wrap">
+    <div class="community-command-toggle-row">
+      ${[["12", "12 Months"], ["ytd", "YTD"], ["t12", "Trailing 12"]].map(([value, label]) => `<button type="button" class="${state.trendMode === value ? "active" : ""}" onclick="setCommunityCommandTrendMode('${value}')">${label}</button>`).join("")}
+    </div>
+    <div class="community-command-chart">${renderCommunityCommandTrendSvg(points)}</div>
+    <div class="community-command-legend">
+      <span><i style="background:#1d4ed8"></i>Physical Occupancy</span>
+      <span><i style="background:#7c3aed"></i>Leased Occupancy</span>
+      <span><i style="background:#2a8f83"></i>Trending Occupancy</span>
+      <span><i style="background:#d29922"></i>Budgeted Occupancy</span>
+    </div>
+  </div>`;
+  return renderWindowshadeCard({
+    key: "community_command_trend",
+    title: "Occupancy Trend",
+    subtitle: "Physical, leased, trending, and locked budget occupancy in one view.",
+    countLabel: state.trendMode === "ytd" ? "YTD" : state.trendMode === "t12" ? "Trailing 12" : "Jan-Dec",
+    bodyHtml,
+    collapsedPreview: `Physical ${communityCommandFormatPct(model.physicalPct)} · Leased ${communityCommandFormatPct(model.leasedPct)} · Budget ${model.budgetOccPct ? communityCommandFormatPct(model.budgetOccPct) : "Missing"}`
+  }).replace('class="card mb4"', 'class="community-command-section mb4"');
+}
+
+function renderCommunityCommandLeasingPlan(model) {
+  const rows = buildCommunityCommandLeasingPlanRows(model);
+  const canApprove = communityCommandCanApproveGoals();
+  const currentRow = rows[model.monthIdx] || {};
+  const weeklyApps = Math.ceil(Number(currentRow.recommendedApps || 0) / 4);
+  const weeklyGross = Math.ceil(Number(currentRow.recommendedGrossLeases || 0) / 4);
+  const weeklyNet = Math.ceil(Number(currentRow.netLeaseGoal || 0) / 4);
+  const bodyHtml = `<div class="community-command-mini-grid" style="margin-bottom:10px">
+    <div class="community-command-mini"><strong>${Math.round(currentRow.netLeaseGoal || 0)}</strong><span>Required net leases to protect the current month.</span></div>
+    <div class="community-command-mini"><strong>${Math.round(currentRow.recommendedGrossLeases || 0)}</strong><span>ATLAS recommended gross leases after exposure.</span></div>
+    <div class="community-command-mini"><strong>${Math.round(currentRow.recommendedApps || 0)}</strong><span>Recommended application goal from conversion and seasonality.</span></div>
+    <div class="community-command-mini"><strong>${weeklyApps} / ${weeklyGross} / ${weeklyNet}</strong><span>Applications / gross leases / net leases per week.</span></div>
+  </div>
+  <div class="community-command-note" style="margin-bottom:10px">Budget requires ${Math.round(currentRow.netLeaseGoal || 0)} additional net leases this month. Based on move-out exposure, renewal risk, conversion assumptions, seasonality, and trailing leasing velocity, ATLAS recommends ${Math.round(currentRow.recommendedGrossLeases || 0)} gross leases and ${Math.round(currentRow.recommendedApps || 0)} applications for ${escapeHtml(model.monthLabel)}.</div>
+  <div class="community-command-scroll">
+    <table class="community-command-plan-table">
+      <thead><tr><th>Month</th><th>Beginning Occ</th><th>Budget Occ</th><th>Forecast / Trend</th><th>Move-Outs</th><th>Renewal Exposure</th><th>Required Move-Ins</th><th>ATLAS App Goal</th><th>Approved App Goal</th><th>ATLAS Lease Goal</th><th>Approved Lease Goal</th><th>Actual Apps</th><th>Actual Gross Leases</th><th>Net Goal</th><th>Actual Net</th><th>Ending Forecast</th><th>Variance</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows.map(row => `<tr>
+        <td><strong>${escapeHtml(row.month)}</strong></td>
+        <td>${row.beginningPct === null ? "Missing" : communityCommandFormatPct(row.beginningPct)}</td>
+        <td>${row.budgetPct === null ? "Missing" : communityCommandFormatPct(row.budgetPct)}</td>
+        <td>${row.forecastPct === null ? "Missing" : communityCommandFormatPct(row.forecastPct)}</td>
+        <td>${Math.round(row.moveOuts)}</td>
+        <td>${Math.round(row.renewalExposure)}</td>
+        <td>${Math.round(row.requiredMoveIns)}</td>
+        <td>${Math.round(row.recommendedApps)}</td>
+        <td>${row.approvedApps === null ? "Pending" : Math.round(row.approvedApps)}</td>
+        <td>${Math.round(row.recommendedGrossLeases)}</td>
+        <td>${row.approvedGrossLeases === null ? "Pending" : Math.round(row.approvedGrossLeases)}</td>
+        <td>${Math.round(row.actualApplications)}</td>
+        <td>${Math.round(row.actualGrossLeases)}</td>
+        <td>${row.approvedNetLeases === null ? Math.round(row.netLeaseGoal) : Math.round(row.approvedNetLeases)}</td>
+        <td>${Math.round(row.actualNetLeases)}</td>
+        <td>${row.endingForecastPct === null ? "Missing" : communityCommandFormatPct(row.endingForecastPct)}</td>
+        <td>${row.variance === null ? "Missing" : formatSignedDisplay(row.variance, 1, "%")}</td>
+        <td><span class="community-command-status ${row.status === "Critical" ? "critical" : row.status === "Watch" ? "watch" : row.status === "On Track" ? "good" : "muted"}">${escapeHtml(row.status)}</span></td>
+        <td>${canApprove && row.monthIdx >= model.monthIdx ? `<button class="btn btn-gray btn-sm" onclick="approveCommunityCommandMonthlyGoals(${row.monthIdx})">${row.approved ? "Edit" : "Approve"}</button>` : ""}</td>
+      </tr>`).join("")}</tbody>
+    </table>
+  </div>`;
+  return renderWindowshadeCard({
+    key: "community_command_leasing_plan",
+    title: "Leasing & Occupancy Plan",
+    subtitle: "Recommended goals, approved official goals, actual results, and status by month.",
+    countLabel: `${model.monthLabel} · ${Math.round(currentRow.recommendedGrossLeases || 0)} lease goal`,
+    bodyHtml,
+    collapsedPreview: `ATLAS recommends ${Math.round(currentRow.recommendedApps || 0)} applications and ${Math.round(currentRow.recommendedGrossLeases || 0)} gross leases.`
+  }).replace('class="card mb4"', 'class="community-command-section mb4"');
+}
+
+function renderCommunityCommandStabilization(model) {
+  const activeName = getProp().name;
+  const priorGlobals = { currentOccupied, currentLeased, currentMonth, monthlyData, corporateLeaseUnits, savedBudgetTargets, seasonal };
+  let stabilization = null;
+  try {
+    currentOccupied = model.occupied;
+    currentLeased = model.leased;
+    currentMonth = model.monthIdx;
+    monthlyData = model.monthlyData;
+    corporateLeaseUnits = model.corporateUnits;
+    savedBudgetTargets = model.record.savedBudgetTargets;
+    seasonal = model.record.seasonal;
+    stabilization = getMonthsToStabilization();
+  } finally {
+    currentOccupied = priorGlobals.currentOccupied;
+    currentLeased = priorGlobals.currentLeased;
+    currentMonth = priorGlobals.currentMonth;
+    monthlyData = priorGlobals.monthlyData;
+    corporateLeaseUnits = priorGlobals.corporateLeaseUnits;
+    savedBudgetTargets = priorGlobals.savedBudgetTargets;
+    seasonal = priorGlobals.seasonal;
+  }
+  const months = stabilization?.months;
+  const estimateDate = Number.isFinite(Number(months))
+    ? new Date(model.year, model.monthIdx + Number(months), 1)
+    : null;
+  const confidence = model.traffic.guestCards > 0 && model.appMetrics.applications > 0 && model.renewal.expirations > 0 ? "Higher" : "Range";
+  const bodyHtml = `<div class="community-command-grid-3">
+    <div class="community-command-kpi" data-tone="info"><div class="community-command-label">Estimated Stabilization Date</div><div class="community-command-value">${estimateDate ? escapeHtml(estimateDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })) : "Range Needed"}</div><div class="community-command-kpi-sub">${escapeHtml(stabilization?.reason || "More source history is needed before ATLAS should show a precise month.")}</div></div>
+    <div class="community-command-kpi" data-tone="${months === 0 ? "good" : "watch"}"><div class="community-command-label">Months Remaining</div><div class="community-command-value">${months === null || months === undefined ? "Missing" : Math.round(months)}</div><div class="community-command-kpi-sub">Target ${Math.round(stabilization?.targetUnits || 0)} occupied units at 95% physical occupancy.</div></div>
+    <div class="community-command-kpi" data-tone="${confidence === "Higher" ? "good" : "watch"}"><div class="community-command-label">Confidence</div><div class="community-command-value">${escapeHtml(confidence)}</div><div class="community-command-kpi-sub">Based on source freshness, leasing velocity, renewal exposure, and documented net absorption.</div></div>
+  </div>`;
+  if (activeName !== model.propName) {}
+  return renderWindowshadeCard({
+    key: "community_command_stabilization",
+    title: "Stabilization Forecast",
+    subtitle: "Estimated path to 95% using current occupancy, leased position, trend, renewal exposure, and leasing velocity.",
+    countLabel: months === null || months === undefined ? "Range needed" : `${Math.round(months)} months`,
+    bodyHtml,
+    collapsedPreview: stabilization?.reason || "Stabilization estimate pending."
+  }).replace('class="card mb4"', 'class="community-command-section mb4"');
+}
+
+function renderCommunityCommandSupportingMetrics(model) {
+  const financial = getFinancialSummaryForMonth(model.record, model.monthIdx, model.year);
+  const items = [
+    ["Traffic & Funnel", `${Math.round(model.traffic.guestCards)} leads`, `${Math.round(model.traffic.tours)} tours · ${communityCommandFormatPct(model.summary.tourToLeasePct || 0)} tour-to-lease`, 3],
+    ["Applications", `${Math.round(model.appMetrics.applications)} MTD`, `${Math.round(model.appMetrics.approvals)} approved · ${Math.round(model.appMetrics.denials)} denied · ${Math.round(model.appMetrics.cancelled)} cancelled`, 3],
+    ["Renewals", `${Math.round(model.renewal.signed)} signed`, `${Math.round(model.renewal.expirations)} expirations · ${model.renewal.retentionRate === null ? "Missing retention" : communityCommandFormatPct(model.renewal.retentionRate, 0)}`, 5],
+    ["Reputation", `${model.summary.oraScore ? Number(model.summary.oraScore).toFixed(1) : "Missing"}`, `Google ${model.summary.googleQuarterlyRating ? Number(model.summary.googleQuarterlyRating).toFixed(2) : "Missing"}`, 6],
+    ["Financial Position", financial.hasData ? formatSignedFinancialCurrency(financial.noiVariance) : "Missing", financial.hasData ? "NOI variance from imported actuals" : "Upload financial actuals to refresh", 12],
+    ["Budget Source", model.budgetOccPct ? communityCommandFormatPct(model.budgetOccPct) : "Missing", "Locked budget/reforecast consumed read-only here", 12]
+  ];
+  const bodyHtml = `<div class="community-command-source-list">
+    ${items.map(([label, value, detail, tabIdx]) => `<button type="button" class="community-command-source-row" onmousedown="return queueWorkspaceNavigation(${JSON.stringify(model.propName)}, ${tabIdx})">
+      <strong>${escapeHtml(label)}</strong>
+      <span>${escapeHtml(value)}</span>
+      <span>${escapeHtml(detail)}</span>
+      <span class="workspace-snapshot-link">Open</span>
+    </button>`).join("")}
+  </div>`;
+  return renderWindowshadeCard({
+    key: "community_command_supporting",
+    title: "Supporting Operational Sections",
+    subtitle: "Source-linked shortcuts into the detailed ATLAS modules.",
+    countLabel: "6 source links",
+    bodyHtml,
+    collapsedPreview: "Traffic, applications, renewals, reputation, financials, and budget sources."
+  }).replace('class="card mb4"', 'class="community-command-section mb4"');
+}
+
+function renderCommunityCommandAssumptions(model) {
+  const trend = getClosedMonthApplicationWeeklyTrend(model.monthlyData, model.monthIdx, model.year);
+  const bodyHtml = `<div class="community-command-mini-grid">
+    <div class="community-command-mini"><strong>${Number(model.record.conversionRate || 0).toFixed(1)}%</strong><span>Base application-to-lease conversion assumption.</span></div>
+    <div class="community-command-mini"><strong>${Number(model.record.seasonal?.[model.monthIdx] || 1).toFixed(2)}x</strong><span>${escapeHtml(model.monthLabel)} seasonality consumed in the planning engine.</span></div>
+    <div class="community-command-mini"><strong>${trend.avgAppsPerWeek ? trend.avgAppsPerWeek.toFixed(1) : "Missing"}</strong><span>Closed-month application velocity per week.</span></div>
+    <div class="community-command-mini"><strong>${Math.round(model.renewal.projectedAttrition || 0)}</strong><span>Projected renewal attrition feeding move-out exposure.</span></div>
+    <div class="community-command-mini"><strong>${communityCommandFormatPct(model.appMetrics.cancelledPct || 0, 0)}</strong><span>Cancellation factor from mapped applications.</span></div>
+    <div class="community-command-mini"><strong>${communityCommandFormatPct(model.appMetrics.denialPct || 0, 0)}</strong><span>Denial factor from mapped applications.</span></div>
+  </div>`;
+  return renderWindowshadeCard({
+    key: "community_command_assumptions",
+    title: "View Assumptions & Planning Model",
+    subtitle: "Background inputs used by ATLAS Planning Engine.",
+    countLabel: "Model inputs",
+    bodyHtml,
+    collapsedPreview: `Conversion ${Number(model.record.conversionRate || 0).toFixed(1)}% · seasonality ${Number(model.record.seasonal?.[model.monthIdx] || 1).toFixed(2)}x · renewal attrition ${Math.round(model.renewal.projectedAttrition || 0)}`
+  }).replace('class="card mb4"', 'class="community-command-section mb4"');
+}
+
+function getCommunityCommandPayoutRecommendation(model) {
+  const quarterMonths = getQuarterMonths(bonusQuarter);
+  const quarterNet = quarterMonths.reduce((sum, idx) => {
+    const entry = model.monthlyData[idx] || {};
+    return sum + (Math.max(0, Number(entry.moveIns) || 0) - getEffectiveMoveOutsForMonth(idx, model.monthlyData).effective);
+  }, 0);
+  const previousMonths = [model.monthIdx - 3, model.monthIdx - 2, model.monthIdx - 1].filter(idx => idx >= 0);
+  const priorApproved = previousMonths.reduce((sum, idx) => sum + getApplicationDecisionMetrics(model.monthlyData[idx] || {}).approvals, 0) / Math.max(previousMonths.length, 1);
+  const currentApproved = model.appMetrics.approvals;
+  const growthPct = priorApproved > 0 ? ((currentApproved - priorApproved) / priorApproved) * 100 : (currentApproved > 0 ? 100 : 0);
+  const eligible = model.netLeasesMtd > 0 && quarterNet > 0 && growthPct >= 75;
+  return {
+    eligible,
+    quarterNet,
+    priorApproved,
+    currentApproved,
+    growthPct,
+    recommendation: eligible ? "Recommend Review" : "Monitor"
+  };
+}
+
+function renderCommunityCommandPayoutRecommendation(model) {
+  const rec = getCommunityCommandPayoutRecommendation(model);
+  const decision = normalizeCommunityCommandState(communityCommandState).payoutDecisions.find(item =>
+    communityCommandGoalKey(item.propName, item.monthIdx, item.year) === communityCommandGoalKey(model.propName, model.monthIdx, model.year)
+  );
+  return `<div class="community-command-section mb4">
+    <div class="windowshade-head">
+      <div>
+        <h2 style="font-size:0.9rem;font-weight:600">Payout Curve Eligibility Recommendation</h2>
+        <p style="font-size:0.72rem;color:var(--muted);margin-top:2px">Advisory only. Admin/HR keeps the final decision.</p>
+      </div>
+      <span class="community-command-status ${rec.eligible ? "info" : "muted"}">${escapeHtml(rec.recommendation)}</span>
+    </div>
+    <div class="windowshade-body">
+      <div class="community-command-mini-grid">
+        <div class="community-command-mini"><strong>${formatSignedDisplay(model.netLeasesMtd)}</strong><span>Current month net absorption</span></div>
+        <div class="community-command-mini"><strong>${formatSignedDisplay(rec.quarterNet)}</strong><span>Current-quarter absorption momentum</span></div>
+        <div class="community-command-mini"><strong>${communityCommandFormatPct(rec.growthPct, 0)}</strong><span>Approved application intake growth vs trailing 3-month blend</span></div>
+        <div class="community-command-mini"><strong>${escapeHtml(decision?.decision || "No decision")}</strong><span>${decision?.decidedAt ? `Recorded ${formatSavedTimestampLabel(decision.decidedAt)}` : "Final decision pending when needed"}</span></div>
+      </div>
+      ${communityCommandCanApproveGoals() ? `<div class="community-command-actions" style="justify-content:flex-start;margin-top:10px"><button class="btn btn-gray btn-sm" onclick="communityCommandRecordPayoutDecision('approved')">Record Approved Review</button><button class="btn btn-gray btn-sm" onclick="communityCommandRecordPayoutDecision('declined')">Record Declined Review</button></div>` : ""}
+    </div>
+  </div>`;
+}
+
+function renderCommunityCommandTab() {
+  const model = buildCommunityCommandModel(getProp().name, getCurrentCommunityRecord());
+  const region = model.record.communityRegionalGrouping || getAtlasSharedPropertyByName(model.propName)?.regionalGrouping || "Region not assigned";
+  const titleStar = communityCommandHasActivePerformancePlan(model.propName)
+    ? `<span class="community-command-star" title="Active Community Performance Plan">★</span>`
+    : "";
+  return `<div class="community-command-shell">
+    <div class="card mb4">
+      <div class="community-command-head">
+        <div>
+          <div class="community-command-label">Community Command</div>
+          <div class="community-command-title-row">${titleStar}<h2>${escapeHtml(model.propName)}</h2></div>
+          <div class="community-command-sub">${escapeHtml(region)} · ${Math.round(model.totalUnits || 0).toLocaleString()} units · ${escapeHtml(model.record.communityPropertyType || "Property type pending")} · ${escapeHtml(model.monthLabel)} ${model.year}</div>
+          <div class="community-command-meta">
+            <span class="community-command-pill strong">${escapeHtml(model.record.generalManagerName || "GM not assigned")}</span>
+            <span class="community-command-pill">${escapeHtml(model.record.regionalManagerName || "Regional not assigned")}</span>
+            <span class="community-command-pill">${escapeHtml(model.sourceLabel)}</span>
+          </div>
+        </div>
+        <div class="community-command-actions">
+          <button type="button" class="btn btn-gray btn-sm" onmousedown="return queueWorkspaceNavigation(${JSON.stringify(model.propName)}, 1)">Community Settings</button>
+          <button type="button" class="btn btn-gray btn-sm" onmousedown="return queueWorkspaceNavigation(${JSON.stringify(model.propName)}, 7)">Data Import</button>
+          <button type="button" class="btn btn-blue btn-sm" onmousedown="return queueWorkspaceNavigation(${JSON.stringify(model.propName)}, 8)">Reporting</button>
+        </div>
+      </div>
+    </div>
+    <div class="card mb4">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <div>
+          <div class="card-title">Community Health Snapshot</div>
+          <div class="community-command-sub">Current source-linked position, forecast, and high-level operating KPI readout.</div>
+        </div>
+        <span class="community-command-pill strong">ATLAS Planning Engine active</span>
+      </div>
+      ${renderCommunityCommandHealthSnapshot(model)}
+    </div>
+    ${renderCommunityCommandAttentionCenter(model)}
+    ${renderCommunityCommandPerformancePlan(model)}
+    ${renderCommunityCommandTrend(model)}
+    ${renderCommunityCommandLeasingPlan(model)}
+    ${renderCommunityCommandStabilization(model)}
+    ${renderCommunityCommandPayoutRecommendation(model)}
+    ${renderCommunityCommandSupportingMetrics(model)}
+    ${renderCommunityCommandAssumptions(model)}
+  </div>`;
+}
+
+function renderPortfolioScopedCommunityCommandTab() {
+  const details = getWorkspaceScopedDetails(getSelectedDashboardMonthIndex())
+    .filter(detail => isCommunityStatusActive(detail.record))
+    .filter(detail => atlasDashboardUserCanSeeCommunityName(detail.name));
+  const cardsHtml = `<div class="grid-4">
+    ${statBox("Accessible Communities", details.length, "Active communities available to this role.", "#4493f8")}
+    ${statBox("With Active Plans", details.filter(detail => communityCommandHasActivePerformancePlan(detail.name)).length, "Performance plan star is shown next to the community.", "#d29922")}
+    ${statBox("Below Budget", details.filter(detail => Number(detail.summary?.budgetOccPct || 0) > 0 && Number(detail.summary?.occPct || 0) + 0.5 < Number(detail.summary?.budgetOccPct || 0)).length, "Active communities trailing current budget occupancy.", "#f85149")}
+    ${statBox("On Track", details.filter(detail => Number(detail.summary?.budgetOccPct || 0) > 0 && Number(detail.summary?.occPct || 0) + 0.5 >= Number(detail.summary?.budgetOccPct || 0)).length, "Communities holding the current budget line.", "#3fb950")}
+  </div>`;
+  const rows = details
+    .sort((a, b) => {
+      const aPlan = communityCommandHasActivePerformancePlan(a.name) ? 0 : 1;
+      const bPlan = communityCommandHasActivePerformancePlan(b.name) ? 0 : 1;
+      return aPlan - bPlan || a.name.localeCompare(b.name);
+    })
+    .map(detail => {
+      const model = buildCommunityCommandModel(detail.name, detail.record);
+      const gap = model.budgetOccPct > 0 ? model.physicalPct - model.budgetOccPct : null;
+      return `<tr>
+        <td class="l" style="font-weight:800">${communityCommandHasActivePerformancePlan(detail.name) ? `<span class="community-command-star" title="Active Community Performance Plan">★</span> ` : ""}${escapeHtml(detail.name)}</td>
+        <td>${communityCommandFormatPct(model.physicalPct)}</td>
+        <td>${communityCommandFormatPct(model.leasedPct)}</td>
+        <td>${model.budgetOccPct ? communityCommandFormatPct(model.budgetOccPct) : "Missing"}</td>
+        <td>${gap === null ? "Missing" : formatSignedDisplay(gap, 1, "%")}</td>
+        <td>${Math.round(model.appMetrics.applications)}</td>
+        <td>${Math.round(model.grossLeasesMtd)}</td>
+        <td>${model.activePerformancePlan ? escapeHtml(model.activePerformancePlan.status) : "No active plan"}</td>
+        <td><button type="button" class="btn btn-blue btn-sm" onmousedown="return queueWorkspaceNavigation(${JSON.stringify(detail.name)}, 2)">Open Community Command</button></td>
+      </tr>`;
+    }).join("");
+  const bodyHtml = `<div class="tbl-wrap" style="margin-top:12px">
+    <div class="tbl-header"><h2>Community Command roster</h2><p>Choose one active community to open the command dashboard. Inactive communities remain available to Admin users through Community Settings.</p></div>
+    <table>
+      <thead><tr><th class="l">Community</th><th>Physical</th><th>Leased</th><th>Budget</th><th>Variance</th><th>Apps MTD</th><th>Leases MTD</th><th>Plan</th><th></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="9" class="l">No active communities are available to this role.</td></tr>`}</tbody>
+    </table>
+  </div>`;
+  return renderPortfolioScopePanel("Community Command", "Single-community operational command center. Select a community to review health, alerts, goals, plans, and source-linked metrics.", cardsHtml, bodyHtml);
+}
+
+function setCommunityCommandTrendMode(mode = "12") {
+  communityCommandState = normalizeCommunityCommandState({ ...communityCommandState, trendMode: ["12", "ytd", "t12"].includes(mode) ? mode : "12" });
+  persistOpsGlobalData();
+  renderTab();
+}
+
+function approveCommunityCommandMonthlyGoals(monthIdx = getSelectedDashboardMonthIndex()) {
+  if (!communityCommandCanApproveGoals()) {
+    alert("Only Admin or VP / Executive roles can approve official monthly goals.");
+    return;
+  }
+  const model = buildCommunityCommandModel(getProp().name, getCurrentCommunityRecord());
+  const row = buildCommunityCommandLeasingPlanRows(model)[clampNumber(monthIdx, 0, 11)] || {};
+  const existing = getCommunityCommandApprovedGoal(model.propName, row.monthIdx, model.year);
+  const applicationGoal = Number(prompt(`Approved application goal for ${row.month} ${model.year}`, existing?.applicationGoal ?? Math.round(row.recommendedApps || 0)));
+  if (!Number.isFinite(applicationGoal)) return;
+  const grossLeaseGoal = Number(prompt(`Approved gross lease goal for ${row.month} ${model.year}`, existing?.grossLeaseGoal ?? Math.round(row.recommendedGrossLeases || 0)));
+  if (!Number.isFinite(grossLeaseGoal)) return;
+  const netLeaseGoal = Number(prompt(`Approved net lease goal for ${row.month} ${model.year}`, existing?.netLeaseGoal ?? Math.round(row.netLeaseGoal || 0)));
+  if (!Number.isFinite(netLeaseGoal)) return;
+  const materiallyDifferent = Math.abs(applicationGoal - Number(row.recommendedApps || 0)) >= 3
+    || Math.abs(grossLeaseGoal - Number(row.recommendedGrossLeases || 0)) >= 2
+    || Math.abs(netLeaseGoal - Number(row.netLeaseGoal || 0)) >= 2;
+  const reason = materiallyDifferent
+    ? String(prompt("Reason for official goal override", existing?.reason || "") || "").trim()
+    : String(prompt("Approval note", existing?.reason || "Approved official monthly goal") || "").trim();
+  if (materiallyDifferent && !reason) {
+    alert("A reason is required when the approved official goal materially differs from the ATLAS recommendation.");
+    return;
+  }
+  const nextGoal = normalizeCommunityCommandApprovedGoal({
+    id: existing?.id,
+    propName: model.propName,
+    monthIdx: row.monthIdx,
+    year: model.year,
+    applicationGoal,
+    grossLeaseGoal,
+    netLeaseGoal,
+    recommendedApplicationGoal: row.recommendedApps,
+    recommendedGrossLeaseGoal: row.recommendedGrossLeases,
+    recommendedNetLeaseGoal: row.netLeaseGoal,
+    approver: communityCommandUserLabel(),
+    approvedAt: new Date().toISOString(),
+    reason,
+    locked: true
+  });
+  const state = normalizeCommunityCommandState(communityCommandState);
+  state.approvedGoals = [nextGoal, ...state.approvedGoals.filter(goal => goal.id !== nextGoal.id && communityCommandGoalKey(goal.propName, goal.monthIdx, goal.year) !== communityCommandGoalKey(nextGoal.propName, nextGoal.monthIdx, nextGoal.year))];
+  communityCommandState = state;
+  communityCommandPersist("official_goal_approved", `${model.propName} ${row.month} ${model.year}`, existing ? JSON.stringify(existing) : "pending", JSON.stringify(nextGoal), reason);
+}
+
+function addCommunityCommandDashboardOverride(field) {
+  if (!communityCommandCanOverrideDashboard()) {
+    alert("Only Admin users can create dashboard-only operational overrides.");
+    return;
+  }
+  const model = buildCommunityCommandModel(getProp().name, getCurrentCommunityRecord());
+  const sourceMap = {
+    physical_occupancy: model.physicalPct,
+    leased_occupancy: model.leasedPct,
+    economic_occupancy: model.economic.mtdPct,
+    trending_occupancy: model.trendingPct,
+    budget_occupancy: model.budgetOccPct,
+    applications_mtd: model.appMetrics.applications,
+    net_leases_mtd: model.netLeasesMtd,
+    renewal_conversion: model.renewal.expirations > 0 ? model.renewal.retentionRate : null
+  };
+  if (!(field in sourceMap)) return;
+  const sourceValue = sourceMap[field];
+  const current = getCommunityCommandDashboardOverride(model.propName, field, model.monthIdx, model.year);
+  const overrideValue = prompt("Dashboard override value", current?.overrideValue ?? sourceValue ?? "");
+  if (overrideValue === null) return;
+  const reason = String(prompt("Reason for this dashboard-only override", current?.reason || "") || "").trim();
+  if (!reason) {
+    alert("A reason is required for dashboard-only overrides.");
+    return;
+  }
+  const expirationDate = String(prompt("Optional expiration date (YYYY-MM-DD)", current?.expirationDate || "") || "").trim();
+  const next = normalizeCommunityCommandOverride({
+    id: current?.id,
+    propName: model.propName,
+    field,
+    monthIdx: model.monthIdx,
+    year: model.year,
+    originalValue: sourceValue,
+    overrideValue,
+    reason,
+    updatedBy: communityCommandUserLabel(),
+    updatedAt: new Date().toISOString(),
+    expirationDate
+  });
+  const state = normalizeCommunityCommandState(communityCommandState);
+  state.dashboardOverrides = [next, ...state.dashboardOverrides.filter(item => item.id !== next.id && !(item.propName === next.propName && item.field === next.field && item.monthIdx === next.monthIdx && item.year === next.year && !item.clearedAt))];
+  communityCommandState = state;
+  communityCommandPersist("dashboard_override", `${model.propName} ${field}`, String(sourceValue ?? ""), String(overrideValue ?? ""), reason);
+}
+
+function startCommunityPerformancePlan() {
+  if (!communityCommandCanCreatePerformancePlan()) {
+    alert("Only Regional, Executive, or Admin roles can start a Community Performance Plan.");
+    return;
+  }
+  const model = buildCommunityCommandModel(getProp().name, getCurrentCommunityRecord());
+  const alerts = buildCommunityCommandAlerts(model).filter(alert => alert.severity !== "opportunity");
+  const reason = String(prompt("Why is this performance plan being opened?", alerts[0]?.title || "Community attention items require ownership") || "").trim();
+  if (!reason) return;
+  const ownerName = model.record.regionalManagerName || communityCommandUserLabel();
+  const gmName = model.record.generalManagerName || "GM";
+  const tasks = alerts.slice(0, 4).map(alert => normalizeCommunityCommandTask({
+    alertId: alert.id,
+    title: alert.response,
+    description: alert.copy,
+    assignedTo: gmName,
+    priority: alert.severity === "critical" ? "Critical" : "Watch",
+    module: alert.module,
+    targetMetric: `${alert.expected}`,
+    baselineMetric: `${alert.actual}`,
+    desiredOutcome: alert.title,
+    dueDate: alert.dueDate
+  })).filter(Boolean);
+  const plan = normalizeCommunityCommandPlan({
+    propName: model.propName,
+    status: "Active",
+    ownerName,
+    ownerEmail: model.record.regionalManagerEmail,
+    gmName,
+    gmEmail: model.record.generalManagerEmail,
+    startedAt: new Date().toISOString(),
+    reason,
+    sourceAlertIds: alerts.map(alert => alert.id),
+    tasks
+  });
+  const state = normalizeCommunityCommandState(communityCommandState);
+  state.performancePlans = [plan, ...state.performancePlans.filter(item => !(item.propName === model.propName && item.status !== "Closed"))];
+  communityCommandState = state;
+  communityCommandPersist("performance_plan_started", model.propName, "No active plan", plan.status, reason);
+}
+
+function communityCommandAddAlertToPerformancePlan(alertId) {
+  const model = buildCommunityCommandModel(getProp().name, getCurrentCommunityRecord());
+  const alert = buildCommunityCommandAlerts(model).find(item => item.id === alertId);
+  if (!alert) return;
+  let state = normalizeCommunityCommandState(communityCommandState);
+  let plan = state.performancePlans.find(item => item.propName === model.propName && item.status !== "Closed");
+  if (!plan) {
+    plan = normalizeCommunityCommandPlan({
+      propName: model.propName,
+      status: "Draft",
+      ownerName: model.record.regionalManagerName || communityCommandUserLabel(),
+      ownerEmail: model.record.regionalManagerEmail,
+      gmName: model.record.generalManagerName || "GM",
+      gmEmail: model.record.generalManagerEmail,
+      startedAt: new Date().toISOString(),
+      reason: alert.title,
+      sourceAlertIds: []
+    });
+    state.performancePlans.unshift(plan);
+  }
+  if (!plan.sourceAlertIds.includes(alert.id)) plan.sourceAlertIds.push(alert.id);
+  const existingTask = plan.tasks.find(task => task.alertId === alert.id);
+  if (!existingTask) {
+    plan.tasks.push(normalizeCommunityCommandTask({
+      alertId: alert.id,
+      title: alert.response,
+      description: alert.copy,
+      assignedTo: plan.gmName || "GM",
+      priority: alert.severity === "critical" ? "Critical" : "Watch",
+      module: alert.module,
+      targetMetric: alert.expected,
+      baselineMetric: alert.actual,
+      desiredOutcome: alert.title,
+      dueDate: alert.dueDate
+    }));
+  }
+  state.performancePlans = state.performancePlans.map(item => item.id === plan.id ? normalizeCommunityCommandPlan(plan) : item);
+  communityCommandState = state;
+  communityCommandPersist("performance_plan_alert_added", model.propName, "", alert.title, "Added from Community Attention Center");
+}
+
+function communityCommandUpdateTaskStage(planId, taskId, stage) {
+  const nextStage = ["open", "completed", "verified"].includes(stage) ? stage : "open";
+  const state = normalizeCommunityCommandState(communityCommandState);
+  state.performancePlans = state.performancePlans.map(plan => {
+    if (plan.id !== planId) return plan;
+    const nextTasks = plan.tasks.map(task => {
+      if (task.id !== taskId) return task;
+      const now = new Date().toISOString();
+      return {
+        ...task,
+        stage: nextStage,
+        status: nextStage === "verified" ? "Verified" : nextStage === "completed" ? "Completed" : "Open",
+        completedAt: nextStage === "completed" && !task.completedAt ? now : task.completedAt,
+        completedBy: nextStage === "completed" && !task.completedBy ? communityCommandUserLabel() : task.completedBy,
+        verifiedAt: nextStage === "verified" ? now : task.verifiedAt,
+        verifiedBy: nextStage === "verified" ? communityCommandUserLabel() : task.verifiedBy
+      };
+    });
+    const verifiedCount = nextTasks.filter(task => task.stage === "verified").length;
+    const nextStatus = verifiedCount === nextTasks.length && nextTasks.length > 0 ? "Ready for Close" : plan.status;
+    return normalizeCommunityCommandPlan({ ...plan, status: nextStatus, tasks: nextTasks });
+  });
+  communityCommandState = state;
+  communityCommandPersist("performance_plan_task_stage", planId, "", nextStage, taskId);
+}
+
+function communityCommandRecordPayoutDecision(decision = "") {
+  const model = buildCommunityCommandModel(getProp().name, getCurrentCommunityRecord());
+  const recommendation = getCommunityCommandPayoutRecommendation(model);
+  const notes = String(prompt("Decision notes", "") || "").trim();
+  const state = normalizeCommunityCommandState(communityCommandState);
+  const existingKey = communityCommandGoalKey(model.propName, model.monthIdx, model.year);
+  const next = normalizeCommunityCommandPayoutDecision({
+    propName: model.propName,
+    monthIdx: model.monthIdx,
+    year: model.year,
+    recommendation: recommendation.recommendation,
+    decision: decision === "approved" ? "Approved for payout curve review" : "Declined for payout curve review",
+    decidedBy: communityCommandUserLabel(),
+    decidedAt: new Date().toISOString(),
+    notes,
+    supportMetrics: recommendation
+  });
+  state.payoutDecisions = [next, ...state.payoutDecisions.filter(item => communityCommandGoalKey(item.propName, item.monthIdx, item.year) !== existingKey)];
+  communityCommandState = state;
+  communityCommandPersist("payout_curve_decision", model.propName, recommendation.recommendation, next.decision, notes);
+}
+
 // ─── Overview Tab ─────────────────────────────────────────────────────────────
 function renderOverviewTab() {
-  if (isPortfolioWorkspaceSelected()) return renderPortfolioScopedOverviewTab();
+  if (isPortfolioWorkspaceSelected()) return renderPortfolioScopedCommunityCommandTab();
+  return renderCommunityCommandTab();
   const totalUnits = getTotalUnits();
   const occupancyBaseUnits = getOccupancyBaseUnits(totalUnits, corporateLeaseUnits);
   const oCPct = currentOccPct();
@@ -27595,8 +29231,8 @@ const BONUS_ENGINE_PAYOUT_STRUCTURES = [
 ];
 
 const BONUS_ENGINE_METRIC_LIBRARY = [
-  ["occupancy", "Occupancy", "Leasing", "Portfolio Overview"],
-  ["leased_pct", "Leased %", "Leasing", "Portfolio Overview"],
+  ["occupancy", "Occupancy", "Leasing", "Community Command"],
+  ["leased_pct", "Leased %", "Leasing", "Community Command"],
   ["applications", "Applications", "Leasing", "Application Performance"],
   ["approvals", "Approvals", "Leasing", "Application Performance"],
   ["conversion", "Conversion", "Leasing", "Traffic & Funnel"],
@@ -27730,7 +29366,7 @@ function defaultBonusEnginePlans() {
       maximumPayout: 3000,
       eligibleOperatingType: "stabilized",
       metrics: [
-        defaultBonusMetric("occupancy", "Occupancy", { weight: 25, goal: 95, format: "pct", dataSource: "Portfolio Overview" }),
+        defaultBonusMetric("occupancy", "Occupancy", { weight: 25, goal: 95, format: "pct", dataSource: "Community Command" }),
         defaultBonusMetric("retention", "Renewal retention", { weight: 20, goal: 60, format: "pct", dataSource: "Renewals" }),
         defaultBonusMetric("noi", "NOI performance", { weight: 25, goal: 100, format: "pct", dataSource: "Budget Builder" }),
         defaultBonusMetric("delinquency", "Delinquency", { weight: 15, goal: 3, format: "pct", favorable: "lower", dataSource: "Financial reporting" }),
@@ -28262,17 +29898,23 @@ function atlasBonusMetricActual(employee = {}, metric = {}) {
     const sample = employee.sampleMetrics[metric.metricKey];
     return sample === null || sample === undefined ? null : Number(sample);
   }
-  const summary = atlasBonusCommunitySummary(employee.communityName || employee.assignedCommunity);
+  const communityName = employee.communityName || employee.assignedCommunity;
+  const summary = atlasBonusCommunitySummary(communityName);
   if (!summary && !["central_productivity", "sla_achievement", "workflow_completion", "special_project", "leadership_score", "audit_compliance", "training_completion", "safety_compliance"].includes(metric.metricKey)) return null;
+  const selectedMonthIdx = getSelectedDashboardMonthIndex();
+  const approvedGoal = communityName ? getCommunityCommandApprovedGoal(communityName, selectedMonthIdx, new Date().getFullYear()) : null;
+  const approvedApplicationGoal = Math.max(0, Number(approvedGoal?.applicationGoal || 0));
+  const approvedGrossLeaseGoal = Math.max(0, Number(approvedGoal?.grossLeaseGoal || 0));
+  const approvedNetLeaseGoal = Math.max(0, Number(approvedGoal?.netLeaseGoal || 0));
   const metricMap = {
     occupancy: summary?.occPct,
     leased_pct: summary?.leasedPct,
-    applications: summary?.guestCardGoal > 0 ? (summary.applications / summary.guestCardGoal) * 100 : summary?.applications,
+    applications: approvedApplicationGoal > 0 ? ((summary?.applications || 0) / approvedApplicationGoal) * 100 : (summary?.guestCardGoal > 0 ? (summary.applications / summary.guestCardGoal) * 100 : summary?.applications),
     approvals: summary?.applicationApprovalPct,
     conversion: summary?.tourToLeasePct || summary?.applicationApprovalPct,
-    move_ins: summary?.moveInGoal > 0 ? (summary.moveIns / summary.moveInGoal) * 100 : summary?.moveIns,
+    move_ins: approvedNetLeaseGoal > 0 ? ((summary?.moveIns || 0) / approvedNetLeaseGoal) * 100 : (summary?.moveInGoal > 0 ? (summary.moveIns / summary.moveInGoal) * 100 : summary?.moveIns),
     individual_leases: summary?.leasesSigned,
-    leasing_velocity: summary?.guestCardGoalPct || summary?.moveInGoalPct || summary?.budgetOccAttainmentPct,
+    leasing_velocity: approvedGrossLeaseGoal > 0 ? ((summary?.leasesSigned || 0) / approvedGrossLeaseGoal) * 100 : (summary?.guestCardGoalPct || summary?.moveInGoalPct || summary?.budgetOccAttainmentPct),
     renewal_conversion: summary?.renewalRetentionRate,
     retention: summary?.renewalRetentionRate || summary?.quarterClosedRetentionAverage,
     rent_growth: summary?.currentNer && summary?.proformaNer ? ((summary.currentNer - summary.proformaNer) / summary.proformaNer) * 100 : null,
@@ -29390,7 +31032,7 @@ function buildPortfolioHomePriorities(details = [], selectedMonth = getSelectedD
         tone: Math.max(occGapUnits, leasedGapUnits) >= 8 ? "critical" : "warn",
         severity: 84 + Math.min(Math.max(occGapUnits, leasedGapUnits), 12),
         tabIdx: 2,
-        actionLabel: "Open Overview"
+        actionLabel: "Open Community Command"
       });
     }
 
@@ -31659,7 +33301,7 @@ function renderPortfolioHomeTab() {
           </div>
         </div>
         <div class="portfolio-shortcut-row">
-          <button type="button" class="btn btn-gray btn-sm" onmousedown="return queueWorkspaceNavigation('', 2, { portfolio: true })">Open Overview</button>
+          <button type="button" class="btn btn-gray btn-sm" onmousedown="return queueWorkspaceNavigation('', 2, { portfolio: true })">Open Community Command</button>
           <button type="button" class="btn btn-gray btn-sm" onmousedown="return queueWorkspaceNavigation('', 3, { portfolio: true })">Open Traffic &amp; Funnel</button>
           <button type="button" class="btn btn-gray btn-sm" onmousedown="return queueWorkspaceNavigation('', 8, { portfolio: true })">Open Reporting Hub</button>
           <button type="button" class="btn btn-blue btn-sm" onmousedown="return queueWorkspaceNavigation('', 9, { portfolio: true })">Open Bonus Calc</button>

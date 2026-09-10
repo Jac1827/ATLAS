@@ -851,7 +851,7 @@ begin
     now(),
     null
   )
-  on conflict (user_id, view_key) do update
+  on conflict on constraint atlas_user_dashboard_views_user_id_view_key_key do update
     set view_name = excluded.view_name,
         is_default = excluded.is_default,
         role_template_key = excluded.role_template_key,

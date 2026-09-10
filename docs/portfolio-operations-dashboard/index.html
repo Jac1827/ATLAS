@@ -82,6 +82,8 @@
   .save-data-button:hover { background:linear-gradient(135deg,#05283f 0%,#0b415b 58%,#7fb4d0 150%); transform:translateY(-1px); }
   .save-data-icon { width:26px; height:26px; border-radius:8px; object-fit:cover; box-shadow:inset 0 0 0 1px rgba(255,255,255,0.25); }
   .save-data-button span { line-height:1; }
+  .atlas-topbar-save-button { min-height:34px; padding:6px 12px 6px 7px; box-shadow:none; }
+  .atlas-topbar-save-button .save-data-icon { width:20px; height:20px; border-radius:6px; }
   .workspace-card { position:relative; }
   .workspace-save-button { position:absolute; top:14px; right:14px; z-index:220; }
   @media(max-width:620px){
@@ -1286,6 +1288,7 @@
     <div class="atlas-topbar-chips">
       <span class="atlas-chip is-accent" id="atlas-chip-budget"><i class="ph ph-file-text" aria-hidden="true"></i><span>Monthly upload</span></span>
       <span class="atlas-chip" id="atlas-chip-freshness"><i class="ph ph-database" aria-hidden="true"></i><span>Viewing data</span></span>
+      <button class="btn save-data-button atlas-topbar-save-button" onclick="saveCommunityData()" aria-label="Save Data"><img class="save-data-icon" src="assets/atlas-icon.png" alt=""><span>Save Data</span></button>
     </div>
     <div class="atlas-live-users is-muted" id="atlas-live-users" title="Signed-in ATLAS users active in the last few minutes">
       <i class="ph ph-broadcast" aria-hidden="true"></i>
@@ -1295,26 +1298,6 @@
       </div>
     </div>
   </header>
-
-  <!-- Property Selector -->
-  <div class="card mb4 workspace-card" id="prop-selector-card">
-    <button class="btn save-data-button workspace-save-button" onclick="saveCommunityData()" aria-label="Save Data"><img class="save-data-icon" src="assets/atlas-icon.png" alt=""><span>Save Data</span></button>
-    <div class="workspace-shell">
-      <div class="workspace-copy">
-        <div class="card-title">Community Workspace</div>
-        <div class="workspace-title-row">
-          <div class="workspace-title" id="workspace-title">ATLAS RISE Portfolio</div>
-          <div class="workspace-pill is-saved" id="workspace-status-pill">Updated pending</div>
-        </div>
-        <div class="workspace-subline" id="workspace-subline">Community, reporting month, and unit-count context stays pinned here so you can swap properties without hunting through the Overview tab.</div>
-      </div>
-    </div>
-    <div class="workspace-footer">
-      <div class="workspace-community-count" id="workspace-count-summary" aria-hidden="true"></div>
-      <div class="workspace-community-count" id="workspace-unit-note">Leave unit count blank to use the property default.</div>
-    </div>
-    <div class="workspace-snapshot" id="workspace-community-snapshot"></div>
-  </div>
 
   <section class="card mb4 application-tracker-card" id="application-tracking-section" aria-label="Application tracking">
     <div id="application-tracking-content"></div>
@@ -17835,10 +17818,10 @@ function buildAtlasCentralBonusCalculationPayload() {
       peopleEmployeeId: row.employee.peopleEmployeeId || "",
       employeeNumber: row.employee.employeeNumber || "",
       payrollEmployeeId: row.employee.payrollEmployeeId || "",
-      employeeName: row.employee.name,
+      employeeName: atlasBonusEmployeeDisplayName(row.employee),
       employeeEmail: row.employee.email || "",
       communityName: row.employee.communityName || "",
-      region: row.employee.region || "",
+      region: atlasBonusEmployeeRegionLabel(row.employee),
       role: row.employee.bonusRole || "",
       planId: row.plan?.id || "",
       planName: row.plan?.name || "",
@@ -17945,7 +17928,7 @@ function buildAtlasCentralBonusCalculationPayload() {
       ...((marketingSnapshot && Array.isArray(marketingSnapshot.exceptions)) ? marketingSnapshot.exceptions : []),
       ...rows.flatMap(row => row.exceptions.map(exception => ({
         employeeId: row.employee.employeeId,
-        employeeName: row.employee.name,
+        employeeName: atlasBonusEmployeeDisplayName(row.employee),
         communityName: row.employee.communityName,
         planId: row.plan?.id || "",
         severity: exception.severity,
@@ -29714,6 +29697,121 @@ function atlasBonusRoleLabelFromType(roleType = "", title = "") {
   return BONUS_ENGINE_ROLE_LABELS[inferSharedBonusRoleType(title)] || String(title || "Individual Employee").trim();
 }
 
+function atlasBonusEmployeeNameLooksPlaceholder(name = "", employee = {}) {
+  const clean = String(name || "").trim();
+  if (!clean) return true;
+  const normalized = atlasNormalizeSharedText(clean);
+  const roleText = atlasNormalizeSharedText(`${employee.bonusRole || ""} ${employee.title || ""}`);
+  if (normalized === atlasNormalizeSharedText(employee.bonusRole) || normalized === atlasNormalizeSharedText(employee.title)) return true;
+  if (/^(gm|am|lm|lp|ms|mt)\s+\S+/.test(normalized)) return true;
+  if (/^(general manager|assistant manager|leasing manager|leasing professional|maintenance supervisor|maintenance tech|maintenance technician)\s+\S+/.test(normalized)) return true;
+  return roleText.includes(normalized) && !clean.includes(" ");
+}
+
+function atlasBonusCleanEmployeeNumber(value = "") {
+  return String(value || "").replace(/[^\w-]/g, "").trim();
+}
+
+function atlasBonusAddPeopleNameCandidate(candidates, input = {}) {
+  const source = input && typeof input === "object" ? input : {};
+  const name = String(source.name || source.fullName || source.full_name || source.displayName || source.display_name || source.employeeName || source.employee_name || "").trim();
+  if (!name || atlasBonusEmployeeNameLooksPlaceholder(name, source)) return;
+  const communitySource = source.communityName || source.assignedCommunity || source.community || source.propertyName || source.property || parseSharedDepartmentCommunity(source.department);
+  candidates.push({
+    employeeId: String(source.employeeId || source.employee_id || source.id || source.peopleEmployeeId || source.people_employee_id || source.linkedEmployeeId || "").trim(),
+    peopleEmployeeId: String(source.peopleEmployeeId || source.people_employee_id || source.id || source.employee_id || "").trim(),
+    employeeNumber: atlasBonusCleanEmployeeNumber(source.employeeNumber || source.employee_number || source.payrollEmployeeId || source.payroll_employee_id || source.sourceIdentifier || source.source_identifier),
+    email: atlasNormalizeSharedEmail(source.email || source.workEmail || source.work_email),
+    name,
+    title: String(source.title || source.role || source.bonusRole || source.bonus_role || "").trim(),
+    bonusRole: String(source.bonusRole || source.bonus_role || atlasBonusRoleLabelFromType(source.bonusRoleType || source.roleType, source.title || source.role || "")).trim(),
+    communityName: findCanonicalCommunityName(communitySource) || String(communitySource || "").trim()
+  });
+}
+
+function atlasBonusPeopleNameCandidates() {
+  const candidates = [];
+  const shared = normalizeAtlasSharedData(atlasSharedData);
+  Object.values(shared.employees || {}).forEach(employee => atlasBonusAddPeopleNameCandidate(candidates, employee));
+  loadPeoplePlatformStateForSharedData().employees.forEach(employee => atlasBonusAddPeopleNameCandidate(candidates, employee));
+  (atlasAccessAdminState.employees || []).forEach(employee => atlasBonusAddPeopleNameCandidate(candidates, employee));
+  const unique = new Map();
+  candidates.forEach(candidate => {
+    const key = candidate.email || candidate.peopleEmployeeId || candidate.employeeId || candidate.employeeNumber || `${atlasNormalizeSharedText(candidate.name)}_${atlasNormalizeSharedText(candidate.communityName)}`;
+    if (!key || unique.has(key)) return;
+    unique.set(key, candidate);
+  });
+  return Array.from(unique.values());
+}
+
+function atlasBonusCandidateMatchesEmployee(candidate = {}, employee = {}) {
+  const employeeIdValues = [
+    employee.employeeId,
+    employee.peopleEmployeeId,
+    employee.id,
+    employee.employee_id
+  ].map(value => String(value || "").trim()).filter(Boolean);
+  const candidateIdValues = [
+    candidate.employeeId,
+    candidate.peopleEmployeeId
+  ].map(value => String(value || "").trim()).filter(Boolean);
+  if (employeeIdValues.some(value => candidateIdValues.includes(value))) return true;
+  const email = atlasNormalizeSharedEmail(employee.email || employee.workEmail || employee.work_email);
+  if (email && candidate.email === email) return true;
+  const employeeNumber = atlasBonusCleanEmployeeNumber(employee.payrollEmployeeId || employee.employeeNumber || employee.employee_number);
+  if (employeeNumber && candidate.employeeNumber === employeeNumber) return true;
+  return false;
+}
+
+function atlasBonusCandidateMatchesEmployeeContext(candidate = {}, employee = {}) {
+  const communityName = findCanonicalCommunityName(employee.communityName || employee.assignedCommunity || employee.community || employee.propertyName || employee.property) || String(employee.communityName || employee.assignedCommunity || "").trim();
+  const role = atlasNormalizeSharedText(employee.bonusRole || employee.title || "");
+  const candidateRole = atlasNormalizeSharedText(candidate.bonusRole || candidate.title || "");
+  const roleMatches = !role || !candidateRole || role === candidateRole || role.includes(candidateRole) || candidateRole.includes(role);
+  const communityMatches = !communityName || !candidate.communityName || normalizeCommunityLookupName(candidate.communityName) === normalizeCommunityLookupName(communityName);
+  return roleMatches && communityMatches;
+}
+
+function atlasBonusEmployeeDisplayName(employee = {}) {
+  const current = String(employee.name || employee.displayName || employee.employeeName || "").trim();
+  const candidates = atlasBonusPeopleNameCandidates();
+  const direct = candidates.find(candidate => atlasBonusCandidateMatchesEmployee(candidate, employee));
+  if (direct?.name) return direct.name;
+  const looksPlaceholder = atlasBonusEmployeeNameLooksPlaceholder(current, employee);
+  if (looksPlaceholder && current) {
+    const trailingToken = atlasNormalizeSharedText(current.split(/\s+/).pop() || "");
+    const contextual = candidates.filter(candidate =>
+      atlasBonusCandidateMatchesEmployeeContext(candidate, employee)
+      && trailingToken
+      && atlasNormalizeSharedText(candidate.name).split(" ").includes(trailingToken)
+    );
+    if (contextual.length === 1) return contextual[0].name;
+  }
+  if (looksPlaceholder) {
+    const contextual = candidates.filter(candidate => atlasBonusCandidateMatchesEmployeeContext(candidate, employee));
+    if (contextual.length === 1) return contextual[0].name;
+  }
+  return current || employee.email || employee.employeeNumber || "Employee pending";
+}
+
+function atlasBonusRegionLabelFromName(regionName = "") {
+  const clean = String(regionName || "").trim();
+  if (!clean || atlasNormalizeSharedText(clean) === "unassigned") return "Unassigned";
+  const region = buildAtlasRegionManagementRows().find(row => atlasNormalizeSharedText(row.name) === atlasNormalizeSharedText(clean));
+  const manager = String(region?.regionalManagerName || "").trim();
+  return manager ? `${clean} (${manager})` : clean;
+}
+
+function atlasBonusEmployeeRegionLabel(employee = {}) {
+  const communityName = findCanonicalCommunityName(employee.communityName || employee.assignedCommunity || employee.community || employee.propertyName || employee.property)
+    || String(employee.communityName || employee.assignedCommunity || "").trim();
+  if (communityName) {
+    const record = normalizeSavedCommunityRecord(communityName, savedData?.[communityName]);
+    return atlasBonusRegionLabelFromName(getAtlasCommunityRegionName(communityName, record));
+  }
+  return atlasBonusRegionLabelFromName(employee.region || "Unassigned");
+}
+
 function atlasBonusGetCommunityOperatingType(communityName = "") {
   const state = atlasBonusState();
   const community = String(communityName || "").trim();
@@ -30090,10 +30188,10 @@ function atlasBonusBuildCalculationRows(options = {}) {
   const period = atlasBonusPeriodFromQuarter(bonusQuarter, new Date().getFullYear());
   const filters = { ...state.filters, ...(options.filters || {}) };
   let rows = atlasBonusAuthorizedEmployees().map(employee => atlasBonusBuildRow(employee, period));
-  if (filters.region && filters.region !== "all") rows = rows.filter(row => atlasNormalizeSharedText(row.employee.region) === atlasNormalizeSharedText(filters.region));
+  if (filters.region && filters.region !== "all") rows = rows.filter(row => atlasNormalizeSharedText(atlasBonusEmployeeRegionLabel(row.employee)) === atlasNormalizeSharedText(filters.region));
   if (filters.community && filters.community !== "all") rows = rows.filter(row => atlasNormalizeSharedText(row.employee.communityName) === atlasNormalizeSharedText(filters.community));
   if (filters.role && filters.role !== "all") rows = rows.filter(row => row.employee.bonusRole === filters.role);
-  if (filters.employee) rows = rows.filter(row => atlasNormalizeSharedText(`${row.employee.name} ${row.employee.email} ${row.employee.employeeNumber}`).includes(atlasNormalizeSharedText(filters.employee)));
+  if (filters.employee) rows = rows.filter(row => atlasNormalizeSharedText(`${atlasBonusEmployeeDisplayName(row.employee)} ${row.employee.name} ${row.employee.email} ${row.employee.employeeNumber}`).includes(atlasNormalizeSharedText(filters.employee)));
   if (filters.planId && filters.planId !== "all") rows = rows.filter(row => row.plan?.id === filters.planId);
   if (filters.approvalStatus && filters.approvalStatus !== "all") rows = rows.filter(row => row.approvalStatus === filters.approvalStatus);
   if (filters.cadence && filters.cadence !== "all") rows = rows.filter(row => row.plan?.payoutCadence === filters.cadence || row.metricResults.some(metric => metric.metric.cadence === filters.cadence));
@@ -30375,7 +30473,7 @@ function atlasBonusPersonalProjection() {
 function atlasBonusExportRows(reportType = "hr_payroll") {
   return atlasBonusBuildCalculationRows().map(row => {
     const base = {
-      "Employee Name": row.employee.name,
+      "Employee Name": atlasBonusEmployeeDisplayName(row.employee),
       "Employee ID": row.employee.payrollEmployeeId || row.employee.employeeNumber || row.employee.employeeId,
       "Property": row.employee.communityName || "Portfolio / Central",
       "Position": row.employee.bonusRole,
@@ -30450,7 +30548,7 @@ function renderBonusEngineFilters(rows = atlasBonusBuildCalculationRows({ filter
   const state = atlasBonusState();
   const filters = state.filters;
   const optionValues = (values) => Array.from(new Set(values.map(item => String(item || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
-  const regions = optionValues(rows.map(row => row.employee.region));
+  const regions = optionValues(rows.map(row => atlasBonusEmployeeRegionLabel(row.employee)));
   const communities = optionValues(rows.map(row => row.employee.communityName));
   const roles = optionValues([...BONUS_ENGINE_INITIAL_ROLES, ...rows.map(row => row.employee.bonusRole)]);
   const cadences = optionValues(["Weekly", "Monthly", "Quarterly", "Semiannual", "Annual", "One-time", "Custom period", ...atlasBonusState().plans.map(plan => plan.payoutCadence)]);
@@ -30503,7 +30601,7 @@ function renderBonusOverviewSection(rows) {
     ${renderBonusEngineKpi("Below Goal", summary.belowGoal, "Employees currently below threshold or partial payout", "red", "projected")}
   </div>
   <div class="bonus-engine-grid three">
-    ${renderBonusEngineBarChart(rows, row => row.employee.region || "Unassigned", "Regional Comparison")}
+    ${renderBonusEngineBarChart(rows, row => atlasBonusEmployeeRegionLabel(row.employee), "Regional Comparison")}
     ${renderBonusEngineBarChart(rows, row => row.employee.communityName || "Portfolio / Central", "Property Comparison")}
     ${renderBonusEngineBarChart(rows, row => row.employee.bonusRole || "Role missing", "Role Comparison")}
   </div>
@@ -30512,7 +30610,7 @@ function renderBonusOverviewSection(rows) {
     <div class="bonus-engine-pipeline" style="margin-top:12px">
       ${pipeline.map(status => {
         const scoped = rows.filter(row => row.approvalStatus === status);
-        return `<div class="bonus-engine-stage"><div class="bonus-engine-stage-title">${escapeHtml(status)}</div>${scoped.slice(0, 4).map(row => `<div class="bonus-engine-stage-row"><strong>${escapeHtml(row.employee.name)}</strong><br>${escapeHtml(row.plan?.name || "No plan")}<br>${atlasBonusCurrency(row.finalPayout)}</div>`).join("") || `<div class="bonus-engine-stage-row">No records</div>`}<button class="btn btn-gray btn-sm" onclick='atlasBonusDrill("approvals","approvalStatus",${atlasBonusJsArg(status)})'>View</button></div>`;
+        return `<div class="bonus-engine-stage"><div class="bonus-engine-stage-title">${escapeHtml(status)}</div>${scoped.slice(0, 4).map(row => `<div class="bonus-engine-stage-row"><strong>${escapeHtml(atlasBonusEmployeeDisplayName(row.employee))}</strong><br>${escapeHtml(row.plan?.name || "No plan")}<br>${atlasBonusCurrency(row.finalPayout)}</div>`).join("") || `<div class="bonus-engine-stage-row">No records</div>`}<button class="btn btn-gray btn-sm" onclick='atlasBonusDrill("approvals","approvalStatus",${atlasBonusJsArg(status)})'>View</button></div>`;
       }).join("")}
     </div>
   </div>`;
@@ -30559,7 +30657,7 @@ function renderBonusMyBonusSection() {
     </div>
   </div>
   ${projection.rows.map(row => `<div class="bonus-engine-card">
-    <div class="bonus-engine-section-head"><div><h3>${escapeHtml(row.employee.name)} - ${escapeHtml(row.plan?.name || "No plan")}</h3><p>Controlling plan: ${escapeHtml(row.planSource)}. Salary calculation detail is excluded from this view.</p></div><span class="bonus-engine-pill ${row.unresolvedCritical ? "bad" : "good"}">${escapeHtml(row.approvalStatus)}</span></div>
+    <div class="bonus-engine-section-head"><div><h3>${escapeHtml(atlasBonusEmployeeDisplayName(row.employee))} - ${escapeHtml(row.plan?.name || "No plan")}</h3><p>Controlling plan: ${escapeHtml(row.planSource)}. Salary calculation detail is excluded from this view.</p></div><span class="bonus-engine-pill ${row.unresolvedCritical ? "bad" : "good"}">${escapeHtml(row.approvalStatus)}</span></div>
     <div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Metric</th><th>Goal</th><th>Actual</th><th>Achievement</th><th>Projected Metric Payout</th><th>Source</th></tr></thead><tbody>
       ${row.metricResults.map(result => `<tr><td><strong>${escapeHtml(result.metric.name)}</strong></td><td>${escapeHtml(result.metric.format === "pct" ? atlasBonusPct(result.metric.goal, 1) : String(result.metric.goal))}</td><td>${escapeHtml(result.actual === null ? "Calculation Pending - Missing Required Data" : result.metric.format === "pct" ? atlasBonusPct(result.actual, 1) : String(Number(result.actual).toFixed(1).replace(/\.0$/, "")))}</td><td>${atlasBonusPct(result.achievementPct, 0)}</td><td>${hidden ? "....." : atlasBonusCurrency(result.earned)}</td><td>${escapeHtml(result.metric.dataSource)}</td></tr>`).join("")}
     </tbody></table></div>
@@ -30626,7 +30724,7 @@ function renderBonusAssignmentsSection(rows) {
   <div class="bonus-engine-card">
     <h3>Controlling Plan by Employee</h3>
     <div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Employee</th><th>Role</th><th>Community</th><th>Controlling Plan</th><th>Source</th><th>Hierarchy</th></tr></thead><tbody>
-      ${rows.map(row => `<tr><td><strong>${escapeHtml(row.employee.name)}</strong></td><td>${escapeHtml(row.employee.bonusRole)}</td><td>${escapeHtml(row.employee.communityName || "Portfolio / Central")}</td><td>${escapeHtml(row.plan?.name || "Missing plan")}</td><td>${escapeHtml(row.planSource)}</td><td>${escapeHtml(row.hierarchy)}</td></tr>`).join("")}
+      ${rows.map(row => `<tr><td><strong>${escapeHtml(atlasBonusEmployeeDisplayName(row.employee))}</strong></td><td>${escapeHtml(row.employee.bonusRole)}</td><td>${escapeHtml(row.employee.communityName || "Portfolio / Central")}</td><td>${escapeHtml(row.plan?.name || "Missing plan")}</td><td>${escapeHtml(row.planSource)}</td><td>${escapeHtml(row.hierarchy)}</td></tr>`).join("")}
     </tbody></table></div>
   </div>`;
 }
@@ -30635,7 +30733,7 @@ function renderBonusCalculationRows(rows, options = {}) {
   const showSalary = options.showSalary && atlasBonusCanViewSalary();
   return `<div class="bonus-engine-table-wrap"><table class="bonus-engine-table"><thead><tr><th>Employee</th><th>Role / Community</th><th>Plan</th><th>Potential</th><th>Projected</th><th>Final</th><th>Proration</th><th>Status</th><th>${showSalary ? "Salary" : "Actions"}</th></tr></thead><tbody>
     ${rows.map(row => `<tr>
-      <td><strong>${escapeHtml(row.employee.name)}</strong><div style="color:var(--muted);font-size:0.62rem">${escapeHtml(row.employee.payrollEmployeeId || row.employee.employeeId || "")}</div></td>
+      <td><strong>${escapeHtml(atlasBonusEmployeeDisplayName(row.employee))}</strong><div style="color:var(--muted);font-size:0.62rem">${escapeHtml(row.employee.payrollEmployeeId || row.employee.employeeId || "")}</div></td>
       <td>${escapeHtml(row.employee.bonusRole || "Role missing")}<div style="color:var(--muted);font-size:0.62rem">${escapeHtml(row.employee.communityName || "Portfolio / Central")} · ${escapeHtml(row.operatingType)}</div></td>
       <td>${escapeHtml(row.plan?.name || "Missing plan")}<div style="color:var(--muted);font-size:0.62rem">${escapeHtml(row.planSource)}</div></td>
       <td>${atlasBonusCurrency(row.maximumPotential)}</td>
@@ -30643,7 +30741,7 @@ function renderBonusCalculationRows(rows, options = {}) {
       <td><strong>${atlasBonusCurrency(row.finalPayout)}</strong></td>
       <td>${atlasBonusPct(row.proration.factor * 100, 0)}<div style="color:var(--muted);font-size:0.62rem">${row.proration.eligibleDays}/${row.proration.totalDays} days${row.proration.segments.length ? " · transfer" : ""}</div></td>
       <td><span class="bonus-engine-pill ${row.unresolvedCritical ? "bad" : row.approvalStatus.includes("Approved") || row.approvalStatus === "Paid" ? "good" : row.approvalStatus.includes("Override") ? "warn" : "info"}">${escapeHtml(row.approvalStatus)}</span></td>
-      <td>${showSalary ? atlasBonusCurrency(row.employee.salary) : `<button class="btn btn-gray btn-sm" onclick='atlasBonusDrill("projected","employee",${atlasBonusJsArg(row.employee.name)})'>Detail</button>`}</td>
+      <td>${showSalary ? atlasBonusCurrency(row.employee.salary) : `<button class="btn btn-gray btn-sm" onclick='atlasBonusDrill("projected","employee",${atlasBonusJsArg(atlasBonusEmployeeDisplayName(row.employee))})'>Detail</button>`}</td>
     </tr>`).join("") || `<tr><td colspan="9">No calculation rows match the current filters.</td></tr>`}
   </tbody></table></div>`;
 }
@@ -30662,7 +30760,7 @@ function renderBonusProjectedSection(rows) {
   return `<div class="bonus-engine-grid">${rows.map(row => {
     const pct = row.maximumPotential > 0 ? Math.min(100, (row.projectedPayout / row.maximumPotential) * 100) : 0;
     return `<div class="bonus-engine-card">
-      <div class="bonus-engine-section-head"><div><h3>${escapeHtml(row.employee.name)}</h3><p>${escapeHtml(row.plan?.name || "Missing plan")} · ${escapeHtml(row.planSource)}</p></div><span class="bonus-engine-pill ${row.unresolvedCritical ? "bad" : "info"}">${escapeHtml(row.approvalStatus)}</span></div>
+      <div class="bonus-engine-section-head"><div><h3>${escapeHtml(atlasBonusEmployeeDisplayName(row.employee))}</h3><p>${escapeHtml(row.plan?.name || "Missing plan")} · ${escapeHtml(row.planSource)}</p></div><span class="bonus-engine-pill ${row.unresolvedCritical ? "bad" : "info"}">${escapeHtml(row.approvalStatus)}</span></div>
       <div class="bonus-engine-kpi" style="border-left-color:#fcb53b;margin-top:12px;min-height:auto"><div class="v">${atlasBonusCurrency(row.projectedPayout)}</div><div class="s">${atlasBonusPct(pct, 0)} of ${atlasBonusCurrency(row.maximumPotential)} maximum potential</div></div>
       <div class="bonus-engine-progress" style="margin:10px 0 12px"><span style="width:${pct}%"></span></div>
       <div class="bonus-engine-small-list">${row.metricResults.map(result => `<div class="bonus-engine-small-row"><span>${escapeHtml(result.metric.name)}<br><span style="font-size:0.6rem;color:var(--muted)">${escapeHtml(result.metric.dataSource)} · ${escapeHtml(result.metric.cadence)}</span></span><strong>${result.actual === null ? "Pending" : atlasBonusCurrency(result.earned)}</strong></div>`).join("")}</div>
@@ -30681,7 +30779,7 @@ function renderBonusApprovalsSection(rows) {
   <div class="bonus-engine-pipeline">
     ${stages.map(stage => {
       const scoped = rows.filter(row => mapStage(row) === stage);
-      return `<div class="bonus-engine-stage"><div class="bonus-engine-stage-title">${escapeHtml(stage)}</div>${scoped.slice(0, 6).map(row => `<div class="bonus-engine-stage-row"><strong>${escapeHtml(row.employee.name)}</strong><br>${escapeHtml(row.employee.communityName || "Portfolio / Central")}<br>${atlasBonusCurrency(row.finalPayout)}<div style="margin-top:6px"><button class="btn btn-gray btn-sm" onclick='atlasBonusSetRowStatus(${atlasBonusJsArg(row.rowId)},"${stage === "Regional Approved" ? "HR Ready" : "Regional Approved"}")'>Move</button></div></div>`).join("") || `<div class="bonus-engine-stage-row">No records</div>`}</div>`;
+      return `<div class="bonus-engine-stage"><div class="bonus-engine-stage-title">${escapeHtml(stage)}</div>${scoped.slice(0, 6).map(row => `<div class="bonus-engine-stage-row"><strong>${escapeHtml(atlasBonusEmployeeDisplayName(row.employee))}</strong><br>${escapeHtml(row.employee.communityName || "Portfolio / Central")}<br>${atlasBonusCurrency(row.finalPayout)}<div style="margin-top:6px"><button class="btn btn-gray btn-sm" onclick='atlasBonusSetRowStatus(${atlasBonusJsArg(row.rowId)},"${stage === "Regional Approved" ? "HR Ready" : "Regional Approved"}")'>Move</button></div></div>`).join("") || `<div class="bonus-engine-stage-row">No records</div>`}</div>`;
     }).join("")}
   </div>
   <div class="bonus-engine-card"><h3>Sign-Off History</h3><div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Signature</th><th>Role</th><th>Date / Time</th><th>Rows</th><th>Comments</th></tr></thead><tbody>${atlasBonusState().regionalSignatures.map(sig => `<tr><td>${escapeHtml(sig.signature)}</td><td>${escapeHtml(sig.role)}</td><td>${new Date(sig.approvedAt).toLocaleString()}</td><td>${sig.rowCount}</td><td>${escapeHtml(sig.comments || "")}</td></tr>`).join("") || `<tr><td colspan="5">No electronic signatures captured yet.</td></tr>`}</tbody></table></div></div>`;
@@ -30692,7 +30790,7 @@ function renderBonusExceptionsSection(rows) {
   return `<div class="bonus-engine-card">
     <div class="bonus-engine-section-head"><div><h3>Bonus Exception Queue</h3><p>ATLAS does not guess when required data is missing. Critical exceptions block final approval until resolved by a human.</p></div><span class="bonus-engine-pill ${exceptionRows.some(row => row.exception.severity === "critical" && row.status !== "resolved") ? "bad" : "good"}">${exceptionRows.length} exceptions</span></div>
     <div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Employee</th><th>Community</th><th>Plan</th><th>Exception</th><th>Severity</th><th>Required Action</th><th>Status</th><th>Reviewer</th></tr></thead><tbody>
-      ${exceptionRows.map(item => `<tr><td><strong>${escapeHtml(item.row.employee.name)}</strong></td><td>${escapeHtml(item.row.employee.communityName || "Missing")}</td><td>${escapeHtml(item.row.plan?.name || "Missing plan")}</td><td>${escapeHtml(item.exception.message)}</td><td><span class="bonus-engine-pill ${item.exception.severity === "critical" ? "bad" : "warn"}">${escapeHtml(item.exception.severity)}</span></td><td>${item.exception.code === "missing_salary" ? "HR/Admin must enter salary or assign non-salary plan." : item.exception.code === "missing_metric" ? "Import source data or enter documented manual result." : "Update People mapping or plan assignment."}</td><td>${escapeHtml(item.status)}</td><td><button class="btn btn-gray btn-sm" onclick='atlasBonusResolveException(${atlasBonusJsArg(item.row.rowId)},${atlasBonusJsArg(item.exception.code)},${atlasBonusJsArg(item.exception.metricId || "")})' ${atlasBonusCan("override_calculations") ? "" : "disabled"}>Resolve</button></td></tr>`).join("") || `<tr><td colspan="8">No exceptions in the current filter set.</td></tr>`}
+      ${exceptionRows.map(item => `<tr><td><strong>${escapeHtml(atlasBonusEmployeeDisplayName(item.row.employee))}</strong></td><td>${escapeHtml(item.row.employee.communityName || "Missing")}</td><td>${escapeHtml(item.row.plan?.name || "Missing plan")}</td><td>${escapeHtml(item.exception.message)}</td><td><span class="bonus-engine-pill ${item.exception.severity === "critical" ? "bad" : "warn"}">${escapeHtml(item.exception.severity)}</span></td><td>${item.exception.code === "missing_salary" ? "HR/Admin must enter salary or assign non-salary plan." : item.exception.code === "missing_metric" ? "Import source data or enter documented manual result." : "Update People mapping or plan assignment."}</td><td>${escapeHtml(item.status)}</td><td><button class="btn btn-gray btn-sm" onclick='atlasBonusResolveException(${atlasBonusJsArg(item.row.rowId)},${atlasBonusJsArg(item.exception.code)},${atlasBonusJsArg(item.exception.metricId || "")})' ${atlasBonusCan("override_calculations") ? "" : "disabled"}>Resolve</button></td></tr>`).join("") || `<tr><td colspan="8">No exceptions in the current filter set.</td></tr>`}
     </tbody></table></div>
   </div>`;
 }
@@ -30707,7 +30805,7 @@ function renderBonusForecastSection(rows) {
     ${renderBonusEngineKpi("Remaining Exposure", atlasBonusCurrency(Math.max(summary.budget - summary.approved, 0)), "Budget remaining after approved payouts", "gold", "forecast")}
   </div>
   <div class="bonus-engine-grid three">
-    ${renderBonusEngineBarChart(rows, row => row.employee.region || "Unassigned", "Forecast by Region")}
+    ${renderBonusEngineBarChart(rows, row => atlasBonusEmployeeRegionLabel(row.employee), "Forecast by Region")}
     ${renderBonusEngineBarChart(rows, row => row.employee.communityName || "Portfolio / Central", "Forecast by Property")}
     ${renderBonusEngineBarChart(rows, row => row.plan?.name || "Missing Plan", "Forecast by Bonus Plan")}
   </div>`;
@@ -30737,7 +30835,7 @@ function renderBonusHistorySection(rows) {
   const simulation = state.simulation;
   return `<div class="bonus-engine-grid two">
     <div class="bonus-engine-card"><div class="bonus-engine-section-head"><div><h3>Plan Simulation</h3><p>Simulate a proposed bonus plan against historical data without changing actual historical records.</p></div><button class="btn btn-blue btn-sm" onclick="atlasBonusRunSimulation()" ${atlasBonusCan("run_calculations") ? "" : "disabled"}>Simulate Using Historical Data</button></div>${simulation ? `<div class="bonus-engine-grid two" style="margin-top:12px">${renderBonusEngineKpi("Proposed Payout", atlasBonusCurrency(simulation.proposed), "Simulation result", "green", "history")}${renderBonusEngineKpi("Historical Payout", atlasBonusCurrency(simulation.historicalActual), "Actual prior payout", "", "history")}${renderBonusEngineKpi("Variance", atlasBonusCurrency(simulation.variance), "Proposed vs actual", simulation.variance >= 0 ? "gold" : "red", "history")}${renderBonusEngineKpi("Employees Gaining", simulation.gainingEmployees, `${simulation.losingEmployees} losing payout`, "info", "history")}</div>` : `<div class="bonus-engine-warning" style="margin-top:12px">No simulation has been run yet.</div>`}</div>
-    <div class="bonus-engine-card"><h3>Finalized Historical Records</h3><p>Historical records stay tied to the plan version used at calculation time, even when an employee changes role, transfers, leaves RISE, or becomes inactive.</p><div class="bonus-engine-small-list" style="margin-top:12px">${rows.slice(0, 6).map(row => `<div class="bonus-engine-small-row"><span>${escapeHtml(row.period.periodKey)} · ${escapeHtml(row.employee.name)}</span><strong>${escapeHtml(row.plan?.version || "Version pending")}</strong></div>`).join("")}</div></div>
+    <div class="bonus-engine-card"><h3>Finalized Historical Records</h3><p>Historical records stay tied to the plan version used at calculation time, even when an employee changes role, transfers, leaves RISE, or becomes inactive.</p><div class="bonus-engine-small-list" style="margin-top:12px">${rows.slice(0, 6).map(row => `<div class="bonus-engine-small-row"><span>${escapeHtml(row.period.periodKey)} · ${escapeHtml(atlasBonusEmployeeDisplayName(row.employee))}</span><strong>${escapeHtml(row.plan?.version || "Version pending")}</strong></div>`).join("")}</div></div>
   </div>
   <div class="bonus-engine-card"><h3>Historical Bonus Plans</h3><div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Plan</th><th>Version</th><th>Status</th><th>Effective Dates</th><th>Metrics</th><th>Action</th></tr></thead><tbody>${state.plans.map(plan => `<tr><td><strong>${escapeHtml(plan.name)}</strong></td><td>${escapeHtml(plan.version)}</td><td><span class="bonus-engine-pill ${plan.status === "active" ? "good" : plan.status === "draft" ? "warn" : "info"}">${escapeHtml(plan.status)}</span></td><td>${escapeHtml(plan.effectiveStart)} - ${escapeHtml(plan.effectiveEnd)}</td><td>${plan.metrics.length}</td><td><button class="btn btn-gray btn-sm" onclick='atlasBonusSetSelectedPlan(${atlasBonusJsArg(plan.id)})'>Open</button></td></tr>`).join("")}</tbody></table></div></div>`;
 }

@@ -603,6 +603,12 @@
   .data-import2-status.blocked, .data-import2-status.missing, .data-import2-status.conflict { background: rgba(248,81,73,0.08); color: #b42318; border: 1px solid rgba(248,81,73,0.32); }
   .data-import2-status.info, .data-import2-status.unmapped { background: rgba(49,109,202,0.08); color: #2457a6; border: 1px solid rgba(49,109,202,0.32); }
   .data-import2-status.duplicate { background: rgba(111,66,193,0.08); color: #6639ba; border: 1px solid rgba(111,66,193,0.28); }
+  .data-import2-question-list { display: grid; gap: 8px; margin-top: 10px; }
+  .data-import2-question { border: 1px solid rgba(210,153,34,0.34); border-left: 4px solid #d29922; background: rgba(210,153,34,0.08); border-radius: 8px; padding: 9px 11px; font-size: 0.68rem; color: var(--text); line-height: 1.45; }
+  .data-import2-audit-grid { display: grid; gap: 8px; margin-top: 10px; }
+  .data-import2-audit-row { border: 1px solid var(--border); background: var(--bg3); border-radius: 8px; padding: 10px 11px; display: grid; grid-template-columns: minmax(180px, 0.85fr) minmax(220px, 1.15fr) minmax(120px, auto); gap: 10px; align-items: start; }
+  .data-import2-audit-title { font-size: 0.73rem; font-weight: 800; color: var(--text); margin-bottom: 3px; }
+  .data-import2-audit-copy { font-size: 0.63rem; color: var(--muted); line-height: 1.45; }
   .data-import2-matrix-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--bg2); }
   .data-import2-matrix { width: 100%; border-collapse: collapse; min-width: 760px; }
   .data-import2-matrix th { text-align: left; padding: 9px 10px; font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); border-bottom: 1px solid var(--border); background: var(--bg3); }
@@ -621,7 +627,7 @@
   .data-import2-field textarea { min-height: 70px; resize: vertical; }
   .data-import2-detail-panel { border: 1px solid var(--border); background: var(--bg3); border-radius: 8px; padding: 12px; font-size: 0.7rem; color: var(--muted); line-height: 1.45; }
   .data-import2-inline-actions { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
-  @media(max-width:1100px){ .data-import2-hero, .data-import2-main-grid { grid-template-columns: 1fr; } .data-import2-kpis, .data-import2-preview-grid { grid-template-columns: repeat(3, 1fr); } .data-import2-file, .data-import2-activity-row { grid-template-columns: 1fr; } }
+  @media(max-width:1100px){ .data-import2-hero, .data-import2-main-grid { grid-template-columns: 1fr; } .data-import2-kpis, .data-import2-preview-grid { grid-template-columns: repeat(3, 1fr); } .data-import2-file, .data-import2-activity-row, .data-import2-audit-row { grid-template-columns: 1fr; } }
   @media(max-width:640px){ .data-import2-kpis, .data-import2-preview-grid, .data-import2-workflow, .data-import2-form-grid { grid-template-columns: 1fr; } .data-import2-hero { padding: 14px; } .data-import2-dropzone { padding: 18px; } }
   .csv-field-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }
   @media(max-width:500px){ .csv-field-grid { grid-template-columns: 1fr; } }
@@ -45725,6 +45731,7 @@ async function approveDataImportBatch() {
       plan.status = "review";
     }
   }
+  const downstreamAudit = dataImportBuildDownstreamAudit(approvedPlans, routeMessages);
   const historyEntry = {
     id: batch.id,
     createdAt: batch.uploadedAt,
@@ -45751,6 +45758,7 @@ async function approveDataImportBatch() {
     })),
     archiveIds: archivedEntries.map(entry => entry.id),
     routeMessages,
+    downstreamAudit,
     beforeSnapshot: batch.beforeSnapshot
   };
   dataImport2State.batches = [historyEntry, ...(dataImport2State.batches || [])].slice(0, 60);
@@ -45763,7 +45771,10 @@ async function approveDataImportBatch() {
   csvLog = [
     `${historyEntry.id} approved and routed through ATLAS.`,
     ...routeMessages.slice(0, 6),
-    "Dependent dashboards and reports are ready for refresh."
+    dataImportSummarizeDownstreamAudit(downstreamAudit),
+    downstreamAudit.some(item => item.status !== "Verified")
+      ? "ATLAS has questions before every downstream page can be trusted."
+      : "Dependent dashboards and reports verified usable destination data."
   ];
   persistDataImport2State();
   renderPropGrid();
@@ -45924,8 +45935,208 @@ function dataImportHasSavedFallbackData(communityName, reportType) {
   return false;
 }
 
+function dataImportCanonicalCommunityName(communityName = "") {
+  const clean = String(communityName ?? "").trim();
+  if (!clean) return "";
+  try {
+    return matchPropertyName(clean, { fallbackToCurrent: false }) || clean;
+  } catch {
+    return clean;
+  }
+}
+
+function dataImportSharedCommunityStatus(communityName = "") {
+  try {
+    const sharedRecord = typeof getAtlasSharedRecordForPortfolioName === "function"
+      ? getAtlasSharedRecordForPortfolioName(communityName)
+      : null;
+    return sharedRecord?.status ? normalizeCommunityStatus(sharedRecord.status) : "";
+  } catch {
+    return "";
+  }
+}
+
+function dataImportCatalogCommunityStatus(communityName = "") {
+  const normalizedCommunity = dataImportNormalizeText(dataImportCanonicalCommunityName(communityName));
+  if (!normalizedCommunity) return "";
+  try {
+    const parsed = JSON.parse(localStorage.getItem(OPS_PROPERTY_CATALOG_KEY) || "{}");
+    const entries = Array.isArray(parsed?.properties) ? parsed.properties : [];
+    const match = entries.find(entry => {
+      const aliases = Array.isArray(entry?.aliases) ? entry.aliases : [];
+      const candidates = [
+        entry?.name,
+        entry?.displayName,
+        entry?.propertyName,
+        entry?.canonicalName,
+        entry?.communityId,
+        entry?.atlasCommunityId,
+        ...aliases
+      ].map(item => String(item ?? "").trim()).filter(Boolean);
+      return candidates.some(candidate => {
+        const canonicalCandidate = dataImportCanonicalCommunityName(candidate);
+        return dataImportNormalizeText(canonicalCandidate || candidate) === normalizedCommunity;
+      });
+    });
+    const status = String(match?.status || match?.communityStatus || "").trim();
+    return status ? normalizeCommunityStatus(status) : "";
+  } catch {
+    return "";
+  }
+}
+
+function dataImportExplicitCommunityStatus(communityName = "") {
+  const canonicalName = dataImportCanonicalCommunityName(communityName);
+  const rawRecord = canonicalName === getProp().name ? getCurrentCommunityRecord() : savedData?.[canonicalName];
+  if (rawRecord && typeof rawRecord === "object") {
+    if (Object.prototype.hasOwnProperty.call(rawRecord, "communityStatus")) return normalizeCommunityStatus(rawRecord.communityStatus);
+    if (Object.prototype.hasOwnProperty.call(rawRecord, "status")) return normalizeCommunityStatus(rawRecord.status);
+  }
+  return "";
+}
+
+function dataImportIsActiveReportingCommunity(communityName = "") {
+  const canonicalName = dataImportCanonicalCommunityName(communityName);
+  if (!canonicalName) return false;
+  if (typeof isRetiredAtlasPropertyName === "function" && isRetiredAtlasPropertyName(canonicalName)) return false;
+  const explicitStatus = dataImportExplicitCommunityStatus(canonicalName);
+  if (explicitStatus === "inactive") return false;
+  const catalogStatus = dataImportCatalogCommunityStatus(canonicalName);
+  if (catalogStatus === "inactive") return false;
+  const sharedStatus = dataImportSharedCommunityStatus(canonicalName);
+  if (sharedStatus === "inactive") return false;
+  const record = dataImportCommunityRecord(canonicalName);
+  if (record && !communityStatusMatchesScope(record, { communityStatusMode: "active" })) return false;
+  return true;
+}
+
+function dataImportFilterActiveReportingCommunities(communityNames = []) {
+  const seen = new Set();
+  return (Array.isArray(communityNames) ? communityNames : [communityNames])
+    .map(dataImportCanonicalCommunityName)
+    .filter(name => {
+      const key = dataImportNormalizeText(name);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return dataImportIsActiveReportingCommunity(name);
+    });
+}
+
+function dataImportGetHealthCommunityNames() {
+  let reportableNames = [];
+  try {
+    reportableNames = typeof getReportableCommunityNames === "function"
+      ? getReportableCommunityNames(getSelectedDashboardMonthIndex())
+      : [];
+  } catch {
+    reportableNames = [];
+  }
+  const savedActiveNames = typeof getActiveSavedCommunityNames === "function"
+    ? getActiveSavedCommunityNames(true)
+    : [];
+  const primaryNames = reportableNames.length ? reportableNames : savedActiveNames;
+  return dataImportFilterActiveReportingCommunities(primaryNames.length ? primaryNames : getAllCommunityNames());
+}
+
+function dataImportIssueBelongsToActiveCommunity(issue = {}) {
+  const communityName = String(issue.communityName || "").trim();
+  if (!communityName || dataImportNormalizeText(communityName) === "unmapped") return true;
+  return dataImportIsActiveReportingCommunity(communityName);
+}
+
+function dataImportExpectedDownstreamModules(reportType, explicitUses = []) {
+  return Array.from(new Set([
+    ...(Array.isArray(explicitUses) ? explicitUses : []),
+    ...(dataImportGetReportDef(reportType)?.dependencies || [])
+  ].map(item => String(item ?? "").trim()).filter(Boolean)));
+}
+
+function dataImportBuildDestinationQuestion(plan = {}, modules = [], activeCommunities = []) {
+  if (!plan.reportType || plan.reportType === "unknown") return "";
+  if (!activeCommunities.length) return "";
+  if (!modules.length) return `${plan.name}: Which ATLAS pages should this source refresh after approval?`;
+  const communityPreview = activeCommunities.slice(0, 4).join(", ");
+  const communitySuffix = activeCommunities.length > 4 ? ` and ${activeCommunities.length - 4} more` : "";
+  return `${plan.name}: Confirm ${plan.reportTypeLabel || dataImportReportLabel(plan.reportType)} should refresh ${modules.slice(0, 4).join(", ")} for ${communityPreview}${communitySuffix}.`;
+}
+
+function dataImportBuildPlanQuestions(plan = {}, options = {}) {
+  const questions = [];
+  const activeCommunities = dataImportFilterActiveReportingCommunities(plan.communities || []);
+  const inactiveCommunities = (plan.communities || []).filter(name => !activeCommunities.some(activeName => dataImportNormalizeText(activeName) === dataImportNormalizeText(name)));
+  const modules = dataImportExpectedDownstreamModules(plan.reportType, plan.downstreamUses);
+  if (!plan.reportType || plan.reportType === "unknown") {
+    questions.push(`${plan.name}: Which report type should ATLAS use for this file?`);
+  }
+  if (!activeCommunities.length) {
+    questions.push(`${plan.name}: Which active community should receive this data?`);
+  }
+  if (inactiveCommunities.length) {
+    questions.push(`${plan.name}: ${inactiveCommunities.join(", ")} ${inactiveCommunities.length === 1 ? "is inactive" : "are inactive"}; should this upload be retained only for history?`);
+  }
+  (plan.issues || []).forEach(issue => {
+    if (issue.type === "unmapped") questions.push(`${plan.name}: ${issue.detail || "Which property or ATLAS field should this source map to?"}`);
+    if (issue.type === "low_confidence") questions.push(`${plan.name}: Confirm whether ${issue.originalField || "the source field"} maps to ${dataImportCanonicalFieldLabel(issue.canonicalField || issue.suggestedField)}.`);
+    if (issue.type === "conflict") questions.push(`${plan.name}: Which value should win for the conflicting data?`);
+  });
+  if (options.includeDestinationCheck) {
+    const destinationQuestion = dataImportBuildDestinationQuestion(plan, modules, activeCommunities);
+    if (destinationQuestion) questions.push(destinationQuestion);
+  }
+  return Array.from(new Set(questions)).slice(0, 8);
+}
+
+function dataImportBuildBatchQuestions(batch = {}) {
+  return (batch.files || [])
+    .flatMap(plan => dataImportBuildPlanQuestions(plan, { includeDestinationCheck: true }))
+    .slice(0, 12);
+}
+
+function dataImportBuildDownstreamAuditForPlan(plan = {}, routeMessage = "") {
+  const activeCommunities = dataImportFilterActiveReportingCommunities(plan.communities || []);
+  const inactiveCommunities = (plan.communities || []).filter(name => !activeCommunities.some(activeName => dataImportNormalizeText(activeName) === dataImportNormalizeText(name)));
+  const modules = dataImportExpectedDownstreamModules(plan.reportType, plan.downstreamUses);
+  const hasRoutedData = activeCommunities.length > 0 && activeCommunities.some(name => dataImportHasSavedFallbackData(name, plan.reportType));
+  const questions = dataImportBuildPlanQuestions(plan);
+  const destinationQuestion = hasRoutedData ? "" : dataImportBuildDestinationQuestion(plan, modules, activeCommunities);
+  if (destinationQuestion) questions.push(destinationQuestion);
+  const hasQuestions = questions.length > 0;
+  const status = hasRoutedData ? "Verified" : hasQuestions ? "Needs Answers" : "Needs Review";
+  const detail = hasRoutedData
+    ? `Checked ${activeCommunities.length} active communit${activeCommunities.length === 1 ? "y" : "ies"} against ${modules.slice(0, 3).join(", ")}.`
+    : `ATLAS could not verify saved destination data yet. Confirm the source fields or target community before relying on the downstream pages.`;
+  return {
+    id: dataImportMakeId("audit"),
+    fileName: plan.name,
+    reportType: plan.reportType,
+    reportTypeLabel: plan.reportTypeLabel || dataImportReportLabel(plan.reportType),
+    status,
+    detail,
+    routeMessage,
+    activeCommunities,
+    inactiveCommunities,
+    modules,
+    questions: Array.from(new Set(questions)).slice(0, 8)
+  };
+}
+
+function dataImportBuildDownstreamAudit(plans = [], routeMessages = []) {
+  return (Array.isArray(plans) ? plans : []).map(plan => {
+    const routeMessage = (routeMessages || []).find(message => String(message || "").startsWith(`${plan.name}:`)) || "";
+    return dataImportBuildDownstreamAuditForPlan(plan, routeMessage);
+  });
+}
+
+function dataImportSummarizeDownstreamAudit(audits = []) {
+  const rows = Array.isArray(audits) ? audits : [];
+  if (!rows.length) return "No downstream audit recorded yet.";
+  const verified = rows.filter(row => row.status === "Verified").length;
+  const needsReview = rows.length - verified;
+  return `${verified}/${rows.length} routed checks verified${needsReview ? ` · ${needsReview} need review` : ""}`;
+}
+
 function dataImportBuildHealthModel() {
-  const communities = getActiveSavedCommunityNames(true).filter(Boolean);
+  const communities = dataImportGetHealthCommunityNames();
   const rows = communities.map(communityName => {
     const cells = DATA_IMPORT_REPORT_ORDER.map(reportType => {
       const def = dataImportGetReportDef(reportType);
@@ -46187,6 +46398,58 @@ function renderDataImportFileIssues(plan) {
   ).join("")}${issues.length > 4 ? `<span class="data-import2-chip">${issues.length - 4} more</span>` : ""}</div>`;
 }
 
+function renderDataImportBatchQuestions(batch) {
+  const questions = dataImportBuildBatchQuestions(batch);
+  if (!questions.length) return "";
+  return `<div class="data-import2-detail-panel" style="margin-top:10px">
+    <div class="data-import2-section-title"><i class="ph ph-question"></i>Questions ATLAS Needs Answered</div>
+    <div class="data-import2-question-list">
+      ${questions.map(question => `<div class="data-import2-question">${escapeHtml(question)}</div>`).join("")}
+    </div>
+  </div>`;
+}
+
+function renderDataImportPlannedDownstreamAudit(batch) {
+  const plans = (batch?.files || []).filter(plan => plan.selected && plan.status !== "blocked");
+  if (!plans.length) return "";
+  const audits = plans.map(plan => dataImportBuildDownstreamAuditForPlan(plan));
+  return `<div class="data-import2-detail-panel" style="margin-top:10px">
+    <div class="data-import2-section-title"><i class="ph ph-check-circle"></i>Destination Checks After Approval</div>
+    <div class="data-import2-audit-grid">
+      ${audits.map(audit => `<div class="data-import2-audit-row">
+        <div>
+          <div class="data-import2-audit-title">${escapeHtml(audit.reportTypeLabel)}</div>
+          <div class="data-import2-audit-copy">${escapeHtml(audit.fileName)}</div>
+        </div>
+        <div class="data-import2-audit-copy">
+          ${escapeHtml(audit.modules.slice(0, 5).join(", ") || "No downstream page mapping configured yet.")}
+          ${audit.inactiveCommunities.length ? `<div style="margin-top:4px">Inactive detected: ${escapeHtml(audit.inactiveCommunities.join(", "))}</div>` : ""}
+        </div>
+        <span class="data-import2-status ${audit.status === "Verified" ? "ready" : "review"}">${escapeHtml(audit.status === "Verified" ? "Ready to check" : audit.status)}</span>
+      </div>`).join("")}
+    </div>
+  </div>`;
+}
+
+function renderDataImportDownstreamAudit(audits = []) {
+  const rows = Array.isArray(audits) ? audits : [];
+  if (!rows.length) return "";
+  return `<div class="data-import2-audit-grid">
+    ${rows.map(audit => `<div class="data-import2-audit-row">
+      <div>
+        <div class="data-import2-audit-title">${escapeHtml(audit.reportTypeLabel || dataImportReportLabel(audit.reportType))}</div>
+        <div class="data-import2-audit-copy">${escapeHtml(audit.fileName || "Source file")}</div>
+      </div>
+      <div class="data-import2-audit-copy">
+        ${escapeHtml(audit.detail || "")}
+        <div style="margin-top:4px">${escapeHtml((audit.modules || []).slice(0, 5).join(", ") || "No downstream page mapping configured yet.")}</div>
+        ${(audit.questions || []).length ? `<div style="margin-top:4px">Question: ${escapeHtml(audit.questions[0])}</div>` : ""}
+      </div>
+      <span class="data-import2-status ${audit.status === "Verified" ? "ready" : "review"}">${escapeHtml(audit.status || "Needs Review")}</span>
+    </div>`).join("")}
+  </div>`;
+}
+
 function renderDataImportPendingBatch() {
   const batch = dataImport2State.pendingBatch;
   if (!batch) {
@@ -46251,6 +46514,8 @@ function renderDataImportPendingBatch() {
     ${renderDataImportPreviewStats(batch.summary)}
     ${zipIssueHtml}
     <div class="data-import2-file-list" style="margin-top:12px">${fileRows || `<div class="data-import2-detail-panel">No supported files were found in this batch.</div>`}</div>
+    ${renderDataImportBatchQuestions(batch)}
+    ${renderDataImportPlannedDownstreamAudit(batch)}
   </div>`;
 }
 
@@ -46288,7 +46553,7 @@ function renderDataImportRecentActivity() {
     <div><strong>${escapeHtml(batch.id)}</strong><div class="data-import2-file-meta">${escapeHtml(dataImportFormatTimestamp(batch.approvedAt || batch.createdAt))}</div></div>
     <div>${escapeHtml((batch.files || []).map(file => file.reportTypeLabel).filter(Boolean).slice(0, 3).join(", ") || "Import batch")}</div>
     <div><span class="data-import2-status ${dataImportStatusClass(batch.status)}">${escapeHtml(batch.status)}</span></div>
-    <div>${escapeHtml(batch.summary?.rowsReviewed || 0)} rows reviewed</div>
+    <div>${escapeHtml(batch.summary?.rowsReviewed || 0)} rows reviewed<div class="data-import2-file-meta">${escapeHtml(dataImportSummarizeDownstreamAudit(batch.downstreamAudit))}</div></div>
   </div>`).join("")}</div>`;
 }
 
@@ -46330,7 +46595,9 @@ function renderDataImportExceptionsView() {
     modulesAffected: plan.downstreamUses || [],
     recommendedAction: issue.type === "unmapped" ? "Assign the property or save a new alias." : "Review and resolve before final approval."
   }))) || [];
-  const issues = [...pending, ...(dataImport2State.exceptions || [])].filter(Boolean);
+  const issues = [...pending, ...(dataImport2State.exceptions || [])]
+    .filter(Boolean)
+    .filter(dataImportIssueBelongsToActiveCommunity);
   if (!issues.length) return `<div class="data-import2-card"><div class="data-import2-section-title"><i class="ph ph-warning-diamond"></i>Exceptions</div><div class="data-import2-detail-panel">No import exceptions are open.</div></div>`;
   return `<div class="data-import2-card">
     <div class="data-import2-section-title"><i class="ph ph-warning-diamond"></i>Exceptions</div>
@@ -46455,9 +46722,9 @@ function deleteDataImportPropertyAlias(aliasId) {
 }
 
 function renderDataImportAliasesView() {
-  const communityOptions = getAllCommunityNames().map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
+  const communityOptions = dataImportGetHealthCommunityNames().map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
   const aliases = dataImport2State.propertyAliases || [];
-  const unmapped = (dataImport2State.exceptions || []).filter(issue => issue.type === "unmapped" && issue.status !== "Resolved");
+  const unmapped = (dataImport2State.exceptions || []).filter(issue => issue.type === "unmapped" && issue.status !== "Resolved" && dataImportIssueBelongsToActiveCommunity(issue));
   return `<div class="data-import2-shell">
     <div class="data-import2-card">
       <div class="data-import2-section-title"><i class="ph ph-map-pin"></i>Property Alias Manager</div>
@@ -46488,6 +46755,7 @@ function renderDataImportAliasesView() {
 function renderDataImportHistoryView() {
   const batches = dataImport2State.batches || [];
   if (!batches.length) return `<div class="data-import2-card"><div class="data-import2-section-title"><i class="ph ph-clock-counter-clockwise"></i>Import History</div><div class="data-import2-detail-panel">No import batches have been approved yet.</div></div>`;
+  const latestAudit = renderDataImportDownstreamAudit(batches[0]?.downstreamAudit || []);
   return `<div class="data-import2-card">
     <div class="data-import2-section-title"><i class="ph ph-clock-counter-clockwise"></i>Import History</div>
     <table class="data-import2-table">
@@ -46496,11 +46764,12 @@ function renderDataImportHistoryView() {
         <td><strong>${escapeHtml(batch.id)}</strong><div class="data-import2-file-meta">Uploaded by ${escapeHtml(batch.uploader || "Admin")}</div></td>
         <td>${escapeHtml(dataImportFormatTimestamp(batch.approvedAt || batch.createdAt))}</td>
         <td>${escapeHtml((batch.files || []).map(file => file.reportTypeLabel || file.fileName).slice(0, 3).join(", ") || "Import files")}<div class="data-import2-file-meta">${escapeHtml(batch.summary?.files || 0)} file(s) · ${escapeHtml(batch.summary?.communities || 0)} communities</div></td>
-        <td>${escapeHtml(batch.summary?.rowsReviewed || 0)} reviewed · ${escapeHtml(batch.summary?.duplicatesIgnored || 0)} duplicates · ${escapeHtml(batch.summary?.conflicts || 0)} conflicts<div class="data-import2-file-meta">${escapeHtml((batch.routeMessages || []).slice(0, 2).join(" "))}</div></td>
+        <td>${escapeHtml(batch.summary?.rowsReviewed || 0)} reviewed · ${escapeHtml(batch.summary?.duplicatesIgnored || 0)} duplicates · ${escapeHtml(batch.summary?.conflicts || 0)} conflicts<div class="data-import2-file-meta">${escapeHtml((batch.routeMessages || []).slice(0, 2).join(" "))}</div><div class="data-import2-file-meta">${escapeHtml(dataImportSummarizeDownstreamAudit(batch.downstreamAudit))}</div></td>
         <td><span class="data-import2-status ${dataImportStatusClass(batch.status)}">${escapeHtml(batch.status)}</span>${batch.rollback?.reason ? `<div class="data-import2-file-meta">Reason: ${escapeHtml(batch.rollback.reason)}</div>` : ""}</td>
         <td>${batch.status === "Approved" ? `<button class="btn btn-gray btn-sm" onclick='rollbackDataImportBatch(${JSON.stringify(batch.id)})'>Rollback</button>` : ""}</td>
       </tr>`).join("")}</tbody>
     </table>
+    ${latestAudit ? `<div style="margin-top:12px"><div class="data-import2-section-title"><i class="ph ph-check-circle"></i>Latest Destination Check</div>${latestAudit}</div>` : ""}
   </div>`;
 }
 

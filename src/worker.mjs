@@ -43,6 +43,7 @@ const SYNC_WRITE_TOKEN = "atlas-rise-shared-sync-2026";
 const DEFAULT_SUPABASE_URL = "https://rmyhmvjcswfwaracgriy.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_2DEqeCNZFn6sNeVrSEfW8A_EI6tRb_1";
 const DEFAULT_ATLAS_APP_PATH = "/portfolio-operations-dashboard/index.html";
+const DEFAULT_ATLAS_APP_BASE_URL = "https://jac1827.github.io/ATLAS/portfolio-operations-dashboard/index.html";
 const API_CORS_ALLOW_HEADERS = "content-type, authorization, apikey";
 const COMPANY_EMAIL_PATTERN = /^[^@\s]+@(risere|riseresidential)[.]com$/i;
 const ATLAS_DLR_ALLOWED_ROLES = new Set(["admin", "centra", "executive", "regional", "community_manager", "finance", "viewer"]);
@@ -1141,19 +1142,41 @@ function getInviteExpiryIso(env) {
   return new Date(Date.now() + seconds * 1000).toISOString();
 }
 
+function normalizeAtlasAuthBaseUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw || !/^https?:\/\//i.test(raw) || isLocalUrl(raw)) return "";
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase();
+    const path = url.pathname.toLowerCase();
+    url.hash = "";
+    url.search = "";
+    if (host === "jac1827.github.io" && path.startsWith("/atlas/portfolio-operations-dashboard")) {
+      return DEFAULT_ATLAS_APP_BASE_URL;
+    }
+    if (host === "rise-performance-platform-site.jacquelyn-heflin.workers.dev" && path.startsWith("/portfolio-operations-dashboard")) {
+      url.pathname = DEFAULT_ATLAS_APP_PATH;
+      return url.toString();
+    }
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
 function resolveAtlasAppBaseUrl(request, env, explicitBaseUrl = "") {
-  const explicit = String(explicitBaseUrl || "").trim();
-  if (explicit && /^https?:\/\//i.test(explicit) && !isLocalUrl(explicit)) return explicit;
-  const configured = String(env.ATLAS_APP_BASE_URL || "").trim();
-  if (configured && /^https?:\/\//i.test(configured) && !isLocalUrl(configured)) return configured;
+  const explicit = normalizeAtlasAuthBaseUrl(explicitBaseUrl);
+  if (explicit) return explicit;
+  const configured = normalizeAtlasAuthBaseUrl(env.ATLAS_APP_BASE_URL);
+  if (configured) return configured;
+  const defaultBase = normalizeAtlasAuthBaseUrl(DEFAULT_ATLAS_APP_BASE_URL);
+  if (defaultBase) return defaultBase;
   const url = new URL(request.url);
   return new URL(DEFAULT_ATLAS_APP_PATH, url.origin).toString();
 }
 
-function buildAtlasAuthEntryUrl(request, env, { mode = "activate", email = "", baseUrl = "" } = {}) {
+function buildAtlasAuthEntryUrl(request, env, { baseUrl = "" } = {}) {
   const target = new URL(resolveAtlasAppBaseUrl(request, env, baseUrl));
-  if (mode) target.searchParams.set("atlas-entry", mode);
-  if (email) target.searchParams.set("email", cleanEmail(email));
   target.hash = "";
   if (isLocalUrl(target.toString())) throw new Error("ATLAS invitations must use a hosted production URL, not localhost.");
   return target.toString();

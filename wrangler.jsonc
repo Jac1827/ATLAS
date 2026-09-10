@@ -11,7 +11,8 @@
     "ATLAS_DLR_DELIVERY_TIMEZONE": "America/New_York",
     "ATLAS_DLR_SCHEDULE_WINDOW_MINUTES": "15",
     "ATLAS_DLR_EMAIL_PROVIDER": "cloudflare_email_service",
-    "ATLAS_DLR_FROM_EMAIL": "central@risere.com"
+    "ATLAS_DLR_FROM_EMAIL": "central@risere.com",
+    "ATLAS_APP_BASE_URL": "https://jac1827.github.io/ATLAS/portfolio-operations-dashboard/index.html"
   },
   "secrets": {
     "required": [

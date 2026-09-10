@@ -195,13 +195,35 @@
     return /^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::|\/|$)/i.test(String(value || "").trim());
   }
 
+  function normalizeAuthRedirectUrl(value) {
+    const raw = trimTrailingSlash(value);
+    if (!raw || isLocalBrowserUrl(raw)) return "";
+    try {
+      const url = new URL(raw);
+      if (!["http:", "https:"].includes(url.protocol)) return "";
+      const host = url.hostname.toLowerCase();
+      const path = url.pathname.toLowerCase();
+      url.hash = "";
+      url.search = "";
+      if (host === "jac1827.github.io" && path.startsWith("/atlas/portfolio-operations-dashboard")) {
+        return DEFAULT_CONFIG.appBaseUrl;
+      }
+      if (host === "rise-performance-platform-site.jacquelyn-heflin.workers.dev" && path.startsWith("/portfolio-operations-dashboard")) {
+        url.pathname = "/portfolio-operations-dashboard/index.html";
+        return url.toString();
+      }
+      return trimTrailingSlash(url.toString());
+    } catch {
+      return "";
+    }
+  }
+
   function currentPageAuthUrl() {
-    const current = trimTrailingSlash(window.location?.href?.split("#")[0] || "");
-    return current && !isLocalBrowserUrl(current) ? current : "";
+    return normalizeAuthRedirectUrl(window.location?.href?.split("#")[0] || "");
   }
 
   function authRedirectUrl(config = getConfig()) {
-    return currentPageAuthUrl() || config.appBaseUrl || DEFAULT_CONFIG.appBaseUrl || "";
+    return normalizeAuthRedirectUrl(config.appBaseUrl) || currentPageAuthUrl() || DEFAULT_CONFIG.appBaseUrl || "";
   }
 
   function withRedirectTo(path, redirectTo) {

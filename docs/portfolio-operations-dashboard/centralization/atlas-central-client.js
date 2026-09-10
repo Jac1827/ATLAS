@@ -315,6 +315,7 @@
     if (lower.includes("password should be at least")) return "Choose a stronger password with at least 8 characters.";
     if (lower.includes("this email domain is not approved")) return "Use your approved ATLAS work email address to continue.";
     if (lower.includes("no active atlas access invite was found")) return `ATLAS could not find an active invite${emailSuffix}. Ask an ATLAS admin to send a fresh activation invite.`;
+    if (lower.includes("could not find active access")) return `ATLAS could not find active access${emailSuffix}. Ask an ATLAS admin to save employee access and send a fresh invitation.`;
     if (lower.includes("authentication is required") || lower.includes("jwt expired") || lower.includes("refresh token")) return "Your ATLAS session expired. Sign in again to continue.";
     if (lower.includes("rate-limiting repeated auth requests")) return "Too many ATLAS sign-in attempts were sent too quickly. Wait a moment, then try again.";
     return message;
@@ -735,6 +736,34 @@
         return payload;
       } catch (error) {
         throw createCentralError(normalizeAtlasAuthErrorMessage(error?.message, Number(error?.status) || 0, { email: cleanEmail, action: "sign_up" }), {
+          status: Number(error?.status) || 0,
+          retryAfterSeconds: Number(error?.retryAfterSeconds) || 0
+        });
+      }
+    });
+  }
+
+  async function requestInviteActivation(email, displayName = "") {
+    const config = requireConfigured();
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    if (!isEmailAllowed(cleanEmail, config)) throw new Error("This email domain is not approved for Atlas.");
+    if (!cleanEmail) throw new Error("Email is required.");
+    return runSingleAuthRequest(`invite-activation:${cleanEmail}`, async () => {
+      try {
+        const payload = await request(accessApiUrl("/api/atlas/access/activate"), {
+          method: "POST",
+          auth: false,
+          supabasePublicHeaders: false,
+          body: JSON.stringify({
+            email: cleanEmail,
+            displayName: String(displayName || "").trim(),
+            appBaseUrl: authRedirectUrl(config)
+          })
+        });
+        saveLastAuthEvent({ type: "invite_activation_requested", email: cleanEmail });
+        return payload;
+      } catch (error) {
+        throw createCentralError(normalizeAtlasAuthErrorMessage(error?.message, Number(error?.status) || 0, { email: cleanEmail, action: "request_activation" }), {
           status: Number(error?.status) || 0,
           retryAfterSeconds: Number(error?.retryAfterSeconds) || 0
         });
@@ -1281,6 +1310,7 @@
     authRedirectUrl,
     signInWithPassword,
     signUpWithPassword,
+    requestInviteActivation,
     signOut,
     updatePassword,
     completeInviteActivation,

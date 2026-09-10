@@ -1181,6 +1181,183 @@ async function recordProvisioningDelivery(config, token, details = {}) {
   });
 }
 
+function authErrorSuggestsExistingUser(error) {
+  const message = `${error?.message || ""} ${error?.payload?.msg || ""} ${error?.payload?.error_code || ""}`.toLowerCase();
+  return [
+    "already registered",
+    "already been registered",
+    "user already exists",
+    "email_exists",
+    "email address has already"
+  ].some(pattern => message.includes(pattern));
+}
+
+async function loadSelfActivationAccessRecord(config, email) {
+  const query = [
+    `email=eq.${encodeURIComponent(cleanEmail(email))}`,
+    "select=invite_id,email,employee_id,display_name,role,status,access_status,account_status,auth_user_id,claimed_user_id,claimed_at,invitation_accepted_at,invitation_sent_at,invitation_expires_at,password_reset_sent_at,last_invite_error",
+    "limit=1"
+  ].join("&");
+  const rows = await supabaseRequest(config, `/rest/v1/atlas_user_access_invites?${query}`, { service: true });
+  return Array.isArray(rows) ? rows[0] || null : null;
+}
+
+async function recordSelfActivationDelivery(config, email, details = {}) {
+  const accountStatus = String(details.accountStatus || "invitation_sent");
+  const body = {
+    account_status: accountStatus,
+    last_invite_error: details.error || null
+  };
+  if (details.authUserId) body.auth_user_id = details.authUserId;
+  if (accountStatus === "password_reset_required") {
+    body.password_reset_sent_at = details.sentAt || new Date().toISOString();
+  }
+  if (["invitation_sent", "activation_pending"].includes(accountStatus)) {
+    body.invitation_sent_at = details.sentAt || new Date().toISOString();
+    body.invitation_expires_at = details.expiresAt || null;
+  }
+  return supabaseRequest(config, `/rest/v1/atlas_user_access_invites?email=eq.${encodeURIComponent(cleanEmail(email))}`, {
+    method: "PATCH",
+    service: true,
+    prefer: "return=representation",
+    body,
+  });
+}
+
+async function sendSelfActivationEmail(config, request, env, record, body = {}) {
+  const email = cleanEmail(record.email || body.email);
+  const sentAt = new Date().toISOString();
+  const expiresAt = getInviteExpiryIso(env);
+  const displayName = String(body.displayName || body.display_name || record.display_name || email).trim();
+  const metadata = {
+    display_name: displayName,
+    atlas_invite_id: record.invite_id || null,
+    atlas_employee_id: record.employee_id || null,
+  };
+  const activateUrl = buildAtlasAuthEntryUrl(request, env, { mode: "activate", email, baseUrl: body.appBaseUrl });
+  const resetUrl = buildAtlasAuthEntryUrl(request, env, { mode: "forgot", email, baseUrl: body.appBaseUrl });
+  const accountStatus = String(record.account_status || "").toLowerCase();
+  const hasAuthUser = Boolean(record.auth_user_id || record.claimed_user_id || record.claimed_at || record.invitation_accepted_at);
+  if (hasAuthUser && accountStatus === "active") {
+    const providerPayload = await supabaseRequest(config, `/auth/v1/recover?redirect_to=${encodeURIComponent(resetUrl)}`, {
+      method: "POST",
+      service: true,
+      body: { email },
+    });
+    const authUserId = authUserIdFromPayload(providerPayload) || record.auth_user_id || record.claimed_user_id || null;
+    await recordSelfActivationDelivery(config, email, {
+      authUserId,
+      accountStatus: "password_reset_required",
+      sentAt,
+    });
+    return { action: "password_reset", redirectTo: resetUrl, authUserId };
+  }
+  if (hasAuthUser) {
+    const providerPayload = await supabaseRequest(config, `/auth/v1/resend?redirect_to=${encodeURIComponent(activateUrl)}`, {
+      method: "POST",
+      service: true,
+      body: { type: "signup", email },
+    });
+    const authUserId = authUserIdFromPayload(providerPayload) || record.auth_user_id || record.claimed_user_id || null;
+    await recordSelfActivationDelivery(config, email, {
+      authUserId,
+      accountStatus: "activation_pending",
+      sentAt,
+      expiresAt,
+    });
+    return { action: "resend_confirmation", redirectTo: activateUrl, authUserId };
+  }
+  try {
+    const providerPayload = await supabaseRequest(config, `/auth/v1/invite?redirect_to=${encodeURIComponent(activateUrl)}`, {
+      method: "POST",
+      service: true,
+      body: { email, data: metadata },
+    });
+    const authUserId = authUserIdFromPayload(providerPayload) || null;
+    await recordSelfActivationDelivery(config, email, {
+      authUserId,
+      accountStatus: "invitation_sent",
+      sentAt,
+      expiresAt,
+    });
+    return { action: "invite", redirectTo: activateUrl, authUserId };
+  } catch (error) {
+    if (!authErrorSuggestsExistingUser(error)) throw error;
+    try {
+      const providerPayload = await supabaseRequest(config, `/auth/v1/resend?redirect_to=${encodeURIComponent(activateUrl)}`, {
+        method: "POST",
+        service: true,
+        body: { type: "signup", email },
+      });
+      const authUserId = authUserIdFromPayload(providerPayload) || null;
+      await recordSelfActivationDelivery(config, email, {
+        authUserId,
+        accountStatus: "activation_pending",
+        sentAt,
+        expiresAt,
+      });
+      return { action: "resend_confirmation", redirectTo: activateUrl, authUserId };
+    } catch {
+      const providerPayload = await supabaseRequest(config, `/auth/v1/recover?redirect_to=${encodeURIComponent(resetUrl)}`, {
+        method: "POST",
+        service: true,
+        body: { email },
+      });
+      const authUserId = authUserIdFromPayload(providerPayload) || null;
+      await recordSelfActivationDelivery(config, email, {
+        authUserId,
+        accountStatus: "password_reset_required",
+        sentAt,
+      });
+      return { action: "password_reset", redirectTo: resetUrl, authUserId };
+    }
+  }
+}
+
+async function handleAtlasAccessSelfActivationRequest(request, env) {
+  let email = "";
+  try {
+    const config = getAtlasSupabaseConfig(env);
+    if (!config.serviceKey) {
+      return apiResponse({ ok: false, error: "ATLAS activation email service is not configured." }, { status: 503 });
+    }
+    const body = await readJsonBody(request);
+    if (!body || typeof body !== "object") return apiResponse({ ok: false, error: "Invalid JSON body." }, { status: 400 });
+    email = cleanEmail(body.email);
+    if (!isCompanyEmail(email)) return apiResponse({ ok: false, error: "Enter a valid RISE company email address." }, { status: 400 });
+    const record = await loadSelfActivationAccessRecord(config, email);
+    const accessStatus = String(record?.access_status || "").toLowerCase();
+    const status = String(record?.status || "").toLowerCase();
+    if (!record || accessStatus === "disabled" || ["suspended", "disabled", "revoked"].includes(status)) {
+      return apiResponse({
+        ok: false,
+        error: "ATLAS could not find active access for this email. Ask an ATLAS admin to save employee access and send a fresh invitation."
+      }, { status: 403 });
+    }
+    const delivery = await sendSelfActivationEmail(config, request, env, record, body);
+    return apiResponse({
+      ok: true,
+      email,
+      action: delivery.action,
+      redirectTo: delivery.redirectTo,
+      message: delivery.action === "password_reset"
+        ? "ATLAS sent a password setup email. Open that email to set your password and finish signing in."
+        : "ATLAS sent an activation email. Open that email to verify your invite, then set your password."
+    });
+  } catch (error) {
+    try {
+      const config = getAtlasSupabaseConfig(env);
+      if (isCompanyEmail(email)) {
+        await recordSelfActivationDelivery(config, email, {
+          accountStatus: "authentication_error",
+          error: jsonSafeError(error),
+        }).catch(() => null);
+      }
+    } catch {}
+    return apiResponse({ ok: false, error: jsonSafeError(error) }, { status: error.status || 500 });
+  }
+}
+
 async function handleAtlasAccessDiagnoseRequest(request, env) {
   try {
     const { config, token } = await requireAtlasAccessAdmin(request, env);
@@ -1437,6 +1614,14 @@ export default {
         return apiResponse({ ok: false, error: "Method Not Allowed" }, { status: 405, headers: { allow: "POST, OPTIONS" } });
       }
       return handleAtlasAccessInviteRequest(request, env);
+    }
+
+    if (url.pathname === "/api/atlas/access/activate") {
+      if (request.method === "OPTIONS") return noContent();
+      if (request.method !== "POST") {
+        return apiResponse({ ok: false, error: "Method Not Allowed" }, { status: 405, headers: { allow: "POST, OPTIONS" } });
+      }
+      return handleAtlasAccessSelfActivationRequest(request, env);
     }
 
     if (url.pathname === "/api/atlas/dlr/status") {

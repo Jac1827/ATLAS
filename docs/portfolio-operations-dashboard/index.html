@@ -1243,7 +1243,7 @@
 
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=20260902-marketing-studio"></script>
-<script src="./centralization/atlas-central-client.js?v=20260909-auth-errors" data-atlas-central-client="true"></script>
+<script src="./centralization/atlas-central-client.js?v=20260909-activation-email" data-atlas-central-client="true"></script>
 <script src="./central-services.js?v=20260904-memo-delete"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260902-application-intelligence">
 <script src="./application-performance.js?v=20260904-application-scope"></script>
@@ -13751,6 +13751,7 @@ let atlasCentralAuthActionState = {
   magicLink: false,
   passwordSignIn: false,
   passwordSignUp: false,
+  activationEmail: false,
   passwordReset: false,
   accessInvite: false,
   accessReset: false
@@ -13888,7 +13889,7 @@ function defaultAtlasAccessFormDraft() {
 
 atlasAccessFormDraft = defaultAtlasAccessFormDraft();
 
-const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=20260909-auth-errors";
+const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=20260909-activation-email";
 const ATLAS_AUTH_UI_STORAGE_KEY = "atlas_auth_ui_state_v1";
 const ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY = "atlas_dashboard_preferences_v1";
 let atlasCentralClientLoadPromise = null;
@@ -16919,16 +16920,30 @@ function renderAtlasCentralLoginRequiredPanel() {
       <div style="font-size:0.68rem;color:#5b6b7a;line-height:1.6">Need help getting in? Use the help links below or contact an ATLAS admin if your access has not been activated yet.</div>
       ${helperLinks}
     </div>`;
-  const activationForm = `
+  const activationForm = inviteSessionReady ? `
     <div style="display:grid;gap:12px">
       <div>
-        <div style="font-size:1.55rem;font-weight:800;color:#102a43;letter-spacing:-0.03em">${inviteSessionReady ? "Set your ATLAS password" : "Activate your ATLAS account"}</div>
-        <div style="font-size:0.76rem;color:#5b6b7a;line-height:1.6;margin-top:6px">${inviteSessionReady ? "Your invitation link is verified. Create your password to finish activation." : "This flow is only for invited users who are activating ATLAS for the first time. It is intentionally separate from everyday sign-in."}</div>
+        <div style="font-size:1.55rem;font-weight:800;color:#102a43;letter-spacing:-0.03em">Set your ATLAS password</div>
+        <div style="font-size:0.76rem;color:#5b6b7a;line-height:1.6;margin-top:6px">Your invitation link is verified. Create your password to finish activation.</div>
       </div>
-      ${inviteSessionReady ? `<div class="alert-green">Invitation verified for ${escapeHtml(status.userEmail || atlasAuthUiState.pendingEmail || "this account")}.</div>` : `<label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Work email</span><input id="atlas-auth-email" type="email" value="${escapeHtml(atlasAuthUiState.pendingEmail || atlasAuthUiState.activationEmail || "")}" placeholder="name@riseresidential.com" oninput="syncAtlasAuthEmailFromForm()" style="margin-top:6px"></label>`}
+      <div class="alert-green">Invitation verified for ${escapeHtml(status.userEmail || atlasAuthUiState.pendingEmail || "this account")}.</div>
       <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Display name</span><input id="atlas-auth-display-name" value="${escapeHtml(atlasCurrentUserDisplayName() === "ATLAS user" ? "" : atlasCurrentUserDisplayName())}" placeholder="Your name as it should appear in ATLAS" style="margin-top:6px"></label>
       <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Create password</span><input id="atlas-auth-password" type="password" placeholder="Use at least 8 characters" style="margin-top:6px"></label>
-      <button class="btn btn-blue" onclick="${inviteSessionReady ? "completeAtlasCentralInviteActivation()" : "signUpAtlasCentralWithPassword()"}" ${busy ? "disabled" : ""}>${atlasCentralAuthActionState.passwordSignUp ? "Activating..." : "Activate My Account"}</button>
+      <button class="btn btn-blue" onclick="completeAtlasCentralInviteActivation()" ${busy ? "disabled" : ""}>${atlasCentralAuthActionState.passwordSignUp ? "Activating..." : "Activate My Account"}</button>
+      <div style="padding:12px;border-radius:14px;background:linear-gradient(180deg,#f8fbff 0%,#eef5ff 100%);border:1px solid #d7e6fb">
+        <div style="font-size:0.68rem;font-weight:800;color:#1d4ed8;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px">Activation steps</div>
+        <div style="display:grid;gap:7px">${activationSteps.map(step => `<div style="font-size:0.72rem;color:#334e68">${step}</div>`).join("")}</div>
+      </div>
+      ${helperLinks}
+    </div>` : `
+    <div style="display:grid;gap:12px">
+      <div>
+        <div style="font-size:1.55rem;font-weight:800;color:#102a43;letter-spacing:-0.03em">Activate your ATLAS account</div>
+        <div style="font-size:0.76rem;color:#5b6b7a;line-height:1.6;margin-top:6px">Enter your work email and ATLAS will send or resend the activation email. You will create the password after opening that email link.</div>
+      </div>
+      <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Work email</span><input id="atlas-auth-email" type="email" value="${escapeHtml(atlasAuthUiState.pendingEmail || atlasAuthUiState.activationEmail || "")}" placeholder="name@riseresidential.com" oninput="syncAtlasAuthEmailFromForm()" style="margin-top:6px"></label>
+      <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Display name</span><input id="atlas-auth-display-name" value="" placeholder="Your name as it should appear in ATLAS" style="margin-top:6px"></label>
+      <button class="btn btn-blue" onclick="requestAtlasCentralActivationEmail()" ${busy ? "disabled" : ""}>${atlasCentralAuthActionState.activationEmail ? "Sending..." : "Send Activation Email"}</button>
       <div style="padding:12px;border-radius:14px;background:linear-gradient(180deg,#f8fbff 0%,#eef5ff 100%);border:1px solid #d7e6fb">
         <div style="font-size:0.68rem;font-weight:800;color:#1d4ed8;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px">Activation steps</div>
         <div style="display:grid;gap:7px">${activationSteps.map(step => `<div style="font-size:0.72rem;color:#334e68">${step}</div>`).join("")}</div>
@@ -17820,6 +17835,33 @@ async function signUpAtlasCentralWithPassword() {
       setAtlasDashboardPreferences({ hasSeenWelcome: false });
       activeTab = 0;
       setAtlasCentralRuntimeMessage(`ATLAS account created for ${email}.`);
+      renderTab();
+      return true;
+    } catch (error) {
+      const message = error?.message || String(error);
+      setAtlasAuthUiState({ mode: "activate", pendingEmail: email, activationEmail: email, error: message, notice: "" });
+      setAtlasCentralRuntimeMessage("", message);
+      renderTab();
+      return false;
+    }
+  });
+}
+
+async function requestAtlasCentralActivationEmail() {
+  const email = getAtlasAuthFormEmailValue() || getAtlasCentralInputValue("atlas-central-email");
+  const displayName = getAtlasAuthFormDisplayNameValue() || getAtlasCentralInputValue("atlas-central-display-name");
+  return runAtlasCentralAuthAction("activationEmail", "Activation email", async () => {
+    try {
+      if (!window.ATLAS_CENTRAL?.requestInviteActivation) throw new Error("ATLAS activation email service is not available yet. Refresh the page, then try again.");
+      const result = await window.ATLAS_CENTRAL.requestInviteActivation(email, displayName);
+      setAtlasAuthUiState({
+        mode: "activate",
+        pendingEmail: email,
+        activationEmail: email,
+        notice: result?.message || `ATLAS sent an activation email to ${email}. Open that email to verify your invite, then set your password.`,
+        error: ""
+      });
+      setAtlasCentralRuntimeMessage(`Activation email sent to ${email}.`);
       renderTab();
       return true;
     } catch (error) {

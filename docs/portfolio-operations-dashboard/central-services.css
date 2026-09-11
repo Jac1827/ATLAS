@@ -418,6 +418,45 @@
   margin-bottom: 12px;
 }
 
+.cs-live-renewal-tracker {
+  display: grid;
+  gap: 8px;
+}
+
+.cs-renewal-tracker-table {
+  min-width: 2920px;
+}
+
+.cs-renewal-tracker-table th,
+.cs-renewal-tracker-table td {
+  padding: 7px 8px;
+}
+
+.cs-renewal-tracker-table input,
+.cs-renewal-tracker-table select,
+.cs-renewal-tracker-table textarea {
+  min-width: 96px;
+  padding: 6px 7px;
+}
+
+.cs-renewal-tracker-table textarea {
+  width: 180px;
+  min-height: 40px;
+  resize: vertical;
+}
+
+.cs-renewal-tracker-table .cs-tracker-name-input {
+  min-width: 170px;
+}
+
+.cs-renewal-tracker-table .cs-tracker-short-input {
+  min-width: 88px;
+}
+
+.cs-renewal-tracker-table .cs-tracker-phone-input {
+  min-width: 120px;
+}
+
 .cs-renewal-table tr[data-urgency="red"] td:first-child,
 .cs-renewal-table tr[data-urgency="amber"] td:first-child,
 .cs-renewal-table tr[data-urgency="teal"] td:first-child,

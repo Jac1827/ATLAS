@@ -1224,7 +1224,7 @@
     offer2: ["offer 2 - balanced", "offer 2", "balanced offer"],
     offer3: ["offer 3 - aggressive", "offer 3", "aggressive offer"],
     signedOffer: ["signed offer", "signed renewal rent", "new rent"],
-    selectedOffer: ["selected offer", "offer selected", "accepted offer", "selected renewal offer"],
+    selectedOffer: ["selected offer", "offer selected", "accepted offer", "selected renewal offer", "signed offer choice"],
     customNegotiatedRate: ["custom negotiated rate", "custom rate", "negotiated custom rate"],
     finalNegotiatedRent: ["final negotiated rent", "negotiated rent", "agreed rent", "approved negotiated rent"],
     finalExecutedRent: ["final executed rent", "executed rent", "lease executed rent", "final rent"],
@@ -2308,6 +2308,17 @@
     return properties.filter(property => property.name === state.ui.propertyId);
   }
 
+  function getActivePortfolioProperties() {
+    return getPortfolioProperties().filter(property => property.active !== false);
+  }
+
+  function activePropertyNameOrFallback(selected = "") {
+    const properties = getActivePortfolioProperties();
+    const requested = cleanString(selected);
+    const match = properties.find(property => normalizeKey(property.name) === normalizeKey(requested));
+    return match?.name || properties[0]?.name || "";
+  }
+
   function getRenewalEntry(property, monthIdx, year) {
     try {
       if (typeof getRenewalMonthEntryForRecord === "function") return getRenewalMonthEntryForRecord(property.record, monthIdx, year) || {};
@@ -2625,7 +2636,7 @@
       acceptedAtTarget,
       negotiatedBelowTarget,
       negotiatedAboveTarget,
-      averageDaysToClose: averageNumber(completedRows, row => daysBetween(row.firstActivityDate || row.dateAssigned || row.importedAt, row.completionDate || row.leaseExecutedDate || row.renewalSignedDate)),
+      averageDaysToClose: averageNumber(completedRows, row => daysBetween(row.offerReleasedDate || row.notice90Date || row.firstActivityDate || row.dateAssigned || row.importedAt, row.completionDate || row.leaseExecutedDate || row.renewalSignedDate)),
       ntvRate: summary.expirations > 0 ? summary.ntv / summary.expirations * 100 : 0,
       transferRate: summary.expirations > 0 ? summary.transfers / summary.expirations * 100 : 0,
       openAging: averageNumber(sourceRows.filter(renewalIsOpen), row => Math.max(0, daysUntil(row.dueDate || row.expirationDate) === null ? 0 : -daysUntil(row.dueDate || row.expirationDate)))
@@ -5113,7 +5124,7 @@
             <td class="right">${formatNumber(row.undecided)}</td>
             <td class="right">${formatNumber(row.moveOuts)}</td>
             <td><span class="cs-chip ${row.hasDetailed ? "is-strong" : ""}">${escapeHtml(row.sourceLabel)}</span></td>
-            <td class="right"><button type="button" class="cs-btn cs-btn-sm" data-property="${escapeAttr(row.propertyName)}" onclick="atlasCsOpenPropertyRenewals(this.dataset.property)">Open</button></td>
+            <td class="right"><button type="button" class="cs-btn cs-btn-sm" data-property="${escapeAttr(row.propertyName)}" data-month="${Number(selectedMonthIdx(state))}" data-year="${Number(selectedYear(state))}" onclick="atlasCsOpenRenewalTracker(this.dataset.property,this.dataset.month,this.dataset.year)">Open</button></td>
           </tr>`).join("")}
         </tbody>
       </table>
@@ -5121,7 +5132,7 @@
   }
 
   function renderImportPanel(state) {
-    const selected = state.ui.propertyId === "all" ? "" : state.ui.propertyId;
+    const selected = activePropertyNameOrFallback(state.ui.propertyId === "all" ? "" : state.ui.propertyId);
     return `<div class="cs-panel">
       <div class="cs-panel-head">
         <div>
@@ -5130,9 +5141,6 @@
         </div>
       </div>
       <div class="cs-panel-body">
-        <div class="cs-import-flow" style="margin-bottom:12px">
-          ${["Validate file", "Map columns", "Deduplicate records", "Create move-out lifecycle records", "Write ATLAS summary"].map((step, idx) => `<div class="cs-import-step"><strong>${idx + 1}. ${escapeHtml(step)}</strong><span>Runs from the uploaded report, not seeded data.</span></div>`).join("")}
-        </div>
         <div class="cs-control-grid" style="margin-bottom:12px">
           <label class="cs-field">
             <span>Import Property</span>
@@ -5149,7 +5157,7 @@
           <label class="cs-dropzone" style="grid-column:span 3">
             ${icon("upload-simple")}
             <strong>Choose XLSX or CSV renewal report</strong>
-            <span>Sereno-style workbooks can include multiple expiration-month tabs; CSV imports use the fallback month.</span>
+            <span>Full-year workbooks can include multiple expiration-month tabs; one-month XLSX or CSV uploads use the selected fallback month.</span>
             <input type="file" accept=".xlsx,.xls,.xlsm,.csv" onchange="atlasCsHandleRenewalUpload(this)">
           </label>
         </div>
@@ -5231,6 +5239,7 @@
     add("Offer 1", "Offer 1 - Conservative", row.originalOffer1 || row.offer1);
     add("Offer 2", "Offer 2 - Balanced", row.originalOffer2 || row.offer2);
     add("Offer 3", "Offer 3 - Aggressive", row.originalOffer3 || row.offer3);
+    add("Investor Override", "Investor Override", row.investorOverrideOffer);
     if (row.originalRecommendedOffer && !["Offer 1", "Offer 2", "Offer 3"].includes(normalizeOfferLabel(row.originalRecommendedOffer))) {
       add(row.originalRecommendedOffer, `Recommended - ${row.originalRecommendedOffer}`, row.originalTargetRent || row.recommendedOffer);
     }
@@ -5245,6 +5254,7 @@
       offer1: row.originalOffer1 || row.offer1,
       offer2: row.originalOffer2 || row.offer2,
       offer3: row.originalOffer3 || row.offer3,
+      investorOverrideOffer: row.investorOverrideOffer,
       recommendedOffer: row.originalTargetRent || row.recommendedOffer
     });
   }
@@ -5288,7 +5298,7 @@
             <td class="right">${escapeHtml(formatGrowthPercent(summary.averageTargetGrowthPct) || "n/a")}</td>
             <td class="right">${escapeHtml(formatGrowthPercent(summary.averageAchievedGrowthPct) || "n/a")}</td>
             <td class="right">${escapeHtml(formatGrowthPercent(summary.averageGrowthRetainedPct) || "n/a")}</td>
-            <td class="right"><button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsSelectRenewalMonth(${Number(period.monthIdx)},${Number(period.year)})">Open</button></td>
+            <td class="right"><button type="button" class="cs-btn cs-btn-sm" data-property="${escapeAttr(state.ui.propertyId || "all")}" onclick="atlasCsOpenRenewalTracker(this.dataset.property,${Number(period.monthIdx)},${Number(period.year)})">Open</button></td>
           </tr>`;
         }).join("")}</tbody>
       </table>
@@ -5339,31 +5349,136 @@
         <div class="cs-data-row"><span>Avg Variance</span><strong>${escapeHtml(summary.averageNegotiationVariance ? formatMoney(summary.averageNegotiationVariance) : "n/a")}</strong></div>
         <div class="cs-data-row"><span>Accepted at Target</span><strong>${escapeHtml(formatNumber(summary.acceptedAtTarget))}</strong></div>
         <div class="cs-data-row"><span>Negotiated Below</span><strong>${escapeHtml(formatNumber(summary.negotiatedBelowTarget))}</strong></div>
-        <div class="cs-data-row"><span>Negotiated Above</span><strong>${escapeHtml(formatNumber(summary.negotiatedAboveTarget))}</strong></div>
         <div class="cs-data-row"><span>Avg Days to Close</span><strong>${summary.averageDaysToClose ? escapeHtml(summary.averageDaysToClose.toFixed(1)) : "n/a"}</strong></div>
       </div>
     </div>`;
+  }
+
+  function renewalTrackerInput(row, field, options = {}) {
+    const type = options.type || "text";
+    const value = options.value !== undefined ? options.value : row[field];
+    const step = options.step ? ` step="${escapeAttr(options.step)}"` : "";
+    const inputMode = options.inputMode ? ` inputmode="${escapeAttr(options.inputMode)}"` : "";
+    const min = options.min !== undefined ? ` min="${escapeAttr(options.min)}"` : "";
+    const className = options.className ? ` class="${escapeAttr(options.className)}"` : "";
+    return `<input${className} type="${escapeAttr(type)}"${step}${inputMode}${min} value="${escapeAttr(value || "")}" data-id="${escapeAttr(row.id)}" onchange="atlasCsUpdateRenewalField(this.dataset.id,'${escapeAttr(field)}',this.value)">`;
+  }
+
+  function renewalTrackerMoneyInput(row, field) {
+    return renewalTrackerInput(row, field, { type: "number", step: "1", value: numberValue(row[field]) || "" });
+  }
+
+  function renewalTrackerPercentInput(row, field) {
+    return renewalTrackerInput(row, field, { type: "number", step: "0.1", value: percentValue(row[field]) || "" });
+  }
+
+  function renewalTrackerDateInput(row, field) {
+    return renewalTrackerInput(row, field, { type: "date", value: normalizeDate(row[field]) });
+  }
+
+  function renewalTrackerOfferSelect(row, field, selectedValue) {
+    const selected = normalizeOfferLabel(selectedValue);
+    const options = renewalOfferChoiceOptions(row);
+    return `<select data-id="${escapeAttr(row.id)}" onchange="atlasCsUpdateRenewalField(this.dataset.id,'${escapeAttr(field)}',this.value)">
+      <option value="" ${selected ? "" : "selected"}>Choose</option>
+      ${options.map(option => `<option value="${escapeAttr(option.value)}" ${option.value === selected ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}
+    </select>`;
+  }
+
+  function renewalTrackerYesNoSelect(row, field, yesSelected = false) {
+    const selected = yesSelected ? "Yes" : cleanString(row[field]) || "No";
+    return `<select data-id="${escapeAttr(row.id)}" onchange="atlasCsUpdateRenewalField(this.dataset.id,'${escapeAttr(field)}',this.value)">
+      ${["No", "Yes"].map(value => `<option value="${escapeAttr(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}
+    </select>`;
+  }
+
+  function renewalTrackerNotes(row) {
+    return `<textarea data-id="${escapeAttr(row.id)}" onchange="atlasCsUpdateRenewalField(this.dataset.id,'notes',this.value)" placeholder="Notes">${escapeHtml(row.notes || "")}</textarea>`;
   }
 
   function renderRenewalTable(state, employees) {
     const rows = getRenewalWorkspaceRows(state);
     const selectedPeriod = selectedRenewalMonthSummary(state);
     if (!rows.length) {
-      return `<div class="cs-empty"><div><strong>No active renewal rows for ${escapeHtml(selectedPeriod.label)}.</strong><br>Switch the status filter to All Records or upload the renewal tracker workbook to populate this month from its worksheet tabs.</div></div>`;
+      return `<div id="atlas-cs-renewal-tracker" class="cs-empty"><div><strong>No renewal tracker rows for ${escapeHtml(selectedPeriod.label)}.</strong><br>Switch the status filter to All Records or upload the renewal tracker workbook to populate this month from its worksheet tabs.</div></div>`;
     }
-    return `<div class="cs-table-wrap">
-      <table class="cs-table cs-renewal-table">
-        <thead><tr><th>Resident</th><th>Property / Unit</th><th>Expiration</th><th>Original Strategy</th><th>Status</th><th>Owner</th><th>Follow-Up</th><th>Final Result</th><th></th></tr></thead>
+    return `<div id="atlas-cs-renewal-tracker" class="cs-live-renewal-tracker">
+      <div class="cs-table-note">Use this working tracker for the selected property and month. Edits here update renewal summaries, retention metrics, rent-growth reporting, and NTV move-out lifecycle routing.</div>
+      <div class="cs-table-wrap">
+      <table class="cs-table cs-renewal-table cs-renewal-tracker-table">
+        <thead><tr>
+          <th>Name</th>
+          <th>Unit</th>
+          <th>Unit Type</th>
+          <th>Expiration Date</th>
+          <th>90-Day Notice</th>
+          <th>60-Day Notice</th>
+          <th>30-Day Notice</th>
+          <th class="right">Deposit Held</th>
+          <th class="right">Current Rate</th>
+          <th>Recommended Offer</th>
+          <th class="right">Investor Override %</th>
+          <th class="right">Investor Override Offer</th>
+          <th class="right">Offer 1</th>
+          <th class="right">Offer 2</th>
+          <th class="right">Offer 3</th>
+          <th>Signed Offer</th>
+          <th>Renewal Signed</th>
+          <th>Transfer</th>
+          <th>NTV Rcv'd</th>
+          <th>Phone</th>
+          <th>Notes</th>
+          <th class="right">Market Rate</th>
+          <th class="right">Budget</th>
+          <th>Occupancy</th>
+          <th class="right">Rent Growth Offer 1</th>
+          <th class="right">Rent Growth Offer 2</th>
+          <th class="right">Rent Growth Offer 3</th>
+          <th class="right">Signed Rent Growth</th>
+          <th class="right">Final Executed Rent</th>
+          <th class="right">Target Growth</th>
+          <th class="right">Achieved Growth</th>
+          <th class="right">Growth Retained</th>
+          <th>Status</th>
+          <th>Assigned</th>
+          <th></th>
+        </tr></thead>
         <tbody>
           ${rows.map(row => `<tr class="${state.ui.selectedRenewalId === row.id ? "is-selected" : ""}" data-urgency="${escapeAttr(renewalPriorityTone(row))}">
-            <td><div class="cs-name-cell"><strong>${escapeHtml(row.residentName)}</strong><span>${escapeHtml(row.email || row.phone || "Resident contact not imported")}</span></div></td>
-            <td><div class="cs-name-cell"><strong>${escapeHtml(row.propertyName)}</strong><span>Unit ${escapeHtml(row.unit || "n/a")} ${row.unitType ? `- ${escapeHtml(row.unitType)}` : ""}</span></div></td>
-            <td>${escapeHtml(formatDate(row.expirationDate) || "Not imported")}</td>
-            <td><div class="cs-name-cell"><strong>${escapeHtml(formatMoney(row.originalTargetRent || row.recommendedOffer) || "No target")}</strong><span>${escapeHtml(row.originalRecommendedOffer || row.recommendedOfferLabel || "Recommended offer")}</span></div></td>
+            <td>${renewalTrackerInput(row, "residentName", { className: "cs-tracker-name-input" })}</td>
+            <td>${renewalTrackerInput(row, "unit", { className: "cs-tracker-short-input" })}</td>
+            <td>${renewalTrackerInput(row, "unitType", { className: "cs-tracker-short-input" })}</td>
+            <td>${renewalTrackerDateInput(row, "expirationDate")}</td>
+            <td>${renewalTrackerDateInput(row, "notice90Date")}</td>
+            <td>${renewalTrackerDateInput(row, "notice60Date")}</td>
+            <td>${renewalTrackerDateInput(row, "notice30Date")}</td>
+            <td class="right">${renewalTrackerMoneyInput(row, "depositHeld")}</td>
+            <td class="right">${renewalTrackerMoneyInput(row, "currentRate")}</td>
+            <td>${renewalTrackerOfferSelect(row, "originalRecommendedOffer", row.originalRecommendedOffer || row.recommendedOfferLabel)}</td>
+            <td class="right">${renewalTrackerPercentInput(row, "investorOverridePct")}</td>
+            <td class="right">${renewalTrackerMoneyInput(row, "investorOverrideOffer")}</td>
+            <td class="right">${renewalTrackerMoneyInput(row, "originalOffer1")}</td>
+            <td class="right">${renewalTrackerMoneyInput(row, "originalOffer2")}</td>
+            <td class="right">${renewalTrackerMoneyInput(row, "originalOffer3")}</td>
+            <td>${renewalTrackerOfferSelect(row, "selectedOffer", row.selectedOffer || row.signedOffer)}</td>
+            <td>${renewalTrackerDateInput(row, "renewalSignedDate")}</td>
+            <td>${renewalTrackerYesNoSelect(row, "transfer", renewalStatusKind(row) === "transfer")}</td>
+            <td>${renewalTrackerDateInput(row, "ntvReceivedDate")}</td>
+            <td>${renewalTrackerInput(row, "phone", { className: "cs-tracker-phone-input" })}</td>
+            <td>${renewalTrackerNotes(row)}</td>
+            <td class="right">${renewalTrackerMoneyInput(row, "marketRate")}</td>
+            <td class="right">${renewalTrackerMoneyInput(row, "budgetRate")}</td>
+            <td>${renewalTrackerInput(row, "occupancyPosition", { className: "cs-tracker-short-input" })}</td>
+            <td class="right">${renewalTrackerPercentInput(row, "rentGrowthOffer1")}</td>
+            <td class="right">${renewalTrackerPercentInput(row, "rentGrowthOffer2")}</td>
+            <td class="right">${renewalTrackerPercentInput(row, "rentGrowthOffer3")}</td>
+            <td class="right">${renewalTrackerPercentInput(row, "signedRentGrowth")}</td>
+            <td class="right">${renewalTrackerMoneyInput(row, "finalExecutedRent")}</td>
+            <td class="right">${escapeHtml(formatGrowthPercent(row.originalTargetRentGrowthPct) || "n/a")}</td>
+            <td class="right">${escapeHtml(formatGrowthPercent(row.finalAchievedRentGrowthPct) || "n/a")}</td>
+            <td class="right">${escapeHtml(formatGrowthPercent(row.targetGrowthRetainedPct) || "n/a")}</td>
             <td><select data-id="${escapeAttr(row.id)}" onchange="atlasCsUpdateRenewalStatus(this.dataset.id,this.value)">${RENEWAL_STATUS_OPTIONS.map(status => `<option value="${escapeAttr(status)}" ${status === row.status ? "selected" : ""}>${escapeHtml(status)}</option>`).join("")}</select></td>
             <td><select data-id="${escapeAttr(row.id)}" onchange="atlasCsUpdateRenewalField(this.dataset.id,'owner',this.value)">${ownerOptionsHtml(employees, row.owner || "Unassigned")}</select></td>
-            <td><div class="cs-name-cell"><strong>${escapeHtml(formatDate(row.dueDate) || "No date")}</strong><span>${escapeHtml(row.nextAction || "Review")}</span></div></td>
-            <td><div class="cs-name-cell"><strong>${escapeHtml(formatMoney(row.finalExecutedRent) || renewalOutcomeLabel(row))}</strong><span>${escapeHtml(formatGrowthPercent(row.finalAchievedRentGrowthPct) || "Outcome pending")}</span></div></td>
             <td class="right">
               <button type="button" class="cs-btn cs-btn-sm" data-id="${escapeAttr(row.id)}" onclick="atlasCsSelectRenewal(this.dataset.id)">Open</button>
               <button type="button" class="cs-btn cs-btn-sm" data-id="${escapeAttr(row.id)}" onclick="atlasCsCreateMoveOutFromRenewal(this.dataset.id)">Move-Out</button>
@@ -5371,6 +5486,7 @@
           </tr>`).join("")}
         </tbody>
       </table>
+      </div>
     </div>`;
   }
 
@@ -5507,8 +5623,8 @@
         <div class="cs-panel">
           <div class="cs-panel-head">
             <div>
-              <div class="cs-panel-title">${escapeHtml(monthYearLabel(selectedMonthIdx(state), selectedYear(state)))} Renewal Queue</div>
-              <div class="cs-panel-sub">Signed & Executed renewals leave the open workload and remain available through completed filters and reporting.</div>
+              <div class="cs-panel-title">${escapeHtml(monthYearLabel(selectedMonthIdx(state), selectedYear(state)))} Live Renewal Tracker</div>
+              <div class="cs-panel-sub">Work resident renewals directly from imported tracker rows. Completed and NTV outcomes continue to feed reporting and Central Services lifecycle queues.</div>
             </div>
           </div>
           <div class="cs-panel-body">
@@ -7749,6 +7865,7 @@
     if (/^offer\s*1\b/.test(key) || key === "1" || key.includes("conservative")) return "Offer 1";
     if (/^offer\s*2\b/.test(key) || key === "2" || key.includes("balanced")) return "Offer 2";
     if (/^offer\s*3\b/.test(key) || key === "3" || key.includes("aggressive")) return "Offer 3";
+    if (key.includes("investor") && key.includes("override")) return "Investor Override";
     if (key.includes("custom") || key.includes("negotiated")) return "Custom / Negotiated Rate";
     return raw;
   }
@@ -7758,6 +7875,7 @@
     if (normalized === "Offer 1") return numberValue(values.offer1);
     if (normalized === "Offer 2") return numberValue(values.offer2);
     if (normalized === "Offer 3") return numberValue(values.offer3);
+    if (normalized === "Investor Override") return numberValue(values.investorOverrideOffer);
     return numberValue(values.recommendedOffer);
   }
 
@@ -7766,6 +7884,7 @@
     if (normalized === "Offer 1") return percentValue(values.rentGrowthOffer1);
     if (normalized === "Offer 2") return percentValue(values.rentGrowthOffer2);
     if (normalized === "Offer 3") return percentValue(values.rentGrowthOffer3);
+    if (normalized === "Investor Override") return percentValue(values.investorOverridePct);
     return 0;
   }
 
@@ -7825,6 +7944,8 @@
     const offer1 = numberValue(findAliasedValue(row, "offer1"));
     const offer2 = numberValue(findAliasedValue(row, "offer2"));
     const offer3 = numberValue(findAliasedValue(row, "offer3"));
+    const investorOverridePct = percentValue(findAliasedValue(row, "investorOverridePct"));
+    const investorOverrideOffer = numberValue(findAliasedValue(row, "investorOverrideOffer"));
     const rentGrowthOffer1 = percentValue(findAliasedValue(row, "rentGrowthOffer1"));
     const rentGrowthOffer2 = percentValue(findAliasedValue(row, "rentGrowthOffer2"));
     const rentGrowthOffer3 = percentValue(findAliasedValue(row, "rentGrowthOffer3"));
@@ -7832,23 +7953,34 @@
       offer1,
       offer2,
       offer3,
+      investorOverrideOffer,
       recommendedOffer: recommendedRaw
     }) || offer2 || offer1 || offer3;
     const originalTargetRentGrowthAmount = calculateGrowthAmount(originalTargetRent, currentRate);
     const originalTargetRentGrowthPct = offerGrowthByLabel(recommendedOfferLabel, {
       rentGrowthOffer1,
       rentGrowthOffer2,
-      rentGrowthOffer3
+      rentGrowthOffer3,
+      investorOverridePct
     }) || calculateGrowthPct(originalTargetRent, currentRate);
-    const signedOffer = numberValue(findAliasedValue(row, "signedOffer"));
-    const selectedOffer = normalizeOfferLabel(findAliasedValue(row, "selectedOffer")) || (signedOffer ? recommendedOfferLabel : "");
+    const signedOfferRaw = findAliasedValue(row, "signedOffer");
+    const signedOffer = numberValue(signedOfferRaw);
+    const signedOfferChoice = normalizeOfferLabel(signedOfferRaw);
+    const renewalSignedDate = normalizeDate(findAliasedValue(row, "renewalSignedDate"));
+    const selectedOffer = normalizeOfferLabel(findAliasedValue(row, "selectedOffer")) || (!signedOffer && signedOfferChoice ? signedOfferChoice : "") || (signedOffer ? recommendedOfferLabel : "");
+    const selectedOfferRent = offerRentByLabel(selectedOffer, {
+      offer1,
+      offer2,
+      offer3,
+      investorOverrideOffer,
+      recommendedOffer: originalTargetRent
+    });
     const customNegotiatedRate = numberValue(findAliasedValue(row, "customNegotiatedRate"));
-    const finalNegotiatedRent = numberValue(findAliasedValue(row, "finalNegotiatedRent")) || customNegotiatedRate || signedOffer;
+    const finalNegotiatedRent = numberValue(findAliasedValue(row, "finalNegotiatedRent")) || customNegotiatedRate || signedOffer || (renewalSignedDate ? selectedOfferRent : 0);
     const finalExecutedRent = numberValue(findAliasedValue(row, "finalExecutedRent")) || signedOffer;
     const finalAchievedRentGrowthAmount = calculateGrowthAmount(finalExecutedRent, currentRate);
     const finalAchievedRentGrowthPct = calculateGrowthPct(finalExecutedRent, currentRate);
     const targetGrowthRetainedPct = calculateGrowthRetentionPct(finalAchievedRentGrowthAmount, originalTargetRentGrowthAmount);
-    const renewalSignedDate = normalizeDate(findAliasedValue(row, "renewalSignedDate"));
     const leaseExecutedDate = normalizeDate(findAliasedValue(row, "leaseExecutedDate"));
     const status = inferRenewalStatus(row);
     const completedBy = cleanString(findAliasedValue(row, "completedBy"));
@@ -7902,8 +8034,8 @@
       recommendedOffer: originalTargetRent,
       recommendedOfferLabel,
       originalRecommendedOffer: recommendedOfferLabel,
-      investorOverridePct: numberValue(findAliasedValue(row, "investorOverridePct")),
-      investorOverrideOffer: numberValue(findAliasedValue(row, "investorOverrideOffer")),
+      investorOverridePct,
+      investorOverrideOffer,
       offer1,
       offer2,
       offer3,
@@ -7974,12 +8106,13 @@
 
   function resolveOriginalOfferLabel(row = {}) {
     const direct = normalizeOfferLabel(row.originalRecommendedOffer || row.recommendedOfferLabel);
-    if (["Offer 1", "Offer 2", "Offer 3", "Custom / Negotiated Rate"].includes(direct)) return direct;
+    if (["Offer 1", "Offer 2", "Offer 3", "Investor Override", "Custom / Negotiated Rate"].includes(direct)) return direct;
     const targetRent = numberValue(row.originalTargetRent || row.recommendedOffer);
     const offerValues = [
       ["Offer 1", numberValue(row.originalOffer1 || row.offer1)],
       ["Offer 2", numberValue(row.originalOffer2 || row.offer2)],
-      ["Offer 3", numberValue(row.originalOffer3 || row.offer3)]
+      ["Offer 3", numberValue(row.originalOffer3 || row.offer3)],
+      ["Investor Override", numberValue(row.investorOverrideOffer)]
     ];
     const match = offerValues.find(([, amount]) => amount && Math.abs(amount - targetRent) < 0.01);
     if (match) return match[0];
@@ -8001,16 +8134,20 @@
     const offer1 = numberValue(row.originalOffer1 || row.offer1);
     const offer2 = numberValue(row.originalOffer2 || row.offer2);
     const offer3 = numberValue(row.originalOffer3 || row.offer3);
+    const investorOverrideOffer = numberValue(row.investorOverrideOffer);
+    const investorOverridePct = percentValue(row.investorOverridePct);
     const originalOfferLabel = resolveOriginalOfferLabel({
       ...row,
       originalOffer1: offer1,
       originalOffer2: offer2,
-      originalOffer3: offer3
+      originalOffer3: offer3,
+      investorOverrideOffer
     });
     const originalTargetRent = offerRentByLabel(originalOfferLabel, {
       offer1,
       offer2,
       offer3,
+      investorOverrideOffer,
       recommendedOffer: row.originalTargetRent || row.recommendedOffer
     }) || numberValue(row.originalTargetRent || row.recommendedOffer);
     const next = {
@@ -8055,6 +8192,8 @@
       originalOffer1: offer1,
       originalOffer2: offer2,
       originalOffer3: offer3,
+      investorOverrideOffer,
+      investorOverridePct,
       recommendedOffer: originalTargetRent,
       originalTargetRent,
       recommendedOfferLabel: originalOfferLabel || normalizeOfferLabel(row.recommendedOfferLabel),
@@ -9713,9 +9852,23 @@
   function refreshRenewalEconomics(row = {}) {
     row.currentRent = numberValue(row.currentRent || row.currentRate);
     row.currentRate = row.currentRate || row.currentRent;
-    row.originalTargetRent = numberValue(row.originalTargetRent || row.recommendedOffer || renewalSelectedOfferRent(row));
+    const originalOfferLabel = normalizeOfferLabel(row.originalRecommendedOffer || row.recommendedOfferLabel);
+    const originalOfferRent = offerRentByLabel(originalOfferLabel, {
+      offer1: row.originalOffer1 || row.offer1,
+      offer2: row.originalOffer2 || row.offer2,
+      offer3: row.originalOffer3 || row.offer3,
+      investorOverrideOffer: row.investorOverrideOffer,
+      recommendedOffer: row.originalTargetRent || row.recommendedOffer
+    });
+    row.originalTargetRent = numberValue(originalOfferRent || row.originalTargetRent || row.recommendedOffer || renewalSelectedOfferRent(row));
+    row.recommendedOffer = row.originalTargetRent;
     row.originalTargetRentGrowthAmount = calculateGrowthAmount(row.originalTargetRent, row.currentRate);
-    row.originalTargetRentGrowthPct = row.originalTargetRentGrowthPct || calculateGrowthPct(row.originalTargetRent, row.currentRate);
+    row.originalTargetRentGrowthPct = offerGrowthByLabel(originalOfferLabel, {
+      rentGrowthOffer1: row.rentGrowthOffer1,
+      rentGrowthOffer2: row.rentGrowthOffer2,
+      rentGrowthOffer3: row.rentGrowthOffer3,
+      investorOverridePct: row.investorOverridePct
+    }) || row.originalTargetRentGrowthPct || calculateGrowthPct(row.originalTargetRent, row.currentRate);
     row.finalAchievedRentGrowthAmount = calculateGrowthAmount(row.finalExecutedRent, row.currentRate);
     row.finalAchievedRentGrowthPct = calculateGrowthPct(row.finalExecutedRent, row.currentRate);
     row.targetGrowthRetainedPct = calculateGrowthRetentionPct(row.finalAchievedRentGrowthAmount, row.originalTargetRentGrowthAmount);
@@ -9772,23 +9925,90 @@
   }
 
   function applyRenewalFieldChange(row = {}, field = "", value = "") {
-    const dateFields = new Set(["dueDate", "renewalSignedDate", "leaseSentDate", "leaseExecutedDate", "completionDate", "ntvReceivedDate"]);
-    const moneyFields = new Set(["customNegotiatedRate", "finalNegotiatedRent", "finalExecutedRent"]);
+    const dateFields = new Set(["expirationDate", "notice90Date", "notice60Date", "notice30Date", "dueDate", "renewalSignedDate", "leaseSentDate", "leaseExecutedDate", "completionDate", "ntvReceivedDate", "scheduledMoveOutDate"]);
+    const moneyFields = new Set(["depositHeld", "currentRate", "currentRent", "investorOverrideOffer", "offer1", "offer2", "offer3", "originalOffer1", "originalOffer2", "originalOffer3", "customNegotiatedRate", "finalNegotiatedRent", "finalExecutedRent", "signedOffer", "marketRate", "budgetRate"]);
+    const percentFields = new Set(["investorOverridePct", "rentGrowthOffer1", "rentGrowthOffer2", "rentGrowthOffer3", "signedRentGrowth", "originalTargetRentGrowthPct", "finalAchievedRentGrowthPct"]);
     const normalizedValue = dateFields.has(field)
       ? normalizeDate(value)
       : moneyFields.has(field)
         ? numberValue(value)
-        : field === "selectedOffer"
+        : percentFields.has(field)
+          ? percentValue(value)
+          : ["selectedOffer", "originalRecommendedOffer", "recommendedOfferLabel"].includes(field)
           ? normalizeOfferLabel(value)
           : cleanString(value);
     row[field] = normalizedValue;
+    if (field === "expirationDate" && normalizedValue) {
+      const period = periodFromDate(normalizedValue, row.monthIdx, row.year);
+      row.monthIdx = period.monthIdx;
+      row.year = period.year;
+      row.expirationMonthIdx = period.monthIdx;
+      row.expirationYear = period.year;
+      row.periodKey = period.periodKey;
+    }
     if (field === "owner") row.assignedCentralServicesUser = normalizedValue;
+    if (field === "currentRate") row.currentRent = normalizedValue;
+    if (field === "currentRent") row.currentRate = normalizedValue;
+    if (field === "offer1") row.originalOffer1 = normalizedValue;
+    if (field === "offer2") row.originalOffer2 = normalizedValue;
+    if (field === "offer3") row.originalOffer3 = normalizedValue;
+    if (field === "originalOffer1") row.offer1 = normalizedValue;
+    if (field === "originalOffer2") row.offer2 = normalizedValue;
+    if (field === "originalOffer3") row.offer3 = normalizedValue;
+    if (field === "originalRecommendedOffer") row.recommendedOfferLabel = normalizedValue;
+    if (field === "recommendedOfferLabel") row.originalRecommendedOffer = normalizedValue;
     if (field === "customNegotiatedRate" && normalizedValue) row.selectedOffer = "Custom / Negotiated Rate";
+    if (field === "selectedOffer" && normalizedValue && row.renewalSignedDate && !numberValue(row.finalNegotiatedRent)) row.finalNegotiatedRent = renewalSelectedOfferRent(row);
+    if (field === "renewalSignedDate" && normalizedValue && ["Not Started", "Offer Ready", "Offer Sent", "Resident Contacted", "Follow-Up Required", "Negotiating", "Verbal Acceptance"].includes(row.status)) {
+      row.status = "Signed - Awaiting Execution";
+      if (!numberValue(row.finalNegotiatedRent)) row.finalNegotiatedRent = renewalSelectedOfferRent(row);
+    }
     if (field === "leaseExecutedDate" && normalizedValue && row.status === "Signed & Executed") row.completionDate = row.completionDate || normalizedValue;
     if (field === "finalExecutedRent" && normalizedValue && row.status === "Signed & Executed") applySignedExecutedCompletion(row);
+    if (field === "ntvReceivedDate") {
+      if (normalizedValue && !renewalIsCompleted(row)) {
+        row.status = "NTV Received";
+      } else if (!normalizedValue && renewalStatusKind(row) === "ntv") {
+        row.status = row.renewalSignedDate ? "Signed - Awaiting Execution" : "Not Started";
+      }
+    }
+    if (field === "transfer") {
+      if (yesValue(normalizedValue) && !renewalIsCompleted(row)) {
+        row.status = "Transfer";
+      } else if (!yesValue(normalizedValue) && renewalStatusKind(row) === "transfer") {
+        row.status = row.renewalSignedDate ? "Signed - Awaiting Execution" : row.ntvReceivedDate ? "NTV Received" : "Not Started";
+      }
+    }
     row.lastActivityDate = new Date().toISOString();
     refreshRenewalEconomics(row);
     const label = {
+      residentName: "resident name",
+      unit: "unit",
+      unitType: "unit type",
+      expirationDate: "expiration date",
+      notice90Date: "90-day notice date",
+      notice60Date: "60-day notice date",
+      notice30Date: "30-day notice date",
+      depositHeld: "deposit held",
+      currentRate: "current rate",
+      originalRecommendedOffer: "recommended offer",
+      investorOverridePct: "investor override percentage",
+      investorOverrideOffer: "investor override offer",
+      originalOffer1: "Offer 1",
+      originalOffer2: "Offer 2",
+      originalOffer3: "Offer 3",
+      signedOffer: "signed offer",
+      renewalSignedDate: "renewal signed date",
+      transfer: "transfer",
+      ntvReceivedDate: "NTV received date",
+      phone: "phone",
+      marketRate: "market rate",
+      budgetRate: "budget rate",
+      occupancyPosition: "occupancy position",
+      rentGrowthOffer1: "Offer 1 growth",
+      rentGrowthOffer2: "Offer 2 growth",
+      rentGrowthOffer3: "Offer 3 growth",
+      signedRentGrowth: "signed rent growth",
       owner: "assigned user",
       selectedOffer: "selected offer",
       customNegotiatedRate: "custom rate",
@@ -10238,7 +10458,6 @@
         rows: [
           ["Accepted at Original Offer", formatNumber(summary.acceptedAtTarget)],
           ["Negotiated Below Original Offer", formatNumber(summary.negotiatedBelowTarget)],
-          ["Negotiated Above Original Offer", formatNumber(summary.negotiatedAboveTarget)],
           ["Avg Negotiation Variance", formatMoney(summary.averageNegotiationVariance) || "n/a"],
           ["Original Growth Preserved", formatGrowthPercent(summary.averageGrowthRetainedPct) || "n/a"]
         ]
@@ -11194,11 +11413,42 @@
 
   window.atlasCsOpenPropertyRenewals = function (propertyName) {
     const state = loadState();
-    state.ui.propertyId = cleanString(propertyName) || "all";
+    const requestedProperty = cleanString(propertyName);
+    state.ui.propertyId = requestedProperty && requestedProperty !== "all" ? activePropertyNameOrFallback(requestedProperty) : "all";
     state.ui.module = "renewals";
     state.ui.renewalStatusFilter = state.ui.renewalStatusFilter || "open";
     saveState(state);
     renderActiveTab();
+  };
+
+  window.atlasCsOpenRenewalTracker = function (propertyName, monthIdx, year) {
+    const state = loadState();
+    const requestedProperty = cleanString(propertyName);
+    const activeProperties = getActivePortfolioProperties();
+    const activeNames = new Set(activeProperties.map(property => property.name));
+    if (requestedProperty && requestedProperty !== "all") {
+      if (!activeNames.has(requestedProperty)) {
+        alert("That community is inactive, so it is hidden from the live renewal tracker.");
+        return;
+      }
+      state.ui.propertyId = requestedProperty;
+    } else if (state.ui.propertyId !== "all" && !activeNames.has(state.ui.propertyId)) {
+      state.ui.propertyId = "all";
+    }
+    state.ui.module = "renewals";
+    state.ui.monthIdx = Math.max(0, Math.min(11, Number(monthIdx) || 0));
+    state.ui.year = Number.isFinite(Number(year)) ? Number(year) : selectedYear(state);
+    state.ui.renewalStatusFilter = "all";
+    state.ui.selectedRenewalId = state.renewals.find(row => rowIsInScope(row, state))?.id || "";
+    saveState(state);
+    renderActiveTab();
+    setTimeout(() => {
+      try {
+        document.getElementById("atlas-cs-renewal-tracker")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch {
+        // Smooth scrolling is optional.
+      }
+    }, 30);
   };
 
   window.atlasCsSelectRenewalMonth = function (monthIdx, year) {
@@ -11241,6 +11491,39 @@
   window.atlasCsUpdateRenewalField = function (id, field, value) {
     const state = loadState();
     const allowed = new Set([
+      "residentName",
+      "unit",
+      "unitType",
+      "expirationDate",
+      "notice90Date",
+      "notice60Date",
+      "notice30Date",
+      "depositHeld",
+      "currentRate",
+      "currentRent",
+      "originalRecommendedOffer",
+      "recommendedOfferLabel",
+      "investorOverridePct",
+      "investorOverrideOffer",
+      "offer1",
+      "offer2",
+      "offer3",
+      "originalOffer1",
+      "originalOffer2",
+      "originalOffer3",
+      "signedOffer",
+      "transfer",
+      "ntvReceivedDate",
+      "scheduledMoveOutDate",
+      "phone",
+      "email",
+      "marketRate",
+      "budgetRate",
+      "occupancyPosition",
+      "rentGrowthOffer1",
+      "rentGrowthOffer2",
+      "rentGrowthOffer3",
+      "signedRentGrowth",
       "owner",
       "nextAction",
       "dueDate",
@@ -11259,9 +11542,16 @@
     if (!allowed.has(field)) return;
     const row = state.renewals.find(item => item.id === id);
     if (!row) return;
+    const previousPropertyName = row.propertyName;
+    const previousMonthIdx = row.monthIdx;
+    const previousYear = row.year;
+    const previousPeriodKey = row.periodKey;
     applyRenewalFieldChange(row, field, value);
     if (row.status === "Signed & Executed") applySignedExecutedCompletion(row);
     if (renewalIsNtv(row)) createMoveOutCaseFromRenewal(state, row);
+    if (previousPropertyName && previousPeriodKey && (previousPropertyName !== row.propertyName || previousPeriodKey !== row.periodKey)) {
+      syncRenewalSummaryToAtlas(previousPropertyName, previousMonthIdx, previousYear, state);
+    }
     syncRenewalSummaryToAtlas(row.propertyName, row.monthIdx, row.year, state);
     addAudit(state, "Updated renewal field", { id, field });
     saveState(state);
@@ -11824,9 +12114,9 @@
   window.atlasCsHandleRenewalUpload = async function (input) {
     const file = input?.files?.[0];
     if (!file) return;
-    const propertyName = getImportControlValue("atlas-cs-renewal-property");
+    const propertyName = activePropertyNameOrFallback(getImportControlValue("atlas-cs-renewal-property"));
     if (!propertyName || propertyName === "all") {
-      alert("Choose the ATLAS property for this renewal report before importing.");
+      alert("Choose an active ATLAS property for this renewal report before importing.");
       input.value = "";
       return;
     }

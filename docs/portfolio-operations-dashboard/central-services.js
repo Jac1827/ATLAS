@@ -4265,8 +4265,8 @@
       "Resident": caseRecord.residentName,
       "Apt #": caseRecord.unit || "n/a",
       "Type": "Move-Out",
-      "Scheduled Move-Out": formatDate(caseRecord.scheduledMoveOutDate) || "Not dated",
-      "Days": dashboardDaysLabel(caseRecord.scheduledMoveOutDate),
+      "Scheduled Move-Out": formatDate(caseRecord.scheduledMoveOutDate) || "Missing from NTV / resident data",
+      "Days": caseRecord.scheduledMoveOutDate ? dashboardDaysLabel(caseRecord.scheduledMoveOutDate) : "Missing date",
       "Possession": caseRecord.possessionStatus || "Not Confirmed",
       "Inspection": caseRecord.inspectionStatus || "Not Scheduled",
       "Assigned": caseRecord.assignedCentralServicesUser || caseRecord.owner || "Unassigned"

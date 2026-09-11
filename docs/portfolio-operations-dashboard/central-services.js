@@ -6338,15 +6338,6 @@
           </div>
           <div class="cs-panel-body">${renderMoveOutTable(state)}</div>
         </div>
-        <div class="cs-panel">
-          <div class="cs-panel-head">
-            <div>
-              <div class="cs-panel-title">ATLAS Move-Out Counts by Property</div>
-              <div class="cs-panel-sub">Monthly counts from ATLAS remain visible even before resident-level cases are imported.</div>
-            </div>
-          </div>
-          <div class="cs-panel-body">${renderPropertySummaryTable(state)}</div>
-        </div>
       </div>
       ${renderMoveOutDetail(state)}
     </div>`;

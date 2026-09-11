@@ -2036,7 +2036,8 @@
       selectedComplianceRuleId: "",
       dashboardConfigId: "",
       inspectionStartProperty: "",
-      inspectorSearch: ""
+      inspectorSearch: "",
+      templateAdminCollapsed: true
     };
   }
 
@@ -2748,6 +2749,18 @@
   }
 
   function currentUserCanDeleteLifecycleMemos() {
+    try {
+      const profile = typeof getAtlasAccessProfile === "function" ? getAtlasAccessProfile() : {};
+      if (typeof atlasProfileCanManageSettings === "function" && atlasProfileCanManageSettings(profile)) return true;
+      const status = window.ATLAS_CENTRAL?.getStatus ? window.ATLAS_CENTRAL.getStatus() : {};
+      const role = normalizeKey(profile?.role || profile?.roleName || profile?.accessRole || status?.role || window.atlasCurrentUser?.role);
+      return ["admin", "administrator", "owner"].some(value => role === value || role.includes(value));
+    } catch {
+      return false;
+    }
+  }
+
+  function currentUserCanUseAdministrativeView() {
     try {
       const profile = typeof getAtlasAccessProfile === "function" ? getAtlasAccessProfile() : {};
       if (typeof atlasProfileCanManageSettings === "function" && atlasProfileCanManageSettings(profile)) return true;
@@ -3735,8 +3748,9 @@
   }
 
   function renderModuleNav(state) {
+    const modules = MODULES.filter(([key]) => key !== "architecture" || currentUserCanUseAdministrativeView());
     return `<div class="cs-module-nav" role="tablist" aria-label="Central Services modules">
-      ${MODULES.map(([key, label, iconName]) => `<button type="button" class="cs-module-tab ${state.ui.module === key ? "is-active" : ""}" onclick="atlasCsSetModule('${key}')">${icon(iconName)} ${escapeHtml(label)}</button>`).join("")}
+      ${modules.map(([key, label, iconName]) => `<button type="button" class="cs-module-tab ${state.ui.module === key ? "is-active" : ""}" onclick="atlasCsSetModule('${key}')">${icon(iconName)} ${escapeHtml(label)}</button>`).join("")}
     </div>`;
   }
 
@@ -6374,13 +6388,16 @@
 
   function renderInspectionStartPanel(state, employees) {
     const propertyDefault = state.ui.inspectionStartProperty || (state.ui.propertyId === "all" ? getScopedProperties(state)[0]?.name || "" : state.ui.propertyId);
+    const adminObjectModelButton = currentUserCanUseAdministrativeView()
+      ? `<button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsSetModule('architecture')">${icon("blueprint")} Object Model</button>`
+      : "";
     return `<div class="cs-panel">
       <div class="cs-panel-head">
         <div>
           <div class="cs-panel-title">Universal ATLAS Inspection Engine</div>
           <div class="cs-panel-sub">One shared inspection workflow for move-outs, move-ins, routine condition, incidents, safety, vendor quality, turns, and custom templates.</div>
         </div>
-        <button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsSetModule('architecture')">${icon("blueprint")} Object Model</button>
+        ${adminObjectModelButton}
       </div>
       <div class="cs-panel-body">
         ${renderMobileInspectionFlow()}
@@ -6402,13 +6419,17 @@
   }
 
   function renderInspectionTemplateAdmin(state) {
+    if (!currentUserCanUseAdministrativeView()) return "";
+    const collapsed = state.ui.templateAdminCollapsed !== false;
     return `<div class="cs-panel">
       <div class="cs-panel-head">
         <div>
           <div class="cs-panel-title">Template Administration</div>
           <div class="cs-panel-sub">Administrators can add templates without development work. Existing templates stay standardized for reporting.</div>
         </div>
+        <button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsToggleTemplateAdmin()">${icon(collapsed ? "caret-down" : "caret-up")} ${collapsed ? "Expand" : "Collapse"}</button>
       </div>
+      ${collapsed ? "" : `
       <div class="cs-panel-body">
         <div class="cs-template-grid" style="margin-bottom:12px">
           ${state.inspectionTemplates.map(template => `<div class="cs-template-card">
@@ -6434,6 +6455,7 @@
           <div class="cs-field"><span>&nbsp;</span><button type="button" class="cs-btn" onclick="atlasCsAddInspectionTemplate()">${icon("plus")} Add Template</button></div>
         </div>
       </div>
+      `}
     </div>`;
   }
 
@@ -7046,6 +7068,9 @@
 
   function renderMorfs(state, employees) {
     const activeMorfs = getActiveScopedMorfs(state);
+    const adminWorkflowModelButton = currentUserCanUseAdministrativeView()
+      ? `<button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsSetModule('architecture')">${icon("blueprint")} Workflow Model</button>`
+      : "";
     return `<div class="cs-two-col cs-two-col-wide">
       <div style="display:grid;gap:14px">
         <div class="cs-panel">
@@ -7063,7 +7088,7 @@
               <div class="cs-panel-title">Active MORFs</div>
               <div class="cs-panel-sub">Draft MORFs can be prepared early, but finalization stays blocked until inspection approval and completion checks are satisfied.</div>
             </div>
-            <button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsSetModule('architecture')">${icon("blueprint")} Workflow Model</button>
+            ${adminWorkflowModelButton}
           </div>
           <div class="cs-panel-body">
             ${activeMorfs.length ? renderMorfTable(state, employees) : `<div class="cs-empty"><div><strong>No active MORFs are due yet.</strong><br>Confirm possession on a move-out lifecycle record to create a draft MORF, then approve the inspection to move it into processing.</div></div>`}
@@ -7703,7 +7728,7 @@
     if (state.ui.module === "archive") return renderArchivedMorfs(state, employees);
     if (state.ui.module === "tasks") return renderTasks(state);
     if (state.ui.module === "settings") return renderSettings(state, employees);
-    if (state.ui.module === "architecture") return renderArchitecture(state);
+    if (state.ui.module === "architecture") return currentUserCanUseAdministrativeView() ? renderArchitecture(state) : renderOverview(state, employees);
     if (state.ui.module === "questions") return renderQuestions(state);
     return renderOverview(state, employees);
   }
@@ -7712,6 +7737,9 @@
     const state = loadState();
     const employees = getCentralServicesEmployees();
     const monthLabel = MONTH_LABELS[selectedMonthIdx(state)];
+    const adminArchitectureButton = currentUserCanUseAdministrativeView()
+      ? `<button type="button" class="cs-btn" onclick="atlasCsSetModule('architecture')">${icon("blueprint")} Architecture</button>`
+      : "";
     return `<div class="cs-page">
       <div class="cs-command-header">
         <div>
@@ -7725,7 +7753,7 @@
           </div>
         </div>
         <div class="cs-command-actions">
-          <button type="button" class="cs-btn" onclick="atlasCsSetModule('architecture')">${icon("blueprint")} Architecture</button>
+          ${adminArchitectureButton}
           <button type="button" class="cs-btn" onclick="atlasCsExportData()">${icon("download-simple")} Export Data</button>
           <button type="button" class="cs-btn cs-btn-primary" onclick="atlasCsSetModule('questions')">${icon("question")} Build Questions</button>
         </div>
@@ -10950,7 +10978,16 @@
 
   window.atlasCsSetModule = function (module) {
     const state = loadState();
-    state.ui.module = MODULES.some(([key]) => key === module) ? module : "overview";
+    const requestedModule = cleanString(module);
+    const allowedModule = MODULES.some(([key]) => key === requestedModule) && (requestedModule !== "architecture" || currentUserCanUseAdministrativeView());
+    state.ui.module = allowedModule ? requestedModule : "overview";
+    saveState(state);
+    renderActiveTab();
+  };
+
+  window.atlasCsToggleTemplateAdmin = function () {
+    const state = loadState();
+    state.ui.templateAdminCollapsed = state.ui.templateAdminCollapsed === false;
     saveState(state);
     renderActiveTab();
   };

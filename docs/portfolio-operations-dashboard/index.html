@@ -2514,6 +2514,7 @@ function atlasUpsertSharedProperty(graph, input = {}, options = {}) {
   const name = String(input.name || input.displayName || input.propertyName || "").trim();
   const forceFields = new Set((Array.isArray(options.forceFields) ? options.forceFields : []).map(field => String(field || "").trim()).filter(Boolean));
   const fieldOptions = field => (options.force || forceFields.has(field) ? { force: true } : undefined);
+  const hasExplicitStatus = Object.prototype.hasOwnProperty.call(input, "status") || Object.prototype.hasOwnProperty.call(input, "communityStatus");
   const validation = validateAtlasSharedPropertyInput(input, options);
   validation.issues.forEach(issue => {
     if (issue.severity !== "error") atlasPushSharedIssue(graph, { source, severity: issue.severity, entity: name, message: issue.message });
@@ -2550,7 +2551,9 @@ function atlasUpsertSharedProperty(graph, input = {}, options = {}) {
   atlasApplySharedField(record, "generalManagerEmail", input.generalManagerEmail || input.gmEmail || "", source, timestamp, auditFields, fieldOptions("generalManagerEmail"));
   atlasApplySharedField(record, "regionalManagerName", input.regionalManagerName || input.regional || "", source, timestamp, auditFields, fieldOptions("regionalManagerName"));
   atlasApplySharedField(record, "regionalManagerEmail", input.regionalManagerEmail || input.regionalEmail || "", source, timestamp, auditFields, fieldOptions("regionalManagerEmail"));
-  atlasApplySharedField(record, "status", input.status || "active", source, timestamp, auditFields, fieldOptions("status"));
+  if (hasExplicitStatus || !match.record) {
+    atlasApplySharedField(record, "status", hasExplicitStatus ? (input.status ?? input.communityStatus) : record.status, source, timestamp, auditFields, fieldOptions("status"));
+  }
   atlasApplySharedField(record, "owningPortfolio", input.owningPortfolio || input.portfolio || "", source, timestamp, auditFields, fieldOptions("owningPortfolio"));
   atlasApplySharedField(record, "scopeSelections", input.scopeSelections || [], source, timestamp, auditFields, fieldOptions("scopeSelections"));
   record.aliases = Array.from(new Set([
@@ -8018,7 +8021,6 @@ async function hydrateSharedPropertiesFromMarketingDatabase(options = {}) {
         regionalManagerName: row.regional_name,
         regionalManagerEmail: row.regional_email,
         regionalManagerUserId: row.regional_employee_id,
-        status: row.status,
         owningPortfolio: row.owning_portfolio,
         scopeSelections: Array.isArray(row.scope_selections) ? row.scope_selections : [],
         sourceIds: {

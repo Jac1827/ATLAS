@@ -56,7 +56,7 @@
       note: "Reviews, coaching plans, training and accountability run in the RISE Performance Platform. It reads the same roster keyed by employee ID, so a reassignment in Communities lands here without a second import.",
       barTitle: "RISE Performance Platform",
       barSub: "People source data feeds Atlas migration snapshots and shared assignments",
-      src: "RISE-Performance-Platform.html?v=20260910-navigation",
+      src: "RISE-Performance-Platform.html?v=20260911-central-services-roster",
       background: "#F3F6F8",
       icon: "ph-trophy"
     }
@@ -85,7 +85,7 @@
   }
 
   function iframeSrc(key, mount) {
-    var params = "atlasEmbedded=1&atlasMountKey=" + encodeURIComponent(key) + "&v=20260902-marketing-studio";
+    var params = "atlasEmbedded=1&atlasMountKey=" + encodeURIComponent(key) + "&v=20260911-central-services-roster";
     var initialView = initialViewFor(key);
     if (initialView) params += "&atlasView=" + encodeURIComponent(initialView);
     return appendParams(mount.src, params);
@@ -139,6 +139,11 @@
             employeeNumber: String(employee.employeeNumber || "").trim(),
             email: String(employee.email || "").trim().toLowerCase(),
             fullName: String(employee.name || employee.fullName || "").trim(),
+            role: String(employee.role || employee.title || "").trim(),
+            department: String(employee.department || "").trim(),
+            corporateSpecialty: String(employee.corporateSpecialty || employee.corporate_specialty || "").trim(),
+            communityName: String(employee.community || employee.communityName || "").trim(),
+            region: String(employee.region || "").trim(),
             status: String(employee.status || "").trim(),
             active: true,
             source: "embedded_roster"
@@ -159,6 +164,11 @@
           String(employee.employeeId || "").trim(),
           String(employee.email || "").trim().toLowerCase(),
           String(employee.fullName || "").trim(),
+          String(employee.role || "").trim(),
+          String(employee.department || "").trim(),
+          String(employee.corporateSpecialty || "").trim(),
+          String(employee.communityName || "").trim(),
+          String(employee.region || "").trim(),
           String(employee.status || "").trim()
         ];
       }));

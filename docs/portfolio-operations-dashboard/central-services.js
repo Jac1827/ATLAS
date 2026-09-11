@@ -17,6 +17,7 @@
     ["chargebacks", "Chargebacks", "currency-dollar"],
     ["collections", "Collections", "phone-call"],
     ["evictions", "Evictions", "gavel"],
+    ["bankruptcy", "Bankruptcy", "bank"],
     ["vendors", "Vendors", "truck"],
     ["invoices", "Invoices", "receipt"],
     ["compliance", "Compliance", "shield-check"],
@@ -140,6 +141,7 @@
     "Awaiting Court Released Funds",
     "Stipulation Active",
     "Stipulation Failure",
+    "Bankruptcy Hold",
     "Account Current",
     "Stipulation Completed / Account Current",
     "Evicted",
@@ -151,6 +153,7 @@
     "Notice Served",
     "Ready to File",
     "Filed",
+    "Bankruptcy Hold",
     "Pending Hearing",
     "Pending Judgment",
     "Judgment Entered",
@@ -227,6 +230,19 @@
     "assignedJudge",
     "attorney",
     "attorneyContact",
+    "bankruptcyStatus",
+    "accountClassification",
+    "flexPlanStatus",
+    "bankruptcyChapter",
+    "bankruptcyNoticeDate",
+    "bankruptcyAttorneyName",
+    "bankruptcyAttorneyPhone",
+    "bankruptcyAttorneyEmail",
+    "accountingNotifiedDate",
+    "attorneyNotifiedDate",
+    "collectionAgencyNotifiedDate",
+    "hearingOutcome",
+    "bankruptcyNotes",
     "courtReceivedFunds",
     "stipulation",
     "attorneyActivity",
@@ -262,6 +278,18 @@
     assignedJudge: ["assigned judge", "judge", "court judge"],
     attorney: ["attorney", "law firm", "attorney firm"],
     attorneyContact: ["attorney contact", "legal contact"],
+    bankruptcyStatus: ["bankruptcy status", "bankruptcy hold", "bk status", "bk hold"],
+    accountClassification: ["account classification", "account type", "past current", "past account current account"],
+    flexPlanStatus: ["flex plan", "flex status", "payment plan", "payment arrangement"],
+    bankruptcyChapter: ["bankruptcy chapter", "chapter", "bk chapter"],
+    bankruptcyNoticeDate: ["bankruptcy notice date", "notice of bankruptcy", "bk notice date", "bankruptcy received date"],
+    bankruptcyAttorneyName: ["bankruptcy attorney", "debtor attorney", "resident attorney", "bk attorney"],
+    bankruptcyAttorneyPhone: ["bankruptcy attorney phone", "debtor attorney phone", "attorney phone"],
+    bankruptcyAttorneyEmail: ["bankruptcy attorney email", "debtor attorney email", "attorney email"],
+    accountingNotifiedDate: ["accounting notified", "accounting notified date"],
+    attorneyNotifiedDate: ["attorney notified", "attorney notified date"],
+    collectionAgencyNotifiedDate: ["collection agency notified", "collections notified", "collection notified date"],
+    hearingOutcome: ["hearing outcome", "court outcome", "hearing result"],
     notes: ["notes", "comments", "legal notes", "central services notes"]
   };
   const MOVE_OUT_STEPS = [
@@ -510,6 +538,7 @@
     "disputes",
     "active_stipulations",
     "upcoming_eviction_hearings",
+    "bankruptcy_holds",
     "pending_writs",
     "court_funds_awaiting_release",
     "sla_exceptions",
@@ -660,6 +689,20 @@
       defaultMetric: "Hearings",
       description: "Eviction hearings scheduled soon or awaiting court preparation.",
       columns: ["Resident", "Property / Unit", "Hearing", "Judge", "Status", "Owner"],
+      visualizations: ["Table", "Cards", "KPI"]
+    },
+    {
+      key: "bankruptcy_holds",
+      label: "Bankruptcy Holds",
+      category: "Evictions",
+      module: "bankruptcy",
+      filter: "hold",
+      icon: "bank",
+      tone: "violet",
+      defaultSize: "standard",
+      defaultMetric: "Bankruptcy Holds",
+      description: "Bankruptcy cases tracked from the eviction record with notice, attorney, hearing, accounting, and collections updates.",
+      columns: ["Resident", "Property / Unit", "Chapter", "Notice", "Account", "Attorney", "Updates"],
       visualizations: ["Table", "Cards", "KPI"]
     },
     {
@@ -1136,6 +1179,30 @@
   const CENTRAL_DEPARTMENT_PATTERNS = [
     /\bcentral\s+services?\b/i,
     /\bcentra\b/i
+  ];
+  const CORPORATE_SPECIALTY_OPTIONS = ["Centra", "Accounting", "Marketing", "Development", "Facilities", "IT"];
+  const CORPORATE_SPECIALTY_ALIASES = {
+    centra: "Centra",
+    central: "Centra",
+    "central service": "Centra",
+    "central services": "Centra",
+    accounting: "Accounting",
+    finance: "Accounting",
+    marketing: "Marketing",
+    development: "Development",
+    construction: "Development",
+    facilities: "Facilities",
+    maintenance: "Facilities",
+    it: "IT",
+    technology: "IT",
+    "information technology": "IT"
+  };
+  const BANKRUPTCY_FILTER_OPTIONS = [
+    ["all", "All bankruptcy records"],
+    ["past", "Past Account"],
+    ["current", "Current Account"],
+    ["hold", "Bankruptcy Hold"],
+    ["flex", "Flex Plan"]
   ];
   const RENEWAL_FIELD_ALIASES = {
     residentName: ["resident name", "resident", "name", "primary resident", "lease holder", "tenant name"],
@@ -1956,6 +2023,7 @@
       evictionStatusFilter: "all",
       evictionOwnerFilter: "all",
       stipulationHealthFilter: "all",
+      bankruptcyFilter: "all",
       selectedRenewalId: "",
       selectedEvictionId: "",
       selectedMoveOutId: "",
@@ -2235,7 +2303,7 @@
   }
 
   function getScopedProperties(state) {
-    const properties = getPortfolioProperties();
+    const properties = getPortfolioProperties().filter(property => property.active !== false);
     if (state.ui.propertyId === "all") return properties;
     return properties.filter(property => property.name === state.ui.propertyId);
   }
@@ -3100,6 +3168,7 @@
       return delta !== null && delta < 0;
     });
     const buckets = getMoveOutWorkflowBuckets(state);
+    const bankruptcyCases = getScopedBankruptcyCases(state);
     const missingDocumentation = inspections.reduce((sum, inspection) => sum + getInspectionMissingPhotoChargeCount(inspection), 0);
     return {
       propertyCount: getScopedProperties(state).length,
@@ -3134,6 +3203,7 @@
       waitingInfo: buckets.waiting.length,
       legalDeadlineRisk: buckets.risk.length,
       sentToAccounting: buckets.sent.length,
+      bankruptcyHolds: bankruptcyCases.filter(row => bankruptcyFilterMatches(row, "hold")).length,
       archivedMorfs: archivedMorfs.length,
       mogAwaiting: moveOutCases.filter(item => ["MOG Sent", "Awaiting Signature"].includes(item.workflowStatus) || item.mogStatus === "Awaiting Signature").length,
       inspectionsInProgress: inspections.filter(item => ["Draft", "Submitted", "Awaiting Review", "Under Review", "Changes Requested"].includes(item.status)).length,
@@ -3172,7 +3242,34 @@
     return true;
   }
 
+  function normalizeCorporateSpecialty(value) {
+    const text = cleanString(value);
+    if (!text) return "";
+    const exact = CORPORATE_SPECIALTY_OPTIONS.find(option => option.toLowerCase() === text.toLowerCase());
+    if (exact) return exact;
+    return CORPORATE_SPECIALTY_ALIASES[normalizeKey(text)] || "";
+  }
+
+  function employeeCorporateSpecialty(raw = {}, normalized = {}) {
+    const direct = [
+      raw.corporateSpecialty,
+      raw.corporate_specialty,
+      raw.sharedServicesDepartment,
+      raw.shared_service_department,
+      raw.centralServicesDepartment,
+      raw.central_services_department,
+      raw.CorporateSpecialty,
+      raw["Corporate Specialty"],
+      normalized.corporateSpecialty,
+      normalized.corporate_specialty
+    ].map(normalizeCorporateSpecialty).find(Boolean);
+    if (direct) return direct;
+    return normalizeCorporateSpecialty(cleanString(raw.department || raw.Department || normalized.department));
+  }
+
   function employeeCentralSignal(raw = {}, normalized = {}) {
+    const specialty = employeeCorporateSpecialty(raw, normalized);
+    if (specialty === "Centra") return true;
     const departmentFields = [
       raw.department,
       raw.Department,
@@ -3219,7 +3316,8 @@
       "costCenter",
       "team",
       "division"
-    ]);
+    ]) || cleanString(normalized.department);
+    const corporateSpecialty = employeeCorporateSpecialty(raw, { ...normalized, department });
     const key = employeeNumber
       ? `empnum:${employeeNumber}`
       : email
@@ -3233,6 +3331,7 @@
       name,
       title,
       department,
+      corporateSpecialty,
       status: pickEmployeeValue(raw, ["status", "Status", "employmentStatus", "employment_status"]) || cleanString(normalized.status || "Active"),
       source: cleanString(meta.source || normalized.source || "People roster"),
       homeProperty: pickEmployeeValue(raw, ["homeProperty", "assignedProperty", "propertyName", "communityName", "location", "workLocation", "Property", "Community"]) || cleanString(normalized.homeProperty || normalized.propertyName || normalized.communityName),
@@ -3246,12 +3345,13 @@
     const normalized = normalizeCentralEmployee(raw, meta);
     if (!normalized.name) return;
     if (!employeeIsActive(raw, meta.normalized)) return;
-    if (!employeeCentralSignal(raw, { ...meta.normalized, department: normalized.department, title: normalized.title })) return;
+    if (!employeeCentralSignal(raw, { ...meta.normalized, department: normalized.department, title: normalized.title, corporateSpecialty: normalized.corporateSpecialty })) return;
     const existing = map.get(normalized.key);
     map.set(normalized.key, {
       ...existing,
       ...normalized,
       department: normalized.department || existing?.department || "",
+      corporateSpecialty: normalized.corporateSpecialty || existing?.corporateSpecialty || "",
       title: normalized.title || existing?.title || "",
       email: normalized.email || existing?.email || "",
       employeeId: normalized.employeeId || existing?.employeeId || normalized.key
@@ -3269,6 +3369,7 @@
       ...normalized,
       active: true,
       department: normalized.department || existing?.department || "",
+      corporateSpecialty: normalized.corporateSpecialty || existing?.corporateSpecialty || "",
       title: normalized.title || existing?.title || "",
       email: normalized.email || existing?.email || "",
       employeeId: normalized.employeeId || existing?.employeeId || key,
@@ -3302,6 +3403,14 @@
     } catch {
       // Shared data has not loaded yet.
     }
+    try {
+      const embeddedRoster = typeof atlasEmbeddedPeopleRosterEntries === "function"
+        ? atlasEmbeddedPeopleRosterEntries()
+        : asArray(window.ATLAS_EMBEDDED_PEOPLE_ROSTER);
+      asArray(embeddedRoster).forEach(employee => addPeopleEmployee(employees, employee, { source: "Embedded People roster", normalized: employee }));
+    } catch {
+      // Embedded roster is optional.
+    }
     return [...employees.values()].sort((left, right) => left.name.localeCompare(right.name));
   }
 
@@ -3330,6 +3439,14 @@
       }
     } catch {
       // Shared data has not loaded yet.
+    }
+    try {
+      const embeddedRoster = typeof atlasEmbeddedPeopleRosterEntries === "function"
+        ? atlasEmbeddedPeopleRosterEntries()
+        : asArray(window.ATLAS_EMBEDDED_PEOPLE_ROSTER);
+      asArray(embeddedRoster).forEach(employee => addCentralEmployee(employees, employee, { source: "Embedded People roster", normalized: employee }));
+    } catch {
+      // Embedded roster is optional.
     }
     return [...employees.values()].sort((left, right) => left.name.localeCompare(right.name));
   }
@@ -3526,8 +3643,8 @@
   }
 
   function propertyOptionsHtml(selected, includeAll = true) {
-    const all = includeAll ? `<option value="all" ${selected === "all" ? "selected" : ""}>All ATLAS properties</option>` : "";
-    return `${all}${getPortfolioProperties().map(property => `<option value="${escapeAttr(property.name)}" ${property.name === selected ? "selected" : ""}>${escapeHtml(property.name)}</option>`).join("")}`;
+    const all = includeAll ? `<option value="all" ${selected === "all" ? "selected" : ""}>Active ATLAS properties</option>` : "";
+    return `${all}${getPortfolioProperties().filter(property => property.active !== false).map(property => `<option value="${escapeAttr(property.name)}" ${property.name === selected ? "selected" : ""}>${escapeHtml(property.name)}</option>`).join("")}`;
   }
 
   function monthOptionsHtml(selectedIdx) {
@@ -3654,7 +3771,7 @@
     const retention = kpis.expirations > 0 ? kpis.signed / kpis.expirations * 100 : null;
     return `<div class="cs-kpi-grid">
       ${renderKpi({ label: "Properties in Scope", value: formatNumber(kpis.propertyCount), sub: "Compiled from the ATLAS property list.", icon: "buildings", module: "renewals" })}
-      ${renderKpi({ label: "Central Services Roster", value: formatNumber(kpis.rosterCount), sub: "Employees whose roster department includes Centra or Central Services.", icon: "users-three", module: "settings" })}
+      ${renderKpi({ label: "Central Services Roster", value: formatNumber(kpis.rosterCount), sub: "Active Corporate / Shared Services employees with Corporate Specialty set to Centra.", icon: "users-three", module: "settings" })}
       ${renderKpi({ label: "Renewal Expirations", value: formatNumber(kpis.expirations), sub: `${MONTH_LABELS[selectedMonthIdx(state)]} ${selectedYear(state)} across selected properties.`, icon: "calendar-dots", module: "renewals" })}
       ${renderKpi({ label: "Open Renewals", value: formatNumber(kpis.openRenewals), sub: `${formatNumber(kpis.renewalsDue30)} due within 30 days across imported expiration months.`, icon: "arrows-clockwise", tone: kpis.renewalsPastDue ? "red" : kpis.renewalsDue30 ? "amber" : "teal", module: "renewals", filter: "open" })}
       ${renderKpi({ label: "Renewal Conversion", value: formatPercent(retention), sub: "Signed renewals divided by expirations from ATLAS or imported rows.", icon: "trend-up", tone: "green", module: "renewals" })}
@@ -3677,17 +3794,18 @@
   function renderRosterPanel(employees) {
     if (!employees.length) {
       return `<div class="cs-alert is-warn">
-        No Central Services employees were found from the employee roster yet. The roster filter is looking for active employees whose department, org unit, business unit, cost center, team, or division contains "Centra" or "Central Services".
+        No Central Services employees were found from the People roster yet. Set Corporate Specialty to Centra for active Corporate / Shared Services employees.
       </div>`;
     }
     return `<div class="cs-table-wrap">
       <table class="cs-table">
-        <thead><tr><th>Employee</th><th>Title</th><th>Department</th><th>Email</th><th>Source</th></tr></thead>
+        <thead><tr><th>Employee</th><th>Title</th><th>Department</th><th>Corporate Specialty</th><th>Email</th><th>Source</th></tr></thead>
         <tbody>
           ${employees.map(employee => `<tr>
             <td><div class="cs-name-cell"><strong>${escapeHtml(employee.name)}</strong><span>${escapeHtml(employee.employeeNumber || employee.peopleEmployeeId || employee.employeeId)}</span></div></td>
             <td>${escapeHtml(employee.title || "Not listed")}</td>
             <td>${escapeHtml(employee.department || "Matched from available roster fields")}</td>
+            <td>${escapeHtml(employee.corporateSpecialty || "Centra")}</td>
             <td>${employee.email ? `<a href="mailto:${escapeAttr(employee.email)}">${escapeHtml(employee.email)}</a>` : "Not listed"}</td>
             <td>${escapeHtml(employee.source)}</td>
           </tr>`).join("")}
@@ -4373,8 +4491,10 @@
   function getScopedEvictions(state) {
     const property = cleanString(state.ui.propertyId || "all");
     const search = normalizeKey(state.ui.search);
+    const activeProperties = new Set(getScopedProperties({ ...state, ui: { ...state.ui, propertyId: "all" } }).map(item => item.name));
     return asArray(state.evictions)
       .map(normalizeEvictionCase)
+      .filter(row => activeProperties.has(row.propertyName))
       .filter(row => property === "all" || row.propertyName === property)
       .filter(row => !search || evictionMatchesSearch(row, search));
   }
@@ -4389,8 +4509,16 @@
       row.status,
       row.assignedJudge,
       row.attorney,
+      row.bankruptcyStatus,
+      row.accountClassification,
+      row.flexPlanStatus,
+      row.bankruptcyChapter,
+      row.bankruptcyAttorneyName,
+      row.bankruptcyAttorneyEmail,
+      row.hearingOutcome,
       row.owner,
-      row.notes
+      row.notes,
+      row.bankruptcyNotes
     ].join(" ")).includes(query);
   }
 
@@ -4421,6 +4549,33 @@
       status: row.status,
       dueDate: row.hearingDate || row.writDate || row.nextDueDate,
       priority: writSoon ? Math.max(priority, 95) : priority
+    });
+  }
+
+  function dashboardBankruptcyRow(row = {}, widget = {}) {
+    const updates = [
+      row.accountingNotifiedDate ? "Accounting" : "",
+      row.attorneyNotifiedDate ? "Attorney" : "",
+      row.collectionAgencyNotifiedDate ? "Collections" : ""
+    ].filter(Boolean).join(" / ") || "Updates needed";
+    return centralDashboardRow({
+      "Resident": row.residentName,
+      "Property / Unit": `${row.propertyName} / Unit ${row.unit || "n/a"}`,
+      "Chapter": row.bankruptcyChapter || "Not captured",
+      "Notice": formatDate(row.bankruptcyNoticeDate) || "Needed",
+      "Account": normalizeBankruptcyAccountClassification(row.accountClassification, row) || "Review",
+      "Attorney": row.bankruptcyAttorneyName || row.attorney || "Not entered",
+      "Updates": updates
+    }, {
+      id: row.id,
+      recordType: "bankruptcy",
+      module: "bankruptcy",
+      filter: cleanString(widget.filter) || "hold",
+      title: row.residentName,
+      subtitle: `${row.propertyName} / Unit ${row.unit || "n/a"}`,
+      status: row.bankruptcyStatus || row.status,
+      dueDate: row.bankruptcyNoticeDate || row.hearingDate || row.nextDueDate,
+      priority: bankruptcyFilterMatches(row, "hold") ? 85 : 55
     });
   }
 
@@ -4498,6 +4653,9 @@
       return centralDashboardPrepareRows(state, widget, getScopedEvictions(state)
         .filter(row => !evictionIsCompleted(row) && row.hearingDate && daysUntil(row.hearingDate) !== null && daysUntil(row.hearingDate) <= 14)
         .map(row => dashboardEvictionRow(row, widget)));
+    }
+    if (widget.widgetKey === "bankruptcy_holds") {
+      return centralDashboardPrepareRows(state, widget, getScopedBankruptcyCases(state).filter(row => bankruptcyFilterMatches(row, cleanString(widget.filter) || "hold")).map(row => dashboardBankruptcyRow(row, widget)));
     }
     if (widget.widgetKey === "pending_writs") {
       return centralDashboardPrepareRows(state, widget, getScopedEvictions(state)
@@ -4869,6 +5027,7 @@
         <span>${escapeHtml(formatNumber(kpis.openRenewals))} open renewals</span>
         <span>${escapeHtml(formatNumber(kpis.overdueTasks))} overdue tasks</span>
         <span>${escapeHtml(formatNumber(kpis.legalDeadlineRisk))} legal deadline risks</span>
+        <span>${escapeHtml(formatNumber(kpis.bankruptcyHolds))} bankruptcy holds</span>
         <span>${escapeHtml(formatNumber(kpis.holdovers))} holdovers</span>
         <span>${escapeHtml(formatNumber(kpis.inspectionApprovals))} inspections awaiting approval</span>
         <span>${escapeHtml(formatNumber(kpis.sentToAccounting))} sent to Accounting</span>
@@ -5480,6 +5639,130 @@
     </div>`;
   }
 
+  function renderBankruptcyMetrics(state) {
+    const rows = getScopedBankruptcyCases(state);
+    const holds = rows.filter(row => bankruptcyFilterMatches(row, "hold"));
+    const past = rows.filter(row => bankruptcyFilterMatches(row, "past"));
+    const current = rows.filter(row => bankruptcyFilterMatches(row, "current"));
+    const flex = rows.filter(row => bankruptcyFilterMatches(row, "flex"));
+    return `<div class="cs-kpi-grid">
+      ${renderKpi({ label: "Bankruptcy Records", value: rows.length, sub: "Tracked on eviction cases only", icon: "bank", tone: rows.length ? "violet" : "green", module: "bankruptcy", filter: "all" })}
+      ${renderKpi({ label: "Bankruptcy Holds", value: holds.length, sub: "Legal action paused or review required", icon: "pause-circle", tone: holds.length ? "red" : "green", module: "bankruptcy", filter: "hold" })}
+      ${renderKpi({ label: "Past Accounts", value: past.length, sub: "Open balances still tied to the legal record", icon: "warning", tone: past.length ? "amber" : "green", module: "bankruptcy", filter: "past" })}
+      ${renderKpi({ label: "Flex Plans", value: flex.length, sub: `${current.length} current account${current.length === 1 ? "" : "s"}`, icon: "arrows-clockwise", tone: flex.length ? "teal" : "green", module: "bankruptcy", filter: "flex" })}
+    </div>`;
+  }
+
+  function bankruptcyFilterOptionsHtml(selected) {
+    return BANKRUPTCY_FILTER_OPTIONS.map(([value, label]) => `<option value="${escapeAttr(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`).join("");
+  }
+
+  function renderBankruptcyFilterBar(state) {
+    const filter = cleanString(state.ui.bankruptcyFilter || "all");
+    return `<div class="cs-renewal-filter-bar">
+      <label class="cs-field"><span>Bankruptcy Filter</span><select onchange="atlasCsSetBankruptcyFilter(this.value)">${bankruptcyFilterOptionsHtml(filter)}</select></label>
+      <label class="cs-field" style="grid-column:span 2"><span>Search</span><input type="search" value="${escapeAttr(state.ui.search)}" placeholder="Resident, unit, attorney, chapter, status" onchange="atlasCsSetSearch(this.value)"></label>
+      <div class="cs-alert" style="grid-column:span 3">Bankruptcy is tracked on the eviction case record so delinquent residents are not duplicated in both Evictions and Collections.</div>
+    </div>`;
+  }
+
+  function renderBankruptcyTable(state) {
+    const rows = getVisibleBankruptcyCases(state);
+    if (!rows.length) return `<div class="cs-empty"><div><strong>No bankruptcy records match this view.</strong><br>Open an eviction case, set Bankruptcy Status or Notice Date, or upload a delinquency report that includes bankruptcy fields.</div></div>`;
+    return `<div class="cs-table-wrap">
+      <table class="cs-table">
+        <thead><tr><th>Resident</th><th>Property / Unit</th><th>Account</th><th>Bankruptcy</th><th>Hearing</th><th>Notice Updates</th><th>Attorney</th><th></th></tr></thead>
+        <tbody>${rows.map(row => {
+          const accountClass = normalizeBankruptcyAccountClassification(row.accountClassification, row);
+          const noticeUpdates = [
+            row.accountingNotifiedDate ? `Accounting ${formatDate(row.accountingNotifiedDate)}` : "",
+            row.attorneyNotifiedDate ? `Attorney ${formatDate(row.attorneyNotifiedDate)}` : "",
+            row.collectionAgencyNotifiedDate ? `Collections ${formatDate(row.collectionAgencyNotifiedDate)}` : ""
+          ].filter(Boolean).join(" / ") || "Updates needed";
+          return `<tr class="${state.ui.selectedEvictionId === row.id ? "is-selected" : ""}" data-tone="${escapeAttr(evictionStatusTone(row.status))}">
+            <td><div class="cs-name-cell"><strong>${escapeHtml(row.residentName || "Resident")}</strong><span>${escapeHtml(row.phone || row.email || "Resident contact not imported")}</span></div></td>
+            <td><div class="cs-name-cell"><strong>${escapeHtml(row.propertyName)}</strong><span>Unit ${escapeHtml(row.unit || "n/a")}</span></div></td>
+            <td><div class="cs-name-cell"><strong>${escapeHtml(accountClass || "Account review")}</strong><span>${escapeHtml(formatMoney(row.delinquentBalance) || "$0")} balance${row.flexPlanStatus ? ` / ${escapeHtml(row.flexPlanStatus)}` : ""}</span></div></td>
+            <td><div class="cs-name-cell"><strong>${escapeHtml(row.bankruptcyStatus || row.status || "Bankruptcy review")}</strong><span>${escapeHtml(row.bankruptcyChapter || "Chapter not captured")} ${row.bankruptcyNoticeDate ? `- ${escapeHtml(formatDate(row.bankruptcyNoticeDate))}` : ""}</span></div></td>
+            <td><div class="cs-name-cell"><strong>${escapeHtml(formatDate(row.hearingDate) || "No hearing date")}</strong><span>${escapeHtml(row.hearingOutcome || row.hearingTime || "Outcome pending")}</span></div></td>
+            <td>${escapeHtml(noticeUpdates)}</td>
+            <td><div class="cs-name-cell"><strong>${escapeHtml(row.bankruptcyAttorneyName || row.attorney || "Attorney not entered")}</strong><span>${escapeHtml(row.bankruptcyAttorneyEmail || row.bankruptcyAttorneyPhone || row.attorneyContact || "")}</span></div></td>
+            <td class="right"><button type="button" class="cs-btn cs-btn-sm" data-id="${escapeAttr(row.id)}" onclick="atlasCsOpenBankruptcyCase(this.dataset.id)">Open</button></td>
+          </tr>`;
+        }).join("")}</tbody>
+      </table>
+    </div>`;
+  }
+
+  function renderBankruptcyCaseFields(item) {
+    const bankruptcyStatusOptions = ["Bankruptcy Hold", "Notice Received", "Accounting Updated", "Attorney Updated", "Collections Updated", "Relief Requested", "Dismissed", "Discharged", "Closed"];
+    const accountOptions = ["Past Account", "Current Account"];
+    const flexOptions = ["No Flex Plan", "Flex Plan", "Flex Plan Pending", "Flex Plan Broken"];
+    return `<div class="cs-detail-section">
+      <div class="cs-panel-title">Bankruptcy Tracker</div>
+      <div class="cs-control-grid">
+        <label class="cs-field"><span>Bankruptcy Status</span><select data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'bankruptcyStatus',this.value)">${genericOptionsHtml(bankruptcyStatusOptions, item.bankruptcyStatus, "Select status")}</select></label>
+        <label class="cs-field"><span>Account Type</span><select data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'accountClassification',this.value)">${genericOptionsHtml(accountOptions, normalizeBankruptcyAccountClassification(item.accountClassification, item), "Select account type")}</select></label>
+        <label class="cs-field"><span>Flex Plan</span><select data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'flexPlanStatus',this.value)">${genericOptionsHtml(flexOptions, item.flexPlanStatus, "Select flex status")}</select></label>
+        <label class="cs-field"><span>Chapter</span><select data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'bankruptcyChapter',this.value)">${genericOptionsHtml(["Chapter 7", "Chapter 11", "Chapter 13", "Other"], item.bankruptcyChapter, "Select chapter")}</select></label>
+        <label class="cs-field"><span>Notice Received</span><input type="date" value="${escapeAttr(item.bankruptcyNoticeDate || "")}" data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'bankruptcyNoticeDate',this.value)"></label>
+        <label class="cs-field"><span>Hearing Outcome</span><input value="${escapeAttr(item.hearingOutcome || "")}" data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'hearingOutcome',this.value)" placeholder="Outcome or next court step"></label>
+        <label class="cs-field"><span>Accounting Updated</span><input type="date" value="${escapeAttr(item.accountingNotifiedDate || "")}" data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'accountingNotifiedDate',this.value)"></label>
+        <label class="cs-field"><span>Attorney Updated</span><input type="date" value="${escapeAttr(item.attorneyNotifiedDate || "")}" data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'attorneyNotifiedDate',this.value)"></label>
+        <label class="cs-field"><span>Collections Updated</span><input type="date" value="${escapeAttr(item.collectionAgencyNotifiedDate || "")}" data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'collectionAgencyNotifiedDate',this.value)"></label>
+        <label class="cs-field"><span>Bankruptcy Attorney</span><input value="${escapeAttr(item.bankruptcyAttorneyName || "")}" data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'bankruptcyAttorneyName',this.value)" placeholder="Attorney name"></label>
+        <label class="cs-field"><span>Attorney Phone</span><input value="${escapeAttr(item.bankruptcyAttorneyPhone || "")}" data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'bankruptcyAttorneyPhone',this.value)" placeholder="Phone"></label>
+        <label class="cs-field"><span>Attorney Email</span><input type="email" value="${escapeAttr(item.bankruptcyAttorneyEmail || "")}" data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'bankruptcyAttorneyEmail',this.value)" placeholder="email@example.com"></label>
+        <label class="cs-field" style="grid-column:span 6"><span>Bankruptcy Notes</span><textarea data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'bankruptcyNotes',this.value)" placeholder="Notice receipt, chapter detail, attorney direction, account status, or agency update notes">${escapeHtml(item.bankruptcyNotes || "")}</textarea></label>
+      </div>
+    </div>`;
+  }
+
+  function renderBankruptcyDetail(state) {
+    const rows = getScopedBankruptcyCases(state);
+    const item = rows.find(row => row.id === state.ui.selectedEvictionId) || getVisibleBankruptcyCases(state)[0] || rows[0];
+    if (!item) return `<div class="cs-detail-panel"><div class="cs-detail-title"><h3>Bankruptcy Detail</h3></div><div class="cs-alert">No bankruptcy details have been captured yet. Mark Bankruptcy Status or Notice Received on an eviction case to begin tracking it here.</div></div>`;
+    return `<div class="cs-detail-panel">
+      <div class="cs-detail-title">
+        <div>
+          <h3>${escapeHtml(item.residentName || "Resident")}</h3>
+          <div class="cs-detail-meta">${escapeHtml(item.propertyName)} - Unit ${escapeHtml(item.unit || "n/a")} - ${escapeHtml(formatMoney(item.delinquentBalance) || "$0")} balance</div>
+        </div>
+        ${statusPill(item.bankruptcyStatus || item.status)}
+      </div>
+      <div class="cs-chip-row">
+        <span class="cs-chip" data-tone="violet">Single source: eviction case</span>
+        <button type="button" class="cs-btn cs-btn-sm" data-id="${escapeAttr(item.id)}" onclick="atlasCsOpenDashboardRecord('eviction',this.dataset.id,'evictions','active')">${icon("gavel")} Open Eviction Record</button>
+      </div>
+      ${renderBankruptcyCaseFields(item)}
+      <div class="cs-detail-section"><div class="cs-panel-title">Activity History</div>${renderMiniTimeline(item.activity)}</div>
+    </div>`;
+  }
+
+  function renderBankruptcyTracker(state, employees) {
+    return `<div class="cs-two-col">
+      <div style="display:grid;gap:14px">
+        <div class="cs-panel">
+          <div class="cs-panel-head">
+            <div>
+              <div class="cs-panel-title">Bankruptcy Tracker</div>
+              <div class="cs-panel-sub">Track bankruptcy holds, account status, Flex Plan status, hearing outcomes, and required notification dates from the same eviction case record.</div>
+            </div>
+            <div class="cs-command-actions">
+              <button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsSetModule('evictions')">${icon("gavel")} Evictions</button>
+            </div>
+          </div>
+          <div class="cs-panel-body">
+            ${renderBankruptcyMetrics(state)}
+            ${renderBankruptcyFilterBar(state)}
+            ${renderBankruptcyTable(state)}
+          </div>
+        </div>
+      </div>
+      ${renderBankruptcyDetail(state, employees)}
+    </div>`;
+  }
+
   function renderStipulationLedger(caseRecord) {
     const stip = asObject(caseRecord.stipulation);
     const installments = asArray(stip.installments);
@@ -5624,6 +5907,7 @@
           <label class="cs-field" style="grid-column:span 6"><span>Case Notes</span><textarea data-id="${escapeAttr(item.id)}" onchange="atlasCsUpdateEvictionField(this.dataset.id,'notes',this.value)">${escapeHtml(item.notes || "")}</textarea></label>
         </div>
       </div>
+      ${renderBankruptcyCaseFields(item)}
       <div class="cs-detail-section"><div class="cs-panel-title">Court Received Funds</div>${renderCourtFunds(item)}</div>
       <div class="cs-detail-section">
         <div class="cs-panel-title">Stipulation Mini AR Ledger</div>
@@ -7038,7 +7322,7 @@
         <div class="cs-panel-head">
           <div>
             <div class="cs-panel-title">Central Services Employees</div>
-            <div class="cs-panel-sub">Sourced from the employee roster page using Centra or Central Services department signals.</div>
+            <div class="cs-panel-sub">Sourced from active Corporate/Shared Services roster profiles where Corporate Specialty is set to Centra.</div>
           </div>
         </div>
         <div class="cs-panel-body">${renderRosterPanel(employees)}</div>
@@ -7138,8 +7422,8 @@
         title: "Entrata And Accounting Integration Points",
         items: [
           "Entrata renewal export already seeds resident-level NTV and move-out cases.",
-          "Future Entrata API reads should populate residents, leases, units, deposits, final utilities, recurring charges, rent owed, credits, payments, and balances.",
-          "Entrata vendor codes should map into normalized vendor profiles and assignment history.",
+          "Entrata renewal, ledger, resident, and unit fields are Central Services source-of-truth inputs for residents, leases, units, deposits, final utilities, recurring charges, rent owed, credits, payments, and balances.",
+          "Entrata vendor-code exports should be prepared in Data Import but route to Facilities / Maintenance vendor workflows once onboarding and compliance updates are ready.",
           "Accounting routing should use Portfolio Default -> Ownership Group -> State -> Property Override, with authorized editable recipients.",
           "Accounting packet attachments should be selected through a pre-send checklist rather than attached automatically."
         ]
@@ -7148,6 +7432,7 @@
         title: "Security, Privacy, And Risks",
         items: [
           "Resident financial obligations, photos, signatures, forwarding addresses, and correspondence require role-based access, encryption in transit/at rest, and retention controls.",
+          "Mobile-submitted inspection photos stay inside ATLAS, are not directly downloadable outside the labeled FMO/report output, and remain on the move-out inspection until purged after three years.",
           "Resident-attended inspection copies must suppress predetermined, estimated, recommended, or standard dollar amounts.",
           "AI suggestions stay advisory only and must record suggestion, confidence, human decision, and final classification.",
           "Legal deadlines and statutory wording must come from Legal-approved state configuration, not hard-coded assumptions.",
@@ -7185,27 +7470,73 @@
   }
 
   function renderQuestions() {
-    const questions = [
-      "Which exact employee roster department values should count as Central Services or Centra?",
-      "Should Central Services include inactive/retired ATLAS properties, or only active communities?",
-      "Which Entrata renewal, ledger, resident, unit, and vendor fields should become source-of-truth integration keys?",
-      "Which roles can submit, review, approve, override photo requirements, edit final MORF charges, reopen locked records, and manage Legal wording?",
-      "Which state deposit-accounting rules and approved statutory wording should Legal load first?",
-      "What are the photo retention, offline device storage, and resident privacy requirements for field use?",
-      "Which accounting packet attachments should be required, optional, or blocked by property/ownership group?",
-      "Which active vendor list and Entrata vendor-code export should seed the vendor profile migration?",
-      "Which AI inspection suggestions should be piloted first, and what confidence/approval rules should govern them?"
+    const decisions = [
+      {
+        status: "Configured",
+        title: "People roster Central Services signal",
+        copy: "People now exposes a Corporate Specialty dropdown for Corporate / Shared Services profiles. Employees set to Centra count as Central Services ownership."
+      },
+      {
+        status: "Configured",
+        title: "Central Services property scope",
+        copy: "Central Services uses active communities only. Inactive properties remain editable in ATLAS, but they are removed from the current operational scope."
+      },
+      {
+        status: "Configured",
+        title: "Entrata source-of-truth fields",
+        copy: "Renewal, ledger, resident, and unit fields are treated as Central Services source-of-truth inputs. Vendor fields are routed to Facilities / Maintenance vendor workflows instead."
+      },
+      {
+        status: "Needs Role Matrix",
+        title: "Role approvals and overrides",
+        copy: "Settings will continue to govern who can submit, review, approve, override photo requirements, edit final MORF charges, reopen locked records, and manage Legal wording."
+      },
+      {
+        status: "Pilot: Florida",
+        title: "Legal rules and statutory wording",
+        copy: "Florida is the first Central Services legal pilot. Future template wording, notices, forms, and law references should follow the location saved on the community profile."
+      },
+      {
+        status: "Configured",
+        title: "Photo retention and resident privacy",
+        copy: "Photos submitted from mobile stay inside ATLAS. Only labeled reports may export them, direct photo downloads are blocked, and move-out inspection photos remain available until purge after three years."
+      },
+      {
+        status: "Configurable",
+        title: "Accounting packet attachments",
+        copy: "Required, optional, and blocked packet attachments should be configurable by workflow, property, or ownership request instead of hard-coded."
+      },
+      {
+        status: "Prepared",
+        title: "Vendor intake",
+        copy: "ATLAS should prepare for an Entrata vendor-list import, but the migration waits until onboarding and compliance updates are ready."
+      },
+      {
+        status: "Pilot",
+        title: "AI inspection suggestions",
+        copy: "Pilot move-out inspections first. AI may suggest broken items or repairs from inspection photos and apply preset chargeback rates, with rates adjustable during FMO processing and disputes.",
+        followUps: [
+          "Which photo condition categories should ATLAS detect first?",
+          "Which roles can accept, override, or reject AI chargeback suggestions?",
+          "What confidence level should require a second approval?"
+        ]
+      }
     ];
     return `<div class="cs-panel">
       <div class="cs-panel-head">
         <div>
-          <div class="cs-panel-title">Build Questions</div>
-          <div class="cs-panel-sub">These are the remaining business and compliance decisions needed before the mobile/offline system becomes production-controlled.</div>
+          <div class="cs-panel-title">Central Services Build Decisions</div>
+          <div class="cs-panel-sub">Resolved decisions are now reflected in the workflow. Open follow-ups stay visible only where more configuration is still needed.</div>
         </div>
       </div>
       <div class="cs-panel-body">
         <div class="cs-architecture-grid">
-          ${questions.map((question, idx) => `<div class="cs-architecture-item"><h3>${idx + 1}. ${escapeHtml(question)}</h3><p>Answering this lets ATLAS turn the configured workflow into governed production behavior.</p></div>`).join("")}
+          ${decisions.map((item, idx) => `<div class="cs-architecture-item">
+            <div class="cs-chip-row" style="margin-bottom:8px"><span class="cs-chip is-strong">${escapeHtml(item.status)}</span></div>
+            <h3>${idx + 1}. ${escapeHtml(item.title)}</h3>
+            <p>${escapeHtml(item.copy)}</p>
+            ${asArray(item.followUps).length ? `<ul>${item.followUps.map(question => `<li>${escapeHtml(question)}</li>`).join("")}</ul>` : ""}
+          </div>`).join("")}
         </div>
       </div>
     </div>`;
@@ -7231,6 +7562,7 @@
       empty: "No collection records are connected. This module will stay empty until the source report or system integration is defined."
     });
     if (state.ui.module === "evictions") return renderEvictions(state, employees);
+    if (state.ui.module === "bankruptcy") return renderBankruptcyTracker(state, employees);
     if (state.ui.module === "vendors") return renderVendorProfiles(state);
     if (state.ui.module === "invoices") return renderEmptyWorkflowModule(state, {
       key: "invoices",
@@ -7257,10 +7589,10 @@
         <div>
           <div class="cs-kicker">ATLAS Central Services</div>
           <div class="cs-command-title">Central Services Workspace</div>
-          <div class="cs-command-copy">This workspace compiles live ATLAS portfolio data across all selected properties and uses the employee roster to identify Central Services team members. It does not display seeded residents, fake contacts, or mock tasks. Workflow records appear only after a real import or a user action creates them.</div>
+          <div class="cs-command-copy">This workspace compiles live ATLAS portfolio data across active properties and uses the People roster Corporate Specialty field to identify Central Services team members. It does not display seeded residents, fake contacts, or mock tasks. Workflow records appear only after a real import or a user action creates them.</div>
           <div class="cs-chip-row" style="margin-top:10px">
             <span class="cs-chip is-strong">${escapeHtml(monthLabel)} ${escapeHtml(selectedYear(state))}</span>
-            <span class="cs-chip">${escapeHtml(state.ui.propertyId === "all" ? "All ATLAS properties" : state.ui.propertyId)}</span>
+            <span class="cs-chip">${escapeHtml(state.ui.propertyId === "all" ? "Active ATLAS properties" : state.ui.propertyId)}</span>
             <span class="cs-chip">${escapeHtml(employees.length)} roster employees</span>
           </div>
         </div>
@@ -7273,7 +7605,7 @@
       ${renderModuleNav(state)}
       ${renderControls(state)}
       ${renderImportHistory(state)}
-      ${!employees.length ? `<div class="cs-alert is-warn">Central Services ownership is currently unassigned because no active employees in the roster match Centra or Central Services department fields.</div>` : ""}
+      ${!employees.length ? `<div class="cs-alert is-warn">Central Services ownership is currently unassigned. In People, set an active Corporate / Shared Services employee's Corporate Specialty dropdown to Centra.</div>` : ""}
       ${renderModule(state, employees)}
     </div>`;
   }
@@ -7737,6 +8069,7 @@
     const key = normalizeKey(raw);
     if (!key) return "Delinquency Review";
     if (EVICTION_STATUS_OPTIONS.includes(raw)) return raw;
+    if (key.includes("bankrupt") || key === "bk" || key.includes("chapter 7") || key.includes("chapter 11") || key.includes("chapter 13")) return "Bankruptcy Hold";
     if (key.includes("stip") && key.includes("fail")) return "Stipulation Failure";
     if (key.includes("stip")) return "Stipulation Active";
     if (key.includes("current") || key.includes("paid")) return "Account Current";
@@ -7767,9 +8100,65 @@
     return !evictionIsCompleted(caseRecord) && !evictionIsStipulationActive(caseRecord);
   }
 
+  function normalizeBankruptcyAccountClassification(value, caseRecord = {}) {
+    const key = normalizeKey(value);
+    if (key.includes("current") || normalizeEvictionStatus(caseRecord.status) === "Account Current") return "Current Account";
+    if (key.includes("past") || key.includes("delinquent") || numberValue(caseRecord.delinquentBalance) > 0) return "Past Account";
+    return "";
+  }
+
+  function bankruptcyCaseHasSignal(caseRecord = {}) {
+    const flexKey = normalizeKey(caseRecord.flexPlanStatus);
+    return Boolean(
+      bankruptcyCaseHasLegalSignal(caseRecord) ||
+      (flexKey.includes("flex") && !flexKey.includes("no flex"))
+    );
+  }
+
+  function bankruptcyCaseHasLegalSignal(caseRecord = {}) {
+    return Boolean(
+      normalizeEvictionStatus(caseRecord.status) === "Bankruptcy Hold" ||
+      cleanString(caseRecord.bankruptcyStatus) ||
+      cleanString(caseRecord.bankruptcyChapter) ||
+      normalizeDate(caseRecord.bankruptcyNoticeDate) ||
+      cleanString(caseRecord.bankruptcyAttorneyName) ||
+      cleanString(caseRecord.bankruptcyAttorneyEmail) ||
+      cleanString(caseRecord.bankruptcyNotes)
+    );
+  }
+
+  function bankruptcyFilterMatches(caseRecord = {}, filter = "all") {
+    const normalizedFilter = cleanString(filter || "all");
+    if (normalizedFilter === "all") return true;
+    const accountClass = normalizeBankruptcyAccountClassification(caseRecord.accountClassification, caseRecord);
+    const flexKey = normalizeKey(caseRecord.flexPlanStatus);
+    const bankruptcyKey = normalizeKey(`${caseRecord.bankruptcyStatus} ${caseRecord.status}`);
+    if (normalizedFilter === "past") return accountClass === "Past Account";
+    if (normalizedFilter === "current") return accountClass === "Current Account";
+    if (normalizedFilter === "hold") return bankruptcyKey.includes("hold") || normalizeEvictionStatus(caseRecord.status) === "Bankruptcy Hold";
+    if (normalizedFilter === "flex") return flexKey.includes("flex") && !flexKey.includes("no flex");
+    return true;
+  }
+
+  function getScopedBankruptcyCases(state) {
+    return getScopedEvictions(state)
+      .filter(bankruptcyCaseHasSignal)
+      .sort((left, right) => {
+        const leftDate = dateValue(left.bankruptcyNoticeDate || left.hearingDate || left.nextDueDate) || Infinity;
+        const rightDate = dateValue(right.bankruptcyNoticeDate || right.hearingDate || right.nextDueDate) || Infinity;
+        return leftDate - rightDate || cleanString(left.propertyName).localeCompare(cleanString(right.propertyName));
+      });
+  }
+
+  function getVisibleBankruptcyCases(state) {
+    const filter = cleanString(state.ui.bankruptcyFilter || "all");
+    return getScopedBankruptcyCases(state).filter(row => bankruptcyFilterMatches(row, filter));
+  }
+
   function evictionStatusTone(status = "") {
     const normalized = normalizeEvictionStatus(status);
     if (["Account Current", "Stipulation Completed / Account Current", "Stipulation Active"].includes(normalized)) return "green";
+    if (normalized === "Bankruptcy Hold") return "violet";
     if (["Pending Hearing", "Payment Verification Required"].includes(normalized)) return "amber";
     if (["Pending Judgment", "Judgment Entered", "Ready to File"].includes(normalized)) return "orange";
     if (["Pending Writ", "Writ Ordered"].includes(normalized)) return "dark-orange";
@@ -7860,6 +8249,19 @@
       assignedJudge: cleanString(caseRecord.assignedJudge),
       attorney: cleanString(caseRecord.attorney),
       attorneyContact: cleanString(caseRecord.attorneyContact),
+      bankruptcyStatus: cleanString(caseRecord.bankruptcyStatus) || (status === "Bankruptcy Hold" ? "Bankruptcy Hold" : ""),
+      accountClassification: normalizeBankruptcyAccountClassification(caseRecord.accountClassification || caseRecord.accountType, caseRecord),
+      flexPlanStatus: cleanString(caseRecord.flexPlanStatus || caseRecord.flexPlan),
+      bankruptcyChapter: cleanString(caseRecord.bankruptcyChapter || caseRecord.chapter),
+      bankruptcyNoticeDate: normalizeDate(caseRecord.bankruptcyNoticeDate || caseRecord.bankruptcyReceivedDate || caseRecord.bankruptcyFiledDate),
+      bankruptcyAttorneyName: cleanString(caseRecord.bankruptcyAttorneyName || caseRecord.bankruptcyAttorney || caseRecord.debtorAttorney),
+      bankruptcyAttorneyPhone: cleanString(caseRecord.bankruptcyAttorneyPhone || caseRecord.debtorAttorneyPhone),
+      bankruptcyAttorneyEmail: cleanString(caseRecord.bankruptcyAttorneyEmail || caseRecord.debtorAttorneyEmail).toLowerCase(),
+      accountingNotifiedDate: normalizeDate(caseRecord.accountingNotifiedDate || caseRecord.accountingNotifiedAt),
+      attorneyNotifiedDate: normalizeDate(caseRecord.attorneyNotifiedDate || caseRecord.attorneyNotifiedAt),
+      collectionAgencyNotifiedDate: normalizeDate(caseRecord.collectionAgencyNotifiedDate || caseRecord.collectionAgencyNotifiedAt || caseRecord.collectionsNotifiedDate),
+      hearingOutcome: cleanString(caseRecord.hearingOutcome),
+      bankruptcyNotes: cleanString(caseRecord.bankruptcyNotes),
       attorneyActivity: asArray(caseRecord.attorneyActivity),
       courtReceivedFunds,
       stipulation: {
@@ -7897,6 +8299,8 @@
         ? asArray(caseRecord.activity)
         : [{ at: importedAt, label: "Delinquency imported into eviction workflow.", user: "ATLAS" }]
     };
+    if (bankruptcyCaseHasLegalSignal(normalized) && !cleanString(normalized.bankruptcyStatus)) normalized.bankruptcyStatus = "Bankruptcy Hold";
+    if (normalized.bankruptcyStatus === "Bankruptcy Hold" && normalized.status === "Delinquency Review") normalized.status = "Bankruptcy Hold";
     return refreshEvictionDerivedFields(normalized);
   }
 
@@ -8211,6 +8615,18 @@
       assignedJudge: cleanString(findEvictionAliasedValue(row, "assignedJudge")),
       attorney: cleanString(findEvictionAliasedValue(row, "attorney")),
       attorneyContact: cleanString(findEvictionAliasedValue(row, "attorneyContact")),
+      bankruptcyStatus: cleanString(findEvictionAliasedValue(row, "bankruptcyStatus")) || (status === "Bankruptcy Hold" ? "Bankruptcy Hold" : ""),
+      accountClassification: normalizeBankruptcyAccountClassification(findEvictionAliasedValue(row, "accountClassification"), { delinquentBalance, status }),
+      flexPlanStatus: cleanString(findEvictionAliasedValue(row, "flexPlanStatus")),
+      bankruptcyChapter: cleanString(findEvictionAliasedValue(row, "bankruptcyChapter")),
+      bankruptcyNoticeDate: evictionDateFieldValue(row, "bankruptcyNoticeDate"),
+      bankruptcyAttorneyName: cleanString(findEvictionAliasedValue(row, "bankruptcyAttorneyName")),
+      bankruptcyAttorneyPhone: cleanString(findEvictionAliasedValue(row, "bankruptcyAttorneyPhone")),
+      bankruptcyAttorneyEmail: cleanString(findEvictionAliasedValue(row, "bankruptcyAttorneyEmail")).toLowerCase(),
+      accountingNotifiedDate: evictionDateFieldValue(row, "accountingNotifiedDate"),
+      attorneyNotifiedDate: evictionDateFieldValue(row, "attorneyNotifiedDate"),
+      collectionAgencyNotifiedDate: evictionDateFieldValue(row, "collectionAgencyNotifiedDate"),
+      hearingOutcome: cleanString(findEvictionAliasedValue(row, "hearingOutcome")),
       notes: cleanString(findEvictionAliasedValue(row, "notes")),
       activity: [{
         at: importedAt,
@@ -9740,7 +10156,7 @@
     return {
       title: "Renewal Performance Report",
       generatedAt: new Date(),
-      scopeLabel: state.ui.propertyId === "all" ? "All ATLAS properties" : state.ui.propertyId,
+      scopeLabel: state.ui.propertyId === "all" ? "Active ATLAS properties" : state.ui.propertyId,
       scopeMode: selectedPeriodOnly ? "month" : "year",
       year: selectedYear(state),
       selectedPeriodLabel: monthYearLabel(selectedMonthIdx(state), selectedYear(state)),
@@ -10074,7 +10490,7 @@
       title: "ATLAS Eviction Report",
       generatedAt: new Date(),
       selectedPeriodLabel: monthYearLabel(monthIdx, year),
-      scopeLabel: state.ui.propertyId === "all" ? "All ATLAS properties" : state.ui.propertyId,
+      scopeLabel: state.ui.propertyId === "all" ? "Active ATLAS properties" : state.ui.propertyId,
       rows,
       metrics: {
         importedCases: rows.length,
@@ -10162,7 +10578,7 @@
       @media print{body{padding:16px}.metrics{grid-template-columns:repeat(4,minmax(0,1fr))}}
     </style></head><body>
       <h1>${escapeHtml(payload.title || "ATLAS Eviction Report")}</h1>
-      <p>${escapeHtml(payload.scopeLabel || "All ATLAS properties")} · ${escapeHtml(payload.selectedPeriodLabel || "")} · generated ${escapeHtml(payload.generatedAt?.toLocaleString?.() || "")}</p>
+      <p>${escapeHtml(payload.scopeLabel || "Active ATLAS properties")} · ${escapeHtml(payload.selectedPeriodLabel || "")} · generated ${escapeHtml(payload.generatedAt?.toLocaleString?.() || "")}</p>
       <div class="metrics">${metricCells.map(([label, value]) => `<div class="metric"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div>
       <h2>Stipulation Financial Summary</h2>
       <table><tbody>
@@ -10344,6 +10760,11 @@
       state.ui.evictionView = EVICTION_WORKSPACE_VIEWS.some(([key]) => key === filter) ? filter : "active";
       state.ui.workflowFilter = "all";
     }
+    if (state.ui.module === "bankruptcy") {
+      const requested = cleanString(filter) || "all";
+      state.ui.bankruptcyFilter = BANKRUPTCY_FILTER_OPTIONS.some(([key]) => key === requested) ? requested : "all";
+      state.ui.workflowFilter = "all";
+    }
     saveState(state);
     renderActiveTab();
   };
@@ -10384,6 +10805,11 @@
     } else if (type === "vendor" || type === "vendorInfraction") {
       state.ui.module = "vendors";
       state.ui.selectedVendorId = recordId;
+    } else if (type === "bankruptcy") {
+      state.ui.module = "bankruptcy";
+      state.ui.selectedEvictionId = recordId;
+      const requested = cleanString(filter) || "hold";
+      state.ui.bankruptcyFilter = BANKRUPTCY_FILTER_OPTIONS.some(([key]) => key === requested) ? requested : "all";
     } else if (type === "dispute") {
       state.ui.module = "disputes";
       state.ui.selectedDisputeId = recordId;
@@ -10418,6 +10844,10 @@
       }
       if (state.ui.module === "evictions") {
         state.ui.evictionView = EVICTION_WORKSPACE_VIEWS.some(([key]) => key === recordId) ? recordId : state.ui.evictionView || "active";
+        state.ui.workflowFilter = "all";
+      }
+      if (state.ui.module === "bankruptcy") {
+        state.ui.bankruptcyFilter = BANKRUPTCY_FILTER_OPTIONS.some(([key]) => key === recordId) ? recordId : state.ui.bankruptcyFilter || "all";
         state.ui.workflowFilter = "all";
       }
     }
@@ -11403,6 +11833,23 @@
     renderActiveTab();
   };
 
+  window.atlasCsSetBankruptcyFilter = function (value) {
+    const state = loadState();
+    const requested = cleanString(value) || "all";
+    state.ui.bankruptcyFilter = BANKRUPTCY_FILTER_OPTIONS.some(([key]) => key === requested) ? requested : "all";
+    state.ui.module = "bankruptcy";
+    saveState(state);
+    renderActiveTab();
+  };
+
+  window.atlasCsOpenBankruptcyCase = function (id) {
+    const state = loadState();
+    state.ui.selectedEvictionId = cleanString(id);
+    state.ui.module = "bankruptcy";
+    saveState(state);
+    renderActiveTab();
+  };
+
   window.atlasCsSelectEviction = function (id) {
     const state = loadState();
     state.ui.selectedEvictionId = cleanString(id);
@@ -11445,6 +11892,19 @@
       "assignedJudge",
       "attorney",
       "attorneyContact",
+      "bankruptcyStatus",
+      "accountClassification",
+      "flexPlanStatus",
+      "bankruptcyChapter",
+      "bankruptcyNoticeDate",
+      "bankruptcyAttorneyName",
+      "bankruptcyAttorneyPhone",
+      "bankruptcyAttorneyEmail",
+      "accountingNotifiedDate",
+      "attorneyNotifiedDate",
+      "collectionAgencyNotifiedDate",
+      "hearingOutcome",
+      "bankruptcyNotes",
       "nextAction",
       "notes",
       "noticeDate",
@@ -11469,15 +11929,21 @@
       const stipField = field.split(".")[1];
       item.stipulation[stipField] = stipField === "originalAmount" ? numberValue(value) : stipField === "startDate" ? normalizeDate(value) : cleanString(value);
       if (item.status !== "Stipulation Active") item.status = "Stipulation Active";
-    } else if (["noticeDate", "fileDate", "complaintFiledDate", "hearingDate", "judgmentDate", "writRequestedDate", "writDate", "writPostedDate", "possessionDate", "completionDate"].includes(field)) {
+    } else if (["noticeDate", "fileDate", "complaintFiledDate", "hearingDate", "judgmentDate", "writRequestedDate", "writDate", "writPostedDate", "possessionDate", "completionDate", "bankruptcyNoticeDate", "accountingNotifiedDate", "attorneyNotifiedDate", "collectionAgencyNotifiedDate"].includes(field)) {
       item[field] = normalizeDate(value);
       maybeAdvanceEvictionFromDate(item, field);
     } else if (field === "owner") {
       item.owner = cleanString(value);
       item.assignedCentralServicesUser = cleanString(value);
+    } else if (field === "accountClassification") {
+      item.accountClassification = normalizeBankruptcyAccountClassification(value, item);
+    } else if (field === "bankruptcyStatus") {
+      item.bankruptcyStatus = cleanString(value);
+      if (normalizeKey(value).includes("hold")) item.status = "Bankruptcy Hold";
     } else {
       item[field] = cleanString(value);
     }
+    if (bankruptcyCaseHasSignal(item) && !cleanString(item.bankruptcyStatus)) item.bankruptcyStatus = "Bankruptcy Hold";
     refreshEvictionDerivedFields(item);
     pushEvictionActivity(item, `Updated ${field.replace("stipulation.", "stipulation ")}.`);
     addAudit(state, "Updated eviction case", { id, field });

@@ -371,6 +371,23 @@ const REGIONS = {
   jax:{name:'JAX Development / Construction',short:'JAX Dev / GC'},
   corporate:{name:'Corporate / Shared Services',short:'Corporate'}
 };
+const CORPORATE_SPECIALTY_OPTIONS = ['Centra','Accounting','Marketing','Development','Facilities','IT'];
+const CORPORATE_SPECIALTY_ALIASES = {
+  centra: 'Centra',
+  central: 'Centra',
+  'central service': 'Centra',
+  'central services': 'Centra',
+  accounting: 'Accounting',
+  finance: 'Accounting',
+  marketing: 'Marketing',
+  development: 'Development',
+  construction: 'Development',
+  facilities: 'Facilities',
+  maintenance: 'Facilities',
+  it: 'IT',
+  technology: 'IT',
+  'information technology': 'IT'
+};
 const MEETING_LABEL_OPTIONS = [
   {value:'1:1',label:'1:1'},
   {value:'Initial presentation of PIP/Coaching plan',label:'Initial presentation of PIP/Coaching plan'},
@@ -762,6 +779,37 @@ function normalizeOptionalNumber(value){
   return Number.isFinite(number) ? number : '';
 }
 
+function normalizeCorporateSpecialty(value){
+  const text = String(value == null ? '' : value).trim();
+  if(!text) return '';
+  const exact = CORPORATE_SPECIALTY_OPTIONS.find(option => option.toLowerCase() === text.toLowerCase());
+  if(exact) return exact;
+  const key = normalizeComparable(text).replace(/\s+/g, ' ').trim();
+  return CORPORATE_SPECIALTY_ALIASES[key] || '';
+}
+
+function inferCorporateSpecialtyFromText(...values){
+  const joined = values.map(value => String(value == null ? '' : value)).filter(Boolean).join(' ');
+  const direct = normalizeCorporateSpecialty(joined);
+  if(direct) return direct;
+  const key = normalizeComparable(joined);
+  return Object.entries(CORPORATE_SPECIALTY_ALIASES).find(([alias]) => {
+    if(alias.length <= 2) return key.split(/\s+/).includes(alias);
+    return key.includes(alias);
+  })?.[1] || '';
+}
+
+function isCorporateSharedServicesEmployee(employee){
+  const source = employee || {};
+  if(source.region === 'corporate') return true;
+  const haystack = normalizeComparable([
+    source.department,
+    source.community,
+    source.region && REGIONS[source.region] ? REGIONS[source.region].name : source.region
+  ].join(' '));
+  return haystack.includes('corporate') || haystack.includes('shared service') || haystack.includes('shared services');
+}
+
 function readAtlasEmbeddedAccessUser(){
   if(!ATLAS_EMBEDDED_MODE) return null;
   let profile = null;
@@ -798,6 +846,7 @@ function normalizeEmployee(employee){
     regionalManagerName: String(employee && employee.regionalManagerName || '').trim(),
     email: String(employee && employee.email || '').trim(),
     department: String(employee && employee.department || '').trim(),
+    corporateSpecialty: normalizeCorporateSpecialty(employee && (employee.corporateSpecialty || employee.corporate_specialty || employee.sharedServicesDepartment || employee.shared_service_department || employee.centralServicesDepartment || employee.central_services_department)) || inferCorporateSpecialtyFromText(employee && employee.department),
     employeeNumber: String(employee && employee.employeeNumber || '').trim(),
     statusType: String(employee && employee.statusType || '').trim(),
     status: String(employee && employee.status || 'Active').trim(),
@@ -1900,6 +1949,7 @@ function filteredRosterEmployees(){
         employee.role,
         employee.community,
         employee.department,
+        employee.corporateSpecialty,
         managerDisplayName(employee),
         regionalManagerDisplayName(employee)
       ].join(' '));
@@ -3700,6 +3750,7 @@ function parseCompanyRosterSheet(rows){
       managerName,
       email: record['Work Email'],
       department,
+      corporateSpecialty: record['Corporate Specialty'] || inferCorporateSpecialtyFromText(department, record['Job Title']),
       employeeNumber: record['Employee Number'],
       payrollEmployeeId: record['Employee Number'],
       statusType: record['Status Type'],
@@ -6400,6 +6451,17 @@ function renderPeopleHistoryStatusPanel(){
   `;
 }
 
+function renderCorporateSpecialtyCell(employee){
+  if(!isCorporateSharedServicesEmployee(employee)){
+    return '<span class="small muted">Site / field</span>';
+  }
+  return `<select onchange="updateEmployeeField('${escapeAttr(employee.id)}','corporateSpecialty', this.value)">
+    <option value="">Select team</option>
+    ${CORPORATE_SPECIALTY_OPTIONS.map(option => `<option value="${escapeAttr(option)}" ${employee.corporateSpecialty === option ? 'selected' : ''}>${escapeHtml(option)}</option>`).join('')}
+  </select>
+  <div class="tiny muted" style="margin-top:6px">${employee.corporateSpecialty === 'Centra' ? 'Counts as Central Services' : 'Corporate / Shared Services team'}</div>`;
+}
+
 function renderEmployees(){
   const employees = sortedVisibleEmployees();
   const filteredEmployees = filteredRosterEmployees();
@@ -6409,6 +6471,8 @@ function renderEmployees(){
   const defaultRegionalManagerId = '';
   const defaultRegion = currentDefaultRegion();
   const defaultCommunity = currentDefaultCommunity();
+  const showCorporateSpecialtyColumn = filteredEmployees.some(isCorporateSharedServicesEmployee);
+  const rosterColumnCount = showCorporateSpecialtyColumn ? 11 : 10;
 
   return `
     <div class="page">
@@ -6422,7 +6486,7 @@ function renderEmployees(){
           </div>
           <div class="file-box">
             <strong>Upload employee roster</strong>
-            <div class="small muted">Accepted columns: Name, Community, Effective Date, Region, Role, Department, Work Email, Employee Number, Status, Status Type, Manager, Manager ID, Regional Manager, Regional Manager ID, Bonus Eligible, Bonus Plan, Bonus Effective Date, Target Bonus, Salary, Payroll / Employee ID, Bonus Role, Override Plan, or Bonus Plan Status</div>
+            <div class="small muted">Accepted columns: Name, Community, Effective Date, Region, Role, Department, Corporate Specialty, Work Email, Employee Number, Status, Status Type, Manager, Manager ID, Regional Manager, Regional Manager ID, Bonus Eligible, Bonus Plan, Bonus Effective Date, Target Bonus, Salary, Payroll / Employee ID, Bonus Role, Override Plan, or Bonus Plan Status</div>
             <div style="margin-top:12px">
               <input id="roster-upload" type="file" accept=".csv,.xlsx,.xls" onchange="handleRosterUpload(event)">
             </div>
@@ -6616,6 +6680,7 @@ function renderEmployees(){
                   <th>Role</th>
                   <th>Community</th>
                   <th>Area</th>
+                  ${showCorporateSpecialtyColumn ? '<th>Corporate Specialty</th>' : ''}
                   <th>Status</th>
                   <th>Bonus</th>
                   <th>Active Plans</th>
@@ -6650,6 +6715,7 @@ function renderEmployees(){
                           ${Object.entries(REGIONS).map(([key,value]) => `<option value="${key}" ${employee.region === key ? 'selected' : ''}>${value.short}</option>`).join('')}
                         </select>
                       </td>
+                      ${showCorporateSpecialtyColumn ? `<td>${renderCorporateSpecialtyCell(employee)}</td>` : ''}
                       <td>
                         <span class="badge ${isEmployeeTerminated(employee) ? 'badge-alert' : 'badge-active'}">${escapeHtml(employeeStatusLabel(employee))}</span>
                         ${employee.terminationDate ? `<div class="tiny muted" style="margin-top:6px">${formatDate(employee.terminationDate)}${employee.terminationReason ? ` · ${escapeHtml(employee.terminationReason)}` : ''}</div>` : ''}
@@ -6687,7 +6753,7 @@ function renderEmployees(){
                       </td>
                     </tr>
                   `;
-                }).join('') : `<tr><td colspan="10"><div class="alert alert-info">No employees matched the current roster filters.</div></td></tr>`}
+                }).join('') : `<tr><td colspan="${rosterColumnCount}"><div class="alert alert-info">No employees matched the current roster filters.</div></td></tr>`}
               </tbody>
             </table>
           </div>
@@ -7067,6 +7133,7 @@ function upsertEmployeeRecord(record){
     };
     if(normalized.email) existing.email = normalized.email;
     if(normalized.department) existing.department = normalized.department;
+    if(normalized.corporateSpecialty) existing.corporateSpecialty = normalized.corporateSpecialty;
     if(normalized.employeeNumber) existing.employeeNumber = normalized.employeeNumber;
     ['bonusEligible','bonusPlan','bonusEffectiveDate','targetBonus','salary','payrollEmployeeId','bonusRole','overridePlan','bonusPlanStatus'].forEach(field => {
       if(field === 'bonusEligible'){
@@ -7085,6 +7152,7 @@ function upsertEmployeeRecord(record){
           email: existing.email,
           employeeNumber: existing.employeeNumber,
           department: existing.department,
+          corporateSpecialty: existing.corporateSpecialty,
           bonusEligible: existing.bonusEligible,
           bonusPlan: existing.bonusPlan,
           bonusEffectiveDate: existing.bonusEffectiveDate,
@@ -7565,6 +7633,7 @@ function handleRosterUpload(event){
       const effectiveDateIndex = headers.findIndex(header => header.includes('effective date') || header.includes('effective start') || header === 'effective');
       const regionIndex = headers.findIndex(header => header.includes('region') || header.includes('area'));
       const departmentIndex = headers.findIndex(header => header.includes('department'));
+      const corporateSpecialtyIndex = headers.findIndex(header => header.includes('corporate specialty') || header.includes('shared service') || header.includes('central services team') || header.includes('corporate team'));
       const emailIndex = headers.findIndex(header => header.includes('email'));
       const numberIndex = headers.findIndex(header => header.includes('employee number') || header.includes('employee #') || header.includes('number'));
       const statusIndex = headers.findIndex(header => header === 'status' || header.includes('employment status'));
@@ -7623,6 +7692,7 @@ function handleRosterUpload(event){
             regionalManagerId,
             regionalManagerName,
             department: departmentIndex >= 0 ? String(row[departmentIndex] || '').trim() : '',
+            corporateSpecialty: corporateSpecialtyIndex >= 0 ? normalizeCorporateSpecialty(row[corporateSpecialtyIndex]) : inferCorporateSpecialtyFromText(departmentIndex >= 0 ? row[departmentIndex] : ''),
             email: emailIndex >= 0 ? String(row[emailIndex] || '').trim() : '',
             employeeNumber: numberIndex >= 0 ? String(row[numberIndex] || '').trim() : '',
             status: statusIndex >= 0 ? String(row[statusIndex] || '').trim() || 'Active' : 'Active',
@@ -7660,9 +7730,9 @@ function handleRosterUpload(event){
 
 function downloadRosterTemplate(){
   const csv = [
-    '"Name","Community","Effective Date","Region","Role","Department","Work Email","Employee Number","Status","Status Type","Manager","Regional Manager","Bonus Eligible","Bonus Plan","Bonus Effective Date","Target Bonus","Salary","Payroll / Employee ID","Bonus Role","Override Plan","Bonus Plan Status"',
-    '"Jane Smith","Nocatee","2026-08-01","east","Leasing Professional","LP - Nocatee","jane.smith@risere.com","681151","Active","Full Time","Olivia Gill","Alana Savoi","Yes","Leasing Production Monthly Incentive","2026-08-01","950","54000","681151","Leasing Professional","","Active"',
-    '"John Doe","Pilots Pointe","2026-08-01","east","Leasing Manager","LM - Pilots Pointe","john.doe@risere.com","681152","Active","Full Time","Marcus Dall","Ashley Brov","Yes","General Manager - Lease-Up Community Plan","2026-08-01","3600","92000","681152","General Manager","","Active"'
+    '"Name","Community","Effective Date","Region","Role","Department","Corporate Specialty","Work Email","Employee Number","Status","Status Type","Manager","Regional Manager","Bonus Eligible","Bonus Plan","Bonus Effective Date","Target Bonus","Salary","Payroll / Employee ID","Bonus Role","Override Plan","Bonus Plan Status"',
+    '"Jane Smith","Nocatee","2026-08-01","east","Leasing Professional","LP - Nocatee","","jane.smith@risere.com","681151","Active","Full Time","Olivia Gill","Alana Savoi","Yes","Leasing Production Monthly Incentive","2026-08-01","950","54000","681151","Leasing Professional","","Active"',
+    '"John Doe","Corporate","2026-08-01","corporate","Accounting Specialist","Corporate / Shared Services","Accounting","john.doe@risere.com","681152","Active","Full Time","Marcus Dall","Ashley Browne","No","","","","","681152","","","Active"'
   ].join('\n');
   const link = document.createElement('a');
   link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
@@ -7688,6 +7758,7 @@ function downloadFilteredRosterExport(){
     'Work Email',
     'Employee Number',
     'Department',
+    'Corporate Specialty',
     'Role',
     'Community',
     'Area / Region',
@@ -7715,6 +7786,7 @@ function downloadFilteredRosterExport(){
       employee.email || '',
       employee.employeeNumber || '',
       employee.department || '',
+      employee.corporateSpecialty || '',
       employee.role || '',
       employee.community || '',
       employee.region && REGIONS[employee.region] ? REGIONS[employee.region].name : (employee.region || ''),

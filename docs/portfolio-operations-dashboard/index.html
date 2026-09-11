@@ -1329,9 +1329,9 @@
 </div>
 
 <script src="./atlas_historical_restore_data.js"></script>
-<script src="./atlas-mounts.js?v=20260910-embedded-fixes"></script>
+<script src="./atlas-mounts.js?v=20260911-central-services-roster"></script>
 <script src="./centralization/atlas-central-client.js?v=20260909-activation-email" data-atlas-central-client="true"></script>
-<script src="./central-services.js?v=20260904-memo-delete"></script>
+<script src="./central-services.js?v=20260911-bankruptcy-tracker"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260902-application-intelligence">
 <script src="./application-performance.js?v=20260904-application-scope"></script>
 <script src="./application-performance-ui.js?v=20260910-scope-health"></script>
@@ -1497,6 +1497,18 @@ const DATA_IMPORT_REPORT_TYPES = {
     patterns: ["application id", "applicant", "application status", "approval date", "lease signed date", "cancelled date"],
     dependencies: ["Leasing Performance Dashboard", "Applications Dashboard", "Bonus Engine", "Reporting", "Leasing Professional Performance"],
     primaryFields: ["application_id", "resident", "application_date", "approval_date", "application_status", "lease_signed_date"]
+  },
+  entrata_vendor_list: {
+    label: "Entrata Vendor List",
+    sourceSystems: ["Entrata"],
+    freshness: { label: "Prepared intake", days: 365 },
+    sourceRank: 25,
+    active: false,
+    planned: true,
+    aliases: ["vendor list", "vendor code export", "entrata vendor", "vendor profile migration"],
+    patterns: ["vendor code", "vendor name", "compliance status", "insurance expiration", "tax id"],
+    dependencies: ["Facilities", "Maintenance", "Vendor Profiles", "Compliance"],
+    primaryFields: ["vendor_code", "vendor_name", "vendor_status", "insurance_expiration", "compliance_status"]
   }
 };
 const DATA_IMPORT_FIELD_ALIASES = {
@@ -6780,6 +6792,8 @@ function normalizeSharedEmployeeRecord(employee = {}) {
     email: String(source.email ?? "").trim().toLowerCase(),
     name: String(source.name ?? "").trim(),
     title: String(source.title ?? source.role ?? "").trim(),
+    department: String(source.department ?? source.Department ?? "").trim(),
+    corporateSpecialty: String(source.corporateSpecialty ?? source.corporate_specialty ?? source.sharedServicesDepartment ?? source.shared_service_department ?? source.centralServicesDepartment ?? source.central_services_department ?? "").trim(),
     status: String(source.status ?? "Active").trim() || "Active",
     statusType: String(source.statusType ?? "").trim(),
     terminationDate: normalizeSharedDate(source.terminationDate),
@@ -6920,6 +6934,8 @@ function normalizePeopleEmployeeForSharedData(employee = {}, meta = {}) {
     email: employee.email,
     name: employee.name,
     title,
+    department: employee.department,
+    corporateSpecialty: employee.corporateSpecialty,
     status: employee.status || "Active",
     statusType: employee.statusType,
     terminationDate: employee.terminationDate,
@@ -16948,6 +16964,11 @@ function atlasEmbeddedPeopleRosterEntries() {
         employeeNumber: String(employee.employeeNumber || "").trim(),
         email: String(employee.email || "").trim().toLowerCase(),
         fullName: String(employee.name || employee.fullName || "").trim(),
+        role: String(employee.role || employee.title || "").trim(),
+        department: String(employee.department || "").trim(),
+        corporateSpecialty: String(employee.corporateSpecialty || employee.corporate_specialty || "").trim(),
+        communityName: String(employee.community || employee.communityName || "").trim(),
+        region: String(employee.region || "").trim(),
         status: String(employee.status || "").trim(),
         active: true,
         source: "embedded_roster"

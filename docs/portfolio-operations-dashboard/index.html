@@ -2826,8 +2826,32 @@ function atlasRenderSharedSelectOptions(values, currentValue) {
   return [`<option value="">Select</option>`].concat(allValues.map(value => `<option value="${escapeHtml(value)}" ${value === cleanCurrent ? "selected" : ""}>${escapeHtml(value)}</option>`)).join("");
 }
 
+function getAtlasRegionalGroupingOptions(currentValue = "") {
+  const regionValues = [];
+  const seen = new Set();
+  const addRegion = value => {
+    const clean = String(value ?? "").trim();
+    const key = atlasNormalizeSharedText(clean);
+    if (!clean || key === "unassigned" || seen.has(key)) return;
+    seen.add(key);
+    regionValues.push(clean);
+  };
+  normalizeCommunityCommandState(communityCommandState).regions
+    .filter(region => region && region.active !== false)
+    .forEach(region => addRegion(region.name));
+  buildAtlasRegionManagementRows()
+    .filter(region => region && region.active !== false)
+    .forEach(region => addRegion(region.name));
+  Object.values(savedData || {}).forEach(record => addRegion(record?.communityRegionalGrouping));
+  Object.values(readAtlasSharedPropertyGraph().properties || {}).forEach(record => addRegion(record?.regionalGrouping));
+  addRegion(currentValue);
+  return regionValues.sort((a, b) => a.localeCompare(b));
+}
+
 function renderPortfolioSharedPropertyFields() {
   const sharedRecord = getAtlasSharedRecordForPortfolioName(getProp().name);
+  const regionalGroupingValue = String(communityRegionalGrouping || communityMarket || "").trim();
+  const regionalGroupingOptions = getAtlasRegionalGroupingOptions(regionalGroupingValue);
   const reviewFlags = Array.from(new Set([
     ...(Array.isArray(sharedRecord?.reviewFlags) ? sharedRecord.reviewFlags : []),
     ...(Array.isArray(communitySharedSyncMeta?.reviewFlags) ? communitySharedSyncMeta.reviewFlags : [])
@@ -2850,11 +2874,7 @@ function renderPortfolioSharedPropertyFields() {
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px">
         <div>
           <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Market / Region</div>
-          <select style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" onchange="updateCommunitySharedField('market', this.value)">${atlasRenderSharedSelectOptions(ATLAS_SHARED_VALID_MARKETS, communityMarket)}</select>
-        </div>
-        <div>
-          <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Regional Grouping</div>
-          <input type="text" value="${escapeHtml(communityRegionalGrouping)}" placeholder="e.g. Central Florida" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" onchange="updateCommunitySharedField('regionalGrouping', this.value)">
+          <select style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" onchange="updateCommunitySharedField('regionalGrouping', this.value)">${atlasRenderSharedSelectOptions(regionalGroupingOptions, regionalGroupingValue)}</select>
         </div>
         <div>
           <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Property Type</div>

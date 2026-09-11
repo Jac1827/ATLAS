@@ -593,9 +593,18 @@
   border-radius: 8px;
   background: var(--cs-wash);
   color: var(--cs-blue-dark);
+  cursor: pointer;
+  font-family: inherit;
   font-size: 0.9rem;
   font-weight: 850;
   padding: 0 8px;
+}
+
+.cs-dashboard-widget-count:hover,
+.cs-dashboard-widget-count:focus-visible {
+  box-shadow: 0 0 0 3px rgba(35, 122, 118, 0.12);
+  outline: none;
+  transform: translateY(-1px);
 }
 
 .cs-dashboard-widget-count[data-urgency="green"] {

@@ -616,7 +616,7 @@
       defaultSize: "expanded",
       defaultMetric: "Open Items",
       description: "Assigned tasks, due today, overdue, waiting, follow-up, and recently completed work for the logged-in user.",
-      columns: ["Item", "Type", "Due", "Status", "Follow-Up"],
+      columns: ["Property", "Resident", "Apt #", "Type", "Due", "Status"],
       visualizations: ["Table", "Cards", "KPI"]
     },
     {
@@ -787,7 +787,7 @@
       defaultSize: "expanded",
       defaultMetric: "Upcoming",
       description: "Residents on notice whose lifecycle has started before the inspection stage.",
-      columns: ["Resident", "Property", "Unit", "Scheduled Move-Out", "Days", "Possession", "Inspection", "Assigned CS User"],
+      columns: ["Property", "Resident", "Apt #", "Type", "Scheduled Move-Out", "Days", "Possession", "Inspection", "Assigned"],
       visualizations: ["Table", "Cards", "KPI"]
     },
     {
@@ -3998,13 +3998,17 @@
   }
 
   function centralDashboardPropertySet(state, widget = {}) {
-    if (widget.propertyScope === "all") return new Set(getPortfolioProperties().map(property => property.name));
-    if (widget.propertyScope === "single" && widget.propertyName) return new Set([widget.propertyName]);
+    if (widget.propertyScope === "all") return new Set(getPortfolioProperties().filter(property => property.active !== false).map(property => property.name));
+    if (widget.propertyScope === "single" && widget.propertyName) {
+      const property = getPortfolioProperties().find(item => item.name === widget.propertyName);
+      return property && property.active !== false ? new Set([property.name]) : new Set();
+    }
     return new Set(getScopedProperties(state).map(property => property.name));
   }
 
   function rowMatchesCentralDashboardScope(state, widget, record = {}) {
-    const propertyName = dashboardPropertyNameForRecord(record);
+    let propertyName = dashboardPropertyNameForRecord(record);
+    if (!propertyName && record.sourceCaseId) propertyName = dashboardPropertyNameForRecord(findMoveOutCase(state, record.sourceCaseId) || {});
     if (!propertyName) return true;
     return centralDashboardPropertySet(state, widget).has(propertyName);
   }
@@ -4257,33 +4261,43 @@
       }, { ...base, recordType: morf.id ? "morf" : "moveOut", id: morf.id || caseRecord.id, module: "morfs", priority: 60 });
     }
     return centralDashboardRow({
-      "Resident": caseRecord.residentName,
       "Property": caseRecord.propertyName,
-      "Unit": caseRecord.unit || "n/a",
+      "Resident": caseRecord.residentName,
+      "Apt #": caseRecord.unit || "n/a",
+      "Type": "Move-Out",
       "Scheduled Move-Out": formatDate(caseRecord.scheduledMoveOutDate) || "Not dated",
       "Days": dashboardDaysLabel(caseRecord.scheduledMoveOutDate),
       "Possession": caseRecord.possessionStatus || "Not Confirmed",
       "Inspection": caseRecord.inspectionStatus || "Not Scheduled",
-      "Assigned CS User": caseRecord.assignedCentralServicesUser || caseRecord.owner || "Unassigned"
+      "Assigned": caseRecord.assignedCentralServicesUser || caseRecord.owner || "Unassigned"
     }, base);
   }
 
-  function dashboardTaskRow(task = {}, widget = {}) {
-    const dueDelta = daysUntil(task.dueDate);
+  function dashboardTaskRow(task = {}, widget = {}, state = null) {
+    const linkedMoveOut = state && task.sourceCaseId ? findMoveOutCase(state, task.sourceCaseId) : null;
+    const propertyName = task.propertyName || linkedMoveOut?.propertyName || "";
+    const residentName = task.residentName || linkedMoveOut?.residentName || "";
+    const unit = task.unit || linkedMoveOut?.unit || "";
+    const scheduledMoveOutDate = normalizeDate(task.scheduledMoveOutDate || linkedMoveOut?.scheduledMoveOutDate || linkedMoveOut?.moveOutDate);
+    const dueDate = normalizeDate(task.dueDate || scheduledMoveOutDate || linkedMoveOut?.inspectionDate);
+    const dueDelta = daysUntil(dueDate);
     const status = dueDelta !== null && dueDelta < 0 && task.status !== "Completed" ? "Overdue" : task.status || "Open";
-    const age = task.dueDate ? Math.max(0, -1 * (dueDelta || 0)) : 0;
+    const age = dueDate ? Math.max(0, -1 * (dueDelta || 0)) : 0;
+    const dueLabel = formatDate(dueDate) || (linkedMoveOut && !scheduledMoveOutDate ? "Missing scheduled move-out" : "Not dated");
     return centralDashboardRow({
       "Item": task.title || task.type || "Task",
       "Task": task.title || task.type || "Task",
       "Type": task.type || "Task",
-      "Property": task.propertyName || "",
-      "Property / Unit": [task.propertyName, task.unit ? `Unit ${task.unit}` : ""].filter(Boolean).join(" / "),
-      "Resident": task.residentName || "",
+      "Property": propertyName,
+      "Property / Unit": [propertyName, unit ? `Unit ${unit}` : ""].filter(Boolean).join(" / "),
+      "Resident": residentName,
+      "Apt #": unit || "n/a",
       "Owner": task.owner || "Unassigned",
       "Assigned": task.owner || "Unassigned",
       "Regional": task.assignedRegional || task.regional || "",
       "Vendor": task.vendor || task.vendorName || "",
-      "Due": formatDate(task.dueDate) || "Not dated",
+      "Due": dueLabel,
+      "Scheduled Move-Out": formatDate(scheduledMoveOutDate) || "Missing from NTV / resident data",
       "Age": age ? `${age} days` : "0 days",
       "Status": status,
       "Follow-Up": task.followUpRequired || task.waitingOn || task.status || ""
@@ -4292,9 +4306,9 @@
       recordType: "task",
       module: widget.module || "tasks",
       title: task.title || task.type,
-      subtitle: [task.propertyName, task.residentName].filter(Boolean).join(" / "),
+      subtitle: [propertyName, residentName].filter(Boolean).join(" / "),
       status,
-      dueDate: task.dueDate,
+      dueDate,
       completedAt: task.completedAt,
       ageDays: age,
       priority: status === "Overdue" ? 80 : dueDelta === 0 ? 70 : 35
@@ -4391,7 +4405,7 @@
         return (text.includes("po") || text.includes("purchase order")) && (text.includes("regional") || text.includes("approval"));
       })
       .map(task => {
-        const row = dashboardTaskRow(task, widget);
+        const row = dashboardTaskRow(task, widget, state);
         row.fields["PO #"] = task.poNumber || task.sourcePoId || task.id;
         row.fields["Vendor"] = task.vendorName || task.vendor || "";
         row.fields["Amount"] = formatMoney(task.amount) || "$0";
@@ -4672,13 +4686,16 @@
         .filter(task => rowMatchesCentralDashboardScope(state, widget, task))
         .filter(task => widget.dateRange === "Recently Completed" ? task.status === "Completed" : task.status !== "Completed")
         .filter(task => ownerMatchesCurrentActor(task.owner, task.ownerEmployeeId, task.ownerEmail))
-        .map(task => dashboardTaskRow(task, widget));
+        .map(task => dashboardTaskRow(task, widget, state));
       const inspectionRows = state.inspections
         .filter(inspection => rowMatchesCentralDashboardScope(state, widget, inspection))
         .filter(inspection => ownerMatchesCurrentActor(inspection.inspectorName, inspection.inspectorEmployeeId, inspection.inspectorEmail))
         .filter(inspection => !isInspectionApprovedStatus(inspection.status))
         .map(inspection => centralDashboardRow({
           "Item": inspection.templateName,
+          "Property": inspection.propertyName || "",
+          "Resident": inspection.residentName || "",
+          "Apt #": inspection.unit || "n/a",
           "Type": "Inspection",
           "Due": formatDate(inspection.inspectionDate) || "Not dated",
           "Status": inspection.status,
@@ -4698,6 +4715,9 @@
         .filter(morf => ownerMatchesCurrentActor(morf.processor, morf.processorEmployeeId, morf.processorEmail))
         .map(morf => centralDashboardRow({
           "Item": `MORF - ${morf.residentName}`,
+          "Property": morf.propertyName || "",
+          "Resident": morf.residentName || "",
+          "Apt #": morf.unit || "n/a",
           "Type": "MORF",
           "Due": formatDate(morf.internalDueDate || morf.legalDeadline) || "Not dated",
           "Status": morf.status,
@@ -4743,7 +4763,7 @@
       "Opened": formatDate(dispute.openedAt || dispute.createdAt) || "Not dated"
     }, { id: dispute.id, recordType: "dispute", module: "disputes", title: dispute.residentName || dispute.id, subtitle: dispute.status, status: dispute.status, primaryDate: dispute.openedAt || dispute.createdAt, priority: dispute.status === "Dispute Open" ? 70 : 35 })));
     if (widget.widgetKey === "sla_exceptions") {
-      const taskRows = state.tasks.filter(task => rowMatchesCentralDashboardScope(state, widget, task)).filter(task => task.status !== "Completed" && daysUntil(task.dueDate) !== null && daysUntil(task.dueDate) < 0).map(task => dashboardTaskRow(task, widget));
+      const taskRows = state.tasks.filter(task => rowMatchesCentralDashboardScope(state, widget, task)).filter(task => task.status !== "Completed" && daysUntil(task.dueDate) !== null && daysUntil(task.dueDate) < 0).map(task => dashboardTaskRow(task, widget, state));
       const morfRows = getActiveScopedMorfs(state).filter(morf => rowMatchesCentralDashboardScope(state, widget, morf)).filter(morf => daysUntil(morf.internalDueDate) !== null && daysUntil(morf.internalDueDate) < 0).map(morf => centralDashboardRow({
         "Item": `MORF - ${morf.residentName}`,
         "Property / Unit": `${morf.propertyName} / Unit ${morf.unit || "n/a"}`,
@@ -4754,7 +4774,7 @@
       }, { id: morf.id, recordType: "morf", module: "morfs", title: morf.residentName, status: morf.status, dueDate: morf.internalDueDate, priority: 90 }));
       return centralDashboardPrepareRows(state, widget, [...taskRows, ...morfRows]);
     }
-    if (widget.widgetKey === "task_aging") return centralDashboardPrepareRows(state, widget, state.tasks.filter(task => task.status !== "Completed").filter(task => rowMatchesCentralDashboardScope(state, widget, task)).map(task => dashboardTaskRow(task, widget)));
+    if (widget.widgetKey === "task_aging") return centralDashboardPrepareRows(state, widget, state.tasks.filter(task => task.status !== "Completed").filter(task => rowMatchesCentralDashboardScope(state, widget, task)).map(task => dashboardTaskRow(task, widget, state)));
     if (widget.widgetKey === "morf_pipeline") {
       return WORKFLOW_BUCKET_CONFIGS.filter(([key]) => ["morfReady", "morfInProgress", "waiting", "risk", "sent", "archived"].includes(key)).map(([key, label]) => centralDashboardRow({
         "Stage": label,
@@ -4853,17 +4873,18 @@
         .filter(task => task.status !== "Completed")
         .filter(task => rowMatchesCentralDashboardScope(state, widget, task))
         .filter(task => normalizeKey([task.waitingOn, task.status, task.title, task.type].join(" ")).includes(target))
-        .map(task => dashboardTaskRow(task, widget)));
+        .map(task => dashboardTaskRow(task, widget, state)));
     }
     return centralDashboardPrepareRows(state, widget, []);
   }
 
-  function renderCentralDashboardTable(definition = {}, rows = []) {
+  function renderCentralDashboardTable(definition = {}, rows = [], options = {}) {
     const columns = asArray(definition.columns).length ? definition.columns : Object.keys(asObject(rows[0]?.fields));
+    const limit = Math.max(1, whole(options.limit) || 8);
     return `<div class="cs-table-wrap cs-dashboard-table-wrap">
       <table class="cs-table cs-dashboard-table">
-        <thead><tr>${columns.map(column => `<th>${escapeHtml(column)}</th>`).join("")}<th></th></tr></thead>
-        <tbody>${rows.slice(0, 8).map(row => `<tr class="${row.priority >= 80 ? "cs-row-danger" : ""}">
+        <thead><tr>${columns.map(column => `<th>${escapeHtml(column)}</th>`).join("")}<th>Open</th></tr></thead>
+        <tbody>${rows.slice(0, limit).map(row => `<tr class="${row.priority >= 80 ? "cs-row-danger" : ""}">
           ${columns.map(column => `<td>${escapeHtml(row.fields?.[column] || "")}</td>`).join("")}
           <td class="right">
             <button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsOpenDashboardRecord('${escapeAttr(row.recordType)}','${escapeAttr(row.id)}','${escapeAttr(row.module)}','${escapeAttr(row.filter)}')">Open</button>
@@ -4952,14 +4973,14 @@
             ? renderCentralDashboardPipeline(rows)
             : visualization === "Chart"
               ? renderCentralDashboardChart(rows)
-              : renderCentralDashboardTable(definition, rows);
+              : renderCentralDashboardTable(definition, rows, { limit: widget.size === "full" ? 50 : 8 });
     return `<section class="cs-dashboard-widget is-${escapeAttr(widget.size)} ${definition.priority ? "is-priority" : ""}" data-tone="${escapeAttr(definition.tone || "")}">
       <div class="cs-dashboard-widget-head">
         <div>
           <div class="cs-dashboard-widget-kicker">${escapeHtml(definition.category || "Central Services")}</div>
           <h3>${escapeHtml(definition.label || "Dashboard Widget")}</h3>
         </div>
-        <div class="cs-dashboard-widget-count" data-urgency="${escapeAttr(urgency)}" title="${escapeAttr(definition.defaultMetric || "Open records")}">${escapeHtml(formatNumber(rows.length))}</div>
+        <button type="button" class="cs-dashboard-widget-count" data-urgency="${escapeAttr(urgency)}" title="Expand this work bucket" onclick="atlasCsDashboardExpandWidget('${escapeAttr(widget.instanceId)}')">${escapeHtml(formatNumber(rows.length))}</button>
       </div>
       ${!widget.collapsed ? `<p>${escapeHtml(definition.description || "")}</p>` : ""}
       <div class="cs-dashboard-widget-body">${body}</div>
@@ -9082,9 +9103,12 @@
       type: "Move-Out",
       propertyName: prepared.propertyName,
       residentName: prepared.residentName,
+      unit: prepared.unit,
+      scheduledMoveOutDate: prepared.scheduledMoveOutDate,
+      ntvReceivedDate: prepared.ntvReceivedDate,
       title: `Confirm possession for ${prepared.residentName}`,
       owner: prepared.owner || "Unassigned",
-      dueDate: inspectionDate || prepared.scheduledMoveOutDate || TODAY_ISO,
+      dueDate: prepared.scheduledMoveOutDate || inspectionDate || prepared.ntvReceivedDate || TODAY_ISO,
       status: "Open",
       priority: "High",
       createdAt
@@ -9781,7 +9805,8 @@
   }
 
   function findMoveOutCase(state, id) {
-    return state.moveOutCases.find(item => item.id === id);
+    const target = cleanString(id);
+    return state.moveOutCases.find(item => cleanString(item.id) === target);
   }
 
   function pushCaseActivity(caseRecord, label, details = {}) {
@@ -10784,6 +10809,76 @@
     return setCentralDashboardPreferences(state, next);
   }
 
+  function taskIsMoveOutPossessionConfirmation(task = {}) {
+    const text = normalizeKey([
+      task.type,
+      task.title,
+      task.followUpRequired,
+      task.waitingOn,
+      task.status
+    ].join(" "));
+    return Boolean(cleanString(task.sourceCaseId)) && text.includes("move out") && (text.includes("possession") || text.includes("confirm"));
+  }
+
+  function closeMoveOutPossessionTasks(state, caseId, completedAt = new Date().toISOString()) {
+    const targetCaseId = cleanString(caseId);
+    if (!targetCaseId) return;
+    state.tasks = asArray(state.tasks);
+    state.tasks.forEach(task => {
+      if (cleanString(task.sourceCaseId) !== targetCaseId || !taskIsMoveOutPossessionConfirmation(task)) return;
+      task.status = "Completed";
+      task.completedAt = task.completedAt || completedAt;
+    });
+  }
+
+  function routeTaskRecordInState(state, task = {}) {
+    const taskId = cleanString(task.id);
+    state.ui.selectedTaskId = taskId;
+    if (task.sourceMorfId) {
+      state.ui.module = "morfs";
+      state.ui.selectedMorfId = task.sourceMorfId;
+      return true;
+    }
+    if (task.sourceInspectionId) {
+      state.ui.module = "inspections";
+      state.ui.selectedInspectionId = task.sourceInspectionId;
+      return true;
+    }
+    if (task.sourceCaseId) {
+      state.ui.module = "moveOuts";
+      state.ui.selectedMoveOutId = task.sourceCaseId;
+      state.ui.workflowFilter = "all";
+      return true;
+    }
+    if (task.sourceRenewalId) {
+      state.ui.module = "renewals";
+      state.ui.selectedRenewalId = task.sourceRenewalId;
+      return true;
+    }
+    state.ui.module = "tasks";
+    return true;
+  }
+
+  function releaseMoveOutCaseForInspection(state, caseRecord, date, options = {}) {
+    const actualDate = normalizeDate(date);
+    if (!caseRecord || !actualDate) return null;
+    const employees = getCentralServicesEmployees();
+    let morf = confirmPossessionForCase(state, caseRecord, actualDate, employees);
+    const inspection = createMoveOutInspection(state, caseRecord, employees);
+    morf = ensureMorfForMoveOutCase(state, caseRecord, employees) || morf;
+    closeMoveOutPossessionTasks(state, caseRecord.id);
+    const task = options.taskId ? state.tasks.find(item => cleanString(item.id) === cleanString(options.taskId)) : null;
+    if (task) {
+      task.status = "Completed";
+      task.completedAt = task.completedAt || new Date().toISOString();
+    }
+    state.ui.module = "inspections";
+    state.ui.selectedInspectionId = inspection?.id || "";
+    state.ui.selectedMorfId = morf?.id || "";
+    state.ui.selectedMoveOutId = caseRecord.id;
+    return { inspection, morf };
+  }
+
   window.atlasCsOpenDashboardRecord = function (recordType, id, module, filter) {
     const state = loadState();
     const type = cleanString(recordType);
@@ -10800,8 +10895,13 @@
       state.ui.module = module === "archive" ? "archive" : "morfs";
       state.ui.selectedMorfId = recordId;
     } else if (type === "task" || type === "po") {
-      state.ui.module = "tasks";
-      state.ui.selectedTaskId = recordId;
+      const task = state.tasks.find(item => cleanString(item.id) === recordId);
+      if (type === "task" && task) {
+        routeTaskRecordInState(state, task);
+      } else {
+        state.ui.module = "tasks";
+        state.ui.selectedTaskId = recordId;
+      }
     } else if (type === "vendor" || type === "vendorInfraction") {
       state.ui.module = "vendors";
       state.ui.selectedVendorId = recordId;
@@ -10942,6 +11042,25 @@
 
   window.atlasCsDashboardSetWidgetSize = function (instanceId, size) {
     window.atlasCsDashboardUpdateWidget(instanceId, "size", size);
+  };
+
+  window.atlasCsDashboardExpandWidget = function (instanceId) {
+    const state = loadState();
+    const target = cleanString(instanceId);
+    updateCentralDashboardPreferences(state, prefs => ({
+      ...prefs,
+      widgets: prefs.widgets.map(widget => {
+        if (widget.instanceId !== target) return widget;
+        return {
+          ...widget,
+          size: widget.size === "full" ? "expanded" : "full",
+          collapsed: false,
+          updatedAt: new Date().toISOString()
+        };
+      })
+    }));
+    saveState(state);
+    renderActiveTab();
   };
 
   window.atlasCsDashboardToggleWidget = function (instanceId, field) {
@@ -12297,13 +12416,7 @@
       alert("Actual Possession Returned Date is required before possession can be confirmed.");
       return;
     }
-    const employees = getCentralServicesEmployees();
-    let morf = confirmPossessionForCase(state, item, date, employees);
-    const inspection = createMoveOutInspection(state, item, employees);
-    morf = ensureMorfForMoveOutCase(state, item, employees) || morf;
-    state.ui.module = "inspections";
-    state.ui.selectedInspectionId = inspection?.id || "";
-    state.ui.selectedMorfId = morf?.id || "";
+    releaseMoveOutCaseForInspection(state, item, date);
     addAudit(state, "Marked possession returned", { caseId: id, possessionReturnedDate: date });
     saveState(state);
     renderActiveTab();
@@ -12977,32 +13090,33 @@
 
   window.atlasCsOpenTask = function (id) {
     const state = loadState();
-    const task = state.tasks.find(item => item.id === id);
+    const task = state.tasks.find(item => cleanString(item.id) === cleanString(id));
     if (!task) return;
-    state.ui.selectedTaskId = id;
-    if (task.sourceMorfId) {
-      state.ui.module = "morfs";
-      state.ui.selectedMorfId = task.sourceMorfId;
-    } else if (task.sourceInspectionId) {
-      state.ui.module = "inspections";
-      state.ui.selectedInspectionId = task.sourceInspectionId;
-    } else if (task.sourceCaseId) {
-      state.ui.module = "moveOuts";
-      state.ui.selectedMoveOutId = task.sourceCaseId;
-    } else if (task.sourceRenewalId) {
-      state.ui.module = "renewals";
-      state.ui.selectedRenewalId = task.sourceRenewalId;
-    } else {
-      state.ui.module = "tasks";
-    }
+    routeTaskRecordInState(state, task);
     saveState(state);
     renderActiveTab();
   };
 
   window.atlasCsToggleTask = function (id) {
     const state = loadState();
-    const task = state.tasks.find(item => item.id === id);
+    const task = state.tasks.find(item => cleanString(item.id) === cleanString(id));
     if (!task) return;
+    if (task.status !== "Completed" && taskIsMoveOutPossessionConfirmation(task)) {
+      const item = findMoveOutCase(state, task.sourceCaseId);
+      if (item) {
+        const existingPossessionDate = getActualPossessionDate(item);
+        const promptedDate = existingPossessionDate || normalizeDate(prompt("Enter the Actual Possession Returned Date to complete possession confirmation and release the Move-Out Inspection."));
+        if (!promptedDate) {
+          alert("Actual Possession Returned Date is required before this move-out task can move to inspection processing.");
+          return;
+        }
+        releaseMoveOutCaseForInspection(state, item, promptedDate, { taskId: task.id });
+        addAudit(state, "Completed possession confirmation task and opened Move-Out Inspection", { taskId: task.id, caseId: item.id, possessionReturnedDate: promptedDate });
+        saveState(state);
+        renderActiveTab();
+        return;
+      }
+    }
     task.status = task.status === "Completed" ? "Open" : "Completed";
     task.completedAt = task.status === "Completed" ? new Date().toISOString() : "";
     addAudit(state, `${task.status === "Completed" ? "Completed" : "Reopened"} task`, { id });

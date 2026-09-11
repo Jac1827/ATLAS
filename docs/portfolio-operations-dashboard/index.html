@@ -1444,67 +1444,113 @@ const WINDOWSHADE_DEFAULTS = {
 const DATA_IMPORT_2_STATE_KEY = "atlas_data_import_2_state_v1";
 const DATA_IMPORT_FILE_ARCHIVE_PREFIX = "atlas_data_import_source_file:";
 const DATA_IMPORT_MAX_SAMPLE_CHARS = 180000;
-const DATA_IMPORT_REPORT_ORDER = ["box_score", "rent_roll", "trending_occupancy", "marketing_iq", "renewal_tracker", "leasing_resident_data"];
+const DATA_IMPORT_REPORT_ORDER = ["community_data", "box_score", "trending_occupancy", "leasing_resident_data", "rent_roll", "delinquency", "renewal_tracker", "marketing_iq", "approved_accounting"];
+const DATA_IMPORT_LEASING_MANAGED_COMMUNITIES = [
+  "Anthem House", "Ivy & Elm", "Pilots Pointe at LSUS", "Prosper on Fayette", "RISE 34th",
+  "Bartram Park", "Baymeadows", "Citrus Ridge", "Doro", "Florence Villa", "Sereno",
+  "St Augustine", "The Preserve at Tech"
+];
+const DATA_IMPORT_MAINTENANCE_ONLY_COMMUNITIES = ["NJIT - Maple Hall"];
+const DATA_IMPORT_REFERENCE_COMMUNITIES = ["Glen Kernan Park", "Viera", "Sutton House"];
 const DATA_IMPORT_REPORT_TYPES = {
+  community_data: {
+    label: "Community Data",
+    sourceSystems: ["Entrata", "ATLAS"],
+    freshness: { label: "When Community Foundation changes", days: 365 },
+    sourceRank: 110,
+    serviceScope: "foundation",
+    aliases: ["community data", "community master", "property master", "property data", "community foundation"],
+    patterns: ["community id", "pms property code", "owner entity", "portfolio reporting active", "leasing managed", "maintenance managed"],
+    dependencies: ["Community Foundation", "Community Settings", "Portfolio Reporting", "Data Health"],
+    primaryFields: ["community_id", "community_name", "pms_property_code", "total_units", "owner_entity", "community_status", "community_address", "leasing_managed", "maintenance_managed", "portfolio_reporting_active"]
+  },
   box_score: {
     label: "Box Score",
     sourceSystems: ["Entrata"],
-    freshness: { label: "1 business day", days: 1, businessDays: true },
+    freshness: { label: "Weekly · stale after a missed scheduled business day", days: 8, businessDays: true },
     sourceRank: 100,
+    serviceScope: "leasing",
     aliases: ["box score", "daily box score", "daily leasing report", "dlr", "daily occupancy"],
-    patterns: ["occupied no notice", "notice rented", "vacant rented", "physical occupancy", "leased occupancy", "availability"],
-    dependencies: ["Portfolio Dashboard", "DLR", "RISE Portfolio Leasing Weekly Report", "Occupancy KPIs", "Trending Metrics"],
-    primaryFields: ["physical_occupancy", "leased_occupancy", "occupied_units", "leased_units", "applications", "move_ins", "move_outs"]
+    patterns: ["occupied no notice", "notice rented", "notice unrented", "vacant rented", "vacant unrented", "physical occupancy", "availability"],
+    dependencies: ["Community Overview", "Floor Plans", "Leasing Performance", "Application Performance", "Portfolio Dashboard", "DLR", "Weekly Leasing Report"],
+    primaryFields: ["total_units", "rentable_units", "occupied_units", "occupied_no_notice", "notice_rented", "notice_unrented", "vacant_rented", "vacant_unrented", "physical_occupancy", "leased_occupancy", "floorplan_code", "avg_market_rent_budgeted", "avg_scheduled_rent", "avg_ner", "new_leads", "applications"]
   },
   rent_roll: {
     label: "Rent Roll",
     sourceSystems: ["Entrata", "APTIQ"],
-    freshness: { label: "Monthly", days: 35 },
+    freshness: { label: "Weekly · stale after a missed scheduled business day", days: 8, businessDays: true },
     sourceRank: 75,
+    serviceScope: "leasing",
     aliases: ["rent roll", "rentroll", "unit rent roll", "resident rent roll"],
-    patterns: ["lease start", "lease end", "market rent", "resident name", "unit"],
-    dependencies: ["Occupancy KPIs", "Budget Builder", "Property Reporting", "Portfolio Reporting"],
-    primaryFields: ["market_rent", "net_effective_rent", "lease_start", "lease_end", "unit", "resident"]
+    patterns: ["lease start", "lease end", "market rent", "resident name", "unit", "charge code", "scheduled charges"],
+    dependencies: ["Rent Performance", "Central Services", "Economic Occupancy", "Budget Builder", "Property Reporting"],
+    primaryFields: ["lease_id", "resident", "unit", "charge_code", "actual_charges", "scheduled_charges", "resident_balance", "deposit_held", "market_rent", "net_effective_rent", "lease_start", "lease_end"]
   },
   trending_occupancy: {
     label: "Trending Occupancy",
     sourceSystems: ["Entrata"],
-    freshness: { label: "Weekly", days: 7 },
+    freshness: { label: "Weekly · stale after a missed scheduled business day", days: 8, businessDays: true },
     sourceRank: 70,
+    serviceScope: "leasing",
     aliases: ["trending occupancy", "occupancy trend", "projected occupancy", "occupancy trending"],
-    patterns: ["upcoming move-out", "pending move-ins", "projected occupancy", "forecast occupancy"],
-    dependencies: ["Trending Occupancy", "DLR", "Weekly Leasing Report", "Portfolio Reporting"],
-    primaryFields: ["trending_occupancy", "pending_move_ins", "pending_move_outs", "projected_occupancy"]
+    patterns: ["beginning occupancy", "ending occupancy", "move ins", "move outs", "forecast occupancy", "closed actual"],
+    dependencies: ["Occupancy Trend", "Exposure Forecast", "DLR", "Weekly Leasing Report", "Portfolio Reporting"],
+    primaryFields: ["beginning_occupancy", "ending_occupancy", "move_ins", "move_outs", "reported_actual", "reported_forecast", "closed_actual"]
   },
   marketing_iq: {
-    label: "Marketing IQ",
+    label: "AptIQ Marketing Survey",
     sourceSystems: ["APTIQ", "Entrata"],
-    freshness: { label: "Weekly", days: 7 },
+    freshness: { label: "Every Monday · one business-day grace", days: 8, businessDays: true },
     sourceRank: 60,
-    aliases: ["marketing iq", "marketingiq", "market iq", "marketing source"],
-    patterns: ["lead source", "source performance", "marketing source", "prospect source", "internet listing service"],
-    dependencies: ["Marketing", "Traffic & Funnel", "Leasing Performance", "Portfolio Reporting"],
+    serviceScope: "leasing",
+    aliases: ["aptiq marketing survey", "aptiq market survey", "marketing iq", "marketingiq", "market iq", "marketing survey"],
+    patterns: ["competitor", "asking rent", "concession", "survey week", "floor plan", "submarket"],
+    dependencies: ["Marketing Performance", "Market Survey", "Comp Calculator", "Rent Performance"],
     primaryFields: ["lead_source", "guest_cards", "tours", "applications", "leases_signed"]
   },
   renewal_tracker: {
     label: "Renewal Tracker",
     sourceSystems: ["Entrata"],
-    freshness: { label: "Weekly", days: 7 },
+    freshness: { label: "Annual upfront or quarterly refresh", days: 95 },
     sourceRank: 82,
-    aliases: ["renewal tracker", "renewals", "renewal report", "renewal schedule"],
+    serviceScope: "leasing",
+    aliases: ["renewal tracker", "resident expirations", "renewals", "renewal report", "renewal schedule"],
     patterns: ["renewal status", "expiration date", "notice to vacate", "ntv", "renewal offer"],
-    dependencies: ["Central Services Renewal Tracker", "Renewal KPI", "Bonus Engine", "Portfolio Reporting"],
+    dependencies: ["Renewal Management", "Exposure Forecast", "Central Services Renewal Tracker", "Renewal KPI", "Bonus Engine"],
     primaryFields: ["renewal_expirations", "renewals_signed", "renewal_ntvs", "renewal_status"]
   },
   leasing_resident_data: {
-    label: "Leasing Resident Data",
+    label: "Resident Data",
     sourceSystems: ["Entrata", "APTIQ"],
-    freshness: { label: "1 business day", days: 1, businessDays: true },
+    freshness: { label: "Weekly · stale after a missed scheduled business day", days: 8, businessDays: true },
     sourceRank: 88,
+    serviceScope: "leasing",
     aliases: ["leasing resident data", "resident data", "application resident data", "application data", "resident leasing"],
     patterns: ["application id", "applicant", "application status", "approval date", "lease signed date", "cancelled date"],
-    dependencies: ["Leasing Performance Dashboard", "Applications Dashboard", "Bonus Engine", "Reporting", "Leasing Professional Performance"],
-    primaryFields: ["application_id", "resident", "application_date", "approval_date", "application_status", "lease_signed_date"]
+    dependencies: ["Central Services Leasing", "Leasing Performance Dashboard", "Applications Dashboard", "Bonus Engine", "Exposure Forecast"],
+    primaryFields: ["application_id", "lease_id", "resident", "application_date", "approval_date", "application_status", "lease_signed_date", "move_in_date", "unit", "email", "phone"]
+  },
+  delinquency: {
+    label: "Delinquency",
+    sourceSystems: ["Entrata"],
+    freshness: { label: "Configured monthly due date", days: 35 },
+    sourceRank: 90,
+    serviceScope: "leasing",
+    aliases: ["delinquency", "delinquency report", "aged receivables", "resident balance", "past due report"],
+    patterns: ["past due", "current due", "unpaid rent", "credits", "prepayments", "resident balance"],
+    dependencies: ["Central Services Collections", "Evictions", "Economic Occupancy", "Community Reporting"],
+    primaryFields: ["post_month", "resident", "lease_id", "unit", "unpaid_rent", "unpaid_other", "unpaid_deposit", "past_due", "current_due", "credits", "prepayments", "resident_balance", "lease_status", "notes"]
+  },
+  approved_accounting: {
+    label: "Approved Accounting Report",
+    sourceSystems: ["Entrata", "Approved Accounting"],
+    freshness: { label: "Monthly", days: 35 },
+    sourceRank: 78,
+    serviceScope: "reporting",
+    aliases: ["approved accounting", "general ledger", "gl detail", "income statement", "balance sheet", "financial report"],
+    patterns: ["gl account", "account code", "debit", "credit", "actual amount", "gross potential rent"],
+    dependencies: ["Financial Reporting", "Budget Builder", "Economic Occupancy", "Portfolio Reporting"],
+    primaryFields: ["gl_account", "charge_code", "actual_charges", "scheduled_charges", "gross_potential_rent", "revenue_metric", "expense_metric"]
   },
   entrata_vendor_list: {
     label: "Entrata Vendor List",
@@ -1520,11 +1566,41 @@ const DATA_IMPORT_REPORT_TYPES = {
   }
 };
 const DATA_IMPORT_FIELD_ALIASES = {
+  community_id: ["community id", "property id", "atlas community id"],
+  community_name: ["community name", "property name", "site name"],
+  pms_property_code: ["pms property code", "property code", "site code", "pms code"],
+  owner_entity: ["owner entity", "ownership entity", "legal owner", "owner"],
+  community_status: ["community status", "property status", "active flag", "status"],
+  community_address: ["community address", "property address", "site address", "address"],
+  leasing_managed: ["leasing managed", "leasing management", "leasing service"],
+  maintenance_managed: ["maintenance managed", "maintenance management", "maintenance service"],
+  portfolio_reporting_active: ["portfolio reporting active", "reporting active", "include in portfolio reporting"],
+  total_units: ["total units", "unit count", "units", "total apartments"],
+  rentable_units: ["rentable units", "comparable units", "total rentable"],
   physical_occupancy: ["occ %", "occupancy %", "physical occupancy", "current occupancy", "occupied %", "property occ", "physical occ"],
   leased_occupancy: ["leased %", "leased occupancy", "leased occ", "preleased %"],
   trending_occupancy: ["trending occupancy", "projected occupancy", "forecast occupancy", "90 day projection"],
+  beginning_occupancy: ["beginning occupancy", "beginning occupied", "begin occupancy"],
+  ending_occupancy: ["ending occupancy", "ending occupied", "end occupancy"],
+  reported_actual: ["reported actual", "month actual", "actual occupancy"],
+  reported_forecast: ["reported forecast", "month forecast", "forecast occupancy"],
+  closed_actual: ["closed actual", "final actual", "closed month actual"],
   occupied_units: ["occupied units", "occupied", "occ units", "occupied apartments"],
   leased_units: ["leased units", "leased", "signed leases"],
+  occupied_no_notice: ["occupied no notice", "occupied - no notice", "occ no notice"],
+  notice_rented: ["notice rented", "on notice rented"],
+  notice_unrented: ["notice unrented", "on notice unrented"],
+  vacant_rented: ["vacant rented", "vacant leased"],
+  vacant_unrented: ["vacant unrented", "vacant available"],
+  available_units: ["available units", "available", "exposure units"],
+  floorplan_code: ["floor plan code", "floorplan code", "unit type", "floor plan", "floorplan"],
+  floorplan_sqft: ["square feet", "sq ft", "sqft", "square footage"],
+  bedrooms: ["bedrooms", "beds", "bed"],
+  bathrooms: ["bathrooms", "baths", "bath"],
+  avg_market_rent_budgeted: ["avg market rent budgeted", "average market rent budgeted", "budgeted market rent"],
+  avg_scheduled_rent: ["avg scheduled rent", "average scheduled rent", "scheduled rent"],
+  avg_ner: ["avg ner", "average ner", "average net effective rent"],
+  new_leads: ["new leads", "new lead", "lead count"],
   applications: ["applications", "apps", "application count", "applied"],
   approvals: ["approvals", "approved", "approved apps", "approved applications"],
   denied_applications: ["denied applications", "denials", "denied apps", "declined applications"],
@@ -1553,6 +1629,7 @@ const DATA_IMPORT_FIELD_ALIASES = {
   market_rent: ["market rent", "market", "asking rent"],
   net_effective_rent: ["net effective rent", "ner", "effective rent"],
   application_id: ["application id", "app id", "application number"],
+  lease_id: ["lease id", "lease number", "resident lease id"],
   resident: ["resident", "resident name", "applicant", "applicant name"],
   resident_name: ["resident full name", "primary resident", "resident contact"],
   application_date: ["application date", "applied date", "date applied"],
@@ -1563,18 +1640,41 @@ const DATA_IMPORT_FIELD_ALIASES = {
   unit_number: ["unit #", "apartment number", "apt number"],
   floorplan: ["floorplan", "floor plan", "unit type"],
   current_rent: ["current rent", "rent amount", "lease rent"],
+  email: ["email", "email address", "resident email", "applicant email"],
+  phone: ["phone", "phone number", "mobile", "resident phone"],
+  charge_code: ["charge code", "transaction code", "gl code", "account code"],
+  gl_account: ["gl account", "general ledger account", "account number", "gl code"],
+  actual_charges: ["actual charges", "actual charge", "charges", "rent charges"],
+  scheduled_charges: ["scheduled charges", "scheduled charge", "scheduled rent"],
+  resident_balance: ["resident balance", "balance", "total balance", "amount due"],
+  deposit_held: ["deposit held", "security deposit", "deposit balance"],
+  post_month: ["post month", "posting month", "period", "report month"],
+  unpaid_rent: ["unpaid rent", "rent unpaid", "rent delinquency"],
+  unpaid_other: ["unpaid other", "other unpaid", "other charges due"],
+  unpaid_deposit: ["unpaid deposit", "deposit due"],
+  past_due: ["past due", "past due balance", "prior balance"],
+  current_due: ["current due", "current balance", "current charges due"],
+  credits: ["credits", "credit balance", "resident credits"],
+  prepayments: ["prepayments", "prepayment", "prepaid rent"],
+  lease_status: ["lease status", "resident status", "occupancy status"],
+  notes: ["notes", "comments", "memo"],
+  gross_potential_rent: ["gross potential rent", "gpr", "potential rent"],
   revenue_metric: ["revenue", "income", "total income"],
   expense_metric: ["expense", "operating expense", "opex"],
   budget_field: ["budget", "budget amount", "forecast amount"]
 };
 const DATA_IMPORT_DESTINATION_GROUPS = [
   {
+    label: "Community Foundation",
+    fields: ["community_id", "community_name", "pms_property_code", "total_units", "owner_entity", "community_status", "community_address", "leasing_managed", "maintenance_managed", "portfolio_reporting_active"]
+  },
+  {
     label: "Leasing",
     fields: ["applications", "approvals", "denied_applications", "cancelled_applications", "lease_signed_date", "move_in_date", "leasing_professional", "application_status"]
   },
   {
     label: "Occupancy",
-    fields: ["physical_occupancy", "leased_occupancy", "trending_occupancy", "occupied_units", "leased_units", "move_ins", "move_outs", "pending_move_ins", "pending_move_outs"]
+    fields: ["physical_occupancy", "leased_occupancy", "trending_occupancy", "beginning_occupancy", "ending_occupancy", "reported_actual", "reported_forecast", "closed_actual", "occupied_units", "leased_units", "occupied_no_notice", "notice_rented", "notice_unrented", "vacant_rented", "vacant_unrented", "available_units", "move_ins", "move_outs", "pending_move_ins", "pending_move_outs"]
   },
   {
     label: "Renewals",
@@ -1586,11 +1686,11 @@ const DATA_IMPORT_DESTINATION_GROUPS = [
   },
   {
     label: "Resident / Unit",
-    fields: ["resident", "resident_name", "unit", "unit_number", "floorplan", "current_rent", "lease_start", "lease_end", "application_id", "application_date"]
+    fields: ["resident", "resident_name", "unit", "unit_number", "floorplan", "floorplan_code", "floorplan_sqft", "bedrooms", "bathrooms", "current_rent", "lease_start", "lease_end", "application_id", "lease_id", "application_date", "email", "phone"]
   },
   {
     label: "Financial / Other",
-    fields: ["market_rent", "net_effective_rent", "revenue_metric", "expense_metric", "budget_field"]
+    fields: ["market_rent", "net_effective_rent", "avg_market_rent_budgeted", "avg_scheduled_rent", "avg_ner", "charge_code", "gl_account", "actual_charges", "scheduled_charges", "resident_balance", "deposit_held", "post_month", "unpaid_rent", "unpaid_other", "unpaid_deposit", "past_due", "current_due", "credits", "prepayments", "lease_status", "gross_potential_rent", "revenue_metric", "expense_metric", "budget_field", "notes"]
   }
 ];
 const DATA_IMPORT_ISSUE_LABELS = {
@@ -1600,6 +1700,9 @@ const DATA_IMPORT_ISSUE_LABELS = {
   unmapped: "Unmapped Data",
   conflict: "Conflicting Data",
   duplicate: "Duplicate Data",
+  revision: "Corrected Revision",
+  held: "Held Data",
+  reconciliation: "Reconciliation Issue",
   low_confidence: "Low Confidence Mapping",
   unsupported: "Unsupported File"
 };
@@ -47321,16 +47424,33 @@ function defaultDataImportSourceDefinitions() {
     expectedFrequency: def.freshness?.label || "",
     expectedFields: (def.primaryFields || []).map(dataImportCanonicalFieldLabel).join(", "),
     modules: (def.dependencies || []).join(", "),
-    active: true,
+    active: def.active !== false,
     locked: true,
     createdAt: "",
     updatedBy: "ATLAS"
   }));
 }
 
+function defaultDataImportFreshnessPolicies() {
+  return Object.fromEntries(DATA_IMPORT_REPORT_ORDER.map(reportType => {
+    const def = dataImportGetReportDef(reportType);
+    return [reportType, {
+      reportType,
+      cadence: def?.freshness?.label || "Configured schedule",
+      scheduledDay: reportType === "marketing_iq" ? "Monday" : reportType === "delinquency" ? "Configured due date" : "Business day",
+      graceBusinessDays: reportType === "marketing_iq" ? 1 : 0,
+      thresholdDays: Number(def?.freshness?.days || 7),
+      businessDays: def?.freshness?.businessDays === true,
+      action: "warn_send",
+      updatedAt: "",
+      updatedBy: "ATLAS"
+    }];
+  }));
+}
+
 function defaultDataImport2State() {
   return {
-    schema: "atlas_data_import_2_v1",
+    schema: "atlas_data_import_2_v2",
     activeView: "overview",
     pendingBatch: null,
     batches: [],
@@ -47339,6 +47459,11 @@ function defaultDataImport2State() {
     mappingRules: defaultDataImportMappingRules(),
     propertyAliases: defaultDataImportPropertyAliases(),
     sourceDefinitions: defaultDataImportSourceDefinitions(),
+    freshnessPolicies: defaultDataImportFreshnessPolicies(),
+    canonicalRecords: [],
+    lineage: [],
+    reconciliationLog: [],
+    closedPeriods: [],
     customFields: [],
     mappingAuditTrail: [],
     mappingDrafts: {},
@@ -47443,6 +47568,16 @@ function normalizeDataImport2State(input = {}) {
   const mappingDrafts = state.mappingDrafts && typeof state.mappingDrafts === "object" && !Array.isArray(state.mappingDrafts)
     ? Object.fromEntries(Object.entries(state.mappingDrafts).map(([key, value]) => [String(key), String(value || "")]))
     : {};
+  const freshnessPolicies = { ...fallback.freshnessPolicies };
+  Object.entries(state.freshnessPolicies && typeof state.freshnessPolicies === "object" ? state.freshnessPolicies : {}).forEach(([reportType, policy]) => {
+    if (!dataImportGetReportDef(reportType)) return;
+    freshnessPolicies[reportType] = {
+      ...freshnessPolicies[reportType],
+      ...(policy && typeof policy === "object" ? policy : {}),
+      reportType,
+      action: policy?.action === "block_hold" ? "block_hold" : "warn_send"
+    };
+  });
   return {
     ...fallback,
     activeView: ["overview","upload","health","exceptions","mapping","aliases","history","archive"].includes(state.activeView) ? state.activeView : fallback.activeView,
@@ -47453,6 +47588,11 @@ function normalizeDataImport2State(input = {}) {
     mappingRules: Array.from(mappingById.values()),
     propertyAliases: Array.from(aliasByKey.values()),
     sourceDefinitions: Array.from(sourceById.values()),
+    freshnessPolicies,
+    canonicalRecords: (Array.isArray(state.canonicalRecords) ? state.canonicalRecords : []).filter(Boolean).slice(0, 12000),
+    lineage: (Array.isArray(state.lineage) ? state.lineage : []).filter(Boolean).slice(0, 12000),
+    reconciliationLog: (Array.isArray(state.reconciliationLog) ? state.reconciliationLog : []).filter(Boolean).slice(0, 1200),
+    closedPeriods: (Array.isArray(state.closedPeriods) ? state.closedPeriods : []).map(String).filter(Boolean).slice(0, 180),
     customFields: Array.from(customFieldById.values()),
     mappingAuditTrail: (Array.isArray(state.mappingAuditTrail) ? state.mappingAuditTrail : []).filter(Boolean).slice(0, 140),
     mappingDrafts,
@@ -47475,6 +47615,9 @@ function serializeDataImport2State() {
     batches: (dataImport2State.batches || []).slice(0, 60),
     exceptions: (dataImport2State.exceptions || []).slice(0, 220),
     sourceArchive: (dataImport2State.sourceArchive || []).slice(0, 180),
+    canonicalRecords: (dataImport2State.canonicalRecords || []).slice(0, 12000),
+    lineage: (dataImport2State.lineage || []).slice(0, 12000),
+    reconciliationLog: (dataImport2State.reconciliationLog || []).slice(0, 1200),
     updatedAt: new Date().toISOString()
   };
 }
@@ -47555,8 +47698,9 @@ function dataImportCanonicalFieldLabel(field) {
 function dataImportStatusClass(status) {
   const normalized = dataImportNormalizeText(status).replace(/\s+/g, "_");
   if (["fresh","ready","approved","imported","complete"].includes(normalized)) return "ready";
-  if (["stale","review","needs_review","needs_mapping","low_confidence"].includes(normalized)) return "review";
+  if (["stale","review","needs_review","needs_mapping","low_confidence","held"].includes(normalized)) return "review";
   if (["missing","conflict","blocked","unsupported"].includes(normalized)) return "blocked";
+  if (["not_required"].includes(normalized)) return "info";
   if (["unmapped"].includes(normalized)) return "unmapped";
   if (["duplicate"].includes(normalized)) return "duplicate";
   return "info";
@@ -47621,6 +47765,81 @@ function dataImportRowsToText(rows = []) {
     .slice(0, DATA_IMPORT_MAX_SAMPLE_CHARS);
 }
 
+function dataImportIsMetadataSheetName(sheetName = "") {
+  const normalized = dataImportNormalizeText(sheetName);
+  return ["setup", "instruction", "instructions", "legend", "report parameters", "parameters", "configuration", "config", "read me", "readme"]
+    .some(label => normalized === label || normalized.startsWith(`${label} `));
+}
+
+function dataImportHeaderRowScore(row = []) {
+  if (!Array.isArray(row)) return -1;
+  const cells = row.map(cell => String(cell ?? "").trim()).filter(Boolean);
+  if (cells.length < 2) return -1;
+  let score = Math.min(8, cells.length);
+  cells.forEach(cell => {
+    const normalized = dataImportNormalizeText(cell);
+    if (!normalized) return;
+    Object.entries(DATA_IMPORT_FIELD_ALIASES).forEach(([field, aliases]) => {
+      const options = [field, dataImportCanonicalFieldLabel(field), ...(aliases || [])].map(dataImportNormalizeText);
+      if (options.includes(normalized)) score += 12;
+      else if (options.some(alias => alias.length > 4 && (normalized.includes(alias) || alias.includes(normalized)))) score += 4;
+    });
+    if (/date|month|period|property|community|resident|unit|amount|balance|status|rent|occup/i.test(normalized)) score += 2;
+  });
+  return score;
+}
+
+function dataImportFindHeaderRowIndex(rows = []) {
+  const candidates = (Array.isArray(rows) ? rows : []).slice(0, 80)
+    .map((row, index) => ({ index, score: dataImportHeaderRowScore(row) }))
+    .filter(item => item.score >= 0)
+    .sort((a, b) => b.score - a.score || a.index - b.index);
+  return candidates[0]?.index ?? 0;
+}
+
+async function dataImportFileHash(file) {
+  if (!file?.arrayBuffer || !globalThis.crypto?.subtle) return "";
+  try {
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+    return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return "";
+  }
+}
+
+function dataImportParseMetadataDate(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const match = raw.match(/(?:as[ -]?of|data date|generated|created|run date|report date|through)\s*:?\s*([^|;\n]+)/i);
+  const candidate = String(match?.[1] || raw).trim().replace(/\s{2,}.*$/, "");
+  const parsed = new Date(candidate);
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : "";
+}
+
+function dataImportExtractMetadata(sample = {}, file = null) {
+  const text = String(sample.sampleText || "");
+  const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean).slice(0, 240);
+  const findValue = patterns => {
+    const line = lines.find(item => patterns.some(pattern => pattern.test(item)));
+    if (!line) return "";
+    return line.replace(/^.*?(?:\||:)/, "").trim().slice(0, 180);
+  };
+  const generatedLine = lines.find(line => /generated|created|run date/i.test(line)) || "";
+  const asOfLine = lines.find(line => /as[ -]?of|data date|report date|through/i.test(line)) || "";
+  const reportTitle = findValue([/report title/i, /report name/i]) || lines.find(line => /box score|rent roll|trending occupancy|resident data|delinquency|renewal|marketing survey|community data/i.test(line)) || "";
+  const reportVersion = findValue([/report version/i, /version/i]);
+  const reportParameters = lines.filter(line => /parameter|date range|as[ -]?of|generated|property|community/i.test(line)).slice(0, 12);
+  return {
+    reportTitle: String(reportTitle || "").slice(0, 180),
+    reportVersion: String(reportVersion || "").slice(0, 80),
+    generatedAt: dataImportParseMetadataDate(generatedLine),
+    dataAsOf: dataImportParseMetadataDate(asOfLine),
+    receivedAt: new Date().toISOString(),
+    fileModifiedAt: file?.lastModified ? new Date(file.lastModified).toISOString() : "",
+    reportParameters
+  };
+}
+
 async function dataImportReadFileSample(file) {
   const name = file?.name || "Untitled";
   const extension = dataImportGetFileExtension(name);
@@ -47639,7 +47858,7 @@ async function dataImportReadFileSample(file) {
     if ([".csv", ".txt"].includes(extension)) {
       const text = (await file.text()).slice(0, DATA_IMPORT_MAX_SAMPLE_CHARS);
       const rows = text.split(/\r?\n/).slice(0, 80).map(line => line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(cell => cell.replace(/^"|"$/g, "").trim()));
-      const headerIndex = Math.max(0, rows.findIndex(row => row.filter(Boolean).length >= 2));
+      const headerIndex = dataImportFindHeaderRowIndex(rows);
       const headerRow = rows[headerIndex] || [];
       const headerCells = headerRow
         .map((cell, index) => ({ header: String(cell ?? "").trim(), index }))
@@ -47655,7 +47874,8 @@ async function dataImportReadFileSample(file) {
         headers: headerCells.map(item => item.header),
         headerSamples,
         rowCount: Math.max(0, text.split(/\r?\n/).filter(Boolean).length - 1),
-        sampleText: `${name}\n${text}`.slice(0, DATA_IMPORT_MAX_SAMPLE_CHARS)
+        sampleText: `${name}\n${text}`.slice(0, DATA_IMPORT_MAX_SAMPLE_CHARS),
+        tabSummaries: [{ sheetName: "CSV", rowCount: Math.max(0, rows.length - headerIndex - 1), headers: headerCells.map(item => item.header), sampleValues: headerSamples, headerIndex, isMetadata: false }]
       };
     }
     if (extension === ".pdf") {
@@ -47678,7 +47898,8 @@ async function dataImportReadFileSample(file) {
         const worksheet = workbook.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "", raw: false });
         const sampleRows = rows.slice(0, 80);
-        const headerIndex = Math.max(0, sampleRows.findIndex(row => Array.isArray(row) && row.filter(cell => String(cell ?? "").trim()).length >= 2));
+        const isMetadata = dataImportIsMetadataSheetName(sheetName);
+        const headerIndex = dataImportFindHeaderRowIndex(sampleRows);
         const headerRow = sampleRows[headerIndex] || [];
         const headerCells = headerRow
           .map((cell, index) => ({ header: String(cell ?? "").trim(), index }))
@@ -47690,11 +47911,12 @@ async function dataImportReadFileSample(file) {
           const sampleRow = sampleRows.slice(headerIndex + 1).find(row => String(row?.[item.index] ?? "").trim());
           const value = sampleRow ? String(sampleRow[item.index] ?? "").trim().slice(0, 80) : "";
           sampleValues[item.header] = value;
-          if (!headerSamples[item.header]) headerSamples[item.header] = value;
+          if (!isMetadata && !headerSamples[item.header]) headerSamples[item.header] = value;
         });
-        allHeaders.push(...cleanHeaders);
-        rowCount += Math.max(0, rows.length - 1);
-        tabSummaries.push({ sheetName, rowCount: Math.max(0, rows.length - 1), headers: cleanHeaders, sampleValues });
+        if (!isMetadata) allHeaders.push(...cleanHeaders);
+        const dataRowCount = isMetadata ? 0 : Math.max(0, rows.length - headerIndex - 1);
+        rowCount += dataRowCount;
+        tabSummaries.push({ sheetName, rowCount: dataRowCount, headers: cleanHeaders, sampleValues, headerIndex, isMetadata });
         textParts.push(sheetName, dataImportRowsToText(sampleRows));
       });
       return {
@@ -48062,7 +48284,8 @@ async function dataImportExpandZip(file) {
 }
 
 async function dataImportBuildFilePlan(file, extras = {}) {
-  const sample = await dataImportReadFileSample(file);
+  const [sample, fileHash] = await Promise.all([dataImportReadFileSample(file), dataImportFileHash(file)]);
+  const metadata = dataImportExtractMetadata(sample, file);
   const combinedText = `${file.name} ${sample.sheetNames.join(" ")} ${sample.headers.join(" ")} ${sample.sampleText || ""}`;
   const detection = dataImportScoreReportType(file.name, sample);
   const reportType = extras.forceReportType || detection.reportType;
@@ -48076,7 +48299,11 @@ async function dataImportBuildFilePlan(file, extras = {}) {
     issues.push({ type: "unsupported", severity: "critical", title: "Unsupported file type", detail: `${file.name} is not one of the currently supported upload formats.` });
   }
   if (sample.readError) {
-    issues.push({ type: "invalid", severity: "high", title: "File preview is limited", detail: sample.readError });
+    const passwordProtected = /password|encrypted|decrypt/i.test(sample.readError);
+    issues.push({ type: passwordProtected ? "held" : "invalid", severity: "high", title: passwordProtected ? "Password-protected file held" : "File preview is limited", detail: sample.readError });
+  }
+  if (dataImportGetFileExtension(file.name) === ".pdf" && Number(sample.rowCount || 0) === 0) {
+    issues.push({ type: "held", severity: "high", title: "Image-only or unreadable PDF", detail: "ATLAS could not extract selectable text from this PDF. The original file can be archived, but its data must remain held for OCR or Admin mapping." });
   }
   if (!reportDef) {
     issues.push({ type: "unmapped", severity: "high", title: "Report type needs confirmation", detail: "ATLAS could not confidently identify this report. Choose the correct report type before approval." });
@@ -48086,6 +48313,9 @@ async function dataImportBuildFilePlan(file, extras = {}) {
   }
   if (communities.length === 0) {
     issues.push({ type: "unmapped", severity: "medium", title: "No community match found", detail: "Rows from this file will enter the Unmapped Property Queue until an Admin assigns the community." });
+  }
+  if (reportDef && sample.headers.length && fields.mappedFields.length === 0) {
+    issues.push({ type: "held", severity: "high", title: "Report structure changed", detail: `${reportDef.label} was detected, but none of its source columns mapped to the current ATLAS dictionary. Review the source fields before sending data downstream.` });
   }
   fields.lowConfidence.forEach(item => {
     issues.push({
@@ -48099,7 +48329,7 @@ async function dataImportBuildFilePlan(file, extras = {}) {
     });
   });
   const blocked = issues.some(issue => issue.severity === "critical" || issue.type === "unsupported");
-  const status = blocked ? "blocked" : issues.some(issue => ["unmapped","low_confidence","invalid"].includes(issue.type)) ? "review" : "ready";
+  const status = blocked ? "blocked" : issues.some(issue => ["unmapped","low_confidence","invalid","held"].includes(issue.type)) ? "review" : "ready";
   const fileId = dataImportMakeId("file");
   dataImportFileHandles.set(fileId, file);
   return {
@@ -48109,13 +48339,17 @@ async function dataImportBuildFilePlan(file, extras = {}) {
     size: file.size,
     type: file.type || dataImportInferMime(file.name),
     extension: dataImportGetFileExtension(file.name),
+    fileHash,
+    mappingVersion: "ATLAS-RRIM-1.0",
+    metadata,
     reportType,
     reportTypeLabel: dataImportReportLabel(reportType),
     sourceSystem,
     confidence: reportDef ? detection.confidence : 0,
     communities,
+    selectedCommunities: [...communities],
     communityCount: communities.length,
-    relevantTabs: sample.sheetNames,
+    relevantTabs: (sample.tabSummaries || []).filter(tab => !tab.isMetadata).map(tab => tab.sheetName),
     availableFields: fields.mappedFields,
     lowConfidenceFields: fields.lowConfidence,
     unmappedHeaders: fields.unmappedHeaders,
@@ -48142,7 +48376,7 @@ async function dataImportBuildFilePlan(file, extras = {}) {
 function dataImportFindDuplicateArchiveMatch(plan) {
   const communitiesKey = (plan.communities || []).join("|");
   return (dataImport2State.sourceArchive || []).find(item =>
-    dataImportNormalizeText(item.fileName) === dataImportNormalizeText(plan.name) &&
+    ((plan.fileHash && item.fileHash === plan.fileHash) || dataImportNormalizeText(item.fileName) === dataImportNormalizeText(plan.name)) &&
     item.reportType === plan.reportType &&
     String(item.reportingPeriodLabel || "") === String(plan.reportingPeriodLabel || "") &&
     (item.communities || []).join("|") === communitiesKey &&
@@ -48156,9 +48390,9 @@ function dataImportAnnotatePlan(plan) {
   if (duplicate) {
     next.issues.push({
       type: "duplicate",
-      severity: "low",
-      title: "Possible duplicate upload",
-      detail: `A matching source file was already approved in ${duplicate.batchId}. ATLAS will preserve the audit trail and can ignore exact duplicate rows.`
+      severity: plan.fileHash && duplicate.fileHash === plan.fileHash ? "low" : "medium",
+      title: plan.fileHash && duplicate.fileHash === plan.fileHash ? "Exact duplicate upload" : "Possible duplicate upload",
+      detail: `A matching source file was already approved in ${duplicate.batchId}. ATLAS will preserve the audit trail and ignore an identical file hash without rewriting current data.`
     });
     if (next.status === "ready") next.status = "review";
   }
@@ -48167,7 +48401,7 @@ function dataImportAnnotatePlan(plan) {
 
 function dataImportBuildBatchSummary(files = [], zipIssues = []) {
   const communities = new Set();
-  files.forEach(file => (file.communities || []).forEach(name => communities.add(name)));
+  files.forEach(file => (file.selectedCommunities || file.communities || []).forEach(name => communities.add(name)));
   const allIssues = files.flatMap(file => file.issues || []).concat(zipIssues || []);
   const unmapped = allIssues.filter(issue => issue.type === "unmapped").length;
   const conflicts = allIssues.filter(issue => issue.type === "conflict").length;
@@ -48255,6 +48489,9 @@ async function dataImportArchiveApprovedFile(file, plan, batch) {
     reportingPeriodLabel: plan.reportingPeriodLabel,
     dataDateIso: plan.dataDateIso,
     dataDateLabel: plan.dataDateLabel,
+    fileHash: plan.fileHash || "",
+    mappingVersion: plan.mappingVersion || "ATLAS-RRIM-1.0",
+    metadata: plan.metadata || {},
     communities: plan.communities || [],
     batchId: batch.id,
     importStatus: "Approved",
@@ -48288,30 +48525,675 @@ function dataImportBuildBeforeSnapshot() {
     capturedAt: new Date().toISOString(),
     savedData: safeClone(savedData || {}),
     applicationResidentData: safeClone(normalizeApplicationResidentDataState(applicationResidentDataState)),
+    canonicalRecords: safeClone(dataImport2State.canonicalRecords || []),
+    lineage: safeClone(dataImport2State.lineage || []),
+    reconciliationLog: safeClone(dataImport2State.reconciliationLog || []),
     csvLog: safeClone(csvLog || [])
   };
 }
 
-async function dataImportRouteApprovedFile(file, plan) {
+function dataImportIsAggregateCommunityValue(value = "") {
+  const normalized = dataImportNormalizeText(value);
+  return ["all", "all properties", "all communities", "portfolio", "portfolio total", "grand total", "total"].includes(normalized)
+    || normalized.includes("consolidated portfolio");
+}
+
+function dataImportNormalizeBoolean(value, fallback = null) {
+  if (typeof value === "boolean") return value;
+  const normalized = dataImportNormalizeText(value);
+  if (["yes", "y", "true", "1", "active", "included", "managed"].includes(normalized)) return true;
+  if (["no", "n", "false", "0", "inactive", "excluded", "not managed"].includes(normalized)) return false;
+  return fallback;
+}
+
+function dataImportNumericValue(value) {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  const raw = String(value).trim();
+  const negative = /^\(.*\)$/.test(raw);
+  const numeric = Number(raw.replace(/[,$%()]/g, "").replace(/\s+/g, ""));
+  if (!Number.isFinite(numeric)) return null;
+  return negative ? -Math.abs(numeric) : numeric;
+}
+
+function dataImportPercentValue(value) {
+  const numeric = dataImportNumericValue(value);
+  if (numeric === null) return null;
+  const percent = String(value).includes("%") || Math.abs(numeric) > 1 ? numeric : numeric * 100;
+  return Number.isFinite(percent) ? percent : null;
+}
+
+async function dataImportReadPdfStructuredRows(file) {
+  if (typeof pdfjsLib === "undefined" || !pdfjsLib?.getDocument) return [];
+  const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+  const sheets = [];
+  const pageCount = Math.min(Number(pdf.numPages || 0), 60);
+  for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const content = await page.getTextContent();
+    const groups = new Map();
+    (content.items || []).forEach(item => {
+      const text = String(item.str || "").trim();
+      if (!text) return;
+      const x = Number(item.transform?.[4] || 0);
+      const y = Math.round(Number(item.transform?.[5] || 0) * 2) / 2;
+      const row = groups.get(y) || [];
+      row.push({ x, text });
+      groups.set(y, row);
+    });
+    const lines = Array.from(groups.entries())
+      .sort((a, b) => b[0] - a[0])
+      .map(([, items]) => items.sort((a, b) => a.x - b.x));
+    const headerIndex = dataImportFindHeaderRowIndex(lines.map(items => items.map(item => item.text)));
+    const headerItems = lines[headerIndex] || [];
+    if (dataImportHeaderRowScore(headerItems.map(item => item.text)) < 12) continue;
+    const headers = headerItems.map((item, index) => ({ ...item, name: item.text || `Column ${index + 1}` }));
+    const rows = [];
+    lines.slice(headerIndex + 1).forEach((items, rowOffset) => {
+      if (dataImportHeaderRowScore(items.map(item => item.text)) >= dataImportHeaderRowScore(headerItems.map(item => item.text))) return;
+      const values = Object.fromEntries(headers.map(header => [header.name, ""]));
+      items.forEach(item => {
+        let bestIndex = 0;
+        let bestDistance = Infinity;
+        headers.forEach((header, index) => {
+          const distance = Math.abs(item.x - header.x);
+          if (distance < bestDistance) {
+            bestIndex = index;
+            bestDistance = distance;
+          }
+        });
+        const key = headers[bestIndex].name;
+        values[key] = [values[key], item.text].filter(Boolean).join(" ");
+      });
+      if (Object.values(values).filter(value => String(value || "").trim()).length >= 2) {
+        rows.push({ values, sourceSheet: `PDF page ${pageNumber}`, sourceRow: headerIndex + rowOffset + 2 });
+      }
+    });
+    if (rows.length) sheets.push({ sheetName: `PDF page ${pageNumber}`, headerIndex, headers: headers.map(item => item.name), rows });
+  }
+  return sheets;
+}
+
+async function dataImportReadStructuredRows(file) {
+  const extension = dataImportGetFileExtension(file?.name || "");
+  if (extension === ".pdf") return dataImportReadPdfStructuredRows(file);
+  if (![".csv", ".txt", ".xlsx", ".xls", ".xlsm"].includes(extension)) return [];
+  if (typeof XLSX === "undefined") throw new Error("The spreadsheet reader is unavailable in this ATLAS session.");
+  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false });
+  const sheets = [];
+  (workbook.SheetNames || []).forEach(sheetName => {
+    if (dataImportIsMetadataSheetName(sheetName)) return;
+    const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false, blankrows: true });
+    const headerIndex = dataImportFindHeaderRowIndex(rawRows);
+    const headerRow = rawRows[headerIndex] || [];
+    const headers = headerRow.map((cell, index) => ({ name: String(cell ?? "").trim(), index })).filter(item => item.name);
+    if (headers.length < 2) return;
+    const rows = rawRows.slice(headerIndex + 1).map((sourceRow, rowOffset) => {
+      const values = {};
+      headers.forEach(header => { values[header.name] = sourceRow?.[header.index] ?? ""; });
+      return {
+        values,
+        sourceSheet: sheetName,
+        sourceRow: headerIndex + rowOffset + 2
+      };
+    }).filter(row => Object.values(row.values).some(value => String(value ?? "").trim()));
+    if (rows.length) sheets.push({ sheetName, headerIndex, headers: headers.map(item => item.name), rows });
+  });
+  return sheets;
+}
+
+function dataImportMapSourceRow(sourceRow = {}, plan = {}) {
+  const mapped = {};
+  const sourceFields = {};
+  const unmappedFields = [];
+  Object.entries(sourceRow.values || {}).forEach(([header, value]) => {
+    if (String(value ?? "").trim() === "") return;
+    const suggestion = dataImportSuggestDestinationForHeader(header, {
+      reportType: plan.reportType,
+      sourceSystem: plan.sourceSystem,
+      sampleValue: String(value ?? "")
+    });
+    if (!suggestion.field || suggestion.confidence < 80 || suggestion.field === "__ignored__") {
+      if (!suggestion.field || suggestion.field !== "__ignored__") unmappedFields.push({ header, value, suggestion });
+      return;
+    }
+    if (mapped[suggestion.field] === undefined || String(mapped[suggestion.field] ?? "").trim() === "") {
+      mapped[suggestion.field] = value;
+      sourceFields[suggestion.field] = header;
+    }
+  });
+  return { mapped, sourceFields, unmappedFields };
+}
+
+function dataImportFindCommunityByInternalId(value = "") {
+  const normalized = dataImportNormalizeText(value);
+  if (!normalized || dataImportIsAggregateCommunityValue(value)) return "";
+  const names = getAllCommunityNames();
+  return names.find(name => {
+    const record = savedData?.[name] || {};
+    return [record.communityId, record.atlasCommunityId, record.pmsPropertyCode, record.propertyCode]
+      .some(id => dataImportNormalizeText(id) === normalized);
+  }) || "";
+}
+
+function dataImportResolveRowCommunity(mapped = {}, sourceRow = {}, plan = {}) {
+  const idMatch = dataImportFindCommunityByInternalId(mapped.community_id || mapped.pms_property_code);
+  if (idMatch) return idMatch;
+  const candidates = [
+    mapped.community_name,
+    sourceRow.sourceSheet,
+    ...Object.entries(sourceRow.values || {})
+      .filter(([header]) => /property|community|site/i.test(header))
+      .map(([, value]) => value)
+  ].map(value => String(value ?? "").trim()).filter(value => value && !dataImportIsAggregateCommunityValue(value));
+  for (const candidate of candidates) {
+    const alias = dataImportBuildAliasLookup().get(dataImportNormalizeText(candidate));
+    if (alias) return alias;
+    const exact = matchPropertyName(candidate, { fallbackToCurrent: false });
+    if (exact) return exact;
+  }
+  const selected = (plan.selectedCommunities || plan.communities || []).filter(Boolean);
+  return selected.length === 1 ? selected[0] : "";
+}
+
+function dataImportCommunitySupportsReport(communityName, reportType) {
+  const def = dataImportGetReportDef(reportType);
+  if (!communityName || !def) return false;
+  if (def.serviceScope === "foundation") return true;
+  const record = savedData?.[communityName] || {};
+  if (record.portfolioReportingActive === false) return false;
+  if (def.serviceScope === "leasing") {
+    if (typeof record.leasingManaged === "boolean") return record.leasingManaged;
+    if (DATA_IMPORT_MAINTENANCE_ONLY_COMMUNITIES.some(name => dataImportNormalizeText(name) === dataImportNormalizeText(communityName))) return false;
+    if (DATA_IMPORT_REFERENCE_COMMUNITIES.some(name => dataImportNormalizeText(name) === dataImportNormalizeText(communityName))) return false;
+    return DATA_IMPORT_LEASING_MANAGED_COMMUNITIES.some(name => dataImportNormalizeText(name) === dataImportNormalizeText(communityName));
+  }
+  return true;
+}
+
+function dataImportRowPeriod(mapped = {}, sourceRow = {}, plan = {}) {
+  const candidates = [mapped.post_month, mapped.renewal_expiration, mapped.lease_end, mapped.application_date, mapped.move_in_date, sourceRow.sourceSheet];
+  for (const candidate of candidates) {
+    const raw = String(candidate ?? "").trim();
+    if (!raw) continue;
+    const parsed = new Date(raw);
+    if (Number.isFinite(parsed.getTime()) && parsed.getFullYear() > 1990) {
+      return { monthIdx: parsed.getMonth(), year: parsed.getFullYear(), periodKey: buildPeriodKey(parsed.getMonth(), parsed.getFullYear()) };
+    }
+    const detected = dataImportDetectReportingPeriod(raw);
+    if (detected.monthIdx !== null && detected.year) return { monthIdx: detected.monthIdx, year: detected.year, periodKey: buildPeriodKey(detected.monthIdx, detected.year) };
+  }
+  const monthIdx = Number.isInteger(plan.reportingMonthIdx) ? plan.reportingMonthIdx : getSelectedDashboardMonthIndex();
+  const year = Number.isInteger(plan.reportingYear) ? plan.reportingYear : new Date().getFullYear();
+  return { monthIdx, year, periodKey: buildPeriodKey(monthIdx, year) };
+}
+
+function dataImportCanonicalRecordKey(plan, communityName, period, row, sourceRow) {
+  const partsByType = {
+    community_data: [row.community_id, row.pms_property_code, communityName],
+    box_score: [row.floorplan_code || row.floorplan, row.traffic_source, row.application_status],
+    trending_occupancy: [row.closed_actual ? "closed" : row.reported_actual ? "actual" : "forecast"],
+    leasing_resident_data: [row.application_id, row.lease_id, row.unit, row.resident],
+    rent_roll: [row.lease_id, row.unit, row.resident, row.charge_code],
+    delinquency: [row.lease_id, row.unit, row.resident],
+    renewal_tracker: [row.lease_id, row.unit, row.resident, row.renewal_expiration],
+    marketing_iq: [row.floorplan_code || row.floorplan, row.traffic_source],
+    approved_accounting: [row.gl_account, row.charge_code]
+  };
+  const identity = (partsByType[plan.reportType] || []).map(value => dataImportNormalizeText(value)).filter(Boolean);
+  if (!identity.length) identity.push(dataImportNormalizeText(sourceRow.sourceSheet), String(sourceRow.sourceRow));
+  return [plan.reportType, dataImportNormalizeText(communityName), period.periodKey, ...identity].join("::");
+}
+
+function dataImportUpsertCanonicalRecord(record, result) {
+  const records = dataImport2State.canonicalRecords || (dataImport2State.canonicalRecords = []);
+  const existingIndex = records.findIndex(item => item.key === record.key);
+  const existing = existingIndex >= 0 ? records[existingIndex] : null;
+  if (existing?.fileHash && record.fileHash && existing.fileHash === record.fileHash) {
+    result.duplicatesIgnored += 1;
+    return { disposition: "duplicate", record: existing };
+  }
+  if ((dataImport2State.closedPeriods || []).includes(record.periodKey)) {
+    result.rowsHeld += 1;
+    result.issues.push({ type: "held", severity: "high", title: "Closed period held", detail: `${record.periodKey} is closed and requires explicit approval before replacement.`, communityName: record.communityName });
+    return { disposition: "held", record };
+  }
+  const incomingTime = Date.parse(record.dataAsOf || record.importedAt || "") || 0;
+  const existingTime = Date.parse(existing?.dataAsOf || existing?.importedAt || "") || 0;
+  if (existing && incomingTime && existingTime && incomingTime < existingTime) {
+    result.rowsUnchanged += 1;
+    result.issues.push({ type: "held", severity: "medium", title: "Older source retained as history", detail: `A newer approved ${record.reportTypeLabel} row already controls ${record.periodKey}.`, communityName: record.communityName });
+    return { disposition: "older", record };
+  }
+  if (existing) {
+    const changed = JSON.stringify(existing.values || {}) !== JSON.stringify(record.values || {});
+    const next = {
+      ...record,
+      revisions: changed ? [...(existing.revisions || []), { replacedAt: record.importedAt, batchId: existing.batchId, fileHash: existing.fileHash, values: existing.values }].slice(-12) : (existing.revisions || [])
+    };
+    records[existingIndex] = next;
+    if (changed) result.rowsUpdated += 1;
+    else result.rowsUnchanged += 1;
+    return { disposition: changed ? "updated" : "unchanged", record: next };
+  }
+  records.push(record);
+  result.rowsInserted += 1;
+  return { disposition: "inserted", record };
+}
+
+function dataImportAddLineage(plan, batchId, canonicalRecord, sourceFields = {}, currentState = false) {
+  const importedAt = new Date().toISOString();
+  Object.entries(canonicalRecord.values || {}).forEach(([field, value]) => {
+    if (String(value ?? "").trim() === "") return;
+    dataImport2State.lineage.unshift({
+      id: dataImportMakeId("lineage"),
+      key: canonicalRecord.key,
+      communityName: canonicalRecord.communityName,
+      periodKey: canonicalRecord.periodKey,
+      reportType: plan.reportType,
+      reportTypeLabel: plan.reportTypeLabel,
+      sourceRank: Number(dataImportGetReportDef(plan.reportType)?.sourceRank || 0),
+      sourceSystem: plan.sourceSystem,
+      sourceFile: plan.name,
+      fileHash: plan.fileHash || "",
+      sourceSheet: canonicalRecord.sourceSheet,
+      sourceRow: canonicalRecord.sourceRow,
+      originalField: sourceFields[field] || field,
+      atlasField: field,
+      importedValue: value,
+      batchId,
+      mappingVersion: plan.mappingVersion || "ATLAS-RRIM-1.0",
+      dataAsOf: canonicalRecord.dataAsOf,
+      importedAt,
+      currentState
+    });
+  });
+  dataImport2State.lineage = dataImport2State.lineage.slice(0, 12000);
+}
+
+function dataImportShouldApplyCurrentMetric(plan, communityName, periodKey, atlasField, dataAsOf, result) {
+  const incomingRank = Number(dataImportGetReportDef(plan.reportType)?.sourceRank || 0);
+  const controlling = (dataImport2State.lineage || []).find(item =>
+    item.currentState && item.communityName === communityName && item.periodKey === periodKey && item.atlasField === atlasField
+  );
+  if (!controlling) return true;
+  const existingRank = Number(controlling.sourceRank || 0);
+  const incomingTime = Date.parse(dataAsOf || "") || 0;
+  const existingTime = Date.parse(controlling.dataAsOf || controlling.importedAt || "") || 0;
+  if (existingRank > incomingRank && controlling.fileHash !== plan.fileHash) {
+    result.issues.push({ type: "conflict", severity: "medium", title: "Higher-precedence value retained", detail: `${dataImportCanonicalFieldLabel(atlasField)} remains controlled by ${controlling.reportTypeLabel || dataImportReportLabel(controlling.reportType)}.`, communityName });
+    return false;
+  }
+  if (incomingTime && existingTime && incomingTime < existingTime) return false;
+  return true;
+}
+
+function dataImportApplyMetric(record, plan, result, communityName, period, targetKey, value, atlasField = targetKey) {
+  const numeric = dataImportNumericValue(value);
+  if (numeric === null) return false;
+  const dataAsOf = plan.metadata?.dataAsOf || plan.dataDateIso || plan.metadata?.generatedAt || "";
+  if (!dataImportShouldApplyCurrentMetric(plan, communityName, period.periodKey, atlasField, dataAsOf, result)) return false;
+  const applied = applyValueToRecord(record, period.monthIdx, targetKey, numeric, period.year);
+  if (applied) {
+    (dataImport2State.lineage || []).forEach(item => {
+      if (item.currentState && item.communityName === communityName && item.periodKey === period.periodKey && item.atlasField === atlasField) item.currentState = false;
+    });
+    dataImport2State.lineage.unshift({
+      id: dataImportMakeId("lineage_current"),
+      key: [communityName, period.periodKey, atlasField].join("::"),
+      communityName,
+      periodKey: period.periodKey,
+      reportType: plan.reportType,
+      reportTypeLabel: plan.reportTypeLabel,
+      sourceRank: Number(dataImportGetReportDef(plan.reportType)?.sourceRank || 0),
+      sourceSystem: plan.sourceSystem,
+      sourceFile: plan.name,
+      fileHash: plan.fileHash || "",
+      originalField: atlasField,
+      atlasField,
+      importedValue: numeric,
+      batchId: result.batchId || "",
+      mappingVersion: plan.mappingVersion || "ATLAS-RRIM-1.0",
+      dataAsOf,
+      importedAt: new Date().toISOString(),
+      currentState: true
+    });
+  }
+  return applied;
+}
+
+function dataImportApplyCommunityFoundation(row, communityName, plan, result) {
+  const record = normalizeSavedCommunityRecord(communityName, savedData?.[communityName]);
+  const incomingUnits = dataImportNumericValue(row.total_units);
+  if (incomingUnits !== null && incomingUnits >= 0) {
+    record.customUnits = incomingUnits;
+  }
+  if (row.community_id) record.communityId = String(row.community_id).trim();
+  if (row.pms_property_code) record.pmsPropertyCode = String(row.pms_property_code).trim();
+  if (row.community_address) record.communityAddress = String(row.community_address).trim();
+  const incomingOwner = String(row.owner_entity || "").trim();
+  if (incomingOwner && !record.ownerEntity) record.ownerEntity = incomingOwner;
+  else if (incomingOwner && record.ownerEntity && dataImportNormalizeText(incomingOwner) !== dataImportNormalizeText(record.ownerEntity)) {
+    result.issues.push({ type: "conflict", severity: "high", title: "Permanent owner conflict", detail: `${communityName} is already assigned to ${record.ownerEntity}; ${incomingOwner} was retained only in source history.`, communityName });
+  }
+  const status = dataImportNormalizeText(row.community_status);
+  if (status === "active" || status === "inactive") record.communityStatus = status;
+  const leasingManaged = dataImportNormalizeBoolean(row.leasing_managed);
+  const maintenanceManaged = dataImportNormalizeBoolean(row.maintenance_managed);
+  const reportingActive = dataImportNormalizeBoolean(row.portfolio_reporting_active);
+  if (leasingManaged !== null) record.leasingManaged = leasingManaged;
+  if (maintenanceManaged !== null) record.maintenanceManaged = maintenanceManaged;
+  if (reportingActive !== null) record.portfolioReportingActive = reportingActive;
+  savedData[communityName] = normalizeSavedCommunityRecord(communityName, record);
+  result.destinations.add("Community Foundation");
+}
+
+function dataImportUpsertFloorPlan(record, row, plan, sourceSheet) {
+  const floorplanName = String(row.floorplan_code || row.floorplan || "").trim();
+  if (!floorplanName) return;
+  const rows = normalizeCommunityFloorPlans(record.communityFloorPlans || []);
+  const lookupName = normalizeFloorPlanLookupName(resolveRonaldoFloorPlanName(record.propertyName || "", floorplanName, row));
+  const existingIndex = rows.findIndex(item => normalizeFloorPlanLookupName(item.name) === lookupName);
+  const next = {
+    ...(existingIndex >= 0 ? rows[existingIndex] : createEmptyCommunityFloorPlanRow()),
+    name: resolveRonaldoFloorPlanName(record.propertyName || "", floorplanName, row),
+    units: dataImportNumericValue(row.total_units) ?? (existingIndex >= 0 ? rows[existingIndex].units : null),
+    sqft: dataImportNumericValue(row.floorplan_sqft) ?? (existingIndex >= 0 ? rows[existingIndex].sqft : null),
+    beds: dataImportNumericValue(row.bedrooms) ?? (existingIndex >= 0 ? rows[existingIndex].beds : null),
+    baths: dataImportNumericValue(row.bathrooms) ?? (existingIndex >= 0 ? rows[existingIndex].baths : null),
+    budgetRent: dataImportNumericValue(row.avg_market_rent_budgeted) ?? (existingIndex >= 0 ? rows[existingIndex].budgetRent : null),
+    marketedRent: dataImportNumericValue(row.avg_scheduled_rent) ?? (existingIndex >= 0 ? rows[existingIndex].marketedRent : null),
+    budgetRentSource: plan.name,
+    budgetRentBasis: "current_year_projected_target_blend",
+    sourceFileName: plan.name,
+    sourceSheet,
+    approvalStatus: "needs_review",
+    approvedForReporting: false
+  };
+  if (existingIndex >= 0) rows[existingIndex] = next;
+  else rows.push(next);
+  record.communityFloorPlans = normalizeCommunityFloorPlans(rows);
+}
+
+function dataImportApplyGroupedSnapshot(group, plan, result) {
+  const { communityName, period, entries } = group;
+  const record = normalizeSavedCommunityRecord(communityName, savedData?.[communityName]);
+  const rows = entries.map(entry => entry.row);
+  const hasFloorPlanRows = rows.some(row => row.floorplan_code || row.floorplan);
+  const sum = field => {
+    const values = rows.map(row => dataImportNumericValue(row[field])).filter(value => value !== null);
+    if (!values.length) return null;
+    return hasFloorPlanRows ? values.reduce((total, value) => total + value, 0) : values[0];
+  };
+  const first = field => rows.map(row => row[field]).find(value => String(value ?? "").trim() !== "");
+  if (plan.reportType === "box_score") {
+    const rentable = sum("rentable_units") ?? sum("total_units");
+    const occupiedComponents = [sum("occupied_no_notice"), sum("notice_rented"), sum("notice_unrented")];
+    const occupied = sum("occupied_units") ?? (occupiedComponents.every(value => value !== null) ? occupiedComponents.reduce((a, b) => a + b, 0) : null);
+    const available = sum("available_units") ?? sum("vacant_unrented");
+    const leased = sum("leased_units") ?? (rentable !== null && available !== null ? rentable - available : null);
+    const physicalPct = dataImportPercentValue(first("physical_occupancy")) ?? (rentable > 0 && occupied !== null ? occupied / rentable * 100 : null);
+    const leasedPct = dataImportPercentValue(first("leased_occupancy")) ?? (rentable > 0 && leased !== null ? leased / rentable * 100 : null);
+    if (rentable !== null && occupied !== null && (occupied < 0 || occupied > rentable)) result.issues.push({ type: "reconciliation", severity: "high", title: "Occupied units do not reconcile", detail: `${occupied} occupied exceeds ${rentable} rentable units.`, communityName });
+    const configuredUnits = Number(record.customUnits || record.units || 0);
+    if (rentable !== null && configuredUnits > 0 && Math.abs(rentable - configuredUnits) > 0) result.issues.push({ type: "reconciliation", severity: "medium", title: "Unit total needs review", detail: `${rentable} source units do not match the ${configuredUnits}-unit Community Foundation record.`, communityName });
+    if (physicalPct !== null && (physicalPct < 0 || physicalPct > 100)) result.issues.push({ type: "invalid", severity: "high", title: "Physical occupancy outside 0-100%", detail: `${physicalPct}% was retained for review.`, communityName });
+    if (occupied !== null) dataImportApplyMetric(record, plan, result, communityName, period, "occupied", occupied, "occupied_units");
+    else if (rentable > 0 && physicalPct !== null) dataImportApplyMetric(record, plan, result, communityName, period, "occupied", Math.round(rentable * physicalPct / 100), "occupied_units");
+    if (leased !== null) dataImportApplyMetric(record, plan, result, communityName, period, "leased", leased, "leased_units");
+    else if (rentable > 0 && leasedPct !== null) dataImportApplyMetric(record, plan, result, communityName, period, "leased", Math.round(rentable * leasedPct / 100), "leased_units");
+    dataImportApplyMetric(record, plan, result, communityName, period, "guest_cards", sum("new_leads") ?? sum("guest_cards"), "new_leads");
+    dataImportApplyMetric(record, plan, result, communityName, period, "applications", sum("applications"), "applications");
+    dataImportApplyMetric(record, plan, result, communityName, period, "applications_approved", sum("approvals"), "approvals");
+    dataImportApplyMetric(record, plan, result, communityName, period, "denied", sum("denied_applications"), "denied_applications");
+    dataImportApplyMetric(record, plan, result, communityName, period, "cancelled", sum("cancelled_applications"), "cancelled_applications");
+    const leadCount = sum("new_leads") ?? sum("guest_cards");
+    const applicationCount = sum("applications");
+    if (leadCount !== null && applicationCount !== null && applicationCount > leadCount) result.issues.push({ type: "reconciliation", severity: "medium", title: "Applications exceed detected leads", detail: `${applicationCount} applications were reported against ${leadCount} new leads. Confirm the source date range and lead bucket definitions.`, communityName });
+    entries.forEach(entry => dataImportUpsertFloorPlan(record, entry.row, plan, entry.sourceRow.sourceSheet));
+    const periodEntries = getWritableMonthlyPeriodEntries(record, period.monthIdx, period.year);
+    [periodEntries?.historyEntry, periodEntries?.liveEntry].filter(Boolean).forEach(month => {
+      if (physicalPct !== null && physicalPct >= 0 && physicalPct <= 100) month.physicalOccupancyPct = physicalPct;
+      if (leasedPct !== null && leasedPct >= 0 && leasedPct <= 100) month.leasedOccupancyPct = leasedPct;
+      if (rentable !== null) month.rentableUnits = rentable;
+      if (available !== null) month.exposureUnits = Math.max(0, available + (sum("notice_unrented") || 0));
+    });
+    result.formulas.push(`${communityName} ${period.periodKey}: Physical Occupancy = Occupied / Rentable; Leased Occupancy = Leased / Rentable; Exposure = Notice Unrented + Vacant Unrented.`);
+    result.destinations.add("Community Overview");
+    if (hasFloorPlanRows) result.destinations.add("Floor Plans - approval required");
+    result.destinations.add("Leasing Performance");
+  } else if (plan.reportType === "trending_occupancy") {
+    const periodEntries = getWritableMonthlyPeriodEntries(record, period.monthIdx, period.year);
+    [periodEntries?.historyEntry, periodEntries?.liveEntry].filter(Boolean).forEach(month => {
+      const forecast = dataImportPercentValue(first("reported_forecast") ?? first("trending_occupancy"));
+      const actual = dataImportPercentValue(first("reported_actual"));
+      const closed = dataImportPercentValue(first("closed_actual"));
+      if (forecast !== null) month.trendingOccupancyForecast = forecast;
+      if (actual !== null) month.trendingOccupancyActual = actual;
+      if (closed !== null) month.trendingOccupancyClosedActual = closed;
+      const moveIns = sum("move_ins");
+      const moveOuts = sum("move_outs");
+      if (moveIns !== null) month.trendingMoveIns = moveIns;
+      if (moveOuts !== null) month.trendingMoveOuts = moveOuts;
+    });
+    result.destinations.add("Occupancy Trend");
+    result.destinations.add("Exposure Forecast");
+  } else if (plan.reportType === "rent_roll" || plan.reportType === "approved_accounting") {
+    const scheduled = sum("scheduled_charges");
+    const actual = sum("actual_charges");
+    const gpr = sum("gross_potential_rent");
+    dataImportApplyMetric(record, plan, result, communityName, period, "rent_roll_total", scheduled ?? actual, "scheduled_charges");
+    const periodEntries = getWritableMonthlyPeriodEntries(record, period.monthIdx, period.year);
+    [periodEntries?.historyEntry, periodEntries?.liveEntry].filter(Boolean).forEach(month => {
+      if (scheduled !== null) month.scheduledCharges = scheduled;
+      if (actual !== null) month.actualCharges = actual;
+      if (gpr !== null) month.grossPotentialRent = gpr;
+      if (gpr > 0 && actual !== null) month.economicOccupancyPct = actual / gpr * 100;
+    });
+    result.formulas.push(`${communityName} ${period.periodKey}: Economic Occupancy = Actual Rent Charges / Gross Potential Rent when both values are present.`);
+    result.destinations.add(plan.reportType === "rent_roll" ? "Rent Performance" : "Financial Reporting");
+  } else if (plan.reportType === "leasing_resident_data") {
+    const applications = rows.filter(row => row.application_id || row.application_date || row.application_status).length;
+    const statuses = rows.map(row => dataImportNormalizeText(row.application_status));
+    dataImportApplyMetric(record, plan, result, communityName, period, "applications", applications, "applications");
+    dataImportApplyMetric(record, plan, result, communityName, period, "applications_approved", statuses.filter(status => status.includes("approv")).length, "approvals");
+    dataImportApplyMetric(record, plan, result, communityName, period, "denied", statuses.filter(status => status.includes("deni") || status.includes("declin")).length, "denied_applications");
+    dataImportApplyMetric(record, plan, result, communityName, period, "cancelled", statuses.filter(status => status.includes("cancel")).length, "cancelled_applications");
+    result.destinations.add("Central Services Leasing");
+    result.destinations.add("Application Performance");
+  } else if (plan.reportType === "delinquency") {
+    const gross = (sum("unpaid_rent") || 0) + (sum("unpaid_other") || 0) + (sum("unpaid_deposit") || 0);
+    const balance = sum("resident_balance") ?? gross + (sum("credits") || 0) + (sum("prepayments") || 0);
+    const pastDue = sum("past_due");
+    const currentDue = sum("current_due");
+    if (pastDue !== null && currentDue !== null && Math.abs((pastDue + currentDue) - gross) > 1) result.issues.push({ type: "reconciliation", severity: "high", title: "Delinquency totals do not reconcile", detail: `Past Due + Current Due is ${(pastDue + currentDue).toFixed(2)}, while gross delinquency is ${gross.toFixed(2)}.`, communityName });
+    const periodEntries = getWritableMonthlyPeriodEntries(record, period.monthIdx, period.year);
+    [periodEntries?.historyEntry, periodEntries?.liveEntry].filter(Boolean).forEach(month => {
+      month.delinquentGross = gross;
+      month.netResidentBalance = balance;
+    });
+    result.formulas.push(`${communityName} ${period.periodKey}: Gross Delinquency = Unpaid Rent + Other + Deposit; Net Resident Balance = Gross + Credits + Prepayments.`);
+    result.destinations.add("Central Services Collections");
+  }
+  savedData[communityName] = normalizeSavedCommunityRecord(communityName, record);
+}
+
+async function dataImportRouteStructuredFile(file, plan, batchId) {
+  const sheets = await dataImportReadStructuredRows(file);
+  const freshness = dataImportEffectiveFreshness(plan.reportType);
+  const freshnessDate = plan.metadata?.dataAsOf || plan.dataDateIso || plan.metadata?.generatedAt || plan.metadata?.fileModifiedAt || "";
+  const freshnessAge = freshnessDate
+    ? (freshness.businessDays ? dataImportBusinessDaysBetween(freshnessDate) : Math.max(0, Math.floor((Date.now() - new Date(freshnessDate).getTime()) / 86400000)))
+    : 0;
+  const blockStaleDownstream = freshness.action === "block_hold" && Number.isFinite(freshnessAge) && freshnessAge > freshness.days;
+  const result = {
+    batchId,
+    rowsReviewed: sheets.reduce((total, sheet) => total + sheet.rows.length, 0),
+    rowsInserted: 0,
+    rowsUpdated: 0,
+    rowsUnchanged: 0,
+    rowsRejected: 0,
+    rowsHeld: 0,
+    duplicatesIgnored: 0,
+    communities: new Set(),
+    destinations: new Set(),
+    issues: [],
+    formulas: [],
+    coverage: [],
+    coverageGaps: [],
+    coverageExpected: 0,
+    centralRows: []
+  };
+  if (!sheets.length && !["box_score", "marketing_iq"].includes(plan.reportType)) {
+    result.issues.push({ type: "held", severity: "high", title: "No tabular rows extracted", detail: `${plan.name} was archived, but ATLAS found no row structure that could be mapped without guessing.` });
+    result.rowsHeld = Math.max(1, Number(plan.rowCount || 0));
+  }
+  if (blockStaleDownstream) {
+    result.issues.push({ type: "held", severity: "high", title: "Stale feed held from downstream use", detail: `${plan.reportTypeLabel} is ${freshnessAge} ${freshness.businessDays ? "business " : ""}days old; this source is configured to block and hold after ${freshness.days} days.` });
+  }
+  const grouped = new Map();
+  for (const sheet of sheets) {
+    for (const sourceRow of sheet.rows) {
+      const { mapped, sourceFields, unmappedFields } = dataImportMapSourceRow(sourceRow, plan);
+      const communityName = dataImportResolveRowCommunity(mapped, sourceRow, plan);
+      if (!communityName) {
+        result.rowsRejected += 1;
+        result.issues.push({ type: "unmapped", severity: "high", title: "Community could not be resolved", detail: `${sheet.sheetName} row ${sourceRow.sourceRow} was quarantined without guessing.`, communityName: "Unmapped", sourceSheet: sheet.sheetName, sourceRow: sourceRow.sourceRow });
+        continue;
+      }
+      const selectedCommunityKeys = new Set((plan.selectedCommunities || plan.communities || []).map(dataImportNormalizeText));
+      if (selectedCommunityKeys.size && !selectedCommunityKeys.has(dataImportNormalizeText(communityName))) {
+        result.rowsHeld += 1;
+        continue;
+      }
+      if (!dataImportCommunitySupportsReport(communityName, plan.reportType)) {
+        result.rowsHeld += 1;
+        result.issues.push({ type: "held", severity: "medium", title: "Outside managed service scope", detail: `${communityName} is not enabled for ${plan.reportTypeLabel}; the row was retained as source history without changing operational reporting.`, communityName });
+        continue;
+      }
+      const incomingUnits = dataImportNumericValue(mapped.total_units);
+      if (plan.reportType === "community_data" && dataImportNormalizeText(communityName) === dataImportNormalizeText("Baymeadows") && incomingUnits === 340) {
+        result.rowsHeld += 1;
+        result.issues.push({ type: "reconciliation", severity: "high", title: "Baymeadows unit-count correction required", detail: "Baymeadows is governed at 331 units. The incoming 340-unit row was retained in the raw archive and held from Community Foundation until corrected or explicitly resolved.", communityName });
+        continue;
+      }
+      const period = dataImportRowPeriod(mapped, sourceRow, plan);
+      const canonicalRecord = {
+        key: dataImportCanonicalRecordKey(plan, communityName, period, mapped, sourceRow),
+        reportType: plan.reportType,
+        reportTypeLabel: plan.reportTypeLabel,
+        communityName,
+        periodKey: period.periodKey,
+        values: mapped,
+        originalValues: sourceRow.values,
+        sourceSheet: sourceRow.sourceSheet,
+        sourceRow: sourceRow.sourceRow,
+        sourceSystem: plan.sourceSystem,
+        sourceFile: plan.name,
+        fileHash: plan.fileHash || "",
+        batchId,
+        mappingVersion: plan.mappingVersion || "ATLAS-RRIM-1.0",
+        dataAsOf: plan.metadata?.dataAsOf || plan.dataDateIso || plan.metadata?.generatedAt || "",
+        importedAt: new Date().toISOString()
+      };
+      const upsert = dataImportUpsertCanonicalRecord(canonicalRecord, result);
+      if (["held", "older", "duplicate"].includes(upsert.disposition)) continue;
+      result.communities.add(communityName);
+      dataImportAddLineage(plan, batchId, canonicalRecord, sourceFields, false);
+      if (unmappedFields.length) {
+        result.issues.push({ type: "unmapped", severity: "low", title: "Source fields retained without a destination", detail: `${unmappedFields.slice(0, 4).map(item => item.header).join(", ")} remain visible in lineage for Admin mapping.`, communityName, sourceSheet: sourceRow.sourceSheet, sourceRow: sourceRow.sourceRow });
+      }
+      if (blockStaleDownstream) {
+        if (upsert.disposition === "inserted") result.rowsInserted = Math.max(0, result.rowsInserted - 1);
+        else if (upsert.disposition === "updated") result.rowsUpdated = Math.max(0, result.rowsUpdated - 1);
+        else if (upsert.disposition === "unchanged") result.rowsUnchanged = Math.max(0, result.rowsUnchanged - 1);
+        result.rowsHeld += 1;
+        continue;
+      }
+      if (plan.reportType === "delinquency") result.centralRows.push({ ...sourceRow.values, sourceSheetName: sourceRow.sourceSheet });
+      if (plan.reportType === "community_data") {
+        dataImportApplyCommunityFoundation(mapped, communityName, plan, result);
+      } else {
+        const groupKey = `${communityName}::${period.periodKey}`;
+        const group = grouped.get(groupKey) || { communityName, period, entries: [] };
+        group.entries.push({ row: mapped, sourceRow, sourceFields, canonicalRecord });
+        grouped.set(groupKey, group);
+      }
+    }
+  }
+  grouped.forEach(group => dataImportApplyGroupedSnapshot(group, plan, result));
+  if (plan.reportType === "delinquency" && result.centralRows.length && typeof window.atlasCsIngestDelinquencyRows === "function") {
+      const firstCommunity = Array.from(result.communities)[0] || "Multiple properties";
+      const csResult = window.atlasCsIngestDelinquencyRows(result.centralRows, {
+        propertyName: result.communities.size === 1 ? firstCommunity : "Multiple properties",
+        monthIdx: Number.isInteger(plan.reportingMonthIdx) ? plan.reportingMonthIdx : getSelectedDashboardMonthIndex(),
+        year: Number.isInteger(plan.reportingYear) ? plan.reportingYear : new Date().getFullYear(),
+        fileName: plan.name,
+        sourceSheetName: sheets.length === 1 ? sheets[0].sheetName : `${sheets.length} data sheets`,
+        importBatchId: batchId
+      }, { importHistory: true, render: false });
+      if (csResult?.rowsImported) result.destinations.add("Central Services Collections / Evictions");
+  }
+  result.coverage = Array.from(result.communities).map(communityName => ({ communityName, reportType: plan.reportType, period: plan.reportingPeriodLabel || "Detected per row" }));
+  if (dataImportGetReportDef(plan.reportType)?.serviceScope === "leasing") {
+    const expected = DATA_IMPORT_LEASING_MANAGED_COMMUNITIES.filter(dataImportIsActiveReportingCommunity);
+    const covered = new Set(Array.from(result.communities).map(dataImportNormalizeText));
+    result.coverageExpected = expected.length;
+    result.coverageGaps = expected.filter(name => !covered.has(dataImportNormalizeText(name)));
+  } else {
+    result.coverageExpected = result.communities.size;
+  }
+  result.destinations = Array.from(result.destinations);
+  result.communities = Array.from(result.communities);
+  delete result.centralRows;
+  dataImport2State.reconciliationLog.unshift(...result.formulas.map(formula => ({ id: dataImportMakeId("recon"), batchId, reportType: plan.reportType, fileName: plan.name, formula, createdAt: new Date().toISOString() })));
+  dataImport2State.reconciliationLog = dataImport2State.reconciliationLog.slice(0, 1200);
+  persistSaved();
+  return result;
+}
+
+async function dataImportRouteApprovedFile(file, plan, batchId = "") {
   const extension = dataImportGetFileExtension(file.name);
+  const exactDuplicate = (dataImport2State.sourceArchive || []).find(entry => entry.fileHash && entry.fileHash === plan.fileHash && entry.batchId !== batchId && entry.importStatus !== "Rolled Back");
+  if (exactDuplicate) {
+    return { message: `Exact duplicate retained in the archive; current data was not rewritten. Original batch ${exactDuplicate.batchId}.`, rowsReviewed: plan.rowCount || 0, rowsInserted: 0, rowsUpdated: 0, rowsUnchanged: 0, rowsRejected: 0, rowsHeld: 0, duplicatesIgnored: plan.rowCount || 1, issues: [], destinations: [], communities: plan.communities || [], formulas: [], coverage: [] };
+  }
+  let result = [".csv", ".txt", ".pdf", ".xlsx", ".xls", ".xlsm"].includes(extension)
+    ? await dataImportRouteStructuredFile(file, plan, batchId)
+    : { rowsReviewed: plan.rowCount || 0, rowsInserted: 0, rowsUpdated: 0, rowsUnchanged: 0, rowsRejected: 0, rowsHeld: 0, duplicatesIgnored: 0, issues: [], destinations: [], communities: plan.communities || [], formulas: [], coverage: [] };
   if (plan.reportType === "leasing_resident_data" && [".xlsx", ".xls", ".xlsm"].includes(extension)) {
     await processApplicationResidentDataFiles([file]);
-    return "Leasing Resident Data refreshed.";
+    result.destinations = Array.from(new Set([...(result.destinations || []), "Resident lifecycle", "Application Performance"]));
   }
   if (plan.reportType === "renewal_tracker") {
     await processRenewalFiles([file]);
-    return "Renewal lifecycle refreshed.";
+    result.destinations = Array.from(new Set([...(result.destinations || []), "Renewal Management", "Exposure Forecast"]));
   }
   if (plan.reportType === "marketing_iq") {
     await processMarketSurveyFiles([file]);
-    return "Marketing IQ data refreshed.";
+    result.destinations = Array.from(new Set([...(result.destinations || []), "Marketing Performance"]));
   }
   if (plan.reportType === "box_score" && typeof processDlrBoxScoreFiles === "function") {
-    await processDlrBoxScoreFiles([file]);
-    return "Box Score daily layer refreshed.";
+    const routedCommunities = plan.selectedCommunities || plan.communities || [];
+    if (routedCommunities.length === 1) {
+      const previousTarget = { ...historicalImportTarget };
+      historicalImportTarget = normalizeHistoricalImportTarget({
+        ...historicalImportTarget,
+        community: routedCommunities[0],
+        month: Number.isInteger(plan.reportingMonthIdx) ? plan.reportingMonthIdx : historicalImportTarget.month,
+        year: Number.isInteger(plan.reportingYear) ? plan.reportingYear : historicalImportTarget.year
+      });
+      try {
+        await processDlrBoxScoreFiles([file]);
+      } finally {
+        historicalImportTarget = previousTarget;
+        persistOpsGlobalData();
+      }
+      result.destinations = Array.from(new Set([...(result.destinations || []), "DLR", "Weekly Leasing Report"]));
+    }
   }
-  await processLegacyOperationalImportFiles([file]);
-  return "Operational import route refreshed.";
+  if (!dataImportGetReportDef(plan.reportType)) await processLegacyOperationalImportFiles([file]);
+  result.message = `${result.rowsInserted || 0} inserted, ${result.rowsUpdated || 0} updated, ${result.rowsUnchanged || 0} unchanged, ${result.rowsRejected || 0} rejected, ${result.rowsHeld || 0} held; refreshed ${(result.destinations || []).join(", ") || "the source archive"}.`;
+  return result;
 }
 
 function dataImportBuildExceptionsForApprovedFiles(files = [], batchId = "") {
@@ -48321,7 +49203,7 @@ function dataImportBuildExceptionsForApprovedFiles(files = [], batchId = "") {
     status: issue.type === "duplicate" ? "Audited" : "Open",
     batchId,
     fileName: plan.name,
-    communityName: (plan.communities || [])[0] || "Unmapped",
+    communityName: issue.communityName || (plan.communities || [])[0] || "Unmapped",
     sourceSystem: plan.sourceSystem || "Unknown",
     reportType: plan.reportType,
     reportTypeLabel: plan.reportTypeLabel,
@@ -48337,6 +49219,10 @@ function dataImportBuildExceptionsForApprovedFiles(files = [], batchId = "") {
         ? "Review the suggested mapping and save it globally if correct."
         : issue.type === "duplicate"
           ? "Confirm whether this is an exact duplicate or a new source version."
+          : issue.type === "held"
+            ? "Review the service scope, source date, or closed-period control before releasing this row."
+          : issue.type === "reconciliation"
+            ? "Correct the source or approve a documented exception before downstream use."
           : "Review the source file and resolve the exception."
   })));
 }
@@ -48364,7 +49250,22 @@ async function approveDataImportBatch() {
     const archiveEntry = await dataImportArchiveApprovedFile(file, plan, batch);
     archivedEntries.push(archiveEntry);
     try {
-      routeMessages.push(`${plan.name}: ${await dataImportRouteApprovedFile(file, plan)}`);
+      const importResult = await dataImportRouteApprovedFile(file, plan, batch.id);
+      plan.importResult = importResult;
+      plan.issues = [...(plan.issues || []), ...(importResult.issues || [])];
+      plan.communities = Array.from(new Set([...(plan.communities || []), ...(importResult.communities || [])]));
+      archiveEntry.communities = plan.communities;
+      archiveEntry.rowsInserted = Number(importResult.rowsInserted || 0);
+      archiveEntry.rowsUpdated = Number(importResult.rowsUpdated || 0);
+      archiveEntry.rowsUnchanged = Number(importResult.rowsUnchanged || 0);
+      archiveEntry.rowsRejected = Number(importResult.rowsRejected || 0);
+      archiveEntry.rowsHeld = Number(importResult.rowsHeld || 0);
+      archiveEntry.duplicatesIgnored = Number(importResult.duplicatesIgnored || 0);
+      archiveEntry.destinations = importResult.destinations || [];
+      archiveEntry.coverage = importResult.coverage || [];
+      archiveEntry.coverageExpected = Number(importResult.coverageExpected || 0);
+      archiveEntry.coverageGaps = importResult.coverageGaps || [];
+      routeMessages.push(`${plan.name}: ${importResult.message || "Import route completed."}`);
     } catch (error) {
       const message = String(error?.message || error || "Import route failed.");
       routeMessages.push(`${plan.name}: ${message}`);
@@ -48388,19 +49289,36 @@ async function approveDataImportBatch() {
       sourceSystem: plan.sourceSystem,
       communities: plan.communities || [],
       rowsReviewed: plan.rowCount || 0,
-      rowsInserted: Math.max(0, Number(plan.readyRows || 0) - 1),
-      rowsUpdated: plan.communities?.length || 0,
-      rowsRejected: (plan.issues || []).filter(issue => ["invalid","unmapped","unsupported"].includes(issue.type)).length,
-      duplicatesIgnored: (plan.issues || []).filter(issue => issue.type === "duplicate").length,
+      rowsInserted: Number(plan.importResult?.rowsInserted || 0),
+      rowsUpdated: Number(plan.importResult?.rowsUpdated || 0),
+      rowsUnchanged: Number(plan.importResult?.rowsUnchanged || 0),
+      rowsRejected: Number(plan.importResult?.rowsRejected || 0),
+      rowsHeld: Number(plan.importResult?.rowsHeld || 0),
+      duplicatesIgnored: Number(plan.importResult?.duplicatesIgnored || 0),
       conflictsCreated: (plan.issues || []).filter(issue => issue.type === "conflict").length,
       fieldsOverridden: (plan.availableFields || []).map(field => field.canonicalField),
       mappingChanges: (plan.issues || []).filter(issue => issue.type === "low_confidence").length,
-      downstreamMetricsRefreshed: plan.downstreamUses || []
+      downstreamMetricsRefreshed: plan.importResult?.destinations || plan.downstreamUses || [],
+      coverage: plan.importResult?.coverage || [],
+      coverageExpected: Number(plan.importResult?.coverageExpected || 0),
+      coverageGaps: plan.importResult?.coverageGaps || [],
+      formulas: plan.importResult?.formulas || []
     })),
     archiveIds: archivedEntries.map(entry => entry.id),
     routeMessages,
     downstreamAudit,
     beforeSnapshot: batch.beforeSnapshot
+  };
+  const actualFiles = historyEntry.files || [];
+  historyEntry.summary = {
+    ...historyEntry.summary,
+    rowsReviewed: actualFiles.reduce((sum, file) => sum + Number(file.rowsReviewed || 0), 0),
+    readyToImport: actualFiles.reduce((sum, file) => sum + Number(file.rowsInserted || 0) + Number(file.rowsUpdated || 0), 0),
+    existingRecordsUpdated: actualFiles.reduce((sum, file) => sum + Number(file.rowsUpdated || 0), 0),
+    duplicatesIgnored: actualFiles.reduce((sum, file) => sum + Number(file.duplicatesIgnored || 0), 0),
+    conflicts: actualFiles.reduce((sum, file) => sum + Number(file.conflictsCreated || 0), 0),
+    rejected: actualFiles.reduce((sum, file) => sum + Number(file.rowsRejected || 0), 0),
+    held: actualFiles.reduce((sum, file) => sum + Number(file.rowsHeld || 0), 0)
   };
   dataImport2State.batches = [historyEntry, ...(dataImport2State.batches || [])].slice(0, 60);
   dataImport2State.exceptions = [
@@ -48431,22 +49349,79 @@ function toggleDataImportFileApproval(fileId, selected) {
   renderTab();
 }
 
+function toggleDataImportCommunityApproval(fileId, communityName, selected) {
+  const batch = dataImport2State.pendingBatch;
+  if (!batch?.files) return;
+  batch.files = batch.files.map(file => {
+    if (file.fileId !== fileId) return file;
+    const names = new Set(file.selectedCommunities || file.communities || []);
+    if (selected) names.add(communityName);
+    else names.delete(communityName);
+    return { ...file, selectedCommunities: Array.from(names) };
+  });
+  batch.summary = dataImportBuildBatchSummary(batch.files.filter(file => file.selected), batch.zipIssues || []);
+  persistDataImport2State();
+  renderTab();
+}
+
+function assignDataImportPlanCommunity(fileId, communityName) {
+  const batch = dataImport2State.pendingBatch;
+  if (!batch?.files || !communityName) return;
+  batch.files = batch.files.map(file => file.fileId === fileId ? {
+    ...file,
+    communities: [communityName],
+    selectedCommunities: [communityName],
+    issues: (file.issues || []).filter(issue => issue.title !== "No community match found"),
+    status: file.status === "blocked" ? "blocked" : "review"
+  } : file);
+  batch.summary = dataImportBuildBatchSummary(batch.files.filter(file => file.selected), batch.zipIssues || []);
+  persistDataImport2State();
+  renderTab();
+}
+
 function overrideDataImportReportType(fileId, reportType) {
   const batch = dataImport2State.pendingBatch;
   if (!batch?.files) return;
   batch.files = batch.files.map(file => {
     if (file.fileId !== fileId) return file;
     const def = dataImportGetReportDef(reportType);
-    const issues = (file.issues || []).filter(issue => issue.title !== "Report type needs confirmation" && issue.title !== "Low confidence report detection");
+    const sample = {
+      headers: file.sampleSummary?.headers || [],
+      headerSamples: file.sampleSummary?.headerSamples || {},
+      sampleText: (file.sampleSummary?.sheets || []).map(sheet => `${sheet.sheetName || ""} ${(sheet.headers || []).join(" ")}`).join(" ")
+    };
+    const sourceSystem = dataImportSourceSystemForType(reportType, `${file.name} ${sample.sampleText} ${sample.headers.join(" ")}`);
+    const fields = dataImportDetectFields(sample, { reportType, sourceSystem });
+    const issues = (file.issues || []).filter(issue => ![
+      "Report type needs confirmation",
+      "Low confidence report detection",
+      "Low confidence mapping",
+      "Report structure changed"
+    ].includes(issue.title));
+    if (def && sample.headers.length && fields.mappedFields.length === 0) {
+      issues.push({ type: "held", severity: "high", title: "Report structure changed", detail: `${def.label} was selected, but none of its source columns map to the current ATLAS dictionary. Review the source fields before sending data downstream.` });
+    }
+    fields.lowConfidence.forEach(item => issues.push({
+      type: "low_confidence",
+      severity: "low",
+      title: "Low confidence mapping",
+      detail: `${item.originalField} may map to ${dataImportCanonicalFieldLabel(item.suggestedField)}.`,
+      originalField: item.originalField,
+      canonicalField: item.suggestedField,
+      confidence: item.confidence
+    }));
     return {
       ...file,
       reportType,
       reportTypeLabel: dataImportReportLabel(reportType),
-      sourceSystem: def?.sourceSystems?.[0] || file.sourceSystem || "Unknown",
+      sourceSystem,
       confidence: 100,
       overrideReportType: reportType,
       downstreamUses: def?.dependencies || file.downstreamUses || [],
-      status: file.status === "blocked" ? "blocked" : issues.some(issue => ["unmapped","invalid","low_confidence"].includes(issue.type)) ? "review" : "ready",
+      availableFields: fields.mappedFields,
+      lowConfidenceFields: fields.lowConfidence,
+      unmappedHeaders: fields.unmappedHeaders,
+      status: file.status === "blocked" ? "blocked" : issues.some(issue => ["unmapped","invalid","low_confidence","held"].includes(issue.type)) ? "review" : "ready",
       issues
     };
   });
@@ -48491,6 +49466,9 @@ function rollbackDataImportBatch(batchId) {
   if (reason === null) return;
   savedData = normalizeSavedCommunityMap(batch.beforeSnapshot.savedData || {});
   applicationResidentDataState = normalizeApplicationResidentDataState(batch.beforeSnapshot.applicationResidentData || defaultApplicationResidentDataState());
+  dataImport2State.canonicalRecords = Array.isArray(batch.beforeSnapshot.canonicalRecords) ? batch.beforeSnapshot.canonicalRecords : [];
+  dataImport2State.lineage = Array.isArray(batch.beforeSnapshot.lineage) ? batch.beforeSnapshot.lineage : [];
+  dataImport2State.reconciliationLog = Array.isArray(batch.beforeSnapshot.reconciliationLog) ? batch.beforeSnapshot.reconciliationLog : [];
   if (savedData[getProp().name]) loadPropertyData(getProp().name);
   batch.status = "Rolled Back";
   batch.rollback = {
@@ -48532,11 +49510,42 @@ function dataImportBusinessDaysBetween(start, end = new Date()) {
 }
 
 function dataImportAgeForArchive(entry, def) {
-  const sourceDate = entry?.dataDateIso || entry?.uploadedAt || "";
+  const sourceDate = entry?.metadata?.dataAsOf || entry?.dataDateIso || entry?.metadata?.generatedAt || entry?.uploadedAt || "";
   if (!sourceDate) return Infinity;
   return def?.freshness?.businessDays
     ? dataImportBusinessDaysBetween(sourceDate)
     : Math.max(0, Math.floor((Date.now() - new Date(sourceDate).getTime()) / 86400000));
+}
+
+function dataImportEffectiveFreshness(reportType) {
+  const def = dataImportGetReportDef(reportType);
+  const policy = dataImport2State.freshnessPolicies?.[reportType] || {};
+  return {
+    label: policy.cadence || def?.freshness?.label || "Configured schedule",
+    days: Math.max(1, Number(policy.thresholdDays || def?.freshness?.days || 7)),
+    businessDays: typeof policy.businessDays === "boolean" ? policy.businessDays : def?.freshness?.businessDays === true,
+    action: policy.action === "block_hold" ? "block_hold" : "warn_send",
+    scheduledDay: policy.scheduledDay || "",
+    graceBusinessDays: Math.max(0, Number(policy.graceBusinessDays || 0))
+  };
+}
+
+function dataImportNextDueLabel(entry, reportType) {
+  if (!entry) return "No source received";
+  const freshness = dataImportEffectiveFreshness(reportType);
+  const source = new Date(entry.metadata?.dataAsOf || entry.dataDateIso || entry.metadata?.generatedAt || entry.uploadedAt || "");
+  if (!Number.isFinite(source.getTime())) return "Not calculable";
+  const due = new Date(source.getTime());
+  if (freshness.businessDays) {
+    let remaining = freshness.days;
+    while (remaining > 0) {
+      due.setDate(due.getDate() + 1);
+      if (due.getDay() !== 0 && due.getDay() !== 6) remaining -= 1;
+    }
+  } else {
+    due.setDate(due.getDate() + freshness.days);
+  }
+  return dataImportFormatDate(due);
 }
 
 function dataImportLatestArchiveFor(communityName, reportType) {
@@ -48572,6 +49581,15 @@ function dataImportHasSavedFallbackData(communityName, reportType) {
     const uploads = normalizeApplicationResidentDataState(applicationResidentDataState).uploads || [];
     const normalized = dataImportNormalizeText(communityName);
     return uploads.some(upload => (upload.mappedProperties || []).some(name => dataImportNormalizeText(name) === normalized));
+  }
+  if (reportType === "community_data") {
+    return Boolean(record.communityId || record.pmsPropertyCode || record.communityAddress || Number(record.customUnits || 0) > 0);
+  }
+  if (reportType === "delinquency") {
+    return Number(month.delinquentGross || month.netResidentBalance || 0) !== 0;
+  }
+  if (reportType === "approved_accounting") {
+    return Number(month.actualCharges || month.grossPotentialRent || 0) !== 0;
   }
   return false;
 }
@@ -48814,7 +49832,7 @@ function dataImportSummarizeDownstreamAudit(audits = []) {
 
 function dataImportBuildStatusDateLabel(status, archive, hasFallback, checkedAt) {
   if (archive) {
-    const sourceDate = archive.dataDateIso || archive.uploadedAt || "";
+    const sourceDate = archive.metadata?.dataAsOf || archive.dataDateIso || archive.metadata?.generatedAt || archive.uploadedAt || "";
     return sourceDate ? `Data ${dataImportFormatDate(sourceDate)}` : "Date unavailable";
   }
   if (hasFallback) {
@@ -48831,20 +49849,22 @@ function dataImportBuildHealthModel() {
     const isActive = dataImportIsActiveReportingCommunity(communityName);
     const cells = DATA_IMPORT_REPORT_ORDER.map(reportType => {
       const def = dataImportGetReportDef(reportType);
+      const freshness = dataImportEffectiveFreshness(reportType);
+      const required = dataImportCommunitySupportsReport(communityName, reportType);
       const archive = dataImportLatestArchiveFor(communityName, reportType);
       const hasFallback = dataImportHasSavedFallbackData(communityName, reportType);
-      let status = "Missing";
-      let ageLabel = "No source";
-      let detail = `Upload current ${def.label} for ${communityName}.`;
-      if (archive) {
-        const age = dataImportAgeForArchive(archive, def);
-        const stale = age > Number(def.freshness?.days || 7);
+      let status = required ? "Missing" : "Not Required";
+      let ageLabel = required ? "No source" : "Outside service scope";
+      let detail = required ? `Upload current ${def.label} for ${communityName}.` : `${def.label} is not required for this community's configured service scope.`;
+      if (required && archive) {
+        const age = dataImportAgeForArchive(archive, { freshness });
+        const stale = age > Number(freshness.days || 7);
         status = stale ? "Stale" : "Fresh";
-        ageLabel = Number.isFinite(age) ? `${age} ${def.freshness?.businessDays ? "business " : ""}day${age === 1 ? "" : "s"} old` : "Age unavailable";
+        ageLabel = Number.isFinite(age) ? `${age} ${freshness.businessDays ? "business " : ""}day${age === 1 ? "" : "s"} old` : "Age unavailable";
         detail = stale
-          ? `${def.label} is outside the ${def.freshness?.label || "configured"} freshness expectation.`
+          ? `${def.label} is outside the ${freshness.label || "configured"} freshness expectation${freshness.action === "block_hold" ? " and is held from downstream send" : ""}.`
           : `${def.label} is current from ${archive.batchId}.`;
-      } else if (hasFallback) {
+      } else if (required && hasFallback) {
         status = "Fresh";
         ageLabel = "Saved ATLAS data";
         detail = "ATLAS has current saved data, but no raw source file is archived for lineage yet.";
@@ -48854,30 +49874,35 @@ function dataImportBuildHealthModel() {
         dataImportNormalizeText(issue.communityName) === dataImportNormalizeText(communityName) &&
         issue.reportType === reportType
       );
-      if (relatedExceptions.some(issue => issue.type === "conflict")) status = "Conflict";
-      else if (relatedExceptions.some(issue => issue.type === "unmapped")) status = "Unmapped";
+      if (required && relatedExceptions.some(issue => issue.type === "conflict")) status = "Conflict";
+      else if (required && relatedExceptions.some(issue => issue.type === "unmapped")) status = "Unmapped";
+      else if (required && relatedExceptions.some(issue => issue.type === "held")) status = "Held";
       return {
         communityName,
         reportType,
         reportLabel: def.label,
+        required,
         status,
         ageLabel,
         statusDateLabel: dataImportBuildStatusDateLabel(status, archive, hasFallback, checkedAt),
         detail,
         archive,
         exceptions: relatedExceptions,
-        recommendedAction: status === "Fresh"
+        recommendedAction: status === "Not Required"
+          ? "No feed is required for this configured service scope."
+          : status === "Fresh"
           ? "No upload needed."
           : `Upload a current ${def.label} for ${communityName}.`,
         modulesAffected: def.dependencies || []
       };
     });
-    const fullyCurrent = cells.every(cell => cell.status === "Fresh");
+    const requiredCells = cells.filter(cell => cell.required);
+    const fullyCurrent = requiredCells.length > 0 && requiredCells.every(cell => cell.status === "Fresh");
     return { communityName, cells, fullyCurrent, isActive };
   });
   const activeRows = rows.filter(row => row.isActive);
   const inactiveRows = rows.filter(row => !row.isActive);
-  const cells = activeRows.flatMap(row => row.cells);
+  const cells = activeRows.flatMap(row => row.cells).filter(cell => cell.required);
   const allCells = rows.flatMap(row => row.cells);
   const freshCount = cells.filter(cell => cell.status === "Fresh").length;
   const staleCount = cells.filter(cell => cell.status === "Stale").length;
@@ -48927,7 +49952,7 @@ function dataImportBuildRecommendations(health) {
       recs.push({
         severity: ["box_score", "leasing_resident_data"].includes(cell.reportType) ? "high" : "medium",
         title: `${cell.communityName} ${cell.reportLabel} is stale`,
-        detail: `${cell.ageLabel}. Expected freshness is ${dataImportGetReportDef(cell.reportType).freshness.label}.`,
+        detail: `${cell.ageLabel}. Expected freshness is ${dataImportEffectiveFreshness(cell.reportType).label}.`,
         action: "Upload"
       });
     } else if (cell.status === "Unmapped") {
@@ -49055,13 +50080,78 @@ function renderDataImportHealthDetail(health) {
       <strong>${escapeHtml(cell.communityName)} · ${escapeHtml(cell.reportLabel)}</strong><br>
       Status: ${escapeHtml(cell.status)}<br>
       Most recent upload: ${archive ? escapeHtml(dataImportFormatTimestamp(archive.uploadedAt)) : "None"}<br>
-      Reporting date: ${archive ? escapeHtml(archive.dataDateLabel || archive.reportingPeriodLabel || "Not detected") : "Missing"}<br>
+      Reporting date: ${archive ? escapeHtml(archive.metadata?.dataAsOf ? dataImportFormatTimestamp(archive.metadata.dataAsOf) : archive.dataDateLabel || archive.reportingPeriodLabel || "Not detected") : "Missing"}<br>
+      Generated: ${archive?.metadata?.generatedAt ? escapeHtml(dataImportFormatTimestamp(archive.metadata.generatedAt)) : "Not recorded"}<br>
+      Received: ${archive?.metadata?.receivedAt ? escapeHtml(dataImportFormatTimestamp(archive.metadata.receivedAt)) : archive ? escapeHtml(dataImportFormatTimestamp(archive.uploadedAt)) : "Not recorded"}<br>
+      Expected cadence: ${escapeHtml(dataImportEffectiveFreshness(cell.reportType).label)}<br>
+      Next due: ${escapeHtml(dataImportNextDueLabel(archive, cell.reportType))}<br>
       Status date: ${escapeHtml(cell.statusDateLabel || "Not recorded")}<br>
       Age: ${escapeHtml(cell.ageLabel)}<br>
       Import batch: ${archive ? escapeHtml(archive.batchId) : "None"}<br>
+      Mapping version: ${archive ? escapeHtml(archive.mappingVersion || "ATLAS-RRIM-1.0") : "None"}<br>
+      File fingerprint: ${archive?.fileHash ? escapeHtml(`${archive.fileHash.slice(0, 16)}…`) : "Not recorded"}<br>
+      Coverage: ${archive ? `${escapeHtml((archive.communities || []).length)}${archive.coverageExpected ? `/${escapeHtml(archive.coverageExpected)}` : ""} communities` : "None"}<br>
+      Row disposition: ${archive ? `${escapeHtml(archive.rowsInserted || 0)} inserted · ${escapeHtml(archive.rowsUpdated || 0)} corrected · ${escapeHtml(archive.rowsUnchanged || 0)} unchanged · ${escapeHtml(archive.rowsHeld || 0)} held · ${escapeHtml(archive.rowsRejected || 0)} rejected` : "None"}<br>
       Outstanding problems: ${cell.exceptions.length || 0}<br>
       Recommended action: ${escapeHtml(cell.recommendedAction)}<br>
       Feeds: ${escapeHtml(cell.modulesAffected.join(", ") || "No dependencies configured")}
+    </div>
+  </div>`;
+}
+
+function updateDataImportFreshnessPolicy(reportType, field, value) {
+  const current = dataImport2State.freshnessPolicies?.[reportType] || defaultDataImportFreshnessPolicies()[reportType];
+  if (!current) return;
+  const next = { ...current, updatedAt: new Date().toISOString(), updatedBy: "Admin" };
+  if (["thresholdDays", "graceBusinessDays"].includes(field)) next[field] = Math.max(field === "thresholdDays" ? 1 : 0, Number(value) || 0);
+  else if (field === "businessDays") next.businessDays = value === true || value === "true";
+  else if (field === "action") next.action = value === "block_hold" ? "block_hold" : "warn_send";
+  else next[field] = String(value || "").trim();
+  dataImport2State.freshnessPolicies = { ...(dataImport2State.freshnessPolicies || {}), [reportType]: next };
+  persistDataImport2State();
+  renderTab();
+}
+
+function updateDataImportClosedPeriod(action) {
+  const periodKey = String(document.getElementById("data-import-closed-period")?.value || "").trim();
+  if (!/^\d{4}-\d{2}$/.test(periodKey)) {
+    alert("Choose a reporting month first.");
+    return;
+  }
+  const periods = new Set(dataImport2State.closedPeriods || []);
+  if (action === "open") periods.delete(periodKey);
+  else periods.add(periodKey);
+  dataImport2State.closedPeriods = Array.from(periods).sort().reverse().slice(0, 180);
+  persistDataImport2State();
+  renderTab();
+}
+
+function renderDataImportFreshnessPolicies() {
+  return `<div class="data-import2-card">
+    <div class="data-import2-section-title"><i class="ph ph-calendar-check"></i>Freshness Policy</div>
+    <div class="data-import2-file-meta" style="margin-bottom:10px">Cadence and downstream behavior are configurable by report. Warn &amp; send flags stale data; Block &amp; hold prevents a stale feed from moving downstream.</div>
+    <table class="data-import2-table">
+      <thead><tr><th>Report</th><th>Cadence</th><th>Threshold</th><th>Clock</th><th>Downstream Action</th><th>Updated</th></tr></thead>
+      <tbody>${DATA_IMPORT_REPORT_ORDER.map(reportType => {
+        const policy = dataImport2State.freshnessPolicies?.[reportType] || defaultDataImportFreshnessPolicies()[reportType];
+        return `<tr>
+          <td><strong>${escapeHtml(dataImportReportLabel(reportType))}</strong></td>
+          <td><input value="${escapeHtml(policy.cadence || "")}" onchange='updateDataImportFreshnessPolicy(${JSON.stringify(reportType)}, "cadence", this.value)'></td>
+          <td><input type="number" min="1" value="${escapeHtml(policy.thresholdDays || 7)}" onchange='updateDataImportFreshnessPolicy(${JSON.stringify(reportType)}, "thresholdDays", this.value)'> days</td>
+          <td><select onchange='updateDataImportFreshnessPolicy(${JSON.stringify(reportType)}, "businessDays", this.value)'><option value="false" ${policy.businessDays ? "" : "selected"}>Calendar days</option><option value="true" ${policy.businessDays ? "selected" : ""}>Business days</option></select></td>
+          <td><select onchange='updateDataImportFreshnessPolicy(${JSON.stringify(reportType)}, "action", this.value)'><option value="warn_send" ${policy.action === "block_hold" ? "" : "selected"}>Warn &amp; send</option><option value="block_hold" ${policy.action === "block_hold" ? "selected" : ""}>Block &amp; hold</option></select></td>
+          <td>${policy.updatedAt ? escapeHtml(dataImportFormatTimestamp(policy.updatedAt)) : "Default"}</td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table>
+    <div class="data-import2-detail-panel" style="margin-top:10px">
+      <div class="data-import2-small-label">Closed Reporting Period Control</div>
+      <div class="data-import2-form-grid" style="margin-top:6px">
+        <input id="data-import-closed-period" type="month" value="${escapeHtml(buildPeriodKey(getSelectedDashboardMonthIndex(), new Date().getFullYear()))}">
+        <button class="btn btn-gray btn-sm" onclick='updateDataImportClosedPeriod("close")'>Close Period</button>
+        <button class="btn btn-gray btn-sm" onclick='updateDataImportClosedPeriod("open")'>Reopen for Approved Correction</button>
+      </div>
+      <div class="data-import2-supported" style="justify-content:flex-start;margin-top:8px">${(dataImport2State.closedPeriods || []).length ? dataImport2State.closedPeriods.map(period => `<span class="data-import2-chip warn">${escapeHtml(period)} closed</span>`).join("") : `<span class="data-import2-chip good">No periods are closed</span>`}</div>
     </div>
   </div>`;
 }
@@ -49163,6 +50253,7 @@ function renderDataImportPendingBatch() {
   const reportOptions = [`<option value="unknown">Needs Review</option>`]
     .concat(DATA_IMPORT_REPORT_ORDER.map(type => `<option value="${type}">${escapeHtml(dataImportReportLabel(type))}</option>`))
     .join("");
+  const assignableCommunities = dataImportGetHealthCommunityNames();
   const fileRows = (batch.files || []).map(plan => `<div class="data-import2-file">
     <div>
       <label style="display:flex;align-items:flex-start;gap:8px">
@@ -49170,6 +50261,7 @@ function renderDataImportPendingBatch() {
         <span>
           <div class="data-import2-file-name">${escapeHtml(plan.name)}</div>
           <div class="data-import2-file-meta">${escapeHtml(dataImportFormatBytes(plan.size))}${plan.originalZipName ? ` · from ${escapeHtml(plan.originalZipName)}` : ""} · ${escapeHtml(plan.rowCount || 0)} rows reviewed</div>
+          <div class="data-import2-file-meta">SHA-256 ${escapeHtml((plan.fileHash || "not available").slice(0, 12))}${plan.fileHash ? "…" : ""} · mapping ${escapeHtml(plan.mappingVersion || "ATLAS-RRIM-1.0")}</div>
         </span>
       </label>
     </div>
@@ -49183,14 +50275,15 @@ function renderDataImportPendingBatch() {
     <div>
       <div class="data-import2-small-label">Communities</div>
       <div class="data-import2-supported" style="justify-content:flex-start">${(plan.communities || []).length
-        ? plan.communities.slice(0, 5).map(name => `<span class="data-import2-chip good">${escapeHtml(name)}</span>`).join("") + (plan.communities.length > 5 ? `<span class="data-import2-chip">${plan.communities.length - 5} more</span>` : "")
-        : `<span class="data-import2-chip warn">Unmapped</span>`}</div>
-      <div class="data-import2-file-meta">${escapeHtml(plan.reportingPeriodLabel)} · ${escapeHtml(plan.dataDateLabel)}</div>
+        ? plan.communities.slice(0, 8).map(name => `<label class="data-import2-chip good" style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" ${(plan.selectedCommunities || plan.communities || []).includes(name) ? "checked" : ""} onchange='toggleDataImportCommunityApproval(${JSON.stringify(plan.fileId)}, ${JSON.stringify(name)}, this.checked)'>${escapeHtml(name)}</label>`).join("") + (plan.communities.length > 8 ? `<span class="data-import2-chip">${plan.communities.length - 8} more</span>` : "")
+        : `<select class="data-import2-select" onchange='assignDataImportPlanCommunity(${JSON.stringify(plan.fileId)}, this.value)'><option value="">Assign active community</option>${assignableCommunities.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}</select>`}</div>
+      <div class="data-import2-file-meta">${escapeHtml(plan.reportingPeriodLabel)} · ${escapeHtml(plan.dataDateLabel)} · received ${escapeHtml(dataImportFormatTimestamp(plan.metadata?.receivedAt))}</div>
     </div>
     <div>
       <div class="data-import2-small-label">Mapped Fields</div>
       <div class="data-import2-file-meta">${(plan.availableFields || []).slice(0, 4).map(field => escapeHtml(dataImportCanonicalFieldLabel(field.canonicalField))).join(", ") || "No mapped fields yet"}</div>
       <div class="data-import2-file-meta">${escapeHtml((plan.downstreamUses || []).slice(0, 2).join(", ") || "No dependencies detected")}</div>
+      <div class="data-import2-file-meta">${escapeHtml((plan.relevantTabs || []).filter(name => !dataImportIsMetadataSheetName(name)).slice(0, 3).join(", ") || "No data tab detected")}</div>
     </div>
     <div>
       <span class="data-import2-status ${dataImportStatusClass(plan.status)}">${escapeHtml(plan.status === "ready" ? "Ready" : plan.status === "blocked" ? "Blocked" : "Review")}</span>
@@ -49267,6 +50360,7 @@ function renderDataImportHealthView(health) {
       ${renderDataImportMatrix(health, false)}
     </div>
     ${renderDataImportHealthDetail(health)}
+    ${renderDataImportFreshnessPolicies()}
   </div>`;
 }
 
@@ -50278,6 +51372,8 @@ function renderDataImportHistoryView() {
   const batches = dataImport2State.batches || [];
   if (!batches.length) return `<div class="data-import2-card"><div class="data-import2-section-title"><i class="ph ph-clock-counter-clockwise"></i>Import History</div><div class="data-import2-detail-panel">No import batches have been approved yet.</div></div>`;
   const latestAudit = renderDataImportDownstreamAudit(batches[0]?.downstreamAudit || []);
+  const latestFiles = batches[0]?.files || [];
+  const latestLineage = (dataImport2State.lineage || []).filter(item => item.batchId === batches[0]?.id).slice(0, 20);
   return `<div class="data-import2-card">
     <div class="data-import2-section-title"><i class="ph ph-clock-counter-clockwise"></i>Import History</div>
     <table class="data-import2-table">
@@ -50286,11 +51382,13 @@ function renderDataImportHistoryView() {
         <td><strong>${escapeHtml(batch.id)}</strong><div class="data-import2-file-meta">Uploaded by ${escapeHtml(batch.uploader || "Admin")}</div></td>
         <td>${escapeHtml(dataImportFormatTimestamp(batch.approvedAt || batch.createdAt))}</td>
         <td>${escapeHtml((batch.files || []).map(file => file.reportTypeLabel || file.fileName).slice(0, 3).join(", ") || "Import files")}<div class="data-import2-file-meta">${escapeHtml(batch.summary?.files || 0)} file(s) · ${escapeHtml(batch.summary?.communities || 0)} communities</div></td>
-        <td>${escapeHtml(batch.summary?.rowsReviewed || 0)} reviewed · ${escapeHtml(batch.summary?.duplicatesIgnored || 0)} duplicates · ${escapeHtml(batch.summary?.conflicts || 0)} conflicts<div class="data-import2-file-meta">${escapeHtml((batch.routeMessages || []).slice(0, 2).join(" "))}</div><div class="data-import2-file-meta">${escapeHtml(dataImportSummarizeDownstreamAudit(batch.downstreamAudit))}</div></td>
+        <td>${escapeHtml(batch.summary?.rowsReviewed || 0)} reviewed · ${escapeHtml(batch.summary?.readyToImport || 0)} written · ${escapeHtml(batch.summary?.duplicatesIgnored || 0)} duplicates · ${escapeHtml(batch.summary?.held || 0)} held · ${escapeHtml(batch.summary?.rejected || 0)} rejected<div class="data-import2-file-meta">${escapeHtml((batch.routeMessages || []).slice(0, 2).join(" "))}</div><div class="data-import2-file-meta">${escapeHtml(dataImportSummarizeDownstreamAudit(batch.downstreamAudit))}</div></td>
         <td><span class="data-import2-status ${dataImportStatusClass(batch.status)}">${escapeHtml(batch.status)}</span>${batch.rollback?.reason ? `<div class="data-import2-file-meta">Reason: ${escapeHtml(batch.rollback.reason)}</div>` : ""}</td>
         <td>${batch.status === "Approved" ? `<button class="btn btn-gray btn-sm" onclick='rollbackDataImportBatch(${JSON.stringify(batch.id)})'>Rollback</button>` : ""}</td>
       </tr>`).join("")}</tbody>
     </table>
+    ${latestFiles.length ? `<div style="margin-top:12px"><div class="data-import2-section-title"><i class="ph ph-list-checks"></i>Latest Row Disposition</div><table class="data-import2-table"><thead><tr><th>Source</th><th>Coverage</th><th>Inserted</th><th>Corrected</th><th>Unchanged</th><th>Duplicate</th><th>Held</th><th>Rejected</th><th>Destinations</th></tr></thead><tbody>${latestFiles.map(file => `<tr><td><strong>${escapeHtml(file.fileName)}</strong><div class="data-import2-file-meta">${escapeHtml(file.reportTypeLabel || "")}</div></td><td>${escapeHtml((file.communities || []).length)}${file.coverageExpected ? `/${escapeHtml(file.coverageExpected)}` : ""} communities${(file.coverageGaps || []).length ? `<div class="data-import2-file-meta">Gaps: ${escapeHtml(file.coverageGaps.slice(0, 4).join(", "))}${file.coverageGaps.length > 4 ? ` +${file.coverageGaps.length - 4}` : ""}</div>` : ""}</td><td>${escapeHtml(file.rowsInserted || 0)}</td><td>${escapeHtml(file.rowsUpdated || 0)}</td><td>${escapeHtml(file.rowsUnchanged || 0)}</td><td>${escapeHtml(file.duplicatesIgnored || 0)}</td><td>${escapeHtml(file.rowsHeld || 0)}</td><td>${escapeHtml(file.rowsRejected || 0)}</td><td>${escapeHtml((file.downstreamMetricsRefreshed || []).join(", ") || "Archive only")}</td></tr>`).join("")}</tbody></table></div>` : ""}
+    ${latestLineage.length ? `<div style="margin-top:12px"><div class="data-import2-section-title"><i class="ph ph-git-branch"></i>Latest Source Lineage</div><table class="data-import2-table"><thead><tr><th>Community / Period</th><th>ATLAS Field</th><th>Imported Value</th><th>Original Source</th><th>Location</th><th>State</th></tr></thead><tbody>${latestLineage.map(item => `<tr><td><strong>${escapeHtml(item.communityName)}</strong><div class="data-import2-file-meta">${escapeHtml(item.periodKey)}</div></td><td>${escapeHtml(dataImportCanonicalFieldLabel(item.atlasField))}</td><td>${escapeHtml(item.importedValue)}</td><td>${escapeHtml(item.sourceFile)}<div class="data-import2-file-meta">${escapeHtml(item.originalField || item.atlasField)}</div></td><td>${escapeHtml(item.sourceSheet || "Workbook")} ${item.sourceRow ? `row ${escapeHtml(item.sourceRow)}` : ""}</td><td><span class="data-import2-status ${item.currentState ? "ready" : "info"}">${item.currentState ? "Current" : "Historical"}</span></td></tr>`).join("")}</tbody></table></div>` : ""}
     ${latestAudit ? `<div style="margin-top:12px"><div class="data-import2-section-title"><i class="ph ph-check-circle"></i>Latest Destination Check</div>${latestAudit}</div>` : ""}
   </div>`;
 }
@@ -50303,10 +51401,10 @@ function renderDataImportArchiveView() {
     <table class="data-import2-table">
       <thead><tr><th>Source File</th><th>Classification</th><th>Communities</th><th>Batch</th><th>Status</th><th></th></tr></thead>
       <tbody>${entries.map(entry => `<tr>
-        <td><strong>${escapeHtml(entry.fileName)}</strong><div class="data-import2-file-meta">${escapeHtml(dataImportFormatBytes(entry.size))} · uploaded ${escapeHtml(dataImportFormatTimestamp(entry.uploadedAt))}${entry.originalZipName ? ` · ZIP ${escapeHtml(entry.originalZipName)}` : ""}</div></td>
-        <td>${escapeHtml(entry.reportTypeLabel || dataImportReportLabel(entry.reportType))}<div class="data-import2-file-meta">${escapeHtml(entry.sourceSystem || "Unknown")} · ${escapeHtml(entry.reportingPeriodLabel || "Period not detected")}</div></td>
+        <td><strong>${escapeHtml(entry.fileName)}</strong><div class="data-import2-file-meta">${escapeHtml(dataImportFormatBytes(entry.size))} · received ${escapeHtml(dataImportFormatTimestamp(entry.metadata?.receivedAt || entry.uploadedAt))}${entry.originalZipName ? ` · ZIP ${escapeHtml(entry.originalZipName)}` : ""}</div><div class="data-import2-file-meta">SHA-256 ${escapeHtml((entry.fileHash || "not recorded").slice(0, 16))}${entry.fileHash ? "…" : ""}</div></td>
+        <td>${escapeHtml(entry.reportTypeLabel || dataImportReportLabel(entry.reportType))}<div class="data-import2-file-meta">${escapeHtml(entry.sourceSystem || "Unknown")} · ${escapeHtml(entry.reportingPeriodLabel || "Period not detected")}</div><div class="data-import2-file-meta">Generated ${escapeHtml(dataImportFormatTimestamp(entry.metadata?.generatedAt, "not recorded"))} · as of ${escapeHtml(dataImportFormatTimestamp(entry.metadata?.dataAsOf || entry.dataDateIso, "not recorded"))}</div></td>
         <td>${(entry.communities || []).slice(0, 4).map(name => `<span class="data-import2-chip good">${escapeHtml(name)}</span>`).join(" ") || `<span class="data-import2-chip warn">Unmapped</span>`}</td>
-        <td>${escapeHtml(entry.batchId || "")}<div class="data-import2-file-meta">${escapeHtml(entry.rowsReviewed || 0)} rows reviewed</div></td>
+        <td>${escapeHtml(entry.batchId || "")}<div class="data-import2-file-meta">${escapeHtml(entry.rowsReviewed || 0)} reviewed · ${escapeHtml(entry.rowsUpdated || 0)} corrected · ${escapeHtml(entry.rowsHeld || 0)} held</div><div class="data-import2-file-meta">${escapeHtml(entry.mappingVersion || "ATLAS-RRIM-1.0")}</div></td>
         <td><span class="data-import2-status ${dataImportStatusClass(entry.importStatus)}">${escapeHtml(entry.importStatus || "Archived")}</span><div class="data-import2-file-meta">${escapeHtml(entry.storageStatus || "Metadata")}</div></td>
         <td><button class="btn btn-gray btn-sm" onclick='downloadDataImportArchiveFile(${JSON.stringify(entry.id)})'>Download</button></td>
       </tr>`).join("")}</tbody>

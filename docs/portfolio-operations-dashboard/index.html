@@ -666,6 +666,14 @@
   .community-command-meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
   .community-command-pill { display:inline-flex; align-items:center; gap:5px; padding:5px 8px; border:1px solid var(--border); border-radius:999px; background:var(--bg3); color:var(--muted); font-size:0.62rem; font-weight:800; }
   .community-command-pill.strong { color:var(--accent); border-color:rgba(29,118,139,0.24); background:rgba(29,118,139,0.06); }
+  .community-command-plan-drill { width:100%; border:1px solid rgba(29,118,139,0.22); background:rgba(29,118,139,0.055); color:var(--text); border-radius:8px; padding:8px 9px; margin-top:9px; font:inherit; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:8px; text-align:left; }
+  .community-command-plan-drill:hover { border-color:rgba(29,118,139,0.45); background:rgba(29,118,139,0.09); }
+  .community-command-plan-drill.active { border-color:rgba(210,153,34,0.44); background:rgba(210,153,34,0.12); }
+  .community-command-plan-drill:disabled { cursor:not-allowed; opacity:0.55; }
+  .community-command-plan-drill span { font-size:0.66rem; color:var(--muted); font-weight:800; }
+  .community-command-plan-drill strong { font-family:'JetBrains Mono',monospace; color:var(--accent); font-size:0.95rem; }
+  .community-command-roster-toolbar { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-top:9px; }
+  .community-command-row-suggested td { background:rgba(210,153,34,0.055); }
   .community-command-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:flex-end; }
   .community-command-section { border:1px solid var(--border); border-radius:8px; background:var(--bg2); box-shadow:0 2px 9px rgba(1,62,81,0.04); overflow:hidden; }
   .community-command-section .windowshade-head { padding:12px 14px; margin:0; border-bottom:1px solid var(--border); background:linear-gradient(90deg, rgba(29,118,139,0.06), rgba(255,255,255,0)); }
@@ -3115,6 +3123,7 @@ let reportHubLvrCommunity = "";
 let weeklyExecutiveEmail = defaultWeeklyExecutiveEmailSettings();
 let workspaceScopeValue = PORTFOLIO_SCOPE_VALUE;
 let communityCommandState = defaultCommunityCommandState();
+let communityCommandPortfolioRosterFilter = "all";
 const RISE_WEEKLY_LEASING_REPORT_TYPE = "rise_weekly_leasing";
 const RISE_WEEKLY_LEASING_REPORT_TITLE = "RISE Portfolio Leasing Weekly Report";
 let reportHubType = RISE_WEEKLY_LEASING_REPORT_TYPE;
@@ -12310,7 +12319,7 @@ function flushWorkspaceNavigation() {
 }
 
 function queueWorkspaceNavigation(scopeValue = "", tabIdx = null, options = {}) {
-  const safeTabIdx = tabIdx === null || tabIdx === undefined ? null : Math.max(0, Math.min(9, Number(tabIdx) || 0));
+  const safeTabIdx = tabIdx === null || tabIdx === undefined ? null : Math.max(0, Math.min(MAX_TAB, Number(tabIdx) || 0));
   if (safeTabIdx === 8 && options?.syncReportMonth !== false) {
     syncReportHubToWorkspacePeriod();
     persistOpsGlobalData();
@@ -20969,8 +20978,8 @@ function renderPortfolioScopePanel(title, subtitle, cardsHtml, bodyHtml) {
         <p style="font-size:0.72rem;color:var(--muted)">${subtitle}</p>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button type="button" class="btn btn-gray btn-sm" onmousedown="${primaryActionHandler}">${escapeHtml(primaryActionLabel)}</button>
-        <button type="button" class="btn btn-blue btn-sm" onmousedown="return queueWorkspaceNavigation('', 8, { portfolio: true })">Open Reporting</button>
+        <button type="button" class="btn btn-gray btn-sm" onclick="${primaryActionHandler}">${escapeHtml(primaryActionLabel)}</button>
+        <button type="button" class="btn btn-blue btn-sm" onclick="return queueWorkspaceNavigation('', 8, { portfolio: true })">Open Reporting</button>
       </div>
     </div>
     ${cardsHtml}
@@ -23077,6 +23086,68 @@ function buildCommunityCommandAlerts(model) {
   return alerts.sort((a, b) => ({ critical: 0, watch: 1, opportunity: 2 }[a.severity] ?? 9) - ({ critical: 0, watch: 1, opportunity: 2 }[b.severity] ?? 9));
 }
 
+function getCommunityCommandPlanSuggestion(model, alerts = null) {
+  if (!model || model.activePerformancePlan) return null;
+  const reviewAlerts = (Array.isArray(alerts) ? alerts : buildCommunityCommandAlerts(model))
+    .filter(alert => ["critical", "watch"].includes(alert.severity));
+  if (!reviewAlerts.length) return null;
+  const criticalCount = reviewAlerts.filter(alert => alert.severity === "critical").length;
+  return {
+    severity: criticalCount > 0 ? "critical" : "watch",
+    title: reviewAlerts[0]?.title || "Plan review suggested",
+    alertCount: reviewAlerts.length,
+    criticalCount,
+    watchCount: reviewAlerts.length - criticalCount
+  };
+}
+
+function buildCommunityCommandPortfolioRosterItems(details = []) {
+  return details.map(detail => {
+    const model = buildCommunityCommandModel(detail.name, detail.record);
+    const alerts = buildCommunityCommandAlerts(model);
+    const suggestion = getCommunityCommandPlanSuggestion(model, alerts);
+    return {
+      detail,
+      model,
+      alerts,
+      suggestion,
+      hasActivePlan: Boolean(model.activePerformancePlan)
+    };
+  });
+}
+
+function setCommunityCommandPortfolioRosterFilter(filter = "all") {
+  communityCommandPortfolioRosterFilter = ["all", "active_plans", "suggested_plans"].includes(filter) ? filter : "all";
+  renderTab();
+  setTimeout(() => document.getElementById("community-command-roster")?.scrollIntoView({ behavior: "smooth", block: "start" }), 40);
+  return false;
+}
+
+function openCommunityCommandFromPortfolioRoster(propName = "") {
+  const matchedName = matchPropertyName(propName, { fallbackToCurrent: false }) || String(propName || "").trim();
+  if (!matchedName) return false;
+  communityCommandPortfolioRosterFilter = "all";
+  openCommunityWorkspace(matchedName, 2);
+  return false;
+}
+
+function renderCommunityCommandPlanSummaryStat(rosterItems = []) {
+  const activeCount = rosterItems.filter(item => item.hasActivePlan).length;
+  const suggestedCount = rosterItems.filter(item => item.suggestion).length;
+  const activeFilter = communityCommandPortfolioRosterFilter === "active_plans";
+  const suggestedFilter = communityCommandPortfolioRosterFilter === "suggested_plans";
+  return `<div class="stat-box">
+    <div class="label">With Active Plans</div>
+    <div class="value" style="color:#d29922">${activeCount}</div>
+    <div class="sub">Performance plan star is shown next to the community.</div>
+    <button type="button" class="community-command-plan-drill${suggestedFilter ? " active" : ""}" onclick="return setCommunityCommandPortfolioRosterFilter('suggested_plans')" ${suggestedCount ? "" : "disabled"}>
+      <span>${suggestedFilter ? "Showing" : "Suggested Plans"}</span>
+      <strong>${suggestedCount}</strong>
+    </button>
+    ${activeCount ? `<button type="button" class="community-command-plan-drill${activeFilter ? " active" : ""}" onclick="return setCommunityCommandPortfolioRosterFilter('active_plans')"><span>${activeFilter ? "Showing" : "Active Plan Communities"}</span><strong>${activeCount}</strong></button>` : ""}
+  </div>`;
+}
+
 function buildCommunityCommandLeasingPlanRows(model) {
   return model.schedule.map((row, idx) => {
     const monthEntry = model.monthlyData[idx] || {};
@@ -23584,38 +23655,62 @@ function renderPortfolioScopedCommunityCommandTab() {
   const details = getWorkspaceScopedDetails(getSelectedDashboardMonthIndex())
     .filter(detail => isCommunityStatusActive(detail.record))
     .filter(detail => atlasDashboardUserCanSeeCommunityName(detail.name));
+  const rosterItems = buildCommunityCommandPortfolioRosterItems(details);
+  const suggestedPlanCount = rosterItems.filter(item => item.suggestion).length;
+  const visibleRosterItems = (communityCommandPortfolioRosterFilter === "suggested_plans"
+      ? rosterItems.filter(item => item.suggestion)
+      : communityCommandPortfolioRosterFilter === "active_plans"
+        ? rosterItems.filter(item => item.hasActivePlan)
+        : rosterItems)
+    .slice()
+    .sort((a, b) => {
+      const rank = item => item.hasActivePlan ? 0 : item.suggestion ? 1 : 2;
+      const severityRank = item => item.suggestion?.severity === "critical" ? 0 : item.suggestion ? 1 : 2;
+      return rank(a) - rank(b) || severityRank(a) - severityRank(b) || a.detail.name.localeCompare(b.detail.name);
+    });
+  const belowBudgetCount = rosterItems.filter(item => item.model.budgetOccPct > 0 && Number(item.model.physicalPct || 0) + 0.5 < item.model.budgetOccPct).length;
+  const onTrackCount = rosterItems.filter(item => item.model.budgetOccPct > 0 && Number(item.model.physicalPct || 0) + 0.5 >= item.model.budgetOccPct).length;
   const cardsHtml = `<div class="grid-4">
     ${statBox("Accessible Communities", details.length, "Active communities available to this role.", "#4493f8")}
-    ${statBox("With Active Plans", details.filter(detail => communityCommandHasActivePerformancePlan(detail.name)).length, "Performance plan star is shown next to the community.", "#d29922")}
-    ${statBox("Below Budget", details.filter(detail => Number(detail.summary?.budgetOccPct || 0) > 0 && Number(detail.summary?.occPct || 0) + 0.5 < Number(detail.summary?.budgetOccPct || 0)).length, "Active communities trailing current budget occupancy.", "#f85149")}
-    ${statBox("On Track", details.filter(detail => Number(detail.summary?.budgetOccPct || 0) > 0 && Number(detail.summary?.occPct || 0) + 0.5 >= Number(detail.summary?.budgetOccPct || 0)).length, "Communities holding the current budget line.", "#3fb950")}
+    ${renderCommunityCommandPlanSummaryStat(rosterItems)}
+    ${statBox("Below Budget", belowBudgetCount, "Active communities trailing current budget occupancy.", "#f85149")}
+    ${statBox("On Track", onTrackCount, "Communities holding the current budget line.", "#3fb950")}
   </div>`;
-  const rows = details
-    .sort((a, b) => {
-      const aPlan = communityCommandHasActivePerformancePlan(a.name) ? 0 : 1;
-      const bPlan = communityCommandHasActivePerformancePlan(b.name) ? 0 : 1;
-      return aPlan - bPlan || a.name.localeCompare(b.name);
-    })
-    .map(detail => {
-      const model = buildCommunityCommandModel(detail.name, detail.record);
+  const filterLabel = communityCommandPortfolioRosterFilter === "suggested_plans"
+    ? `${suggestedPlanCount} suggested performance plan ${suggestedPlanCount === 1 ? "community" : "communities"}`
+    : communityCommandPortfolioRosterFilter === "active_plans"
+      ? `${visibleRosterItems.length} active performance plan ${visibleRosterItems.length === 1 ? "community" : "communities"}`
+      : `${suggestedPlanCount} suggested performance plan ${suggestedPlanCount === 1 ? "community" : "communities"}`;
+  const toolbarHtml = `<div class="community-command-roster-toolbar">
+    <span class="community-command-pill${communityCommandPortfolioRosterFilter !== "all" ? " strong" : ""}">${escapeHtml(filterLabel)}</span>
+    ${communityCommandPortfolioRosterFilter !== "all" ? `<button type="button" class="btn btn-gray btn-sm" onclick="return setCommunityCommandPortfolioRosterFilter('all')">Show All Communities</button>` : ""}
+  </div>`;
+  const rows = visibleRosterItems
+    .map(item => {
+      const { detail, model, suggestion } = item;
       const gap = model.budgetOccPct > 0 ? model.physicalPct - model.budgetOccPct : null;
-      return `<tr>
-        <td class="l" style="font-weight:800">${communityCommandHasActivePerformancePlan(detail.name) ? `<span class="community-command-star" title="Active Community Performance Plan">★</span> ` : ""}${escapeHtml(detail.name)}</td>
+      const planHtml = model.activePerformancePlan
+        ? `<span class="community-command-status info">${escapeHtml(model.activePerformancePlan.status)}</span>`
+        : suggestion
+          ? `<div style="display:grid;gap:4px;justify-items:center"><span class="community-command-status ${suggestion.severity === "critical" ? "critical" : "watch"}">Suggested</span><span style="font-size:0.62rem;color:var(--muted);max-width:150px">${escapeHtml(suggestion.title)}</span></div>`
+          : `<span class="community-command-status muted">No Plan</span>`;
+      return `<tr class="${suggestion ? "community-command-row-suggested" : ""}">
+        <td class="l" style="font-weight:800">${item.hasActivePlan ? `<span class="community-command-star" title="Active Community Performance Plan">★</span> ` : ""}${escapeHtml(detail.name)}</td>
         <td>${communityCommandFormatPct(model.physicalPct)}</td>
         <td>${communityCommandFormatPct(model.leasedPct)}</td>
         <td>${model.budgetOccPct ? communityCommandFormatPct(model.budgetOccPct) : "Missing"}</td>
         <td>${gap === null ? "Missing" : formatSignedDisplay(gap, 1, "%")}</td>
         <td>${Math.round(model.appMetrics.applications)}</td>
         <td>${Math.round(model.grossLeasesMtd)}</td>
-        <td>${model.activePerformancePlan ? escapeHtml(model.activePerformancePlan.status) : "No active plan"}</td>
-        <td><button type="button" class="btn btn-blue btn-sm" onmousedown="return queueWorkspaceNavigation(${JSON.stringify(detail.name)}, 2)">Open Community Command</button></td>
+        <td>${planHtml}</td>
+        <td><button type="button" class="btn btn-blue btn-sm" onclick="return openCommunityCommandFromPortfolioRoster(${JSON.stringify(detail.name)})">Open Community Command</button></td>
       </tr>`;
     }).join("");
-  const bodyHtml = `<div class="tbl-wrap" style="margin-top:12px">
-    <div class="tbl-header"><h2>Community Command roster</h2><p>Choose one active community to open the command dashboard. Inactive communities remain available to Admin users through Community Settings.</p></div>
+  const bodyHtml = `<div class="tbl-wrap" id="community-command-roster" style="margin-top:12px">
+    <div class="tbl-header"><h2>Community Command roster</h2><p>Choose one active community to open the command dashboard. Inactive communities remain available to Admin users through Community Settings.</p>${toolbarHtml}</div>
     <table>
       <thead><tr><th class="l">Community</th><th>Physical</th><th>Leased</th><th>Budget</th><th>Variance</th><th>Apps MTD</th><th>Leases MTD</th><th>Plan</th><th></th></tr></thead>
-      <tbody>${rows || `<tr><td colspan="9" class="l">No active communities are available to this role.</td></tr>`}</tbody>
+      <tbody>${rows || `<tr><td colspan="9" class="l">${communityCommandPortfolioRosterFilter === "suggested_plans" ? "No communities currently need a suggested performance plan." : communityCommandPortfolioRosterFilter === "active_plans" ? "No active performance plans are currently open." : "No active communities are available to this role."}</td></tr>`}</tbody>
     </table>
   </div>`;
   return renderPortfolioScopePanel("Community Command", "Single-community operational command center. Select a community to review health, alerts, goals, plans, and source-linked metrics.", cardsHtml, bodyHtml);

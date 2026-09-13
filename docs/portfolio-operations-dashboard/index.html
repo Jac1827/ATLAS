@@ -49382,6 +49382,27 @@ async function approveDataImportBatch() {
     alert("Select at least one clean or review-ready file before approving the import.");
     return;
   }
+  const missingPlans = approvedPlans.filter(plan => !dataImportFileHandles.has(plan.fileId));
+  if (missingPlans.length) {
+    const missingNames = missingPlans.map(plan => plan.name).join(", ");
+    missingPlans.forEach(plan => {
+      plan.status = "review";
+      if (!(plan.issues || []).some(issue => issue.title === "Source file must be re-uploaded")) {
+        plan.issues = [...(plan.issues || []), {
+          type: "invalid",
+          severity: "high",
+          title: "Source file must be re-uploaded",
+          detail: "The validation preview survived a browser refresh, but browsers do not retain access to the original file. Re-upload this source before approval."
+        }];
+      }
+    });
+    csvError = `${missingPlans.length} selected source file${missingPlans.length === 1 ? " is" : "s are"} no longer available after the page refresh. Re-upload ${missingPlans.length === 1 ? "it" : "the files"}, then approve the new preview.`;
+    csvLog = [`No ATLAS data was changed. Source access is required before approval.`, missingNames];
+    persistDataImport2State();
+    renderTab();
+    alert(csvError);
+    return;
+  }
   dataImportApprovalInProgress = true;
   dataImportApprovalProgress = {
     filesDone: 0,

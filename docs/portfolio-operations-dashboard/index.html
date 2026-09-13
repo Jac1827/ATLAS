@@ -592,6 +592,11 @@
   .data-import2-preview-stat { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 9px; min-height: 70px; }
   .data-import2-preview-label { font-size: 0.56rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 800; margin-bottom: 5px; }
   .data-import2-preview-value { font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 1rem; color: var(--text); }
+  .data-import2-approval-progress { display: grid; gap: 6px; margin: 10px 0 12px; padding: 10px 12px; border: 1px solid rgba(29,118,139,0.24); border-radius: 8px; background: rgba(29,118,139,0.055); }
+  .data-import2-approval-progress[hidden] { display: none; }
+  .data-import2-progress-copy { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--text); font-size: 0.68rem; font-weight: 800; }
+  .data-import2-progress-track { height: 7px; overflow: hidden; border-radius: 999px; background: rgba(101,119,134,0.16); }
+  .data-import2-progress-fill { width: 0; height: 100%; border-radius: inherit; background: var(--accent); transition: width 0.16s ease; }
   .data-import2-batch-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 10px; }
   .data-import2-file-list { display: grid; gap: 8px; }
   .data-import2-file { border: 1px solid var(--border); border-radius: 8px; background: var(--bg3); padding: 10px; display: grid; grid-template-columns: minmax(180px, 1.1fr) minmax(150px, 0.75fr) minmax(180px, 0.9fr) minmax(150px, 0.8fr) auto; gap: 10px; align-items: center; }
@@ -3293,6 +3298,11 @@ let extractFieldMap = { ...DEFAULT_EXTRACT_FIELD_MAP };
 let windowshadeState = { ...WINDOWSHADE_DEFAULTS };
 let dataImport2State = defaultDataImport2State();
 let dataImportFileHandles = new Map();
+let dataImportApprovalInProgress = false;
+let dataImportApprovalProgress = { filesDone: 0, totalFiles: 0, rowsDone: 0, totalRows: 0, fileName: "", stage: "" };
+let dataImportRuntimeCanonicalIndex = null;
+let dataImportRuntimeLineageBuffer = null;
+let dataImportRuntimeCurrentLineageIndex = null;
 
 // Bonus payout goals ($ amounts, adjustable)
 let bonusPayouts = { apps: 25, leases: 50, conversion: 75 };
@@ -48641,17 +48651,22 @@ async function dataImportReadStructuredRows(file) {
   return sheets;
 }
 
-function dataImportMapSourceRow(sourceRow = {}, plan = {}) {
+function dataImportMapSourceRow(sourceRow = {}, plan = {}, mappingCache = null) {
   const mapped = {};
   const sourceFields = {};
   const unmappedFields = [];
   Object.entries(sourceRow.values || {}).forEach(([header, value]) => {
     if (String(value ?? "").trim() === "") return;
-    const suggestion = dataImportSuggestDestinationForHeader(header, {
-      reportType: plan.reportType,
-      sourceSystem: plan.sourceSystem,
-      sampleValue: String(value ?? "")
-    });
+    const cacheKey = dataImportNormalizeText(header);
+    let suggestion = mappingCache instanceof Map ? mappingCache.get(cacheKey) : null;
+    if (!suggestion) {
+      suggestion = dataImportSuggestDestinationForHeader(header, {
+        reportType: plan.reportType,
+        sourceSystem: plan.sourceSystem,
+        sampleValue: String(value ?? "")
+      });
+      if (mappingCache instanceof Map) mappingCache.set(cacheKey, suggestion);
+    }
     if (!suggestion.field || suggestion.confidence < 80 || suggestion.field === "__ignored__") {
       if (!suggestion.field || suggestion.field !== "__ignored__") unmappedFields.push({ header, value, suggestion });
       return;
@@ -48664,9 +48679,22 @@ function dataImportMapSourceRow(sourceRow = {}, plan = {}) {
   return { mapped, sourceFields, unmappedFields };
 }
 
-function dataImportFindCommunityByInternalId(value = "") {
+function dataImportBuildInternalCommunityLookup() {
+  const lookup = new Map();
+  getAllCommunityNames().forEach(name => {
+    const record = savedData?.[name] || {};
+    [record.communityId, record.atlasCommunityId, record.pmsPropertyCode, record.propertyCode].forEach(id => {
+      const key = dataImportNormalizeText(id);
+      if (key && !lookup.has(key)) lookup.set(key, name);
+    });
+  });
+  return lookup;
+}
+
+function dataImportFindCommunityByInternalId(value = "", internalLookup = null) {
   const normalized = dataImportNormalizeText(value);
   if (!normalized || dataImportIsAggregateCommunityValue(value)) return "";
+  if (internalLookup instanceof Map) return internalLookup.get(normalized) || "";
   const names = getAllCommunityNames();
   return names.find(name => {
     const record = savedData?.[name] || {};
@@ -48675,8 +48703,8 @@ function dataImportFindCommunityByInternalId(value = "") {
   }) || "";
 }
 
-function dataImportResolveRowCommunity(mapped = {}, sourceRow = {}, plan = {}) {
-  const idMatch = dataImportFindCommunityByInternalId(mapped.community_id || mapped.pms_property_code);
+function dataImportResolveRowCommunity(mapped = {}, sourceRow = {}, plan = {}, lookups = {}) {
+  const idMatch = dataImportFindCommunityByInternalId(mapped.community_id || mapped.pms_property_code, lookups.internalIds);
   if (idMatch) return idMatch;
   const candidates = [
     mapped.community_name,
@@ -48685,8 +48713,9 @@ function dataImportResolveRowCommunity(mapped = {}, sourceRow = {}, plan = {}) {
       .filter(([header]) => /property|community|site/i.test(header))
       .map(([, value]) => value)
   ].map(value => String(value ?? "").trim()).filter(value => value && !dataImportIsAggregateCommunityValue(value));
+  const aliasLookup = lookups.aliases instanceof Map ? lookups.aliases : dataImportBuildAliasLookup();
   for (const candidate of candidates) {
-    const alias = dataImportBuildAliasLookup().get(dataImportNormalizeText(candidate));
+    const alias = aliasLookup.get(dataImportNormalizeText(candidate));
     if (alias) return alias;
     const exact = matchPropertyName(candidate, { fallbackToCurrent: false });
     if (exact) return exact;
@@ -48744,9 +48773,83 @@ function dataImportCanonicalRecordKey(plan, communityName, period, row, sourceRo
   return [plan.reportType, dataImportNormalizeText(communityName), period.periodKey, ...identity].join("::");
 }
 
+function dataImportYieldToBrowser() {
+  return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+function dataImportCurrentLineageKey(communityName, periodKey, atlasField) {
+  return [communityName, periodKey, atlasField].map(dataImportNormalizeText).join("::");
+}
+
+function dataImportBeginApprovalRuntime() {
+  dataImportRuntimeCanonicalIndex = new Map();
+  (dataImport2State.canonicalRecords || []).forEach((record, index) => {
+    if (record?.key) dataImportRuntimeCanonicalIndex.set(record.key, index);
+  });
+  dataImportRuntimeCurrentLineageIndex = new Map();
+  (dataImport2State.lineage || []).forEach(item => {
+    if (!item?.currentState) return;
+    const key = dataImportCurrentLineageKey(item.communityName, item.periodKey, item.atlasField);
+    if (!dataImportRuntimeCurrentLineageIndex.has(key)) dataImportRuntimeCurrentLineageIndex.set(key, item);
+  });
+  dataImportRuntimeLineageBuffer = [];
+}
+
+function dataImportBufferLineage(entries = []) {
+  if (!entries.length) return;
+  if (Array.isArray(dataImportRuntimeLineageBuffer)) {
+    dataImportRuntimeLineageBuffer.push(...entries);
+    if (dataImportRuntimeLineageBuffer.length > 24000) {
+      dataImportRuntimeLineageBuffer.splice(0, dataImportRuntimeLineageBuffer.length - 12000);
+    }
+    return;
+  }
+  dataImport2State.lineage = [...entries].reverse().concat(dataImport2State.lineage || []).slice(0, 12000);
+}
+
+function dataImportFinishApprovalRuntime() {
+  if (Array.isArray(dataImportRuntimeLineageBuffer) && dataImportRuntimeLineageBuffer.length) {
+    const newestEntries = dataImportRuntimeLineageBuffer.slice(-12000).reverse();
+    dataImport2State.lineage = newestEntries.concat(dataImport2State.lineage || []).slice(0, 12000);
+  }
+  dataImportRuntimeCanonicalIndex = null;
+  dataImportRuntimeLineageBuffer = null;
+  dataImportRuntimeCurrentLineageIndex = null;
+}
+
+function dataImportUpdateApprovalProgress(next = {}) {
+  dataImportApprovalProgress = { ...dataImportApprovalProgress, ...next };
+  const totalFiles = Math.max(0, Number(dataImportApprovalProgress.totalFiles || 0));
+  const filesDone = Math.min(totalFiles, Math.max(0, Number(dataImportApprovalProgress.filesDone || 0)));
+  const totalRows = Math.max(0, Number(dataImportApprovalProgress.totalRows || 0));
+  const rowsDone = Math.min(totalRows, Math.max(0, Number(dataImportApprovalProgress.rowsDone || 0)));
+  const percent = totalRows > 0
+    ? Math.round(rowsDone / totalRows * 100)
+    : (totalFiles > 0 ? Math.round(filesDone / totalFiles * 100) : 0);
+  const button = document.getElementById("data-import-approve-button");
+  if (button) {
+    button.disabled = dataImportApprovalInProgress;
+    button.textContent = dataImportApprovalInProgress
+      ? `Applying ${Math.min(filesDone + 1, totalFiles)} of ${totalFiles}`
+      : "Approve Selected";
+  }
+  const panel = document.getElementById("data-import-approval-progress");
+  if (!panel) return;
+  panel.hidden = !dataImportApprovalInProgress;
+  panel.setAttribute("aria-busy", dataImportApprovalInProgress ? "true" : "false");
+  const copy = document.getElementById("data-import-approval-copy");
+  const count = document.getElementById("data-import-approval-count");
+  const fill = document.getElementById("data-import-approval-fill");
+  if (copy) copy.textContent = [dataImportApprovalProgress.stage, dataImportApprovalProgress.fileName].filter(Boolean).join(": ") || "Applying selected data";
+  if (count) count.textContent = totalRows > 0 ? `${rowsDone.toLocaleString()} of ${totalRows.toLocaleString()} rows` : `${filesDone} of ${totalFiles} files`;
+  if (fill) fill.style.width = `${Math.max(2, percent)}%`;
+}
+
 function dataImportUpsertCanonicalRecord(record, result) {
   const records = dataImport2State.canonicalRecords || (dataImport2State.canonicalRecords = []);
-  const existingIndex = records.findIndex(item => item.key === record.key);
+  const existingIndex = dataImportRuntimeCanonicalIndex instanceof Map
+    ? (dataImportRuntimeCanonicalIndex.get(record.key) ?? -1)
+    : records.findIndex(item => item.key === record.key);
   const existing = existingIndex >= 0 ? records[existingIndex] : null;
   if (existing?.fileHash && record.fileHash && existing.fileHash === record.fileHash) {
     result.duplicatesIgnored += 1;
@@ -48776,15 +48879,17 @@ function dataImportUpsertCanonicalRecord(record, result) {
     return { disposition: changed ? "updated" : "unchanged", record: next };
   }
   records.push(record);
+  if (dataImportRuntimeCanonicalIndex instanceof Map) dataImportRuntimeCanonicalIndex.set(record.key, records.length - 1);
   result.rowsInserted += 1;
   return { disposition: "inserted", record };
 }
 
 function dataImportAddLineage(plan, batchId, canonicalRecord, sourceFields = {}, currentState = false) {
   const importedAt = new Date().toISOString();
+  const entries = [];
   Object.entries(canonicalRecord.values || {}).forEach(([field, value]) => {
     if (String(value ?? "").trim() === "") return;
-    dataImport2State.lineage.unshift({
+    entries.push({
       id: dataImportMakeId("lineage"),
       key: canonicalRecord.key,
       communityName: canonicalRecord.communityName,
@@ -48807,14 +48912,17 @@ function dataImportAddLineage(plan, batchId, canonicalRecord, sourceFields = {},
       currentState
     });
   });
-  dataImport2State.lineage = dataImport2State.lineage.slice(0, 12000);
+  dataImportBufferLineage(entries);
 }
 
 function dataImportShouldApplyCurrentMetric(plan, communityName, periodKey, atlasField, dataAsOf, result) {
   const incomingRank = Number(dataImportGetReportDef(plan.reportType)?.sourceRank || 0);
-  const controlling = (dataImport2State.lineage || []).find(item =>
-    item.currentState && item.communityName === communityName && item.periodKey === periodKey && item.atlasField === atlasField
-  );
+  const currentKey = dataImportCurrentLineageKey(communityName, periodKey, atlasField);
+  const controlling = dataImportRuntimeCurrentLineageIndex instanceof Map
+    ? dataImportRuntimeCurrentLineageIndex.get(currentKey)
+    : (dataImport2State.lineage || []).find(item =>
+      item.currentState && item.communityName === communityName && item.periodKey === periodKey && item.atlasField === atlasField
+    );
   if (!controlling) return true;
   const existingRank = Number(controlling.sourceRank || 0);
   const incomingTime = Date.parse(dataAsOf || "") || 0;
@@ -48834,10 +48942,16 @@ function dataImportApplyMetric(record, plan, result, communityName, period, targ
   if (!dataImportShouldApplyCurrentMetric(plan, communityName, period.periodKey, atlasField, dataAsOf, result)) return false;
   const applied = applyValueToRecord(record, period.monthIdx, targetKey, numeric, period.year);
   if (applied) {
-    (dataImport2State.lineage || []).forEach(item => {
-      if (item.currentState && item.communityName === communityName && item.periodKey === period.periodKey && item.atlasField === atlasField) item.currentState = false;
-    });
-    dataImport2State.lineage.unshift({
+    const currentKey = dataImportCurrentLineageKey(communityName, period.periodKey, atlasField);
+    if (dataImportRuntimeCurrentLineageIndex instanceof Map) {
+      const controlling = dataImportRuntimeCurrentLineageIndex.get(currentKey);
+      if (controlling) controlling.currentState = false;
+    } else {
+      (dataImport2State.lineage || []).forEach(item => {
+        if (item.currentState && dataImportCurrentLineageKey(item.communityName, item.periodKey, item.atlasField) === currentKey) item.currentState = false;
+      });
+    }
+    const currentEntry = {
       id: dataImportMakeId("lineage_current"),
       key: [communityName, period.periodKey, atlasField].join("::"),
       communityName,
@@ -48856,7 +48970,9 @@ function dataImportApplyMetric(record, plan, result, communityName, period, targ
       dataAsOf,
       importedAt: new Date().toISOString(),
       currentState: true
-    });
+    };
+    dataImportBufferLineage([currentEntry]);
+    if (dataImportRuntimeCurrentLineageIndex instanceof Map) dataImportRuntimeCurrentLineageIndex.set(currentKey, currentEntry);
   }
   return applied;
 }
@@ -49019,6 +49135,21 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
 
 async function dataImportRouteStructuredFile(file, plan, batchId) {
   const sheets = await dataImportReadStructuredRows(file);
+  const actualRowsReviewed = sheets.reduce((total, sheet) => total + sheet.rows.length, 0);
+  const previewRowsReviewed = Number(plan.rowCount || 0);
+  if (dataImportApprovalInProgress && actualRowsReviewed !== previewRowsReviewed) {
+    dataImportUpdateApprovalProgress({
+      totalRows: Math.max(0, Number(dataImportApprovalProgress.totalRows || 0) - previewRowsReviewed + actualRowsReviewed)
+    });
+  }
+  const selectedCommunityKeys = new Set((plan.selectedCommunities || plan.communities || []).map(dataImportNormalizeText));
+  const mappingCache = new Map();
+  const communityLookups = {
+    aliases: dataImportBuildAliasLookup(),
+    internalIds: dataImportBuildInternalCommunityLookup()
+  };
+  const approvalRowOffset = Number(dataImportApprovalProgress.rowsDone || 0);
+  let processedRows = 0;
   const freshness = dataImportEffectiveFreshness(plan.reportType);
   const freshnessDate = plan.metadata?.dataAsOf || plan.dataDateIso || plan.metadata?.generatedAt || plan.metadata?.fileModifiedAt || "";
   const freshnessAge = freshnessDate
@@ -49027,7 +49158,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
   const blockStaleDownstream = freshness.action === "block_hold" && Number.isFinite(freshnessAge) && freshnessAge > freshness.days;
   const result = {
     batchId,
-    rowsReviewed: sheets.reduce((total, sheet) => total + sheet.rows.length, 0),
+    rowsReviewed: actualRowsReviewed,
     rowsInserted: 0,
     rowsUpdated: 0,
     rowsUnchanged: 0,
@@ -49053,14 +49184,22 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
   const grouped = new Map();
   for (const sheet of sheets) {
     for (const sourceRow of sheet.rows) {
-      const { mapped, sourceFields, unmappedFields } = dataImportMapSourceRow(sourceRow, plan);
-      const communityName = dataImportResolveRowCommunity(mapped, sourceRow, plan);
+      processedRows += 1;
+      if (dataImportApprovalInProgress && processedRows % 300 === 0) {
+        dataImportUpdateApprovalProgress({
+          rowsDone: approvalRowOffset + processedRows,
+          stage: "Applying rows",
+          fileName: plan.name
+        });
+        await dataImportYieldToBrowser();
+      }
+      const { mapped, sourceFields, unmappedFields } = dataImportMapSourceRow(sourceRow, plan, mappingCache);
+      const communityName = dataImportResolveRowCommunity(mapped, sourceRow, plan, communityLookups);
       if (!communityName) {
         result.rowsRejected += 1;
         result.issues.push({ type: "unmapped", severity: "high", title: "Community could not be resolved", detail: `${sheet.sheetName} row ${sourceRow.sourceRow} was quarantined without guessing.`, communityName: "Unmapped", sourceSheet: sheet.sheetName, sourceRow: sourceRow.sourceRow });
         continue;
       }
-      const selectedCommunityKeys = new Set((plan.selectedCommunities || plan.communities || []).map(dataImportNormalizeText));
       if (selectedCommunityKeys.size && !selectedCommunityKeys.has(dataImportNormalizeText(communityName))) {
         result.rowsHeld += 1;
         continue;
@@ -49147,7 +49286,11 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
   delete result.centralRows;
   dataImport2State.reconciliationLog.unshift(...result.formulas.map(formula => ({ id: dataImportMakeId("recon"), batchId, reportType: plan.reportType, fileName: plan.name, formula, createdAt: new Date().toISOString() })));
   dataImport2State.reconciliationLog = dataImport2State.reconciliationLog.slice(0, 1200);
-  persistSaved();
+  if (dataImportApprovalInProgress) {
+    dataImportUpdateApprovalProgress({ rowsDone: approvalRowOffset + result.rowsReviewed });
+  } else {
+    persistSaved();
+  }
   return result;
 }
 
@@ -49228,6 +49371,7 @@ function dataImportBuildExceptionsForApprovedFiles(files = [], batchId = "") {
 }
 
 async function approveDataImportBatch() {
+  if (dataImportApprovalInProgress) return;
   const batch = dataImport2State.pendingBatch;
   if (!batch || !Array.isArray(batch.files) || batch.files.length === 0) {
     alert("No import batch is waiting for approval.");
@@ -49238,106 +49382,158 @@ async function approveDataImportBatch() {
     alert("Select at least one clean or review-ready file before approving the import.");
     return;
   }
-  batch.beforeSnapshot = dataImportBuildBeforeSnapshot();
+  dataImportApprovalInProgress = true;
+  dataImportApprovalProgress = {
+    filesDone: 0,
+    totalFiles: approvedPlans.length,
+    rowsDone: 0,
+    totalRows: approvedPlans.reduce((sum, plan) => sum + Number(plan.rowCount || 0), 0),
+    fileName: "",
+    stage: "Preparing approval"
+  };
+  csvError = "";
+  csvLog = [
+    `${batch.id} approval started. Keep this page open while ATLAS applies the selected data.`,
+    ...csvLog.filter(line => !String(line).includes("approval started")).slice(0, 5)
+  ];
+  renderTab();
+  dataImportUpdateApprovalProgress();
+  await dataImportYieldToBrowser();
+
   const routeMessages = [];
   const archivedEntries = [];
-  for (const plan of approvedPlans) {
-    const file = dataImportFileHandles.get(plan.fileId);
-    if (!file) {
-      routeMessages.push(`${plan.name}: restage required before this source can be approved.`);
-      continue;
+  try {
+    batch.beforeSnapshot = dataImportBuildBeforeSnapshot();
+    dataImportBeginApprovalRuntime();
+    for (let index = 0; index < approvedPlans.length; index += 1) {
+      const plan = approvedPlans[index];
+      const rowsAtFileStart = Number(dataImportApprovalProgress.rowsDone || 0);
+      dataImportUpdateApprovalProgress({ stage: "Archiving source", fileName: plan.name });
+      await dataImportYieldToBrowser();
+      const file = dataImportFileHandles.get(plan.fileId);
+      if (!file) {
+        routeMessages.push(`${plan.name}: restage required before this source can be approved.`);
+        plan.issues = [...(plan.issues || []), { type: "invalid", severity: "high", title: "Source file is no longer staged", detail: "Choose the source again before approving it." }];
+        plan.status = "review";
+      } else {
+        const archiveEntry = await dataImportArchiveApprovedFile(file, plan, batch);
+        archivedEntries.push(archiveEntry);
+        try {
+          dataImportUpdateApprovalProgress({ stage: "Applying mapped data", fileName: plan.name });
+          await dataImportYieldToBrowser();
+          const importResult = await dataImportRouteApprovedFile(file, plan, batch.id);
+          plan.importResult = importResult;
+          plan.issues = [...(plan.issues || []), ...(importResult.issues || [])];
+          plan.communities = Array.from(new Set([...(plan.communities || []), ...(importResult.communities || [])]));
+          archiveEntry.communities = plan.communities;
+          archiveEntry.rowsReviewed = Number(importResult.rowsReviewed || plan.rowCount || 0);
+          archiveEntry.rowsInserted = Number(importResult.rowsInserted || 0);
+          archiveEntry.rowsUpdated = Number(importResult.rowsUpdated || 0);
+          archiveEntry.rowsUnchanged = Number(importResult.rowsUnchanged || 0);
+          archiveEntry.rowsRejected = Number(importResult.rowsRejected || 0);
+          archiveEntry.rowsHeld = Number(importResult.rowsHeld || 0);
+          archiveEntry.duplicatesIgnored = Number(importResult.duplicatesIgnored || 0);
+          archiveEntry.destinations = importResult.destinations || [];
+          archiveEntry.coverage = importResult.coverage || [];
+          archiveEntry.coverageExpected = Number(importResult.coverageExpected || 0);
+          archiveEntry.coverageGaps = importResult.coverageGaps || [];
+          routeMessages.push(`${plan.name}: ${importResult.message || "Import route completed."}`);
+        } catch (error) {
+          const message = String(error?.message || error || "Import route failed.");
+          routeMessages.push(`${plan.name}: ${message}`);
+          plan.issues = [...(plan.issues || []), { type: "invalid", severity: "high", title: "Import route failed", detail: message }];
+          plan.status = "review";
+        }
+      }
+      dataImportUpdateApprovalProgress({
+        filesDone: index + 1,
+        rowsDone: Math.max(Number(dataImportApprovalProgress.rowsDone || 0), rowsAtFileStart + Number(plan.rowCount || 0)),
+        stage: "File complete",
+        fileName: plan.name
+      });
+      await dataImportYieldToBrowser();
     }
-    const archiveEntry = await dataImportArchiveApprovedFile(file, plan, batch);
-    archivedEntries.push(archiveEntry);
-    try {
-      const importResult = await dataImportRouteApprovedFile(file, plan, batch.id);
-      plan.importResult = importResult;
-      plan.issues = [...(plan.issues || []), ...(importResult.issues || [])];
-      plan.communities = Array.from(new Set([...(plan.communities || []), ...(importResult.communities || [])]));
-      archiveEntry.communities = plan.communities;
-      archiveEntry.rowsInserted = Number(importResult.rowsInserted || 0);
-      archiveEntry.rowsUpdated = Number(importResult.rowsUpdated || 0);
-      archiveEntry.rowsUnchanged = Number(importResult.rowsUnchanged || 0);
-      archiveEntry.rowsRejected = Number(importResult.rowsRejected || 0);
-      archiveEntry.rowsHeld = Number(importResult.rowsHeld || 0);
-      archiveEntry.duplicatesIgnored = Number(importResult.duplicatesIgnored || 0);
-      archiveEntry.destinations = importResult.destinations || [];
-      archiveEntry.coverage = importResult.coverage || [];
-      archiveEntry.coverageExpected = Number(importResult.coverageExpected || 0);
-      archiveEntry.coverageGaps = importResult.coverageGaps || [];
-      routeMessages.push(`${plan.name}: ${importResult.message || "Import route completed."}`);
-    } catch (error) {
-      const message = String(error?.message || error || "Import route failed.");
-      routeMessages.push(`${plan.name}: ${message}`);
-      plan.issues = [...(plan.issues || []), { type: "invalid", severity: "high", title: "Import route failed", detail: message }];
-      plan.status = "review";
-    }
+
+    dataImportUpdateApprovalProgress({ stage: "Refreshing ATLAS", fileName: "" });
+    await dataImportYieldToBrowser();
+    dataImportFinishApprovalRuntime();
+    const downstreamAudit = dataImportBuildDownstreamAudit(approvedPlans, routeMessages);
+    const historyEntry = {
+      id: batch.id,
+      createdAt: batch.uploadedAt,
+      approvedAt: new Date().toISOString(),
+      uploader: batch.uploadedBy || "Admin",
+      approver: "Admin",
+      status: "Approved",
+      summary: dataImportBuildBatchSummary(approvedPlans, batch.zipIssues || []),
+      files: approvedPlans.map(plan => ({
+        fileName: plan.name,
+        reportType: plan.reportType,
+        reportTypeLabel: plan.reportTypeLabel,
+        sourceSystem: plan.sourceSystem,
+        communities: plan.communities || [],
+        rowsReviewed: Number(plan.importResult?.rowsReviewed ?? plan.rowCount ?? 0),
+        rowsInserted: Number(plan.importResult?.rowsInserted || 0),
+        rowsUpdated: Number(plan.importResult?.rowsUpdated || 0),
+        rowsUnchanged: Number(plan.importResult?.rowsUnchanged || 0),
+        rowsRejected: Number(plan.importResult?.rowsRejected || 0),
+        rowsHeld: Number(plan.importResult?.rowsHeld || 0),
+        duplicatesIgnored: Number(plan.importResult?.duplicatesIgnored || 0),
+        conflictsCreated: (plan.issues || []).filter(issue => issue.type === "conflict").length,
+        fieldsOverridden: (plan.availableFields || []).map(field => field.canonicalField),
+        mappingChanges: (plan.issues || []).filter(issue => issue.type === "low_confidence").length,
+        downstreamMetricsRefreshed: plan.importResult?.destinations || plan.downstreamUses || [],
+        coverage: plan.importResult?.coverage || [],
+        coverageExpected: Number(plan.importResult?.coverageExpected || 0),
+        coverageGaps: plan.importResult?.coverageGaps || [],
+        formulas: plan.importResult?.formulas || []
+      })),
+      archiveIds: archivedEntries.map(entry => entry.id),
+      routeMessages,
+      downstreamAudit,
+      beforeSnapshot: batch.beforeSnapshot
+    };
+    const actualFiles = historyEntry.files || [];
+    historyEntry.summary = {
+      ...historyEntry.summary,
+      rowsReviewed: actualFiles.reduce((sum, file) => sum + Number(file.rowsReviewed || 0), 0),
+      readyToImport: actualFiles.reduce((sum, file) => sum + Number(file.rowsInserted || 0) + Number(file.rowsUpdated || 0), 0),
+      existingRecordsUpdated: actualFiles.reduce((sum, file) => sum + Number(file.rowsUpdated || 0), 0),
+      duplicatesIgnored: actualFiles.reduce((sum, file) => sum + Number(file.duplicatesIgnored || 0), 0),
+      conflicts: actualFiles.reduce((sum, file) => sum + Number(file.conflictsCreated || 0), 0),
+      rejected: actualFiles.reduce((sum, file) => sum + Number(file.rowsRejected || 0), 0),
+      held: actualFiles.reduce((sum, file) => sum + Number(file.rowsHeld || 0), 0)
+    };
+    dataImport2State.batches = [historyEntry, ...(dataImport2State.batches || [])].slice(0, 60);
+    dataImport2State.exceptions = [
+      ...dataImportBuildExceptionsForApprovedFiles(approvedPlans, batch.id),
+      ...(dataImport2State.exceptions || [])
+    ].slice(0, 220);
+    dataImport2State.pendingBatch = null;
+    dataImport2State.activeView = "overview";
+    csvLog = [
+      `${historyEntry.id} approved and routed through ATLAS.`,
+      ...routeMessages.slice(0, 6),
+      dataImportSummarizeDownstreamAudit(downstreamAudit),
+      downstreamAudit.some(item => item.status !== "Verified")
+        ? "ATLAS has questions before every downstream page can be trusted."
+        : "Dependent dashboards and reports verified usable destination data."
+    ];
+    persistSaved();
+    persistDataImport2State();
+  } catch (error) {
+    const message = String(error?.message || error || "The selected batch could not be applied.");
+    csvError = `ATLAS stopped this approval before completion: ${message}`;
+    csvLog = [`${batch.id} remains in Import Preview so it can be reviewed or retried.`, ...routeMessages.slice(0, 5)];
+    persistSaved();
+    persistDataImport2State();
+  } finally {
+    dataImportFinishApprovalRuntime();
+    dataImportApprovalInProgress = false;
+    dataImportUpdateApprovalProgress({ stage: "", fileName: "" });
+    renderPropGrid();
+    renderTab();
   }
-  const downstreamAudit = dataImportBuildDownstreamAudit(approvedPlans, routeMessages);
-  const historyEntry = {
-    id: batch.id,
-    createdAt: batch.uploadedAt,
-    approvedAt: new Date().toISOString(),
-    uploader: batch.uploadedBy || "Admin",
-    approver: "Admin",
-    status: "Approved",
-    summary: dataImportBuildBatchSummary(approvedPlans, batch.zipIssues || []),
-    files: approvedPlans.map(plan => ({
-      fileName: plan.name,
-      reportType: plan.reportType,
-      reportTypeLabel: plan.reportTypeLabel,
-      sourceSystem: plan.sourceSystem,
-      communities: plan.communities || [],
-      rowsReviewed: plan.rowCount || 0,
-      rowsInserted: Number(plan.importResult?.rowsInserted || 0),
-      rowsUpdated: Number(plan.importResult?.rowsUpdated || 0),
-      rowsUnchanged: Number(plan.importResult?.rowsUnchanged || 0),
-      rowsRejected: Number(plan.importResult?.rowsRejected || 0),
-      rowsHeld: Number(plan.importResult?.rowsHeld || 0),
-      duplicatesIgnored: Number(plan.importResult?.duplicatesIgnored || 0),
-      conflictsCreated: (plan.issues || []).filter(issue => issue.type === "conflict").length,
-      fieldsOverridden: (plan.availableFields || []).map(field => field.canonicalField),
-      mappingChanges: (plan.issues || []).filter(issue => issue.type === "low_confidence").length,
-      downstreamMetricsRefreshed: plan.importResult?.destinations || plan.downstreamUses || [],
-      coverage: plan.importResult?.coverage || [],
-      coverageExpected: Number(plan.importResult?.coverageExpected || 0),
-      coverageGaps: plan.importResult?.coverageGaps || [],
-      formulas: plan.importResult?.formulas || []
-    })),
-    archiveIds: archivedEntries.map(entry => entry.id),
-    routeMessages,
-    downstreamAudit,
-    beforeSnapshot: batch.beforeSnapshot
-  };
-  const actualFiles = historyEntry.files || [];
-  historyEntry.summary = {
-    ...historyEntry.summary,
-    rowsReviewed: actualFiles.reduce((sum, file) => sum + Number(file.rowsReviewed || 0), 0),
-    readyToImport: actualFiles.reduce((sum, file) => sum + Number(file.rowsInserted || 0) + Number(file.rowsUpdated || 0), 0),
-    existingRecordsUpdated: actualFiles.reduce((sum, file) => sum + Number(file.rowsUpdated || 0), 0),
-    duplicatesIgnored: actualFiles.reduce((sum, file) => sum + Number(file.duplicatesIgnored || 0), 0),
-    conflicts: actualFiles.reduce((sum, file) => sum + Number(file.conflictsCreated || 0), 0),
-    rejected: actualFiles.reduce((sum, file) => sum + Number(file.rowsRejected || 0), 0),
-    held: actualFiles.reduce((sum, file) => sum + Number(file.rowsHeld || 0), 0)
-  };
-  dataImport2State.batches = [historyEntry, ...(dataImport2State.batches || [])].slice(0, 60);
-  dataImport2State.exceptions = [
-    ...dataImportBuildExceptionsForApprovedFiles(approvedPlans, batch.id),
-    ...(dataImport2State.exceptions || [])
-  ].slice(0, 220);
-  dataImport2State.pendingBatch = null;
-  dataImport2State.activeView = "overview";
-  csvLog = [
-    `${historyEntry.id} approved and routed through ATLAS.`,
-    ...routeMessages.slice(0, 6),
-    dataImportSummarizeDownstreamAudit(downstreamAudit),
-    downstreamAudit.some(item => item.status !== "Verified")
-      ? "ATLAS has questions before every downstream page can be trusted."
-      : "Dependent dashboards and reports verified usable destination data."
-  ];
-  persistDataImport2State();
-  renderPropGrid();
-  renderTab();
 }
 
 function toggleDataImportFileApproval(fileId, selected) {
@@ -50254,10 +50450,11 @@ function renderDataImportPendingBatch() {
     .concat(DATA_IMPORT_REPORT_ORDER.map(type => `<option value="${type}">${escapeHtml(dataImportReportLabel(type))}</option>`))
     .join("");
   const assignableCommunities = dataImportGetHealthCommunityNames();
+  const approvalDisabled = dataImportApprovalInProgress ? "disabled" : "";
   const fileRows = (batch.files || []).map(plan => `<div class="data-import2-file">
     <div>
       <label style="display:flex;align-items:flex-start;gap:8px">
-        <input type="checkbox" ${plan.selected ? "checked" : ""} ${plan.status === "blocked" ? "disabled" : ""} onchange='toggleDataImportFileApproval(${JSON.stringify(plan.fileId)}, this.checked)' style="margin-top:2px">
+        <input type="checkbox" ${plan.selected ? "checked" : ""} ${plan.status === "blocked" || dataImportApprovalInProgress ? "disabled" : ""} onchange='toggleDataImportFileApproval(${JSON.stringify(plan.fileId)}, this.checked)' style="margin-top:2px">
         <span>
           <div class="data-import2-file-name">${escapeHtml(plan.name)}</div>
           <div class="data-import2-file-meta">${escapeHtml(dataImportFormatBytes(plan.size))}${plan.originalZipName ? ` · from ${escapeHtml(plan.originalZipName)}` : ""} · ${escapeHtml(plan.rowCount || 0)} rows reviewed</div>
@@ -50267,7 +50464,7 @@ function renderDataImportPendingBatch() {
     </div>
     <div>
       <div class="data-import2-small-label">Detected Report</div>
-      <select class="data-import2-select" onchange='overrideDataImportReportType(${JSON.stringify(plan.fileId)}, this.value)'>
+      <select class="data-import2-select" ${approvalDisabled} onchange='overrideDataImportReportType(${JSON.stringify(plan.fileId)}, this.value)'>
         ${reportOptions.replace(`value="${plan.reportType}"`, `value="${plan.reportType}" selected`)}
       </select>
       <div class="data-import2-file-meta">Source: ${escapeHtml(plan.sourceSystem)}${plan.confidence ? ` · ${escapeHtml(plan.confidence)}% confidence` : ""}</div>
@@ -50275,8 +50472,8 @@ function renderDataImportPendingBatch() {
     <div>
       <div class="data-import2-small-label">Communities</div>
       <div class="data-import2-supported" style="justify-content:flex-start">${(plan.communities || []).length
-        ? plan.communities.slice(0, 8).map(name => `<label class="data-import2-chip good" style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" ${(plan.selectedCommunities || plan.communities || []).includes(name) ? "checked" : ""} onchange='toggleDataImportCommunityApproval(${JSON.stringify(plan.fileId)}, ${JSON.stringify(name)}, this.checked)'>${escapeHtml(name)}</label>`).join("") + (plan.communities.length > 8 ? `<span class="data-import2-chip">${plan.communities.length - 8} more</span>` : "")
-        : `<select class="data-import2-select" onchange='assignDataImportPlanCommunity(${JSON.stringify(plan.fileId)}, this.value)'><option value="">Assign active community</option>${assignableCommunities.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}</select>`}</div>
+        ? plan.communities.slice(0, 8).map(name => `<label class="data-import2-chip good" style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" ${approvalDisabled} ${(plan.selectedCommunities || plan.communities || []).includes(name) ? "checked" : ""} onchange='toggleDataImportCommunityApproval(${JSON.stringify(plan.fileId)}, ${JSON.stringify(name)}, this.checked)'>${escapeHtml(name)}</label>`).join("") + (plan.communities.length > 8 ? `<span class="data-import2-chip">${plan.communities.length - 8} more</span>` : "")
+        : `<select class="data-import2-select" ${approvalDisabled} onchange='assignDataImportPlanCommunity(${JSON.stringify(plan.fileId)}, this.value)'><option value="">Assign active community</option>${assignableCommunities.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}</select>`}</div>
       <div class="data-import2-file-meta">${escapeHtml(plan.reportingPeriodLabel)} · ${escapeHtml(plan.dataDateLabel)} · received ${escapeHtml(dataImportFormatTimestamp(plan.metadata?.receivedAt))}</div>
     </div>
     <div>
@@ -50300,11 +50497,15 @@ function renderDataImportPendingBatch() {
         <div class="data-import2-file-meta">Prepared ${escapeHtml(dataImportFormatTimestamp(batch.uploadedAt))}. Approve clean files, selected communities, or review-ready rows without blocking the full batch.</div>
       </div>
       <div class="data-import2-inline-actions">
-        <button class="btn btn-gray btn-sm" onclick="setDataImportBatchSelection(true)">Select All</button>
-        <button class="btn btn-gray btn-sm" onclick="setDataImportBatchSelection(false)">Clear</button>
-        <button class="btn btn-gray btn-sm" onclick="clearDataImportPendingBatch()">Discard Preview</button>
-        <button class="btn btn-blue btn-sm" onclick="approveDataImportBatch()">Approve Selected</button>
+        <button class="btn btn-gray btn-sm" ${approvalDisabled} onclick="setDataImportBatchSelection(true)">Select All</button>
+        <button class="btn btn-gray btn-sm" ${approvalDisabled} onclick="setDataImportBatchSelection(false)">Clear</button>
+        <button class="btn btn-gray btn-sm" ${approvalDisabled} onclick="clearDataImportPendingBatch()">Discard Preview</button>
+        <button id="data-import-approve-button" class="btn btn-blue btn-sm" ${approvalDisabled} onclick="approveDataImportBatch()">${dataImportApprovalInProgress ? `Applying ${Math.min(Number(dataImportApprovalProgress.filesDone || 0) + 1, Number(dataImportApprovalProgress.totalFiles || 0))} of ${escapeHtml(dataImportApprovalProgress.totalFiles || 0)}` : "Approve Selected"}</button>
       </div>
+    </div>
+    <div id="data-import-approval-progress" class="data-import2-approval-progress" role="status" aria-live="polite" aria-busy="${dataImportApprovalInProgress ? "true" : "false"}" ${dataImportApprovalInProgress ? "" : "hidden"}>
+      <div class="data-import2-progress-copy"><span id="data-import-approval-copy">Applying selected data</span><span id="data-import-approval-count">0 rows</span></div>
+      <div class="data-import2-progress-track"><div id="data-import-approval-fill" class="data-import2-progress-fill"></div></div>
     </div>
     ${renderDataImportPreviewStats(batch.summary)}
     ${zipIssueHtml}

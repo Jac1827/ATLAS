@@ -611,11 +611,27 @@
   .data-import2-status.info, .data-import2-status.unmapped { background: rgba(49,109,202,0.08); color: #2457a6; border: 1px solid rgba(49,109,202,0.32); }
   .data-import2-status.duplicate { background: rgba(111,66,193,0.08); color: #6639ba; border: 1px solid rgba(111,66,193,0.28); }
   .data-import2-question-list { display: grid; gap: 8px; margin-top: 10px; }
-  .data-import2-question { border: 1px solid rgba(210,153,34,0.34); border-left: 4px solid #d29922; background: rgba(210,153,34,0.08); border-radius: 8px; padding: 9px 11px; font-size: 0.68rem; color: var(--text); line-height: 1.45; }
+  .data-import2-question { border: 1px solid rgba(210,153,34,0.34); border-left: 4px solid #d29922; background: rgba(210,153,34,0.08); border-radius: 8px; padding: 9px 11px; font-size: 0.68rem; color: var(--text); line-height: 1.45; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .data-import2-question.answered { border-color: rgba(63,185,80,0.32); border-left-color: #3fb950; background: rgba(63,185,80,0.06); }
+  .data-import2-question-copy { min-width: 0; }
+  .data-import2-question-answer { color: #0f6b36; font-size: 0.61rem; font-weight: 800; margin-top: 4px; }
   .data-import2-audit-grid { display: grid; gap: 8px; margin-top: 10px; }
+  .data-import2-audit-item { display: grid; gap: 0; }
   .data-import2-audit-row { border: 1px solid var(--border); background: var(--bg3); border-radius: 8px; padding: 10px 11px; display: grid; grid-template-columns: minmax(180px, 0.85fr) minmax(220px, 1.15fr) minmax(120px, auto); gap: 10px; align-items: start; }
+  .data-import2-audit-item.open .data-import2-audit-row { border-radius: 8px 8px 0 0; border-bottom-color: transparent; }
   .data-import2-audit-title { font-size: 0.73rem; font-weight: 800; color: var(--text); margin-bottom: 3px; }
   .data-import2-audit-copy { font-size: 0.63rem; color: var(--muted); line-height: 1.45; }
+  button.data-import2-status { cursor: pointer; font-family: inherit; }
+  button.data-import2-status:hover, button.data-import2-status:focus-visible { filter: brightness(0.96); box-shadow: 0 0 0 2px rgba(49,109,202,0.12); outline: none; }
+  .data-import2-question-review { border: 1px solid rgba(210,153,34,0.42); border-top: 0; border-radius: 0 0 8px 8px; background: #fffdf7; padding: 12px; }
+  .data-import2-question-review-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  .data-import2-question-form { display: grid; grid-template-columns: minmax(260px, 1.2fr) minmax(220px, 0.8fr) auto; gap: 10px; align-items: end; border-top: 1px solid rgba(210,153,34,0.2); padding-top: 10px; margin-top: 10px; }
+  .data-import2-question-form:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
+  .data-import2-question-form.answered { border-left: 3px solid #3fb950; padding-left: 9px; }
+  .data-import2-question-prompt { font-size: 0.69rem; font-weight: 750; color: var(--text); line-height: 1.45; }
+  .data-import2-question-meta { font-size: 0.6rem; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+  .data-import2-question-controls { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(160px, 0.7fr); gap: 8px; }
+  .data-import2-question-controls select, .data-import2-question-controls input { width: 100%; }
   .data-import2-matrix-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--bg2); }
   .data-import2-matrix { width: 100%; border-collapse: collapse; min-width: 760px; }
   .data-import2-matrix th { text-align: left; padding: 9px 10px; font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); border-bottom: 1px solid var(--border); background: var(--bg3); }
@@ -743,7 +759,7 @@
   .community-command-field-grid textarea { min-height:64px; resize:vertical; }
   .community-command-empty { border:1px dashed var(--border); border-radius:8px; background:var(--bg3); padding:14px; color:var(--muted); font-size:0.7rem; line-height:1.5; }
   @media(max-width:1100px){ .community-command-grid-4, .community-command-grid-3, .community-command-region-grid { grid-template-columns:1fr; } .community-command-source-row, .community-command-region-row { grid-template-columns:1fr; } }
-  @media(max-width:1100px){ .data-import2-hero, .data-import2-main-grid { grid-template-columns: 1fr; } .data-import2-kpis, .data-import2-preview-grid, .data-import2-summary-grid, .data-import2-preview-cols { grid-template-columns: repeat(2, 1fr); } .data-import2-file, .data-import2-activity-row, .data-import2-audit-row, .data-import2-review-row, .data-import2-source-card, .data-import2-review-toolbar, .data-import2-form-grid.wide { grid-template-columns: 1fr; } .data-import2-field-wide { grid-column: auto; } }
+  @media(max-width:1100px){ .data-import2-hero, .data-import2-main-grid { grid-template-columns: 1fr; } .data-import2-kpis, .data-import2-preview-grid, .data-import2-summary-grid, .data-import2-preview-cols { grid-template-columns: repeat(2, 1fr); } .data-import2-file, .data-import2-activity-row, .data-import2-audit-row, .data-import2-review-row, .data-import2-source-card, .data-import2-review-toolbar, .data-import2-form-grid.wide, .data-import2-question-form, .data-import2-question-controls { grid-template-columns: 1fr; } .data-import2-field-wide { grid-column: auto; } }
   @media(max-width:640px){ .data-import2-kpis, .data-import2-preview-grid, .data-import2-workflow, .data-import2-form-grid { grid-template-columns: 1fr; } .data-import2-hero { padding: 14px; } .data-import2-dropzone { padding: 18px; } }
   .csv-field-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }
   @media(max-width:500px){ .csv-field-grid { grid-template-columns: 1fr; } }
@@ -47485,6 +47501,8 @@ function defaultDataImport2State() {
     mappingBatchFilter: "",
     mappingSearch: "",
     selectedIssueKey: "",
+    activeQuestionReviewKey: "",
+    activeQuestionId: "",
     updatedAt: ""
   };
 }
@@ -47614,6 +47632,8 @@ function normalizeDataImport2State(input = {}) {
     mappingBatchFilter: String(state.mappingBatchFilter || ""),
     mappingSearch: String(state.mappingSearch || ""),
     selectedIssueKey: String(state.selectedIssueKey || ""),
+    activeQuestionReviewKey: String(state.activeQuestionReviewKey || ""),
+    activeQuestionId: String(state.activeQuestionId || ""),
     updatedAt: String(state.updatedAt || "")
   };
 }
@@ -49478,7 +49498,7 @@ async function approveDataImportBatch() {
     dataImportUpdateApprovalProgress({ stage: "Refreshing ATLAS", fileName: "" });
     await dataImportYieldToBrowser();
     dataImportFinishApprovalRuntime();
-    const downstreamAudit = dataImportBuildDownstreamAudit(approvedPlans, routeMessages);
+    const downstreamAudit = dataImportBuildDownstreamAudit(approvedPlans, routeMessages).map(audit => ({ ...audit, batchId: batch.id }));
     const historyEntry = {
       id: batch.id,
       createdAt: batch.uploadedAt,
@@ -49972,30 +49992,66 @@ function dataImportBuildDestinationQuestion(plan = {}, modules = [], activeCommu
   return `${plan.name}: Confirm ${plan.reportTypeLabel || dataImportReportLabel(plan.reportType)} should refresh ${modules.slice(0, 4).join(", ")} for ${communityPreview}${communitySuffix}.`;
 }
 
-function dataImportBuildPlanQuestions(plan = {}, options = {}) {
-  const questions = [];
+function dataImportQuestionId(kind = "question", prompt = "") {
+  return `q_${dataImportSlug(kind)}_${dataImportSlug(prompt)}`;
+}
+
+function dataImportAuditIdForPlan(plan = {}) {
+  return `audit_${dataImportSlug(plan.fileId || `${plan.name || "source"}_${plan.reportType || "unknown"}`)}`;
+}
+
+function dataImportBuildPlanQuestionItems(plan = {}, options = {}) {
+  const items = [];
   const activeCommunities = dataImportFilterActiveReportingCommunities(plan.communities || []);
   const inactiveCommunities = (plan.communities || []).filter(name => !activeCommunities.some(activeName => dataImportNormalizeText(activeName) === dataImportNormalizeText(name)));
   const modules = dataImportExpectedDownstreamModules(plan.reportType, plan.downstreamUses);
+  const add = (kind, prompt, details = {}) => {
+    if (!prompt) return;
+    const id = dataImportQuestionId(kind, prompt);
+    if (items.some(item => item.prompt === prompt)) return;
+    items.push({ id, kind, prompt, ...details });
+  };
   if (!plan.reportType || plan.reportType === "unknown") {
-    questions.push(`${plan.name}: Which report type should ATLAS use for this file?`);
+    add("report_type", `${plan.name}: Which report type should ATLAS use for this file?`, { value: plan.reportType || "unknown" });
   }
   if (!activeCommunities.length) {
-    questions.push(`${plan.name}: Which active community should receive this data?`);
+    add("community", `${plan.name}: Which active community should receive this data?`);
   }
   if (inactiveCommunities.length) {
-    questions.push(`${plan.name}: ${inactiveCommunities.join(", ")} ${inactiveCommunities.length === 1 ? "is inactive" : "are inactive"}; should this upload be retained only for history?`);
+    add("inactive_history", `${plan.name}: ${inactiveCommunities.join(", ")} ${inactiveCommunities.length === 1 ? "is inactive" : "are inactive"}; should this upload be retained only for history?`, { inactiveCommunities });
   }
   (plan.issues || []).forEach(issue => {
-    if (issue.type === "unmapped") questions.push(`${plan.name}: ${issue.detail || "Which property or ATLAS field should this source map to?"}`);
-    if (issue.type === "low_confidence") questions.push(`${plan.name}: Confirm whether ${issue.originalField || "the source field"} maps to ${dataImportCanonicalFieldLabel(issue.canonicalField || issue.suggestedField)}.`);
-    if (issue.type === "conflict") questions.push(`${plan.name}: Which value should win for the conflicting data?`);
+    if (issue.type === "unmapped" && issue.originalField) {
+      add("mapping", `${plan.name}: ${issue.detail || `Which ATLAS field should ${issue.originalField} map to?`}`, {
+        originalField: issue.originalField,
+        suggestedField: issue.canonicalField || issue.suggestedField || "",
+        confidence: issue.confidence || null
+      });
+    }
+    if (issue.type === "low_confidence" && issue.originalField) {
+      const suggestedField = issue.canonicalField || issue.suggestedField || "";
+      add("mapping", `${plan.name}: Confirm whether ${issue.originalField} maps to ${dataImportCanonicalFieldLabel(suggestedField)}.`, {
+        originalField: issue.originalField,
+        suggestedField,
+        confidence: issue.confidence || null,
+        sampleValue: dataImportSampleForPlanHeader(plan, issue.originalField),
+        detectedDataType: dataImportInferFieldDataType(issue.originalField, dataImportSampleForPlanHeader(plan, issue.originalField)),
+        sheetName: dataImportHeaderSheetForPlan(plan, issue.originalField)
+      });
+    }
+    if (issue.type === "conflict") {
+      add("conflict", `${plan.name}: Which value should win for the conflicting data?`, { detail: issue.detail || "" });
+    }
   });
   if (options.includeDestinationCheck) {
     const destinationQuestion = dataImportBuildDestinationQuestion(plan, modules, activeCommunities);
-    if (destinationQuestion) questions.push(destinationQuestion);
+    if (destinationQuestion) add("destination", destinationQuestion, { modules, activeCommunities });
   }
-  return Array.from(new Set(questions)).slice(0, 8);
+  return items.slice(0, 8);
+}
+
+function dataImportBuildPlanQuestions(plan = {}, options = {}) {
+  return dataImportBuildPlanQuestionItems(plan, options).map(item => item.prompt);
 }
 
 function dataImportBuildBatchQuestions(batch = {}) {
@@ -50009,17 +50065,19 @@ function dataImportBuildDownstreamAuditForPlan(plan = {}, routeMessage = "") {
   const inactiveCommunities = (plan.communities || []).filter(name => !activeCommunities.some(activeName => dataImportNormalizeText(activeName) === dataImportNormalizeText(name)));
   const modules = dataImportExpectedDownstreamModules(plan.reportType, plan.downstreamUses);
   const hasRoutedData = activeCommunities.length > 0 && activeCommunities.some(name => dataImportHasSavedFallbackData(name, plan.reportType));
-  const questions = dataImportBuildPlanQuestions(plan);
-  const destinationQuestion = hasRoutedData ? "" : dataImportBuildDestinationQuestion(plan, modules, activeCommunities);
-  if (destinationQuestion) questions.push(destinationQuestion);
-  const hasQuestions = questions.length > 0;
-  const status = hasRoutedData ? "Verified" : hasQuestions ? "Needs Answers" : "Needs Review";
+  const questionItems = dataImportBuildPlanQuestionItems(plan, { includeDestinationCheck: !hasRoutedData });
+  const answers = Array.isArray(plan.questionAnswers) ? plan.questionAnswers : [];
+  const answeredIds = new Set(answers.map(answer => answer.questionId));
+  const unansweredCount = questionItems.filter(question => !answeredIds.has(question.id)).length;
+  const status = unansweredCount ? "Needs Answers" : hasRoutedData ? "Verified" : "Needs Review";
   const detail = hasRoutedData
     ? `Checked ${activeCommunities.length} active communit${activeCommunities.length === 1 ? "y" : "ies"} against ${modules.slice(0, 3).join(", ")}.`
     : `ATLAS could not verify saved destination data yet. Confirm the source fields or target community before relying on the downstream pages.`;
   return {
-    id: dataImportMakeId("audit"),
+    id: dataImportAuditIdForPlan(plan),
     fileName: plan.name,
+    fileId: plan.fileId || "",
+    sourceSystem: plan.sourceSystem || "Unknown",
     reportType: plan.reportType,
     reportTypeLabel: plan.reportTypeLabel || dataImportReportLabel(plan.reportType),
     status,
@@ -50028,7 +50086,10 @@ function dataImportBuildDownstreamAuditForPlan(plan = {}, routeMessage = "") {
     activeCommunities,
     inactiveCommunities,
     modules,
-    questions: Array.from(new Set(questions)).slice(0, 8)
+    questions: questionItems.map(item => item.prompt),
+    questionItems,
+    answers,
+    unansweredCount
   };
 }
 
@@ -50407,13 +50468,212 @@ function renderDataImportFileIssues(plan) {
   ).join("")}${issues.length > 4 ? `<span class="data-import2-chip">${issues.length - 4} more</span>` : ""}</div>`;
 }
 
+function dataImportAuditQuestionItems(audit = {}) {
+  if (Array.isArray(audit.questionItems) && audit.questionItems.length) return audit.questionItems;
+  return (audit.questions || []).map((prompt, index) => ({
+    id: dataImportQuestionId("review", prompt, index),
+    kind: "review",
+    prompt
+  }));
+}
+
+function dataImportQuestionAnswer(audit = {}, questionId = "") {
+  return (audit.answers || []).find(answer => answer.questionId === questionId) || null;
+}
+
+function dataImportQuestionReviewKey(context = "pending", batchId = "", auditId = "") {
+  return `${context}:${batchId || "current"}:${auditId}`;
+}
+
+function dataImportFindQuestionAudit(context = "pending", auditId = "", batchId = "") {
+  if (context === "pending") {
+    const batch = dataImport2State.pendingBatch;
+    const plan = batch?.files?.find(file => dataImportAuditIdForPlan(file) === auditId);
+    return plan ? { batch, owner: plan, audit: dataImportBuildDownstreamAuditForPlan(plan) } : null;
+  }
+  const batch = (dataImport2State.batches || []).find(item => item.id === batchId);
+  const audit = batch?.downstreamAudit?.find(item => item.id === auditId);
+  return audit ? { batch, owner: audit, audit } : null;
+}
+
+function toggleDataImportQuestionReview(context, auditId, batchId = "", questionId = "") {
+  const key = dataImportQuestionReviewKey(context, batchId, auditId);
+  const isClosing = dataImport2State.activeQuestionReviewKey === key && !questionId;
+  dataImport2State.activeQuestionReviewKey = isClosing ? "" : key;
+  dataImport2State.activeQuestionId = isClosing ? "" : String(questionId || "");
+  renderTab();
+  if (!isClosing) {
+    setTimeout(() => document.getElementById(`data-import-question-panel-${dataImportSlug(key)}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 0);
+  }
+}
+
+function dataImportQuestionControlId(auditId = "", questionId = "", suffix = "choice") {
+  return `data-import-question-${suffix}-${dataImportSlug(`${auditId}_${questionId}`)}`;
+}
+
+function renderDataImportQuestionChoiceOptions(question = {}, selectedValue = "") {
+  const selected = selectedValue || question.suggestedField || question.value || "";
+  if (question.kind === "mapping") return renderDataImportDestinationOptions(selected, question.suggestedField);
+  if (question.kind === "report_type") {
+    return `<option value="">Choose report type</option>${DATA_IMPORT_REPORT_ORDER.map(type => `<option value="${escapeHtml(type)}"${selected === type ? " selected" : ""}>${escapeHtml(dataImportReportLabel(type))}</option>`).join("")}`;
+  }
+  if (question.kind === "community") {
+    return `<option value="">Choose active community</option>${dataImportGetHealthCommunityNames().map(name => `<option value="${escapeHtml(name)}"${selected === name ? " selected" : ""}>${escapeHtml(name)}</option>`).join("")}`;
+  }
+  const choices = question.kind === "inactive_history"
+    ? [["history_only", "Retain for history only"], ["exclude_file", "Exclude this file from approval"]]
+    : question.kind === "conflict"
+      ? [["authoritative_source", "Use authoritative source hierarchy"], ["keep_existing", "Keep current ATLAS value"], ["hold_review", "Hold for manual review"]]
+      : question.kind === "destination"
+        ? [["confirm_destinations", "Confirm listed destinations"], ["change_destinations", "Destinations need changes"]]
+        : [["confirmed", "Confirm"], ["change_required", "Change required"], ["hold_review", "Hold for review"]];
+  return `<option value="">Choose an answer</option>${choices.map(([value, label]) => `<option value="${value}"${selected === value ? " selected" : ""}>${escapeHtml(label)}</option>`).join("")}`;
+}
+
+function dataImportQuestionValueLabel(question = {}, value = "") {
+  if (question.kind === "mapping") return dataImportMappingDestinationLabel(value);
+  if (question.kind === "report_type") return dataImportReportLabel(value);
+  if (question.kind === "community") return value;
+  const labels = {
+    history_only: "Retain for history only",
+    exclude_file: "Exclude this file from approval",
+    authoritative_source: "Use authoritative source hierarchy",
+    keep_existing: "Keep current ATLAS value",
+    hold_review: "Hold for manual review",
+    confirm_destinations: "Confirmed listed destinations",
+    change_destinations: "Destinations need changes",
+    confirmed: "Confirmed",
+    change_required: "Change required"
+  };
+  return labels[value] || value;
+}
+
+function renderDataImportAuditStatusAction(audit = {}, context = "pending", batchId = "") {
+  const questions = dataImportAuditQuestionItems(audit);
+  const answers = new Set((audit.answers || []).map(answer => answer.questionId));
+  const openCount = questions.filter(question => !answers.has(question.id)).length;
+  if (!questions.length) {
+    return `<span class="data-import2-status ${audit.status === "Verified" ? "ready" : "review"}">${escapeHtml(audit.status === "Verified" ? "Ready to check" : audit.status || "Needs Review")}</span>`;
+  }
+  const key = dataImportQuestionReviewKey(context, batchId, audit.id);
+  const expanded = dataImport2State.activeQuestionReviewKey === key;
+  const label = openCount ? `Needs Answers · ${openCount}` : "Answers Saved";
+  return `<button type="button" class="data-import2-status ${openCount ? "review" : "ready"}" aria-expanded="${expanded ? "true" : "false"}" onclick='toggleDataImportQuestionReview(${JSON.stringify(context)}, ${JSON.stringify(audit.id)}, ${JSON.stringify(batchId)})'><i class="ph ph-question"></i>${escapeHtml(label)}</button>`;
+}
+
+function renderDataImportQuestionReview(audit = {}, context = "pending", batchId = "") {
+  const key = dataImportQuestionReviewKey(context, batchId, audit.id);
+  if (dataImport2State.activeQuestionReviewKey !== key) return "";
+  const questions = dataImportAuditQuestionItems(audit);
+  return `<div class="data-import2-question-review" id="data-import-question-panel-${escapeHtml(dataImportSlug(key))}">
+    <div class="data-import2-question-review-head">
+      <div><div class="data-import2-audit-title">Answer Mapping Questions · ${escapeHtml(audit.reportTypeLabel || dataImportReportLabel(audit.reportType))}</div><div class="data-import2-audit-copy">Your saved choices update this source review. Field mappings are also taught globally for future uploads.</div></div>
+      <button type="button" class="btn btn-gray btn-sm" onclick='toggleDataImportQuestionReview(${JSON.stringify(context)}, ${JSON.stringify(audit.id)}, ${JSON.stringify(batchId)})'>Close</button>
+    </div>
+    ${questions.map(question => {
+      const answer = dataImportQuestionAnswer(audit, question.id);
+      const choiceId = dataImportQuestionControlId(audit.id, question.id, "choice");
+      const noteId = dataImportQuestionControlId(audit.id, question.id, "note");
+      const isFocused = dataImport2State.activeQuestionId === question.id;
+      return `<div class="data-import2-question-form${answer ? " answered" : ""}"${isFocused ? ` data-question-focus="true"` : ""}>
+        <div>
+          <div class="data-import2-question-prompt">${escapeHtml(question.prompt)}</div>
+          ${question.kind === "mapping" && question.suggestedField ? `<div class="data-import2-question-meta">ATLAS suggests ${escapeHtml(dataImportMappingDestinationLabel(question.suggestedField))}${question.confidence ? ` · ${escapeHtml(question.confidence)}% confidence` : ""}</div>` : ""}
+          ${answer ? `<div class="data-import2-question-answer"><i class="ph ph-check-circle"></i> ${escapeHtml(answer.valueLabel || dataImportQuestionValueLabel(question, answer.value))} · ${escapeHtml(dataImportFormatTimestamp(answer.answeredAt))} by ${escapeHtml(answer.answeredBy || "Admin")}</div>` : ""}
+        </div>
+        <div class="data-import2-question-controls">
+          <label class="data-import2-field"><div class="data-import2-small-label">${question.kind === "mapping" ? "Map To" : "Answer"}</div><select id="${escapeHtml(choiceId)}">${renderDataImportQuestionChoiceOptions(question, answer?.value || "")}</select></label>
+          <label class="data-import2-field"><div class="data-import2-small-label">Note</div><input id="${escapeHtml(noteId)}" value="${escapeHtml(answer?.note || "")}" placeholder="Optional review note"></label>
+        </div>
+        <button type="button" class="btn btn-blue btn-sm" onclick='saveDataImportAuditQuestion(${JSON.stringify(context)}, ${JSON.stringify(audit.id)}, ${JSON.stringify(batchId)}, ${JSON.stringify(question.id)})'>${answer ? "Update Answer" : "Save Answer"}</button>
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
+function saveDataImportAuditQuestion(context, auditId, batchId, questionId) {
+  const match = dataImportFindQuestionAudit(context, auditId, batchId);
+  if (!match) {
+    alert("ATLAS could not find this source review. Reopen the import and try again.");
+    return;
+  }
+  const question = dataImportAuditQuestionItems(match.audit).find(item => item.id === questionId);
+  if (!question) return;
+  const value = document.getElementById(dataImportQuestionControlId(auditId, questionId, "choice"))?.value || "";
+  const note = document.getElementById(dataImportQuestionControlId(auditId, questionId, "note"))?.value?.trim() || "";
+  if (!value) {
+    alert(question.kind === "mapping" ? "Choose the ATLAS field that should receive this data." : "Choose an answer before saving.");
+    return;
+  }
+  if (question.kind === "mapping") {
+    const saved = dataImportUpsertMappingRuleFromItem({
+      id: `question_${question.id}`,
+      originalField: question.originalField,
+      currentField: "",
+      suggestedField: question.suggestedField || "",
+      sourceSystem: match.audit.sourceSystem || match.owner.sourceSystem || "Unknown",
+      reportType: match.audit.reportType || match.owner.reportType || "",
+      sourceFile: match.audit.fileName || match.owner.name || "",
+      sheetName: question.sheetName || "Not detected",
+      sampleValue: question.sampleValue || "",
+      detectedDataType: question.detectedDataType || "",
+      uploadBatch: match.batch?.id || batchId || "",
+      confidence: question.confidence || null,
+      downstreamModules: match.audit.modules || []
+    }, value, { reason: note || "Answered during destination review" });
+    if (!saved) return;
+  }
+  if (context === "pending" && question.kind === "report_type") {
+    overrideDataImportReportType(match.owner.fileId, value);
+    return;
+  }
+  if (context === "pending" && question.kind === "community") {
+    assignDataImportPlanCommunity(match.owner.fileId, value);
+    return;
+  }
+  if (context === "pending" && question.kind === "inactive_history" && value === "exclude_file") {
+    match.owner.selected = false;
+    match.batch.summary = dataImportBuildBatchSummary(match.batch.files.filter(file => file.selected), match.batch.zipIssues || []);
+  }
+  const now = new Date().toISOString();
+  const answer = {
+    questionId,
+    prompt: question.prompt,
+    kind: question.kind,
+    value,
+    valueLabel: dataImportQuestionValueLabel(question, value),
+    note,
+    answeredAt: now,
+    answeredBy: atlasCurrentUserDisplayName() || "Admin"
+  };
+  const answers = Array.isArray(match.owner.questionAnswers) ? match.owner.questionAnswers : Array.isArray(match.owner.answers) ? match.owner.answers : [];
+  const nextAnswers = [answer, ...answers.filter(item => item.questionId !== questionId)];
+  if (context === "pending") {
+    match.owner.questionAnswers = nextAnswers;
+  } else {
+    match.owner.answers = nextAnswers;
+    const openCount = dataImportAuditQuestionItems(match.owner).filter(item => !nextAnswers.some(answerItem => answerItem.questionId === item.id)).length;
+    match.owner.unansweredCount = openCount;
+    match.owner.status = openCount ? "Needs Answers" : "Answered";
+  }
+  dataImport2State.activeQuestionId = "";
+  persistDataImport2State();
+  renderTab();
+}
+
 function renderDataImportBatchQuestions(batch) {
-  const questions = dataImportBuildBatchQuestions(batch);
-  if (!questions.length) return "";
+  const reviews = (batch?.files || []).filter(plan => plan.selected && plan.status !== "blocked").flatMap(plan => {
+    const audit = dataImportBuildDownstreamAuditForPlan(plan);
+    return dataImportAuditQuestionItems(audit).map(question => ({ audit, question, answer: dataImportQuestionAnswer(audit, question.id) }));
+  }).slice(0, 12);
+  if (!reviews.length) return "";
   return `<div class="data-import2-detail-panel" style="margin-top:10px">
     <div class="data-import2-section-title"><i class="ph ph-question"></i>Questions ATLAS Needs Answered</div>
     <div class="data-import2-question-list">
-      ${questions.map(question => `<div class="data-import2-question">${escapeHtml(question)}</div>`).join("")}
+      ${reviews.map(({ audit, question, answer }) => `<div class="data-import2-question${answer ? " answered" : ""}">
+        <div class="data-import2-question-copy">${escapeHtml(question.prompt)}${answer ? `<div class="data-import2-question-answer">Answered: ${escapeHtml(answer.valueLabel || dataImportQuestionValueLabel(question, answer.value))}</div>` : ""}</div>
+        <button type="button" class="btn ${answer ? "btn-gray" : "btn-blue"} btn-sm" onclick='toggleDataImportQuestionReview("pending", ${JSON.stringify(audit.id)}, ${JSON.stringify(batch.id)}, ${JSON.stringify(question.id)})'>${answer ? "Edit" : "Answer"}</button>
+      </div>`).join("")}
     </div>
   </div>`;
 }
@@ -50425,37 +50685,43 @@ function renderDataImportPlannedDownstreamAudit(batch) {
   return `<div class="data-import2-detail-panel" style="margin-top:10px">
     <div class="data-import2-section-title"><i class="ph ph-check-circle"></i>Destination Checks After Approval</div>
     <div class="data-import2-audit-grid">
-      ${audits.map(audit => `<div class="data-import2-audit-row">
-        <div>
-          <div class="data-import2-audit-title">${escapeHtml(audit.reportTypeLabel)}</div>
-          <div class="data-import2-audit-copy">${escapeHtml(audit.fileName)}</div>
-        </div>
-        <div class="data-import2-audit-copy">
-          ${escapeHtml(audit.modules.slice(0, 5).join(", ") || "No downstream page mapping configured yet.")}
-          ${audit.inactiveCommunities.length ? `<div style="margin-top:4px">Inactive detected: ${escapeHtml(audit.inactiveCommunities.join(", "))}</div>` : ""}
-        </div>
-        <span class="data-import2-status ${audit.status === "Verified" ? "ready" : "review"}">${escapeHtml(audit.status === "Verified" ? "Ready to check" : audit.status)}</span>
-      </div>`).join("")}
+      ${audits.map(audit => {
+        const key = dataImportQuestionReviewKey("pending", batch.id, audit.id);
+        return `<div class="data-import2-audit-item${dataImport2State.activeQuestionReviewKey === key ? " open" : ""}"><div class="data-import2-audit-row">
+          <div>
+            <div class="data-import2-audit-title">${escapeHtml(audit.reportTypeLabel)}</div>
+            <div class="data-import2-audit-copy">${escapeHtml(audit.fileName)}</div>
+          </div>
+          <div class="data-import2-audit-copy">
+            ${escapeHtml(audit.modules.slice(0, 5).join(", ") || "No downstream page mapping configured yet.")}
+            ${audit.inactiveCommunities.length ? `<div style="margin-top:4px">Inactive detected: ${escapeHtml(audit.inactiveCommunities.join(", "))}</div>` : ""}
+          </div>
+          ${renderDataImportAuditStatusAction(audit, "pending", batch.id)}
+        </div>${renderDataImportQuestionReview(audit, "pending", batch.id)}</div>`;
+      }).join("")}
     </div>
   </div>`;
 }
 
-function renderDataImportDownstreamAudit(audits = []) {
+function renderDataImportDownstreamAudit(audits = [], owningBatchId = "") {
   const rows = Array.isArray(audits) ? audits : [];
   if (!rows.length) return "";
   return `<div class="data-import2-audit-grid">
-    ${rows.map(audit => `<div class="data-import2-audit-row">
-      <div>
-        <div class="data-import2-audit-title">${escapeHtml(audit.reportTypeLabel || dataImportReportLabel(audit.reportType))}</div>
-        <div class="data-import2-audit-copy">${escapeHtml(audit.fileName || "Source file")}</div>
-      </div>
-      <div class="data-import2-audit-copy">
-        ${escapeHtml(audit.detail || "")}
-        <div style="margin-top:4px">${escapeHtml((audit.modules || []).slice(0, 5).join(", ") || "No downstream page mapping configured yet.")}</div>
-        ${(audit.questions || []).length ? `<div style="margin-top:4px">Question: ${escapeHtml(audit.questions[0])}</div>` : ""}
-      </div>
-      <span class="data-import2-status ${audit.status === "Verified" ? "ready" : "review"}">${escapeHtml(audit.status || "Needs Review")}</span>
-    </div>`).join("")}
+    ${rows.map(audit => {
+      const batchId = audit.batchId || owningBatchId || "";
+      const key = dataImportQuestionReviewKey("history", batchId, audit.id);
+      return `<div class="data-import2-audit-item${dataImport2State.activeQuestionReviewKey === key ? " open" : ""}"><div class="data-import2-audit-row">
+        <div>
+          <div class="data-import2-audit-title">${escapeHtml(audit.reportTypeLabel || dataImportReportLabel(audit.reportType))}</div>
+          <div class="data-import2-audit-copy">${escapeHtml(audit.fileName || "Source file")}</div>
+        </div>
+        <div class="data-import2-audit-copy">
+          ${escapeHtml(audit.detail || "")}
+          <div style="margin-top:4px">${escapeHtml((audit.modules || []).slice(0, 5).join(", ") || "No downstream page mapping configured yet.")}</div>
+        </div>
+        ${renderDataImportAuditStatusAction(audit, "history", batchId)}
+      </div>${renderDataImportQuestionReview(audit, "history", batchId)}</div>`;
+    }).join("")}
   </div>`;
 }
 
@@ -51593,7 +51859,7 @@ function renderDataImportAliasesView() {
 function renderDataImportHistoryView() {
   const batches = dataImport2State.batches || [];
   if (!batches.length) return `<div class="data-import2-card"><div class="data-import2-section-title"><i class="ph ph-clock-counter-clockwise"></i>Import History</div><div class="data-import2-detail-panel">No import batches have been approved yet.</div></div>`;
-  const latestAudit = renderDataImportDownstreamAudit(batches[0]?.downstreamAudit || []);
+  const latestAudit = renderDataImportDownstreamAudit(batches[0]?.downstreamAudit || [], batches[0]?.id || "");
   const latestFiles = batches[0]?.files || [];
   const latestLineage = (dataImport2State.lineage || []).filter(item => item.batchId === batches[0]?.id).slice(0, 20);
   return `<div class="data-import2-card">

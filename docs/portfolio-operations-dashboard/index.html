@@ -621,6 +621,7 @@
   .data-import2-audit-item.open .data-import2-audit-row { border-radius: 8px 8px 0 0; border-bottom-color: transparent; }
   .data-import2-audit-title { font-size: 0.73rem; font-weight: 800; color: var(--text); margin-bottom: 3px; }
   .data-import2-audit-copy { font-size: 0.63rem; color: var(--muted); line-height: 1.45; }
+  .data-import2-audit-action { display: flex; align-items: center; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
   button.data-import2-status { cursor: pointer; font-family: inherit; }
   button.data-import2-status:hover, button.data-import2-status:focus-visible { filter: brightness(0.96); box-shadow: 0 0 0 2px rgba(49,109,202,0.12); outline: none; }
   .data-import2-question-review { border: 1px solid rgba(210,153,34,0.42); border-top: 0; border-radius: 0 0 8px 8px; background: #fffdf7; padding: 12px; }
@@ -628,8 +629,10 @@
   .data-import2-question-form { display: grid; grid-template-columns: minmax(260px, 1.2fr) minmax(220px, 0.8fr) auto; gap: 10px; align-items: end; border-top: 1px solid rgba(210,153,34,0.2); padding-top: 10px; margin-top: 10px; }
   .data-import2-question-form:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
   .data-import2-question-form.answered { border-left: 3px solid #3fb950; padding-left: 9px; }
+  .data-import2-question-form.compact { grid-template-columns: minmax(260px, 1fr) auto; align-items: center; background: rgba(63,185,80,0.045); border-radius: 7px; padding: 9px 10px 9px 12px; }
   .data-import2-question-prompt { font-size: 0.69rem; font-weight: 750; color: var(--text); line-height: 1.45; }
   .data-import2-question-meta { font-size: 0.6rem; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+  .data-import2-question-outcome { font-size: 0.6rem; color: var(--muted); margin-top: 3px; line-height: 1.4; }
   .data-import2-question-controls { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(160px, 0.7fr); gap: 8px; }
   .data-import2-question-controls select, .data-import2-question-controls input { width: 100%; }
   .data-import2-matrix-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--bg2); }
@@ -48167,7 +48170,7 @@ function dataImportSuggestDestinationForHeader(header = "", context = {}) {
       if (normalized === aliasText) confidence = 90;
       else if (normalized.includes(aliasText) || aliasText.includes(normalized)) confidence = 74;
       else if (aliasText.split(" ").some(part => part.length > 4 && normalized.includes(part))) confidence = 58;
-      if (reportFields.includes(field)) confidence += 8;
+      if (confidence > 0 && reportFields.includes(field)) confidence += 8;
       if (field.includes("occupancy") && (sampleValue.includes("%") || /^\d?\.\d+$/.test(sampleValue))) confidence += 4;
       if (confidence > best.confidence) best = { field, confidence: Math.min(98, confidence), reason: "Field name and source context" };
     });
@@ -50023,6 +50026,7 @@ function dataImportBuildPlanQuestionItems(plan = {}, options = {}) {
   (plan.issues || []).forEach(issue => {
     if (issue.type === "unmapped" && issue.originalField) {
       add("mapping", `${plan.name}: ${issue.detail || `Which ATLAS field should ${issue.originalField} map to?`}`, {
+        sourceFile: plan.name,
         originalField: issue.originalField,
         suggestedField: issue.canonicalField || issue.suggestedField || "",
         confidence: issue.confidence || null
@@ -50031,6 +50035,7 @@ function dataImportBuildPlanQuestionItems(plan = {}, options = {}) {
     if (issue.type === "low_confidence" && issue.originalField) {
       const suggestedField = issue.canonicalField || issue.suggestedField || "";
       add("mapping", `${plan.name}: Confirm whether ${issue.originalField} maps to ${dataImportCanonicalFieldLabel(suggestedField)}.`, {
+        sourceFile: plan.name,
         originalField: issue.originalField,
         suggestedField,
         confidence: issue.confidence || null,
@@ -50512,7 +50517,7 @@ function dataImportQuestionControlId(auditId = "", questionId = "", suffix = "ch
 }
 
 function renderDataImportQuestionChoiceOptions(question = {}, selectedValue = "") {
-  const selected = selectedValue || question.suggestedField || question.value || "";
+  const selected = selectedValue || (question.kind === "mapping" ? "" : question.value || "");
   if (question.kind === "mapping") return renderDataImportDestinationOptions(selected, question.suggestedField);
   if (question.kind === "report_type") {
     return `<option value="">Choose report type</option>${DATA_IMPORT_REPORT_ORDER.map(type => `<option value="${escapeHtml(type)}"${selected === type ? " selected" : ""}>${escapeHtml(dataImportReportLabel(type))}</option>`).join("")}`;
@@ -50528,6 +50533,19 @@ function renderDataImportQuestionChoiceOptions(question = {}, selectedValue = ""
         ? [["confirm_destinations", "Confirm listed destinations"], ["change_destinations", "Destinations need changes"]]
         : [["confirmed", "Confirm"], ["change_required", "Change required"], ["hold_review", "Hold for review"]];
   return `<option value="">Choose an answer</option>${choices.map(([value, label]) => `<option value="${value}"${selected === value ? " selected" : ""}>${escapeHtml(label)}</option>`).join("")}`;
+}
+
+function dataImportQuestionDisplayPrompt(question = {}, audit = {}) {
+  if (question.kind !== "mapping" || Number(question.confidence || 0) >= 50 || !question.originalField) return question.prompt || "Mapping review";
+  return `${question.sourceFile || audit.fileName || "Source file"}: Choose how ${question.originalField} should be handled.`;
+}
+
+function dataImportQuestionOutcomeText(question = {}, answer = {}, audit = {}) {
+  if (!answer?.value) return "";
+  if (answer.value === "__ignored__") return "Excluded from imported data. The original value remains available only in the raw source archive and audit history.";
+  if (question.kind !== "mapping") return "Saved for this import review.";
+  const modules = dataImportDestinationModules(answer.value).slice(0, 4);
+  return `Included in canonical ATLAS data as ${dataImportMappingDestinationLabel(answer.value)}${modules.length ? ` and available to ${modules.join(", ")}` : ""}.`;
 }
 
 function dataImportQuestionValueLabel(question = {}, value = "") {
@@ -50557,8 +50575,10 @@ function renderDataImportAuditStatusAction(audit = {}, context = "pending", batc
   }
   const key = dataImportQuestionReviewKey(context, batchId, audit.id);
   const expanded = dataImport2State.activeQuestionReviewKey === key;
-  const label = openCount ? `Needs Answers · ${openCount}` : "Answers Saved";
-  return `<button type="button" class="data-import2-status ${openCount ? "review" : "ready"}" aria-expanded="${expanded ? "true" : "false"}" onclick='toggleDataImportQuestionReview(${JSON.stringify(context)}, ${JSON.stringify(audit.id)}, ${JSON.stringify(batchId)})'><i class="ph ph-question"></i>${escapeHtml(label)}</button>`;
+  if (!openCount) {
+    return `<div class="data-import2-audit-action"><span class="data-import2-status ready"><i class="ph ph-check-circle"></i>Answers Saved</span><button type="button" class="btn btn-gray btn-sm" aria-expanded="${expanded ? "true" : "false"}" onclick='toggleDataImportQuestionReview(${JSON.stringify(context)}, ${JSON.stringify(audit.id)}, ${JSON.stringify(batchId)}, ${JSON.stringify(questions[0]?.id || "")})'>Edit</button></div>`;
+  }
+  return `<button type="button" class="data-import2-status review" aria-expanded="${expanded ? "true" : "false"}" onclick='toggleDataImportQuestionReview(${JSON.stringify(context)}, ${JSON.stringify(audit.id)}, ${JSON.stringify(batchId)})'><i class="ph ph-question"></i>${escapeHtml(`Needs Answers · ${openCount}`)}</button>`;
 }
 
 function renderDataImportQuestionReview(audit = {}, context = "pending", batchId = "") {
@@ -50575,10 +50595,22 @@ function renderDataImportQuestionReview(audit = {}, context = "pending", batchId
       const choiceId = dataImportQuestionControlId(audit.id, question.id, "choice");
       const noteId = dataImportQuestionControlId(audit.id, question.id, "note");
       const isFocused = dataImport2State.activeQuestionId === question.id;
+      const prompt = dataImportQuestionDisplayPrompt(question, audit);
+      if (answer && !isFocused) {
+        return `<div class="data-import2-question-form answered compact">
+          <div>
+            <div class="data-import2-question-prompt">${escapeHtml(prompt)}</div>
+            <div class="data-import2-question-answer"><i class="ph ph-check-circle"></i> ${escapeHtml(answer.valueLabel || dataImportQuestionValueLabel(question, answer.value))} · ${escapeHtml(dataImportFormatTimestamp(answer.answeredAt))} by ${escapeHtml(answer.answeredBy || "Admin")}</div>
+            <div class="data-import2-question-outcome">${escapeHtml(dataImportQuestionOutcomeText(question, answer, audit))}</div>
+          </div>
+          <button type="button" class="btn btn-gray btn-sm" onclick='toggleDataImportQuestionReview(${JSON.stringify(context)}, ${JSON.stringify(audit.id)}, ${JSON.stringify(batchId)}, ${JSON.stringify(question.id)})'>Edit</button>
+        </div>`;
+      }
       return `<div class="data-import2-question-form${answer ? " answered" : ""}"${isFocused ? ` data-question-focus="true"` : ""}>
         <div>
-          <div class="data-import2-question-prompt">${escapeHtml(question.prompt)}</div>
-          ${question.kind === "mapping" && question.suggestedField ? `<div class="data-import2-question-meta">ATLAS suggests ${escapeHtml(dataImportMappingDestinationLabel(question.suggestedField))}${question.confidence ? ` · ${escapeHtml(question.confidence)}% confidence` : ""}</div>` : ""}
+          <div class="data-import2-question-prompt">${escapeHtml(prompt)}</div>
+          ${question.kind === "mapping" && question.suggestedField && Number(question.confidence || 0) >= 50 ? `<div class="data-import2-question-meta">ATLAS suggests ${escapeHtml(dataImportMappingDestinationLabel(question.suggestedField))}${question.confidence ? ` · ${escapeHtml(question.confidence)}% confidence` : ""}. Confirm or choose another destination.</div>` : ""}
+          ${question.kind === "mapping" && (!question.suggestedField || Number(question.confidence || 0) < 50) ? `<div class="data-import2-question-meta">ATLAS does not have a reliable suggestion for this field. Choose a verified destination or exclude it from imported data.</div>` : ""}
           ${answer ? `<div class="data-import2-question-answer"><i class="ph ph-check-circle"></i> ${escapeHtml(answer.valueLabel || dataImportQuestionValueLabel(question, answer.value))} · ${escapeHtml(dataImportFormatTimestamp(answer.answeredAt))} by ${escapeHtml(answer.answeredBy || "Admin")}</div>` : ""}
         </div>
         <div class="data-import2-question-controls">
@@ -50657,6 +50689,9 @@ function saveDataImportAuditQuestion(context, auditId, batchId, questionId) {
     match.owner.status = openCount ? "Needs Answers" : "Answered";
   }
   dataImport2State.activeQuestionId = "";
+  const updatedAudit = context === "pending" ? dataImportBuildDownstreamAuditForPlan(match.owner) : match.owner;
+  const remaining = dataImportAuditQuestionItems(updatedAudit).filter(item => !nextAnswers.some(answerItem => answerItem.questionId === item.id)).length;
+  if (!remaining) dataImport2State.activeQuestionReviewKey = "";
   persistDataImport2State();
   renderTab();
 }
@@ -50902,7 +50937,7 @@ function dataImportSlug(value = "item") {
 }
 
 function dataImportMappingDestinationLabel(fieldKey = "") {
-  if (fieldKey === "__ignored__") return "Intentionally Ignored";
+  if (fieldKey === "__ignored__") return "Excluded from imported data";
   if (fieldKey === "__create_custom__") return "+ Create New ATLAS Field";
   const custom = (dataImport2State.customFields || []).find(field => field.fieldKey === fieldKey);
   return custom?.fieldName || dataImportCanonicalFieldLabel(fieldKey);
@@ -50914,7 +50949,10 @@ function dataImportDestinationGroups() {
     ...Object.values(DATA_IMPORT_REPORT_TYPES).flatMap(def => def.primaryFields || [])
   ]);
   const used = new Set();
-  const groups = DATA_IMPORT_DESTINATION_GROUPS.map(group => {
+  const groups = [{
+    label: "Import Action",
+    fields: [{ key: "__ignored__", label: "Exclude from imported data" }]
+  }, ...DATA_IMPORT_DESTINATION_GROUPS.map(group => {
     const fields = (group.fields || [])
       .filter(field => known.has(field) || (dataImport2State.customFields || []).some(custom => custom.fieldKey === field))
       .filter(field => {
@@ -50924,7 +50962,7 @@ function dataImportDestinationGroups() {
       })
       .map(field => ({ key: field, label: dataImportMappingDestinationLabel(field) }));
     return { label: group.label, fields };
-  }).filter(group => group.fields.length);
+  }).filter(group => group.fields.length)];
   const customFields = (dataImport2State.customFields || [])
     .filter(field => !used.has(field.fieldKey))
     .map(field => ({ key: field.fieldKey, label: field.fieldName }));
@@ -50932,7 +50970,6 @@ function dataImportDestinationGroups() {
   groups.push({
     label: "Admin Actions",
     fields: [
-      { key: "__ignored__", label: "Intentionally Ignore Field" },
       { key: "__create_custom__", label: "+ Create New ATLAS Field" }
     ]
   });
@@ -50940,7 +50977,7 @@ function dataImportDestinationGroups() {
 }
 
 function renderDataImportDestinationOptions(selectedField = "", suggestedField = "") {
-  const selected = selectedField || suggestedField || "";
+  const selected = selectedField || "";
   const optionHtml = dataImportDestinationGroups().map(group => `<optgroup label="${escapeHtml(group.label)}">
     ${group.fields.map(field => `<option value="${escapeHtml(field.key)}"${field.key === selected ? " selected" : ""}>${escapeHtml(field.label)}</option>`).join("")}
   </optgroup>`).join("");
@@ -51202,6 +51239,10 @@ function dataImportUpsertMappingRuleFromItem(item = {}, canonicalField = "", opt
   if (canonicalField === "__create_custom__") {
     alert("Create the new ATLAS field first, then choose it from the Map To list.");
     dataImport2State.selectedMappingPreviewId = item.id;
+    return false;
+  }
+  if (!dataImportDestinationExists(canonicalField)) {
+    alert("This destination is not registered in ATLAS. Choose an existing destination or create a new ATLAS field first.");
     return false;
   }
   const priorDestination = item.currentField || "";

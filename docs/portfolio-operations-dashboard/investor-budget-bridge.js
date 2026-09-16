@@ -29,7 +29,7 @@
     const approved=copy.scenarios.find(s=>s.type==='approved'&&s.locked);
     if(!approved){sources.issue='No locked approved budget scenario is available.';return sources;}
     const active=copy.scenarios.find(s=>s.id===copy.activeScenario);
-    const years=[...new Set([Number(copy.budgetYear),...Object.values(copy.actuals||{}).map(a=>Number(a.year)),...copy.properties.flatMap(p=>Object.keys(p.occupancyByYear||{}).map(Number))])].filter(y=>y>=2000&&y<=2100);
+    const years=[...new Set([Number(copy.budgetYear),...Object.values(copy.actuals||{}).map(a=>Number(a.year)),...Object.values(copy.approvedBudgetImports||{}).map(a=>Number(a.year)),...copy.properties.flatMap(p=>Object.keys(p.occupancyByYear||{}).map(Number))])].filter(y=>y>=2000&&y<=2100);
     const calculations=new Map();
     for(const year of years)calculations.set(year,R.engine.computeAll(copy,approved.id,year));
     for(const property of copy.properties) {
@@ -37,12 +37,15 @@
       const report={propertyId:property.id,code:property.code,name:property.name,periods:{},issues:[]};sources.properties[property.name]=report;
       if(property.fiscalYearBegins&&property.fiscalYearBegins!=='Jan'){report.issues.push('Non-calendar fiscal year requires an explicit period mapping.');continue;}
       for(const year of years) {
+        const imported=copy.approvedBudgetImports?.[property.id+'|'+year];
+        if(property.budgetImportOnly&&!imported)continue;
+        const sourceFiles=imported ? imported.sourceFile+' / '+imported.sourceSheet+' / approved '+imported.effectiveDate+' / '+imported.rows.map(r=>'GL '+r.gl+' row '+r.sourceRow).join('; ') : files;
         const calc=calculations.get(year),vr=R.variance.compute(copy,calc,property.id,year);
         const closed=Number(vr.closedThrough||0),actualSource=copy.periods?.[property.id+'|'+year]?.source;
         const forecast=active?.type==='reforecast'&&Number(copy.budgetYear)===year?R.variance.compute(copy,R.engine.computeAll(copy,active.id,year),property.id,year):null;
         for(let month=0;month<12;month++) {
           const key=year+'-'+String(month+1).padStart(2,'0');
-          const period=report.periods[key]={source:`Budget Builder / ${property.name} / ${year} / ${approved.name} / GL detail${files?' / '+files:''}`,savedAt,drivers:[],financialDetail:[]};
+          const period=report.periods[key]={source:`Budget Builder / ${property.name} / ${year} / ${approved.name} / GL detail${sourceFiles?' / '+sourceFiles:''}`,savedAt,drivers:[],financialDetail:[]};
           const put=(id,basis,value,rows,detail='')=>{
             if(!numeric(value))return;
             const item=period[id] ||= {sources:{},definitions:{}};item[basis]=value;

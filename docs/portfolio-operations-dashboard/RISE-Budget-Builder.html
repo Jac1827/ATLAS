@@ -9987,7 +9987,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
   /* --------------------------------------------------------------- apply */
   M.apply = function (type, validation, state) {
     var applied = 0, notes = [];
-    if (type === 'actuals' || type === 'prior_budget') {
+    if (type === 'actuals') {
       validation.accepted.forEach(function (r) {
         var pid = M.resolveProperty(r.property, state);
         var key = pid + '|' + String(r.gl).trim() + '|' + M.num(r.year);
@@ -19249,7 +19249,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
       '<span class="f-lab">Import type</span><select onchange="RBB.app.filters.importType=this.value;RBB.app.render()">' +
       H.opt(Object.keys(R.importer.SCHEMAS).map(function (kk) {
         return { v:kk, l:R.importer.SCHEMAS[kk].label }; }), f.importType) + '</select>' +
-      '<input type="file" accept=".csv,.txt,.tsv" onchange="RBB.app.handleFile(this,\'' + f.importType + '\')">' +
+      '<input type="file" accept=".xlsx,.xlsm,.csv,.txt,.tsv" onchange="RBB.app.handleFile(this,\'' + f.importType + '\')">' +
       '<button class="btn sec sm" onclick="RBB.app.downloadTemplate(\'' + f.importType +
         '\')">Download CSV template</button>' +
       '<button class="btn sec sm" onclick="RBB.app.runSampleImport(\'' + f.importType +
@@ -19306,7 +19306,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
       '</span></h3>';
     out += '<div class="pad"><div class="note ' + cls + '"><b>' +
       (v.status === 'rejected' ? 'Rejected.' : v.errors.length ? 'Accepted with errors.' : 'Clean.') +
-      '</b> ' + (v.rows ? v.rows.length : 0) + ' rows read, ' + v.errors.length + ' error' +
+      '</b> ' + (v.rowCount || 0) + ' rows read, ' + v.errors.length + ' error' +
       (v.errors.length === 1 ? '' : 's') + ', ' + v.warnings.length + ' warning' +
       (v.warnings.length === 1 ? '' : 's') + '.' +
       (v.status === 'rejected'
@@ -19329,7 +19329,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
       }
       out += '</tbody></table></div>';
     });
-    if (v.status !== 'rejected' && v.apply) {
+    if (v.status !== 'rejected' && v.accepted.length && !v.applyResult) {
       out += '<div class="pad"><button class="btn pri" onclick="RBB.app.applyImport()">' +
         'Apply this import to the budget</button> ' +
         '<button class="btn sec" onclick="RBB.app.discardImport()">Discard</button></div>';
@@ -19389,7 +19389,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
       type: v.schemaLabel, file: v.fileName || 'pasted data', rows: v.rowCount, loadedAt: u.today(),
       by:'Jacquelyn Heflin', status: v.status, errors: v.errors.length, warnings: v.warnings.length,
       notes: res.notes.join(' ') });
-    A.cache = null; A.render();
+    A.invalidate(); A.render();
     A.toast(res.notes.join(' '));
   };
 
@@ -22642,7 +22642,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
       '<div style="margin:10px 0 4px" class="tiny b">Columns needed</div>' +
       '<div class="tiny mono" style="color:var(--ink3)">checkin, checkout, nights, gross' +
       ' &nbsp;|&nbsp; optional: unit, channel, cleaning_fee, discounts, refunds</div>' +
-      '<div style="margin-top:11px"><input type="file" accept=".csv,.txt,.tsv" ' +
+      '<div style="margin-top:11px"><input type="file" accept=".xlsx,.xlsm,.csv,.txt,.tsv" ' +
       'onchange="RBB.app.strDeriveFile(this)"></div>' +
       '<div style="margin-top:9px"><label class="tiny">Units in the file, if there is no unit column' +
       '</label> <input class="n" style="width:70px" value="' + (cfg.pmsUnitCount || '') +
@@ -27522,6 +27522,7 @@ try {
   el.textContent = 'Boot failed: ' + (e && e.stack ? e.stack : e);
 }
 </script>
+<script src="./budget-mapped-import.js"></script>
 <script src="./investor-budget-bridge.js"></script>
 </body>
 </html>

@@ -30987,6 +30987,14 @@ function atlasBonusMetricActual(employee = {}, metric = {}) {
   const approvedApplicationGoal = Math.max(0, Number(approvedGoal?.applicationGoal || 0));
   const approvedGrossLeaseGoal = Math.max(0, Number(approvedGoal?.grossLeaseGoal || 0));
   const approvedNetLeaseGoal = Math.max(0, Number(approvedGoal?.netLeaseGoal || 0));
+  const financeRecord = communityName ? savedData?.[communityName] : null;
+  const financePeriod = new Date().getFullYear() + "-" + String(selectedMonthIdx + 1).padStart(2, "0");
+  const finance = financeRecord?.financialBudgetLedger?.investorPacketSources?.periods?.[financePeriod];
+  const attainment = (id, lower = false) => {
+    const item = finance?.[id];
+    if (!Number.isFinite(item?.actual) || !Number.isFinite(item?.budget) || item.budget === 0) return null;
+    return 100 + (lower ? -1 : 1) * (item.actual - item.budget) / Math.abs(item.budget) * 100;
+  };
   const metricMap = {
     occupancy: summary?.occPct,
     leased_pct: summary?.leasedPct,
@@ -30999,10 +31007,10 @@ function atlasBonusMetricActual(employee = {}, metric = {}) {
     renewal_conversion: summary?.renewalRetentionRate,
     retention: summary?.renewalRetentionRate || summary?.quarterClosedRetentionAverage,
     rent_growth: summary?.currentNer && summary?.proformaNer ? ((summary.currentNer - summary.proformaNer) / summary.proformaNer) * 100 : null,
-    budget_attainment: summary?.budgetOccAttainmentPct,
-    revenue: summary?.currentNer && summary?.proformaNer ? (summary.currentNer / summary.proformaNer) * 100 : null,
-    expenses: null,
-    noi: summary?.budgetOccAttainmentPct || null,
+    budget_attainment: attainment("expenses", true),
+    revenue: attainment("revenue"),
+    expenses: attainment("expenses"),
+    noi: attainment("noi"),
     delinquency: null,
     collections: null,
     resident_satisfaction: summary?.googleLifetimeRating ? summary.googleLifetimeRating * 20 : null,
@@ -32022,21 +32030,26 @@ function summarizeFinancialLedgerRows(rows = [], budgetRows = []) {
     budgetIndex[glCode] = {
       budget: Number(row?.budget ?? row?.yBud ?? 0) || 0,
       annualBudget: Number(row?.annualBudget ?? row?.annBud ?? 0) || 0,
-      section: String(row?.section ?? "")
+      section: String(row?.section ?? ""), nature: row?.nature
     };
   });
-  (Array.isArray(rows) ? rows : []).forEach((row) => {
+  const actualRows = Array.isArray(rows) ? rows : [];
+  const actualCodes = new Set(actualRows.map(row => String(row?.glCode ?? row?.gl ?? "").trim()));
+  const combined = actualRows.concat((budgetRows || []).filter(row => !actualCodes.has(String(row?.glCode ?? row?.gl ?? "").trim())).map(row => ({...row, actual: 0})));
+  combined.forEach((row) => {
     const rawGlCode = String(row?.glCode ?? row?.gl ?? "").trim();
     const glCode = Number(String(rawGlCode).replace(/[^\d.-]/g, ""));
-    const sectionLabel = String(row?.section ?? "").toLowerCase();
+    const sectionLabel = String(budgetIndex[rawGlCode]?.section || row?.section || "").toLowerCase();
+    const nature = budgetIndex[rawGlCode]?.nature || row?.nature;
+    if (["capital", "debt", "below_noi"].includes(nature)) return;
     const actual = Number(row?.actual ?? row?.yAct ?? 0) || 0;
     const budgetFallback = budgetIndex[rawGlCode]?.budget;
     const annualBudgetFallback = budgetIndex[rawGlCode]?.annualBudget;
-    const budget = Number(row?.budget ?? row?.yBud ?? budgetFallback ?? 0) || 0;
-    const annualBudget = Number(row?.annualBudget ?? row?.annBud ?? annualBudgetFallback ?? 0) || 0;
-    const isIncome = sectionLabel.includes("income") || (Number.isFinite(glCode) && glCode > 0 && glCode < 5000);
+    const budget = Number(budgetFallback ?? row?.budget ?? row?.yBud ?? 0) || 0;
+    const annualBudget = Number(annualBudgetFallback ?? row?.annualBudget ?? row?.annBud ?? 0) || 0;
+    const isIncome = nature ? ["income", "contra_income"].includes(nature) : sectionLabel.includes("income") || sectionLabel.includes("cost of leasing") || (Number.isFinite(glCode) && glCode > 0 && glCode < 6000);
     if (!actual && !budget && !annualBudget) return;
-    summary.hasData = true;
+    summary.hasData = actualRows.length > 0;
     summary.annualBudget += annualBudget;
     if (isIncome) {
       summary.revenueActual += actual;

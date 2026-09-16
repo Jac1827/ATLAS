@@ -230,6 +230,14 @@
       var record = typeof normalizeSavedCommunityRecord === "function"
         ? normalizeSavedCommunityRecord(matchedName, savedData[matchedName])
         : savedData[matchedName];
+      const previousVersion = record.financialBudgetLedger?.versions?.[String(payload.year)];
+      if (previousVersion && (!payload.effectiveDate || payload.effectiveDate <= previousVersion.effectiveDate)) {
+        return { ok: false, message: "The current approved budget has the same or a newer effective date. No figures were replaced." };
+      }
+      const entries = Object.entries(payload.budgetByPeriod || {});
+      if (entries.length !== 12 || entries.some(([period, rows]) => !new RegExp("^" + Number(payload.year) + "-(0[1-9]|1[0-2])$").test(period) || !Array.isArray(rows) || rows.some(row => !Number.isFinite(row.budget)))) {
+        return { ok: false, message: "A complete twelve-month budget with numeric amounts is required." };
+      }
       record.financialLedger = Object.assign({}, record.financialLedger || {}, payload.actualsByPeriod || {});
       record.financialBudgetLedger = Object.assign({}, record.financialBudgetLedger || {}, payload.budgetByPeriod || {}, {
         sourceKind: "rise_budget_builder",
@@ -238,6 +246,9 @@
         scenarioName: String(payload.scenario.name || "").trim(),
         scenarioStatus: String(payload.scenario.status || "").trim(),
         budgetYear: Number(payload.year),
+        versions: Object.assign({}, record.financialBudgetLedger?.versions || {}, payload.effectiveDate ? {
+          [String(payload.year)]: { effectiveDate: payload.effectiveDate, sourceFile: payload.sourceFile, publishedAt: timestamp }
+        } : {}),
         investorPacketSources: payload.investorPacketSources || record.financialBudgetLedger?.investorPacketSources || null,
         publishedAt: timestamp
       });
@@ -347,6 +358,11 @@
     if (!data) return;
     if (data.type === "atlas-budget-return-home" && isBudgetFrameSource(event.source)) {
       if (typeof setTab === "function") setTab(0);
+      return;
+    }
+    if (data.type === "atlas-budget-catalog-request" && isBudgetFrameSource(event.source)) {
+      const names = typeof getAtlasApplicationScopeCommunityNames === "function" ? getAtlasApplicationScopeCommunityNames() : [];
+      event.source.postMessage({ type: "atlas-budget-catalog", names: names }, window.location.origin);
       return;
     }
     if (data.type === "atlas-budget-publish" && isBudgetFrameSource(event.source)) {

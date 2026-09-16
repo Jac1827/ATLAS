@@ -1406,7 +1406,7 @@
 <script src="./atlas-mounts.js?v=20260911-central-services-roster"></script>
 <script src="./centralization/atlas-central-client.js?v=20260916-import-propagation" data-atlas-central-client="true"></script>
 <script src="./central-services.js?v=20260916-attorney-coversheet-20260916-filing-20260916-collections-20260911-admin-inspection-controls"></script>
-<script src="./eviction-attorney-ui.js?v=20260916"></script>
+<script src="./eviction-attorney-ui.js?v=20260916-community-contacts"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260902-application-intelligence">
 <script src="./application-source-bridge.js?v=20260916"></script>
 <script src="./application-performance.js?v=20260916-shared-source"></script>
@@ -21525,7 +21525,7 @@ function renderPortfolioScopedSetupTab() {
       <td class="l"><input type="text" value="${escapeHtml(detail.record?.investorName || "")}" placeholder="Investor / ownership group" onchange='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "investorName", this.value)' style="width:100%"></td>
       <td class="l"><textarea rows="2" onchange='updatePortfolioCommunityField(${JSON.stringify(detail.name)}, "investorEmailContacts", this.value)' style="width:100%;min-height:58px">${escapeHtml(contactText)}</textarea></td>
       <td>${plans}</td>
-      <td><button type="button" class="btn btn-gray btn-sm" onclick='return openPortfolioCommunityFloorPlans(${JSON.stringify(detail.name)})'>Edit Floor Plans</button></td>
+      <td><button type="button" class="btn btn-gray btn-sm" data-community="${escapeHtml(detail.name)}" onclick="atlasCsCommunityAttorneySettings(this.dataset.community)">Attorney Contact</button> <button type="button" class="btn btn-gray btn-sm" onclick='return openPortfolioCommunityFloorPlans(${JSON.stringify(detail.name)})'>Edit Floor Plans</button></td>
     </tr>`;
   }).join("");
   const selectedFloorPlanData = buildCommunityFloorPlanVarianceRows(selectedRecord.communityFloorPlans, selectedRecord.marketSurveyData);
@@ -22516,6 +22516,10 @@ function renderSetupTab() {
       </div>`;
 
   const foundationSection = `
+    <div class="card mb4"><div class="card-title">Attorney Contact</div>
+      <p>Set the attorney email for ${escapeHtml(p.name)}. Eviction drafts use this shared community contact and send from <strong>central@risere.com</strong>.</p>
+      <button type="button" class="btn btn-blue btn-sm" data-community="${escapeHtml(p.name)}" onclick="atlasCsCommunityAttorneySettings(this.dataset.community)">Edit Attorney Contact</button>
+    </div>
     <div class="card mb4" style="border-color:${totalUnits===0?"rgba(248,81,73,0.5)":"rgba(68,147,248,0.25)"};background:${totalUnits===0?"rgba(248,81,73,0.05)":"rgba(68,147,248,0.04)"}">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
         <div>

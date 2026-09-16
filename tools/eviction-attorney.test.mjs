@@ -23,7 +23,7 @@ p=(await req('ready',{revision:p.revision})).result;
 const sent=await Promise.all([req('send',{revision:p.revision}),req('send',{revision:p.revision})]);
 assert.equal(calls.length,1,'Concurrent requests may not duplicate sends');p=(await req('get')).result;
 assert.equal(p.draft.status,'sent');assert.equal(p.draft.providerMessageId,'mock-provider-message-1');assert.equal(p.draft.deliveryStatus,'unconfirmed');
-assert.equal(calls[0].attachments.length,3);assert.equal(calls[0].to[0],'test-attorney@example.invalid');assert.equal(p.draft.manifest.length,3);
+assert.equal(calls[0].from.email,'central@risere.com','Sender must be the shared Central Services address, regardless of environment or user');assert.equal(p.draft.fromEmail,'central@risere.com');assert.equal(calls[0].attachments.length,3);assert.equal(calls[0].to[0],'test-attorney@example.invalid');assert.equal(p.draft.manifest.length,3);
 assert.equal((await req('send',{revision:p.revision})).status,200);assert.equal(calls.length,1);
 const archived=p.documents.find(d=>d.category==='cover');assert(archived);const pdf=await req('download',{documentId:archived.id});assert.equal(Buffer.from(pdf.result).subarray(0,4).toString(),'%PDF');
 fs.writeFileSync('../eviction-attorney-test.pdf',Buffer.from(pdf.result));
@@ -47,3 +47,15 @@ const apiEnv={SUPABASE_SERVICE_ROLE_KEY:'mock-service-key',EVICTION_CASES:{idFro
 const apiRequest=(communityName,action='get',token=true)=>worker.fetch(new Request('https://test.invalid/api/atlas/evictions/case',{method:'POST',headers:token?{authorization:'Bearer synthetic-token'}:{},body:JSON.stringify({caseId:row.id,communityName,action,actor:{name:'Spoofed User'}})}),apiEnv);
 try{assert.equal((await apiRequest('Allowed Community','get',false)).status,401);assert.equal((await apiRequest('Other Community')).status,403);assert.equal(forwarded,0);assert.equal((await apiRequest('Allowed Community')).status,200);assert.equal(forwardedActor.name,'Verified User');role='viewer';assert.equal((await apiRequest('Allowed Community','upload')).status,403);}finally{globalThis.fetch=originalFetch;}
 console.log('PASS authenticated community isolation and verified actor identity.');
+
+const contactStore=new EvictionCaseState({storage:new Storage()},env);
+assert.equal((await req('attorneys',{emails:[' attorney@example.invalid '],securePortalUrl:'https://secure.example.invalid',caseId:''},contactStore)).status,200);
+const contact=(await req('community-settings',{caseId:''},contactStore)).result;
+assert.deepEqual(contact.attorneys,['attorney@example.invalid']);assert.equal(contact.fromEmail,'central@risere.com');assert.equal(contact.updated.by.name,actor.name);
+assert.deepEqual((await req('get',{caseId:'another-case'},contactStore)).result.attorneys,contact.attorneys,'All cases in the community use the same settings');
+assert.deepEqual((await req('community-settings',{},new EvictionCaseState({storage:new Storage()},env))).result.attorneys,[],'Other communities remain isolated');
+assert.equal((await req('attorneys',{emails:['invalid'],caseId:''},contactStore)).status,400);
+assert.equal((await req('attorneys',{emails:[],caseId:''},contactStore)).status,200);
+assert.deepEqual((await req('community-settings',{caseId:''},contactStore)).result.attorneys,[]);
+assert.equal((await req('community-settings',{caseId:''},contactStore)).result.securePortalUrl,contact.securePortalUrl,'Unspecified settings must be preserved');
+console.log('PASS community attorney settings, validation, clearing, isolation and fixed shared sender.');

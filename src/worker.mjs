@@ -1617,11 +1617,11 @@ async function handleEvictionRequest(request, env) {
     if(!reader)throw Object.assign(new Error("Request body is required."),{status:400});
     while(true){const {done,value}=await reader.read();if(done)break;total+=value.length;if(total>29*1024*1024){await reader.cancel();throw Object.assign(new Error("Upload exceeds the request size limit."),{status:413});}chunks.push(value);}
     const body=JSON.parse(await new Blob(chunks).text());
-    const readOnly=["get","download","cover"].includes(body.action);
+    const readOnly=["get","download","cover","community-settings"].includes(body.action);
     const access=await requireAtlasAccessUser(request,env,readOnly?ATLAS_DLR_ALLOWED_ROLES:ATLAS_DLR_WRITE_ROLES);
     const community=await requireAtlasDlrCommunityAccess(access,body.communityName);
     if(!community?.community_id)throw Object.assign(new Error("Select a recognized ATLAS community."),{status:403});
-    const caseId=String(body.caseId||"");if(!caseId||caseId.length>250)throw new Error("A valid case reference is required.");
+    const caseId=String(body.caseId||"");if((!caseId&&!["community-settings","attorneys"].includes(body.action))||caseId.length>250)throw new Error("A valid case reference is required.");
     if(body.row){
       const allowed=["id","propertyName","residentName","residentId","leaseId","unit","evictionFiledAt","filingInformation","debtHistory","periodKey","delinquentBalance","aging0To30","aging31To60","aging61To90","aging90Plus","lastDelinquencyNote","lastDelinquencyNoteDate","attorneySentAt","historicalAttorneySentDate"];
       body.row=Object.fromEntries(allowed.filter(k=>body.row[k]!==undefined).map(k=>[k,body.row[k]]));

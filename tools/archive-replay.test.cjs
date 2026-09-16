@@ -1,0 +1,16 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
+const html=fs.readFileSync('docs/portfolio-operations-dashboard/index.html','utf8');
+const c={Date,Map,dataImportRuntimeCanonicalIndex:null,dataImport2State:{canonicalRecords:[],closedPeriods:[]}};
+vm.createContext(c);vm.runInContext(html.match(/^function dataImportUpsertCanonicalRecord\([^\n]*\) \{[\s\S]*?^\}/m)[0],c);
+const rec={key:'box::Sereno::2026-09',fileHash:'same',periodKey:'2026-09',dataAsOf:'2026-09-16',values:{applications:0}};
+const result=()=>({duplicatesIgnored:0,rowsHeld:0,rowsUnchanged:0,rowsUpdated:0,rowsInserted:0,issues:[]});
+c.dataImport2State.canonicalRecords=[rec];
+assert.equal(c.dataImportUpsertCanonicalRecord({...rec,values:{applications:7}},result()).disposition,'duplicate');
+assert.equal(c.dataImportUpsertCanonicalRecord({...rec,values:{applications:7}},result(),{reprocess:true}).disposition,'updated');
+assert.equal(c.dataImport2State.canonicalRecords.length,1);
+assert.equal(c.dataImport2State.canonicalRecords[0].revisions.length,1);
+c.dataImport2State.closedPeriods=['2026-09'];
+assert.equal(c.dataImportUpsertCanonicalRecord(rec,result(),{reprocess:true}).disposition,'held');
+c.dataImport2State.closedPeriods=[];
+assert.equal(c.dataImportUpsertCanonicalRecord({...rec,dataAsOf:'2026-09-01'},result(),{reprocess:true}).disposition,'older');
+console.log('PASS explicit archive replay updates one record with revision; ordinary duplicates, closed periods, and newer sources protected.');

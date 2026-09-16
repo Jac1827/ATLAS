@@ -49380,13 +49380,13 @@ function dataImportUpdateApprovalProgress(next = {}) {
   if (fill) fill.style.width = `${Math.max(2, percent)}%`;
 }
 
-function dataImportUpsertCanonicalRecord(record, result) {
+function dataImportUpsertCanonicalRecord(record, result, options = {}) {
   const records = dataImport2State.canonicalRecords || (dataImport2State.canonicalRecords = []);
   const existingIndex = dataImportRuntimeCanonicalIndex instanceof Map
     ? (dataImportRuntimeCanonicalIndex.get(record.key) ?? -1)
     : records.findIndex(item => item.key === record.key);
   const existing = existingIndex >= 0 ? records[existingIndex] : null;
-  if (existing?.fileHash && record.fileHash && existing.fileHash === record.fileHash) {
+  if (!options.reprocess && existing?.fileHash && record.fileHash && existing.fileHash === record.fileHash) {
     result.duplicatesIgnored += 1;
     return { disposition: "duplicate", record: existing };
   }
@@ -49836,7 +49836,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
         dataAsOf: plan.metadata?.dataAsOf || plan.dataDateIso || plan.metadata?.generatedAt || "",
         importedAt: new Date().toISOString()
       };
-      const upsert = dataImportUpsertCanonicalRecord(canonicalRecord, result);
+      const upsert = dataImportUpsertCanonicalRecord(canonicalRecord, result, {reprocess: plan.reprocessArchivedSource === true});
       if (["held", "older", "duplicate"].includes(upsert.disposition)) continue;
       result.communities.add(communityName);
       dataImportAddLineage(plan, batchId, canonicalRecord, sourceFields, false);
@@ -50258,6 +50258,48 @@ function clearDataImportPendingBatch() {
   dataImportFileHandles = new Map();
   persistDataImport2State();
   renderTab();
+}
+
+async function reprocessDataImportBoxScore(archiveId) {
+  if (!dataImportCanManageArchitecture() || dataImportApprovalInProgress) return;
+  const entry = (dataImport2State.sourceArchive || []).find(item => item.id === archiveId);
+  if (!entry || entry.reportType !== "box_score" || entry.importStatus !== "Approved") return;
+  dataImportApprovalInProgress = true;
+  const beforeSaved = JSON.stringify(savedData);
+  const beforeImport = JSON.stringify(dataImport2State);
+  try {
+    const stored = await atlasStateGetValue(`${DATA_IMPORT_FILE_ARCHIVE_PREFIX}${archiveId}`);
+    if (!stored?.blob) throw new Error("The original source is unavailable in this browser archive.");
+    const file = new File([stored.blob], stored.fileName || entry.fileName, {type:stored.type});
+    const plan = await dataImportBuildFilePlan(file,{forceReportType:"box_score"});
+    if (!entry.fileHash || plan.fileHash !== entry.fileHash) throw new Error("The retained source hash does not match its approved archive entry.");
+    plan.metadata = {...plan.metadata,...entry.metadata};
+    plan.dataDateIso = entry.dataDateIso || plan.dataDateIso;
+    plan.sourceSystem = entry.sourceSystem;
+    plan.communities = [...entry.communities];
+    plan.selectedCommunities = [...entry.communities];
+    plan.reprocessArchivedSource = true;
+    plan.mappingVersion = "ATLAS-section-qualified-20260916";
+    dataImportBeginApprovalRuntime();
+    const result = await dataImportRouteStructuredFile(file,plan,entry.batchId);
+    dataImportFinishApprovalRuntime();
+    entry.reprocessedAt = new Date().toISOString();
+    entry.reprocessResult = result;
+    dataImport2State.reconciliationLog.unshift({id:dataImportMakeId("reprocess"),batchId:entry.batchId,reportType:entry.reportType,fileName:entry.fileName,formula:"Archived Box Score reprocessed with section-qualified parser; source file unchanged.",createdAt:entry.reprocessedAt});
+    persistSaved();
+    persistDataImport2State();
+    alert(`Reprocessed ${result.communities.length} communities from the original Box Score. ${result.rowsHeld} rows held; ${result.issues.length} review items. Newer sources and closed periods remain protected.`);
+  } catch (error) {
+    savedData = JSON.parse(beforeSaved);
+    dataImport2State = JSON.parse(beforeImport);
+    persistSaved();
+    persistDataImport2State();
+    alert(`Box Score recovery stopped: ${error.message || error}`);
+  } finally {
+    dataImportFinishApprovalRuntime();
+    dataImportApprovalInProgress = false;
+    renderTab();
+  }
 }
 
 async function downloadDataImportArchiveFile(archiveId) {
@@ -53124,7 +53166,7 @@ function renderDataImportArchiveView() {
         <td>${(entry.communities || []).slice(0, 4).map(name => `<span class="data-import2-chip good">${escapeHtml(name)}</span>`).join(" ") || `<span class="data-import2-chip warn">Unmapped</span>`}</td>
         <td>${escapeHtml(entry.batchId || "")}<div class="data-import2-file-meta">${escapeHtml(entry.rowsReviewed || 0)} reviewed · ${escapeHtml(entry.rowsUpdated || 0)} corrected · ${escapeHtml(entry.rowsHeld || 0)} held</div><div class="data-import2-file-meta">${escapeHtml(entry.mappingVersion || "ATLAS-RRIM-1.0")}</div></td>
         <td><span class="data-import2-status ${dataImportStatusClass(entry.importStatus)}">${escapeHtml(entry.importStatus || "Archived")}</span><div class="data-import2-file-meta">${escapeHtml(entry.storageStatus || "Metadata")}</div></td>
-        <td><button class="btn btn-gray btn-sm" onclick='downloadDataImportArchiveFile(${JSON.stringify(entry.id)})'>Download</button></td>
+        <td><button class="btn btn-gray btn-sm" onclick='downloadDataImportArchiveFile(${JSON.stringify(entry.id)})'>Download</button>${entry.reportType === "box_score" && entry.importStatus === "Approved" && dataImportCanManageArchitecture() ? `<button class="btn btn-blue btn-sm" onclick='reprocessDataImportBoxScore(${JSON.stringify(entry.id)})'>Refresh from original Box Score</button>` : ""}${entry.reprocessedAt ? `<div class="data-import2-file-meta">Refreshed ${escapeHtml(dataImportFormatTimestamp(entry.reprocessedAt))}</div>` : ""}</td>
       </tr>`).join("")}</tbody>
     </table>
   </div>`;

@@ -10,8 +10,8 @@ A twelve-section investor core answers performance, drivers, management actions 
 
 - Operations use exact `monthlyHistoryByPeriod[YYYY-MM]` values. No current-month array is substituted for missing history.
 - Dated DLR inventory is usable only in its matching reporting month, with the source filename and as-of date cited.
-- Save Budget Builder to produce a read-only financial source snapshot. Exact community names match automatically; differing display names require an explicit link in the builder. The source name remains in citations.
-- The Budget Builder bridge uses the approved scenario for budget and verified closed actuals. It publishes active reforecast values only for the saved current reporting vintage. Non-calendar fiscal years require explicit mappings.
+- The builder reads the current saved Budget Builder model automatically in an isolated calculation frame. It does not boot the editing workspace or write budget inputs. Existing explicit ATLAS community identity links are reused; fuzzy or substring matching is not used. Approved publications also carry a source snapshot for the linked community. The source name remains in citations.
+- The Budget Builder bridge uses the approved scenario for detailed revenue/expense categories, capital budgets and verified closed actuals across saved years. Account-specific source citations and variance notes are included. Active reforecast values are attached only to their saved reporting vintage. Non-calendar fiscal years require explicit mappings. Missing account actuals stay unavailable rather than becoming zeros.
 - Financial ledgers require confirmation of monthly basis, numeric detail rows and unique GL codes. No YTD amount is silently interpreted as monthly.
 - Advanced source mappings can point to existing ATLAS fields with period/year tokens and include a definition, citation, version and multiplier. Percent rates are stored on a 0–100 scale.
 - Missing values remain unavailable. Stored default zeros require verification. YTD flow values require all months; rates, balances and per-unit measures require explicit YTD mappings. A zero budget has no percentage variance.
@@ -19,9 +19,9 @@ A twelve-section investor core answers performance, drivers, management actions 
 
 ## Review and exports
 
-Record the four leadership answers, metric drivers, evidence, accountable owners, actions and due dates. Confirmed explanations without evidence are presented as hypotheses. Material changes without evidence, owners and actions are flagged. Save a reviewed version to establish the next month's comparison and carry forward commitments.
+The four leadership answers are drafted from supported figures, account variances, existing DLR owner notes and Community Command actions. Review or edit them as needed; user edits take precedence. Metric movements are drafted as observations; adverse material movements become review-required risk entries with recommended mitigation. Source notes remain hypotheses until evidence confirms a cause. No recommendation is presented as a completed management action. Imported commentary can be edited or suppressed without modifying its original source. Record any remaining accountable owners, actions and due dates. Confirmed explanations without evidence are presented as hypotheses. Material changes without evidence, owners and actions are flagged. Save a reviewed version to establish the next month's comparison and carry forward commitments.
 
-Exports: editable native PowerPoint tables/chart/text; editable HTML narrative document; comparison XLSX with variance formulas, audit, sources and owner questions; print/PDF. Citations are in document source registers, workbook Sources and PowerPoint speaker notes. Full comparisons are in the appendices. Raw resident records are not included.
+Exports: editable native PowerPoint tables/chart/text; editable HTML narrative document; comparison XLSX with variance formulas, audit, sources and owner questions; print/PDF. Citations are in document source registers, workbook Sources and PowerPoint speaker notes. Source-channel application cohorts and market comparisons are included in a separate Source segments workbook tab and export appendices. Full comparisons are in the appendices. Raw resident records are not included.
 
 ## Existing email cadence
 
@@ -29,4 +29,10 @@ Select a saved reviewed version, then publish the selection through the existing
 
 ## Validation
 
-Run `node tools/investor-packet.test.cjs` and `node tools/investor-budget-bridge.test.cjs`. The latter executes ATLAS's actual Budget Builder calculation engine. Export checks use synthetic data only. PowerPoint package and geometry checks and rendered-slide review are required after layout changes. XLSX checks verify comparison formulas and all four tabs. No live investor report or email was produced during implementation.
+Run `node tools/investor-packet.test.cjs` and `node tools/investor-budget-bridge.test.cjs`. The latter executes ATLAS's actual Budget Builder calculation engine. Export checks use synthetic data only. PowerPoint package and geometry checks and rendered-slide review are required after layout changes. XLSX checks verify comparison formulas and all five tabs. Also run `node tools/investor-packet-sources.test.cjs` and `node tools/investor-packet-ui.test.cjs` for automatic connection scope, data preservation and editable generated commentary. No live investor report or email was produced during implementation.
+
+## Automatic connections and coverage
+
+The connection panel shows available source families and current-period metric coverage. Sources include exact-period KPI/import lineage (including verified zeros), imported renewal cohorts, dated Market Survey history, deduplicated Application Performance records, Central Services case aggregates, property-specific Maintenance weekly snapshots, and Community Command actions. Refreshing or exporting rereads the saved budget; budget autosaves also trigger a refresh. Source overrides are an advanced option, not a prerequisite.
+
+Weekly maintenance completions are not silently summed into a calendar-month total. Resident-case balances are labeled partial scope rather than substituted for total property receivables. Application-source cohorts use recorded statuses rather than inventing event-date conversion rates. Personal resident information is excluded. Loan terms, investor cash flows, underwriting and other metrics without a supported source still require source data; the builder does not manufacture a complete-looking packet.

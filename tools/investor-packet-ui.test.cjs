@@ -1,0 +1,14 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const P=require('../docs/portfolio-operations-dashboard/investor-packet-core.js'),S=require('../docs/portfolio-operations-dashboard/investor-packet-sources.js');
+const sources={properties:{'RISE A':{name:'RISE A',periods:{'2026-01':{source:'budget.xlsx',revenue:{actual:100,budget:90},expenses:{actual:50,budget:40},drivers:[{id:'note',metric:'revenue',explanation:'Existing budget note',evidence:'GL 5120',owner:'Finance',classification:'hypothesis'}]}}}}};
+const data={A:{monthlyHistoryByPeriod:{'2026-01':{guestCards:10}}},B:{}};
+const context={AtlasInvestorPacket:P,AtlasInvestorSources:S,window:{},console,savedData:data,APPLICATION_RESIDENT_DATA_PROPERTY_MAP:{'RISE A':{atlasName:'A'}},localStorage:{getItem:key=>key==='rise.budget.autosave'?JSON.stringify({investorPacketSources:sources}):null},getCommunityNamesByStatusScope:()=>['A','B'],getReportHubMonthIndex:()=>0,getReportHubYear:()=>2026,buildPeriodKey:()=> '2026-01',persistOpsGlobalData:()=>({ok:true}),renderTab(){},alert:m=>{throw Error(m)},setTimeout(){},crypto:require('node:crypto').webcrypto};
+vm.createContext(context);vm.runInContext(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/investor-packet-ui.js','utf8'),context);
+context.atlasInvestorPacketState={selectedCommunity:'A',communities:{}};
+const ui=context.window.AtlasPacketUI;
+assert.equal(ui.build().rows.find(r=>r.id==='revenue').cells.current.value,100,'Established ATLAS identity links should match automatically');
+assert(ui.build().draft.performance.includes('$100'));
+ui.row('drivers',0,'explanation','Reviewed edit');assert.equal(ui.build().draft.drivers[0].explanation,'Reviewed edit');
+ui.remove('drivers',0);assert(!ui.build().draft.drivers.some(x=>x.id==='note'),'Removed imported commentary must stay removed');
+ui.select('B');assert.equal(ui.build().rows.find(r=>r.id==='revenue').cells.current.value,null,'No cross-community budget fallback');
+console.log('PASS automatic community identity links, generated narrative, editable imported notes, persistent suppression and community isolation.');

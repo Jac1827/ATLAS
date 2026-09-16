@@ -238,6 +238,7 @@
         scenarioName: String(payload.scenario.name || "").trim(),
         scenarioStatus: String(payload.scenario.status || "").trim(),
         budgetYear: Number(payload.year),
+        investorPacketSources: payload.investorPacketSources || record.financialBudgetLedger?.investorPacketSources || null,
         publishedAt: timestamp
       });
       record.financialUpdatedAt = timestamp;

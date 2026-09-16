@@ -16954,7 +16954,8 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
           scenario: { id: sc.id, name: sc.name, status: sc.status },
           sourceFile: (A.state.imports && A.state.imports[0] && A.state.imports[0].file) || 'RISE Budget Builder',
           budgetByPeriod: budgetByPeriod,
-          actualsByPeriod: actualsByPeriod
+          actualsByPeriod: actualsByPeriod,
+          investorPacketSources: RBB.investorSources ? RBB.investorSources(A.state,undefined,{names:[prop.name]}).properties[prop.name] : null
         }
       }, '*');
       A.toast('Publishing the locked scenario to ATLAS...');
@@ -27514,7 +27515,7 @@ window.addEventListener('error', function (e) {
   el.textContent += 'ERROR: ' + e.message + '\n  at ' + (e.filename || '') + ':' + (e.lineno || '') + '\n';
 });
 try {
-  RBB.app.boot();
+  if(new URLSearchParams(location.search).get('investorReader') !== '1') RBB.app.boot();
 } catch (e) {
   var el = document.getElementById('err');
   el.style.display = 'block';

@@ -13,6 +13,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs/dist/pptxgen.bundle.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="./investor-packet.css"/>
+<script src="./investor-packet-core.js"></script>
+<script src="./vendor/jszip.min.js"></script>
+<script src="./investor-packet-ui.js"></script>
 <style>
   :root {
     --bg: #f5f5f3;
@@ -3893,6 +3897,7 @@ function normalizeReportHubType(value) {
   const mapped = legacyMap[normalized] || normalized || RISE_WEEKLY_LEASING_REPORT_TYPE;
   return [
     RISE_WEEKLY_LEASING_REPORT_TYPE,
+    "investor_community_packet",
     "monthly_investor_deck",
     "investor_marketing_report",
     "dlr",
@@ -7818,6 +7823,7 @@ function normalizeOpsGlobalData(data) {
   const storedQuarter = BONUS_QUARTERS.includes(input.bonusQuarter) ? input.bonusQuarter : periodQuarter;
   const manualQuarterOverride = input.bonusQuarterManualOverride === true;
   return {
+    investorPacketState: input.investorPacketState && typeof input.investorPacketState === "object" ? input.investorPacketState : { selectedCommunity: "", communities: {} },
     bonusQuarter: manualQuarterOverride ? storedQuarter : periodQuarter,
     bonusQuarterManualOverride: manualQuarterOverride,
     bonusCalcView: input.bonusCalcView === "jac" ? "jac" : "property",
@@ -7880,6 +7886,7 @@ function getLegacyOpsGlobalSeed() {
 
 function applyOpsGlobalData(data) {
   const normalized = normalizeOpsGlobalData(data);
+  atlasInvestorPacketState = normalized.investorPacketState;
   bonusQuarter = normalized.bonusQuarter;
   bonusQuarterManualOverride = normalized.bonusQuarterManualOverride;
   bonusCalcView = normalized.bonusCalcView;
@@ -7942,6 +7949,7 @@ function queuePersistedPhotoStorageCompaction() {
 
 function persistOpsGlobalData() {
   applyOpsGlobalData({
+    investorPacketState: atlasInvestorPacketState,
     bonusQuarter,
     bonusQuarterManualOverride,
     bonusCalcView,
@@ -34116,6 +34124,10 @@ function renderPortfolioHomeTab() {
 }
 
 function renderReportingTab() {
+  if (reportHubType === "investor_community_packet") {
+    reportHubPerspective = "investor";
+    return `<div style="margin-bottom:14px"><button class="btn btn-gray btn-sm" onclick="setReportHubType('monthly_investor_deck')">All reporting options</button></div>${AtlasPacketUI.render()}`;
+  }
   ensureValidReportHubAction();
   reportHubType = normalizeReportHubType(reportHubType);
   if (!["dlr", "bonus_payout", "community_progress", "market_comparison", "leasing_velocity", "renewal_performance", "financial_review", "eviction_report", "application_resident_data"].includes(reportHubType) && reportHubPerspective === "regional") {
@@ -34288,6 +34300,7 @@ function renderReportingTab() {
           <option value="investor_marketing_report" ${reportHubType==="investor_marketing_report"?"selected":""}>Marketing Report</option>
           <option value="bonus_payout" ${reportHubType==="bonus_payout"?"selected":""}>Bonus Payout Report</option>
           <option value="monthly_investor_deck" ${reportHubType==="monthly_investor_deck"?"selected":""}>Monthly Report</option>
+          <option value="investor_community_packet" ${reportHubType==="investor_community_packet"?"selected":""}>Investor Community Packet</option>
           <option value="community_progress" ${reportHubType==="community_progress"?"selected":""}>Community Progress Report</option>
           <option value="market_comparison" ${reportHubType==="market_comparison"?"selected":""}>Market Comparison Report</option>
           <option value="leasing_velocity" ${reportHubType==="leasing_velocity"?"selected":""}>Leasing Velocity Report</option>
@@ -34957,6 +34970,7 @@ function getReportHubTypeLabel(type = reportHubType) {
   return {
     [RISE_WEEKLY_LEASING_REPORT_TYPE]: RISE_WEEKLY_LEASING_REPORT_TITLE,
     monthly_investor_deck: "Monthly Report",
+    investor_community_packet: "Investor Community Packet",
     investor_marketing_report: "Marketing Report",
     dlr: "DLR",
     bonus_payout: "Bonus Payout Report",
@@ -43237,6 +43251,9 @@ function sanitizeDlrReportForCentralSnapshot(report = {}) {
 
 function buildDlrCentralSnapshotPayload(report, deliverySettings = null) {
   const normalizedReport = sanitizeDlrReportForCentralSnapshot(report || {});
+  const investorPacket = window.AtlasPacketUI?.deliveryPacket(normalizedReport.communityName);
+  if (investorPacket) normalizedReport.investorPacket = JSON.parse(JSON.stringify(investorPacket));
+  else delete normalizedReport.investorPacket;
   const settings = normalizeDlrDeliverySettings(deliverySettings || getDlrDeliverySettingsForCommunity(normalizedReport.communityName));
   const recipients = resolveDlrRecipientsForCommunity(normalizedReport.communityName, settings);
   return {

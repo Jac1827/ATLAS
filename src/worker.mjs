@@ -1,3 +1,4 @@
+import '../docs/portfolio-operations-dashboard/investor-packet-core.js';
 const SITE_ROUTES = [
   {
     path: "/",
@@ -482,6 +483,14 @@ function buildDlrSnapshotRecord(body = {}, access = {}, env = {}) {
     error.status = 400;
     throw error;
   }
+  if (report.investorPacket) {
+    const packet = report.investorPacket;
+    if (!globalThis.AtlasInvestorPacket.validReviewedPacket(packet, communityName)) {
+      const error = new Error('Investor packet must be a reviewed, bounded snapshot for this exact community and reporting month.');
+      error.status = 400;
+      throw error;
+    }
+  }
   const reportingDate = coerceDateOnly(body.reportingDate || report.reportDateIso || report.generatedAt || new Date());
   const settings = normalizeDlrDeliverySettingsForServer(body.deliverySettings || report.deliverySettings || {}, env);
   const recipients = normalizeDlrRecipientEntries(body.recipients || body.recipientSnapshot || []);
@@ -877,6 +886,9 @@ function buildDlrEmailMessage(snapshot = {}, subscription = {}, env = {}) {
     subject,
     text,
     html,
+    attachments: globalThis.AtlasInvestorPacket.validReviewedPacket(report.investorPacket, communityName)
+      ? [{ filename: `ATLAS_Investor_${communityName.replace(/[^a-z0-9]/gi, '_')}_${report.investorPacket.period}.html`, type: 'text/html', disposition: 'attachment', content: globalThis.AtlasInvestorPacket.html(report.investorPacket) }]
+      : [],
     fromEmail: cleanEmail(env.ATLAS_DLR_FROM_EMAIL || ""),
     fromName: cleanText(env.ATLAS_DLR_FROM_NAME || "ATLAS RISE Reports")
   };
@@ -1024,7 +1036,8 @@ async function processDlrSubscriptionCadence(config, subscription, cadence, loca
       from: message.fromName ? { email: message.fromEmail, name: message.fromName } : message.fromEmail,
       subject: message.subject,
       html: message.html,
-      text: message.text
+      text: message.text,
+      ...(message.attachments.length ? { attachments: message.attachments } : {})
     });
     const sentAt = new Date().toISOString();
     const history = await recordDlrDelivery(config, subscription, cadence, local, "sent", {

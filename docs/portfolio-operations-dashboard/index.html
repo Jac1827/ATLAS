@@ -11153,6 +11153,34 @@ function loadPropertyData(propName) {
   restoreCurrentMonthSnapshots(currentMonth);
 }
 
+function getApplicationApprovalCohortDisplay(applications = 0, approvals = 0) {
+  const applicationCount = Math.max(0, Number(applications) || 0);
+  const approvalCount = Math.max(0, Number(approvals) || 0);
+  if (applicationCount > 0 && approvalCount <= applicationCount) {
+    const rate = (approvalCount / applicationCount) * 100;
+    return {
+      comparable: true,
+      rate,
+      value: `${rate.toFixed(1)}%`,
+      subtext: `${approvalCount} of ${applicationCount} current-month applications`
+    };
+  }
+  if (approvalCount > 0) {
+    return {
+      comparable: false,
+      rate: null,
+      value: "—",
+      subtext: `Carryover approvals included · ${approvalCount} approved vs ${applicationCount} current-month applications`
+    };
+  }
+  return {
+    comparable: applicationCount > 0,
+    rate: applicationCount > 0 ? 0 : null,
+    value: applicationCount > 0 ? "0.0%" : "—",
+    subtext: applicationCount > 0 ? `0 of ${applicationCount} current-month applications` : "No current-month application cohort"
+  };
+}
+
 function renderApplicationTrackingSection(details = [], selectedMonth = getSelectedDashboardMonthIndex()) {
   const host = document.getElementById("application-tracking-content");
   if (!host) return;
@@ -11169,7 +11197,7 @@ function renderApplicationTrackingSection(details = [], selectedMonth = getSelec
     pending: sum.pending + row.metrics.pendingDecision,
     leases: sum.leases + row.metrics.leases
   }), { applications: 0, approvals: 0, pending: 0, leases: 0 });
-  const approvalRate = totals.applications > 0 ? (totals.approvals / totals.applications) * 100 : 0;
+  const approvalCohort = getApplicationApprovalCohortDisplay(totals.applications, totals.approvals);
   const sourceMappedCount = rows.filter(row => row.mappedLeadSources > 0).length;
   const activeApplicationCount = rows.filter(row => row.metrics.applications > 0 || row.metrics.approvals > 0 || row.metrics.pendingDecision > 0).length;
   const missingSourceCount = Math.max(rows.length - sourceMappedCount, 0);
@@ -11188,7 +11216,7 @@ function renderApplicationTrackingSection(details = [], selectedMonth = getSelec
     </div>
     <div class="application-tracker-grid">
       <div class="application-tracker-metric"><div class="label">Applications MTD</div><div class="value">${Math.round(totals.applications)}</div><div class="sub">${activeApplicationCount} of ${rows.length} communities reporting activity</div></div>
-      <div class="application-tracker-metric"><div class="label">Approved</div><div class="value">${Math.round(totals.approvals)}</div><div class="sub">${approvalRate.toFixed(1)}% of applications</div></div>
+      <div class="application-tracker-metric"><div class="label">Approved</div><div class="value">${Math.round(totals.approvals)}</div><div class="sub">${escapeHtml(approvalCohort.subtext)}</div></div>
       <div class="application-tracker-metric"><div class="label">Pending Decision</div><div class="value">${Math.round(totals.pending)}</div><div class="sub">Prioritize follow-up before the next funnel review</div></div>
       <div class="application-tracker-metric"><div class="label">Leases Signed MTD</div><div class="value">${Math.round(totals.leases)}</div><div class="sub">Reported signed leases for the selected reporting month</div></div>
     </div>
@@ -16359,16 +16387,20 @@ function buildAtlasDashboardWidgetSnapshot(instance = {}) {
     return { value, sub, detail: atlasDashboardComparisonLine(instance, aggregate, scopedDetails), scopedDetails };
   }
   if (instance.widgetKey === "traffic_funnel") {
+    const approvalCohort = getApplicationApprovalCohortDisplay(
+      aggregate.applications,
+      aggregate.applicationsApproved
+    );
     const metricMap = {
       "Leads": [aggregate.guestCards, `${atlasDashboardFormatNumber(aggregate.tours)} tours · ${atlasDashboardFormatNumber(aggregate.applications)} applications`],
       "Guest Cards": [aggregate.guestCards, `${atlasDashboardFormatNumber(aggregate.tours)} tours · ${atlasDashboardFormatNumber(aggregate.applications)} applications`],
       "Tours": [aggregate.tours, `${atlasDashboardFormatNumber(aggregate.applications)} applications · ${scopeSuffix}`],
       "Applications": [aggregate.applications, `${atlasDashboardFormatNumber(aggregate.applicationsApproved)} approvals · ${atlasDashboardFormatNumber(aggregate.applicationsPendingDecision)} pending`],
-      "Approvals": [aggregate.applicationsApproved, `${atlasDashboardFormatPct(aggregate.applicationApprovalPct || 0)} approval rate`],
+      "Approvals": [aggregate.applicationsApproved, approvalCohort.subtext],
       "Move-Ins": [aggregate.moveIns, `${atlasDashboardFormatNumber(aggregate.moveOuts)} move-outs · goal ${atlasDashboardFormatNumber(aggregate.moveInGoal || 0)}`],
       "Lead -> Tour": [atlasDashboardFormatPct(aggregate.guestCards > 0 ? (aggregate.tours / aggregate.guestCards) * 100 : 0), `${atlasDashboardFormatNumber(aggregate.tours)} of ${atlasDashboardFormatNumber(aggregate.guestCards)} leads`],
       "Tour -> Application": [atlasDashboardFormatPct(aggregate.tourToAppPct || 0), `${atlasDashboardFormatNumber(aggregate.applications)} of ${atlasDashboardFormatNumber(aggregate.tours)} tours`],
-      "Application -> Approval": [atlasDashboardFormatPct(aggregate.applicationApprovalPct || 0), `${atlasDashboardFormatNumber(aggregate.applicationsApproved)} of ${atlasDashboardFormatNumber(aggregate.applications)} applications`],
+      "Application -> Approval": [approvalCohort.value, approvalCohort.subtext],
       "Lead -> Move-In": [atlasDashboardFormatPct(aggregate.guestCards > 0 ? (aggregate.moveIns / aggregate.guestCards) * 100 : 0), `${atlasDashboardFormatNumber(aggregate.moveIns)} move-ins from ${atlasDashboardFormatNumber(aggregate.guestCards)} leads`]
     };
     const [rawValue, sub] = metricMap[metric] || metricMap["Guest Cards"];
@@ -19146,7 +19178,7 @@ async function signOutAtlasCentral() {
   }
 }
 
-async function verifyAtlasCentralConnection() {
+async function verifyAtlasCentralConnection({ silent = false } = {}) {
   try {
     const access = atlasCentralCanUseDatabase({ requireSignIn: false });
     if (!access.ok) throw new Error(access.message);
@@ -19157,13 +19189,13 @@ async function verifyAtlasCentralConnection() {
     atlasCentralRuntimeMeta.lastRemoteHash = String(document?.payload_hash || "");
     setAtlasCentralRuntimeMessage(profile ? `Central connection verified for ${profile.email || access.status.userEmail}.` : "Central connection verified. Sign in to read shared data.");
     renderTab();
-    alert("Central Atlas connection check complete.");
+    if (!silent) alert("Central Atlas connection check complete.");
     return true;
   } catch (error) {
     atlasCentralRuntimeMeta.lastCheckedAt = new Date().toISOString();
     setAtlasCentralRuntimeMessage("", error?.message || String(error));
     renderTab();
-    alert(`Central connection check failed: ${error?.message || error}`);
+    if (!silent) alert(`Central connection check failed: ${error?.message || error}`);
     return false;
   }
 }
@@ -56074,14 +56106,19 @@ async function initializeAtlasDashboard() {
     queueDailyBackupSnapshotWrite("startup_retain");
   }
   if (!isDashboardLoadedFromFileProtocol()) {
+    const status = getAtlasCentralStatus();
+    const config = getAtlasCentralConfig();
+    // The legacy bundle is a manual recovery source once Central ATLAS is
+    // configured. Pulling it after the initial render can overwrite the
+    // freshly hydrated workspace with an older month or an empty scope.
+    if (!status.configured && !atlasCentralLegacyBundleDisabled()) {
+      setTimeout(() => {
+        pullDashboardSharedState({ silent: true, applyRemoteIfNewer: true });
+      }, 320);
+    }
     setTimeout(() => {
-      pullDashboardSharedState({ silent: true, applyRemoteIfNewer: true });
-    }, 320);
-    setTimeout(() => {
-      const status = getAtlasCentralStatus();
-      const config = getAtlasCentralConfig();
       if (status.configured && status.signedIn && config.autoPullOnStartup) {
-        verifyAtlasCentralConnection();
+        verifyAtlasCentralConnection({ silent: true });
       }
     }, 900);
   }

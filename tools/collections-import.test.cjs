@@ -1,7 +1,7 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
 const src=fs.readFileSync('docs/portfolio-operations-dashboard/central-services.js','utf8');
 const c={console,Date,Map,Set,cleanString:v=>String(v??'').trim(),asArray:v=>Array.isArray(v)?v:[],numberValue:v=>Number(String(v??'').replace(/[$,]/g,''))||0,whole:v=>Number(v)||0,normalizeEvictionCase:v=>v,normalizeDate:v=>v||'',normalizeEvictionStatus:v=>v,normalizeBankruptcyAccountClassification:()=>'',defaultOwner:()=> 'Unassigned',makeId:(p,a)=>p+'_'+a.join('|'),localPeriodKey:(m,y)=>`${y}-${String(m+1).padStart(2,'0')}`,getPortfolioProperties:()=>[{name:'Sereno'},{name:'Anthem House'}]};vm.createContext(c);
-for(const name of ['normalizeKey','findGenericHeaderIndex','rowsToGenericObjects','findEvictionAliasedValue','centralMatchPropertyName','inferEvictionStatus','evictionDateFieldValue','normalizeDate','delinquencyNoteFields','collectionAccount','filingTransition','mapDelinquencyRecord','mapDelinquencyRows']){const re=new RegExp('  function '+name+'\\([^\\n]*\\) \\{[\\s\\S]*?^  \\}','m');vm.runInContext(src.match(re)[0],c);}
+for(const name of ['normalizeKey','findGenericHeaderIndex','rowsToGenericObjects','findEvictionAliasedValue','centralMatchPropertyName','inferEvictionStatus','evictionDateFieldValue','normalizeDate','delinquencyNoteFields','collectionAccount','validateFilingInformation','evictionCoversheetHtml','filingTransition','mapDelinquencyRecord','mapDelinquencyRows']){const re=new RegExp('  function '+name+'\\([^\\n]*\\) \\{[\\s\\S]*?^  \\}','m');vm.runInContext(src.match(re)[0],c);}
 vm.runInContext(src.match(/  const EVICTION_FIELD_ALIASES = \{[\s\S]*?^  \};/m)[0],c);
 const X=require(process.env.ATLAS_XLSX),w=X.read(fs.readFileSync(process.env.ATLAS_DELINQUENCY_FIXTURE));
 const raw=X.utils.sheet_to_json(w.Sheets['RISE Sereno'],{header:1,defval:''});
@@ -23,7 +23,7 @@ console.log('PASS Collections renderer: one account row, all aging columns, exac
 const note=c.delinquencyNoteFields({'Last Delinquency Note':'09/14/2026 03:24 PM author: call logged'});assert.equal(note.lastDelinquencyNoteDate,'2026-09-14');
 assert.equal(c.delinquencyNoteFields({'Last Delinquency Note':'No dated entry'}).lastDelinquencyNoteDate,'');
 const original={...a[0],status:'Delinquency Review',activity:[]};
-const info={sentToAttorneyDate:'2026-09-16',entrataConfirmed:true,depositProgram:'deposit',activeDutyMilitary:false,cosignProgram:true};
+const info={sentToAttorneyDate:'2026-09-16',entrataConfirmed:true,depositProgram:'deposit',activeDutyMilitary:false,cosignProgram:true,depositAmount:250,adultOccupantCount:2,adultOccupantNames:['Test One','Test Two']};
 const filed=c.filingTransition(original,info,{name:'Test user'},'2026-09-16T20:00:00Z');
 assert.equal(filed.status,'Filed');assert(!c.collectionAccount(filed));assert(c.collectionAccount(original));
 assert.equal(filed.debtHistory[0].aging90Plus,30);assert.equal(filed.debtHistory[0].delinquentBalance,100);
@@ -37,3 +37,10 @@ vm.runInContext(src.match(/  function mergeEvictionCase\([^\n]*\) \{[\s\S]*?^  \
 const refreshed=c.mergeEvictionCase(filed,{...original,delinquentBalance:150});
 assert.equal(refreshed.status,'Filed');assert.equal(refreshed.evictionFiledAt,filed.evictionFiledAt);assert.equal(refreshed.debtHistory[0].delinquentBalance,100);assert.equal(refreshed.delinquentBalance,150);
 console.log('PASS subsequent upload preserves filing answers, timestamp and historical debt while refreshing balance.');
+
+c.window={location:{href:'https://example.test/dashboard/'}};c.URL=URL;
+const cover=c.evictionCoversheetHtml(filed);assert(cover.includes('Test One'));assert(cover.includes('Test Two'));assert(cover.includes('$250.00'));assert(cover.includes('From the desk of'));assert(cover.includes('Test user'));assert(cover.includes('Print / Save as PDF'));
+assert.throws(()=>c.validateFilingInformation({...info,activeDutyMilitary:null}));assert.throws(()=>c.validateFilingInformation({...info,adultOccupantNames:['One']}));assert.throws(()=>c.validateFilingInformation({...info,depositAmount:null}));
+console.log('PASS explicit answers, deposit validation, adult count/name consistency and branded coversheet content.');
+
+c.window.location.href="http://127.0.0.1:8765/atlas/docs/portfolio-operations-dashboard/";fs.writeFileSync("../eviction-coversheet-preview.html",c.evictionCoversheetHtml(filed));

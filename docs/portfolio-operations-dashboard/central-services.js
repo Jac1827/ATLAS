@@ -2743,8 +2743,9 @@
   function currentActor() {
     try {
       const user = window.atlasCurrentUser || window.currentUser || window.activeUser || {};
-      const name = cleanString(user.displayName || user.name || user.fullName || user.email || window.currentUserName);
-      const id = cleanString(user.userId || user.employeeId || user.id || user.email || window.currentUserId);
+      const profile = typeof getAtlasAccessProfile === "function" ? getAtlasAccessProfile() : {};
+      const name = cleanString(profile?.display_name || profile?.full_name || user.displayName || user.name || user.fullName || profile?.email || user.email || window.currentUserName);
+      const id = cleanString(profile?.user_id || profile?.id || user.userId || user.employeeId || user.id || profile?.email || user.email || window.currentUserId);
       return {
         name: name || "Central Services",
         userId: id || "central-services"
@@ -6042,6 +6043,7 @@
         </div>
         ${statusPill(item.status)}
       </div>
+      ${item.evictionFiledAt ? `<div class="cs-command-actions"><button class="cs-btn" data-id="${escapeAttr(item.id)}" onclick="atlasCsOpenFiling(this.dataset.id,true)">Edit filing information</button><button class="cs-btn" data-id="${escapeAttr(item.id)}" onclick="atlasCsPrintEvictionCoversheet(this.dataset.id)">Print / PDF coversheet</button></div>` : ""}
       ${item.evictionFiledAt ? `<div class="cs-alert"><strong>Moved to Evictions:</strong> ${escapeHtml(new Date(item.evictionFiledAt).toLocaleString())}<br>Recorded by ${escapeHtml(item.evictionFiledBy?.name || "")} · Sent to attorneys: ${escapeHtml(item.filingInformation?.sentToAttorneyDate || "—")}<br>Active duty military: ${item.filingInformation?.activeDutyMilitary ? "Yes" : "No"} · Cosign: ${item.filingInformation?.cosignProgram ? "Yes" : "No"} · Deposit: ${escapeHtml(item.filingInformation?.depositProgram || "—")}<br>Entrata Eviction / Do not accept confirmed: ${item.filingInformation?.entrataConfirmed ? "Yes" : "No"}</div>` : ""}
       ${asArray(item.debtHistory).length ? `<div class="cs-detail-section"><h4>Historical debt at filing</h4>${asArray(item.debtHistory).map(snapshot => `<p>${escapeHtml(snapshot.periodKey || "")} · Total: ${escapeHtml(snapshot.delinquentBalance)}<br>0–30: ${escapeHtml(snapshot.aging0To30 ?? "—")} · 31–60: ${escapeHtml(snapshot.aging31To60 ?? "—")} · 61–90: ${escapeHtml(snapshot.aging61To90 ?? "—")} · 90+: ${escapeHtml(snapshot.aging90Plus ?? "—")}<br>${escapeHtml(snapshot.lastDelinquencyNoteDate || "")} ${escapeHtml(snapshot.lastDelinquencyNote || "")}</p>`).join("")}</div>` : ""}
       <div class="cs-chip-row">
@@ -8770,10 +8772,32 @@
     return !row.evictionFiledAt && !row.bankruptcyCreatedAt && !row.bankruptcyStatus && !row.bankruptcyNoticeDate && ["Delinquency Review", "Account Current"].includes(normalizeEvictionStatus(row.status));
   }
 
+  function validateFilingInformation(info) {
+    if (typeof info.activeDutyMilitary !== "boolean" || typeof info.cosignProgram !== "boolean") throw new Error("Select Yes or No for both questions.");
+    if (info.depositProgram === "deposit" && (info.depositAmount === null || !Number.isFinite(info.depositAmount) || info.depositAmount < 0)) throw new Error("Enter the security deposit amount on hand (zero is allowed).");
+    if (!Number.isInteger(info.adultOccupantCount) || info.adultOccupantCount < 0 || info.adultOccupantCount > 100) throw new Error("Enter an occupant count from 0 to 100.");
+    if (!Array.isArray(info.adultOccupantNames) || info.adultOccupantNames.length !== info.adultOccupantCount || info.adultOccupantNames.some(name => !cleanString(name))) throw new Error("Enter a name for each financially responsible adult.");
+  }
+
+  function evictionCoversheetHtml(row) {
+    const f = row.filingInformation || {}, debt = asArray(row.debtHistory).find(item => item.reason === "Moved to Evictions") || row;
+    const answer = value => typeof value === "boolean" ? (value ? "Yes" : "No") : "Not recorded";
+    const money = value => value === null || value === undefined ? "Not recorded" : Number(value).toLocaleString("en-US",{style:"currency",currency:"USD"});
+    const field = (label,value) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value ?? "Not recorded")}</td></tr>`;
+    const logo = new URL("assets/rise-wordmark-blue.png",window.location.href).href;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>RISE Eviction Coversheet</title><style>@page{size:letter;margin:0.6in}body{font:12px Arial,sans-serif;color:#173e50;margin:30px;line-height:1.45}header{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #24758b;padding-bottom:16px}img{width:135px;height:auto}h1{font-size:24px;margin:0}h2{font-size:15px;color:#24758b;margin:22px 0 8px}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px;border-bottom:1px solid #d9e3e7;vertical-align:top;overflow-wrap:anywhere}th{width:42%}tr,li,footer{break-inside:avoid}footer{margin-top:30px;border-top:2px solid #24758b;padding-top:12px}button{padding:10px 16px;margin-bottom:20px}.note{white-space:pre-wrap;overflow-wrap:anywhere}@media print{.actions{display:none}body{margin:0;font-size:10px;line-height:1.25}th,td{padding:4px}h2{margin:10px 0 5px;font-size:13px}h1{font-size:20px}header{padding-bottom:10px}header img{width:100px}footer{margin-top:15px;padding-top:8px}p,ol{margin:6px 0}thead{display:table-header-group}}</style></head><body><div class="actions"><button onclick="window.print()">Print / Save as PDF</button></div><header><img src="${escapeAttr(logo)}" alt="RISE"><div><h1>Eviction Record Coversheet</h1><div>Attorney filing packet</div></div></header>
+      <h2>Community and resident</h2><table>${field("Community",row.propertyName)}${field("Resident / account",row.residentName)}${field("Unit",row.unit)}${field("Account ID",row.residentId || row.leaseId || "Not recorded")}${field("ATLAS record ID",row.id)}${field("Moved to Evictions",row.evictionFiledAt ? new Date(row.evictionFiledAt).toLocaleString() : "Not recorded")}${field("File sent to attorneys",f.sentToAttorneyDate || "Not recorded")}</table>
+      <h2>Filing information</h2><table>${field("Active duty military",answer(f.activeDutyMilitary))}${field("Cosign Program",answer(f.cosignProgram))}${field("Deposit arrangement",f.depositProgram === "deposit" ? "Paid a Security Deposit" : f.depositProgram === "alternative" ? "Security Deposit Alternative Program" : "Not recorded")}${field("Security deposit on hand",f.depositProgram === "alternative" ? "Not applicable" : money(f.depositAmount))}${field("Financially responsible occupants over age 18",f.adultOccupantCount)}${field("Entrata Eviction / Do not accept confirmed",answer(f.entrataConfirmed))}</table>
+      <h2>Financially responsible adult names</h2>${asArray(f.adultOccupantNames).length ? `<ol>${f.adultOccupantNames.map(name => `<li>${escapeHtml(name)}</li>`).join("")}</ol>` : `<p>${f.adultOccupantCount === 0 ? "None entered (count: 0)." : "Not recorded"}</p>`}
+      <h2>Debt at filing</h2><table>${field("Reporting period",debt.periodKey || "Not recorded")}${field("0–30 days",money(debt.aging0To30))}${field("31–60 days",money(debt.aging31To60))}${field("61–90 days",money(debt.aging61To90))}${field("90+ days",money(debt.aging90Plus))}${field("Total debt at filing",money(debt.delinquentBalance))}${field("Current account balance",money(row.delinquentBalance))}</table>
+      <h2>Last delinquency note</h2><p>${escapeHtml(debt.lastDelinquencyNoteDate || "Date not recorded")}</p><div class="note">${escapeHtml(debt.lastDelinquencyNote || "Not recorded")}</div><footer>From the desk of <strong>${escapeHtml(f.recordedBy?.name || row.evictionFiledBy?.name || "User not recorded")}</strong><br>RISE · ATLAS · Prepared ${escapeHtml(new Date().toLocaleString())}</footer></body></html>`;
+  }
+
   function filingTransition(row, info, actor, at) {
     if (!collectionAccount(row)) throw new Error("This account has already moved out of Collections.");
     if (!info.sentToAttorneyDate || !info.entrataConfirmed) throw new Error("Enter the attorney sent date and confirm both Entrata changes.");
     if (!["alternative", "deposit"].includes(info.depositProgram)) throw new Error("Select the deposit arrangement.");
+    validateFilingInformation(info);
     const snapshot = Object.fromEntries(["periodKey","delinquentBalance","aging0To30","aging31To60","aging61To90","aging90Plus","lastDelinquencyNote","lastDelinquencyNoteDate","sourceFileName","sourceSheetName","sourceRow"].map(key => [key,row[key]]));
     return {...row,status:"Filed",evictionFiledAt:at,evictionFiledBy:actor,filingInformation:{...info,recordedAt:at,recordedBy:actor},debtHistory:[...asArray(row.debtHistory),{...snapshot,capturedAt:at,reason:"Moved to Evictions"}],activity:[...asArray(row.activity),{at,label:"Moved from Collections to Evictions",by:actor.name}]};
   }
@@ -12329,26 +12353,56 @@
     const state = loadState(); state.ui.module = "collections"; state.ui.monthIdx = month; state.ui.year = year; saveState(state); renderActiveTab();
   };
 
-  window.atlasCsOpenFiling = function(id) {
+  window.atlasCsOpenFiling = function(id, edit = false) {
     const state = loadState();
     const row = getScopedEvictions(state).find(item => item.id === id);
-    if (!row || !collectionAccount(row)) return;
+    if (!row || (!edit && !collectionAccount(row)) || (edit && !row.evictionFiledAt)) return;
+    const prior = row.filingInformation || {};
     showCollectionsDialog("File Eviction — " + row.residentName, `
-      <label><input type="checkbox" name="military"> Is the resident active duty military?</label>
-      <label><input type="checkbox" name="cosign"> Is the resident in the Cosign Program?</label>
-      <fieldset><legend>Deposit arrangement (select one)</legend><label><input type="radio" name="deposit" value="alternative" required> Security Deposit Alternative Program member</label><br><label><input type="radio" name="deposit" value="deposit" required> Paid a Security Deposit</label></fieldset>
-      <label>Date file was sent to attorneys <input type="date" name="sent" required></label>
-      <label><input type="checkbox" name="entrata" required> I confirm Entrata was adjusted to Eviction status and payment “Do not accept” status.</label>
+      <fieldset><legend>Is the resident active duty military?</legend><label><input type="checkbox" name="military" value="yes" ${prior.activeDutyMilitary === true ? "checked" : ""}> Yes</label> <label><input type="checkbox" name="military" value="no" ${prior.activeDutyMilitary === false ? "checked" : ""}> No</label></fieldset>
+      <fieldset><legend>Is the resident in the Cosign Program?</legend><label><input type="checkbox" name="cosign" value="yes" ${prior.cosignProgram === true ? "checked" : ""}> Yes</label> <label><input type="checkbox" name="cosign" value="no" ${prior.cosignProgram === false ? "checked" : ""}> No</label></fieldset>
+      <fieldset><legend>Deposit arrangement (select one)</legend><label><input type="radio" name="deposit" value="alternative" ${prior.depositProgram === "alternative" ? "checked" : ""} required> Security Deposit Alternative Program member</label><br><label><input type="radio" name="deposit" value="deposit" ${prior.depositProgram === "deposit" ? "checked" : ""} required> Paid a Security Deposit</label> <label>Amount on hand ($) <input type="number" name="depositAmount" min="0" step="0.01" value="${escapeAttr(prior.depositAmount ?? "")}" style="width:130px"></label></fieldset>
+      <label>Financially Responsible Occupants over the age of 18 <input type="number" name="adultCount" min="0" max="100" step="1" value="${escapeAttr(prior.adultOccupantCount ?? "")}" required></label>
+      <details id="cs-adult-names"><summary>Resident names</summary><div id="cs-adult-inputs" style="display:grid;gap:10px;margin-top:12px"></div></details>
+      <label>Date file was sent to attorneys <input type="date" name="sent" value="${escapeAttr(prior.sentToAttorneyDate || "")}" required></label>
+      <label><input type="checkbox" name="entrata" ${prior.entrataConfirmed ? "checked" : ""} required> I confirm Entrata was adjusted to Eviction status and payment “Do not accept” status.</label>
       <p>This records the filing handoff in ATLAS. It does not send the file or update Entrata.</p>`, data => {
         const latest = loadState();
         const existing = getScopedEvictions(latest).find(item => item.id === id);
         if (!existing) throw new Error("Account is no longer available in this community scope.");
-        const next = filingTransition(existing,{activeDutyMilitary:data.has("military"),cosignProgram:data.has("cosign"),depositProgram:data.get("deposit"),sentToAttorneyDate:data.get("sent"),entrataConfirmed:data.has("entrata")},currentActor(),new Date().toISOString());
+        const yesNo = key => data.getAll(key).length === 1 ? data.get(key) === "yes" : null;
+        const count = data.get("adultCount") === "" ? null : Number(data.get("adultCount"));
+        const info = {activeDutyMilitary:yesNo("military"),cosignProgram:yesNo("cosign"),depositProgram:data.get("deposit"),depositAmount:data.get("deposit") === "deposit" && data.get("depositAmount") !== "" ? Number(data.get("depositAmount")) : null,adultOccupantCount:count,adultOccupantNames:data.getAll("adultName").map(cleanString),sentToAttorneyDate:data.get("sent"),entrataConfirmed:data.has("entrata")};
+        validateFilingInformation(info);
+        const at = new Date().toISOString(), actor = currentActor();
+        const next = edit ? {...existing,filingInformation:{...info,recordedAt:at,recordedBy:actor},activity:[...asArray(existing.activity),{at,label:"Filing information updated",by:actor.name}]} : filingTransition(existing,info,actor,at);
         latest.evictions = latest.evictions.map(item => item.id === id ? next : item);
         latest.ui.module = "evictions"; latest.ui.selectedEvictionId = id; latest.ui.evictionView = "active";
-        addAudit(latest,"Moved Collections account to Evictions",{id,propertyName:existing.propertyName});
+        addAudit(latest,edit ? "Updated eviction filing information" : "Moved Collections account to Evictions",{id,propertyName:existing.propertyName});
         saveState(latest); renderActiveTab();
       });
+    const form = document.querySelector("#cs-collections-dialog form");
+    ["military","cosign"].forEach(name => form.querySelectorAll(`[name="${name}"]`).forEach(input => input.addEventListener("change",() => { if(input.checked) form.querySelectorAll(`[name="${name}"]`).forEach(other => {if(other !== input) other.checked = false;}); })));
+    const deposit = form.elements.depositAmount;
+    const syncDeposit = () => { const paid = form.querySelector('[name="deposit"]:checked')?.value === "deposit"; deposit.disabled = !paid; deposit.required = paid; };
+    form.querySelectorAll('[name="deposit"]').forEach(input => input.addEventListener("change",syncDeposit)); syncDeposit();
+    const names = form.querySelector("#cs-adult-inputs"), section = form.querySelector("#cs-adult-names");
+    const syncNames = () => {
+      const previous = [...names.querySelectorAll("input")].map(input => input.value);
+      const count = Math.min(100,Math.max(0,Number(form.elements.adultCount.value) || 0));
+      names.innerHTML = Array.from({length:count},(_,i) => `<label>Resident ${i+1} full name <input name="adultName" value="${escapeAttr(previous[i] ?? prior.adultOccupantNames?.[i] ?? "")}" required></label>`).join("");
+      section.hidden = count === 0; section.open = count > 0;
+    };
+    form.elements.adultCount.addEventListener("input",syncNames); syncNames();
+  };
+
+  window.atlasCsPrintEvictionCoversheet = function(id) {
+    const row = getScopedEvictions(loadState()).find(item => item.id === id);
+    if (!row || !row.evictionFiledAt) return;
+    const preview = window.open("", "_blank");
+    if (!preview) { alert("Allow a new window to open the printable coversheet."); return; }
+    preview.opener = null;
+    preview.document.open(); preview.document.write(evictionCoversheetHtml(row)); preview.document.close();
   };
 
   window.atlasCsNewBankruptcy = function() {

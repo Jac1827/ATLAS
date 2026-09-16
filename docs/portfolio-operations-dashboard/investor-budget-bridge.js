@@ -35,7 +35,7 @@
     for(const property of copy.properties) {
       const files=[...new Set((copy.lines||[]).filter(l=>l.propertyId===property.id).map(l=>[l.sourceFile,l.sourceSheet].filter(Boolean).join(' / ')).filter(Boolean))].join('; ');
       const report={propertyId:property.id,code:property.code,name:property.name,periods:{},issues:[]};sources.properties[property.name]=report;
-      if(property.fiscalYearBegins&&property.fiscalYearBegins!=='Jan'){report.issues.push('Non-calendar fiscal year requires an explicit period mapping.');continue;}
+      if(property.fiscalYearBegins&&property.fiscalYearBegins!=='Jan'&&!Object.values(copy.approvedBudgetImports||{}).some(s=>s.propertyId===property.id&&s.coverage)){report.issues.push('Non-calendar fiscal year requires an explicit period mapping.');continue;}
       for(const year of years) {
         const imported=copy.approvedBudgetImports?.[property.id+'|'+year];
         if(property.budgetImportOnly&&!imported)continue;
@@ -44,8 +44,9 @@
         const closed=Number(vr.closedThrough||0),actualSource=copy.periods?.[property.id+'|'+year]?.source;
         const forecast=active?.type==='reforecast'&&Number(copy.budgetYear)===year?R.variance.compute(copy,R.engine.computeAll(copy,active.id,year),property.id,year):null;
         for(let month=0;month<12;month++) {
+          if(imported?.coverage&&!imported.coverage.includes(month))continue;
           const key=year+'-'+String(month+1).padStart(2,'0');
-          const period=report.periods[key]={source:`Budget Builder / ${property.name} / ${year} / ${approved.name} / GL detail${sourceFiles?' / '+sourceFiles:''}`,savedAt,drivers:[],financialDetail:[]};
+          const period=report.periods[key]={source:`Budget Builder / ${property.name} / ${year} / ${approved.name} / GL detail${(imported?.periodSources?.[month]||sourceFiles)?' / '+(imported?.periodSources?.[month]||sourceFiles):''}`,savedAt,drivers:[],financialDetail:[]};
           const put=(id,basis,value,rows,detail='')=>{
             if(!numeric(value))return;
             const item=period[id] ||= {sources:{},definitions:{}};item[basis]=value;

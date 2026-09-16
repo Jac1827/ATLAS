@@ -11603,7 +11603,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
         // Two rows for the same GL happen when an export lists an account twice
         // (different departments, or a sub-account). They add.
         var slot = byKey[key].months;
-        slot[mc.month] = u.r2((slot[mc.month] || 0) + v);
+        slot[mc.month] = opts.preservePrecision ? (slot[mc.month] || 0) + v : u.r2((slot[mc.month] || 0) + v);
         monthsSeen[mc.year + '-' + mc.month] = true;
         yearsSeen[mc.year] = true;
       });
@@ -11624,7 +11624,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
       for (var m = 0; m < 12; m++) {
         if (r.months[m] !== undefined && r.months[m] !== 0) { any = true; break; }
       }
-      if (any) return true;
+      if (any || opts.keepZeroRows) return true;
       if (emptyYears.indexOf(r.year) === -1) emptyYears.push(r.year);
       return false;
     });
@@ -21685,6 +21685,8 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     if (!st.scenarios.some(function (s) { return s.id === st.activeScenario; })) {
       st.activeScenario = st.scenarios[0] ? st.scenarios[0].id : null;
     }
+    Object.values(st.approvedBudgetImports || {}).forEach(function (s) { if (R.YEARS.indexOf(s.year) === -1) R.YEARS.push(s.year); });
+    R.YEARS.sort();
     if (R.YEARS.indexOf(st.budgetYear) === -1) st.budgetYear = R.YEARS[0];
     // fields added after this save was written
     st.actualsDetail = st.actualsDetail || [];
@@ -27523,7 +27525,8 @@ try {
   el.textContent = 'Boot failed: ' + (e && e.stack ? e.stack : e);
 }
 </script>
-<script src="./budget-mapped-import.js"></script>
-<script src="./investor-budget-bridge.js"></script>
+<script src="./budget-mapped-import.js?v=20260916-budget-handoff"></script>
+<script src="./investor-budget-bridge.js?v=20260916-budget-handoff"></script>
+<script src="./budget-workbook-import.js?v=20260916-budget-handoff"></script>
 </body>
 </html>

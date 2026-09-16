@@ -45,7 +45,7 @@
       note: "Property budget, monthly view, GL detail, actuals, financial review and exception reporting all run in Budget Builder itself — ATLAS reads the published scenario.",
       barTitle: "RISE Budget Builder",
       barSub: "Standalone finance tool — central Budget and actuals migration required",
-      src: "RISE-Budget-Builder.html",
+      src: "RISE-Budget-Builder.html?v=20260916-budget-handoff",
       background: "#F1F4F6",
       icon: "ph-calculator"
     },
@@ -230,19 +230,17 @@
       var record = typeof normalizeSavedCommunityRecord === "function"
         ? normalizeSavedCommunityRecord(matchedName, savedData[matchedName])
         : savedData[matchedName];
-      const previousVersion = record.financialBudgetLedger?.versions?.[String(payload.year)];
-      if (previousVersion && (!payload.effectiveDate || payload.effectiveDate < previousVersion.effectiveDate)) {
-        return { ok: false, message: "The current approved budget has the same or a newer effective date. No figures were replaced." };
-      }
-      if (previousVersion && payload.effectiveDate === previousVersion.effectiveDate) {
-        const values = rows => JSON.stringify((rows || []).map(row => [String(row.glCode || row.gl), row.budget]).sort((a,b) => a[0].localeCompare(b[0])));
-        if (Object.entries(payload.budgetByPeriod || {}).some(([period, rows]) => values(rows) !== values(record.financialBudgetLedger[period]))) {
-          return { ok: false, message: "This effective date already has different approved amounts. Review the version date before replacing it." };
-        }
-      }
       const entries = Object.entries(payload.budgetByPeriod || {});
-      if (entries.length !== 12 || entries.some(([period, rows]) => !new RegExp("^" + Number(payload.year) + "-(0[1-9]|1[0-2])$").test(period) || !Array.isArray(rows) || rows.some(row => !Number.isFinite(row.budget)))) {
-        return { ok: false, message: "A complete twelve-month budget with numeric amounts is required." };
+      const coverage = payload.coverage || Array.from({length:12},(_,i)=>i);
+      if (!coverage.length || new Set(coverage).size!==coverage.length || coverage.some(i=>!Number.isInteger(i)||i<0||i>11) || entries.length!==coverage.length || entries.some(([period,rows])=>!coverage.some(i=>period===Number(payload.year)+"-"+String(i+1).padStart(2,"0")) || !Array.isArray(rows) || !rows.length || rows.some(row=>!Number.isFinite(row.budget)))) {
+        return {ok:false,message:"Budget periods or amounts are invalid. No figures were replaced."};
+      }
+      const values = rows => JSON.stringify((rows || []).map(row => [String(row.glCode || row.gl), row.budget]).sort((a,b) => a[0].localeCompare(b[0])));
+      for(const [period,rows] of entries){
+        const previous=record.financialBudgetLedger?.versionsByPeriod?.[period] || (record.financialBudgetLedger?.[period]?record.financialBudgetLedger?.versions?.[String(payload.year)]:null);
+        const effective=payload.periodVersions?.[Number(period.slice(5))-1] || payload.effectiveDate;
+        if(previous && (!effective || effective<previous.effectiveDate))return {ok:false,message:"A newer approved budget already exists for "+period+". No figures were replaced."};
+        if(previous && effective===previous.effectiveDate && values(rows)!==values(record.financialBudgetLedger[period]))return {ok:false,message:"Different approved amounts already exist for "+period+" with this version date. Review before replacing."};
       }
       record.financialLedger = Object.assign({}, record.financialLedger || {}, payload.actualsByPeriod || {});
       record.financialBudgetLedger = Object.assign({}, record.financialBudgetLedger || {}, payload.budgetByPeriod || {}, {
@@ -255,7 +253,8 @@
         versions: Object.assign({}, record.financialBudgetLedger?.versions || {}, payload.effectiveDate ? {
           [String(payload.year)]: { effectiveDate: payload.effectiveDate, sourceFile: payload.sourceFile, publishedAt: timestamp }
         } : {}),
-        investorPacketSources: payload.investorPacketSources || record.financialBudgetLedger?.investorPacketSources || null,
+        versionsByPeriod: Object.assign({}, record.financialBudgetLedger?.versionsByPeriod || {}, Object.fromEntries(entries.map(([period])=>[period,{effectiveDate:payload.periodVersions?.[Number(period.slice(5))-1]||payload.effectiveDate,sourceFile:payload.sourceFile,publishedAt:timestamp}]))),
+        investorPacketSources: payload.investorPacketSources ? {...(record.financialBudgetLedger?.investorPacketSources||{}),...payload.investorPacketSources,periods:{...(record.financialBudgetLedger?.investorPacketSources?.periods||{}),...Object.fromEntries(entries.filter(([period])=>payload.investorPacketSources.periods?.[period]).map(([period])=>[period,payload.investorPacketSources.periods[period]]))}} : record.financialBudgetLedger?.investorPacketSources || null,
         publishedAt: timestamp
       });
       record.financialUpdatedAt = timestamp;
@@ -373,7 +372,7 @@
     }
     if (data.type === "atlas-budget-publish" && isBudgetFrameSource(event.source)) {
       var result = publishBudgetToAtlas(data.payload);
-      try { event.source.postMessage({ type: "atlas-budget-publish-result", result: result }, "*"); } catch (err) {}
+      try { event.source.postMessage({ type: "atlas-budget-publish-result", requestId:data.requestId, result: result }, "*"); } catch (err) {}
       return;
     }
     if (data.type === "atlas-budget-contract-import" && isBudgetFrameSource(event.source)) {

@@ -107,10 +107,14 @@
     const pending=Object.values(A.state.approvedBudgetImports||{}).filter(s=>!s.publishedAt);
     for(const s of pending){
       const property=A.state.properties.find(p=>p.id===s.propertyId),budgetByPeriod={};
-      months.forEach((m,i)=>{budgetByPeriod[s.year+'-'+String(i+1).padStart(2,'0')]=s.rows.map(r=>({gl:r.gl,glCode:r.gl,name:r.name,section:R.glIndex[r.gl].group,nature:R.glIndex[r.gl].nature,budget:r.monthly[i],annualBudget:r.monthly.reduce((a,b)=>a+b,0),source:s.sourceFile+' / '+s.sourceSheet+' / row '+r.sourceRow}));});
-      window.parent.postMessage({type:'atlas-budget-publish',payload:{locked:true,property,year:s.year,effectiveDate:s.effectiveDate,sourceFile:s.sourceFile,scenario:{id:'import-'+s.effectiveDate,name:'Approved budget '+s.effectiveDate,status:'approved'},budgetByPeriod,investorPacketSources:R.investorSources?.(A.state,undefined,{names:[property.name]}).properties[property.name]}},window.location.origin);
+      months.forEach((m,i)=>{if(s.coverage&&!s.coverage.includes(i))return;budgetByPeriod[s.year+'-'+String(i+1).padStart(2,'0')]=s.rows.map(r=>({gl:r.gl,glCode:r.gl,name:r.name,section:R.glIndex[r.gl].group,nature:R.glIndex[r.gl].nature,budget:r.monthly[i],annualBudget:r.monthly.reduce((a,b)=>a+b,0),source:(s.periodSources?.[i]||s.sourceFile+' / '+s.sourceSheet)+' / GL '+r.gl+' / row '+r.sourceRow}));});
+      window.parent.postMessage({type:'atlas-budget-publish',requestId:s.propertyId+'|'+s.year+'|'+s.importedAt,payload:{locked:true,property,year:s.year,effectiveDate:s.effectiveDate,coverage:s.coverage,periodVersions:s.periodVersions,sourceFile:s.sourceFile,scenario:{id:'import-'+s.effectiveDate,name:'Approved budget '+s.effectiveDate,status:'approved'},budgetByPeriod,investorPacketSources:R.investorSources?.(A.state,undefined,{names:[property.name]}).properties[property.name]}},window.location.origin);
     }
   };
+  window.addEventListener('message',event=>{
+    if(event.source!==window.parent||event.origin!==window.location.origin||event.data?.type!=='atlas-budget-publish-result'||!event.data.requestId)return;
+    for(const s of Object.values(A.state.approvedBudgetImports||{})){if(event.data.requestId!==s.propertyId+'|'+s.year+'|'+s.importedAt)continue;s.syncStatus=event.data.result.message;if(event.data.result.ok)s.publishedAt=new Date().toISOString();A.invalidate();A.render();R.persist.autosave();}
+  });
   const applyUI=A.applyImport;
   A.applyImport=function(){const v=A.lastImport;if(v?.applyResult)return;applyUI();if(v?.type==='approved_budget'&&v.applyResult?.applied)A.publishMappedBudgets();};
   const view=R.views.imports;

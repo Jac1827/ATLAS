@@ -38,6 +38,10 @@
       {
         "name": "SYNC_STATE",
         "class_name": "PerformanceSyncState"
+      },
+      {
+        "name": "EVICTION_CASES",
+        "class_name": "EvictionCaseState"
       }
     ]
   },
@@ -46,6 +50,12 @@
       "tag": "v1",
       "new_sqlite_classes": [
         "PerformanceSyncState"
+      ]
+    },
+    {
+      "tag": "v2-eviction-cases",
+      "new_sqlite_classes": [
+        "EvictionCaseState"
       ]
     }
   ],

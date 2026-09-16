@@ -100,6 +100,7 @@
   ];
   const RENEWAL_WORKFLOW_ACTIVITY_FIELDS = [
     "status",
+    "attorneyPacket", "attorneySentAt", "attorneyProviderMessageId", "historicalAttorneySentDate", "filingInformation", "evictionFiledAt", "evictionFiledBy", "debtHistory",
     "owner",
     "assignedCentralServicesUser",
     "dateAssigned",
@@ -126,6 +127,7 @@
     ["completed", "Completed"]
   ];
   const EVICTION_STATUS_OPTIONS = [
+    "Filing preparation", "Ready for attorney", "Sent to attorney", "Court filing confirmed",
     "Delinquency Review",
     "Notice Pending",
     "Notice Served",
@@ -148,6 +150,7 @@
     "Closed"
   ];
   const EVICTION_WORKFLOW_STEPS = [
+    "Filing preparation", "Ready for attorney", "Sent to attorney", "Court filing confirmed",
     "Delinquency Review",
     "Notice Pending",
     "Notice Served",
@@ -5807,7 +5810,7 @@
           <td>${escapeHtml(formatDate(row.hearingDate || row.writDate || row.nextDueDate || row.noticeDate) || "Needed")}</td>
           <td><div class="cs-name-cell"><strong>${escapeHtml(row.assignedJudge || "Judge pending")}</strong><span>${escapeHtml(row.attorney || "Attorney not entered")}</span></div></td>
           <td>${escapeHtml(row.owner || "Unassigned")}</td>
-          <td class="right"><button type="button" class="cs-btn cs-btn-sm" data-id="${escapeAttr(row.id)}" onclick="atlasCsSelectEviction(this.dataset.id)">Open</button></td>
+          <td class="right"><button type="button" class="cs-btn cs-btn-sm" data-id="${escapeAttr(row.id)}" onclick="atlasCsSelectEviction(this.dataset.id)">Open</button> <button class="cs-btn cs-btn-sm" data-id="${escapeAttr(row.id)}" onclick="atlasCsAttachments(this.dataset.id)">Attachments</button> <button class="cs-btn cs-btn-sm" data-id="${escapeAttr(row.id)}" onclick="atlasCsAttorneyDraft(this.dataset.id)">Send to Attorney</button></td>
         </tr>`).join("")}</tbody>
       </table>
     </div>`;
@@ -6044,7 +6047,7 @@
         ${statusPill(item.status)}
       </div>
       ${item.evictionFiledAt ? `<div class="cs-command-actions"><button class="cs-btn" data-id="${escapeAttr(item.id)}" onclick="atlasCsOpenFiling(this.dataset.id,true)">Edit filing information</button><button class="cs-btn" data-id="${escapeAttr(item.id)}" onclick="atlasCsPrintEvictionCoversheet(this.dataset.id)">Print / PDF coversheet</button></div>` : ""}
-      ${item.evictionFiledAt ? `<div class="cs-alert"><strong>Moved to Evictions:</strong> ${escapeHtml(new Date(item.evictionFiledAt).toLocaleString())}<br>Recorded by ${escapeHtml(item.evictionFiledBy?.name || "")} · Sent to attorneys: ${escapeHtml(item.filingInformation?.sentToAttorneyDate || "—")}<br>Active duty military: ${item.filingInformation?.activeDutyMilitary ? "Yes" : "No"} · Cosign: ${item.filingInformation?.cosignProgram ? "Yes" : "No"} · Deposit: ${escapeHtml(item.filingInformation?.depositProgram || "—")}<br>Entrata Eviction / Do not accept confirmed: ${item.filingInformation?.entrataConfirmed ? "Yes" : "No"}</div>` : ""}
+      ${item.evictionFiledAt ? `<div class="cs-alert"><strong>Moved to Evictions:</strong> ${escapeHtml(new Date(item.evictionFiledAt).toLocaleString())}<br>Recorded by ${escapeHtml(item.evictionFiledBy?.name || "")} · Provider-confirmed sent date: ${escapeHtml(item.attorneySentAt || "—")}${item.historicalAttorneySentDate?.date || (!item.attorneySentAt && item.filingInformation?.sentToAttorneyDate) ? `<br>Historical sent date (manually entered): ${escapeHtml(item.historicalAttorneySentDate?.date || item.filingInformation.sentToAttorneyDate)}` : ""}<br>Active duty military: ${item.filingInformation?.activeDutyMilitary ? "Yes" : "No"} · Cosign: ${item.filingInformation?.cosignProgram ? "Yes" : "No"} · Deposit: ${escapeHtml(item.filingInformation?.depositProgram || "—")}<br>Entrata Eviction / Do not accept confirmed: ${item.filingInformation?.entrataConfirmed ? "Yes" : "No"}</div>` : ""}
       ${asArray(item.debtHistory).length ? `<div class="cs-detail-section"><h4>Historical debt at filing</h4>${asArray(item.debtHistory).map(snapshot => `<p>${escapeHtml(snapshot.periodKey || "")} · Total: ${escapeHtml(snapshot.delinquentBalance)}<br>0–30: ${escapeHtml(snapshot.aging0To30 ?? "—")} · 31–60: ${escapeHtml(snapshot.aging31To60 ?? "—")} · 61–90: ${escapeHtml(snapshot.aging61To90 ?? "—")} · 90+: ${escapeHtml(snapshot.aging90Plus ?? "—")}<br>${escapeHtml(snapshot.lastDelinquencyNoteDate || "")} ${escapeHtml(snapshot.lastDelinquencyNote || "")}</p>`).join("")}</div>` : ""}
       <div class="cs-chip-row">
         <span class="cs-chip" data-tone="${escapeAttr(evictionStatusTone(item.status))}">${escapeHtml(item.nextAction || "Advance eviction workflow")}</span>
@@ -6116,7 +6119,7 @@
       <div class="cs-panel-body"><label class="cs-field"><span>Last DQ note date</span><input type="date" value="${escapeAttr(state.ui.collectionNoteDate || "")}" onchange="atlasCsSetCollectionNoteDate(this.value)"></label>${renderEvictionMonthNavigator(state)}
       <table class="cs-table"><thead><tr><th>Community</th><th>Resident / Account</th><th>Unit</th><th>0–30 days</th><th>31–60 days</th><th>61–90 days</th><th>90+ days</th><th>Total balance</th><th>Last DQ note date</th><th>Last Delinquency Note</th><th>Action</th></tr></thead>
       <tbody>${rows.map(row => `<tr><td>${escapeHtml(row.propertyName)}</td><td>${escapeHtml(row.residentName)}<br>${escapeHtml(row.residentId || row.leaseId || "")}</td><td>${escapeHtml(row.unit)}</td>
-      ${["aging0To30","aging31To60","aging61To90","aging90Plus"].map(key => `<td>${money(row[key])}</td>`).join("")}<td>${money(row.delinquentBalance)}</td><td>${escapeHtml(row.lastDelinquencyNoteDate || "—")}</td><td style="min-width:240px;white-space:pre-wrap">${escapeHtml(row.lastDelinquencyNote || "—")}</td><td><button class="cs-btn cs-btn-sm" data-id="${escapeAttr(row.id)}" onclick="atlasCsOpenFiling(this.dataset.id)">File Eviction</button></td></tr>`).join("")}</tbody></table>
+      ${["aging0To30","aging31To60","aging61To90","aging90Plus"].map(key => `<td>${money(row[key])}</td>`).join("")}<td>${money(row.delinquentBalance)}</td><td>${escapeHtml(row.lastDelinquencyNoteDate || "—")}</td><td style="min-width:240px;white-space:pre-wrap">${escapeHtml(row.lastDelinquencyNote || "—")}</td><td><button class="cs-btn cs-btn-sm" data-id="${escapeAttr(row.id)}" onclick="atlasCsOpenFiling(this.dataset.id)">File Eviction</button> <button class="cs-btn cs-btn-sm" data-id="${escapeAttr(row.id)}" onclick="atlasCsAttachments(this.dataset.id)">Attachments</button></td></tr>`).join("")}</tbody></table>
       ${rows.length ? "" : `<div class="cs-empty">No resident balances connected for this community and reporting period.</div>`}</div></div>`;
   }
 
@@ -8795,11 +8798,11 @@
 
   function filingTransition(row, info, actor, at) {
     if (!collectionAccount(row)) throw new Error("This account has already moved out of Collections.");
-    if (!info.sentToAttorneyDate || !info.entrataConfirmed) throw new Error("Enter the attorney sent date and confirm both Entrata changes.");
+    if (!info.entrataConfirmed) throw new Error("Confirm both Entrata changes.");
     if (!["alternative", "deposit"].includes(info.depositProgram)) throw new Error("Select the deposit arrangement.");
     validateFilingInformation(info);
     const snapshot = Object.fromEntries(["periodKey","delinquentBalance","aging0To30","aging31To60","aging61To90","aging90Plus","lastDelinquencyNote","lastDelinquencyNoteDate","sourceFileName","sourceSheetName","sourceRow"].map(key => [key,row[key]]));
-    return {...row,status:"Filed",evictionFiledAt:at,evictionFiledBy:actor,filingInformation:{...info,recordedAt:at,recordedBy:actor},debtHistory:[...asArray(row.debtHistory),{...snapshot,capturedAt:at,reason:"Moved to Evictions"}],activity:[...asArray(row.activity),{at,label:"Moved from Collections to Evictions",by:actor.name}]};
+    return {...row,status:"Filing preparation",historicalAttorneySentDate:info.sentToAttorneyDate ? {date:info.sentToAttorneyDate,source:"Previously entered manually",recordedAt:at} : row.historicalAttorneySentDate,evictionFiledAt:at,evictionFiledBy:actor,filingInformation:{...info,sentToAttorneyDate:"",recordedAt:at,recordedBy:actor},debtHistory:[...asArray(row.debtHistory),{...snapshot,capturedAt:at,reason:"Moved to Evictions"}],activity:[...asArray(row.activity),{at,label:"Moved from Collections to Evictions",by:actor.name}]};
   }
 
   function mapDelinquencyRecord(row = {}, context = {}, employees = []) {
@@ -12364,18 +12367,18 @@
       <fieldset><legend>Deposit arrangement (select one)</legend><label><input type="radio" name="deposit" value="alternative" ${prior.depositProgram === "alternative" ? "checked" : ""} required> Security Deposit Alternative Program member</label><br><label><input type="radio" name="deposit" value="deposit" ${prior.depositProgram === "deposit" ? "checked" : ""} required> Paid a Security Deposit</label> <label>Amount on hand ($) <input type="number" name="depositAmount" min="0" step="0.01" value="${escapeAttr(prior.depositAmount ?? "")}" style="width:130px"></label></fieldset>
       <label>Financially Responsible Occupants over the age of 18 <input type="number" name="adultCount" min="0" max="100" step="1" value="${escapeAttr(prior.adultOccupantCount ?? "")}" required></label>
       <details id="cs-adult-names"><summary>Resident names</summary><div id="cs-adult-inputs" style="display:grid;gap:10px;margin-top:12px"></div></details>
-      <label>Date file was sent to attorneys <input type="date" name="sent" value="${escapeAttr(prior.sentToAttorneyDate || "")}" required></label>
+      <p>“Date sent to attorneys” is recorded after the email provider accepts the packet.${prior.sentToAttorneyDate ? ` Historical entry: ${escapeHtml(prior.sentToAttorneyDate)} (manually entered).` : ""}</p>
       <label><input type="checkbox" name="entrata" ${prior.entrataConfirmed ? "checked" : ""} required> I confirm Entrata was adjusted to Eviction status and payment “Do not accept” status.</label>
-      <p>This records the filing handoff in ATLAS. It does not send the file or update Entrata.</p>`, data => {
+      <p>Saving moves this case to Filing preparation in Evictions. Use Send to Attorney there to review the email and documents. ATLAS does not update Entrata.</p>`, data => {
         const latest = loadState();
         const existing = getScopedEvictions(latest).find(item => item.id === id);
         if (!existing) throw new Error("Account is no longer available in this community scope.");
         const yesNo = key => data.getAll(key).length === 1 ? data.get(key) === "yes" : null;
         const count = data.get("adultCount") === "" ? null : Number(data.get("adultCount"));
-        const info = {activeDutyMilitary:yesNo("military"),cosignProgram:yesNo("cosign"),depositProgram:data.get("deposit"),depositAmount:data.get("deposit") === "deposit" && data.get("depositAmount") !== "" ? Number(data.get("depositAmount")) : null,adultOccupantCount:count,adultOccupantNames:data.getAll("adultName").map(cleanString),sentToAttorneyDate:data.get("sent"),entrataConfirmed:data.has("entrata")};
+        const info = {activeDutyMilitary:yesNo("military"),cosignProgram:yesNo("cosign"),depositProgram:data.get("deposit"),depositAmount:data.get("deposit") === "deposit" && data.get("depositAmount") !== "" ? Number(data.get("depositAmount")) : null,adultOccupantCount:count,adultOccupantNames:data.getAll("adultName").map(cleanString),sentToAttorneyDate:existing.attorneySentAt?.slice(0,10)||"",entrataConfirmed:data.has("entrata")};
         validateFilingInformation(info);
         const at = new Date().toISOString(), actor = currentActor();
-        const next = edit ? {...existing,filingInformation:{...info,recordedAt:at,recordedBy:actor},activity:[...asArray(existing.activity),{at,label:"Filing information updated",by:actor.name}]} : filingTransition(existing,info,actor,at);
+        const next = edit ? {...existing,historicalAttorneySentDate:existing.historicalAttorneySentDate || (!existing.attorneySentAt && existing.filingInformation?.sentToAttorneyDate ? {date:existing.filingInformation.sentToAttorneyDate,source:"Previously entered manually"} : null),filingInformation:{...info,recordedAt:at,recordedBy:actor},activity:[...asArray(existing.activity),{at,label:"Filing information updated",by:actor.name}]} : filingTransition(existing,info,actor,at);
         latest.evictions = latest.evictions.map(item => item.id === id ? next : item);
         latest.ui.module = "evictions"; latest.ui.selectedEvictionId = id; latest.ui.evictionView = "active";
         addAudit(latest,edit ? "Updated eviction filing information" : "Moved Collections account to Evictions",{id,propertyName:existing.propertyName});
@@ -12394,6 +12397,24 @@
       section.hidden = count === 0; section.open = count > 0;
     };
     form.elements.adultCount.addEventListener("input",syncNames); syncNames();
+  };
+
+  window.ATLAS_EVICTION_CASES = {
+    get(id) { return cloneJson(getScopedEvictions(loadState()).find(item => item.id === id) || null); },
+    apply(id, packet) {
+      const state=loadState(), row=getScopedEvictions(state).find(item=>item.id===id);if(!row)return;
+      row.attorneyPacket={revision:packet.revision,documents:packet.documents,history:packet.history,draft:packet.draft,court:packet.court};
+      const draft=packet.draft, managedStage=["Filing preparation","Ready for attorney","Sent to attorney","Court filing confirmed"].includes(row.status);
+      if(draft?.status==='sent'&&draft.providerMessageId){
+        if(row.filingInformation?.sentToAttorneyDate&&!row.attorneySentAt)row.historicalAttorneySentDate={date:row.filingInformation.sentToAttorneyDate,source:'Previously entered manually'};
+        row.attorneySentAt=draft.sentAt;row.attorneyProviderMessageId=draft.providerMessageId;
+        row.filingInformation={...row.filingInformation,sentToAttorneyDate:draft.sentAt.slice(0,10)};
+        if(!packet.court&&managedStage)row.status='Sent to attorney';
+      }else if(draft?.status==='ready'&&managedStage)row.status='Ready for attorney';
+      else if(row.evictionFiledAt&&!row.attorneySentAt&&!packet.court&&managedStage)row.status='Filing preparation';
+      if(packet.court){if(managedStage)row.status='Court filing confirmed';row.complaintFiledDate=packet.court.date;}
+      saveState(state);renderActiveTab();
+    }
   };
 
   window.atlasCsPrintEvictionCoversheet = function(id) {
@@ -12599,6 +12620,10 @@
     const item = findEvictionCase(state, id);
     if (!item) return;
     const nextStatus = normalizeEvictionStatus(status);
+    if (["Ready for attorney", "Sent to attorney", "Court filing confirmed"].includes(nextStatus)) {
+      alert("Use Send to Attorney to prepare the packet, send it, or record court confirmation. These stages require their supporting record.");
+      renderActiveTab(); return;
+    }
     item.status = nextStatus;
     if (nextStatus === "Stipulation Active") {
       item.stipulation = {

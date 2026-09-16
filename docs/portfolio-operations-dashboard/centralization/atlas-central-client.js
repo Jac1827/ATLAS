@@ -1351,6 +1351,15 @@
   handleAuthRedirect();
 
   window.ATLAS_CENTRAL = {
+    async evictionCase(action, body = {}, binary = false) {
+      const response = await fetch(accessApiUrl("/api/atlas/evictions/case"), {
+        method: "POST", headers: baseHeaders(getConfig(), true, {supabasePublicHeaders:false}), body:JSON.stringify({...body,action})
+      });
+      if(binary&&response.ok)return response.blob();
+      const result=await response.json();
+      if(!response.ok||!result.ok)throw Object.assign(new Error(result.error||"Case request failed."),{result});
+      return result;
+    },
     getConfig,
     saveLocalConfig,
     clearLocalConfig,

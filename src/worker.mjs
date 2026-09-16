@@ -1,3 +1,4 @@
+export { EvictionCaseState } from './eviction-store.mjs';
 import '../docs/portfolio-operations-dashboard/investor-packet-core.js';
 const SITE_ROUTES = [
   {
@@ -1609,6 +1610,32 @@ export class PerformanceSyncState {
   }
 }
 
+async function handleEvictionRequest(request, env) {
+  try {
+    if (!env.EVICTION_CASES) return apiResponse({ok:false,error:"Case document storage is not configured. Your local case is unchanged."},{status:503});
+    const reader=request.body?.getReader();let total=0;const chunks=[];
+    if(!reader)throw Object.assign(new Error("Request body is required."),{status:400});
+    while(true){const {done,value}=await reader.read();if(done)break;total+=value.length;if(total>29*1024*1024){await reader.cancel();throw Object.assign(new Error("Upload exceeds the request size limit."),{status:413});}chunks.push(value);}
+    const body=JSON.parse(await new Blob(chunks).text());
+    const readOnly=["get","download","cover"].includes(body.action);
+    const access=await requireAtlasAccessUser(request,env,readOnly?ATLAS_DLR_ALLOWED_ROLES:ATLAS_DLR_WRITE_ROLES);
+    const community=await requireAtlasDlrCommunityAccess(access,body.communityName);
+    if(!community?.community_id)throw Object.assign(new Error("Select a recognized ATLAS community."),{status:403});
+    const caseId=String(body.caseId||"");if(!caseId||caseId.length>250)throw new Error("A valid case reference is required.");
+    if(body.row){
+      const allowed=["id","propertyName","residentName","residentId","leaseId","unit","evictionFiledAt","filingInformation","debtHistory","periodKey","delinquentBalance","aging0To30","aging31To60","aging61To90","aging90Plus","lastDelinquencyNote","lastDelinquencyNoteDate","attorneySentAt","historicalAttorneySentDate"];
+      body.row=Object.fromEntries(allowed.filter(k=>body.row[k]!==undefined).map(k=>[k,body.row[k]]));
+      if(body.row.propertyName!==body.communityName||body.row.id!==caseId)throw new Error("Case and community must match.");
+      if(JSON.stringify(body.row).length>45000)throw new Error("Case packet details exceed the supported size. Shorten the note or attach it as a document.");
+    }
+    const actor={id:access.user.id,name:access.profile.display_name||access.profile.email||access.user.email};
+    const object=env.EVICTION_CASES.get(env.EVICTION_CASES.idFromName(community.community_id));
+    const response=await object.fetch(new Request("https://eviction.internal/case",{method:"POST",body:JSON.stringify({...body,caseId,actor})}));
+    const headers=new Headers(response.headers);headers.set("access-control-allow-origin","*");headers.set("cache-control","no-store");
+    return new Response(response.body,{status:response.status,headers});
+  } catch(error) { return apiResponse({ok:false,error:error.message},{status:error.status||400}); }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -1658,6 +1685,12 @@ export default {
         return apiResponse({ ok: false, error: "Method Not Allowed" }, { status: 405, headers: { allow: "POST, OPTIONS" } });
       }
       return handleAtlasAccessSelfActivationRequest(request, env);
+    }
+
+    if (url.pathname === "/api/atlas/evictions/case") {
+      if(request.method === "OPTIONS") return noContent();
+      if(request.method !== "POST")return apiResponse({ok:false,error:"Method Not Allowed"},{status:405});
+      return handleEvictionRequest(request,env);
     }
 
     if (url.pathname === "/api/atlas/dlr/status") {

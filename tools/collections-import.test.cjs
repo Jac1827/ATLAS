@@ -25,7 +25,7 @@ assert.equal(c.delinquencyNoteFields({'Last Delinquency Note':'No dated entry'})
 const original={...a[0],status:'Delinquency Review',activity:[]};
 const info={sentToAttorneyDate:'2026-09-16',entrataConfirmed:true,depositProgram:'deposit',activeDutyMilitary:false,cosignProgram:true,depositAmount:250,adultOccupantCount:2,adultOccupantNames:['Test One','Test Two']};
 const filed=c.filingTransition(original,info,{name:'Test user'},'2026-09-16T20:00:00Z');
-assert.equal(filed.status,'Filed');assert(!c.collectionAccount(filed));assert(c.collectionAccount(original));
+assert.equal(filed.status,'Filing preparation');assert(!c.collectionAccount(filed));assert(c.collectionAccount(original));
 assert.equal(filed.debtHistory[0].aging90Plus,30);assert.equal(filed.debtHistory[0].delinquentBalance,100);
 assert.throws(()=>c.filingTransition(filed,info,{},''));assert.throws(()=>c.filingTransition(original,{...info,entrataConfirmed:false},{},''));
 assert(rendered.includes('Last Delinquency Note'));assert(rendered.includes('File Eviction'));assert(!rendered.includes('<th>Source</th>'));
@@ -35,7 +35,7 @@ c.refreshEvictionDerivedFields=v=>v;c.evictionWorkflowHasStarted=()=>true;c.pres
 vm.runInContext(src.match(/  const EVICTION_WORKFLOW_SOURCE_PROTECTED_FIELDS = \[[\s\S]*?^  \];/m)[0],c);
 vm.runInContext(src.match(/  function mergeEvictionCase\([^\n]*\) \{[\s\S]*?^  \}/m)[0],c);
 const refreshed=c.mergeEvictionCase(filed,{...original,delinquentBalance:150});
-assert.equal(refreshed.status,'Filed');assert.equal(refreshed.evictionFiledAt,filed.evictionFiledAt);assert.equal(refreshed.debtHistory[0].delinquentBalance,100);assert.equal(refreshed.delinquentBalance,150);
+assert.equal(refreshed.status,'Filing preparation');assert.equal(refreshed.evictionFiledAt,filed.evictionFiledAt);assert.equal(refreshed.debtHistory[0].delinquentBalance,100);assert.equal(refreshed.delinquentBalance,150);
 console.log('PASS subsequent upload preserves filing answers, timestamp and historical debt while refreshing balance.');
 
 c.window={location:{href:'https://example.test/dashboard/'}};c.URL=URL;
@@ -44,3 +44,5 @@ assert.throws(()=>c.validateFilingInformation({...info,activeDutyMilitary:null})
 console.log('PASS explicit answers, deposit validation, adult count/name consistency and branded coversheet content.');
 
 c.window.location.href="http://127.0.0.1:8765/atlas/docs/portfolio-operations-dashboard/";fs.writeFileSync("../eviction-coversheet-preview.html",c.evictionCoversheetHtml(filed));
+
+assert.equal(filed.filingInformation.sentToAttorneyDate,'');assert.equal(filed.historicalAttorneySentDate.date,'2026-09-16');assert.equal(filed.id,original.id);

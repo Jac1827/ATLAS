@@ -1,0 +1,10 @@
+{
+  "name": "atlas-worker",
+  "private": true,
+  "dependencies": {
+    "pdf-lib": "1.17.1"
+  },
+  "devDependencies": {
+    "wrangler": "4.72.0"
+  }
+}

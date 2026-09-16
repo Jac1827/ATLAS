@@ -98,6 +98,11 @@
         values.measurement_basis='units';
       } else if(section.startsWith('lead conversions')) {
         for(const [field,h] of Object.entries({applications:'completed',approvals:'approved',denied_applications:'denied',applications_partial:'partially completed',applications_completed_cancelled:'completed (cancelled)',applications_approved_cancelled:'approved (cancelled)'}))get(field,h,'application');
+        get('cancelled_applications','cancelled','application');
+        if(values.cancelled_applications===undefined && values.applications_completed_cancelled!==undefined && values.applications_approved_cancelled!==undefined){
+          values.cancelled_applications=values.applications_completed_cancelled+values.applications_approved_cancelled;
+          locators.cancelled_applications={...locators.applications_completed_cancelled,sourceHeader:'Completed (Cancelled) + Approved (Cancelled)',columns:[locators.applications_completed_cancelled.column,locators.applications_approved_cancelled.column]};
+        }
         get('leases_completed','completed','lease');get('leases_approved','approved','lease');
       } else if(section.startsWith('lead activity')) {get('new_leads','new leads');get('tours','first visits/tours');}
       else {get('move_ins','move-ins');get('move_outs','move-outs');get('renewal_leases_approved','renewal leases approved');}

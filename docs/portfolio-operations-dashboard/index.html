@@ -1408,9 +1408,9 @@
 <script src="./central-services.js?v=20260916-attorney-coversheet-20260916-filing-20260916-collections-20260911-admin-inspection-controls"></script>
 <script src="./eviction-attorney-ui.js?v=20260916-community-contacts"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260902-application-intelligence">
-<script src="./application-source-bridge.js?v=20260916"></script>
+<script src="./application-source-bridge.js?v=boxscore-funnel-20260916"></script>
 <script src="./application-performance.js?v=20260916-shared-source"></script>
-<script src="./application-performance-ui.js?v=20260916-shared-source"></script>
+<script src="./application-performance-ui.js?v=boxscore-funnel-20260916-shared-source"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -4613,7 +4613,7 @@ function getAtlasCurrentUserLabel() {
 
 function getAtlasApplicationPeriodMetrics(periodKey = getApplicationResidentReportPeriodKey(), community = "all") {
   const scope = getAtlasApplicationScopeCommunityNames().filter(name => atlasApplicationCommunityInScope(name) && (community === "all" || community === name));
-  const definitions = { applications:"Completed applications", approvals:"Approved applications", new_leads:"New leads", tours:"First tours" };
+  const definitions = { applications:"Completed applications", approvals:"Approved applications", new_leads:"New leads", tours:"First tours", denied_applications:"Denials", cancelled_applications:"Cancellations", leases_completed:"Completed leases" };
   return scope.map(name => {
     const cells = {};
     for (const [field,label] of Object.entries(definitions)) {
@@ -9128,8 +9128,16 @@ function getAtlasOperationalCommunityNames(includeCurrentSelection = false) {
   });
 }
 
+function isAtlasLeaseTrackingCommunity(name, record = null) {
+  const central = getAtlasCommunityAccessRecord(name);
+  const data = record || (typeof savedData !== "undefined" ? savedData?.[name] : null) || {};
+  const inactive = central && ["active", "inactive"].includes(central.status) ? central.status === "inactive" : !isCommunityStatusActive(data);
+  const type = central?.propertyType || data.communityPropertyType || data.propertyType || "";
+  return !(inactive && /student/i.test(type));
+}
+
 function getAtlasApplicationScopeCommunityNames() {
-  return getWorkspaceScopedDetails(getSelectedDashboardMonthIndex()).map(detail => detail.name);
+  return getWorkspaceScopedDetails(getSelectedDashboardMonthIndex()).filter(detail => isAtlasLeaseTrackingCommunity(detail.name,detail.record)).map(detail => detail.name);
 }
 
 function buildInactiveCommunityImportWarning(names = []) {
@@ -16175,7 +16183,7 @@ function atlasRoleCanSeeInactiveCommunities(profile = getAtlasAccessProfile(), c
 }
 
 function atlasApplicationCommunityInScope(name) {
-  if (!atlasDashboardUserCanSeeCommunityName(name)) return false;
+  if (!atlasDashboardUserCanSeeCommunityName(name) || !isAtlasLeaseTrackingCommunity(name)) return false;
   return isAtlasCommunityActiveByName(name) || (!isPortfolioWorkspaceSelected() && name === getProp().name && atlasRoleCanSeeInactiveCommunities(getAtlasAccessProfile(), name));
 }
 
@@ -21752,7 +21760,8 @@ function renderPortfolioScopedOverviewTab() {
 }
 
 function renderPortfolioScopedTrafficTab() {
-  const { details, aggregate } = getWorkspaceScopedAggregate(getSelectedDashboardMonthIndex());
+  const details = getWorkspaceScopedDetails(getSelectedDashboardMonthIndex()).filter(detail => isAtlasLeaseTrackingCommunity(detail.name,detail.record));
+  const aggregate = aggregateCommunitySummaries(details.map(detail => detail.summary));
   const selectedMonth = getSelectedDashboardMonthIndex();
   const cardsHtml = `<div class="grid-4">
     ${statBox("Guest Cards", Math.round(aggregate.guestCards ?? 0), "Month-to-date portfolio lead volume", "#4493f8")}
@@ -21776,16 +21785,18 @@ function renderPortfolioScopedTrafficTab() {
       <td><input type="number" min="0" value="${Math.round(detail.summary.tours ?? 0)}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "tours", this.value)' style="width:88px"></td>
       <td><input type="number" min="0" value="${Math.round(detail.summary.applications ?? 0)}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "applications", this.value)' style="width:88px"></td>
       <td><input type="number" min="0" value="${Math.round(detail.summary.applicationsApproved ?? 0)}" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "applications_approved", this.value)' style="width:88px"></td>
+      <td><input type="number" min="0" value="${entry.denied ?? ''}" placeholder="—" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "denied", this.value)' style="width:88px"></td>
+      <td><input type="number" min="0" value="${entry.cancelled ?? ''}" placeholder="—" onchange='updatePortfolioCommunityMonthField(${JSON.stringify(detail.name)}, ${selectedMonth}, "cancelled", this.value)' style="width:88px"></td>
       <td>${currentMonthTourToLeasePct === null ? "—" : `${currentMonthTourToLeasePct.toFixed(1)}%`}</td>
       <td><button type="button" class="btn btn-gray btn-sm" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(detail.name)}, 3)'>Open Funnel</button></td>
     </tr>`;
   }).join("");
   const funnelCollapsed = window.atlasPortfolioFunnelCollapsed === true;
   const bodyHtml = `<div class="tbl-wrap">
-    <div class="tbl-header"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><h2>Portfolio funnel by community</h2><p>Traffic and funnel fields are editable directly here for the selected month. Community rows show current-month conversion only so historical fallback rates do not masquerade as live month performance.</p></div><button class="btn btn-gray btn-sm" type="button" onclick="window.atlasPortfolioFunnelCollapsed=!window.atlasPortfolioFunnelCollapsed;renderTab()">${funnelCollapsed ? "Expand community funnel" : "Collapse community funnel"}</button></div></div>
+    <div class="tbl-header"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><h2>Portfolio funnel by community</h2><p>Box Score uploads populate New Leads, First Visits/Tours, and Application Completed, Approved, Denied and Cancelled totals for the selected month. Inactive student housing is excluded. Community rows show current-month conversion only so historical fallback rates do not masquerade as live month performance.</p></div><button class="btn btn-gray btn-sm" type="button" onclick="window.atlasPortfolioFunnelCollapsed=!window.atlasPortfolioFunnelCollapsed;renderTab()">${funnelCollapsed ? "Expand community funnel" : "Collapse community funnel"}</button></div></div>
     ${funnelCollapsed ? `<div style="padding:18px 0;color:var(--muted);font-size:.72rem">Community funnel rows are collapsed. Expand this section to review or edit individual community traffic.</div>` : `
     <table>
-      <thead><tr><th class="l">Community</th><th>Leads</th><th>Tours</th><th>Applications</th><th>Approved</th><th>Tour to Lease</th><th>Action</th></tr></thead>
+      <thead><tr><th class="l">Community</th><th>Leads</th><th>Tours</th><th>Applications</th><th>Approved</th><th>Denials</th><th>Cancellations</th><th>Tour to Lease</th><th>Action</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`}
   </div>`;
@@ -48235,7 +48246,11 @@ function dataImportParseMetadataDate(value = "") {
   if (!raw) return "";
   const match = raw.match(/(?:as[ -]?of|data date|generated|created|run date|report date|through)\s*:?\s*([^|;\n]+)/i);
   const candidate = String(match?.[1] || raw).trim().replace(/\s{2,}.*$/, "");
-  const parsed = new Date(candidate);
+  let parsed = new Date(candidate);
+  if (!Number.isFinite(parsed.getTime())) {
+    const sourceDate = candidate.match(/\b\d{1,2}[/-]\d{1,2}[/-](?:20|19)\d{2}\b/);
+    if (sourceDate) parsed = new Date(sourceDate[0]);
+  }
   return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : "";
 }
 
@@ -48311,7 +48326,7 @@ async function dataImportReadFileSample(file) {
     }
     if ([".xlsx", ".xls", ".xlsm"].includes(extension) && typeof XLSX !== "undefined") {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false });
-      const sheetNames = (workbook.SheetNames || []).slice(0, 12);
+      const sheetNames = workbook.SheetNames || [];
       const allHeaders = [];
       const tabSummaries = [];
       const headerSamples = {};
@@ -49175,7 +49190,7 @@ function dataImportMapSourceRow(sourceRow = {}, plan = {}, mappingCache = null) 
       }
       const destination = decision?.value && dataImportDestinationExists(decision.value) ? decision.value : field;
       mapped[destination] = value;
-      sourceFields[destination] = loc ? `${qualified} / row ${loc.row}, column ${loc.column}` : field;
+      sourceFields[destination] = loc ? `${qualified} / row ${loc.row}, column ${loc.columns ? loc.columns.join(" + ") : loc.column}` : field;
     }
     return {mapped,sourceFields,unmappedFields};
   }
@@ -49626,6 +49641,7 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     dataImportApplyMetric(record, plan, result, communityName, period, "applications_approved", sum("approvals"), "approvals");
     dataImportApplyMetric(record, plan, result, communityName, period, "denied", sum("denied_applications"), "denied_applications");
     dataImportApplyMetric(record, plan, result, communityName, period, "cancelled", sum("cancelled_applications"), "cancelled_applications");
+    dataImportApplyMetric(record, plan, result, communityName, period, "leases_signed", sum("leases_completed"), "leases_completed");
     const leadCount = sum("new_leads") ?? sum("guest_cards");
     const applicationCount = sum("applications");
     if (leadCount !== null && applicationCount !== null && applicationCount > leadCount) result.issues.push({ type: "reconciliation", severity: "medium", title: "Applications exceed detected leads", detail: `${applicationCount} applications were reported against ${leadCount} new leads. Confirm the source date range and lead bucket definitions.`, communityName });
@@ -49647,6 +49663,8 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     result.destinations.add("Community Overview");
     if (hasFloorPlanRows) result.destinations.add("Floor Plans - approval required");
     result.destinations.add("Leasing Performance");
+    result.destinations.add("Traffic & Funnel");
+    result.destinations.add("Application Performance");
   } else if (plan.reportType === "trending_occupancy") {
     const periodEntries = getWritableMonthlyPeriodEntries(record, period.monthIdx, period.year);
     [periodEntries?.historyEntry, periodEntries?.liveEntry].filter(Boolean).forEach(month => {
@@ -49911,6 +49929,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
   } else {
     persistSaved();
   }
+  if (result.communities.includes(getProp().name)) loadPropertyData(getProp().name);
   dataImportRecordPlanLearningUsage(plan);
   return result;
 }
@@ -50291,7 +50310,7 @@ async function reprocessDataImportBoxScore(archiveId) {
     const file = new File([stored.blob], stored.fileName || entry.fileName, {type:stored.type});
     const plan = await dataImportBuildFilePlan(file,{forceReportType:"box_score"});
     if (!entry.fileHash || plan.fileHash !== entry.fileHash) throw new Error("The retained source hash does not match its approved archive entry.");
-    plan.metadata = {...plan.metadata,...entry.metadata};
+    plan.metadata = {...entry.metadata,...plan.metadata,dataAsOf:plan.metadata?.dataAsOf || entry.metadata?.dataAsOf || ""};
     plan.dataDateIso = entry.dataDateIso || plan.dataDateIso;
     plan.sourceSystem = entry.sourceSystem;
     plan.communities = [...entry.communities];

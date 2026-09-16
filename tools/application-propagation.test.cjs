@@ -46,7 +46,7 @@ if(box){
  const month={},lineage=[];
  Object.assign(context,{dataImportShouldApplyCurrentMetric:()=>true,normalizeSavedCommunityRecord:(name,r)=>r||{},dataImportPercentValue:v=>v==null?null:Number(v),dataImportUpsertFloorPlan:()=>{},getWritableMonthlyPeriodEntries:()=>({historyEntry:month}),dataImportApplyMetric:(record,plan,result,name,period,target,value,field)=>{if(value===null||value===undefined)return false;assert(context.applyValueToRecord(record,period.monthIdx,target,value,period.year));lineage.push({currentState:true,reportType:'box_score',communityName:name,periodKey:period.periodKey,atlasField:field,importedValue:value,sourceFile:plan.name});return true;}});
  context.dataImportApplyGroupedSnapshot({communityName:'Sereno',period:{periodKey:'2026-09',year:2026,monthIdx:8},entries},{reportType:'box_score',name:'Fixture.xlsx'},{issues:[],formulas:[],destinations:new Set()});
- assert.equal(month.applications,7);assert.equal(month.applicationsApproved,5);assert.equal(month.tours,26);assert.equal(month.leasedSnapshot,241);assert.equal(month.sourceLeasedUnits,265);assert.equal(month.exposureUnits,79);assert.equal(month.leasedOccupancyPct,82.8125);
+ assert.equal(month.denied,1);assert.equal(month.cancelled,0);assert.equal(month.leasesSignedActual,4);assert.equal(month.applications,7);assert.equal(month.applicationsApproved,5);assert.equal(month.tours,26);assert.equal(month.leasedSnapshot,241);assert.equal(month.sourceLeasedUnits,265);assert.equal(month.exposureUnits,79);assert.equal(month.leasedOccupancyPct,82.8125);
  Object.assign(context,{dataImport2State:{lineage},getAtlasApplicationScopeCommunityNames:()=>['Sereno'],isAtlasCommunityActiveByName:()=>true,atlasApplicationCommunityInScope:()=>true});
  const metrics=context.getAtlasApplicationPeriodMetrics('2026-09');assert.equal(metrics[0].cells.applications.value,7);assert.equal(context.getAtlasApplicationPeriodMetrics('2025-09')[0].cells.applications.value,null);
  context.dataImportApplyGroupedSnapshot({communityName:'Sereno',period:{periodKey:'2026-09',year:2026,monthIdx:8},entries:[{row:{application_id:'test',application_status:'Started'}}]},{reportType:'leasing_resident_data'},{issues:[],formulas:[],destinations:new Set()});assert.equal(month.applications,7,'Resident snapshots must never replace completed period flows');
@@ -102,3 +102,16 @@ uiContext.window.atlasApplicationCommandFilter('search','no match');
 assert.equal(uiContext.window.getAtlasApplicationCommandRecords().length,0);
 uiContext.window.atlasApplicationExport();assert.equal(capturedBooks.length,1,'No different unfiltered export on empty view');
 console.log('PASS actual UI renderer and XLSX export share filtered rows; unsupported lifecycle and conversion rates remain unavailable.');
+
+assert.equal(context.dataImportParseMetadataDate('Availability (As of 09/16/2026)').slice(0,10),'2026-09-16');
+assert.equal(context.dataImportParseMetadataDate('not a date'),'');
+const scopes={Campus:{status:'inactive',propertyType:'Student Housing'},Student:{status:'active',propertyType:'Student Housing'},Senior:{status:'inactive',propertyType:'Senior Housing'}};
+context.getAtlasCommunityAccessRecord=name=>scopes[name];
+assert.equal(context.isAtlasLeaseTrackingCommunity('Campus'),false);
+assert.equal(context.isAtlasLeaseTrackingCommunity('Student'),true);
+assert.equal(context.isAtlasLeaseTrackingCommunity('Senior'),true);
+const cancelled=B.boxScore([['Lead Conversions (09/01/2026 - 09/30/2026)'],['','Application','','','','','','Lease'],['Unit Type','Completed','Partially Completed','Completed (Cancelled)','Denied','Approved','Approved (Cancelled)','Completed'],['Total:',10,2,3,1,6,2,4]])[0];
+assert.equal(cancelled.values.cancelled_applications,5);assert.equal(cancelled.values.applications,10);assert.equal(cancelled.values.leases_completed,4);assert.equal(cancelled.locators.cancelled_applications.columns.length,2);
+console.log('PASS parenthesized source cutoff, inactive-student intersection, combined cancellation buckets and distinct application/lease counts.');
+
+if(box){(async()=>{context.DATA_IMPORT_MAX_SAMPLE_CHARS=180000;vm.runInContext(html.slice(html.indexOf('const DATA_IMPORT_FIELD_ALIASES ='),html.indexOf('const DATA_IMPORT_DESTINATION_GROUPS =')),context);const source=fs.readFileSync(box);const sample=await context.dataImportReadFileSample({name:'Box Score.xlsx',arrayBuffer:async()=>source,lastModified:Date.parse('2026-09-16')});const book=context.XLSX.read(source,{type:'buffer'});assert.equal(sample.sheetNames.length,book.SheetNames.length,'Preview must discover every community tab, including those beyond tab 12');const meta=context.dataImportExtractMetadata(sample);assert.equal(meta.dataAsOf.slice(0,10),'2026-09-16');console.log('PASS full workbook discovery and real source as-of date.');})().catch(e=>{console.error(e);process.exitCode=1;});}

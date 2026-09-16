@@ -254,10 +254,14 @@
     residentName: ["resident name", "resident", "name", "tenant name", "lease holder"],
     residentId: ["resident id", "residentid", "tenant id", "customer id"],
     leaseId: ["lease id", "leaseid", "lease number"],
-    unit: ["unit", "apartment", "apt", "apartment number", "unit number"],
+    unit: ["unit", "apartment", "apt", "apartment number", "unit number", "bldg-unit", "building unit"],
     phone: ["phone", "mobile", "cell", "resident phone"],
     email: ["email", "resident email", "e-mail"],
     delinquentBalance: ["delinquent balance", "balance", "amount owed", "total due", "resident balance", "past due balance", "delinquency amount", "amount delinquent"],
+    aging0To30: ["0-30 Days", "0 to 30 days", "1-30 Days", "aging_0_30"],
+    aging31To60: ["31-60 Days", "31 to 60 days", "aging_31_60"],
+    aging61To90: ["61-90 Days", "61 to 90 days", "aging_61_90"],
+    aging90Plus: ["90+ Days", "91+ Days", "over 90 days", "aging_90_plus"],
     totalCharges: ["total charges", "charges", "monthly charges"],
     totalPayments: ["total payments", "payments", "credits"],
     currentRent: ["current rent", "rent", "market rent"],
@@ -6093,6 +6097,18 @@
     </div>`;
   }
 
+  function renderCollections(state) {
+    const rows = getEvictionsForCurrentPeriod(state);
+    const money = value => value === null || value === undefined ? "—" : numberValue(value).toLocaleString("en-US", {style:"currency",currency:"USD"});
+    return `<div class="cs-panel"><div class="cs-panel-head"><div class="cs-panel-title">Delinquency & Collections</div>
+      <div class="cs-panel-sub">One resident account per community. Aging balances come from the uploaded report; missing buckets are shown as —.</div></div>
+      <div class="cs-panel-body">${renderEvictionMonthNavigator(state)}
+      <table class="cs-table"><thead><tr><th>Community</th><th>Resident / Account</th><th>Unit</th><th>0–30 days</th><th>31–60 days</th><th>61–90 days</th><th>90+ days</th><th>Total balance</th><th>Source</th></tr></thead>
+      <tbody>${rows.map(row => `<tr><td>${escapeHtml(row.propertyName)}</td><td>${escapeHtml(row.residentName)}<br>${escapeHtml(row.residentId || row.leaseId || "")}</td><td>${escapeHtml(row.unit)}</td>
+      ${["aging0To30","aging31To60","aging61To90","aging90Plus"].map(key => `<td>${money(row[key])}</td>`).join("")}<td>${money(row.delinquentBalance)}</td><td>${escapeHtml(row.sourceFileName)} · ${escapeHtml(row.sourceSheetName)}${row.sourceRow ? ` · row ${escapeHtml(row.sourceRow)}` : ""}</td></tr>`).join("")}</tbody></table>
+      ${rows.length ? "" : `<div class="cs-empty">No resident balances connected for this community and reporting period.</div>`}</div></div>`;
+  }
+
   function renderEvictions(state, employees) {
     return `<div class="cs-two-col">
       <div style="display:grid;gap:14px">
@@ -7719,12 +7735,7 @@
     if (state.ui.module === "inspections") return renderInspections(state, employees);
     if (state.ui.module === "morfs") return renderMorfs(state, employees);
     if (state.ui.module === "chargebacks") return renderChargebackCatalog(state);
-    if (state.ui.module === "collections") return renderEmptyWorkflowModule(state, {
-      key: "collections",
-      title: "Delinquency & Collections",
-      sub: "Waiting on the real delinquency source, ownership rules, and follow-up cadence.",
-      empty: "No collection records are connected. This module will stay empty until the source report or system integration is defined."
-    });
+    if (state.ui.module === "collections") return renderCollections(state);
     if (state.ui.module === "evictions") return renderEvictions(state, employees);
     if (state.ui.module === "bankruptcy") return renderBankruptcyTracker(state, employees);
     if (state.ui.module === "vendors") return renderVendorProfiles(state);
@@ -8697,6 +8708,7 @@
   }
 
   function findEvictionAliasedValue(row = {}, fieldName = "") {
+    row = { ...row, ...Object.fromEntries(Object.entries(row).map(([key,value]) => [normalizeKey(key),value])) };
     const aliases = EVICTION_FIELD_ALIASES[fieldName] || [];
     const directKeys = [
       fieldName,
@@ -8751,14 +8763,17 @@
     const importId = cleanString(row.importId || row.importBatchId || context.importId || context.importBatchId);
     const residentId = cleanString(findEvictionAliasedValue(row, "residentId"));
     const leaseId = cleanString(findEvictionAliasedValue(row, "leaseId"));
-    const delinquentBalance = numberValue(findEvictionAliasedValue(row, "delinquentBalance"));
-    const status = inferEvictionStatus(row);
+    const aging = Object.fromEntries(["aging0To30", "aging31To60", "aging61To90", "aging90Plus"].map(key => {
+      const value = findEvictionAliasedValue(row, key);
+      return [key, cleanString(value) ? numberValue(value) : null];
+    }));
+    const balanceValue = findEvictionAliasedValue(row, "delinquentBalance");
+    if (!cleanString(balanceValue) && Object.values(aging).every(value => value === null)) return null;
+    const delinquentBalance = cleanString(balanceValue) ? numberValue(balanceValue) : Object.values(aging).reduce((sum,value) => sum + (value || 0),0);
+    const status = inferEvictionStatus({...row, delinquentBalance});
     const id = makeId("eviction", [
       propertyName,
-      residentId,
-      leaseId,
-      residentName,
-      unit,
+      residentId || leaseId || `${residentName}::${unit}`,
       "active"
     ]);
     const owner = defaultOwner(employees);
@@ -8783,6 +8798,9 @@
       periodKey: localPeriodKey(monthIdx, year),
       delinquentBalance,
       originalDelinquentBalance: delinquentBalance,
+      ...aging,
+      sourceRow: row.sourceRow,
+      dataAsOf: row.dataAsOf || context.dataAsOf || "",
       totalCharges: numberValue(findEvictionAliasedValue(row, "totalCharges")),
       totalPayments: numberValue(findEvictionAliasedValue(row, "totalPayments")),
       currentRent: numberValue(findEvictionAliasedValue(row, "currentRent")),
@@ -8866,8 +8884,14 @@
   function upsertEvictionCases(state, rows = []) {
     const byId = new Map(asArray(state.evictions).map(row => [row.id, row]));
     asArray(rows).forEach(row => {
-      const existing = byId.get(row.id);
-      byId.set(row.id, mergeEvictionCase(existing, row));
+      const existing = byId.get(row.id) || [...byId.values()].find(candidate =>
+        candidate.propertyName === row.propertyName && (
+          row.residentId ? candidate.residentId === row.residentId :
+          row.leaseId ? candidate.leaseId === row.leaseId :
+          candidate.unit === row.unit && candidate.residentName === row.residentName));
+      if (existing && (existing.periodKey > row.periodKey || (existing.dataAsOf && row.dataAsOf && existing.dataAsOf > row.dataAsOf))) return;
+      const id = existing?.id || row.id;
+      byId.set(id, mergeEvictionCase(existing, {...row,id}));
     });
     state.evictions = [...byId.values()].map(normalizeEvictionCase);
   }
@@ -8930,6 +8954,7 @@
       rows = rows.concat(sheetObjects.map(row => ({
         ...row,
         sourceSheetName: sheetName,
+        propertyName: centralMatchPropertyName(findEvictionAliasedValue(row,"propertyName") || sheetName, ""),
         monthIdx: sheetContext.monthIdx,
         year: sheetContext.year
       })));

@@ -1404,8 +1404,8 @@
 
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=20260911-central-services-roster"></script>
-<script src="./centralization/atlas-central-client.js?v=20260916-scoped-access" data-atlas-central-client="true"></script>
-<script src="./central-services.js?v=20260911-admin-inspection-controls"></script>
+<script src="./centralization/atlas-central-client.js?v=20260916-import-propagation" data-atlas-central-client="true"></script>
+<script src="./central-services.js?v=20260916-collections-20260911-admin-inspection-controls"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260902-application-intelligence">
 <script src="./application-source-bridge.js?v=20260916"></script>
 <script src="./application-performance.js?v=20260916-shared-source"></script>
@@ -1606,7 +1606,7 @@ const DATA_IMPORT_REPORT_TYPES = {
     aliases: ["delinquency", "delinquency report", "aged receivables", "resident balance", "past due report"],
     patterns: ["past due", "current due", "unpaid rent", "credits", "prepayments", "resident balance"],
     dependencies: ["Central Services Collections", "Evictions", "Economic Occupancy", "Community Reporting"],
-    primaryFields: ["post_month", "resident", "lease_id", "unit", "unpaid_rent", "unpaid_other", "unpaid_deposit", "past_due", "current_due", "credits", "prepayments", "resident_balance", "lease_status", "notes"]
+    primaryFields: ["post_month", "resident", "lease_id", "unit", "unpaid_rent", "unpaid_other", "unpaid_deposit", "aging_0_30", "aging_31_60", "aging_61_90", "aging_90_plus", "past_due", "current_due", "credits", "prepayments", "resident_balance", "lease_status", "notes"]
   },
   approved_accounting: {
     label: "Approved Accounting Report",
@@ -1703,7 +1703,7 @@ const DATA_IMPORT_FIELD_ALIASES = {
   application_status: ["application status", "status", "current status"],
   lease_start: ["lease start", "lease start date", "move in date"],
   lease_end: ["lease end", "lease end date", "expiration date"],
-  unit: ["unit", "unit number", "apartment", "apt"],
+  unit: ["unit", "unit number", "apartment", "apt", "bldg-unit", "building unit"],
   unit_number: ["unit #", "apartment number", "apt number"],
   floorplan: ["floorplan", "floor plan", "unit type"],
   current_rent: ["current rent", "rent amount", "lease rent"],
@@ -1719,6 +1719,10 @@ const DATA_IMPORT_FIELD_ALIASES = {
   unpaid_rent: ["unpaid rent", "rent unpaid", "rent delinquency"],
   unpaid_other: ["unpaid other", "other unpaid", "other charges due"],
   unpaid_deposit: ["unpaid deposit", "deposit due"],
+  aging_0_30: ["0-30 Days", "0 to 30 days", "0-30", "1-30 Days"],
+  aging_31_60: ["31-60 Days", "31 to 60 days", "31-60"],
+  aging_61_90: ["61-90 Days", "61 to 90 days", "61-90"],
+  aging_90_plus: ["90+ Days", "90+", "91+ Days", "over 90 days"],
   past_due: ["past due", "past due balance", "prior balance"],
   current_due: ["current due", "current balance", "current charges due"],
   credits: ["credits", "credit balance", "resident credits"],
@@ -1757,7 +1761,7 @@ const DATA_IMPORT_DESTINATION_GROUPS = [
   },
   {
     label: "Financial / Other",
-    fields: ["market_rent", "net_effective_rent", "avg_market_rent_budgeted", "avg_scheduled_rent", "avg_ner", "charge_code", "gl_account", "actual_charges", "scheduled_charges", "resident_balance", "deposit_held", "post_month", "unpaid_rent", "unpaid_other", "unpaid_deposit", "past_due", "current_due", "credits", "prepayments", "lease_status", "gross_potential_rent", "revenue_metric", "expense_metric", "budget_field", "notes"]
+    fields: ["market_rent", "net_effective_rent", "avg_market_rent_budgeted", "avg_scheduled_rent", "avg_ner", "charge_code", "gl_account", "actual_charges", "scheduled_charges", "resident_balance", "deposit_held", "post_month", "unpaid_rent", "unpaid_other", "unpaid_deposit", "aging_0_30", "aging_31_60", "aging_61_90", "aging_90_plus", "past_due", "current_due", "credits", "prepayments", "lease_status", "gross_potential_rent", "revenue_metric", "expense_metric", "budget_field", "notes"]
   }
 ];
 const DATA_IMPORT_ISSUE_LABELS = {
@@ -24136,7 +24140,7 @@ function renderPortfolioScopedCommunityCommandTab() {
         <td>${Math.round(model.appMetrics.applications)}</td>
         <td>${Math.round(model.grossLeasesMtd)}</td>
         <td>${planHtml}</td>
-        <td><button type="button" class="btn btn-blue btn-sm" onclick="return openCommunityCommandFromPortfolioRoster(${JSON.stringify(detail.name)})">Open Community Command</button></td>
+        <td><button type="button" class="btn btn-blue btn-sm" onclick="return openCommunityCommandFromPortfolioRoster(${escapeHtml(JSON.stringify(detail.name))})">Open Community Command</button></td>
       </tr>`;
     }).join("");
   const bodyHtml = `<div class="tbl-wrap" id="community-command-roster" style="margin-top:12px">
@@ -49660,20 +49664,71 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     result.formulas.push(`${communityName} ${period.periodKey}: Resident Data remains a scoped application snapshot; monthly completed applications require Box Score or verified event dates.`);
     result.destinations.add("Application Performance - detail source");
   } else if (plan.reportType === "delinquency") {
-    const gross = (sum("unpaid_rent") || 0) + (sum("unpaid_other") || 0) + (sum("unpaid_deposit") || 0);
-    const balance = sum("resident_balance") ?? gross + (sum("credits") || 0) + (sum("prepayments") || 0);
+    const components = [sum("unpaid_rent"), sum("unpaid_other"), sum("unpaid_deposit")];
+    const buckets = [sum("aging_0_30"), sum("aging_31_60"), sum("aging_61_90"), sum("aging_90_plus")];
+    const gross = components.some(value => value !== null) ? components.reduce((total,value) => total + (value || 0),0)
+      : buckets.every(value => value !== null) ? buckets.reduce((total,value) => total + value,0) : null;
+    const balance = sum("resident_balance") ?? (gross === null ? null : gross + (sum("credits") || 0) + (sum("prepayments") || 0));
     const pastDue = sum("past_due");
     const currentDue = sum("current_due");
-    if (pastDue !== null && currentDue !== null && Math.abs((pastDue + currentDue) - gross) > 1) result.issues.push({ type: "reconciliation", severity: "high", title: "Delinquency totals do not reconcile", detail: `Past Due + Current Due is ${(pastDue + currentDue).toFixed(2)}, while gross delinquency is ${gross.toFixed(2)}.`, communityName });
+    if (gross !== null && pastDue !== null && currentDue !== null && Math.abs((pastDue + currentDue) - gross) > 1) result.issues.push({ type: "reconciliation", severity: "high", title: "Delinquency totals do not reconcile", detail: `Past Due + Current Due is ${(pastDue + currentDue).toFixed(2)}, while gross delinquency is ${gross.toFixed(2)}.`, communityName });
     const periodEntries = getWritableMonthlyPeriodEntries(record, period.monthIdx, period.year);
     [periodEntries?.historyEntry, periodEntries?.liveEntry].filter(Boolean).forEach(month => {
-      month.delinquentGross = gross;
-      month.netResidentBalance = balance;
+      if (gross !== null) month.delinquentGross = gross;
+      if (balance !== null) month.netResidentBalance = balance;
     });
     result.formulas.push(`${communityName} ${period.periodKey}: Gross Delinquency = Unpaid Rent + Other + Deposit; Net Resident Balance = Gross + Credits + Prepayments.`);
     result.destinations.add("Central Services Collections");
   }
   savedData[communityName] = normalizeSavedCommunityRecord(communityName, record);
+}
+
+function dataImportCentralDelinquencyRow(record) {
+  const v = record.values || {};
+  return { ...record.originalValues, ...v, propertyName: record.communityName,
+    residentName: v.resident, residentId: v.resident_id, leaseId: v.lease_id, unit: v.unit,
+    delinquentBalance: v.resident_balance, aging0To30: v.aging_0_30,
+    aging31To60: v.aging_31_60, aging61To90: v.aging_61_90, aging90Plus: v.aging_90_plus,
+    sourceSheetName: record.sourceSheet, sourceRow: record.sourceRow, sourceFileName: record.sourceFile,
+    importBatchId: record.batchId, dataAsOf: record.dataAsOf };
+}
+
+function reconnectMappedDelinquencyBatch() {
+  const batchId = dataImport2State.mappingBatchFilter;
+  if (!batchId || typeof window.atlasCsIngestDelinquencyRows !== "function") return;
+  const records = (dataImport2State.canonicalRecords || []).filter(record => record.batchId === batchId && record.reportType === "delinquency");
+  const groups = new Map();
+  records.forEach(record => {
+    const plan = {reportType:record.reportType, sourceSystem:record.sourceSystem, name:record.sourceFile};
+    const source = {values:record.originalValues, sourceSheet:record.sourceSheet, sourceRow:record.sourceRow};
+    const remapped = dataImportMapSourceRow(source, plan).mapped;
+    const row = dataImportCentralDelinquencyRow({...record,values:{...record.values,...remapped}});
+    const key = `${record.communityName}::${record.periodKey}`;
+    if (!groups.has(key)) groups.set(key,{record,rows:[]});
+    groups.get(key).rows.push(row);
+  });
+  let count = 0;
+  groups.forEach(({record,rows}) => {
+    const period = parsePeriodKey(record.periodKey);
+    if (!period) return;
+    const result = window.atlasCsIngestDelinquencyRows(rows,{propertyName:record.communityName,monthIdx:period.monthIdx,year:period.year,fileName:record.sourceFile,importBatchId:batchId},{importHistory:false,render:false});
+    count += result?.rowsImported || 0;
+  });
+  alert(`${count} resident account rows reconnected from retained source records. Review Collections for the same community and month.`);
+  renderTab();
+}
+
+function openDataImportExceptionMapping(issueId) {
+  const issue = (dataImport2State.exceptions || []).find(item => item.id === issueId);
+  if (!issue) return false;
+  dataImport2State.activeView = "mapping";
+  dataImport2State.mappingReviewFilter = "all";
+  dataImport2State.mappingBatchFilter = issue.batchId || "";
+  dataImport2State.mappingSourceFilter = issue.sourceSystem || "";
+  dataImport2State.mappingReportFilter = issue.reportType || "";
+  dataImport2State.mappingSearch = "";
+  renderTab();
+  return false;
 }
 
 async function dataImportRouteStructuredFile(file, plan, batchId) {
@@ -49795,7 +49850,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
         result.rowsHeld += 1;
         continue;
       }
-      if (plan.reportType === "delinquency") result.centralRows.push({ ...sourceRow.values, sourceSheetName: sourceRow.sourceSheet });
+      if (plan.reportType === "delinquency") result.centralRows.push(dataImportCentralDelinquencyRow(canonicalRecord));
       if (plan.reportType === "community_data") {
         dataImportApplyCommunityFoundation(mapped, communityName, plan, result);
       } else {
@@ -51835,11 +51890,11 @@ function renderDataImportExceptionsView() {
     <table class="data-import2-table">
       <thead><tr><th>Issue</th><th>Community</th><th>Source</th><th>Why It Matters</th><th>Action</th></tr></thead>
       <tbody>${issues.map(issue => `<tr>
-        <td><span class="data-import2-status ${dataImportStatusClass(issue.type)}">${escapeHtml(issue.label)}</span><div class="data-import2-file-meta">${escapeHtml(issue.title || "")} · ${escapeHtml(issue.severity || "medium")}</div></td>
+        <td>${issue.type === "unmapped" && issue.status !== "Pending Approval" ? `<button type="button" class="data-import2-status ${dataImportStatusClass(issue.type)}" onclick="return openDataImportExceptionMapping(${escapeHtml(JSON.stringify(issue.id))})">${escapeHtml(issue.label)}</button>` : `<span class="data-import2-status ${dataImportStatusClass(issue.type)}">${escapeHtml(issue.label)}</span>`}<div class="data-import2-file-meta">${escapeHtml(issue.title || "")} · ${escapeHtml(issue.severity || "medium")}</div></td>
         <td>${escapeHtml(issue.communityName || "Unmapped")}<div class="data-import2-file-meta">${escapeHtml(issue.batchId || "")}</div></td>
         <td>${escapeHtml(issue.sourceSystem || "Unknown")}<div class="data-import2-file-meta">${escapeHtml(issue.reportTypeLabel || issue.fileName || "")}</div></td>
         <td>${escapeHtml(issue.detail || "")}<div class="data-import2-file-meta">${escapeHtml((issue.modulesAffected || []).join(", "))}</div></td>
-        <td><div class="data-import2-file-meta">${escapeHtml(issue.recommendedAction || "Review")}</div>${issue.status !== "Pending Approval" ? `<button class="btn btn-gray btn-sm" onclick='resolveDataImportException(${JSON.stringify(issue.id)})'>Mark Resolved</button>` : ""}</td>
+        <td><div class="data-import2-file-meta">${escapeHtml(issue.recommendedAction || "Review")}</div>${issue.status !== "Pending Approval" ? `<button class="btn btn-gray btn-sm" onclick='${issue.type === "unmapped" ? "openDataImportExceptionMapping" : "resolveDataImportException"}(${JSON.stringify(issue.id)})'>${issue.type === "unmapped" ? "Resolve Mapping" : "Mark Resolved"}</button>` : ""}</td>
       </tr>`).join("")}</tbody>
     </table>
   </div>`;
@@ -52095,6 +52150,24 @@ function dataImportBuildMappingReviewItems() {
       updatedBy: rule.updatedBy || rule.savedBy || "ATLAS",
       uploadBatch: "",
       downstreamModules: dataImportDestinationModules(rule.canonicalField)
+    });
+  });
+  const archivedFields = new Set();
+  (dataImport2State.canonicalRecords || []).forEach(record => {
+    Object.entries(record.originalValues || {}).forEach(([header, value]) => {
+      const id = `archive_${record.batchId}_${dataImportSlug(record.sourceFile)}_${dataImportSlug(header)}`;
+      if (archivedFields.has(id)) return;
+      archivedFields.add(id);
+      const context = {reportType: record.reportType, sourceSystem: record.sourceSystem, sampleValue: value};
+      const suggestion = dataImportSuggestDestinationForHeader(header, context);
+      const rule = dataImportFindSavedRuleForHeader(header, context);
+      const field = rule?.canonicalField || suggestion.field || "";
+      items.push({id, kind:"archive", status:field ? "Mapped" : "Needs Mapping", isNew:!field,
+        originalField:header, sampleValue:String(value ?? ""), sourceFile:record.sourceFile,
+        sheetName:record.sourceSheet, sourceSystem:record.sourceSystem, reportType:record.reportType,
+        reportTypeLabel:record.reportTypeLabel, uploadBatch:record.batchId, currentField:field,
+        suggestedField:field, confidence:suggestion.confidence, lastUpdated:record.importedAt,
+        downstreamModules:dataImportDestinationModules(field)});
     });
   });
   const rank = { "Needs Mapping": 0, "Conflict": 1, "Low Confidence": 2, "Mapped": 3, "Ignored": 4 };
@@ -52908,6 +52981,7 @@ function renderDataImportMappingRulesView() {
     <div class="data-import2-card">
       <div class="data-import2-section-title"><i class="ph ph-arrows-left-right"></i>Import Learning Review</div>
       ${renderDataImportMappingReviewSummary(counts)}
+      ${dataImport2State.mappingBatchFilter ? `<button class="btn btn-blue btn-sm" onclick="reconnectMappedDelinquencyBatch()">Reconnect this batch to Collections</button>` : ""}
       <div class="data-import2-detail-panel" style="margin-top:10px">ATLAS suggests a destination using the source system, report, tab, field, sample values, and prior decisions. Users can accept it, choose a different destination, skip it only for this upload, or create a governed ATLAS field without restarting the import.</div>
       ${renderDataImportMappingPreview()}
     </div>
@@ -52995,7 +53069,7 @@ function renderDataImportAliasesView() {
     </div>
     <div class="data-import2-card">
       <div class="data-import2-section-title"><i class="ph ph-question"></i>Unmapped Property Queue</div>
-      ${unmapped.length ? `<table class="data-import2-table"><tbody>${unmapped.map(issue => `<tr><td>${escapeHtml(issue.fileName || "Source file")}</td><td>${escapeHtml(issue.detail || "")}</td><td><button class="btn btn-gray btn-sm" onclick='resolveDataImportException(${JSON.stringify(issue.id)})'>Mark Resolved</button></td></tr>`).join("")}</tbody></table>` : `<div class="data-import2-detail-panel">No unmapped property rows are waiting for review.</div>`}
+      ${unmapped.length ? `<table class="data-import2-table"><tbody>${unmapped.map(issue => `<tr><td>${escapeHtml(issue.fileName || "Source file")}</td><td>${escapeHtml(issue.detail || "")}</td><td><button class="btn btn-gray btn-sm" onclick='${issue.type === "unmapped" ? "openDataImportExceptionMapping" : "resolveDataImportException"}(${JSON.stringify(issue.id)})'>${issue.type === "unmapped" ? "Resolve Mapping" : "Mark Resolved"}</button></td></tr>`).join("")}</tbody></table>` : `<div class="data-import2-detail-panel">No unmapped property rows are waiting for review.</div>`}
     </div>
     <div class="data-import2-card">
       <table class="data-import2-table">

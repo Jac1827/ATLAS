@@ -1410,6 +1410,8 @@
 <link rel="stylesheet" href="./application-performance.css?v=20260902-application-intelligence">
 <script src="./application-source-bridge.js?v=boxscore-funnel-20260916"></script>
 <script src="./application-performance.js?v=20260916-shared-source"></script>
+<link rel="stylesheet" href="./concession-insights.css?v=20260916-1">
+<script src="./concession-insights.js?v=20260916-1"></script>
 <script src="./application-performance-ui.js?v=remove-boxscore-card-boxscore-funnel-20260916-shared-source"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -3518,6 +3520,7 @@ function defaultMarketSurveyData() {
     maxConcessionAmount: 0,
     rentAdjustmentDirection: "hold",
     rentAdjustmentAmount: 0,
+    subjectConcessionDetails: "",
     specialsRecommendation: "",
     compNarrative: "",
     pricingNotes: "",
@@ -5608,6 +5611,7 @@ function normalizeMarketSurveyData(data) {
       ? String(input.rentAdjustmentDirection).toLowerCase()
       : defaults.rentAdjustmentDirection,
     rentAdjustmentAmount: Number(input.rentAdjustmentAmount ?? defaults.rentAdjustmentAmount) || 0,
+    subjectConcessionDetails: String(input.subjectConcessionDetails ?? "").trim(),
     specialsRecommendation: String(input.specialsRecommendation ?? defaults.specialsRecommendation).trim(),
     compNarrative: String(input.compNarrative ?? defaults.compNarrative).trim(),
     pricingNotes: String(input.pricingNotes ?? defaults.pricingNotes).trim(),
@@ -27875,6 +27879,7 @@ function parseAptiqMarketSurveyPdfText(rawText = "", fileName = "") {
     compAverageLeases30: averagePerformance.leasesLast30,
     compAverageCancelPct: averagePerformance.cancellationsLast30Pct,
     marketConcessions: concessions.marketConcessions || concessions.subjectConcession,
+    subjectConcessionDetails: concessions.subjectConcession,
     specialsRecommendation: concessions.subjectConcession,
     compNarrative,
     pricingNotes: compNarrative,
@@ -28110,6 +28115,7 @@ function applyMarketSurveyDataToProperty(propName, surveyInput) {
     targetOccupancyPct: surveyInput.targetOccupancyPct ?? existingSurvey.targetOccupancyPct,
     leaseTermMonths: surveyInput.leaseTermMonths ?? existingSurvey.leaseTermMonths,
     maxConcessionAmount: surveyInput.maxConcessionAmount ?? existingSurvey.maxConcessionAmount,
+    subjectConcessionDetails: surveyInput.subjectConcessionDetails ?? "",
     marketConcessions: surveyInput.marketConcessions || existingSurvey.marketConcessions,
     compNarrative: surveyInput.compNarrative || existingSurvey.compNarrative || "",
     pricingNotes: surveyInput.pricingNotes || existingSurvey.pricingNotes || "",
@@ -33905,6 +33911,7 @@ function renderCompCalculatorCommunityView(detail, market, monthIdx) {
 }
 
 function renderCompCalculatorTab() {
+  if (window.AtlasConcessionInsights) return window.AtlasConcessionInsights.render();
   const monthIdx = getSelectedDashboardMonthIndex();
   const rows = getCompCalculatorRows(monthIdx);
   if (isPortfolioWorkspaceSelected()) {

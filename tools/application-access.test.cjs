@@ -23,3 +23,10 @@ profile.locked_tab_ids.push('16');assert.equal(c.atlasAccessDecision(16).ok,fals
 signedIn=false;assert.equal(c.atlasDashboardUserCanSeeCommunityName('Sereno'),false,'Missing authentication fails closed');signedIn=true;
 profile.status='disabled';assert.equal(c.atlasAccessDecision(16).ok,false);assert.equal(c.atlasRoleCanSeeInactiveCommunities(profile,'Nocatee'),false);
 console.log('PASS real access functions: explicit inactive assignment, isolated property review, active-only portfolio, distinct Application Performance permission, unchanged locks, authentication and disabled-account denial.');
+profile.status='active';
+profile.community_access_records=[{community_id:'nocatee-id',canonical_name:'nocatee',display_name:'Nocatee',status:'inactive',market:'central'}];
+c.getAtlasSharedPropertyByName=()=>null;
+assert.equal(c.getAtlasCommunityAccessRecord('Nocatee').atlasCommunityId,'nocatee-id');
+assert.equal(c.atlasAccessDecision(16).ok,true,'Scoped directory is sufficient without the all-module document');
+assert.equal(c.atlasRoleCanSeeInactiveCommunities(profile,'Viera'),false,'Unknown directory entry fails closed');
+console.log('PASS directory-backed access without whole-document visibility.');

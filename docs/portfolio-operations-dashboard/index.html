@@ -1370,8 +1370,9 @@
 <script src="./centralization/atlas-central-client.js?v=20260909-activation-email" data-atlas-central-client="true"></script>
 <script src="./central-services.js?v=20260911-admin-inspection-controls"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260902-application-intelligence">
-<script src="./application-performance.js?v=20260904-application-scope"></script>
-<script src="./application-performance-ui.js?v=20260910-scope-health"></script>
+<script src="./application-source-bridge.js?v=20260916"></script>
+<script src="./application-performance.js?v=20260916-shared-source"></script>
+<script src="./application-performance-ui.js?v=20260916-shared-source"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -4112,18 +4113,9 @@ function getApplicationResidentCommunityIdForAtlasName(atlasName = "") {
 function resolveApplicationResidentPropertyMap(value = "") {
   const configured = getApplicationResidentConfiguredPropertyMap(value);
   if (configured) return configured;
-  const variants = getApplicationResidentPropertyLookupVariants(value);
-  for (const variant of variants) {
-    const matchedName = getKnownAtlasCommunityName(variant) || matchPropertyName(variant, { fallbackToCurrent: false });
-    if (matchedName) {
-      return {
-        communityId: getApplicationResidentCommunityIdForAtlasName(matchedName),
-        communityName: matchedName,
-        atlasName: matchedName
-      };
-    }
-  }
-  return null;
+  const key = normalizeAtlasColumnKey(value);
+  const exact = getAllCommunityNames().find(name => normalizeAtlasColumnKey(name) === key);
+  return exact ? {communityId:getApplicationResidentCommunityIdForAtlasName(exact),communityName:exact,atlasName:exact} : null;
 }
 
 function normalizeApplicationResidentRecord(record = {}) {
@@ -4141,6 +4133,7 @@ function normalizeApplicationResidentRecord(record = {}) {
     communityName: String(record.communityName || mapped?.communityName || ""),
     atlasName: String(record.atlasName || mapped?.atlasName || ""),
     mappingStatus: record.mappingStatus === "mapped" || mapped ? "mapped" : "unmapped",
+    sourceTimestamps: record.sourceTimestamps || Object.fromEntries(["newLeadCreatedOn","applicationPartiallyCompletedOn","applicationCompletedOn","firstVisitTourDate","currentLeaseStart","currentLeaseEnd","moveInDate"].map(field => [field, record[field] instanceof Date ? record[field].toISOString() : String(record[field] || "")])),
     residentName: normalizeApplicationResidentText(record.residentName),
     applicationId: normalizeApplicationResidentIdentifier(record.applicationId),
     applicationStatus: normalizeApplicationResidentText(record.applicationStatus),
@@ -4178,7 +4171,8 @@ function normalizeApplicationResidentUpload(upload = {}) {
     batchId: String(upload.batchId || `resident-data-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
     fileName: String(upload.fileName || "Resident Data upload"),
     uploadedAt: String(upload.uploadedAt || new Date().toISOString()),
-    sourceAsOf: normalizeApplicationResidentDateInput(upload.sourceAsOf),
+    sourceAsOf: String(upload.sourceAsOf || ""),
+    restoredAt: String(upload.restoredAt || ""),
     reportPeriodKey: String(upload.reportPeriodKey || buildPeriodKey(DEFAULT_CURRENT_MONTH, new Date().getFullYear())),
     reportMonthLabel: String(upload.reportMonthLabel || ""),
     sourceRows,
@@ -4286,11 +4280,12 @@ function getApplicationResidentSourceAsOf(workbook, file) {
   const paramsSheet = workbook?.Sheets?.["Report Parameters"];
   if (paramsSheet && typeof XLSX !== "undefined") {
     const rows = XLSX.utils.sheet_to_json(paramsSheet, { header: 1, defval: "", raw: false });
-    const generated = rows.find(row => normalizeAtlasColumnKey(row?.[0]).includes("generated") || normalizeAtlasColumnKey(row?.[0]).includes("as_of"));
+    const generated = rows.find(row => normalizeAtlasColumnKey(row?.[0]).includes("as_of"))
+      || rows.find(row => normalizeAtlasColumnKey(row?.[0]).includes("generated"));
     const value = generated?.slice(1).find(cell => String(cell ?? "").trim());
-    if (value) return normalizeApplicationResidentDateInput(value);
+    if (value) { const parsed = new Date(value); return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : ""; }
   }
-  return file?.lastModified ? normalizeApplicationResidentDateInput(new Date(file.lastModified)) : normalizeApplicationResidentDateInput(new Date());
+  return ""; // Filesystem/upload timestamps cannot establish source effective time.
 }
 
 function getApplicationResidentSheetRows(workbook, sheetName = "") {
@@ -4456,11 +4451,12 @@ function parseApplicationResidentDataWorkbook(workbook, file, options = {}) {
     });
   }
   const idCounts = records.reduce((acc, record) => {
-    acc[record.applicationId] = (acc[record.applicationId] || 0) + 1;
+    const key = JSON.stringify([record.communityId || record.propertySource, record.applicationId]);
+    acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {});
   const duplicateIds = Object.entries(idCounts).filter(([, count]) => count > 1).map(([id]) => id);
-  records.forEach(record => { record.duplicateReview = duplicateIds.includes(record.applicationId); });
+  records.forEach(record => { record.duplicateReview = duplicateIds.includes(JSON.stringify([record.communityId || record.propertySource, record.applicationId])); });
   const mappedProperties = uniquePropertySections.filter(property => Boolean(resolveApplicationResidentPropertyMap(property)));
   const unmappedProperties = uniquePropertySections.filter(property => !resolveApplicationResidentPropertyMap(property));
   const messages = [];
@@ -4505,7 +4501,7 @@ function parseApplicationResidentDataWorkbook(workbook, file, options = {}) {
   });
 }
 
-async function processApplicationResidentDataFiles(files) {
+async function processApplicationResidentDataFiles(files, options = {}) {
   if (typeof XLSX === "undefined") {
     csvError = "XLSX parser is unavailable because the spreadsheet library did not load.";
     renderTab();
@@ -4523,8 +4519,8 @@ async function processApplicationResidentDataFiles(files) {
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, cellStyles: true });
       const upload = parseApplicationResidentDataWorkbook(workbook, file, {
-        reportMonthIdx: applicationResidentDataState.reportMonthIdx,
-        reportYear: applicationResidentDataState.reportYear
+        reportMonthIdx: options.reportMonthIdx ?? applicationResidentDataState.reportMonthIdx,
+        reportYear: options.reportYear ?? applicationResidentDataState.reportYear
       });
       applicationResidentDataState.uploads = [
         upload,
@@ -4572,6 +4568,26 @@ function getAtlasCurrentUserLabel() {
   return liveName || "ATLAS user";
 }
 
+function getAtlasApplicationPeriodMetrics(periodKey = getApplicationResidentReportPeriodKey(), community = "all") {
+  const scope = getAtlasApplicationScopeCommunityNames().filter(name => isAtlasCommunityActiveByName(name) && (community === "all" || community === name));
+  const definitions = { applications:"Completed applications", approvals:"Approved applications", new_leads:"New leads", tours:"First tours" };
+  return scope.map(name => {
+    const cells = {};
+    for (const [field,label] of Object.entries(definitions)) {
+      const entries = (dataImport2State.lineage || []).filter(x => x.currentState && x.reportType === "box_score" && x.communityName === name && x.periodKey === periodKey && x.atlasField === field);
+      const source = entries.length === 1 ? entries[0] : null;
+      const value = source && source.importedValue !== null && source.importedValue !== undefined && source.importedValue !== "" && Number.isFinite(Number(source.importedValue)) ? Number(source.importedValue) : null;
+      cells[field] = {label,value,source:source ? `${source.sourceFile} · ${source.dataAsOf || "cutoff unavailable"} · ${source.originalField}` : "No unique published Box Score value"};
+    }
+    return {community:name,periodKey,cells};
+  });
+}
+
+function getAtlasCanonicalApplicationData() {
+  const scope = getAtlasApplicationScopeCommunityNames().filter(isAtlasCommunityActiveByName);
+  return window.AtlasApplicationSources.project(applicationResidentDataState.uploads, scope);
+}
+
 function getApplicationResidentActiveUploads() {
   return normalizeApplicationResidentDataState(applicationResidentDataState).uploads.filter(upload => upload.validationStatus !== "deleted");
 }
@@ -4587,8 +4603,12 @@ function getApplicationResidentLatestRecordMap(records = getApplicationResidentA
   const byId = new Map();
   records.forEach(record => {
     if (!record.applicationId) return;
-    const existing = byId.get(record.applicationId);
-    if (!existing || String(record.batchId || "") > String(existing.batchId || "")) byId.set(record.applicationId, record);
+    const identity = JSON.stringify([record.communityId || record.atlasName || record.propertySource, record.applicationId]);
+    const existing = byId.get(identity);
+    const uploads = applicationResidentDataState.uploads || [];
+    const incomingTime = Date.parse(uploads.find(u => u.batchId === record.batchId)?.sourceAsOf || "") || 0;
+    const existingTime = Date.parse(uploads.find(u => u.batchId === existing?.batchId)?.sourceAsOf || "") || 0;
+    if (!existing || incomingTime > existingTime) byId.set(identity, record);
   });
   return byId;
 }
@@ -4597,7 +4617,8 @@ function getApplicationResidentDuplicateIds() {
   const counts = {};
   getApplicationResidentActiveRecords().forEach(record => {
     if (!record.applicationId) return;
-    counts[record.applicationId] = (counts[record.applicationId] || 0) + 1;
+    const identity = JSON.stringify([record.communityId || record.atlasName || record.propertySource, record.applicationId]);
+    counts[identity] = (counts[identity] || 0) + 1;
   });
   return Object.entries(counts).filter(([, count]) => count > 1).map(([id]) => id);
 }
@@ -4751,6 +4772,7 @@ function restoreLastApplicationResidentDataUpload() {
   if (!state.lastDeletedUpload?.batchId) return;
   const restored = normalizeApplicationResidentUpload({
     ...state.lastDeletedUpload,
+    restoredAt: new Date().toISOString(),
     validationStatus: state.lastDeletedUpload.duplicateApplicationIds?.length ? "needs_review" : "valid",
     deletedAt: "",
     deletedBy: "",
@@ -20541,10 +20563,19 @@ function mergeDashboardStorageBundles(baseBundle, incomingBundle) {
     if (incomingDailyBackups[dateKey]) dailyBackups[dateKey] = incomingDailyBackups[dateKey];
     else if (baseDailyBackups[dateKey]) dailyBackups[dateKey] = baseDailyBackups[dateKey];
   });
+  const mergedKeys = { ...baseKeys, ...incomingKeys };
+  if (window.AtlasApplicationSources && (baseKeys[OPS_GLOBAL_STORAGE_KEY] || incomingKeys[OPS_GLOBAL_STORAGE_KEY])) {
+    try {
+      const decode = value => typeof value === "string" ? JSON.parse(value) : (value || {});
+      const a = decode(baseKeys[OPS_GLOBAL_STORAGE_KEY]), b = decode(incomingKeys[OPS_GLOBAL_STORAGE_KEY]);
+      mergedKeys[OPS_GLOBAL_STORAGE_KEY] = JSON.stringify({...a, ...b,
+        applicationResidentData: window.AtlasApplicationSources.merge(a.applicationResidentData, b.applicationResidentData)});
+    } catch (error) { throw new Error("Resident Data shared merge failed; publication stopped: " + error.message); }
+  }
   return {
     ...base,
     ...incoming,
-    keys: { ...baseKeys, ...incomingKeys },
+    keys: mergedKeys,
     indexedDb: {
       communityData: mergeDashboardCommunityDataMaps(baseCommunityData, incomingCommunityData),
       weeklySnapshot: incomingIndexedDb.weeklySnapshot && typeof incomingIndexedDb.weeklySnapshot === "object"
@@ -48806,7 +48837,7 @@ async function dataImportReadPdfStructuredRows(file) {
   return sheets;
 }
 
-async function dataImportReadStructuredRows(file) {
+async function dataImportReadStructuredRows(file, plan = {}) {
   const extension = dataImportGetFileExtension(file?.name || "");
   if (extension === ".pdf") return dataImportReadPdfStructuredRows(file);
   if (![".csv", ".txt", ".xlsx", ".xls", ".xlsm"].includes(extension)) return [];
@@ -48816,6 +48847,15 @@ async function dataImportReadStructuredRows(file) {
   (workbook.SheetNames || []).forEach(sheetName => {
     if (dataImportIsMetadataSheetName(sheetName)) return;
     const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false, blankrows: true });
+    if (plan.reportType === "box_score" && window.AtlasApplicationSources) {
+      const qualified = window.AtlasApplicationSources.boxScore(rawRows);
+      if (qualified.length) {
+        sheets.push({sheetName, headers: [...new Set(qualified.flatMap(row => Object.keys(row.values)))], rows: qualified.map(row => ({...row, sourceSheet:sheetName}))});
+        return;
+      }
+      // Never reinterpret a sectioned or filtered-empty Box Score as a flat table.
+      if (rawRows.some(row => /box score|selected report filters returned no data/i.test(String(row[0] || "")))) return;
+    }
     const headerIndex = dataImportFindHeaderRowIndex(rawRows);
     const headerRow = rawRows[headerIndex] || [];
     const headers = headerRow.map((cell, index) => ({ name: String(cell ?? "").trim(), index })).filter(item => item.name);
@@ -48835,6 +48875,24 @@ async function dataImportReadStructuredRows(file) {
 }
 
 function dataImportMapSourceRow(sourceRow = {}, plan = {}, mappingCache = null) {
+  if (sourceRow.canonicalSource && plan.reportType === "box_score") {
+    const mapped = {}, sourceFields = {}, unmappedFields = [];
+    for (const [field,value] of Object.entries(sourceRow.values || {})) {
+      const loc = sourceRow.locators?.[field];
+      const qualified = loc ? `${sourceRow.sourceSheet} / ${loc.section}${loc.group ? " / " + loc.group : ""} / ${loc.sourceHeader}` : field;
+      const decision = (plan.questionAnswers || []).find(answer => answer.kind === "mapping" && [field, qualified].some(key => dataImportNormalizeText(key) === dataImportNormalizeText(answer.originalField || "")));
+      if (["__ignore_import__", "__always_ignore__", "__ignored__"].includes(decision?.value)) continue;
+      const ambiguousDecision = !decision && loc && (plan.questionAnswers || []).find(answer => answer.kind === "mapping" && dataImportNormalizeText(answer.originalField || "") === dataImportNormalizeText(loc.sourceHeader));
+      if (ambiguousDecision) {
+        unmappedFields.push({header:qualified,value,suggestion:{field:"",confidence:0,reason:"Confirm section-qualified mapping; repeated source headers cannot override multiple metrics."}});
+        continue;
+      }
+      const destination = decision?.value && dataImportDestinationExists(decision.value) ? decision.value : field;
+      mapped[destination] = value;
+      sourceFields[destination] = loc ? `${qualified} / row ${loc.row}, column ${loc.column}` : field;
+    }
+    return {mapped,sourceFields,unmappedFields};
+  }
   const mapped = {};
   const sourceFields = {};
   const unmappedFields = [];
@@ -48943,7 +49001,7 @@ function dataImportCommunitySupportsReport(communityName, reportType) {
     if (typeof record.leasingManaged === "boolean") return record.leasingManaged;
     if (DATA_IMPORT_MAINTENANCE_ONLY_COMMUNITIES.some(name => dataImportNormalizeText(name) === dataImportNormalizeText(communityName))) return false;
     if (DATA_IMPORT_REFERENCE_COMMUNITIES.some(name => dataImportNormalizeText(name) === dataImportNormalizeText(communityName))) return false;
-    return DATA_IMPORT_LEASING_MANAGED_COMMUNITIES.some(name => dataImportNormalizeText(name) === dataImportNormalizeText(communityName));
+    return getAllCommunityNames().includes(communityName);
   }
   return true;
 }
@@ -49171,7 +49229,7 @@ function dataImportApplyMetric(record, plan, result, communityName, period, targ
       sourceSystem: plan.sourceSystem,
       sourceFile: plan.name,
       fileHash: plan.fileHash || "",
-      originalField: atlasField,
+      originalField: (plan.qualifiedLocators?.[communityName]?.[atlasField]) || atlasField,
       atlasField,
       importedValue: numeric,
       batchId: result.batchId || "",
@@ -49254,20 +49312,31 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     const rentable = sum("rentable_units") ?? sum("total_units");
     const occupiedComponents = [sum("occupied_no_notice"), sum("notice_rented"), sum("notice_unrented")];
     const occupied = sum("occupied_units") ?? (occupiedComponents.every(value => value !== null) ? occupiedComponents.reduce((a, b) => a + b, 0) : null);
-    const available = sum("available_units") ?? sum("vacant_unrented");
-    const leased = sum("leased_units") ?? (rentable !== null && available !== null ? rentable - available : null);
+    const total = sum("total_units");
+    const sourceTime = plan.metadata?.dataAsOf || plan.dataDateIso || plan.metadata?.generatedAt || "";
+    const acceptDerived = dataImportShouldApplyCurrentMetric(plan, communityName, period.periodKey, "occupied_units", sourceTime, result) && dataImportShouldApplyCurrentMetric(plan, communityName, period.periodKey, "leased_units", sourceTime, result);
+    const studentUnits = /student/i.test(record.communityPropertyType || record.propertyType || "") && first("measurement_basis") !== "beds";
+    if (studentUnits) {
+      result.issues.push({type:"basis",severity:"high",title:"Student bed counts required",detail:"Unit-based occupancy and move counts retained in source history; not published as bed-based leasing or occupancy.",communityName});
+    }
+    const available = sum("available_units") ?? ([sum("vacant_units"), sum("notice_unrented"), sum("vacant_rented")].every(v => v !== null) ? sum("vacant_units") + sum("notice_unrented") - sum("vacant_rented") : null);
+    const leased = total !== null && available !== null ? total - available : null;
+    const sourceLeased = sum("source_leased_units") ?? (occupied !== null && sum("vacant_rented") !== null ? occupied + sum("vacant_rented") : null);
     const physicalPct = dataImportPercentValue(first("physical_occupancy")) ?? (rentable > 0 && occupied !== null ? occupied / rentable * 100 : null);
     const leasedPct = dataImportPercentValue(first("leased_occupancy")) ?? (rentable > 0 && leased !== null ? leased / rentable * 100 : null);
     if (rentable !== null && occupied !== null && (occupied < 0 || occupied > rentable)) result.issues.push({ type: "reconciliation", severity: "high", title: "Occupied units do not reconcile", detail: `${occupied} occupied exceeds ${rentable} rentable units.`, communityName });
     const configuredUnits = Number(record.customUnits || record.units || 0);
     if (rentable !== null && configuredUnits > 0 && Math.abs(rentable - configuredUnits) > 0) result.issues.push({ type: "reconciliation", severity: "medium", title: "Unit total needs review", detail: `${rentable} source units do not match the ${configuredUnits}-unit Community Foundation record.`, communityName });
     if (physicalPct !== null && (physicalPct < 0 || physicalPct > 100)) result.issues.push({ type: "invalid", severity: "high", title: "Physical occupancy outside 0-100%", detail: `${physicalPct}% was retained for review.`, communityName });
-    if (occupied !== null) dataImportApplyMetric(record, plan, result, communityName, period, "occupied", occupied, "occupied_units");
-    else if (rentable > 0 && physicalPct !== null) dataImportApplyMetric(record, plan, result, communityName, period, "occupied", Math.round(rentable * physicalPct / 100), "occupied_units");
-    if (leased !== null) dataImportApplyMetric(record, plan, result, communityName, period, "leased", leased, "leased_units");
-    else if (rentable > 0 && leasedPct !== null) dataImportApplyMetric(record, plan, result, communityName, period, "leased", Math.round(rentable * leasedPct / 100), "leased_units");
+    if (!studentUnits && occupied !== null) dataImportApplyMetric(record, plan, result, communityName, period, "occupied", occupied, "occupied_units");
+    else if (!studentUnits && rentable > 0 && physicalPct !== null) dataImportApplyMetric(record, plan, result, communityName, period, "occupied", Math.round(rentable * physicalPct / 100), "occupied_units");
+    if (!studentUnits && leased !== null) dataImportApplyMetric(record, plan, result, communityName, period, "leased", leased, "leased_units");
+    else if (!studentUnits && rentable > 0 && leasedPct !== null) dataImportApplyMetric(record, plan, result, communityName, period, "leased", Math.round(rentable * leasedPct / 100), "leased_units");
     dataImportApplyMetric(record, plan, result, communityName, period, "guest_cards", sum("new_leads") ?? sum("guest_cards"), "new_leads");
     dataImportApplyMetric(record, plan, result, communityName, period, "applications", sum("applications"), "applications");
+    dataImportApplyMetric(record, plan, result, communityName, period, "tours", sum("tours"), "tours");
+    if (!studentUnits) dataImportApplyMetric(record, plan, result, communityName, period, "move_ins", sum("move_ins"), "move_ins");
+    if (!studentUnits) dataImportApplyMetric(record, plan, result, communityName, period, "move_outs", sum("move_outs"), "move_outs");
     dataImportApplyMetric(record, plan, result, communityName, period, "applications_approved", sum("approvals"), "approvals");
     dataImportApplyMetric(record, plan, result, communityName, period, "denied", sum("denied_applications"), "denied_applications");
     dataImportApplyMetric(record, plan, result, communityName, period, "cancelled", sum("cancelled_applications"), "cancelled_applications");
@@ -49277,12 +49346,18 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     entries.forEach(entry => dataImportUpsertFloorPlan(record, entry.row, plan, entry.sourceRow.sourceSheet));
     const periodEntries = getWritableMonthlyPeriodEntries(record, period.monthIdx, period.year);
     [periodEntries?.historyEntry, periodEntries?.liveEntry].filter(Boolean).forEach(month => {
+      if (!acceptDerived || studentUnits) return;
       if (physicalPct !== null && physicalPct >= 0 && physicalPct <= 100) month.physicalOccupancyPct = physicalPct;
       if (leasedPct !== null && leasedPct >= 0 && leasedPct <= 100) month.leasedOccupancyPct = leasedPct;
       if (rentable !== null) month.rentableUnits = rentable;
-      if (available !== null) month.exposureUnits = Math.max(0, available + (sum("notice_unrented") || 0));
+      if (available !== null) month.exposureUnits = available;
+      if (total !== null) month.sourceTotalUnits = total;
+      if (sourceLeased !== null) month.sourceLeasedUnits = sourceLeased;
+      if (rentable > 0 && sourceLeased !== null) month.leasedOccupancyPct = sourceLeased / rentable * 100;
+      if (total > 0 && leased !== null) month.exposureAdjustedOccupancyPct = leased / total * 100;
+      if (total > 0 && occupied !== null) month.legacyPhysicalOccupancyPct = occupied / total * 100;
     });
-    result.formulas.push(`${communityName} ${period.periodKey}: Physical Occupancy = Occupied / Rentable; Leased Occupancy = Leased / Rentable; Exposure = Notice Unrented + Vacant Unrented.`);
+    result.formulas.push(`${communityName} ${period.periodKey}: Physical Occupancy = Occupied / Rentable; Leased Occupancy = Leased / Rentable; Exposure = source Available; legacy Leased = Total minus Available; source Leased = Occupied plus Vacant Rented. Counts and denominators remain separate.`);
     result.destinations.add("Community Overview");
     if (hasFloorPlanRows) result.destinations.add("Floor Plans - approval required");
     result.destinations.add("Leasing Performance");
@@ -49317,14 +49392,9 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     result.formulas.push(`${communityName} ${period.periodKey}: Economic Occupancy = Actual Rent Charges / Gross Potential Rent when both values are present.`);
     result.destinations.add(plan.reportType === "rent_roll" ? "Rent Performance" : "Financial Reporting");
   } else if (plan.reportType === "leasing_resident_data") {
-    const applications = rows.filter(row => row.application_id || row.application_date || row.application_status).length;
-    const statuses = rows.map(row => dataImportNormalizeText(row.application_status));
-    dataImportApplyMetric(record, plan, result, communityName, period, "applications", applications, "applications");
-    dataImportApplyMetric(record, plan, result, communityName, period, "applications_approved", statuses.filter(status => status.includes("approv")).length, "approvals");
-    dataImportApplyMetric(record, plan, result, communityName, period, "denied", statuses.filter(status => status.includes("deni") || status.includes("declin")).length, "denied_applications");
-    dataImportApplyMetric(record, plan, result, communityName, period, "cancelled", statuses.filter(status => status.includes("cancel")).length, "cancelled_applications");
-    result.destinations.add("Central Services Leasing");
-    result.destinations.add("Application Performance");
+    // Applicant snapshots do not establish completed-application period flows.
+    result.formulas.push(`${communityName} ${period.periodKey}: Resident Data remains a scoped application snapshot; monthly completed applications require Box Score or verified event dates.`);
+    result.destinations.add("Application Performance - detail source");
   } else if (plan.reportType === "delinquency") {
     const gross = (sum("unpaid_rent") || 0) + (sum("unpaid_other") || 0) + (sum("unpaid_deposit") || 0);
     const balance = sum("resident_balance") ?? gross + (sum("credits") || 0) + (sum("prepayments") || 0);
@@ -49343,7 +49413,7 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
 }
 
 async function dataImportRouteStructuredFile(file, plan, batchId) {
-  const sheets = await dataImportReadStructuredRows(file);
+  const sheets = await dataImportReadStructuredRows(file, plan);
   const actualRowsReviewed = sheets.reduce((total, sheet) => total + sheet.rows.length, 0);
   const previewRowsReviewed = Number(plan.rowCount || 0);
   if (dataImportApprovalInProgress && actualRowsReviewed !== previewRowsReviewed) {
@@ -49423,6 +49493,10 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
         result.rowsHeld += 1;
         result.issues.push({ type: "reconciliation", severity: "high", title: "Baymeadows unit-count correction required", detail: "Baymeadows is governed at 331 units. The incoming 340-unit row was retained in the raw archive and held from Community Foundation until corrected or explicitly resolved.", communityName });
         continue;
+      }
+      if (sourceRow.canonicalSource) {
+        plan.qualifiedLocators ||= {};
+        plan.qualifiedLocators[communityName] = {...plan.qualifiedLocators[communityName], ...sourceFields};
       }
       const period = dataImportRowPeriod(mapped, sourceRow, plan);
       const canonicalRecord = {
@@ -49514,7 +49588,7 @@ async function dataImportRouteApprovedFile(file, plan, batchId = "") {
     ? await dataImportRouteStructuredFile(file, plan, batchId)
     : { rowsReviewed: plan.rowCount || 0, rowsInserted: 0, rowsUpdated: 0, rowsUnchanged: 0, rowsRejected: 0, rowsHeld: 0, duplicatesIgnored: 0, issues: [], destinations: [], communities: plan.communities || [], formulas: [], coverage: [] };
   if (plan.reportType === "leasing_resident_data" && [".xlsx", ".xls", ".xlsm"].includes(extension)) {
-    await processApplicationResidentDataFiles([file]);
+    await processApplicationResidentDataFiles([file], { reportMonthIdx: plan.reportingMonthIdx, reportYear: plan.reportingYear });
     result.destinations = Array.from(new Set([...(result.destinations || []), "Resident lifecycle", "Application Performance"]));
   }
   if (plan.reportType === "renewal_tracker") {

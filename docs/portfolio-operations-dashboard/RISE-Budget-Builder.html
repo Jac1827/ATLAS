@@ -16952,7 +16952,8 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
           property: { id: prop.id, code: prop.code, name: prop.name, units: prop.totalUnits },
           year: year,
           scenario: { id: sc.id, name: sc.name, status: sc.status },
-          sourceFile: (A.state.imports && A.state.imports[0] && A.state.imports[0].file) || 'RISE Budget Builder',
+          effectiveDate: A.state.approvedBudgetImports?.[prop.id+'|'+year]?.effectiveDate,
+          sourceFile: A.state.approvedBudgetImports?.[prop.id+'|'+year]?.sourceFile || (A.state.imports && A.state.imports[0] && A.state.imports[0].file) || 'RISE Budget Builder',
           budgetByPeriod: budgetByPeriod,
           actualsByPeriod: actualsByPeriod,
           investorPacketSources: RBB.investorSources ? RBB.investorSources(A.state,undefined,{names:[prop.name]}).properties[prop.name] : null

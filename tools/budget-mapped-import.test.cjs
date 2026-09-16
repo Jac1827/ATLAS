@@ -42,7 +42,8 @@ const publish=parentCode.slice(parentCode.indexOf('  function publishBudgetToAtl
 const pc={console,Date,savedData:{A:{}},matchPropertyName:n=>n==='A'?'A':null,persistSaved(){},syncSharedPropertyFromPortfolioRecord(){}};vm.createContext(pc);vm.runInContext(publish,pc);
 const periods=Object.fromEntries(Array.from({length:12},(_,i)=>['2026-'+String(i+1).padStart(2,'0'),[{gl:'5120',budget:1000,nature:'income'}]]));
 const packet={locked:true,property:{name:'A'},year:2026,effectiveDate:'2026-09-01',scenario:{id:'x',name:'Approved'},budgetByPeriod:periods};
-assert.equal(pc.publishBudgetToAtlas(packet).ok,true);assert.equal(pc.publishBudgetToAtlas(packet).ok,false);
+assert.equal(pc.publishBudgetToAtlas(packet).ok,true);assert.equal(pc.publishBudgetToAtlas(packet).ok,true);
+const conflicting=structuredClone(packet);conflicting.budgetByPeriod["2026-01"][0].budget=999;assert.equal(pc.publishBudgetToAtlas(conflicting).ok,false);
 assert.equal(pc.publishBudgetToAtlas({...packet,effectiveDate:'2026-08-01'}).ok,false);
 assert.equal(pc.publishBudgetToAtlas({...packet,property:{name:'B'}}).ok,false);
 assert.equal(pc.publishBudgetToAtlas({...packet,effectiveDate:'2026-09-02'}).ok,true);

@@ -231,8 +231,14 @@
         ? normalizeSavedCommunityRecord(matchedName, savedData[matchedName])
         : savedData[matchedName];
       const previousVersion = record.financialBudgetLedger?.versions?.[String(payload.year)];
-      if (previousVersion && (!payload.effectiveDate || payload.effectiveDate <= previousVersion.effectiveDate)) {
+      if (previousVersion && (!payload.effectiveDate || payload.effectiveDate < previousVersion.effectiveDate)) {
         return { ok: false, message: "The current approved budget has the same or a newer effective date. No figures were replaced." };
+      }
+      if (previousVersion && payload.effectiveDate === previousVersion.effectiveDate) {
+        const values = rows => JSON.stringify((rows || []).map(row => [String(row.glCode || row.gl), row.budget]).sort((a,b) => a[0].localeCompare(b[0])));
+        if (Object.entries(payload.budgetByPeriod || {}).some(([period, rows]) => values(rows) !== values(record.financialBudgetLedger[period]))) {
+          return { ok: false, message: "This effective date already has different approved amounts. Review the version date before replacing it." };
+        }
       }
       const entries = Object.entries(payload.budgetByPeriod || {});
       if (entries.length !== 12 || entries.some(([period, rows]) => !new RegExp("^" + Number(payload.year) + "-(0[1-9]|1[0-2])$").test(period) || !Array.isArray(rows) || rows.some(row => !Number.isFinite(row.budget)))) {

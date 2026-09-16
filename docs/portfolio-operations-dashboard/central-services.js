@@ -2011,6 +2011,7 @@
     return {
       module: "overview",
       propertyId: "all",
+      workspacePropertyNames: [],
       monthIdx: null,
       year: new Date().getFullYear(),
       search: "",
@@ -2093,6 +2094,7 @@
     };
     normalized.ui.module = MODULES.some(([key]) => key === normalized.ui.module) ? normalized.ui.module : "overview";
     normalized.ui.propertyId = cleanString(normalized.ui.propertyId) || "all";
+    normalized.ui.workspacePropertyNames = uniqueStrings(asArray(normalized.ui.workspacePropertyNames));
     const storedMonthIdx = source.ui?.monthIdx;
     normalized.ui.monthIdx = storedMonthIdx === null || storedMonthIdx === undefined || storedMonthIdx === ""
       ? null
@@ -2304,9 +2306,17 @@
   }
 
   function getScopedProperties(state) {
-    const properties = getPortfolioProperties().filter(property => property.active !== false);
+    let properties = getPortfolioProperties().filter(property => property.active !== false);
+    const workspaceNames = new Set(asArray(state?.ui?.workspacePropertyNames).map(cleanString).filter(Boolean));
+    if (workspaceNames.size > 0) properties = properties.filter(property => workspaceNames.has(property.name));
     if (state.ui.propertyId === "all") return properties;
     return properties.filter(property => property.name === state.ui.propertyId);
+  }
+
+  function centralScopeLabel(state) {
+    if (state?.ui?.propertyId !== "all") return state.ui.propertyId;
+    const count = asArray(state?.ui?.workspacePropertyNames).length;
+    return count > 0 ? `${count} ATLAS workspace propert${count === 1 ? "y" : "ies"}` : "Active ATLAS properties";
   }
 
   function getActivePortfolioProperties() {
@@ -3666,8 +3676,9 @@
     return `<i class="ph ph-${escapeAttr(name)}" aria-hidden="true"></i>`;
   }
 
-  function propertyOptionsHtml(selected, includeAll = true) {
-    const all = includeAll ? `<option value="all" ${selected === "all" ? "selected" : ""}>Active ATLAS properties</option>` : "";
+  function propertyOptionsHtml(selected, includeAll = true, state = null) {
+    const allLabel = state ? centralScopeLabel(state) : "Active ATLAS properties";
+    const all = includeAll ? `<option value="all" ${selected === "all" ? "selected" : ""}>${escapeHtml(allLabel)}</option>` : "";
     return `${all}${getPortfolioProperties().filter(property => property.active !== false).map(property => `<option value="${escapeAttr(property.name)}" ${property.name === selected ? "selected" : ""}>${escapeHtml(property.name)}</option>`).join("")}`;
   }
 
@@ -3761,7 +3772,7 @@
         <div class="cs-control-grid">
           <label class="cs-field">
             <span>Property Scope</span>
-            <select onchange="atlasCsSetProperty(this.value)">${propertyOptionsHtml(state.ui.propertyId, true)}</select>
+            <select onchange="atlasCsSetProperty(this.value)">${propertyOptionsHtml(state.ui.propertyId, true, state)}</select>
           </label>
           <label class="cs-field">
             <span>Reporting Month</span>
@@ -7748,7 +7759,7 @@
           <div class="cs-command-copy">This workspace compiles live ATLAS portfolio data across active properties and uses the People roster Corporate Specialty field to identify Central Services team members. It does not display seeded residents, fake contacts, or mock tasks. Workflow records appear only after a real import or a user action creates them.</div>
           <div class="cs-chip-row" style="margin-top:10px">
             <span class="cs-chip is-strong">${escapeHtml(monthLabel)} ${escapeHtml(selectedYear(state))}</span>
-            <span class="cs-chip">${escapeHtml(state.ui.propertyId === "all" ? "Active ATLAS properties" : state.ui.propertyId)}</span>
+            <span class="cs-chip">${escapeHtml(centralScopeLabel(state))}</span>
             <span class="cs-chip">${escapeHtml(employees.length)} roster employees</span>
           </div>
         </div>
@@ -10420,7 +10431,7 @@
     return {
       title: "Renewal Performance Report",
       generatedAt: new Date(),
-      scopeLabel: state.ui.propertyId === "all" ? "Active ATLAS properties" : state.ui.propertyId,
+      scopeLabel: centralScopeLabel(state),
       scopeMode: selectedPeriodOnly ? "month" : "year",
       year: selectedYear(state),
       selectedPeriodLabel: monthYearLabel(selectedMonthIdx(state), selectedYear(state)),
@@ -10753,7 +10764,7 @@
       title: "ATLAS Eviction Report",
       generatedAt: new Date(),
       selectedPeriodLabel: monthYearLabel(monthIdx, year),
-      scopeLabel: state.ui.propertyId === "all" ? "Active ATLAS properties" : state.ui.propertyId,
+      scopeLabel: centralScopeLabel(state),
       rows,
       metrics: {
         importedCases: rows.length,
@@ -10997,6 +11008,27 @@
     state.ui.propertyId = cleanString(propertyName) || "all";
     saveState(state);
     renderActiveTab();
+  };
+
+  window.atlasCsSyncWorkspaceContext = function (context = {}) {
+    const state = loadState();
+    const activeNames = new Set(getActivePortfolioProperties().map(property => property.name));
+    const propertyNames = uniqueStrings(asArray(context.propertyNames).map(cleanString))
+      .filter(name => activeNames.has(name));
+    state.ui.workspacePropertyNames = propertyNames;
+    if (state.ui.propertyId !== "all" && propertyNames.length > 0 && !propertyNames.includes(state.ui.propertyId)) {
+      state.ui.propertyId = "all";
+    }
+    if (Number.isInteger(Number(context.monthIdx))) {
+      state.ui.monthIdx = Math.max(0, Math.min(11, Number(context.monthIdx)));
+    }
+    if (Number.isFinite(Number(context.year))) state.ui.year = Number(context.year);
+    saveState(state);
+    return {
+      propertyNames: [...state.ui.workspacePropertyNames],
+      monthIdx: selectedMonthIdx(state),
+      year: selectedYear(state)
+    };
   };
 
   window.atlasCsSetMonth = function (value) {

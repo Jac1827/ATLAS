@@ -3288,6 +3288,7 @@ let portfolioReportSections = defaultPortfolioReportSections();
 let portfolioReportFilters = defaultPortfolioReportFilters();
 let monthlyPresentationCommunities = [];
 let reportHubCommunityProgressCommunities = [];
+let reportHubCommunityProgressSelectionTouched = false;
 let reportHubLvrCommunity = "";
 let weeklyExecutiveEmail = defaultWeeklyExecutiveEmailSettings();
 let workspaceScopeValue = PORTFOLIO_SCOPE_VALUE;
@@ -14412,9 +14413,36 @@ function setTab(i) {
   const requestedTab = Math.max(0, Math.min(MAX_TAB, Number(i) || 0));
   const requestedDecision = atlasAccessDecision(requestedTab);
   activeTab = requestedDecision.ok ? requestedTab : requestedTab;
+  if (activeTab === 1 && isPortfolioWorkspaceSelected()) {
+    const scopedNames = getPortfolioScopeCommunityNames(savedData, getSelectedDashboardMonthIndex())
+      .filter(name => isCommunityStatusActive(savedData?.[name]));
+    if (!scopedNames.includes(getPortfolioSetupCommunityName())) {
+      portfolioSetupCommunityName = scopedNames[0] || getProp().name;
+    }
+  }
   if (activeTab === 8) {
     syncReportHubToWorkspacePeriod();
+    if (!reportHubCommunityProgressSelectionTouched) {
+      const reportableNames = new Set(getReportableCommunityNames(getReportHubMonthIndex()));
+      const workspaceNames = (isPortfolioWorkspaceSelected()
+        ? getPortfolioScopeCommunityNames(savedData, getSelectedDashboardMonthIndex())
+        : [getProp().name])
+        .filter(name => reportableNames.has(name));
+      reportHubCommunityProgressCommunities = workspaceNames;
+    }
     persistOpsGlobalData();
+  }
+  if (activeTab === 15 && typeof window.atlasCsSyncWorkspaceContext === "function") {
+    const monthIdx = getSelectedDashboardMonthIndex();
+    const currentRecord = getCurrentCommunityRecord();
+    const propertyNames = isPortfolioWorkspaceSelected()
+      ? getPortfolioScopeCommunityNames(savedData, monthIdx)
+      : [getProp().name];
+    window.atlasCsSyncWorkspaceContext({
+      monthIdx,
+      year: Number(currentRecord?.reportYear) || new Date().getFullYear(),
+      propertyNames
+    });
   }
   // Active state is keyed off data-tab so the sidebar can be grouped and
   // reordered independently of the panel indices.
@@ -35224,12 +35252,14 @@ function getCommunityProgressReportScopeLabel() {
 }
 
 function setCommunityProgressReportCommunities(names = []) {
+  reportHubCommunityProgressSelectionTouched = true;
   reportHubCommunityProgressCommunities = normalizeCommunityProgressReportCommunities(names);
   persistOpsGlobalData();
   renderTab();
 }
 
 function toggleCommunityProgressReportCommunity(name) {
+  reportHubCommunityProgressSelectionTouched = true;
   const normalized = matchPropertyName(name, { fallbackToCurrent: false }) || String(name ?? "").trim();
   if (!normalized) return;
   const current = new Set(getCommunityProgressReportCommunityNames({ allowFallback: false }));
@@ -35241,6 +35271,7 @@ function toggleCommunityProgressReportCommunity(name) {
 }
 
 function setAllCommunityProgressReportCommunities(enabled) {
+  reportHubCommunityProgressSelectionTouched = true;
   reportHubCommunityProgressCommunities = enabled ? getReportableCommunityNames(getReportHubMonthIndex()) : [];
   persistOpsGlobalData();
   renderTab();

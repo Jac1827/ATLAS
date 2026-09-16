@@ -51,6 +51,13 @@
     background-position: center;
     transition: background 0.25s ease, background-image 0.25s ease;
   }
+  body.atlas-is-initializing .tabs,
+  body.atlas-is-initializing .atlas-topbar-save-button,
+  body.atlas-is-initializing .side-nav-context { pointer-events:none; opacity:0.58; }
+  .atlas-startup-card { min-height:220px; display:grid; place-items:center; text-align:center; }
+  .atlas-startup-card i { display:block; font-size:2rem; color:var(--brand); margin-bottom:10px; }
+  .atlas-startup-card strong { display:block; font-size:1rem; color:var(--text); }
+  .atlas-startup-card span { display:block; margin-top:7px; font-size:0.75rem; color:var(--muted); }
   body.community-backdrop {
     background:
       linear-gradient(180deg, rgba(7,28,44,0.76) 0%, rgba(7,28,44,0.58) 22%, rgba(245,245,243,0.96) 54%, rgba(245,245,243,1) 100%),
@@ -1403,16 +1410,16 @@
 </div>
 
 <script src="./atlas_historical_restore_data.js"></script>
-<script src="./atlas-mounts.js?v=20260916-budget-current"></script>
-<script src="./centralization/atlas-central-client.js?v=20260916-import-propagation" data-atlas-central-client="true"></script>
+<script src="./atlas-mounts.js?v=20260916-publish-reconcile"></script>
+<script src="./centralization/atlas-central-client.js?v=20260916-publish-reconcile" data-atlas-central-client="true"></script>
 <script src="./central-services.js?v=20260916-attorney-coversheet-20260916-filing-20260916-collections-20260911-admin-inspection-controls"></script>
 <script src="./eviction-attorney-ui.js?v=20260916-community-contacts"></script>
-<link rel="stylesheet" href="./application-performance.css?v=20260902-application-intelligence">
+<link rel="stylesheet" href="./application-performance.css?v=20260916-no-data-status">
 <script src="./application-source-bridge.js?v=boxscore-funnel-20260916"></script>
 <script src="./application-performance.js?v=20260916-shared-source"></script>
 <link rel="stylesheet" href="./concession-insights.css?v=20260916-1">
 <script src="./concession-insights.js?v=20260916-1"></script>
-<script src="./application-performance-ui.js?v=remove-boxscore-card-boxscore-funnel-20260916-shared-source"></script>
+<script src="./application-performance-ui.js?v=20260916-no-data-status"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -14884,7 +14891,7 @@ function defaultAtlasAccessFormDraft() {
 
 atlasAccessFormDraft = defaultAtlasAccessFormDraft();
 
-const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=20260910-auth-redirect";
+const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=20260916-glitch-review";
 const ATLAS_AUTH_UI_STORAGE_KEY = "atlas_auth_ui_state_v1";
 const ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY = "atlas_dashboard_preferences_v1";
 let atlasCentralClientLoadPromise = null;
@@ -21770,7 +21777,7 @@ function renderPortfolioScopedTrafficTab() {
   const cardsHtml = `<div class="grid-4">
     ${statBox("Guest Cards", Math.round(aggregate.guestCards ?? 0), "Month-to-date portfolio lead volume", "#4493f8")}
     ${statBox("Tours", Math.round(aggregate.tours ?? 0), `${(aggregate.tourToAppPct ?? 0).toFixed(1)}% tour to app`, "#a371f7")}
-    ${statBox("Applications", Math.round(aggregate.applications ?? 0), `${Math.round(aggregate.applicationsApproved ?? 0)} approved applications`, "#d29922")}
+    ${statBox("Applications", Math.round(aggregate.applications ?? 0), getApplicationApprovalCohortDisplay(aggregate.applications, aggregate.applicationsApproved).subtext, "#d29922")}
     ${statBox("Tour to Lease", `${(aggregate.tourToLeasePct ?? 0).toFixed(1)}%`, "Attributable leases ÷ tours across included communities", "#3fb950")}
   </div>`;
   const rows = details.map(detail => {
@@ -23740,7 +23747,7 @@ function renderCommunityCommandHealthSnapshot(model) {
     ${renderCommunityCommandKpi(model, "economic_occupancy", "MTD Economic Occupancy", model.economic.mtdPct, value => value === null || value === undefined || value === "" ? "Missing" : communityCommandFormatPct(value), economicSub, model.economic.mtdPct === null ? "watch" : "info", 15)}
     ${renderCommunityCommandKpi(model, "trending_occupancy", "Trending Occupancy", model.trendingPct, value => value === null ? "Missing" : communityCommandFormatPct(value), `Current occupied + ${Math.round(model.monthEntry.moveIns || 0)} move-ins - ${Math.round(getEffectiveMoveOutsForMonth(model.monthIdx, model.monthlyData).effective)} move-outs`, model.trendingPct !== null && model.budgetOccPct > 0 && model.trendingPct < model.budgetOccPct ? "watch" : "good", 2)}
     ${renderCommunityCommandKpi(model, "budget_occupancy", "Budget Occupancy", model.budgetOccPct || null, value => value ? communityCommandFormatPct(value) : "Missing", "Locked Budget Builder or approved reforecast source.", model.budgetOccPct ? "info" : "watch", 12)}
-    ${renderCommunityCommandKpi(model, "applications_mtd", "Applications MTD", model.appMetrics.applications, value => communityCommandFormatNumber(value), `${model.appMetrics.approvals} approved · ${model.appMetrics.pendingDecision} pending`, model.appMetrics.applications >= Number(model.plan.currentAppNeed || 0) ? "good" : "watch", 3)}
+    ${renderCommunityCommandKpi(model, "applications_mtd", "Applications MTD", model.appMetrics.applications, value => communityCommandFormatNumber(value), `${getApplicationApprovalCohortDisplay(model.appMetrics.applications, model.appMetrics.approvals).subtext} · ${model.appMetrics.pendingDecision} pending`, model.appMetrics.applications >= Number(model.plan.currentAppNeed || 0) ? "good" : "watch", 3)}
     ${renderCommunityCommandKpi(model, "net_leases_mtd", "Net Leases MTD", model.netLeasesMtd, value => communityCommandFormatNumber(value), `${Math.round(model.monthEntry.moveIns || 0)} move-ins · ${Math.round(getEffectiveMoveOutsForMonth(model.monthIdx, model.monthlyData).effective)} move-outs`, model.netLeasesMtd >= Number(model.plan.currentMoveInNeed || 0) ? "good" : "watch", 3)}
     ${renderCommunityCommandKpi(model, "renewal_conversion", "Renewal Conversion", renewalConversionValue, value => value === null || value === undefined || value === "" ? "Missing" : communityCommandFormatPct(value, 0), renewalConversionSub, renewalConversionValue === null ? "watch" : renewalConversionValue >= 60 ? "good" : "watch", 5)}
     <button type="button" class="community-command-kpi" data-tone="${outcomesTotal ? "info" : "watch"}" onmousedown="return queueWorkspaceNavigation(${JSON.stringify(model.propName)}, 3)">
@@ -24916,7 +24923,7 @@ function renderTrafficTab() {
     ${[
       {label:"Guest Cards → Tour", val:tourConv, sub:`${cm.tours ?? 0} tours / ${guestCardTotal} leads`, color:"#4493f8"},
       {label:"Tour → Application", val:appConv, sub:`${applicationMetrics.applications} apps / ${cm.tours ?? 0} tours`, color:"#a371f7"},
-      {label:"Applications Approved", val:String(applicationMetrics.approvals), sub:`${applicationMetrics.approvals} approved out of ${applicationMetrics.applications} apps`, color:"#3fb950"},
+      {label:"Applications Approved", val:String(applicationMetrics.approvals), sub:getApplicationApprovalCohortDisplay(applicationMetrics.applications, applicationMetrics.approvals).subtext, color:"#3fb950"},
       {label:"App → Lease", val:leaseConv, sub:`${trafficConversions.attributableLeases} attributable leases / ${applicationMetrics.applications} apps`, color:"#d29922"},
       {label:"Approval / Denial", val:approvalBreakout, sub:`${applicationMetrics.denials} denied applications`, color:"#fb923c"},
   ].map(s => statBox(s.label, s.val, s.sub, s.color)).join('')}
@@ -36370,18 +36377,25 @@ function buildWeeklyExecutiveNarrative(report) {
   const leasedPct = getSummaryLeasedPct(aggregate);
   const communityCount = report.details.length;
   const investorCount = report.investorGroups.length;
-  const firstParagraph = `${report.scopeLabel} is sitting at ${occPct.toFixed(1)}% physical occupancy and ${leasedPct.toFixed(1)}% leased occupancy for ${report.currentMonthLabel}. Applications received are at ${(aggregate.applications ?? 0).toFixed(0)} month to date, ${(aggregate.applicationsApproved ?? 0).toFixed(0)} have been approved for an ${(aggregate.applicationApprovalPct ?? 0).toFixed(1)}% approval rate, net absorption is ${formatSignedDisplay(aggregate.monthAbsorption)} units, renewal retention is ${(aggregate.renewalRetentionRate ?? 0).toFixed(1)}%, and ORA is ${(aggregate.oraScore ?? 0).toFixed(1)} across ${communityCount} communit${communityCount === 1 ? "y" : "ies"}.`;
+  const approvalCohort = getApplicationApprovalCohortDisplay(aggregate.applications, aggregate.applicationsApproved);
+  const approvalNarrative = approvalCohort.comparable
+    ? `${(aggregate.applicationsApproved ?? 0).toFixed(0)} have been approved for a ${approvalCohort.value} approval rate`
+    : `${(aggregate.applicationsApproved ?? 0).toFixed(0)} approvals include prior-period pipeline and are not a comparable rate against this month's applications`;
+  const firstParagraph = `${report.scopeLabel} is sitting at ${occPct.toFixed(1)}% physical occupancy and ${leasedPct.toFixed(1)}% leased occupancy for ${report.currentMonthLabel}. Applications received are at ${(aggregate.applications ?? 0).toFixed(0)} month to date; ${approvalNarrative}. Net absorption is ${formatSignedDisplay(aggregate.monthAbsorption)} units, renewal retention is ${(aggregate.renewalRetentionRate ?? 0).toFixed(1)}%, and ORA is ${(aggregate.oraScore ?? 0).toFixed(1)} across ${communityCount} communit${communityCount === 1 ? "y" : "ies"}.`;
   let secondParagraph = `Saved-budget tracking shows ${aggregate.onTrackBudgetOccCount ?? 0}/${aggregate.trackedBudgetOccCount ?? 0} communities currently on track to occupancy budget, with ${Math.max(aggregate.occGapUnits ?? 0, 0)} units still below current physical occupancy targets.`;
   if (previousAggregate) {
     const occDelta = occPct - getSummaryOccPct(previousAggregate);
     const totalAppsDelta = (aggregate.applications ?? 0) - (previousAggregate.applications ?? 0);
     const appDelta = (aggregate.applicationsApproved ?? 0) - (previousAggregate.applicationsApproved ?? 0);
-    const approvalRateDelta = (aggregate.applicationApprovalPct ?? 0) - (previousAggregate.applicationApprovalPct ?? 0);
+    const previousApprovalCohort = getApplicationApprovalCohortDisplay(previousAggregate.applications, previousAggregate.applicationsApproved);
+    const approvalRateComparison = approvalCohort.comparable && previousApprovalCohort.comparable
+      ? `the approval rate is ${approvalCohort.rate - previousApprovalCohort.rate >= 0 ? "up" : "down"} ${Math.abs(approvalCohort.rate - previousApprovalCohort.rate).toFixed(1)} points, `
+      : "the approval-rate comparison is unavailable because at least one period includes carryover approvals, ";
     const absorptionDelta = (aggregate.monthAbsorption ?? 0) - (previousAggregate.monthAbsorption ?? 0);
     const baselineDate = report.previousGeneratedAt
       ? new Date(report.previousGeneratedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
       : "the prior weekly baseline";
-    secondParagraph = `Compared with the weekly baseline from ${baselineDate}, physical occupancy is ${occDelta >= 0 ? "up" : "down"} ${Math.abs(occDelta).toFixed(1)} points, total applications are ${totalAppsDelta >= 0 ? "up" : "down"} ${Math.abs(totalAppsDelta).toFixed(0)}, approved applications are ${appDelta >= 0 ? "up" : "down"} ${Math.abs(appDelta).toFixed(0)}, the approval rate is ${approvalRateDelta >= 0 ? "up" : "down"} ${Math.abs(approvalRateDelta).toFixed(1)} points, and net absorption has moved ${absorptionDelta >= 0 ? "up" : "down"} ${Math.abs(absorptionDelta).toFixed(0)} units. ${aggregate.onTrackBudgetOccCount ?? 0}/${aggregate.trackedBudgetOccCount ?? 0} communities are currently on track to occupancy budget.`;
+    secondParagraph = `Compared with the weekly baseline from ${baselineDate}, physical occupancy is ${occDelta >= 0 ? "up" : "down"} ${Math.abs(occDelta).toFixed(1)} points, total applications are ${totalAppsDelta >= 0 ? "up" : "down"} ${Math.abs(totalAppsDelta).toFixed(0)}, approved applications are ${appDelta >= 0 ? "up" : "down"} ${Math.abs(appDelta).toFixed(0)}, ${approvalRateComparison}and net absorption has moved ${absorptionDelta >= 0 ? "up" : "down"} ${Math.abs(absorptionDelta).toFixed(0)} units. ${aggregate.onTrackBudgetOccCount ?? 0}/${aggregate.trackedBudgetOccCount ?? 0} communities are currently on track to occupancy budget.`;
   }
   return [firstParagraph, secondParagraph];
 }
@@ -36394,6 +36408,10 @@ function buildWeeklyExecutiveMetricCards(report) {
   const leasedPct = getSummaryLeasedPct(aggregate);
   const previousOccPct = trendAggregate ? getSummaryOccPct(trendAggregate) : null;
   const previousLeasedPct = trendAggregate ? getSummaryLeasedPct(trendAggregate) : null;
+  const approvalCohort = getApplicationApprovalCohortDisplay(aggregate.applications, aggregate.applicationsApproved);
+  const trendApprovalCohort = trendAggregate
+    ? getApplicationApprovalCohortDisplay(trendAggregate.applications, trendAggregate.applicationsApproved)
+    : null;
   return [
     {
       label: "Physical Occupancy",
@@ -36417,8 +36435,10 @@ function buildWeeklyExecutiveMetricCards(report) {
     },
     {
       label: "Approval Rate",
-      value: `${(aggregate.applicationApprovalPct ?? 0).toFixed(1)}%`,
-      sub: trendAggregate ? formatWeeklyMomTrendValue(aggregate.applicationApprovalPct ?? 0, trendAggregate.applicationApprovalPct ?? 0, "point", trendContext) : formatPortfolioTrendValue(aggregate.applicationApprovalPct ?? 0, aggregate.previousApplicationApprovalPct ?? 0, "point")
+      value: approvalCohort.value,
+      sub: trendAggregate && approvalCohort.comparable && trendApprovalCohort?.comparable
+        ? formatWeeklyMomTrendValue(approvalCohort.rate, trendApprovalCohort.rate, "point", trendContext)
+        : approvalCohort.subtext
     },
     {
       label: "Net Absorption",
@@ -56290,6 +56310,37 @@ async function handleCSVFile(file, options = {}) {
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
+let atlasDashboardInitializationComplete = false;
+
+function renderAtlasStartupLoadingState() {
+  document.body.classList.add("atlas-is-initializing");
+  const today = new Date();
+  const dateLabel = document.getElementById("workspace-current-date");
+  const communitySelect = document.getElementById("workspace-community-select");
+  const monthSelect = document.getElementById("workspace-current-month");
+  const budgetChip = document.querySelector("#atlas-chip-budget span");
+  const freshnessChip = document.querySelector("#atlas-chip-freshness span");
+  const liveLabel = document.querySelector("#atlas-live-users .atlas-live-user-label");
+  if (dateLabel) dateLabel.textContent = today.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  if (communitySelect) communitySelect.innerHTML = '<option value="">Loading saved ATLAS scope…</option>';
+  if (monthSelect) monthSelect.value = String(DEFAULT_CURRENT_MONTH);
+  if (budgetChip) budgetChip.textContent = `Reporting period · ${FULL_MONTHS[DEFAULT_CURRENT_MONTH]} ${today.getFullYear()}`;
+  if (freshnessChip) freshnessChip.textContent = "Loading saved workspace";
+  if (liveLabel) liveLabel.textContent = "Checking session…";
+  const trackingSection = document.getElementById("application-tracking-section");
+  if (trackingSection) trackingSection.style.display = "none";
+  document.querySelectorAll(".tab-panel").forEach((panel, index) => {
+    panel.style.display = index === 0 ? "block" : "none";
+  });
+  const homePanel = document.getElementById("tab-panel-0");
+  if (homePanel) homePanel.innerHTML = '<div class="card atlas-startup-card"><div><i class="ph ph-circle-notch" aria-hidden="true"></i><strong>Loading ATLAS workspace</strong><span>Checking your session, reporting period, and saved community scope.</span></div></div>';
+}
+
+function finishAtlasStartupLoadingState() {
+  atlasDashboardInitializationComplete = true;
+  document.body.classList.remove("atlas-is-initializing");
+}
+
 function runAtlasStartupStep(label, step) {
   try {
     return step();
@@ -56316,8 +56367,12 @@ async function initializeAtlasDashboard() {
   applySideNavState();
   currentMonth = DEFAULT_CURRENT_MONTH;
   workspaceMonthOverride = null;
+  renderAtlasStartupLoadingState();
   applyAtlasAuthEntryFromLocation();
   applyAtlasAuthRedirectEvent();
+  if (typeof window.ATLAS_CENTRAL?.refreshSession === "function") {
+    await window.ATLAS_CENTRAL.refreshSession().catch(() => null);
+  }
   runAtlasStartupStep("apply incoming workspace navigation", () => applyIncomingWorkspaceNavigation());
   runAtlasStartupStep("hydrate global ATLAS settings", () => hydrateOpsGlobalData());
   try {
@@ -56332,6 +56387,7 @@ async function initializeAtlasDashboard() {
   runAtlasStartupStep("rehydrate global ATLAS settings", () => hydrateOpsGlobalData());
   applyAtlasAuthEntryFromLocation();
   applyAtlasAuthRedirectEvent();
+  finishAtlasStartupLoadingState();
   runAtlasInitialRenderPass();
   runAtlasStartupStep("start live presence", () => startAtlasLivePresence());
   runAtlasStartupStep("start shared data refresh", () => startAtlasSharedRealtime());
@@ -56358,10 +56414,19 @@ async function initializeAtlasDashboard() {
   }
 }
 
+window.addEventListener("atlas-central-auth-change", () => {
+  if (!atlasDashboardInitializationComplete) return;
+  runAtlasStartupStep("refresh access after session change", () => {
+    renderTab();
+    applyAtlasAccessControlsToNavigation();
+  });
+});
+
 initializeAtlasDashboard().catch((error) => {
   markAtlasPersistenceError(error, "ATLAS could not finish loading browser data.");
   currentMonth = DEFAULT_CURRENT_MONTH;
   workspaceMonthOverride = null;
+  finishAtlasStartupLoadingState();
   runAtlasStartupStep("recover incoming workspace navigation", () => applyIncomingWorkspaceNavigation());
   runAtlasStartupStep("recover global ATLAS settings", () => hydrateOpsGlobalData());
   runAtlasInitialRenderPass();

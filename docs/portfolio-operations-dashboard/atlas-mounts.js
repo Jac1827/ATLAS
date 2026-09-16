@@ -34,7 +34,7 @@
       note: "Intake, the AI creative brief, approvals, routing and team metrics run in the Command Center itself — this is the portfolio read of it.",
       barTitle: "RISE Marketing Command Center",
       barSub: "Shares team, routing, and bonus settings with Atlas Bonus & Incentives",
-      src: "RISE-Marketing-Command-Center.html?v=20260910-auth-freshness",
+      src: "RISE-Marketing-Command-Center.html?v=20260916-glitch-review",
       background: "#F0F4F6",
       icon: "ph-megaphone"
     },
@@ -84,8 +84,38 @@
     }
   }
 
+  function embeddedWorkspaceContext() {
+    try {
+      var monthIdx = typeof getSelectedDashboardMonthIndex === "function"
+        ? Number(getSelectedDashboardMonthIndex())
+        : (typeof currentMonth !== "undefined" ? Number(currentMonth) : new Date().getMonth());
+      var details = typeof getWorkspaceScopedDetails === "function"
+        ? getWorkspaceScopedDetails(monthIdx)
+        : [];
+      var names = details.map(function (detail) { return String(detail && detail.name || "").trim(); }).filter(Boolean);
+      var record = typeof getCurrentCommunityRecord === "function" ? getCurrentCommunityRecord() : null;
+      var year = Number(record && record.reportYear) || new Date().getFullYear();
+      var singleName = typeof getProp === "function" ? String((getProp() || {}).name || "").trim() : "";
+      return {
+        monthIdx: monthIdx,
+        month: typeof FULL_MONTHS !== "undefined" ? String(FULL_MONTHS[monthIdx] || "") : "",
+        year: year,
+        scopeCount: names.length,
+        scopeLabel: names.length === 1 ? (names[0] || singleName) : (names.length ? names.length + " ATLAS communities" : singleName),
+        propertyNames: names
+      };
+    } catch (err) {
+      return { monthIdx: new Date().getMonth(), month: "", year: new Date().getFullYear(), scopeCount: 0, scopeLabel: "ATLAS workspace", propertyNames: [] };
+    }
+  }
+
   function iframeSrc(key, mount) {
     var params = "atlasEmbedded=1&atlasMountKey=" + encodeURIComponent(key) + "&v=20260911-central-services-roster";
+    var context = embeddedWorkspaceContext();
+    params += "&atlasMonth=" + encodeURIComponent(context.month);
+    params += "&atlasYear=" + encodeURIComponent(context.year);
+    params += "&atlasScopeCount=" + encodeURIComponent(context.scopeCount);
+    params += "&atlasScopeLabel=" + encodeURIComponent(context.scopeLabel);
     var initialView = initialViewFor(key);
     if (initialView) params += "&atlasView=" + encodeURIComponent(initialView);
     return appendParams(mount.src, params);
@@ -191,6 +221,10 @@
     iframe.dataset.atlasMountKey = key || "";
     if (iframe.__atlasSyncTimer) window.clearInterval(iframe.__atlasSyncTimer);
     syncMountFrame(iframe, key);
+    try {
+      var context = embeddedWorkspaceContext();
+      iframe.contentWindow.postMessage({ type: "atlas-shell-context", context: context }, window.location.origin);
+    } catch (err) {}
     window.setTimeout(function () { syncMountFrame(iframe, key); }, 150);
     window.setTimeout(function () { syncMountFrame(iframe, key); }, 700);
     window.setTimeout(function () { syncMountFrame(iframe, key); }, 1600);

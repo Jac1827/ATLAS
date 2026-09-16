@@ -2085,9 +2085,9 @@ table.dt tbody tr:hover td{background:#f7fbfd}.rn{color:var(--muted);font-size:1
           <p>Build the request, preview the direction, and send a cleaner package to Marketing.</p>
         </div>
         <div class="request-studio-context">
-          <div class="request-studio-chip">Reporting period · September 2026</div>
-          <div class="request-studio-chip">Viewing data for 20 communities</div>
-          <div class="request-studio-chip">Live now: Jac</div>
+          <div class="request-studio-chip" id="marketing-request-period">Reporting period · ATLAS workspace</div>
+          <div class="request-studio-chip" id="marketing-request-atlas-scope">ATLAS scope loading</div>
+          <div class="request-studio-chip" id="marketing-request-directory">Marketing directory loading</div>
         </div>
       </div>
 
@@ -4614,6 +4614,7 @@ async function bootApp() {
   if (reportingDate) reportingDate.textContent = `${new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date())} · Portfolio-wide`;
   showToast('Loading data...', 'info');
   try { await DB.loadAll(); } catch (e) { console.warn('loadAll:', e); }
+  applyAtlasMarketingShellContext();
   refreshMarketingSharedViews({ renderProperties: false });
   syncPropertyDropdown();
   syncRoutingMap();
@@ -9874,6 +9875,39 @@ function getInitialMarketingTab() {
   })();
   return normalizeMarketingTabId(fromQuery) || fromHash || normalizeMarketingTabId(fromStorage) || 'dashboard';
 }
+
+function applyAtlasMarketingShellContext(context = null) {
+  let incoming = context && typeof context === 'object' ? context : {};
+  if (!context) {
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      incoming = {
+        month: params.get('atlasMonth') || '',
+        year: params.get('atlasYear') || '',
+        scopeCount: Number(params.get('atlasScopeCount') || 0),
+        scopeLabel: params.get('atlasScopeLabel') || ''
+      };
+    } catch(e) {}
+  }
+  const period = [String(incoming.month || '').trim(), String(incoming.year || '').trim()].filter(Boolean).join(' ');
+  const scopeCount = Math.max(0, Number(incoming.scopeCount) || 0);
+  const scopeLabel = String(incoming.scopeLabel || '').trim();
+  const directoryCount = Array.isArray(propertiesData) ? propertiesData.length : 0;
+  const periodChip = document.getElementById('marketing-request-period');
+  const scopeChip = document.getElementById('marketing-request-atlas-scope');
+  const directoryChip = document.getElementById('marketing-request-directory');
+  if (periodChip) periodChip.textContent = `Reporting period · ${period || 'ATLAS workspace'}`;
+  if (scopeChip) scopeChip.textContent = scopeLabel || (scopeCount ? `ATLAS scope · ${scopeCount} communities` : 'ATLAS workspace scope');
+  if (directoryChip) directoryChip.textContent = directoryCount
+    ? `Marketing directory · ${directoryCount} communities`
+    : 'Marketing directory · no communities loaded';
+}
+
+window.addEventListener('message', event => {
+  if (event.origin !== window.location.origin || event.data?.type !== 'atlas-shell-context') return;
+  applyAtlasMarketingShellContext(event.data.context);
+});
+document.addEventListener('DOMContentLoaded', () => applyAtlasMarketingShellContext());
 
 function rememberMarketingActiveTab(tabId) {
   const normalized = normalizeMarketingTabId(tabId);

@@ -13,6 +13,7 @@
   const DEFAULT_ACCESS_API_BASE_URL = "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev";
   const authRequestPromises = new Map();
   let refreshSessionPromise = null;
+  let authExpiryTimer = null;
 
   const DEFAULT_CONFIG = {
     enabled: true,
@@ -104,11 +105,28 @@
     return session && typeof session === "object" ? session : null;
   }
 
+  function notifyAuthChange(session = null) {
+    const expiresAt = Number(session?.expires_at || 0);
+    const signedIn = Boolean(session?.access_token) && (!expiresAt || expiresAt > Math.floor(Date.now() / 1000));
+    if (authExpiryTimer) window.clearTimeout(authExpiryTimer);
+    authExpiryTimer = null;
+    if (signedIn && expiresAt) {
+      const delayMs = Math.max(0, Math.min((expiresAt * 1000) - Date.now() + 50, 2147483647));
+      authExpiryTimer = window.setTimeout(() => notifyAuthChange(session), delayMs);
+    }
+    try {
+      window.dispatchEvent(new CustomEvent("atlas-central-auth-change", {
+        detail: { signedIn, expiresAt }
+      }));
+    } catch {}
+  }
+
   function saveSession(session) {
     const normalized = session && typeof session === "object" ? { ...session } : null;
     if (!normalized) {
       try { localStorage.removeItem(SESSION_STORAGE_KEY); } catch {}
       try { localStorage.removeItem(PROFILE_STORAGE_KEY); } catch {}
+      notifyAuthChange(null);
       return null;
     }
     const nowSeconds = Math.floor(Date.now() / 1000);
@@ -116,6 +134,7 @@
       normalized.expires_at = nowSeconds + Number(normalized.expires_in);
     }
     writeLocalStorageJson(SESSION_STORAGE_KEY, normalized);
+    notifyAuthChange(normalized);
     return normalized;
   }
 
@@ -158,7 +177,8 @@
     const configured = config.enabled && (hasDatabaseConfig(config) || hasApiConfig(config));
     const session = getSession();
     const profile = getStoredProfile();
-    const signedIn = Boolean(session?.access_token);
+    const expiresAt = Number(session?.expires_at || 0);
+    const signedIn = Boolean(session?.access_token) && (!expiresAt || expiresAt > Math.floor(Date.now() / 1000));
     return {
       configured,
       signedIn,
@@ -1349,6 +1369,7 @@
   }
 
   handleAuthRedirect();
+  notifyAuthChange(getStoredSession());
 
   window.ATLAS_CENTRAL = {
     async evictionCase(action, body = {}, binary = false) {
@@ -1377,6 +1398,7 @@
     signInWithPassword,
     signUpWithPassword,
     requestInviteActivation,
+    refreshSession,
     signOut,
     updatePassword,
     completeInviteActivation,

@@ -1,4 +1,5 @@
 .app-intelligence { --ai-teal:#013e51; --ai-blue:#6ba2b8; --ai-ink:#173a52; --ai-surface:#f4f8fb; --ai-border:#d8e4ec; color:var(--ai-ink); }
+.app-intelligence .ai-status.pending { background:#eef1f4; color:#5b6b7a; }
 .app-intelligence .ai-hero { background:linear-gradient(120deg,#013e51 0%,#07556a 72%,#6ba2b8 150%); border-radius:18px; color:#fff; padding:26px; margin-bottom:16px; box-shadow:0 13px 28px rgba(1,62,81,.18); }
 .app-intelligence .ai-kicker { font-size:.66rem; letter-spacing:.15em; font-weight:800; opacity:.7; text-transform:uppercase; }
 .app-intelligence .ai-hero h1 { margin:7px 0 5px; font-size:1.8rem; color:#fff; }

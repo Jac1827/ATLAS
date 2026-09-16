@@ -9037,6 +9037,8 @@ function getCommunityRecordForStatusScope(name, options = {}) {
 }
 
 function isAtlasCommunityActiveByName(name) {
+  const central = getAtlasCommunityAccessRecord(name);
+  if (central && ["active", "inactive"].includes(central.status)) return central.status === "active";
   const record = getCommunityRecordForStatusScope(name, { includeCurrent: true });
   return record ? isCommunityStatusActive(record) : true;
 }
@@ -16023,6 +16025,13 @@ function atlasProfileHasCommunityRestrictions(profile = getAtlasAccessProfile())
   return Boolean(values.allowedCommunityIds.length || values.allowedMarkets.length || values.allowedRegions.length || values.allowedLocationGroups.length);
 }
 
+function getAtlasCommunityAccessRecord(name, profile = getAtlasAccessProfile()) {
+  const key = atlasNormalizeSharedText(name);
+  const central = (profile?.community_access_records || []).find(row => [row.display_name, row.canonical_name].some(value => value && atlasNormalizeSharedText(value) === key));
+  if (central) return {atlasCommunityId:central.community_id,displayName:central.display_name,status:central.status,market:central.market,regionalGrouping:central.regional_grouping,propertyType:central.property_type};
+  return getAtlasSharedPropertyByName(name);
+}
+
 function atlasRoleCanSeeInactiveCommunities(profile = getAtlasAccessProfile(), communityName = "") {
   const status = getAtlasCentralStatus();
   const role = String(profile?.role || status.role || (!status.configured ? "admin" : "")).trim().toLowerCase();
@@ -16031,7 +16040,7 @@ function atlasRoleCanSeeInactiveCommunities(profile = getAtlasAccessProfile(), c
   const allowed = atlasProfileCommunityRestrictionValues(profile).allowedCommunityIds;
   // Inactive properties require an explicit assignment, never a broad region default.
   if (!communityName) return allowed.length > 0;
-  const property = getAtlasSharedPropertyByName(communityName);
+  const property = getAtlasCommunityAccessRecord(communityName, profile);
   const id = String(property?.atlasCommunityId || property?.sourceIds?.atlasCommunityId || "");
   return Boolean(id && allowed.includes(id));
 }
@@ -16090,7 +16099,7 @@ function atlasDashboardUserCanSeeCommunityName(name = "", profile = getAtlasAcce
   const role = String(profile.role || "").trim().toLowerCase();
   if (role === "admin") return true;
   if (!isAtlasCommunityActiveByName(communityName) && !atlasRoleCanSeeInactiveCommunities(profile, communityName)) return false;
-  const property = getAtlasSharedPropertyByName(communityName);
+  const property = getAtlasCommunityAccessRecord(communityName, profile);
   const { allowedCommunityIds, allowedMarkets, allowedRegions, allowedLocationGroups } = atlasProfileCommunityRestrictionValues(profile);
   const hasRestrictions = atlasProfileHasCommunityRestrictions(profile);
   if (!hasRestrictions && atlasRoleDefaultsToAllActiveCommunities(role)) return true;
@@ -17591,7 +17600,7 @@ function atlasAccessProfileCanUseCurrentScope(profile = getAtlasAccessProfile())
   if (!atlasRoleCanSeeInactiveCommunities(profile, getProp().name) && !isAtlasCommunityActiveByName(getProp().name)) {
     return { ok: false, reason: `${getProp().name} is inactive and requires an explicit property assignment from an Admin.` };
   }
-  const property = getAtlasSharedPropertyByName(getProp().name);
+  const property = getAtlasCommunityAccessRecord(getProp().name, profile);
   if (!property) return { ok: false, reason: "This community has no verified access mapping." };
   const { allowedCommunityIds, allowedMarkets, allowedRegions, allowedLocationGroups } = atlasProfileCommunityRestrictionValues(profile);
   if (!hasRestrictions && atlasRoleDefaultsToAllActiveCommunities(role)) return { ok: true };

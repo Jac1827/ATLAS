@@ -1367,7 +1367,7 @@
 
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=20260911-central-services-roster"></script>
-<script src="./centralization/atlas-central-client.js?v=20260909-activation-email" data-atlas-central-client="true"></script>
+<script src="./centralization/atlas-central-client.js?v=20260916-scoped-access" data-atlas-central-client="true"></script>
 <script src="./central-services.js?v=20260911-admin-inspection-controls"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260902-application-intelligence">
 <script src="./application-source-bridge.js?v=20260916"></script>
@@ -4569,7 +4569,7 @@ function getAtlasCurrentUserLabel() {
 }
 
 function getAtlasApplicationPeriodMetrics(periodKey = getApplicationResidentReportPeriodKey(), community = "all") {
-  const scope = getAtlasApplicationScopeCommunityNames().filter(name => isAtlasCommunityActiveByName(name) && (community === "all" || community === name));
+  const scope = getAtlasApplicationScopeCommunityNames().filter(name => atlasApplicationCommunityInScope(name) && (community === "all" || community === name));
   const definitions = { applications:"Completed applications", approvals:"Approved applications", new_leads:"New leads", tours:"First tours" };
   return scope.map(name => {
     const cells = {};
@@ -4584,7 +4584,7 @@ function getAtlasApplicationPeriodMetrics(periodKey = getApplicationResidentRepo
 }
 
 function getAtlasCanonicalApplicationData() {
-  const scope = getAtlasApplicationScopeCommunityNames().filter(isAtlasCommunityActiveByName);
+  const scope = getAtlasApplicationScopeCommunityNames().filter(atlasApplicationCommunityInScope);
   return window.AtlasApplicationSources.project(applicationResidentDataState.uploads, scope);
 }
 
@@ -9059,6 +9059,8 @@ function getCommunityRecordForStatusScope(name, options = {}) {
 }
 
 function isAtlasCommunityActiveByName(name) {
+  const central = getAtlasCommunityAccessRecord(name);
+  if (central && ["active", "inactive"].includes(central.status)) return central.status === "active";
   const record = getCommunityRecordForStatusScope(name, { includeCurrent: true });
   return record ? isCommunityStatusActive(record) : true;
 }
@@ -14684,7 +14686,8 @@ const ATLAS_ACCESS_TABS = [
   { id: "12", label: "Budget Builder", key: "budget" },
   { id: "13", label: "People", key: "people" },
   { id: "14", label: "ATLAS Settings", key: "atlas_settings" },
-  { id: "15", label: "Central Services", key: "central_services" }
+  { id: "15", label: "Central Services", key: "central_services" },
+  { id: "16", label: "Application Performance", key: "application_performance" }
 ];
 
 const ATLAS_SELF_SERVICE_TAB_IDS = ["14"];
@@ -16023,7 +16026,7 @@ function atlasDashboardSetLibraryCategory(value = "All") {
 function atlasRoleDefaultsToAllActiveCommunities(role = "") {
   const normalizedRole = String(role || "").trim().toLowerCase();
   if (["admin", "regional", "viewer", "property"].includes(normalizedRole)) return false;
-  return ["central", "central_services", "executive", "vp", "c_suite", "c-suite", "finance", "marketing", "people", "maintenance", "bonus", "asset_management", "accounting", "hr"].includes(normalizedRole)
+  return ["centra", "central", "central_services", "executive", "vp", "c_suite", "c-suite", "finance", "marketing", "people", "maintenance", "bonus", "asset_management", "accounting", "hr"].includes(normalizedRole)
     || normalizedRole.includes("central")
     || normalizedRole.includes("executive")
     || normalizedRole.includes("vp")
@@ -16044,10 +16047,29 @@ function atlasProfileHasCommunityRestrictions(profile = getAtlasAccessProfile())
   return Boolean(values.allowedCommunityIds.length || values.allowedMarkets.length || values.allowedRegions.length || values.allowedLocationGroups.length);
 }
 
-function atlasRoleCanSeeInactiveCommunities(profile = getAtlasAccessProfile()) {
+function getAtlasCommunityAccessRecord(name, profile = getAtlasAccessProfile()) {
+  const key = atlasNormalizeSharedText(name);
+  const central = (profile?.community_access_records || []).find(row => [row.display_name, row.canonical_name].some(value => value && atlasNormalizeSharedText(value) === key));
+  if (central) return {atlasCommunityId:central.community_id,displayName:central.display_name,status:central.status,market:central.market,regionalGrouping:central.regional_grouping,propertyType:central.property_type};
+  return getAtlasSharedPropertyByName(name);
+}
+
+function atlasRoleCanSeeInactiveCommunities(profile = getAtlasAccessProfile(), communityName = "") {
   const status = getAtlasCentralStatus();
   const role = String(profile?.role || status.role || (!status.configured ? "admin" : "")).trim().toLowerCase();
-  return role === "admin";
+  if (role === "admin") return true;
+  if (!status.signedIn || !profile || profile.status !== "active") return false;
+  const allowed = atlasProfileCommunityRestrictionValues(profile).allowedCommunityIds;
+  // Inactive properties require an explicit assignment, never a broad region default.
+  if (!communityName) return allowed.length > 0;
+  const property = getAtlasCommunityAccessRecord(communityName, profile);
+  const id = String(property?.atlasCommunityId || property?.sourceIds?.atlasCommunityId || "");
+  return Boolean(id && allowed.includes(id));
+}
+
+function atlasApplicationCommunityInScope(name) {
+  if (!atlasDashboardUserCanSeeCommunityName(name)) return false;
+  return isAtlasCommunityActiveByName(name) || (!isPortfolioWorkspaceSelected() && name === getProp().name && atlasRoleCanSeeInactiveCommunities(getAtlasAccessProfile(), name));
 }
 
 function atlasRegionalProfileMatchesCommunity(property = {}, profile = getAtlasAccessProfile()) {
@@ -16070,6 +16092,7 @@ function getAtlasWorkspaceCommunityOptionNames() {
   });
   return optionNames
     .filter(name => atlasDashboardUserCanSeeCommunityName(name))
+    .filter(name => isAtlasCommunityActiveByName(name) || atlasRoleCanSeeInactiveCommunities(getAtlasAccessProfile(), name))
     .sort((a, b) => {
       const aActive = isAtlasCommunityActiveByName(a);
       const bActive = isAtlasCommunityActiveByName(b);
@@ -16092,11 +16115,13 @@ function atlasDashboardUserCanSeeCommunityName(name = "", profile = getAtlasAcce
   const communityName = String(name || "").trim();
   if (!communityName) return false;
   const status = getAtlasCentralStatus();
-  if (!status.configured || !status.signedIn || !profile) return true;
+  if (!status.configured) return true;
+  if (!status.signedIn || !profile) return false;
   if (String(profile.status || "") !== "active") return false;
   const role = String(profile.role || "").trim().toLowerCase();
   if (role === "admin") return true;
-  const property = getAtlasSharedPropertyByName(communityName);
+  if (!isAtlasCommunityActiveByName(communityName) && !atlasRoleCanSeeInactiveCommunities(profile, communityName)) return false;
+  const property = getAtlasCommunityAccessRecord(communityName, profile);
   const { allowedCommunityIds, allowedMarkets, allowedRegions, allowedLocationGroups } = atlasProfileCommunityRestrictionValues(profile);
   const hasRestrictions = atlasProfileHasCommunityRestrictions(profile);
   if (!hasRestrictions && atlasRoleDefaultsToAllActiveCommunities(role)) return true;
@@ -17488,7 +17513,7 @@ function handleAtlasAccessEmployeeSelection(employeeId = "") {
 function setAtlasAccessAllProperties(selectAll = true) {
   const draft = syncAtlasAccessFormDraftFromPanel();
   const allowedCommunityIds = selectAll
-    ? (atlasAccessAdminState.communities || []).map(community => String(community.community_id || "").trim()).filter(Boolean)
+    ? (atlasAccessAdminState.communities || []).filter(community => community.status !== "inactive").map(community => String(community.community_id || "").trim()).filter(Boolean)
     : [];
   setAtlasAccessFormDraft({
     ...draft,
@@ -17594,11 +17619,11 @@ function atlasAccessProfileCanUseCurrentScope(profile = getAtlasAccessProfile())
     if (atlasRoleDefaultsToAllActiveCommunities(role) || role === "regional" || role.includes("regional") || hasRestrictions) return { ok: true };
     return { ok: false, reason: "Select your assigned community before opening this page." };
   }
-  if (!atlasRoleCanSeeInactiveCommunities(profile) && !isAtlasCommunityActiveByName(getProp().name)) {
-    return { ok: false, reason: `${getProp().name} is inactive and only Admin users can include inactive communities.` };
+  if (!atlasRoleCanSeeInactiveCommunities(profile, getProp().name) && !isAtlasCommunityActiveByName(getProp().name)) {
+    return { ok: false, reason: `${getProp().name} is inactive and requires an explicit property assignment from an Admin.` };
   }
-  const property = getAtlasSharedPropertyByName(getProp().name);
-  if (!property) return { ok: true };
+  const property = getAtlasCommunityAccessRecord(getProp().name, profile);
+  if (!property) return { ok: false, reason: "This community has no verified access mapping." };
   const { allowedCommunityIds, allowedMarkets, allowedRegions, allowedLocationGroups } = atlasProfileCommunityRestrictionValues(profile);
   if (!hasRestrictions && atlasRoleDefaultsToAllActiveCommunities(role)) return { ok: true };
   if (!hasRestrictions && atlasRegionalProfileMatchesCommunity(property, profile)) return { ok: true };
@@ -19621,7 +19646,7 @@ function renderAtlasEmployeeAccessPanel() {
     : "No roster employees loaded yet.";
   const communityOptions = (atlasAccessAdminState.communities || []).map(community => ({
     value: community.community_id,
-    label: `${community.display_name}${community.market ? ` · ${community.market}` : ""}`
+    label: `${community.display_name}${community.status === "inactive" ? " · Inactive (explicit assignment only)" : ""}${community.market ? ` · ${community.market}` : ""}`
   }));
   const locationCounts = (atlasAccessAdminState.communities || []).reduce((acc, community) => {
     const key = atlasCommunityLocationScopeValue(community);
@@ -19691,7 +19716,7 @@ function renderAtlasEmployeeAccessPanel() {
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
               <div class="card-title">Property Scope</div>
               <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <button type="button" class="btn btn-gray btn-sm" onclick="setAtlasAccessAllProperties(true)">All Properties</button>
+                <button type="button" class="btn btn-gray btn-sm" onclick="setAtlasAccessAllProperties(true)">All Active Properties</button>
                 <button type="button" class="btn btn-gray btn-sm" onclick="setAtlasAccessAllProperties(false)">Clear</button>
               </div>
             </div>
@@ -19699,7 +19724,7 @@ function renderAtlasEmployeeAccessPanel() {
             ${renderAtlasAccessCheckboxes("atlas-access-communities", communityOptions, draft.allowedCommunityIds)}
           </div>
           <div><div class="card-title">Location Scope</div><div style="font-size:0.64rem;color:var(--muted);margin:4px 0 8px">Markets and regions are consolidated here into consistent East, Central, and West access groupings.</div>${renderAtlasAccessCheckboxes("atlas-access-locations", locationOptions, atlasAccessLocationScopeValues(draft))}</div>
-          <div><div class="card-title">Locked Tabs / Pages</div>${renderAtlasAccessCheckboxes("atlas-access-tabs", tabOptions, draft.lockedTabIds)}</div>
+          <div><div class="card-title">Locked Tabs / Pages</div><p style="font-size:0.72rem">Checked means blocked. Leave a page unchecked to allow the role’s normal access.</p>${renderAtlasAccessCheckboxes("atlas-access-tabs", tabOptions, draft.lockedTabIds)}</div>
           <div><div class="card-title">Bonus & Incentives Permissions</div><div style="font-size:0.64rem;color:var(--muted);margin:4px 0 8px">Leave blank to use role defaults. Turn on View Salary only for Admin or HR users.</div>${renderAtlasAccessCheckboxes("atlas-access-bonus-permissions", bonusPermissionOptions, draft.bonusPermissions)}</div>
           <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Access notes</span><textarea id="atlas-access-notes" placeholder="Optional admin note" oninput="syncAtlasAccessFormDraftFromPanel()">${escapeHtml(draft.accessNotes)}</textarea></label>
         </div>

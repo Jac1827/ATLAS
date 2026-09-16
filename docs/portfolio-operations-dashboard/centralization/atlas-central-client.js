@@ -745,6 +745,12 @@
     if (!profile) {
       profile = await claimInvitedProfile().catch(() => null);
     }
+    if (profile) {
+      // Read only the directory rows allowed by the existing community RLS policy.
+      // Do not require access to the all-module shared graph document for navigation.
+      try { profile.community_access_records = await readCommunitiesForAccess(); }
+      catch { profile.community_access_records = []; }
+    }
     saveProfile(profile || null);
     return profile || null;
   }
@@ -1019,7 +1025,7 @@
 
   async function readCommunitiesForAccess() {
     await refreshSession().catch(() => null);
-    const query = "deleted_at=is.null&status=eq.active&select=community_id,display_name,market,regional_grouping,property_type&order=display_name.asc";
+    const query = "deleted_at=is.null&select=community_id,display_name,canonical_name,status,market,regional_grouping,property_type&order=display_name.asc";
     const rows = await fetchJson(`/atlas_communities?${query}`);
     return Array.isArray(rows) ? rows : [];
   }

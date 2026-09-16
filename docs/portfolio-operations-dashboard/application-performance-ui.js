@@ -3,7 +3,7 @@
   const view = { mode:"operations", date:"all", community:"all", agent:"all", status:"all", search:"", drawer:"" };
   const esc = v => String(v ?? "").replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[c]));
   const norm = v => String(v ?? "").toLowerCase().trim();
-  const communityActive = raw => { const name=String(raw||"").trim(); if(!name)return false; return typeof window.isAtlasCommunityActiveByName==="function"?window.isAtlasCommunityActiveByName(name):true; };
+  const communityActive = raw => { const name=String(raw||"").trim(); if(!name)return false; if(typeof window.atlasApplicationCommunityInScope==="function")return window.atlasApplicationCommunityInScope(name); return typeof window.isAtlasCommunityActiveByName==="function"?window.isAtlasCommunityActiveByName(name):true; };
   const operationalCommunityNames = () => { const scoped=window.getAtlasApplicationScopeCommunityNames?.()||[]; const fallback=window.getAtlasOperationalCommunityNames?.(true)||(window.getAllCommunityNames?.()||[]); return [...new Set((typeof window.getAtlasApplicationScopeCommunityNames === "function" ? scoped : fallback).filter(communityActive))].sort(); };
   const communityInScope = raw => { const name=String(raw||"").trim(); if(!name)return false; return operationalCommunityNames().includes(name); };
   const flags = r => { const s=norm(r.applicationStatus).replace(/^application:\s*/, ""); return {started:s==="started",completed:!!r.applicationCompleted||s==="completed",approved:!!r.applicationApproved||s==="approved",denied:!!r.applicationDenied||s==="denied",cancelled:!!r.applicationCancelled||["cancelled","canceled"].includes(s),leased:!!r.leaseSigned,moved:!!r.moveIn}; };

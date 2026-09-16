@@ -4,6 +4,8 @@
 const R=window.RBB,A=R.app,M=R.importer,C=R.convert;
 const months='jan feb mar apr may jun jul aug sep oct nov dec'.split(' ');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const validApproval=value=>{const month=/^20\d{2}-(0[1-9]|1[0-2])$/.test(value||'');const full=month?value+'-01':value;return /^20\d{2}-\d{2}-\d{2}$/.test(full||'')&&Number.isFinite(Date.parse(full+'T00:00:00Z'))&&new Date(full+'T00:00:00Z').toISOString().slice(0,10)===full&&full<=new Date().toISOString().slice(0,10);};
+const notNewer=(old,next)=>!!old&&((old.length===7||next.length===7)?old.slice(0,7)>=next.slice(0,7):old>=next);
 const approved=t=>t==='approved_budget'||t==='approved_budget_periods';
 const convert=C.convert;
 C.convert=function(state,bytes,opts={}){
@@ -30,12 +32,13 @@ M.SCHEMAS.approved_budget_periods={label:'Approved budget — mapped fiscal peri
 const validate=M.validate;
 M.validate=function(type,rows,state){
  if(type!=='approved_budget_periods')return validate(type,rows,state);
- const v=validate('prior_budget',rows,state);v.type=type;v.schemaLabel=M.SCHEMAS[type].label;
+ const baseRows=rows.map(r=>r.slice());baseRows[0]=baseRows[0].map(h=>h==='effective_date'?'budget_approval':h);
+ const v=validate('prior_budget',baseRows,state);v.accepted.forEach(r=>{r.effective_date=r.budget_approval;delete r.budget_approval;});v.type=type;v.schemaLabel=M.SCHEMAS[type].label;
  const fail=message=>v.errors.push({rule:'approved_periods',message});const groups={};
  for(const r of v.accepted){const key=M.resolveProperty(r.property,state)+'|'+r.year;(groups[key] ||= []).push(r);}
  for(const group of Object.values(groups)){
   const dates=new Set(group.map(r=>r.effective_date));const date=group[0].effective_date;
-  if(dates.size!==1||!/^\d{4}-\d{2}-\d{2}$/.test(date||'')||!Number.isFinite(Date.parse(date+'T00:00:00Z'))||new Date(date+'T00:00:00Z').toISOString().slice(0,10)!==date||date>new Date().toISOString().slice(0,10))fail('Enter one valid, non-future budget version date for each community/year.');
+  if(dates.size!==1||!validApproval(date))fail('Enter one valid, non-future budget approval date or month for each community/year.');
   const coverage=months.map((m,i)=>group.some(r=>r[m]!==''&&r[m]!=null)?i:null).filter(i=>i!==null);
   if(!coverage.length)fail('No mapped monthly amounts.');
   const seen=new Set();for(const r of group){if(seen.has(r.gl))fail('Duplicate GL '+r.gl);seen.add(r.gl);if(coverage.some(i=>r[months[i]]===''||r[months[i]]==null||!Number.isFinite(r.__monthly[i])))fail('GL '+r.gl+' has a missing amount within the mapped period. Confirm an explicit zero or amount in the source.');r.__coverage=coverage;}
@@ -51,13 +54,16 @@ M.apply=function(type,v,state){
  // All communities/years are checked before anything is changed.
  for(const [key,rows] of Object.entries(groups)){
   const old=state.approvedBudgetImports[key];if(!old)continue;
-  if(rows[0].__coverage.some(i=>(old.periodVersions?.[i]||(!old.coverage||old.coverage.includes(i)?old.effectiveDate:null))>=rows[0].effective_date))return {applied:0,notes:['An overlapping month already has this version date or a newer budget. Review the version date before replacing amounts.']};
+  if(rows[0].__coverage.some(i=>notNewer(old.periodVersions?.[i]||(!old.coverage||old.coverage.includes(i)?old.effectiveDate:null),rows[0].effective_date)))return {applied:0,notes:['An overlapping month already has this version date or a newer budget. Review the version date before replacing amounts.']};
  }
+ const references={};state.currentApprovedBudgets ||= {};
+ for(const rows of Object.values(groups)){const r=rows[0],id=M.resolveProperty(r.property,state);const ref=references[id] ||= {sourceFile:v.fileName,sourceSheet:v.sheetName||'Mapped CSV',approval:r.effective_date,approvalPrecision:r.effective_date.length===7?'month':'day',periods:[],status:'current',retention:'Until a replacement approved budget is imported'};ref.periods.push(...r.__coverage.map(i=>r.year+'-'+String(i+1).padStart(2,'0')));}
+ for(const [id,ref] of Object.entries(references)){ref.periods.sort();ref.startPeriod=ref.periods[0];ref.endPeriod=ref.periods[ref.periods.length-1];const old=state.currentApprovedBudgets[id];if(!old||ref.endPeriod>old.endPeriod||(ref.endPeriod===old.endPeriod&&!notNewer(old.approval,ref.approval)))state.currentApprovedBudgets[id]=ref;}
  let applied=0;const notes=[];
  for(const [key,rows] of Object.entries(groups)){
   const [propertyId,year]=key.split('|'),old=state.approvedBudgetImports[key],covered=rows[0].__coverage,effectiveDate=rows[0].effective_date;
   const incoming=rows.map(r=>({gl:r.gl,name:r.gl_name||R.glIndex[r.gl].name,monthly:r.__monthly.slice(),sourceRow:v.sourceRows?.[r.gl]||r.__row}));
-  const snapshot={propertyId,year:Number(year),effectiveDate,sourceFile:v.fileName,sourceSheet:v.sheetName||'Mapped CSV',importedAt:new Date().toISOString(),coverage:[...new Set([...(old?.coverage|| (old?months.map((_,i)=>i):[])),...covered])].sort((a,b)=>a-b),periodVersions:{...(old?.periodVersions||{})},periodSources:{...(old?.periodSources||{})},rows:[]};
+  const snapshot={propertyId,year:Number(year),effectiveDate,approvalPrecision:effectiveDate.length===7?'month':'day',approvedBudgetReference:references[propertyId],sourceFile:v.fileName,sourceSheet:v.sheetName||'Mapped CSV',importedAt:new Date().toISOString(),coverage:[...new Set([...(old?.coverage|| (old?months.map((_,i)=>i):[])),...covered])].sort((a,b)=>a-b),periodVersions:{...(old?.periodVersions||{})},periodSources:{...(old?.periodSources||{})},rows:[]};
   if(old)months.forEach((m,i)=>{if(!old.coverage||old.coverage.includes(i)){snapshot.periodVersions[i] ||= old.effectiveDate;snapshot.periodSources[i] ||= old.sourceFile+' / '+old.sourceSheet;}});
   covered.forEach(i=>{snapshot.periodVersions[i]=effectiveDate;snapshot.periodSources[i]=v.fileName+' / '+snapshot.sourceSheet;});
   const gls=new Set([...(old?.rows||[]).map(r=>r.gl),...incoming.map(r=>r.gl)]);
@@ -69,7 +75,7 @@ M.apply=function(type,v,state){
 };
 const panel=R.views._convertPanel;
 R.views._convertPanel=function(){let html=panel();if(A.conv.result?.importBasis==='approved_budget_periods')html=html.replace(/Month-end actuals/g,'Mapped monthly budget').replace(/Months of actuals/gi,'Months of budget');if(!A.conv.result?.built?.accountRows)return html;const basis=A.conv.importType||A.conv.result.importBasis||'actuals';
- const controls='<div class="panel" style="width:100%"><h3>Import destination</h3><div class="pad"><label>Apply these amounts as <select onchange="RBB.app.convertPurpose(this.value)">'+[['actuals','Historical actuals'],['prior_budget','Prior budget reference'],['approved_budget_periods','Approved budget for mapped months']].map(([v,l])=>'<option value="'+v+'"'+(basis===v?' selected':'')+'>'+l+'</option>').join('')+'</select></label>'+(approved(basis)?'<label style="margin-left:16px">Budget version / approval date <input type="date" value="'+esc(A.conv.effectiveDate||'')+'" onchange="RBB.app.conv.effectiveDate=this.value"></label><p>Confirm this is the approved budget. The version date controls replacement; the workbook’s month headers control the reporting periods.</p>':'')+'</div></div>';
+ const controls='<div class="panel" style="width:100%"><h3>Import destination</h3><div class="pad"><label>Apply these amounts as <select onchange="RBB.app.convertPurpose(this.value)">'+[['actuals','Historical actuals'],['prior_budget','Prior budget reference'],['approved_budget_periods','Approved budget for mapped months']].map(([v,l])=>'<option value="'+v+'"'+(basis===v?' selected':'')+'>'+l+'</option>').join('')+'</select></label>'+(approved(basis)?'<label style="margin-left:16px">Budget version / approval date <input type="'+(A.conv.approvalPrecision==='month'?'month':'date')+'" value="'+esc(A.conv.effectiveDate||'')+'" onchange="RBB.app.conv.effectiveDate=this.value"></label><label style="margin-left:16px">Approval precision <select onchange="RBB.app.conv.approvalPrecision=this.value;RBB.app.conv.effectiveDate=\'\';RBB.app.render()"><option value="day"'+(A.conv.approvalPrecision!=='month'?' selected':'')+'>Exact date</option><option value="month"'+(A.conv.approvalPrecision==='month'?' selected':'')+'>Month only</option></select></label><p>This remains the current approved budget until a replacement approved budget is imported. Confirm this is the approved budget. The version date controls replacement; the workbook’s month headers control the reporting periods.</p>':'')+'</div></div>';
  return html.replace('<button class="btn pri" onclick="RBB.app.convertValidate()">',controls+'<button class="btn pri" onclick="RBB.app.convertValidate()">');};
 A.convertPurpose=function(value){A.conv.importType=value;A.lastImport=null;A.render();};
 const readFile=A.convertReadFile;A.convertReadFile=function(file){A.conv.importType='';A.conv.effectiveDate='';A.mappedWorkbook=null;A.lastImport=null;return readFile(file);};
@@ -86,7 +92,7 @@ A.applyImport=function(){const v=A.lastImport;if(!v||v.applyResult||v.errors.len
  v.accepted.forEach(r=>{if(!R.YEARS.includes(Number(r.year)))R.YEARS.push(Number(r.year));});R.YEARS.sort();A.invalidate();A.render();R.persist.autosave();if(v.type==='approved_budget_periods')A.publishMappedBudgets();};
 const publish=A.publishToAtlas;A.publishToAtlas=function(){const s=A.state.approvedBudgetImports?.[A.state.activeProperty+'|'+A.year()];if(s&&A.scenario()?.type==='approved'&&A.scenario()?.locked){s.publishedAt=null;A.publishMappedBudgets();return;}return publish();};
 const restore=R.persist.apply;R.persist.apply=function(payload){Object.values(payload.state?.approvedBudgetImports||{}).forEach(s=>{if(!R.YEARS.includes(s.year))R.YEARS.push(s.year);});R.YEARS.sort();return restore(payload);};
-const render=A.render;A.render=function(){render();const s=A.state.approvedBudgetImports?.[A.state.activeProperty+'|'+A.year()];if(!s)return;const main=document.querySelector('.main');if(!main)return;const box=document.createElement('div');box.className='note';box.textContent='Approved imported budget: '+(s.sourceFile||'')+' · '+s.year+' · Covered months: '+(s.coverage||months.map((_,i)=>i)).map(i=>R.MONTHS[i]).join(', ')+'. Totals represent covered months only. Uncovered months are not published as zero budgets. '+(s.syncStatus||'ATLAS sync pending.');main.prepend(box);
+const render=A.render;A.render=function(){render();const s=A.state.approvedBudgetImports?.[A.state.activeProperty+'|'+A.year()];if(!s)return;const main=document.querySelector('.main');if(!main)return;const box=document.createElement('div');box.className='note';const current=A.state.currentApprovedBudgets?.[A.state.activeProperty];box.textContent=(current?'Current approved budget: '+current.startPeriod+' through '+current.endPeriod+' · Approved '+current.approval+' ('+current.approvalPrecision+' precision). Retained until replacement. ':'')+'Approved imported budget: '+(s.sourceFile||'')+' · '+s.year+' · Covered months: '+(s.coverage||months.map((_,i)=>i)).map(i=>R.MONTHS[i]).join(', ')+'. Totals represent covered months only. Uncovered months are not published as zero budgets. '+(s.syncStatus||'ATLAS sync pending.');main.prepend(box);
  // Explicitly display missing fiscal periods in monthly tables, not calculated zero placeholders.
  if(s.coverage&&s.coverage.length<12)main.querySelectorAll('table').forEach(table=>{
   const header=table.querySelector('tr');if(!header)return;const cells=Array.from(header.children);

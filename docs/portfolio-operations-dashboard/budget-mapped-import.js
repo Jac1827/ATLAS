@@ -108,7 +108,7 @@
     for(const s of pending){
       const property=A.state.properties.find(p=>p.id===s.propertyId),budgetByPeriod={};
       months.forEach((m,i)=>{if(s.coverage&&!s.coverage.includes(i))return;budgetByPeriod[s.year+'-'+String(i+1).padStart(2,'0')]=s.rows.map(r=>({gl:r.gl,glCode:r.gl,name:r.name,section:R.glIndex[r.gl].group,nature:R.glIndex[r.gl].nature,budget:r.monthly[i],annualBudget:r.monthly.reduce((a,b)=>a+b,0),source:(s.periodSources?.[i]||s.sourceFile+' / '+s.sourceSheet)+' / GL '+r.gl+' / row '+r.sourceRow}));});
-      window.parent.postMessage({type:'atlas-budget-publish',requestId:s.propertyId+'|'+s.year+'|'+s.importedAt,payload:{locked:true,property,year:s.year,effectiveDate:s.effectiveDate,coverage:s.coverage,periodVersions:s.periodVersions,sourceFile:s.sourceFile,scenario:{id:'import-'+s.effectiveDate,name:'Approved budget '+s.effectiveDate,status:'approved'},budgetByPeriod,investorPacketSources:R.investorSources?.(A.state,undefined,{names:[property.name]}).properties[property.name]}},window.location.origin);
+      window.parent.postMessage({type:'atlas-budget-publish',requestId:s.propertyId+'|'+s.year+'|'+s.importedAt,payload:{locked:true,property,year:s.year,effectiveDate:s.effectiveDate,approvedBudgetReference:s.approvedBudgetReference,coverage:s.coverage,periodVersions:s.periodVersions,sourceFile:s.sourceFile,scenario:{id:'import-'+s.effectiveDate,name:'Approved budget '+s.effectiveDate,status:'approved'},budgetByPeriod,investorPacketSources:R.investorSources?.(A.state,undefined,{names:[property.name]}).properties[property.name]}},window.location.origin);
     }
   };
   window.addEventListener('message',event=>{

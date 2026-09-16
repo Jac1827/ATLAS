@@ -45,7 +45,7 @@
       note: "Property budget, monthly view, GL detail, actuals, financial review and exception reporting all run in Budget Builder itself — ATLAS reads the published scenario.",
       barTitle: "RISE Budget Builder",
       barSub: "Standalone finance tool — central Budget and actuals migration required",
-      src: "RISE-Budget-Builder.html?v=20260916-budget-handoff",
+      src: "RISE-Budget-Builder.html?v=20260916-budget-current",
       background: "#F1F4F6",
       icon: "ph-calculator"
     },
@@ -257,6 +257,8 @@
         investorPacketSources: payload.investorPacketSources ? {...(record.financialBudgetLedger?.investorPacketSources||{}),...payload.investorPacketSources,periods:{...(record.financialBudgetLedger?.investorPacketSources?.periods||{}),...Object.fromEntries(entries.filter(([period])=>payload.investorPacketSources.periods?.[period]).map(([period])=>[period,payload.investorPacketSources.periods[period]]))}} : record.financialBudgetLedger?.investorPacketSources || null,
         publishedAt: timestamp
       });
+      const reference=payload.approvedBudgetReference,prior=record.currentApprovedBudget;
+      if(reference&&(!prior||reference.endPeriod>prior.endPeriod||(reference.endPeriod===prior.endPeriod&&reference.approval>=prior.approval)))record.currentApprovedBudget=reference;
       record.financialUpdatedAt = timestamp;
       record.financialBudgetUpdatedAt = timestamp;
       record.importTracking = Object.assign({}, record.importTracking || {}, {

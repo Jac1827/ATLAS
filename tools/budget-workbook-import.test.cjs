@@ -42,3 +42,17 @@ for(const snapshot of Object.values(state.approvedBudgetImports)){
 }
 assert.equal(Object.keys(pc.savedData['RISE 34th'].financialBudgetLedger).filter(k=>/^20\d{2}-\d{2}$/.test(k)).length,12);
 console.log('PASS actual RISE 34 workbook: approved worksheet, fiscal periods, 12 monthly NOI ties, missing months, version precedence, saved reload and ATLAS publication');
+// Month-only approvals preserve the precision supplied by the owner.
+const monthlyState=R.buildState();M.addCatalogProperties(monthlyState,['RISE 34th']);
+const monthRows=rows.map(r=>r.slice());monthRows.slice(1).forEach(r=>r[r.length-1]='2025-07');
+let mv=M.validate('approved_budget_periods',monthRows,monthlyState);mv.fileName=v.fileName;mv.sheetName=v.sheetName;
+assert.equal(mv.errors.length,0,JSON.stringify(mv.errors.slice(0,3)));assert.equal(M.apply(mv.type,mv,monthlyState).applied,550);
+let current=monthlyState.currentApprovedBudgets['atlas-RISE%2034th'];
+assert.equal(current.approval,'2025-07');assert.equal(current.approvalPrecision,'month');assert.equal(current.startPeriod,'2025-08');assert.equal(current.endPeriod,'2026-07');
+assert.equal(current.status,'current');assert.equal(R.investorSources(monthlyState).properties['RISE 34th'].periods['2026-09'],undefined);
+const nextRows=monthRows.map(r=>r.slice());nextRows.slice(1).forEach(r=>{r[2]=Number(r[2])+1;r[r.length-1]='2026-07';});
+let nv=M.validate('approved_budget_periods',nextRows,monthlyState);nv.fileName='replacement.xlsx';nv.sheetName=v.sheetName;
+assert.equal(nv.errors.length,0);assert.equal(M.apply(nv.type,nv,monthlyState).applied,550);
+assert.equal(monthlyState.currentApprovedBudgets['atlas-RISE%2034th'].endPeriod,'2027-07');
+assert.equal(monthlyState.approvedBudgetImports['atlas-RISE%2034th|2025'].effectiveDate,'2025-07');
+console.log('PASS month-precision approval, retained current fiscal budget and replacement without rewriting historical periods');

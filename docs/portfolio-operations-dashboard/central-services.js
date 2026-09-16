@@ -250,6 +250,8 @@
     "activity"
   ];
   const EVICTION_FIELD_ALIASES = {
+    lastDelinquencyNote: ["last delinquency note", "last dq note", "delinquency note"],
+    lastDelinquencyNoteDate: ["last delinquency note date", "last dq note date", "delinquency note date", "note entry date"],
     propertyName: ["property", "property name", "community", "community name", "site"],
     residentName: ["resident name", "resident", "name", "tenant name", "lease holder"],
     residentId: ["resident id", "residentid", "tenant id", "customer id"],
@@ -3788,7 +3790,7 @@
           </label>
           <label class="cs-field" style="grid-column:span 3">
             <span>Search Imported Workflow Records</span>
-            <input type="search" value="${escapeAttr(state.ui.search)}" placeholder="Resident, unit, property, owner, status" onchange="atlasCsSetSearch(this.value)">
+            <input type="search" value="${escapeAttr(state.ui.search)}" placeholder="Resident, unit, property, owner, status, DQ note date (YYYY-MM-DD)" onchange="atlasCsSetSearch(this.value)">
           </label>
         </div>
       </div>
@@ -4572,6 +4574,9 @@
       row.hearingOutcome,
       row.owner,
       row.notes,
+      row.lastDelinquencyNote,
+      row.lastDelinquencyNoteDate,
+      row.lastDelinquencyNoteDate ? new Date(row.lastDelinquencyNoteDate + "T12:00:00").toLocaleDateString("en-US") : "",
       row.bankruptcyNotes
     ].join(" ")).includes(query);
   }
@@ -5682,6 +5687,7 @@
       : view === "completed"
         ? getScopedEvictions(state)
         : getEvictionsForCurrentPeriod(state);
+    rows = rows.filter(row => !collectionAccount(row));
     if (view === "active") rows = rows.filter(evictionIsActive);
     if (view === "stipulations") rows = rows.filter(evictionIsStipulationActive);
     if (view === "exceptions") rows = rows.filter(row => asArray(row.exceptions).some(exception => exception.status !== "Exception Resolved") || ["Writ Scheduled", "Writ Posted", "Stipulation Failure"].includes(row.status));
@@ -5738,14 +5744,15 @@
   }
 
   function renderEvictionMonthNavigator(state) {
-    const rows = getScopedEvictions(state);
+    const collections = state.ui.module === "collections";
+    const rows = getScopedEvictions(state).filter(row => collections ? collectionAccount(row) : !collectionAccount(row));
     const selectedKey = localPeriodKey(selectedMonthIdx(state), selectedYear(state));
     const contexts = new Map();
     rows.forEach(row => {
       const key = cleanString(row.periodKey) || localPeriodKey(row.monthIdx, row.year);
       const existing = contexts.get(key) || { monthIdx: row.monthIdx, year: row.year, total: 0, open: 0 };
       existing.total += 1;
-      if (evictionIsActive(row)) existing.open += 1;
+      if (collections ? !evictionIsCompleted(row) : evictionIsActive(row)) existing.open += 1;
       contexts.set(key, existing);
     });
     const currentKey = selectedKey;
@@ -5754,7 +5761,7 @@
     return `<div class="cs-renewal-month-strip">
       ${periods.map(period => {
         const key = localPeriodKey(period.monthIdx, period.year);
-        return `<button type="button" class="${key === selectedKey ? "is-active" : ""}" onclick="atlasCsSelectEvictionMonth(${period.monthIdx},${period.year})"><strong>${escapeHtml(monthYearLabel(period.monthIdx, period.year))}</strong><span>${escapeHtml(formatNumber(period.open))} open / ${escapeHtml(formatNumber(period.total))} total</span></button>`;
+        return `<button type="button" class="${key === selectedKey ? "is-active" : ""}" onclick="${collections ? "atlasCsSelectCollectionMonth" : "atlasCsSelectEvictionMonth"}(${period.monthIdx},${period.year})"><strong>${escapeHtml(monthYearLabel(period.monthIdx, period.year))}</strong><span>${escapeHtml(formatNumber(period.open))} open / ${escapeHtml(formatNumber(period.total))} total</span></button>`;
       }).join("")}
     </div>`;
   }
@@ -5915,7 +5922,7 @@
               <div class="cs-panel-sub">Track bankruptcy holds, account status, Flex Plan status, hearing outcomes, and required notification dates from the same eviction case record.</div>
             </div>
             <div class="cs-command-actions">
-              <button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsSetModule('evictions')">${icon("gavel")} Evictions</button>
+              <button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsNewBankruptcy()" aria-label="Add bankruptcy record">+ Add bankruptcy</button><button type="button" class="cs-btn cs-btn-sm" onclick="atlasCsSetModule('evictions')">${icon("gavel")} Evictions</button>
             </div>
           </div>
           <div class="cs-panel-body">
@@ -6010,7 +6017,7 @@
   }
 
   function renderEvictionDetail(state, employees) {
-    const rows = getScopedEvictions(state);
+    const rows = getScopedEvictions(state).filter(row => !collectionAccount(row));
     const item = rows.find(row => row.id === state.ui.selectedEvictionId) || getVisibleEvictions(state)[0] || rows[0];
     if (!item) return `<div class="cs-detail-panel"><div class="cs-detail-title"><h3>Eviction Case Detail</h3></div><div class="cs-alert">Import a delinquency report to create resident eviction cases and begin the legal workflow.</div></div>`;
     const legalDateFields = [
@@ -6035,6 +6042,8 @@
         </div>
         ${statusPill(item.status)}
       </div>
+      ${item.evictionFiledAt ? `<div class="cs-alert"><strong>Moved to Evictions:</strong> ${escapeHtml(new Date(item.evictionFiledAt).toLocaleString())}<br>Recorded by ${escapeHtml(item.evictionFiledBy?.name || "")} · Sent to attorneys: ${escapeHtml(item.filingInformation?.sentToAttorneyDate || "—")}<br>Active duty military: ${item.filingInformation?.activeDutyMilitary ? "Yes" : "No"} · Cosign: ${item.filingInformation?.cosignProgram ? "Yes" : "No"} · Deposit: ${escapeHtml(item.filingInformation?.depositProgram || "—")}<br>Entrata Eviction / Do not accept confirmed: ${item.filingInformation?.entrataConfirmed ? "Yes" : "No"}</div>` : ""}
+      ${asArray(item.debtHistory).length ? `<div class="cs-detail-section"><h4>Historical debt at filing</h4>${asArray(item.debtHistory).map(snapshot => `<p>${escapeHtml(snapshot.periodKey || "")} · Total: ${escapeHtml(snapshot.delinquentBalance)}<br>0–30: ${escapeHtml(snapshot.aging0To30 ?? "—")} · 31–60: ${escapeHtml(snapshot.aging31To60 ?? "—")} · 61–90: ${escapeHtml(snapshot.aging61To90 ?? "—")} · 90+: ${escapeHtml(snapshot.aging90Plus ?? "—")}<br>${escapeHtml(snapshot.lastDelinquencyNoteDate || "")} ${escapeHtml(snapshot.lastDelinquencyNote || "")}</p>`).join("")}</div>` : ""}
       <div class="cs-chip-row">
         <span class="cs-chip" data-tone="${escapeAttr(evictionStatusTone(item.status))}">${escapeHtml(item.nextAction || "Advance eviction workflow")}</span>
         ${item.stipulation?.health ? `<span class="cs-chip" data-tone="${["Payment Verification Required","Late Payment","Partial Payment","At Risk","Stipulation Failure"].includes(item.stipulation.health) ? "red" : "green"}">Stipulation: ${escapeHtml(item.stipulation.health)}</span>` : ""}
@@ -6098,14 +6107,14 @@
   }
 
   function renderCollections(state) {
-    const rows = getEvictionsForCurrentPeriod(state);
+    const rows = getEvictionsForCurrentPeriod(state).filter(collectionAccount).filter(row => !state.ui.collectionNoteDate || row.lastDelinquencyNoteDate === state.ui.collectionNoteDate);
     const money = value => value === null || value === undefined ? "—" : numberValue(value).toLocaleString("en-US", {style:"currency",currency:"USD"});
     return `<div class="cs-panel"><div class="cs-panel-head"><div class="cs-panel-title">Delinquency & Collections</div>
       <div class="cs-panel-sub">One resident account per community. Aging balances come from the uploaded report; missing buckets are shown as —.</div></div>
-      <div class="cs-panel-body">${renderEvictionMonthNavigator(state)}
-      <table class="cs-table"><thead><tr><th>Community</th><th>Resident / Account</th><th>Unit</th><th>0–30 days</th><th>31–60 days</th><th>61–90 days</th><th>90+ days</th><th>Total balance</th><th>Source</th></tr></thead>
+      <div class="cs-panel-body"><label class="cs-field"><span>Last DQ note date</span><input type="date" value="${escapeAttr(state.ui.collectionNoteDate || "")}" onchange="atlasCsSetCollectionNoteDate(this.value)"></label>${renderEvictionMonthNavigator(state)}
+      <table class="cs-table"><thead><tr><th>Community</th><th>Resident / Account</th><th>Unit</th><th>0–30 days</th><th>31–60 days</th><th>61–90 days</th><th>90+ days</th><th>Total balance</th><th>Last DQ note date</th><th>Last Delinquency Note</th><th>Action</th></tr></thead>
       <tbody>${rows.map(row => `<tr><td>${escapeHtml(row.propertyName)}</td><td>${escapeHtml(row.residentName)}<br>${escapeHtml(row.residentId || row.leaseId || "")}</td><td>${escapeHtml(row.unit)}</td>
-      ${["aging0To30","aging31To60","aging61To90","aging90Plus"].map(key => `<td>${money(row[key])}</td>`).join("")}<td>${money(row.delinquentBalance)}</td><td>${escapeHtml(row.sourceFileName)} · ${escapeHtml(row.sourceSheetName)}${row.sourceRow ? ` · row ${escapeHtml(row.sourceRow)}` : ""}</td></tr>`).join("")}</tbody></table>
+      ${["aging0To30","aging31To60","aging61To90","aging90Plus"].map(key => `<td>${money(row[key])}</td>`).join("")}<td>${money(row.delinquentBalance)}</td><td>${escapeHtml(row.lastDelinquencyNoteDate || "—")}</td><td style="min-width:240px;white-space:pre-wrap">${escapeHtml(row.lastDelinquencyNote || "—")}</td><td><button class="cs-btn cs-btn-sm" data-id="${escapeAttr(row.id)}" onclick="atlasCsOpenFiling(this.dataset.id)">File Eviction</button></td></tr>`).join("")}</tbody></table>
       ${rows.length ? "" : `<div class="cs-empty">No resident balances connected for this community and reporting period.</div>`}</div></div>`;
   }
 
@@ -8298,7 +8307,7 @@
   }
 
   function evictionIsActive(caseRecord = {}) {
-    return !evictionIsCompleted(caseRecord) && !evictionIsStipulationActive(caseRecord);
+    return !collectionAccount(caseRecord) && !evictionIsCompleted(caseRecord) && !evictionIsStipulationActive(caseRecord);
   }
 
   function normalizeBankruptcyAccountClassification(value, caseRecord = {}) {
@@ -8750,6 +8759,25 @@
     return normalizeDate(findEvictionAliasedValue(row, field));
   }
 
+  function delinquencyNoteFields(row) {
+    const note = cleanString(findEvictionAliasedValue(row, "lastDelinquencyNote"));
+    const explicit = findEvictionAliasedValue(row, "lastDelinquencyNoteDate");
+    const leading = note.match(/^\s*\[?(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})(?=[\s\]:,-]|$)/);
+    return {lastDelinquencyNote:note, lastDelinquencyNoteDate:normalizeDate(explicit || leading?.[1] || "")};
+  }
+
+  function collectionAccount(row) {
+    return !row.evictionFiledAt && !row.bankruptcyCreatedAt && !row.bankruptcyStatus && !row.bankruptcyNoticeDate && ["Delinquency Review", "Account Current"].includes(normalizeEvictionStatus(row.status));
+  }
+
+  function filingTransition(row, info, actor, at) {
+    if (!collectionAccount(row)) throw new Error("This account has already moved out of Collections.");
+    if (!info.sentToAttorneyDate || !info.entrataConfirmed) throw new Error("Enter the attorney sent date and confirm both Entrata changes.");
+    if (!["alternative", "deposit"].includes(info.depositProgram)) throw new Error("Select the deposit arrangement.");
+    const snapshot = Object.fromEntries(["periodKey","delinquentBalance","aging0To30","aging31To60","aging61To90","aging90Plus","lastDelinquencyNote","lastDelinquencyNoteDate","sourceFileName","sourceSheetName","sourceRow"].map(key => [key,row[key]]));
+    return {...row,status:"Filed",evictionFiledAt:at,evictionFiledBy:actor,filingInformation:{...info,recordedAt:at,recordedBy:actor},debtHistory:[...asArray(row.debtHistory),{...snapshot,capturedAt:at,reason:"Moved to Evictions"}],activity:[...asArray(row.activity),{at,label:"Moved from Collections to Evictions",by:actor.name}]};
+  }
+
   function mapDelinquencyRecord(row = {}, context = {}, employees = []) {
     const propertyName = centralMatchPropertyName(findEvictionAliasedValue(row, "propertyName"), context.propertyName);
     const residentName = cleanString(findEvictionAliasedValue(row, "residentName"));
@@ -8799,6 +8827,7 @@
       delinquentBalance,
       originalDelinquentBalance: delinquentBalance,
       ...aging,
+      ...delinquencyNoteFields(row),
       sourceRow: row.sourceRow,
       dataAsOf: row.dataAsOf || context.dataAsOf || "",
       totalCharges: numberValue(findEvictionAliasedValue(row, "totalCharges")),
@@ -12275,6 +12304,72 @@
       alert(`Delinquency import failed: ${error?.message || error}`);
       input.value = "";
     }
+  };
+
+  function showCollectionsDialog(title, fields, submit) {
+    document.getElementById("cs-collections-dialog")?.remove();
+    const dialog = document.createElement("dialog");
+    dialog.id = "cs-collections-dialog";
+    dialog.style.cssText = "border:1px solid #d6e0e8;border-radius:12px;padding:24px;width:min(620px,90vw);max-height:85vh;overflow:auto;color:#163c50";
+    dialog.innerHTML = `<form><h2>${escapeHtml(title)}</h2><div style="display:grid;gap:16px">${fields}</div><p role="alert" id="cs-dialog-error"></p><div style="display:flex;gap:12px;margin-top:20px"><button type="button" class="cs-btn" id="cs-dialog-cancel">Cancel</button><button type="submit" class="cs-btn">Save record</button></div></form>`;
+    document.body.append(dialog);
+    dialog.querySelector("#cs-dialog-cancel").onclick = () => dialog.close();
+    dialog.addEventListener("close",() => dialog.remove());
+    dialog.querySelector("form").onsubmit = event => {
+      event.preventDefault();
+      try { submit(new FormData(event.target)); dialog.close(); } catch(error) { dialog.querySelector("#cs-dialog-error").textContent = error.message; }
+    };
+    dialog.showModal();
+  }
+
+  window.atlasCsSetCollectionNoteDate = function(value) {
+    const state = loadState(); state.ui.collectionNoteDate = normalizeDate(value); saveState(state); renderActiveTab();
+  };
+  window.atlasCsSelectCollectionMonth = function(month,year) {
+    const state = loadState(); state.ui.module = "collections"; state.ui.monthIdx = month; state.ui.year = year; saveState(state); renderActiveTab();
+  };
+
+  window.atlasCsOpenFiling = function(id) {
+    const state = loadState();
+    const row = getScopedEvictions(state).find(item => item.id === id);
+    if (!row || !collectionAccount(row)) return;
+    showCollectionsDialog("File Eviction — " + row.residentName, `
+      <label><input type="checkbox" name="military"> Is the resident active duty military?</label>
+      <label><input type="checkbox" name="cosign"> Is the resident in the Cosign Program?</label>
+      <fieldset><legend>Deposit arrangement (select one)</legend><label><input type="radio" name="deposit" value="alternative" required> Security Deposit Alternative Program member</label><br><label><input type="radio" name="deposit" value="deposit" required> Paid a Security Deposit</label></fieldset>
+      <label>Date file was sent to attorneys <input type="date" name="sent" required></label>
+      <label><input type="checkbox" name="entrata" required> I confirm Entrata was adjusted to Eviction status and payment “Do not accept” status.</label>
+      <p>This records the filing handoff in ATLAS. It does not send the file or update Entrata.</p>`, data => {
+        const latest = loadState();
+        const existing = getScopedEvictions(latest).find(item => item.id === id);
+        if (!existing) throw new Error("Account is no longer available in this community scope.");
+        const next = filingTransition(existing,{activeDutyMilitary:data.has("military"),cosignProgram:data.has("cosign"),depositProgram:data.get("deposit"),sentToAttorneyDate:data.get("sent"),entrataConfirmed:data.has("entrata")},currentActor(),new Date().toISOString());
+        latest.evictions = latest.evictions.map(item => item.id === id ? next : item);
+        latest.ui.module = "evictions"; latest.ui.selectedEvictionId = id; latest.ui.evictionView = "active";
+        addAudit(latest,"Moved Collections account to Evictions",{id,propertyName:existing.propertyName});
+        saveState(latest); renderActiveTab();
+      });
+  };
+
+  window.atlasCsNewBankruptcy = function() {
+    const state = loadState();
+    const properties = getScopedProperties(state);
+    showCollectionsDialog("Add bankruptcy record", `
+      <label>Community <select name="property" required><option value="">Select community</option>${properties.map(p => `<option value="${escapeAttr(p.name)}">${escapeHtml(p.name)}</option>`).join("")}</select></label>
+      <label>Resident name <input name="resident" required></label><label>Unit <input name="unit" required></label>
+      <label>Current debt balance <input name="balance" type="number" step="0.01" required></label>
+      <label>Bankruptcy notice received <input name="notice" type="date" required></label>
+      <label>Chapter <input name="chapter"></label><label>Case number <input name="case"></label><label>Notes <textarea name="notes"></textarea></label>`, data => {
+        const latest = loadState(), property = cleanString(data.get("property")), resident = cleanString(data.get("resident")), unit = cleanString(data.get("unit"));
+        if (!getScopedProperties(latest).some(p => p.name === property) || !resident || !unit) throw new Error("Select an accessible community, resident, and unit.");
+        const matches = asArray(latest.evictions).filter(r => r.propertyName === property && normalizeKey(r.residentName) === normalizeKey(resident) && normalizeKey(r.unit) === normalizeKey(unit));
+        if (matches.length > 1) throw new Error("Multiple matching accounts found. Open the existing account to record bankruptcy.");
+        const existing = matches[0], at = new Date().toISOString();
+        const record = normalizeEvictionCase({...existing,id:existing?.id || makeId("bankruptcy",[property,resident,unit,at]),propertyName:property,residentName:resident,unit,monthIdx:existing?.monthIdx ?? selectedMonthIdx(latest),year:existing?.year ?? selectedYear(latest),delinquentBalance:Number(data.get("balance")),status:"Bankruptcy Hold",bankruptcyStatus:"Bankruptcy Hold",bankruptcyNoticeDate:data.get("notice"),bankruptcyChapter:cleanString(data.get("chapter")),bankruptcyCaseNumber:cleanString(data.get("case")),bankruptcyNotes:cleanString(data.get("notes")),bankruptcyCreatedAt:existing?.bankruptcyCreatedAt || at,activity:[...asArray(existing?.activity),{at,label:"Bankruptcy record added",by:currentActor().name}]});
+        latest.evictions = existing ? latest.evictions.map(r => r.id === existing.id ? record : r) : [...asArray(latest.evictions),record];
+        latest.ui.module = "bankruptcy"; latest.ui.selectedEvictionId = record.id;
+        addAudit(latest,"Added bankruptcy record",{id:record.id,propertyName:property});saveState(latest);renderActiveTab();
+      });
   };
 
   window.atlasCsIngestDelinquencyRows = function (sheetRows, context = {}, options = {}) {

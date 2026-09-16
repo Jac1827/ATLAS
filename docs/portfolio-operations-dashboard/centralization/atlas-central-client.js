@@ -1019,7 +1019,7 @@
 
   async function readCommunitiesForAccess() {
     await refreshSession().catch(() => null);
-    const query = "deleted_at=is.null&status=eq.active&select=community_id,display_name,market,regional_grouping,property_type&order=display_name.asc";
+    const query = "deleted_at=is.null&select=community_id,display_name,status,market,regional_grouping,property_type&order=display_name.asc";
     const rows = await fetchJson(`/atlas_communities?${query}`);
     return Array.isArray(rows) ? rows : [];
   }

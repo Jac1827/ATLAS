@@ -257,8 +257,8 @@
         investorPacketSources: payload.investorPacketSources ? {...(record.financialBudgetLedger?.investorPacketSources||{}),...payload.investorPacketSources,periods:{...(record.financialBudgetLedger?.investorPacketSources?.periods||{}),...Object.fromEntries(entries.filter(([period])=>payload.investorPacketSources.periods?.[period]).map(([period])=>[period,payload.investorPacketSources.periods[period]]))}} : record.financialBudgetLedger?.investorPacketSources || null,
         publishedAt: timestamp
       });
-      const reference=payload.approvedBudgetReference,prior=record.currentApprovedBudget;
-      if(reference&&(!prior||reference.endPeriod>prior.endPeriod||(reference.endPeriod===prior.endPeriod&&reference.approval>=prior.approval)))record.currentApprovedBudget=reference;
+      const reference=payload.approvedBudgetReference,prior=record.financialBudgetLedger.currentApprovedBudget;
+      if(reference&&(!prior||reference.endPeriod>prior.endPeriod||(reference.endPeriod===prior.endPeriod&&reference.approval>=prior.approval)))record.financialBudgetLedger.currentApprovedBudget=reference;
       record.financialUpdatedAt = timestamp;
       record.financialBudgetUpdatedAt = timestamp;
       record.importTracking = Object.assign({}, record.importTracking || {}, {

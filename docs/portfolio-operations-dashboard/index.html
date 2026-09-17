@@ -49565,7 +49565,7 @@ function dataImportUpsertCanonicalRecord(record, result, options = {}) {
   }
   const incomingTime = Date.parse(record.dataAsOf || record.importedAt || "") || 0;
   const existingTime = Date.parse(existing?.dataAsOf || existing?.importedAt || "") || 0;
-  if (existing && incomingTime && existingTime && incomingTime < existingTime) {
+  if (existing && !(options.reprocess && record.fileHash && existing.fileHash === record.fileHash && !existing.dataAsOf) && incomingTime && existingTime && incomingTime < existingTime) {
     result.rowsUnchanged += 1;
     result.issues.push({ type: "held", severity: "medium", title: "Older source retained as history", detail: `A newer approved ${record.reportTypeLabel} row already controls ${record.periodKey}.`, communityName: record.communityName });
     return { disposition: "older", record };

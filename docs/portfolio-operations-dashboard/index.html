@@ -9950,18 +9950,20 @@ async function loadSaved() {
   return normalizeSavedCommunityMap(fallback);
 }
 async function atlasPublishFinancialRows(communityName, publication) {
-  const name = matchPropertyName(communityName, { fallbackToCurrent: false });
-  if (!name || !savedData[name]) throw new Error("Financial publication requires an existing canonical community.");
-  await atlasStateWritePromise;
-  const next = window.AtlasFinancialPublication.apply(savedData[name], publication);
-  const map = { ...buildSerializedSavedDataPayload(), [name]: next };
-  // A failed durable write must not appear as a successful import.
-  await atlasStateSetValue(ATLAS_STATE_COMMUNITY_KEY, map);
-  savedData[name] = normalizeSavedCommunityRecord(name, next);
-  if (name === getProp().name) loadPropertyData(name);
-  queueAtlasCentralDocumentPush("financial_publication");
-  renderTab();
-  return { ok: true };
+  const task = atlasStateWritePromise.then(async () => {
+    const name = matchPropertyName(communityName, { fallbackToCurrent: false });
+    if (!name || !savedData[name]) throw new Error("Financial publication requires an existing canonical community.");
+    const next = window.AtlasFinancialPublication.apply(savedData[name], publication);
+    const map = { ...buildSerializedSavedDataPayload(), [name]: next };
+    await atlasStateSetValue(ATLAS_STATE_COMMUNITY_KEY, map);
+    savedData[name] = normalizeSavedCommunityRecord(name, next);
+    if (name === getProp().name) loadPropertyData(name);
+    queueAtlasCentralDocumentPush("financial_publication");
+    renderTab();
+    return { ok: true };
+  });
+  atlasStateWritePromise = task.catch(error => { markAtlasPersistenceError(error, "Financial publication failed."); });
+  return await task;
 }
 
 window.addEventListener("storage", async event => {
@@ -44537,6 +44539,13 @@ function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(
   for (const [field, storedField] of Object.entries(canonicalFields)) {
     const source = monthEntry.metricProvenance?.[storedField];
     if (source?.period === periodKey) report.trafficMetrics[field] = normalizeOptionalNumber(monthEntry[storedField]);
+  }
+  if (typeof window.atlasPropertyMetrics === "function") {
+    const range = { start: `${periodKey}-01`, end: `${periodKey}-${String(new Date(year, reportMetricMonthIdx + 1, 0).getDate()).padStart(2, "0")}` };
+    const cells = window.atlasPropertyMetrics({ name: communityName, record }, range);
+    for (const [field, sourceField] of Object.entries({ applications: "applications", approvals: "approvals", denials: "denied_applications", leases: "leases_completed" })) {
+      if (cells[sourceField]?.value !== null && cells[sourceField]?.value !== undefined) report.trafficMetrics[field] = cells[sourceField].value;
+    }
   }
   report.applicationValidation = validateDlrApplicationCohort(report.trafficMetrics, monthEntry.applicationProvenance || {});
   if (!report.applicationValidation.valid) return null;

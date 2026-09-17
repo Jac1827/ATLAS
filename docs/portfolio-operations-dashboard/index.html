@@ -50381,15 +50381,29 @@ async function reprocessDataImportBoxScore(archiveId) {
     plan.metadata = {...entry.metadata,...plan.metadata,dataAsOf:plan.metadata?.dataAsOf || entry.metadata?.dataAsOf || ""};
     plan.dataDateIso = plan.metadata?.dataAsOf || plan.dataDateIso || entry.dataDateIso;
     plan.sourceSystem = entry.sourceSystem;
-    plan.communities = [...entry.communities];
-    plan.selectedCommunities = [...entry.communities];
+    // Historical preview detection could omit later sheets in a portfolio workbook.
+    // Recover only explicitly resolved, active, managed communities from the verified file.
+    const recoveredCommunities = new Set(entry.communities || []);
+    if (["box_score", "delinquency"].includes(entry.reportType)) {
+      const lookups = {aliases:dataImportBuildAliasLookup(), internalIds:dataImportBuildInternalCommunityLookup()};
+      const mappingCache = new Map();
+      for (const sheet of await dataImportReadStructuredRows(file, plan)) {
+        for (const sourceRow of sheet.rows) {
+          const {mapped} = dataImportMapSourceRow(sourceRow, plan, mappingCache);
+          const name = dataImportResolveRowCommunity(mapped, sourceRow, plan, lookups);
+          if (name && dataImportIsActiveReportingCommunity(name) && dataImportCommunitySupportsReport(name, plan.reportType)) recoveredCommunities.add(name);
+        }
+      }
+    }
+    plan.communities = [...recoveredCommunities];
+    plan.selectedCommunities = [...recoveredCommunities];
     plan.reprocessArchivedSource = true;
     plan.mappingVersion = "ATLAS-source-reconciliation-20260917";
     dataImportBeginApprovalRuntime();
     const result = entry.reportType === "leasing_resident_data"
       ? {communities:entry.communities || [], rowsHeld:0, issues:[]}
       : await dataImportRouteStructuredFile(file,plan,entry.batchId);
-    Object.assign(entry, {metadata:plan.metadata, dataDateIso:plan.dataDateIso, dataDateLabel:plan.dataDateLabel, reportingMonthIdx:plan.reportingMonthIdx, reportingYear:plan.reportingYear, reportingPeriodLabel:plan.reportingPeriodLabel});
+    Object.assign(entry, {communities:plan.communities, metadata:plan.metadata, dataDateIso:plan.dataDateIso, dataDateLabel:plan.dataDateLabel, reportingMonthIdx:plan.reportingMonthIdx, reportingYear:plan.reportingYear, reportingPeriodLabel:plan.reportingPeriodLabel});
     dataImportFinishApprovalRuntime();
     entry.reprocessedAt = new Date().toISOString();
     entry.reprocessResult = result;

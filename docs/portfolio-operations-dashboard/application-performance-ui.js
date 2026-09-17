@@ -4,14 +4,14 @@
   const esc = v => String(v ?? "").replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[c]));
   const norm = v => String(v ?? "").toLowerCase().trim();
   const communityActive = raw => { const name=String(raw||"").trim(); if(!name)return false; if(typeof window.atlasApplicationCommunityInScope==="function")return window.atlasApplicationCommunityInScope(name); return typeof window.isAtlasCommunityActiveByName==="function"?window.isAtlasCommunityActiveByName(name):true; };
-  const operationalCommunityNames = () => { const scoped=window.getAtlasApplicationScopeCommunityNames?.()||[]; const fallback=window.getAtlasOperationalCommunityNames?.(true)||(window.getAllCommunityNames?.()||[]); return [...new Set((typeof window.getAtlasApplicationScopeCommunityNames === "function" ? scoped : fallback).filter(communityActive))].sort(); };
+  const operationalCommunityNames = () => { const scoped=window.getAtlasApplicationScopeCommunityNames?.()||[]; const fallback=typeof window.getAtlasApplicationScopeCommunityNames === "function" ? [] : window.getAtlasOperationalCommunityNames?.(true)||(window.getAllCommunityNames?.()||[]); return [...new Set((typeof window.getAtlasApplicationScopeCommunityNames === "function" ? scoped : fallback).filter(communityActive))].sort(); };
   const communityInScope = raw => { const name=String(raw||"").trim(); if(!name)return false; return operationalCommunityNames().includes(name); };
   const flags = r => { const s=norm(r.applicationStatus).replace(/^application:\s*/, ""); return {started:s==="started",completed:!!r.applicationCompleted||s==="completed",approved:!!r.applicationApproved||s==="approved",denied:!!r.applicationDenied||s==="denied",cancelled:!!r.applicationCancelled||["cancelled","canceled"].includes(s),leased:!!r.leaseSigned,moved:!!r.moveIn}; };
   const lifecycleCovered = rows => rows.length > 0 && rows.every(r => r.lifecycleCoverage === "complete");
   const days = r => {const a=new Date(r.newLeadCreatedOn||r.applicationCreated||0).getTime(), b=new Date(r.sourceAsOf||0).getTime(); return a&&b&&b>=a?Math.floor((b-a)/86400000):null;};
   const priority = r => {const x=flags(r),d=days(r);return x.started&&!x.completed&&d!==null?(d>=7?"High":d>=3?"Medium":"New"):"";};
   const pct = (n,d) => d ? `${(100*n/d).toFixed(1)}%` : "—";
-  const all = () => window.AtlasApplicationSources.filter((window.getAtlasApplicationIntelligenceData?.().records||[]).filter(r=>communityInScope(r.property)), view);
+  const all = () => { const scope=new Set(operationalCommunityNames()); return window.AtlasApplicationSources.filter((window.getAtlasApplicationIntelligenceData?.().records||[]).filter(r=>scope.has(r.property)), view); };
   window.getAtlasApplicationCommandRecords = all;
 
   const option = (label,key,values) => `<label class="ai-command-filter"><span>${esc(label)}</span><select onchange="window.atlasApplicationCommandFilter('${key}',this.value)">${values.map(([value,text])=>`<option value="${esc(value)}" ${view[key]===value?"selected":""}>${esc(text)}</option>`).join("")}</select></label>`;

@@ -16474,11 +16474,12 @@ function buildAtlasDashboardWidgetSnapshot(instance = {}) {
     return { value: typeof rawValue === "string" ? rawValue : atlasDashboardFormatNumber(rawValue), sub, detail: atlasDashboardComparisonLine(instance, aggregate, scopedDetails), scopedDetails };
   }
   if (instance.widgetKey === "reputation_pulse") {
+    const reputationValue = value => Number(value) > 0 ? atlasDashboardFormatPct(value, 1).replace("%", "") : "—";
     const metricMap = {
-      "ORA Score": [atlasDashboardFormatPct(aggregate.oraScore || 0, 1).replace("%", ""), `${atlasDashboardFormatPct(aggregate.googleQuarterlyRating || 0, 1).replace("%", "")} Google quarterly rating`],
-      "Google Rating": [atlasDashboardFormatPct(aggregate.googleQuarterlyRating || 0, 1).replace("%", ""), `${scopeSuffix}`],
-      "Review Volume": [scopedDetails.length, "Reputation records by active property"],
-      "Resident Sentiment": [atlasDashboardFormatPct(aggregate.googleLifetimeRating || 0, 1).replace("%", ""), "Lifetime Google rating proxy"]
+      "ORA Score": [reputationValue(aggregate.oraScore), `${reputationValue(aggregate.googleQuarterlyRating)} Google quarterly rating`],
+      "Google Rating": [reputationValue(aggregate.googleQuarterlyRating), `${scopeSuffix}`],
+      "Review Volume": ["—", "Review count source required"],
+      "Resident Sentiment": [reputationValue(aggregate.googleLifetimeRating), "Lifetime Google rating proxy"]
     };
     const [value, sub] = metricMap[metric] || metricMap["ORA Score"];
     return { value, sub, detail: `${scopeSuffix}`, scopedDetails };
@@ -35162,6 +35163,8 @@ function applyValueToRecord(record, monthIdx, targetKey, numericValue, year = nu
     if (safeYear === currentYear && monthIdx === record.currentMonth) record.currentLeased = numericValue;
     return true;
   }
+  if (targetKey === "delinquent_gross") { assignValue("delinquentGross", numericValue); return true; }
+  if (targetKey === "net_resident_balance") { assignValue("netResidentBalance", numericValue); return true; }
   if (targetKey === "move_outs") { assignValue("moveOuts", numericValue); return true; }
   if (targetKey === "move_ins") { assignValue("moveIns", numericValue); return true; }
   if (targetKey === "guest_cards") { assignValue("guestCards", numericValue); return true; }
@@ -48269,10 +48272,10 @@ async function dataImportFileHash(file) {
 }
 
 function dataImportParseMetadataDate(value = "") {
-  const raw = String(value || "").trim();
+  const raw = String(value || "").replace(/\s*\|\s*/g, " ").trim();
   if (!raw) return "";
   const match = raw.match(/(?:as[ -]?of|data date|generated|created|run date|report date|through)\s*:?\s*([^|;\n]+)/i);
-  const candidate = String(match?.[1] || raw).trim().replace(/\s{2,}.*$/, "");
+  const candidate = String(match?.[1] || raw).trim().replace(/^[:|\s]+/, "").replace(/\s{2,}.*$/, "");
   let parsed = new Date(candidate);
   if (!Number.isFinite(parsed.getTime())) {
     const sourceDate = candidate.match(/\b\d{1,2}[/-]\d{1,2}[/-](?:20|19)\d{2}\b/);
@@ -48282,7 +48285,7 @@ function dataImportParseMetadataDate(value = "") {
 }
 
 function dataImportExtractMetadata(sample = {}, file = null) {
-  const text = String(sample.sampleText || "");
+  const text = String(sample.metadataText || sample.sampleText || "");
   const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean).slice(0, 240);
   const findValue = patterns => {
     const line = lines.find(item => patterns.some(pattern => pattern.test(item)));
@@ -48359,6 +48362,8 @@ async function dataImportReadFileSample(file) {
       const headerSamples = {};
       let rowCount = 0;
       const textParts = [name, ...sheetNames];
+      const metadataParts = [];
+      const reportHeaderParts = [];
       sheetNames.forEach(sheetName => {
         const worksheet = workbook.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "", raw: false });
@@ -48383,6 +48388,8 @@ async function dataImportReadFileSample(file) {
         rowCount += dataRowCount;
         tabSummaries.push({ sheetName, rowCount: dataRowCount, headers: cleanHeaders, sampleValues, headerIndex, isMetadata });
         textParts.push(sheetName, dataImportRowsToText(sampleRows));
+        if (isMetadata) metadataParts.push(dataImportRowsToText(rows));
+        else reportHeaderParts.push(dataImportRowsToText(rows.slice(0, 7)));
       });
       return {
         ...base,
@@ -48391,6 +48398,8 @@ async function dataImportReadFileSample(file) {
         headerSamples,
         rowCount,
         sampleText: textParts.join("\n").slice(0, DATA_IMPORT_MAX_SAMPLE_CHARS),
+        metadataText: metadataParts.join("\n"),
+        reportHeaderText: reportHeaderParts.join("\n"),
         tabSummaries
       };
     }
@@ -48823,7 +48832,13 @@ async function dataImportBuildFilePlan(file, extras = {}) {
   const reportType = extras.forceReportType || detection.reportType;
   const reportDef = dataImportGetReportDef(reportType);
   const sourceSystem = dataImportSourceSystemForType(reportType, combinedText);
-  const period = dataImportDetectReportingPeriod(combinedText, file);
+  const periodText = sample.reportHeaderText || combinedText;
+  const period = dataImportDetectReportingPeriod(periodText, file);
+  if (reportType === "leasing_resident_data" && metadata.dataAsOf) {
+    const date = new Date(metadata.dataAsOf);
+    Object.assign(period, {monthIdx:date.getMonth(), year:date.getFullYear(), reportingPeriodLabel:`${MONTHS[date.getMonth()]} ${date.getFullYear()}`});
+  }
+  if (metadata.dataAsOf) { period.dataDateIso = metadata.dataAsOf; period.dataDateLabel = dataImportFormatDate(metadata.dataAsOf); }
   const fields = dataImportDetectFields(sample, { reportType, sourceSystem });
   const communities = dataImportDetectCommunities(combinedText);
   const issues = [];
@@ -49175,6 +49190,22 @@ async function dataImportReadStructuredRows(file, plan = {}) {
   (workbook.SheetNames || []).forEach(sheetName => {
     if (dataImportIsMetadataSheetName(sheetName)) return;
     const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false, blankrows: true });
+    if (plan.reportType === "delinquency") {
+      const normalize = value => String(value || "").trim().toLowerCase();
+      const headerIndex = rawRows.findIndex(row => row.some(v => normalize(v) === "0-30 days") && row.some(v => normalize(v) === "balance") && row.some(v => normalize(v) === "resident"));
+      if (headerIndex >= 0) {
+        const headers = rawRows[headerIndex];
+        const fields = {"bldg-unit":"unit", "resident":"resident", "lease status":"lease_status", "0-30 days":"aging_0_30", "31-60 days":"aging_31_60", "61-90 days":"aging_61_90", "90+ days":"aging_90_plus", "pre-payments":"prepayments", "balance":"resident_balance"};
+        const rows = rawRows.slice(headerIndex + 1).flatMap((row, index) => {
+          if (!row[headers.findIndex(h=>normalize(h)==="resident")] || /^(?:grand\s+)?(?:sub)?total\s*:?$/i.test(String(row[0] || "").trim())) return [];
+          const values = {}, locators = {};
+          headers.forEach((header,column) => { const field=fields[normalize(header)]; if (!field || row[column] === "" || row[column] == null) return; values[field]=row[column]; locators[field]={row:headerIndex+index+2,column:column+1,section:"aged receivables",sourceHeader:header}; });
+          return [{values,locators,canonicalSource:true,sourceSheet:sheetName,sourceRow:headerIndex+index+2}];
+        });
+        sheets.push({sheetName,headers:Object.values(fields),rows});
+        return;
+      }
+    }
     if (plan.reportType === "box_score" && window.AtlasApplicationSources) {
       const qualified = window.AtlasApplicationSources.boxScore(rawRows);
       if (qualified.length) {
@@ -49203,7 +49234,7 @@ async function dataImportReadStructuredRows(file, plan = {}) {
 }
 
 function dataImportMapSourceRow(sourceRow = {}, plan = {}, mappingCache = null) {
-  if (sourceRow.canonicalSource && plan.reportType === "box_score") {
+  if (sourceRow.canonicalSource && ["box_score", "delinquency"].includes(plan.reportType)) {
     const mapped = {}, sourceFields = {}, unmappedFields = [];
     for (const [field,value] of Object.entries(sourceRow.values || {})) {
       const loc = sourceRow.locators?.[field];
@@ -49335,6 +49366,9 @@ function dataImportCommunitySupportsReport(communityName, reportType) {
 }
 
 function dataImportRowPeriod(mapped = {}, sourceRow = {}, plan = {}) {
+  if (["box_score", "delinquency", "leasing_resident_data"].includes(plan.reportType) && Number.isInteger(plan.reportingMonthIdx) && Number.isInteger(plan.reportingYear)) {
+    return {monthIdx:plan.reportingMonthIdx, year:plan.reportingYear, periodKey:buildPeriodKey(plan.reportingMonthIdx, plan.reportingYear)};
+  }
   const candidates = [mapped.post_month, mapped.renewal_expiration, mapped.lease_end, mapped.application_date, mapped.move_in_date, sourceRow.sourceSheet];
   for (const candidate of candidates) {
     const raw = String(candidate ?? "").trim();
@@ -49632,8 +49666,8 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
   const hasFloorPlanRows = rows.some(row => row.floorplan_code || row.floorplan);
   const sum = field => {
     const values = rows.map(row => dataImportNumericValue(row[field])).filter(value => value !== null);
-    if (!values.length) return null;
-    return hasFloorPlanRows ? values.reduce((total, value) => total + value, 0) : values[0];
+    if (!values.length || (plan.reportType === "delinquency" && values.length !== rows.length)) return null;
+    return hasFloorPlanRows || plan.reportType === "delinquency" ? values.reduce((total, value) => total + value, 0) : values[0];
   };
   const first = field => rows.map(row => row[field]).find(value => String(value ?? "").trim() !== "");
   if (plan.reportType === "box_score") {
@@ -49669,6 +49703,15 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     dataImportApplyMetric(record, plan, result, communityName, period, "denied", sum("denied_applications"), "denied_applications");
     dataImportApplyMetric(record, plan, result, communityName, period, "cancelled", sum("cancelled_applications"), "cancelled_applications");
     dataImportApplyMetric(record, plan, result, communityName, period, "leases_signed", sum("leases_completed"), "leases_completed");
+    if (!hasFloorPlanRows) {
+      dataImportApplyMetric(record, plan, result, communityName, period, "budget_rent", sum("avg_market_rent_budgeted"), "avg_market_rent_budgeted");
+      dataImportApplyMetric(record, plan, result, communityName, period, "market_rent", sum("avg_scheduled_rent"), "avg_scheduled_rent");
+      dataImportApplyMetric(record, plan, result, communityName, period, "ner", sum("avg_ner"), "avg_ner");
+    }
+    for (const field of ["walk_in", "off_site_event", "phone_calls"]) dataImportApplyMetric(record, plan, result, communityName, period, field, sum(field), field);
+    const combined = fields => { const values=fields.map(sum); return values.every(v=>v!==null) ? values.reduce((a,b)=>a+b,0) : null; };
+    dataImportApplyMetric(record, plan, result, communityName, period, "emails_online", combined(["emails","online"]), "emails_online");
+    dataImportApplyMetric(record, plan, result, communityName, period, "text_chat_other", combined(["text","chat","other"]), "text_chat_other");
     const leadCount = sum("new_leads") ?? sum("guest_cards");
     const applicationCount = sum("applications");
     if (leadCount !== null && applicationCount !== null && applicationCount > leadCount) result.issues.push({ type: "reconciliation", severity: "medium", title: "Applications exceed detected leads", detail: `${applicationCount} applications were reported against ${leadCount} new leads. Confirm the source date range and lead bucket definitions.`, communityName });
@@ -49729,17 +49772,14 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
   } else if (plan.reportType === "delinquency") {
     const components = [sum("unpaid_rent"), sum("unpaid_other"), sum("unpaid_deposit")];
     const buckets = [sum("aging_0_30"), sum("aging_31_60"), sum("aging_61_90"), sum("aging_90_plus")];
-    const gross = components.some(value => value !== null) ? components.reduce((total,value) => total + (value || 0),0)
-      : buckets.every(value => value !== null) ? buckets.reduce((total,value) => total + value,0) : null;
+    const gross = buckets.every(value => value !== null) ? buckets.reduce((total,value) => total + value,0)
+      : components.every(value => value !== null) ? components.reduce((total,value) => total + value,0) : null;
     const balance = sum("resident_balance") ?? (gross === null ? null : gross + (sum("credits") || 0) + (sum("prepayments") || 0));
     const pastDue = sum("past_due");
     const currentDue = sum("current_due");
     if (gross !== null && pastDue !== null && currentDue !== null && Math.abs((pastDue + currentDue) - gross) > 1) result.issues.push({ type: "reconciliation", severity: "high", title: "Delinquency totals do not reconcile", detail: `Past Due + Current Due is ${(pastDue + currentDue).toFixed(2)}, while gross delinquency is ${gross.toFixed(2)}.`, communityName });
-    const periodEntries = getWritableMonthlyPeriodEntries(record, period.monthIdx, period.year);
-    [periodEntries?.historyEntry, periodEntries?.liveEntry].filter(Boolean).forEach(month => {
-      if (gross !== null) month.delinquentGross = gross;
-      if (balance !== null) month.netResidentBalance = balance;
-    });
+    dataImportApplyMetric(record, plan, result, communityName, period, "delinquent_gross", gross, "delinquent_gross");
+    dataImportApplyMetric(record, plan, result, communityName, period, "net_resident_balance", balance, "resident_balance");
     result.formulas.push(`${communityName} ${period.periodKey}: Gross Delinquency = Unpaid Rent + Other + Deposit; Net Resident Balance = Gross + Credits + Prepayments.`);
     result.destinations.add("Central Services Collections");
   }
@@ -49854,6 +49894,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
         });
         await dataImportYieldToBrowser();
       }
+      if (plan.reportType === "delinquency" && Object.values(sourceRow.values || {}).slice(0, 2).some(value => /^(?:grand\s+)?(?:sub)?total\s*:?$/i.test(String(value || "").trim()))) continue;
       const { mapped, sourceFields, unmappedFields } = dataImportMapSourceRow(sourceRow, plan, mappingCache);
       const communityName = dataImportResolveRowCommunity(mapped, sourceRow, plan, communityLookups);
       if (!communityName) {
@@ -50327,7 +50368,7 @@ function clearDataImportPendingBatch() {
 async function reprocessDataImportBoxScore(archiveId) {
   if (!dataImportCanManageArchitecture() || dataImportApprovalInProgress) return;
   const entry = (dataImport2State.sourceArchive || []).find(item => item.id === archiveId);
-  if (!entry || entry.reportType !== "box_score" || entry.importStatus !== "Approved") return;
+  if (!entry || !["box_score", "delinquency", "leasing_resident_data"].includes(entry.reportType) || entry.importStatus !== "Approved") return;
   dataImportApprovalInProgress = true;
   const beforeSaved = JSON.stringify(savedData);
   const beforeImport = JSON.stringify(dataImport2State);
@@ -50335,30 +50376,33 @@ async function reprocessDataImportBoxScore(archiveId) {
     const stored = await atlasStateGetValue(`${DATA_IMPORT_FILE_ARCHIVE_PREFIX}${archiveId}`);
     if (!stored?.blob) throw new Error("The original source is unavailable in this browser archive.");
     const file = new File([stored.blob], stored.fileName || entry.fileName, {type:stored.type});
-    const plan = await dataImportBuildFilePlan(file,{forceReportType:"box_score"});
+    const plan = await dataImportBuildFilePlan(file,{forceReportType:entry.reportType});
     if (!entry.fileHash || plan.fileHash !== entry.fileHash) throw new Error("The retained source hash does not match its approved archive entry.");
     plan.metadata = {...entry.metadata,...plan.metadata,dataAsOf:plan.metadata?.dataAsOf || entry.metadata?.dataAsOf || ""};
-    plan.dataDateIso = entry.dataDateIso || plan.dataDateIso;
+    plan.dataDateIso = plan.metadata?.dataAsOf || plan.dataDateIso || entry.dataDateIso;
     plan.sourceSystem = entry.sourceSystem;
     plan.communities = [...entry.communities];
     plan.selectedCommunities = [...entry.communities];
     plan.reprocessArchivedSource = true;
-    plan.mappingVersion = "ATLAS-section-qualified-20260916";
+    plan.mappingVersion = "ATLAS-source-reconciliation-20260917";
     dataImportBeginApprovalRuntime();
-    const result = await dataImportRouteStructuredFile(file,plan,entry.batchId);
+    const result = entry.reportType === "leasing_resident_data"
+      ? {communities:entry.communities || [], rowsHeld:0, issues:[]}
+      : await dataImportRouteStructuredFile(file,plan,entry.batchId);
+    Object.assign(entry, {metadata:plan.metadata, dataDateIso:plan.dataDateIso, dataDateLabel:plan.dataDateLabel, reportingMonthIdx:plan.reportingMonthIdx, reportingYear:plan.reportingYear, reportingPeriodLabel:plan.reportingPeriodLabel});
     dataImportFinishApprovalRuntime();
     entry.reprocessedAt = new Date().toISOString();
     entry.reprocessResult = result;
-    dataImport2State.reconciliationLog.unshift({id:dataImportMakeId("reprocess"),batchId:entry.batchId,reportType:entry.reportType,fileName:entry.fileName,formula:"Archived Box Score reprocessed with section-qualified parser; source file unchanged.",createdAt:entry.reprocessedAt});
+    dataImport2State.reconciliationLog.unshift({id:dataImportMakeId("reprocess"),batchId:entry.batchId,reportType:entry.reportType,fileName:entry.fileName,formula:"Approved archived source reconciled with section-qualified mapping and report-level dates; source file unchanged.",createdAt:entry.reprocessedAt});
     persistSaved();
     persistDataImport2State();
-    alert(`Reprocessed ${result.communities.length} communities from the original Box Score. ${result.rowsHeld} rows held; ${result.issues.length} review items. Newer sources and closed periods remain protected.`);
+    alert(`Reprocessed ${result.communities.length} communities from the approved original source. ${result.rowsHeld} rows held; ${result.issues.length} review items. Newer sources and closed periods remain protected.`);
   } catch (error) {
     savedData = JSON.parse(beforeSaved);
     dataImport2State = JSON.parse(beforeImport);
     persistSaved();
     persistDataImport2State();
-    alert(`Box Score recovery stopped: ${error.message || error}`);
+    alert(`Source recovery stopped: ${error.message || error}`);
   } finally {
     dataImportFinishApprovalRuntime();
     dataImportApprovalInProgress = false;
@@ -53230,7 +53274,7 @@ function renderDataImportArchiveView() {
         <td>${(entry.communities || []).slice(0, 4).map(name => `<span class="data-import2-chip good">${escapeHtml(name)}</span>`).join(" ") || `<span class="data-import2-chip warn">Unmapped</span>`}</td>
         <td>${escapeHtml(entry.batchId || "")}<div class="data-import2-file-meta">${escapeHtml(entry.rowsReviewed || 0)} reviewed · ${escapeHtml(entry.rowsUpdated || 0)} corrected · ${escapeHtml(entry.rowsHeld || 0)} held</div><div class="data-import2-file-meta">${escapeHtml(entry.mappingVersion || "ATLAS-RRIM-1.0")}</div></td>
         <td><span class="data-import2-status ${dataImportStatusClass(entry.importStatus)}">${escapeHtml(entry.importStatus || "Archived")}</span><div class="data-import2-file-meta">${escapeHtml(entry.storageStatus || "Metadata")}</div></td>
-        <td><button class="btn btn-gray btn-sm" onclick='downloadDataImportArchiveFile(${JSON.stringify(entry.id)})'>Download</button>${entry.reportType === "box_score" && entry.importStatus === "Approved" && dataImportCanManageArchitecture() ? `<button class="btn btn-blue btn-sm" onclick='reprocessDataImportBoxScore(${JSON.stringify(entry.id)})'>Refresh from original Box Score</button>` : ""}${entry.reprocessedAt ? `<div class="data-import2-file-meta">Refreshed ${escapeHtml(dataImportFormatTimestamp(entry.reprocessedAt))}</div>` : ""}</td>
+        <td><button class="btn btn-gray btn-sm" onclick='downloadDataImportArchiveFile(${JSON.stringify(entry.id)})'>Download</button>${["box_score", "delinquency", "leasing_resident_data"].includes(entry.reportType) && entry.importStatus === "Approved" && dataImportCanManageArchitecture() ? `<button class="btn btn-blue btn-sm" onclick='reprocessDataImportBoxScore(${JSON.stringify(entry.id)})'>Reconcile approved source</button>` : ""}${entry.reprocessedAt ? `<div class="data-import2-file-meta">Refreshed ${escapeHtml(dataImportFormatTimestamp(entry.reprocessedAt))}</div>` : ""}</td>
       </tr>`).join("")}</tbody>
     </table>
   </div>`;

@@ -95,6 +95,9 @@
         for(const [field,h] of Object.entries({total_units:'units',rentable_units:'rentable units',excluded_units:'excluded',occupied_units:'occupied',vacant_units:'vacant',available_units:'available',occupied_no_notice:'occupied no notice',notice_rented:'notice rented',notice_unrented:'notice unrented',vacant_rented:'vacant rented',vacant_unrented:'vacant unrented'}))get(field,h);
         const leasedHeader=headers.find(h=>/: leased units$/i.test(text(h)));
         if(leasedHeader)get('source_leased_units',norm(leasedHeader));
+        get('avg_market_rent_budgeted','avg. market rent (budgeted)');
+        get('avg_scheduled_rent','avg. scheduled rent');
+        get('avg_ner','avg. net effective rent');
         values.measurement_basis='units';
       } else if(section.startsWith('lead conversions')) {
         for(const [field,h] of Object.entries({applications:'completed',approvals:'approved',denied_applications:'denied',applications_partial:'partially completed',applications_completed_cancelled:'completed (cancelled)',applications_approved_cancelled:'approved (cancelled)'}))get(field,h,'application');
@@ -104,7 +107,9 @@
           locators.cancelled_applications={...locators.applications_completed_cancelled,sourceHeader:'Completed (Cancelled) + Approved (Cancelled)',columns:[locators.applications_completed_cancelled.column,locators.applications_approved_cancelled.column]};
         }
         get('leases_completed','completed','lease');get('leases_approved','approved','lease');
-      } else if(section.startsWith('lead activity')) {get('new_leads','new leads');get('tours','first visits/tours');}
+      } else if(section.startsWith('lead activity')) {get('new_leads','new leads');get('tours','first visits/tours');
+        for(const [field,h] of Object.entries({walk_in:'walk in',off_site_event:'off site event',phone_calls:'call',emails:'email',online:'online',chat:'chat',text:'text',other:'other'}))get(field,h);
+      }
       else {get('move_ins','move-ins');get('move_outs','move-outs');get('renewal_leases_approved','renewal leases approved');}
       if(Object.keys(locators).length)output.push({values,sourceRow:totalIndex+1,canonicalSource:true,locators});
       i=end-1;

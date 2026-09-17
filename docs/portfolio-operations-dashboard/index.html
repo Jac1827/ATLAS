@@ -9297,7 +9297,7 @@ function getReconciledStabilizationInputs(record, totalUnits, monthIdx, year, pr
     && occupancyOptionalNumber(item.values?.rentable_units) === occupancyOptionalNumber(baseline.entry.rentableUnits)
     && dataImportPercentValue(item.values?.physical_occupancy) !== null
     && Math.abs(dataImportPercentValue(item.values.physical_occupancy) - baseline.rawUnits / Number(baseline.entry.rentableUnits) * 100) <= 0.11);
-  if (!source || String(source.dataAsOf).slice(0, 7) !== buildPeriodKey(monthIdx, year)) {
+  if (!source || String(source.sectionPeriod?.asOf || source.dataAsOf).slice(0, 7) !== buildPeriodKey(monthIdx, year)) {
     return missing("Reconcile the period occupancy count, rentable inventory and independent source percentage");
   }
   // Use every completed month from January; partial current-month activity is not
@@ -9313,18 +9313,26 @@ function getReconciledStabilizationInputs(record, totalUnits, monthIdx, year, pr
     if (moveIns === null || moveOuts === null || moveIns < 0 || moveOuts < 0
       || !Number.isInteger(moveIns) || !Number.isInteger(moveOuts) || !incoming || !outgoing
       || incoming.fileHash !== outgoing.fileHash || incoming.dataAsOf !== outgoing.dataAsOf
-      || String(incoming.dataAsOf).slice(0, 10) !== lastDay) {
+      || String(incoming.dataAsOf).slice(0, 10) < lastDay) {
       return missing("Complete, source-dated move-in and move-out history is required for every closed month");
     }
-    const activitySource = canonical.find(item => item.communityName === propName
+    const sameSource = item => item.communityName === propName
       && item.periodKey === buildPeriodKey(idx, year) && item.reportType === "box_score"
-      && item.fileHash === incoming.fileHash && item.dataAsOf === incoming.dataAsOf
+      && item.fileHash === incoming.fileHash && item.dataAsOf === incoming.dataAsOf;
+    const activitySource = canonical.find(item => sameSource(item)
       && occupancyOptionalNumber(item.values?.move_ins) === moveIns
       && occupancyOptionalNumber(item.values?.move_outs) === moveOuts
+      && (item.sectionPeriod
+        ? item.sectionPeriod.start === buildPeriodKey(idx,year)+"-01" && item.sectionPeriod.end === lastDay
+        : String(item.dataAsOf).slice(0,10) === lastDay));
+    // Availability and Property Pulse are different canonical rows in Entrata.
+    // Join them by community, period, source hash and as-of, not by row index.
+    const inventorySource = canonical.find(item => sameSource(item)
       && occupancyOptionalNumber(item.values?.total_units) === Number(totalUnits)
       && occupancyOptionalNumber(item.values?.rentable_units) === Number(baseline.entry.rentableUnits)
-      && item.values?.measurement_basis === source.values?.measurement_basis);
-    if (!activitySource) return missing("Reconcile the full absorption series to source rows on the same inventory basis");
+      && item.values?.measurement_basis === source.values?.measurement_basis
+      && String(item.sectionPeriod?.asOf || item.dataAsOf).slice(0,10) === lastDay);
+    if (!activitySource || !inventorySource) return missing("Reconcile the full absorption series to source rows on the same inventory basis");
     documented.push(moveIns - moveOuts);
   }
   return { baseline, documented, verified: true, reason: "" };

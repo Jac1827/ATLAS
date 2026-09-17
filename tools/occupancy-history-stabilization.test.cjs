@@ -65,6 +65,16 @@ assert.equal(estimate.targetUnits,179);assert.equal(estimate.months,17);
 const report={sourceRecord:record,totalUnits:200,reportMonthIdx:8,reportYear:2026,communityName:model.propName,communityCount:1};
 assert.equal(c.buildCommunityProgressStabilization(report).months,estimate.months);
 assert.equal(c.buildCommunityProgressStabilization({...report,communityCount:2}).months,null,'A first-community record cannot verify a portfolio');
+// Real parser shape: Availability inventory and Property Pulse activity are separate rows.
+const joinedBefore=clone(c.dataImport2State.canonicalRecords);
+c.dataImport2State.canonicalRecords=c.dataImport2State.canonicalRecords.flatMap(item=>{
+ if(item.periodKey===period)return [item];
+ const last=item.dataAsOf.slice(0,10);
+ return [{...item,sectionPeriod:{asOf:last},values:{total_units:200,rentable_units:190}},
+ {...item,sectionPeriod:{start:item.periodKey+'-01',end:last},values:{move_ins:item.values.move_ins,move_outs:item.values.move_outs}}];
+});
+assert.equal(c.getMonthsToStabilization(model).months,17,'Join qualified sections from the same source');
+c.dataImport2State.canonicalRecords=joinedBefore;
 // Selected model supplies all context; rendering must never depend on active-property globals.
 markup=c.renderCommunityCommandStabilization(model);assert(markup.includes('February 2028'));
 const last=c.dataImport2State.lineage.pop();assert.equal(c.getMonthsToStabilization(model).months,null,'One missing zero activity field invalidates the series');c.dataImport2State.lineage.push(last);

@@ -5323,6 +5323,7 @@ let photoAssetLoadPromises = new Map();
 let photoAssetHydrationScheduled = false;
 let atlasStateDbPromise = null;
 let atlasStateWritePromise = Promise.resolve();
+let opsGlobalStorageCache = null;
 let dailyBackupIndexCache = [];
 let weeklySnapshotCache = null;
 
@@ -5680,7 +5681,7 @@ function persistJsonToLocalStorage(key, payload, label = "dashboard data") {
     const rawMessage = String(error?.message ?? error?.name ?? "Unknown browser storage error");
     const isQuotaError = /quota|storage/i.test(rawMessage);
     const message = isQuotaError
-      ? `${label} could not be saved because browser storage is full. Clear older community photos or headshots, then try again.`
+      ? `${label} could not be saved because browser storage is full. Keep this tab open to preserve unsaved changes and retry saving; do not clear browser data.`
       : `${label} could not be saved in this browser. ${rawMessage}`;
     try { console.warn(message, error); } catch {}
     return { ok: false, message };
@@ -8126,10 +8127,55 @@ function applyOpsGlobalData(data) {
   opsGlobalData = normalized;
 }
 
+function readOpsGlobalStorageRaw() {
+  return opsGlobalStorageCache === null ? localStorage.getItem(OPS_GLOBAL_STORAGE_KEY) : JSON.stringify(opsGlobalStorageCache);
+}
+
+async function writeOpsGlobalStorage(payload) {
+  if (!await openAtlasStateDb()) throw new Error("ATLAS browser database is unavailable. Keep this tab open and retry saving.");
+  await atlasStateSetValue(OPS_GLOBAL_STORAGE_KEY, payload);
+  const verified = await atlasStateGetValue(OPS_GLOBAL_STORAGE_KEY);
+  if (JSON.stringify(verified) !== JSON.stringify(payload)) throw new Error("ATLAS settings storage verification failed. Keep this tab open.");
+  // Remove only the duplicate small-store copy, after the larger-store transaction is verified.
+  try { localStorage.removeItem(OPS_GLOBAL_STORAGE_KEY); } catch {}
+}
+
+async function hydrateOpsGlobalStorage() {
+  try {
+    const stored = await atlasStateGetValue(OPS_GLOBAL_STORAGE_KEY);
+    if (stored && typeof stored === "object") {
+      opsGlobalStorageCache = stored;
+      return;
+    }
+    const raw = localStorage.getItem(OPS_GLOBAL_STORAGE_KEY);
+    if (!raw) return;
+    const legacy = JSON.parse(raw);
+    await writeOpsGlobalStorage(legacy);
+    opsGlobalStorageCache = legacy;
+  } catch (error) {
+    markAtlasPersistenceError(error, "Could not load the larger ATLAS settings store.");
+  }
+}
+
+function persistOpsGlobalSnapshot(payload) {
+  const snapshot = JSON.parse(JSON.stringify(payload));
+  opsGlobalStorageCache = snapshot;
+  const result = { ok: true, pending: true, completion: null, message: "" };
+  result.completion = queueAtlasStateWrite(async () => {
+    try { await writeOpsGlobalStorage(snapshot); result.pending = false; }
+    catch (error) {
+      result.ok = false; result.pending = false; result.message = error.message;
+      alert(`ATLAS settings could not be saved. Your changes remain in this tab. Keep it open and retry. ${error.message}`);
+      throw error;
+    }
+  }, "global_settings_indexeddb");
+  return result;
+}
+
 function hydrateOpsGlobalData() {
   let parsed = null;
   try {
-    const raw = localStorage.getItem(OPS_GLOBAL_STORAGE_KEY);
+    const raw = readOpsGlobalStorageRaw();
     parsed = raw ? JSON.parse(raw) : null;
   } catch {}
   applyOpsGlobalData(parsed ?? getLegacyOpsGlobalSeed());
@@ -8191,7 +8237,7 @@ function persistOpsGlobalData() {
   });
   // Shared rows stay session-only, but saving unrelated settings must not erase them.
   applicationResidentDataState = currentApplicationState;
-  return persistJsonToLocalStorage(OPS_GLOBAL_STORAGE_KEY, opsGlobalData, "Bonus and presentation settings");
+  return persistOpsGlobalSnapshot(opsGlobalData);
 }
 
 function getBonusRoles() { return bonusRolesByQ[bonusQuarter]; }
@@ -14904,7 +14950,9 @@ function saveCommunityData(silent = false) {
     const saveScopeLabel = isPortfolioWorkspaceSelected()
       ? `${PORTFOLIO_SCOPE_LABEL} (active community saved: ${key})`
       : key;
-    alert(`✅ Saved data for ${saveScopeLabel}`);
+    Promise.resolve(globalResult.completion).then(() => {
+      if (globalResult.ok) alert(`✅ Saved data for ${saveScopeLabel}`);
+    });
   }
   if (!suppressDashboardSharedSyncPush && !atlasCentralLegacyBundleDisabled()) {
     queueDashboardSharedSyncPush("dashboard_save");
@@ -17031,7 +17079,7 @@ async function buildDashboardStorageBundle() {
   const storage = {};
   DASHBOARD_STORAGE_MIGRATION_KEYS.forEach((key) => {
     try {
-      const raw = localStorage.getItem(key);
+      const raw = key === OPS_GLOBAL_STORAGE_KEY ? readOpsGlobalStorageRaw() : localStorage.getItem(key);
       if (raw !== null) storage[key] = raw;
     } catch {}
   });
@@ -17215,7 +17263,7 @@ async function collectAtlasCentralMigrationSnapshot() {
   const storageEntries = {};
   for (const key of [...new Set(ATLAS_LEGACY_MIGRATION_STORAGE_KEYS)]) {
     let rawValue = null;
-    try { rawValue = localStorage.getItem(key); } catch {}
+    try { rawValue = key === OPS_GLOBAL_STORAGE_KEY ? readOpsGlobalStorageRaw() : localStorage.getItem(key); } catch {}
     if (rawValue === null) continue;
     const redacted = redactAtlasMigrationStorageValue(key, rawValue);
     storageEntries[key] = {
@@ -21246,12 +21294,19 @@ async function applyDashboardStorageBundle(bundle) {
     ? bundle.indexedDb
     : null;
   let writtenCount = 0;
-  Object.entries(incoming || {}).forEach(([key, rawValue]) => {
+  for (const [key, rawValue] of Object.entries(incoming || {})) {
     try {
-      localStorage.setItem(String(key), typeof rawValue === "string" ? rawValue : JSON.stringify(rawValue));
+      if (key === OPS_GLOBAL_STORAGE_KEY) {
+        const payload = typeof rawValue === "string" ? JSON.parse(rawValue) : rawValue;
+        await atlasStateWritePromise;
+        await writeOpsGlobalStorage(payload);
+        opsGlobalStorageCache = payload;
+      } else {
+        localStorage.setItem(String(key), typeof rawValue === "string" ? rawValue : JSON.stringify(rawValue));
+      }
       writtenCount += 1;
-    } catch {}
-  });
+    } catch (error) { markAtlasPersistenceError(error); }
+  }
   if (indexedDbPayload) {
     if (indexedDbPayload.communityData && typeof indexedDbPayload.communityData === "object") {
       const mergedCommunityData = mergeDashboardCommunityDataMaps(
@@ -56491,6 +56546,7 @@ async function initializeAtlasDashboard() {
     await window.ATLAS_CENTRAL.refreshSession().catch(() => null);
   }
   runAtlasStartupStep("apply incoming workspace navigation", () => applyIncomingWorkspaceNavigation());
+  await hydrateOpsGlobalStorage();
   runAtlasStartupStep("hydrate global ATLAS settings", () => hydrateOpsGlobalData());
   try {
     await hydrateDashboardPersistentState();

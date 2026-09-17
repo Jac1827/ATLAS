@@ -1411,7 +1411,7 @@
 
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=20260916-publish-reconcile"></script>
-<script src="./centralization/atlas-central-client.js?v=20260916-publish-reconcile" data-atlas-central-client="true"></script>
+<script src="./centralization/atlas-central-client.js?v=20260917-shared-applications" data-atlas-central-client="true"></script>
 <script src="./central-services.js?v=20260916-attorney-coversheet-20260916-filing-20260916-collections-20260911-admin-inspection-controls"></script>
 <script src="./eviction-attorney-ui.js?v=20260916-community-contacts"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260916-no-data-status">
@@ -14984,7 +14984,7 @@ function defaultAtlasAccessFormDraft() {
 
 atlasAccessFormDraft = defaultAtlasAccessFormDraft();
 
-const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=20260916-glitch-review";
+const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=20260917-shared-applications";
 const ATLAS_AUTH_UI_STORAGE_KEY = "atlas_auth_ui_state_v1";
 const ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY = "atlas_dashboard_preferences_v1";
 let atlasCentralClientLoadPromise = null;
@@ -29095,6 +29095,9 @@ function syncJacsTeamMetricsFromDashboard() {
 function getMetricOutcome(m) {
   const tiers = Array.isArray(m?.tiers) ? [...m.tiers].sort((a, b) => Number(b.threshold) - Number(a.threshold)) : [];
   const rawActual = m?.actual;
+  if ((m?.syncKey === "oraScore" || /^ora(?: score)?$/i.test(String(m?.cat || ""))) && !(Number(rawActual) > 0)) {
+    return { status: "pending", multiplier: 0, label: "Source Required", tier: null };
+  }
   if (m?.requiresManualEntry && (rawActual === null || rawActual === undefined || rawActual === "")) {
     return { status: "miss", multiplier: 0, label: "Entry Required", tier: null };
   }
@@ -29675,7 +29678,7 @@ function renderPropertyBonusTab() {
       const statusColor = status === "hit" ? "#3fb950" : status === "partial" ? "#d29922" : status === "kicker" ? "#2dd4bf" : "var(--muted)";
       const cellClass = status === "hit" ? "hit" : status === "partial" ? "partial" : status === "miss" ? "miss" : "";
       const earnedAmt = m.payout * outcome.multiplier;
-      const statusText = isCombined
+      const statusText = outcome.label === "Source Required" ? "Source required — ORA has not been reported" : isCombined
         ? (status === "hit"
             ? `✅ HIT — absorption and renewal goals met · $${earnedAmt.toFixed(0)}`
             : status === "partial"
@@ -29716,7 +29719,7 @@ function renderPropertyBonusTab() {
           ${m.secondaryLabel} Goal: <input class="bonus-inp-sm" type="number" value="${m.secondaryGoal ?? 0}" min="0" step="0.1" onchange="updateBonusMetric(${ri},${mi},'secondaryGoal',this.value)">%
         </div>` : ""}
         <div class="bonus-metric-detail" style="margin-top:4px">
-          ${isCombined ? `${qLabel} Absorption Actual` : `${qLabel} Actual`}: <input class="bonus-inp-sm" type="number" value="${m.actual}" min="0" step="0.1" onchange="updateBonusMetric(${ri},${mi},'actual',this.value)" ${isLockedMetric ? `disabled title="${lockedMetricTitle}"` : ''}>
+          ${isCombined ? `${qLabel} Absorption Actual` : `${qLabel} Actual`}: <input class="bonus-inp-sm" type="number" value="${outcome.label === "Source Required" ? "" : m.actual}" min="0" step="0.1" onchange="updateBonusMetric(${ri},${mi},'actual',this.value)" ${isLockedMetric ? `disabled title="${lockedMetricTitle}"` : ''}>
         </div>
         ${isCombined ? `<div class="bonus-metric-detail" style="margin-top:4px">${m.secondaryLabel} Actual: <input class="bonus-inp-sm" type="number" value="${Number(m.secondaryActual ?? 0).toFixed(1)}" min="0" step="0.1" disabled title="Auto-synced from the Renewals tab">%</div>` : ""}
         ${syncNote ? `<div class="bonus-metric-detail" style="margin-top:4px;color:#4493f8">${syncNote}</div>` : ""}
@@ -29915,6 +29918,7 @@ function renderPropertyBonusTab() {
 }
 
 function formatJacMetricDisplay(metric, value) {
+  if ((metric?.syncKey === "oraScore" || /^ora(?: score)?$/i.test(String(metric?.cat || ""))) && !(Number(value) > 0)) return "—";
   const val = Number(value) || 0;
   if (isCombinedAbsorptionMetric(metric)) {
     return `Absorption ${val.toFixed(1).replace(/\.0$/, "")} · ${metric.secondaryLabel} ${Number(metric.secondaryActual || 0).toFixed(1)}%`;
@@ -30104,7 +30108,7 @@ function renderJacsTeamBonusTab() {
                              : status === "partial" ? "#d29922"
                              : "#f85149";
           const earnedAmt = scoring.earned;
-          const statusLabel  = isCombined
+          const statusLabel  = outcome.label === "Source Required" ? "Source required — ORA has not been reported" : isCombined
                              ? (status === "hit"
                                 ? `✅ HIT — absorption and renewal goals met · $${earnedAmt.toFixed(0)}`
                                 : status === "partial"
@@ -30163,7 +30167,7 @@ function renderJacsTeamBonusTab() {
               ${metric.secondaryLabel} Goal: <input class="bonus-inp-sm" type="number" value="${metric.secondaryGoal ?? 0}" min="0" step="0.1" onchange="updateJacsTeamMetric(${roleIdx},${mi},'secondaryGoal',this.value)">%
             </div>` : ""}
             <div class="bonus-metric-detail" style="margin-top:4px">
-              ${isCombined ? `${bonusQuarter} Absorption Actual` : `${bonusQuarter} Actual`}: <input class="bonus-inp-sm" type="number" value="${metric.actual ?? ""}" min="${metric.direction==='down'?0:-999}" step="0.1" onchange="updateJacsTeamMetric(${roleIdx},${mi},'actual',this.value)" ${actualDisabled}>
+              ${isCombined ? `${bonusQuarter} Absorption Actual` : `${bonusQuarter} Actual`}: <input class="bonus-inp-sm" type="number" value="${outcome.label === "Source Required" ? "" : (metric.actual ?? "")}" min="${metric.direction==='down'?0:-999}" step="0.1" onchange="updateJacsTeamMetric(${roleIdx},${mi},'actual',this.value)" ${actualDisabled}>
             </div>
             ${isCombined ? `<div class="bonus-metric-detail" style="margin-top:4px">${metric.secondaryLabel} Actual: <input class="bonus-inp-sm" type="number" value="${Number(metric.secondaryActual ?? 0).toFixed(1)}" min="0" step="0.1" disabled title="Auto-synced from the Renewals tab">%</div>` : ""}
             <div class="bonus-metric-source">${formatJacMetricSource(metric, scopeTypeLabel, scope)}</div>
@@ -36477,7 +36481,7 @@ function buildWeeklyExecutiveNarrative(report) {
   const approvalNarrative = approvalCohort.comparable
     ? `${(aggregate.applicationsApproved ?? 0).toFixed(0)} have been approved for a ${approvalCohort.value} approval rate`
     : `${(aggregate.applicationsApproved ?? 0).toFixed(0)} approvals include prior-period pipeline and are not a comparable rate against this month's applications`;
-  const firstParagraph = `${report.scopeLabel} is sitting at ${occPct.toFixed(1)}% physical occupancy and ${leasedPct.toFixed(1)}% leased occupancy for ${report.currentMonthLabel}. Applications received are at ${(aggregate.applications ?? 0).toFixed(0)} month to date; ${approvalNarrative}. Net absorption is ${formatSignedDisplay(aggregate.monthAbsorption)} units, renewal retention is ${(aggregate.renewalRetentionRate ?? 0).toFixed(1)}%, and ORA is ${(aggregate.oraScore ?? 0).toFixed(1)} across ${communityCount} communit${communityCount === 1 ? "y" : "ies"}.`;
+  const firstParagraph = `${report.scopeLabel} is sitting at ${occPct.toFixed(1)}% physical occupancy and ${leasedPct.toFixed(1)}% leased occupancy for ${report.currentMonthLabel}. Applications received are at ${(aggregate.applications ?? 0).toFixed(0)} month to date; ${approvalNarrative}. Net absorption is ${formatSignedDisplay(aggregate.monthAbsorption)} units, renewal retention is ${(aggregate.renewalRetentionRate ?? 0).toFixed(1)}%, and ORA is ${aggregate.oraScore > 0 ? aggregate.oraScore.toFixed(1) : "not yet reported"} across ${communityCount} communit${communityCount === 1 ? "y" : "ies"}.`;
   let secondParagraph = `Saved-budget tracking shows ${aggregate.onTrackBudgetOccCount ?? 0}/${aggregate.trackedBudgetOccCount ?? 0} communities currently on track to occupancy budget, with ${Math.max(aggregate.occGapUnits ?? 0, 0)} units still below current physical occupancy targets.`;
   if (previousAggregate) {
     const occDelta = occPct - getSummaryOccPct(previousAggregate);
@@ -50493,9 +50497,21 @@ async function reprocessDataImportBoxScore(archiveId) {
     plan.reprocessArchivedSource = true;
     plan.mappingVersion = "ATLAS-source-reconciliation-20260917";
     dataImportBeginApprovalRuntime();
-    const result = entry.reportType === "leasing_resident_data"
+    let result = entry.reportType === "leasing_resident_data"
       ? {communities:entry.communities || [], rowsHeld:0, issues:[]}
       : await dataImportRouteStructuredFile(file,plan,entry.batchId);
+    if (entry.reportType === "leasing_resident_data" && atlasApplicationPublicationEnabled()) {
+      const workbook = XLSX.read(await file.arrayBuffer(), {type:"array",cellDates:true,cellStyles:true});
+      const upload = parseApplicationResidentDataWorkbook(workbook, file, {reportMonthIdx:plan.reportingMonthIdx,reportYear:plan.reportingYear});
+      if (upload.validationStatus !== "valid") throw new Error(`Resident Data requires review: ${upload.validationMessages.join(" ")}`);
+      const user = window.ATLAS_CENTRAL?.getSession()?.user?.id;
+      const published = await window.ATLAS_CENTRAL.publishApplicationImport(upload);
+      if (!user || window.ATLAS_CENTRAL?.getSession()?.user?.id !== user) throw new Error("The signed-in user changed; reload to confirm shared publication.");
+      const shared = published.imports.map(applicationUploadFromCentral);
+      const ids = new Set(shared.map(item => item.centralImportId));
+      applicationResidentDataState.uploads = [...shared, ...applicationResidentDataState.uploads.filter(item => !ids.has(item.centralImportId))];
+      result = {communities:shared.map(item => item.records[0]?.atlasName).filter(Boolean),rowsHeld:0,issues:[],sharedRecords:shared.reduce((sum,item)=>sum+item.records.length,0)};
+    }
     Object.assign(entry, {communities:plan.communities, metadata:plan.metadata, dataDateIso:plan.dataDateIso, dataDateLabel:plan.dataDateLabel, reportingMonthIdx:plan.reportingMonthIdx, reportingYear:plan.reportingYear, reportingPeriodLabel:plan.reportingPeriodLabel});
     dataImportFinishApprovalRuntime();
     entry.reprocessedAt = new Date().toISOString();
@@ -50503,7 +50519,7 @@ async function reprocessDataImportBoxScore(archiveId) {
     dataImport2State.reconciliationLog.unshift({id:dataImportMakeId("reprocess"),batchId:entry.batchId,reportType:entry.reportType,fileName:entry.fileName,formula:"Approved archived source reconciled with section-qualified mapping and report-level dates; source file unchanged.",createdAt:entry.reprocessedAt});
     persistSaved();
     persistDataImport2State();
-    alert(`Reprocessed ${result.communities.length} communities from the approved original source. ${result.rowsHeld} rows held; ${result.issues.length} review items. Newer sources and closed periods remain protected.`);
+    alert(`Reprocessed ${result.communities.length} communities from the approved original source. ${result.rowsHeld} rows held; ${result.issues.length} review items.${result.sharedRecords ? ` Published ${result.sharedRecords} Resident Data records for authorized shared access.` : ""} Newer sources and closed periods remain protected.`);
   } catch (error) {
     savedData = JSON.parse(beforeSaved);
     dataImport2State = JSON.parse(beforeImport);

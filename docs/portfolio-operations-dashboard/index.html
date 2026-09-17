@@ -1616,7 +1616,7 @@ const DATA_IMPORT_REPORT_TYPES = {
     aliases: ["delinquency", "delinquency report", "aged receivables", "resident balance", "past due report"],
     patterns: ["past due", "current due", "unpaid rent", "credits", "prepayments", "resident balance"],
     dependencies: ["Central Services Collections", "Evictions", "Economic Occupancy", "Community Reporting"],
-    primaryFields: ["post_month", "resident", "lease_id", "unit", "unpaid_rent", "unpaid_other", "unpaid_deposit", "aging_0_30", "aging_31_60", "aging_61_90", "aging_90_plus", "past_due", "current_due", "credits", "prepayments", "resident_balance", "lease_status", "notes"]
+    primaryFields: ["post_month", "resident", "lease_id", "unit", "unpaid_rent", "unpaid_other", "unpaid_deposit", "aging_0_30", "aging_31_60", "aging_61_90", "aging_90_plus", "past_due", "current_due", "credits", "prepayments", "resident_balance", "lease_status", "last_delinquency_note", "last_delinquency_note_date", "notes"]
   },
   approved_accounting: {
     label: "Approved Accounting Report",
@@ -1736,7 +1736,9 @@ const DATA_IMPORT_FIELD_ALIASES = {
   past_due: ["past due", "past due balance", "prior balance"],
   current_due: ["current due", "current balance", "current charges due"],
   credits: ["credits", "credit balance", "resident credits"],
-  prepayments: ["prepayments", "prepayment", "prepaid rent"],
+  prepayments: ["prepayments", "pre-payments", "prepayment", "prepaid rent"],
+  last_delinquency_note: ["last delinquency note", "last dq note", "delinquency note"],
+  last_delinquency_note_date: ["last delinquency note date", "last dq note date", "delinquency note date", "note entry date"],
   lease_status: ["lease status", "resident status", "occupancy status"],
   notes: ["notes", "comments", "memo"],
   gross_potential_rent: ["gross potential rent", "gpr", "potential rent"],
@@ -1771,7 +1773,7 @@ const DATA_IMPORT_DESTINATION_GROUPS = [
   },
   {
     label: "Financial / Other",
-    fields: ["market_rent", "net_effective_rent", "avg_market_rent_budgeted", "avg_scheduled_rent", "avg_ner", "charge_code", "gl_account", "actual_charges", "scheduled_charges", "resident_balance", "deposit_held", "post_month", "unpaid_rent", "unpaid_other", "unpaid_deposit", "aging_0_30", "aging_31_60", "aging_61_90", "aging_90_plus", "past_due", "current_due", "credits", "prepayments", "lease_status", "gross_potential_rent", "revenue_metric", "expense_metric", "budget_field", "notes"]
+    fields: ["market_rent", "net_effective_rent", "avg_market_rent_budgeted", "avg_scheduled_rent", "avg_ner", "charge_code", "gl_account", "actual_charges", "scheduled_charges", "resident_balance", "deposit_held", "post_month", "unpaid_rent", "unpaid_other", "unpaid_deposit", "aging_0_30", "aging_31_60", "aging_61_90", "aging_90_plus", "past_due", "current_due", "credits", "prepayments", "lease_status", "gross_potential_rent", "revenue_metric", "expense_metric", "budget_field", "last_delinquency_note", "last_delinquency_note_date", "notes"]
   }
 ];
 const DATA_IMPORT_ISSUE_LABELS = {
@@ -48813,7 +48815,15 @@ function dataImportDestinationExists(fieldKey = "") {
   return (dataImport2State.customFields || []).some(field => field.fieldKey === fieldKey);
 }
 
+function dataImportKnownDelinquencyField(header = "") {
+  // Exact source headers are a report contract, not a fuzzy cross-report guess.
+  const fields = {"bldg-unit":"unit", "resident":"resident", "lease status":"lease_status", "0-30 days":"aging_0_30", "31-60 days":"aging_31_60", "61-90 days":"aging_61_90", "90+ days":"aging_90_plus", "pre-payments":"prepayments", "balance":"resident_balance", "last delinquency note":"last_delinquency_note", "last delinquency note date":"last_delinquency_note_date"};
+  return fields[String(header || "").trim().toLowerCase()] || "";
+}
+
 function dataImportSuggestDestinationForHeader(header = "", context = {}) {
+  const knownField = context.reportType === "delinquency" && dataImportKnownDelinquencyField(header);
+  if (knownField) return {field:knownField, confidence:100, reason:"Delinquency source header contract", autoMap:true};
   const normalized = dataImportNormalizeText(header);
   const sampleValue = String(context.sampleValue || "");
   const savedRule = dataImportFindSavedRuleForHeader(header, context);
@@ -49363,7 +49373,7 @@ async function dataImportReadStructuredRows(file, plan = {}) {
       const headerIndex = rawRows.findIndex(row => row.some(v => normalize(v) === "0-30 days") && row.some(v => normalize(v) === "balance") && row.some(v => normalize(v) === "resident"));
       if (headerIndex >= 0) {
         const headers = rawRows[headerIndex];
-        const fields = {"bldg-unit":"unit", "resident":"resident", "lease status":"lease_status", "0-30 days":"aging_0_30", "31-60 days":"aging_31_60", "61-90 days":"aging_61_90", "90+ days":"aging_90_plus", "pre-payments":"prepayments", "balance":"resident_balance"};
+        const fields = Object.fromEntries(headers.map(header => [normalize(header), dataImportKnownDelinquencyField(header)]).filter(([,field]) => field));
         const rows = rawRows.slice(headerIndex + 1).flatMap((row, index) => {
           if (!row[headers.findIndex(h=>normalize(h)==="resident")] || /^(?:grand\s+)?(?:sub)?total\s*:?$/i.test(String(row[0] || "").trim())) return [];
           const values = {}, locators = {};
@@ -49962,6 +49972,7 @@ function dataImportCentralDelinquencyRow(record) {
   const v = record.values || {};
   return { ...record.originalValues, ...v, propertyName: record.communityName,
     residentName: v.resident, residentId: v.resident_id, leaseId: v.lease_id, unit: v.unit,
+    lastDelinquencyNote: v.last_delinquency_note, lastDelinquencyNoteDate: v.last_delinquency_note_date,
     delinquentBalance: v.resident_balance, aging0To30: v.aging_0_30,
     aging31To60: v.aging_31_60, aging61To90: v.aging_61_90, aging90Plus: v.aging_90_plus,
     sourceSheetName: record.sourceSheet, sourceRow: record.sourceRow, sourceFileName: record.sourceFile,
@@ -50148,6 +50159,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
         sourceSheetName: sheets.length === 1 ? sheets[0].sheetName : `${sheets.length} data sheets`,
         importBatchId: batchId
       }, { importHistory: true, render: false });
+      result.centralRowsImported = Number(csResult?.rowsImported || 0);
       if (csResult?.rowsImported) result.destinations.add("Central Services Collections / Evictions");
   }
   result.coverage = Array.from(result.communities).map(communityName => ({ communityName, reportType: plan.reportType, period: plan.reportingPeriodLabel || "Detected per row" }));
@@ -50537,6 +50549,27 @@ function clearDataImportPendingBatch() {
   renderTab();
 }
 
+function dataImportResolveReplayedDelinquencyExceptions(entry, result) {
+  // A complete, clean replay is required. Never clear property, hold, or conflict issues.
+  if (entry.reportType !== "delinquency" || !result.rowsReviewed || result.rowsHeld || result.rowsRejected ||
+      result.issues?.length || result.centralRowsImported !== result.rowsReviewed) return 0;
+  const communities = new Set((result.communities || []).map(dataImportNormalizeText));
+  let resolved = 0;
+  for (const issue of dataImport2State.exceptions || []) {
+    if (issue.status === "Resolved" || issue.batchId !== entry.batchId || issue.fileName !== entry.fileName ||
+        issue.reportType !== "delinquency" || !communities.has(dataImportNormalizeText(issue.communityName))) continue;
+    const retainedFields = issue.type === "unmapped" && issue.title === "Source fields retained without a destination";
+    const knownHeader = issue.type === "low_confidence" && issue.title === "Low confidence mapping" &&
+      dataImportKnownDelinquencyField(String(issue.detail || "").split(" may map to ")[0]);
+    if (!retainedFields && !knownHeader) continue;
+    issue.status = "Resolved";
+    issue.resolvedAt = new Date().toISOString();
+    issue.resolution = "Verified by complete approved-source replay into Central Services; all source rows mapped without review items.";
+    resolved++;
+  }
+  return resolved;
+}
+
 async function reprocessDataImportBoxScore(archiveId) {
   if (!dataImportCanManageArchitecture() || dataImportApprovalInProgress) return;
   const entry = (dataImport2State.sourceArchive || []).find(item => item.id === archiveId);
@@ -50591,6 +50624,7 @@ async function reprocessDataImportBoxScore(archiveId) {
     Object.assign(entry, {communities:plan.communities, metadata:plan.metadata, dataDateIso:plan.dataDateIso, dataDateLabel:plan.dataDateLabel, reportingMonthIdx:plan.reportingMonthIdx, reportingYear:plan.reportingYear, reportingPeriodLabel:plan.reportingPeriodLabel});
     dataImportFinishApprovalRuntime();
     entry.reprocessedAt = new Date().toISOString();
+    result.mappingExceptionsResolved = dataImportResolveReplayedDelinquencyExceptions(entry, result);
     entry.reprocessResult = result;
     dataImport2State.reconciliationLog.unshift({id:dataImportMakeId("reprocess"),batchId:entry.batchId,reportType:entry.reportType,fileName:entry.fileName,formula:"Approved archived source reconciled with section-qualified mapping and report-level dates; source file unchanged.",createdAt:entry.reprocessedAt});
     persistSaved();

@@ -7615,6 +7615,7 @@ function syncSharedPeopleAssignments(options = {}) {
   if (changed || !sharedData.lastPeopleSyncAt) sharedData.lastPeopleSyncAt = syncedAt;
   atlasSharedData = sharedData;
   if (changed && options.persist) persistOpsGlobalData();
+  if (changed) window.atlasSynchronizeLinkedContacts?.();
   return {
     changed,
     employeeCount: normalizedPeople.length,
@@ -18746,6 +18747,7 @@ async function loadAtlasCentralPeopleAssignments({ silent = true, force = false 
       sharedData.validationIssues = validateAtlasSharedData(sharedData);
       atlasSharedData = sharedData;
       syncAllCommunityStaffingFromPeopleRoster({ persist: false });
+      window.atlasSynchronizeLinkedContacts?.();
       persistOpsGlobalData();
       if (!silent) {
         setAtlasCentralRuntimeMessage(`Loaded ${Object.keys(employees).length} central People employees and ${assignments.length} assignments.`);

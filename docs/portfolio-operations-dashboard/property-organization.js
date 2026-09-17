@@ -5,12 +5,38 @@
   const statuses=new Map(),cache=new Map(),pending=new Map();
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const employeeId=e=>String(e.employeeId||e.id||'');
+  const stableEmployeeId=e=>{
+    if(e.employeeNumber)return getSharedEmployeeStableId(e);
+    const id=String(e.peopleEmployeeId||e.id||'');
+    return id?(id.startsWith('people:')?id:'people:'+id):String(e.employeeId||getSharedEmployeeStableId(e));
+  };
   function roster(){
+    if(atlasSharedData.lastPeopleSource==='atlas_central_people'){
+      const employees=Object.values(atlasSharedData.employees||{}),assignments=atlasSharedData.assignments||[],today=new Date().toISOString().slice(0,10);
+      if(assignments.length)return assignments.filter(a=>(!a.effectiveStart||a.effectiveStart<=today)&&(!a.effectiveEnd||a.effectiveEnd>=today)&&!/inactive|terminated|superseded/i.test(a.status||'')).map(a=>{
+        const e=employees.find(e=>e.employeeId===a.employeeId)||{};
+        return {...e,employeeId:stableEmployeeId(e),title:a.title||e.title,communityName:a.communityName};
+      });
+      return employees.map(e=>({...e,employeeId:stableEmployeeId(e)}));
+    }
     const raw=loadPeoplePlatformStateForSharedData().employees;
-    return raw.length?raw.map(e=>({...e,employeeId:e.employeeNumber?getSharedEmployeeStableId(e):e.id?'people:'+e.id:getSharedEmployeeStableId(e),title:e.role||e.title,communityName:resolveSharedCommunityForEmployee(e).communityName,active:isSharedPeopleEmployeeActive(e)})):Object.values(atlasSharedData.employees||{});
+    return raw.length?raw.map(e=>({...e,employeeId:stableEmployeeId(e),title:e.role||e.title,communityName:resolveSharedCommunityForEmployee(e).communityName,active:isSharedPeopleEmployeeActive(e)})):Object.values(atlasSharedData.employees||{}).map(e=>({...e,employeeId:stableEmployeeId(e)}));
   }
+  window.atlasSynchronizeLinkedContacts=()=>{
+    const employees=roster();let changed=false;
+    for(const [name,record] of Object.entries(savedData))for(const prefix of ['generalManager','regionalManager']){
+      const id=record[prefix+'EmployeeId'];if(!id)continue;
+      const e=employees.find(e=>employeeId(e)===id);if(!e)continue;
+      if(record[prefix+'Name']!==e.name||record[prefix+'Email']!==e.email){
+        record[prefix+'Name']=e.name||'';record[prefix+'Email']=e.email||'';changed=true;
+        if(name===getProp().name){if(prefix==='generalManager'){communityGeneralManagerName=e.name||'';communityGeneralManagerEmail=e.email||'';}else{communityRegionalManagerName=e.name||'';communityRegionalManagerEmail=e.email||'';}}
+      }
+    }
+    if(changed){persistSaved();queueAtlasCentralDocumentPush('linked_roster_contacts');}
+    return changed;
+  };
   const area=()=>communityRegionalGrouping||communityMarket;
-  const eligible=role=>P.eligible(roster(),role,area(),savedData);
+  const eligible=role=>[...new Map(P.eligible(roster(),role,area(),savedData).map(e=>[employeeId(e),e])).values()];
   window.atlasLinkedEmployeeIssues=()=>{
     const record=savedData[getProp().name]||{};
     return [['gm','generalManagerEmployeeId'],['regional','regionalManagerEmployeeId']].filter(([role,key])=>record[key]&&!eligible(role).some(e=>employeeId(e)===record[key])).map(([role])=>`${role==='gm'?'GM':'Regional'} assignment needs a replacement in the selected area.`);

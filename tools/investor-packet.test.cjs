@@ -31,3 +31,10 @@ test('Worker rejects cross-community packets and builds attachment',()=>{let sou
 test('Budget NOI derives only from same-basis source values',()=>{const r={monthlyHistoryByPeriod:{'2026-01':{budgetRevenue:100,budgetExpense:70}}};const config={mappings:{revenue:{budget:{path:'monthlyHistoryByPeriod.{period}.budgetRevenue'}},expenses:{budget:{path:'monthlyHistoryByPeriod.{period}.budgetExpense'}}}};assert.equal(P.read(r,'2026-01','noi','budget',config).value,30);});
 test('Historical mid-month inventory cutoff is disclosed',()=>{const p=P.build({community:'A',period:'2026-01',record:{latestDlrSummary:{dailyBoxScore:{reportDateIso:'2026-01-15',sourceFileName:'cutoff.xlsx',totalUnits:100}}}});assert(p.issues.some(x=>x.metric==='Inventory cutoff'));});
 console.log(`${checks} investor packet checks passed.`);
+
+test('Monthly ledger values supersede YTD including missing and zero',()=>{
+ const row={glCode:'4000',section:'Operating Income',actual:999,monthlyActual:null};
+ const record={financialLedger:{'2026-01':[row]}};
+ assert.equal(P.read(record,'2026-01','revenue','actual',{ledgerBasis:'monthly'}).value,null);
+ row.monthlyActual=0;assert.equal(P.read(record,'2026-01','revenue','actual',{ledgerBasis:'monthly'}).value,0);
+});

@@ -262,8 +262,8 @@
 
       var timestamp = new Date().toISOString();
       var record = typeof normalizeSavedCommunityRecord === "function"
-        ? normalizeSavedCommunityRecord(matchedName, savedData[matchedName])
-        : savedData[matchedName];
+        ? normalizeSavedCommunityRecord(matchedName, JSON.parse(JSON.stringify(savedData[matchedName])))
+        : JSON.parse(JSON.stringify(savedData[matchedName]));
       const entries = Object.entries(payload.budgetByPeriod || {});
       const coverage = payload.coverage || Array.from({length:12},(_,i)=>i);
       if (!coverage.length || new Set(coverage).size!==coverage.length || coverage.some(i=>!Number.isInteger(i)||i<0||i>11) || entries.length!==coverage.length || entries.some(([period,rows])=>!coverage.some(i=>period===Number(payload.year)+"-"+String(i+1).padStart(2,"0")) || !Array.isArray(rows) || !rows.length || rows.some(row=>!Number.isFinite(row.budget)))) {
@@ -276,7 +276,11 @@
         if(previous && (!effective || effective<previous.effectiveDate))return {ok:false,message:"A newer approved budget already exists for "+period+". No figures were replaced."};
         if(previous && effective===previous.effectiveDate && values(rows)!==values(record.financialBudgetLedger[period]))return {ok:false,message:"Different approved amounts already exist for "+period+" with this version date. Review before replacing."};
       }
-      record.financialLedger = Object.assign({}, record.financialLedger || {}, payload.actualsByPeriod || {});
+      for (const [period, rows] of Object.entries(payload.actualsByPeriod || {})) {
+        if (!entries.some(([key])=>key===period)) return {ok:false,message:"Actuals must belong to the published reporting periods."};
+        record = window.AtlasFinancialPublication.apply(record,{period,actuals:rows,
+          source:{id:String(payload.sourceFile||payload.scenario.id),file:payload.sourceFile||"RISE Budget Builder",effectiveAt:payload.actualsEffectiveDate||""}});
+      }
       record.financialBudgetLedger = Object.assign({}, record.financialBudgetLedger || {}, payload.budgetByPeriod || {}, {
         sourceKind: "rise_budget_builder",
         sourceFileName: String(payload.sourceFile || "RISE Budget Builder").trim(),
@@ -313,8 +317,15 @@
       if (typeof syncSharedPropertyFromPortfolioRecord === "function") {
         syncSharedPropertyFromPortfolioRecord(matchedName, savedData[matchedName], { timestamp: timestamp });
       }
-      if (typeof persistSaved === "function") persistSaved();
-      return { ok: true, message: "Published " + payload.scenario.name + " to ATLAS for " + matchedName + "." };
+      if (typeof persistSaved !== "function") return {ok:false,message:"The canonical ATLAS store is unavailable."};
+      var save = persistSaved();
+      var result = {ok:true,pending:!!save?.pending,message:"Published " + payload.scenario.name + " to ATLAS for " + matchedName + "."};
+      if(save?.completion) result.completion=save.completion.then(function(){
+        result.pending=false;
+        if(!save.ok){result.ok=false;result.message="Financial publication was not saved: "+save.message;}
+      });
+      else if(save?.ok===false){result.ok=false;result.message=save.message;}
+      return result;
     } catch (err) {
       return { ok: false, message: "ATLAS could not save this publication: " + String(err && err.message || err) };
     }
@@ -394,7 +405,7 @@
     iframe.contentWindow.postMessage({ type: "atlas-budget-navigate", view: String(view || "dashboard") }, "*");
   };
 
-  window.addEventListener("message", function (event) {
+  window.addEventListener("message", async function (event) {
     var data = event && event.data;
     if (!data) return;
     if (data.type === "atlas-budget-return-home" && isBudgetFrameSource(event.source)) {
@@ -408,7 +419,8 @@
     }
     if (data.type === "atlas-budget-publish" && isBudgetFrameSource(event.source)) {
       var result = publishBudgetToAtlas(data.payload);
-      try { event.source.postMessage({ type: "atlas-budget-publish-result", requestId:data.requestId, result: result }, "*"); } catch (err) {}
+      if(result.completion) await result.completion;
+      try { event.source.postMessage({ type: "atlas-budget-publish-result", requestId:data.requestId, result: {ok:result.ok,message:result.message} }, window.location.origin); } catch (err) {}
       return;
     }
     if (data.type === "atlas-budget-contract-import" && isBudgetFrameSource(event.source)) {

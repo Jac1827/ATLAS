@@ -1,7 +1,7 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const path=require('node:path'),root=path.join(__dirname,'../docs/portfolio-operations-dashboard');
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
-const XLSX=require(process.env.ATLAS_XLSX||'xlsx'),bridge=require(path.join(root,'application-source-bridge.js'));
+const XLSX=require(process.env.ATLAS_XLSX||path.join(root,'assets/xlsx.full.min.js')),bridge=require(path.join(root,'application-source-bridge.js'));
 const c={console,Date,Map,Set,XLSX,window:{AtlasApplicationSources:bridge},DATA_IMPORT_MAX_SAMPLE_CHARS:180000,savedData:{},MONTHS:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']};vm.createContext(c);
 for(const f of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm))vm.runInContext(f[0],c);
 vm.runInContext(html.slice(html.indexOf('const DATA_IMPORT_FIELD_ALIASES ='),html.indexOf('const DATA_IMPORT_DESTINATION_GROUPS =')),c);
@@ -31,7 +31,7 @@ assert.equal(canonicalMonth.occupiedSnapshot,10,'Current canonical property type
 delete c.window.ATLAS_CENTRAL; c.savedData.Test={};
 assert.equal(c.getReportedOccupancyBaseUnits({rentableUnits:220,sourceTotalUnits:222},222,0),220,'Rentable units define physical occupancy');
 assert.equal(c.getReportedOccupancyBaseUnits({rentableUnits:1180},588,0),588,'Unreconciled legacy denominator is ignored');
-const ui={window:{getAtlasApplicationScopeCommunityNames:()=>{scopeCalls++;return ['Allowed'];},atlasApplicationCommunityInScope:()=>true,AtlasApplicationSources:bridge,getAtlasApplicationIntelligenceData:()=>({records:Array.from({length:2500},(_,i)=>({property:i%2?'Allowed':'Denied'}))}),addEventListener:()=>{}},Date};let scopeCalls=0;vm.createContext(ui);vm.runInContext(fs.readFileSync(path.join(root,'application-performance-ui.js'),'utf8'),ui);assert.equal(ui.window.getAtlasApplicationCommandRecords().length,1250);assert.equal(scopeCalls,1);ui.window.getAtlasApplicationScopeCommunityNames=()=>[];assert.equal(ui.window.getAtlasApplicationCommandRecords().length,0);
+const ui={window:{getAtlasApplicationScopeCommunityNames:()=>{scopeCalls++;return ['Allowed'];},atlasApplicationCommunityInScope:()=>true,AtlasApplicationSources:bridge,AtlasApplicationAging:require(path.join(root,'application-aging.js')),getAtlasApplicationIntelligenceData:()=>({records:Array.from({length:2500},(_,i)=>({property:i%2?'Allowed':'Denied'}))}),addEventListener:()=>{}},Date};let scopeCalls=0;vm.createContext(ui);vm.runInContext(fs.readFileSync(path.join(root,'application-performance-ui.js'),'utf8'),ui);assert.equal(ui.window.getAtlasApplicationCommandRecords().length,1250);assert.equal(scopeCalls,1);ui.window.getAtlasApplicationScopeCommunityNames=()=>[];assert.equal(ui.window.getAtlasApplicationCommandRecords().length,0);
 console.log('PASS source dates, snapshot periods, multi-account aggregation and 2,500-row scope filtering with fresh access checks.');
 (async()=>{
  if(!process.env.ATLAS_SOURCE_DIR)return;

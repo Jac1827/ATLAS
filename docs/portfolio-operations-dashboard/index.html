@@ -23882,7 +23882,7 @@ function buildCommunityCommandLeasingPlanRows(model) {
     const previousEntry = idx > 0 ? model.monthlyData[idx - 1] : model.record.monthlyHistoryByPeriod?.[`${model.year - 1}-12`];
     const beginningUnits = getVerifiedMonthlySnapshot(previousEntry || {});
     const actualNet = Math.max(0, Number(monthEntry.moveIns) || 0) - getEffectiveMoveOutsForMonth(idx, model.monthlyData).effective;
-    const variance = Number(row.budgetOcc || 0) > 0 ? Number(row.occPct || 0) - Number(row.budgetOcc || 0) : null;
+    const variance = Number(row.budgetOcc) > 0 && (Number(row.occPct) > 0 || getVerifiedMonthlySnapshot(monthEntry) === 0) ? Number(row.occPct) - Number(row.budgetOcc) : null;
     const status = variance === null
       ? "Missing"
       : variance < -1.5 ? "Critical" : variance < -0.5 ? "Watch" : "On Track";
@@ -23991,7 +23991,7 @@ function renderCommunityCommandKpi(model, field, label, sourceValue, formatter, 
 function renderCommunityCommandHealthSnapshot(model) {
   const economicDisplay = model.economic.mtdPct === null ? "Missing" : communityCommandFormatPct(model.economic.mtdPct);
   const economicSub = model.economic.mtdPct === null
-    ? "Map rent charges and collected rent revenue to calculate."
+    ? "Map actual rent charges and gross potential rent to calculate."
     : `Prior ${model.economic.priorPct === null ? "Missing" : communityCommandFormatPct(model.economic.priorPct)} · ${model.economic.variance === null ? "variance pending" : formatSignedDisplay(model.economic.variance, 1, "%")} variance`;
   const outcomesTotal = model.appMetrics.approvals + model.appMetrics.denials + model.appMetrics.cancelled;
   const approvedPct = outcomesTotal > 0 ? (model.appMetrics.approvals / outcomesTotal) * 100 : 0;
@@ -24214,7 +24214,7 @@ function renderCommunityCommandStabilization(model) {
     seasonal = priorGlobals.seasonal;
   }
   const months = stabilization?.months;
-  const estimateDate = Number.isFinite(Number(months))
+  const estimateDate = hasDlrDisplayMetricValue(months) && Number(months) >= 0
     ? new Date(model.year, model.monthIdx + Number(months), 1)
     : null;
   const confidence = model.traffic.guestCards > 0 && model.appMetrics.applications > 0 && model.renewal.expirations > 0 ? "Higher" : "Range";

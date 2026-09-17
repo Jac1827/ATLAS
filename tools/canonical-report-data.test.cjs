@@ -71,3 +71,7 @@ assert(report);assert.equal(report.communityName,'Doro');assert.equal(report.tot
 c.getDlrWorkbookOverlayForCommunity=()=>({totalUnits:297,occupiedUnits:284,leasedUnits:272,communityId:'other'});c.dlrWorkbookReportState={};
 assert.equal(c.buildDashboardDlrInvestorOverview('Doro',8,2026),null);
 console.log('PASS actual DLR builder: selected community, counts/card/chart parity, missing denominator and projection, safe application narrative, mismatched overlay blocked.');
+
+Object.assign(c,{currentOccupied:78,currentLeased:108,currentMonth:8,monthlyData:[],corporateLeaseUnits:0,savedBudgetTargets:[],seasonal:[],getMonthsToStabilization:()=>({months:null,targetUnits:235,reason:'Verified history required'}),renderWindowshadeCard:o=>o.bodyHtml});
+const stabilizationMarkup=c.renderCommunityCommandStabilization({propName:'Doro',year:2026,monthIdx:8,record:{},traffic:{},appMetrics:{},renewal:{}});
+assert(stabilizationMarkup.includes('Range Needed'));assert(!stabilizationMarkup.includes('September 2026'));console.log('PASS unavailable stabilization does not become the current calendar month.');

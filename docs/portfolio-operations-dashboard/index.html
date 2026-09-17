@@ -1419,8 +1419,9 @@
 <script src="./application-performance.js?v=20260917-weekly-report"></script>
 <link rel="stylesheet" href="./concession-insights.css?v=20260916-1">
 <script src="./concession-insights.js?v=20260916-1"></script>
-<script src="./weekly-leasing-report.js?v=20260917-application-funnel"></script>
-<script src="./application-performance-ui.js?v=20260917-weekly-report"></script>
+<script src="./weekly-leasing-report.js?v=20260917-aging"></script>
+<script src="./application-aging.js?v=20260917-aging"></script>
+<script src="./application-performance-ui.js?v=20260917-aging"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -4734,6 +4735,28 @@ function getAtlasApplicationPeriodMetrics(periodKey = getApplicationResidentRepo
 function getAtlasCanonicalApplicationData() {
   const scope = getAtlasApplicationScopeCommunityNames().filter(atlasApplicationCommunityInScope);
   return window.AtlasApplicationSources.project(applicationResidentDataState.uploads.filter(u => !atlasApplicationPublicationEnabled() || u.centralImportId), scope);
+}
+
+function getAtlasApplicationAgingRows(options = {}) {
+  const scope = getAtlasApplicationScopeCommunityNames().filter(atlasApplicationCommunityInScope);
+  const uploads = getApplicationResidentActiveUploads().filter(u => ["valid", "needs_review"].includes(u.validationStatus));
+  const buckets = new Map();
+  for (const upload of uploads) {
+    for (const community of scope) {
+      if (!upload.records.some(r => (r.atlasName || r.communityName) === community)) continue;
+      const key = JSON.stringify([community, upload.sourceAsOf]);
+      if (!buckets.has(key)) buckets.set(key, {community, asOf: upload.sourceAsOf, uploads: []});
+      buckets.get(key).uploads.push(upload);
+    }
+  }
+  const snapshots = [...buckets.values()].map(s => ({...s, records: window.AtlasApplicationSources.project(s.uploads, [s.community]).records}));
+  return window.AtlasApplicationAging.model(snapshots, options);
+}
+function renderAtlasApplicationAging(view = {}) {
+  const period = getApplicationResidentReportPeriodKey();
+  const end = new Date(Number(period.slice(0,4)), Number(period.slice(5,7)), 0).toISOString().slice(0,10);
+  const rows = getAtlasApplicationAgingRows({start: period + "-01", end}).filter(r => (!view.community || view.community === "all" || view.community === r.community) && (!view.agent || view.agent === "all" || view.agent === r.professional));
+  return window.AtlasApplicationAging.render(rows);
 }
 
 function getApplicationResidentActiveUploads() {
@@ -31386,6 +31409,14 @@ function atlasBonusBuildCalculationRows(options = {}) {
   const period = atlasBonusPeriodFromQuarter(bonusQuarter, new Date().getFullYear());
   const filters = { ...state.filters, ...(options.filters || {}) };
   let rows = atlasBonusAuthorizedEmployees().map(employee => atlasBonusBuildRow(employee, period));
+  const aging = getAtlasApplicationAgingRows({start: period.start, end: period.end});
+  for (const item of aging.filter(r => r.derogatoryCount > 0 && r.professional !== "Unassigned")) {
+    const matches = rows.filter(r => r.employee.communityName === item.community && window.AtlasApplicationAging.name(atlasBonusEmployeeDisplayName(r.employee)) === window.AtlasApplicationAging.name(item.professional));
+    if (matches.length !== 1) continue;
+    const row = matches[0];
+    row.applicationAgingDerogatoryCount = item.derogatoryCount;
+    row.exceptions.push({severity: "warning", code: "application_aging_derogatory", message: `${item.derogatoryCount} distinct application(s) observed open 7+ days during ${period.periodKey}. Derogatory factor: review assignment and cause. No automatic pay deduction configured.`});
+  }
   if (filters.region && filters.region !== "all") rows = rows.filter(row => atlasNormalizeSharedText(atlasBonusEmployeeRegionLabel(row.employee)) === atlasNormalizeSharedText(filters.region));
   if (filters.community && filters.community !== "all") rows = rows.filter(row => atlasNormalizeSharedText(row.employee.communityName) === atlasNormalizeSharedText(filters.community));
   if (filters.role && filters.role !== "all") rows = rows.filter(row => row.employee.bonusRole === filters.role);
@@ -31988,7 +32019,7 @@ function renderBonusExceptionsSection(rows) {
   return `<div class="bonus-engine-card">
     <div class="bonus-engine-section-head"><div><h3>Bonus Exception Queue</h3><p>ATLAS does not guess when required data is missing. Critical exceptions block final approval until resolved by a human.</p></div><span class="bonus-engine-pill ${exceptionRows.some(row => row.exception.severity === "critical" && row.status !== "resolved") ? "bad" : "good"}">${exceptionRows.length} exceptions</span></div>
     <div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Employee</th><th>Community</th><th>Plan</th><th>Exception</th><th>Severity</th><th>Required Action</th><th>Status</th><th>Reviewer</th></tr></thead><tbody>
-      ${exceptionRows.map(item => `<tr><td><strong>${escapeHtml(atlasBonusEmployeeDisplayName(item.row.employee))}</strong></td><td>${escapeHtml(item.row.employee.communityName || "Missing")}</td><td>${escapeHtml(item.row.plan?.name || "Missing plan")}</td><td>${escapeHtml(item.exception.message)}</td><td><span class="bonus-engine-pill ${item.exception.severity === "critical" ? "bad" : "warn"}">${escapeHtml(item.exception.severity)}</span></td><td>${item.exception.code === "missing_salary" ? "HR/Admin must enter salary or assign non-salary plan." : item.exception.code === "missing_metric" ? "Import source data or enter documented manual result." : "Update People mapping or plan assignment."}</td><td>${escapeHtml(item.status)}</td><td><button class="btn btn-gray btn-sm" onclick='atlasBonusResolveException(${atlasBonusJsArg(item.row.rowId)},${atlasBonusJsArg(item.exception.code)},${atlasBonusJsArg(item.exception.metricId || "")})' ${atlasBonusCan("override_calculations") ? "" : "disabled"}>Resolve</button></td></tr>`).join("") || `<tr><td colspan="8">No exceptions in the current filter set.</td></tr>`}
+      ${exceptionRows.map(item => `<tr><td><strong>${escapeHtml(atlasBonusEmployeeDisplayName(item.row.employee))}</strong></td><td>${escapeHtml(item.row.employee.communityName || "Missing")}</td><td>${escapeHtml(item.row.plan?.name || "Missing plan")}</td><td>${escapeHtml(item.exception.message)}</td><td><span class="bonus-engine-pill ${item.exception.severity === "critical" ? "bad" : "warn"}">${escapeHtml(item.exception.severity)}</span></td><td>${item.exception.code === "application_aging_derogatory" ? "Review source assignment, aging and documented cause before bonus sign-off." : item.exception.code === "missing_salary" ? "HR/Admin must enter salary or assign non-salary plan." : item.exception.code === "missing_metric" ? "Import source data or enter documented manual result." : "Update People mapping or plan assignment."}</td><td>${escapeHtml(item.status)}</td><td><button class="btn btn-gray btn-sm" onclick='atlasBonusResolveException(${atlasBonusJsArg(item.row.rowId)},${atlasBonusJsArg(item.exception.code)},${atlasBonusJsArg(item.exception.metricId || "")})' ${atlasBonusCan("override_calculations") ? "" : "disabled"}>Resolve</button></td></tr>`).join("") || `<tr><td colspan="8">No exceptions in the current filter set.</td></tr>`}
     </tbody></table></div>
   </div>`;
 }
@@ -32098,6 +32129,7 @@ function renderBonusTab() {
       ${sections.map(([id, label]) => `<button type="button" class="bonus-engine-tab ${activeSection === id ? "active" : ""}" onclick='atlasBonusSetSection(${atlasBonusJsArg(id)})'>${escapeHtml(label)}</button>`).join("")}
     </div>
     ${renderBonusEngineFilters(atlasBonusBuildCalculationRows({ filters: defaultBonusEngineState().filters }))}
+    ${atlasBonusCan("run_calculations") ? window.AtlasApplicationAging.render(getAtlasApplicationAgingRows({start: period.start, end: period.end}).filter(r => (state.filters.community === "all" || !state.filters.community || state.filters.community === r.community) && (!state.filters.employee || window.AtlasApplicationAging.name(r.professional).includes(window.AtlasApplicationAging.name(state.filters.employee)))), true) : ""}
     ${renderBonusEngineSection(activeSection, rows)}
   </section>`;
 }
@@ -41724,7 +41756,7 @@ function buildWeeklyLeasingAnalytics(data) {
   const allowed = new Set(getAtlasApplicationScopeCommunityNames());
   const details = getReportBuilderScopedDetails().filter(d => allowed.has(d.name) && dataImportIsActiveReportingCommunity(d.name));
   const communities = details.map(d => d.name);
-  const records = window.getAtlasApplicationIntelligenceData?.().records || [];
+  const records = window.AtlasApplicationAging.latestRecords(window.getAtlasApplicationIntelligenceData?.().records || []);
   const offers = window.AtlasConcessionInsights.model(details, period, p => getAtlasApplicationPeriodMetrics(p, "all"));
   return window.AtlasWeeklyLeasing.model({ records, communities, offers, period, end, metrics: getAtlasApplicationPeriodMetrics(period, "all") });
 }

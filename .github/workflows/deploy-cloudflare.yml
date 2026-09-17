@@ -44,6 +44,7 @@ jobs:
         run: |
           node tools/reporting-repair.test.cjs
           node tools/weekly-funnel.test.cjs
+          node tools/application-aging.test.cjs
 
       - name: Test occupancy dashboard contract
         run: node tools/occupancy-contract.test.cjs
@@ -84,6 +85,7 @@ jobs:
         run: |
           node tools/reporting-repair.test.cjs
           node tools/weekly-funnel.test.cjs
+          node tools/application-aging.test.cjs
 
       - name: Test occupancy dashboard contract
         run: node tools/occupancy-contract.test.cjs

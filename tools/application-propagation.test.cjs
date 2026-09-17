@@ -92,7 +92,7 @@ const synthetic=B.project([up('ui','2026-09-16T12:00:00Z',[{...r,residentName:'S
 const uiContext={console,Date,Map,Set,localStorage:{getItem:()=>null},document:{createElement:()=>({innerHTML:'',content:{querySelectorAll:()=>[]}})},alert:()=>{}};
 uiContext.window={AtlasApplicationSources:B,getAtlasCanonicalApplicationData:()=>synthetic,getAtlasApplicationScopeCommunityNames:()=>['A'],isAtlasCommunityActiveByName:()=>true,getAtlasApplicationPeriodMetrics:()=>[],getApplicationResidentReportPeriodKey:()=> '2026-09',renderTab:()=>{},addEventListener:(event,fn)=>eventHandlers[event]=fn,XLSX:{utils:context.XLSX.utils,writeFile:book=>capturedBooks.push(book)}};
 vm.createContext(uiContext);
-for(const name of ['application-performance.js','application-performance-ui.js'])vm.runInContext(fs.readFileSync(root+name,'utf8'),uiContext);
+for(const name of ['application-aging.js','application-performance.js','application-performance-ui.js'])vm.runInContext(fs.readFileSync(root+name,'utf8'),uiContext);
 eventHandlers.load();
 const rendered=uiContext.window.renderApplicationPerformanceTab();
 assert(rendered.includes('Applicant snapshots'));

@@ -1411,7 +1411,7 @@
 
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=20260916-publish-reconcile"></script>
-<script src="./centralization/atlas-central-client.js?v=20260917-shared-applications" data-atlas-central-client="true"></script>
+<script src="./centralization/atlas-central-client.js?v=20260917-publication-staging" data-atlas-central-client="true"></script>
 <script src="./central-services.js?v=20260916-attorney-coversheet-20260916-filing-20260916-collections-20260911-admin-inspection-controls"></script>
 <script src="./eviction-attorney-ui.js?v=20260916-community-contacts"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260916-no-data-status">
@@ -14991,7 +14991,7 @@ function defaultAtlasAccessFormDraft() {
 
 atlasAccessFormDraft = defaultAtlasAccessFormDraft();
 
-const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=20260917-shared-applications";
+const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=20260917-publication-staging";
 const ATLAS_AUTH_UI_STORAGE_KEY = "atlas_auth_ui_state_v1";
 const ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY = "atlas_dashboard_preferences_v1";
 let atlasCentralClientLoadPromise = null;
@@ -50507,7 +50507,7 @@ async function reprocessDataImportBoxScore(archiveId) {
     let result = entry.reportType === "leasing_resident_data"
       ? {communities:entry.communities || [], rowsHeld:0, issues:[]}
       : await dataImportRouteStructuredFile(file,plan,entry.batchId);
-    if (entry.reportType === "leasing_resident_data" && atlasApplicationPublicationEnabled()) {
+    if (entry.reportType === "leasing_resident_data" && typeof window.ATLAS_CENTRAL?.publishApplicationImport === "function") {
       const workbook = XLSX.read(await file.arrayBuffer(), {type:"array",cellDates:true,cellStyles:true});
       const upload = parseApplicationResidentDataWorkbook(workbook, file, {reportMonthIdx:plan.reportingMonthIdx,reportYear:plan.reportingYear});
       if (upload.validationStatus !== "valid") throw new Error(`Resident Data requires review: ${upload.validationMessages.join(" ")}`);

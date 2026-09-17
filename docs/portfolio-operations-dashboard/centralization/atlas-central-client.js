@@ -24,7 +24,7 @@
     supabaseUrl: "https://rmyhmvjcswfwaracgriy.supabase.co",
     supabaseAnonKey: "sb_publishable_2DEqeCNZFn6sNeVrSEfW8A_EI6tRb_1",
     documentKey: "atlas_dashboard_state_v1",
-    applicationPublication: true,
+    applicationPublication: false,
     realtime: false,
     autosave: false,
     autoPullOnStartup: false,

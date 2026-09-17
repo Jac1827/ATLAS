@@ -56,8 +56,10 @@
         const rows=ledger.map((r,i)=>({...r,index:i})).filter(r=>sections.includes(String(r.section||'').toLowerCase()));
         const keys=rows.map(r=>String(r.glCode??r.gl??''));
         const field=basis==='actual'?'actual':'budget';
-        if(rows.length&&keys.every(Boolean)&&new Set(keys).size===keys.length&&rows.every(r=>number(r[field])!==null&&!/total|subtotal/i.test(r.lineItem||r.description||r.name||''))) {
-          return {value:rows.reduce((s,r)=>s+Number(r[field]),0),status:'available',version:'monthly-ledger-v1',source:`ATLAS / ${ledgerName}.${period} / ${sections[0]} / ${field} / GL ${keys.join(', ')}; monthly basis confirmed in packet settings`};
+        const monthlyField=basis==='actual'?'monthlyActual':'monthlyBudget';
+        const amount=r=>number(Object.hasOwn(r,monthlyField)?r[monthlyField]:r[field]);
+        if(rows.length&&keys.every(Boolean)&&new Set(keys).size===keys.length&&rows.every(r=>amount(r)!==null&&!/total|subtotal/i.test(r.lineItem||r.description||r.name||''))) {
+          return {value:rows.reduce((s,r)=>s+amount(r),0),status:'available',version:'monthly-ledger-v1',source:`ATLAS / ${ledgerName}.${period} / ${sections[0]} / ${field} / GL ${keys.join(', ')}; monthly basis confirmed in packet settings`};
         }
         return missing('Ledger requires complete numeric detail rows, unique GL codes and explicit operating sections');
       }

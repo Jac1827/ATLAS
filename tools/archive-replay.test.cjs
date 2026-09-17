@@ -12,5 +12,6 @@ assert.equal(c.dataImport2State.canonicalRecords[0].revisions.length,1);
 c.dataImport2State.closedPeriods=['2026-09'];
 assert.equal(c.dataImportUpsertCanonicalRecord(rec,result(),{reprocess:true}).disposition,'held');
 c.dataImport2State.closedPeriods=[];
-assert.equal(c.dataImportUpsertCanonicalRecord({...rec,dataAsOf:'2026-09-01'},result(),{reprocess:true}).disposition,'older');
+assert.equal(c.dataImportUpsertCanonicalRecord({...rec,dataAsOf:'2026-09-01'},result(),{reprocess:true}).disposition,'updated','Explicit same-file replay permits corrected source metadata');
+assert.equal(c.dataImportUpsertCanonicalRecord({...rec,fileHash:'different',dataAsOf:'2026-08-31'},result(),{reprocess:true}).disposition,'older');
 console.log('PASS explicit archive replay updates one record with revision; ordinary duplicates, closed periods, and newer sources protected.');

@@ -1,7 +1,7 @@
 const assert=require('node:assert/strict');
 const P=require('../docs/portfolio-operations-dashboard/investor-packet-core.js');
 const S=require('../docs/portfolio-operations-dashboard/investor-packet-sources.js');
-const record={generalManagerName:'Test owner',monthlyHistoryByPeriod:{'2026-01':{guestCards:0,physicalOccupancyPct:92,economicOccupancyPct:88,revenue:100,expenses:70},'2025-12':{revenue:90,expenses:65}},marketSurveyHistory:{'2026-01':{sourceFileName:'market.xlsx',compAverageRent:1500,compAverageNer:1400,surveyComps:[{name:'Comparable',rent:1500,ner:1400,leasedPct:93}]}},renewalDetailRowsByPeriod:{'2026-01':[{status:'Signed & Executed'},{status:'NTV Received'}]},importTracking:{renewals:{'2026-01':{sourceFileName:'renewals.xlsx'}}}};
+const record={generalManagerName:'Test owner',monthlyHistoryByPeriod:{'2026-01':{guestCards:0,physicalOccupancyPct:92,economicOccupancyPct:99,actualCharges:88,grossPotentialRent:100,revenue:100,expenses:70},'2025-12':{revenue:90,expenses:65}},marketSurveyHistory:{'2026-01':{sourceFileName:'market.xlsx',compAverageRent:1500,compAverageNer:1400,surveyComps:[{name:'Comparable',rent:1500,ner:1400,leasedPct:93}]}},renewalDetailRowsByPeriod:{'2026-01':[{status:'Signed & Executed'},{status:'NTV Received'}]},importTracking:{renewals:{'2026-01':{sourceFileName:'renewals.xlsx'}}}};
 const imports={lineage:[{currentState:true,communityName:'A',periodKey:'2026-01',atlasField:'new_leads',importedValue:0,sourceFile:'entrata.xlsx'},{currentState:true,communityName:'B',periodKey:'2026-01',atlasField:'new_leads',importedValue:100}]};
 const maintenance={db:{weeks:{'2026-01-29':{perfByProp:{A:{notc:4,comp:10,src:'workorders.xlsx'},B:{notc:999}},manual:{A:{vacantNR:3}}}}}};
 const central={evictions:[{id:'x',propertyName:'A',periodKey:'2026-01',delinquentBalance:100,sourceFileName:'cases.xlsx',fileDate:'2026-01-02',residentName:'DO NOT EXPORT'},{id:'z',propertyName:'B',periodKey:'2026-01',delinquentBalance:999,sourceFileName:'other.xlsx'}]};
@@ -23,3 +23,9 @@ const auto=S.narrate(p,rec,{});assert(auto.performance.includes('92%'));assert(a
 const edited=S.narrate(p,rec,{performance:'My reviewed explanation',performanceSource:'Owner note'});assert.equal(edited.performance,'My reviewed explanation');
 assert(p.issues.some(x=>x.issue.includes('weekly completions')));
 console.log('PASS automatic source connections, exact community/period, verified zeros, renewal cohorts, case-scope protection, PII exclusion, deduplication, generated narratives and user override preservation.');
+
+for(const [fields,expected] of [[{actualCharges:0,grossPotentialRent:100},0],[{actualCharges:-5,grossPotentialRent:100},-5],[{actualCharges:90,grossPotentialRent:0},null],[{actualCharges:null,grossPotentialRent:100},null],[{actualCharges:90,grossPotentialRent:100},90],[{},null]]) {
+ const connected=S.connect({community:'A',record:{monthlyHistoryByPeriod:{'2026-01':{economicOccupancyPct:99,...fields}}}});
+ assert.equal(P.read(connected,'2026-01','economicOccupancy').value,expected,'Economic occupancy uses period charges/GPR, never cached percent');
+ assert.equal(P.read(connected,'2025-01','economicOccupancy').value,null);
+}

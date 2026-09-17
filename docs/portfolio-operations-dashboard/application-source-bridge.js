@@ -86,11 +86,11 @@
       const section=label.toLowerCase(), headerIndex=rows.findIndex((r,j)=>j>i&&j<totalIndex&&/^unit type$/i.test(text(r[0])));
       if(headerIndex<0)continue;
       const headers=rows[headerIndex] || [], total=rows[totalIndex], values={}, locators={};
-      const get=(field,label,group='')=>{
-        let current='', index=-1;
+      const get=(field,label,group='',occurrence=0)=>{
+        let current='', index=-1, matched=0;
         for(let c=0;c<headers.length;c++){
           if(group && text(rows[headerIndex-1]?.[c]))current=norm(rows[headerIndex-1][c]);
-          if(norm(headers[c])===label && (!group||current===group)){index=c;break;}
+          if(norm(headers[c])===label && (!group||current===group) && matched++===occurrence){index=c;break;}
         }
         const raw=total[index];
         if(index<0 || raw===null || raw===undefined || text(raw)==='' || /^#/.test(text(raw)))return;
@@ -100,6 +100,12 @@
       };
       if(section.startsWith('availability')) {
         for(const [field,h] of Object.entries({total_units:'units',rentable_units:'rentable units',excluded_units:'excluded',occupied_units:'occupied',vacant_units:'vacant',available_units:'available',occupied_no_notice:'occupied no notice',notice_rented:'notice rented',notice_unrented:'notice unrented',vacant_rented:'vacant rented',vacant_unrented:'vacant unrented'}))get(field,h);
+        // Repeated Occupied headings have different units. Keep the percentage
+        // as an explicit percent string, so 0.5% cannot become 50% downstream.
+        get('physical_occupancy','occupied','',1);
+        get('leased_occupancy','leased');
+        for(const field of ['physical_occupancy','leased_occupancy'])if(values[field]!==undefined)values[field]=String(values[field])+'%';
+        for(const field of ['occupied_units','physical_occupancy'])if(locators[field])locators[field].columnRole=field==='occupied_units'?'count':'percent';
         const leasedHeader=headers.find(h=>/: leased units$/i.test(text(h)));
         if(leasedHeader)get('source_leased_units',norm(leasedHeader));
         get('avg_market_rent_budgeted','avg. market rent (budgeted)');

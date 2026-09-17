@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css"/>
+<script src="financial-publication.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs/dist/pptxgen.bundle.js"></script>
@@ -5914,6 +5915,7 @@ function defaultDlrBoxScoreSnapshot() {
 }
 
 function normalizeOptionalNumber(value) {
+  if (value === null || value === undefined || typeof value === "boolean" || String(value).trim() === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
@@ -6601,17 +6603,17 @@ function applyWorkbookOverlayToDlrReport(report, overlay) {
     reportDateIso: overlay.reportDateIso || report.reportDateIso,
     reportDateLabel: overlay.reportDateLabel || report.reportDateLabel,
     reportPeriodLabel: overlay.reportDateLabel || report.reportPeriodLabel,
-    totalUnits: Number(overlay.totalUnits ?? report.totalUnits) || report.totalUnits,
-    occupiedUnits: Number(overlay.occupiedUnits ?? report.occupiedUnits) || report.occupiedUnits,
-    leasedUnits: Number(overlay.leasedUnits ?? report.leasedUnits) || report.leasedUnits,
-    occupancyPct: Number(overlay.occupancyPct ?? report.occupancyPct) || report.occupancyPct,
-    leasedPct: Number(overlay.leasedPct ?? report.leasedPct) || report.leasedPct,
+    totalUnits: normalizeOptionalNumber(overlay.totalUnits) ?? report.totalUnits,
+    occupiedUnits: normalizeOptionalNumber(overlay.occupiedUnits) ?? report.occupiedUnits,
+    leasedUnits: normalizeOptionalNumber(overlay.leasedUnits) ?? report.leasedUnits,
+    occupancyPct: normalizeOptionalNumber(overlay.occupancyPct) ?? report.occupancyPct,
+    leasedPct: normalizeOptionalNumber(overlay.leasedPct) ?? report.leasedPct,
     status: buildDlrWorkbookStatusLabel(overlay.occupancyPct ?? report.occupancyPct, overlay.leasedPct ?? report.leasedPct),
     pricing: {
       ...report.pricing,
-      totalUnits: Number(overlay.totalUnits ?? report.pricing?.totalUnits) || report.pricing?.totalUnits,
-      occupiedUnits: Number(overlay.occupiedUnits ?? report.pricing?.occupiedUnits) || report.pricing?.occupiedUnits,
-      leasedUnits: Number(overlay.leasedUnits ?? report.pricing?.leasedUnits) || report.pricing?.leasedUnits,
+      totalUnits: normalizeOptionalNumber(overlay.totalUnits) ?? report.pricing?.totalUnits,
+      occupiedUnits: normalizeOptionalNumber(overlay.occupiedUnits) ?? report.pricing?.occupiedUnits,
+      leasedUnits: normalizeOptionalNumber(overlay.leasedUnits) ?? report.pricing?.leasedUnits,
       avgBudgetRent: overlay.avgBudgetRent ?? report.pricing?.avgBudgetRent,
       avgInPlaceRent: overlay.avgInPlaceRent ?? report.pricing?.avgInPlaceRent,
       avgNetEffectiveRent: overlay.avgNetEffectiveRent ?? report.pricing?.avgNetEffectiveRent
@@ -6655,16 +6657,6 @@ function applyWorkbookOverlayToDlrReport(report, overlay) {
     ...report.trafficMetrics,
     sourceMode: "daily_box_score"
   };
-  if (!Number(nextReport.trafficMetrics.guestCards)) {
-    nextReport.trafficMetrics.guestCards = overlay.leads ?? overlay.traffic;
-    nextReport.trafficMetrics.rolledGuestCards = overlay.leads ?? overlay.traffic;
-  }
-  if (!Number(nextReport.trafficMetrics.tours)) nextReport.trafficMetrics.tours = overlay.tours;
-  if (!Number(nextReport.trafficMetrics.applications)) nextReport.trafficMetrics.applications = overlay.applications;
-  if (!Number(nextReport.trafficMetrics.approvals)) nextReport.trafficMetrics.approvals = overlay.approvedApplications;
-  if (!Number(nextReport.trafficMetrics.moveIns)) nextReport.trafficMetrics.moveIns = overlay.moveIns;
-  if (!Number(nextReport.trafficMetrics.moveOuts)) nextReport.trafficMetrics.moveOuts = overlay.moveOuts;
-  if (!Number(nextReport.trafficMetrics.renewals)) nextReport.trafficMetrics.renewals = overlay.renewalsSigned;
   nextReport.sourceSummary = `${nextReport.communityName} · ${nextReport.reportPeriodLabel} · report-only Ronaldo daily upload overlay`;
   nextReport.editableNotes = {
     ...nextReport.editableNotes,
@@ -9236,21 +9228,29 @@ function syncPropertyMsoeMetrics() {
 
 function getDocumentedMonthlyAbsorption(monthIdx) {
   const values = [];
-  for (let i = 0; i <= monthIdx; i++) {
-    const moveIns = monthlyData[i]?.moveIns ?? 0;
-    const moveOuts = getEffectiveMoveOutsForMonth(i).effective;
-    if (moveIns !== 0 || moveOuts !== 0) {
-      values.push((moveIns - moveOuts));
-    }
+  for (let i = 1; i <= monthIdx; i++) {
+    const before = getVerifiedMonthlySnapshot(monthlyData[i - 1]);
+    const after = getVerifiedMonthlySnapshot(monthlyData[i]);
+    if (before !== null && after !== null) values.push(after - before);
   }
   return values;
+}
+
+function getVerifiedMonthlySnapshot(entry = {}, key = "occupiedSnapshot") {
+  const value = normalizeOptionalNumber(entry[key]);
+  if (value === null || value < 0) return null;
+  const pctKey = key === "occupiedSnapshot" ? "physicalOccupancyPct" : "leasedOccupancyPct";
+  // Legacy positive snapshots are explicit observations; legacy default zero requires source evidence.
+  return value > 0 || entry.snapshotVerified === true || (entry.rentableUnits > 0 && normalizeOptionalNumber(entry[pctKey]) === 0) ? value : null;
 }
 
 function getMonthsToStabilization() {
   const totalUnits = getTotalUnits();
   if (totalUnits === 0) return { months: null, targetUnits: 0, avgNetAbsorption: 0, reason: "Enter unit count" };
   const targetUnits = Math.ceil(getReportedOccupancyBaseUnits(monthlyData[currentMonth], totalUnits, corporateLeaseUnits) * 0.95);
-  const unitsNeeded = Math.max(targetUnits - currentOccupied, 0);
+  const verifiedOccupied = getVerifiedMonthlySnapshot(monthlyData[currentMonth]);
+  if (verifiedOccupied === null) return { months: null, targetUnits, avgNetAbsorption: 0, reason: "Verified current occupancy snapshot required" };
+  const unitsNeeded = Math.max(targetUnits - verifiedOccupied, 0);
   if (unitsNeeded === 0) return { months: 0, targetUnits, avgNetAbsorption: 0, reason: "At or above 95%" };
   const documented = getDocumentedMonthlyAbsorption(currentMonth);
   if (documented.length === 0) return { months: null, targetUnits, avgNetAbsorption: 0, reason: "No documented move-in / move-out history yet" };
@@ -9723,6 +9723,7 @@ function normalizeSavedCommunityRecord(propName, data) {
     monthlyHistoryByPeriod: normalizedMonthlyHistory,
     marketSurveyHistory: normalizeMarketSurveyHistory(input.marketSurveyHistory),
     importTracking: normalizeImportTracking(input.importTracking),
+    financialPublicationHistory: Array.isArray(input.financialPublicationHistory) ? input.financialPublicationHistory : [],
     financialLedger: (input.financialLedger && typeof input.financialLedger === "object") ? input.financialLedger : {},
     financialUpdatedAt: String(input.financialUpdatedAt ?? ""),
     financialBudgetLedger: (input.financialBudgetLedger && typeof input.financialBudgetLedger === "object") ? input.financialBudgetLedger : {},
@@ -9946,6 +9947,36 @@ async function loadSaved() {
   }
   return normalizeSavedCommunityMap(fallback);
 }
+async function atlasPublishFinancialRows(communityName, publication) {
+  const name = matchPropertyName(communityName, { fallbackToCurrent: false });
+  if (!name || !savedData[name]) throw new Error("Financial publication requires an existing canonical community.");
+  await atlasStateWritePromise;
+  const next = window.AtlasFinancialPublication.apply(savedData[name], publication);
+  const map = { ...buildSerializedSavedDataPayload(), [name]: next };
+  // A failed durable write must not appear as a successful import.
+  await atlasStateSetValue(ATLAS_STATE_COMMUNITY_KEY, map);
+  savedData[name] = normalizeSavedCommunityRecord(name, next);
+  if (name === getProp().name) loadPropertyData(name);
+  queueAtlasCentralDocumentPush("financial_publication");
+  renderTab();
+  return { ok: true };
+}
+
+window.addEventListener("storage", async event => {
+  if (event.key !== "atlas_financial_publication") return;
+  await atlasStateWritePromise;
+  const stored = await atlasStateGetValue(ATLAS_STATE_COMMUNITY_KEY);
+  const name = JSON.parse(event.newValue || "{}").community;
+  if (!name || !stored?.[name]) return;
+  const fields = ["financialLedger", "financialBudgetLedger", "financialPublicationHistory", "financialUpdatedAt"];
+  const next = { ...savedData[name] };
+  fields.forEach(key => { next[key] = stored[name][key]; });
+  savedData[name] = normalizeSavedCommunityRecord(name, next);
+  if (name === getProp().name) loadPropertyData(name);
+  queueAtlasCentralDocumentPush("financial_publication");
+  renderTab();
+});
+
 function persistSaved() {
   const serialized = buildSerializedSavedDataPayload();
   queueAtlasStateWrite(async () => {
@@ -10692,7 +10723,7 @@ function buildDlrTrafficMetricsFromSummary(dlrSummary = {}, monthEntry = {}, dai
 }
 
 function hasDlrDisplayMetricValue(value) {
-  return value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
+  return value !== null && value !== undefined && typeof value !== "boolean" && String(value).trim() !== "" && Number.isFinite(Number(value));
 }
 
 function pickDlrDisplayMetricValue(...values) {
@@ -10730,11 +10761,7 @@ function buildDlrApplicationWindowMetricsFromMonths(monthEntries = [], summaryOv
     totals.pendingDecision += Math.max(0, Number(metrics.pendingDecision) || 0);
   });
   if (summaryOverrides && typeof summaryOverrides === "object") {
-    totals.applications = Math.max(totals.applications, Math.max(0, Number(summaryOverrides.applications) || 0));
-    totals.approvals = Math.max(totals.approvals, Math.max(0, Number(summaryOverrides.approvals) || 0));
-    totals.denials = Math.max(totals.denials, Math.max(0, Number(summaryOverrides.denials) || 0));
-    totals.cancelled = Math.max(totals.cancelled, Math.max(0, Number(summaryOverrides.cancelled) || 0));
-    totals.pendingDecision = Math.max(totals.pendingDecision, Math.max(0, Number(summaryOverrides.pendingDecision) || 0));
+    Object.keys(totals).forEach(key => { totals[key] = normalizeOptionalNumber(summaryOverrides[key]); });
   }
   return totals;
 }
@@ -23622,29 +23649,18 @@ function communityCommandSumFinancialRows(rows = [], keys = []) {
 }
 
 function getCommunityCommandEconomicOccupancyData(record = {}, monthIdx = getSelectedDashboardMonthIndex(), year = new Date().getFullYear()) {
-  const currentRows = getFinancialLedgerRowsForMonth(record, monthIdx, year).filter(communityCommandFinancialRowIsRent);
-  const currentBudgetRows = getFinancialBudgetLedgerRowsForMonth(record, monthIdx, year).filter(communityCommandFinancialRowIsRent);
-  const previousMonth = monthIdx > 0 ? monthIdx - 1 : 11;
-  const previousYear = monthIdx > 0 ? year : year - 1;
-  const previousRows = getFinancialLedgerRowsForMonth(record, previousMonth, previousYear).filter(communityCommandFinancialRowIsRent);
-  const previousBudgetRows = getFinancialBudgetLedgerRowsForMonth(record, previousMonth, previousYear).filter(communityCommandFinancialRowIsRent);
-  const collected = communityCommandSumFinancialRows(currentRows, ["actual", "yAct", "amount", "collectedRent", "collected"]);
-  const grossCharges = communityCommandSumFinancialRows(currentRows, ["grossRentCharges", "charges", "budget", "yBud"])
-    || communityCommandSumFinancialRows(currentBudgetRows, ["budget", "yBud", "amount", "annualBudget"]);
-  const previousCollected = communityCommandSumFinancialRows(previousRows, ["actual", "yAct", "amount", "collectedRent", "collected"]);
-  const previousGrossCharges = communityCommandSumFinancialRows(previousRows, ["grossRentCharges", "charges", "budget", "yBud"])
-    || communityCommandSumFinancialRows(previousBudgetRows, ["budget", "yBud", "amount", "annualBudget"]);
-  const mtdPct = grossCharges > 0 ? (collected / grossCharges) * 100 : null;
-  const priorPct = previousGrossCharges > 0 ? (previousCollected / previousGrossCharges) * 100 : null;
-  return {
-    mtdPct,
-    priorPct,
-    variance: mtdPct !== null && priorPct !== null ? mtdPct - priorPct : null,
-    collected,
-    grossCharges,
-    rowCount: currentRows.length,
-    sourceLabel: currentRows.length || currentBudgetRows.length ? "Financial actuals and budget rent GLs" : "Missing rent-charge mapping"
+  const read = (month, reportingYear) => {
+    const entry = getRecordMonthlyDataForYear(record, reportingYear)[month] || {};
+    const actual = normalizeOptionalNumber(entry.actualCharges);
+    const gpr = normalizeOptionalNumber(entry.grossPotentialRent);
+    return { actual, gpr, pct: actual !== null && gpr > 0 ? actual / gpr * 100 : null, source: entry.financialSource || "" };
   };
+  const current = read(monthIdx, year);
+  const previous = read(monthIdx > 0 ? monthIdx - 1 : 11, monthIdx > 0 ? year : year - 1);
+  return { mtdPct: current.pct, priorPct: previous.pct,
+    variance: current.pct !== null && previous.pct !== null ? current.pct - previous.pct : null,
+    collected: current.actual, grossCharges: current.gpr, rowCount: current.pct === null ? 0 : 1,
+    sourceLabel: current.pct === null ? "Missing actual rent charges / gross potential rent" : `Actual rent charges / gross potential rent · ${current.source || buildPeriodKey(monthIdx, year)}` };
 }
 
 function getCommunityCommandSourceLabel(record = {}, fallback = "Report source unavailable", propName = "", monthIdx = getSelectedDashboardMonthIndex(), year = new Date().getFullYear(), fields = []) {
@@ -23785,7 +23801,7 @@ function buildCommunityCommandAlerts(model) {
     add("renewal_retention_watch", "watch", "Renewal retention pressure", `${model.monthLabel} retention is below the default 60% save line.`, communityCommandFormatPct(model.renewal.retentionRate || 0, 0), "60%", "Renewals", 5, "Escalate undecided renewals and review renewal pricing.");
   }
   if (model.economic.mtdPct === null) {
-    add("economic_missing", "watch", "Economic occupancy needs rent-charge mapping", "ATLAS cannot calculate economic occupancy until rent charges and collected rent revenue are mapped.", "Missing", "Rent charges + collections", "Data Import", 7, "Map rent-charge and collected-rent source fields in Data Import.");
+    add("economic_missing", "watch", "Economic occupancy needs rent-charge mapping", "ATLAS cannot calculate economic occupancy until actual rent charges and gross potential rent are mapped.", "Missing", "Rent charges + gross potential rent", "Data Import", 7, "Map actual rent charges and gross potential rent in Data Import.");
   } else if (model.economic.variance !== null && model.economic.variance < -2) {
     add("economic_deterioration", "critical", "Economic occupancy deterioration", `MTD economic occupancy is down ${Math.abs(model.economic.variance).toFixed(1)} points from the prior month.`, communityCommandFormatPct(model.economic.mtdPct), communityCommandFormatPct(model.economic.priorPct), "Central Services", 15, "Review delinquency and collections exceptions.");
   }
@@ -23859,9 +23875,8 @@ function buildCommunityCommandLeasingPlanRows(model) {
     const monthEntry = model.monthlyData[idx] || {};
     const apps = getApplicationDecisionMetrics(monthEntry);
     const approved = getCommunityCommandApprovedGoal(model.propName, idx, model.year);
-    const beginningUnits = idx === model.monthIdx
-      ? model.occupied
-      : (idx > 0 ? Number(model.schedule[idx - 1]?.occupied || 0) : model.occupied);
+    const previousEntry = idx > 0 ? model.monthlyData[idx - 1] : model.record.monthlyHistoryByPeriod?.[`${model.year - 1}-12`];
+    const beginningUnits = getVerifiedMonthlySnapshot(previousEntry || {});
     const actualNet = Math.max(0, Number(monthEntry.moveIns) || 0) - getEffectiveMoveOutsForMonth(idx, model.monthlyData).effective;
     const variance = Number(row.budgetOcc || 0) > 0 ? Number(row.occPct || 0) - Number(row.budgetOcc || 0) : null;
     const status = variance === null
@@ -23870,7 +23885,7 @@ function buildCommunityCommandLeasingPlanRows(model) {
     return {
       monthIdx: idx,
       month: FULL_MONTHS[idx],
-      beginningPct: model.occupancyBaseUnits > 0 ? (beginningUnits / model.occupancyBaseUnits) * 100 : null,
+      beginningPct: beginningUnits !== null && model.occupancyBaseUnits > 0 ? (getComparableOccupancyUnits(beginningUnits, model.corporateUnits) / model.occupancyBaseUnits) * 100 : null,
       budgetPct: Number(row.budgetOcc || 0) || null,
       forecastPct: Number(row.occPct || 0) || null,
       moveOuts: Number(row.moveOuts || 0),
@@ -23902,13 +23917,13 @@ function getCommunityCommandTrendPoints(model) {
     const entry = model.monthlyData[idx] || {};
     const occupied = idx === model.monthIdx
       ? model.occupied
-      : getRecordComparableSnapshotUnits(model.record, model.totalUnits, idx, "occupiedSnapshot");
+      : getVerifiedMonthlySnapshot(entry, "occupiedSnapshot");
     const leased = idx === model.monthIdx
       ? model.leased
-      : getRecordComparableSnapshotUnits(model.record, model.totalUnits, idx, "leasedSnapshot");
+      : getVerifiedMonthlySnapshot(entry, "leasedSnapshot");
     const baseUnits = getReportedOccupancyBaseUnits(entry, model.totalUnits, model.corporateUnits);
-    const physical = baseUnits > 0 ? (occupied / baseUnits) * 100 : null;
-    const leasedPct = baseUnits > 0 ? (leased / baseUnits) * 100 : null;
+    const physical = occupied !== null && baseUnits > 0 ? (occupied / baseUnits) * 100 : null;
+    const leasedPct = leased !== null && baseUnits > 0 ? (leased / baseUnits) * 100 : null;
     const trending = getReportedTrend(entry, model.totalUnits, model.corporateUnits).pct;
     const budget = getRecordSavedBudgetOccPct(model.record, idx, model.year) || null;
     rows.push({
@@ -32220,10 +32235,14 @@ function normalizeFinancialLedgerPeriodKey(value, fallbackYear = new Date().getF
 function getFinancialLedgerRowsForMonth(record = {}, selectedMonth = getSelectedDashboardMonthIndex(), year = new Date().getFullYear()) {
   const ledger = (record?.financialLedger && typeof record.financialLedger === "object") ? record.financialLedger : {};
   const targetKey = `${year}-${String(selectedMonth + 1).padStart(2, "0")}`;
-  if (Array.isArray(ledger[targetKey])) return ledger[targetKey];
+  const monthlyRows = rows => rows.map(row => ({ ...row,
+    actual: Object.prototype.hasOwnProperty.call(row, "monthlyActual") ? normalizeOptionalNumber(row.monthlyActual) : normalizeOptionalNumber(row.actual ?? row.yAct),
+    budget: Object.prototype.hasOwnProperty.call(row, "monthlyBudget") ? normalizeOptionalNumber(row.monthlyBudget) : normalizeOptionalNumber(row.budget ?? row.yBud)
+  }));
+  if (Array.isArray(ledger[targetKey])) return monthlyRows(ledger[targetKey]);
   for (const [periodKey, rows] of Object.entries(ledger)) {
     if (!Array.isArray(rows)) continue;
-    if (normalizeFinancialLedgerPeriodKey(periodKey, year) === targetKey) return rows;
+    if (normalizeFinancialLedgerPeriodKey(periodKey, year) === targetKey) return monthlyRows(rows);
   }
   return [];
 }
@@ -32241,7 +32260,7 @@ function getFinancialBudgetLedgerRowsForMonth(record = {}, selectedMonth = getSe
 
 function summarizeFinancialLedgerRows(rows = [], budgetRows = []) {
   const summary = {
-    hasData: false,
+    hasData: (Array.isArray(rows) ? rows : []).some(row => { const value = row.actual ?? row.yAct; return value !== null && value !== undefined && String(value).trim() !== "" && Number.isFinite(Number(value)); }),
     revenueActual: 0,
     revenueBudget: 0,
     expenseActual: 0,
@@ -40049,14 +40068,8 @@ function getPrimaryReportCommunityName() {
 }
 
 function resolveDlrReportCommunityName(candidateName = "", monthIdx = getReportHubMonthIndex()) {
-  const reportableNames = getReportableCommunityNames(monthIdx);
-  const matchedCandidate = matchPropertyName(candidateName, { fallbackToCurrent: false });
-  if (matchedCandidate && reportableNames.includes(matchedCandidate)) return matchedCandidate;
-  const matchedHistorical = matchPropertyName(historicalImportTarget.community, { fallbackToCurrent: false });
-  if (matchedHistorical && reportableNames.includes(matchedHistorical)) return matchedHistorical;
-  const primary = matchPropertyName(getPrimaryReportCommunityName(), { fallbackToCurrent: false });
-  if (primary && reportableNames.includes(primary)) return primary;
-  return reportableNames[0] || primary || matchedCandidate || matchedHistorical || getProp().name;
+  // Explicit scheduled/portfolio targets are allowed; an invalid target must never fall through to another property.
+  return matchPropertyName(candidateName || getProp().name, { fallbackToCurrent: false }) || "";
 }
 
 function getLvrReportCommunityName() {
@@ -40074,7 +40087,7 @@ function setLvrReportCommunity(value) {
 }
 
 function getDlrReportCommunityName() {
-  return resolveDlrReportCommunityName(historicalImportTarget.community, getReportHubMonthIndex());
+  return resolveDlrReportCommunityName(getProp().name, getReportHubMonthIndex());
 }
 
 function syncDlrTargetFromReportHub(options = {}) {
@@ -40084,7 +40097,7 @@ function syncDlrTargetFromReportHub(options = {}) {
     ? resolveDlrReportCommunityName(options.community, monthIdx)
     : (options.preserveCommunity === false
       ? resolveDlrReportCommunityName("", monthIdx)
-      : resolveDlrReportCommunityName(historicalImportTarget.community, monthIdx));
+      : resolveDlrReportCommunityName(getProp().name, monthIdx));
   historicalImportTarget = normalizeHistoricalImportTarget({
     ...historicalImportTarget,
     community: communityName,
@@ -40445,8 +40458,10 @@ function renderLvrTemplateWorkspace() {
 }
 
 function setReportingDlrCommunity(value) {
-  syncDlrTargetFromReportHub({ community: value });
-  renderTab();
+  const name = resolveDlrReportCommunityName(value);
+  if (!name) return;
+  syncDlrTargetFromReportHub({ community: name });
+  openCommunityWorkspace(name);
 }
 
 function setReportingDlrDate(value) {
@@ -40493,9 +40508,7 @@ function renderDlrReportingWorkspace() {
       <div class="alert-red">Mark at least one community Active in Community Setup before using the DLR reporting workspace.</div>
     </div>`;
   }
-  const communityName = communityOptions.includes(getDlrReportCommunityName())
-    ? getDlrReportCommunityName()
-    : communityOptions[0];
+  const communityName = getDlrReportCommunityName();
   const report = buildDashboardDlrInvestorOverview(communityName, monthIdx, year);
   if (!report) {
     return `<div id="reporting-dlr-workspace" class="report-hub-card" style="margin-top:14px">
@@ -40735,7 +40748,7 @@ function buildPortfolioDlrOverviewNotes({
       `Month-to-date tours are ${formatDeltaWord(mtdTraffic.tours, prevTours, "tour")} across the selected scope.`
     ].filter(Boolean),
     applications: [
-      `${formatDlrMetricValue(mtdTraffic.applications)} applications are recorded month to date, including ${formatDlrMetricValue(mtdTraffic.approvals)} approved, ${formatDlrMetricValue(mtdTraffic.denials)} denied, ${formatDlrMetricValue(mtdTraffic.cancelled)} cancelled, and ${formatDlrMetricValue(mtdTraffic.pendingDecision)} pending decision.`,
+      `${formatDlrMetricValue(mtdTraffic.applications)} applications are recorded month to date. Separately reported decisions (applicant cohort not verified): ${formatDlrMetricValue(mtdTraffic.approvals)} approved, ${formatDlrMetricValue(mtdTraffic.denials)} denied, ${formatDlrMetricValue(mtdTraffic.cancelled)} cancelled, and ${formatDlrMetricValue(mtdTraffic.pendingDecision)} pending decision.`,
       `${formatDlrMetricValue(dailyTraffic.applications)} applications posted on the report date across the selected communities.`,
       `Applications are currently ${formatDeltaWord(mtdTraffic.applications, prevApps, "application")} versus the prior month, while signed leases are ${formatDeltaWord(mtdTraffic.leases, prevLeases, "lease")} across the same scope.`
     ].filter(Boolean),
@@ -41179,7 +41192,7 @@ function buildPortfolioDlrOverviewDocument(report) {
       <td style="padding:6px 8px;border-top:1px solid #e5e7eb;font-size:11px;text-align:center">${leasedPct.toFixed(1)}%</td>
       <td style="padding:6px 8px;border-top:1px solid #e5e7eb;font-size:11px;text-align:center">${Math.round(communityReport.trafficMetrics?.approvals ?? 0)}</td>
       <td style="padding:6px 8px;border-top:1px solid #e5e7eb;font-size:11px;text-align:center">${formatSignedDisplay(communityReport.monthAbsorption ?? 0)}</td>
-      <td style="padding:6px 8px;border-top:1px solid #e5e7eb;font-size:11px;text-align:center">${Number(communityReport.renewalSnapshot?.retentionRate ?? 0).toFixed(1)}%</td>
+      <td style="padding:6px 8px;border-top:1px solid #e5e7eb;font-size:11px;text-align:center">${formatDlrPercent(communityReport.renewalSnapshot?.retentionRate)}</td>
       <td style="padding:6px 8px;border-top:1px solid #e5e7eb;font-size:11px;text-align:center">${communityReport && isDlrDailyBoxScoreReady(communityReport) ? "Live DLR" : "Saved MTD"}</td>
     </tr>`;
   }).join("");
@@ -41312,7 +41325,7 @@ function buildPortfolioDlrOverviewDocument(report) {
 }
 
 function hasRiseWeeklyMetric(value) {
-  return value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
+  return value !== null && value !== undefined && typeof value !== "boolean" && String(value).trim() !== "" && Number.isFinite(Number(value));
 }
 
 function pickRiseWeeklyMetric(...values) {
@@ -42137,17 +42150,17 @@ function draftWeeklyExecutiveOutlookEmail() {
 }
 
 function formatDlrMetricValue(value, suffix = "") {
-  return Number.isFinite(Number(value)) ? `${Number(value)}${suffix}` : "N/A";
+  return hasDlrDisplayMetricValue(value) ? `${Number(value)}${suffix}` : "N/A";
 }
 
 function formatDlrCurrency(value) {
-  return Number.isFinite(Number(value))
+  return hasDlrDisplayMetricValue(value)
     ? `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
     : "N/A";
 }
 
 function formatDlrPercent(value, digits = 1) {
-  return Number.isFinite(Number(value))
+  return hasDlrDisplayMetricValue(value)
     ? `${Number(value).toFixed(digits)}%`
     : "N/A";
 }
@@ -42450,14 +42463,14 @@ function buildDlrApplicationOutcomeChart(report, windowKey = reportingDlrApplica
   const windows = report?.applicationWindows || {};
   const metricSet = windows[windowKey] || windows.mtd || {};
   const rows = [
-    { label: "Received", value: Number(metricSet.applications) || 0, color: "#0f4c81" },
-    { label: "Approved", value: Number(metricSet.approvals) || 0, color: "#1f8a78" },
-    { label: "Denied", value: Number(metricSet.denials) || 0, color: "#d97706" },
-    { label: "Cancelled", value: Number(metricSet.cancelled) || 0, color: "#dc2626" },
-    { label: "Pending", value: Number(metricSet.pendingDecision) || 0, color: "#7c3aed" }
+    { label: "Received", value: normalizeOptionalNumber(metricSet.applications), color: "#0f4c81" },
+    { label: "Approved", value: normalizeOptionalNumber(metricSet.approvals), color: "#1f8a78" },
+    { label: "Denied", value: normalizeOptionalNumber(metricSet.denials), color: "#d97706" },
+    { label: "Cancelled", value: normalizeOptionalNumber(metricSet.cancelled), color: "#dc2626" },
+    { label: "Pending", value: normalizeOptionalNumber(metricSet.pendingDecision), color: "#7c3aed" }
   ];
   const maxValue = Math.max(1, ...rows.map(row => row.value));
-  return `<div>
+  return `<div><p style="font-size:0.7rem;color:var(--muted)">${escapeHtml(report?.applicationValidation?.message || "Received applications and decisions are separately reported activity; applicant cohort is unverified.")}</p>
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">
       <div style="font-size:0.66rem;color:var(--muted)">Window: ${escapeHtml(windowKey.replace(/_/g, " "))}</div>
       <select onchange="setReportingDlrApplicationWindow(this.value)" style="max-width:180px">
@@ -42851,7 +42864,7 @@ function buildDlrInvestorNotes({
   const hasPrevTours = hasDlrDisplayMetricValue(prevMonthTraffic.tours);
   const hasMoveIns = hasDlrDisplayMetricValue(mtdTraffic.moveIns);
   const hasMoveOuts = hasDlrDisplayMetricValue(mtdTraffic.moveOuts);
-  const hasRenewalData = hasDlrDisplayMetricValue(expirations) || hasDlrDisplayMetricValue(renewalsSigned) || hasDlrDisplayMetricValue(retentionRate);
+  const hasRenewalData = Number(expirations) > 0 && hasDlrDisplayMetricValue(retentionRate);
   const appVolumeDelta = hasMtdApplications && hasPrevApplications
     ? Number(mtdTraffic.applications) - Number(prevMonthTraffic.applications)
     : null;
@@ -42885,7 +42898,7 @@ function buildDlrInvestorNotes({
   ].filter(Boolean);
   const applications = [
     hasMtdApplications
-      ? `${formatDlrMetricValue(mtdTraffic.applications)} applications are recorded month to date, including ${formatDlrMetricValue(mtdTraffic.approvals)} approved, ${formatDlrMetricValue(mtdTraffic.denials)} denied, ${formatDlrMetricValue(mtdTraffic.cancelled)} cancelled, and ${formatDlrMetricValue(mtdTraffic.pendingDecision)} pending decision.`
+      ? `${formatDlrMetricValue(mtdTraffic.applications)} applications are recorded month to date. Separately reported decisions (applicant cohort not verified): ${formatDlrMetricValue(mtdTraffic.approvals)} approved, ${formatDlrMetricValue(mtdTraffic.denials)} denied, ${formatDlrMetricValue(mtdTraffic.cancelled)} cancelled, and ${formatDlrMetricValue(mtdTraffic.pendingDecision)} pending decision.`
       : `Month-to-date application funnel detail is not yet saved for ${monthLabel}.`,
     dailyTraffic.applications > 0
       ? `The report date contributed ${dailyTraffic.applications} application${dailyTraffic.applications === 1 ? "" : "s"} (${dailyTraffic.approvals || 0} approved / ${dailyTraffic.denials || 0} denied / ${dailyTraffic.cancelled || 0} cancelled / ${dailyTraffic.pendingDecision || 0} pending).`
@@ -42902,7 +42915,7 @@ function buildDlrInvestorNotes({
     occupancyAhead
       ? `Physical occupancy is ${formatDlrPercent(occupancyPct, 1)} and is pacing on or above the saved leasing schedule budget of ${formatDlrPercent(budgetOccPct, 1)}.`
       : `Physical occupancy is ${formatDlrPercent(occupancyPct, 1)} against the saved leasing schedule budget of ${formatDlrPercent(budgetOccPct, 1)}.`,
-    leasedAhead
+    !hasDlrDisplayMetricValue(trendingOccupancyPct) ? `Leased exposure is ${formatDlrPercent(leasedPct, 1)}. The 90-day projection is unavailable until dated future move-ins and move-outs are verified.` : leasedAhead
       ? `Leased exposure is trending positively at ${formatDlrPercent(leasedPct, 1)}, and ending physical occupancy over the next 90 days is projected at ${formatDlrPercent(trendingOccupancyPct, 1)} from saved move-ins and move-outs.`
       : `Leased exposure is ${formatDlrPercent(leasedPct, 1)}, and ending physical occupancy over the next 90 days is projected at ${formatDlrPercent(trendingOccupancyPct, 1)} from saved move-ins and move-outs.`,
     hasRenewalData
@@ -43947,12 +43960,50 @@ function hasMeaningfulDlrSummary(summary) {
   return false;
 }
 
+function validateDlrApplicationCohort(metrics = {}, provenance = {}) {
+  const fields = ["applications", "approvals", "denials"];
+  const sources = fields.map(field => provenance[field]);
+  const sameCohort = sources.every(item => item?.cohort && item?.period && item?.source)
+    && sources.every(item => item.cohort === sources[0].cohort && item.period === sources[0].period && item.source === sources[0].source);
+  const complete = fields.every(field => hasDlrDisplayMetricValue(metrics[field]));
+  const valid = !(sameCohort && complete && Number(metrics.approvals) + Number(metrics.denials) > Number(metrics.applications));
+  return { sameCohort, valid, message: !valid ? "Application decisions exceed the verified received cohort; review the source before generating this report."
+    : sameCohort ? "Applications and decisions share a verified cohort and period."
+    : "Applications and decisions are separate reported activity; the same applicant cohort is not verified." };
+}
+
+function validateDlrInventory(report, expected = {}) {
+  return report.communityName === expected.communityName && report.totalUnits === expected.totalUnits
+    && !(expected.communityId && report.communityId && expected.communityId !== report.communityId)
+    && [report.occupiedUnits, report.leasedUnits].every(value => hasDlrDisplayMetricValue(value) && value >= 0 && value <= expected.totalUnits);
+}
+
+function buildVerifiedDlrProjection(record, monthIdx, year, occupiedUnits, baseUnits, corporateUnits = 0) {
+  let running = getComparableOccupancyUnits(occupiedUnits, corporateUnits);
+  const rows = [];
+  for (let offset = 1; offset <= 3; offset++) {
+    const date = new Date(year, monthIdx + offset, 1);
+    const entry = getRecordMonthlyDataForYear(record, date.getFullYear())[date.getMonth()] || {};
+    const ins = normalizeOptionalNumber(entry.trendingMoveIns);
+    const outs = normalizeOptionalNumber(entry.trendingMoveOuts);
+    if (ins === null || outs === null || ins < 0 || outs < 0 || baseUnits <= 0) break;
+    running = Math.min(baseUnits, Math.max(0, running + ins - outs));
+    rows.push({ monthIdx: date.getMonth(), label: formatDlrMonthYear(date.getMonth(), date.getFullYear()),
+      pendingMoveIns: ins, pendingMoveOuts: outs, projectedOccupancy: running / baseUnits * 100,
+      budgetedOccupancy: getRecordSavedBudgetOccPct(record, date.getMonth(), date.getFullYear()),
+      leaseExpirations: null, mtm: null, moveInsNeeded: null });
+  }
+  return rows;
+}
+
 function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(), monthIdx = getHistoricalImportMonthIndex(), year = getHistoricalImportYear()) {
   const normalizedMonthIdx = clampNumber(monthIdx, 0, 11);
   const communityName = resolveDlrReportCommunityName(propName, normalizedMonthIdx);
   if (!communityName) return null;
+  const storedIdentity = savedData?.[communityName]?.propertyName;
+  if (storedIdentity && matchPropertyName(storedIdentity, { fallbackToCurrent: false }) !== communityName) return null;
   const workbookOverlay = getDlrWorkbookOverlayForCommunity(communityName, normalizedMonthIdx, year);
-  const record = getPersistedCommunityRecordForScope(communityName, { allowCurrentFallback: true });
+  const record = communityName === getProp().name ? getCommunityRecordForScope(communityName) : getPersistedCommunityRecordForScope(communityName);
   if (!record && workbookOverlay) {
     return buildWorkbookOnlyDlrInvestorOverview(communityName, workbookOverlay, normalizedMonthIdx, year);
   }
@@ -43984,13 +44035,13 @@ function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(
     if (!hasMatchingDailyBoxScore) return null;
     for (const value of values) {
       const numeric = Number(value);
-      if (Number.isFinite(numeric) && numeric > 0) return numeric;
+      if (value !== null && value !== undefined && String(value).trim() !== "" && Number.isFinite(numeric) && numeric >= 0) return numeric;
     }
     return null;
   };
   const hasDlrSummaryMetric = value => value !== null && value !== undefined && Number.isFinite(Number(value));
   const dailyBoxScoreBaseUnits = readMatchingDailyBoxScoreMetric(dailyBoxScore.rentableUnits, dailyBoxScore.totalUnits);
-  const dlrOccupancyBaseUnits = dailyBoxScoreBaseUnits || totalUnits;
+  const dlrOccupancyBaseUnits = dailyBoxScoreBaseUnits || getReportedOccupancyBaseUnits(getRecordMonthlyDataForYear(record, year)[normalizedMonthIdx], totalUnits);
   const dailyBoxScoreOccupiedUnits = readMatchingDailyBoxScoreMetric(dailyBoxScore.occupiedUnits);
   const dailyBoxScoreLeasedUnits = readMatchingDailyBoxScoreMetric(dailyBoxScore.leasedUnits);
   const dailyBoxScoreTrendUnits = readMatchingDailyBoxScoreMetric(dailyBoxScore.trendUnits, dailyBoxScore.notExposedLeasedUnits);
@@ -44007,10 +44058,10 @@ function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(
   const reportSummaryOccupiedRaw = Number.isFinite(Number(reportSummary.occupiedRaw)) ? Math.max(0, Number(reportSummary.occupiedRaw)) : null;
   const reportSummaryLeasedRaw = Number.isFinite(Number(reportSummary.leasedRaw)) ? Math.max(0, Number(reportSummary.leasedRaw)) : null;
   const savedReportAnchorOccupiedUnits = reportMetricMonthIdx === scopeCurrentMonth
-    ? Math.max(0, Number(record.currentOccupied) || reportSummaryOccupiedRaw || 0)
+    ? normalizeOptionalNumber(record.currentOccupied) ?? reportSummaryOccupiedRaw
     : (reportSummaryOccupiedRaw ?? estimateSnapshotUnitsForRecordMonth(scopedRecord, totalUnits, reportMetricMonthIdx, "occupiedSnapshot"));
   const savedReportAnchorLeasedUnits = reportMetricMonthIdx === scopeCurrentMonth
-    ? Math.max(0, Number(record.currentLeased) || reportSummaryLeasedRaw || 0)
+    ? normalizeOptionalNumber(record.currentLeased) ?? reportSummaryLeasedRaw
     : (reportSummaryLeasedRaw ?? estimateSnapshotUnitsForRecordMonth(scopedRecord, totalUnits, reportMetricMonthIdx, "leasedSnapshot"));
   const reportAnchorOccupiedUnits = dailyBoxScoreOccupiedUnits ?? savedReportAnchorOccupiedUnits;
   const reportAnchorLeasedUnits = dailyBoxScoreLeasedUnits ?? savedReportAnchorLeasedUnits;
@@ -44067,8 +44118,8 @@ function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(
   const dailyBoxScoreTrendingOccupancyPct = dailyBoxScoreTrendUnits !== null ? dailyBoxScorePctFromUnits(dailyBoxScoreTrendUnits) : null;
   const summaryOccupancyPct = hasMatchingDlrSummary && hasDlrSummaryMetric(effectiveDlrSummary.occupancyPct) ? Number(effectiveDlrSummary.occupancyPct) : null;
   const summaryLeasedPct = hasMatchingDlrSummary && hasDlrSummaryMetric(effectiveDlrSummary.leasedPct) ? Number(effectiveDlrSummary.leasedPct) : null;
-  const occupancyPct = dailyBoxScoreOccupancyPct ?? summaryOccupancyPct ?? getOccupancyPctFromUnitsOrFallback(occupiedUnits, totalUnits, corporateUnits, reportSummary.occPct);
-  const leasedPct = dailyBoxScoreLeasedPct ?? summaryLeasedPct ?? getOccupancyPctFromUnitsOrFallback(leasedUnits, totalUnits, corporateUnits, reportSummary.leasedPct);
+  const occupancyPct = getOccupancyPctFromUnitsOrFallback(occupiedUnits, dlrOccupancyBaseUnits, corporateUnits, summaryOccupancyPct, reportSummary.occPct);
+  const leasedPct = getOccupancyPctFromUnitsOrFallback(leasedUnits, dlrOccupancyBaseUnits, corporateUnits, summaryLeasedPct, reportSummary.leasedPct);
   const projectedTrendRow = nextRows[Math.min(3, Math.max(nextRows.length - 1, 0))] || nextRows[nextRows.length - 1] || null;
   const projectedEndingOccupancy = computeProjectedEndingPhysicalOccupancy(scopedRecord, totalUnits, reportMetricMonthIdx, 3);
   const summaryTrendingOccupancyPct = hasMatchingDlrSummary && hasDlrSummaryMetric(effectiveDlrSummary.trendingOccupancyPct) ? Number(effectiveDlrSummary.trendingOccupancyPct) : null;
@@ -44380,7 +44431,7 @@ function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(
   const applicationTrendRows = buildDlrApplicationTrendRows(record, reportMetricMonthIdx, year, resolvedMtdTraffic.applications);
   const baseReport = {
     communityName,
-    communityId: String(workbookOverlay?.communityId || "").trim(),
+    communityId: String(record.communityId || workbookOverlay?.communityId || "").trim(),
     communityIdentifier: String(workbookOverlay?.communityId || communityName || "").trim(),
     reportMonthIdx: reportMetricMonthIdx,
     reportYear: year,
@@ -44466,7 +44517,36 @@ function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(
     },
     rawMonthEntry: monthEntry
   };
-  return workbookOverlay ? applyWorkbookOverlayToDlrReport(baseReport, workbookOverlay) : baseReport;
+  const report = workbookOverlay ? applyWorkbookOverlayToDlrReport(baseReport, workbookOverlay) : baseReport;
+  if (!validateDlrInventory(report, { communityName, totalUnits, communityId: record.communityId })
+      || (hasMatchingDailyBoxScore && normalizeOptionalNumber(dailyBoxScore.totalUnits) !== null && Number(dailyBoxScore.totalUnits) !== totalUnits)) {
+    console.warn("DLR blocked: selected community and source inventory do not match.");
+    return null;
+  }
+  report.occupancyBaseUnits = getOccupancyBaseUnits(dlrOccupancyBaseUnits, corporateUnits);
+  report.occupancyPct = getOccupancyPctFromUnits(report.occupiedUnits, dlrOccupancyBaseUnits, corporateUnits);
+  report.leasedPct = getOccupancyPctFromUnits(report.leasedUnits, dlrOccupancyBaseUnits, corporateUnits);
+  report.pricing = { ...report.pricing, totalUnits, occupiedUnits: report.occupiedUnits, leasedUnits: report.leasedUnits };
+  if (!(report.renewalSnapshot.expirations > 0)) report.renewalSnapshot.retentionRate = null;
+  const periodKey = buildPeriodKey(reportMetricMonthIdx, year);
+  const canonicalFields = { applications: "applications", approvals: "applicationsApproved", denials: "denied", leases: "leasesSignedActual", moveIns: "moveIns", moveOuts: "moveOuts" };
+  for (const [field, storedField] of Object.entries(canonicalFields)) {
+    const source = monthEntry.metricProvenance?.[storedField];
+    if (source?.period === periodKey) report.trafficMetrics[field] = normalizeOptionalNumber(monthEntry[storedField]);
+  }
+  report.applicationValidation = validateDlrApplicationCohort(report.trafficMetrics, monthEntry.applicationProvenance || {});
+  if (!report.applicationValidation.valid) return null;
+  if (!report.applicationValidation.sameCohort) {
+    report.trafficMetrics.applicationApprovalPct = null;
+    report.trafficMetrics.appToLeasePct = null;
+  }
+  report.applicationWindows.mtd = { ...report.trafficMetrics };
+  report.forwardLook = buildVerifiedDlrProjection(record, reportMetricMonthIdx, year, report.occupiedUnits, report.occupancyBaseUnits, corporateUnits);
+  report.trendingOccupancyPct = report.forwardLook.length === 3 ? report.forwardLook[2].projectedOccupancy : null;
+  const validatedNotes = buildDlrInvestorNotes({ ...report, monthLabel: report.reportMonthLabel, leadSources: mtdTraffic, avgInPlaceRent: report.pricing.avgInPlaceRent, avgBudgetRent: report.pricing.avgBudgetRent, mtdTraffic: report.trafficMetrics, prevMonthTraffic,
+    retentionRate: report.renewalSnapshot.retentionRate, renewalsSigned: report.renewalSnapshot.signed, expirations: report.renewalSnapshot.expirations });
+  report.notes = resolveDlrEditableNotes(effectiveDlrSummary, validatedNotes, { periodKey }).notes;
+  return report;
 }
 
 function renderDashboardDlrActivityMiniTable(report) {
@@ -44870,39 +44950,24 @@ function buildCommunityProgressTrendRows(report) {
 }
 
 function buildCommunityProgressStabilization(report) {
+  const record = report?.sourceRecord;
   const totalUnits = Math.max(0, Number(report?.totalUnits) || 0);
-  const occupiedUnits = Math.max(0, Number(report?.occupiedUnits) || 0);
-  if (totalUnits === 0) {
-    return { months: null, targetUnits: 0, avgNetAbsorption: 0, reason: "Enter unit count" };
-  }
   const targetUnits = Math.ceil(totalUnits * 0.95);
-  const unitsNeeded = Math.max(targetUnits - occupiedUnits, 0);
-  if (unitsNeeded === 0) {
-    return { months: 0, targetUnits, avgNetAbsorption: 0, reason: "At or above 95%" };
+  const month = report?.reportMonthIdx;
+  const entries = record ? getRecordMonthlyDataForYear(record, report.reportYear) : [];
+  const occupied = getVerifiedMonthlySnapshot(entries[month] || {});
+  if (occupied === null) return { months: null, targetUnits, avgNetAbsorption: 0, reason: "Verified current occupancy snapshot required" };
+  const needed = Math.max(0, targetUnits - occupied);
+  if (!needed) return { months: 0, targetUnits, avgNetAbsorption: 0, reason: "At or above 95%" };
+  const values = [];
+  for (let i = 1; i <= month; i++) {
+    const before = getVerifiedMonthlySnapshot(entries[i - 1]);
+    const after = getVerifiedMonthlySnapshot(entries[i]);
+    if (before !== null && after !== null) values.push(after - before);
   }
-  const reportMonthIdx = Number.isInteger(report?.reportMonthIdx) ? clampNumber(report.reportMonthIdx, 0, 11) : getReportHubMonthIndex();
-  const documented = (Array.isArray(report?.trendRows) ? report.trendRows : [])
-    .filter(row => Number.isFinite(Number(row?.monthIdx)) && Number(row.monthIdx) <= reportMonthIdx)
-    .filter(row => Math.abs(Number(row?.moveIns) || 0) > 0 || Math.abs(Number(row?.moveOuts) || 0) > 0)
-    .map(row => Number(row?.netAbsorption) || 0);
-  if (documented.length === 0) {
-    return { months: null, targetUnits, avgNetAbsorption: 0, reason: "No documented move-in / move-out history yet" };
-  }
-  const avgNetAbsorption = documented.reduce((sum, value) => sum + value, 0) / documented.length;
-  if (avgNetAbsorption <= 0) {
-    return {
-      months: null,
-      targetUnits,
-      avgNetAbsorption,
-      reason: `Documented net absorption is flat or negative across ${documented.length} month(s)`
-    };
-  }
-  return {
-    months: Math.ceil(unitsNeeded / avgNetAbsorption),
-    targetUnits,
-    avgNetAbsorption,
-    reason: `${unitsNeeded} units to 95% using ${documented.length} documented month(s)`
-  };
+  const avgNetAbsorption = values.length ? values.reduce((a,b) => a+b, 0) / values.length : 0;
+  return { months: avgNetAbsorption > 0 ? Math.ceil(needed / avgNetAbsorption) : null, targetUnits, avgNetAbsorption,
+    reason: values.length ? `Based on ${values.length} adjacent verified monthly snapshots` : "Verified monthly occupancy history required" };
 }
 
 function buildCommunityProgressHistoricalApplicationsWeeklyTrend(report) {
@@ -45422,7 +45487,7 @@ function buildCommunityProgressDualLineChart(points = [], options = {}) {
         }
       ];
   const validPoints = Array.isArray(points)
-    ? points.filter(point => seriesConfig.some(series => Number.isFinite(Number(point?.[series.key]))))
+    ? points.filter(point => seriesConfig.some(series => hasDlrDisplayMetricValue(point?.[series.key])))
     : [];
   if (validPoints.length === 0) {
     return `<div style="font-size:12px;color:#64748b">No saved trend points are available for this view yet.</div>`;
@@ -45436,8 +45501,8 @@ function buildCommunityProgressDualLineChart(points = [], options = {}) {
   const chartWidth = width - left - right;
   const chartHeight = height - top - bottom;
   const numericValues = validPoints
-    .flatMap(point => seriesConfig.map(series => Number(point?.[series.key])))
-    .filter(value => Number.isFinite(value));
+    .flatMap(point => seriesConfig.map(series => normalizeOptionalNumber(point?.[series.key])))
+    .filter(value => value !== null && Number.isFinite(value));
   const baseMin = options.minValue ?? Math.min(...numericValues);
   const baseMax = options.maxValue ?? Math.max(...numericValues);
   const rawRange = Math.max(baseMax - baseMin, 1);
@@ -45451,8 +45516,8 @@ function buildCommunityProgressDualLineChart(points = [], options = {}) {
   const plotSeries = seriesConfig.map(series => ({
     ...series,
     points: points.map((point, idx) => {
-      const value = Number(point?.[series.key]);
-      if (!Number.isFinite(value)) return null;
+      const value = normalizeOptionalNumber(point?.[series.key]);
+      if (value === null || !Number.isFinite(value)) return null;
       return {
         x: left + (stepX * idx),
         y: yForValue(value),
@@ -45508,7 +45573,7 @@ function buildCommunityProgressDualLineChart(points = [], options = {}) {
     return `<tr>
       <td style="padding:6px 8px;border-top:1px solid #e5e7eb;font-size:11px;color:#334155;font-weight:700">${escapeHtml(monthLabel)}</td>
       ${seriesConfig.map(series => {
-        const value = Number(point?.[series.key]);
+        const value = normalizeOptionalNumber(point?.[series.key]);
         return `<td style="padding:6px 8px;border-top:1px solid #e5e7eb;font-size:11px;color:#334155;text-align:right">${Number.isFinite(value) ? escapeHtml(pointLabelFormatter(value)) : "—"}</td>`;
       }).join("")}
     </tr>`;
@@ -49500,7 +49565,7 @@ function dataImportUpsertCanonicalRecord(record, result, options = {}) {
   }
   const incomingTime = Date.parse(record.dataAsOf || record.importedAt || "") || 0;
   const existingTime = Date.parse(existing?.dataAsOf || existing?.importedAt || "") || 0;
-  if (existing && !(options.reprocess && record.fileHash && existing.fileHash === record.fileHash) && incomingTime && existingTime && incomingTime < existingTime) {
+  if (existing && incomingTime && existingTime && incomingTime < existingTime) {
     result.rowsUnchanged += 1;
     result.issues.push({ type: "held", severity: "medium", title: "Older source retained as history", detail: `A newer approved ${record.reportTypeLabel} row already controls ${record.periodKey}.`, communityName: record.communityName });
     return { disposition: "older", record };
@@ -49580,6 +49645,12 @@ function dataImportApplyMetric(record, plan, result, communityName, period, targ
   if (!dataImportShouldApplyCurrentMetric(plan, communityName, period.periodKey, atlasField, dataAsOf, result)) return false;
   const applied = applyValueToRecord(record, period.monthIdx, targetKey, numeric, period.year);
   if (applied) {
+    const storedField = ({ occupied: "occupiedSnapshot", leased: "leasedSnapshot", applications_approved: "applicationsApproved", leases_signed: "leasesSignedActual", move_ins: "moveIns", move_outs: "moveOuts" })[targetKey] || targetKey;
+    const periodEntries = getWritableMonthlyPeriodEntries(record, period.monthIdx, period.year);
+    [periodEntries?.historyEntry, periodEntries?.liveEntry].filter(Boolean).forEach(month => {
+      month.metricProvenance = { ...month.metricProvenance, [storedField]: { community: communityName, period: period.periodKey, source: plan.fileHash || plan.name, dataAsOf, field: atlasField } };
+      if (targetKey === "occupied" || targetKey === "leased") month.snapshotVerified = true;
+    });
     const currentKey = dataImportCurrentLineageKey(communityName, period.periodKey, atlasField);
     if (dataImportRuntimeCurrentLineageIndex instanceof Map) {
       const controlling = dataImportRuntimeCurrentLineageIndex.get(currentKey);
@@ -49676,7 +49747,7 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
   const sum = field => {
     const values = rows.map(row => dataImportNumericValue(row[field])).filter(value => value !== null);
     if (!values.length || (plan.reportType === "delinquency" && values.length !== rows.length)) return null;
-    return hasFloorPlanRows || plan.reportType === "delinquency" ? values.reduce((total, value) => total + value, 0) : values[0];
+    return hasFloorPlanRows || ["delinquency", "approved_accounting", "rent_roll"].includes(plan.reportType) ? values.reduce((total, value) => total + value, 0) : values[0];
   };
   const first = field => rows.map(row => row[field]).find(value => String(value ?? "").trim() !== "");
   if (plan.reportType === "box_score") {
@@ -49765,6 +49836,8 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     result.destinations.add("Occupancy Trend");
     result.destinations.add("Exposure Forecast");
   } else if (plan.reportType === "rent_roll" || plan.reportType === "approved_accounting") {
+    const sourceTime = plan.metadata?.dataAsOf || plan.dataDateIso || plan.metadata?.generatedAt || "";
+    if (!dataImportShouldApplyCurrentMetric(plan, communityName, period.periodKey, "scheduled_charges", sourceTime, result)) return;
     const scheduled = sum("scheduled_charges");
     const actual = sum("actual_charges");
     const gpr = sum("gross_potential_rent");
@@ -49772,10 +49845,23 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     const periodEntries = getWritableMonthlyPeriodEntries(record, period.monthIdx, period.year);
     [periodEntries?.historyEntry, periodEntries?.liveEntry].filter(Boolean).forEach(month => {
       if (scheduled !== null) month.scheduledCharges = scheduled;
-      if (actual !== null) month.actualCharges = actual;
-      if (gpr !== null) month.grossPotentialRent = gpr;
-      if (gpr > 0 && actual !== null) month.economicOccupancyPct = actual / gpr * 100;
+      month.actualCharges = actual;
+      month.grossPotentialRent = gpr;
+      month.economicOccupancyPct = gpr > 0 && actual !== null ? actual / gpr * 100 : null;
+      month.financialSource = `${plan.name} · ${period.periodKey}`;
     });
+    if (plan.reportType === "approved_accounting") {
+      const ledgerRows = rows.flatMap(row => {
+        const actual = dataImportNumericValue(row.actual_charges);
+        const revenue = dataImportNumericValue(row.revenue_metric);
+        const expense = dataImportNumericValue(row.expense_metric);
+        const budget = dataImportNumericValue(row.budget_field);
+        if (row.gl_account && actual !== null) return [{ glCode: String(row.gl_account), lineItem: String(row.charge_code || row.gl_account), actual, budget }];
+        return [revenue !== null ? { section: "Operating Income", lineItem: "Reported income", actual: revenue, budget: expense === null ? budget : null } : null,
+          expense !== null ? { section: "Operating Expense", lineItem: "Reported expense", actual: expense, budget: revenue === null ? budget : null } : null].filter(Boolean);
+      });
+      if (ledgerRows.length) Object.assign(record, window.AtlasFinancialPublication.apply(record, { period: period.periodKey, rows: ledgerRows, source: plan.name, kind: "actuals", mode: "replace" }));
+    }
     result.formulas.push(`${communityName} ${period.periodKey}: Economic Occupancy = Actual Rent Charges / Gross Potential Rent when both values are present.`);
     result.destinations.add(plan.reportType === "rent_roll" ? "Rent Performance" : "Financial Reporting");
   } else if (plan.reportType === "leasing_resident_data") {

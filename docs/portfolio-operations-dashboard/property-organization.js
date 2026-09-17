@@ -137,8 +137,10 @@
     for(const r of dataImport2State.canonicalRecords||[]){
       if(r.reportType!=='box_score'||P.norm(r.communityName)!==P.norm(detail.name)||r.deletedAt||r.status==='held'||r.downstreamEligible===false)continue;
       const period=r.sectionPeriod?.start?r.sectionPeriod:P.ranges(r.periodKey||range.start.slice(0,7));
-      if(snapshots.some(s=>s.sourceFile===r.sourceFile&&s.start===period.start&&s.end===period.end))continue;
-      snapshots.push({...period,section:r.section||r.sourceRow,values:r.values,sourceFile:r.sourceFile,sourceSheet:r.sourceSheet,importedAt:r.importedAt,dataThrough:r.dataAsOf});
+      const section=r.section||r.sourceSheet||String(r.sourceRow||'');
+      const version=r.fileHash||r.sourceVersion||r.dataAsOf||r.importedAt||'';
+      if(snapshots.some(s=>(s.section||s.sourceSheet)===section&&s.sourceFile===r.sourceFile&&s.start===period.start&&s.end===period.end&&(s.fileHash||s.sourceVersion||s.dataThrough||s.importedAt||'')===version))continue;
+      snapshots.push({...period,section,fileHash:r.fileHash,sourceVersion:version,values:r.values,sourceFile:r.sourceFile,sourceSheet:r.sourceSheet,importedAt:r.importedAt,dataThrough:r.dataAsOf});
     }
     return P.metrics(snapshots,range);
   };

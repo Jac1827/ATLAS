@@ -4,6 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>ATLAS RISE Financial Accountability</title>
+<script src="financial-publication.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -275,8 +276,6 @@ async function loadAtlasCommunityStore(){
 
 async function persistAtlasCommunityStore(store){
   const serialized=store&&typeof store==="object"?store:{};
-  try{window.localStorage.setItem(COMMUNITY_STORAGE_KEY,JSON.stringify(serialized));}catch(_error){}
-  try{window.localStorage.setItem(LEGACY_COMMUNITY_STORAGE_KEY,JSON.stringify(serialized));}catch(_error){}
   await atlasStateSetValue(ATLAS_STATE_COMMUNITY_KEY,serialized);
 }
 
@@ -454,11 +453,13 @@ function buildFinancialLedgerRows(rows){
     section:String(row&&row.section||""),
     lineItem:String(row&&row.name||""),
     glCode:String(row&&row.gl||""),
-    actual:Number(row&&row.yAct||0),
-    budget:Number(row&&row.yBud||0),
+    actual:AtlasFinancialPublication.number(row&&row.mAct),
+    ytdActual:AtlasFinancialPublication.number(row&&row.yAct),
+    budget:AtlasFinancialPublication.number(row&&row.mBud),
+    ytdBudget:AtlasFinancialPublication.number(row&&row.yBud),
     annualBudget:Number(row&&row.annBud||0),
-    monthlyActual:Number(row&&row.mAct||0),
-    monthlyBudget:Number(row&&row.mBud||0),
+    monthlyActual:AtlasFinancialPublication.number(row&&row.mAct),
+    monthlyBudget:AtlasFinancialPublication.number(row&&row.mBud),
     monthlyVariance:Number(row&&row.mVar||0),
     ytdVariance:Number(row&&row.yVar||0)
   }));
@@ -478,19 +479,10 @@ function buildFinancialBudgetLedgerRows(rows){
 async function applyDatasetToAtlasStore(dataset,entity){
   if(!dataset||!entity||entity.kind!=="community")return{ok:true};
   const communityName=String(entity.label||"").trim();
-  if(!communityName)return{ok:false,message:"No ATLAS community name was available for this upload."};
   const periodKey=normalizeFinancialPeriodKey(dataset.period||dataset.name||"");
-  if(!periodKey)return{ok:false,message:`Could not determine a reporting month for ${dataset.name||"this upload"}.`};
-  const store=await loadAtlasCommunityStore();
-  const existing=store&&typeof store[communityName]==="object"&&store[communityName]?store[communityName]:{propertyName:communityName};
-  const ledger=existing.financialLedger&&typeof existing.financialLedger==="object"?{...existing.financialLedger}:{};
-  ledger[periodKey]=buildFinancialLedgerRows(dataset.rows);
-  store[communityName]={
-    ...existing,
-    financialLedger:ledger,
-    financialUpdatedAt:new Date().toISOString()
-  };
-  await persistAtlasCommunityStore(store);
+  const kind=dataset.kind==="budget"?"budget":"actuals";
+  const rows=buildFinancialLedgerRows(dataset.rows);
+  await AtlasFinancialPublication.publish(communityName,{period:periodKey,rows,kind,source:dataset.name,mode:"replace"});
   return{ok:true,periodKey};
 }
 
@@ -506,18 +498,9 @@ async function applyApprovedBudgetDatasetToAtlasStore(dataset,entity){
     grouped[periodKey].push(record);
   });
   if(!Object.keys(grouped).length)return{ok:false,message:"No usable month-by-month budget rows were detected in this workbook."};
-  const store=await loadAtlasCommunityStore();
-  const existing=store&&typeof store[communityName]==="object"&&store[communityName]?store[communityName]:{propertyName:communityName};
-  const budgetLedger=existing.financialBudgetLedger&&typeof existing.financialBudgetLedger==="object"?{...existing.financialBudgetLedger}:{};
-  Object.entries(grouped).forEach(([periodKey,records])=>{
-    budgetLedger[periodKey]=buildFinancialBudgetLedgerRows(records);
-  });
-  store[communityName]={
-    ...existing,
-    financialBudgetLedger:budgetLedger,
-    financialBudgetUpdatedAt:new Date().toISOString()
-  };
-  await persistAtlasCommunityStore(store);
+  for(const [periodKey,records] of Object.entries(grouped)){
+    await AtlasFinancialPublication.publish(communityName,{period:periodKey,rows:buildFinancialBudgetLedgerRows(records),kind:"budget",source:dataset.name||"Approved budget",mode:"replace"});
+  }
   return{ok:true,periodKeys:Object.keys(grouped)};
 }
 

@@ -43,6 +43,7 @@ jobs:
       - name: Test reporting data and weekly report
         run: |
           node tools/reporting-repair.test.cjs
+          node tools/canonical-report-data.test.cjs
           node tools/weekly-funnel.test.cjs
           node tools/application-aging.test.cjs
           node tools/storage-capacity.test.cjs
@@ -95,6 +96,7 @@ jobs:
       - name: Test reporting data and weekly report
         run: |
           node tools/reporting-repair.test.cjs
+          node tools/canonical-report-data.test.cjs
           node tools/weekly-funnel.test.cjs
           node tools/application-aging.test.cjs
           node tools/storage-capacity.test.cjs

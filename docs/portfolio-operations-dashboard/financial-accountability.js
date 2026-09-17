@@ -5293,47 +5293,31 @@
     dom.exportPptx.disabled = !enabled;
   }
 
-  function applyFinancialRecordsToOpsStore(records = []) {
-    if (!Array.isArray(records) || records.length === 0) {
-      return;
-    }
-    const store = loadDashboardCommunityStore();
-    const updatedAt = new Date().toISOString();
-
-    for (const record of records) {
-      const property = String(record?.property ?? "").trim();
-      const period = String(record?.period ?? "").trim();
-      if (!property || !period) continue;
-
-      if (property === "RISE Corporate") {
-        continue;
-      }
-
-      const existing = store[property];
-      if (!existing) continue;
-      const existingLedger = existing.financialLedger && typeof existing.financialLedger === "object" ? existing.financialLedger : {};
-      const periodRows = Array.isArray(existingLedger[period]) ? existingLedger[period] : [];
-      periodRows.push({
-        section: String(record.section ?? ""),
-        lineItem: String(record.lineItem ?? ""),
-        glCode: String(record.glCode ?? ""),
-        actual: Number(record.actual ?? 0),
-        budget: Number(record.budget ?? 0),
-        annualBudget: Number(record.annualBudget ?? 0),
-        updatedAt,
+  async function applyFinancialRecordsToOpsStore(records = [], mode = "merge") {
+    if (!records.length) return;
+    if (!window.AtlasFinancialPublication) {
+      await new Promise((resolve,reject) => {
+        const script = document.createElement("script");
+        script.src = "financial-publication.js";
+        script.onload = resolve;
+        script.onerror = () => reject(new Error("Financial publication service could not load."));
+        document.head.appendChild(script);
       });
-      existingLedger[period] = periodRows;
-      store[property] = { ...existing, financialLedger: existingLedger, financialUpdatedAt: updatedAt };
     }
-
-    try {
-      const serialized = JSON.stringify(store);
-      window.localStorage.setItem(COMMUNITY_STORAGE_KEY, serialized);
-      window.localStorage.setItem(LEGACY_COMMUNITY_STORAGE_KEY, serialized);
-    } catch (_error) {}
+    const groups = new Map();
+    for (const record of records) {
+      if (record.property === "RISE Corporate") continue;
+      const key = JSON.stringify([record.property,record.period]);
+      if (!groups.has(key)) groups.set(key,[]);
+      groups.get(key).push(record);
+    }
+    for (const [key,rows] of groups) {
+      const [community,period] = JSON.parse(key);
+      await window.AtlasFinancialPublication.publish(community,{period,rows,source:state.pendingFinancial?.dataset?.fileName || "Financial CSV",kind:"actuals",mode:mode === "merge" ? "merge" : "replace"});
+    }
   }
 
-  function applyStagedFinancialUpload() {
+  async function applyStagedFinancialUpload() {
     try {
       const staged = state.pendingFinancial?.dataset;
       if (!staged || !Array.isArray(staged.records) || staged.records.length === 0) {
@@ -5456,7 +5440,7 @@
       // Keep a stored ledger copy for trend comparisons across sessions.
       saveFinancialHistoryStore(state.datasets.financial);
 
-      applyFinancialRecordsToOpsStore(sanitizedStagedRecords);
+      await applyFinancialRecordsToOpsStore(sanitizedStagedRecords, replaceMode);
 
       const afterCoverage = getDatasetCoverage(state.datasets.financial);
       state.pendingFinancial = null;

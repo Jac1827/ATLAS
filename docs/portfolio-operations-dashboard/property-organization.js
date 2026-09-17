@@ -114,17 +114,21 @@
     }
     record.boxScoreHistory=history;savedData[name]=record;
   };
-  window.atlasCaptureBoxScoreFile=async file=>{
+  window.atlasCaptureBoxScoreFile=async (file,options={})=>{
     const workbook=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});let captured=0;
     for(const sheetName of workbook.SheetNames){
       const rows=XLSX.utils.sheet_to_json(workbook.Sheets[sheetName],{header:1,defval:'',raw:false});
       if(!rows.some(r=>/box score/i.test(String(r[0]))))continue;
       const name=getAllCommunityNames().find(n=>P.norm(n)===P.norm(sheetName));
-      if(!name||!atlasApplicationCommunityInScope(name))continue;
+      if(!name||!atlasApplicationCommunityInScope(name)||(options.allowedNames&&!options.allowedNames.some(n=>P.norm(n)===P.norm(name))))continue;
       const sections=window.AtlasApplicationSources.boxScore(rows).map(r=>({...r,sourceSheet:sheetName}));
-      if(!sections.length)continue;atlasCaptureBoxScore(name,sections,file.name);captured++;
+      const floorPlans=window.AtlasBoxScoreFloorPlans?.parse(rows,file.name,sheetName)||[];
+      if(!sections.length&&!floorPlans.length)continue;
+      if(!options.floorPlansOnly)atlasCaptureBoxScore(name,sections,file.name);
+      if(floorPlans.length)applyBoxScoreFloorPlanRows(name,floorPlans);
+      captured++;
     }
-    if(captured){persistSaved();await atlasStateWritePromise;queueAtlasCentralDocumentPush('box_score_activity');}
+    if(captured){persistSaved();await atlasStateWritePromise;loadPropertyData(getProp().name);queueAtlasCentralDocumentPush('box_score_activity');}
     return captured;
   };
   window.atlasPropertyMetrics=(detail,range)=>{

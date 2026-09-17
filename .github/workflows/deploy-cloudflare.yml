@@ -49,6 +49,7 @@ jobs:
 
       - name: Test property organization and special history
         run: |
+          node tools/box-score-floor-plans.test.cjs
           node tools/property-intelligence.test.cjs
           node tools/property-organization.test.cjs
           node tools/property-specials.test.mjs
@@ -100,6 +101,7 @@ jobs:
 
       - name: Test property organization and special history
         run: |
+          node tools/box-score-floor-plans.test.cjs
           node tools/property-intelligence.test.cjs
           node tools/property-organization.test.cjs
           node tools/property-specials.test.mjs

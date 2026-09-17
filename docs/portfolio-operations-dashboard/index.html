@@ -49784,7 +49784,10 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     const total = sum("total_units");
     const sourceTime = plan.metadata?.dataAsOf || plan.dataDateIso || plan.metadata?.generatedAt || "";
     const acceptDerived = dataImportShouldApplyCurrentMetric(plan, communityName, period.periodKey, "occupied_units", sourceTime, result) && dataImportShouldApplyCurrentMetric(plan, communityName, period.periodKey, "leased_units", sourceTime, result);
-    const studentUnits = /student/i.test(record.communityPropertyType || record.propertyType || "") && first("measurement_basis") !== "beds";
+    const directoryRecord = (window.ATLAS_CENTRAL?.getStoredProfile?.()?.community_access_records || []).find(item =>
+      [item.display_name, item.canonical_name].some(name => String(name || "").trim().toLowerCase() === communityName.trim().toLowerCase()));
+    const propertyType = directoryRecord?.property_type || record.communityPropertyType || record.propertyType || "";
+    const studentUnits = /student/i.test(propertyType) && first("measurement_basis") !== "beds";
     if (studentUnits) {
       result.issues.push({type:"basis",severity:"high",title:"Student bed counts required",detail:"Unit-based occupancy and move counts retained in source history; not published as bed-based leasing or occupancy.",communityName});
     }

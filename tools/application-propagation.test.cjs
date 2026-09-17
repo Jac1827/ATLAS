@@ -12,6 +12,9 @@ if(fixture){
  const book=context.XLSX.read(fs.readFileSync(fixture),{type:"buffer",cellDates:true});
  const upload=context.parseApplicationResidentDataWorkbook(book,{name:'RISE - Resident Data (5).xlsx'},{reportMonthIdx:8,reportYear:2026});
  assert.equal(upload.records.length,1578,'All property sheets parsed');
+ assert.equal(upload.validationStatus,'valid','Empty property tabs must not block mapped records');
+ assert.equal(upload.unmappedProperties.length,0);
+ assert(upload.propertySections.length>upload.mappedProperties.length,'Empty sections remain in source metadata');
  const scope=[...new Set(upload.records.map(r=>r.atlasName).filter(Boolean))];
  const data=B.project([upload],scope);
  assert(data.records.length>1000);assert(data.imports.length===1);

@@ -8,6 +8,18 @@ vm.runInContext(html.slice(html.indexOf('const DATA_IMPORT_FIELD_ALIASES ='),htm
 assert.equal(c.dataImportExtractMetadata({sampleText:'New Lead Created On | 08/07/2026',metadataText:'Resident Data 3.1 generated | 09/16/2026 12:20 PM EDT\ndata as of | 09/16/2026 12:20 PM EDT'}).dataAsOf,'2026-09-16T16:20:00.000Z');
 c.buildPeriodKey=(m,y)=>`${y}-${String(m+1).padStart(2,'0')}`;
 assert.equal(c.dataImportRowPeriod({application_date:'2025-01-01'},{},{reportType:'leasing_resident_data',reportingMonthIdx:8,reportingYear:2026}).periodKey,'2026-09');
+// A corrected report timestamp must not make the identical archived source look stale.
+Object.assign(c,{dataImport2State:{canonicalRecords:[{key:'k',fileHash:'same',dataAsOf:'',importedAt:'2026-09-16T19:00:00Z',values:{}}],closedPeriods:[],lineage:[]},dataImportRuntimeCanonicalIndex:null,dataImportRuntimeCurrentLineageIndex:null});
+const replayResult=()=>({issues:[],rowsHeld:0,rowsUnchanged:0,rowsUpdated:0,duplicatesIgnored:0});
+const replayRecord={key:'k',fileHash:'same',dataAsOf:'2026-09-16T15:00:00Z',importedAt:'2026-09-17T01:00:00Z',periodKey:'2026-09',values:{balance:35}};
+assert.equal(c.dataImportUpsertCanonicalRecord(replayRecord,replayResult(),{reprocess:true}).disposition,'updated');
+assert.equal(c.dataImportUpsertCanonicalRecord({...replayRecord,fileHash:'different',dataAsOf:'2026-09-15'},replayResult(),{reprocess:true}).disposition,'older');
+c.dataImport2State.closedPeriods=['2026-09'];
+assert.equal(c.dataImportUpsertCanonicalRecord(replayRecord,replayResult(),{reprocess:true}).disposition,'held');
+c.dataImportGetReportDef=()=>({sourceRank:1});
+c.dataImport2State.lineage=[{currentState:true,communityName:'Test',periodKey:'2026-09',atlasField:'balance',fileHash:'same',sourceRank:1,importedAt:'2026-09-16T19:00:00Z'}];
+assert.equal(c.dataImportShouldApplyCurrentMetric({fileHash:'same',reprocessArchivedSource:true},'Test','2026-09','balance','2026-09-16T15:00:00Z',replayResult()),true);
+assert.equal(c.dataImportShouldApplyCurrentMetric({fileHash:'different',reprocessArchivedSource:true},'Test','2026-09','balance','2026-09-16T15:00:00Z',replayResult()),false);
 let month;
 Object.assign(c,{normalizeSavedCommunityRecord:(n,r)=>r||{},getWritableMonthlyPeriodEntries:()=>({historyEntry:month,liveEntry:month}),dataImportShouldApplyCurrentMetric:()=>true,dataImportUpsertFloorPlan:()=>{},dataImportApplyMetric:(record,plan,result,name,period,target,value)=>{if(value==null)return false;return c.applyValueToRecord(record,period.monthIdx,target,value,period.year);}});
 function apply(entries,type){month={occupiedSnapshot:7.35,leasedSnapshot:10.66,rentableUnits:544};c.dataImportApplyGroupedSnapshot({communityName:'Test',period:{monthIdx:8,year:2026,periodKey:'2026-09'},entries}, {reportType:type,name:'Fixture.xlsx'}, {issues:[],formulas:[],destinations:new Set()});return month;}

@@ -49491,7 +49491,7 @@ function dataImportUpsertCanonicalRecord(record, result, options = {}) {
   }
   const incomingTime = Date.parse(record.dataAsOf || record.importedAt || "") || 0;
   const existingTime = Date.parse(existing?.dataAsOf || existing?.importedAt || "") || 0;
-  if (existing && incomingTime && existingTime && incomingTime < existingTime) {
+  if (existing && !(options.reprocess && record.fileHash && existing.fileHash === record.fileHash) && incomingTime && existingTime && incomingTime < existingTime) {
     result.rowsUnchanged += 1;
     result.issues.push({ type: "held", severity: "medium", title: "Older source retained as history", detail: `A newer approved ${record.reportTypeLabel} row already controls ${record.periodKey}.`, communityName: record.communityName });
     return { disposition: "older", record };
@@ -49560,7 +49560,7 @@ function dataImportShouldApplyCurrentMetric(plan, communityName, periodKey, atla
     result.issues.push({ type: "conflict", severity: "medium", title: "Higher-precedence value retained", detail: `${dataImportCanonicalFieldLabel(atlasField)} remains controlled by ${controlling.reportTypeLabel || dataImportReportLabel(controlling.reportType)}.`, communityName });
     return false;
   }
-  if (incomingTime && existingTime && incomingTime < existingTime) return false;
+  if (!(plan.reprocessArchivedSource && plan.fileHash && controlling.fileHash === plan.fileHash) && incomingTime && existingTime && incomingTime < existingTime) return false;
   return true;
 }
 

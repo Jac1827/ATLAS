@@ -1411,9 +1411,18 @@
     }
   }
 
+  function compactCentralServicesStorage(value) {
+    const state = JSON.parse(value);
+    // Normalization restores blank case fields on read. Keep real values, zero,
+    // false, null aging buckets, nested workflow history and every account intact.
+    if (Array.isArray(state.evictions)) state.evictions = state.evictions.map(row =>
+      Object.fromEntries(Object.entries(row).filter(([, item]) => item !== "")));
+    return JSON.stringify(state);
+  }
+
   function storageSet(key, value) {
     try {
-      localStorage.setItem(key, value);
+      localStorage.setItem(key, key === STORAGE_KEY ? compactCentralServicesStorage(value) : value);
       return true;
     } catch (error) {
       alert(`Central Services could not save this change: ${error?.message || error}`);
@@ -12463,7 +12472,7 @@
       state.ui.year = Number.isFinite(Number(first.year)) ? Number(first.year) : selectedYear(state);
       state.ui.selectedEvictionId = first.id;
     }
-    saveState(state);
+    if (!saveState(state)) throw new Error("Delinquency import was not saved. Resolve browser storage and retry the approved source.");
     if (options.render !== false) renderActiveTab();
     return {
       ...result,

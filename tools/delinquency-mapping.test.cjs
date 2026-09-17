@@ -16,7 +16,11 @@ assert.equal(c.dataImport2State.exceptions.filter(i=>i.status==='Open').length,5
 const raw=[['Bldg-Unit','Resident','Lease Status','0-30 Days','31-60 Days','61-90 Days','90+ Days','Pre-Payments','Balance','Last Delinquency Note'],['101','Fixture resident','Current','176.70','30','15','0','0','221.70','07/10/2026 08:02 AM source note'],['Total','','','176.70','30','15','0','0','221.70','']];
 c.XLSX={read:()=>({SheetNames:['Doro'],Sheets:{Doro:raw}}),utils:{sheet_to_json:s=>s}};
 Object.assign(c,{cleanString:v=>String(v??'').trim(),asArray:v=>Array.isArray(v)?v:[],numberValue:v=>Number(String(v??'').replace(/[$,]/g,''))||0,whole:v=>Number(v)||0,normalizeEvictionCase:v=>v,normalizeEvictionStatus:v=>v,normalizeBankruptcyAccountClassification:()=>'',defaultOwner:()=> 'Unassigned',makeId:(p,a)=>p+'_'+a.join('|'),localPeriodKey:(m,y)=>`${y}-${String(m+1).padStart(2,'0')}`,getPortfolioProperties:()=>[{name:'Doro'}]});
-for(const name of ['numberValue','normalizeKey','findEvictionAliasedValue','centralMatchPropertyName','inferEvictionStatus','evictionDateFieldValue','normalizeDate','delinquencyNoteFields','mapDelinquencyRecord'])vm.runInContext(cs.match(new RegExp('  function '+name+'\\([^\\n]*\\) \\{[\\s\\S]*?^  \\}','m'))[0],c);
+for(const name of ['compactCentralServicesStorage','numberValue','normalizeKey','findEvictionAliasedValue','centralMatchPropertyName','inferEvictionStatus','evictionDateFieldValue','normalizeDate','delinquencyNoteFields','mapDelinquencyRecord'])vm.runInContext(cs.match(new RegExp('  function '+name+'\\([^\\n]*\\) \\{[\\s\\S]*?^  \\}','m'))[0],c);
+const compactInput={evictions:[{id:'a',unit:'',aging90Plus:null,delinquentBalance:0,flag:false,lastDelinquencyNote:'Keep me',activity:[{label:'Keep history'}]}],other:{blank:''}};
+const compact=JSON.parse(c.compactCentralServicesStorage(JSON.stringify(compactInput)));
+assert.deepEqual({...compact.evictions[0],unit:''},compactInput.evictions[0]);assert.deepEqual(compact.other,compactInput.other);
+assert(cs.includes('if (!saveState(state)) throw new Error("Delinquency import was not saved.'));
 assert.equal(c.numberValue('($342.00)'),-342);
 assert.equal(c.numberValue('-342.00'),-342);
 assert.equal(c.numberValue('$1,234.56'),1234.56);

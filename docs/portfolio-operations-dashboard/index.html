@@ -34691,7 +34691,7 @@ function renderReportingTab() {
   const reportNeedsScopeBuilder = normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && normalizedType !== "renewal_performance" && normalizedType !== "financial_review" && normalizedType !== "eviction_report" && normalizedType !== "application_resident_data" && !["community_progress", "market_comparison"].includes(normalizedType);
   const reportNeedsSectionBuilder = normalizedType !== RISE_WEEKLY_LEASING_REPORT_TYPE && normalizedType !== "dlr" && normalizedType !== "bonus_payout" && normalizedType !== "leasing_velocity" && normalizedType !== "renewal_performance" && normalizedType !== "financial_review" && normalizedType !== "eviction_report" && normalizedType !== "application_resident_data" && !["community_progress", "market_comparison"].includes(normalizedType);
   const reportTypeDescription = normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE
-    ? "Two-page document-style leasing weekly report built from approved ATLAS operating data."
+    ? "Printable weekly application activity, professional workload, and documented concessions with month-to-date context."
     : normalizedType === "investor_marketing_report"
     ? "Combines traffic and funnel performance with comp calculator and market-survey context."
     : normalizedType === "monthly_investor_deck"
@@ -34827,7 +34827,7 @@ function renderReportingTab() {
         <div class="card-title" style="margin-bottom:6px">Report View</div>
         ${normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE || normalizedType === "community_progress" || normalizedType === "leasing_velocity" || normalizedType === "renewal_performance" || normalizedType === "financial_review" || normalizedType === "eviction_report" || normalizedType === "application_resident_data"
           ? `<div style="padding:8px 10px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2);font-size:0.78rem;font-weight:700;color:var(--accent)">${normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE ? "Portfolio Leasing Weekly" : (normalizedType === "leasing_velocity" ? "LVR Template" : (normalizedType === "application_resident_data" ? "Import Validation View" : "C-Suite View"))}</div>
-             <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE ? "This report is locked to the source operating-report structure so the preview and export stay presentation-ready." : (normalizedType === "leasing_velocity" ? "The exported template contains its own stabilized / lease-up mode control." : "This report is locked to a c-suite lens so the output stays focused on operating performance and data confidence checks.")}</div>`
+             <div style="font-size:0.66rem;color:var(--muted);margin-top:6px">${normalizedType === RISE_WEEKLY_LEASING_REPORT_TYPE ? "Preview, print, HTML, CSV and Excel use the same selected week and authorized reporting scope." : (normalizedType === "leasing_velocity" ? "The exported template contains its own stabilized / lease-up mode control." : "This report is locked to a c-suite lens so the output stays focused on operating performance and data confidence checks.")}</div>`
           : `<select onchange="setReportHubPerspective(this.value)">
               <option value="investor" ${reportHubPerspective==="investor"?"selected":""}>Investor facing</option>
               <option value="csuite" ${reportHubPerspective==="csuite"?"selected":""}>C-Suite View</option>

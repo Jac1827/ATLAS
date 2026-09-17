@@ -1299,7 +1299,7 @@
     if (value === null || value === undefined || value === "") return 0;
     if (typeof value === "number") return Number.isFinite(value) ? value : 0;
     const cleaned = cleanString(value).replace(/[$,%\s,]/g, "");
-    const parsed = Number(cleaned);
+    const parsed = Number(/^\(.*\)$/.test(cleaned) ? `-${cleaned.slice(1, -1)}` : cleaned);
     return Number.isFinite(parsed) ? parsed : 0;
   }
 

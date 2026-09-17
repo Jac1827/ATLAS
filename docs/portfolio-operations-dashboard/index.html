@@ -1416,10 +1416,11 @@
 <script src="./eviction-attorney-ui.js?v=20260916-community-contacts"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260916-no-data-status">
 <script src="./application-source-bridge.js?v=source-reconciliation-20260917"></script>
-<script src="./application-performance.js?v=20260916-shared-source"></script>
+<script src="./application-performance.js?v=20260917-weekly-report"></script>
 <link rel="stylesheet" href="./concession-insights.css?v=20260916-1">
 <script src="./concession-insights.js?v=20260916-1"></script>
-<script src="./application-performance-ui.js?v=20260917-scope-once"></script>
+<script src="./weekly-leasing-report.js?v=20260917-reporting"></script>
+<script src="./application-performance-ui.js?v=20260917-weekly-report"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -3312,7 +3313,7 @@ let workspaceScopeValue = PORTFOLIO_SCOPE_VALUE;
 let communityCommandState = defaultCommunityCommandState();
 let communityCommandPortfolioRosterFilter = "all";
 const RISE_WEEKLY_LEASING_REPORT_TYPE = "rise_weekly_leasing";
-const RISE_WEEKLY_LEASING_REPORT_TITLE = "RISE Portfolio Leasing Weekly Report";
+const RISE_WEEKLY_LEASING_REPORT_TITLE = "Weekly Leasing Report";
 let reportHubType = RISE_WEEKLY_LEASING_REPORT_TYPE;
 let reportHubAction = "preview";
 let reportHubRecipientKeys = [];
@@ -8126,6 +8127,7 @@ function queuePersistedPhotoStorageCompaction() {
 }
 
 function persistOpsGlobalData() {
+  const currentApplicationState = applicationResidentDataState;
   applyOpsGlobalData({
     investorPacketState: atlasInvestorPacketState,
     bonusQuarter,
@@ -8158,6 +8160,8 @@ function persistOpsGlobalData() {
     windowshadeState,
     sharedData: atlasSharedData
   });
+  // Shared rows stay session-only, but saving unrelated settings must not erase them.
+  applicationResidentDataState = currentApplicationState;
   return persistJsonToLocalStorage(OPS_GLOBAL_STORAGE_KEY, opsGlobalData, "Bonus and presentation settings");
 }
 
@@ -35015,7 +35019,7 @@ function renderReportHubInlinePreview(type = normalizeReportHubType(reportHubTyp
   }
   const payload = buildPortfolioReportRows({ silent: true });
   return renderReportHubPreviewFrame(
-    "Marketing Report",
+    type === "investor_marketing_report" ? "Marketing Report" : "Community Report",
     type === "investor_marketing_report"
       ? "Preview blends traffic and funnel momentum with comp calculator and market-survey context."
       : "Preview shows the current investor-facing operating report for the selected scope.",
@@ -39450,7 +39454,7 @@ async function exportMonthlyInvestorPresentationPptx() {
 
 function openPopupReportWindow(title = "ATLAS RISE Report") {
   const win = window.open("", "_blank");
-  if (!win) return null;
+  if (!win) { alert("The report window was blocked. Allow pop-ups for ATLAS, or use the inline preview and Print / PDF."); return null; }
   win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>
     body{margin:0;font-family:Arial,sans-serif;background:#f6f4ef;color:#163247;display:flex;align-items:center;justify-content:center;min-height:100vh}
     .report-loading{max-width:420px;padding:28px 32px;border-radius:18px;background:#fff;box-shadow:0 18px 40px rgba(15,23,42,0.12);text-align:center}
@@ -39467,8 +39471,7 @@ function finalizePopupReportWindow(win, html, printImmediately = false, printDel
   win.document.write(html);
   win.document.close();
   if (printImmediately) {
-    win.focus();
-    setTimeout(() => win.print(), printDelay);
+    waitForReportDocument(win).then(() => { if (!win.closed) { win.focus(); win.print(); } }).catch(error => showPopupReportError(win, error.message));
   }
 }
 
@@ -39518,48 +39521,39 @@ function showPopupReportError(win, message) {
   win.document.close();
 }
 
+async function waitForReportDocument(targetWindow) {
+  const doc = targetWindow.document;
+  if (doc.readyState !== "complete") await new Promise(resolve => targetWindow.addEventListener("load", resolve, { once: true }));
+  await Promise.all(Array.from(doc.images).filter(img => !img.complete).map(img => new Promise(resolve => {
+    img.addEventListener("load", resolve, { once: true });
+    img.addEventListener("error", resolve, { once: true });
+  })));
+  if (doc.fonts?.ready) await doc.fonts.ready;
+  if (!doc.body?.textContent.trim()) throw new Error("The report is empty. Refresh the report data and try again.");
+}
+
 function printReportHtmlInHiddenFrame(html, options = {}) {
+  if (!String(html || "").trim()) { alert("No report was generated. Refresh the report data and try again."); return; }
   const frame = document.createElement("iframe");
-  frame.style.position = "fixed";
-  frame.style.right = "0";
-  frame.style.bottom = "0";
-  frame.style.width = "0";
-  frame.style.height = "0";
-  frame.style.border = "0";
-  frame.style.opacity = "0";
+  frame.title = String(options.title || "ATLAS Report");
+  frame.style.cssText = "position:fixed;left:-12000px;top:0;width:1100px;height:1500px;border:0";
   frame.setAttribute("aria-hidden", "true");
-  document.body.appendChild(frame);
-  const title = String(options.title || "ATLAS RISE Report");
-  const cleanup = () => {
-    try { frame.remove(); } catch (_error) {}
-  };
-  frame.onload = () => {
-    const targetWindow = frame.contentWindow;
-    if (!targetWindow) {
-      cleanup();
-      return;
-    }
-    const finish = () => window.setTimeout(cleanup, 800);
+  let started = false;
+  frame.onload = async () => {
+    if (started || !frame.contentDocument?.body?.textContent.trim()) return;
+    started = true;
     try {
-      targetWindow.focus();
-      if ("onafterprint" in targetWindow) targetWindow.onafterprint = finish;
-      targetWindow.print();
-      window.setTimeout(finish, 2000);
+      await waitForReportDocument(frame.contentWindow);
+      frame.contentWindow.addEventListener("afterprint", () => frame.remove(), { once: true });
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
     } catch (error) {
-      console.error(`Could not print ${title}.`, error);
-      cleanup();
-      alert(`Could not print ${title}. Try opening the editable HTML version and printing from there.`);
+      frame.remove();
+      alert(`Could not print ${frame.title}: ${error.message}`);
     }
   };
-  const doc = frame.contentDocument || frame.contentWindow?.document;
-  if (!doc) {
-    cleanup();
-    alert(`Could not prepare ${title} for printing.`);
-    return;
-  }
-  doc.open();
-  doc.write(html);
-  doc.close();
+  frame.srcdoc = html;
+  document.body.appendChild(frame);
 }
 
 async function openMonthlyInvestorPresentation(printImmediately = false) {
@@ -39865,7 +39859,7 @@ function buildReportHubEmailDraft(type = reportHubType) {
         report.title,
         `${report.scopeLabel} | ${report.reportPeriodLabel}`,
         "",
-        "The latest RISE Portfolio Leasing Weekly Report is ready from the ATLAS Reporting Hub.",
+        "The latest Weekly Leasing Report is ready from the ATLAS Reporting Hub.",
         "Use Preview, Print / PDF, or Download Editable HTML before sending so the two-page operating-report layout is included."
       ].join("\n")
     };
@@ -41704,6 +41698,31 @@ function buildRiseWeeklySourceMethod(data = {}) {
   return `${methodItems.join(" ")}${exceptions.length ? ` ${exceptions.join(" ")}` : ""}`;
 }
 
+let weeklyLeasingThroughDate = "";
+function setWeeklyLeasingThroughDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
+  weeklyLeasingThroughDate = value;
+  renderTab();
+}
+window.openAtlasWeeklyLeasingReport = function() {
+  reportHubType = RISE_WEEKLY_LEASING_REPORT_TYPE;
+  reportHubAction = "preview";
+  setTab(8);
+};
+function buildWeeklyLeasingAnalytics(data) {
+  const period = `${data.reportYear}-${String(data.reportMonthIdx + 1).padStart(2, "0")}`;
+  const today = new Date();
+  const defaultDay = new Date(data.reportYear, data.reportMonthIdx + 1, 0);
+  const end = weeklyLeasingThroughDate.startsWith(period) ? weeklyLeasingThroughDate :
+    (today.getFullYear() === data.reportYear && today.getMonth() === data.reportMonthIdx ? today : defaultDay).toLocaleDateString("en-CA");
+  const allowed = new Set(getAtlasApplicationScopeCommunityNames());
+  const details = getReportBuilderScopedDetails().filter(d => allowed.has(d.name) && dataImportIsActiveReportingCommunity(d.name));
+  const communities = details.map(d => d.name);
+  const records = window.getAtlasApplicationIntelligenceData?.().records || [];
+  const offers = window.AtlasConcessionInsights.model(details, period, p => getAtlasApplicationPeriodMetrics(p, "all"));
+  return window.AtlasWeeklyLeasing.model({ records, communities, offers, period, end, metrics: getAtlasApplicationPeriodMetrics(period, "all") });
+}
+
 function buildRisePortfolioLeasingWeeklyReportData(options = {}) {
   const silent = options?.silent === true;
   const sourceReport = buildPortfolioDlrOverviewData({ silent });
@@ -41749,6 +41768,8 @@ function buildRisePortfolioLeasingWeeklyReportData(options = {}) {
   data.operatingSignals = buildRiseWeeklyOperatingSignals(data);
   data.managementAttention = buildRiseWeeklyManagementAttention(data);
   data.sourceMethod = buildRiseWeeklySourceMethod(data);
+  data.analytics = buildWeeklyLeasingAnalytics(data);
+  data.reportPeriodLabel = `${data.analytics.start} – ${data.analytics.end} · ${data.analytics.period} month-to-date context`;
   return data;
 }
 
@@ -41812,180 +41833,7 @@ function buildRiseWeeklyLeadSourceChartSvg(rows = []) {
 }
 
 function buildRisePortfolioLeasingWeeklyReportDocument(data) {
-  if (!data) return "";
-  const kpiCards = [
-    { label: "CURRENT OCCUPANCY", value: formatRiseWeeklyPct(data.currentOccupancyPct, 1) },
-    { label: "PROJECTED MONTH END", value: formatRiseWeeklyPct(data.projectedMonthEndPct, 1) },
-    { label: "MONTH-TO-DATE LEADS", value: formatRiseWeeklyCount(data.mtdLeads) },
-    { label: "APPLICATIONS", value: formatRiseWeeklyCount(data.applications) },
-    { label: "LEASES COMPLETED", value: formatRiseWeeklyCount(data.leasesCompleted) }
-  ];
-  const propertyRowsHtml = data.propertyRows.map(row => {
-    const changeClass = getRiseWeeklyChangeClass(row.changePp);
-    return `<tr class="${row.isPortfolio ? "portfolio-total" : ""}">
-      <td class="property-name">${escapeHtml(row.property)}</td>
-      <td>${formatRiseWeeklyPct(row.currentOccPct, 1)}</td>
-      <td>${formatRiseWeeklyPct(row.leasedPct, 1)}</td>
-      <td>${formatRiseWeeklyPct(row.projectedPct, 1)}</td>
-      <td class="${changeClass}">${formatRiseWeeklySignedPp(row.changePp)}</td>
-      <td>${formatRiseWeeklyCount(row.leads)}</td>
-      <td>${formatRiseWeeklyCount(row.tours)}</td>
-      <td>${formatRiseWeeklyCount(row.leases)}</td>
-      <td>${formatRiseWeeklyCount(row.apps)}</td>
-    </tr>`;
-  }).join("");
-  const signalHtml = data.operatingSignals.map(signal => `<div class="signal-panel">
-    <div class="signal-label">${escapeHtml(signal.label)}</div>
-    <p>${escapeHtml(signal.body)}</p>
-  </div>`).join("");
-  const leadRowsHtml = data.leadSourceRows.map(row => `<tr>
-    <td>${escapeHtml(row.rawMethods)}</td>
-    <td>${escapeHtml(row.mappedChannel)}</td>
-    <td>${formatRiseWeeklyCount(row.leads)}</td>
-    <td>${formatRiseWeeklyPct(row.sharePct, 1)}</td>
-  </tr>`).join("");
-  const dataQualityHtml = data.dataQualityNotes.length > 0
-    ? `<section class="quality-note"><div class="section-kicker">DATA QUALITY NOTE</div><p>${data.dataQualityNotes.map(escapeHtml).join(" ")}</p></section>`
-    : "";
-  const attentionHtml = data.managementAttention.map(item => `<div class="attention-item">
-    <div class="attention-label">${escapeHtml(item.label)}</div>
-    <p>${escapeHtml(item.body)}</p>
-  </div>`).join("");
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(data.title)}</title><style>
-    *{box-sizing:border-box}
-    @page{size:Letter portrait;margin:0}
-    html{background:#eef2f6}
-    body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#17324a;background:#eef2f6}
-    .report-shell{width:8.5in;margin:0 auto;background:#ffffff}
-    .report-page{width:8.5in;min-height:11in;padding:0.42in 0.48in 0.34in;background:#ffffff;page-break-after:always;position:relative}
-    .report-page:last-child{page-break-after:auto}
-    .topline{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px}
-    .brand-logo{height:42px;width:auto;object-fit:contain;display:block}
-    .header-kicker{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#445d73;font-weight:700;text-align:right;margin-bottom:26px}
-    h1{font-size:25px;line-height:1.08;margin:0 0 5px;color:#14324a;font-weight:800}
-    .period{font-size:12px;color:#5c6f80;font-weight:700}
-    .section-kicker{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:#2c6b99;font-weight:800;margin-bottom:6px}
-    .readout{border-left:5px solid #d49b25;background:#edf5fb;padding:13px 15px;margin-bottom:15px}
-    .readout p{font-size:13px;line-height:1.45;margin:0;color:#1d344a}
-    .kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px}
-    .kpi-card{border:1px solid #d7e2ec;background:#f7fafc;border-radius:6px;padding:10px 10px 11px;min-height:78px}
-    .kpi-label{font-size:9px;letter-spacing:.07em;text-transform:uppercase;color:#607386;font-weight:800;margin-bottom:11px;line-height:1.25}
-    .kpi-value{font-size:22px;color:#14324a;font-weight:800;line-height:1}
-    .section-title{font-size:14px;letter-spacing:.07em;text-transform:uppercase;color:#14324a;font-weight:800;margin:0 0 8px}
-    table{width:100%;border-collapse:collapse;table-layout:fixed}
-    .performance-table{font-size:9.5px;margin-bottom:15px;border:1px solid #cfdae5}
-    .performance-table th{background:#14324a;color:#ffffff;padding:7px 5px;text-align:center;font-size:8.2px;letter-spacing:.04em;text-transform:uppercase}
-    .performance-table th:first-child{text-align:left;width:19%}
-    .performance-table td{padding:6px 5px;text-align:center;border-top:1px solid #dbe3eb;color:#20384d}
-    .performance-table td:first-child{text-align:left}
-    .performance-table tbody tr:nth-child(odd){background:#f6f9fc}
-    .performance-table tbody tr:nth-child(even){background:#ffffff}
-    .performance-table .property-name{font-weight:700;color:#142f45}
-    .performance-table .portfolio-total{background:#e8f1f8!important;font-weight:800;border-top:2px solid #14324a}
-    .positive{color:#1f7a4f!important;font-weight:800}
-    .negative{color:#b42318!important;font-weight:800}
-    .neutral{color:#46596b!important;font-weight:800}
-    .signals{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:16px}
-    .signal-panel{border:1px solid #d7e2ec;background:#f8fbfd;border-radius:6px;padding:10px;min-height:106px}
-    .signal-label{font-size:10px;color:#14324a;font-weight:800;letter-spacing:.08em;margin-bottom:6px}
-    .signal-panel p,.quality-note p,.attention-item p{font-size:11px;line-height:1.45;color:#314a60;margin:0}
-    .footer{position:absolute;left:0.48in;right:0.48in;bottom:0.22in;display:flex;justify-content:space-between;border-top:1px solid #d9e3ec;padding-top:7px;font-size:9px;color:#748392}
-    .page-heading{margin-bottom:17px}
-    .page-heading h2{font-size:18px;color:#14324a;margin:0 0 3px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
-    .page-heading p{margin:0;font-size:12px;color:#607386}
-    .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:14px}
-    .chart-card{border:1px solid #d7e2ec;border-radius:6px;padding:11px;background:#ffffff;min-height:238px}
-    .chart-title{font-size:12px;color:#14324a;font-weight:800;margin-bottom:6px}
-    .rise-empty-chart{height:175px;border:1px dashed #bdcbd8;border-radius:6px;background:#f8fafc;color:#6a7b8b;font-size:11px;display:flex;align-items:center;justify-content:center;text-align:center;padding:14px}
-    .source-table{font-size:10.5px;margin-bottom:12px;border:1px solid #cfdae5}
-    .source-table th{background:#e8f1f8;color:#14324a;text-align:left;padding:7px;font-size:9px;letter-spacing:.06em;text-transform:uppercase}
-    .source-table td{padding:7px;border-top:1px solid #dbe3eb;color:#233d54}
-    .source-table td:nth-child(3),.source-table td:nth-child(4){text-align:right;font-weight:700}
-    .quality-note{background:#fff5cf;border-left:5px solid #d49b25;padding:10px 12px;margin-bottom:13px}
-    .attention-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px}
-    .attention-item{border-top:3px solid #2f6f9f;background:#f8fbfd;padding:9px 10px;min-height:86px}
-    .attention-label{font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:#14324a;font-weight:800;margin-bottom:6px}
-    .method{border-top:1px solid #d9e3ec;padding-top:9px;font-size:9.5px;line-height:1.48;color:#5f7181}
-    @media screen and (max-width:900px){
-      html,body{background:#ffffff}
-      .report-shell,.report-page{width:100%;min-height:auto}
-      .report-page{padding:24px 18px 34px}
-      .kpi-grid,.signals,.chart-grid,.attention-grid{grid-template-columns:1fr}
-      .footer{position:static;margin-top:20px}
-      .performance-table{font-size:8.2px}
-      .performance-table th,.performance-table td{padding:5px 3px}
-    }
-    @media print{
-      html,body{background:#ffffff}
-      .report-shell{width:8.5in;margin:0;background:#ffffff}
-      .report-page{margin:0;box-shadow:none}
-    }
-  </style></head><body>
-    <main class="report-shell">
-      <section class="report-page">
-        <header class="topline">
-          <div><img class="brand-logo" src="${resolveExportBrandLogoSrc()}" alt="RISE logo"></div>
-          <div>
-            <div class="header-kicker">${escapeHtml(data.headerLabel)}</div>
-            <h1>${escapeHtml(data.title)}</h1>
-            <div class="period">${escapeHtml(data.reportPeriodLabel)}</div>
-          </div>
-        </header>
-        <section class="readout">
-          <div class="section-kicker">EXECUTIVE READOUT</div>
-          <p>${escapeHtml(data.executiveReadout)}</p>
-        </section>
-        <section class="kpi-grid">
-          ${kpiCards.map(card => `<div class="kpi-card"><div class="kpi-label">${escapeHtml(card.label)}</div><div class="kpi-value">${escapeHtml(card.value)}</div></div>`).join("")}
-        </section>
-        <section>
-          <h2 class="section-title">PROPERTY PERFORMANCE</h2>
-          <table class="performance-table">
-            <thead><tr><th>Property</th><th>Current Occ</th><th>Leased</th><th>Month-End Projected</th><th>Change (pp)</th><th>Leads</th><th>Tours</th><th>Leases</th><th>Apps</th></tr></thead>
-            <tbody>${propertyRowsHtml}</tbody>
-          </table>
-        </section>
-        <section>
-          <h2 class="section-title">${escapeHtml(data.reportMonthLabel)} FUNNEL AND OPERATING SIGNALS</h2>
-          <div class="signals">${signalHtml}</div>
-        </section>
-        <footer class="footer"><span>${escapeHtml(data.scopeLabel)}</span><span>Page 1</span></footer>
-      </section>
-      <section class="report-page">
-        <div class="page-heading">
-          <h2>TREND, ATTRIBUTION, AND EXCEPTIONS</h2>
-          <p>${escapeHtml(data.reportMonthLabel)}-to-date portfolio diagnostics</p>
-        </div>
-        <section class="chart-grid">
-          <div class="chart-card">
-            <div class="chart-title">Portfolio ending occupancy</div>
-            ${buildRiseWeeklyOccupancyChartSvg(data.occupancyTrendPoints)}
-          </div>
-          <div class="chart-card">
-            <div class="chart-title">${escapeHtml(data.reportMonthLabel)} leads by mapped source</div>
-            ${buildRiseWeeklyLeadSourceChartSvg(data.leadSourceRows)}
-          </div>
-        </section>
-        <section>
-          <h2 class="section-title">LEAD SOURCE MAPPING</h2>
-          <table class="source-table">
-            <thead><tr><th>Raw Contact Method(s)</th><th>Mapped Channel</th><th>Leads</th><th>Share</th></tr></thead>
-            <tbody>${leadRowsHtml}</tbody>
-          </table>
-        </section>
-        ${dataQualityHtml}
-        <section>
-          <h2 class="section-title">MANAGEMENT ATTENTION</h2>
-          <div class="attention-grid">${attentionHtml}</div>
-        </section>
-        <section>
-          <h2 class="section-title">SOURCE AND METHOD</h2>
-          <div class="method">${escapeHtml(data.sourceMethod)}</div>
-        </section>
-        <footer class="footer"><span>${escapeHtml(data.scopeLabel)}</span><span>Page 2</span></footer>
-      </section>
-    </main>
-  </body></html>`;
+  return data ? window.AtlasWeeklyLeasing.document(data.analytics) : "";
 }
 
 function renderRisePortfolioLeasingWeeklyWorkspace() {
@@ -41993,71 +41841,20 @@ function renderRisePortfolioLeasingWeeklyWorkspace() {
   if (!report) {
     return `<div class="card mb4" id="reporting-inline-preview">
       <div class="report-hub-card">
-        <div class="alert-red">Save approved ATLAS operating data for at least one active property before building the RISE Portfolio Leasing Weekly Report.</div>
+        <div class="alert-red">Save approved ATLAS operating data for at least one active property before building the Weekly Leasing Report.</div>
       </div>
     </div>`;
   }
   return renderReportHubPreviewFrame(
     RISE_WEEKLY_LEASING_REPORT_TITLE,
-    "Document-style preview that mirrors the source operating report and refreshes from approved ATLAS data.",
+    "Weekly application activity, professional workload, and documented concessions from current authorized sources.",
     buildRisePortfolioLeasingWeeklyReportDocument(report),
-    `<button class="btn btn-gray btn-sm" onclick="renderTab()">Refresh Data</button><button class="btn btn-gray btn-sm" onclick="downloadRisePortfolioLeasingWeeklyHtml()">Download HTML</button><button class="btn btn-blue btn-sm" onclick="openRisePortfolioLeasingWeeklyReport(true)">Print / PDF</button>`
+    `<label>Week ending <input type="date" value="${escapeHtml(report.analytics.end)}" min="${report.analytics.period}-01" max="${report.analytics.period}-${new Date(report.reportYear, report.reportMonthIdx + 1, 0).getDate()}" onchange="setWeeklyLeasingThroughDate(this.value)"></label><button class="btn btn-gray btn-sm" onclick="hydrateAtlasSharedApplications().then(() => renderTab())">Refresh Data</button><button class="btn btn-gray btn-sm" onclick="downloadRisePortfolioLeasingWeeklyHtml()">Download HTML</button><button class="btn btn-blue btn-sm" onclick="openRisePortfolioLeasingWeeklyReport(true)">Print / PDF</button>`
   );
 }
 
 function getRisePortfolioLeasingWeeklyCsvRows(data = buildRisePortfolioLeasingWeeklyReportData()) {
-  if (!data) return null;
-  const rows = [];
-  data.propertyRows.forEach(row => {
-    rows.push({
-      section: "Property Performance",
-      property: row.property,
-      metric: "Current Occ",
-      value: formatRiseWeeklyPct(row.currentOccPct, 1),
-      note: ""
-    });
-    rows.push({
-      section: "Property Performance",
-      property: row.property,
-      metric: "Leased",
-      value: formatRiseWeeklyPct(row.leasedPct, 1),
-      note: ""
-    });
-    rows.push({
-      section: "Property Performance",
-      property: row.property,
-      metric: "Month-End Projected",
-      value: formatRiseWeeklyPct(row.projectedPct, 1),
-      note: formatRiseWeeklySignedPp(row.changePp)
-    });
-    [
-      ["Leads", row.leads],
-      ["Tours", row.tours],
-      ["Leases", row.leases],
-      ["Apps", row.apps]
-    ].forEach(([metric, value]) => rows.push({
-      section: "Property Performance",
-      property: row.property,
-      metric,
-      value: formatRiseWeeklyCount(value),
-      note: ""
-    }));
-  });
-  data.leadSourceRows.forEach(row => rows.push({
-    section: "Lead Source Mapping",
-    property: data.scopeLabel,
-    metric: row.mappedChannel,
-    value: formatRiseWeeklyCount(row.leads),
-    note: `${row.rawMethods} | ${formatRiseWeeklyPct(row.sharePct, 1)}`
-  }));
-  data.managementAttention.forEach(item => rows.push({
-    section: "Management Attention",
-    property: data.scopeLabel,
-    metric: item.label,
-    value: item.body,
-    note: ""
-  }));
-  return { data, rows };
+  return data ? { data, rows: window.AtlasWeeklyLeasing.rows(data.analytics) } : null;
 }
 
 function exportRisePortfolioLeasingWeeklyCSV() {
@@ -42071,7 +41868,7 @@ function exportRisePortfolioLeasingWeeklyCSV() {
   const blob = new Blob([lines.join("\n")], { type: "text/csv" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = `rise_portfolio_leasing_weekly_report_${payload.data.reportYear}-${String(payload.data.reportMonthIdx + 1).padStart(2, "0")}.csv`;
+  link.download = `weekly_leasing_report_${payload.data.reportYear}-${String(payload.data.reportMonthIdx + 1).padStart(2, "0")}.csv`;
   link.click();
   URL.revokeObjectURL(link.href);
 }
@@ -42101,7 +41898,7 @@ function exportRisePortfolioLeasingWeeklyExcel() {
   const blob = new Blob([html], { type: "application/vnd.ms-excel" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = `rise_portfolio_leasing_weekly_report_${payload.data.reportYear}-${String(payload.data.reportMonthIdx + 1).padStart(2, "0")}.xls`;
+  link.download = `weekly_leasing_report_${payload.data.reportYear}-${String(payload.data.reportMonthIdx + 1).padStart(2, "0")}.xls`;
   link.click();
   URL.revokeObjectURL(link.href);
 }
@@ -42125,7 +41922,7 @@ function downloadRisePortfolioLeasingWeeklyHtml() {
   const blob = new Blob([buildRisePortfolioLeasingWeeklyReportDocument(report)], { type: "text/html" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = `rise_portfolio_leasing_weekly_report_${report.reportYear}-${String(report.reportMonthIdx + 1).padStart(2, "0")}.html`;
+  link.download = `weekly_leasing_report_${report.reportYear}-${String(report.reportMonthIdx + 1).padStart(2, "0")}.html`;
   link.click();
   URL.revokeObjectURL(link.href);
 }
@@ -42204,7 +42001,7 @@ async function runReportHubAction() {
   }
   if (reportHubAction === "preview") {
     if (type === "leasing_velocity") return openLeasingVelocityReportTemplate("stabilized", false);
-    if ([RISE_WEEKLY_LEASING_REPORT_TYPE, "investor_marketing_report", "monthly_investor_deck", "bonus_payout", "renewal_performance", "financial_review", "eviction_report", "application_resident_data"].includes(type)) {
+    if ([RISE_WEEKLY_LEASING_REPORT_TYPE, "investor_community_packet", "investor_marketing_report", "monthly_investor_deck", "bonus_payout", "renewal_performance", "financial_review", "eviction_report", "application_resident_data"].includes(type)) {
       renderTab();
       const target = document.getElementById("reporting-inline-preview");
       if (target?.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -42230,7 +42027,7 @@ async function runReportHubAction() {
   }
   if (reportHubAction === "print") {
     if (type === RISE_WEEKLY_LEASING_REPORT_TYPE) return openRisePortfolioLeasingWeeklyReport(true);
-    if (type === "investor_marketing_report") return openPortfolioPerformanceReport(true);
+    if (["investor_marketing_report", "investor_community_packet"].includes(type)) return openPortfolioPerformanceReport(true);
     if (type === "monthly_investor_deck") return openMonthlyInvestorPresentation(true);
     if (type === "leasing_velocity") return openLeasingVelocityReportTemplate("stabilized", true);
     if (type === "community_progress") return openCommunityProgressReport(true);
@@ -51101,7 +50898,7 @@ function dataImportBuildStatusDateLabel(status, archive, hasFallback, checkedAt)
     return sourceDate ? `Data ${dataImportFormatDate(sourceDate)}` : "Date unavailable";
   }
   if (hasFallback) {
-    return `${FULL_MONTHS[getSelectedDashboardMonthIndex()]} saved`;
+    return "Saved record · date unverified";
   }
   return `Checked ${dataImportFormatDate(checkedAt, "Today")}`;
 }
@@ -51115,7 +50912,7 @@ function dataImportBuildHealthModel() {
     const cells = DATA_IMPORT_REPORT_ORDER.map(reportType => {
       const def = dataImportGetReportDef(reportType);
       const freshness = dataImportEffectiveFreshness(reportType);
-      const required = dataImportCommunitySupportsReport(communityName, reportType);
+      const required = isActive && dataImportCommunitySupportsReport(communityName, reportType);
       const archive = dataImportLatestArchiveFor(communityName, reportType);
       const hasFallback = dataImportHasSavedFallbackData(communityName, reportType);
       let status = required ? "Missing" : "Not Required";
@@ -51130,9 +50927,9 @@ function dataImportBuildHealthModel() {
           ? `${def.label} is outside the ${freshness.label || "configured"} freshness expectation${freshness.action === "block_hold" ? " and is held from downstream send" : ""}.`
           : `${def.label} is current from ${archive.batchId}.`;
       } else if (required && hasFallback) {
-        status = "Fresh";
-        ageLabel = "Saved ATLAS data";
-        detail = "ATLAS has current saved data, but no raw source file is archived for lineage yet.";
+        status = "Saved";
+        ageLabel = "Upload date unverified";
+        detail = "Saved ATLAS values exist. A recent source upload has not been verified for this feed.";
       }
       const relatedExceptions = (dataImport2State.exceptions || []).filter(issue =>
         issue.status !== "Resolved" &&
@@ -51142,6 +50939,11 @@ function dataImportBuildHealthModel() {
       if (required && relatedExceptions.some(issue => issue.type === "conflict")) status = "Conflict";
       else if (required && relatedExceptions.some(issue => issue.type === "unmapped")) status = "Unmapped";
       else if (required && relatedExceptions.some(issue => issue.type === "held")) status = "Held";
+      if (!isActive) {
+        status = archive || hasFallback ? "Historical" : "Inactive";
+        ageLabel = "Excluded from active reporting";
+        detail = "Retained for reference. This inactive community is not required to provide current uploads.";
+      }
       return {
         communityName,
         reportType,
@@ -51153,7 +50955,7 @@ function dataImportBuildHealthModel() {
         detail,
         archive,
         exceptions: relatedExceptions,
-        recommendedAction: status === "Not Required"
+        recommendedAction: !isActive ? "Historical reference only; no current upload required." : status === "Not Required"
           ? "No feed is required for this configured service scope."
           : status === "Fresh"
           ? "No upload needed."

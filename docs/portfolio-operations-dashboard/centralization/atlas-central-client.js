@@ -24,6 +24,7 @@
     supabaseUrl: "https://rmyhmvjcswfwaracgriy.supabase.co",
     supabaseAnonKey: "sb_publishable_2DEqeCNZFn6sNeVrSEfW8A_EI6tRb_1",
     documentKey: "atlas_dashboard_state_v1",
+    applicationPublication: false,
     realtime: false,
     autosave: false,
     autoPullOnStartup: false,
@@ -63,6 +64,7 @@
     config.supabaseUrl = trimTrailingSlash(config.supabaseUrl || DEFAULT_CONFIG.supabaseUrl);
     config.supabaseAnonKey = String(config.supabaseAnonKey || DEFAULT_CONFIG.supabaseAnonKey || "").trim();
     config.documentKey = String(config.documentKey || DEFAULT_CONFIG.documentKey).trim() || DEFAULT_CONFIG.documentKey;
+    config.applicationPublication = Boolean(config.applicationPublication);
     config.realtime = Boolean(config.realtime);
     config.autosave = Boolean(config.autosave);
     config.autoPullOnStartup = Boolean(config.autoPullOnStartup);
@@ -1310,6 +1312,30 @@
     }
   }
 
+  async function publishApplicationImport(upload) {
+    return rpc("atlas_publish_application_import", { p_upload: upload });
+  }
+
+  async function readApplicationImports() {
+    await refreshSession();
+    const rows = [];
+    // Keyset pagination avoids the REST row limit and never uses a privileged key.
+    let after = "";
+    for (;;) {
+      const page = await fetchJson(`/atlas_application_imports?select=*&order=import_id.asc&limit=100${after ? `&import_id=gt.${encodeURIComponent(after)}` : ""}`);
+      if (!Array.isArray(page)) throw new Error("Invalid shared application response");
+      rows.push(...page);
+      if (page.length < 100) return rows;
+      after = page[page.length - 1].import_id;
+    }
+  }
+
+  async function reviseApplicationImport(importId, expectedVersion, action, reason) {
+    return rpc("atlas_revise_application_import", {
+      p_id: importId, p_expected_version: expectedVersion, p_action: action, p_reason: reason
+    });
+  }
+
   async function upsertMarketingMetrics(metrics, options = {}) {
     return rpc("atlas_upsert_marketing_metrics", {
       p_metrics: Array.isArray(metrics) ? metrics : [],
@@ -1428,6 +1454,9 @@
     diagnoseAccessProvisioning,
     uploadReadOnlySnapshot,
     upsertPeopleDirectory,
+    publishApplicationImport,
+    readApplicationImports,
+    reviseApplicationImport,
     upsertMarketingMetrics,
     upsertMaintenanceInspections,
     recordBonusCalculation,

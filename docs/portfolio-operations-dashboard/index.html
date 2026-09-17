@@ -4182,6 +4182,7 @@ function normalizeApplicationResidentRecord(record = {}) {
     reportPeriodKey: String(record.reportPeriodKey || buildPeriodKey(DEFAULT_CURRENT_MONTH, new Date().getFullYear())),
     reportMonth: String(record.reportMonth || ""),
     propertySource,
+    canonicalCommunityId: String(record.canonicalCommunityId || ""),
     communityId: String(record.communityId || mapped?.communityId || ""),
     communityName: String(record.communityName || mapped?.communityName || ""),
     atlasName: String(record.atlasName || mapped?.atlasName || ""),
@@ -4225,6 +4226,8 @@ function normalizeApplicationResidentUpload(upload = {}) {
     fileName: String(upload.fileName || "Resident Data upload"),
     uploadedAt: String(upload.uploadedAt || new Date().toISOString()),
     sourceAsOf: String(upload.sourceAsOf || ""),
+    centralImportId: String(upload.centralImportId || ""),
+    centralVersion: Number(upload.centralVersion || 0),
     restoredAt: String(upload.restoredAt || ""),
     reportPeriodKey: String(upload.reportPeriodKey || buildPeriodKey(DEFAULT_CURRENT_MONTH, new Date().getFullYear())),
     reportMonthLabel: String(upload.reportMonthLabel || ""),
@@ -4554,6 +4557,64 @@ function parseApplicationResidentDataWorkbook(workbook, file, options = {}) {
   });
 }
 
+let atlasApplicationHydrationEpoch = 0;
+let atlasApplicationSessionUser = null;
+function atlasApplicationPublicationEnabled() {
+  return Boolean(window.ATLAS_CENTRAL?.getConfig()?.applicationPublication);
+}
+function applicationUploadFromCentral(row) {
+  const records = (row.records || []).map(record => ({ ...record, batchId: row.import_id, canonicalCommunityId: row.community_id, communityId: getApplicationResidentCommunityIdForAtlasName(record.atlasName) }));
+  return normalizeApplicationResidentUpload({
+    ...row.source_metadata, batchId: row.import_id, centralImportId: row.import_id,
+    centralVersion: row.version, uploadedAt: row.created_at,
+    deletedAt: row.deleted_at || "", restoredAt: !row.deleted_at && row.version > 1 ? row.updated_at : "",
+    validationStatus: row.deleted_at ? "deleted" : "valid",
+    validationMessages: [`Shared publication · version ${row.version}`],
+    propertySections: [...new Set(records.map(r => r.propertySource))], records
+  });
+}
+function clearAtlasSharedApplications() {
+  atlasApplicationHydrationEpoch += 1;
+  applicationResidentDataState.uploads = applicationResidentDataState.uploads.filter(u => !u.centralImportId);
+  if (applicationResidentDataState.lastDeletedUpload?.centralImportId) applicationResidentDataState.lastDeletedUpload = null;
+}
+async function hydrateAtlasSharedApplications() {
+  if (!atlasApplicationPublicationEnabled()) return;
+  const epoch = ++atlasApplicationHydrationEpoch;
+  const user = window.ATLAS_CENTRAL?.getSession()?.user?.id;
+  atlasApplicationSessionUser = user || null;
+  if (!user) { clearAtlasSharedApplications(); return; }
+  try {
+    const rows = await window.ATLAS_CENTRAL.readApplicationImports();
+    if (epoch !== atlasApplicationHydrationEpoch || window.ATLAS_CENTRAL?.getSession()?.user?.id !== user) return;
+    applicationResidentDataState.uploads = [
+      ...rows.map(applicationUploadFromCentral),
+      ...applicationResidentDataState.uploads.filter(u => !u.centralImportId)
+    ];
+    renderTab();
+  } catch (error) {
+    if (epoch !== atlasApplicationHydrationEpoch) return;
+    clearAtlasSharedApplications();
+    csvError = `Shared Application Data could not be refreshed: ${error.message}`;
+    renderTab();
+  }
+}
+async function reviseAtlasSharedApplication(upload, action, reason) {
+  const user = window.ATLAS_CENTRAL?.getSession()?.user?.id;
+  try {
+    const row = await window.ATLAS_CENTRAL.reviseApplicationImport(upload.centralImportId, upload.centralVersion, action, reason);
+    if (!user || window.ATLAS_CENTRAL?.getSession()?.user?.id !== user) return;
+    const revised = applicationUploadFromCentral(row);
+    applicationResidentDataState.uploads = applicationResidentDataState.uploads.map(u => u.centralImportId === row.import_id ? revised : u);
+    applicationResidentDataState.lastDeletedUpload = action === "delete" ? revised : null;
+    renderTab();
+  } catch (error) {
+    csvError = `Shared revision was not applied: ${error.message}`;
+    await hydrateAtlasSharedApplications();
+    renderTab();
+  }
+}
+
 async function processApplicationResidentDataFiles(files, options = {}) {
   if (typeof XLSX === "undefined") {
     csvError = "XLSX parser is unavailable because the spreadsheet library did not load.";
@@ -4575,6 +4636,21 @@ async function processApplicationResidentDataFiles(files, options = {}) {
         reportMonthIdx: options.reportMonthIdx ?? applicationResidentDataState.reportMonthIdx,
         reportYear: options.reportYear ?? applicationResidentDataState.reportYear
       });
+      if (atlasApplicationPublicationEnabled() && upload.validationStatus === "valid") {
+        try {
+          const user = window.ATLAS_CENTRAL?.getSession()?.user?.id;
+          const result = await window.ATLAS_CENTRAL.publishApplicationImport(upload);
+          if (!user || window.ATLAS_CENTRAL?.getSession()?.user?.id !== user) return;
+          const shared = result.imports.map(applicationUploadFromCentral);
+          const ids = new Set(shared.map(u => u.centralImportId));
+          applicationResidentDataState.uploads = [...shared, ...applicationResidentDataState.uploads.filter(u => !ids.has(u.centralImportId))];
+          notes.push(`Shared ${upload.fileName}: ${shared.length} community import(s). Duplicate imports retain their existing version and deletion state.`);
+          continue;
+        } catch (error) {
+          upload.validationStatus = "needs_review";
+          upload.validationMessages.push(`Not published: ${error.message}`);
+        }
+      }
       applicationResidentDataState.uploads = [
         upload,
         ...applicationResidentDataState.uploads.filter(item => item.batchId !== upload.batchId)
@@ -4638,11 +4714,11 @@ function getAtlasApplicationPeriodMetrics(periodKey = getApplicationResidentRepo
 
 function getAtlasCanonicalApplicationData() {
   const scope = getAtlasApplicationScopeCommunityNames().filter(atlasApplicationCommunityInScope);
-  return window.AtlasApplicationSources.project(applicationResidentDataState.uploads, scope);
+  return window.AtlasApplicationSources.project(applicationResidentDataState.uploads.filter(u => !atlasApplicationPublicationEnabled() || u.centralImportId), scope);
 }
 
 function getApplicationResidentActiveUploads() {
-  return normalizeApplicationResidentDataState(applicationResidentDataState).uploads.filter(upload => upload.validationStatus !== "deleted");
+  return normalizeApplicationResidentDataState(applicationResidentDataState).uploads.filter(upload => upload.validationStatus !== "deleted" && (!atlasApplicationPublicationEnabled() || upload.centralImportId));
 }
 
 function getApplicationResidentActiveRecords(options = {}) {
@@ -4653,6 +4729,11 @@ function getApplicationResidentActiveRecords(options = {}) {
 }
 
 function getApplicationResidentLatestRecordMap(records = getApplicationResidentActiveRecords()) {
+  if (atlasApplicationPublicationEnabled()) {
+    const accepted = new Set(getAtlasCanonicalApplicationData().records.map(r => JSON.stringify([r.batchId, r.applicationId])));
+    return new Map(records.filter(r => accepted.has(JSON.stringify([r.batchId, r.applicationId])))
+      .map(r => [JSON.stringify([r.communityId, r.applicationId]), r]));
+  }
   const byId = new Map();
   records.forEach(record => {
     if (!record.applicationId) return;
@@ -4792,6 +4873,7 @@ function deleteApplicationResidentDataUpload(batchId) {
   if (!confirm(exactMessage)) return;
   const reason = prompt(`Type DELETE to confirm removal of "${upload.fileName}". You can add a reason after DELETE.`, "DELETE");
   if (!/^DELETE\b/i.test(String(reason || "").trim())) return;
+  if (upload.centralImportId) return reviseAtlasSharedApplication(upload, "delete", String(reason));
   const deletedUpload = normalizeApplicationResidentUpload({
     ...upload,
     validationStatus: "deleted",
@@ -4820,9 +4902,16 @@ function deleteApplicationResidentDataUpload(batchId) {
   renderTab();
 }
 
+function restoreSharedApplicationResidentUpload(batchId) {
+  const upload = applicationResidentDataState.uploads.find(u => u.batchId === batchId && u.centralImportId && u.deletedAt);
+  if (!upload || !confirm(`Restore shared Resident Data upload "${upload.fileName}"?`)) return;
+  return reviseAtlasSharedApplication(upload, "restore", "Explicit restore from shared import history");
+}
+
 function restoreLastApplicationResidentDataUpload() {
   const state = normalizeApplicationResidentDataState(applicationResidentDataState);
   if (!state.lastDeletedUpload?.batchId) return;
+  if (state.lastDeletedUpload.centralImportId) return reviseAtlasSharedApplication(state.lastDeletedUpload, "restore", "Explicit restore from Resident Data history");
   const restored = normalizeApplicationResidentUpload({
     ...state.lastDeletedUpload,
     restoredAt: new Date().toISOString(),
@@ -4891,7 +4980,7 @@ function renderApplicationResidentUploadHistory() {
           <td style="color:${statusColor};font-weight:700">${escapeHtml(upload.validationStatus.replace(/_/g, " "))}</td>
           <td>${escapeHtml(upload.reportMonthLabel || getApplicationResidentReportMonthLabel(upload.reportPeriodKey))}</td>
           <td>${upload.validationStatus === "deleted"
-            ? `<span style="color:var(--muted);font-size:0.68rem">Removed</span>`
+            ? (upload.centralImportId ? `<button type="button" class="btn btn-gray btn-sm" onclick='restoreSharedApplicationResidentUpload(${JSON.stringify(upload.batchId)})'>Restore Upload</button>` : `<span style="color:var(--muted);font-size:0.68rem">Removed</span>`)
             : `<button type="button" class="btn btn-gray btn-sm" onclick='deleteApplicationResidentDataUpload(${JSON.stringify(upload.batchId)})'>Delete Upload</button>`}</td>
         </tr>`;
       }).join("")}</tbody>
@@ -8048,7 +8137,11 @@ function persistOpsGlobalData() {
     reportHubMonth,
     reportHubYear,
     reportRecommendationOverrides,
-    applicationResidentData: applicationResidentDataState,
+    applicationResidentData: {
+      ...applicationResidentDataState,
+      uploads: applicationResidentDataState.uploads.filter(u => !u.centralImportId),
+      lastDeletedUpload: applicationResidentDataState.lastDeletedUpload?.centralImportId ? null : applicationResidentDataState.lastDeletedUpload
+    },
     communityCommandState,
     windowshadeState,
     sharedData: atlasSharedData
@@ -56416,13 +56509,26 @@ async function initializeAtlasDashboard() {
 
 window.addEventListener("atlas-central-auth-change", () => {
   if (!atlasDashboardInitializationComplete) return;
+  const user = window.ATLAS_CENTRAL?.getSession()?.user?.id || null;
+  if (user !== atlasApplicationSessionUser) {
+    atlasApplicationSessionUser = user;
+    clearAtlasSharedApplications();
+    hydrateAtlasSharedApplications();
+  }
   runAtlasStartupStep("refresh access after session change", () => {
     renderTab();
     applyAtlasAccessControlsToNavigation();
   });
 });
 
-initializeAtlasDashboard().catch((error) => {
+window.addEventListener("focus", () => {
+  if (atlasDashboardInitializationComplete) hydrateAtlasSharedApplications();
+});
+window.setInterval(() => {
+  if (atlasDashboardInitializationComplete && document.visibilityState === "visible") hydrateAtlasSharedApplications();
+}, 60000);
+
+initializeAtlasDashboard().then(() => hydrateAtlasSharedApplications()).catch((error) => {
   markAtlasPersistenceError(error, "ATLAS could not finish loading browser data.");
   currentMonth = DEFAULT_CURRENT_MONTH;
   workspaceMonthOverride = null;

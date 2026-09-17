@@ -5,6 +5,7 @@
     "pdf-lib": "1.17.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.3.14",
     "wrangler": "4.72.0"
   }
 }

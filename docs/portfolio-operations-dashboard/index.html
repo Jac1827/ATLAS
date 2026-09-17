@@ -4171,9 +4171,9 @@ function resolveApplicationResidentPropertyMap(value = "") {
   return exact ? {communityId:getApplicationResidentCommunityIdForAtlasName(exact),communityName:exact,atlasName:exact} : null;
 }
 
-function normalizeApplicationResidentRecord(record = {}) {
+function normalizeApplicationResidentRecord(record = {}, resolvedProperty = undefined) {
   const propertySource = normalizeApplicationResidentText(record.propertySource || record.property || "");
-  const mapped = resolveApplicationResidentPropertyMap(propertySource);
+  const mapped = resolvedProperty === undefined ? resolveApplicationResidentPropertyMap(propertySource) : resolvedProperty;
   return {
     batchId: String(record.batchId || ""),
     sourceFileName: String(record.sourceFileName || ""),
@@ -4215,7 +4215,12 @@ function normalizeApplicationResidentRecord(record = {}) {
 }
 
 function normalizeApplicationResidentUpload(upload = {}) {
-  const records = Array.isArray(upload.records) ? upload.records.map(normalizeApplicationResidentRecord).filter(record => record.applicationId) : [];
+  const mappingCache = new Map();
+  const records = Array.isArray(upload.records) ? upload.records.map(record => {
+    const property = normalizeApplicationResidentText(record.propertySource || record.property || "");
+    if (!mappingCache.has(property)) mappingCache.set(property, resolveApplicationResidentPropertyMap(property));
+    return normalizeApplicationResidentRecord(record, mappingCache.get(property));
+  }).filter(record => record.applicationId) : [];
   const sourceRows = Number.isFinite(Number(upload.sourceRows)) ? Number(upload.sourceRows) : records.length;
   const propertySections = Array.isArray(upload.propertySections) ? upload.propertySections.map(normalizeApplicationResidentText).filter(Boolean) : [];
   const mappedProperties = Array.isArray(upload.mappedProperties) ? upload.mappedProperties.map(normalizeApplicationResidentText).filter(Boolean) : [...new Set(records.filter(record => record.mappingStatus === "mapped").map(record => record.propertySource))];
@@ -4433,6 +4438,7 @@ function parseApplicationResidentDataWorkbook(workbook, file, options = {}) {
   const sourceRows = [];
   const records = [];
   const skippedSheets = [];
+  const propertyMappingCache = new Map();
   sources.forEach(source => {
     if (source.headerRowIdx < 0) {
       skippedSheets.push(source.sheetName);
@@ -4459,7 +4465,8 @@ function parseApplicationResidentDataWorkbook(workbook, file, options = {}) {
       const sourceProperty = currentProperty || getApplicationResidentPropertyNameFromSheet(source.sheetName, source.rows, source.headerRowIdx);
       if (sourceProperty) propertySections.push(sourceProperty);
       sourceRows.push(`${source.sheetName}:${rowIdx + 1}`);
-      const propertyMap = resolveApplicationResidentPropertyMap(sourceProperty);
+      if (!propertyMappingCache.has(sourceProperty)) propertyMappingCache.set(sourceProperty, resolveApplicationResidentPropertyMap(sourceProperty));
+      const propertyMap = propertyMappingCache.get(sourceProperty);
       const record = normalizeApplicationResidentRecord({
         batchId,
         sourceFileName: file?.name || "Resident Data upload",
@@ -4492,7 +4499,7 @@ function parseApplicationResidentDataWorkbook(workbook, file, options = {}) {
         currentLeaseStart: getApplicationResidentCell(row, colIdx, "currentLeaseStart"),
         currentLeaseEnd: getApplicationResidentCell(row, colIdx, "currentLeaseEnd"),
         moveInDate: getApplicationResidentCell(row, colIdx, "moveInDate")
-      });
+      }, propertyMap);
       records.push(record);
     }
   });

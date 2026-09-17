@@ -8809,7 +8809,9 @@
     const propertyName = centralMatchPropertyName(findEvictionAliasedValue(row, "propertyName"), context.propertyName);
     const residentName = cleanString(findEvictionAliasedValue(row, "residentName"));
     const unit = cleanString(findEvictionAliasedValue(row, "unit"));
-    if (!propertyName || propertyName === "all" || !residentName || !unit) return null;
+    // Entrata can report valid receivables for accounts without an assigned unit.
+    // Preserve the blank source unit; property plus account name still scopes identity.
+    if (!propertyName || propertyName === "all" || !residentName) return null;
     const importedAt = cleanString(context.importedAt) || new Date().toISOString();
     const monthIdx = Number.isFinite(Number(row.monthIdx ?? context.monthIdx)) ? Math.max(0, Math.min(11, Number(row.monthIdx ?? context.monthIdx))) : new Date().getMonth();
     const year = Number.isFinite(Number(row.year ?? context.year)) ? Number(row.year ?? context.year) : new Date().getFullYear();

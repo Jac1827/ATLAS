@@ -4520,9 +4520,12 @@ function parseApplicationResidentDataWorkbook(workbook, file, options = {}) {
   }, {});
   const duplicateIds = Object.entries(idCounts).filter(([, count]) => count > 1).map(([id]) => id);
   records.forEach(record => { record.duplicateReview = duplicateIds.includes(JSON.stringify([record.communityId || record.propertySource, record.applicationId])); });
-  const mappedProperties = uniquePropertySections.filter(property => Boolean(resolveApplicationResidentPropertyMap(property)));
-  const unmappedProperties = uniquePropertySections.filter(property => !resolveApplicationResidentPropertyMap(property));
+  const populatedProperties = [...new Set(records.map(record => record.propertySource))];
+  const mappedProperties = populatedProperties.filter(property => Boolean(resolveApplicationResidentPropertyMap(property)));
+  const unmappedProperties = populatedProperties.filter(property => !resolveApplicationResidentPropertyMap(property));
   const messages = [];
+  const emptySections = uniquePropertySections.length - populatedProperties.length;
+  if (emptySections > 0) messages.push(`${emptySections} property sections contain no application records; retained as source metadata only.`);
   const propertySheetCount = sources.filter(source => source.layout === "property-sheet").length;
   if (propertySheetCount) messages.push(`Detected ${propertySheetCount} Resident Data property worksheet${propertySheetCount === 1 ? "" : "s"}.`);
   if (skippedSheets.length) messages.push(`${skippedSheets.length} worksheet${skippedSheets.length === 1 ? "" : "s"} skipped because the required Resident Data headers were not found.`);
@@ -50482,7 +50485,7 @@ async function reprocessDataImportBoxScore(archiveId) {
     const file = new File([stored.blob], stored.fileName || entry.fileName, {type:stored.type});
     const plan = await dataImportBuildFilePlan(file,{forceReportType:entry.reportType});
     if (!entry.fileHash || plan.fileHash !== entry.fileHash) throw new Error("The retained source hash does not match its approved archive entry.");
-    plan.metadata = {...entry.metadata,...plan.metadata,dataAsOf:plan.metadata?.dataAsOf || entry.metadata?.dataAsOf || ""};
+    plan.metadata = {...entry.metadata,...plan.metadata,receivedAt:entry.uploadedAt || entry.metadata?.receivedAt || "",dataAsOf:plan.metadata?.dataAsOf || entry.metadata?.dataAsOf || ""};
     plan.dataDateIso = plan.metadata?.dataAsOf || plan.dataDateIso || entry.dataDateIso;
     plan.sourceSystem = entry.sourceSystem;
     // Historical preview detection could omit later sheets in a portfolio workbook.
@@ -50518,6 +50521,7 @@ async function reprocessDataImportBoxScore(archiveId) {
       const ids = new Set(shared.map(item => item.centralImportId));
       applicationResidentDataState.uploads = [...shared, ...applicationResidentDataState.uploads.filter(item => !ids.has(item.centralImportId))];
       result = {communities:shared.map(item => item.records[0]?.atlasName).filter(Boolean),rowsHeld:0,issues:[],sharedRecords:shared.reduce((sum,item)=>sum+item.records.length,0)};
+      plan.communities = result.communities;
     }
     Object.assign(entry, {communities:plan.communities, metadata:plan.metadata, dataDateIso:plan.dataDateIso, dataDateLabel:plan.dataDateLabel, reportingMonthIdx:plan.reportingMonthIdx, reportingYear:plan.reportingYear, reportingPeriodLabel:plan.reportingPeriodLabel});
     dataImportFinishApprovalRuntime();
@@ -53402,7 +53406,7 @@ function renderDataImportArchiveView() {
         <td><strong>${escapeHtml(entry.fileName)}</strong><div class="data-import2-file-meta">${escapeHtml(dataImportFormatBytes(entry.size))} · received ${escapeHtml(dataImportFormatTimestamp(entry.metadata?.receivedAt || entry.uploadedAt))}${entry.originalZipName ? ` · ZIP ${escapeHtml(entry.originalZipName)}` : ""}</div><div class="data-import2-file-meta">SHA-256 ${escapeHtml((entry.fileHash || "not recorded").slice(0, 16))}${entry.fileHash ? "…" : ""}</div></td>
         <td>${escapeHtml(entry.reportTypeLabel || dataImportReportLabel(entry.reportType))}<div class="data-import2-file-meta">${escapeHtml(entry.sourceSystem || "Unknown")} · ${escapeHtml(entry.reportingPeriodLabel || "Period not detected")}</div><div class="data-import2-file-meta">Generated ${escapeHtml(dataImportFormatTimestamp(entry.metadata?.generatedAt, "not recorded"))} · as of ${escapeHtml(dataImportFormatTimestamp(entry.metadata?.dataAsOf || entry.dataDateIso, "not recorded"))}</div></td>
         <td>${(entry.communities || []).slice(0, 4).map(name => `<span class="data-import2-chip good">${escapeHtml(name)}</span>`).join(" ") || `<span class="data-import2-chip warn">Unmapped</span>`}</td>
-        <td>${escapeHtml(entry.batchId || "")}<div class="data-import2-file-meta">${escapeHtml(entry.rowsReviewed || 0)} reviewed · ${escapeHtml(entry.rowsUpdated || 0)} corrected · ${escapeHtml(entry.rowsHeld || 0)} held</div><div class="data-import2-file-meta">${escapeHtml(entry.mappingVersion || "ATLAS-RRIM-1.0")}</div></td>
+        <td>${escapeHtml(entry.batchId || "")}<div class="data-import2-file-meta">Original review: ${escapeHtml(entry.rowsReviewed || 0)} reviewed · ${escapeHtml(entry.rowsUpdated || 0)} corrected · ${escapeHtml(entry.rowsHeld || 0)} held</div><div class="data-import2-file-meta">${escapeHtml(entry.mappingVersion || "ATLAS-RRIM-1.0")}</div>${entry.reprocessResult ? `<div class="data-import2-file-meta">Latest replay: ${(entry.reprocessResult.communities || []).length} communities · ${entry.reprocessResult.rowsHeld || 0} held · ${(entry.reprocessResult.issues || []).length} review items${entry.reprocessResult.sharedRecords ? ` · ${entry.reprocessResult.sharedRecords} shared records` : ""}</div>` : ""}</td>
         <td><span class="data-import2-status ${dataImportStatusClass(entry.importStatus)}">${escapeHtml(entry.importStatus || "Archived")}</span><div class="data-import2-file-meta">${escapeHtml(entry.storageStatus || "Metadata")}</div></td>
         <td><button class="btn btn-gray btn-sm" onclick='downloadDataImportArchiveFile(${JSON.stringify(entry.id)})'>Download</button>${["box_score", "delinquency", "leasing_resident_data"].includes(entry.reportType) && entry.importStatus === "Approved" && dataImportCanManageArchitecture() ? `<button class="btn btn-blue btn-sm" onclick='reprocessDataImportBoxScore(${JSON.stringify(entry.id)})'>Reconcile approved source</button>` : ""}${entry.reprocessedAt ? `<div class="data-import2-file-meta">Refreshed ${escapeHtml(dataImportFormatTimestamp(entry.reprocessedAt))}</div>` : ""}</td>
       </tr>`).join("")}</tbody>

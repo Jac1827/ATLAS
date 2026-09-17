@@ -42906,7 +42906,7 @@ function buildDlrInvestorNotes({
       : `Month-to-date application funnel detail is not yet saved for ${monthLabel}.`,
     dailyTraffic.applications > 0
       ? `The report date contributed ${dailyTraffic.applications} application${dailyTraffic.applications === 1 ? "" : "s"} (${dailyTraffic.approvals || 0} approved / ${dailyTraffic.denials || 0} denied / ${dailyTraffic.cancelled || 0} cancelled / ${dailyTraffic.pendingDecision || 0} pending).`
-      : `No new applications were logged on the report date; the DLR is showing the saved ATLAS application funnel for the selected period where available.`,
+      : `Daily application activity is unavailable without a same-day source; the DLR shows saved activity for the selected period where available.`,
     appVolumeDelta !== null && appVolumeDelta > 0
       ? `Application flow is trending positively versus the prior month with ${appVolumeDelta} more application${appVolumeDelta === 1 ? "" : "s"} month to date.`
       : approvalDelta !== null && approvalDelta > 0
@@ -44558,7 +44558,9 @@ function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(
   report.trendingOccupancyPct = report.forwardLook.length === 3 ? report.forwardLook[2].projectedOccupancy : null;
   const validatedNotes = buildDlrInvestorNotes({ ...report, monthLabel: report.reportMonthLabel, leadSources: mtdTraffic, avgInPlaceRent: report.pricing.avgInPlaceRent, avgBudgetRent: report.pricing.avgBudgetRent, mtdTraffic: report.trafficMetrics, prevMonthTraffic,
     retentionRate: report.renewalSnapshot.retentionRate, renewalsSigned: report.renewalSnapshot.signed, expirations: report.renewalSnapshot.expirations });
-  report.notes = resolveDlrEditableNotes(effectiveDlrSummary, validatedNotes, { periodKey }).notes;
+  const validatedNoteState = resolveDlrEditableNotes(effectiveDlrSummary, validatedNotes, { periodKey });
+  report.notes = validatedNoteState.notes;
+  report.editableNotes = validatedNoteState.editorValues;
   return report;
 }
 

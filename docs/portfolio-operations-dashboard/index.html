@@ -1415,11 +1415,11 @@
 <script src="./central-services.js?v=20260917-delinquency-storage-reconciliation"></script>
 <script src="./eviction-attorney-ui.js?v=20260916-community-contacts"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260916-no-data-status">
-<script src="./application-source-bridge.js?v=source-reconciliation-20260917"></script>
+<script src="./application-source-bridge.js?v=funnel-source-reconciliation-20260917"></script>
 <script src="./application-performance.js?v=20260917-weekly-report"></script>
 <link rel="stylesheet" href="./concession-insights.css?v=20260916-1">
 <script src="./concession-insights.js?v=20260916-1"></script>
-<script src="./weekly-leasing-report.js?v=20260917-reporting"></script>
+<script src="./weekly-leasing-report.js?v=20260917-application-funnel"></script>
 <script src="./application-performance-ui.js?v=20260917-weekly-report"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -4045,6 +4045,8 @@ const APPLICATION_RESIDENT_FIELD_ALIASES = {
   newLeadCreatedOn: ["New Lead Created On", "Lead Created On", "Created On"],
   applicationPartiallyCompletedOn: ["Application Partially Completed", "Partially Completed", "Application Partial"],
   applicationCompletedOn: ["Application Completed", "Completed On"],
+  applicationApprovedOn: ["Application Approved", "Application Approved On", "Application Approved Date", "Approval Date"],
+  leaseSignedOn: ["Lease Signed", "Lease Signed On", "Lease Signed Date"],
   leadSource: ["Lead Source", "Source"],
   firstVisitTourDate: ["First Visit/Tour Date", "First Visit", "Tour Date"],
   occupantType: ["Occupant Type"],
@@ -4190,7 +4192,7 @@ function normalizeApplicationResidentRecord(record = {}, resolvedProperty = unde
     communityName: String(record.communityName || mapped?.communityName || ""),
     atlasName: String(record.atlasName || mapped?.atlasName || ""),
     mappingStatus: record.mappingStatus === "mapped" || mapped ? "mapped" : "unmapped",
-    sourceTimestamps: record.sourceTimestamps || Object.fromEntries(["newLeadCreatedOn","applicationPartiallyCompletedOn","applicationCompletedOn","firstVisitTourDate","currentLeaseStart","currentLeaseEnd","moveInDate"].map(field => [field, record[field] instanceof Date ? record[field].toISOString() : String(record[field] || "")])),
+    sourceTimestamps: record.sourceTimestamps || Object.fromEntries(["newLeadCreatedOn","applicationPartiallyCompletedOn","applicationCompletedOn","applicationApprovedOn","leaseSignedOn","firstVisitTourDate","currentLeaseStart","currentLeaseEnd","moveInDate"].map(field => [field, record[field] instanceof Date ? record[field].toISOString() : String(record[field] || "")])),
     residentName: normalizeApplicationResidentText(record.residentName),
     applicationId: normalizeApplicationResidentIdentifier(record.applicationId),
     applicationStatus: normalizeApplicationResidentText(record.applicationStatus),
@@ -4199,6 +4201,8 @@ function normalizeApplicationResidentRecord(record = {}, resolvedProperty = unde
     newLeadCreatedOn: normalizeApplicationResidentDateInput(record.newLeadCreatedOn),
     applicationPartiallyCompletedOn: normalizeApplicationResidentDateInput(record.applicationPartiallyCompletedOn),
     applicationCompletedOn: normalizeApplicationResidentDateInput(record.applicationCompletedOn),
+    applicationApprovedOn: normalizeApplicationResidentDateInput(record.applicationApprovedOn),
+    leaseSignedOn: normalizeApplicationResidentDateInput(record.leaseSignedOn),
     firstVisitTourDate: normalizeApplicationResidentDateInput(record.firstVisitTourDate),
     occupantType: normalizeApplicationResidentText(record.occupantType),
     leaseId: normalizeApplicationResidentIdentifier(record.leaseId),
@@ -4490,6 +4494,8 @@ function parseApplicationResidentDataWorkbook(workbook, file, options = {}) {
         newLeadCreatedOn: getApplicationResidentCell(row, colIdx, "newLeadCreatedOn"),
         applicationPartiallyCompletedOn: getApplicationResidentCell(row, colIdx, "applicationPartiallyCompletedOn"),
         applicationCompletedOn: getApplicationResidentCell(row, colIdx, "applicationCompletedOn"),
+        applicationApprovedOn: getApplicationResidentCell(row, colIdx, "applicationApprovedOn"),
+        leaseSignedOn: getApplicationResidentCell(row, colIdx, "leaseSignedOn"),
         firstVisitTourDate: getApplicationResidentCell(row, colIdx, "firstVisitTourDate"),
         occupantType: getApplicationResidentCell(row, colIdx, "occupantType"),
         leaseId: getApplicationResidentCell(row, colIdx, "leaseId"),

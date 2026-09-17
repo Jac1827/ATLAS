@@ -25,7 +25,9 @@
           tourDate:r.firstVisitTourDate, sourceAsOf:upload.sourceAsOf, uploadId:upload.batchId,
           sourceFileName:r.sourceFileName || upload.fileName,
           // Move-in and lease dates in this filtered roster are not confirmation events.
-          scheduledMoveIn:r.moveInDate, moveIn:'', leaseSigned:'', lifecycleCoverage:'unavailable'};
+          scheduledMoveIn:r.moveInDate, moveIn:'',
+          applicationApproved:r.sourceTimestamps?.applicationApprovedOn || r.applicationApprovedOn || '',
+          leaseSigned:r.sourceTimestamps?.leaseSignedOn || r.leaseSignedOn || '', lifecycleCoverage:'unavailable'};
         const sourceTime = date(upload.sourceAsOf);
         const fingerprint = JSON.stringify(Object.fromEntries(Object.entries(record).filter(([k]) => !['batchId','uploadId','sourceFileName','sourceSheetName','sourceRowNumber'].includes(k)).sort(([a],[b])=>a.localeCompare(b))));
         const id = key(r), previous = byKey.get(id);

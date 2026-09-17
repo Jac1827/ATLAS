@@ -41,7 +41,9 @@ jobs:
         run: node tools/delinquency-mapping.test.cjs
 
       - name: Test reporting data and weekly report
-        run: node tools/reporting-repair.test.cjs
+        run: |
+          node tools/reporting-repair.test.cjs
+          node tools/weekly-funnel.test.cjs
 
       - name: Test occupancy dashboard contract
         run: node tools/occupancy-contract.test.cjs
@@ -79,7 +81,9 @@ jobs:
         run: node tools/delinquency-mapping.test.cjs
 
       - name: Test reporting data and weekly report
-        run: node tools/reporting-repair.test.cjs
+        run: |
+          node tools/reporting-repair.test.cjs
+          node tools/weekly-funnel.test.cjs
 
       - name: Test occupancy dashboard contract
         run: node tools/occupancy-contract.test.cjs

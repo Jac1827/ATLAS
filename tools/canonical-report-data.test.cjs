@@ -27,14 +27,15 @@ assert.equal(c.buildDlrApplicationWindowMetricsFromMonths([{}],{applications:nul
 const points=c.buildDlrForwardOccupancyTrendPoints({occupancyPct:78/247*100,forwardLook:[]});assert.equal(points[0].projectedOccupancy,78/247*100);
 assert.equal(c.getVerifiedMonthlySnapshot({occupiedSnapshot:0}),null);
 assert.equal(c.getVerifiedMonthlySnapshot({occupiedSnapshot:0,snapshotVerified:true}),0);
-assert.equal(c.getVerifiedMonthlySnapshot({occupiedSnapshot:17}),17);
+assert.equal(c.getVerifiedMonthlySnapshot({occupiedSnapshot:17}),null);
+assert.equal(c.getVerifiedMonthlySnapshot({occupiedSnapshot:17,snapshotVerified:true}),17);
 assert.equal(c.getVerifiedMonthlySnapshot({}),null);
-let monthly=Array.from({length:12},()=>({}));monthly[8]={occupiedSnapshot:78};
+let monthly=Array.from({length:12},()=>({}));monthly[8]={occupiedSnapshot:78,snapshotVerified:true};
 assert.equal(c.buildVerifiedDlrProjection({monthlyData:monthly},8,2026,78,247).length,0);
 monthly[9]={trendingMoveIns:0,trendingMoveOuts:0};monthly[10]={trendingMoveIns:3,trendingMoveOuts:1};monthly[11]={trendingMoveIns:4,trendingMoveOuts:2};
 let projection=c.buildVerifiedDlrProjection({monthlyData:monthly},8,2026,78,247);assert.equal(projection.length,3);assert.equal(projection[0].projectedOccupancy,78/247*100);assert.equal(projection[2].projectedOccupancy,82/247*100);
 assert.equal(c.buildCommunityProgressStabilization({sourceRecord:{monthlyData:monthly},totalUnits:247,reportMonthIdx:8,reportYear:2026}).months,null);
-monthly[7]={occupiedSnapshot:70};assert.equal(c.buildCommunityProgressStabilization({sourceRecord:{monthlyData:monthly},totalUnits:247,reportMonthIdx:8,reportYear:2026}).months,20);
+monthly[7]={occupiedSnapshot:70,snapshotVerified:true};assert.equal(c.buildCommunityProgressStabilization({sourceRecord:{monthlyData:monthly},totalUnits:247,reportMonthIdx:8,reportYear:2026}).months,20);
 const financialRows=[{glCode:'4000',section:'Operating Income',lineItem:'Rent',actual:100,budget:110},{glCode:'5000',nature:'contra_income',actual:-10,budget:-5},{glCode:'6000',section:'Operating Expense',actual:20,budget:25}];
 let record=F.apply({propertyName:'Doro'},{period:'2026-09',rows:financialRows,source:'ledger.csv'});
 assert.equal(F.apply(record,{period:'2026-09',rows:financialRows,source:'ledger.csv'}),record,'Replay is idempotent');

@@ -9240,8 +9240,10 @@ function getVerifiedMonthlySnapshot(entry = {}, key = "occupiedSnapshot") {
   const value = normalizeOptionalNumber(entry[key]);
   if (value === null || value < 0) return null;
   const pctKey = key === "occupiedSnapshot" ? "physicalOccupancyPct" : "leasedOccupancyPct";
-  // Legacy positive snapshots are explicit observations; legacy default zero requires source evidence.
-  return value > 0 || entry.snapshotVerified === true || (entry.rentableUnits > 0 && normalizeOptionalNumber(entry[pctKey]) === 0) ? value : null;
+  const provenance = entry.metricProvenance?.[key];
+  const sourcePct = normalizeOptionalNumber(entry[pctKey]);
+  const sourceReconciles = entry.rentableUnits > 0 && sourcePct !== null && Math.abs(value / entry.rentableUnits * 100 - sourcePct) <= 0.15;
+  return entry.snapshotVerified === true || (provenance?.source && provenance?.period) || sourceReconciles ? value : null;
 }
 
 function getMonthsToStabilization() {
@@ -9250,7 +9252,7 @@ function getMonthsToStabilization() {
   const targetUnits = Math.ceil(getReportedOccupancyBaseUnits(monthlyData[currentMonth], totalUnits, corporateLeaseUnits) * 0.95);
   const verifiedOccupied = getVerifiedMonthlySnapshot(monthlyData[currentMonth]);
   if (verifiedOccupied === null) return { months: null, targetUnits, avgNetAbsorption: 0, reason: "Verified current occupancy snapshot required" };
-  const unitsNeeded = Math.max(targetUnits - verifiedOccupied, 0);
+  const unitsNeeded = Math.max(targetUnits - getComparableOccupancyUnits(verifiedOccupied, corporateLeaseUnits), 0);
   if (unitsNeeded === 0) return { months: 0, targetUnits, avgNetAbsorption: 0, reason: "At or above 95%" };
   const documented = getDocumentedMonthlyAbsorption(currentMonth);
   if (documented.length === 0) return { months: null, targetUnits, avgNetAbsorption: 0, reason: "No documented move-in / move-out history yet" };
@@ -43979,6 +43981,8 @@ function validateDlrInventory(report, expected = {}) {
 }
 
 function buildVerifiedDlrProjection(record, monthIdx, year, occupiedUnits, baseUnits, corporateUnits = 0) {
+  const baseline = getVerifiedMonthlySnapshot(getRecordMonthlyDataForYear(record, year)[monthIdx] || {});
+  if (baseline === null || baseline !== occupiedUnits) return [];
   let running = getComparableOccupancyUnits(occupiedUnits, corporateUnits);
   const rows = [];
   for (let offset = 1; offset <= 3; offset++) {
@@ -44952,10 +44956,13 @@ function buildCommunityProgressTrendRows(report) {
 function buildCommunityProgressStabilization(report) {
   const record = report?.sourceRecord;
   const totalUnits = Math.max(0, Number(report?.totalUnits) || 0);
-  const targetUnits = Math.ceil(totalUnits * 0.95);
   const month = report?.reportMonthIdx;
   const entries = record ? getRecordMonthlyDataForYear(record, report.reportYear) : [];
-  const occupied = getVerifiedMonthlySnapshot(entries[month] || {});
+  const entry = entries[month] || {};
+  const corporateUnits = normalizeCorporateLeaseUnits(record?.corporateLeaseUnits, totalUnits);
+  const targetUnits = Math.ceil(getReportedOccupancyBaseUnits(entry, totalUnits, corporateUnits) * 0.95);
+  const rawOccupied = getVerifiedMonthlySnapshot(entry);
+  const occupied = rawOccupied === null ? null : getComparableOccupancyUnits(rawOccupied, corporateUnits);
   if (occupied === null) return { months: null, targetUnits, avgNetAbsorption: 0, reason: "Verified current occupancy snapshot required" };
   const needed = Math.max(0, targetUnits - occupied);
   if (!needed) return { months: 0, targetUnits, avgNetAbsorption: 0, reason: "At or above 95%" };
@@ -49649,7 +49656,6 @@ function dataImportApplyMetric(record, plan, result, communityName, period, targ
     const periodEntries = getWritableMonthlyPeriodEntries(record, period.monthIdx, period.year);
     [periodEntries?.historyEntry, periodEntries?.liveEntry].filter(Boolean).forEach(month => {
       month.metricProvenance = { ...month.metricProvenance, [storedField]: { community: communityName, period: period.periodKey, source: plan.fileHash || plan.name, dataAsOf, field: atlasField } };
-      if (targetKey === "occupied" || targetKey === "leased") month.snapshotVerified = true;
     });
     const currentKey = dataImportCurrentLineageKey(communityName, period.periodKey, atlasField);
     if (dataImportRuntimeCurrentLineageIndex instanceof Map) {

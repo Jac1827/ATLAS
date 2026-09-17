@@ -29,6 +29,8 @@ c.window.ATLAS_CENTRAL={getStoredProfile:()=>({community_access_records:[{displa
 const canonicalMonth=apply([{sourceRow:{sourceSheet:'Test'},row:{measurement_basis:'units',occupied_units:10,rentable_units:20,total_units:20,available_units:8}}],'box_score');
 assert.equal(canonicalMonth.occupiedSnapshot,10,'Current canonical property type supersedes stale local type');
 delete c.window.ATLAS_CENTRAL; c.savedData.Test={};
+assert.equal(c.getReportedOccupancyBaseUnits({rentableUnits:220,sourceTotalUnits:222},222,0),220,'Rentable units define physical occupancy');
+assert.equal(c.getReportedOccupancyBaseUnits({rentableUnits:1180},588,0),588,'Unreconciled legacy denominator is ignored');
 const ui={window:{getAtlasApplicationScopeCommunityNames:()=>{scopeCalls++;return ['Allowed'];},atlasApplicationCommunityInScope:()=>true,AtlasApplicationSources:bridge,getAtlasApplicationIntelligenceData:()=>({records:Array.from({length:2500},(_,i)=>({property:i%2?'Allowed':'Denied'}))}),addEventListener:()=>{}},Date};let scopeCalls=0;vm.createContext(ui);vm.runInContext(fs.readFileSync(path.join(root,'application-performance-ui.js'),'utf8'),ui);assert.equal(ui.window.getAtlasApplicationCommandRecords().length,1250);assert.equal(scopeCalls,1);ui.window.getAtlasApplicationScopeCommunityNames=()=>[];assert.equal(ui.window.getAtlasApplicationCommandRecords().length,0);
 console.log('PASS source dates, snapshot periods, multi-account aggregation and 2,500-row scope filtering with fresh access checks.');
 (async()=>{

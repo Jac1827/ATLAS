@@ -1,6 +1,6 @@
 # Scoped application publication repair
 
-Status: implemented on a review branch; disabled by default; not deployed or accepted end to end.
+Status: deployed September 16, 2026. Both approved Resident Data sources published: 1,578 + 922 records in 21 community snapshots. Shared reads enabled. Independent authorized-user acceptance with Ashly remains pending.
 Base: GitHub main `39ea007641ff0751b54f853cf12cece7fb3bf231`. Tracking: Jac1827/ATLAS#4.
 
 ## Implemented
@@ -39,4 +39,4 @@ Before rollout:
 6. Complete the separately required Box Score/period aggregate publication through the existing marketing-metric contract. This patch implements applicant-detail publication only; it does not claim that all operational metrics, exports or reports are centrally reconciled.
 7. Unlock and verify production reporting Settings; obtain exact source dependencies, freshness tolerance, timezone, preflight lead and escalation window before correcting enabled schedules. Re-run the full source-to-report audit and classify zeros from evidence.
 
-No production deployment, operational import, outbound message or issue closure was performed.
+Production schema and client deployed; original approved imports (5) and (6) published through the authenticated live Source Archive. No outbound message or issue closure was performed. Earlier rollout notes above describe the pre-deployment investigation and remaining two-session acceptance requirements.

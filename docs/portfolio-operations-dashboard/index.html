@@ -10297,6 +10297,16 @@ function getOccupancyBaseUnits(totalUnits, corporateUnits = 0) {
   return Math.max(total - corporate, 0);
 }
 
+function getReportedOccupancyBaseUnits(monthEntry, totalUnits, corporateUnits = 0) {
+  const rentable = Number(monthEntry?.rentableUnits);
+  const sourceTotal = Number(monthEntry?.sourceTotalUnits);
+  // Only the reconciled Box Score contract supplies both independent counts.
+  if (sourceTotal > 0 && rentable > 0 && rentable <= sourceTotal && sourceTotal === Number(totalUnits)) {
+    return getOccupancyBaseUnits(rentable, corporateUnits);
+  }
+  return getOccupancyBaseUnits(totalUnits, corporateUnits);
+}
+
 function getOccupancyPctFromUnits(occupiedUnits, totalUnits, corporateUnits = 0) {
   const baseUnits = getOccupancyBaseUnits(totalUnits, corporateUnits);
   const comparableUnits = getComparableOccupancyUnits(occupiedUnits, corporateUnits);
@@ -11661,7 +11671,7 @@ function getCommunitySummary(propName, sourceData, rawSourceData = sourceData) {
   const scopeCurrentMonth = Number.isInteger(record.currentMonth) ? record.currentMonth : 2;
   const totalUnits = getResolvedTotalUnitsForRecord(propName, record, { prop });
   const corporateUnits = getCorporateLeaseUnitsForRecord(record, totalUnits);
-  const occupancyBaseUnits = getOccupancyBaseUnits(totalUnits, corporateUnits);
+  const occupancyBaseUnits = getReportedOccupancyBaseUnits(scopeMonthlyData[scopeCurrentMonth], totalUnits, corporateUnits);
   const scopeRecord = { ...record, reportYear: record.reportYear, monthlyData: scopeMonthlyData, currentMonth: scopeCurrentMonth };
   const occupied = getRecordComparableSnapshotUnits(scopeRecord, totalUnits, scopeCurrentMonth, "occupiedSnapshot");
   const leased = getRecordComparableSnapshotUnits(scopeRecord, totalUnits, scopeCurrentMonth, "leasedSnapshot");

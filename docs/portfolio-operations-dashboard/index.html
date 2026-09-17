@@ -1411,14 +1411,16 @@
 
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=20260916-publish-reconcile"></script>
-<script src="./centralization/atlas-central-client.js?v=20260917-publication-live" data-atlas-central-client="true"></script>
+<script src="./centralization/atlas-central-client.js?v=20260917-property-specials" data-atlas-central-client="true"></script>
 <script src="./central-services.js?v=20260917-delinquency-storage-reconciliation"></script>
 <script src="./eviction-attorney-ui.js?v=20260916-community-contacts"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260916-no-data-status">
-<script src="./application-source-bridge.js?v=funnel-source-reconciliation-20260917"></script>
+<script src="./application-source-bridge.js?v=property-sections-20260917"></script>
 <script src="./application-performance.js?v=20260917-weekly-report"></script>
-<link rel="stylesheet" href="./concession-insights.css?v=20260916-1">
-<script src="./concession-insights.js?v=20260916-1"></script>
+<link rel="stylesheet" href="./concession-insights.css?v=20260917-1">
+<script src="./property-intelligence.js?v=20260917-1"></script>
+<script src="./property-organization.js?v=20260917-1"></script>
+<script src="./concession-insights.js?v=20260917-1"></script>
 <script src="./weekly-leasing-report.js?v=20260917-aging"></script>
 <script src="./application-aging.js?v=20260917-aging"></script>
 <script src="./application-performance-ui.js?v=20260917-aging"></script>
@@ -3045,6 +3047,8 @@ function getAtlasRegionalGroupingOptions(currentValue = "") {
 }
 
 function renderPortfolioSharedPropertyFields() {
+  atlasRefreshLinkedEmployees();
+  atlasLoadWebsiteSettings();
   const sharedRecord = getAtlasSharedRecordForPortfolioName(getProp().name);
   const regionalGroupingValue = String(communityRegionalGrouping || communityMarket || "").trim();
   const regionalGroupingOptions = getAtlasRegionalGroupingOptions(regionalGroupingValue);
@@ -3062,7 +3066,7 @@ function renderPortfolioSharedPropertyFields() {
     <div style="grid-column:1/-1;margin-top:2px;padding:12px;border-radius:10px;border:1px solid rgba(68,147,248,0.22);background:rgba(68,147,248,0.04)">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
         <div>
-          <div style="font-size:0.76rem;font-weight:700;color:var(--text)">Shared Portfolio / Marketing Record</div>
+          <div style="font-size:0.76rem;font-weight:700;color:var(--text)">Property Organization Structure</div>
           <div style="font-size:0.63rem;color:var(--muted);margin-top:2px">Stable ID: ${escapeHtml(sharedRecord?.communityId || communitySharedSyncMeta?.communityId || "assigned on save")}</div>
         </div>
         <span class="badge" style="border:1px solid rgba(68,147,248,0.25);background:#eef6ff;color:#1f6feb">${escapeHtml(syncLabel)}</span>
@@ -3078,22 +3082,23 @@ function renderPortfolioSharedPropertyFields() {
         </div>
         <div>
           <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">GM Name</div>
-          <input type="text" value="${escapeHtml(communityGeneralManagerName)}" placeholder="General Manager" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" onchange="updateCommunitySharedField('generalManagerName', this.value)">
+          ${atlasEmployeeSelect("gm")}
         </div>
         <div>
           <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">GM Email</div>
-          <input type="email" value="${escapeHtml(communityGeneralManagerEmail)}" placeholder="gm@riseresidential.com" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" onchange="updateCommunitySharedField('generalManagerEmail', this.value)">
+          <input type="email" value="${escapeHtml(communityGeneralManagerEmail)}" placeholder="gm@riseresidential.com" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" readonly aria-label="Email from linked employee">
         </div>
         <div>
           <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Regional Manager</div>
-          <input type="text" value="${escapeHtml(communityRegionalManagerName)}" placeholder="Regional Manager" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" onchange="updateCommunitySharedField('regionalManagerName', this.value)">
+          ${atlasEmployeeSelect("regional")}
         </div>
         <div>
           <div style="font-size:0.66rem;color:var(--muted);margin-bottom:4px">Regional Email</div>
-          <input type="email" value="${escapeHtml(communityRegionalManagerEmail)}" placeholder="regional@riseresidential.com" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" onchange="updateCommunitySharedField('regionalManagerEmail', this.value)">
+          <input type="email" value="${escapeHtml(communityRegionalManagerEmail)}" placeholder="regional@riseresidential.com" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" readonly aria-label="Email from linked employee">
         </div>
       </div>
       ${issueHtml}
+      ${atlasOrganizationWarnings()}
     </div>`;
 }
 
@@ -5762,8 +5767,12 @@ function normalizeMarketSurveyData(data) {
         ner: Number(item?.ner) || 0,
         leasedPct: Number(item?.leasedPct) || 0,
         exposurePct: Number(item?.exposurePct) || 0,
-        applicationsLast30: Number(item?.applicationsLast30) || 0,
-        leasesLast30: Number(item?.leasesLast30) || 0,
+        applicationsLast7: window.AtlasPropertyIntelligence.num(item?.applicationsLast7),
+        applicationsLast30: window.AtlasPropertyIntelligence.num(item?.applicationsLast30),
+        leasesLast7: window.AtlasPropertyIntelligence.num(item?.leasesLast7),
+        leasesLast30: window.AtlasPropertyIntelligence.num(item?.leasesLast30),
+        cancelPctLast7: window.AtlasPropertyIntelligence.num(item?.cancelPctLast7),
+        cancelPctLast30: window.AtlasPropertyIntelligence.num(item?.cancelPctLast30),
         concessionDetails: String(item?.concessionDetails ?? "").trim()
       }))
       .filter(item => item.name),
@@ -9661,6 +9670,10 @@ function normalizeSavedCommunityRecord(propName, data) {
     communityMarket: String(input.communityMarket ?? defaults.communityMarket).trim(),
     communityRegionalGrouping: String(input.communityRegionalGrouping ?? input.communityMarket ?? defaults.communityRegionalGrouping).trim(),
     communityPropertyType: String(input.communityPropertyType ?? defaults.communityPropertyType).trim(),
+    generalManagerEmployeeId: String(input.generalManagerEmployeeId || ""),
+    regionalManagerEmployeeId: String(input.regionalManagerEmployeeId || ""),
+    boxScoreHistory: Array.isArray(input.boxScoreHistory) ? input.boxScoreHistory : [],
+    websiteSettingsUpdatedAt: String(input.websiteSettingsUpdatedAt || ""),
     generalManagerName: String(input.generalManagerName ?? defaults.generalManagerName).trim(),
     generalManagerEmail: atlasNormalizeSharedEmail(input.generalManagerEmail ?? defaults.generalManagerEmail),
     generalManagerUserId: String(input.generalManagerUserId ?? defaults.generalManagerUserId).trim(),
@@ -14424,17 +14437,8 @@ function updateCommunityAddress(val) {
   renderTab();
 }
 
-function updateCommunityWebsiteUrl(val) {
-  communityWebsiteUrl = String(val ?? "").trim();
-  saveCommunityData(true);
-  renderTab();
-}
-
-function updateFloorPlanRatesPageUrl(val) {
-  floorPlanRatesPageUrl = String(val ?? "").trim();
-  saveCommunityData(true);
-  renderTab();
-}
+function updateCommunityWebsiteUrl(val) { return atlasSaveWebsiteField('communityWebsiteUrl', val); }
+function updateFloorPlanRatesPageUrl(val) { return atlasSaveWebsiteField('floorPlanRatesPageUrl', val); }
 
 function getCommunityBackdropImage() {
   const primaryPhoto = normalizePhotoAsset(communityPhotoBank?.[0]);
@@ -14923,6 +14927,9 @@ function saveCommunityData(silent = false) {
     ? getProp().name
     : (matchPropertyName(workspaceScopeValue, { fallbackToCurrent: false }) || getProp().name);
   const key = scopeCommunityName;
+  const assignmentIssues = atlasLinkedEmployeeIssues();
+  if (assignmentIssues.length) { alert(assignmentIssues.join("\n")); return; }
+  atlasRefreshLinkedEmployees();
   const sharedValidation = validateCurrentSharedCommunityFields();
   if (!sharedValidation.ok) {
     alert(`Shared property fields need review before saving:\n${sharedValidation.message}`);
@@ -15124,7 +15131,7 @@ function defaultAtlasAccessFormDraft() {
 
 atlasAccessFormDraft = defaultAtlasAccessFormDraft();
 
-const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=20260917-publication-live";
+const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=20260917-property-specials";
 const ATLAS_AUTH_UI_STORAGE_KEY = "atlas_auth_ui_state_v1";
 const ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY = "atlas_dashboard_preferences_v1";
 let atlasCentralClientLoadPromise = null;
@@ -22831,7 +22838,7 @@ function renderSetupTab() {
         <div>
           <div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px">Floor plan rates page URL</div>
           <input type="url" value="${escapeHtml(floorPlanRatesPageUrl)}" placeholder="https://communitysite.com/floorplans" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.82rem" onchange="updateFloorPlanRatesPageUrl(this.value)">
-          <div style="font-size:0.63rem;color:var(--muted);margin-top:3px">Use the direct floor-plan / pricing page when it differs from the main website.</div>
+          <div style="font-size:0.63rem;color:var(--muted);margin-top:3px">Use the direct floor-plan / pricing page when it differs from the main website. ${atlasWebsiteSaveStatus()}</div>
         </div>
       </div>
       <div id="community-floor-plan-budget-setup" data-floor-plan-selection-section="community" data-floor-plan-selection-prop="${escapeHtml(p.name)}" style="margin-top:14px;padding:14px;border-radius:12px;border:1px solid rgba(68,147,248,0.18);background:rgba(255,255,255,0.65)">
@@ -27348,6 +27355,9 @@ async function processDlrBoxScoreFiles(files) {
     try {
       const lowerName = String(file?.name ?? "").toLowerCase();
       const isWorkbookCandidate = /\.(xlsx|xlsm|xls)$/i.test(lowerName);
+      if (isWorkbookCandidate && await atlasCaptureBoxScoreFile(file)) {
+        messages.push(`✅ ${file.name}: community section totals updated automatically in Comp Calculator.`);
+      }
       if (isWorkbookCandidate) {
         const workbookOverlay = await parseRonaldoDailyDlrWorkbook(file);
         if (workbookOverlay) {
@@ -27475,6 +27485,11 @@ function extractMarketSurveyCompRows(rows, headerRow, subjectIdx, compAverageIdx
   const nerRow = findWorksheetRow(rows, /^NER$/i) ?? [];
   const leasedRow = findWorksheetRow(rows, /Leased %/i) ?? [];
   const exposureRow = findWorksheetRow(rows, /Exposure %/i) ?? [];
+  const apps7Row = findWorksheetRow(rows, /Applications \(Last 7 days\)/i) ?? [];
+  const leases7Row = findWorksheetRow(rows, /Leases \(Last 7 days\)/i) ?? [];
+  const cancel7Row = findWorksheetRow(rows, /Cancel % \(Last 7 days\)/i) ?? [];
+  const cancel30Row = findWorksheetRow(rows, /Cancel % \(Last 30 days\)/i) ?? [];
+  const optional = (row,idx,percent=false) => String(row[idx] ?? '').trim()==='' ? null : percent ? normalizeWorkbookPercent(row[idx]) : normalizeWorkbookNumber(row[idx]);
   const apps30Row = findWorksheetRow(rows, /Applications \(Last 30 days\)/i) ?? [];
   const leases30Row = findWorksheetRow(rows, /Leases \(Last 30 days\)/i) ?? [];
   const concessionRow = findWorksheetRow(rows, /^Concession Details$/i) ?? [];
@@ -27482,14 +27497,15 @@ function extractMarketSurveyCompRows(rows, headerRow, subjectIdx, compAverageIdx
     const name = String(cell ?? "").trim();
     if (!name || idx === 0 || idx === compAverageIdx) return null;
     return {
-      name: matchPropertyName(name),
+      name: idx === subjectIdx ? (matchPropertyName(name, {fallbackToCurrent:false}) || name) : name,
       isSubject: idx === subjectIdx,
       rent: normalizeWorkbookNumber(rentRow[idx]),
       ner: normalizeWorkbookNumber(nerRow[idx]),
       leasedPct: normalizeWorkbookPercent(leasedRow[idx]),
       exposurePct: normalizeWorkbookPercent(exposureRow[idx]),
-      applicationsLast30: normalizeWorkbookNumber(apps30Row[idx]),
-      leasesLast30: normalizeWorkbookNumber(leases30Row[idx]),
+      applicationsLast7: optional(apps7Row,idx), applicationsLast30: optional(apps30Row,idx),
+      leasesLast7: optional(leases7Row,idx), leasesLast30: optional(leases30Row,idx),
+      cancelPctLast7: optional(cancel7Row,idx,true), cancelPctLast30: optional(cancel30Row,idx,true),
       concessionDetails: String(concessionRow[idx] ?? "").trim()
     };
   }).filter(item => item && item.name);
@@ -35286,6 +35302,7 @@ function updateCommunitySharedField(field, value) {
     if (!communityRegionalGrouping) communityRegionalGrouping = communityMarket;
   } else if (field === "regionalGrouping") {
     communityRegionalGrouping = String(value ?? "").trim();
+    renderTab();
   } else if (field === "propertyType") {
     communityPropertyType = String(value ?? "").trim();
   } else if (field === "generalManagerName") {
@@ -49434,6 +49451,10 @@ function dataImportCommunitySupportsReport(communityName, reportType) {
 }
 
 function dataImportRowPeriod(mapped = {}, sourceRow = {}, plan = {}) {
+  const sectionDate = sourceRow.period?.start || sourceRow.period?.asOf;
+  if (plan.reportType === "box_score" && sectionDate) {
+    return {monthIdx:Number(sectionDate.slice(5,7))-1,year:Number(sectionDate.slice(0,4)),periodKey:sectionDate.slice(0,7)};
+  }
   if (["box_score", "delinquency", "leasing_resident_data"].includes(plan.reportType) && Number.isInteger(plan.reportingMonthIdx) && Number.isInteger(plan.reportingYear)) {
     return {monthIdx:plan.reportingMonthIdx, year:plan.reportingYear, periodKey:buildPeriodKey(plan.reportingMonthIdx, plan.reportingYear)};
   }
@@ -49456,7 +49477,7 @@ function dataImportRowPeriod(mapped = {}, sourceRow = {}, plan = {}) {
 function dataImportCanonicalRecordKey(plan, communityName, period, row, sourceRow) {
   const partsByType = {
     community_data: [row.community_id, row.pms_property_code, communityName],
-    box_score: [row.floorplan_code || row.floorplan, row.traffic_source, row.application_status],
+    box_score: [row.floorplan_code || row.floorplan, row.traffic_source, row.application_status, sourceRow.section, sourceRow.period?.start, sourceRow.period?.end, sourceRow.period?.asOf],
     trending_occupancy: [row.closed_actual ? "closed" : row.reported_actual ? "actual" : "forecast"],
     leasing_resident_data: [row.application_id, row.lease_id, row.unit, row.resident],
     rent_roll: [row.lease_id, row.unit, row.resident, row.charge_code],
@@ -50003,6 +50024,8 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
         periodKey: period.periodKey,
         values: mapped,
         originalValues: sourceRow.values,
+        section: sourceRow.section, sectionPeriod: sourceRow.period,
+        downstreamEligible: !blockStaleDownstream,
         sourceSheet: sourceRow.sourceSheet,
         sourceRow: sourceRow.sourceRow,
         sourceSystem: plan.sourceSystem,
@@ -50038,7 +50061,10 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
       }
     }
   }
-  grouped.forEach(group => dataImportApplyGroupedSnapshot(group, plan, result));
+  grouped.forEach(group => {
+    dataImportApplyGroupedSnapshot(group, plan, result);
+    if (plan.reportType === "box_score" && !blockStaleDownstream) atlasCaptureBoxScore(group.communityName, group.entries.map(e=>e.sourceRow), plan.name, plan.metadata?.generatedAt || "");
+  });
   if (plan.reportType === "delinquency" && result.centralRows.length && typeof window.atlasCsIngestDelinquencyRows === "function") {
       const firstCommunity = Array.from(result.communities)[0] || "Multiple properties";
       const csResult = window.atlasCsIngestDelinquencyRows(result.centralRows, {

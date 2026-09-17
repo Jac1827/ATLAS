@@ -1,4 +1,5 @@
 export { EvictionCaseState } from './eviction-store.mjs';
+export { PropertySpecialsState } from './property-specials-store.mjs';
 import '../docs/portfolio-operations-dashboard/investor-packet-core.js';
 const SITE_ROUTES = [
   {
@@ -1685,6 +1686,30 @@ export default {
         return apiResponse({ ok: false, error: "Method Not Allowed" }, { status: 405, headers: { allow: "POST, OPTIONS" } });
       }
       return handleAtlasAccessSelfActivationRequest(request, env);
+    }
+
+    if (url.pathname === "/api/atlas/property-specials") {
+      try {
+        if (request.method !== "POST") return apiResponse({ok:false,error:"Use POST."},{status:405});
+        const access = await requireAtlasAccessUser(request, env);
+        const body = await readJsonBody(request);
+        if (!body || JSON.stringify(body).length > 50000) return apiResponse({ok:false,error:"Invalid or oversized request."},{status:400});
+        const community = await requireAtlasDlrCommunityAccess(access, body.communityName, body.communityId);
+        if (!community) return apiResponse({ok:false,error:"Community is not registered in ATLAS."},{status:404});
+        const admin = access.role === "admin";
+        if (["saveOffer","removeOffer"].includes(body.action) && !admin) return apiResponse({ok:false,error:"Only an active ATLAS admin may change offers."},{status:403});
+        if (!env.PROPERTY_SPECIALS) return apiResponse({ok:false,error:"Website special storage is not deployed."},{status:503});
+        const store = env.PROPERTY_SPECIALS.getByName(community.community_id);
+        const actor = access.user.id;
+        let result;
+        if (body.action === "read") result = await store.read();
+        else if (body.action === "configure") result = await store.configure({website:body.website,floorplan:body.floorplan,communityId:community.community_id,communityName:community.display_name},actor);
+        else if (body.action === "collect") result = await store.collect();
+        else if (body.action === "saveOffer") result = await store.saveOffer(body.offer,actor,admin);
+        else if (body.action === "removeOffer") result = await store.removeOffer(body.id,actor,admin);
+        else return apiResponse({ok:false,error:"Unknown action."},{status:400});
+        return apiResponse({...result,canManage:admin});
+      } catch(error) { return apiResponse({ok:false,error:jsonSafeError(error)},{status:error.status || 400}); }
     }
 
     if (url.pathname === "/api/atlas/evictions/case") {

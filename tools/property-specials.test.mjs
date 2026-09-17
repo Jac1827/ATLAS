@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import {nextCollection,publicUrl,extractPage,reconcilePages,manualOffer} from '../src/property-specials-core.mjs';
+assert.equal(new Date(nextCollection(Date.parse('2026-09-17T10:00Z'))).toISOString(),'2026-09-17T11:00:00.000Z');
+assert.equal(new Date(nextCollection(Date.parse('2026-12-17T12:00Z'))).toISOString(),'2026-12-18T11:00:00.000Z');
+for(const u of ['file:///etc/passwd','http://127.0.0.1','https://[::1]','http://169.254.169.254','https://localhost','https://user:pass@example.com'])assert.throws(()=>publicUrl(u));
+assert.equal(publicUrl('https://example.com/specials#top'),'https://example.com/specials');
+const padding='Welcome to our community. Explore apartments and floor plans, amenities, neighborhood and contact information. Our leasing team is available to answer your questions.\n';
+const a=extractPage(padding+'Two months free rent\nPlus a $250 gift card','https://example.com','2026-09-17');
+assert.equal(a.status,'found');assert(a.components.some(c=>c.type==='gift_card'));
+const b=extractPage(padding+'One month free rent','https://example.com/plans','2026-09-17');
+assert.equal(reconcilePages([a,b]).status,'conflict');assert.equal(reconcilePages([a,{status:'failed'}]).status,'failed');
+assert.equal(reconcilePages([extractPage(padding+'No current specials','https://example.com','2026-09-17')]).status,'none');
+assert.equal(extractPage('Checking your browser','https://example.com','2026-09-17').status,'failed');
+assert.equal(extractPage(padding+'Contact us about our special offer','https://example.com','2026-09-17').status,'failed');
+assert.equal(manualOffer({text:'Two months free + free parking',start:'2026-09-01',end:'2026-09-30'},'2026-09-17','admin').components.length,2);
+assert.throws(()=>manualOffer({text:'Offer',start:'2026-02-31'},'',''));
+console.log('PASS fixed EST schedule, URL restrictions, layered offer extraction, conflict/failure/no-offer separation and manual dates.');
+
+const scoped=t=>extractPage(padding+t,'https://example.com','2026-09-17');
+assert.equal(reconcilePages([scoped('One month free on one-bedroom apartments'),scoped('Two months free on 1 bedroom apartments')]).status,'conflict');
+assert.equal(reconcilePages([scoped('One month free on one-bedroom apartments'),scoped('Two months free on two-bedroom apartments')]).status,'found');
+assert.equal(reconcilePages([scoped('One month free on 12-month leases'),scoped('Two months free on 15-month leases')]).status,'found');
+assert.equal(reconcilePages([scoped('One month free on 12-15 month leases'),scoped('Two months free on 15-month leases')]).status,'conflict');
+assert.throws(()=>manualOffer({text:'Offer',start:'2026-09-01',components:[{text:'Free rent',start:'2026-09-10',end:'2026-09-01'}]},'',''));

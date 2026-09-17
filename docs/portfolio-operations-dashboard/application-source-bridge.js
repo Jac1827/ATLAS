@@ -69,6 +69,10 @@
     const audit = [...new Map([...(base.audit || []), ...(incoming.audit || [])].map(e=>[JSON.stringify(e),e])).values()];
     return {...base, ...incoming, uploads:[...uploads.values()].sort((a,b)=>(date(b.uploadedAt)||0)-(date(a.uploadedAt)||0)), audit};
   }
+  function boxScoreDates(label) {
+    const dates=(String(label).match(/\d{1,2}\/\d{1,2}\/\d{4}/g)||[]).map(s=>{const [m,d,y]=s.split('/');return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;});
+    return /as of/i.test(label)?{asOf:dates[0]||'',start:'',end:''}:{start:dates[0]||'',end:dates[1]||'',asOf:''};
+  }
   function boxScore(rows) {
     const output = [], norm = v => text(v).toLowerCase().replace(/\s+/g,' ');
     const anchors = /^(availability|property pulse|lead activity|lead conversions|make ready status)\b/i;
@@ -79,7 +83,8 @@
       while (end<rows.length && !anchors.test(text(rows[end]?.[0]))) end++;
       const totalIndex=rows.findIndex((r,j)=>j>i && j<end && /^total:?$/i.test(text(r[0])));
       if (totalIndex<0) continue; // Filtered-empty is not zero.
-      const section=label.toLowerCase(), headerIndex=section.startsWith('lead conversions')?i+2:section.startsWith('lead activity')?i+2:i+1;
+      const section=label.toLowerCase(), headerIndex=rows.findIndex((r,j)=>j>i&&j<totalIndex&&/^unit type$/i.test(text(r[0])));
+      if(headerIndex<0)continue;
       const headers=rows[headerIndex] || [], total=rows[totalIndex], values={}, locators={};
       const get=(field,label,group='')=>{
         let current='', index=-1;
@@ -104,16 +109,12 @@
       } else if(section.startsWith('lead conversions')) {
         for(const [field,h] of Object.entries({applications:'completed',approvals:'approved',denied_applications:'denied',applications_partial:'partially completed',applications_completed_cancelled:'completed (cancelled)',applications_approved_cancelled:'approved (cancelled)'}))get(field,h,'application');
         get('cancelled_applications','cancelled','application');
-        if(values.cancelled_applications===undefined && values.applications_completed_cancelled!==undefined && values.applications_approved_cancelled!==undefined){
-          values.cancelled_applications=values.applications_completed_cancelled+values.applications_approved_cancelled;
-          locators.cancelled_applications={...locators.applications_completed_cancelled,sourceHeader:'Completed (Cancelled) + Approved (Cancelled)',columns:[locators.applications_completed_cancelled.column,locators.applications_approved_cancelled.column]};
-        }
-        get('leases_completed','completed','lease');get('leases_approved','approved','lease');
+        get('leases_completed','completed','lease');get('leases_approved','approved','lease');get('leases_cancelled','completed (cancelled)','lease');
       } else if(section.startsWith('lead activity')) {get('new_leads','new leads');get('tours','first visits/tours');
         for(const [field,h] of Object.entries({walk_in:'walk in',off_site_event:'off site event',phone_calls:'call',emails:'email',online:'online',chat:'chat',text:'text',other:'other'}))get(field,h);
       }
       else {get('move_ins','move-ins');get('move_outs','move-outs');get('renewal_leases_approved','renewal leases approved');}
-      if(Object.keys(locators).length)output.push({values,sourceRow:totalIndex+1,canonicalSource:true,locators});
+      if(Object.keys(locators).length)output.push({values,sourceRow:totalIndex+1,canonicalSource:true,locators,section:label.replace(/\s*\(.*/, ""),period:typeof AtlasPropertyIntelligence!=="undefined"?AtlasPropertyIntelligence.sectionDates(label):boxScoreDates(label)});
       i=end-1;
     }
     return output;

@@ -40,7 +40,8 @@ const bigStore=new EvictionCaseState({storage:new Storage()},env);let big=await 
 const large=await coversheetPdf({...row,lastDelinquencyNote:'Long note '.repeat(3000)},actor);assert(large.length>1000);
 console.log('PASS attachments, versions, generated PDF, exact recipients, missing-document gates, stale drafts, concurrent send protection, provider success/rejection/uncertainty, retry and unconfigured integration. No real email sent.');
 // Exercise the public endpoint with mocked identity/community services, never a live account.
-const {default:worker}=await import('../src/worker.mjs');
+const {loadWorker}=await import('./load-worker-for-node-test.mjs');
+const worker=await loadWorker();
 const originalFetch=globalThis.fetch;let forwarded=0,forwardedActor;let role='community_manager';
 globalThis.fetch=async url=>{const u=new URL(url);let data;if(u.pathname==='/auth/v1/user')data={id:'verified-user',email:'verified@example.invalid'};else if(u.pathname.endsWith('/atlas_user_profiles'))data=[{display_name:'Verified User',role,status:'active',allowed_community_ids:['allowed-id']}];else if(u.pathname.endsWith('/atlas_communities')){const name=u.searchParams.get('display_name')?.slice(3);data=[{community_id:name==='Allowed Community'?'allowed-id':'other-id'}];}else throw Error('Unexpected mocked URL');return Response.json(data);};
 const apiEnv={SUPABASE_SERVICE_ROLE_KEY:'mock-service-key',EVICTION_CASES:{idFromName:id=>id,get:id=>({async fetch(request){forwarded++;forwardedActor=(await request.json()).actor;return Response.json({ok:true,id});}})}};

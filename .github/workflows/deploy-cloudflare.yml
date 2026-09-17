@@ -47,6 +47,14 @@ jobs:
           node tools/application-aging.test.cjs
           node tools/storage-capacity.test.cjs
 
+      - name: Test property organization and special history
+        run: |
+          node tools/property-intelligence.test.cjs
+          node tools/property-specials.test.mjs
+          node tools/property-specials-store.test.mjs
+          node tools/property-specials-api.test.mjs
+          node tools/concession-insights.test.cjs
+
       - name: Test occupancy dashboard contract
         run: node tools/occupancy-contract.test.cjs
 
@@ -88,6 +96,14 @@ jobs:
           node tools/weekly-funnel.test.cjs
           node tools/application-aging.test.cjs
           node tools/storage-capacity.test.cjs
+
+      - name: Test property organization and special history
+        run: |
+          node tools/property-intelligence.test.cjs
+          node tools/property-specials.test.mjs
+          node tools/property-specials-store.test.mjs
+          node tools/property-specials-api.test.mjs
+          node tools/concession-insights.test.cjs
 
       - name: Test occupancy dashboard contract
         run: node tools/occupancy-contract.test.cjs

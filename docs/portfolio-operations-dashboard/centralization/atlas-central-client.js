@@ -1398,6 +1398,12 @@
   notifyAuthChange(getStoredSession());
 
   window.ATLAS_CENTRAL = {
+    async propertySpecials(action, body = {}) {
+      const response=await fetch(accessApiUrl("/api/atlas/property-specials"),{method:"POST",headers:baseHeaders(getConfig(),true,{supabasePublicHeaders:false}),body:JSON.stringify({...body,action})});
+      const result=await response.json();
+      if(!response.ok || !result.ok)throw new Error(result.error || "Property specials service unavailable.");
+      return result;
+    },
     async evictionCase(action, body = {}, binary = false) {
       const response = await fetch(accessApiUrl("/api/atlas/evictions/case"), {
         method: "POST", headers: baseHeaders(getConfig(), true, {supabasePublicHeaders:false}), body:JSON.stringify({...body,action})

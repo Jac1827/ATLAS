@@ -42,6 +42,10 @@
       {
         "name": "EVICTION_CASES",
         "class_name": "EvictionCaseState"
+      },
+      {
+        "name": "PROPERTY_SPECIALS",
+        "class_name": "PropertySpecialsState"
       }
     ]
   },
@@ -56,6 +60,12 @@
       "tag": "v2-eviction-cases",
       "new_sqlite_classes": [
         "EvictionCaseState"
+      ]
+    },
+    {
+      "tag": "v3-property-specials",
+      "new_sqlite_classes": [
+        "PropertySpecialsState"
       ]
     }
   ],

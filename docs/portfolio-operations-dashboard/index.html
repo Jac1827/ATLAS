@@ -47973,7 +47973,8 @@ function defaultDataImport2State() {
     learningSettings: {
       autoMapThreshold: 95,
       suggestionThreshold: 80,
-      reviewThreshold: 60
+      reviewThreshold: 60,
+      trustConfirmationCount: 3
     },
     updatedAt: ""
   };
@@ -48147,7 +48148,8 @@ function normalizeDataImport2State(input = {}) {
     learningSettings: {
       autoMapThreshold: Math.min(100, Math.max(80, Number(state.learningSettings?.autoMapThreshold || fallback.learningSettings.autoMapThreshold))),
       suggestionThreshold: Math.min(99, Math.max(60, Number(state.learningSettings?.suggestionThreshold || fallback.learningSettings.suggestionThreshold))),
-      reviewThreshold: Math.min(90, Math.max(40, Number(state.learningSettings?.reviewThreshold || fallback.learningSettings.reviewThreshold)))
+      reviewThreshold: Math.min(90, Math.max(40, Number(state.learningSettings?.reviewThreshold || fallback.learningSettings.reviewThreshold))),
+      trustConfirmationCount: Math.min(10, Math.max(2, Number(state.learningSettings?.trustConfirmationCount || fallback.learningSettings.trustConfirmationCount)))
     },
     updatedAt: String(state.updatedAt || "")
   };
@@ -48398,6 +48400,7 @@ async function dataImportReadFileSample(file) {
     sheetNames: [],
     headers: [],
     headerSamples: {},
+    qualifiedFields: [],
     rowCount: 0,
     sampleText: "",
     tabSummaries: []
@@ -48439,6 +48442,7 @@ async function dataImportReadFileSample(file) {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false });
       const sheetNames = workbook.SheetNames || [];
       const allHeaders = [];
+      const qualifiedFields = [];
       const tabSummaries = [];
       const headerSamples = {};
       let rowCount = 0;
@@ -48448,6 +48452,23 @@ async function dataImportReadFileSample(file) {
       sheetNames.forEach(sheetName => {
         const worksheet = workbook.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "", raw: false });
+        const qualifiedBoxScoreRows = window.AtlasApplicationSources?.boxScore
+          ? window.AtlasApplicationSources.boxScore(rows)
+          : [];
+        const sheetQualifiedFields = qualifiedBoxScoreRows.flatMap(row => Object.entries(row.values || {}).map(([canonicalField, sampleValue]) => {
+          const locator = row.locators?.[canonicalField] || {};
+          const sourceHeader = locator.sourceHeader || canonicalField;
+          const section = locator.section || row.section || "Box Score";
+          return {
+            canonicalField,
+            sourceHeader,
+            section,
+            sheetName,
+            sampleValue: String(sampleValue ?? "").slice(0, 80),
+            qualifiedHeader: `${sheetName} / ${section}${locator.group ? ` / ${locator.group}` : ""} / ${sourceHeader}`
+          };
+        }));
+        qualifiedFields.push(...sheetQualifiedFields);
         const sampleRows = rows.slice(0, 80);
         const isMetadata = dataImportIsMetadataSheetName(sheetName);
         const headerIndex = dataImportFindHeaderRowIndex(sampleRows);
@@ -48467,7 +48488,7 @@ async function dataImportReadFileSample(file) {
         if (!isMetadata) allHeaders.push(...cleanHeaders);
         const dataRowCount = isMetadata ? 0 : Math.max(0, rows.length - headerIndex - 1);
         rowCount += dataRowCount;
-        tabSummaries.push({ sheetName, rowCount: dataRowCount, headers: cleanHeaders, sampleValues, headerIndex, isMetadata });
+        tabSummaries.push({ sheetName, rowCount: dataRowCount, headers: cleanHeaders, sampleValues, headerIndex, isMetadata, qualifiedFields: sheetQualifiedFields });
         textParts.push(sheetName, dataImportRowsToText(sampleRows));
         if (isMetadata) metadataParts.push(dataImportRowsToText(rows));
         else reportHeaderParts.push(dataImportRowsToText(rows.slice(0, 7)));
@@ -48477,6 +48498,7 @@ async function dataImportReadFileSample(file) {
         sheetNames,
         headers: Array.from(new Set(allHeaders)).slice(0, 160),
         headerSamples,
+        qualifiedFields,
         rowCount,
         sampleText: textParts.join("\n").slice(0, DATA_IMPORT_MAX_SAMPLE_CHARS),
         metadataText: metadataParts.join("\n"),
@@ -48732,6 +48754,27 @@ function dataImportKnownDelinquencyField(header = "") {
   return fields[String(header || "").trim().toLowerCase()] || "";
 }
 
+function dataImportIsBoxScoreAggregateRentHeader(header = "") {
+  const normalized = dataImportNormalizeText(header);
+  if (!normalized.includes("rent")) return false;
+  return /^(?:avg|average)\b/.test(normalized)
+    || /\b(?:budgeted|scheduled|net effective|market rent|total rent)\b/.test(normalized);
+}
+
+function dataImportMappingReviewLabel(confidence = 0, learningStatus = "") {
+  const score = Number(confidence || 0);
+  const trusted = ["Locked", "Trusted", "Automated", "Permanently Ignored"].includes(String(learningStatus || ""));
+  if (score >= 95 && !trusted) return "High-confidence mapping awaiting confirmation";
+  return "Low Confidence Mapping";
+}
+
+function dataImportLearningStatus(confirmationCount = 0, successfulUses = 0) {
+  const required = Math.min(10, Math.max(2, Number(dataImport2State.learningSettings?.trustConfirmationCount || 3)));
+  if (Number(confirmationCount || 0) >= required && Number(successfulUses || 0) >= required) return "Automated";
+  if (Number(confirmationCount || 0) >= required) return "Trusted";
+  return Number(confirmationCount || 0) ? "Suggested" : "Learning";
+}
+
 function dataImportSuggestDestinationForHeader(header = "", context = {}) {
   const knownField = context.reportType === "delinquency" && dataImportKnownDelinquencyField(header);
   if (knownField) return {field:knownField, confidence:100, reason:"Delinquency source header contract", autoMap:true};
@@ -48771,13 +48814,40 @@ function dataImportSuggestDestinationForHeader(header = "", context = {}) {
       if (confidence > best.confidence) best = { field, confidence: Math.min(98, confidence), reason: "Field name and source context", autoMap: true };
     });
   });
+  if (context.reportType === "box_score" && dataImportIsBoxScoreAggregateRentHeader(header) && best.confidence < 90) {
+    return {
+      field: "",
+      confidence: 0,
+      reason: "Box Score aggregate rent fields require their section-qualified source mapping; a generic rent match is intentionally blocked.",
+      requiresReview: true,
+      learningStatus: "Needs Review"
+    };
+  }
   if (!best.field && normalized.includes("occ")) best = { field: "physical_occupancy", confidence: 72, reason: "Occupancy pattern" };
   if (!best.field && normalized.includes("renew")) best = { field: "renewals_signed", confidence: 68, reason: "Renewal pattern" };
-  if (!best.field && normalized.includes("rent")) best = { field: "current_rent", confidence: 66, reason: "Rent pattern" };
+  if (!best.field && normalized.includes("rent") && context.reportType !== "box_score") best = { field: "current_rent", confidence: 66, reason: "Generic rent-name pattern" };
   return best;
 }
 
 function dataImportDetectFields(sample, context = {}) {
+  const qualifiedFields = context.reportType === "box_score"
+    ? (sample?.qualifiedFields || []).filter(item => item?.canonicalField && dataImportDestinationExists(item.canonicalField))
+    : [];
+  if (qualifiedFields.length) {
+    const mapped = new Map();
+    qualifiedFields.forEach(item => {
+      if (!mapped.has(item.canonicalField)) mapped.set(item.canonicalField, {
+        canonicalField: item.canonicalField,
+        originalField: item.qualifiedHeader || item.sourceHeader || item.canonicalField,
+        confidence: 100,
+        sourceRuleId: "box_score_section_contract",
+        detectedDataType: dataImportInferFieldDataType(item.sourceHeader || item.canonicalField, item.sampleValue || ""),
+        sampleValue: item.sampleValue || "",
+        reason: "Box Score section-qualified source parser"
+      });
+    });
+    return { mappedFields: Array.from(mapped.values()), lowConfidence: [], unmappedHeaders: [] };
+  }
   const headers = Array.isArray(sample?.headers) ? sample.headers : [];
   const text = dataImportNormalizeText(`${headers.join(" ")} ${sample?.sampleText || ""}`);
   const mapped = new Map();
@@ -48801,11 +48871,13 @@ function dataImportDetectFields(sample, context = {}) {
           sampleValue
         });
       }
-    } else if (suggestion.field) {
+    } else if (suggestion.field || suggestion.requiresReview) {
       lowConfidence.push({
         originalField: header,
         suggestedField: suggestion.field,
         confidence: suggestion.confidence,
+        reason: suggestion.reason || "Mapping needs confirmation",
+        learningStatus: suggestion.learningStatus || "",
         sampleValue,
         detectedDataType: dataImportInferFieldDataType(header, sampleValue)
       });
@@ -48958,10 +49030,14 @@ async function dataImportBuildFilePlan(file, extras = {}) {
       type: "low_confidence",
       severity: "low",
       title: "Low confidence mapping",
-      detail: `${item.originalField} may map to ${dataImportCanonicalFieldLabel(item.suggestedField)}.`,
+      detail: item.suggestedField
+        ? `${item.originalField} may map to ${dataImportCanonicalFieldLabel(item.suggestedField)}.`
+        : `${item.originalField} requires a section-qualified destination.`,
       originalField: item.originalField,
       canonicalField: item.suggestedField,
-      confidence: item.confidence
+      confidence: item.confidence,
+      reason: item.reason || "Mapping needs confirmation",
+      learningStatus: item.learningStatus || ""
     });
   });
   const blocked = issues.some(issue => issue.severity === "critical" || issue.type === "unsupported");
@@ -49004,6 +49080,7 @@ async function dataImportBuildFilePlan(file, extras = {}) {
     sampleSummary: {
       headers: (sample.headers || []).slice(0, 30),
       headerSamples: sample.headerSamples || {},
+      qualifiedFields: sample.qualifiedFields || [],
       sheets: sample.tabSummaries || []
     }
   };
@@ -49389,7 +49466,7 @@ function dataImportRecordPlanLearningUsage(plan = {}) {
     if (!usedIds.has(rule.id) || rule.locked) return rule;
     const successfulUses = Number(rule.successfulUses || 0) + 1;
     const confirmations = Number(rule.confirmationCount || 0);
-    const learningStatus = confirmations >= 3 && successfulUses >= 3 ? "Automated" : confirmations >= 3 ? "Trusted" : confirmations ? "Suggested" : "Learning";
+    const learningStatus = dataImportLearningStatus(confirmations, successfulUses);
     return { ...rule, successfulUses, lastUsedAt: now, learningStatus };
   });
 }
@@ -50448,6 +50525,7 @@ function overrideDataImportReportType(fileId, reportType) {
     const sample = {
       headers: file.sampleSummary?.headers || [],
       headerSamples: file.sampleSummary?.headerSamples || {},
+      qualifiedFields: file.sampleSummary?.qualifiedFields || [],
       sampleText: (file.sampleSummary?.sheets || []).map(sheet => `${sheet.sheetName || ""} ${(sheet.headers || []).join(" ")}`).join(" ")
     };
     const sourceSystem = dataImportSourceSystemForType(reportType, `${file.name} ${sample.sampleText} ${sample.headers.join(" ")}`);
@@ -50465,10 +50543,14 @@ function overrideDataImportReportType(fileId, reportType) {
       type: "low_confidence",
       severity: "low",
       title: "Low confidence mapping",
-      detail: `${item.originalField} may map to ${dataImportCanonicalFieldLabel(item.suggestedField)}.`,
+      detail: item.suggestedField
+        ? `${item.originalField} may map to ${dataImportCanonicalFieldLabel(item.suggestedField)}.`
+        : `${item.originalField} requires a section-qualified destination.`,
       originalField: item.originalField,
       canonicalField: item.suggestedField,
-      confidence: item.confidence
+      confidence: item.confidence,
+      reason: item.reason || "Mapping needs confirmation",
+      learningStatus: item.learningStatus || ""
     }));
     return {
       ...file,
@@ -50951,6 +51033,8 @@ function dataImportBuildPlanQuestionItems(plan = {}, options = {}) {
         originalField: issue.originalField,
         suggestedField: issue.canonicalField || issue.suggestedField || "",
         confidence: issue.confidence || null,
+        reason: issue.reason || "Source field has no verified destination",
+        learningStatus: issue.learningStatus || "",
         sampleValue: dataImportSampleForPlanHeader(plan, issue.originalField),
         sampleValues: dataImportSamplesForPlanHeader(plan, issue.originalField),
         detectedDataType: dataImportInferFieldDataType(issue.originalField, dataImportSampleForPlanHeader(plan, issue.originalField)),
@@ -50969,6 +51053,8 @@ function dataImportBuildPlanQuestionItems(plan = {}, options = {}) {
         originalField: issue.originalField,
         suggestedField,
         confidence: issue.confidence || null,
+        reason: issue.reason || "Field name and source context require confirmation",
+        learningStatus: issue.learningStatus || "",
         sampleValue: dataImportSampleForPlanHeader(plan, issue.originalField),
         sampleValues: dataImportSamplesForPlanHeader(plan, issue.originalField),
         detectedDataType: dataImportInferFieldDataType(issue.originalField, dataImportSampleForPlanHeader(plan, issue.originalField)),
@@ -51405,7 +51491,7 @@ function renderDataImportFileIssues(plan) {
   const issues = plan.issues || [];
   if (!issues.length) return `<span class="data-import2-chip good">No exceptions</span>`;
   return `<div class="data-import2-supported" style="justify-content:flex-start">${issues.slice(0, 4).map(issue =>
-    `<span class="data-import2-chip ${issue.severity === "critical" || issue.severity === "high" ? "bad" : issue.type === "duplicate" ? "info" : "warn"}" title="${escapeHtml(issue.detail || "")}">${escapeHtml(DATA_IMPORT_ISSUE_LABELS[issue.type] || issue.title || "Issue")}${issue.confidence ? ` · ${escapeHtml(issue.confidence)}%` : ""}</span>`
+    `<span class="data-import2-chip ${issue.severity === "critical" || issue.severity === "high" ? "bad" : issue.type === "duplicate" ? "info" : "warn"}" title="${escapeHtml(issue.detail || "")}">${escapeHtml(issue.type === "low_confidence" ? dataImportMappingReviewLabel(issue.confidence, issue.learningStatus) : DATA_IMPORT_ISSUE_LABELS[issue.type] || issue.title || "Issue")}${issue.confidence ? ` · ${escapeHtml(issue.confidence)}%` : ""}</span>`
   ).join("")}${issues.length > 4 ? `<span class="data-import2-chip">${issues.length - 4} more</span>` : ""}</div>`;
 }
 
@@ -51828,7 +51914,8 @@ function renderDataImportQuestionReview(audit = {}, context = "pending", batchId
           ${question.kind === "mapping" ? `<label style="display:inline-flex;align-items:center;gap:6px;margin-bottom:6px"><input type="checkbox" ${selectedIds.has(question.id) ? "checked" : ""} onchange='toggleDataImportQuestionSelection(${JSON.stringify(question.id)}, this.checked)'>Select</label>` : ""}
           <div class="data-import2-question-prompt">${escapeHtml(prompt)}</div>
           ${question.previouslyIgnored ? `<div class="data-import2-question-meta"><span class="data-import2-chip warn">Previously ignored for one import</span> ATLAS is asking again because no permanent rule was created.</div>` : ""}
-          ${question.kind === "mapping" && question.suggestedField && Number(question.confidence || 0) >= 50 ? `<div class="data-import2-question-meta">ATLAS suggests ${escapeHtml(dataImportMappingDestinationLabel(question.suggestedField))}${question.confidence ? ` · ${escapeHtml(question.confidence)}% confidence` : ""}. Confirm or choose another destination.</div>` : ""}
+          ${question.kind === "mapping" ? `<div class="data-import2-question-meta"><strong>Source header:</strong> ${escapeHtml(question.originalField || "Not captured")}<br><strong>Proposed destination:</strong> ${escapeHtml(question.suggestedField ? dataImportMappingDestinationLabel(question.suggestedField) : "No destination proposed")}<br><strong>Why ATLAS asked:</strong> ${escapeHtml(question.reason || "The mapping has not been verified for this source context.")}${question.confidence ? `<br><span class="data-import2-chip ${Number(question.confidence || 0) >= 95 ? "info" : "warn"}">${escapeHtml(dataImportMappingReviewLabel(question.confidence, question.learningStatus))} · ${escapeHtml(question.confidence)}%</span>` : ""}</div>` : ""}
+          ${question.kind === "mapping" && question.suggestedField && Number(question.confidence || 0) >= 50 ? `<div class="data-import2-question-meta">Confirm the proposed destination or choose another one.</div>` : ""}
           ${question.kind === "mapping" && (!question.suggestedField || Number(question.confidence || 0) < 50) ? `<div class="data-import2-question-meta">ATLAS does not have a reliable suggestion for this field. Choose a verified destination, create a field, or ignore it for this import.</div>` : ""}
           ${question.kind === "mapping" ? `<button type="button" class="btn btn-gray btn-sm" style="margin-top:7px" onclick='toggleDataImportQuestionSamples(${JSON.stringify(question.id)})'><i class="ph ph-eye"></i>${expandedSamples.has(question.id) ? "Hide" : "View"} Sample Data</button>${expandedSamples.has(question.id) ? `<div class="data-import2-supported" style="justify-content:flex-start;margin-top:7px">${sampleValues.length ? sampleValues.map(value => `<span class="data-import2-chip info">${escapeHtml(value)}</span>`).join("") : `<span class="data-import2-chip">No sample value was captured in preview</span>`}<span class="data-import2-chip">${escapeHtml(question.detectedDataType || "Type not detected")}</span><span class="data-import2-chip">${escapeHtml(question.sheetName || "Tab not detected")}</span></div>` : ""}` : ""}
           ${answer ? `<div class="data-import2-question-answer"><i class="ph ph-check-circle"></i> ${escapeHtml(answer.valueLabel || dataImportQuestionValueLabel(question, answer.value))} · ${escapeHtml(dataImportFormatTimestamp(answer.answeredAt))} by ${escapeHtml(answer.answeredBy || "Admin")}</div>` : ""}
@@ -52636,11 +52723,7 @@ function dataImportUpsertMappingRuleFromItem(item = {}, canonicalField = "", opt
     ? "Permanently Ignored"
     : options.locked || editableMatch?.locked
       ? "Locked"
-      : confirmationCount >= 3
-        ? "Trusted"
-        : confirmationCount
-          ? "Suggested"
-          : "Learning";
+      : dataImportLearningStatus(confirmationCount, Number(editableMatch?.successfulUses || 0));
   const nextRule = {
     id: editableMatch?.id || dataImportMakeId("map"),
     originalField: item.originalField,
@@ -53251,14 +53334,20 @@ function saveDataImportLearningThresholds() {
   const autoMapThreshold = Number(document.getElementById("data-import-learning-auto")?.value || 95);
   const suggestionThreshold = Number(document.getElementById("data-import-learning-suggest")?.value || 80);
   const reviewThreshold = Number(document.getElementById("data-import-learning-review")?.value || 60);
+  const trustConfirmationCount = Number(document.getElementById("data-import-learning-trust-count")?.value || 3);
   if (!(autoMapThreshold > suggestionThreshold && suggestionThreshold > reviewThreshold && reviewThreshold >= 0)) {
     alert("Use descending confidence thresholds: automatic must be above suggested, and suggested must be above review.");
+    return;
+  }
+  if (!Number.isInteger(trustConfirmationCount) || trustConfirmationCount < 2 || trustConfirmationCount > 10) {
+    alert("Trust After Confirmations must be a whole number from 2 through 10.");
     return;
   }
   dataImport2State.learningSettings = {
     autoMapThreshold: Math.min(100, autoMapThreshold),
     suggestionThreshold: Math.min(99, suggestionThreshold),
-    reviewThreshold: Math.min(98, reviewThreshold)
+    reviewThreshold: Math.min(98, reviewThreshold),
+    trustConfirmationCount
   };
   persistDataImport2State();
   renderTab();
@@ -53276,6 +53365,7 @@ function renderDataImportLearningLibrary() {
       <label class="data-import2-field"><div class="data-import2-small-label">Automatic At</div><input id="data-import-learning-auto" type="number" min="1" max="100" value="${escapeHtml(settings.autoMapThreshold || 95)}"></label>
       <label class="data-import2-field"><div class="data-import2-small-label">Suggest At</div><input id="data-import-learning-suggest" type="number" min="1" max="99" value="${escapeHtml(settings.suggestionThreshold || 80)}"></label>
       <label class="data-import2-field"><div class="data-import2-small-label">Review At</div><input id="data-import-learning-review" type="number" min="0" max="98" value="${escapeHtml(settings.reviewThreshold || 60)}"></label>
+      <label class="data-import2-field"><div class="data-import2-small-label">Trust After Confirmations</div><input id="data-import-learning-trust-count" type="number" min="2" max="10" step="1" value="${escapeHtml(settings.trustConfirmationCount || 3)}"></label>
       <button class="btn btn-gray btn-sm" onclick="saveDataImportLearningThresholds()">Save Thresholds</button>
     </div>` : ""}
     ${rules.length ? `<div class="data-import2-compact-table" style="margin-top:12px"><table class="data-import2-table"><thead><tr><th>Source Context</th><th>Destination</th><th>Confidence</th><th>Uses / Overrides</th><th>Status</th><th>Updated</th><th></th></tr></thead><tbody>${rules.slice(0, 100).map(rule => `<tr>

@@ -1,0 +1,27 @@
+name: Occupancy integrity
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  occupancy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate import publication and source mapping
+        run: node tools/occupancy-publication-safety.test.cjs
+      - name: Validate community and portfolio occupancy contract
+        run: node tools/occupancy-contract.test.cjs
+      - name: Validate inventory basis
+        run: node tools/student-occupancy-basis.test.cjs
+      - name: Validate historical boundaries
+        run: node tools/trending-boundaries.test.cjs
+      - name: Validate governed planning
+        run: node tools/community-governed-planning.test.cjs
+      - name: Validate archive replay
+        run: node tools/archive-replay.test.cjs

@@ -86,22 +86,29 @@
       const section=label.toLowerCase(), headerIndex=rows.findIndex((r,j)=>j>i&&j<totalIndex&&/^unit type$/i.test(text(r[0])));
       if(headerIndex<0)continue;
       const headers=rows[headerIndex] || [], total=rows[totalIndex], values={}, locators={};
-      const get=(field,label,group='')=>{
-        let current='', index=-1;
+      const get=(field,label,group='',occurrence=0,percent=false)=>{
+        let current='', index=-1, matched=0;
         for(let c=0;c<headers.length;c++){
           if(group && text(rows[headerIndex-1]?.[c]))current=norm(rows[headerIndex-1][c]);
-          if(norm(headers[c])===label && (!group||current===group)){index=c;break;}
+          if(norm(headers[c])===label && (!group||current===group) && matched++===occurrence){index=c;break;}
         }
         const raw=total[index];
         if(index<0 || raw===null || raw===undefined || text(raw)==='' || /^#/.test(text(raw)))return;
         const value=Number(text(raw).replace(/[$,% ,]/g,''));
         if(!Number.isFinite(value))return;
-        values[field]=value;locators[field]={row:totalIndex+1,column:index+1,section:section,group,sourceHeader:headers[index]};
+        values[field]=percent ? `${text(raw).includes('%') || Math.abs(value)>1 ? value : value*100}%` : text(raw).includes('%') ? text(raw) : value;
+        locators[field]={row:totalIndex+1,column:index+1,section:section,group,sourceHeader:headers[index]};
       };
       if(section.startsWith('availability')) {
         for(const [field,h] of Object.entries({total_units:'units',rentable_units:'rentable units',excluded_units:'excluded',occupied_units:'occupied',vacant_units:'vacant',available_units:'available',occupied_no_notice:'occupied no notice',notice_rented:'notice rented',notice_unrented:'notice unrented',vacant_rented:'vacant rented',vacant_unrented:'vacant unrented'}))get(field,h);
         const leasedHeader=headers.find(h=>/: leased units$/i.test(text(h)));
         if(leasedHeader)get('source_leased_units',norm(leasedHeader));
+        // Entrata repeats Occupied: first is a count, second is a rate.
+        // Retain both so publication can reconcile them independently.
+        get('physical_occupancy','occupied','',1,true);
+        get('leased_occupancy','leased','',0,true);
+        if(locators.occupied_units)locators.occupied_units.group='count';
+        for(const field of ['physical_occupancy','leased_occupancy'])if(locators[field])locators[field].group='percent';
         get('avg_market_rent_budgeted','avg. market rent (budgeted)');
         get('avg_scheduled_rent','avg. scheduled rent');
         get('avg_ner','avg. net effective rent');

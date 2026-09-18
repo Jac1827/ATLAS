@@ -1425,7 +1425,7 @@
 <script src="./central-services.js?v=20260917-delinquency-storage-reconciliation"></script>
 <script src="./eviction-attorney-ui.js?v=20260916-community-contacts"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260916-no-data-status">
-<script src="./application-source-bridge.js?v=property-sections-20260917"></script>
+<script src="./application-source-bridge.js?v=occupancy-integrity-20260918"></script>
 <script src="./application-performance.js?v=20260917-weekly-report"></script>
 <link rel="stylesheet" href="./concession-insights.css?v=20260917-1">
 <script src="./property-intelligence.js?v=20260917-1"></script>
@@ -9269,7 +9269,9 @@ function getDocumentedMonthlyAbsorption(monthIdx) {
 
 function getVerifiedMonthlySnapshot(entry = {}, key = "occupiedSnapshot") {
   const value = normalizeOptionalNumber(entry[key]);
-  if (value === null || value < 0) return null;
+  if (value === null || !Number.isInteger(value) || value < 0) return null;
+  const rentable = normalizeOptionalNumber(entry.rentableUnits);
+  if (rentable !== null && (!Number.isInteger(rentable) || rentable <= 0 || value > rentable)) return null;
   const pctKey = key === "occupiedSnapshot" ? "physicalOccupancyPct" : "leasedOccupancyPct";
   const provenance = entry.metricProvenance?.[key];
   const sourcePct = normalizeOptionalNumber(entry[pctKey]);
@@ -49987,6 +49989,12 @@ function dataImportMapSourceRow(sourceRow = {}, plan = {}, mappingCache = null) 
         continue;
       }
       const destination = decision?.value && dataImportDestinationExists(decision.value) ? decision.value : field;
+      const countFields = new Set(["occupied_units", "leased_units", "source_leased_units", "total_units", "rentable_units", "excluded_units", "vacant_units", "available_units"]);
+      const percentFields = new Set(["physical_occupancy", "leased_occupancy", "trending_occupancy"]);
+      if (plan.reportType === "box_score" && ((percentFields.has(field) && countFields.has(destination)) || (countFields.has(field) && percentFields.has(destination)))) {
+        unmappedFields.push({header:qualified,value,suggestion:{field:"",confidence:0,reason:"Occupancy counts and percentages cannot be mapped interchangeably."}});
+        continue;
+      }
       mapped[destination] = value;
       sourceFields[destination] = loc ? `${qualified} / row ${loc.row}, column ${loc.columns ? loc.columns.join(" + ") : loc.column}` : field;
     }
@@ -50019,6 +50027,10 @@ function dataImportMapSourceRow(sourceRow = {}, plan = {}, mappingCache = null) 
     const autoMapThreshold = Number(dataImport2State.learningSettings?.autoMapThreshold || 95);
     if (!suggestion.field || suggestion.confidence < autoMapThreshold || suggestion.autoMap === false || suggestion.field === "__ignored__") {
       if (!suggestion.field || suggestion.field !== "__ignored__") unmappedFields.push({ header, value, suggestion });
+      return;
+    }
+    if (plan.reportType === "box_score" && ["occupied_units", "leased_units", "source_leased_units", "total_units", "rentable_units", "excluded_units", "vacant_units", "available_units"].includes(suggestion.field) && (/%|percent|pct/i.test(header) || String(value).includes("%"))) {
+      unmappedFields.push({header,value,suggestion:{field:"",confidence:0,reason:"A percentage cannot populate an occupancy count."}});
       return;
     }
     if (suggestion.ruleId && !plan.appliedLearningRuleIds?.includes(suggestion.ruleId)) {
@@ -50304,7 +50316,8 @@ function dataImportShouldApplyCurrentMetric(plan, communityName, periodKey, atla
     result.issues.push({ type: "conflict", severity: "medium", title: "Higher-precedence value retained", detail: `${dataImportCanonicalFieldLabel(atlasField)} remains controlled by ${controlling.reportTypeLabel || dataImportReportLabel(controlling.reportType)}.`, communityName });
     return false;
   }
-  if (!(plan.reprocessArchivedSource && plan.fileHash && controlling.fileHash === plan.fileHash) && incomingTime && existingTime && incomingTime < existingTime) return false;
+  const repairingUndatedSource = plan.reprocessArchivedSource && plan.fileHash && controlling.fileHash === plan.fileHash && !controlling.dataAsOf;
+  if (!repairingUndatedSource && existingTime && (!incomingTime || incomingTime < existingTime)) return false;
   return true;
 }
 
@@ -50408,6 +50421,34 @@ function dataImportUpsertFloorPlan(record, row, plan, sourceSheet) {
   record.communityFloorPlans = normalizeCommunityFloorPlans(rows);
 }
 
+function dataImportValidateOccupancyCounts(values = {}, configuredUnits = 0) {
+  const errors = [];
+  const { total, rentable, excluded, occupied, leased, available, vacant, physicalPct, leasedPct } = values;
+  const count = (name, value, required = false) => {
+    if (value === null || value === undefined) {
+      if (required) errors.push(`${name} count is missing`);
+    } else if (!Number.isInteger(value) || value < 0) errors.push(`${name} must be a nonnegative whole count`);
+  };
+  count("Total", total, true);
+  count("Rentable", rentable, true);
+  count("Occupied", occupied, true);
+  for (const [name, value] of Object.entries({ Excluded: excluded, Leased: leased, Available: available, Vacant: vacant })) count(name, value);
+  if (!(rentable > 0) || !(total > 0) || rentable > total) errors.push("Rentable inventory must be positive and no greater than total inventory");
+  if (!(configuredUnits > 0) || total !== configuredUnits) errors.push("Source total does not match configured inventory");
+  if (excluded !== null && excluded !== undefined && rentable + excluded !== total) errors.push("Rentable plus excluded must equal total inventory");
+  for (const [name, value] of Object.entries({ Occupied: occupied, Leased: leased, Available: available, Vacant: vacant })) {
+    if (value !== null && value !== undefined && value > rentable) errors.push(`${name} exceeds rentable inventory`);
+  }
+  if (vacant !== null && vacant !== undefined && occupied !== null && occupied + vacant !== rentable) errors.push("Occupied plus vacant must equal rentable inventory");
+  for (const [name, value, pct] of [["Physical", occupied, physicalPct], ["Leased", leased, leasedPct]]) {
+    if (pct === null || pct === undefined) continue;
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100 || (value !== null && value !== undefined && rentable > 0 && Math.abs(value / rentable * 100 - pct) > 0.15)) {
+      errors.push(`${name} percentage does not reconcile to its count and rentable inventory`);
+    }
+  }
+  return errors;
+}
+
 function dataImportApplyGroupedSnapshot(group, plan, result) {
   const { communityName, period, entries } = group;
   const record = normalizeSavedCommunityRecord(communityName, savedData?.[communityName]);
@@ -50420,7 +50461,7 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
   };
   const first = field => rows.map(row => row[field]).find(value => String(value ?? "").trim() !== "");
   if (plan.reportType === "box_score") {
-    const rentable = sum("rentable_units") ?? sum("total_units");
+    const rentable = sum("rentable_units");
     const excluded = sum("excluded_units");
     const occupiedComponents = [sum("occupied_no_notice"), sum("notice_rented"), sum("notice_unrented")];
     const occupied = sum("occupied_units") ?? (occupiedComponents.every(value => value !== null) ? occupiedComponents.reduce((a, b) => a + b, 0) : null);
@@ -50445,13 +50486,23 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     const leased = sourceLeased;
     const physicalPct = dataImportPercentValue(first("physical_occupancy")) ?? (rentable > 0 && occupied !== null ? occupied / rentable * 100 : null);
     const leasedPct = dataImportPercentValue(first("leased_occupancy")) ?? (rentable > 0 && leased !== null ? leased / rentable * 100 : null);
+    const occupancyErrors = dataImportValidateOccupancyCounts({ total, rentable, excluded, occupied, leased, available, vacant: sum("vacant_units"), physicalPct, leasedPct }, configuredUnits);
+    const countFields = ["total_units", "rentable_units", "excluded_units", "occupied_units", "source_leased_units", "leased_units", "vacant_units", "available_units", "occupied_no_notice", "notice_rented", "notice_unrented", "vacant_rented"];
+    if (rows.some(row => countFields.some(field => String(row[field] ?? "").includes("%")))) occupancyErrors.push("A source count contains a percentage");
+    const occupancyHeld = studentBasisConflict || occupancyErrors.length > 0;
+    if (occupancyErrors.length) {
+      result.occupancyGroupsHeld = (result.occupancyGroupsHeld || 0) + 1;
+      result.issues.push({ type: "reconciliation", severity: "high", title: "Occupancy publication held", detail: `${occupancyErrors.join("; ")}. Existing occupancy retained; reconcile the source counts before replay.`, communityName });
+    }
     if (rentable !== null && occupied !== null && (occupied < 0 || occupied > rentable)) result.issues.push({ type: "reconciliation", severity: "high", title: "Occupied units do not reconcile", detail: `${occupied} occupied exceeds ${rentable} rentable units.`, communityName });
     if (total !== null && configuredUnits > 0 && Math.abs(total - configuredUnits) > 0) result.issues.push({ type: "reconciliation", severity: "medium", title: "Unit total needs review", detail: `${total} source total units do not match the ${configuredUnits}-unit Community Foundation record.`, communityName });
     if (physicalPct !== null && (physicalPct < 0 || physicalPct > 100)) result.issues.push({ type: "invalid", severity: "high", title: "Physical occupancy outside 0-100%", detail: `${physicalPct}% was retained for review.`, communityName });
-    if (!studentBasisConflict && occupied !== null) dataImportApplyMetric(record, plan, result, communityName, period, "occupied", occupied, "occupied_units");
-    else if (!studentBasisConflict && rentable > 0 && physicalPct !== null) dataImportApplyMetric(record, plan, result, communityName, period, "occupied", Math.round(rentable * physicalPct / 100), "occupied_units");
-    if (!studentBasisConflict && leased !== null) dataImportApplyMetric(record, plan, result, communityName, period, "leased", leased, "leased_units");
-    else if (!studentBasisConflict && rentable > 0 && leasedPct !== null) dataImportApplyMetric(record, plan, result, communityName, period, "leased", Math.round(rentable * leasedPct / 100), "leased_units");
+    // Publish the counts and their denominator together. Rounded percentages are
+    // reconciliation evidence, never a substitute for a missing source count.
+    if (!occupancyHeld && acceptDerived) {
+      dataImportApplyMetric(record, plan, result, communityName, period, "occupied", occupied, "occupied_units");
+      if (leased !== null) dataImportApplyMetric(record, plan, result, communityName, period, "leased", leased, "leased_units");
+    }
     dataImportApplyMetric(record, plan, result, communityName, period, "guest_cards", sum("new_leads") ?? sum("guest_cards"), "new_leads");
     dataImportApplyMetric(record, plan, result, communityName, period, "applications", sum("applications"), "applications");
     dataImportApplyMetric(record, plan, result, communityName, period, "tours", sum("tours"), "tours");
@@ -50477,7 +50528,7 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     const periodEntries = getWritableMonthlyPeriodEntries(record, period.monthIdx, period.year);
     [periodEntries?.historyEntry, periodEntries?.liveEntry].filter(Boolean).forEach(month => {
       const snapshotDate = String(entries.find(entry => /^availability/i.test(entry.sourceRow.section || ""))?.sourceRow.period?.asOf || plan.metadata?.dataAsOf || "").slice(0, 10);
-      if (!studentBasisConflict && occupied !== null && rentable > 0 && occupied >= 0 && occupied <= rentable && /^\d{4}-\d{2}-\d{2}$/.test(snapshotDate)) {
+      if (!occupancyHeld && acceptDerived && /^\d{4}-\d{2}-\d{2}$/.test(snapshotDate)) {
         month.physicalSnapshotHistory = { ...month.physicalSnapshotHistory, [snapshotDate]: {
           occupiedSnapshot: occupied, rentableUnits: rentable,
           metricProvenance: { occupiedSnapshot: { community: communityName, period: period.periodKey, source: plan.fileHash || plan.name,
@@ -50486,7 +50537,7 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
             dataAsOf: snapshotDate, importedAt: new Date().toISOString(), sourceRank: 100 } }
         } };
       }
-      if (!acceptDerived || studentBasisConflict) return;
+      if (!acceptDerived || occupancyHeld) return;
       if (physicalPct !== null && physicalPct >= 0 && physicalPct <= 100) month.physicalOccupancyPct = physicalPct;
       if (leasedPct !== null && leasedPct >= 0 && leasedPct <= 100) month.leasedOccupancyPct = leasedPct;
       if (rentable !== null) month.rentableUnits = rentable;

@@ -52624,7 +52624,6 @@ function dataImportDestinationGroups() {
     ]
   }, ...DATA_IMPORT_DESTINATION_GROUPS.map(group => {
     const fields = (group.fields || [])
-      .filter(field => known.has(field) || (dataImport2State.customFields || []).some(custom => custom.fieldKey === field))
       .filter(field => {
         if (used.has(field)) return false;
         used.add(field);
@@ -52633,6 +52632,11 @@ function dataImportDestinationGroups() {
       .map(field => ({ key: field, label: dataImportMappingDestinationLabel(field) }));
     return { label: group.label, fields };
   }).filter(group => group.fields.length)];
+  const remaining = Array.from(known).filter(field => !used.has(field)).map(field => {
+    used.add(field);
+    return { key: field, label: dataImportMappingDestinationLabel(field) };
+  });
+  if (remaining.length) groups.push({ label: "Other Registered Fields", fields: remaining });
   const customFields = (dataImport2State.customFields || [])
     .filter(field => !used.has(field.fieldKey))
     .map(field => ({ key: field.fieldKey, label: field.displayLabel || field.fieldName }));
@@ -52924,6 +52928,8 @@ function updateDataImportMappingDraft(itemId, destination) {
     [itemId]: String(destination || "")
   };
   if (destination === "__create_custom__") dataImport2State.selectedMappingPreviewId = itemId;
+  persistDataImport2State();
+  renderTab();
 }
 
 function toggleDataImportMappingSelection(itemId, selected) {
@@ -52938,7 +52944,7 @@ function dataImportFindMappingReviewItem(itemId) {
 }
 
 function dataImportSelectedDestinationForItem(item = {}) {
-  return (dataImport2State.mappingDrafts || {})[item.id] || item.currentField || item.suggestedField || "";
+  return (dataImport2State.mappingDrafts || {})[item.id] ?? (item.currentField || item.suggestedField || "");
 }
 
 function dataImportUpsertMappingRuleFromItem(item = {}, canonicalField = "", options = {}) {
@@ -53379,7 +53385,7 @@ function renderDataImportMappingPreview() {
   if (!item) return "";
   const destination = dataImportSelectedDestinationForItem(item);
   const modules = dataImportDestinationModules(destination, item.downstreamModules || []);
-  return `<div class="data-import2-preview-panel">
+  return `<div class="data-import2-preview-panel" style="grid-column:1 / -1">
     <div class="data-import2-section-title"><i class="ph ph-eye"></i>Proposed Mapping</div>
     <div class="data-import2-preview-cols">
       <div><div class="data-import2-small-label">Source</div><strong>${escapeHtml(item.originalField)}</strong><div class="data-import2-review-meta">${escapeHtml(item.sourceSystem)} → ${escapeHtml(item.reportTypeLabel)}<br>${escapeHtml(item.sourceFile)} · ${escapeHtml(item.sheetName)}</div></div>
@@ -53465,11 +53471,14 @@ function renderDataImportMappingReviewList(items = []) {
       <div>
         <span class="data-import2-status ${dataImportStatusClass(item.status)}">${escapeHtml(item.status)}</span>
         <div class="data-import2-inline-actions" style="margin-top:8px">
+          <button class="btn btn-blue btn-sm" onclick='saveDataImportMappingReviewItem(${JSON.stringify(item.id)})' ${!destination || destination === "__create_custom__" ? "disabled" : ""}>Approve Mapping</button>
           ${item.suggestedField ? `<button class="btn btn-gray btn-sm" onclick='acceptDataImportMappingSuggestion(${JSON.stringify(item.id)})'>Accept Suggestion</button>` : ""}
           <button class="btn btn-blue btn-sm" onclick='previewDataImportMappingItem(${JSON.stringify(item.id)})'>Preview</button>
           <button class="btn btn-gray btn-sm" onclick='ignoreDataImportMappingItem(${JSON.stringify(item.id)})'>Ignore</button>
         </div>
       </div>
+      ${dataImport2State.selectedMappingPreviewId === item.id ? renderDataImportMappingPreview() : ""}
+      ${dataImport2State.selectedMappingPreviewId === item.id && destination === "__create_custom__" ? `<div style="grid-column:1 / -1">${renderDataImportCustomFieldManager()}</div>` : ""}
     </div>`;
   }).join("")}</div>`;
 }
@@ -53676,7 +53685,6 @@ function renderDataImportMappingRulesView() {
       ${renderDataImportMappingReviewSummary(counts)}
       ${dataImport2State.mappingBatchFilter ? `<button class="btn btn-blue btn-sm" onclick="reconnectMappedDelinquencyBatch()">Reconnect this batch to Collections</button>` : ""}
       <div class="data-import2-detail-panel" style="margin-top:10px">ATLAS suggests a destination using the source system, report, tab, field, sample values, and prior decisions. Users can accept it, choose a different destination, skip it only for this upload, or create a governed ATLAS field without restarting the import.</div>
-      ${renderDataImportMappingPreview()}
     </div>
     ${renderDataImportLearningLibrary()}
     ${renderDataImportNewSourceQueue(newSourceRows)}
@@ -53694,7 +53702,7 @@ function renderDataImportMappingRulesView() {
       </div>
     </div>
     ${renderDataImportSourceDefinitionsManager()}
-    ${renderDataImportCustomFieldManager()}
+    ${(dataImport2State.mappingDrafts || {})[dataImport2State.selectedMappingPreviewId] === "__create_custom__" ? "" : renderDataImportCustomFieldManager()}
     <div class="data-import2-card">
       <div class="data-import2-section-title"><i class="ph ph-stack"></i>Metric Source Hierarchy</div>
       <div class="data-import2-detail-panel">Default KPI precedence is Box Score first for overlapping operational KPIs, with other source values preserved as history and lineage. Metric-level overrides can be taught here as ATLAS adds more sources.</div>

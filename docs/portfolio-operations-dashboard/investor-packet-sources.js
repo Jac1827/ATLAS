@@ -7,7 +7,7 @@
   const text=v=>String(v??'');
   const inMonth=(date,p)=>text(date).slice(0,7)===p;
   const source=(tab,path,file='')=>`ATLAS / ${tab} / ${path}${file?' / '+file:''}`;
-  const aliases={physicalOccupancy:'physicalOccupancyPct',leasedOccupancy:'leasedOccupancyPct',economicOccupancy:'economicOccupancyPct',forecastOccupancy:'trendingOccupancyForecast'};
+  const aliases={physicalOccupancy:'physicalOccupancyPct',leasedOccupancy:'leasedOccupancyPct',forecastOccupancy:'trendingOccupancyForecast'};
   const lineageIds={occupied_units:'occupiedSnapshot',leased_units:'leasedSnapshot',new_leads:'guestCards',guest_cards:'guestCards',applications:'applications',approvals:'applicationsApproved',denied_applications:'denied',cancelled_applications:'cancelled',move_ins:'moveIns',move_outs:'moveOuts',renewals_signed:'renewalSigned',renewal_expirations:'renewalExpirations'};
   function connect({community,record={},imports={},central={},maintenance={},applications=[],budget=null,plans=[]}) {
     const out=JSON.parse(JSON.stringify(record));
@@ -24,7 +24,10 @@
     const history=out.monthlyHistoryByPeriod||{};
     for(const [p,m] of Object.entries(history)) {
       if(!period(p))continue;
-      for(const [id,key] of Object.entries(aliases))if(Object.hasOwn(m,key))put(p,id,m[key],source('KPI / imported period snapshot',`monthlyHistoryByPeriod.${p}.${key}`),id==='economicOccupancy'?'Actual rent charges / gross potential rent × 100; accrual-based economic occupancy.':undefined);
+      for(const [id,key] of Object.entries(aliases))if(Object.hasOwn(m,key))put(p,id,m[key],source('KPI / imported period snapshot',`monthlyHistoryByPeriod.${p}.${key}`));
+      const closed=m.closedFinancialActuals;
+      if(closed?.status==='closed'&&closed.period===p&&closed.coverage==='full_month'&&closed.source&&closed.approvedBy&&closed.approvedAt&&n(closed.netRentalIncome)!==null&&n(closed.grossPotentialRent)>0)
+        put(p,'economicOccupancy',closed.netRentalIncome/closed.grossPotentialRent*100,source('Closed financial package',p,closed.source),'Closed Net Rental Income after concessions and leasing costs / GPR × 100.');
       // Verified import lineage supports actual zeros, unlike default empty fields.
       for(const l of (imports.lineage||[]).filter(l=>l.currentState&&l.communityName===community&&l.periodKey===p)){
         const id=lineageIds[l.atlasField];if(!id)continue;

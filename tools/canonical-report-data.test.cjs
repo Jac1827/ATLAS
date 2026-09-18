@@ -50,8 +50,10 @@ assert.equal(c.getFinancialSummaryForMonth(record,8,2026).noiActual,70);assert.e
 assert.equal(c.getFinancialSummaryForMonth(record,7,2026).hasData,false);
 assert.equal(c.summarizeFinancialLedgerRows([{actual:0,budget:0,glCode:'4000'}]).hasData,true);
 record.monthlyData=Array.from({length:12},()=>({}));record.monthlyData[8]={actualCharges:0,grossPotentialRent:100,financialSource:'Rent September'};
+assert.equal(c.getCommunityCommandEconomicOccupancyData(record,8,2026).mtdPct,null,'Unverified financial coverage is not a matched period');
+Object.assign(record.monthlyData[8],{closedFinancialActuals:{period:'2026-09',coverage:'full_month',status:'closed',netRentalIncome:0,grossPotentialRent:100,source:'closed package',approvedBy:'Reviewer',approvedAt:'2026-10-05'}});
 assert.equal(c.getCommunityCommandEconomicOccupancyData(record,8,2026).mtdPct,0);
-record.monthlyData[8].actualCharges=-5;assert.equal(c.getCommunityCommandEconomicOccupancyData(record,8,2026).mtdPct,-5);
+record.monthlyData[8].closedFinancialActuals.netRentalIncome=-5;assert.equal(c.getCommunityCommandEconomicOccupancyData(record,8,2026).mtdPct,-5);
 record.monthlyData[8]={delinquencyBalance:10};assert.equal(c.getCommunityCommandEconomicOccupancyData(record,8,2026).mtdPct,null);
 record.monthlyData[8]={actualCharges:20};assert.equal(c.getCommunityCommandEconomicOccupancyData(record,8,2026).mtdPct,null);
 const fc={AtlasFinancialPublication:F};vm.createContext(fc);vm.runInContext(finance.match(/^function buildFinancialLedgerRows\([^\n]*\)\{[\s\S]*?^\}/m)[0],fc);

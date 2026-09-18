@@ -10,7 +10,7 @@ const before=JSON.stringify({record,imports,maintenance,central,applications});
 const rec=S.connect({community:'A',record,imports,maintenance,central,applications});
 const p=P.build({community:'A',period:'2026-01',record:rec});const v=id=>p.rows.find(r=>r.id===id).cells.current.value;
 assert.equal(v('guestCards'),0,'Verified import zero is a real zero');
-assert.equal(v('physicalOccupancy'),92);assert.equal(v('economicOccupancy'),88);assert.equal(v('compRent'),1500);
+assert.equal(v('physicalOccupancy'),92);assert.equal(v('economicOccupancy'),null,'Legacy ratios without closed-package evidence are unavailable');assert.equal(v('compRent'),1500);
 assert.equal(v('renewalSigned'),1);assert.equal(v('retention'),50);assert.equal(v('openWorkOrders'),4);assert.equal(v('unitsNotReady'),3);
 assert.equal(v('completedWorkOrders'),null,'Weekly completions cannot become monthly totals');
 assert.equal(v('caseReceivables'),100);assert.equal(v('receivables'),null,'Case balances cannot become total property receivables');

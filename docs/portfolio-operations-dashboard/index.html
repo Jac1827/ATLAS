@@ -1758,6 +1758,13 @@ const DATA_IMPORT_FIELD_ALIASES = {
   lease_status: ["lease status", "resident status", "occupancy status"],
   notes: ["notes", "comments", "memo"],
   gross_potential_rent: ["gross potential rent", "gpr", "potential rent"],
+  net_rental_income: ["net rental income", "closed net rental income"],
+  financial_status: ["financial status", "accounting close status"],
+  beginning_occupied_units: ["beginning occupied units"],
+  ending_occupied_units: ["ending occupied units"],
+  unit_space_count: ["unit space count"],
+  actual_revenue_coverage: ["actual revenue coverage", "rental revenue date range"],
+  gpr_coverage: ["gpr coverage", "gross potential rent date range"],
   revenue_metric: ["revenue", "income", "total income"],
   expense_metric: ["expense", "operating expense", "opex"],
   budget_field: ["budget", "budget amount", "forecast amount"]
@@ -7886,6 +7893,7 @@ function defaultCommunityCommandState() {
     regions: [],
     dashboardOverrides: [],
     approvedGoals: [],
+    goalDrafts: [],
     performancePlans: [],
     payoutDecisions: [],
     auditTrail: []
@@ -7945,9 +7953,22 @@ function normalizeCommunityCommandApprovedGoal(input = {}) {
     propName,
     monthIdx,
     year,
-    applicationGoal: Math.max(0, Math.round(Number(source.applicationGoal) || 0)),
-    grossLeaseGoal: Math.max(0, Math.round(Number(source.grossLeaseGoal) || 0)),
-    netLeaseGoal: Math.max(0, Math.round(Number(source.netLeaseGoal) || 0)),
+    applicationGoal: normalizeOptionalNumber(source.applicationGoal),
+    grossLeaseGoal: normalizeOptionalNumber(source.grossLeaseGoal),
+    netLeaseGoal: normalizeOptionalNumber(source.netLeaseGoal),
+    requiredMoveIns: normalizeOptionalNumber(source.requiredMoveIns),
+    occupancyGoal: normalizeOptionalNumber(source.occupancyGoal),
+    leasedGoal: normalizeOptionalNumber(source.leasedGoal),
+    economicGoal: normalizeOptionalNumber(source.economicGoal),
+    renewalGoal: normalizeOptionalNumber(source.renewalGoal),
+    weeklyGoals: Array.isArray(source.weeklyGoals) ? source.weeklyGoals : [],
+    effectiveDate: String(source.effectiveDate || source.approvedAt || ""),
+    status: source.status === "Draft" ? "Draft" : "Approved",
+    version: Math.max(1, Number(source.version) || 1),
+    sourceVersion: String(source.sourceVersion || "legacy"),
+    assignments: Array.isArray(source.assignments) ? source.assignments : [],
+    recommended: source.recommended && typeof source.recommended === "object" ? source.recommended : {},
+    revisedAt: String(source.revisedAt || ""),
     recommendedApplicationGoal: Math.max(0, Math.round(Number(source.recommendedApplicationGoal) || 0)),
     recommendedGrossLeaseGoal: Math.max(0, Math.round(Number(source.recommendedGrossLeaseGoal) || 0)),
     recommendedNetLeaseGoal: Math.max(0, Math.round(Number(source.recommendedNetLeaseGoal) || 0)),
@@ -8039,10 +8060,11 @@ function normalizeCommunityCommandState(input = {}) {
     regionManagementSelectedRegion: String(source.regionManagementSelectedRegion ?? "").trim(),
     regions: (Array.isArray(source.regions) ? source.regions : []).map(normalizeCommunityCommandRegion).filter(Boolean).slice(0, 100),
     dashboardOverrides: (Array.isArray(source.dashboardOverrides) ? source.dashboardOverrides : []).map(normalizeCommunityCommandOverride).filter(Boolean).slice(0, 500),
-    approvedGoals: (Array.isArray(source.approvedGoals) ? source.approvedGoals : []).map(normalizeCommunityCommandApprovedGoal).filter(Boolean).slice(0, 500),
+    approvedGoals: (Array.isArray(source.approvedGoals) ? source.approvedGoals : []).map(normalizeCommunityCommandApprovedGoal).filter(Boolean),
+    goalDrafts: (Array.isArray(source.goalDrafts) ? source.goalDrafts : []).map(normalizeCommunityCommandApprovedGoal).filter(Boolean),
     performancePlans: (Array.isArray(source.performancePlans) ? source.performancePlans : []).map(normalizeCommunityCommandPlan).filter(Boolean).slice(0, 250),
     payoutDecisions: (Array.isArray(source.payoutDecisions) ? source.payoutDecisions : []).map(normalizeCommunityCommandPayoutDecision).filter(Boolean).slice(0, 300),
-    auditTrail: Array.isArray(source.auditTrail) ? source.auditTrail.slice(0, 500) : []
+    auditTrail: Array.isArray(source.auditTrail) ? source.auditTrail : []
   };
 }
 
@@ -23784,7 +23806,7 @@ function communityCommandAudit(action, entity, previousValue = "", newValue = ""
       reason: String(reason ?? "")
     },
     ...(communityCommandState.auditTrail || [])
-  ].slice(0, 500);
+  ];
 }
 
 function communityCommandPersist(action = "", entity = "", previousValue = "", newValue = "", reason = "") {
@@ -23801,9 +23823,15 @@ function communityCommandGoalKey(propName, monthIdx, year = new Date().getFullYe
 
 function getCommunityCommandApprovedGoal(propName, monthIdx, year = new Date().getFullYear()) {
   const key = communityCommandGoalKey(propName, monthIdx, year);
-  return normalizeCommunityCommandState(communityCommandState).approvedGoals.find(goal =>
-    communityCommandGoalKey(goal.propName, goal.monthIdx, goal.year) === key
-  ) || null;
+  const period = buildPeriodKey(monthIdx, year);
+  const first = `${period}-01`;
+  const last = `${period}-${new Date(year, monthIdx + 1, 0).getDate()}`;
+  const today = getAtlasTodayISODate();
+  const effectiveAsOf = today < first ? first : today > last ? last : today;
+  return normalizeCommunityCommandState(communityCommandState).approvedGoals.filter(goal =>
+    communityCommandGoalKey(goal.propName, goal.monthIdx, goal.year) === key && goal.status === "Approved" && goal.approvedAt &&
+    (!goal.effectiveDate || goal.effectiveDate.slice(0, 10) <= effectiveAsOf)
+  ).sort((a, b) => b.version - a.version || b.approvedAt.localeCompare(a.approvedAt))[0] || null;
 }
 
 function getCommunityCommandDashboardOverride(propName, field, monthIdx, year = new Date().getFullYear()) {
@@ -23833,12 +23861,14 @@ function getCommunityCommandActivePlan(propName = getProp().name) {
 }
 
 function communityCommandFormatNumber(value, decimals = 0) {
+  if (value === null || value === undefined || value === "") return "Missing";
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return "Missing";
   return numeric.toLocaleString("en-US", { maximumFractionDigits: decimals, minimumFractionDigits: decimals });
 }
 
 function communityCommandFormatPct(value, decimals = 1) {
+  if (value === null || value === undefined || value === "") return "Missing";
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return "Missing";
   return `${numeric.toFixed(decimals)}%`;
@@ -23877,16 +23907,19 @@ function communityCommandSumFinancialRows(rows = [], keys = []) {
 function getCommunityCommandEconomicOccupancyData(record = {}, monthIdx = getSelectedDashboardMonthIndex(), year = new Date().getFullYear()) {
   const read = (month, reportingYear) => {
     const entry = getRecordMonthlyDataForYear(record, reportingYear)[month] || {};
-    const actual = normalizeOptionalNumber(entry.actualCharges);
-    const gpr = normalizeOptionalNumber(entry.grossPotentialRent);
-    return { actual, gpr, pct: actual !== null && gpr > 0 ? actual / gpr * 100 : null, source: entry.financialSource || "" };
+    const period = buildPeriodKey(month, reportingYear);
+    const closed = entry.closedFinancialActuals || {};
+    const actual = normalizeOptionalNumber(closed.netRentalIncome);
+    const gpr = normalizeOptionalNumber(closed.grossPotentialRent);
+    const valid = closed.status === "closed" && closed.period === period && closed.coverage === "full_month" && closed.source && closed.approvedBy && closed.approvedAt;
+    return { actual, gpr, pct: valid && actual !== null && gpr > 0 ? actual / gpr * 100 : null, source: closed.source || "" };
   };
   const current = read(monthIdx, year);
   const previous = read(monthIdx > 0 ? monthIdx - 1 : 11, monthIdx > 0 ? year : year - 1);
   return { mtdPct: current.pct, priorPct: previous.pct,
     variance: current.pct !== null && previous.pct !== null ? current.pct - previous.pct : null,
     collected: current.actual, grossCharges: current.gpr, rowCount: current.pct === null ? 0 : 1,
-    sourceLabel: current.pct === null ? "Missing actual rent charges / gross potential rent" : `Actual rent charges / gross potential rent · ${current.source || buildPeriodKey(monthIdx, year)}` };
+    sourceLabel: current.pct === null ? "Missing closed financial package: same-month Net Rental Income and GPR" : `Closed Net Rental Income after concessions and leasing costs / GPR · ${current.source}` };
 }
 
 function getCommunityCommandSourceLabel(record = {}, fallback = "Report source unavailable", propName = "", monthIdx = getSelectedDashboardMonthIndex(), year = new Date().getFullYear(), fields = []) {
@@ -24027,7 +24060,7 @@ function buildCommunityCommandAlerts(model) {
     add("renewal_retention_watch", "watch", "Renewal retention pressure", `${model.monthLabel} retention is below the default 60% save line.`, communityCommandFormatPct(model.renewal.retentionRate || 0, 0), "60%", "Renewals", 5, "Escalate undecided renewals and review renewal pricing.");
   }
   if (model.economic.mtdPct === null) {
-    add("economic_missing", "watch", "Economic occupancy needs rent-charge mapping", "ATLAS cannot calculate economic occupancy until actual rent charges and gross potential rent are mapped.", "Missing", "Rent charges + gross potential rent", "Data Import", 7, "Map actual rent charges and gross potential rent in Data Import.");
+    add("economic_missing", "watch", "Economic occupancy needs closed financial actuals", "The selected month requires approved closed-package Net Rental Income and GPR.", "Missing", "Closed Net Rental Income / GPR", "Community Command", 7, "Record the closed financial package and approval evidence.");
   } else if (model.economic.variance !== null && model.economic.variance < -2) {
     add("economic_deterioration", "critical", "Economic occupancy deterioration", `MTD economic occupancy is down ${Math.abs(model.economic.variance).toFixed(1)} points from the prior month.`, communityCommandFormatPct(model.economic.mtdPct), communityCommandFormatPct(model.economic.priorPct), "Central Services", 15, "Review delinquency and collections exceptions.");
   }
@@ -24096,24 +24129,107 @@ function renderCommunityCommandPlanSummaryStat(rosterItems = []) {
   </div>`;
 }
 
+function communityCommandBoundarySnapshot(entry, date, baseUnits, communityName) {
+  if (entry?.physicalSnapshotHistory?.[date]) entry = entry.physicalSnapshotHistory[date];
+  const provenance = entry?.metricProvenance?.occupiedSnapshot;
+  const units = normalizeOptionalNumber(entry?.occupiedSnapshot);
+  const denominator = normalizeOptionalNumber(entry?.rentableUnits);
+  if (!provenance?.source || provenance.community !== communityName || String(provenance.dataAsOf || "").slice(0, 10) !== date ||
+      units === null || !Number.isInteger(units) || units < 0 || denominator !== baseUnits || units > baseUnits) return null;
+  return { units, provenance, status: "Verified Actual" };
+}
+
+function communityCommandOccupancyPeriods(model) {
+  const output = [];
+  const today = getAtlasTodayISODate();
+  for (let idx = 0; idx < 12; idx++) {
+    const period = buildPeriodKey(idx, model.year);
+    const first = `${period}-01`;
+    const last = `${period}-${new Date(model.year, idx + 1, 0).getDate()}`;
+    const priorDate = new Date(Date.UTC(model.year, idx, 0)).toISOString().slice(0, 10);
+    const entry = model.monthlyData[idx] || {};
+    const trend = entry.trendSource;
+    const previous = idx ? model.monthlyData[idx - 1] : model.record.monthlyHistoryByPeriod?.[`${model.year - 1}-12`];
+    const base = getReportedOccupancyBaseUnits(entry, model.totalUnits, model.corporateUnits);
+    let start = communityCommandBoundarySnapshot(entry, first, base, model.propName)
+      || communityCommandBoundarySnapshot(previous, priorDate, base, model.propName);
+    const override = getCommunityCommandDashboardOverride(model.propName, "beginning_occupied_units", idx, model.year);
+    const overrideUnits = normalizeOptionalNumber(override?.overrideValue);
+    if (!start && override && override.reason && Number.isInteger(overrideUnits) && overrideUnits >= 0 && overrideUnits <= base) {
+      start = { units: overrideUnits, status: "Manual Override", provenance: { source: "Authorized manual override", field: "beginning_occupied_units", community: model.propName, dataAsOf: first, user: override.updatedBy, importedAt: override.updatedAt, reason: override.reason } };
+    }
+    const end = communityCommandBoundarySnapshot(entry, last, base, model.propName);
+    const prior = output[idx - 1];
+    const approved = getCommunityCommandApprovedGoal(model.propName, idx, model.year);
+    const warnings = [];
+    let beginningUnits = start?.units ?? null;
+    let beginningStatus = start?.status || "Missing";
+    if (beginningUnits === null && first > today && prior?.endingForecastUnits !== null && prior?.endingForecastUnits !== undefined && prior.base === base) {
+      beginningUnits = prior.endingForecastUnits;
+      beginningStatus = "Forecast";
+    }
+    if (beginningUnits === null && first > today && trend?.base === base && trend?.provenance?.community === model.propName && Number.isInteger(trend.beginningUnits) && trend.beginningUnits >= 0 && trend.beginningUnits <= base) {
+      beginningUnits = trend.beginningUnits;
+      beginningStatus = "Source Forecast";
+    }
+    const readFlow = field => {
+      const p = entry.metricProvenance?.[field];
+      const value = normalizeOptionalNumber(entry[field]);
+      return p?.source && p.community === model.propName && p.period === period && value !== null && value >= 0 && Number.isInteger(value) ? value : null;
+    };
+    const trendValid = trend?.base === base && trend?.provenance?.community === model.propName && trend?.provenance?.period === period;
+    const ins = readFlow("moveIns") ?? (trendValid && trend.end < trend.asOf ? normalizeOptionalNumber(trend.moveIns) : null);
+    const outs = readFlow("moveOuts") ?? (trendValid && trend.end < trend.asOf ? normalizeOptionalNumber(trend.moveOuts) : null);
+    const complete = last < today;
+    // Goals are lease production, not physical move-ins: do not silently convert them.
+    const forecastIns = normalizeOptionalNumber(entry.forecastMoveIns);
+    const forecastOuts = normalizeOptionalNumber(entry.forecastMoveOuts);
+    const futureIns = normalizeOptionalNumber(approved?.requiredMoveIns) ?? forecastIns ?? (trendValid ? normalizeOptionalNumber(trend.moveIns) : entry.flowBasis === "scheduled" ? ins : null);
+    const futureOuts = forecastOuts ?? (trendValid ? normalizeOptionalNumber(trend.moveOuts) : entry.flowBasis === "scheduled" ? outs : null);
+    const calculate = (moveIns, moveOuts) => beginningUnits === null || moveIns === null || moveOuts === null ? null : beginningUnits + moveIns - moveOuts;
+    const actualCalculatedUnits = complete ? calculate(ins, outs) : null;
+    const rawForecast = complete ? null : calculate(futureIns, futureOuts);
+    const bounded = value => value === null || !(base > 0) ? null : Math.min(base, Math.max(0, value));
+    if (actualCalculatedUnits !== null && (actualCalculatedUnits < 0 || actualCalculatedUnits > base)) warnings.push("Actual movement reconciliation is outside comparable-unit bounds");
+    if (rawForecast !== null && rawForecast !== bounded(rawForecast)) warnings.push("Forecast bounded to comparable units");
+    if (end && actualCalculatedUnits !== null && end.units !== actualCalculatedUnits) warnings.push(`Month-end variance: source ${end.units}, calculated ${actualCalculatedUnits}`);
+    if (!complete && trendValid && rawForecast !== null && trend.endingUnits !== rawForecast) warnings.push(`${approved ? "Approved plan" : "Reconciliation"}: forecast differs from source ending ${trend.endingUnits}; calculated ${rawForecast}`);
+    if (start && prior?.endingActualUnits !== null && prior?.endingActualUnits !== undefined && start.units !== prior.endingActualUnits) warnings.push("Beginning does not match preceding verified ending occupancy");
+    if (prior && prior.base !== base) warnings.push("Comparable-unit denominator changed; roll-forward held");
+    if (beginningUnits === null) warnings.push("Missing—Beginning Snapshot Required: occupied_units and rentable_units as of " + first + " or " + priorDate);
+    const endingActualUnits = end?.units ?? null;
+    const endingForecastUnits = bounded(rawForecast);
+    const pct = units => units === null || !(base > 0) ? null : units / base * 100;
+    output.push({ period, base, beginningUnits, beginningPct: pct(beginningUnits), beginningStatus,
+      endingActualUnits, endingActualPct: pct(endingActualUnits), actualCalculatedUnits,
+      endingForecastUnits, endingForecastPct: pct(endingForecastUnits), approved, warnings,
+      lineage: start?.provenance || (trendValid ? trend.provenance : null), endingLineage: end?.provenance || (trendValid ? trend.provenance : null),
+      inputs: { beginningUnits, comparableUnits: base, moveIns: complete ? ins : futureIns, moveOuts: complete ? outs : futureOuts, approvedGrossLeases: approved?.grossLeaseGoal ?? null, approvedNetLeases: approved?.netLeaseGoal ?? null },
+      status: complete ? (end ? "Verified Actual" : "Missing") : endingForecastUnits === null ? "Forecast Unavailable" : "Forecast" });
+  }
+  return output;
+}
+
 function buildCommunityCommandLeasingPlanRows(model) {
+  const periods = communityCommandOccupancyPeriods(model);
   return model.schedule.map((row, idx) => {
     const monthEntry = model.monthlyData[idx] || {};
     const apps = getApplicationDecisionMetrics(monthEntry);
     const approved = getCommunityCommandApprovedGoal(model.propName, idx, model.year);
-    const previousEntry = idx > 0 ? model.monthlyData[idx - 1] : model.record.monthlyHistoryByPeriod?.[`${model.year - 1}-12`];
-    const beginningUnits = getVerifiedMonthlySnapshot(previousEntry || {});
+    const occupancy = periods[idx];
     const actualNet = Math.max(0, Number(monthEntry.moveIns) || 0) - getEffectiveMoveOutsForMonth(idx, model.monthlyData).effective;
-    const variance = Number(row.budgetOcc) > 0 && (Number(row.occPct) > 0 || getVerifiedMonthlySnapshot(monthEntry) === 0) ? Number(row.occPct) - Number(row.budgetOcc) : null;
+    const endingPct = occupancy.endingActualPct ?? occupancy.endingForecastPct;
+    const variance = Number(row.budgetOcc) > 0 && endingPct !== null ? endingPct - Number(row.budgetOcc) : null;
     const status = variance === null
       ? "Missing"
       : variance < -1.5 ? "Critical" : variance < -0.5 ? "Watch" : "On Track";
     return {
       monthIdx: idx,
       month: FULL_MONTHS[idx],
-      beginningPct: beginningUnits !== null && model.occupancyBaseUnits > 0 ? (getComparableOccupancyUnits(beginningUnits, model.corporateUnits) / model.occupancyBaseUnits) * 100 : null,
+      occupancy,
+      beginningPct: occupancy.beginningPct,
       budgetPct: Number(row.budgetOcc || 0) || null,
-      forecastPct: Number(row.occPct || 0) || null,
+      forecastPct: occupancy.endingForecastPct,
       moveOuts: Number(row.moveOuts || 0),
       renewalExposure: getRenewalSummaryForMonth(getRenewalMonthEntryForRecord(model.record, idx, model.year)).expirations,
       requiredMoveIns: Number(row.netOccLeases || 0),
@@ -24126,7 +24242,7 @@ function buildCommunityCommandLeasingPlanRows(model) {
       netLeaseGoal: Number(row.netOccLeases || 0),
       approvedNetLeases: approved?.netLeaseGoal ?? null,
       actualNetLeases: actualNet,
-      endingForecastPct: Number(row.occPct || 0) || null,
+      endingForecastPct: occupancy.endingForecastPct,
       variance,
       status,
       approved
@@ -24135,6 +24251,7 @@ function buildCommunityCommandLeasingPlanRows(model) {
 }
 
 function getCommunityCommandTrendPoints(model) {
+  const periods = communityCommandOccupancyPeriods(model);
   const mode = normalizeCommunityCommandState(communityCommandState).trendMode;
   const start = mode === "ytd" ? 0 : 0;
   const end = mode === "ytd" ? model.monthIdx : 11;
@@ -24153,9 +24270,13 @@ function getCommunityCommandTrendPoints(model) {
     const trending = getReportedTrend(entry, model.totalUnits, model.corporateUnits).pct;
     const budget = getRecordSavedBudgetOccPct(model.record, idx, model.year) || null;
     rows.push({
+      occupancy: periods[idx],
+      beginning: periods[idx].beginningPct,
+      endingActual: periods[idx].endingActualPct,
+      endingForecast: periods[idx].endingForecastPct,
       idx,
       label: MONTHS[idx],
-      physical,
+      physical: idx === model.monthIdx ? physical : periods[idx].endingActualPct,
       leased: leasedPct,
       trending,
       budget,
@@ -24169,13 +24290,15 @@ function renderCommunityCommandTrendSvg(points = []) {
   const width = 920;
   const height = 260;
   const pad = { left: 42, right: 18, top: 22, bottom: 34 };
-  const values = points.flatMap(row => [row.physical, row.leased, row.trending, row.budget]).filter(value => value !== null && value !== undefined && Number.isFinite(Number(value)));
+  const values = points.flatMap(row => [row.beginning, row.endingForecast, row.physical, row.leased, row.trending, row.budget]).filter(value => value !== null && value !== undefined && Number.isFinite(Number(value)));
   const minValue = Math.max(0, Math.floor((Math.min(...values, 90) - 5) / 5) * 5);
   const maxValue = Math.min(105, Math.ceil((Math.max(...values, 100) + 5) / 5) * 5);
   const span = Math.max(maxValue - minValue, 10);
   const xFor = index => pad.left + ((width - pad.left - pad.right) * (points.length <= 1 ? 0 : index / (points.length - 1)));
   const yFor = value => pad.top + ((maxValue - Number(value)) / span) * (height - pad.top - pad.bottom);
   const series = [
+    ["beginning", "Beginning", "#52606d"],
+    ["endingForecast", "Ending Forecast", "#c05621"],
     ["physical", "Physical", "#1d4ed8"],
     ["leased", "Leased", "#7c3aed"],
     ["trending", "Trending", "#2a8f83"],
@@ -24184,9 +24307,15 @@ function renderCommunityCommandTrendSvg(points = []) {
   const line = ([key, label, color]) => {
     const usable = points.map((row, idx) => ({ row, idx, value: row[key] })).filter(item => item.value !== null && item.value !== undefined && Number.isFinite(Number(item.value)));
     if (!usable.length) return "";
-    const pointString = usable.map(item => `${xFor(item.idx).toFixed(1)},${yFor(item.value).toFixed(1)}`).join(" ");
+    let connected = false;
+    const pointString = points.map((row, idx) => {
+      if (row[key] === null || row[key] === undefined || !Number.isFinite(Number(row[key]))) { connected = false; return ""; }
+      const segment = `${connected ? "L" : "M"}${xFor(idx).toFixed(1)},${yFor(row[key]).toFixed(1)}`;
+      connected = true;
+      return segment;
+    }).join(" ");
     const dots = usable.map(item => `<circle cx="${xFor(item.idx).toFixed(1)}" cy="${yFor(item.value).toFixed(1)}" r="3.2" fill="${color}"><title>${escapeHtml(`${item.row.label}: ${label} ${Number(item.value).toFixed(1)}%${Number.isFinite(Number(item.row.variance)) ? `, variance ${formatSignedDisplay(item.row.variance, 1, "%")}` : ""}`)}</title></circle>`).join("");
-    return `<polyline fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="${pointString}"></polyline>${dots}`;
+    return `<path fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="${pointString}"></path>${dots}`;
   };
   const grid = [minValue, Math.round((minValue + maxValue) / 2), maxValue].map(value => {
     const y = yFor(value);
@@ -24210,10 +24339,55 @@ function renderCommunityCommandKpi(model, field, label, sourceValue, formatter, 
   </button>`;
 }
 
+function renderCommunityCommandClosedFinancialEditor(model) {
+  if (!communityCommandCanApproveGoals()) return "";
+  return `<details style="margin-top:12px"><summary>Closed financial actuals</summary>
+    <form onsubmit="event.preventDefault();saveCommunityCommandClosedFinancials()" style="display:grid;gap:8px;max-width:600px;margin-top:12px">
+      <label>Accounting month<input id="cc-financial-period" type="month" required value="${buildPeriodKey(model.monthIdx, model.year)}"></label>
+      <label>Net Rental Income after concessions and leasing costs<input id="cc-financial-net" type="number" step="0.01" required></label>
+      <label>Gross Potential Rent<input id="cc-financial-gpr" type="number" min="0.01" step="0.01" required></label>
+      <label>Financial package and page reference<input id="cc-financial-source" type="text" required></label>
+      <label>Approval reason<input id="cc-financial-reason" type="text" required></label>
+      <label><input id="cc-financial-closed" type="checkbox" required>Closed full-month actuals for ${escapeHtml(model.propName)}</label>
+      <button class="btn btn-blue" type="submit">Approve Closed Financial Actuals</button>
+    </form></details>`;
+}
+
+async function saveCommunityCommandClosedFinancials() {
+  if (!communityCommandCanApproveGoals()) return;
+  const value = id => document.getElementById(`cc-financial-${id}`)?.value?.trim() || "";
+  const period = value("period"), netRentalIncome = normalizeOptionalNumber(value("net")), grossPotentialRent = normalizeOptionalNumber(value("gpr"));
+  const source = value("source"), reason = value("reason");
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period) || period >= getAtlasTodayISODate().slice(0,7) || netRentalIncome === null || !(grossPotentialRent > 0) || !source || !reason || !document.getElementById("cc-financial-closed")?.checked) {
+    alert("A completed accounting month, Net Rental Income, positive GPR, source, approval reason and closed-month confirmation are required."); return;
+  }
+  const name = getProp().name;
+  const record = normalizeSavedCommunityRecord(name, savedData[name]);
+  const monthIdx = Number(period.slice(5)) - 1, year = Number(period.slice(0,4));
+  const previous = getRecordMonthlyDataForYear(record, year)[monthIdx]?.closedFinancialActuals || null;
+  const approvedAt = new Date().toISOString(), approvedBy = communityCommandUserLabel();
+  const next = {period,netRentalIncome,grossPotentialRent,source,reason,approvedBy,approvedAt,status:"closed",coverage:"full_month",definition:"closed_net_rental_income_after_concessions_and_leasing_costs_divided_by_gpr",community:name};
+  const entries = getWritableMonthlyPeriodEntries(record, monthIdx, year);
+  [entries.historyEntry, entries.liveEntry].filter(Boolean).forEach(month => {
+    month.closedFinancialActuals = next;
+    month.economicOccupancyPct = netRentalIncome / grossPotentialRent * 100;
+    month.metricProvenance = {...month.metricProvenance, economicOccupancyPct:{source,community:name,period,importedAt:approvedAt,approvedBy,field:"Net Rental Income / GPR",transformation:next.definition}};
+  });
+  record.closedFinancialHistory = [...(record.closedFinancialHistory || []), {previous,next}];
+  try {
+    await atlasStateWritePromise;
+    await atlasStateSetValue(ATLAS_STATE_COMMUNITY_KEY, {...buildSerializedSavedDataPayload(), [name]:record});
+  } catch (error) { alert(`Closed financial actuals were not saved: ${error.message}`); return; }
+  savedData[name] = record;
+  loadPropertyData(name);
+  communityCommandPersist("closed_financial_actuals_approved",`${name}|${period}`,JSON.stringify(previous),JSON.stringify(next),reason);
+  queueAtlasCentralDocumentPush("closed_financial_actuals");
+}
+
 function renderCommunityCommandHealthSnapshot(model) {
   const economicDisplay = model.economic.mtdPct === null ? "Missing" : communityCommandFormatPct(model.economic.mtdPct);
   const economicSub = model.economic.mtdPct === null
-    ? "Map actual rent charges and gross potential rent to calculate."
+    ? "Closed-package Net Rental Income and GPR required."
     : `Prior ${model.economic.priorPct === null ? "Missing" : communityCommandFormatPct(model.economic.priorPct)} · ${model.economic.variance === null ? "variance pending" : formatSignedDisplay(model.economic.variance, 1, "%")} variance`;
   const outcomesTotal = model.appMetrics.approvals + model.appMetrics.denials + model.appMetrics.cancelled;
   const approvedPct = outcomesTotal > 0 ? (model.appMetrics.approvals / outcomesTotal) * 100 : 0;
@@ -24226,7 +24400,7 @@ function renderCommunityCommandHealthSnapshot(model) {
   return `<div class="community-command-grid-4">
     ${renderCommunityCommandKpi(model, "physical_occupancy", "Physical Occupancy", model.physicalPct, value => communityCommandFormatPct(value), `${Math.round(model.occupied)} occupied of ${Math.round(model.occupancyBaseUnits || model.totalUnits)} comparable units`, model.budgetOccPct > 0 && model.physicalPct < model.budgetOccPct ? "critical" : "good", 2)}
     ${renderCommunityCommandKpi(model, "leased_occupancy", "Leased Occupancy", model.leasedPct, value => communityCommandFormatPct(value), `${Math.round(model.leased)} leased units in the current snapshot`, model.budgetLeasedPct > 0 && model.leasedPct < model.budgetLeasedPct ? "watch" : "good", 2)}
-    ${renderCommunityCommandKpi(model, "economic_occupancy", "MTD Economic Occupancy", model.economic.mtdPct, value => value === null || value === undefined || value === "" ? "Missing" : communityCommandFormatPct(value), economicSub, model.economic.mtdPct === null ? "watch" : "info", 15)}
+    ${renderCommunityCommandKpi(model, "economic_occupancy", "Closed-Month Economic Occupancy", model.economic.mtdPct, value => value === null || value === undefined || value === "" ? "Missing" : communityCommandFormatPct(value), economicSub, model.economic.mtdPct === null ? "watch" : "info", 15)}
     ${renderCommunityCommandKpi(model, "trending_occupancy", "Trending Occupancy", model.trendingPct, value => value === null ? "Missing" : communityCommandFormatPct(value), model.trendingLabel, model.trendingPct !== null && model.budgetOccPct > 0 && model.trendingPct < model.budgetOccPct ? "watch" : "good", 2)}
     ${renderCommunityCommandKpi(model, "budget_occupancy", "Budget Occupancy", model.budgetOccPct || null, value => value ? communityCommandFormatPct(value) : "Missing", "Locked Budget Builder or approved reforecast source.", model.budgetOccPct ? "info" : "watch", 12)}
     ${renderCommunityCommandKpi(model, "applications_mtd", "Applications MTD", model.appMetrics.applications, value => communityCommandFormatNumber(value), `${getApplicationApprovalCohortDisplay(model.appMetrics.applications, model.appMetrics.approvals).subtext} · ${model.appMetrics.pendingDecision} pending`, model.appMetrics.applications >= Number(model.plan.currentAppNeed || 0) ? "good" : "watch", 3)}
@@ -24347,12 +24521,14 @@ function renderCommunityCommandTrend(model) {
     </div>
     <div class="community-command-chart">${renderCommunityCommandTrendSvg(points)}</div>
     <div class="community-command-legend">
+      <span><i style="background:#52606d"></i>Beginning Occupancy</span>
+      <span><i style="background:#c05621"></i>Ending Forecast</span>
       <span><i style="background:#1d4ed8"></i>Physical Occupancy</span>
       <span><i style="background:#7c3aed"></i>Leased Occupancy</span>
       <span><i style="background:#2a8f83"></i>Trending Occupancy</span>
       <span><i style="background:#d29922"></i>Budgeted Occupancy</span>
     </div>
-  </div>`;
+  </div><div class="community-command-scroll"><table class="community-command-plan-table"><thead><tr><th>Month</th><th>Beginning Units / %</th><th>Ending Actual Units / %</th><th>Ending Forecast Units / %</th><th>Budget</th><th>Approved Goal</th><th>Leased</th><th>Trending</th><th>Status / Source</th></tr></thead><tbody>${points.map(point => `<tr><td>${escapeHtml(point.label)}</td><td>${communityCommandFormatNumber(point.occupancy.beginningUnits)} / ${communityCommandFormatPct(point.beginning)}</td><td>${communityCommandFormatNumber(point.occupancy.endingActualUnits)} / ${communityCommandFormatPct(point.endingActual)}</td><td>${communityCommandFormatNumber(point.occupancy.endingForecastUnits)} / ${communityCommandFormatPct(point.endingForecast)}</td><td>${communityCommandFormatPct(point.budget)}</td><td>${communityCommandFormatPct(point.occupancy.approved?.occupancyGoal)}</td><td>${communityCommandFormatPct(point.leased)}</td><td>${communityCommandFormatPct(point.trending)}</td><td>${escapeHtml(point.occupancy.status)}<details><summary>Lineage</summary><pre style="white-space:pre-wrap">${escapeHtml(JSON.stringify({ beginning: point.occupancy.lineage, ending: point.occupancy.endingLineage, warnings: point.occupancy.warnings }, null, 2))}</pre></details></td></tr>`).join("")}</tbody></table></div>`;
   return renderWindowshadeCard({
     key: "community_command_trend",
     title: "Occupancy Trend",
@@ -24367,14 +24543,16 @@ function renderCommunityCommandLeasingPlan(model) {
   const rows = buildCommunityCommandLeasingPlanRows(model);
   const canApprove = communityCommandCanApproveGoals();
   const currentRow = rows[model.monthIdx] || {};
-  const weeklyApps = Math.ceil(Number(currentRow.recommendedApps || 0) / 4);
-  const weeklyGross = Math.ceil(Number(currentRow.recommendedGrossLeases || 0) / 4);
-  const weeklyNet = Math.ceil(Number(currentRow.netLeaseGoal || 0) / 4);
-  const bodyHtml = `<div class="community-command-mini-grid" style="margin-bottom:10px">
-    <div class="community-command-mini"><strong>${Math.round(currentRow.netLeaseGoal || 0)}</strong><span>Required net leases to protect the current month.</span></div>
-    <div class="community-command-mini"><strong>${Math.round(currentRow.recommendedGrossLeases || 0)}</strong><span>ATLAS recommended gross leases after exposure.</span></div>
-    <div class="community-command-mini"><strong>${Math.round(currentRow.recommendedApps || 0)}</strong><span>Recommended application goal from conversion and seasonality.</span></div>
-    <div class="community-command-mini"><strong>${weeklyApps} / ${weeklyGross} / ${weeklyNet}</strong><span>Applications / gross leases / net leases per week.</span></div>
+  const goalStatus = currentRow.approved ? "Approved" : "Recommended";
+  const displayApps = currentRow.approvedApps ?? currentRow.recommendedApps;
+  const displayGross = currentRow.approvedGrossLeases ?? currentRow.recommendedGrossLeases;
+  const displayNet = currentRow.approvedNetLeases ?? currentRow.netLeaseGoal;
+  const weekly = currentRow.approved?.weeklyGoals || [];
+  const bodyHtml = `${canApprove ? `<button class="btn btn-blue" onclick="approveCommunityCommandMonthlyGoals(${model.monthIdx})">Edit Goals</button>` : ""}${renderCommunityCommandGoalEditor(model)}${communityCommandGoalEditor?.propName === model.propName ? renderCommunityCommandWeeklyEditor(communityCommandGoalEditor) : ""}<div class="community-command-mini-grid" style="margin-bottom:10px">
+    <div class="community-command-mini"><strong>${communityCommandFormatNumber(displayNet)}</strong><span>${goalStatus} net lease goal</span></div>
+    <div class="community-command-mini"><strong>${communityCommandFormatNumber(displayGross)}</strong><span>${goalStatus} gross lease goal</span></div>
+    <div class="community-command-mini"><strong>${communityCommandFormatNumber(displayApps)}</strong><span>${goalStatus} application goal</span></div>
+    <div class="community-command-mini"><strong>${weekly.length ? weekly.map(week => `${week.applicationGoal}/${week.grossLeaseGoal}/${week.netLeaseGoal}`).join(" · ") : "Pending approval"}</strong><span>Weekly applications / gross / net, in week order</span></div>
   </div>
   <div class="community-command-note" style="margin-bottom:10px">Budget requires ${Math.round(currentRow.netLeaseGoal || 0)} additional net leases this month. Based on move-out exposure, renewal risk, conversion assumptions, seasonality, and trailing leasing velocity, ATLAS recommends ${Math.round(currentRow.recommendedGrossLeases || 0)} gross leases and ${Math.round(currentRow.recommendedApps || 0)} applications for ${escapeHtml(model.monthLabel)}.</div>
   <div class="community-command-scroll">
@@ -24382,12 +24560,12 @@ function renderCommunityCommandLeasingPlan(model) {
       <thead><tr><th>Month</th><th>Beginning Occ</th><th>Budget Occ</th><th>Forecast / Trend</th><th>Move-Outs</th><th>Renewal Exposure</th><th>Required Move-Ins</th><th>ATLAS App Goal</th><th>Approved App Goal</th><th>ATLAS Lease Goal</th><th>Approved Lease Goal</th><th>Actual Apps</th><th>Actual Gross Leases</th><th>Net Goal</th><th>Actual Net</th><th>Ending Forecast</th><th>Variance</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows.map(row => `<tr>
         <td><strong>${escapeHtml(row.month)}</strong></td>
-        <td>${row.beginningPct === null ? "Missing" : communityCommandFormatPct(row.beginningPct)}</td>
+        <td>${row.beginningPct === null ? "Missing—Beginning Snapshot Required" : `${communityCommandFormatPct(row.beginningPct)} · ${row.occupancy.beginningStatus}`}${communityCommandCanOverrideDashboard() ? `<button class="btn btn-gray btn-sm" onclick="setCommunityCommandBeginningOverride(${row.monthIdx})">Beginning balance override</button>` : ""}</td>
         <td>${row.budgetPct === null ? "Missing" : communityCommandFormatPct(row.budgetPct)}</td>
         <td>${row.forecastPct === null ? "Missing" : communityCommandFormatPct(row.forecastPct)}</td>
         <td>${Math.round(row.moveOuts)}</td>
         <td>${Math.round(row.renewalExposure)}</td>
-        <td>${Math.round(row.requiredMoveIns)}</td>
+        <td>${communityCommandFormatNumber(row.approved?.requiredMoveIns ?? row.requiredMoveIns)}</td>
         <td>${Math.round(row.recommendedApps)}</td>
         <td>${row.approvedApps === null ? "Pending" : Math.round(row.approvedApps)}</td>
         <td>${Math.round(row.recommendedGrossLeases)}</td>
@@ -24396,7 +24574,7 @@ function renderCommunityCommandLeasingPlan(model) {
         <td>${Math.round(row.actualGrossLeases)}</td>
         <td>${row.approvedNetLeases === null ? Math.round(row.netLeaseGoal) : Math.round(row.approvedNetLeases)}</td>
         <td>${Math.round(row.actualNetLeases)}</td>
-        <td>${row.endingForecastPct === null ? "Missing" : communityCommandFormatPct(row.endingForecastPct)}</td>
+        <td>${row.endingForecastPct === null ? "Forecast Unavailable" : communityCommandFormatPct(row.endingForecastPct)}<details><summary>Calculation & Sources</summary><pre style="white-space:pre-wrap">${escapeHtml(JSON.stringify({ ...row.occupancy.inputs, beginningStatus: row.occupancy.beginningStatus, endingActualUnits: row.occupancy.endingActualUnits, calculatedActualUnits: row.occupancy.actualCalculatedUnits, source: row.occupancy.lineage, warnings: row.occupancy.warnings }, null, 2))}</pre></details></td>
         <td>${row.variance === null ? "Missing" : formatSignedDisplay(row.variance, 1, "%")}</td>
         <td><span class="community-command-status ${row.status === "Critical" ? "critical" : row.status === "Watch" ? "watch" : row.status === "On Track" ? "good" : "muted"}">${escapeHtml(row.status)}</span></td>
         <td>${canApprove && row.monthIdx >= model.monthIdx ? `<button class="btn btn-gray btn-sm" onclick="approveCommunityCommandMonthlyGoals(${row.monthIdx})">${row.approved ? "Edit" : "Approve"}</button>` : ""}</td>
@@ -24407,7 +24585,7 @@ function renderCommunityCommandLeasingPlan(model) {
     key: "community_command_leasing_plan",
     title: "Leasing & Occupancy Plan",
     subtitle: "Recommended goals, approved official goals, actual results, and status by month.",
-    countLabel: `${model.monthLabel} · ${Math.round(currentRow.recommendedGrossLeases || 0)} lease goal`,
+    countLabel: `${model.monthLabel} · ${communityCommandFormatNumber(displayGross)} ${goalStatus.toLowerCase()} lease goal`,
     bodyHtml,
     collapsedPreview: `ATLAS recommends ${Math.round(currentRow.recommendedApps || 0)} applications and ${Math.round(currentRow.recommendedGrossLeases || 0)} gross leases.`
   }).replace('class="card mb4"', 'class="community-command-section mb4"');
@@ -24585,6 +24763,7 @@ function renderCommunityCommandTab() {
         <span class="community-command-pill strong">ATLAS Planning Engine active</span>
       </div>
       ${renderCommunityCommandHealthSnapshot(model)}
+      ${renderCommunityCommandClosedFinancialEditor(model)}
     </div>
     ${renderCommunityCommandAttentionCenter(model)}
     ${renderCommunityCommandPerformancePlan(model)}
@@ -24668,6 +24847,41 @@ function setCommunityCommandTrendMode(mode = "12") {
   renderTab();
 }
 
+let communityCommandGoalEditor = null;
+
+function setCommunityCommandBeginningOverride(monthIdx) {
+  if (!communityCommandCanOverrideDashboard()) return;
+  const model = buildCommunityCommandModel(getProp().name, getCurrentCommunityRecord());
+  const before = getCommunityCommandDashboardOverride(model.propName, "beginning_occupied_units", monthIdx, model.year);
+  const input = prompt(`Beginning occupied units for ${FULL_MONTHS[monthIdx]} ${model.year} (comparable units, not a percentage)`, before?.overrideValue ?? "");
+  if (input === null) return;
+  const units = normalizeOptionalNumber(input);
+  const base = getReportedOccupancyBaseUnits(model.monthlyData[monthIdx], model.totalUnits, model.corporateUnits);
+  if (!Number.isInteger(units) || units < 0 || units > base) { alert("Enter a verified whole occupied-unit count within comparable units."); return; }
+  const reason = prompt("Required reason and evidence for the beginning balance override", "");
+  if (!reason?.trim()) return;
+  const next = normalizeCommunityCommandOverride({ propName: model.propName, field: "beginning_occupied_units", monthIdx, year: model.year, originalValue: before?.overrideValue ?? null, overrideValue: units, reason: reason.trim(), updatedBy: communityCommandUserLabel(), updatedAt: new Date().toISOString() });
+  communityCommandState.dashboardOverrides = [next, ...communityCommandState.dashboardOverrides.filter(item => item.id !== next.id)];
+  communityCommandPersist("beginning_balance_override", communityCommandGoalKey(model.propName, monthIdx, model.year), JSON.stringify(before), JSON.stringify(next), reason);
+}
+
+function communityCommandGoalWeeks(editor) {
+  const today = getAtlasTodayISODate();
+  const days = new Date(editor.year, editor.monthIdx + 1, 0).getDate();
+  const startDay = today.slice(0,7) === buildPeriodKey(editor.monthIdx, editor.year) ? Number(today.slice(8)) : 1;
+  return { startDay, count: Math.ceil((days - startDay + 1) / 7) };
+}
+
+function renderCommunityCommandWeeklyEditor(editor) {
+  const { count, startDay } = communityCommandGoalWeeks(editor);
+  return `<details><summary>Weekly goal breakdown</summary><label><input type="checkbox" id="cc-goal-custom-weeks">Use adjusted weekly allocations</label><table class="community-command-plan-table"><thead><tr><th>Week Starting</th><th>Applications</th><th>Gross Leases</th><th>Net Leases</th></tr></thead><tbody>${Array.from({length: count}, (_, i) => `<tr><td>${startDay + i * 7}</td>${["applicationGoal","grossLeaseGoal","netLeaseGoal"].map(key => `<td><input type="number" min="0" step="1" aria-label="Week ${i + 1} ${key}" id="cc-week-${key}-${i}" value="${editor.values.weeklyGoals?.length === count ? editor.values.weeklyGoals[i]?.[key] ?? "" : communityCommandWeeklyAllocation(editor.values[key], count)[i] ?? ""}"></td>`).join("")}</tr>`).join("")}</tbody></table></details>`;
+}
+
+function communityCommandWeeklyAllocation(total, count) {
+  if (!Number.isInteger(total) || total < 0 || !Number.isInteger(count) || count < 1) return [];
+  return Array.from({ length: count }, (_, i) => Math.floor(total / count) + (i < total % count ? 1 : 0));
+}
+
 function approveCommunityCommandMonthlyGoals(monthIdx = getSelectedDashboardMonthIndex()) {
   if (!communityCommandCanApproveGoals()) {
     alert("Only Admin or VP / Executive roles can approve official monthly goals.");
@@ -24676,42 +24890,71 @@ function approveCommunityCommandMonthlyGoals(monthIdx = getSelectedDashboardMont
   const model = buildCommunityCommandModel(getProp().name, getCurrentCommunityRecord());
   const row = buildCommunityCommandLeasingPlanRows(model)[clampNumber(monthIdx, 0, 11)] || {};
   const existing = getCommunityCommandApprovedGoal(model.propName, row.monthIdx, model.year);
-  const applicationGoal = Number(prompt(`Approved application goal for ${row.month} ${model.year}`, existing?.applicationGoal ?? Math.round(row.recommendedApps || 0)));
-  if (!Number.isFinite(applicationGoal)) return;
-  const grossLeaseGoal = Number(prompt(`Approved gross lease goal for ${row.month} ${model.year}`, existing?.grossLeaseGoal ?? Math.round(row.recommendedGrossLeases || 0)));
-  if (!Number.isFinite(grossLeaseGoal)) return;
-  const netLeaseGoal = Number(prompt(`Approved net lease goal for ${row.month} ${model.year}`, existing?.netLeaseGoal ?? Math.round(row.netLeaseGoal || 0)));
-  if (!Number.isFinite(netLeaseGoal)) return;
-  const materiallyDifferent = Math.abs(applicationGoal - Number(row.recommendedApps || 0)) >= 3
-    || Math.abs(grossLeaseGoal - Number(row.recommendedGrossLeases || 0)) >= 2
-    || Math.abs(netLeaseGoal - Number(row.netLeaseGoal || 0)) >= 2;
-  const reason = materiallyDifferent
-    ? String(prompt("Reason for official goal override", existing?.reason || "") || "").trim()
-    : String(prompt("Approval note", existing?.reason || "Approved official monthly goal") || "").trim();
-  if (materiallyDifferent && !reason) {
-    alert("A reason is required when the approved official goal materially differs from the ATLAS recommendation.");
-    return;
-  }
-  const nextGoal = normalizeCommunityCommandApprovedGoal({
-    id: existing?.id,
-    propName: model.propName,
-    monthIdx: row.monthIdx,
-    year: model.year,
-    applicationGoal,
-    grossLeaseGoal,
-    netLeaseGoal,
-    recommendedApplicationGoal: row.recommendedApps,
-    recommendedGrossLeaseGoal: row.recommendedGrossLeases,
-    recommendedNetLeaseGoal: row.netLeaseGoal,
-    approver: communityCommandUserLabel(),
-    approvedAt: new Date().toISOString(),
-    reason,
-    locked: true
-  });
+  const recommended = { applicationGoal: row.recommendedApps, grossLeaseGoal: row.recommendedGrossLeases, netLeaseGoal: row.netLeaseGoal, requiredMoveIns: row.requiredMoveIns, occupancyGoal: row.budgetPct, leasedGoal: null, economicGoal: null, renewalGoal: null };
+  const draft = communityCommandState.goalDrafts?.find(goal => communityCommandGoalKey(goal.propName, goal.monthIdx, goal.year) === communityCommandGoalKey(model.propName, row.monthIdx, model.year));
+  const originalRecommendation = draft?.recommended || existing?.recommended;
+  communityCommandGoalEditor = { propName: model.propName, monthIdx: row.monthIdx, year: model.year, recommended: originalRecommendation && Object.keys(originalRecommendation).length ? originalRecommendation : recommended, values: { ...recommended, ...(draft || existing || {}) }, reason: "", effectiveDate: getAtlasTodayISODate() };
+  renderTab();
+}
+
+function cancelCommunityCommandGoalEditor() {
+  communityCommandGoalEditor = null;
+  renderTab();
+}
+
+function renderCommunityCommandGoalEditor(model) {
+  const editor = communityCommandGoalEditor;
+  if (!editor || editor.propName !== model.propName || editor.year !== model.year) return "";
+  const fields = { requiredMoveIns: "Required Move-Ins", applicationGoal: "Applications", grossLeaseGoal: "Gross Leases", netLeaseGoal: "Net Leases", occupancyGoal: "Physical Occupancy %", leasedGoal: "Leased Occupancy %", economicGoal: "Economic Occupancy %", renewalGoal: "Renewal Conversion %" };
+  return `<section style="margin:16px 0" aria-label="Edit goals"><h3>Edit Goals · ${escapeHtml(FULL_MONTHS[editor.monthIdx])} ${editor.year}</h3><div class="community-command-scroll"><table class="community-command-plan-table"><thead><tr><th>Metric</th><th>Recommended</th><th>Draft Adjustment</th></tr></thead><tbody>${Object.entries(fields).map(([key, label]) => `<tr><td>${label}</td><td>${communityCommandFormatNumber(editor.recommended[key], key.endsWith("Goal") && !["applicationGoal","grossLeaseGoal","netLeaseGoal"].includes(key) ? 1 : 0)}</td><td><input id="cc-goal-${key}" aria-label="${label}" type="number" min="0" step="${["occupancyGoal","leasedGoal","economicGoal","renewalGoal"].includes(key) ? "0.1" : "1"}" value="${escapeHtml(editor.values[key] ?? "")}"></td></tr>`).join("")}</tbody></table></div><label>Adjustment reason<textarea id="cc-goal-reason" required>${escapeHtml(editor.reason)}</textarea></label><label>Effective date<input id="cc-goal-effective" type="date" value="${escapeHtml(editor.effectiveDate)}"></label><div class="data-import2-inline-actions"><button class="btn btn-gray" onclick="saveCommunityCommandGoalEditor(false)">Save as Draft</button><button class="btn btn-blue" onclick="saveCommunityCommandGoalEditor(true)">Approve Goals</button><button class="btn btn-gray" onclick="cancelCommunityCommandGoalEditor()">Cancel</button></div></section>`;
+}
+
+function saveCommunityCommandGoalEditor(approve) {
+  const editor = communityCommandGoalEditor;
+  if (!editor || !communityCommandCanApproveGoals() || getProp().name !== editor.propName) return;
+  const values = Object.fromEntries(["requiredMoveIns","applicationGoal","grossLeaseGoal","netLeaseGoal","occupancyGoal","leasedGoal","economicGoal","renewalGoal"].map(key => [key, normalizeOptionalNumber(document.getElementById(`cc-goal-${key}`)?.value)]));
+  const reason = String(document.getElementById("cc-goal-reason")?.value || "").trim();
+  const effectiveDate = String(document.getElementById("cc-goal-effective")?.value || "");
+  if (!reason || !/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate)) { alert("A reason and effective date are required."); return; }
+  const model = buildCommunityCommandModel(editor.propName, getCurrentCommunityRecord());
+  const row = buildCommunityCommandLeasingPlanRows(model)[editor.monthIdx];
+  const counts = [values.requiredMoveIns, values.applicationGoal, values.grossLeaseGoal, values.netLeaseGoal];
+  const percentages = [values.occupancyGoal, values.leasedGoal, values.economicGoal, values.renewalGoal];
+  if (counts.some(value => value !== null && (!Number.isInteger(value) || value < 0)) || percentages.some(value => value !== null && (value < 0 || value > 100))) { alert("Goals must be nonnegative whole counts or percentages from 0 to 100."); return; }
+  if (approve && (counts.some(value => value === null) || values.netLeaseGoal > values.grossLeaseGoal || values.grossLeaseGoal > values.applicationGoal)) { alert("Complete every production goal; applications must cover gross leases, and gross leases must cover net leases."); return; }
+  const mappingIssues = (dataImport2State.exceptions || []).some(issue => issue.communityName === editor.propName && issue.status !== "Resolved" && ["unmapped","conflict","held"].includes(issue.type));
+  if (approve && (row.occupancy.beginningUnits === null || mappingIssues || row.occupancy.warnings.some(warning => !warning.startsWith("Approved plan:")))) { alert("Approval held: resolve beginning occupancy, reconciliation warnings, and source mappings first."); return; }
   const state = normalizeCommunityCommandState(communityCommandState);
-  state.approvedGoals = [nextGoal, ...state.approvedGoals.filter(goal => goal.id !== nextGoal.id && communityCommandGoalKey(goal.propName, goal.monthIdx, goal.year) !== communityCommandGoalKey(nextGoal.propName, nextGoal.monthIdx, nextGoal.year))];
+  const key = communityCommandGoalKey(editor.propName, editor.monthIdx, editor.year);
+  const versions = state.approvedGoals.filter(goal => communityCommandGoalKey(goal.propName, goal.monthIdx, goal.year) === key);
+  const version = Math.max(0, ...versions.map(goal => goal.version)) + 1;
+  const now = new Date().toISOString();
+  const today = getAtlasTodayISODate();
+  const days = new Date(editor.year, editor.monthIdx + 1, 0).getDate();
+  const startDay = today.slice(0,7) === buildPeriodKey(editor.monthIdx, editor.year) ? Number(today.slice(8)) : 1;
+  const weeks = Math.ceil((days - startDay + 1) / 7);
+  const appWeeks = communityCommandWeeklyAllocation(values.applicationGoal, weeks);
+  const grossWeeks = communityCommandWeeklyAllocation(values.grossLeaseGoal, weeks);
+  const netWeeks = communityCommandWeeklyAllocation(values.netLeaseGoal, weeks);
+  if (document.getElementById("cc-goal-custom-weeks")?.checked) {
+    for (const [key, allocation] of [["applicationGoal", appWeeks], ["grossLeaseGoal", grossWeeks], ["netLeaseGoal", netWeeks]]) {
+      const edited = Array.from({ length: weeks }, (_, i) => normalizeOptionalNumber(document.getElementById(`cc-week-${key}-${i}`)?.value));
+      if (edited.some(value => !Number.isInteger(value) || value < 0) || edited.reduce((sum, value) => sum + value, 0) !== values[key]) { alert("Each weekly breakdown must total exactly to its monthly goal."); return; }
+      allocation.splice(0, allocation.length, ...edited);
+    }
+  }
+  const nextGoal = normalizeCommunityCommandApprovedGoal({ ...values, propName: editor.propName, monthIdx: editor.monthIdx, year: editor.year,
+    id: `cc_goal_${simpleHash(key)}_${version}_${Date.now()}`, status: approve ? "Approved" : "Draft", version,
+    recommended: editor.recommended, recommendedApplicationGoal: editor.recommended.applicationGoal, recommendedGrossLeaseGoal: editor.recommended.grossLeaseGoal, recommendedNetLeaseGoal: editor.recommended.netLeaseGoal,
+    effectiveDate, reason, revisedAt: now, approvedAt: approve ? now : "", approver: approve ? communityCommandUserLabel() : "", sourceVersion: JSON.stringify({ beginning: row.occupancy.lineage, inputs: row.occupancy.inputs }),
+    assignments: atlasBonusPeopleEmployees().filter(employee => employee.active && employee.communityName === editor.propName).map(employee => ({ employeeId: employee.employeeId, role: employee.bonusRole, communityName: employee.communityName, effectiveStart: employee.effectiveStart, effectiveEnd: employee.effectiveEnd })),
+    weeklyGoals: Array.from({ length: weeks }, (_, i) => ({ week: i + 1, startDay: startDay + i * 7, applicationGoal: appWeeks[i] ?? null, grossLeaseGoal: grossWeeks[i] ?? null, netLeaseGoal: netWeeks[i] ?? null })) });
+  if (approve) state.approvedGoals = [nextGoal, ...state.approvedGoals];
+  state.goalDrafts = state.goalDrafts.filter(goal => communityCommandGoalKey(goal.propName, goal.monthIdx, goal.year) !== key);
+  if (!approve) state.goalDrafts.unshift(nextGoal);
   communityCommandState = state;
-  communityCommandPersist("official_goal_approved", `${model.propName} ${row.month} ${model.year}`, existing ? JSON.stringify(existing) : "pending", JSON.stringify(nextGoal), reason);
+  communityCommandGoalEditor = null;
+  communityCommandPersist(approve ? "official_goal_approved" : "goal_draft_saved", key, JSON.stringify(versions[0] || null), JSON.stringify(nextGoal), reason);
 }
 
 function addCommunityCommandDashboardOverride(field) {
@@ -31563,6 +31806,51 @@ function atlasBonusProration(employee = {}, period = atlasBonusPeriodFromQuarter
   return { factor: Math.min(1, eligibleDays / totalDays), eligibleDays, totalDays, segments: [] };
 }
 
+function communityCommandBonusGoalResult(employee, metric, period) {
+  const fields = { applications: ["applicationGoal", "applications"], gross_leases: ["grossLeaseGoal", "leasesSignedActual"], leasing_velocity: ["grossLeaseGoal", "leasesSignedActual"], net_leases: ["netLeaseGoal", "netLeasesActual"], move_ins: ["requiredMoveIns", "moveIns"], occupancy: ["occupancyGoal", "physicalOccupancyPct"], leased_pct: ["leasedGoal", "leasedOccupancyPct"], economic_occupancy: ["economicGoal", "economicOccupancyPct"], renewal_conversion: ["renewalGoal", "renewalConversionPct"] };
+  const config = fields[metric.metricKey];
+  if (!config || employee.sampleMetrics) return null;
+  const result = { governed: true, goal: null, actual: null, versions: [], reason: "Missing approved same-period goal or verified actual" };
+  const name = employee.communityName || employee.assignedCommunity;
+  const record = savedData?.[name];
+  if (!record || !/^\d{4}-\d{2}-\d{2}$/.test(period.start || "") || !/^\d{4}-\d{2}-\d{2}$/.test(period.end || "")) return result;
+  const start = new Date(`${period.start}T12:00:00`);
+  const end = new Date(`${period.end}T12:00:00`);
+  if (start.getDate() !== 1 || end.getDate() !== new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate()) return result;
+  const rate = ["occupancyGoal","leasedGoal","economicGoal","renewalGoal"].includes(config[0]);
+  const values = [];
+  for (let cursor = new Date(start); cursor <= end; cursor.setMonth(cursor.getMonth() + 1)) {
+    const month = cursor.getMonth(), year = cursor.getFullYear(), key = buildPeriodKey(month, year);
+    const goal = getCommunityCommandApprovedGoal(name, month, year);
+    const target = normalizeOptionalNumber(goal?.[config[0]]);
+    const entry = getRecordMonthlyDataForYear(record, year)[month] || {};
+    const storedField = config[0] === "occupancyGoal" ? "occupiedSnapshot" : config[0] === "leasedGoal" ? "leasedSnapshot" : config[1];
+    const provenance = entry.metricProvenance?.[storedField];
+    let actual = normalizeOptionalNumber(entry[config[1]]);
+    if (!goal || target === null) return result;
+    if (!["occupancyGoal", "economicGoal"].includes(config[0]) && (!provenance?.source || provenance.community !== name || provenance.period !== key)) return result;
+    if (config[0] === "economicGoal") actual = getCommunityCommandEconomicOccupancyData(record, month, year).mtdPct;
+    if (config[0] === "occupancyGoal") {
+      const last = `${key}-${new Date(year,month + 1,0).getDate()}`;
+      const base = normalizeOptionalNumber(entry.rentableUnits) ?? normalizeOptionalNumber(entry.trendSource?.base);
+      const snapshot = last < getAtlasTodayISODate() ? communityCommandBoundarySnapshot(entry,last,base,name) : null;
+      actual = snapshot && base > 0 ? snapshot.units / base * 100 : null;
+    }
+    if (config[0] === "leasedGoal") {
+      const units = normalizeOptionalNumber(entry[storedField]);
+      const last = `${key}-${new Date(year,month + 1,0).getDate()}`;
+      actual = last < getAtlasTodayISODate() && String(provenance.dataAsOf || "").slice(0,10) === last && units !== null && entry.rentableUnits > 0 ? units / entry.rentableUnits * 100 : null;
+    }
+    if (actual === null) return result;
+    values.push({ actual, target });
+    result.versions.push({ id: goal.id, version: goal.version, period: key, effectiveDate: goal.effectiveDate });
+  }
+  if (!values.length) return result;
+  // Rate aggregation requires approved denominator weighting; do not average percentages.
+  if (rate && values.length !== 1) return { ...result, reason: "Quarterly rate metric requires an approved denominator-weighted aggregation" };
+  return { ...result, actual: values.reduce((sum, value) => sum + value.actual, 0), goal: values.reduce((sum, value) => sum + value.target, 0), reason: "" };
+}
+
 function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter()) {
   const resolution = atlasBonusResolvePlanForEmployee(employee, period);
   const plan = resolution.plan;
@@ -31575,8 +31863,11 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
   const proration = atlasBonusProration(employee, period);
   let grossPotential = 0;
   let grossEarned = 0;
-  const metricResults = (plan?.metrics || []).map(metric => {
-    const actual = atlasBonusMetricActual(employee, metric);
+  const metricResults = (plan?.metrics || []).map(configuredMetric => {
+    const governed = communityCommandBonusGoalResult(employee, configuredMetric, period);
+    const metric = governed ? { ...configuredMetric, goal: governed.goal } : configuredMetric;
+    const actual = governed ? governed.actual : atlasBonusMetricActual(employee, metric);
+    if (governed?.reason) exceptions.push({ severity: "critical", code: "governed_goal_pending", message: governed.reason, metricId: metric.id });
     if (actual === null) {
       exceptions.push({ severity: metric.inputType === "automatic" ? "critical" : "warning", code: "missing_metric", message: `Missing ${metric.name} data from ${metric.dataSource}.`, metricId: metric.id });
     }
@@ -31591,6 +31882,7 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
     grossEarned += earned;
     return {
       metric,
+      approvedGoalVersions: governed?.versions || [],
       actual,
       potential,
       payoutPct: curve.payoutPct,
@@ -48688,7 +48980,7 @@ async function dataImportReadFileSample(file) {
         const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "", raw: false });
         const qualifiedBoxScoreRows = dataImportIsBoxScoreSheet(rows, sheetName) && window.AtlasApplicationSources?.boxScore
           ? window.AtlasApplicationSources.boxScore(rows)
-          : [];
+          : dataImportIsMetadataSheetName(sheetName) ? [] : dataImportParseTrendingRows(rows, sheetName);
         const sheetQualifiedFields = qualifiedBoxScoreRows.flatMap(row => Object.entries(row.values || {}).map(([canonicalField, sampleValue]) => {
           const locator = row.locators?.[canonicalField] || {};
           const sourceHeader = locator.sourceHeader || canonicalField;
@@ -49064,7 +49356,7 @@ function dataImportSuggestDestinationForHeader(header = "", context = {}) {
 }
 
 function dataImportDetectFields(sample, context = {}) {
-  const qualifiedFields = context.reportType === "box_score"
+  const qualifiedFields = ["box_score", "trending_occupancy"].includes(context.reportType)
     ? (sample?.qualifiedFields || []).filter(item => item?.canonicalField && dataImportDestinationExists(item.canonicalField))
     : [];
   if (qualifiedFields.length) {
@@ -49074,10 +49366,10 @@ function dataImportDetectFields(sample, context = {}) {
         canonicalField: item.canonicalField,
         originalField: item.qualifiedHeader || item.sourceHeader || item.canonicalField,
         confidence: 100,
-        sourceRuleId: "box_score_section_contract",
+        sourceRuleId: `${context.reportType}_section_contract`,
         detectedDataType: dataImportInferFieldDataType(item.sourceHeader || item.canonicalField, item.sampleValue || ""),
         sampleValue: item.sampleValue || "",
-        reason: "Box Score section-qualified source parser"
+        reason: context.reportType === "box_score" ? "Box Score section-qualified source parser" : "Trending Occupancy dated monthly count contract"
       });
     });
     return { mappedFields: Array.from(mapped.values()), lowConfidence: [], unmappedHeaders: [] };
@@ -49580,6 +49872,44 @@ async function dataImportReadPdfStructuredRows(file) {
   return sheets;
 }
 
+function dataImportParseTrendingRows(rawRows, sheetName) {
+  const normalize = value => String(value || "").trim().toLowerCase();
+  const headerIndex = rawRows.findIndex(row => row.some(v => normalize(v) === "beginning occupied units") && row.some(v => normalize(v) === "ending occupied units"));
+  if (headerIndex < 0) return [];
+  const headers = rawRows[headerIndex];
+  const fields = { "date range": "post_month", "beginning occupied units": "beginning_occupied_units", "ending occupied units": "ending_occupied_units", "unit space count": "unit_space_count", "move-ins": "move_ins", "move-outs": "move_outs" };
+  const date = value => {
+    const m = String(value).match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!m) return "";
+    const iso = `${m[3]}-${m[1]}-${m[2]}`;
+    const parsed = new Date(`${iso}T00:00:00Z`);
+    return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === iso ? iso : "";
+  };
+  return rawRows.slice(headerIndex + 1).flatMap((row, index) => {
+    const values = {}, locators = {};
+    headers.forEach((header, column) => {
+      const field = fields[normalize(header)];
+      if (!field) return;
+      values[field] = row[column];
+      locators[field] = { row: headerIndex + index + 2, column: column + 1, section: "monthly occupancy", sourceHeader: header };
+    });
+    const range = String(values.post_month || "").split(/\s+-\s+/);
+    const start = date(range[0]), end = date(range[1]);
+    // The final workbook total spans many months and must never enter a monthly group.
+    if (!start || !end || start.slice(0, 7) !== end.slice(0, 7) || !start.endsWith("-01") || Number(end.slice(8)) !== new Date(Number(end.slice(0, 4)), Number(end.slice(5, 7)), 0).getDate()) return [];
+    values.post_month = start;
+    const base = dataImportNumericValue(values.unit_space_count);
+    for (const [count, pct] of [["beginning_occupied_units", "beginning_occupancy"], ["ending_occupied_units", "ending_occupancy"]]) {
+      const units = dataImportNumericValue(values[count]);
+      if (base > 0 && Number.isInteger(units) && units >= 0 && units <= base) {
+        values[pct] = `${units / base * 100}%`;
+        locators[pct] = { ...locators[count], sourceHeader: `${locators[count].sourceHeader} / Unit Space Count` };
+      }
+    }
+    return [{ values, locators, canonicalSource: true, sourceSheet: sheetName, sourceRow: headerIndex + index + 2, section: "monthly occupancy", period: { start, end } }];
+  });
+}
+
 async function dataImportReadStructuredRows(file, plan = {}) {
   const extension = dataImportGetFileExtension(file?.name || "");
   if (extension === ".pdf") return dataImportReadPdfStructuredRows(file);
@@ -49590,6 +49920,12 @@ async function dataImportReadStructuredRows(file, plan = {}) {
   (workbook.SheetNames || []).forEach(sheetName => {
     if (dataImportIsMetadataSheetName(sheetName)) return;
     const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false, blankrows: true });
+    if (plan.reportType === "trending_occupancy") {
+      const rows = dataImportParseTrendingRows(rawRows, sheetName);
+      if (rows.length) sheets.push({ sheetName, headers: [...new Set(rows.flatMap(row => Object.keys(row.values)))], rows });
+      // A recognized Entrata layout must not fall back to generic summary-row mapping.
+      if (rows.length || rawRows.some(row => row.some(v => String(v).trim() === "Beginning Occupied Units"))) return;
+    }
     if (plan.reportType === "delinquency") {
       const normalize = value => String(value || "").trim().toLowerCase();
       const headerIndex = rawRows.findIndex(row => row.some(v => normalize(v) === "0-30 days") && row.some(v => normalize(v) === "balance") && row.some(v => normalize(v) === "resident"));
@@ -49634,7 +49970,7 @@ async function dataImportReadStructuredRows(file, plan = {}) {
 }
 
 function dataImportMapSourceRow(sourceRow = {}, plan = {}, mappingCache = null) {
-  if (sourceRow.canonicalSource && ["box_score", "delinquency"].includes(plan.reportType)) {
+  if (sourceRow.canonicalSource && ["box_score", "delinquency", "trending_occupancy"].includes(plan.reportType)) {
     const mapped = {}, sourceFields = {}, unmappedFields = [];
     for (const [field,value] of Object.entries(sourceRow.values || {})) {
       const loc = sourceRow.locators?.[field];
@@ -49767,7 +50103,7 @@ function dataImportCommunitySupportsReport(communityName, reportType) {
 
 function dataImportRowPeriod(mapped = {}, sourceRow = {}, plan = {}) {
   const sectionDate = sourceRow.period?.start || sourceRow.period?.asOf;
-  if (plan.reportType === "box_score" && sectionDate) {
+  if (["box_score", "trending_occupancy"].includes(plan.reportType) && sectionDate) {
     return {monthIdx:Number(sectionDate.slice(5,7))-1,year:Number(sectionDate.slice(0,4)),periodKey:sectionDate.slice(0,7)};
   }
   if (["box_score", "delinquency", "leasing_resident_data"].includes(plan.reportType) && Number.isInteger(plan.reportingMonthIdx) && Number.isInteger(plan.reportingYear)) {
@@ -49793,7 +50129,7 @@ function dataImportCanonicalRecordKey(plan, communityName, period, row, sourceRo
   const partsByType = {
     community_data: [row.community_id, row.pms_property_code, communityName],
     box_score: [plan.fileHash || plan.name, row.floorplan_code || row.floorplan, row.traffic_source, row.application_status, sourceRow.section, sourceRow.period?.start, sourceRow.period?.end, sourceRow.period?.asOf],
-    trending_occupancy: [row.closed_actual ? "closed" : row.reported_actual ? "actual" : "forecast"],
+    trending_occupancy: [sourceRow.section || (row.closed_actual ? "closed" : row.reported_actual ? "actual" : "forecast"), sourceRow.period?.start, sourceRow.period?.end],
     leasing_resident_data: [row.application_id, row.lease_id, row.unit, row.resident],
     rent_roll: [row.lease_id, row.unit, row.resident, row.charge_code],
     delinquency: [row.lease_id, row.unit, row.resident],
@@ -50136,6 +50472,16 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     entries.forEach(entry => dataImportUpsertFloorPlan(record, entry.row, plan, entry.sourceRow.sourceSheet));
     const periodEntries = getWritableMonthlyPeriodEntries(record, period.monthIdx, period.year);
     [periodEntries?.historyEntry, periodEntries?.liveEntry].filter(Boolean).forEach(month => {
+      const snapshotDate = String(entries.find(entry => /^availability/i.test(entry.sourceRow.section || ""))?.sourceRow.period?.asOf || plan.metadata?.dataAsOf || "").slice(0, 10);
+      if (!studentBasisConflict && occupied !== null && rentable > 0 && occupied >= 0 && occupied <= rentable && /^\d{4}-\d{2}-\d{2}$/.test(snapshotDate)) {
+        month.physicalSnapshotHistory = { ...month.physicalSnapshotHistory, [snapshotDate]: {
+          occupiedSnapshot: occupied, rentableUnits: rentable,
+          metricProvenance: { occupiedSnapshot: { community: communityName, period: period.periodKey, source: plan.fileHash || plan.name,
+            sourceSystem: plan.sourceSystem, sourceFile: plan.name, sourceSheet: entries[0]?.sourceRow?.sourceSheet || "",
+            field: "occupied_units", destinationField: "occupiedSnapshot", transformation: "Occupied units / comparable rentable units; exclusions applied once",
+            dataAsOf: snapshotDate, importedAt: new Date().toISOString(), sourceRank: 100 } }
+        } };
+      }
       if (!acceptDerived || studentBasisConflict) return;
       if (physicalPct !== null && physicalPct >= 0 && physicalPct <= 100) month.physicalOccupancyPct = physicalPct;
       if (leasedPct !== null && leasedPct >= 0 && leasedPct <= 100) month.leasedOccupancyPct = leasedPct;
@@ -50157,6 +50503,38 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
   } else if (plan.reportType === "trending_occupancy") {
     const periodEntries = getWritableMonthlyPeriodEntries(record, period.monthIdx, period.year);
     [periodEntries?.historyEntry, periodEntries?.liveEntry].filter(Boolean).forEach(month => {
+      const row = entries.find(entry => entry.sourceRow.canonicalSource && entry.sourceRow.period?.end);
+      if (row) {
+        const { start, end } = row.sourceRow.period;
+        const asOf = String(plan.metadata?.dataAsOf || plan.metadata?.generatedAt || "").slice(0, 10);
+        const base = dataImportNumericValue(row.row.unit_space_count);
+        const beginning = dataImportNumericValue(row.row.beginning_occupied_units);
+        const ending = dataImportNumericValue(row.row.ending_occupied_units);
+        const provenance = (field, date) => ({ community: communityName, period: period.periodKey, source: plan.fileHash || plan.name,
+          sourceFile: plan.name, sourceSystem: plan.sourceSystem, sourceSheet: row.sourceRow.sourceSheet, sourceRow: row.sourceRow.sourceRow,
+          field, dataAsOf: date, generatedAt: asOf, importedAt: new Date().toISOString(), sourceRank: 70,
+          transformation: "Source occupied units / source Unit Space Count; summary rows excluded" });
+        if (/^\d{4}-\d{2}-\d{2}$/.test(asOf) && base > 0 && Number.isInteger(base)) {
+          const capture = (date, units, field) => {
+            if (date > asOf || !Number.isInteger(units) || units < 0 || units > base) return;
+            const old = month.physicalSnapshotHistory?.[date];
+            if (old?.metricProvenance?.occupiedSnapshot?.sourceRank > 70) {
+              if (month === periodEntries.historyEntry && (old.occupiedSnapshot !== units || old.rentableUnits !== base)) result.issues.push({type:"reconciliation",severity:"high",title:"Occupancy sources disagree",detail:`${date}: Box Score and Trending Occupancy boundary counts differ. Box Score retained.`,communityName});
+              return;
+            }
+            month.physicalSnapshotHistory = {...month.physicalSnapshotHistory, [date]: {occupiedSnapshot:units, rentableUnits:base, metricProvenance:{occupiedSnapshot:provenance(field,date)}}};
+          };
+          if (start <= asOf) capture(start, beginning, "beginning_occupied_units");
+          if (end < asOf) capture(end, ending, "ending_occupied_units");
+          const moveIns = dataImportNumericValue(row.row.move_ins), moveOuts = dataImportNumericValue(row.row.move_outs);
+          month.trendSource = {start,end,asOf,beginningUnits:beginning,endingUnits:ending,base,moveIns,moveOuts,provenance:provenance("ending_occupied_units",end)};
+          if (month === periodEntries.historyEntry && Number.isInteger(beginning) && Number.isInteger(ending) && moveIns !== null && moveOuts !== null && beginning + moveIns - moveOuts !== ending) {
+            result.issues.push({type:"reconciliation",severity:"medium",title:"Occupancy movement variance",detail:`${period.periodKey}: source ending ${ending}; beginning plus move-ins minus move-outs ${beginning + moveIns - moveOuts}. Source ending retained.`,communityName});
+          }
+          if (end >= asOf && Number.isInteger(ending) && ending >= 0 && ending <= base) month.trendingOccupancyForecast = ending / base * 100;
+          if (end < asOf && Number.isInteger(ending) && ending >= 0 && ending <= base) month.trendingOccupancyClosedActual = ending / base * 100;
+        }
+      }
       const forecast = dataImportPercentValue(first("reported_forecast") ?? first("trending_occupancy"));
       const actual = dataImportPercentValue(first("reported_actual"));
       const closed = dataImportPercentValue(first("closed_actual"));
@@ -50182,8 +50560,11 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
       if (scheduled !== null) month.scheduledCharges = scheduled;
       month.actualCharges = actual;
       month.grossPotentialRent = gpr;
-      month.economicOccupancyPct = gpr > 0 && actual !== null ? actual / gpr * 100 : null;
       month.financialSource = `${plan.name} · ${period.periodKey}`;
+      month.financialPeriod = period.periodKey;
+      month.actualRevenueCoverage = String(first("actual_revenue_coverage") || "").trim();
+      month.grossPotentialRentCoverage = String(first("gpr_coverage") || "").trim();
+      month.economicOccupancyPct = getCommunityCommandEconomicOccupancyData(record, period.monthIdx, period.year).mtdPct;
     });
     if (plan.reportType === "approved_accounting") {
       const ledgerRows = rows.flatMap(row => {
@@ -50197,7 +50578,7 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
       });
       if (ledgerRows.length) Object.assign(record, window.AtlasFinancialPublication.apply(record, { period: period.periodKey, rows: ledgerRows, source: plan.name, kind: "actuals", mode: "replace" }));
     }
-    result.formulas.push(`${communityName} ${period.periodKey}: Economic Occupancy = Actual Rent Charges / Gross Potential Rent when both values are present.`);
+    result.formulas.push(`${communityName} ${period.periodKey}: Economic Occupancy requires approved closed-package Net Rental Income / GPR. Operational charges remain separate.`);
     result.destinations.add(plan.reportType === "rent_roll" ? "Rent Performance" : "Financial Reporting");
   } else if (plan.reportType === "leasing_resident_data") {
     // Applicant snapshots do not establish completed-application period flows.

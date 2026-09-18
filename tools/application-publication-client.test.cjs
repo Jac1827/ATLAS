@@ -2,6 +2,7 @@ const fs=require('node:fs'), vm=require('node:vm'), assert=require('node:assert/
 const html=fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/index.html','utf8');
 const c={console,Date,Map,Set,Number,window:{},applicationResidentDataState:{uploads:[]},csvError:'',renderTab(){},normalizeApplicationResidentUpload:x=>x,getApplicationResidentCommunityIdForAtlasName:()=> 'LOCAL_A'};
 vm.createContext(c);
+c.scheduleAtlasSharedRender = () => c.renderTab();
 vm.runInContext('let atlasApplicationHydrationEpoch=0; let atlasApplicationSessionUser=null;',c);
 for (const name of ['atlasApplicationPublicationEnabled','applicationUploadFromCentral','clearAtlasSharedApplications','hydrateAtlasSharedApplications','reviseAtlasSharedApplication']) {
  const match=[...html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm)].find(m=>m[0].startsWith('function '+name+'(')||m[0].startsWith('async function '+name+'('));

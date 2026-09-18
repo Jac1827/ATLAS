@@ -48168,6 +48168,7 @@ function defaultDataImport2State() {
     propertyAliases: defaultDataImportPropertyAliases(),
     sourceDefinitions: defaultDataImportSourceDefinitions(),
     freshnessPolicies: defaultDataImportFreshnessPolicies(),
+    reportRequirementOverrides: [],
     canonicalRecords: [],
     lineage: [],
     reconciliationLog: [],
@@ -48343,6 +48344,9 @@ function normalizeDataImport2State(input = {}) {
     propertyAliases: Array.from(aliasByKey.values()),
     sourceDefinitions: Array.from(sourceById.values()),
     freshnessPolicies,
+    reportRequirementOverrides: (Array.isArray(state.reportRequirementOverrides) ? state.reportRequirementOverrides : [])
+      .filter(item => item && typeof item.communityName === "string" && item.communityName.trim() && DATA_IMPORT_REPORT_ORDER.includes(item.reportType) && typeof item.excluded === "boolean")
+      .map(item => ({ communityName: item.communityName, reportType: item.reportType, excluded: item.excluded, updatedAt: String(item.updatedAt || ""), updatedBy: String(item.updatedBy || "") })),
     canonicalRecords: (Array.isArray(state.canonicalRecords) ? state.canonicalRecords : []).filter(Boolean).slice(0, 12000),
     lineage: (Array.isArray(state.lineage) ? state.lineage : []).filter(Boolean).slice(0, 12000),
     reconciliationLog: (Array.isArray(state.reconciliationLog) ? state.reconciliationLog : []).filter(Boolean).slice(0, 1200),
@@ -51364,6 +51368,24 @@ function dataImportBuildStatusDateLabel(status, archive, hasFallback, checkedAt)
   return `Checked ${dataImportFormatDate(checkedAt, "Today")}`;
 }
 
+function dataImportGetRequirementOverride(communityName, reportType) {
+  return (dataImport2State.reportRequirementOverrides || []).find(item =>
+    dataImportNormalizeText(item.communityName) === dataImportNormalizeText(communityName) && item.reportType === reportType
+  ) || null;
+}
+
+function setDataImportReportNotRequired(communityName, reportType, excluded) {
+  if (!atlasProfileCanManageSettings(getAtlasAccessProfile())) return;
+  if (!DATA_IMPORT_REPORT_ORDER.includes(reportType) || !dataImportGetHealthCommunityNames().includes(communityName) ||
+      !dataImportCommunitySupportsReport(communityName, reportType)) return;
+  const previous = dataImportGetRequirementOverride(communityName, reportType);
+  const next = { communityName, reportType, excluded: excluded === true, updatedAt: new Date().toISOString(), updatedBy: atlasCurrentUserDisplayName() };
+  dataImport2State.reportRequirementOverrides = (dataImport2State.reportRequirementOverrides || []).filter(item => item !== previous);
+  dataImport2State.reportRequirementOverrides.push(next);
+  persistDataImport2State();
+  renderTab();
+}
+
 function dataImportBuildHealthModel() {
   const activeCommunities = dataImportGetHealthCommunityNames();
   const communities = dataImportGetMatrixCommunityNames(activeCommunities);
@@ -51373,12 +51395,19 @@ function dataImportBuildHealthModel() {
     const cells = DATA_IMPORT_REPORT_ORDER.map(reportType => {
       const def = dataImportGetReportDef(reportType);
       const freshness = dataImportEffectiveFreshness(reportType);
-      const required = isActive && dataImportCommunitySupportsReport(communityName, reportType);
+      const serviceSupported = dataImportCommunitySupportsReport(communityName, reportType);
+      const requirementOverride = dataImportGetRequirementOverride(communityName, reportType);
+      const excluded = requirementOverride?.excluded === true;
+      const required = isActive && serviceSupported && !excluded;
       const archive = dataImportLatestArchiveFor(communityName, reportType);
       const hasFallback = dataImportHasSavedFallbackData(communityName, reportType);
       let status = required ? "Missing" : "Not Required";
       let ageLabel = required ? "No source" : "Outside service scope";
       let detail = required ? `Upload current ${def.label} for ${communityName}.` : `${def.label} is not required for this community's configured service scope.`;
+      if (excluded) {
+        ageLabel = "Excluded by override";
+        detail = `${def.label} is marked not required for ${communityName}.`;
+      }
       if (required && archive) {
         const age = dataImportAgeForArchive(archive, { freshness });
         const stale = age > Number(freshness.days || 7);
@@ -51410,6 +51439,8 @@ function dataImportBuildHealthModel() {
         reportType,
         reportLabel: def.label,
         required,
+        serviceSupported,
+        requirementOverride,
         status,
         ageLabel,
         statusDateLabel: dataImportBuildStatusDateLabel(status, archive, hasFallback, checkedAt),
@@ -51417,7 +51448,7 @@ function dataImportBuildHealthModel() {
         archive,
         exceptions: relatedExceptions,
         recommendedAction: !isActive ? "Historical reference only; no current upload required." : status === "Not Required"
-          ? "No feed is required for this configured service scope."
+          ? "No upload required; excluded from portfolio health."
           : status === "Fresh"
           ? "No upload needed."
           : `Upload a current ${def.label} for ${communityName}.`,
@@ -51503,7 +51534,7 @@ function renderDataImportHero(health) {
       <div class="data-import2-copy">Raw Entrata and APTIQ reports move through detection, property matching, field mapping, validation, approval, archive, and dashboard refresh from one workspace.</div>
     </div>
     <div class="data-import2-kpis">
-      <div class="data-import2-kpi"><div class="data-import2-kpi-label">Portfolio Health</div><div class="data-import2-kpi-value">${health.healthScore}%</div><div class="data-import2-kpi-sub">${health.activeCommunities.length} active communities tracked${health.inactiveCommunities.length ? ` · ${health.inactiveCommunities.length} inactive below matrix` : ""}</div></div>
+      <div class="data-import2-kpi"><div class="data-import2-kpi-label">Portfolio Health</div><div class="data-import2-kpi-value">${health.cells.length ? `${health.healthScore}%` : "N/A"}</div><div class="data-import2-kpi-sub">${health.activeCommunities.length} active communities · ${health.cells.length} required feeds${health.inactiveCommunities.length ? ` · ${health.inactiveCommunities.length} inactive below matrix` : ""}</div></div>
       <div class="data-import2-kpi"><div class="data-import2-kpi-label">Fully Current</div><div class="data-import2-kpi-value">${health.fullyCurrentCommunities}</div><div class="data-import2-kpi-sub">all required feeds fresh</div></div>
       <div class="data-import2-kpi"><div class="data-import2-kpi-label">Missing</div><div class="data-import2-kpi-value">${health.missingFeeds}</div><div class="data-import2-kpi-sub">feed gaps</div></div>
       <div class="data-import2-kpi"><div class="data-import2-kpi-label">Stale</div><div class="data-import2-kpi-value">${health.staleFeeds}</div><div class="data-import2-kpi-sub">outside SLA</div></div>
@@ -51543,6 +51574,7 @@ function renderDataImportDropzone() {
 }
 
 function renderDataImportRecommendations(health) {
+  if (!health.cells.length) return `<div class="data-import2-detail-panel">No required feeds in the active portfolio scope.</div>`;
   const recs = dataImportBuildRecommendations(health);
   if (!recs.length) {
     return `<div class="data-import2-detail-panel">All tracked feeds are current for the selected portfolio scope.</div>`;
@@ -51572,6 +51604,7 @@ function openDataImportHealthCell(communityName, reportType) {
 
 function renderDataImportMatrix(health, compact = false) {
   const rows = health.rows || [];
+  const canManage = atlasProfileCanManageSettings(getAtlasAccessProfile());
   if (!rows.length) return `<div class="data-import2-detail-panel">No communities are available for data health tracking yet.</div>`;
   const head = DATA_IMPORT_REPORT_ORDER.map(type => `<th>${escapeHtml(dataImportReportLabel(type))}</th>`).join("");
   const body = rows.map(row => `<tr class="${row.isActive ? "" : "inactive-community-row"}">
@@ -51584,6 +51617,7 @@ function renderDataImportMatrix(health, compact = false) {
         </span>
         <div class="data-import2-cell-detail">${escapeHtml(cell.ageLabel)}</div>
       </button>
+      ${row.isActive && cell.serviceSupported ? `<label class="data-import2-cell-detail" style="display:flex;align-items:center;gap:6px;margin-top:8px"><input type="checkbox" style="width:auto;margin:0" aria-label="${escapeHtml(`${cell.communityName}: ${cell.reportLabel} not required`)}" ${cell.requirementOverride?.excluded ? "checked" : ""} ${canManage ? "" : "disabled"} onchange="${escapeHtml(`setDataImportReportNotRequired(${JSON.stringify(cell.communityName)}, ${JSON.stringify(cell.reportType)}, this.checked)`)}">Not required</label>` : ""}
     </td>`).join("")}
   </tr>`).join("");
   const table = `<div class="data-import2-matrix-wrap"><table class="data-import2-matrix"><thead><tr><th>Community</th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
@@ -51612,7 +51646,8 @@ function renderDataImportHealthDetail(health) {
       Generated: ${archive?.metadata?.generatedAt ? escapeHtml(dataImportFormatTimestamp(archive.metadata.generatedAt)) : "Not recorded"}<br>
       Received: ${archive?.metadata?.receivedAt ? escapeHtml(dataImportFormatTimestamp(archive.metadata.receivedAt)) : archive ? escapeHtml(dataImportFormatTimestamp(archive.uploadedAt)) : "Not recorded"}<br>
       Expected cadence: ${escapeHtml(dataImportEffectiveFreshness(cell.reportType).label)}<br>
-      Next due: ${escapeHtml(dataImportNextDueLabel(archive, cell.reportType))}<br>
+      Next due: ${cell.required ? escapeHtml(dataImportNextDueLabel(archive, cell.reportType)) : "Not required"}<br>
+      ${cell.requirementOverride ? `Requirement ${cell.requirementOverride.excluded ? "waived" : "restored"} by ${escapeHtml(cell.requirementOverride.updatedBy)} · ${escapeHtml(dataImportFormatTimestamp(cell.requirementOverride.updatedAt))}<br>` : ""}
       Status date: ${escapeHtml(cell.statusDateLabel || "Not recorded")}<br>
       Age: ${escapeHtml(cell.ageLabel)}<br>
       Import batch: ${archive ? escapeHtml(archive.batchId) : "None"}<br>

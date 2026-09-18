@@ -1059,6 +1059,43 @@
     return Array.isArray(rows) ? rows : [];
   }
 
+  async function readEmployeeNotifications(options = {}) {
+    await refreshSession().catch(() => null);
+    const recipientEmail = String(options.recipientEmail || "").trim().toLowerCase();
+    const filters = [
+      "select=notification_id,recipient_user_id,recipient_employee_id,recipient_email,event_key,event_type,title,message,module_key,destination_tab_id,destination_page_key,community_id,behavior,requires_acknowledgement,published_at,expires_at,viewed_at,dismissed_at,acknowledged_at,created_at",
+      "order=published_at.desc",
+      "limit=100"
+    ];
+    if (recipientEmail) filters.push(`recipient_email=eq.${encodeURIComponent(recipientEmail)}`);
+    const rows = await fetchJson(`/atlas_employee_notifications?${filters.join("&")}`);
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  async function updateEmployeeNotification(notificationId, action) {
+    return rpc("atlas_employee_notification_action", {
+      p_notification_id: notificationId,
+      p_action: String(action || "view").trim().toLowerCase()
+    });
+  }
+
+  async function publishEmployeeNotification(notification = {}) {
+    return rpc("atlas_admin_publish_employee_notification", {
+      p_recipient_email: String(notification.recipientEmail || notification.recipient_email || "").trim().toLowerCase(),
+      p_recipient_employee_id: notification.recipientEmployeeId || notification.recipient_employee_id || null,
+      p_event_key: String(notification.eventKey || notification.event_key || "").trim(),
+      p_event_type: String(notification.eventType || notification.event_type || "data_update").trim(),
+      p_title: String(notification.title || "ATLAS update").trim(),
+      p_message: String(notification.message || "").trim(),
+      p_module_key: String(notification.moduleKey || notification.module_key || "").trim() || null,
+      p_destination_tab_id: String(notification.destinationTabId || notification.destination_tab_id || "").trim() || null,
+      p_destination_page_key: String(notification.destinationPageKey || notification.destination_page_key || "").trim() || null,
+      p_community_id: notification.communityId || notification.community_id || null,
+      p_behavior: String(notification.behavior || "auto_expire").trim(),
+      p_requires_acknowledgement: notification.requiresAcknowledgement === true || notification.requires_acknowledgement === true
+    });
+  }
+
   async function adminUpsertUserAccess(access = {}) {
     const payload = {
       p_email: String(access.email || "").trim().toLowerCase(),
@@ -1456,6 +1493,9 @@
     readCommunitiesForAccess,
     readEmployeesForAccess,
     adminUpsertUserAccess,
+    readEmployeeNotifications,
+    updateEmployeeNotification,
+    publishEmployeeNotification,
     sendAccessInvitation,
     diagnoseAccessProvisioning,
     uploadReadOnlySnapshot,

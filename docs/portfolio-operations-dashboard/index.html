@@ -169,6 +169,14 @@
   .atlas-live-user-avatar:first-child { margin-left:0; }
   .atlas-live-user-label { min-width:0; overflow:hidden; text-overflow:ellipsis; }
   .atlas-live-users.is-muted { color:var(--muted); }
+  .atlas-employee-notices { display:none; align-items:center; gap:10px; width:100%; padding:8px 14px; border-top:1px solid rgba(15,47,87,0.1); background:#eef7fb; color:#173b50; font-size:0.7rem; line-height:1.45; }
+  .atlas-employee-notices.is-visible { display:flex; }
+  .atlas-employee-notice-copy { min-width:0; flex:1 1 auto; }
+  .atlas-employee-notice-copy strong { color:#0f2f57; }
+  .atlas-employee-notice-meta { color:var(--muted); font-size:0.62rem; margin-left:6px; }
+  .atlas-employee-notice-actions { display:flex; align-items:center; gap:6px; flex:0 0 auto; }
+  .atlas-employee-notice-actions button { border:1px solid rgba(15,47,87,0.18); background:#fff; color:#0f2f57; border-radius:6px; padding:5px 8px; font:inherit; font-weight:700; cursor:pointer; }
+  .atlas-employee-notice-count { display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; border-radius:999px; background:#0f2f57; color:#fff; font-size:0.62rem; font-weight:700; }
   .tab.is-locked { opacity:0.42; cursor:not-allowed; }
   .tab.is-locked .tab-label::after { content:" Locked"; font-size:0.58rem; color:#8b0000; margin-left:4px; }
   .atlas-access-grid { display:grid; grid-template-columns:1.05fr 0.95fr; gap:12px; align-items:start; }
@@ -1379,6 +1387,7 @@
         <span class="atlas-live-user-label">Live users unavailable</span>
       </div>
     </div>
+    <div class="atlas-employee-notices" id="atlas-employee-notices" role="region" aria-live="polite" aria-label="ATLAS updates"></div>
   </header>
 
   <section class="card mb4 application-tracker-card" id="application-tracking-section" aria-label="Application tracking">
@@ -15059,6 +15068,10 @@ let atlasAccessAdminState = {
 };
 let atlasAccessFormDraft = null;
 let atlasAccessPanelRefreshTimer = null;
+let atlasEmployeeRecordSaveState = { busy: false, status: "", message: "", savedAt: "", employeeKey: "" };
+let atlasEmployeeAccessHistory = [];
+let atlasEmployeeNotificationState = { loading: false, loaded: false, notices: [], activeIndex: 0, error: "", lastLoadedAt: "" };
+let atlasEmployeeNotificationTimer = null;
 let atlasLivePresenceState = {
   sessionId: "",
   users: [],
@@ -17834,6 +17847,7 @@ function readAtlasAccessFormDraftFromDom() {
 }
 
 function syncAtlasAccessFormDraftFromPanel() {
+  if (atlasEmployeeRecordSaveState.status) atlasEmployeeRecordSaveState = { busy: false, status: "", message: "", savedAt: "", employeeKey: "" };
   return setAtlasAccessFormDraft(readAtlasAccessFormDraftFromDom());
 }
 
@@ -18167,6 +18181,80 @@ function renderAtlasLiveUsersTicker() {
   }).join("\n") || "Signed-in ATLAS users active in the last few minutes";
 }
 
+function atlasEmployeeNoticeIsActive(notice = {}) {
+  if (notice.dismissed_at || notice.acknowledged_at) return false;
+  if (notice.requires_acknowledgement) return true;
+  if (notice.behavior === "until_viewed") return !notice.viewed_at;
+  if (notice.behavior === "until_dismissed") return true;
+  const expiresAt = Date.parse(notice.expires_at || "");
+  return !Number.isFinite(expiresAt) || expiresAt > Date.now();
+}
+
+function renderAtlasEmployeeNotificationTicker() {
+  const host = document.getElementById("atlas-employee-notices");
+  if (!host) return;
+  const notices = (atlasEmployeeNotificationState.notices || []).filter(atlasEmployeeNoticeIsActive);
+  if (!notices.length) {
+    host.classList.remove("is-visible");
+    host.innerHTML = "";
+    return;
+  }
+  const index = Math.min(atlasEmployeeNotificationState.activeIndex || 0, notices.length - 1);
+  const notice = notices[index];
+  const timestamp = notice.published_at ? new Date(notice.published_at).toLocaleString() : "";
+  const encodedId = JSON.stringify(String(notice.notification_id || ""));
+  const destinationTabId = String(notice.destination_tab_id || "");
+  host.classList.add("is-visible");
+  host.innerHTML = `
+    <span class="atlas-employee-notice-count" aria-label="${notices.length} active update${notices.length === 1 ? "" : "s"}">${notices.length}</span>
+    <div class="atlas-employee-notice-copy"><strong>${escapeHtml(notice.title || "ATLAS update")}</strong> ${escapeHtml(notice.message || "")}${timestamp ? `<span class="atlas-employee-notice-meta">${escapeHtml(timestamp)}</span>` : ""}</div>
+    <div class="atlas-employee-notice-actions">
+      ${destinationTabId ? `<button type="button" onclick='viewAtlasEmployeeNotification(${encodedId}, ${JSON.stringify(destinationTabId)})'>View Update</button>` : `<button type="button" onclick='updateAtlasEmployeeNotification(${encodedId}, "view")'>Mark Viewed</button>`}
+      ${notice.requires_acknowledgement ? `<button type="button" onclick='updateAtlasEmployeeNotification(${encodedId}, "acknowledge")'>Acknowledge</button>` : notice.behavior === "until_dismissed" ? `<button type="button" onclick='updateAtlasEmployeeNotification(${encodedId}, "dismiss")' aria-label="Dismiss update">Dismiss</button>` : ""}
+    </div>`;
+}
+
+async function loadAtlasEmployeeNotifications({ force = false } = {}) {
+  const status = getAtlasCentralStatus();
+  if (!status.configured || !status.signedIn || !window.ATLAS_CENTRAL?.readEmployeeNotifications) {
+    atlasEmployeeNotificationState = { ...atlasEmployeeNotificationState, loading: false, loaded: false, notices: [] };
+    renderAtlasEmployeeNotificationTicker();
+    return [];
+  }
+  if (atlasEmployeeNotificationState.loading || (atlasEmployeeNotificationState.loaded && !force)) return atlasEmployeeNotificationState.notices;
+  atlasEmployeeNotificationState.loading = true;
+  try {
+    const notices = await window.ATLAS_CENTRAL.readEmployeeNotifications();
+    atlasEmployeeNotificationState = { loading: false, loaded: true, notices, activeIndex: 0, error: "", lastLoadedAt: new Date().toISOString() };
+  } catch (error) {
+    atlasEmployeeNotificationState = { ...atlasEmployeeNotificationState, loading: false, error: error?.message || String(error) };
+  }
+  renderAtlasEmployeeNotificationTicker();
+  if (atlasEmployeeNotificationTimer) clearInterval(atlasEmployeeNotificationTimer);
+  atlasEmployeeNotificationTimer = setInterval(() => {
+    const active = (atlasEmployeeNotificationState.notices || []).filter(atlasEmployeeNoticeIsActive);
+    if (active.length > 1) atlasEmployeeNotificationState.activeIndex = (atlasEmployeeNotificationState.activeIndex + 1) % active.length;
+    renderAtlasEmployeeNotificationTicker();
+  }, 8000);
+  return atlasEmployeeNotificationState.notices;
+}
+
+async function updateAtlasEmployeeNotification(notificationId, action) {
+  try {
+    await window.ATLAS_CENTRAL?.updateEmployeeNotification?.(notificationId, action);
+    await loadAtlasEmployeeNotifications({ force: true });
+    return true;
+  } catch (error) {
+    setAtlasCentralRuntimeMessage("", `Notification update failed: ${error?.message || error}`);
+    return false;
+  }
+}
+
+async function viewAtlasEmployeeNotification(notificationId, destinationTabId) {
+  await updateAtlasEmployeeNotification(notificationId, "view");
+  if (destinationTabId && atlasUserCanAccessTab(destinationTabId)) setTab(Number(destinationTabId));
+}
+
 async function refreshAtlasLivePresence({ silent = true } = {}) {
   if (atlasLivePresenceRefreshPromise) return atlasLivePresenceRefreshPromise;
   atlasLivePresenceRefreshPromise = (async () => {
@@ -18203,6 +18291,7 @@ async function refreshAtlasLivePresence({ silent = true } = {}) {
 function startAtlasLivePresence() {
   if (atlasLivePresenceTimer) clearInterval(atlasLivePresenceTimer);
   refreshAtlasLivePresence({ silent: true });
+  loadAtlasEmployeeNotifications({ force: true });
   atlasLivePresenceTimer = setInterval(() => refreshAtlasLivePresence({ silent: true }), 45000);
   if (!atlasLivePresenceUnloadBound) {
     atlasLivePresenceUnloadBound = true;
@@ -19945,6 +20034,10 @@ async function loadAtlasAccessAdminData({ force = false, silent = true } = {}) {
       employees,
       lastLoadedAt: new Date().toISOString()
     };
+    try {
+      const peopleFrame = document.querySelector('iframe[data-atlas-mount-key="people"]');
+      peopleFrame?.contentWindow?.onAtlasAccessDataUpdated?.();
+    } catch (error) {}
     if (activeTab === 13 || activeTab === 14) {
       if (!document.getElementById("atlas-access-email")) refreshAtlasPeopleAccessPanel();
     } else if (!silent) {
@@ -20037,44 +20130,171 @@ function prefillAtlasUserAccess(encodedPayload = "") {
   }
 }
 
-async function submitAtlasUserAccessForm() {
+function findAtlasUnifiedAccessRow(employee = {}) {
+  const employeeId = String(employee.employeeId || employee.employee_id || employee.id || "").trim();
+  const email = String(employee.email || "").trim().toLowerCase();
+  return buildAtlasEmployeeAccessDisplayRows().find(row => {
+    const rowEmployeeId = String(row.employee_id || row._atlasRosterEmployee?.employeeId || "").trim();
+    const rowEmail = String(row.email || "").trim().toLowerCase();
+    return (employeeId && rowEmployeeId === employeeId) || (email && rowEmail === email);
+  }) || null;
+}
+
+function getAtlasUnifiedEmployeeAccessSnapshot(employee = {}) {
+  const row = findAtlasUnifiedAccessRow(employee);
+  const profile = getAtlasAccessProfile();
+  const canManage = atlasProfileCanManageSettings(profile);
+  if (canManage && !atlasAccessAdminState.loaded && !atlasAccessAdminState.loading) queueAtlasAccessAdminLoad();
+  const access = normalizeAtlasAccessFormDraft(row ? {
+    email: row.email,
+    displayName: row.display_name,
+    role: row.role,
+    status: row.status,
+    employeeId: row.employee_id || employee.employeeId || employee.id,
+    allowedCommunityIds: row.allowed_community_ids,
+    allowedMarketValues: row.allowed_market_values,
+    allowedRegionValues: row.allowed_region_values,
+    lockedTabIds: row.locked_tab_ids,
+    bonusPermissions: row.bonus_permissions,
+    accessNotes: row.access_notes
+  } : {
+    email: employee.email,
+    displayName: employee.name || employee.fullName,
+    role: "viewer",
+    status: "pending",
+    employeeId: employee.employeeId || employee.id
+  });
+  const accountStatus = row ? getAtlasProvisioningAccountStatus(row) : "not_invited";
+  const accessConfigured = Boolean(row && !row._atlasRosterOnly);
+  const notices = (atlasEmployeeNotificationState.notices || []).filter(notice => {
+    const noticeEmployeeId = String(notice.recipient_employee_id || "").trim();
+    const noticeEmail = String(notice.recipient_email || "").trim().toLowerCase();
+    return (noticeEmployeeId && noticeEmployeeId === String(access.employeeId || "")) || (noticeEmail && noticeEmail === access.email);
+  });
+  return {
+    canManage,
+    loaded: atlasAccessAdminState.loaded,
+    accessConfigured,
+    accountStatus,
+    access,
+    roles: ATLAS_ACCESS_ROLES.map(([value, label]) => ({ value, label })),
+    statuses: ATLAS_ACCESS_STATUSES.map(([value, label]) => ({ value, label })),
+    communities: (atlasAccessAdminState.communities || []).map(community => ({ value: community.community_id, label: community.display_name, status: community.status })),
+    locations: ATLAS_LOCATION_SCOPE_OPTIONS,
+    tabs: ATLAS_ACCESS_TABS.filter(tab => !ATLAS_SELF_SERVICE_TAB_IDS.includes(tab.id)).map(tab => ({ value: tab.id, label: tab.label })),
+    bonusPermissions: ATLAS_BONUS_PERMISSION_DEFS.map(([value, label]) => ({ value, label })),
+    notices,
+    saveState: { ...atlasEmployeeRecordSaveState },
+    history: atlasEmployeeAccessHistory.filter(item => item.employeeKey === String(access.employeeId || access.email || ""))
+  };
+}
+
+async function saveAtlasUnifiedEmployeeAccess(employee = {}, accessInput = {}) {
+  const employeeId = String(employee.employeeId || employee.employee_id || employee.id || "").trim();
+  const employeeEmail = String(employee.email || "").trim().toLowerCase();
+  const access = normalizeAtlasAccessFormDraft({ ...accessInput, employeeId: accessInput.employeeId || employeeId, email: accessInput.email || employeeEmail });
+  const employeeKey = String(access.employeeId || access.email || "");
+  if (atlasEmployeeRecordSaveState.busy) return { ok: false, message: "This employee record is already saving." };
+  atlasEmployeeRecordSaveState = { busy: true, status: "", message: "", savedAt: "", employeeKey };
   try {
-    const profile = getAtlasAccessProfile();
-    if (!atlasProfileCanManageSettings(profile)) throw new Error("Only ATLAS Admins can save employee access.");
-    const draft = syncAtlasAccessFormDraftFromPanel();
-    const selectedEmployee = getAtlasAccessEmployeeRecord(draft.employeeId);
-    const email = draft.email.toLowerCase();
-    const displayName = draft.displayName;
-    const role = draft.role;
-    const status = draft.status;
-    if (!email || !role) throw new Error("Email and role are required.");
-    if (!atlasEmployeeEmailIsInternal(email)) throw new Error("Use a RISE company email before saving ATLAS access.");
+    if (!atlasProfileCanManageSettings(getAtlasAccessProfile())) throw new Error("Only an authorized ATLAS administrator can save employee access.");
+    if (!access.email || !access.role) throw new Error("Email and ATLAS role are required in Employee Access.");
+    if (!atlasEmployeeEmailIsInternal(access.email)) throw new Error("Employee Access requires a RISE company email.");
+    const existing = findAtlasUnifiedAccessRow(employee);
+    const existingEmployeeId = String(existing?.employee_id || "").trim();
+    if (existingEmployeeId && employeeId && existingEmployeeId !== employeeId) {
+      throw new Error("The selected access record belongs to another employee. Refresh the roster before saving.");
+    }
+    const linkedId = isAtlasUuid(existingEmployeeId || employeeId) ? (existingEmployeeId || employeeId) : null;
+    const before = existing ? {
+      role: existing.role,
+      status: existing.status,
+      allowedCommunityIds: normalizeAtlasAccessList(existing.allowed_community_ids),
+      allowedLocationValues: atlasAccessLocationScopeValues(existing),
+      lockedTabIds: normalizeAtlasAccessList(existing.locked_tab_ids),
+      bonusPermissions: normalizeAtlasAccessList(existing.bonus_permissions)
+    } : null;
     await window.ATLAS_CENTRAL.adminUpsertUserAccess({
-      email,
-      displayName,
-      role,
-      status,
-      employeeId: isAtlasUuid(selectedEmployee?.linkedEmployeeId || draft.employeeId) ? String(selectedEmployee?.linkedEmployeeId || draft.employeeId).trim() : null,
-      allowedCommunityIds: draft.allowedCommunityIds,
-      allowedMarketValues: draft.allowedMarketValues,
-      allowedRegionValues: draft.allowedRegionValues,
-      lockedTabIds: draft.lockedTabIds,
-      lockedPageKeys: draft.lockedTabIds.map(tabId => getAtlasAccessTab(tabId).key),
-      bonusPermissions: draft.bonusPermissions,
-      accessNotes: draft.accessNotes
+      email: access.email,
+      displayName: access.displayName || employee.name || access.email,
+      role: access.role,
+      status: access.status,
+      employeeId: linkedId,
+      allowedCommunityIds: access.allowedCommunityIds,
+      allowedMarketValues: access.allowedMarketValues,
+      allowedRegionValues: access.allowedRegionValues,
+      lockedTabIds: access.lockedTabIds,
+      lockedPageKeys: access.lockedTabIds.map(tabId => getAtlasAccessTab(tabId).key),
+      bonusPermissions: access.bonusPermissions,
+      accessNotes: access.accessNotes
     });
-    setAtlasCentralRuntimeMessage(`Employee access saved for ${email}.`);
     await loadAtlasAccessAdminData({ force: true, silent: true });
-    refreshAtlasPeopleAccessPanel();
-    applyAtlasAccessFormDraftToPanel();
-    return true;
+    const savedAt = new Date().toISOString();
+    atlasEmployeeAccessHistory = [{ employeeKey, employeeId, email: access.email, before, after: access, savedAt, savedBy: atlasCurrentUserDisplayName() || "Admin" }, ...atlasEmployeeAccessHistory].slice(0, 200);
+    atlasEmployeeRecordSaveState = { busy: false, status: "success", message: "Save Confirmed", savedAt, employeeKey };
+    return { ok: true, message: "Save Confirmed", savedAt, access: getAtlasUnifiedEmployeeAccessSnapshot(employee) };
   } catch (error) {
-    alert(`Employee access save failed: ${error?.message || error}`);
-    return false;
+    atlasEmployeeRecordSaveState = { busy: false, status: "error", message: error?.message || String(error), savedAt: "", employeeKey };
+    return { ok: false, message: atlasEmployeeRecordSaveState.message };
   }
 }
 
-async function sendAtlasAccessProvisioningAction(encodedPayload = "", action = "invite") {
+window.getAtlasUnifiedEmployeeAccessSnapshot = getAtlasUnifiedEmployeeAccessSnapshot;
+window.saveAtlasUnifiedEmployeeAccess = saveAtlasUnifiedEmployeeAccess;
+window.queueAtlasAccessAdminLoad = queueAtlasAccessAdminLoad;
+window.publishAtlasEmployeeNotification = async function(notification = {}) {
+  if (!atlasProfileCanManageSettings(getAtlasAccessProfile())) return null;
+  return window.ATLAS_CENTRAL?.publishEmployeeNotification?.(notification) || null;
+};
+
+async function publishAtlasApprovedDataNotices(historyEntry = {}) {
+  if (!window.ATLAS_CENTRAL?.publishEmployeeNotification || !atlasProfileCanManageSettings(getAtlasAccessProfile())) return;
+  const activeRows = (atlasAccessAdminState.rows || []).filter(row => row && row.email && !row._atlasRosterOnly && !["suspended","disabled","revoked"].includes(String(row.status || "")));
+  const communities = atlasAccessAdminState.communities || [];
+  const notices = [];
+  (historyEntry.files || []).forEach(file => {
+    if (Number(file.rowsInserted || 0) + Number(file.rowsUpdated || 0) < 1) return;
+    const reportType = String(file.reportType || "");
+    const destinationTabId = reportType === "renewal_tracker" ? "5" : reportType === "leasing_resident_data" ? "16" : reportType === "box_score" ? "2" : "8";
+    const moduleLabel = getAtlasAccessTab(destinationTabId).label;
+    const fileCommunityNames = Array.from(new Set(file.communities || [])).filter(Boolean);
+    const fileCommunityRecords = fileCommunityNames.map(name => communities.find(item => atlasNormalizeSharedText(item.display_name) === atlasNormalizeSharedText(name))).filter(Boolean);
+    activeRows.forEach(row => {
+      const role = String(row.role || "viewer").toLowerCase();
+      const locked = normalizeAtlasAccessList(row.locked_tab_ids);
+      if (!(ATLAS_ACCESS_ROLE_TABS[role] || []).includes(destinationTabId) || locked.includes(destinationTabId)) return;
+      const allowedIds = normalizeAtlasAccessList(row.allowed_community_ids);
+      const globalRole = ["admin","centra","executive"].includes(role);
+      const matched = fileCommunityRecords.filter(community => globalRole || allowedIds.includes(String(community.community_id)));
+      if (!globalRole && !matched.length) return;
+      const propertyLabel = (matched.length ? matched.map(item => item.display_name) : fileCommunityNames).slice(0, 3).join(", ");
+      notices.push({
+        recipientEmail: row.email,
+        recipientEmployeeId: row.employee_id || null,
+        eventKey: `data:${historyEntry.id}:${row.email}:${reportType}:${fileCommunityNames.slice().sort().join("|")}`,
+        eventType: "relevant_data_upload",
+        title: `New ${file.reportTypeLabel || "report"} data is available`,
+        message: `${moduleLabel} was updated${propertyLabel ? ` for ${propertyLabel}` : ""}.`,
+        moduleKey: getAtlasAccessTab(destinationTabId).key,
+        destinationTabId,
+        destinationPageKey: getAtlasAccessTab(destinationTabId).key,
+        behavior: "auto_expire"
+      });
+    });
+  });
+  await Promise.allSettled(notices.map(notice => window.ATLAS_CENTRAL.publishEmployeeNotification(notice)));
+}
+
+async function submitAtlasUserAccessForm() {
+  const draft = readAtlasAccessFormDraftFromDom();
+  const selectedEmployee = getAtlasAccessEmployeeRecord(draft.employeeId) || { employeeId: draft.employeeId, email: draft.email, name: draft.displayName };
+  const result = await saveAtlasUnifiedEmployeeAccess(selectedEmployee, draft);
+  refreshAtlasPeopleAccessPanel();
+  applyAtlasAccessFormDraftToPanel();
+  return result.ok;
+}
+
+async function sendAtlasAccessProvisioningAction(encodedPayload = "", action = "invite", options = {}) {
   const actionKey = action === "password_reset" ? "accessReset" : "accessInvite";
   if (atlasCentralAuthActionIsRunning(actionKey)) {
     alert("An ATLAS provisioning request is already running.");
@@ -20093,14 +20313,14 @@ async function sendAtlasAccessProvisioningAction(encodedPayload = "", action = "
     setAtlasCentralRuntimeMessage(`${label} sent to ${email}.`);
     await loadAtlasAccessAdminData({ force: true, silent: true });
     refreshAtlasPeopleAccessPanel();
-    alert(`${label} sent to ${email}.`);
+    if (!options.silent) alert(`${label} sent to ${email}.`);
     return true;
   } catch (error) {
     const message = error?.message || String(error);
     setAtlasCentralRuntimeMessage("", message);
     await loadAtlasAccessAdminData({ force: true, silent: true }).catch(() => null);
     refreshAtlasPeopleAccessPanel();
-    alert(`ATLAS provisioning failed: ${message}`);
+    if (!options.silent) alert(`ATLAS provisioning failed: ${message}`);
     return false;
   } finally {
     atlasCentralAuthActionState[actionKey] = false;
@@ -20221,6 +20441,7 @@ function renderAtlasEmployeeAccessPanel() {
     .filter(tab => !ATLAS_SELF_SERVICE_TAB_IDS.includes(tab.id))
     .map(tab => ({ value: tab.id, label: tab.label }));
   const bonusPermissionOptions = ATLAS_BONUS_PERMISSION_DEFS.map(([value, label]) => ({ value, label }));
+  const saveFeedback = atlasEmployeeRecordSaveState.employeeKey === String(draft.employeeId || draft.email || "") ? atlasEmployeeRecordSaveState : { busy: false, status: "", message: "", savedAt: "" };
   return `${profileEditorHtml}<div class="card mb4">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
       <div>
@@ -20279,7 +20500,8 @@ function renderAtlasEmployeeAccessPanel() {
           <label><span style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Access notes</span><textarea id="atlas-access-notes" placeholder="Optional admin note" oninput="syncAtlasAccessFormDraftFromPanel()">${escapeHtml(draft.accessNotes)}</textarea></label>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-          <button class="btn btn-blue btn-sm" onclick="submitAtlasUserAccessForm()">Save Employee Access</button>
+          <button class="btn btn-blue btn-sm" onclick="submitAtlasUserAccessForm()" ${saveFeedback.busy ? "disabled" : ""}>${saveFeedback.busy ? "Saving..." : "Save Employee Access"}</button>
+          ${saveFeedback.status === "success" ? `<div class="alert-green" role="status" style="padding:7px 10px"><strong>Save Confirmed</strong><div style="font-size:0.6rem;margin-top:2px">${escapeHtml(new Date(saveFeedback.savedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }))}</div></div>` : saveFeedback.status === "error" ? `<div class="alert-red" role="alert" style="padding:7px 10px"><strong>Save failed</strong><div style="font-size:0.6rem;margin-top:2px">${escapeHtml(saveFeedback.message)}</div></div>` : ""}
           <button class="btn btn-blue btn-sm" onclick="saveAndSendAtlasUserInvitation('invite')">${atlasCentralAuthActionState.accessInvite ? "Sending..." : "Save & Send Invitation"}</button>
           <button class="btn btn-gray btn-sm" onclick="saveAndSendAtlasUserInvitation('password_reset')">${atlasCentralAuthActionState.accessReset ? "Sending..." : "Send Password Reset"}</button>
           <button class="btn btn-gray btn-sm" onclick="copyAtlasAccessSetupInstructions()">Copy Backup Instructions</button>
@@ -50462,6 +50684,7 @@ async function approveDataImportBatch() {
     ];
     persistSaved();
     persistDataImport2State();
+    publishAtlasApprovedDataNotices(historyEntry).catch(error => console.warn("ATLAS employee upload notices were not published.", error));
   } catch (error) {
     const message = String(error?.message || error || "The selected batch could not be applied.");
     csvError = `ATLAS stopped this approval before completion: ${message}`;

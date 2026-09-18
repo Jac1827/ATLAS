@@ -142,6 +142,45 @@
   th{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;text-align:left;background:#f7fbfd}
   tr:last-child td{border-bottom:none}
   tr:hover td{background:#fbfdff}
+  .people-roster-page{display:flex;flex-direction:column}
+  .unified-employee-workspace{order:-10}
+  .employee-roster-table{table-layout:fixed;min-width:940px}
+  .employee-roster-table th:nth-child(1){width:23%}
+  .employee-roster-table th:nth-child(2){width:18%}
+  .employee-roster-table th:nth-child(3){width:23%}
+  .employee-roster-table th:nth-child(4){width:17%}
+  .employee-roster-table th:nth-child(5){width:14%}
+  .employee-roster-table th:nth-child(6){width:5%}
+  .employee-roster-row{cursor:pointer}
+  .employee-roster-row.is-selected td{background:#eef7fb;border-bottom-color:#b8d7e4}
+  .employee-roster-row td{vertical-align:middle}
+  .employee-roster-row .row-chevron{font-size:20px;color:var(--muted);text-align:right}
+  .employee-roster-row:focus-visible{outline:3px solid rgba(84,157,184,.38);outline-offset:-3px}
+  .employee-editor-row td{padding:0;background:#f7fbfd}
+  .employee-editor{padding:18px;display:grid;gap:16px;border-top:2px solid var(--sky)}
+  .employee-editor-section{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px}
+  .employee-editor-section h3{font-size:15px;color:var(--ink);margin-bottom:4px}
+  .employee-editor-section p{font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px}
+  .employee-editor-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+  .employee-editor-grid .wide{grid-column:span 2}
+  .employee-editor-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding-top:4px}
+  .employee-editor-danger{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;padding-left:14px;border-left:1px solid #e5c7c7}
+  .employee-save-confirmed{display:inline-flex;flex-direction:column;padding:7px 10px;border:1px solid #b7d8c0;border-radius:8px;background:#ecf7ef;color:#205432;font-size:12px;font-weight:800}
+  .employee-save-confirmed small{font-weight:500;margin-top:2px}
+  .employee-save-error{padding:8px 10px;border:1px solid #efc9c9;border-radius:8px;background:#fff0f0;color:var(--danger);font-size:12px}
+  .employee-access-checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px}
+  .employee-access-checks label{display:flex;align-items:flex-start;gap:8px;padding:8px;border:1px solid var(--line);border-radius:7px;font-weight:600;color:var(--text);margin:0}
+  .employee-access-checks input{width:auto;margin-top:2px}
+  .employee-access-summary{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+  .employee-history-list{display:grid;gap:8px;max-height:240px;overflow:auto}
+  .employee-history-item{padding:9px 10px;border-left:3px solid var(--sky);background:#f7fbfd;font-size:12px;line-height:1.45}
+  .employee-search-row{display:grid;grid-template-columns:minmax(280px,2fr) repeat(3,minmax(190px,1fr));gap:10px;align-items:end}
+  .employee-search-field{position:relative}
+  .employee-filter-panel{margin-bottom:16px;padding:14px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .employee-search-field input{padding-left:36px;min-height:44px}
+  .employee-search-icon{position:absolute;left:12px;bottom:13px;color:var(--muted);font-size:15px;pointer-events:none}
+  html.atlas-embedded .page{padding-top:14px}
+  html.atlas-embedded .card{border-radius:8px}
 
   .badge{
     display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;
@@ -293,12 +332,16 @@
     .stats,.grid-3,.cols-4{grid-template-columns:repeat(2,1fr)}
     .grid-2,.grid-2-equal,.cols-2,.cols-3{grid-template-columns:1fr}
     .schedule-row{grid-template-columns:1fr}
+    .employee-search-row{grid-template-columns:repeat(2,minmax(0,1fr))}
   }
   @media (max-width:720px){
     .stats{grid-template-columns:1fr}
     .hero h1{font-size:24px}
     .shell{padding:0 14px 22px}
     .topbar-inner{padding:14px}
+    .employee-search-row{grid-template-columns:1fr}
+    .employee-editor-grid .wide{grid-column:auto}
+    .employee-editor-danger{margin-left:0;border-left:0;border-top:1px solid #e5c7c7;padding:10px 0 0;width:100%}
   }
 </style>
 </head>
@@ -663,7 +706,10 @@ function makeEmployeeRosterFilters(){
     regionalManagerId: '',
     region: '',
     community: '',
-    status: 'all'
+    status: 'all',
+    access: 'all',
+    invitation: 'all',
+    emailReview: 'all'
   };
 }
 
@@ -1189,7 +1235,13 @@ let UI = {
   newPlanDraft: makeNewPlanDraft(),
   writeupDraft: makeWriteupDraft(),
   reportFilters: makeReportFilters(),
-  employeeRosterFilters: makeEmployeeRosterFilters()
+  employeeRosterFilters: makeEmployeeRosterFilters(),
+  expandedEmployeeId: '',
+  pendingEmployeeSelectionId: '',
+  employeeEditorDraft: null,
+  employeeEditorDirty: false,
+  employeeSaveState: { status:'', message:'', savedAt:'' },
+  rosterSearchTimer: null
 };
 
 function activateAtlasEmbeddedAccess(){
@@ -1923,9 +1975,31 @@ function employeeRosterFilters(){
   return UI.employeeRosterFilters || makeEmployeeRosterFilters();
 }
 
+function atlasAccessSnapshotForEmployee(employee){
+  if(!ATLAS_EMBEDDED_MODE || !employee) return { loaded:false, canManage:false, accessConfigured:false, accountStatus:'not_invited', access:{}, communities:[], locations:[], tabs:[], bonusPermissions:[], notices:[], history:[] };
+  try{
+    const parentApi = window.parent && window.parent.getAtlasUnifiedEmployeeAccessSnapshot;
+    return typeof parentApi === 'function' ? parentApi({
+      id: employee.id,
+      employeeId: employee.id,
+      email: employee.email,
+      name: employee.name,
+      fullName: employee.name
+    }) : { loaded:false, canManage:false, accessConfigured:false, accountStatus:'not_invited', access:{} };
+  }catch(error){
+    return { loaded:false, canManage:false, accessConfigured:false, accountStatus:'unavailable', access:{}, error:error.message };
+  }
+}
+
+function employeeAccessSearchText(employee){
+  const snapshot = atlasAccessSnapshotForEmployee(employee);
+  const access = snapshot.access || {};
+  return [access.role, access.status, snapshot.accountStatus, snapshot.accessConfigured ? 'access configured invited' : 'access not configured not invited', ...(access.allowedCommunityIds || [])].join(' ');
+}
+
 function hasEmployeeRosterFilters(){
   const filters = employeeRosterFilters();
-  return Boolean(filters.search || filters.role || filters.managerId || filters.regionalManagerId || filters.region || filters.community || filters.status !== 'all');
+  return Boolean(filters.search || filters.role || filters.managerId || filters.regionalManagerId || filters.region || filters.community || filters.status !== 'all' || filters.access !== 'all' || filters.invitation !== 'all' || filters.emailReview !== 'all');
 }
 
 function filteredRosterEmployees(){
@@ -1934,6 +2008,7 @@ function filteredRosterEmployees(){
   const roleSearch = normalizeComparable(filters.role);
   const community = normalizeComparable(filters.community);
   return sortedVisibleEmployees().filter(employee => {
+    const accessSnapshot = atlasAccessSnapshotForEmployee(employee);
     if(filters.managerId && !employeeMatchesManagerSelection(employee, filters.managerId, 'managerId', 'managerName')) return false;
     if(filters.regionalManagerId && !employeeMatchesManagerSelection(employee, filters.regionalManagerId, 'regionalManagerId', 'regionalManagerName')) return false;
     if(filters.region && employee.region !== filters.region) return false;
@@ -1941,6 +2016,14 @@ function filteredRosterEmployees(){
     if(roleSearch && !normalizeComparable(employee.role).includes(roleSearch)) return false;
     if(filters.status === 'active' && isEmployeeTerminated(employee)) return false;
     if(filters.status === 'terminated' && !isEmployeeTerminated(employee)) return false;
+    if(filters.access === 'configured' && !accessSnapshot.accessConfigured) return false;
+    if(filters.access === 'not_configured' && accessSnapshot.accessConfigured) return false;
+    const invited = !['not_invited','email_review','roster_inactive','unavailable'].includes(String(accessSnapshot.accountStatus || 'not_invited'));
+    if(filters.invitation === 'invited' && !invited) return false;
+    if(filters.invitation === 'not_invited' && invited) return false;
+    const needsEmailReview = !String(employee.email || '').trim() || !/@(?:risere|riseresidential)\.com$/i.test(String(employee.email || '').trim());
+    if(filters.emailReview === 'review' && !needsEmailReview) return false;
+    if(filters.emailReview === 'clear' && needsEmailReview) return false;
     if(search){
       const haystack = normalizeComparable([
         employee.name,
@@ -1951,7 +2034,10 @@ function filteredRosterEmployees(){
         employee.department,
         employee.corporateSpecialty,
         managerDisplayName(employee),
-        regionalManagerDisplayName(employee)
+        regionalManagerDisplayName(employee),
+        employee.region && REGIONS[employee.region] ? REGIONS[employee.region].name : employee.region,
+        employee.status,
+        employeeAccessSearchText(employee)
       ].join(' '));
       if(!haystack.includes(search)) return false;
     }
@@ -3946,6 +4032,12 @@ function render(){
     UI.currentView = 'dashboard';
   }
   app.innerHTML = renderShell();
+  if(UI.currentView === 'employees'){
+    const page = app.querySelector('.people-roster-page');
+    const roster = page?.querySelector('.unified-employee-workspace');
+    if(page && roster) page.prepend(roster);
+    restoreEmployeeEditorDraft();
+  }
   refreshBuildInfoBadge();
 }
 
@@ -6401,6 +6493,16 @@ function applyEmployeeRosterFilters(){
   render();
 }
 
+function handleEmployeeRosterSearchInput(value){
+  UI.employeeRosterFilters = { ...employeeRosterFilters(), search:String(value || '') };
+  if(UI.rosterSearchTimer) clearTimeout(UI.rosterSearchTimer);
+  UI.rosterSearchTimer = setTimeout(() => {
+    render();
+    const search = document.getElementById('roster-filter-search');
+    if(search){ search.focus(); search.setSelectionRange(search.value.length, search.value.length); }
+  }, 160);
+}
+
 function readEmployeeRosterFiltersFromDom(){
   const current = employeeRosterFilters();
   const fieldValue = (id, fallback = '') => {
@@ -6414,7 +6516,10 @@ function readEmployeeRosterFiltersFromDom(){
     regionalManagerId: fieldValue('roster-filter-regional-manager', current.regionalManagerId),
     region: fieldValue('roster-filter-region', current.region),
     community: fieldValue('roster-filter-community', current.community).trim(),
-    status: fieldValue('roster-filter-status', current.status || 'all') || 'all'
+    status: fieldValue('roster-filter-status', current.status || 'all') || 'all',
+    access: fieldValue('roster-filter-access', current.access || 'all') || 'all',
+    invitation: fieldValue('roster-filter-invitation', current.invitation || 'all') || 'all',
+    emailReview: fieldValue('roster-filter-email-review', current.emailReview || 'all') || 'all'
   };
 }
 
@@ -6462,6 +6567,255 @@ function renderCorporateSpecialtyCell(employee){
   <div class="tiny muted" style="margin-top:6px">${employee.corporateSpecialty === 'Centra' ? 'Counts as Central Services' : 'Corporate / Shared Services team'}</div>`;
 }
 
+function employeeEditorFieldChanged(){
+  UI.employeeEditorDirty = true;
+  UI.employeeSaveState = { status:'', message:'', savedAt:'' };
+  captureEmployeeEditorDraft();
+  const feedback = document.getElementById('employee-record-save-feedback');
+  if(feedback) feedback.innerHTML = '';
+}
+
+function captureEmployeeEditorDraft(){
+  const editor = document.querySelector('.employee-editor');
+  if(!editor || !UI.expandedEmployeeId) return;
+  const values = {};
+  const checks = {};
+  editor.querySelectorAll('input[id],select[id],textarea[id]').forEach(field => { values[field.id] = field.value; });
+  editor.querySelectorAll('input[type="checkbox"][name]').forEach(field => { checks[`${field.name}::${field.value}`] = Boolean(field.checked); });
+  UI.employeeEditorDraft = { employeeId:UI.expandedEmployeeId, values, checks };
+}
+
+function restoreEmployeeEditorDraft(){
+  const draft = UI.employeeEditorDraft;
+  if(!UI.employeeEditorDirty || !draft || draft.employeeId !== UI.expandedEmployeeId) return;
+  Object.entries(draft.values || {}).forEach(([id, value]) => {
+    const field = document.getElementById(id);
+    if(field && !field.disabled) field.value = value;
+  });
+  document.querySelectorAll('.employee-editor input[type="checkbox"][name]').forEach(field => {
+    const key = `${field.name}::${field.value}`;
+    if(Object.prototype.hasOwnProperty.call(draft.checks || {}, key) && !field.disabled) field.checked = Boolean(draft.checks[key]);
+  });
+}
+
+function selectEmployeeForUnifiedEditor(employeeId){
+  if(UI.expandedEmployeeId === employeeId){
+    UI.expandedEmployeeId = '';
+    UI.employeeEditorDraft = null;
+    UI.employeeEditorDirty = false;
+    UI.pendingEmployeeSelectionId = '';
+    render();
+    return;
+  }
+  if(UI.expandedEmployeeId && UI.employeeEditorDirty){
+    UI.pendingEmployeeSelectionId = employeeId;
+    render();
+    return;
+  }
+  UI.expandedEmployeeId = employeeId;
+  UI.employeeEditorDraft = null;
+  UI.pendingEmployeeSelectionId = '';
+  UI.employeeEditorDirty = false;
+  UI.employeeSaveState = { status:'', message:'', savedAt:'' };
+  render();
+}
+
+function resolvePendingEmployeeSelection(discardChanges){
+  if(!discardChanges){ UI.pendingEmployeeSelectionId = ''; render(); return; }
+  UI.expandedEmployeeId = UI.pendingEmployeeSelectionId || '';
+  UI.employeeEditorDraft = null;
+  UI.pendingEmployeeSelectionId = '';
+  UI.employeeEditorDirty = false;
+  UI.employeeSaveState = { status:'', message:'', savedAt:'' };
+  render();
+}
+
+function employeeEditorValue(id, fallback = ''){
+  const field = document.getElementById(id);
+  return field ? String(field.value || '').trim() : String(fallback || '').trim();
+}
+
+function employeeEditorCheckedValues(name){
+  return [...document.querySelectorAll(`input[name="${name}"]:checked`)].map(input => String(input.value || '')).filter(Boolean);
+}
+
+function renderEmployeeAccessChecks(name, options, selectedValues){
+  const selected = new Set(Array.isArray(selectedValues) ? selectedValues.map(String) : []);
+  return `<div class="employee-access-checks">${(options || []).map(option => `<label title="${escapeAttr(option.label || option.value)}"><input type="checkbox" name="${escapeAttr(name)}" value="${escapeAttr(option.value)}" ${selected.has(String(option.value)) ? 'checked' : ''} onchange="employeeEditorFieldChanged()"><span>${escapeHtml(option.label || option.value)}</span></label>`).join('')}</div>`;
+}
+
+function renderUnifiedEmployeeEditor(employee, isAdmin){
+  const accessSnapshot = atlasAccessSnapshotForEmployee(employee);
+  const access = accessSnapshot.access || {};
+  const activePlans = visiblePlans().filter(plan => plan.employeeId === employee.id && plan.status === 'active');
+  const history = employeeActivityFeed(employee.id).slice(0, 10);
+  const saveState = UI.employeeSaveState || {};
+  const editorChange = 'oninput="employeeEditorFieldChanged()" onchange="employeeEditorFieldChanged()"';
+  const accessDisabled = accessSnapshot.canManage ? '' : 'disabled';
+  const inheritedAccess = !(access.allowedCommunityIds || []).length && !(access.allowedMarketValues || []).length && !(access.lockedTabIds || []).length && !(access.bonusPermissions || []).length;
+  return `<div class="employee-editor" onclick="event.stopPropagation()">
+    ${UI.pendingEmployeeSelectionId ? `<div class="alert alert-warn"><strong>Unsaved changes</strong><div class="small" style="margin-top:4px">Save this employee or discard the draft before opening another record.</div><div class="inline" style="margin-top:8px"><button class="btn btn-sm btn-soft" onclick="resolvePendingEmployeeSelection(false)">Keep Editing</button><button class="btn btn-sm btn-warn" onclick="resolvePendingEmployeeSelection(true)">Discard Draft & Open Selected</button></div></div>` : ''}
+    <section class="employee-editor-section">
+      <h3>Identity and assignment</h3><p>Employee ID is the primary record key. Assignment changes remain effective-dated and preserve prior history.</p>
+      <div class="employee-editor-grid">
+        <div><label>Full name</label><input id="employee-record-name" value="${escapeAttr(employee.name || '')}" ${editorChange} ${isAdmin ? '' : 'disabled'}></div>
+        <div><label>Display name</label><input id="employee-record-display-name" value="${escapeAttr(access.displayName || employee.name || '')}" ${editorChange} ${accessDisabled}></div>
+        <div><label>Email address</label><input id="employee-record-email" type="email" value="${escapeAttr(employee.email || access.email || '')}" ${editorChange} ${isAdmin ? '' : 'disabled'}></div>
+        <div><label>Employee ID</label><input value="${escapeAttr(employee.id || '')}" disabled title="${escapeAttr(employee.id || '')}"></div>
+        <div><label>Employee number</label><input id="employee-record-number" value="${escapeAttr(employee.employeeNumber || '')}" ${editorChange} ${isAdmin ? '' : 'disabled'}></div>
+        <div><label>Job title</label><input id="employee-record-role" list="role-options" value="${escapeAttr(employee.role || '')}" ${editorChange} ${isAdmin ? '' : 'disabled'}></div>
+        <div><label>Manager</label><select id="employee-record-manager" ${editorChange} ${isAdmin ? '' : 'disabled'}>${renderManagerOptions(primaryManagerSelectionValue(employee), 'Unassigned', primaryManagerChoices(), managerFallbackLabel(managerDisplayName(employee), 'Unlinked manager mapping'))}</select></div>
+        <div><label>Regional alert owner</label><select id="employee-record-regional-manager" ${editorChange} ${isAdmin ? '' : 'disabled'}>${renderManagerOptions(regionalManagerSelectionValue(employee), 'Unassigned', regionalManagerChoices(), managerFallbackLabel(regionalManagerDisplayName(employee), 'No regional owner'))}</select></div>
+        <div><label>Area or region</label><select id="employee-record-region" ${editorChange} ${isAdmin ? '' : 'disabled'}><option value="">Unassigned</option>${Object.entries(REGIONS).map(([key,value]) => `<option value="${key}" ${employee.region === key ? 'selected' : ''}>${escapeHtml(value.name)}</option>`).join('')}</select></div>
+        <div><label>Community assignment</label><input id="employee-record-community" list="community-options" value="${escapeAttr(employee.community || '')}" ${editorChange} ${isAdmin ? '' : 'disabled'}></div>
+        <div><label>Department</label><input id="employee-record-department" value="${escapeAttr(employee.department || '')}" ${editorChange} ${isAdmin ? '' : 'disabled'}></div>
+        <div><label>Corporate specialty</label><select id="employee-record-specialty" ${editorChange} ${isAdmin ? '' : 'disabled'}><option value="">Site / field</option>${CORPORATE_SPECIALTY_OPTIONS.map(option => `<option value="${escapeAttr(option)}" ${employee.corporateSpecialty === option ? 'selected' : ''}>${escapeHtml(option)}</option>`).join('')}</select></div>
+        <div><label>Employment status</label><input value="${escapeAttr(employeeStatusLabel(employee))}" disabled></div>
+        <div><label>Status type</label><input id="employee-record-status-type" value="${escapeAttr(employee.statusType || '')}" ${editorChange} ${isAdmin ? '' : 'disabled'}></div>
+        <div><label>Effective date</label><input id="employee-record-effective-date" type="date" value="${today()}" ${editorChange} ${isAdmin ? '' : 'disabled'}></div>
+        <div class="wide"><label>Change note</label><input id="employee-record-change-note" placeholder="Reason for assignment or access change" ${editorChange} ${isAdmin ? '' : 'disabled'}></div>
+      </div>
+    </section>
+    <section class="employee-editor-section">
+      <h3>Bonus and incentive profile</h3><p>Eligibility and plan details remain part of the employee record. Salary remains restricted to authorized administrators and is never included in employee notifications.</p>
+      <div class="employee-editor-grid">
+        <div><label>Bonus eligible</label><select id="employee-record-bonus-eligible" ${editorChange} ${isAdmin ? '' : 'disabled'}><option value="false" ${employee.bonusEligible ? '' : 'selected'}>No</option><option value="true" ${employee.bonusEligible ? 'selected' : ''}>Yes</option></select></div>
+        <div><label>Bonus plan</label><input id="employee-record-bonus-plan" value="${escapeAttr(employee.bonusPlan || '')}" ${editorChange} ${isAdmin ? '' : 'disabled'}></div>
+        <div><label>Bonus role</label><input id="employee-record-bonus-role" list="role-options" value="${escapeAttr(employee.bonusRole || '')}" ${editorChange} ${isAdmin ? '' : 'disabled'}></div>
+        <div><label>Bonus effective date</label><input id="employee-record-bonus-effective-date" type="date" value="${escapeAttr(employee.bonusEffectiveDate || '')}" ${editorChange} ${isAdmin ? '' : 'disabled'}></div>
+        <div><label>Bonus plan status</label><input id="employee-record-bonus-plan-status" value="${escapeAttr(employee.bonusPlanStatus || '')}" ${editorChange} ${isAdmin ? '' : 'disabled'}></div>
+        <div><label>Salary visibility</label><input value="${isAdmin ? (employee.salary ? 'Visible to authorized admin' : 'No salary stored') : 'Restricted'}" disabled></div>
+        ${isAdmin ? `<div><label>Salary <span class="tiny muted">Restricted</span></label><input id="employee-record-salary" type="number" min="0" step="1000" value="${escapeAttr(employee.salary || '')}" ${editorChange}></div>` : ''}
+      </div>
+    </section>
+    <section class="employee-editor-section">
+      <h3>ATLAS account and access</h3><p>${accessSnapshot.loaded ? 'Central access is loaded and will be confirmed by the backend before success is shown.' : 'Central access is loading. Employee details remain available while access records refresh.'}</p>
+      <div class="employee-access-summary"><span class="badge ${accessSnapshot.accessConfigured ? 'badge-active' : 'badge-soft'}">${accessSnapshot.accessConfigured ? 'Access configured' : 'Access not configured'}</span><span class="badge badge-soft">${escapeHtml(String(accessSnapshot.accountStatus || 'not invited').replace(/_/g,' '))}</span><span class="badge badge-soft">${inheritedAccess ? 'Role defaults / inherited' : 'Employee-specific overrides'}</span></div>
+      <div class="employee-editor-grid" style="margin-top:12px">
+        <div><label>ATLAS role</label><select id="employee-access-role" ${editorChange} ${accessDisabled}>${(accessSnapshot.roles || []).map(option => `<option value="${escapeAttr(option.value)}" ${access.role === option.value ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}</select></div>
+        <div><label>ATLAS access status</label><select id="employee-access-status" ${editorChange} ${accessDisabled}>${(accessSnapshot.statuses || []).map(option => `<option value="${escapeAttr(option.value)}" ${access.status === option.value ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}</select></div>
+        <div><label>Invitation status</label><input value="${escapeAttr(String(accessSnapshot.accountStatus || 'Not invited').replace(/_/g,' '))}" disabled></div>
+        <div><label>Active plans</label><input value="${escapeAttr(activePlans.map(plan => planTypeLabel(plan.type)).join(', ') || 'None')}" disabled title="${escapeAttr(activePlans.map(plan => planTypeLabel(plan.type)).join(', ') || 'None')}"></div>
+      </div>
+      <div style="margin-top:14px"><label>Property scope</label>${renderEmployeeAccessChecks('employee-access-communities', accessSnapshot.communities || [], access.allowedCommunityIds || [])}</div>
+      <div style="margin-top:14px"><label>Location scope</label>${renderEmployeeAccessChecks('employee-access-locations', accessSnapshot.locations || [], access.allowedMarketValues || access.allowedRegionValues || [])}</div>
+      <div style="margin-top:14px"><label>Locked-page permissions <span class="tiny muted">Checked means blocked</span></label>${renderEmployeeAccessChecks('employee-access-tabs', accessSnapshot.tabs || [], access.lockedTabIds || [])}</div>
+      <div style="margin-top:14px"><label>Bonus and incentive permissions</label>${renderEmployeeAccessChecks('employee-access-bonus', accessSnapshot.bonusPermissions || [], access.bonusPermissions || [])}</div>
+      <div style="margin-top:14px"><label>Access notes <span class="tiny muted">Administrator only; never included in employee notices</span></label><textarea id="employee-access-notes" ${editorChange} ${accessDisabled}>${escapeHtml(access.accessNotes || '')}</textarea></div>
+    </section>
+    <section class="employee-editor-section">
+      <h3>Assignment and access-change history</h3><p>Effective-dated People changes and recent employee notification status are shown together without exposing restricted compensation details.</p>
+      <div class="employee-history-list">${history.length ? history.map(item => `<div class="employee-history-item"><strong>${escapeHtml(item.title || 'Employee record updated')}</strong><div class="tiny muted">${escapeHtml(formatDate(item.date || ''))}</div><div>${escapeHtml(item.detail || '')}</div></div>`).join('') : '<div class="small muted">No saved employee changes yet.</div>'}${(accessSnapshot.notices || []).slice(0,5).map(notice => `<div class="employee-history-item"><strong>${escapeHtml(notice.title || 'ATLAS notice')}</strong><div class="tiny muted">${escapeHtml(notice.acknowledged_at ? 'Acknowledged' : notice.dismissed_at ? 'Dismissed' : notice.viewed_at ? 'Viewed' : 'Unread')} · ${escapeHtml(notice.published_at ? new Date(notice.published_at).toLocaleString() : '')}</div></div>`).join('')}</div>
+    </section>
+    <div class="employee-editor-actions">
+      <button id="save-employee-record-button" class="btn btn-primary" onclick="saveUnifiedEmployeeRecord('${escapeAttr(employee.id)}')" ${saveState.status === 'saving' ? 'disabled' : ''}>${saveState.status === 'saving' ? 'Saving...' : 'Save Employee Record'}</button>
+      ${accessSnapshot.canManage ? `<button class="btn btn-primary" onclick="saveUnifiedEmployeeRecord('${escapeAttr(employee.id)}', {sendInvite:true})" ${saveState.status === 'saving' ? 'disabled' : ''}>Save & Send Invitation</button><button class="btn btn-soft" onclick="requestUnifiedEmployeePasswordReset('${escapeAttr(employee.id)}')">Send Password Reset</button>` : ''}
+      ${isEmployeeTerminated(employee) ? '' : `<button class="btn btn-soft" onclick="openNewPlanForEmployee('${escapeAttr(employee.id)}')">New Plan</button>`}
+      ${isAdmin ? `<button class="btn btn-soft" onclick="openPromoteEmployeeModal('${escapeAttr(employee.id)}')">Promote</button>` : ''}
+      <div id="employee-record-save-feedback">${saveState.status === 'success' ? `<span class="employee-save-confirmed">Save Confirmed<small>${escapeHtml(new Date(saveState.savedAt).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}))}</small></span>` : saveState.status === 'error' ? `<div class="employee-save-error" role="alert"><strong>Save failed:</strong> ${escapeHtml(saveState.message || 'Review the employee record.')}</div>` : ''}</div>
+      <div class="employee-editor-danger">${isEmployeeTerminated(employee) ? `<button class="btn btn-sm btn-warn" onclick="reactivateEmployee('${escapeAttr(employee.id)}')">Reactivate</button>` : `<button class="btn btn-sm btn-warn" onclick="openTerminateEmployeeModal('${escapeAttr(employee.id)}')">Terminate</button>`}<button class="btn btn-sm btn-danger" onclick="removeEmployee('${escapeAttr(employee.id)}')">Remove</button></div>
+    </div>
+  </div>`;
+}
+
+async function saveUnifiedEmployeeRecord(employeeId, options = {}){
+  const employee = STATE.employees.find(item => item.id === employeeId);
+  const isAdmin = Boolean(STATE.currentUser && STATE.currentUser.role === 'admin');
+  if(!employee || !isAdmin) return;
+  UI.employeeSaveState = { status:'saving', message:'', savedAt:'' };
+  captureEmployeeEditorDraft();
+  const saveButton = document.getElementById('save-employee-record-button');
+  if(saveButton){ saveButton.disabled = true; saveButton.textContent = 'Saving...'; }
+  try{
+    const nextName = employeeEditorValue('employee-record-name', employee.name);
+    const nextEmail = employeeEditorValue('employee-record-email', employee.email).toLowerCase();
+    const effectiveDate = normalizeIsoDate(employeeEditorValue('employee-record-effective-date', today()));
+    if(!nextName) throw new Error('Identity: Full name is required.');
+    if(!effectiveDate) throw new Error('Assignment: Choose a valid effective date.');
+    const manager = managerAssignmentFromSelection(employeeEditorValue('employee-record-manager'));
+    const regional = managerAssignmentFromSelection(employeeEditorValue('employee-record-regional-manager'));
+    const nextAssignment = {
+      role: employeeEditorValue('employee-record-role', employee.role),
+      community: employeeEditorValue('employee-record-community', employee.community),
+      region: employeeEditorValue('employee-record-region', employee.region),
+      managerId: manager.id,
+      managerName: manager.name,
+      regionalManagerId: regional.id,
+      regionalManagerName: regional.name,
+      statusType: employeeEditorValue('employee-record-status-type', employee.statusType),
+      status: employee.status || 'Active'
+    };
+    const accessSnapshot = atlasAccessSnapshotForEmployee(employee);
+    const accessDraft = {
+      ...accessSnapshot.access,
+      email: nextEmail,
+      displayName: employeeEditorValue('employee-record-display-name', nextName),
+      employeeId: employee.id,
+      role: employeeEditorValue('employee-access-role', accessSnapshot.access?.role || 'viewer'),
+      status: employeeEditorValue('employee-access-status', accessSnapshot.access?.status || 'pending'),
+      allowedCommunityIds: employeeEditorCheckedValues('employee-access-communities'),
+      allowedMarketValues: employeeEditorCheckedValues('employee-access-locations'),
+      allowedRegionValues: employeeEditorCheckedValues('employee-access-locations'),
+      lockedTabIds: employeeEditorCheckedValues('employee-access-tabs'),
+      bonusPermissions: employeeEditorCheckedValues('employee-access-bonus'),
+      accessNotes: employeeEditorValue('employee-access-notes', accessSnapshot.access?.accessNotes || '')
+    };
+    if(accessSnapshot.canManage && window.parent?.saveAtlasUnifiedEmployeeAccess){
+      const accessResult = await window.parent.saveAtlasUnifiedEmployeeAccess({ id:employee.id, employeeId:employee.id, email:nextEmail, name:nextName }, accessDraft);
+      if(!accessResult?.ok) throw new Error(`Employee Access: ${accessResult?.message || 'The backend did not confirm the access save.'}`);
+    }
+    const previousIdentity = { name:employee.name, email:employee.email, employeeNumber:employee.employeeNumber, department:employee.department, corporateSpecialty:employee.corporateSpecialty, bonusEligible:employee.bonusEligible, bonusPlan:employee.bonusPlan, bonusRole:employee.bonusRole, bonusEffectiveDate:employee.bonusEffectiveDate, bonusPlanStatus:employee.bonusPlanStatus, salary:employee.salary };
+    employee.name = nextName;
+    employee.email = nextEmail;
+    employee.employeeNumber = employeeEditorValue('employee-record-number', employee.employeeNumber);
+    employee.department = employeeEditorValue('employee-record-department', employee.department);
+    employee.corporateSpecialty = employeeEditorValue('employee-record-specialty', employee.corporateSpecialty);
+    employee.bonusEligible = employeeEditorValue('employee-record-bonus-eligible', employee.bonusEligible ? 'true' : 'false') === 'true';
+    employee.bonusPlan = employeeEditorValue('employee-record-bonus-plan', employee.bonusPlan);
+    employee.bonusRole = employeeEditorValue('employee-record-bonus-role', employee.bonusRole);
+    employee.bonusEffectiveDate = employeeEditorValue('employee-record-bonus-effective-date', employee.bonusEffectiveDate);
+    employee.bonusPlanStatus = employeeEditorValue('employee-record-bonus-plan-status', employee.bonusPlanStatus);
+    if(isAdmin) employee.salary = employeeEditorValue('employee-record-salary', employee.salary);
+    const assignmentChanges = changedEmployeeFields(employeeAssignmentSnapshot(employee), { ...employeeAssignmentSnapshot(employee), ...nextAssignment });
+    if(assignmentChanges.length){
+      const result = recordEmployeeChange(employee.id, 'employee_record_update', nextAssignment, { effectiveDate, reason:employeeEditorValue('employee-record-change-note'), source:'unified_employee_record' });
+      if(!result.ok) throw new Error(`Assignment: ${result.message}`);
+    }
+    logPeopleAudit({ action:'employee_record_saved', entityType:'employee', entityId:employee.id, beforeValues:previousIdentity, afterValues:{ name:employee.name, email:employee.email, employeeNumber:employee.employeeNumber, department:employee.department, corporateSpecialty:employee.corporateSpecialty, bonusEligible:employee.bonusEligible, bonusPlan:employee.bonusPlan, bonusRole:employee.bonusRole, bonusEffectiveDate:employee.bonusEffectiveDate, bonusPlanStatus:employee.bonusPlanStatus, salary:employee.salary }, result:'applied', source:'unified_employee_record' });
+    logEmployeeEvent({ employeeId:employee.id, type:'employee_record_saved', date:today(), title:'Employee record saved', detail:'Identity, assignment, and authorized ATLAS access changes were saved from the unified People workspace.', createdBy:STATE.currentUser ? STATE.currentUser.name : '' });
+    saveState();
+    if(assignmentChanges.length && nextEmail && window.parent?.publishAtlasEmployeeNotification){
+      const labels = Array.from(new Set(assignmentChanges.map(field => ({ role:'job title', managerId:'manager', managerName:'manager', regionalManagerId:'regional owner', regionalManagerName:'regional owner', region:'area or region', community:'community assignment', status:'employment status', statusType:'status type' }[field] || field))));
+      try{
+        await window.parent.publishAtlasEmployeeNotification({ recipientEmail:nextEmail, recipientEmployeeId:/^[0-9a-f-]{36}$/i.test(employee.id) ? employee.id : null, eventKey:`people:${employee.id}:${effectiveDate}:${assignmentChanges.map(field => `${field}=${nextAssignment[field] || ''}`).join('|')}`, eventType:'employee_assignment_change', title:'Your employee assignment was updated', message:`${labels.join(', ')} ${labels.length === 1 ? 'was' : 'were'} updated in ATLAS. Open People to review your current assignment.`, moduleKey:'people', destinationTabId:'13', destinationPageKey:'people', behavior:'until_dismissed', requiresAcknowledgement:true });
+      }catch(notificationError){
+        logPeopleAudit({ action:'employee_notification_publish_failed', entityType:'employee', entityId:employee.id, afterValues:{ eventType:'employee_assignment_change' }, result:'notification_failed', source:'unified_employee_record', exceptions:[{ severity:'error', message:notificationError.message || String(notificationError) }] });
+      }
+    }
+    if(options.sendInvite && window.parent?.sendAtlasAccessProvisioningAction){
+      const payload = encodeURIComponent(JSON.stringify(accessDraft));
+      const sent = await window.parent.sendAtlasAccessProvisioningAction(payload, 'invite', {silent:true});
+      if(!sent) throw new Error('Invitation: The employee record saved, but the invitation could not be sent.');
+    }
+    UI.employeeEditorDirty = false;
+    UI.employeeEditorDraft = null;
+    UI.employeeSaveState = { status:'success', message:'Save Confirmed', savedAt:new Date().toISOString() };
+  }catch(error){
+    UI.employeeSaveState = { status:'error', message:error.message || String(error), savedAt:'' };
+  }
+  render();
+}
+
+async function requestUnifiedEmployeePasswordReset(employeeId){
+  const employee = STATE.employees.find(item => item.id === employeeId);
+  const snapshot = atlasAccessSnapshotForEmployee(employee);
+  if(!employee || !snapshot.access?.email || !window.parent?.sendAtlasAccessProvisioningAction) return;
+  const payload = encodeURIComponent(JSON.stringify(snapshot.access));
+  await window.parent.sendAtlasAccessProvisioningAction(payload, 'password_reset', {silent:true});
+}
+
+window.onAtlasAccessDataUpdated = function(){ if(UI.currentView === 'employees') render(); };
+
 function renderEmployees(){
   const employees = sortedVisibleEmployees();
   const filteredEmployees = filteredRosterEmployees();
@@ -6471,11 +6825,9 @@ function renderEmployees(){
   const defaultRegionalManagerId = '';
   const defaultRegion = currentDefaultRegion();
   const defaultCommunity = currentDefaultCommunity();
-  const showCorporateSpecialtyColumn = filteredEmployees.some(isCorporateSharedServicesEmployee);
-  const rosterColumnCount = showCorporateSpecialtyColumn ? 11 : 10;
 
   return `
-    <div class="page">
+    <div class="page people-roster-page">
       <div class="grid-2-equal">
         <div class="card">
           <div class="section-title">
@@ -6610,7 +6962,7 @@ function renderEmployees(){
 
       ${renderPeopleHistoryStatusPanel()}
 
-      <div class="card" style="margin-top:16px">
+      <div class="card unified-employee-workspace" style="margin-top:16px">
         <div class="section-title">
           <div>
             <h2>Roster</h2>
@@ -6618,17 +6970,17 @@ function renderEmployees(){
           </div>
         </div>
         ${employees.length ? `
-          <div class="card" style="margin-bottom:16px;background:#f8fbfc">
+          <div class="employee-filter-panel">
             <div class="section-title" style="margin-bottom:12px">
               <div>
                 <h2 style="font-size:16px">Roster filters</h2>
                 <p>Filter the employee table by person, manager, regional owner, area, community, or status.</p>
               </div>
             </div>
-            <div class="form-grid cols-3">
-              <div>
+            <div class="employee-search-row">
+              <div class="employee-search-field">
                 <label>Search</label>
-                <input id="roster-filter-search" value="${escapeHtml(rosterFilters.search)}" placeholder="Name, email, employee #, role...">
+                <span class="employee-search-icon" aria-hidden="true">&#128269;</span><input id="roster-filter-search" value="${escapeHtml(rosterFilters.search)}" placeholder="Search employee, email, ID, role, manager, community, status, or access" oninput="handleEmployeeRosterSearchInput(this.value)">
               </div>
               <div>
                 <label>Role</label>
@@ -6643,7 +6995,7 @@ function renderEmployees(){
                 <select id="roster-filter-regional-manager">${renderManagerOptions(rosterFilters.regionalManagerId, 'All regional owners', regionalManagerChoices())}</select>
               </div>
             </div>
-            <div class="form-grid cols-3" style="margin-top:12px">
+            <div class="employee-search-row" style="margin-top:12px">
               <div>
                 <label>Area / region</label>
                 <select id="roster-filter-region">
@@ -6663,6 +7015,9 @@ function renderEmployees(){
                   <option value="terminated" ${rosterFilters.status === 'terminated' ? 'selected' : ''}>Terminated only</option>
                 </select>
               </div>
+              <div><label>Access</label><select id="roster-filter-access"><option value="all" ${rosterFilters.access === 'all' ? 'selected' : ''}>All access records</option><option value="configured" ${rosterFilters.access === 'configured' ? 'selected' : ''}>Configured</option><option value="not_configured" ${rosterFilters.access === 'not_configured' ? 'selected' : ''}>Not configured</option></select></div>
+              <div><label>Invitation</label><select id="roster-filter-invitation"><option value="all" ${rosterFilters.invitation === 'all' ? 'selected' : ''}>All invitation states</option><option value="invited" ${rosterFilters.invitation === 'invited' ? 'selected' : ''}>Invited / active</option><option value="not_invited" ${rosterFilters.invitation === 'not_invited' ? 'selected' : ''}>Not invited</option></select></div>
+              <div><label>Email review</label><select id="roster-filter-email-review"><option value="all" ${rosterFilters.emailReview === 'all' ? 'selected' : ''}>All email states</option><option value="review" ${rosterFilters.emailReview === 'review' ? 'selected' : ''}>Needs email review</option><option value="clear" ${rosterFilters.emailReview === 'clear' ? 'selected' : ''}>Email ready</option></select></div>
             </div>
             <div class="inline" style="margin-top:14px">
               <button class="btn btn-primary" onclick="applyEmployeeRosterFilters()">Apply filters</button>
@@ -6671,89 +7026,51 @@ function renderEmployees(){
             </div>
           </div>
           <div class="table-wrap">
-            <table>
+            <table class="employee-roster-table">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Manager</th>
-                  <th>Regional Alert Owner</th>
-                  <th>Role</th>
-                  <th>Community</th>
-                  <th>Area</th>
-                  ${showCorporateSpecialtyColumn ? '<th>Corporate Specialty</th>' : ''}
-                  <th>Status</th>
-                  <th>Bonus</th>
-                  <th>Active Plans</th>
+                  <th>Employee</th>
+                  <th>Job and role</th>
+                  <th>Assignment</th>
+                  <th>ATLAS access</th>
+                  <th>Status and plans</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 ${filteredEmployees.length ? filteredEmployees.map(employee => {
                   const active = visiblePlans().filter(plan => plan.employeeId === employee.id && plan.status === 'active');
+                  const accessSnapshot = atlasAccessSnapshotForEmployee(employee);
+                  const isSelected = UI.expandedEmployeeId === employee.id;
                   return `
-                    <tr>
+                    <tr class="employee-roster-row ${isSelected ? 'is-selected' : ''}" tabindex="0" aria-expanded="${isSelected ? 'true' : 'false'}" onclick="selectEmployeeForUnifiedEditor('${escapeAttr(employee.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectEmployeeForUnifiedEditor('${escapeAttr(employee.id)}')}">
                       <td>
-                        ${renderEmployeeProfileLink(employee)}
+                        <strong>${escapeHtml(employee.name || 'Unnamed employee')}</strong>
                         ${employee.email ? `<div class="small muted">${escapeHtml(employee.email)}</div>` : ''}
                         <div class="tiny muted">${employee.employeeNumber ? `Employee #${escapeHtml(employee.employeeNumber)}` : 'Employee number not set'}${employee.department ? ` · ${escapeHtml(employee.department)}` : ''}</div>
                       </td>
                       <td>
-                        <select onchange="updateEmployeeManager('${employee.id}', this.value)" ${isAdmin ? '' : 'disabled'}>
-                          ${renderManagerOptions(primaryManagerSelectionValue(employee), isAdmin ? 'Unassigned' : (managerDisplayName(employee) || 'Assigned to you'), isAdmin ? primaryManagerChoices() : assignableManagers(), primaryManagerSelectionValue(employee) ? '' : managerFallbackLabel(managerDisplayName(employee), 'Unlinked manager mapping'))}
-                        </select>
+                        <strong>${escapeHtml(employee.role || 'Role not assigned')}</strong>
+                        <div class="small muted">${escapeHtml(employee.corporateSpecialty || employee.department || 'No specialty')}</div>
                       </td>
                       <td>
-                        <select onchange="updateEmployeeRegionalManager('${employee.id}', this.value)" ${isAdmin ? '' : 'disabled'}>
-                          ${renderManagerOptions(regionalManagerSelectionValue(employee), isAdmin ? 'Unassigned' : (regionalManagerDisplayName(employee) || 'Restricted'), regionalManagerChoices(), regionalManagerSelectionValue(employee) ? '' : managerFallbackLabel(regionalManagerDisplayName(employee), 'No regional owner'))}
-                        </select>
+                        <strong>${escapeHtml(employee.community || 'No community')}</strong>
+                        <div class="small muted">${escapeHtml((REGIONS[employee.region] || {}).name || employee.region || 'No area')}</div>
+                        <div class="tiny muted">Manager: ${escapeHtml(managerDisplayName(employee) || 'Unassigned')}</div>
                       </td>
-                      <td><input value="${escapeHtml(employee.role || '')}" list="role-options" onchange="updateEmployeeField('${employee.id}','role', this.value)"></td>
-                      <td><input value="${escapeHtml(employee.community || '')}" list="community-options" onchange="updateEmployeeField('${employee.id}','community', this.value)"></td>
                       <td>
-                        <select onchange="updateEmployeeRegion('${employee.id}', this.value)">
-                          <option value="">Unassigned</option>
-                          ${Object.entries(REGIONS).map(([key,value]) => `<option value="${key}" ${employee.region === key ? 'selected' : ''}>${value.short}</option>`).join('')}
-                        </select>
+                        <span class="badge ${accessSnapshot.accessConfigured ? 'badge-active' : 'badge-soft'}">${accessSnapshot.accessConfigured ? escapeHtml(accessSnapshot.access?.role || 'Configured') : 'Not configured'}</span>
+                        <div class="tiny muted" style="margin-top:6px">${escapeHtml(String(accessSnapshot.accountStatus || 'Not invited').replace(/_/g, ' '))}</div>
                       </td>
-                      ${showCorporateSpecialtyColumn ? `<td>${renderCorporateSpecialtyCell(employee)}</td>` : ''}
                       <td>
                         <span class="badge ${isEmployeeTerminated(employee) ? 'badge-alert' : 'badge-active'}">${escapeHtml(employeeStatusLabel(employee))}</span>
-                        ${employee.terminationDate ? `<div class="tiny muted" style="margin-top:6px">${formatDate(employee.terminationDate)}${employee.terminationReason ? ` · ${escapeHtml(employee.terminationReason)}` : ''}</div>` : ''}
+                        <div class="tiny muted" style="margin-top:6px">${active.length ? `${active.length} active plan${active.length === 1 ? '' : 's'}` : 'No active plans'}</div>
                       </td>
-                      <td>
-                        <select onchange="updateEmployeeField('${employee.id}','bonusEligible', this.value)">
-                          <option value="false" ${employee.bonusEligible ? '' : 'selected'}>Not eligible</option>
-                          <option value="true" ${employee.bonusEligible ? 'selected' : ''}>Eligible</option>
-                        </select>
-                        <input style="margin-top:6px" value="${escapeHtml(employee.bonusPlan || '')}" onchange="updateEmployeeField('${employee.id}','bonusPlan', this.value)" placeholder="Bonus plan">
-                        <input style="margin-top:6px" value="${escapeHtml(employee.bonusRole || '')}" list="role-options" onchange="updateEmployeeField('${employee.id}','bonusRole', this.value)" placeholder="Bonus role">
-                        <div class="tiny muted" style="margin-top:6px">${employee.targetBonus ? `Target $${Number(employee.targetBonus).toLocaleString()}` : 'Target bonus not set'}${employee.payrollEmployeeId ? ` · Payroll ${escapeHtml(employee.payrollEmployeeId)}` : ''}</div>
-                        <details style="margin-top:6px">
-                          <summary class="tiny muted">More bonus fields</summary>
-                          <input style="margin-top:6px" type="date" value="${escapeHtml(employee.bonusEffectiveDate || '')}" onchange="updateEmployeeField('${employee.id}','bonusEffectiveDate', this.value)">
-                          <input style="margin-top:6px" type="number" min="0" step="50" value="${escapeHtml(employee.targetBonus || '')}" onchange="updateEmployeeField('${employee.id}','targetBonus', this.value)" placeholder="Target bonus">
-                          <input style="margin-top:6px" value="${escapeHtml(employee.payrollEmployeeId || '')}" onchange="updateEmployeeField('${employee.id}','payrollEmployeeId', this.value)" placeholder="Payroll / Employee ID">
-                          <input style="margin-top:6px" value="${escapeHtml(employee.overridePlan || '')}" onchange="updateEmployeeField('${employee.id}','overridePlan', this.value)" placeholder="Override plan">
-                          <input style="margin-top:6px" value="${escapeHtml(employee.bonusPlanStatus || '')}" onchange="updateEmployeeField('${employee.id}','bonusPlanStatus', this.value)" placeholder="Bonus plan status">
-                        </details>
-                        ${isAdmin ? `<input style="margin-top:6px" type="number" min="0" step="1000" value="${escapeHtml(employee.salary || '')}" onchange="updateEmployeeField('${employee.id}','salary', this.value)" placeholder="Salary">` : '<div class="tiny muted" style="margin-top:6px">Salary restricted</div>'}
-                      </td>
-                      <td>
-                        ${active.length ? active.map(plan => `<span class="badge ${typeBadgeClass(plan.type)}">${planTypeUpperLabel(plan.type)}</span>`).join('') : '<span class="small muted">None</span>'}
-                      </td>
-                      <td>
-                        <div class="inline">
-                          ${isEmployeeTerminated(employee) ? '' : `<button class="btn btn-sm btn-soft" onclick="openNewPlanForEmployee('${employee.id}')">New plan</button>`}
-                          ${isAdmin ? `<button class="btn btn-sm btn-primary" onclick="openPromoteEmployeeModal('${employee.id}')">Promote</button>` : ''}
-                          ${isAdmin ? (isEmployeeTerminated(employee)
-                            ? `<button class="btn btn-sm btn-warn" onclick="reactivateEmployee('${employee.id}')">Reactivate</button>`
-                            : `<button class="btn btn-sm btn-warn" onclick="openTerminateEmployeeModal('${employee.id}')">Terminate</button>`) : ''}
-                          ${isAdmin ? `<button class="btn btn-sm btn-danger" onclick="removeEmployee('${employee.id}')">Remove</button>` : ''}
-                        </div>
-                      </td>
+                      <td class="row-chevron" aria-hidden="true">${isSelected ? '&#9652;' : '&#9662;'}</td>
                     </tr>
+                    ${isSelected ? `<tr class="employee-editor-row"><td colspan="6">${renderUnifiedEmployeeEditor(employee, isAdmin)}</td></tr>` : ''}
                   `;
-                }).join('') : `<tr><td colspan="${rosterColumnCount}"><div class="alert alert-info">No employees matched the current roster filters.</div></td></tr>`}
+                }).join('') : '<tr><td colspan="6"><div class="alert alert-info">No employees matched the current roster filters.</div></td></tr>'}
               </tbody>
             </table>
           </div>

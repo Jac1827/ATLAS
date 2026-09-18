@@ -56,7 +56,7 @@
       note: "Reviews, coaching plans, training and accountability run in the RISE Performance Platform. It reads the same roster keyed by employee ID, so a reassignment in Communities lands here without a second import.",
       barTitle: "RISE Performance Platform",
       barSub: "People source data feeds Atlas migration snapshots and shared assignments",
-      src: "RISE-Performance-Platform.html?v=20260911-central-services-roster",
+      src: "RISE-Performance-Platform.html?v=20260918-unified-employee-access",
       background: "#F3F6F8",
       icon: "ph-trophy"
     }

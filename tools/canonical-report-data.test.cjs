@@ -21,6 +21,12 @@ const provenance=Object.fromEntries(['applications','approvals','denials'].map(k
 assert.equal(c.validateDlrApplicationCohort(application,provenance).valid,false);
 assert.equal(c.validateDlrApplicationCohort({...application,applications:5},provenance).valid,true);
 assert.equal(c.validateDlrApplicationCohort(application,{...provenance,denials:{...provenance.denials,period:'2026-08'}}).sameCohort,false);
+c.dataImportNormalizeText=value=>String(value??'').trim().toLowerCase().replace(/\s+/g,' ');
+const keyPeriod={periodKey:'2026-09'}, keySource={section:'Lead Conversions',period:{start:'2026-09-01',end:'2026-09-30'}};
+const sectionKey=c.dataImportCanonicalRecordKey({reportType:'box_score',fileHash:'v1'},'Doro',keyPeriod,{},keySource);
+assert.equal(sectionKey,c.dataImportCanonicalRecordKey({reportType:'box_score',fileHash:'v1'},'Doro',keyPeriod,{},keySource),'Exact file replay keeps one identity');
+assert.notEqual(sectionKey,c.dataImportCanonicalRecordKey({reportType:'box_score',fileHash:'v2'},'Doro',keyPeriod,{},keySource),'A new file version remains independently auditable');
+assert.notEqual(sectionKey,c.dataImportCanonicalRecordKey({reportType:'box_score',fileHash:'v1'},'Doro',keyPeriod,{}, {...keySource,section:'Lead Activity'}),'Distinct Box Score sections cannot suppress one another');
 c.getApplicationDecisionMetrics=()=>({applications:99,approvals:88,denials:7});
 assert.equal(c.buildDlrApplicationWindowMetricsFromMonths([{}],{applications:0}).applications,0);
 assert.equal(c.buildDlrApplicationWindowMetricsFromMonths([{}],{applications:null}).applications,null);

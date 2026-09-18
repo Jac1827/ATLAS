@@ -49481,7 +49481,7 @@ function dataImportRowPeriod(mapped = {}, sourceRow = {}, plan = {}) {
 function dataImportCanonicalRecordKey(plan, communityName, period, row, sourceRow) {
   const partsByType = {
     community_data: [row.community_id, row.pms_property_code, communityName],
-    box_score: [row.floorplan_code || row.floorplan, row.traffic_source, row.application_status, sourceRow.section, sourceRow.period?.start, sourceRow.period?.end, sourceRow.period?.asOf],
+    box_score: [plan.fileHash || plan.name, row.floorplan_code || row.floorplan, row.traffic_source, row.application_status, sourceRow.section, sourceRow.period?.start, sourceRow.period?.end, sourceRow.period?.asOf],
     trending_occupancy: [row.closed_actual ? "closed" : row.reported_actual ? "actual" : "forecast"],
     leasing_resident_data: [row.application_id, row.lease_id, row.unit, row.resident],
     rent_roll: [row.lease_id, row.unit, row.resident, row.charge_code],

@@ -4635,12 +4635,12 @@ async function hydrateAtlasSharedApplications() {
       ...rows.map(applicationUploadFromCentral),
       ...applicationResidentDataState.uploads.filter(u => !u.centralImportId)
     ];
-    renderTab();
+    scheduleAtlasSharedRender();
   } catch (error) {
     if (epoch !== atlasApplicationHydrationEpoch) return;
     clearAtlasSharedApplications();
     csvError = `Shared Application Data could not be refreshed: ${error.message}`;
-    renderTab();
+    scheduleAtlasSharedRender();
   }
 }
 async function reviseAtlasSharedApplication(upload, action, reason) {
@@ -18319,7 +18319,7 @@ async function refreshAtlasSharedRealtime({ silent = true } = {}) {
     atlasSharedRealtimeState.lastError = "";
     if (changed) {
       atlasSharedRealtimeState.lastAppliedAt = atlasSharedRealtimeState.lastPulledAt;
-      runAtlasInitialRenderPass();
+      scheduleAtlasSharedRender(true);
     }
   } catch (error) {
     atlasSharedRealtimeState.lastError = error?.message || String(error);
@@ -18330,9 +18330,9 @@ async function refreshAtlasSharedRealtime({ silent = true } = {}) {
   return atlasSharedRealtimeState;
 }
 
-function startAtlasSharedRealtime() {
+function startAtlasSharedRealtime({ initialRefresh = true } = {}) {
   if (atlasSharedRealtimeTimer) clearInterval(atlasSharedRealtimeTimer);
-  refreshAtlasSharedRealtime({ silent: true });
+  if (initialRefresh) refreshAtlasSharedRealtime({ silent: true });
   atlasSharedRealtimeTimer = setInterval(() => refreshAtlasSharedRealtime({ silent: true }), 60000);
   if (!atlasSharedRealtimeVisibilityBound) {
     atlasSharedRealtimeVisibilityBound = true;
@@ -48617,6 +48617,14 @@ function dataImportExtractMetadata(sample = {}, file = null) {
   };
 }
 
+function dataImportIsBoxScoreSheet(rows, sheetName) {
+  if (dataImportIsMetadataSheetName(sheetName)) return false;
+  // Section anchors, not a generic rent column or workbook filename, identify candidates.
+  return rows.some(row => /^(availability|property pulse|lead activity|lead conversions|make ready status)\b/i.test(
+    String((row || []).find(cell => String(cell ?? "").trim()) || "").trim()
+  ));
+}
+
 async function dataImportReadFileSample(file) {
   const name = file?.name || "Untitled";
   const extension = dataImportGetFileExtension(name);
@@ -48678,7 +48686,7 @@ async function dataImportReadFileSample(file) {
       sheetNames.forEach(sheetName => {
         const worksheet = workbook.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "", raw: false });
-        const qualifiedBoxScoreRows = window.AtlasApplicationSources?.boxScore
+        const qualifiedBoxScoreRows = dataImportIsBoxScoreSheet(rows, sheetName) && window.AtlasApplicationSources?.boxScore
           ? window.AtlasApplicationSources.boxScore(rows)
           : [];
         const sheetQualifiedFields = qualifiedBoxScoreRows.flatMap(row => Object.entries(row.values || {}).map(([canonicalField, sampleValue]) => {
@@ -56935,6 +56943,33 @@ function runAtlasStartupStep(label, step) {
   }
 }
 
+async function measureAtlasStartupStage(label, step) {
+  const start = `atlas:${label}:start`;
+  const end = `atlas:${label}:end`;
+  performance.mark(start);
+  try {
+    return await step();
+  } finally {
+    performance.mark(end);
+    performance.measure(`atlas:${label}`, start, end);
+  }
+}
+
+let atlasSharedRenderTimer = null;
+let atlasSharedRenderNeedsWorkspace = false;
+function scheduleAtlasSharedRender(workspace = false) {
+  atlasSharedRenderNeedsWorkspace = atlasSharedRenderNeedsWorkspace || workspace;
+  if (atlasSharedRenderTimer !== null) return;
+  atlasSharedRenderTimer = setTimeout(() => {
+    atlasSharedRenderTimer = null;
+    const refreshWorkspace = atlasSharedRenderNeedsWorkspace;
+    atlasSharedRenderNeedsWorkspace = false;
+    if (!atlasDashboardInitializationComplete) return;
+    if (refreshWorkspace) runAtlasInitialRenderPass();
+    else renderTab();
+  }, 0);
+}
+
 function runAtlasInitialRenderPass() {
   runAtlasStartupStep("sync shared people assignments", () => syncSharedPeopleAssignments({ persist: true }));
   runAtlasStartupStep("sync community staffing from People roster", () => syncAllCommunityStaffingFromPeopleRoster({ persist: true }));
@@ -56948,6 +56983,7 @@ function runAtlasInitialRenderPass() {
 }
 
 async function initializeAtlasDashboard() {
+  performance.mark("atlas:startup:start");
   sideNavCollapsed = loadSideNavCollapsed();
   applySideNavState();
   currentMonth = DEFAULT_CURRENT_MONTH;
@@ -56956,27 +56992,35 @@ async function initializeAtlasDashboard() {
   applyAtlasAuthEntryFromLocation();
   applyAtlasAuthRedirectEvent();
   if (typeof window.ATLAS_CENTRAL?.refreshSession === "function") {
-    await window.ATLAS_CENTRAL.refreshSession().catch(() => null);
+    await measureAtlasStartupStage("session", () => window.ATLAS_CENTRAL.refreshSession()).catch(() => null);
   }
   runAtlasStartupStep("apply incoming workspace navigation", () => applyIncomingWorkspaceNavigation());
-  await hydrateOpsGlobalStorage();
+  await measureAtlasStartupStage("global-storage", () => hydrateOpsGlobalStorage());
   runAtlasStartupStep("hydrate global ATLAS settings", () => hydrateOpsGlobalData());
   try {
-    await hydrateDashboardPersistentState();
+    await measureAtlasStartupStage("dashboard-storage", () => hydrateDashboardPersistentState());
   } catch (error) {
     markAtlasPersistenceError(error, "ATLAS could not finish loading browser data.");
   }
-  await hydrateDataImport2State();
-  await pullAtlasSharedPropertyGraphFromCentral({ silent: true, applyToPortfolio: true });
-  await hydrateSharedPropertiesFromMarketingDatabase({ silent: true, applyToPortfolio: true, central: true });
-  await hydrateAtlasDashboardPreferencesFromCentral({ silent: true });
+  // Keep access/scope hydration ahead of workspace rendering, but overlap independent I/O.
+  const hydrationResults = await Promise.allSettled([
+    measureAtlasStartupStage("import-storage", () => hydrateDataImport2State()),
+    measureAtlasStartupStage("central-property-graph", () => pullAtlasSharedPropertyGraphFromCentral({ silent: true, applyToPortfolio: true })),
+    measureAtlasStartupStage("marketing-properties", () => hydrateSharedPropertiesFromMarketingDatabase({ silent: true, applyToPortfolio: true, central: false })),
+    measureAtlasStartupStage("dashboard-preferences", () => hydrateAtlasDashboardPreferencesFromCentral({ silent: true }))
+  ]);
+  hydrationResults.filter(result => result.status === "rejected").forEach(result =>
+    markAtlasPersistenceError(result.reason, "ATLAS could not refresh one startup source.")
+  );
   runAtlasStartupStep("rehydrate global ATLAS settings", () => hydrateOpsGlobalData());
   applyAtlasAuthEntryFromLocation();
   applyAtlasAuthRedirectEvent();
   finishAtlasStartupLoadingState();
   runAtlasInitialRenderPass();
+  performance.mark("atlas:workspace:ready");
+  performance.measure("atlas:time-to-workspace", "atlas:startup:start", "atlas:workspace:ready");
   runAtlasStartupStep("start live presence", () => startAtlasLivePresence());
-  runAtlasStartupStep("start shared data refresh", () => startAtlasSharedRealtime());
+  runAtlasStartupStep("start shared data refresh", () => startAtlasSharedRealtime({ initialRefresh: false }));
   queuePersistedPhotoStorageCompaction();
   if (savedData && Object.keys(savedData).length > 0) {
     queueDailyBackupSnapshotWrite("startup_retain");

@@ -9757,6 +9757,7 @@ function normalizeSavedCommunityRecord(propName, data) {
     marketSurveyHistory: normalizeMarketSurveyHistory(input.marketSurveyHistory),
     importTracking: normalizeImportTracking(input.importTracking),
     financialPublicationHistory: Array.isArray(input.financialPublicationHistory) ? input.financialPublicationHistory : [],
+    closedFinancialHistory: Array.isArray(input.closedFinancialHistory) ? input.closedFinancialHistory : [],
     financialLedger: (input.financialLedger && typeof input.financialLedger === "object") ? input.financialLedger : {},
     financialUpdatedAt: String(input.financialUpdatedAt ?? ""),
     financialBudgetLedger: (input.financialBudgetLedger && typeof input.financialBudgetLedger === "object") ? input.financialBudgetLedger : {},
@@ -26671,7 +26672,10 @@ function getRecordHistoryEntry(record, monthIdx, year, options = {}) {
   const periodKey = buildPeriodKey(monthIdx, safeYear);
   if (!record.monthlyHistoryByPeriod[periodKey]) {
     if (!options.create) return null;
-    record.monthlyHistoryByPeriod[periodKey] = { ...defaultMonthly()[monthIdx] };
+    record.monthlyHistoryByPeriod[periodKey] = {
+      ...defaultMonthly()[monthIdx],
+      ...(safeYear === new Date().getFullYear() ? record.monthlyData?.[monthIdx] || {} : {})
+    };
   }
   return record.monthlyHistoryByPeriod[periodKey];
 }
@@ -51088,6 +51092,8 @@ async function approveDataImportBatch() {
     dataImportFinishApprovalRuntime();
     dataImportApprovalInProgress = false;
     dataImportUpdateApprovalProgress({ stage: "", fileName: "" });
+    await atlasStateWritePromise;
+    loadPropertyData(getProp().name);
     renderPropGrid();
     renderTab();
   }
@@ -51220,7 +51226,7 @@ function dataImportResolveReplayedDelinquencyExceptions(entry, result) {
 async function reprocessDataImportBoxScore(archiveId) {
   if (!dataImportCanManageArchitecture() || dataImportApprovalInProgress) return;
   const entry = (dataImport2State.sourceArchive || []).find(item => item.id === archiveId);
-  if (!entry || !["box_score", "delinquency", "leasing_resident_data"].includes(entry.reportType) || entry.importStatus !== "Approved") return;
+  if (!entry || !["box_score", "trending_occupancy", "delinquency", "leasing_resident_data"].includes(entry.reportType) || entry.importStatus !== "Approved") return;
   dataImportApprovalInProgress = true;
   const beforeSaved = JSON.stringify(savedData);
   const beforeImport = JSON.stringify(dataImport2State);
@@ -51236,7 +51242,7 @@ async function reprocessDataImportBoxScore(archiveId) {
     // Historical preview detection could omit later sheets in a portfolio workbook.
     // Recover only explicitly resolved, active, managed communities from the verified file.
     const recoveredCommunities = new Set(entry.communities || []);
-    if (["box_score", "delinquency"].includes(entry.reportType)) {
+    if (["box_score", "trending_occupancy", "delinquency"].includes(entry.reportType)) {
       const lookups = {aliases:dataImportBuildAliasLookup(), internalIds:dataImportBuildInternalCommunityLookup()};
       const mappingCache = new Map();
       for (const sheet of await dataImportReadStructuredRows(file, plan)) {
@@ -51276,6 +51282,8 @@ async function reprocessDataImportBoxScore(archiveId) {
     dataImport2State.reconciliationLog.unshift({id:dataImportMakeId("reprocess"),batchId:entry.batchId,reportType:entry.reportType,fileName:entry.fileName,formula:"Approved archived source reconciled with section-qualified mapping and report-level dates; source file unchanged.",createdAt:entry.reprocessedAt});
     persistSaved();
     persistDataImport2State();
+    await atlasStateWritePromise;
+    loadPropertyData(getProp().name);
     alert(`Reprocessed ${result.communities.length} communities from the approved original source. ${result.rowsHeld} rows held; ${result.issues.length} review items.${result.sharedRecords ? ` Published ${result.sharedRecords} Resident Data records for authorized shared access.` : ""} Newer sources and closed periods remain protected.`);
   } catch (error) {
     savedData = JSON.parse(beforeSaved);
@@ -54206,7 +54214,7 @@ function renderDataImportArchiveView() {
         <td>${(entry.communities || []).slice(0, 4).map(name => `<span class="data-import2-chip good">${escapeHtml(name)}</span>`).join(" ") || `<span class="data-import2-chip warn">Unmapped</span>`}</td>
         <td>${escapeHtml(entry.batchId || "")}<div class="data-import2-file-meta">Original review: ${escapeHtml(entry.rowsReviewed || 0)} reviewed · ${escapeHtml(entry.rowsUpdated || 0)} corrected · ${escapeHtml(entry.rowsHeld || 0)} held</div><div class="data-import2-file-meta">${escapeHtml(entry.mappingVersion || "ATLAS-RRIM-1.0")}</div>${entry.reprocessResult ? `<div class="data-import2-file-meta">Latest replay: ${(entry.reprocessResult.communities || []).length} communities · ${entry.reprocessResult.rowsHeld || 0} held · ${(entry.reprocessResult.issues || []).length} review items${entry.reprocessResult.sharedRecords ? ` · ${entry.reprocessResult.sharedRecords} shared records` : ""}</div>` : ""}</td>
         <td><span class="data-import2-status ${dataImportStatusClass(entry.importStatus)}">${escapeHtml(entry.importStatus || "Archived")}</span><div class="data-import2-file-meta">${escapeHtml(entry.storageStatus || "Metadata")}</div></td>
-        <td><button class="btn btn-gray btn-sm" onclick='downloadDataImportArchiveFile(${JSON.stringify(entry.id)})'>Download</button>${["box_score", "delinquency", "leasing_resident_data"].includes(entry.reportType) && entry.importStatus === "Approved" && dataImportCanManageArchitecture() ? `<button class="btn btn-blue btn-sm" onclick='reprocessDataImportBoxScore(${JSON.stringify(entry.id)})'>Reconcile approved source</button>` : ""}${entry.reprocessedAt ? `<div class="data-import2-file-meta">Refreshed ${escapeHtml(dataImportFormatTimestamp(entry.reprocessedAt))}</div>` : ""}</td>
+        <td><button class="btn btn-gray btn-sm" onclick='downloadDataImportArchiveFile(${JSON.stringify(entry.id)})'>Download</button>${["box_score", "trending_occupancy", "delinquency", "leasing_resident_data"].includes(entry.reportType) && entry.importStatus === "Approved" && dataImportCanManageArchitecture() ? `<button class="btn btn-blue btn-sm" onclick='reprocessDataImportBoxScore(${JSON.stringify(entry.id)})'>Reconcile approved source</button>` : ""}${entry.reprocessedAt ? `<div class="data-import2-file-meta">Refreshed ${escapeHtml(dataImportFormatTimestamp(entry.reprocessedAt))}</div>` : ""}</td>
       </tr>`).join("")}</tbody>
     </table>
   </div>`;

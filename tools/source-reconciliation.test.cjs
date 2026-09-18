@@ -2,7 +2,7 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const path=require('node:path'),root=path.join(__dirname,'../docs/portfolio-operations-dashboard');
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
 const XLSX=require(process.env.ATLAS_XLSX||'xlsx'),bridge=require(path.join(root,'application-source-bridge.js'));
-const c={console,Date,Map,Set,XLSX,window:{AtlasApplicationSources:bridge},DATA_IMPORT_MAX_SAMPLE_CHARS:180000,savedData:{},MONTHS:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']};vm.createContext(c);
+const c={console,Date,Map,Set,XLSX,window:{AtlasApplicationSources:bridge},DATA_IMPORT_MAX_SAMPLE_CHARS:180000,savedData:{},PROPERTIES:[],MONTHS:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']};vm.createContext(c);
 for(const f of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm))vm.runInContext(f[0],c);
 vm.runInContext(html.slice(html.indexOf('const DATA_IMPORT_FIELD_ALIASES ='),html.indexOf('const DATA_IMPORT_DESTINATION_GROUPS =')),c);
 assert.equal(c.dataImportExtractMetadata({sampleText:'New Lead Created On | 08/07/2026',metadataText:'Resident Data 3.1 generated | 09/16/2026 12:20 PM EDT\ndata as of | 09/16/2026 12:20 PM EDT'}).dataAsOf,'2026-09-16T16:20:00.000Z');
@@ -29,9 +29,15 @@ c.window.ATLAS_CENTRAL={getStoredProfile:()=>({community_access_records:[{displa
 const canonicalMonth=apply([{sourceRow:{sourceSheet:'Test'},row:{measurement_basis:'units',occupied_units:10,rentable_units:20,total_units:20,available_units:8}}],'box_score');
 assert.equal(canonicalMonth.occupiedSnapshot,10,'Current canonical property type supersedes stale local type');
 delete c.window.ATLAS_CENTRAL; c.savedData.Test={};
+const studentEntries=[{sourceRow:{sourceSheet:'Test'},row:{measurement_basis:'units',occupied_units:10,rentable_units:20,total_units:20,available_units:8}}];
+c.savedData.Test={communityPropertyType:'Student Housing'}; c.getResolvedTotalUnitsForRecord=()=>20;
+assert.equal(apply(studentEntries,'box_score').occupiedSnapshot,10,'Reconciled unit-based student occupancy publishes');
+c.getResolvedTotalUnitsForRecord=()=>200;
+assert.equal(apply(studentEntries,'box_score').occupiedSnapshot,7.35,'Mismatched student inventory remains held');
+c.savedData.Test={};
 assert.equal(c.getReportedOccupancyBaseUnits({rentableUnits:220,sourceTotalUnits:222},222,0),220,'Rentable units define physical occupancy');
 assert.equal(c.getReportedOccupancyBaseUnits({rentableUnits:1180},588,0),588,'Unreconciled legacy denominator is ignored');
-const ui={window:{getAtlasApplicationScopeCommunityNames:()=>{scopeCalls++;return ['Allowed'];},atlasApplicationCommunityInScope:()=>true,AtlasApplicationSources:bridge,getAtlasApplicationIntelligenceData:()=>({records:Array.from({length:2500},(_,i)=>({property:i%2?'Allowed':'Denied'}))}),addEventListener:()=>{}},Date};let scopeCalls=0;vm.createContext(ui);vm.runInContext(fs.readFileSync(path.join(root,'application-performance-ui.js'),'utf8'),ui);assert.equal(ui.window.getAtlasApplicationCommandRecords().length,1250);assert.equal(scopeCalls,1);ui.window.getAtlasApplicationScopeCommunityNames=()=>[];assert.equal(ui.window.getAtlasApplicationCommandRecords().length,0);
+const ui={window:{getAtlasApplicationScopeCommunityNames:()=>{scopeCalls++;return ['Allowed'];},atlasApplicationCommunityInScope:()=>true,AtlasApplicationSources:bridge,AtlasApplicationAging:{latestRecords:records=>records},getAtlasApplicationIntelligenceData:()=>({records:Array.from({length:2500},(_,i)=>({property:i%2?'Allowed':'Denied'}))}),addEventListener:()=>{}},Date};let scopeCalls=0;vm.createContext(ui);vm.runInContext(fs.readFileSync(path.join(root,'application-performance-ui.js'),'utf8'),ui);assert.equal(ui.window.getAtlasApplicationCommandRecords().length,1250);assert.equal(scopeCalls,1);ui.window.getAtlasApplicationScopeCommunityNames=()=>[];assert.equal(ui.window.getAtlasApplicationCommandRecords().length,0);
 console.log('PASS source dates, snapshot periods, multi-account aggregation and 2,500-row scope filtering with fresh access checks.');
 (async()=>{
  if(!process.env.ATLAS_SOURCE_DIR)return;

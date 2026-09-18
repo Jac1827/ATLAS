@@ -42342,17 +42342,18 @@ function formatDlrSignedNumber(value) {
 }
 
 function getTopLeadSourceFacts(leadSources = {}) {
-  return Object.entries(leadSources)
-    .map(([key, value]) => ({
+  const labels = {
+    walkIn: "Walk In",
+    offSiteEvent: "Off Site Event",
+    phoneCalls: "Phone Calls",
+    emailsOnline: "Emails / Online",
+    textChatOther: "Text / Chat / Other"
+  };
+  return Object.entries(labels)
+    .map(([key, label]) => ({
       key,
-      label: ({
-        walkIn: "Walk In",
-        offSiteEvent: "Off Site Event",
-        phoneCalls: "Phone Calls",
-        emailsOnline: "Emails / Online",
-        textChatOther: "Text / Chat / Other"
-      })[key] || key,
-      value: Number(value) || 0
+      label,
+      value: Number(leadSources[key]) || 0
     }))
     .filter(item => item.value > 0)
     .sort((a, b) => b.value - a.value);
@@ -49769,6 +49770,7 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
   const first = field => rows.map(row => row[field]).find(value => String(value ?? "").trim() !== "");
   if (plan.reportType === "box_score") {
     const rentable = sum("rentable_units") ?? sum("total_units");
+    const excluded = sum("excluded_units");
     const occupiedComponents = [sum("occupied_no_notice"), sum("notice_rented"), sum("notice_unrented")];
     const occupied = sum("occupied_units") ?? (occupiedComponents.every(value => value !== null) ? occupiedComponents.reduce((a, b) => a + b, 0) : null);
     const total = sum("total_units");
@@ -49777,29 +49779,33 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     const directoryRecord = (window.ATLAS_CENTRAL?.getStoredProfile?.()?.community_access_records || []).find(item =>
       [item.display_name, item.canonical_name].some(name => String(name || "").trim().toLowerCase() === communityName.trim().toLowerCase()));
     const propertyType = directoryRecord?.property_type || record.communityPropertyType || record.propertyType || "";
-    const studentUnits = /student/i.test(propertyType) && first("measurement_basis") !== "beds";
-    if (studentUnits) {
-      result.issues.push({type:"basis",severity:"high",title:"Student bed counts required",detail:"Unit-based occupancy and move counts retained in source history; not published as bed-based leasing or occupancy.",communityName});
+    const measurementBasis = dataImportNormalizeText(first("measurement_basis"));
+    const configuredUnits = getResolvedTotalUnitsForRecord(communityName, record);
+    const sourceInventoryReconciles = total !== null && rentable > 0 && rentable <= total
+      && configuredUnits > 0 && total === configuredUnits
+      && (excluded === null || rentable + excluded === total);
+    const studentBasisConflict = /student/i.test(propertyType) && measurementBasis !== "beds" && !sourceInventoryReconciles;
+    if (studentBasisConflict) {
+      result.issues.push({type:"basis",severity:"high",title:"Student occupancy basis requires reconciliation",detail:`The ${measurementBasis || "unlabeled"}-based Box Score inventory (${total ?? "unavailable"}) does not match the configured ATLAS inventory (${configuredUnits || "unavailable"}). Occupancy and move counts were retained in source history but not published.`,communityName});
     }
     const available = sum("available_units") ?? ([sum("vacant_units"), sum("notice_unrented"), sum("vacant_rented")].every(v => v !== null) ? sum("vacant_units") + sum("notice_unrented") - sum("vacant_rented") : null);
-    const exposureAdjustedUnits = total !== null && available !== null ? total - available : null;
+    const exposureAdjustedUnits = rentable !== null && available !== null ? rentable - available : null;
     const sourceLeased = sum("source_leased_units") ?? (occupied !== null && sum("vacant_rented") !== null ? occupied + sum("vacant_rented") : null);
     const leased = sourceLeased;
     const physicalPct = dataImportPercentValue(first("physical_occupancy")) ?? (rentable > 0 && occupied !== null ? occupied / rentable * 100 : null);
     const leasedPct = dataImportPercentValue(first("leased_occupancy")) ?? (rentable > 0 && leased !== null ? leased / rentable * 100 : null);
     if (rentable !== null && occupied !== null && (occupied < 0 || occupied > rentable)) result.issues.push({ type: "reconciliation", severity: "high", title: "Occupied units do not reconcile", detail: `${occupied} occupied exceeds ${rentable} rentable units.`, communityName });
-    const configuredUnits = Number(record.customUnits || record.units || 0);
     if (total !== null && configuredUnits > 0 && Math.abs(total - configuredUnits) > 0) result.issues.push({ type: "reconciliation", severity: "medium", title: "Unit total needs review", detail: `${total} source total units do not match the ${configuredUnits}-unit Community Foundation record.`, communityName });
     if (physicalPct !== null && (physicalPct < 0 || physicalPct > 100)) result.issues.push({ type: "invalid", severity: "high", title: "Physical occupancy outside 0-100%", detail: `${physicalPct}% was retained for review.`, communityName });
-    if (!studentUnits && occupied !== null) dataImportApplyMetric(record, plan, result, communityName, period, "occupied", occupied, "occupied_units");
-    else if (!studentUnits && rentable > 0 && physicalPct !== null) dataImportApplyMetric(record, plan, result, communityName, period, "occupied", Math.round(rentable * physicalPct / 100), "occupied_units");
-    if (!studentUnits && leased !== null) dataImportApplyMetric(record, plan, result, communityName, period, "leased", leased, "leased_units");
-    else if (!studentUnits && rentable > 0 && leasedPct !== null) dataImportApplyMetric(record, plan, result, communityName, period, "leased", Math.round(rentable * leasedPct / 100), "leased_units");
+    if (!studentBasisConflict && occupied !== null) dataImportApplyMetric(record, plan, result, communityName, period, "occupied", occupied, "occupied_units");
+    else if (!studentBasisConflict && rentable > 0 && physicalPct !== null) dataImportApplyMetric(record, plan, result, communityName, period, "occupied", Math.round(rentable * physicalPct / 100), "occupied_units");
+    if (!studentBasisConflict && leased !== null) dataImportApplyMetric(record, plan, result, communityName, period, "leased", leased, "leased_units");
+    else if (!studentBasisConflict && rentable > 0 && leasedPct !== null) dataImportApplyMetric(record, plan, result, communityName, period, "leased", Math.round(rentable * leasedPct / 100), "leased_units");
     dataImportApplyMetric(record, plan, result, communityName, period, "guest_cards", sum("new_leads") ?? sum("guest_cards"), "new_leads");
     dataImportApplyMetric(record, plan, result, communityName, period, "applications", sum("applications"), "applications");
     dataImportApplyMetric(record, plan, result, communityName, period, "tours", sum("tours"), "tours");
-    if (!studentUnits) dataImportApplyMetric(record, plan, result, communityName, period, "move_ins", sum("move_ins"), "move_ins");
-    if (!studentUnits) dataImportApplyMetric(record, plan, result, communityName, period, "move_outs", sum("move_outs"), "move_outs");
+    if (!studentBasisConflict) dataImportApplyMetric(record, plan, result, communityName, period, "move_ins", sum("move_ins"), "move_ins");
+    if (!studentBasisConflict) dataImportApplyMetric(record, plan, result, communityName, period, "move_outs", sum("move_outs"), "move_outs");
     dataImportApplyMetric(record, plan, result, communityName, period, "applications_approved", sum("approvals"), "approvals");
     dataImportApplyMetric(record, plan, result, communityName, period, "denied", sum("denied_applications"), "denied_applications");
     dataImportApplyMetric(record, plan, result, communityName, period, "cancelled", sum("cancelled_applications"), "cancelled_applications");
@@ -49819,18 +49825,19 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     entries.forEach(entry => dataImportUpsertFloorPlan(record, entry.row, plan, entry.sourceRow.sourceSheet));
     const periodEntries = getWritableMonthlyPeriodEntries(record, period.monthIdx, period.year);
     [periodEntries?.historyEntry, periodEntries?.liveEntry].filter(Boolean).forEach(month => {
-      if (!acceptDerived || studentUnits) return;
+      if (!acceptDerived || studentBasisConflict) return;
       if (physicalPct !== null && physicalPct >= 0 && physicalPct <= 100) month.physicalOccupancyPct = physicalPct;
       if (leasedPct !== null && leasedPct >= 0 && leasedPct <= 100) month.leasedOccupancyPct = leasedPct;
       if (rentable !== null) month.rentableUnits = rentable;
+      if (excluded !== null) month.excludedUnits = excluded;
       if (available !== null) month.exposureUnits = available;
       if (total !== null) month.sourceTotalUnits = total;
       if (sourceLeased !== null) month.sourceLeasedUnits = sourceLeased;
       if (rentable > 0 && sourceLeased !== null) month.leasedOccupancyPct = sourceLeased / rentable * 100;
-      if (total > 0 && exposureAdjustedUnits !== null) month.exposureAdjustedOccupancyPct = exposureAdjustedUnits / total * 100;
+      if (rentable > 0 && exposureAdjustedUnits !== null) month.exposureAdjustedOccupancyPct = exposureAdjustedUnits / rentable * 100;
       if (total > 0 && occupied !== null) month.legacyPhysicalOccupancyPct = occupied / total * 100;
     });
-    result.formulas.push(`${communityName} ${period.periodKey}: Physical Occupancy = Occupied / Rentable; Leased Occupancy = Leased / Rentable; Exposure = source Available; legacy Leased = Total minus Available; source Leased = Occupied plus Vacant Rented. Counts and denominators remain separate.`);
+    result.formulas.push(`${communityName} ${period.periodKey}: Physical Occupancy = Occupied / Rentable; Leased Occupancy = Leased / Rentable; Exposure-adjusted Occupancy = (Rentable minus Available) / Rentable; source Leased = Occupied plus Vacant Rented. Exclusions are retained separately and applied once.`);
     result.destinations.add("Community Overview");
     if (hasFloorPlanRows) result.destinations.add("Floor Plans - approval required");
     result.destinations.add("Leasing Performance");

@@ -54,10 +54,15 @@ if(box){
  const metrics=context.getAtlasApplicationPeriodMetrics('2026-09');assert.equal(metrics[0].cells.applications.value,7);assert.equal(context.getAtlasApplicationPeriodMetrics('2025-09')[0].cells.applications.value,null);
  context.dataImportApplyGroupedSnapshot({communityName:'Sereno',period:{periodKey:'2026-09',year:2026,monthIdx:8},entries:[{row:{application_id:'test',application_status:'Started'}}]},{reportType:'leasing_resident_data'},{issues:[],formulas:[],destinations:new Set()});assert.equal(month.applications,7,'Resident snapshots must never replace completed period flows');
 
- const occupiedBefore=month.occupiedSnapshot;
  context.normalizeSavedCommunityRecord=()=>({communityPropertyType:'Student Housing'});
+ context.getResolvedTotalUnitsForRecord=()=>320;
+ month.occupiedSnapshot=0;
  context.dataImportApplyGroupedSnapshot({communityName:'Student',period:{periodKey:'2026-09',year:2026,monthIdx:8},entries},{reportType:'box_score',name:'Fixture.xlsx'},{issues:[],formulas:[],destinations:new Set()});
- assert.equal(month.occupiedSnapshot,occupiedBefore,'Unit-based source does not overwrite student bed counts');
+ assert.equal(month.occupiedSnapshot,258,'Reconciled unit-based source updates student occupancy');
+ context.getResolvedTotalUnitsForRecord=()=>588;
+ month.occupiedSnapshot=77;
+ context.dataImportApplyGroupedSnapshot({communityName:'Student',period:{periodKey:'2026-09',year:2026,monthIdx:8},entries},{reportType:'box_score',name:'Fixture.xlsx'},{issues:[],formulas:[],destinations:new Set()});
+ assert.equal(month.occupiedSnapshot,77,'Mismatched unit-based source does not overwrite student bed counts');
  context.dataImportShouldApplyCurrentMetric=()=>false;
  month.exposureUnits=99;
  context.normalizeSavedCommunityRecord=()=>({});

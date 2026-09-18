@@ -11,6 +11,9 @@ const context={Date,Math,Number,FULL_MONTHS:['Jan'],DATA_IMPORT_REPORT_ORDER:['r
 vm.createContext(context);vm.runInContext(extract('dataImportBuildStatusDateLabel')+'\n'+extract('dataImportBuildHealthModel'),context);
 let health=context.dataImportBuildHealthModel();assert.equal(health.rows[1].cells[0].status,'Historical');assert.equal(health.rows[1].cells[0].required,false);assert.equal(health.rows[0].cells[0].status,'Saved');assert(!health.rows[1].cells[0].statusDateLabel.includes('January'));
 context.dataImportLatestArchiveFor=()=>({batchId:'test',dataDateIso:'2026-09-16'});context.dataImportAgeForArchive=()=>1;health=context.dataImportBuildHealthModel();assert.equal(health.rows[0].cells[0].status,'Fresh');assert.equal(health.rows[1].cells[0].status,'Historical');
+vm.runInContext(extract('getTopLeadSourceFacts'),context);
+const leadFacts=context.getTopLeadSourceFacts({walkIn:2,phoneCalls:7,emailsOnline:4,applicationApprovalPct:50,tourToAppPct:46.1538,applications:20});
+assert.equal(leadFacts.length,3);assert.equal(leadFacts[0].key,'phoneCalls');assert.equal(leadFacts[0].value,7);assert(!leadFacts.some(item=>/Pct$/.test(item.key)||item.key==='applications'));
 // Exercise actual settings persistence with shared rows, and ensure they never enter storage.
 const shared={centralImportId:'authorized-session',records:[base]},local={records:[]};
 const ctx={applicationResidentDataState:{uploads:[shared,local]},OPS_GLOBAL_STORAGE_KEY:'settings',serializeJacsTeamBonus:x=>x,persistOpsGlobalSnapshot:(data)=>{assert(!data.applicationResidentData.uploads.some(u=>u.centralImportId));return {ok:true};}};

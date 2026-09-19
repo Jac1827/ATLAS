@@ -33,3 +33,5 @@ jobs:
         run: node tools/migration-restore.test.cjs
       - name: Validate recommendation occupancy
         run: node tools/occupancy-recommendations.test.cjs
+      - name: Validate historical upload period selection
+        run: node tools/import-period-selection.test.cjs

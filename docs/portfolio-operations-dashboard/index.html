@@ -49609,6 +49609,43 @@ async function dataImportExpandZip(file) {
   return { files, issues };
 }
 
+let dataImportUploadPeriod = null;
+
+function getDataImportUploadPeriod(now = new Date()) {
+  return dataImportUploadPeriod ? { ...dataImportUploadPeriod } : { monthIdx: now.getMonth(), year: now.getFullYear() };
+}
+
+function setDataImportUploadPeriod(field, value) {
+  const next = { ...getDataImportUploadPeriod(), [field]: Number(value) };
+  if (!Number.isInteger(next.monthIdx) || next.monthIdx < 0 || next.monthIdx > 11 || !Number.isInteger(next.year) || next.year < 1900 || next.year > 2100) return;
+  dataImportUploadPeriod = next;
+  renderTab();
+}
+
+function dataImportPeriodConflict(selected, detected) {
+  return Boolean(selected && Number.isInteger(detected?.monthIdx) && Number.isInteger(detected?.year)
+    && (selected.monthIdx !== detected.monthIdx || selected.year !== detected.year));
+}
+
+function dataImportApplySelectedPeriod(plan, selected) {
+  if (!selected) return plan;
+  const detected = { monthIdx: plan.reportingMonthIdx, year: plan.reportingYear, label: plan.reportingPeriodLabel };
+  const requested = { monthIdx: selected.monthIdx, year: selected.year };
+  const selection = { requested, detected, basis: Number.isInteger(detected.monthIdx) && Number.isInteger(detected.year) ? "source_verified" : "user_selected" };
+  const next = { ...plan, periodSelection: selection, metadata: { ...plan.metadata, periodSelection: selection } };
+  if (dataImportPeriodConflict(requested, detected)) {
+    next.issues = [...(plan.issues || []), { type: "conflict", severity: "critical", title: "Report period does not match your selection", detail: `You selected ${MONTHS[requested.monthIdx]} ${requested.year}; the report identifies ${detected.label}. Choose the matching period and upload again. Source dates will not be relabeled.` }];
+    next.status = "blocked";
+    next.selected = false;
+    next.readyRows = 0;
+    return next;
+  }
+  next.reportingMonthIdx = requested.monthIdx;
+  next.reportingYear = requested.year;
+  next.reportingPeriodLabel = `${MONTHS[requested.monthIdx]} ${requested.year}`;
+  return next;
+}
+
 async function dataImportBuildFilePlan(file, extras = {}) {
   const [sample, fileHash] = await Promise.all([dataImportReadFileSample(file), dataImportFileHash(file)]);
   const metadata = dataImportExtractMetadata(sample, file);
@@ -49668,7 +49705,7 @@ async function dataImportBuildFilePlan(file, extras = {}) {
   const status = blocked ? "blocked" : issues.some(issue => ["unmapped","low_confidence","invalid","held"].includes(issue.type)) ? "review" : "ready";
   const fileId = dataImportMakeId("file");
   dataImportFileHandles.set(fileId, file);
-  return {
+  return dataImportApplySelectedPeriod({
     fileId,
     originalZipName: extras.originalZipName || "",
     name: file.name,
@@ -49707,7 +49744,7 @@ async function dataImportBuildFilePlan(file, extras = {}) {
       qualifiedFields: sample.qualifiedFields || [],
       sheets: sample.tabSummaries || []
     }
-  };
+  }, extras.selectedPeriod);
 }
 
 function dataImportFindDuplicateArchiveMatch(plan) {
@@ -49783,6 +49820,7 @@ function dataImportBuildLearningSummary(plans = [], batchId = "") {
 async function dataImportStageFiles(filesLike) {
   const files = Array.from(filesLike || []).filter(Boolean);
   if (!files.length) return;
+  const selectedPeriod = getDataImportUploadPeriod();
   csvError = "";
   csvLog = [`Inspecting ${files.length} source file${files.length === 1 ? "" : "s"} before import...`, ...csvLog.slice(0, 5)];
   renderTab();
@@ -49795,14 +49833,14 @@ async function dataImportStageFiles(filesLike) {
         const expanded = await dataImportExpandZip(file);
         zipIssues.push(...expanded.issues.map(issue => ({ ...issue, sourceZipName: file.name })));
         for (const extractedFile of expanded.files) {
-          const plan = await dataImportBuildFilePlan(extractedFile, { originalZipName: file.name });
+          const plan = await dataImportBuildFilePlan(extractedFile, { originalZipName: file.name, selectedPeriod });
           batchFiles.push(dataImportAnnotatePlan(plan));
         }
         if (expanded.files.length === 0 && expanded.issues.length === 0) {
           zipIssues.push({ type: "unsupported", severity: "medium", title: "ZIP did not contain supported files", detail: file.name, sourceZipName: file.name });
         }
       } else {
-        const plan = await dataImportBuildFilePlan(file);
+        const plan = await dataImportBuildFilePlan(file, { selectedPeriod });
         batchFiles.push(dataImportAnnotatePlan(plan));
       }
     }
@@ -49811,6 +49849,7 @@ async function dataImportStageFiles(filesLike) {
       uploadedAt: new Date().toISOString(),
       uploadedBy: "Admin",
       status: "Preview Ready",
+      selectedPeriod,
       files: batchFiles,
       zipIssues,
       summary: dataImportBuildBatchSummary(batchFiles, zipIssues),
@@ -49844,6 +49883,9 @@ async function dataImportArchiveApprovedFile(file, plan, batch) {
     reportType: plan.reportType,
     reportTypeLabel: plan.reportTypeLabel,
     reportingPeriodLabel: plan.reportingPeriodLabel,
+    reportingMonthIdx: plan.reportingMonthIdx,
+    reportingYear: plan.reportingYear,
+    periodSelection: plan.periodSelection || null,
     dataDateIso: plan.dataDateIso,
     dataDateLabel: plan.dataDateLabel,
     fileHash: plan.fileHash || "",
@@ -50885,6 +50927,11 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
         plan.qualifiedLocators[communityName] = {...plan.qualifiedLocators[communityName], ...sourceFields};
       }
       const period = dataImportRowPeriod(mapped, sourceRow, plan);
+      if (dataImportPeriodConflict(plan.periodSelection?.requested, period)) {
+        result.rowsHeld += 1;
+        result.issues.push({ type: "conflict", severity: "high", title: "Source section is outside the selected period", detail: `${sheet.sheetName} row ${sourceRow.sourceRow} belongs to ${period.periodKey}; it was held without changing that date or another month.`, communityName, sourceSheet: sheet.sheetName, sourceRow: sourceRow.sourceRow });
+        continue;
+      }
       const canonicalRecord = {
         key: dataImportCanonicalRecordKey(plan, communityName, period, mapped, sourceRow),
         reportType: plan.reportType,
@@ -50894,6 +50941,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
         values: mapped,
         originalValues: sourceRow.values,
         section: sourceRow.section, sectionPeriod: sourceRow.period,
+        periodSelection: plan.periodSelection || null,
         downstreamEligible: !blockStaleDownstream,
         sourceSheet: sourceRow.sourceSheet,
         sourceRow: sourceRow.sourceRow,
@@ -50934,7 +50982,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
     dataImportApplyGroupedSnapshot(group, plan, result);
     if (plan.reportType === "box_score" && !blockStaleDownstream) atlasCaptureBoxScore(group.communityName, group.entries.map(e=>e.sourceRow), plan.name, plan.metadata?.generatedAt || "");
   });
-  if (plan.reportType === "box_score" && !blockStaleDownstream) {
+  if (plan.reportType === "box_score" && !blockStaleDownstream && !result.issues.some(issue => issue.title === "Source section is outside the selected period")) {
     await atlasCaptureBoxScoreFile(file, {floorPlansOnly:true, allowedNames:plan.selectedCommunities || plan.communities || Array.from(result.communities)});
   }
   if (plan.reportType === "delinquency" && result.centralRows.length && typeof window.atlasCsIngestDelinquencyRows === "function") {
@@ -51058,6 +51106,10 @@ async function approveDataImportBatch() {
     return;
   }
   const approvedPlans = batch.files.filter(file => file.selected && file.status !== "blocked");
+  if (approvedPlans.some(plan => dataImportPeriodConflict(plan.periodSelection?.requested, plan.periodSelection?.detected))) {
+    alert("A selected report conflicts with its requested month and year. Correct the period and upload it again before approval.");
+    return;
+  }
   if (!approvedPlans.length) {
     alert("Select at least one clean or review-ready file before approving the import.");
     return;
@@ -52101,7 +52153,19 @@ function renderDataImportTabs() {
 }
 
 function renderDataImportDropzone() {
-  return `<label class="data-import2-dropzone" ondrop="handleDataImport2Drop(event)" ondragover="event.preventDefault()" ondragenter="event.preventDefault()">
+  const period = getDataImportUploadPeriod();
+  const currentYear = new Date().getFullYear();
+  const years = Array.from(new Set([period.year, ...Array.from({length:22}, (_, i) => currentYear + 1 - i)])).sort((a,b) => b-a);
+  return `<fieldset style="border:0;padding:0;margin:0 0 16px">
+    <legend class="data-import2-section-title">Report period</legend>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <label class="data-import2-field"><span class="data-import2-small-label">Report month</span><select aria-label="Upload report month" onchange="setDataImportUploadPeriod('monthIdx', this.value)">${FULL_MONTHS.map((name, i) => `<option value="${i}"${i === period.monthIdx ? " selected" : ""}>${escapeHtml(name)}</option>`).join("")}</select></label>
+      <label class="data-import2-field"><span class="data-import2-small-label">Report year</span><select aria-label="Upload report year" onchange="setDataImportUploadPeriod('year', this.value)">${years.map(year => `<option value="${year}"${year === period.year ? " selected" : ""}>${year}</option>`).join("")}</select></label>
+      <button type="button" class="btn btn-gray btn-sm" onclick="dataImportUploadPeriod = null; renderTab()">Use current month</button>
+    </div>
+    <p class="data-import2-drop-copy">Choose the month these reports cover before uploading. Defaults to the current month and year. Upload one period at a time; ATLAS checks source dates before applying data. Changing this selection affects new uploads only.</p>
+  </fieldset>
+  <label class="data-import2-dropzone" ondrop="handleDataImport2Drop(event)" ondragover="event.preventDefault()" ondragenter="event.preventDefault()">
     <div class="data-import2-drop-icon"><i class="ph ph-upload-simple"></i></div>
     <div class="data-import2-drop-title">Upload Raw Reports</div>
     <div class="data-import2-drop-copy">Drop operational reports or ZIP batches here. ATLAS will detect report type, source system, communities, reporting period, fields, and downstream impact before anything is approved.</div>
@@ -52995,6 +53059,7 @@ function renderDataImportPendingBatch() {
         ? plan.communities.slice(0, 8).map(name => `<label class="data-import2-chip good" style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" ${approvalDisabled} ${(plan.selectedCommunities || plan.communities || []).includes(name) ? "checked" : ""} onchange='toggleDataImportCommunityApproval(${JSON.stringify(plan.fileId)}, ${JSON.stringify(name)}, this.checked)'>${escapeHtml(name)}</label>`).join("") + (plan.communities.length > 8 ? `<span class="data-import2-chip">${plan.communities.length - 8} more</span>` : "")
         : `<select class="data-import2-select" ${approvalDisabled} onchange='assignDataImportPlanCommunity(${JSON.stringify(plan.fileId)}, this.value)'><option value="">Assign active community</option>${assignableCommunities.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}</select>`}</div>
       <div class="data-import2-file-meta">${escapeHtml(plan.reportingPeriodLabel)} · ${escapeHtml(plan.dataDateLabel)} · received ${escapeHtml(dataImportFormatTimestamp(plan.metadata?.receivedAt))}</div>
+      ${plan.periodSelection ? `<div class="data-import2-file-meta">Selected: ${escapeHtml(MONTHS[plan.periodSelection.requested.monthIdx])} ${plan.periodSelection.requested.year} · Report: ${escapeHtml(plan.periodSelection.detected.label || "Not detected")}${plan.periodSelection.basis === "user_selected" ? " · Using your selected period; source dates remain unchanged" : ""}</div>` : ""}
     </div>
     <div>
       <div class="data-import2-small-label">Mapped Fields</div>

@@ -19768,6 +19768,26 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
   }
 }
 
+async function inspectAtlasOccupancyReadback() {
+  await atlasStateWritePromise;
+  const stored = await atlasStateGetValue(ATLAS_STATE_COMMUNITY_KEY) || {};
+  const monthIdx = getSelectedDashboardMonthIndex();
+  const rows = Object.entries(stored).map(([name, record]) => {
+    const memory = savedData[name] || {};
+    const model = buildCommunityCommandModel(name, memory);
+    const entry = record.monthlyData?.[monthIdx] || {};
+    const period = `${model.year}-${String(monthIdx + 1).padStart(2, "0")}`;
+    return {name, period, storedOccupied:entry.occupiedSnapshot ?? null, storedRentable:entry.rentableUnits ?? null,
+      storedHistory:record.monthlyHistoryByPeriod?.[period]?.occupiedSnapshot ?? null,
+      memoryOccupied:memory.monthlyData?.[monthIdx]?.occupiedSnapshot ?? null,
+      displayedOccupied:model.occupied, displayedRentable:model.occupancyBaseUnits, displayedPhysical:model.physicalPct,
+      revision:entry.metricProvenance?.occupiedSnapshot?.revisionKey || null};
+  });
+  const report = {checkedAt:new Date().toISOString(),centralVersion:atlasCentralRuntimeMeta.lastDocumentVersion,monthIdx,rows};
+  downloadAtlasJsonFile(report, "atlas-occupancy-storage-readback.json");
+  alert(JSON.stringify(report, null, 2));
+}
+
 async function pullAtlasCentralAppState({ silent = false } = {}) {
   try {
     const access = atlasCentralCanUseDatabase();
@@ -20654,6 +20674,7 @@ function renderAtlasCentralPlatformPanel() {
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-blue btn-sm" onclick="saveAtlasCentralAppState({ silent:false, source:'manual_central_save' })" ${status.signedIn ? "" : "disabled"}>Save Current State To Central</button>
           <button class="btn btn-gray btn-sm" onclick="pullAtlasCentralAppState({ silent:false })" ${status.signedIn ? "" : "disabled"}>Pull Central State</button>
+          <button class="btn btn-gray btn-sm" onclick="inspectAtlasOccupancyReadback()">Check Published Occupancy</button>
           <button class="btn btn-gray btn-sm" onclick="uploadAtlasCentralMigrationSnapshot({ silent:false })" ${status.signedIn && !atlasCentralSnapshotUploadInProgress ? "" : "disabled"}>${atlasCentralSnapshotUploadInProgress ? "Uploading Snapshot..." : "Upload Read-Only Snapshot"}</button>
           <button class="btn btn-gray btn-sm" onclick="downloadAtlasCentralMigrationSnapshot()">Export Snapshot JSON</button>
           <button class="btn btn-gray btn-sm" onclick="markAtlasCentralReconciliationReviewed()">Mark Reconciliation Reviewed</button>

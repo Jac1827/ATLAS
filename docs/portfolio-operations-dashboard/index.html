@@ -41159,12 +41159,12 @@ function renderDlrReportingWorkspace() {
           : "The DLR now builds from saved ATLAS data first. Pick the community, set the report date, optionally upload a same-day box score overlay, then review the RISE-branded preview before exporting or drafting delivery."}</p>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-gray btn-sm" onclick="publishDlrSnapshotToCentral({ communityName: ${JSON.stringify(communityName)}, monthIdx: ${monthIdx}, year: ${year} })" ${dlrCentralPublishBusy ? "disabled" : ""}>${dlrCentralPublishBusy ? "Publishing..." : "Publish Server Snapshot"}</button>
-        <button class="btn btn-gray btn-sm" onclick="refreshDlrCentralStatus(${JSON.stringify(communityName)})">Refresh Server Status</button>
-        <button class="btn btn-blue btn-sm" onclick="runDlrServerDeliveryQueue({ communityName: ${JSON.stringify(communityName)} })" ${dlrCentralRunBusy ? "disabled" : ""}>${dlrCentralRunBusy ? "Checking..." : "Run Server Queue"}</button>
-        <button class="btn btn-gray btn-sm" onclick="draftDlrOutlookEmail({ communityName: ${JSON.stringify(communityName)}, monthIdx: ${monthIdx}, year: ${year} })">✉ Draft Outlook Email</button>
-        <button class="btn btn-gray btn-sm" onclick="downloadDlrInvestorOverviewHtml({ communityName: ${JSON.stringify(communityName)}, monthIdx: ${monthIdx}, year: ${year} })">⬇ Editable HTML</button>
-        <button class="btn btn-blue btn-sm" onclick="openDlrInvestorOverview({ communityName: ${JSON.stringify(communityName)}, monthIdx: ${monthIdx}, year: ${year}, printImmediately: true })">🖨 Export DLR / Print</button>
+        <button class="btn btn-gray btn-sm" onclick="publishDlrSnapshotToCentral({ communityName: ${escapeHtml(JSON.stringify(communityName))}, monthIdx: ${monthIdx}, year: ${year} })" ${dlrCentralPublishBusy ? "disabled" : ""}>${dlrCentralPublishBusy ? "Publishing..." : "Publish Server Snapshot"}</button>
+        <button class="btn btn-gray btn-sm" onclick="refreshDlrCentralStatus(${escapeHtml(JSON.stringify(communityName))})">Refresh Server Status</button>
+        <button class="btn btn-blue btn-sm" onclick="runDlrServerDeliveryQueue({ communityName: ${escapeHtml(JSON.stringify(communityName))} })" ${dlrCentralRunBusy ? "disabled" : ""}>${dlrCentralRunBusy ? "Checking..." : "Run Server Queue"}</button>
+        <button class="btn btn-gray btn-sm" onclick="draftDlrOutlookEmail({ communityName: ${escapeHtml(JSON.stringify(communityName))}, monthIdx: ${monthIdx}, year: ${year} })">✉ Draft Outlook Email</button>
+        <button class="btn btn-gray btn-sm" onclick="downloadDlrInvestorOverviewHtml({ communityName: ${escapeHtml(JSON.stringify(communityName))}, monthIdx: ${monthIdx}, year: ${year} })">⬇ Editable HTML</button>
+        <button class="btn btn-blue btn-sm" onclick="openDlrInvestorOverview({ communityName: ${escapeHtml(JSON.stringify(communityName))}, monthIdx: ${monthIdx}, year: ${year}, printImmediately: true })">🖨 Export DLR / Print</button>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:12px">

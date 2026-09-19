@@ -46,5 +46,32 @@
       return {passed:true,archiveSha256:archive.sha256,recordsRestored:values.length,testedAt:new Date().toISOString()};
     } finally {db.close();indexedDB.deleteDatabase(name);}
   }
-  return {TYPE,pack,unpack,verifyRestore};
+  async function publish(archive,client,chunkSize=524288) {
+    if(archive?.bundleType!==TYPE||!archive.data||archive.data.length<=chunkSize)return archive;
+    const references=[];
+    for(let offset=0;offset<archive.data.length;offset+=chunkSize){
+      const data=archive.data.slice(offset,offset+chunkSize),sha256=await digest(new TextEncoder().encode(data));
+      const documentKey='atlas_migration_part_v1:'+sha256;
+      let existing=await client.readDocument(documentKey);
+      if(!existing){
+        await client.saveDocument({documentKey,moduleKey:'dashboard',payload:{documentType:'atlas_migration_part_v1',sha256,data},expectedVersion:null,sourceModule:'atlas_dashboard',sourceHash:sha256,metadata:{purpose:'Verified migration archive part'}});
+        existing=await client.readDocument(documentKey);
+      }
+      if(existing?.payload?.data!==data||existing?.payload?.sha256!==sha256)throw Error('Central migration part readback mismatch');
+      references.push({documentKey,sha256,length:data.length});
+    }
+    const {data,...manifest}=archive;
+    return {...manifest,dataDocuments:references};
+  }
+  async function hydrate(archive,client){
+    if(!archive?.dataDocuments)return archive;
+    const pieces=[];
+    for(const ref of archive.dataDocuments){
+      const row=await client.readDocument(ref.documentKey),data=row?.payload?.data;
+      if(typeof data!=='string'||data.length!==ref.length||await digest(new TextEncoder().encode(data))!==ref.sha256)throw Error('Central migration part is missing or changed');
+      pieces.push(data);
+    }
+    return {...archive,data:pieces.join('')};
+  }
+  return {TYPE,pack,unpack,verifyRestore,publish,hydrate};
 });

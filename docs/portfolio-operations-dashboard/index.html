@@ -1428,7 +1428,7 @@
 <script src="./application-source-bridge.js?v=occupancy-integrity-20260918"></script>
 <script src="./occupancy-replay.js?v=2"></script>
 <script src="./occupancy-replay-browser.js?v=1"></script>
-<script src="./migration-archive.js?v=1"></script>
+<script src="./migration-archive.js?v=2"></script>
 <script src="./application-performance.js?v=20260917-weekly-report"></script>
 <link rel="stylesheet" href="./concession-insights.css?v=20260917-1">
 <script src="./property-intelligence.js?v=20260917-1"></script>
@@ -19717,6 +19717,7 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
     }
     const documentKey = getAtlasCentralDocumentKey();
     const localPayload = await buildAtlasCentralAppStatePayload();
+    localPayload.bundle = await window.AtlasMigrationArchive.publish(localPayload.bundle, window.ATLAS_CENTRAL);
     const localHash = await window.ATLAS_CENTRAL.computeSha256(localPayload);
     const remote = await window.ATLAS_CENTRAL.readDocument(documentKey);
     const knownVersion = Number(atlasCentralRuntimeMeta.lastDocumentVersion || 0);
@@ -21611,7 +21612,7 @@ async function importDashboardStorageBundleFromFile(file) {
 async function applyDashboardStorageBundle(bundle) {
   let retainedRecords = [];
   if (bundle?.bundleType === window.AtlasMigrationArchive?.TYPE) {
-    const unpacked = await window.AtlasMigrationArchive.unpack(bundle, JSZip);
+    const unpacked = await window.AtlasMigrationArchive.unpack(await window.AtlasMigrationArchive.hydrate(bundle, window.ATLAS_CENTRAL), JSZip);
     bundle = unpacked.bundle;
     retainedRecords = unpacked.records;
     for (const record of retainedRecords) {

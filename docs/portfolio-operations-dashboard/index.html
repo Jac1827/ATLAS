@@ -23622,7 +23622,7 @@ function buildRecommendationsForRecord(propName, sourceData) {
   if (!sourceData) return [];
   const record = normalizeSavedCommunityRecord(propName, sourceData);
   const prop = getPropertyByName(propName);
-  const totalUnits = getTotalUnitsFor(prop, record.customUnits);
+  const totalUnits = getResolvedTotalUnitsForRecord(propName, record, { prop });
   const corporateUnits = getCorporateLeaseUnitsForRecord(record, totalUnits);
   const schedule = computeScheduleFromContext({
     totalUnits,
@@ -23656,11 +23656,14 @@ function buildRecommendationsForRecord(propName, sourceData) {
   const appRate = funnelConversions.tourToAppPct;
   const closeRate = funnelConversions.appToLeasePct;
   const approvalPct = funnelConversions.applicationApprovalPct;
-  const occPct = getOccupancyPctFromUnits(Number(record.currentOccupied) || 0, totalUnits, corporateUnits);
+  const occupancyBaseUnits = getReportedOccupancyBaseUnits(monthEntry, totalUnits, corporateUnits);
+  const occupied = getRecordComparableSnapshotUnits(record, totalUnits, monthIdx, "occupiedSnapshot");
+  const occPct = occupied !== null && occupancyBaseUnits > 0 ? occupied / occupancyBaseUnits * 100 : null;
   const budgetOccPct = getRecordSavedBudgetOccPct(record, monthIdx);
   const recommendations = [];
   const readiness = getImportReadinessStatus(record, monthIdx, Number(record.reportYear) || new Date().getFullYear());
-  const hasReportableData = Boolean(readiness.dlrHasData || readiness.surveyHasData || readiness.renewalHasData);
+  const hasReportableData = Boolean(readiness.dlrHasData || readiness.surveyHasData || readiness.renewalHasData
+    || (monthEntry.metricProvenance?.occupiedSnapshot?.revisionKey && occPct !== null));
   const hasOperatingSignal = Boolean(
     budgetOccPct > 0 ||
     occPct > 0 ||
@@ -23682,7 +23685,7 @@ function buildRecommendationsForRecord(propName, sourceData) {
     return recommendations;
   }
 
-  if (budgetOccPct > 0 && occPct + 0.5 < budgetOccPct) {
+  if (occPct !== null && budgetOccPct > 0 && occPct + 0.5 < budgetOccPct) {
     recommendations.push({
       source: "Overview",
       tone: "#f85149",

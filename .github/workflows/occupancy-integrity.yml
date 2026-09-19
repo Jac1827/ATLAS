@@ -31,3 +31,5 @@ jobs:
         run: node tools/migration-archive.test.cjs
       - name: Validate migration restore persistence
         run: node tools/migration-restore.test.cjs
+      - name: Validate recommendation occupancy
+        run: node tools/occupancy-recommendations.test.cjs

@@ -5658,6 +5658,14 @@ async function atlasStateGetValue(key) {
 }
 
 async function atlasStateSetValue(key, value) {
+  if (String(key) === ATLAS_STATE_COMMUNITY_KEY && window.AtlasOccupancyReplay?.protectCommittedOccupancy) {
+    await withAtlasStateStore("readwrite", store => {
+      const request = store.get(String(key));
+      request.onsuccess = () => store.put({key:String(key), value:window.AtlasOccupancyReplay.protectCommittedOccupancy(value,request.result?.value), updatedAt:new Date().toISOString()});
+      return request;
+    });
+    return;
+  }
   await withAtlasStateStore("readwrite", store => store.put({
     key: String(key),
     value,

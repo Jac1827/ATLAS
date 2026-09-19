@@ -35,3 +35,9 @@ assert.equal(released.communityData.Test.monthlyData[8].physicalSnapshotHistory[
 assert.throws(()=>run({communityData:released.communityData,importState:released.importState}),'older replay cannot replace a newer current observation');
 const closed=clone(state);closed.closedPeriods=['2026-09'];assert.throws(()=>run({importState:closed}));
 console.log('PASS scoped occupancy replay: typed counts, rates, exclusions, dated release, revisions, idempotency, zero/missing, alias, source and historical boundaries');
+const stale=clone(data);stale.Test.monthlyHistoryByPeriod['2026-09']=clone(stale.Test.monthlyData[8]);stale.Test.monthlyData[8].applications=99;
+const protectedData=api.protectCommittedOccupancy(stale,first.communityData);
+assert.equal(protectedData.Test.monthlyData[8].occupiedSnapshot,90,'stale tab cannot erase committed revision');
+assert.equal(protectedData.Test.monthlyData[8].applications,99,'unrelated edits survive');
+const fresh=clone(released.communityData);assert.equal(api.protectCommittedOccupancy(fresh,first.communityData).Test.monthlyData[8].occupiedSnapshot,91,'newer source can publish');
+console.log('PASS stale writer protection retains newer sources and unrelated edits');

@@ -8,6 +8,42 @@
   const clone = value => JSON.parse(JSON.stringify(value));
   const fields = ['total_units','excluded_units','rentable_units','occupied_units','source_leased_units','physical_occupancy','leased_occupancy'];
   const legacyFields = [...fields,'leased_units'];
+  // A tab opened before publication must not undo an audited revision when it
+  // saves an unrelated setting. A later source observation still takes priority.
+  function protectCommittedOccupancy(incoming, committed) {
+    const next=clone(incoming);
+    const published=['occupiedSnapshot','leasedSnapshot','rentableUnits','excludedUnits','sourceTotalUnits','sourceLeasedUnits','physicalOccupancyPct','leasedOccupancyPct'];
+    for (const [name, old] of Object.entries(committed||{})) {
+      const record=next[name]; if(!record) continue;
+      for(const [period, month] of Object.entries(old.monthlyHistoryByPeriod||{})) {
+        const p=month.metricProvenance?.occupiedSnapshot;
+        if(!p?.revisionKey?.startsWith(VERSION+'::')) continue;
+        record.monthlyHistoryByPeriod ||= {};
+        record.monthlyHistoryByPeriod[period] ||= clone(month);
+        const candidates=[record.monthlyHistoryByPeriod[period]];
+        const idx=Number(period.slice(5))-1;
+        if(period.slice(0,4)===new Date().getFullYear().toString()) candidates.push(record.monthlyData?.[idx]);
+        let protectedCurrent=false;
+        for(const candidate of candidates) {
+          if(!candidate) continue;
+          const q=candidate.metricProvenance?.occupiedSnapshot;
+          const incomingDate=String(q?.dataAsOf||'').slice(0,10), committedDate=String(p.dataAsOf||'').slice(0,10);
+          if(incomingDate>committedDate || (incomingDate===committedDate && Date.parse(q?.generatedAt)>Date.parse(p.generatedAt))) continue;
+          for(const f of published) candidate[f]=month[f];
+          candidate.metricProvenance={...candidate.metricProvenance};
+          for(const f of published) if(month.metricProvenance?.[f]) candidate.metricProvenance[f]=clone(month.metricProvenance[f]);
+          candidate.physicalSnapshotHistory={...candidate.physicalSnapshotHistory,...clone(month.physicalSnapshotHistory||{})};
+          for(const f of ['occupancySnapshotRevisions','occupancyPublicationRevisions']) if(month[f]) candidate[f]=clone(month[f]);
+          protectedCurrent=true;
+        }
+        if(protectedCurrent && record.currentMonth===idx && period.slice(0,4)===new Date().getFullYear().toString()) {
+          const active=record.monthlyData?.[idx]||record.monthlyHistoryByPeriod[period];
+          record.currentOccupied=active.occupiedSnapshot;record.currentLeased=active.leasedSnapshot;
+        }
+      }
+    }
+    return next;
+  }
   const keyOf = o => [VERSION,o.communityId,o.periodKey,o.sectionDate,o.fileHash].join('::');
   function validate(o) {
     if (!o.communityId || !o.communityName || !/^[a-f0-9]{64}$/.test(o.fileHash || '') ||
@@ -133,5 +169,5 @@
     const changed=JSON.stringify(data)!==JSON.stringify(communityData)||JSON.stringify(state)!==JSON.stringify(importState);
     return {communityData:data,importState:state,changes,changed,observationKeys};
   }
-  return {VERSION,fields,validate,prepare};
+  return {VERSION,fields,validate,prepare,protectCommittedOccupancy};
 });

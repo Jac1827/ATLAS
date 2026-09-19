@@ -27,3 +27,5 @@ jobs:
         run: node tools/archive-replay.test.cjs
       - name: Validate scoped occupancy revisions
         run: node tools/occupancy-scoped-replay.test.cjs
+      - name: Validate lossless migration evidence
+        run: node tools/migration-archive.test.cjs

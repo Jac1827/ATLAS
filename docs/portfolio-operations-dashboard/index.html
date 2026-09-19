@@ -1428,6 +1428,7 @@
 <script src="./application-source-bridge.js?v=occupancy-integrity-20260918"></script>
 <script src="./occupancy-replay.js?v=2"></script>
 <script src="./occupancy-replay-browser.js?v=1"></script>
+<script src="./migration-archive.js?v=1"></script>
 <script src="./application-performance.js?v=20260917-weekly-report"></script>
 <link rel="stylesheet" href="./concession-insights.css?v=20260917-1">
 <script src="./property-intelligence.js?v=20260917-1"></script>
@@ -19219,11 +19220,11 @@ function markAtlasCentralReconciliationReviewed() {
 
 async function testAtlasCentralRollbackSnapshot() {
   try {
-    const snapshot = await collectAtlasCentralMigrationSnapshot();
-    if (!snapshot?.storageEntries || !snapshot?.indexedDb) throw new Error("Rollback snapshot did not include the required local storage and IndexedDB sections.");
-    downloadAtlasJsonFile(snapshot, `atlas_rollback_test_snapshot_${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
+    const payload = await buildAtlasCentralAppStatePayload();
+    const validation = await window.AtlasMigrationArchive.verifyRestore(payload.bundle, JSZip);
+    downloadAtlasJsonFile({...payload.bundle, rollbackValidation:validation, reconciliation:payload.reconciliation}, `atlas_rollback_test_snapshot_${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
     atlasCentralRuntimeMeta.rollbackTestedAt = new Date().toISOString();
-    setAtlasCentralRuntimeMessage("Rollback snapshot test passed and a rollback JSON file was downloaded.");
+    setAtlasCentralRuntimeMessage(`Rollback restored and verified ${validation.recordsRestored} records in isolated storage. The complete rollback file was downloaded.`);
     renderTab();
   } catch (error) {
     setAtlasCentralRuntimeMessage("", error?.message || String(error));
@@ -19678,10 +19679,18 @@ function redactAtlasCentralStorageBundle(bundle = {}) {
 async function buildAtlasCentralAppStatePayload() {
   const migrationSnapshot = await collectAtlasCentralMigrationSnapshot();
   const bundle = redactAtlasCentralStorageBundle(await buildDashboardStorageBundle());
+  await atlasStateWritePromise;
+  const retainedRecords = (await withAtlasStateStore("readonly", store => store.getAll())).filter(record =>
+    record.key === DATA_IMPORT_2_STATE_KEY || record.key.startsWith(DATA_IMPORT_FILE_ARCHIVE_PREFIX) || record.key.startsWith("occupancy_replay_backup:"));
+  const portableBundle = await window.AtlasMigrationArchive.pack(bundle, retainedRecords, JSZip);
+  const restored = await window.AtlasMigrationArchive.unpack(portableBundle, JSZip);
+  const restoredStorage = Object.fromEntries(Object.entries(restored.bundle.keys || {}).map(([key,value]) => [key,{parsed:parseAtlasMigrationJson(value)}]));
+  const restoredSummary = buildAtlasMigrationReconciliationSummary(restored.bundle.indexedDb.communityData, restoredStorage, restored.bundle.indexedDb);
+  if (JSON.stringify(restoredSummary) !== JSON.stringify(migrationSnapshot.reconciliation)) throw new Error("Migration round-trip reconciliation differs from the source. No central publication was performed.");
   return {
     app: "atlas-rise-ops-dashboard",
     documentType: "atlas_central_app_state_v1",
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     source: "phase_3_central_runtime",
     safety: {
@@ -19691,7 +19700,7 @@ async function buildAtlasCentralAppStatePayload() {
       versionChecked: true
     },
     workspace: buildOperationsWorkspaceContext(),
-    bundle,
+    bundle: portableBundle,
     sharedData: normalizeAtlasSharedData(atlasSharedData),
     reconciliation: migrationSnapshot.reconciliation,
     exceptions: migrationSnapshot.exceptions,
@@ -21600,6 +21609,19 @@ async function importDashboardStorageBundleFromFile(file) {
 }
 
 async function applyDashboardStorageBundle(bundle) {
+  let retainedRecords = [];
+  if (bundle?.bundleType === window.AtlasMigrationArchive?.TYPE) {
+    const unpacked = await window.AtlasMigrationArchive.unpack(bundle, JSZip);
+    bundle = unpacked.bundle;
+    retainedRecords = unpacked.records;
+    for (const record of retainedRecords) {
+      if (!(record.key === DATA_IMPORT_2_STATE_KEY || record.key.startsWith(DATA_IMPORT_FILE_ARCHIVE_PREFIX) || record.key.startsWith("occupancy_replay_backup:"))) throw new Error("Unexpected migration archive record");
+      if (record.key === DATA_IMPORT_2_STATE_KEY) {
+        const existing = await atlasStateGetValue(record.key);
+        if (existing?.canonicalRecords?.length && JSON.stringify(existing.canonicalRecords) !== JSON.stringify(record.value?.canonicalRecords)) throw new Error("This browser has different import facts. Reconcile its import history before pulling central data.");
+      }
+    }
+  }
   const incoming = (bundle && typeof bundle === "object" && bundle.keys && typeof bundle.keys === "object")
     ? bundle.keys
     : null;
@@ -21655,6 +21677,10 @@ async function applyDashboardStorageBundle(bundle) {
     removeLegacyCommunityStorageKeys();
     removeLegacyDailyBackupStorageKeys();
     removeLegacyWeeklySnapshotStorageKey();
+  }
+  if (retainedRecords.length) {
+    await withAtlasStateStore("readwrite", store => { for (const record of retainedRecords) store.put(record); });
+    writtenCount += retainedRecords.length;
   }
   return writtenCount;
 }

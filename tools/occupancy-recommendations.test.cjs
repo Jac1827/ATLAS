@@ -42,3 +42,10 @@ for (const action of actionNames) {
   assert.equal(received, ctx.communityName, action + ' receives the exact community through a valid HTML attribute');
 }
 console.log('PASS all six report controls preserve community identity and valid handlers');
+vm.runInContext(html.match(/^function getDlrReportCommunityName\([^\n]*\) \{[\s\S]*?^\}/m)[0], ctx);
+Object.assign(ctx, {getReportHubMonthIndex:()=>8, getReportableCommunityNames:()=>['Doro','Citrus Ridge'],
+  resolveDlrReportCommunityName:n=>n, getProp:()=>({name:'Inactive community'}), getPrimaryReportCommunityName:()=> 'Doro'});
+assert.equal(ctx.getDlrReportCommunityName(), 'Doro', 'Initial DLR preview must use a community represented by the selector');
+ctx.getProp = () => ({name:'Citrus Ridge'});
+assert.equal(ctx.getDlrReportCommunityName(), 'Citrus Ridge');
+console.log('PASS initial report community matches selectable scope');

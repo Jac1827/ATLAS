@@ -40698,7 +40698,12 @@ function setLvrReportCommunity(value) {
 }
 
 function getDlrReportCommunityName() {
-  return resolveDlrReportCommunityName(getProp().name, getReportHubMonthIndex());
+  const monthIdx = getReportHubMonthIndex();
+  const reportableNames = getReportableCommunityNames(monthIdx);
+  const selected = resolveDlrReportCommunityName(getProp().name, monthIdx);
+  if (reportableNames.includes(selected)) return selected;
+  const primary = resolveDlrReportCommunityName(getPrimaryReportCommunityName(), monthIdx);
+  return reportableNames.includes(primary) ? primary : (reportableNames[0] || "");
 }
 
 function syncDlrTargetFromReportHub(options = {}) {

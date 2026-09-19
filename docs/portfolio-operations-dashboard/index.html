@@ -21632,7 +21632,9 @@ async function importDashboardStorageBundleFromFile(file) {
 
 async function applyDashboardStorageBundle(bundle) {
   let retainedRecords = [];
-  if (bundle?.bundleType === window.AtlasMigrationArchive?.TYPE) {
+  let intendedCommunityData = null;
+  if (bundle?.bundleType === "atlas_migration_archive_v1" && !window.AtlasMigrationArchive) throw new Error("Migration archive support is unavailable. Reload before restoring.");
+  if (bundle?.bundleType === "atlas_migration_archive_v1") {
     const unpacked = await window.AtlasMigrationArchive.unpack(await window.AtlasMigrationArchive.hydrate(bundle, window.ATLAS_CENTRAL), JSZip);
     bundle = unpacked.bundle;
     retainedRecords = unpacked.records;
@@ -21670,8 +21672,7 @@ async function applyDashboardStorageBundle(bundle) {
         savedData && typeof savedData === "object" ? savedData : {},
         indexedDbPayload.communityData
       );
-      await atlasStateSetValue(ATLAS_STATE_COMMUNITY_KEY, mergedCommunityData);
-      savedData = mergedCommunityData;
+      intendedCommunityData = mergedCommunityData;
       writtenCount += 1;
     }
     if (indexedDbPayload.weeklySnapshot && typeof indexedDbPayload.weeklySnapshot === "object") {
@@ -21700,9 +21701,29 @@ async function applyDashboardStorageBundle(bundle) {
     removeLegacyDailyBackupStorageKeys();
     removeLegacyWeeklySnapshotStorageKey();
   }
-  if (retainedRecords.length) {
-    await withAtlasStateStore("readwrite", store => { for (const record of retainedRecords) store.put(record); });
+  // Drain pre-restore saves before committing the community and its import evidence.
+  await atlasStateWritePromise;
+  let committedCommunityData = intendedCommunityData;
+  if (intendedCommunityData || retainedRecords.length) {
+    await withAtlasStateStore("readwrite", store => {
+      const request = store.get(ATLAS_STATE_COMMUNITY_KEY);
+      request.onsuccess = () => {
+        if (intendedCommunityData) {
+          committedCommunityData = window.AtlasOccupancyReplay?.protectCommittedOccupancy
+            ? window.AtlasOccupancyReplay.protectCommittedOccupancy(intendedCommunityData, request.result?.value)
+            : intendedCommunityData;
+          store.put({key:ATLAS_STATE_COMMUNITY_KEY,value:committedCommunityData,updatedAt:new Date().toISOString()});
+        }
+        for (const record of retainedRecords) store.put(record);
+      };
+      return request;
+    });
     writtenCount += retainedRecords.length;
+  }
+  if (committedCommunityData) {
+    const readback = await atlasStateGetValue(ATLAS_STATE_COMMUNITY_KEY);
+    if (JSON.stringify(readback) !== JSON.stringify(committedCommunityData)) throw new Error("Restored community storage differs from the committed archive. Reload was stopped.");
+    savedData = readback;
   }
   return writtenCount;
 }

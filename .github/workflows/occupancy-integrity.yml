@@ -29,3 +29,5 @@ jobs:
         run: node tools/occupancy-scoped-replay.test.cjs
       - name: Validate lossless migration evidence
         run: node tools/migration-archive.test.cjs
+      - name: Validate migration restore persistence
+        run: node tools/migration-restore.test.cjs

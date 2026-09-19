@@ -7,6 +7,7 @@ const c={console,Date,Map,Set,window:{AtlasFinancialPublication:F},FULL_MONTHS:[
 vm.createContext(c);
 for(const f of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm))vm.runInContext(f[0],c);
 Object.assign(c,{getProp:()=>({name:'Doro'}),getReportHubMonthIndex:()=>8,matchPropertyName:n=>['Doro','Bartram'].includes(n)?n:null,getRecordMonthlyDataForYear:(r,y)=>r.years?.[y]||r.monthlyData||Array(12).fill({}),getRecordSavedBudgetOccPct:()=>95});
+c.getReportableCommunityNames=()=>['Doro','Bartram'];
 assert.equal(c.getDlrReportCommunityName(),'Doro');assert.equal(c.resolveDlrReportCommunityName('Bogus'), '');assert.equal(c.resolveDlrReportCommunityName('Bartram'),'Bartram');
 c.getProp=()=>({name:'Bartram'});assert.equal(c.getDlrReportCommunityName(),'Bartram');
 for(const missing of [null,undefined,'',' ',NaN])for(const f of ['formatDlrMetricValue','formatDlrCurrency','formatDlrPercent'])assert.equal(c[f](missing),'N/A');

@@ -36,16 +36,38 @@ const workbook={SheetNames:['Setup','Annual agreements'],Sheets:{Setup:[['Proper
 const applied={monthlyData:Array.from({length:12},()=>({occupiedSnapshot:123})),monthlyHistoryByPeriod:{}};
 Object.assign(c,{XLSX:{read:()=>workbook,utils:{sheet_to_json:sheet=>sheet}},
  resolveRenewalWorkbookPropertyName:()=> 'Example', getPropertyRecordForApply:()=>applied,
+ getAllCommunityNames:()=>['Example','Baymeadows','RISE 34th','St Augustine'],
  getProp:()=>({name:'Other'}),savedData:{},renewalImportLog:[],dataImport2State:{closedPeriods:[]},
  getRecordMonthEntryForPeriod:(r,m,y)=>r.monthlyHistoryByPeriod[`${y}-${String(m+1).padStart(2,'0')}`] ||= {},
  normalizeSavedCommunityRecord:(_,r)=>r,setRecordPeriodImportStamp:()=>{}
 });
 c.window.atlasCsIngestRenewalSheetRows=(rows,context)=>({renewalRows:c.window.atlasCsPreviewRenewalSheetRows(rows,context),importId:context.importId,ntvCount:0});
 (async()=>{
+ const identityWorkbook={SheetNames:['SETUP','Sept 2026'],Sheets:{SETUP:[['Property Name:','RISE Baymeadows']], 'Sept 2026':{A1:{v:'RISE Baymeadows - 2026 Renewals'}}}};
+ assert.equal(c.getRenewalWorkbookIdentity(identityWorkbook,'anything (3).xlsx').communityName,'Baymeadows');
+ assert.equal(c.getRenewalWorkbookIdentity(identityWorkbook,'St Augustine.xlsx').communityName,'Baymeadows','Content takes precedence over renamed file');
+ assert.equal(c.matchRenewalCommunityName('RISE Unknown Community'),'','Do not match a shared first word or invent a community');
+ identityWorkbook.Sheets['Sept 2026'].A1.v='St Augustine - 2026 Renewals';
+ assert.equal(c.getRenewalWorkbookIdentity(identityWorkbook,'anything.xlsx').conflict,true);
+ identityWorkbook.Sheets.SETUP=[['Property Name:','Unrecognized Property']];
+ identityWorkbook.Sheets['Sept 2026'].A1.v='Unrecognized Property - 2026 Renewals';
+ assert.equal(c.getRenewalWorkbookIdentity(identityWorkbook,'Baymeadows.xlsx').communityName,'','Unknown property needs manual selection');
+ const trackerHeaders=['Name','Unit','Unit\nType','Expiration\nDate','Renewal\nSigned','Transfer',"NTV\nRcv’d"];
+ const trackerRows=[['Example - 2026 Renewals'],trackerHeaders,['▼ Enter','▼ Enter','▼ Enter','▼ Enter','▼ Enter','▼ Enter','▼ Enter'],['Synthetic One','A-101','A1','2026-10-31','2026-08-01','',''],['Synthetic Two','A-102','A1','2026-12-31','','',''],['Total Lease Expirations',2]];
+ const trackerParsed=c.window.atlasCsPreviewRenewalSheetRows(trackerRows,{propertyName:'Example',year:2026});
+ assert.equal(trackerParsed.length,2,'Ignore template prompts and summary rows');
+ assert.equal(trackerParsed[0].sourceRow,4);
+ assert.equal(c.groupImportedRenewalDetailRowsByPeriod(trackerParsed).find(p=>p.periodKey==='2026-10').summary.renewalsSigned,1);
+ workbook.SheetNames.push('TEMPLATE');
+ workbook.Sheets.TEMPLATE=[trackerRows[0],trackerHeaders,trackerRows[2],['Total Lease Expirations',0]];
  const file={name:'Example.xlsx',arrayBuffer:async()=>new ArrayBuffer(0)};
+ await assert.rejects(c.dataImportRouteApprovedFile(file,{reportType:'renewal_tracker',selectedCommunities:['Baymeadows']}),/conflicts/,'Reject wrong property before writing canonical rows');
+ const conflictPreview=await c.dataImportPreviewRenewalWorkbook(file,{communities:['Baymeadows'],requestedCommunity:'Baymeadows',issues:[],reportingYear:2026,status:'ready'});
+ assert.equal(conflictPreview.status,'blocked');
  const staged=await c.dataImportPreviewRenewalWorkbook(file,{communities:['Example'],selectedCommunities:['Example'],issues:[],reportingYear:2026,status:'ready'});
  assert.deepEqual(Array.from(staged.renewalPeriods),['2026-10','2027-01']);
  const canonical=await c.dataImportReadStructuredRows(file,{reportType:'renewal_tracker',communities:['Example'],reportingYear:2026});
+ assert.equal(canonical.length,1,'Blank template must not create imported summary facts');
  assert.equal(canonical[0].rows[0].values.renewal_expiration,'2027-01-31');
  assert.equal(canonical[0].rows[0].sourceRow,2);
  await c.handleRenewalWorkbook(file,{communityName:'Example',reportingYear:2026});

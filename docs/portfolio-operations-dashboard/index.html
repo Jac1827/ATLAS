@@ -26266,25 +26266,54 @@ function getRenewalWorkbookHeaderPropertyName(workbook) {
   return titleCell.replace(/\s*-\s*.*renewals?$/i, "").trim();
 }
 
-function resolveRenewalWorkbookPropertyName(workbook, fileName = "", options = {}) {
+function matchRenewalCommunityName(value, allowFileName = false) {
+  const normalized = normalizeCommunityLookupName(value);
+  if (!normalized) return "";
+  const known = getAllCommunityNames();
+  const aliases = typeof dataImport2State !== "undefined" ? dataImport2State.propertyAliases || [] : [];
+  const shared = typeof SHARED_COMMUNITY_ALIASES !== "undefined" ? SHARED_COMMUNITY_ALIASES : {};
+  const matches = new Set();
+  const consider = (alias, community) => {
+    if (!known.includes(community)) return;
+    const key = normalizeCommunityLookupName(alias);
+    if (key && (normalized === key || (allowFileName && ` ${normalized} `.includes(` ${key} `)))) matches.add(community);
+  };
+  known.forEach(name => consider(name, name));
+  aliases.forEach(alias => consider(alias.alias, alias.communityName));
+  Object.entries(shared).forEach(([alias, name]) => consider(alias, name));
+  return matches.size === 1 ? [...matches][0] : "";
+}
+
+function getRenewalWorkbookIdentity(workbook, fileName = "") {
   const setupRows = getWorkbookSheetRows(workbook, [/^setup$/i]);
   const setupPropertyName = findWorksheetRowValue(setupRows, /property name/i);
-  const headerPropertyName = getRenewalWorkbookHeaderPropertyName(workbook);
-  const filePropertyName = String(fileName || "").replace(/\.[^.]+$/, "");
-  const candidates = [setupPropertyName, headerPropertyName, filePropertyName]
-    .map(value => String(value || "").trim())
-    .filter(Boolean);
-  for (const candidate of candidates) {
-    const matchedProperty = getKnownAtlasCommunityName(candidate) || matchPropertyName(candidate, { fallbackToCurrent: false });
-    if (matchedProperty) return matchedProperty;
+  const candidates = [];
+  if (String(setupPropertyName || "").trim()) candidates.push({value:setupPropertyName,source:"Setup · Property Name"});
+  for (const sheetName of workbook?.SheetNames || []) {
+    if (/^(setup|template|instructions?|summary)$/i.test(sheetName.trim())) continue;
+    const title = String(workbook.Sheets[sheetName]?.A1?.v || "").trim();
+    if (/renewals?$/i.test(title)) candidates.push({value:title.replace(/\s*[-–—]\s*.*renewals?$/i, "").trim(),source:`${sheetName} · title`});
   }
+  const matched = candidates.map(candidate => ({...candidate,communityName:matchRenewalCommunityName(candidate.value)})).filter(candidate => candidate.communityName);
+  const communities = [...new Set(matched.map(candidate => candidate.communityName))];
+  if (communities.length > 1) return {communityName:"",conflict:true,source:"Conflicting workbook property labels"};
+  if (communities.length === 1) return {communityName:communities[0],conflict:false,source:matched[0].source};
+  // An explicit but unrecognized property label requires review, never a filename guess.
+  if (candidates.length) return {communityName:"",conflict:false,source:"Unrecognized workbook property"};
+  return {communityName:matchRenewalCommunityName(fileName,true),conflict:false,source:"Filename"};
+}
+
+function resolveRenewalWorkbookPropertyName(workbook, fileName = "", options = {}) {
+  const identity = getRenewalWorkbookIdentity(workbook, fileName);
+  if (identity.conflict) throw new Error("Renewal workbook property labels conflict. Correct the Setup property and sheet titles before uploading.");
+  if (identity.communityName) return identity.communityName;
   const portfolioOptions = getPortfolioScopedCommunityNamesForPeriod(getPortfolioScopePeriodKey(getSelectedDashboardMonthIndex()));
   const fallbackOptions = portfolioOptions.length ? portfolioOptions : Object.keys(savedData || {});
   if (options.prompt !== false && typeof window !== "undefined" && typeof window.prompt === "function" && fallbackOptions.length) {
     const response = window.prompt(
       `ATLAS could not auto-match "${fileName || "renewal workbook"}" to a community. Enter the property name for this tracker:\n\n${fallbackOptions.join(", ")}`
     );
-    const matchedPromptProperty = getKnownAtlasCommunityName(response) || matchPropertyName(response, { fallbackToCurrent: false });
+    const matchedPromptProperty = matchRenewalCommunityName(response);
     if (matchedPromptProperty) return matchedPromptProperty;
   }
   return "";
@@ -49706,10 +49735,7 @@ async function dataImportBuildFilePlan(file, extras = {}) {
   const fields = dataImportDetectFields(sample, { reportType, sourceSystem });
   let communities = dataImportDetectCommunities(combinedText);
   const issues = [];
-  if (reportType === "renewal_tracker" && extras.communityName) {
-    if (communities.length && !communities.includes(extras.communityName)) issues.push({type:"conflict",severity:"critical",title:"Renewal community does not match",detail:"The selected community does not match the source. Confirm the property before uploading again."});
-    else communities = [extras.communityName];
-  }
+  if (reportType === "renewal_tracker") communities = extras.communityName ? [extras.communityName] : [];
   if (!dataImportIsSupportedFileName(file.name)) {
     issues.push({ type: "unsupported", severity: "critical", title: "Unsupported file type", detail: `${file.name} is not one of the currently supported upload formats.` });
   }
@@ -49762,6 +49788,7 @@ async function dataImportBuildFilePlan(file, extras = {}) {
     mappingVersion: "ATLAS-RRIM-1.0",
     metadata,
     reportType,
+    requestedCommunity: extras.communityName || "",
     reportTypeLabel: dataImportReportLabel(reportType),
     sourceSystem,
     confidence: reportDef ? detection.confidence : 0,
@@ -49797,9 +49824,16 @@ async function dataImportBuildFilePlan(file, extras = {}) {
 async function dataImportPreviewRenewalWorkbook(file, plan) {
   if (!/\.(xls[xm]?|csv)$/i.test(file.name) || typeof XLSX === "undefined") return plan;
   const workbook = XLSX.read(await file.arrayBuffer(), {type:"array",cellDates:true,cellStyles:true});
-  const detectedCommunity = resolveRenewalWorkbookPropertyName(workbook, file.name, {prompt:false});
-  if (detectedCommunity && (!plan.communities.length || plan.communities.includes(detectedCommunity))) {
-    plan.communities = [detectedCommunity]; plan.selectedCommunities = [detectedCommunity]; plan.communityCount = 1;
+  const identity = getRenewalWorkbookIdentity(workbook, file.name);
+  plan.renewalCommunitySource = identity.source;
+  const selectedCommunity = plan.requestedCommunity || "";
+  const community = identity.communityName || selectedCommunity;
+  if (identity.conflict || (identity.communityName && selectedCommunity && identity.communityName !== selectedCommunity)) {
+    plan.issues.push({type:"conflict",severity:"critical",title:"Renewal community does not match",detail:"The workbook property labels or selected community conflict. Correct the property before uploading again."});
+    plan.status = "blocked"; plan.selected = false;
+  }
+  plan.communities = community ? [community] : []; plan.selectedCommunities = [...plan.communities]; plan.communityCount = plan.communities.length;
+  if (community) {
     plan.issues = plan.issues.filter(issue => issue.title !== "No community match found");
   }
   const setupYear = parseYearFromValue(findWorksheetRowValue(getWorkbookSheetRows(workbook, [/^setup$/i]), /month\s*\/\s*year/i), plan.reportingYear || new Date().getFullYear());
@@ -50139,6 +50173,7 @@ async function dataImportReadStructuredRows(file, plan = {}) {
         propertyName:(plan.selectedCommunities || plan.communities || [])[0] || "", monthIdx:parseMonthIndexValue(sheetName) ?? 0,
         year:parseYearFromValue(sheetName,plan.reportingYear || new Date().getFullYear()), sourceSheetName:sheetName
       });
+      if (!prepared.length && /^template$/i.test(sheetName.trim())) return;
       if (prepared.length) {
         const rows = prepared.map((row,index) => ({canonicalSource:true,sourceSheet:sheetName,sourceRow:row.sourceRow || index+1,
           values:{community_name:row.propertyName,lease_id:row.leaseId || row.id,unit:row.unit,resident:row.residentName,
@@ -51126,6 +51161,13 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
 
 async function dataImportRouteApprovedFile(file, plan, batchId = "") {
   const extension = dataImportGetFileExtension(file.name);
+  if (plan.reportType === "renewal_tracker") {
+    const communities = plan.selectedCommunities || plan.communities || [];
+    if (communities.length !== 1 || !getAllCommunityNames().includes(communities[0])) throw new Error("Choose one saved community for this renewal tracker before approval.");
+    const workbook = XLSX.read(await file.arrayBuffer(), {type:"array",cellDates:true});
+    const detected = resolveRenewalWorkbookPropertyName(workbook, file.name, {prompt:false});
+    if (detected && detected !== communities[0]) throw new Error("The renewal workbook property conflicts with the approved community.");
+  }
   const exactDuplicate = (dataImport2State.sourceArchive || []).find(entry => entry.fileHash && entry.fileHash === plan.fileHash && entry.batchId !== batchId && entry.importStatus !== "Rolled Back");
   if (exactDuplicate) {
     return { message: `Exact duplicate retained in the archive; current data was not rewritten. Original batch ${exactDuplicate.batchId}.`, rowsReviewed: plan.rowCount || 0, rowsInserted: 0, rowsUpdated: 0, rowsUnchanged: 0, rowsRejected: 0, rowsHeld: 0, duplicatesIgnored: plan.rowCount || 1, issues: [], destinations: [], communities: plan.communities || [], formulas: [], coverage: [] };

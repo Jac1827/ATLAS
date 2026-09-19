@@ -19783,7 +19783,10 @@ async function inspectAtlasOccupancyReadback() {
       displayedOccupied:model.occupied, displayedRentable:model.occupancyBaseUnits, displayedPhysical:model.physicalPct,
       revision:entry.metricProvenance?.occupiedSnapshot?.revisionKey || null};
   });
-  const report = {checkedAt:new Date().toISOString(),centralVersion:atlasCentralRuntimeMeta.lastDocumentVersion,monthIdx,rows};
+  const remote = await window.ATLAS_CENTRAL.readDocument(getAtlasCentralDocumentKey());
+  const receipt = await atlasStateGetValue("atlas_central_restore_receipt_v1");
+  const report = {checkedAt:new Date().toISOString(),centralVersion:atlasCentralRuntimeMeta.lastDocumentVersion,monthIdx,
+    remote:{key:remote?.document_key,version:remote?.version,archiveType:remote?.payload?.bundle?.bundleType,archiveHash:remote?.payload?.bundle?.sha256,parts:remote?.payload?.bundle?.dataDocuments?.length},receipt,rows};
   downloadAtlasJsonFile(report, "atlas-occupancy-storage-readback.json");
   alert(JSON.stringify(report, null, 2));
 }
@@ -21713,6 +21716,8 @@ async function applyDashboardStorageBundle(bundle) {
             ? window.AtlasOccupancyReplay.protectCommittedOccupancy(intendedCommunityData, request.result?.value)
             : intendedCommunityData;
           store.put({key:ATLAS_STATE_COMMUNITY_KEY,value:committedCommunityData,updatedAt:new Date().toISOString()});
+          const summarize = map => Object.fromEntries(Object.entries(map || {}).map(([name,r]) => [name,{occupied:r.monthlyData?.[Number(r.currentMonth)]?.occupiedSnapshot ?? null,rentable:r.monthlyData?.[Number(r.currentMonth)]?.rentableUnits ?? null,revision:r.monthlyHistoryByPeriod?.[`${new Date().getFullYear()}-${String(Number(r.currentMonth)+1).padStart(2,"0")}`]?.metricProvenance?.occupiedSnapshot?.revisionKey || null}]));
+          store.put({key:"atlas_central_restore_receipt_v1",value:{at:new Date().toISOString(),source:summarize(indexedDbPayload.communityData),committed:summarize(committedCommunityData)},updatedAt:new Date().toISOString()});
         }
         for (const record of retainedRecords) store.put(record);
       };

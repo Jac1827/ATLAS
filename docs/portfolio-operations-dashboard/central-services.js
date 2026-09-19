@@ -7859,8 +7859,8 @@
     const headerIndex = findHeaderIndex(rows);
     if (headerIndex < 0) return [];
     const headers = rows[headerIndex].map(header => normalizeKey(header));
-    return rows.slice(headerIndex + 1).map(row => {
-      const object = {};
+    return rows.slice(headerIndex + 1).map((row, index) => {
+      const object = {sourceRow:headerIndex + index + 2};
       headers.forEach((header, idx) => {
         if (header) object[header] = row[idx];
       });
@@ -8062,6 +8062,7 @@
     return {
       id,
       source: "renewal_import",
+      sourceRow: row.sourceRow || null,
       sourceFileName,
       sourceSheetName,
       importId,
@@ -9764,7 +9765,7 @@
       ntvCount,
       moveOutCasesCreated: Math.max(0, state.moveOutCases.length - beforeCaseCount),
       potentialUpdatesQueued: Math.max(0, asArray(state.potentialMoveOutUpdates).length - beforeReviewCount),
-      renewalRows: rows.map(row => ({ ...row }))
+      renewalRows: rows.map(row => ({ ...(state.renewals.find(saved => saved.id === row.id) || row) }))
     };
   }
 
@@ -11008,6 +11009,11 @@
   }
 
   window.renderCentralServicesTab = renderCentralServices;
+
+  // Parse expiration cohorts for upload review without changing workflow state.
+  window.atlasCsPreviewRenewalSheetRows = function (sheetRows, context = {}) {
+    return prepareRenewalRowsForImport(sheetRows, context, []);
+  };
 
   window.atlasCsIngestRenewalSheetRows = function (sheetRows, context = {}, options = {}) {
     const state = loadState();

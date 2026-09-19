@@ -1422,7 +1422,7 @@
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=20260916-publish-reconcile"></script>
 <script src="./centralization/atlas-central-client.js?v=20260917-property-specials" data-atlas-central-client="true"></script>
-<script src="./central-services.js?v=20260917-delinquency-storage-reconciliation"></script>
+<script src="./central-services.js?v=20260919-renewal-period-review"></script>
 <script src="./eviction-attorney-ui.js?v=20260916-community-contacts"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260916-no-data-status">
 <script src="./application-source-bridge.js?v=occupancy-integrity-20260918"></script>
@@ -26258,14 +26258,15 @@ function extractRenewalSheetSummary(rows) {
 }
 
 function getRenewalWorkbookHeaderPropertyName(workbook) {
-  const firstMonthSheet = workbook?.SheetNames?.find(sheetName => parseMonthIndexValue(sheetName) !== null);
+  const firstMonthSheet = workbook?.SheetNames?.find(sheetName => parseMonthIndexValue(sheetName) !== null)
+    || workbook?.SheetNames?.find(sheetName => !/^(setup|instructions|summary)$/i.test(sheetName));
   if (!firstMonthSheet || !workbook?.Sheets?.[firstMonthSheet] || typeof XLSX === "undefined") return "";
   const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstMonthSheet], { header: 1, defval: "", raw: false });
   const titleCell = String(rows?.[0]?.[0] ?? "").trim();
   return titleCell.replace(/\s*-\s*.*renewals?$/i, "").trim();
 }
 
-function resolveRenewalWorkbookPropertyName(workbook, fileName = "") {
+function resolveRenewalWorkbookPropertyName(workbook, fileName = "", options = {}) {
   const setupRows = getWorkbookSheetRows(workbook, [/^setup$/i]);
   const setupPropertyName = findWorksheetRowValue(setupRows, /property name/i);
   const headerPropertyName = getRenewalWorkbookHeaderPropertyName(workbook);
@@ -26279,7 +26280,7 @@ function resolveRenewalWorkbookPropertyName(workbook, fileName = "") {
   }
   const portfolioOptions = getPortfolioScopedCommunityNamesForPeriod(getPortfolioScopePeriodKey(getSelectedDashboardMonthIndex()));
   const fallbackOptions = portfolioOptions.length ? portfolioOptions : Object.keys(savedData || {});
-  if (typeof window !== "undefined" && typeof window.prompt === "function" && fallbackOptions.length) {
+  if (options.prompt !== false && typeof window !== "undefined" && typeof window.prompt === "function" && fallbackOptions.length) {
     const response = window.prompt(
       `ATLAS could not auto-match "${fileName || "renewal workbook"}" to a community. Enter the property name for this tracker:\n\n${fallbackOptions.join(", ")}`
     );
@@ -26325,7 +26326,7 @@ function getRenewalMonthEntryForRecord(record, monthIdx, year = new Date().getFu
   if (safeYear !== currentYear) {
     return historyEntry
       ? { ...defaultMonthly()[safeMonth], ...historyEntry }
-      : liveEntry;
+      : defaultMonthly()[safeMonth];
   }
   if (hasRenewalMonthData(liveEntry)) return liveEntry;
   return historyEntry
@@ -26364,6 +26365,11 @@ function syncRenewalSummaryNtvCountToCentralServices(context = {}, summary = {})
 }
 
 function getImportedRenewalPeriod(row = {}, fallbackMonthIdx = 0, fallbackYear = new Date().getFullYear()) {
+  if (/^\d{4}-\d{2}-\d{2}/.test(String(row.expirationDate || ""))) {
+    const year = Number(row.expirationDate.slice(0,4));
+    const monthIdx = Number(row.expirationDate.slice(5,7)) - 1;
+    if (monthIdx >= 0 && monthIdx < 12) return {monthIdx,year,periodKey:buildPeriodKey(monthIdx,year)};
+  }
   const rowMonth = Number.isFinite(Number(row.monthIdx)) ? Number(row.monthIdx) : Number(row.expirationMonthIdx);
   const rowYear = Number.isFinite(Number(row.year)) ? Number(row.year) : Number(row.expirationYear);
   const safeMonth = Number.isFinite(rowMonth) ? Math.max(0, Math.min(11, rowMonth)) : Math.max(0, Math.min(11, Number(fallbackMonthIdx) || 0));
@@ -26415,6 +26421,13 @@ function groupImportedRenewalDetailRowsByPeriod(rows = [], fallbackMonthIdx = 0,
   }));
 }
 
+function mergeImportedRenewalDetails(existing = [], incoming = []) {
+  const key = row => row.id || [row.propertyName, row.leaseId || row.residentId || row.residentName, row.unit, row.expirationDate].join("|");
+  const byAgreement = new Map(existing.map(row => [key(row), row]));
+  incoming.forEach(row => byAgreement.set(key(row), { ...byAgreement.get(key(row)), ...row }));
+  return Array.from(byAgreement.values());
+}
+
 function syncRenewalSheetRowsToCentralServices(targetRecord, context = {}, sheetRows = [], summary = {}) {
   if (!targetRecord || typeof window.atlasCsIngestRenewalSheetRows !== "function") return null;
   const monthIdx = Math.max(0, Math.min(11, Number(context.monthIdx) || 0));
@@ -26444,15 +26457,12 @@ function syncRenewalSheetRowsToCentralServices(targetRecord, context = {}, sheet
     }
     groupImportedRenewalDetailRowsByPeriod(detailRows, monthIdx, year).forEach(period => {
       const existingPeriodRows = Array.isArray(targetRecord.renewalDetailRowsByPeriod[period.periodKey]) ? targetRecord.renewalDetailRowsByPeriod[period.periodKey] : [];
-      const incomingImportId = String(result?.importId || result?.importBatchId || context.importId || "").trim();
-      const preservedRows = incomingImportId
-        ? existingPeriodRows.filter(row => String(row?.importId || row?.importBatchId || "").trim() !== incomingImportId)
-        : [];
-      const nextRows = [...preservedRows, ...period.rows];
+      const nextRows = mergeImportedRenewalDetails(existingPeriodRows, period.rows);
       targetRecord.renewalDetailRowsByPeriod[period.periodKey] = nextRows;
-      targetRecord.renewalDetailRowsByMonth[period.monthIdx] = nextRows;
+      if (period.year === new Date().getFullYear()) targetRecord.renewalDetailRowsByMonth[period.monthIdx] = nextRows;
     });
-    result.periodSummaries = groupImportedRenewalDetailRowsByPeriod(detailRows, monthIdx, year);
+    const touchedPeriods = groupImportedRenewalDetailRowsByPeriod(detailRows, monthIdx, year);
+    result.periodSummaries = touchedPeriods.map(period => ({ ...period, rows:targetRecord.renewalDetailRowsByPeriod[period.periodKey], summary:summarizeImportedRenewalDetailRows(targetRecord.renewalDetailRowsByPeriod[period.periodKey]) }));
   }
   if (Number(summary?.ntv || 0) > Number(result?.ntvCount || 0)) {
     const fallback = syncRenewalSummaryNtvCountToCentralServices(context, summary);
@@ -26461,13 +26471,15 @@ function syncRenewalSheetRowsToCentralServices(targetRecord, context = {}, sheet
   return result;
 }
 
-async function handleRenewalWorkbook(file) {
+async function handleRenewalWorkbook(file, options = {}) {
   if (typeof XLSX === "undefined") {
     renewalImportLog.push("❌ Renewal workbook parser is unavailable because the XLSX library did not load.");
     return;
   }
   const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, cellStyles: true });
-  const targetPropertyName = resolveRenewalWorkbookPropertyName(workbook, file.name);
+  const detectedProperty = resolveRenewalWorkbookPropertyName(workbook, file.name, {prompt:!options.communityName});
+  if (options.communityName && detectedProperty && detectedProperty !== options.communityName) throw new Error("The renewal workbook property conflicts with the approved community.");
+  const targetPropertyName = options.communityName || detectedProperty;
   if (!targetPropertyName) {
     renewalImportLog.push(`⚠️ ${file.name} could not be matched to a saved ATLAS community. Re-upload and choose the correct property when prompted.`);
     return;
@@ -26479,7 +26491,7 @@ async function handleRenewalWorkbook(file) {
   }
   const setupRows = getWorkbookSheetRows(workbook, [/^setup$/i]);
   const setupMonthYear = findWorksheetRowValue(setupRows, /month\s*\/\s*year/i);
-  const setupYear = parseYearFromValue(setupMonthYear, new Date().getFullYear());
+  const setupYear = parseYearFromValue(setupMonthYear, options.reportingYear || new Date().getFullYear());
   const workbookImportId = `renewal-import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const workbookPeriodSummaries = new Map();
   const addWorkbookPeriodSummary = period => {
@@ -26505,9 +26517,9 @@ async function handleRenewalWorkbook(file) {
       }
     };
     existing.sourceSheetNames = Array.from(new Set([...existing.sourceSheetNames, period?.sourceSheetName].filter(Boolean)));
-    existing.rowCount += Number(period?.rows?.length || period?.rowCount || summary.expirations || 0);
+    existing.rowCount = period?.rows ? period.rows.length : existing.rowCount + Number(period?.rowCount || summary.expirations || 0);
     ["expirations", "renewalsSigned", "ntv", "transfers", "undecided", "earlyTermination"].forEach(key => {
-      existing.summary[key] += Number(summary[key] || 0);
+      existing.summary[key] = period?.rows ? Number(summary[key] || 0) : existing.summary[key] + Number(summary[key] || 0);
     });
     existing.summary.retentionRate = existing.summary.expirations > 0 ? (existing.summary.renewalsSigned / existing.summary.expirations) * 100 : 0;
     const decidedPool = existing.summary.renewalsSigned + existing.summary.ntv + existing.summary.transfers;
@@ -26516,14 +26528,22 @@ async function handleRenewalWorkbook(file) {
   };
   let appliedMonths = 0;
   workbook.SheetNames.forEach(sheetName => {
-    const monthIdx = parseMonthIndexValue(sheetName);
-    if (monthIdx === null || monthIdx < 0 || monthIdx > 11) return;
+    const namedMonth = parseMonthIndexValue(sheetName);
+    const monthIdx = namedMonth ?? 0;
     const sheetYear = parseYearFromValue(sheetName, setupYear);
     const rows = annotateRenewalRowsWithWorkbookVisualStatus(
       XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", blankrows: true }),
       workbook.Sheets[sheetName]
     );
-    const summary = extractRenewalSheetSummary(rows);
+    if (namedMonth === null && !window.atlasCsPreviewRenewalSheetRows?.(rows, {propertyName:targetPropertyName,monthIdx,year:sheetYear}).length) return;
+    const previewRows = window.atlasCsPreviewRenewalSheetRows?.(rows, {propertyName:targetPropertyName,monthIdx,year:sheetYear}) || [];
+    const closedPeriods = typeof dataImport2State !== "undefined" ? dataImport2State.closedPeriods || [] : [];
+    const allowedRows = previewRows.filter(row => !closedPeriods.includes(getImportedRenewalPeriod(row,monthIdx,sheetYear).periodKey));
+    if ((previewRows.length && !allowedRows.length) || (!previewRows.length && closedPeriods.includes(buildPeriodKey(monthIdx,sheetYear)))) {
+      renewalImportLog.push(`↳ ${sheetName}: closed renewal periods were left unchanged.`);
+      return;
+    }
+    const summary = allowedRows.length ? summarizeImportedRenewalDetailRows(allowedRows) : extractRenewalSheetSummary(rows);
     if ([summary.expirations, summary.renewalsSigned, summary.ntv, summary.transfers, summary.undecided, summary.earlyTermination].every(v => v === 0)) return;
     const centralSync = syncRenewalSheetRowsToCentralServices(targetRecord, {
       propertyName: targetPropertyName,
@@ -26533,7 +26553,7 @@ async function handleRenewalWorkbook(file) {
       sourceSheetName: sheetName,
       importId: workbookImportId,
       importBatchId: workbookImportId
-    }, rows, summary);
+    }, allowedRows.length ? allowedRows : rows, summary);
     const syncedPeriods = Array.isArray(centralSync?.periodSummaries) && centralSync.periodSummaries.length
       ? centralSync.periodSummaries
       : [{ monthIdx, year: sheetYear, periodKey: buildPeriodKey(monthIdx, sheetYear), sourceSheetName: sheetName, rowCount: summary.expirations, summary }];
@@ -26571,9 +26591,13 @@ async function handleRenewalWorkbook(file) {
     renewalImportSourceLabel = `${targetPropertyName} · ${file.name}`;
     renewalImportLog.push(`📘 ${targetPropertyName} renewal tracker imported from ${file.name}.`);
   }
+  return appliedMonths;
 }
 
-async function handleRenewalCsv(file) {
+async function handleRenewalCsv(file, options = {}) {
+  const targetPropertyName = options.communityName || getProp().name;
+  const targetRecord = getPropertyRecordForApply(targetPropertyName);
+  if (!targetRecord) return;
   const text = await file.text();
   const lines = text.split(/\r?\n/).filter(line => line.trim());
   if (lines.length < 2) {
@@ -26594,7 +26618,8 @@ async function handleRenewalCsv(file) {
     const cols = line.split(",").map(value => value.trim().replace(/^"|"$/g, ""));
     const monthIdx = parseMonthIndexValue(headerValue(cols, ["month","period","sheet","reporting_month"]));
     if (monthIdx === null || monthIdx < 0 || monthIdx > 11) return;
-    const reportingYear = parseYearFromValue(headerValue(cols, ["year","reporting_year","period","sheet","reporting_month"]), new Date().getFullYear());
+    const reportingYear = parseYearFromValue(headerValue(cols, ["year","reporting_year","period","sheet","reporting_month"]), options.reportingYear || new Date().getFullYear());
+    if ((dataImport2State.closedPeriods || []).includes(buildPeriodKey(monthIdx,reportingYear))) return;
     const summary = {
       expirations: normalizeWorkbookNumber(headerValue(cols, ["renewal_expirations","total_lease_expirations","expirations"])),
       renewalsSigned: normalizeWorkbookNumber(headerValue(cols, ["renewals_signed","renewal_signed","signed"])),
@@ -26605,10 +26630,10 @@ async function handleRenewalCsv(file) {
       retentionRate: normalizeWorkbookPercent(headerValue(cols, ["retention_rate"])),
       decidedRetentionRate: normalizeWorkbookPercent(headerValue(cols, ["decided_retention_rate"]))
     };
-    applyRenewalSummaryToMonth(monthIdx, summary);
-    stampRenewalImportForMonth(monthIdx, file.name, reportingYear);
+    applyRenewalSummaryToRecord(targetRecord, monthIdx, summary, reportingYear);
+    setRecordPeriodImportStamp(targetRecord,"renewals",buildPeriodKey(monthIdx,reportingYear),{importedAt:new Date().toISOString(),sourceFileName:file.name});
     const centralSync = syncRenewalSummaryNtvCountToCentralServices({
-      propertyName: getProp().name,
+      propertyName: targetPropertyName,
       monthIdx,
       year: reportingYear,
       fileName: file.name
@@ -26619,6 +26644,8 @@ async function handleRenewalCsv(file) {
   if (appliedMonths === 0) {
     renewalImportLog.push(`⚠️ ${file.name} did not contain recognizable renewal month rows.`);
   } else {
+    savedData[targetPropertyName] = normalizeSavedCommunityRecord(targetPropertyName,targetRecord);
+    if (targetPropertyName === getProp().name) loadPropertyData(targetPropertyName);
     renewalImportSourceLabel = file.name;
     renewalImportLog.push(`✅ ${file.name} → imported renewal summaries for ${appliedMonths} month(s).`);
     if (centralPlaceholderCount > 0) {
@@ -26627,14 +26654,14 @@ async function handleRenewalCsv(file) {
   }
 }
 
-async function processRenewalFiles(files) {
+async function processRenewalFiles(files, options = {}) {
   renewalImportLog = [];
   for (const file of files) {
     const lowerName = String(file.name || "").toLowerCase();
     if (lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls") || lowerName.endsWith(".xlsm")) {
-      await handleRenewalWorkbook(file);
+      await handleRenewalWorkbook(file, options);
     } else if (lowerName.endsWith(".csv")) {
-      await handleRenewalCsv(file);
+      if (!(await handleRenewalWorkbook(file, options))) await handleRenewalCsv(file, options);
     } else {
       renewalImportLog.push(`⚠️ ${file.name} is not a supported renewal upload. Use XLSX or CSV.`);
     }
@@ -49610,6 +49637,8 @@ async function dataImportExpandZip(file) {
 }
 
 let dataImportUploadPeriod = null;
+let dataImportUploadType = "auto";
+let dataImportUploadCommunity = "";
 
 function getDataImportUploadPeriod(now = new Date()) {
   return dataImportUploadPeriod ? { ...dataImportUploadPeriod } : { monthIdx: now.getMonth(), year: now.getFullYear() };
@@ -49633,6 +49662,19 @@ function dataImportApplySelectedPeriod(plan, selected) {
   const requested = { monthIdx: selected.monthIdx, year: selected.year };
   const selection = { requested, detected, basis: Number.isInteger(detected.monthIdx) && Number.isInteger(detected.year) ? "source_verified" : "user_selected" };
   const next = { ...plan, periodSelection: selection, metadata: { ...plan.metadata, periodSelection: selection } };
+  if (plan.reportType === "renewal_tracker") {
+    selection.basis = "expiration_months";
+    selection.mode = "multiple_months";
+    next.reportingYear = detected.year || requested.year;
+    next.reportingPeriodLabel = "Multiple expiration months";
+    next.renewalPeriods = (plan.sampleSummary?.sheets || []).flatMap(sheet => {
+      const monthIdx = parseMonthIndexValue(sheet.sheetName);
+      if (monthIdx === null) return [];
+      const year = parseYearFromValue(sheet.sheetName, next.reportingYear);
+      return [buildPeriodKey(monthIdx, year)];
+    }).filter((period, i, all) => all.indexOf(period) === i).sort();
+    return next;
+  }
   if (dataImportPeriodConflict(requested, detected)) {
     next.issues = [...(plan.issues || []), { type: "conflict", severity: "critical", title: "Report period does not match your selection", detail: `You selected ${MONTHS[requested.monthIdx]} ${requested.year}; the report identifies ${detected.label}. Choose the matching period and upload again. Source dates will not be relabeled.` }];
     next.status = "blocked";
@@ -49662,8 +49704,12 @@ async function dataImportBuildFilePlan(file, extras = {}) {
   }
   if (metadata.dataAsOf) { period.dataDateIso = metadata.dataAsOf; period.dataDateLabel = dataImportFormatDate(metadata.dataAsOf); }
   const fields = dataImportDetectFields(sample, { reportType, sourceSystem });
-  const communities = dataImportDetectCommunities(combinedText);
+  let communities = dataImportDetectCommunities(combinedText);
   const issues = [];
+  if (reportType === "renewal_tracker" && extras.communityName) {
+    if (communities.length && !communities.includes(extras.communityName)) issues.push({type:"conflict",severity:"critical",title:"Renewal community does not match",detail:"The selected community does not match the source. Confirm the property before uploading again."});
+    else communities = [extras.communityName];
+  }
   if (!dataImportIsSupportedFileName(file.name)) {
     issues.push({ type: "unsupported", severity: "critical", title: "Unsupported file type", detail: `${file.name} is not one of the currently supported upload formats.` });
   }
@@ -49705,7 +49751,7 @@ async function dataImportBuildFilePlan(file, extras = {}) {
   const status = blocked ? "blocked" : issues.some(issue => ["unmapped","low_confidence","invalid","held"].includes(issue.type)) ? "review" : "ready";
   const fileId = dataImportMakeId("file");
   dataImportFileHandles.set(fileId, file);
-  return dataImportApplySelectedPeriod({
+  const plan = dataImportApplySelectedPeriod({
     fileId,
     originalZipName: extras.originalZipName || "",
     name: file.name,
@@ -49745,6 +49791,33 @@ async function dataImportBuildFilePlan(file, extras = {}) {
       sheets: sample.tabSummaries || []
     }
   }, extras.selectedPeriod);
+  return reportType === "renewal_tracker" ? await dataImportPreviewRenewalWorkbook(file, plan) : plan;
+}
+
+async function dataImportPreviewRenewalWorkbook(file, plan) {
+  if (!/\.(xls[xm]?|csv)$/i.test(file.name) || typeof XLSX === "undefined") return plan;
+  const workbook = XLSX.read(await file.arrayBuffer(), {type:"array",cellDates:true,cellStyles:true});
+  const detectedCommunity = resolveRenewalWorkbookPropertyName(workbook, file.name, {prompt:false});
+  if (detectedCommunity && (!plan.communities.length || plan.communities.includes(detectedCommunity))) {
+    plan.communities = [detectedCommunity]; plan.selectedCommunities = [detectedCommunity]; plan.communityCount = 1;
+    plan.issues = plan.issues.filter(issue => issue.title !== "No community match found");
+  }
+  const setupYear = parseYearFromValue(findWorksheetRowValue(getWorkbookSheetRows(workbook, [/^setup$/i]), /month\s*\/\s*year/i), plan.reportingYear || new Date().getFullYear());
+  plan.reportingYear = setupYear;
+  const details = [];
+  for (const sheetName of workbook.SheetNames) {
+    const rows = annotateRenewalRowsWithWorkbookVisualStatus(XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {header:1,defval:"",blankrows:true}), workbook.Sheets[sheetName]);
+    const context = {propertyName:plan.communities[0] || "Unassigned", monthIdx:parseMonthIndexValue(sheetName) ?? 0, year:parseYearFromValue(sheetName,setupYear), sourceSheetName:sheetName};
+    details.push(...(window.atlasCsPreviewRenewalSheetRows?.(rows,context) || []));
+  }
+  const unique = mergeImportedRenewalDetails([], details);
+  plan.renewalCoverage = groupImportedRenewalDetailRowsByPeriod(unique, 0, setupYear).map(period => ({period:period.periodKey,...period.summary}));
+  if (plan.renewalCoverage.length) {
+    plan.renewalPeriods = plan.renewalCoverage.map(item => item.period).sort();
+    plan.rowCount = unique.length;
+    plan.readyRows = plan.status === "blocked" ? 0 : unique.length;
+  }
+  return plan;
 }
 
 function dataImportFindDuplicateArchiveMatch(plan) {
@@ -49821,6 +49894,7 @@ async function dataImportStageFiles(filesLike) {
   const files = Array.from(filesLike || []).filter(Boolean);
   if (!files.length) return;
   const selectedPeriod = getDataImportUploadPeriod();
+  const uploadOptions = { selectedPeriod, forceReportType: dataImportUploadType === "renewal_tracker" ? "renewal_tracker" : "", communityName: dataImportUploadType === "renewal_tracker" ? dataImportUploadCommunity : "" };
   csvError = "";
   csvLog = [`Inspecting ${files.length} source file${files.length === 1 ? "" : "s"} before import...`, ...csvLog.slice(0, 5)];
   renderTab();
@@ -49833,14 +49907,14 @@ async function dataImportStageFiles(filesLike) {
         const expanded = await dataImportExpandZip(file);
         zipIssues.push(...expanded.issues.map(issue => ({ ...issue, sourceZipName: file.name })));
         for (const extractedFile of expanded.files) {
-          const plan = await dataImportBuildFilePlan(extractedFile, { originalZipName: file.name, selectedPeriod });
+          const plan = await dataImportBuildFilePlan(extractedFile, { originalZipName: file.name, ...uploadOptions });
           batchFiles.push(dataImportAnnotatePlan(plan));
         }
         if (expanded.files.length === 0 && expanded.issues.length === 0) {
           zipIssues.push({ type: "unsupported", severity: "medium", title: "ZIP did not contain supported files", detail: file.name, sourceZipName: file.name });
         }
       } else {
-        const plan = await dataImportBuildFilePlan(file, { selectedPeriod });
+        const plan = await dataImportBuildFilePlan(file, uploadOptions);
         batchFiles.push(dataImportAnnotatePlan(plan));
       }
     }
@@ -50060,6 +50134,19 @@ async function dataImportReadStructuredRows(file, plan = {}) {
   (workbook.SheetNames || []).forEach(sheetName => {
     if (dataImportIsMetadataSheetName(sheetName)) return;
     const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false, blankrows: true });
+    if (plan.reportType === "renewal_tracker" && window.atlasCsPreviewRenewalSheetRows) {
+      const prepared = window.atlasCsPreviewRenewalSheetRows(annotateRenewalRowsWithWorkbookVisualStatus(rawRows,workbook.Sheets[sheetName]), {
+        propertyName:(plan.selectedCommunities || plan.communities || [])[0] || "", monthIdx:parseMonthIndexValue(sheetName) ?? 0,
+        year:parseYearFromValue(sheetName,plan.reportingYear || new Date().getFullYear()), sourceSheetName:sheetName
+      });
+      if (prepared.length) {
+        const rows = prepared.map((row,index) => ({canonicalSource:true,sourceSheet:sheetName,sourceRow:row.sourceRow || index+1,
+          values:{community_name:row.propertyName,lease_id:row.leaseId || row.id,unit:row.unit,resident:row.residentName,
+            renewal_expiration:row.expirationDate,renewal_status:row.status,renewal_signed_date:row.renewalSignedDate || row.leaseExecutedDate || ""}}));
+        sheets.push({sheetName,headers:Object.keys(rows[0].values),rows});
+        return;
+      }
+    }
     if (plan.reportType === "trending_occupancy") {
       const rows = dataImportParseTrendingRows(rawRows, sheetName);
       if (rows.length) sheets.push({ sheetName, headers: [...new Set(rows.flatMap(row => Object.keys(row.values)))], rows });
@@ -50110,7 +50197,7 @@ async function dataImportReadStructuredRows(file, plan = {}) {
 }
 
 function dataImportMapSourceRow(sourceRow = {}, plan = {}, mappingCache = null) {
-  if (sourceRow.canonicalSource && ["box_score", "delinquency", "trending_occupancy"].includes(plan.reportType)) {
+  if (sourceRow.canonicalSource && ["box_score", "delinquency", "trending_occupancy", "renewal_tracker"].includes(plan.reportType)) {
     const mapped = {}, sourceFields = {}, unmappedFields = [];
     for (const [field,value] of Object.entries(sourceRow.values || {})) {
       const loc = sourceRow.locators?.[field];
@@ -50259,10 +50346,19 @@ function dataImportRowPeriod(mapped = {}, sourceRow = {}, plan = {}) {
   if (["box_score", "delinquency", "leasing_resident_data"].includes(plan.reportType) && Number.isInteger(plan.reportingMonthIdx) && Number.isInteger(plan.reportingYear)) {
     return {monthIdx:plan.reportingMonthIdx, year:plan.reportingYear, periodKey:buildPeriodKey(plan.reportingMonthIdx, plan.reportingYear)};
   }
-  const candidates = [mapped.post_month, mapped.renewal_expiration, mapped.lease_end, mapped.application_date, mapped.move_in_date, sourceRow.sourceSheet];
+  const candidates = plan.reportType === "renewal_tracker"
+    ? [mapped.renewal_expiration, mapped.lease_end, mapped.post_month, sourceRow.sourceSheet]
+    : [mapped.post_month, mapped.renewal_expiration, mapped.lease_end, mapped.application_date, mapped.move_in_date, sourceRow.sourceSheet];
   for (const candidate of candidates) {
     const raw = String(candidate ?? "").trim();
     if (!raw) continue;
+    if (plan.reportType === "renewal_tracker" && candidate === sourceRow.sourceSheet) {
+      const monthIdx = parseMonthIndexValue(raw);
+      if (monthIdx !== null) {
+        const year = parseYearFromValue(raw, plan.reportingYear || new Date().getFullYear());
+        return {monthIdx, year, periodKey:buildPeriodKey(monthIdx, year)};
+      }
+    }
     const parsed = new Date(raw);
     if (Number.isFinite(parsed.getTime()) && parsed.getFullYear() > 1990) {
       return { monthIdx: parsed.getMonth(), year: parsed.getFullYear(), periodKey: buildPeriodKey(parsed.getMonth(), parsed.getFullYear()) };
@@ -50272,6 +50368,7 @@ function dataImportRowPeriod(mapped = {}, sourceRow = {}, plan = {}) {
   }
   const monthIdx = Number.isInteger(plan.reportingMonthIdx) ? plan.reportingMonthIdx : getSelectedDashboardMonthIndex();
   const year = Number.isInteger(plan.reportingYear) ? plan.reportingYear : new Date().getFullYear();
+  if (plan.reportType === "renewal_tracker") return {monthIdx:null,year:null,periodKey:""};
   return { monthIdx, year, periodKey: buildPeriodKey(monthIdx, year) };
 }
 
@@ -50927,7 +51024,12 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
         plan.qualifiedLocators[communityName] = {...plan.qualifiedLocators[communityName], ...sourceFields};
       }
       const period = dataImportRowPeriod(mapped, sourceRow, plan);
-      if (dataImportPeriodConflict(plan.periodSelection?.requested, period)) {
+      if (plan.reportType === "renewal_tracker" && !period.periodKey) {
+        result.rowsHeld += 1;
+        result.issues.push({type:"held",severity:"high",title:"Renewal expiration period is missing",detail:`${sheet.sheetName} row ${sourceRow.sourceRow} needs an expiration date or a dated month tab. It was not assigned to the upload month.`,communityName});
+        continue;
+      }
+      if (plan.reportType !== "renewal_tracker" && dataImportPeriodConflict(plan.periodSelection?.requested, period)) {
         result.rowsHeld += 1;
         result.issues.push({ type: "conflict", severity: "high", title: "Source section is outside the selected period", detail: `${sheet.sheetName} row ${sourceRow.sourceRow} belongs to ${period.periodKey}; it was held without changing that date or another month.`, communityName, sourceSheet: sheet.sheetName, sourceRow: sourceRow.sourceRow });
         continue;
@@ -51036,7 +51138,7 @@ async function dataImportRouteApprovedFile(file, plan, batchId = "") {
     result.destinations = Array.from(new Set([...(result.destinations || []), "Resident lifecycle", "Application Performance"]));
   }
   if (plan.reportType === "renewal_tracker") {
-    await processRenewalFiles([file]);
+    await processRenewalFiles([file], {communityName:(plan.selectedCommunities || plan.communities || [])[0], reportingYear:plan.reportingYear});
     result.destinations = Array.from(new Set([...(result.destinations || []), "Renewal Management", "Exposure Forecast"]));
   }
   if (plan.reportType === "marketing_iq") {
@@ -51106,8 +51208,12 @@ async function approveDataImportBatch() {
     return;
   }
   const approvedPlans = batch.files.filter(file => file.selected && file.status !== "blocked");
-  if (approvedPlans.some(plan => dataImportPeriodConflict(plan.periodSelection?.requested, plan.periodSelection?.detected))) {
+  if (approvedPlans.some(plan => plan.reportType !== "renewal_tracker" && dataImportPeriodConflict(plan.periodSelection?.requested, plan.periodSelection?.detected))) {
     alert("A selected report conflicts with its requested month and year. Correct the period and upload it again before approval.");
+    return;
+  }
+  if (approvedPlans.some(plan => plan.reportType === "renewal_tracker" && (plan.selectedCommunities || plan.communities || []).length !== 1)) {
+    alert("Select exactly one community for each renewal tracker before approval. Its expiration months will be imported together.");
     return;
   }
   if (!approvedPlans.length) {
@@ -51369,7 +51475,7 @@ function overrideDataImportReportType(fileId, reportType) {
       reason: item.reason || "Mapping needs confirmation",
       learningStatus: item.learningStatus || ""
     }));
-    return {
+    const next = {
       ...file,
       reportType,
       reportTypeLabel: dataImportReportLabel(reportType),
@@ -51383,6 +51489,12 @@ function overrideDataImportReportType(fileId, reportType) {
       status: file.status === "blocked" ? "blocked" : issues.some(issue => ["unmapped","invalid","low_confidence","held"].includes(issue.type)) ? "review" : "ready",
       issues
     };
+    if (reportType === "renewal_tracker") {
+      next.issues = next.issues.filter(issue => issue.title !== "Report period does not match your selection");
+      next.status = next.issues.some(issue => issue.severity === "critical") ? "blocked" : "review";
+      next.selected = next.status !== "blocked";
+    }
+    return dataImportApplySelectedPeriod(next, file.periodSelection?.requested);
   });
   batch.summary = dataImportBuildBatchSummary(batch.files, batch.zipIssues || []);
   dataImport2State.pendingBatch = batch;
@@ -52158,12 +52270,16 @@ function renderDataImportDropzone() {
   const years = Array.from(new Set([period.year, ...Array.from({length:22}, (_, i) => currentYear + 1 - i)])).sort((a,b) => b-a);
   return `<fieldset style="border:0;padding:0;margin:0 0 16px">
     <legend class="data-import2-section-title">Report period</legend>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <label class="data-import2-field"><span class="data-import2-small-label">Upload type</span><select aria-label="Upload type" onchange="dataImportUploadType = this.value; renderTab()"><option value="auto"${dataImportUploadType === "auto" ? " selected" : ""}>Detect automatically</option><option value="renewal_tracker"${dataImportUploadType === "renewal_tracker" ? " selected" : ""}>Renewal tracker — multiple months</option></select></label>
+      ${dataImportUploadType === "renewal_tracker" ? `<label class="data-import2-field"><span class="data-import2-small-label">Tracker community</span><select aria-label="Tracker community" onchange="dataImportUploadCommunity = this.value"><option value="">Detect from document</option>${dataImportGetHealthCommunityNames().map(name => `<option value="${escapeHtml(name)}"${name === dataImportUploadCommunity ? " selected" : ""}>${escapeHtml(name)}</option>`).join("")}</select></label>` : ""}
+    </div>
     <div style="display:flex;gap:12px;flex-wrap:wrap">
-      <label class="data-import2-field"><span class="data-import2-small-label">Report month</span><select aria-label="Upload report month" onchange="setDataImportUploadPeriod('monthIdx', this.value)">${FULL_MONTHS.map((name, i) => `<option value="${i}"${i === period.monthIdx ? " selected" : ""}>${escapeHtml(name)}</option>`).join("")}</select></label>
+      <label class="data-import2-field"><span class="data-import2-small-label">Report month</span><select aria-label="Upload report month" ${dataImportUploadType === "renewal_tracker" ? "disabled" : ""} onchange="setDataImportUploadPeriod('monthIdx', this.value)">${FULL_MONTHS.map((name, i) => `<option value="${i}"${i === period.monthIdx ? " selected" : ""}>${escapeHtml(name)}</option>`).join("")}</select></label>
       <label class="data-import2-field"><span class="data-import2-small-label">Report year</span><select aria-label="Upload report year" onchange="setDataImportUploadPeriod('year', this.value)">${years.map(year => `<option value="${year}"${year === period.year ? " selected" : ""}>${year}</option>`).join("")}</select></label>
       <button type="button" class="btn btn-gray btn-sm" onclick="dataImportUploadPeriod = null; renderTab()">Use current month</button>
     </div>
-    <p class="data-import2-drop-copy">Choose the month these reports cover before uploading. Defaults to the current month and year. Upload one period at a time; ATLAS checks source dates before applying data. Changing this selection affects new uploads only.</p>
+    <p class="data-import2-drop-copy">Single-month reports use the selected month and year. Renewal trackers are automatically reviewed across all expiration months for one community, including future months and years. An advance renewal stays with its agreement’s expiration month. The selected year is used only for month tabs without a year; explicit source dates take precedence. Changing this selection affects new uploads only.</p>
   </fieldset>
   <label class="data-import2-dropzone" ondrop="handleDataImport2Drop(event)" ondragover="event.preventDefault()" ondragenter="event.preventDefault()">
     <div class="data-import2-drop-icon"><i class="ph ph-upload-simple"></i></div>
@@ -53059,7 +53175,8 @@ function renderDataImportPendingBatch() {
         ? plan.communities.slice(0, 8).map(name => `<label class="data-import2-chip good" style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" ${approvalDisabled} ${(plan.selectedCommunities || plan.communities || []).includes(name) ? "checked" : ""} onchange='toggleDataImportCommunityApproval(${JSON.stringify(plan.fileId)}, ${JSON.stringify(name)}, this.checked)'>${escapeHtml(name)}</label>`).join("") + (plan.communities.length > 8 ? `<span class="data-import2-chip">${plan.communities.length - 8} more</span>` : "")
         : `<select class="data-import2-select" ${approvalDisabled} onchange='assignDataImportPlanCommunity(${JSON.stringify(plan.fileId)}, this.value)'><option value="">Assign active community</option>${assignableCommunities.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}</select>`}</div>
       <div class="data-import2-file-meta">${escapeHtml(plan.reportingPeriodLabel)} · ${escapeHtml(plan.dataDateLabel)} · received ${escapeHtml(dataImportFormatTimestamp(plan.metadata?.receivedAt))}</div>
-      ${plan.periodSelection ? `<div class="data-import2-file-meta">Selected: ${escapeHtml(MONTHS[plan.periodSelection.requested.monthIdx])} ${plan.periodSelection.requested.year} · Report: ${escapeHtml(plan.periodSelection.detected.label || "Not detected")}${plan.periodSelection.basis === "user_selected" ? " · Using your selected period; source dates remain unchanged" : ""}</div>` : ""}
+      ${plan.reportType === "renewal_tracker" ? `<div class="data-import2-file-meta"><strong>One community · multiple expiration months</strong><br>${escapeHtml((plan.renewalPeriods || []).join(", ") || "Periods resolved from agreement expiration dates during review")}<br>Advance renewals reduce exposure in the expiration month. Repeated uploads update matching agreements; omitted months remain intact.</div>` : plan.periodSelection ? `<div class="data-import2-file-meta">Selected: ${escapeHtml(MONTHS[plan.periodSelection.requested.monthIdx])} ${plan.periodSelection.requested.year} · Report: ${escapeHtml(plan.periodSelection.detected.label || "Not detected")}${plan.periodSelection.basis === "user_selected" ? " · Using your selected period; source dates remain unchanged" : ""}</div>` : ""}
+      ${(plan.renewalCoverage || []).length ? `<table class="data-import2-table"><caption>Renewal expiration coverage</caption><thead><tr><th>Expiration month</th><th>Agreements</th><th>Renewed</th><th>Notice to vacate</th><th>Undecided</th></tr></thead><tbody>${plan.renewalCoverage.map(item => `<tr><td>${escapeHtml(item.period)}</td><td>${item.expirations}</td><td>${item.renewalsSigned}</td><td>${item.ntv}</td><td>${item.undecided}</td></tr>`).join("")}</tbody></table>` : ""}
     </div>
     <div>
       <div class="data-import2-small-label">Mapped Fields</div>

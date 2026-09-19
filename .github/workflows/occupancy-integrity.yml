@@ -35,3 +35,5 @@ jobs:
         run: node tools/occupancy-recommendations.test.cjs
       - name: Validate historical upload period selection
         run: node tools/import-period-selection.test.cjs
+      - name: Validate multi-month renewal refresh
+        run: node tools/renewal-multiperiod.test.cjs

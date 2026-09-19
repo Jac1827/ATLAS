@@ -1426,6 +1426,8 @@
 <script src="./eviction-attorney-ui.js?v=20260916-community-contacts"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260916-no-data-status">
 <script src="./application-source-bridge.js?v=occupancy-integrity-20260918"></script>
+<script src="./occupancy-replay.js?v=1"></script>
+<script src="./occupancy-replay-browser.js?v=1"></script>
 <script src="./application-performance.js?v=20260917-weekly-report"></script>
 <link rel="stylesheet" href="./concession-insights.css?v=20260917-1">
 <script src="./property-intelligence.js?v=20260917-1"></script>
@@ -48645,9 +48647,9 @@ function normalizeDataImport2State(input = {}) {
     reportRequirementOverrides: (Array.isArray(state.reportRequirementOverrides) ? state.reportRequirementOverrides : [])
       .filter(item => item && typeof item.communityName === "string" && item.communityName.trim() && DATA_IMPORT_REPORT_ORDER.includes(item.reportType) && typeof item.excluded === "boolean")
       .map(item => ({ communityName: item.communityName, reportType: item.reportType, excluded: item.excluded, updatedAt: String(item.updatedAt || ""), updatedBy: String(item.updatedBy || "") })),
-    canonicalRecords: (Array.isArray(state.canonicalRecords) ? state.canonicalRecords : []).filter(Boolean).slice(0, 12000),
-    lineage: (Array.isArray(state.lineage) ? state.lineage : []).filter(Boolean).slice(0, 12000),
-    reconciliationLog: (Array.isArray(state.reconciliationLog) ? state.reconciliationLog : []).filter(Boolean).slice(0, 1200),
+    canonicalRecords: (Array.isArray(state.canonicalRecords) ? state.canonicalRecords : []).filter(Boolean),
+    lineage: (Array.isArray(state.lineage) ? state.lineage : []).filter(Boolean),
+    reconciliationLog: (Array.isArray(state.reconciliationLog) ? state.reconciliationLog : []).filter(Boolean),
     closedPeriods: (Array.isArray(state.closedPeriods) ? state.closedPeriods : []).map(String).filter(Boolean).slice(0, 180),
     customFields: Array.from(customFieldById.values()),
     mappingAuditTrail: (Array.isArray(state.mappingAuditTrail) ? state.mappingAuditTrail : []).filter(Boolean).slice(0, 140),
@@ -48686,9 +48688,9 @@ function serializeDataImport2State() {
     batches: (dataImport2State.batches || []).slice(0, 60),
     exceptions: (dataImport2State.exceptions || []).slice(0, 220),
     sourceArchive: (dataImport2State.sourceArchive || []).slice(0, 180),
-    canonicalRecords: (dataImport2State.canonicalRecords || []).slice(0, 12000),
-    lineage: (dataImport2State.lineage || []).slice(0, 12000),
-    reconciliationLog: (dataImport2State.reconciliationLog || []).slice(0, 1200),
+    canonicalRecords: (dataImport2State.canonicalRecords || []),
+    lineage: (dataImport2State.lineage || []),
+    reconciliationLog: (dataImport2State.reconciliationLog || []),
     updatedAt: new Date().toISOString()
   };
 }
@@ -50189,13 +50191,13 @@ function dataImportBufferLineage(entries = []) {
     }
     return;
   }
-  dataImport2State.lineage = [...entries].reverse().concat(dataImport2State.lineage || []).slice(0, 12000);
+  dataImport2State.lineage = [...entries].reverse().concat(dataImport2State.lineage || []);
 }
 
 function dataImportFinishApprovalRuntime() {
   if (Array.isArray(dataImportRuntimeLineageBuffer) && dataImportRuntimeLineageBuffer.length) {
     const newestEntries = dataImportRuntimeLineageBuffer.slice(-12000).reverse();
-    dataImport2State.lineage = newestEntries.concat(dataImport2State.lineage || []).slice(0, 12000);
+    dataImport2State.lineage = newestEntries.concat(dataImport2State.lineage || []);
   }
   dataImportRuntimeCanonicalIndex = null;
   dataImportRuntimeLineageBuffer = null;
@@ -50871,7 +50873,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
   result.communities = Array.from(result.communities);
   delete result.centralRows;
   dataImport2State.reconciliationLog.unshift(...result.formulas.map(formula => ({ id: dataImportMakeId("recon"), batchId, reportType: plan.reportType, fileName: plan.name, formula, createdAt: new Date().toISOString() })));
-  dataImport2State.reconciliationLog = dataImport2State.reconciliationLog.slice(0, 1200);
+  // Import audit history is retained; UI views limit their own rendered rows.
   if (dataImportApprovalInProgress) {
     dataImportUpdateApprovalProgress({ rowsDone: approvalRowOffset + result.rowsReviewed });
   } else {
@@ -54257,6 +54259,7 @@ function renderDataImportArchiveView() {
   if (!entries.length) return `<div class="data-import2-card"><div class="data-import2-section-title"><i class="ph ph-archive"></i>Source Archive</div><div class="data-import2-detail-panel">No original source files have been archived yet.</div></div>`;
   return `<div class="data-import2-card">
     <div class="data-import2-section-title"><i class="ph ph-archive"></i>Source File Archive</div>
+    ${dataImportCanManageArchitecture() ? `<button class="btn btn-blue btn-sm" onclick="applyAtlasOccupancyReplay()">Apply reviewed occupancy revision</button>` : ""}
     <table class="data-import2-table">
       <thead><tr><th>Source File</th><th>Classification</th><th>Communities</th><th>Batch</th><th>Status</th><th></th></tr></thead>
       <tbody>${entries.map(entry => `<tr>
@@ -54265,7 +54268,7 @@ function renderDataImportArchiveView() {
         <td>${(entry.communities || []).slice(0, 4).map(name => `<span class="data-import2-chip good">${escapeHtml(name)}</span>`).join(" ") || `<span class="data-import2-chip warn">Unmapped</span>`}</td>
         <td>${escapeHtml(entry.batchId || "")}<div class="data-import2-file-meta">Original review: ${escapeHtml(entry.rowsReviewed || 0)} reviewed · ${escapeHtml(entry.rowsUpdated || 0)} corrected · ${escapeHtml(entry.rowsHeld || 0)} held</div><div class="data-import2-file-meta">${escapeHtml(entry.mappingVersion || "ATLAS-RRIM-1.0")}</div>${entry.reprocessResult ? `<div class="data-import2-file-meta">Latest replay: ${(entry.reprocessResult.communities || []).length} communities · ${entry.reprocessResult.rowsHeld || 0} held · ${(entry.reprocessResult.issues || []).length} review items${entry.reprocessResult.sharedRecords ? ` · ${entry.reprocessResult.sharedRecords} shared records` : ""}</div>` : ""}</td>
         <td><span class="data-import2-status ${dataImportStatusClass(entry.importStatus)}">${escapeHtml(entry.importStatus || "Archived")}</span><div class="data-import2-file-meta">${escapeHtml(entry.storageStatus || "Metadata")}</div></td>
-        <td><button class="btn btn-gray btn-sm" onclick='downloadDataImportArchiveFile(${JSON.stringify(entry.id)})'>Download</button>${["box_score", "trending_occupancy", "delinquency", "leasing_resident_data"].includes(entry.reportType) && entry.importStatus === "Approved" && dataImportCanManageArchitecture() ? `<button class="btn btn-blue btn-sm" onclick='reprocessDataImportBoxScore(${JSON.stringify(entry.id)})'>Reconcile approved source</button>` : ""}${entry.reprocessedAt ? `<div class="data-import2-file-meta">Refreshed ${escapeHtml(dataImportFormatTimestamp(entry.reprocessedAt))}</div>` : ""}</td>
+        <td><button class="btn btn-gray btn-sm" onclick='downloadDataImportArchiveFile(${JSON.stringify(entry.id)})'>Download</button>${entry.reportType === "box_score" && entry.importStatus === "Approved" && dataImportCanManageArchitecture() ? `<button class="btn btn-gray btn-sm" onclick='previewAtlasOccupancyReplay(${JSON.stringify(entry.id)})'>Preview occupancy repair</button>` : ""}${entry.occupancyRevisions?.length ? `<div class="data-import2-file-meta">Occupancy revisions: ${entry.occupancyRevisions.length} · ${escapeHtml(dataImportFormatTimestamp(entry.occupancyRevisions.at(-1).createdAt))}</div>` : ""}${["box_score", "trending_occupancy", "delinquency", "leasing_resident_data"].includes(entry.reportType) && entry.importStatus === "Approved" && dataImportCanManageArchitecture() ? `<button class="btn btn-blue btn-sm" onclick='reprocessDataImportBoxScore(${JSON.stringify(entry.id)})'>Reconcile approved source</button>` : ""}${entry.reprocessedAt ? `<div class="data-import2-file-meta">Refreshed ${escapeHtml(dataImportFormatTimestamp(entry.reprocessedAt))}</div>` : ""}</td>
       </tr>`).join("")}</tbody>
     </table>
   </div>`;

@@ -25,3 +25,5 @@ jobs:
         run: node tools/community-governed-planning.test.cjs
       - name: Validate archive replay
         run: node tools/archive-replay.test.cjs
+      - name: Validate scoped occupancy revisions
+        run: node tools/occupancy-scoped-replay.test.cjs

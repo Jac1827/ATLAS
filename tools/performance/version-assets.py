@@ -3,6 +3,11 @@ from pathlib import Path
 import hashlib, json, re
 root=Path(__file__).resolve().parents[2]/'docs/portfolio-operations-dashboard'
 entries=[
+ ('application-lineage.js',[('index.html','./application-lineage.js')]),
+ ('screening-summary.js',[('index.html','./screening-summary.js')]),
+ ('application-source-bridge.js',[('index.html','./application-source-bridge.js')]),
+ ('application-performance-ui.js',[('index.html','./application-performance-ui.js')]),
+
  ('atlas-dashboard-reskin.js',[('index.html','./atlas-dashboard-reskin.js')]),
  ('atlas-redesign.css',[('index.html','atlas-redesign.css')]),
  ('contract-terms.js',[('RISE-Budget-Builder.html','./contract-terms.js')]),

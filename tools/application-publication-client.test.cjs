@@ -1,6 +1,6 @@
 const fs=require('node:fs'), vm=require('node:vm'), assert=require('node:assert/strict');
 const html=fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/index.html','utf8');
-const c={console,Date,Map,Set,Number,window:{},applicationResidentDataState:{uploads:[]},csvError:'',renderTab(){},normalizeApplicationResidentUpload:x=>x,getApplicationResidentCommunityIdForAtlasName:()=> 'LOCAL_A'};
+const c={console,Date,Map,Set,Number,window:{dispatchEvent(){}},Event:class Event{},applicationResidentDataState:{uploads:[]},csvError:'',renderTab(){},normalizeApplicationResidentUpload:x=>x,getApplicationResidentCommunityIdForAtlasName:()=> 'LOCAL_A'};
 vm.createContext(c);
 c.scheduleAtlasSharedRender = () => c.renderTab();
 vm.runInContext('let atlasApplicationHydrationEpoch=0; let atlasApplicationSessionUser=null;',c);

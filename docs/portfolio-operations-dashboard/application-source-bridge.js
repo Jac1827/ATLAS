@@ -8,7 +8,7 @@
   const date = v => { const t = Date.parse(v || ''); return Number.isFinite(t) ? t : null; };
   const key = r => JSON.stringify([r.communityId || r.atlasName || r.propertySource, r.applicationId]);
   function project(uploads = [], scope = []) {
-    const allowed = new Set(scope), byKey = new Map(), imports = [], issues = [];
+    const allowed = new Set(scope), byKey = new Map(), imports = [], issues = [], history = [];
     for (const upload of uploads) {
       if (!['valid', 'needs_review'].includes(upload.validationStatus)) continue;
       const visible = (upload.records || []).filter(r => r.mappingStatus === 'mapped' && allowed.has(r.atlasName || r.communityName));
@@ -18,7 +18,7 @@
         validationStatus:upload.validationStatus});
       for (const r of visible) {
         if (!r.applicationId) continue;
-        const record = {...r, property:r.atlasName || r.communityName, propertyRaw:r.propertySource,
+        let record = {...r, property:r.atlasName || r.communityName, propertyRaw:r.propertySource,
           applicantName:r.residentName, phone:r.primaryPhone, unit:r.buildingUnit,
           newLeadCreatedOn:r.sourceTimestamps?.newLeadCreatedOn || r.newLeadCreatedOn,
           applicationCompleted:r.sourceTimestamps?.applicationCompletedOn || r.applicationCompletedOn, partialApplication:r.sourceTimestamps?.applicationPartiallyCompletedOn || r.applicationPartiallyCompletedOn,
@@ -26,8 +26,15 @@
           sourceFileName:r.sourceFileName || upload.fileName,
           // Move-in and lease dates in this filtered roster are not confirmation events.
           scheduledMoveIn:r.moveInDate, moveIn:'',
+          applicationCreated:r.sourceTimestamps?.applicationStartedOn || r.applicationStartedOn || '',
+          applicationDenied:r.sourceTimestamps?.applicationDeniedOn || r.applicationDeniedOn || '',
+          applicationCancelled:r.sourceTimestamps?.applicationCancelledOn || r.applicationCancelledOn || '',
           applicationApproved:r.sourceTimestamps?.applicationApprovedOn || r.applicationApprovedOn || '',
-          leaseSigned:r.sourceTimestamps?.leaseSignedOn || r.leaseSignedOn || '', lifecycleCoverage:'unavailable'};
+          leaseSigned:r.sourceTimestamps?.leaseSignedOn || r.leaseSignedOn || ''};
+        const lineage = typeof module === 'object' && module.exports ? require('./application-lineage.js') : window.AtlasApplicationLineage;
+        record = lineage.canonical(record,upload);
+        record.leaseSigned = record.leaseSignedAt || "";
+        history.push(record);
         const sourceTime = date(upload.sourceAsOf);
         const fingerprint = JSON.stringify(Object.fromEntries(Object.entries(record).filter(([k]) => !['batchId','uploadId','sourceFileName','sourceSheetName','sourceRowNumber'].includes(k)).sort(([a],[b])=>a.localeCompare(b))));
         const id = key(r), previous = byKey.get(id);
@@ -44,7 +51,7 @@
       else records.push(value.record);
     }
     imports.sort((a,b)=>(date(b.sourceAsOf)||0)-(date(a.sourceAsOf)||0));
-    return {records, imports, dataQuality:{conflicts:issues, source:'applicationResidentData', publication:'Existing dashboard store; shared publication requires sync confirmation'}};
+    return {records, imports, history, dataQuality:{conflicts:issues, source:'applicationResidentData', publication:'Existing dashboard store; shared publication requires sync confirmation'}};
   }
   function filter(records, view = {}, now = new Date()) {
     const query = text(view.search).toLowerCase();
@@ -52,7 +59,7 @@
       for (const [field, recordField] of [['community','property'],['agent','leasingAgent'],['status','applicationStatus']]) {
         if (view[field] && view[field] !== 'all' && r[recordField] !== view[field]) return false;
       }
-      const stamp = date(r.applicationCreated || r.newLeadCreatedOn);
+      const stamp = date(r.applicationStartedAt);
       if (view.date === 'week' && (stamp === null || stamp < now.getTime()-7*86400000 || stamp > now.getTime())) return false;
       if (view.date === 'mtd' && (stamp === null || new Date(stamp).getMonth() !== now.getMonth() || new Date(stamp).getFullYear() !== now.getFullYear() || stamp > now.getTime())) return false;
       return !query || [r.applicationId,r.applicantName,r.property,r.propertyRaw,r.leasingAgent,r.denialReason].some(v=>text(v).toLowerCase().includes(query));

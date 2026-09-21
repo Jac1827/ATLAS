@@ -40,6 +40,11 @@ jobs:
       - name: Test dashboard presentation and ticker lifecycle
         run: |
           node test-ticker.mjs
+          node tools/screening-client.test.cjs
+          node tools/application-lineage.test.cjs
+          node tools/application-lineage-db.test.cjs
+          node tools/application-propagation.test.cjs
+          node tools/application-publication-client.test.cjs
           node tools/dashboard-reskin.test.cjs
           node tools/home-bonus-performance.test.cjs
 
@@ -99,6 +104,11 @@ jobs:
       - name: Test dashboard presentation and ticker lifecycle
         run: |
           node test-ticker.mjs
+          node tools/screening-client.test.cjs
+          node tools/application-lineage.test.cjs
+          node tools/application-lineage-db.test.cjs
+          node tools/application-propagation.test.cjs
+          node tools/application-publication-client.test.cjs
           node tools/dashboard-reskin.test.cjs
           node tools/home-bonus-performance.test.cjs
 

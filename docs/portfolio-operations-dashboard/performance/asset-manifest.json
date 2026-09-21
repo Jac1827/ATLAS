@@ -1,4 +1,44 @@
 {
+  "application-lineage.js": {
+    "sha256": "fa2f0b92fa3bd9ea",
+    "bytes": 8031,
+    "references": [
+      [
+        "index.html",
+        "./application-lineage.js"
+      ]
+    ]
+  },
+  "screening-summary.js": {
+    "sha256": "0870541bc6a51980",
+    "bytes": 5649,
+    "references": [
+      [
+        "index.html",
+        "./screening-summary.js"
+      ]
+    ]
+  },
+  "application-source-bridge.js": {
+    "sha256": "5d783edc39b9f759",
+    "bytes": 10609,
+    "references": [
+      [
+        "index.html",
+        "./application-source-bridge.js"
+      ]
+    ]
+  },
+  "application-performance-ui.js": {
+    "sha256": "0c36f3daf57d15f0",
+    "bytes": 16483,
+    "references": [
+      [
+        "index.html",
+        "./application-performance-ui.js"
+      ]
+    ]
+  },
   "atlas-dashboard-reskin.js": {
     "sha256": "99ffd40a8970f8ef",
     "bytes": 34580,
@@ -314,8 +354,8 @@
     ]
   },
   "centralization/atlas-central-client.js": {
-    "sha256": "a102600a81f486f6",
-    "bytes": 67807,
+    "sha256": "aaf34ed3eb7a47f1",
+    "bytes": 68425,
     "references": [
       [
         "index.html",

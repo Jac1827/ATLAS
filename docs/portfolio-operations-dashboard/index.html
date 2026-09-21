@@ -1424,12 +1424,14 @@
 
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=a347b68d01bc06ec"></script>
-<script src="./centralization/atlas-central-client.js?v=a102600a81f486f6" data-atlas-central-client="true"></script>
+<script src="./centralization/atlas-central-client.js?v=aaf34ed3eb7a47f1" data-atlas-central-client="true"></script>
 <script src="./atlas-dashboard-reskin.js?v=99ffd40a8970f8ef"></script>
 <script src="./central-services.js?v=20260919-renewal-period-review"></script>
 <script src="./eviction-attorney-ui.js?v=20260916-community-contacts"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260916-no-data-status">
-<script src="./application-source-bridge.js?v=occupancy-integrity-20260918"></script>
+<script src="./application-lineage.js?v=fa2f0b92fa3bd9ea"></script>
+<script src="./screening-summary.js?v=0870541bc6a51980"></script>
+<script src="./application-source-bridge.js?v=5d783edc39b9f759"></script>
 <script src="./occupancy-replay.js?v=2"></script>
 <script src="./application-performance.js?v=20260917-weekly-report"></script>
 <link rel="stylesheet" href="./concession-insights.css?v=20260917-1">
@@ -1440,7 +1442,7 @@
 <script src="./concession-insights.js?v=20260917-1"></script>
 <script src="./weekly-leasing-report.js?v=20260917-aging"></script>
 <script src="./application-aging.js?v=20260917-aging"></script>
-<script src="./application-performance-ui.js?v=20260917-aging"></script>
+<script src="./application-performance-ui.js?v=0c36f3daf57d15f0"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -4077,12 +4079,19 @@ const APPLICATION_RESIDENT_REQUIRED_HEADERS = [
 const APPLICATION_RESIDENT_FIELD_ALIASES = {
   residentName: ["Name", "Resident Name", "Applicant", "Applicant Name"],
   applicationId: ["Application ID", "Application Id", "ApplicationID"],
-  applicationStatus: ["Application Status", "Status"],
+  applicationStatus: ["Application Status"],
   leasingAgent: ["Leasing Agent (Assigned)", "Assigned Leasing Agent", "Leasing Agent"],
   newLeadCreatedOn: ["New Lead Created On", "Lead Created On", "Created On"],
   applicationPartiallyCompletedOn: ["Application Partially Completed", "Partially Completed", "Application Partial"],
   applicationCompletedOn: ["Application Completed", "Completed On"],
   applicationApprovedOn: ["Application Approved", "Application Approved On", "Application Approved Date", "Approval Date"],
+  applicationStartedOn: ["Application Started", "Application Started On", "Application Created Date", "Application Start Date"],
+  applicationDeniedOn: ["Application Denied", "Application Denied On", "Denial Date"],
+  applicationCancelledOn: ["Application Cancelled", "Application Cancelled On", "Cancellation Date"],
+  applicationCompletedCancelledOn: ["Application Completed Cancelled", "Application Completed (Cancelled) On"],
+  applicationApprovedCancelledOn: ["Application Approved Cancelled", "Application Approved (Cancelled) On"],
+  leaseExecutedOn: ["Lease Executed", "Lease Executed On", "Lease Executed Date"],
+
   leaseSignedOn: ["Lease Signed", "Lease Signed On", "Lease Signed Date"],
   leadSource: ["Lead Source", "Source"],
   firstVisitTourDate: ["First Visit/Tour Date", "First Visit", "Tour Date"],
@@ -4229,7 +4238,7 @@ function normalizeApplicationResidentRecord(record = {}, resolvedProperty = unde
     communityName: String(record.communityName || mapped?.communityName || ""),
     atlasName: String(record.atlasName || mapped?.atlasName || ""),
     mappingStatus: record.mappingStatus === "mapped" || mapped ? "mapped" : "unmapped",
-    sourceTimestamps: record.sourceTimestamps || Object.fromEntries(["newLeadCreatedOn","applicationPartiallyCompletedOn","applicationCompletedOn","applicationApprovedOn","leaseSignedOn","firstVisitTourDate","currentLeaseStart","currentLeaseEnd","moveInDate"].map(field => [field, record[field] instanceof Date ? record[field].toISOString() : String(record[field] || "")])),
+    sourceTimestamps: record.sourceTimestamps || Object.fromEntries(["newLeadCreatedOn","applicationPartiallyCompletedOn","applicationCompletedOn","applicationApprovedOn","applicationStartedOn","applicationDeniedOn","applicationCancelledOn","applicationCompletedCancelledOn","applicationApprovedCancelledOn","leaseExecutedOn","leaseSignedOn","firstVisitTourDate","currentLeaseStart","currentLeaseEnd","moveInDate"].map(field => [field, record[field] instanceof Date ? record[field].toISOString() : String(record[field] || "")])),
     residentName: normalizeApplicationResidentText(record.residentName),
     applicationId: normalizeApplicationResidentIdentifier(record.applicationId),
     applicationStatus: normalizeApplicationResidentText(record.applicationStatus),
@@ -4239,6 +4248,15 @@ function normalizeApplicationResidentRecord(record = {}, resolvedProperty = unde
     applicationPartiallyCompletedOn: normalizeApplicationResidentDateInput(record.applicationPartiallyCompletedOn),
     applicationCompletedOn: normalizeApplicationResidentDateInput(record.applicationCompletedOn),
     applicationApprovedOn: normalizeApplicationResidentDateInput(record.applicationApprovedOn),
+    applicationStartedOn: normalizeApplicationResidentDateInput(record.applicationStartedOn),
+    applicationDeniedOn: normalizeApplicationResidentDateInput(record.applicationDeniedOn),
+    applicationCancelledOn: normalizeApplicationResidentDateInput(record.applicationCancelledOn),
+    applicationCompletedCancelledOn: normalizeApplicationResidentDateInput(record.applicationCompletedCancelledOn),
+    applicationApprovedCancelledOn: normalizeApplicationResidentDateInput(record.applicationApprovedCancelledOn),
+    leaseExecutedOn: normalizeApplicationResidentDateInput(record.leaseExecutedOn),
+    sourceColumns: record.sourceColumns || {},
+    sourceEffectiveAt: record.sourceEffectiveAt || "",
+
     leaseSignedOn: normalizeApplicationResidentDateInput(record.leaseSignedOn),
     firstVisitTourDate: normalizeApplicationResidentDateInput(record.firstVisitTourDate),
     occupantType: normalizeApplicationResidentText(record.occupantType),
@@ -4263,7 +4281,8 @@ function normalizeApplicationResidentUpload(upload = {}) {
   const records = Array.isArray(upload.records) ? upload.records.map(record => {
     const property = normalizeApplicationResidentText(record.propertySource || record.property || "");
     if (!mappingCache.has(property)) mappingCache.set(property, resolveApplicationResidentPropertyMap(property));
-    return normalizeApplicationResidentRecord(record, mappingCache.get(property));
+    const normalized = normalizeApplicationResidentRecord(record, mappingCache.get(property));
+    return window.AtlasApplicationLineage?.canonical(normalized, upload) || normalized;
   }).filter(record => record.applicationId) : [];
   const sourceRows = Number.isFinite(Number(upload.sourceRows)) ? Number(upload.sourceRows) : records.length;
   const propertySections = Array.isArray(upload.propertySections) ? upload.propertySections.map(normalizeApplicationResidentText).filter(Boolean) : [];
@@ -4275,6 +4294,8 @@ function normalizeApplicationResidentUpload(upload = {}) {
     fileName: String(upload.fileName || "Resident Data upload"),
     uploadedAt: String(upload.uploadedAt || new Date().toISOString()),
     sourceAsOf: String(upload.sourceAsOf || ""),
+    sourceFilters: upload.sourceFilters || {},
+    sourceVersion: upload.sourceVersion || "",
     centralImportId: String(upload.centralImportId || ""),
     centralVersion: Number(upload.centralVersion || 0),
     restoredAt: String(upload.restoredAt || ""),
@@ -4467,6 +4488,7 @@ function parseApplicationResidentDataWorkbook(workbook, file, options = {}) {
   const reportMonthIdx = Number.isInteger(options.reportMonthIdx) ? clampNumber(options.reportMonthIdx, 0, 11) : applicationResidentDataState.reportMonthIdx;
   const reportYear = Number.isFinite(Number(options.reportYear)) ? Number(options.reportYear) : applicationResidentDataState.reportYear;
   const reportPeriodKey = buildPeriodKey(reportMonthIdx, reportYear);
+  const sourceFilters = Object.fromEntries(getApplicationResidentSheetRows(workbook, "Report Parameters").filter(r => r[0] && r[1]).map(r => [String(r[0]).trim(), String(r[1]).trim()]));
   const sources = getApplicationResidentWorkbookSources(workbook);
   if (!sources.length) {
     return normalizeApplicationResidentUpload({
@@ -4532,6 +4554,14 @@ function parseApplicationResidentDataWorkbook(workbook, file, options = {}) {
         applicationPartiallyCompletedOn: getApplicationResidentCell(row, colIdx, "applicationPartiallyCompletedOn"),
         applicationCompletedOn: getApplicationResidentCell(row, colIdx, "applicationCompletedOn"),
         applicationApprovedOn: getApplicationResidentCell(row, colIdx, "applicationApprovedOn"),
+        applicationStartedOn: getApplicationResidentCell(row, colIdx, "applicationStartedOn"),
+        applicationDeniedOn: getApplicationResidentCell(row, colIdx, "applicationDeniedOn"),
+        applicationCancelledOn: getApplicationResidentCell(row, colIdx, "applicationCancelledOn"),
+        applicationCompletedCancelledOn: getApplicationResidentCell(row, colIdx, "applicationCompletedCancelledOn"),
+        applicationApprovedCancelledOn: getApplicationResidentCell(row, colIdx, "applicationApprovedCancelledOn"),
+        leaseExecutedOn: getApplicationResidentCell(row, colIdx, "leaseExecutedOn"),
+        sourceColumns: Object.fromEntries(Object.entries(colIdx).map(([key,index]) => [key, source.rows[source.headerRowIdx][index]])),
+
         leaseSignedOn: getApplicationResidentCell(row, colIdx, "leaseSignedOn"),
         firstVisitTourDate: getApplicationResidentCell(row, colIdx, "firstVisitTourDate"),
         occupantType: getApplicationResidentCell(row, colIdx, "occupantType"),
@@ -4599,6 +4629,7 @@ function parseApplicationResidentDataWorkbook(workbook, file, options = {}) {
     fileName: file?.name || "Resident Data upload",
     uploadedAt: new Date().toISOString(),
     sourceAsOf: getApplicationResidentSourceAsOf(workbook, file),
+    sourceFilters, sourceVersion: sourceFilters.Version || "",
     reportPeriodKey,
     reportMonthLabel: getApplicationResidentReportMonthLabel(reportPeriodKey),
     sourceRows: sourceRows.length,
@@ -4647,6 +4678,7 @@ async function hydrateAtlasSharedApplications() {
       ...rows.map(applicationUploadFromCentral),
       ...applicationResidentDataState.uploads.filter(u => !u.centralImportId)
     ];
+    window.dispatchEvent(new Event("atlas-application-hydrated"));
     scheduleAtlasSharedRender();
   } catch (error) {
     if (epoch !== atlasApplicationHydrationEpoch) return;
@@ -4762,7 +4794,7 @@ function getAtlasApplicationPeriodMetrics(periodKey = getApplicationResidentRepo
       const entries = (dataImport2State.lineage || []).filter(x => x.currentState && x.reportType === "box_score" && x.communityName === name && x.periodKey === periodKey && x.atlasField === field);
       const source = entries.length === 1 ? entries[0] : null;
       const value = source && source.importedValue !== null && source.importedValue !== undefined && source.importedValue !== "" && Number.isFinite(Number(source.importedValue)) ? Number(source.importedValue) : null;
-      cells[field] = {label,value,source:source ? `${source.sourceFile} · ${source.dataAsOf || "cutoff unavailable"} · ${source.originalField}` : "No unique published Box Score value"};
+      cells[field] = {label,value,community:name,periodKey,importIdentity:source?.fileHash || source?.sourceArchiveId || null,sourceContract:source?.reportType === "box_score" ? "entrata-box-score-lead-conversions" : null,cohortKey:source?.reportType === "box_score" && /lead conversions/i.test(String(source?.originalField)) ? "period-activity" : null,source:source ? `${source.sourceFile} · ${source.dataAsOf || "cutoff unavailable"} · ${source.originalField}` : "No unique published Box Score value"};
     }
     return {community:name,periodKey,cells};
   });
@@ -10668,20 +10700,20 @@ function getApplicationDecisionMetrics(monthEntry = {}) {
   const approvals = Math.max(0, Number(getApplicationsApprovedCount(monthEntry)) || 0);
   const hasDenied = Object.prototype.hasOwnProperty.call(monthEntry ?? {}, "denied");
   const hasCancelled = Object.prototype.hasOwnProperty.call(monthEntry ?? {}, "cancelled");
-  const hasPending = Object.prototype.hasOwnProperty.call(monthEntry ?? {}, "pendingDecision");
+  const hasPending = monthEntry.applicationPendingSource === "completed-application-evidence" && monthEntry.pendingDecision != null;
   const explicitDenials = Math.max(0, Number(monthEntry.denied) || 0);
   const explicitCancelled = Math.max(0, Number(monthEntry.cancelled) || 0);
   const explicitPending = Math.max(0, Number(monthEntry.pendingDecision) || 0);
   // Treat approvals as carryover-aware so they can exceed same-month applications
   // while still preserving explicit denial/cancel/pending counts.
-  const denials = hasDenied ? explicitDenials : Math.max(applications - approvals - explicitCancelled - explicitPending, 0);
-  const cancelled = hasCancelled ? explicitCancelled : Math.max(applications - approvals - denials - explicitPending, 0);
-  const pendingDecision = hasPending ? explicitPending : Math.max(applications - approvals - denials - cancelled, 0);
+  const denials = hasDenied ? explicitDenials : null;
+  const cancelled = hasCancelled ? explicitCancelled : null;
+  const pendingDecision = hasPending ? explicitPending : null;
   const leases = getExplicitLeaseSignedCount(monthEntry);
   const approvalPct = calculateFunnelConversionPct(approvals, applications);
   const denialPct = calculateFunnelConversionPct(denials, applications);
   const cancelledPct = calculateFunnelConversionPct(cancelled, applications);
-  const pendingPct = calculateFunnelConversionPct(pendingDecision, applications);
+  const pendingPct = pendingDecision === null ? null : calculateFunnelConversionPct(pendingDecision, applications);
   const appToLeasePct = buildFunnelConversionMetrics({ applications, approvals, leases }).appToLeasePct;
   return { applications, approvals, denials, cancelled, pendingDecision, leases, approvalPct, denialPct, cancelledPct, pendingPct, appToLeasePct };
 }
@@ -11609,6 +11641,7 @@ function renderApplicationTrackingSection(details = [], selectedMonth = getSelec
     pending: sum.pending + row.metrics.pendingDecision,
     leases: sum.leases + row.metrics.leases
   }), { applications: 0, approvals: 0, pending: 0, leases: 0 });
+  const pendingEvidence = window.AtlasApplicationLineage.summarize(getAtlasCanonicalApplicationData().records.filter(r => rows.some(row => row.name === r.property)));
   const approvalCohort = getApplicationApprovalCohortDisplay(totals.applications, totals.approvals);
   const sourceMappedCount = rows.filter(row => row.mappedLeadSources > 0).length;
   const activeApplicationCount = rows.filter(row => row.metrics.applications > 0 || row.metrics.approvals > 0 || row.metrics.pendingDecision > 0).length;
@@ -11622,21 +11655,21 @@ function renderApplicationTrackingSection(details = [], selectedMonth = getSelec
     <div class="application-tracker-head">
       <div>
         <h2>Application Tracking</h2>
-        <p>Application outcomes and lead-source coverage for the ${escapeHtml(scopeLabel)} in ${escapeHtml(FULL_MONTHS[selectedMonth])}. This section surfaces pending decisions and data gaps before traffic performance is reviewed.</p>
+        <p>Box Score period activity and lead-source coverage for the ${escapeHtml(scopeLabel)} in ${escapeHtml(FULL_MONTHS[selectedMonth])}. This section surfaces pending decisions and data gaps before traffic performance is reviewed.</p>
       </div>
       <button type="button" class="btn btn-blue btn-sm" onmousedown="return queueCurrentWorkspaceTab(3)">Open Traffic &amp; Funnel</button>
     </div>
     <div class="application-tracker-grid">
       <div class="application-tracker-metric"><div class="label">Applications MTD</div><div class="value">${Math.round(totals.applications)}</div><div class="sub">${activeApplicationCount} of ${rows.length} communities reporting activity</div></div>
-      <div class="application-tracker-metric"><div class="label">Approved</div><div class="value">${Math.round(totals.approvals)}</div><div class="sub">${escapeHtml(approvalCohort.subtext)}</div></div>
-      <div class="application-tracker-metric"><div class="label">Pending Decision</div><div class="value">${Math.round(totals.pending)}</div><div class="sub">Prioritize follow-up before the next funnel review</div></div>
+      <div class="application-tracker-metric"><div class="label">Approved</div><div class="value">${Math.round(totals.approvals)}</div><div class="sub">Period approval events; may include applications started earlier</div></div>
+      <div class="application-tracker-metric"><div class="label">Pending Decision</div><div class="value">${pendingEvidence.population ? pendingEvidence.pending : "Unavailable"}</div><div class="sub">Completed application snapshots without a terminal decision; separate from period activity</div></div>
       <div class="application-tracker-metric"><div class="label">Leases Signed MTD</div><div class="value">${Math.round(totals.leases)}</div><div class="sub">Reported signed leases for the selected reporting month</div></div>
     </div>
     <div class="application-tracker-coverage">
       <div class="application-tracker-coverage-copy"><strong>Lead-source coverage:</strong> ${sourceMappedCount} of ${rows.length} communities have mapped source volume. ${missingSourceCount ? `${missingSourceCount} ${missingSourceCount === 1 ? "community is" : "communities are"} missing source-level activity for this month.` : "All communities in scope have source-level activity."}</div>
       <button type="button" class="btn btn-gray btn-sm" onmousedown="return queueCurrentWorkspaceTab(3)">Review Coverage</button>
     </div>
-    ${watchlist.length ? `<div class="application-tracker-list">${watchlist.map(row => `<button type="button" class="application-tracker-row" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(row.name)}, 3)'><strong>${escapeHtml(row.name)}</strong><span>${Math.round(row.metrics.applications)} applications · ${Math.round(row.metrics.approvals)} approved · ${Math.round(row.metrics.pendingDecision)} pending</span></button>`).join("")}</div>` : `<div class="application-tracker-list"><div class="application-tracker-row"><strong>No application activity reported</strong><span>Use Traffic &amp; Funnel to enter application outcomes and lead-source detail for ${escapeHtml(FULL_MONTHS[selectedMonth])}.</span></div></div>`}`;
+    ${watchlist.length ? `<div class="application-tracker-list">${watchlist.map(row => `<button type="button" class="application-tracker-row" onmousedown='return queueWorkspaceNavigation(${JSON.stringify(row.name)}, 3)'><strong>${escapeHtml(row.name)}</strong><span>${Math.round(row.metrics.applications)} applications · ${Math.round(row.metrics.approvals)} approved · pending decision requires completed applicant evidence</span></button>`).join("")}</div>` : `<div class="application-tracker-list"><div class="application-tracker-row"><strong>No application activity reported</strong><span>Use Traffic &amp; Funnel to enter application outcomes and lead-source detail for ${escapeHtml(FULL_MONTHS[selectedMonth])}.</span></div></div>`}`;
 }
 
 function renderPropGrid() {
@@ -15263,7 +15296,7 @@ function defaultAtlasAccessFormDraft() {
 
 atlasAccessFormDraft = defaultAtlasAccessFormDraft();
 
-const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=a102600a81f486f6";
+const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=aaf34ed3eb7a47f1";
 const ATLAS_AUTH_UI_STORAGE_KEY = "atlas_auth_ui_state_v1";
 const ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY = "atlas_dashboard_preferences_v1";
 let atlasCentralClientLoadPromise = null;
@@ -22572,7 +22605,7 @@ function renderPortfolioScopedImportTab() {
     ${statBox("Contacts Loaded", details.filter(detail => normalizeInvestorEmailContacts(detail.record?.investorEmailContacts).length > 0).length, "Communities with report recipients saved", "#a371f7")}
   </div>`;
   const residentDataImport = typeof window.renderApplicationResidentDataImportPanel === "function"
-    ? window.renderApplicationResidentDataImportPanel()
+    ? window.renderApplicationResidentDataImportPanel() + (window.renderAtlasScreeningImport?.() || "")
     : "";
   return importFreshnessPanel + residentDataImport + renderPortfolioScopePanel("Portfolio Data Import Workspace", "Stage, validate, and apply portfolio uploads here before they flow into reporting and dashboard screens.", cardsHtml, bodyHtml);
 }
@@ -27642,7 +27675,8 @@ function buildDailyBoxScoreSnapshotFromRows(rows = [], fileName = "", rawText = 
   }
   if (leadConversionTotals) {
     dailySnapshot.applications = leadConversionTotals.completed || 0;
-    dailySnapshot.pendingDecision = leadConversionTotals.partiallyCompleted;
+    dailySnapshot.incompleteApplications = leadConversionTotals.partiallyCompleted;
+    dailySnapshot.pendingDecision = null; // Partial applications are not completed applications awaiting a decision.
     dailySnapshot.applicationsApproved = leadConversionTotals.approved;
     dailySnapshot.denied = leadConversionTotals.denied;
     dailySnapshot.cancelled = (leadConversionTotals.completedCancelled || 0) + (leadConversionTotals.approvedCancelled || 0);
@@ -27671,7 +27705,7 @@ function buildDailyBoxScoreSnapshotFromRows(rows = [], fileName = "", rawText = 
     dailySnapshot.applicationsApproved = mergePreferredBoxScoreCount(dailySnapshot.applicationsApproved, extractMetricFromRowsOrText(rows, rawText, ["applications approved", "approved applications", "approvals"], ["Approved Applications"]));
     dailySnapshot.denied = mergePreferredBoxScoreCount(dailySnapshot.denied, extractMetricFromRowsOrText(rows, rawText, ["denied"], ["Denied"]));
     dailySnapshot.cancelled = mergePreferredBoxScoreCount(dailySnapshot.cancelled, extractMetricFromRowsOrText(rows, rawText, ["cancelled", "canceled"], ["Cancelled"]));
-    dailySnapshot.pendingDecision = mergePreferredBoxScoreCount(dailySnapshot.pendingDecision, extractMetricFromRowsOrText(rows, rawText, ["pending decision", "pending decisions", "pipeline", "application started"], ["Pipeline (Application Started)", "Pending Decision"]));
+    dailySnapshot.pendingDecision = mergePreferredBoxScoreCount(dailySnapshot.pendingDecision, extractMetricFromRowsOrText(rows, rawText, ["pending decision", "pending decisions"], ["Pending Decision"]));
   }
   if (dailySnapshot.leasesSigned === null || dailySnapshot.leasesSigned === undefined) dailySnapshot.leasesSigned = extractMetricFromRowsOrText(rows, rawText, ["leases signed", "signed leases", "leases"], ["Leases Signed"]);
   if (dailySnapshot.moveIns === null || dailySnapshot.moveIns === undefined) dailySnapshot.moveIns = extractMetricFromRowsOrText(rows, rawText, ["move-ins", "move ins"], ["Move-Ins"]);
@@ -54889,7 +54923,7 @@ function renderLegacyCSVTab() {
   </div>`;
 
   const residentDataImport = typeof window.renderApplicationResidentDataImportPanel === "function"
-    ? window.renderApplicationResidentDataImportPanel()
+    ? window.renderApplicationResidentDataImportPanel() + (window.renderAtlasScreeningImport?.() || "")
     : "";
   return [
     importFreshnessPanel,

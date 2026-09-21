@@ -2,7 +2,7 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const B=require('../docs/portfolio-operations-dashboard/application-source-bridge.js');
 const root=__dirname+'/../docs/portfolio-operations-dashboard/';
 const html=fs.readFileSync(root+'index.html','utf8');
-const context={console,Date,Map,Set,XLSX:require(process.env.ATLAS_XLSX || 'xlsx'),window:{},DEFAULT_CURRENT_MONTH:8,MONTHS:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],applicationResidentDataState:{reportMonthIdx:8,reportYear:2026},savedData:{},PROPERTIES:[]};
+const context={console,Date,Map,Set,XLSX:require(process.env.ATLAS_XLSX || '../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js'),window:{},DEFAULT_CURRENT_MONTH:8,MONTHS:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],applicationResidentDataState:{reportMonthIdx:8,reportYear:2026},savedData:{},PROPERTIES:[]};
 context.FULL_MONTHS=context.MONTHS; vm.createContext(context);
 for(const match of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm)){try{vm.runInContext(match[0],context);}catch{}}
 vm.runInContext(html.slice(html.indexOf('const APPLICATION_RESIDENT_DATA_SHEET_NAME'),html.indexOf('function normalizeApplicationResidentDateInput')),context);
@@ -100,18 +100,18 @@ const synthetic=B.project([up('ui','2026-09-16T12:00:00Z',[{...r,residentName:'S
 const uiContext={console,Date,Map,Set,localStorage:{getItem:()=>null},document:{createElement:()=>({innerHTML:'',content:{querySelectorAll:()=>[]}})},alert:()=>{}};
 uiContext.window={AtlasApplicationSources:B,getAtlasCanonicalApplicationData:()=>synthetic,getAtlasApplicationScopeCommunityNames:()=>['A'],isAtlasCommunityActiveByName:()=>true,getAtlasApplicationPeriodMetrics:()=>[],getApplicationResidentReportPeriodKey:()=> '2026-09',renderTab:()=>{},addEventListener:(event,fn)=>eventHandlers[event]=fn,XLSX:{utils:context.XLSX.utils,writeFile:book=>capturedBooks.push(book)}};
 vm.createContext(uiContext);
-for(const name of ['application-aging.js','application-performance.js','application-performance-ui.js'])vm.runInContext(fs.readFileSync(root+name,'utf8'),uiContext);
+for(const name of ['application-lineage.js','screening-summary.js','application-aging.js','application-performance.js','application-performance-ui.js'])vm.runInContext(fs.readFileSync(root+name,'utf8'),uiContext);
 eventHandlers.load();
 const rendered=uiContext.window.renderApplicationPerformanceTab();
-assert(rendered.includes('Applicant snapshots'));
-assert(rendered.includes('Lease lifecycle source required'));
+assert(rendered.includes('Eligible decision cohort'));
+assert(rendered.includes('executed-lease join unavailable'));
 assert(!rendered.includes('Verified lifecycle'));
 assert(!rendered.includes('from prior stage'));
 uiContext.window.atlasApplicationExport();
-assert.equal(context.XLSX.utils.sheet_to_json(capturedBooks[0].Sheets['Applicant Snapshots']).length,1);
+assert.equal(context.XLSX.utils.sheet_to_json(capturedBooks[0].Sheets['Application Evidence']).length,1);
 uiContext.window.atlasApplicationCommandFilter('search','no match');
 assert.equal(uiContext.window.getAtlasApplicationCommandRecords().length,0);
-uiContext.window.atlasApplicationExport();assert.equal(capturedBooks.length,1,'No different unfiltered export on empty view');
+uiContext.window.atlasApplicationExport();assert.equal(context.XLSX.utils.sheet_to_json(capturedBooks.at(-1).Sheets['Application Evidence']).length,0,'Empty filtered view does not export unfiltered applications');
 console.log('PASS actual UI renderer and XLSX export share filtered rows; unsupported lifecycle and conversion rates remain unavailable.');
 
 assert.equal(context.dataImportParseMetadataDate('Availability (As of 09/16/2026)').slice(0,10),'2026-09-16');
@@ -126,3 +126,12 @@ assert.equal(cancelled.values.cancelled_applications,undefined);assert.equal(can
 console.log('PASS parenthesized source cutoff, inactive-student intersection, separate cancellation categories and distinct application/lease counts.');
 
 if(box){(async()=>{context.DATA_IMPORT_MAX_SAMPLE_CHARS=180000;vm.runInContext(html.slice(html.indexOf('const DATA_IMPORT_FIELD_ALIASES ='),html.indexOf('const DATA_IMPORT_DESTINATION_GROUPS =')),context);const source=fs.readFileSync(box);const sample=await context.dataImportReadFileSample({name:'Box Score.xlsx',arrayBuffer:async()=>source,lastModified:Date.parse('2026-09-16')});const book=context.XLSX.read(source,{type:'buffer'});assert.equal(sample.sheetNames.length,book.SheetNames.length,'Preview must discover every community tab, including those beyond tab 12');const meta=context.dataImportExtractMetadata(sample);assert.equal(meta.dataAsOf.slice(0,10),'2026-09-16');console.log('PASS full workbook discovery and real source as-of date.');})().catch(e=>{console.error(e);process.exitCode=1;});}
+
+// The actual workbook parser must preserve new timestamp columns before publication.
+context.resolveApplicationResidentPropertyMap=()=>({communityId:'A',communityName:'A',atlasName:'A'});
+const timestampHeaders=['Name','Application ID','Application Status','New Lead Created On','Application Partially Completed','Application Completed','Leasing Agent (Assigned)','Lead Source','First Visit/Tour Date','Application Started','Application Approved','Application Denied','Application Cancelled','Lease Signed','Lease ID'];
+const timestampBook=context.XLSX.utils.book_new();context.XLSX.utils.book_append_sheet(timestampBook,context.XLSX.utils.aoa_to_sheet([[],['RISE - Resident Data'],['A'],[],timestampHeaders,['Synthetic','timestamp-test','Application: Denied','09/01/2026','','09/03/2026','Agent','Web','','09/02/2026','','09/04/2026','','','lease-test']]),'A');context.XLSX.utils.book_append_sheet(timestampBook,context.XLSX.utils.aoa_to_sheet([['Version','3.1'],['data as of','09/16/2026 12:00 PM EDT']]),'Report Parameters');
+const timestampUpload=context.parseApplicationResidentDataWorkbook(timestampBook,{name:'synthetic.xlsx'},{reportMonthIdx:8,reportYear:2026});
+assert.equal(timestampUpload.records[0].applicationDeniedOn,'2026-09-04');assert.equal(timestampUpload.records[0].sourceColumns.applicationStatus,'Application Status');assert.equal(timestampUpload.records[0].sourceTimestamps.applicationStartedOn,'09/02/2026');assert.equal(timestampUpload.sourceVersion,'3.1');
+const projectedTimestamp=B.project([timestampUpload],['A']).records[0];assert.equal(projectedTimestamp.decisionStatus,'denied');assert(projectedTimestamp.decisionAt.startsWith('2026-09-04'));assert.equal(projectedTimestamp.applicationCreated,'09/02/2026');
+console.log('PASS real workbook parser → normalized upload → canonical projection preserves start/completion/denial timestamps, exact source columns and source version.');

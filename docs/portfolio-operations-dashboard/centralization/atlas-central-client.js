@@ -1366,6 +1366,17 @@
     }
   }
 
+  async function publishScreeningImport(upload) { return rpc("atlas_publish_screening_import", {p_upload:upload}); }
+  async function readScreeningImports() {
+    await refreshSession();
+    const rows=[];let after="";
+    for (;;) {
+      const page=await fetchJson(`/atlas_screening_imports?select=*&order=import_id.asc&limit=100${after?`&import_id=gt.${encodeURIComponent(after)}`:""}`);
+      if(!Array.isArray(page))throw new Error("Invalid screening response");
+      rows.push(...page);if(page.length<100)return rows;after=page.at(-1).import_id;
+    }
+  }
+
   async function publishApplicationImport(upload) {
     return rpc("atlas_publish_application_import", { p_upload: upload });
   }
@@ -1543,6 +1554,8 @@
     diagnoseAccessProvisioning,
     uploadReadOnlySnapshot,
     upsertPeopleDirectory,
+    publishScreeningImport,
+    readScreeningImports,
     publishApplicationImport,
     readApplicationImports,
     reviseApplicationImport,

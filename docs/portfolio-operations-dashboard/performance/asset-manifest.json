@@ -100,6 +100,10 @@
       [
         "investor-budget-bridge.js",
         "./features/financial-package.mjs"
+      ],
+      [
+        "features/budget-command-publication.mjs",
+        "./financial-package.mjs"
       ]
     ]
   },
@@ -124,8 +128,8 @@
     ]
   },
   "features/financial-close.mjs": {
-    "sha256": "aa342fbe68ead1f1",
-    "bytes": 11049,
+    "sha256": "45b7d22ef247f896",
+    "bytes": 12064,
     "references": [
       [
         "features/financial-comparison.mjs",
@@ -142,11 +146,15 @@
       [
         "investor-budget-bridge.js",
         "./features/financial-close.mjs"
+      ],
+      [
+        "features/budget-command-publication.mjs",
+        "./financial-close.mjs"
       ]
     ]
   },
   "features/financial-comparison.mjs": {
-    "sha256": "719d8f01ed58619d",
+    "sha256": "886ef24ccf0fc52f",
     "bytes": 11273,
     "references": [
       [
@@ -160,7 +168,7 @@
     ]
   },
   "features/financial-package-review.mjs": {
-    "sha256": "140c7bbbb9ee4023",
+    "sha256": "bb4fe8bc6792ee02",
     "bytes": 9664,
     "references": [
       [
@@ -184,7 +192,7 @@
     ]
   },
   "budget-navigation.js": {
-    "sha256": "14e4416628711711",
+    "sha256": "37b00ccb2308d3cd",
     "bytes": 7253,
     "references": [
       [
@@ -254,8 +262,8 @@
     ]
   },
   "features/budget-command-publication.mjs": {
-    "sha256": "c7e6f6cc7d791280",
-    "bytes": 12615,
+    "sha256": "4d637cb2512afd50",
+    "bytes": 13833,
     "references": [
       [
         "RISE-Budget-Builder.html",
@@ -274,7 +282,7 @@
     ]
   },
   "investor-budget-bridge.js": {
-    "sha256": "dddb4ec83acfa2ba",
+    "sha256": "23235e9ea98e9f65",
     "bytes": 14867,
     "references": [
       [
@@ -284,7 +292,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "3e5b2a2889563572",
+    "sha256": "b6e6d4309b929631",
     "bytes": 1883499,
     "references": [
       [
@@ -294,7 +302,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "a347b68d01bc06ec",
+    "sha256": "f1230b103cadfee0",
     "bytes": 27268,
     "references": [
       [

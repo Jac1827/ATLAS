@@ -29,10 +29,10 @@
  };
  const go=A.go;
  let packageReview;
- A.openFinancialPackageReview=async function(){try{packageReview=await import('./features/financial-package-review.mjs?v=140c7bbbb9ee4023');await packageReview.openReview();}catch(e){A.toast(e.message,'r');}};
+ A.openFinancialPackageReview=async function(){try{packageReview=await import('./features/financial-package-review.mjs?v=bb4fe8bc6792ee02');await packageReview.openReview();}catch(e){A.toast(e.message,'r');}};
  const actuals=R.views.actuals;
  function sharedActualsPanel(){
-  setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el)return;try{const m=await import('./features/financial-comparison.mjs?v=719d8f01ed58619d');await m.mountComparison(el,{communityName:A.cp().property.name,year:A.year()});}catch(e){el.textContent=e.message;}},0);
+  setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el)return;try{const m=await import('./features/financial-comparison.mjs?v=886ef24ccf0fc52f');await m.mountComparison(el,{communityName:A.cp().property.name,year:A.year()});}catch(e){el.textContent=e.message;}},0);
   return '<div class="panel"><button class="btn pri" onclick="RBB.app.openFinancialPackageReview()">Upload or apply saved financial review</button><p>Upload → reconcile → save review → shared comparison → Admin close → published actuals</p></div><section class="panel" id="shared-financial-comparison"><p>Loading shared actuals…</p></section>';
  }
  R.views.actuals=function(){return sharedActualsPanel()+'<details><summary>Legacy manual-entry worksheet — separate browser data</summary>'+actuals.apply(this,arguments)+'</details>';};
@@ -57,7 +57,7 @@
   dialog.addEventListener('close',()=>dialog.remove(),{once:true});document.body.append(dialog);render();dialog.showModal();input.focus();
  };
  document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();A.openCommandMenu();}});
- if(typeof window!=='undefined'&&window.parent!==window&&new URLSearchParams(location.search).get('investorReader')!=='1')import('./features/financial-close.mjs?v=aa342fbe68ead1f1').then(async m=>{
+ if(typeof window!=='undefined'&&window.parent!==window&&new URLSearchParams(location.search).get('investorReader')!=='1')import('./features/financial-close.mjs?v=45b7d22ef247f896').then(async m=>{
    const central=window.parent.ATLAS_CENTRAL;if(!central||!window.parent.atlasAccessDecision?.(12)?.ok)return;
    const [communities,aliases,matcher]=await Promise.all([central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000'),import('./features/financial-package.mjs?v=49ea086d6d07f300')]);
    m.installBuilder(R,central,name=>matcher.resolveCommunity(name,communities,aliases).communityId);A.render();

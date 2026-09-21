@@ -6008,6 +6008,7 @@
   }
 
   async function exportBoardDeck() {
+    try { await window.AtlasFeatures?.load("pptx"); } catch (error) { window.alert(error.message); return; }
     const view = computeViewModel();
     if (!view) {
       return;

@@ -113,6 +113,8 @@ var atlasInvestorPacketState = { selectedCommunity:'', communities:{} };
   }
   function download(blob,name) { const a=document.createElement('a'); const url=URL.createObjectURL(blob);a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000); }
   async function pptx(packet,returnBytes=false) {
+    await window.AtlasFeatures?.load("pptx");
+    await window.AtlasFeatures?.load("zip");
     if(typeof pptxgen==='undefined') throw new Error('PowerPoint export library did not load. Reload ATLAS and try again.');
     const deck=new pptxgen();deck.layout='LAYOUT_WIDE';deck.author='RISE';deck.subject='Investor community reporting';deck.title=`${packet.community} | ${packet.period}`;deck.company='RISE';deck.lang='en-US';
     deck.defineSlideMaster({title:'ATLAS_INVESTOR',objects:[],background:{color:'FFFFFF'}});

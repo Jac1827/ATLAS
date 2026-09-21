@@ -7,18 +7,15 @@
 <link rel="icon" type="image/png" href="./assets/atlas-icon.png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css"/>
+<script src="./performance/diagnostics.js?v=037cfd38ace4d750"></script>
+<script src="./performance/feature-loader.js?v=b3ecf90b0783a5a7"></script>
 <script src="financial-publication.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs/dist/pptxgen.bundle.js"></script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <link rel="stylesheet" href="./investor-packet.css"/>
 <script src="./investor-packet-core.js"></script>
-<script src="./vendor/jszip.min.js"></script>
 <script src="./investor-packet-sources.js"></script>
-<script src="./investor-packet-ui.js"></script>
+<script src="./investor-packet-ui.js?v=6b25f612669118ec"></script>
 <style>
   :root {
     --bg: #f5f5f3;
@@ -1428,7 +1425,7 @@
 <script src="./application-source-bridge.js?v=occupancy-integrity-20260918"></script>
 <script src="./occupancy-replay.js?v=2"></script>
 <script src="./occupancy-replay-browser.js?v=1"></script>
-<script src="./migration-archive.js?v=2"></script>
+<script src="./migration-archive.js?v=e4993aad17191ed2"></script>
 <script src="./application-performance.js?v=20260917-weekly-report"></script>
 <link rel="stylesheet" href="./concession-insights.css?v=20260917-1">
 <script src="./property-intelligence.js?v=20260917-1"></script>
@@ -7685,7 +7682,7 @@ function getSharedAssignmentsForCommunity(propName = getProp().name, options = {
   const matched = findCanonicalCommunityName(propName) || propName;
   const asOfDate = normalizeSharedDate(options.asOfDate) || getBonusAssignmentAsOfDate(options.quarter || bonusQuarter);
   const order = Object.fromEntries(PROPERTY_TEAM_ROLE_ORDER.map((roleType, index) => [roleType, index]));
-  return normalizeAtlasSharedData(atlasSharedData).assignments
+  return (options.normalizedSharedData || normalizeAtlasSharedData(atlasSharedData)).assignments
     .filter(assignment => assignment.communityName === matched)
     .filter(assignment => !options.roleType || assignment.bonusRoleType === options.roleType)
     .filter(assignment => isSharedAssignmentActiveOnDate(assignment, asOfDate))
@@ -7703,8 +7700,8 @@ function getSharedAssignmentsByRoleType(propName = getProp().name, options = {})
   }, {});
 }
 
-function atlasPeopleRosterStaffingAvailable() {
-  const sharedData = normalizeAtlasSharedData(atlasSharedData);
+function atlasPeopleRosterStaffingAvailable(normalizedSharedData = null) {
+  const sharedData = normalizedSharedData || normalizeAtlasSharedData(atlasSharedData);
   return Object.keys(sharedData.employees || {}).length > 0 || sharedData.assignments.length > 0;
 }
 
@@ -7714,7 +7711,7 @@ function blankPropertyRoleCountMap() {
 
 function getPeopleRosterTeamConfigForCommunity(propName = getProp().name, options = {}) {
   const fallback = normalizePropertyTeamConfig(options.fallbackTeamConfig || propertyTeamConfig);
-  if (!atlasPeopleRosterStaffingAvailable()) return { teamConfig: fallback, rosterSourced: false, activeAssignments: [] };
+  if (!atlasPeopleRosterStaffingAvailable(options.normalizedSharedData)) return { teamConfig: fallback, rosterSourced: false, activeAssignments: [] };
   const activeAssignments = getSharedAssignmentsForCommunity(propName, options);
   const teamConfig = blankPropertyRoleCountMap();
   activeAssignments.forEach(assignment => {
@@ -7735,10 +7732,10 @@ function getPeopleRosterTurnoverEventDate(assignment = {}, employee = {}) {
 
 function getPeopleRosterTurnoverByQuarterForCommunity(propName = getProp().name, options = {}) {
   const fallback = normalizePropertyTurnoverByQuarter(options.fallbackTurnoverByQuarter, options.fallbackTurnoverConfig);
-  if (!atlasPeopleRosterStaffingAvailable()) return { turnoverByQuarter: fallback, rosterSourced: false };
+  if (!atlasPeopleRosterStaffingAvailable(options.normalizedSharedData)) return { turnoverByQuarter: fallback, rosterSourced: false };
   const year = Number(options.year || new Date().getFullYear());
   const matched = findCanonicalCommunityName(propName) || propName;
-  const sharedData = normalizeAtlasSharedData(atlasSharedData);
+  const sharedData = options.normalizedSharedData || normalizeAtlasSharedData(atlasSharedData);
   const employees = sharedData.employees || {};
   const turnoverByQuarter = defaultPropertyTurnoverByQuarter();
   const counted = new Set();
@@ -7823,12 +7820,14 @@ function applyPeopleRosterStaffingToCommunityRecord(propName, record = {}, optio
 
 function syncAllCommunityStaffingFromPeopleRoster(options = {}) {
   syncSharedPeopleAssignments({ persist: false });
-  if (!atlasPeopleRosterStaffingAvailable()) return { changed: false, synced: 0 };
+  // One immutable-in-this-pass snapshot; never retained across state/auth changes.
+  const normalizedSharedData = normalizeAtlasSharedData(atlasSharedData);
+  if (!atlasPeopleRosterStaffingAvailable(normalizedSharedData)) return { changed: false, synced: 0 };
   let changed = false;
   let synced = 0;
   getAllCommunityNames().forEach(name => {
     const before = normalizeSavedCommunityRecord(name, savedData[name]);
-    const after = applyPeopleRosterStaffingToCommunityRecord(name, before, { year: options.year || new Date().getFullYear() });
+    const after = applyPeopleRosterStaffingToCommunityRecord(name, before, { year: options.year || new Date().getFullYear(), normalizedSharedData });
     const beforeComparable = JSON.stringify({
       propertyTeamConfig: before.propertyTeamConfig,
       propertyTurnoverConfig: before.propertyTurnoverConfig,
@@ -14648,62 +14647,26 @@ function destroyAtlasPortfolioMap() {
 }
 
 async function initAtlasPortfolioMap() {
-  const mapEl = document.getElementById("atlas-portfolio-map");
-  if (!mapEl) {
-    destroyAtlasPortfolioMap();
-    return;
+  if (!document.getElementById("atlas-portfolio-map") || activeTab !== 0) return;
+  try {
+    const feature = await import("./features/portfolio-map.mjs?v=bbe032b73d99159d");
+    return await feature.default();
+  } catch (error) {
+    const panel = document.getElementById("atlas-portfolio-map");
+    if (panel) panel.textContent = "Map could not load. Reopen this view to try again.";
   }
-  if (typeof window.L === "undefined") {
-    mapEl.innerHTML = `<div style="padding:20px;font-size:0.76rem;color:var(--muted)">Map library is still loading. Refresh once if the RISE portfolio map does not appear.</div>`;
-    return;
-  }
-  const details = getAtlasOperationalCommunityNames(true).map(buildCommunityMapDetails);
-  const withAddress = details.filter(detail => detail.address);
-  for (const detail of withAddress) {
-    if (!detail.geo) {
-      const geo = await geocodeCommunityAddress(detail.name, detail.address);
-      if (geo) detail.geo = { lat: Number(geo.lat), lng: Number(geo.lng) };
-    }
-  }
-  const mapped = withAddress.filter(detail => detail.geo);
-  if (mapped.length === 0) {
-    mapEl.innerHTML = `<div style="padding:20px;font-size:0.76rem;color:var(--muted)">Add community addresses in Community Setup to populate the RISE portfolio map.</div>`;
-    return;
-  }
-  destroyAtlasPortfolioMap();
-  atlasPortfolioMap = L.map(mapEl, { zoomControl: true, scrollWheelZoom: false }).setView([30.3322, -81.6557], 9);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "&copy; OpenStreetMap contributors"
-  }).addTo(atlasPortfolioMap);
-  const bounds = [];
-  mapped.forEach(detail => {
-    const icon = L.divIcon({
-      html: createAtlasMarkerHtml(detail.icon, detail.name),
-      className: "atlas-marker-wrap",
-      iconSize: [34, 34],
-      iconAnchor: [17, 17]
-    });
-    const marker = L.marker([detail.geo.lat, detail.geo.lng], { icon }).addTo(atlasPortfolioMap);
-    marker.bindPopup(buildAtlasMapPopup(detail));
-    marker.on("mouseover", () => marker.openPopup());
-    marker.on("mouseout", () => marker.closePopup());
-    atlasPortfolioMapMarkers.push(marker);
-    bounds.push([detail.geo.lat, detail.geo.lng]);
-  });
-  if (bounds.length === 1) {
-    atlasPortfolioMap.setView(bounds[0], 11);
-  } else if (bounds.length > 1) {
-    atlasPortfolioMap.fitBounds(bounds, { padding: [30, 30] });
-  }
-  setTimeout(() => atlasPortfolioMap?.invalidateSize(), 120);
 }
 
+let atlasPortfolioMapFrame = null;
 function queueAtlasPortfolioMapHydration() {
+  if (atlasPortfolioMapFrame !== null) window.cancelAnimationFrame(atlasPortfolioMapFrame);
+  atlasPortfolioMapFrame = null;
   if (activeTab !== 0) {
     destroyAtlasPortfolioMap();
     return;
   }
-  window.requestAnimationFrame(() => {
+  atlasPortfolioMapFrame = window.requestAnimationFrame(() => {
+    atlasPortfolioMapFrame = null;
     initAtlasPortfolioMap();
   });
 }
@@ -14808,7 +14771,9 @@ function syncAtlasWorkspaceCardVisibility() {
 }
 
 function setTab(i) {
+  window.AtlasPerformance?.memory("before-navigation");
   const requestedTab = Math.max(0, Math.min(MAX_TAB, Number(i) || 0));
+  if (activeTab === 7 && requestedTab !== 7) cancelDataImportPreview();
   const requestedDecision = atlasAccessDecision(requestedTab);
   activeTab = requestedDecision.ok ? requestedTab : requestedTab;
   if (activeTab === 1 && isPortfolioWorkspaceSelected()) {
@@ -14853,9 +14818,12 @@ function setTab(i) {
   });
   syncAtlasWorkspaceCardVisibility();
   renderTab();
+  refreshAtlasLivePresence({ silent: true });
+  window.AtlasPerformance?.memory("after-navigation");
 }
 
 function renderTab() {
+  destroyAtlasPortfolioMap();
   const renderers = [
     renderPortfolioHomeTab,
     renderSetupTab,
@@ -14926,7 +14894,6 @@ function renderTab() {
   applyDashboardBackdrop();
   syncAtlasTopbar();
   applyAtlasAccessControlsToNavigation();
-  refreshAtlasLivePresence({ silent: true });
   if (!MOUNT_TABS.includes(activeTab)) {
     attachEventListeners();
     queueActiveTabPhotoAssetHydration();
@@ -19220,6 +19187,7 @@ function markAtlasCentralReconciliationReviewed() {
 
 async function testAtlasCentralRollbackSnapshot() {
   try {
+    await window.AtlasFeatures?.load("zip");
     const payload = await buildAtlasCentralAppStatePayload();
     const validation = await window.AtlasMigrationArchive.verifyRestore(payload.bundle, JSZip);
     downloadAtlasJsonFile({...payload.bundle, rollbackValidation:validation, reconciliation:payload.reconciliation}, `atlas_rollback_test_snapshot_${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
@@ -19615,6 +19583,7 @@ async function completeAtlasCentralPasswordReset() {
 }
 
 async function signOutAtlasCentral() {
+  cancelDataImportPreview();
   try {
     await window.ATLAS_CENTRAL?.signOut?.();
     if (atlasSharedRealtimeTimer) clearInterval(atlasSharedRealtimeTimer);
@@ -19677,6 +19646,7 @@ function redactAtlasCentralStorageBundle(bundle = {}) {
 }
 
 async function buildAtlasCentralAppStatePayload() {
+  await window.AtlasFeatures?.load("zip");
   const migrationSnapshot = await collectAtlasCentralMigrationSnapshot();
   const bundle = redactAtlasCentralStorageBundle(await buildDashboardStorageBundle());
   await atlasStateWritePromise;
@@ -21638,6 +21608,7 @@ async function applyDashboardStorageBundle(bundle) {
   let intendedCommunityData = null;
   if (bundle?.bundleType === "atlas_migration_archive_v1" && !window.AtlasMigrationArchive) throw new Error("Migration archive support is unavailable. Reload before restoring.");
   if (bundle?.bundleType === "atlas_migration_archive_v1") {
+    await window.AtlasFeatures?.load("zip");
     const unpacked = await window.AtlasMigrationArchive.unpack(await window.AtlasMigrationArchive.hydrate(bundle, window.ATLAS_CENTRAL), JSZip);
     bundle = unpacked.bundle;
     retainedRecords = unpacked.records;
@@ -27855,11 +27826,14 @@ function chooseBestDailyBoxScoreSnapshot(candidates = []) {
 }
 
 async function parseDailyBoxScoreFile(file) {
+  let atlasPdfDocument = null;
+  try {
   const lowerName = String(file?.name ?? "").toLowerCase();
   if (!file) return null;
   if (lowerName.endsWith(".pdf")) {
+    await window.AtlasFeatures?.load("pdf");
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+    const pdf = atlasPdfDocument = await pdfjsLib.getDocument(arrayBuffer).promise;
     let fullText = "";
     for (let i = 1; i <= pdf.numPages; i += 1) {
       const page = await pdf.getPage(i);
@@ -27896,6 +27870,9 @@ async function parseDailyBoxScoreFile(file) {
         floorPlanRows: Array.isArray(best.floorPlanRows) ? best.floorPlanRows : []
       }
     : null;
+  } finally {
+    try { await atlasPdfDocument?.destroy?.(); } catch { /* Cleanup must not mask the parser result. */ }
+  }
 }
 
 async function processDlrBoxScoreFiles(files) {
@@ -28472,11 +28449,14 @@ function extractMarketSurveyWorkbookData(workbook, fileName = "") {
 }
 
 async function extractPdfTextFromFile(file, options = {}) {
+  let atlasPdfDocument = null;
+  try {
+  await window.AtlasFeatures?.load("pdf");
   if (!window.pdfjsLib?.getDocument) {
     throw new Error("PDF parsing support did not load.");
   }
   const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+  const pdf = atlasPdfDocument = await pdfjsLib.getDocument(arrayBuffer).promise;
   const pages = [];
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
     const page = await pdf.getPage(pageNumber);
@@ -28502,6 +28482,9 @@ async function extractPdfTextFromFile(file, options = {}) {
     pages.push(pageLines.join("\n"));
   }
   return pages.join("\n");
+  } finally {
+    try { await atlasPdfDocument?.destroy?.(); } catch { /* Cleanup must not mask the parser result. */ }
+  }
 }
 
 function normalizeAptiqPdfText(value = "") {
@@ -39746,401 +39729,14 @@ async function addPptxDeckShell(slide, pptx, report, options = {}) {
 }
 
 async function buildMonthlyInvestorPresentationPptxSlides(pptx, report) {
-  const assetCache = new Map();
-  const coverPhotoData = await getPhotoAssetDataForPptx(getMonthlyInvestorPresentationPrimaryPhotoAsset(report), assetCache);
-  const ribbonCover = "Monthly investor presentation";
-
-  const coverSlide = pptx.addSlide();
-  await addPptxDeckShell(coverSlide, pptx, report, {
-    title: report.title,
-    ribbon: ribbonCover,
-    accent: RISE_PRESENTATION_BRAND.blue,
-    photoData: coverPhotoData,
-    titleSize: 34
-  });
-  coverSlide.addText(report.subtitle, {
-    x: 0.35, y: 2.18, w: 6.4, h: 0.32,
-    fontFace: "Arial", fontSize: 18, color: getPptxColorHex(RISE_PRESENTATION_BRAND.cyan), margin: 0, fit: "shrink"
-  });
-  coverSlide.addText(`${report.currentMonthLabel} Investor Presentation`, {
-    x: 0.35, y: 2.56, w: 5.8, h: 0.22,
-    fontFace: "Arial", fontSize: 14, color: "D9E7F5", margin: 0, fit: "shrink"
-  });
-  await addPptxMemberStrip(coverSlide, pptx, report.regionalStaff, assetCache, {
-    x: 0.35, y: 3.05, w: 8.95, h: 1.0, title: "Leadership in scope", max: 5
-  });
-
-  const contentsSlide = pptx.addSlide();
-  await addPptxDeckShell(contentsSlide, pptx, report, {
-    title: "Contents",
-    ribbon: "Presentation map",
-    accent: RISE_PRESENTATION_BRAND.blue,
-    photoData: coverPhotoData
-  });
-  addPptxBulletPanel(contentsSlide, pptx, {
-    x: 0.35, y: 2.05, w: 4.65, h: 3.75,
-    title: "Agenda",
-    items: buildMonthlyInvestorPresentationAgenda(report)
-  });
-  const mosaicPhotos = (report.photoPool ?? []).slice(0, 3);
-  addPptxPanel(contentsSlide, pptx, { x: 5.18, y: 2.05, w: 4.45, h: 3.75, title: "Selected communities", fillColor: "17324A" });
-  for (let index = 0; index < mosaicPhotos.length; index += 1) {
-    const photoData = await getPhotoAssetDataForPptx(mosaicPhotos[index], assetCache);
-    if (!photoData) continue;
-    const layout = [
-      { x: 5.32, y: 2.28, w: 2.02, h: 1.48 },
-      { x: 7.42, y: 2.28, w: 2.02, h: 1.48 },
-      { x: 5.32, y: 3.88, w: 4.12, h: 1.55 }
-    ][index];
-    contentsSlide.addImage({ data: photoData, ...layout });
-    contentsSlide.addText(String(mosaicPhotos[index].community ?? ""), {
-      x: layout.x + 0.08, y: layout.y + layout.h - 0.22, w: layout.w - 0.16, h: 0.14,
-      fontFace: "Arial", fontSize: 8, bold: true, color: "FFFFFF", margin: 0
-    });
-  }
-
-  const summarySlide = pptx.addSlide();
-  await addPptxDeckShell(summarySlide, pptx, report, {
-    title: "Executive Summary",
-    ribbon: "Topline operating story",
-    accent: RISE_PRESENTATION_BRAND.blue,
-    photoData: coverPhotoData
-  });
-  addPptxMetricGrid(summarySlide, pptx, buildMonthlyInvestorPresentationMetricCards(report), {
-    x: 0.35, y: 2.0, w: 9.15, h: 1.86, cols: 3, valueSize: 18, subSize: 7.2
-  });
-  addPptxTextPanel(summarySlide, pptx, {
-    x: 0.35, y: 4.02, w: 9.15, h: 2.08,
-    title: "Narrative",
-    body: buildMonthlyInvestorPresentationNarrative(report).join("\n\n"),
-    fontSize: 11
-  });
-
-  if (report.details.length > 1) {
-    const snapshotSlide = pptx.addSlide();
-    await addPptxDeckShell(snapshotSlide, pptx, report, {
-      title: "Selected Community Snapshot",
-      ribbon: "Scope summary",
-      accent: RISE_PRESENTATION_BRAND.cyan,
-      photoData: coverPhotoData
-    });
-    addPptxBarPanel(snapshotSlide, pptx, {
-      x: 0.35, y: 2.0, w: 4.52, h: 3.1,
-      title: "Physical Occupancy vs Saved Budget",
-      subtitle: "Each community is measured against its saved physical occupancy budget for the active month.",
-      items: report.details.map(detail => ({
-        label: detail.name,
-        value: getSummaryOccPct(detail.summary),
-        target: Number(detail.summary.budgetOccPct ?? 0),
-        note: `Leased ${getSummaryLeasedPct(detail.summary).toFixed(1)}% · ${Math.round(detail.summary.applicationsApproved ?? 0)} approved apps MTD`,
-        color: RISE_PRESENTATION_BRAND.blue
-      })),
-      max: 100,
-      valueFormatter: value => `${Number(value || 0).toFixed(1)}%`,
-      targetFormatter: value => `${Number(value || 0).toFixed(1)}%`
-    });
-    addPptxBarPanel(snapshotSlide, pptx, {
-      x: 5.0, y: 2.0, w: 4.52, h: 3.1,
-      title: "Approved Applications vs Received",
-      subtitle: "The bar shows approved applications, while the target marker shows total applications received.",
-      items: report.details.map(detail => ({
-        label: detail.name,
-        value: Number(detail.summary.applicationsApproved ?? 0),
-        target: Number(detail.summary.applications ?? 0),
-        note: `${(detail.summary.applicationApprovalPct ?? 0).toFixed(1)}% approval rate · ${formatSignedDisplay(detail.summary.monthAbsorption ?? 0)} absorption`,
-        color: RISE_PRESENTATION_BRAND.cyan
-      })),
-      valueFormatter: value => `${Math.round(value || 0)}`,
-      targetFormatter: value => `${Math.round(value || 0)}`
-    });
-    addPptxBulletPanel(snapshotSlide, pptx, {
-      x: 0.35, y: 5.28, w: 9.15, h: 1.35,
-      title: "Scope read",
-      items: [
-        `${report.details.length} selected communities are represented across ${report.investorGroups.length} investment portfolios.`,
-        `${report.aggregate.totalUnits.toLocaleString()} total units are included in this monthly presentation scope.`,
-        `${(report.regionalStaff ?? []).length > 0 ? `${report.regionalStaff.length} leadership headshots are included based on scope.` : "Add VP or Regional headshots to strengthen the cover and spotlight slides."}`
-      ],
-      fontSize: 10
-    });
-  }
-
-  if (report.selectedSections.includes("overview")) {
-    const overviewSlide = pptx.addSlide();
-    await addPptxDeckShell(overviewSlide, pptx, report, {
-      title: "Budget & Revenue Position",
-      ribbon: "Saved budget pacing and rate health",
-      accent: RISE_PRESENTATION_BRAND.blue,
-      photoData: coverPhotoData
-    });
-    addPptxMetricGrid(overviewSlide, pptx, [
-      { label: "Budget Attainment", value: `${(report.aggregate.avgBudgetOccAttainmentPct ?? 0).toFixed(1)}%`, sub: "Average occupancy attainment vs saved budget" },
-      { label: "Occ Gap vs Budget", value: formatSignedDisplay(report.aggregate.occGapPts ?? 0, 1, " pts"), sub: "Portfolio occupancy gap versus budget" },
-      { label: "Leased Gap vs Budget", value: formatSignedDisplay(report.aggregate.leasedGapPts ?? 0, 1, " pts"), sub: "Leased occupancy gap versus target" },
-      { label: "NER Delta vs Budget", value: report.aggregate.nerDelta ? formatSignedDisplay(report.aggregate.nerDelta, 0) : "—", sub: "Weighted effective rent delta versus budget" }
-    ], {
-      x: 0.35, y: 2.0, w: 9.15, h: 0.95, cols: 4, valueSize: 14.5, subSize: 6.7
-    });
-    addPptxBarPanel(overviewSlide, pptx, {
-      x: 0.35, y: 3.1, w: 4.52, h: 2.72,
-      title: "Occupancy vs Saved Budget by Community",
-      items: report.details.map(detail => ({
-        label: detail.name,
-        value: getSummaryOccPct(detail.summary),
-        target: Number(detail.summary.budgetOccPct ?? 0),
-        note: detail.summary.budgetOccOnTrack ? "On track to budget" : `${Math.max(detail.summary.occGapUnits ?? 0, 0)} units below target`,
-        color: RISE_PRESENTATION_BRAND.blue
-      })),
-      max: 100,
-      valueFormatter: value => `${Number(value || 0).toFixed(1)}%`,
-      targetFormatter: value => `${Number(value || 0).toFixed(1)}%`
-    });
-    addPptxBarPanel(overviewSlide, pptx, {
-      x: 5.0, y: 3.1, w: 4.52, h: 2.72,
-      title: "Actual NER vs Budgeted NER",
-      items: report.details.map(detail => ({
-        label: detail.name,
-        value: Number(detail.summary.currentNer ?? 0),
-        target: Number(detail.summary.proformaNer ?? 0),
-        note: Number(detail.summary.currentNer ?? 0) > 0 && Number(detail.summary.proformaNer ?? 0) > 0
-          ? `Delta ${formatSignedDisplay((detail.summary.currentNer ?? 0) - (detail.summary.proformaNer ?? 0), 0)}`
-          : "Awaiting complete NER data",
-        color: RISE_PRESENTATION_BRAND.cyan
-      })),
-      valueFormatter: value => value > 0 ? `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—",
-      targetFormatter: value => value > 0 ? `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—"
-    });
-  }
-
-  if (report.selectedSections.includes("traffic") || report.selectedSections.includes("overview")) {
-    const trafficSlide = pptx.addSlide();
-    await addPptxDeckShell(trafficSlide, pptx, report, {
-      title: "Leasing Traffic & Conversion",
-      ribbon: "Month-to-date funnel performance",
-      accent: RISE_PRESENTATION_BRAND.cyan,
-      photoData: coverPhotoData
-    });
-    addPptxMetricGrid(trafficSlide, pptx, [
-      { label: "Applications (MTD)", value: `${Math.round(report.aggregate.applications ?? 0)}`, sub: formatPortfolioTrendValue(report.aggregate.applications ?? 0, report.aggregate.previousApplications ?? 0, "count_pct") },
-      { label: "Approved Applications", value: `${Math.round(report.aggregate.applicationsApproved ?? 0)}`, sub: formatPortfolioTrendValue(report.aggregate.applicationsApproved ?? 0, report.aggregate.previousApplicationsApproved ?? 0, "count_pct") },
-      { label: "Tour to App", value: `${(report.aggregate.tourToAppPct ?? 0).toFixed(1)}%`, sub: formatPortfolioTrendValue(report.aggregate.tourToAppPct ?? 0, report.aggregate.previousTourToAppPct ?? 0, "point") },
-      { label: "Tour to Lease", value: `${(report.aggregate.tourToLeasePct ?? 0).toFixed(1)}%`, sub: formatPortfolioTrendValue(report.aggregate.tourToLeasePct ?? 0, report.aggregate.previousTourToLeasePct ?? 0, "point") }
-    ], {
-      x: 0.35, y: 2.0, w: 9.15, h: 0.95, cols: 4, valueSize: 14.5, subSize: 6.7
-    });
-    addPptxBarPanel(trafficSlide, pptx, {
-      x: 0.35, y: 3.1, w: 4.52, h: 2.72,
-      title: "Approved Applications vs Total Applications",
-      items: report.details.map(detail => ({
-        label: detail.name,
-        value: Number(detail.summary.applicationsApproved ?? 0),
-        target: Number(detail.summary.applications ?? 0),
-        note: `${(detail.summary.applicationApprovalPct ?? 0).toFixed(1)}% approval rate`,
-        color: RISE_PRESENTATION_BRAND.blue
-      })),
-      valueFormatter: value => `${Math.round(value || 0)}`,
-      targetFormatter: value => `${Math.round(value || 0)}`
-    });
-    addPptxBarPanel(trafficSlide, pptx, {
-      x: 5.0, y: 3.1, w: 4.52, h: 2.72,
-      title: "Tour to Lease Conversion by Community",
-      subtitle: "The target flexes upward where the saved traffic plan needs more closing power to stay on budget.",
-      items: report.details.map(detail => {
-        const plan = getCommunityPerformancePlan(detail.name, detail.record);
-        const needed = Number(plan?.currentTourToLeaseNeededPct ?? 0);
-        return {
-          label: detail.name,
-          value: Number(detail.summary.tourToLeasePct ?? 0),
-          target: needed > 0 ? Math.max(28, needed) : 28,
-          note: `${Math.round(detail.summary.tours ?? 0)} tours · ${Math.round(detail.summary.leasesSigned ?? 0)} leases`,
-          color: RISE_PRESENTATION_BRAND.cyan
-        };
-      }),
-      max: 100,
-      valueFormatter: value => `${Number(value || 0).toFixed(1)}%`,
-      targetFormatter: value => `${Number(value || 0).toFixed(1)}%`
-    });
-  }
-
-  if (report.selectedSections.includes("renewals") || report.selectedSections.includes("reputation")) {
-    const renewalsSlide = pptx.addSlide();
-    await addPptxDeckShell(renewalsSlide, pptx, report, {
-      title: "Renewals, Retention & Resident Experience",
-      ribbon: "Stability and resident sentiment",
-      accent: RISE_PRESENTATION_BRAND.mint,
-      photoData: coverPhotoData
-    });
-    addPptxMetricGrid(renewalsSlide, pptx, [
-      { label: "Expirations (MTD)", value: `${Math.round(report.aggregate.renewalExpirations ?? 0)}`, sub: formatPortfolioTrendValue(report.aggregate.renewalExpirations ?? 0, report.aggregate.previousRenewalExpirations ?? 0, "count_pct") },
-      { label: "Renewals Signed", value: `${Math.round(report.aggregate.renewalsSigned ?? 0)}`, sub: formatPortfolioTrendValue(report.aggregate.renewalsSigned ?? 0, report.aggregate.previousRenewalsSigned ?? 0, "count_pct") },
-      { label: "Retention Rate", value: `${(report.aggregate.renewalRetentionRate ?? 0).toFixed(1)}%`, sub: formatPortfolioTrendValue(report.aggregate.renewalRetentionRate ?? 0, report.aggregate.previousRenewalRetentionRate ?? 0, "point") },
-      { label: "Projected Attrition", value: `${Math.round(report.aggregate.renewalProjectedAttrition ?? 0)}`, sub: "MTD risk units in lease planning" },
-      { label: "ORA", value: (report.aggregate.oraScore ?? 0) > 0 ? (report.aggregate.oraScore ?? 0).toFixed(1) : "—", sub: "Portfolio average" },
-      { label: "Quarterly Google", value: (report.aggregate.googleQuarterlyRating ?? 0) > 0 ? (report.aggregate.googleQuarterlyRating ?? 0).toFixed(2) : "—", sub: "Current quarter rating" }
-    ], {
-      x: 0.35, y: 2.0, w: 9.15, h: 1.72, cols: 3, valueSize: 15.5, subSize: 6.8
-    });
-    addPptxBarPanel(renewalsSlide, pptx, {
-      x: 0.35, y: 3.9, w: 4.52, h: 2.34,
-      title: "Renewal Retention vs Goal by Community",
-      items: report.details.map(detail => {
-        const plan = getCommunityPerformancePlan(detail.name, detail.record);
-        return {
-          label: detail.name,
-          value: Number(detail.summary.renewalRetentionRate ?? 0),
-          target: Number(plan?.recommendedRenewalGoal ?? 60),
-          note: `${Math.round(detail.summary.renewalProjectedAttrition ?? 0)} projected attrition units`,
-          color: RISE_PRESENTATION_BRAND.mint
-        };
-      }),
-      max: 100,
-      valueFormatter: value => `${Number(value || 0).toFixed(1)}%`,
-      targetFormatter: value => `${Number(value || 0).toFixed(1)}%`
-    });
-    addPptxBarPanel(renewalsSlide, pptx, {
-      x: 5.0, y: 3.9, w: 4.52, h: 2.34,
-      title: "ORA by Community vs National Average",
-      subtitle: "The target marker reflects the 62 ORA national average baseline used elsewhere in the dashboard.",
-      items: report.details.map(detail => ({
-        label: detail.name,
-        value: Number(detail.summary.oraScore ?? 0),
-        target: 62,
-        note: Number(detail.summary.googleQuarterlyRating ?? 0) > 0 ? `Quarterly Google ${Number(detail.summary.googleQuarterlyRating).toFixed(2)}` : "Quarterly Google pending",
-        color: RISE_PRESENTATION_BRAND.blue
-      })),
-      max: 100,
-      valueFormatter: value => Number(value || 0) > 0 ? Number(value).toFixed(1) : "—",
-      targetFormatter: value => `${Number(value || 0).toFixed(0)}`
-    });
-  }
-
-  for (const detail of (report.details ?? [])) {
-    const detailSlide = pptx.addSlide();
-    const detailPhotoData = await getPhotoAssetDataForPptx(getDetailPhotoBank(detail)[0], assetCache);
-    await addPptxDeckShell(detailSlide, pptx, report, {
-      title: detail.name,
-      ribbon: "Community spotlight + pricing action",
-      accent: RISE_PRESENTATION_BRAND.sky,
-      photoData: detailPhotoData
-    });
-    const summary = detail.summary;
-    const monthEntry = getMonthlyPresentationCurrentEntry(detail);
-    const market = buildRegionalPricingWorksheetSnapshot(detail);
-    const people = getPresentationCommunityStaffForDetail(detail);
-    addPptxTextPanel(detailSlide, pptx, {
-      x: 0.35, y: 2.0, w: 4.55, h: 1.16,
-      title: "Community spotlight",
-      body: [
-        getInvestorPortfolioName(detail.record),
-        `${getDashboardMonthLabel(detail.record?.currentMonth ?? currentMonth)} operating picture`
-      ].join("\n"),
-      fontSize: 11
-    });
-    addPptxMetricGrid(detailSlide, pptx, [
-      { label: "Physical occupancy", value: `${getSummaryOccPct(summary).toFixed(1)}%` },
-      { label: "Leased occupancy", value: `${getSummaryLeasedPct(summary).toFixed(1)}%` },
-      { label: "Approved apps MTD", value: `${Math.round(summary.applicationsApproved ?? 0)}` },
-      { label: "Net absorption MTD", value: formatSignedDisplay(summary.monthAbsorption ?? 0) },
-      { label: "Renewal retention", value: `${(summary.renewalRetentionRate ?? 0).toFixed(1)}%` },
-      { label: "ORA average", value: (summary.oraScore ?? 0) > 0 ? (summary.oraScore ?? 0).toFixed(1) : "—" }
-    ], {
-      x: 0.35, y: 3.25, w: 4.55, h: 1.52, cols: 2, valueSize: 13.5, subSize: 0
-    });
-    addPptxBarPanel(detailSlide, pptx, {
-      x: 0.35, y: 4.92, w: 4.55, h: 1.12,
-      title: "Rates & Effective Rent",
-      items: [
-        { label: "Market Rent", value: Number(monthEntry.marketRent ?? 0), color: RISE_PRESENTATION_BRAND.blue },
-        { label: "Budget Rent", value: Number(monthEntry.proformaRent ?? 0), color: RISE_PRESENTATION_BRAND.sky },
-        { label: "Actual NER", value: Number(monthEntry.nerActual ?? 0), color: RISE_PRESENTATION_BRAND.mint }
-      ],
-      valueFormatter: value => value > 0 ? `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—"
-    });
-    addPptxBulletPanel(detailSlide, pptx, {
-      x: 5.05, y: 2.0, w: 4.45, h: 1.46,
-      title: "Regional pricing action",
-      items: [
-        `Comp Avg Rent: ${formatPresentationCurrencyValue(market.compAverageRent)}`,
-        `Comp Avg NER: ${formatPresentationCurrencyValue(market.compAverageNer)}`,
-        `Comp Leased / Exposure: ${formatPresentationPercentValue(market.compAverageLeasedPct)} / ${formatPresentationPercentValue(market.compAverageExposurePct)}`,
-        `App Pace (7 / 30): ${Math.round(market.applicationsLast7 || 0)} / ${Math.round(market.applicationsLast30 || 0)}`,
-        `Rent action: ${getRegionalPricingActionLabel(market)}`,
-        `Recommended specials: ${market.specialsRecommendation || "Pending Regional input"}`,
-        `Regional note: ${market.pricingNotes || market.compNarrative || "Pending Regional input"}`
-      ],
-      fontSize: 8.7
-    });
-    const comps = Array.isArray(market.surveyComps) ? market.surveyComps : [];
-    const visibleComps = comps.length > 0
-      ? [...(comps.find(comp => comp.isSubject) ? [comps.find(comp => comp.isSubject)] : []), ...comps.filter(comp => !comp.isSubject).slice(0, 4)].slice(0, 5)
-      : [];
-    addPptxBarPanel(detailSlide, pptx, {
-      x: 5.05, y: 3.63, w: 4.45, h: 1.12,
-      title: "Market Survey Rents",
-      items: visibleComps.map(comp => ({
-        label: comp.isSubject ? `${comp.name} (Subject)` : comp.name,
-        value: Number(comp.rent ?? 0),
-        note: Number(comp.ner ?? 0) > 0 ? `NER $${Number(comp.ner).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "",
-        color: comp.isSubject ? RISE_PRESENTATION_BRAND.cyan : RISE_PRESENTATION_BRAND.blue
-      })),
-      valueFormatter: value => value > 0 ? `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—"
-    });
-    addPptxBarPanel(detailSlide, pptx, {
-      x: 5.05, y: 4.92, w: 4.45, h: 1.12,
-      title: "Last 30 Days: Leases vs Applications",
-      items: visibleComps.map(comp => ({
-        label: comp.isSubject ? `${comp.name} (Subject)` : comp.name,
-        value: Number(comp.leasesLast30 ?? 0),
-        target: Number(comp.applicationsLast30 ?? 0),
-        note: `${Math.round(comp.applicationsLast30 ?? 0)} apps · ${Math.round(comp.leasesLast30 ?? 0)} leases`,
-        color: comp.isSubject ? RISE_PRESENTATION_BRAND.mint : RISE_PRESENTATION_BRAND.sky
-      })),
-      valueFormatter: value => `${Math.round(value || 0)}`,
-      targetFormatter: value => `${Math.round(value || 0)}`
-    });
-    const recommendationLines = detail.recommendations.length > 0
-      ? detail.recommendations.slice(0, 3).map(item => `${item.title}: ${item.body}`)
-      : ["No active watchlist items surfaced from the current dashboard sections."];
-    addPptxBulletPanel(detailSlide, pptx, {
-      x: 0.35, y: 6.18, w: 5.8, h: 0.88,
-      title: "Operating focus",
-      items: recommendationLines,
-      fontSize: 8.8
-    });
-    await addPptxMemberStrip(detailSlide, pptx, people, assetCache, {
-      x: 6.3, y: 6.18, w: 3.2, h: 0.88, title: "People behind this community", max: 4
-    });
-  }
-
-  const closeSlide = pptx.addSlide();
-  await addPptxDeckShell(closeSlide, pptx, report, {
-    title: "Thank You / Next Steps",
-    ribbon: "Watchlist and action items",
-    accent: RISE_PRESENTATION_BRAND.blue,
-    photoData: coverPhotoData
-  });
-  const opportunities = buildMonthlyInvestorPresentationOpportunities(report, 8);
-  addPptxBulletPanel(closeSlide, pptx, {
-    x: 0.35, y: 2.05, w: 4.55, h: 3.9,
-    title: "Top watchlist items",
-    items: opportunities.length > 0
-      ? opportunities.map(item => `${item.community}: ${item.title} - ${item.body}`)
-      : ["No active recommendation items are currently flagged in the selected sections."]
-  });
-  addPptxBulletPanel(closeSlide, pptx, {
-    x: 5.05, y: 2.05, w: 4.45, h: 3.9,
-    title: "Canva import workflow",
-    items: [
-      "Use Export for Canva (PPTX) to generate a native slide deck from the live dashboard data.",
-      "Import the PPTX into Canva to continue editing with slide-level objects and images in place.",
-      "Use the HTML deck or PDF export when you need a quick visual review before final investor distribution."
-    ]
-  });
+  const feature = await import("./features/presentation-slides.mjs?v=1fd150cbdb08958a");
+  return feature.default(pptx, report);
 }
 
 async function exportMonthlyInvestorPresentationPptx() {
   let report = buildMonthlyInvestorPresentationData();
   if (!report) return;
+  try { await window.AtlasFeatures?.load("pptx"); } catch (error) { alert(error.message); return; }
   const PptxCtor = window.PptxGenJS?.default || window.PptxGenJS || window.pptxgen?.default || window.pptxgen;
   if (typeof PptxCtor !== "function") {
     alert("The PPTX export library did not load. Reload the dashboard with an internet connection, then try Export for Canva again.");
@@ -48958,10 +48554,12 @@ function dataImportDecodeBytes(buffer, start, length) {
 }
 
 async function dataImportReadPdfText(file) {
-  if (typeof pdfjsLib === "undefined" || !pdfjsLib?.getDocument) return "";
+  let atlasPdfDocument = null;
   try {
+  try {
+    await window.AtlasFeatures?.load("pdf");
     const data = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data }).promise;
+    const pdf = atlasPdfDocument = await pdfjsLib.getDocument({ data }).promise;
     const pageCount = Math.min(pdf.numPages || 0, 3);
     const parts = [];
     for (let pageNum = 1; pageNum <= pageCount; pageNum += 1) {
@@ -48970,8 +48568,11 @@ async function dataImportReadPdfText(file) {
       parts.push((content.items || []).map(item => item.str || "").join(" "));
     }
     return parts.join("\n").slice(0, DATA_IMPORT_MAX_SAMPLE_CHARS);
-  } catch {
-    return "";
+  } catch (error) {
+    throw error;
+  }
+  } finally {
+    try { await atlasPdfDocument?.destroy?.(); } catch { /* Cleanup must not mask the parser result. */ }
   }
 }
 
@@ -49071,7 +48672,8 @@ function dataImportIsBoxScoreSheet(rows, sheetName) {
   ));
 }
 
-async function dataImportReadFileSample(file) {
+async function dataImportReadFileSample(file, signal) {
+  let workbookSession = null;
   const name = file?.name || "Untitled";
   const extension = dataImportGetFileExtension(name);
   const base = {
@@ -49119,8 +48721,15 @@ async function dataImportReadFileSample(file) {
       };
     }
     if ([".xlsx", ".xls", ".xlsm"].includes(extension) && typeof XLSX !== "undefined") {
-      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false });
-      const sheetNames = workbook.SheetNames || [];
+      if (typeof document !== "undefined") updateDataImportPreviewProgress("Reading workbook…");
+      if (typeof Worker !== "undefined") {
+        const workerModule = await import("./features/workbook-session.mjs?v=119919bdd6b29222");
+        workbookSession = await workerModule.openWorkbook(file, signal);
+      }
+      signal?.throwIfAborted();
+      const workbook = workbookSession ? null : XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false });
+      signal?.throwIfAborted();
+      const sheetNames = workbookSession?.sheetNames || workbook.SheetNames || [];
       const allHeaders = [];
       const qualifiedFields = [];
       const tabSummaries = [];
@@ -49129,9 +48738,15 @@ async function dataImportReadFileSample(file) {
       const textParts = [name, ...sheetNames];
       const metadataParts = [];
       const reportHeaderParts = [];
-      sheetNames.forEach(sheetName => {
-        const worksheet = workbook.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "", raw: false });
+      let sheetNumber = 0;
+      for (const sheetName of sheetNames) {
+        signal?.throwIfAborted();
+        sheetNumber += 1;
+        if (typeof document !== "undefined") updateDataImportPreviewProgress(`Inspecting worksheet ${sheetNumber} of ${sheetNames.length}…`);
+        const sheetStart = typeof performance !== "undefined" ? performance.now() : 0;
+        const result = workbookSession ? await workbookSession.sheet(sheetName, dataImportIsMetadataSheetName(sheetName)) : null;
+        const rows = result?.rows || XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false });
+        const sheetRowCount = result ? result.rowCount : rows.length;
         const qualifiedBoxScoreRows = dataImportIsBoxScoreSheet(rows, sheetName) && window.AtlasApplicationSources?.boxScore
           ? window.AtlasApplicationSources.boxScore(rows)
           : dataImportIsMetadataSheetName(sheetName) ? [] : dataImportParseTrendingRows(rows, sheetName);
@@ -49166,13 +48781,16 @@ async function dataImportReadFileSample(file) {
           if (!isMetadata && !headerSamples[item.header]) headerSamples[item.header] = value;
         });
         if (!isMetadata) allHeaders.push(...cleanHeaders);
-        const dataRowCount = isMetadata ? 0 : Math.max(0, rows.length - headerIndex - 1);
+        const dataRowCount = isMetadata ? 0 : Math.max(0, sheetRowCount - headerIndex - 1);
         rowCount += dataRowCount;
         tabSummaries.push({ sheetName, rowCount: dataRowCount, headers: cleanHeaders, sampleValues, headerIndex, isMetadata, qualifiedFields: sheetQualifiedFields });
         textParts.push(sheetName, dataImportRowsToText(sampleRows));
         if (isMetadata) metadataParts.push(dataImportRowsToText(rows));
         else reportHeaderParts.push(dataImportRowsToText(rows.slice(0, 7)));
-      });
+        window.AtlasPerformance?.record("workbook-sheet", typeof performance !== "undefined" ? performance.now()-sheetStart : 0, {rows:sheetRowCount});
+        // Give input/navigation a turn between sheets in the non-worker fallback too.
+        if (typeof document !== "undefined") await new Promise(resolve => setTimeout(resolve, 0));
+      }
       return {
         ...base,
         sheetNames,
@@ -49187,11 +48805,15 @@ async function dataImportReadFileSample(file) {
       };
     }
   } catch (error) {
+    if (signal?.aborted) throw error;
     return {
       ...base,
       sampleText: `${name}\n${String(error?.message || error || "")}`.slice(0, DATA_IMPORT_MAX_SAMPLE_CHARS),
       readError: String(error?.message || error || "Unable to inspect this file.")
     };
+  } finally {
+    workbookSession?.close();
+    window.AtlasPerformance?.memory("after-preview-cleanup");
   }
   return base;
 }
@@ -49718,7 +49340,8 @@ function dataImportApplySelectedPeriod(plan, selected) {
 }
 
 async function dataImportBuildFilePlan(file, extras = {}) {
-  const [sample, fileHash] = await Promise.all([dataImportReadFileSample(file), dataImportFileHash(file)]);
+  const [sample, fileHash] = await Promise.all([dataImportReadFileSample(file, extras.signal), dataImportFileHash(file)]);
+  extras.signal?.throwIfAborted();
   const metadata = dataImportExtractMetadata(sample, file);
   const combinedText = `${file.name} ${sample.sheetNames.join(" ")} ${sample.headers.join(" ")} ${sample.sampleText || ""}`;
   const detection = dataImportScoreReportType(file.name, sample);
@@ -49776,7 +49399,6 @@ async function dataImportBuildFilePlan(file, extras = {}) {
   const blocked = issues.some(issue => issue.severity === "critical" || issue.type === "unsupported");
   const status = blocked ? "blocked" : issues.some(issue => ["unmapped","low_confidence","invalid","held"].includes(issue.type)) ? "review" : "ready";
   const fileId = dataImportMakeId("file");
-  dataImportFileHandles.set(fileId, file);
   const plan = dataImportApplySelectedPeriod({
     fileId,
     originalZipName: extras.originalZipName || "",
@@ -49818,7 +49440,10 @@ async function dataImportBuildFilePlan(file, extras = {}) {
       sheets: sample.tabSummaries || []
     }
   }, extras.selectedPeriod);
-  return reportType === "renewal_tracker" ? await dataImportPreviewRenewalWorkbook(file, plan) : plan;
+  const result = reportType === "renewal_tracker" ? await dataImportPreviewRenewalWorkbook(file, plan) : plan;
+  extras.signal?.throwIfAborted();
+  dataImportFileHandles.set(fileId, file);
+  return result;
 }
 
 async function dataImportPreviewRenewalWorkbook(file, plan) {
@@ -49924,19 +49549,35 @@ function dataImportBuildLearningSummary(plans = [], batchId = "") {
   };
 }
 
+let dataImportPreviewController = null;
+function updateDataImportPreviewProgress(message) {
+  const status = document.getElementById("atlas-import-preview-status");
+  if (status && dataImportPreviewController && !dataImportPreviewController.signal.aborted) status.textContent = message;
+}
+
+function cancelDataImportPreview() {
+  dataImportPreviewController?.abort();
+  dataImportPreviewController = null;
+}
+
 async function dataImportStageFiles(filesLike) {
   const files = Array.from(filesLike || []).filter(Boolean);
   if (!files.length) return;
+  cancelDataImportPreview();
+  const controller = new AbortController();
+  dataImportPreviewController = controller;
   const selectedPeriod = getDataImportUploadPeriod();
-  const uploadOptions = { selectedPeriod, forceReportType: dataImportUploadType === "renewal_tracker" ? "renewal_tracker" : "", communityName: dataImportUploadType === "renewal_tracker" ? dataImportUploadCommunity : "" };
+  const uploadOptions = { signal: controller.signal, selectedPeriod, forceReportType: dataImportUploadType === "renewal_tracker" ? "renewal_tracker" : "", communityName: dataImportUploadType === "renewal_tracker" ? dataImportUploadCommunity : "" };
   csvError = "";
   csvLog = [`Inspecting ${files.length} source file${files.length === 1 ? "" : "s"} before import...`, ...csvLog.slice(0, 5)];
   renderTab();
+  const batchFiles = [];
+  let committed = false;
   try {
     const batchId = dataImportBuildBatchId();
-    const batchFiles = [];
     const zipIssues = [];
     for (const file of files) {
+      controller.signal.throwIfAborted();
       if (dataImportGetFileExtension(file.name) === ".zip") {
         const expanded = await dataImportExpandZip(file);
         zipIssues.push(...expanded.issues.map(issue => ({ ...issue, sourceZipName: file.name })));
@@ -49952,6 +49593,8 @@ async function dataImportStageFiles(filesLike) {
         batchFiles.push(dataImportAnnotatePlan(plan));
       }
     }
+    controller.signal.throwIfAborted();
+    for (const previous of dataImport2State.pendingBatch?.files || []) dataImportFileHandles.delete(previous.fileId);
     dataImport2State.pendingBatch = {
       id: batchId,
       uploadedAt: new Date().toISOString(),
@@ -49964,6 +49607,7 @@ async function dataImportStageFiles(filesLike) {
       validationNotes: [],
       beforeSnapshot: null
     };
+    committed = true;
     dataImport2State.activeView = "upload";
     csvLog = [
       `${batchId} is ready for validation review.`,
@@ -49973,8 +49617,15 @@ async function dataImportStageFiles(filesLike) {
     persistDataImport2State();
     renderTab();
   } catch (error) {
+    if (controller.signal.aborted) return;
     csvError = `ATLAS could not prepare this import batch: ${String(error?.message || error || "Unknown error")}`;
     renderTab();
+  } finally {
+    if (!committed) for (const plan of batchFiles) dataImportFileHandles.delete(plan.fileId);
+    if (dataImportPreviewController === controller) {
+      dataImportPreviewController = null;
+      document.getElementById("atlas-import-preview-status")?.remove();
+    }
   }
 }
 
@@ -50070,8 +49721,11 @@ function dataImportPercentValue(value) {
 }
 
 async function dataImportReadPdfStructuredRows(file) {
+  let atlasPdfDocument = null;
+  try {
+  await window.AtlasFeatures?.load("pdf");
   if (typeof pdfjsLib === "undefined" || !pdfjsLib?.getDocument) return [];
-  const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+  const pdf = atlasPdfDocument = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
   const sheets = [];
   const pageCount = Math.min(Number(pdf.numPages || 0), 60);
   for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
@@ -50118,6 +49772,9 @@ async function dataImportReadPdfStructuredRows(file) {
     if (rows.length) sheets.push({ sheetName: `PDF page ${pageNumber}`, headerIndex, headers: headers.map(item => item.name), rows });
   }
   return sheets;
+  } finally {
+    try { await atlasPdfDocument?.destroy?.(); } catch { /* Cleanup must not mask the parser result. */ }
+  }
 }
 
 function dataImportParseTrendingRows(rawRows, sheetName) {
@@ -51412,6 +51069,7 @@ async function approveDataImportBatch() {
       ...(dataImport2State.exceptions || [])
     ].slice(0, 220);
     dataImport2State.pendingBatch = null;
+    dataImportFileHandles.clear();
     dataImport2State.activeView = "overview";
     csvLog = [
       `${historyEntry.id} approved and routed through ATLAS.`,
@@ -51545,6 +51203,7 @@ function overrideDataImportReportType(fileId, reportType) {
 }
 
 function clearDataImportPendingBatch() {
+  cancelDataImportPreview();
   dataImport2State.pendingBatch = null;
   dataImportFileHandles = new Map();
   persistDataImport2State();
@@ -54623,6 +54282,7 @@ function renderDataImport2Tab() {
   const errorHTML = csvError ? `<div class="${getCsvAlertClass(csvError)} mb4">${escapeHtml(csvError)}</div>` : "";
   const logHTML = csvLog.length > 0 ? `<div class="alert-green mb4">${csvLog.map((l,i) => `<div style="${i===0?"color:#3fb950;font-weight:600":"color:var(--muted)"}">${escapeHtml(l)}</div>`).join("")}</div>` : "";
   return `<div class="data-import2-shell">
+    ${dataImportPreviewController ? `<div id="atlas-import-preview-status" role="status" aria-live="polite">Inspecting workbook…</div>` : ""}
     ${renderDataImportHero(health)}
     ${renderDataImportTabs()}
     ${errorHTML}
@@ -56770,10 +56430,13 @@ function parseDlrPdf(sourceText, rawText = sourceText, fileName = "") {
 
 // ─── PDF Handler ──────────────────────────────────────────────────────────────
 async function handlePDF(file, options = {}) {
+  let atlasPdfDocument = null;
+  try {
   csvError = ""; csvLog = [];
   try {
+    await window.AtlasFeatures?.load("pdf");
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+    const pdf = atlasPdfDocument = await pdfjsLib.getDocument(arrayBuffer).promise;
     let fullText = "";
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
@@ -57043,6 +56706,9 @@ async function handlePDF(file, options = {}) {
     ];
     renderTab();
   } catch(err) { csvError = "Failed to parse PDF: " + err.message; renderTab(); }
+  } finally {
+    try { await atlasPdfDocument?.destroy?.(); } catch { /* Cleanup must not mask the parser result. */ }
+  }
 }
 
 function normalizeAtlasColumnKey(value) {
@@ -57700,23 +57366,37 @@ function finishAtlasStartupLoadingState() {
 }
 
 function runAtlasStartupStep(label, step) {
+  const finish = window.AtlasPerformance?.start("startup-step", { reason: label });
   try {
     return step();
   } catch (error) {
     markAtlasPersistenceError(error, `ATLAS startup step failed: ${label}`);
     return null;
+  } finally {
+    finish?.();
   }
 }
 
 async function measureAtlasStartupStage(label, step) {
   const start = `atlas:${label}:start`;
   const end = `atlas:${label}:end`;
+  const finishDiagnostic = window.AtlasPerformance?.start(label);
   performance.mark(start);
   try {
     return await step();
   } finally {
     performance.mark(end);
     performance.measure(`atlas:${label}`, start, end);
+    finishDiagnostic?.();
+    performance.clearMarks(start);
+    performance.clearMarks(end);
+    // Retain at most the latest measurement of each startup stage.
+    const measures = performance.getEntriesByName(`atlas:${label}`);
+    if (measures.length > 1) {
+      const latest = measures[measures.length - 1];
+      performance.clearMeasures(`atlas:${label}`);
+      performance.measure(`atlas:${label}`, { start: latest.startTime, duration: latest.duration });
+    }
   }
 }
 
@@ -57830,7 +57510,19 @@ window.setInterval(() => {
   if (atlasDashboardInitializationComplete && document.visibilityState === "visible") hydrateAtlasSharedApplications();
 }, 60000);
 
-initializeAtlasDashboard().then(() => hydrateAtlasSharedApplications()).catch((error) => {
+// Instrument exact boundaries without changing their return values or authorization gates.
+if (window.AtlasPerformance?.enabled) {
+  const perf = window.AtlasPerformance;
+  openAtlasStateDb = perf.wrap(openAtlasStateDb, "indexeddb-open");
+  atlasStateGetValue = perf.wrap(atlasStateGetValue, "indexeddb-read");
+  atlasStateSetValue = perf.wrap(atlasStateSetValue, "indexeddb-write");
+  renderTab = perf.wrap(renderTab, "render", () => ({ scope: String(activeTab), reason: "tab-render" }));
+  setTab = perf.wrap(setTab, "navigation", i => ({ scope: String(i) }));
+  hydrateAtlasSharedApplications = perf.wrap(hydrateAtlasSharedApplications, "application-hydration");
+  dataImportReadFileSample = perf.wrap(dataImportReadFileSample, "workbook-preview", file => ({ bytes: file?.size }));
+  applyDashboardStorageBundle = perf.wrap(applyDashboardStorageBundle, "restore-readback");
+}
+initializeAtlasDashboard().then(() => { window.AtlasPerformance?.memory("after-startup"); return hydrateAtlasSharedApplications(); }).catch((error) => {
   markAtlasPersistenceError(error, "ATLAS could not finish loading browser data.");
   currentMonth = DEFAULT_CURRENT_MONTH;
   workspaceMonthOverride = null;

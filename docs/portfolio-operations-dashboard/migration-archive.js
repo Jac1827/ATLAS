@@ -63,15 +63,32 @@
     const {data,...manifest}=archive;
     return {...manifest,dataDocuments:references};
   }
-  async function hydrate(archive,client){
+  async function hydrate(archive,client,{concurrency=3,signal}={}){
     if(!archive?.dataDocuments)return archive;
-    const pieces=[];
-    for(const ref of archive.dataDocuments){
-      const row=await client.readDocument(ref.documentKey),data=row?.payload?.data;
-      if(typeof data!=='string'||data.length!==ref.length||await digest(new TextEncoder().encode(data))!==ref.sha256)throw Error('Central migration part is missing or changed');
-      pieces.push(data);
-    }
-    return {...archive,data:pieces.join('')};
+    const refs=archive.dataDocuments,pieces=new Array(refs.length);
+    const finish=globalThis.AtlasPerformance?.start('archive-part-hydration',{parts:refs.length,bytes:archive.bytes});
+    let cursor=0,failure=null;
+    const check=()=>{if(signal?.aborted)throw signal.reason||new DOMException('Archive hydration cancelled','AbortError');};
+    const worker=async()=>{
+      while(!failure&&cursor<refs.length){
+        check();
+        const index=cursor++,ref=refs[index];
+        try {
+          const row=await client.readDocument(ref.documentKey),data=row?.payload?.data;
+          check();
+          if(typeof data!=='string'||data.length!==ref.length||await digest(new TextEncoder().encode(data))!==ref.sha256)throw Error('Central migration part is missing or changed');
+          pieces[index]=data;
+        }catch(error){failure=error;throw error;}
+      }
+    };
+    try {
+      const count=Math.min(refs.length,Math.max(1,Math.min(4,Math.floor(Number(concurrency)||3))));
+      const results=await Promise.allSettled(Array.from({length:count},worker));
+      const rejected=results.find(result=>result.status==='rejected');
+      if(rejected)throw rejected.reason;
+      check();
+      return {...archive,data:pieces.join('')};
+    } finally {pieces.length=0;finish?.({failed:!!failure});}
   }
   return {TYPE,pack,unpack,verifyRestore,publish,hydrate};
 });

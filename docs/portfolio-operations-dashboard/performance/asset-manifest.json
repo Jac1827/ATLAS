@@ -30,8 +30,8 @@
     ]
   },
   "application-performance-ui.js": {
-    "sha256": "0c36f3daf57d15f0",
-    "bytes": 16483,
+    "sha256": "465feb2056c15527",
+    "bytes": 16696,
     "references": [
       [
         "index.html",

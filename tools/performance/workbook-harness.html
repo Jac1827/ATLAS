@@ -1,0 +1,44 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>ATLAS local workbook tests</title>
+<style>body{font:16px system-ui;max-width:900px;margin:40px auto;padding:20px}button{padding:12px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eee;padding:16px}</style>
+<h1>ATLAS local workbook tests</h1><p>Generated fixtures only. This page does not connect to ATLAS Central, authenticate, import records or write application storage. These results are not production acceptance.</p>
+<button id="run">Run workbook worker tests</button><pre id="result">Ready</pre>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script type="module">
+import {openWorkbook} from '../../docs/portfolio-operations-dashboard/features/workbook-session.mjs';
+const output=document.querySelector('#result'),button=document.querySelector('#run');
+const heap=()=>performance.memory?.usedJSHeapSize??null;
+button.onclick=async()=>{
+ button.disabled=true;const checks=[];let session;
+ const assert=(condition,label)=>{if(!condition)throw Error(label);checks.push(label)};
+ try {
+  output.textContent='Building generated fixtures…';
+  const book=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['Expense','Value'],...Array.from({length:50000},(_,i)=>['Expense '+i,i])]),'Unrelated');
+  const rows=Array.from({length:220},()=>['']);rows[0]=['Availability (As of 09/21/2026)'];rows[150]=['Lead Conversions'];rows[219]=['Applications',17];
+  XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet(rows),'Multi-section');
+  const file=new File([XLSX.write(book,{type:'array',bookType:'xlsx'})],'generated-workbook.xlsx');
+  const runs=[];
+  for(let i=0;i<5;i++){
+   output.textContent=`Preview ${i+1} of 5…`;
+   const before=heap(),start=performance.now();
+   session=await openWorkbook(file);
+   assert(!!session,'Worker available '+i);
+   const unrelated=await session.sheet('Unrelated',false);
+   assert(unrelated.rows.length===80&&unrelated.rowCount===50001&&!unrelated.candidate,'Bounded unrelated sheet '+i);
+   const sections=await session.sheet('Multi-section',false);
+   assert(sections.rows.length===220&&sections.rows[219][1]==='17','Late Box Score section retained '+i);
+   session.close();session=null;
+   await new Promise(resolve=>setTimeout(resolve,100));
+   runs.push({run:i+1,durationMs:performance.now()-start,heapBefore:before,heapAfterCleanup:heap()});
+  }
+  const controller=new AbortController();controller.abort();
+  let cancelled=false;try{await openWorkbook(file,controller.signal)}catch(error){cancelled=error.name==='AbortError'}
+  assert(cancelled,'Already-cancelled preview does not start');
+  const mid=new AbortController();session=await openWorkbook(file,mid.signal);
+  const pending=session.sheet('Unrelated',false);mid.abort();
+  await pending.then(()=>{throw Error('Cancelled sheet resolved')},error=>assert(error.name==='AbortError','In-flight sheet cancellation'));
+  session=null;
+  output.textContent=JSON.stringify({status:'PASS',browser:navigator.userAgent,fixtureBytes:file.size,checks,runs,limitations:['Generated data; no authenticated state','No forced garbage collection; heap observations are not leak acceptance','No production timing budget asserted']},null,2);
+ }catch(error){output.textContent=JSON.stringify({status:'FAIL',message:error.message,checks},null,2)}finally{session?.close();button.disabled=false}
+};
+</script></html>

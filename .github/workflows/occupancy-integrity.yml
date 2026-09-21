@@ -37,3 +37,22 @@ jobs:
         run: node tools/import-period-selection.test.cjs
       - name: Validate multi-month renewal refresh
         run: node tools/renewal-multiperiod.test.cjs
+
+  performance-boundaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install the existing workbook parser for generated-fixture tests
+        run: npm install --no-save --ignore-scripts xlsx@0.18.5
+      - name: Validate startup and performance boundaries (not browser acceptance)
+        run: |
+          node tools/startup-performance.test.cjs
+          node tools/performance-diagnostics.test.cjs
+          node tools/performance-assets.test.cjs
+          node tools/feature-loader.test.cjs
+          node tools/staffing-performance.test.cjs
+          node tools/archive-performance.test.cjs
+          node tools/workbook-performance.test.cjs

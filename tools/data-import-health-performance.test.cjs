@@ -1,0 +1,11 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const html=fs.readFileSync('docs/portfolio-operations-dashboard/index.html','utf8');
+const start=html.indexOf('function dataImportHasSavedFallbackData('),end=html.indexOf('\nfunction ',start+10);
+let reads=0,normalizations=0;
+const context={applicationResidentDataState:{},normalizeApplicationResidentDataState:()=>{normalizations++;return {uploads:[{mappedProperties:['A']}]};},dataImportNormalizeText:v=>v.toLowerCase(),dataImportCommunityRecord:()=>{reads++;return {currentOccupied:1,monthlyData:[{grossPotentialRent:10}]};},getSelectedDashboardMonthIndex:()=>0};
+vm.createContext(context);vm.runInContext(html.slice(start,end),context);
+const run=()=>{const cache={communityRecords:new Map(),applicationUploads:null};for(let i=0;i<28;i++){assert.equal(context.dataImportHasSavedFallbackData('A','leasing_resident_data',cache),true);assert.equal(context.dataImportHasSavedFallbackData('A','box_score',cache),true);assert.equal(context.dataImportHasSavedFallbackData('A','approved_accounting',cache),true);}};
+run();assert.equal(normalizations,1);assert.equal(reads,1);
+run();assert.equal(normalizations,2);assert.equal(reads,2,'new calculation must not reuse stale models');
+assert.equal(context.dataImportHasSavedFallbackData('B','leasing_resident_data'),false);
+console.log('PASS one resident normalization and community read per health calculation; no cross-render cache');

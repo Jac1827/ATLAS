@@ -51582,8 +51582,19 @@ function dataImportCommunityRecord(communityName) {
   return normalizeSavedCommunityRecord(communityName, savedData?.[communityName]);
 }
 
-function dataImportHasSavedFallbackData(communityName, reportType) {
-  const record = dataImportCommunityRecord(communityName);
+function dataImportHasSavedFallbackData(communityName, reportType, readContext = null) {
+  if (reportType === "leasing_resident_data") {
+    const uploads = readContext
+      ? (readContext.applicationUploads ||= normalizeApplicationResidentDataState(applicationResidentDataState).uploads || [])
+      : normalizeApplicationResidentDataState(applicationResidentDataState).uploads || [];
+    const normalized = dataImportNormalizeText(communityName);
+    return uploads.some(upload => (upload.mappedProperties || []).some(name => dataImportNormalizeText(name) === normalized));
+  }
+  let record = readContext?.communityRecords.get(communityName);
+  if (!record) {
+    record = dataImportCommunityRecord(communityName);
+    readContext?.communityRecords.set(communityName, record);
+  }
   const monthIdx = getSelectedDashboardMonthIndex();
   const month = record.monthlyData?.[monthIdx] || {};
   if (reportType === "box_score" || reportType === "trending_occupancy") {
@@ -51597,11 +51608,6 @@ function dataImportHasSavedFallbackData(communityName, reportType) {
   }
   if (reportType === "renewal_tracker") {
     return Number(month.renewalExpirations || month.renewalSigned || month.renewalNTV || 0) > 0;
-  }
-  if (reportType === "leasing_resident_data") {
-    const uploads = normalizeApplicationResidentDataState(applicationResidentDataState).uploads || [];
-    const normalized = dataImportNormalizeText(communityName);
-    return uploads.some(upload => (upload.mappedProperties || []).some(name => dataImportNormalizeText(name) === normalized));
   }
   if (reportType === "community_data") {
     return Boolean(record.communityId || record.pmsPropertyCode || record.communityAddress || Number(record.customUnits || 0) > 0);
@@ -51945,6 +51951,8 @@ function setDataImportReportNotRequired(communityName, reportType, excluded) {
 }
 
 function dataImportBuildHealthModel() {
+  // Reuse normalized read models only inside this synchronous calculation.
+  const readContext = { communityRecords: new Map(), applicationUploads: null };
   const activeCommunities = dataImportGetHealthCommunityNames();
   const communities = dataImportGetMatrixCommunityNames(activeCommunities);
   const checkedAt = new Date().toISOString();
@@ -51958,7 +51966,7 @@ function dataImportBuildHealthModel() {
       const excluded = requirementOverride?.excluded === true;
       const required = isActive && serviceSupported && !excluded;
       const archive = dataImportLatestArchiveFor(communityName, reportType);
-      const hasFallback = dataImportHasSavedFallbackData(communityName, reportType);
+      const hasFallback = dataImportHasSavedFallbackData(communityName, reportType, readContext);
       let status = required ? "Missing" : "Not Required";
       let ageLabel = required ? "No source" : "Outside service scope";
       let detail = required ? `Upload current ${def.label} for ${communityName}.` : `${def.label} is not required for this community's configured service scope.`;

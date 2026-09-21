@@ -97,7 +97,7 @@ assert.equal(B.project(hydrated.uploads,['A']).records[0].applicationStatus,r.ap
 console.log('PASS serialized hydration and explicit restore after deletion (simulated storage, not authenticated multi-user verification).');
 const eventHandlers={},capturedBooks=[];
 const synthetic=B.project([up('ui','2026-09-16T12:00:00Z',[{...r,residentName:'Synthetic applicant',leasingAgent:'Test agent',sourceSheetName:'A',sourceRowNumber:4}])],['A']);
-const uiContext={console,Date,Map,Set,localStorage:{getItem:()=>null},document:{createElement:()=>({innerHTML:'',content:{querySelectorAll:()=>[]}})},alert:()=>{}};
+const uiContext={console,Date,Map,Set,localStorage:{getItem:()=>null},document:{querySelector:()=>({dataset:{tab:'16'}}),createElement:()=>({innerHTML:'',content:{querySelectorAll:()=>[]}})},alert:()=>{}};
 uiContext.window={AtlasApplicationSources:B,getAtlasCanonicalApplicationData:()=>synthetic,getAtlasApplicationScopeCommunityNames:()=>['A'],isAtlasCommunityActiveByName:()=>true,getAtlasApplicationPeriodMetrics:()=>[],getApplicationResidentReportPeriodKey:()=> '2026-09',renderTab:()=>{},addEventListener:(event,fn)=>eventHandlers[event]=fn,XLSX:{utils:context.XLSX.utils,writeFile:book=>capturedBooks.push(book)}};
 vm.createContext(uiContext);
 for(const name of ['application-lineage.js','screening-summary.js','application-aging.js','application-performance.js','application-performance-ui.js'])vm.runInContext(fs.readFileSync(root+name,'utf8'),uiContext);

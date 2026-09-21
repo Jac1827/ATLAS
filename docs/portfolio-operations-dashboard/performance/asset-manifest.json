@@ -10,8 +10,8 @@
     ]
   },
   "screening-summary.js": {
-    "sha256": "0870541bc6a51980",
-    "bytes": 5649,
+    "sha256": "d574557677e6a93a",
+    "bytes": 5775,
     "references": [
       [
         "index.html",
@@ -30,8 +30,8 @@
     ]
   },
   "application-performance-ui.js": {
-    "sha256": "b67c340e6d7cd4e4",
-    "bytes": 17003,
+    "sha256": "e9a2a194e4e8a89a",
+    "bytes": 16778,
     "references": [
       [
         "index.html",

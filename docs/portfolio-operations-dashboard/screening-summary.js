@@ -9,7 +9,8 @@ function parse(sheets,{fileName='',importIdentity=''}={}){
  const records=[];
  for(const [sheetName,rows] of Object.entries(sheets)){
   if(sheetName==='Report Parameters')continue;
-  const community=text(rows[2]?.[0]),range=text(rows[3]?.[0]);const matches=range.match(/(\d{2})\/(\d{2})\/(\d{4})\s*-\s*(\d{2})\/(\d{2})\/(\d{4})/);
+  const rangeIndex=rows.findIndex(r=>/^\d{2}\/\d{2}\/\d{4}\s*-\s*\d{2}\/\d{2}\/\d{4}$/.test(text(r[0])));
+  const community=text(rows[rangeIndex-1]?.[0]),range=text(rows[rangeIndex]?.[0]);const matches=range.match(/(\d{2})\/(\d{2})\/(\d{4})\s*-\s*(\d{2})\/(\d{2})\/(\d{4})/);
   if(!community||!matches)throw Error('Missing community or explicit report dates on '+sheetName);
   const periodStart=`${matches[3]}-${matches[1]}-${matches[2]}`,periodEnd=`${matches[6]}-${matches[4]}-${matches[5]}`;
   const read=(title,fields)=>{let i=title?rows.findIndex(r=>text(r[0])===title):0;i=rows.findIndex((r,j)=>j>i&&text(r[0])==='Property');if(i<0)throw Error('Missing section '+(title||'Results')+' on '+sheetName);const header=rows[i],r=rows[i+1]||[];if(/no data/i.test(text(r[0])))return {availability:'empty',values:null,sourceRow:i+2};if(text(r[0])!==community)throw Error('Source community mismatch on '+sheetName);const values={};for(const [key,label] of Object.entries(fields||Object.fromEntries(header.slice(1).filter(Boolean).map(h=>[h,h])))){const c=header.indexOf(label);const n=num(r[c]);if(c<0||n===null||n<0||!Number.isInteger(n))throw Error('Invalid aggregate '+label+' on '+sheetName);values[key]=n;}return {availability:'reported',values,sourceRow:i+2};};

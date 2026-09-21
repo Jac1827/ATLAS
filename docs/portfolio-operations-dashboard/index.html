@@ -1430,7 +1430,7 @@
 <script src="./eviction-attorney-ui.js?v=20260916-community-contacts"></script>
 <link rel="stylesheet" href="./application-performance.css?v=20260916-no-data-status">
 <script src="./application-lineage.js?v=fa2f0b92fa3bd9ea"></script>
-<script src="./screening-summary.js?v=0870541bc6a51980"></script>
+<script src="./screening-summary.js?v=d574557677e6a93a"></script>
 <script src="./application-source-bridge.js?v=5d783edc39b9f759"></script>
 <script src="./occupancy-replay.js?v=2"></script>
 <script src="./application-performance.js?v=20260917-weekly-report"></script>
@@ -1442,7 +1442,7 @@
 <script src="./concession-insights.js?v=20260917-1"></script>
 <script src="./weekly-leasing-report.js?v=20260917-aging"></script>
 <script src="./application-aging.js?v=20260917-aging"></script>
-<script src="./application-performance-ui.js?v=b67c340e6d7cd4e4"></script>
+<script src="./application-performance-ui.js?v=e9a2a194e4e8a89a"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -14875,7 +14875,6 @@ function syncAtlasWorkspaceCardVisibility() {
 
 let atlasNavigationEpoch = 0;
 function setTab(i) {
-  if (Number(i) === 16) console.debug("[Application lineage] navigation");
   atlasNavigationEpoch += 1;
   atlasCommunityPlanModule?.close();
   atlasCommunityFinanceModule?.cancel();

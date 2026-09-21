@@ -25,3 +25,14 @@ const changed=structuredClone(parsed);changed.records[0].results.values.pass++;
 assert.equal(S.select([parsed,changed],'2026-09',scope)[0].conflict,true);
 const periodRow={community:'One',periodKey:'2026-09',cells:{approvals:{value:7,importIdentity:'i',sourceContract:'box',cohortKey:'period',periodKey:'2026-09',community:'One'},leases_completed:{value:5,importIdentity:'i',sourceContract:'box',cohortKey:'period',periodKey:'2026-09',community:'One'}}};assert.equal(L.periodConversion(periodRow).rate,5/7);periodRow.cells.leases_completed.importIdentity='other';assert.equal(L.periodConversion(periodRow).rate,null);
 console.log('PASS canonical decisions, mutually exclusive cohort, pending/incomplete separation, valid durations and quantiles, missing timestamps, history, scopes, replay/conflicts, 13 screening sheets and 88/5/47/25/11 + 4/7 + 14 reasons.');
+// Exercise the workbook adapter too: SheetJS trims leading blank rows unless range:0 is explicit.
+{
+ const X=require('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js');
+ const fixture=JSON.parse(require('fs').readFileSync(__dirname+'/fixtures/screening-summary-september-2026.json'));
+ const book=X.utils.book_new();for(const [name,rows] of Object.entries(fixture))X.utils.book_append_sheet(book,X.utils.aoa_to_sheet(rows),name);
+ const reread=X.read(X.write(book,{bookType:'xlsx',type:'buffer'}),{type:'buffer',cellDates:true});
+ for(const range of [undefined,0]){
+  const sheets=Object.fromEntries(reread.SheetNames.map(name=>[name,X.utils.sheet_to_json(reread.Sheets[name],{header:1,defval:'',raw:false,...(range===undefined?{}:{range})})]));
+  const result=S.parse(sheets);assert.equal(result.records.length,13);assert.equal(S.summarize(result.records).counts.screened,88);
+ }
+}

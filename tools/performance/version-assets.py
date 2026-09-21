@@ -3,13 +3,15 @@ from pathlib import Path
 import hashlib, json, re
 root=Path(__file__).resolve().parents[2]/'docs/portfolio-operations-dashboard'
 entries=[
+ ('contract-terms.js',[('RISE-Budget-Builder.html','./contract-terms.js')]),
  ('features/import-history-store.mjs',[('features/import-history.mjs','./import-history-store.mjs'),('features/import-history-worker.mjs','./import-history-store.mjs')]),
  ('features/import-history-worker.mjs',[('features/import-history.mjs','./import-history-worker.mjs')]),
  ('features/import-history.mjs',[('index.html','./features/import-history.mjs')]),
  ('features/financial-ocr.mjs',[('features/financial-package-reader.mjs','./financial-ocr.mjs')]),
- ('features/financial-package.mjs',[('features/financial-package-reader.mjs','./financial-package.mjs'),('features/financial-package-review.mjs','./financial-package.mjs'),('features/financial-workbook-worker.mjs','./financial-package.mjs')]),
+ ('features/financial-package.mjs',[('features/financial-package-reader.mjs','./financial-package.mjs'),('features/financial-package-review.mjs','./financial-package.mjs'),('features/financial-comparison.mjs','./financial-package.mjs'),('features/financial-workbook-worker.mjs','./financial-package.mjs')]),
  ('features/financial-workbook-worker.mjs',[('features/financial-package-reader.mjs','./financial-workbook-worker.mjs')]),
  ('features/financial-package-reader.mjs',[('features/financial-package-review.mjs','./financial-package-reader.mjs')]),
+ ('features/financial-comparison.mjs',[('features/financial-package-review.mjs','./financial-comparison.mjs'),('budget-navigation.js','./features/financial-comparison.mjs')]),
  ('features/financial-package-review.mjs',[('budget-navigation.js','./features/financial-package-review.mjs')]),
  ('financial-publication.js',[('index.html','financial-publication.js'),('financial-accountability.html','financial-publication.js')]),
  ('budget-navigation.js',[('RISE-Budget-Builder.html','./budget-navigation.js')]),

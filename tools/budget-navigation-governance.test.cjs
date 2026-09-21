@@ -2,7 +2,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 const root=__dirname+'/../docs/portfolio-operations-dashboard/';
 const html=fs.readFileSync(root+'RISE-Budget-Builder.html','utf8');
 const section=html.slice(html.indexOf('  A.VIEWS = ['),html.indexOf('  /* ---------------------------------------------------------- calc cache'));
-const A={h:{esc:String},go(){},render(){}};const ctx={RBB:{app:A,views:{actuals:()=>'<p>Existing actuals entry</p>'}},A,document:{addEventListener(){}},console};vm.createContext(ctx);vm.runInContext(section,ctx);vm.runInContext(fs.readFileSync(root+'budget-navigation.js','utf8'),ctx);
+const A={h:{esc:String},go(){},render(){}};const ctx={setTimeout:()=>0,RBB:{app:A,views:{actuals:()=>'<p>Existing actuals entry</p>'}},A,document:{addEventListener(){}},console};vm.createContext(ctx);vm.runInContext(section,ctx);vm.runInContext(fs.readFileSync(root+'budget-navigation.js','utf8'),ctx);
 assert.match(ctx.RBB.views.actuals(),/Existing actuals entry/,'package review preserves existing entry workflow');
 const groups=ctx.RBB.budgetNavigation.groups;
 assert.equal(groups.length,7);const ids=groups.flatMap(g=>g[2]);assert.equal(new Set(ids).size,ids.length);

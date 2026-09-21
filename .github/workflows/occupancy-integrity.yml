@@ -80,6 +80,7 @@ jobs:
           node tools/feature-loader.test.cjs
           node tools/staffing-performance.test.cjs
           node tools/data-import-health-performance.test.cjs
+          node tools/contract-terms.test.cjs
           node tools/budget-navigation-governance.test.cjs
           node tools/staffing-turnover.test.cjs
           node tools/occupancy-replay-browser-performance.test.cjs

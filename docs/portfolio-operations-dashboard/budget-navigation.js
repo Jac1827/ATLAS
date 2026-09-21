@@ -28,9 +28,15 @@
  };
  const go=A.go;
  let packageReview;
- A.openFinancialPackageReview=async function(){try{packageReview=await import('./features/financial-package-review.mjs?v=def6c2a219a3ad4d');await packageReview.openReview();}catch(e){A.toast(e.message,'r');}};
+ A.openFinancialPackageReview=async function(){try{packageReview=await import('./features/financial-package-review.mjs?v=dcf849bb409ceffa');await packageReview.openReview();}catch(e){A.toast(e.message,'r');}};
  const actuals=R.views.actuals;
- R.views.actuals=function(){return '<div class="panel"><button class="btn pri" onclick="RBB.app.openFinancialPackageReview()">Review monthly financial package</button><p>PDF or XLSX · statement classification and reconciliation · shared import review</p></div>'+actuals.apply(this,arguments);};
+ function sharedActualsPanel(){
+  setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el)return;try{const m=await import('./features/financial-comparison.mjs?v=7deeab96f9868483');await m.mountComparison(el,{communityName:A.cp().property.name,year:A.year()});}catch(e){el.textContent=e.message;}},0);
+  return '<div class="panel"><button class="btn pri" onclick="RBB.app.openFinancialPackageReview()">Upload or apply saved financial review</button><p>Upload → reconcile → save review → apply actuals → shared comparison</p></div><section class="panel" id="shared-financial-comparison"><p>Loading shared actuals…</p></section>';
+ }
+ R.views.actuals=function(){return sharedActualsPanel()+'<details><summary>Legacy manual-entry worksheet — separate browser data</summary>'+actuals.apply(this,arguments)+'</details>';};
+ const vsactual=R.views.vsactual;
+ if(vsactual)R.views.vsactual=function(){return sharedActualsPanel()+'<details><summary>Legacy scenario comparison — separate browser data</summary>'+vsactual.apply(this,arguments)+'</details>';};
  A.go=function(view,opts){
   if(!R.views[view])return;
   if(view!==A.view)packageReview?.dispose();

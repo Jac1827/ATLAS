@@ -1423,7 +1423,7 @@
 </div>
 
 <script src="./atlas_historical_restore_data.js"></script>
-<script src="./atlas-mounts.js?v=4bb1bd4d3e4c48a4"></script>
+<script src="./atlas-mounts.js?v=bb1fc4584bfb61c6"></script>
 <script src="./centralization/atlas-central-client.js?v=a102600a81f486f6" data-atlas-central-client="true"></script>
 <script src="./atlas-dashboard-reskin.js?v=99ffd40a8970f8ef"></script>
 <script src="./central-services.js?v=20260919-renewal-period-review"></script>
@@ -24564,7 +24564,7 @@ function renderCommunityCommandSupportingMetrics(model) {
     ["Applications", `${Math.round(model.appMetrics.applications)} MTD`, `${Math.round(model.appMetrics.approvals)} approved · ${Math.round(model.appMetrics.denials)} denied · ${Math.round(model.appMetrics.cancelled)} cancelled`, 3],
     ["Renewals", `${Math.round(model.renewal.signed)} signed`, `${Math.round(model.renewal.expirations)} expirations · ${model.renewal.retentionRate === null ? "Missing retention" : communityCommandFormatPct(model.renewal.retentionRate, 0)}`, 5],
     ["Reputation", `${model.summary.oraScore ? Number(model.summary.oraScore).toFixed(1) : "Missing"}`, `Google ${model.summary.googleQuarterlyRating ? Number(model.summary.googleQuarterlyRating).toFixed(2) : "Missing"}`, 6],
-    ["Financial Position", financial.hasData ? formatSignedFinancialCurrency(financial.noiVariance) : "Missing", financial.hasData ? "NOI variance from imported actuals" : "Upload financial actuals to refresh", 12],
+    ["Financial Position", financial.hasData ? formatSignedFinancialCurrency(financial.noiVariance ?? financial.noiActual) : "Missing", financial.hasData ? (financial.noiVariance === null ? "Closed NOI actual · approved comparison budget missing" : "NOI variance from closed actuals") : "Closed financial actuals unavailable for this month", 12],
     ["Budget Source", model.budgetOccPct ? communityCommandFormatPct(model.budgetOccPct) : "Missing", "Locked budget/reforecast consumed read-only here", 12]
   ];
   const bodyHtml = `<div class="community-command-source-list">
@@ -32882,6 +32882,7 @@ function getFinancialSummaryForMonth(record = {}, selectedMonth = getSelectedDas
     const m = version?.metrics;
     return { ...budget, hasData:!!version, source:version?.source_file || "Missing closed financial package", version:version?.version_id || null,
       revenueActual:m?.totalIncome ?? null, expenseActual:m?.operatingExpenses ?? null, noiActual:m?.netOperatingIncome ?? null,
+      revenueBudget:hasBudget?budget.revenueBudget:null, expenseBudget:hasBudget?budget.expenseBudget:null, noiBudget:hasBudget?budget.noiBudget:null, annualBudget:hasBudget?budget.annualBudget:null,
       noiVariance:version && hasBudget ? m.netOperatingIncome-budget.noiBudget : null,
       expenseVariance:version && hasBudget ? m.operatingExpenses-budget.expenseBudget : null,
       revenueVariance:version && hasBudget ? m.totalIncome-budget.revenueBudget : null };

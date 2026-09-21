@@ -1,46 +1,4 @@
--- Immutable Admin close versions. Reviewed comparisons are never implicitly closed.
-begin;
-create table public.atlas_financial_close_versions (
- version_id uuid primary key default gen_random_uuid(),
- community_id uuid not null references public.atlas_communities(community_id),
- period_key text not null check(period_key ~ '^20[0-9]{2}-(0[1-9]|1[0-2])$'),
- accounting_basis text not null check(accounting_basis='accrual'),
- comparison_version_id uuid not null references public.atlas_financial_comparison_versions(version_id),
- review_id uuid not null references public.atlas_financial_package_reviews(review_id),
- previous_version_id uuid references public.atlas_financial_close_versions(version_id),
- revision integer not null check(revision>0), source_hash text not null, source_file text not null, content_hash text not null,
- status text not null default 'closed' check(status='closed'), coverage text not null default 'full_month' check(coverage='full_month'),
- approved_by uuid not null references auth.users(id), approved_at timestamptz not null default now(),
- reason text not null, row_count integer not null, metrics jsonb not null, mapping jsonb not null,
- unique(community_id,period_key,accounting_basis,revision), unique(community_id,period_key,accounting_basis,content_hash)
-);
-create table public.atlas_financial_close_heads (
- community_id uuid not null references public.atlas_communities(community_id),period_key text not null,
- accounting_basis text not null default 'accrual',version_id uuid not null references public.atlas_financial_close_versions(version_id),
- primary key(community_id,period_key,accounting_basis)
-);
-create table public.atlas_financial_close_rows (
- version_id uuid not null references public.atlas_financial_close_versions(version_id), community_id uuid not null references public.atlas_communities(community_id),
- gl_code text not null,account_name text not null,section text,actual numeric not null,ytd_actual numeric,
- source_location jsonb not null,primary key(version_id,gl_code)
-);
-create index financial_close_rows_scope on public.atlas_financial_close_rows(community_id,version_id);
-create table public.atlas_financial_close_events (
- event_id uuid primary key default gen_random_uuid(),version_id uuid not null references public.atlas_financial_close_versions(version_id),
- community_id uuid not null references public.atlas_communities(community_id),event_type text not null,
- created_at timestamptz not null default now(),actor uuid not null references auth.users(id),detail jsonb not null
-);
-alter table public.atlas_financial_close_versions enable row level security;
-alter table public.atlas_financial_close_heads enable row level security;
-alter table public.atlas_financial_close_rows enable row level security;
-alter table public.atlas_financial_close_events enable row level security;
-revoke all on public.atlas_financial_close_versions,public.atlas_financial_close_heads,public.atlas_financial_close_rows,public.atlas_financial_close_events from public,anon,authenticated;
-grant select on public.atlas_financial_close_versions,public.atlas_financial_close_heads,public.atlas_financial_close_rows,public.atlas_financial_close_events to authenticated;
-create policy close_versions_read on public.atlas_financial_close_versions for select to authenticated using(public.atlas_can_access_community(community_id));
-create policy close_heads_read on public.atlas_financial_close_heads for select to authenticated using(public.atlas_can_access_community(community_id));
-create policy close_rows_read on public.atlas_financial_close_rows for select to authenticated using(public.atlas_can_access_community(community_id));
-create policy close_events_read on public.atlas_financial_close_events for select to authenticated using(public.atlas_can_access_community(community_id));
-create function public.atlas_close_financial_review(p_review_id uuid,p_expected_version_id uuid,p_reason text,p_accounting_approved boolean)
+create or replace function public.atlas_close_financial_review(p_review_id uuid,p_expected_version_id uuid,p_reason text,p_accounting_approved boolean)
 returns public.atlas_financial_close_versions language plpgsql security definer set search_path='' as $$
 declare review public.atlas_financial_package_reviews; comparison public.atlas_financial_comparison_versions;
  prior public.atlas_financial_close_versions; result public.atlas_financial_close_versions;
@@ -92,6 +50,3 @@ begin
  insert into public.atlas_financial_close_events(version_id,community_id,event_type,actor,detail) values(result.version_id,review.community_id,case when prior.version_id is null then 'closed' else 'replacement' end,auth.uid(),jsonb_build_object('previousVersion',prior.version_id,'previousTotals',prior.metrics,'replacementTotals',result.metrics,'reason',p_reason,'downstreamStatus','awaiting consumer readback'));
  return result;
 end;$$;
-revoke all on function public.atlas_close_financial_review(uuid,uuid,text,boolean) from public,anon;
-grant execute on function public.atlas_close_financial_review(uuid,uuid,text,boolean) to authenticated;
-commit;

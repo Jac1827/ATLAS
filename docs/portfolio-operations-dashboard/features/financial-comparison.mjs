@@ -34,7 +34,7 @@ export async function mountComparison(container,{communityName,period,year}={}){
   const central=centralClient();
   const [communities,aliases]=await Promise.all([central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000')]);if(!alive())return;
   const context=new URL(location.href),match=resolveCommunity(communityName,communities,aliases);
-  const selected=context.searchParams.get('comparisonCommunity')||match.communityId||'';
+  const selected=match.communityId||context.searchParams.get('comparisonCommunity')||'';
   if(!period&&!context.searchParams.get('comparisonPeriod')&&selected){const y=Number(year)||new Date().getFullYear();const latest=await central.fetchJson(`/atlas_financial_comparison_heads?community_id=eq.${encodeURIComponent(selected)}&period_key=gte.${y}-01&period_key=lt.${y+1}-01&select=period_key&order=period_key.desc&limit=1`);if(!alive())return;period=latest[0]?.period_key;}
 
   container.innerHTML=`<h3>Shared actuals comparison</h3><p>Durably stored GL actuals, with source-statement budget reference. Reviewed data is not closed or eligible for payable Bonus calculations. These values do not overwrite the original approved budget.</p><label>Community <select data-community><option value="">Choose community</option>${communities.map(c=>`<option value="${esc(c.community_id)}" ${c.community_id===selected?'selected':''}>${esc(c.display_name)}</option>`).join('')}</select></label> <label>Period <input data-period type="month" value="${esc(period||context.searchParams.get('comparisonPeriod')||new Date().toISOString().slice(0,7))}"></label> <button data-load>Load saved comparison</button><p role="status"></p><div data-comparison></div>`;

@@ -11990,6 +11990,8 @@ function getCommunitySummary(propName, sourceData, rawSourceData = sourceData) {
     occupied,
     leased,
     currentMonth: scopeCurrentMonth,
+    reportYear: record.reportYear,
+    hasBudgetOcc: budgetOccPct > 0,
     occPct,
     leasedPct,
     budgetOccPct,
@@ -12058,7 +12060,30 @@ function getCommunitySummary(propName, sourceData, rawSourceData = sourceData) {
   };
 }
 
+// Legacy saved budget arrays use zero for both missing and unset targets.
+// A zero is eligible only when the producer explicitly supplies availability.
+function getOccupancyBudgetCoverage(summaries = []) {
+  const covered = summaries.filter(summary =>
+    (summary.hasBudgetOcc === true || (summary.hasBudgetOcc !== false && summary.budgetOccPct > 0)) &&
+    summary.budgetOccPct !== null && summary.budgetOccPct !== undefined && summary.budgetOccPct !== "" &&
+    Number.isFinite(Number(summary.budgetOccPct)) && Number(summary.budgetOccPct) >= 0 &&
+    Number(summary.budgetOccPct) <= 100 && Number(summary.occupancyBaseUnits) > 0 &&
+    summary.budgetOccUnits !== null && summary.budgetOccUnits !== undefined &&
+    Number.isFinite(Number(summary.budgetOccUnits)) && Number(summary.budgetOccUnits) >= 0
+  );
+  const periods = new Set(summaries.map(summary => `${summary.reportYear ?? "unknown"}-${summary.currentMonth ?? "unknown"}`));
+  const complete = summaries.length > 0 && covered.length === summaries.length && periods.size === 1;
+  return {
+    coveredCommunities: covered.length,
+    totalCommunities: summaries.length,
+    coveredUnits: covered.reduce((sum, summary) => sum + Number(summary.occupancyBaseUnits), 0),
+    complete,
+    reason: periods.size > 1 ? "mixed_periods" : complete ? null : "incomplete_coverage"
+  };
+}
+
 function aggregateCommunitySummaries(summaries) {
+  const budgetOccCoverage = getOccupancyBudgetCoverage(summaries);
   const totals = summaries.reduce((acc, summary) => {
     acc.totalUnits += summary.totalUnits;
     acc.corporateLeaseUnits += summary.corporateLeaseUnits || 0;
@@ -12231,7 +12256,8 @@ function aggregateCommunitySummaries(summaries) {
   });
   const occPct = totals.occupancyBaseUnits > 0 ? (totals.occupied / totals.occupancyBaseUnits) * 100 : 0;
   const leasedPct = totals.occupancyBaseUnits > 0 ? (totals.leased / totals.occupancyBaseUnits) * 100 : 0;
-  const budgetOccPct = totals.occupancyBaseUnits > 0 ? (totals.budgetOccUnits / totals.occupancyBaseUnits) * 100 : 0;
+  const budgetOccPct = budgetOccCoverage.complete && totals.occupancyBaseUnits > 0
+    ? (totals.budgetOccUnits / totals.occupancyBaseUnits) * 100 : null;
   const budgetLeasedPct = totals.occupancyBaseUnits > 0 ? (totals.budgetLeasedUnits / totals.occupancyBaseUnits) * 100 : 0;
   const avgActualNer = totals.nerWeightUnits > 0 ? totals.nerActualWeight / totals.nerWeightUnits : 0;
   const avgBudgetNer = totals.nerWeightUnits > 0 ? totals.nerBudgetWeight / totals.nerWeightUnits : 0;
@@ -12242,7 +12268,8 @@ function aggregateCommunitySummaries(summaries) {
     occupancyBaseUnits: totals.occupancyBaseUnits,
     occupied: totals.occupied,
     leased: totals.leased,
-    budgetOccUnits: totals.budgetOccUnits,
+    budgetOccCoverage,
+    budgetOccUnits: budgetOccCoverage.complete ? totals.budgetOccUnits : null,
     budgetLeasedUnits: totals.budgetLeasedUnits,
     budgetOccPct,
     budgetLeasedPct,
@@ -12273,14 +12300,14 @@ function aggregateCommunitySummaries(summaries) {
     msoeCompletionPct: totals.msoeCompletionWeight > 0
       ? totals.msoeCompletionWeightedTotal / totals.msoeCompletionWeight
       : (totals.msoeCompletionCount > 0 ? totals.msoeCompletionTotal / totals.msoeCompletionCount : 0),
-    occGapUnits: totals.occGapUnits,
+    occGapUnits: budgetOccCoverage.complete ? totals.occGapUnits : null,
     leasedGapUnits: totals.leasedGapUnits,
     avgBudgetOccAttainmentPct: totals.avgBudgetOccAttainmentPctCount > 0 ? totals.avgBudgetOccAttainmentPctTotal / totals.avgBudgetOccAttainmentPctCount : 0,
     onTrackBudgetOccCount: totals.onTrackBudgetOccCount,
     trackedBudgetOccCount: totals.trackedBudgetOccCount,
     onTrackBudgetOccRate: totals.trackedBudgetOccCount > 0 ? (totals.onTrackBudgetOccCount / totals.trackedBudgetOccCount) * 100 : 0,
     avgOccGapPts: totals.avgOccGapPtsCount > 0 ? totals.avgOccGapPtsTotal / totals.avgOccGapPtsCount : 0,
-    occGapPts: budgetOccPct > 0 ? occPct - budgetOccPct : 0,
+    occGapPts: budgetOccPct !== null ? occPct - budgetOccPct : null,
     leasedGapPts: budgetLeasedPct > 0 ? leasedPct - budgetLeasedPct : 0,
     nerDelta: avgActualNer > 0 && avgBudgetNer > 0 ? avgActualNer - avgBudgetNer : 0,
     exposureGapUnits: Math.max(totals.moveOuts - totals.moveIns, 0),
@@ -12288,7 +12315,7 @@ function aggregateCommunitySummaries(summaries) {
     monthAbsorption: totals.moveIns - totals.moveOuts,
     previousMonthAbsorption: totals.previousMoveIns - totals.previousMoveOuts,
     guestCardGoalPct: totals.guestCardGoal > 0 ? Math.min((totals.guestCards / totals.guestCardGoal) * 100, 200) : 0,
-    budgetAttainmentPct: totals.budgetOccUnits > 0 ? Math.min((totals.occupied / totals.budgetOccUnits) * 100, 125) : 0,
+    budgetAttainmentPct: budgetOccCoverage.complete && totals.budgetOccUnits > 0 ? Math.min((totals.occupied / totals.budgetOccUnits) * 100, 125) : null,
     momAppsGrowthPct: totals.previousApplications > 0 ? ((totals.applications - totals.previousApplications) / totals.previousApplications) * 100 : (totals.applications > 0 ? 100 : 0),
     leadToLeasePct: calculateFunnelConversionPct(totals.attributableLeases, totals.guestCards),
     previousLeadToLeasePct: calculateFunnelConversionPct(totals.previousAttributableLeases, totals.previousGuestCards),
@@ -16677,6 +16704,7 @@ function atlasDashboardFormatNumber(value = 0) {
 }
 
 function atlasDashboardFormatPct(value = 0, decimals = 1) {
+  if (value === null || value === undefined || value === "" || !Number.isFinite(Number(value))) return "—";
   return `${(Number(value) || 0).toFixed(decimals)}%`;
 }
 
@@ -16737,8 +16765,19 @@ function atlasDashboardTargetComparisonLine(instance = {}, aggregate = {}, scope
 function atlasDashboardComparisonLine(instance = {}, aggregate = {}, scopedDetails = []) {
   const comparison = String(instance.comparison || "Budget");
   if (comparison === "Target") return atlasDashboardTargetComparisonLine(instance, aggregate, scopedDetails);
-  if (comparison === "Budget" && Number(aggregate.budgetOccPct || 0) > 0) {
-    return `Budget ${atlasDashboardFormatPct(aggregate.budgetOccPct)} · variance ${atlasDashboardFormatPct(aggregate.occGapPts || 0, 1)}`;
+  if (comparison === "Budget") {
+    const definition = getAtlasDashboardWidgetDefinition(instance.widgetKey) || {};
+    const metric = String(instance.metric || definition.defaultMetric || "");
+    const physicalMetrics = ["Physical Occupancy", "Budget Occupancy", "Occupancy Variance"];
+    if (instance.widgetKey !== "portfolio_overview" || !physicalMetrics.includes(metric)) {
+      return "Budget comparison unavailable · approved target for this metric and period required";
+    }
+    const coverage = aggregate.budgetOccCoverage;
+    if (!coverage?.complete || aggregate.budgetOccPct == null || aggregate.occGapPts == null) {
+      const scope = coverage ? ` · ${coverage.coveredCommunities}/${coverage.totalCommunities} properties with budget and inventory` : "";
+      return `Budget comparison unavailable${scope}${coverage?.reason === "mixed_periods" ? " · reporting periods differ" : ""}`;
+    }
+    return `Budget ${atlasDashboardFormatPct(aggregate.budgetOccPct)} · variance ${atlasDashboardFormatPct(aggregate.occGapPts, 1)} · ${coverage.coveredCommunities}/${coverage.totalCommunities} properties`;
   }
   if (comparison === "Prior Month" && Number(aggregate.previousApplications || 0) > 0 && instance.widgetKey === "traffic_funnel") {
     return `Prior month ${atlasDashboardFormatNumber(aggregate.previousApplications)} applications`;
@@ -16757,8 +16796,8 @@ function buildAtlasDashboardWidgetSnapshot(instance = {}) {
     const metricMap = {
       "Physical Occupancy": [atlasDashboardFormatPct(aggregate.occupancyBaseUnits > 0 ? (aggregate.occupied / aggregate.occupancyBaseUnits) * 100 : 0), formatOccupancyBasisSubtext(aggregate.occupied, aggregate)],
       "Leased Occupancy": [atlasDashboardFormatPct(aggregate.occupancyBaseUnits > 0 ? (aggregate.leased / aggregate.occupancyBaseUnits) * 100 : 0), `${atlasDashboardFormatNumber(aggregate.leased)} leased units · ${scopeSuffix}`],
-      "Budget Occupancy": [atlasDashboardFormatPct(aggregate.budgetOccPct || 0), `${atlasDashboardFormatNumber(aggregate.budgetOccUnits)} budget occupied units · ${scopeSuffix}`],
-      "Occupancy Variance": [atlasDashboardFormatPct(aggregate.occGapPts || 0), atlasDashboardComparisonLine(instance, aggregate, scopedDetails)],
+      "Budget Occupancy": [atlasDashboardFormatPct(aggregate.budgetOccPct), aggregate.budgetOccCoverage.complete ? `${atlasDashboardFormatNumber(aggregate.budgetOccUnits)} budget occupied units · ${scopeSuffix}` : atlasDashboardComparisonLine({ ...instance, comparison: "Budget" }, aggregate, scopedDetails)],
+      "Occupancy Variance": [atlasDashboardFormatPct(aggregate.occGapPts), atlasDashboardComparisonLine(instance, aggregate, scopedDetails)],
       "Exposure": [atlasDashboardFormatNumber(aggregate.exposureGapUnits || 0), `${atlasDashboardFormatNumber(aggregate.moveOuts)} move-outs vs ${atlasDashboardFormatNumber(aggregate.moveIns)} move-ins`],
       "Average Rent": [`$${atlasDashboardFormatNumber(aggregate.nerWeightUnits > 0 ? (aggregate.nerActualWeight || 0) / aggregate.nerWeightUnits : 0)}`, `${scopeSuffix} · NER weighted by occupied units`],
       "Revenue vs. Budget": [`$${atlasDashboardFormatNumber(aggregate.nerDelta || 0)}`, atlasDashboardComparisonLine(instance, aggregate, scopedDetails)]
@@ -37153,6 +37192,7 @@ function getInvestorPortfolioName(record) {
 }
 
 function formatSignedDisplay(value, digits = 0, suffix = "") {
+  if (value === null || value === undefined || value === "" || !Number.isFinite(Number(value))) return "—";
   const numeric = Number(value) || 0;
   const abs = Math.abs(numeric);
   const formatted = digits > 0
@@ -37434,7 +37474,7 @@ function buildPortfolioSectionMetrics(sectionKey, summary) {
   }
   if (sectionKey === "budget") {
     return [
-      { metric: "Physical Occupancy vs Budget", value: formatPortfolioReportValue(summary.occGapPts ?? 0, "pct") },
+      { metric: "Physical Occupancy vs Budget", value: formatPortfolioReportValue(summary.occGapPts, "pct") },
       { metric: "Leased Occupancy vs Target", value: formatPortfolioReportValue(summary.leasedGapPts ?? 0, "pct") },
       { metric: "Budget Occ Attainment", value: formatPortfolioReportValue(summary.budgetOccAttainmentPct ?? 0, "pct") },
       { metric: "Communities On Budget", value: `${Math.round(summary.onTrackBudgetOccCount ?? 0)} / ${Math.round(summary.trackedBudgetOccCount ?? 0)}` },
@@ -38449,7 +38489,7 @@ function buildMonthlyInvestorPresentationSlidePlan(report) {
       bullets: [
         `Charts: Occupancy vs Saved Budget by Community and Actual NER vs Budgeted NER`,
         `Budget attainment: ${(report.aggregate.avgBudgetOccAttainmentPct ?? 0).toFixed(1)}% average occupancy attainment`,
-        `Occupancy gap: ${formatSignedDisplay(report.aggregate.occGapPts ?? 0, 1, " points versus budget")}`,
+        `Occupancy gap: ${formatSignedDisplay(report.aggregate.occGapPts, 1, " points versus budget")}`,
         `Leased gap: ${formatSignedDisplay(report.aggregate.leasedGapPts ?? 0, 1, " points versus budget")}`,
         `NER delta: ${report.aggregate.nerDelta ? formatSignedDisplay(report.aggregate.nerDelta, 0) : "Awaiting complete NER data"}`
       ]
@@ -38970,7 +39010,7 @@ function buildMonthlyInvestorPresentationSlides(report) {
       "Saved budget pacing and rate health",
       `<div class="deck-metric-grid deck-metric-grid-tight">
         <div class="deck-metric-card"><div class="deck-metric-label">Budget Attainment</div><div class="deck-metric-value">${(report.aggregate.avgBudgetOccAttainmentPct ?? 0).toFixed(1)}%</div><div class="deck-metric-sub">Average occupancy attainment vs saved budget across selected communities</div></div>
-        <div class="deck-metric-card"><div class="deck-metric-label">Occ Gap vs Budget</div><div class="deck-metric-value">${formatSignedDisplay(report.aggregate.occGapPts ?? 0, 1, " pts")}</div><div class="deck-metric-sub">Portfolio occupancy gap versus current budget target</div></div>
+        <div class="deck-metric-card"><div class="deck-metric-label">Occ Gap vs Budget</div><div class="deck-metric-value">${formatSignedDisplay(report.aggregate.occGapPts, 1, " pts")}</div><div class="deck-metric-sub">Portfolio occupancy gap versus current budget target</div></div>
         <div class="deck-metric-card"><div class="deck-metric-label">Leased Gap vs Budget</div><div class="deck-metric-value">${formatSignedDisplay(report.aggregate.leasedGapPts ?? 0, 1, " pts")}</div><div class="deck-metric-sub">Leased occupancy gap versus saved budget target</div></div>
         <div class="deck-metric-card"><div class="deck-metric-label">NER Delta vs Budget</div><div class="deck-metric-value">${report.aggregate.nerDelta ? formatSignedDisplay(report.aggregate.nerDelta, 0) : "—"}</div><div class="deck-metric-sub">Weighted effective rent delta vs budgeted NER</div></div>
       </div>
@@ -38983,7 +39023,7 @@ function buildMonthlyInvestorPresentationSlides(report) {
           <div class="deck-panel-title">Budget read</div>
           <ul class="deck-bullets">
             <li>${report.aggregate.onTrackBudgetOccCount ?? 0} of ${report.aggregate.trackedBudgetOccCount ?? 0} communities are currently on track to saved occupancy budget.</li>
-            <li>Occupancy is ${formatSignedDisplay(report.aggregate.occGapPts ?? 0, 1, " points").replace("points", "points versus budget")} and leased occupancy is ${formatSignedDisplay(report.aggregate.leasedGapPts ?? 0, 1, " points").replace("points", "points versus budget")}.</li>
+            <li>Occupancy is ${formatSignedDisplay(report.aggregate.occGapPts, 1, " points").replace("points", "points versus budget")} and leased occupancy is ${formatSignedDisplay(report.aggregate.leasedGapPts ?? 0, 1, " points").replace("points", "points versus budget")}.</li>
             <li>NER delta is shown on a weighted basis so larger occupied communities carry appropriate influence in the investor narrative.</li>
           </ul>
         </div>
@@ -39875,7 +39915,7 @@ async function buildMonthlyInvestorPresentationPptxSlides(pptx, report) {
     });
     addPptxMetricGrid(overviewSlide, pptx, [
       { label: "Budget Attainment", value: `${(report.aggregate.avgBudgetOccAttainmentPct ?? 0).toFixed(1)}%`, sub: "Average occupancy attainment vs saved budget" },
-      { label: "Occ Gap vs Budget", value: formatSignedDisplay(report.aggregate.occGapPts ?? 0, 1, " pts"), sub: "Portfolio occupancy gap versus budget" },
+      { label: "Occ Gap vs Budget", value: formatSignedDisplay(report.aggregate.occGapPts, 1, " pts"), sub: "Portfolio occupancy gap versus budget" },
       { label: "Leased Gap vs Budget", value: formatSignedDisplay(report.aggregate.leasedGapPts ?? 0, 1, " pts"), sub: "Leased occupancy gap versus target" },
       { label: "NER Delta vs Budget", value: report.aggregate.nerDelta ? formatSignedDisplay(report.aggregate.nerDelta, 0) : "—", sub: "Weighted effective rent delta versus budget" }
     ], {

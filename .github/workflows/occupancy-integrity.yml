@@ -37,3 +37,5 @@ jobs:
         run: node tools/import-period-selection.test.cjs
       - name: Validate multi-month renewal refresh
         run: node tools/renewal-multiperiod.test.cjs
+      - name: Validate semantic budget comparisons and coverage
+        run: node tools/budget-comparison-integrity.test.cjs

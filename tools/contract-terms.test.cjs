@@ -4,6 +4,7 @@ vm.runInContext(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboa
 const T=ctx.RBB.contractTerms;
 assert.equal(T.extract('Monthly service $100. Contract expires July 31.'),null);
 const term=T.extract('Either party may terminate without cause with 60 days written notice. Early termination requires payment of the remaining fees. No cancellation fee applies after the initial term.');
+assert.match(T.extract('Either party may terminate. Written notice must be delivered 90 days before the requested date. A fee of $500 applies.').summary,/90 days.*\$500/);
 assert.match(term.summary,/60 days/);assert.match(term.summary,/remaining fees/);assert.match(term.summary,/after the initial term/);
 assert.match(T.cell({}),/Not recorded/);assert.match(T.cell({earlyCancellation:{...term,summary:'<script>bad</script>'}}),/&lt;script/);
 const html=fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/RISE-Budget-Builder.html','utf8');

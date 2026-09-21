@@ -4,7 +4,9 @@
  const esc=R.app.h.esc;
  function extract(text){
   const paragraphs=String(text||'').replace(/\r/g,'').split(/\n\s*\n|(?<=[.!?])\s+(?=[A-Z])/).map(s=>s.replace(/\s+/g,' ').trim());
-  const relevant=paragraphs.filter(s=>/\b(?:terminat(?:e|ion|ing)|cancel(?:lation|led|ing)?|early exit)\b/i.test(s));
+  const selected=new Set();
+  paragraphs.forEach((s,i)=>{if(/\b(?:terminat(?:e|ion|ing)|cancel(?:lation|led|ing)?|early exit)\b/i.test(s))for(let j=Math.max(0,i-1);j<=Math.min(paragraphs.length-1,i+2);j++)selected.add(j);});
+  const relevant=paragraphs.filter((s,i)=>selected.has(i));
   return relevant.length?{summary:relevant.join(' ').slice(0,1800),excerpt:relevant.join('\n').slice(0,6000),status:relevant.join(' ').length>1800?'Partial excerpt — open full contract':'Source excerpt — verify conditions'}:null;
  }
  function cell(contract){

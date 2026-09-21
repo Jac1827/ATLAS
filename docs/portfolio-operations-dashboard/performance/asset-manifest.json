@@ -1,7 +1,7 @@
 {
   "contract-terms.js": {
-    "sha256": "3f3e9715f88ca424",
-    "bytes": 1304,
+    "sha256": "a36b8270f5c4434d",
+    "bytes": 1471,
     "references": [
       [
         "RISE-Budget-Builder.html",
@@ -214,7 +214,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "e597a0b24a6c20e1",
+    "sha256": "3c6493c4f2bcb4fb",
     "bytes": 1882974,
     "references": [
       [
@@ -224,7 +224,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "38eea96b3583af98",
+    "sha256": "fec2aadb1a05415f",
     "bytes": 27268,
     "references": [
       [

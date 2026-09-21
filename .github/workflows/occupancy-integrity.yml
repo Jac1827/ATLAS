@@ -54,6 +54,7 @@ jobs:
           node tools/community-command-contract.test.cjs
           node tools/community-command-db.test.cjs
           node tools/community-plan-email.test.mjs
+          node tools/community-finance-roster.test.mjs
 
   performance-boundaries:
     runs-on: ubuntu-latest

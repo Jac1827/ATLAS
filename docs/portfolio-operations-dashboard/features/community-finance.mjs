@@ -20,10 +20,10 @@ export async function hydrate(entries,central){
    if(plan&&planCell){planCell.textContent=`${plan.stage||'Draft'} · ${plan.task_count} tasks · ${plan.verified_count} verified`;planCell.title=`Shared plan, updated ${plan.updated_at}`;}
    const count=document.querySelector('[data-shared-plan-count]');if(count)count.textContent=String(scope.filter(e=>{const p=window.AtlasCommandPlanSummaries[e.communityId+'|'+e.period];return p?p.stage!=='Closed':e.hasLegacyPlan;}).length);
 
-   const scope={communityId:e.communityId,period:e.period,fiscalYear:source?.fiscal_year??e.year};
-   const actual=e.actual?{...e.actual,...scope}:null;
-   const budget=summary?{...scope,occupancyPct:summary.occupancyPct,approvalStatus:'approved',locked:true,scenarioId:summary.scenarioId,version:summary.scenarioVersion}:null;
-   const units=window.AtlasCommunityCommandContract.occupancy(scope,actual,budget);
+   const metricScope={communityId:e.communityId,period:e.period,fiscalYear:source?.fiscal_year??e.year};
+   const actual=e.actual?{...e.actual,...metricScope}:null;
+   const budget=summary?{...metricScope,occupancyPct:summary.occupancyPct,approvalStatus:'approved',locked:true,scenarioId:summary.scenarioId,version:summary.scenarioVersion}:null;
+   const units=window.AtlasCommunityCommandContract.occupancy(metricScope,actual,budget);
    for(const [metric,result] of [['units',units],['gpr',summary?.gpr],['expenses',summary?.expenses]]){
     const cell=tr.querySelector(`[data-metric="${metric}"]`);if(!cell)continue;
     cell.replaceChildren();const status=result?.status||'missing',text=result?(metric==='units'||status==='missing'?result.label:result.label+' '+(result.variance>0?'+':'')+money(Math.abs(result.variance))):'Missing publication';

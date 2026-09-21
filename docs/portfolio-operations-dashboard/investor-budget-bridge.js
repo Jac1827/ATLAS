@@ -111,9 +111,11 @@
         const payload=R.persist.parse(raw);
         R.persist.apply(JSON.parse(JSON.stringify(payload))); // isolated frame only; no save or app boot
         const central=window.parent.ATLAS_CENTRAL;if(!central||!window.parent.atlasAccessDecision?.(12)?.ok)throw Error('Authorized canonical financial access required');
-        const [m,matcher,communities,aliases]=await Promise.all([import('./features/financial-close.mjs?v=1d42345c461b2ece'),import('./features/financial-package.mjs?v=49ea086d6d07f300'),central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000')]);
+        const actor=central.getSession()?.user?.id;if(!actor)throw Error('Sign in to read closed actuals');
+        const [m,matcher,communities,aliases]=await Promise.all([import('./features/financial-close.mjs?v=aa342fbe68ead1f1'),import('./features/financial-package.mjs?v=49ea086d6d07f300'),central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000')]);
         m.installBuilder(R,central,name=>matcher.resolveCommunity(name,communities,aliases).communityId);
         for(const p of R.app.state.properties.filter(p=>!event.data.names||event.data.names.includes(p.name))){const cid=matcher.resolveCommunity(p.name,communities,aliases).communityId;if(!cid)continue;const years=[...new Set([Number(R.app.state.budgetYear),...Object.values(R.app.state.actuals||{}).filter(a=>a.propertyId===p.id).map(a=>Number(a.year))])];for(const y of years)await m.primeBuilderYear(R,central,cid,p.id,y);}
+        if(central.getSession()?.user?.id!==actor)throw Error('Session changed while preparing the financial report');
         const sources=R.investorSources(R.app.state,payload.savedAt,{names:event.data.names});
         window.parent.postMessage({type:'atlas-investor-budget-sources',sources},location.origin);
       }catch(e){window.parent.postMessage({type:'atlas-investor-budget-sources',error:String(e.message||e)},location.origin);}

@@ -263,9 +263,19 @@
       ]
     ]
   },
+  "investor-packet-ui.js": {
+    "sha256": "aaf6d6b5c425c99a",
+    "bytes": 35992,
+    "references": [
+      [
+        "index.html",
+        "./investor-packet-ui.js"
+      ]
+    ]
+  },
   "investor-budget-bridge.js": {
-    "sha256": "7473c62edfb5ee38",
-    "bytes": 12572,
+    "sha256": "dddb4ec83acfa2ba",
+    "bytes": 14867,
     "references": [
       [
         "RISE-Budget-Builder.html",
@@ -274,7 +284,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "e4031a44049606a0",
+    "sha256": "3e5b2a2889563572",
     "bytes": 1883499,
     "references": [
       [
@@ -284,7 +294,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "19f1075ebc14f54a",
+    "sha256": "a347b68d01bc06ec",
     "bytes": 27268,
     "references": [
       [
@@ -414,16 +424,6 @@
       [
         "index.html",
         "./performance/feature-loader.js"
-      ]
-    ]
-  },
-  "investor-packet-ui.js": {
-    "sha256": "6b25f612669118ec",
-    "bytes": 35891,
-    "references": [
-      [
-        "index.html",
-        "./investor-packet-ui.js"
       ]
     ]
   }

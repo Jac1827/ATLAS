@@ -11,10 +11,10 @@ var atlasInvestorPacketState = { selectedCommunity:'', communities:{} };
   function draft() { return scope().drafts?.[period()]||{}; }
   let budgetCache=null,budgetReader=null,budgetStatus='Not yet checked',budgetPending=null,budgetResolve=null,budgetTimer=null,budgetRequestScope='';
   function stored(key){try{return JSON.parse(localStorage.getItem(key)||'null');}catch(error){return null;}}
-  function budgetReadRequest(){const name=selected(),explicit=scope().config?.budgetCommunityName;const map=typeof APPLICATION_RESIDENT_DATA_PROPERTY_MAP==='undefined'?{}:APPLICATION_RESIDENT_DATA_PROPERTY_MAP;return {type:'atlas-investor-read-budget',names:explicit?[explicit]:[name,...Object.keys(map).filter(k=>map[k]?.atlasName===name)]};}
+  function budgetReadRequest(){const name=selected(),explicit=scope().config?.budgetCommunityName;const map=typeof APPLICATION_RESIDENT_DATA_PROPERTY_MAP==='undefined'?{}:APPLICATION_RESIDENT_DATA_PROPERTY_MAP;return {type:'atlas-investor-read-budget',year:getReportHubYear(),period:period(),names:explicit?[explicit]:[name,...Object.keys(map).filter(k=>map[k]?.atlasName===name)]};}
   function refreshSources(){
     if(typeof document==='undefined'||!selected())return;
-    const requestScope=selected()+'|'+(scope().config?.budgetCommunityName||'');
+    const requestScope=selected()+'|'+period()+'|'+(scope().config?.budgetCommunityName||'');
     if(budgetPending)return requestScope===budgetRequestScope?budgetPending:budgetPending.then(()=>refreshSources());
     budgetRequestScope=requestScope;
     budgetPending=new Promise(resolve=>{budgetResolve=resolve;});
@@ -32,13 +32,13 @@ var atlasInvestorPacketState = { selectedCommunity:'', communities:{} };
     window.addEventListener('message',event=>{
       if(!budgetReader||event.source!==budgetReader.contentWindow||event.origin!==location.origin||event.data?.type!=='atlas-investor-budget-sources')return;
       clearTimeout(budgetTimer);budgetResolve?.();budgetPending=null;budgetResolve=null;
-      budgetCache=event.data.sources||null;budgetStatus=event.data.error?'Budget source unavailable: '+event.data.error:Object.keys(budgetCache?.properties||{}).length?'Saved Budget Builder connected':'Budget Builder checked; no saved financial source on this browser';
+      budgetCache=event.data.sources||null;budgetStatus=event.data.error?'Budget source unavailable: '+event.data.error:Object.keys(budgetCache?.properties||{}).length?'Financial sources connected':'No matching approved budget or closed financial source available';
       if(typeof reportHubType!=='undefined'&&reportHubType==='investor_community_packet')renderTab();
     });
     window.addEventListener('storage',event=>{if(event.key==='rise.budget.autosave'&&budgetReader)refreshSources();});
   }
   function budgetProperty(name,rec){
-    const pool=budgetCache?.properties||stored('rise.budget.autosave')?.investorPacketSources?.properties||{};
+    const pool=budgetCache?.properties||(window.ATLAS_CENTRAL?{}:stored('rise.budget.autosave')?.investorPacketSources?.properties)||{};
     const explicit=atlasInvestorPacketState.communities?.[name]?.config?.budgetCommunityName;
     if(explicit)return pool[explicit]||null;
     if(pool[name])return pool[name];
@@ -46,7 +46,7 @@ var atlasInvestorPacketState = { selectedCommunity:'', communities:{} };
     const map=typeof APPLICATION_RESIDENT_DATA_PROPERTY_MAP!=='undefined'?APPLICATION_RESIDENT_DATA_PROPERTY_MAP:{};
     const matches=Object.entries(pool).filter(([sourceName])=>map[sourceName]?.atlasName===name);
     if(matches.length===1)return matches[0][1];
-    return rec.financialBudgetLedger?.investorPacketSources||null;
+    return window.ATLAS_CENTRAL?null:rec.financialBudgetLedger?.investorPacketSources||null;
   }
   function record(name=selected()) {
     const raw=typeof getProp==='function'&&getProp()?.name===name&&typeof getCurrentCommunityRecord==='function'?getCurrentCommunityRecord():savedData?.[name]||{};

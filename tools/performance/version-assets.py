@@ -25,6 +25,7 @@ entries=[
  ('community-command-contract.js',[('features/community-finance.mjs','../community-command-contract.js')]),
  ('features/community-finance.mjs',[('index.html','./features/community-finance.mjs')]),
  ('features/budget-command-publication.mjs',[('RISE-Budget-Builder.html','./features/budget-command-publication.mjs')]),
+ ('investor-packet-ui.js',[('index.html','investor-packet-ui.js')]),
  ('investor-budget-bridge.js',[('RISE-Budget-Builder.html','./investor-budget-bridge.js')]),
  ('RISE-Budget-Builder.html',[('atlas-mounts.js','RISE-Budget-Builder.html')]),
  ('atlas-mounts.js',[('index.html','./atlas-mounts.js')]),

@@ -1,5 +1,7 @@
 # Budget Builder governance and navigation review
 
+Update: the owner has resolved the business-rule questions. See [approved decisions](financial-owner-decisions.md) and [staged implementation evidence](financial-package-release.md). The remaining text records the original pre-implementation audit; pending-owner statements below are historical.
+
 Reviewed September 21, 2026, from main `c512a752`, on `feature/budget-governance-review`. This is a review and safe UI/correctness phase, not a completed central-ledger migration. No financial records, permissions, bonus formulas or database schemas were changed. Owner decisions listed below are required before those changes.
 
 ## Current-state lineage

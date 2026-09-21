@@ -57,6 +57,8 @@ jobs:
           node tools/community-finance-roster.test.mjs
           node tools/fiscal-ytd.test.mjs
           node tools/community-report-progress.test.mjs
+          node tools/financial-package.test.mjs
+          node tools/financial-review-db.test.cjs
 
   performance-boundaries:
     runs-on: ubuntu-latest

@@ -13,3 +13,10 @@
 #budget-command-menu form{text-align:right}#budget-command-menu label,#budget-command-menu input{display:block;width:100%;margin-block:10px}.budget-command-result{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line2);background:transparent;padding:12px;cursor:pointer;color:var(--ink)}
 .budget-command-result:hover{background:var(--sky-pale)}.budget-workflow-nav a:focus-visible,.budget-workflow-nav button:focus-visible,.budget-command-result:focus-visible{outline:2px solid var(--rise);outline-offset:2px}
 @media(max-width:650px){.budget-nav-tools kbd{display:none}.budget-nav-tools{flex-wrap:wrap}.budget-context{font-size:10px}.budget-breadcrumb span{float:none;display:block}}
+ .financial-package-review{width:min(1100px,94vw);max-height:90vh;overflow:auto;border:1px solid #bfcbd5;border-radius:8px;padding:24px;color:#192e40;background:white}
+ .financial-package-review button{margin:8px 8px 8px 0;padding:8px 12px;cursor:pointer}
+ .financial-package-review code{overflow-wrap:anywhere}
+ .financial-review-scroll{overflow:auto;max-height:440px}
+ .financial-review-scroll table{border-collapse:collapse;width:100%;font-size:13px}
+ .financial-review-scroll th,.financial-review-scroll td{padding:7px 10px;border-bottom:1px solid #dde3e8;text-align:right;white-space:nowrap}
+ .financial-review-scroll th:first-child{position:sticky;left:0;background:#f7f9fa;text-align:left}

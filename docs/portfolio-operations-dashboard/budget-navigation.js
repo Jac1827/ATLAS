@@ -27,8 +27,13 @@
    '<div class="budget-breadcrumb" aria-label="Breadcrumb">Budget Builder / '+esc(group[1])+' / '+esc(label(A.view))+'<span>'+Number(summary?.high||0)+' high-priority budget checks</span></div></div>';
  };
  const go=A.go;
+ let packageReview;
+ A.openFinancialPackageReview=async function(){try{packageReview=await import('./features/financial-package-review.mjs?v=def6c2a219a3ad4d');await packageReview.openReview();}catch(e){A.toast(e.message,'r');}};
+ const actuals=R.views.actuals;
+ R.views.actuals=function(){return '<div class="panel"><button class="btn pri" onclick="RBB.app.openFinancialPackageReview()">Review monthly financial package</button><p>PDF or XLSX · statement classification and reconciliation · shared import review</p></div>'+actuals.apply(this,arguments);};
  A.go=function(view,opts){
   if(!R.views[view])return;
+  if(view!==A.view)packageReview?.dispose();
   if(view!==A.view)try{sessionStorage.setItem('atlas-budget-previous-view',A.view);}catch{}
   const result=go.call(A,view,opts);
   const url=new URL(location.href);url.hash=view;history.replaceState(null,'',url);

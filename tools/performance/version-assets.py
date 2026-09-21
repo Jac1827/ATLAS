@@ -3,6 +3,11 @@ from pathlib import Path
 import hashlib, json, re
 root=Path(__file__).resolve().parents[2]/'docs/portfolio-operations-dashboard'
 entries=[
+ ('features/financial-ocr.mjs',[('features/financial-package-reader.mjs','./financial-ocr.mjs')]),
+ ('features/financial-package.mjs',[('features/financial-package-reader.mjs','./financial-package.mjs'),('features/financial-package-review.mjs','./financial-package.mjs'),('features/financial-workbook-worker.mjs','./financial-package.mjs')]),
+ ('features/financial-workbook-worker.mjs',[('features/financial-package-reader.mjs','./financial-workbook-worker.mjs')]),
+ ('features/financial-package-reader.mjs',[('features/financial-package-review.mjs','./financial-package-reader.mjs')]),
+ ('features/financial-package-review.mjs',[('budget-navigation.js','./features/financial-package-review.mjs')]),
  ('financial-publication.js',[('index.html','financial-publication.js'),('financial-accountability.html','financial-publication.js')]),
  ('budget-navigation.js',[('RISE-Budget-Builder.html','./budget-navigation.js')]),
  ('budget-navigation.css',[('RISE-Budget-Builder.html','./budget-navigation.css')]),

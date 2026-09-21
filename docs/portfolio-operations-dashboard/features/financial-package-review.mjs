@@ -1,0 +1,46 @@
+import {readPackage} from './financial-package-reader.mjs?v=00c6009c7e1b92b1';
+import {resolveCommunity} from './financial-package.mjs?v=49ea086d6d07f300';
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=v=>v===null||v===undefined?'Missing':v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+let active;
+export function dispose(){active?.close();active=null;}
+export async function openReview(){
+ dispose();const dialog=document.createElement('dialog');active=dialog;dialog.className='financial-package-review';
+ dialog.innerHTML='<h2>Review a month-end package</h2><p>Budget Comparison Income Statement is the monthly close source. Accounting approval is already received; ATLAS checks identity, coverage and reconciliation.</p><p>Upload → Classify → Identify → Reconcile → Import Review → Admin close → Publish</p><label>Financial package <input type="file" accept=".pdf,.xlsx"></label><button type="button" data-cancel>Cancel processing</button><button type="button" data-close>Close</button><p role="status" aria-live="polite"></p><section data-result></section>';
+ document.body.append(dialog);dialog.showModal();let operation,certificate,epoch=0;
+ const status=dialog.querySelector('[role=status]'),result=dialog.querySelector('[data-result]');
+ const history=document.createElement('section');history.innerHTML='<label>Saved review period <input type="month" data-period></label><button data-history>Load shared reviews</button><div data-history-list></div>';dialog.insertBefore(history,result);
+ history.querySelector('[data-period]').value=new Date().toISOString().slice(0,7);
+ history.querySelector('[data-history]').onclick=async()=>{
+  const list=history.querySelector('[data-history-list]'),period=history.querySelector('[data-period]').value;
+  try{
+   if(!/^20\d{2}-(0[1-9]|1[0-2])$/.test(period))throw Error('Choose a reporting period.');
+   const host=window.parent;if(host===window||host.location.origin!==location.origin||!host.atlasAccessDecision?.(12)?.ok)throw Error('Open Budget Builder within your signed-in ATLAS workspace to read shared reviews.');
+   const central=host.ATLAS_CENTRAL;list.textContent='Loading shared review summaries…';
+   const rows=await central.fetchJson(`/atlas_financial_package_reviews?period_key=eq.${period}&select=review_id,source_property,source_file,status,created_at&order=created_at.desc&limit=20`);
+   if(!dialog.isConnected)return;
+   list.innerHTML=rows.length?'<p>Latest 20 accessible reviews. Review records are not closed financial actuals.</p>'+rows.map(r=>`<p>${esc(r.source_property)} · ${esc(r.source_file)} · ${esc(r.status)} <button data-certificate="${esc(r.review_id)}">Read certificate</button></p>`).join(''):'<p>No shared reviews for this period.</p>';
+   list.querySelectorAll('[data-certificate]').forEach(button=>{button.onclick=async()=>{try{const rows=await central.fetchJson(`/atlas_financial_package_reviews?review_id=eq.${encodeURIComponent(button.dataset.certificate)}&select=certificate&limit=1`);if(!rows[0])throw Error('Review is no longer accessible.');const cert=rows[0].certificate;const text=document.createElement('pre');text.style.cssText='white-space:pre-wrap;max-height:350px;overflow:auto';text.textContent=JSON.stringify({source:cert.sourceFile,hash:cert.sourceHash,metadata:cert.metadata,checks:cert.checks,status:cert.status,publicationStatus:cert.publicationStatus},null,2);list.querySelector('pre')?.remove();list.append(text);}catch(e){status.textContent=e.message;}};});
+  }catch(e){list.textContent=e.message;}
+ };
+ const cancel=()=>{epoch++;operation?.abort();operation=null;certificate=null;result.replaceChildren();};
+ dialog.onclose=()=>{cancel();dialog.remove();if(active===dialog)active=null;};
+ dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.querySelector('[data-cancel]').onclick=()=>{cancel();status.textContent='Processing canceled. Temporary workbook and document buffers released.';};
+ dialog.querySelector('input').onchange=async event=>{
+  cancel();const token=epoch;operation=new AbortController();const file=event.target.files[0];if(!file)return;
+  status.textContent='Reading the package…';
+  try{
+   const parsed=await readPackage(file,{signal:operation.signal,onProgress:message=>{if(token===epoch)status.textContent=message;}});if(token!==epoch)return;certificate=parsed;
+   status.textContent=parsed.technicalReconciled?'Statement totals reconcile. Canonical mapping and remaining close controls still require review.':'Review the extraction exceptions before continuing.';
+   let central,communities=[],aliases=[];
+   try{const host=window.parent;if(host.location.origin===location.origin&&host.ATLAS_CENTRAL&&host.atlasAccessDecision(12).ok){central=host.ATLAS_CENTRAL;[communities,aliases]=await Promise.all([central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000')]);}}
+   catch{status.textContent+=' Shared review is unavailable; the certificate can still be inspected.';}
+   if(token!==epoch)return;
+   const match=resolveCommunity(parsed.metadata?.sourceProperty,communities,aliases),community=communities.find(c=>c.community_id===match.communityId);
+   result.innerHTML=`<h3>Reconciliation certificate</h3><p><strong>${esc(parsed.metadata?.sourceProperty||'Unidentified property')}</strong> · ${esc(parsed.metadata?.period||'Missing period')} · ${esc(parsed.metadata?.basis||'Missing basis')}</p><p>Canonical community: ${esc(community?.display_name||match.status)} · Source YTD begins ${esc(parsed.metadata?.ytdStart||'Not recorded')} · Community Settings type: ${esc(community?.property_type||'Not available')}</p><p>${esc(parsed.sourceFile)} · ${(parsed.sourceBytes/1048576).toFixed(2)} MB<br>SHA-256: <code>${esc(parsed.sourceHash)}</code></p><p>${parsed.rows.filter(r=>r.kind==='posting').length} posting GLs; ${parsed.rows.filter(r=>r.kind==='control').length} control rows. ${esc(parsed.scope)}</p><p>${parsed.classifications.length} pages/worksheets classified${parsed.pageCount?' of '+parsed.pageCount:''}. ${parsed.unexaminedPages||0} trailing pages not inspected. Trial-balance tie-out, GL nature mapping, configured fiscal calendar and source-file retention are not yet certified.</p><div class="financial-review-scroll"><table><thead><tr><th>Control</th><th>Basis</th><th>Source</th><th>Recomputed</th><th>Difference</th></tr></thead><tbody>${parsed.checks.map(c=>`<tr><th>${esc(c.label)}</th><td>${esc(c.field)}</td><td>${money(c.source)}</td><td>${money(c.calculated)}</td><td>${money(c.difference)} ${c.passed?'Match':'Review'}</td></tr>`).join('')}</tbody></table></div><p>${parsed.exceptions.length} extraction exceptions</p><ul>${parsed.exceptions.slice(0,30).map(e=>`<li>${esc(e.code)} ${esc(e.glCode||e.description||'')}</li>`).join('')}</ul><details><summary>Posting-row preview (first 100)</summary><div class="financial-review-scroll"><table><thead><tr><th>GL</th><th>Account</th><th>Actual</th><th>Budget</th><th>Source</th></tr></thead><tbody>${parsed.rows.filter(r=>r.kind==='posting').slice(0,100).map(r=>`<tr><th>${esc(r.glCode)}</th><td>${esc(r.accountName)}</td><td>${money(r.values.actual)}</td><td>${money(r.values.budget)}</td><td>${esc(r.source.page?'Page '+r.source.page:r.source.sheet+' row '+r.source.row)}</td></tr>`).join('')}</tbody></table></div></details><button data-download>Download certificate</button><button data-save ${central&&match.communityId?'':'disabled'}>Save shared import review</button><p data-saved>Not closed. Not published. Budget-comparison columns do not replace the original approved budget.</p>`;
+   result.querySelector('[data-download]').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(certificate,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='ATLAS-financial-review-'+(parsed.metadata?.period||'unknown')+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+   result.querySelector('[data-save]').onclick=async e=>{e.target.disabled=true;const message=result.querySelector('[data-saved]');try{const saved=await central.rpc('atlas_save_financial_package_review',{p_community_id:match.communityId,p_certificate:certificate});const row=Array.isArray(saved)?saved[0]:saved;const read=await central.fetchJson(`/atlas_financial_package_reviews?review_id=eq.${encodeURIComponent(row.review_id)}&select=review_id,source_hash,status&limit=1`);if(read[0]?.source_hash!==certificate.sourceHash)throw Error('Shared readback could not be verified. Reload before retrying.');if(token===epoch)message.textContent=`Shared import review stored and read back: ${row.review_id}. Not closed or published.`;}catch(error){if(token===epoch){message.textContent=error.message;e.target.disabled=false;}}};
+  }catch(error){if(token===epoch)status.textContent=error.name==='AbortError'?'Canceled.':error.message;}
+  finally{event.target.value='';}
+ };
+}

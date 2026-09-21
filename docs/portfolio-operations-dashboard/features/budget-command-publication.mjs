@@ -9,6 +9,7 @@ function dialog(title){active?.remove();const el=document.createElement('dialog'
 const hash=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(value))))).map(v=>v.toString(16).padStart(2,'0')).join('');
 export async function review(){
  const shell=host(),central=shell.ATLAS_CENTRAL,R=window.RBB,state=R.app.state,prop=state.properties.find(p=>p.id===state.activeProperty),year=Number(state.budgetYear);
+ if(central.getStoredProfile()?.role!=='admin')throw Error('Only an Admin may publish financial data. You may continue reviewing and resolving assigned exceptions.');
  const approved=state.scenarios.find(s=>s.id===state.activeScenario&&s.type==='approved'&&s.locked);
  if(!approved)throw Error('Select the approved, locked scenario before publication. Draft and reforecast scenarios cannot publish this baseline.');
  if(state.demoActuals)throw Error('Demo actuals cannot be published.');

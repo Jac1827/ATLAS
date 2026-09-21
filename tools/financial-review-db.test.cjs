@@ -1,0 +1,27 @@
+const {PGlite}=require('@electric-sql/pglite'),fs=require('node:fs'),assert=require('node:assert/strict');
+(async()=>{
+ const db=new PGlite();await db.exec(`create role anon;create role authenticated;create schema auth;create schema atlas_private;
+ create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+ grant usage on schema auth,atlas_private to authenticated;grant execute on function auth.uid() to authenticated;
+ create table atlas_user_profiles(user_id uuid,role text,status text,locked_tab_ids text[],locked_page_keys text[],allowed_community_ids uuid[]);
+ create table atlas_communities(community_id uuid primary key,display_name text,canonical_name text,deleted_at timestamptz);
+ create table atlas_community_aliases(community_id uuid,alias text,active boolean,source_module text);
+ create function atlas_can_access_community(id uuid) returns boolean language sql security definer set search_path=public as $$ select exists(select 1 from atlas_user_profiles where user_id=auth.uid() and status='active' and (role='admin' or id=any(allowed_community_ids))) $$;
+ insert into auth.users values('00000000-0000-0000-0000-000000000001'),('00000000-0000-0000-0000-000000000002');
+ insert into atlas_user_profiles values('00000000-0000-0000-0000-000000000001','admin','active','{}','{}','{}'),('00000000-0000-0000-0000-000000000002','community_manager','active','{}','{}','{10000000-0000-0000-0000-000000000002}');
+ insert into atlas_communities values('10000000-0000-0000-0000-000000000001','The Preserve at Tech','the preserve at tech',null),('10000000-0000-0000-0000-000000000002','Other','other',null);`);
+ await db.exec(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/centralization/financial-package-review.sql','utf8'));
+ const signIn=async n=>db.exec(`reset role;set request.jwt.claim.sub='00000000-0000-0000-0000-${String(n).padStart(12,'0')}';set role authenticated;`);
+ const cid='10000000-0000-0000-0000-000000000001';
+ const certificate={schemaVersion:1,sourceFile:'approved.pdf',sourceHash:'a'.repeat(64),metadata:{sourceProperty:'Ruston',period:'2026-08',basis:'accrual'},status:'Published',publicationStatus:'Published',rows:[{kind:'posting',glCode:'5120',accountName:'GPR',values:{actual:0,budget:null,ytdActual:0,ytdBudget:null,annualBudget:null},source:{page:3}}]};
+ const save=async(c=certificate)=>(await db.query('select * from atlas_save_financial_package_review($1,$2::jsonb)',[cid,JSON.stringify(c)])).rows[0];
+ await signIn(1);const record=await save();assert.equal(record.status,'Import Review');assert.equal(record.certificate.publicationStatus,'Not published');assert.equal(record.certificate.serverCloseValidated,false);assert.equal(record.certificate.rows[0].values.actual,0);assert.equal(record.certificate.rows[0].values.budget,null);
+ assert.equal((await save()).review_id,record.review_id);
+ await assert.rejects(()=>db.query('delete from atlas_financial_package_reviews'),/permission denied/);
+ await assert.rejects(()=>save({...certificate,metadata:{...certificate.metadata,sourceProperty:'Other'}}),/approved alias/);
+ await assert.rejects(()=>save({...certificate,rows:[...certificate.rows,...certificate.rows]}),/duplicate/);
+ await signIn(2);assert.equal((await db.query('select * from atlas_financial_package_reviews')).rows.length,0);await assert.rejects(()=>save(),/access denied/);
+ await db.exec("reset role;update atlas_user_profiles set locked_page_keys='{budget}' where role='admin'");await signIn(1);assert.equal((await db.query('select * from atlas_financial_package_reviews')).rows.length,0);await assert.rejects(()=>save(),/access denied/);
+ await db.exec('reset role;set role anon');await assert.rejects(()=>db.query('select * from atlas_financial_package_reviews'),/permission denied/);
+ await db.close();console.log('PASS immutable scoped intake, idempotency, source aliases, missing/zero and no client-side financial promotion');
+})().catch(e=>{console.error(e);process.exitCode=1;});

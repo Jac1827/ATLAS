@@ -15,6 +15,7 @@ await db.exec(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard
 await db.exec(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/centralization/community-command-delivery.sql','utf8'));
 await db.exec(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/centralization/community-command-plan-summary.sql','utf8'));
 await db.exec(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/centralization/community-command-report-ytd.sql','utf8'));
+await db.exec(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/centralization/financial-admin-publication.sql','utf8'));
 const signIn=async n=>db.exec(`reset role; set request.jwt.claim.sub='00000000-0000-0000-0000-${String(n).padStart(12,'0')}'; set role authenticated;`);
 const A='10000000-0000-0000-0000-000000000001',B='10000000-0000-0000-0000-000000000002';
 const task={id:'t1',title:'Validate variance',origin:'Manual',status:'Accepted/Open'};
@@ -46,6 +47,8 @@ assert.equal((await db.query('select * from atlas_community_plans')).rows.length
 await signIn(1);
 const payload={communityId:A,period:'2026-09',year:2026,fiscalYear:2026,periodBasis:'calendar_month',approvedLocked:true,reviewConfirmed:true,scenarioId:'approved',scenarioVersion:'verified-budget-hash',builderPropertyId:'builder-A',actualSource:'approved actuals.xlsx',budgetSource:'locked budget.xlsx',sourceTimestamp:'2026-09-20T10:00:00Z',occupancyPct:95,mappingVersion:'reviewed-v1',rows:[{glCode:'5120',metric:'gpr',nature:'income',actual:900,budget:1000,ytdActual:5000,ytdBudget:6000},{glCode:'6500',metric:'expenses',nature:'expense',operatingApproved:true,actual:1200,budget:1000,ytdActual:6000,ytdBudget:5000}]};
 const publish=async(data,version=0)=>(await db.query('select * from public.atlas_publish_command_financials($1,$2,$3,$4::jsonb)',[A,'2026-09',version,JSON.stringify(data)])).rows[0];
+await signIn(2);await assert.rejects(()=>publish(payload),/Only an active Admin/);
+await assert.rejects(()=>db.query('select atlas_private.atlas_publish_command_financials($1,$2,$3,$4::jsonb)',[A,'2026-09',0,JSON.stringify(payload)]),/permission denied/);await signIn(1);
 const fiscalPayload={...payload,fiscalStartMonth:7,fiscalStartPeriod:'2025-07',period:'2026-09',fiscalPeriods:[]};
 await assert.rejects(()=>publish(fiscalPayload),/Fiscal period scope mismatch/);
 const validFiscal={...payload,fiscalStartMonth:7,fiscalStartPeriod:'2026-07',fiscalPeriods:['2026-07','2026-08','2026-09'],rows:payload.rows.map(r=>({...r,ytdActual:r.actual*3,ytdBudget:r.budget*3,fiscalEvidence:['2026-07','2026-08','2026-09'].map(period=>({period,actual:r.actual,budget:r.budget,actualSource:'actuals',sourceTimestamp:'2026-09-21',budgetSource:'approved',budgetEffectiveDate:'2026-01-01'}))}))};

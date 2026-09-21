@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {handleCommunityPlanEmail} from '../src/community-plan-email.mjs';
+import {reportHtml} from '../docs/portfolio-operations-dashboard/features/community-plan-report.mjs';
+const id='11111111-1111-4111-8111-111111111111';
+const record={report_id:id,plan_version:1,created_at:'2026-09-21T12:00:00Z',executive_note:'Review <source>',snapshot:{community:'Synthetic',period:'2026-09',sourceUpdatedAt:'2026-09-20',coverage:'Missing occupancy',plan:{owner:'Leader',stage:'Active',tasks:[{title:'Review variance',origin:'Manual',status:'Completed',notes:'SECRET',completionEvidence:'PRIVATE'}]},financial:{summary:{gpr:{actual:0,budget:100,variance:-100,label:'Behind'}}}}};
+let sent=[],claims=0,patches=[],fail=false;
+const api={requireAtlasAccessUser:async()=>({config:{},token:'synthetic'}),apiResponse:(v,o={})=>new Response(JSON.stringify(v),{status:o.status||200}),supabaseRequest:async(c,p,o)=>{if(o?.method==='PATCH'){patches.push(o.body);return null;}assert.equal(o.token,'synthetic');return [record];},callAtlasRpcAsUser:async()=>{if(claims++)throw Error('already recorded');return {delivery_id:id,recipients:['test@risere.com']};}};
+const env={ATLAS_DLR_FROM_EMAIL:'central@risere.com',EMAIL:{send:async message=>{sent.push(message);if(fail)throw Error('uncertain');return {messageId:'fake'};}}};
+const request=()=>new Request('https://local.test/api',{method:'POST',body:JSON.stringify({reportId:id,recipients:['test@risere.com'],html:'FORGED'})});
+let response=await handleCommunityPlanEmail(request(),env,api);assert.equal(response.status,200);assert.equal(sent[0].html,reportHtml(record));assert(!sent[0].html.includes('SECRET'));assert(!sent[0].html.includes('PRIVATE'));assert(sent[0].html.includes('&lt;source&gt;'));assert.equal(patches[0].status,'sent');
+response=await handleCommunityPlanEmail(request(),env,api);assert.equal(response.status,400);assert.equal(sent.length,1,'duplicate must not send');
+claims=0;fail=true;response=await handleCommunityPlanEmail(request(),env,api);assert.equal(response.status,400);assert.equal(patches.at(-1).status,'unknown');
+response=await handleCommunityPlanEmail(request(),env,{...api,requireAtlasAccessUser:async()=>{throw Object.assign(Error('denied'),{status:403});}});assert.equal(response.status,403);assert.equal(sent.length,2);
+console.log('PASS authenticated report-only email, exact render parity, private-field exclusion, duplicate suppression and uncertain outcome handling');

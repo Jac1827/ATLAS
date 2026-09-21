@@ -1,3 +1,4 @@
+import {handleCommunityPlanEmail} from './community-plan-email.mjs';
 export { EvictionCaseState } from './eviction-store.mjs';
 export { PropertySpecialsState } from './property-specials-store.mjs';
 import '../docs/portfolio-operations-dashboard/investor-packet-core.js';
@@ -1716,6 +1717,12 @@ export default {
       if(request.method === "OPTIONS") return noContent();
       if(request.method !== "POST")return apiResponse({ok:false,error:"Method Not Allowed"},{status:405});
       return handleEvictionRequest(request,env);
+    }
+
+    if (url.pathname === "/api/atlas/community-plan/email") {
+      if (request.method === "OPTIONS") return noContent();
+      if (request.method !== "POST") return apiResponse({ok:false,error:"Method Not Allowed"},{status:405});
+      return handleCommunityPlanEmail(request,env,{requireAtlasAccessUser,apiResponse,supabaseRequest,callAtlasRpcAsUser});
     }
 
     if (url.pathname === "/api/atlas/dlr/status") {

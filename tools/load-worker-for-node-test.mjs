@@ -4,6 +4,7 @@ import fs from 'node:fs';
 export async function loadWorker() {
   const url=new URL('../src/worker.mjs',import.meta.url);
   const source=fs.readFileSync(url,'utf8').replace(/^export \{.*\} from .*;$/mg,'')
+    .replace(/^(import .+ from )['"]([^'"]+)['"];$/mg,(_,prefix,path)=>`${prefix}${JSON.stringify(new URL(path,url).href)};`)
     .replace(/^import ['"]([^'"]+)['"];$/mg,(_,path)=>`import ${JSON.stringify(new URL(path,url).href)};`);
   return (await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'))).default;
 }

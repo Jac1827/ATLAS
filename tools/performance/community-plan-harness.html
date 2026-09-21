@@ -1,0 +1,30 @@
+<!doctype html><meta charset="utf-8"><title>Local shared-plan UI checks</title><h1>Shared-plan UI checks</h1><p>Synthetic local adapter; this does not establish production authorization acceptance.</p><pre id="result">Ready</pre><script type="module">
+import * as plans from '../../docs/portfolio-operations-dashboard/features/community-plan.mjs';
+const id='10000000-0000-0000-0000-000000000001';
+let saved=null,calls=0;
+const central={
+ async fetchJson(path){if(!path.startsWith('/atlas_community_plans?'))return [];return saved?[structuredClone(saved)]:[];},
+ async rpc(name,args){calls++;if(name!=='atlas_save_community_plan')throw Error('Unexpected request');if(args.p_expected_version!==(saved?.version||0))throw Error('Version conflict');saved={plan_id:'20000000-0000-0000-0000-000000000001',version:(saved?.version||0)+1,payload:structuredClone(args.p_payload),updated_at:new Date().toISOString()};return structuredClone(saved);}
+};
+const tick=()=>new Promise(r=>setTimeout(r,20));
+const assert=(ok,message)=>{if(!ok)throw Error(message);};
+window.runCommunityPlanChecks=async()=>{
+ await plans.open({communityId:id,name:'Synthetic community',period:'2026-09',central,canEdit:true,canVerify:true});
+ document.querySelector('[data-add]').click();
+ const form=document.querySelector('[data-task]');
+ form.elements.title.value='Review <unsafe> amount';form.elements.owner.value='Test owner';form.elements.dueDate.value='2026-09-30';form.elements.targetValue.value='12';
+ form.requestSubmit();await tick();
+ assert(saved.payload.tasks.length===1,'manual task must persist');assert(saved.payload.tasks[0].origin==='Manual','manual source');
+ assert(!document.querySelector('unsafe'),'task output must escape markup');
+ document.querySelector('[data-edit]').click();
+ assert(document.querySelector('[name=status] option[value=Verified]')?.disabled ?? [...document.querySelector('[name=status]').options].find(o=>o.value==='Verified').disabled,'open task cannot verify');
+ plans.close();assert(!document.querySelector('dialog'),'close releases DOM');
+ await plans.open({communityId:id,name:'Synthetic community',period:'2026-09',central,canEdit:false,canVerify:false});
+ assert(document.querySelector('td').textContent==='Review <unsafe> amount','independent reopen reads saved task');
+ assert(!document.querySelector('[data-add]'),'read-only viewer cannot add');
+ document.querySelector('[data-edit]').click();assert(document.querySelector('fieldset').disabled,'read-only details');plans.close();
+ assert(calls===1,'one edit produces one write');
+ document.querySelector('#result').textContent='PASS manual task, stored readback, safe text, verification gate, readonly view, one write and cleanup';
+ return {pass:true,writes:calls,retainedDialogs:document.querySelectorAll('dialog').length};
+};
+</script>

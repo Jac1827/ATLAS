@@ -129,7 +129,7 @@ export default async function buildMonthlyInvestorPresentationPptxSlides(pptx, r
     });
     addPptxMetricGrid(overviewSlide, pptx, [
       { label: "Budget Attainment", value: `${(report.aggregate.avgBudgetOccAttainmentPct ?? 0).toFixed(1)}%`, sub: "Average occupancy attainment vs saved budget" },
-      { label: "Occ Gap vs Budget", value: formatSignedDisplay(report.aggregate.occGapPts ?? 0, 1, " pts"), sub: "Portfolio occupancy gap versus budget" },
+      { label: "Occ Gap vs Budget", value: formatSignedDisplay(report.aggregate.occGapPts, 1, " pts"), sub: "Portfolio occupancy gap versus budget" },
       { label: "Leased Gap vs Budget", value: formatSignedDisplay(report.aggregate.leasedGapPts ?? 0, 1, " pts"), sub: "Leased occupancy gap versus target" },
       { label: "NER Delta vs Budget", value: report.aggregate.nerDelta ? formatSignedDisplay(report.aggregate.nerDelta, 0) : "—", sub: "Weighted effective rent delta versus budget" }
     ], {

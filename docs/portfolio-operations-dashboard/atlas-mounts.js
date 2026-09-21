@@ -45,7 +45,7 @@
       note: "Property budget, monthly view, GL detail, actuals, financial review and exception reporting all run in Budget Builder itself — ATLAS reads the published scenario.",
       barTitle: "RISE Budget Builder",
       barSub: "Standalone finance tool — central Budget and actuals migration required",
-      src: "RISE-Budget-Builder.html?v=20260916-budget-current",
+      src: "RISE-Budget-Builder.html?v=bf8d103aafd5e25b",
       background: "#F1F4F6",
       icon: "ph-calculator"
     },
@@ -457,6 +457,7 @@
         '      <button type="button" onclick="window.navigateAtlasBudgetMount(\'actuals\')">Actuals</button>',
         '      <button type="button" onclick="window.navigateAtlasBudgetMount(\'financialreview\')">Financial review</button>',
         '      <button type="button" onclick="window.navigateAtlasBudgetMount(\'exports\')">Reports</button>',
+        '      <button type="button" onclick="document.querySelector(\'iframe[data-atlas-mount-key=budget]\')?.contentWindow.AtlasBudgetCommand?.review()">Publish Community Command</button>',
         '    </div>',
         '  </div>',
         '  <p class="atlas-budget-workspace-note">Approved, locked scenarios publish GL budgets and month-end actuals to ATLAS financial reporting. The workspace stays open while you move through ATLAS.</p>',

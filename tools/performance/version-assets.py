@@ -3,6 +3,7 @@ from pathlib import Path
 import hashlib, json, re
 root=Path(__file__).resolve().parents[2]/'docs/portfolio-operations-dashboard'
 entries=[
+ ('centralization/atlas-central-client.js',[('index.html','./centralization/atlas-central-client.js')]),
  ('vendor/pptxgen-4.0.1.js',[('performance/feature-loader.js','vendor/pptxgen-4.0.1.js')]),
  ('vendor/jszip.min.js',[('performance/feature-loader.js','vendor/jszip.min.js')]),
  ('features/workbook-worker.js',[('features/workbook-session.mjs','./workbook-worker.js')]),

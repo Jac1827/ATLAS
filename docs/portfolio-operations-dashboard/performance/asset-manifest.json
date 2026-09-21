@@ -1,4 +1,14 @@
 {
+  "centralization/atlas-central-client.js": {
+    "sha256": "1ebd09028b44e083",
+    "bytes": 65739,
+    "references": [
+      [
+        "index.html",
+        "./centralization/atlas-central-client.js"
+      ]
+    ]
+  },
   "vendor/pptxgen-4.0.1.js": {
     "sha256": "4fb9eac5cfefb213",
     "bytes": 460889,

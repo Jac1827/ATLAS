@@ -51,6 +51,7 @@ jobs:
         run: |
           node tools/startup-performance.test.cjs
           node tools/performance-diagnostics.test.cjs
+          node tools/central-api-performance.test.cjs
           node tools/performance-assets.test.cjs
           node tools/feature-loader.test.cjs
           node tools/staffing-performance.test.cjs

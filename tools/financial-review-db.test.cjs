@@ -49,10 +49,10 @@ const {PGlite}=require('@electric-sql/pglite'),fs=require('node:fs'),assert=requ
 
  await db.exec('reset role');await db.exec(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/centralization/financial-close.sql','utf8'));await signIn(1);
  const close=async(id,expected=null,approved=true)=>(await db.query('select * from atlas_close_financial_review($1,$2,$3,$4)',[id,expected,'Source package reviewed and reconciled',approved])).rows[0];
- const closeCertificate=structuredClone(changed);closeCertificate.sourceHash='f'.repeat(64);closeCertificate.rows.splice(1,0,line('control',null,'Net Rental Income',110));closeCertificate.rows.push(line('control',null,'Net Cash Flow',70));
+ const closeCertificate=structuredClone(changed);closeCertificate.sourceHash='f'.repeat(64);closeCertificate.rows.splice(1,0,line('control',null,'Net Rental Income',110));closeCertificate.rows.push(line('control',null,'Net Cash Flow',70));closeCertificate.rows[0].source={page:7};
  const closeReview=await save(closeCertificate);
  await assert.rejects(()=>close(closeReview.review_id,null,false),/approval confirmation/);
- const closed=await close(closeReview.review_id);assert.equal(closed.metrics.grossPotentialRent,110);assert.equal(closed.metrics.netRentalIncome,110);assert.equal(closed.status,'closed');
+ const closed=await close(closeReview.review_id);assert.equal(closed.metrics.grossPotentialRent,110);assert.equal(closed.metrics.netRentalIncome,110);assert.equal(closed.status,'closed');assert.equal((await db.query(`select source_location from atlas_financial_close_rows where version_id=$1 and gl_code='5120'`,[closed.version_id])).rows[0].source_location.page,7,'Close lineage follows selected source, not an equivalent prior comparison file');
  assert.equal((await close(closeReview.review_id)).version_id,closed.version_id);
  const correction=structuredClone(closeCertificate);correction.sourceHash='1'.repeat(64);correction.rows[0].values=values(120);correction.rows[1].values=values(120);correction.rows[2].values=values(120);correction.rows[4].values=values(80);correction.rows[5].values=values(80);
  const correctionReview=await save(correction);await assert.rejects(()=>close(correctionReview.review_id),/another session/);

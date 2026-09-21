@@ -4,6 +4,8 @@
   const base = new URL('../', document.currentScript.src);
   const pending = new Map();
   const definitions = {
+    migrationArchive: { src: new URL("migration-archive.js?v=e4993aad17191ed2", base).href, ready: () => !!root.AtlasMigrationArchive },
+    occupancyReplay: { src: new URL("occupancy-replay-browser.js?v=681f9a93e24f41dc", base).href, ready: () => !!root.AtlasOccupancyReplayBrowser },
     leaflet: { src: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', css: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', ready: () => !!root.L },
     pdf: { src: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', ready: () => !!root.pdfjsLib },
     zip: { src: new URL('vendor/jszip.min.js?v=acc7e41455a80765', base).href, ready: () => !!root.JSZip },

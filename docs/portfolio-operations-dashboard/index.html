@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css"/>
 <script src="./performance/diagnostics.js?v=b40ddaaf123f59ae"></script>
-<script src="./performance/feature-loader.js?v=b3ecf90b0783a5a7"></script>
+<script src="./performance/feature-loader.js?v=ed7b38027612489d"></script>
 <script src="financial-publication.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="./investor-packet.css"/>
@@ -1424,8 +1424,6 @@
 <link rel="stylesheet" href="./application-performance.css?v=20260916-no-data-status">
 <script src="./application-source-bridge.js?v=occupancy-integrity-20260918"></script>
 <script src="./occupancy-replay.js?v=2"></script>
-<script src="./occupancy-replay-browser.js?v=1"></script>
-<script src="./migration-archive.js?v=e4993aad17191ed2"></script>
 <script src="./application-performance.js?v=20260917-weekly-report"></script>
 <link rel="stylesheet" href="./concession-insights.css?v=20260917-1">
 <script src="./property-intelligence.js?v=20260917-1"></script>
@@ -14804,10 +14802,12 @@ function syncAtlasWorkspaceCardVisibility() {
   if (applicationTracking) applicationTracking.style.display = shouldShowApplicationTracking ? "" : "none";
 }
 
+let atlasNavigationEpoch = 0;
 function setTab(i) {
+  atlasNavigationEpoch += 1;
   window.AtlasPerformance?.memory("before-navigation");
   const requestedTab = Math.max(0, Math.min(MAX_TAB, Number(i) || 0));
-  if (activeTab === 7 && requestedTab !== 7) cancelDataImportPreview();
+  if (activeTab === 7 && requestedTab !== 7) { cancelDataImportPreview(); window.AtlasOccupancyReplayBrowser?.cancel(); }
   const requestedDecision = atlasAccessDecision(requestedTab);
   activeTab = requestedDecision.ok ? requestedTab : requestedTab;
   if (activeTab === 1 && isPortfolioWorkspaceSelected()) {
@@ -19680,7 +19680,7 @@ function redactAtlasCentralStorageBundle(bundle = {}) {
 }
 
 async function buildAtlasCentralAppStatePayload() {
-  await window.AtlasFeatures?.load("zip");
+  await Promise.all([window.AtlasFeatures?.load("zip"), window.AtlasFeatures?.load("migrationArchive")]);
   const migrationSnapshot = await collectAtlasCentralMigrationSnapshot();
   const bundle = redactAtlasCentralStorageBundle(await buildDashboardStorageBundle());
   await atlasStateWritePromise;
@@ -21640,9 +21640,8 @@ async function importDashboardStorageBundleFromFile(file) {
 async function applyDashboardStorageBundle(bundle) {
   let retainedRecords = [];
   let intendedCommunityData = null;
-  if (bundle?.bundleType === "atlas_migration_archive_v1" && !window.AtlasMigrationArchive) throw new Error("Migration archive support is unavailable. Reload before restoring.");
   if (bundle?.bundleType === "atlas_migration_archive_v1") {
-    await window.AtlasFeatures?.load("zip");
+    await Promise.all([window.AtlasFeatures?.load("zip"), window.AtlasFeatures?.load("migrationArchive")]);
     const unpacked = await window.AtlasMigrationArchive.unpack(await window.AtlasMigrationArchive.hydrate(bundle, window.ATLAS_CENTRAL), JSZip);
     bundle = unpacked.bundle;
     retainedRecords = unpacked.records;
@@ -48698,6 +48697,19 @@ function dataImportExtractMetadata(sample = {}, file = null) {
   };
 }
 
+async function previewAtlasOccupancyReplay(archiveId) {
+  if (!dataImportCanManageArchitecture() || dataImportApprovalInProgress) return;
+  const owningTab = activeTab, epoch = atlasNavigationEpoch;
+  try {
+    updateDataImportPreviewProgress("Loading occupancy repair tools…");
+    await window.AtlasFeatures.load("occupancyReplay");
+    if (activeTab !== owningTab || atlasNavigationEpoch !== epoch || !dataImportCanManageArchitecture()) return;
+    return window.previewAtlasOccupancyReplay(archiveId);
+  } catch (error) {
+    if (activeTab === owningTab) alert(`Occupancy repair tools could not load: ${error.message}`);
+  } finally { updateDataImportPreviewProgress(""); }
+}
+
 function dataImportIsBoxScoreSheet(rows, sheetName) {
   if (dataImportIsMetadataSheetName(sheetName)) return false;
   // Section anchors, not a generic rent column or workbook filename, identify candidates.
@@ -48757,7 +48769,7 @@ async function dataImportReadFileSample(file, signal) {
     if ([".xlsx", ".xls", ".xlsm"].includes(extension) && typeof XLSX !== "undefined") {
       if (typeof document !== "undefined") updateDataImportPreviewProgress("Reading workbook…");
       if (typeof Worker !== "undefined") {
-        const workerModule = await import("./features/workbook-session.mjs?v=119919bdd6b29222");
+        const workerModule = await import("./features/workbook-session.mjs?v=ed5ad2c5aee473fc");
         workbookSession = await workerModule.openWorkbook(file, signal);
       }
       signal?.throwIfAborted();

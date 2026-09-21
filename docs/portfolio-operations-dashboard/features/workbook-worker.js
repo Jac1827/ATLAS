@@ -26,7 +26,7 @@ self.onmessage = async ({data}) => {
       if (range && (!candidate || data.metadata)) options.range = {...range, e:{...range.e, r:Math.min(range.e.r, range.s.r+79)}};
       const rows = XLSX.utils.sheet_to_json(sheet, options);
       const rowCount = range ? range.e.r-range.s.r+1 : 0;
-      self.postMessage({id, result:{rows, rowCount, candidate, duration:performance.now()-start}});
+      self.postMessage({id, result:{rows, rowCount, rangeStartRow:range?.s.r||0, candidate, duration:performance.now()-start}});
     } else throw new Error('Unknown workbook operation');
   } catch (error) { self.postMessage({id, error:String(error?.message || error)}); }
 };

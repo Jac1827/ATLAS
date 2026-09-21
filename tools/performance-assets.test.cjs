@@ -7,7 +7,7 @@ for(const [asset,info] of Object.entries(manifest)){
  for(const [file,reference] of info.references)assert(fs.readFileSync(root+file,'utf8').includes(reference+'?v='+info.sha256),file+' needs refreshed references');
 }
 const eager=[...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map(m=>m[1]);
-assert(!eager.some(src=>/leaflet|pdf\.min|pptxgen|jszip/.test(src)),'Feature dependencies must not reenter the shell');
+assert(!eager.some(src=>/leaflet|pdf\.min|pptxgen|jszip|occupancy-replay-browser|migration-archive/.test(src)),'Feature dependencies must not reenter the shell');
 // This is a no-growth guard against the verified head, not an accepted startup budget.
 assert(Buffer.byteLength(html)<=3387363,'Initial HTML exceeded the verified-head ceiling');
 assert(!html.includes('pptx.addSlide('), 'Slide generation must not be duplicated inline');

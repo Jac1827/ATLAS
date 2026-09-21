@@ -16631,8 +16631,15 @@ function atlasDashboardUserCanSeeCommunityName(name = "", profile = getAtlasAcce
   );
 }
 
+let atlasHomeRenderDetails = null;
+function atlasHomePortfolioDetails(month) {
+  if (!atlasHomeRenderDetails) return buildPortfolioDetailsForMonth(month);
+  if (!atlasHomeRenderDetails.has(month)) atlasHomeRenderDetails.set(month, buildPortfolioDetailsForMonth(month));
+  return atlasHomeRenderDetails.get(month);
+}
+
 function getAtlasDashboardAuthorizedCommunityOptions() {
-  const detailNames = new Set(buildPortfolioDetailsForMonth(getSelectedDashboardMonthIndex()).map(detail => detail.name));
+  const detailNames = new Set(atlasHomePortfolioDetails(getSelectedDashboardMonthIndex()).map(detail => detail.name));
   return getCommunityNamesByStatusScope({
       communityStatusMode: "active",
       includeCurrentSelection: true,
@@ -16665,7 +16672,7 @@ function buildAtlasDashboardScopedDetails(instance = {}) {
   const authorized = getAtlasDashboardAuthorizedCommunityOptions();
   const authorizedNames = new Set(authorized.map(item => item.name));
   const metaByName = new Map(authorized.map(item => [item.name, item]));
-  let details = buildPortfolioDetailsForMonth(monthIdx)
+  let details = atlasHomePortfolioDetails(monthIdx)
     .filter(detail => isCommunityStatusActive(detail.record))
     .filter(detail => authorizedNames.has(detail.name));
   if (scope.type === "single_property") {
@@ -18627,12 +18634,12 @@ function atlasOpenCentralServicesDashboardPreferences() {
 
 function renderAtlasDashboardHomeWidget(instance = {}) {
   const definition = getAtlasDashboardWidgetDefinition(instance.widgetKey) || {};
-  const snapshot = buildAtlasDashboardWidgetSnapshot(instance);
   const sizeClass = instance.size === "compact" ? "is-compact" : instance.size === "expanded" ? "is-expanded" : "";
   const pinnedClass = instance.pinned ? "is-pinned" : "";
   if (instance.widgetKey === "projected_bonus") {
     return renderAtlasPersonalBonusLandingWidget({ extraClass: `${sizeClass} ${pinnedClass}`.trim() });
   }
+  const snapshot = buildAtlasDashboardWidgetSnapshot(instance);
   const visualPreview = renderAtlasDashboardWidgetVisualPreview(instance, snapshot, definition);
   return `<button type="button" class="atlas-dashboard-widget-card ${sizeClass} ${pinnedClass}" onclick="atlasOpenDashboardWidget(${atlasDashboardJsArg(instance.instanceId)})" style="text-align:left;cursor:pointer">
     <div class="atlas-dashboard-widget-head">
@@ -18802,6 +18809,9 @@ function getAtlasDashboardDataContext(monthIdx = getSelectedDashboardMonthIndex(
 }
 
 function renderAtlasWelcomeDashboard() {
+  const previous = atlasHomeRenderDetails;
+  atlasHomeRenderDetails = new Map();
+  try {
   const profile = getAtlasAccessProfile();
   const status = getAtlasCentralStatus();
   const view = getAtlasActiveDashboardView();
@@ -18851,6 +18861,7 @@ function renderAtlasWelcomeDashboard() {
       </div>
     </section>
   </div>`;
+  } finally { atlasHomeRenderDetails = previous; }
 }
 
 function buildAtlasCentralPeoplePayload() {
@@ -32203,7 +32214,14 @@ function atlasBonusBuildCalculationRows(options = {}) {
   const state = atlasBonusState();
   const period = atlasBonusPeriodFromQuarter(bonusQuarter, new Date().getFullYear());
   const filters = { ...state.filters, ...(options.filters || {}) };
-  let rows = atlasBonusAuthorizedEmployees().map(employee => atlasBonusBuildRow(employee, period));
+  let employees = atlasBonusAuthorizedEmployees();
+  if (options.personalIdentity) {
+    const { employeeId, email } = options.personalIdentity;
+    employees = employees.filter(employee =>
+      (employeeId && [employee.employeeId, employee.peopleEmployeeId].includes(employeeId))
+      || (email && String(employee.email || "").trim().toLowerCase() === email));
+  }
+  let rows = employees.map(employee => atlasBonusBuildRow(employee, period));
   const aging = getAtlasApplicationAgingRows({start: period.start, end: period.end});
   for (const item of aging.filter(r => r.derogatoryCount > 0 && r.professional !== "Unassigned")) {
     const matches = rows.filter(r => r.employee.communityName === item.community && window.AtlasApplicationAging.name(atlasBonusEmployeeDisplayName(r.employee)) === window.AtlasApplicationAging.name(item.professional));
@@ -32477,13 +32495,8 @@ function atlasBonusPersonalRows() {
   const status = getAtlasCentralStatus();
   const email = String(profile?.email || status.userEmail || "").trim().toLowerCase();
   const employeeId = String(profile?.employee_id || profile?.employeeId || "").trim();
-  const rows = atlasBonusBuildCalculationRows({ filters: { approvalStatus: "all", planId: "all", community: "all", role: "all", employee: "", cadence: "all", operatingType: "all" } });
-  const personal = rows.filter(row =>
-    (employeeId && [row.employee.employeeId, row.employee.peopleEmployeeId].includes(employeeId))
-    || (email && String(row.employee.email || "").trim().toLowerCase() === email)
-  );
-  if (personal.length) return personal;
-  return rows.length ? [rows[0]] : [];
+  // Personal projections must neither calculate nor substitute another employee's payout.
+  return atlasBonusBuildCalculationRows({ personalIdentity: { employeeId, email }, filters: { approvalStatus: "all", planId: "all", community: "all", role: "all", employee: "", cadence: "all", operatingType: "all" } });
 }
 
 function atlasBonusPersonalProjection() {

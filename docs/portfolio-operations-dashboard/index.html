@@ -1442,7 +1442,7 @@
 <script src="./concession-insights.js?v=20260917-1"></script>
 <script src="./weekly-leasing-report.js?v=20260917-aging"></script>
 <script src="./application-aging.js?v=20260917-aging"></script>
-<script src="./application-performance-ui.js?v=777336f2c1321ff5"></script>
+<script src="./application-performance-ui.js?v=b67c340e6d7cd4e4"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -14875,6 +14875,7 @@ function syncAtlasWorkspaceCardVisibility() {
 
 let atlasNavigationEpoch = 0;
 function setTab(i) {
+  if (Number(i) === 16) console.debug("[Application lineage] navigation");
   atlasNavigationEpoch += 1;
   atlasCommunityPlanModule?.close();
   atlasCommunityFinanceModule?.cancel();

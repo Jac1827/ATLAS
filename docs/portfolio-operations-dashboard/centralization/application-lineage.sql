@@ -16,7 +16,7 @@ begin
  if cancelled>effective or effective is null then cancelled:=null; end if;
  observed:=lower(trim(regexp_replace(coalesce(r->>'applicationStatus',''),'^Application:\s*','','i')));
  status:='unavailable'; reason:='non_application_status';
- if coalesce(r->>'applicationStatus','') ~* '^Application:' then
+ if coalesce(r->>'applicationStatus','') ~* '^Application:' or (r#>>'{sourceColumns,applicationStatus}'='Application Status' and coalesce(r->>'applicationStatus','') !~* '^(lease|renewal offer|resident):') then
   reason:=null;
   if observed in ('approved','denied','cancelled','canceled','completed (cancelled)','approved (cancelled)') then
    status:=case when observed like '%cancel%' then 'cancelled' else observed end;

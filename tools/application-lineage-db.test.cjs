@@ -55,6 +55,7 @@ assert.equal((await publish({...upload,records:Array.from({length:1578},(_,i)=>(
 await signIn(1);
 const dated={...upload,records:[{...upload.records[0],applicationId:'dated',applicationStatus:'Application: Denied',applicationStartedOn:'2026-09-01',applicationCompletedOn:'2026-09-02',applicationDeniedOn:'2026-09-04',sourceColumns:{applicationStatus:'Application Status'}}]};
 const datedRow=(await publish(dated))[0].records[0];
+assert.equal((await db.query("select atlas_private.canonical_application($1,$2)->>'decisionStatus' as status",[JSON.stringify({...dated.records[0],applicationStatus:'Denied'}),JSON.stringify({sourceAsOf:'2026-09-20',reportPeriodKey:'2026-09'})])).rows[0].status,'denied');
 assert.equal(datedRow.decisionStatus,'denied');assert(datedRow.decisionAt.startsWith('2026-09-04'));
 assert(datedRow.applicationStartedAt.startsWith('2026-09-01'));
 assert.equal((await db.query("select processing_eligible_count::int n from atlas_application_monthly_lineage where community_id=$1 and period_key='2026-09'",[datedRow.communityId])).rows[0].n,1);

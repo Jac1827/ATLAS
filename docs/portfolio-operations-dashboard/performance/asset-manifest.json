@@ -1,7 +1,17 @@
 {
+  "features/fiscal-ytd.mjs": {
+    "sha256": "77e543c1c01f5102",
+    "bytes": 1895,
+    "references": [
+      [
+        "features/budget-command-publication.mjs",
+        "./fiscal-ytd.mjs"
+      ]
+    ]
+  },
   "features/community-plan-report.mjs": {
-    "sha256": "0d9d659e2a655a0c",
-    "bytes": 2772,
+    "sha256": "f7fd06b5d4954555",
+    "bytes": 5656,
     "references": [
       [
         "features/community-plan.mjs",
@@ -30,8 +40,8 @@
     ]
   },
   "features/budget-command-publication.mjs": {
-    "sha256": "97f54692ecb3ef50",
-    "bytes": 12043,
+    "sha256": "b41803269cce786e",
+    "bytes": 12448,
     "references": [
       [
         "RISE-Budget-Builder.html",
@@ -40,7 +50,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "bf8d103aafd5e25b",
+    "sha256": "016a3c104c067ac9",
     "bytes": 1884897,
     "references": [
       [
@@ -50,7 +60,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "72499182431aeec1",
+    "sha256": "3a405e12d71c79a7",
     "bytes": 26864,
     "references": [
       [
@@ -60,8 +70,8 @@
     ]
   },
   "features/community-plan.mjs": {
-    "sha256": "7c10f876220cbba0",
-    "bytes": 16907,
+    "sha256": "6f874a74ac6e6cd6",
+    "bytes": 18356,
     "references": [
       [
         "index.html",

@@ -1417,7 +1417,7 @@
 </div>
 
 <script src="./atlas_historical_restore_data.js"></script>
-<script src="./atlas-mounts.js?v=72499182431aeec1"></script>
+<script src="./atlas-mounts.js?v=3a405e12d71c79a7"></script>
 <script src="./centralization/atlas-central-client.js?v=1ebd09028b44e083" data-atlas-central-client="true"></script>
 <script src="./central-services.js?v=20260919-renewal-period-review"></script>
 <script src="./eviction-attorney-ui.js?v=20260916-community-contacts"></script>
@@ -24611,7 +24611,7 @@ async function openSharedCommunityPlan() {
   const communityId = access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId;
   if (!communityId || !window.ATLAS_CENTRAL) { alert("Shared plans require an authorized canonical community record."); return false; }
   try {
-    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=7c10f876220cbba0");
+    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=6f874a74ac6e6cd6");
     if (epoch !== atlasNavigationEpoch || !atlasAccessDecision(2).ok) return false;
     const entry=model.monthEntry, provenance=entry.metricProvenance?.occupiedSnapshot, period=buildPeriodKey(model.monthIdx,model.year);
     const occupancy=provenance?.revisionKey && provenance.period===period && (!provenance.communityId||provenance.communityId===communityId) && entry.occupiedSnapshot!=null && Number(entry.rentableUnits)>0

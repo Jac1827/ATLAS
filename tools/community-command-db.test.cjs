@@ -14,6 +14,7 @@ await db.exec(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard
 await db.exec(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/centralization/community-command-finance.sql','utf8'));
 await db.exec(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/centralization/community-command-delivery.sql','utf8'));
 await db.exec(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/centralization/community-command-plan-summary.sql','utf8'));
+await db.exec(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/centralization/community-command-report-ytd.sql','utf8'));
 const signIn=async n=>db.exec(`reset role; set request.jwt.claim.sub='00000000-0000-0000-0000-${String(n).padStart(12,'0')}'; set role authenticated;`);
 const A='10000000-0000-0000-0000-000000000001',B='10000000-0000-0000-0000-000000000002';
 const task={id:'t1',title:'Validate variance',origin:'Manual',status:'Accepted/Open'};
@@ -45,6 +46,17 @@ assert.equal((await db.query('select * from atlas_community_plans')).rows.length
 await signIn(1);
 const payload={communityId:A,period:'2026-09',year:2026,fiscalYear:2026,periodBasis:'calendar_month',approvedLocked:true,reviewConfirmed:true,scenarioId:'approved',scenarioVersion:'verified-budget-hash',builderPropertyId:'builder-A',actualSource:'approved actuals.xlsx',budgetSource:'locked budget.xlsx',sourceTimestamp:'2026-09-20T10:00:00Z',occupancyPct:95,mappingVersion:'reviewed-v1',rows:[{glCode:'5120',metric:'gpr',nature:'income',actual:900,budget:1000,ytdActual:5000,ytdBudget:6000},{glCode:'6500',metric:'expenses',nature:'expense',operatingApproved:true,actual:1200,budget:1000,ytdActual:6000,ytdBudget:5000}]};
 const publish=async(data,version=0)=>(await db.query('select * from public.atlas_publish_command_financials($1,$2,$3,$4::jsonb)',[A,'2026-09',version,JSON.stringify(data)])).rows[0];
+const fiscalPayload={...payload,fiscalStartMonth:7,fiscalStartPeriod:'2025-07',period:'2026-09',fiscalPeriods:[]};
+await assert.rejects(()=>publish(fiscalPayload),/Fiscal period scope mismatch/);
+const validFiscal={...payload,fiscalStartMonth:7,fiscalStartPeriod:'2026-07',fiscalPeriods:['2026-07','2026-08','2026-09'],rows:payload.rows.map(r=>({...r,ytdActual:r.actual*3,ytdBudget:r.budget*3,fiscalEvidence:['2026-07','2026-08','2026-09'].map(period=>({period,actual:r.actual,budget:r.budget,actualSource:'actuals',sourceTimestamp:'2026-09-21',budgetSource:'approved',budgetEffectiveDate:'2026-01-01'}))}))};
+await assert.rejects(()=>publish({...validFiscal,rows:validFiscal.rows.map(r=>({...r,ytdActual:1}))}),/does not reconcile/);
+await assert.rejects(()=>publish({...validFiscal,rows:validFiscal.rows.map(r=>({...r,fiscalEvidence:r.fiscalEvidence.map((e,i)=>i===0?{...e,actual:null}:e)}))}),/must remain missing/);
+await db.query('select atlas_private.validate_command_fiscal_ytd($1::jsonb)',[JSON.stringify(validFiscal)]).then(()=>assert.fail('private function must be denied'),e=>assert.match(e.message,/permission denied/));
+await db.exec('reset role');
+await db.query('select atlas_private.validate_command_fiscal_ytd($1::jsonb)',[JSON.stringify(validFiscal)]);
+const crossYear={...validFiscal,period:'2027-01',fiscalStartPeriod:'2026-07',fiscalPeriods:['2026-07','2026-08','2026-09','2026-10','2026-11','2026-12','2027-01']};crossYear.rows=crossYear.rows.map(r=>({...r,ytdActual:r.actual*7,ytdBudget:r.budget*7,fiscalEvidence:crossYear.fiscalPeriods.map(period=>({...r.fiscalEvidence[0],period}))}));
+await db.query('select atlas_private.validate_command_fiscal_ytd($1::jsonb)',[JSON.stringify(crossYear)]);
+await signIn(1);
 const pub=await publish(payload);assert.equal(pub.summary.gpr.variance,-100);assert.equal(pub.summary.expenses.variance,-200);assert.equal(pub.summary.expenses.label,'Overspent');
 assert.equal((await publish(payload)).publication_id,pub.publication_id,'identical publication is idempotent');
 await assert.rejects(()=>publish({...payload,rows:[...payload.rows,payload.rows[0]]},1),/duplicate/);
@@ -59,7 +71,8 @@ const sources=(await db.query('select * from atlas_command_findings where public
 const taskWithFinding={id:'finding-task',title:sources[0].payload.recommendedResponse,origin:'Recommended',sourceFindingId:sources[0].finding_id,status:'Accepted/Open'};
 plan=await save(A,3,[plan.payload.tasks[0],taskWithFinding]);assert.equal(plan.version,4);
 await assert.rejects(()=>save(A,4,[...plan.payload.tasks,{...taskWithFinding,id:'forged',sourceFindingId:B}]),/registered source/);
-const updatedReport=await generate(4);assert.equal(updatedReport.snapshot.financial.publicationId,incomplete.publication_id);assert.equal(report.snapshot.financial,null,'old report remains immutable');
+const updatedReport=await generate(4);assert.equal(updatedReport.snapshot.previousReport.reportId,report.report_id);assert.equal(updatedReport.snapshot.reportSchemaVersion,2);
+assert.equal(updatedReport.snapshot.financial.publicationId,incomplete.publication_id);assert.equal(report.snapshot.financial,null,'old report remains immutable');
 const claim=async emails=>(await db.query('select * from public.atlas_claim_command_report_delivery($1,$2)',[updatedReport.report_id,emails])).rows[0];
 const delivery=await claim(['LEADER@risere.com']);assert.equal(delivery.status,'claimed');
 await assert.rejects(()=>claim(['leader@risere.com','new@risere.com']),/already recorded/);

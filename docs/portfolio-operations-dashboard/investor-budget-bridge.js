@@ -41,12 +41,14 @@
         if(property.budgetImportOnly&&!imported)continue;
         const sourceFiles=imported ? imported.sourceFile+' / '+imported.sourceSheet+' / approved '+imported.effectiveDate+' / '+imported.rows.map(r=>'GL '+r.gl+' row '+r.sourceRow).join('; ') : files;
         const calc=calculations.get(year),vr=R.variance.compute(copy,calc,property.id,year);
-        const closed=Number(vr.closedThrough||0),actualSource=copy.periods?.[property.id+'|'+year]?.source;
+        const closed=Number(vr.closedThrough||0),canonical=R.closedFinancial?.caches.get(property.id+'|'+year),legacyActualSource=copy.periods?.[property.id+'|'+year]?.source;
         const forecast=active?.type==='reforecast'&&Number(copy.budgetYear)===year?R.variance.compute(copy,R.engine.computeAll(copy,active.id,year),property.id,year):null;
         for(let month=0;month<12;month++) {
           if(imported?.coverage&&!imported.coverage.includes(month))continue;
           const key=year+'-'+String(month+1).padStart(2,'0');
+          const close=canonical?.versions.find(v=>v.period_key===key),actualSource=canonical?(close?close.source_file+' / SHA-256 '+close.source_hash+' / closed version '+close.version_id:null):(window.parent?.ATLAS_CENTRAL?null:legacyActualSource);
           const period=report.periods[key]={source:`Budget Builder / ${property.name} / ${year} / ${approved.name} / GL detail${(imported?.periodSources?.[month]||sourceFiles)?' / '+(imported?.periodSources?.[month]||sourceFiles):''}`,savedAt,drivers:[],financialDetail:[]};
+          if(close)period.closedFinancial={version:close.version_id,revision:close.revision,status:close.status,period:close.period_key,sourceHash:close.source_hash,approvedBy:close.approved_by,approvedAt:close.approved_at};
           const put=(id,basis,value,rows,detail='')=>{
             if(!numeric(value))return;
             const item=period[id] ||= {sources:{},definitions:{}};item[basis]=value;
@@ -66,6 +68,7 @@
               if(fr.length&&fr.every(r=>(closed===0||r.hasActual)&&numeric(r.projection)))put(id,'forecast',sign*fr.reduce((s,r)=>s+r.projection,0),fr,`${active.name}; full-year forecast vintage ${key}; closed actuals plus remaining plan`);
             }
           }
+          if(close){for(const [id,key] of [['revenue','totalIncome'],['expenses','operatingExpenses'],['grossPotentialRent','grossPotentialRent'],['rentalIncome','netRentalIncome']])put(id,'actual',Number(close.metrics[key]),[],actualSource);}
           for(const basis of ['actual','budget','forecast']) {
             const revenue=period.revenue?.[basis],expense=period.expenses?.[basis];
             if(numeric(revenue)&&numeric(expense)) {
@@ -88,7 +91,7 @@
           if(numeric(eco))put('economicOccupancy','budget',eco*100,[],'Budget Summary / economic occupancy, decimal rate × 100');
           // Account commentary is a source note, not automatic proof of causation.
           for(const row of vr.rows) {
-            if(month>=closed||!actualSource||!row.hasActual)continue;
+            if(month>=closed||!actualSource||!row.hasActual||!numeric(row.actual?.[month]))continue;
             const note=copy.varianceNotes?.[property.id+'|'+row.gl+'|'+year];
             const evidence=`${period.source} / GL ${row.gl} ${row.name} / ${actualSource} / ${key}`;
             period.financialDetail.push({gl:row.gl,name:row.name,actual:row.actual[month],budget:row.budget[month],variance:row.actual[month]-row.budget[month],source:evidence});
@@ -100,13 +103,17 @@
     return sources;
   };
   if(new URLSearchParams(location.search).get('investorReader')==='1') {
-    window.addEventListener('message',event=>{
+    window.addEventListener('message',async event=>{
       if(event.source!==window.parent||event.origin!==location.origin||event.data?.type!=='atlas-investor-read-budget')return;
       try {
         const raw=localStorage.getItem(R.persist.AUTOSAVE_KEY);
         if(!raw)return window.parent.postMessage({type:'atlas-investor-budget-sources',sources:{schemaVersion:2,properties:{}}},location.origin);
         const payload=R.persist.parse(raw);
         R.persist.apply(JSON.parse(JSON.stringify(payload))); // isolated frame only; no save or app boot
+        const central=window.parent.ATLAS_CENTRAL;if(!central||!window.parent.atlasAccessDecision?.(12)?.ok)throw Error('Authorized canonical financial access required');
+        const [m,matcher,communities,aliases]=await Promise.all([import('./features/financial-close.mjs?v=1d42345c461b2ece'),import('./features/financial-package.mjs?v=49ea086d6d07f300'),central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000')]);
+        m.installBuilder(R,central,name=>matcher.resolveCommunity(name,communities,aliases).communityId);
+        for(const p of R.app.state.properties.filter(p=>!event.data.names||event.data.names.includes(p.name))){const cid=matcher.resolveCommunity(p.name,communities,aliases).communityId;if(!cid)continue;const years=[...new Set([Number(R.app.state.budgetYear),...Object.values(R.app.state.actuals||{}).filter(a=>a.propertyId===p.id).map(a=>Number(a.year))])];for(const y of years)await m.primeBuilderYear(R,central,cid,p.id,y);}
         const sources=R.investorSources(R.app.state,payload.savedAt,{names:event.data.names});
         window.parent.postMessage({type:'atlas-investor-budget-sources',sources},location.origin);
       }catch(e){window.parent.postMessage({type:'atlas-investor-budget-sources',error:String(e.message||e)},location.origin);}

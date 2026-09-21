@@ -1,4 +1,4 @@
-import {applyControls} from './financial-comparison.mjs?v=c2bf05ee83551aa8';
+import {applyControls} from './financial-comparison.mjs?v=39c9afe7ca58698f';
 import {readPackage} from './financial-package-reader.mjs?v=00c6009c7e1b92b1';
 import {resolveCommunity} from './financial-package.mjs?v=49ea086d6d07f300';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

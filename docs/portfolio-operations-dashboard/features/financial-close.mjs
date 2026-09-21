@@ -65,3 +65,8 @@ export function installBuilder(R,central,resolve){
     }catch(e){c.rows.clear();c.versions=[];c.coverage=coverage([],year);c.status=e.message;}if(selected===key){R.app.invalidate();R.app.render();}})();}
   }return render.apply(this,arguments);};
 }
+export async function primeBuilderYear(R,central,cid,pid,year){
+ const versions=await readYear(central,cid,year),c={rows:new Map(),versions,coverage:coverage(versions,year),status:'Verified closed source'};
+ for(let i=0;i<versions.length;i+=3){const batch=versions.slice(i,i+3),sets=await Promise.all(batch.map(v=>readRows(central,v)));batch.forEach((v,j)=>sets[j].forEach(r=>{const item=c.rows.get(r.gl_code)||{monthly:Array(12).fill(null),ytd:null};item.monthly[Number(v.period_key.slice(5))-1]=optionalNumber(r.actual);if(Number(v.period_key.slice(5))===c.coverage.last)item.ytd=optionalNumber(r.ytd_actual);c.rows.set(r.gl_code,item);}));}
+ R.closedFinancial.caches.set(pid+'|'+year,c);return c;
+}

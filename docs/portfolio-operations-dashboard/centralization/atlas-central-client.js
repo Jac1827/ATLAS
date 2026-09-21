@@ -485,7 +485,24 @@
   }
 
   async function fetchJson(path, options = {}) {
-    return request(restUrl(path), options);
+    // Local diagnostics measure the complete API request, including JSON parsing.
+    // Never pass query parameters, headers, payloads or error text to telemetry.
+    let finish = null;
+    try {
+      if (window.AtlasPerformance?.enabled) {
+        const resource = String(path).split("?")[0];
+        const scope = /^\/(?:rpc\/)?atlas_[a-z_]+$/.test(resource) ? resource : "central-other";
+        finish = window.AtlasPerformance.start("central-api", { scope });
+      }
+    } catch { /* Diagnostics must not affect application requests. */ }
+    let details = { failed: true };
+    try {
+      const result = await request(restUrl(path), options);
+      details = { failed: false, rows: Array.isArray(result) ? result.length : undefined };
+      return result;
+    } finally {
+      try { finish?.(details); } catch { /* Preserve the original result or error. */ }
+    }
   }
 
   async function signInWithPassword(email, password) {

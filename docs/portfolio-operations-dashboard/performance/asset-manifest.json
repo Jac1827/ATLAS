@@ -1,0 +1,112 @@
+{
+  "centralization/atlas-central-client.js": {
+    "sha256": "1ebd09028b44e083",
+    "bytes": 65739,
+    "references": [
+      [
+        "index.html",
+        "./centralization/atlas-central-client.js"
+      ]
+    ]
+  },
+  "vendor/pptxgen-4.0.1.js": {
+    "sha256": "4fb9eac5cfefb213",
+    "bytes": 460889,
+    "references": [
+      [
+        "performance/feature-loader.js",
+        "vendor/pptxgen-4.0.1.js"
+      ]
+    ]
+  },
+  "vendor/jszip.min.js": {
+    "sha256": "acc7e41455a80765",
+    "bytes": 97630,
+    "references": [
+      [
+        "performance/feature-loader.js",
+        "vendor/jszip.min.js"
+      ]
+    ]
+  },
+  "features/workbook-worker.js": {
+    "sha256": "6c429b2a3b06ea49",
+    "bytes": 1891,
+    "references": [
+      [
+        "features/workbook-session.mjs",
+        "./workbook-worker.js"
+      ]
+    ]
+  },
+  "features/workbook-session.mjs": {
+    "sha256": "119919bdd6b29222",
+    "bytes": 2141,
+    "references": [
+      [
+        "index.html",
+        "./features/workbook-session.mjs"
+      ]
+    ]
+  },
+  "features/portfolio-map.mjs": {
+    "sha256": "bbe032b73d99159d",
+    "bytes": 2570,
+    "references": [
+      [
+        "index.html",
+        "./features/portfolio-map.mjs"
+      ]
+    ]
+  },
+  "features/presentation-slides.mjs": {
+    "sha256": "1fd150cbdb08958a",
+    "bytes": 21193,
+    "references": [
+      [
+        "index.html",
+        "./features/presentation-slides.mjs"
+      ]
+    ]
+  },
+  "performance/diagnostics.js": {
+    "sha256": "b40ddaaf123f59ae",
+    "bytes": 4184,
+    "references": [
+      [
+        "index.html",
+        "./performance/diagnostics.js"
+      ]
+    ]
+  },
+  "performance/feature-loader.js": {
+    "sha256": "b3ecf90b0783a5a7",
+    "bytes": 2391,
+    "references": [
+      [
+        "index.html",
+        "./performance/feature-loader.js"
+      ]
+    ]
+  },
+  "migration-archive.js": {
+    "sha256": "e4993aad17191ed2",
+    "bytes": 6925,
+    "references": [
+      [
+        "index.html",
+        "./migration-archive.js"
+      ]
+    ]
+  },
+  "investor-packet-ui.js": {
+    "sha256": "6b25f612669118ec",
+    "bytes": 35891,
+    "references": [
+      [
+        "index.html",
+        "./investor-packet-ui.js"
+      ]
+    ]
+  }
+}

@@ -29,11 +29,11 @@
  };
  const go=A.go;
  let packageReview;
- A.openFinancialPackageReview=async function(){try{packageReview=await import('./features/financial-package-review.mjs?v=15172431aa66ab35');await packageReview.openReview();}catch(e){A.toast(e.message,'r');}};
+ A.openFinancialPackageReview=async function(){try{packageReview=await import('./features/financial-package-review.mjs?v=63b1a5b800b38b55');await packageReview.openReview();}catch(e){A.toast(e.message,'r');}};
  const actuals=R.views.actuals;
  function sharedActualsPanel(){
-  setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el)return;try{const m=await import('./features/financial-comparison.mjs?v=9af0227966ed9e75');await m.mountComparison(el,{communityName:A.cp().property.name,year:A.year()});}catch(e){el.textContent=e.message;}},0);
-  return '<div class="panel"><button class="btn pri" onclick="RBB.app.openFinancialPackageReview()">Upload or apply saved financial review</button><p>Upload → reconcile → save review → apply actuals → shared comparison</p></div><section class="panel" id="shared-financial-comparison"><p>Loading shared actuals…</p></section>';
+  setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el)return;try{const m=await import('./features/financial-comparison.mjs?v=e6b324ae93827203');await m.mountComparison(el,{communityName:A.cp().property.name,year:A.year()});}catch(e){el.textContent=e.message;}},0);
+  return '<div class="panel"><button class="btn pri" onclick="RBB.app.openFinancialPackageReview()">Upload or apply saved financial review</button><p>Upload → reconcile → save review → shared comparison → Admin close → published actuals</p></div><section class="panel" id="shared-financial-comparison"><p>Loading shared actuals…</p></section>';
  }
  R.views.actuals=function(){return sharedActualsPanel()+'<details><summary>Legacy manual-entry worksheet — separate browser data</summary>'+actuals.apply(this,arguments)+'</details>';};
  const vsactual=R.views.vsactual;

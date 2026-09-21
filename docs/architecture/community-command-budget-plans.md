@@ -1,6 +1,6 @@
 # Community Command enhancement: source and persistence review
 
-Status: audit and calculation contract only. No live UI change, database migration, report delivery, or acceptance claim.
+Status: deployed implementation; the initial audit below is retained as historical context. Current rollout and acceptance results appear at the end.
 
 ## Confirmed current architecture
 
@@ -60,10 +60,10 @@ Validation includes the existing full suite, local PostgreSQL RLS/transaction te
 ### Current limits to verify before full feature acceptance
 
 - Representative approved uploads must be published through the review screen before financial statuses are available. Old browser-local totals are not silently promoted to approved publications.
-- Non-calendar fiscal YTD remains explicitly unavailable until cross-year mapped coverage is supported; monthly calendar-mapped publications are supported.
+- Cross-year fiscal YTD now uses exact calendar-month evidence across approved yearly uploads. Missing month/source evidence remains unavailable; the server reconciles every total.
 - Occupancy source without retained period/revision provenance remains Missing rather than using a current inventory fallback.
 - Shared plan counts and roster filtering use a community-scoped summary view. Legacy plan records remain available; migration into the shared editor is explicit and retains legacy references.
-- Full leadership-report acceptance still needs prior-report progress comparison, material-risk/expected-resolution review, and authenticated recipient delivery verification.
+- Reports now retain prior-report comparisons and reviewed causes, material risks and expected resolution dates. Authenticated recipient delivery verification remains a production acceptance check.
 - Issue #12 remains open for its authenticated large-state/navigation/import/archive/memory acceptance matrix.
 
 ### Deployment and rollback
@@ -73,3 +73,11 @@ Apply the additive centralization scripts in order: `community-command.sql`, `co
 ### Verified release checks
 
 All 56 test files passed after integrating the unpublished Live UI budget-comparison commit. Chrome 153 synthetic browser checks passed for manual task persistence/reopen/readonly/cleanup, reviewed publication confirmation/capital exclusion/source preservation, and roster favorable/unfavorable/zero/plan-count display with two bulk requests. Both additive database migrations were applied successfully; all seven new tables have RLS and deny anonymous SELECT. No operational records were changed and no real email was sent.
+
+### Fiscal YTD and report completion follow-up
+
+`community-command-report-ytd.sql` adds fiscal evidence reconciliation and immutable prior-report/review fields. It preserves existing publication/readback/RLS controls and historical report records. Fiscal YTD spans at most twelve explicitly identified months, using calendar-keyed approved budget uploads and closed actuals. It never applies the selected calendar year to prior-year months. A source gap yields Missing rather than zero. Existing legacy publications retain their original stored values.
+
+Leadership review is saved with the versioned plan and copied into each generated report. Prior report identity, period, source snapshots and task statuses are captured at generation, so later edits cannot alter the comparison. Period differences are explicitly disclosed. Screen, HTML, PDF print and email share the renderer; XLSX contains matching financial, review and comparison data. Private task evidence/notes remain excluded.
+
+All 59 automated test files passed. Browser checks reconciled July 2025–January 2026 YTD. Sequential read-only previews processed 131 relevant local workbooks with no failures; this validates parser preview/cleanup boundaries, not operational publication or authenticated performance. Full results remain in the acceptance evidence, with failures and unavailable checks retained explicitly.

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "mappingVersion": "community-command-gl-2026-09-21.1",
+  "metrics": {
+    "gpr": {
+      "glCodes": ["5120"],
+      "approvalStatus": "approved",
+      "approvalEvidence": "Repository owner explicitly confirmed: 5120 is the correct GPR GL code.",
+      "confirmedOn": "2026-09-21"
+    },
+    "expenses": {
+      "glCodes": [],
+      "approvalStatus": "pending",
+      "reason": "Operating-expense account scope has not yet been confirmed."
+    }
+  },
+  "usage": "Mapping configuration only. Community, fiscal period, scenario approval, actual publication and complete coverage must still be validated before status publication."
+}

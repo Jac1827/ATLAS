@@ -1,11 +1,11 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/index.html','utf8');
 const extract=(name,next)=>source.slice(source.indexOf('function '+name+'('),source.indexOf('\nfunction '+next+'(',source.indexOf('function '+name+'(')));
-let computed=[];
-const ctx={bonusQuarter:3,atlasBonusState:()=>({filters:{}}),atlasBonusPeriodFromQuarter:()=>({}),atlasBonusAuthorizedEmployees:()=>[{employeeId:'a',email:'a@example.test'},{employeeId:'b',email:'b@example.test'}],atlasBonusBuildRow:e=>(computed.push(e.employeeId),{employee:e}),getAtlasApplicationAgingRows:()=>[],getAtlasAccessProfile:()=>({employee_id:'b'}),getAtlasCentralStatus:()=>({}),Date};
+let computed=[],agingReads=0;
+const ctx={bonusQuarter:3,atlasBonusState:()=>({filters:{}}),atlasBonusPeriodFromQuarter:()=>({}),atlasBonusAuthorizedEmployees:()=>[{employeeId:'a',email:'a@example.test'},{employeeId:'b',email:'b@example.test'}],atlasBonusBuildRow:e=>(computed.push(e.employeeId),{employee:e}),getAtlasApplicationAgingRows:()=>{agingReads++;return []},getAtlasAccessProfile:()=>({employee_id:'b'}),getAtlasCentralStatus:()=>({}),Date};
 vm.createContext(ctx);vm.runInContext(extract('atlasBonusBuildCalculationRows','atlasBonusSummary')+extract('atlasBonusPersonalRows','atlasBonusPersonalProjection'),ctx);
 assert.equal(ctx.atlasBonusPersonalRows()[0].employee.employeeId,'b');assert.deepEqual(computed,['b']);
-computed=[];ctx.getAtlasAccessProfile=()=>({employee_id:'absent'});assert.equal(ctx.atlasBonusPersonalRows().length,0);assert.deepEqual(computed,[]);
+computed=[];agingReads=0;ctx.getAtlasAccessProfile=()=>({employee_id:'absent'});assert.equal(ctx.atlasBonusPersonalRows().length,0);assert.deepEqual(computed,[]);assert.equal(agingReads,0);
 ctx.getAtlasAccessProfile=()=>({email:' A@EXAMPLE.TEST '});assert.equal(ctx.atlasBonusPersonalRows()[0].employee.employeeId,'a');
 const widget=extract('renderAtlasDashboardHomeWidget','atlasDashboardHomeSlotClass');
 assert(widget.indexOf('return renderAtlasPersonalBonusLandingWidget')<widget.indexOf('buildAtlasDashboardWidgetSnapshot'));

@@ -16639,8 +16639,9 @@ function atlasHomePortfolioDetails(month) {
 }
 
 function getAtlasDashboardAuthorizedCommunityOptions() {
+  if (atlasHomeRenderDetails?.has("authorized")) return atlasHomeRenderDetails.get("authorized");
   const detailNames = new Set(atlasHomePortfolioDetails(getSelectedDashboardMonthIndex()).map(detail => detail.name));
-  return getCommunityNamesByStatusScope({
+  const options = getCommunityNamesByStatusScope({
       communityStatusMode: "active",
       includeCurrentSelection: true,
       includeDraft: true
@@ -16660,6 +16661,8 @@ function getAtlasDashboardAuthorizedCommunityOptions() {
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
+  atlasHomeRenderDetails?.set("authorized", options);
+  return options;
 }
 
 function atlasDashboardDistinctOptionValues(field = "") {
@@ -32222,6 +32225,7 @@ function atlasBonusBuildCalculationRows(options = {}) {
       || (email && String(employee.email || "").trim().toLowerCase() === email));
   }
   let rows = employees.map(employee => atlasBonusBuildRow(employee, period));
+  if (!rows.length) return rows;
   const aging = getAtlasApplicationAgingRows({start: period.start, end: period.end});
   for (const item of aging.filter(r => r.derogatoryCount > 0 && r.professional !== "Unassigned")) {
     const matches = rows.filter(r => r.employee.communityName === item.community && window.AtlasApplicationAging.name(atlasBonusEmployeeDisplayName(r.employee)) === window.AtlasApplicationAging.name(item.professional));

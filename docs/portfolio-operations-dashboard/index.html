@@ -9467,7 +9467,11 @@ function isAtlasLeaseTrackingCommunity(name, record = null) {
 }
 
 function getAtlasApplicationScopeCommunityNames() {
-  return getWorkspaceScopedDetails(getSelectedDashboardMonthIndex()).filter(detail => isAtlasLeaseTrackingCommunity(detail.name,detail.record)).map(detail => detail.name);
+  // Scope is an identity/permission operation, not a portfolio financial calculation.
+  const entries = isPortfolioWorkspaceSelected()
+    ? getPortfolioScopedCommunityRecordsForMonth(getSelectedDashboardMonthIndex(), savedData, { includeCurrent: false, includeInactive: false })
+    : [{ name: getProp().name, record: getCurrentCommunityRecord() }];
+  return entries.filter(detail => isAtlasLeaseTrackingCommunity(detail.name, detail.record)).map(detail => detail.name);
 }
 
 function buildInactiveCommunityImportWarning(names = []) {

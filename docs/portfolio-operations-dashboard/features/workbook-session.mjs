@@ -1,7 +1,7 @@
-export async function openWorkbook(file, signal) {
+export async function openWorkbook(file, signal, sourceBuffer) {
   signal?.throwIfAborted();
   let worker;
-  try { worker = new Worker(new URL('./workbook-worker.js?v=6c429b2a3b06ea49', import.meta.url)); }
+  try { worker = new Worker(new URL('./workbook-worker.js?v=a84ceb0fc1dfa1cf', import.meta.url)); }
   catch { return null; } // The caller retains the established parser as a yielding fallback.
   let sequence = 0;
   const pending = new Map();
@@ -31,7 +31,7 @@ export async function openWorkbook(file, signal) {
     });
   }
   try {
-    const buffer = await file.arrayBuffer(); signal?.throwIfAborted();
+    const buffer = sourceBuffer || await file.arrayBuffer(); signal?.throwIfAborted();
     const metadata = await request('open', {buffer}, [buffer]);
     window.AtlasPerformance?.record('workbook-read', metadata.duration, {bytes:file.size});
     return { sheetNames:metadata.sheetNames, sheet: (name, metadata) => request('sheet', {name, metadata}), close };

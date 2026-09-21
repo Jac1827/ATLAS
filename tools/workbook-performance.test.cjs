@@ -14,6 +14,7 @@ async function inspect(book, bytes = XLSX.write(book,{type:"array",bookType:"xls
     const {result,error} = messages.at(-1); assert.equal(error,undefined);
     const all = XLSX.utils.sheet_to_json(book.Sheets[name],{header:1,defval:'',raw:false});
     assert.equal(result.rowCount, all.length, 'Full row count is preserved for ' + name);
+    assert.equal(result.rangeStartRow, XLSX.utils.decode_range(book.Sheets[name]['!ref']).s.r, 'Source row offset retained');
     assert.deepEqual(JSON.parse(JSON.stringify(result.rows)),JSON.parse(JSON.stringify(result.candidate?all:all.slice(0,80))),name);
   }
   return messages;
@@ -24,6 +25,8 @@ async function inspect(book, bytes = XLSX.write(book,{type:"array",bookType:"xls
   const sections=Array.from({length:200},()=>['']);
   sections[0]=['Availability (As of 09/18/2026)']; sections[150]=['Lead Conversions']; sections[199]=['Applications',17];
   XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet(sections),'Multi-section');
+  const offsetSheet=XLSX.utils.aoa_to_sheet([['Availability (As of 09/18/2026)'],['Occupied',3]],{origin:'A10'});offsetSheet['!ref']='A10:B11';
+  XLSX.utils.book_append_sheet(book,offsetSheet,'Offset');
   const messages=await inspect(book);
   assert.equal(messages[1].result.rows.length,80);assert.equal(messages[1].result.candidate,false);
   assert.equal(messages[2].result.rows.length,200);assert.equal(messages[2].result.candidate,true);

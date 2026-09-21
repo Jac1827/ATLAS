@@ -7,12 +7,13 @@ entries=[
  ('vendor/pptxgen-4.0.1.js',[('performance/feature-loader.js','vendor/pptxgen-4.0.1.js')]),
  ('vendor/jszip.min.js',[('performance/feature-loader.js','vendor/jszip.min.js')]),
  ('features/workbook-worker.js',[('features/workbook-session.mjs','./workbook-worker.js')]),
- ('features/workbook-session.mjs',[('index.html','./features/workbook-session.mjs')]),
+ ('features/workbook-session.mjs',[('index.html','./features/workbook-session.mjs'),('occupancy-replay-browser.js','./features/workbook-session.mjs')]),
+ ('occupancy-replay-browser.js',[('performance/feature-loader.js','occupancy-replay-browser.js')]),
  ('features/portfolio-map.mjs',[('index.html','./features/portfolio-map.mjs')]),
  ('features/presentation-slides.mjs',[('index.html','./features/presentation-slides.mjs')]),
  ('performance/diagnostics.js',[('index.html','./performance/diagnostics.js')]),
+ ('migration-archive.js',[('performance/feature-loader.js','migration-archive.js')]),
  ('performance/feature-loader.js',[('index.html','./performance/feature-loader.js')]),
- ('migration-archive.js',[('index.html','./migration-archive.js')]),
  ('investor-packet-ui.js',[('index.html','./investor-packet-ui.js')]),
 ]
 manifest={}

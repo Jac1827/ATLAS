@@ -13,6 +13,7 @@ insert into atlas_user_profiles values ('00000000-0000-0000-0000-000000000001','
 await db.exec(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/centralization/community-command.sql','utf8'));
 await db.exec(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/centralization/community-command-finance.sql','utf8'));
 await db.exec(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/centralization/community-command-delivery.sql','utf8'));
+await db.exec(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/centralization/community-command-plan-summary.sql','utf8'));
 const signIn=async n=>db.exec(`reset role; set request.jwt.claim.sub='00000000-0000-0000-0000-${String(n).padStart(12,'0')}'; set role authenticated;`);
 const A='10000000-0000-0000-0000-000000000001',B='10000000-0000-0000-0000-000000000002';
 const task={id:'t1',title:'Validate variance',origin:'Manual',status:'Accepted/Open'};
@@ -30,7 +31,7 @@ const report=await generate(3);assert.equal((await generate(3)).report_id,report
 assert.equal(report.snapshot.plan.tasks[0].status,'Verified');
 await assert.rejects(()=>generate(2),/another session/);
 await assert.rejects(()=>db.query("update atlas_community_plan_reports set executive_note='tampered'"),/permission denied/);
-await signIn(3);assert.equal((await db.query('select * from atlas_community_plans')).rows.length,0);
+await signIn(3);assert.equal((await db.query('select * from atlas_community_plans')).rows.length,0);assert.equal((await db.query('select * from atlas_command_plan_summaries')).rows.length,0);
 await assert.rejects(()=>save(A,3,[task]),/denied/);
 await assert.rejects(()=>generate(3),/denied/);
 assert.equal((await db.query('select * from atlas_community_plan_reports')).rows.length,0);

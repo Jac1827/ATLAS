@@ -62,10 +62,14 @@ Validation includes the existing full suite, local PostgreSQL RLS/transaction te
 - Representative approved uploads must be published through the review screen before financial statuses are available. Old browser-local totals are not silently promoted to approved publications.
 - Non-calendar fiscal YTD remains explicitly unavailable until cross-year mapped coverage is supported; monthly calendar-mapped publications are supported.
 - Occupancy source without retained period/revision provenance remains Missing rather than using a current inventory fallback.
-- Existing legacy plan summary counts/filtering and the new shared plan editor are not yet fully consolidated; legacy plans are retained rather than overwritten.
+- Shared plan counts and roster filtering use a community-scoped summary view. Legacy plan records remain available; migration into the shared editor is explicit and retains legacy references.
 - Full leadership-report acceptance still needs prior-report progress comparison, material-risk/expected-resolution review, and authenticated recipient delivery verification.
 - Issue #12 remains open for its authenticated large-state/navigation/import/archive/memory acceptance matrix.
 
 ### Deployment and rollback
 
-Apply the three additive centralization scripts in order: `community-command.sql`, `community-command-finance.sql`, `community-command-delivery.sql` in one migration. Existing operational tables and their policies are unchanged. To roll back the UI/Worker, revert the release commit; retain the new records and audit/report/publication tables. Do not drop those tables after they contain user work. Disable new RPC execution if needed through a separately reviewed change. No destructive data migration is included.
+Apply the additive centralization scripts in order: `community-command.sql`, `community-command-finance.sql`, `community-command-delivery.sql` in one migration, followed by `community-command-plan-summary.sql`. Existing operational tables and their policies are unchanged. To roll back the UI/Worker, revert the release commit; retain the new records and audit/report/publication tables. Do not drop those tables after they contain user work. Disable new RPC execution if needed through a separately reviewed change. No destructive data migration is included.
+
+### Verified release checks
+
+All 56 test files passed after integrating the unpublished Live UI budget-comparison commit. Chrome 153 synthetic browser checks passed for manual task persistence/reopen/readonly/cleanup, reviewed publication confirmation/capital exclusion/source preservation, and roster favorable/unfavorable/zero/plan-count display with two bulk requests. Both additive database migrations were applied successfully; all seven new tables have RLS and deny anonymous SELECT. No operational records were changed and no real email was sent.

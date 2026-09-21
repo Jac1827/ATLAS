@@ -20,8 +20,8 @@
     ]
   },
   "features/community-finance.mjs": {
-    "sha256": "d50df5525529b4f2",
-    "bytes": 3078,
+    "sha256": "c1e2b6bef231e812",
+    "bytes": 4115,
     "references": [
       [
         "index.html",
@@ -60,8 +60,8 @@
     ]
   },
   "features/community-plan.mjs": {
-    "sha256": "c28d1cbf810270e9",
-    "bytes": 16586,
+    "sha256": "7c10f876220cbba0",
+    "bytes": 16907,
     "references": [
       [
         "index.html",

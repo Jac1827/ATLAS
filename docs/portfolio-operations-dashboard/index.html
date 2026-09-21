@@ -19659,6 +19659,7 @@ async function completeAtlasCentralPasswordReset() {
 }
 
 async function signOutAtlasCentral() {
+  window.AtlasCommandPlanSummaries = {};
   atlasCommunityFinanceModule?.cancel();
   atlasCommandRosterEpoch += 1;
   atlasCommunityPlanModule?.close();
@@ -24226,12 +24227,14 @@ function buildCommunityCommandPortfolioRosterItems(details = []) {
     const model = buildCommunityCommandModel(detail.name, detail.record);
     const alerts = buildCommunityCommandAlerts(model);
     const suggestion = getCommunityCommandPlanSuggestion(model, alerts);
-    return {
+    const access=getAtlasCommunityAccessRecord(detail.name);
+    const sharedPlan=window.AtlasCommandPlanSummaries?.[(access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId)+"|"+buildPeriodKey(model.monthIdx,model.year)];
+    return {sharedPlan,
       detail,
       model,
       alerts,
       suggestion,
-      hasActivePlan: Boolean(model.activePerformancePlan)
+      hasActivePlan: sharedPlan ? sharedPlan.stage !== "Closed" : Boolean(model.activePerformancePlan)
     };
   });
 }
@@ -24258,7 +24261,7 @@ function renderCommunityCommandPlanSummaryStat(rosterItems = []) {
   const suggestedFilter = communityCommandPortfolioRosterFilter === "suggested_plans";
   return `<div class="stat-box">
     <div class="label">With Active Plans</div>
-    <div class="value" style="color:#d29922">${activeCount}</div>
+    <div class="value" data-shared-plan-count style="color:#d29922">${activeCount}</div>
     <div class="sub">Performance plan star is shown next to the community.</div>
     <button type="button" class="community-command-plan-drill${suggestedFilter ? " active" : ""}" onclick="return setCommunityCommandPortfolioRosterFilter('suggested_plans')" ${suggestedCount ? "" : "disabled"}>
       <span>${suggestedFilter ? "Showing" : "Suggested Plans"}</span>
@@ -24608,7 +24611,7 @@ async function openSharedCommunityPlan() {
   const communityId = access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId;
   if (!communityId || !window.ATLAS_CENTRAL) { alert("Shared plans require an authorized canonical community record."); return false; }
   try {
-    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=c28d1cbf810270e9");
+    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=7c10f876220cbba0");
     if (epoch !== atlasNavigationEpoch || !atlasAccessDecision(2).ok) return false;
     const entry=model.monthEntry, provenance=entry.metricProvenance?.occupiedSnapshot, period=buildPeriodKey(model.monthIdx,model.year);
     const occupancy=provenance?.revisionKey && provenance.period===period && (!provenance.communityId||provenance.communityId===communityId) && entry.occupiedSnapshot!=null && Number(entry.rentableUnits)>0
@@ -24924,7 +24927,7 @@ function renderCommunityCommandTab() {
         <span class="community-command-pill strong">ATLAS Planning Engine active</span>
       </div>
       ${renderCommunityCommandHealthSnapshot(model)}
-      <div class="tbl-wrap" style="overflow:auto"><table><thead><tr><th>Units vs Budget</th><th>GPR</th><th>Expenses</th></tr></thead><tbody><tr data-command-finance="0"><td data-metric="units">Loading…</td><td data-metric="gpr">Loading…</td><td data-metric="expenses">Loading…</td></tr></tbody></table></div>
+      <div class="tbl-wrap" style="overflow:auto"><table><thead><tr><th>Units vs Budget</th><th>GPR</th><th>Expenses</th></tr></thead><tbody><tr data-command-finance="${encodeURIComponent(model.propName)}"><td data-metric="units">Loading…</td><td data-metric="gpr">Loading…</td><td data-metric="expenses">Loading…</td></tr></tbody></table></div>
       ${renderCommunityCommandClosedFinancialEditor(model)}
     </div>
     ${renderCommunityCommandAttentionCenter(model)}
@@ -24958,10 +24961,10 @@ function queueCommunityRosterFinancials(items) {
     const sourceDate=provenance?.dataAsOf || provenance?.generatedAt || provenance?.importedAt || provenance?.sourceTimestamp || provenance?.uploadedAt;
     const actual = provenance && sourceDate && provenance.period===buildPeriodKey(m.monthIdx,m.year) && (!provenance.communityId || provenance.communityId===(access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId)) && Number(entry.rentableUnits)>0 && Number(entry.sourceTotalUnits)>=Number(entry.rentableUnits) && entry.occupiedSnapshot!=null
       ? {occupiedUnits:Number(entry.occupiedSnapshot),rentableUnits:Number(entry.rentableUnits),source:provenance.sourceFile||provenance.sourceFileName||provenance.fileName||provenance.revisionKey,sourceTimestamp:sourceDate} : null;
-    return {key,communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
+    return {key:encodeURIComponent(item.detail.name),hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
   });
   setTimeout(async()=>{try {
-    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=d50df5525529b4f2");
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=c1e2b6bef231e812");
     if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
     await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
   } catch {}},0);
@@ -25001,7 +25004,7 @@ function renderPortfolioScopedCommunityCommandTab() {
     <span class="community-command-pill${communityCommandPortfolioRosterFilter !== "all" ? " strong" : ""}">${escapeHtml(filterLabel)}</span>
     ${communityCommandPortfolioRosterFilter !== "all" ? `<button type="button" class="btn btn-gray btn-sm" onclick="return setCommunityCommandPortfolioRosterFilter('all')">Show All Communities</button>` : ""}
   </div>`;
-  queueCommunityRosterFinancials(visibleRosterItems);
+  queueCommunityRosterFinancials(rosterItems);
   const rows = visibleRosterItems
     .map((item, rowIndex) => {
       const { detail, model, suggestion } = item;
@@ -25011,7 +25014,7 @@ function renderPortfolioScopedCommunityCommandTab() {
         : suggestion
           ? `<div style="display:grid;gap:4px;justify-items:center"><span class="community-command-status ${suggestion.severity === "critical" ? "critical" : "watch"}">Suggested</span><span style="font-size:0.62rem;color:var(--muted);max-width:150px">${escapeHtml(suggestion.title)}</span></div>`
           : `<span class="community-command-status muted">No Plan</span>`;
-      return `<tr data-command-finance="${rowIndex}" class="${suggestion ? "community-command-row-suggested" : ""}">
+      return `<tr data-command-finance="${encodeURIComponent(detail.name)}" class="${suggestion ? "community-command-row-suggested" : ""}">
         <td class="l" style="font-weight:800">${item.hasActivePlan ? `<span class="community-command-star" title="Active Community Performance Plan">★</span> ` : ""}${escapeHtml(detail.name)}</td>
         <td>${communityCommandFormatPct(model.physicalPct)}</td>
         <td>${communityCommandFormatPct(model.leasedPct)}</td>
@@ -25020,7 +25023,7 @@ function renderPortfolioScopedCommunityCommandTab() {
         <td data-metric="units">Loading…</td><td data-metric="gpr">Loading…</td><td data-metric="expenses">Loading…</td>
         <td>${Math.round(model.appMetrics.applications)}</td>
         <td>${Math.round(model.grossLeasesMtd)}</td>
-        <td>${planHtml}</td>
+        <td data-shared-plan>${planHtml}</td>
         <td><button type="button" class="btn btn-blue btn-sm" onclick="return openCommunityCommandFromPortfolioRoster(${escapeHtml(JSON.stringify(detail.name))})">Open Community Command</button></td>
       </tr>`;
     }).join("");
@@ -57643,6 +57646,9 @@ window.addEventListener("atlas-central-auth-change", () => {
   if (!atlasDashboardInitializationComplete) return;
   const user = window.ATLAS_CENTRAL?.getSession()?.user?.id || null;
   if (user !== atlasApplicationSessionUser) {
+    window.AtlasCommandPlanSummaries = {};
+    atlasCommunityPlanModule?.close();
+    atlasCommunityFinanceModule?.cancel();
     atlasApplicationSessionUser = user;
     clearAtlasSharedApplications();
     hydrateAtlasSharedApplications();

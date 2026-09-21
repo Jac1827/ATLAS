@@ -7,12 +7,19 @@ export async function hydrate(entries,central){
  const scope=entries.filter(e=>e.communityId&&/^20\d{2}-(0[1-9]|1[0-2])$/.test(e.period));
  const periods=[...new Set(scope.map(e=>e.period))],ids=[...new Set(scope.map(e=>e.communityId))];
  if(!periods.length||!ids.length)return;
- const rows=[];
+ const rows=[],plans=[];
  try{
   // Bounded bulk reads, not one request per community or account.
-  for(let i=0;i<ids.length;i+=100){const data=await central.fetchJson(`/atlas_command_financial_summaries?community_id=in.(${ids.slice(i,i+100).join(',')})&period_key=in.(${periods.join(',')})&select=*&limit=1200`,{signal:abort.signal});rows.push(...data);if(abort.signal.aborted)return;}
+  for(let i=0;i<ids.length;i+=100){const data=await central.fetchJson(`/atlas_command_financial_summaries?community_id=in.(${ids.slice(i,i+100).join(',')})&period_key=in.(${periods.join(',')})&select=*&limit=1200`,{signal:abort.signal});rows.push(...data);if(abort.signal.aborted)return;plans.push(...await central.fetchJson(`/atlas_command_plan_summaries?community_id=in.(${ids.slice(i,i+100).join(',')})&period_key=in.(${periods.join(',')})&select=*&limit=1200`,{signal:abort.signal}));if(abort.signal.aborted)return;}
+  window.AtlasCommandPlanSummaries ||= {};
+  for(const e of scope)delete window.AtlasCommandPlanSummaries[e.communityId+'|'+e.period];
+  for(const plan of plans)window.AtlasCommandPlanSummaries[plan.community_id+'|'+plan.period_key]=plan;
   const map=new Map(rows.map(r=>[r.community_id+'|'+r.period_key,r]));
   for(const e of entries){if(abort.signal.aborted)return;const tr=document.querySelector(`[data-command-finance="${e.key}"]`);if(!tr)continue;const source=map.get(e.communityId+'|'+e.period),summary=source?.summary;
+   const plan=window.AtlasCommandPlanSummaries[e.communityId+'|'+e.period],planCell=tr.querySelector('[data-shared-plan]');
+   if(plan&&planCell){planCell.textContent=`${plan.stage||'Draft'} · ${plan.task_count} tasks · ${plan.verified_count} verified`;planCell.title=`Shared plan, updated ${plan.updated_at}`;}
+   const count=document.querySelector('[data-shared-plan-count]');if(count)count.textContent=String(scope.filter(e=>{const p=window.AtlasCommandPlanSummaries[e.communityId+'|'+e.period];return p?p.stage!=='Closed':e.hasLegacyPlan;}).length);
+
    const scope={communityId:e.communityId,period:e.period,fiscalYear:source?.fiscal_year??e.year};
    const actual=e.actual?{...e.actual,...scope}:null;
    const budget=summary?{...scope,occupancyPct:summary.occupancyPct,approvalStatus:'approved',locked:true,scenarioId:summary.scenarioId,version:summary.scenarioVersion}:null;

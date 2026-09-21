@@ -72,3 +72,12 @@ export async function primeBuilderYear(R,central,cid,pid,year){
  if(central.getSession&&central.getSession()?.user?.id!==actor)throw Error('Session changed while reading financial sources.');
  R.closedFinancial.caches.set(pid+'|'+year,c);return c;
 }
+export function projectBuilderActuals(state,pid,caches){
+ const projected={...state,actuals:{...state.actuals},periods:{...state.periods}};
+ for(const [key,c] of caches){if(!key.startsWith(pid+'|'))continue;const year=Number(key.split('|').at(-1));
+  for(const [k,a] of Object.entries(projected.actuals))if(a.propertyId===pid&&Number(a.year)===year)delete projected.actuals[k];
+  const latest=c.versions.find(v=>Number(v.period_key.slice(5))===c.coverage.last);
+  for(const [gl,row] of c.rows){const k=pid+'|'+gl+'|'+year;projected.actuals[k]={key:k,propertyId:pid,year,gl,monthly:row.monthly.slice(),source:latest?.source_file||'Canonical close',updatedAt:latest?.approved_at||null};}
+  projected.periods[key]={closedThrough:c.coverage.last,loadedAt:latest?.approved_at||null,source:latest?latest.source_file+' / closed '+latest.version_id:null,coverage:c.versions.map(v=>Number(v.period_key.slice(5))-1),canonicalVersions:Object.fromEntries(c.versions.map(v=>[v.period_key,v.version_id]))};
+ }return projected;
+}

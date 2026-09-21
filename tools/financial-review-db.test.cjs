@@ -49,15 +49,17 @@ const {PGlite}=require('@electric-sql/pglite'),fs=require('node:fs'),assert=requ
 
  await db.exec('reset role');await db.exec(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/centralization/financial-close.sql','utf8'));await signIn(1);
  const close=async(id,expected=null,approved=true)=>(await db.query('select * from atlas_close_financial_review($1,$2,$3,$4)',[id,expected,'Source package reviewed and reconciled',approved])).rows[0];
- const closeCertificate=structuredClone(changed);closeCertificate.sourceHash='f'.repeat(64);closeCertificate.rows.splice(1,0,line('control',null,'Net Rental Income',110));
+ const closeCertificate=structuredClone(changed);closeCertificate.sourceHash='f'.repeat(64);closeCertificate.rows.splice(1,0,line('control',null,'Net Rental Income',110));closeCertificate.rows.push(line('control',null,'Net Cash Flow',70));
  const closeReview=await save(closeCertificate);
  await assert.rejects(()=>close(closeReview.review_id,null,false),/approval confirmation/);
  const closed=await close(closeReview.review_id);assert.equal(closed.metrics.grossPotentialRent,110);assert.equal(closed.metrics.netRentalIncome,110);assert.equal(closed.status,'closed');
  assert.equal((await close(closeReview.review_id)).version_id,closed.version_id);
- const correction=structuredClone(closeCertificate);correction.sourceHash='1'.repeat(64);correction.rows[0].values=values(120);correction.rows[1].values=values(120);correction.rows[2].values=values(120);correction.rows[4].values=values(80);
+ const correction=structuredClone(closeCertificate);correction.sourceHash='1'.repeat(64);correction.rows[0].values=values(120);correction.rows[1].values=values(120);correction.rows[2].values=values(120);correction.rows[4].values=values(80);correction.rows[5].values=values(80);
  const correctionReview=await save(correction);await assert.rejects(()=>close(correctionReview.review_id),/another session/);
  const corrected=await close(correctionReview.review_id,closed.version_id);assert.equal(corrected.revision,2);assert.equal(corrected.previous_version_id,closed.version_id);
  assert.equal((await db.query(`select actual from atlas_financial_close_rows where version_id=$1 and gl_code='5120'`,[closed.version_id])).rows[0].actual,'110');
+ const invalidCash=structuredClone(correction);invalidCash.sourceHash='2'.repeat(64);invalidCash.rows[5].values.actual=999;const invalidCashReview=await save(invalidCash);await assert.rejects(()=>close(invalidCashReview.review_id,corrected.version_id),/Cash flow reconciliation/);
+ const zeroClose=structuredClone(closeCertificate);zeroClose.sourceHash='3'.repeat(64);zeroClose.metadata.period='2026-07';zeroClose.rows.forEach(r=>r.values=values(0));const zeroReview=await save(zeroClose);const closedZero=await close(zeroReview.review_id);assert.equal(closedZero.metrics.netRentalIncome,0);assert.equal(closedZero.metrics.grossPotentialRent,0);
  await assert.rejects(()=>db.query('delete from atlas_financial_close_versions'),/permission denied/);
  await signIn(2);assert.equal((await db.query('select * from atlas_financial_close_versions')).rows.length,0);await assert.rejects(()=>close(closeReview.review_id),/Only an active Admin/);await signIn(1);
  console.log('PASS Admin close, independent reconciliation, explicit confirmation, idempotency, correction history and authorization');

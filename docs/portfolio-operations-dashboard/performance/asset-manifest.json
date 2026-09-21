@@ -20,8 +20,8 @@
     ]
   },
   "features/community-finance.mjs": {
-    "sha256": "c1e2b6bef231e812",
-    "bytes": 4115,
+    "sha256": "bfc322a4a4728654",
+    "bytes": 4139,
     "references": [
       [
         "index.html",

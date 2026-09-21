@@ -1,0 +1,58 @@
+import {resolveCommunity} from './financial-package.mjs?v=49ea086d6d07f300';
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>n===null||n===undefined?'Missing':Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+export function centralClient(){const host=window.parent;if(host===window||host.location.origin!==location.origin||!host.atlasAccessDecision?.(12)?.ok)throw Error('Open Budget Builder in your signed-in ATLAS workspace.');return host.ATLAS_CENTRAL;}
+export async function applyReview(reviewId,{reason,expectedVersionId=null}={}){
+ const central=centralClient();
+ const response=await central.rpc('atlas_apply_financial_comparison',{p_review_id:reviewId,p_expected_version_id:expectedVersionId,p_reason:reason||null});
+ const row=Array.isArray(response)?response[0]:response;
+ const read=await central.fetchJson(`/atlas_financial_comparison_versions?version_id=eq.${row.version_id}&select=*&limit=1`);
+ if(read[0]?.content_hash!==row.content_hash||read[0]?.row_count!==row.row_count)throw Error('Applied actuals could not be verified. Reload shared comparisons before retrying.');
+ return read[0];
+}
+export async function applyControls(container,review,status){
+ const central=centralClient();
+ const heads=await central.fetchJson(`/atlas_financial_comparison_heads?community_id=eq.${review.community_id}&period_key=eq.${review.period_key}&select=version_id&limit=1`);
+ if(!container.isConnected)return;
+ container.innerHTML=`<p>Apply <strong>${esc(review.source_property)} · ${esc(review.period_key)}</strong> actuals to the shared comparison. Original budgets and closed actuals stay unchanged.</p>${heads.length?'<label>Reason if replacing the current reviewed comparison <input data-reason maxlength="500"></label>':''}<button data-apply>Apply actuals for comparison</button><p data-apply-result></p>`;
+ container.querySelector('[data-apply]').onclick=async e=>{
+  e.target.disabled=true;const message=container.querySelector('[data-apply-result]');message.textContent='Saving and verifying shared actuals…';
+  try{const row=await applyReview(review.review_id,{expectedVersionId:heads[0]?.version_id||null,reason:container.querySelector('[data-reason]')?.value});
+   message.textContent=`${row.row_count} GL actual rows saved and read back for ${row.period_key}. Reviewed — not closed. Available in Actuals & Close and Budget vs Actual.`;
+   const url=new URL(location.href);url.searchParams.set('comparisonPeriod',row.period_key);url.searchParams.set('comparisonCommunity',row.community_id);history.replaceState(null,'',url);
+   const open=document.createElement('button');open.textContent='Open saved comparison';open.onclick=()=>{document.querySelector('dialog.financial-package-review')?.close();const R=window.RBB,pid=R.importer.resolveProperty(review.source_property,R.app.state);if(pid)R.app.setProperty(pid);R.app.setYear(Number(row.period_key.slice(0,4)));R.app.go('actuals');};message.append(' ',open);status&&(status.textContent='Actuals applied to shared comparison.');
+  }catch(error){message.textContent=error.message;e.target.disabled=false;}
+ };
+}
+export async function mountComparison(container,{communityName,period,year}={}){
+ if(container.dataset.comparisonMounted)return;container.dataset.comparisonMounted='1';
+ let epoch=0;const alive=()=>container.isConnected;
+ container.innerHTML='<h3>Shared actuals comparison</h3><p role="status">Loading saved actuals…</p>';
+ try{
+  const central=centralClient();
+  const [communities,aliases]=await Promise.all([central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000')]);if(!alive())return;
+  const context=new URL(location.href),match=resolveCommunity(communityName,communities,aliases);
+  const selected=context.searchParams.get('comparisonCommunity')||match.communityId||'';
+  if(!period&&!context.searchParams.get('comparisonPeriod')&&selected){const y=Number(year)||new Date().getFullYear();const latest=await central.fetchJson(`/atlas_financial_comparison_heads?community_id=eq.${encodeURIComponent(selected)}&period_key=gte.${y}-01&period_key=lt.${y+1}-01&select=period_key&order=period_key.desc&limit=1`);if(!alive())return;period=latest[0]?.period_key;}
+
+  container.innerHTML=`<h3>Shared actuals comparison</h3><p>Durably stored GL actuals, with source-statement budget reference. Reviewed data is not closed or eligible for payable Bonus calculations. These values do not overwrite the original approved budget.</p><label>Community <select data-community><option value="">Choose community</option>${communities.map(c=>`<option value="${esc(c.community_id)}" ${c.community_id===selected?'selected':''}>${esc(c.display_name)}</option>`).join('')}</select></label> <label>Period <input data-period type="month" value="${esc(period||context.searchParams.get('comparisonPeriod')||new Date().toISOString().slice(0,7))}"></label> <button data-load>Load saved comparison</button><p role="status"></p><div data-comparison></div>`;
+  const result=container.querySelector('[data-comparison]'),status=container.querySelector('[role=status]');
+  async function load(){const token=++epoch;result.replaceChildren();const cid=container.querySelector('[data-community]').value,p=container.querySelector('[data-period]').value;
+   if(!cid||!/^20\d{2}-(0[1-9]|1[0-2])$/.test(p)){status.textContent='Choose a community and period.';return;}
+   status.textContent='Reading shared actuals…';
+   try{const heads=await central.fetchJson(`/atlas_financial_comparison_heads?community_id=eq.${encodeURIComponent(cid)}&period_key=eq.${p}&select=version_id&limit=1`);if(!alive()||token!==epoch)return;
+    if(!heads.length){status.textContent='No actuals applied for this community and month. Open a saved import review and choose Apply actuals for comparison.';return;}
+    const [version]=await central.fetchJson(`/atlas_financial_comparison_versions?version_id=eq.${heads[0].version_id}&select=*&limit=1`);if(!alive()||token!==epoch)return;if(!version)throw Error('The saved version is unavailable.');
+    let offset=0;status.textContent=`${version.status} · ${version.period_key} · ${version.accounting_basis} · ${version.row_count} GLs · Saved ${new Date(version.applied_at).toLocaleString()}`;
+    result.innerHTML=`<p>Source: ${esc(version.source_file)}<br>SHA-256: <code>${esc(version.source_hash)}</code></p><p>Variance below is Actual − source-statement budget, not a favorable/unfavorable rating. Approval of the original budget and GL nature must be verified separately.</p><div style="max-height:520px;overflow:auto"><table><thead><tr><th>GL</th><th>Account</th><th>Actual</th><th>Statement budget</th><th>Variance</th><th>YTD actual</th><th>YTD statement budget</th><th>Source</th></tr></thead><tbody></tbody></table></div><button data-more>Load rows</button>`;
+    const more=result.querySelector('[data-more]'),body=result.querySelector('tbody');
+    async function next(){more.disabled=true;try{const rows=await central.fetchJson(`/atlas_financial_comparison_rows?version_id=eq.${version.version_id}&select=gl_code,account_name,actual,source_budget,ytd_actual,source_ytd_budget,source_location&order=gl_code&limit=250&offset=${offset}`);if(!alive()||token!==epoch)return;
+      for(const r of rows){const tr=document.createElement('tr');tr.innerHTML=`<th>${esc(r.gl_code)}</th><td>${esc(r.account_name)}</td><td>${money(r.actual)}</td><td>${money(r.source_budget)}</td><td>${money(r.source_budget===null?null:Number(r.actual)-Number(r.source_budget))}</td><td>${money(r.ytd_actual)}</td><td>${money(r.source_ytd_budget)}</td><td>${esc(r.source_location.page?'Page '+r.source_location.page:(r.source_location.sheet||'')+' row '+(r.source_location.row||r.source_location.line||''))}</td>`;body.append(tr);}
+      offset+=rows.length;more.hidden=offset>=version.row_count;more.textContent='Load next 250 rows';more.disabled=false;
+     }catch(error){status.textContent=error.message;more.disabled=false;}}
+    more.onclick=next;await next();if(!alive()||token!==epoch)return;const u=new URL(location.href);u.searchParams.set('comparisonPeriod',p);u.searchParams.set('comparisonCommunity',cid);history.replaceState(null,'',u);
+   }catch(error){if(alive()&&token===epoch)status.textContent=error.message;}
+  }
+  container.querySelector('[data-load]').onclick=load;container.querySelector('[data-community]').onchange=load;container.querySelector('[data-period]').onchange=load;await load();
+ }catch(error){if(alive())container.querySelector('[role=status]').textContent=error.message;}
+}

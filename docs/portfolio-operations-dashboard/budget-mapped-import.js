@@ -113,7 +113,7 @@
   };
   window.addEventListener('message',event=>{
     if(event.source!==window.parent||event.origin!==window.location.origin||event.data?.type!=='atlas-budget-publish-result'||!event.data.requestId)return;
-    for(const s of Object.values(A.state.approvedBudgetImports||{})){if(event.data.requestId!==s.propertyId+'|'+s.year+'|'+s.importedAt)continue;s.syncStatus=event.data.result.message;if(event.data.result.ok)s.publishedAt=new Date().toISOString();A.invalidate();A.render();R.persist.autosave();}
+    for(const s of Object.values(A.state.approvedBudgetImports||{})){if(event.data.requestId!==s.propertyId+'|'+s.year+'|'+s.importedAt)continue;s.syncStatus=event.data.result.message;if(event.data.result.ok)s.localSyncedAt=new Date().toISOString();if(event.data.result.published===true&&event.data.result.publicationId)s.publishedAt=new Date().toISOString();A.invalidate();A.render();R.persist.autosave();}
   });
   const applyUI=A.applyImport;
   A.applyImport=function(){const v=A.lastImport;if(v?.applyResult)return;applyUI();if(v?.type==='approved_budget'&&v.applyResult?.applied)A.publishMappedBudgets();};

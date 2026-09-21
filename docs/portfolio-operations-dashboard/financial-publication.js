@@ -33,7 +33,7 @@
         map[community]=apply(map[community],publication);
         store.put({key:'community_data',value:map,updatedAt:new Date().toISOString()});
       }catch(e){error=e;tx.abort();}};
-      tx.oncomplete=()=>{try{localStorage.setItem('atlas_financial_publication',JSON.stringify({community,at:Date.now()}));}catch(_){}resolve({ok:true});};
+      tx.oncomplete=()=>{try{localStorage.setItem('atlas_financial_publication',JSON.stringify({community,at:Date.now()}));}catch(_){}resolve({ok:true,published:false,scope:"browser_cache"});};
       tx.onerror=tx.onabort=()=>reject(error||tx.error||Error('Financial publication failed.'));
     });}finally{db.close();}
   }

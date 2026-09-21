@@ -45,7 +45,7 @@
       note: "Property budget, monthly view, GL detail, actuals, financial review and exception reporting all run in Budget Builder itself — ATLAS reads the published scenario.",
       barTitle: "RISE Budget Builder",
       barSub: "Standalone finance tool — central Budget and actuals migration required",
-      src: "RISE-Budget-Builder.html?v=016a3c104c067ac9",
+      src: "RISE-Budget-Builder.html?v=4e727b7d6358da9c",
       background: "#F1F4F6",
       icon: "ph-calculator"
     },
@@ -314,7 +314,7 @@
         syncSharedPropertyFromPortfolioRecord(matchedName, savedData[matchedName], { timestamp: timestamp });
       }
       if (typeof persistSaved === "function") persistSaved();
-      return { ok: true, message: "Published " + payload.scenario.name + " to ATLAS for " + matchedName + "." };
+      return { ok: true, published: false, scope: "browser_cache", message: "Local ATLAS cache update queued for " + matchedName + ". Shared ledger publication is not verified. Use the reviewed publication workflow." };
     } catch (err) {
       return { ok: false, message: "ATLAS could not save this publication: " + String(err && err.message || err) };
     }

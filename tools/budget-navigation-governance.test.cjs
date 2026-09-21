@@ -1,0 +1,15 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const root=__dirname+'/../docs/portfolio-operations-dashboard/';
+const html=fs.readFileSync(root+'RISE-Budget-Builder.html','utf8');
+const section=html.slice(html.indexOf('  A.VIEWS = ['),html.indexOf('  /* ---------------------------------------------------------- calc cache'));
+const A={h:{esc:String},go(){},render(){}};const ctx={RBB:{app:A},A,document:{addEventListener(){}},console};vm.createContext(ctx);vm.runInContext(section,ctx);vm.runInContext(fs.readFileSync(root+'budget-navigation.js','utf8'),ctx);
+const groups=ctx.RBB.budgetNavigation.groups;
+assert.equal(groups.length,7);const ids=groups.flatMap(g=>g[2]);assert.equal(new Set(ids).size,ids.length);
+for(const v of A.VIEWS.filter(v=>v.id))assert(ids.includes(v.id),'Preserve destination '+v.id);
+let message;Object.assign(A,{scenario:()=>({locked:true,id:'approved',name:'approved'}),cp:()=>({}),vr:()=>({closedThrough:3,rows:[{gl:'5120',budget:[null,'',0,-12],fullYearBudget:null,actual:[null,0,-25,999],hasActual:true}]}),prop:()=>({id:'p',name:'Test'}),year:()=>2026,state:{},toast(){}});
+Object.assign(ctx,{window:{parent:{postMessage:m=>message=m},location:{origin:'https://atlas.test'}},R:{},RBB:ctx.RBB});ctx.RBB.investorSources=null;
+const start=html.indexOf('  A.publishToAtlas = function');const end=html.indexOf('  A.returnToAtlas',start);vm.runInContext(html.slice(start,end),ctx);A.publishToAtlas();
+assert.equal(message.payload.budgetByPeriod['2026-01'][0].budget,null);assert.equal(message.payload.budgetByPeriod['2026-02'][0].budget,null);assert.equal(message.payload.budgetByPeriod['2026-03'][0].budget,0);assert.equal(message.payload.budgetByPeriod['2026-04'][0].budget,-12);
+assert.equal(message.payload.actualsByPeriod['2026-01'][0].actual,null);assert.equal(message.payload.actualsByPeriod['2026-02'][0].actual,0);assert.equal(message.payload.actualsByPeriod['2026-03'][0].actual,-25);assert.equal(message.payload.actualsByPeriod['2026-04'],undefined,'unclosed months cannot be published as actuals');
+assert.match(fs.readFileSync(root+'atlas-mounts.js','utf8'),/published: false, scope: "browser_cache"/);
+console.log('PASS all 27 destinations retained, seven workflows, missing/zero/negative preserved, unclosed actuals excluded and local sync distinguished');

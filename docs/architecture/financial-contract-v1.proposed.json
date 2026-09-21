@@ -1,0 +1,116 @@
+{
+  "status": "PROPOSED_OWNER_DECISIONS_PENDING",
+  "contractVersion": "atlas-finance-v1-draft",
+  "rowGrain": [
+    "communityId",
+    "calendarPeriod",
+    "accountId",
+    "financialVersionId",
+    "currency",
+    "accountingBasis"
+  ],
+  "financialVersion": {
+    "id": "uuid",
+    "communityId": "canonical uuid",
+    "recordType": [
+      "budget_original",
+      "budget_revision",
+      "actual_close",
+      "reforecast",
+      "commitment",
+      "adjustment"
+    ],
+    "scenarioId": "uuid",
+    "version": "positive integer",
+    "baselineVersionId": "uuid|null",
+    "fiscalCalendarVersionId": "uuid",
+    "calendarPeriod": "YYYY-MM",
+    "fiscalPeriod": "integer",
+    "fiscalYear": "integer",
+    "accountingBasis": "owner-approved enum",
+    "currency": "ISO 4217",
+    "effectiveDate": "date",
+    "status": [
+      "draft",
+      "reviewed",
+      "approved",
+      "locked",
+      "closed",
+      "reopened",
+      "published",
+      "failed"
+    ],
+    "timestamps": [
+      "createdAt",
+      "reviewedAt",
+      "approvedAt",
+      "closedAt",
+      "reopenedAt",
+      "publishedAt"
+    ],
+    "actors": [
+      "createdBy",
+      "reviewedBy",
+      "approvedBy",
+      "closedBy",
+      "reopenedBy",
+      "publishedBy"
+    ]
+  },
+  "line": {
+    "accountId": "uuid",
+    "accountCode": "string",
+    "accountName": "string",
+    "accountHierarchyVersion": "uuid",
+    "amount": "decimal string|null",
+    "coverageStatus": [
+      "complete",
+      "missing",
+      "incomplete",
+      "quarantined"
+    ],
+    "sourceFileId": "uuid",
+    "sourceSystem": "string",
+    "sourceHash": "sha256",
+    "importId": "uuid",
+    "sourceRowId": "string",
+    "mappingVersionId": "uuid",
+    "closeCertificateId": "uuid|null"
+  },
+  "publication": {
+    "publicationId": "uuid",
+    "financialVersionId": "uuid",
+    "fingerprint": "sha256",
+    "committedAt": "timestamp",
+    "readbackVerifiedAt": "timestamp|null",
+    "consumerAcknowledgments": "scoped consumer receipts",
+    "failure": "structured error|null"
+  },
+  "invariants": [
+    "Original approved budget versions are immutable.",
+    "Reforecast and revision versions never overwrite the original.",
+    "Closed actual versions are immutable; corrections require a separately authorized transition.",
+    "Missing amounts never become zero.",
+    "Publication succeeds only after durable commit and authorized readback.",
+    "Required missing/unapproved/reopened/stale/unreconciled inputs block payable bonus results.",
+    "Every privileged transition checks current server-side scope/action permissions.",
+    "Retries are idempotent; competing writes use expected-version checks."
+  ],
+  "ownerDecisionsRequired": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+  ]
+}

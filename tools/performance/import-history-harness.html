@@ -1,0 +1,21 @@
+<!doctype html><meta charset="utf-8"><title>Import history integrity acceptance</title><pre id="result">Running isolated browser tests…</pre><script type="module">
+import {historyOperation} from '../../docs/portfolio-operations-dashboard/features/import-history.mjs';
+const dbName='atlas-import-history-test-'+crypto.randomUUID(),storeName='records',key='imports';
+const run=(operation,extra={})=>historyOperation({operation,dbName,storeName,key,...extra});
+try {
+ const before={capturedAt:'2026-09-21',savedData:{A:{occupied:0}},lineage:[{source:'approved'}]};
+ await run('save',{value:{closedPeriods:['2026-08'],batches:[{id:'a',status:'Approved',beforeSnapshot:before}]}});
+ const projected=await run('load');
+ if(projected.batches[0].beforeSnapshot || !projected.batches[0].beforeSnapshotRef)throw Error('Snapshot entered active memory');
+ projected.batches[0].status='Rolled Back';await run('save',{value:projected});
+ const restored=await run('snapshot',{batch:projected.batches[0]});
+ if(JSON.stringify(before)!==JSON.stringify(restored))throw Error('Backup altered');
+ const again=await run('load');if(again.batches[0].status!=='Rolled Back')throw Error('Status not saved');
+ const invalid=structuredClone(again);invalid.batches[0].beforeSnapshotRef.capturedAt='wrong';
+ let rejected=false;try{await run('save',{value:invalid});}catch{rejected=true;}
+ if(!rejected)throw Error('Changed evidence accepted');
+ if(JSON.stringify(await run('load'))!==JSON.stringify(again))throw Error('Failed transaction altered storage');
+ document.querySelector('#result').textContent=JSON.stringify({passed:true,checks:['worker projection','exact backup readback','summary persistence','changed-evidence rejection','atomic rollback'],database:'isolated temporary database'});
+} catch(e){document.querySelector('#result').textContent=JSON.stringify({passed:false,error:e.message});}
+finally{indexedDB.deleteDatabase(dbName);}
+</script>

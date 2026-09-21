@@ -48577,9 +48577,14 @@ function serializeDataImport2State() {
   };
 }
 
+async function dataImportHistoryOperation(operation, extra = {}) {
+  const {historyOperation} = await import("./features/import-history.mjs?v=99f2e5297542edd1");
+  return historyOperation({operation, dbName:ATLAS_STATE_DB_NAME, storeName:ATLAS_STATE_STORE_NAME, key:DATA_IMPORT_2_STATE_KEY, ...extra});
+}
+
 async function hydrateDataImport2State() {
   try {
-    const stored = await atlasStateGetValue(DATA_IMPORT_2_STATE_KEY);
+    const stored = await dataImportHistoryOperation("load");
     dataImport2State = normalizeDataImport2State(stored || dataImport2State);
   } catch (error) {
     markAtlasPersistenceError(error, "ATLAS could not finish loading Data Import history.");
@@ -48590,7 +48595,7 @@ async function hydrateDataImport2State() {
 function persistDataImport2State() {
   dataImport2State = normalizeDataImport2State(dataImport2State);
   queueAtlasStateWrite(async () => {
-    await atlasStateSetValue(DATA_IMPORT_2_STATE_KEY, serializeDataImport2State());
+    await dataImportHistoryOperation("save", {value:serializeDataImport2State()});
   }, "data_import_2_state");
 }
 
@@ -51476,20 +51481,24 @@ async function downloadDataImportArchiveFile(archiveId) {
   }
 }
 
-function rollbackDataImportBatch(batchId) {
+async function rollbackDataImportBatch(batchId) {
   const batch = (dataImport2State.batches || []).find(item => item.id === batchId);
   if (!batch || batch.status === "Rolled Back") return;
-  if (!batch.beforeSnapshot?.savedData) {
+  let snapshot;
+  try { snapshot = batch.beforeSnapshotRef ? await dataImportHistoryOperation("snapshot", {batch}) : batch.beforeSnapshot; }
+  catch (error) { alert(error.message); return; }
+  if (!(dataImport2State.batches || []).includes(batch)) return;
+  if (!snapshot?.savedData) {
     alert("This batch does not have a restore snapshot available in this browser.");
     return;
   }
   const reason = prompt("Reason for rollback");
   if (reason === null) return;
-  savedData = normalizeSavedCommunityMap(batch.beforeSnapshot.savedData || {});
-  applicationResidentDataState = normalizeApplicationResidentDataState(batch.beforeSnapshot.applicationResidentData || defaultApplicationResidentDataState());
-  dataImport2State.canonicalRecords = Array.isArray(batch.beforeSnapshot.canonicalRecords) ? batch.beforeSnapshot.canonicalRecords : [];
-  dataImport2State.lineage = Array.isArray(batch.beforeSnapshot.lineage) ? batch.beforeSnapshot.lineage : [];
-  dataImport2State.reconciliationLog = Array.isArray(batch.beforeSnapshot.reconciliationLog) ? batch.beforeSnapshot.reconciliationLog : [];
+  savedData = normalizeSavedCommunityMap(snapshot.savedData || {});
+  applicationResidentDataState = normalizeApplicationResidentDataState(snapshot.applicationResidentData || defaultApplicationResidentDataState());
+  dataImport2State.canonicalRecords = Array.isArray(snapshot.canonicalRecords) ? snapshot.canonicalRecords : [];
+  dataImport2State.lineage = Array.isArray(snapshot.lineage) ? snapshot.lineage : [];
+  dataImport2State.reconciliationLog = Array.isArray(snapshot.reconciliationLog) ? snapshot.reconciliationLog : [];
   if (savedData[getProp().name]) loadPropertyData(getProp().name);
   batch.status = "Rolled Back";
   batch.rollback = {

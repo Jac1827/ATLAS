@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {projectHistory,mergeHistory,resolveSnapshot} from '../docs/portfolio-operations-dashboard/features/import-history-store.mjs';
+const snapshot={capturedAt:'2026-09-21',savedData:{A:{occupied:0}},lineage:[{source:'approved'}]};
+const stored={closedPeriods:['2026-08'],canonicalRecords:[{value:0}],batches:[{id:'a',status:'Approved',beforeSnapshot:snapshot},{id:'b',beforeSnapshot:null}]};
+const projected=projectHistory(stored);
+assert.equal(projected.batches[0].beforeSnapshot,undefined);
+assert.deepEqual(projected.canonicalRecords,stored.canonicalRecords);
+assert.deepEqual(mergeHistory(projected,structuredClone(stored)),stored,'saved record retains every rollback field');
+assert.deepEqual(resolveSnapshot(projected.batches[0],stored),snapshot);
+assert.throws(()=>mergeHistory(projected,{batches:[]}),/evidence changed/);
+assert.throws(()=>mergeHistory(projected,{batches:[stored.batches[0],stored.batches[0]]}),/evidence changed/);
+assert.throws(()=>mergeHistory(projected,{batches:[{id:'a',beforeSnapshot:{...snapshot,capturedAt:'later'}}]}),/evidence changed/);
+projected.batches[0].status='Rolled Back';
+const merged=mergeHistory(projected,stored);assert.equal(merged.batches[0].status,'Rolled Back');assert.deepEqual(merged.batches[0].beforeSnapshot,snapshot);
+projected.batches.unshift({id:'new',beforeSnapshot:{capturedAt:'new',savedData:{}}});
+assert.equal(mergeHistory(projected,stored).batches[0].beforeSnapshot.capturedAt,'new');
+assert.equal(stored.batches[0].status,'Approved','projection does not mutate original');
+console.log('PASS lazy rollback evidence, exact round trip, missing/changed/duplicate protection, new snapshots');

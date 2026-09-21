@@ -3,6 +3,9 @@ from pathlib import Path
 import hashlib, json, re
 root=Path(__file__).resolve().parents[2]/'docs/portfolio-operations-dashboard'
 entries=[
+ ('features/import-history-store.mjs',[('features/import-history-worker.mjs','./import-history-store.mjs'),('features/import-history.mjs','./import-history-store.mjs')]),
+ ('features/import-history-worker.mjs',[('features/import-history.mjs','./import-history-worker.mjs')]),
+ ('features/import-history.mjs',[('index.html','./features/import-history.mjs')]),
  ('features/fiscal-ytd.mjs',[('features/budget-command-publication.mjs','./fiscal-ytd.mjs')]),
  ('features/community-plan-report.mjs',[('features/community-plan.mjs','./community-plan-report.mjs')]),
  ('community-command-contract.js',[('features/community-finance.mjs','../community-command-contract.js')]),

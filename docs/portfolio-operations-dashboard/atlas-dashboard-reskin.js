@@ -138,7 +138,9 @@ function history(instance, snapshot) {
   return {data,budget,labels};
 }
 function visual(instance,snapshot,definition={}) {
-  if(instance.collapsed || !chartTypes.has(instance.widgetKey)) return '';
+  // The reskin has no legacy collapse control: always render chart content.
+  // Persisted collapsed flags must not strand saved widgets in summary-only mode.
+  if(!chartTypes.has(instance.widgetKey)) return '';
   if(instance.widgetKey==='reputation_pulse' && instance.metric==='Review Volume') return '<p class="card-sub">Review count source required.</p>';
   const metric=instance.metric||definition.defaultMetric, viz=instance.visualization||'KPI Card';
   const details=snapshot.scopedDetails||[], summary=aggregateCommunitySummaries(details.map(d=>d.summary));

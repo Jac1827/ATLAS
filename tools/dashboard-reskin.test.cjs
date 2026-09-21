@@ -13,6 +13,12 @@ const instance={widgetKey:'portfolio_overview',metric:'Physical Occupancy'},snap
 let html=app.visual(instance,snapshot,definition);assert(!/NaN|Infinity/.test(html),'One month must produce finite chart coordinates');assert(html.includes('is-dashed'));assert(html.includes('tableview'));assert.equal((html.match(/legend-item/g)||[]).length,2);
 html=app.visual({...instance,metric:'Occupancy Variance'},snapshot,definition);assert(html.includes('right:50%'));assert(!html.includes('<Community>'),'Community labels must be escaped');
 html=app.visual({widgetKey:'traffic_funnel',metric:'Guest Cards'}, {scopedDetails:[{summary:{}}]},{});assert(!/NaN|Infinity/.test(html),'Empty funnel must remain finite');
+const trafficSnapshot={scopedDetails:[{summary:{guestCards:667,tours:166,applications:75,applicationsApproved:60,moveIns:40}}]};
+html=app.visual({widgetKey:'traffic_funnel',metric:'Guest Cards',visualization:'KPI Card',collapsed:true},trafficSnapshot,{});
+assert.equal((html.match(/class="fstage"/g)||[]).length,5,'Saved legacy collapse flag must not hide the redesigned funnel');
+assert(html.includes('data-val="667"') && html.includes('data-val="166"') && html.includes('data-conv="25"'),'Funnel must use live counts and conversions');
+assert(html.includes('tableview'),'Saved legacy collapse flag must not hide the data table');
+assert(html.includes('var(--seq-5)'),'Funnel must use theme-aware sequential colors');
 html=app.visual({widgetKey:'reputation_pulse',metric:'ORA Score'}, {scopedDetails:[{name:'A',summary:{occPct:0}}]},{});assert(html.includes('No reputation scores loaded.'));assert(!html.includes('data-atlas-line'),'Current reputation must not be backfilled into fictitious historical points');
 const posts=[{id:'one',text:'<script>unsafe</script>',scope:'All communities',postedBy:'Author',postedByEmail:'author@example.test',createdAt:new Date().toISOString(),expiresAt:new Date(Date.now()+7200000).toISOString()}];
 ctx.window.ATLAS_CENTRAL={news:async()=>({items:[{title:'Fresh news',link:'javascript:alert(1)',publishedAt:new Date().toISOString()}]}),announcements:async(action,body)=>{if(action!=='list')request={action,body};return {items:posts}}};

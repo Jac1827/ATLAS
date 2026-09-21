@@ -1,0 +1,16 @@
+<!doctype html><meta charset="utf-8"><title>Closed actuals browser test</title><pre id="result">Running</pre><iframe style="width:100%;height:900px" src="../../docs/portfolio-operations-dashboard/RISE-Budget-Builder.html?atlasEmbedded=1"></iframe>
+<script>
+window.atlasAccessDecision=()=>({ok:true});
+const versions=[2,3,4,5,6,7,8].map(m=>({community_id:'fixture-doro',version_id:'v'+m,comparison_version_id:'c'+m,period_key:`2026-${String(m).padStart(2,'0')}`,revision:1,status:'closed',coverage:'full_month',accounting_basis:'accrual',row_count:2,source_file:'fixture.pdf',source_hash:'a'.repeat(64),metrics:{grossPotentialRent:100,netRentalIncome:95,sourceControls:{'Total Income':{ytdActual:665},'Net Operating Income':{ytdActual:665}}}}));
+const rows=[{gl_code:'5120',account_name:'GPR',actual:100,ytd_actual:700,source_budget:100,source_ytd_budget:700,source_location:{page:3}},{gl_code:'5130',account_name:'Loss',actual:-5,ytd_actual:-35,source_budget:null,source_ytd_budget:null,source_location:{page:3}}];
+window.ATLAS_CENTRAL={readCommunitiesForAccess:async()=>[{community_id:'fixture-doro',display_name:'Doro',canonical_name:'doro'}],fetchJson:async path=>{
+ if(path.includes('aliases'))return[{community_id:'fixture-doro',alias:'RISE Doro',active:true}];
+ if(path.includes('close_heads'))return versions.map(v=>({version_id:v.version_id}));
+ if(path.includes('close_versions'))return versions;
+ if(path.includes('comparison_heads'))return[{version_id:'c8',period_key:'2026-08'}];
+ if(path.includes('comparison_versions'))return[{...versions[6],version_id:'c8',status:'Reviewed — not closed'}];
+ if(path.includes('rows'))return rows;
+ return[];
+}};
+const frame=document.querySelector('iframe');frame.onload=async()=>{try{const w=frame.contentWindow;w.RBB.app.go('actuals');await new Promise(r=>setTimeout(r,2000));const R=w.RBB,vr=R.app.vr(),gl=vr.rows.find(r=>r.gl==='5120'),text=w.document.body.textContent;const results={closedThrough:vr.closedThrough,january:gl?.actual[0],august:gl?.actual[7],september:gl?.actual[8],sourceYtd:gl?.ytdActual,missingCoverage:text.includes('Incomplete YTD'),closedStatus:text.includes('Closed · revision 1'),screenError:!!w.document.querySelector('.main > .note.r')};if(results.closedThrough!==8||results.january!==null||results.august!==100||results.september!==null||results.sourceYtd!==700||!results.closedStatus||results.screenError)throw Error(JSON.stringify(results));document.querySelector('#result').textContent=JSON.stringify({passed:true,...results});}catch(e){document.querySelector('#result').textContent=JSON.stringify({passed:false,error:e.message});}};
+</script>

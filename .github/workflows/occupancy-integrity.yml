@@ -59,6 +59,7 @@ jobs:
           node tools/community-report-progress.test.mjs
           node tools/financial-package.test.mjs
           node tools/financial-review-db.test.cjs
+          node tools/financial-close.test.mjs
 
   performance-boundaries:
     runs-on: ubuntu-latest

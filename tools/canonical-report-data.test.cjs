@@ -53,6 +53,8 @@ assert.equal(c.summarizeFinancialLedgerRows([{actual:0,budget:0,glCode:'4000'}])
 record.monthlyData=Array.from({length:12},()=>({}));record.monthlyData[8]={actualCharges:0,grossPotentialRent:100,financialSource:'Rent September'};
 assert.equal(c.getCommunityCommandEconomicOccupancyData(record,8,2026).mtdPct,null,'Unverified financial coverage is not a matched period');
 Object.assign(record.monthlyData[8],{closedFinancialActuals:{period:'2026-09',coverage:'full_month',status:'closed',netRentalIncome:0,grossPotentialRent:100,source:'closed package',approvedBy:'Reviewer',approvedAt:'2026-10-05'}});
+assert.equal(c.getCommunityCommandEconomicOccupancyData(record,8,2026).mtdPct,null,'A browser-only closed flag is not canonical authority');
+c.window.AtlasClosedFinancialCache={get:()=>{const x=record.monthlyData[8].closedFinancialActuals;return x?{metrics:x,period_key:x.period,status:x.status,coverage:x.coverage,source_file:x.source,approved_by:x.approvedBy,approved_at:x.approvedAt}:null;}};
 assert.equal(c.getCommunityCommandEconomicOccupancyData(record,8,2026).mtdPct,0);
 record.monthlyData[8].closedFinancialActuals.netRentalIncome=-5;assert.equal(c.getCommunityCommandEconomicOccupancyData(record,8,2026).mtdPct,-5);
 record.monthlyData[8]={delinquencyBalance:10};assert.equal(c.getCommunityCommandEconomicOccupancyData(record,8,2026).mtdPct,null);

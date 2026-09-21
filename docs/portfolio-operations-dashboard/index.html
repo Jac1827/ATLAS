@@ -1423,7 +1423,7 @@
 </div>
 
 <script src="./atlas_historical_restore_data.js"></script>
-<script src="./atlas-mounts.js?v=fec2aadb1a05415f"></script>
+<script src="./atlas-mounts.js?v=19e040c75cb738c2"></script>
 <script src="./centralization/atlas-central-client.js?v=a102600a81f486f6" data-atlas-central-client="true"></script>
 <script src="./atlas-dashboard-reskin.js?v=99ffd40a8970f8ef"></script>
 <script src="./central-services.js?v=20260919-renewal-period-review"></script>
@@ -23827,11 +23827,24 @@ function communityCommandSumFinancialRows(rows = [], keys = []) {
   }, 0);
 }
 
+function getAtlasClosedFinancialVersion(record, period) {
+  return (typeof window !== "undefined" ? window.AtlasClosedFinancialCache : null)?.get(record.propertyName || record.communityId || "", period) || null;
+}
+
+async function refreshAtlasClosedFinancials(year = new Date().getFullYear(), force = false) {
+  if (!window.ATLAS_CENTRAL?.getSession()?.user) return;
+  const module = await import("./features/financial-close.mjs?v=b202d92bb0269946");
+  window.AtlasClosedFinancialCache ||= module.createCache(window.ATLAS_CENTRAL);
+  await window.AtlasClosedFinancialCache.refresh(year, force);
+  scheduleAtlasSharedRender(false);
+}
+
 function getCommunityCommandEconomicOccupancyData(record = {}, monthIdx = getSelectedDashboardMonthIndex(), year = new Date().getFullYear()) {
   const read = (month, reportingYear) => {
     const entry = getRecordMonthlyDataForYear(record, reportingYear)[month] || {};
     const period = buildPeriodKey(month, reportingYear);
-    const closed = entry.closedFinancialActuals || {};
+    const version = getAtlasClosedFinancialVersion(record, period);
+    const closed = version ? { ...version.metrics, period:version.period_key, status:version.status, coverage:version.coverage, source:version.source_file, approvedBy:version.approved_by, approvedAt:version.approved_at } : {};
     const actual = normalizeOptionalNumber(closed.netRentalIncome);
     const gpr = normalizeOptionalNumber(closed.grossPotentialRent);
     const valid = closed.status === "closed" && closed.period === period && closed.coverage === "full_month" && closed.source && closed.approvedBy && closed.approvedAt;
@@ -24066,7 +24079,7 @@ function communityCommandBoundarySnapshot(entry, date, baseUnits, communityName)
 
 function communityCommandOccupancyPeriods(model) {
   const output = [];
-  const today = getAtlasTodayISODate();
+  const today = Number.isInteger(model.monthIdx) ? `${buildPeriodKey(model.monthIdx, model.year)}-01` : getAtlasTodayISODate();
   for (let idx = 0; idx < 12; idx++) {
     const period = buildPeriodKey(idx, model.year);
     const first = `${period}-01`;
@@ -31750,7 +31763,13 @@ function atlasBonusMetricActual(employee = {}, metric = {}) {
   const financePeriod = new Date().getFullYear() + "-" + String(selectedMonthIdx + 1).padStart(2, "0");
   const finance = financeRecord?.financialBudgetLedger?.investorPacketSources?.periods?.[financePeriod];
   const attainment = (id, lower = false) => {
+    // Financial bonus measurements are quarterly. Browser-only investor extracts
+    // cannot establish a payable target or substitute for an open quarter.
+    const quarterStart = Math.floor(selectedMonthIdx / 3) * 3;
+    const closes = [0,1,2].map(offset => getAtlasClosedFinancialVersion({...financeRecord,propertyName:communityName}, buildPeriodKey(quarterStart + offset, new Date().getFullYear())));
+    if (closes.some(v => !v || v.status !== "closed" || v.coverage !== "full_month")) return null;
     const item = finance?.[id];
+    if (!item?.approvedTargetVersion || item.targetApprovalStatus !== "approved" || item.actualCloseVersions?.join("|") !== closes.map(v => v.version_id).join("|")) return null;
     if (!Number.isFinite(item?.actual) || !Number.isFinite(item?.budget) || item.budget === 0) return null;
     return 100 + (lower ? -1 : 1) * (item.actual - item.budget) / Math.abs(item.budget) * 100;
   };
@@ -32892,6 +32911,17 @@ function summarizeFinancialLedgerRows(rows = [], budgetRows = []) {
 }
 
 function getFinancialSummaryForMonth(record = {}, selectedMonth = getSelectedDashboardMonthIndex(), year = new Date().getFullYear()) {
+  const version = getAtlasClosedFinancialVersion(record, buildPeriodKey(selectedMonth, year));
+  if (window.AtlasClosedFinancialCache) {
+    const budget = summarizeFinancialLedgerRows([], getFinancialBudgetLedgerRowsForMonth(record, selectedMonth, year));
+    const hasBudget = getFinancialBudgetLedgerRowsForMonth(record, selectedMonth, year).length > 0;
+    const m = version?.metrics;
+    return { ...budget, hasData:!!version, source:version?.source_file || "Missing closed financial package", version:version?.version_id || null,
+      revenueActual:m?.totalIncome ?? null, expenseActual:m?.operatingExpenses ?? null, noiActual:m?.netOperatingIncome ?? null,
+      noiVariance:version && hasBudget ? m.netOperatingIncome-budget.noiBudget : null,
+      expenseVariance:version && hasBudget ? m.operatingExpenses-budget.expenseBudget : null,
+      revenueVariance:version && hasBudget ? m.totalIncome-budget.revenueBudget : null };
+  }
   return summarizeFinancialLedgerRows(
     getFinancialLedgerRowsForMonth(record, selectedMonth, year),
     getFinancialBudgetLedgerRowsForMonth(record, selectedMonth, year)
@@ -32899,6 +32929,7 @@ function getFinancialSummaryForMonth(record = {}, selectedMonth = getSelectedDas
 }
 
 function formatSignedFinancialCurrency(value = 0) {
+  if (value === null || value === undefined) return "Missing";
   const numeric = Number(value ?? 0) || 0;
   if (!numeric) return "$0";
   return `${numeric > 0 ? "+" : "-"}${formatDlrCurrency(Math.abs(numeric))}`;
@@ -57446,6 +57477,7 @@ async function initializeAtlasDashboard() {
 }
 
 window.addEventListener("atlas-central-auth-change", () => {
+  window.AtlasClosedFinancialCache?.clear();
   if (!atlasDashboardInitializationComplete) return;
   const user = window.ATLAS_CENTRAL?.getSession()?.user?.id || null;
   if (user !== atlasApplicationSessionUser) {
@@ -57481,7 +57513,7 @@ if (window.AtlasPerformance?.enabled) {
   dataImportReadFileSample = perf.wrap(dataImportReadFileSample, "workbook-preview", file => ({ bytes: file?.size }));
   applyDashboardStorageBundle = perf.wrap(applyDashboardStorageBundle, "restore-readback");
 }
-initializeAtlasDashboard().then(() => { window.AtlasPerformance?.memory("after-startup"); return hydrateAtlasSharedApplications(); }).catch((error) => {
+initializeAtlasDashboard().then(() => { refreshAtlasClosedFinancials().catch(error => console.warn("Closed financial source unavailable", error)); window.AtlasPerformance?.memory("after-startup"); return hydrateAtlasSharedApplications(); }).catch((error) => {
   markAtlasPersistenceError(error, "ATLAS could not finish loading browser data.");
   currentMonth = DEFAULT_CURRENT_MONTH;
   workspaceMonthOverride = null;

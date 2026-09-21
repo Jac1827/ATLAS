@@ -18,20 +18,21 @@
  A.renderNav=function(){
   const group=section(A.view),sc=A.scenario(),vr=A.vr(),p=A.prop(),summary=A.c().summary;
   const secondary=known().filter(v=>section(v.id)===group);
-  const closed=vr?.closedThrough ? R.MONTHS[vr.closedThrough-1]+' (local record; central close unverified)' : 'No closed actuals verified';
+  const canonical=R.closedFinancial?.caches.get(p.id+'|'+A.year());
+  const closed=canonical ? (canonical.coverage.last ? 'Closed through '+R.MONTHS[canonical.coverage.last-1]+' · '+(canonical.coverage.completeYtd?'consecutive YTD':'January/earlier coverage missing; statement YTD reference') : canonical.status) : vr?.closedThrough ? R.MONTHS[vr.closedThrough-1]+' (local record; central close unverified)' : 'No closed actuals verified';
   const saved=R.persist.dirty?'Unsaved changes':R.persist.lastSavedAt?'Saved in this browser':'No browser save recorded';
   return '<div class="budget-workflow-nav"><div class="budget-nav-tools"><button class="btn sm" onclick="RBB.app.openCommandMenu()">Find a tool <kbd>Ctrl/⌘ K</kbd></button><button class="btn sm" onclick="RBB.app.continueWorkflow()">Continue where I left off</button></div>'+
    '<nav class="budget-primary" aria-label="Budget workflows">'+groups.map(g=>link(g[2][0],g[1],g===group)).join('')+'</nav>'+
-   '<div class="budget-context" aria-label="Financial context"><strong>'+esc(p.name)+'</strong><span>Calendar '+esc(A.year())+' · Fiscal start '+esc(p.fiscalYearBegins||'Not recorded')+'</span><span>'+esc(sc.name)+' · Version '+esc(sc.version||'not recorded')+' · '+esc(sc.status||'Draft')+(sc.locked?' · Locked':'')+' (local scenario)</span><span>'+esc(closed)+'</span><span>'+esc(saved)+'</span><span>Shared ledger publication: not verified</span></div>'+
+   '<div class="budget-context" aria-label="Financial context"><strong>'+esc(p.name)+'</strong><span>Calendar '+esc(A.year())+' · Fiscal start '+esc(p.fiscalYearBegins||'Not recorded')+'</span><span>'+esc(sc.name)+' · Version '+esc(sc.version||'not recorded')+' · '+esc(sc.status||'Draft')+(sc.locked?' · Locked':'')+' (local scenario)</span><span>'+esc(closed)+'</span><span>'+esc(saved)+'</span><span>Shared close status shown above; original budget unchanged</span></div>'+
    '<nav class="budget-secondary" aria-label="'+esc(group[1])+' tools">'+secondary.map(v=>link(v.id,v.label,A.view===v.id)).join('')+'</nav>'+
    '<div class="budget-breadcrumb" aria-label="Breadcrumb">Budget Builder / '+esc(group[1])+' / '+esc(label(A.view))+'<span>'+Number(summary?.high||0)+' high-priority budget checks</span></div></div>';
  };
  const go=A.go;
  let packageReview;
- A.openFinancialPackageReview=async function(){try{packageReview=await import('./features/financial-package-review.mjs?v=dcf849bb409ceffa');await packageReview.openReview();}catch(e){A.toast(e.message,'r');}};
+ A.openFinancialPackageReview=async function(){try{packageReview=await import('./features/financial-package-review.mjs?v=5fca9b87bdb666da');await packageReview.openReview();}catch(e){A.toast(e.message,'r');}};
  const actuals=R.views.actuals;
  function sharedActualsPanel(){
-  setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el)return;try{const m=await import('./features/financial-comparison.mjs?v=7deeab96f9868483');await m.mountComparison(el,{communityName:A.cp().property.name,year:A.year()});}catch(e){el.textContent=e.message;}},0);
+  setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el)return;try{const m=await import('./features/financial-comparison.mjs?v=c2bf05ee83551aa8');await m.mountComparison(el,{communityName:A.cp().property.name,year:A.year()});}catch(e){el.textContent=e.message;}},0);
   return '<div class="panel"><button class="btn pri" onclick="RBB.app.openFinancialPackageReview()">Upload or apply saved financial review</button><p>Upload → reconcile → save review → apply actuals → shared comparison</p></div><section class="panel" id="shared-financial-comparison"><p>Loading shared actuals…</p></section>';
  }
  R.views.actuals=function(){return sharedActualsPanel()+'<details><summary>Legacy manual-entry worksheet — separate browser data</summary>'+actuals.apply(this,arguments)+'</details>';};
@@ -56,5 +57,10 @@
   dialog.addEventListener('close',()=>dialog.remove(),{once:true});document.body.append(dialog);render();dialog.showModal();input.focus();
  };
  document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();A.openCommandMenu();}});
+ if(typeof window!=='undefined'&&window.parent!==window)import('./features/financial-close.mjs?v=b202d92bb0269946').then(async m=>{
+   const central=window.parent.ATLAS_CENTRAL;if(!central||!window.parent.atlasAccessDecision?.(12)?.ok)return;
+   const [communities,aliases,matcher]=await Promise.all([central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000'),import('./features/financial-package.mjs?v=49ea086d6d07f300')]);
+   m.installBuilder(R,central,name=>matcher.resolveCommunity(name,communities,aliases).communityId);A.render();
+ }).catch(e=>A.toast(e.message,'r'));
  R.budgetNavigation={groups,section};
 })(RBB);

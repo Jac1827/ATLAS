@@ -48,6 +48,7 @@ for (let total = 0; total <= 31; total++) {
 assert.equal(ctx.communityCommandWeeklyAllocation(null, 3).length, 0);
 const financial = { 8: { closedFinancialActuals: {netRentalIncome: 100, grossPotentialRent: 200, period: '2026-09', coverage: 'full_month', status:'closed', source:'closed package page 3', approvedBy:'Reviewer', approvedAt:'2026-10-05'} } };
 ctx.getRecordMonthlyDataForYear = () => financial;
+ctx.window={AtlasClosedFinancialCache:{get:()=>{const x=financial[8].closedFinancialActuals;return x?{metrics:x,period_key:x.period,status:x.status,coverage:x.coverage,source_file:x.source,approved_by:x.approvedBy,approved_at:x.approvedAt}:null;}}};
 assert.equal(ctx.getCommunityCommandEconomicOccupancyData({}, 8, 2026).mtdPct, 50);
 financial[8].closedFinancialActuals.coverage = 'mtd';
 assert.equal(ctx.getCommunityCommandEconomicOccupancyData({}, 8, 2026).mtdPct, null);

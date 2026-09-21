@@ -46,6 +46,21 @@ const {PGlite}=require('@electric-sql/pglite'),fs=require('node:fs'),assert=requ
   }
   console.log('PASS all supplied package rows independently reconciled and read back in PostgreSQL');
  }
+
+ await db.exec('reset role');await db.exec(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/centralization/financial-close.sql','utf8'));await signIn(1);
+ const close=async(id,expected=null,approved=true)=>(await db.query('select * from atlas_close_financial_review($1,$2,$3,$4)',[id,expected,'Source package reviewed and reconciled',approved])).rows[0];
+ const closeCertificate=structuredClone(changed);closeCertificate.sourceHash='f'.repeat(64);closeCertificate.rows.splice(1,0,line('control',null,'Net Rental Income',110));
+ const closeReview=await save(closeCertificate);
+ await assert.rejects(()=>close(closeReview.review_id,null,false),/approval confirmation/);
+ const closed=await close(closeReview.review_id);assert.equal(closed.metrics.grossPotentialRent,110);assert.equal(closed.metrics.netRentalIncome,110);assert.equal(closed.status,'closed');
+ assert.equal((await close(closeReview.review_id)).version_id,closed.version_id);
+ const correction=structuredClone(closeCertificate);correction.sourceHash='1'.repeat(64);correction.rows[0].values=values(120);correction.rows[1].values=values(120);correction.rows[2].values=values(120);correction.rows[4].values=values(80);
+ const correctionReview=await save(correction);await assert.rejects(()=>close(correctionReview.review_id),/another session/);
+ const corrected=await close(correctionReview.review_id,closed.version_id);assert.equal(corrected.revision,2);assert.equal(corrected.previous_version_id,closed.version_id);
+ assert.equal((await db.query(`select actual from atlas_financial_close_rows where version_id=$1 and gl_code='5120'`,[closed.version_id])).rows[0].actual,'110');
+ await assert.rejects(()=>db.query('delete from atlas_financial_close_versions'),/permission denied/);
+ await signIn(2);assert.equal((await db.query('select * from atlas_financial_close_versions')).rows.length,0);await assert.rejects(()=>close(closeReview.review_id),/Only an active Admin/);await signIn(1);
+ console.log('PASS Admin close, independent reconciliation, explicit confirmation, idempotency, correction history and authorization');
  await signIn(2);assert.equal((await db.query('select * from atlas_financial_comparison_rows')).rows.length,0);await assert.rejects(()=>apply(good.review_id),/access denied/);await signIn(1);
  await signIn(2);assert.equal((await db.query('select * from atlas_financial_package_reviews')).rows.length,0);await assert.rejects(()=>save(),/access denied/);
  await db.exec("reset role;update atlas_user_profiles set locked_page_keys='{budget}' where role='admin'");await signIn(1);assert.equal((await db.query('select * from atlas_financial_package_reviews')).rows.length,0);await assert.rejects(()=>save(),/access denied/);

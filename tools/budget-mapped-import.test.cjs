@@ -54,9 +54,10 @@ let financial=pc.summarizeFinancialLedgerRows([{gl:'5120',actual:1100,budget:2},
 assert.equal(financial.noiBudget,750);assert.equal(financial.noiActual,1000);assert.equal(financial.expenseBudget,250);
 Object.assign(pc,{atlasBonusCommunitySummary:()=>({occPct:90,budgetOccAttainmentPct:999}),getSelectedDashboardMonthIndex:()=>8,getCommunityCommandApprovedGoal:()=>null});
 pc.savedData.A.financialBudgetLedger.investorPacketSources={periods:{[new Date().getFullYear()+'-09']:{noi:{actual:1100,budget:1000},expenses:{actual:200,budget:200}}}};
+pc.getAtlasClosedFinancialVersion=()=>null;pc.buildPeriodKey=(m,y)=>y+'-'+String(m+1).padStart(2,'0');
 vm.runInContext(fn('atlasBonusMetricActual','atlasBonusPerformanceRatio'),pc);
-assert.equal(pc.atlasBonusMetricActual({communityName:'A'},{metricKey:'noi'}),110);
-assert.equal(pc.atlasBonusMetricActual({communityName:'A'},{metricKey:'budget_attainment'}),100);
+assert.equal(pc.atlasBonusMetricActual({communityName:'A'},{metricKey:'noi'}),null,'An investor extract without a closed quarter is not payable evidence');
+assert.equal(pc.atlasBonusMetricActual({communityName:'A'},{metricKey:'budget_attainment'}),null,'Missing approved quarterly target must not create payable attainment');
 delete pc.savedData.A.financialBudgetLedger.investorPacketSources;
 assert.equal(pc.atlasBonusMetricActual({communityName:'A'},{metricKey:'noi'}),null);
 console.log('PASS ATLAS publication/version/community guards, financial budget precedence, budget-only accounts and financial bonus source/missing-data behavior');

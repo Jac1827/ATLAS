@@ -71,6 +71,7 @@ jobs:
         run: npm install --no-save --ignore-scripts xlsx@0.18.5
       - name: Validate startup and performance boundaries (not browser acceptance)
         run: |
+          node tools/import-history.test.mjs
           node tools/startup-performance.test.cjs
           node tools/performance-diagnostics.test.cjs
           node tools/central-api-performance.test.cjs

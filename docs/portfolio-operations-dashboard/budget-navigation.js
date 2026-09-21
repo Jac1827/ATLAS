@@ -20,7 +20,7 @@
   const secondary=known().filter(v=>section(v.id)===group);
   const closed=vr?.closedThrough ? R.MONTHS[vr.closedThrough-1]+' (local record; central close unverified)' : 'No closed actuals verified';
   const saved=R.persist.dirty?'Unsaved changes':R.persist.lastSavedAt?'Saved in this browser':'No browser save recorded';
-  return '<div class="budget-workflow-nav"><div class="budget-nav-tools"><a href="index.html" onclick="RBB.app.returnToAtlas();return false;">Back to ATLAS</a><button class="btn sm" onclick="RBB.app.openCommandMenu()">Find a tool <kbd>Ctrl/⌘ K</kbd></button><button class="btn sm" onclick="RBB.app.continueWorkflow()">Continue where I left off</button></div>'+
+  return '<div class="budget-workflow-nav"><div class="budget-nav-tools"><button class="btn sm" onclick="RBB.app.openCommandMenu()">Find a tool <kbd>Ctrl/⌘ K</kbd></button><button class="btn sm" onclick="RBB.app.continueWorkflow()">Continue where I left off</button></div>'+
    '<nav class="budget-primary" aria-label="Budget workflows">'+groups.map(g=>link(g[2][0],g[1],g===group)).join('')+'</nav>'+
    '<div class="budget-context" aria-label="Financial context"><strong>'+esc(p.name)+'</strong><span>Calendar '+esc(A.year())+' · Fiscal start '+esc(p.fiscalYearBegins||'Not recorded')+'</span><span>'+esc(sc.name)+' · Version '+esc(sc.version||'not recorded')+' · '+esc(sc.status||'Draft')+(sc.locked?' · Locked':'')+' (local scenario)</span><span>'+esc(closed)+'</span><span>'+esc(saved)+'</span><span>Shared ledger publication: not verified</span></div>'+
    '<nav class="budget-secondary" aria-label="'+esc(group[1])+' tools">'+secondary.map(v=>link(v.id,v.label,A.view===v.id)).join('')+'</nav>'+

@@ -60,3 +60,12 @@ assert.equal(pc.atlasBonusMetricActual({communityName:'A'},{metricKey:'budget_at
 delete pc.savedData.A.financialBudgetLedger.investorPacketSources;
 assert.equal(pc.atlasBonusMetricActual({communityName:'A'},{metricKey:'noi'}),null);
 console.log('PASS ATLAS publication/version/community guards, financial budget precedence, budget-only accounts and financial bonus source/missing-data behavior');
+
+const inventoryBefore=JSON.stringify(state);
+M.setCatalogInventory([{name:'Test Other Community',totalUnits:320}]);
+assert.equal(M.inventoryLabel(state.properties.find(p=>p.name==='Test Other Community')),'320 units');
+assert.equal(JSON.stringify(state),inventoryBefore,'inventory context must not rewrite approved budget assumptions');
+M.setCatalogInventory([{name:'Test Other Community',totalUnits:null}]);
+assert.equal(M.inventoryLabel(state.properties.find(p=>p.name==='Test Other Community')),'Units unavailable');
+M.setCatalogInventory([{name:'Test Other Community',totalUnits:0}]);
+assert.equal(M.inventoryLabel(state.properties.find(p=>p.name==='Test Other Community')),'0 units');

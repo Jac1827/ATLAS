@@ -12,9 +12,22 @@
       state.properties.push({id:'atlas-'+encodeURIComponent(canonical),code:canonical,name:canonical,entity:canonical,market:'',zip:'',units:[],totalUnits:0,occupancy:{},occupancyByYear:{},economicOccupancy:{},str:{enabled:false},recovery:{},fiscalYearBegins:'Jan',notes:'ATLAS community. Operating assumptions must be supplied separately.',source:'ATLAS community catalog',budgetImportOnly:true});
     }
   };
+  // Current inventory is display context, never a replacement for approved planning assumptions.
+  const inventory = new Map();
+  M.setCatalogInventory=function(communities){
+    inventory.clear();
+    for(const row of communities || []) if(typeof row.name==='string') {
+      inventory.set(row.name.trim().replace(/^RISE\s+/i,'').toLowerCase(), Number.isInteger(row.totalUnits)&&row.totalUnits>=0?row.totalUnits:null);
+    }
+  };
+  M.inventoryLabel=function(property){
+    const key=property.name.trim().replace(/^RISE\s+/i,'').toLowerCase();
+    const value=inventory.has(key)?inventory.get(key):(property.budgetImportOnly?null:property.totalUnits);
+    return Number.isInteger(value)&&value>=0?value+' units':'Units unavailable';
+  };
   window.addEventListener('message',event=>{
     if(event.source!==window.parent||event.origin!==window.location.origin||event.data?.type!=='atlas-budget-catalog')return;
-    M.addCatalogProperties(A.state,event.data.names||[]);A.invalidate();A.render();
+    M.addCatalogProperties(A.state,event.data.names||[]);M.setCatalogInventory(event.data.communities);A.invalidate();A.render();
   });
   if(window.parent!==window)window.parent.postMessage({type:'atlas-budget-catalog-request'},window.location.origin);
   const validate=M.validate;

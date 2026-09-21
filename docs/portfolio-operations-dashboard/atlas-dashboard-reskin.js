@@ -145,6 +145,12 @@ function visual(instance,snapshot,definition={}) {
   const unit=/Occupancy|Conversion|Retention|->/.test(metric)?'%':'';
   const rows=details.slice(0,10).map(d=>({name:esc(d.name),v:metricValue({...instance,metric},d.summary)}));
   if(!details.length) return '<p class="card-sub">No data in this scope yet.</p>';
+  // Reputation is a current snapshot, not a monthly series. Never repeat the
+  // current score across past months or turn a missing score into a zero trend.
+  if(instance.widgetKey==='reputation_pulse') {
+    const available=rows.filter(r=>r.v>0);
+    return (available.length?bars(available,color(instance.widgetKey),''):'<p class="card-sub">No reputation scores loaded.</p>')+safeTable(['Community',metric],details.slice(0,10).map((d,i)=>[d.name,rows[i].v>0?rows[i].v:'—']));
+  }
   if(/Variance/.test(metric)) {
     const signed=details.map(d=>({name:esc(d.name),rawName:d.name,v:round(metric==='Occupancy Variance'? d.summary.occPct-d.summary.budgetOccPct : d.summary.currentNer-d.summary.proformaNer)}));
     return variance(signed)+safeTable(['Community',metric],signed.map(r=>[r.rawName,r.v]));

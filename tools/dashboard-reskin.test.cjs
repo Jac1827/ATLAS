@@ -13,6 +13,7 @@ const instance={widgetKey:'portfolio_overview',metric:'Physical Occupancy'},snap
 let html=app.visual(instance,snapshot,definition);assert(!/NaN|Infinity/.test(html),'One month must produce finite chart coordinates');assert(html.includes('is-dashed'));assert(html.includes('tableview'));assert.equal((html.match(/legend-item/g)||[]).length,2);
 html=app.visual({...instance,metric:'Occupancy Variance'},snapshot,definition);assert(html.includes('right:50%'));assert(!html.includes('<Community>'),'Community labels must be escaped');
 html=app.visual({widgetKey:'traffic_funnel',metric:'Guest Cards'}, {scopedDetails:[{summary:{}}]},{});assert(!/NaN|Infinity/.test(html),'Empty funnel must remain finite');
+html=app.visual({widgetKey:'reputation_pulse',metric:'ORA Score'}, {scopedDetails:[{name:'A',summary:{occPct:0}}]},{});assert(html.includes('No reputation scores loaded.'));assert(!html.includes('data-atlas-line'),'Current reputation must not be backfilled into fictitious historical points');
 const posts=[{id:'one',text:'<script>unsafe</script>',scope:'All communities',postedBy:'Author',postedByEmail:'author@example.test',createdAt:new Date().toISOString(),expiresAt:new Date(Date.now()+7200000).toISOString()}];
 ctx.window.ATLAS_CENTRAL={news:async()=>({items:[{title:'Fresh news',link:'javascript:alert(1)',publishedAt:new Date().toISOString()}]}),announcements:async(action,body)=>{if(action!=='list')request={action,body};return {items:posts}}};
 (async()=>{

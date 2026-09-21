@@ -32657,7 +32657,7 @@ function renderAtlasPersonalBonusLandingWidget(options = {}) {
   const projection = atlasBonusPersonalProjection();
   const primary = projection.rows[0];
   const hidden = atlasBonusPayoutHidden();
-  const amount = hidden ? "•••••" : atlasBonusCurrency(projection.projected);
+  const amount = !primary ? "Not available" : hidden ? "•••••" : atlasBonusCurrency(projection.projected);
   const percent = Math.min(100, Math.max(0, projection.percent));
   const metrics = primary ? primary.metricResults.slice(0, 4) : [];
   const extraClass = String(options.extraClass || "").trim();
@@ -32671,7 +32671,7 @@ function renderAtlasPersonalBonusLandingWidget(options = {}) {
       <button type="button" class="bonus-engine-eye-button" title="${hidden ? "Reveal projected payout" : "Hide projected payout"}" onclick="atlasBonusTogglePayoutVisibility(event)"><i class="ph ph-eye${hidden ? "-slash" : ""}" aria-hidden="true"></i></button>
     </div>
     <div class="atlas-dashboard-widget-value" style="color:#fcb53b">${escapeHtml(amount)}</div>
-    <div class="atlas-dashboard-widget-sub">${atlasBonusPct(projection.percent, 0)} of current bonus potential achieved</div>
+    <div class="atlas-dashboard-widget-sub">${primary ? atlasBonusPct(projection.percent, 0) + " of current bonus potential achieved" : "No eligible employee and plan match for this account"}</div>
     <div class="bonus-engine-progress"><span style="width:${percent}%"></span></div>
     <div class="bonus-engine-small-list" style="margin-top:10px">
       ${metrics.map(result => `<div class="bonus-engine-small-row"><span>${escapeHtml(result.metric.name)}</span><strong>${escapeHtml(result.actual === null ? "Pending" : result.metric.format === "pct" ? atlasBonusPct(result.actual, 1) : String(Number(result.actual).toFixed(1).replace(/\.0$/, "")))}</strong></div>`).join("") || `<div class="bonus-engine-small-row"><span>Bonus plan</span><strong>Pending</strong></div>`}

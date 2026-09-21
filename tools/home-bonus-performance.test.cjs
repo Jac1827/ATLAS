@@ -18,3 +18,5 @@ assert.equal(ctx.atlasHomePortfolioDetails(8),ctx.atlasHomePortfolioDetails(8));
 ctx.atlasHomePortfolioDetails(7);assert.equal(builds,2);
 vm.runInContext('atlasHomeRenderDetails=null',ctx);ctx.atlasHomePortfolioDetails(8);assert.equal(builds,3);
 assert.match(extract('renderAtlasWelcomeDashboard','buildAtlasCentralPeoplePayload'),/finally \{ atlasHomeRenderDetails = previous/);
+
+assert.match(extract('renderAtlasPersonalBonusLandingWidget','renderBonusMyBonusSection'),/!primary \? "Not available"/);

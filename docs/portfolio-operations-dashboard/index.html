@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css"/>
-<script src="./performance/diagnostics.js?v=037cfd38ace4d750"></script>
+<script src="./performance/diagnostics.js?v=b40ddaaf123f59ae"></script>
 <script src="./performance/feature-loader.js?v=b3ecf90b0783a5a7"></script>
 <script src="financial-publication.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -7740,8 +7740,10 @@ function getPeopleRosterTurnoverByQuarterForCommunity(propName = getProp().name,
   const turnoverByQuarter = defaultPropertyTurnoverByQuarter();
   const counted = new Set();
   const addTurnover = (communityName, roleType, eventDate, employeeId = "", sourceId = "") => {
+    // Rows without a turnover event need no community lookup on this pass.
+    if (!PROPERTY_TEAM_ROLE_DEFS[roleType] || !eventDate) return;
     const resolvedCommunity = findCanonicalCommunityName(communityName) || communityName;
-    if (resolvedCommunity !== matched || !PROPERTY_TEAM_ROLE_DEFS[roleType] || !eventDate) return;
+    if (resolvedCommunity !== matched) return;
     const eventTime = sharedDateTime(eventDate);
     if (eventTime == null) return;
     const quarter = BONUS_QUARTERS.find(q => {
@@ -7806,6 +7808,10 @@ function getPropertyTeamConfigWithSharedAssignments(propName = getProp().name, t
 function applyPeopleRosterStaffingToCommunityRecord(propName, record = {}, options = {}) {
   const normalized = normalizeSavedCommunityRecord(propName, record);
   const staffing = getPeopleRosterStaffingModel(propName, normalized, options);
+  return applyPeopleRosterStaffingToNormalizedRecord(propName, normalized, staffing);
+}
+
+function applyPeopleRosterStaffingToNormalizedRecord(propName, normalized, staffing) {
   if (!staffing.rosterSourced) return normalized;
   const teamConfig = normalizePropertyTeamConfig(staffing.teamConfig);
   return normalizeSavedCommunityRecord(propName, {
@@ -7818,37 +7824,65 @@ function applyPeopleRosterStaffingToCommunityRecord(propName, record = {}, optio
   });
 }
 
+function normalizeCommunityStaffingFields(record = {}) {
+  const propertyTeamConfig = normalizePropertyTeamConfig(record?.propertyTeamConfig);
+  const legacyTurnover = normalizePropertyTurnoverConfig(record?.propertyTurnoverConfig);
+  const propertyTurnoverByQuarter = normalizePropertyTurnoverByQuarter(record?.propertyTurnoverByQuarter, legacyTurnover);
+  return {
+    propertyTeamConfig,
+    propertyTurnoverConfig: getPropertyTurnoverTotalsFromQuarterMap(propertyTurnoverByQuarter),
+    propertyTurnoverByQuarter
+  };
+}
+
 function syncAllCommunityStaffingFromPeopleRoster(options = {}) {
-  syncSharedPeopleAssignments({ persist: false });
-  // One immutable-in-this-pass snapshot; never retained across state/auth changes.
-  const normalizedSharedData = normalizeAtlasSharedData(atlasSharedData);
-  if (!atlasPeopleRosterStaffingAvailable(normalizedSharedData)) return { changed: false, synced: 0 };
-  let changed = false;
-  let synced = 0;
-  getAllCommunityNames().forEach(name => {
-    const before = normalizeSavedCommunityRecord(name, savedData[name]);
-    const after = applyPeopleRosterStaffingToCommunityRecord(name, before, { year: options.year || new Date().getFullYear(), normalizedSharedData });
-    const beforeComparable = JSON.stringify({
-      propertyTeamConfig: before.propertyTeamConfig,
-      propertyTurnoverConfig: before.propertyTurnoverConfig,
-      propertyTurnoverByQuarter: before.propertyTurnoverByQuarter
+  const diagnostic = window.AtlasPerformance;
+  const started = diagnostic?.enabled ? performance.now() : 0;
+  const counts = { communitiesInspected: 0, communitiesChanged: 0, staffingRecordsNormalized: 0,
+    fullRecordsNormalized: 0, staffingRecordsSerialized: 0, writesScheduled: 0, renderRequests: 0, longestSubtask: 0 };
+  const report = () => diagnostic?.record("staffing-sync", diagnostic.enabled ? performance.now() - started : 0, counts);
+  try {
+    syncSharedPeopleAssignments({ persist: false });
+    // One immutable-in-this-pass snapshot; never retained across state/auth changes.
+    const normalizedSharedData = normalizeAtlasSharedData(atlasSharedData);
+    if (!atlasPeopleRosterStaffingAvailable(normalizedSharedData)) return { changed: false, synced: 0 };
+    let changed = false;
+    let synced = 0;
+    getAllCommunityNames().forEach(name => {
+      const communityStart = diagnostic?.enabled ? performance.now() : 0;
+      // Match the staffing portion of normalizeSavedCommunityRecord without touching
+      // occupancy, renewal history, reports, profiles or bonus calculations.
+      const before = normalizeCommunityStaffingFields(savedData[name]);
+      counts.communitiesInspected += 1;
+      counts.staffingRecordsNormalized += 1;
+      const staffingOptions = { year: options.year || new Date().getFullYear(), normalizedSharedData };
+      const staffing = getPeopleRosterStaffingModel(name, before, staffingOptions);
+      const beforeComparable = JSON.stringify(before);
+      const afterComparable = JSON.stringify({
+        propertyTeamConfig: staffing.teamConfig,
+        propertyTurnoverConfig: staffing.turnoverConfig,
+        propertyTurnoverByQuarter: staffing.turnoverByQuarter
+      });
+      counts.staffingRecordsSerialized += 2;
+      if (beforeComparable !== afterComparable) {
+        const normalized = normalizeSavedCommunityRecord(name, savedData[name]);
+        savedData[name] = applyPeopleRosterStaffingToNormalizedRecord(name, normalized, staffing);
+        counts.fullRecordsNormalized += staffing.rosterSourced ? 2 : 1;
+        counts.communitiesChanged += 1;
+        changed = true;
+      }
+      synced += 1;
+      if (diagnostic?.enabled) counts.longestSubtask = Math.max(counts.longestSubtask, performance.now() - communityStart);
     });
-    const afterComparable = JSON.stringify({
-      propertyTeamConfig: after.propertyTeamConfig,
-      propertyTurnoverConfig: after.propertyTurnoverConfig,
-      propertyTurnoverByQuarter: after.propertyTurnoverByQuarter
-    });
-    if (beforeComparable !== afterComparable) {
-      savedData[name] = after;
-      changed = true;
+    if (changed && options.persist !== false) {
+      persistSaved();
+      persistOpsGlobalData();
+      counts.writesScheduled += 2;
     }
-    synced += 1;
-  });
-  if (changed && options.persist !== false) {
-    persistSaved();
-    persistOpsGlobalData();
+    return { changed, synced };
+  } finally {
+    report();
   }
-  return { changed, synced };
 }
 
 function getSharedLeasingAssignmentsForCurrentProperty() {

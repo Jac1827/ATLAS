@@ -13,7 +13,7 @@
     counters[name] = (counters[name] || 0) + 1;
     // Call sites pass numeric/scalar diagnostics only; no application state is cloned.
     const safe = {};
-    for (const key of ['scope', 'reason', 'rows', 'bytes', 'parts', 'failed', 'startTime', 'usedJSHeapSize', 'totalJSHeapSize']) {
+    for (const key of ['communitiesInspected', 'communitiesChanged', 'staffingRecordsNormalized', 'fullRecordsNormalized', 'staffingRecordsSerialized', 'writesScheduled', 'renderRequests', 'longestSubtask', 'scope', 'reason', 'rows', 'bytes', 'parts', 'failed', 'startTime', 'usedJSHeapSize', 'totalJSHeapSize']) {
       if (['string', 'number', 'boolean'].includes(typeof details[key])) safe[key] = details[key];
     }
     events.push({ name, at: now(), duration, ...safe });

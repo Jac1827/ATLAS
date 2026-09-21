@@ -24279,47 +24279,11 @@ function renderCommunityCommandKpi(model, field, label, sourceValue, formatter, 
 
 function renderCommunityCommandClosedFinancialEditor(model) {
   if (!communityCommandCanApproveGoals()) return "";
-  return `<details style="margin-top:12px"><summary>Closed financial actuals</summary>
-    <form onsubmit="event.preventDefault();saveCommunityCommandClosedFinancials()" style="display:grid;gap:8px;max-width:600px;margin-top:12px">
-      <label>Accounting month<input id="cc-financial-period" type="month" required value="${buildPeriodKey(model.monthIdx, model.year)}"></label>
-      <label>Net Rental Income after concessions and leasing costs<input id="cc-financial-net" type="number" step="0.01" required></label>
-      <label>Gross Potential Rent<input id="cc-financial-gpr" type="number" min="0.01" step="0.01" required></label>
-      <label>Financial package and page reference<input id="cc-financial-source" type="text" required></label>
-      <label>Approval reason<input id="cc-financial-reason" type="text" required></label>
-      <label><input id="cc-financial-closed" type="checkbox" required>Closed full-month actuals for ${escapeHtml(model.propName)}</label>
-      <button class="btn btn-blue" type="submit">Approve Closed Financial Actuals</button>
-    </form></details>`;
+  return `<p>Closed financial actuals come from the reconciled source package in Budget Builder. <button class="btn btn-gray btn-sm" onclick="setTab(12)">Review or close financial package</button></p>`;
 }
 
 async function saveCommunityCommandClosedFinancials() {
-  if (!communityCommandCanApproveGoals()) return;
-  const value = id => document.getElementById(`cc-financial-${id}`)?.value?.trim() || "";
-  const period = value("period"), netRentalIncome = normalizeOptionalNumber(value("net")), grossPotentialRent = normalizeOptionalNumber(value("gpr"));
-  const source = value("source"), reason = value("reason");
-  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period) || period >= getAtlasTodayISODate().slice(0,7) || netRentalIncome === null || !(grossPotentialRent > 0) || !source || !reason || !document.getElementById("cc-financial-closed")?.checked) {
-    alert("A completed accounting month, Net Rental Income, positive GPR, source, approval reason and closed-month confirmation are required."); return;
-  }
-  const name = getProp().name;
-  const record = normalizeSavedCommunityRecord(name, savedData[name]);
-  const monthIdx = Number(period.slice(5)) - 1, year = Number(period.slice(0,4));
-  const previous = getRecordMonthlyDataForYear(record, year)[monthIdx]?.closedFinancialActuals || null;
-  const approvedAt = new Date().toISOString(), approvedBy = communityCommandUserLabel();
-  const next = {period,netRentalIncome,grossPotentialRent,source,reason,approvedBy,approvedAt,status:"closed",coverage:"full_month",definition:"closed_net_rental_income_after_concessions_and_leasing_costs_divided_by_gpr",community:name};
-  const entries = getWritableMonthlyPeriodEntries(record, monthIdx, year);
-  [entries.historyEntry, entries.liveEntry].filter(Boolean).forEach(month => {
-    month.closedFinancialActuals = next;
-    month.economicOccupancyPct = netRentalIncome / grossPotentialRent * 100;
-    month.metricProvenance = {...month.metricProvenance, economicOccupancyPct:{source,community:name,period,importedAt:approvedAt,approvedBy,field:"Net Rental Income / GPR",transformation:next.definition}};
-  });
-  record.closedFinancialHistory = [...(record.closedFinancialHistory || []), {previous,next}];
-  try {
-    await atlasStateWritePromise;
-    await atlasStateSetValue(ATLAS_STATE_COMMUNITY_KEY, {...buildSerializedSavedDataPayload(), [name]:record});
-  } catch (error) { alert(`Closed financial actuals were not saved: ${error.message}`); return; }
-  savedData[name] = record;
-  loadPropertyData(name);
-  communityCommandPersist("closed_financial_actuals_approved",`${name}|${period}`,JSON.stringify(previous),JSON.stringify(next),reason);
-  queueAtlasCentralDocumentPush("closed_financial_actuals");
+  alert("Close or replace a reconciled financial package in Budget Builder. Browser-entered totals cannot publish closed actuals.");
 }
 
 function renderCommunityCommandHealthSnapshot(model) {
@@ -32912,7 +32876,7 @@ function summarizeFinancialLedgerRows(rows = [], budgetRows = []) {
 
 function getFinancialSummaryForMonth(record = {}, selectedMonth = getSelectedDashboardMonthIndex(), year = new Date().getFullYear()) {
   const version = getAtlasClosedFinancialVersion(record, buildPeriodKey(selectedMonth, year));
-  if (window.AtlasClosedFinancialCache) {
+  if (window.ATLAS_CENTRAL || window.AtlasClosedFinancialCache) {
     const budget = summarizeFinancialLedgerRows([], getFinancialBudgetLedgerRowsForMonth(record, selectedMonth, year));
     const hasBudget = getFinancialBudgetLedgerRowsForMonth(record, selectedMonth, year).length > 0;
     const m = version?.metrics;

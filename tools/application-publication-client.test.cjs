@@ -9,12 +9,14 @@ for (const name of ['atlasApplicationPublicationEnabled','applicationUploadFromC
  vm.runInContext(match[0],c);
 }
 const row={import_id:'id1',community_id:'uuid-a',version:1,source_metadata:{fileName:'synthetic.xlsx',sourceAsOf:'2026-09-16',reportPeriodKey:'2026-09'},records:[{applicationId:'a',atlasName:'Test A',communityId:'uuid-a',propertySource:'Test A'}],created_at:'2026-09-17T00:00:00Z',deleted_at:null};
-let user='one',response=[row];
+let user='one',response=[row],trackingSharedCount=null;
+c.window.refreshAtlasApplicationTrackingEvidence=()=>{trackingSharedCount=c.applicationResidentDataState.uploads.filter(u=>u.centralImportId).length;};
 c.window.ATLAS_CENTRAL={getConfig:()=>({applicationPublication:true}),getSession:()=>user?{user:{id:user}}:null,readApplicationImports:async()=>response,reviseApplicationImport:async(id,version,action)=>{assert.equal(version,1);return {...row,version:2,deleted_at:'2026-09-17T01:00:00Z'}}};
 (async()=>{
  c.applicationResidentDataState.uploads=[{batchId:'legacy'},{centralImportId:'stale'}];
  await c.hydrateAtlasSharedApplications();
  assert.equal(c.applicationResidentDataState.uploads.length,2);
+ assert.equal(trackingSharedCount,1,"Tracking header refreshes after shared evidence arrives");
  const shared=c.applicationResidentDataState.uploads[0];
  assert.equal(shared.records[0].communityId,'LOCAL_A');
  assert.equal(shared.records[0].canonicalCommunityId,'uuid-a');
@@ -29,6 +31,7 @@ c.window.ATLAS_CENTRAL={getConfig:()=>({applicationPublication:true}),getSession
  c.applicationResidentDataState.uploads.push(shared); await c.hydrateAtlasSharedApplications();
  assert.equal(c.applicationResidentDataState.uploads.length,1,'Failed read clears stale shared records');
  assert.match(c.csvError,/denied/);
+ assert.equal(trackingSharedCount,0,'Tracking header clears stale evidence after read failure');
  user=null; await c.hydrateAtlasSharedApplications();
  assert.equal(c.applicationResidentDataState.lastDeletedUpload,null);
  console.log('PASS client hydration, canonical identity, server versions, delete tombstone, session race, sign-out and failed read.');

@@ -4664,6 +4664,7 @@ function clearAtlasSharedApplications() {
   atlasApplicationHydrationEpoch += 1;
   applicationResidentDataState.uploads = applicationResidentDataState.uploads.filter(u => !u.centralImportId);
   if (applicationResidentDataState.lastDeletedUpload?.centralImportId) applicationResidentDataState.lastDeletedUpload = null;
+  window.refreshAtlasApplicationTrackingEvidence?.();
 }
 async function hydrateAtlasSharedApplications() {
   if (!atlasApplicationPublicationEnabled()) return;
@@ -4678,6 +4679,7 @@ async function hydrateAtlasSharedApplications() {
       ...rows.map(applicationUploadFromCentral),
       ...applicationResidentDataState.uploads.filter(u => !u.centralImportId)
     ];
+    window.refreshAtlasApplicationTrackingEvidence?.();
     window.dispatchEvent(new Event("atlas-application-hydrated"));
     scheduleAtlasSharedRender();
   } catch (error) {
@@ -4695,6 +4697,7 @@ async function reviseAtlasSharedApplication(upload, action, reason) {
     const revised = applicationUploadFromCentral(row);
     applicationResidentDataState.uploads = applicationResidentDataState.uploads.map(u => u.centralImportId === row.import_id ? revised : u);
     applicationResidentDataState.lastDeletedUpload = action === "delete" ? revised : null;
+    window.refreshAtlasApplicationTrackingEvidence?.();
     renderTab();
   } catch (error) {
     csvError = `Shared revision was not applied: ${error.message}`;
@@ -11627,6 +11630,14 @@ function getApplicationApprovalCohortDisplay(applications = 0, approvals = 0) {
     value: applicationCount > 0 ? "0.0%" : "—",
     subtext: applicationCount > 0 ? `0 of ${applicationCount} current-month applications` : "No current-month application cohort"
   };
+}
+
+function refreshAtlasApplicationTrackingEvidence() {
+  const monthIdx = getSelectedDashboardMonthIndex();
+  const entries = isPortfolioWorkspaceSelected()
+    ? getPortfolioScopedCommunityRecordsForMonth(monthIdx, savedData, { includeCurrent: false, includeInactive: false })
+    : [{ name: getProp().name, record: getCurrentCommunityRecord() }];
+  renderApplicationTrackingSection(entries, monthIdx);
 }
 
 function renderApplicationTrackingSection(details = [], selectedMonth = getSelectedDashboardMonthIndex()) {

@@ -1,4 +1,24 @@
 {
+  "atlas-dashboard-reskin.js": {
+    "sha256": "b3677873aae53947",
+    "bytes": 33956,
+    "references": [
+      [
+        "index.html",
+        "./atlas-dashboard-reskin.js"
+      ]
+    ]
+  },
+  "atlas-redesign.css": {
+    "sha256": "990747fca50c0a57",
+    "bytes": 57841,
+    "references": [
+      [
+        "index.html",
+        "atlas-redesign.css"
+      ]
+    ]
+  },
   "contract-terms.js": {
     "sha256": "a36b8270f5c4434d",
     "bytes": 1471,
@@ -244,8 +264,8 @@
     ]
   },
   "centralization/atlas-central-client.js": {
-    "sha256": "1ebd09028b44e083",
-    "bytes": 65739,
+    "sha256": "a102600a81f486f6",
+    "bytes": 67807,
     "references": [
       [
         "index.html",

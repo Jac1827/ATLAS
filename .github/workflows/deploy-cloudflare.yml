@@ -37,6 +37,12 @@ jobs:
       - name: Install application dependencies
         run: npm ci --ignore-scripts
 
+      - name: Test dashboard presentation and ticker lifecycle
+        run: |
+          node test-ticker.mjs
+          node tools/dashboard-reskin.test.cjs
+          node tools/home-bonus-performance.test.cjs
+
       - name: Test delinquency mapping contract
         run: node tools/delinquency-mapping.test.cjs
 
@@ -89,6 +95,12 @@ jobs:
 
       - name: Install application dependencies
         run: npm ci --ignore-scripts
+
+      - name: Test dashboard presentation and ticker lifecycle
+        run: |
+          node test-ticker.mjs
+          node tools/dashboard-reskin.test.cjs
+          node tools/home-bonus-performance.test.cjs
 
       - name: Test delinquency mapping contract
         run: node tools/delinquency-mapping.test.cjs

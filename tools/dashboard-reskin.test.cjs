@@ -1,0 +1,26 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('docs/portfolio-operations-dashboard/atlas-dashboard-reskin.js','utf8');
+const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const elements=new Map();
+const element=()=>({innerHTML:'',dataset:{},classList:{toggle(){}},setAttribute(){},showModal(){this.open=true},close(){this.open=false},querySelectorAll(){return[]}});
+for(const id of ['atlas-ticker-track','atlas-ticker-compose','atlas-announcement-form','atlas-announcement-dialog','atlas-sheet-error','atlas-live-users'])elements.set(id,element());
+let status={signedIn:true,role:'admin',userEmail:'admin@example.test'},snapshots=0,request;
+const definition={label:'Occupancy',defaultMetric:'Physical Occupancy',category:'Operations'};
+const ctx={window:{},document:{readyState:'loading',addEventListener(){},documentElement:{},getElementById:id=>elements.get(id)},getComputedStyle:()=>({getPropertyValue:()=> '#fff'}),escapeHtml:escape,atlasDashboardJsArg:v=>escape(JSON.stringify(v)),getAtlasCentralStatus:()=>status,getAtlasDashboardWidgetDefinition:()=>definition,buildAtlasDashboardWidgetSnapshot:()=>{snapshots++;return {value:'80%',scopedDetails:[]}},renderAtlasPersonalBonusLandingWidget:()=>'<div>Private payout</div>',atlasDashboardBuilderState:{},atlasDashboardScopeLabel:()=> 'Portfolio',getAtlasDashboardAuthorizedCommunityOptions:()=>[{name:'A'}],readAtlasSharedPropertyGraph:()=>({properties:{a:{displayName:'A'},b:{displayName:'Hidden'}},auditTrail:[{entityId:'a',createdAt:new Date().toISOString(),fields:{occupancy:1},source:'Import'},{entityId:'b',createdAt:new Date().toISOString(),fields:{secret:1}}]}),atlasLivePresenceState:{users:[]},uniqueAtlasLiveUsers:x=>x,atlasUserDisplayName:u=>u.name,atlasUserInitials:u=>u.name[0],aggregateCommunitySummaries:rows=>rows[0]||{},atlasDashboardMetricChartValues:(i,s)=>s.scopedDetails.map(d=>d.summary.occPct),getSelectedDashboardMonthIndex:()=>0,MONTHS:['Jan'],getRecordMonthlyDataForYear:r=>r.monthlyData,dashboardMonthlyEntryHasData:e=>!!e,buildCommunityDetailForMonth:(n,r)=>({name:n,record:r,summary:{occPct:80,budgetOccPct:95,budgetOccCoverage:{complete:true}}}),atlasHomeRenderDetails:new Map(),console,Date,Set,Map,Promise,innerWidth:1280};
+vm.createContext(ctx);vm.runInContext(source,ctx);const app=ctx.window.AtlasReskin;
+app.card({widgetKey:'projected_bonus'});assert.equal(snapshots,0,'Personal bonus must not build a portfolio snapshot');
+const instance={widgetKey:'portfolio_overview',metric:'Physical Occupancy'},snapshot={scopedDetails:[{name:'<Community>',record:{monthlyData:[{}]},summary:{occPct:80,budgetOccPct:95}}]};
+let html=app.visual(instance,snapshot,definition);assert(!/NaN|Infinity/.test(html),'One month must produce finite chart coordinates');assert(html.includes('is-dashed'));assert(html.includes('tableview'));assert.equal((html.match(/legend-item/g)||[]).length,2);
+html=app.visual({...instance,metric:'Occupancy Variance'},snapshot,definition);assert(html.includes('right:50%'));assert(!html.includes('<Community>'),'Community labels must be escaped');
+html=app.visual({widgetKey:'traffic_funnel',metric:'Guest Cards'}, {scopedDetails:[{summary:{}}]},{});assert(!/NaN|Infinity/.test(html),'Empty funnel must remain finite');
+const posts=[{id:'one',text:'<script>unsafe</script>',scope:'All communities',postedBy:'Author',postedByEmail:'author@example.test',createdAt:new Date().toISOString(),expiresAt:new Date(Date.now()+7200000).toISOString()}];
+ctx.window.ATLAS_CENTRAL={news:async()=>({items:[{title:'Fresh news',link:'javascript:alert(1)',publishedAt:new Date().toISOString()}]}),announcements:async(action,body)=>{if(action!=='list')request={action,body};return {items:posts}}};
+(async()=>{
+await app.refreshTicker();html=elements.get('atlas-ticker-track').innerHTML;assert(html.includes('&lt;script&gt;'));assert(!html.includes('href="javascript:'));assert(html.includes('lane-activity'));assert(!html.includes('Hidden'));assert(html.includes('aria-hidden="true" inert'));
+app.openSheet('one');html=elements.get('atlas-announcement-form').innerHTML;assert(html.includes('value="keep" selected'));assert(html.includes('Retract'));
+elements.get('atlas-announcement-form').elements={text:{value:'Updated'},scope:{value:'All communities'},duration:{value:'keep'}};
+await app.saveAnnouncement();assert.equal(request.action,'edit');assert(!Object.hasOwn(request.body,'durationHours'),'Keep current must not re-time expiry');
+status={signedIn:true,role:'regional',userEmail:'other@example.test'};app.openSheet('one');html=elements.get('atlas-announcement-form').innerHTML;assert(html.includes('readonly'));assert(!html.includes('type="submit"'));assert(!html.includes('Retract'));
+status={signedIn:false};await app.refreshTicker();assert(elements.get('atlas-ticker-compose').hidden);assert(!elements.get('atlas-ticker-track').innerHTML.includes('lane-announce'));
+console.log('PASS chart edge cases, palette legends/tables, payout isolation, escaped ticker content, authorized activity, announcement ownership and expiry-preserving edits');
+})().catch(e=>{console.error(e);process.exitCode=1});

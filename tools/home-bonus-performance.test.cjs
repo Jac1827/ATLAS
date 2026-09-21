@@ -7,8 +7,8 @@ vm.createContext(ctx);vm.runInContext(extract('atlasBonusBuildCalculationRows','
 assert.equal(ctx.atlasBonusPersonalRows()[0].employee.employeeId,'b');assert.deepEqual(computed,['b']);
 computed=[];agingReads=0;ctx.getAtlasAccessProfile=()=>({employee_id:'absent'});assert.equal(ctx.atlasBonusPersonalRows().length,0);assert.deepEqual(computed,[]);assert.equal(agingReads,0);
 ctx.getAtlasAccessProfile=()=>({email:' A@EXAMPLE.TEST '});assert.equal(ctx.atlasBonusPersonalRows()[0].employee.employeeId,'a');
-const widget=extract('renderAtlasDashboardHomeWidget','atlasDashboardHomeSlotClass');
-assert(widget.indexOf('return renderAtlasPersonalBonusLandingWidget')<widget.indexOf('buildAtlasDashboardWidgetSnapshot'));
+const reskin=fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/atlas-dashboard-reskin.js','utf8');
+assert.match(reskin, /instance.widgetKey==='projected_bonus'\?null:buildAtlasDashboardWidgetSnapshot\(instance\)/, 'Personal bonus skips unrelated portfolio snapshot construction');
 console.log('PASS personal identity filtering before calculation, no substitute payout, no unused bonus portfolio snapshot');
 
 let builds=0;ctx.buildPortfolioDetailsForMonth=month=>(builds++, [{month}]);

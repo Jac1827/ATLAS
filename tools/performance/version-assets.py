@@ -3,6 +3,8 @@ from pathlib import Path
 import hashlib, json, re
 root=Path(__file__).resolve().parents[2]/'docs/portfolio-operations-dashboard'
 entries=[
+ ('atlas-dashboard-reskin.js',[('index.html','./atlas-dashboard-reskin.js')]),
+ ('atlas-redesign.css',[('index.html','atlas-redesign.css')]),
  ('features/import-history-store.mjs',[('features/import-history.mjs','./import-history-store.mjs'),('features/import-history-worker.mjs','./import-history-store.mjs')]),
  ('features/import-history-worker.mjs',[('features/import-history.mjs','./import-history-worker.mjs')]),
  ('features/import-history.mjs',[('index.html','./features/import-history.mjs')]),

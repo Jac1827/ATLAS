@@ -1,0 +1,18 @@
+<!doctype html><meta charset="utf-8"><title>Local reviewed publication checks</title><h1>Budget Builder publication checks</h1><p>Synthetic sources only; production approval acceptance remains separate.</p><iframe id="builder" style="width:100%;height:650px"></iframe><pre id="result">Ready</pre><script>
+window.atlasAccessDecision=()=>({ok:true});let published;
+window.ATLAS_CENTRAL={readCommunitiesForAccess:async()=>[{community_id:'10000000-0000-0000-0000-000000000001',display_name:'Synthetic community'}],fetchJson:async path=>path.includes('publications?')?[{publication_id:'test'}]:[],rpc:async(name,args)=>{published=args.p_payload;return {publication_id:'test',version:1};}};
+const matrix=value=>Array(12).fill(value);
+const frame=document.querySelector('iframe');window.fixtureMarkup=`<!doctype html><meta charset="utf-8"><body><script>window.RBB={app:{state:${JSON.stringify({properties:[{id:'test',name:'Synthetic',fiscalYearBegins:'Jan',occupancyByYear:{2026:matrix(.95)}}],activeProperty:'test',budgetYear:2026,activeScenario:'approved',scenarios:[{id:'approved',type:'approved',locked:true,name:'Approved'}],approvedBudgetImports:{'test|2026':{effectiveDate:'2026-01-01',sourceFile:'budget.xlsx',sourceSheet:'Approved',rows:[{gl:'5120',monthly:matrix(1000)},{gl:'6500',monthly:matrix(200)},{gl:'7200',monthly:matrix(500)}]}},periods:{'test|2026':{source:'actuals.xlsx',loadedAt:'2026-09-20T10:00:00Z',closedThrough:9}},actuals:{'test|5120|2026':{monthly:matrix(900)},'test|6500|2026':{monthly:matrix(250)}}})}},gl:g=>({name:g==='7200'?'Capital Expenditures':g==='5120'?'GPR':'Repairs',nature:g==='5120'?'income':'expense',group:'Test'}),actuals:{get:(s,p,g,y)=>s.actuals[p+'|'+g+'|'+y]?.monthly}};<\/script><script type="module" src="../../docs/portfolio-operations-dashboard/features/budget-command-publication.mjs"><\/script></body>`;
+frame.src='budget-publication-frame.html';
+window.runBudgetPublicationChecks=async()=>{
+ const assert=(v,m)=>{if(!v)throw Error(m);},wait=async f=>{for(let i=0;i<100;i++){if(f())return;await new Promise(r=>setTimeout(r,20));}throw Error('Timed out');};
+ await wait(()=>frame.contentWindow.AtlasBudgetCommand);await frame.contentWindow.AtlasBudgetCommand.review();const doc=frame.contentDocument,form=doc.querySelector('form');
+ form.elements.community.value='10000000-0000-0000-0000-000000000001';form.requestSubmit();await wait(()=>doc.querySelector('[data-publish]')&&!doc.querySelector('[data-publish]').disabled);
+ assert(doc.querySelector('[name=occupancy]').value==='95','approved occupancy source');
+ const boxes=[...doc.querySelectorAll('[data-row]')];assert(boxes[2].disabled&&!boxes[2].checked,'capital excluded');
+ doc.querySelector('[data-publish]').click();assert(!published,'review confirmation required');
+ doc.querySelector('[data-confirm]').checked=true;doc.querySelector('[data-publish]').click();await wait(()=>published);
+ assert(published.rows.length===2,'only GPR and approved operating expenses');assert(published.rows[0].actual===900,'actual preserved');assert(published.rows[1].actual===250,'expense preserved');assert(published.communityId.endsWith('0001'),'canonical identity preserved');assert(published.period==='2026-09','selected period');
+ document.querySelector('#result').textContent='PASS reviewed source binding, approved occupancy, capital exclusion, actual preservation and required confirmation';return {pass:true,rows:published.rows.length};
+};
+</script>

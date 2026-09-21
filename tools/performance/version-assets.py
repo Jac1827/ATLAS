@@ -3,6 +3,13 @@ from pathlib import Path
 import hashlib, json, re
 root=Path(__file__).resolve().parents[2]/'docs/portfolio-operations-dashboard'
 entries=[
+ ('features/community-plan-report.mjs',[('features/community-plan.mjs','./community-plan-report.mjs')]),
+ ('community-command-contract.js',[('features/community-finance.mjs','../community-command-contract.js')]),
+ ('features/community-finance.mjs',[('index.html','./features/community-finance.mjs')]),
+ ('features/budget-command-publication.mjs',[('RISE-Budget-Builder.html','./features/budget-command-publication.mjs')]),
+ ('RISE-Budget-Builder.html',[('atlas-mounts.js','RISE-Budget-Builder.html')]),
+ ('atlas-mounts.js',[('index.html','./atlas-mounts.js')]),
+ ('features/community-plan.mjs',[('index.html','./features/community-plan.mjs')]),
  ('centralization/atlas-central-client.js',[('index.html','./centralization/atlas-central-client.js')]),
  ('vendor/pptxgen-4.0.1.js',[('performance/feature-loader.js','vendor/pptxgen-4.0.1.js')]),
  ('vendor/jszip.min.js',[('performance/feature-loader.js','vendor/jszip.min.js')]),

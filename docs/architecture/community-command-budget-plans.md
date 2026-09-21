@@ -48,3 +48,24 @@ Add Units vs Budget, GPR and Expenses to the existing table. Keep Missing neutra
 ## Acceptance and rollout
 
 The full requested roster, GL drill-down, plan editor, persisted tasks, history, report export/email and authorization matrix are not implemented yet. Do not publish a placeholder UI as a completed feature. Run source reconciliation, role-based and independent-session tests, report parity/delivery deduplication, and issue #12 browser performance checks before declaring completion. No operational record or production schema was changed by this audit.
+
+## Implementation and release boundary — September 21
+
+The owner approved a reviewed Budget Builder publication workflow. The implementation now adds immutable, hashed, versioned publications keyed by canonical community and accounting period. It requires the selected locked approved scenario, an uploaded approved budget baseline and closed actuals with source evidence. The reviewer chooses the exact ATLAS community and confirms full operating GL coverage; GL 5120 is GPR, capital/debt is excluded. Roster summary reads are bounded in groups of 100 communities and GL detail is fetched only on drill-down. Historical occupancy counts use the retained period provenance and rentable denominator, not current inventory fallback.
+
+Shared period plans use scoped RLS, optimistic version checks, server actor stamps, immutable change events, completion evidence and separate verification. Existing legacy plans remain available; explicitly copying their tasks keeps original references and requires renewed verification. Source recommendations link to immutable publication findings; manual tasks remain identified as manual. Report generation retains an immutable snapshot, and HTML/PDF printing/email share one renderer. Email claims are serialized and overlapping recipients are blocked from duplicate delivery; an uncertain provider result is not retried automatically.
+
+Validation includes the existing full suite, local PostgreSQL RLS/transaction tests, synthetic browser task/publication flows, and a no-growth initial HTML check. These do not constitute authenticated production acceptance. Operational uploads were not changed and no actual report emails were sent during testing.
+
+### Current limits to verify before full feature acceptance
+
+- Representative approved uploads must be published through the review screen before financial statuses are available. Old browser-local totals are not silently promoted to approved publications.
+- Non-calendar fiscal YTD remains explicitly unavailable until cross-year mapped coverage is supported; monthly calendar-mapped publications are supported.
+- Occupancy source without retained period/revision provenance remains Missing rather than using a current inventory fallback.
+- Existing legacy plan summary counts/filtering and the new shared plan editor are not yet fully consolidated; legacy plans are retained rather than overwritten.
+- Full leadership-report acceptance still needs prior-report progress comparison, material-risk/expected-resolution review, and authenticated recipient delivery verification.
+- Issue #12 remains open for its authenticated large-state/navigation/import/archive/memory acceptance matrix.
+
+### Deployment and rollback
+
+Apply the three additive centralization scripts in order: `community-command.sql`, `community-command-finance.sql`, `community-command-delivery.sql` in one migration. Existing operational tables and their policies are unchanged. To roll back the UI/Worker, revert the release commit; retain the new records and audit/report/publication tables. Do not drop those tables after they contain user work. Disable new RPC execution if needed through a separately reviewed change. No destructive data migration is included.

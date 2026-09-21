@@ -1417,7 +1417,7 @@
 </div>
 
 <script src="./atlas_historical_restore_data.js"></script>
-<script src="./atlas-mounts.js?v=20260916-publish-reconcile"></script>
+<script src="./atlas-mounts.js?v=72499182431aeec1"></script>
 <script src="./centralization/atlas-central-client.js?v=1ebd09028b44e083" data-atlas-central-client="true"></script>
 <script src="./central-services.js?v=20260919-renewal-period-review"></script>
 <script src="./eviction-attorney-ui.js?v=20260916-community-contacts"></script>
@@ -14805,6 +14805,9 @@ function syncAtlasWorkspaceCardVisibility() {
 let atlasNavigationEpoch = 0;
 function setTab(i) {
   atlasNavigationEpoch += 1;
+  atlasCommunityPlanModule?.close();
+  atlasCommunityFinanceModule?.cancel();
+  atlasCommandRosterEpoch += 1;
   window.AtlasPerformance?.memory("before-navigation");
   const requestedTab = Math.max(0, Math.min(MAX_TAB, Number(i) || 0));
   if (activeTab === 7 && requestedTab !== 7) { cancelDataImportPreview(); window.AtlasOccupancyReplayBrowser?.cancel(); }
@@ -19617,6 +19620,9 @@ async function completeAtlasCentralPasswordReset() {
 }
 
 async function signOutAtlasCentral() {
+  atlasCommunityFinanceModule?.cancel();
+  atlasCommandRosterEpoch += 1;
+  atlasCommunityPlanModule?.close();
   cancelDataImportPreview();
   try {
     await window.ATLAS_CENTRAL?.signOut?.();
@@ -24553,6 +24559,27 @@ function renderCommunityCommandAttentionCenter(model) {
   }).replace('class="card mb4"', 'class="community-command-section mb4"');
 }
 
+let atlasCommunityPlanModule = null;
+async function openSharedCommunityPlan() {
+  if (!atlasAccessDecision(2).ok || isPortfolioWorkspaceSelected()) return false;
+  const epoch = atlasNavigationEpoch;
+  const model = buildCommunityCommandModel(getProp().name, getCurrentCommunityRecord());
+  const profile = getAtlasAccessProfile();
+  const access = getAtlasCommunityAccessRecord(model.propName, profile);
+  const communityId = access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId;
+  if (!communityId || !window.ATLAS_CENTRAL) { alert("Shared plans require an authorized canonical community record."); return false; }
+  try {
+    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=c28d1cbf810270e9");
+    if (epoch !== atlasNavigationEpoch || !atlasAccessDecision(2).ok) return false;
+    const entry=model.monthEntry, provenance=entry.metricProvenance?.occupiedSnapshot, period=buildPeriodKey(model.monthIdx,model.year);
+    const occupancy=provenance?.revisionKey && provenance.period===period && (!provenance.communityId||provenance.communityId===communityId) && entry.occupiedSnapshot!=null && Number(entry.rentableUnits)>0
+      ? {communityId,period,occupiedUnits:Number(entry.occupiedSnapshot),rentableUnits:Number(entry.rentableUnits),source:provenance.sourceFile||provenance.revisionKey,sourceTimestamp:provenance.dataAsOf||provenance.generatedAt||provenance.importedAt,revisionKey:provenance.revisionKey} : null;
+    await atlasCommunityPlanModule.open({communityId, name:model.propName, period, occupancy, central:window.ATLAS_CENTRAL, legacy:model.activePerformancePlan,
+      canEdit:["admin","executive","regional","community_manager"].includes(profile?.role), canVerify:["admin","executive","regional"].includes(profile?.role)});
+  } catch (error) { alert(error.message); }
+  return false;
+}
+
 function renderCommunityCommandPerformancePlan(model) {
   const plan = model.activePerformancePlan;
   const canCreate = communityCommandCanCreatePerformancePlan();
@@ -24586,7 +24613,7 @@ function renderCommunityCommandPerformancePlan(model) {
     </div>
     <div class="community-command-actions" style="justify-content:flex-start">
       ${task.stage === "open" ? `<button class="btn btn-gray btn-sm" onclick='communityCommandUpdateTaskStage(${JSON.stringify(plan.id)}, ${JSON.stringify(task.id)}, "completed")'>Mark Completed</button>` : ""}
-      ${task.stage !== "verified" && communityCommandCanCreatePerformancePlan() ? `<button class="btn btn-blue btn-sm" onclick='communityCommandUpdateTaskStage(${JSON.stringify(plan.id)}, ${JSON.stringify(task.id)}, "verified")'>Verify</button>` : ""}
+      ${task.stage === "completed" && communityCommandCanCreatePerformancePlan() ? `<button class="btn btn-blue btn-sm" onclick='communityCommandUpdateTaskStage(${JSON.stringify(plan.id)}, ${JSON.stringify(task.id)}, "verified")'>Verify</button>` : ""}
     </div>
   </div>`).join("");
   return renderWindowshadeCard({
@@ -24824,6 +24851,7 @@ function renderCommunityCommandPayoutRecommendation(model) {
 
 function renderCommunityCommandTab() {
   const model = buildCommunityCommandModel(getProp().name, getCurrentCommunityRecord());
+  queueCommunityRosterFinancials([{model,detail:{name:model.propName}}]);
   const region = model.record.communityRegionalGrouping || getAtlasSharedPropertyByName(model.propName)?.regionalGrouping || "Region not assigned";
   const titleStar = communityCommandHasActivePerformancePlan(model.propName)
     ? `<span class="community-command-star" title="Active Community Performance Plan">★</span>`
@@ -24857,9 +24885,11 @@ function renderCommunityCommandTab() {
         <span class="community-command-pill strong">ATLAS Planning Engine active</span>
       </div>
       ${renderCommunityCommandHealthSnapshot(model)}
+      <div class="tbl-wrap" style="overflow:auto"><table><thead><tr><th>Units vs Budget</th><th>GPR</th><th>Expenses</th></tr></thead><tbody><tr data-command-finance="0"><td data-metric="units">Loading…</td><td data-metric="gpr">Loading…</td><td data-metric="expenses">Loading…</td></tr></tbody></table></div>
       ${renderCommunityCommandClosedFinancialEditor(model)}
     </div>
     ${renderCommunityCommandAttentionCenter(model)}
+    <div class="community-command-actions" style="justify-content:flex-start"><button class="btn btn-blue btn-sm" onclick="return openSharedCommunityPlan()">Manage shared plan and tasks</button></div>
     ${renderCommunityCommandPerformancePlan(model)}
     ${renderCommunityCommandTrend(model)}
     ${renderCommunityCommandLeasingPlan(model)}
@@ -24868,6 +24898,34 @@ function renderCommunityCommandTab() {
     ${renderCommunityCommandSupportingMetrics(model)}
     ${renderCommunityCommandAssumptions(model)}
   </div>`;
+}
+
+let atlasCommunityFinanceModule = null;
+let atlasCommandRosterEpoch = 0;
+function openCommunityFinancialDrilldown(publicationId, metric) {
+  if (!atlasAccessDecision(12).ok) { alert("Your role does not have Budget Builder financial-detail access."); return false; }
+  if (!/^[0-9a-f-]{36}$/i.test(publicationId) || !["gpr","expenses"].includes(metric)) return false;
+  const url = new URL(location.href); url.searchParams.set("ccPublication",publicationId); url.searchParams.set("ccMetric",metric); url.searchParams.set("tab","12"); history.replaceState(null,"",url);
+  setTab(12);
+  document.querySelector('iframe[data-atlas-mount-key="budget"]')?.contentWindow?.AtlasBudgetCommand?.detail(publicationId,metric);
+  return false;
+}
+function queueCommunityRosterFinancials(items) {
+  atlasCommunityFinanceModule?.cancel();
+  const epoch = ++atlasCommandRosterEpoch;
+  const entries = items.map((item,key) => {
+    const m=item.model, entry=m.monthEntry, provenance=entry.metricProvenance?.occupiedSnapshot;
+    const access=getAtlasCommunityAccessRecord(item.detail.name);
+    const sourceDate=provenance?.dataAsOf || provenance?.generatedAt || provenance?.importedAt || provenance?.sourceTimestamp || provenance?.uploadedAt;
+    const actual = provenance && sourceDate && provenance.period===buildPeriodKey(m.monthIdx,m.year) && (!provenance.communityId || provenance.communityId===(access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId)) && Number(entry.rentableUnits)>0 && Number(entry.sourceTotalUnits)>=Number(entry.rentableUnits) && entry.occupiedSnapshot!=null
+      ? {occupiedUnits:Number(entry.occupiedSnapshot),rentableUnits:Number(entry.rentableUnits),source:provenance.sourceFile||provenance.sourceFileName||provenance.fileName||provenance.revisionKey,sourceTimestamp:sourceDate} : null;
+    return {key,communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
+  });
+  setTimeout(async()=>{try {
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=d50df5525529b4f2");
+    if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
+    await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
+  } catch {}},0);
 }
 
 function renderPortfolioScopedCommunityCommandTab() {
@@ -24904,8 +24962,9 @@ function renderPortfolioScopedCommunityCommandTab() {
     <span class="community-command-pill${communityCommandPortfolioRosterFilter !== "all" ? " strong" : ""}">${escapeHtml(filterLabel)}</span>
     ${communityCommandPortfolioRosterFilter !== "all" ? `<button type="button" class="btn btn-gray btn-sm" onclick="return setCommunityCommandPortfolioRosterFilter('all')">Show All Communities</button>` : ""}
   </div>`;
+  queueCommunityRosterFinancials(visibleRosterItems);
   const rows = visibleRosterItems
-    .map(item => {
+    .map((item, rowIndex) => {
       const { detail, model, suggestion } = item;
       const gap = model.budgetOccPct > 0 ? model.physicalPct - model.budgetOccPct : null;
       const planHtml = model.activePerformancePlan
@@ -24913,12 +24972,13 @@ function renderPortfolioScopedCommunityCommandTab() {
         : suggestion
           ? `<div style="display:grid;gap:4px;justify-items:center"><span class="community-command-status ${suggestion.severity === "critical" ? "critical" : "watch"}">Suggested</span><span style="font-size:0.62rem;color:var(--muted);max-width:150px">${escapeHtml(suggestion.title)}</span></div>`
           : `<span class="community-command-status muted">No Plan</span>`;
-      return `<tr class="${suggestion ? "community-command-row-suggested" : ""}">
+      return `<tr data-command-finance="${rowIndex}" class="${suggestion ? "community-command-row-suggested" : ""}">
         <td class="l" style="font-weight:800">${item.hasActivePlan ? `<span class="community-command-star" title="Active Community Performance Plan">★</span> ` : ""}${escapeHtml(detail.name)}</td>
         <td>${communityCommandFormatPct(model.physicalPct)}</td>
         <td>${communityCommandFormatPct(model.leasedPct)}</td>
         <td>${model.budgetOccPct ? communityCommandFormatPct(model.budgetOccPct) : "Missing"}</td>
         <td>${gap === null ? "Missing" : formatSignedDisplay(gap, 1, "%")}</td>
+        <td data-metric="units">Loading…</td><td data-metric="gpr">Loading…</td><td data-metric="expenses">Loading…</td>
         <td>${Math.round(model.appMetrics.applications)}</td>
         <td>${Math.round(model.grossLeasesMtd)}</td>
         <td>${planHtml}</td>
@@ -24928,8 +24988,8 @@ function renderPortfolioScopedCommunityCommandTab() {
   const bodyHtml = `<div class="tbl-wrap" id="community-command-roster" style="margin-top:12px">
     <div class="tbl-header"><h2>Community Command roster</h2><p>Choose one active community to open the command dashboard. Inactive communities remain available to Admin users through Community Settings.</p>${toolbarHtml}</div>
     <table>
-      <thead><tr><th class="l">Community</th><th>Physical</th><th>Leased</th><th>Budget</th><th>Variance</th><th>Apps MTD</th><th>Leases MTD</th><th>Plan</th><th></th></tr></thead>
-      <tbody>${rows || `<tr><td colspan="9" class="l">${communityCommandPortfolioRosterFilter === "suggested_plans" ? "No communities currently need a suggested performance plan." : communityCommandPortfolioRosterFilter === "active_plans" ? "No active performance plans are currently open." : "No active communities are available to this role."}</td></tr>`}</tbody>
+      <thead><tr><th class="l">Community</th><th>Physical</th><th>Leased</th><th>Budget</th><th>Variance</th><th>Units vs Budget</th><th>GPR</th><th>Expenses</th><th>Apps MTD</th><th>Leases MTD</th><th>Plan</th><th></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="12" class="l">${communityCommandPortfolioRosterFilter === "suggested_plans" ? "No communities currently need a suggested performance plan." : communityCommandPortfolioRosterFilter === "active_plans" ? "No active performance plans are currently open." : "No active communities are available to this role."}</td></tr>`}</tbody>
     </table>
   </div>`;
   return renderPortfolioScopePanel("Community Command", "Single-community operational command center. Select a community to review health, alerts, goals, plans, and source-linked metrics.", cardsHtml, bodyHtml);
@@ -25182,6 +25242,10 @@ function communityCommandAddAlertToPerformancePlan(alertId) {
 function communityCommandUpdateTaskStage(planId, taskId, stage) {
   const nextStage = ["open", "completed", "verified"].includes(stage) ? stage : "open";
   const state = normalizeCommunityCommandState(communityCommandState);
+  const priorPlan = state.performancePlans.find(plan => plan.id === planId);
+  const priorTask = priorPlan?.tasks.find(task => task.id === taskId);
+  if (!priorTask || !atlasDashboardUserCanSeeCommunityName(priorPlan.propName)) return;
+  if (nextStage === "verified" && (priorTask.stage !== "completed" || !communityCommandCanCreatePerformancePlan())) { alert("Complete the task before authorized verification."); return; }
   state.performancePlans = state.performancePlans.map(plan => {
     if (plan.id !== planId) return plan;
     const nextTasks = plan.tasks.map(task => {

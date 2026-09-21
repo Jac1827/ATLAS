@@ -38,6 +38,21 @@ jobs:
       - name: Validate multi-month renewal refresh
         run: node tools/renewal-multiperiod.test.cjs
 
+  community-command:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned local Postgres test engine
+        run: npm install --no-save --ignore-scripts @electric-sql/pglite@0.3.14
+      - name: Validate Community Command calculations and shared-plan security
+        run: |
+          node tools/community-command-contract.test.cjs
+          node tools/community-command-db.test.cjs
+          node tools/community-plan-email.test.mjs
+
   performance-boundaries:
     runs-on: ubuntu-latest
     steps:

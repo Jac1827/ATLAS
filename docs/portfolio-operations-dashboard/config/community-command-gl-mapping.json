@@ -1,17 +1,27 @@
 {
   "schemaVersion": 1,
-  "mappingVersion": "community-command-gl-2026-09-21.1",
+  "mappingVersion": "community-command-gl-2026-09-21.2",
   "metrics": {
     "gpr": {
-      "glCodes": ["5120"],
+      "glCodes": [
+        "5120"
+      ],
       "approvalStatus": "approved",
       "approvalEvidence": "Repository owner explicitly confirmed: 5120 is the correct GPR GL code.",
       "confirmedOn": "2026-09-21"
     },
     "expenses": {
-      "glCodes": [],
-      "approvalStatus": "pending",
-      "reason": "Operating-expense account scope has not yet been confirmed."
+      "approvalStatus": "approved",
+      "selector": {
+        "nature": "expense",
+        "excludeNatures": [
+          "capital",
+          "debt"
+        ],
+        "excludeCapitalAndDebt": true
+      },
+      "approvalEvidence": "Owner confirmed operating expense classification excluding capital expenditures and debt service.",
+      "confirmedOn": "2026-09-21"
     }
   },
   "usage": "Mapping configuration only. Community, fiscal period, scenario approval, actual publication and complete coverage must still be validated before status publication."

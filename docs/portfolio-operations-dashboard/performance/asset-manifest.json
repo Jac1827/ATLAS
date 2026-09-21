@@ -1,4 +1,74 @@
 {
+  "features/community-plan-report.mjs": {
+    "sha256": "0d9d659e2a655a0c",
+    "bytes": 2772,
+    "references": [
+      [
+        "features/community-plan.mjs",
+        "./community-plan-report.mjs"
+      ]
+    ]
+  },
+  "community-command-contract.js": {
+    "sha256": "e6064665e1d6e271",
+    "bytes": 7242,
+    "references": [
+      [
+        "features/community-finance.mjs",
+        "../community-command-contract.js"
+      ]
+    ]
+  },
+  "features/community-finance.mjs": {
+    "sha256": "d50df5525529b4f2",
+    "bytes": 3078,
+    "references": [
+      [
+        "index.html",
+        "./features/community-finance.mjs"
+      ]
+    ]
+  },
+  "features/budget-command-publication.mjs": {
+    "sha256": "97f54692ecb3ef50",
+    "bytes": 12043,
+    "references": [
+      [
+        "RISE-Budget-Builder.html",
+        "./features/budget-command-publication.mjs"
+      ]
+    ]
+  },
+  "RISE-Budget-Builder.html": {
+    "sha256": "bf8d103aafd5e25b",
+    "bytes": 1884897,
+    "references": [
+      [
+        "atlas-mounts.js",
+        "RISE-Budget-Builder.html"
+      ]
+    ]
+  },
+  "atlas-mounts.js": {
+    "sha256": "72499182431aeec1",
+    "bytes": 26864,
+    "references": [
+      [
+        "index.html",
+        "./atlas-mounts.js"
+      ]
+    ]
+  },
+  "features/community-plan.mjs": {
+    "sha256": "c28d1cbf810270e9",
+    "bytes": 16586,
+    "references": [
+      [
+        "index.html",
+        "./features/community-plan.mjs"
+      ]
+    ]
+  },
   "centralization/atlas-central-client.js": {
     "sha256": "1ebd09028b44e083",
     "bytes": 65739,

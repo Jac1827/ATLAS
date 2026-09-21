@@ -1452,6 +1452,32 @@
   notifyAuthChange(getStoredSession());
 
   window.ATLAS_CENTRAL = {
+    /* RISE ticker — industry headlines. Public route; the Worker caches the
+       RSS pull for 30 minutes so this is cheap to call on the presence cadence. */
+    async news({ refresh = false } = {}) {
+      const response = await fetch(accessApiUrl(`/api/news${refresh ? "?refresh=1" : ""}`), { method: "GET", headers: { accept: "application/json" } });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Industry news is unavailable right now.");
+      return { items: Array.isArray(result.items) ? result.items : [], fetchedAt: result.fetchedAt || "", cache: response.headers.get("x-atlas-news-cache") || "" };
+    },
+    /* RISE ticker — posted announcements. Lifetime defaults to 72h.
+         announcements("list")                                   → { items, defaultTtlHours, allowedTtlHours }
+         announcements("list", { includeExpired: true })         → history, each row carries active:true|false
+         announcements("post",    { text, scope, durationHours }) → { item }   durationHours ∈ 24|72|168|336|0(until retracted)
+         announcements("edit",    { id, text?, scope?, durationHours? }) → { item }   author or admin; durationHours re-times from now
+         announcements("retract", { id })                        → { removed } author or admin */
+    async announcements(action = "list", body = {}) {
+      const isList = action === "list";
+      const query = isList && body.includeExpired ? "?includeExpired=1" : "";
+      const response = await fetch(accessApiUrl(`/api/announcements${query}`), {
+        method: isList ? "GET" : "POST",
+        headers: baseHeaders(getConfig(), true, { supabasePublicHeaders: false }),
+        body: isList ? undefined : JSON.stringify({ ...body, action }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) throw Object.assign(new Error(result.error || "Announcement service unavailable."), { result, status: response.status });
+      return result;
+    },
     async propertySpecials(action, body = {}) {
       const response=await fetch(accessApiUrl("/api/atlas/property-specials"),{method:"POST",headers:baseHeaders(getConfig(),true,{supabasePublicHeaders:false}),body:JSON.stringify({...body,action})});
       const result=await response.json();

@@ -9,6 +9,16 @@ const SITE_ROUTES = [
     description: "Main landing page for the performance platform.",
   },
   {
+    path: "/api/news",
+    title: "ATLAS Ticker — industry news",
+    description: "Industry headlines for the RISE ticker. RSS/Atom pulled from ATLAS_NEWS_FEEDS, cached 30 minutes.",
+  },
+  {
+    path: "/api/announcements",
+    title: "ATLAS Ticker — announcements",
+    description: "Portfolio announcements for the RISE ticker. GET lists active posts; POST {action:post|edit|retract} is role-gated. Default lifetime 72h.",
+  },
+  {
     path: "/portfolio-operations-dashboard/",
     title: "ATLAS RISE Ops Dashboard",
     description: "Operational dashboard workspace for the portfolio team.",
@@ -1576,6 +1586,12 @@ export class PerformanceSyncState {
       return noContent();
     }
 
+    /* Announcements share this object class under their own scope; the
+       append/edit/retract logic runs here so it is atomic per object. */
+    if (url.pathname === "/api/announcements") {
+      return announcementsDurableHandler(request, this.state.storage);
+    }
+
     if (request.method === "GET") {
       const record = (await this.state.storage.get("record")) || null;
       return apiResponse({ ok: true, record });
@@ -1638,8 +1654,381 @@ async function handleEvictionRequest(request, env) {
   } catch(error) { return apiResponse({ok:false,error:error.message},{status:error.status||400}); }
 }
 
+/* ============================================================================
+   ATLAS ticker services — appended to src/worker.mjs
+   ----------------------------------------------------------------------------
+   Two routes feed the RISE ticker:
+
+     GET  /api/news            industry headlines, RSS/Atom → JSON, cached 30 min
+     GET  /api/announcements   list posted announcements (signed-in ATLAS users)
+     POST /api/announcements   { action: "post" | "edit" | "retract", ... }  role-gated
+
+   Lifecycle: a post runs for durationHours (24 / 72 / 168 / 336, or 0 = until
+   retracted; default 72). GET returns only active posts. Expired posts are
+   pruned on the next write. Author or admin can edit text, scope, or re-time.
+
+   Announcements live in the SAME Durable Object class the dashboard already
+   syncs through (PerformanceSyncState), under their own scope. The DO does the
+   read-modify-write, so two people posting in the same minute never overwrite
+   each other — which a plain POST to /api/state would have allowed.
+   ========================================================================== */
+
+const ATLAS_ANNOUNCEMENTS_SCOPE = "atlas_announcements_v1";
+const ATLAS_ANNOUNCEMENT_MAX_ITEMS = 200;
+const ATLAS_ANNOUNCEMENT_MAX_CHARS = 280;
+/* Lifetime. A post runs for durationHours then drops off the ticker; expired
+   posts are pruned from storage on the next write so they never eat the cap.
+   0 means "until retracted". Anything not in the allowed set snaps to default. */
+const ATLAS_ANNOUNCEMENT_DEFAULT_TTL_HOURS = 72;
+const ATLAS_ANNOUNCEMENT_ALLOWED_TTL_HOURS = new Set([24, 72, 168, 336, 0]);
+/* Portfolio-wide broadcast, so posting is held to the same roles that can run
+   a DLR delivery by hand. Reading requires any active ATLAS role. */
+const ATLAS_ANNOUNCEMENT_POST_ROLES = ATLAS_DLR_MANUAL_RUN_ROLES;
+const ATLAS_ANNOUNCEMENT_READ_ROLES = ATLAS_DLR_ALLOWED_ROLES;
+
+const ATLAS_NEWS_CACHE_TTL_SECONDS = 30 * 60;
+const ATLAS_NEWS_MAX_ITEMS = 24;
+const ATLAS_NEWS_FETCH_TIMEOUT_MS = 6000;
+/* Override with a comma-separated ATLAS_NEWS_FEEDS variable in the Worker
+   environment. A feed that fails or returns nothing is skipped, never fatal. */
+const ATLAS_NEWS_DEFAULT_FEEDS = [
+  "https://www.multihousingnews.com/feed/",
+  "https://www.multifamilydive.com/feeds/news/",
+];
+
+/* --------------------------------------------------------------------------
+   RSS / Atom → items. Workers have no DOMParser, so this is a small tag-level
+   parser. It handles RSS 2.0 <item> and Atom <entry>, CDATA, HTML in titles,
+   and the common entity set. Anything malformed yields fewer items, not a
+   throw.
+   -------------------------------------------------------------------------- */
+const XML_ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“", mdash: "—", ndash: "–", hellip: "…" };
+
+function decodeEntities(text) {
+  return text
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
+    .replace(/&([a-z]+);/gi, (match, name) => XML_ENTITIES[name.toLowerCase()] ?? match);
+}
+
+function decodeXmlText(value) {
+  /* Order matters: Atom titles arrive as type="html" with the markup entity-
+     escaped, so entities must decode BEFORE tags are stripped. A second decode
+     pass catches the double-encoded &amp;amp; that some WordPress feeds emit. */
+  const unwrapped = String(value ?? "").replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1");
+  return decodeEntities(decodeEntities(unwrapped).replace(/<[^>]+>/g, ""))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function firstTag(block, names) {
+  for (const name of names) {
+    const match = block.match(new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${name}>`, "i"));
+    if (match) return match[1];
+  }
+  return "";
+}
+
+function atomLink(block) {
+  /* Prefer rel="alternate"; fall back to the first <link href>. */
+  const links = [...block.matchAll(/<link\b([^>]*?)\/?>/gi)].map(m => m[1]);
+  const pick = links.find(a => /rel=["']alternate["']/i.test(a)) ?? links.find(a => !/rel=/i.test(a)) ?? links[0] ?? "";
+  const href = pick.match(/href=["']([^"']+)["']/i);
+  return href ? href[1] : "";
+}
+
+function parseFeed(xml, feedUrl) {
+  const text = String(xml || "");
+  const isAtom = /<feed[\s>]/i.test(text) && !/<rss[\s>]/i.test(text);
+  const sourceTitle = decodeXmlText(firstTag(text.slice(0, 20000), ["title"])) || new URL(feedUrl).hostname.replace(/^www\./, "");
+  const blockPattern = isAtom ? /<entry\b[^>]*>([\s\S]*?)<\/entry>/gi : /<item\b[^>]*>([\s\S]*?)<\/item>/gi;
+  const items = [];
+  for (const match of text.matchAll(blockPattern)) {
+    const block = match[1];
+    const title = decodeXmlText(firstTag(block, ["title"]));
+    const link = isAtom ? atomLink(block) : decodeXmlText(firstTag(block, ["link", "guid"]));
+    const published = decodeXmlText(firstTag(block, isAtom ? ["published", "updated"] : ["pubDate", "dc:date"]));
+    const publishedAt = published ? new Date(published) : null;
+    if (!title || !/^https?:\/\//i.test(link)) continue;
+    items.push({
+      title: title.slice(0, 200),
+      link,
+      source: sourceTitle.slice(0, 80),
+      publishedAt: publishedAt && !Number.isNaN(publishedAt.getTime()) ? publishedAt.toISOString() : null,
+    });
+  }
+  return items;
+}
+
+async function fetchWithTimeout(url, init = {}, ms = ATLAS_NEWS_FETCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function newsFeedList(env) {
+  const configured = String(env?.ATLAS_NEWS_FEEDS || "").split(",").map(s => s.trim()).filter(s => /^https?:\/\//i.test(s));
+  return configured.length ? configured : ATLAS_NEWS_DEFAULT_FEEDS;
+}
+
+async function buildNewsPayload(env) {
+  const feeds = newsFeedList(env);
+  const results = await Promise.allSettled(feeds.map(async url => {
+    const response = await fetchWithTimeout(url, {
+      headers: { accept: "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.5", "user-agent": "ATLAS-Ticker/1.0 (+https://rise-performance-platform-site.jacquelyn-heflin.workers.dev)" },
+      cf: { cacheTtl: ATLAS_NEWS_CACHE_TTL_SECONDS, cacheEverything: true },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return parseFeed(await response.text(), url);
+  }));
+
+  const seen = new Set();
+  const items = [];
+  const failures = [];
+  results.forEach((result, index) => {
+    if (result.status !== "fulfilled") { failures.push({ feed: feeds[index], error: jsonSafeError(result.reason) }); return; }
+    for (const item of result.value) {
+      const key = item.link.replace(/[?#].*$/, "").toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push(item);
+    }
+  });
+  items.sort((a, b) => String(b.publishedAt || "").localeCompare(String(a.publishedAt || "")));
+
+  return {
+    ok: items.length > 0 || failures.length === 0,
+    items: items.slice(0, ATLAS_NEWS_MAX_ITEMS),
+    feeds: feeds.length,
+    failures,
+    fetchedAt: new Date().toISOString(),
+    ttlSeconds: ATLAS_NEWS_CACHE_TTL_SECONDS,
+  };
+}
+
+async function handleNewsRequest(request, env, ctx) {
+  if (request.method === "OPTIONS") return noContent();
+  if (request.method !== "GET") {
+    return apiResponse({ ok: false, error: "Method Not Allowed" }, { status: 405, headers: { allow: "GET, OPTIONS" } });
+  }
+
+  /* One cache entry for the whole route, independent of the caller's query
+     string or origin, so every ATLAS tab shares the same 30-minute pull. */
+  const cache = caches.default;
+  const cacheKey = new Request(new URL("/api/news", request.url).toString(), { method: "GET" });
+  const bypass = new URL(request.url).searchParams.get("refresh") === "1";
+
+  if (!bypass) {
+    const hit = await cache.match(cacheKey);
+    if (hit) {
+      const headers = new Headers(hit.headers);
+      headers.set("x-atlas-news-cache", "hit");
+      return new Response(hit.body, { status: hit.status, headers });
+    }
+  }
+
+  let payload;
+  try {
+    payload = await buildNewsPayload(env);
+  } catch (error) {
+    payload = { ok: false, items: [], failures: [{ error: jsonSafeError(error) }], fetchedAt: new Date().toISOString() };
+  }
+
+  /* Upstream failed for every feed: serve the last good copy if we have one,
+     marked stale, rather than an empty ticker. */
+  if (!payload.items.length) {
+    const stale = await cache.match(cacheKey);
+    if (stale) {
+      const headers = new Headers(stale.headers);
+      headers.set("x-atlas-news-cache", "stale");
+      return new Response(stale.body, { status: stale.status, headers });
+    }
+  }
+
+  const response = apiResponse(payload);
+  const headers = new Headers(response.headers);
+  headers.set("cache-control", `public, max-age=${ATLAS_NEWS_CACHE_TTL_SECONDS}`);
+  headers.set("x-atlas-news-cache", "miss");
+  const out = new Response(response.body, { status: response.status, headers });
+  if (payload.items.length && ctx?.waitUntil) ctx.waitUntil(cache.put(cacheKey, out.clone()));
+  return out;
+}
+
+/* --------------------------------------------------------------------------
+   Announcements
+   -------------------------------------------------------------------------- */
+function sanitizeAnnouncementText(value) {
+  return String(value ?? "")
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, ATLAS_ANNOUNCEMENT_MAX_CHARS);
+}
+
+function announcementActor(access) {
+  const email = String(access?.profile?.email || access?.user?.email || "").toLowerCase();
+  const meta = access?.user?.user_metadata || {};
+  const displayName = String(meta.full_name || meta.name || access?.profile?.display_name || "").trim()
+    || email.split("@")[0].replace(/[._-]+/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  return { email, displayName, role: String(access?.profile?.role || "").toLowerCase() };
+}
+
+async function handleAnnouncementsRequest(request, env) {
+  if (request.method === "OPTIONS") return noContent();
+  if (!env.SYNC_STATE) return apiResponse({ ok: false, error: "Sync storage is not configured" }, { status: 503 });
+
+  let access;
+  try {
+    access = await requireAtlasAccessUser(request, env, request.method === "GET" ? ATLAS_ANNOUNCEMENT_READ_ROLES : ATLAS_ANNOUNCEMENT_POST_ROLES);
+  } catch (error) {
+    return apiResponse({ ok: false, error: jsonSafeError(error) }, { status: error.status || 401 });
+  }
+
+  const actor = announcementActor(access);
+  const body = request.method === "POST" ? (await readJsonBody(request)) || {} : {};
+
+  /* Auth is settled here; the DO trusts these headers because only this
+     handler can reach it. */
+  const forward = new Request(new URL("/api/announcements", request.url), {
+    method: request.method === "GET" ? "GET" : "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-atlas-actor-email": actor.email,
+      "x-atlas-actor-name": actor.displayName,
+      "x-atlas-actor-role": actor.role,
+    },
+    body: request.method === "GET" ? undefined : JSON.stringify(body),
+  });
+  const object = env.SYNC_STATE.get(env.SYNC_STATE.idFromName(ATLAS_ANNOUNCEMENTS_SCOPE));
+  return object.fetch(forward);
+}
+
+function resolveAnnouncementExpiry(body, now = Date.now()) {
+  /* explicit ISO expiresAt wins; else durationHours; else the default */
+  if (body.expiresAt) {
+    const t = new Date(body.expiresAt).getTime();
+    if (!Number.isNaN(t) && t > now) return new Date(t).toISOString();
+  }
+  const requested = Number(body.durationHours);
+  const hours = ATLAS_ANNOUNCEMENT_ALLOWED_TTL_HOURS.has(requested) ? requested : ATLAS_ANNOUNCEMENT_DEFAULT_TTL_HOURS;
+  return hours === 0 ? null : new Date(now + hours * 3600 * 1000).toISOString();
+}
+
+function isAnnouncementActive(item, now = Date.now()) {
+  if (!item?.expiresAt) return true;
+  const t = new Date(item.expiresAt).getTime();
+  return Number.isNaN(t) || t > now;
+}
+
+function pruneExpiredAnnouncements(items, now = Date.now()) {
+  return items.filter(i => isAnnouncementActive(i, now));
+}
+
+function mayModifyAnnouncement(target, actor) {
+  return actor.role === "admin" || (Boolean(target.postedByEmail) && target.postedByEmail === actor.email);
+}
+
+/* Runs INSIDE PerformanceSyncState.fetch — single-threaded per object, so the
+   read-modify-write below is atomic without any locking. */
+async function announcementsDurableHandler(request, storage) {
+  const actor = {
+    email: String(request.headers.get("x-atlas-actor-email") || ""),
+    name: String(request.headers.get("x-atlas-actor-name") || ""),
+    role: String(request.headers.get("x-atlas-actor-role") || ""),
+  };
+
+  if (request.method === "GET") {
+    const url = new URL(request.url);
+    const all = (await storage.get("announcements")) || [];
+    /* Default view is what the ticker should show. ?includeExpired=1 returns
+       history for an admin review screen; expired rows carry active:false. */
+    const includeExpired = url.searchParams.get("includeExpired") === "1";
+    const now = Date.now();
+    const items = (includeExpired ? all : pruneExpiredAnnouncements(all, now)).map(i => ({ ...i, active: isAnnouncementActive(i, now) }));
+    return apiResponse({ ok: true, scope: ATLAS_ANNOUNCEMENTS_SCOPE, items, count: items.length, defaultTtlHours: ATLAS_ANNOUNCEMENT_DEFAULT_TTL_HOURS, allowedTtlHours: [...ATLAS_ANNOUNCEMENT_ALLOWED_TTL_HOURS] });
+  }
+
+  /* Read the body BEFORE touching storage. Input gates only hold other requests
+     out while a storage op is in flight, so any foreign await between get and
+     put would open a window for a lost update. From here down the only awaits
+     are storage awaits, and transaction() makes the pair atomic outright. */
+  const body = (await readJsonBody(request)) || {};
+  const action = String(body.action || "post");
+  const atomically = fn => (typeof storage.transaction === "function" ? storage.transaction(fn) : fn(storage));
+
+  if (action === "post") {
+    const text = sanitizeAnnouncementText(body.text);
+    if (!text) return apiResponse({ ok: false, error: "Announcement text is required." }, { status: 400 });
+    const scope = sanitizeAnnouncementText(body.scope || "All communities").slice(0, 80);
+    const now = Date.now();
+    const item = {
+      id: `ann-${now}-${Math.random().toString(36).slice(2, 8)}`,
+      text,
+      scope,
+      postedBy: actor.name || actor.email,
+      postedByEmail: actor.email,
+      postedByRole: actor.role,
+      createdAt: new Date(now).toISOString(),
+      expiresAt: resolveAnnouncementExpiry(body, now),
+      editedAt: null,
+      editedBy: null,
+    };
+    return atomically(async txn => {
+      const items = pruneExpiredAnnouncements((await txn.get("announcements")) || [], now);
+      const next = [item, ...items].slice(0, ATLAS_ANNOUNCEMENT_MAX_ITEMS);
+      await txn.put("announcements", next);
+      return apiResponse({ ok: true, item, count: next.length });
+    });
+  }
+
+  if (action === "edit") {
+    const id = String(body.id || "");
+    const now = Date.now();
+    return atomically(async txn => {
+      const items = pruneExpiredAnnouncements((await txn.get("announcements")) || [], now);
+      const idx = items.findIndex(i => i.id === id);
+      if (idx < 0) return apiResponse({ ok: false, error: "Announcement not found or already expired." }, { status: 404 });
+      if (!mayModifyAnnouncement(items[idx], actor)) return apiResponse({ ok: false, error: "Only the author or an ATLAS Admin can edit this." }, { status: 403 });
+      const current = items[idx];
+      const text = body.text !== undefined ? sanitizeAnnouncementText(body.text) : current.text;
+      if (!text) return apiResponse({ ok: false, error: "Announcement text is required." }, { status: 400 });
+      const updated = {
+        ...current,
+        text,
+        scope: body.scope !== undefined ? sanitizeAnnouncementText(body.scope).slice(0, 80) || current.scope : current.scope,
+        /* durationHours on an edit re-times from NOW — "give this another week" */
+        expiresAt: (body.expiresAt !== undefined || body.durationHours !== undefined) ? resolveAnnouncementExpiry(body, now) : current.expiresAt,
+        editedAt: new Date(now).toISOString(),
+        editedBy: actor.name || actor.email,
+      };
+      const next = [...items]; next[idx] = updated;
+      await txn.put("announcements", next);
+      return apiResponse({ ok: true, item: updated, count: next.length });
+    });
+  }
+
+  if (action === "retract") {
+    const id = String(body.id || "");
+    return atomically(async txn => {
+      const items = (await txn.get("announcements")) || [];
+      const target = items.find(i => i.id === id);
+      if (!target) return apiResponse({ ok: false, error: "Announcement not found." }, { status: 404 });
+      if (!mayModifyAnnouncement(target, actor)) return apiResponse({ ok: false, error: "Only the author or an ATLAS Admin can retract this." }, { status: 403 });
+      const next = pruneExpiredAnnouncements(items.filter(i => i.id !== id));
+      await txn.put("announcements", next);
+      return apiResponse({ ok: true, removed: id, count: next.length });
+    });
+  }
+
+  return apiResponse({ ok: false, error: `Unknown action "${action}".` }, { status: 400 });
+}
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     if (url.pathname === "/__health" || url.pathname === "/api/status") {
@@ -1663,6 +2052,14 @@ export default {
 
     if (url.pathname === "/api/state") {
       return handleSyncRequest(request, env);
+    }
+
+    if (url.pathname === "/api/news") {
+      return handleNewsRequest(request, env, ctx);
+    }
+
+    if (url.pathname === "/api/announcements") {
+      return handleAnnouncementsRequest(request, env);
     }
 
     if (url.pathname === "/api/atlas/access/diagnose") {

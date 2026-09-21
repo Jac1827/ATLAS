@@ -75,3 +75,9 @@ The staffing comparison now normalizes only the three staffing fields. It does n
 A new Chrome comparison at 28 communities / 750 synthetic employees retained full output parity: changed staffing median 258.65 ms → 16.10 ms; unchanged 262.10 ms → 10.55 ms; termination history 260.25 ms → 20.25 ms. All 51 test files passed again. The raw results are retained as ATLAS-staffing-narrow-comparison-750.json.
 
 The original 604 ms task / 406 ms staffing segment has not yet been remeasured with identical authenticated state. No authenticated performance acceptance is inferred from this synthetic comparison. Cached-first rendering and deferred reconciliation remain pending; the access-profile and hydration mutation boundaries must be resolved first.
+
+## Retained local browser profile recheck
+
+At commit 1d6a38d, the existing local in-app browser profile (Chrome 152, signed out) was reloaded without resetting its cache. Staffing measured 33.9 ms (prior observation 405.9 ms), and the startup long task measured 192 ms (prior 604 ms). Diagnostics recorded 28 inspected / 0 changed communities, 0 full-record normalizations, 0 staffing persistence calls and 0 staffing render requests. First contentful paint was 136 ms and after-startup was 442.8 ms, with one initial tab render. Other startup paths still completed five IndexedDB writes.
+
+These are single observations from the retained profile, not an immutable-state paired trace or authenticated acceptance. Used JS heap at startup was 48,098,709 bytes and at the report request 20,287,701 bytes; neither is total browser process memory or a forced-GC leak test. Evidence: ATLAS-local-startup-staffing-followup.json.

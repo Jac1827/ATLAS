@@ -29,7 +29,7 @@
  };
  const go=A.go;
  let packageReview;
- A.openFinancialPackageReview=async function(){try{packageReview=await import('./features/financial-package-review.mjs?v=b7027b5f49d68ea8');await packageReview.openReview();}catch(e){A.toast(e.message,'r');}};
+ A.openFinancialPackageReview=async function(){try{packageReview=await import('./features/financial-package-review.mjs?v=57734fd16eb5bfa6');await packageReview.openReview();}catch(e){A.toast(e.message,'r');}};
  const actuals=R.views.actuals;
  function sharedActualsPanel(){
   setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el)return;try{const m=await import('./features/financial-comparison.mjs?v=03102873e588332f');await m.mountComparison(el,{communityName:A.cp().property.name,year:A.year()});}catch(e){el.textContent=e.message;}},0);

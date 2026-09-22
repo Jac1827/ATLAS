@@ -1,3 +1,4 @@
+import {mountBatch} from './financial-package-batch.mjs?v=6b73adeff1abdbde';
 import {applyControls} from './financial-comparison.mjs?v=03102873e588332f';
 import {readPackage} from './financial-package-reader.mjs?v=00c6009c7e1b92b1';
 import {resolveCommunity} from './financial-package.mjs?v=49ea086d6d07f300';
@@ -9,6 +10,7 @@ export async function openReview(){
  dispose();const dialog=document.createElement('dialog');active=dialog;dialog.className='financial-package-review';
  dialog.innerHTML='<h2>Review a month-end package</h2><p>Budget Comparison Income Statement is the monthly close source. Accounting approval is already received; ATLAS checks identity, coverage and reconciliation.</p><p>Upload → Classify → Identify → Reconcile → Import Review → Admin close → Publish</p><label>Financial package <input type="file" accept=".pdf,.xlsx"></label><button type="button" data-cancel>Cancel processing</button><button type="button" data-close>Close</button><p role="status" aria-live="polite"></p><section data-result></section>';
  document.body.append(dialog);dialog.showModal();let operation,certificate,epoch=0;
+ const batchHost=window.parent;if(batchHost!==window&&batchHost.location.origin===location.origin&&batchHost.ATLAS_CENTRAL&&batchHost.atlasAccessDecision?.(12)?.ok)mountBatch(dialog,batchHost.ATLAS_CENTRAL);
  const status=dialog.querySelector('[role=status]'),result=dialog.querySelector('[data-result]');
  const history=document.createElement('section');history.innerHTML='<label>Saved review period <input type="month" data-period></label><button data-history>Load shared reviews</button><div data-history-list></div>';dialog.insertBefore(history,result);
  history.querySelector('[data-period]').value=new URL(location.href).searchParams.get('comparisonPeriod')||new Date().toISOString().slice(0,7);

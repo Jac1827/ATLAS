@@ -14,11 +14,14 @@ row=A.model([...snapshots,snap('2026-09-18',[rec('1','2026-09-18','Application: 
 assert.equal(A.latestRecords([rec('old','2026-05-08'),rec('new','2026-09-17')]).length,1);
 const model=W.model({records:[rec('1','2026-09-17')],communities:['Baymeadows'],end:'2026-09-17',period:'2026-09',offers:[{name:'Baymeadows',current:{asking:1778,ner:1437,offer:'Ten weeks free'}}]});
 const report=W.document(model);assert(report.includes('$1,778')&&report.includes('$1,437'));assert(!report.includes('<th>Source</th>'));assert(/Concessions across communities<\/h2>\s*<table>/.test(report));assert(report.includes('background:#e8f3f8'));assert(report.includes('color:#b42318;font-weight:700">Peacock, Michelle'));assert(report.includes('color:#b42318;font-weight:700">1</td>'));
-// Exercise the actual bonus integration: unique exact assignment, warnings, unchanged pay.
+// Source display names cannot identify compensation employees; advisory never changes pay.
 const html=fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/index.html','utf8');
 const fn=html.match(/^function atlasBonusBuildCalculationRows\(options = \{\}\) \{[\s\S]*?^\}/m)[0];
 const employee={name:'Michelle Peacock',communityName:'Baymeadows'};
 const c={window:{AtlasApplicationAging:A},bonusQuarter:'Q3',atlasBonusState:()=>({filters:{}}),atlasBonusPeriodFromQuarter:()=>({start:'2026-07-01',end:'2026-09-30',periodKey:'2026-Q3'}),atlasBonusAuthorizedEmployees:()=>[employee],atlasBonusBuildRow:e=>({employee:e,exceptions:[],finalPayout:500}),atlasBonusEmployeeDisplayName:e=>e.name,getAtlasApplicationAgingRows:()=>[{community:'Baymeadows',professional:'Peacock, Michelle',derogatoryCount:2}]};
-vm.createContext(c);vm.runInContext(fn,c);let rows=c.atlasBonusBuildCalculationRows();assert.equal(rows[0].exceptions[0].code,'application_aging_derogatory');assert.equal(rows[0].applicationAgingDerogatoryCount,2);assert.equal(rows[0].finalPayout,500);
+vm.createContext(c);vm.runInContext(fn,c);let rows=c.atlasBonusBuildCalculationRows();assert.equal(rows[0].exceptions.length,0);assert.equal(rows[0].applicationAgingDerogatoryCount,undefined);assert.equal(rows[0].finalPayout,500);
 c.atlasBonusAuthorizedEmployees=()=>[employee,{...employee}];rows=c.atlasBonusBuildCalculationRows();assert(rows.every(r=>!r.exceptions.length),'Ambiguous employee attribution must not be guessed');
 console.log('PASS aging threshold/status, newest snapshot, deduplication, WoW/MoM missing history, resolved records, report styling/currency, bonus review attribution and unchanged pay.');
+
+assert(A.render([row],true).startsWith('<details'));assert(!/<details[^>]*\bopen\b/.test(A.render([row],true)));
+const bonusRender=html.match(/^function renderBonusTab\(\) \{[\s\S]*?^\}/m)[0];assert(bonusRender.indexOf('renderBonusEngineSection(activeSection, rows)')<bonusRender.indexOf('window.AtlasApplicationAging.render'));assert(bonusRender.includes('activeSection === \"exceptions\"'));

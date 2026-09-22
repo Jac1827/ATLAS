@@ -1423,7 +1423,7 @@
 </div>
 
 <script src="./atlas_historical_restore_data.js"></script>
-<script src="./atlas-mounts.js?v=f4491688c4e991c3"></script>
+<script src="./atlas-mounts.js?v=5d4019f915a475e3"></script>
 <script src="./centralization/atlas-central-client.js?v=aaf34ed3eb7a47f1" data-atlas-central-client="true"></script>
 <script src="./atlas-dashboard-reskin.js?v=99ffd40a8970f8ef"></script>
 <script src="./central-services.js?v=20260919-renewal-period-review"></script>
@@ -1444,7 +1444,7 @@
 <script src="./property-organization.js?v=20260917-floorplans"></script>
 <script src="./concession-insights.js?v=20260917-1"></script>
 <script src="./weekly-leasing-report.js?v=20260917-aging"></script>
-<script src="./application-aging.js?v=20260917-aging"></script>
+<script src="./application-aging.js?v=4091f111fe289027"></script>
 <script src="./application-performance-ui.js?v=76767fc8f24b44d6"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -31638,10 +31638,6 @@ function atlasBonusCandidateMatchesEmployee(candidate = {}, employee = {}) {
     candidate.peopleEmployeeId
   ].map(value => String(value || "").trim()).filter(Boolean);
   if (employeeIdValues.some(value => candidateIdValues.includes(value))) return true;
-  const email = atlasNormalizeSharedEmail(employee.email || employee.workEmail || employee.work_email);
-  if (email && candidate.email === email) return true;
-  const employeeNumber = atlasBonusCleanEmployeeNumber(employee.payrollEmployeeId || employee.employeeNumber || employee.employee_number);
-  if (employeeNumber && candidate.employeeNumber === employeeNumber) return true;
   return false;
 }
 
@@ -31659,20 +31655,6 @@ function atlasBonusEmployeeDisplayName(employee = {}) {
   const candidates = atlasBonusPeopleNameCandidates();
   const direct = candidates.find(candidate => atlasBonusCandidateMatchesEmployee(candidate, employee));
   if (direct?.name) return direct.name;
-  const looksPlaceholder = atlasBonusEmployeeNameLooksPlaceholder(current, employee);
-  if (looksPlaceholder && current) {
-    const trailingToken = atlasNormalizeSharedText(current.split(/\s+/).pop() || "");
-    const contextual = candidates.filter(candidate =>
-      atlasBonusCandidateMatchesEmployeeContext(candidate, employee)
-      && trailingToken
-      && atlasNormalizeSharedText(candidate.name).split(" ").includes(trailingToken)
-    );
-    if (contextual.length === 1) return contextual[0].name;
-  }
-  if (looksPlaceholder) {
-    const contextual = candidates.filter(candidate => atlasBonusCandidateMatchesEmployeeContext(candidate, employee));
-    if (contextual.length === 1) return contextual[0].name;
-  }
   return current || employee.email || employee.employeeNumber || "Employee pending";
 }
 
@@ -32047,7 +32029,7 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
   const resolution = atlasBonusResolvePlanForEmployee(employee, period);
   const plan = resolution.plan;
   const exceptions = [];
-  if (!employee.employeeId && !employee.email) exceptions.push({ severity: "critical", code: "missing_employee_mapping", message: "Missing employee mapping." });
+  if (!employee.employeeId) exceptions.push({ severity: "critical", code: "missing_employee_mapping", message: "Missing employee mapping." });
   if (!employee.communityName && !["Central Services", "Marketing", "Regional Manager"].includes(employee.bonusRole)) exceptions.push({ severity: "critical", code: "missing_community", message: "Missing community." });
   if (!employee.bonusRole) exceptions.push({ severity: "critical", code: "missing_role", message: "Missing bonus role." });
   if (!plan) exceptions.push({ severity: "critical", code: "missing_bonus_plan", message: "Missing bonus plan." });
@@ -32060,7 +32042,7 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
     const metric = governed ? { ...configuredMetric, goal: governed.goal } : configuredMetric;
     const actual = governed ? governed.actual : atlasBonusMetricActual(employee, metric, period);
     if (governed?.reason) exceptions.push({ severity: "critical", code: "governed_goal_pending", message: governed.reason, metricId: metric.id });
-    if (actual === null) {
+    if (actual === null && !governed?.reason) {
       exceptions.push({ severity: metric.inputType === "automatic" ? "critical" : "warning", code: "missing_metric", message: `Missing ${metric.name} data from ${metric.dataSource}.`, metricId: metric.id });
     }
     const potential = atlasBonusMetricPotential(employee, plan, metric);
@@ -32087,7 +32069,7 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
   });
   const rowId = `bonus_${simpleHash([period.periodKey, employee.employeeId || employee.email || employee.name, plan?.id || "none"].join("|"))}`;
   const state = atlasBonusState();
-  const unresolvedCritical = exceptions.some(exception => exception.severity === "critical" && state.exceptionStatusById[`${rowId}_${exception.code}_${exception.metricId || ""}`] !== "resolved");
+  const unresolvedCritical = exceptions.some(exception => exception.severity === "critical");
   const proratedEarned = grossEarned * proration.factor;
   const proratedPotential = grossPotential * proration.factor;
   const override = state.overrides.find(item => (item.rowId && item.rowId === rowId) || (!item.rowId && item.employeeId === employee.employeeId));
@@ -32134,14 +32116,8 @@ function atlasBonusBuildCalculationRows(options = {}) {
   }
   let rows = employees.map(employee => atlasBonusBuildRow(employee, period));
   if (!rows.length) return rows;
-  const aging = getAtlasApplicationAgingRows({start: period.start, end: period.end});
-  for (const item of aging.filter(r => r.derogatoryCount > 0 && r.professional !== "Unassigned")) {
-    const matches = rows.filter(r => r.employee.communityName === item.community && window.AtlasApplicationAging.name(atlasBonusEmployeeDisplayName(r.employee)) === window.AtlasApplicationAging.name(item.professional));
-    if (matches.length !== 1) continue;
-    const row = matches[0];
-    row.applicationAgingDerogatoryCount = item.derogatoryCount;
-    row.exceptions.push({severity: "warning", code: "application_aging_derogatory", message: `${item.derogatoryCount} distinct application(s) observed open 7+ days during ${period.periodKey}. Derogatory factor: review assignment and cause. No automatic pay deduction configured.`});
-  }
+  // Source professional labels are not canonical employee identifiers. Aging remains
+  // an advisory source view until an explicit employee assignment exists.
   if (filters.region && filters.region !== "all") rows = rows.filter(row => atlasNormalizeSharedText(atlasBonusEmployeeRegionLabel(row.employee)) === atlasNormalizeSharedText(filters.region));
   if (filters.community && filters.community !== "all") rows = rows.filter(row => atlasNormalizeSharedText(row.employee.communityName) === atlasNormalizeSharedText(filters.community));
   if (filters.role && filters.role !== "all") rows = rows.filter(row => row.employee.bonusRole === filters.role);
@@ -32302,13 +32278,15 @@ function atlasBonusRunCalculations() {
 function atlasBonusResolveException(rowId = "", code = "", metricId = "") {
   if (!atlasBonusCan("override_calculations")) return alert("This ATLAS role cannot resolve bonus exceptions.");
   const key = `${rowId}_${code}_${metricId || ""}`;
-  atlasBonusState().exceptionStatusById[key] = "resolved";
-  atlasBonusPersist("Calculation run", "Exception resolved", code, "Resolved", "Human review completed");
+  atlasBonusState().exceptionStatusById[key] = "reviewed";
+  atlasBonusPersist("Calculation run", "Exception reviewed", code, "Reviewed", "Prerequisite must be repaired before approval");
   renderTab();
 }
 
 function atlasBonusSetRowStatus(rowId = "", status = "Regional Approved") {
   if (!atlasBonusCan("approve_bonuses")) return alert("This ATLAS role cannot approve bonuses.");
+  const row = atlasBonusBuildCalculationRows({ filters: defaultBonusEngineState().filters }).find(item => item.rowId === rowId);
+  if (!row || row.unresolvedCritical) return alert("Required source inputs must be verified before approval.");
   atlasBonusState().approvalStatusByRowId[rowId] = status;
   atlasBonusPersist(status === "Paid" ? "Payment finalized" : "Regional approval", rowId, "", status, "Approval workflow update");
   renderTab();
@@ -32735,11 +32713,11 @@ function renderBonusApprovalsSection(rows) {
 }
 
 function renderBonusExceptionsSection(rows) {
-  const exceptionRows = rows.flatMap(row => row.exceptions.map(exception => ({ row, exception, key: `${row.rowId}_${exception.code}_${exception.metricId || ""}`, status: atlasBonusState().exceptionStatusById[`${row.rowId}_${exception.code}_${exception.metricId || ""}`] || "new" })));
+  const exceptionRows = rows.flatMap(row => row.exceptions.map(exception => ({ row, exception, key: `${row.rowId}_${exception.code}_${exception.metricId || ""}`, status: "Open" })));
   return `<div class="bonus-engine-card">
-    <div class="bonus-engine-section-head"><div><h3>Bonus Exception Queue</h3><p>ATLAS does not guess when required data is missing. Critical exceptions block final approval until resolved by a human.</p></div><span class="bonus-engine-pill ${exceptionRows.some(row => row.exception.severity === "critical" && row.status !== "resolved") ? "bad" : "good"}">${exceptionRows.length} exceptions</span></div>
+    <div class="bonus-engine-section-head"><div><h3>Bonus Exception Queue</h3><p>ATLAS does not guess when required data is missing. Critical exceptions block final approval until the required source is repaired and recalculated.</p></div><span class="bonus-engine-pill ${exceptionRows.some(row => row.exception.severity === "critical") ? "bad" : "good"}">${exceptionRows.length} exceptions</span></div>
     <div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Employee</th><th>Community</th><th>Plan</th><th>Exception</th><th>Severity</th><th>Required Action</th><th>Status</th><th>Reviewer</th></tr></thead><tbody>
-      ${exceptionRows.map(item => `<tr><td><strong>${escapeHtml(atlasBonusEmployeeDisplayName(item.row.employee))}</strong></td><td>${escapeHtml(item.row.employee.communityName || "Missing")}</td><td>${escapeHtml(item.row.plan?.name || "Missing plan")}</td><td>${escapeHtml(item.exception.message)}</td><td><span class="bonus-engine-pill ${item.exception.severity === "critical" ? "bad" : "warn"}">${escapeHtml(item.exception.severity)}</span></td><td>${item.exception.code === "application_aging_derogatory" ? "Review source assignment, aging and documented cause before bonus sign-off." : item.exception.code === "missing_salary" ? "HR/Admin must enter salary or assign non-salary plan." : item.exception.code === "missing_metric" ? "Import source data or enter documented manual result." : "Update People mapping or plan assignment."}</td><td>${escapeHtml(item.status)}</td><td><button class="btn btn-gray btn-sm" onclick='atlasBonusResolveException(${atlasBonusJsArg(item.row.rowId)},${atlasBonusJsArg(item.exception.code)},${atlasBonusJsArg(item.exception.metricId || "")})' ${atlasBonusCan("override_calculations") ? "" : "disabled"}>Resolve</button></td></tr>`).join("") || `<tr><td colspan="8">No exceptions in the current filter set.</td></tr>`}
+      ${exceptionRows.map(item => `<tr><td><strong>${escapeHtml(atlasBonusEmployeeDisplayName(item.row.employee))}</strong></td><td>${escapeHtml(item.row.employee.communityName || "Missing")}</td><td>${escapeHtml(item.row.plan?.name || "Missing plan")}</td><td>${escapeHtml(item.exception.message)}</td><td><span class="bonus-engine-pill ${item.exception.severity === "critical" ? "bad" : "warn"}">${escapeHtml(item.exception.severity)}</span></td><td>${item.exception.code === "application_aging_derogatory" ? "Review source assignment, aging and documented cause before bonus sign-off." : item.exception.code === "missing_salary" ? "HR/Admin must enter salary or assign non-salary plan." : item.exception.code === "missing_metric" ? "Import source data or enter documented manual result." : "Update People mapping or plan assignment."}</td><td>${escapeHtml(item.status)}</td><td><button class="btn btn-gray btn-sm" onclick='atlasBonusResolveException(${atlasBonusJsArg(item.row.rowId)},${atlasBonusJsArg(item.exception.code)},${atlasBonusJsArg(item.exception.metricId || "")})' ${atlasBonusCan("override_calculations") ? "" : "disabled"}>Record review</button></td></tr>`).join("") || `<tr><td colspan="8">No exceptions in the current filter set.</td></tr>`}
     </tbody></table></div>
   </div>`;
 }
@@ -32821,7 +32799,6 @@ function renderBonusEngineSection(section, rows) {
 }
 
 function renderBonusTab() {
-  syncSharedPeopleAssignments({ persist: true });
   const state = atlasBonusState();
   const rows = atlasBonusBuildCalculationRows();
   const summary = atlasBonusSummary(rows);
@@ -32849,8 +32826,8 @@ function renderBonusTab() {
       ${sections.map(([id, label]) => `<button type="button" class="bonus-engine-tab ${activeSection === id ? "active" : ""}" onclick='atlasBonusSetSection(${atlasBonusJsArg(id)})'>${escapeHtml(label)}</button>`).join("")}
     </div>
     ${renderBonusEngineFilters(atlasBonusBuildCalculationRows({ filters: defaultBonusEngineState().filters }))}
-    ${atlasBonusCan("run_calculations") ? window.AtlasApplicationAging.render(getAtlasApplicationAgingRows({start: period.start, end: period.end}).filter(r => (state.filters.community === "all" || !state.filters.community || state.filters.community === r.community) && (!state.filters.employee || window.AtlasApplicationAging.name(r.professional).includes(window.AtlasApplicationAging.name(state.filters.employee)))), true) : ""}
     ${renderBonusEngineSection(activeSection, rows)}
+    ${activeSection === "exceptions" && atlasBonusCan("run_calculations") ? window.AtlasApplicationAging.render(getAtlasApplicationAgingRows({start: period.start, end: period.end}).filter(r => state.filters.community === "all" || !state.filters.community || state.filters.community === r.community), true) : ""}
   </section>`;
 }
 

@@ -1,4 +1,14 @@
 {
+  "application-aging.js": {
+    "sha256": "4091f111fe289027",
+    "bytes": 5421,
+    "references": [
+      [
+        "index.html",
+        "./application-aging.js"
+      ]
+    ]
+  },
   "budget-workbook-import.js": {
     "sha256": "c1963a3e6f07c1cc",
     "bytes": 16186,
@@ -279,9 +289,19 @@
       ]
     ]
   },
+  "features/financial-package-batch.mjs": {
+    "sha256": "6b73adeff1abdbde",
+    "bytes": 6061,
+    "references": [
+      [
+        "features/financial-package-review.mjs",
+        "./financial-package-batch.mjs"
+      ]
+    ]
+  },
   "features/financial-package-review.mjs": {
-    "sha256": "b7027b5f49d68ea8",
-    "bytes": 9664,
+    "sha256": "57734fd16eb5bfa6",
+    "bytes": 9949,
     "references": [
       [
         "budget-navigation.js",
@@ -304,7 +324,7 @@
     ]
   },
   "budget-navigation.js": {
-    "sha256": "028b55bc76a69700",
+    "sha256": "b9d4c87547a96b53",
     "bytes": 7489,
     "references": [
       [
@@ -394,7 +414,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "2f8a921a00b0e879",
+    "sha256": "812041573da3eaca",
     "bytes": 1887930,
     "references": [
       [
@@ -404,7 +424,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "f4491688c4e991c3",
+    "sha256": "5d4019f915a475e3",
     "bytes": 28901,
     "references": [
       [

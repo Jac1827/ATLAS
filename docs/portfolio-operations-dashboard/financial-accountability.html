@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>ATLAS RISE Financial Accountability</title>
-<script src="financial-publication.js?v=ad454343a20185ab"></script>
+<script src="financial-publication.js?v=de79892b03f508fe"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -58,6 +58,7 @@ const slugifyEntityId=v=>String(v||"").toLowerCase().replace(/[^a-z0-9]+/g,"_").
 const normalizeCommunityLookupName=v=>String(v||"").toLowerCase().replace(/rise:\s*a\s+real\s+estate\s+company/gi,"").replace(/\brise\s+real\s+estate\b/gi,"").replace(/^rise\s+at\s+/gi,"").replace(/^rise\s+/gi,"").replace(/[^\w\s]/g," ").replace(/\s+/g," ").trim();
 const prettyEntityLabel=id=>String(id||"").split("_").filter(Boolean).map(part=>part.charAt(0).toUpperCase()+part.slice(1)).join(" ");
 
+let atlasCommunityCatalog={};
 function loadAtlasCommunityNames(){
   const names=new Map();
   const collectName=value=>{
@@ -81,6 +82,7 @@ function loadAtlasCommunityNames(){
       Object.keys(parsed||{}).forEach(collectName);
     }catch(e){}
   });
+  Object.keys(atlasCommunityCatalog).forEach(collectName);
   FALLBACK_COMMUNITIES.forEach(collectName);
   return Array.from(names.values()).sort((a,b)=>a.localeCompare(b));
 }
@@ -92,7 +94,7 @@ function getEntities(){
     const normalized=normalizeCommunityLookupName(name);
     const id=LEGACY_ENTITY_ID_MAP[normalized]||slugifyEntityId(name);
     if(seen.has(id))return;
-    entities.push({id,label:name,kind:"community"});
+    entities.push({id,label:name,kind:"community",communityId:atlasCommunityCatalog[name]?.communityId||""});
     seen.add(id);
   });
   Object.keys(state&&state.store||{}).forEach(id=>{
@@ -449,19 +451,12 @@ function formatBudgetPeriodLabel(period,includeYear=true){
 }
 
 function buildFinancialLedgerRows(rows){
+  const number=AtlasFinancialPublication.number;
   return (Array.isArray(rows)?rows:[]).map(row=>({
-    section:String(row&&row.section||""),
-    lineItem:String(row&&row.name||""),
-    glCode:String(row&&row.gl||""),
-    actual:AtlasFinancialPublication.number(row&&row.mAct),
-    ytdActual:AtlasFinancialPublication.number(row&&row.yAct),
-    budget:AtlasFinancialPublication.number(row&&row.mBud),
-    ytdBudget:AtlasFinancialPublication.number(row&&row.yBud),
-    annualBudget:Number(row&&row.annBud||0),
-    monthlyActual:AtlasFinancialPublication.number(row&&row.mAct),
-    monthlyBudget:AtlasFinancialPublication.number(row&&row.mBud),
-    monthlyVariance:Number(row&&row.mVar||0),
-    ytdVariance:Number(row&&row.yVar||0)
+    section:String(row?.section||""),lineItem:String(row?.name||""),glCode:String(row?.gl||""),
+    actual:number(row?.mAct),budget:number(row?.mBud),basis:"monthly",
+    ytdActual:number(row?.yAct),ytdBudget:number(row?.yBud),annualBudget:number(row?.annBud),
+    monthlyActual:number(row?.mAct),monthlyBudget:number(row?.mBud)
   }));
 }
 
@@ -470,38 +465,47 @@ function buildFinancialBudgetLedgerRows(rows){
     section:String(row&&row.section||""),
     lineItem:String(row&&row.lineItem||row&&row.name||""),
     glCode:String(row&&row.glCode||row&&row.gl||""),
-    budget:Number(row&&row.budget||0),
+    budget:AtlasFinancialPublication.number(row&&row.budget),
     annualBudget:Number(row&&row.annualBudget||0),
     updatedAt:String(row&&row.updatedAt||new Date().toISOString())
   }));
 }
 
+async function publishFinancialPackets(entity,packets){
+  if(!entity||entity.kind!=="community")return{ok:false,message:"Choose an ATLAS community."};
+  try{
+    const db=await openAtlasStateDb();
+    const result=await AtlasFinancialPublication.transact(db,{communityName:entity.label,communityId:entity.communityId},packets);
+    // Notify dashboard tabs only after the transaction commits.
+    if(typeof BroadcastChannel!=="undefined"){
+      const channel=new BroadcastChannel("atlas-financial-publication");
+      channel.postMessage({communityName:result.communityName});channel.close();
+    }
+    return result;
+  }catch(error){return{ok:false,message:error.message};}
+}
+
 async function applyDatasetToAtlasStore(dataset,entity){
-  if(!dataset||!entity||entity.kind!=="community")return{ok:true};
-  const communityName=String(entity.label||"").trim();
-  const periodKey=normalizeFinancialPeriodKey(dataset.period||dataset.name||"");
-  const kind=dataset.kind==="budget"?"budget":"actuals";
+  if(!dataset)return{ok:false,message:"No financial dataset was provided."};
+  const period=normalizeFinancialPeriodKey(dataset.period||dataset.name||"");
   const rows=buildFinancialLedgerRows(dataset.rows);
-  await AtlasFinancialPublication.publish(communityName,{period:periodKey,rows,kind,source:dataset.name,mode:"replace"});
-  return{ok:true,periodKey};
+  const isBudget=dataset.uploadType==="budget"||dataset.kind==="budget";
+  const packet={period,source:{id:String(dataset.id),file:dataset.name||"Financial upload",effectiveAt:dataset.dataAsOf||""}};
+  if(isBudget)packet.budgets=rows;else packet.actuals=rows;
+  return publishFinancialPackets(entity,[packet]);
 }
 
 async function applyApprovedBudgetDatasetToAtlasStore(dataset,entity){
-  if(!dataset||!entity||entity.kind!=="community")return{ok:true};
-  const communityName=String(entity.label||"").trim();
-  if(!communityName)return{ok:false,message:"No ATLAS community name was available for this budget baseline."};
   const grouped={};
-  (Array.isArray(dataset.records)?dataset.records:[]).forEach(record=>{
-    const periodKey=normalizeFinancialPeriodKey(record&&record.period||"");
-    if(!periodKey)return;
-    if(!grouped[periodKey])grouped[periodKey]=[];
-    grouped[periodKey].push(record);
-  });
-  if(!Object.keys(grouped).length)return{ok:false,message:"No usable month-by-month budget rows were detected in this workbook."};
-  for(const [periodKey,records] of Object.entries(grouped)){
-    await AtlasFinancialPublication.publish(communityName,{period:periodKey,rows:buildFinancialBudgetLedgerRows(records),kind:"budget",source:dataset.name||"Approved budget",mode:"replace"});
+  for(const row of dataset?.records||[]){
+    const period=normalizeFinancialPeriodKey(row.period||"");
+    if(!period)return{ok:false,message:"Every approved budget row needs a reporting month."};
+    (grouped[period] ||= []).push(row);
   }
-  return{ok:true,periodKeys:Object.keys(grouped)};
+  if(!Object.keys(grouped).length)return{ok:false,message:"No month-by-month budget rows were detected."};
+  const packets=Object.entries(grouped).map(([period,rows])=>({period,budgets:buildFinancialBudgetLedgerRows(rows),
+    source:{id:String(dataset.id||dataset.batchId||dataset.sourceFileName),file:dataset.sourceFileName||dataset.name||"Approved budget",effectiveAt:dataset.dataAsOf||dataset.effectiveDate||""}}));
+  return publishFinancialPackets(entity,packets);
 }
 
 async function removeDatasetFromAtlasStore(dataset,entity){
@@ -562,7 +566,7 @@ async function hydrateApprovedBudgetsFromAtlas(){
             glCode:String(row&&row.glCode||""),
             lineItem:String(row&&row.lineItem||""),
             section:String(row&&row.section||""),
-            budget:Number(row&&row.budget||0),
+            budget:AtlasFinancialPublication.number(row&&row.budget),
             annualBudget:Number(row&&row.annualBudget||0),
             updatedAt:String(row&&row.updatedAt||record&&record.financialBudgetUpdatedAt||"")
           });
@@ -2622,6 +2626,7 @@ const blob=new Blob([h],{type:"text/html"});const url=URL.createObjectURL(blob);
 }
 
 render();
+loadAtlasCommunityStore().then(store=>{atlasCommunityCatalog=store||{};render();}).catch(()=>{});
 hydrateApprovedBudgetsFromAtlas().then(()=>render()).catch(()=>{});
 </script>
 </body>

@@ -260,8 +260,8 @@
     ]
   },
   "financial-publication.js": {
-    "sha256": "ad454343a20185ab",
-    "bytes": 3333,
+    "sha256": "de79892b03f508fe",
+    "bytes": 7121,
     "references": [
       [
         "index.html",
@@ -374,8 +374,8 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "03d42d3204252240",
-    "bytes": 27310,
+    "sha256": "10224c0a4d15f844",
+    "bytes": 28299,
     "references": [
       [
         "index.html",

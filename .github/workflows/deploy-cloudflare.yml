@@ -70,7 +70,12 @@ jobs:
           node tools/concession-insights.test.cjs
 
       - name: Test occupancy dashboard contract
-        run: node tools/occupancy-contract.test.cjs
+        run: |
+          node tools/occupancy-contract.test.cjs
+          node tools/occupancy-history-stabilization.test.cjs
+          node tools/occupancy-financial-import.test.cjs
+          node tools/financial-publication.test.cjs
+          node tools/investor-packet-sources.test.cjs
 
       - name: Test eviction packet workflow
         run: node tools/eviction-attorney.test.mjs
@@ -134,7 +139,12 @@ jobs:
           node tools/concession-insights.test.cjs
 
       - name: Test occupancy dashboard contract
-        run: node tools/occupancy-contract.test.cjs
+        run: |
+          node tools/occupancy-contract.test.cjs
+          node tools/occupancy-history-stabilization.test.cjs
+          node tools/occupancy-financial-import.test.cjs
+          node tools/financial-publication.test.cjs
+          node tools/investor-packet-sources.test.cjs
 
       - name: Test eviction packet workflow
         run: node tools/eviction-attorney.test.mjs

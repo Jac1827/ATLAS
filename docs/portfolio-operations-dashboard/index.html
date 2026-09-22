@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css"/>
 <script src="./performance/diagnostics.js?v=b40ddaaf123f59ae"></script>
 <script src="./performance/feature-loader.js?v=ed7b38027612489d"></script>
-<script src="financial-publication.js?v=ad454343a20185ab"></script>
+<script src="financial-publication.js?v=de79892b03f508fe"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="./investor-packet.css"/>
 <script src="./investor-packet-core.js"></script>
@@ -1423,7 +1423,7 @@
 </div>
 
 <script src="./atlas_historical_restore_data.js"></script>
-<script src="./atlas-mounts.js?v=03d42d3204252240"></script>
+<script src="./atlas-mounts.js?v=10224c0a4d15f844"></script>
 <script src="./centralization/atlas-central-client.js?v=aaf34ed3eb7a47f1" data-atlas-central-client="true"></script>
 <script src="./atlas-dashboard-reskin.js?v=99ffd40a8970f8ef"></script>
 <script src="./central-services.js?v=20260919-renewal-period-review"></script>
@@ -1650,7 +1650,7 @@ const DATA_IMPORT_REPORT_TYPES = {
     aliases: ["approved accounting", "general ledger", "gl detail", "income statement", "balance sheet", "financial report"],
     patterns: ["gl account", "account code", "debit", "credit", "actual amount", "gross potential rent"],
     dependencies: ["Financial Reporting", "Budget Builder", "Economic Occupancy", "Portfolio Reporting"],
-    primaryFields: ["gl_account", "charge_code", "actual_charges", "scheduled_charges", "gross_potential_rent", "revenue_metric", "expense_metric"]
+    primaryFields: ["gl_account", "monthly_actual", "monthly_budget", "financial_section", "charge_code", "actual_charges", "scheduled_charges", "gross_potential_rent", "revenue_metric", "expense_metric"]
   },
   entrata_vendor_list: {
     label: "Entrata Vendor List",
@@ -1744,6 +1744,9 @@ const DATA_IMPORT_FIELD_ALIASES = {
   phone: ["phone", "phone number", "mobile", "resident phone"],
   charge_code: ["charge code", "transaction code", "gl code", "account code"],
   gl_account: ["gl account", "general ledger account", "account number", "gl code"],
+  monthly_actual: ["monthly actual", "mtd actual", "month actual"],
+  monthly_budget: ["monthly budget", "mtd budget", "month budget"],
+  financial_section: ["financial section", "account section", "section"],
   actual_charges: ["actual charges", "actual charge", "charges", "rent charges"],
   scheduled_charges: ["scheduled charges", "scheduled charge", "scheduled rent"],
   resident_balance: ["resident balance", "balance", "total balance", "amount due"],
@@ -1803,7 +1806,7 @@ const DATA_IMPORT_DESTINATION_GROUPS = [
   },
   {
     label: "Financial / Other",
-    fields: ["market_rent", "net_effective_rent", "avg_market_rent_budgeted", "avg_scheduled_rent", "avg_ner", "charge_code", "gl_account", "actual_charges", "scheduled_charges", "resident_balance", "deposit_held", "post_month", "unpaid_rent", "unpaid_other", "unpaid_deposit", "aging_0_30", "aging_31_60", "aging_61_90", "aging_90_plus", "past_due", "current_due", "credits", "prepayments", "lease_status", "gross_potential_rent", "revenue_metric", "expense_metric", "budget_field", "last_delinquency_note", "last_delinquency_note_date", "notes"]
+    fields: ["market_rent", "net_effective_rent", "avg_market_rent_budgeted", "avg_scheduled_rent", "avg_ner", "charge_code", "gl_account", "monthly_actual", "monthly_budget", "financial_section", "actual_charges", "scheduled_charges", "resident_balance", "deposit_held", "post_month", "unpaid_rent", "unpaid_other", "unpaid_deposit", "aging_0_30", "aging_31_60", "aging_61_90", "aging_90_plus", "past_due", "current_due", "credits", "prepayments", "lease_status", "gross_potential_rent", "revenue_metric", "expense_metric", "budget_field", "last_delinquency_note", "last_delinquency_note_date", "notes"]
   }
 ];
 const DATA_IMPORT_ISSUE_LABELS = {
@@ -5673,7 +5676,7 @@ function openAtlasStateDb() {
 
 async function withAtlasStateStore(mode, action) {
   const db = await openAtlasStateDb();
-  if (!db) return null;
+  if (!db) { if(mode === "readwrite")throw new Error("Canonical ATLAS storage is unavailable."); return null; }
   return await new Promise((resolve, reject) => {
     const tx = db.transaction(ATLAS_STATE_STORE_NAME, mode);
     const store = tx.objectStore(ATLAS_STATE_STORE_NAME);
@@ -5681,6 +5684,7 @@ async function withAtlasStateStore(mode, action) {
     try {
       request = action(store);
     } catch (error) {
+      tx.abort();
       reject(error);
       return;
     }
@@ -9363,24 +9367,125 @@ function getVerifiedMonthlySnapshot(entry = {}, key = "occupiedSnapshot") {
   return entry.snapshotVerified === true || (provenance?.source && provenance?.period) || sourceReconciles ? value : null;
 }
 
-function getMonthsToStabilization() {
-  const totalUnits = getTotalUnits();
-  if (totalUnits === 0) return { months: null, targetUnits: 0, avgNetAbsorption: 0, reason: "Enter unit count" };
-  const targetUnits = Math.ceil(getReportedOccupancyBaseUnits(monthlyData[currentMonth], totalUnits, corporateLeaseUnits) * 0.95);
-  const verifiedOccupied = getVerifiedMonthlySnapshot(monthlyData[currentMonth]);
-  if (verifiedOccupied === null) return { months: null, targetUnits, avgNetAbsorption: 0, reason: "Verified current occupancy snapshot required" };
-  const unitsNeeded = Math.max(targetUnits - getComparableOccupancyUnits(verifiedOccupied, corporateLeaseUnits), 0);
-  if (unitsNeeded === 0) return { months: 0, targetUnits, avgNetAbsorption: 0, reason: "At or above 95%" };
-  const documented = getDocumentedMonthlyAbsorption(currentMonth);
-  if (documented.length === 0) return { months: null, targetUnits, avgNetAbsorption: 0, reason: "No documented move-in / move-out history yet" };
-  const avgNetAbsorption = documented.reduce((sum, v) => sum + v, 0) / documented.length;
-  if (avgNetAbsorption <= 0) return { months: null, targetUnits, avgNetAbsorption, reason: `Documented net absorption is flat or negative across ${documented.length} month(s)` };
-  return {
-    months: Math.ceil(unitsNeeded / avgNetAbsorption),
-    targetUnits,
-    avgNetAbsorption,
-    reason: `${unitsNeeded} units to 95% using ${documented.length} documented month(s)`
-  };
+// Read observations only: never infer history from the current snapshot or a plan.
+function getObservedOccupancyPeriod(record, monthIdx, year) {
+  const periodKey = buildPeriodKey(monthIdx, year);
+  return record?.monthlyHistoryByPeriod?.[periodKey]
+    || (Number(record?.reportYear) === Number(year) ? record?.monthlyData?.[monthIdx] : null)
+    || null;
+}
+
+function occupancyOptionalNumber(value) {
+  return value === null || value === undefined || String(value).trim() === "" || typeof value === "boolean"
+    ? null : (Number.isFinite(Number(value)) ? Number(value) : null);
+}
+
+function getObservedOccupiedSnapshot(record, totalUnits, monthIdx, year, propName = "") {
+  const entry = getObservedOccupancyPeriod(record, monthIdx, year);
+  const occupied = occupancyOptionalNumber(entry?.occupiedSnapshot);
+  if (occupied === null || occupied < 0 || !Number.isInteger(occupied)) return null;
+  const total = occupancyOptionalNumber(entry?.sourceTotalUnits);
+  const rentable = occupancyOptionalNumber(entry?.rentableUnits);
+  // A different inventory basis must be reconciled before comparing counts.
+  if (total !== null && total !== Number(totalUnits)) return null;
+  if (rentable !== null && (rentable <= 0 || total === null || rentable > total)) return null;
+  const rawBase = rentable ?? Number(totalUnits);
+  if (!(rawBase > 0) || occupied > rawBase) return null;
+  const pct = occupancyOptionalNumber(entry?.physicalOccupancyPct);
+  if (pct !== null && (pct < 0 || pct > 100 || Math.abs(occupied / rawBase * 100 - pct) > 0.11)) return null;
+  const lineage = typeof dataImport2State === "object" ? dataImport2State.lineage || [] : [];
+  const documentedZero = lineage.some(item => item.currentState && item.communityName === propName
+    && item.periodKey === buildPeriodKey(monthIdx, year) && item.atlasField === "occupied_units"
+    && occupancyOptionalNumber(item.importedValue) === 0);
+  // Legacy defaults are zero. Only source-backed zeros are observations.
+  if (occupied === 0 && !(pct === 0 && rentable !== null) && !documentedZero) return null;
+  const corporate = getCorporateLeaseUnitsForRecord(record, totalUnits);
+  const baseUnits = getOccupancyBaseUnits(rawBase, corporate);
+  if (baseUnits <= 0 || corporate > occupied) return null;
+  const units = getComparableOccupancyUnits(occupied, corporate);
+  return { units, baseUnits, pct: units / baseUnits * 100, entry, rawUnits: occupied };
+}
+
+function getReconciledStabilizationInputs(record, totalUnits, monthIdx, year, propName) {
+  const baseline = getObservedOccupiedSnapshot(record, totalUnits, monthIdx, year, propName);
+  const missing = reason => ({ baseline, documented: [], verified: false, reason });
+  if (!baseline) return missing("Occupancy baseline is missing or requires reconciliation");
+  const lineage = typeof dataImport2State === "object" ? dataImport2State.lineage || [] : [];
+  const current = (idx, field, value) => lineage.find(item => item.currentState && item.communityName === propName
+    && item.periodKey === buildPeriodKey(idx, year) && item.atlasField === field
+    && occupancyOptionalNumber(item.importedValue) === value && item.fileHash && Number.isFinite(Date.parse(item.dataAsOf)));
+  const occupiedSource = current(monthIdx, "occupied_units", baseline.rawUnits);
+  const canonical = typeof dataImport2State === "object" ? dataImport2State.canonicalRecords || [] : [];
+  // Require the independent source percentage, not a percentage derived during import.
+  const source = occupiedSource && canonical.find(item => item.communityName === propName
+    && item.periodKey === buildPeriodKey(monthIdx, year) && item.reportType === "box_score"
+    && item.fileHash === occupiedSource.fileHash && item.dataAsOf === occupiedSource.dataAsOf
+    && occupancyOptionalNumber(item.values?.occupied_units) === baseline.rawUnits
+    && occupancyOptionalNumber(item.values?.total_units) === Number(totalUnits)
+    && occupancyOptionalNumber(item.values?.rentable_units) === occupancyOptionalNumber(baseline.entry.rentableUnits)
+    && dataImportPercentValue(item.values?.physical_occupancy) !== null
+    && Math.abs(dataImportPercentValue(item.values.physical_occupancy) - baseline.rawUnits / Number(baseline.entry.rentableUnits) * 100) <= 0.11);
+  if (!source || String(source.sectionPeriod?.asOf || source.dataAsOf).slice(0, 7) !== buildPeriodKey(monthIdx, year)) {
+    return missing("Reconcile the period occupancy count, rentable inventory and independent source percentage");
+  }
+  // Use every completed month from January; partial current-month activity is not
+  // a monthly rate, and missing/default zero activity is not a documented zero.
+  const documented = [];
+  for (let idx = 0; idx < monthIdx; idx += 1) {
+    const entry = getObservedOccupancyPeriod(record, idx, year);
+    const moveIns = occupancyOptionalNumber(entry?.moveIns);
+    const moveOuts = occupancyOptionalNumber(entry?.moveOuts);
+    const incoming = current(idx, "move_ins", moveIns);
+    const outgoing = current(idx, "move_outs", moveOuts);
+    const lastDay = new Date(Date.UTC(year, idx + 1, 0)).toISOString().slice(0, 10);
+    if (moveIns === null || moveOuts === null || moveIns < 0 || moveOuts < 0
+      || !Number.isInteger(moveIns) || !Number.isInteger(moveOuts) || !incoming || !outgoing
+      || incoming.fileHash !== outgoing.fileHash || incoming.dataAsOf !== outgoing.dataAsOf
+      || String(incoming.dataAsOf).slice(0, 10) < lastDay) {
+      return missing("Complete, source-dated move-in and move-out history is required for every closed month");
+    }
+    const sameSource = item => item.communityName === propName
+      && item.periodKey === buildPeriodKey(idx, year) && item.reportType === "box_score"
+      && item.fileHash === incoming.fileHash && item.dataAsOf === incoming.dataAsOf;
+    const activitySource = canonical.find(item => sameSource(item)
+      && occupancyOptionalNumber(item.values?.move_ins) === moveIns
+      && occupancyOptionalNumber(item.values?.move_outs) === moveOuts
+      && (item.sectionPeriod
+        ? item.sectionPeriod.start === buildPeriodKey(idx,year)+"-01" && item.sectionPeriod.end === lastDay
+        : String(item.dataAsOf).slice(0,10) === lastDay));
+    // Availability and Property Pulse are different canonical rows in Entrata.
+    // Join them by community, period, source hash and as-of, not by row index.
+    const inventorySource = canonical.find(item => sameSource(item)
+      && occupancyOptionalNumber(item.values?.total_units) === Number(totalUnits)
+      && occupancyOptionalNumber(item.values?.rentable_units) === Number(baseline.entry.rentableUnits)
+      && item.values?.measurement_basis === source.values?.measurement_basis
+      && String(item.sectionPeriod?.asOf || item.dataAsOf).slice(0,10) === lastDay);
+    if (!activitySource || !inventorySource) return missing("Reconcile the full absorption series to source rows on the same inventory basis");
+    documented.push(moveIns - moveOuts);
+  }
+  return { baseline, documented, verified: true, reason: "" };
+}
+
+function calculateReconciledStabilization(inputs) {
+  const targetUnits = inputs.baseline ? Math.ceil(inputs.baseline.baseUnits * 0.95) : 0;
+  const result = { months: null, targetUnits, avgNetAbsorption: 0, verified: inputs.verified, reason: inputs.reason };
+  if (!inputs.verified) return result;
+  const unitsNeeded = Math.max(targetUnits - inputs.baseline.units, 0);
+  if (unitsNeeded === 0) return { ...result, months: 0, reason: "At or above 95% on the reconciled source date" };
+  if (!inputs.documented.length) return { ...result, reason: "No complete documented months available" };
+  const avgNetAbsorption = inputs.documented.reduce((sum, value) => sum + value, 0) / inputs.documented.length;
+  if (avgNetAbsorption <= 0) return { ...result, avgNetAbsorption, reason: "Documented net absorption is flat or negative" };
+  return { ...result, months: Math.ceil(unitsNeeded / avgNetAbsorption), avgNetAbsorption,
+    reason: `${unitsNeeded} units to 95% using ${inputs.documented.length} complete months, including zero activity` };
+}
+
+function getMonthsToStabilization(context = null) {
+  const record = context?.record || getCurrentCommunityRecord();
+  const totalUnits = context?.totalUnits ?? getTotalUnits();
+  const monthIdx = context?.monthIdx ?? currentMonth;
+  const year = context?.year ?? record.reportYear;
+  const propName = context?.propName || getProp().name;
+  return calculateReconciledStabilization(getReconciledStabilizationInputs(record, totalUnits, monthIdx, year, propName));
 }
 
 function getCommissionAgents(useSharedAssignments = true) {
@@ -9848,6 +9953,7 @@ function normalizeSavedCommunityRecord(propName, data) {
     importTracking: normalizeImportTracking(input.importTracking),
     financialPublicationHistory: Array.isArray(input.financialPublicationHistory) ? input.financialPublicationHistory : [],
     closedFinancialHistory: Array.isArray(input.closedFinancialHistory) ? input.closedFinancialHistory : [],
+    financialPublications: (input.financialPublications && typeof input.financialPublications === "object") ? input.financialPublications : {},
     financialLedger: (input.financialLedger && typeof input.financialLedger === "object") ? input.financialLedger : {},
     financialUpdatedAt: String(input.financialUpdatedAt ?? ""),
     financialBudgetLedger: (input.financialBudgetLedger && typeof input.financialBudgetLedger === "object") ? input.financialBudgetLedger : {},
@@ -10105,15 +10211,43 @@ window.addEventListener("storage", async event => {
 
 function persistSaved() {
   const serialized = buildSerializedSavedDataPayload();
-  queueAtlasStateWrite(async () => {
-    await atlasStateSetValue(ATLAS_STATE_COMMUNITY_KEY, serialized);
-    removeLegacyCommunityStorageKeys();
+  const result = { ok: true, pending: true, completion: null, message: "" };
+  result.completion = queueAtlasStateWrite(async () => {
+    try {
+      await atlasStateSetValue(ATLAS_STATE_COMMUNITY_KEY, serialized);
+      removeLegacyCommunityStorageKeys();
+      result.pending = false;
+    } catch (error) {
+      result.ok = false; result.pending = false; result.message = error.message;
+      throw error;
+    }
   }, "community_data");
   dashboardSharedSyncMeta.lastAppliedAt = new Date().toISOString();
   dashboardSharedSyncMeta.lastError = "";
   persistDashboardSharedSyncMeta();
-  return { ok: true, message: "" };
+  return result;
 }
+
+if (typeof BroadcastChannel !== "undefined") {
+  const financialPublicationChannel = new BroadcastChannel("atlas-financial-publication");
+  financialPublicationChannel.onmessage = async event => {
+    const name=String(event.data?.communityName||"");
+    if(!name||!savedData?.[name])return;
+    try {
+      const stored=await atlasStateGetValue(ATLAS_STATE_COMMUNITY_KEY);
+      const incoming=stored?.[name];if(!incoming)return;
+      for(const field of ["financialLedger","financialBudgetLedger","financialUpdatedAt","financialBudgetUpdatedAt","financialPublications"]){
+        if(incoming[field]!==undefined)savedData[name][field]=incoming[field];
+      }
+      if(getProp()?.name===name){
+        financialLedger=savedData[name].financialLedger;financialBudgetLedger=savedData[name].financialBudgetLedger;
+        financialUpdatedAt=savedData[name].financialUpdatedAt;financialBudgetUpdatedAt=savedData[name].financialBudgetUpdatedAt;
+      }
+      renderTab();
+    }catch(error){markAtlasPersistenceError(error,"The committed financial upload could not be refreshed in this tab.");}
+  };
+}
+
 function buildDailyBackupDateKey(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -24528,6 +24662,7 @@ function renderCommunityCommandLeasingPlan(model) {
     <div class="community-command-mini"><strong>${weekly.length ? weekly.map(week => `${week.applicationGoal}/${week.grossLeaseGoal}/${week.netLeaseGoal}`).join(" · ") : "Pending approval"}</strong><span>Weekly applications / gross / net, in week order</span></div>
   </div>
   <div class="community-command-note" style="margin-bottom:10px">Budget requires ${Math.round(currentRow.netLeaseGoal || 0)} additional net leases this month. Based on move-out exposure, renewal risk, conversion assumptions, seasonality, and trailing leasing velocity, ATLAS recommends ${Math.round(currentRow.recommendedGrossLeases || 0)} gross leases and ${Math.round(currentRow.recommendedApps || 0)} applications for ${escapeHtml(model.monthLabel)}.</div>
+  <div class="community-command-note">Beginning occupancy requires a dated opening snapshot or the preceding verified month-end. Forecasts and actuals remain separate; missing observations remain Missing.</div>
   <div class="community-command-scroll">
     <table class="community-command-plan-table">
       <thead><tr><th>Month</th><th>Beginning Occ</th><th>Budget Occ</th><th>Forecast / Trend</th><th>Move-Outs</th><th>Renewal Exposure</th><th>Required Move-Ins</th><th>ATLAS App Goal</th><th>Approved App Goal</th><th>ATLAS Lease Goal</th><th>Approved Lease Goal</th><th>Actual Apps</th><th>Actual Gross Leases</th><th>Net Goal</th><th>Actual Net</th><th>Ending Forecast</th><th>Variance</th><th>Status</th><th></th></tr></thead>
@@ -24565,42 +24700,20 @@ function renderCommunityCommandLeasingPlan(model) {
 }
 
 function renderCommunityCommandStabilization(model) {
-  const activeName = getProp().name;
-  const priorGlobals = { currentOccupied, currentLeased, currentMonth, monthlyData, corporateLeaseUnits, savedBudgetTargets, seasonal };
-  let stabilization = null;
-  try {
-    currentOccupied = model.occupied;
-    currentLeased = model.leased;
-    currentMonth = model.monthIdx;
-    monthlyData = model.monthlyData;
-    corporateLeaseUnits = model.corporateUnits;
-    savedBudgetTargets = model.record.savedBudgetTargets;
-    seasonal = model.record.seasonal;
-    stabilization = getMonthsToStabilization();
-  } finally {
-    currentOccupied = priorGlobals.currentOccupied;
-    currentLeased = priorGlobals.currentLeased;
-    currentMonth = priorGlobals.currentMonth;
-    monthlyData = priorGlobals.monthlyData;
-    corporateLeaseUnits = priorGlobals.corporateLeaseUnits;
-    savedBudgetTargets = priorGlobals.savedBudgetTargets;
-    seasonal = priorGlobals.seasonal;
-  }
-  const months = stabilization?.months;
-  const estimateDate = hasDlrDisplayMetricValue(months) && Number(months) >= 0
-    ? new Date(model.year, model.monthIdx + Number(months), 1)
-    : null;
-  const confidence = model.traffic.guestCards > 0 && model.appMetrics.applications > 0 && model.renewal.expirations > 0 ? "Higher" : "Range";
+  const stabilization = getMonthsToStabilization(model);
+  const months = stabilization.months;
+  const estimateDate = months !== null && months !== undefined && Number.isFinite(months)
+    ? new Date(model.year, model.monthIdx + months, 1) : null;
+  const confidence = estimateDate ? "Simple projection" : "Unverified";
   const bodyHtml = `<div class="community-command-grid-3">
     <div class="community-command-kpi" data-tone="info"><div class="community-command-label">Estimated Stabilization Date</div><div class="community-command-value">${estimateDate ? escapeHtml(estimateDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })) : "Range Needed"}</div><div class="community-command-kpi-sub">${escapeHtml(stabilization?.reason || "More source history is needed before ATLAS should show a precise month.")}</div></div>
     <div class="community-command-kpi" data-tone="${months === 0 ? "good" : "watch"}"><div class="community-command-label">Months Remaining</div><div class="community-command-value">${months === null || months === undefined ? "Missing" : Math.round(months)}</div><div class="community-command-kpi-sub">Target ${Math.round(stabilization?.targetUnits || 0)} occupied units at 95% physical occupancy.</div></div>
-    <div class="community-command-kpi" data-tone="${confidence === "Higher" ? "good" : "watch"}"><div class="community-command-label">Confidence</div><div class="community-command-value">${escapeHtml(confidence)}</div><div class="community-command-kpi-sub">Based on source freshness, leasing velocity, renewal exposure, and documented net absorption.</div></div>
+    <div class="community-command-kpi" data-tone="watch"><div class="community-command-label">Confidence</div><div class="community-command-value">${escapeHtml(confidence)}</div><div class="community-command-kpi-sub">Uses reconciled occupied inventory and average net absorption across complete documented months. Future leasing conditions may change.</div></div>
   </div>`;
-  if (activeName !== model.propName) {}
   return renderWindowshadeCard({
     key: "community_command_stabilization",
     title: "Stabilization Forecast",
-    subtitle: "Estimated path to 95% using current occupancy, leased position, trend, renewal exposure, and leasing velocity.",
+    subtitle: "Simple projection to 95% from reconciled occupancy and completed-month move-ins minus move-outs.",
     countLabel: months === null || months === undefined ? "Range needed" : `${Math.round(months)} months`,
     bodyHtml,
     collapsedPreview: stabilization?.reason || "Stabilization estimate pending."
@@ -32862,7 +32975,8 @@ function getFinancialBudgetLedgerRowsForMonth(record = {}, selectedMonth = getSe
 
 function summarizeFinancialLedgerRows(rows = [], budgetRows = []) {
   const summary = {
-    hasData: (Array.isArray(rows) ? rows : []).some(row => { const value = row.actual ?? row.yAct; return value !== null && value !== undefined && String(value).trim() !== "" && Number.isFinite(Number(value)); }),
+    hasData: false,
+    hasBudgetData: false,
     revenueActual: 0,
     revenueBudget: 0,
     expenseActual: 0,
@@ -32874,17 +32988,25 @@ function summarizeFinancialLedgerRows(rows = [], budgetRows = []) {
     expenseVariance: 0,
     revenueVariance: 0
   };
+  const monthlyValue = (row, field) => Object.hasOwn(row, field === "actual" ? "monthlyActual" : "monthlyBudget") ? row[field === "actual" ? "monthlyActual" : "monthlyBudget"] : row[field];
   const budgetIndex = {};
   (Array.isArray(budgetRows) ? budgetRows : []).forEach((row) => {
     const glCode = String(row?.glCode ?? row?.gl ?? "").trim();
     if (!glCode) return;
     budgetIndex[glCode] = {
-      budget: Number(row?.budget ?? row?.yBud ?? 0) || 0,
+      budget: monthlyValue(row,"budget"),
       annualBudget: Number(row?.annualBudget ?? row?.annBud ?? 0) || 0,
       section: String(row?.section ?? ""), nature: row?.nature
     };
   });
   const actualRows = Array.isArray(rows) ? rows : [];
+  const numeric = value => value == null || typeof value === "boolean" || String(value).trim() === "" ? null : Number.isFinite(Number(value)) ? Number(value) : null;
+  const codes = actualRows.map(row=>String(row.glCode??row.gl??""));
+  const budgetCodes = (budgetRows||[]).map(row=>String(row.glCode??row.gl??""));
+  if(new Set(codes).size!==codes.length || new Set(budgetCodes).size!==budgetCodes.length)return summary;
+  summary.hasData = actualRows.length > 0 && actualRows.every(row=>numeric(monthlyValue(row,"actual"))!==null);
+  summary.hasBudgetData = (budgetRows.length > 0 && budgetRows.every(row=>numeric(monthlyValue(row,"budget"))!==null))
+    || (actualRows.length > 0 && actualRows.every(row=>numeric(monthlyValue(row,"budget"))!==null));
   const actualCodes = new Set(actualRows.map(row => String(row?.glCode ?? row?.gl ?? "").trim()));
   const combined = actualRows.concat((budgetRows || []).filter(row => !actualCodes.has(String(row?.glCode ?? row?.gl ?? "").trim())).map(row => ({...row, actual: 0})));
   combined.forEach((row) => {
@@ -32893,14 +33015,13 @@ function summarizeFinancialLedgerRows(rows = [], budgetRows = []) {
     const sectionLabel = String(budgetIndex[rawGlCode]?.section || row?.section || "").toLowerCase();
     const nature = budgetIndex[rawGlCode]?.nature || row?.nature;
     if (["capital", "debt", "below_noi"].includes(nature)) return;
-    const actual = Number(row?.actual ?? row?.yAct ?? 0) || 0;
+    const actual = numeric(monthlyValue(row,"actual")) ?? 0;
     const budgetFallback = budgetIndex[rawGlCode]?.budget;
     const annualBudgetFallback = budgetIndex[rawGlCode]?.annualBudget;
-    const budget = Number(budgetFallback ?? row?.budget ?? row?.yBud ?? 0) || 0;
+    const budget = numeric(budgetFallback ?? monthlyValue(row,"budget")) ?? 0;
     const annualBudget = Number(annualBudgetFallback ?? row?.annualBudget ?? row?.annBud ?? 0) || 0;
     const isIncome = nature ? ["income", "contra_income"].includes(nature) : sectionLabel.includes("income") || sectionLabel.includes("cost of leasing") || (Number.isFinite(glCode) && glCode > 0 && glCode < 6000);
     if (!actual && !budget && !annualBudget) return;
-    summary.hasData = actualRows.length > 0;
     summary.annualBudget += annualBudget;
     if (isIncome) {
       summary.revenueActual += actual;
@@ -32912,9 +33033,9 @@ function summarizeFinancialLedgerRows(rows = [], budgetRows = []) {
   });
   summary.noiActual = summary.revenueActual - summary.expenseActual;
   summary.noiBudget = summary.revenueBudget - summary.expenseBudget;
-  summary.noiVariance = summary.noiActual - summary.noiBudget;
-  summary.expenseVariance = summary.expenseActual - summary.expenseBudget;
-  summary.revenueVariance = summary.revenueActual - summary.revenueBudget;
+  summary.noiVariance = summary.hasData && summary.hasBudgetData ? summary.noiActual - summary.noiBudget : null;
+  summary.expenseVariance = summary.hasData && summary.hasBudgetData ? summary.expenseActual - summary.expenseBudget : null;
+  summary.revenueVariance = summary.hasData && summary.hasBudgetData ? summary.revenueActual - summary.revenueBudget : null;
   return summary;
 }
 
@@ -36011,6 +36132,11 @@ function applyValueToRecord(record, monthIdx, targetKey, numericValue, year = nu
   if (targetKey === "market_rent") { assignValue("marketRent", numericValue); return true; }
   if (targetKey === "budget_rent") { assignValue("proformaRent", numericValue); return true; }
   if (targetKey === "budget_ner") { assignValue("proformaNER", numericValue); return true; }
+  const inventoryFields = { rentable_units:"rentableUnits", total_units:"sourceTotalUnits", physical_occupancy:"physicalOccupancyPct", leased_occupancy:"leasedOccupancyPct", source_leased_units:"sourceLeasedUnits", available_units:"exposureUnits" };
+  if (inventoryFields[targetKey]) { assignValue(inventoryFields[targetKey], numericValue); return true; }
+  if (targetKey === "actual_charges") { assignValue("actualCharges", numericValue); return true; }
+  if (targetKey === "gross_potential_rent") { assignValue("grossPotentialRent", numericValue); return true; }
+  if (targetKey === "scheduled_charges") { assignValue("scheduledCharges", numericValue); return true; }
   if (targetKey === "rent_roll_total") { assignValue("rentRollTotal", numericValue); return true; }
   if (targetKey === "concessions") { assignValue("concessions", numericValue); return true; }
   if (targetKey === "ner") { assignValue("nerActual", numericValue); return true; }
@@ -45188,27 +45314,12 @@ function buildCommunityProgressTrendRows(report) {
 }
 
 function buildCommunityProgressStabilization(report) {
-  const record = report?.sourceRecord;
-  const totalUnits = Math.max(0, Number(report?.totalUnits) || 0);
-  const month = report?.reportMonthIdx;
-  const entries = record ? getRecordMonthlyDataForYear(record, report.reportYear) : [];
-  const entry = entries[month] || {};
-  const corporateUnits = normalizeCorporateLeaseUnits(record?.corporateLeaseUnits, totalUnits);
-  const targetUnits = Math.ceil(getReportedOccupancyBaseUnits(entry, totalUnits, corporateUnits) * 0.95);
-  const rawOccupied = getVerifiedMonthlySnapshot(entry);
-  const occupied = rawOccupied === null ? null : getComparableOccupancyUnits(rawOccupied, corporateUnits);
-  if (occupied === null) return { months: null, targetUnits, avgNetAbsorption: 0, reason: "Verified current occupancy snapshot required" };
-  const needed = Math.max(0, targetUnits - occupied);
-  if (!needed) return { months: 0, targetUnits, avgNetAbsorption: 0, reason: "At or above 95%" };
-  const values = [];
-  for (let i = 1; i <= month; i++) {
-    const before = getVerifiedMonthlySnapshot(entries[i - 1]);
-    const after = getVerifiedMonthlySnapshot(entries[i]);
-    if (before !== null && after !== null) values.push(after - before);
+  if (!report?.sourceRecord || Number(report.communityCount || 1) !== 1) {
+    return { months: null, targetUnits: 0, avgNetAbsorption: 0, verified: false,
+      reason: "Community-level source reconciliation is required before projecting portfolio stabilization" };
   }
-  const avgNetAbsorption = values.length ? values.reduce((a,b) => a+b, 0) / values.length : 0;
-  return { months: avgNetAbsorption > 0 ? Math.ceil(needed / avgNetAbsorption) : null, targetUnits, avgNetAbsorption,
-    reason: values.length ? `Based on ${values.length} adjacent verified monthly snapshots` : "Verified monthly occupancy history required" };
+  return getMonthsToStabilization({ record: report.sourceRecord, totalUnits: report.totalUnits,
+    monthIdx: report.reportMonthIdx, year: report.reportYear, propName: report.communityName });
 }
 
 function buildCommunityProgressHistoricalApplicationsWeeklyTrend(report) {
@@ -48417,6 +48528,36 @@ function persistDataImport2State() {
   }, "data_import_2_state");
 }
 
+async function persistDataImportPublication() {
+  const communitySnapshot=buildSerializedSavedDataPayload();
+  const importSnapshot=serializeDataImport2State();
+  const {mergeHistory}=await import("./features/import-history-store.mjs");
+  if(!await openAtlasStateDb())throw new Error("Canonical ATLAS storage is unavailable.");
+  let failure=null;
+  await queueAtlasStateWrite(async()=>{
+    try {
+      await withAtlasStateStore("readwrite",store=>{
+        const communityRequest=store.get(ATLAS_STATE_COMMUNITY_KEY);
+        communityRequest.onsuccess=()=>{
+          try {
+            const protect=window.AtlasOccupancyReplay?.protectCommittedOccupancy;
+            const value=protect ? protect(communitySnapshot,communityRequest.result?.value) : communitySnapshot;
+            store.put({key:ATLAS_STATE_COMMUNITY_KEY,value,updatedAt:new Date().toISOString()});
+          } catch(error){failure=error;store.transaction.abort();}
+        };
+        const request=store.get(DATA_IMPORT_2_STATE_KEY);
+        request.onsuccess=()=>{
+          try { store.put({key:DATA_IMPORT_2_STATE_KEY,value:mergeHistory(importSnapshot,request.result?.value),updatedAt:new Date().toISOString()}); }
+          catch(error){failure=error;store.transaction.abort();}
+        };
+        return request;
+      });
+      removeLegacyCommunityStorageKeys();
+    }catch(error){failure ||= error;throw failure;}
+  },"community_and_import_publication");
+  if(failure)throw failure;
+}
+
 function setDataImport2View(view) {
   dataImport2State.activeView = ["overview","upload","health","exceptions","mapping","aliases","history","archive"].includes(view) ? view : "overview";
   persistDataImport2State();
@@ -49869,7 +50010,7 @@ function dataImportMapSourceRow(sourceRow = {}, plan = {}, mappingCache = null) 
     const mapped = {}, sourceFields = {}, unmappedFields = [];
     for (const [field,value] of Object.entries(sourceRow.values || {})) {
       const loc = sourceRow.locators?.[field];
-      const qualified = loc ? `${sourceRow.sourceSheet} / ${loc.section}${loc.group ? " / " + loc.group : ""} / ${loc.sourceHeader}` : field;
+      const qualified = loc ? `${sourceRow.sourceSheet} / ${loc.section}${loc.group ? " / " + loc.group : ""} / ${loc.sourceHeader}${loc.columnRole ? " / " + loc.columnRole : ""}` : field;
       const decision = (plan.questionAnswers || []).find(answer => answer.kind === "mapping" && [field, qualified].some(key => dataImportNormalizeText(key) === dataImportNormalizeText(answer.originalField || "")));
       if (["__ignore_import__", "__always_ignore__", "__ignored__"].includes(decision?.value)) continue;
       const ambiguousDecision = !decision && loc && (plan.questionAnswers || []).find(answer => answer.kind === "mapping" && dataImportNormalizeText(answer.originalField || "") === dataImportNormalizeText(loc.sourceHeader));
@@ -50350,7 +50491,7 @@ function dataImportValidateOccupancyCounts(values = {}, configuredUnits = 0) {
 
 function dataImportApplyGroupedSnapshot(group, plan, result) {
   const { communityName, period, entries } = group;
-  const record = normalizeSavedCommunityRecord(communityName, savedData?.[communityName]);
+  let record = normalizeSavedCommunityRecord(communityName, savedData?.[communityName]);
   const rows = entries.map(entry => entry.row);
   const hasFloorPlanRows = rows.some(row => row.floorplan_code || row.floorplan);
   const sum = field => {
@@ -50366,7 +50507,7 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     const occupied = sum("occupied_units") ?? (occupiedComponents.every(value => value !== null) ? occupiedComponents.reduce((a, b) => a + b, 0) : null);
     const total = sum("total_units");
     const sourceTime = plan.metadata?.dataAsOf || plan.dataDateIso || plan.metadata?.generatedAt || "";
-    const acceptDerived = dataImportShouldApplyCurrentMetric(plan, communityName, period.periodKey, "occupied_units", sourceTime, result) && dataImportShouldApplyCurrentMetric(plan, communityName, period.periodKey, "leased_units", sourceTime, result);
+    let acceptDerived = true;
     const directoryRecord = (window.ATLAS_CENTRAL?.getStoredProfile?.()?.community_access_records || []).find(item =>
       [item.display_name, item.canonical_name].some(name => String(name || "").trim().toLowerCase() === communityName.trim().toLowerCase()));
     const propertyType = directoryRecord?.property_type || record.communityPropertyType || record.propertyType || "";
@@ -50396,11 +50537,14 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     if (rentable !== null && occupied !== null && (occupied < 0 || occupied > rentable)) result.issues.push({ type: "reconciliation", severity: "high", title: "Occupied units do not reconcile", detail: `${occupied} occupied exceeds ${rentable} rentable units.`, communityName });
     if (total !== null && configuredUnits > 0 && Math.abs(total - configuredUnits) > 0) result.issues.push({ type: "reconciliation", severity: "medium", title: "Unit total needs review", detail: `${total} source total units do not match the ${configuredUnits}-unit Community Foundation record.`, communityName });
     if (physicalPct !== null && (physicalPct < 0 || physicalPct > 100)) result.issues.push({ type: "invalid", severity: "high", title: "Physical occupancy outside 0-100%", detail: `${physicalPct}% was retained for review.`, communityName });
-    // Publish the counts and their denominator together. Rounded percentages are
-    // reconciliation evidence, never a substitute for a missing source count.
-    if (!occupancyHeld && acceptDerived) {
-      dataImportApplyMetric(record, plan, result, communityName, period, "occupied", occupied, "occupied_units");
-      if (leased !== null) dataImportApplyMetric(record, plan, result, communityName, period, "leased", leased, "leased_units");
+    const occupancyMetrics = [["occupied","occupied_units",occupied],["leased","leased_units",leased],
+      ["rentable_units","rentable_units",rentable],["total_units","total_units",total],
+      ["physical_occupancy","physical_occupancy",physicalPct],["leased_occupancy","leased_occupancy",leasedPct],
+      ["source_leased_units","source_leased_units",sourceLeased],["available_units","available_units",available]];
+    acceptDerived = !occupancyHeld && occupancyMetrics.filter(([, , value]) => value !== null)
+      .every(([, field]) => dataImportShouldApplyCurrentMetric(plan, communityName, period.periodKey, field, sourceTime, result));
+    if (acceptDerived) for (const [target, field, value] of occupancyMetrics) {
+      dataImportApplyMetric(record, plan, result, communityName, period, target, value, field);
     }
     dataImportApplyMetric(record, plan, result, communityName, period, "guest_cards", sum("new_leads") ?? sum("guest_cards"), "new_leads");
     dataImportApplyMetric(record, plan, result, communityName, period, "applications", sum("applications"), "applications");
@@ -50503,36 +50647,35 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     result.destinations.add("Occupancy Trend");
     result.destinations.add("Exposure Forecast");
   } else if (plan.reportType === "rent_roll" || plan.reportType === "approved_accounting") {
-    const sourceTime = plan.metadata?.dataAsOf || plan.dataDateIso || plan.metadata?.generatedAt || "";
-    if (!dataImportShouldApplyCurrentMetric(plan, communityName, period.periodKey, "scheduled_charges", sourceTime, result)) return;
-    const scheduled = sum("scheduled_charges");
-    const actual = sum("actual_charges");
-    const gpr = sum("gross_potential_rent");
-    dataImportApplyMetric(record, plan, result, communityName, period, "rent_roll_total", scheduled ?? actual, "scheduled_charges");
+    // Financial detail is additive even without floor-plan columns. A partially
+    // populated metric is incomplete, not a lower total or a measured zero.
+    const completeSum = field => {
+      const values = rows.map(row => dataImportNumericValue(row[field]));
+      return values.length && values.every(value => value !== null) ? values.reduce((a,b) => a+b,0) : null;
+    };
+    const scheduled = completeSum("scheduled_charges");
+    const actual = completeSum("actual_charges");
+    const gpr = completeSum("gross_potential_rent");
+    for (const [field, value] of [["scheduled_charges",scheduled],["actual_charges",actual],["gross_potential_rent",gpr]]) {
+      dataImportApplyMetric(record, plan, result, communityName, period, field, value, field);
+    }
+    dataImportApplyMetric(record, plan, result, communityName, period, "rent_roll_total", scheduled ?? actual, scheduled !== null ? "scheduled_charges" : "actual_charges");
     const periodEntries = getWritableMonthlyPeriodEntries(record, period.monthIdx, period.year);
     [periodEntries?.historyEntry, periodEntries?.liveEntry].filter(Boolean).forEach(month => {
-      if (scheduled !== null) month.scheduledCharges = scheduled;
-      month.actualCharges = actual;
-      month.grossPotentialRent = gpr;
-      month.financialSource = `${plan.name} · ${period.periodKey}`;
-      month.financialPeriod = period.periodKey;
-      month.actualRevenueCoverage = String(first("actual_revenue_coverage") || "").trim();
-      month.grossPotentialRentCoverage = String(first("gpr_coverage") || "").trim();
       month.economicOccupancyPct = getCommunityCommandEconomicOccupancyData(record, period.monthIdx, period.year).mtdPct;
     });
-    if (plan.reportType === "approved_accounting") {
-      const ledgerRows = rows.flatMap(row => {
-        const actual = dataImportNumericValue(row.actual_charges);
-        const revenue = dataImportNumericValue(row.revenue_metric);
-        const expense = dataImportNumericValue(row.expense_metric);
-        const budget = dataImportNumericValue(row.budget_field);
-        if (row.gl_account && actual !== null) return [{ glCode: String(row.gl_account), lineItem: String(row.charge_code || row.gl_account), actual, budget }];
-        return [revenue !== null ? { section: "Operating Income", lineItem: "Reported income", actual: revenue, budget: expense === null ? budget : null } : null,
-          expense !== null ? { section: "Operating Expense", lineItem: "Reported expense", actual: expense, budget: revenue === null ? budget : null } : null].filter(Boolean);
-      });
-      if (ledgerRows.length) Object.assign(record, window.AtlasFinancialPublication.apply(record, { period: period.periodKey, rows: ledgerRows, source: plan.name, kind: "actuals", mode: "replace" }));
-    }
     result.formulas.push(`${communityName} ${period.periodKey}: Economic Occupancy requires approved closed-package Net Rental Income / GPR. Operational charges remain separate.`);
+    if (plan.reportType === "approved_accounting" && rows.some(row => row.monthly_actual !== undefined || row.monthly_budget !== undefined)) {
+      const sourceTime=plan.metadata?.dataAsOf||plan.dataDateIso||"";
+      const packet={period:period.periodKey,source:{id:plan.fileHash||result.batchId,file:plan.name,effectiveAt:sourceTime}};
+      for (const [field,kind] of [["monthly_actual","actuals"],["monthly_budget","budgets"]]) {
+        if (rows.some(row=>row[field]!==undefined) && dataImportShouldApplyCurrentMetric(plan,communityName,period.periodKey,field,sourceTime,result)) {
+          packet[kind]=rows.map(row=>({glCode:row.gl_account,section:row.financial_section||"",[kind==="actuals"?"actual":"budget"]:dataImportNumericValue(row[field])}));
+        }
+      }
+      try { record=window.AtlasFinancialPublication.apply(record,packet); }
+      catch(error) { result.issues.push({type:"financial",severity:"high",title:"Financial ledger held",detail:error.message,communityName}); }
+    }
     result.destinations.add(plan.reportType === "rent_roll" ? "Rent Performance" : "Financial Reporting");
   } else if (plan.reportType === "leasing_resident_data") {
     // Applicant snapshots do not establish completed-application period flows.
@@ -50877,6 +51020,8 @@ function dataImportBuildExceptionsForApprovedFiles(files = [], batchId = "") {
 
 async function approveDataImportBatch() {
   if (dataImportApprovalInProgress) return;
+  const beforeSaved=JSON.stringify(savedData);
+  const beforeImport=JSON.stringify(dataImport2State);
   const batch = dataImport2State.pendingBatch;
   if (!batch || !Array.isArray(batch.files) || batch.files.length === 0) {
     alert("No import batch is waiting for approval.");
@@ -51056,15 +51201,15 @@ async function approveDataImportBatch() {
         ? "ATLAS has questions before every downstream page can be trusted."
         : "Dependent dashboards and reports verified usable destination data."
     ];
-    persistSaved();
-    persistDataImport2State();
+    await persistDataImportPublication();
     publishAtlasApprovedDataNotices(historyEntry).catch(error => console.warn("ATLAS employee upload notices were not published.", error));
   } catch (error) {
     const message = String(error?.message || error || "The selected batch could not be applied.");
+    savedData=JSON.parse(beforeSaved);
+    dataImport2State=JSON.parse(beforeImport);
     csvError = `ATLAS stopped this approval before completion: ${message}`;
     csvLog = [`${batch.id} remains in Import Preview so it can be reviewed or retried.`, ...routeMessages.slice(0, 5)];
-    persistSaved();
-    persistDataImport2State();
+
   } finally {
     dataImportFinishApprovalRuntime();
     dataImportApprovalInProgress = false;
@@ -51264,9 +51409,7 @@ async function reprocessDataImportBoxScore(archiveId) {
     result.mappingExceptionsResolved = dataImportResolveReplayedDelinquencyExceptions(entry, result);
     entry.reprocessResult = result;
     dataImport2State.reconciliationLog.unshift({id:dataImportMakeId("reprocess"),batchId:entry.batchId,reportType:entry.reportType,fileName:entry.fileName,formula:"Approved archived source reconciled with section-qualified mapping and report-level dates; source file unchanged.",createdAt:entry.reprocessedAt});
-    persistSaved();
-    persistDataImport2State();
-    await atlasStateWritePromise;
+    await persistDataImportPublication();
     loadPropertyData(getProp().name);
     alert(`Reprocessed ${result.communities.length} communities from the approved original source. ${result.rowsHeld} rows held; ${result.issues.length} review items.${result.sharedRecords ? ` Published ${result.sharedRecords} Resident Data records for authorized shared access.` : ""} Newer sources and closed periods remain protected.`);
   } catch (error) {

@@ -42,11 +42,11 @@ assert.equal(c.buildVerifiedDlrProjection({monthlyData:monthly},8,2026,78,247).l
 monthly[9]={trendingMoveIns:0,trendingMoveOuts:0};monthly[10]={trendingMoveIns:3,trendingMoveOuts:1};monthly[11]={trendingMoveIns:4,trendingMoveOuts:2};
 let projection=c.buildVerifiedDlrProjection({monthlyData:monthly},8,2026,78,247);assert.equal(projection.length,3);assert.equal(projection[0].projectedOccupancy,78/247*100);assert.equal(projection[2].projectedOccupancy,82/247*100);
 assert.equal(c.buildCommunityProgressStabilization({sourceRecord:{monthlyData:monthly},totalUnits:247,reportMonthIdx:8,reportYear:2026}).months,null);
-monthly[7]={occupiedSnapshot:70,snapshotVerified:true};assert.equal(c.buildCommunityProgressStabilization({sourceRecord:{monthlyData:monthly},totalUnits:247,reportMonthIdx:8,reportYear:2026}).months,20);
+monthly[7]={occupiedSnapshot:70,snapshotVerified:true};assert.equal(c.buildCommunityProgressStabilization({sourceRecord:{monthlyData:monthly},totalUnits:247,reportMonthIdx:8,reportYear:2026}).months,null,'Adjacent snapshots cannot substitute for complete source-dated absorption history');
 const financialRows=[{glCode:'4000',section:'Operating Income',lineItem:'Rent',actual:100,budget:110},{glCode:'5000',nature:'contra_income',actual:-10,budget:-5},{glCode:'6000',section:'Operating Expense',actual:20,budget:25}];
 let record=F.apply({propertyName:'Doro'},{period:'2026-09',rows:financialRows,source:'ledger.csv'});
-assert.equal(F.apply(record,{period:'2026-09',rows:financialRows,source:'ledger.csv'}),record,'Replay is idempotent');
-const corrected=F.apply(record,{period:'2026-09',rows:[{...financialRows[0],actual:120}],source:'revision.csv',mode:'merge'});assert.equal(corrected.financialLedger['2026-09'].length,3);assert.equal(corrected.financialPublicationHistory.length,2);
+assert.deepEqual(F.apply(record,{period:'2026-09',rows:financialRows,source:'ledger.csv'}),record,'Replay is idempotent');
+const corrected=F.apply(record,{period:'2026-09',rows:[{...financialRows[0],actual:120}],source:'revision.csv',mode:'merge'});assert.equal(corrected.financialLedger['2026-09'].length,3);assert.equal(corrected.financialPublications['2026-09:actual'].history.length,1);
 assert.equal(c.getFinancialSummaryForMonth(record,8,2026).noiActual,70);assert.equal(c.getFinancialSummaryForMonth(record,8,2026).noiBudget,80);
 assert.equal(c.getFinancialSummaryForMonth(record,7,2026).hasData,false);
 assert.equal(c.summarizeFinancialLedgerRows([{actual:0,budget:0,glCode:'4000'}]).hasData,true);

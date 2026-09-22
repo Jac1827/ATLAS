@@ -1,4 +1,14 @@
 {
+  "workforce-sync.js": {
+    "sha256": "4da6e2edc0b496e4",
+    "bytes": 1580,
+    "references": [
+      [
+        "index.html",
+        "./workforce-sync.js"
+      ]
+    ]
+  },
   "workforce-assignment.js": {
     "sha256": "86fb414cbe269a8a",
     "bytes": 1675,
@@ -550,8 +560,8 @@
     ]
   },
   "performance/diagnostics.js": {
-    "sha256": "b40ddaaf123f59ae",
-    "bytes": 4184,
+    "sha256": "6ca6ffc4eb4ce69b",
+    "bytes": 4658,
     "references": [
       [
         "index.html",

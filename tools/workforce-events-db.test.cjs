@@ -1,0 +1,9 @@
+const {PGlite}=require('@electric-sql/pglite'),fs=require('node:fs'),assert=require('node:assert/strict');
+(async()=>{const db=new PGlite();await db.exec(`create role anon;create role authenticated;create schema atlas_private;create schema auth;create function auth.uid() returns uuid language sql as $$select '00000000-0000-0000-0000-000000000001'::uuid$$;create table atlas_employees(employee_id uuid primary key,full_name text,version int,updated_at timestamptz);create table atlas_employee_assignments(assignment_id uuid primary key,employee_id uuid references atlas_employees, title text,version int,updated_at timestamptz);`);
+await db.exec(fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/centralization/workforce-change-events.sql','utf8'));
+const id='10000000-0000-0000-0000-000000000001';await db.query('insert into atlas_employees values($1,$2,1,now())',[id,'Test']);
+await db.query('update atlas_employees set full_name=$2,version=2 where employee_id=$1',[id,'Updated']);
+assert.equal(Number((await db.query('select version from atlas_workforce_heads')).rows[0].version),2);
+await db.query('update atlas_employees set updated_at=now(),version=3 where employee_id=$1',[id]);assert.equal((await db.query('select count(*)::int n from atlas_private.workforce_revisions')).rows[0].n,2);
+await db.exec('begin');await db.query('update atlas_employees set full_name=$2 where employee_id=$1',[id,'Rollback']);await db.exec('rollback');assert.equal(Number((await db.query('select version from atlas_workforce_heads')).rows[0].version),2);
+await db.exec('set role authenticated');await assert.rejects(()=>db.query('select * from atlas_private.workforce_revisions'),/permission denied/);await db.close();console.log('PASS workforce events and audit are transactional, replay-idempotent, rollback-safe and private');})().catch(e=>{console.error(e);process.exitCode=1;});

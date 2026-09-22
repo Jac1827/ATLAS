@@ -5,8 +5,9 @@ function boot(hostname,search){
   vm.runInNewContext(source,{window:root,URLSearchParams});return root.AtlasPerformance;
 }
 (async()=>{
-  const production=boot('jac1827.github.io','?atlasPerf=1');
+  const production=boot('jac1827.github.io','');
   assert.equal(production.enabled,false);assert.equal(production.report,undefined);
+  assert.equal(boot('jac1827.github.io','?atlasPerf=1').enabled,true);
   const dev=boot('localhost','?atlasPerf=1');
   for(let i=0;i<1000;i++)dev.record('render',i,{scope:'7',payload:{secret:true}});
   assert.equal(dev.report().events.length,600);assert.equal(dev.report().counters.render,1000);

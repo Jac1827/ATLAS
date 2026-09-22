@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css"/>
-<script src="./performance/diagnostics.js?v=b40ddaaf123f59ae"></script>
+<script src="./performance/diagnostics.js?v=6ca6ffc4eb4ce69b"></script>
 <script src="./performance/feature-loader.js?v=ed7b38027612489d"></script>
 <script src="financial-publication.js?v=de79892b03f508fe"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1444,6 +1444,7 @@
 <script src="./property-organization.js?v=20260917-floorplans"></script>
 <script src="./concession-insights.js?v=20260917-1"></script>
 <script src="./weekly-leasing-report.js?v=20260917-aging"></script>
+<script src="./workforce-sync.js?v=4da6e2edc0b496e4"></script>
 <script src="./workforce-assignment.js?v=86fb414cbe269a8a"></script>
 <script src="./application-aging.js?v=4091f111fe289027"></script>
 <script src="./application-performance-ui.js?v=76767fc8f24b44d6"></script>
@@ -18977,19 +18978,24 @@ function buildAtlasCentralPeoplePayload() {
   };
 }
 
-async function loadAtlasCentralPeopleAssignments({ silent = true, force = false } = {}) {
+async function loadAtlasCentralPeopleAssignments({ silent = true, force = false, employeeIds = null } = {}) {
   try {
     const status = getAtlasCentralStatus();
     if (!status.configured || !status.signedIn || !window.ATLAS_CENTRAL?.fetchJson) return null;
-    if (atlasCentralPeopleLoadPromise && !force) return atlasCentralPeopleLoadPromise;
+    if (atlasCentralPeopleLoadPromise) { await atlasCentralPeopleLoadPromise; if (!employeeIds) return {coalesced:true}; }
+    const actorAtStart = window.ATLAS_CENTRAL.getSession()?.user?.id;
+    const scope = employeeIds ? [...new Set(employeeIds)].filter(id => /^[0-9a-f-]{36}$/i.test(id)) : null;
+    if (scope && !scope.length) return {employees:0,assignments:0};
     atlasCentralPeopleLoadPromise = (async () => {
       const query = [
         "deleted_at=is.null",
+        ...(scope ? ["employee_id=in.("+scope.join(",")+")"] : []),
         "select=assignment_id,version,effective_start,effective_end,title,employment_status,primary_assignment,source_module,source_identifier,updated_at,atlas_employees(employee_id,employee_number,email,full_name,status,status_type,bonus_eligible,bonus_plan,bonus_effective_date,target_bonus,payroll_employee_id,bonus_role,override_plan,bonus_plan_status),atlas_communities(community_id,display_name,canonical_name),atlas_roles(role_id,role_code,title,bonus_role_type)",
         "order=effective_start.desc"
       ].join("&");
       const fallbackQuery = [
         "deleted_at=is.null",
+        ...(scope ? ["employee_id=in.("+scope.join(",")+")"] : []),
         "select=assignment_id,version,effective_start,effective_end,title,employment_status,primary_assignment,source_module,source_identifier,updated_at,atlas_employees(employee_id,employee_number,email,full_name,status,status_type),atlas_communities(community_id,display_name,canonical_name),atlas_roles(role_id,role_code,title,bonus_role_type)",
         "order=effective_start.desc"
       ].join("&");
@@ -19000,9 +19006,10 @@ async function loadAtlasCentralPeopleAssignments({ silent = true, force = false 
         if (!/bonus_|target_bonus|payroll_employee_id|schema cache|column/i.test(String(error?.message || error))) throw error;
         rows = await window.ATLAS_CENTRAL.fetchJson(`/atlas_employee_assignments?${fallbackQuery}`);
       }
+      if (window.ATLAS_CENTRAL.getSession()?.user?.id !== actorAtStart) throw Error("Session changed during workforce synchronization.");
       const sharedData = normalizeAtlasSharedData(atlasSharedData);
-      const employees = {};
-      const assignments = [];
+      const employees = scope ? Object.fromEntries(Object.entries(sharedData.employees).filter(([id]) => !scope.includes(id))) : {};
+      const assignments = scope ? sharedData.assignments.filter(a => !scope.includes(a.employeeId)) : [];
       (Array.isArray(rows) ? rows : []).forEach(row => {
         const employee = row.atlas_employees || {};
         const community = row.atlas_communities || {};
@@ -19077,6 +19084,7 @@ async function loadAtlasCentralPeopleAssignments({ silent = true, force = false 
       alert(`Central People load failed: ${error?.message || error}`);
       renderTab();
     }
+    if (employeeIds) throw error;
     return null;
   } finally {
     atlasCentralPeopleLoadPromise = null;
@@ -57414,9 +57422,33 @@ window.setInterval(() => {
   if (atlasDashboardInitializationComplete && document.visibilityState === "visible") hydrateAtlasSharedApplications();
 }, 60000);
 
+// Compact version polling refreshes only changed employees. Database events commit
+// atomically with the authoritative employee/assignment write.
+let atlasWorkforceSyncState = {status:"Pending Sync",lastAttempt:null,lastSuccess:null,error:null};
+function renderAtlasWorkforceSyncStatus() {
+  let el = document.getElementById("atlas-workforce-sync-status");
+  if (!el) { el = document.createElement("div"); el.id="atlas-workforce-sync-status"; el.setAttribute("role","status"); document.getElementById("atlas-topbar")?.append(el); }
+  el.textContent = atlasWorkforceSyncState.status === "Current" ? "People sync current" : "People: Pending Sync";
+  el.title = `Last successful sync: ${atlasWorkforceSyncState.lastSuccess || "Not recorded"}. Last attempt: ${atlasWorkforceSyncState.lastAttempt || "Not recorded"}. ${atlasWorkforceSyncState.error || ""}`;
+  if (atlasWorkforceSyncState.error) {const retry=document.createElement("button");retry.textContent="Retry People sync";retry.onclick=()=>pollAtlasWorkforce();el.append(retry);}
+}
+const atlasWorkforceSync = window.AtlasWorkforceSync.create({
+  async readHeads() {const rows=[];for(let offset=0;;offset+=500){const page=await window.ATLAS_CENTRAL.fetchJson(`/atlas_workforce_heads?select=employee_id,version&order=employee_id&limit=500&offset=${offset}`);rows.push(...page);if(page.length<500)break;}return rows;},
+  async refresh(employeeIds) {await loadAtlasCentralPeopleAssignments({silent:true,force:true,employeeIds});scheduleAtlasSharedRender(true);},
+  onStatus(state) {atlasWorkforceSyncState=state;renderAtlasWorkforceSyncStatus();}
+});
+function pollAtlasWorkforce() {if(atlasDashboardInitializationComplete)return atlasWorkforceSync.poll(window.ATLAS_CENTRAL?.getSession()?.user?.id);}
+const atlasWorkforceSyncTimer = setInterval(()=>{if(document.visibilityState==="visible")pollAtlasWorkforce();},3000);
+window.addEventListener("focus",pollAtlasWorkforce);
+window.addEventListener("atlas-central-auth-change",()=>{atlasWorkforceSync.clear();pollAtlasWorkforce();});
+window.addEventListener("pagehide",()=>{clearInterval(atlasWorkforceSyncTimer);atlasWorkforceSync.clear();window.removeEventListener("focus",pollAtlasWorkforce);},{once:true});
+
 // Instrument exact boundaries without changing their return values or authorization gates.
 if (window.AtlasPerformance?.enabled) {
   const perf = window.AtlasPerformance;
+  atlasBonusBuildCalculationRows = perf.wrap(atlasBonusBuildCalculationRows, "bonus-calculation");
+  getAtlasApplicationAgingRows = perf.wrap(getAtlasApplicationAgingRows, "aging-calculation");
+  loadAtlasCentralPeopleAssignments = perf.wrap(loadAtlasCentralPeopleAssignments, "workforce-hydration");
   openAtlasStateDb = perf.wrap(openAtlasStateDb, "indexeddb-open");
   atlasStateGetValue = perf.wrap(atlasStateGetValue, "indexeddb-read");
   atlasStateSetValue = perf.wrap(atlasStateSetValue, "indexeddb-write");

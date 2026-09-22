@@ -3,6 +3,7 @@ from pathlib import Path
 import hashlib, json, re
 root=Path(__file__).resolve().parents[2]/'docs/portfolio-operations-dashboard'
 entries=[
+ ('workforce-sync.js',[('index.html','./workforce-sync.js')]),
  ('workforce-assignment.js',[('index.html','./workforce-assignment.js')]),
  ('application-aging.js',[('index.html','./application-aging.js')]),
  ('budget-workbook-import.js',[('RISE-Budget-Builder.html','./budget-workbook-import.js')]),

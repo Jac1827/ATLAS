@@ -24,4 +24,4 @@ c.atlasBonusAuthorizedEmployees=()=>[employee,{...employee}];rows=c.atlasBonusBu
 console.log('PASS aging threshold/status, newest snapshot, deduplication, WoW/MoM missing history, resolved records, report styling/currency, bonus review attribution and unchanged pay.');
 
 assert(A.render([row],true).startsWith('<details'));assert(!/<details[^>]*\bopen\b/.test(A.render([row],true)));
-const bonusRender=html.match(/^function renderBonusTab\(\) \{[\s\S]*?^\}/m)[0];assert(bonusRender.indexOf('renderBonusEngineSection(activeSection, rows)')<bonusRender.indexOf('window.AtlasApplicationAging.render'));assert(bonusRender.includes('activeSection === \"exceptions\"'));
+const bonusRender=html.match(/^function renderBonusTab\(\) \{[\s\S]*?^\}/m)[0];assert(bonusRender.indexOf('renderBonusEngineSection(activeSection, rows)')<bonusRender.indexOf('renderAtlasBonusAgingDisclosure(period,state)'));assert(bonusRender.includes('activeSection === \"exceptions\"'));

@@ -15076,6 +15076,8 @@ function setTab(i) {
 }
 
 function renderTab() {
+  atlasBonusNavigationSnapshot = null;
+  atlasBonusSectionCache.clear();
   destroyAtlasPortfolioMap();
   const renderers = [
     renderPortfolioHomeTab,
@@ -31510,8 +31512,11 @@ function normalizeBonusEngineState(input = {}) {
   };
 }
 
+let atlasBonusNormalizedState = null;
+let atlasBonusNavigationSnapshot = null;
+const atlasBonusSectionCache = new Map();
 function atlasBonusState() {
-  bonusEngineState = normalizeBonusEngineState(bonusEngineState);
+  if (bonusEngineState !== atlasBonusNormalizedState) {bonusEngineState = normalizeBonusEngineState(bonusEngineState);atlasBonusNormalizedState = bonusEngineState;}
   return bonusEngineState;
 }
 
@@ -32184,8 +32189,27 @@ function atlasBonusSetSection(section = "overview") {
   const state = atlasBonusState();
   if (!atlasBonusVisibleSections().some(([id]) => id === section)) return;
   state.activeSection = section;
-  persistOpsGlobalData();
-  renderTab();
+  const body = document.querySelector("#tab-panel-9 div[data-bonus-section]");
+  if (activeTab !== 9 || !body || !atlasBonusNavigationSnapshot || !atlasAccessDecision(9).ok) {renderTab();return;}
+  // Navigation is view state, not a mutation of the workforce or compensation store.
+  document.querySelectorAll("#tab-panel-9 .bonus-engine-tab").forEach(button=>button.classList.toggle("active",button.dataset.bonusSection===section));
+  const end = window.AtlasPerformance?.start("bonus-section-switch", {scope:section});
+  if (!atlasBonusSectionCache.has(section)) {
+    const {rows,period}=atlasBonusNavigationSnapshot;
+    atlasBonusSectionCache.set(section,renderBonusEngineSection(section,rows)+(section==="exceptions"&&atlasBonusCan("run_calculations")?renderAtlasBonusAgingDisclosure(period,state):""));
+  }
+  body.innerHTML = atlasBonusSectionCache.get(section);
+  end?.();
+}
+
+function renderAtlasBonusAgingDisclosure(period,state) {
+  return `<details class="bonus-engine-card" data-application-aging ontoggle='atlasLoadBonusAging(this,${atlasBonusJsArg(period.start)},${atlasBonusJsArg(period.end)},${atlasBonusJsArg(state.filters.community || "all")})'><summary>Application aging · derogatory factors</summary><div data-aging-content>Expand to review dated 7+ day source evidence. Advisory only; no automatic pay deduction.</div></details>`;
+}
+function atlasLoadBonusAging(details,start,end,community) {
+  if (!details.open || details.dataset.loaded) return;
+  details.dataset.loaded="1";
+  const target=details.querySelector("[data-aging-content]");target.textContent="Reading application aging…";
+  requestAnimationFrame(()=>setTimeout(()=>{if(!details.isConnected)return;const rows=getAtlasApplicationAgingRows({start,end}).filter(r=>community==="all"||community===r.community);const template=document.createElement("template");template.innerHTML=window.AtlasApplicationAging.render(rows,true);const source=template.content.querySelector("details");source.querySelector("summary").remove();target.replaceChildren(...source.childNodes);},0));
 }
 
 function atlasBonusSetSelectedPlan(planId = "") {
@@ -32863,6 +32887,8 @@ function renderBonusTab() {
   const summary = atlasBonusSummary(rows);
   const period = atlasBonusPeriodFromQuarter();
   const sections = atlasBonusVisibleSections();
+  atlasBonusSectionCache.clear();
+  atlasBonusNavigationSnapshot = {rows,period};
   if (!sections.length) {
     return `<div class="card"><div class="card-title">Bonus & Incentives</div><div class="alert-red">This ATLAS account does not have Bonus & Incentives access.</div></div>`;
   }
@@ -32882,11 +32908,11 @@ function renderBonusTab() {
       </div>
     </div>
     <div class="bonus-engine-nav">
-      ${sections.map(([id, label]) => `<button type="button" class="bonus-engine-tab ${activeSection === id ? "active" : ""}" onclick='atlasBonusSetSection(${atlasBonusJsArg(id)})'>${escapeHtml(label)}</button>`).join("")}
+      ${sections.map(([id, label]) => `<button type="button" data-bonus-section="${escapeHtml(id)}" class="bonus-engine-tab ${activeSection === id ? "active" : ""}" onclick='atlasBonusSetSection(${atlasBonusJsArg(id)})'>${escapeHtml(label)}</button>`).join("")}
     </div>
     ${renderBonusEngineFilters(allRows)}
-    ${renderBonusEngineSection(activeSection, rows)}
-    ${activeSection === "exceptions" && atlasBonusCan("run_calculations") ? window.AtlasApplicationAging.render(getAtlasApplicationAgingRows({start: period.start, end: period.end}).filter(r => state.filters.community === "all" || !state.filters.community || state.filters.community === r.community), true) : ""}
+    <div data-bonus-section>${renderBonusEngineSection(activeSection, rows)}
+    ${activeSection === "exceptions" && atlasBonusCan("run_calculations") ? renderAtlasBonusAgingDisclosure(period,state) : ""}</div>
   </section>`;
 }
 

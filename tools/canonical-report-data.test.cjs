@@ -79,6 +79,32 @@ Object.assign(c,{savedData:{Doro:dlrRecord},DEFAULT_SEASONAL:Array(12).fill(1),D
 vm.runInContext(html.match(/^function buildDlrInvestorNotes\([\s\S]*?^\}$/m)[0],c);
 let report=c.buildDashboardDlrInvestorOverview('Doro',8,2026);
 assert(report);assert.equal(report.communityName,'Doro');assert.equal(report.totalUnits,247);assert.equal(report.occupiedUnits,78);assert.equal(report.occupancyPct,78/247*100);assert.equal(report.renewalSnapshot.retentionRate,null);assert.equal(report.trendingOccupancyPct,null);assert(JSON.stringify(report.editableNotes).includes('90-day projection is unavailable'));assert(!JSON.stringify(report.editableNotes).includes('projected at')); assert(!JSON.stringify(report.notes).includes('including 4'));assert(!JSON.stringify(report.notes).includes('undefined'));assert.equal(c.buildDlrForwardOccupancyTrendPoints(report)[0].projectedOccupancy,report.occupancyPct);
+// Actual rent and activity semantics must survive the real report builder and renderer.
+const pricingMonth = dlrRecord.monthlyData[8];
+Object.assign(pricingMonth, {nerActual:1234.56, proformaRent:1900, concessions:200, rentRollTotal:156000});
+report=c.buildDashboardDlrInvestorOverview('Doro',8,2026);
+assert.equal(report.pricing.avgNetEffectiveRent,1234.56,'Imported actual outranks budget, concessions and derived rent');
+assert.equal(report.pricing.avgBudgetRent,1900);
+assert(c.renderDlrPricingRenewalSnapshot(report).includes('$1,235'));
+let activity=c.renderDashboardDlrActivityMiniTable({...report,trafficMetrics:{moveIns:9,moveOuts:6},previousTrafficMetrics:{moveIns:4,moveOuts:20}});
+assert(activity.includes('9 move-ins month to date, up 5 move-ins'));
+assert(!activity.includes('6 move-outs month to date'));
+activity=c.renderDashboardDlrActivityMiniTable({...report,trafficMetrics:{moveIns:1},previousTrafficMetrics:{moveIns:null}});
+assert(activity.includes('1 move-in month to date'));assert(!activity.includes('up 1 move-in'));
+for(const absent of [null,undefined,'',NaN,0]) {
+  Object.assign(pricingMonth,{nerActual:absent,rentRollTotal:0});
+  report=c.buildDashboardDlrInvestorOverview('Doro',8,2026);
+  assert.equal(report.pricing.avgNetEffectiveRent,null,'Absent actual cannot fall back to budget or default zero');
+  assert(c.renderDlrPricingRenewalSnapshot(report).includes('Avg Net Effective Rent: <strong>N/A</strong>'));
+}
+pricingMonth.metricProvenance={ner:{source:'synthetic-box-score',period:'2026-09',field:'avg_ner'}};
+pricingMonth.nerActual=0;
+assert.equal(c.buildDashboardDlrInvestorOverview('Doro',8,2026).pricing.avgNetEffectiveRent,0);
+assert.equal(c.resolveDlrActualNetEffectiveRent({}, {avgNetEffectiveRent:0},78),0);
+assert.equal(c.resolveDlrActualNetEffectiveRent({}, {avgNetEffectiveRent:1350.25},78),1350.25);
+assert.equal(c.resolveDlrActualNetEffectiveRent({rentRollTotal:156000},{},78),2000);
+assert.equal(c.resolveDlrActualNetEffectiveRent({rentRollTotal:156000},{},0),null);
+console.log('PASS actual NER precedence, no budget substitution, unknown/default zero, verified zero, pricing rendering and Move-Ins counts/deltas.');
 c.getDlrWorkbookOverlayForCommunity=()=>({totalUnits:297,occupiedUnits:284,leasedUnits:272,communityId:'other'});c.dlrWorkbookReportState={};
 assert.equal(c.buildDashboardDlrInvestorOverview('Doro',8,2026),null);
 console.log('PASS actual DLR builder: selected community, counts/card/chart parity, missing denominator and projection, safe application narrative, mismatched overlay blocked.');

@@ -44285,6 +44285,18 @@ function buildVerifiedDlrProjection(record, monthIdx, year, occupiedUnits, baseU
   return rows;
 }
 
+function resolveDlrActualNetEffectiveRent(monthEntry = {}, summaryPricing = {}, occupiedUnits = null) {
+  // Default monthly rows contain zeroes; only source-backed zeroes are actuals.
+  const actual = pickDlrDisplayMetricValue(monthEntry.nerActual);
+  const provenance = monthEntry.metricProvenance?.nerActual || monthEntry.metricProvenance?.ner;
+  if (actual !== null && (actual > 0 || (actual === 0 && provenance?.source))) return actual;
+  const importedActual = pickDlrDisplayMetricValue(summaryPricing.avgNetEffectiveRent);
+  if (importedActual !== null && importedActual >= 0) return importedActual;
+  const rentRoll = pickDlrDisplayMetricValue(monthEntry.rentRollTotal);
+  if (rentRoll !== null && rentRoll > 0 && occupiedUnits > 0) return rentRoll / occupiedUnits;
+  return null;
+}
+
 function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(), monthIdx = getHistoricalImportMonthIndex(), year = getHistoricalImportYear()) {
   const normalizedMonthIdx = clampNumber(monthIdx, 0, 11);
   const communityName = resolveDlrReportCommunityName(propName, normalizedMonthIdx);
@@ -44534,20 +44546,10 @@ function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(
     floorPlanRentMetrics.budgetRent,
     effectiveDlrSummary.pricing?.avgBudgetRent
   );
-  const rawConcessionsValue = Number(monthEntry.concessions) || 0;
-  const resolvedConcessionPerUnit = rawConcessionsValue > 0
-    ? (resolvedAvgBudgetRent > 0 && rawConcessionsValue <= resolvedAvgBudgetRent * 1.5
-      ? rawConcessionsValue
-      : (occupiedUnits > 0 ? rawConcessionsValue / occupiedUnits : 0))
-    : 0;
-  const budgetDrivenNetEffectiveRent = resolvedAvgBudgetRent > 0
-    ? Math.max(resolvedAvgBudgetRent - resolvedConcessionPerUnit, 0)
-    : null;
-  const resolvedAvgNetEffectiveRent = pickDlrDisplayMetricValue(
-    budgetDrivenNetEffectiveRent,
-    reportSummary.currentNer,
-    currentNer,
-    effectiveDlrSummary.pricing?.avgNetEffectiveRent
+  const resolvedAvgNetEffectiveRent = resolveDlrActualNetEffectiveRent(
+    monthEntry,
+    hasMatchingDlrSummary ? effectiveDlrSummary.pricing : {},
+    occupiedUnits
   );
   const hasRenewalSnapshotData = hasExplicitMonthMetrics(monthEntry, [
     "renewalExpirations",
@@ -44851,7 +44853,7 @@ function renderDashboardDlrActivityMiniTable(report) {
   const mtd = report.trafficMetrics || {};
   const previous = report.previousTrafficMetrics || {};
   const deltaText = (currentValue, previousValue, noun) => {
-    if (!Number.isFinite(Number(previousValue))) return "";
+    if (!hasDlrDisplayMetricValue(currentValue) || !hasDlrDisplayMetricValue(previousValue)) return "";
     const delta = (Number(currentValue) || 0) - (Number(previousValue) || 0);
     if (delta > 0) return `, up ${Math.abs(delta)} ${noun}${Math.abs(delta) === 1 ? "" : "s"} versus the prior month`;
     if (delta < 0) return `, down ${Math.abs(delta)} ${noun}${Math.abs(delta) === 1 ? "" : "s"} versus the prior month`;
@@ -44906,7 +44908,7 @@ function renderDashboardDlrActivityMiniTable(report) {
     {
       label: "Move-Ins",
       mtd: mtd.moveIns,
-      sub: `${formatDlrMetricValue(mtd.moveOuts)} move-out${Number(mtd.moveOuts) === 1 ? "" : "s"} month to date${deltaText(mtd.moveIns, previous.moveIns, "move-in")}`
+      sub: `${formatDlrMetricValue(mtd.moveIns)} move-in${Number(mtd.moveIns) === 1 ? "" : "s"} month to date${deltaText(mtd.moveIns, previous.moveIns, "move-in")}`
     },
     {
       label: "Renewals",

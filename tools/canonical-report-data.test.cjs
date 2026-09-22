@@ -3,7 +3,7 @@ const html=fs.readFileSync('docs/portfolio-operations-dashboard/index.html','utf
 const finance=fs.readFileSync('docs/portfolio-operations-dashboard/financial-accountability.html','utf8');
 const F=require('../docs/portfolio-operations-dashboard/financial-publication.js');
 const P=require('../docs/portfolio-operations-dashboard/property-intelligence.js');
-const c={console,Date,Map,Set,window:{AtlasFinancialPublication:F},FULL_MONTHS:['January','February','March','April','May','June','July','August','September','October','November','December'],MONTHS:[],getProp:()=>({name:'Doro'}),getReportHubMonthIndex:()=>8,matchPropertyName:n=>['Doro','Bartram'].includes(n)?n:null,historicalImportTarget:{community:'Bartram'},normalizeSavedCommunityRecord:(n,r)=>r};
+const c={console,Date,Map,Set,window:{AtlasFinancialPublication:F,AtlasLeadSources:require('../docs/portfolio-operations-dashboard/lead-source-contract.js')},FULL_MONTHS:['January','February','March','April','May','June','July','August','September','October','November','December'],MONTHS:[],getProp:()=>({name:'Doro'}),getReportHubMonthIndex:()=>8,matchPropertyName:n=>['Doro','Bartram'].includes(n)?n:null,historicalImportTarget:{community:'Bartram'},normalizeSavedCommunityRecord:(n,r)=>r};
 vm.createContext(c);
 for(const f of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm))vm.runInContext(f[0],c);
 Object.assign(c,{getProp:()=>({name:'Doro'}),getReportHubMonthIndex:()=>8,matchPropertyName:n=>['Doro','Bartram'].includes(n)?n:null,getRecordMonthlyDataForYear:(r,y)=>r.years?.[y]||r.monthlyData||Array(12).fill({}),getRecordSavedBudgetOccPct:()=>95});

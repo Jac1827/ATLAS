@@ -1,0 +1,24 @@
+<!doctype html><meta charset="utf-8"><title>ATLAS lead-source review validation</title>
+<style>body{font:14px Arial;padding:24px;color:#173b4b}table{border-collapse:collapse}td,th{padding:10px;border:1px solid #ccd}select,input,button{padding:9px;margin:4px}.data-import2-review-row{display:grid;grid-template-columns:30px 2fr 1fr 2fr 2fr;gap:12px;padding:14px;border-bottom:1px solid #ddd}.data-import2-preview-panel{padding:18px;background:#f3f7fa}.data-import2-preview-cols{display:flex;gap:30px}.data-import2-small-label{font-size:11px;color:#567;margin:5px 0}.data-import2-review-meta{font-size:12px;color:#567}.data-import2-section-title{font-size:20px;font-weight:bold}button{cursor:pointer}</style>
+<h1>ATLAS lead-source review</h1><p>Local validation · synthetic community · browser-local test store · no production connection</p><div id="app">Loading…</div><pre id="result"></pre>
+<script src="../../docs/portfolio-operations-dashboard/lead-source-contract.js"></script><script src="../../docs/portfolio-operations-dashboard/lead-source-mapping-store.js"></script>
+<script>
+(async()=>{
+const sources=await Promise.all(['../../docs/portfolio-operations-dashboard/index.html','../../docs/portfolio-operations-dashboard/lead-source-review.js'].map(p=>fetch(p).then(r=>r.text())));
+const funcs=[...sources.join('\n').matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm)].map(m=>m[0]).join('\n');
+const script=document.createElement('script');script.textContent=funcs;document.body.append(script);
+window.dataImport2State={mappingDrafts:{},mappingRules:[],mappingAuditTrail:[],selectedMappingIds:[],customFields:[],canonicalRecords:[{communityName:'Synthetic A',periodKey:'2026-09',sourceSystem:'Entrata',reportType:'box_score',section:'Lead Activity',sourceFile:'validation.xlsx',sourceSheet:'Synthetic A',sourceRow:10,batchId:'TEST-1',originalValues:{'New Leads':35,'Walk In':2,'Off Site Event':0,Call:3,Email:4,Online:5,Chat:6,Text:7,Other:8},values:{walk_in:2,off_site_event:0,phone_calls:3,emails_online:9,text_chat_other:21}}]};
+window.DATA_IMPORT_FIELD_ALIASES={};window.DATA_IMPORT_REPORT_TYPES={};window.DATA_IMPORT_DESTINATION_GROUPS=[{label:'Lead Sources',fields:AtlasLeadSources.fields}];
+const initial={id:'initial',originalField:'Email',currentField:'emails_online',suggestedField:'emails_online',status:'Trusted',confidence:100,sourceSystem:'Entrata',reportType:'box_score',reportTypeLabel:'Box Score',sourceFile:'validation.xlsx',sheetName:'Synthetic A',sampleValue:4};
+window.items=()=>[initial,...dataImport2State.mappingRules.map(r=>({...initial,...r,id:'rule_'+r.id,ruleId:r.id,currentField:r.canonicalField}))];
+window.dataImportFindMappingReviewItem=id=>items().find(i=>i.id===id);
+window.atlasCurrentUserDisplayName=()=> 'Local Test Admin';window.dataImportCanManageArchitecture=()=>true;
+window.dataImportDestinationModules=()=>['Traffic & Funnel','Reports','Exports'];window.dataImportMappingDestinationLabel=field=>AtlasLeadSources.definitions.find(d=>d.field===field)?.label || field;
+window.dataImportLearningStatus=()=> 'Trusted';window.getAtlasCentralStatus=()=>({signedIn:true,role:"admin"});
+window.persistDataImport2State=()=>{};window.confirm=()=>true;
+window.renderTab=()=>document.getElementById('app').innerHTML=renderDataImportMappingReviewList(items());
+const key='atlas-local-lead-review-test';
+window.ATLAS_CENTRAL={readDocument:async()=>JSON.parse(localStorage.getItem(key)||'null'),saveDocument:async p=>{const before=JSON.parse(localStorage.getItem(key)||'null');if((before?.version??null)!==p.expectedVersion)throw Error('Version conflict');localStorage.setItem(key,JSON.stringify({version:(before?.version||0)+1,payload:p.payload}));}};
+await refreshDataImportSharedLeadMappings();renderTab();document.getElementById('result').textContent='Ready for local browser validation';
+})().catch(e=>{document.getElementById('result').textContent=e.stack;});
+</script>

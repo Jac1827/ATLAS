@@ -1431,7 +1431,10 @@
 <link rel="stylesheet" href="./application-performance.css?v=20260916-no-data-status">
 <script src="./application-lineage.js?v=fa2f0b92fa3bd9ea"></script>
 <script src="./screening-summary.js?v=d574557677e6a93a"></script>
-<script src="./application-source-bridge.js?v=5d783edc39b9f759"></script>
+<script src="./lead-source-contract.js?v=03b9ce80d867a771"></script>
+<script src="./lead-source-mapping-store.js?v=eab2a74620808693"></script>
+<script src="./lead-source-review.js?v=78da736d5dd0e942"></script>
+<script src="./application-source-bridge.js?v=0aaee5561d38a89b"></script>
 <script src="./occupancy-replay.js?v=2"></script>
 <script src="./application-performance.js?v=20260917-weekly-report"></script>
 <link rel="stylesheet" href="./concession-insights.css?v=20260917-1">
@@ -1780,6 +1783,7 @@ const DATA_IMPORT_FIELD_ALIASES = {
   budget_field: ["budget", "budget amount", "forecast amount"]
 };
 const DATA_IMPORT_DESTINATION_GROUPS = [
+  { label: "Lead Sources", fields: ["walk_in", "off_site_event", "phone_calls", "emails_online", "text_chat_other"] },
   {
     label: "Community Foundation",
     fields: ["community_id", "community_name", "pms_property_code", "total_units", "owner_entity", "community_status", "community_address", "leasing_managed", "maintenance_managed", "portfolio_reporting_active"]
@@ -6006,6 +6010,7 @@ function normalizeDlrBoxScoreSnapshot(input = {}) {
     exposureUnits: normalizeOptionalNumber(input.exposureUnits),
     notExposedLeasedUnits: normalizeOptionalNumber(input.notExposedLeasedUnits),
     trendUnits: normalizeOptionalNumber(input.trendUnits),
+    leadSourceReconciliation: input.leadSourceReconciliation || null,
     newLeads: normalizeOptionalNumber(input.newLeads),
     guestCards: normalizeOptionalNumber(input.guestCards),
     walkIn: normalizeOptionalNumber(input.walkIn),
@@ -10818,22 +10823,13 @@ function buildFunnelConversionMetrics(input = {}) {
 }
 
 function getLeadSourceBreakdown(monthEntry = {}) {
-  return {
-    walkIn: Math.max(0, Number(monthEntry.walkIn) || 0),
-    offSiteEvent: Math.max(0, Number(monthEntry.offSiteEvent) || 0),
-    phoneCalls: Math.max(0, Number(monthEntry.phoneCalls) || 0),
-    emailsOnline: Math.max(0, Number(monthEntry.emailsOnline) || 0),
-    textChatOther: Math.max(0, Number(monthEntry.textChatOther) || 0)
-  };
+  return window.AtlasLeadSources.breakdown(monthEntry);
 }
 
 function getLeadSourceTotal(monthEntry = {}) {
-  const explicitGuestCards = Math.max(0, Number(monthEntry.guestCards) || 0);
-  if (explicitGuestCards > 0) return explicitGuestCards;
-  const sources = getLeadSourceBreakdown(monthEntry);
-  const sourceTotal = Object.values(sources).reduce((sum, value) => sum + value, 0);
-  if (sourceTotal > 0) return sourceTotal;
-  return explicitGuestCards;
+  const mix = monthEntry.leadSourceReconciliation;
+  if (mix?.version === "atlas-lead-source-v1") return mix.controls.find(c=>c.status === "valid")?.value ?? mix.total;
+  return window.AtlasLeadSources.count(monthEntry.guestCards) ?? window.AtlasLeadSources.sum(Object.values(getLeadSourceBreakdown(monthEntry)));
 }
 
 function getApplicationDecisionMetrics(monthEntry = {}) {
@@ -10881,7 +10877,8 @@ function buildDlrTrafficMetricsFromSummary(dlrSummary = {}, monthEntry = {}, dai
   const normalizedSummary = normalizeDlrSummary(dlrSummary);
   const activity = normalizedSummary.activity || {};
   const preferDailyBoxScore = Boolean(options?.preferDailyBoxScore);
-  const leadSources = {
+  const hasVerifiedLeadMix = monthEntry.leadSourceReconciliation?.version === window.AtlasLeadSources.version;
+  const leadSources = hasVerifiedLeadMix ? getLeadSourceBreakdown(monthEntry) : {
     walkIn: getDlrActivityMetric(activity, "Walk In"),
     offSiteEvent: getDlrActivityMetric(activity, "Off Site Event"),
     phoneCalls: getDlrActivityMetric(activity, "Phone Calls"),
@@ -10938,7 +10935,7 @@ function buildDlrTrafficMetricsFromSummary(dlrSummary = {}, monthEntry = {}, dai
   const pendingDecision = Math.max(0, Number(summaryApplications.pendingDecision) || 0);
   const leases = Math.max(0, Number(summaryApplications.leases) || 0);
   const derivedApplications = applications > 0 ? applications : (approvals + denials + cancelled + pendingDecision);
-  const leadGuestCards = getDlrActivityMetric(activity, "Guest Cards")
+  const leadGuestCards = hasVerifiedLeadMix ? getLeadSourceTotal(monthEntry) : getDlrActivityMetric(activity, "Guest Cards")
     ?? getDlrActivityMetric(activity, "Applications")
     ?? (derivedLeadValues.length > 0
       ? derivedLeadValues.reduce((sum, value) => sum + value, 0)
@@ -10960,13 +10957,13 @@ function buildDlrTrafficMetricsFromSummary(dlrSummary = {}, monthEntry = {}, dai
     ?? Number(monthEntry.renewals)
     ?? 0;
   return {
-    walkIn: Math.max(0, Number(leadSources.walkIn ?? monthLeadSources.walkIn) || 0),
-    offSiteEvent: Math.max(0, Number(leadSources.offSiteEvent ?? monthLeadSources.offSiteEvent) || 0),
-    phoneCalls: Math.max(0, Number(leadSources.phoneCalls ?? monthLeadSources.phoneCalls) || 0),
-    emailsOnline: Math.max(0, Number(leadSources.emailsOnline ?? monthLeadSources.emailsOnline) || 0),
-    textChatOther: Math.max(0, Number(leadSources.textChatOther ?? monthLeadSources.textChatOther) || 0),
-    guestCards: Math.max(0, Number(leadGuestCards) || 0),
-    rolledGuestCards: Math.max(0, Number(leadGuestCards) || 0),
+    walkIn: window.AtlasLeadSources.count(leadSources.walkIn ?? monthLeadSources.walkIn),
+    offSiteEvent: window.AtlasLeadSources.count(leadSources.offSiteEvent ?? monthLeadSources.offSiteEvent),
+    phoneCalls: window.AtlasLeadSources.count(leadSources.phoneCalls ?? monthLeadSources.phoneCalls),
+    emailsOnline: window.AtlasLeadSources.count(leadSources.emailsOnline ?? monthLeadSources.emailsOnline),
+    textChatOther: window.AtlasLeadSources.count(leadSources.textChatOther ?? monthLeadSources.textChatOther),
+    guestCards: window.AtlasLeadSources.count(leadGuestCards),
+    rolledGuestCards: window.AtlasLeadSources.count(leadGuestCards),
     tours: Math.max(0, Number(tours) || 0),
     applications: Math.max(0, Number(derivedApplications) || 0),
     approvals: Math.max(0, approvals),
@@ -11114,7 +11111,7 @@ function getCommunityTrafficMetricsForPeriod(record, normalizedMonthEntry = {}, 
   // when no actual dashboard activity has been entered for the same period.
   const useMonthMetric = (keys) => !hasMatchingDlrSummary
     || keys.some(key => Math.max(0, Number(rawMonthEntry?.[key]) || 0) > 0);
-  const hasMonthLeadMetrics = hasExplicitMonthMetrics(rawMonthEntry, ["guestCards", "walkIn", "offSiteEvent", "phoneCalls", "emailsOnline", "textChatOther"])
+  const hasMonthLeadMetrics = normalizedMonthEntry.leadSourceReconciliation?.version === window.AtlasLeadSources.version || hasExplicitMonthMetrics(rawMonthEntry, ["guestCards", "walkIn", "offSiteEvent", "phoneCalls", "emailsOnline", "textChatOther"])
     && useMonthMetric(["guestCards", "walkIn", "offSiteEvent", "phoneCalls", "emailsOnline", "textChatOther"]);
   const hasMonthTourMetric = hasExplicitMonthMetrics(rawMonthEntry, ["tours"]) && useMonthMetric(["tours"]);
   const hasMonthApplicationMetrics = hasExplicitMonthMetrics(rawMonthEntry, ["applications", "applicationsApproved", "denied", "cancelled", "pendingDecision"])
@@ -11128,11 +11125,11 @@ function getCommunityTrafficMetricsForPeriod(record, normalizedMonthEntry = {}, 
   const monthLeadSources = getLeadSourceBreakdown(normalizedMonthEntry);
   const monthApplications = getApplicationDecisionMetrics(normalizedMonthEntry);
   const fallbackLeadSources = {
-    walkIn: hasMatchingDailyBoxScore && dailyBoxScore.walkIn !== null ? Math.max(0, Number(dailyBoxScore.walkIn) || 0) : Math.max(0, Number(getDlrActivityMetric(activity, "Walk In")) || 0),
-    offSiteEvent: hasMatchingDailyBoxScore && dailyBoxScore.offSiteEvent !== null ? Math.max(0, Number(dailyBoxScore.offSiteEvent) || 0) : Math.max(0, Number(getDlrActivityMetric(activity, "Off Site Event")) || 0),
-    phoneCalls: hasMatchingDailyBoxScore && dailyBoxScore.phoneCalls !== null ? Math.max(0, Number(dailyBoxScore.phoneCalls) || 0) : Math.max(0, Number(getDlrActivityMetric(activity, "Phone Calls")) || 0),
-    emailsOnline: hasMatchingDailyBoxScore && dailyBoxScore.emailsOnline !== null ? Math.max(0, Number(dailyBoxScore.emailsOnline) || 0) : Math.max(0, Number(getDlrActivityMetric(activity, "Emails/Online")) || 0),
-    textChatOther: hasMatchingDailyBoxScore && dailyBoxScore.textChatOther !== null ? Math.max(0, Number(dailyBoxScore.textChatOther) || 0) : Math.max(0, Number(getDlrActivityMetric(activity, "Text/Chat/Other")) || 0)
+    walkIn: hasMatchingDailyBoxScore && dailyBoxScore.walkIn !== null ? window.AtlasLeadSources.count(dailyBoxScore.walkIn) : window.AtlasLeadSources.count(getDlrActivityMetric(activity, "Walk In")),
+    offSiteEvent: hasMatchingDailyBoxScore && dailyBoxScore.offSiteEvent !== null ? window.AtlasLeadSources.count(dailyBoxScore.offSiteEvent) : window.AtlasLeadSources.count(getDlrActivityMetric(activity, "Off Site Event")),
+    phoneCalls: hasMatchingDailyBoxScore && dailyBoxScore.phoneCalls !== null ? window.AtlasLeadSources.count(dailyBoxScore.phoneCalls) : window.AtlasLeadSources.count(getDlrActivityMetric(activity, "Phone Calls")),
+    emailsOnline: hasMatchingDailyBoxScore && dailyBoxScore.emailsOnline !== null ? window.AtlasLeadSources.count(dailyBoxScore.emailsOnline) : window.AtlasLeadSources.count(getDlrActivityMetric(activity, "Emails/Online")),
+    textChatOther: hasMatchingDailyBoxScore && dailyBoxScore.textChatOther !== null ? window.AtlasLeadSources.count(dailyBoxScore.textChatOther) : window.AtlasLeadSources.count(getDlrActivityMetric(activity, "Text/Chat/Other"))
   };
   const fallbackLeadTotal = hasMatchingDailyBoxScore
     ? (
@@ -21846,6 +21843,10 @@ function applyAutoFill(mode) {
 }
 
 function updateMonthly(i, field, val, recommendedVal = null) {
+  if (window.AtlasLeadSources.storedFields.includes(field) && monthlyData[i]?.leadSourceReconciliation) {
+    alert("This value is backed by imported lead-source evidence. Use Mapping Review and its historical preview to change the classification.");
+    renderTab(); return;
+  }
   const manualGoalFields = new Set(["grossLeaseGoalManual", "appGoalManual"]);
   if (manualGoalFields.has(field)) {
     const raw = String(val ?? "").trim();
@@ -25782,11 +25783,11 @@ function renderTrafficTab() {
     <p style="font-size:0.68rem;color:var(--muted);margin-bottom:14px">Track the same five lead-source buckets used by the DLR so investor exports can mirror the report format more closely. The guest card total below auto-rolls up from these source fields when they are populated.</p>
     ${hasAggregateLeadFallback ? `<div style="margin-bottom:14px;padding:10px 12px;border-radius:10px;background:rgba(68,147,248,0.08);border:1px solid rgba(68,147,248,0.18);font-size:0.68rem;color:#24507a">ATLAS imported ${guestCardTotal} total guest cards for ${MONTHS[currentMonth]}, but this upload did not include the source-level split. The community Traffic & Funnel totals are current; the five source buckets will populate after a source-detail upload.</div>` : ""}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
-      <div>${statBox("Walk In", String(leadSources.walkIn), "Lead source count", "#60a5fa")}</div>
-      <div>${statBox("Off Site Event", String(leadSources.offSiteEvent), "Lead source count", "#818cf8")}</div>
-      <div>${statBox("Phone Calls", String(leadSources.phoneCalls), "Lead source count", "#c084fc")}</div>
-      <div>${statBox("Emails / Online", String(leadSources.emailsOnline), "Lead source count", "#34d399")}</div>
-      <div>${statBox("Text / Chat / Other", String(leadSources.textChatOther), "Lead source count", "#f59e0b")}</div>
+      <div>${statBox("Walk In", String(leadSources.walkIn ?? "Missing"), "Lead source count", "#60a5fa")}</div>
+      <div>${statBox("Off Site Event", String(leadSources.offSiteEvent ?? "Missing"), "Lead source count", "#818cf8")}</div>
+      <div>${statBox("Phone Calls", String(leadSources.phoneCalls ?? "Missing"), "Lead source count", "#c084fc")}</div>
+      <div>${statBox("Emails / Online", String(leadSources.emailsOnline ?? "Missing"), "Lead source count", "#34d399")}</div>
+      <div>${statBox("Text / Chat / Other", String(leadSources.textChatOther ?? "Missing"), "Lead source count", "#f59e0b")}</div>
       <div>${statBox("Total Guest Cards", String(guestCardTotal), "Auto-rollup from all lead sources", "#4493f8")}</div>
     </div>
   </div>`;
@@ -25957,6 +25958,7 @@ function renderTrafficTab() {
     const sourceBreakdownTotal = Object.values(sourceBreakdown).reduce((sum, value) => sum + (Number(value) || 0), 0);
     const hasAggregateOnly = sourceBreakdownTotal === 0 && Math.max(0, Number(d.guestCards) || 0) > 0;
     const formatLeadSourceCell = (field, value) => {
+      if (d.leadSourceReconciliation?.version === "atlas-lead-source-v1") return sourceBreakdown[field] === null ? `<span>Missing</span>` : monthInpField(i, field, sourceBreakdown[field]);
       if (!hasAggregateOnly) return monthInpField(i, field, value ?? 0);
       return `<div style="display:grid;gap:4px"><input type="number" value="0" disabled style="width:100%;opacity:0.55;cursor:not-allowed"><div class="goal-sub" style="color:#4493f8">Awaiting source split</div></div>`;
     };
@@ -25967,7 +25969,7 @@ function renderTrafficTab() {
       <td>${formatLeadSourceCell("phoneCalls", d.phoneCalls ?? 0)}</td>
       <td>${formatLeadSourceCell("emailsOnline", d.emailsOnline ?? 0)}</td>
       <td>${formatLeadSourceCell("textChatOther", d.textChatOther ?? 0)}</td>
-      <td style="font-weight:700;color:#4493f8">${sourceTotal}${hasAggregateOnly ? `<div class="goal-sub" style="color:#4493f8">Aggregate import</div>` : ""}</td>
+      <td style="font-weight:700;color:#4493f8">${sourceTotal ?? "Missing"}${hasAggregateOnly ? `<div class="goal-sub" style="color:#4493f8">Aggregate import</div>` : ""}</td>
     </tr>`;
   });
 
@@ -25994,7 +25996,7 @@ function renderTrafficTab() {
       subtitle: "DLR-aligned source tracking by month, auto-rolling into guest card totals.",
       countLabel: `${guestCardTotal} total leads`,
       bodyHtml: leadSourceCard + leadSourceTable,
-      collapsedPreview: `${leadSources.walkIn} walk-in · ${leadSources.offSiteEvent} off-site · ${leadSources.phoneCalls} phone · ${leadSources.emailsOnline} email/online · ${leadSources.textChatOther} text/chat/other`
+      collapsedPreview: `${leadSources.walkIn ?? "Missing"} walk-in · ${leadSources.offSiteEvent ?? "Missing"} off-site · ${leadSources.phoneCalls ?? "Missing"} phone · ${leadSources.emailsOnline ?? "Missing"} email/online · ${leadSources.textChatOther ?? "Missing"} text/chat/other`
     }),
     renderWindowshadeCard({
       key: "traffic_snapshot",
@@ -27789,18 +27791,19 @@ function buildDailyBoxScoreSnapshotFromRows(rows = [], fileName = "", rawText = 
     dailySnapshot.trendUnits = availabilityTotals.trendUnits;
   }
   if (leadActivityTotals) {
-    dailySnapshot.newLeads = leadActivityTotals.newLeads;
-    dailySnapshot.walkIn = leadActivityTotals.walkIn;
-    dailySnapshot.offSiteEvent = leadActivityTotals.offSiteEvent;
-    dailySnapshot.phoneCalls = leadActivityTotals.call;
-    dailySnapshot.emailsOnline = (leadActivityTotals.email || 0) + (leadActivityTotals.online || 0);
-    dailySnapshot.textChatOther = (leadActivityTotals.chat || 0) + (leadActivityTotals.text || 0) + (leadActivityTotals.other || 0);
+    const sourceRows = window.AtlasApplicationSources.boxScore(rows).filter(row=>row.leadComponents?.length);
+    if (sourceRows.length === 1 && sourceRows[0].period?.start && (!dailySnapshot.reportDateIso || sourceRows[0].period.start.slice(0,7) === dailySnapshot.reportDateIso.slice(0,7))) {
+      const mix = dataImportMapSourceRow(sourceRows[0],{reportType:"box_score",sourceSystem:"Entrata",name:fileName}).mapped.__leadSourceMix;
+      Object.assign(dailySnapshot,window.AtlasLeadSources.breakdown({leadSourceReconciliation:mix}));
+      dailySnapshot.leadSourceReconciliation = {...mix,sourcePeriod:sourceRows[0].period,sourceFile:fileName,sourceRow:sourceRows[0].sourceRow};
+      dailySnapshot.newLeads = mix.controls.find(c=>c.status === "valid")?.value ?? mix.total;
+    }
     dailySnapshot.activityEmails = leadActivityTotals.activityEmails;
     dailySnapshot.activityCalls = leadActivityTotals.activityCalls;
     dailySnapshot.activityChats = leadActivityTotals.activityChats;
     dailySnapshot.activityTexts = leadActivityTotals.activityTexts;
     dailySnapshot.firstVisitsTours = leadActivityTotals.firstVisitsTours;
-    dailySnapshot.guestCards = leadActivityTotals.newLeads;
+    dailySnapshot.guestCards = dailySnapshot.newLeads;
     dailySnapshot.tours = leadActivityTotals.firstVisitsTours;
   }
   if (leadConversionTotals) {
@@ -27817,11 +27820,6 @@ function buildDailyBoxScoreSnapshotFromRows(rows = [], fileName = "", rawText = 
     dailySnapshot.moveOuts = propertyPulseTotals.moveOuts;
     dailySnapshot.renewals = propertyPulseTotals.renewals;
   }
-  if (dailySnapshot.walkIn === null || dailySnapshot.walkIn === undefined) dailySnapshot.walkIn = extractMetricFromRowsOrText(rows, rawText, ["walk in", "walk-in"], ["Walk In"]);
-  if (dailySnapshot.offSiteEvent === null || dailySnapshot.offSiteEvent === undefined) dailySnapshot.offSiteEvent = extractMetricFromRowsOrText(rows, rawText, ["off site event", "off-site event"], ["Off Site Event"]);
-  if (dailySnapshot.phoneCalls === null || dailySnapshot.phoneCalls === undefined) dailySnapshot.phoneCalls = extractMetricFromRowsOrText(rows, rawText, ["phone calls", "phone call"], ["Phone Calls"]);
-  if (dailySnapshot.emailsOnline === null || dailySnapshot.emailsOnline === undefined) dailySnapshot.emailsOnline = extractMetricFromRowsOrText(rows, rawText, ["emails/online", "emails online", "email/online"], ["Emails/Online"]);
-  if (dailySnapshot.textChatOther === null || dailySnapshot.textChatOther === undefined) dailySnapshot.textChatOther = extractMetricFromRowsOrText(rows, rawText, ["text/chat/other", "text chat other", "chat other"], ["Text/Chat/Other"]);
   if (dailySnapshot.newLeads === null || dailySnapshot.newLeads === undefined) dailySnapshot.newLeads = extractMetricFromRowsOrText(rows, rawText, ["new leads", "new lead"], ["New Leads"]);
   if (dailySnapshot.activityEmails === null || dailySnapshot.activityEmails === undefined) dailySnapshot.activityEmails = extractMetricFromRowsOrText(rows, rawText, ["activity emails", "emails"], ["Emails"]);
   if (dailySnapshot.activityCalls === null || dailySnapshot.activityCalls === undefined) dailySnapshot.activityCalls = extractMetricFromRowsOrText(rows, rawText, ["activity calls", "calls"], ["Calls"]);
@@ -27889,6 +27887,7 @@ function chooseBestDailyBoxScoreSnapshot(candidates = []) {
 }
 
 async function parseDailyBoxScoreFile(file) {
+  await refreshDataImportSharedLeadMappings();
   let atlasPdfDocument = null;
   try {
   const lowerName = String(file?.name ?? "").toLowerCase();
@@ -36157,56 +36156,12 @@ function clearMonthlyRecordFields(record, monthIdx, targetKeys = [], year = null
 }
 
 function getRecordLeadSourceBreakdown(record, monthIdx) {
-  if (!record.monthlyData[monthIdx]) record.monthlyData[monthIdx] = defaultMonthly()[monthIdx];
-  const md = record.monthlyData[monthIdx];
-  return {
-    walk_in: Math.max(0, Number(md.walkIn) || 0),
-    off_site_event: Math.max(0, Number(md.offSiteEvent) || 0),
-    phone_calls: Math.max(0, Number(md.phoneCalls) || 0),
-    emails_online: Math.max(0, Number(md.emailsOnline) || 0),
-    text_chat_other: Math.max(0, Number(md.textChatOther) || 0)
-  };
+  const sources = getLeadSourceBreakdown(record.monthlyData?.[monthIdx] || {});
+  return Object.fromEntries(window.AtlasLeadSources.fields.map((key,i)=>[key,sources[window.AtlasLeadSources.storedFields[i]]]));
 }
 
 function rebalanceLeadSourceBreakdown(record, monthIdx, totalLeads) {
-  const numericTotal = Number(totalLeads);
-  if (!Number.isFinite(numericTotal) || numericTotal < 0) return null;
-  const total = Math.round(numericTotal);
-  const current = getRecordLeadSourceBreakdown(record, monthIdx);
-  const keys = Object.keys(current);
-  const currentTotal = keys.reduce((sum, key) => sum + (Number(current[key]) || 0), 0);
-  if (currentTotal <= 0) {
-    return {
-      strategy: "catch_all",
-      values: {
-        walk_in: 0,
-        off_site_event: 0,
-        phone_calls: 0,
-        emails_online: 0,
-        text_chat_other: total
-      }
-    };
-  }
-  if (currentTotal === total) {
-    return { strategy: "preserved_existing", values: current };
-  }
-  const scaled = keys.map(key => {
-    const raw = (Number(current[key]) || 0) / currentTotal * total;
-    const floor = Math.floor(raw);
-    return { key, floor, remainder: raw - floor };
-  });
-  let remaining = total - scaled.reduce((sum, item) => sum + item.floor, 0);
-  scaled
-    .sort((left, right) => right.remainder - left.remainder)
-    .forEach(item => {
-      if (remaining <= 0) return;
-      item.floor += 1;
-      remaining -= 1;
-    });
-  return {
-    strategy: "rescaled_existing",
-    values: Object.fromEntries(scaled.map(item => [item.key, item.floor]))
-  };
+  return getRecordLeadSourceBreakdown(record, monthIdx);
 }
 
 function resetImportWorkspace() {
@@ -36788,7 +36743,7 @@ function buildPortfolioHomeMonthlyTrendRows(anchorMonth = getSelectedDashboardMo
       acc.communityCount += 1;
       acc.applications += applicationMetrics.applications;
       acc.approvedApps += applicationMetrics.approvals;
-      acc.guestCards += getLeadSourceTotal(monthEntry);
+      acc.guestCards = window.AtlasLeadSources.sum([acc.guestCards,getLeadSourceTotal(monthEntry)]);
       acc.moveIns += Math.max(0, Number(monthEntry.moveIns) || 0);
       acc.moveOuts += getEffectiveMoveOutsForMonth(monthIdx, monthEntries).effective;
       acc.tours += Math.max(0, Number(monthEntry.tours) || 0);
@@ -41137,11 +41092,11 @@ function buildPortfolioDlrOverviewData(options = {}) {
     const occupiedUnits = sumMetrics(communityReports, report => report.occupiedUnits);
     const leasedUnits = sumMetrics(communityReports, report => report.leasedUnits);
     const dailyTraffic = {
-      walkIn: sumMetrics(communityReports, report => report.dailyTraffic?.walkIn),
-      offSiteEvent: sumMetrics(communityReports, report => report.dailyTraffic?.offSiteEvent),
-      phoneCalls: sumMetrics(communityReports, report => report.dailyTraffic?.phoneCalls),
-      emailsOnline: sumMetrics(communityReports, report => report.dailyTraffic?.emailsOnline),
-      textChatOther: sumMetrics(communityReports, report => report.dailyTraffic?.textChatOther),
+      walkIn: window.AtlasLeadSources.sum(communityReports.map(report => report.dailyTraffic?.walkIn)),
+      offSiteEvent: window.AtlasLeadSources.sum(communityReports.map(report => report.dailyTraffic?.offSiteEvent)),
+      phoneCalls: window.AtlasLeadSources.sum(communityReports.map(report => report.dailyTraffic?.phoneCalls)),
+      emailsOnline: window.AtlasLeadSources.sum(communityReports.map(report => report.dailyTraffic?.emailsOnline)),
+      textChatOther: window.AtlasLeadSources.sum(communityReports.map(report => report.dailyTraffic?.textChatOther)),
       guestCards: sumMetrics(communityReports, report => report.dailyTraffic?.guestCards),
       newLeads: sumMetrics(communityReports, report => report.dailyTraffic?.newLeads),
       tours: sumMetrics(communityReports, report => report.dailyTraffic?.tours),
@@ -41161,11 +41116,11 @@ function buildPortfolioDlrOverviewData(options = {}) {
       firstVisitsTours: sumMetrics(communityReports, report => report.dailyTraffic?.firstVisitsTours)
     };
     const mtdTraffic = {
-      walkIn: sumMetrics(communityReports, report => report.trafficMetrics?.walkIn),
-      offSiteEvent: sumMetrics(communityReports, report => report.trafficMetrics?.offSiteEvent),
-      phoneCalls: sumMetrics(communityReports, report => report.trafficMetrics?.phoneCalls),
-      emailsOnline: sumMetrics(communityReports, report => report.trafficMetrics?.emailsOnline),
-      textChatOther: sumMetrics(communityReports, report => report.trafficMetrics?.textChatOther),
+      walkIn: window.AtlasLeadSources.sum(communityReports.map(report => report.trafficMetrics?.walkIn)),
+      offSiteEvent: window.AtlasLeadSources.sum(communityReports.map(report => report.trafficMetrics?.offSiteEvent)),
+      phoneCalls: window.AtlasLeadSources.sum(communityReports.map(report => report.trafficMetrics?.phoneCalls)),
+      emailsOnline: window.AtlasLeadSources.sum(communityReports.map(report => report.trafficMetrics?.emailsOnline)),
+      textChatOther: window.AtlasLeadSources.sum(communityReports.map(report => report.trafficMetrics?.textChatOther)),
       guestCards: sumMetrics(communityReports, report => report.trafficMetrics?.guestCards),
       rolledGuestCards: sumMetrics(communityReports, report => report.trafficMetrics?.rolledGuestCards ?? report.trafficMetrics?.guestCards),
       tours: sumMetrics(communityReports, report => report.trafficMetrics?.tours),
@@ -41332,11 +41287,11 @@ function buildPortfolioDlrOverviewData(options = {}) {
     : null;
   const sumMetrics = (items, path) => (Array.isArray(items) ? items : []).reduce((total, item) => total + (Number(path(item)) || 0), 0);
   const dailyTraffic = {
-    walkIn: sumMetrics(communityReports, report => report.dailyTraffic?.walkIn),
-    offSiteEvent: sumMetrics(communityReports, report => report.dailyTraffic?.offSiteEvent),
-    phoneCalls: sumMetrics(communityReports, report => report.dailyTraffic?.phoneCalls),
-    emailsOnline: sumMetrics(communityReports, report => report.dailyTraffic?.emailsOnline),
-    textChatOther: sumMetrics(communityReports, report => report.dailyTraffic?.textChatOther),
+    walkIn: window.AtlasLeadSources.sum(communityReports.map(report => report.dailyTraffic?.walkIn)),
+    offSiteEvent: window.AtlasLeadSources.sum(communityReports.map(report => report.dailyTraffic?.offSiteEvent)),
+    phoneCalls: window.AtlasLeadSources.sum(communityReports.map(report => report.dailyTraffic?.phoneCalls)),
+    emailsOnline: window.AtlasLeadSources.sum(communityReports.map(report => report.dailyTraffic?.emailsOnline)),
+    textChatOther: window.AtlasLeadSources.sum(communityReports.map(report => report.dailyTraffic?.textChatOther)),
     guestCards: sumMetrics(communityReports, report => report.dailyTraffic?.guestCards),
     newLeads: sumMetrics(communityReports, report => report.dailyTraffic?.newLeads),
     tours: sumMetrics(communityReports, report => report.dailyTraffic?.tours),
@@ -41356,11 +41311,11 @@ function buildPortfolioDlrOverviewData(options = {}) {
     firstVisitsTours: sumMetrics(communityReports, report => report.dailyTraffic?.firstVisitsTours)
   };
   const mtdTraffic = {
-    walkIn: sumMetrics(communityReports, report => report.trafficMetrics?.walkIn),
-    offSiteEvent: sumMetrics(communityReports, report => report.trafficMetrics?.offSiteEvent),
-    phoneCalls: sumMetrics(communityReports, report => report.trafficMetrics?.phoneCalls),
-    emailsOnline: sumMetrics(communityReports, report => report.trafficMetrics?.emailsOnline),
-    textChatOther: sumMetrics(communityReports, report => report.trafficMetrics?.textChatOther),
+    walkIn: window.AtlasLeadSources.sum(communityReports.map(report => report.trafficMetrics?.walkIn)),
+    offSiteEvent: window.AtlasLeadSources.sum(communityReports.map(report => report.trafficMetrics?.offSiteEvent)),
+    phoneCalls: window.AtlasLeadSources.sum(communityReports.map(report => report.trafficMetrics?.phoneCalls)),
+    emailsOnline: window.AtlasLeadSources.sum(communityReports.map(report => report.trafficMetrics?.emailsOnline)),
+    textChatOther: window.AtlasLeadSources.sum(communityReports.map(report => report.trafficMetrics?.textChatOther)),
     guestCards: sumMetrics(communityReports, report => report.trafficMetrics?.guestCards),
     rolledGuestCards: sumMetrics(communityReports, report => report.trafficMetrics?.rolledGuestCards ?? report.trafficMetrics?.guestCards),
     tours: sumMetrics(communityReports, report => report.trafficMetrics?.tours),
@@ -41810,11 +41765,11 @@ function buildRiseWeeklyPropertyRows(report = {}) {
       moveIns: pickRiseWeeklyMetric(traffic.moveIns),
       moveOuts: pickRiseWeeklyMetric(traffic.moveOuts),
       sourceBreakdown: {
-        walkIn: Math.max(0, Number(traffic.walkIn) || 0),
-        offSiteEvent: Math.max(0, Number(traffic.offSiteEvent) || 0),
-        phoneCalls: Math.max(0, Number(traffic.phoneCalls) || 0),
-        emailsOnline: Math.max(0, Number(traffic.emailsOnline) || 0),
-        textChatOther: Math.max(0, Number(traffic.textChatOther) || 0)
+        walkIn: window.AtlasLeadSources.count(traffic.walkIn),
+        offSiteEvent: window.AtlasLeadSources.count(traffic.offSiteEvent),
+        phoneCalls: window.AtlasLeadSources.count(traffic.phoneCalls),
+        emailsOnline: window.AtlasLeadSources.count(traffic.emailsOnline),
+        textChatOther: window.AtlasLeadSources.count(traffic.textChatOther)
       },
       totalUnits: pickRiseWeeklyMetric(communityReport.totalUnits, communityReport.pricing?.totalUnits),
       occupancyBaseUnits: pickRiseWeeklyMetric(communityReport.occupancyBaseUnits, communityReport.totalUnits, communityReport.pricing?.totalUnits),
@@ -41862,11 +41817,11 @@ function buildRiseWeeklyPropertyRows(report = {}) {
     moveIns: pickRiseWeeklyMetric(traffic.moveIns),
     moveOuts: pickRiseWeeklyMetric(traffic.moveOuts),
     sourceBreakdown: {
-      walkIn: Math.max(0, Number(traffic.walkIn) || 0),
-      offSiteEvent: Math.max(0, Number(traffic.offSiteEvent) || 0),
-      phoneCalls: Math.max(0, Number(traffic.phoneCalls) || 0),
-      emailsOnline: Math.max(0, Number(traffic.emailsOnline) || 0),
-      textChatOther: Math.max(0, Number(traffic.textChatOther) || 0)
+      walkIn: window.AtlasLeadSources.count(traffic.walkIn),
+      offSiteEvent: window.AtlasLeadSources.count(traffic.offSiteEvent),
+      phoneCalls: window.AtlasLeadSources.count(traffic.phoneCalls),
+      emailsOnline: window.AtlasLeadSources.count(traffic.emailsOnline),
+      textChatOther: window.AtlasLeadSources.count(traffic.textChatOther)
     },
     totalUnits: pickRiseWeeklyMetric(report.totalUnits, report.pricing?.totalUnits),
     occupancyBaseUnits: pickRiseWeeklyMetric(report.occupancyBaseUnits, report.totalUnits, report.pricing?.totalUnits),
@@ -41916,58 +41871,27 @@ function buildRiseWeeklyOccupancyTrendPoints(report = {}) {
 }
 
 function buildRiseWeeklyLeadSourceRows(report = {}) {
+  const contract = window.AtlasLeadSources;
   const traffic = report.trafficMetrics || {};
-  const baseRows = [
-    {
-      rawMethods: "Email, Online, Chat, Text",
-      mappedChannel: "Digital",
-      leads: Math.max(0, Number(traffic.emailsOnline) || 0)
-    },
-    {
-      rawMethods: "Call",
-      mappedChannel: "Phone",
-      leads: Math.max(0, Number(traffic.phoneCalls) || 0)
-    },
-    {
-      rawMethods: "Walk In",
-      mappedChannel: "Walk-in",
-      leads: Math.max(0, Number(traffic.walkIn) || 0)
-    }
-  ];
-  const eventLeads = Math.max(0, Number(traffic.offSiteEvent) || 0);
-  if (eventLeads > 0) {
-    baseRows.push({
-      rawMethods: "Off Site Event",
-      mappedChannel: "Event",
-      leads: eventLeads
-    });
-  }
-  baseRows.push({
-    rawMethods: "Other",
-    mappedChannel: "Other / Unattributed",
-    leads: Math.max(0, Number(traffic.textChatOther) || 0)
+  const breakdown = contract.breakdown(traffic);
+  const total = contract.sum(Object.values(breakdown));
+  return contract.definitions.map((definition,i)=>{
+    const leads = breakdown[contract.storedFields[i]];
+    return {rawMethods:definition.aliases.join(", "),mappedChannel:definition.label,leads,
+      sharePct:leads !== null && total !== null ? (total > 0 ? leads / total * 100 : 0) : null};
   });
-  const sourceTotal = baseRows.reduce((sum, row) => sum + row.leads, 0);
-  const reportLeadTotal = Math.max(0, Number(traffic.guestCards ?? traffic.rolledGuestCards) || 0);
-  if (sourceTotal === 0 && reportLeadTotal > 0) {
-    baseRows[baseRows.length - 1].leads = reportLeadTotal;
-  }
-  const denominator = Math.max(baseRows.reduce((sum, row) => sum + row.leads, 0), reportLeadTotal, 1);
-  return baseRows.map(row => ({
-    ...row,
-    sharePct: denominator > 0 ? (row.leads / denominator) * 100 : 0
-  }));
 }
 
 function buildRiseWeeklyDataQualityNotes(report = {}, propertyRows = [], leadSourceRows = []) {
   const notes = [];
   const traffic = report.trafficMetrics || {};
   const leadTotal = Math.max(0, Number(traffic.guestCards ?? traffic.rolledGuestCards) || 0);
-  const mappedSourceTotal = leadSourceRows.reduce((sum, row) => sum + Math.max(0, Number(row.leads) || 0), 0);
-  if (leadTotal > 0 && Math.abs(mappedSourceTotal - leadTotal) > 0.5) {
+  const mappedSourceTotal = window.AtlasLeadSources.sum(leadSourceRows.map(row=>row.leads));
+  if (mappedSourceTotal === null) notes.push("Lead-source mix is incomplete; missing source values have not been replaced with zeros.");
+  if (mappedSourceTotal !== null && Math.abs(mappedSourceTotal - leadTotal) > 0.5) {
     notes.push(`${formatRiseWeeklyCount(Math.abs(mappedSourceTotal - leadTotal))} lead${Math.abs(mappedSourceTotal - leadTotal) === 1 ? "" : "s"} do not reconcile between total leads and mapped source rows. Review contact-method totals before distribution.`);
   }
-  const otherSourceRow = leadSourceRows.find(row => row.mappedChannel === "Other / Unattributed");
+  const otherSourceRow = leadSourceRows.find(row => row.mappedChannel === "Text / Chat / Other");
   if (leadTotal > 0 && Number(otherSourceRow?.leads || 0) >= Math.max(10, leadTotal * 0.1)) {
     notes.push(`${formatRiseWeeklyCount(otherSourceRow.leads)} leads sit in Other / Unattributed. This is separate from total lead capture: those leads retain activity volume but need contact-method cleanup.`);
   }
@@ -42040,7 +41964,7 @@ function buildRiseWeeklyManagementAttention(data = {}) {
       return Number(b.leads || 0) - Number(a.leads || 0);
     });
   const conversionWatch = conversionRows[0] || null;
-  const otherRow = (data.leadSourceRows || []).find(row => row.mappedChannel === "Other / Unattributed");
+  const otherRow = (data.leadSourceRows || []).find(row => row.mappedChannel === "Text / Chat / Other");
   const topOtherProperties = propertyRows
     .filter(row => Number(row.sourceBreakdown?.textChatOther || 0) > 0)
     .sort((a, b) => Number(b.sourceBreakdown.textChatOther || 0) - Number(a.sourceBreakdown.textChatOther || 0))
@@ -42067,7 +41991,7 @@ function buildRiseWeeklyManagementAttention(data = {}) {
     {
       label: "ATTRIBUTION CLEANUP",
       body: Number(otherRow?.leads || 0) > 0
-        ? `${formatRiseWeeklyCount(otherRow.leads)} leads are mapped to Other / Unattributed (${formatRiseWeeklyPct(otherRow.sharePct, 1)} of mapped leads).${topOtherProperties.length > 0 ? ` Largest contributors: ${topOtherProperties.map(row => `${row.property} (${formatRiseWeeklyCount(row.sourceBreakdown.textChatOther)})`).join(", ")}.` : ""}`
+        ? `${formatRiseWeeklyCount(otherRow.leads)} leads are mapped to Text / Chat / Other (${formatRiseWeeklyPct(otherRow.sharePct, 1)} of mapped leads).${topOtherProperties.length > 0 ? ` Largest contributors: ${topOtherProperties.map(row => `${row.property} (${formatRiseWeeklyCount(row.sourceBreakdown.textChatOther)})`).join(", ")}.` : ""}`
         : "No Other / Unattributed lead activity is present in the current mapped source mix."
     }
   ];
@@ -42115,7 +42039,17 @@ function buildWeeklyLeasingAnalytics(data) {
   const communities = details.map(d => d.name);
   const records = window.AtlasApplicationAging.latestRecords(window.getAtlasApplicationIntelligenceData?.().records || []);
   const offers = window.AtlasConcessionInsights.model(details, period, p => getAtlasApplicationPeriodMetrics(p, "all"));
-  return window.AtlasWeeklyLeasing.model({ records, communities, offers, period, end, metrics: getAtlasApplicationPeriodMetrics(period, "all") });
+  const metrics=getAtlasApplicationPeriodMetrics(period,"all").map(item=>({...item,cells:{...item.cells}}));
+  for (const community of communities) {
+    const record=getCommunityRecordForScope(community);
+    const entry=getRecordMonthlyDataForYear(record || {},data.reportYear)?.[data.reportMonthIdx] || {};
+    const mix=entry.leadSourceReconciliation;
+    let metric=metrics.find(item=>item.community===community);
+    if (!metric) {metric={community,cells:{}};metrics.push(metric);}
+    const sources=getLeadSourceBreakdown(entry);
+    window.AtlasLeadSources.definitions.forEach((definition,i)=>{metric.cells[definition.field]={label:definition.label,value:sources[window.AtlasLeadSources.storedFields[i]],source:mix ? JSON.stringify({period,sourceFile:mix.sourceFile,importVersion:mix.importVersion,mappingVersion:mix.version,status:mix.status,controls:mix.controls,components:mix.evidence}) : "Source lineage unavailable"};});
+  }
+  return window.AtlasWeeklyLeasing.model({records,communities,offers,period,end,metrics});
 }
 
 function buildRisePortfolioLeasingWeeklyReportData(options = {}) {
@@ -44525,11 +44459,11 @@ function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(
     : (hasMatchingDlrSummary && mtdTraffic.sourceMode === "dlr_summary" ? "dlr_summary" : "dashboard_mtd");
   const dailyLeadSources = hasMatchingDailyBoxScore
     ? {
-        walkIn: Math.max(0, Number(dailyBoxScore.walkIn) || 0),
-        offSiteEvent: Math.max(0, Number(dailyBoxScore.offSiteEvent) || 0),
-        phoneCalls: Math.max(0, Number(dailyBoxScore.phoneCalls) || 0),
-        emailsOnline: Math.max(0, Number(dailyBoxScore.emailsOnline) || 0),
-        textChatOther: Math.max(0, Number(dailyBoxScore.textChatOther) || 0)
+        walkIn: window.AtlasLeadSources.count(dailyBoxScore.walkIn),
+        offSiteEvent: window.AtlasLeadSources.count(dailyBoxScore.offSiteEvent),
+        phoneCalls: window.AtlasLeadSources.count(dailyBoxScore.phoneCalls),
+        emailsOnline: window.AtlasLeadSources.count(dailyBoxScore.emailsOnline),
+        textChatOther: window.AtlasLeadSources.count(dailyBoxScore.textChatOther)
       }
     : { walkIn: 0, offSiteEvent: 0, phoneCalls: 0, emailsOnline: 0, textChatOther: 0 };
   const dailyGuestCards = hasMatchingDailyBoxScore
@@ -46347,18 +46281,8 @@ function buildCommunityProgressSingleReportData(options = {}) {
       };
     });
   const leadSourceHasExplicitCounts = ["walkIn", "offSiteEvent", "phoneCalls", "emailsOnline", "textChatOther"].some(key => Object.prototype.hasOwnProperty.call(monthEntry, key));
-  const leadSourceBreakdown = leadSourceHasExplicitCounts
-    ? {
-        walkIn: Math.max(0, Number(monthEntry.walkIn) || 0),
-        offSiteEvent: Math.max(0, Number(monthEntry.offSiteEvent) || 0),
-        phoneCalls: Math.max(0, Number(monthEntry.phoneCalls) || 0),
-        emailsOnline: Math.max(0, Number(monthEntry.emailsOnline) || 0),
-        textChatOther: Math.max(0, Number(monthEntry.textChatOther) || 0)
-      }
-    : null;
-  const leadSourceBreakdownTotal = leadSourceBreakdown
-    ? Object.values(leadSourceBreakdown).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0)
-    : 0;
+  const leadSourceBreakdown = leadSourceHasExplicitCounts ? getLeadSourceBreakdown(monthEntry) : null;
+  const leadSourceBreakdownTotal = leadSourceBreakdown ? window.AtlasLeadSources.sum(Object.values(leadSourceBreakdown)) : null;
   const hasGuestCards = Object.prototype.hasOwnProperty.call(monthEntry, "guestCards");
   const hasTours = Object.prototype.hasOwnProperty.call(monthEntry, "tours");
   const hasApplications = Object.prototype.hasOwnProperty.call(monthEntry, "applications");
@@ -46383,8 +46307,8 @@ function buildCommunityProgressSingleReportData(options = {}) {
     phoneCalls: leadSourceBreakdown ? leadSourceBreakdown.phoneCalls : null,
     emailsOnline: leadSourceBreakdown ? leadSourceBreakdown.emailsOnline : null,
     textChatOther: leadSourceBreakdown ? leadSourceBreakdown.textChatOther : null,
-    guestCards: hasGuestCards ? Math.max(0, Number(monthEntry.guestCards) || 0) : Math.max(0, Number(summary.guestCards) || leadSourceBreakdownTotal || 0),
-    rolledGuestCards: hasGuestCards ? Math.max(0, Number(monthEntry.guestCards) || 0) : Math.max(0, Number(summary.guestCards) || leadSourceBreakdownTotal || 0),
+    guestCards: monthEntry.leadSourceReconciliation ? getLeadSourceTotal(monthEntry) : hasGuestCards ? Math.max(0, Number(monthEntry.guestCards) || 0) : Math.max(0, Number(summary.guestCards) || leadSourceBreakdownTotal || 0),
+    rolledGuestCards: monthEntry.leadSourceReconciliation ? getLeadSourceTotal(monthEntry) : hasGuestCards ? Math.max(0, Number(monthEntry.guestCards) || 0) : Math.max(0, Number(summary.guestCards) || leadSourceBreakdownTotal || 0),
     tours: hasTours ? Math.max(0, Number(monthEntry.tours) || 0) : Math.max(0, Number(summary.tours) || 0),
     applications: Number.isFinite(Number(monthEntry.applications)) ? Math.max(0, Number(monthEntry.applications) || 0) : Math.max(0, Number(summary.applications) || 0),
     approvals: hasApprovals ? Math.max(0, Number(monthEntry.applicationsApproved) || 0) : Math.max(0, Number(summary.applicationsApproved) || 0),
@@ -46488,7 +46412,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
     trafficMetrics,
     leadSourceBreakdown,
     leadSourceBreakdownTotal,
-    hasLeadSourceBreakdown: Boolean(leadSourceBreakdown && leadSourceBreakdownTotal > 0),
+    hasLeadSourceBreakdown: Boolean(leadSourceBreakdown && leadSourceBreakdownTotal !== null),
     hasDecisionBreakdown,
     hasBudgetOcc,
     hasGuestCards,
@@ -46570,20 +46494,8 @@ function buildCommunityProgressReportData(options = {}) {
   const allHaveBudgetOcc = communityReports.every(item => item.hasBudgetOcc);
   const allHaveGuestCards = communityReports.every(item => item.hasGuestCards);
   const allHaveTours = communityReports.every(item => item.hasTours);
-  const leadSourceBreakdown = allHaveLeadSourceBreakdown
-    ? communityReports.reduce((acc, item) => {
-        const breakdown = item.leadSourceBreakdown || {};
-        acc.walkIn += Number(breakdown.walkIn) || 0;
-        acc.offSiteEvent += Number(breakdown.offSiteEvent) || 0;
-        acc.phoneCalls += Number(breakdown.phoneCalls) || 0;
-        acc.emailsOnline += Number(breakdown.emailsOnline) || 0;
-        acc.textChatOther += Number(breakdown.textChatOther) || 0;
-        return acc;
-      }, { walkIn: 0, offSiteEvent: 0, phoneCalls: 0, emailsOnline: 0, textChatOther: 0 })
-    : null;
-  const leadSourceBreakdownTotal = leadSourceBreakdown
-    ? Object.values(leadSourceBreakdown).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0)
-    : 0;
+  const leadSourceBreakdown = window.AtlasLeadSources.combine(communityReports.map(item=>item.leadSourceBreakdown || {}));
+  const leadSourceBreakdownTotal = window.AtlasLeadSources.sum(Object.values(leadSourceBreakdown));
   const budgetOccPct = allHaveBudgetOcc && aggregateSummary.budgetOccPct > 0
     ? aggregateSummary.budgetOccPct
     : null;
@@ -48327,11 +48239,15 @@ function normalizeDataImport2State(input = {}) {
       id,
       originalField,
       canonicalField,
+      mappingVersion: String(rule.mappingVersion || rule.id || ""),
+      previousMappingVersion: String(rule.previousMappingVersion || ""),
+      supersededBy: String(rule.supersededBy || ""),
+      sharedLeadMapping: rule.sharedLeadMapping === true,
       sourceSystem: String(rule?.sourceSystem || "Global"),
       reportType: String(rule?.reportType || ""),
       sourceFile: String(rule?.sourceFile || ""),
       sheetName: String(rule?.sheetName || ""),
-      sampleValue: String(rule?.sampleValue || ""),
+      sampleValue: String(rule?.sampleValue ?? ""),
       detectedDataType: String(rule?.detectedDataType || ""),
       scope: String(rule?.scope || "Global"),
       status: String(rule?.status || (canonicalField === "__ignored__" ? "Ignored" : "Mapped")),
@@ -48463,7 +48379,8 @@ function normalizeDataImport2State(input = {}) {
     reconciliationLog: (Array.isArray(state.reconciliationLog) ? state.reconciliationLog : []).filter(Boolean),
     closedPeriods: (Array.isArray(state.closedPeriods) ? state.closedPeriods : []).map(String).filter(Boolean).slice(0, 180),
     customFields: Array.from(customFieldById.values()),
-    mappingAuditTrail: (Array.isArray(state.mappingAuditTrail) ? state.mappingAuditTrail : []).filter(Boolean).slice(0, 140),
+    leadSourceHistoricalRevisions: Array.isArray(state.leadSourceHistoricalRevisions) ? state.leadSourceHistoricalRevisions : [],
+    mappingAuditTrail: (Array.isArray(state.mappingAuditTrail) ? state.mappingAuditTrail : []).filter(Boolean),
     mappingDrafts,
     selectedMappingIds: (Array.isArray(state.selectedMappingIds) ? state.selectedMappingIds : []).map(String).slice(0, 80),
     selectedMappingPreviewId: String(state.selectedMappingPreviewId || ""),
@@ -48558,7 +48475,8 @@ async function persistDataImportPublication() {
   if(failure)throw failure;
 }
 
-function setDataImport2View(view) {
+async function setDataImport2View(view) {
+  if (view === "mapping") { try { await refreshDataImportSharedLeadMappings(); } catch(error) { alert(error.message); } }
   dataImport2State.activeView = ["overview","upload","health","exceptions","mapping","aliases","history","archive"].includes(view) ? view : "overview";
   persistDataImport2State();
   renderTab();
@@ -49151,8 +49069,11 @@ function dataImportRuleContextScore(rule = {}, context = {}, matchMode = "exact"
 
 function dataImportFindSavedRuleForHeader(header = "", context = {}) {
   const rules = dataImportGetOrderedMappingRules();
+  const sharedOverride = rules.find(rule => rule.sharedLeadMapping && !rule.supersededBy && dataImportMappingRuleMatchesHeader(rule,header,"exact") && dataImportRuleScopeMatches(rule,context) && window.AtlasLeadSources?.classify(header,context).field);
+  if (sharedOverride) return sharedOverride;
   const pickRule = mode => rules
-    .filter(rule => rule.learningStatus !== "Conflicting")
+    .filter(rule => !rule.supersededBy && rule.learningStatus !== "Conflicting")
+    .filter(rule => !(rule.sharedLeadMapping || window.AtlasLeadSources?.fields.includes(rule.canonicalField)) || (mode === "exact" && window.AtlasLeadSources.classify(header, context).field))
     .filter(rule => dataImportMappingRuleMatchesHeader(rule, header, mode))
     .map(rule => ({ rule, score: dataImportRuleContextScore(rule, context, mode) }))
     .filter(item => item.score >= 0)
@@ -49198,7 +49119,13 @@ function dataImportSuggestDestinationForHeader(header = "", context = {}) {
   const knownField = context.reportType === "delinquency" && dataImportKnownDelinquencyField(header);
   if (knownField) return {field:knownField, confidence:100, reason:"Delinquency source header contract", autoMap:true};
   const normalized = dataImportNormalizeText(header);
-  const sampleValue = String(context.sampleValue || "");
+  const lead = window.AtlasLeadSources?.classify(header, context);
+  const sampleValue = String(context.sampleValue ?? "");
+  if (lead?.field) {
+    const override = dataImportFindSavedRuleForHeader(header, context);
+    if (override && !override.locked && dataImportMappingRuleMatchesHeader(override, header, "exact")) return {field:override.canonicalField,confidence:100,autoMap:true,ruleId:override.id,learningStatus:"Trusted",reason:"Approved exact contact-source override"};
+    return {field:lead.field,confidence:100,autoMap:true,learningStatus:"Trusted",reason:"Approved Entrata contact-source contract"};
+  }
   const savedRule = dataImportFindSavedRuleForHeader(header, context);
   if (savedRule && dataImportDestinationExists(savedRule.canonicalField)) {
     const learningStatus = savedRule.learningStatus || (savedRule.locked ? "Locked" : "Learning");
@@ -50028,6 +49955,25 @@ function dataImportMapSourceRow(sourceRow = {}, plan = {}, mappingCache = null) 
       mapped[destination] = value;
       sourceFields[destination] = loc ? `${qualified} / row ${loc.row}, column ${loc.columns ? loc.columns.join(" + ") : loc.column}` : field;
     }
+    if (plan.reportType === "box_score" && sourceRow.leadComponents?.length) {
+      const contract = window.AtlasLeadSources;
+      const context = {sourceSystem:plan.sourceSystem,reportType:plan.reportType,section:sourceRow.section,sourceFile:plan.name,sheetName:sourceRow.sourceSheet};
+      const components = sourceRow.leadComponents.map(component => {
+        const rule = dataImportFindSavedRuleForHeader(component.label, {...context,...component.context});
+        const approved = rule?.sharedLeadMapping && dataImportMappingRuleMatchesHeader(rule, component.label, "exact");
+        return {...component,destination:approved ? rule.canonicalField : undefined,mappingVersion:approved ? rule.mappingVersion || rule.id : contract.version};
+      });
+      const mix = contract.aggregate(components,context,sourceRow.leadControls || []);
+      for (const component of components) {
+        if (component.destination && !contract.fields.includes(component.destination) && !component.destination.startsWith("__") && dataImportDestinationExists(component.destination)) {
+          if (mapped[component.destination] !== undefined) unmappedFields.push({header:component.label,value:component.value,suggestion:{field:component.destination,confidence:0,reason:"Destination collision requires review"}});
+          else { mapped[component.destination] = component.value; sourceFields[component.destination] = component.label; }
+        }
+      }
+      contract.fields.forEach(field => { delete mapped[field]; if (mix.evidence.some(e=>e.destination===field)) mapped[field]=mix.buckets[field]; });
+      mapped.__leadSourceMix = mix;
+      for (const component of sourceRow.leadReview || []) unmappedFields.push({header:component.label,value:component.value,suggestion:{field:"",confidence:0,reason:"Contact-source qualification needs review"}});
+    }
     return {mapped,sourceFields,unmappedFields};
   }
   const mapped = {};
@@ -50058,6 +50004,9 @@ function dataImportMapSourceRow(sourceRow = {}, plan = {}, mappingCache = null) 
     if (!suggestion.field || suggestion.confidence < autoMapThreshold || suggestion.autoMap === false || suggestion.field === "__ignored__") {
       if (!suggestion.field || suggestion.field !== "__ignored__") unmappedFields.push({ header, value, suggestion });
       return;
+    }
+    if (window.AtlasLeadSources?.fields.includes(suggestion.field) && !window.AtlasLeadSources.classify(header,{sourceSystem:plan.sourceSystem,reportType:plan.reportType,section:sourceRow.section}).field) {
+      unmappedFields.push({header,value,suggestion:{field:"",confidence:0,reason:"Lead-source section evidence is required"}}); return;
     }
     if (plan.reportType === "box_score" && ["occupied_units", "leased_units", "source_leased_units", "total_units", "rentable_units", "excluded_units", "vacant_units", "available_units"].includes(suggestion.field) && (/%|percent|pct/i.test(header) || String(value).includes("%"))) {
       unmappedFields.push({header,value,suggestion:{field:"",confidence:0,reason:"A percentage cannot populate an occupancy count."}});
@@ -50546,7 +50495,10 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     if (acceptDerived) for (const [target, field, value] of occupancyMetrics) {
       dataImportApplyMetric(record, plan, result, communityName, period, target, value, field);
     }
-    dataImportApplyMetric(record, plan, result, communityName, period, "guest_cards", sum("new_leads") ?? sum("guest_cards"), "new_leads");
+    const sourceMixRows = rows.filter(row=>row.__leadSourceMix);
+    const incomingLeadMix = sourceMixRows.length === 1 ? sourceMixRows[0].__leadSourceMix : null;
+    const sourceGuestCards = sourceMixRows.length > 1 ? null : incomingLeadMix ? incomingLeadMix.controls.find(c=>c.status === "valid")?.value ?? incomingLeadMix.total : sum("new_leads") ?? sum("guest_cards");
+    dataImportApplyMetric(record, plan, result, communityName, period, "guest_cards", sourceGuestCards, "new_leads");
     dataImportApplyMetric(record, plan, result, communityName, period, "applications", sum("applications"), "applications");
     dataImportApplyMetric(record, plan, result, communityName, period, "tours", sum("tours"), "tours");
     if (!studentBasisConflict) dataImportApplyMetric(record, plan, result, communityName, period, "move_ins", sum("move_ins"), "move_ins");
@@ -50560,10 +50512,23 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
       dataImportApplyMetric(record, plan, result, communityName, period, "market_rent", sum("avg_scheduled_rent"), "avg_scheduled_rent");
       dataImportApplyMetric(record, plan, result, communityName, period, "ner", sum("avg_ner"), "avg_ner");
     }
-    for (const field of ["walk_in", "off_site_event", "phone_calls"]) dataImportApplyMetric(record, plan, result, communityName, period, field, sum(field), field);
-    const combined = fields => { const values=fields.map(sum); return values.every(v=>v!==null) ? values.reduce((a,b)=>a+b,0) : null; };
-    dataImportApplyMetric(record, plan, result, communityName, period, "emails_online", combined(["emails","online"]), "emails_online");
-    dataImportApplyMetric(record, plan, result, communityName, period, "text_chat_other", combined(["text","chat","other"]), "text_chat_other");
+    const leadRows = rows.filter(row => row.__leadSourceMix);
+    if (leadRows.length === 1) {
+      const mix = leadRows[0].__leadSourceMix;
+      const canApplyMix = window.AtlasLeadSources.fields.every(field=>dataImportShouldApplyCurrentMetric(plan,communityName,period.periodKey,field,sourceTime,result));
+      if (canApplyMix) for (const field of window.AtlasLeadSources.fields) {
+        if (mix.buckets[field] === null) applyValueToRecord(record,period.monthIdx,field,null,period.year);
+        else dataImportApplyMetric(record,plan,result,communityName,period,field,mix.buckets[field],field);
+      }
+      const periodEntries = getWritableMonthlyPeriodEntries(record, period.monthIdx, period.year);
+      [periodEntries?.historyEntry,periodEntries?.liveEntry].filter(Boolean).forEach(month => {
+        if (!canApplyMix) return;
+        month.leadSourceReconciliation = {...mix,communityName,period:period.periodKey,sourceFile:plan.name,importVersion:plan.fileHash || plan.fileId};
+      });
+      if (mix.status !== "reconciled") result.issues.push({type:"reconciliation",severity:"medium",title:"Lead-source mix requires review",detail:`${communityName} ${period.periodKey}: ${mix.status}; source controls and bucket values retained.`,communityName});
+    } else if (leadRows.length > 1) {
+      result.issues.push({type:"reconciliation",severity:"high",title:"Multiple lead-source representations",detail:"Overlapping Lead Activity rows require review before publishing a source mix.",communityName});
+    }
     const leadCount = sum("new_leads") ?? sum("guest_cards");
     const applicationCount = sum("applications");
     if (leadCount !== null && applicationCount !== null && applicationCount > leadCount) result.issues.push({ type: "reconciliation", severity: "medium", title: "Applications exceed detected leads", detail: `${applicationCount} applications were reported against ${leadCount} new leads. Confirm the source date range and lead bucket definitions.`, communityName });
@@ -50748,6 +50713,7 @@ function openDataImportExceptionMapping(issueId) {
 }
 
 async function dataImportRouteStructuredFile(file, plan, batchId) {
+  if (plan.reportType === "box_score") await refreshDataImportSharedLeadMappings();
   const sheets = await dataImportReadStructuredRows(file, plan);
   const actualRowsReviewed = sheets.reduce((total, sheet) => total + sheet.rows.length, 0);
   const previewRowsReviewed = Number(plan.rowCount || 0);
@@ -50851,8 +50817,13 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
         reportTypeLabel: plan.reportTypeLabel,
         communityName,
         periodKey: period.periodKey,
-        values: mapped,
+        values: Object.fromEntries(Object.entries(mapped).filter(([field])=>field !== "__leadSourceMix")),
+        leadSourceReconciliation: mapped.__leadSourceMix || null,
         originalValues: sourceRow.values,
+        leadSourceEvidence: sourceRow.leadComponents || [],
+        leadSourceControls: sourceRow.leadControls || [],
+        leadSourceReview: sourceRow.leadReview || [],
+        sourceLocators: sourceRow.locators || {},
         section: sourceRow.section, sectionPeriod: sourceRow.period,
         periodSelection: plan.periodSelection || null,
         downstreamEligible: !blockStaleDownstream,
@@ -50862,7 +50833,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
         sourceFile: plan.name,
         fileHash: plan.fileHash || "",
         batchId,
-        mappingVersion: plan.mappingVersion || "ATLAS-RRIM-1.0",
+        mappingVersion: mapped.__leadSourceMix?.version || plan.mappingVersion || "ATLAS-RRIM-1.0",
         dataAsOf: plan.metadata?.dataAsOf || plan.dataDateIso || plan.metadata?.generatedAt || "",
         importedAt: new Date().toISOString()
       };
@@ -53149,6 +53120,8 @@ function dataImportSlug(value = "item") {
 }
 
 function dataImportMappingDestinationLabel(fieldKey = "") {
+  const leadLabels = {walk_in:"Walk In",off_site_event:"Off Site Event",phone_calls:"Phone Calls",emails_online:"Emails / Online",text_chat_other:"Text / Chat / Other"};
+  if (leadLabels[fieldKey]) return leadLabels[fieldKey];
   if (fieldKey === "__ignore_import__") return "Ignore for This Import";
   if (["__ignored__", "__always_ignore__"].includes(fieldKey)) return "Always Ignore This Source Field";
   if (fieldKey === "__create_custom__") return "+ Create New ATLAS Field";
@@ -53372,6 +53345,7 @@ function dataImportBuildMappingReviewItems() {
       id: `rule_${rule.id}`,
       kind: "rule",
       ruleId: rule.id,
+      sharedLeadMapping: rule.sharedLeadMapping === true,
       locked: !!rule.locked,
       isNew: false,
       status,
@@ -53394,11 +53368,14 @@ function dataImportBuildMappingReviewItems() {
   });
   const archivedFields = new Set();
   (dataImport2State.canonicalRecords || []).forEach(record => {
-    Object.entries(record.originalValues || {}).forEach(([header, value]) => {
+    const reviewValues = record.leadSourceEvidence?.length
+      ? [...Object.entries(record.originalValues || {}).filter(([field])=>!window.AtlasLeadSources.fields.includes(field)),...record.leadSourceEvidence.map(component=>[component.label,component.value])]
+      : Object.entries(record.originalValues || {});
+    reviewValues.forEach(([header, value]) => {
       const id = `archive_${record.batchId}_${dataImportSlug(record.sourceFile)}_${dataImportSlug(header)}`;
       if (archivedFields.has(id)) return;
       archivedFields.add(id);
-      const context = {reportType: record.reportType, sourceSystem: record.sourceSystem, sampleValue: value};
+      const context = {reportType: record.reportType, sourceSystem: record.sourceSystem, section:record.section, sampleValue: value};
       const suggestion = dataImportSuggestDestinationForHeader(header, context);
       const rule = dataImportFindSavedRuleForHeader(header, context);
       const field = rule?.canonicalField || suggestion.field || "";
@@ -53493,109 +53470,7 @@ function dataImportSelectedDestinationForItem(item = {}) {
   return (dataImport2State.mappingDrafts || {})[item.id] ?? (item.currentField || item.suggestedField || "");
 }
 
-function dataImportUpsertMappingRuleFromItem(item = {}, canonicalField = "", options = {}) {
-  if (!item.originalField || !canonicalField) return false;
-  if (canonicalField === "__ignore_import__") {
-    alert("Ignore for This Import is available while reviewing a live import. It does not create a reusable mapping rule.");
-    return false;
-  }
-  if (canonicalField === "__always_ignore__") canonicalField = "__ignored__";
-  if (canonicalField === "__create_custom__") {
-    dataImport2State.selectedMappingPreviewId = item.id;
-    alert("Open Create New ATLAS Field below, define the field, and ATLAS will return it to this mapping.");
-    return false;
-  }
-  if (!dataImportDestinationExists(canonicalField)) {
-    alert("This destination is not registered in ATLAS. Choose an existing destination or create a new ATLAS field first.");
-    return false;
-  }
-  const contextualMatch = (dataImport2State.mappingRules || []).find(rule =>
-    !rule.locked
-    && dataImportNormalizeText(rule.originalField) === dataImportNormalizeText(item.originalField)
-    && dataImportNormalizeText(rule.sourceSystem || "Global") === dataImportNormalizeText(item.sourceSystem || "Global")
-    && dataImportNormalizeText(rule.reportType || "") === dataImportNormalizeText(item.reportType || "")
-  );
-  const priorDestination = item.currentField || contextualMatch?.canonicalField || "";
-  const destinationChanged = priorDestination && priorDestination !== canonicalField;
-  if (destinationChanged && !options.skipLiveConfirm) {
-    const impacted = Array.from(new Set([...dataImportDestinationModules(priorDestination), ...dataImportDestinationModules(canonicalField)])).slice(0, 6);
-    const warning = impacted.length
-      ? `Changing this mapping may affect: ${impacted.join(", ")}. Continue?`
-      : "Changing this mapping may affect live reporting. Continue?";
-    if (!confirm(warning)) return false;
-  }
-  const now = new Date().toISOString();
-  const existingRule = item.ruleId ? (dataImport2State.mappingRules || []).find(rule => rule.id === item.ruleId) : null;
-  const editableMatch = !existingRule || existingRule.locked
-    ? contextualMatch
-    : existingRule;
-  const reason = options.reason || (destinationChanged ? "Admin override" : canonicalField === "__ignored__" ? "Field intentionally ignored" : "Mapping approved");
-  const confirmationCount = Number(editableMatch?.confirmationCount || 0) + (options.learningConfirmation ? 1 : 0);
-  const overrideCount = Number(editableMatch?.overrideCount || 0) + (destinationChanged ? 1 : 0);
-  const confidence = canonicalField === "__ignored__"
-    ? 100
-    : options.learningConfirmation
-      ? Math.min(99, Math.max(97, Number(editableMatch?.confidence || 0) + 2))
-      : Number(item.confidence || editableMatch?.confidence || 80);
-  const learningStatus = canonicalField === "__ignored__"
-    ? "Permanently Ignored"
-    : options.locked || editableMatch?.locked
-      ? "Locked"
-      : dataImportLearningStatus(confirmationCount, Number(editableMatch?.successfulUses || 0));
-  const nextRule = {
-    id: editableMatch?.id || dataImportMakeId("map"),
-    originalField: item.originalField,
-    canonicalField,
-    sourceSystem: item.sourceSystem || editableMatch?.sourceSystem || "Global",
-    reportType: item.reportType || editableMatch?.reportType || "",
-    sourceFile: item.sourceFile || editableMatch?.sourceFile || "",
-    sheetName: item.sheetName || editableMatch?.sheetName || "",
-    sampleValue: item.sampleValue || editableMatch?.sampleValue || "",
-    detectedDataType: item.detectedDataType || editableMatch?.detectedDataType || "",
-    scope: options.scope || editableMatch?.scope || "Exact Source + Report",
-    status: canonicalField === "__ignored__" ? "Ignored" : "Mapped",
-    confidence,
-    suggestedField: item.suggestedField || editableMatch?.suggestedField || canonicalField,
-    savedBy: editableMatch?.savedBy || "Admin",
-    savedAt: editableMatch?.savedAt || now,
-    updatedBy: "Admin",
-    updatedAt: now,
-    locked: options.locked === true || editableMatch?.locked === true,
-    sourceFilePattern: dataImportSourceFilePattern(item.sourceFile || editableMatch?.sourceFile || ""),
-    propertyName: item.propertyName || editableMatch?.propertyName || "",
-    region: item.region || editableMatch?.region || "",
-    confirmationCount,
-    successfulUses: Number(editableMatch?.successfulUses || 0),
-    overrideCount,
-    lastUsedAt: editableMatch?.lastUsedAt || "",
-    learningStatus,
-    createdBy: editableMatch?.createdBy || atlasCurrentUserDisplayName() || "Admin",
-    createdAt: editableMatch?.createdAt || now
-  };
-  if (editableMatch) {
-    dataImport2State.mappingRules = (dataImport2State.mappingRules || []).map(rule => rule.id === editableMatch.id ? nextRule : rule);
-  } else {
-    dataImport2State.mappingRules = [nextRule, ...(dataImport2State.mappingRules || [])];
-  }
-  dataImport2State.mappingAuditTrail = [{
-    id: dataImportMakeId("mapaudit"),
-    changedAt: now,
-    changedBy: "Admin",
-    sourceField: item.originalField,
-    previousDestination: priorDestination,
-    newDestination: canonicalField,
-    sourceSystem: item.sourceSystem || "Global",
-    reportType: item.reportType || "",
-    sourceFile: item.sourceFile || "",
-    uploadBatch: item.uploadBatch || "",
-    reason,
-    downstreamModules: dataImportDestinationModules(canonicalField, item.downstreamModules || [])
-  }, ...(dataImport2State.mappingAuditTrail || [])].slice(0, 140);
-  delete dataImport2State.mappingDrafts?.[item.id];
-  dataImport2State.selectedMappingIds = (dataImport2State.selectedMappingIds || []).filter(id => id !== item.id);
-  dataImport2State.selectedMappingPreviewId = "";
-  return true;
-}
+
 
 function saveDataImportMappingRule() {
   const originalField = document.getElementById("data-import-map-original")?.value?.trim() || "";
@@ -53623,6 +53498,9 @@ function saveDataImportMappingRule() {
 }
 
 function deleteDataImportMappingRule(ruleId) {
+  if (window.atlasLeadMappingSaveInProgress) return;
+  const leadRule = (dataImport2State.mappingRules || []).find(r=>r.id===ruleId);
+  if (leadRule?.sharedLeadMapping) { previewDataImportMappingItem(`rule_${ruleId}`); return; }
   const rule = (dataImport2State.mappingRules || []).find(item => item.id === ruleId);
   if (rule?.locked) {
     alert("Default ATLAS mappings stay available globally.");
@@ -53640,24 +53518,13 @@ function previewDataImportMappingItem(itemId) {
 }
 
 function cancelDataImportMappingPreview() {
+  delete dataImport2State.mappingDrafts?.[dataImport2State.selectedMappingPreviewId];
   dataImport2State.selectedMappingPreviewId = "";
   persistDataImport2State();
   renderTab();
 }
 
-function saveDataImportMappingReviewItem(itemId) {
-  const item = dataImportFindMappingReviewItem(itemId);
-  if (!item) return;
-  const destination = dataImportSelectedDestinationForItem(item);
-  if (!destination) {
-    alert("Choose a destination before saving this mapping.");
-    return;
-  }
-  if (dataImportUpsertMappingRuleFromItem(item, destination)) {
-    persistDataImport2State();
-    renderTab();
-  }
-}
+
 
 function acceptDataImportMappingSuggestion(itemId) {
   const item = dataImportFindMappingReviewItem(itemId);
@@ -53878,6 +53745,7 @@ function saveDataImportCustomField() {
 }
 
 function restoreDataImportMappingAudit(auditId) {
+  if ((dataImport2State.mappingAuditTrail || []).some(e=>e.id===auditId && e.newMappingVersion)) { rollbackDataImportMappingVersion(auditId); return; }
   const audit = (dataImport2State.mappingAuditTrail || []).find(item => item.id === auditId);
   if (!audit?.previousDestination) {
     alert("No previous mapping is available to restore.");
@@ -53926,25 +53794,7 @@ function renderDataImportNewSourceQueue(rows = []) {
   </div>`;
 }
 
-function renderDataImportMappingPreview() {
-  const item = dataImportFindMappingReviewItem(dataImport2State.selectedMappingPreviewId);
-  if (!item) return "";
-  const destination = dataImportSelectedDestinationForItem(item);
-  const modules = dataImportDestinationModules(destination, item.downstreamModules || []);
-  return `<div class="data-import2-preview-panel" style="grid-column:1 / -1">
-    <div class="data-import2-section-title"><i class="ph ph-eye"></i>Proposed Mapping</div>
-    <div class="data-import2-preview-cols">
-      <div><div class="data-import2-small-label">Source</div><strong>${escapeHtml(item.originalField)}</strong><div class="data-import2-review-meta">${escapeHtml(item.sourceSystem)} → ${escapeHtml(item.reportTypeLabel)}<br>${escapeHtml(item.sourceFile)} · ${escapeHtml(item.sheetName)}</div></div>
-      <div><div class="data-import2-small-label">Destination</div><strong>${escapeHtml(dataImportDestinationCategory(destination))}</strong><div class="data-import2-review-meta">${escapeHtml(dataImportMappingDestinationLabel(destination || "Choose destination"))}</div></div>
-      <div><div class="data-import2-small-label">Example Incoming Value</div><strong>${escapeHtml(item.sampleValue || "No sample captured")}</strong><div class="data-import2-review-meta">${escapeHtml(item.detectedDataType || "Type not detected")}</div></div>
-      <div><div class="data-import2-small-label">Downstream Impact</div><div class="data-import2-review-meta">${escapeHtml(modules.slice(0, 6).join(", ") || "No live module dependency configured yet.")}</div></div>
-    </div>
-    <div class="data-import2-inline-actions" style="margin-top:10px">
-      <button class="btn btn-blue btn-sm" onclick='saveDataImportMappingReviewItem(${JSON.stringify(item.id)})'>Save Mapping</button>
-      <button class="btn btn-gray btn-sm" onclick="cancelDataImportMappingPreview()">Cancel</button>
-    </div>
-  </div>`;
-}
+
 
 function renderDataImportMappingToolbar(items = []) {
   const sourceOptions = Array.from(new Set(items.map(item => item.sourceSystem).filter(Boolean))).sort();
@@ -54006,7 +53856,7 @@ function renderDataImportMappingReviewList(items = []) {
       </div>
       <div>
         <div class="data-import2-small-label">Sample / Type</div>
-        <div class="data-import2-review-title">${escapeHtml(item.sampleValue || "No sample")}</div>
+        <div class="data-import2-review-title">${escapeHtml(item.sampleValue === 0 ? "0" : (item.sampleValue || "No sample"))}</div>
         <div class="data-import2-review-meta">${escapeHtml(item.detectedDataType || "Type not detected")}<br>Updated ${escapeHtml(item.lastUpdated ? dataImportFormatTimestamp(item.lastUpdated) : "Default")} by ${escapeHtml(item.updatedBy || "ATLAS")}</div>
       </div>
       <div>
@@ -54105,6 +53955,9 @@ function renderDataImportMappingHistory() {
 }
 
 function updateDataImportLearningRule(ruleId, action) {
+  if (window.atlasLeadMappingSaveInProgress) return;
+  const leadRule = (dataImport2State.mappingRules || []).find(r=>r.id===ruleId);
+  if (leadRule?.sharedLeadMapping || window.AtlasLeadSources?.fields.includes(leadRule?.canonicalField)) { previewDataImportMappingItem(`rule_${ruleId}`); return; }
   if (!dataImportCanManageArchitecture()) {
     alert("Only an ATLAS Administrator or Data Manager can change learning rules.");
     return;
@@ -54191,7 +54044,7 @@ function renderDataImportLearningLibrary() {
     </div>` : ""}
     ${rules.length ? `<div class="data-import2-compact-table" style="margin-top:12px"><table class="data-import2-table"><thead><tr><th>Source Context</th><th>Destination</th><th>Confidence</th><th>Uses / Overrides</th><th>Status</th><th>Updated</th><th></th></tr></thead><tbody>${rules.slice(0, 100).map(rule => `<tr>
       <td><strong>${escapeHtml(rule.originalField)}</strong><div class="data-import2-file-meta">${escapeHtml(rule.sourceSystem || "Global")} · ${escapeHtml(rule.reportType ? dataImportReportLabel(rule.reportType) : "Any report")} · ${escapeHtml(rule.scope || "Exact Source + Report")}</div></td>
-      <td>${escapeHtml(dataImportMappingDestinationLabel(rule.canonicalField || "Needs Mapping"))}</td>
+      <td>${escapeHtml(dataImportMappingDestinationLabel(rule.canonicalField || "Needs Mapping"))}<br><button class="btn btn-gray btn-sm" onclick='previewDataImportMappingItem(${JSON.stringify(`rule_${rule.id}`)})'>Edit / Preview</button></td>
       <td><strong>${escapeHtml(Number(rule.confidence || 0))}%</strong><div class="data-import2-file-meta">${escapeHtml(Number(rule.confirmationCount || 0))} confirmations</div></td>
       <td>${escapeHtml(Number(rule.successfulUses || 0))} / ${escapeHtml(Number(rule.overrideCount || 0))}</td>
       <td><span class="data-import2-status ${dataImportStatusClass(rule.status || rule.learningStatus)}">${escapeHtml(rule.learningStatus || "Learning")}</span></td>
@@ -54223,6 +54076,8 @@ function renderDataImportAliasCoverage() {
 function renderDataImportMappingRulesView() {
   const allItems = dataImportBuildMappingReviewItems();
   const visibleItems = dataImportFilterMappingReviewItems(allItems);
+  const selectedPreview = allItems.find(item=>item.id===dataImport2State.selectedMappingPreviewId);
+  if (selectedPreview && !visibleItems.some(item=>item.id===selectedPreview.id)) visibleItems.unshift(selectedPreview);
   const counts = dataImportMappingReviewCounts(allItems);
   const newSourceRows = dataImportBuildNewSourceReviewItems();
   return `<div class="data-import2-shell">
@@ -55165,6 +55020,8 @@ function mergeExtractedDashboardRows(rows, sourceLabel="Uploaded report") {
   const merged = new Map();
   [...extractedDashboardRows, ...rows].forEach(row => {
     const normalized = Object.fromEntries(DASHBOARD_EXTRACT_HEADERS.map(key => [key, row[key] ?? ""]));
+    if (row.__leadSourceMix) normalized.__leadSourceMix = row.__leadSourceMix;
+    if (row.__leadSourceConflict) normalized.__leadSourceConflict = true;
     normalized.year = getExtractedDashboardRowYear(row, getExtractedDashboardRowYear(normalized));
     const mapKey = `${normalized.property}::${normalized.year}::${normalized.month}`;
     if (!merged.has(mapKey)) {
@@ -55172,6 +55029,10 @@ function mergeExtractedDashboardRows(rows, sourceLabel="Uploaded report") {
       return;
     }
     const prev = merged.get(mapKey);
+    if (normalized.__leadSourceMix) {
+      if (prev.__leadSourceMix && JSON.stringify(prev.__leadSourceMix) !== JSON.stringify(normalized.__leadSourceMix)) prev.__leadSourceConflict = true;
+      else prev.__leadSourceMix = normalized.__leadSourceMix;
+    }
     DASHBOARD_EXTRACT_HEADERS.forEach(key => {
       if (normalized[key] !== "" && normalized[key] !== null && normalized[key] !== undefined) {
         prev[key] = normalized[key];
@@ -55188,6 +55049,7 @@ function mergeExtractedDashboardRows(rows, sourceLabel="Uploaded report") {
 
 function updateExtractedDashboardCell(rowIdx, key, val) {
   if (!extractedDashboardRows[rowIdx]) return;
+  if (extractedDashboardRows[rowIdx].__leadSourceMix && window.AtlasLeadSources.fields.includes(key)) { alert("Use Mapping Review to edit imported lead-source classifications."); return; }
   extractedDashboardRows[rowIdx][key] = val;
 }
 
@@ -55335,6 +55197,7 @@ function applyExtractedDashboardRows(options = {}) {
   const touchedProps = new Set();
   const forcedTarget = getForcedImportTarget(options);
   extractedDashboardRows.forEach(row => {
+    if (row.__leadSourceConflict) { csvLog.push("Held duplicate lead-source representations: " + row.property + " " + row.month); return; }
     const monthIdx = forcedTarget.monthIdx ?? getRowTargetMonth(row);
     if (monthIdx === null || monthIdx < 0 || monthIdx > 11) return;
     const propName = forcedTarget.community || matchPropertyName(row.property, { fallbackToCurrent: false });
@@ -55351,6 +55214,13 @@ function applyExtractedDashboardRows(options = {}) {
       if (applyValueToRecord(record, monthIdx, targetKey, numericValue, targetYear)) applied++;
     };
     EXTRACT_MAPPABLE_FIELDS.forEach(sourceKey => applyMappedValue(sourceKey, row[sourceKey] ?? ""));
+    if (row.__leadSourceMix) {
+      const mix=row.__leadSourceMix;
+      window.AtlasLeadSources.fields.forEach(field=>applyValueToRecord(record,monthIdx,field,mix.buckets[field],targetYear));
+      const slots=getWritableMonthlyPeriodEntries(record,monthIdx,targetYear);
+      [slots?.historyEntry,slots?.liveEntry].filter(Boolean).forEach(slot=>{slot.leadSourceReconciliation={...mix,communityName:propName,period:buildPeriodKey(monthIdx,targetYear),sourceFile:extractedSourceLabel};});
+    }
+
     const ntvSourceKey = EXTRACT_MAPPABLE_FIELDS.find(sourceKey => (extractFieldMap[sourceKey] ?? sourceKey) === "renewal_ntvs");
     const ntvCount = ntvSourceKey ? Number(row[ntvSourceKey] ?? "") : null;
     if (Number.isFinite(ntvCount)) {
@@ -55641,36 +55511,18 @@ function parseRonaldoAvailabilityRows(rows = [], target = {}) {
 }
 
 function parseRonaldoLeadActivityRows(rows = [], target = {}) {
-  const { indices } = getRonaldoGeneratorRowHeaders(rows);
-  const newLeads = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["new_leads", "leads", "traffic"]));
-  const walkIn = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["original_contact_method_walk_in", "walk_in", "walk_in_leads", "lead_walk_ins"]));
-  const offSiteEvent = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["original_contact_method_off_site_event", "off_site_event", "off_site_event_leads"]));
-  const call = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["original_contact_method_call", "phone_calls", "phone_call", "call_leads", "lead_calls"]));
-  const email = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["original_contact_method_email", "email", "email_leads"]));
-  const online = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["original_contact_method_online", "online", "online_leads"]));
-  const chat = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["original_contact_method_chat", "chat", "chat_leads"]));
-  const text = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["original_contact_method_text", "text", "text_leads"]));
-  const other = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["original_contact_method_other", "other", "other_leads"]));
-  const tours = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["tours_first_visits_tours", "first_visits_tours", "tours"]));
-  const activityEmails = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["activity_emails"]));
-  const activityCalls = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["activity_calls"]));
-  const activityChats = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["activity_chats"]));
-  const activityTexts = sumRonaldoColumn(rows, findRonaldoHeaderIndex(indices, ["activity_texts"]));
-  return makeRonaldoBackfillRow(target, {
-    guest_cards: newLeads ?? "",
-    walk_in: walkIn ?? "",
-    off_site_event: offSiteEvent ?? "",
-    phone_calls: call ?? "",
-    emails_online: [email, online].every(value => Number.isFinite(value)) ? email + online : (email ?? online ?? ""),
-    text_chat_other: [chat, text, other].some(value => Number.isFinite(value))
-      ? [chat, text, other].filter(value => Number.isFinite(value)).reduce((sum, value) => sum + value, 0)
-      : "",
-    tours: tours ?? "",
-    ...(activityEmails !== null ? { activity_emails: activityEmails } : {}),
-    ...(activityCalls !== null ? { activity_calls: activityCalls } : {}),
-    ...(activityChats !== null ? { activity_chats: activityChats } : {}),
-    ...(activityTexts !== null ? { activity_texts: activityTexts } : {})
-  });
+  const headers=rows[0] || [];
+  const totalRows=rows.slice(1).filter(row=>/^(?:grand )?total:?$/i.test(String(row[0]).trim()));
+  const selected=totalRows.length ? totalRows : rows.slice(1);
+  const mixes=selected.map(row=>dataImportKnownLeadColumns(headers,row,{sourceFile:target.sourceFile || '',sourceRow:rows.indexOf(row)+1,contactSourceMix:true})).filter(Boolean);
+  const context={sourceSystem:'Entrata',reportType:'box_score',section:'Lead Activity'};
+  const mix=window.AtlasLeadSources.aggregate(mixes.flatMap(m=>m.evidence.map(e=>({...e,value:e.rawValue}))),context,[]);
+  const controls=mixes.map(m=>m.controls.find(c=>c.status==='valid')?.value ?? null);
+  const control=window.AtlasLeadSources.sum(controls);
+  if (control !== null) { mix.controls=[{label:'New Leads',rawValue:control,value:control,status:'valid',variance:mix.total === null ? null : mix.total-control}];mix.status=mix.total === null ? 'incomplete' : mix.total === control ? 'reconciled':'variance'; }
+  const {indices}=getRonaldoGeneratorRowHeaders(rows);
+  const tours=sumRonaldoColumn(rows,findRonaldoHeaderIndex(indices,['tours_first_visits_tours','first_visits_tours','tours']));
+  return {...makeRonaldoBackfillRow(target,{...mix.buckets,guest_cards:control,tours}),__leadSourceMix:mix};
 }
 
 function parseRonaldoLeadConversionRows(rows = [], target = {}) {
@@ -55864,121 +55716,9 @@ function mapRonaldoGeneratorDetailRows(rows = [], kind, target = {}, sourceLabel
   return [];
 }
 
-function buildRonaldoLeadSourceMonthRow(row = {}, target = {}) {
-  const newLeads = normalizeRonaldoBackfillNumber(row.new_leads);
-  const emailLeads = normalizeRonaldoBackfillNumber(row.email_leads);
-  const onlineLeads = normalizeRonaldoBackfillNumber(row.online_leads);
-  const callLeads = normalizeRonaldoBackfillNumber(row.call_leads);
-  const walkInLeads = normalizeRonaldoBackfillNumber(row.walk_in_leads);
-  const offSiteEventLeads = normalizeRonaldoBackfillNumber(row.off_site_event_leads);
-  const chatLeads = normalizeRonaldoBackfillNumber(row.chat_leads);
-  const textLeads = normalizeRonaldoBackfillNumber(row.text_leads);
-  const otherLeads = normalizeRonaldoBackfillNumber(row.other_leads);
-  const firstVisitsTours = normalizeRonaldoBackfillNumber(row.first_visits_tours);
-  const leadMix = {
-    guest_cards: Number.isFinite(newLeads) ? newLeads : "",
-    walk_in: Number.isFinite(walkInLeads) ? walkInLeads : "",
-    off_site_event: Number.isFinite(offSiteEventLeads) ? offSiteEventLeads : "",
-    phone_calls: Number.isFinite(callLeads) ? callLeads : "",
-    emails_online: [emailLeads, onlineLeads].filter(value => Number.isFinite(value)).reduce((sum, value) => sum + value, 0) || "",
-    text_chat_other: [chatLeads, textLeads, otherLeads].filter(value => Number.isFinite(value)).reduce((sum, value) => sum + value, 0) || "",
-    tours: Number.isFinite(firstVisitsTours) ? firstVisitsTours : ""
-  };
-  return makeRonaldoBackfillRow(target, leadMix);
-}
 
-async function processRonaldoLeadSourceRows(workbook, fileName = "", options = {}, communityMap = {}) {
-  const sheetNames = Array.isArray(workbook?.SheetNames) ? workbook.SheetNames : [];
-  if (sheetNames.length === 0) return { rows: [], notes: [] };
-  const sheetRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetNames[0]], { header: 1, defval: "", raw: false });
-  if (!Array.isArray(sheetRows) || sheetRows.length < 2) return { rows: [], notes: [] };
-  const headers = (sheetRows[0] || []).map(normalizeAtlasColumnKey);
-  const idx = Object.fromEntries(headers.map((key, i) => [key, i]));
-  const getCell = (row, key) => row[idx[key]] ?? "";
-  const forcedTarget = getForcedImportTarget(options);
-  const rowsByKey = new Map();
-  const notes = [`📎 ${fileName} mapped as lead source box score.`];
-  for (let r = 1; r < sheetRows.length; r += 1) {
-    const row = sheetRows[r] || [];
-    const mappedName = resolveRonaldoCommunityFromRow({
-      community_id: getCell(row, "community_id"),
-      community_name: getCell(row, "community_name")
-    }, communityMap, forcedTarget);
-    if (!mappedName) continue;
-    const detectedMonthIdx = parseAtlasMonthIndex(getCell(row, "report_month"));
-    const targetMonthIdx = forcedTarget.monthIdx ?? (importRoutingMode === "force_override" ? getImportTargetMonth() : (detectedMonthIdx ?? getImportTargetMonth()));
-    const targetYear = forcedTarget.year ?? getHistoricalImportYear();
-    if (targetMonthIdx < 0 || targetMonthIdx > 11) continue;
-    const key = `${mappedName}::${targetMonthIdx}::${targetYear}`;
-    const current = rowsByKey.get(key) || {
-      property: mappedName,
-      month: targetYear === new Date().getFullYear() ? MONTHS[targetMonthIdx] : buildHistoricalMonthLabel(targetMonthIdx, targetYear),
-      monthIdx: targetMonthIdx,
-      year: targetYear,
-      guest_cards: 0,
-      walk_in: 0,
-      off_site_event: 0,
-      phone_calls: 0,
-      emails_online: 0,
-      text_chat_other: 0,
-      tours: 0
-    };
-    const add = (targetKey, sourceKey) => {
-      const value = normalizeRonaldoBackfillNumber(getCell(row, sourceKey));
-      if (!Number.isFinite(value)) return;
-      current[targetKey] += value;
-    };
-    add("guest_cards", "new_leads");
-    add("walk_in", "walk_in_leads");
-    add("off_site_event", "off_site_event_leads");
-    add("phone_calls", "call_leads");
-    add("emails_online", "email_leads");
-    add("emails_online", "online_leads");
-    add("text_chat_other", "chat_leads");
-    add("text_chat_other", "text_leads");
-    add("text_chat_other", "other_leads");
-    add("tours", "first_visits_tours");
-    rowsByKey.set(key, current);
-  }
-  const rows = Array.from(rowsByKey.values()).map(row => ({
-    ...row,
-    guest_cards: row.guest_cards || "",
-    walk_in: row.walk_in || "",
-    off_site_event: row.off_site_event || "",
-    phone_calls: row.phone_calls || "",
-    emails_online: row.emails_online || "",
-    text_chat_other: row.text_chat_other || "",
-    tours: row.tours || ""
-  }));
-  if (rows.length === 0) return { rows: [], notes };
-  rows.forEach(row => {
-    const record = getPropertyRecordForApply(row.property, { useCurrentRecord: false });
-    if (!record) return;
-    const monthIdx = parseMonthIndexValue(row.month) ?? forcedTarget.monthIdx ?? getImportTargetMonth();
-    const year = Number.isFinite(Number(row.year)) ? Number(row.year) : (forcedTarget.year ?? getHistoricalImportYear());
-    clearMonthlyRecordFields(record, monthIdx, ["guest_cards", "walk_in", "off_site_event", "phone_calls", "emails_online", "text_chat_other", "tours"], year);
-    const targetMap = {
-      guest_cards: "guest_cards",
-      walk_in: "walk_in",
-      off_site_event: "off_site_event",
-      phone_calls: "phone_calls",
-      emails_online: "emails_online",
-      text_chat_other: "text_chat_other",
-      tours: "tours"
-    };
-    Object.entries(targetMap).forEach(([sourceKey, targetKey]) => {
-      const value = Number(row[sourceKey]);
-      if (Number.isFinite(value)) applyValueToRecord(record, monthIdx, targetKey, value, year);
-    });
-    savedData[row.property] = normalizeSavedCommunityRecord(row.property, record);
-  });
-  const saveResult = persistSaved();
-  if (saveResult?.ok === false) return { rows: [], notes: [`⚠️ ${saveResult.message}`] };
-  if (rows.some(row => row.property === getProp().name)) loadPropertyData(getProp().name);
-  renderPropGrid();
-  notes.push(`✅ Applied lead source totals across ${rows.length} community-month row${rows.length === 1 ? "" : "s"} and synced them into portfolio and individual community Traffic & Funnel records.`);
-  return { rows, notes };
-}
+
+
 
 async function processRonaldoFloorPlanSnapshotRows(workbook, fileName = "", options = {}, communityMap = {}) {
   const sheetNames = Array.isArray(workbook?.SheetNames) ? workbook.SheetNames : [];
@@ -56158,6 +55898,7 @@ async function processRonaldoFloorPlanSnapshotRows(workbook, fileName = "", opti
 async function processRonaldoMonthlyReferenceFiles(files, options = {}) {
   const accepted = Array.from(files || []);
   if (accepted.length === 0) return { rows: [], notes: [] };
+  await refreshDataImportSharedLeadMappings();
   const forcedTarget = getForcedImportTarget(options);
   const targetCommunity = getRonaldoDefaultCommunityForTarget(forcedTarget);
   const notes = [`📎 Received ${accepted.length} supporting generator / box-score file${accepted.length === 1 ? "" : "s"} for validation.`];
@@ -56982,6 +56723,7 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
       renderTab();
       return;
     }
+    await refreshDataImportSharedLeadMappings();
     const monthlyRows = XLSX.utils.sheet_to_json(workbook.Sheets[monthlySheet], { header: 1, defval: "", raw: true });
     if (!Array.isArray(monthlyRows) || monthlyRows.length < 2) {
       csvError = "Monthly_Upload has no data rows.";
@@ -57108,17 +56850,10 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
       if (!touchedPeriods.has(periodKey)) touchedPeriods.set(periodKey, new Set());
       touchedPeriods.get(periodKey).add(mappedName);
 
-      const leadWalkInsValue = getFirstNumericCell(row, ["lead_walk_ins", "lead_walkins", "walk_in", "walk_in_leads", "original_contact_method_walk_in"]);
-      const offSiteEventValue = getFirstNumericCell(row, ["lead_off_site_event", "lead_offsiteevent", "off_site_event", "off_site_event_leads", "original_contact_method_off_site_event"]);
-      const leadCallsValue = getFirstNumericCell(row, ["lead_calls", "phone_calls", "call_leads", "original_contact_method_call"]);
-      const leadEmailsOnlineValue = getFirstNumericCell(row, ["lead_emails_online", "emails_online"])
-        ?? sumNumericCells(row, ["email_leads", "online_leads", "original_contact_method_email", "original_contact_method_online"]);
-      const leadChatTextOtherValue = getFirstNumericCell(row, ["lead_chat_text_other", "lead_chat_other", "text_chat_other"])
-        ?? sumNumericCells(row, ["chat_leads", "text_leads", "other_leads", "original_contact_method_chat", "original_contact_method_text", "original_contact_method_other"]);
-      const leadSourceValues = [leadWalkInsValue, offSiteEventValue, leadCallsValue, leadEmailsOnlineValue, leadChatTextOtherValue];
-      const leadSourceTotal = leadSourceValues.some(value => value !== null)
-        ? leadSourceValues.reduce((sum, value) => sum + (value ?? 0), 0)
-        : null;
+      const leadMix = dataImportKnownLeadColumns(monthlyRows[0],row,{sourceFile:file.name,sourceSheet:monthlySheet,sourceRow:r+1,community:mappedName,period:periodKey});
+      const [leadWalkInsValue,offSiteEventValue,leadCallsValue,leadEmailsOnlineValue,leadChatTextOtherValue] = window.AtlasLeadSources.fields.map(field=>leadMix?.buckets[field] ?? null);
+      const leadSourceValues = [leadWalkInsValue,offSiteEventValue,leadCallsValue,leadEmailsOnlineValue,leadChatTextOtherValue];
+      const leadSourceTotal = leadMix?.total ?? null;
       const guestCardsValue = getFirstNumericCell(row, ["leads", "new_leads", "guest_cards", "traffic"]);
       const toursValue = getFirstNumericCell(row, ["tours", "traffic_tours", "first_visits_tours", "tours_first_visits_tours"]);
       const applicationsValue = getFirstNumericCell(row, ["applications", "application_completed", "completed_applications"]);
@@ -57176,7 +56911,7 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
         emails_online: "emails_online",
         text_chat_other: "text_chat_other"
       };
-      const hasLeadSourceBreakdown = leadSourceValues.some(value => value !== null);
+      const hasLeadSourceBreakdown = Boolean(leadMix);
       const shouldFlagMissingLeadMix = !hasLeadSourceBreakdown && guestCardsValue !== null && guestCardsValue > 0;
       if (targetRecord) {
         touchedCommunities.add(mappedName);
@@ -57224,6 +56959,11 @@ async function handleAtlasAdvancedWorkbook(file, options = {}) {
           if (!Number.isFinite(numeric)) return;
           applyValueToRecord(targetRecord, targetMonthIdx, targetKey, numeric, targetYear);
         });
+        if (leadMix) {
+          window.AtlasLeadSources.fields.forEach(field=>applyValueToRecord(targetRecord,targetMonthIdx,field,leadMix.buckets[field],targetYear));
+          const leadEntries=getWritableMonthlyPeriodEntries(targetRecord,targetMonthIdx,targetYear);
+          [leadEntries?.historyEntry,leadEntries?.liveEntry].filter(Boolean).forEach(slot=>{slot.leadSourceReconciliation={...leadMix,communityName:mappedName,period:periodKey,sourceFile:file.name,sourceSheet:monthlySheet,sourceRow:r+1,importVersion:new Date().toISOString()};});
+        }
         const totalUnitsVal = Number(String(totalUnitsValue ?? "").replace(/[,]/g, ""));
         if (Number.isFinite(totalUnitsVal) && totalUnitsVal > 0) {
           targetRecord.customUnits = Math.round(totalUnitsVal);
@@ -57335,13 +57075,11 @@ async function handleCSVFile(file, options = {}) {
   csvError = ""; csvLog = [];
   try {
       const text = await file.text();
-      const lines = text.split(/\r?\n/).filter(l => l.trim());
-      if (lines.length < 2) { csvError = "CSV appears empty or has no data rows."; renderTab(); return; }
-      const headers = lines[0].split(",").map(h => h.trim().toLowerCase().replace(/[^a-z0-9_]/g,"_"));
-      const rows = lines.slice(1).map(line => {
-        const vals = line.split(",").map(v => v.trim().replace(/^"|"$/g,""));
-        return Object.fromEntries(headers.map((h,i) => [h, vals[i] ?? ""]));
-      });
+      const cells=dataImportLeadCsvCells(text);
+      if(cells.length<2){csvError="CSV appears empty or has no data rows.";renderTab();return;}
+      const headers=cells[0].map(h=>h.trim().toLowerCase().replace(/[^a-z0-9_]/g,"_"));
+      const rows=cells.slice(1).map(values=>Object.fromEntries(headers.map((h,i)=>[h,values[i] ?? ""])));
+      if(headers.some(h=>window.AtlasLeadSources.fields.includes(h)||/^lead_|_leads$|^original_contact_method_/.test(h)))await refreshDataImportSharedLeadMappings();
       const fieldMap = {
         occupied: ["occupied","occupied_units","physical_occupied","occ_units","units_occupied"],
         leased: ["leased","leased_units","total_leased","units_leased"],
@@ -57387,7 +57125,7 @@ async function handleCSVFile(file, options = {}) {
       let matched = 0;
       const relevantRows = rows;
       const forcedTarget = getForcedImportTarget(options);
-      relevantRows.forEach(row => {
+      relevantRows.forEach((row,rowIndex) => {
         const monthStr = findVal(row, fieldMap.month);
         const monthIdx = forcedTarget.monthIdx ?? (importRoutingMode === "force_override"
           ? getImportTargetMonth()
@@ -57418,6 +57156,7 @@ async function handleCSVFile(file, options = {}) {
           log.push(`${propertyName} · ${MONTHS[monthIdx]}: ${Object.keys(monthlyUpdates[monthIdx]).join(", ") || "no mapped columns"}`);
         }
         normalizedRows.push({
+          __leadSourceMix:dataImportKnownLeadColumns(headers,headers.map(h=>row[h]),{sourceFile:file.name,sourceSheet:"CSV",sourceRow:rowIndex+2}),
           property: propertyName,
           month: forcedTarget.year ? buildHistoricalMonthLabel(monthIdx, forcedTarget.year) : MONTHS[monthIdx],
           year: rowYear,

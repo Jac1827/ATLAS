@@ -33,6 +33,7 @@ const section=c.dataImportRowPeriod({}, {period:{start:'2026-09-16'}},plan);
 assert.equal(section.periodKey,'2026-09','Source section date never relabeled as August');
 assert(c.dataImportPeriodConflict(plan.periodSelection.requested,section));
 Object.assign(c, {
+ refreshDataImportSharedLeadMappings:async()=>{},
  dataImportReadStructuredRows:async()=>[{sheetName:'Source',rows:[{sourceRow:1,period:{start:'2026-09-16'},values:{}}]}],
  dataImportApprovalInProgress:false,dataImportApprovalProgress:{rowsDone:0},
  dataImportNormalizeText:x=>String(x).toLowerCase(),dataImportBuildAliasLookup:()=>new Map(),dataImportBuildInternalCommunityLookup:()=>new Map(),

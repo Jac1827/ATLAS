@@ -12,18 +12,25 @@ C.convert=function(state,bytes,opts={}){
  let read;try{read=R.xlsx.read(bytes);}catch(e){return {ok:false,why:e.message};}const sheet=read.sheets.find(s=>/^Monthly Budget Rpt$/i.test(s.name.trim()));
  if(!sheet || (opts.sheetName&&opts.sheetName!==sheet.name))return convert(state,bytes,opts);
  const rows=sheet.rows.map(r=>r.slice()),title=rows.slice(0,6).flat().map(C.text).join(' '),fy=title.match(/FY\s*(20\d{2})\s*[-–]\s*(20\d{2})/i);
- const header=rows.findIndex(r=>r.filter(v=>months.includes(C.text(v).toLowerCase().slice(0,3))&&/^[A-Za-z]{3}\s*$/.test(C.text(v))).length===12);
- if(!fy||header<0)return {ok:false,why:'Monthly Budget Rpt needs an explicit fiscal-year title and twelve month headers. No historical worksheet was substituted.'};
+ const labelledHeader=rows.findIndex(r=>r.filter(v=>/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+YR\s+[12]$/i.test(C.text(v))).length===24);
+ const header=labelledHeader>=0?labelledHeader:rows.findIndex(r=>r.filter(v=>months.includes(C.text(v).toLowerCase().slice(0,3))&&/^[A-Za-z]{3}\s*$/.test(C.text(v))).length===12);
+ if(!fy||header<0)return {ok:false,why:'Monthly Budget Rpt needs an explicit fiscal-year title and twelve fiscal months or two complete YR 1 / YR 2 blocks. No historical worksheet was substituted.'};
  const cols=[];let year=Number(fy[1]),prev=-1;
- rows[header].forEach((value,index)=>{const month=months.indexOf(C.text(value).toLowerCase().trim());if(month<0)return;if(prev>=0&&month<prev)year++;cols.push({index,month,year});prev=month;});
- if(cols.length!==12||year!==Number(fy[2])||new Set(cols.map(x=>x.year+'-'+x.month)).size!==12)return {ok:false,why:'The fiscal-year title and month headers do not reconcile. Review the period mapping.'};
+ if(labelledHeader>=0){
+  rows[header].forEach((value,index)=>{const m=C.text(value).match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+YR\s+([12])$/i);if(m)cols.push({index,month:months.indexOf(m[1].toLowerCase()),year:Number(fy[Number(m[2])])});});
+  if(Number(fy[2])!==Number(fy[1])+1||cols.some((c,i)=>c.month!==i%12||c.year!==Number(fy[i<12?1:2])))return {ok:false,why:'YR 1 and YR 2 must each contain January through December in the two consecutive title years.'};
+ }else{
+  rows[header].forEach((value,index)=>{const month=months.indexOf(C.text(value).toLowerCase().trim());if(month<0)return;if(prev>=0&&month<prev)year++;cols.push({index,month,year});prev=month;});
+  if(cols.length!==12||year!==Number(fy[2])||new Set(cols.map(x=>x.year+'-'+x.month)).size!==12)return {ok:false,why:'The fiscal-year title and month headers do not reconcile. Review the period mapping.'};
+ }
  rows[header][0]='Account';rows[header][1]='Account Name';
  cols.forEach(c=>rows[header][c.index]=R.MONTHS[c.month]+' '+c.year);
  const parsed=C.parseSheet(rows,{defaultProperty:C.text(rows[0]?.[0])});
  if(!parsed.ok)return parsed;
+ if(cols.some(c=>!parsed.accounts.some(a=>Number.isFinite(a.values[c.year+'-'+c.month]))))return {ok:false,why:'A labelled budget month has no numeric account amounts. Missing source months cannot be dropped or filled with zero.'};
  parsed.layout='fiscalBudget';parsed.meta={label:'Approved fiscal budget — Monthly Budget Rpt',about:'Explicit monthly budget amounts mapped to their calendar year. Historical actuals and comparison tabs are excluded.'};
  const built=C.build(state,parsed,{...opts,keepZeroRows:true,preservePrecision:true,source:(opts.fileName||'Workbook')+' / '+sheet.name});
- const result={ok:true,kind:read.kind,sheetName:sheet.name,sheets:read.sheets.map(s=>({name:s.name,ok:s.name===sheet.name,accounts:s.name===sheet.name?parsed.accounts.length:0,months:s.name===sheet.name?12:0,why:s.name===sheet.name?'':'Supporting or historical worksheet; excluded from approved budget.'})),layout:parsed.layout,meta:parsed.meta,parsed,built,plan:C.propertyPlan(state,parsed,opts.propertyMap),unknown:C.unknownAccounts(parsed),reconciliation:C.reconcile(parsed),excluded:{subtotals:parsed.subtotals.length,budgetColumns:[],ytdColumns:[]},warnings:[],fileName:opts.fileName,importBasis:'approved_budget_periods'};
+ const result={ok:true,kind:read.kind,sheetName:sheet.name,sheets:read.sheets.map(s=>({name:s.name,ok:s.name===sheet.name,accounts:s.name===sheet.name?parsed.accounts.length:0,months:s.name===sheet.name?cols.length:0,why:s.name===sheet.name?'':'Supporting or historical worksheet; excluded from approved budget.'})),layout:parsed.layout,meta:parsed.meta,parsed,built,plan:C.propertyPlan(state,parsed,opts.propertyMap),unknown:C.unknownAccounts(parsed),reconciliation:C.reconcile(parsed),excluded:{subtotals:parsed.subtotals.length,budgetColumns:[],ytdColumns:[]},warnings:[],fileName:opts.fileName,importBasis:'approved_budget_periods'};
  // Preserve actual source row coordinates; do not cite the converted CSV row as an Excel row.
  result.sourceRows={};parsed.accounts.forEach(a=>{(result.sourceRows[a.gl] ||= []).push(a.rowIndex+1);});
  return result;

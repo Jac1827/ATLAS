@@ -1,3 +1,4 @@
+import {readFinance} from './canonical-finance.mjs?v=60c13a0342f297e2';
 import '../community-command-contract.js?v=e6064665e1d6e271';
 const money=v=>Number(v).toLocaleString('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1});
 let operation;
@@ -10,7 +11,7 @@ export async function hydrate(entries,central){
  const rows=[],plans=[];
  try{
   // Bounded bulk reads, not one request per community or account.
-  for(let i=0;i<ids.length;i+=100){const data=await central.fetchJson(`/atlas_command_financial_summaries?community_id=in.(${ids.slice(i,i+100).join(',')})&period_key=in.(${periods.join(',')})&select=*&limit=1200`,{signal:abort.signal});rows.push(...data);if(abort.signal.aborted)return;plans.push(...await central.fetchJson(`/atlas_command_plan_summaries?community_id=in.(${ids.slice(i,i+100).join(',')})&period_key=in.(${periods.join(',')})&select=*&limit=1200`,{signal:abort.signal}));if(abort.signal.aborted)return;}
+  for(let i=0;i<ids.length;i+=100){const data=await readFinance(central,ids.slice(i,i+100),periods,{signal:abort.signal});rows.push(...data);if(abort.signal.aborted)return;plans.push(...await central.fetchJson(`/atlas_command_plan_summaries?community_id=in.(${ids.slice(i,i+100).join(',')})&period_key=in.(${periods.join(',')})&select=*&limit=1200`,{signal:abort.signal}));if(abort.signal.aborted)return;}
   window.AtlasCommandPlanSummaries ||= {};
   for(const e of scope)delete window.AtlasCommandPlanSummaries[e.communityId+'|'+e.period];
   for(const plan of plans)window.AtlasCommandPlanSummaries[plan.community_id+'|'+plan.period_key]=plan;
@@ -22,12 +23,12 @@ export async function hydrate(entries,central){
 
    const metricScope={communityId:e.communityId,period:e.period,fiscalYear:source?.fiscal_year??e.year};
    const actual=e.actual?{...e.actual,...metricScope}:null;
-   const budget=summary?{...metricScope,occupancyPct:summary.occupancyPct,approvalStatus:'approved',locked:true,scenarioId:summary.scenarioId,version:summary.scenarioVersion}:null;
+   const budget=summary?.budgetVersion?{...metricScope,occupancyPct:summary.occupancyPct,approvalStatus:'approved',locked:true,scenarioId:summary.scenarioId,version:summary.scenarioVersion}:null;
    const units=window.AtlasCommunityCommandContract.occupancy(metricScope,actual,budget);
    for(const [metric,result] of [['units',units],['gpr',summary?.gpr],['expenses',summary?.expenses]]){
     const cell=tr.querySelector(`[data-metric="${metric}"]`);if(!cell)continue;
-    cell.replaceChildren();const status=result?.status||'missing',text=result?(metric==='units'||status==='missing'?result.label:result.label+' '+(result.variance>0?'+':'')+money(Math.abs(result.variance))):'Missing publication';
-    const node=document.createElement(source&&metric!=='units'&&status!=='missing'?'button':'span');node.textContent=text;node.style.color=status==='unfavorable'?'#c0392b':status==='favorable'?'#16713b':'var(--muted,#64748b)';node.title=`${e.period} · ${metric==='units'?'Actual occupied units − ceiling(approved occupancy % × period rentable units)':metric==='expenses'?'Approved budget − actual expenses':'Actual GPR − approved budget'}${summary?.sourceTimestamp?' · Source '+summary.sourceTimestamp:''}`;
+    cell.replaceChildren();const status=result?.status||'missing',text=result?(metric==='units'?result.label:status==='missing'?(typeof result.actual==='number'&&Number.isFinite(result.actual)?'Actual '+money(result.actual)+' · ':'')+result.label:result.label+' '+(result.variance>0?'+':'')+money(Math.abs(result.variance))):'Missing publication';
+    const node=document.createElement(source&&metric!=='units'&&typeof result?.actual==='number'&&Number.isFinite(result.actual)?'button':'span');node.textContent=text;node.style.color=status==='unfavorable'?'#c0392b':status==='favorable'?'#16713b':'var(--muted,#64748b)';node.title=`${e.period} · ${metric==='units'?'Actual occupied units − ceiling(approved occupancy % × period rentable units)':metric==='expenses'?'Approved budget − actual expenses':'Actual GPR − approved budget'}${summary?.sourceTimestamp?' · Source '+summary.sourceTimestamp:''}`;
     if(node.tagName==='BUTTON'){node.type='button';node.className='btn btn-gray btn-sm';node.onclick=()=>window.openCommunityFinancialDrilldown(source.publication_id,metric);}
     cell.append(node);
    }

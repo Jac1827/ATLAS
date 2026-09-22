@@ -1423,7 +1423,7 @@
 </div>
 
 <script src="./atlas_historical_restore_data.js"></script>
-<script src="./atlas-mounts.js?v=f1230b103cadfee0"></script>
+<script src="./atlas-mounts.js?v=03d42d3204252240"></script>
 <script src="./centralization/atlas-central-client.js?v=aaf34ed3eb7a47f1" data-atlas-central-client="true"></script>
 <script src="./atlas-dashboard-reskin.js?v=99ffd40a8970f8ef"></script>
 <script src="./central-services.js?v=20260919-renewal-period-review"></script>
@@ -23876,15 +23876,17 @@ function communityCommandSumFinancialRows(rows = [], keys = []) {
 }
 
 function getAtlasClosedFinancialVersion(record, period) {
+  if (typeof window !== "undefined" && window.ATLAS_CENTRAL?.getSession()?.user && /^20\d{2}-/.test(period)) refreshAtlasClosedFinancials(Number(period.slice(0,4))).catch(() => {});
   return (typeof window !== "undefined" ? window.AtlasClosedFinancialCache : null)?.get(record.propertyName || record.communityId || "", period) || null;
 }
 
 async function refreshAtlasClosedFinancials(year = new Date().getFullYear(), force = false) {
   if (!window.ATLAS_CENTRAL?.getSession()?.user) return;
-  const module = await import("./features/financial-close.mjs?v=45b7d22ef247f896");
+  const module = await import("./features/financial-close.mjs?v=7b4d5c3897616647");
   window.AtlasClosedFinancialCache ||= module.createCache(window.ATLAS_CENTRAL);
-  await window.AtlasClosedFinancialCache.refresh(year, force);
-  scheduleAtlasSharedRender(false);
+  const changed = await window.AtlasClosedFinancialCache.refresh(year, force);
+  if (changed) scheduleAtlasSharedRender(false);
+  if (force && changed) window.dispatchEvent(new Event('atlas-finance-updated'));
 }
 
 function getCommunityCommandEconomicOccupancyData(record = {}, monthIdx = getSelectedDashboardMonthIndex(), year = new Date().getFullYear()) {
@@ -24419,7 +24421,7 @@ async function openSharedCommunityPlan() {
   const communityId = access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId;
   if (!communityId || !window.ATLAS_CENTRAL) { alert("Shared plans require an authorized canonical community record."); return false; }
   try {
-    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=6f874a74ac6e6cd6");
+    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=482b6e73a5197279");
     if (epoch !== atlasNavigationEpoch || !atlasAccessDecision(2).ok) return false;
     const entry=model.monthEntry, provenance=entry.metricProvenance?.occupiedSnapshot, period=buildPeriodKey(model.monthIdx,model.year);
     const occupancy=provenance?.revisionKey && provenance.period===period && (!provenance.communityId||provenance.communityId===communityId) && entry.occupiedSnapshot!=null && Number(entry.rentableUnits)>0
@@ -24772,7 +24774,7 @@ function queueCommunityRosterFinancials(items) {
     return {key:encodeURIComponent(item.detail.name),hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
   });
   setTimeout(async()=>{try {
-    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=bfc322a4a4728654");
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=770abc0301e334bd");
     if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
     await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
   } catch {}},0);
@@ -31759,11 +31761,21 @@ function atlasBonusCommunitySummary(communityName = "") {
   }
 }
 
-function atlasBonusMetricActual(employee = {}, metric = {}) {
+function atlasBonusFinancialEvidence(employee, metric, period) {
+  const key = {budget_attainment:"expenses",revenue:"revenue",expenses:"expenses",noi:"noi",cash_flow:"cashFlow"}[metric.metricKey];
+  if (!key || employee.sampleMetrics || !/^20\d{2}-(01|04|07|10)-01$/.test(period?.start || "")) return null;
+  const year = Number(period.start.slice(0,4)), first = Number(period.start.slice(5,7))-1;
+  if (period.end !== buildPeriodKey(first+2,year)+"-"+new Date(year,first+3,0).getDate()) return null;
+  refreshAtlasClosedFinancials(year).catch(() => {});
+  return window.AtlasClosedFinancialCache?.bonus(employee.communityName || employee.assignedCommunity,key,[0,1,2].map(i=>buildPeriodKey(first+i,year))) || null;
+}
+
+function atlasBonusMetricActual(employee = {}, metric = {}, period = atlasBonusPeriodFromQuarter()) {
   if (employee.sampleMetrics && Object.prototype.hasOwnProperty.call(employee.sampleMetrics, metric.metricKey)) {
     const sample = employee.sampleMetrics[metric.metricKey];
     return sample === null || sample === undefined ? null : Number(sample);
   }
+  if (["budget_attainment","revenue","expenses","noi","cash_flow"].includes(metric.metricKey)) return atlasBonusFinancialEvidence(employee,metric,period)?.attainment ?? null;
   const communityName = employee.communityName || employee.assignedCommunity;
   const summary = atlasBonusCommunitySummary(communityName);
   if (!summary && !["central_productivity", "sla_achievement", "workflow_completion", "special_project", "leadership_score", "audit_compliance", "training_completion", "safety_compliance"].includes(metric.metricKey)) return null;
@@ -31772,20 +31784,6 @@ function atlasBonusMetricActual(employee = {}, metric = {}) {
   const approvedApplicationGoal = Math.max(0, Number(approvedGoal?.applicationGoal || 0));
   const approvedGrossLeaseGoal = Math.max(0, Number(approvedGoal?.grossLeaseGoal || 0));
   const approvedNetLeaseGoal = Math.max(0, Number(approvedGoal?.netLeaseGoal || 0));
-  const financeRecord = communityName ? savedData?.[communityName] : null;
-  const financePeriod = new Date().getFullYear() + "-" + String(selectedMonthIdx + 1).padStart(2, "0");
-  const finance = financeRecord?.financialBudgetLedger?.investorPacketSources?.periods?.[financePeriod];
-  const attainment = (id, lower = false) => {
-    // Financial bonus measurements are quarterly. Browser-only investor extracts
-    // cannot establish a payable target or substitute for an open quarter.
-    const quarterStart = Math.floor(selectedMonthIdx / 3) * 3;
-    const closes = [0,1,2].map(offset => getAtlasClosedFinancialVersion({...financeRecord,propertyName:communityName}, buildPeriodKey(quarterStart + offset, new Date().getFullYear())));
-    if (closes.some(v => !v || v.status !== "closed" || v.coverage !== "full_month")) return null;
-    const item = finance?.[id];
-    if (!item?.approvedTargetVersion || item.targetApprovalStatus !== "approved" || item.actualCloseVersions?.join("|") !== closes.map(v => v.version_id).join("|")) return null;
-    if (!Number.isFinite(item?.actual) || !Number.isFinite(item?.budget) || item.budget === 0) return null;
-    return 100 + (lower ? -1 : 1) * (item.actual - item.budget) / Math.abs(item.budget) * 100;
-  };
   const metricMap = {
     occupancy: summary?.occPct,
     leased_pct: summary?.leasedPct,
@@ -31798,10 +31796,6 @@ function atlasBonusMetricActual(employee = {}, metric = {}) {
     renewal_conversion: summary?.renewalRetentionRate,
     retention: summary?.renewalRetentionRate || summary?.quarterClosedRetentionAverage,
     rent_growth: summary?.currentNer && summary?.proformaNer ? ((summary.currentNer - summary.proformaNer) / summary.proformaNer) * 100 : null,
-    budget_attainment: attainment("expenses", true),
-    revenue: attainment("revenue"),
-    expenses: attainment("expenses"),
-    noi: attainment("noi"),
     delinquency: null,
     collections: null,
     resident_satisfaction: summary?.googleLifetimeRating ? summary.googleLifetimeRating * 20 : null,
@@ -31952,7 +31946,7 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
   const metricResults = (plan?.metrics || []).map(configuredMetric => {
     const governed = communityCommandBonusGoalResult(employee, configuredMetric, period);
     const metric = governed ? { ...configuredMetric, goal: governed.goal } : configuredMetric;
-    const actual = governed ? governed.actual : atlasBonusMetricActual(employee, metric);
+    const actual = governed ? governed.actual : atlasBonusMetricActual(employee, metric, period);
     if (governed?.reason) exceptions.push({ severity: "critical", code: "governed_goal_pending", message: governed.reason, metricId: metric.id });
     if (actual === null) {
       exceptions.push({ severity: metric.inputType === "automatic" ? "critical" : "warning", code: "missing_metric", message: `Missing ${metric.name} data from ${metric.dataSource}.`, metricId: metric.id });
@@ -31969,6 +31963,7 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
     return {
       metric,
       approvedGoalVersions: governed?.versions || [],
+      financialEvidence: atlasBonusFinancialEvidence(employee, metric, period),
       actual,
       potential,
       payoutPct: curve.payoutPct,
@@ -32926,15 +32921,7 @@ function summarizeFinancialLedgerRows(rows = [], budgetRows = []) {
 function getFinancialSummaryForMonth(record = {}, selectedMonth = getSelectedDashboardMonthIndex(), year = new Date().getFullYear()) {
   const version = getAtlasClosedFinancialVersion(record, buildPeriodKey(selectedMonth, year));
   if (window.ATLAS_CENTRAL || window.AtlasClosedFinancialCache) {
-    const budget = summarizeFinancialLedgerRows([], getFinancialBudgetLedgerRowsForMonth(record, selectedMonth, year));
-    const hasBudget = getFinancialBudgetLedgerRowsForMonth(record, selectedMonth, year).length > 0;
-    const m = version?.metrics;
-    return { ...budget, hasData:!!version, source:version?.source_file || "Missing closed financial package", version:version?.version_id || null,
-      revenueActual:m?.totalIncome ?? null, expenseActual:m?.operatingExpenses ?? null, noiActual:m?.netOperatingIncome ?? null,
-      revenueBudget:hasBudget?budget.revenueBudget:null, expenseBudget:hasBudget?budget.expenseBudget:null, noiBudget:hasBudget?budget.noiBudget:null, annualBudget:hasBudget?budget.annualBudget:null,
-      noiVariance:version && hasBudget ? m.netOperatingIncome-budget.noiBudget : null,
-      expenseVariance:version && hasBudget ? m.operatingExpenses-budget.expenseBudget : null,
-      revenueVariance:version && hasBudget ? m.totalIncome-budget.revenueBudget : null };
+    return window.AtlasClosedFinancialCache?.summary(record.propertyName || record.communityId || "",buildPeriodKey(selectedMonth,year)) || {hasData:false,revenueActual:null,expenseActual:null,noiActual:null,revenueBudget:null,expenseBudget:null,noiBudget:null,annualBudget:null,noiVariance:null,expenseVariance:null,revenueVariance:null};
   }
   return summarizeFinancialLedgerRows(
     getFinancialLedgerRowsForMonth(record, selectedMonth, year),

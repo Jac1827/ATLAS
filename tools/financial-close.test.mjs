@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import {coverage,contract,createCache,projectBuilderActuals} from '../docs/portfolio-operations-dashboard/features/financial-close.mjs';
 const versions=[2,3,4,5,6,7,8].map(m=>({version_id:'v'+m,community_id:'id',period_key:`2026-${String(m).padStart(2,'0')}`,status:'closed',coverage:'full_month',metrics:{netRentalIncome:0,grossPotentialRent:100}}));
 assert.deepEqual(coverage(versions,2026),{first:2,last:8,missing:[1],completeYtd:false});
-assert.equal(coverage(versions.filter(v=>v.period_key!=='2026-07'),2026).last,6);
+assert.equal(coverage(versions.filter(v=>v.period_key!=='2026-07'),2026).last,8);
 assert.equal(contract(versions[0]).netRentalIncome,0);
 assert.equal(contract({...versions[0],metrics:{grossPotentialRent:100}}).netRentalIncome,null);
-let calls=0;const cache=createCache({readCommunitiesForAccess:async()=>[{community_id:'id',display_name:'Community',canonical_name:'community'}],fetchJson:async p=>{calls++;return p.startsWith('/atlas_financial_close_heads')?versions.map(v=>({version_id:v.version_id,community_id:'id'})):versions;}});
-await Promise.all([cache.refresh(2026),cache.refresh(2026)]);assert.equal(calls,2);assert.equal(cache.get('Community','2026-08').version_id,'v8');assert.equal(cache.get('Community','2026-09'),null);cache.clear();assert.equal(cache.get('Community','2026-08'),null);
+let calls=0;const cache=createCache({readCommunitiesForAccess:async()=>[{community_id:'id',display_name:'Community',canonical_name:'community'}],fetchJson:async()=>{calls++;return versions.map(v=>({community_id:'id',period_key:v.period_key,summary:{registryVersion:'atlas-finance-v1',communityId:'id',period:v.period_key,close:v}}));}});
+await Promise.all([cache.refresh(2026),cache.refresh(2026)]);assert.equal(calls,1);assert.equal(cache.get('Community','2026-08').version_id,'v8');assert.equal(cache.get('Community','2026-09'),null);cache.clear();assert.equal(cache.get('Community','2026-08'),null);
 console.log('PASS closed scope, period gaps, missing vs zero, duplicate refresh coalescing and cleanup');
 
 const state={actuals:{old:{propertyId:'DORO',year:2026,monthly:Array(12).fill(0)}},periods:{'DORO|2026':{closedThrough:6}}};

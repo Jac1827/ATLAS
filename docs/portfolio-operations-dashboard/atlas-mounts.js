@@ -45,7 +45,7 @@
       note: "Property budget, monthly view, GL detail, actuals, financial review and exception reporting all run in Budget Builder itself — ATLAS reads the published scenario.",
       barTitle: "RISE Budget Builder",
       barSub: "Standalone finance tool — central Budget and actuals migration required",
-      src: "RISE-Budget-Builder.html?v=2f5a38ce3ea6eca6",
+      src: "RISE-Budget-Builder.html?v=7888a44ad235f348",
       background: "#F1F4F6",
       icon: "ph-calculator"
     },
@@ -83,6 +83,13 @@
       return "";
     }
   }
+
+  // Read the same authorized Community Settings record used by the workspace.
+  window.atlasCommunityLocationRecord = function(name) {
+    var matched = typeof matchPropertyName === 'function' ? matchPropertyName(name, {fallbackToCurrent:false}) : name;
+    var record = typeof savedData !== 'undefined' && matched && savedData[matched] ? savedData[matched] : {};
+    return {communityAddress:record.communityAddress||'',communityCity:record.communityCity||record.city||'',communityState:record.communityState||record.state||'',communityZip:record.communityZip||record.zip||record.zipCode||''};
+  };
 
   function embeddedWorkspaceContext() {
     try {

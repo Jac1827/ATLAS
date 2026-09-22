@@ -77,6 +77,12 @@ jobs:
           node tools/financial-publication.test.cjs
           node tools/investor-packet-sources.test.cjs
 
+      - name: Test utility forecast and finance lineage
+        run: |
+          node tools/utility-forecast.test.mjs
+          node tools/utility-forecast-db.test.cjs
+          node tools/utility-report-lineage.test.cjs
+
       - name: Test eviction packet workflow
         run: node tools/eviction-attorney.test.mjs
 
@@ -145,6 +151,12 @@ jobs:
           node tools/occupancy-financial-import.test.cjs
           node tools/financial-publication.test.cjs
           node tools/investor-packet-sources.test.cjs
+
+      - name: Test utility forecast and finance lineage
+        run: |
+          node tools/utility-forecast.test.mjs
+          node tools/utility-forecast-db.test.cjs
+          node tools/utility-report-lineage.test.cjs
 
       - name: Test eviction packet workflow
         run: node tools/eviction-attorney.test.mjs

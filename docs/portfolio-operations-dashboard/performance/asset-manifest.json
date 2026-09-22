@@ -1,4 +1,44 @@
 {
+  "features/canonical-finance.mjs": {
+    "sha256": "a2d996d897d3850b",
+    "bytes": 5575,
+    "references": [
+      [
+        "features/approved-budget.mjs",
+        "./canonical-finance.mjs"
+      ],
+      [
+        "features/financial-close.mjs",
+        "./canonical-finance.mjs"
+      ],
+      [
+        "features/community-finance.mjs",
+        "./canonical-finance.mjs"
+      ],
+      [
+        "features/community-plan.mjs",
+        "./canonical-finance.mjs"
+      ],
+      [
+        "features/budget-command-publication.mjs",
+        "./canonical-finance.mjs"
+      ],
+      [
+        "investor-budget-bridge.js",
+        "./features/canonical-finance.mjs"
+      ]
+    ]
+  },
+  "features/approved-budget.mjs": {
+    "sha256": "ed8d610221fe5f55",
+    "bytes": 8061,
+    "references": [
+      [
+        "features/budget-command-publication.mjs",
+        "./approved-budget.mjs"
+      ]
+    ]
+  },
   "application-lineage.js": {
     "sha256": "fa2f0b92fa3bd9ea",
     "bytes": 8031,
@@ -168,8 +208,8 @@
     ]
   },
   "features/financial-close.mjs": {
-    "sha256": "45b7d22ef247f896",
-    "bytes": 12064,
+    "sha256": "fb03da0d88b68a73",
+    "bytes": 15731,
     "references": [
       [
         "features/financial-comparison.mjs",
@@ -182,19 +222,11 @@
       [
         "index.html",
         "./features/financial-close.mjs"
-      ],
-      [
-        "investor-budget-bridge.js",
-        "./features/financial-close.mjs"
-      ],
-      [
-        "features/budget-command-publication.mjs",
-        "./financial-close.mjs"
       ]
     ]
   },
   "features/financial-comparison.mjs": {
-    "sha256": "886ef24ccf0fc52f",
+    "sha256": "e7ec3b107d972c49",
     "bytes": 11273,
     "references": [
       [
@@ -208,7 +240,7 @@
     ]
   },
   "features/financial-package-review.mjs": {
-    "sha256": "bb4fe8bc6792ee02",
+    "sha256": "a5fa31b16a3c0c8e",
     "bytes": 9664,
     "references": [
       [
@@ -232,7 +264,7 @@
     ]
   },
   "budget-navigation.js": {
-    "sha256": "37b00ccb2308d3cd",
+    "sha256": "2474e5a124753e87",
     "bytes": 7253,
     "references": [
       [
@@ -261,19 +293,9 @@
       ]
     ]
   },
-  "features/fiscal-ytd.mjs": {
-    "sha256": "77e543c1c01f5102",
-    "bytes": 1895,
-    "references": [
-      [
-        "features/budget-command-publication.mjs",
-        "./fiscal-ytd.mjs"
-      ]
-    ]
-  },
   "features/community-plan-report.mjs": {
-    "sha256": "f7fd06b5d4954555",
-    "bytes": 5656,
+    "sha256": "8586f3bf8c65bce9",
+    "bytes": 6254,
     "references": [
       [
         "features/community-plan.mjs",
@@ -292,8 +314,8 @@
     ]
   },
   "features/community-finance.mjs": {
-    "sha256": "bfc322a4a4728654",
-    "bytes": 4139,
+    "sha256": "91b1714a596cde95",
+    "bytes": 4111,
     "references": [
       [
         "index.html",
@@ -302,8 +324,8 @@
     ]
   },
   "features/budget-command-publication.mjs": {
-    "sha256": "4d637cb2512afd50",
-    "bytes": 13833,
+    "sha256": "034c8e62d5663a18",
+    "bytes": 6411,
     "references": [
       [
         "RISE-Budget-Builder.html",
@@ -322,8 +344,8 @@
     ]
   },
   "investor-budget-bridge.js": {
-    "sha256": "23235e9ea98e9f65",
-    "bytes": 14867,
+    "sha256": "fd80ea1f21daba1f",
+    "bytes": 14751,
     "references": [
       [
         "RISE-Budget-Builder.html",
@@ -332,7 +354,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "b6e6d4309b929631",
+    "sha256": "ff7c3c43d2ccedd8",
     "bytes": 1883499,
     "references": [
       [
@@ -342,8 +364,8 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "f1230b103cadfee0",
-    "bytes": 27268,
+    "sha256": "05198009dcba7a13",
+    "bytes": 27310,
     "references": [
       [
         "index.html",
@@ -352,8 +374,8 @@
     ]
   },
   "features/community-plan.mjs": {
-    "sha256": "6f874a74ac6e6cd6",
-    "bytes": 18356,
+    "sha256": "0e4b4aaaf7dccee7",
+    "bytes": 18617,
     "references": [
       [
         "index.html",

@@ -1,3 +1,4 @@
+import {readFinance} from './canonical-finance.mjs?v=a2d996d897d3850b';
 import '../community-command-contract.js?v=e6064665e1d6e271';
 const money=v=>Number(v).toLocaleString('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1});
 let operation;
@@ -10,7 +11,7 @@ export async function hydrate(entries,central){
  const rows=[],plans=[];
  try{
   // Bounded bulk reads, not one request per community or account.
-  for(let i=0;i<ids.length;i+=100){const data=await central.fetchJson(`/atlas_command_financial_summaries?community_id=in.(${ids.slice(i,i+100).join(',')})&period_key=in.(${periods.join(',')})&select=*&limit=1200`,{signal:abort.signal});rows.push(...data);if(abort.signal.aborted)return;plans.push(...await central.fetchJson(`/atlas_command_plan_summaries?community_id=in.(${ids.slice(i,i+100).join(',')})&period_key=in.(${periods.join(',')})&select=*&limit=1200`,{signal:abort.signal}));if(abort.signal.aborted)return;}
+  for(let i=0;i<ids.length;i+=100){const data=await readFinance(central,ids.slice(i,i+100),periods,{signal:abort.signal});rows.push(...data);if(abort.signal.aborted)return;plans.push(...await central.fetchJson(`/atlas_command_plan_summaries?community_id=in.(${ids.slice(i,i+100).join(',')})&period_key=in.(${periods.join(',')})&select=*&limit=1200`,{signal:abort.signal}));if(abort.signal.aborted)return;}
   window.AtlasCommandPlanSummaries ||= {};
   for(const e of scope)delete window.AtlasCommandPlanSummaries[e.communityId+'|'+e.period];
   for(const plan of plans)window.AtlasCommandPlanSummaries[plan.community_id+'|'+plan.period_key]=plan;
@@ -22,7 +23,7 @@ export async function hydrate(entries,central){
 
    const metricScope={communityId:e.communityId,period:e.period,fiscalYear:source?.fiscal_year??e.year};
    const actual=e.actual?{...e.actual,...metricScope}:null;
-   const budget=summary?{...metricScope,occupancyPct:summary.occupancyPct,approvalStatus:'approved',locked:true,scenarioId:summary.scenarioId,version:summary.scenarioVersion}:null;
+   const budget=summary?.budgetVersion?{...metricScope,occupancyPct:summary.occupancyPct,approvalStatus:'approved',locked:true,scenarioId:summary.scenarioId,version:summary.scenarioVersion}:null;
    const units=window.AtlasCommunityCommandContract.occupancy(metricScope,actual,budget);
    for(const [metric,result] of [['units',units],['gpr',summary?.gpr],['expenses',summary?.expenses]]){
     const cell=tr.querySelector(`[data-metric="${metric}"]`);if(!cell)continue;

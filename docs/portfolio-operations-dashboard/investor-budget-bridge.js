@@ -106,28 +106,31 @@
     window.addEventListener('message',async event=>{
       if(event.source!==window.parent||event.origin!==location.origin||event.data?.type!=='atlas-investor-read-budget')return;
       try {
-        const raw=localStorage.getItem(R.persist.AUTOSAVE_KEY);
-        if(!raw){
-          const central=window.parent.ATLAS_CENTRAL,actor=central?.getSession()?.user?.id;if(!actor)throw Error('Sign in to read canonical actuals');
-          const [m,matcher,communities,aliases]=await Promise.all([import('./features/financial-close.mjs?v=45b7d22ef247f896'),import('./features/financial-package.mjs?v=49ea086d6d07f300'),central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000')]);
-          const year=Number(event.data.year)||new Date().getFullYear(),sources={schemaVersion:2,savedAt:new Date().toISOString(),properties:{}};const seen=new Set();
-          for(const name of event.data.names||[]){const cid=matcher.resolveCommunity(name,communities,aliases).communityId;if(!cid||seen.has(cid))continue;seen.add(cid);const community=communities.find(c=>c.community_id===cid);const report={name:community.display_name,periods:{},issues:['Approved budget is unavailable in this browser; closed actuals are read from canonical storage.']};sources.properties[community.display_name]=report;
-            for(const v of await m.readYear(central,cid,year)){const source=v.source_file+' / SHA-256 '+v.source_hash+' / closed version '+v.version_id;const period=report.periods[v.period_key]={source,savedAt:v.approved_at,drivers:[],financialDetail:[],closedFinancial:{version:v.version_id,revision:v.revision,status:v.status,period:v.period_key,sourceHash:v.source_hash,approvedBy:v.approved_by,approvedAt:v.approved_at}};
-              for(const [id,key] of [['revenue','totalIncome'],['expenses','operatingExpenses'],['grossPotentialRent','grossPotentialRent'],['rentalIncome','netRentalIncome'],['noi','netOperatingIncome']]){const value=m.optionalNumber(v.metrics[key]);if(value!==null)period[id]={actual:value,sources:{actual:source},definitions:{actual:'Closed full-month source control; same community and calendar period'}};}
-              if(v.period_key===event.data.period)period.financialDetail=(await m.readRows(central,v)).map(r=>({gl:r.gl_code,name:r.account_name,actual:r.actual,budget:null,variance:null,source:source+' / '+JSON.stringify(r.source_location)}));
+        const central=window.parent.ATLAS_CENTRAL,actor=central?.getSession()?.user?.id;
+        if(!actor||!window.parent.atlasAccessDecision?.(12)?.ok)throw Error('Authorized canonical financial access required');
+        const [adapter,matcher,communities,aliases]=await Promise.all([import('./features/canonical-finance.mjs?v=a2d996d897d3850b'),import('./features/financial-package.mjs?v=49ea086d6d07f300'),central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000')]);
+        const year=Number(event.data.year)||new Date().getFullYear(),sources={schemaVersion:3,savedAt:new Date().toISOString(),properties:{}},seen=new Set();
+        const selected=[];for(const name of event.data.names||[]){const cid=matcher.resolveCommunity(name,communities,aliases).communityId;if(cid&&!seen.has(cid)){seen.add(cid);selected.push(communities.find(c=>c.community_id===cid));}}
+        const records=await adapter.readFinance(central,selected.map(c=>c.community_id),Array.from({length:12},(_,m)=>year+'-'+String(m+1).padStart(2,'0')));
+        for(const community of selected){
+          const report={name:community.display_name,periods:{},issues:[]};sources.properties[community.display_name]=report;
+          for(const row of records.filter(r=>r.community_id===community.community_id)){
+            const s=row.summary,period=report.periods[row.period_key]={source:s.actualSource||s.budgetSource||'Canonical finance',savedAt:s.publishedAt,drivers:[],financialDetail:[],coverage:{completeYtd:s.completeYtd,missingPeriods:s.missingPeriods,latestClosedPeriod:s.latestClosedPeriod},budgetVersion:s.budgetVersion,registryVersion:s.registryVersion};
+            if(s.close)period.closedFinancial={version:s.close.version_id,revision:s.close.revision,status:s.close.status,period:s.close.period_key,sourceHash:s.close.source_hash,approvedBy:s.close.approved_by,approvedAt:s.close.approved_at};
+            for(const [key,value] of Object.entries(s)){
+              if(!value||typeof value!=='object'||!('actual' in value)||!('budget' in value))continue;
+              const id=({gpr:'grossPotentialRent',netRentalIncome:'rentalIncome',capital:'capexSpent',debt:'debtService'})[key]||key;
+              const item=period[id] ||= {sources:{},definitions:{},availability:value.availability,approvedTargetVersion:s.budgetVersion,targetApprovalStatus:s.targetApprovalStatus,actualCloseVersions:s.actualCloseVersion?[s.actualCloseVersion]:[]};
+              for(const basis of ['actual','budget'])if(adapter.number(value[basis])!==null){item[basis]=adapter.number(value[basis]);item.sources[basis]=`${basis==='actual'?s.actualSource:s.budgetSource} / version ${basis==='actual'?s.actualCloseVersion:s.budgetVersion} / ${s.registryVersion} / ${row.period_key}`;item.definitions[basis]=key+' / approved canonical metric registry';}
+            }
+            if(!s.budgetVersion)report.issues.push(row.period_key+': Approved original budget unavailable.');
+            if(row.period_key===event.data.period&&s.actualCloseVersion){
+              const detail=await adapter.readDetail(central,s),b=s.budgetVersion?(await central.fetchJson(`/atlas_approved_budget_versions?version_id=eq.${s.budgetVersion}&select=*&limit=1`))[0]:null;
+              period.financialDetail=detail.map(r=>{const budget=b?.payload.rows.find(x=>x.glCode===r.gl_code)?.monthly[Number(row.period_key.slice(5))-1]??null,actual=adapter.number(r.actual);return {gl:r.gl_code,name:r.account_name,actual,budget,variance:budget===null||actual===null?null:actual-budget,source:period.source+' / close '+s.actualCloseVersion+' / budget '+(s.budgetVersion||'unavailable')+' / '+JSON.stringify(r.source_location)};});
             }
           }
-          if(central.getSession()?.user?.id!==actor)throw Error('Session changed while preparing the financial report');window.parent.postMessage({type:'atlas-investor-budget-sources',sources},location.origin);return;
         }
-        const payload=R.persist.parse(raw);
-        R.persist.apply(JSON.parse(JSON.stringify(payload))); // isolated frame only; no save or app boot
-        const central=window.parent.ATLAS_CENTRAL;if(!central||!window.parent.atlasAccessDecision?.(12)?.ok)throw Error('Authorized canonical financial access required');
-        const actor=central.getSession()?.user?.id;if(!actor)throw Error('Sign in to read closed actuals');
-        const [m,matcher,communities,aliases]=await Promise.all([import('./features/financial-close.mjs?v=45b7d22ef247f896'),import('./features/financial-package.mjs?v=49ea086d6d07f300'),central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000')]);
-        m.installBuilder(R,central,name=>matcher.resolveCommunity(name,communities,aliases).communityId);
-        for(const p of R.app.state.properties.filter(p=>!event.data.names||event.data.names.includes(p.name))){const cid=matcher.resolveCommunity(p.name,communities,aliases).communityId;if(!cid)continue;const years=[...new Set([Number(R.app.state.budgetYear),...Object.values(R.app.state.actuals||{}).filter(a=>a.propertyId===p.id).map(a=>Number(a.year))])];for(const y of years)await m.primeBuilderYear(R,central,cid,p.id,y);}
         if(central.getSession()?.user?.id!==actor)throw Error('Session changed while preparing the financial report');
-        const sources=R.investorSources(R.app.state,payload.savedAt,{names:event.data.names});
         window.parent.postMessage({type:'atlas-investor-budget-sources',sources},location.origin);
       }catch(e){window.parent.postMessage({type:'atlas-investor-budget-sources',error:String(e.message||e)},location.origin);}
     });

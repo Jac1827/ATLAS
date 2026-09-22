@@ -1,0 +1,11 @@
+<!doctype html><meta charset="utf-8"><title>Shared original budget approval fixture</title><pre id="result">Review fixture</pre>
+<script type="module">
+import {reviewOriginalBudget} from '../../docs/portfolio-operations-dashboard/features/approved-budget.mjs';
+const prop={id:'DORO',name:'Synthetic Doro',fiscalYearBegins:'Jan'},year=2026;
+const state={activeScenario:'approved',scenarios:[{id:'approved',name:'Original approved',type:'approved',locked:true}],approvedBudgetImports:{'DORO|2026':{sourceFile:'synthetic-approved-budget.xlsx',sourceSheet:'Budget',effectiveDate:'2026-01-01',rows:[{gl:'5120',name:'GPR',monthly:Array(12).fill(100)},{gl:'6461',name:'Operating expense',monthly:Array(12).fill(0)}]}}};
+const R={app:{state},gl:g=>g==='5120'?{nature:'income',group:'RENTAL INCOME'}:{nature:'expense',group:'UTILITIES'}};
+let saved;
+window.refreshAtlasClosedFinancials=async()=>{document.querySelector('#result').textContent=JSON.stringify({passed:saved.payload.rows[1].monthly.every(v=>v===0)&&saved.payload.metricMappings.noi.length===2,version:saved.version_id,rows:saved.payload.rows.length,sourceHashKind:saved.payload.sourceHashKind});};
+const central={getStoredProfile:()=>({role:'admin'}),fetchJson:async()=>saved?[saved]:[],rpc:async(name,args)=>{if(name!=='atlas_approve_original_budget')throw Error('Unexpected mutation');saved={version_id:'synthetic-shared-budget',community_id:'fixture',calendar_year:year,status:'locked',source_file:args.p_payload.sourceFile,content_hash:'synthetic-readback',payload:args.p_payload};return saved;}};
+await reviewOriginalBudget({R,central,cid:'fixture',prop,year});
+</script>

@@ -60,6 +60,8 @@ jobs:
           node tools/financial-package.test.mjs
           node tools/financial-review-db.test.cjs
           node tools/financial-close.test.mjs
+          node tools/canonical-finance.test.mjs
+          node tools/canonical-finance-db.test.cjs
 
   performance-boundaries:
     runs-on: ubuntu-latest

@@ -10,7 +10,7 @@ globalThis.document={querySelector(selector){return selector==='[data-shared-pla
 const {hydrate,cancel}=await import('../docs/portfolio-operations-dashboard/features/community-finance.mjs');
 let queries=0;
 const communityId='10000000-0000-0000-0000-000000000001';
-await hydrate([{key:'sample',communityId,period:'2026-09',year:2026}],{fetchJson:async path=>{queries++;return path.includes('plan_summaries')?[{community_id:communityId,period_key:'2026-09',stage:'Active',task_count:3,verified_count:1}]:[];}});
+await hydrate([{key:'sample',communityId,period:'2026-09',year:2026}],{rpc:async()=>{queries++;return [];},fetchJson:async path=>{queries++;return path.includes('plan_summaries')?[{community_id:communityId,period_key:'2026-09',stage:'Active',task_count:3,verified_count:1}]:[];}});
 assert.equal(count.textContent,'1');
 assert.equal(cells.gpr.textContent,'Missing publication');
 assert.match(planCell.textContent,/3 tasks/);

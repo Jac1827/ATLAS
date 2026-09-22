@@ -1,4 +1,14 @@
 {
+  "workforce-assignment.js": {
+    "sha256": "86fb414cbe269a8a",
+    "bytes": 1675,
+    "references": [
+      [
+        "index.html",
+        "./workforce-assignment.js"
+      ]
+    ]
+  },
   "application-aging.js": {
     "sha256": "4091f111fe289027",
     "bytes": 5421,

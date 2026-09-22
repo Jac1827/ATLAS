@@ -1444,6 +1444,7 @@
 <script src="./property-organization.js?v=20260917-floorplans"></script>
 <script src="./concession-insights.js?v=20260917-1"></script>
 <script src="./weekly-leasing-report.js?v=20260917-aging"></script>
+<script src="./workforce-assignment.js?v=86fb414cbe269a8a"></script>
 <script src="./application-aging.js?v=4091f111fe289027"></script>
 <script src="./application-performance-ui.js?v=76767fc8f24b44d6"></script>
 <script>
@@ -7300,9 +7301,10 @@ function normalizeSharedAssignmentRecord(assignment = {}) {
     assignmentId: String(source.assignmentId ?? makeSharedAssignmentId(employeeId, communityName, bonusRoleType, effectiveStart)).trim(),
     employeeId,
     employeeName: String(source.employeeName ?? "").trim(),
-    communityId: communityName,
+    communityId: String(source.communityId || communityName),
     communityName,
-    roleId: bonusRoleType ? `bonus:${bonusRoleType}` : "",
+    roleId: String(source.roleId || (bonusRoleType ? `bonus:${bonusRoleType}` : "")),
+    version: Number(source.version || 0),
     bonusRoleType,
     title,
     status: String(source.status ?? "Active").trim() || "Active",
@@ -18983,12 +18985,12 @@ async function loadAtlasCentralPeopleAssignments({ silent = true, force = false 
     atlasCentralPeopleLoadPromise = (async () => {
       const query = [
         "deleted_at=is.null",
-        "select=assignment_id,effective_start,effective_end,title,employment_status,primary_assignment,source_module,source_identifier,updated_at,atlas_employees(employee_id,employee_number,email,full_name,status,status_type,bonus_eligible,bonus_plan,bonus_effective_date,target_bonus,payroll_employee_id,bonus_role,override_plan,bonus_plan_status),atlas_communities(community_id,display_name,canonical_name),atlas_roles(role_id,role_code,title,bonus_role_type)",
+        "select=assignment_id,version,effective_start,effective_end,title,employment_status,primary_assignment,source_module,source_identifier,updated_at,atlas_employees(employee_id,employee_number,email,full_name,status,status_type,bonus_eligible,bonus_plan,bonus_effective_date,target_bonus,payroll_employee_id,bonus_role,override_plan,bonus_plan_status),atlas_communities(community_id,display_name,canonical_name),atlas_roles(role_id,role_code,title,bonus_role_type)",
         "order=effective_start.desc"
       ].join("&");
       const fallbackQuery = [
         "deleted_at=is.null",
-        "select=assignment_id,effective_start,effective_end,title,employment_status,primary_assignment,source_module,source_identifier,updated_at,atlas_employees(employee_id,employee_number,email,full_name,status,status_type),atlas_communities(community_id,display_name,canonical_name),atlas_roles(role_id,role_code,title,bonus_role_type)",
+        "select=assignment_id,version,effective_start,effective_end,title,employment_status,primary_assignment,source_module,source_identifier,updated_at,atlas_employees(employee_id,employee_number,email,full_name,status,status_type),atlas_communities(community_id,display_name,canonical_name),atlas_roles(role_id,role_code,title,bonus_role_type)",
         "order=effective_start.desc"
       ].join("&");
       let rows;
@@ -19035,6 +19037,9 @@ async function loadAtlasCentralPeopleAssignments({ silent = true, force = false 
         });
         assignments.push(normalizeSharedAssignmentRecord({
           assignmentId: row.assignment_id,
+          version: row.version,
+          communityId: community.community_id,
+          roleId: role.role_id,
           employeeId,
           peopleEmployeeId: employeeId,
           employeeName: employee.full_name || "",
@@ -31710,19 +31715,23 @@ function atlasBonusSampleEmployees() {
 
 function atlasBonusPeopleEmployees() {
   const shared = normalizeAtlasSharedData(atlasSharedData);
-  const employees = Object.values(shared.employees || {});
+  const period = atlasBonusPeriodFromQuarter(bonusQuarter, new Date().getFullYear());
+  const employees = window.AtlasWorkforceAssignment.resolve(Object.values(shared.employees || {}), shared.assignments || [], period);
   if (!employees.length) return [];
   return employees.map(employee => {
     const comp = atlasBonusState().employeeComp?.[employee.employeeId] || {};
     return {
       employeeId: employee.employeeId,
+      assignmentId: employee.assignmentId,
+      assignmentVersion: employee.assignmentVersion,
+      workforceIssue: employee.workforceIssue,
       peopleEmployeeId: employee.peopleEmployeeId,
       employeeNumber: employee.employeeNumber,
       payrollEmployeeId: comp.payrollEmployeeId || employee.payrollEmployeeId || employee.employeeNumber || employee.peopleEmployeeId || employee.employeeId,
       email: employee.email,
       name: employee.name,
       title: employee.title,
-      bonusRole: comp.bonusRole || employee.bonusRole || atlasBonusRoleLabelFromType(employee.bonusRoleType, employee.title),
+      bonusRole: employee.bonusRole || atlasBonusRoleLabelFromType(employee.bonusRoleType, employee.title),
       communityName: employee.communityName,
       assignedCommunity: employee.communityName,
       region: employee.region,
@@ -31747,7 +31756,7 @@ function atlasBonusEmployees() {
   const state = atlasBonusState();
   return rows.map(employee => {
     const comp = state.employeeComp?.[employee.employeeId] || {};
-    const bonusRole = comp.bonusRole || employee.bonusRole || atlasBonusRoleLabelFromType(employee.bonusRoleType, employee.title);
+    const bonusRole = employee.bonusRole || atlasBonusRoleLabelFromType(employee.bonusRoleType, employee.title) || comp.bonusRole;
     return {
       ...employee,
       bonusRole,
@@ -32028,6 +32037,7 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
   const resolution = atlasBonusResolvePlanForEmployee(employee, period);
   const plan = resolution.plan;
   const exceptions = [];
+  if (employee.workforceIssue) exceptions.push({severity:"critical",code:"workforce_mapping",message:employee.workforceIssue});
   if (!employee.employeeId) exceptions.push({ severity: "critical", code: "missing_employee_mapping", message: "Missing employee mapping." });
   if (!employee.communityName && !["Central Services", "Marketing", "Regional Manager"].includes(employee.bonusRole)) exceptions.push({ severity: "critical", code: "missing_community", message: "Missing community." });
   if (!employee.bonusRole) exceptions.push({ severity: "critical", code: "missing_role", message: "Missing bonus role." });
@@ -32066,7 +32076,7 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
       status: actual === null ? "pending" : curve.payoutPct >= 100 ? "achieved" : curve.payoutPct > 0 ? "partial" : "missed"
     };
   });
-  const rowId = `bonus_${simpleHash([period.periodKey, employee.employeeId || employee.email || employee.name, plan?.id || "none"].join("|"))}`;
+  const rowId = `bonus_${simpleHash([period.periodKey, employee.employeeId || "unmapped", employee.assignmentId || "unmapped-assignment", plan?.id || "none"].join("|"))}`;
   const state = atlasBonusState();
   const unresolvedCritical = exceptions.some(exception => exception.severity === "critical");
   const proratedEarned = grossEarned * proration.factor;
@@ -32734,6 +32744,7 @@ function renderBonusApprovalsSection(rows) {
 function atlasBonusExceptionGroups(rows) {
   const groups = new Map();
   const rules = {
+    workforce_mapping: ["Employee identity, community, or role mapping failure", "People", "Correct overlapping effective-dated assignments; retain the historical record."],
     missing_salary: ["Genuine source data missing", "HR / Compensation", "Publish effective-dated salary eligibility from the approved HR source, or assign the approved non-salary plan."],
     missing_employee_mapping: ["Employee identity, community, or role mapping failure", "People", "Link the source record to a stable employee ID."],
     missing_community: ["Employee identity, community, or role mapping failure", "People", "Publish the employee's effective-dated community assignment for this bonus period."],

@@ -17,8 +17,8 @@ await assert.rejects(()=>readFinance({fetchJson:async()=>rows[0]},[cid],periods)
 await assert.rejects(()=>readFinance({fetchJson:async()=>[{...rows[0],community_id:'other'}]},[cid],periods),/scope/);
 let actor='a';await assert.rejects(()=>readFinance({getSession:()=>({user:{id:actor}}),fetchJson:async()=>{actor='b';return rows;}},[cid],periods),/Session changed/);
 await assert.rejects(()=>readDetail({fetchJson:async()=>[]},{actualCloseVersion:'c',close:{row_count:1}}),/incomplete/);
-assert.deepEqual(coverage([],2026),{first:0,last:0,missing:[],completeYtd:false});
-assert.deepEqual(coverage([1,3,8].map(m=>({period_key:'2026-'+String(m).padStart(2,'0'),status:'closed',coverage:'full_month'})),2026),{first:1,last:8,missing:[2,4,5,6,7],completeYtd:false});
+assert.deepEqual(coverage([],2026),{first:0,last:0,missing:[],firstExpectedMonth:1,completeYtd:false});
+assert.deepEqual(coverage([1,3,8].map(m=>({period_key:'2026-'+String(m).padStart(2,'0'),status:'closed',coverage:'full_month'})),2026),{first:1,last:8,missing:[2,4,5,6,7],firstExpectedMonth:1,completeYtd:false});
 let fail=false;
 const cache=createCache({readCommunitiesForAccess:async()=>[{community_id:cid,display_name:'Doro',canonical_name:'doro'}],fetchJson:async()=>{if(fail)throw Error('offline');return rows;}});
 await cache.refresh(2025);assert.equal(cache.bonus('Doro','revenue',periods).attainment,100);fail=true;await assert.rejects(()=>cache.refresh(2025,true),/offline/);assert.equal(cache.envelope('Doro',periods[0]),null,'failed refresh must discard stale evidence');

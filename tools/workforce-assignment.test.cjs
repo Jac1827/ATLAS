@@ -1,0 +1,10 @@
+const {resolve}=require('../docs/portfolio-operations-dashboard/workforce-assignment.js'),assert=require('node:assert/strict');
+const people=[{employeeId:'one',name:'Same Name',active:false},{employeeId:'two',name:'Same Name'}];
+const a=(id,employeeId,communityName,start,end,title='Manager')=>({assignmentId:id,employeeId,communityName,title,effectiveStart:start,effectiveEnd:end,status:'Active',version:1});
+const rows=[a('old','one','A','2026-01-01','2026-08-14'),a('new','one','B','2026-08-15',null,'Regional'),a('future','two','C','2027-01-01',null)];
+let scoped=resolve(people,rows,{start:'2026-07-01',end:'2026-09-30'});assert.equal(scoped.length,2);assert.equal(scoped[0].employeeId,'one');assert(scoped.every(r=>!r.workforceIssue));
+assert.deepEqual(resolve(people,rows.slice().reverse(),{start:'2026-07-01',end:'2026-09-30'}),scoped);
+assert.equal(resolve(people,rows,{start:'2026-02-01',end:'2026-02-28'})[0].communityName,'A');
+assert.equal(resolve(people,[...rows,a('overlap','one','A','2026-07-01',null)],{start:'2026-07-01',end:'2026-09-30'}).filter(r=>r.workforceIssue).length,2);
+assert.equal(resolve(people,[a('inactive','one','A','2026-01-01',null)].map(r=>({...r,status:'Inactive'})),{start:'2026-07-01',end:'2026-09-30'}).length,0);
+console.log('PASS stable IDs, duplicate names, historical roles for inactive people, transfers, future dates, multiple communities, overlap blockers and out-of-order replay.');

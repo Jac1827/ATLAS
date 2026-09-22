@@ -1,6 +1,6 @@
-import {readPackage} from './financial-package-reader.mjs';
-import {resolveCommunity} from './financial-package.mjs';
-import {closeReview} from './financial-close.mjs';
+import {readPackage} from './financial-package-reader.mjs?v=202fc24b456f463b';
+import {resolveCommunity} from './financial-package.mjs?v=49ea086d6d07f300';
+import {closeReview} from './financial-close.mjs?v=b28f66ffab37210c';
 
 // Never replace an existing close implicitly or interpret an upload as approval.
 export async function publishPackage(central,item,{reason,accountingApproved}) {

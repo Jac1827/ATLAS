@@ -93,5 +93,12 @@ const {PGlite}=require('@electric-sql/pglite'),fs=require('node:fs'),assert=requ
  assert.equal((await db.query("select atlas_private.finance_budget_metric($1,'expenses',0) as amount",[missing])).rows[0].amount,null);
  assert.equal((await db.query("select atlas_private.finance_budget_metric($1,'unmapped',0) as amount",[large])).rows[0].amount,null);
  console.log('PASS full-year 288-GL approval and publication, complete mapped sums, missing amounts and absent mappings');
+ await db.exec(sql('financial-coverage-start'));
+ await db.query("update atlas_communities set first_expected_financial_period='2026-05' where community_id=$1",[cid]);
+ const beforeOpening=(await db.query("select atlas_private.finance_envelope($1,'2026-04') s",[cid])).rows[0].s;
+ assert.equal(beforeOpening.applicable,false);assert.equal(beforeOpening.noi.status,'not_applicable');assert.equal(beforeOpening.ytd.noi.actual,null);assert.deepEqual(beforeOpening.missingPeriods,[]);
+ const afterOpening=(await db.query("select atlas_private.finance_envelope($1,'2026-08') s",[cid])).rows[0].s;
+ assert.equal(afterOpening.fiscalStartPeriod,'2026-05');assert.equal(afterOpening.completeYtd,true);assert.deepEqual(afterOpening.fiscalPeriods,['2026-05','2026-06','2026-07','2026-08']);
+ console.log('PASS owner-confirmed coverage starts and pre-opening not-applicable versus missing/zero');
  await db.close();console.log('PASS atomic close projection, shared original budget, missing/signed/zero values, fiscal coverage, replacements, retries, reports, role isolation and clean-session readback');
 })().catch(e=>{console.error(e);process.exitCode=1;});

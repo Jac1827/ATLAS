@@ -1,6 +1,6 @@
-import {mountBatch} from './financial-package-batch.mjs?v=6b73adeff1abdbde';
-import {applyControls} from './financial-comparison.mjs?v=03102873e588332f';
-import {readPackage} from './financial-package-reader.mjs?v=00c6009c7e1b92b1';
+import {mountBatch} from './financial-package-batch.mjs?v=8d35d3092d3f4629';
+import {applyControls} from './financial-comparison.mjs?v=362b8d84b4da9762';
+import {readPackage} from './financial-package-reader.mjs?v=202fc24b456f463b';
 import {resolveCommunity} from './financial-package.mjs?v=49ea086d6d07f300';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>v===null||v===undefined?'Missing':v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});

@@ -216,6 +216,10 @@
         "./financial-package.mjs"
       ],
       [
+        "features/financial-package-batch.mjs",
+        "./financial-package.mjs"
+      ],
+      [
         "features/financial-comparison.mjs",
         "./financial-package.mjs"
       ],
@@ -248,21 +252,29 @@
     ]
   },
   "features/financial-package-reader.mjs": {
-    "sha256": "00c6009c7e1b92b1",
-    "bytes": 4052,
+    "sha256": "202fc24b456f463b",
+    "bytes": 4151,
     "references": [
       [
         "features/financial-package-review.mjs",
+        "./financial-package-reader.mjs"
+      ],
+      [
+        "features/financial-package-batch.mjs",
         "./financial-package-reader.mjs"
       ]
     ]
   },
   "features/financial-close.mjs": {
-    "sha256": "93316022170a2f31",
-    "bytes": 17283,
+    "sha256": "b28f66ffab37210c",
+    "bytes": 17675,
     "references": [
       [
         "features/financial-comparison.mjs",
+        "./financial-close.mjs"
+      ],
+      [
+        "features/financial-package-batch.mjs",
         "./financial-close.mjs"
       ],
       [
@@ -276,7 +288,7 @@
     ]
   },
   "features/financial-comparison.mjs": {
-    "sha256": "03102873e588332f",
+    "sha256": "362b8d84b4da9762",
     "bytes": 11273,
     "references": [
       [
@@ -290,8 +302,8 @@
     ]
   },
   "features/financial-package-batch.mjs": {
-    "sha256": "6b73adeff1abdbde",
-    "bytes": 6061,
+    "sha256": "8d35d3092d3f4629",
+    "bytes": 6118,
     "references": [
       [
         "features/financial-package-review.mjs",
@@ -300,7 +312,7 @@
     ]
   },
   "features/financial-package-review.mjs": {
-    "sha256": "57734fd16eb5bfa6",
+    "sha256": "26465b5feb49be7a",
     "bytes": 9949,
     "references": [
       [
@@ -324,7 +336,7 @@
     ]
   },
   "budget-navigation.js": {
-    "sha256": "b9d4c87547a96b53",
+    "sha256": "9e00512ee28d7b86",
     "bytes": 7489,
     "references": [
       [
@@ -414,7 +426,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "812041573da3eaca",
+    "sha256": "3c3d3c04aeb9eb15",
     "bytes": 1887930,
     "references": [
       [
@@ -424,7 +436,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "5d4019f915a475e3",
+    "sha256": "08a7e5bdb646e5b9",
     "bytes": 28901,
     "references": [
       [

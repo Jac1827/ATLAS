@@ -16,7 +16,7 @@ export async function readPackage(file,{signal,onProgress=()=>{}}={}) {
   for(let number=1;number<=Math.min(pdf.numPages,64);number++) {
    abort(signal);onProgress(`Classifying statement page ${number} of ${pdf.numPages}`);
    const page=await pdf.getPage(number);let text=pdfItemsToText((await page.getTextContent()).items);abort(signal);let method='native',confidence=null;
-   if(text.trim().length<40){const {recognizePage}=await import('./financial-ocr.mjs?v=e434acd5170b2867');const ocr=await recognizePage(page,{signal,onProgress});text=ocr.text;confidence=ocr.confidence;method='ocr';abort(signal);}
+   if(text.trim().length<40 && !parts.some(part=>part.rows.length)){const {recognizePage}=await import('./financial-ocr.mjs?v=e434acd5170b2867');const ocr=await recognizePage(page,{signal,onProgress});text=ocr.text;confidence=ocr.confidence;method='ocr';abort(signal);}
    const type=classifyStatement(text);classifications.push({page:number,type,method,confidence,needsOcr:method==='ocr'});
    if(type==='budget_comparison')parts.push(parseComparisonLines(text,{page:number,method,confidence}));
    page.cleanup();text='';
@@ -25,8 +25,8 @@ export async function readPackage(file,{signal,onProgress=()=>{}}={}) {
    await new Promise(resolve=>setTimeout(resolve,0));
   }
   const result=reconcileComparison(parts);
-  if(classifications.some(p=>p.needsOcr))result.exceptions.push({code:'ocr_review_required',description:'OCR was used. Verify extracted numbers and source pages before closing.'});
-  result.technicalReconciled=result.technicalReconciled&&!classifications.some(p=>p.needsOcr);
+  if(classifications.some(p=>p.needsOcr&&p.type==='budget_comparison'))result.exceptions.push({code:'ocr_review_required',description:'OCR was used. Verify extracted numbers and source pages before closing.'});
+  result.technicalReconciled=result.technicalReconciled&&!classifications.some(p=>p.needsOcr&&p.type==='budget_comparison');
   return {...result,sourceFile:file.name,sourceHash:hash,sourceBytes:file.size,pageCount:pdf.numPages,classifications,unexaminedPages:pdf.numPages-classifications.length,scope:'Primary statements only; GL transactions and supporting documents are excluded.'};
  }finally{signal?.removeEventListener('abort',cancel);await loading.destroy();}
 }

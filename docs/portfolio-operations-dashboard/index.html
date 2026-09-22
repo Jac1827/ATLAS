@@ -1423,7 +1423,7 @@
 </div>
 
 <script src="./atlas_historical_restore_data.js"></script>
-<script src="./atlas-mounts.js?v=5d4019f915a475e3"></script>
+<script src="./atlas-mounts.js?v=08a7e5bdb646e5b9"></script>
 <script src="./centralization/atlas-central-client.js?v=aaf34ed3eb7a47f1" data-atlas-central-client="true"></script>
 <script src="./atlas-dashboard-reskin.js?v=99ffd40a8970f8ef"></script>
 <script src="./central-services.js?v=20260919-renewal-period-review"></script>
@@ -19010,7 +19010,7 @@ async function loadAtlasCentralPeopleAssignments({ silent = true, force = false 
         const title = String(row.title || role.title || "").trim();
         const bonusRoleType = String(role.bonus_role_type || inferSharedBonusRoleType(title)).trim();
         if (!employeeId || !communityName) return;
-        employees[employeeId] = normalizeSharedEmployeeRecord({
+        if (!employees[employeeId]) employees[employeeId] = normalizeSharedEmployeeRecord({
           employeeId,
           peopleEmployeeId: employeeId,
           employeeNumber: employee.employee_number || "",
@@ -24017,7 +24017,7 @@ function getAtlasClosedFinancialVersion(record, period) {
 
 async function refreshAtlasClosedFinancials(year = new Date().getFullYear(), force = false) {
   if (!window.ATLAS_CENTRAL?.getSession()?.user) return;
-  const module = await import("./features/financial-close.mjs?v=93316022170a2f31");
+  const module = await import("./features/financial-close.mjs?v=b28f66ffab37210c");
   window.AtlasClosedFinancialCache ||= module.createCache(window.ATLAS_CENTRAL);
   const changed = await window.AtlasClosedFinancialCache.refresh(year, force);
   if (changed) scheduleAtlasSharedRender(false);
@@ -31144,6 +31144,7 @@ function atlasBonusJsArg(value) {
 }
 
 function atlasBonusCurrency(value = 0, options = {}) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "Pending";
   const amount = Number(value) || 0;
   const maximumFractionDigits = options.cents ? 2 : 0;
   return `$${amount.toLocaleString(undefined, { maximumFractionDigits })}`;
@@ -31652,9 +31653,6 @@ function atlasBonusCandidateMatchesEmployeeContext(candidate = {}, employee = {}
 
 function atlasBonusEmployeeDisplayName(employee = {}) {
   const current = String(employee.name || employee.displayName || employee.employeeName || "").trim();
-  const candidates = atlasBonusPeopleNameCandidates();
-  const direct = candidates.find(candidate => atlasBonusCandidateMatchesEmployee(candidate, employee));
-  if (direct?.name) return direct.name;
   return current || employee.email || employee.employeeNumber || "Employee pending";
 }
 
@@ -31730,6 +31728,7 @@ function atlasBonusPeopleEmployees() {
       region: employee.region,
       active: employee.active !== false,
       source: employee.source || "people",
+      sourceUpdatedAt: employee.sourceUpdatedAt || "",
       effectiveStart: employee.effectiveStart,
       effectiveEnd: employee.effectiveEnd,
       overridePlanId: comp.overridePlanId || employee.overridePlanId || employee.overridePlan || "",
@@ -31744,7 +31743,7 @@ function atlasBonusPeopleEmployees() {
 
 function atlasBonusEmployees() {
   const real = atlasBonusPeopleEmployees().filter(employee => employee.active !== false);
-  const rows = real.length ? real : atlasBonusSampleEmployees();
+  const rows = real.length || getAtlasCentralStatus().configured ? real : atlasBonusSampleEmployees();
   const state = atlasBonusState();
   return rows.map(employee => {
     const comp = state.employeeComp?.[employee.employeeId] || {};
@@ -32095,9 +32094,9 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
     grossPotential,
     grossEarned,
     proration,
-    projectedPayout: proratedEarned,
+    projectedPayout: unresolvedCritical ? null : proratedEarned,
     maximumPotential: proratedPotential,
-    finalPayout,
+    finalPayout: unresolvedCritical ? null : finalPayout,
     override: override || null,
     approvalStatus
   };
@@ -32114,7 +32113,7 @@ function atlasBonusBuildCalculationRows(options = {}) {
       (employeeId && [employee.employeeId, employee.peopleEmployeeId].includes(employeeId))
       || (email && String(employee.email || "").trim().toLowerCase() === email));
   }
-  let rows = employees.map(employee => atlasBonusBuildRow(employee, period));
+  let rows = options.sourceRows || employees.map(employee => atlasBonusBuildRow(employee, period));
   if (!rows.length) return rows;
   // Source professional labels are not canonical employee identifiers. Aging remains
   // an advisory source view until an explicit employee assignment exists.
@@ -32131,8 +32130,8 @@ function atlasBonusBuildCalculationRows(options = {}) {
 
 function atlasBonusSummary(rows = atlasBonusBuildCalculationRows()) {
   const totalPotential = rows.reduce((sum, row) => sum + row.maximumPotential, 0);
-  const projected = rows.reduce((sum, row) => sum + row.projectedPayout, 0);
-  const final = rows.reduce((sum, row) => sum + row.finalPayout, 0);
+  const projected = rows.some(row => row.projectedPayout === null) ? null : rows.reduce((sum, row) => sum + row.projectedPayout, 0);
+  const final = rows.some(row => row.finalPayout === null) ? null : rows.reduce((sum, row) => sum + row.finalPayout, 0);
   const approved = rows.filter(row => ["Regional Approved", "HR Ready", "Paid"].includes(row.approvalStatus)).reduce((sum, row) => sum + row.finalPayout, 0);
   const budget = Math.max(totalPotential * 0.9, projected * 1.05, 1);
   return {
@@ -32145,7 +32144,7 @@ function atlasBonusSummary(rows = atlasBonusBuildCalculationRows()) {
     awaitingRegional: rows.filter(row => row.approvalStatus === "Calculated").length,
     awaitingHr: rows.filter(row => row.approvalStatus === "Regional Approved").length,
     exceptions: rows.reduce((sum, row) => sum + row.exceptions.length, 0),
-    criticalExceptions: rows.filter(row => row.unresolvedCritical).length,
+    criticalExceptions: atlasBonusExceptionGroups(rows).filter(group => group.exception.severity === "critical").length,
     aboveGoal: rows.filter(row => row.maximumPotential > 0 && row.projectedPayout / row.maximumPotential >= 1).length,
     belowGoal: rows.filter(row => row.maximumPotential > 0 && row.projectedPayout / row.maximumPotential < 0.9).length
   };
@@ -32391,7 +32390,7 @@ function atlasBonusPersonalRows() {
 
 function atlasBonusPersonalProjection() {
   const rows = atlasBonusPersonalRows();
-  const projected = rows.reduce((sum, row) => sum + row.projectedPayout, 0);
+  const projected = rows.some(row => row.projectedPayout === null) ? null : rows.reduce((sum, row) => sum + row.projectedPayout, 0);
   const potential = rows.reduce((sum, row) => sum + row.maximumPotential, 0);
   const percent = potential > 0 ? (projected / potential) * 100 : 0;
   return { rows, projected, potential, percent };
@@ -32407,7 +32406,7 @@ function atlasBonusExportRows(reportType = "hr_payroll") {
       "Bonus Period": row.period.periodKey,
       "Bonus Plan": row.plan?.name || "Missing plan",
       "Approval Status": row.approvalStatus,
-      "Approved Payout": Math.round(row.finalPayout * 100) / 100,
+      "Approved Payout": row.finalPayout === null || !["Regional Approved", "HR Ready", "Paid"].includes(row.approvalStatus) ? null : Math.round(row.finalPayout * 100) / 100,
       "Payroll Code": "BONUS",
       "Approval Date": row.approvalStatus === "Paid" ? new Date().toISOString().slice(0, 10) : "",
       "Notes": row.unresolvedCritical ? "Calculation Pending - Missing Required Data" : row.planSource
@@ -32570,14 +32569,34 @@ function renderAtlasPersonalBonusLandingWidget(options = {}) {
   </div>`;
 }
 
+function renderAtlasSelfSalaryPreview() {
+  const personal = atlasBonusPersonalRows();
+  const assigned = personal[0]?.plan;
+  const plans = assigned ? [assigned] : atlasBonusState().plans.filter(plan => plan.status === "active");
+  return `<div class="bonus-engine-card" data-self-salary-preview><h3>My salary preview</h3><p>Enter your own annual salary to estimate the calculation while HR salary verification is pending. This entry stays only in this view; it is not saved, shared, approved, or included in payroll exports.</p><div class="bonus-engine-grid two"><div class="bonus-engine-field"><label for="atlas-self-salary">My annual salary ($)</label><input id="atlas-self-salary" type="number" min="0" step="0.01" autocomplete="off" placeholder="Enter your salary" oninput="atlasUpdateSelfSalaryPreview()"></div><div class="bonus-engine-field"><label for="atlas-self-plan">${assigned ? "Assigned plan" : "Plan to illustrate (assignment not verified)"}</label><select id="atlas-self-plan" onchange="atlasUpdateSelfSalaryPreview()">${plans.map(plan=>`<option value="${escapeHtml(plan.id)}">${escapeHtml(plan.name)}</option>`).join("")}</select></div></div><div id="atlas-self-salary-result" role="status" aria-live="polite"><p>Enter a salary to see the formula and metric amounts. Missing performance or goal data remains pending.</p></div></div>`;
+}
+
+function atlasUpdateSelfSalaryPreview() {
+  const input = document.getElementById("atlas-self-salary"), output = document.getElementById("atlas-self-salary-result");
+  if (!input || !output) return;
+  const salary = normalizeOptionalNumber(input.value);
+  const plan = atlasBonusFindPlan(document.getElementById("atlas-self-plan")?.value);
+  if (salary === null || salary <= 0 || !plan) { output.textContent = "Enter a positive salary and select a plan."; return; }
+  const divisor = atlasBonusCadenceDivisor(plan.payoutCadence);
+  const employee = {salary, targetBonus:plan.targetBonus};
+  const metricRows = plan.metrics.map(metric=>({metric, potential:atlasBonusMetricPotential(employee,plan,metric)}));
+  const potential = metricRows.reduce((sum,item)=>sum+item.potential,0);
+  output.innerHTML = `<p><strong>Self-reported illustration · HR verification pending</strong></p><p>${plan.targetBonusPercent > 0 ? `${atlasBonusCurrency(salary)} × ${escapeHtml(plan.targetBonusPercent)}% ÷ ${divisor} = ${atlasBonusCurrency(salary * plan.targetBonusPercent / 100 / divisor)} ${escapeHtml(plan.payoutCadence)} salary-based target before metric rules and proration.` : "This plan uses fixed or per-event targets rather than a salary percentage."}</p><p>Metric potential: <strong>${atlasBonusCurrency(potential)}</strong>. This is an illustration at the selected plan's target, not a verified earned payout.</p><table class="bonus-engine-table"><thead><tr><th>Metric</th><th>Potential</th></tr></thead><tbody>${metricRows.map(item=>`<tr><td>${escapeHtml(item.metric.name)}</td><td>${atlasBonusCurrency(item.potential)}</td></tr>`).join("")}</tbody></table><p>Earned payout requires verified performance, eligibility, goals, assignment dates and approval.</p>`;
+}
+
 function renderBonusMyBonusSection() {
   const projection = atlasBonusPersonalProjection();
   const hidden = atlasBonusPayoutHidden();
-  return `<div class="bonus-engine-grid two">
+  return `${renderAtlasSelfSalaryPreview()}<div class="bonus-engine-grid two">
     ${renderAtlasPersonalBonusLandingWidget({ standalone: true })}
     <div class="bonus-engine-card">
       <h3>My Bonus Measurements</h3>
-      <p>Employees can view goals, progress, projected payout, and completed payout history. Editing, approval, overrides, and salary calculations stay locked.</p>
+      <p>Employees can view goals, progress, projected payout, and completed payout history. Official editing, approval and overrides remain restricted. The private salary preview above is illustrative.</p>
       <div class="bonus-engine-small-list" style="margin-top:12px">
         ${projection.rows.map(row => `<div class="bonus-engine-small-row"><span>${escapeHtml(row.plan?.name || "No plan")}</span><strong>${hidden ? "•••••" : atlasBonusCurrency(row.projectedPayout)}</strong></div>`).join("") || `<div class="bonus-engine-warning">No personal bonus record matched this login.</div>`}
       </div>
@@ -32712,14 +32731,34 @@ function renderBonusApprovalsSection(rows) {
   <div class="bonus-engine-card"><h3>Sign-Off History</h3><div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Signature</th><th>Role</th><th>Date / Time</th><th>Rows</th><th>Comments</th></tr></thead><tbody>${atlasBonusState().regionalSignatures.map(sig => `<tr><td>${escapeHtml(sig.signature)}</td><td>${escapeHtml(sig.role)}</td><td>${new Date(sig.approvedAt).toLocaleString()}</td><td>${sig.rowCount}</td><td>${escapeHtml(sig.comments || "")}</td></tr>`).join("") || `<tr><td colspan="5">No electronic signatures captured yet.</td></tr>`}</tbody></table></div></div>`;
 }
 
+function atlasBonusExceptionGroups(rows) {
+  const groups = new Map();
+  const rules = {
+    missing_salary: ["Genuine source data missing", "HR / Compensation", "Publish effective-dated salary eligibility from the approved HR source, or assign the approved non-salary plan."],
+    missing_employee_mapping: ["Employee identity, community, or role mapping failure", "People", "Link the source record to a stable employee ID."],
+    missing_community: ["Employee identity, community, or role mapping failure", "People", "Publish the employee's effective-dated community assignment for this bonus period."],
+    missing_role: ["Employee identity, community, or role mapping failure", "People", "Publish the employee's effective-dated role for this bonus period."],
+    missing_bonus_plan: ["Plan or same-period goal assignment failure", "HR / Bonus administrator", "Assign an approved plan version effective during this bonus period."],
+    governed_goal_pending: ["Plan or same-period goal assignment failure", "Community Command / Finance", "Verify the approved same-period goal and source actual. Publish the first missing prerequisite; quarterly rate metrics also require an approved denominator-weighted method."],
+    missing_metric: ["Genuine source data missing", "Source owner", "Publish the verified source for this employee/community and exact period. A current-month upload cannot fill a historical quarter."]
+  };
+  for (const row of rows) for (const exception of row.exceptions) {
+    const metric = row.metricResults.find(r => r.metric.id === exception.metricId);
+    const key = JSON.stringify([row.period.periodKey, row.employee.communityName, row.plan?.id, exception.code, exception.metricId || "", exception.message]);
+    if (!groups.has(key)) groups.set(key, {key, exception, metric, period:row.period.periodKey, community:row.employee.communityName, plan:row.plan?.name, rows:[], rule:rules[exception.code] || ["Development review required", "ATLAS administrator", "Review the source lineage and correct the failing prerequisite."]});
+    groups.get(key).rows.push(row);
+  }
+  return [...groups.values()];
+}
+
 function renderBonusExceptionsSection(rows) {
-  const exceptionRows = rows.flatMap(row => row.exceptions.map(exception => ({ row, exception, key: `${row.rowId}_${exception.code}_${exception.metricId || ""}`, status: "Open" })));
+  const groups = atlasBonusExceptionGroups(rows);
+  const critical = groups.filter(g => g.exception.severity === "critical").length;
   return `<div class="bonus-engine-card">
-    <div class="bonus-engine-section-head"><div><h3>Bonus Exception Queue</h3><p>ATLAS does not guess when required data is missing. Critical exceptions block final approval until the required source is repaired and recalculated.</p></div><span class="bonus-engine-pill ${exceptionRows.some(row => row.exception.severity === "critical") ? "bad" : "good"}">${exceptionRows.length} exceptions</span></div>
-    <div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Employee</th><th>Community</th><th>Plan</th><th>Exception</th><th>Severity</th><th>Required Action</th><th>Status</th><th>Reviewer</th></tr></thead><tbody>
-      ${exceptionRows.map(item => `<tr><td><strong>${escapeHtml(atlasBonusEmployeeDisplayName(item.row.employee))}</strong></td><td>${escapeHtml(item.row.employee.communityName || "Missing")}</td><td>${escapeHtml(item.row.plan?.name || "Missing plan")}</td><td>${escapeHtml(item.exception.message)}</td><td><span class="bonus-engine-pill ${item.exception.severity === "critical" ? "bad" : "warn"}">${escapeHtml(item.exception.severity)}</span></td><td>${item.exception.code === "application_aging_derogatory" ? "Review source assignment, aging and documented cause before bonus sign-off." : item.exception.code === "missing_salary" ? "HR/Admin must enter salary or assign non-salary plan." : item.exception.code === "missing_metric" ? "Import source data or enter documented manual result." : "Update People mapping or plan assignment."}</td><td>${escapeHtml(item.status)}</td><td><button class="btn btn-gray btn-sm" onclick='atlasBonusResolveException(${atlasBonusJsArg(item.row.rowId)},${atlasBonusJsArg(item.exception.code)},${atlasBonusJsArg(item.exception.metricId || "")})' ${atlasBonusCan("override_calculations") ? "" : "disabled"}>Record review</button></td></tr>`).join("") || `<tr><td colspan="8">No exceptions in the current filter set.</td></tr>`}
-    </tbody></table></div>
-  </div>`;
+    <div class="bonus-engine-section-head"><div><h3>Bonus Exception Queue</h3><p>Grouped by prerequisite, community, plan and period. Recording review does not clear a missing source. Recalculation removes a blocker only when its prerequisite is verified.</p></div><span class="bonus-engine-pill ${critical ? "bad" : "good"}">${critical} critical · ${groups.length-critical} warnings</span></div>
+    <div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Root cause / prerequisite</th><th>Scope</th><th>Owner and required action</th><th>Approval / synchronization</th><th>Lineage and review history</th></tr></thead><tbody>
+    ${groups.map(g => `<tr><td><strong>${escapeHtml(g.exception.message)}</strong><br>${escapeHtml(g.rule[0])}<br>${escapeHtml(g.metric?.metric.dataSource || g.rule[1])}</td><td>${escapeHtml(g.community || "Missing community")}<br>${escapeHtml(g.plan || "Missing plan")}<br>${escapeHtml(g.period)}<details><summary>${g.rows.length} affected employee${g.rows.length===1?"":"s"}</summary>${g.rows.map(row=>`<p>${escapeHtml(atlasBonusEmployeeDisplayName(row.employee))}<br>ID: ${escapeHtml(row.employee.employeeId || "Missing")}</p>`).join("")}</details></td><td>${escapeHtml(g.rule[1])}<br>${escapeHtml(g.rule[2])}</td><td>${g.exception.severity === "critical" ? "Payout approval blocked" : "Advisory; no automatic pay reduction"}<br>Awaiting verified prerequisite<br>Source as of: ${escapeHtml(g.rows[0].employee.sourceUpdatedAt || "Not recorded")}<br>Last People sync: ${escapeHtml(atlasSharedData?.lastPeopleSyncAt || "Not recorded")}</td><td><details><summary>Source lineage and reviewer history</summary><pre style="white-space:pre-wrap">${escapeHtml(JSON.stringify({source:g.metric?.metric.dataSource||g.rule[1],period:g.period,community:g.community,plan:g.rows[0].plan?{id:g.rows[0].plan.id,version:g.rows[0].plan.version}:null,approvedGoalVersions:g.metric?.approvedGoalVersions||[],financialEvidence:g.metric?.financialEvidence||null},null,2))}</pre>${g.rows.map(row=>{const key=`${row.rowId}_${g.exception.code}_${g.exception.metricId || ""}`;return `<p>${escapeHtml(atlasBonusEmployeeDisplayName(row.employee))}: ${escapeHtml(atlasBonusState().exceptionStatusById[key] || "Not reviewed")} <button class="btn btn-gray btn-sm" onclick='atlasBonusResolveException(${atlasBonusJsArg(row.rowId)},${atlasBonusJsArg(g.exception.code)},${atlasBonusJsArg(g.exception.metricId || "")})' ${atlasBonusCan("override_calculations")?"":"disabled"}>Record review</button></p>`;}).join("")}<p>Full reviewer actions remain in Audit Trail.</p></details></td></tr>`).join("") || '<tr><td colspan="5">No exceptions in this scope.</td></tr>'}
+    </tbody></table></div></div>`;
 }
 
 function renderBonusForecastSection(rows) {
@@ -32800,7 +32839,8 @@ function renderBonusEngineSection(section, rows) {
 
 function renderBonusTab() {
   const state = atlasBonusState();
-  const rows = atlasBonusBuildCalculationRows();
+  const allRows = atlasBonusBuildCalculationRows({ filters: defaultBonusEngineState().filters });
+  const rows = atlasBonusBuildCalculationRows({ sourceRows: allRows });
   const summary = atlasBonusSummary(rows);
   const period = atlasBonusPeriodFromQuarter();
   const sections = atlasBonusVisibleSections();
@@ -32825,7 +32865,7 @@ function renderBonusTab() {
     <div class="bonus-engine-nav">
       ${sections.map(([id, label]) => `<button type="button" class="bonus-engine-tab ${activeSection === id ? "active" : ""}" onclick='atlasBonusSetSection(${atlasBonusJsArg(id)})'>${escapeHtml(label)}</button>`).join("")}
     </div>
-    ${renderBonusEngineFilters(atlasBonusBuildCalculationRows({ filters: defaultBonusEngineState().filters }))}
+    ${renderBonusEngineFilters(allRows)}
     ${renderBonusEngineSection(activeSection, rows)}
     ${activeSection === "exceptions" && atlasBonusCan("run_calculations") ? window.AtlasApplicationAging.render(getAtlasApplicationAgingRows({start: period.start, end: period.end}).filter(r => state.filters.community === "all" || !state.filters.community || state.filters.community === r.community), true) : ""}
   </section>`;

@@ -5,8 +5,10 @@ export function contract(v){return v?{period:v.period_key,status:v.status,covera
 export function coverage(versions,year){
  const months=new Set(versions.filter(v=>v.period_key?.startsWith(year+'-')&&v.status==='closed'&&v.coverage==='full_month').map(v=>Number(v.period_key.slice(5))));
  const first=months.size?Math.min(...months):0,last=months.size?Math.max(...months):0;
- const missing=Array.from({length:last},(_,i)=>i+1).filter(m=>!months.has(m));
- return {first,last,missing,completeYtd:last>0&&missing.length===0};
+ const expected=versions.map(v=>v.financeEnvelope?.firstExpectedFinancialPeriod).filter(Boolean).sort()[0];
+ const firstExpectedMonth=expected&&expected.startsWith(year+'-')?Number(expected.slice(5)):1;
+ const missing=Array.from({length:Math.max(0,last-firstExpectedMonth+1)},(_,i)=>i+firstExpectedMonth).filter(m=>!months.has(m));
+ return {first,last,missing,firstExpectedMonth,completeYtd:last>0&&missing.length===0};
 }
 export async function readYear(central,cid,year){
  const periods=Array.from({length:12},(_,i)=>year+'-'+String(i+1).padStart(2,'0'));
@@ -102,7 +104,7 @@ export function installBuilder(R,central,resolve){
    if(!caches.has(key)){const c={rows:new Map(),versions:[],coverage:coverage([],year),status:'Loading canonical actuals'};caches.set(key,c);R.app.invalidate();
     (async()=>{const run=generation;try{const cid=await resolve(p.name);if(!cid)throw Error('Community mapping unavailable');const versions=await readYear(central,cid,year);if(run!==generation)return;c.versions=versions;c.coverage=coverage(c.versions,year);c.budget=await readApprovedBudget(central,cid,year);if(run!==generation)return;
      for(let i=0;i<c.versions.length;i+=3){const batch=c.versions.slice(i,i+3);const rows=await Promise.all(batch.map(v=>readRows(central,v)));if(run!==generation)return;batch.forEach((v,j)=>rows[j].forEach(r=>{let item=c.rows.get(r.gl_code);if(!item){item={monthly:Array(12).fill(null),ytd:null};c.rows.set(r.gl_code,item);}item.monthly[Number(v.period_key.slice(5))-1]=optionalNumber(r.actual);item.name=r.account_name;item.sources||={};item.sources[v.period_key]={version:v.version_id,file:v.source_file,hash:v.source_hash,location:r.source_location};if(Number(v.period_key.slice(5))===c.coverage.last)item.ytd=optionalNumber(r.ytd_actual);}));}
-     for(const item of c.rows.values())item.ytd=c.coverage.completeYtd&&item.monthly.slice(0,c.coverage.last).every(v=>v!==null)?item.monthly.slice(0,c.coverage.last).reduce((a,b)=>a+b,0):null;
+     for(const item of c.rows.values())item.ytd=c.coverage.completeYtd&&item.monthly.slice(c.coverage.firstExpectedMonth-1,c.coverage.last).every(v=>v!==null)?item.monthly.slice(c.coverage.firstExpectedMonth-1,c.coverage.last).reduce((a,b)=>a+b,0):null;
      c.status='Verified closed source';
     }catch(e){c.rows.clear();c.budget=null;c.versions=[];c.coverage=coverage([],year);c.status=e.message;}if(selected===key){R.app.invalidate();R.app.render();}})();}
   }return render.apply(this,arguments);};
@@ -112,7 +114,7 @@ export async function primeBuilderYear(R,central,cid,pid,year){
  const versions=await readYear(central,cid,year),c={rows:new Map(),versions,budget:await readApprovedBudget(central,cid,year),coverage:coverage(versions,year),status:'Verified closed source'};
  for(let i=0;i<versions.length;i+=3){const batch=versions.slice(i,i+3),sets=await Promise.all(batch.map(v=>readRows(central,v)));batch.forEach((v,j)=>sets[j].forEach(r=>{const item=c.rows.get(r.gl_code)||{monthly:Array(12).fill(null),ytd:null};item.monthly[Number(v.period_key.slice(5))-1]=optionalNumber(r.actual);item.name=r.account_name;item.sources||={};item.sources[v.period_key]={version:v.version_id,file:v.source_file,hash:v.source_hash,location:r.source_location};if(Number(v.period_key.slice(5))===c.coverage.last)item.ytd=optionalNumber(r.ytd_actual);c.rows.set(r.gl_code,item);}));}
  if(central.getSession&&central.getSession()?.user?.id!==actor)throw Error('Session changed while reading financial sources.');
- for(const item of c.rows.values())item.ytd=c.coverage.completeYtd&&item.monthly.slice(0,c.coverage.last).every(v=>v!==null)?item.monthly.slice(0,c.coverage.last).reduce((a,b)=>a+b,0):null;
+ for(const item of c.rows.values())item.ytd=c.coverage.completeYtd&&item.monthly.slice(c.coverage.firstExpectedMonth-1,c.coverage.last).every(v=>v!==null)?item.monthly.slice(c.coverage.firstExpectedMonth-1,c.coverage.last).reduce((a,b)=>a+b,0):null;
  R.closedFinancial.caches.set(pid+'|'+year,c);return c;
 }
 export function projectBuilderActuals(state,pid,caches){

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {coverage,contract,createCache,projectBuilderActuals} from '../docs/portfolio-operations-dashboard/features/financial-close.mjs';
 const versions=[2,3,4,5,6,7,8].map(m=>({version_id:'v'+m,community_id:'id',period_key:`2026-${String(m).padStart(2,'0')}`,status:'closed',coverage:'full_month',metrics:{netRentalIncome:0,grossPotentialRent:100}}));
-assert.deepEqual(coverage(versions,2026),{first:2,last:8,missing:[1],completeYtd:false});
+assert.deepEqual(coverage(versions,2026),{first:2,last:8,missing:[1],firstExpectedMonth:1,completeYtd:false});
 assert.equal(coverage(versions.filter(v=>v.period_key!=='2026-07'),2026).last,8);
 assert.equal(contract(versions[0]).netRentalIncome,0);
 assert.equal(contract({...versions[0],metrics:{grossPotentialRent:100}}).netRentalIncome,null);
@@ -13,3 +13,5 @@ const state={actuals:{old:{propertyId:'DORO',year:2026,monthly:Array(12).fill(0)
 const projection=projectBuilderActuals(state,'DORO',new Map([['DORO|2026',{rows:new Map([['5120',{monthly:[null,0,100,null,null,null,null,100,null,null,null,null]}]]),versions,coverage:coverage(versions,2026)}]]));
 assert.equal(projection.periods['DORO|2026'].closedThrough,8);assert.equal(state.periods['DORO|2026'].closedThrough,6);assert.equal(projection.actuals.old,undefined);assert.equal(projection.actuals['DORO|5120|2026'].monthly[0],null);assert.equal(projection.actuals['DORO|5120|2026'].monthly[1],0);assert.equal(projection.periods['DORO|2026'].canonicalVersions['2026-08'],'v8');
 console.log('PASS read-only publication projection supersedes stale legacy markers without mutating saved budgets or actuals');
+
+assert.deepEqual(coverage(versions.slice(3).map(v=>({...v,financeEnvelope:{firstExpectedFinancialPeriod:'2026-05'}})),2026).missing,[]);

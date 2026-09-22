@@ -1,0 +1,17 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const html=fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/index.html','utf8');
+const fn=n=>html.match(new RegExp('^function '+n+'\\([^]*?^\\}','m'))[0];
+const state={exceptionStatusById:{bonus_x_missing_salary_:'resolved'},overrides:[],approvalStatusByRowId:{bonus_x:'Regional Approved'}};
+const c={atlasBonusResolvePlanForEmployee:()=>({plan:{id:'plan',targetBonusPercent:20,metrics:[]}}),atlasBonusProration:()=>({factor:1}),simpleHash:()=> 'x',atlasBonusState:()=>state,atlasBonusGetCommunityOperatingType:()=> 'stabilized'};
+vm.createContext(c);vm.runInContext(fn('atlasBonusBuildRow'),c);
+const row=c.atlasBonusBuildRow({employeeId:'id',communityName:'A',bonusRole:'General Manager'}, {periodKey:'2026-Q3'});
+assert.equal(row.unresolvedCritical,true);assert.equal(row.approvalStatus,'Exceptions Blocking Approval');assert.equal(row.projectedPayout,null);assert.equal(row.finalPayout,null);
+vm.runInContext(fn('atlasBonusExceptionGroups'),c);
+const groups=c.atlasBonusExceptionGroups([row,{...row,employee:{...row.employee,employeeId:'different'}}]);assert.equal(groups.length,1);assert.equal(groups[0].rows.length,2);
+const identity=fn('atlasBonusEmployeeDisplayName');assert(!identity.includes('Candidates'));assert(!identity.includes('Context'));
+vm.runInContext(identity,c);assert.equal(c.atlasBonusEmployeeDisplayName({name:'Same Name',employeeId:'one'}),'Same Name');
+const preview=fn('atlasUpdateSelfSalaryPreview');assert(!/persist|rpc\(|fetch|localStorage|sessionStorage|employeeComp/.test(preview));
+let out={innerHTML:'',textContent:''};const controls={'atlas-self-salary':{value:'60000'},'atlas-self-plan':{value:'p'},'atlas-self-salary-result':out};
+const x={document:{getElementById:id=>controls[id]},normalizeOptionalNumber:v=>v===''?null:Number(v),atlasBonusFindPlan:()=>({targetBonusPercent:20,payoutCadence:'Quarterly',metrics:[{name:'Occupancy',weight:100}]}),atlasBonusCadenceDivisor:()=>4,atlasBonusMetricPotential:e=>e.salary*0.2/4,atlasBonusCurrency:v=>'$'+v,escapeHtml:String};
+vm.createContext(x);vm.runInContext(preview,x);x.atlasUpdateSelfSalaryPreview();assert(out.innerHTML.includes('$3000'));assert(out.innerHTML.includes('HR verification pending'));controls['atlas-self-salary'].value='';x.atlasUpdateSelfSalaryPreview();assert(out.textContent.includes('positive salary'));
+console.log('PASS missing salary cannot be dismissed or exported as zero; grouped prerequisites; stable identity; private unsaved salary illustration.');

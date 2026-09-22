@@ -1,4 +1,4 @@
-import {mountCloseControls,readYear,coverage,readRows} from './financial-close.mjs?v=c7e5f1e5e9f22e1f';
+import {mountCloseControls,readYear,coverage,readRows} from './financial-close.mjs?v=93316022170a2f31';
 import {resolveCommunity} from './financial-package.mjs?v=49ea086d6d07f300';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>n===null||n===undefined?'Missing':Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});

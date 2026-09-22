@@ -11,6 +11,9 @@ let vr={propertyId:'p',year:2026,closedThrough:3,rows:[base],canonicalCoverage:{
 let review=R.financialReview.build(vr,{periods:{}},{},{period:'ytd'});assert.equal(review.rows[0].actual,null);assert.equal(review.rows[0].variance,null);assert.equal(review.summary.revenue.actual,null);assert.equal(review.trend.revenueActual[0],null);assert.equal(review.trend.revenueActual[1],0);
 review=R.financialReview.build(vr,{periods:{}},{},{period:'current'});assert.equal(review.rows[0].actual,25);assert.equal(review.rows[0].variance,-75);
 review=R.financialReview.build(vr,{periods:{}},{},{period:'prior'});assert.equal(review.rows[0].actual,0);assert.equal(review.rows[0].variance,-100);
+vr.canonicalApprovedScenario=true;vr.canonicalMonthlyFinance={'2026-03':{revenue:{actual:25,budget:100},expenses:{actual:10,budget:20},noi:{actual:15,budget:80}}};
+review=R.financialReview.build(vr,{periods:{}},{},{period:'current'});assert.equal(review.summary.noi.actual,15);assert.equal(review.summary.noi.variance,-65);assert.equal(review.rows[0].actual,25);
+review=R.financialReview.build(vr,{periods:{}},{},{period:'ytd'});assert.equal(review.summary.noi.actual,null,'missing earlier close cannot become complete YTD');
 console.log('Report source values, signed bar labels, explicit zero and missing-coverage checks passed');
 (async()=>{global.window={parent:{addEventListener(){}},addEventListener(){}};const {installUtilityForecast}=await import('../docs/portfolio-operations-dashboard/features/utility-forecast-ui.mjs');
 const state=R.buildState(),p=state.properties[0],draft=state.scenarios.find(s=>!s.locked),approved=state.scenarios.find(s=>s.type==='approved'),line=state.lines.find(l=>l.propertyId===p.id&&l.gl==='6450');

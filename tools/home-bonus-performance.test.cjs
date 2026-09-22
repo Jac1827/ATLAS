@@ -20,3 +20,7 @@ vm.runInContext('atlasHomeRenderDetails=null',ctx);ctx.atlasHomePortfolioDetails
 assert.match(extract('renderAtlasWelcomeDashboard','buildAtlasCentralPeoplePayload'),/finally \{ atlasHomeRenderDetails = previous/);
 
 assert.match(extract('renderAtlasPersonalBonusLandingWidget','renderBonusMyBonusSection'),/!primary \? "Not available"/);
+
+const nav=extract('atlasBonusSetSection','renderAtlasBonusAgingDisclosure');
+assert(!nav.includes('persistOpsGlobalData'));assert(!nav.includes('atlasBonusBuildCalculationRows'));
+assert(nav.includes('atlasBonusSectionCache.has(section)'));

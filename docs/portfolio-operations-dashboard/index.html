@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css"/>
-<script src="./performance/diagnostics.js?v=6ca6ffc4eb4ce69b"></script>
+<script src="./performance/diagnostics.js?v=bd950e3f2737ceb2"></script>
 <script src="./performance/feature-loader.js?v=ed7b38027612489d"></script>
 <script src="financial-publication.js?v=de79892b03f508fe"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -946,7 +946,9 @@
   .bonus-community-chip span { font-size:0.6rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; }
   .bonus-community-chip.active span { color:#cfe2ff; }
   .bonus-scope-pill { display:inline-flex; align-items:center; gap:6px; font-size:0.64rem; color:#4493f8; background:rgba(68,147,248,0.08); border:1px solid rgba(68,147,248,0.22); padding:4px 8px; border-radius:999px; }
-  .bonus-engine-shell { display:grid; gap:16px; color:var(--text); }
+  .bonus-engine-shell { display:grid; grid-template-columns:minmax(0,1fr); gap:16px; color:var(--text); min-width:0; }
+  .bonus-engine-shell > *, .bonus-engine-field { min-width:0; }
+  .bonus-engine-my-widget { max-width:100%; }
   .bonus-engine-hero { background:linear-gradient(135deg,#003146 0%,#0f5368 64%,#559cb4 132%); color:#fff; border-radius:18px; padding:22px; box-shadow:0 18px 44px rgba(0,49,70,0.18); overflow:hidden; position:relative; }
   .bonus-engine-hero::after { content:""; position:absolute; right:-96px; bottom:-132px; width:280px; height:280px; border:1px solid rgba(252,181,59,0.32); border-radius:50%; background:rgba(252,181,59,0.08); pointer-events:none; }
   .bonus-engine-hero h1 { font-size:1.68rem; line-height:1.05; margin:8px 0 8px; color:#fff; font-weight:800; letter-spacing:0; }
@@ -32435,8 +32437,8 @@ function atlasBonusPersonalRows() {
 function atlasBonusPersonalProjection() {
   const rows = atlasBonusPersonalRows();
   const projected = rows.some(row => row.projectedPayout === null) ? null : rows.reduce((sum, row) => sum + row.projectedPayout, 0);
-  const potential = rows.reduce((sum, row) => sum + row.maximumPotential, 0);
-  const percent = potential > 0 ? (projected / potential) * 100 : 0;
+  const potential = rows.some(row => row.maximumPotential === null) ? null : rows.reduce((sum, row) => sum + row.maximumPotential, 0);
+  const percent = projected === null || potential === null ? null : potential > 0 ? (projected / potential) * 100 : 0;
   return { rows, projected, potential, percent };
 }
 

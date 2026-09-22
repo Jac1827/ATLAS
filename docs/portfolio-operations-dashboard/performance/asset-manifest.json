@@ -560,8 +560,8 @@
     ]
   },
   "performance/diagnostics.js": {
-    "sha256": "6ca6ffc4eb4ce69b",
-    "bytes": 4658,
+    "sha256": "bd950e3f2737ceb2",
+    "bytes": 4757,
     "references": [
       [
         "index.html",

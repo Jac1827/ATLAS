@@ -60,7 +60,7 @@
       const summary = root.document.createElement('summary'); summary.textContent = 'Performance measurement report';
       const reset = root.document.createElement('button'); reset.textContent = 'Reset performance measurements'; reset.addEventListener('click', () => api.reset());
       const refresh = root.document.createElement('button'); refresh.textContent = 'Refresh performance report';
-      const output = root.document.createElement('pre'); output.id = 'atlas-performance-report';
+      const output = root.document.createElement('pre'); output.id = 'atlas-performance-report'; output.style.cssText = 'max-width:100%;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere';
       const update = () => { memory('report-request'); output.textContent = JSON.stringify(api.report(), null, 2); };
       refresh.addEventListener('click', update); summary.addEventListener('click', update);
       panel.append(summary, reset, refresh, output); root.document.body.appendChild(panel);

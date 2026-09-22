@@ -59,6 +59,8 @@ jobs:
           node tools/community-report-progress.test.mjs
           node tools/financial-package.test.mjs
           node tools/financial-review-db.test.cjs
+          node tools/financial-package-batch.test.mjs
+          node tools/workforce-events-db.test.cjs
           node tools/financial-close.test.mjs
           node tools/canonical-finance.test.mjs
           node tools/canonical-finance-db.test.cjs
@@ -74,6 +76,9 @@ jobs:
         run: npm install --no-save --ignore-scripts xlsx@0.18.5
       - name: Validate startup and performance boundaries (not browser acceptance)
         run: |
+          node tools/bonus-prerequisites.test.cjs
+          node tools/workforce-assignment.test.cjs
+          node tools/workforce-sync.test.cjs
           node tools/home-bonus-performance.test.cjs
           node tools/import-history.test.mjs
           node tools/startup-performance.test.cjs

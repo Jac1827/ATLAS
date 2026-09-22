@@ -15,3 +15,13 @@ let out={innerHTML:'',textContent:''};const controls={'atlas-self-salary':{value
 const x={document:{getElementById:id=>controls[id]},normalizeOptionalNumber:v=>v===''?null:Number(v),atlasBonusFindPlan:()=>({targetBonusPercent:20,payoutCadence:'Quarterly',metrics:[{name:'Occupancy',weight:100}]}),atlasBonusCadenceDivisor:()=>4,atlasBonusMetricPotential:e=>e.salary*0.2/4,atlasBonusCurrency:v=>'$'+v,escapeHtml:String};
 vm.createContext(x);vm.runInContext(preview,x);x.atlasUpdateSelfSalaryPreview();assert(out.innerHTML.includes('$3000'));assert(out.innerHTML.includes('HR verification pending'));controls['atlas-self-salary'].value='';x.atlasUpdateSelfSalaryPreview();assert(out.textContent.includes('positive salary'));
 console.log('PASS missing salary cannot be dismissed or exported as zero; grouped prerequisites; stable identity; private unsaved salary illustration.');
+
+vm.runInContext(fn('atlasBonusPct'),c);
+assert.equal(c.atlasBonusPct(null),'Pending');assert.equal(c.atlasBonusPct(0),'0%');
+c.atlasBonusResolvePlanForEmployee=()=>({plan:{id:'plan',targetBonusPercent:0,metrics:[{id:'noi',name:'NOI',inputType:'automatic'}]}});
+c.communityCommandBonusGoalResult=()=>null;c.atlasBonusMetricActual=()=>null;c.atlasBonusMetricPotential=()=>100;c.atlasBonusFinancialEvidence=()=>[];
+const pending=c.atlasBonusBuildRow({employeeId:'id',communityName:'A',bonusRole:'Manager'}, {periodKey:'2026-Q3'});
+assert.equal(pending.metricResults[0].earned,null);assert.equal(pending.metricResults[0].achievementPct,null);assert.equal(pending.finalPayout,null);
+c.atlasBonusMetricActual=()=>0;c.atlasBonusCurvePayoutPct=()=>({ratio:0,payoutPct:0,label:'Below threshold'});
+const zero=c.atlasBonusBuildRow({employeeId:'id',communityName:'A',bonusRole:'Manager'}, {periodKey:'2026-Q3'});
+assert.equal(zero.metricResults[0].earned,0);assert.equal(zero.metricResults[0].achievementPct,0);assert.equal(zero.finalPayout,0);

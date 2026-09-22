@@ -31166,6 +31166,7 @@ function atlasBonusCurrency(value = 0, options = {}) {
 }
 
 function atlasBonusPct(value = 0, decimals = 0) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "Pending";
   const num = Number(value) || 0;
   return `${num.toFixed(decimals)}%`;
 }
@@ -32068,9 +32069,10 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
       exceptions.push({ severity: metric.inputType === "automatic" ? "critical" : "warning", code: "missing_metric", message: `Missing ${metric.name} data from ${metric.dataSource}.`, metricId: metric.id });
     }
     const potential = atlasBonusMetricPotential(employee, plan, metric);
-    const curve = actual === null ? { ratio: 0, payoutPct: 0, label: "Calculation Pending" } : atlasBonusCurvePayoutPct(metric, actual);
-    let earned = potential * (curve.payoutPct / 100);
-    if (["per_unit", "per_lease", "per_event"].includes(metric.payoutStructure) && actual !== null) {
+    const metricPending = actual === null || governed?.reason || exceptions.some(item => item.code === "missing_salary");
+    const curve = metricPending ? { ratio: null, payoutPct: null, label: "Calculation Pending" } : atlasBonusCurvePayoutPct(metric, actual);
+    let earned = metricPending ? null : potential * (curve.payoutPct / 100);
+    if (["per_unit", "per_lease", "per_event"].includes(metric.payoutStructure) && !metricPending) {
       const unitEarned = Math.max(0, actual - Number(metric.goal || 0) + 1) * Number(metric.perUnitRate || 0);
       earned = Math.min(unitEarned, potential || unitEarned);
     }
@@ -32086,7 +32088,7 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
       achievementPct: curve.ratio,
       earned,
       label: curve.label,
-      status: actual === null ? "pending" : curve.payoutPct >= 100 ? "achieved" : curve.payoutPct > 0 ? "partial" : "missed"
+      status: metricPending ? "pending" : curve.payoutPct >= 100 ? "achieved" : curve.payoutPct > 0 ? "partial" : "missed"
     };
   });
   const rowId = `bonus_${simpleHash([period.periodKey, employee.employeeId || "unmapped", employee.assignmentId || "unmapped-assignment", plan?.id || "none"].join("|"))}`;
@@ -32118,7 +32120,7 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
     grossEarned,
     proration,
     projectedPayout: unresolvedCritical ? null : proratedEarned,
-    maximumPotential: proratedPotential,
+    maximumPotential: exceptions.some(item => item.code === "missing_salary") ? null : proratedPotential,
     finalPayout: unresolvedCritical ? null : finalPayout,
     override: override || null,
     approvalStatus
@@ -32152,24 +32154,24 @@ function atlasBonusBuildCalculationRows(options = {}) {
 }
 
 function atlasBonusSummary(rows = atlasBonusBuildCalculationRows()) {
-  const totalPotential = rows.reduce((sum, row) => sum + row.maximumPotential, 0);
+  const totalPotential = rows.some(row => row.maximumPotential === null) ? null : rows.reduce((sum, row) => sum + row.maximumPotential, 0);
   const projected = rows.some(row => row.projectedPayout === null) ? null : rows.reduce((sum, row) => sum + row.projectedPayout, 0);
   const final = rows.some(row => row.finalPayout === null) ? null : rows.reduce((sum, row) => sum + row.finalPayout, 0);
   const approved = rows.filter(row => ["Regional Approved", "HR Ready", "Paid"].includes(row.approvalStatus)).reduce((sum, row) => sum + row.finalPayout, 0);
-  const budget = Math.max(totalPotential * 0.9, projected * 1.05, 1);
+  const budget = totalPotential === null || projected === null ? null : Math.max(totalPotential * 0.9, projected * 1.05, 1);
   return {
     employeeCount: rows.length,
     projected,
     final,
     approved,
     budget,
-    variance: budget - projected,
+    variance: budget === null || projected === null ? null : budget - projected,
     awaitingRegional: rows.filter(row => row.approvalStatus === "Calculated").length,
     awaitingHr: rows.filter(row => row.approvalStatus === "Regional Approved").length,
     exceptions: rows.reduce((sum, row) => sum + row.exceptions.length, 0),
     criticalExceptions: atlasBonusExceptionGroups(rows).filter(group => group.exception.severity === "critical").length,
-    aboveGoal: rows.filter(row => row.maximumPotential > 0 && row.projectedPayout / row.maximumPotential >= 1).length,
-    belowGoal: rows.filter(row => row.maximumPotential > 0 && row.projectedPayout / row.maximumPotential < 0.9).length
+    aboveGoal: rows.filter(row => row.projectedPayout !== null && row.maximumPotential > 0 && row.projectedPayout / row.maximumPotential >= 1).length,
+    belowGoal: rows.filter(row => row.projectedPayout !== null && row.maximumPotential > 0 && row.projectedPayout / row.maximumPotential < 0.9).length
   };
 }
 
@@ -32179,8 +32181,8 @@ function atlasBonusGroupTotals(rows = [], keyFn = () => "") {
     const key = keyFn(row) || "Unassigned";
     grouped[key] = grouped[key] || { key, count: 0, payout: 0, potential: 0 };
     grouped[key].count += 1;
-    grouped[key].payout += row.finalPayout;
-    grouped[key].potential += row.maximumPotential;
+    grouped[key].payout = grouped[key].payout === null || row.finalPayout === null ? null : grouped[key].payout + row.finalPayout;
+    grouped[key].potential = grouped[key].potential === null || row.maximumPotential === null ? null : grouped[key].potential + row.maximumPotential;
   });
   return Object.values(grouped).sort((a, b) => b.payout - a.payout);
 }
@@ -32647,7 +32649,7 @@ function renderBonusMyBonusSection() {
   ${projection.rows.map(row => `<div class="bonus-engine-card">
     <div class="bonus-engine-section-head"><div><h3>${escapeHtml(atlasBonusEmployeeDisplayName(row.employee))} - ${escapeHtml(row.plan?.name || "No plan")}</h3><p>Controlling plan: ${escapeHtml(row.planSource)}. Salary calculation detail is excluded from this view.</p></div><span class="bonus-engine-pill ${row.unresolvedCritical ? "bad" : "good"}">${escapeHtml(row.approvalStatus)}</span></div>
     <div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Metric</th><th>Goal</th><th>Actual</th><th>Achievement</th><th>Projected Metric Payout</th><th>Source</th></tr></thead><tbody>
-      ${row.metricResults.map(result => `<tr><td><strong>${escapeHtml(result.metric.name)}</strong></td><td>${escapeHtml(result.metric.format === "pct" ? atlasBonusPct(result.metric.goal, 1) : String(result.metric.goal))}</td><td>${escapeHtml(result.actual === null ? "Calculation Pending - Missing Required Data" : result.metric.format === "pct" ? atlasBonusPct(result.actual, 1) : String(Number(result.actual).toFixed(1).replace(/\.0$/, "")))}</td><td>${atlasBonusPct(result.achievementPct, 0)}</td><td>${hidden ? "....." : atlasBonusCurrency(result.earned)}</td><td>${escapeHtml(result.metric.dataSource)}</td></tr>`).join("")}
+      ${row.metricResults.map(result => `<tr><td><strong>${escapeHtml(result.metric.name)}</strong></td><td>${escapeHtml(result.metric.format === "pct" ? atlasBonusPct(result.metric.goal, 1) : (result.metric.goal == null ? "Pending" : String(result.metric.goal)))}</td><td>${escapeHtml(result.actual === null ? "Calculation Pending - Missing Required Data" : result.metric.format === "pct" ? atlasBonusPct(result.actual, 1) : String(Number(result.actual).toFixed(1).replace(/\.0$/, "")))}</td><td>${atlasBonusPct(result.achievementPct, 0)}</td><td>${hidden ? "....." : atlasBonusCurrency(result.earned)}</td><td>${escapeHtml(result.metric.dataSource)}</td></tr>`).join("")}
     </tbody></table></div>
   </div>`).join("")}`;
 }
@@ -32746,7 +32748,7 @@ function renderBonusCalculationsSection(rows) {
 
 function renderBonusProjectedSection(rows) {
   return `<div class="bonus-engine-grid">${rows.map(row => {
-    const pct = row.maximumPotential > 0 ? Math.min(100, (row.projectedPayout / row.maximumPotential) * 100) : 0;
+    const pct = row.projectedPayout === null || row.maximumPotential === null ? null : row.maximumPotential > 0 ? Math.min(100, (row.projectedPayout / row.maximumPotential) * 100) : 0;
     return `<div class="bonus-engine-card">
       <div class="bonus-engine-section-head"><div><h3>${escapeHtml(atlasBonusEmployeeDisplayName(row.employee))}</h3><p>${escapeHtml(row.plan?.name || "Missing plan")} · ${escapeHtml(row.planSource)}</p></div><span class="bonus-engine-pill ${row.unresolvedCritical ? "bad" : "info"}">${escapeHtml(row.approvalStatus)}</span></div>
       <div class="bonus-engine-kpi" style="border-left-color:#fcb53b;margin-top:12px;min-height:auto"><div class="v">${atlasBonusCurrency(row.projectedPayout)}</div><div class="s">${atlasBonusPct(pct, 0)} of ${atlasBonusCurrency(row.maximumPotential)} maximum potential</div></div>

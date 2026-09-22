@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ATLAS goal persistence acceptance</title>
+<style>
+body{font:15px system-ui;background:#f6f7fa;color:#172034;margin:24px;max-width:1120px}button,input,select,textarea{font:inherit;padding:7px;margin:3px}button{cursor:pointer}table{border-collapse:collapse;width:100%}th,td{border:1px solid #cad2df;padding:8px;text-align:left}input[type=number]{width:150px}label{display:block;margin:8px 0}textarea{min-width:340px;min-height:50px}section,article{background:white;padding:15px;margin:16px 0;border:1px solid #cad2df;border-radius:7px}pre{white-space:pre-wrap;overflow-wrap:anywhere}#notice{white-space:pre-wrap;background:#e1eefc;padding:12px;min-height:20px}.scope{display:flex;flex-wrap:wrap;gap:12px}details{margin:15px 0}.error,[role=alert]{color:#ae1e2a}.muted{color:#586276}summary{cursor:pointer}
+</style>
+<h1>ATLAS goal persistence acceptance</h1>
+<p class="muted">Synthetic communities and operating records. The editor, save/read logic, normalizers and Bonus goal consumer are extracted from the current production source. The server uses the real goal migration in a local PostgreSQL runtime; this harness makes no production requests.</p>
+<div class="scope">
+<label>Community<select id="community"><option>Test A</option><option>Test B</option></select></label>
+<label>Month<select id="month"><option value="8">September</option><option value="9">October</option></select></label>
+<label>Year<select id="year"><option>2026</option><option>2027</option></select></label>
+</div>
+<nav>
+<button id="edit">Edit Goals</button><button id="recalculate">Recalculate Recommendations</button><button id="refresh">Refresh page</button><button id="navigate">Navigate away</button><button id="fail">Fail next save</button>
+</nav>
+<p id="notice" role="status" aria-live="polite">Loading…</p>
+<main id="screen"></main>
+<section><h2>Persisted readback and consumers</h2><pre id="consumers"></pre></section>
+<details><summary>Database state and request log</summary><button id="inspect">Refresh database readback</button><pre id="database"></pre></details>
+<script src="community-goals-harness-runtime.js"></script>

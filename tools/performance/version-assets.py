@@ -45,6 +45,8 @@ entries=[
  ('RISE-Budget-Builder.html',[('atlas-mounts.js','RISE-Budget-Builder.html')]),
  ('atlas-mounts.js',[('index.html','./atlas-mounts.js')]),
  ('features/community-plan.mjs',[('index.html','./features/community-plan.mjs')]),
+ ('features/community-goals.mjs',[('index.html','./features/community-goals.mjs')]),
+ ('community-goal-editor.js',[('index.html','./community-goal-editor.js')]),
  ('centralization/atlas-central-client.js',[('index.html','./centralization/atlas-central-client.js')]),
  ('vendor/pptxgen-4.0.1.js',[('performance/feature-loader.js','vendor/pptxgen-4.0.1.js')]),
  ('vendor/jszip.min.js',[('performance/feature-loader.js','vendor/jszip.min.js')]),

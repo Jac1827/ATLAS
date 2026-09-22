@@ -15,7 +15,7 @@ Object.assign(c, {
  getPropertyTurnoverConfigForQuarter:()=>({}), normalizeDlrSummary:()=>({dailyBoxScore:{},pricing:{}}),
  normalizeDlrBoxScoreSnapshot:()=>({}), getCommunityCommandEconomicOccupancyData:()=>({mtdPct:null,sourceLabel:'Missing rent-charge mapping'}),
  getCommunityCommandActivePlan:()=>null, communityCommandCanOverrideDashboard:()=>false,
- getCommunityCommandDashboardOverride:()=>null,
+ getCommunityCommandDashboardOverride:()=>null, getCommunityCommandApprovedGoal:()=>null,
 });
 const record={currentMonth:8,reportYear:2026,currentOccupied:184,currentLeased:181,customUnits:'',corporateLeaseUnits:0,occupancyGoal:95,leasedGoal:97,conversionRate:65,monthlyData:c.defaultMonthly(),monthlyHistoryByPeriod:{},savedBudgetTargets:Array(12).fill(95),seasonal:Array(12).fill(1),sharedSyncUpdatedAt:'2026-09-11T15:56:53.094Z'};
 Object.assign(record.monthlyData[8], {budgetOcc:95,occupiedSnapshot:184,leasedSnapshot:181,sourceLeasedUnits:191,sourceTotalUnits:222,rentableUnits:220,physicalOccupancyPct:184/220*100,leasedOccupancyPct:191/220*100,exposureUnits:41,guestCards:59,walkIn:6,phoneCalls:16,emailsOnline:19,textChatOther:18,tours:6,applications:2,applicationsApproved:1,denied:3,moveIns:2,moveOuts:5,leasesSignedActual:2});

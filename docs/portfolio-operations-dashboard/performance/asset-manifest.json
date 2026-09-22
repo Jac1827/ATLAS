@@ -386,8 +386,8 @@
     ]
   },
   "features/community-plan-report.mjs": {
-    "sha256": "8586f3bf8c65bce9",
-    "bytes": 6254,
+    "sha256": "1c5890a90c78a423",
+    "bytes": 8832,
     "references": [
       [
         "features/community-plan.mjs",
@@ -466,12 +466,32 @@
     ]
   },
   "features/community-plan.mjs": {
-    "sha256": "482b6e73a5197279",
-    "bytes": 18617,
+    "sha256": "295efb79b8f30639",
+    "bytes": 18891,
     "references": [
       [
         "index.html",
         "./features/community-plan.mjs"
+      ]
+    ]
+  },
+  "features/community-goals.mjs": {
+    "sha256": "c1c8b7421c919115",
+    "bytes": 6687,
+    "references": [
+      [
+        "index.html",
+        "./features/community-goals.mjs"
+      ]
+    ]
+  },
+  "community-goal-editor.js": {
+    "sha256": "5759e5235bdacc20",
+    "bytes": 15085,
+    "references": [
+      [
+        "index.html",
+        "./community-goal-editor.js"
       ]
     ]
   },

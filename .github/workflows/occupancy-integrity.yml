@@ -53,6 +53,9 @@ jobs:
         run: |
           node tools/community-command-contract.test.cjs
           node tools/community-command-db.test.cjs
+          node tools/community-goals-db.test.cjs
+          node tools/community-goals.test.mjs
+          node tools/community-goal-consumers.test.cjs
           node tools/community-plan-email.test.mjs
           node tools/community-finance-roster.test.mjs
           node tools/fiscal-ytd.test.mjs

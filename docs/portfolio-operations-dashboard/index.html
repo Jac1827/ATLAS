@@ -1450,6 +1450,7 @@
 <script src="./workforce-assignment.js?v=86fb414cbe269a8a"></script>
 <script src="./application-aging.js?v=4091f111fe289027"></script>
 <script src="./application-performance-ui.js?v=76767fc8f24b44d6"></script>
+<script src="./community-goal-editor.js?v=5759e5235bdacc20"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -11267,11 +11268,10 @@ function getTourToLeasePctForMonth(monthEntries = monthlyData, monthIdx = curren
 }
 
 function getMoveInTargetFromScheduleRow(scheduleRow = {}) {
-  const netOccNeed = Math.max(0, Number(scheduleRow?.netOccLeases) || 0);
-  const grossLeaseNeed = Math.max(0, Number(scheduleRow?.grossLeases) || 0);
-  if (netOccNeed > 0) return netOccNeed;
-  if (grossLeaseNeed > 0) return grossLeaseNeed;
-  return 0;
+  const approvedMoveIns = normalizeOptionalNumber(scheduleRow.approvedRequiredMoveIns);
+  if (approvedMoveIns !== null) return Math.max(0, approvedMoveIns);
+  // Lease production is separate from the move-ins needed for physical occupancy.
+  return Math.max(0, normalizeOptionalNumber(scheduleRow.netOccLeases) ?? 0);
 }
 
 function getRenewalSummaryForMonth(monthEntry = {}) {
@@ -11588,13 +11588,16 @@ function computeScheduleFromContext(ctx) {
   });
 
   return MONTHS.map((month, i) => {
+    const approvedGoal = ctx.propName ? getCommunityCommandApprovedGoal(ctx.propName, i, ctx.year ?? new Date().getFullYear()) : null;
     if (i < scopeCurrentMonth) {
       return {
         month, skip: true,
         occupied: 0, leased: 0,
         moveOuts: getEffectiveMoveOutsForMonth(i, scopeMonthlyData).effective,
         moveIns:  scopeMonthlyData[i].moveIns  ?? 0,
-        grossLeases:0, netOccLeases:0, netLeasedLeases:0, apps:0,
+        grossLeases:approvedGoal?.grossLeaseGoal ?? 0, netOccLeases:0, netLeasedLeases:0, apps:approvedGoal?.applicationGoal ?? 0,
+        approvedGoalId:approvedGoal?.id || null, approvedGoalVersion:approvedGoal?.version || null,
+        approvedNetLeaseGoal:approvedGoal?.netLeaseGoal ?? null, approvedRequiredMoveIns:approvedGoal?.requiredMoveIns ?? null,
         toursNeeded:0, guestCardsNeeded:0,
         budgetOcc:    getBudgetOccPctForMonth(scopeMonthlyData[i], scopeSavedBudgetTargets, i),
         budgetLeased: 0, occPct:0, leasedPct:0, renewalRiskUnits: getRenewalSummaryForMonth(scopeMonthlyData[i]).projectedAttrition,
@@ -11609,11 +11612,11 @@ function computeScheduleFromContext(ctx) {
     const seasonFactor     = scopeSeasonal[i] ?? 1.0;
     const adjConversion    = Math.min(scopeConversionRate * (0.85 + 0.15 * seasonFactor), 100);
     const recommendedApps = t.recommendedGrossLeases > 0 ? Math.ceil(t.recommendedGrossLeases / Math.max(adjConversion / 100, 0.01)) : 0;
-    const grossLeasesManual = Number(scopeMonthlyData[i].grossLeaseGoalManual);
-    const effectiveGrossLeases = Number.isFinite(grossLeasesManual) && grossLeasesManual > 0 ? grossLeasesManual : t.recommendedGrossLeases;
-    const appGoalManual = Number(scopeMonthlyData[i].appGoalManual);
+    const grossLeasesManual = normalizeOptionalNumber(scopeMonthlyData[i].grossLeaseGoalManual);
+    const effectiveGrossLeases = approvedGoal?.grossLeaseGoal ?? grossLeasesManual ?? t.recommendedGrossLeases;
+    const appGoalManual = normalizeOptionalNumber(scopeMonthlyData[i].appGoalManual);
     const derivedAppsGoal = effectiveGrossLeases > 0 ? Math.ceil(effectiveGrossLeases / Math.max(adjConversion / 100, 0.01)) : 0;
-    const apps = Number.isFinite(appGoalManual) && appGoalManual > 0 ? appGoalManual : derivedAppsGoal;
+    const apps = approvedGoal?.applicationGoal ?? appGoalManual ?? derivedAppsGoal;
     const recommendedToursNeeded = recommendedApps > 0 ? Math.ceil(recommendedApps / 0.6) : 0;
     const recommendedGuestCardsNeeded = recommendedToursNeeded > 0 ? Math.ceil(recommendedToursNeeded / 0.5) : 0;
     const toursNeeded = apps > 0 ? Math.ceil(apps / 0.6) : 0;
@@ -11621,6 +11624,7 @@ function computeScheduleFromContext(ctx) {
 
     return {
       month, moveOuts, moveIns,
+      approvedGoalId: approvedGoal?.id || null, approvedGoalVersion: approvedGoal?.version || null, approvedNetLeaseGoal: approvedGoal?.netLeaseGoal ?? null, approvedRequiredMoveIns: approvedGoal?.requiredMoveIns ?? null,
       occupied:  t.newOccupied,
       leased:    t.newLeased,
       occPct:    occupancyBaseUnits > 0 ? (t.newOccupied / occupancyBaseUnits) * 100 : 0,
@@ -11647,6 +11651,7 @@ function computeScheduleFromContext(ctx) {
 
 function computeSchedule() {
   return computeScheduleFromContext({
+    propName: getProp().name, year: Number(getCurrentCommunityRecord()?.reportYear) || new Date().getFullYear(),
     totalUnits: getTotalUnits(),
     corporateLeaseUnits,
     currentOccupied,
@@ -12115,6 +12120,7 @@ function getCommunitySummary(propName, sourceData, rawSourceData = sourceData) {
   const occupiedRaw = Math.min(Math.max(0, occupied + corporateUnits), totalUnits || occupied + corporateUnits);
   const leasedRaw = Math.min(Math.max(0, leased + corporateUnits), totalUnits || leased + corporateUnits);
   const schedule = computeScheduleFromContext({
+    propName, year: Number(record.reportYear) || new Date().getFullYear(),
     countsAreComparable: true,
     totalUnits,
     corporateLeaseUnits: corporateUnits,
@@ -12602,6 +12608,7 @@ function getCommunityPerformancePlan(propName, sourceData) {
   const resolvedCurrentLeased = getRecordComparableSnapshotUnits(record, totalUnits, scopeCurrentMonth, "leasedSnapshot");
   const occupancyBaseUnits = getReportedOccupancyBaseUnits(scopeMonthlyData[scopeCurrentMonth], totalUnits, record.corporateLeaseUnits);
   const schedule = computeScheduleFromContext({
+    propName, year: Number(record.reportYear) || new Date().getFullYear(),
     countsAreComparable: true,
     totalUnits,
     corporateLeaseUnits: record.corporateLeaseUnits,
@@ -12624,7 +12631,7 @@ function getCommunityPerformancePlan(propName, sourceData) {
   const quarterTotals = getQuarterMonths(bonusQuarter).reduce((acc, idx) => {
     const row = schedule[idx] ?? {};
     const renewal = getRenewalSummaryForMonth(getRenewalMonthEntryForRecord(record, idx, record.reportYear));
-    acc.netOccNeed += Number(row.netOccLeases ?? 0);
+    acc.netOccNeed += getMoveInTargetFromScheduleRow(row);
     acc.grossLeaseNeed += Number(row.grossLeases ?? 0);
     acc.appNeed += Number(row.apps ?? 0);
     acc.guestCardNeed += Number(row.guestCardsNeeded ?? 0);
@@ -12653,7 +12660,7 @@ function getCommunityPerformancePlan(propName, sourceData) {
     currentGrossLeaseNeed: Number(currentRow.grossLeases ?? 0),
     currentAppNeed: Number(currentRow.apps ?? 0),
     currentGuestCardNeed: Number(currentRow.guestCardsNeeded ?? 0),
-    currentMoveInNeed: Number(currentRow.netOccLeases ?? 0),
+    currentMoveInNeed: getMoveInTargetFromScheduleRow(currentRow),
     currentGuestCards,
     currentTours,
     currentApplications,
@@ -15078,6 +15085,7 @@ function setTab(i) {
 }
 
 function renderTab() {
+  if (typeof atlasCommunityGoalStore !== "undefined") hydrateCommunityCommandGoals().catch(() => {});
   atlasBonusNavigationSnapshot = null;
   atlasBonusSectionCache.clear();
   destroyAtlasPortfolioMap();
@@ -23658,6 +23666,7 @@ function buildRecommendationsForRecord(propName, sourceData) {
   const totalUnits = getResolvedTotalUnitsForRecord(propName, record, { prop });
   const corporateUnits = getCorporateLeaseUnitsForRecord(record, totalUnits);
   const schedule = computeScheduleFromContext({
+    propName, year: Number(record.reportYear) || new Date().getFullYear(),
     totalUnits,
     corporateLeaseUnits: corporateUnits,
     currentOccupied: record.currentOccupied,
@@ -23944,6 +23953,73 @@ function communityCommandGoalKey(propName, monthIdx, year = new Date().getFullYe
   return `${matchPropertyName(propName, { fallbackToCurrent: false }) || propName}|${buildPeriodKey(monthIdx, year)}`;
 }
 
+const atlasCommunityGoalStore = { scopes: new Map(), actor: null, loading: null, loaded: false, lastAttempt: 0, error: "", module: null };
+const communityCommandGoalBuffers = new Map();
+const communityCommandGoalNotices = new Map();
+const COMMUNITY_GOAL_FIELDS = ["requiredMoveIns","applicationGoal","grossLeaseGoal","netLeaseGoal","occupancyGoal","leasedGoal","economicGoal","renewalGoal"];
+
+function communityCommandGoalScope(propName, monthIdx, year) {
+  const access = getAtlasCommunityAccessRecord(propName);
+  const communityId = access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId;
+  return {communityId, period: buildPeriodKey(monthIdx, year), key: `${communityId}|${buildPeriodKey(monthIdx, year)}`};
+}
+
+function communityCommandSharedGoalScope(propName, monthIdx, year) {
+  return atlasCommunityGoalStore.scopes.get(communityCommandGoalScope(propName, monthIdx, year).key);
+}
+
+function mergeCommunityCommandGoalScope(incoming, existing) {
+  if (!existing) return incoming;
+  const merged={...incoming};
+  if (existing.revision>incoming.revision) {
+    for(const field of ["revision","draft","approved","approvedHistory"]) merged[field]=existing[field];
+  }
+  if(existing.recommendationRevision>incoming.recommendationRevision) {
+    merged.recommendationRevision=existing.recommendationRevision;merged.recommended=existing.recommended;
+  }
+  return merged;
+}
+
+async function hydrateCommunityCommandGoals({force = false} = {}) {
+  const status = getAtlasCentralStatus();
+  const actor = status.signedIn ? window.ATLAS_CENTRAL?.getSession()?.user?.id : null;
+  if (atlasCommunityGoalStore.actor !== actor) {
+    const previousActor = atlasCommunityGoalStore.actor;
+    atlasCommunityGoalStore.actor = actor; atlasCommunityGoalStore.scopes.clear(); atlasCommunityGoalStore.loaded = false;
+    atlasCommunityGoalStore.loading = null; atlasCommunityGoalStore.lastAttempt = 0;
+    if (previousActor || !actor) {communityCommandGoalBuffers.clear(); communityCommandGoalEditor = null;}
+  }
+  if (!status.configured || !status.signedIn) return;
+  if (atlasCommunityGoalStore.loading) return atlasCommunityGoalStore.loading;
+  if (!force && Date.now() - atlasCommunityGoalStore.lastAttempt < 30000) return;
+  atlasCommunityGoalStore.lastAttempt = Date.now();
+  const startedScopes = new Map(atlasCommunityGoalStore.scopes);
+  const task = (async () => {
+    try {
+      const api = atlasCommunityGoalStore.module || await import("./features/community-goals.mjs?v=c1c8b7421c919115");
+      atlasCommunityGoalStore.module = api;
+      const scopes = await api.readGoals(window.ATLAS_CENTRAL, {});
+      if (atlasCommunityGoalStore.actor !== actor) return;
+      const before = JSON.stringify([...atlasCommunityGoalStore.scopes]);
+      // A read started before a successful save must not roll its newer head back.
+      const next = new Map(scopes.map(scope => [`${scope.communityId}|${scope.period}`, scope]));
+      for (const [key, local] of atlasCommunityGoalStore.scopes) {
+        const remote = next.get(key);
+        if (remote) next.set(key,mergeCommunityCommandGoalScope(remote,local));
+        else if (local !== startedScopes.get(key)) next.set(key,local);
+      }
+      atlasCommunityGoalStore.scopes = next; atlasCommunityGoalStore.loaded = true; atlasCommunityGoalStore.error = "";
+      if (before !== JSON.stringify([...next])) scheduleAtlasSharedRender(true);
+      return scopes;
+    } catch (error) {
+      if (atlasCommunityGoalStore.actor === actor) atlasCommunityGoalStore.error = error.message || String(error);
+      throw error;
+    } finally { if (atlasCommunityGoalStore.loading === task) atlasCommunityGoalStore.loading = null; }
+  })();
+  atlasCommunityGoalStore.loading = task;
+  return task;
+}
+
 function getCommunityCommandApprovedGoal(propName, monthIdx, year = new Date().getFullYear()) {
   const key = communityCommandGoalKey(propName, monthIdx, year);
   const period = buildPeriodKey(monthIdx, year);
@@ -23951,10 +24027,12 @@ function getCommunityCommandApprovedGoal(propName, monthIdx, year = new Date().g
   const last = `${period}-${new Date(year, monthIdx + 1, 0).getDate()}`;
   const today = getAtlasTodayISODate();
   const effectiveAsOf = today < first ? first : today > last ? last : today;
-  return normalizeCommunityCommandState(communityCommandState).approvedGoals.filter(goal =>
-    communityCommandGoalKey(goal.propName, goal.monthIdx, goal.year) === key && goal.status === "Approved" && goal.approvedAt &&
-    (!goal.effectiveDate || goal.effectiveDate.slice(0, 10) <= effectiveAsOf)
-  ).sort((a, b) => b.version - a.version || b.approvedAt.localeCompare(a.approvedAt))[0] || null;
+  const shared = communityCommandSharedGoalScope(propName, monthIdx, year);
+  const candidates = getAtlasCentralStatus().configured
+    ? (shared?.approvedHistory || (shared?.approved ? [shared.approved] : [])).map(goal => ({...goal, propName, monthIdx, year}))
+    : normalizeCommunityCommandState(communityCommandState).approvedGoals.filter(goal => communityCommandGoalKey(goal.propName, goal.monthIdx, goal.year) === key);
+  return candidates.filter(goal => goal.status === "Approved" && goal.approvedAt && (!goal.effectiveDate || goal.effectiveDate.slice(0,10) <= effectiveAsOf))
+    .sort((a,b) => b.version - a.version || b.approvedAt.localeCompare(a.approvedAt))[0] || null;
 }
 
 function getCommunityCommandDashboardOverride(propName, field, monthIdx, year = new Date().getFullYear()) {
@@ -24098,6 +24176,7 @@ function buildCommunityCommandModel(propName = getProp().name, sourceRecord = ge
   const workingRecord = { ...record, currentMonth: monthIdx, monthlyData: monthlyDataForYear };
   const summary = getCommunitySummary(matchedName, workingRecord, sourceRecord || workingRecord) || {};
   const schedule = computeScheduleFromContext({
+    propName: matchedName, year,
     countsAreComparable: true,
     totalUnits,
     corporateLeaseUnits: corporateUnits,
@@ -24573,7 +24652,7 @@ async function openSharedCommunityPlan() {
   const communityId = access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId;
   if (!communityId || !window.ATLAS_CENTRAL) { alert("Shared plans require an authorized canonical community record."); return false; }
   try {
-    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=482b6e73a5197279");
+    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=295efb79b8f30639");
     if (epoch !== atlasNavigationEpoch || !atlasAccessDecision(2).ok) return false;
     const entry=model.monthEntry, provenance=entry.metricProvenance?.occupiedSnapshot, period=buildPeriodKey(model.monthIdx,model.year);
     const occupancy=provenance?.revisionKey && provenance.period===period && (!provenance.communityId||provenance.communityId===communityId) && entry.occupiedSnapshot!=null && Number(entry.rentableUnits)>0
@@ -24673,13 +24752,14 @@ function renderCommunityCommandLeasingPlan(model) {
   const displayGross = currentRow.approvedGrossLeases ?? currentRow.recommendedGrossLeases;
   const displayNet = currentRow.approvedNetLeases ?? currentRow.netLeaseGoal;
   const weekly = currentRow.approved?.weeklyGoals || [];
-  const bodyHtml = `${canApprove ? `<button class="btn btn-blue" onclick="approveCommunityCommandMonthlyGoals(${model.monthIdx})">Edit Goals</button>` : ""}${renderCommunityCommandGoalEditor(model)}${communityCommandGoalEditor?.propName === model.propName ? renderCommunityCommandWeeklyEditor(communityCommandGoalEditor) : ""}<div class="community-command-mini-grid" style="margin-bottom:10px">
+  const goalReadStatus = atlasCommunityGoalStore.error ? `Shared goals could not refresh: ${atlasCommunityGoalStore.error}. Last verified goals remain displayed.` : !atlasCommunityGoalStore.loaded && getAtlasCentralStatus().configured ? "Loading shared goals…" : "";
+  const bodyHtml = `${goalReadStatus ? `<p role="status">${escapeHtml(goalReadStatus)}</p>` : ""}${canApprove ? `<button class="btn btn-blue" onclick="approveCommunityCommandMonthlyGoals(${model.monthIdx})">Edit Goals</button>` : ""}${renderCommunityCommandGoalEditor(model)}<div class="community-command-mini-grid" style="margin-bottom:10px">
     <div class="community-command-mini"><strong>${communityCommandFormatNumber(displayNet)}</strong><span>${goalStatus} net lease goal</span></div>
     <div class="community-command-mini"><strong>${communityCommandFormatNumber(displayGross)}</strong><span>${goalStatus} gross lease goal</span></div>
     <div class="community-command-mini"><strong>${communityCommandFormatNumber(displayApps)}</strong><span>${goalStatus} application goal</span></div>
     <div class="community-command-mini"><strong>${weekly.length ? weekly.map(week => `${week.applicationGoal}/${week.grossLeaseGoal}/${week.netLeaseGoal}`).join(" · ") : "Pending approval"}</strong><span>Weekly applications / gross / net, in week order</span></div>
   </div>
-  <div class="community-command-note" style="margin-bottom:10px">Budget requires ${Math.round(currentRow.netLeaseGoal || 0)} additional net leases this month. Based on move-out exposure, renewal risk, conversion assumptions, seasonality, and trailing leasing velocity, ATLAS recommends ${Math.round(currentRow.recommendedGrossLeases || 0)} gross leases and ${Math.round(currentRow.recommendedApps || 0)} applications for ${escapeHtml(model.monthLabel)}.</div>
+  <div class="community-command-note" style="margin-bottom:10px">The physical budget target requires ${communityCommandFormatNumber(currentRow.requiredMoveIns)} move-ins, accounting for expected move-outs. The separate net lease recommendation is ${communityCommandFormatNumber(currentRow.netLeaseGoal)}. Based on move-out exposure, renewal risk, conversion assumptions, seasonality, and trailing leasing velocity, ATLAS recommends ${Math.round(currentRow.recommendedGrossLeases || 0)} gross leases and ${Math.round(currentRow.recommendedApps || 0)} applications for ${escapeHtml(model.monthLabel)}.</div>
   <div class="community-command-note">Beginning occupancy requires a dated opening snapshot or the preceding verified month-end. Forecasts and actuals remain separate; missing observations remain Missing.</div>
   <div class="community-command-scroll">
     <table class="community-command-plan-table">
@@ -25002,97 +25082,6 @@ function setCommunityCommandBeginningOverride(monthIdx) {
   communityCommandPersist("beginning_balance_override", communityCommandGoalKey(model.propName, monthIdx, model.year), JSON.stringify(before), JSON.stringify(next), reason);
 }
 
-function communityCommandGoalWeeks(editor) {
-  const today = getAtlasTodayISODate();
-  const days = new Date(editor.year, editor.monthIdx + 1, 0).getDate();
-  const startDay = today.slice(0,7) === buildPeriodKey(editor.monthIdx, editor.year) ? Number(today.slice(8)) : 1;
-  return { startDay, count: Math.ceil((days - startDay + 1) / 7) };
-}
-
-function renderCommunityCommandWeeklyEditor(editor) {
-  const { count, startDay } = communityCommandGoalWeeks(editor);
-  return `<details><summary>Weekly goal breakdown</summary><label><input type="checkbox" id="cc-goal-custom-weeks">Use adjusted weekly allocations</label><table class="community-command-plan-table"><thead><tr><th>Week Starting</th><th>Applications</th><th>Gross Leases</th><th>Net Leases</th></tr></thead><tbody>${Array.from({length: count}, (_, i) => `<tr><td>${startDay + i * 7}</td>${["applicationGoal","grossLeaseGoal","netLeaseGoal"].map(key => `<td><input type="number" min="0" step="1" aria-label="Week ${i + 1} ${key}" id="cc-week-${key}-${i}" value="${editor.values.weeklyGoals?.length === count ? editor.values.weeklyGoals[i]?.[key] ?? "" : communityCommandWeeklyAllocation(editor.values[key], count)[i] ?? ""}"></td>`).join("")}</tr>`).join("")}</tbody></table></details>`;
-}
-
-function communityCommandWeeklyAllocation(total, count) {
-  if (!Number.isInteger(total) || total < 0 || !Number.isInteger(count) || count < 1) return [];
-  return Array.from({ length: count }, (_, i) => Math.floor(total / count) + (i < total % count ? 1 : 0));
-}
-
-function approveCommunityCommandMonthlyGoals(monthIdx = getSelectedDashboardMonthIndex()) {
-  if (!communityCommandCanApproveGoals()) {
-    alert("Only Admin or VP / Executive roles can approve official monthly goals.");
-    return;
-  }
-  const model = buildCommunityCommandModel(getProp().name, getCurrentCommunityRecord());
-  const row = buildCommunityCommandLeasingPlanRows(model)[clampNumber(monthIdx, 0, 11)] || {};
-  const existing = getCommunityCommandApprovedGoal(model.propName, row.monthIdx, model.year);
-  const recommended = { applicationGoal: row.recommendedApps, grossLeaseGoal: row.recommendedGrossLeases, netLeaseGoal: row.netLeaseGoal, requiredMoveIns: row.requiredMoveIns, occupancyGoal: row.budgetPct, leasedGoal: null, economicGoal: null, renewalGoal: null };
-  const draft = communityCommandState.goalDrafts?.find(goal => communityCommandGoalKey(goal.propName, goal.monthIdx, goal.year) === communityCommandGoalKey(model.propName, row.monthIdx, model.year));
-  const originalRecommendation = draft?.recommended || existing?.recommended;
-  communityCommandGoalEditor = { propName: model.propName, monthIdx: row.monthIdx, year: model.year, recommended: originalRecommendation && Object.keys(originalRecommendation).length ? originalRecommendation : recommended, values: { ...recommended, ...(draft || existing || {}) }, reason: "", effectiveDate: getAtlasTodayISODate() };
-  renderTab();
-}
-
-function cancelCommunityCommandGoalEditor() {
-  communityCommandGoalEditor = null;
-  renderTab();
-}
-
-function renderCommunityCommandGoalEditor(model) {
-  const editor = communityCommandGoalEditor;
-  if (!editor || editor.propName !== model.propName || editor.year !== model.year) return "";
-  const fields = { requiredMoveIns: "Required Move-Ins", applicationGoal: "Applications", grossLeaseGoal: "Gross Leases", netLeaseGoal: "Net Leases", occupancyGoal: "Physical Occupancy %", leasedGoal: "Leased Occupancy %", economicGoal: "Economic Occupancy %", renewalGoal: "Renewal Conversion %" };
-  return `<section style="margin:16px 0" aria-label="Edit goals"><h3>Edit Goals · ${escapeHtml(FULL_MONTHS[editor.monthIdx])} ${editor.year}</h3><div class="community-command-scroll"><table class="community-command-plan-table"><thead><tr><th>Metric</th><th>Recommended</th><th>Draft Adjustment</th></tr></thead><tbody>${Object.entries(fields).map(([key, label]) => `<tr><td>${label}</td><td>${communityCommandFormatNumber(editor.recommended[key], key.endsWith("Goal") && !["applicationGoal","grossLeaseGoal","netLeaseGoal"].includes(key) ? 1 : 0)}</td><td><input id="cc-goal-${key}" aria-label="${label}" type="number" min="0" step="${["occupancyGoal","leasedGoal","economicGoal","renewalGoal"].includes(key) ? "0.1" : "1"}" value="${escapeHtml(editor.values[key] ?? "")}"></td></tr>`).join("")}</tbody></table></div><label>Adjustment reason<textarea id="cc-goal-reason" required>${escapeHtml(editor.reason)}</textarea></label><label>Effective date<input id="cc-goal-effective" type="date" value="${escapeHtml(editor.effectiveDate)}"></label><div class="data-import2-inline-actions"><button class="btn btn-gray" onclick="saveCommunityCommandGoalEditor(false)">Save as Draft</button><button class="btn btn-blue" onclick="saveCommunityCommandGoalEditor(true)">Approve Goals</button><button class="btn btn-gray" onclick="cancelCommunityCommandGoalEditor()">Cancel</button></div></section>`;
-}
-
-function saveCommunityCommandGoalEditor(approve) {
-  const editor = communityCommandGoalEditor;
-  if (!editor || !communityCommandCanApproveGoals() || getProp().name !== editor.propName) return;
-  const values = Object.fromEntries(["requiredMoveIns","applicationGoal","grossLeaseGoal","netLeaseGoal","occupancyGoal","leasedGoal","economicGoal","renewalGoal"].map(key => [key, normalizeOptionalNumber(document.getElementById(`cc-goal-${key}`)?.value)]));
-  const reason = String(document.getElementById("cc-goal-reason")?.value || "").trim();
-  const effectiveDate = String(document.getElementById("cc-goal-effective")?.value || "");
-  if (!reason || !/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate)) { alert("A reason and effective date are required."); return; }
-  const model = buildCommunityCommandModel(editor.propName, getCurrentCommunityRecord());
-  const row = buildCommunityCommandLeasingPlanRows(model)[editor.monthIdx];
-  const counts = [values.requiredMoveIns, values.applicationGoal, values.grossLeaseGoal, values.netLeaseGoal];
-  const percentages = [values.occupancyGoal, values.leasedGoal, values.economicGoal, values.renewalGoal];
-  if (counts.some(value => value !== null && (!Number.isInteger(value) || value < 0)) || percentages.some(value => value !== null && (value < 0 || value > 100))) { alert("Goals must be nonnegative whole counts or percentages from 0 to 100."); return; }
-  if (approve && (counts.some(value => value === null) || values.netLeaseGoal > values.grossLeaseGoal || values.grossLeaseGoal > values.applicationGoal)) { alert("Complete every production goal; applications must cover gross leases, and gross leases must cover net leases."); return; }
-  const mappingIssues = (dataImport2State.exceptions || []).some(issue => issue.communityName === editor.propName && issue.status !== "Resolved" && ["unmapped","conflict","held"].includes(issue.type));
-  if (approve && (row.occupancy.beginningUnits === null || mappingIssues || row.occupancy.warnings.some(warning => !warning.startsWith("Approved plan:")))) { alert("Approval held: resolve beginning occupancy, reconciliation warnings, and source mappings first."); return; }
-  const state = normalizeCommunityCommandState(communityCommandState);
-  const key = communityCommandGoalKey(editor.propName, editor.monthIdx, editor.year);
-  const versions = state.approvedGoals.filter(goal => communityCommandGoalKey(goal.propName, goal.monthIdx, goal.year) === key);
-  const version = Math.max(0, ...versions.map(goal => goal.version)) + 1;
-  const now = new Date().toISOString();
-  const today = getAtlasTodayISODate();
-  const days = new Date(editor.year, editor.monthIdx + 1, 0).getDate();
-  const startDay = today.slice(0,7) === buildPeriodKey(editor.monthIdx, editor.year) ? Number(today.slice(8)) : 1;
-  const weeks = Math.ceil((days - startDay + 1) / 7);
-  const appWeeks = communityCommandWeeklyAllocation(values.applicationGoal, weeks);
-  const grossWeeks = communityCommandWeeklyAllocation(values.grossLeaseGoal, weeks);
-  const netWeeks = communityCommandWeeklyAllocation(values.netLeaseGoal, weeks);
-  if (document.getElementById("cc-goal-custom-weeks")?.checked) {
-    for (const [key, allocation] of [["applicationGoal", appWeeks], ["grossLeaseGoal", grossWeeks], ["netLeaseGoal", netWeeks]]) {
-      const edited = Array.from({ length: weeks }, (_, i) => normalizeOptionalNumber(document.getElementById(`cc-week-${key}-${i}`)?.value));
-      if (edited.some(value => !Number.isInteger(value) || value < 0) || edited.reduce((sum, value) => sum + value, 0) !== values[key]) { alert("Each weekly breakdown must total exactly to its monthly goal."); return; }
-      allocation.splice(0, allocation.length, ...edited);
-    }
-  }
-  const nextGoal = normalizeCommunityCommandApprovedGoal({ ...values, propName: editor.propName, monthIdx: editor.monthIdx, year: editor.year,
-    id: `cc_goal_${simpleHash(key)}_${version}_${Date.now()}`, status: approve ? "Approved" : "Draft", version,
-    recommended: editor.recommended, recommendedApplicationGoal: editor.recommended.applicationGoal, recommendedGrossLeaseGoal: editor.recommended.grossLeaseGoal, recommendedNetLeaseGoal: editor.recommended.netLeaseGoal,
-    effectiveDate, reason, revisedAt: now, approvedAt: approve ? now : "", approver: approve ? communityCommandUserLabel() : "", sourceVersion: JSON.stringify({ beginning: row.occupancy.lineage, inputs: row.occupancy.inputs }),
-    assignments: atlasBonusPeopleEmployees().filter(employee => employee.active && employee.communityName === editor.propName).map(employee => ({ employeeId: employee.employeeId, role: employee.bonusRole, communityName: employee.communityName, effectiveStart: employee.effectiveStart, effectiveEnd: employee.effectiveEnd })),
-    weeklyGoals: Array.from({ length: weeks }, (_, i) => ({ week: i + 1, startDay: startDay + i * 7, applicationGoal: appWeeks[i] ?? null, grossLeaseGoal: grossWeeks[i] ?? null, netLeaseGoal: netWeeks[i] ?? null })) });
-  if (approve) state.approvedGoals = [nextGoal, ...state.approvedGoals];
-  state.goalDrafts = state.goalDrafts.filter(goal => communityCommandGoalKey(goal.propName, goal.monthIdx, goal.year) !== key);
-  if (!approve) state.goalDrafts.unshift(nextGoal);
-  communityCommandState = state;
-  communityCommandGoalEditor = null;
-  communityCommandPersist(approve ? "official_goal_approved" : "goal_draft_saved", key, JSON.stringify(versions[0] || null), JSON.stringify(nextGoal), reason);
-}
 
 function addCommunityCommandDashboardOverride(field) {
   if (!communityCommandCanOverrideDashboard()) {
@@ -44433,6 +44422,7 @@ function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(
   const reportAnchorOccupiedUnits = dailyBoxScoreOccupiedUnits ?? savedReportAnchorOccupiedUnits;
   const reportAnchorLeasedUnits = dailyBoxScoreLeasedUnits ?? savedReportAnchorLeasedUnits;
   const schedule = computeScheduleFromContext({
+    propName, year,
     totalUnits,
     corporateLeaseUnits: corporateUnits,
     currentOccupied: reportAnchorOccupiedUnits,
@@ -44457,7 +44447,7 @@ function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(
   const scheduledNextRows = buildDlrForwardLookRows(scopedRecord, totalUnits, reportMetricMonthIdx, year, { horizonMonths: 4 })
     .map(row => ({
       ...row,
-      moveInsNeeded: Number((schedule[row.monthIdx] ?? {}).netOccLeases) || 0
+      moveInsNeeded: getMoveInTargetFromScheduleRow(schedule[row.monthIdx] ?? {})
     }));
   const summaryForwardLook = effectiveDlrSummary.forwardLook;
   const summaryNextRows = Array.isArray(summaryForwardLook.months) && summaryForwardLook.months.length > 0
@@ -44470,7 +44460,7 @@ function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(
         pendingMoveIns: Number(summaryForwardLook.pendingMoveIns?.[idx] ?? 0) || 0,
         budgetedOccupancy: Number(summaryForwardLook.budgetedOccupancy?.[idx] ?? 0) || 0,
         projectedOccupancy: Number(summaryForwardLook.projectedOccupancy?.[idx] ?? 0) || 0,
-        moveInsNeeded: Number(summaryForwardLook.moveInsNeeded?.[idx] ?? 0) || 0
+        moveInsNeeded: normalizeOptionalNumber(schedule[parseMonthIndexValue(label) ?? Math.min(11, reportMetricMonthIdx + idx)]?.approvedRequiredMoveIns) ?? (Number(summaryForwardLook.moveInsNeeded?.[idx] ?? 0) || 0)
       }))
     : [];
   const nextRows = summaryNextRows.length > 0 ? summaryNextRows : scheduledNextRows;
@@ -44494,10 +44484,10 @@ function buildDashboardDlrInvestorOverview(propName = getDlrReportCommunityName(
     ?? summaryTrendingOccupancyPct
     ?? (Number(projectedTrendRow?.projectedOccupancy ?? projectedEndingOccupancy.pct ?? occupancyPct) || occupancyPct);
   const budgetOccPct = getRecordSavedBudgetOccPct(record, reportMetricMonthIdx, year);
-  const moveInsNeeded = Number(scheduleRow.netOccLeases) || 0;
+  const moveInsNeeded = getMoveInTargetFromScheduleRow(scheduleRow);
   const scheduledMoveInGoalPerWeek = moveInsNeeded > 0 ? Math.max(1, Math.ceil(moveInsNeeded / 4)) : 0;
   const summaryMoveInGoalPerWeek = hasMatchingDlrSummary && hasDlrSummaryMetric(effectiveDlrSummary.moveInGoalPerWeek) ? Number(effectiveDlrSummary.moveInGoalPerWeek) : null;
-  const moveInGoalPerWeek = scheduledMoveInGoalPerWeek > 0
+  const moveInGoalPerWeek = normalizeOptionalNumber(scheduleRow.approvedRequiredMoveIns) !== null || scheduledMoveInGoalPerWeek > 0
     ? scheduledMoveInGoalPerWeek
     : (summaryMoveInGoalPerWeek ?? scheduledMoveInGoalPerWeek);
   const mtdTraffic = buildDlrTrafficMetricsFromSummary(effectiveDlrSummary, monthEntry, {}, {
@@ -46316,6 +46306,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
   const monthEntry = monthEntries[monthIdx] ?? {};
   const previousMonthEntry = monthIdx > 0 ? (monthEntries[monthIdx - 1] ?? {}) : null;
   const schedule = computeScheduleFromContext({
+    propName: communityName, year,
     totalUnits,
     corporateLeaseUnits: corporateUnits,
     currentOccupied: Number.isFinite(Number(summary.occupiedRaw)) ? Number(summary.occupiedRaw) : Number(record.currentOccupied) || 0,
@@ -46345,7 +46336,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
         pendingMoveIns: Number(entry.moveIns) || 0,
         budgetedOccupancy: getRecordSavedBudgetOccPct(record, idx, year) || null,
         projectedOccupancy: Number(row.occPct) || 0,
-        moveInsNeeded: Number(row.netOccLeases) || 0
+        moveInsNeeded: getMoveInTargetFromScheduleRow(row)
       };
     });
   const leadSourceHasExplicitCounts = ["walkIn", "offSiteEvent", "phoneCalls", "emailsOnline", "textChatOther"].some(key => Object.prototype.hasOwnProperty.call(monthEntry, key));
@@ -46365,7 +46356,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
   const leasedUnits = Number.isFinite(Number(summary.leased)) ? Number(summary.leased) : getComparableOccupancyUnits(Number(record.currentLeased) || 0, corporateUnits);
   const occupancyPct = getOccupancyPctFromComparableUnitsOrFallback(occupiedUnits, summary.occupancyBaseUnits ?? getOccupancyBaseUnits(totalUnits, corporateUnits), 0, summary.occPct);
   const leasedPct = getOccupancyPctFromComparableUnitsOrFallback(leasedUnits, summary.occupancyBaseUnits ?? getOccupancyBaseUnits(totalUnits, corporateUnits), 0, summary.leasedPct);
-  const moveInsNeeded = Number(scheduleRow.netOccLeases) || 0;
+  const moveInsNeeded = getMoveInTargetFromScheduleRow(scheduleRow);
   const moveInGoalPerWeek = moveInsNeeded > 0 ? Math.max(1, Math.ceil(moveInsNeeded / 4)) : 0;
   const activeSurveyData = getCompCalculatorSurveySnapshot(detail, monthIdx, year);
   const marketPerformance = buildCommunityProgressMarketPerformance([detail], monthIdx, year);
@@ -57428,6 +57419,7 @@ async function initializeAtlasDashboard() {
 }
 
 window.addEventListener("atlas-central-auth-change", () => {
+  hydrateCommunityCommandGoals({force:true}).catch(() => {});
   window.AtlasClosedFinancialCache?.clear();
   if (!atlasDashboardInitializationComplete) return;
   const user = window.ATLAS_CENTRAL?.getSession()?.user?.id || null;
@@ -57446,6 +57438,7 @@ window.addEventListener("atlas-central-auth-change", () => {
 });
 
 window.addEventListener("focus", () => {
+  hydrateCommunityCommandGoals({force:true}).catch(() => {});
   if (atlasDashboardInitializationComplete) hydrateAtlasSharedApplications();
 });
 window.setInterval(() => {

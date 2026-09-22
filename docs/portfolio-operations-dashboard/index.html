@@ -57437,7 +57437,9 @@ const atlasWorkforceSync = window.AtlasWorkforceSync.create({
   async refresh(employeeIds) {await loadAtlasCentralPeopleAssignments({silent:true,force:true,employeeIds});scheduleAtlasSharedRender(true);},
   onStatus(state) {atlasWorkforceSyncState=state;renderAtlasWorkforceSyncStatus();}
 });
-function pollAtlasWorkforce() {if(atlasDashboardInitializationComplete)return atlasWorkforceSync.poll(window.ATLAS_CENTRAL?.getSession()?.user?.id);}
+function pollAtlasWorkforce() {
+  if(atlasDashboardInitializationComplete)return atlasWorkforceSync.poll(window.ATLAS_CENTRAL?.getSession()?.user?.id);
+}
 const atlasWorkforceSyncTimer = setInterval(()=>{if(document.visibilityState==="visible")pollAtlasWorkforce();},3000);
 window.addEventListener("focus",pollAtlasWorkforce);
 window.addEventListener("atlas-central-auth-change",()=>{atlasWorkforceSync.clear();pollAtlasWorkforce();});

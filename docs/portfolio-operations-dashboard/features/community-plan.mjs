@@ -1,4 +1,4 @@
-import {readFinance} from './canonical-finance.mjs?v=a2d996d897d3850b';
+import {readFinance} from './canonical-finance.mjs?v=60c13a0342f297e2';
 import {reportHtml,reportSummary} from './community-plan-report.mjs?v=8586f3bf8c65bce9';
 /* Community-scoped, versioned plans. Loaded only when the plan editor opens. */
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

@@ -1,4 +1,4 @@
-import {readApprovedBudgets} from './canonical-finance.mjs?v=a2d996d897d3850b';
+import {readApprovedBudgets} from './canonical-finance.mjs?v=60c13a0342f297e2';
 const finite=v=>typeof v==='number'&&Number.isFinite(v);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const digest=async v=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(v)))),b=>b.toString(16).padStart(2,'0')).join('');

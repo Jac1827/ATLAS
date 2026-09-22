@@ -8,7 +8,11 @@ export async function readFinance(central, communityIds, periods, {signal} = {})
  const batchSize=Math.min(100,Math.floor(1200/months.length));
  for(let i=0;i<ids.length;i+=batchSize){
   if(signal?.aborted)throw new DOMException('Cancelled','AbortError');
-  const rows=await central.rpc('atlas_read_finance',{p_community_ids:ids.slice(i,i+batchSize),p_periods:months});
+  // rpc() intentionally unwraps the first row for single-record mutations.
+  // A table-returning read must retain the full REST response.
+  await central.refreshSession?.();
+  const rows=await central.fetchJson('/rpc/atlas_read_finance',{method:'POST',body:JSON.stringify({p_community_ids:ids.slice(i,i+batchSize),p_periods:months})});
+  if(!Array.isArray(rows))throw Error('Financial readback must be a row array.');
   if(signal?.aborted)throw new DOMException('Cancelled','AbortError');
   if(central.getSession&&actor!==central.getSession()?.user?.id)throw Error('Session changed while reading financial evidence.');
   for(const row of rows||[]){

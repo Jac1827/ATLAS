@@ -13,4 +13,6 @@ window.ATLAS_CENTRAL={rpc:async()=>versions.map(v=>({community_id:v.community_id
  return[];
 }};
 const frame=document.querySelector('iframe');frame.onload=async()=>{try{const w=frame.contentWindow;w.RBB.app.go('actuals');await new Promise(r=>setTimeout(r,2000));const R=w.RBB,vr=R.app.vr(),gl=vr.rows.find(r=>r.gl==='5120'),text=w.document.body.textContent;const results={closedThrough:vr.closedThrough,january:gl?.actual[0],august:gl?.actual[7],september:gl?.actual[8],sourceYtd:gl?.ytdActual,missingCoverage:text.includes('Incomplete YTD'),closedStatus:text.includes('Closed · revision 1'),screenError:!!w.document.querySelector('.main > .note.r')};if(results.closedThrough!==8||results.january!==null||results.august!==100||results.september!==null||results.sourceYtd!==null||!results.closedStatus||results.screenError)throw Error(JSON.stringify(results));document.querySelector('#result').textContent=JSON.stringify({passed:true,...results});}catch(e){document.querySelector('#result').textContent=JSON.stringify({passed:false,error:e.message});}};
+
+const originalFinanceFetch=window.ATLAS_CENTRAL.fetchJson;window.ATLAS_CENTRAL.fetchJson=(path,options)=>path==='/rpc/atlas_read_finance'?window.ATLAS_CENTRAL.rpc():originalFinanceFetch(path,options);
 </script>

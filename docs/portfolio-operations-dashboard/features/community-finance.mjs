@@ -1,4 +1,4 @@
-import {readFinance} from './canonical-finance.mjs?v=a2d996d897d3850b';
+import {readFinance} from './canonical-finance.mjs?v=60c13a0342f297e2';
 import '../community-command-contract.js?v=e6064665e1d6e271';
 const money=v=>Number(v).toLocaleString('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1});
 let operation;
@@ -27,8 +27,8 @@ export async function hydrate(entries,central){
    const units=window.AtlasCommunityCommandContract.occupancy(metricScope,actual,budget);
    for(const [metric,result] of [['units',units],['gpr',summary?.gpr],['expenses',summary?.expenses]]){
     const cell=tr.querySelector(`[data-metric="${metric}"]`);if(!cell)continue;
-    cell.replaceChildren();const status=result?.status||'missing',text=result?(metric==='units'||status==='missing'?result.label:result.label+' '+(result.variance>0?'+':'')+money(Math.abs(result.variance))):'Missing publication';
-    const node=document.createElement(source&&metric!=='units'&&status!=='missing'?'button':'span');node.textContent=text;node.style.color=status==='unfavorable'?'#c0392b':status==='favorable'?'#16713b':'var(--muted,#64748b)';node.title=`${e.period} · ${metric==='units'?'Actual occupied units − ceiling(approved occupancy % × period rentable units)':metric==='expenses'?'Approved budget − actual expenses':'Actual GPR − approved budget'}${summary?.sourceTimestamp?' · Source '+summary.sourceTimestamp:''}`;
+    cell.replaceChildren();const status=result?.status||'missing',text=result?(metric==='units'?result.label:status==='missing'?(typeof result.actual==='number'&&Number.isFinite(result.actual)?'Actual '+money(result.actual)+' · ':'')+result.label:result.label+' '+(result.variance>0?'+':'')+money(Math.abs(result.variance))):'Missing publication';
+    const node=document.createElement(source&&metric!=='units'&&typeof result?.actual==='number'&&Number.isFinite(result.actual)?'button':'span');node.textContent=text;node.style.color=status==='unfavorable'?'#c0392b':status==='favorable'?'#16713b':'var(--muted,#64748b)';node.title=`${e.period} · ${metric==='units'?'Actual occupied units − ceiling(approved occupancy % × period rentable units)':metric==='expenses'?'Approved budget − actual expenses':'Actual GPR − approved budget'}${summary?.sourceTimestamp?' · Source '+summary.sourceTimestamp:''}`;
     if(node.tagName==='BUTTON'){node.type='button';node.className='btn btn-gray btn-sm';node.onclick=()=>window.openCommunityFinancialDrilldown(source.publication_id,metric);}
     cell.append(node);
    }

@@ -108,7 +108,7 @@
       try {
         const central=window.parent.ATLAS_CENTRAL,actor=central?.getSession()?.user?.id;
         if(!actor||!window.parent.atlasAccessDecision?.(12)?.ok)throw Error('Authorized canonical financial access required');
-        const [adapter,matcher,communities,aliases]=await Promise.all([import('./features/canonical-finance.mjs?v=a2d996d897d3850b'),import('./features/financial-package.mjs?v=49ea086d6d07f300'),central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000')]);
+        const [adapter,matcher,communities,aliases]=await Promise.all([import('./features/canonical-finance.mjs?v=60c13a0342f297e2'),import('./features/financial-package.mjs?v=49ea086d6d07f300'),central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000')]);
         const year=Number(event.data.year)||new Date().getFullYear(),sources={schemaVersion:3,savedAt:new Date().toISOString(),properties:{}},seen=new Set();
         const selected=[];for(const name of event.data.names||[]){const cid=matcher.resolveCommunity(name,communities,aliases).communityId;if(cid&&!seen.has(cid)){seen.add(cid);selected.push(communities.find(c=>c.community_id===cid));}}
         const records=await adapter.readFinance(central,selected.map(c=>c.community_id),Array.from({length:12},(_,m)=>year+'-'+String(m+1).padStart(2,'0')));

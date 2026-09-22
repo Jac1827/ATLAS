@@ -1423,7 +1423,7 @@
 </div>
 
 <script src="./atlas_historical_restore_data.js"></script>
-<script src="./atlas-mounts.js?v=05198009dcba7a13"></script>
+<script src="./atlas-mounts.js?v=03d42d3204252240"></script>
 <script src="./centralization/atlas-central-client.js?v=aaf34ed3eb7a47f1" data-atlas-central-client="true"></script>
 <script src="./atlas-dashboard-reskin.js?v=99ffd40a8970f8ef"></script>
 <script src="./central-services.js?v=20260919-renewal-period-review"></script>
@@ -23882,7 +23882,7 @@ function getAtlasClosedFinancialVersion(record, period) {
 
 async function refreshAtlasClosedFinancials(year = new Date().getFullYear(), force = false) {
   if (!window.ATLAS_CENTRAL?.getSession()?.user) return;
-  const module = await import("./features/financial-close.mjs?v=fb03da0d88b68a73");
+  const module = await import("./features/financial-close.mjs?v=7b4d5c3897616647");
   window.AtlasClosedFinancialCache ||= module.createCache(window.ATLAS_CENTRAL);
   const changed = await window.AtlasClosedFinancialCache.refresh(year, force);
   if (changed) scheduleAtlasSharedRender(false);
@@ -24421,7 +24421,7 @@ async function openSharedCommunityPlan() {
   const communityId = access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId;
   if (!communityId || !window.ATLAS_CENTRAL) { alert("Shared plans require an authorized canonical community record."); return false; }
   try {
-    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=0e4b4aaaf7dccee7");
+    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=482b6e73a5197279");
     if (epoch !== atlasNavigationEpoch || !atlasAccessDecision(2).ok) return false;
     const entry=model.monthEntry, provenance=entry.metricProvenance?.occupiedSnapshot, period=buildPeriodKey(model.monthIdx,model.year);
     const occupancy=provenance?.revisionKey && provenance.period===period && (!provenance.communityId||provenance.communityId===communityId) && entry.occupiedSnapshot!=null && Number(entry.rentableUnits)>0
@@ -24774,7 +24774,7 @@ function queueCommunityRosterFinancials(items) {
     return {key:encodeURIComponent(item.detail.name),hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
   });
   setTimeout(async()=>{try {
-    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=91b1714a596cde95");
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=770abc0301e334bd");
     if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
     await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
   } catch {}},0);

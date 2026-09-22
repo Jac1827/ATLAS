@@ -81,6 +81,7 @@
     return /as of/i.test(label)?{asOf:dates[0]||'',start:'',end:''}:{start:dates[0]||'',end:dates[1]||'',asOf:''};
   }
   function boxScore(rows) {
+    const leadContract = typeof module === 'object' && module.exports ? require('./lead-source-contract.js') : window.AtlasLeadSources;
     const output = [], norm = v => text(v).toLowerCase().replace(/\s+/g,' ');
     const anchors = /^(availability|property pulse|lead activity|lead conversions|make ready status)\b/i;
     for (let i=0;i<rows.length;i++) {
@@ -93,6 +94,7 @@
       const section=label.toLowerCase(), headerIndex=rows.findIndex((r,j)=>j>i&&j<totalIndex&&/^unit type$/i.test(text(r[0])));
       if(headerIndex<0)continue;
       const headers=rows[headerIndex] || [], total=rows[totalIndex], values={}, locators={};
+      const leadComponents = [], leadControls = [], leadReview = [];
       const get=(field,label,group='',occurrence=0,percent=false)=>{
         let current='', index=-1, matched=0;
         for(let c=0;c<headers.length;c++){
@@ -125,10 +127,36 @@
         get('cancelled_applications','cancelled','application');
         get('leases_completed','completed','lease');get('leases_approved','approved','lease');get('leases_cancelled','completed (cancelled)','lease');
       } else if(section.startsWith('lead activity')) {get('new_leads','new leads');get('tours','first visits/tours');
-        for(const [field,h] of Object.entries({walk_in:'walk in',off_site_event:'off site event',phone_calls:'call',emails:'email',online:'online',chat:'chat',text:'text',other:'other'}))get(field,h);
+        let contactGroup = '';
+        const hasContactGroups = (rows[headerIndex-1] || []).some(value => /original contact method|^activity$|^tours$/i.test(text(value)));
+        headers.forEach((header,column) => {
+          const group = text(rows[headerIndex-1]?.[column]);
+          if (group) contactGroup = leadContract.normalize(group);
+          const normalized = leadContract.normalize(header);
+          if (['new leads','total guest cards','guest cards'].includes(normalized)) {
+            leadControls.push({label:header,value:total[column],row:totalIndex+1,column:column+1});
+            return;
+          }
+          const isContactGroup = /^(?:original contact methods?|contact (?:sources?|methods?|channels?)|new guest cards?|lead sources?)$/.test(contactGroup);
+          if (hasContactGroups && !isContactGroup) return;
+          const context = {sourceSystem:'Entrata',reportType:'box_score',section:'Lead Activity',
+            contactSourceComponent:isContactGroup};
+          const match = leadContract.classify(header,context);
+          const evidence = {id:`${totalIndex+1}:${column+1}`,label:header,value:total[column] ?? null,context,
+            row:totalIndex+1,column:column+1,section:label,group:contactGroup};
+          if (match.field) leadComponents.push(evidence);
+          else if (match.status === 'review' && text(header)) leadReview.push(evidence);
+        });
+        const mix = leadContract.aggregate(leadComponents,{sourceSystem:'Entrata',reportType:'box_score',section:'Lead Activity'},leadControls);
+        for (const [field,value] of Object.entries(mix.buckets)) {
+          const components = mix.evidence.filter(e=>e.destination===field);
+          if (!components.length) continue;
+          values[field]=value;
+          locators[field]={row:totalIndex+1,columns:components.map(e=>e.column),section,sourceHeader:components.map(e=>e.label).join(' + '),components};
+        }
       }
       else {get('move_ins','move-ins');get('move_outs','move-outs');get('renewal_leases_approved','renewal leases approved');}
-      if(Object.keys(locators).length)output.push({values,sourceRow:totalIndex+1,canonicalSource:true,locators,section:label.replace(/\s*\(.*/, ""),period:typeof AtlasPropertyIntelligence!=="undefined"?AtlasPropertyIntelligence.sectionDates(label):boxScoreDates(label)});
+      if(Object.keys(locators).length)output.push({values,leadComponents,leadControls,leadReview,sourceRow:totalIndex+1,canonicalSource:true,locators,section:label.replace(/\s*\(.*/, ""),period:typeof AtlasPropertyIntelligence!=="undefined"?AtlasPropertyIntelligence.sectionDates(label):boxScoreDates(label)});
       i=end-1;
     }
     return output;

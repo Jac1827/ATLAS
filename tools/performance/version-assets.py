@@ -9,6 +9,9 @@ entries=[
 
  ('application-lineage.js',[('index.html','./application-lineage.js')]),
  ('screening-summary.js',[('index.html','./screening-summary.js')]),
+ ('lead-source-contract.js',[('index.html','./lead-source-contract.js')]),
+ ('lead-source-mapping-store.js',[('index.html','./lead-source-mapping-store.js')]),
+ ('lead-source-review.js',[('index.html','./lead-source-review.js')]),
  ('application-source-bridge.js',[('index.html','./application-source-bridge.js')]),
  ('application-performance-ui.js',[('index.html','./application-performance-ui.js')]),
 

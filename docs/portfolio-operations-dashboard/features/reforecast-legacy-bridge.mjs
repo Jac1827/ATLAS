@@ -18,11 +18,15 @@ export function legacyScenarioDraftInput({R,state,propertyId,year,scenario,basel
    allLines.set(key,{period:periods[month],accountCode:code,amount:existing?sum([existing.amount,v]):v,source:{file:result.line.sourceFile||'Legacy approved workbook',lineId:result.line.id,year}});
   }
  }
- const importedCodes=[...new Set(baseResults.filter(result=>result.line.method==='imported').map(result=>String(result.line.gl)))];
+ // Mapped approved workbooks deliberately calculate as fixed manual lines. Their
+ // retained imported values and workbook provenance still identify imported GLs.
+ const importedLine=line=>line.method==='imported'||Array.isArray(line.importedMonthly)&&line.importedMonthly.length===12&&Boolean(line.sourceFile||line.sourceSheet||String(line.id).startsWith('approved-import-'));
+ const importedCodes=[...new Set(baseResults.filter(result=>importedLine(result.line)).map(result=>String(result.line.gl)))];
  const drivers=[],baseAssumptions=R.engine.resolver(state,propertyId,baselineCalc.scenario);
  const add=(type,operation,value,codes,extra={})=>drivers.push({id:`legacy-${type}-${drivers.length+1}`,type,operation,value,accountCodes:codes,periods,source:{scenarioId:scenario.id,assumption:type,basis:'Explicit browser draft overlay'},reason:'Scenario assumption applied to mapped imported accounts; original workbook retained.',...extra});
  const is=(code,names)=>names.includes(accounts.get(code)?.category);
- const resolveCodes=key=>importedCodes.filter(code=>{
+ const resolvedCodes=new Map();
+ const resolveCodes=key=>{if(resolvedCodes.has(key))return resolvedCodes.get(key);const codes=importedCodes.filter(code=>{
   const related=baseResults.filter(row=>String(row.line.gl)===code);
   if(key==='concession_pct')return code==='5250';
   if(key==='bad_debt_pct')return code==='5255';
@@ -31,10 +35,10 @@ export function legacyScenarioDraftInput({R,state,propertyId,year,scenario,basel
   if(key==='utility_rate_increase')return is(code,['COMMON AREA UTILITIES EXPENSE','UNIT UTILITIES EXPENSE']);
   if(key==='insurance_increase')return is(code,['INSURANCE'])||['6719','6720','6721','6800'].includes(code);
   if(key==='re_tax_increase')return is(code,['REAL ESTATE TAXES','PROPERTY TAXES'])||['6710','6715','6750','6810','6820','6830'].includes(code);
-  if(key==='contract_escalation')return related.some(row=>row.line.behavior==='fixed_contract');
-  if(key==='inflation_general')return accounts.get(code)?.nature==='expense'&&related.some(row=>row.line.behavior==='fixed_noncontract')&&!['payroll_increase','utility_rate_increase','insurance_increase','re_tax_increase','contract_escalation'].some(special=>resolveCodes(special).includes(code));
+  if(key==='contract_escalation')return is(code,['CONTRACT SERVICES'])||related.some(row=>row.line.behavior==='fixed_contract');
+  if(key==='inflation_general')return accounts.get(code)?.nature==='expense'&&related.some(row=>row.line.behavior==='fixed_noncontract'||row.line.behavior==='fixed'&&importedLine(row.line))&&!['payroll_increase','utility_rate_increase','insurance_increase','re_tax_increase','contract_escalation'].some(special=>resolveCodes(special).includes(code));
   return false;
- });
+ });resolvedCodes.set(key,codes);return codes;};
  // Preserve scenario-specific manual/formula/line overrides as explicit amounts before assumption overlays.
  for(const result of Object.values(scenarioCalc.results)){
   const original=baselineCalc.results[result.line.id];
@@ -63,7 +67,7 @@ export function legacyScenarioDraftInput({R,state,propertyId,year,scenario,basel
 }
 export function bridgeLegacyScenario(options){
  const input=legacyScenarioDraftInput(options),periods=input.periods;
- const cacheKey=fingerprint({communityId:input.communityId,periods,baseline:input.baseline.versionId||input.baseline.versionIds,closes:input.actuals.closeVersions||[],cutoff:input.actuals.cutoffPeriod||null,scenario:input.scenario.versionId,drivers:input.scenario.driverVersion,registry:input.registry.version});
+ const cacheKey=fingerprint({communityId:input.communityId,periods,baseline:input.baseline.versionId||input.baseline.versionIds,baselineLeasing:fingerprint(input.baseline.leasing||[]),sourceVersion:options.sources?.sourceVersion||null,closes:input.actuals.closeVersions||[],cutoff:input.actuals.cutoffPeriod||null,scenario:input.scenario.versionId,drivers:input.scenario.driverVersion,registry:input.registry.version});
  if(snapshots.has(cacheKey)){const cached=snapshots.get(cacheKey);snapshots.delete(cacheKey);snapshots.set(cacheKey,cached);return cached;}
  const snapshot=computeReforecast(input);snapshots.set(cacheKey,snapshot);if(snapshots.size>24)snapshots.delete(snapshots.keys().next().value);return snapshot;
 }

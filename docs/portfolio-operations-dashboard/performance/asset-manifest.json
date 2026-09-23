@@ -72,8 +72,8 @@
     ]
   },
   "features/reforecast-store.mjs": {
-    "sha256": "4a7a84c04ff55a0f",
-    "bytes": 6433,
+    "sha256": "50949947b3848714",
+    "bytes": 8018,
     "references": [
       [
         "features/reforecast-ui.mjs",
@@ -122,7 +122,7 @@
     ]
   },
   "features/reforecast-import-ui.mjs": {
-    "sha256": "62aafede76699821",
+    "sha256": "3bc393d90f1fea94",
     "bytes": 27469,
     "references": [
       [
@@ -132,8 +132,8 @@
     ]
   },
   "features/reforecast-legacy-bridge.mjs": {
-    "sha256": "fff1a4e61aa4fd33",
-    "bytes": 11230,
+    "sha256": "e7463f6da1df61d0",
+    "bytes": 11940,
     "references": [
       [
         "reforecast-navigation.js",
@@ -146,8 +146,8 @@
     ]
   },
   "features/reforecast-ui.mjs": {
-    "sha256": "b25d26ce0e8dc4b8",
-    "bytes": 60381,
+    "sha256": "ae860abc06e1c181",
+    "bytes": 63122,
     "references": [
       [
         "reforecast-navigation.js",
@@ -156,7 +156,7 @@
     ]
   },
   "features/reforecast-consumers.mjs": {
-    "sha256": "cd98269f4e724f86",
+    "sha256": "e1bf6c78ffaaf1eb",
     "bytes": 5576,
     "references": [
       [
@@ -166,7 +166,7 @@
     ]
   },
   "reforecast-consumers.js": {
-    "sha256": "44df3c595f002d30",
+    "sha256": "08f4663147070da3",
     "bytes": 2850,
     "references": [
       [
@@ -176,7 +176,7 @@
     ]
   },
   "reforecast-navigation.js": {
-    "sha256": "5886b9634a715029",
+    "sha256": "013b06f160e0f826",
     "bytes": 2057,
     "references": [
       [
@@ -602,7 +602,7 @@
     ]
   },
   "investor-budget-bridge.js": {
-    "sha256": "fc34bdc94568bee8",
+    "sha256": "7ff4b3a924bff02d",
     "bytes": 19661,
     "references": [
       [
@@ -612,7 +612,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "b312f21ad87729e1",
+    "sha256": "9faa5c84f77a30f6",
     "bytes": 1888000,
     "references": [
       [
@@ -622,7 +622,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "2f0cde3f4ca24555",
+    "sha256": "297b9d81a536b867",
     "bytes": 28901,
     "references": [
       [

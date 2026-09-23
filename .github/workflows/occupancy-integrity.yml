@@ -68,6 +68,7 @@ jobs:
           node tools/canonical-finance.test.mjs
           node tools/canonical-finance-db.test.cjs
           node tools/reforecast-engine.test.mjs
+          node tools/reforecast-mapped-budget.test.mjs
           node tools/reforecast-intake.test.mjs
           node tools/reforecast-import-ui.test.mjs
           node tools/reforecast-governance-db.test.cjs
@@ -75,6 +76,7 @@ jobs:
           node tools/reforecast-parity.test.cjs
           node tools/reforecast-store.test.mjs
           node tools/reforecast-report.test.mjs
+          node tools/reforecast-publication-history.test.mjs
           node tools/reforecast-ui.test.mjs
           node tools/investor-active-reforecast.test.cjs
           node tools/investor-budget-bridge.test.cjs

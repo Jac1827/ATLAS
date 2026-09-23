@@ -55,6 +55,21 @@ export async function readActive(central,{communityIds,periods=null}){
  communityIds.forEach(scope);const result=await rpc(central,'atlas_read_active_reforecast',{p_community_ids:communityIds,p_periods:periods});
  if(!Array.isArray(result)||result.some(r=>!communityIds.includes(r.communityId)))throw Error('Invalid active-reforecast readback.');return result;
 }
+// Retained publications are accuracy vintages, never evidence of an active head.
+// Their snapshots and source bundles are exactly those frozen at publication.
+export async function readPublicationHistory(central,{communityId}){
+ scope(communityId);const actor=identity(central),rows=[],seen=new Set();
+ await central.refreshSession?.();actorGuard(central,actor);
+ for(let offset=0;;offset+=100){
+  const page=await central.fetchJson(`/atlas_reforecast_publications?community_id=eq.${communityId}&select=publication_id,community_id,scenario_id,revision_id,version,periods,snapshot,source,reason,published_by,published_role,published_at&order=published_at.asc,publication_id.asc&limit=100&offset=${offset}`);actorGuard(central,actor);
+  if(!Array.isArray(page)||page.some(r=>r.community_id!==communityId||!uuid.test(r.publication_id)||!Array.isArray(r.periods)||!r.snapshot||r.snapshot.identity?.communityId&&r.snapshot.identity.communityId!==communityId))throw Error('Publication history scope mismatch.');
+  for(const row of page){
+   if(seen.has(row.publication_id))throw Error('Publication history changed while reading. Refresh the report.');seen.add(row.publication_id);
+   rows.push({publicationId:row.publication_id,communityId:row.community_id,scenarioId:row.scenario_id,revisionId:row.revision_id,version:row.version,periods:row.periods,activePeriods:[],publishedAt:row.published_at,publishedBy:row.published_by,publishedRole:row.published_role,reason:row.reason,snapshot:row.snapshot,source:row.source,isPublicationHistory:true});
+  }
+  if(page.length<100)return rows;
+ }
+}
 export {projectActive as effectiveActiveSnapshot};
 export async function readHistory(central,{scenarioId}){
  request(scenarioId);const rows=[];

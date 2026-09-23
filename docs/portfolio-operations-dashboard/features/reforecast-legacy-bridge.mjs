@@ -78,8 +78,20 @@ export function installLegacyReforecastBridge(R){
  R.engine.computeProperty=function(state,propertyId,scenarioId,year){
   const raw=original.call(this,state,propertyId,scenarioId,year);year=raw.ctx.year;
   const scenario=raw.scenario,approved=state.scenarios.find(row=>row.type==='approved'&&row.locked);
-  if(!approved||scenario.id===approved.id)return raw;
-  const baselineCalc=original.call(this,state,propertyId,approved.id,year);
+  if(!approved)return raw;
+  const baselineCalc=scenario.id===approved.id?raw:original.call(this,state,propertyId,approved.id,year);
+  R.reforecastMissingBudgets ||= {};
+  if(!Object.keys(baselineCalc.results).length){
+   const explanation='No approved budget rows are available for this community and year. Import or load its approved baseline before comparing scenarios.';
+   R.reforecastMissingBudgets[propertyId+'|'+year]=explanation;
+   for(const [key,value] of Object.entries(raw.rollup))if(Array.isArray(value))raw.rollup[key]=value.map(()=>null);
+   for(const key of Object.keys(raw.rollup.annual))raw.rollup.annual[key]=null;
+   raw.reforecastUnavailable=explanation;raw.scenarioDiagnostics=[{status:'unavailable',explanation}];
+   R.reforecastDiagnostics ||= {};R.reforecastDiagnostics[propertyId+'|'+scenario.id+'|'+year]={fingerprint:'Unavailable',baselineVersion:'No approved source rows',diagnostics:raw.scenarioDiagnostics};
+   return raw;
+  }
+  delete R.reforecastMissingBudgets[propertyId+'|'+year];
+  if(scenario.id===approved.id)return raw;
   const snapshot=bridgeLegacyScenario({R,state,propertyId,year,scenario,baselineCalc,scenarioCalc:raw,sources:R.reforecastSources?.[propertyId+'|'+year]});
   const byCode=new Map();for(const result of Object.values(raw.results)){const code=String(result.line.gl);if(!byCode.has(code))byCode.set(code,[]);byCode.get(code).push(result);}
   for(const row of snapshot.lines){
@@ -103,6 +115,9 @@ export function installLegacyReforecastBridge(R){
   R.reforecastDiagnostics ||= {};R.reforecastDiagnostics[propertyId+'|'+scenario.id+'|'+year]={fingerprint:snapshot.fingerprint,baselineVersion:snapshot.identity.baselineVersionId,diagnostics:raw.scenarioDiagnostics};
   return raw;
  };
- if(R.views?.scenarios){const previous=R.views.scenarios;R.views.scenarios=function(){const html=previous.apply(this,arguments),state=R.app.state,property=state.activeProperty,year=state.budgetYear,esc=R.app.h.esc;return html+'<section class="card"><h3>Scenario calculation evidence</h3><p>These browser scenarios are draft illustrations. Only a separately approved, locked and activated shared reforecast is an operating benchmark.</p>'+state.scenarios.filter(s=>s.type!=='approved').map(s=>{const row=R.reforecastDiagnostics?.[property+'|'+s.id+'|'+year];return row?'<details><summary>'+esc(s.name)+' · '+esc(row.fingerprint)+'</summary><p>Original source reference: '+esc(row.baselineVersion)+'</p>'+row.diagnostics.map(d=>'<p>'+esc(d.status)+': '+esc(d.explanation)+'</p>').join('')+'</details>':'';}).join('')+'</section>';};}
+ const computeAll=R.engine.computeAll;
+ R.engine.computeAll=function(state,scenarioId,year){const result=computeAll.call(this,state,scenarioId,year),missing=Object.values(result.byProperty).filter(row=>row.reforecastUnavailable);result.sourceCoverage={complete:missing.length===0,missingProperties:missing.map(row=>row.property.id)};if(missing.length&&missing.length===Object.keys(result.byProperty).length){for(const [key,value] of Object.entries(result.portfolio))if(Array.isArray(value))result.portfolio[key]=value.map(()=>null);for(const key of Object.keys(result.portfolio.annual))result.portfolio.annual[key]=null;}return result;};
+ if(R.exporter?.scenarioComparison&&R.importer?.parseCsv){const previous=R.exporter.scenarioComparison;R.exporter.scenarioComparison=function(state,scenarioIds,year){const csv=previous.apply(this,arguments),scopeYear=year||state.budgetYear||R.BUDGET_YEAR,missing=state.properties.filter(p=>R.reforecastMissingBudgets?.[p.id+'|'+scopeYear]);if(!missing.length)return csv;const names=new Set(missing.map(p=>p.name)),rows=R.importer.parseCsv(csv);for(const row of rows)if(['EGI','EXPENSE','NOI'].includes(row[1])){if(names.has(row[0])||row[0]==='PORTFOLIO'&&missing.length===state.properties.length)for(let i=2;i<row.length;i++)row[i]='Unavailable';if(row[0]==='PORTFOLIO')row[0]='PORTFOLIO (available budgets only)';}rows.push([],['Budget coverage',...missing.map(p=>p.name+': no approved source rows for '+scopeYear)]);return R.u.toCsv(rows);};}
+ if(R.views?.scenarios){const previous=R.views.scenarios;R.views.scenarios=function(){let html=previous.apply(this,arguments);const state=R.app.state,property=state.activeProperty,year=state.budgetYear,esc=R.app.h.esc,missing=state.properties.filter(p=>R.reforecastMissingBudgets?.[p.id+'|'+year]);if(missing.length&&missing.length===state.properties.length)return '<div class="h1">Scenario comparison</div><section class="card"><h3>Financial comparison unavailable</h3><p>No approved budget rows are available for '+esc(year)+': '+missing.map(p=>esc(p.name)).join(', ')+'. Load an approved baseline before comparing scenarios. Explicitly populated zero budgets remain valid sources.</p></section>';if(missing.length){html=html.replace('Portfolio comparison','Available-budget comparison');for(const p of missing){const start=html.indexOf('<tr><td>'+esc(p.name)+'</td>',html.indexOf('NOI by property and scenario')),end=html.indexOf('</tr>',start);if(start>=0&&end>=0)html=html.slice(0,start)+'<tr><td>'+esc(p.name)+'<br><small>No approved budget source</small></td>'+Array.from({length:R.app.compareScenarios.length+3},()=>'<td class="n tiny">Unavailable</td>').join('')+'</tr>'+html.slice(end+5);}html='<p class="note">Budget coverage is incomplete. '+missing.map(p=>esc(p.name)).join(', ')+': no approved budget rows for '+esc(year)+'. Portfolio totals include available budgets only.</p>'+html;}return html+'<section class="card"><h3>Scenario calculation evidence</h3><p>These browser scenarios are draft illustrations. Only a separately approved, locked and activated shared reforecast is an operating benchmark.</p>'+state.scenarios.filter(s=>s.type!=='approved').map(s=>{const row=R.reforecastDiagnostics?.[property+'|'+s.id+'|'+year];return row?'<details><summary>'+esc(s.name)+' · '+esc(row.fingerprint)+'</summary><p>Original source reference: '+esc(row.baselineVersion)+'</p>'+row.diagnostics.map(d=>'<p>'+esc(d.status)+': '+esc(d.explanation)+'</p>').join('')+'</details>':'';}).join('')+'</section>';};}
  if(R.app?.state){R.app.cache=null;R.app.recalc();R.app.render();}
 }

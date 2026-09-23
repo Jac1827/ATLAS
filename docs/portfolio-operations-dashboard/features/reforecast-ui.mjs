@@ -186,7 +186,7 @@ function bind(s){const c=s.container;
  c.querySelectorAll('[data-export]').forEach(el=>el.onclick=()=>exportSnapshot(s,el.dataset.export));
  c.querySelectorAll('[data-next-cid]').forEach(el=>el.onclick=async()=>{
   if(s.dirty){s.error='Save the current working draft before opening another step. Your edits are retained.';render(s);return;}
-  if(el.dataset.nextStep==='actuals'){if(s.R?.app.openFinancialPackageReview)await s.R.app.openFinancialPackageReview();else{s.error='Open Actuals & Close to review this financial package.';render(s);}return;}
+  if(el.dataset.nextStep==='actuals'){if(s.R?.app.openFinancialPackageReview)await s.R.app.openFinancialPackageReview({communityId:el.dataset.nextCid,period:el.dataset.nextMonth});else{s.error='Open Actuals & Close to review this financial package.';render(s);}return;}
   s.cid=el.dataset.nextCid;s.year=Number(el.dataset.nextMonth.slice(0,4));s.mode='workspace';await loadCommunity(s);s.R?.app.go('reforecast');render(s);if(el.dataset.nextStep==='import')await resumeImportsDialog(s);
  });
  c.querySelectorAll('[data-open]').forEach(el=>el.onclick=async()=>{if(s.dirty){s.error='Save the current working draft before opening another reforecast. Your edits are retained.';render(s);return;}await selectScenario(s,el.dataset.open);s.R?.app.go('reforecast');s.mode='workspace';render(s);});
@@ -237,7 +237,7 @@ function copyLegacyDialog(s){
    const propertyId=body.querySelector('[data-legacy-property]').value,scenario=scenarios.find(row=>row.id===body.querySelector('[data-legacy-scenario]').value),approved=state.scenarios.find(row=>row.type==='approved'&&row.locked),reason=body.querySelector('[data-copy-reason]').value;
    if(!state.properties.some(row=>row.id===propertyId)||!scenario||!approved)throw Error('Choose a source property and draft scenario with a locked original budget.');
    if(!reason.trim())throw Error('Record why these scenario assumptions are being copied.');event.target.disabled=true;
-   const {legacyScenarioDraftInput}=await import('./reforecast-legacy-bridge.mjs?v=e7463f6da1df61d0'),source=await store.readSourceBundle(s.central,{communityId:s.cid,periods:periodsFor(s.year)});safeActor(s);if(!el.isConnected)return;
+   const {legacyScenarioDraftInput}=await import('./reforecast-legacy-bridge.mjs?v=82412587c0e3729c'),source=await store.readSourceBundle(s.central,{communityId:s.cid,periods:periodsFor(s.year)});safeActor(s);if(!el.isConnected)return;
    const original=s.R.engine._reforecastBridge.original,baselineCalc=original.call(s.R.engine,state,propertyId,approved.id,s.year),scenarioCalc=original.call(s.R.engine,state,propertyId,scenario.id,s.year),input=legacyScenarioDraftInput({R:s.R,state,propertyId,year:s.year,scenario,baselineCalc,scenarioCalc,sources:source});
    const draft=reforecastDraftFromLegacy({input,scenario,source,actor:s.actor,propertyId,reason});s.source=source;s.R.reforecastPropertyAssignments||={};s.R.reforecastPropertyAssignments[propertyId]=s.cid;cacheReforecastSource(s.R,source,s.year);s.record=null;s.scenarioId=uuid();s.edit=draft;s.reportFrom='';s.reportTo='';mark(s);s.message='Browser scenario assumptions copied to a new working draft. Review mapping and calculation issues, then choose Save Working Draft.';el.close();render(s);
   }catch(error){status.textContent=error.message;event.target.disabled=false;}

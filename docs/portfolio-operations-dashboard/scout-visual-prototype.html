@@ -753,6 +753,12 @@
       </div>
     </div>
 
+    <section class="card" aria-labelledby="scout-evidence-title" style="margin-bottom:20px">
+      <div class="card-head"><div><h2 id="scout-evidence-title">Published reforecast evidence</h2><p>Read-only financial data from your ATLAS session. Community and month selection controls this panel.</p></div></div>
+      <div class="card-body" id="scoutPublishedEvidence"><p>Loading published evidence access…</p></div>
+    </section>
+    <p style="color:var(--muted)"><strong>Visual demonstration below:</strong> the orb, sample risk cards, and briefing use illustrative data. “Ask Scout” demonstrates motion; it does not generate an AI answer.</p>
+
     <section class="control-bar">
       <div class="control-copy">
         <strong>Adaptive Intelligence Orb</strong>
@@ -1211,5 +1217,10 @@
     position.y = target.y;
     animate();
   </script>
+<script src="./centralization/atlas-central-client.js?v=aaf34ed3eb7a47f1"></script>
+<script type="module">
+  import {mountScoutReforecast} from './features/scout-reforecast.mjs?v=e6869f9b7d6bf64b';
+  mountScoutReforecast(document.getElementById('scoutPublishedEvidence'));
+</script>
 </body>
 </html>

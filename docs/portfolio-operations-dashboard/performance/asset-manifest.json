@@ -88,6 +88,10 @@
         "./reforecast-store.mjs"
       ],
       [
+        "features/scout-reforecast.mjs",
+        "./reforecast-store.mjs"
+      ],
+      [
         "investor-budget-bridge.js",
         "./features/reforecast-store.mjs"
       ]
@@ -103,6 +107,10 @@
       ],
       [
         "features/reforecast-consumers.mjs",
+        "./reforecast-report.mjs"
+      ],
+      [
+        "features/scout-reforecast.mjs",
         "./reforecast-report.mjs"
       ]
     ]
@@ -132,8 +140,8 @@
     ]
   },
   "features/reforecast-legacy-bridge.mjs": {
-    "sha256": "e7463f6da1df61d0",
-    "bytes": 11940,
+    "sha256": "82412587c0e3729c",
+    "bytes": 15538,
     "references": [
       [
         "reforecast-navigation.js",
@@ -146,8 +154,8 @@
     ]
   },
   "features/reforecast-ui.mjs": {
-    "sha256": "ae860abc06e1c181",
-    "bytes": 63122,
+    "sha256": "06933c84d0fcfa79",
+    "bytes": 63182,
     "references": [
       [
         "reforecast-navigation.js",
@@ -162,6 +170,20 @@
       [
         "reforecast-consumers.js",
         "./features/reforecast-consumers.mjs"
+      ],
+      [
+        "features/scout-reforecast.mjs",
+        "./reforecast-consumers.mjs"
+      ]
+    ]
+  },
+  "features/scout-reforecast.mjs": {
+    "sha256": "e6869f9b7d6bf64b",
+    "bytes": 7609,
+    "references": [
+      [
+        "scout-visual-prototype.html",
+        "./features/scout-reforecast.mjs"
       ]
     ]
   },
@@ -176,7 +198,7 @@
     ]
   },
   "reforecast-navigation.js": {
-    "sha256": "013b06f160e0f826",
+    "sha256": "8af9787e703eab51",
     "bytes": 2057,
     "references": [
       [
@@ -478,8 +500,8 @@
     ]
   },
   "features/financial-package-review.mjs": {
-    "sha256": "26465b5feb49be7a",
-    "bytes": 9949,
+    "sha256": "7741e4c6f2c84ae2",
+    "bytes": 12463,
     "references": [
       [
         "budget-navigation.js",
@@ -502,8 +524,8 @@
     ]
   },
   "budget-navigation.js": {
-    "sha256": "986005a7232e1c0a",
-    "bytes": 7578,
+    "sha256": "2ebc4b914fe2fbaa",
+    "bytes": 7588,
     "references": [
       [
         "RISE-Budget-Builder.html",
@@ -612,7 +634,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "9faa5c84f77a30f6",
+    "sha256": "2cb788e8556ed280",
     "bytes": 1888000,
     "references": [
       [
@@ -622,7 +644,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "297b9d81a536b867",
+    "sha256": "3110f1b016207203",
     "bytes": 28901,
     "references": [
       [
@@ -667,6 +689,10 @@
     "references": [
       [
         "index.html",
+        "./centralization/atlas-central-client.js"
+      ],
+      [
+        "scout-visual-prototype.html",
         "./centralization/atlas-central-client.js"
       ]
     ]

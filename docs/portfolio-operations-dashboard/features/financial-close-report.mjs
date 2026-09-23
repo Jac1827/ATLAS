@@ -1,0 +1,24 @@
+import {readFinance} from './canonical-finance.mjs?v=60c13a0342f297e2';
+import {readRows} from './financial-close.mjs?v=4ea0aa4203c6eab0';
+import {loadXlsx} from './reforecast-intake.mjs?v=24b8279a354390ef';
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const freeze=o=>{if(o&&typeof o==='object'){Object.values(o).forEach(freeze);Object.freeze(o);}return o;};
+export async function readCloseSnapshot(central,cid,period){
+ const actor=central.getSession?.()?.user?.id,[record]=await readFinance(central,[cid],[period]);
+ const close=record?.summary?.close;if(!close||!record.publication_id)throw Error(record?.summary?.coverageReason||'No published full-month actuals are available for this period.');
+ const rows=await readRows(central,close);
+ const [readback]=await readFinance(central,[cid],[period]);
+ if(central.getSession?.()?.user?.id!==actor||readback?.publication_id!==record.publication_id||readback.summary?.actualCloseVersion!==close.version_id)throw Error('The canonical version changed during the read. Refresh before exporting.');
+ if(rows.some(r=>r.version_id!==close.version_id))throw Error('Canonical detail version mismatch.');
+ return freeze(structuredClone({communityId:cid,period,versionId:close.version_id,contentHash:close.content_hash,sourceHash:close.source_hash,sourceFile:close.source_file,publicationId:record.publication_id,budgetVersion:record.summary.budgetVersion||null,status:'Canonically Published',coverage:record.summary.coveragePolicy||null,carryIn:record.summary.carryInDisclosure||[],metrics:close.metrics,rows}));
+}
+export function closeReportRows(s){return s.rows.map(r=>({Community:s.communityId,Period:s.period,GL:r.gl_code,Account:r.account_name,Actual:r.actual,Source_YTD:r.ytd_actual,Close_version:s.versionId,Content_hash:s.contentHash,Publication:s.publicationId,Budget_version:s.budgetVersion,Coverage_policy:s.coverage?.policyId||null,Carry_in_disclosure:JSON.stringify(s.carryIn||[]),Source_file:s.sourceFile,Source_hash:s.sourceHash,Source_location:JSON.stringify(r.source_location)}));}
+export function closeReportHtml(s){const rows=closeReportRows(s),keys=Object.keys(rows[0]||{});return `<h3>Published monthly actuals · ${esc(s.period)}</h3><p>Version ${esc(s.versionId)} · hash ${esc(s.contentHash)} · publication ${esc(s.publicationId)}</p><p>Source YTD is supporting evidence and may include activity outside the selected full-month coverage.</p>${s.carryIn?.length?'<p>Carry-in disclosure: '+esc(s.carryIn.map(item=>item.reason+' (source periods '+item.sourcePeriods.join(', ')+'; '+item.treatment+')').join('; '))+'</p>':''}<div style="overflow:auto;max-height:600px"><table><thead><tr>${keys.map(k=>`<th>${esc(k)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${keys.map(key=>`<td>${row[key]===null?'Unavailable':esc(row[key])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;}
+export function closeReportCsv(s){const rows=closeReportRows(s),keys=Object.keys(rows[0]||{}),quote=v=>'"'+String(typeof v==='string'&&/^[=+@-]/.test(v)?"'"+v:v??'').replaceAll('"','""')+'"';return [keys,...rows.map(row=>keys.map(k=>row[k]))].map(row=>row.map(quote).join(',')).join('\r\n');}
+export function closeReportWorkbook(s,XLSX){const workbook=XLSX.utils.book_new();XLSX.utils.book_append_sheet(workbook,XLSX.utils.json_to_sheet(closeReportRows(s)),'Canonical actuals');return workbook;}
+export async function mountCloseReport(container,central,cid,period){
+ const snapshot=await readCloseSnapshot(central,cid,period);if(!container.isConnected)return;
+ container.innerHTML='<button data-export="csv">CSV</button><button data-export="xlsx">Excel</button><button data-export="pdf">Print / Save PDF</button><p role="status"></p>'+closeReportHtml(snapshot);
+ for(const button of container.querySelectorAll('[data-export]'))button.onclick=async()=>{button.disabled=true;try{const kind=button.dataset.export,name='ATLAS-closed-actuals-'+snapshot.period;if(kind==='xlsx'){const XLSX=await loadXlsx();XLSX.writeFile(closeReportWorkbook(snapshot,XLSX),name+'.xlsx');}else if(kind==='csv'){const url=URL.createObjectURL(new Blob([closeReportCsv(snapshot)],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=name+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}else{const frame=document.createElement('iframe');frame.style.display='none';frame.srcdoc='<!doctype html><html><head><title>'+esc(name)+'</title><style>table{border-collapse:collapse;font-size:8pt}td,th{border:1px solid #bbb;padding:4px;overflow-wrap:anywhere}div{max-height:none!important;overflow:visible!important}@page{size:landscape}</style></head><body>'+closeReportHtml(snapshot)+'</body></html>';frame.onload=()=>frame.contentWindow.print();container.append(frame);}}catch(error){container.querySelector('[role=status]').textContent=error.message;}finally{button.disabled=false;}};
+ return snapshot;
+}

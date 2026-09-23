@@ -61,6 +61,10 @@ jobs:
           node tools/fiscal-ytd.test.mjs
           node tools/community-report-progress.test.mjs
           node tools/financial-package.test.mjs
+          node tools/financial-row-reconciliation.test.mjs
+          node tools/financial-intake-store.test.mjs
+          node tools/financial-intake-governance-db.test.cjs
+          node tools/approved-budget-governance.test.mjs
           node tools/financial-review-db.test.cjs
           node tools/financial-package-batch.test.mjs
           node tools/workforce-events-db.test.cjs
@@ -117,3 +121,4 @@ jobs:
           node tools/occupancy-replay-browser-performance.test.cjs
           node tools/archive-performance.test.cjs
           node tools/workbook-performance.test.cjs
+          node tools/financial-close-report.test.mjs

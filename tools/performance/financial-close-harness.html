@@ -1,18 +1,35 @@
-<!doctype html><meta charset="utf-8"><title>Closed actuals browser test</title><pre id="result">Running</pre><iframe style="width:100%;height:900px" src="../../docs/portfolio-operations-dashboard/RISE-Budget-Builder.html?atlasEmbedded=1"></iframe>
-<script>
-window.atlasAccessDecision=()=>({ok:true});
-const versions=[2,3,4,5,6,7,8].map(m=>({community_id:'fixture-doro',version_id:'v'+m,comparison_version_id:'c'+m,period_key:`2026-${String(m).padStart(2,'0')}`,revision:1,status:'closed',coverage:'full_month',accounting_basis:'accrual',row_count:2,source_file:'fixture.pdf',source_hash:'a'.repeat(64),metrics:{grossPotentialRent:100,netRentalIncome:95,sourceControls:{'Total Income':{ytdActual:665},'Net Operating Income':{ytdActual:665}}}}));
-const rows=[{gl_code:'5120',account_name:'GPR',actual:100,ytd_actual:700,source_budget:100,source_ytd_budget:700,source_location:{page:3}},{gl_code:'5130',account_name:'Loss',actual:-5,ytd_actual:-35,source_budget:null,source_ytd_budget:null,source_location:{page:3}}];
-window.ATLAS_CENTRAL={rpc:async()=>versions.map(v=>({community_id:v.community_id,period_key:v.period_key,summary:{communityId:v.community_id,period:v.period_key,registryVersion:'atlas-finance-v1',close:v}})),readCommunitiesForAccess:async()=>[{community_id:'fixture-doro',display_name:'Doro',canonical_name:'doro'}],fetchJson:async path=>{
- if(path.includes('aliases'))return[{community_id:'fixture-doro',alias:'RISE Doro',active:true}];
- if(path.includes('close_heads'))return versions.map(v=>({version_id:v.version_id}));
- if(path.includes('close_versions'))return versions;
- if(path.includes('comparison_heads'))return[{version_id:'c8',period_key:'2026-08'}];
- if(path.includes('comparison_versions'))return[{...versions[6],version_id:'c8',status:'Reviewed — not closed'}];
- if(path.includes('rows'))return rows;
- return[];
-}};
-const frame=document.querySelector('iframe');frame.onload=async()=>{try{const w=frame.contentWindow;w.RBB.app.go('actuals');await new Promise(r=>setTimeout(r,2000));const R=w.RBB,vr=R.app.vr(),gl=vr.rows.find(r=>r.gl==='5120'),text=w.document.body.textContent;const results={closedThrough:vr.closedThrough,january:gl?.actual[0],august:gl?.actual[7],september:gl?.actual[8],sourceYtd:gl?.ytdActual,missingCoverage:text.includes('Incomplete YTD'),closedStatus:text.includes('Closed · revision 1'),screenError:!!w.document.querySelector('.main > .note.r')};if(results.closedThrough!==8||results.january!==null||results.august!==100||results.september!==null||results.sourceYtd!==null||!results.closedStatus||results.screenError)throw Error(JSON.stringify(results));document.querySelector('#result').textContent=JSON.stringify({passed:true,...results});}catch(e){document.querySelector('#result').textContent=JSON.stringify({passed:false,error:e.message});}};
-
-const originalFinanceFetch=window.ATLAS_CENTRAL.fetchJson;window.ATLAS_CENTRAL.fetchJson=(path,options)=>path==='/rpc/atlas_read_finance'?window.ATLAS_CENTRAL.rpc():originalFinanceFetch(path,options);
-</script>
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Canonical financial snapshot acceptance</title>
+<style>body{font:15px system-ui;margin:24px;color:#17324d;max-width:1500px}button{padding:9px 14px;margin:5px}table{border-collapse:collapse;font-size:12px}th,td{border:1px solid #ccd7df;padding:7px}pre{white-space:pre-wrap;background:#eef5f8;padding:14px}iframe{width:100%;height:420px;border:1px solid #ccc}#report{overflow:auto}</style>
+<h1>Canonical financial snapshot acceptance</h1><p>Local synthetic fixture only. The production snapshot and export module reads one shared fixture version. No live financial data or writes.</p>
+<p id="session" role="status"></p><button id="refresh">Refresh verified snapshot</button><button id="second">Use authorized Session B</button><button id="first">Use authorized Session A</button><button id="verify">Verify screen and exports</button><button id="preview">Show print markup</button>
+<pre id="result" aria-label="Acceptance evidence">Reading canonical fixture…</pre><section id="report" aria-label="Canonical actuals report"></section><section id="print"></section>
+<script src="../../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js"></script>
+<script type="module">
+import {readCloseSnapshot,mountCloseReport,closeReportRows,closeReportHtml,closeReportCsv,closeReportWorkbook} from '../../docs/portfolio-operations-dashboard/features/financial-close-report.mjs';
+if(!['127.0.0.1','localhost'].includes(location.hostname))throw Error('This synthetic harness runs only on localhost.');
+const CID='10000000-0000-0000-0000-000000000001',PERIOD='2026-03',VERSION='20000000-0000-0000-0000-000000000001',PUBLICATION='30000000-0000-0000-0000-000000000001',HASH='a'.repeat(64),SOURCE_HASH='b'.repeat(64);
+const close={version_id:VERSION,community_id:CID,period_key:PERIOD,content_hash:HASH,source_hash:SOURCE_HASH,source_file:'Synthetic monthly BCR.xlsx',status:'closed',coverage:'full_month',accounting_basis:'accrual',revision:2,row_count:3,metrics:{grossPotentialRent:0,totalIncome:-25,operatingExpenses:50.12,netOperatingIncome:-75.12}};
+const detail=[{gl_code:'004110',account_name:'Rent',actual:0,ytd_actual:null},{gl_code:'004190',account_name:'Concessions',actual:-25,ytd_actual:-25},{gl_code:'006210',account_name:'Marketing',actual:50.12,ytd_actual:50.12}].map((row,index)=>({...row,version_id:VERSION,source_location:{sheet:'BCR',row:index+10,column:'C',period:PERIOD}}));
+const record={community_id:CID,period_key:PERIOD,publication_id:PUBLICATION,summary:{registryVersion:'atlas-finance-v1',communityId:CID,period:PERIOD,actualCloseVersion:VERSION,budgetVersion:'40000000-0000-0000-0000-000000000001',coverage:'full_month',close}};
+let activeSession='A',currentSnapshot,baseline,refreshes=0,checks=0;const calls={A:{finance:0,detail:0},B:{finance:0,detail:0}};
+const clients=Object.fromEntries(['A','B'].map(session=>[session,{getSession:()=>({user:{id:'authorized-fixture-reader-'+session}}),async fetchJson(url,options){
+ if(url==='/rpc/atlas_read_finance'){const args=JSON.parse(options.body);if(args.p_community_ids.length!==1||args.p_community_ids[0]!==CID||args.p_periods.length!==1||args.p_periods[0]!==PERIOD)throw Error('Unexpected fixture scope');calls[session].finance++;return structuredClone([record]);}
+ if(url.startsWith('/atlas_financial_close_rows?version_id=eq.'+VERSION)){calls[session].detail++;return structuredClone(detail);}
+ throw Error('Fixture refused unexpected request '+url);
+}}]));
+const assert=(condition,message)=>{if(!condition)throw Error(message);};
+function parseCsv(text){const rows=[];let row=[],field='',quoted=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(quoted&&text[i+1]==='"'){field+='"';i++;}else quoted=!quoted;}else if(c===','&&!quoted){row.push(field);field='';}else if(c==='\r'&&!quoted){if(text[i+1]==='\n')i++;row.push(field);rows.push(row);row=[];field='';}else field+=c;}row.push(field);rows.push(row);return rows;}
+async function evidence(){
+ const data=closeReportRows(currentSnapshot),keys=Object.keys(data[0]),screenRows=[...document.querySelectorAll('#report tbody tr')].map(tr=>[...tr.cells].map(td=>td.textContent));
+ const expectedScreen=data.map(row=>keys.map(key=>row[key]===null?'Unavailable':String(row[key])));assert(JSON.stringify(screenRows)===JSON.stringify(expectedScreen),'Screen rows differ from canonical snapshot');
+ const csv=parseCsv(closeReportCsv(currentSnapshot));assert(JSON.stringify(csv[0])===JSON.stringify(keys),'CSV columns differ');assert(JSON.stringify(csv.slice(1))===JSON.stringify(data.map(row=>keys.map(key=>String(row[key]??'')))),'CSV values differ');
+ const workbook=closeReportWorkbook(currentSnapshot,window.XLSX),bytes=window.XLSX.write(workbook,{type:'array',bookType:'xlsx'}),reopened=window.XLSX.read(bytes,{type:'array'}),excel=window.XLSX.utils.sheet_to_json(reopened.Sheets['Canonical actuals'],{defval:null});assert(JSON.stringify(excel)===JSON.stringify(data),'Reopened Excel values differ');assert(reopened.Sheets['Canonical actuals'].C2.v==='004110','Excel lost leading-zero GL identity');
+ const printed=new DOMParser().parseFromString(closeReportHtml(currentSnapshot),'text/html');assert(printed.querySelector('table').outerHTML===document.querySelector('#report table').outerHTML,'Print markup differs from screen');
+ assert(currentSnapshot.versionId===VERSION&&currentSnapshot.contentHash===HASH&&currentSnapshot.publicationId===PUBLICATION,'Version/hash/publication receipt mismatch');assert(Object.isFrozen(currentSnapshot.rows[0]),'Snapshot is mutable');
+ const independent=await readCloseSnapshot(clients[activeSession],CID,PERIOD);assert(JSON.stringify(independent)===JSON.stringify(currentSnapshot),'Readback changed the snapshot');if(baseline)assert(JSON.stringify(baseline)===JSON.stringify(currentSnapshot),'Reload or second session returned different financial values');else baseline=structuredClone(currentSnapshot);
+ checks++;const proof={passed:true,authorizedSession:activeSession,checks,refreshes,versionId:VERSION,contentHash:HASH,publicationId:PUBLICATION,rows:data.length,zeroPreserved:data[0].Actual===0,missingYtdPreserved:data[0].Source_YTD===null,negativePreserved:data[1].Actual===-25,leadingZeroGlPreserved:excel[0].GL==='004110',screenCsvXlsxPrintParity:true,versionReadbackVerified:true,secondSessionVerified:calls.A.finance>0&&calls.B.finance>0,reads:calls};document.querySelector('#result').textContent=JSON.stringify(proof,null,2);return proof;
+}
+async function refresh(session=activeSession){try{activeSession=session;document.querySelector('#session').textContent='Authorized fixture Session '+activeSession;currentSnapshot=await mountCloseReport(document.querySelector('#report'),clients[activeSession],CID,PERIOD);refreshes++;await evidence();}catch(error){document.querySelector('#result').textContent=JSON.stringify({passed:false,error:error.message});}}
+document.querySelector('#refresh').onclick=()=>refresh();document.querySelector('#second').onclick=()=>refresh('B');document.querySelector('#first').onclick=()=>refresh('A');document.querySelector('#verify').onclick=()=>evidence().catch(error=>document.querySelector('#result').textContent=JSON.stringify({passed:false,error:error.message}));document.querySelector('#preview').onclick=()=>{const frame=document.createElement('iframe');frame.title='Canonical snapshot print markup';frame.srcdoc='<!doctype html><html><body>'+closeReportHtml(currentSnapshot)+'</body></html>';document.querySelector('#print').replaceChildren(frame);};
+await refresh();
+</script></html>

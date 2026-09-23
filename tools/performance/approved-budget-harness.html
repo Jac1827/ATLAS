@@ -1,11 +1,22 @@
 <!doctype html><meta charset="utf-8"><title>Shared original budget approval fixture</title><pre id="result">Review fixture</pre>
 <script type="module">
-import {reviewOriginalBudget} from '../../docs/portfolio-operations-dashboard/features/approved-budget.mjs';
+import {reviewOriginalBudget,readBudgetVersion} from '../../docs/portfolio-operations-dashboard/features/approved-budget.mjs';
 const prop={id:'DORO',name:'Synthetic Doro',fiscalYearBegins:'Jan'},year=2026;
 const state={activeScenario:'approved',scenarios:[{id:'approved',name:'Original approved',type:'approved',locked:true}],approvedBudgetImports:{'DORO|2026':{sourceFile:'synthetic-approved-budget.xlsx',sourceSheet:'Budget',effectiveDate:'2026-01-01',rows:[{gl:'5120',name:'GPR',monthly:Array(12).fill(100)},{gl:'6461',name:'Operating expense',monthly:Array(12).fill(0)}]}}};
 const R={app:{state},gl:g=>g==='5120'?{nature:'income',group:'RENTAL INCOME'}:{nature:'expense',group:'UTILITIES'}};
-let saved;
+let saved;const cid='10000000-0000-4000-8000-000000000001',versionId='20000000-0000-4000-8000-000000000001',receiptId='30000000-0000-4000-8000-000000000001';
 window.refreshAtlasClosedFinancials=async()=>{document.querySelector('#result').textContent=JSON.stringify({passed:saved.payload.rows[1].monthly.every(v=>v===0)&&saved.payload.metricMappings.noi.length===2,version:saved.version_id,rows:saved.payload.rows.length,sourceHashKind:saved.payload.sourceHashKind});};
-const central={getStoredProfile:()=>({role:'admin'}),fetchJson:async()=>saved?[saved]:[],rpc:async(name,args)=>{if(name!=='atlas_approve_original_budget')throw Error('Unexpected mutation');saved={version_id:'synthetic-shared-budget',community_id:'fixture',calendar_year:year,status:'locked',source_file:args.p_payload.sourceFile,content_hash:'synthetic-readback',payload:args.p_payload};return saved;}};
-await reviewOriginalBudget({R,central,cid:'fixture',prop,year});
+let central={getStoredProfile:()=>({role:'admin'}),fetchJson:async()=>saved?[saved]:[],rpc:async(name,args)=>{
+ if(name==='atlas_approve_original_budget_governed'){saved={version_id:versionId,community_id:cid,calendar_year:year,status:'locked',source_file:args.p_payload.sourceFile,content_hash:'b'.repeat(64),payload:args.p_payload};return {status:'committed',budget:saved,receipt:{receipt_id:receiptId,version_id:versionId,content_hash:saved.content_hash},publications:[]};}
+ if(name==='atlas_verify_finance_receipt')return {receipt_id:receiptId,status:'readback_verified',version_id:versionId,content_hash:saved.content_hash,source_hash:saved.payload.sourceHash,mapping_version:saved.payload.mappingVersion,actor_id:'fixture-admin',created_at:new Date().toISOString()};
+ throw Error('Unexpected mutation');
+}};
+const query=new URL(location.href).searchParams,actor=query.get('actor')||'fixture-admin-one';
+if(query.has('backend')){
+ const rpc=async(name,args)=>{const r=await fetch('/__budget_fixture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,args,actor})}),data=await r.json();if(!r.ok)throw Error(data.message);return data;};
+ central={getStoredProfile:()=>({role:'admin'}),getSession:()=>({user:{id:actor}}),fetchJson:async()=>{const r=await fetch('/__budget_fixture?actor='+encodeURIComponent(actor));if(!r.ok)throw Error('Fixture read denied');return r.json();},rpc};
+ const display=async()=>{const [row]=await central.fetchJson();if(!row)return false;state.approvedBudgetImports={};const verified=await readBudgetVersion(central,{versionId:row.version_id,contentHash:row.content_hash,cid,year});document.querySelector('#result').textContent=JSON.stringify({passed:verified.payload.rows[1].monthly.every(v=>v===0),session:actor,emptyBrowserStaging:true,version:verified.version_id,hash:verified.content_hash,rows:verified.payload.rows.length,sourceHashKind:verified.payload.sourceHashKind,sourceHash:verified.payload.sourceHash,mappingVersion:verified.payload.mappingVersion});return true;};
+ window.refreshAtlasClosedFinancials=display;
+ if(!(await display()))await reviewOriginalBudget({R,central,cid,prop,year});
+}else await reviewOriginalBudget({R,central,cid,prop,year});
 </script>

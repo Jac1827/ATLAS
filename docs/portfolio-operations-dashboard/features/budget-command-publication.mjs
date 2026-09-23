@@ -1,4 +1,4 @@
-import {reviewOriginalBudget} from './approved-budget.mjs?v=9faf8da48c24e2b1';
+import {reviewOriginalBudget,budgetPublicationStatus} from './approved-budget.mjs?v=ca4e8f29a77b24ca';
 import {readDetail} from './canonical-finance.mjs?v=60c13a0342f297e2';
 /* Explicit, reviewed publication from Budget Builder; never runs in dashboard startup. */
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -7,12 +7,25 @@ const money=v=>numeric(v)?v.toLocaleString('en-US',{style:'currency',currency:'U
 let active;
 function host(){if(window.parent===window||window.parent.location.origin!==location.origin||!window.parent.atlasAccessDecision(12).ok)throw Error('Open Budget Builder inside an authorized ATLAS session.');return window.parent;}
 function dialog(title){active?.remove();const el=document.createElement('dialog');el.style.cssText='width:min(1100px,94vw);max-height:90vh;overflow:auto;background:white;color:#172b4d;border:1px solid #ccd;border-radius:8px;padding:20px';document.body.append(el);el.innerHTML=`<h2>${esc(title)}</h2><div data-body></div><button data-close type="button">Close</button>`;el.querySelector('[data-close]').onclick=()=>el.close();el.onclose=()=>{el.remove();if(active===el)active=null;};active=el;el.showModal();return el;}
-export async function review(){
- const shell=host(),central=shell.ATLAS_CENTRAL,R=window.RBB,state=R.app.state,prop=state.properties.find(p=>p.id===state.activeProperty),year=Number(state.budgetYear);
- const module=await import('./financial-package.mjs?v=49ea086d6d07f300');
+function showPublicationStatus(value){const A=window.RBB?.app;if(A){A.budgetPublicationState=value;A.toast?.(`${value.label}: ${value.message}`,['blocked','conflict','failed'].includes(value.status)?'r':'');}const line=document.querySelector('[data-budget-publication-status]');if(line)line.textContent=`${value.label}: ${value.message}`;return value;}
+export async function review(options={}){
+ const shell=host(),central=shell.ATLAS_CENTRAL,R=window.RBB,state=R.app.state,prop=state.properties.find(p=>p.id===(options.propertyId||state.activeProperty)),year=Number(options.year||state.budgetYear);
+ if(!prop||!Number.isInteger(year))throw Error('Select a community and calendar year before reviewing a budget.');
+ const module=await import('./financial-package.mjs?v=b43f129095c7fac2');
  const [authorized,aliases]=await Promise.all([central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000')]);
  const cid=module.resolveCommunity(prop.name,authorized,aliases).communityId;if(!cid)throw Error('Canonical community mapping required');
- return reviewOriginalBudget({R,central,cid,prop,year});
+ return reviewOriginalBudget({R,central,cid,prop,year,onStatus:showPublicationStatus});
+}
+export async function reviewStaged(){
+ const R=window.RBB,pending=Object.values(R.app.state.approvedBudgetImports||{}).filter(s=>s.rows?.length&&s.stage!=='readback_verified'&&!s.canonicalVersionId);
+ if(!pending.length)return showPublicationStatus(budgetPublicationStatus('nothing_eligible','No staged budget source is eligible here. Accepted import-log entries do not contain approval authority. Import the complete source for review, or use the central approved budget already shown in financial reports.'));
+ host();
+ if(pending.length===1)return review({propertyId:pending[0].propertyId,year:pending[0].year});
+ showPublicationStatus(budgetPublicationStatus('blocked','Select one staged community/year below for explicit Admin review. No approval has been submitted.'));
+ const el=dialog('Staged budget sources — central approval required'),body=el.querySelector('[data-body]');
+ body.innerHTML='<p>Import acceptance is staging only. Review and approve each complete fiscal segment separately.</p>'+pending.map((s,i)=>`<p>${esc(R.app.state.properties.find(p=>p.id===s.propertyId)?.name||s.propertyId)} · ${s.year} · ${esc(s.sourceFile)} <button data-budget-review="${i}">Review for central approval</button></p>`).join('');
+ for(const button of body.querySelectorAll('[data-budget-review]'))button.onclick=async()=>{const s=pending[Number(button.dataset.budgetReview)];try{const result=await review({propertyId:s.propertyId,year:s.year});el.close();return result;}catch(e){showPublicationStatus(budgetPublicationStatus(/already.*locked|conflict/i.test(e.message)?'conflict':'blocked',e.message));}};
+ return el;
 }
 export async function detail(id,metric='gpr') {
  const shell=host();if(!/^[0-9a-f-]{36}$/i.test(id)||!['gpr','expenses'].includes(metric))throw Error('Invalid financial drill-down.');
@@ -32,5 +45,6 @@ export async function detail(id,metric='gpr') {
  body.innerHTML=`${canonicalSummary?`<p>Canonical ${esc(metric)}: Actual ${money(canonicalSummary[metric]?.actual)} · Approved budget ${money(canonicalSummary[metric]?.budget)} · Favorable variance ${money(canonicalSummary[metric]?.variance)}. Close ${esc(canonicalSummary.actualCloseVersion)}.</p><p>The GL reference below follows the approved budget mapping. The reconciled close control above is authoritative; GL YTD is unavailable in this detail view.</p>`:''}<p><strong>${esc(p.builderPropertyName)}</strong> · Community_ID ${esc(row.community_id)} · ${esc(row.period_key)} · Fiscal year ${row.fiscal_year}</p><p>Approved scenario ${esc(p.scenarioId)} · Version ${esc(p.scenarioVersion)} · Publication ${row.version}</p><p>Actuals: ${esc(p.actualSource)} · ${esc(p.sourceTimestamp)}<br>Budget: ${esc(p.budgetSource)}</p><p>${metric==='expenses'?'Positive variance is favorable underspend. Timing differences, missing invoices and true savings require review.':'Variance is actual GPR minus approved budget.'}</p><table style="width:100%"><thead><tr><th>GL</th><th>Description</th><th>Period actual</th><th>Period budget</th><th>Variance</th><th>YTD actual</th><th>YTD budget</th><th>YTD variance</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.glCode)}</td><td>${esc(r.name)}</td>${[r.actual,r.budget,variance(r),r.ytdActual,r.ytdBudget,variance(r,true)].map(v=>`<td>${money(v)}</td>`).join('')}</tr>`).join('')}</tbody></table><p>Fiscal YTD: ${esc(p.fiscalStartPeriod||'Legacy source')} through ${esc(row.period_key)}. YTD coverage is shown only when the published fiscal period is complete. This immutable snapshot remains unchanged by later uploads.</p><button data-back>Back to Community Command</button>`;
  body.querySelector('[data-back]').onclick=()=>{el.close();const url=new URL(shell.location.href);url.searchParams.delete('ccPublication');url.searchParams.delete('ccMetric');url.searchParams.set('tab','2');shell.history.replaceState(null,'',url);shell.setTab(2);};
 }
-window.AtlasBudgetCommand={review:()=>review().catch(e=>alert(e.message)),detail:(id,metric)=>detail(id,metric).catch(e=>alert(e.message))};
+const failure=e=>showPublicationStatus(budgetPublicationStatus(/already.*locked|conflict/i.test(e.message)?'conflict':/Nothing eligible/i.test(e.message)?'nothing_eligible':'blocked',e.message));
+window.AtlasBudgetCommand={review:options=>review(options).catch(failure),reviewStaged:()=>reviewStaged().catch(failure),detail:(id,metric)=>detail(id,metric).catch(e=>alert(e.message))};
 if(new URLSearchParams(location.search).get('investorReader')!=='1'&&window.parent!==window){const params=new URLSearchParams(window.parent.location.search);if(params.has('ccPublication'))window.AtlasBudgetCommand.detail(params.get('ccPublication'),params.get('ccMetric')||'gpr');}

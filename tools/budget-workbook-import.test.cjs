@@ -19,7 +19,7 @@ const v=M.validate('approved_budget_periods',rows,state);v.fileName='RISE 34 Bud
 assert.equal(M.apply(v.type,v,state).applied,550);assert.equal(JSON.stringify(state.actuals),beforeActuals);
 const report=R.investorSources(state).properties['RISE 34th'];
 assert.equal(result.sheetName,'Monthly Budget Rpt');
-assert.deepEqual(Array.from(result.built.years),[2025,2026]);assert.equal(result.reconciliation.clean,true);
+assert.deepEqual(Array.from(result.built.years),[2025,2026]);assert.equal(result.reconciliation.clean,false,'legacy supporting parser cannot certify unchecked source rows');assert(result.reconciliation.unchecked.length||result.reconciliation.rows.length<result.parsed.accounts.length,'incomplete evidence must remain explicit');
 const expected={'2025-08':163589.69067061902,'2025-09':234801.42790035956,'2025-10':233949.84629937098,'2025-11':229867.6447389974,'2025-12':245257.39058442006,'2026-01':234497.2078202534,'2026-02':221869.95570442002,'2026-03':235317.66119775336,'2026-04':236035.02536041202,'2026-05':233570.94245314138,'2026-06':240620.31565730803,'2026-07':209545.79691064137};
 assert.deepEqual(Object.keys(report.periods).sort(),Object.keys(expected).sort());
 for(const [period,noi] of Object.entries(expected)){assert(Math.abs(report.periods[period].noi.budget-noi)<0.05,period+' NOI must reconcile within line-level cent rounding');assert.match(report.periods[period].noi.sources.budget,/Monthly Budget Rpt/);}
@@ -36,12 +36,12 @@ const pc={console,Date,savedData:{'RISE 34th':{}},matchPropertyName:n=>n==='RISE
 for(const snapshot of Object.values(state.approvedBudgetImports)){
  const periods=Object.fromEntries(snapshot.coverage.map(m=>[snapshot.year+'-'+String(m+1).padStart(2,'0'),snapshot.rows.map(r=>({gl:r.gl,budget:r.monthly[m],nature:R.glIndex[r.gl].nature}))]));
  const packet={locked:true,property:{name:'RISE 34th'},year:snapshot.year,effectiveDate:snapshot.effectiveDate,coverage:snapshot.coverage,periodVersions:snapshot.periodVersions,scenario:{id:'approved',name:'Approved'},budgetByPeriod:periods,investorPacketSources:report};
- assert.equal(pc.publishBudgetToAtlas(packet).ok,true);
- assert.equal(pc.publishBudgetToAtlas(packet).ok,true,'retry is idempotent');
+ assert.equal(pc.publishBudgetToAtlas(packet).status,'blocked');
+ assert.equal(pc.publishBudgetToAtlas(packet).published,false,'legacy retry cannot publish');
  const bad=structuredClone(packet);bad.budgetByPeriod[Object.keys(periods)[0]][0].budget++;assert.equal(pc.publishBudgetToAtlas(bad).ok,false);
 }
-assert.equal(Object.keys(pc.savedData['RISE 34th'].financialBudgetLedger).filter(k=>/^20\d{2}-\d{2}$/.test(k)).length,12);
-console.log('PASS actual RISE 34 workbook: approved worksheet, fiscal periods, 12 monthly NOI ties, missing months, version precedence, saved reload and ATLAS publication');
+assert.equal(pc.savedData['RISE 34th'].financialBudgetLedger,undefined,'legacy sync does not create a browser budget ledger');
+console.log('PASS actual RISE 34 workbook: approved worksheet, fiscal periods, 12 monthly NOI ties, missing months, version precedence, staging reload and retired cache publication blocked');
 // Month-only approvals preserve the precision supplied by the owner.
 const monthlyState=R.buildState();M.addCatalogProperties(monthlyState,['RISE 34th']);
 const monthRows=rows.map(r=>r.slice());monthRows.slice(1).forEach(r=>r[r.length-1]='2025-07');
@@ -49,7 +49,7 @@ let mv=M.validate('approved_budget_periods',monthRows,monthlyState);mv.fileName=
 assert.equal(mv.errors.length,0,JSON.stringify(mv.errors.slice(0,3)));assert.equal(M.apply(mv.type,mv,monthlyState).applied,550);
 let current=monthlyState.currentApprovedBudgets['atlas-RISE%2034th'];
 assert.equal(current.approval,'2025-07');assert.equal(current.approvalPrecision,'month');assert.equal(current.startPeriod,'2025-08');assert.equal(current.endPeriod,'2026-07');
-assert.equal(current.status,'current');assert.equal(R.investorSources(monthlyState).properties['RISE 34th'].periods['2026-09'],undefined);
+assert.equal(current.status,'staged');assert.equal(R.investorSources(monthlyState).properties['RISE 34th'].periods['2026-09'],undefined);
 const nextRows=monthRows.map(r=>r.slice());nextRows.slice(1).forEach(r=>{r[2]=Number(r[2])+1;r[r.length-1]='2026-07';});
 let nv=M.validate('approved_budget_periods',nextRows,monthlyState);nv.fileName='replacement.xlsx';nv.sheetName=v.sheetName;
 assert.equal(nv.errors.length,0);assert.equal(M.apply(nv.type,nv,monthlyState).applied,550);

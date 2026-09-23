@@ -1425,7 +1425,7 @@
 </div>
 
 <script src="./atlas_historical_restore_data.js"></script>
-<script src="./atlas-mounts.js?v=3110f1b016207203"></script>
+<script src="./atlas-mounts.js?v=dcc744c52575ae3c"></script>
 <script src="./centralization/atlas-central-client.js?v=aaf34ed3eb7a47f1" data-atlas-central-client="true"></script>
 <script src="./atlas-dashboard-reskin.js?v=99ffd40a8970f8ef"></script>
 <script src="./central-services.js?v=20260919-renewal-period-review"></script>
@@ -24114,7 +24114,7 @@ function getAtlasClosedFinancialVersion(record, period) {
 
 async function refreshAtlasClosedFinancials(year = new Date().getFullYear(), force = false) {
   if (!window.ATLAS_CENTRAL?.getSession()?.user) return;
-  const module = await import("./features/financial-close.mjs?v=b28f66ffab37210c");
+  const module = await import("./features/financial-close.mjs?v=4ea0aa4203c6eab0");
   window.AtlasClosedFinancialCache ||= module.createCache(window.ATLAS_CENTRAL);
   const changed = await window.AtlasClosedFinancialCache.refresh(year, force);
   if (changed) scheduleAtlasSharedRender(false);

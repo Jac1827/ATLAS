@@ -29,13 +29,18 @@
  };
  const go=A.go;
  let packageReview;
- A.openFinancialPackageReview=async function(scope){try{packageReview=await import('./features/financial-package-review.mjs?v=7741e4c6f2c84ae2');await packageReview.openReview(scope);}catch(e){A.toast(e.message,'r');}};
+ A.openFinancialPackageReview=async function(scope){try{packageReview=await import('./features/financial-package-review.mjs?v=6d5d0986f378d0a8');await packageReview.openReview(scope);}catch(e){A.toast(e.message,'r');}};
  const actuals=R.views.actuals;
  function sharedActualsPanel(){
-  setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el)return;try{const m=await import('./features/financial-comparison.mjs?v=362b8d84b4da9762');await m.mountComparison(el,{communityName:A.cp().property.name,year:A.year()});}catch(e){el.textContent=e.message;}},0);
-  return '<div class="panel"><button class="btn pri" onclick="RBB.app.openFinancialPackageReview()">Upload or apply saved financial review</button><p>Upload → reconcile → save review → shared comparison → Admin close → published actuals</p></div><section class="panel" id="shared-financial-comparison"><p>Loading shared actuals…</p></section>';
+  setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el)return;try{const m=await import('./features/financial-comparison.mjs?v=3bf9970402598f5a');await m.mountComparison(el,{communityName:A.cp().property.name,year:A.year()});}catch(e){el.textContent=e.message;}},0);
+  return '<div class="panel"><button class="btn pri" onclick="RBB.app.openFinancialPackageReview()">Upload or read saved financial review</button><p>Upload → classify → confirm → map → reconcile → save review → Admin close → canonical publication → verified readback</p></div><section class="panel" id="shared-financial-comparison"><p>Loading shared actuals…</p></section>';
  }
- R.views.actuals=function(){return sharedActualsPanel()+'<details><summary>Legacy manual-entry worksheet — separate browser data</summary>'+actuals.apply(this,arguments)+'</details>';};
+ R.views.actuals=function(){return sharedActualsPanel();};
+ const convertRead=A.convertReadFile,convertPanel=R.views._convertPanel;
+ A.inspectSupportingOnly=false;
+ R.views._convertPanel=function(){return '<div class="panel"><h3>Monthly actuals intake</h3><p>BCR is authoritative. Each selected month receives a separate review and close; T12 cannot create closes.</p><button class="btn pri" onclick="RBB.app.openFinancialPackageReview()">Review a monthly BCR package</button><label><input type="checkbox" '+(A.inspectSupportingOnly?'checked':'')+' onchange="RBB.app.inspectSupportingOnly=this.checked"> Inspect supporting or operational sources only</label></div>'+convertPanel.apply(this,arguments);};
+ A.convertReadFile=function(file){if(!A.inspectSupportingOnly&&/\.(xlsx|pdf)$/i.test(file.name))return A.openFinancialPackageReview({file});return convertRead.call(this,file);};
+ A.convertValidate=function(){A.toast('This converter is supporting evidence only. Use Review a monthly BCR package to save a governed actuals review.','r');};
  const vsactual=R.views.vsactual;
  if(vsactual)R.views.vsactual=function(){return sharedActualsPanel()+'<details><summary>Legacy scenario comparison — separate browser data</summary>'+vsactual.apply(this,arguments)+'</details>';};
  A.go=function(view,opts){
@@ -57,9 +62,9 @@
   dialog.addEventListener('close',()=>dialog.remove(),{once:true});document.body.append(dialog);render();dialog.showModal();input.focus();
  };
  document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();A.openCommandMenu();}});
- if(typeof window!=='undefined'&&window.parent!==window&&new URLSearchParams(location.search).get('investorReader')!=='1')import('./features/financial-close.mjs?v=b28f66ffab37210c').then(async m=>{
+ if(typeof window!=='undefined'&&window.parent!==window&&new URLSearchParams(location.search).get('investorReader')!=='1')import('./features/financial-close.mjs?v=4ea0aa4203c6eab0').then(async m=>{
    const central=window.parent.ATLAS_CENTRAL;if(!central||!window.parent.atlasAccessDecision?.(12)?.ok)return;
-   const [communities,aliases,matcher]=await Promise.all([central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000'),import('./features/financial-package.mjs?v=49ea086d6d07f300')]);
+   const [communities,aliases,matcher]=await Promise.all([central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000'),import('./features/financial-package.mjs?v=b43f129095c7fac2')]);
    const resolve=name=>matcher.resolveCommunity(name,communities,aliases).communityId;
    m.installBuilder(R,central,resolve);
    const utility=await import('./features/utility-forecast-ui.mjs');

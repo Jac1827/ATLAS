@@ -1,3 +1,5 @@
+import {FINANCIAL_MAPPING_VERSION,FINANCIAL_PARSER_VERSION,normalizeFinancialLabel,buildFinancialHierarchy,auditFinancialLeaves,evaluateFinancialPackageSafety,finalizeFinancialPackageEvidence} from './financial-row-reconciliation.mjs?v=b96a0310a8de2fb6';
+export {evaluateFinancialPackageSafety,finalizeFinancialPackageEvidence};
 /* Statement extraction is a review candidate, never a publication or approval. */
 export const SCHEMA_VERSION = 1;
 export const CLOSE_SOURCE = 'budget_comparison';
@@ -48,67 +50,77 @@ function makeRow(code,name,values,location,section) {
  fields.forEach((key,i)=>{const raw=values[i];let v=financialValue(typeof raw==='string'?raw.replace(/%$/,''):raw);if(key.endsWith('Percent')&&typeof raw==='string'&&raw.endsWith('%')&&v.value!==null)v={...v,value:v.value/100};row.values[key]=v.value;row.coverage[key]=v.status;});
  return row;
 }
-export function parseComparisonLines(text,source={}) {
- if(classifyStatement(text)!==CLOSE_SOURCE)return {classification:classifyStatement(text),rows:[],metadata:null,exceptions:[]};
- const rows=[],exceptions=[];let section=null;
- // Only complete nine-column rows are accepted. Ambiguous OCR columns stay in review.
- for(const [index,line] of String(text).split(/\r?\n/).entries()) {
-  const trimmed=line.trim();if(/^(Income|Operating Expenses|Expenses|Non[- ]Operating.*|Other Expenses|Debt Service|Capital.*)$/i.test(trimmed))section=trimmed;
-  const numbers=[...trimmed.matchAll(/(?:^|\s)(\(?-?\d[\d,]*\.\d{2}\)?%?|N\/A|—|–)(?=\s|$)/g)];
-  if(!numbers.length)continue;
-  const prefix=trimmed.slice(0,numbers[0].index).trim(),gl=prefix.match(/^(\d{4,8}(?:[-.]\d+)?)\s+(.+)$/);
-  const code=gl?.[1]||null,name=(gl?.[2]||prefix).replace(/\s+/g,' '),parts=numbers.map(n=>n[1]);
-  if(!code&&!/^(?:Total\b|Net\b|Cash Flow\b|Controllable Cash Flow\b)/i.test(name))continue;
-  if(parts.length!==9){exceptions.push({code:'column_coverage',page:source.page,line:index+1,glCode:code,description:'Expected nine comparison columns; review source layout.'});continue;}
-  rows.push(makeRow(code,name,parts,{...source,line:index+1},section));
+const colName=index=>{let result='';for(let n=index+1;n;n=Math.floor((n-1)/26))result=String.fromCharCode(65+(n-1)%26)+result;return result;};
+const hasValue=value=>value!==null&&value!==undefined&&String(value).trim()!=='';
+const PERIOD=/^20\d{2}-(0[1-9]|1[0-2])$/;
+function monthPeriod(value){const match=String(value??'').match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+(20\d{2})\b/i);return match?match[2]+'-'+String(months.indexOf(match[1].toLowerCase())+1).padStart(2,'0'):PERIOD.test(String(value))?String(value):null;}
+function columnEvidence(matrix,sheet,metadata){
+ const headerIndex=matrix.findIndex(row=>row.some(value=>/^Account(?: Code)?$/i.test(String(value||'').trim()))&&row.some(value=>/^Account Name$/i.test(String(value||'').trim()))),header=matrix[headerIndex]||[],group=matrix[headerIndex-1]||[],width=Math.max(...matrix.map(row=>row.length),0),columns=[];
+ let inherited='';
+ for(let index=0;index<width;index++){
+  if(hasValue(group[index]))inherited=String(group[index]);const name=normalizeFinancialLabel(header[index]),groupLabel=inherited,exact=/^(Actual|Budget|\$ Variance|% Variance|Annual Budget)$/i.test(name),ytd=/\bYTD\b/i.test(groupLabel),p=monthPeriod(groupLabel);
+  let type='supporting';if(/^Account(?: Code)?$/i.test(name))type='gl_identity';else if(/^Account Name$/i.test(name))type='account_label';else if(/^Annual Budget$/i.test(name))type='annual_budget';else if(exact&&/^Actual$/i.test(name))type=ytd?'ytd_actual':p?'monthly_actual':'unconfirmed_actual';else if(exact&&/^Budget$/i.test(name))type=ytd?'ytd_budget':'monthly_budget';else if(/Variance/i.test(name))type=ytd?'ytd_variance':'variance';else if(/\b20\d{2}\b/.test(name))type='supporting_period';
+  columns.push({sheet,column:colName(index),index,header:[groupLabel,name].filter(Boolean).join(' / '),rawHeader:name,groupHeader:groupLabel,headerRow:headerIndex+1,type,period:['monthly_actual','monthly_budget','variance'].includes(type)?p:null,affectedPeriod:p||metadata?.period||null,rowCount:matrix.filter(row=>hasValue(row[index])).length});
  }
- return {classification:CLOSE_SOURCE,metadata:statementMetadata(text),rows,exceptions};
+ const actuals=columns.filter(column=>column.type==='monthly_actual'),actual=actuals.length===1?actuals[0]:null,fieldColumns={};
+ if(actual){fieldColumns.actual=actual;const range=columns.filter(column=>column.index>=actual.index&&column.index<actual.index+4);fieldColumns.budget=range.find(column=>column.type==='monthly_budget');fieldColumns.displayedVariance=range.find(column=>/^\$ Variance$/i.test(column.rawHeader));fieldColumns.displayedPercent=range.find(column=>/^% Variance$/i.test(column.rawHeader));}
+ const ytd=columns.find(column=>column.type==='ytd_actual');if(ytd){fieldColumns.ytdActual=ytd;fieldColumns.ytdBudget=columns.find(column=>column.index>ytd.index&&column.type==='ytd_budget');fieldColumns.displayedYtdVariance=columns.find(column=>column.index>ytd.index&&/^\$ Variance$/i.test(column.rawHeader));fieldColumns.displayedYtdPercent=columns.find(column=>column.index>ytd.index&&/^% Variance$/i.test(column.rawHeader));}fieldColumns.annualBudget=columns.find(column=>column.type==='annual_budget');
+ const exclusions=columns.filter(column=>column.rowCount&& !['gl_identity','account_label','monthly_actual'].includes(column.type)).map(column=>({...column,included:false,reason:'This column is '+column.type.replaceAll('_',' ')+' evidence, not the selected monthly actual column.',coverageEffect:'Retained as supporting evidence; creates no monthly actuals or additional closes.',reviewedBy:null}));
+ return {headerIndex,columns,fieldColumns,selectedActualColumn:actual,exclusions,exceptions:actuals.length!==1?[{code:'actual_column_ambiguity',sheet,description:'Expected exactly one explicit monthly Actual column paired with a reporting month; found '+actuals.length}]:actual.period!==metadata?.period?[{code:'actual_period_conflict',sheet,description:'Monthly actual column differs from the printed statement period.'}]:[]};
 }
-export function parseComparisonSheet(matrix,sheet) {
- const header=matrix.slice(0,9).map(r=>r.filter(v=>v!==null&&v!==undefined).join('  ')).join('\n');
- if(classifyStatement(header+'\n'+sheet)!==CLOSE_SOURCE)return {classification:classifyStatement(header+'\n'+sheet),rows:[],metadata:null,exceptions:[]};
- const rows=[],exceptions=[];let section=null;
- for(let i=8;i<matrix.length;i++) {
-  const r=matrix[i]||[],a=String(r[0]??'').trim(),name=String(r[1]??'').trim();
-  if(a&&!name&&!/^\d/.test(a))section=a;
-  const code=/^\d{4,8}(?:[-.]\d+)?$/.test(a)?a:null;
-  if(!code&&!/^(?:Total\b|Net\b|Cash Flow\b|Controllable Cash Flow\b)/i.test(name))continue;
-  const location={sheet,row:i+1,cells:Object.fromEntries(fields.map((f,j)=>[f,String.fromCharCode(67+j)+(i+1)]))};
-  rows.push(makeRow(code,name,r.slice(2,11),location,section));
+function inventoryItem({sheet,row,values,cells,sourceHash,mappingVersion,columnMapping,rawLabel,disposition,reason,sectionBoundary=false}){
+ const rawCells=[];for(let index=0;index<values.length;index++){const address=colName(index)+row,cell=cells?.[address],value=values[index];if(!hasValue(value)&&!cell?.f)continue;rawCells.push({address,column:colName(index),value:value??null,type:cell?.t||typeof value,...(cell?.f?{formula:cell.f,cachedValue:cell.v??null,hasCachedValue:cell.t!=='z'&&cell.v!==undefined&&cell.v!==null}:{} )});}
+ const actualColumn=columnMapping?.actual,raw=actualColumn?values[actualColumn.index]:null,amount=financialValue(raw);
+ return {id:sheet+'!'+row,sheet,row,rawLabel:rawLabel??values.filter(hasValue).slice(0,2).join(' '),normalizedLabel:normalizeFinancialLabel(rawLabel??values.filter(hasValue).slice(0,2).join(' ')),disposition,reason,sourceHash:sourceHash||null,mappingVersion,included:['mapped_leaf','mapped_control'].includes(disposition),sectionBoundary,columnMapping:columnMapping||{},rawCells,actual:{value:amount.value,status:amount.status,type:raw===null||raw===undefined?'blank':typeof raw,blank:amount.status==='missing',column:actualColumn?.column||null,period:actualColumn?.period||null}};
+}
+export function parseComparisonSheet(matrix,sheet,options={}) {
+ const sourceHash=options.sourceHash||null,mappingVersion=options.mappingVersion||FINANCIAL_MAPPING_VERSION,header=matrix.slice(0,20).map(row=>row.slice(0,12).filter(hasValue).join('  ')).join('\n'),classification=classifyStatement(header+'\n'+sheet),metadata=classification===CLOSE_SOURCE?statementMetadata(header):null,column=columnEvidence(matrix,sheet,metadata),rows=[],inventory=[],exceptions=classification===CLOSE_SOURCE?[...column.exceptions]:[];let section=null;
+ const fallback=Object.fromEntries(fields.map((field,index)=>[field,{sheet,index:index+2,column:colName(index+2),type:'unconfirmed',period:null,header:'Unconfirmed comparison column'}]));
+ const mapped=Object.fromEntries(fields.map(field=>[field,column.fieldColumns[field]||fallback[field]]));
+ const accountIndex=column.columns.find(item=>item.type==='gl_identity')?.index??0,nameIndex=column.columns.find(item=>item.type==='account_label')?.index??1;
+ for(let index=0;index<matrix.length;index++){
+  const values=matrix[index]||[],row=index+1,cells=options.cells;if(!values.some(hasValue)&&!Object.keys(cells||{}).some(address=>new RegExp('^[A-Z]+'+row+'$').test(address)&&cells[address]?.f))continue;
+  const rawCode=normalizeFinancialLabel(values[accountIndex]),name=normalizeFinancialLabel(values[nameIndex]),code=/^\d{4,8}(?:[-.]\d+)?$/.test(rawCode)?rawCode:null,actual=financialValue(values[mapped.actual.index]);let disposition='unresolved',reason='Unrecognized data-bearing statement row.';const rawLabel=[rawCode,name].filter(Boolean).join(' ');
+  const sectionBoundary=classification===CLOSE_SOURCE&&index>column.headerIndex&&rawCode&&!name&&!code&&!values.slice(Math.max(accountIndex,nameIndex)+1).some(hasValue);
+  if(classification!==CLOSE_SOURCE){disposition='supporting';reason=classification==='t12'?'T12 supports historical review; normal monthly intake creates no closes from this sheet.':'This '+classification+' sheet is retained as supporting evidence, not monthly actual authority.';}
+  else if((column.headerIndex>=0?index<=column.headerIndex:index<8&&!code&&!fields.some(field=>hasValue(values[mapped[field].index])))||sectionBoundary){disposition='header_or_section';reason=sectionBoundary?'Explicit printed section boundary.':'Statement identity, period or column header.';if(sectionBoundary)section=rawCode;}
+  else if(/^(?:memo|statistical|statistics|occupancy|unit count|square footage|units\b|per unit\b|per sq\b)/i.test(name||rawCode)||/^(?:memo|statistical|statistics)\b/i.test(section||'')){disposition='memo_statistical';reason='Explicitly labeled memo/statistical evidence; excluded from financial posting sums.';}
+  else if(code){disposition='mapped_leaf';reason='Source GL account mapped to the selected monthly actual column.';}
+  else if(!rawCode&&name&&(hasValue(values[mapped.actual.index])||fields.some(field=>hasValue(values[mapped[field].index])))){disposition='mapped_control';reason='Printed financial subtotal or total; requires bounded child-row reconciliation.';}
+  else if(!values.slice(Math.max(accountIndex,nameIndex)+1).some(hasValue)&&/^(?:generated|page\s+\d|data as of|report filters|accounting basis)/i.test(rawLabel)){disposition='header_or_section';reason='Printed report footer or generation metadata.';}
+  const item=inventoryItem({sheet,row,values,cells,sourceHash,mappingVersion,columnMapping:mapped,rawLabel,disposition,reason,sectionBoundary});if(code)item.glCode=code;inventory.push(item);
+  if(['mapped_leaf','mapped_control'].includes(disposition)){
+   const location={sheet,row,rowId:item.id,cells:Object.fromEntries(fields.map(field=>[field,mapped[field].column+row]))},record=makeRow(code,name,fields.map(field=>values[mapped[field].index]),location,section);record.columnMapping=mapped;record.sourceHash=sourceHash;record.mappingVersion=mappingVersion;rows.push(record);
+  }else if(disposition==='unresolved')exceptions.push({code:'unresolved_source_row',sourceRowId:item.id,description:rawLabel||'Unlabeled data-bearing row'});
  }
- return {classification:CLOSE_SOURCE,metadata:statementMetadata(header),rows,exceptions};
+ const rowsByAddress=new Map(rows.map(row=>[row.source.cells.actual,row]));
+ return {classification,metadata,rows,exceptions,inventory,columnExclusions:classification===CLOSE_SOURCE?column.exclusions:[],selectedActualColumn:classification===CLOSE_SOURCE?column.selectedActualColumn:null,context:{cells:options.cells||{},actualColumn:column.selectedActualColumn?.column,headerByColumn:Object.fromEntries(column.columns.map(column=>[column.column,column.rawHeader])),rowsByAddress},sourceSheet:{sheet,classification,inventoryCount:inventory.length,columns:column.columns,sourceHash},mappingVersion};
+}
+export function parseComparisonLines(text,source={}) {
+ const classification=classifyStatement(text),sheet=source.sheet||'PDF page '+(source.page||1),metadata=classification===CLOSE_SOURCE?statementMetadata(text):null,rows=[],exceptions=[],inventory=[],mappingVersion=source.mappingVersion||FINANCIAL_MAPPING_VERSION;let section=null;
+ const mapped=Object.fromEntries(fields.map((field,index)=>[field,{sheet,column:'text-column-'+(index+1),index,type:index===0?'monthly_actual':index===1?'monthly_budget':index>=4&&index<=7?'ytd_supporting':index===8?'annual_budget':'variance',header:field,period:index<4?metadata?.period:null,method:'printed_nine_column_budget_comparison'}]));
+ for(const [index,line]of String(text).split(/\r?\n/).entries()){
+  const trimmed=line.trim();if(!trimmed)continue;const number=index+1,numbers=[...trimmed.matchAll(/(?:^|\s)(\(?-?\d[\d,]*\.\d{2}\)?%?|N\/A|—|–)(?=\s|$)/g)],prefix=numbers.length?trimmed.slice(0,numbers[0].index).trim():trimmed,gl=prefix.match(/^(\d{4,8}(?:[-.]\d+)?)\s+(.+)$/),code=gl?.[1]||null,name=normalizeFinancialLabel(gl?.[2]||prefix),parts=numbers.map(match=>match[1]),control=!code&&/^(?:Total\b|Net\b|Cash Flow\b|Controllable Cash Flow\b)/i.test(name);let disposition='header_or_section',reason='Printed identity, header, footer or section boundary.';
+  const sectionBoundary=!numbers.length&& !/budget|comparison|income statement|accrual basis|cash basis|^property:|20\d{2}|generated|^page |^account\b|variance|^YTD/i.test(trimmed)&&trimmed!==metadata?.sourceProperty;
+  if(sectionBoundary)section=trimmed;
+  if(classification!==CLOSE_SOURCE){disposition='supporting';reason='Supporting '+classification+' page; never monthly actual authority.';}
+  else if(numbers.length&&(code||control)){disposition=parts.length===9?(code?'mapped_leaf':'mapped_control'):'unresolved';reason=parts.length===9?'Nine printed comparison columns retain monthly, YTD and budget roles.':'Expected nine unambiguous comparison columns.';}
+  else if(numbers.length){disposition=/^(?:memo|statistical|occupancy|unit count|units\b)/i.test(name)?'memo_statistical':'unresolved';reason='Numeric source line is not mapped to a posting or bounded total.';}
+  const item={id:sheet+'!'+number,sheet,row:number,rawLabel:prefix,normalizedLabel:name,rawText:line,rawCells:parts.map((value,i)=>({address:'text-column-'+(i+1)+'-line-'+number,column:'text-column-'+(i+1),value,type:'s'})),glCode:code,disposition,reason,included:['mapped_leaf','mapped_control'].includes(disposition),sectionBoundary:disposition==='header_or_section'&&sectionBoundary,sourceHash:source.sourceHash||null,mappingVersion,columnMapping:mapped,actual:{...financialValue(parts[0]),type:typeof parts[0],blank:!hasValue(parts[0]),column:'text-column-1',period:metadata?.period}};inventory.push(item);
+  if(['mapped_leaf','mapped_control'].includes(disposition)){const record=makeRow(code,name,parts,{...source,sheet,row:number,line:number,rowId:item.id,cells:Object.fromEntries(fields.map((field,i)=>[field,'text-column-'+(i+1)+'-line-'+number]))},section);record.columnMapping=mapped;record.sourceHash=source.sourceHash||null;record.mappingVersion=mappingVersion;rows.push(record);}
+  if(disposition==='unresolved')exceptions.push({code:'unresolved_source_row',sourceRowId:item.id,page:source.page,line:number,glCode:code,description:reason});
+ }
+ return {classification,rows,metadata,exceptions,inventory,columnExclusions:fields.slice(1).map(field=>({...mapped[field],included:false,reason:'Supporting comparison column, not monthly actuals.',affectedPeriod:metadata?.period,rowCount:rows.length,coverageEffect:'No additional actuals or closes.'})),selectedActualColumn:classification===CLOSE_SOURCE?{...mapped.actual,header:metadata?.period+' / Actual'}:null,sourceSheet:{sheet,classification,inventoryCount:inventory.length,sourceHash:source.sourceHash||null},mappingVersion};
 }
 export function reconcileComparison(parts) {
- const candidates=parts.filter(p=>p.classification===CLOSE_SOURCE),rows=candidates.flatMap(p=>p.rows),exceptions=candidates.flatMap(p=>p.exceptions),checks=[];
- const seen=new Set();
- for(const row of rows.filter(r=>r.kind==='posting')) {
-  if(seen.has(row.glCode))exceptions.push({code:'duplicate_gl',glCode:row.glCode});seen.add(row.glCode);
-  for(const field of ['actual','budget','ytdActual','ytdBudget','annualBudget'])if(row.values[field]===null)exceptions.push({code:'missing_amount',glCode:row.glCode,field});
- }
- // Section controls are recomputed from posting rows only, never sums of cached subtotals.
- const sum=(items,field)=>items.length&&items.every(r=>r.values[field]!==null)?items.reduce((n,r)=>n+cents(r.values[field]),0)/100:null;
- const incomeEnd=rows.findIndex(r=>r.kind==='control'&&/^Total Income$/i.test(r.accountName));
- let expenseEnd=rows.findIndex(r=>r.kind==='control'&&/^Total (?:Operating )?Expenses$/i.test(r.accountName));
- if(expenseEnd<0)expenseEnd=rows.findIndex(r=>r.kind==='control'&&/^Net Operating Income(?:\s*\(NOI\))?$/i.test(r.accountName));
- const noi=rows.find(r=>r.kind==='control'&&/^Net Operating Income(?:\s*\(NOI\))?$/i.test(r.accountName));
- const income=incomeEnd>=0?rows.slice(0,incomeEnd).filter(r=>r.kind==='posting'):[];
- const expense=incomeEnd>=0&&expenseEnd>incomeEnd?rows.slice(incomeEnd+1,expenseEnd).filter(r=>r.kind==='posting'):[];
- function check(label,source,calculated,field,location){checks.push({label,field,source,calculated,difference:source!==null&&calculated!==null?(cents(calculated)-cents(source))/100:null,sourceLocation:location,passed:source!==null&&calculated!==null&&cents(calculated)===cents(source)});}
- for(const field of ['actual','budget','ytdActual','ytdBudget','annualBudget']){
-  const inc=sum(income,field),exp=sum(expense,field);
-  check('Total Income',rows[incomeEnd]?.values[field]??null,inc,field,rows[incomeEnd]?.source);
-  if(rows[expenseEnd]!==noi)check('Total Expenses',rows[expenseEnd]?.values[field]??null,exp,field,rows[expenseEnd]?.source);
-  check('Net Operating Income',noi?.values[field]??null,inc!==null&&exp!==null?(cents(inc)-cents(exp))/100:null,field,noi?.source);
- }
- // Source variance direction must be reviewed against canonical GL nature. Detect arithmetic
- // errors without inferring favorable/unfavorable from the account's sign or number.
- for(const row of rows)for(const [a,b,v] of [['actual','budget','displayedVariance'],['ytdActual','ytdBudget','displayedYtdVariance']]){
-  if([a,b,v].every(k=>row.values[k]!==null)&&Math.abs(Math.abs(cents(row.values[a])-cents(row.values[b]))-Math.abs(cents(row.values[v])))>1)exceptions.push({code:'variance_mismatch',glCode:row.glCode,source:row.source,field:v});
- }
- const identities=candidates.map(p=>p.metadata).filter(Boolean);
- if(!identities.length||identities[0].basis!=='accrual'||identities.some(m=>!m.sourceProperty||!m.period))exceptions.push({code:'missing_identity_period_or_basis'});
- if(new Set(identities.map(m=>`${m.sourceProperty}|${m.period}|${m.basis||identities[0].basis}|${m.ytdStart}`)).size>1)exceptions.push({code:'conflicting_source_scope'});
- return {schemaVersion:SCHEMA_VERSION,metadata:identities[0]||null,rows,checks,exceptions,technicalReconciled:checks.length>0&&checks.every(c=>c.passed)&&exceptions.length===0,status:'Import Review',accountingApproval:'Owner-confirmed upstream Accounting approval',publicationStatus:'Not published'};
+ const candidates=parts.filter(part=>part.classification===CLOSE_SOURCE),rows=candidates.flatMap(part=>part.rows),exceptions=candidates.flatMap(part=>part.exceptions),inventory=parts.flatMap(part=>part.inventory||[]).map(item=>structuredClone(item)),identities=candidates.map(part=>part.metadata).filter(Boolean),metadata=identities[0]||null;
+ if(!identities.length||metadata?.basis!=='accrual'||identities.some(item=>!item.sourceProperty||!item.period))exceptions.push({code:'missing_identity_period_or_basis'});
+ if(new Set(identities.map(item=>`${item.sourceProperty}|${item.period}|${item.basis||metadata.basis}|${item.ytdStart}`)).size>1)exceptions.push({code:'conflicting_source_scope'});
+ const contexts=Object.fromEntries(candidates.filter(part=>part.context).map(part=>[part.sourceSheet.sheet,part.context])),hierarchy=buildFinancialHierarchy(rows,inventory,contexts),leaf=auditFinancialLeaves(rows,inventory,metadata);exceptions.push(...hierarchy.exceptions,...leaf.exceptions);
+ for(const row of rows)for(const [a,b,v]of [['actual','budget','displayedVariance'],['ytdActual','ytdBudget','displayedYtdVariance']])if([a,b,v].every(key=>row.values[key]!==null)&&Math.abs(Math.abs(cents(row.values[a])-cents(row.values[b]))-Math.abs(cents(row.values[v])))>1)exceptions.push({code:'variance_mismatch',glCode:row.glCode,source:row.source,field:v});
+ const actualColumns=candidates.map(part=>part.selectedActualColumn).filter(Boolean),counts=Object.fromEntries(['mapped_leaf','mapped_control','header_or_section','memo_statistical','supporting','duplicate','excluded','unresolved'].map(disposition=>[disposition,inventory.filter(item=>item.disposition===disposition).length]));
+ const evidence={version:1,parserVersion:FINANCIAL_PARSER_VERSION,sourceKind:'bcr',workflow:'monthly_close',mappingVersion:FINANCIAL_MAPPING_VERSION,communityConfirmed:false,periodConfirmed:false,exclusionsReviewed:false,rowInventory:inventory,inventoryCounts:{total:inventory.length,...counts},leafChecks:leaf.leafChecks,hierarchy:hierarchy.hierarchy,selectedActualColumn:actualColumns[0]||null,selectedActualColumns:actualColumns,columnExclusions:parts.flatMap(part=>part.columnExclusions||[]),sourceSheets:parts.map(part=>part.sourceSheet).filter(Boolean),coverage:{classification:'full_month',carryInPeriods:[],reason:'Printed monthly BCR period; canonical coverage policy and Accounting confirmation must be reviewed.'}};
+ const certificate={schemaVersion:SCHEMA_VERSION,metadata,rows,checks:hierarchy.checks,exceptions,intakeEvidence:evidence,technicalReconciled:false,safeToImport:false,status:'Import Review',accountingApproval:'Requires explicit Accounting source confirmation',publicationStatus:'Not published'},safety=evaluateFinancialPackageSafety(certificate);certificate.technicalReconciled=safety.technicalReconciled;certificate.safetyIssues=safety.issues;return certificate;
 }
 export function resolveCommunity(sourceName,communities,aliases) {
  const key=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,' ');

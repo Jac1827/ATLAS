@@ -1,5 +1,6 @@
-import {mountCloseControls,readYear,coverage,readRows} from './financial-close.mjs?v=b28f66ffab37210c';
-import {resolveCommunity} from './financial-package.mjs?v=49ea086d6d07f300';
+import {readFinance} from './canonical-finance.mjs?v=60c13a0342f297e2';
+import {mountCloseControls,readYear,coverage,readRows} from './financial-close.mjs?v=4ea0aa4203c6eab0';
+import {resolveCommunity} from './financial-package.mjs?v=b43f129095c7fac2';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>n===null||n===undefined?'Missing':Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 export function centralClient(){const host=window.parent;if(host===window||host.location.origin!==location.origin||!host.atlasAccessDecision?.(12)?.ok)throw Error('Open Budget Builder in your signed-in ATLAS workspace.');return host.ATLAS_CENTRAL;}
@@ -13,19 +14,10 @@ export async function applyReview(reviewId,{reason,expectedVersionId=null}={}){
 }
 export async function applyControls(container,review,status){
  const central=centralClient();
- const heads=await central.fetchJson(`/atlas_financial_comparison_heads?community_id=eq.${review.community_id}&period_key=eq.${review.period_key}&select=version_id&limit=1`);
- if(!container.isConnected)return;
- container.innerHTML=`<p>Apply <strong>${esc(review.source_property)} · ${esc(review.period_key)}</strong> actuals to the shared comparison. Original budgets and closed actuals stay unchanged.</p>${heads.length?'<label>Reason if replacing the current reviewed comparison <input data-reason maxlength="500"></label>':''}<button data-apply>Apply actuals for comparison</button><p data-apply-result></p>`;
+ container.innerHTML='<p>Review saved centrally. Only an authorized Admin close publishes this month to financial consumers.</p>';
  await mountCloseControls(container,central,review);
- container.querySelector('[data-apply]').onclick=async e=>{
-  e.target.disabled=true;const message=container.querySelector('[data-apply-result]');message.textContent='Saving and verifying shared actuals…';
-  try{const row=await applyReview(review.review_id,{expectedVersionId:heads[0]?.version_id||null,reason:container.querySelector('[data-reason]')?.value});
-   message.textContent=`${row.row_count} GL actual rows saved and read back for ${row.period_key}. Reviewed — not closed. Available in Actuals & Close and Budget vs Actual.`;
-   const url=new URL(location.href);url.searchParams.set('comparisonPeriod',row.period_key);url.searchParams.set('comparisonCommunity',row.community_id);history.replaceState(null,'',url);
-   const open=document.createElement('button');open.textContent='Open saved comparison';open.onclick=()=>{document.querySelector('dialog.financial-package-review')?.close();const R=window.RBB,pid=R.importer.resolveProperty(review.source_property,R.app.state);if(pid)R.app.setProperty(pid);R.app.setYear(Number(row.period_key.slice(0,4)));R.app.go('actuals');};message.append(' ',open);status&&(status.textContent='Actuals applied to shared comparison.');
-  }catch(error){message.textContent=error.message;e.target.disabled=false;}
- };
 }
+
 export async function mountComparison(container,{communityName,period,year}={}){
  if(container.dataset.comparisonMounted)return;container.dataset.comparisonMounted='1';
  let epoch=0;const alive=()=>container.isConnected;
@@ -42,7 +34,8 @@ export async function mountComparison(container,{communityName,period,year}={}){
   async function load(){const token=++epoch;result.replaceChildren();const cid=container.querySelector('[data-community]').value,p=container.querySelector('[data-period]').value;
    if(!cid||!/^20\d{2}-(0[1-9]|1[0-2])$/.test(p)){status.textContent='Choose a community and period.';return;}
    status.textContent='Reading shared actuals…';
-   try{const closedVersions=await readYear(central,cid,Number(p.slice(0,4)));const closed=closedVersions.find(v=>v.period_key===p);const closedCoverage=coverage(closedVersions,Number(p.slice(0,4)));const heads=await central.fetchJson(`/atlas_financial_comparison_heads?community_id=eq.${encodeURIComponent(cid)}&period_key=eq.${p}&select=version_id&limit=1`);if(!alive()||token!==epoch)return;
+   try{const [finance]=await readFinance(central,[cid],[p]);if(!alive()||token!==epoch)return;const policy=finance?.summary?.coveragePolicy;if(policy?.fullMonthAllowed===false){status.textContent=(policy.classification||'Unavailable')+' — '+policy.reason;result.innerHTML='<p>This period is excluded from authoritative full-month actuals. Its original source and any earlier versions remain retained as evidence.</p><p>Retained versions: '+esc((policy.retainedVersionIds||[]).join(', ')||'None')+'</p>';return;}const closedVersions=await readYear(central,cid,Number(p.slice(0,4)));const closed=closedVersions.find(v=>v.period_key===p);const closedCoverage=coverage(closedVersions,Number(p.slice(0,4)));const heads=await central.fetchJson(`/atlas_financial_comparison_heads?community_id=eq.${encodeURIComponent(cid)}&period_key=eq.${p}&select=version_id&limit=1`);if(!alive()||token!==epoch)return;
+    if(closed){status.textContent='Reading the published version for screen and exports…';const {mountCloseReport}=await import('./financial-close-report.mjs?v=9ccd4068c211d2e8');await mountCloseReport(result,central,cid,p);if(!alive()||token!==epoch)return;status.textContent='Published full-month actuals. Screen, PDF, CSV and Excel use the same retained canonical snapshot.';return;}
     if(closed)heads.splice(0,heads.length,{version_id:closed.comparison_version_id});
     if(!heads.length){status.textContent='Missing/Open: no actuals applied for this community and month. Open a saved import review; only Admin close makes it published actuals.';return;}
     const [version]=await central.fetchJson(`/atlas_financial_comparison_versions?version_id=eq.${heads[0].version_id}&select=*&limit=1`);if(!alive()||token!==epoch)return;if(!version)throw Error('The saved version is unavailable.');

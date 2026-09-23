@@ -30,8 +30,8 @@
     ]
   },
   "budget-workbook-import.js": {
-    "sha256": "c1963a3e6f07c1cc",
-    "bytes": 16186,
+    "sha256": "c8841f53b853615c",
+    "bytes": 16394,
     "references": [
       [
         "RISE-Budget-Builder.html",
@@ -126,6 +126,10 @@
       [
         "features/reforecast-import-ui.mjs",
         "./reforecast-intake.mjs"
+      ],
+      [
+        "features/financial-close-report.mjs",
+        "./reforecast-intake.mjs"
       ]
     ]
   },
@@ -212,6 +216,18 @@
     "bytes": 5881,
     "references": [
       [
+        "features/financial-comparison.mjs",
+        "./canonical-finance.mjs"
+      ],
+      [
+        "features/financial-package-review.mjs",
+        "./canonical-finance.mjs"
+      ],
+      [
+        "features/financial-close-report.mjs",
+        "./canonical-finance.mjs"
+      ],
+      [
         "features/approved-budget.mjs",
         "./canonical-finance.mjs"
       ],
@@ -238,8 +254,8 @@
     ]
   },
   "features/approved-budget.mjs": {
-    "sha256": "9faf8da48c24e2b1",
-    "bytes": 8061,
+    "sha256": "ca4e8f29a77b24ca",
+    "bytes": 18251,
     "references": [
       [
         "features/budget-command-publication.mjs",
@@ -391,10 +407,28 @@
       ]
     ]
   },
-  "features/financial-package.mjs": {
-    "sha256": "49ea086d6d07f300",
-    "bytes": 10515,
+  "features/financial-row-reconciliation.mjs": {
+    "sha256": "b96a0310a8de2fb6",
+    "bytes": 18201,
     "references": [
+      [
+        "features/financial-package.mjs",
+        "./financial-row-reconciliation.mjs"
+      ]
+    ]
+  },
+  "features/financial-package.mjs": {
+    "sha256": "b43f129095c7fac2",
+    "bytes": 21708,
+    "references": [
+      [
+        "features/financial-intake-store.mjs",
+        "./financial-package.mjs"
+      ],
+      [
+        "features/financial-workbook-parser.mjs",
+        "./financial-package.mjs"
+      ],
       [
         "features/financial-package-reader.mjs",
         "./financial-package.mjs"
@@ -412,10 +446,6 @@
         "./financial-package.mjs"
       ],
       [
-        "features/financial-workbook-worker.mjs",
-        "./financial-package.mjs"
-      ],
-      [
         "budget-navigation.js",
         "./features/financial-package.mjs"
       ],
@@ -429,9 +459,19 @@
       ]
     ]
   },
+  "features/financial-workbook-parser.mjs": {
+    "sha256": "7675b7ba8a35db69",
+    "bytes": 1725,
+    "references": [
+      [
+        "features/financial-workbook-worker.mjs",
+        "./financial-workbook-parser.mjs"
+      ]
+    ]
+  },
   "features/financial-workbook-worker.mjs": {
-    "sha256": "bcf0b3d21876f138",
-    "bytes": 1383,
+    "sha256": "5337e204154ace77",
+    "bytes": 599,
     "references": [
       [
         "features/financial-package-reader.mjs",
@@ -440,8 +480,8 @@
     ]
   },
   "features/financial-package-reader.mjs": {
-    "sha256": "202fc24b456f463b",
-    "bytes": 4151,
+    "sha256": "12cf6b21cac80433",
+    "bytes": 4323,
     "references": [
       [
         "features/financial-package-review.mjs",
@@ -453,10 +493,32 @@
       ]
     ]
   },
-  "features/financial-close.mjs": {
-    "sha256": "b28f66ffab37210c",
-    "bytes": 17675,
+  "features/financial-intake-store.mjs": {
+    "sha256": "1e43f74af8243a75",
+    "bytes": 6556,
     "references": [
+      [
+        "features/financial-close.mjs",
+        "./financial-intake-store.mjs"
+      ],
+      [
+        "features/financial-package-review.mjs",
+        "./financial-intake-store.mjs"
+      ],
+      [
+        "features/financial-package-batch.mjs",
+        "./financial-intake-store.mjs"
+      ]
+    ]
+  },
+  "features/financial-close.mjs": {
+    "sha256": "4ea0aa4203c6eab0",
+    "bytes": 20037,
+    "references": [
+      [
+        "features/financial-close-report.mjs",
+        "./financial-close.mjs"
+      ],
       [
         "features/financial-comparison.mjs",
         "./financial-close.mjs"
@@ -475,9 +537,19 @@
       ]
     ]
   },
+  "features/financial-close-report.mjs": {
+    "sha256": "9ccd4068c211d2e8",
+    "bytes": 4955,
+    "references": [
+      [
+        "features/financial-comparison.mjs",
+        "./financial-close-report.mjs"
+      ]
+    ]
+  },
   "features/financial-comparison.mjs": {
-    "sha256": "362b8d84b4da9762",
-    "bytes": 11273,
+    "sha256": "3bf9970402598f5a",
+    "bytes": 10495,
     "references": [
       [
         "features/financial-package-review.mjs",
@@ -489,19 +561,9 @@
       ]
     ]
   },
-  "features/financial-package-batch.mjs": {
-    "sha256": "8d35d3092d3f4629",
-    "bytes": 6118,
-    "references": [
-      [
-        "features/financial-package-review.mjs",
-        "./financial-package-batch.mjs"
-      ]
-    ]
-  },
   "features/financial-package-review.mjs": {
-    "sha256": "7741e4c6f2c84ae2",
-    "bytes": 12463,
+    "sha256": "6d5d0986f378d0a8",
+    "bytes": 17086,
     "references": [
       [
         "budget-navigation.js",
@@ -524,8 +586,8 @@
     ]
   },
   "budget-navigation.js": {
-    "sha256": "2ebc4b914fe2fbaa",
-    "bytes": 7588,
+    "sha256": "16ced8eebecedec0",
+    "bytes": 8478,
     "references": [
       [
         "RISE-Budget-Builder.html",
@@ -544,8 +606,8 @@
     ]
   },
   "budget-mapped-import.js": {
-    "sha256": "e0343ab9b035fd3a",
-    "bytes": 11604,
+    "sha256": "25643e22d1a1f074",
+    "bytes": 11317,
     "references": [
       [
         "RISE-Budget-Builder.html",
@@ -584,8 +646,8 @@
     ]
   },
   "features/budget-command-publication.mjs": {
-    "sha256": "0f23871e7f531914",
-    "bytes": 6411,
+    "sha256": "fb93baad5ce01cd2",
+    "bytes": 8846,
     "references": [
       [
         "RISE-Budget-Builder.html",
@@ -624,7 +686,7 @@
     ]
   },
   "investor-budget-bridge.js": {
-    "sha256": "7ff4b3a924bff02d",
+    "sha256": "3358ec86c28637d3",
     "bytes": 19661,
     "references": [
       [
@@ -634,8 +696,8 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "2cb788e8556ed280",
-    "bytes": 1888000,
+    "sha256": "c81046182f5965ae",
+    "bytes": 1888485,
     "references": [
       [
         "atlas-mounts.js",
@@ -644,8 +706,8 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "3110f1b016207203",
-    "bytes": 28901,
+    "sha256": "dcc744c52575ae3c",
+    "bytes": 22240,
     "references": [
       [
         "index.html",

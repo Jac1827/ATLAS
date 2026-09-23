@@ -16,14 +16,22 @@ export async function readYear(central,cid,year){
  return records.filter(r=>r.summary.close).map(r=>({...r.summary.close,financeEnvelope:r.summary})).sort((a,b)=>a.period_key.localeCompare(b.period_key));
 }
 export async function readRows(central,version){const out=[];for(let offset=0;offset<version.row_count;offset+=500){const rows=await central.fetchJson(`/atlas_financial_close_rows?version_id=eq.${version.version_id}&select=*&order=gl_code&limit=500&offset=${offset}`);out.push(...rows);if(!rows.length)break;}if(out.length!==version.row_count)throw Error('Closed GL readback is incomplete.');return out;}
-export async function closeReview(central,review,{expectedVersion=null,reason,accountingApproved=false}={}){
- const response=await central.rpc('atlas_close_financial_review',{p_review_id:review.review_id,p_expected_version_id:expectedVersion,p_reason:reason,p_accounting_approved:accountingApproved});const v=Array.isArray(response)?response[0]:response;
- const [stored]=await central.fetchJson(`/atlas_financial_close_versions?version_id=eq.${v.version_id}&select=*&limit=1`);
- if(stored?.content_hash!==v.content_hash||stored?.status!=='closed')throw Error('Close acknowledgement could not be verified. Reload before retrying.');
- await readRows(central,stored);
- const [report]=await readFinance(central,[stored.community_id],[stored.period_key]);
- if(report?.summary?.actualCloseVersion!==stored.version_id||!report.publication_id)throw Error('Close is stored but reporting readback is not current. Reload before retrying.');
- return stored;
+export async function closeReview(central,review,{expectedVersion=null,reason,accountingApproved=false,requestId=crypto.randomUUID()}={}){
+ const actor=central.getSession?.()?.user?.id;
+ const guard=()=>{if(central.getSession?.()?.user?.id!==actor)throw Error('Session changed while closing the month. Reload shared records.');};
+ const response=await central.rpc('atlas_close_financial_review_governed',{p_review_id:review.review_id,p_expected_version_id:expectedVersion,p_request_id:requestId,p_reason:reason,p_accounting_approved:accountingApproved});guard();
+ const result=Array.isArray(response)?response[0]:response,v=result?.close,receipt=result?.receipt;
+ if(!v?.version_id||!v?.content_hash||!receipt?.receipt_id||receipt.status!=='canonically_published'||receipt.version_id!==v.version_id||receipt.content_hash!==v.content_hash)throw Error('Close did not return a complete publication receipt. Reload before retrying.');
+ const [stored]=await central.fetchJson(`/atlas_financial_close_versions?version_id=eq.${v.version_id}&select=*&limit=1`);guard();
+ if(stored?.version_id!==v.version_id||stored.community_id!==review.community_id||stored.period_key!==review.period_key||stored?.content_hash!==v.content_hash||stored?.status!=='closed')throw Error('Close acknowledgement could not be verified. Reload before retrying.');
+ const detail=await readRows(central,stored);guard();if(detail.some(row=>row.version_id!==stored.version_id||row.community_id!==stored.community_id))throw Error('Closed detail scope or version does not match the committed close.');
+ const [report]=await readFinance(central,[stored.community_id],[stored.period_key]);guard();
+ if(report?.summary?.actualCloseVersion!==stored.version_id||!report.publication_id||!result.publications?.some(p=>p.publication_id===report.publication_id&&p.period_key===stored.period_key))throw Error('Close is stored but reporting readback is not current. Retry verification from the saved review.');
+ const verified=await central.rpc('atlas_verify_finance_receipt',{p_receipt_id:receipt.receipt_id,p_version_id:v.version_id,p_content_hash:v.content_hash});guard();
+ const finalReceipt=Array.isArray(verified)?verified[0]:verified;
+ if(finalReceipt?.status!=='readback_verified'||finalReceipt.version_id!==v.version_id||finalReceipt.content_hash!==v.content_hash)throw Error('Close readback receipt could not be verified.');
+ const {verifyIntakeReceipt}=await import('./financial-intake-store.mjs?v=1e43f74af8243a75');await verifyIntakeReceipt(central,finalReceipt);guard();
+ return {...stored,intakeReceipt:finalReceipt,publicationId:report.publication_id};
 }
 export function createCache(central){
  const byName=new Map(),pending=new Map(),refreshed=new Map();let epoch=0;
@@ -52,14 +60,16 @@ export function createCache(central){
  };return api;
 }
 export async function mountCloseControls(container,central,review){
+ const requestId=crypto.randomUUID();
  const heads=await central.fetchJson(`/atlas_financial_close_heads?community_id=eq.${review.community_id}&period_key=eq.${review.period_key}&accounting_basis=eq.accrual&select=version_id&limit=1`);
  const panel=document.createElement('details');const title=document.createElement('summary');title.textContent=heads.length?'Admin: replace closed version':'Admin: close and publish monthly actuals';panel.append(title);
  const warning=document.createElement('p');warning.textContent=`${review.source_file} · ${review.period_key}. This closes actuals only. Original approved budgets remain unchanged. Replacements retain prior versions.`;panel.append(warning);
  const label=document.createElement('label'),check=document.createElement('input');check.type='checkbox';label.append(check,' I confirm this is the Accounting-approved package and have reviewed community, period, GL mapping and reconciliation.');panel.append(label);
  const reason=document.createElement('textarea');reason.placeholder='Close or replacement reason';reason.setAttribute('aria-label','Close or replacement reason');panel.append(reason);
  const button=document.createElement('button');button.textContent=heads.length?'Replace closed version':'Close and publish actuals';const status=document.createElement('p');status.setAttribute('role','status');panel.append(button,status);container.append(panel);
+ if(!review.certificate?.intakeEvidence){button.disabled=true;status.textContent='This older review lacks the complete source-row evidence required for a new close. Re-upload the source. Existing verified closes remain available.';}
  if(review.period_key>=new Date().toISOString().slice(0,7)){button.disabled=true;status.textContent='This accounting month is still open. Close becomes available after month-end.';}
- button.onclick=async()=>{if(!check.checked||reason.value.trim().length<5){status.textContent='Confirm the review and enter a reason first.';return;}button.disabled=true;try{const v=await closeReview(central,review,{expectedVersion:heads[0]?.version_id||null,reason:reason.value.trim(),accountingApproved:check.checked});status.textContent=`Closed and read back: ${v.period_key} · revision ${v.revision} · ${v.row_count} GLs · ${v.version_id}`;await window.parent.refreshAtlasClosedFinancials?.(Number(v.period_key.slice(0,4)),true);}catch(e){status.textContent=e.message;button.disabled=false;}};
+ button.onclick=async()=>{if(!check.checked||reason.value.trim().length<5){status.textContent='Confirm the review and enter a reason first.';return;}button.disabled=true;try{const v=await closeReview(central,review,{expectedVersion:heads[0]?.version_id||null,reason:reason.value.trim(),accountingApproved:check.checked,requestId});status.textContent=`Readback Verified: ${v.period_key} · revision ${v.revision} · ${v.row_count} GLs · version ${v.version_id} · hash ${v.content_hash} · publication ${v.publicationId} · receipt ${v.intakeReceipt.receipt_id}`;container.dispatchEvent(new CustomEvent('atlas-financial-intake-state',{bubbles:true,detail:v.intakeReceipt}));await window.parent.refreshAtlasClosedFinancials?.(Number(v.period_key.slice(0,4)),true);}catch(e){status.textContent=e.message;button.disabled=false;}};
 }
 export function installBuilder(R,central,resolve){
  if(R.closedFinancial)return;const caches=new Map();let generation=0;R.closedFinancial={caches};
@@ -77,6 +87,8 @@ export function installBuilder(R,central,resolve){
   return engine.call(this,{...state,approvedBudgetImports:{...state.approvedBudgetImports,[pid+'|'+(year||state.budgetYear)]:snapshot}},pid,sid,year);
  };
  R.actuals.get=function(state,pid,gl,year){const c=caches.get(pid+'|'+year);return c?(c.rows.get(String(gl))?.monthly.slice()||null):null;};
+ R.engine.getActuals=function(state,pid,gl,year){return R.actuals.get(state,pid,gl,year);};
+ R.engine.getActualsClean=function(state,pid,gl,year){return R.actuals.get(state,pid,gl,year);};
  R.actuals.closedThrough=function(state,pid,year){const c=caches.get(pid+'|'+year);return c?c.coverage.last:0;};
  R.variance.compute=function(state,calc,pid,year){const c=caches.get(pid+'|'+year);const result=compute.call(this,c?projectBuilderActuals(state,pid,caches):state,calc,pid,year);if(!c)return result;
   const approved=R.engine.getScenario(state,calc.scenarioId).type==='approved';

@@ -45,7 +45,7 @@
       note: "Property budget, monthly view, GL detail, actuals, financial review and exception reporting all run in Budget Builder itself — ATLAS reads the published scenario.",
       barTitle: "RISE Budget Builder",
       barSub: "Standalone finance tool — central Budget and actuals migration required",
-      src: "RISE-Budget-Builder.html?v=2cb788e8556ed280",
+      src: "RISE-Budget-Builder.html?v=c81046182f5965ae",
       background: "#F1F4F6",
       icon: "ph-calculator"
     },
@@ -249,93 +249,10 @@
     }
   }
 
-  function publishBudgetToAtlas(payload) {
-    if (!payload || !payload.locked || !payload.property || !payload.year) {
-      return { ok: false, message: "Only a locked approved scenario can be published to ATLAS." };
-    }
-    try {
-      var propertyName = String(payload.property.name || payload.property.code || "").trim();
-      var matchedName = typeof matchPropertyName === "function"
-        ? matchPropertyName(propertyName, { fallbackToCurrent: false })
-        : propertyName;
-      if (!matchedName && typeof matchPropertyName === "function") {
-        // Budget Builder uses branded property labels (for example, "RISE Doro")
-        // while the shared ATLAS catalog keeps the canonical community name.
-        matchedName = matchPropertyName(propertyName.replace(/^RISE\s+/i, ""), { fallbackToCurrent: false });
-      }
-      if (!matchedName || !savedData || !savedData[matchedName]) {
-        return { ok: false, message: "ATLAS could not match the Budget Builder property to a community." };
-      }
-
-      var timestamp = new Date().toISOString();
-      var record = typeof normalizeSavedCommunityRecord === "function"
-        ? normalizeSavedCommunityRecord(matchedName, JSON.parse(JSON.stringify(savedData[matchedName])))
-        : JSON.parse(JSON.stringify(savedData[matchedName]));
-      const entries = Object.entries(payload.budgetByPeriod || {});
-      const coverage = payload.coverage || Array.from({length:12},(_,i)=>i);
-      if (!coverage.length || new Set(coverage).size!==coverage.length || coverage.some(i=>!Number.isInteger(i)||i<0||i>11) || entries.length!==coverage.length || entries.some(([period,rows])=>!coverage.some(i=>period===Number(payload.year)+"-"+String(i+1).padStart(2,"0")) || !Array.isArray(rows) || !rows.length || rows.some(row=>!Number.isFinite(row.budget)))) {
-        return {ok:false,message:"Budget periods or amounts are invalid. No figures were replaced."};
-      }
-      const values = rows => JSON.stringify((rows || []).map(row => [String(row.glCode || row.gl), row.budget]).sort((a,b) => a[0].localeCompare(b[0])));
-      for(const [period,rows] of entries){
-        const previous=record.financialBudgetLedger?.versionsByPeriod?.[period] || (record.financialBudgetLedger?.[period]?record.financialBudgetLedger?.versions?.[String(payload.year)]:null);
-        const effective=payload.periodVersions?.[Number(period.slice(5))-1] || payload.effectiveDate;
-        if(previous && (!effective || effective<previous.effectiveDate))return {ok:false,message:"A newer approved budget already exists for "+period+". No figures were replaced."};
-        if(previous && effective===previous.effectiveDate && values(rows)!==values(record.financialBudgetLedger[period]))return {ok:false,message:"Different approved amounts already exist for "+period+" with this version date. Review before replacing."};
-      }
-      for (const [period, rows] of Object.entries(payload.actualsByPeriod || {})) {
-        if (!entries.some(([key])=>key===period)) return {ok:false,message:"Actuals must belong to the published reporting periods."};
-        record = window.AtlasFinancialPublication.apply(record,{period,actuals:rows,
-          source:{id:String(payload.sourceFile||payload.scenario.id),file:payload.sourceFile||"RISE Budget Builder",effectiveAt:payload.actualsEffectiveDate||""}});
-      }
-      record.financialBudgetLedger = Object.assign({}, record.financialBudgetLedger || {}, payload.budgetByPeriod || {}, {
-        sourceKind: "rise_budget_builder",
-        sourceFileName: String(payload.sourceFile || "RISE Budget Builder").trim(),
-        scenarioId: String(payload.scenario.id || "").trim(),
-        scenarioName: String(payload.scenario.name || "").trim(),
-        scenarioStatus: String(payload.scenario.status || "").trim(),
-        budgetYear: Number(payload.year),
-        versions: Object.assign({}, record.financialBudgetLedger?.versions || {}, payload.effectiveDate ? {
-          [String(payload.year)]: { effectiveDate: payload.effectiveDate, sourceFile: payload.sourceFile, publishedAt: timestamp }
-        } : {}),
-        versionsByPeriod: Object.assign({}, record.financialBudgetLedger?.versionsByPeriod || {}, Object.fromEntries(entries.map(([period])=>[period,{effectiveDate:payload.periodVersions?.[Number(period.slice(5))-1]||payload.effectiveDate,sourceFile:payload.sourceFile,publishedAt:timestamp}]))),
-        investorPacketSources: payload.investorPacketSources ? {...(record.financialBudgetLedger?.investorPacketSources||{}),...payload.investorPacketSources,periods:{...(record.financialBudgetLedger?.investorPacketSources?.periods||{}),...Object.fromEntries(entries.filter(([period])=>payload.investorPacketSources.periods?.[period]).map(([period])=>[period,payload.investorPacketSources.periods[period]]))}} : record.financialBudgetLedger?.investorPacketSources || null,
-        publishedAt: timestamp
-      });
-      const reference=payload.approvedBudgetReference,prior=record.financialBudgetLedger.currentApprovedBudget;
-      if(reference&&(!prior||reference.endPeriod>prior.endPeriod||(reference.endPeriod===prior.endPeriod&&reference.approval>=prior.approval)))record.financialBudgetLedger.currentApprovedBudget=reference;
-      record.financialUpdatedAt = timestamp;
-      record.financialBudgetUpdatedAt = timestamp;
-      record.importTracking = Object.assign({}, record.importTracking || {}, {
-        financialBudget: Object.assign({}, record.importTracking && record.importTracking.financialBudget || {}, {
-          [String(payload.year)]: { importedAt: timestamp, sourceFileName: "RISE Budget Builder", scenario: payload.scenario.name }
-        })
-      });
-      savedData[matchedName] = typeof normalizeSavedCommunityRecord === "function"
-        ? normalizeSavedCommunityRecord(matchedName, record)
-        : record;
-
-      if (typeof getProp === "function" && getProp() && matchedName === getProp().name) {
-        financialLedger = savedData[matchedName].financialLedger;
-        financialBudgetLedger = savedData[matchedName].financialBudgetLedger;
-        financialUpdatedAt = timestamp;
-        financialBudgetUpdatedAt = timestamp;
-      }
-      if (typeof syncSharedPropertyFromPortfolioRecord === "function") {
-        syncSharedPropertyFromPortfolioRecord(matchedName, savedData[matchedName], { timestamp: timestamp });
-      }
-      if (typeof persistSaved !== "function") return {ok:false,message:"The canonical ATLAS store is unavailable."};
-      var save = persistSaved();
-      var result = {ok:true,published: false, scope: "browser_cache",pending:!!save?.pending,message:"Local cache saved for " + matchedName + ". Shared reporting requires approved original budget and canonical close."};
-      if(save?.completion) result.completion=save.completion.then(function(){
-        result.pending=false;
-        if(!save.ok){result.ok=false;result.message="Financial publication was not saved: "+save.message;}
-      });
-      else if(save?.ok===false){result.ok=false;result.message=save.message;}
-      return result;
-    } catch (err) {
-      return { ok: false, message: "ATLAS could not save this publication: " + String(err && err.message || err) };
-    }
+  function publishBudgetToAtlas() {
+    // Retired: a browser-cache write cannot approve or publish governed budgets.
+    return {ok:false,published:false,status:"blocked",scope:"central_approval_required",publicationId:null,receiptId:null,
+      message:"Blocked: browser-cache budget sync is retired. Open Review staged budgets for central approval; only an Admin-approved version with verified receipt reaches shared reports."};
   }
 
   function publishBudgetContractToAtlas(payload) {
@@ -428,7 +345,7 @@
     if (data.type === "atlas-budget-publish" && isBudgetFrameSource(event.source)) {
       var result = publishBudgetToAtlas(data.payload);
       if(result.completion) await result.completion;
-      try { event.source.postMessage({ type: "atlas-budget-publish-result", requestId:data.requestId, result: {ok:result.ok,published:result.published,scope:result.scope,message:result.message} }, window.location.origin); } catch (err) {}
+      try { event.source.postMessage({ type: "atlas-budget-publish-result", requestId:data.requestId, result: {ok:result.ok,published:result.published,status:result.status,scope:result.scope,publicationId:result.publicationId,receiptId:result.receiptId,message:result.message} }, window.location.origin); } catch (err) {}
       return;
     }
     if (data.type === "atlas-budget-contract-import" && isBudgetFrameSource(event.source)) {

@@ -28,6 +28,8 @@ assert.equal(validate([...rows,rows[1]]).status,'rejected');
 const wrong=rows.map(r=>r.slice());wrong[1][0]='Unknown';assert.equal(validate(wrong).status,'rejected');
 const prior=M.validate('prior_budget',rows,state);M.apply('prior_budget',prior,state);assert.equal(JSON.stringify(state.actuals),actuals);
 assert(!state.approvedBudgetImports['OTHER|2026']);assert(!state.approvedBudgetImports[p.id+'|2025']);
+assert.equal(state.approvedBudgetImports[p.id+'|2026'].stage,'staged');
+assert.equal(state.approvedBudgetImports[p.id+'|2026'].publishedAt,undefined);
 const restored=JSON.parse(JSON.stringify(R.persist.serialize(state,{}))).state;assert(restored.approvedBudgetImports[p.id+'|2026']);
 assert.equal(R.investorSources(restored).properties[p.name].periods['2026-01'].noi.budget,1000);
 console.log('PASS real XLSX multi-sheet/title-row ingestion, exact property/year, engine/reporting reconciliation, version precedence, persistence and actuals isolation');
@@ -42,11 +44,10 @@ const publish=parentCode.slice(parentCode.indexOf('  function publishBudgetToAtl
 const pc={console,Date,savedData:{A:{}},matchPropertyName:n=>n==='A'?'A':null,persistSaved(){},syncSharedPropertyFromPortfolioRecord(){}};vm.createContext(pc);vm.runInContext(publish,pc);
 const periods=Object.fromEntries(Array.from({length:12},(_,i)=>['2026-'+String(i+1).padStart(2,'0'),[{gl:'5120',budget:1000,nature:'income'}]]));
 const packet={locked:true,property:{name:'A'},year:2026,effectiveDate:'2026-09-01',scenario:{id:'x',name:'Approved'},budgetByPeriod:periods};
-assert.equal(pc.publishBudgetToAtlas(packet).ok,true);assert.equal(pc.publishBudgetToAtlas(packet).ok,true);
-const conflicting=structuredClone(packet);conflicting.budgetByPeriod["2026-01"][0].budget=999;assert.equal(pc.publishBudgetToAtlas(conflicting).ok,false);
-assert.equal(pc.publishBudgetToAtlas({...packet,effectiveDate:'2026-08-01'}).ok,false);
-assert.equal(pc.publishBudgetToAtlas({...packet,property:{name:'B'}}).ok,false);
-assert.equal(pc.publishBudgetToAtlas({...packet,effectiveDate:'2026-09-02'}).ok,true);
+const untouched=JSON.stringify(pc.savedData);
+const retired=pc.publishBudgetToAtlas(packet);assert.equal(retired.ok,false);assert.equal(retired.status,'blocked');assert.equal(retired.published,false);assert.equal(retired.receiptId,null);assert.match(retired.message,/central approval/);
+assert.equal(JSON.stringify(pc.savedData),untouched,'retired browser sync must never mutate financial values');
+pc.savedData.A.financialBudgetLedger={};
 const dashboard=fs.readFileSync(dir+'index.html','utf8');
 function fn(name,next){return dashboard.slice(dashboard.indexOf('function '+name+'('),dashboard.indexOf('\nfunction '+next+'(',dashboard.indexOf('function '+name+'(')));}
 vm.runInContext(fn('summarizeFinancialLedgerRows','getFinancialSummaryForMonth'),pc);
@@ -62,7 +63,7 @@ assert.equal(pc.atlasBonusMetricActual({communityName:'A'},{metricKey:'noi'}),nu
 assert.equal(pc.atlasBonusMetricActual({communityName:'A'},{metricKey:'budget_attainment'}),null,'Missing approved quarterly target must not create payable attainment');
 delete pc.savedData.A.financialBudgetLedger.investorPacketSources;
 assert.equal(pc.atlasBonusMetricActual({communityName:'A'},{metricKey:'noi'}),null);
-console.log('PASS ATLAS publication/version/community guards, financial budget precedence, budget-only accounts and financial bonus source/missing-data behavior');
+console.log('PASS retired browser publication is blocked without writes, financial budget precedence, budget-only accounts and financial bonus source/missing-data behavior');
 
 const inventoryBefore=JSON.stringify(state);
 M.setCatalogInventory([{name:'Test Other Community',totalUnits:320}]);
@@ -72,3 +73,5 @@ M.setCatalogInventory([{name:'Test Other Community',totalUnits:null}]);
 assert.equal(M.inventoryLabel(state.properties.find(p=>p.name==='Test Other Community')),'Units unavailable');
 M.setCatalogInventory([{name:'Test Other Community',totalUnits:0}]);
 assert.equal(M.inventoryLabel(state.properties.find(p=>p.name==='Test Other Community')),'0 units');
+
+(async()=>{R.app.state={approvedBudgetImports:{}};let notice='';R.app.toast=m=>notice=m;context.document.querySelector=()=>null;const outcome=await R.app.publishMappedBudgets();assert.equal(outcome.status,'nothing_eligible');assert.match(notice,/Nothing eligible/);assert.match(notice,/Import-log acceptance does not approve/);console.log('PASS empty staging returns a visible nothing-eligible result');})().catch(e=>{console.error(e);process.exitCode=1;});

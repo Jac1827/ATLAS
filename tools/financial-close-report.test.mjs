@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {readCloseSnapshot,closeReportRows,closeReportHtml,closeReportCsv,closeReportWorkbook} from '../docs/portfolio-operations-dashboard/features/financial-close-report.mjs';
+const require=createRequire(import.meta.url),XLSX=require('xlsx');
+const cid='10000000-0000-0000-0000-000000000001',period='2028-04',version='close-version',hash='a'.repeat(64),pub='publication';
+const close={version_id:version,content_hash:hash,source_hash:'b'.repeat(64),source_file:'synthetic.xlsx',row_count:3};
+const rows=[{gl_code:'4110',account_name:'Rent',actual:0,ytd_actual:null},{gl_code:'4190',account_name:'Concessions',actual:-25,ytd_actual:-25},{gl_code:'6210',account_name:'Marketing',actual:50.12,ytd_actual:50.12}].map(r=>({...r,version_id:version,source_location:{sheet:'BCR',row:1}}));
+const record={community_id:cid,period_key:period,publication_id:pub,summary:{registryVersion:'atlas-finance-v1',communityId:cid,period,actualCloseVersion:version,close}};
+let published=pub,actor='reader';
+const session=()=>({getSession:()=>({user:{id:actor}}),fetchJson:async path=>structuredClone(path.includes('/rpc/')?[{...record,publication_id:published}]:rows)});
+const first=await readCloseSnapshot(session(),cid,period),second=await readCloseSnapshot(session(),cid,period);assert.deepEqual(first,second);assert.ok(Object.isFrozen(first.rows[0]));
+const data=closeReportRows(first);assert.equal(data[0].Actual,0);assert.equal(data[0].Source_YTD,null);assert.equal(data[1].Actual,-25);assert.ok(data.every(r=>r.Close_version===version&&r.Content_hash===hash&&r.Publication===pub));
+const html=closeReportHtml(first),csv=closeReportCsv(first);assert.ok(html.includes(version)&&html.includes(hash)&&html.includes('Unavailable'));assert.ok(csv.includes('"0",""')&&csv.includes('"-25"'));
+const wb=closeReportWorkbook(first,XLSX),bytes=XLSX.write(wb,{type:'buffer',bookType:'xlsx'}),read=XLSX.read(bytes,{type:'buffer'}),excel=XLSX.utils.sheet_to_json(read.Sheets['Canonical actuals'],{defval:null});assert.deepEqual(excel,data);assert.equal(read.Sheets['Canonical actuals'].C2.v,'4110');
+let reads=0;await assert.rejects(readCloseSnapshot({getSession:session().getSession,fetchJson:async path=>path.includes('/rpc/')?structuredClone([{...record,publication_id:++reads===1?pub:'replaced'}]):rows},cid,period),/version changed/);
+await assert.rejects(readCloseSnapshot({getSession:session().getSession,fetchJson:async path=>path.includes('/rpc/')?[record]:rows.map(r=>({...r,version_id:'wrong'}))},cid,period),/detail version mismatch/);
+console.log('PASS immutable canonical snapshot, reload/second-session parity, screen/print-PDF/CSV/XLSX same rows and version/hash, zero/missing/negative semantics, concurrent-publication and row-version guards.');

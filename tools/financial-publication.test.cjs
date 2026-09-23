@@ -31,14 +31,12 @@ const packet=(amount=80,date='2026-09-16')=>({period:'2026-09',actuals:[{glCode:
  store=await read();assert.equal(store.A.financialLedger['2026-01'][0].actual,10);assert.equal(store.A.financialLedger['2026-01'][0].ytdActual,999);
  assert.equal((await c.applyDatasetToAtlasStore({...ds,uploadType:'budget'},{kind:'community',label:'A'})).ok,true);store=await read();assert.equal(store.A.financialLedger['2026-01'][0].actual,10);assert.equal(store.A.financialBudgetLedger['2026-01'][0].budget,20);
  assert.equal((await c.applyDatasetToAtlasStore(ds,{kind:'community',label:'Unknown'})).ok,false);
- // Existing Budget Builder API waits for persistence acknowledgement before success.
+ // The retired browser budget endpoint cannot claim publication or mutate local actuals.
  const mounts=fs.readFileSync(dir+'atlas-mounts.js','utf8');
  const publisher=mounts.slice(mounts.indexOf('  function publishBudgetToAtlas('),mounts.indexOf('  function publishBudgetContractToAtlas('));
- let save;const parent={Date,window:{AtlasFinancialPublication:F},savedData:{A:{}},matchPropertyName:n=>n==='A'?n:null,persistSaved:()=>save};vm.createContext(parent);vm.runInContext(publisher,parent);
- let finish;save={ok:true,pending:true,completion:new Promise(resolve=>finish=resolve)};
+ const parent={Date,window:{AtlasFinancialPublication:F},savedData:{A:{}},persistSaved:()=>{throw Error('retired path must not save');}};vm.createContext(parent);vm.runInContext(publisher,parent);
  const payload={locked:true,property:{name:'A'},year:2026,coverage:[8],scenario:{id:'s',name:'Approved'},budgetByPeriod:{'2026-09':[{gl:'4000',budget:100}]},actualsByPeriod:{'2026-09':[{gl:'4000',actual:0}]},effectiveDate:'2026-09-17'};
- const result=parent.publishBudgetToAtlas(payload);assert.equal(result.pending,true);save.ok=false;save.message='disk full';finish();await result.completion;assert.equal(result.ok,false);assert.match(result.message,/not saved/);
- assert.equal(parent.publishBudgetToAtlas({...payload,actualsByPeriod:{'2025-09':[{gl:'4000',actual:0}]}}).ok,false);
+ const result=parent.publishBudgetToAtlas(payload);assert.equal(result.ok,false);assert.equal(result.published,false);assert.equal(result.status,'blocked');assert.equal(result.receiptId,null);assert.deepEqual(JSON.parse(JSON.stringify(parent.savedData)),{A:{}});
  // Core Data Import commits community values and lineage in the same transaction.
  const main=fs.readFileSync(dir+'index.html','utf8'),core={window:{},Date,Map,Set,Promise,console,ATLAS_STATE_STORE_NAME:'records',ATLAS_STATE_COMMUNITY_KEY:'community_data',DATA_IMPORT_2_STATE_KEY:'imports',atlasStateWritePromise:Promise.resolve(),atlasPersistenceMeta:{},dashboardSharedSyncMeta:{}};
  vm.createContext(core);

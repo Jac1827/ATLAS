@@ -6,7 +6,7 @@ assert.equal(financialValue('—').status,'unavailable');assert.equal(financialV
 for(const [s,type]of [['RISE - Budget Comparison - Income Statement','budget_comparison'],['Forecasted Income Statement','forecast'],['T12 Income Statement','t12'],['Trial Balance','trial_balance'],['Invoice','supporting_document'],['RISE - GL Details','gl_detail']])assert.equal(classifyStatement(s),type);
 const heading='RISE - Budget Comparison - Income Statement\nTest Property\nAug 2026\nAccrual Basis\nYTD ( Jan 2026 - Aug 2026 )';
 const line=(code,name,a,b)=>`${code}  ${name}  ${a.toFixed(2)}  ${b.toFixed(2)}  ${(a-b).toFixed(2)}  0.00%  ${a.toFixed(2)}  ${b.toFixed(2)}  ${(a-b).toFixed(2)}  0.00%  ${b.toFixed(2)}`;
-const text=heading+'\n'+[line('5120','GPR',100,120),line('','Total Income',100,120),line('6500','Expense',25,20),line('','Net Operating Income',75,100)].join('\n');
+const text=heading+'\n'+['Income',line('5120','GPR',100,120),line('','Total Income',100,120),'Expenses',line('6500','Expense',25,20),line('','Net Operating Income',75,100)].join('\n');
 const parsed=parseComparisonLines(text,{page:3});assert.equal(parsed.rows.length,4);assert.equal(reconcileComparison([parsed]).technicalReconciled,true);
 const corrupt=structuredClone(parsed);corrupt.rows[0].values.actual=101;assert.equal(reconcileComparison([corrupt]).technicalReconciled,false);
 const duplicate=structuredClone(parsed);duplicate.rows.push(duplicate.rows[0]);assert(reconcileComparison([duplicate]).exceptions.some(e=>e.code==='duplicate_gl'));

@@ -1,5 +1,5 @@
 import {readFinance} from './canonical-finance.mjs?v=60c13a0342f297e2';
-import {applyControls,centralClient} from './financial-comparison.mjs?v=3bf9970402598f5a';
+import {applyControls,centralClient} from './financial-comparison.mjs?v=5127bc4004d974a9';
 import {readPackage} from './financial-package-reader.mjs?v=12cf6b21cac80433';
 import {resolveCommunity,evaluateFinancialPackageSafety} from './financial-package.mjs?v=b43f129095c7fac2';
 import {createIntake,prepareReview,INTAKE_STATES,INTAKE_LABELS} from './financial-intake-store.mjs?v=1e43f74af8243a75';

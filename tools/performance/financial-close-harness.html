@@ -9,11 +9,13 @@ import {readCloseSnapshot,mountCloseReport,closeReportRows,closeReportHtml,close
 if(!['127.0.0.1','localhost'].includes(location.hostname))throw Error('This synthetic harness runs only on localhost.');
 const CID='10000000-0000-0000-0000-000000000001',PERIOD='2026-03',VERSION='20000000-0000-0000-0000-000000000001',PUBLICATION='30000000-0000-0000-0000-000000000001',HASH='a'.repeat(64),SOURCE_HASH='b'.repeat(64);
 const close={version_id:VERSION,community_id:CID,period_key:PERIOD,content_hash:HASH,source_hash:SOURCE_HASH,source_file:'Synthetic monthly BCR.xlsx',status:'closed',coverage:'full_month',accounting_basis:'accrual',revision:2,row_count:3,metrics:{grossPotentialRent:0,totalIncome:-25,operatingExpenses:50.12,netOperatingIncome:-75.12}};
-const detail=[{gl_code:'004110',account_name:'Rent',actual:0,ytd_actual:null},{gl_code:'004190',account_name:'Concessions',actual:-25,ytd_actual:-25},{gl_code:'006210',account_name:'Marketing',actual:50.12,ytd_actual:50.12}].map((row,index)=>({...row,version_id:VERSION,source_location:{sheet:'BCR',row:index+10,column:'C',period:PERIOD}}));
-const record={community_id:CID,period_key:PERIOD,publication_id:PUBLICATION,summary:{registryVersion:'atlas-finance-v1',communityId:CID,period:PERIOD,actualCloseVersion:VERSION,budgetVersion:'40000000-0000-0000-0000-000000000001',coverage:'full_month',close}};
-let activeSession='A',currentSnapshot,baseline,refreshes=0,checks=0;const calls={A:{finance:0,detail:0},B:{finance:0,detail:0}};
+const detail=[{gl_code:'004110',account_name:'Rent',actual:0,ytd_actual:null},{gl_code:'004190',account_name:'Concessions',actual:-25,ytd_actual:-25},{gl_code:'006210',account_name:'Marketing',actual:50.12,ytd_actual:50.12}].map((row,index)=>({...row,version_id:VERSION,community_id:CID,source_location:{sheet:'BCR',row:index+10,column:'C',period:PERIOD}}));
+const {content_hash:omittedHash,...projection}=close;
+const record={community_id:CID,period_key:PERIOD,publication_id:PUBLICATION,summary:{registryVersion:'atlas-finance-v1',communityId:CID,period:PERIOD,actualCloseVersion:VERSION,budgetVersion:'40000000-0000-0000-0000-000000000001',coverage:'full_month',close:projection}};
+let activeSession='A',currentSnapshot,baseline,refreshes=0,checks=0;const calls={A:{finance:0,version:0,detail:0},B:{finance:0,version:0,detail:0}};
 const clients=Object.fromEntries(['A','B'].map(session=>[session,{getSession:()=>({user:{id:'authorized-fixture-reader-'+session}}),async fetchJson(url,options){
  if(url==='/rpc/atlas_read_finance'){const args=JSON.parse(options.body);if(args.p_community_ids.length!==1||args.p_community_ids[0]!==CID||args.p_periods.length!==1||args.p_periods[0]!==PERIOD)throw Error('Unexpected fixture scope');calls[session].finance++;return structuredClone([record]);}
+ if(url.startsWith('/atlas_financial_close_versions?version_id=eq.'+VERSION)){calls[session].version++;return structuredClone([close]);}
  if(url.startsWith('/atlas_financial_close_rows?version_id=eq.'+VERSION)){calls[session].detail++;return structuredClone(detail);}
  throw Error('Fixture refused unexpected request '+url);
 }}]));

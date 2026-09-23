@@ -538,8 +538,8 @@
     ]
   },
   "features/financial-close-report.mjs": {
-    "sha256": "9ccd4068c211d2e8",
-    "bytes": 4955,
+    "sha256": "6eea03791ec74aa5",
+    "bytes": 6608,
     "references": [
       [
         "features/financial-comparison.mjs",
@@ -548,7 +548,7 @@
     ]
   },
   "features/financial-comparison.mjs": {
-    "sha256": "3bf9970402598f5a",
+    "sha256": "5127bc4004d974a9",
     "bytes": 10495,
     "references": [
       [
@@ -562,7 +562,7 @@
     ]
   },
   "features/financial-package-review.mjs": {
-    "sha256": "6d5d0986f378d0a8",
+    "sha256": "cb857aa20bcf6f46",
     "bytes": 17086,
     "references": [
       [
@@ -586,7 +586,7 @@
     ]
   },
   "budget-navigation.js": {
-    "sha256": "16ced8eebecedec0",
+    "sha256": "81a1d128be988565",
     "bytes": 8478,
     "references": [
       [
@@ -696,7 +696,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "c81046182f5965ae",
+    "sha256": "78f625cea7f0aa21",
     "bytes": 1888485,
     "references": [
       [
@@ -706,7 +706,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "dcc744c52575ae3c",
+    "sha256": "f40562bfc03986d9",
     "bytes": 22240,
     "references": [
       [

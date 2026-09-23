@@ -29,10 +29,10 @@
  };
  const go=A.go;
  let packageReview;
- A.openFinancialPackageReview=async function(scope){try{packageReview=await import('./features/financial-package-review.mjs?v=6d5d0986f378d0a8');await packageReview.openReview(scope);}catch(e){A.toast(e.message,'r');}};
+ A.openFinancialPackageReview=async function(scope){try{packageReview=await import('./features/financial-package-review.mjs?v=cb857aa20bcf6f46');await packageReview.openReview(scope);}catch(e){A.toast(e.message,'r');}};
  const actuals=R.views.actuals;
  function sharedActualsPanel(){
-  setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el)return;try{const m=await import('./features/financial-comparison.mjs?v=3bf9970402598f5a');await m.mountComparison(el,{communityName:A.cp().property.name,year:A.year()});}catch(e){el.textContent=e.message;}},0);
+  setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el)return;try{const m=await import('./features/financial-comparison.mjs?v=5127bc4004d974a9');await m.mountComparison(el,{communityName:A.cp().property.name,year:A.year()});}catch(e){el.textContent=e.message;}},0);
   return '<div class="panel"><button class="btn pri" onclick="RBB.app.openFinancialPackageReview()">Upload or read saved financial review</button><p>Upload → classify → confirm → map → reconcile → save review → Admin close → canonical publication → verified readback</p></div><section class="panel" id="shared-financial-comparison"><p>Loading shared actuals…</p></section>';
  }
  R.views.actuals=function(){return sharedActualsPanel();};

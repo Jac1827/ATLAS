@@ -5,11 +5,20 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const freeze=o=>{if(o&&typeof o==='object'){Object.values(o).forEach(freeze);Object.freeze(o);}return o;};
 export async function readCloseSnapshot(central,cid,period){
  const actor=central.getSession?.()?.user?.id,[record]=await readFinance(central,[cid],[period]);
- const close=record?.summary?.close;if(!close||!record.publication_id)throw Error(record?.summary?.coverageReason||'No published full-month actuals are available for this period.');
+ const projected=record?.summary?.close;if(!projected?.version_id||!record.publication_id)throw Error(record?.summary?.coverageReason||'No published full-month actuals are available for this period.');
+ if(record.summary.actualCloseVersion!==projected.version_id)throw Error('Canonical close version mismatch. Refresh before exporting.');
+ // The reporting projection deliberately carries only selected close fields. Read
+ // lineage from the immutable close itself; a projected hash may be absent.
+ const versions=await central.fetchJson(`/atlas_financial_close_versions?version_id=eq.${encodeURIComponent(projected.version_id)}&select=*&limit=1`),close=versions?.[0];
+ if(central.getSession?.()?.user?.id!==actor)throw Error('Session changed while reading financial evidence.');
+ if(!Array.isArray(versions)||versions.length!==1||close.version_id!==projected.version_id||close.community_id!==cid||close.period_key!==period||close.status!=='closed'||close.coverage!=='full_month')throw Error('Published close scope or status could not be verified. Refresh before exporting.');
+ if(!/^[a-f0-9]{64}$/i.test(close.content_hash||'')||!Number.isInteger(close.row_count)||close.row_count<1)throw Error('Published close hash or row count is missing or invalid. Refresh before exporting.');
+ if(['content_hash','community_id','period_key','source_hash','row_count'].some(key=>projected[key]!==undefined&&projected[key]!==close[key]))throw Error('Published close lineage does not match the immutable version. Refresh before exporting.');
  const rows=await readRows(central,close);
  const [readback]=await readFinance(central,[cid],[period]);
- if(central.getSession?.()?.user?.id!==actor||readback?.publication_id!==record.publication_id||readback.summary?.actualCloseVersion!==close.version_id)throw Error('The canonical version changed during the read. Refresh before exporting.');
- if(rows.some(r=>r.version_id!==close.version_id))throw Error('Canonical detail version mismatch.');
+ if(central.getSession?.()?.user?.id!==actor||readback?.publication_id!==record.publication_id||readback.summary?.actualCloseVersion!==close.version_id||readback.summary?.close?.version_id!==close.version_id)throw Error('The canonical version changed during the read. Refresh before exporting.');
+ if(readback.summary.close.content_hash!==undefined&&readback.summary.close.content_hash!==close.content_hash)throw Error('Published close lineage does not match the immutable version. Refresh before exporting.');
+ if(rows.some(r=>r.version_id!==close.version_id||r.community_id!==cid))throw Error('Canonical detail version or community mismatch.');
  return freeze(structuredClone({communityId:cid,period,versionId:close.version_id,contentHash:close.content_hash,sourceHash:close.source_hash,sourceFile:close.source_file,publicationId:record.publication_id,budgetVersion:record.summary.budgetVersion||null,status:'Canonically Published',coverage:record.summary.coveragePolicy||null,carryIn:record.summary.carryInDisclosure||[],metrics:close.metrics,rows}));
 }
 export function closeReportRows(s){return s.rows.map(r=>({Community:s.communityId,Period:s.period,GL:r.gl_code,Account:r.account_name,Actual:r.actual,Source_YTD:r.ytd_actual,Close_version:s.versionId,Content_hash:s.contentHash,Publication:s.publicationId,Budget_version:s.budgetVersion,Coverage_policy:s.coverage?.policyId||null,Carry_in_disclosure:JSON.stringify(s.carryIn||[]),Source_file:s.sourceFile,Source_hash:s.sourceHash,Source_location:JSON.stringify(r.source_location)}));}

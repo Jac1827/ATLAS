@@ -67,6 +67,22 @@ jobs:
           node tools/financial-close.test.mjs
           node tools/canonical-finance.test.mjs
           node tools/canonical-finance-db.test.cjs
+          node tools/reforecast-engine.test.mjs
+          node tools/reforecast-intake.test.mjs
+          node tools/reforecast-import-ui.test.mjs
+          node tools/reforecast-governance-db.test.cjs
+          node tools/reforecast-review-db.test.cjs
+          node tools/reforecast-parity.test.cjs
+          node tools/reforecast-store.test.mjs
+          node tools/reforecast-report.test.mjs
+          node tools/reforecast-ui.test.mjs
+          node tools/investor-active-reforecast.test.cjs
+          node tools/investor-budget-bridge.test.cjs
+          node tools/investor-packet.test.cjs
+          node tools/investor-packet-sources.test.cjs
+          node tools/investor-packet-ui.test.cjs
+          node tools/reforecast-consumers.test.mjs
+          node tools/reforecast-community-reports-db.test.cjs
 
   performance-boundaries:
     runs-on: ubuntu-latest

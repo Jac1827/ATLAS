@@ -1,0 +1,25 @@
+const {PGlite}=require(process.env.ATLAS_PGLITE||'@electric-sql/pglite');const fs=require('node:fs'),path=require('node:path');
+const A='10000000-0000-0000-0000-000000000001',B='10000000-0000-0000-0000-000000000002',BUDGET='20000000-0000-0000-0000-000000000001',CLOSE='30000000-0000-0000-0000-000000000001';
+async function fixture(){const db=new PGlite();await db.exec(`create role anon;create role authenticated;create schema auth;create schema atlas_private;
+create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema auth,atlas_private to authenticated;grant execute on function auth.uid() to authenticated,anon;
+create table atlas_user_profiles(user_id uuid,role text,status text,allowed_community_ids uuid[],locked_tab_ids text[],locked_page_keys text[]);
+create table atlas_communities(community_id uuid primary key,first_expected_financial_period text,status text,deleted_at timestamptz,units integer,updated_at timestamptz);
+create function atlas_can_access_community(id uuid) returns boolean language sql security definer set search_path=public as $$select exists(select 1 from atlas_user_profiles where user_id=auth.uid() and status='active' and (role in ('admin','executive') or id=any(allowed_community_ids)))$$;
+create function atlas_private.command_access(cid uuid,action text default 'read') returns boolean language sql security definer set search_path=public as $$select auth.uid() is not null and atlas_can_access_community(cid) and exists(select 1 from atlas_user_profiles where user_id=auth.uid() and status='active' and not('2'=any(locked_tab_ids)) and not('portfolio_overview'=any(locked_page_keys)))$$;
+create function atlas_private.finance_immutable() returns trigger language plpgsql as $$begin raise exception 'Finance history is immutable';end;$$;
+insert into auth.users select ('00000000-0000-0000-0000-'||lpad(n::text,12,'0'))::uuid from generate_series(1,5)n;
+insert into atlas_user_profiles values('00000000-0000-0000-0000-000000000001','admin','active','{}','{}','{}'),('00000000-0000-0000-0000-000000000002','regional','active','{${A}}','{}','{}'),('00000000-0000-0000-0000-000000000003','finance','active','{${A}}','{}','{}'),('00000000-0000-0000-0000-000000000004','community_manager','active','{${B}}','{}','{}'),('00000000-0000-0000-0000-000000000005','executive','active','{}','{}','{}');
+insert into atlas_communities(community_id,first_expected_financial_period,status,deleted_at) values('${A}','2026-01','active',null),('${B}','2026-07','active',null);
+create table atlas_approved_budget_versions(version_id uuid primary key,community_id uuid,calendar_year int,status text,covered_months int[],payload jsonb,source_file text,source_hash text);
+create table atlas_financial_close_versions(version_id uuid primary key,community_id uuid,period_key text,source_hash text,approved_at timestamptz,metrics jsonb);
+create table atlas_financial_close_heads(community_id uuid,period_key text,accounting_basis text,version_id uuid);
+create table atlas_financial_close_rows(version_id uuid,gl_code text,actual numeric,source_location jsonb);
+`);
+const rows=[['5120',1000],['5220',-50],['6100',200],['6200',50],['8100',20]].map(([glCode,n])=>({glCode,monthly:Array(12).fill(n)}));
+await db.query('insert into atlas_approved_budget_versions values($1,$2,2026,\'locked\',$3,$4,\'Original.xlsx\',\'budget-sha\')',[BUDGET,A,Array.from({length:12},(_,i)=>i),JSON.stringify({rows})]);
+await db.query('insert into atlas_financial_close_versions values($1,$2,\'2026-01\',\'close-sha\',now(),$3)',[CLOSE,A,JSON.stringify({totalIncome:940,operatingExpenses:240,netOperatingIncome:700,sourceControls:{'Net Cash Flow':{actual:680}}})]);
+await db.query('insert into atlas_financial_close_heads values($1,\'2026-01\',\'accrual\',$2)',[A,CLOSE]);
+for(const [code,n]of[['5120',1000],['5220',-60],['6100',190],['6200',50],['8100',20]])await db.query('insert into atlas_financial_close_rows values($1,$2,$3,$4)',[CLOSE,code,n,JSON.stringify({file:'Actuals.pdf',page:3})]);
+await db.exec(fs.readFileSync(path.join(__dirname,'../docs/portfolio-operations-dashboard/centralization/reforecast-governance.sql'),'utf8'));
+const signIn=async n=>db.exec(`reset role;set request.jwt.claim.sub='00000000-0000-0000-0000-${String(n).padStart(12,'0')}';set role authenticated;`);await signIn(1);return{db,A,B,BUDGET,CLOSE,signIn};}
+module.exports={fixture,A,B,BUDGET,CLOSE};

@@ -18,7 +18,7 @@ var atlasInvestorPacketState = { selectedCommunity:'', communities:{} };
     if(budgetPending)return requestScope===budgetRequestScope?budgetPending:budgetPending.then(()=>refreshSources());
     budgetRequestScope=requestScope;
     budgetPending=new Promise(resolve=>{budgetResolve=resolve;});
-    budgetTimer=setTimeout(()=>{budgetStatus='Budget Builder did not respond; previously saved sources remain available.';budgetResolve?.();budgetPending=null;budgetResolve=null;},15000);
+    budgetTimer=setTimeout(()=>{budgetCache=null;budgetStatus='Financial sources did not respond; refresh to reconnect the current approved sources.';budgetResolve?.();budgetPending=null;budgetResolve=null;},15000);
     budgetStatus='Reading saved Budget Builder';
     if(!budgetReader){
       budgetReader=document.createElement('iframe');budgetReader.hidden=true;budgetReader.title='Read-only budget reporting source';
@@ -149,7 +149,7 @@ var atlasInvestorPacketState = { selectedCommunity:'', communities:{} };
     // Complete comparisons remain editable native tables and are not silently omitted from the core pages.
     for(let i=0;i<packet.rows.length;i+=9) {
       const rs=packet.rows.slice(i,i+9);const s=add('Appendix · Full comparisons',[]);
-      s.addTable([['Metric','Current','Budget','Δ %','Prior mo.','Prior yr.','UW','YTD act.','YTD bud.','FY fcst.'],...rs.map(r=>[r.label,P.format(r.cells.current.value,r.unit),P.format(r.cells.budget.value,r.unit),P.format(r.variancePct,'percent'),P.format(r.cells.priorMonth.value,r.unit),P.format(r.cells.priorYear.value,r.unit),P.format(r.cells.underwriting.value,r.unit),P.format(r.cells.ytdActual.value,r.unit),P.format(r.cells.ytdBudget.value,r.unit),P.format(r.cells.forecast.value,r.unit)])],{x:.45,y:1.55,w:12.3,fontSize:10,colW:[2.5,...Array(9).fill(1.08)],margin:4,border:{pt:.4,color:'DFE7EB'},autoPage:false});
+      s.addTable([['Metric','Current','Budget','Δ %','Prior mo.','Prior yr.','UW','YTD act.','YTD bud.',P.forecastLabel(rs)],...rs.map(r=>[r.label,P.format(r.cells.current.value,r.unit),P.format(r.cells.budget.value,r.unit),P.format(r.variancePct,'percent'),P.format(r.cells.priorMonth.value,r.unit),P.format(r.cells.priorYear.value,r.unit),P.format(r.cells.underwriting.value,r.unit),P.format(r.cells.ytdActual.value,r.unit),P.format(r.cells.ytdBudget.value,r.unit),P.format(r.cells.forecast.value,r.unit)+(P.forecastLabel(rs)==='Forecast (basis shown)'&&r.cells.forecast.value!==null?' · '+(r.cells.forecast.forecastBasis?.kind==='monthly_active_reforecast'?'Month':r.cells.forecast.forecastBasis?.kind==='legacy_full_year'?'FY':'Unconfirmed'):'')])],{x:.45,y:1.55,w:12.3,fontSize:10,colW:[2.5,...Array(9).fill(1.08)],margin:4,border:{pt:.4,color:'DFE7EB'},autoPage:false});
       s.addNotes(rs.map(r=>`${r.label}: ${r.definition}\n${Object.entries(r.cells).map(([k,c])=>`${k}: ${c.source||c.reason}`).join('\n')}`).join('\n\n'));
     }
     const financial=packet.rows.filter(r=>['revenue','expenses','noi'].includes(r.id)&&r.cells.current.value!==null&&r.cells.budget.value!==null);
@@ -192,9 +192,9 @@ var atlasInvestorPacketState = { selectedCommunity:'', communities:{} };
       if(kind==='print') return printReportHtmlInHiddenFrame(P.html(packet),{title:'Investor packet'});
       if(kind==='xlsx') {
         if(typeof XLSX==='undefined') throw new Error('Workbook export library did not load.');
-        const wb=XLSX.utils.book_new();const head=['Metric','Current','Budget','Variance','Variance %','Prior month','Prior year','Underwriting','YTD actual','YTD budget','Full-year forecast'];
-        const rows=packet.rows.map(r=>[r.label,r.cells.current.value,r.cells.budget.value,r.variance,r.variancePct===null?null:r.variancePct/100,r.cells.priorMonth.value,r.cells.priorYear.value,r.cells.underwriting.value,r.cells.ytdActual.value,r.cells.ytdBudget.value,r.cells.forecast.value]);
-        const ws=XLSX.utils.aoa_to_sheet([head,...rows]);ws['!cols']=[{wch:36},...Array(10).fill({wch:18})];
+        const wb=XLSX.utils.book_new();const head=['Metric','Current','Budget','Variance','Variance %','Prior month','Prior year','Underwriting','YTD actual','YTD budget',P.forecastLabel(packet.rows),'Forecast basis'];
+        const rows=packet.rows.map(r=>[r.label,r.cells.current.value,r.cells.budget.value,r.variance,r.variancePct===null?null:r.variancePct/100,r.cells.priorMonth.value,r.cells.priorYear.value,r.cells.underwriting.value,r.cells.ytdActual.value,r.cells.ytdBudget.value,r.cells.forecast.value,P.forecastBasisLabel(r.cells.forecast)]);
+        const ws=XLSX.utils.aoa_to_sheet([head,...rows]);ws['!cols']=[{wch:36},...Array(10).fill({wch:18}),{wch:48}];
         packet.rows.forEach((r,i)=>{const row=i+2;for(let c=1;c<=10;c++){const cell=ws[XLSX.utils.encode_cell({r:i+1,c})];if(cell)cell.z=c===4?'0.0%':r.unit==='currency'?'"$"#,##0':r.unit==='percent'?(c===3?'0.0" pp"':'0.0"%"'):r.unit==='multiple'?'0.00"x"':'#,##0.0';}if(r.cells.current.value!==null&&r.cells.budget.value!==null){ws['D'+row].f=`B${row}-C${row}`;if(r.cells.budget.value!==0)ws['E'+row].f=`D${row}/ABS(C${row})`;}});
         XLSX.utils.book_append_sheet(wb,ws,'Investor comparisons');
         const deltas=XLSX.utils.aoa_to_sheet([['Metric','MoM delta','YoY delta','Underwriting variance','YTD variance','Forecast revision'],...packet.rows.map(r=>[r.label,r.mom,r.yoy,r.underwritingVariance,r.ytdVariance,r.forecastChange])]);

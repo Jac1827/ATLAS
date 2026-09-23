@@ -33,3 +33,13 @@ assert(filled['2026-01'].financialDetail.length>0);
 assert(filled['2026-01'].vacancyLoss.actual>=0,'Contra-income losses are displayed with positive loss sign');
 console.log('PASS detailed COA categories, period-specific sources, closed actuals and calculation invariance.');
 if(process.env.ATLAS_TEST_BUDGET_OUT){state.properties[0].name='SYNTHETIC TEST COMMUNITY';fs.writeFileSync(process.env.ATLAS_TEST_BUDGET_OUT,JSON.stringify(R.persist.serialize(state,{})));}
+
+const localForecast=state.scenarios.find(s=>s.type==='reforecast');
+if(localForecast){
+ state.activeScenario=localForecast.id;
+ const standalone=R.investorSources(state,'2026-02-10T00:00:00Z',{names:[property.name]}).properties[property.name].periods['2026-02'];
+ assert.equal(standalone.noi.forecastBasis.kind,'legacy_full_year');assert.equal(standalone.noi.forecastBasis.year,2026);
+ context.parent={ATLAS_CENTRAL:{}};
+ const governed=R.investorSources(state,'2026-02-10T00:00:00Z',{names:[property.name]}).properties[property.name].periods['2026-02'];
+ assert.equal(governed.noi.forecast,undefined,'A local reforecast cannot become a canonical investor forecast');
+}

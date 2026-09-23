@@ -39,6 +39,152 @@
       ]
     ]
   },
+  "features/reforecast-engine.mjs": {
+    "sha256": "ecb7eb288be91b0b",
+    "bytes": 21949,
+    "references": [
+      [
+        "features/reforecast-active.mjs",
+        "./reforecast-engine.mjs"
+      ],
+      [
+        "features/reforecast-legacy-bridge.mjs",
+        "./reforecast-engine.mjs"
+      ],
+      [
+        "features/reforecast-ui.mjs",
+        "./reforecast-engine.mjs"
+      ]
+    ]
+  },
+  "features/reforecast-active.mjs": {
+    "sha256": "5663085258d69c22",
+    "bytes": 2397,
+    "references": [
+      [
+        "features/reforecast-store.mjs",
+        "./reforecast-active.mjs"
+      ],
+      [
+        "features/community-plan-report.mjs",
+        "./reforecast-active.mjs"
+      ]
+    ]
+  },
+  "features/reforecast-store.mjs": {
+    "sha256": "4a7a84c04ff55a0f",
+    "bytes": 6433,
+    "references": [
+      [
+        "features/reforecast-ui.mjs",
+        "./reforecast-store.mjs"
+      ],
+      [
+        "features/reforecast-import-ui.mjs",
+        "./reforecast-store.mjs"
+      ],
+      [
+        "features/reforecast-consumers.mjs",
+        "./reforecast-store.mjs"
+      ],
+      [
+        "investor-budget-bridge.js",
+        "./features/reforecast-store.mjs"
+      ]
+    ]
+  },
+  "features/reforecast-report.mjs": {
+    "sha256": "99ee4126571c1988",
+    "bytes": 19781,
+    "references": [
+      [
+        "features/reforecast-ui.mjs",
+        "./reforecast-report.mjs"
+      ],
+      [
+        "features/reforecast-consumers.mjs",
+        "./reforecast-report.mjs"
+      ]
+    ]
+  },
+  "features/reforecast-intake.mjs": {
+    "sha256": "24b8279a354390ef",
+    "bytes": 32377,
+    "references": [
+      [
+        "features/reforecast-ui.mjs",
+        "./reforecast-intake.mjs"
+      ],
+      [
+        "features/reforecast-import-ui.mjs",
+        "./reforecast-intake.mjs"
+      ]
+    ]
+  },
+  "features/reforecast-import-ui.mjs": {
+    "sha256": "62aafede76699821",
+    "bytes": 27469,
+    "references": [
+      [
+        "features/reforecast-ui.mjs",
+        "./reforecast-import-ui.mjs"
+      ]
+    ]
+  },
+  "features/reforecast-legacy-bridge.mjs": {
+    "sha256": "fff1a4e61aa4fd33",
+    "bytes": 11230,
+    "references": [
+      [
+        "reforecast-navigation.js",
+        "./features/reforecast-legacy-bridge.mjs"
+      ],
+      [
+        "features/reforecast-ui.mjs",
+        "./reforecast-legacy-bridge.mjs"
+      ]
+    ]
+  },
+  "features/reforecast-ui.mjs": {
+    "sha256": "b25d26ce0e8dc4b8",
+    "bytes": 60381,
+    "references": [
+      [
+        "reforecast-navigation.js",
+        "./features/reforecast-ui.mjs"
+      ]
+    ]
+  },
+  "features/reforecast-consumers.mjs": {
+    "sha256": "cd98269f4e724f86",
+    "bytes": 5576,
+    "references": [
+      [
+        "reforecast-consumers.js",
+        "./features/reforecast-consumers.mjs"
+      ]
+    ]
+  },
+  "reforecast-consumers.js": {
+    "sha256": "44df3c595f002d30",
+    "bytes": 2850,
+    "references": [
+      [
+        "index.html",
+        "./reforecast-consumers.js"
+      ]
+    ]
+  },
+  "reforecast-navigation.js": {
+    "sha256": "5886b9634a715029",
+    "bytes": 2057,
+    "references": [
+      [
+        "RISE-Budget-Builder.html",
+        "./reforecast-navigation.js"
+      ]
+    ]
+  },
   "features/canonical-finance.mjs": {
     "sha256": "60c13a0342f297e2",
     "bytes": 5881,
@@ -386,8 +532,8 @@
     ]
   },
   "features/community-plan-report.mjs": {
-    "sha256": "1c5890a90c78a423",
-    "bytes": 8832,
+    "sha256": "be0c6d9dc0729ed4",
+    "bytes": 10741,
     "references": [
       [
         "features/community-plan.mjs",
@@ -425,9 +571,29 @@
       ]
     ]
   },
+  "investor-packet-core.js": {
+    "sha256": "3fd71e27dc71368f",
+    "bytes": 37082,
+    "references": [
+      [
+        "index.html",
+        "./investor-packet-core.js"
+      ]
+    ]
+  },
+  "investor-packet-sources.js": {
+    "sha256": "e40335d46730bec3",
+    "bytes": 17543,
+    "references": [
+      [
+        "index.html",
+        "./investor-packet-sources.js"
+      ]
+    ]
+  },
   "investor-packet-ui.js": {
-    "sha256": "aaf6d6b5c425c99a",
-    "bytes": 35992,
+    "sha256": "ee17619029809a12",
+    "bytes": 36346,
     "references": [
       [
         "index.html",
@@ -436,8 +602,8 @@
     ]
   },
   "investor-budget-bridge.js": {
-    "sha256": "1b0bfc6b8aaae59f",
-    "bytes": 14751,
+    "sha256": "fc34bdc94568bee8",
+    "bytes": 19661,
     "references": [
       [
         "RISE-Budget-Builder.html",
@@ -446,8 +612,8 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "e454a7367e16f7e5",
-    "bytes": 1887930,
+    "sha256": "b312f21ad87729e1",
+    "bytes": 1888000,
     "references": [
       [
         "atlas-mounts.js",
@@ -456,7 +622,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "2179c29bbe08faf6",
+    "sha256": "2f0cde3f4ca24555",
     "bytes": 28901,
     "references": [
       [
@@ -466,8 +632,8 @@
     ]
   },
   "features/community-plan.mjs": {
-    "sha256": "295efb79b8f30639",
-    "bytes": 18891,
+    "sha256": "d0e2fce19e70d77e",
+    "bytes": 19040,
     "references": [
       [
         "index.html",

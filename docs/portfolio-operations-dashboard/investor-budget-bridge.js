@@ -42,7 +42,7 @@
         const sourceFiles=imported ? imported.sourceFile+' / '+imported.sourceSheet+' / approved '+imported.effectiveDate+' / '+imported.rows.map(r=>'GL '+r.gl+' row '+r.sourceRow).join('; ') : files;
         const calc=calculations.get(year),vr=R.variance.compute(copy,calc,property.id,year);
         const closed=Number(vr.closedThrough||0),canonical=R.closedFinancial?.caches.get(property.id+'|'+year),legacyActualSource=copy.periods?.[property.id+'|'+year]?.source;
-        const forecast=active?.type==='reforecast'&&Number(copy.budgetYear)===year?R.variance.compute(copy,R.engine.computeAll(copy,active.id,year),property.id,year):null;
+        const forecast=!window.parent?.ATLAS_CENTRAL&&active?.type==='reforecast'&&Number(copy.budgetYear)===year?R.variance.compute(copy,R.engine.computeAll(copy,active.id,year),property.id,year):null;
         for(let month=0;month<12;month++) {
           if(imported?.coverage&&!imported.coverage.includes(month))continue;
           const key=year+'-'+String(month+1).padStart(2,'0');
@@ -52,6 +52,7 @@
           const put=(id,basis,value,rows,detail='')=>{
             if(!numeric(value))return;
             const item=period[id] ||= {sources:{},definitions:{}};item[basis]=value;
+            if(basis==='forecast')item.forecastBasis={kind:'legacy_full_year',year,scenarioId:active.id,scenarioName:active.name};
             item.sources[basis]=`${period.source} / ${basis} / month ${month+1} / ${rows.map(r=>r.gl+' '+r.name).join('; ')}${basis==='actual'?' / '+actualSource:''}${detail?' / '+detail:''}`;
             item.definitions[basis]=`${id}: ${loss.has(id)?'loss shown as positive; gains negative; ':''}${detail||'signed GL sum from Budget Builder'}; same community and calendar period.`;
           };
@@ -102,16 +103,48 @@
     }
     return sources;
   };
+  // A publication supplies only the forecast comparison. Canonical actuals and the
+  // approved original budget already on the report remain separate authorities.
+  function applyActiveForecast(report,communityId,publications,store) {
+    const candidates=publications.filter(p=>p.communityId===communityId&&p.publicationId&&p.snapshot);
+    const projections=new Map(candidates.map(p=>[p.publicationId,store.effectiveActiveSnapshot(p)]));
+    for(const [key,period] of Object.entries(report.periods)) {
+      period.forecastAuthority='canonical_active';
+      const matches=candidates.filter(p=>p.activePeriods?.includes(key));
+      if(matches.length!==1){period.activeReforecast={status:'unavailable',reason:matches.length?'Conflicting active publications require reconciliation.':'No Active Reforecast has been published for this month.'};continue;}
+      const publication=matches[0],snapshot=projections.get(publication.publicationId),month=snapshot.monthly?.find(m=>m.period===key);
+      if(!month||month.applicable===false){period.activeReforecast={status:'unavailable',reason:'Active Reforecast does not contain an applicable reporting month.'};continue;}
+      const lineage={kind:'monthly_active_reforecast',period:key,communityId,publicationId:publication.publicationId,scenarioId:publication.scenarioId,revisionId:publication.revisionId,version:publication.version,publishedAt:publication.publishedAt,publishedBy:publication.publishedBy,publishedFingerprint:publication.snapshot.fingerprint,projectionFingerprint:snapshot.fingerprint,sourceVersion:publication.source?.sourceVersion,actualCutoff:snapshot.identity?.actualCutoff,closeVersionId:month.closeVersionId||null,sourceKind:month.closed?'closed_actual':'forecast'};
+      period.activeReforecast={status:'available',...lineage};
+      const source=`Active Reforecast / publication ${lineage.publicationId} / revision ${lineage.revisionId} / version ${lineage.version} / published ${lineage.publishedAt} by ${lineage.publishedBy} / ${key} / fingerprint ${lineage.publishedFingerprint} / projection ${lineage.projectionFingerprint}${lineage.closeVersionId?' / governed close '+lineage.closeVersionId:''}`;
+      const put=(id,value,detail)=>{if(!numeric(value))return;const item=period[id]||={sources:{},definitions:{}};item.sources||={};item.definitions||={};item.forecast=value;item.forecastBasis={...lineage};item.sources.forecast=source+' / '+detail;item.definitions.forecast=`${id}: monthly Active Reforecast for ${key}; ${detail}${month.closed?'; replaced by the governed closed actual for this month':''}.`;};
+      const amounts=month.reforecast||{};
+      for(const [id,metric] of Object.entries({revenue:'revenue',expenses:'expenses',noi:'noi',noiMargin:'margin',cashFlow:'cashFlow',capexSpent:'capital',debtService:'debt'}))put(id,id==='noiMargin'&&numeric(amounts[metric])?amounts[metric]*100:amounts[metric],'governed monthly '+metric);
+      const rows=(snapshot.lines||[]).filter(r=>r.period===key).map(r=>({...r,gl:r.accountCode,coaGroup:r.category}));
+      for(const [id,select] of Object.entries(selectors)){
+        if(['revenue','expenses','capexSpent','debtService'].includes(id))continue;
+        const selected=rows.filter(r=>r.placement==='above_noi'&&select(r));
+        if(selected.length&&selected.every(r=>r.mappingValid&&numeric(r.forecast)))put(id,(loss.has(id)?-1:1)*selected.reduce((sum,r)=>sum+r.forecast,0),'mapped GL '+selected.map(r=>r.accountCode).join(', '));
+      }
+      for(const row of rows){
+        let detail=period.financialDetail.find(r=>String(r.gl)===String(row.accountCode));
+        if(!detail){detail={gl:row.accountCode,name:row.accountName,actual:null,budget:null,variance:null,source:''};period.financialDetail.push(detail);}
+        detail.forecast=numeric(row.forecast)?row.forecast:null;detail.forecastSource=source+' / GL '+row.accountCode;detail.forecastBasis={...lineage};
+        detail.forecastEvidence={category:row.category,nature:row.nature,placement:row.placement,sourceKind:row.sourceKind,closeVersionId:row.closeVersionId,driverIds:row.driverIds||[],driverSources:row.driverSources||[],source:row.source};
+      }
+    }
+  }
   if(new URLSearchParams(location.search).get('investorReader')==='1') {
     window.addEventListener('message',async event=>{
       if(event.source!==window.parent||event.origin!==location.origin||event.data?.type!=='atlas-investor-read-budget')return;
       try {
         const central=window.parent.ATLAS_CENTRAL,actor=central?.getSession()?.user?.id;
         if(!actor||!window.parent.atlasAccessDecision?.(12)?.ok)throw Error('Authorized canonical financial access required');
-        const [adapter,matcher,communities,aliases]=await Promise.all([import('./features/canonical-finance.mjs?v=60c13a0342f297e2'),import('./features/financial-package.mjs?v=49ea086d6d07f300'),central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000')]);
+        const [adapter,matcher,communities,aliases,forecastStore]=await Promise.all([import('./features/canonical-finance.mjs?v=60c13a0342f297e2'),import('./features/financial-package.mjs?v=49ea086d6d07f300'),central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000'),import('./features/reforecast-store.mjs?v=4a7a84c04ff55a0f')]);
         const year=Number(event.data.year)||new Date().getFullYear(),sources={schemaVersion:3,savedAt:new Date().toISOString(),properties:{}},seen=new Set();
         const selected=[];for(const name of event.data.names||[]){const cid=matcher.resolveCommunity(name,communities,aliases).communityId;if(cid&&!seen.has(cid)){seen.add(cid);selected.push(communities.find(c=>c.community_id===cid));}}
-        const records=await adapter.readFinance(central,selected.map(c=>c.community_id),Array.from({length:12},(_,m)=>year+'-'+String(m+1).padStart(2,'0')));
+        const periods=Array.from({length:12},(_,m)=>year+'-'+String(m+1).padStart(2,'0'));
+        const [records,activeResult]=await Promise.all([adapter.readFinance(central,selected.map(c=>c.community_id),periods),forecastStore.readActive(central,{communityIds:selected.map(c=>c.community_id),periods}).then(publications=>({publications}),error=>({publications:[],error:String(error.message||error)}))]);
         for(const community of selected){
           const report={name:community.display_name,periods:{},issues:[]};sources.properties[community.display_name]=report;
           for(const row of records.filter(r=>r.community_id===community.community_id)){
@@ -129,6 +162,8 @@
               period.financialDetail=detail.map(r=>{const budget=b?.payload.rows.find(x=>x.glCode===r.gl_code)?.monthly[Number(row.period_key.slice(5))-1]??null,actual=adapter.number(r.actual);return {gl:r.gl_code,name:r.account_name,actual,budget,variance:budget===null||actual===null?null:actual-budget,source:period.source+' / close '+s.actualCloseVersion+' / budget '+(s.budgetVersion||'unavailable')+' / '+JSON.stringify(r.source_location)};});
             }
           }
+          applyActiveForecast(report,community.community_id,activeResult.publications,forecastStore);
+          if(activeResult.error)for(const key of Object.keys(report.periods))report.issues.push(key+': Active Reforecast unavailable: '+activeResult.error);
         }
         if(central.getSession()?.user?.id!==actor)throw Error('Session changed while preparing the financial report');
         window.parent.postMessage({type:'atlas-investor-budget-sources',sources},location.origin);

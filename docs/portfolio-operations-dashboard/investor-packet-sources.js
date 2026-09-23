@@ -12,7 +12,7 @@
   function connect({community,record={},imports={},central={},maintenance={},applications=[],budget=null,plans=[]}) {
     const out=JSON.parse(JSON.stringify(record));
     out.investorAutoByPeriod={};out.investorSourceNotes={};out.investorSegments={};out.investorSourceIssues=[];
-    out.investorConnections=[];
+    out.investorConnections=[];out.investorFinancialByPeriod={};
     const put=(p,id,value,citation,definition,basis='actual')=>{
       if(!period(p)||n(value)===null)return;
       const item=((out.investorAutoByPeriod[p] ||= {})[id] ||= {});
@@ -128,11 +128,11 @@
       if(adverse&&!d.risks.some(x=>x.id===id)&&!(d.suppressedSourceItems||[]).includes(id))d.risks.push({id,risk:`${r.label} ${r.variance!==null?'off budget':'deteriorated versus prior month'}`,impact:P.format(movement,r.unit==='percent'?'number':r.unit)+(r.unit==='percent'?' percentage points':''),mitigation:'Recommended: validate the driver and agree a corrective action; no management commitment inferred.',owner:['physicalOccupancy'].includes(r.id)?record.generalManagerName||'Community management':'Finance',status:'Review required',evidence:cite(r)});
     }
     const details=record.investorFinancialByPeriod?.[packet.period]?.financialDetail||[];
-    const components=details.filter(r=>r.variance!==0).sort((a,b)=>Math.abs(b.variance)-Math.abs(a.variance)).slice(0,3);
+    const components=details.filter(r=>n(r.variance)!==null&&r.variance!==0).sort((a,b)=>Math.abs(b.variance)-Math.abs(a.variance)).slice(0,3);
     if(!d.driversSummary){d.driversSummary=components.length?'Largest account variances: '+components.map(r=>`${r.name} ${P.format(r.variance,'currency')} versus budget`).join('; ')+'. These account movements explain the arithmetic variance; operational causes require supporting evidence.':movements.slice(0,3).map(r=>`${r.label}${deltaText(r)}${r.variance!==null?`; budget variance ${P.format(r.variance,r.unit==='percent'?'number':r.unit)}${r.unit==='percent'?' percentage points':''}`:''}.`).join(' ')||'No supported material movement identified under the selected thresholds.';d.driversSummarySource=components.length?components.map(r=>r.source).join('; '):movements.slice(0,3).map(cite).join('; ');}
     if(!d.management){d.management=auto.management||d.actions.slice(0,3).map(a=>`${a.owner}: ${a.action}${a.due?' (due '+a.due+')':''}.`).join(' ')||'No period-scoped management action is recorded in the connected sources. Owner review is required.';d.managementSource=auto.management?auto.noteSource:d.actions.map(a=>a.evidence).filter(Boolean).join('; ');}
     const noi=row('noi');
-    if(!d.investmentPlan){d.investmentPlan=noi?.variance!==null&&noi?.variance!==undefined?`NOI is ${P.format(Math.abs(noi.variance),'currency')} ${noi.variance>=0?'above':'below'} the monthly budget.${noi.cells.forecast.value!==null?' Full-year forecast NOI is '+P.format(noi.cells.forecast.value,'currency')+'.':''}${noi.cells.underwriting.value===null?' Underwriting and investor-return comparisons remain unavailable.':''}`:'Investment-plan status requires a comparable budget or underwriting source.';d.investmentPlanSource=noi?cite(noi)+(noi.cells.forecast.source?'; Metric source register: noi.forecast':''):'';}
+    if(!d.investmentPlan){d.investmentPlan=noi?.variance!==null&&noi?.variance!==undefined?`NOI is ${P.format(Math.abs(noi.variance),'currency')} ${noi.variance>=0?'above':'below'} the monthly budget.${noi.cells.forecast.value!==null?' '+P.forecastBasisLabel(noi.cells.forecast)+' NOI is '+P.format(noi.cells.forecast.value,'currency')+'.':''}${noi.cells.underwriting.value===null?' Underwriting and investor-return comparisons remain unavailable.':''}`:'Investment-plan status requires a comparable budget or underwriting source.';d.investmentPlanSource=noi?cite(noi)+(noi.cells.forecast.source?'; Metric source register: noi.forecast':''):'';}
     d.metricOwners={...(d.metricOwners||{})};
     for(const r of packet.rows)if(!d.metricOwners[r.id])d.metricOwners[r.id]=['revenue','expenses','capital','debt','returns','collections'].includes(r.group)?'Finance':record.generalManagerName||'Community management';
     return d;

@@ -46,8 +46,9 @@
     const mapping=config.mappings?.[id]?.[basis];
     const entry=record.monthlyHistoryByPeriod?.[period];
     const financial=record.investorFinancialByPeriod?.[period];
-    if(!mapping&&financial?.source&&number(financial[id]?.[basis])!==null) return {value:number(financial[id][basis]),source:financial[id].sources?.[basis]||financial.source+` / ${id}.${basis}`,definition:financial[id].definitions?.[basis]||'',status:'available',version:'budget-builder-v2'};
-    if(!mapping&&record.investorAutoByPeriod?.[period]?.[id]?.[basis]) return record.investorAutoByPeriod[period][id][basis];
+    const canonicalForecast=!mapping&&basis==='forecast'&&financial?.forecastAuthority==='canonical_active';
+    if(!mapping&&financial?.source&&number(financial[id]?.[basis])!==null) return {value:number(financial[id][basis]),source:financial[id].sources?.[basis]||financial.source+` / ${id}.${basis}`,definition:financial[id].definitions?.[basis]||'',status:'available',version:canonicalForecast?'canonical-active-reforecast-v1':'budget-builder-v2',...(basis==='forecast'?{forecastBasis:financial[id].forecastBasis||{kind:'legacy_full_year',year:Number(period.slice(0,4))}}:{})};
+    if(!mapping&&!canonicalForecast&&record.investorAutoByPeriod?.[period]?.[id]?.[basis]) return record.investorAutoByPeriod[period][id][basis];
     if(!mapping && ['revenue','expenses'].includes(id) && ['actual','budget'].includes(basis) && config.ledgerBasis==='monthly') {
       const ledgerName=basis==='actual'?'financialLedger':'financialBudgetLedger';
       const ledger=record[ledgerName]?.[period];
@@ -79,18 +80,22 @@
       const value=number(at(record,path));
       if(value!==null) {
         if(value===0&&!config.verifiedZeros?.[period]?.includes(`${id}:${basis}`)) return missing('Stored zero needs source verification');
-        return {value:value*(number(mapping?.scale)??1),source:`ATLAS / ${path}${mapping?.citation?' / '+mapping.citation:''}`,status:'available',definition:mapping?.definition||'',version:mapping?.version||'1',explicit};
+        return {value:value*(number(mapping?.scale)??1),source:`ATLAS / ${path}${mapping?.citation?' / '+mapping.citation:''}`,status:'available',definition:mapping?.definition||'',version:mapping?.version||'1',explicit,...(basis==='forecast'?{forecastBasis:{kind:'legacy_full_year',year:Number(period.slice(0,4))}}:{})};
       }
     }
     if(['actual','budget','forecast','underwriting'].includes(basis) && formulas[id]) {
       const [a,b,op]=formulas[id], av=read(record,period,a,basis,config,seen), bv=read(record,period,b,basis,config,seen);
       if(av.value!==null&&bv.value!==null) {
+        if(basis==='forecast'&&!comparableForecast(av,bv))return missing('Forecast inputs have different reporting bases');
         if(op!=='subtract'&&bv.value<=0) return missing('Denominator is zero or negative');
-        return {value:op==='subtract'?av.value-bv.value:av.value/bv.value*(op==='ratio'?100:1),source:`Calculated: ${av.source}; ${bv.source}`,status:'available',version:'1'};
+        return {value:op==='subtract'?av.value-bv.value:av.value/bv.value*(op==='ratio'?100:1),source:`Calculated: ${av.source}; ${bv.source}`,status:'available',version:'1',...(basis==='forecast'?{forecastBasis:av.forecastBasis}:{})};
       }
     }
-    return missing(explicit?'Mapped source is unavailable for this period':entry?'Metric not mapped or unavailable':'Exact reporting period is unavailable');
+    return missing(canonicalForecast?(financial.activeReforecast?.reason||'This metric is unavailable in the monthly Active Reforecast'):explicit?'Mapped source is unavailable for this period':entry?'Metric not mapped or unavailable':'Exact reporting period is unavailable');
   }
+  function comparableForecast(a,b){const x=a?.forecastBasis,y=b?.forecastBasis;return Boolean(x&&y&&x.kind===y.kind&&(x.kind==='monthly_active_reforecast'?x.period===y.period:x.kind==='legacy_full_year'&&x.year===y.year));}
+  function forecastBasisLabel(cell){const b=cell?.forecastBasis;return b?.kind==='monthly_active_reforecast'?`Monthly active reforecast · ${b.period}${b.sourceKind==='closed_actual'?' · closed actual':''}`:b?.kind==='legacy_full_year'?`Full-year forecast · ${b.year}`:cell?.value!==null&&cell?.value!==undefined?'Forecast basis requires confirmation':'';}
+  function forecastLabel(rows){const kinds=new Set(rows.filter(r=>r.cells.forecast.value!==null).map(r=>r.cells.forecast.forecastBasis?.kind));return kinds.size===1&&kinds.has('monthly_active_reforecast')?'Monthly active reforecast':kinds.size===1&&kinds.has('legacy_full_year')?'Full-year forecast':kinds.size?'Forecast (basis shown)':'Forecast';}
   function format(value,unit='number') { if(value===null||value===undefined||!Number.isFinite(Number(value))) return '—'; return (unit==='currency'?'$':'')+Number(value).toLocaleString('en-US',{maximumFractionDigits:unit==='currency'?0:1})+(unit==='percent'?'%':unit==='multiple'?'×':''); }
   function delta(a,b) { return a===null||b===null?null:a-b; }
   function ytd(record,period,m,basis,config) {
@@ -113,7 +118,7 @@
       const threshold=m.unit==='percent'?(config.materialityPoints??2):m.unit==='currency'?(config.materialityDollars??5000):(config.materialityCount??5);
       const material=[mom,variance].some(v=>v!==null&&v!==0&&Math.abs(v)>=threshold);
       const definition=cells.current.definition||m.definition;
-      return {...m,definition,cells,variance,variancePct,mom,material,yoy:delta(cells.current.value,cells.priorYear.value),underwritingVariance:delta(cells.current.value,cells.underwriting.value),ytdVariance:delta(cells.ytdActual.value,cells.ytdBudget.value),forecastChange:prior?.period?.slice(0,4)===period.slice(0,4)?delta(cells.forecast.value,base?.cells?.forecast?.value??null):null,definitionChanged:Boolean(base&&(base.definition!==definition||base.cells.current.version!==cells.current.version)),sourceChanged:Boolean(base&&String(base.cells.current.source).replaceAll(prior.period,'{period}')!==String(cells.current.source).replaceAll(period,'{period}'))};
+      return {...m,definition,cells,variance,variancePct,mom,material,yoy:delta(cells.current.value,cells.priorYear.value),underwritingVariance:delta(cells.current.value,cells.underwriting.value),ytdVariance:delta(cells.ytdActual.value,cells.ytdBudget.value),forecastChange:comparableForecast(cells.forecast,base?.cells?.forecast)?delta(cells.forecast.value,base.cells.forecast.value):null,definitionChanged:Boolean(base&&(base.definition!==definition||base.cells.current.version!==cells.current.version)),sourceChanged:Boolean(base&&String(base.cells.current.source).replaceAll(prior.period,'{period}')!==String(cells.current.source).replaceAll(period,'{period}'))};
     });
     const issues=(record.investorSourceIssues||[]).filter(x=>x.startsWith(period+':')||x.startsWith(period+' ')).map(issue=>({owner:'Source owner',metric:'Source coverage / cutoff',issue}));
     const snapshotDate=String(record.latestDlrSummary?.dailyBoxScore?.reportDateIso||'');
@@ -153,8 +158,8 @@
     return core;
   }
   function table(rows,full=false) {
-    const heads=['Metric','Current','Budget','Δ / pp','Δ %','Prior month',...(full?['Prior year','Underwriting','YTD actual','YTD budget','FY forecast']:[])];
-    return `<table><thead><tr>${heads.map(x=>`<th>${esc(x)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.label)} <a href="#source-${r.id}">[${metrics.findIndex(m=>m.id===r.id)+1}]</a></td>${[format(r.cells.current.value,r.unit),format(r.cells.budget.value,r.unit),format(r.variance,r.unit==='percent'?'number':r.unit),format(r.variancePct,'percent'),format(r.cells.priorMonth.value,r.unit),...(full?[format(r.cells.priorYear.value,r.unit),format(r.cells.underwriting.value,r.unit),format(r.cells.ytdActual.value,r.unit),format(r.cells.ytdBudget.value,r.unit),format(r.cells.forecast.value,r.unit)]:[])].map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    const heads=['Metric','Current','Budget','Δ / pp','Δ %','Prior month',...(full?['Prior year','Underwriting','YTD actual','YTD budget',forecastLabel(rows)]:[])];
+    return `<table><thead><tr>${heads.map(x=>`<th>${esc(x)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.label)} <a href="#source-${r.id}">[${metrics.findIndex(m=>m.id===r.id)+1}]</a></td>${[format(r.cells.current.value,r.unit),format(r.cells.budget.value,r.unit),format(r.variance,r.unit==='percent'?'number':r.unit),format(r.variancePct,'percent'),format(r.cells.priorMonth.value,r.unit),...(full?[format(r.cells.priorYear.value,r.unit),format(r.cells.underwriting.value,r.unit),format(r.cells.ytdActual.value,r.unit),format(r.cells.ytdBudget.value,r.unit),format(r.cells.forecast.value,r.unit)+(forecastBasisLabel(r.cells.forecast)?' · '+forecastBasisLabel(r.cells.forecast):'')]:[])].map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
   }
   function notes(packet,kind) {
     const d=packet.draft;
@@ -187,7 +192,7 @@
     if(packet.prior) for(const key of ['actions','risks']) if(!Array.isArray(packet.prior[key]))return false;
     return JSON.stringify(packet).length<=1500000;
   }
-  const api={metrics,groups,formulas,number,esc,shift,read,build,format,delta,pages,html,notes,periodValid,validReviewedPacket};
+  const api={metrics,groups,formulas,number,esc,shift,read,build,format,delta,pages,html,notes,periodValid,validReviewedPacket,forecastBasisLabel,forecastLabel};
   root.AtlasInvestorPacket=api;
   if(typeof module!=='undefined') module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

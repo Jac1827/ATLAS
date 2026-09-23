@@ -13,9 +13,9 @@
 <script src="financial-publication.js?v=de79892b03f508fe"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="./investor-packet.css"/>
-<script src="./investor-packet-core.js"></script>
-<script src="./investor-packet-sources.js"></script>
-<script src="./investor-packet-ui.js?v=aaf6d6b5c425c99a"></script>
+<script src="./investor-packet-core.js?v=3fd71e27dc71368f"></script>
+<script src="./investor-packet-sources.js?v=e40335d46730bec3"></script>
+<script src="./investor-packet-ui.js?v=ee17619029809a12"></script>
 <style>
   :root {
     --bg: #f5f5f3;
@@ -1425,7 +1425,7 @@
 </div>
 
 <script src="./atlas_historical_restore_data.js"></script>
-<script src="./atlas-mounts.js?v=2179c29bbe08faf6"></script>
+<script src="./atlas-mounts.js?v=2f0cde3f4ca24555"></script>
 <script src="./centralization/atlas-central-client.js?v=aaf34ed3eb7a47f1" data-atlas-central-client="true"></script>
 <script src="./atlas-dashboard-reskin.js?v=99ffd40a8970f8ef"></script>
 <script src="./central-services.js?v=20260919-renewal-period-review"></script>
@@ -1450,6 +1450,7 @@
 <script src="./workforce-assignment.js?v=86fb414cbe269a8a"></script>
 <script src="./application-aging.js?v=4091f111fe289027"></script>
 <script src="./application-performance-ui.js?v=76767fc8f24b44d6"></script>
+<script src="./reforecast-consumers.js?v=44df3c595f002d30"></script>
 <script src="./community-goal-editor.js?v=5759e5235bdacc20"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -15155,6 +15156,7 @@ function renderTab() {
     const idx = Number(String(p.id).replace("tab-panel-", ""));
     p.style.display = idx === activeTab ? "" : "none";
   });
+  if (!isPortfolioWorkspaceSelected()) window.AtlasActiveReforecast?.mount(panel, {tab:activeTab,communityName:getProp().name,communityId:getCurrentCommunityRecord()?.communityId,period:buildPeriodKey(getSelectedDashboardMonthIndex(),Number(getCurrentCommunityRecord()?.reportYear)||new Date().getFullYear())});
   syncAtlasWorkspaceCardVisibility();
   applyDashboardBackdrop();
   syncAtlasTopbar();
@@ -24652,7 +24654,7 @@ async function openSharedCommunityPlan() {
   const communityId = access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId;
   if (!communityId || !window.ATLAS_CENTRAL) { alert("Shared plans require an authorized canonical community record."); return false; }
   try {
-    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=295efb79b8f30639");
+    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=d0e2fce19e70d77e");
     if (epoch !== atlasNavigationEpoch || !atlasAccessDecision(2).ok) return false;
     const entry=model.monthEntry, provenance=entry.metricProvenance?.occupiedSnapshot, period=buildPeriodKey(model.monthIdx,model.year);
     const occupancy=provenance?.revisionKey && provenance.period===period && (!provenance.communityId||provenance.communityId===communityId) && entry.occupiedSnapshot!=null && Number(entry.rentableUnits)>0

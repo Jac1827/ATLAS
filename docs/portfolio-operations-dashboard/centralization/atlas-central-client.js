@@ -1128,15 +1128,7 @@
       p_bonus_permissions: Array.isArray(access.bonusPermissions) ? access.bonusPermissions : [],
       p_access_notes: String(access.accessNotes || access.access_notes || "").trim() || null
     };
-    try {
-      return await rpc("atlas_admin_upsert_user_access", payload);
-    } catch (error) {
-      if (/p_bonus_permissions|bonus_permissions|schema cache|function/i.test(String(error?.message || error))) {
-        delete payload.p_bonus_permissions;
-        return rpc("atlas_admin_upsert_user_access", payload);
-      }
-      throw error;
-    }
+    return rpc("atlas_admin_upsert_user_access", payload);
   }
 
   function generateAtlasCentralUuid() {

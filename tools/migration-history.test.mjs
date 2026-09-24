@@ -39,7 +39,8 @@ assert.throws(() => validateMigrationHistory({...files, [first]: Buffer.concat([
 const missing = {...files}; delete missing[first];
 assert.throws(() => validateMigrationHistory(missing, manifest), /missing or renamed/);
 assert.throws(() => validateMigrationHistory({...files, '20200101000000_unrecorded_baseline.sql': Buffer.from('select 1;')}, manifest), /cutoff/);
-const futureVersion = String(BigInt(manifest.historicalCutoff) + 1n);
+const latestVersion = Object.keys(files).map(file => file.slice(0, 14)).sort().at(-1);
+const futureVersion = String(BigInt(latestVersion) + 1n);
 assert.equal(validateMigrationHistory({...files, [`${futureVersion}_future_change.sql`]: Buffer.from('select 1;')}, manifest).additional, result.additional + 1);
 assert.throws(() => validateMigrationHistory({...files, [`${manifest.records[0].version}_duplicate.sql`]: Buffer.from('select 1;')}, manifest), /Duplicate migration/);
 console.log(`PASS migration history: ${result.pinned} exact production bodies preserved; ${result.additional} later migration(s); rejects drift, missing/duplicate versions and unrecorded old entries while allowing future migrations.`);

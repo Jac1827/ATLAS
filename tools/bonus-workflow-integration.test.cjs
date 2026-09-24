@@ -1,3 +1,4 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 // Execute the real dashboard entry points with local DOM/module doubles only.
 // The VM module flag lets us intercept lazy import without rewriting application code.
 const fs = require('node:fs');
@@ -7,7 +8,7 @@ if (!vm.SyntheticModule) {
   const result = require('node:child_process').spawnSync(process.execPath, ['--experimental-vm-modules', __filename], { stdio: 'inherit' });
   process.exit(result.status ?? 1);
 }
-const html = fs.readFileSync(__dirname + '/../docs/portfolio-operations-dashboard/index.html', 'utf8');
+const html = readDashboardSource(__dirname + '/../docs/portfolio-operations-dashboard/index.html') + '\n' + fs.readFileSync(__dirname + '/../docs/portfolio-operations-dashboard/features/bonus-workspace.js', 'utf8');
 const fn = name => {
   const match = html.match(new RegExp('^(?:async )?function ' + name + '\\([^]*?^\\}', 'm'));
   assert(match, 'Dashboard function must exist: ' + name);

@@ -1,6 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "rise-performance-platform-site",
+  "account_id": "3269cb5de40de43d088938ad89e7de19",
   "main": "./src/worker.mjs",
   "compatibility_date": "2026-09-01",
   "observability": {
@@ -70,8 +71,17 @@
     }
   ],
   "assets": {
-    "directory": "./docs",
+    "directory": "./output/atlas-site",
     "binding": "ASSETS",
     "run_worker_first": true
+  },
+  "build": {
+    "command": "node tools/build-atlas-site.mjs",
+    "watch_dir": [
+      "docs",
+      "src",
+      "tools/build-atlas-site.mjs",
+      "tools/package-atlas-assets.mjs"
+    ]
   }
 }

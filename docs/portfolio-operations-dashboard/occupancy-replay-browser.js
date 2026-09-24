@@ -2,6 +2,12 @@
 (function() {
   let pending=null, previewController=null, applying=false;
   const readRecord=key=>withAtlasStateStore('readonly',store=>store.get(key));
+  const context=()=>typeof getAtlasRenderContextKey==='function'?getAtlasRenderContextKey():'';
+  const history=async(operation,extra={})=>{const dbName=ATLAS_STATE_DB_NAME;const {historyOperation}=await import('./features/import-history.mjs?v=a589f3709b941d92');return historyOperation({operation,dbName,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,...extra});};
+  const withoutHistoryMeta=value=>{const {historyStorage,...rest}=value;return rest;};
+  const ordered=value=>Array.isArray(value)?value.map(ordered):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(key=>[key,ordered(value[key])])):value;
+  const same=(a,b)=>JSON.stringify(ordered(a))===JSON.stringify(ordered(b));
+  async function readImport(signal){const row=await readRecord(DATA_IMPORT_2_STATE_KEY);if(row?.value?.__atlasImportHistory!==2)return row;return {...row,value:await history('load',{signal}),split:true};}
   function cancel() {
     if(applying)return false; // An atomic commit/readback is never canceled by navigation.
     previewController?.abort(); previewController=null; pending=null;
@@ -19,14 +25,16 @@
     if(!dataImportCanManageArchitecture()||dataImportApprovalInProgress)throw Error('An admin session with no import in progress is required');
     if(applying)throw Error('An occupancy commit is already in progress');
     cancel();
-    const controller=new AbortController(); previewController=controller;
+    const controller=new AbortController(),scope=context(); previewController=controller;
     let workbookSession=null;
     const finish=window.AtlasPerformance?.start("occupancy-preview");
     window.AtlasPerformance?.memory("before-occupancy-preview");
-    const check=()=>{controller.signal.throwIfAborted();if(!dataImportCanManageArchitecture())throw Error('Admin access changed during occupancy preview');};
+    const check=()=>{controller.signal.throwIfAborted();if(scope!==context())throw Error('Workspace changed during occupancy preview');if(!dataImportCanManageArchitecture())throw Error('Admin access changed during occupancy preview');};
     try {
     await atlasStateWritePromise; check();
-    const [imported,communities]=await Promise.all([readRecord(DATA_IMPORT_2_STATE_KEY),readRecord(ATLAS_STATE_COMMUNITY_KEY)]);
+    if(typeof ensureAtlasCanonicalImportEvidence==='function')await ensureAtlasCanonicalImportEvidence();
+    check();
+    const [imported,communities]=await Promise.all([readImport(controller.signal),readRecord(ATLAS_STATE_COMMUNITY_KEY)]);
     check();
     if(!imported?.value||!communities?.value)throw Error('Complete committed import and community storage is required');
     const state=imported.value, target=state.sourceArchive.find(a=>a.id===archiveId&&a.importStatus==='Approved'&&a.reportType==='box_score');
@@ -48,7 +56,7 @@
       const plan=await dataImportBuildFilePlan(file,{forceReportType:'box_score',signal:controller.signal});
       if(plan.fileHash!==a.fileHash||!plan.metadata?.generatedAt)throw Error('Source identity could not be re-established');
       if(typeof Worker!=='undefined') {
-        const module=await import('./features/workbook-session.mjs?v=ed5ad2c5aee473fc');
+        const module=await import('./features/workbook-session.mjs?v=d48120a0384d9026');
         check(); workbookSession=await module.openWorkbook(file,controller.signal,bytes);
       }
       check();
@@ -88,14 +96,15 @@
     const result=window.AtlasOccupancyReplay.prepare({communityData:communities.value,importState:state,observations,periodKey,now});
     check();
     // Only these two records can change in apply(). Archived files remain immutable.
-    const backup={schema:'atlas_scoped_occupancy_repair_backup_v1',scope:'occupancy_replay_transaction',capturedAt:now,sourceFiles,records:await encode([imported,communities])};
+    const completeImport=imported.split?{key:imported.key,value:await history('export',{signal:controller.signal}),updatedAt:imported.updatedAt}:imported;
+    const backup={schema:'atlas_scoped_occupancy_repair_backup_v1',scope:'occupancy_replay_transaction',capturedAt:now,sourceFiles,records:await encode([completeImport,communities])};
     const backupText=JSON.stringify(backup),backupHash=await hash(new TextEncoder().encode(backupText));
     check();
     download('atlas-occupancy-replay-backup.json',null,backupText);
     window.AtlasPerformance?.record('occupancy-backup',0,{rows:2,bytes:new Blob([backupText]).size});
     const summary={scope:'occupancy_only',periodKey,backupSha256:backupHash,sourceFiles,changes:result.changes,changed:result.changed,observationCount:observations.length,
       note:'Includes source-dated history. The newest verified approved Box Score controls current occupancy. Earlier periods and non-occupancy fields are retained.'};
-    pending={imported,communities,result,summary,now};
+    pending={imported,communities,result,summary,now,scope};
     download('atlas-occupancy-replay-preview.json',summary);
     return summary;
     } finally {workbookSession?.close();if(previewController===controller)previewController=null;finish?.({failed:controller.signal.aborted});window.AtlasPerformance?.memory("after-occupancy-preview-cleanup");}
@@ -106,8 +115,17 @@
     const p=pending; applying=true;
     try {
     await atlasStateWritePromise;
+    if(p.scope!==context())throw Error('Workspace changed after preview; rebuild the preview before applying');
     if(!dataImportCanManageArchitecture())throw Error('Admin access changed before occupancy commit');
     if(!p.result.changed){pending=null;return {changed:false,message:'Already reconciled; no additional facts created'};}
+    let splitReceipt=null;
+    if(p.imported.split){
+      const stamp=new Date().toISOString(),backupKey='occupancy_replay_backup:'+stamp;
+      splitReceipt=await history('publish',{value:p.result.importState,expectedRevision:p.imported.value.historyStorage.revision,records:[
+        {key:ATLAS_STATE_COMMUNITY_KEY,value:p.result.communityData,expectedHash:await hash(new TextEncoder().encode(JSON.stringify(p.communities.value)))},
+        {key:backupKey,value:{backupSha256:p.summary.backupSha256,communityRecord:p.communities,importHistoryRevision:p.imported.value.historyStorage.revision,preview:p.summary},expectedHash:await hash(new TextEncoder().encode('null'))}
+      ]});
+    }else{
     const db=await openAtlasStateDb();if(!db)throw Error('Storage unavailable');
     await new Promise((resolve,reject)=>{
       const tx=db.transaction(ATLAS_STATE_STORE_NAME,'readwrite'),store=tx.objectStore(ATLAS_STATE_STORE_NAME);
@@ -125,13 +143,16 @@
       a.onsuccess=()=>{currentImport=a.result;check();};b.onsuccess=()=>{currentCommunity=b.result;check();};
       tx.oncomplete=resolve;tx.onabort=()=>reject(reason||tx.error||Error('Occupancy transaction aborted'));tx.onerror=()=>reject(tx.error||Error('Occupancy transaction failed'));
     });
-    savedData=clone(p.result.communityData);dataImport2State=clone(p.result.importState);
+    }
+    if(p.scope!==context()){pending=null;throw Error('The original workspace was saved. Reload its history to verify the receipt.');}
+    savedData=clone(p.result.communityData);dataImport2State=splitReceipt?.state||clone(p.result.importState);
+    if(typeof rememberDataImportHistoryState==='function')rememberDataImportHistoryState();
     pending=null;
     loadPropertyData(getProp().name);renderPropGrid();renderTab();
-    const [communityReadback,importReadback]=await Promise.all([readRecord(ATLAS_STATE_COMMUNITY_KEY),readRecord(DATA_IMPORT_2_STATE_KEY)]);
+    const [communityReadback,importReadback]=await Promise.all([readRecord(ATLAS_STATE_COMMUNITY_KEY),readImport()]);
     const report={appliedAt:new Date().toISOString(),preview:p.summary,
-      communityReadbackMatches:JSON.stringify(communityReadback?.value)===JSON.stringify(p.result.communityData),
-      importReadbackMatches:JSON.stringify(importReadback?.value)===JSON.stringify(p.result.importState)};
+      communityReadbackMatches:same(communityReadback?.value,p.result.communityData),
+      importReadbackMatches:same(importReadback?.value?withoutHistoryMeta(importReadback.value):null,withoutHistoryMeta(p.result.importState))};
     download('atlas-occupancy-replay-result.json',report);
     if(!report.communityReadbackMatches||!report.importReadbackMatches)throw Error('Post-commit readback differs; preserve the backup and investigate concurrent writers');
     return report;
@@ -139,7 +160,7 @@
   }
   window.AtlasOccupancyReplayBrowser={preview,apply,cancel};
   window.addEventListener("pagehide",cancel);
-  window.addEventListener("atlas-central-auth-change",()=>{if(!dataImportCanManageArchitecture())cancel();});
+  window.addEventListener("atlas-central-auth-change",cancel);
   window.previewAtlasOccupancyReplay=async archiveId=>{try{const p=await preview(archiveId);alert(`Occupancy preview exported: ${p.changes.length} communities; ${p.observationCount} source observations. Backup of both affected storage records exported. Review the preview before applying.`);}catch(e){if(e.name==='AbortError')return;alert(`Occupancy preview stopped: ${e.message}`);}};
   window.applyAtlasOccupancyReplay=async()=>{try{if(!pending)throw Error('Create and review an occupancy preview first');if(!confirm('Apply the reviewed occupancy-only revision? Newer approved Box Score observations remain controlling.'))return;const r=await apply();alert(r.changed===false?r.message:'Occupancy revision committed and verified in browser storage. Shared-session and report acceptance still required.');}catch(e){alert(`Occupancy revision stopped: ${e.message}`);}};
 })();

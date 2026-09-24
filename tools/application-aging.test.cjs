@@ -1,3 +1,4 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const A=require('../docs/portfolio-operations-dashboard/application-aging.js');
 const W=require('../docs/portfolio-operations-dashboard/weekly-leasing-report.js');
@@ -15,7 +16,7 @@ assert.equal(A.latestRecords([rec('old','2026-05-08'),rec('new','2026-09-17')]).
 const model=W.model({records:[rec('1','2026-09-17')],communities:['Baymeadows'],end:'2026-09-17',period:'2026-09',offers:[{name:'Baymeadows',current:{asking:1778,ner:1437,offer:'Ten weeks free'}}]});
 const report=W.document(model);assert(report.includes('$1,778')&&report.includes('$1,437'));assert(!report.includes('<th>Source</th>'));assert(/Concessions across communities<\/h2>\s*<table>/.test(report));assert(report.includes('background:#e8f3f8'));assert(report.includes('color:#b42318;font-weight:700">Peacock, Michelle'));assert(report.includes('color:#b42318;font-weight:700">1</td>'));
 // Source display names cannot identify compensation employees; advisory never changes pay.
-const html=fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/index.html','utf8');
+const html=readDashboardSource(__dirname+'/../docs/portfolio-operations-dashboard/index.html') + '\n' + fs.readFileSync(__dirname + '/../docs/portfolio-operations-dashboard/features/bonus-workspace.js', 'utf8');
 const fn=html.match(/^function atlasBonusBuildCalculationRows\(options = \{\}\) \{[\s\S]*?^\}/m)[0];
 const employee={name:'Michelle Peacock',communityName:'Baymeadows'};
 const c={window:{AtlasApplicationAging:A},bonusQuarter:'Q3',atlasBonusState:()=>({filters:{}}),atlasBonusPeriodFromQuarter:()=>({start:'2026-07-01',end:'2026-09-30',periodKey:'2026-Q3'}),atlasBonusAuthorizedEmployees:()=>[employee],atlasBonusBuildRow:e=>({employee:e,exceptions:[],finalPayout:500}),atlasBonusEmployeeDisplayName:e=>e.name,getAtlasApplicationAgingRows:()=>[{community:'Baymeadows',professional:'Peacock, Michelle',derogatoryCount:2}]};

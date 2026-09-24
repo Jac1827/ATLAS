@@ -1,6 +1,7 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const dir=__dirname+'/../docs/portfolio-operations-dashboard/';
-const html=fs.readFileSync(dir+'index.html','utf8');
+const html=readDashboardSource(dir+'index.html');
 const F=require(dir+'financial-publication.js'),B=require(dir+'application-source-bridge.js');
 const c={selectedPropIdx:0,console,Date,Map,Set,window:{AtlasFinancialPublication:F,ATLAS_CENTRAL:{getSession:()=>null}},savedData:{Test:{}},dataImportRuntimeCurrentLineageIndex:null,dataImport2State:{lineage:[]},PROPERTIES:[{name:'Test',units:100}],MONTHS:Array(12).fill('Month')};
 vm.createContext(c);for(const f of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm))vm.runInContext(f[0],c);

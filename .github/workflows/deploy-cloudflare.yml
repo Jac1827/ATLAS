@@ -2,6 +2,8 @@ name: Deploy Cloudflare Worker
 
 on:
   push:
+    branches-ignore:
+      - atlas-asset-releases
   workflow_dispatch:
     inputs:
       target:
@@ -16,15 +18,17 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: cloudflare-worker-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   preview:
     if: (github.event_name == 'push' && github.ref != 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.target == 'preview')
+    concurrency:
+      group: atlas-preview-${{ github.ref }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      ATLAS_ASSET_RELEASE_MODE: preview
+      ATLAS_XLSX: ${{ github.workspace }}/docs/portfolio-operations-dashboard/assets/xlsx.full.min.js
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -42,122 +46,44 @@ jobs:
           npm install --no-save --package-lock=false --ignore-scripts playwright@1.62.1
           npx playwright install --with-deps chromium
 
-      - name: Test shared Bonus browser workflow
-        run: |
-          node tools/bonus-workflow-ui.test.mjs
-          node tools/bonus-workflow-remount.test.mjs
+      - name: Run complete discovered test suite
+        run: node tools/test-all.mjs --output output/test-all/ci
 
-      - name: Test authentication outage recovery
-        run: node tools/auth-resilience.test.cjs
-
-      - name: Verify production migration history
-        run: node tools/migration-history.test.mjs
-
-      - name: Test dashboard presentation and ticker lifecycle
-        run: |
-          node test-ticker.mjs
-          node tools/screening-client.test.cjs
-          node tools/application-lineage.test.cjs
-          node tools/application-lineage-db.test.cjs
-          node tools/application-propagation.test.cjs
-          node tools/application-publication-client.test.cjs
-          node tools/dashboard-reskin.test.cjs
-          node tools/home-bonus-performance.test.cjs
-
-      - name: Test delinquency mapping contract
-        run: node tools/delinquency-mapping.test.cjs
-
-      - name: Test reporting data and weekly report
-        run: |
-          node tools/reporting-repair.test.cjs
-          node tools/canonical-report-data.test.cjs
-          node tools/weekly-funnel.test.cjs
-          node tools/application-aging.test.cjs
-          node tools/storage-capacity.test.cjs
-
-      - name: Test property organization and special history
-        run: |
-          node tools/box-score-floor-plans.test.cjs
-          node tools/property-intelligence.test.cjs
-          node tools/property-organization.test.cjs
-          node tools/property-specials.test.mjs
-          node tools/property-specials-store.test.mjs
-          node tools/property-specials-api.test.mjs
-          node tools/concession-insights.test.cjs
-
-      - name: Test occupancy dashboard contract
-        run: |
-          node tools/occupancy-contract.test.cjs
-          node tools/occupancy-history-stabilization.test.cjs
-          node tools/occupancy-financial-import.test.cjs
-          node tools/financial-publication.test.cjs
-          node tools/investor-packet-sources.test.cjs
-
-      - name: Test utility forecast and finance lineage
-        run: |
-          node tools/utility-forecast.test.mjs
-          node tools/utility-forecast-db.test.cjs
-          node tools/utility-report-lineage.test.cjs
-
-      - name: Test governed forecast builder and baseline consumers
-        run: |
-          node tools/performance-assets.test.cjs
-          node tools/reforecast-builder-ui.test.mjs
-          node tools/reforecast-provider.test.mjs
-          node tools/reforecast-engine.test.mjs
-          node tools/reforecast-store.test.mjs
-          node tools/reforecast-ui.test.mjs
-          node tools/reforecast-report.test.mjs
-          node tools/reforecast-consumers.test.mjs
-          node tools/reforecast-utility.test.mjs
-          node tools/reforecast-bonus.test.mjs
-          node tools/bonus-export-security.test.cjs
-          node tools/bonus-prerequisites.test.cjs
-          node tools/bonus-financial-attainment.test.cjs
-          node tools/bonus-workflow-client.test.mjs
-          node tools/bonus-access-client.test.cjs
-          node tools/bonus-workflow-db.test.cjs
-          node tools/bonus-workflow-boundaries.test.cjs
-          node tools/bonus-workflow-rollback.test.cjs
-          node tools/profile-access-hardening-db.test.cjs
-          node tools/bonus-workflow-integration.test.cjs
-          node tools/reforecast-approval-rollback.test.cjs
-          node tools/migration-history-replay.test.cjs
-          node tools/forecast-test-host.test.mjs
-          node tools/reforecast-bonus-current-db.test.cjs
-          node tools/reforecast-bonus-receipts-db.test.cjs
-          node tools/reforecast-builder-db.test.cjs
-          node tools/reforecast-builder-upgrade-db.test.cjs
-          node tools/reforecast-original-baseline-db.test.cjs
-          node tools/reforecast-builder-integration-db.test.cjs
-          node tools/forecast-contract-workflow-db.test.cjs
-          node tools/reforecast-report-receipts-db.test.cjs
-          node tools/reforecast-utility-db.test.cjs
-          node tools/canonical-finance.test.mjs
-          node tools/canonical-budget-report.test.mjs
-          node tools/financial-close.test.mjs
-          node tools/financial-close-report.test.mjs
-          node tools/financial-snapshot-output.test.mjs
-          node tools/community-plan-email.test.mjs
-          node tools/community-finance-roster.test.mjs
-
-      - name: Test eviction packet workflow
-        run: node tools/eviction-attorney.test.mjs
+      - name: Retain sanitized test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-${{ github.job }}
+          path: output/test-all/ci/results.json
+          if-no-files-found: warn
 
       - name: Install Wrangler
-        run: npm install --no-save wrangler@^4
+        run: npm install --no-save --package-lock=false wrangler@4.72.0
 
       - name: Upload preview Worker version
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          wranglerVersion: "4"
+          wranglerVersion: "4.72.0"
           command: versions upload
 
   production:
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.target == 'production')
+    concurrency:
+      group: atlas-production-publisher
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    env:
+      ATLAS_ASSET_RELEASE_MODE: publish
+      ATLAS_XLSX: ${{ github.workspace }}/docs/portfolio-operations-dashboard/assets/xlsx.full.min.js
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -175,114 +101,41 @@ jobs:
           npm install --no-save --package-lock=false --ignore-scripts playwright@1.62.1
           npx playwright install --with-deps chromium
 
-      - name: Test shared Bonus browser workflow
-        run: |
-          node tools/bonus-workflow-ui.test.mjs
-          node tools/bonus-workflow-remount.test.mjs
+      - name: Run complete discovered test suite
+        run: node tools/test-all.mjs --output output/test-all/ci
 
-      - name: Test authentication outage recovery
-        run: node tools/auth-resilience.test.cjs
-
-      - name: Verify production migration history
-        run: node tools/migration-history.test.mjs
-
-      - name: Test dashboard presentation and ticker lifecycle
-        run: |
-          node test-ticker.mjs
-          node tools/screening-client.test.cjs
-          node tools/application-lineage.test.cjs
-          node tools/application-lineage-db.test.cjs
-          node tools/application-propagation.test.cjs
-          node tools/application-publication-client.test.cjs
-          node tools/dashboard-reskin.test.cjs
-          node tools/home-bonus-performance.test.cjs
-
-      - name: Test delinquency mapping contract
-        run: node tools/delinquency-mapping.test.cjs
-
-      - name: Test reporting data and weekly report
-        run: |
-          node tools/reporting-repair.test.cjs
-          node tools/canonical-report-data.test.cjs
-          node tools/weekly-funnel.test.cjs
-          node tools/application-aging.test.cjs
-          node tools/storage-capacity.test.cjs
-
-      - name: Test property organization and special history
-        run: |
-          node tools/box-score-floor-plans.test.cjs
-          node tools/property-intelligence.test.cjs
-          node tools/property-organization.test.cjs
-          node tools/property-specials.test.mjs
-          node tools/property-specials-store.test.mjs
-          node tools/property-specials-api.test.mjs
-          node tools/concession-insights.test.cjs
-
-      - name: Test occupancy dashboard contract
-        run: |
-          node tools/occupancy-contract.test.cjs
-          node tools/occupancy-history-stabilization.test.cjs
-          node tools/occupancy-financial-import.test.cjs
-          node tools/financial-publication.test.cjs
-          node tools/investor-packet-sources.test.cjs
-
-      - name: Test utility forecast and finance lineage
-        run: |
-          node tools/utility-forecast.test.mjs
-          node tools/utility-forecast-db.test.cjs
-          node tools/utility-report-lineage.test.cjs
-
-      - name: Test governed forecast builder and baseline consumers
-        run: |
-          node tools/performance-assets.test.cjs
-          node tools/reforecast-builder-ui.test.mjs
-          node tools/reforecast-provider.test.mjs
-          node tools/reforecast-engine.test.mjs
-          node tools/reforecast-store.test.mjs
-          node tools/reforecast-ui.test.mjs
-          node tools/reforecast-report.test.mjs
-          node tools/reforecast-consumers.test.mjs
-          node tools/reforecast-utility.test.mjs
-          node tools/reforecast-bonus.test.mjs
-          node tools/bonus-export-security.test.cjs
-          node tools/bonus-prerequisites.test.cjs
-          node tools/bonus-financial-attainment.test.cjs
-          node tools/bonus-workflow-client.test.mjs
-          node tools/bonus-access-client.test.cjs
-          node tools/bonus-workflow-db.test.cjs
-          node tools/bonus-workflow-boundaries.test.cjs
-          node tools/bonus-workflow-rollback.test.cjs
-          node tools/profile-access-hardening-db.test.cjs
-          node tools/bonus-workflow-integration.test.cjs
-          node tools/reforecast-approval-rollback.test.cjs
-          node tools/migration-history-replay.test.cjs
-          node tools/forecast-test-host.test.mjs
-          node tools/reforecast-bonus-current-db.test.cjs
-          node tools/reforecast-bonus-receipts-db.test.cjs
-          node tools/reforecast-builder-db.test.cjs
-          node tools/reforecast-builder-upgrade-db.test.cjs
-          node tools/reforecast-original-baseline-db.test.cjs
-          node tools/reforecast-builder-integration-db.test.cjs
-          node tools/forecast-contract-workflow-db.test.cjs
-          node tools/reforecast-report-receipts-db.test.cjs
-          node tools/reforecast-utility-db.test.cjs
-          node tools/canonical-finance.test.mjs
-          node tools/canonical-budget-report.test.mjs
-          node tools/financial-close.test.mjs
-          node tools/financial-close-report.test.mjs
-          node tools/financial-snapshot-output.test.mjs
-          node tools/community-plan-email.test.mjs
-          node tools/community-finance-roster.test.mjs
-
-      - name: Test eviction packet workflow
-        run: node tools/eviction-attorney.test.mjs
+      - name: Retain sanitized test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-${{ github.job }}
+          path: output/test-all/ci/results.json
+          if-no-files-found: warn
 
       - name: Install Wrangler
-        run: npm install --no-save wrangler@^4
+        run: npm install --no-save --package-lock=false wrangler@4.72.0
+
+      - name: Verify scoped workspace database reader is deployed
+        run: node tools/verify-workspace-backend.mjs
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Build and retain one artifact for both hosts
+        run: node tools/build-atlas-site.mjs
 
       - name: Deploy production Worker
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          wranglerVersion: "4"
+          wranglerVersion: "4.72.0"
           command: deploy --keep-vars
+
+      - name: Upload the same artifact to GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: output/atlas-site
+
+      - name: Deploy GitHub Pages
+        id: pages
+        uses: actions/deploy-pages@v4

@@ -3431,9 +3431,11 @@
   }
 
   function getPeopleEmployees() {
+    const configured = typeof getAtlasCentralStatus === "function" ? Boolean(getAtlasCentralStatus().configured) : Boolean(window.ATLAS_CENTRAL?.getStatus?.().configured || (!window.ATLAS_CENTRAL && /^https?:$/.test(window.location?.protocol || "")));
+    if (configured && (typeof atlasWorkspaceAccess === "undefined" || !atlasWorkspaceAccess.validated || !atlasWorkspaceAccess.hasData)) return [];
     const employees = new Map();
     try {
-      if (typeof loadPeoplePlatformStateForSharedData === "function") {
+      if (!configured && typeof loadPeoplePlatformStateForSharedData === "function") {
         const peopleState = loadPeoplePlatformStateForSharedData() || {};
         asArray(peopleState.employees).forEach(employee => addPeopleEmployee(employees, employee, { source: "People roster" }));
       }
@@ -3442,7 +3444,7 @@
     }
     try {
       const key = typeof PERFORMANCE_PLATFORM_STORAGE_KEY !== "undefined" ? PERFORMANCE_PLATFORM_STORAGE_KEY : "rise_performance_platform_github_v1";
-      const peopleState = safeJsonParse(storageGet(key), {});
+      const peopleState = configured ? {} : safeJsonParse(storageGet(key), {});
       asArray(peopleState.employees).forEach(employee => addPeopleEmployee(employees, employee, { source: "People roster" }));
     } catch {
       // Keep any other sources that are available.
@@ -3457,7 +3459,7 @@
       // Shared data has not loaded yet.
     }
     try {
-      const embeddedRoster = typeof atlasEmbeddedPeopleRosterEntries === "function"
+      const embeddedRoster = configured ? [] : typeof atlasEmbeddedPeopleRosterEntries === "function"
         ? atlasEmbeddedPeopleRosterEntries()
         : asArray(window.ATLAS_EMBEDDED_PEOPLE_ROSTER);
       asArray(embeddedRoster).forEach(employee => addPeopleEmployee(employees, employee, { source: "Embedded People roster", normalized: employee }));
@@ -3468,9 +3470,11 @@
   }
 
   function getCentralServicesEmployees() {
+    const configured = typeof getAtlasCentralStatus === "function" ? Boolean(getAtlasCentralStatus().configured) : Boolean(window.ATLAS_CENTRAL?.getStatus?.().configured || (!window.ATLAS_CENTRAL && /^https?:$/.test(window.location?.protocol || "")));
+    if (configured && (typeof atlasWorkspaceAccess === "undefined" || !atlasWorkspaceAccess.validated || !atlasWorkspaceAccess.hasData)) return [];
     const employees = new Map();
     try {
-      if (typeof loadPeoplePlatformStateForSharedData === "function") {
+      if (!configured && typeof loadPeoplePlatformStateForSharedData === "function") {
         const peopleState = loadPeoplePlatformStateForSharedData() || {};
         asArray(peopleState.employees).forEach(employee => addCentralEmployee(employees, employee, { source: "People roster" }));
       }
@@ -3479,7 +3483,7 @@
     }
     try {
       const key = typeof PERFORMANCE_PLATFORM_STORAGE_KEY !== "undefined" ? PERFORMANCE_PLATFORM_STORAGE_KEY : "rise_performance_platform_github_v1";
-      const peopleState = safeJsonParse(storageGet(key), {});
+      const peopleState = configured ? {} : safeJsonParse(storageGet(key), {});
       asArray(peopleState.employees).forEach(employee => addCentralEmployee(employees, employee, { source: "People roster" }));
     } catch {
       // Keep any other sources that are available.
@@ -3494,7 +3498,7 @@
       // Shared data has not loaded yet.
     }
     try {
-      const embeddedRoster = typeof atlasEmbeddedPeopleRosterEntries === "function"
+      const embeddedRoster = configured ? [] : typeof atlasEmbeddedPeopleRosterEntries === "function"
         ? atlasEmbeddedPeopleRosterEntries()
         : asArray(window.ATLAS_EMBEDDED_PEOPLE_ROSTER);
       asArray(embeddedRoster).forEach(employee => addCentralEmployee(employees, employee, { source: "Embedded People roster", normalized: employee }));

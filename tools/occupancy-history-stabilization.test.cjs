@@ -1,5 +1,6 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const fs = require('node:fs'), vm = require('node:vm'), assert = require('node:assert/strict');
-const html = fs.readFileSync(__dirname + '/../docs/portfolio-operations-dashboard/index.html', 'utf8');
+const html = readDashboardSource(__dirname + '/../docs/portfolio-operations-dashboard/index.html');
 const c = { PROPERTIES:[{name:'Synthetic Community',units:200}],selectedPropIdx:0,console, Date, Map, Set, window: {}, MONTHS: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'], dataImport2State: {lineage: [], canonicalRecords: []}, communityCommandState: {} };
 c.FULL_MONTHS=c.MONTHS; vm.createContext(c);
 for (const f of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm)) vm.runInContext(f[0],c);

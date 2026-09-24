@@ -14,6 +14,75 @@
   "use strict";
 
   var lastPublishedPeopleRosterKey = "";
+  var mountedFrames = new Map();
+  var mountTabs = { maintenance: 10, marketing: 11, budget: 12, people: 13 };
+
+  function mountContextKey(tab) {
+    var central = window.ATLAS_CENTRAL;
+    var profile = typeof getAtlasAccessProfile === "function" ? getAtlasAccessProfile() || {} : {};
+    var config = central && central.getConfig ? central.getConfig() || {} : {};
+    var access = typeof atlasAccessDecision === "function" ? atlasAccessDecision(tab).ok : true;
+    var record = typeof getCurrentCommunityRecord === "function" ? getCurrentCommunityRecord() : {};
+    return JSON.stringify({
+      actor: central && central.getSession ? central.getSession()?.user?.id || "" : "", access: access,
+      database: config.supabaseUrl || config.apiBaseUrl || "", employee: profile.employee_id,
+      role: profile.role, status: profile.status, accountStatus: profile.account_status,
+      communities: profile.allowed_community_ids, regions: profile.allowed_region_values, markets: profile.allowed_market_values,
+      lockedTabs: profile.locked_tab_ids, lockedPages: profile.locked_page_keys, bonusPermissions: profile.bonus_permissions || profile.bonusPermissions,
+      workspace: typeof workspaceScopeValue === "undefined" ? "" : workspaceScopeValue,
+      community: typeof getProp === "function" ? getProp()?.name : "",
+      month: typeof getSelectedDashboardMonthIndex === "function" ? getSelectedDashboardMonthIndex() : null,
+      year: Number(record && record.reportYear) || new Date().getFullYear()
+    });
+  }
+
+  function stopFrameTasks(iframe, state) {
+    if (iframe.__atlasSyncTimer) window.clearInterval(iframe.__atlasSyncTimer);
+    iframe.__atlasSyncTimer = null;
+    state.delays.forEach(function (id) { window.clearTimeout(id); });
+    state.delays = [];
+    state.active = false;
+  }
+
+  function frameVisible(iframe) {
+    var panel = iframe.closest && iframe.closest(".tab-panel");
+    return iframe.isConnected && document.visibilityState !== "hidden" && !iframe.hidden &&
+      (!panel || (!panel.hidden && panel.style.display !== "none"));
+  }
+
+  function reconcileMounts() {
+    mountedFrames.forEach(function (state, iframe) {
+      if (!iframe.isConnected) { stopFrameTasks(iframe, state); mountedFrames.delete(iframe); return; }
+      if (state.context !== mountContextKey(mountTabs[state.key])) {
+        stopFrameTasks(iframe, state); mountedFrames.delete(iframe);
+        var panel = iframe.closest && iframe.closest(".tab-panel");
+        if (panel) { delete panel.dataset.atlasStableMountMounted; delete panel.dataset.atlasPeopleMounted; }
+        iframe.remove();
+        return;
+      }
+      var active = frameVisible(iframe);
+      if (active === state.active) return;
+      if (!active) { stopFrameTasks(iframe, state); return; }
+      state.active = true;
+      syncMountFrame(iframe, state.key);
+      iframe.__atlasSyncTimer = window.setInterval(function () {
+        if (!frameVisible(iframe) || state.context !== mountContextKey(mountTabs[state.key])) { reconcileMounts(); return; }
+        syncMountFrame(iframe, state.key);
+      }, 2000);
+    });
+  }
+  window.AtlasMounts = Object.freeze({ contextKey: mountContextKey, reconcile: reconcileMounts,
+    dispose: function (iframe) { var state = mountedFrames.get(iframe); if (state) stopFrameTasks(iframe, state); mountedFrames.delete(iframe); }
+  });
+  document.addEventListener("visibilitychange", reconcileMounts);
+  window.addEventListener("atlas-central-auth-change", reconcileMounts);
+  window.addEventListener("pagehide", function () { mountedFrames.forEach(function (state, iframe) { stopFrameTasks(iframe, state); }); });
+  window.addEventListener("pageshow", reconcileMounts);
+  if (typeof MutationObserver !== "undefined") {
+    var mountObserver = new MutationObserver(reconcileMounts);
+    var observeMounts = function () { if (document.body) mountObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "hidden"] }); };
+    if (document.body) observeMounts(); else document.addEventListener("DOMContentLoaded", observeMounts, { once: true });
+  }
 
   var MOUNTS = {
     maintenance: {
@@ -45,7 +114,7 @@
       note: "Property budget, monthly view, GL detail, actuals, financial review and exception reporting all run in Budget Builder itself — ATLAS reads the published scenario.",
       barTitle: "RISE Budget Builder",
       barSub: "Standalone finance tool — central Budget and actuals migration required",
-      src: "RISE-Budget-Builder.html?v=3be6de1be7699088",
+      src: "RISE-Budget-Builder.html?v=2c9a438d6fb91e98",
       background: "#F1F4F6",
       icon: "ph-calculator"
     },
@@ -224,20 +293,19 @@
   }
 
   window.handleAtlasMountLoad = function (iframe, key) {
-    if (!iframe) return;
+    if (!iframe || !iframe.isConnected) return;
     iframe.dataset.atlasMountKey = key || "";
-    if (iframe.__atlasSyncTimer) window.clearInterval(iframe.__atlasSyncTimer);
-    syncMountFrame(iframe, key);
+    window.AtlasMounts.dispose(iframe);
+    var state = { key: key, context: iframe.dataset.atlasMountContext || mountContextKey(mountTabs[key]), active: false, delays: [] };
+    mountedFrames.set(iframe, state);
+    reconcileMounts();
     try {
       var context = embeddedWorkspaceContext();
       iframe.contentWindow.postMessage({ type: "atlas-shell-context", context: context }, window.location.origin);
     } catch (err) {}
-    window.setTimeout(function () { syncMountFrame(iframe, key); }, 150);
-    window.setTimeout(function () { syncMountFrame(iframe, key); }, 700);
-    window.setTimeout(function () { syncMountFrame(iframe, key); }, 1600);
-    iframe.__atlasSyncTimer = window.setInterval(function () {
-      syncMountFrame(iframe, key);
-    }, 2000);
+    if (state.active) [150, 700, 1600].forEach(function (delay) {
+      state.delays.push(window.setTimeout(function () { if (frameVisible(iframe) && state.context === mountContextKey(mountTabs[key])) syncMountFrame(iframe, key); }, delay));
+    });
   };
 
   function isBudgetFrameSource(source) {
@@ -355,7 +423,8 @@
     }
     if (data.type !== "atlas-embedded-height") return;
     var iframe = document.querySelector('iframe[data-atlas-mount-key="' + String(data.key || "") + '"]');
-    if (iframe) applyFrameHeight(iframe, data.height);
+    if (!iframe || iframe.contentWindow !== event.source || !frameVisible(iframe)) return;
+    applyFrameHeight(iframe, data.height);
     if (data.key === "people" && Array.isArray(data.activeEmployees)) publishPeopleRoster(data.activeEmployees);
   });
 
@@ -384,6 +453,7 @@
     if (!m) return "";
     var meta = contextMeta();
     var embeddedSrc = iframeSrc(key, m);
+    var contextKey = esc(mountContextKey(mountTabs[key]));
     if (key === "budget") {
       return [
         '<section class="atlas-budget-workspace" id="atlas-mount-budget">',
@@ -399,7 +469,7 @@
         '  </div>',
         '  <p class="atlas-budget-workspace-note">Admin approval publishes the shared original budget. Closing a completed accounting month automatically refreshes financial reporting. The workspace stays open while you move through ATLAS.</p>',
         '  <div class="atlas-mount-frame atlas-budget-frame">',
-        '    <iframe src="' + esc(embeddedSrc) + '" title="' + esc(m.barTitle) + '" data-atlas-mount-key="budget" onload="window.handleAtlasMountLoad && window.handleAtlasMountLoad(this, \'budget\')" loading="lazy" style="background:' + esc(m.background) + '"></iframe>',
+        '    <iframe src="' + esc(embeddedSrc) + '" title="' + esc(m.barTitle) + '" data-atlas-mount-key="budget" data-atlas-mount-context="' + contextKey + '" onload="window.handleAtlasMountLoad && window.handleAtlasMountLoad(this, \'budget\')" loading="lazy" style="background:' + esc(m.background) + '"></iframe>',
         '  </div>',
         '</section>'
       ].join("\n");
@@ -423,7 +493,7 @@
       '      <span class="atlas-mount-bar-sub">' + esc(m.barSub) + "</span>",
       meta ? '      <span class="atlas-mount-bar-meta">' + esc(meta) + "</span>" : "",
       "    </div>",
-      '    <iframe src="' + esc(embeddedSrc) + '" title="' + esc(m.barTitle) + '" data-atlas-mount-key="' + esc(key) + '" onload="window.handleAtlasMountLoad && window.handleAtlasMountLoad(this, \'' + esc(key) + '\')"',
+      '    <iframe src="' + esc(embeddedSrc) + '" title="' + esc(m.barTitle) + '" data-atlas-mount-key="' + esc(key) + '" data-atlas-mount-context="' + contextKey + '" onload="window.handleAtlasMountLoad && window.handleAtlasMountLoad(this, \'' + esc(key) + '\')"',
       '            loading="lazy" style="background:' + esc(m.background) + '"></iframe>',
       "  </div>",
       "</section>"

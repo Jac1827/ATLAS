@@ -4,7 +4,7 @@ self.onmessage = async ({data}) => {
   const {id, operation} = data;
   try {
     if (operation === 'open') {
-      importScripts('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+      importScripts('../assets/xlsx.full.min.js?v=c9506197caf809a0');
       const start = performance.now();
       workbook = XLSX.read(data.buffer, {type:'array', cellDates:true, raw:false});
       self.postMessage({id, result:{sheetNames:workbook.SheetNames, duration:performance.now()-start}});

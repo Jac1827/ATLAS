@@ -1,6 +1,7 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const W=require('../docs/portfolio-operations-dashboard/weekly-leasing-report.js');
-const html=fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/index.html','utf8');
+const html=readDashboardSource(__dirname+'/../docs/portfolio-operations-dashboard/index.html');
 const functions=[...html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm)].map(x=>x[0]);
 const extract=name=>functions.find(x=>x.startsWith(`function ${name}(`));
 const base={property:'Active',leasingAgent:'Agent <A>',newLeadCreatedOn:'2026-09-11',applicationCompleted:'2026-09-12',sourceAsOf:'2026-09-16',applicationStatus:'Application: Completed',lifecycleCoverage:'unavailable'};

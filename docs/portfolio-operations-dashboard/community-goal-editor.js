@@ -32,12 +32,14 @@ function updateCommunityCommandGoalEditor() {
 }
 
 async function approveCommunityCommandMonthlyGoals(monthIdx = getSelectedDashboardMonthIndex()) {
+  const context=syncCommunityCommandGoalContext();
+  const current=()=>context.current() && atlasCommunityGoalStore.context===context;
+  if (!current()) {alert("Verify your shared ATLAS access before opening goals.");return;}
   if (!communityCommandCanApproveGoals()) {alert("Only Admin or VP / Executive roles can approve official monthly goals.");return;}
   const model = buildCommunityCommandModel(getProp().name,getCurrentCommunityRecord());
   const row = buildCommunityCommandLeasingPlanRows(model)[clampNumber(monthIdx,0,11)] || {};
   const scope = communityCommandGoalScope(model.propName,row.monthIdx,model.year);
   if (!scope.communityId) {alert("This community is missing its shared identity. Goals were not changed.");return;}
-  const editorActor = window.ATLAS_CENTRAL?.getSession()?.user?.id;
   const recommendation = {applicationGoal:row.recommendedApps,grossLeaseGoal:row.recommendedGrossLeases,netLeaseGoal:row.netLeaseGoal,requiredMoveIns:row.requiredMoveIns,occupancyGoal:row.budgetPct,leasedGoal:null,economicGoal:null,renewalGoal:null};
   const pending = communityCommandGoalBuffers.get(scope.key);
   const editor = pending?.dirty ? pending : { ...scope, propName:model.propName,monthIdx:row.monthIdx,year:model.year,values:{},reason:"",effectiveDate:`${scope.period}-01`,recommended:recommendation,revision:0,dirty:false };
@@ -45,7 +47,7 @@ async function approveCommunityCommandMonthlyGoals(monthIdx = getSelectedDashboa
   communityCommandGoalEditor=editor; renderTab();
   try {
     await hydrateCommunityCommandGoals({force:true});
-    if (atlasCommunityGoalStore.actor !== editorActor) throw Error("The signed-in account changed. Reopen the editor after signing in.");
+    if (!current()) return;
     if (!getAtlasCentralStatus().signedIn || !atlasCommunityGoalStore.loaded) throw Error("Sign in to shared ATLAS to read and save goals.");
     const saved=atlasCommunityGoalStore.scopes.get(scope.key);
     if (!editor.dirty) {
@@ -66,13 +68,13 @@ async function approveCommunityCommandMonthlyGoals(monthIdx = getSelectedDashboa
     const changed=!saved?.recommended || COMMUNITY_GOAL_FIELDS.some(key=>saved.recommended[key]!==recommendation[key]);
     if (changed) {
       try {
-        const result=await api.saveGoals(window.ATLAS_CENTRAL,{communityId:scope.communityId,period:scope.period,kind:"recommended",expectedRevision:saved?.recommendationRevision||0,requestId:crypto.randomUUID(),payload:{...recommendation,reason:"ATLAS recommendation recalculated",effectiveDate:`${scope.period}-01`}});
-        if (atlasCommunityGoalStore.actor !== editorActor) throw Error("The signed-in account changed during recommendation saving.");
+        const result=await api.saveGoals(context.central,{communityId:scope.communityId,period:scope.period,kind:"recommended",expectedRevision:saved?.recommendationRevision||0,requestId:crypto.randomUUID(),payload:{...recommendation,reason:"ATLAS recommendation recalculated",effectiveDate:`${scope.period}-01`},signal:context.signal});
+        if (!current()) return;
         atlasCommunityGoalStore.scopes.set(scope.key,mergeCommunityCommandGoalScope(result,atlasCommunityGoalStore.scopes.get(scope.key)));
-      } catch (error) {editor.recommendationError="Current recommendation could not be archived: "+error.message;}
+      } catch (error) {if(current())editor.recommendationError="Current recommendation could not be archived: "+error.message;}
     }
-  } catch (error) {editor.error="Goals could not be loaded: "+error.message;editor.loadFailed=true;}
-  finally {editor.loading=false;if(communityCommandGoalEditor===editor)renderTab();}
+  } catch (error) {if(current()){editor.error="Goals could not be loaded: "+error.message;editor.loadFailed=true;}}
+  finally {if(current()){editor.loading=false;if(communityCommandGoalEditor===editor)renderTab();}}
 }
 
 function cancelCommunityCommandGoalEditor() {
@@ -90,6 +92,9 @@ function renderCommunityCommandGoalEditor(model) {
 }
 
 async function saveCommunityCommandGoalEditor(approve) {
+  const context=syncCommunityCommandGoalContext();
+  const current=()=>context.current() && atlasCommunityGoalStore.context===context;
+  if(!current())return;
   updateCommunityCommandGoalEditor();
   const editor=communityCommandGoalEditor;
   if(!editor||editor.loading||editor.saving||editor.loadFailed||!communityCommandCanApproveGoals()||getProp().name!==editor.propName)return;
@@ -114,20 +119,19 @@ async function saveCommunityCommandGoalEditor(approve) {
   const kind=approve?"approved":"draft",fingerprint=JSON.stringify({kind,payload});
   if(editor.requestFingerprint!==fingerprint){editor.requestId=crypto.randomUUID();editor.requestFingerprint=fingerprint;}
   editor.requestId ||= crypto.randomUUID();editor.saving=true;editor.error="";renderTab();
-  const actor=atlasCommunityGoalStore.actor;
   try{
-    const result=await atlasCommunityGoalStore.module.saveGoals(window.ATLAS_CENTRAL,{communityId:editor.communityId,period:editor.period,kind,expectedRevision:editor.revision,requestId:editor.requestId,payload});
-    if(actor!==atlasCommunityGoalStore.actor)throw Error("The signed-in account changed during saving. Reopen this community after signing in.");
+    const result=await atlasCommunityGoalStore.module.saveGoals(context.central,{communityId:editor.communityId,period:editor.period,kind,expectedRevision:editor.revision,requestId:editor.requestId,payload,signal:context.signal});
+    if(!current())return;
     atlasCommunityGoalStore.scopes.set(editor.key,mergeCommunityCommandGoalScope(result,atlasCommunityGoalStore.scopes.get(editor.key)));
     editor.revision=result.revision;editor.values={...result.savedRecord};editor.dirty=false;editor.requestId=null;editor.requestFingerprint=null;
     const record=result.savedRecord;
     editor.message=`${approve?"Goals approved":"Draft saved"} · ${record.revisedAt||record.approvedAt||"Persistence verified"}`;
-    communityCommandGoalBuffers.delete(editor.key);communityCommandGoalNotices.set(editor.key,editor.message);
+    if(communityCommandGoalBuffers.get(editor.key)===editor)communityCommandGoalBuffers.delete(editor.key);
+    communityCommandGoalNotices.set(editor.key,editor.message);
     // Every consumer now resolves the same scoped canonical approval; local workspace imports cannot replace it.
     atlasBonusNavigationSnapshot=null;atlasBonusSectionCache.clear();
     window.dispatchEvent(new CustomEvent("atlas-community-goals-changed",{detail:{communityId:editor.communityId,period:editor.period,revision:result.revision}}));
     renderPropGrid();
-  }catch(error){if(actor===atlasCommunityGoalStore.actor){editor.error=`${approve?"Approval":"Draft save"} failed: ${error.message||error}`;editor.message="";editor.dirty=true;communityCommandGoalBuffers.set(editor.key,editor);}}
-  finally{editor.saving=false;if(communityCommandGoalEditor===editor)renderTab();}
+  }catch(error){if(current()){editor.error=`${approve?"Approval":"Draft save"} failed: ${error.message||error}`;editor.message="";editor.dirty=true;if(!communityCommandGoalBuffers.has(editor.key)||communityCommandGoalBuffers.get(editor.key)===editor)communityCommandGoalBuffers.set(editor.key,editor);}}
+  finally{if(current()){editor.saving=false;if(communityCommandGoalEditor===editor)renderTab();}}
 }
-

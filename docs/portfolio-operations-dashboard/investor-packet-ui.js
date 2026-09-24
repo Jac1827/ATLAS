@@ -191,7 +191,9 @@ var atlasInvestorPacketState = { selectedCommunity:'', communities:{} };
       if(kind==='html') return download(new Blob([P.html(packet,{editable:true})],{type:'text/html'}),filename+'.html');
       if(kind==='print') return printReportHtmlInHiddenFrame(P.html(packet),{title:'Investor packet'});
       if(kind==='xlsx') {
-        if(typeof XLSX==='undefined') throw new Error('Workbook export library did not load.');
+        const exportContext=window.getAtlasRenderContextKey?.();
+        if(typeof XLSX==='undefined') await window.AtlasFeatures.load('xlsx');
+        if(exportContext!==window.getAtlasRenderContextKey?.()) throw new Error('The selected workspace changed. Open the export again.');
         const wb=XLSX.utils.book_new();const head=['Metric','Current','Budget','Variance','Variance %','Prior month','Prior year','Underwriting','YTD actual','YTD budget',P.forecastLabel(packet.rows),'Forecast basis'];
         const rows=packet.rows.map(r=>[r.label,r.cells.current.value,r.cells.budget.value,r.variance,r.variancePct===null?null:r.variancePct/100,r.cells.priorMonth.value,r.cells.priorYear.value,r.cells.underwriting.value,r.cells.ytdActual.value,r.cells.ytdBudget.value,r.cells.forecast.value,P.forecastBasisLabel(r.cells.forecast)]);
         const ws=XLSX.utils.aoa_to_sheet([head,...rows]);ws['!cols']=[{wch:36},...Array(10).fill({wch:18}),{wch:48}];

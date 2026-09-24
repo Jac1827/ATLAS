@@ -1,9 +1,10 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const source=fs.readFileSync('docs/portfolio-operations-dashboard/index.html','utf8');
-const code=source.slice(source.indexOf('async function applyDashboardStorageBundle(bundle) {'),source.indexOf('async function importDashboardStorageBundleFromClipboard()'));
+const source=readDashboardSource('docs/portfolio-operations-dashboard/index.html');
+const code=source.slice(source.indexOf('async function applyDashboardStorageBundle('),source.indexOf('async function importDashboardStorageBundleFromClipboard()'));
 (async()=>{
  const db=new Map([['community_data',{key:'community_data',value:{Test:{occupied:1}}}]]),transactions=[];
- const context={console,window:{},savedData:{Test:{occupied:1}},ATLAS_STATE_COMMUNITY_KEY:'community_data',ATLAS_STATE_WEEKLY_SNAPSHOT_KEY:'weekly',OPS_GLOBAL_STORAGE_KEY:'global',localStorage:{setItem(){}},
+ const context={console,DOMException,window:{},atlasWorkspaceAccess:{epoch:1,controller:new AbortController()},ATLAS_STATE_DB_NAME:'isolated-restore',DATA_IMPORT_2_STATE_KEY:'imports',getAtlasRenderContextKey:()=> 'same-actor',savedData:{Test:{occupied:1}},ATLAS_STATE_COMMUNITY_KEY:'community_data',ATLAS_STATE_WEEKLY_SNAPSHOT_KEY:'weekly',OPS_GLOBAL_STORAGE_KEY:'global',localStorage:{setItem(){}},
  mergeDashboardCommunityDataMaps:(a,b)=>({...a,...b}),removeLegacyCommunityStorageKeys(){},removeLegacyDailyBackupStorageKeys(){},removeLegacyWeeklySnapshotStorageKey(){},markAtlasPersistenceError:e=>{throw e},
  atlasStateGetValue:async k=>db.get(k)?.value,
  withAtlasStateStore:async(mode,action)=>{const writes=[];const store={get:k=>{const r={result:db.get(k)};queueMicrotask(()=>r.onsuccess?.());return r;},put:r=>{writes.push(r.key);db.set(r.key,structuredClone(r));}};action(store);await new Promise(resolve=>setImmediate(resolve));transactions.push(writes);},

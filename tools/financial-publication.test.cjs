@@ -1,3 +1,4 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const {indexedDB}=require('fake-indexeddb');
 const dir=__dirname+'/../docs/portfolio-operations-dashboard/';
@@ -37,35 +38,30 @@ const packet=(amount=80,date='2026-09-16')=>({period:'2026-09',actuals:[{glCode:
  const parent={Date,window:{AtlasFinancialPublication:F},savedData:{A:{}},persistSaved:()=>{throw Error('retired path must not save');}};vm.createContext(parent);vm.runInContext(publisher,parent);
  const payload={locked:true,property:{name:'A'},year:2026,coverage:[8],scenario:{id:'s',name:'Approved'},budgetByPeriod:{'2026-09':[{gl:'4000',budget:100}]},actualsByPeriod:{'2026-09':[{gl:'4000',actual:0}]},effectiveDate:'2026-09-17'};
  const result=parent.publishBudgetToAtlas(payload);assert.equal(result.ok,false);assert.equal(result.published,false);assert.equal(result.status,'blocked');assert.equal(result.receiptId,null);assert.deepEqual(JSON.parse(JSON.stringify(parent.savedData)),{A:{}});
- // Core Data Import commits community values and lineage in the same transaction.
- const main=fs.readFileSync(dir+'index.html','utf8'),core={window:{},Date,Map,Set,Promise,console,ATLAS_STATE_STORE_NAME:'records',ATLAS_STATE_COMMUNITY_KEY:'community_data',DATA_IMPORT_2_STATE_KEY:'imports',atlasStateWritePromise:Promise.resolve(),atlasPersistenceMeta:{},dashboardSharedSyncMeta:{}};
+ // Core Data Import commits community values and full durable lineage in one transaction.
+ const main=readDashboardSource(dir+'index.html'),core={window:{},Date,Map,Set,Promise,console,ATLAS_STATE_DB_NAME:'financial-test',ATLAS_STATE_STORE_NAME:'records',ATLAS_STATE_COMMUNITY_KEY:'community_data',DATA_IMPORT_2_STATE_KEY:'imports',atlasStateWritePromise:Promise.resolve(),atlasPersistenceMeta:{},dashboardSharedSyncMeta:{}};
  vm.createContext(core);
  for(const name of ['withAtlasStateStore','queueAtlasStateWrite','persistDataImportPublication','persistSaved']){
   const source=main.match(new RegExp('^(?:async )?function '+name+'\\([^\\n]*\\) \\{[\\s\\S]*?^\\}','m'))[0];
-  // Inject the real module below; browser cache identifiers are not VM loaders.
-  const fixtureSource=source.replace(/const \{mergeHistory\}=await import\("\.\/features\/import-history-store\.mjs(?:\?v=[^"]+)?"\);/,'');
-  if(name==='persistDataImportPublication')assert.notEqual(fixtureSource,source,'The harness must replace the browser module load with its real imported implementation');
-  vm.runInContext(fixtureSource,core);
+  vm.runInContext(source,core);
  }
- core.mergeHistory=(await import('../docs/portfolio-operations-dashboard/features/import-history-store.mjs')).mergeHistory;
- let snapshot=await read(),importSnapshot={lineage:[{field:'occupied_units'}]};
- Object.assign(core,{openAtlasStateDb:async()=>db,buildSerializedSavedDataPayload:()=>snapshot,serializeDataImport2State:()=>importSnapshot,removeLegacyCommunityStorageKeys(){},clearAtlasPersistenceError(){},persistAtlasPersistenceMeta(){},markAtlasPersistenceError(){},persistDashboardSharedSyncMeta(){}});
+ globalThis.indexedDB=indexedDB;
+ const {executeHistory}=await import('../docs/portfolio-operations-dashboard/features/import-history-store.mjs');
+ const history=(operation,extra={})=>executeHistory({operation,dbName:'financial-test',storeName:'records',key:'imports',...extra});
+ const historySnapshot={capturedAt:'2026-09-01',savedData:{A:{old:1}}};
+ await history('save',{value:{batches:[{id:'old',beforeSnapshot:historySnapshot}],lineage:[{id:'l1',field:'occupied_units'}]}});
+ let snapshot=await read(),importSnapshot=await history('load');
+ Object.assign(core,{openAtlasStateDb:async()=>db,buildSerializedSavedDataPayload:()=>snapshot,serializeDataImport2State:()=>importSnapshot,removeLegacyCommunityStorageKeys(){},clearAtlasPersistenceError(){},persistAtlasPersistenceMeta(){},markAtlasPersistenceError(){},persistDashboardSharedSyncMeta(){},getAtlasRenderContextKey:()=> 'actor+scope',dataImportHistoryOperation:history,dataImportHistoryRevision:importSnapshot.historyStorage.revision,normalizeDataImport2State:v=>v,rememberDataImportHistoryState(){core.dataImportHistoryRevision=core.dataImport2State.historyStorage.revision;}});
  await core.persistDataImportPublication();
- // The existing committed-occupancy protection also runs in the atomic path.
  core.window.AtlasOccupancyReplay={protectCommittedOccupancy:(incoming,committed)=>({...incoming,protectedMarker:committed.A.nonfinancial})};
+ importSnapshot=await history('load');
  await core.persistDataImportPublication();assert.equal((await read()).protectedMarker,'preserve');
  delete core.window.AtlasOccupancyReplay;
- // Offloaded rollback snapshots must survive the atomic community/import save.
- const historySnapshot={capturedAt:'2026-09-01',savedData:{A:{old:1}}};
- await new Promise((resolve,reject)=>{const tx=db.transaction('records','readwrite');tx.objectStore('records').put({key:'imports',value:{batches:[{id:'old',beforeSnapshot:historySnapshot}]}});tx.oncomplete=resolve;tx.onerror=reject;});
- importSnapshot={batches:[{id:'old',beforeSnapshotRef:{batchId:'old',capturedAt:'2026-09-01'}}]};
- await core.persistDataImportPublication();
- const retained=await new Promise(resolve=>{const q=db.transaction('records').objectStore('records').get('imports');q.onsuccess=()=>resolve(q.result.value);});
- assert.deepEqual(retained.batches[0].beforeSnapshot,historySnapshot);
- importSnapshot={batches:[{id:'old',beforeSnapshotRef:{batchId:'old',capturedAt:'changed'}}]};
+ assert.deepEqual((await history('export')).batches[0].beforeSnapshot,historySnapshot,'Publication preserves complete immutable snapshots');
+ importSnapshot=await history('load');importSnapshot.batches[0].beforeSnapshotRef.capturedAt='changed';
  await assert.rejects(core.persistDataImportPublication(),/unavailable|changed/);
- const committed=JSON.stringify(await read());snapshot={A:{shouldNotCommit:true}};importSnapshot={uncloneable:()=>{}};
- await assert.rejects(core.persistDataImportPublication());assert.equal(JSON.stringify(await read()),committed,'A failed lineage write aborts the preceding community write');
+ const committed=JSON.stringify(await read());snapshot={A:{shouldNotCommit:true}};importSnapshot={...await history('load'),uncloneable:()=>{}};
+ await assert.rejects(core.persistDataImportPublication());assert.equal(JSON.stringify(await read()),committed,'A failed lineage write aborts the companion community write');
  core.openAtlasStateDb=async()=>null;
  core.atlasStateSetValue=async()=>{throw new Error('Unavailable')};
  const failedSave=core.persistSaved();await failedSave.completion;assert.equal(failedSave.ok,false);assert.equal(failedSave.pending,false);

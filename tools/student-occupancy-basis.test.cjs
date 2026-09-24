@@ -1,9 +1,10 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const bridge = require('../docs/portfolio-operations-dashboard/application-source-bridge.js');
 
-const html = fs.readFileSync(`${__dirname}/../docs/portfolio-operations-dashboard/index.html`, 'utf8');
+const html = readDashboardSource(`${__dirname}/../docs/portfolio-operations-dashboard/index.html`);
 const context = { console, Date, Map, Set, window: {}, savedData: {} };
 vm.createContext(context);
 for (const match of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm)) {

@@ -1,3 +1,4 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const dir=__dirname+'/../docs/portfolio-operations-dashboard/';
 const context={console,Date,URL,URLSearchParams,TextEncoder,structuredClone,setTimeout:()=>0,clearTimeout:()=>{},location:{search:'',href:'http://localhost/'},document:{addEventListener(){},querySelectorAll(){return []},getElementById(){return null}},localStorage:{getItem(){return null}},addEventListener(){},navigator:{}};context.window=context;context.parent=context;
@@ -48,7 +49,7 @@ const untouched=JSON.stringify(pc.savedData);
 const retired=pc.publishBudgetToAtlas(packet);assert.equal(retired.ok,false);assert.equal(retired.status,'blocked');assert.equal(retired.published,false);assert.equal(retired.receiptId,null);assert.match(retired.message,/central approval/);
 assert.equal(JSON.stringify(pc.savedData),untouched,'retired browser sync must never mutate financial values');
 pc.savedData.A.financialBudgetLedger={};
-const dashboard=fs.readFileSync(dir+'index.html','utf8');
+const dashboard=readDashboardSource(dir+'index.html');
 function fn(name,next){return dashboard.slice(dashboard.indexOf('function '+name+'('),dashboard.indexOf('\nfunction '+next+'(',dashboard.indexOf('function '+name+'(')));}
 vm.runInContext(fn('summarizeFinancialLedgerRows','getFinancialSummaryForMonth'),pc);
 let financial=pc.summarizeFinancialLedgerRows([{gl:'5120',actual:1100,budget:2},{gl:'6461',actual:100}], [{gl:'5120',budget:1000,nature:'income'},{gl:'6461',budget:200,nature:'expense'},{gl:'6520',budget:50,nature:'expense'}]);
@@ -56,7 +57,7 @@ assert.equal(financial.noiBudget,750);assert.equal(financial.noiActual,1000);ass
 Object.assign(pc,{atlasBonusCommunitySummary:()=>({occPct:90,budgetOccAttainmentPct:999}),getSelectedDashboardMonthIndex:()=>8,getCommunityCommandApprovedGoal:()=>null});
 pc.savedData.A.financialBudgetLedger.investorPacketSources={periods:{[new Date().getFullYear()+'-09']:{noi:{actual:1100,budget:1000},expenses:{actual:200,budget:200}}}};
 pc.getAtlasClosedFinancialVersion=()=>null;pc.buildPeriodKey=(m,y)=>y+'-'+String(m+1).padStart(2,'0');
-pc.window=pc;pc.atlasBonusPeriodFromQuarter=()=>({start:'2026-07-01',end:'2026-09-30'});pc.refreshAtlasClosedFinancials=async()=>{};
+pc.window=pc;pc.atlasBonusPeriodFromQuarter=()=>({start:'2026-07-01',end:'2026-09-30'});pc.refreshAtlasClosedFinancials=async()=>{};pc.queueAtlasFinancialScope=()=>{};
 vm.runInContext(fn('atlasBonusFinancialEvidence','atlasBonusMetricActual'),pc);
 vm.runInContext(fn('atlasBonusMetricActual','atlasBonusPerformanceRatio'),pc);
 assert.equal(pc.atlasBonusMetricActual({communityName:'A'},{metricKey:'noi'}),null,'An investor extract without a closed quarter is not payable evidence');

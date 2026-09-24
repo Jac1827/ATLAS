@@ -1,8 +1,9 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-const html = fs.readFileSync('docs/portfolio-operations-dashboard/index.html', 'utf8');
+const html = readDashboardSource('docs/portfolio-operations-dashboard/index.html');
 const boxScoreSources = require('../docs/portfolio-operations-dashboard/application-source-bridge.js');
 const rows = [
   ['Availability (As of 09/18/2026)'],

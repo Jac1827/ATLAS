@@ -1,9 +1,10 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const html=fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/index.html','utf8');
+const html=readDashboardSource(__dirname+'/../docs/portfolio-operations-dashboard/index.html');
 let profile={role:'centra',status:'active',allowed_community_ids:['active-id'],allowed_market_values:['central'],locked_tab_ids:['0','7','8'],locked_page_keys:['portfolio_home','data_import','reports']};
 let selected='Nocatee',portfolio=false,signedIn=true;
 const properties={Nocatee:{atlasCommunityId:'nocatee-id',market:'central'},Viera:{atlasCommunityId:'viera-id',market:'central'},Sereno:{atlasCommunityId:'active-id',market:'central'}};
-const c={console,Date,Map,Set,window:{},activeTab:16};vm.createContext(c);
+const c={console,Date,Map,Set,window:{},activeTab:16,atlasWorkspaceAccess:{validated:true}};vm.createContext(c);
 for(const match of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm))vm.runInContext(match[0],c);
 vm.runInContext(html.slice(html.indexOf('const ATLAS_ACCESS_TABS ='),html.indexOf('const ATLAS_ACCESS_ROLES =')),c);
 Object.assign(c,{getAtlasAccessProfile:()=>profile,getAtlasCentralStatus:()=>({configured:true,signedIn,role:profile.role}),getAtlasSharedPropertyByName:n=>properties[n],atlasAccessLocationScopeValues:()=>[],atlasNormalizeSharedText:v=>String(v||'').toLowerCase(),atlasCommunityLocationScopeValue:()=>'',isAtlasCommunityActiveByName:n=>n==='Sereno',getProp:()=>({name:selected}),isPortfolioWorkspaceSelected:()=>portfolio,getCommunityNamesByStatusScope:({communityStatusMode})=>communityStatusMode==='active'?['Sereno']:Object.keys(properties)});

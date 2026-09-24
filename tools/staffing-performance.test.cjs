@@ -1,5 +1,6 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const html=fs.readFileSync('docs/portfolio-operations-dashboard/index.html','utf8');
+const html=readDashboardSource('docs/portfolio-operations-dashboard/index.html');
 const pick=name=>html.match(new RegExp('^function '+name+'\\([^\\n]*\\) \\{[\\s\\S]*?^\\}','m'))[0];
 const events=[]; const c={Date,Object,JSON,performance,window:{AtlasPerformance:{enabled:true,record:(...args)=>events.push(args)}},savedData:{A:{propertyTeamConfig:{lp:1},propertyTurnoverConfig:{},propertyTurnoverByQuarter:{}},B:{propertyTeamConfig:{lp:1},propertyTurnoverConfig:{},propertyTurnoverByQuarter:{}}},atlasSharedData:{employees:{one:{name:'One'}},assignments:[]}};
 let normalizations=0,persisted=0;const snapshots=[];

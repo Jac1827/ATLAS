@@ -2,8 +2,8 @@ import * as store from './reforecast-store.mjs?v=8a0011d1c194257e';
 import {computeReforecast,recommendReforecast,applyRecommendations,undoRecommendationAction,fingerprint} from './reforecast-engine.mjs?v=3d3b7e538bd36581';
 import {safeSpreadsheetCell,esc,finite,money,reportHtml,reportPdf,exportRows,csv,download,snapshotLines,analyticalExportRows,communityForecastWorkbook,communityForecastPdf,portfolioForecastDigest,portfolioForecastDigestWorkbook,portfolioForecastDigestPdf} from './reforecast-report.mjs?v=8912b44852a6eda5';
 
-import {UTILITY_RELATIONSHIP_CANDIDATES,createContractOverride} from './reforecast-provider.mjs?v=64ecdbe32009c215';
-import {forecastPermissions,forecastSetupDialog,forecastSourceHtml,forecastGridHtml,utilityRecoveryHtml,strScheduleHtml,bindBuilderControls} from './reforecast-builder-ui.mjs?v=d1ef972af6738236';
+import {UTILITY_RELATIONSHIP_CANDIDATES,createContractOverride} from './reforecast-provider.mjs?v=b1d0706c8fcf4bda';
+import {forecastPermissions,forecastSetupDialog,forecastSourceHtml,forecastGridHtml,utilityRecoveryHtml,strScheduleHtml,bindBuilderControls} from './reforecast-builder-ui.mjs?v=56c7fb55c740e9eb';
 import {validatePlanningCalendar} from './planning-governance.mjs?v=a4de8d3f5a50966c';
 const clone=v=>JSON.parse(JSON.stringify(v));
 const uuid=()=>crypto.randomUUID();
@@ -301,7 +301,7 @@ async function applyWorkbookImport(s,result){
  safeActor(s);
  const sameCommunity=s.cid===result.communityId;
  if(s.dirty&&!sameCommunity)throw Error('Save the current working draft before switching properties. The imported workbook is already saved and can be resumed.');
- const module=await import('./reforecast-import-ui.mjs?v=7dc63bd7467b39c6');
+ const module=await import('./reforecast-import-ui.mjs?v=c506fde7291e69ea');
  if(!sameCommunity){s.cid=result.communityId;await loadCommunity(s);if(s.error)throw Error(s.error);}
  if(!s.edit||!editable(s)){
   if(result.source)s.source=result.source;
@@ -315,7 +315,7 @@ async function applyWorkbookImport(s,result){
  render(s);
 }
 async function importWorkbook(s,file){
- try{safeActor(s);const m=await import('./reforecast-import-ui.mjs?v=7dc63bd7467b39c6');await m.importReforecastWorkbook({file,central:s.central,communities:s.communities,actor:s.actor,defaultPeriods:periodsFor(s.year),onSaved:result=>applyWorkbookImport(s,result)});}
+ try{safeActor(s);const m=await import('./reforecast-import-ui.mjs?v=c506fde7291e69ea');await m.importReforecastWorkbook({file,central:s.central,communities:s.communities,actor:s.actor,defaultPeriods:periodsFor(s.year),onSaved:result=>applyWorkbookImport(s,result)});}
  catch(e){s.error=e.message;render(s);}
 }
 async function resumeImportsDialog(s){
@@ -324,7 +324,7 @@ async function resumeImportsDialog(s){
  const renderPage=async()=>{
   if(busy)return;busy=true;status.textContent='Reading saved import metadata…';
   try{
-   safeActor(s);const m=await import('./reforecast-import-ui.mjs?v=7dc63bd7467b39c6'),cid=s.cid;
+   safeActor(s);const m=await import('./reforecast-import-ui.mjs?v=c506fde7291e69ea'),cid=s.cid;
    const page=await m.readReforecastImportPage(s.central,{communityId:cid,offset,limit:25});safeActor(s);
    if(s.cid!==cid)throw Error('The selected community changed. Reopen the import list.');
    body.innerHTML=`<p>Each import is immutable. Resume mapping to update the current editable working draft; existing drivers and unrelated edits are retained.</p><label>Saved workbook<select data-saved-upload>${options(page.rows.map(row=>({value:row.upload_id,label:(row.file_name||'Workbook')+' · '+row.created_at+' · '+row.source_hash.slice(0,12)})),'','Choose a saved import')}</select></label><button data-resume>Resume mapping</button><button data-prev ${offset?'':'disabled'}>Previous</button><button data-next ${page.hasMore?'':'disabled'}>Next</button>`;
@@ -355,7 +355,7 @@ async function exportSnapshot(s,type){
  try{guard();if(s.dirty||!context.revisionId)throw Error('Save and verify the working revision before exporting its snapshot.');context.options=clone(reportOptions(s,s.communities.find(c=>c.community_id===context.communityId)));const history=await store.readHistory(s.central,{scenarioId:context.scenarioId});guard();const saved=history.find(row=>row.revision_id===context.revisionId);if(!saved?.snapshot||saved.community_id!==context.communityId)throw Error('The saved snapshot could not be read back.');const snapshot=saved.snapshot,source=saved.source,options=context.options,rows=exportRows(snapshot,source,options),name='ATLAS-reforecast-'+context.year;if(type==='json')download(JSON.stringify({revisionId:saved.revision_id,snapshot:snapshot.fingerprint,rows,analysis:analyticalExportRows(snapshot,source,options)},null,2),name+'.json','application/json');else if(type==='csv')download(csv(rows),name+'.csv');else if(type==='pdf'){const pdf=await reportPdf(snapshot,source,options);guard();download(pdf,name+'.pdf','application/pdf');}else{const XLSX=await loadXlsx();guard();const wb=XLSX.utils.book_new(),safe=data=>data.map(row=>Object.fromEntries(Object.entries(row).map(([key,value])=>[safeSpreadsheetCell(key),safeSpreadsheetCell(value)])));XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(safe(rows)),'Gap Report');for(const [sheet,data] of Object.entries(analyticalExportRows(snapshot,source,options)))XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(safe(data)),sheet.slice(0,31));XLSX.writeFile(wb,name+'.xlsx');}}catch(e){s.error=e.message;render(s);}
 }
 
-async function loadXlsx(){if(globalThis.XLSX)return globalThis.XLSX;const m=await import('./reforecast-intake.mjs?v=dbd1802780d0939a');if(m.loadXlsx)return m.loadXlsx();throw Error('Excel export library unavailable. The identical snapshot remains available as CSV or JSON.');}
+async function loadXlsx(){if(globalThis.XLSX)return globalThis.XLSX;const m=await import('./reforecast-intake.mjs?v=5e96161a61d477c1');if(m.loadXlsx)return m.loadXlsx();throw Error('Excel export library unavailable. The identical snapshot remains available as CSV or JSON.');}
 export async function mountReforecast(container,{R=window.RBB,mode='workspace',central,hostWindow}={}){
  const h=hostWindow||host(),api=central||h.ATLAS_CENTRAL,actor=api.getSession()?.user?.id;if(instance?.actor!==actor)clearReforecastSession();
  if(!instance){const [communities,profiles]=await Promise.all([api.readCommunitiesForAccess(),api.readUserProfiles()]);instance={host:h,central:api,actor,communities,profiles:profiles.filter(p=>p.status==='active'),entries:[],active:[],publicationHistory:[],year:R?.app.year()||new Date().getFullYear(),cid:'',epoch:0,approvalEpoch:0,approvalFilter:'',grain:'month',metric:'noi'};}

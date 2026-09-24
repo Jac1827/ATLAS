@@ -1,5 +1,6 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const fs = require('node:fs'), vm = require('node:vm'), assert = require('node:assert/strict');
-const html = fs.readFileSync(`${__dirname}/../docs/portfolio-operations-dashboard/index.html`, 'utf8');
+const html = readDashboardSource(`${__dirname}/../docs/portfolio-operations-dashboard/index.html`);
 const bridge = require('../docs/portfolio-operations-dashboard/application-source-bridge.js');
 const c = vm.createContext({console, Date, Map, Set, window:{}, savedData:{}, dataImportRuntimeCurrentLineageIndex:null,
   dataImport2State:{lineage:[],learningSettings:{autoMapThreshold:95}}});

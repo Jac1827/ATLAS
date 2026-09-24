@@ -1,7 +1,8 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const C=require('../docs/portfolio-operations-dashboard/lead-source-contract.js');
 const B=require('../docs/portfolio-operations-dashboard/application-source-bridge.js');
-const html=fs.readFileSync('docs/portfolio-operations-dashboard/index.html','utf8');
+const html=readDashboardSource('docs/portfolio-operations-dashboard/index.html');
 const ctx=vm.createContext({console,window:{AtlasLeadSources:C,AtlasApplicationSources:B},dataImport2State:{mappingRules:[],customFields:[],learningSettings:{}},DATA_IMPORT_FIELD_ALIASES:{},DATA_IMPORT_DESTINATION_GROUPS:[{fields:C.fields}],DATA_IMPORT_REPORT_TYPES:{}});
 for(const match of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm))vm.runInContext(match[0],ctx);
 vm.runInContext(fs.readFileSync('docs/portfolio-operations-dashboard/lead-source-review.js','utf8'),ctx);

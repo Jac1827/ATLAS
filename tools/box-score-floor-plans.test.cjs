@@ -1,3 +1,4 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const F=require('../docs/portfolio-operations-dashboard/box-score-floor-plans.js');
 const rows=[['02 - RISE - Box Score'],['Availability (As of 09/17/2026)'],['Unit Type','Avg. SQFT','Avg. Market Rent (Budgeted)','Units','Excluded','Rentable Units','Occupied No Notice','Notice Rented','Notice Unrented','Vacant Rented','Leased','Availability: Avg. Market Rent','Availability: Total Square Feet','Availability: Total Market Rent','Availability: Total Budgeted Rent'],['A1','','','',0,16,8,0,0,3,'','',10800,27808,26800],['A2',800,1800,4,0,4,0,0,0,0,0,1900,'','',''],['Total:',0,0,20],['Property Pulse (09/01/2026 - 09/30/2026)'],['Unit Type','Units'],['A1',16],['A2',4],['Total:',20]];
@@ -8,7 +9,7 @@ assert.deepEqual(F.merge(updated,plans,makeId),updated,'Older weekly file must n
 assert.deepEqual(F.merge(updated,[{...plans[0],sourceAsOf:'2026-09-24',marketedRent:1800}],makeId),updated,'Reimport must not duplicate history or rows');
 const named=F.merge([{id:'legacy',name:'The Armstrong',approvalStatus:'approved',approvedForReporting:true}],[{...plans[0],sourcePlanCode:'A4',name:'The Armstrong'}],makeId);assert.equal(named.length,1);assert.equal(named[0].sourcePlanCode,'A4');
 const missing=F.parse([rows[0],rows[1],['Unit Type','Units','Rentable Units','Avg. SQFT'],['A',10,10,700],['Total:',10]],'file');assert.equal(missing[0].leasedPct,null);assert.equal(missing[0].marketedRent,null);
-const html=fs.readFileSync('docs/portfolio-operations-dashboard/index.html','utf8');
+const html=readDashboardSource('docs/portfolio-operations-dashboard/index.html');
 for(const m of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi))if(m[1].trim())new vm.Script(m[1]);
 const fn=n=>html.match(new RegExp('^(?:async )?function '+n+'\\([^\\n]*\\) \\{[\\s\\S]*?^\\}','m'))[0];
 let profile={role:'admin',status:'active'},signedIn=true;

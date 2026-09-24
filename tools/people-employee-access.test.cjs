@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const {readDashboardSource} = require('./dashboard-source.cjs');
 
 const root = path.resolve(__dirname, '..');
 const peoplePath = path.join(root, 'docs/portfolio-operations-dashboard/RISE-Performance-Platform.html');
@@ -12,7 +13,7 @@ const sqlPath = path.join(root, 'docs/portfolio-operations-dashboard/centralizat
 const mountsPath = path.join(root, 'docs/portfolio-operations-dashboard/atlas-mounts.js');
 
 const people = fs.readFileSync(peoplePath, 'utf8');
-const shell = fs.readFileSync(shellPath, 'utf8');
+const shell = readDashboardSource(shellPath);
 const client = fs.readFileSync(clientPath, 'utf8');
 const sql = fs.readFileSync(sqlPath, 'utf8');
 const mounts = fs.readFileSync(mountsPath, 'utf8');

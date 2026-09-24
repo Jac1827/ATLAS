@@ -3,6 +3,9 @@ from pathlib import Path
 import hashlib, json, re, posixpath
 root=Path(__file__).resolve().parents[2]/'docs/portfolio-operations-dashboard'
 entries=[
+ ('assets/xlsx.full.min.js',[('features/workbook-worker.js','../assets/xlsx.full.min.js'),('performance/feature-loader.js','assets/xlsx.full.min.js')]),
+ ('workspace-core.js',[('index.html','./workspace-core.js')]),
+ ('atlas-core.css',[('index.html','./atlas-core.css')]),
  ('workforce-sync.js',[('index.html','./workforce-sync.js')]),
  ('workforce-assignment.js',[('index.html','./workforce-assignment.js')]),
  ('application-aging.js',[('index.html','./application-aging.js')]),
@@ -64,7 +67,8 @@ entries=[
  ('features/community-plan.mjs',[('index.html','./features/community-plan.mjs')]),
  ('features/community-goals.mjs',[('index.html','./features/community-goals.mjs')]),
  ('community-goal-editor.js',[('index.html','./community-goal-editor.js')]),
- ('centralization/atlas-central-client.js',[('index.html','./centralization/atlas-central-client.js'), ('scout-visual-prototype.html','./centralization/atlas-central-client.js')]),
+ ('centralization/atlas-central-client.js',[('index.html','./centralization/atlas-central-client.js'), ('scout-visual-prototype.html','./centralization/atlas-central-client.js'),('leasing-velocity-report-template.html','./centralization/atlas-central-client.js'),('financial-accountability.html','./centralization/atlas-central-client.js')]),
+ ('features/legacy-finance-gate.js',[('financial-accountability.html','./features/legacy-finance-gate.js')]),
  ('vendor/pptxgen-4.0.1.js',[('performance/feature-loader.js','vendor/pptxgen-4.0.1.js')]),
  ('vendor/jszip.min.js',[('performance/feature-loader.js','vendor/jszip.min.js')]),
  ('features/workbook-worker.js',[('features/workbook-session.mjs','./workbook-worker.js')]),
@@ -74,12 +78,30 @@ entries=[
  ('features/presentation-slides.mjs',[('index.html','./features/presentation-slides.mjs')]),
  ('performance/diagnostics.js',[('index.html','./performance/diagnostics.js')]),
  ('migration-archive.js',[('performance/feature-loader.js','migration-archive.js')]),
+ ('features/reports-workspace.js',[('performance/feature-loader.js','features/reports-workspace.js')]),
+ ('features/import-workspace.js',[('performance/feature-loader.js','features/import-workspace.js')]),
+ ('features/bonus-workspace.js',[('performance/feature-loader.js','features/bonus-workspace.js')]),
+ ('features/admin-workspace.js',[('performance/feature-loader.js','features/admin-workspace.js')]),
+ ('central-services.js',[('performance/feature-loader.js','central-services.js')]),
+ ('atlas_historical_restore_data.js',[('performance/feature-loader.js','atlas_historical_restore_data.js')]),
+ ('features/workspace-canonical.mjs',[('features/workspace-bootstrap.mjs','./workspace-canonical.mjs'),('features/workspace-integrity-worker.js','./workspace-canonical.mjs')]),
+ ('features/workspace-integrity-worker.js',[('features/workspace-bootstrap.mjs','./workspace-integrity-worker.js')]),
+ ('features/workspace-projection-worker.js',[('features/workspace-bootstrap.mjs','./workspace-projection-worker.js')]),
+ ('features/workspace-publication.mjs',[('workspace-core.js','./features/workspace-publication.mjs')]),
+ ('features/workspace-bootstrap.mjs',[('index.html','./features/workspace-bootstrap.mjs')]),
  ('performance/feature-loader.js',[('index.html','./performance/feature-loader.js')]),
  ('investor-packet-ui.js',[('index.html','./investor-packet-ui.js')]),
 ]
 # Discover imports of governed modules so a stale parent cannot keep an old
 # child after deployment. A topological pass versions every child first.
 tracked={asset: list(refs) for asset,refs in entries}
+# The former inline shell now lives in a classic external script. Keep static
+# HTML references in index, and migrate only references extracted with the core.
+core_path=root/'workspace-core.js'
+if core_path.exists():
+ shell_text=(root/'index.html').read_text(); core_text=core_path.read_text()
+ for asset,refs in tracked.items():
+  tracked[asset]=[(('workspace-core.js' if parent=='index.html' and ref not in shell_text and ref in core_text else parent),ref) for parent,ref in refs]
 for asset in ['features/bonus-workflow-client.mjs','features/bonus-workflow.mjs','features/reforecast-bonus.mjs','features/reforecast-provider.mjs','features/reforecast-builder-ui.mjs','features/reforecast-utility.mjs','features/workbook-integrity.mjs','features/planning-governance.mjs','features/workbook-audit-store.mjs','features/financial-workbook-governance.mjs','features/financial-snapshot.mjs','features/snapshot-pdf.mjs','features/canonical-budget-report.mjs','features/original-budget-intake.mjs','vendor/pdf-lib-1.17.1.mjs']:
  tracked.setdefault(asset,[])
 for parent in root.rglob('*'):

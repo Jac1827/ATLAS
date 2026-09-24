@@ -46,16 +46,23 @@
       return {passed:true,archiveSha256:archive.sha256,recordsRestored:values.length,testedAt:new Date().toISOString()};
     } finally {db.close();indexedDB.deleteDatabase(name);}
   }
-  async function publish(archive,client,chunkSize=524288) {
+  async function publish(archive,client,chunkSize=524288,{signal,isCurrent=()=>true}={}) {
+    const check=()=>{if(signal?.aborted||!isCurrent())throw new DOMException('Workspace changed during archive publication','AbortError');};
+    check();
     if(archive?.bundleType!==TYPE||!archive.data||archive.data.length<=chunkSize)return archive;
     const references=[];
     for(let offset=0;offset<archive.data.length;offset+=chunkSize){
+      check();
       const data=archive.data.slice(offset,offset+chunkSize),sha256=await digest(new TextEncoder().encode(data));
       const documentKey='atlas_migration_part_v1:'+sha256;
-      let existing=await client.readDocument(documentKey);
+      check();
+      let existing=await client.readDocument(documentKey,{signal});
+      check();
       if(!existing){
         await client.saveDocument({documentKey,moduleKey:'dashboard',payload:{documentType:'atlas_migration_part_v1',sha256,data},expectedVersion:null,sourceModule:'atlas_dashboard',sourceHash:sha256,metadata:{purpose:'Verified migration archive part'}});
-        existing=await client.readDocument(documentKey);
+        check();
+        existing=await client.readDocument(documentKey,{signal});
+        check();
       }
       if(existing?.payload?.data!==data||existing?.payload?.sha256!==sha256)throw Error('Central migration part readback mismatch');
       references.push({documentKey,sha256,length:data.length});

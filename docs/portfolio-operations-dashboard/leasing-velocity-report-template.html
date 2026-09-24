@@ -131,6 +131,7 @@
   </table>
 </main>
 
+<script src="./centralization/atlas-central-client.js?v=48fee2db3fbb6116"></script>
 <script>
 /* ============================================================================
    DATA  —  ATLAS POPULATES THIS.  Two variations: stabilized + leaseup.
@@ -473,14 +474,38 @@ function resolveMode(){
   v = String(v).toLowerCase().replace(/[^a-z]/g,'');           // 'lease-up' -> 'leaseup'
   return (v === 'leaseup' || v === 'leasup') ? 'leaseup' : 'stabilized';
 }
+let lvrVerifiedPayload = null;
+let lvrVerifiedAccess = null;
+let lvrObservedAccess = window.ATLAS_CENTRAL?.getAccessContextKey?.();
+let lvrReadGeneration = 0;
 function readAtlasPayload(){
+  return lvrVerifiedPayload;
+}
+async function verifyAtlasPayload(){
+  const generation = ++lvrReadGeneration;
+  lvrVerifiedPayload = null;
   const params = new URLSearchParams(location.search);
-  const key = params.get('atlasStorageKey') || 'atlas_lvr_data_v1';
+  const key = params.get('atlasStorageKey');
+  if (!key) return null; // A blank template never adopts another user's last report.
   try {
+    const central = window.ATLAS_CENTRAL;
+    if (!central) return null;
+    if (central.getStatus().configured) {
+      await central.refreshSession();
+      if (!central.getSession()?.user) return null;
+      const profile = await central.fetchProfile({claim:false});
+      if (profile?.status !== 'active' || (profile.account_status ?? 'active') !== 'active') return null;
+      lvrVerifiedAccess = central.getAccessContextKey();
+      if (!lvrVerifiedAccess || generation !== lvrReadGeneration) return null;
+    }
     const raw = localStorage.getItem(key);
     if (!raw) return null;
     const payload = JSON.parse(raw);
-    return payload && typeof payload === 'object' ? payload : null;
+    if (!payload || typeof payload !== 'object') return null;
+    if (generation !== lvrReadGeneration) return null;
+    if (central.getStatus().configured && (payload.accessContext !== lvrVerifiedAccess || lvrVerifiedAccess !== central.getAccessContextKey())) return null;
+    lvrVerifiedPayload = payload;
+    return payload;
   } catch (error) {
     console.warn('ATLAS LVR payload could not be read.', error);
     return null;
@@ -493,6 +518,12 @@ function applyTheme(name){
 }
 function render(){
   const atlasPayload = readAtlasPayload();
+  if (new URLSearchParams(location.search).has('atlasStorageKey') && !atlasPayload) {
+    document.getElementById('lvr-root').innerHTML = '<p style="padding:24px">This report is unavailable for the current account or access scope. Open a new report from <a href="./index.html?tab=8">ATLAS Reports</a>.</p>';
+    document.getElementById('print-btn').disabled = true;
+    return;
+  }
+  document.getElementById('print-btn').disabled = false;
   const DATA = window.LVR_DATA || atlasPayload?.data || atlasPayload || LVR_DATA_DEFAULT;
   const mode = resolveMode();
   const d = DATA[mode] || DATA.stabilized;
@@ -508,9 +539,16 @@ document.getElementById('mode-select').addEventListener('change', e=>{
 });
 document.getElementById('print-btn').addEventListener('click', ()=>window.print());
 render();
-if (new URLSearchParams(location.search).get('print') === '1') {
-  setTimeout(()=>window.print(), 250);
-}
+verifyAtlasPayload().then(payload => {
+  render();
+  if (payload && new URLSearchParams(location.search).get('print') === '1') setTimeout(()=>{if(readAtlasPayload())window.print();},250);
+});
+window.addEventListener('atlas-central-auth-change', () => {
+  const access = window.ATLAS_CENTRAL?.getAccessContextKey?.();
+  if (lvrObservedAccess === access) return;
+  lvrObservedAccess = access;
+  lvrReadGeneration += 1; lvrVerifiedPayload = null; lvrVerifiedAccess = null; render();
+});
 </script>
 </body>
 </html>

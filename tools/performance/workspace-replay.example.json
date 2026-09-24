@@ -1,0 +1,25 @@
+{
+  "fixtureDirectory": "output/private-replay-fixture",
+  "outputDirectory": "output/workspace-replay",
+  "builds": {
+    "historical": {
+      "assetRoot": "output/replay-builds/historical/docs/portfolio-operations-dashboard",
+      "revision": "4263a58cca7319d8d69563bc9e91e7bf6e64a3a5"
+    },
+    "baseline": {
+      "assetRoot": "output/replay-builds/baseline/docs/portfolio-operations-dashboard",
+      "revision": "3d80173de32f227410663662a523932c50ecaa2b"
+    },
+    "repaired": {
+      "assetRoot": "output/replay-builds/repaired/docs/portfolio-operations-dashboard",
+      "revision": "REPLACE_WITH_COMMIT_OR_WORKING_TREE_DESCRIPTION"
+    }
+  },
+  "buildOrder": ["historical", "baseline", "repaired"],
+  "devices": ["desktop", "mobile"],
+  "reportingPeriod": "2026-09",
+  "samples": 5,
+  "cycles": 10,
+  "settleMs": 10000,
+  "variants": true
+}

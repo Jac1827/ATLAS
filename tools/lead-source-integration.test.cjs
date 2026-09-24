@@ -1,6 +1,7 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const C=require('../docs/portfolio-operations-dashboard/lead-source-contract.js'),B=require('../docs/portfolio-operations-dashboard/application-source-bridge.js');
-const html=fs.readFileSync('docs/portfolio-operations-dashboard/index.html','utf8');
+const html=readDashboardSource('docs/portfolio-operations-dashboard/index.html');
 const ctx=vm.createContext({console,window:{AtlasLeadSources:C},dataImport2State:{mappingRules:[],customFields:[],learningSettings:{}},DATA_IMPORT_FIELD_ALIASES:{},DATA_IMPORT_DESTINATION_GROUPS:[{fields:C.fields}],DATA_IMPORT_REPORT_TYPES:{}});
 for(const match of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm))vm.runInContext(match[0],ctx);
 const source=B.boxScore([['Lead Activity (09/01/2026 - 09/30/2026)'],['Unit Type','New Leads','Walk In','Off Site Event','Call','Email','Online','Chat','Text','Other'],['Total:',35,2,0,3,4,5,6,7,8]])[0];

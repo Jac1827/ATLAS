@@ -2,7 +2,46 @@ import {resolveEffectiveBaseline,effectiveBaselineMetric,readEffectiveBaselines}
 import {financeSnapshot,retainedSnapshot,lineageColumns} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 // Shared, period-specific finance adapter. No browser-state fallback.
 export const number = value => value === null || value === undefined || String(value).trim() === '' ? null : Number.isFinite(Number(value)) ? Number(value) : null;
-export async function readFinance(central, communityIds, periods, {signal,baselineMode='effective'} = {}) {
+const presentationReads=new WeakMap(),readGenerations=new WeakMap();
+const sorted=value=>Array.isArray(value)?[...value].map(String).sort():[];
+export function financeAccessKey(central){
+ const session=central.getSession?.(),profile=central.getStoredProfile?.(),config=central.getConfig?.();
+ return JSON.stringify({actor:session?.user?.id||null,backend:config?.supabaseUrl||null,enabled:config?.enabled??null,profileUser:profile?.user_id||null,role:profile?.role||null,status:profile?.status||null,scope:sorted(profile?.allowed_community_ids),markets:sorted(profile?.allowed_market_values),regions:sorted(profile?.allowed_region_values),communityRecords:sorted(profile?.community_access_records?.map(row=>row.community_id||row.atlasCommunityId||row.sourceIds?.atlasCommunityId).filter(Boolean)),accountStatus:profile?.account_status||null,tabs:sorted(profile?.locked_tab_ids),pages:sorted(profile?.locked_page_keys),permissions:sorted(profile?.bonus_permissions),profileVersion:profile?.version??null,profileUpdatedAt:profile?.updated_at||null});
+}
+export function invalidateFinanceReads(central){
+ readGenerations.set(central,(readGenerations.get(central)||0)+1);
+ const pending=presentationReads.get(central);if(pending)for(const entry of pending.values())entry.controller.abort();presentationReads.delete(central);
+}
+const cancelled=()=>new DOMException('Cancelled','AbortError');
+function joinPresentation(entry,signal,guard){
+ if(signal?.aborted)return Promise.reject(cancelled());
+ entry.users++;
+ return new Promise((resolve,reject)=>{
+  let done=false;
+  const finish=(error,value)=>{if(done)return;done=true;signal?.removeEventListener('abort',onAbort);entry.users--;if(!entry.users&&!entry.settled)entry.controller.abort();if(error)reject(error);else resolve(value);};
+  const onAbort=()=>finish(cancelled());signal?.addEventListener('abort',onAbort,{once:true});
+  entry.promise.then(value=>{try{guard();finish(null,structuredClone(value));}catch(error){finish(error);}},error=>finish(error));
+ });
+}
+// Fresh remains the default for publication readback and financial/payout evidence.
+// Presentation callers may share only an exact, simultaneous request; no completed result is retained here.
+export function readFinance(central,communityIds,periods,{signal,baselineMode='effective',readMode='fresh',versionKey=null}={}){
+ if(!['fresh','presentation'].includes(readMode))return Promise.reject(Error('Choose a financial read mode.'));
+ const access=financeAccessKey(central),generation=readGenerations.get(central)||0;
+ const guard=()=>{if(signal?.aborted)throw cancelled();if(financeAccessKey(central)!==access||(readGenerations.get(central)||0)!==generation)throw Error('Session or financial access changed while reading financial evidence.');};
+ if(readMode!=='presentation'||!central.getSession?.()?.user?.id)return readFinanceFresh(central,communityIds,periods,{signal,baselineMode}).then(value=>{guard();return value;});
+ if(signal?.aborted)return Promise.reject(cancelled());
+ let pending=presentationReads.get(central);if(!pending){pending=new Map();presentationReads.set(central,pending);}
+ const key=JSON.stringify([access,generation,[...new Set(communityIds)],[...new Set(periods)],baselineMode,versionKey]);
+ let entry=pending.get(key);
+ if(!entry){
+  entry={controller:new AbortController(),users:0,settled:false};pending.set(key,entry);
+  entry.promise=Promise.resolve().then(()=>readFinanceFresh(central,communityIds,periods,{signal:entry.controller.signal,baselineMode}));
+  const finish=()=>{entry.settled=true;if(pending.get(key)===entry)pending.delete(key);};entry.promise.then(finish,finish);
+ }
+ return joinPresentation(entry,signal,guard);
+}
+async function readFinanceFresh(central, communityIds, periods, {signal,baselineMode='effective'} = {}) {
  const ids=[...new Set(communityIds)], months=[...new Set(periods)];
  if(!ids.length||!months.length)return [];
  if(months.length>24||months.some(p=>!/^20\d{2}-(0[1-9]|1[0-2])$/.test(p)))throw Error('Invalid finance reporting periods.');
@@ -13,7 +52,8 @@ export async function readFinance(central, communityIds, periods, {signal,baseli
   // rpc() intentionally unwraps the first row for single-record mutations.
   // A table-returning read must retain the full REST response.
   await central.refreshSession?.();
-  const rows=await central.fetchJson('/rpc/atlas_read_finance',{method:'POST',body:JSON.stringify({p_community_ids:ids.slice(i,i+batchSize),p_periods:months})});
+  if(signal?.aborted)throw cancelled();
+  const rows=await central.fetchJson('/rpc/atlas_read_finance',{method:'POST',body:JSON.stringify({p_community_ids:ids.slice(i,i+batchSize),p_periods:months}),signal});
   if(!Array.isArray(rows))throw Error('Financial readback must be a row array.');
   if(signal?.aborted)throw new DOMException('Cancelled','AbortError');
   if(central.getSession&&actor!==central.getSession()?.user?.id)throw Error('Session changed while reading financial evidence.');

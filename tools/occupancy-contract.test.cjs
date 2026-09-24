@@ -1,5 +1,6 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const fs = require('node:fs'), vm = require('node:vm'), assert = require('node:assert/strict');
-const html = fs.readFileSync(__dirname + '/../docs/portfolio-operations-dashboard/index.html', 'utf8');
+const html = readDashboardSource(__dirname + '/../docs/portfolio-operations-dashboard/index.html');
 const c = {console, Date, Map, Set, window:{AtlasLeadSources:require("../docs/portfolio-operations-dashboard/lead-source-contract.js")}, MONTHS:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'], DEFAULT_SEASONAL:Array(12).fill(1), DEFAULT_CURRENT_MONTH:8, bonusQuarter:'Q3', PROPERTY_TEAM_ROLE_ORDER:[], dataImport2State:{lineage:[]}, communityCommandState:{trendMode:'12'}, savedData:{}};
 c.FULL_MONTHS=c.MONTHS; vm.createContext(c);
 for (const f of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm)) vm.runInContext(f[0],c);

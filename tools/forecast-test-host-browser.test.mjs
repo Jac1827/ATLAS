@@ -56,7 +56,7 @@ try {
     }
   });
   await page.goto(origin + '/portfolio-operations-dashboard/index.html');
-  await page.waitForFunction(() => window.ATLAS_CENTRAL && window.XLSX);
+  await page.waitForFunction(() => window.ATLAS_CENTRAL);
   assert.equal(await page.locator('#atlas-isolated-test-banner').count(), 1);
   const readback = await page.evaluate(async () => {
     const central = window.ATLAS_CENTRAL;
@@ -73,6 +73,7 @@ try {
   await page.reload();
   await page.waitForFunction(() => window.ATLAS_CENTRAL?.getSession()?.access_token === 'synthetic-test-token');
   const libraries = await page.evaluate(async () => {
+    await window.AtlasFeatures.load('xlsx');
     const {PDFDocument} = await import('./vendor/pdf-lib-1.17.1.mjs');
     const document = await PDFDocument.create(); document.addPage().drawText('Synthetic statement smoke test');
     const pdf = await document.save();

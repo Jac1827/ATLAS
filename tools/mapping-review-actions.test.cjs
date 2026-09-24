@@ -1,7 +1,8 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const html = fs.readFileSync('docs/portfolio-operations-dashboard/index.html', 'utf8') + '\n' + fs.readFileSync('docs/portfolio-operations-dashboard/lead-source-review.js','utf8');
+const html = readDashboardSource('docs/portfolio-operations-dashboard/index.html') + '\n' + fs.readFileSync(__dirname + '/../docs/portfolio-operations-dashboard/features/import-workspace.js', 'utf8') + '\n' + fs.readFileSync('docs/portfolio-operations-dashboard/lead-source-review.js','utf8');
 const ctx = vm.createContext({ console, window:{}, document:{getElementById:()=>null} });
 for (const match of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm)) vm.runInContext(match[0], ctx);
 const item = { id: 'review1', originalField: 'source', currentField: 'applications', suggestedField: 'applications', status: 'Mapped' };

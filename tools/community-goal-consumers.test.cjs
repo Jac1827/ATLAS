@@ -1,7 +1,8 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const html = fs.readFileSync('docs/portfolio-operations-dashboard/index.html', 'utf8') + '\n' + fs.readFileSync('docs/portfolio-operations-dashboard/community-goal-editor.js', 'utf8');
+const html = readDashboardSource('docs/portfolio-operations-dashboard/index.html') + '\n' + fs.readFileSync('docs/portfolio-operations-dashboard/community-goal-editor.js', 'utf8');
 const ctx = vm.createContext({ console, Date, Map, Set, window: {} });
 for (const match of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm)) vm.runInContext(match[0], ctx);
 const plain = value => JSON.parse(JSON.stringify(value));
@@ -11,10 +12,14 @@ Object.assign(ctx, {
   communityCommandState: ctx.defaultCommunityCommandState(),
   getRecordMonthlyDataForYear: (record, year) => record.years?.[year] || [],
   FULL_MONTHS: Array.from({length:12}, (_,i) => `Month ${i+1}`),
-  getAtlasCentralStatus: () => ({configured:true}),
+  getAtlasCentralStatus: () => ({configured:true,signedIn:true}),
+  window:{ATLAS_CENTRAL:{getSession:()=>({user:{id:'synthetic'}}),getAccessContextKey:()=> 'synthetic-access',getConfig:()=>({supabaseUrl:'https://fixture.invalid'})}},
+  ATLAS_STATE_DB_NAME:'synthetic-goals',atlasWorkspaceAccess:{validated:true,epoch:1},
+  communityCommandGoalBuffers:new Map(),communityCommandGoalNotices:new Map(),communityCommandGoalEditor:null,
   getAtlasCommunityAccessRecord: name => ({atlasCommunityId:name}),
   atlasCommunityGoalStore: {scopes:new Map()}
 });
+ctx.syncCommunityCommandGoalContext();
 const goal = (community, month, year, values = {}, version = 1) => ({
   id: `${community}-${year}-${month}-${version}`, propName: community, monthIdx: month, year,
   status: 'Approved', approvedAt: `${year}-01-01T12:00:00Z`, effectiveDate: `${year}-01-01`,

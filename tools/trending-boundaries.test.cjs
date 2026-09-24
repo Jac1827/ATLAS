@@ -1,7 +1,8 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const html = fs.readFileSync('docs/portfolio-operations-dashboard/index.html', 'utf8');
+const html = readDashboardSource('docs/portfolio-operations-dashboard/index.html');
 const c = vm.createContext({console, Date, Map, Set});
 for (const match of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm)) vm.runInContext(match[0],c);
 const raw = [['Trending Occupancy'], ['Date Range','Beginning Occupancy','Move-ins','Move-outs','Ending Occupancy',null,'Beginning Occupied Units','Ending Occupied Units','Unit Space Count'],

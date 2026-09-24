@@ -4,6 +4,8 @@ Workbook evidence and the reforecast intake envelope transfer as bounded chunks 
 
 Attempt diagnostics are excluded from immutable reference serialization. Retrying the audit-to-intake sequence after a lost begin or finalize response therefore preserves the same request manifest and returns the same saved import.
 
+An additive follow-up (`20260924235553`) checks the current import and historical imports still referenced by overrides. Retired mappings remain in audit history without blocking replacement imports; reactivating them restores the governed-month check.
+
 The governed source bundle includes every eligible close version through the requested horizon. This detects corrections to actual months outside the selected forecast range. Selected forecast cells overlapping governed actual months are rejected. Original approved budgets remain immutable comparators.
 
 Verified local-image OOXML relationships are retained as evidence. An Excel error is classified as supporting media only when the entire local relationship resolves and the cell cannot feed financial authority. Missing relationships, financial selections and unresolved dependencies remain blocked; no cell address or numeric replacement is hard-coded.

@@ -12,7 +12,11 @@
   const SHARED_PROPERTY_GRAPH_DOCUMENT_KEY = "atlas_shared_property_graph_v1";
   const DEFAULT_ACCESS_API_BASE_URL = "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev";
   const authRequestPromises = new Map();
+  const AUTH_REQUEST_DEADLINE_MS = 20000;
+  const AUTH_REFRESH_COOLDOWN_MS = 30000;
   let refreshSessionPromise = null;
+  let refreshSessionToken = null;
+  let refreshCooldown = null;
   let authExpiryTimer = null;
 
   const DEFAULT_CONFIG = {
@@ -141,7 +145,11 @@
   }
 
   function getStoredProfile() {
-    return readLocalStorageJson(PROFILE_STORAGE_KEY, null);
+    const session = getStoredSession();
+    const expiresAt = Number(session?.expires_at || 0);
+    if (!session?.access_token || !Number.isFinite(expiresAt) || expiresAt <= Math.floor(Date.now() / 1000)) return null;
+    const profile = readLocalStorageJson(PROFILE_STORAGE_KEY, null);
+    return profile?.user_id && profile.user_id === session.user?.id ? profile : null;
   }
 
   function saveProfile(profile) {
@@ -348,6 +356,8 @@
     const lower = message.toLowerCase();
     const email = String(context.email || "").trim().toLowerCase();
     const emailSuffix = email ? ` for ${email}` : "";
+    if (status === 429) return "Too many sign-in requests. Please wait a moment before trying again.";
+    if (status >= 500 || status === 408) return "ATLAS sign-in is temporarily unavailable. Please try again shortly.";
     if (!message) {
       if (status === 401 || status === 400) return "ATLAS could not sign you in with that email and password.";
       return "ATLAS could not finish that request.";
@@ -455,7 +465,70 @@
     return promise;
   }
 
+  function isAuthRequest(url) {
+    try {
+      const target = new URL(url), configured = new URL(getConfig().supabaseUrl);
+      return target.origin === configured.origin && target.pathname.startsWith("/auth/v1/");
+    } catch { return false; }
+  }
+
+  function authServiceError(status = 0, retryAfterSeconds = 0, timedOut = false) {
+    const message = status === 429
+      ? "Too many sign-in requests. Please wait a moment before trying again."
+      : timedOut
+        ? "ATLAS sign-in is taking too long to respond. Please try again shortly."
+        : status >= 500 || status === 408
+          ? "ATLAS sign-in is temporarily unavailable. Please try again shortly."
+          : "ATLAS could not connect to the sign-in service. Check your connection and try again shortly.";
+    return createCentralError(message, { status, retryAfterSeconds, authTransient: true, timedOut });
+  }
+
+  function validAuthSession(payload) {
+    const nonempty = value => typeof value === "string" && Boolean(value.trim());
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const expiresAt = payload?.expires_at ? Number(payload.expires_at) : nowSeconds + Number(payload?.expires_in);
+    return nonempty(payload?.access_token) && nonempty(payload?.refresh_token) && nonempty(payload?.user?.id)
+      && Number.isFinite(expiresAt) && expiresAt > nowSeconds;
+  }
+
+  async function requestAuth(url, options) {
+    const controller = new AbortController();
+    let deadline;
+    const timeout = new Promise((_, reject) => {
+      deadline = window.setTimeout(() => {
+        reject(authServiceError(0, 0, true));
+        controller.abort();
+      }, AUTH_REQUEST_DEADLINE_MS);
+    });
+    const operation = (async () => {
+      let response;
+      try {
+        response = await fetch(url, { ...options, signal: controller.signal, headers: { ...baseHeaders(getConfig(), options.auth !== false, options), ...(options.headers || {}) } });
+      } catch { throw authServiceError(); }
+      let payload;
+      try {
+        const body = await response.text();
+        payload = body ? safeJsonParse(body, body) : null;
+      } catch { throw authServiceError(); }
+      if (!response.ok) {
+        const status = Number(response.status) || 0, retryAfterSeconds = getRetryAfterSeconds(response);
+        if (status === 429 || status === 408 || status >= 500) throw authServiceError(status, retryAfterSeconds);
+        const code = String(payload?.error_code || payload?.code || payload?.error || "").toLowerCase();
+        const message = errorFromPayload(payload, "ATLAS could not finish that sign-in request.");
+        const invalidRefreshToken = [400, 401, 403].includes(status) && (
+          ["refresh_token_not_found", "refresh_token_already_used", "refresh_token_expired", "invalid_grant", "session_not_found", "session_expired"].includes(code)
+          || /invalid refresh token|refresh token (?:not found|has expired|already used|is invalid)/i.test(message)
+        );
+        throw createCentralError(message, { status, retryAfterSeconds, invalidRefreshToken });
+      }
+      return payload;
+    })();
+    try { return await Promise.race([operation, timeout]); }
+    finally { window.clearTimeout(deadline); }
+  }
+
   async function request(url, options = {}) {
+    if (isAuthRequest(url)) return requestAuth(url, options);
     let response;
     try {
       response = await fetch(url, {
@@ -518,6 +591,7 @@
           auth: false,
           body: JSON.stringify({ email: cleanEmail, password })
         });
+        if (!validAuthSession(payload)) throw authServiceError(502);
         saveSession(payload);
         await fetchProfile().catch(() => null);
         saveLastAuthEvent({ type: "password_sign_in", email: cleanEmail });
@@ -629,28 +703,40 @@
     const expiresAt = Number(currentSession.expires_at || 0);
     const nowSeconds = Math.floor(Date.now() / 1000);
     if (expiresAt && expiresAt - nowSeconds > 90) return currentSession;
-    if (refreshSessionPromise) return refreshSessionPromise;
-    refreshSessionPromise = (async () => {
-      const session = getSession();
-      if (!session?.refresh_token) return session;
-      const latestExpiresAt = Number(session.expires_at || 0);
-      const latestNowSeconds = Math.floor(Date.now() / 1000);
-      if (latestExpiresAt && latestExpiresAt - latestNowSeconds > 90) return session;
+    const session = currentSession, token = session.refresh_token, sourceUrl = getConfig().supabaseUrl;
+    const refreshKey = JSON.stringify([sourceUrl, token, session.access_token, session.user?.id || ""]);
+    const stillCurrent = () => {
+      const current = getSession();
+      return current?.refresh_token === token && current?.access_token === session.access_token && current?.user?.id === session.user?.id && getConfig().supabaseUrl === sourceUrl;
+    };
+    if (refreshCooldown?.key === refreshKey && refreshCooldown.until > Date.now()) {
+      throw authServiceError(refreshCooldown.status, Math.ceil((refreshCooldown.until - Date.now()) / 1000));
+    }
+    if (refreshSessionPromise && refreshSessionToken === refreshKey) return refreshSessionPromise;
+    refreshSessionToken = refreshKey;
+    const pending = (async () => {
       try {
         const payload = await request(authUrl("/token?grant_type=refresh_token"), {
           method: "POST",
           auth: false,
           body: JSON.stringify({ refresh_token: session.refresh_token })
         });
+        if (!stillCurrent()) return getSession();
+        if (!validAuthSession(payload) || (session.user?.id && payload.user?.id !== session.user.id)) throw authServiceError(502);
+        refreshCooldown = null;
         return saveSession(payload);
       } catch (error) {
-        if ([400, 401, 403].includes(Number(error?.status))) saveSession(null);
+        if (stillCurrent()) {
+          if (error?.invalidRefreshToken === true) { refreshCooldown = null; saveSession(null); }
+          else refreshCooldown = { key: refreshKey, status: Number(error.status) || 0, until: Date.now() + Math.max(AUTH_REFRESH_COOLDOWN_MS, (Number(error.retryAfterSeconds) || 0) * 1000) };
+        }
         throw error;
       }
     })().finally(() => {
-      refreshSessionPromise = null;
+      if (refreshSessionPromise === pending) { refreshSessionPromise = null; refreshSessionToken = null; }
     });
-    return refreshSessionPromise;
+    refreshSessionPromise = pending;
+    return pending;
   }
 
   async function signOut() {

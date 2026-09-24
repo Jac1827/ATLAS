@@ -56,6 +56,18 @@
   .atlas-startup-card i { display:block; font-size:2rem; color:var(--brand); margin-bottom:10px; }
   .atlas-startup-card strong { display:block; font-size:1rem; color:var(--text); }
   .atlas-startup-card span { display:block; margin-top:7px; font-size:0.75rem; color:var(--muted); }
+  .atlas-auth-panel .atlas-auth-grid { display:grid; grid-template-columns:minmax(0,0.92fr) minmax(0,1.08fr); min-height:620px; }
+  .atlas-auth-panel .atlas-auth-content { min-width:0; padding:28px 28px 24px; }
+  .atlas-auth-panel .atlas-auth-content label { display:block; min-width:0; }
+  .atlas-auth-panel .atlas-auth-field-label { display:block; font-size:0.85rem; font-weight:600; color:#334e68; }
+  .atlas-auth-panel .atlas-auth-content input { display:block; width:100%; min-width:0; min-height:48px; padding:11px 13px; border:1px solid #aebdca; border-radius:10px; background:#fff; color:#102a43; font:inherit; font-size:16px; line-height:1.4; }
+  .atlas-auth-panel .atlas-auth-content input::placeholder { color:#687b8d; opacity:1; }
+  .atlas-auth-panel .atlas-auth-content input:focus { outline:2px solid #2b5d87; outline-offset:2px; border-color:#2b5d87; box-shadow:none; }
+  .atlas-auth-panel .btn { min-height:42px; font-size:0.85rem; }
+  @media(max-width:860px) {
+    .atlas-auth-panel .atlas-auth-grid { grid-template-columns:minmax(0,1fr); min-height:0; }
+    .atlas-auth-panel .atlas-auth-content { order:-1; padding:24px 20px; }
+  }
   body.community-backdrop {
     background:
       linear-gradient(180deg, rgba(7,28,44,0.76) 0%, rgba(7,28,44,0.58) 22%, rgba(245,245,243,0.96) 54%, rgba(245,245,243,1) 100%),
@@ -1426,7 +1438,7 @@
 
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=444f3a65a6d89140"></script>
-<script src="./centralization/atlas-central-client.js?v=8c01ca31e870ff8c" data-atlas-central-client="true"></script>
+<script src="./centralization/atlas-central-client.js?v=c6613e4b47296475" data-atlas-central-client="true"></script>
 <script src="./atlas-dashboard-reskin.js?v=99ffd40a8970f8ef"></script>
 <script src="./central-services.js?v=20260919-renewal-period-review"></script>
 <script src="./eviction-attorney-ui.js?v=20260916-community-contacts"></script>
@@ -15465,7 +15477,7 @@ function defaultAtlasAccessFormDraft() {
 
 atlasAccessFormDraft = defaultAtlasAccessFormDraft();
 
-const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=8c01ca31e870ff8c";
+const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=c6613e4b47296475";
 const ATLAS_AUTH_UI_STORAGE_KEY = "atlas_auth_ui_state_v1";
 const ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY = "atlas_dashboard_preferences_v1";
 let atlasCentralClientLoadPromise = null;
@@ -18664,10 +18676,10 @@ function renderAtlasCentralLoginRequiredPanel() {
     <div style="display:grid;gap:12px">
       <div>
         <div style="font-size:1.55rem;font-weight:800;color:#102a43;letter-spacing:-0.03em">Sign in to ATLAS</div>
-        <div style="font-size:0.76rem;color:#5b6b7a;line-height:1.6;margin-top:6px">Use your work email and password to open your dashboard. If you are new to ATLAS, use <strong>Activate Account</strong> instead of creating a second login path.</div>
+        <div style="font-size:0.76rem;color:#5b6b7a;line-height:1.6;margin-top:6px">Use your work email and password to open your dashboard. If you are new to ATLAS, choose <strong>Activate Account</strong> to use your invitation.</div>
       </div>
-      <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Email</span><input id="atlas-auth-email" type="email" value="${escapeHtml(atlasAuthUiState.pendingEmail || "")}" placeholder="name@riseresidential.com" oninput="syncAtlasAuthEmailFromForm()" style="margin-top:6px"></label>
-      <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Password</span><input id="atlas-auth-password" type="password" placeholder="Enter your password" style="margin-top:6px"></label>
+      <label><span class="atlas-auth-field-label">Email</span><input id="atlas-auth-email" name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" value="${escapeHtml(atlasAuthUiState.pendingEmail || "")}" placeholder="name@riseresidential.com" oninput="syncAtlasAuthEmailFromForm()" style="margin-top:6px"></label>
+      <label><span class="atlas-auth-field-label">Password</span><input id="atlas-auth-password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" style="margin-top:6px"></label>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
         <button class="btn btn-blue" onclick="signInAtlasCentralWithPassword()" ${busy ? "disabled" : ""}>${atlasCentralAuthActionState.passwordSignIn ? "Signing In..." : "Sign In"}</button>
         <button class="btn btn-gray btn-sm" onclick="openAtlasAuthMode('forgot', { pendingEmail:getAtlasAuthFormEmailValue(), notice:'', error:'' })">Forgot password?</button>
@@ -18682,8 +18694,8 @@ function renderAtlasCentralLoginRequiredPanel() {
         <div style="font-size:0.76rem;color:#5b6b7a;line-height:1.6;margin-top:6px">Your invitation link is verified. Create your password to finish activation.</div>
       </div>
       <div class="alert-green">Invitation verified for ${escapeHtml(status.userEmail || atlasAuthUiState.pendingEmail || "this account")}.</div>
-      <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Display name</span><input id="atlas-auth-display-name" value="${escapeHtml(atlasCurrentUserDisplayName() === "ATLAS user" ? "" : atlasCurrentUserDisplayName())}" placeholder="Your name as it should appear in ATLAS" style="margin-top:6px"></label>
-      <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Create password</span><input id="atlas-auth-password" type="password" placeholder="Use at least 8 characters" style="margin-top:6px"></label>
+      <label><span class="atlas-auth-field-label">Display name</span><input id="atlas-auth-display-name" name="name" type="text" autocomplete="name" value="${escapeHtml(atlasCurrentUserDisplayName() === "ATLAS user" ? "" : atlasCurrentUserDisplayName())}" placeholder="Your name as it should appear in ATLAS" style="margin-top:6px"></label>
+      <label><span class="atlas-auth-field-label">Create password</span><input id="atlas-auth-password" name="password" type="password" autocomplete="new-password" placeholder="Use at least 8 characters" style="margin-top:6px"></label>
       <button class="btn btn-blue" onclick="completeAtlasCentralInviteActivation()" ${busy ? "disabled" : ""}>${atlasCentralAuthActionState.passwordSignUp ? "Activating..." : "Activate My Account"}</button>
       <div style="padding:12px;border-radius:14px;background:linear-gradient(180deg,#f8fbff 0%,#eef5ff 100%);border:1px solid #d7e6fb">
         <div style="font-size:0.68rem;font-weight:800;color:#1d4ed8;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px">Activation steps</div>
@@ -18696,8 +18708,8 @@ function renderAtlasCentralLoginRequiredPanel() {
         <div style="font-size:1.55rem;font-weight:800;color:#102a43;letter-spacing:-0.03em">Activate your ATLAS account</div>
         <div style="font-size:0.76rem;color:#5b6b7a;line-height:1.6;margin-top:6px">Enter your work email and ATLAS will send or resend the activation email. You will create the password after opening that email link.</div>
       </div>
-      <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Work email</span><input id="atlas-auth-email" type="email" value="${escapeHtml(atlasAuthUiState.pendingEmail || atlasAuthUiState.activationEmail || "")}" placeholder="name@riseresidential.com" oninput="syncAtlasAuthEmailFromForm()" style="margin-top:6px"></label>
-      <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Display name</span><input id="atlas-auth-display-name" value="" placeholder="Your name as it should appear in ATLAS" style="margin-top:6px"></label>
+      <label><span class="atlas-auth-field-label">Work email</span><input id="atlas-auth-email" name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" value="${escapeHtml(atlasAuthUiState.pendingEmail || atlasAuthUiState.activationEmail || "")}" placeholder="name@riseresidential.com" oninput="syncAtlasAuthEmailFromForm()" style="margin-top:6px"></label>
+      <label><span class="atlas-auth-field-label">Display name</span><input id="atlas-auth-display-name" name="name" type="text" autocomplete="name" value="" placeholder="Your name as it should appear in ATLAS" style="margin-top:6px"></label>
       <button class="btn btn-blue" onclick="requestAtlasCentralActivationEmail()" ${busy ? "disabled" : ""}>${atlasCentralAuthActionState.activationEmail ? "Sending..." : "Send Activation Email"}</button>
       <div style="padding:12px;border-radius:14px;background:linear-gradient(180deg,#f8fbff 0%,#eef5ff 100%);border:1px solid #d7e6fb">
         <div style="font-size:0.68rem;font-weight:800;color:#1d4ed8;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px">Activation steps</div>
@@ -18711,7 +18723,7 @@ function renderAtlasCentralLoginRequiredPanel() {
         <div style="font-size:1.55rem;font-weight:800;color:#102a43;letter-spacing:-0.03em">Set your new password</div>
         <div style="font-size:0.76rem;color:#5b6b7a;line-height:1.6;margin-top:6px">Your reset link is verified. Choose a new password below, then ATLAS will send you to your dashboard.</div>
       </div>
-      <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">New password</span><input id="atlas-auth-password" type="password" placeholder="Use at least 8 characters" style="margin-top:6px"></label>
+      <label><span class="atlas-auth-field-label">New password</span><input id="atlas-auth-password" name="password" type="password" autocomplete="new-password" placeholder="Use at least 8 characters" style="margin-top:6px"></label>
       <button class="btn btn-blue" onclick="completeAtlasCentralPasswordReset()" ${busy ? "disabled" : ""}>${atlasCentralAuthActionState.passwordReset ? "Saving..." : "Save New Password"}</button>
       ${helperLinks}
     </div>` : `
@@ -18720,7 +18732,7 @@ function renderAtlasCentralLoginRequiredPanel() {
         <div style="font-size:1.55rem;font-weight:800;color:#102a43;letter-spacing:-0.03em">Reset your password</div>
         <div style="font-size:0.76rem;color:#5b6b7a;line-height:1.6;margin-top:6px">Enter your work email and ATLAS will send a reset link. The email explains what to do next in plain language.</div>
       </div>
-      <label><span style="font-size:0.64rem;color:#52606d;text-transform:uppercase;letter-spacing:0.08em">Work email</span><input id="atlas-auth-email" type="email" value="${escapeHtml(atlasAuthUiState.pendingEmail || "")}" placeholder="name@riseresidential.com" oninput="syncAtlasAuthEmailFromForm()" style="margin-top:6px"></label>
+      <label><span class="atlas-auth-field-label">Work email</span><input id="atlas-auth-email" name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" value="${escapeHtml(atlasAuthUiState.pendingEmail || "")}" placeholder="name@riseresidential.com" oninput="syncAtlasAuthEmailFromForm()" style="margin-top:6px"></label>
       <button class="btn btn-blue" onclick="requestAtlasCentralPasswordReset()" ${busy ? "disabled" : ""}>${atlasCentralAuthActionState.passwordReset ? "Sending..." : "Send Reset Link"}</button>
       <div style="font-size:0.68rem;color:#5b6b7a;line-height:1.6">If you never received an invite, go back to <strong>Help</strong> and contact an ATLAS admin.</div>
       ${helperLinks}
@@ -18748,13 +18760,13 @@ function renderAtlasCentralLoginRequiredPanel() {
     forgot: forgotForm,
     help: helpPanel
   };
-  return `<div class="card mb4" style="padding:0;overflow:hidden;border-radius:24px">
-    <div style="display:grid;grid-template-columns:minmax(280px,0.92fr) minmax(420px,1.08fr);min-height:620px">
+  return `<div class="card mb4 atlas-auth-panel" style="padding:0;overflow:hidden;border-radius:24px">
+    <div class="atlas-auth-grid">
       <div style="padding:28px 26px;background:linear-gradient(155deg,#0b2239 0%,#163b63 48%,#2b5d87 100%);color:#f8fbff;display:grid;align-content:space-between;gap:22px">
         <div>
           <div style="font-size:0.7rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.72);font-weight:800">ATLAS Access</div>
-          <div style="font-size:2rem;font-weight:800;line-height:1.04;letter-spacing:-0.04em;margin-top:10px">A cleaner front door for ATLAS.</div>
-          <div style="font-size:0.82rem;line-height:1.7;color:rgba(255,255,255,0.8);margin-top:12px">Login, first-time activation, and password recovery are separated here so users do not have to guess which action to take.</div>
+          <div style="font-size:2rem;font-weight:800;line-height:1.04;letter-spacing:-0.04em;margin-top:10px">Welcome to ATLAS.</div>
+          <div style="font-size:0.82rem;line-height:1.7;color:rgba(255,255,255,0.8);margin-top:12px">Sign in to your workspace, activate an invited account, or reset your password.</div>
         </div>
         <div style="display:grid;gap:10px">
           <div style="padding:14px;border-radius:16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12)">
@@ -18763,11 +18775,11 @@ function renderAtlasCentralLoginRequiredPanel() {
           </div>
           <div style="padding:14px;border-radius:16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12)">
             <div style="font-size:0.66rem;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.7);font-weight:800">For returning users</div>
-            <div style="font-size:0.76rem;line-height:1.65;margin-top:8px">Use Sign In with email and password. Only one ATLAS auth request is sent per attempt, and duplicate refresh loops are blocked in the current build.</div>
+            <div style="font-size:0.76rem;line-height:1.65;margin-top:8px">Sign in with your work email and password. If you cannot remember your password, choose <strong>Forgot Password</strong> to request a reset link.</div>
           </div>
         </div>
       </div>
-      <div style="padding:28px 28px 24px;background:linear-gradient(180deg,#fcfdff 0%,#f4f7fb 100%)">
+      <div class="atlas-auth-content" style="background:linear-gradient(180deg,#fcfdff 0%,#f4f7fb 100%)">
         ${atlasAuthUiState.notice ? `<div class="alert-green" style="margin-bottom:12px">${escapeHtml(atlasAuthUiState.notice)}</div>` : ""}
         ${atlasAuthUiState.error ? `<div class="alert-red" style="margin-bottom:12px">${escapeHtml(atlasAuthUiState.error)}</div>` : ""}
         ${panelByMode[mode] || loginForm}

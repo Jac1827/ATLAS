@@ -37,3 +37,7 @@ This repo carries two separate static HTML experiences:
   - `node tools/daily_glitch_review_smoke.mjs`
   - Validates the root redirect page plus `docs/performance-platform.html`, `docs/portfolio-operations-dashboard/index.html`, and `docs/portfolio-operations-dashboard/financial-accountability.html` for expected UI markers and local asset references.
   - When run inside the Codex in-app browser session, it also verifies the published dashboard pages render cleanly without console errors and expose the expected tabs and export/import controls.
+
+## Manual market survey downloads
+
+Use the [market survey download guide](tools/MARKET_SURVEY_SYNC.md) to inspect and download recent ApartmentIQ Excel attachments. The helper saves local files for a separate reviewed ATLAS upload; it does not publish changes or create a schedule.

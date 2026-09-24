@@ -1,4 +1,14 @@
 {
+  "market-save-guards.js": {
+    "sha256": "ccab560e7bf3bf6e",
+    "bytes": 3119,
+    "references": [
+      [
+        "index.html",
+        "./market-save-guards.js"
+      ]
+    ]
+  },
   "workforce-sync.js": {
     "sha256": "4da6e2edc0b496e4",
     "bytes": 1580,

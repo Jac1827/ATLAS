@@ -126,6 +126,7 @@ function metricValue(instance, summary) {
   return round(atlasDashboardMetricChartValues(instance, {scopedDetails:[{summary}]})[0]);
 }
 let historyCache = [], historyCacheAccess = "";
+let preparedHistoryRows = null, requirePreparedHistory = false;
 function historyAccessKey() {
   return window.ATLAS_CENTRAL?.getAccessContextKey?.() || JSON.stringify([
     window.ATLAS_CENTRAL?.getConfig?.(), window.ATLAS_CENTRAL?.getSession?.()?.user?.id,
@@ -157,7 +158,8 @@ function historyInputs(snapshot, start, end) {
 function historyMonthDetail(detail, month, detailsCache) {
   const cacheKey=`reskin:${detail.name}:${detail.record.reportYear}:${month}`;
   if(detailsCache?.has(cacheKey))return detailsCache.get(cacheKey);
-  const value=buildCommunityDetailForMonth(detail.name,detail.record,month,detail.record.reportYear,{includeRecommendations:false});
+  const build=()=>buildCommunityDetailForMonth(detail.name,detail.record,month,detail.record.reportYear,{includeRecommendations:false});
+  const value=typeof withAtlasSynchronousReadScope==='function' ? withAtlasSynchronousReadScope(build) : build();
   detailsCache?.set(cacheKey,value);return value;
 }
 function historyMonthRow(sourceDetails, monthly, month, detailsCache) {
@@ -174,7 +176,10 @@ function retainHistoryRows(key, rows) {
 }
 function history(instance, snapshot) {
   const end=getSelectedDashboardMonthIndex(), start=Math.max(0,end-8), key=historyInputs(snapshot,start,end);
-  let rows=key === null ? null : historyCache.find(entry=>entry.key===key)?.rows;
+  let rows=key === null ? null : preparedHistoryRows?.get(key) || historyCache.find(entry=>entry.key===key)?.rows;
+  if (!rows && requirePreparedHistory && key !== null) {
+    throw Object.assign(new Error("Dashboard history needs preparation"),{code:"ATLAS_HOME_PREPARATION_REQUIRED"});
+  }
   if (!rows) {
     const sourceDetails=snapshot.scopedDetails||[];
     const monthly=new Map(sourceDetails.map(detail=>[detail,getRecordMonthlyDataForYear(detail.record,detail.record.reportYear)]));
@@ -192,7 +197,7 @@ function history(instance, snapshot) {
 async function prepareInitialHome({current=()=>true,yieldTask=()=>new Promise(resolve=>setTimeout(resolve,0))}={}) {
   const readSnapshot=instance=>{
     const previous=atlasHomeRenderDetails;atlasHomeRenderDetails=new Map();
-    try{return buildAtlasDashboardWidgetSnapshot(instance);}finally{atlasHomeRenderDetails=previous;}
+    try{const read=()=>({scopedDetails:buildAtlasDashboardScopedDetails(instance,{includeSummary:false})});return typeof withAtlasSynchronousReadScope==='function' ? withAtlasSynchronousReadScope(read) : read();}finally{atlasHomeRenderDetails=previous;}
   };
   const overview={widgetKey:'portfolio_overview',metric:'Physical Occupancy',scope:{type:'all_properties'}};
   const widgets=getAtlasDashboardViewWidgets(getAtlasActiveDashboardView()).filter(instance=>{
@@ -201,13 +206,15 @@ async function prepareInitialHome({current=()=>true,yieldTask=()=>new Promise(re
       && !/Ranking|Comparison|Exception/.test(viz)
       && (!['traffic_funnel','renewals_retention'].includes(instance.widgetKey)||/Trend/.test(viz));
   });
-  const scopes=new Set();
+  const scopes=new Set(), prepared=new Map();
   for(const instance of [overview,...widgets]) {
     const scopeKey=atlasExactPresentationInputString(typeof normalizeAtlasDashboardScopeConfig==='function' ? normalizeAtlasDashboardScopeConfig(instance.scope) : instance.scope||{});
     if(scopes.has(scopeKey))continue;scopes.add(scopeKey);
     await yieldTask();if(!current())return false;
     const end=getSelectedDashboardMonthIndex(),start=Math.max(0,end-8),snapshot=readSnapshot(instance),key=historyInputs(snapshot,start,end);
-    if(key===null || historyCache.some(entry=>entry.key===key))continue;
+    if(key===null)continue;
+    const retained=historyCache.find(entry=>entry.key===key);
+    if(retained){prepared.set(key,retained.rows);continue;}
     // Detached records keep each month on one exact input snapshot across yields.
     const sourceDetails=structuredClone(snapshot.scopedDetails||[]),detailsCache=new Map();
     const monthly=new Map(sourceDetails.map(detail=>[detail,getRecordMonthlyDataForYear(detail.record,detail.record.reportYear)])),rows=[];
@@ -225,13 +232,18 @@ async function prepareInitialHome({current=()=>true,yieldTask=()=>new Promise(re
     const fresh=readSnapshot(instance);
     if(!current() || historyInputs(fresh,start,end)!==key)return false;
     retainHistoryRows(key,rows);
+    prepared.set(key,rows);
     window.AtlasPerformance?.record?.("home-history-prepared");
   }
-  return current();
+  if(!current())return false;
+  // One-use rows prevent a dashboard with several different widget scopes from
+  // evicting its own preparation. Every read still compares the exact input key.
+  preparedHistoryRows=prepared;
+  return true;
 }
 
 window.addEventListener?.("atlas-central-auth-change",()=>{
-  const next=historyAccessKey();if(next!==historyCacheAccess){historyCache=[];historyCacheAccess=next;}
+  const next=historyAccessKey();if(next!==historyCacheAccess){historyCache=[];preparedHistoryRows=null;historyCacheAccess=next;}
 });
 
 function visual(instance,snapshot,definition={}) {
@@ -287,13 +299,16 @@ function card(instance,editing=false) {
     ${editing && atlasDashboardWidgetHasUnsavedChanges(instance.instanceId)?'<span class="atlas-dashboard-status-pill">Unsaved changes</span>':''}
   </div></article>`;
 }
-function home() {
+function home({preparedOnly=false}={}) {
+  const previous=requirePreparedHistory;requirePreparedHistory=preparedOnly;
+  try {
   const view=getAtlasActiveDashboardView(),widgets=getAtlasDashboardViewWidgets(view), status=getAtlasCentralStatus();
   const overview={widgetKey:'portfolio_overview',metric:'Physical Occupancy',scope:{type:'all_properties'}};
   const snap=buildAtlasDashboardWidgetSnapshot(overview),h=history(overview,snap);
   const name=atlasUserDisplayName(getAtlasAccessProfile()||{email:status.userEmail});
   const latest=getAtlasDashboardLatestDataUploadAt();
   return `<div class="atlas-reskin atlas-home-dashboard"><section class="hero"><div class="hero-row"><div><div class="hero-kicker">My Dashboard · ${esc(MONTHS[getSelectedDashboardMonthIndex()])}</div><h1>Welcome, ${esc(name)}.</h1><p class="hero-sub">Your portfolio at a glance. ${esc(snap.sub)}</p><div class="hero-meta"><button class="hero-pill" id="atlas-dashboard-weather" onclick="refreshAtlasDashboardWeather({force:true})">${renderAtlasDashboardWeatherPillContents()}</button><span class="hero-pill">Last upload · ${latest?esc(formatSavedTimestampLabel(new Date(latest).toISOString())):'Not recorded'}</span><span class="hero-pill">${snap.scopedDetails.length} ${snap.scopedDetails.length===1?'community':'communities'} in scope</span></div></div><div class="hero-actions"><button class="btn btn-primary" onclick="openAtlasDashboardWalkthrough()"><i class="ph ph-sliders-horizontal"></i> Build My Dashboard</button><button class="btn" onclick="setTab(2)">Full Portfolio</button></div></div><div class="hero-figure"><div><div class="hero-num-label">Physical Occupancy</div><div class="hero-num">${esc(snap.value)}</div></div><div class="hero-spark">${h.data.filter(v=>v!==null).length>1?sparkline(h.data,'#9FCBE2',54):'<p class="hero-num-sub">Monthly trend appears as history is added.</p>'}<p class="hero-num-sub">${esc(h.labels[0])}–${esc(h.labels.at(-1))} · Monthly occupancy</p></div></div></section><div class="grid-head"><div><h2>${esc(view.viewName)}</h2><p>${widgets.length} widgets · Your saved dashboard</p></div><button class="btn btn-gray" onclick="setTab(14)"><i class="ph ph-gear-six"></i> Customize</button></div><div class="wgrid">${widgets.map(w=>card(w)).join('')||'<p class="empty w-12">Add widgets in Build My Dashboard to get started.</p>'}</div></div>`;
+  } finally { requirePreparedHistory=previous;preparedHistoryRows=null; }
 }
 function library() {
   const state=atlasDashboardBuilderState,category=state.category||'All',search=atlasNormalizeSharedText(state.search),active=new Set(getAtlasDashboardViewWidgets().map(w=>w.widgetKey));

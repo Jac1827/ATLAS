@@ -20,8 +20,10 @@ let builds=0;ctx.savedData={};ctx.buildPortfolioDetailsForMonth=(month,records,y
 vm.runInContext('let atlasHomeRenderDetails=null;'+extract('atlasHomePortfolioDetails','getAtlasDashboardAuthorizedCommunityOptions'),ctx);
 vm.runInContext('atlasHomeRenderDetails=new Map()',ctx);
 assert.equal(ctx.atlasHomePortfolioDetails(8),ctx.atlasHomePortfolioDetails(8));assert.equal(builds,1);
-ctx.atlasHomePortfolioDetails(7);assert.equal(builds,2);
-vm.runInContext('atlasHomeRenderDetails=null',ctx);ctx.atlasHomePortfolioDetails(8);assert.equal(builds,3);
+assert.equal(ctx.atlasHomePortfolioDetails(8,{includeSummary:false}),ctx.atlasHomePortfolioDetails(8,{includeSummary:false}));assert.equal(builds,2,'Metadata preparation has its own memo');
+assert.notEqual(ctx.atlasHomePortfolioDetails(8),ctx.atlasHomePortfolioDetails(8,{includeSummary:false}),'Summaryless records never replace visible details');
+ctx.atlasHomePortfolioDetails(7);assert.equal(builds,3);
+vm.runInContext('atlasHomeRenderDetails=null',ctx);ctx.atlasHomePortfolioDetails(8);assert.equal(builds,4);
 assert.match(extract('renderAtlasWelcomeDashboard','buildAtlasCentralPeoplePayload'),/finally \{ atlasHomeRenderDetails = previous/);
 
 assert.match(extract('renderAtlasPersonalBonusLandingWidget','renderBonusMyBonusSection'),/!primary \? "Not available"/);

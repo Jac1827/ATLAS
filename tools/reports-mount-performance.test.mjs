@@ -28,6 +28,7 @@ try{
   window.renderCommunityProgressReportingWorkspace=()=>{previewBuilds++;return '<p>Preview '+previewBuilds+'</p>';};
   window.detailCalls=[];window.investorCalls=0;window.normalizationCalls=0;
   window.normalizeSavedCommunityRecord=(name,record)=>{normalizationCalls++;return {name,...record};};
+  window.goalReads=0;window.getCommunityCommandApprovedGoal=(name,month,year)=>{goalReads++;return {name,month,year,actor:profile.user_id,scope:[...profile.allowed_community_ids],value:window.syntheticGoalValue??null};};
   window.buildPortfolioDetailsForMonth=(month,records,year)=>{detailCalls.push([month,records,year]);return [{name:'Synthetic',record:{},summary:{amount:null,zero:0,source:'retained-source'}}];};
   window.ensureValidReportHubAction=()=>{};window.normalizeReportHubType=x=>x;window.getReportHubMonthIndex=()=>8;window.getReportHubYear=()=>new Date().getFullYear();
   window.ensureReportHubRecipientSelection=()=>{AtlasReports.details(8,savedData,getReportHubYear());return [];};
@@ -51,9 +52,16 @@ try{
   atlasWorkspaceAccess.source.version=2;counts.push(build());profile={...profile,user_id:'next-actor'};dispatchEvent(new Event('atlas-central-auth-change'));counts.push(build());dispatchEvent(new Event('atlas-central-auth-change'));counts.push(build());syntheticSharedGraph='changed-shared-graph';counts.push(build());
   currentMonth=8;return {counts,same:outputs[0]===outputs[1],missingDistinct:atlasExactReportInputString({v:undefined})!==atlasExactReportInputString({}),nullDistinct:atlasExactReportInputString({v:NaN})!==atlasExactReportInputString({v:null}),signedZeroDistinct:atlasExactReportInputString({v:-0})!==atlasExactReportInputString({v:0})};
  });
- assert.deepEqual(presentationCache,{counts:[1,1,2,3,4,5,6,7,8,9,10,11,12,12,13,14,14,15],same:true,missingDistinct:true,nullDistinct:true,signedZeroDistinct:true},'preview reuse invalidates exact in-place source/mapping/goal/photo/role/period changes and preserves unknown semantics');
+ assert.deepEqual(presentationCache,{counts:[1,1,2,3,3,4,5,6,7,8,9,10,11,11,12,13,13,14],same:true,missingDistinct:true,nullDistinct:true,signedZeroDistinct:true},'preview reuse ignores future mapping configuration but invalidates exact published source/goal/photo/role/period changes and preserves unknown semantics');
  const render=await page.evaluate(()=>{const html=renderReportingTab();return {html,calls:detailCalls.length,investors:investorCalls};});
  assert.equal(render.calls,1,'one portfolio detail calculation for both recipient scope and report controls');assert.equal(render.investors,0,'hidden scope controls do not build investor choices');assert.match(render.html,/Budget vs Actual Financial Review/);
+ const communityControls=await page.evaluate(()=>{
+  const previous=ensureReportHubRecipientSelection;ensureReportHubRecipientSelection=()=>[];
+  getReportableCommunityNames=()=>['Synthetic'];getCommunityProgressReportCommunityNames=()=>['Synthetic'];getCommunityProgressReportScopeLabel=()=> 'Synthetic';
+  const before=detailCalls.length;reportHubType='community_progress';const html=renderReportingTab();reportHubType='financial_review';ensureReportHubRecipientSelection=previous;
+  return {additionalDetails:detailCalls.length-before,picker:html.includes('toggleCommunityProgressReportCommunity')};
+ });
+ assert.deepEqual(communityControls,{additionalDetails:0,picker:true},'Community Progress keeps its exact community picker without constructing unused portfolio details for hidden controls');
  await page.evaluate(()=>{const outer=AtlasReports.beginRender();AtlasReports.details(8,savedData,2026);AtlasReports.details(8,savedData,2026);AtlasReports.details(8,savedData,2025);AtlasReports.details(8,{},2026);AtlasReports.endRender(outer);});
  assert.equal(await page.evaluate(()=>detailCalls.length),4,'explicit year and record-map identity remain distinct');
  const memo=await page.evaluate(()=>{
@@ -67,6 +75,14 @@ try{
   return {same:a===b,firstCalls,total:normalizationCalls,unknown:a.amount,zero:a.zero,next:next.zero,scope:access.allowed_community_ids};
  });
  assert.deepEqual(memo,{same:true,firstCalls:3,total:6,unknown:null,zero:0,next:7,scope:['next-scope']},'memoization lasts only one synchronous render and keys full argument identity');
+ const goalMemo=await page.evaluate(()=>{
+  let previous=AtlasReports.beginRender();const a=getCommunityCommandApprovedGoal('Synthetic',8,2026),b=getCommunityCommandApprovedGoal('Synthetic',8,2026);
+  getCommunityCommandApprovedGoal('Synthetic',9,2026);getCommunityCommandApprovedGoal('Other',8,2026);getCommunityCommandApprovedGoal('Synthetic',8,2025);AtlasReports.endRender(previous);
+  const reads=goalReads;profile={...profile,user_id:'other-actor',allowed_community_ids:['other-community']};syntheticGoalValue=0;
+  previous=AtlasReports.beginRender();const next=getCommunityCommandApprovedGoal('Synthetic',8,2026);AtlasReports.endRender(previous);
+  return {same:a===b,reads,total:goalReads,unknown:a.value,next:next.value,actor:next.actor,scope:next.scope};
+ });
+ assert.deepEqual(goalMemo,{same:true,reads:4,total:5,unknown:null,next:0,actor:'other-actor',scope:['other-community']},'approved-goal reads reuse only the exact community/month/year within one synchronous render; next access context and explicit zero are fresh');
  await page.evaluate(()=>{const p=document.querySelector('#reports');const html=renderReportHubPreviewFrame('Synthetic','Scope','<input id="draft" value="original"><p>Missing —; explicit 0; source retained</p>');AtlasReports.renderInto(p,html);window.previewHtml=html;});
  const unchanged=await page.evaluate(()=>{const p=document.querySelector('#reports'),observer=new MutationObserver(()=>{});observer.observe(p,{childList:true,subtree:true});AtlasReports.renderInto(p,previewHtml);const changes=observer.takeRecords().length;observer.disconnect();return changes;});
  assert.equal(unchanged,0,'identical fully recomputed markup does not replace unchanged DOM');

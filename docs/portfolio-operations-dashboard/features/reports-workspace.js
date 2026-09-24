@@ -17,9 +17,22 @@ const atlasReportMemoResult = Symbol("report synchronous result");
 // matters: different records, periods, or names must never reuse one another.
 // The context is discarded before returning to the event loop, so edits and
 // actor/access/source changes always start with fresh values on the next render.
-for (const name of ["getAtlasAccessProfile", "getAtlasCentralStatus", "getAtlasCommunityAccessRecord", "normalizeCommunityLookupName", "normalizeSavedCommunityRecord", "getRecordMonthlyDataForYear", "buildCommunityDetailForMonth"]) {
+for (const name of ["getAtlasAccessProfile", "getAtlasCentralStatus", "getAtlasCommunityAccessRecord", "normalizeCommunityLookupName", "matchPropertyName", "getPropertyByName", "normalizeSavedCommunityRecord", "buildCommunityDetailForMonth", "getCommunityCommandApprovedGoal", "communityCommandSharedGoalScope", "getRecordSavedBudgetOccPct", "getRenewalMonthEntryForRecord", "getImportReadinessStatus", "buildCommunityProgressTrendRows"]) {
   const original = window[name];
   if (typeof original === "function") window[name] = (...args) => atlasReportMemoizedCall(original, args);
+}
+// Month selectors read exactly these three source fields. Report builders make
+// shallow record copies for each month; those copies still share the same source
+// arrays. Reuse that work within this synchronous render, without retaining any
+// record or result after its source/access context can change.
+for (const name of ["normalizeCommunityMonthlySources", "getRecordMonthlyDataForYear"]) {
+  const original = window[name];
+  if (typeof original !== "function") continue;
+  const select = (monthlyData, monthlyHistoryByPeriod, savedBudgetTargets, year) =>
+    original({monthlyData, monthlyHistoryByPeriod, savedBudgetTargets}, year);
+  window[name] = (record, ...rest) => !atlasReportRenderContext || !record || typeof record !== "object"
+    ? original(record, ...rest)
+    : atlasReportMemoizedCall(select, [record.monthlyData, record.monthlyHistoryByPeriod, record.savedBudgetTargets, ...rest]);
 }
 let atlasCommunityProgressPreview = null;
 function atlasExactReportInputString(input) { return atlasExactPresentationInputString(input); }
@@ -40,7 +53,10 @@ function atlasCommunityProgressPreviewInputs() {
       shared: atlasSharedData, sharedGraph: localStorage.getItem("atlas_shared_property_graph_v1"),
       goals: {actor: atlasCommunityGoalStore.actor, scopes: [...atlasCommunityGoalStore.scopes]},
       photos: [...photoAssetUrlCache],
-      imports: Object.fromEntries(["canonicalRecords", "lineage", "mappingRules", "mappingDrafts", "propertyAliases",
+      // A published metric is read from its retained value and lineage. Mapping
+      // rules/drafts govern a future import; normalizing their audit/confidence
+      // metadata must not rebuild an otherwise identical retained report.
+      imports: Object.fromEntries(["canonicalRecords", "lineage", "propertyAliases",
         "sourceDefinitions", "freshnessPolicies", "reportRequirementOverrides", "closedPeriods", "customFields"]
         .map(key => [key, dataImport2State[key]]))
     });
@@ -159,8 +175,10 @@ function renderReportingTabContent() {
   const normalizedType = normalizeReportHubType(reportHubType);
   const reportHubContacts = ensureReportHubRecipientSelection();
   const reportHubActionOptions = getReportHubActionOptions();
-  const reportBuilderDetails = atlasReportPortfolioDetails(getReportHubMonthIndex());
   const isCommunitySelectionReport = ["community_progress", "market_comparison"].includes(normalizedType);
+  // These reports have their own exact community picker and no portfolio scope
+  // or recommendations editor. Their recipient lookup already reads that scope.
+  const reportBuilderDetails = isCommunitySelectionReport ? [] : atlasReportPortfolioDetails(getReportHubMonthIndex());
   const reportableCommunityNames = isCommunitySelectionReport ? getReportableCommunityNames(getReportHubMonthIndex()) : [];
   const communityProgressSelectionNames = isCommunitySelectionReport ? getCommunityProgressReportCommunityNames() : [];
   const selectedRecipientCount = reportHubContacts.filter(contact => reportHubRecipientKeys.includes(contact.key)).length;

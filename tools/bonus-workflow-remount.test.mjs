@@ -13,7 +13,7 @@ const functions=['atlasWorkspaceFeature','renderTab','atlasBonusOpenSharedWorkfl
 const fixtureScript=`
 const ATLAS_SELF_SERVICE_TAB_IDS=["14"];
 let activeTab=9, MOUNT_TABS=[], atlasBonusNavigationSnapshot=null, atlasBonusSectionCache=new Map();
-let atlasWorkspaceAccess={validated:true,hasData:true},atlasActiveFeatureRequest=null,atlasCanonicalImportEvidencePromise=null;
+let atlasWorkspaceAccess={validated:true,hasData:true},atlasActiveFeatureRequest=null,atlasCanonicalImportEvidencePromise=null,atlasHomeRenderPreparation=null;
 window.AtlasFeatures={ready:()=>true};
 window.getAtlasCentralStatus=()=>({configured:true,signedIn:!!actor});window.getAtlasRenderContextKey=()=>JSON.stringify([actor,profile,quarter,activeTab,accessAllowed]);
 let actor='10000000-0000-4000-8000-000000000001',quarter='2026-Q1',accessAllowed=true;

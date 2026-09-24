@@ -6,8 +6,9 @@ import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {packageAssets} from './package-atlas-assets.mjs';
 
-export async function buildSite({repo=process.cwd(),source='docs',out='output/atlas-site',remote='origin',branch='atlas-asset-releases',mode='publish',bootstrap=false}={}) {
+export async function buildSite({repo=process.cwd(),source='docs',out='output/atlas-site',remote='origin',branch='atlas-asset-releases',mode='publish',bootstrap=false,expectedReleaseId=null}={}) {
   if (!['publish','preview'].includes(mode)) throw Error('Invalid asset release mode');
+  if (expectedReleaseId !== null && !/^[a-f0-9]{64}$/.test(expectedReleaseId)) throw Error('Invalid expected asset release hash');
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_/-]*$/.test(branch)) throw Error('Invalid retention branch');
   repo=path.resolve(repo);
   const git=(args,env={})=>execFileSync('git',args,{cwd:repo,env:{...process.env,...env},encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();
@@ -26,6 +27,7 @@ export async function buildSite({repo=process.cwd(),source='docs',out='output/at
     git(['read-tree',parent||'--empty'],env);
     if(parent)git(['checkout-index','--all',`--prefix=${retained}${path.sep}`],env);
     const result=await packageAssets({source:path.resolve(repo,source),out:path.resolve(repo,out),retained,allowEmptyRetained:!parent&&bootstrap});
+    if(expectedReleaseId !== null && result.releaseId !== expectedReleaseId)throw Error('Client archive does not match the independently reviewed expected release hash; publication stopped');
     if(mode==='publish') {
       await fs.cp(path.join(result.out,'_atlas-assets'),path.join(retained,'_atlas-assets'),{recursive:true});
       await fs.writeFile(path.join(retained,'README.md'),'# ATLAS retained asset releases\n\nAppend-only deployment inputs. Each tree is hash-verified before deployment. Do not edit or prune published releases.\n');

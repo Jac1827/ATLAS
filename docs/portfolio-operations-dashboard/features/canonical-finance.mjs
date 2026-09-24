@@ -1,7 +1,8 @@
-import {financeSnapshot,retainedSnapshot,lineageColumns} from './financial-snapshot.mjs?v=e84268921f32df41';
+import {resolveEffectiveBaseline,effectiveBaselineMetric,readEffectiveBaselines} from './reforecast-consumers.mjs?v=900b97252a7554c0';
+import {financeSnapshot,retainedSnapshot,lineageColumns} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 // Shared, period-specific finance adapter. No browser-state fallback.
 export const number = value => value === null || value === undefined || String(value).trim() === '' ? null : Number.isFinite(Number(value)) ? Number(value) : null;
-export async function readFinance(central, communityIds, periods, {signal} = {}) {
+export async function readFinance(central, communityIds, periods, {signal,baselineMode='effective'} = {}) {
  const ids=[...new Set(communityIds)], months=[...new Set(periods)];
  if(!ids.length||!months.length)return [];
  if(months.length>24||months.some(p=>!/^20\d{2}-(0[1-9]|1[0-2])$/.test(p)))throw Error('Invalid finance reporting periods.');
@@ -22,7 +23,45 @@ export async function readFinance(central, communityIds, periods, {signal} = {})
    result.push({...row,summary:{...row.summary,publicationId:row.publication_id||null,snapshotFingerprint:snapshot.fingerprint,financialSnapshot:snapshot}});
   }
  }
+ if(baselineMode==='effective'){
+  let baselines=result.map(row=>row.summary.effectiveBaseline).filter(Boolean);
+  if(result.some(row=>!Object.hasOwn(row.summary,'effectiveBaseline'))){try{baselines=await readEffectiveBaselines(central,{communityIds:ids,periods:months});}catch(error){baselines=ids.flatMap(communityId=>months.map(period=>({status:'unavailable',communityId,period,reason:'effective_baseline_read_failed: '+error.message})));}}
+  if(central.getSession&&actor!==central.getSession()?.user?.id)throw Error('Session changed while reading financial baseline evidence.');
+  for(const row of result){const baseline=resolveEffectiveBaseline(baselines,{communityId:row.community_id,period:row.period_key}),summary=withEffectiveBaseline(row.summary,baseline),snapshot=financeSnapshot(summary,row.publication_id||null);row.summary={...summary,snapshotFingerprint:snapshot.fingerprint,financialSnapshot:snapshot};}
+ }else if(baselineMode==='original_budget'){
+  for(const row of result){if(!row.summary.effectiveBaseline)continue;const summary=withOriginalBudget(row.summary),snapshot=financeSnapshot(summary,row.publication_id||null);row.summary={...summary,snapshotFingerprint:snapshot.fingerprint,financialSnapshot:snapshot};}
+ }else throw Error('Choose an explicit effective or original-budget reporting baseline.');
  return result;
+}
+function withOriginalBudget(summary){
+ const metric=(value,key)=>{if(!value||typeof value!=='object')return value;const target=number(Object.hasOwn(value,'originalBudget')?value.originalBudget:value.budget),actual=number(value.actual),variance=actual===null||target===null?null:actual-target,direction=['expenses','capital','debt','liabilities','belowNoi'].includes(key)?-1:1,favorability=variance===null?'unavailable':variance===0?'neutral':variance*direction>0?'favorable':'unfavorable';return {...value,budget:target,originalBudget:target,variance,favorability,status:favorability==='unavailable'?'missing':favorability,label:favorability==='unavailable'?'Original budget comparison unavailable':favorability,availability:actual===null?'actual_unavailable':target===null?'budget_unavailable':'available',comparisonBasis:'original_budget'};};
+ const next={...summary,comparisonBasis:'original_budget'};
+ for(const key of ['gpr','netRentalIncome','revenue','expenses','noi','margin','cashFlow','capital','debt','assets','liabilities','equity'])if(summary[key])next[key]=metric(summary[key],key);
+ if(summary.ytd){next.ytd=Object.fromEntries(Object.entries(summary.ytd).map(([key,value])=>[key,metric(value,key)]));next.ytdGpr=next.ytd.gpr||null;next.ytdExpenses=next.ytd.expenses||null;}
+ return next;
+}
+function metricTarget(summary,baseline,key){
+ if(baseline?.status!=='available')return null;
+ const metric=summary[key];
+ // The server resolves reviewed GL-to-metric mappings that are not aggregate natures.
+ if(metric&&Object.hasOwn(metric,'activeBaseline')&&metric.baselineVersion===baseline.versionId&&metric.baselineSourceType===baseline.sourceType&&(metric.baselinePublicationId||null)===(baseline.publicationId||null))return number(metric.activeBaseline);
+ if(baseline.sourceType==='original_budget'&&baseline.versionId===summary.budgetVersion)return number(Object.hasOwn(metric||{},'originalBudget')?metric.originalBudget:metric?.budget);
+ return effectiveBaselineMetric(baseline,key);
+}
+export function withEffectiveBaseline(summary,baseline){
+ const next={...summary,effectiveBaseline:baseline||{status:'unavailable',reason:'missing_baseline'},originalBudgetVersion:summary.originalBudgetVersion||summary.budgetVersion||null,activeBaselineVersion:baseline?.status==='available'?baseline.versionId:null,activeBaselinePublicationId:baseline?.status==='available'?baseline.publicationId||null:null};
+ for(const key of ['gpr','netRentalIncome','revenue','expenses','noi','margin','cashFlow','capital','debt','assets','liabilities','equity']){
+  if(!summary[key])continue;const originalBudget=Object.hasOwn(summary[key],'originalBudget')?summary[key].originalBudget:summary[key].budget;
+  const target=metricTarget(summary,baseline,key);
+  const actual=number(summary[key].actual),variance=actual===null||target===null?null:actual-target,direction=['expenses','capital','debt','liabilities'].includes(key)?-1:1,favorability=variance===null?'unavailable':variance===0?'neutral':variance*direction>0?'favorable':'unfavorable';
+  next[key]={...summary[key],originalBudget,budget:target,activeBaseline:target,variance,favorability,status:favorability==='unavailable'?'missing':favorability,label:favorability==='unavailable'?'Effective baseline unavailable':favorability};
+ }
+ if(summary.ytd){
+  const periods=summary.fiscalPeriods,evidence=summary.ytdBaselinePeriods,verified=Array.isArray(periods)&&periods.length>0&&new Set(periods).size===periods.length&&Array.isArray(evidence)&&evidence.length===periods.length&&periods.every(period=>evidence.filter(item=>item.period===period&&item.status==='available'&&item.versionId&&item.contentHash).length===1);
+  next.ytd=Object.fromEntries(Object.entries(summary.ytd).map(([key,metric])=>{const target=verified?number(metric.activeBaseline):null,actual=number(metric.actual),variance=actual===null||target===null?null:actual-target,direction=['expenses','capital','debt','belowNoi'].includes(key)?-1:1,favorability=variance===null?'unavailable':variance===0?'neutral':variance*direction>0?'favorable':'unfavorable';return [key,{...metric,originalBudget:Object.hasOwn(metric,'originalBudget')?metric.originalBudget:metric.budget,budget:target,activeBaseline:target,variance,favorability,status:favorability==='unavailable'?'missing':favorability}];}));
+  next.ytdGpr=next.ytd.gpr||null;next.ytdExpenses=next.ytd.expenses||null;
+ }
+ return next;
 }
 export function financialSummary(envelope) {
  const s=envelope||{},value=(key,field)=>number(s[key]?.[field]);
@@ -30,13 +69,13 @@ export function financialSummary(envelope) {
  const revenueBudget=value('revenue','budget'),expenseBudget=value('expenses','budget'),noiBudget=value('noi','budget');
  const difference=(a,b)=>a===null||b===null?null:a-b;
  return {hasData:!!s.actualCloseVersion,source:s.actualSource||'Missing closed financial package',version:s.actualCloseVersion||null,budgetVersion:s.budgetVersion||null,
-  revenueActual,expenseActual,noiActual,revenueBudget,expenseBudget,noiBudget,annualBudget:null,
+  revenueActual,expenseActual,noiActual,revenueBudget,expenseBudget,noiBudget,annualBudget:null,revenueOriginalBudget:value('revenue','originalBudget'),expenseOriginalBudget:value('expenses','originalBudget'),noiOriginalBudget:value('noi','originalBudget'),effectiveBaseline:s.effectiveBaseline||null,activeBaselineVersion:s.activeBaselineVersion||null,
   cashFlowActual:value('cashFlow','actual'),cashFlowBudget:value('cashFlow','budget'),
   revenueVariance:difference(revenueActual,revenueBudget),expenseVariance:difference(expenseActual,expenseBudget),noiVariance:difference(noiActual,noiBudget),
   snapshotFingerprint:s.snapshotFingerprint||financeSnapshot(s).fingerprint,financialSnapshot:s.financialSnapshot||financeSnapshot(s),
   coverage:{latestClosedPeriod:s.latestClosedPeriod||null,completeYtd:s.completeYtd===true,missingPeriods:s.missingPeriods||[]},metrics:s};
 }
-export function bonusEvidence(envelopes,metric,periods) {
+export function bonusEvidence(envelopes,metric,periods,{requireEffectiveBaseline=false}={}) {
  // Input evidence only; assignment, plan and payroll eligibility remain separate gates.
  if(periods.length!==3||new Set(periods).size!==3)return null;
  const start=Number(periods[0].slice(5));
@@ -44,10 +83,14 @@ export function bonusEvidence(envelopes,metric,periods) {
  const rows=periods.map(p=>envelopes.find(s=>s?.period===p));
  if(rows.some(s=>!s?.actualCloseVersion||!s.budgetVersion||s.targetApprovalStatus!=='approved'||s.registryVersion!=='atlas-finance-v1'||number(s[metric]?.actual)===null||number(s[metric]?.budget)===null))return null;
  if(rows.some(s=>s.communityId!==rows[0].communityId||s.accountingBasis!==rows[0].accountingBasis||s.currency!==rows[0].currency))return null;
- const actual=rows.reduce((n,s)=>n+number(s[metric].actual),0),budget=rows.reduce((n,s)=>n+number(s[metric].budget),0);
+ const useEffective=requireEffectiveBaseline||rows.some(s=>Object.hasOwn(s,'effectiveBaseline'));
+ const baselines=useEffective?rows.map(s=>resolveEffectiveBaseline(s.effectiveBaseline,{communityId:s.communityId,period:s.period})):[];
+ if(useEffective&&baselines.some(s=>s.status!=='available'))return null;
+ const targets=rows.map((s,index)=>useEffective?metricTarget(s,baselines[index],metric):number(s[metric].budget));if(targets.some(value=>value===null))return null;
+ const actual=rows.reduce((n,s)=>n+number(s[metric].actual),0),budget=targets.reduce((total,value)=>total+value,0);
  if(budget===0)return null;
- const inputs=rows.map(s=>s.financialSnapshot||financeSnapshot(s)),retained=retainedSnapshot({kind:'bonus_financial_evidence',identity:{communityId:rows[0].communityId,metric,periods,sourceSnapshots:inputs.map(s=>s.fingerprint)},values:{actual,budget}});
- return {actual,budget,snapshotFingerprint:retained.fingerprint,sourceSnapshots:inputs.map(s=>({period:s.identity.period,...lineageColumns(s)})),financialSnapshot:retained,approvedTargetVersion:rows.map(s=>s.budgetVersion),targetApprovalStatus:'approved',actualCloseVersions:rows.map(s=>s.actualCloseVersion),periods,registryVersion:'atlas-finance-v1',attainment:100+(metric==='expenses'||metric==='capital'||metric==='debt'?-1:1)*(actual-budget)/Math.abs(budget)*100};
+ const inputs=rows.map(s=>s.financialSnapshot||financeSnapshot(s)),retained=retainedSnapshot({kind:'bonus_financial_evidence',identity:{communityId:rows[0].communityId,metric,periods,sourceSnapshots:inputs.map(s=>s.fingerprint)},values:{actual,budget,baselineEvidence:baselines.map(row=>({period:row.period,sourceType:row.sourceType,versionId:row.versionId,publicationId:row.publicationId||null,contentHash:row.contentHash}))}});
+ return {actual,budget,snapshotFingerprint:retained.fingerprint,sourceSnapshots:inputs.map(s=>({period:s.identity.period,...lineageColumns(s)})),financialSnapshot:retained,baselineEvidence:baselines,mathematicalVariance:actual-budget,favorability:actual===budget?'neutral':(['expenses','capital','debt'].includes(metric)?actual<budget:actual>budget)?'favorable':'unfavorable',approvedTargetVersion:useEffective?baselines.map(s=>s.versionId):rows.map(s=>s.budgetVersion),targetApprovalStatus:'approved',actualCloseVersions:rows.map(s=>s.actualCloseVersion),periods,registryVersion:'atlas-finance-v1',attainment:100+(metric==='expenses'||metric==='capital'||metric==='debt'?-1:1)*(actual-budget)/Math.abs(budget)*100};
 }
 export async function readApprovedBudgets(central,cid,year){
  const rows=await central.fetchJson(`/atlas_approved_budget_versions?community_id=eq.${encodeURIComponent(cid)}&calendar_year=eq.${year}&select=*&limit=12`);

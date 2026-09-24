@@ -7,7 +7,7 @@ entries=[
  ('workforce-assignment.js',[('index.html','./workforce-assignment.js')]),
  ('application-aging.js',[('index.html','./application-aging.js')]),
  ('budget-workbook-import.js',[('RISE-Budget-Builder.html','./budget-workbook-import.js')]),
- ('features/reforecast-engine.mjs', [('features/reforecast-active.mjs', './reforecast-engine.mjs'), ('features/reforecast-legacy-bridge.mjs', './reforecast-engine.mjs'), ('features/reforecast-ui.mjs', './reforecast-engine.mjs')]),
+ ('features/reforecast-engine.mjs', [('features/reforecast-legacy-bridge.mjs', './reforecast-engine.mjs'), ('features/reforecast-ui.mjs', './reforecast-engine.mjs')]),
  ('features/reforecast-active.mjs', [('features/reforecast-store.mjs', './reforecast-active.mjs'), ('features/community-plan-report.mjs', './reforecast-active.mjs')]),
  ('features/reforecast-store.mjs', [('features/reforecast-ui.mjs', './reforecast-store.mjs'), ('features/reforecast-import-ui.mjs', './reforecast-store.mjs'), ('features/reforecast-consumers.mjs', './reforecast-store.mjs'), ('features/scout-reforecast.mjs', './reforecast-store.mjs'), ('investor-budget-bridge.js', './features/reforecast-store.mjs')]),
  ('features/reforecast-report.mjs', [('features/reforecast-ui.mjs', './reforecast-report.mjs'), ('features/reforecast-consumers.mjs', './reforecast-report.mjs'), ('features/scout-reforecast.mjs', './reforecast-report.mjs')]),
@@ -80,7 +80,7 @@ entries=[
 # Discover imports of governed modules so a stale parent cannot keep an old
 # child after deployment. A topological pass versions every child first.
 tracked={asset: list(refs) for asset,refs in entries}
-for asset in ['features/workbook-integrity.mjs','features/planning-governance.mjs','features/workbook-audit-store.mjs','features/financial-workbook-governance.mjs','features/financial-snapshot.mjs','features/snapshot-pdf.mjs','features/canonical-budget-report.mjs','features/original-budget-intake.mjs','vendor/pdf-lib-1.17.1.mjs']:
+for asset in ['features/reforecast-bonus.mjs','features/reforecast-provider.mjs','features/reforecast-builder-ui.mjs','features/reforecast-utility.mjs','features/workbook-integrity.mjs','features/planning-governance.mjs','features/workbook-audit-store.mjs','features/financial-workbook-governance.mjs','features/financial-snapshot.mjs','features/snapshot-pdf.mjs','features/canonical-budget-report.mjs','features/original-budget-intake.mjs','vendor/pdf-lib-1.17.1.mjs']:
  tracked.setdefault(asset,[])
 for parent in root.rglob('*'):
  if parent.suffix not in ('.mjs','.js','.html'):continue

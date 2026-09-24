@@ -14,6 +14,7 @@ const clone=value=>JSON.parse(JSON.stringify(value));
 function freeze(value){if(value&&typeof value==='object'&&!Object.isFrozen(value)){Object.freeze(value);for(const child of Object.values(value))freeze(child);}return value;}
 const strictSum=values=>values.some(value=>!finite(value))?null:money(values.reduce((sum,value)=>sum+value,0));
 const subtract=(a,b)=>finite(a)&&finite(b)?money(a-b):null;
+const selectedAmount=row=>Object.hasOwn(row,'selectedBaseline')?row.selectedBaseline:row.originalBudget;
 function aggregate(lines,field){
  const selected=predicate=>lines.filter(predicate).map(row=>row[field]);
  const grossIncome=strictSum(selected(row=>row.nature==='income'&&row.placement==='above_noi'));
@@ -30,9 +31,50 @@ function aggregate(lines,field){
 }
 function emptyMetrics(){return Object.fromEntries(['grossIncome','contraRevenue','revenue','opex','expenses','belowNoi','capital','debt','noi','cashFlow','margin'].map(key=>[key,null]));}
 const validNature=new Set(['income','contra_income','expense','capital','debt','below_noi']);
+// Full months are identities, never dates coerced to a month.
+export function validateForecastPeriods(periods,{periodEvidence=[]}={}){
+ if(!Array.isArray(periods)||!periods.length||periods.length>24||periods.some(period=>typeof period!=='string'||!periodPattern.test(period))||new Set(periods).size!==periods.length)throw Error('Choose distinct full calendar months in YYYY-MM form.');
+ for(const evidence of periodEvidence)if(periods.includes(evidence.period)&&(evidence.fullMonth===false||evidence.partial===true||evidence.coverage==='partial'))throw Error('Partial close evidence cannot establish a governed full month: '+evidence.period);
+ return [...periods].sort();
+}
+export function defaultForecastPeriods({latestFullClosePeriod=null,fiscalYearEndMonth=12,year=new Date().getUTCFullYear()}={}){
+ if(!Number.isInteger(fiscalYearEndMonth)||fiscalYearEndMonth<1||fiscalYearEndMonth>12)throw Error('Choose a valid fiscal year end month.');
+ if(latestFullClosePeriod&&!periodPattern.test(latestFullClosePeriod))throw Error('A full governed close month is required.');
+ const start=latestFullClosePeriod?new Date(Date.UTC(Number(latestFullClosePeriod.slice(0,4)),Number(latestFullClosePeriod.slice(5)),1)):new Date(Date.UTC(year,0,1));
+ const endYear=start.getUTCMonth()+1>fiscalYearEndMonth?start.getUTCFullYear()+1:start.getUTCFullYear(),end=new Date(Date.UTC(endYear,fiscalYearEndMonth-1,1)),periods=[];
+ for(let date=new Date(start);date<=end;date.setUTCMonth(date.getUTCMonth()+1))periods.push(date.toISOString().slice(0,7));return periods;
+}
+export function varianceFavorability({value,baseline,nature,favorableDirection}={}){
+ const variance=subtract(value,baseline),direction=favorableDirection||(['income','contra_income'].includes(nature)?'higher':['expense','capital','debt','below_noi'].includes(nature)?'lower':null);
+ return {variance,favorability:variance===null||!direction?'unavailable':variance===0?'neutral':(direction==='higher'?variance>0:variance<0)?'favorable':'unfavorable'};
+}
+// A selector consumes server readback evidence, never publication timestamp ordering.
+export function selectForecastBaseline({communityId,periods,originalBudget,publications=[],choice='latest_approved_forecast'}={}){
+ periods=validateForecastPeriods(periods);
+ if(!communityId||!originalBudget||originalBudget.communityId&&originalBudget.communityId!==communityId)throw Error('A canonical community and matching original budget are required.');
+ if(!['original_budget','latest_approved_forecast'].includes(choice))throw Error('Choose an original budget or latest approved forecast.');
+ const selected=[],missing=[];
+ for(const period of periods){
+  const candidates=publications.filter(row=>row.communityId===communityId&&(row.activePeriods||[]).includes(period)&&row.verified===true&&row.approved===true&&row.locked===true&&row.status!=='reopened'&&row.stale!==true&&row.reconciled!==false&&row.publicationId&&row.contentHash);
+  if(candidates.length!==1){missing.push(period);continue;}selected.push({period,publication:candidates[0]});
+ }
+ const useLatest=choice==='latest_approved_forecast'&&!missing.length;
+ const baseline=clone(originalBudget),originalLines=clone(originalBudget.lines||[]);
+ baseline.sourceType=useLatest?'approved_reforecast':'original_budget';baseline.originalBudgetLines=originalLines;
+ baseline.periodVersions=periods.map(period=>{const p=useLatest?selected.find(row=>row.period===period).publication:null;return {period,sourceType:p?'approved_reforecast':'original_budget',versionId:p?.revisionId||originalBudget.periodVersions?.find(row=>row.period===period)?.versionId||originalBudget.versionId||originalBudget.versionIds?.[0]||null,publicationId:p?.publicationId||null,contentHash:p?.contentHash||originalBudget.contentHash||null};});
+ if(useLatest)baseline.lines=selected.flatMap(({period,publication})=>(publication.snapshot?.lines||publication.lines||[]).filter(row=>row.period===period).map(row=>({...clone(row),amount:Object.hasOwn(row,'forecast')?row.forecast:row.amount,baselineLineage:{publicationId:publication.publicationId,contentHash:publication.contentHash,versionId:publication.revisionId||publication.versionId},source:clone(row.source||null)})));
+ if(useLatest&&periods.some(period=>!baseline.lines.some(row=>row.period===period)))throw Error('The verified baseline is missing GL detail for a covered month.');
+ return freeze({baseline,selected:baseline.sourceType,defaultReason:useLatest?'The active approved and locked forecast covers every selected month and passed server readback.':choice==='original_budget'?'Original approved budget selected explicitly.':'Original approved budget selected because an approved forecast does not have verified coverage for every selected month.',unavailablePeriods:missing});
+}
+export function validateSunsetDisposition(account){
+ if(!account.retiredAfter&&!account.deactivationDate)return [];
+ const issues=[];if(!account.retirementReason?.trim())issues.push({code:'sunset_reason',message:'A sunset GL requires a deactivation reason.'});
+ if(!account.successorAccountCode&&account.successorDisposition!=='no_successor')issues.push({code:'sunset_disposition',message:'Specify the approved GL for new activity or explicitly choose no successor.'});
+ if(account.successorAccountCode===account.accountCode)issues.push({code:'sunset_cycle',message:'A sunset GL cannot be its own successor.'});return issues;
+}
 export function computeReforecast(input){
  const {communityId,baseline={},actuals={},scenario={},registry={}}=input;
- const periods=[...new Set(input.periods||[])].sort();
+ const periods=validateForecastPeriods(input.periods,{periodEvidence:actuals.closeVersions||[]});
  if(!communityId||!periods.length||periods.some(period=>!periodPattern.test(period)))throw Error('Community identity and explicit reporting periods are required.');
  if(!baseline.versionId&&!baseline.versionIds?.length)throw Error('An immutable original-budget version is required.');
  if(!scenario.versionId||!scenario.driverVersion||!registry.version)throw Error('Scenario, driver and mapping versions are required.');
@@ -44,7 +86,8 @@ export function computeReforecast(input){
  const accounts=new Map();
  for(const item of registry.accounts||[]){const key=String(item.accountCode||'');if(!key||accounts.has(key))throw Error('The account registry requires unique canonical account codes.');accounts.set(key,item);}
  const sourceMap=(values,label)=>{const result=new Map();for(const row of values||[]){const accountCode=String(row.accountCode??row.glCode??'');if(!periods.includes(row.period))continue;const key=compound(row.period,accountCode);if(result.has(key))throw Error(`${label} has duplicate community/period/account rows: ${key}`);if(row.communityId&&row.communityId!==communityId)throw Error(`${label} belongs to another community.`);result.set(key,row);}return result;};
- const budgets=sourceMap(baseline.lines,'Original budget'),closed=sourceMap(actuals.lines,'Actual ledger');
+ const budgets=sourceMap(baseline.lines,'Selected baseline'),originalBudgets=sourceMap(baseline.originalBudgetLines||baseline.lines,'Original budget'),closed=sourceMap(actuals.lines,'Actual ledger'),inherited=sourceMap(input.inheritedLines||baseline.inheritedLines,'Inherited locked baseline');
+ const lockedPeriods=new Set(input.lockedPeriods||baseline.lockedPeriods||[]);
  const closes=new Map((actuals.closeVersions||[]).map(row=>[row.period,row.versionId]));
  const hasControls=period=>{const row=controls.get(period);return row?.source==='governed_close_controls'&&row.closeVersionId===closes.get(period)&&['revenue','opex','noi'].every(key=>finite(row[key]));};
  const codes=[...new Set([...accounts.keys(),...[...budgets.values(),...closed.values()].map(row=>String(row.accountCode??row.glCode))])].sort();
@@ -63,10 +106,13 @@ export function computeReforecast(input){
    // Retired accounts remain immutable evidence in closed periods; the historical classification is retained.
    const historicalValid=isClosed&&mapping&&validNature.has(mapping.nature)&&['above_noi','below_noi'].includes(mapping.placement)&&Boolean(mapping.category);
    if(!notApplicable.has(period)&&!mappingValid&&!historicalValid)issue('account_mapping','An account needs an effective classification and statement placement.',{period,accountCode});
-   const actualAmount=isClosed&&closeVersionId?amount(actual?.amount):null;
+   const closeEvidence=(actuals.closeVersions||[]).find(item=>item.period===period),eligibleClose=closeEvidence&&closeEvidence.status!=='reopened'&&closeEvidence.fullMonth!==false&&closeEvidence.partial!==true&&closeEvidence.stale!==true;
+   const actualAmount=isClosed&&closeVersionId&&eligibleClose?amount(actual?.amount):null;
    if(isClosed&&actualAmount===null)issue('missing_actual','Closed-period GL evidence is unavailable; original budget is not an actual.',{period,accountCode},hasControls(period)?'advisory':'blocking');
-   const originalBudget=amount(budget?.amount);
-   const row={period,accountCode,accountName:mapping?.name||budget?.accountName||actual?.accountName||accountCode,originalBudget,actual:actualAmount,forecast:notApplicable.has(period)?null:isClosed?actualAmount:retired?0:originalBudget,sourceKind:notApplicable.has(period)?'not_applicable':isClosed?'closed_actual':'forecast',retired,applicable:!notApplicable.has(period),closeVersionId:isClosed?closeVersionId:null,category:mapping?.category||null,nature:mapping?.nature||null,placement:mapping?.placement||null,mappingValid:Boolean(mappingValid||historicalValid),driverIds:[],driverSources:[],source:clone((isClosed?actual:budget)?.source||null)};
+   const originalBudget=amount(originalBudgets.get(key)?.amount),selectedBaseline=amount(budget?.amount),inheritedLine=inherited.get(key),immutable=lockedPeriods.has(period);
+   if(immutable&&!inheritedLine)issue('missing_locked_inheritance','A locked month requires its exact baseline and lineage.',{period,accountCode});
+   const row={period,accountCode,identifier:['income','contra_income','expense','capital'].includes(mapping?.identifier||mapping?.nature)?mapping.identifier||mapping.nature:['debt','below_noi'].includes(mapping?.nature)?'expense':null,accountRole:mapping?.accountRole||(mapping?.isDebt?'debt':['debt','below_noi'].includes(mapping?.nature)?mapping.nature:null),isDebt:mapping?.isDebt===true||mapping?.nature==='debt',noncontrollable:mapping?.noncontrollable===true,intercompany:mapping?.intercompany===true,accountName:mapping?.name||budget?.accountName||actual?.accountName||accountCode,originalBudget,selectedBaseline,baselineLineage:clone(budget?.baselineLineage||baseline.periodVersions?.find(item=>item.period===period)||{sourceType:baseline.sourceType||'original_budget',versionId:baseline.versionId||baseline.versionIds?.[0]||null}),actual:actualAmount,forecast:notApplicable.has(period)?null:immutable?amount(inheritedLine&&Object.hasOwn(inheritedLine,'forecast')?inheritedLine.forecast:inheritedLine?.amount):isClosed?actualAmount:retired?0:selectedBaseline,sourceKind:notApplicable.has(period)?'not_applicable':immutable?'inherited_locked':isClosed?'closed_actual':'forecast',immutable,inheritedDetail:immutable?clone(inheritedLine||null):null,historyEligible:Boolean(isClosed&&eligibleClose),sourceHash:closeEvidence?.sourceHash||actual?.source?.hash||null,retired,applicable:!notApplicable.has(period),closeVersionId:isClosed?closeVersionId:null,category:mapping?.category||null,nature:mapping?.nature||null,placement:mapping?.placement||null,mappingValid:Boolean(mappingValid||historicalValid),driverIds:[],driverSources:[],source:clone((isClosed?actual:budget)?.source||null)};
+   if(immutable&&inheritedLine){for(const field of ['originalBudget','selectedBaseline','baselineLineage','source','nature','identifier','accountRole','isDebt','intercompany','noncontrollable','placement','category','mappingValid','driverIds','driverSources'])if(Object.hasOwn(inheritedLine,field))row[field]=clone(inheritedLine[field]);row.source=clone(inheritedLine.source||null);}
    lines.push(row);byKey.set(key,row);
   }
  }
@@ -80,7 +126,7 @@ export function computeReforecast(input){
   if(!DRIVER_OPERATIONS.includes(driver.operation)||!finite(driver.value)||(driver.operation==='occupancy_vacancy'&&(driver.value<0||driver.value>1))){issue('invalid_driver','The driver operation or numeric value is invalid.',{driverId:id});impact.status='unavailable';impact.explanation='Invalid driver operation or value.';driverImpacts.push(impact);continue;}
   for(const period of targetPeriods)for(const accountCode of targets){
    const row=byKey.get(compound(period,accountCode));
-   if(notApplicable.has(period)||(cutoff&&period<=cutoff)){impact.skippedClosed.push({period,accountCode});continue;}
+   if(lockedPeriods.has(period)||notApplicable.has(period)||(cutoff&&period<=cutoff)){impact.skippedClosed.push({period,accountCode});continue;}
    if(row?.retired){impact.skippedClosed.push({period,accountCode,reason:'Prospectively retired by reviewed mapping registry'});continue;}
    if(!row?.mappingValid){impact.unavailable.push({period,accountCode,reason:'Missing effective account mapping'});continue;}
    const before=row.forecast,base=driver.baseAccountCode?byKey.get(compound(period,String(driver.baseAccountCode)))?.forecast:null;
@@ -104,6 +150,7 @@ export function computeReforecast(input){
   if(!override.reason)issue('override_reason','A manual override requires an adjustment reason.',{period:override.period,accountCode:override.accountCode});
  }
  for(const row of lines)if(row.sourceKind==='forecast'&&row.forecast===null)issue('missing_forecast','An open-period original budget or explicit forecast amount is required.',{period:row.period,accountCode:row.accountCode});
+ for(const row of lines){const forecastVariance=varianceFavorability({value:row.forecast,baseline:row.selectedBaseline,nature:row.identifier||row.nature}),actualVariance=varianceFavorability({value:row.actual,baseline:row.immutable?row.forecast:row.selectedBaseline,nature:row.identifier||row.nature});row.forecastVariance=forecastVariance.variance;row.forecastFavorability=forecastVariance.favorability;row.actualVariance=actualVariance.variance;row.actualFavorability=actualVariance.favorability;}
  const monthly=periods.map(period=>{
   const rows=lines.filter(row=>row.period===period),isClosed=Boolean(cutoff&&period<=cutoff&&!notApplicable.has(period));
   let actualMetrics=isClosed?aggregate(rows,'actual'):emptyMetrics();
@@ -112,31 +159,51 @@ export function computeReforecast(input){
    for(const key of Object.keys(emptyMetrics()))if(Object.hasOwn(control,key))actualMetrics[key]=amount(control[key]);
    if(Object.hasOwn(control,'opex'))actualMetrics.expenses=amount(control.opex);
   }
-  return {period,closed:isClosed,applicable:!notApplicable.has(period),closeVersionId:closes.get(period)||null,originalBudget:aggregate(rows,'originalBudget'),reforecast:notApplicable.has(period)?emptyMetrics():isClosed?actualMetrics:aggregate(rows,'forecast'),actuals:actualMetrics,detailCoverage:rows.filter(row=>isClosed&&row.actual===null).map(row=>row.accountCode),controlSource:control?.source||null};
+  return {period,closed:isClosed,applicable:!notApplicable.has(period),closeVersionId:closes.get(period)||null,originalBudget:aggregate(rows,'originalBudget'),selectedBaseline:aggregate(rows,'selectedBaseline'),reforecast:notApplicable.has(period)?emptyMetrics():lockedPeriods.has(period)?aggregate(rows,'forecast'):isClosed?actualMetrics:aggregate(rows,'forecast'),actuals:actualMetrics,detailCoverage:rows.filter(row=>isClosed&&row.actual===null).map(row=>row.accountCode),controlSource:control?.source||null};
  });
  const budgetLeasing=new Map((baseline.leasing||[]).map(row=>[row.period,row])),actualLeasing=new Map((actuals.leasing||[]).map(row=>[row.period,row]));
  const leasing=periods.map(period=>{const isClosed=Boolean(cutoff&&period<=cutoff&&!notApplicable.has(period)),source=isClosed?actualLeasing.get(period):budgetLeasing.get(period);const row={period,sourceKind:notApplicable.has(period)?'not_applicable':isClosed?'closed_actual':'forecast',units:amount(source?.units),occupiedUnits:amount(source?.occupiedUnits),moveIns:amount(source?.moveIns),moveOuts:amount(source?.moveOuts),marketRent:amount(source?.marketRent),source:source?.source||null};for(const driver of scenario.drivers||[])if(!isClosed&&!notApplicable.has(period)&&driver.operation==='occupancy_vacancy'&&(!driver.periods||driver.periods.includes(period))&&finite(driver.value)&&finite(row.units)&&lines.some(line=>line.period===period&&line.mappingValid&&!line.retired&&finite(line.forecast)&&line.driverIds.includes(driver.id||`driver-${(scenario.drivers||[]).indexOf(driver)+1}`)))row.occupiedUnits=row.units*driver.value;row.occupancy=finite(row.units)&&row.units>0&&finite(row.occupiedUnits)?row.occupiedUnits/row.units:null;return row;});
  const categories=[...new Set(lines.map(row=>row.category))].filter(Boolean).sort().map(category=>({category,monthly:periods.map(period=>{const rows=lines.filter(row=>row.period===period&&row.category===category);return {period,originalBudget:strictSum(rows.map(row=>row.originalBudget)),forecast:strictSum(rows.map(row=>row.forecast)),actual:cutoff&&period<=cutoff?strictSum(rows.map(row=>row.actual)):null};})}));
- const identity={engineVersion:ENGINE_VERSION,communityId,periods,baselineVersionId:baseline.versionId||null,baselineVersionIds:baseline.versionIds||[],actualCloseVersions:(actuals.closeVersions||[]).filter(row=>periods.includes(row.period)).slice().sort((a,b)=>a.period.localeCompare(b.period)),actualCutoff:cutoff,reforecastVersion:scenario.versionId,driverVersion:scenario.driverVersion,mappingRegistryVersion:registry.version};
+ const identity={engineVersion:ENGINE_VERSION,communityId,periods,baselineVersionId:baseline.versionId||null,baselineVersionIds:baseline.versionIds||[],baselineSourceType:baseline.sourceType||'original_budget',baselinePeriodVersions:clone(baseline.periodVersions||[]),priorPublicationIds:[...new Set((baseline.periodVersions||[]).map(row=>row.publicationId).filter(Boolean))],lockedPeriods:[...lockedPeriods].sort(),sourceHashes:clone(input.sourceHashes||[]),actualCloseVersions:(actuals.closeVersions||[]).filter(row=>periods.includes(row.period)).slice().sort((a,b)=>a.period.localeCompare(b.period)),actualCutoff:cutoff,reforecastVersion:scenario.versionId,driverVersion:scenario.driverVersion,mappingRegistryVersion:registry.version};
  const totalMetrics=(kind,selected=monthly.filter(row=>row.applicable))=>{const result=Object.fromEntries(Object.keys(emptyMetrics()).map(key=>[key,strictSum(selected.map(row=>row[kind][key]))]));result.margin=finite(result.revenue)&&result.revenue!==0&&finite(result.noi)?result.noi/result.revenue:null;return result;};
- const totals={originalBudget:totalMetrics('originalBudget',monthly),reforecast:totalMetrics('reforecast'),actuals:monthly.filter(row=>row.applicable).every(row=>row.closed)?totalMetrics('actuals'):emptyMetrics(),actualsThroughCutoff:monthly.some(row=>row.closed)?totalMetrics('actuals',monthly.filter(row=>row.closed)):emptyMetrics()};
- const result={identity,fingerprint:fingerprint({identity,baseline:[...budgets.values()].sort((a,b)=>compound(a.period,a.accountCode??a.glCode).localeCompare(compound(b.period,b.accountCode??b.glCode))),actuals:[...closed.values()].sort((a,b)=>compound(a.period,a.accountCode??a.glCode).localeCompare(compound(b.period,b.accountCode??b.glCode))),leasing:{baseline:baseline.leasing||[],actuals:actuals.leasing||[]},drivers:scenario.drivers||[],overrides:scenario.overrides||[],actualControls:actuals.monthly||[],notApplicablePeriods:actuals.notApplicablePeriods||[],registry}),status:diagnostics.some(row=>row.severity==='blocking')?'action_required':'ready',lines,monthly,totals,leasing,categories,driverImpacts,diagnostics};
- result.recommendations=recommendReforecast({snapshot:result});
+ const totals={originalBudget:totalMetrics('originalBudget',monthly),...(baseline.sourceType?{selectedBaseline:totalMetrics('selectedBaseline',monthly)}:{}),reforecast:totalMetrics('reforecast'),actuals:monthly.filter(row=>row.applicable).every(row=>row.closed)?totalMetrics('actuals'):emptyMetrics(),actualsThroughCutoff:monthly.some(row=>row.closed)?totalMetrics('actuals',monthly.filter(row=>row.closed)):emptyMetrics()};
+ if(Array.isArray(input.recommendationHistory))identity.recommendationHistoryFingerprint=fingerprint(input.recommendationHistory);
+ const result={identity,fingerprint:fingerprint({identity,baseline:[...budgets.values()].sort((a,b)=>compound(a.period,a.accountCode??a.glCode).localeCompare(compound(b.period,b.accountCode??b.glCode))),originalBudget:[...originalBudgets.values()],inheritedLines:[...inherited.values()],actuals:[...closed.values()].sort((a,b)=>compound(a.period,a.accountCode??a.glCode).localeCompare(compound(b.period,b.accountCode??b.glCode))),leasing:{baseline:baseline.leasing||[],actuals:actuals.leasing||[]},drivers:scenario.drivers||[],overrides:scenario.overrides||[],actualControls:actuals.monthly||[],notApplicablePeriods:actuals.notApplicablePeriods||[],registry}),status:diagnostics.some(row=>row.severity==='blocking')?'action_required':'ready',lines,monthly,totals,leasing,categories,driverImpacts,diagnostics};
+ result.sunsetRelationships=(registry.accounts||[]).filter(row=>row.retiredAfter&&row.successorAccountCode&&validateSunsetDisposition(row).length===0&&accounts.has(row.successorAccountCode)).map(row=>({accountCode:row.accountCode,successorAccountCode:row.successorAccountCode,retiredAfter:row.retiredAfter,reason:row.retirementReason,mappingRegistryVersion:registry.version,approved:true}));
+ if(Array.isArray(input.recommendationHistory))result.recommendationHistory=clone(input.recommendationHistory);
+ result.recommendations=recommendReforecast({snapshot:result});result.recommendationAvailability=recommendationAvailability(result);
  return freeze(result);
 }
 
-export function recommendReforecast({snapshot,minClosedPeriods=2}){
- const recommendations=[],cutoff=snapshot.identity.actualCutoff;
+function recommendationHistoryLines(snapshot){
+ const rows=snapshot.lines.filter(row=>(row.sourceKind==='closed_actual'||row.sourceKind==='inherited_locked'&&row.historyEligible===true&&row.sourceHash)&&row.closeVersionId&&row.historyEligible!==false&&!row.retired).map(clone);
+ for(const month of snapshot.recommendationHistory||[]){
+  const baseline=month.baseline;
+  if(month.status!=='available'||month.eligible!==true||!month.closeVersionId||!month.sourceHash||baseline?.status!=='available'||baseline.period!==month.period||baseline.verified!==true||baseline.approved!==true||baseline.locked!==true||!['original_budget','approved_reforecast'].includes(baseline.sourceType)||baseline.sourceType==='approved_reforecast'&&!baseline.publicationId||!baseline.versionId||!baseline.contentHash)continue;
+  for(const line of month.lines||[]){const matches=baseline.lines?.filter(row=>row.accountCode===line.accountCode);if(line.closeVersionId!==month.closeVersionId||matches?.length!==1||!finite(line.actual)||!finite(matches[0].amount))continue;
+   rows.push({period:month.period,accountCode:line.accountCode,actual:line.actual,selectedBaseline:matches[0].amount,closeVersionId:month.closeVersionId,sourceHash:month.sourceHash,sourceKind:'governed_history',historyEligible:true,baselineLineage:{sourceType:baseline.sourceType,versionId:baseline.versionId,publicationId:baseline.publicationId||null,contentHash:baseline.contentHash}});
+  }
+ }
+ const grouped=new Map();for(const row of rows){const key=row.period+'|'+row.accountCode;grouped.set(key,[...(grouped.get(key)||[]),row]);}
+ return [...grouped.values()].flatMap(matches=>matches.every(row=>row.closeVersionId===matches[0].closeVersionId&&row.actual===matches[0].actual&&selectedAmount(row)===selectedAmount(matches[0]))?[matches.find(row=>row.sourceKind==='governed_history')||matches[0]]:[]).filter(row=>finite(row.actual)&&finite(selectedAmount(row))&&selectedAmount(row)!==0&&row.partial!==true&&row.closeStatus!=='reopened'&&row.sourceType!=='forecast'&&row.stale!==true);
+}
+export function recommendReforecast({snapshot,minClosedPeriods=3,weights={},minimumChange=.05,maximumChange=1}){
+ const recommendations=[],history=recommendationHistoryLines(snapshot),cutoff=snapshot.identity.actualCutoff||history.map(row=>row.period).sort().at(-1)||null;
  for(const accountCode of [...new Set(snapshot.lines.map(row=>row.accountCode))]){
-  const closed=snapshot.lines.filter(row=>row.accountCode===accountCode&&row.sourceKind==='closed_actual'&&row.closeVersionId),open=snapshot.lines.filter(row=>row.accountCode===accountCode&&row.sourceKind==='forecast');
-  if(closed.length<minClosedPeriods||!open.length||open.some(row=>row.driverIds.includes('historical-'+accountCode))||closed.some(row=>!finite(row.actual)||!finite(row.originalBudget))||open.some(row=>!finite(row.forecast)))continue;
-  const budget=strictSum(closed.map(row=>row.originalBudget)),actual=strictSum(closed.map(row=>row.actual));
-  if(!budget||!finite(actual))continue;
-  const rate=actual/budget-1;if(!finite(rate)||Math.abs(rate)<0.05||Math.abs(rate)>1)continue;
-  const forecast=strictSum(open.map(row=>row.forecast)),impact=money(forecast*rate),periods=open.map(row=>row.period);
-  recommendations.push({id:fingerprint({accountCode,rate,periods,baselineVersionIds:snapshot.identity.baselineVersionIds,mappingRegistryVersion:snapshot.identity.mappingRegistryVersion,closeVersions:closed.map(row=>({period:row.period,versionId:row.closeVersionId}))}),status:'proposed',accountCodes:[accountCode],periods,proposedValue:rate,operation:'percent_change',impact:{forecast:impact},source:snapshot.fingerprint,sourceCloseVersions:closed.map(row=>({period:row.period,versionId:row.closeVersionId})),cutoff,confidence:closed.length>=4?'medium':'low',confidenceReason:closed.length+' governed closed periods; timing, seasonality and one-time items require review.',reason:'Governed actuals differ from the same-period original budget. Review whether this variance is expected to continue.',driver:{id:'historical-'+accountCode,type:'historical_run_rate',operation:'percent_change',accountCodes:[accountCode],periods,value:rate,source:snapshot.fingerprint,reason:'Explicitly accepted historical actual-to-budget run-rate suggestion'}});
+  const predecessors=(snapshot.sunsetRelationships||[]).filter(row=>row.successorAccountCode===accountCode&&row.approved&&row.mappingRegistryVersion===snapshot.identity.mappingRegistryVersion&&snapshot.lines.filter(line=>line.accountCode===accountCode&&line.sourceKind==='forecast').every(line=>line.period>row.retiredAfter)),historyCodes=new Set([accountCode,...predecessors.map(row=>row.accountCode)]);
+  const eligible=history.filter(row=>historyCodes.has(row.accountCode)),open=snapshot.lines.filter(row=>row.accountCode===accountCode&&row.sourceKind==='forecast'&&!row.retired);
+  if(eligible.length<minClosedPeriods||!open.length||open.some(row=>row.driverIds?.includes('historical-'+accountCode))||open.some(row=>!finite(selectedAmount(row))))continue;
+  const observations=[...new Set(eligible.map(row=>row.period))].sort().map((period,index)=>{const rows=eligible.filter(row=>row.period===period),sourceRows=rows.map(row=>({accountCode:row.accountCode,actual:row.actual,baseline:selectedAmount(row),baselineLineage:row.baselineLineage||null,versionId:row.closeVersionId,sourceHash:row.sourceHash||null}));return {period,accountCode:rows.length===1?rows[0].accountCode:null,accountCodes:rows.map(row=>row.accountCode),sourceRows,versionId:rows[0].closeVersionId,sourceHash:rows[0].sourceHash||null,actual:strictSum(rows.map(row=>row.actual)),baseline:strictSum(rows.map(selectedAmount)),weight:weights[period]??index+1};}).filter(row=>finite(row.weight)&&row.weight>0&&finite(row.actual)&&finite(row.baseline)&&row.baseline!==0);
+  if(observations.length<minClosedPeriods)continue;
+  const totalWeight=observations.reduce((sum,row)=>sum+row.weight,0),rate=observations.reduce((sum,row)=>sum+(row.actual/row.baseline-1)*row.weight,0)/totalWeight;
+  if(!finite(rate)||Math.abs(rate)<minimumChange||Math.abs(rate)>maximumChange)continue;
+  const forecast=strictSum(open.map(row=>row.forecast)),impact=money(forecast*rate),periods=open.map(row=>row.period),evidence={method:'weighted_actual_to_selected_baseline',sampleCount:observations.length,totalWeight,observations,seasonality:'selected_baseline_monthly_curve',successorRelationships:predecessors};
+  recommendations.push({id:fingerprint({accountCode,rate,periods,evidence,baselinePeriodVersions:snapshot.identity.baselinePeriodVersions,baselineVersionIds:snapshot.identity.baselineVersionIds,mappingRegistryVersion:snapshot.identity.mappingRegistryVersion}),status:'proposed',accountCodes:[accountCode],periods,proposedValue:rate,operation:'percent_change',impact:{forecast:impact},source:snapshot.fingerprint,sourceCloseVersions:observations.map(row=>({period:row.period,versionId:row.versionId})),evidence,cutoff,confidence:observations.length>=6?'medium':'low',confidenceReason:observations.length+' eligible governed full months; weighted observations retain the selected baseline monthly curve.',reason:'Weighted governed actuals differ from their selected baseline. Review timing and one-time items before acceptance.',driver:{id:'historical-'+accountCode,type:'historical_weighted_blend',operation:'percent_change',accountCodes:[accountCode],periods,value:rate,source:snapshot.fingerprint,evidence,reason:'Explicitly accepted weighted governed history suggestion'}});
  }
  return freeze(recommendations);
+}
+export function recommendationAvailability(snapshot,{minClosedPeriods=3}={}){
+ const history=recommendationHistoryLines(snapshot);return [...new Set(snapshot.lines.map(row=>row.accountCode))].map(accountCode=>{const predecessors=(snapshot.sunsetRelationships||[]).filter(row=>row.successorAccountCode===accountCode&&row.approved&&row.mappingRegistryVersion===snapshot.identity.mappingRegistryVersion).map(row=>row.accountCode),codes=new Set([accountCode,...predecessors]),eligible=new Set(history.filter(row=>codes.has(row.accountCode)).map(row=>row.period));return {accountCode,status:eligible.size>=minClosedPeriods?'eligible':'unavailable',reason:eligible.size>=minClosedPeriods?null:'insufficient_history',sampleCount:eligible.size,requiredCount:minClosedPeriods};});
 }
 export function applyRecommendations(scenario,recommendations,{ids,action='accept',actor,timestamp,versionId,driverVersion}={}){
  if(!actor||!timestamp||!versionId||!driverVersion||!['accept','reject'].includes(action))throw Error('Explicit action, actor, timestamp and new versions are required.');

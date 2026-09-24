@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readCloseSnapshot,closeReportRows,closeReportHtml,closeReportCsv,closeReportWorkbook} from '../docs/portfolio-operations-dashboard/features/financial-close-report.mjs';
-const require=createRequire(import.meta.url),XLSX=require('xlsx');
+const require=createRequire(import.meta.url),XLSX=require('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js');
 const cid='10000000-0000-0000-0000-000000000001',period='2028-04',version='close-version',hash='a'.repeat(64),pub='publication';
 const close={version_id:version,community_id:cid,period_key:period,status:'closed',coverage:'full_month',content_hash:hash,source_hash:'b'.repeat(64),source_file:'synthetic.xlsx',row_count:3};
 const rows=[{gl_code:'4110',account_name:'Rent',actual:0,ytd_actual:null},{gl_code:'4190',account_name:'Concessions',actual:-25,ytd_actual:-25},{gl_code:'6210',account_name:'Marketing',actual:50.12,ytd_actual:50.12}].map(r=>({...r,version_id:version,community_id:cid,source_location:{sheet:'BCR',row:1}}));
 // atlas_read_finance projects selected fields and omits content_hash. The
 // immutable version endpoint is the authority for the report/export lineage.
 const {content_hash:omittedHash,...projection}=close;
-const record={community_id:cid,period_key:period,publication_id:pub,summary:{registryVersion:'atlas-finance-v1',communityId:cid,period,actualCloseVersion:version,actualContentHash:hash,close:projection}};
+const record={community_id:cid,period_key:period,publication_id:pub,summary:{effectiveBaseline:{status:'unavailable',communityId:cid,period,reason:'missing_baseline'},registryVersion:'atlas-finance-v1',communityId:cid,period,actualCloseVersion:version,actualContentHash:hash,close:projection}};
 const session=({finance=()=>record,versions=[close],detail=rows}={})=>({getSession:()=>({user:{id:'reader'}}),fetchJson:async path=>{
  if(path.includes('/rpc/'))return structuredClone([finance()]);
  if(path.startsWith('/atlas_financial_close_versions?'))return structuredClone(versions);
@@ -30,3 +30,6 @@ for(const content_hash of [undefined,null,'','invalid'])await assert.rejects(rea
 await assert.rejects(readCloseSnapshot(session({finance:()=>({...record,summary:{...record.summary,close:{...projection,content_hash:'c'.repeat(64)}}})}),cid,period),/lineage does not match/);
 await assert.rejects(readCloseSnapshot(session({finance:()=>({...record,summary:{...record.summary,actualCloseVersion:'wrong'}})}),cid,period),/close version mismatch/);
 console.log('PASS immutable canonical snapshot with absent projected hash, reload/second-session parity, screen/print-PDF/CSV/XLSX same rows and version/hash, zero/missing/negative semantics, missing lineage/scope/status and concurrent-publication guards.');
+const effectiveBaseline={status:'available',communityId:cid,period,sourceType:'approved_reforecast',versionId:'forecast-revision',publicationId:'forecast-publication',contentHash:'forecast-hash',approved:true,locked:true,verified:true,lines:rows.map(row=>({accountCode:row.gl_code,amount:row.gl_code==='6210'?40:0,nature:row.gl_code==='6210'?'expense':'income',placement:'above_noi'}))};
+const withBaseline=await readCloseSnapshot(session({finance:()=>({...record,summary:{...record.summary,effectiveBaseline}})}),cid,period),targetRow=closeReportRows(withBaseline).find(row=>row.GL==='6210');assert.equal(targetRow.Active_baseline,40);assert.equal(targetRow.Actual_minus_active_baseline,10.12);assert.equal(targetRow.Baseline_publication,'forecast-publication');assert.equal(targetRow.Original_budget,null);assert(closeReportHtml(withBaseline).includes('Active baseline'));
+console.log('PASS Financial Review GL screen/export comparison uses immutable active baseline and retains original budget separately');

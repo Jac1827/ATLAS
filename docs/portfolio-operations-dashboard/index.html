@@ -1425,7 +1425,7 @@
 </div>
 
 <script src="./atlas_historical_restore_data.js"></script>
-<script src="./atlas-mounts.js?v=3b9f80ab54a9ee7e"></script>
+<script src="./atlas-mounts.js?v=444f3a65a6d89140"></script>
 <script src="./centralization/atlas-central-client.js?v=aaf34ed3eb7a47f1" data-atlas-central-client="true"></script>
 <script src="./atlas-dashboard-reskin.js?v=99ffd40a8970f8ef"></script>
 <script src="./central-services.js?v=20260919-renewal-period-review"></script>
@@ -1450,7 +1450,7 @@
 <script src="./workforce-assignment.js?v=86fb414cbe269a8a"></script>
 <script src="./application-aging.js?v=4091f111fe289027"></script>
 <script src="./application-performance-ui.js?v=76767fc8f24b44d6"></script>
-<script src="./reforecast-consumers.js?v=eba6ae3cad15e2eb"></script>
+<script src="./reforecast-consumers.js?v=4455e5ad00727654"></script>
 <script src="./community-goal-editor.js?v=5759e5235bdacc20"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -19232,6 +19232,10 @@ function buildAtlasCentralBonusCalculationPayload() {
   const exportLine = row => {
     const line = {
       rowId: row.rowId,
+      employee_id: /^[0-9a-f-]{36}$/i.test(row.employee.employeeId || "") ? row.employee.employeeId : null,
+      assignment_id: /^[0-9a-f-]{36}$/i.test(row.employee.assignmentId || "") ? row.employee.assignmentId : null,
+      incentive_plan_id: /^[0-9a-f-]{36}$/i.test(row.plan?.id || "") ? row.plan.id : null,
+      payout_amount: row.proposedPayout ?? row.finalPayout,
       employeeId: row.employee.employeeId,
       peopleEmployeeId: row.employee.peopleEmployeeId || "",
       employeeNumber: row.employee.employeeNumber || "",
@@ -19248,9 +19252,9 @@ function buildAtlasCentralBonusCalculationPayload() {
       hierarchy: row.hierarchy,
       operatingType: row.operatingType,
       approvalStatus: row.approvalStatus,
-      projectedPayout: Math.round(row.projectedPayout * 100) / 100,
-      finalPayout: Math.round(row.finalPayout * 100) / 100,
-      maximumPotential: Math.round(row.maximumPotential * 100) / 100,
+      projectedPayout: row.projectedPayout === null ? null : Math.round(row.projectedPayout * 100) / 100,
+      finalPayout: row.finalPayout === null ? null : Math.round(row.finalPayout * 100) / 100,
+      maximumPotential: row.maximumPotential === null ? null : Math.round(row.maximumPotential * 100) / 100,
       proration: {
         factor: row.proration.factor,
         eligibleDays: row.proration.eligibleDays,
@@ -19268,10 +19272,12 @@ function buildAtlasCentralBonusCalculationPayload() {
         goalLogic: result.metric.goalLogic,
         favorable: result.metric.favorable,
         actual: result.actual,
-        achievementPct: Math.round(result.achievementPct * 100) / 100,
+        achievementPct: result.achievementPct === null ? null : Math.round(result.achievementPct * 100) / 100,
         payoutPct: result.payoutPct,
-        earned: Math.round(result.earned * 100) / 100,
-        status: result.status
+        earned: result.earned === null ? null : Math.round(result.earned * 100) / 100,
+        status: result.status,
+        financialEvidence: result.financialEvidence || null,
+        approvedGoalVersions: result.approvedGoalVersions || []
       })),
       exceptions: row.exceptions.map(exception => ({
         severity: exception.severity,
@@ -19292,6 +19298,8 @@ function buildAtlasCentralBonusCalculationPayload() {
         status: row.override.status
       } : null
     };
+    const { salary: privateSalary, ...retainedEmployee } = row.employee;
+    line.retainedRow = { ...row, employee: retainedEmployee, finalPayout: row.proposedPayout ?? row.finalPayout };
     if (includeSalary) {
       line.secureCalculationDetail = {
         salary: Number(row.employee.salary || 0),
@@ -19312,8 +19320,8 @@ function buildAtlasCentralBonusCalculationPayload() {
     periodEnd: period.end,
     generatedAt: new Date().toISOString(),
     salaryDataIncluded: includeSalary,
-    totalPayout: Math.round(summary.final * 100) / 100,
-    projectedPayout: Math.round(summary.projected * 100) / 100,
+    totalPayout: rows.every(row => typeof (row.proposedPayout ?? row.finalPayout) === "number") ? Math.round(rows.reduce((total, row) => total + (row.proposedPayout ?? row.finalPayout), 0) * 100) / 100 : null,
+    projectedPayout: summary.projected === null ? null : Math.round(summary.projected * 100) / 100,
     approvedPayout: Math.round(summary.approved * 100) / 100,
     bonusBudget: Math.round(summary.budget * 100) / 100,
     varianceToBudget: Math.round(summary.variance * 100) / 100,
@@ -24114,7 +24122,7 @@ function getAtlasClosedFinancialVersion(record, period) {
 
 async function refreshAtlasClosedFinancials(year = new Date().getFullYear(), force = false) {
   if (!window.ATLAS_CENTRAL?.getSession()?.user) return;
-  const module = await import("./features/financial-close.mjs?v=efa74b93df9c7e39");
+  const module = await import("./features/financial-close.mjs?v=155276c1a35a7182");
   window.AtlasClosedFinancialCache ||= module.createCache(window.ATLAS_CENTRAL);
   const changed = await window.AtlasClosedFinancialCache.refresh(year, force);
   if (changed) scheduleAtlasSharedRender(false);
@@ -24654,7 +24662,7 @@ async function openSharedCommunityPlan() {
   const communityId = access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId;
   if (!communityId || !window.ATLAS_CENTRAL) { alert("Shared plans require an authorized canonical community record."); return false; }
   try {
-    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=36dd6a2b752ccc2f");
+    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=463c42f803434f83");
     if (epoch !== atlasNavigationEpoch || !atlasAccessDecision(2).ok) return false;
     const entry=model.monthEntry, provenance=entry.metricProvenance?.occupiedSnapshot, period=buildPeriodKey(model.monthIdx,model.year);
     const occupancy=provenance?.revisionKey && provenance.period===period && (!provenance.communityId||provenance.communityId===communityId) && entry.occupiedSnapshot!=null && Number(entry.rentableUnits)>0
@@ -24987,7 +24995,7 @@ function queueCommunityRosterFinancials(items) {
     return {key:encodeURIComponent(item.detail.name),hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
   });
   setTimeout(async()=>{try {
-    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=1bdb1b3dc16e5d29");
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=5d99a9dd5a802659");
     if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
     await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
   } catch {}},0);
@@ -30196,14 +30204,14 @@ function exportBonusPayoutCSV() {
   const data = getBonusExportData();
   const lines = [["category","name","community","role_or_period","period_type","payout","assignment_source"]];
   data.leasingAgents.forEach(agent => {
-    agent.monthly.forEach(item => lines.push(["Leasing Agent", agent.name, agent.community, item.month, "Monthly", item.payout.toFixed(2), agent.assignmentSource]));
-    agent.quarterly.forEach(item => lines.push(["Leasing Agent", agent.name, agent.community, item.quarter, "Quarterly", item.payout.toFixed(2), agent.assignmentSource]));
-    lines.push(["Leasing Agent", agent.name, agent.community, data.currentMonth, "Current Month Projection", agent.currentMonthProjected.toFixed(2), agent.assignmentSource]);
+    agent.monthly.forEach(item => lines.push(["Leasing Agent", agent.name, agent.community, item.month, "Monthly", Number(item.payout.toFixed(2)), agent.assignmentSource]));
+    agent.quarterly.forEach(item => lines.push(["Leasing Agent", agent.name, agent.community, item.quarter, "Quarterly", Number(item.payout.toFixed(2)), agent.assignmentSource]));
+    lines.push(["Leasing Agent", agent.name, agent.community, data.currentMonth, "Current Month Projection", Number(agent.currentMonthProjected.toFixed(2)), agent.assignmentSource]);
   });
   data.roleEmployees.forEach(role => {
-    lines.push(["Bonus Role", role.name, role.community, `${role.quarter} (${role.role})`, "Quarterly", role.quarterlyPayout.toFixed(2), role.assignmentSource]);
+    lines.push(["Bonus Role", role.name, role.community, `${role.quarter} (${role.role})`, "Quarterly", Number(role.quarterlyPayout.toFixed(2)), role.assignmentSource]);
   });
-  const csv = lines.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const csv = lines.map(row => row.map(val => `"${String(atlasBonusSafeSpreadsheetCell(val) ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -31938,8 +31946,9 @@ function atlasBonusPerformanceRatio(metric = {}, actual = 0) {
   return (value / goal) * 100;
 }
 
-function atlasBonusCurvePayoutPct(metric = {}, actual = 0) {
-  const ratio = atlasBonusPerformanceRatio(metric, actual);
+function atlasBonusCurvePayoutPct(metric = {}, actual = 0, { financialAttainment = false } = {}) {
+  // Governed financial attainment already applies the raw metric's favorability.
+  const ratio = atlasBonusPerformanceRatio(financialAttainment ? { ...metric, favorable: "higher" } : metric, actual);
   const curve = (Array.isArray(metric.thresholdCurve) ? metric.thresholdCurve : BONUS_ENGINE_DEFAULT_CURVE)
     .map(row => ({ thresholdPct: Number(row.thresholdPct) || 0, payoutPct: Number(row.payoutPct) || 0, label: row.label || "" }))
     .sort((a, b) => b.thresholdPct - a.thresholdPct);
@@ -32040,8 +32049,35 @@ function communityCommandBonusGoalResult(employee, metric, period) {
   return { ...result, actual: values.reduce((sum, value) => sum + value.actual, 0), goal: values.reduce((sum, value) => sum + value.target, 0), reason: "" };
 }
 
+function atlasBonusRetainedRow(employee, period, resolution) {
+  const state = atlasBonusState(), rowId = `bonus_${simpleHash([period.periodKey, employee.employeeId || "unmapped", employee.assignmentId || "unmapped-assignment", resolution.plan?.id || "none"].join("|"))}`;
+  const localRetained = Boolean(state.periodLocks?.[period.periodKey]) || ["Paid", "Locked", "Paid / Finalized"].includes(state.approvalStatusByRowId?.[rowId]);
+  let evidence = null;
+  if (typeof window !== "undefined" && window.ATLAS_CENTRAL?.getSession?.()?.user) {
+    evidence = { pending: true, reason: "Reading the canonical period and retained calculation evidence." };
+    if (!atlasBonusRetainedRow.loading && !atlasBonusRetainedRow.cache) {
+      atlasBonusRetainedRow.loading = import("./features/reforecast-bonus.mjs?v=baad27658032a5bc").then(module => {
+        atlasBonusRetainedRow.cache = module.createBonusReceiptCache(window.ATLAS_CENTRAL);
+        const clear = () => { atlasBonusRetainedRow.cache.clear(); atlasBonusNavigationSnapshot = null; atlasBonusSectionCache.clear(); };
+        for (const event of ["atlas-central-auth-change", "atlas-finance-updated", "atlas-reforecast-updated"]) window.addEventListener(event, clear);
+        return atlasBonusRetainedRow.cache.refresh(period);
+      }).then(changed => { if (changed) renderTab(); }).catch(() => {});
+    }
+    if (atlasBonusRetainedRow.cache) {
+      evidence = atlasBonusRetainedRow.cache.get(employee, period);
+      atlasBonusRetainedRow.cache.refresh(period).then(changed => { if (changed) renderTab(); }).catch(() => {});
+      if (evidence.status === "available") return evidence.row;
+    }
+  }
+  if (!localRetained && !evidence?.retentionRequired && !evidence?.pending && !evidence?.lookupUnavailable) return null;
+  const reason = evidence?.reason || "The paid or locked calculation requires its retained canonical receipt; live values cannot replace it.";
+  return { rowId, period, employee, plan: resolution.plan, planSource: "Retained evidence required", hierarchy: resolution.hierarchy, operatingType: atlasBonusGetCommunityOperatingType(employee.communityName), metricResults: [], exceptions: [{ severity: "critical", code: "retained_bonus_evidence_required", message: reason }], unresolvedCritical: true, grossPotential: null, grossEarned: null, proration: { factor: 0, eligibleDays: 0, totalDays: 0, segments: [] }, projectedPayout: null, proposedPayout: null, maximumPotential: null, finalPayout: null, override: null, canonicalPayable: false, retained: true, approvalStatus: "Retained Evidence Required" };
+}
+
 function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter()) {
   const resolution = atlasBonusResolvePlanForEmployee(employee, period);
+  const retained = typeof atlasBonusRetainedRow === "function" ? atlasBonusRetainedRow(employee, period, resolution) : null;
+  if (retained) return retained;
   const plan = resolution.plan;
   const exceptions = [];
   if (employee.workforceIssue) exceptions.push({severity:"critical",code:"workforce_mapping",message:employee.workforceIssue});
@@ -32056,6 +32092,7 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
   const metricResults = (plan?.metrics || []).map(configuredMetric => {
     const governed = communityCommandBonusGoalResult(employee, configuredMetric, period);
     const metric = governed ? { ...configuredMetric, goal: governed.goal } : configuredMetric;
+    const financialEvidence = atlasBonusFinancialEvidence(employee, metric, period);
     const actual = governed ? governed.actual : atlasBonusMetricActual(employee, metric, period);
     if (governed?.reason) exceptions.push({ severity: "critical", code: "governed_goal_pending", message: governed.reason, metricId: metric.id });
     if (actual === null && !governed?.reason) {
@@ -32063,7 +32100,8 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
     }
     const potential = atlasBonusMetricPotential(employee, plan, metric);
     const metricPending = actual === null || governed?.reason || exceptions.some(item => item.code === "missing_salary");
-    const curve = metricPending ? { ratio: null, payoutPct: null, label: "Calculation Pending" } : atlasBonusCurvePayoutPct(metric, actual);
+    const financialAttainment = Boolean(financialEvidence && Number.isFinite(financialEvidence.attainment) && actual === financialEvidence.attainment);
+    const curve = metricPending ? { ratio: null, payoutPct: null, label: "Calculation Pending" } : atlasBonusCurvePayoutPct(metric, actual, { financialAttainment });
     let earned = metricPending ? null : potential * (curve.payoutPct / 100);
     if (["per_unit", "per_lease", "per_event"].includes(metric.payoutStructure) && !metricPending) {
       const unitEarned = Math.max(0, actual - Number(metric.goal || 0) + 1) * Number(metric.perUnitRate || 0);
@@ -32074,7 +32112,7 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
     return {
       metric,
       approvedGoalVersions: governed?.versions || [],
-      financialEvidence: atlasBonusFinancialEvidence(employee, metric, period),
+      financialEvidence,
       actual,
       potential,
       payoutPct: curve.payoutPct,
@@ -32086,13 +32124,16 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
   });
   const rowId = `bonus_${simpleHash([period.periodKey, employee.employeeId || "unmapped", employee.assignmentId || "unmapped-assignment", plan?.id || "none"].join("|"))}`;
   const state = atlasBonusState();
-  const unresolvedCritical = exceptions.some(exception => exception.severity === "critical");
   const proratedEarned = grossEarned * proration.factor;
   const proratedPotential = grossPotential * proration.factor;
   const override = state.overrides.find(item => (item.rowId && item.rowId === rowId) || (!item.rowId && item.employeeId === employee.employeeId));
   const approvedOverride = override && override.status === "approved";
-  const finalPayout = approvedOverride ? Number(override.adjustedAmount || proratedEarned) : proratedEarned;
-  const storedStatus = state.approvalStatusByRowId[rowId];
+  const overrideAmount = typeof override?.adjustedAmount === "number" || typeof override?.adjustedAmount === "string" && override.adjustedAmount.trim() !== "" ? Number(override.adjustedAmount) : NaN;
+  if (approvedOverride && !Number.isFinite(overrideAmount)) exceptions.push({ severity: "critical", code: "invalid_override_amount", message: "The approved override needs an explicit finite payout amount." });
+  const unresolvedCritical = exceptions.some(exception => exception.severity === "critical");
+  const finalPayout = approvedOverride ? (Number.isFinite(overrideAmount) ? overrideAmount : null) : proratedEarned;
+  const localStatus = state.approvalStatusByRowId[rowId];
+  const storedStatus = ["Regional Approved", "HR Ready", "Paid", "Locked"].includes(localStatus) ? "Approval Receipt Required" : localStatus;
   const approvalStatus = unresolvedCritical
     ? "Exceptions Blocking Approval"
     : override && override.status !== "approved"
@@ -32114,7 +32155,9 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
     proration,
     projectedPayout: unresolvedCritical ? null : proratedEarned,
     maximumPotential: exceptions.some(item => item.code === "missing_salary") ? null : proratedPotential,
-    finalPayout: unresolvedCritical ? null : finalPayout,
+    proposedPayout: unresolvedCritical ? null : finalPayout,
+    finalPayout: null,
+    canonicalPayable: false,
     override: override || null,
     approvalStatus
   };
@@ -32150,7 +32193,7 @@ function atlasBonusSummary(rows = atlasBonusBuildCalculationRows()) {
   const totalPotential = rows.some(row => row.maximumPotential === null) ? null : rows.reduce((sum, row) => sum + row.maximumPotential, 0);
   const projected = rows.some(row => row.projectedPayout === null) ? null : rows.reduce((sum, row) => sum + row.projectedPayout, 0);
   const final = rows.some(row => row.finalPayout === null) ? null : rows.reduce((sum, row) => sum + row.finalPayout, 0);
-  const approved = rows.filter(row => ["Regional Approved", "HR Ready", "Paid"].includes(row.approvalStatus)).reduce((sum, row) => sum + row.finalPayout, 0);
+  const approved = rows.filter(row => row.canonicalPayable === true && ["Regional Approved", "HR Ready", "Paid", "Locked"].includes(row.approvalStatus)).reduce((sum, row) => sum + row.finalPayout, 0);
   const budget = totalPotential === null || projected === null ? null : Math.max(totalPotential * 0.9, projected * 1.05, 1);
   return {
     employeeCount: rows.length,
@@ -32339,7 +32382,7 @@ function atlasBonusApproveOverrides() {
 function atlasBonusRegionalApprove() {
   if (!atlasBonusCan("approve_bonuses")) return alert("This ATLAS role cannot approve bonuses.");
   const rows = atlasBonusBuildCalculationRows().filter(row => row.approvalStatus === "Calculated");
-  if (rows.some(row => row.unresolvedCritical)) return alert("Critical exceptions must be resolved before regional approval.");
+  if (!rows.length || rows.some(row => row.unresolvedCritical || row.canonicalPayable !== true)) return alert("An approved canonical calculation receipt is required before payment approval. Draft calculations remain projections.");
   const signature = String(document.getElementById("atlas-bonus-signature")?.value || "").trim();
   if (!signature) return alert("Enter your electronic signature before approving.");
   const comments = String(document.getElementById("atlas-bonus-signature-comments")?.value || "").trim();
@@ -32365,7 +32408,7 @@ function atlasBonusFinalizePeriod() {
   if (!atlasBonusCan("finalize_period")) return alert("This ATLAS role cannot finalize bonus periods.");
   const period = atlasBonusPeriodFromQuarter();
   const rows = atlasBonusBuildCalculationRows();
-  if (rows.some(row => row.unresolvedCritical)) return alert("A bonus period cannot proceed to final approval while unresolved critical exceptions remain.");
+  if (!rows.length || rows.some(row => row.unresolvedCritical || row.canonicalPayable !== true || row.canonicalReceipt?.periodStatus !== "paid")) return alert("Payment finalization requires the canonical paid receipt for every included calculation. Draft or locally approved values cannot finalize payment.");
   const state = atlasBonusState();
   state.periodLocks[period.periodKey] = { status: "Paid / Finalized", lockedAt: new Date().toISOString(), lockedBy: atlasUserDisplayName(getAtlasAccessProfile() || {}) };
   rows.forEach(row => { state.approvalStatusByRowId[row.rowId] = "Paid"; });
@@ -32443,9 +32486,11 @@ function atlasBonusExportRows(reportType = "hr_payroll") {
       "Bonus Period": row.period.periodKey,
       "Bonus Plan": row.plan?.name || "Missing plan",
       "Approval Status": row.approvalStatus,
-      "Approved Payout": row.finalPayout === null || !["Regional Approved", "HR Ready", "Paid"].includes(row.approvalStatus) ? null : Math.round(row.finalPayout * 100) / 100,
+      "Approved Payout": row.canonicalPayable !== true || row.finalPayout === null ? null : Math.round(row.finalPayout * 100) / 100,
+      "Calculation Receipt": row.canonicalReceipt?.runId || "",
+      "Calculation Hash": row.canonicalReceipt?.calculationHash || "",
       "Payroll Code": "BONUS",
-      "Approval Date": row.approvalStatus === "Paid" ? new Date().toISOString().slice(0, 10) : "",
+      "Approval Date": row.canonicalReceipt?.approvedAt || "",
       "Notes": row.unresolvedCritical ? "Calculation Pending - Missing Required Data" : row.planSource
     };
     if (reportType === "employee_detail") {
@@ -32459,10 +32504,14 @@ function atlasBonusExportRows(reportType = "hr_payroll") {
   });
 }
 
+function atlasBonusSafeSpreadsheetCell(value) {
+  return typeof value === "string" && /^[\s\u0000-\u001f\u007f-\u009f]*[=+@-]/.test(value) ? "'" + value : value;
+}
+
 function atlasBonusDownloadCsv(rows = [], filename = "atlas_bonus_report.csv") {
   const headers = Object.keys(rows[0] || {});
   const csv = [headers, ...rows.map(row => headers.map(header => row[header]))]
-    .map(row => row.map(value => `"${String(value ?? "").replace(/"/g, '""')}"`).join(","))
+    .map(row => row.map(value => `"${String(atlasBonusSafeSpreadsheetCell(value) ?? "").replace(/"/g, '""')}"`).join(","))
     .join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
   const link = document.createElement("a");
@@ -32477,7 +32526,11 @@ function atlasBonusExportReport(reportType = "hr_payroll", format = "csv") {
   if (!rows.length) return alert("No bonus rows are available for this report.");
   const filename = `atlas_${reportType}_${atlasBonusPeriodFromQuarter().periodKey}.${format === "excel" ? "xlsx" : "csv"}`;
   if (format === "excel" && window.XLSX?.utils) {
-    const sheet = window.XLSX.utils.json_to_sheet(rows);
+    const safeRows = rows.map(row => Object.fromEntries(Object.entries(row).map(([key, value]) => [atlasBonusSafeSpreadsheetCell(key), atlasBonusSafeSpreadsheetCell(value)])));
+    const sheet = window.XLSX.utils.json_to_sheet(safeRows);
+    Object.entries(sheet).forEach(([address, cell]) => {
+      if (!address.startsWith("!") && cell && typeof cell.v === "string") { cell.t = "s"; delete cell.f; }
+    });
     const book = window.XLSX.utils.book_new();
     window.XLSX.utils.book_append_sheet(book, sheet, "Bonus Report");
     window.XLSX.writeFile(book, filename);
@@ -32714,7 +32767,7 @@ function renderBonusAssignmentsSection(rows) {
 
 function renderBonusCalculationRows(rows, options = {}) {
   const showSalary = options.showSalary && atlasBonusCanViewSalary();
-  return `<div class="bonus-engine-table-wrap"><table class="bonus-engine-table"><thead><tr><th>Employee</th><th>Role / Community</th><th>Plan</th><th>Potential</th><th>Projected</th><th>Final</th><th>Proration</th><th>Status</th><th>${showSalary ? "Salary" : "Actions"}</th></tr></thead><tbody>
+  return `<div class="bonus-engine-table-wrap"><table class="bonus-engine-table"><thead><tr><th>Employee</th><th>Role / Community</th><th>Plan</th><th>Potential</th><th>Projected</th><th>Approved receipt</th><th>Proration</th><th>Status</th><th>${showSalary ? "Salary" : "Actions"}</th></tr></thead><tbody>
     ${rows.map(row => `<tr>
       <td><strong>${escapeHtml(atlasBonusEmployeeDisplayName(row.employee))}</strong><div style="color:var(--muted);font-size:0.62rem">${escapeHtml(row.employee.payrollEmployeeId || row.employee.employeeId || "")}</div></td>
       <td>${escapeHtml(row.employee.bonusRole || "Role missing")}<div style="color:var(--muted);font-size:0.62rem">${escapeHtml(row.employee.communityName || "Portfolio / Central")} · ${escapeHtml(row.operatingType)}</div></td>

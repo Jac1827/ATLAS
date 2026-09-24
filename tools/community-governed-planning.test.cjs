@@ -1,7 +1,8 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const html = fs.readFileSync('docs/portfolio-operations-dashboard/index.html', 'utf8') + '\n' + fs.readFileSync('docs/portfolio-operations-dashboard/community-goal-editor.js', 'utf8');
+const html = readDashboardSource('docs/portfolio-operations-dashboard/index.html') + '\n' + fs.readFileSync('docs/portfolio-operations-dashboard/community-goal-editor.js', 'utf8');
 const ctx = vm.createContext({ console, Date, Map, Set });
 for (const match of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm)) vm.runInContext(match[0], ctx);
 Object.assign(ctx, {
@@ -74,7 +75,9 @@ console.log('PASS historical date/community/denominator checks, January boundary
     crypto:require('node:crypto').webcrypto,
     CustomEvent:class {constructor(type,init){this.type=type;this.detail=init?.detail;}},
     document:{getElementById:id=>Object.hasOwn(form,id)?{value:form[id]}:null},
-    window:{ATLAS_CENTRAL:{},dispatchEvent:()=>{}},
+    window:{ATLAS_CENTRAL:{getSession:()=>({user:{id:'synthetic'}}),getAccessContextKey:()=> 'synthetic-access',getConfig:()=>({supabaseUrl:'https://fixture.invalid'})},dispatchEvent:()=>{}},
+    getAtlasCentralStatus:()=>({configured:true,signedIn:true}),
+    ATLAS_STATE_DB_NAME:'synthetic-goals',atlasWorkspaceAccess:{validated:true,epoch:1},
     communityCommandState:ctx.defaultCommunityCommandState(),
     communityCommandCanApproveGoals:()=>allowed,
     communityCommandGoalBuffers:new Map(),communityCommandGoalNotices:new Map(),
@@ -87,6 +90,7 @@ console.log('PASS historical date/community/denominator checks, January boundary
     renderTab:()=>{},renderPropGrid:()=>{},
     dataImport2State:{exceptions:[]}
   });
+  ctx.syncCommunityCommandGoalContext();
   const editor={propName:'Doro',communityId:'synthetic-community',monthIdx:8,year:2026,period:'2026-09',key:'synthetic-community|2026-09',revision:0,values:{},recommended:{applicationGoal:18,grossLeaseGoal:9,netLeaseGoal:7},reason:'',effectiveDate:'2026-09-18'};
   ctx.communityCommandGoalEditor=editor;
   const pending=ctx.saveCommunityCommandGoalEditor(false);

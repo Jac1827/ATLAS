@@ -1,10 +1,10 @@
-import {readFinance} from './canonical-finance.mjs?v=bed590780060af51';
+import {readFinance} from './canonical-finance.mjs?v=6fd3f2a1967abe60';
 /* Scout's prototype can inspect published financial evidence without an AI service. */
 import {createActiveReforecastCache,scoutForecastEvidence} from './reforecast-consumers.mjs?v=900b97252a7554c0';
 import {effectiveActiveSnapshot} from './reforecast-store.mjs?v=8a0011d1c194257e';
 import {esc,money} from './reforecast-report.mjs?v=8912b44852a6eda5';
 const validPeriod=value=>/^20\d{2}-(0[1-9]|1[0-2])$/.test(value||'');
-const actor=central=>central?.getSession?.()?.user?.id;
+const actor=central=>central?.getSession?.()?.user?.id ? central.getAccessContextKey?.() ?? central.getSession().user.id : null;
 const numeric=value=>typeof value==='number'&&Number.isFinite(value);
 export async function readScoutReforecast(central,{communityId,period,cache=createActiveReforecastCache(central)}={}){
  const user=actor(central);if(!user)throw Error('Sign in to ATLAS to read published financial evidence.');

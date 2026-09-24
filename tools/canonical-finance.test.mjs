@@ -1,3 +1,4 @@
+import {readDashboardSource} from './dashboard-source.cjs';
 import assert from 'node:assert/strict';
 import {readFinance,financialSummary,bonusEvidence,number,readDetail} from '../docs/portfolio-operations-dashboard/features/canonical-finance.mjs';
 import {createCache,coverage} from '../docs/portfolio-operations-dashboard/features/financial-close.mjs';
@@ -28,11 +29,11 @@ const segments=[{version_id:'a',community_id:cid,calendar_year:2026,status:'lock
 const merged=await readApprovedBudget({fetchJson:async()=>segments},cid,2026);assert.deepEqual(merged.payload.rows[0].monthly.slice(0,4),[0,-5,10,null]);assert.equal(merged.periodVersions[2],'b');
 await assert.rejects(()=>readApprovedBudget({fetchJson:async()=>[segments[0],segments[0]]},cid,2026),/Overlapping/);
 const fs=await import('node:fs'),vm=await import('node:vm');
-const html=fs.readFileSync(new URL('../docs/portfolio-operations-dashboard/index.html',import.meta.url),'utf8');
+const html=readDashboardSource(new URL('../docs/portfolio-operations-dashboard/index.html',import.meta.url));
 const body=html.slice(html.indexOf('function atlasBonusFinancialEvidence('),html.indexOf('\nfunction atlasBonusMetricActual('));
-let requested;
-const context={Date,refreshAtlasClosedFinancials:async()=>{},buildPeriodKey:(m,y)=>y+'-'+String(m+1).padStart(2,'0'),window:{AtlasClosedFinancialCache:{bonus:(name,key,periods)=>(requested={name,key,periods},{attainment:110})}}};vm.createContext(context);vm.runInContext(body,context);
-assert.equal(context.atlasBonusFinancialEvidence({communityName:'Doro'},{metricKey:'noi'},{start:'2025-04-01',end:'2025-06-30'}).attainment,110);assert.equal(requested.periods.join(','),'2025-04,2025-05,2025-06');
+let requested,queued;
+const context={Date,queueAtlasFinancialScope:(name,periods)=>{queued={name,periods};},refreshAtlasClosedFinancials:async()=>{},buildPeriodKey:(m,y)=>y+'-'+String(m+1).padStart(2,'0'),window:{AtlasClosedFinancialCache:{bonus:(name,key,periods)=>(requested={name,key,periods},{attainment:110})}}};vm.createContext(context);vm.runInContext(body,context);
+assert.equal(context.atlasBonusFinancialEvidence({communityName:'Doro'},{metricKey:'noi'},{start:'2025-04-01',end:'2025-06-30'}).attainment,110);assert.equal(requested.periods.join(','),'2025-04,2025-05,2025-06');assert.equal(queued.periods.join(','),'2025-04,2025-05,2025-06');
 assert.equal(context.atlasBonusFinancialEvidence({communityName:'Doro'},{metricKey:'noi'},{start:'2025-04-01',end:'2025-05-31'}),null);
 for(const match of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)){if(!/type\s*=\s*["']module/.test(match[1])&&match[2].trim())new vm.Script(match[2]);}
 console.log('PASS non-overlapping fiscal budget segments, retained missing amounts, Bonus requested historical quarter and dashboard syntax');

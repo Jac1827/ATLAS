@@ -1,3 +1,4 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const P=require('../docs/portfolio-operations-dashboard/property-intelligence.js');
 const B=require('../docs/portfolio-operations-dashboard/application-source-bridge.js');
@@ -19,7 +20,7 @@ assert.equal(P.metrics(snapshots,P.ranges('2026-08')).new_leads.value,null);
 assert.equal(P.metrics([...snapshots,{...snapshots[0],values:{new_leads:60},importedAt:'2026-09-18'}],r).new_leads.value,60);
 assert.equal(P.packageCoverage([{start:'2026-09-01',end:'2026-09-15'},{start:'2026-09-16',end:'2026-09-30'}],r).complete,false);
 assert.equal(P.packageCoverage([{start:'2026-08-01',end:'2026-10-01',components:[{type:'rent'},{type:'gift_card'}]}],r).complete,true);
-const html=fs.readFileSync('docs/portfolio-operations-dashboard/index.html','utf8');
+const html=readDashboardSource('docs/portfolio-operations-dashboard/index.html');
 for(const script of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi))if(script[1].trim())new vm.Script(script[1]);
 const extract=n=>html.match(new RegExp('^(?:async )?function '+n+'\\([^\\n]*\\) \\{[\\s\\S]*?^\\}','m'))[0];
 const context={window:{AtlasPropertyIntelligence:P},findWorksheetRow:(rows,re)=>rows.find(r=>re.test(String(r[0]))),normalizeWorkbookNumber:v=>Number(v)||0,normalizeWorkbookPercent:v=>Number(v)||0,matchPropertyName:n=>n};vm.createContext(context);vm.runInContext(extract('extractMarketSurveyCompRows'),context);

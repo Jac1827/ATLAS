@@ -125,18 +125,115 @@ const chartTypes = new Set(['portfolio_overview','traffic_funnel','renewals_rete
 function metricValue(instance, summary) {
   return round(atlasDashboardMetricChartValues(instance, {scopedDetails:[{summary}]})[0]);
 }
-function history(instance, snapshot) {
-  const end=getSelectedDashboardMonthIndex(), start=Math.max(0,end-8);
-  const data=[], budget=[], labels=[];
-  for(let m=start;m<=end;m++) {
-    const details=(snapshot.scopedDetails||[]).filter(d=>dashboardMonthlyEntryHasData(getRecordMonthlyDataForYear(d.record,d.record.reportYear)[m])).map(d=>{const key=`reskin:${d.name}:${d.record.reportYear}:${m}`;if(atlasHomeRenderDetails?.has(key))return atlasHomeRenderDetails.get(key);const detail=buildCommunityDetailForMonth(d.name,d.record,m,d.record.reportYear);atlasHomeRenderDetails?.set(key,detail);return detail;}).filter(Boolean);
-    const summary=aggregateCommunitySummaries(details.map(d=>d.summary));
-    labels.push(MONTHS[m]);
-    data.push(details.length ? metricValue(instance,summary) : null);
-    budget.push(details.length && summary.budgetOccCoverage?.complete ? round(summary.budgetOccPct) : null);
-  }
-  return {data,budget,labels};
+let historyCache = [], historyCacheAccess = "";
+function historyAccessKey() {
+  return window.ATLAS_CENTRAL?.getAccessContextKey?.() || JSON.stringify([
+    window.ATLAS_CENTRAL?.getConfig?.(), window.ATLAS_CENTRAL?.getSession?.()?.user?.id,
+    typeof getAtlasAccessProfile === "function" ? getAtlasAccessProfile() : null]);
 }
+function historyInputs(snapshot, start, end) {
+  if (typeof atlasExactPresentationInputString !== "function" || typeof atlasCommunityGoalStore === "undefined") return null;
+  try {
+    const access = historyAccessKey();
+    if (access !== historyCacheAccess) { historyCache = []; historyCacheAccess = access; }
+    const control={version:"home-history-v1",access,start,end,
+      today:getAtlasTodayISODate(),properties:PROPERTIES,currentProperty:getProp().name,
+      goals:[...atlasCommunityGoalStore.scopes],goalActor:atlasCommunityGoalStore.actor,
+      command:communityCommandState,quarter:bonusQuarter,
+      graph:localStorage.getItem("atlas_shared_property_graph_v1"),
+      source:typeof atlasWorkspaceAccess==="undefined" ? null : [atlasWorkspaceAccess.source,atlasWorkspaceAccess.binding]};
+    const records=(snapshot.scopedDetails||[]).map(detail=>[detail.name,detail.record]);
+    // This identity memo exists only during one synchronous Home render. Every
+    // later render still compares the exact serialized record and control inputs.
+    const controls=atlasExactPresentationInputString(control),memo=atlasHomeRenderDetails?.get("history-inputs")||[];
+    const retained=memo.find(entry=>entry.controls===controls && entry.records.length===records.length && entry.records.every((row,index)=>row[0]===records[index][0] && row[1]===records[index][1]));
+    if(retained)return retained.key;
+    const key=atlasExactPresentationInputString({...control,records});
+    if(atlasHomeRenderDetails){memo.push({controls,records,key});atlasHomeRenderDetails.set("history-inputs",memo);}
+    return key;
+  } catch { return null; }
+}
+
+function historyMonthDetail(detail, month, detailsCache) {
+  const cacheKey=`reskin:${detail.name}:${detail.record.reportYear}:${month}`;
+  if(detailsCache?.has(cacheKey))return detailsCache.get(cacheKey);
+  const value=buildCommunityDetailForMonth(detail.name,detail.record,month,detail.record.reportYear,{includeRecommendations:false});
+  detailsCache?.set(cacheKey,value);return value;
+}
+function historyMonthRow(sourceDetails, monthly, month, detailsCache) {
+  const details=sourceDetails.filter(detail=>dashboardMonthlyEntryHasData(monthly.get(detail)[month])).map(detail=>historyMonthDetail(detail,month,detailsCache)).filter(Boolean);
+  return {label:MONTHS[month],available:details.length>0,summary:aggregateCommunitySummaries(details.map(detail=>detail.summary))};
+}
+
+function retainHistoryRows(key, rows) {
+  // Bound both scope count and retained key size; large inputs recompute safely.
+  if(key !== null && key.length<=4*1024*1024) {
+    historyCache.push({key,rows});
+    while(historyCache.length>3 || historyCache.reduce((bytes,entry)=>bytes+entry.key.length,0)>4*1024*1024)historyCache.shift();
+  }
+}
+function history(instance, snapshot) {
+  const end=getSelectedDashboardMonthIndex(), start=Math.max(0,end-8), key=historyInputs(snapshot,start,end);
+  let rows=key === null ? null : historyCache.find(entry=>entry.key===key)?.rows;
+  if (!rows) {
+    const sourceDetails=snapshot.scopedDetails||[];
+    const monthly=new Map(sourceDetails.map(detail=>[detail,getRecordMonthlyDataForYear(detail.record,detail.record.reportYear)]));
+    rows=[];
+    for(let month=start;month<=end;month++)rows.push(historyMonthRow(sourceDetails,monthly,month,atlasHomeRenderDetails));
+    retainHistoryRows(key,rows);
+    window.AtlasPerformance?.record?.("home-history-cache-miss");
+  } else window.AtlasPerformance?.record?.("home-history-cache-hit");
+  return {
+    data: rows.map(row=>row.available ? metricValue(instance,row.summary) : null),
+    budget: rows.map(row=>row.available && row.summary.budgetOccCoverage?.complete ? round(row.summary.budgetOccPct) : null),
+    labels: rows.map(row=>row.label)
+  };
+}
+async function prepareInitialHome({current=()=>true,yieldTask=()=>new Promise(resolve=>setTimeout(resolve,0))}={}) {
+  const readSnapshot=instance=>{
+    const previous=atlasHomeRenderDetails;atlasHomeRenderDetails=new Map();
+    try{return buildAtlasDashboardWidgetSnapshot(instance);}finally{atlasHomeRenderDetails=previous;}
+  };
+  const overview={widgetKey:'portfolio_overview',metric:'Physical Occupancy',scope:{type:'all_properties'}};
+  const widgets=getAtlasDashboardViewWidgets(getAtlasActiveDashboardView()).filter(instance=>{
+    const metric=instance.metric||getAtlasDashboardWidgetDefinition(instance.widgetKey)?.defaultMetric||'',viz=instance.visualization||'KPI Card';
+    return chartTypes.has(instance.widgetKey) && instance.widgetKey!=='reputation_pulse' && !/Variance/.test(metric)
+      && !/Ranking|Comparison|Exception/.test(viz)
+      && (!['traffic_funnel','renewals_retention'].includes(instance.widgetKey)||/Trend/.test(viz));
+  });
+  const scopes=new Set();
+  for(const instance of [overview,...widgets]) {
+    const scopeKey=atlasExactPresentationInputString(typeof normalizeAtlasDashboardScopeConfig==='function' ? normalizeAtlasDashboardScopeConfig(instance.scope) : instance.scope||{});
+    if(scopes.has(scopeKey))continue;scopes.add(scopeKey);
+    await yieldTask();if(!current())return false;
+    const end=getSelectedDashboardMonthIndex(),start=Math.max(0,end-8),snapshot=readSnapshot(instance),key=historyInputs(snapshot,start,end);
+    if(key===null || historyCache.some(entry=>entry.key===key))continue;
+    // Detached records keep each month on one exact input snapshot across yields.
+    const sourceDetails=structuredClone(snapshot.scopedDetails||[]),detailsCache=new Map();
+    const monthly=new Map(sourceDetails.map(detail=>[detail,getRecordMonthlyDataForYear(detail.record,detail.record.reportYear)])),rows=[];
+    for(let month=start;month<=end;month++) {
+      await yieldTask();if(!current())return false;
+      const eligible=sourceDetails.filter(detail=>dashboardMonthlyEntryHasData(monthly.get(detail)[month])),details=[];
+      for(let index=0;index<eligible.length;index++) {
+        if(index>0 && index%3===0){await yieldTask();if(!current())return false;}
+        const detail=historyMonthDetail(eligible[index],month,detailsCache);if(detail)details.push(detail);
+      }
+      rows.push({label:MONTHS[month],available:details.length>0,summary:aggregateCommunitySummaries(details.map(detail=>detail.summary))});
+    }
+    await yieldTask();if(!current())return false;
+    // A later edit or source completion invalidates all prepared rows before publication.
+    const fresh=readSnapshot(instance);
+    if(!current() || historyInputs(fresh,start,end)!==key)return false;
+    retainHistoryRows(key,rows);
+    window.AtlasPerformance?.record?.("home-history-prepared");
+  }
+  return current();
+}
+
+window.addEventListener?.("atlas-central-auth-change",()=>{
+  const next=historyAccessKey();if(next!==historyCacheAccess){historyCache=[];historyCacheAccess=next;}
+});
+
 function visual(instance,snapshot,definition={}) {
   // The reskin has no legacy collapse control: always render chart content.
   // Persisted collapsed flags must not strand saved widgets in summary-only mode.
@@ -317,5 +414,5 @@ function init() {
   void refreshTicker();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
-return {home,card,visual,builder,library,resize,search,publish,theme,presence,refreshTicker,renderTicker,pause,openSheet,closeSheet,saveAnnouncement,history};
+return {prepareInitialHome,home,card,visual,builder,library,resize,search,publish,theme,presence,refreshTicker,renderTicker,pause,openSheet,closeSheet,saveAnnouncement,history};
 })();

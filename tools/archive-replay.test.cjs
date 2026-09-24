@@ -1,5 +1,6 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
-const html=fs.readFileSync('docs/portfolio-operations-dashboard/index.html','utf8');
+const html=readDashboardSource('docs/portfolio-operations-dashboard/index.html');
 const c={Date,Map,dataImportRuntimeCanonicalIndex:null,dataImport2State:{canonicalRecords:[],closedPeriods:[]}};
 vm.createContext(c);vm.runInContext(html.match(/^function dataImportUpsertCanonicalRecord\([^\n]*\) \{[\s\S]*?^\}/m)[0],c);
 const rec={key:'box::Sereno::2026-09',fileHash:'same',periodKey:'2026-09',dataAsOf:'2026-09-16',values:{applications:0}};

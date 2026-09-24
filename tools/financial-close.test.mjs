@@ -5,7 +5,7 @@ assert.deepEqual(coverage(versions,2026),{first:2,last:8,missing:[1],firstExpect
 assert.equal(coverage(versions.filter(v=>v.period_key!=='2026-07'),2026).last,8);
 assert.equal(contract(versions[0]).netRentalIncome,0);
 assert.equal(contract({...versions[0],metrics:{grossPotentialRent:100}}).netRentalIncome,null);
-let calls=0;const cache=createCache({readCommunitiesForAccess:async()=>[{community_id:'id',display_name:'Community',canonical_name:'community'}],fetchJson:async()=>{calls++;return versions.map(v=>({community_id:'id',period_key:v.period_key,summary:{effectiveBaseline:{status:'unavailable',communityId:'id',period:v.period_key,reason:'missing_baseline'},registryVersion:'atlas-finance-v1',communityId:'id',period:v.period_key,close:v}}));}});
+let calls=0;const cache=createCache({getSession:()=>({user:{id:'synthetic-user'}}),readCommunitiesForAccess:async()=>[{community_id:'id',display_name:'Community',canonical_name:'community'}],fetchJson:async()=>{calls++;return versions.map(v=>({community_id:'id',period_key:v.period_key,summary:{effectiveBaseline:{status:'unavailable',communityId:'id',period:v.period_key,reason:'missing_baseline'},registryVersion:'atlas-finance-v1',communityId:'id',period:v.period_key,close:v}}));}});
 await Promise.all([cache.refresh(2026),cache.refresh(2026)]);assert.equal(calls,1);assert.equal(cache.get('Community','2026-08').version_id,'v8');assert.equal(cache.get('Community','2026-09'),null);cache.clear();assert.equal(cache.get('Community','2026-08'),null);
 console.log('PASS closed scope, period gaps, missing vs zero, duplicate refresh coalescing and cleanup');
 

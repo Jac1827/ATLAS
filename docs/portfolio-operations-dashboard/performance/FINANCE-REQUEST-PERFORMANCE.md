@@ -73,10 +73,10 @@ node tools/migration-history.test.mjs
 node tools/migration-history-replay.test.cjs
 ```
 
-Full-history replay compiles all 76 migrations, including the separate scoped startup reader. The production-schema Bonus acceptance test passes with this reader, including server calculation, independent approval, retained history and external payment recording; its synthetic rows are rolled back. No production financial workflow was executed for this change.
+The original finance validation replayed all 76 migrations then present, including the separate scoped startup reader. The later publisher and scoped-reader tests replay all 77 migrations after PR #31. The production-schema Bonus acceptance test passes with this reader, including server calculation, independent approval, retained history and external payment recording; its synthetic rows are rolled back. No production financial workflow was executed for this change.
 
 ## Deployment, comparison and rollback
 
-Apply this additive migration only with the reviewed application release. Retest the same bounded scopes and inspect complete response/version parity. A before/after response-hash comparison is valid only when its source-lineage hash also matches; changed source heads require re-establishing the comparison. The read-only parity template in the ignored baseline artifacts emits only result counts and hashes.
+The configured integration automatically applied this additive migration with PR #30, before activating the matching application changes. Live function bodies and grants match the reviewed SQL. The client release and controlled authenticated performance acceptance remain pending; degraded service observations are not comparable performance samples. Retest the same bounded scopes and inspect complete response/version parity. A before/after response-hash comparison is valid only when its source-lineage hash also matches; changed source heads require re-establishing the comparison. The read-only parity template in the ignored baseline artifacts emits only result counts and hashes.
 
 `centralization/finance-request-context.rollback.sql` retains the previous reader and summary function bodies as a **forward rollback template**. If needed, create a new migration containing that template and deploy the prior application revision. The template restores function definitions and grants without deleting the new private helpers or modifying financial data/history. Do not edit an already-applied migration or remove immutable records to roll back this performance change.

@@ -3,7 +3,7 @@ import * as store from './reforecast-store.mjs?v=8a0011d1c194257e';
 import {readUtilityRecommendations,utilityRecoveryRows} from './reforecast-utility.mjs?v=b51e06637759bb57';
 import {defaultForecastPeriods,validateForecastPeriods} from './reforecast-engine.mjs?v=3d3b7e538bd36581';
 import {esc,money,finite} from './reforecast-report.mjs?v=8912b44852a6eda5';
-import {calculateStrLeasingSchedule,mappedProviderStatement,inspectProviderStatement,providerStatementPublicSummary,recommendStrStatementBehavior,calculateContractDriver,createContractOverride} from './reforecast-provider.mjs?v=64ecdbe32009c215';
+import {calculateStrLeasingSchedule,mappedProviderStatement,inspectProviderStatement,providerStatementPublicSummary,recommendStrStatementBehavior,calculateContractDriver,createContractOverride} from './reforecast-provider.mjs?v=b1d0706c8fcf4bda';
 
 const uuid=()=>crypto.randomUUID();
 const clone=value=>structuredClone(value);
@@ -166,7 +166,7 @@ export async function sourceDialog(s,{dialog,render,mark}){
     if(epoch!==inspectionEpoch||!el.isConnected)return;
     body.querySelector('[data-source-preview]').innerHTML=`<h3>Reconciliation review</h3><pre>${esc(JSON.stringify(providerStatementPublicSummary(statement),null,2))}</pre>`;
    }else{
-    const {encodeOriginalWorkbook}=await import('./reforecast-intake.mjs?v=dbd1802780d0939a');
+    const {encodeOriginalWorkbook}=await import('./reforecast-intake.mjs?v=5e96161a61d477c1');
     const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(value=>value.toString(16).padStart(2,'0')).join(''),contract=sourceType==='contract'?Object.fromEntries([...body.querySelectorAll('[data-contract]')].map(input=>[input.dataset.contract,input.type==='number'?optionalNumber(input.value):input.value||null])):null;
     nextCandidate={sourceType,source:{...metadata,fileName:file.name,sha256:hash,originalFile:encodeOriginalWorkbook(bytes)},propertyAssignment:{communityId:s.cid,confirmed:true},summary:{periods:[period]},contract,reviewState:'needs_review'};
     if(['rise_str','monthly_property_statement'].includes(sourceType)){

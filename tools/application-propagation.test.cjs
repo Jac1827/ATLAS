@@ -1,7 +1,8 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const B=require('../docs/portfolio-operations-dashboard/application-source-bridge.js');
 const root=__dirname+'/../docs/portfolio-operations-dashboard/';
-const html=fs.readFileSync(root+'index.html','utf8');
+const html=readDashboardSource(root+'index.html');
 const context={console,Date,Map,Set,XLSX:require(process.env.ATLAS_XLSX || '../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js'),window:{},DEFAULT_CURRENT_MONTH:8,MONTHS:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],applicationResidentDataState:{reportMonthIdx:8,reportYear:2026},savedData:{},PROPERTIES:[]};
 context.FULL_MONTHS=context.MONTHS; vm.createContext(context);
 for(const match of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm)){try{vm.runInContext(match[0],context);}catch{}}

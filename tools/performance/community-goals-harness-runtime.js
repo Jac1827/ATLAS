@@ -6,6 +6,7 @@ const fixtureScope=JSON.parse(sessionStorage.getItem('atlas-goal-harness-scope')
 let selectedName=fixtureScope.name,selectedMonth=fixtureScope.month,selectedYear=fixtureScope.year;
 let recommendationGeneration=Number(sessionStorage.getItem('atlas-goal-harness-recommendation')||0),fixtureAway=false;
 let communityCommandState={},communityCommandGoalEditor=null;
+const ATLAS_STATE_DB_NAME='synthetic-goals',atlasWorkspaceAccess={validated:true,epoch:1,controller:new AbortController()};
 let atlasBonusNavigationSnapshot=null;
 const atlasBonusSectionCache=new Map();
 let dataImport2State={exceptions:[]},savedData={'Test A':{},'Test B':{}},activeTab=2;
@@ -40,6 +41,8 @@ const communityCommandBoundarySnapshot=()=>null;
 window.alert=message=>{document.querySelector('#notice').textContent=String(message);};
 window.ATLAS_CENTRAL={
  getStatus:getAtlasCentralStatus,
+ getAccessContextKey:()=> 'synthetic-goals-access',
+ getConfig:()=>({supabaseUrl:'http://fixture.invalid'}),
  getSession:()=>({user:{id:'00000000-0000-0000-0000-000000000001'}}),
  async fetchJson(path,options){const r=await fetch('/__goals_api/read?path='+encodeURIComponent(path),{signal:options?.signal});const v=await r.json();if(!r.ok)throw Error(v.message||'Read failed');return v;},
  async rpc(name,args,options){const r=await fetch('/__goals_api/rpc',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name,args}),signal:options?.signal});const v=await r.json();if(!r.ok)throw Error(v.message||'Save failed');return v;}

@@ -70,8 +70,17 @@
     }
   ],
   "assets": {
-    "directory": "./docs",
+    "directory": "./output/atlas-site",
     "binding": "ASSETS",
     "run_worker_first": true
+  },
+  "build": {
+    "command": "node tools/build-atlas-site.mjs",
+    "watch_dir": [
+      "docs",
+      "src",
+      "tools/build-atlas-site.mjs",
+      "tools/package-atlas-assets.mjs"
+    ]
   }
 }

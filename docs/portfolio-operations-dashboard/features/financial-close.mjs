@@ -1,4 +1,4 @@
-import {readFinance,readApprovedBudget,financialSummary,bonusEvidence} from './canonical-finance.mjs?v=bed590780060af51';
+import {readFinance,readApprovedBudget,financialSummary,bonusEvidence,financeAccessKey,invalidateFinanceReads} from './canonical-finance.mjs?v=6fd3f2a1967abe60';
 // Shared closed-month reader. No browser ledger is authoritative.
 export const optionalNumber=v=>v===null||v===undefined||v===''?null:Number.isFinite(Number(v))?Number(v):null;
 export function contract(v){return v?{period:v.period_key,status:v.status,coverage:v.coverage,accountingBasis:v.accounting_basis,netRentalIncome:optionalNumber(v.metrics.netRentalIncome),grossPotentialRent:optionalNumber(v.metrics.grossPotentialRent),netCashFlow:optionalNumber(v.metrics.netCashFlow??v.metrics.sourceControls?.['Net Cash Flow']?.actual),source:v.source_file,sourceHash:v.source_hash,approvedBy:v.approved_by,approvedAt:v.approved_at,version:v.version_id,revision:v.revision}:null;}
@@ -48,28 +48,52 @@ export async function closeReview(central,review,{expectedVersion=null,reason,ac
  return {...stored,intakeReceipt:finalReceipt,publicationId:report.publication_id};
 }
 export function createCache(central){
- const byName=new Map(),pending=new Map(),refreshed=new Map();let epoch=0;
+ const byName=new Map(),refreshed=new Map(),failed=new Map(),latestCells=new Map(),scopeTickets=new Map();let epoch=0,sequence=0,access=financeAccessKey(central),rosterTask=null,roster=null;
+ const waitFor=(promise,signal)=>{if(!signal)return promise;if(signal.aborted)return Promise.reject(new DOMException('Cancelled','AbortError'));return new Promise((resolve,reject)=>{const aborted=()=>{signal.removeEventListener('abort',aborted);reject(new DOMException('Cancelled','AbortError'));};signal.addEventListener('abort',aborted,{once:true});promise.then(value=>{signal.removeEventListener('abort',aborted);resolve(value);},error=>{signal.removeEventListener('abort',aborted);reject(error);});});};
+ const ensureAccess=()=>{const next=financeAccessKey(central);if(next!==access){api.clear();access=next;}return next;};
+ const rosterFor=async()=>{if(roster)return roster;if(!rosterTask){const token=epoch;rosterTask=Promise.resolve().then(()=>central.readCommunitiesForAccess()).then(rows=>{if(token!==epoch)throw Error('Session changed while reading community scope.');roster=rows;return rows;}).finally(()=>{if(token===epoch)rosterTask=null;});}return rosterTask;};
  const api={
   status:'Not loaded',
   get(name,period){return this.envelope(name,period)?.close||null;},
-  envelope(name,period){return byName.get(name)?.find(s=>s.period===period)||null;},
+  envelope(name,period){ensureAccess();return byName.get(name)?.find(s=>s.period===period)||null;},
   summary(name,period){return financialSummary(this.envelope(name,period));},
-  bonus(name,metric,periods){return bonusEvidence(byName.get(name)||[],metric,periods,{requireEffectiveBaseline:true});},
-  clear(){epoch++;byName.clear();pending.clear();refreshed.clear();this.status='Not loaded';},
+  bonus(name,metric,periods){ensureAccess();return bonusEvidence(byName.get(name)||[],metric,periods,{requireEffectiveBaseline:true});},
+  clear(){epoch++;byName.clear();refreshed.clear();failed.clear();latestCells.clear();scopeTickets.clear();rosterTask=null;roster=null;invalidateFinanceReads(central);this.status='Not loaded';access=financeAccessKey(central);},
+  async refreshScope({communityIds,periods,communities,force=false,signal,versionKey=null}={}){
+   const currentAccess=ensureAccess(),ids=[...new Set(communityIds||[])],months=[...new Set(periods||[])];
+   if(signal?.aborted)throw new DOMException('Cancelled','AbortError');
+   if(!ids.length||!months.length)return false;
+   if(months.length>24||months.some(p=>!/^20\d{2}-(0[1-9]|1[0-2])$/.test(p)))throw Error('Invalid finance reporting periods.');
+   const key=JSON.stringify([currentAccess,ids.slice().sort(),months.slice().sort(),versionKey]);
+   if(!force&&(Date.now()-(refreshed.get(key)||0)<60000||Date.now()-(failed.get(key)||0)<5000))return false;
+   if(force){invalidateFinanceReads(central);scopeTickets.clear();refreshed.clear();failed.delete(key);}
+   let group=!force&&scopeTickets.get(key);if(!group){group={ticket:++sequence,users:0};if(!force)scopeTickets.set(key,group);}group.users++;
+   const token=epoch,ticket=group.ticket,cells=ids.flatMap(id=>months.map(month=>id+'|'+month));
+   for(const cell of cells)latestCells.set(cell,ticket);
+   try{
+    const known=communities||await waitFor(rosterFor(),signal);
+    const rows=await readFinance(central,ids,months,{signal,readMode:force?'fresh':'presentation',versionKey});
+    if(signal?.aborted)throw new DOMException('Cancelled','AbortError');
+    if(token!==epoch||financeAccessKey(central)!==currentAccess)throw Error('Session changed while reading scoped financial evidence.');
+    if(cells.some(cell=>latestCells.get(cell)!==ticket))return false;
+    // Replace only the selected periods. Other verified selections keep their exact version-bound envelope.
+    for(const id of ids){
+     const c=known.find(c=>(c.community_id||c.atlasCommunityId||c.sourceIds?.atlasCommunityId)===id),entries=rows.filter(r=>r.community_id===id).map(r=>r.summary);
+     for(const name of new Set([id,c?.display_name,c?.displayName,c?.name,c?.canonical_name].filter(Boolean)))byName.set(name,[...(byName.get(name)||[]).filter(s=>!months.includes(s.period)),...entries]);
+    }
+    this.status='Verified';failed.delete(key);refreshed.set(key,Date.now());return true;
+   }catch(error){
+    if(token===epoch&&cells.every(cell=>latestCells.get(cell)===ticket)&&error.name!=='AbortError'){
+     // A failed refresh cannot leave apparently current evidence for the requested selection.
+     for(const [name,values]of byName)byName.set(name,values.filter(s=>!ids.includes(s.communityId)||!months.includes(s.period)));
+     refreshed.clear();failed.set(key,Date.now());this.status=error.message;
+    }
+    throw error;
+   }finally{group.users--;if(!group.users&&scopeTickets.get(key)===group)scopeTickets.delete(key);}
+  },
   async refresh(year,force=false){
-   if(!force&&Date.now()-(refreshed.get(year)||0)<60000)return false;
-   if(pending.has(year))return pending.get(year);
-   const token=epoch;
-   const task=(async()=>{try{
-    const communities=await central.readCommunitiesForAccess();
-    const periods=Array.from({length:12},(_,i)=>year+'-'+String(i+1).padStart(2,'0'));
-    const rows=await readFinance(central,communities.map(c=>c.community_id),periods);
-    if(token!==epoch)return;
-    byName.forEach((values,name)=>byName.set(name,values.filter(s=>!s.period.startsWith(year+'-'))));
-    for(const c of communities){const entries=rows.filter(r=>r.community_id===c.community_id).map(r=>r.summary);for(const n of new Set([c.community_id,c.display_name,c.canonical_name]))byName.set(n,[...(byName.get(n)||[]),...entries]);}
-    this.status='Verified';refreshed.set(year,Date.now());return true;
-   }catch(e){if(token===epoch){byName.clear();refreshed.clear();refreshed.set(year,Date.now());this.status=e.message;}throw e;}
-   finally{if(token===epoch)pending.delete(year);}})();pending.set(year,task);return task;
+   ensureAccess();const communities=await rosterFor();
+   return this.refreshScope({communityIds:communities.map(c=>c.community_id),periods:Array.from({length:12},(_,i)=>year+'-'+String(i+1).padStart(2,'0')),communities,force});
   }
  };return api;
 }
@@ -90,8 +114,10 @@ export function installBuilder(R,central,resolve){
  const clear=()=>{generation++;caches.clear();selected='';};
  const refresh=()=>{clear();R.app.invalidate();R.app.render();};
  window.parent.addEventListener('atlas-finance-updated',refresh);
- window.parent.addEventListener('atlas-central-auth-change',clear);
- window.addEventListener('pagehide',()=>{clear();window.parent.removeEventListener('atlas-central-auth-change',clear);window.parent.removeEventListener('atlas-finance-updated',refresh);},{once:true});
+ const accessKey=()=>central.getAccessContextKey?.() ?? central.getSession?.()?.user?.id;let access=accessKey();
+ const authChanged=()=>{const next=accessKey();if(next!==access){access=next;clear();}};
+ window.parent.addEventListener('atlas-central-auth-change',authChanged);
+ window.addEventListener('pagehide',()=>{clear();window.parent.removeEventListener('atlas-central-auth-change',authChanged);window.parent.removeEventListener('atlas-finance-updated',refresh);},{once:true});
  const originalGet=R.actuals.get,originalClosed=R.actuals.closedThrough,compute=R.variance.compute;
  const engine=R.engine.computeProperty;
  R.engine.computeProperty=function(state,pid,sid,year){

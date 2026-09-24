@@ -1,5 +1,6 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const html=fs.readFileSync('docs/portfolio-operations-dashboard/index.html','utf8');
+const html=readDashboardSource('docs/portfolio-operations-dashboard/index.html');
 const cs=fs.readFileSync('docs/portfolio-operations-dashboard/central-services.js','utf8');
 const c={console,Date,Map,Set,window:{},dataImport2State:{exceptions:[]}};vm.createContext(c);
 for(const f of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm))vm.runInContext(f[0],c);

@@ -1,3 +1,4 @@
+import {readDashboardSource} from './dashboard-source.cjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';import vm from 'node:vm';
 import {retainedBonusRow,createBonusReceiptCache} from '../docs/portfolio-operations-dashboard/features/reforecast-bonus.mjs';
@@ -13,7 +14,7 @@ assert.equal(retainedBonusRow([{period:receipt.period,run:null,lines:[],verified
 const noMonths=structuredClone(receipt);noMonths.lines[0].line_payload.retainedRow.metricResults[0].financialEvidence.baselineEvidence.pop();assert.equal(retainedBonusRow([noMonths],{employee,period}).status,'unavailable');
 const stale={...receipt,period:{...receipt.period,status:'open'},run:{...receipt.run,status:'approved',exceptions:[{code:'baseline_stale'}]}};assert.equal(retainedBonusRow([stale],{employee,period}).status,'unavailable');assert.equal(retainedBonusRow([{...receipt,run:{...receipt.run,exceptions:[{code:'baseline_stale'}]}}],{employee,period}).status,'available','Historical paid evidence remains exact');
 let user='admin',calls=0;const cache=createBonusReceiptCache({getSession:()=>({user:{id:user}}),fetchJson:async(path,opts)=>{calls++;assert.equal(path,'/rpc/atlas_read_bonus_receipts');assert.equal(JSON.parse(opts.body).p_period_key,period.periodKey);return [receipt];}});await cache.refresh(period);await cache.refresh(period);assert.equal(calls,1);assert.equal(cache.get(employee,period).row.finalPayout,123.45);cache.clear();assert.equal(cache.get(employee,period).status,'unavailable');
-const html=fs.readFileSync(new URL('../docs/portfolio-operations-dashboard/index.html',import.meta.url),'utf8'),fn=name=>html.match(new RegExp('^function '+name+'\\([^]*?^\\}','m'))[0];
+const html=readDashboardSource(new URL('../docs/portfolio-operations-dashboard/index.html',import.meta.url)),fn=name=>html.match(new RegExp('^function '+name+'\\([^]*?^\\}','m'))[0];
 const state={periodLocks:{[period.periodKey]:{status:'Paid / Finalized'}},approvalStatusByRowId:{},overrides:[]};let liveCalls=0;
 const context={atlasBonusState:()=>state,simpleHash:()=> 'key',atlasBonusGetCommunityOperatingType:()=> 'stabilized',atlasBonusResolvePlanForEmployee:()=>({plan:{id:'plan',metrics:[]},hierarchy:'employee'}),atlasBonusProration:()=>{liveCalls++;throw Error('Retained rows must not recompute');}};vm.createContext(context);vm.runInContext(fn('atlasBonusRetainedRow')+'\n'+fn('atlasBonusBuildRow'),context);
 const pending=context.atlasBonusBuildRow(employee,period);assert.equal(pending.finalPayout,null);assert.equal(pending.retained,true);assert.equal(pending.approvalStatus,'Retained Evidence Required');assert.equal(liveCalls,0);

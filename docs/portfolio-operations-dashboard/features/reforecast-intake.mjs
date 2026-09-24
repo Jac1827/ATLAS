@@ -19,7 +19,7 @@ export async function loadXlsx(provided) {
  if (typeof document === 'undefined') throw Error('Supply the vendored XLSX reader as options.xlsx.');
  xlsxLoading ||= new Promise((resolve,reject) => {
   const script = document.createElement('script');
-  script.src = new URL('../assets/xlsx.full.min.js',import.meta.url).href;
+  script.src = new URL('../assets/xlsx.full.min.js?v=c9506197caf809a0',import.meta.url).href;
   script.onload = () => globalThis.XLSX?.read ? resolve(globalThis.XLSX) : reject(Error('Workbook reader did not load.'));
   script.onerror = () => {xlsxLoading = null;reject(Error('Workbook reader could not be loaded. Try again.'));};
   document.head.appendChild(script);

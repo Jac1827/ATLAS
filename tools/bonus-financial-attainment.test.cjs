@@ -1,7 +1,8 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
-const html = fs.readFileSync(__dirname + '/../docs/portfolio-operations-dashboard/index.html', 'utf8');
+const html = readDashboardSource(__dirname + '/../docs/portfolio-operations-dashboard/index.html');
 const fn = name => html.match(new RegExp('^function ' + name + '\\([^]*?^\\}', 'm'))[0];
 
 (async () => {

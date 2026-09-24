@@ -7,8 +7,9 @@ const port=Number(process.env.ATLAS_GOALS_PORT||8768),requests=[];
 let failNext=false,db;
 const sqlRoot=path.join(root,'docs/portfolio-operations-dashboard/centralization');
 function extractedRuntime(){
- const source=fs.readFileSync(path.join(root,'docs/portfolio-operations-dashboard/index.html'),'utf8')+'\n'+fs.readFileSync(path.join(root,'docs/portfolio-operations-dashboard/community-goal-editor.js'),'utf8');
+ const source=require('./dashboard-source.cjs').readDashboardSource(path.join(root,'docs/portfolio-operations-dashboard/index.html'))+'\n'+fs.readFileSync(path.join(root,'docs/portfolio-operations-dashboard/community-goal-editor.js'),'utf8');
  const names=['defaultCommunityCommandState',...Array.from(source.matchAll(/^function (normalizeCommunityCommand\w+)\(/gm),m=>m[1]),'communityCommandUserLabel','communityCommandCanApproveGoals','communityCommandGoalKey','communityCommandGoalScope','communityCommandSharedGoalScope','mergeCommunityCommandGoalScope','hydrateCommunityCommandGoals','getCommunityCommandApprovedGoal','communityCommandGoalWeeks','renderCommunityCommandWeeklyEditor','communityCommandWeeklyAllocation','updateCommunityCommandGoalEditor','approveCommunityCommandMonthlyGoals','cancelCommunityCommandGoalEditor','renderCommunityCommandGoalEditor','saveCommunityCommandGoalEditor','communityCommandFormatNumber','communityCommandBonusGoalResult'];
+ names.push('captureCommunityCommandGoalContext','syncCommunityCommandGoalContext');
  const functions=[...new Set(names)].map(name=>{
   const match=source.match(new RegExp('^(?:async )?function '+name+'\\([^\\n]*\\)\\s*\\{[\\s\\S]*?^\\}','m'));
   if(!match)throw Error('Cannot extract production function '+name);

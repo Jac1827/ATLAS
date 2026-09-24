@@ -1,4 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
+const previewDir=require('path').join(__dirname,'../output/test-fixtures');fs.mkdirSync(previewDir,{recursive:true,mode:0o700});
 const src=fs.readFileSync('docs/portfolio-operations-dashboard/central-services.js','utf8');
 const c={console,Date,Map,Set,cleanString:v=>String(v??'').trim(),asArray:v=>Array.isArray(v)?v:[],numberValue:v=>Number(String(v??'').replace(/[$,]/g,''))||0,whole:v=>Number(v)||0,normalizeEvictionCase:v=>v,normalizeDate:v=>v||'',normalizeEvictionStatus:v=>v,normalizeBankruptcyAccountClassification:()=>'',defaultOwner:()=> 'Unassigned',makeId:(p,a)=>p+'_'+a.join('|'),localPeriodKey:(m,y)=>`${y}-${String(m+1).padStart(2,'0')}`,getPortfolioProperties:()=>[{name:'Sereno'},{name:'Anthem House'}]};vm.createContext(c);
 for(const name of ['normalizeKey','findGenericHeaderIndex','rowsToGenericObjects','findEvictionAliasedValue','centralMatchPropertyName','inferEvictionStatus','evictionDateFieldValue','normalizeDate','delinquencyNoteFields','collectionAccount','validateFilingInformation','evictionCoversheetHtml','filingTransition','mapDelinquencyRecord','mapDelinquencyRows']){const re=new RegExp('  function '+name+'\\([^\\n]*\\) \\{[\\s\\S]*?^  \\}','m');vm.runInContext(src.match(re)[0],c);}
@@ -17,7 +18,7 @@ console.log('PASS real Entrata multi-bucket resident parsing, exact balances, ac
 c.getEvictionsForCurrentPeriod=()=>a;c.escapeAttr=v=>String(v??'');c.renderEvictionMonthNavigator=()=>'';c.escapeHtml=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
 vm.runInContext(src.match(/  function renderCollections\([^\n]*\) \{[\s\S]*?^  \}/m)[0],c);
 const rendered=c.renderCollections({ui:{}});assert(rendered.includes('$100.00'));assert(rendered.includes('$30.00'));assert.equal((rendered.match(/Test account/g)||[]).length,1);
-fs.writeFileSync('../collections-preview.html','<!doctype html><meta charset="utf-8"><style>body{font:16px Arial;padding:30px;color:#183e50}table{border-collapse:collapse;width:100%}td,th{padding:14px;border-bottom:1px solid #ccc;text-align:left}.cs-panel-title{font-size:26px;font-weight:bold}.cs-panel-sub{margin:18px 0}</style>'+rendered);
+fs.writeFileSync(previewDir+'/collections-preview.html','<!doctype html><meta charset="utf-8"><style>body{font:16px Arial;padding:30px;color:#183e50}table{border-collapse:collapse;width:100%}td,th{padding:14px;border-bottom:1px solid #ccc;text-align:left}.cs-panel-title{font-size:26px;font-weight:bold}.cs-panel-sub{margin:18px 0}</style>'+rendered);
 console.log('PASS Collections renderer: one account row, all aging columns, exact currency.');
 
 const note=c.delinquencyNoteFields({'Last Delinquency Note':'09/14/2026 03:24 PM author: call logged'});assert.equal(note.lastDelinquencyNoteDate,'2026-09-14');
@@ -43,6 +44,6 @@ const cover=c.evictionCoversheetHtml(filed);assert(cover.includes('Test One'));a
 assert.throws(()=>c.validateFilingInformation({...info,activeDutyMilitary:null}));assert.throws(()=>c.validateFilingInformation({...info,adultOccupantNames:['One']}));assert.throws(()=>c.validateFilingInformation({...info,depositAmount:null}));
 console.log('PASS explicit answers, deposit validation, adult count/name consistency and branded coversheet content.');
 
-c.window.location.href="http://127.0.0.1:8765/atlas/docs/portfolio-operations-dashboard/";fs.writeFileSync("../eviction-coversheet-preview.html",c.evictionCoversheetHtml(filed));
+c.window.location.href="http://127.0.0.1:8765/atlas/docs/portfolio-operations-dashboard/";fs.writeFileSync(previewDir+"/eviction-coversheet-preview.html",c.evictionCoversheetHtml(filed));
 
 assert.equal(filed.filingInformation.sentToAttorneyDate,'');assert.equal(filed.historicalAttorneySentDate.date,'2026-09-16');assert.equal(filed.id,original.id);

@@ -1,5 +1,6 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const assert=require('node:assert/strict'), fs=require('node:fs'), vm=require('node:vm');
-const html=fs.readFileSync('docs/portfolio-operations-dashboard/index.html','utf8');
+const html=readDashboardSource('docs/portfolio-operations-dashboard/index.html');
 const cs=fs.readFileSync('docs/portfolio-operations-dashboard/central-services.js','utf8');
 const c=vm.createContext({console,Date,Map,Set,window:{},MONTHS:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']});
 vm.runInContext(cs.replace(/\}\)\(\);\s*$/, 'window.testRenewalUpsert = upsertRenewals; })();'),c);

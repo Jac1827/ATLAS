@@ -3888,6 +3888,8 @@ const DB = {
 
   // ---- LOAD ALL DATA ON BOOT ----
   async loadAll() {
+    const sharedContext = await ensureMarketingSharedAccess();
+    const sourceUserId = currentUser?.id;
     const [
       { data: team },
       { data: skills },
@@ -3914,6 +3916,7 @@ const DB = {
       sb.from('bonus_settings').select('*').limit(1),
     ]);
 
+    if (sourceUserId !== currentUser?.id || !marketingSharedContextCurrent(sharedContext)) throw new DOMException('Marketing access changed', 'AbortError');
     // Map DB rows to app shape
     if (team)         teamData         = team.map(mapTeamMember);
     if (skills)       skillsData       = skills.map(s => ({ id: s.id, name: s.name, desc: s.description }));
@@ -3931,12 +3934,14 @@ const DB = {
       if (bs.targets && bs.targets.length) bonusTargets = bs.targets;
     }
     await pullMarketingSharedPropertyGraphFromCentral({ silent: true });
+    if (sourceUserId !== currentUser?.id || !marketingSharedContextCurrent(sharedContext)) throw new DOMException('Marketing access changed', 'AbortError');
     syncMarketingSharedGraphFromLoadedData({ source: 'marketing_load', persist: true });
     applySharedPropertiesToMarketingState();
   },
 
   // ---- TEAM MEMBERS ----
   async saveTeamMember(m) {
+    const sharedContext = marketingSharedContext();
     const row = teamMemberToRow(m, { includePeopleLink: true });
     const { data, error } = m._dbId
       ? await sb.from('team_members').update(row).eq('id', m._dbId).select().single()
@@ -3948,11 +3953,11 @@ const DB = {
         ? await sb.from('team_members').update(legacyRow).eq('id', m._dbId).select().single()
         : await sb.from('team_members').insert(legacyRow).select().single();
       if (fallback.error) { console.error('saveTeamMember fallback:', fallback.error); return null; }
-      persistMarketingPeopleLink({ ...m, _dbId: fallback.data?.id || m._dbId }, m, { persistence: 'local_fallback_missing_db_columns' });
+      if (marketingSharedContextCurrent(sharedContext)) persistMarketingPeopleLink({ ...m, _dbId: fallback.data?.id || m._dbId }, m, { persistence: 'local_fallback_missing_db_columns' });
       return { ...fallback.data, _peopleLinkPersistence: 'local_fallback_missing_db_columns' };
     }
     if (error) { console.error('saveTeamMember:', error); return null; }
-    persistMarketingPeopleLink({ ...m, _dbId: data?.id || m._dbId }, m, { persistence: 'supabase_columns' });
+    if (marketingSharedContextCurrent(sharedContext)) persistMarketingPeopleLink({ ...m, _dbId: data?.id || m._dbId }, m, { persistence: 'supabase_columns' });
     return data;
   },
   async deleteTeamMember(dbId) {
@@ -4885,6 +4890,94 @@ const PEOPLE_PROPERTY_ALIASES = {
   'utk beacon hall': 'Beacon / Poplar Hall'
 };
 
+// Legacy cross-app browser values have no actor ownership. Keep them intact for
+// controlled migration, but never claim them for a configured Central session.
+const marketingSharedAccess = { observed: null, validated: null, epoch: 0, identity: null, identityEpoch: 0, validationSequence: 0, pending: null };
+function marketingCentralIdentity() {
+  const central = window.ATLAS_CENTRAL, status = central?.getStatus?.();
+  if (status?.configured === false) return 'legacy';
+  if (!status?.configured) return null;
+  const user = central.getSignedInUser?.(), config = central.getConfig?.();
+  return status.signedIn && user?.id && config
+    ? JSON.stringify([user.id, config.supabaseUrl, config.apiBaseUrl]) : null;
+}
+function marketingSharedCandidate() {
+  const central = window.ATLAS_CENTRAL;
+  const status = central?.getStatus?.();
+  if (status?.configured === false) return 'legacy';
+  if (!status?.configured) return null;
+  const identity = marketingCentralIdentity(), profile = central.getStoredProfile?.(), config = central.getConfig?.();
+  if (!identity || profile?.status !== 'active' || (profile.account_status ?? 'active') !== 'active'
+      || !profile.access_verified_at || profile.access_backend !== config?.supabaseUrl) return null;
+  const access = central.getAccessContextKey?.();
+  return access ? JSON.stringify([identity, access]) : null;
+}
+function clearMarketingSharedRuntime() {
+  propertiesData = []; teamData = []; approversData = [];
+  editingMemberId = null; editingPropertyId = null; editingApproverId = null;
+  for (const id of ['property-tbody', 'team-cards-grid', 'approvers-tbody', 'm-people-select', 'ap-people-select', 'property-checkboxes', 'approver-property-checkboxes']) {
+    const element = document.getElementById(id); if (element) element.replaceChildren();
+  }
+  for (const id of ['add-member-modal', 'add-property-modal', 'add-approver-modal']) {
+    const element = document.getElementById(id); if (element) element.classList.remove('open');
+  }
+  if (typeof COMM_LIST !== 'undefined') COMM_LIST = ['Portfolio-Wide'];
+  if (typeof rfmComm === 'function') rfmComm();
+  if (typeof syncPropertyDropdown === 'function') syncPropertyDropdown();
+}
+function syncMarketingSharedAccess() {
+  const identity = marketingCentralIdentity();
+  if (identity !== marketingSharedAccess.identity) {
+    marketingSharedAccess.identity = identity;
+    marketingSharedAccess.identityEpoch += 1;
+  }
+  const candidate = marketingSharedCandidate();
+  if (candidate !== marketingSharedAccess.observed) {
+    marketingSharedAccess.observed = candidate;
+    marketingSharedAccess.validated = null;
+    marketingSharedAccess.epoch += 1;
+    marketingSharedAccess.pending = null;
+    clearMarketingSharedRuntime();
+  }
+  return candidate;
+}
+function marketingSharedContext() {
+  const scope = syncMarketingSharedAccess();
+  return { scope: scope === 'legacy' || scope === marketingSharedAccess.validated ? scope : null, epoch: marketingSharedAccess.epoch };
+}
+function marketingSharedContextCurrent(context) {
+  const current = marketingSharedContext();
+  return Boolean(context && current.scope === context.scope && current.epoch === context.epoch);
+}
+async function ensureMarketingSharedAccess() {
+  const candidate = syncMarketingSharedAccess(), identity = marketingCentralIdentity();
+  if (candidate === 'legacy') return marketingSharedContext();
+  if (!identity) return marketingSharedContext();
+  if (candidate && candidate === marketingSharedAccess.validated) return marketingSharedContext();
+  const pending = marketingSharedAccess.pending;
+  if (pending?.identity === identity && pending.epoch === marketingSharedAccess.epoch) return pending.task;
+  const epoch = marketingSharedAccess.epoch;
+  const identityEpoch = marketingSharedAccess.identityEpoch, sequence = ++marketingSharedAccess.validationSequence;
+  const task = (async () => {
+    const verifiedProfile = await window.ATLAS_CENTRAL.fetchProfile({ claim: false });
+    const scope = syncMarketingSharedAccess();
+    if (identity !== marketingCentralIdentity() || identityEpoch !== marketingSharedAccess.identityEpoch
+        || sequence !== marketingSharedAccess.validationSequence
+        || JSON.stringify(verifiedProfile) !== JSON.stringify(window.ATLAS_CENTRAL.getStoredProfile?.())) throw new DOMException('Marketing access changed', 'AbortError');
+    if (!scope) throw new Error('Current Central access could not be verified.');
+    marketingSharedAccess.validated = scope;
+    return marketingSharedContext();
+  })();
+  const entry = { identity, epoch, task }; marketingSharedAccess.pending = entry;
+  task.finally(() => { if (marketingSharedAccess.pending === entry) marketingSharedAccess.pending = null; }).catch(() => {});
+  return task;
+}
+function marketingScopedLocalKey(key) {
+  const { scope } = marketingSharedContext();
+  return scope === 'legacy' ? key : scope ? `${key}:marketing-scope:${encodeURIComponent(scope)}` : null;
+}
+window.addEventListener('atlas-central-auth-change', syncMarketingSharedAccess);
+
 function marketingNormalizeText(value) {
   return String(value || '').toLowerCase().replace(/&/g, ' and ').replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
 }
@@ -5071,7 +5164,8 @@ function marketingNormalizeSharedGraph(input) {
 
 function readMarketingSharedPropertyGraph() {
   try {
-    const raw = localStorage.getItem(ATLAS_SHARED_PROPERTY_GRAPH_KEY);
+    const key = marketingScopedLocalKey(ATLAS_SHARED_PROPERTY_GRAPH_KEY);
+    const raw = key ? localStorage.getItem(key) : null;
     return marketingNormalizeSharedGraph(raw ? JSON.parse(raw) : null);
   } catch {
     return marketingDefaultSharedGraph();
@@ -5079,20 +5173,31 @@ function readMarketingSharedPropertyGraph() {
 }
 
 function writeMarketingSharedPropertyGraph(graph, options = {}) {
+  const key = marketingScopedLocalKey(ATLAS_SHARED_PROPERTY_GRAPH_KEY);
+  if (!key) return marketingDefaultSharedGraph();
   const normalized = marketingNormalizeSharedGraph(graph);
   normalized.updatedAt = String(options.updatedAt || normalized.updatedAt || marketingSharedNow());
   normalized.lastWriter = String(options.source || normalized.lastWriter || ATLAS_SHARED_PROPERTY_SOURCE_ID);
   try {
-    localStorage.setItem(ATLAS_SHARED_PROPERTY_GRAPH_KEY, JSON.stringify(normalized));
+    localStorage.setItem(key, JSON.stringify(normalized));
   } catch (error) {
     console.warn("Shared property graph could not be saved", error);
   }
   const centralStatus = window.ATLAS_CENTRAL?.getStatus ? window.ATLAS_CENTRAL.getStatus() : null;
   if (window.ATLAS_CENTRAL?.saveSharedPropertyGraph && centralStatus?.configured && centralStatus?.signedIn && options.central !== false) {
+    const access = window.ATLAS_CENTRAL.getAccessContextKey?.();
     void window.ATLAS_CENTRAL.saveSharedPropertyGraph(normalized, {
       sourceModule: options.source || ATLAS_SHARED_PROPERTY_SOURCE_ID,
       metadata: { syncSource: options.source || ATLAS_SHARED_PROPERTY_SOURCE_ID }
-    }).catch(() => null);
+    }).then(result => {
+      if (access === window.ATLAS_CENTRAL.getAccessContextKey?.() && result?.saved) writeMarketingSharedPropertyGraph.lastCentralError = "";
+    }).catch(error => {
+      if (error?.name === "AbortError" || access !== window.ATLAS_CENTRAL.getAccessContextKey?.()) return;
+      const message = "Shared property changes are saved locally. Pull and reconcile Central Atlas before publishing them.";
+      if (writeMarketingSharedPropertyGraph.lastCentralError === message) return;
+      writeMarketingSharedPropertyGraph.lastCentralError = message;
+      showToast(message, "error");
+    });
   }
   return normalized;
 }
@@ -5101,7 +5206,10 @@ async function pullMarketingSharedPropertyGraphFromCentral(options = {}) {
   try {
     const centralStatus = window.ATLAS_CENTRAL?.getStatus ? window.ATLAS_CENTRAL.getStatus() : null;
     if (!centralStatus?.configured || !centralStatus?.signedIn || !window.ATLAS_CENTRAL?.readSharedPropertyGraph) return null;
+    const context = await ensureMarketingSharedAccess();
+    if (!context.scope || !marketingSharedContextCurrent(context)) return null;
     const document = await window.ATLAS_CENTRAL.readSharedPropertyGraph();
+    if (!marketingSharedContextCurrent(context)) return null;
     if (!document?.payload) return null;
     const remoteGraph = marketingNormalizeSharedGraph(document.payload);
     const graph = readMarketingSharedPropertyGraph();
@@ -5413,7 +5521,8 @@ function marketingUpsertSharedProperty(graph, input = {}, options = {}) {
 
 function readOpsPropertyCatalogForMarketing() {
   try {
-    const raw = localStorage.getItem(OPS_PROPERTY_CATALOG_KEY);
+    const key = marketingScopedLocalKey(OPS_PROPERTY_CATALOG_KEY);
+    const raw = key ? localStorage.getItem(key) : null;
     const parsed = raw ? JSON.parse(raw) : null;
     return Array.isArray(parsed?.properties) ? parsed.properties.map(prop => ({ ...prop, _catalogUpdatedAt: parsed.updatedAt || prop.sharedSyncUpdatedAt || "" })) : [];
   } catch {
@@ -5613,7 +5722,8 @@ function refreshMarketingSharedViews(options = {}) {
 }
 
 window.addEventListener("storage", (event) => {
-  if (event.key !== ATLAS_SHARED_PROPERTY_GRAPH_KEY || event.newValue === event.oldValue) return;
+  const key = marketingScopedLocalKey(ATLAS_SHARED_PROPERTY_GRAPH_KEY);
+  if (!key || event.key !== key || event.newValue === event.oldValue) return;
   refreshMarketingSharedViews({ renderProperties: true });
 });
 
@@ -5650,7 +5760,8 @@ function marketingPeopleIdentityKey(employee = {}) {
 
 function loadMarketingPeopleLinks() {
   try {
-    const raw = localStorage.getItem(MARKETING_PEOPLE_LINKS_STORAGE_KEY);
+    const key = marketingScopedLocalKey(MARKETING_PEOPLE_LINKS_STORAGE_KEY);
+    const raw = key ? localStorage.getItem(key) : null;
     const parsed = raw ? JSON.parse(raw) : {};
     return parsed && typeof parsed === 'object' ? parsed : {};
   } catch (error) {
@@ -5661,7 +5772,8 @@ function loadMarketingPeopleLinks() {
 
 function saveMarketingPeopleLinks(links) {
   try {
-    localStorage.setItem(MARKETING_PEOPLE_LINKS_STORAGE_KEY, JSON.stringify(links || {}));
+    const key = marketingScopedLocalKey(MARKETING_PEOPLE_LINKS_STORAGE_KEY);
+    if (key) localStorage.setItem(key, JSON.stringify(links || {}));
   } catch (error) {
     console.warn('Marketing People links could not be saved locally', error);
   }
@@ -5724,7 +5836,8 @@ function mergeStoredMarketingPeopleLink(member = {}) {
 
 function getPeopleDirectoryEmployees() {
   try {
-    const raw = localStorage.getItem(PEOPLE_DIRECTORY_STORAGE_KEY);
+    const key = marketingScopedLocalKey(PEOPLE_DIRECTORY_STORAGE_KEY);
+    const raw = key ? localStorage.getItem(key) : null;
     const parsed = raw ? JSON.parse(raw) : {};
     const employees = Array.isArray(parsed.employees) ? parsed.employees : [];
     const assignments = Array.isArray(parsed.employeeAssignments) ? parsed.employeeAssignments : [];
@@ -9076,6 +9189,7 @@ function showSettingsTab(tab) {
 function tierOrder(m) { return TIER_META[m.roleType||'staff'].order; }
 
 async function renderTeamCards() {
+  const context = marketingSharedContext();
   const grid = document.getElementById('team-cards-grid');
   grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:#7a9aaa">Loading...</div>';
 
@@ -9088,6 +9202,7 @@ async function renderTeamCards() {
     (activeTix||[]).forEach(t => { if(t.assigned_to) countMap[t.assigned_to] = (countMap[t.assigned_to]||0)+1; });
   } catch(e) {}
 
+  if (!marketingSharedContextCurrent(context)) return;
   grid.innerHTML = '';
   const sorted = [...teamData].map(mergeStoredMarketingPeopleLink).sort((a,b) => tierOrder(a) - tierOrder(b) || a.fname.localeCompare(b.fname));
 
@@ -9653,7 +9768,8 @@ function syncPropertyDropdown() {
   if (!sel) return;
   const current = canonicalMarketingPropertyName(sel.value);
   const activeProperties = propertiesData.filter(p => p.status === 'active');
-  const sourceProperties = activeProperties.length ? activeProperties : DEFAULT_PROPERTIES.filter(p => p.status === 'active');
+  const sourceProperties = activeProperties.length || window.ATLAS_CENTRAL?.getStatus?.().configured !== false
+    ? activeProperties : DEFAULT_PROPERTIES.filter(p => p.status === 'active');
   sel.innerHTML = '<option value="">— Select property —</option>';
   sourceProperties.forEach(p => {
     const opt = document.createElement('option');
@@ -11269,7 +11385,7 @@ function applySharedCommunitiesToGrassrootsList(){
   try{
     var graph=readMarketingSharedPropertyGraph();
     var names=Object.values(graph.properties||{}).filter(function(p){return (p.status||'active')==='active'&&p.displayName;}).map(function(p){return p.displayName;});
-    if(!names.length)return;
+    if(!names.length){if(window.ATLAS_CENTRAL?.getStatus?.().configured !== false)COMM_LIST=['Portfolio-Wide'];return;}
     var combined=COMM_LIST.filter(function(c){return c==='Portfolio-Wide';});
     names.sort().forEach(function(name){if(combined.indexOf(name)<0)combined.push(name);});
     if(combined.indexOf('Portfolio-Wide')<0)combined.push('Portfolio-Wide');

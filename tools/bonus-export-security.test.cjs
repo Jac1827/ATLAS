@@ -1,8 +1,9 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
-const html = fs.readFileSync(__dirname + '/../docs/portfolio-operations-dashboard/index.html', 'utf8');
-const fn = name => html.match(new RegExp('^function ' + name + '\\([^]*?^\\}', 'm'))[0];
+const html = readDashboardSource(__dirname + '/../docs/portfolio-operations-dashboard/index.html');
+const fn = name => html.match(new RegExp('^(?:async )?function ' + name + '\\([^]*?^\\}', 'm'))[0];
 
 (async () => {
   let downloaded;
@@ -30,14 +31,14 @@ const fn = name => html.match(new RegExp('^function ' + name + '\\([^]*?^\\}', '
   assert.equal(context.atlasBonusSafeSpreadsheetCell('Ordinary text'), 'Ordinary text');
   const rows = hostile.map(value => ({ '=header': value, 'Approved Payout': -25.5, 'Pending': null }));
   context.atlasBonusExportRows = () => rows;
-  context.atlasBonusExportReport('hr_payroll', 'csv');
+  await context.atlasBonusExportReport('hr_payroll', 'csv');
   const csv = await downloaded.text();
   assert(csv.startsWith('"\'=header","Approved Payout","Pending"'));
   hostile.forEach(value => assert(csv.includes('"\'' + value.replaceAll('"', '""') + '"')));
   assert(csv.includes(',"-25.5",""'));
   assert(!csv.includes('"\'-25.5"'));
 
-  context.atlasBonusExportReport('hr_payroll', 'excel');
+  await context.atlasBonusExportReport('hr_payroll', 'excel');
   assert.equal(spreadsheetRows[0]["'=header"], "'=1+1");
   assert.equal(spreadsheetRows[0]['Approved Payout'], -25.5);
   assert.equal(spreadsheetRows[0].Pending, null);
@@ -57,5 +58,13 @@ const fn = name => html.match(new RegExp('^function ' + name + '\\([^]*?^\\}', '
   assert(legacyCsv.includes('"-25.5"'));
   assert(!legacyCsv.includes('"\'-25.5"'));
   assert(legacyCsv.includes('"\'-employee"'));
+  // Newly deferred workbook loading must retain the initiating scope.
+  let scope='actor-a',resume;
+  const savedXlsx=context.window.XLSX;delete context.window.XLSX;
+  context.window.getAtlasRenderContextKey=()=>scope;
+  context.window.AtlasFeatures={load:async()=>{await new Promise(resolve=>resume=resolve);context.window.XLSX=savedXlsx;}};
+  context.alert=message=>{assert.match(message,/workspace changed/);};
+  workbook=null;const pending=context.atlasBonusExportReport('hr_payroll','excel');scope='actor-b';resume();await pending;
+  assert.equal(workbook,null,'A deferred export cannot switch actors or scopes.');
   console.log('PASS Bonus CSV/XLSX and legacy payout exports protect formula/control prefixes, preserve negative numeric payouts and pending values, and do not mutate saved evidence.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

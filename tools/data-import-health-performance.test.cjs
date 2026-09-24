@@ -1,5 +1,6 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
-const html=fs.readFileSync('docs/portfolio-operations-dashboard/index.html','utf8');
+const html=readDashboardSource('docs/portfolio-operations-dashboard/index.html');
 const start=html.indexOf('function dataImportHasSavedFallbackData('),end=html.indexOf('\nfunction ',start+10);
 let reads=0,normalizations=0;
 const context={applicationResidentDataState:{},normalizeApplicationResidentDataState:()=>{normalizations++;return {uploads:[{mappedProperties:['A']}]};},dataImportNormalizeText:v=>v.toLowerCase(),dataImportCommunityRecord:()=>{reads++;return {currentOccupied:1,monthlyData:[{grossPotentialRent:10}]};},getSelectedDashboardMonthIndex:()=>0};

@@ -91,13 +91,17 @@ try {
   await assert.rejects(prepareTestHost({env, out: path.join(repositoryLink, 'unsafe-test-host')}), /outside the repository/, 'canonical realpath rejects an outside symlink into the repository');
   const source = path.join(temp, 'source'); await fs.mkdir(source);
   await fs.writeFile(path.join(source, 'index.html'), '<html><head><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script></head><body></body></html>');
+  await fs.mkdir(path.join(source,'performance'));
+  await fs.writeFile(path.join(source,'performance/feature-loader.js'), "const xlsx = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';");
   await fs.writeFile(path.join(source, 'private.sql'), 'not an asset');
   const result = await prepareTestHost({env, out: path.join(temp, 'prepared'), sourceDirectory: source});
   const wrangler = JSON.parse(await fs.readFile(path.join(result.directory, 'wrangler.jsonc'), 'utf8'));
   assert.deepEqual(Object.keys(wrangler).sort(), ['name', 'main', 'compatibility_date', 'workers_dev', 'preview_urls', 'assets'].sort());
   assert.equal(wrangler.assets.run_worker_first, true);
   assert.equal(wrangler.name, input.workerName);
-  assert.deepEqual(await fs.readdir(path.join(result.directory, 'assets')), ['index.html']);
+  assert.deepEqual((await fs.readdir(path.join(result.directory, 'assets'))).sort(), ['index.html','performance']);
+  assert.equal(await fs.readFile(path.join(result.directory,'assets/performance/feature-loader.js'),'utf8'), "const xlsx = '/portfolio-operations-dashboard/assets/xlsx.full.min.js';", 'lazy XLSX uses the isolated local asset under the same CSP');
+  assert.match(await fs.readFile(path.join(source,'performance/feature-loader.js'),'utf8'), /https:\/\/cdnjs.cloudflare.com/, 'source loader stays unchanged');
   const prepared = await fs.readFile(path.join(result.directory, 'assets/index.html'), 'utf8');
   assert(prepared.includes('/portfolio-operations-dashboard/assets/xlsx.full.min.js'));
   assert(!prepared.includes('https://cdnjs.cloudflare.com'));

@@ -1,9 +1,10 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const base = __dirname + '/../docs/portfolio-operations-dashboard/';
 const client = fs.readFileSync(base + 'centralization/atlas-central-client.js', 'utf8');
-const html = fs.readFileSync(base + 'index.html', 'utf8');
+const html = readDashboardSource(base + 'index.html');
 const clientSave = client.match(/^  async function adminUpsertUserAccess\([^]*?^  \}/m)?.[0];
 const indexSave = html.match(/^async function saveAtlasUnifiedEmployeeAccess\([^]*?^\}/m)?.[0];
 assert(clientSave && indexSave, 'Both ends of the Admin access save must exist');

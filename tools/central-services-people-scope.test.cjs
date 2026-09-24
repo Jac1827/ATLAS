@@ -1,0 +1,28 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const source=fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/central-services.js','utf8');
+const extract=name=>source.match(new RegExp('^  function '+name+'\\([^]*?^  \\}','m'))[0];
+const c={};vm.createContext(c);
+vm.runInContext(`
+let configured=true,rawReads=0,loaderReads=0,embeddedReads=0;
+const window={ATLAS_CENTRAL:{getStatus:()=>({configured})}};
+const atlasWorkspaceAccess={validated:true,hasData:true};
+const atlasSharedData={employees:{canonical:{name:'Canonical authorized employee',employeeId:'canonical'}}};
+const raw={employees:[{name:'Other actor retained employee',employeeId:'other'}]};
+const storageGet=()=>{rawReads++;return JSON.stringify(raw);};
+const safeJsonParse=(text,fallback)=>JSON.parse(text)||fallback,asArray=v=>Array.isArray(v)?v:[],asObject=v=>v||{};
+const loadPeoplePlatformStateForSharedData=()=>{loaderReads++;return raw;};
+const atlasEmbeddedPeopleRosterEntries=()=>{embeddedReads++;return [{name:'Embedded employee',employeeId:'embedded'}];};
+const addPeopleEmployee=(map,row)=>map.set(row.employeeId,row),addCentralEmployee=addPeopleEmployee;
+`,c);
+vm.runInContext(extract('getPeopleEmployees')+'\n'+extract('getCentralServicesEmployees'),c);
+const run=code=>vm.runInContext(code,c),names=fn=>Array.from(run(fn+'()'),row=>row.name);
+for(const fn of ['getPeopleEmployees','getCentralServicesEmployees'])assert.deepEqual(names(fn),['Canonical authorized employee']);
+assert.equal(run('rawReads+loaderReads+embeddedReads'),0,'Configured readers must not inspect raw or bundled people sources');
+run('atlasSharedData.employees={}');for(const fn of ['getPeopleEmployees','getCentralServicesEmployees'])assert.deepEqual(names(fn),[]);
+run('atlasSharedData.employees={canonical:{name:"Canonical authorized employee",employeeId:"canonical"}};atlasWorkspaceAccess.validated=false');for(const fn of ['getPeopleEmployees','getCentralServicesEmployees'])assert.deepEqual(names(fn),[]);
+run('atlasWorkspaceAccess.validated=true;atlasWorkspaceAccess.hasData=false');for(const fn of ['getPeopleEmployees','getCentralServicesEmployees'])assert.deepEqual(names(fn),[]);
+assert.equal(run('rawReads+loaderReads+embeddedReads'),0);
+run('configured=false');for(const fn of ['getPeopleEmployees','getCentralServicesEmployees'])assert.deepEqual(names(fn),['Canonical authorized employee','Embedded employee','Other actor retained employee']);
+assert.equal(run('rawReads'),2,'Explicit offline legacy mode remains compatible');
+run('window.ATLAS_CENTRAL=null;window.location={protocol:"https:"};atlasWorkspaceAccess.hasData=false');for(const fn of ['getPeopleEmployees','getCentralServicesEmployees'])assert.deepEqual(names(fn),[]);assert.equal(run('rawReads'),2,"Missing hosted client cannot restore unscoped people fallback");
+console.log('PASS Central Services uses only verified scoped canonical People in configured mode; unavailable/switch states have no raw or embedded fallback; explicit offline mode remains compatible.');

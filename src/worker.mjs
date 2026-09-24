@@ -48,7 +48,7 @@ const SITE_ROUTES = [
 const BUILD_INFO = {
   name: "rise-performance-platform-site",
   compatibilityDate: "2026-09-01",
-  assetDirectory: "./docs",
+  assetDirectory: "./output/atlas-site",
   workerEntrypoint: "./src/worker.mjs",
   runtime: "cloudflare-workers",
 };
@@ -165,6 +165,17 @@ function normalizeAssetPathname(pathname) {
   }
 
   return pathname;
+}
+
+function withAssetCacheHeaders(response, pathname) {
+  const headers = new Headers(response.headers);
+  // Query-string versions on canonical paths are mutable. Only the verified,
+  // retained release namespace has an immutable content-addressed identity.
+  const immutable = /^\/_atlas-assets\/[a-f0-9]{64}\/.+/.test(normalizeAssetPathname(pathname));
+  headers.set("cache-control", response.status === 200 || response.status === 304
+    ? (immutable ? "public, max-age=31536000, immutable" : "public, max-age=0, must-revalidate")
+    : "no-store");
+  return new Response(response.body, {status:response.status, statusText:response.statusText, headers});
 }
 
 async function fetchAsset(request, env) {
@@ -2180,7 +2191,7 @@ export default {
 
     const assetResponse = await fetchAsset(request, env);
     if (assetResponse) {
-      return withCommonHeaders(assetResponse);
+      return withCommonHeaders(withAssetCacheHeaders(assetResponse, url.pathname));
     }
 
     return new Response("Not Found", {

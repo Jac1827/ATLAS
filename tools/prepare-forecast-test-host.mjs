@@ -9,6 +9,7 @@ const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
 const support = path.join(repository, 'tools/isolated-forecast-host');
 const extensions = new Set(['.html', '.js', '.mjs', '.css', '.json', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico', '.woff', '.woff2', '.ttf', '.wasm']);
 const serialize = value => JSON.stringify(value).replaceAll('<', '\\u003c');
+const localLibraries = text => text.replaceAll('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', '/portfolio-operations-dashboard/assets/xlsx.full.min.js');
 
 export function configFromEnvironment(env) {
   return validateConfig({workerName: env.ATLAS_TEST_WORKER_NAME, appOrigin: env.ATLAS_TEST_APP_ORIGIN,
@@ -19,8 +20,7 @@ export function prepareHtml(html, config) {
   if (!/<head(?:\s[^>]*)?>/i.test(html)) throw new Error('An HTML asset lacks a head; refusing to serve it without the test bootstrap');
   if (html.includes('data-atlas-isolated-test')) throw new Error('Refusing to inject the test bootstrap twice');
   const script = `<script data-atlas-isolated-test>(${bootstrap.toString()})(${serialize(config)},${serialize(browserConfig(config))});</script>`;
-  return html.replace(/<head(?:\s[^>]*)?>/i, match => `${match}\n${script}`)
-    .replaceAll('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', '/portfolio-operations-dashboard/assets/xlsx.full.min.js');
+  return localLibraries(html.replace(/<head(?:\s[^>]*)?>/i, match => `${match}\n${script}`));
 }
 
 export async function prepareTestHost({env = process.env, out, sourceDirectory = path.join(repository, 'docs')} = {}) {
@@ -46,6 +46,7 @@ export async function prepareTestHost({env = process.env, out, sourceDirectory =
       await fs.mkdir(path.dirname(dest), {recursive: true});
       const src = path.join(directory, entry.name);
       if (path.extname(entry.name).toLowerCase() === '.html') await fs.writeFile(dest, prepareHtml(await fs.readFile(src, 'utf8'), config));
+      else if (['.js','.mjs'].includes(path.extname(entry.name).toLowerCase())) await fs.writeFile(dest, localLibraries(await fs.readFile(src, 'utf8')));
       else await fs.copyFile(src, dest);
       count++;
     }

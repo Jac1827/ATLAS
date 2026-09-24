@@ -1,6 +1,7 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const path=require('node:path'),root=path.join(__dirname,'../docs/portfolio-operations-dashboard');
-const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const html=readDashboardSource(path.join(root,'index.html'));
 const XLSX=require(process.env.ATLAS_XLSX||'xlsx'),bridge=require(path.join(root,'application-source-bridge.js'));
 const c={console,Date,Map,Set,XLSX,window:{AtlasApplicationSources:bridge},DATA_IMPORT_MAX_SAMPLE_CHARS:180000,savedData:{},PROPERTIES:[],MONTHS:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']};vm.createContext(c);
 for(const f of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm))vm.runInContext(f[0],c);

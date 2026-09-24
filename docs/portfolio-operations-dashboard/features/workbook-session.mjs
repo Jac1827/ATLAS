@@ -1,7 +1,7 @@
 export async function openWorkbook(file, signal, sourceBuffer) {
   signal?.throwIfAborted();
   let worker;
-  try { worker = new Worker(new URL('./workbook-worker.js?v=a84ceb0fc1dfa1cf', import.meta.url)); }
+  try { worker = new Worker(new URL('./workbook-worker.js?v=9706fd7e18ac8606', import.meta.url)); }
   catch { return null; } // The caller retains the established parser as a yielding fallback.
   let sequence = 0;
   const pending = new Map();

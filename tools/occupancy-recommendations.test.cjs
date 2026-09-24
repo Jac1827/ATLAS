@@ -1,7 +1,8 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const html = fs.readFileSync('docs/portfolio-operations-dashboard/index.html', 'utf8');
+const html = readDashboardSource('docs/portfolio-operations-dashboard/index.html');
 const ctx = vm.createContext({ console, Date, MONTHS: Array(12).fill('Sep') });
 for (const name of ['buildRecommendationsForRecord', 'getReportedOccupancyBaseUnits', 'getOccupancyBaseUnits', 'normalizeCorporateLeaseUnits']) {
   vm.runInContext(html.match(new RegExp('^function ' + name + '\\([^\\n]*\\) \\{[\\s\\S]*?^\\}', 'm'))[0], ctx);

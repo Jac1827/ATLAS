@@ -1,0 +1,32 @@
+import {readDashboardSource} from './dashboard-source.cjs';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import {execFileSync} from 'node:child_process';
+import {buildSite} from './build-atlas-site.mjs';
+const tmp=await fs.mkdtemp(path.join(os.tmpdir(),'atlas-retention-test-'));
+try {
+  const repo=path.join(tmp,'repo'),remote=path.join(tmp,'remote.git');
+  await fs.mkdir(repo);
+  const git=(args)=>execFileSync('git',args,{cwd:repo,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();
+  git(['init']);git(['init','--bare',remote]);git(['remote','add','origin',remote]);
+  await fs.mkdir(path.join(repo,'docs/app'),{recursive:true});
+  await fs.writeFile(path.join(repo,'docs/app/index.html'),'<head></head><body>First</body>');
+  git(['add','docs']);git(['-c','user.name=Test','-c','user.email=test@example.com','commit','-m','source']);
+  const before=git(['status','--porcelain']);
+  await assert.rejects(buildSite({repo}),/retention branch is missing/);
+  const first=await buildSite({repo,bootstrap:true});
+  const retainedBefore=git(['ls-remote','--heads','origin','atlas-asset-releases']);
+  await fs.writeFile(path.join(repo,'docs/app/index.html'),'<head></head><body>Second</body>');
+  const preview=await buildSite({repo,mode:'preview'});
+  assert.equal(git(['ls-remote','--heads','origin','atlas-asset-releases']),retainedBefore,'preview cannot publish retention');
+  assert.notEqual(preview.releaseId,first.releaseId);
+  const second=await buildSite({repo});
+  assert.equal(second.releaseId,preview.releaseId);assert.equal(second.releaseCount,2);
+  assert.equal(await readDashboardSource(path.join(second.out,`_atlas-assets/${first.releaseId}/app/index.html`)),'<head></head><body>First</body>');
+  const same=await buildSite({repo});assert.equal(same.retentionCommit,second.retentionCommit,'idempotent release');
+  assert(git(['diff','--cached']).length===0,'isolated asset index never changes source staging');
+  assert.equal(before,'');
+  console.log('PASS durable retention, preview isolation, identical host artifact, prior release availability, isolated Git index and idempotent publication');
+} finally {await fs.rm(tmp,{recursive:true,force:true});}

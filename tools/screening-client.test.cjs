@@ -1,3 +1,4 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict'),L=require('../docs/portfolio-operations-dashboard/application-lineage.js'),S=require('../docs/portfolio-operations-dashboard/screening-summary.js');
 const parsed=S.parse(JSON.parse(fs.readFileSync(__dirname+'/fixtures/screening-summary-september-2026.json')));
 let user='one',resolve,rows=[{import_id:'test',records:parsed.records}],events={};
@@ -15,7 +16,7 @@ let scopeReads=0;const originalScope=w.getAtlasApplicationScopeCommunityNames;w.
 console.log('PASS screening client reload, historical month isolation, source-to-screen/export reconciliation, session race and second-session hydration.');
 })().catch(e=>{console.error(e);process.exitCode=1});
 // Identity scope must not rebuild all financial analytics while rendering application evidence.
-const htmlSource=fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/index.html','utf8');
+const htmlSource=readDashboardSource(__dirname+'/../docs/portfolio-operations-dashboard/index.html');
 const scopeFunction=htmlSource.match(/function getAtlasApplicationScopeCommunityNames\(\) \{[\s\S]*?\n\}/)[0];
 const scopeContext={getSelectedDashboardMonthIndex:()=>8,savedData:{},isPortfolioWorkspaceSelected:()=>true,getPortfolioScopedCommunityRecordsForMonth:()=>[{name:'Allowed',record:{}},{name:'Excluded',record:{}}],isAtlasLeaseTrackingCommunity:n=>n==='Allowed',getWorkspaceScopedDetails:()=>{throw Error('Unrelated financial analytics invoked');}};
 vm.createContext(scopeContext);vm.runInContext(scopeFunction,scopeContext);assert.equal(JSON.stringify(scopeContext.getAtlasApplicationScopeCommunityNames()),JSON.stringify(['Allowed']));

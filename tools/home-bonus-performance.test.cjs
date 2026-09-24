@@ -1,5 +1,6 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const source=fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/index.html','utf8');
+const source=readDashboardSource(__dirname+'/../docs/portfolio-operations-dashboard/index.html') + '\n' + fs.readFileSync(__dirname + '/../docs/portfolio-operations-dashboard/features/bonus-workspace.js', 'utf8');
 const extract=(name,next)=>source.slice(source.indexOf('function '+name+'('),source.indexOf('\nfunction '+next+'(',source.indexOf('function '+name+'(')));
 let computed=[],agingReads=0;
 const ctx={bonusQuarter:3,atlasBonusState:()=>({filters:{}}),atlasBonusPeriodFromQuarter:()=>({}),atlasBonusAuthorizedEmployees:()=>[{employeeId:'a',email:'a@example.test'},{employeeId:'b',email:'b@example.test'}],atlasBonusBuildRow:e=>(computed.push(e.employeeId),{employee:e}),getAtlasApplicationAgingRows:()=>{agingReads++;return []},getAtlasAccessProfile:()=>({employee_id:'b'}),getAtlasCentralStatus:()=>({}),Date};
@@ -11,7 +12,11 @@ const reskin=fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/
 assert.match(reskin, /instance.widgetKey==='projected_bonus'\?null:buildAtlasDashboardWidgetSnapshot\(instance\)/, 'Personal bonus skips unrelated portfolio snapshot construction');
 console.log('PASS personal identity filtering before calculation, no substitute payout, no unused bonus portfolio snapshot');
 
-let builds=0;ctx.buildPortfolioDetailsForMonth=month=>(builds++, [{month}]);
+let builds=0;ctx.savedData={};ctx.buildPortfolioDetailsForMonth=(month,records,year,options)=>{
+  assert.equal(records,ctx.savedData);assert.equal(year,new Date().getFullYear());
+  assert.equal(options.includeRecommendations,false,'Home skips recommendations while preserving the report builder default');
+  builds++;return [{month}];
+};
 vm.runInContext('let atlasHomeRenderDetails=null;'+extract('atlasHomePortfolioDetails','getAtlasDashboardAuthorizedCommunityOptions'),ctx);
 vm.runInContext('atlasHomeRenderDetails=new Map()',ctx);
 assert.equal(ctx.atlasHomePortfolioDetails(8),ctx.atlasHomePortfolioDetails(8));assert.equal(builds,1);

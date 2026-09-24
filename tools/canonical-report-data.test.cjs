@@ -1,5 +1,6 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const html=fs.readFileSync('docs/portfolio-operations-dashboard/index.html','utf8');
+const html=readDashboardSource('docs/portfolio-operations-dashboard/index.html');
 const finance=fs.readFileSync('docs/portfolio-operations-dashboard/financial-accountability.html','utf8');
 const F=require('../docs/portfolio-operations-dashboard/financial-publication.js');
 const P=require('../docs/portfolio-operations-dashboard/property-intelligence.js');

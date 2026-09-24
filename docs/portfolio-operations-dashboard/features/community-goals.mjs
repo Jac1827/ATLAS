@@ -3,6 +3,9 @@ export const GOAL_FIELDS = Object.freeze(['requiredMoveIns','applicationGoal','g
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const periodPattern = /^20\d{2}-(0[1-9]|1[0-2])$/;
 const key = (community, period) => `${community}|${period}`;
+function checkSignal(signal) {
+ if(signal?.aborted)throw new DOMException('The goal request was cancelled.','AbortError');
+}
 function validateScope(communityId, period) {
  if (!uuid.test(communityId) || !periodPattern.test(period)) throw Error('A verified community and reporting month are required to save goals.');
 }
@@ -18,12 +21,15 @@ export function normalizeRecord(record) {
 async function allRows(central, path, signal) {
  const result=[],limit=500;
  for(let offset=0; ;offset+=limit) {
+  checkSignal(signal);
   const rows=await central.fetchJson(`${path}&limit=${limit}&offset=${offset}`,{signal});
+  checkSignal(signal);
   if(!Array.isArray(rows))throw Error('Saved goals could not be read. Try again without discarding your edits.');
   result.push(...rows);if(rows.length<limit)return result;
  }
 }
 export async function readGoals(central,{communityIds,periods,signal}={}) {
+ checkSignal(signal);
  if(communityIds && (!Array.isArray(communityIds)||communityIds.some(id=>!uuid.test(id))))throw Error('Invalid community goal scope.');
  if(periods && (!Array.isArray(periods)||periods.some(period=>!periodPattern.test(period))))throw Error('Invalid goal reporting period.');
  if(communityIds?.length===0||periods?.length===0)return [];
@@ -50,12 +56,15 @@ const same = (a,b) => JSON.stringify(canonical(a))===JSON.stringify(canonical(b)
 // Goal payloads and all other immutable fields must still compare exactly.
 const comparableRecord = record => ({...record,created_at:Number.isFinite(Date.parse(record?.created_at))?new Date(record.created_at).toISOString():record?.created_at});
 export async function saveGoals(central,{communityId,period,kind,expectedRevision,requestId,payload,signal}) {
+ checkSignal(signal);
  validateScope(communityId,period);
  if(!['recommended','draft','approved'].includes(kind)||!Number.isInteger(expectedRevision)||expectedRevision<0||!uuid.test(requestId))throw Error('Invalid goal save request. Keep your edits and reopen the editor if necessary.');
- const result=await central.rpc('atlas_save_community_goals',{p_community_id:communityId,p_period:period,p_kind:kind,p_expected_revision:expectedRevision,p_request_id:requestId,p_payload:payload});
+ const result=await central.rpc('atlas_save_community_goals',{p_community_id:communityId,p_period:period,p_kind:kind,p_expected_revision:expectedRevision,p_request_id:requestId,p_payload:payload},{signal});
+ checkSignal(signal);
  const saved=result?.record;
  if(!saved?.record_id||!uuid.test(saved.record_id)||saved.community_id!==communityId||saved.period_key!==period||saved.kind!==kind||saved.request_id!==requestId)throw Error('Goal save could not be confirmed. Your edits are retained; retry this save.');
  const read=await central.fetchJson(`/atlas_community_goal_records?record_id=eq.${saved.record_id}&select=*&limit=1`,{signal});
+ checkSignal(signal);
  const committed=read?.[0];
  if(!committed || !same(comparableRecord(committed),comparableRecord(saved)))throw Error('Goal save returned, but the committed record could not be verified. Your edits are retained; retry this save.');
  for(const field of GOAL_FIELDS)if(!same(committed.payload[field],payload[field]))throw Error('Saved goal values did not match your edits. Your edits are retained.');

@@ -1,5 +1,6 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const html=fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/index.html','utf8');
+const html=readDashboardSource(__dirname+'/../docs/portfolio-operations-dashboard/index.html');
 const fn=n=>html.match(new RegExp('^function '+n+'\\([^]*?^\\}','m'))[0];
 const state={exceptionStatusById:{bonus_x_missing_salary_:'resolved'},overrides:[],approvalStatusByRowId:{bonus_x:'Regional Approved'}};
 const c={atlasBonusResolvePlanForEmployee:()=>({plan:{id:'plan',targetBonusPercent:20,metrics:[]}}),atlasBonusProration:()=>({factor:1}),simpleHash:()=> 'x',atlasBonusState:()=>state,atlasBonusGetCommunityOperatingType:()=> 'stabilized'};

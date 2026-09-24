@@ -1,7 +1,8 @@
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const html = fs.readFileSync('docs/portfolio-operations-dashboard/index.html', 'utf8');
+const html = readDashboardSource('docs/portfolio-operations-dashboard/index.html') + '\n' + fs.readFileSync(__dirname + '/../docs/portfolio-operations-dashboard/features/import-workspace.js', 'utf8');
 const context = vm.createContext({ console, Date, Map, Set });
 for (const match of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm)) vm.runInContext(match[0], context);
 let admin = true;

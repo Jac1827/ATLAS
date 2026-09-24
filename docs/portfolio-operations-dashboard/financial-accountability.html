@@ -16,7 +16,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f8fafc;color:#1a
 </head>
 <body>
 <div id="app"></div>
-<script>
+<script type="application/x-atlas-legacy" id="atlas-legacy-financial-source">
 const D="#013e51",L="#6ba2b8",G="#059669",R="#dc2626",A="#d97706",P="#7c3aed";
 const STORAGE_KEY="rise_financial_accountability_page_v1";
 const COMMUNITY_STORAGE_KEY="rise_ops_dashboard_data_v1";
@@ -2629,5 +2629,7 @@ render();
 loadAtlasCommunityStore().then(store=>{atlasCommunityCatalog=store||{};render();}).catch(()=>{});
 hydrateApprovedBudgetsFromAtlas().then(()=>render()).catch(()=>{});
 </script>
+<script src="./centralization/atlas-central-client.js?v=48fee2db3fbb6116"></script>
+<script src="./features/legacy-finance-gate.js?v=d334491ead41bb1f"></script>
 </body>
 </html>

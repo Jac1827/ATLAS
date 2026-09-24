@@ -1,3 +1,4 @@
+import {readDashboardSource} from './dashboard-source.cjs';
 // Real dashboard render functions + real Bonus modules; all data is an in-memory fixture.
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -6,11 +7,15 @@ import path from 'node:path';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url),{chromium}=require(process.env.ATLAS_PLAYWRIGHT||'playwright');
 const root=path.resolve(import.meta.dirname,'..'),base='/docs/portfolio-operations-dashboard/';
-const source=await fs.readFile(path.join(root,base,'index.html'),'utf8');
+const source=(await readDashboardSource(path.join(root,base,'index.html')))+'\n'+(await fs.readFile(path.join(root,base,'features/bonus-workspace.js'),'utf8'));
 const fn=name=>{const match=source.match(new RegExp('^(?:async )?function '+name+'\\([^]*?^\\}','m'));assert(match,name);return match[0];};
-const functions=['renderTab','atlasBonusOpenSharedWorkflow','atlasBonusSharedWorkflowContext','atlasBonusPreservedSharedWorkflowHost','atlasBonusMountSharedWorkflow','renderBonusTab'].map(fn).join('\n');
+const functions=['atlasWorkspaceFeature','renderTab','atlasBonusOpenSharedWorkflow','atlasBonusSharedWorkflowContext','atlasBonusPreservedSharedWorkflowHost','atlasBonusMountSharedWorkflow','renderBonusTab'].map(fn).join('\n');
 const fixtureScript=`
+const ATLAS_SELF_SERVICE_TAB_IDS=["14"];
 let activeTab=9, MOUNT_TABS=[], atlasBonusNavigationSnapshot=null, atlasBonusSectionCache=new Map();
+let atlasWorkspaceAccess={validated:true,hasData:true},atlasActiveFeatureRequest=null,atlasCanonicalImportEvidencePromise=null;
+window.AtlasFeatures={ready:()=>true};
+window.getAtlasCentralStatus=()=>({configured:true,signedIn:!!actor});window.getAtlasRenderContextKey=()=>JSON.stringify([actor,profile,quarter,activeTab,accessAllowed]);
 let actor='10000000-0000-4000-8000-000000000001',quarter='2026-Q1',accessAllowed=true;
 let profile={user_id:actor,role:'admin',status:'active',allowed_community_ids:['10000000-0000-4000-8000-000000000002'],bonus_permissions:[]};
 const noop=()=>{};

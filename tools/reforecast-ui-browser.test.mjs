@@ -11,7 +11,7 @@ const idle=()=>page.waitForFunction(()=>!document.querySelector('[data-refresh]'
 const save=async action=>{await page.locator('[data-action='+action+']').click();await idle();assert.deepEqual(await page.locator('[role=alert]').allTextContents(),[]);};
 const setup=async name=>{await page.locator('[data-new]').click();await page.locator('[data-name]').fill(name);await page.locator('[data-last]').fill('2026-03');await page.locator('[data-last]').dispatchEvent('change');await page.waitForFunction(()=>!document.querySelector('[data-create]')?.disabled);};
 const finishSetup=async()=>{await page.locator('dialog [data-calendar-confirm]').check();await page.locator('[data-create]').click();await page.locator('[data-edit=reviewerId]').selectOption('00000000-0000-0000-0000-000000000001');await page.locator('[data-edit=reason]').fill('Synthetic final UI regression review');};
-const map=()=>page.locator('dialog:has([data-maprow])');
+const map=()=>page.locator('dialog[open]:has([data-maprow])');
 try{
  await page.goto(url);await page.locator('[data-community]').selectOption(cid);await idle();await setup('Synthetic initial forecast');await finishSetup();
  const cell='[data-gl-cell][data-period="2026-02"][data-code="5120"]';

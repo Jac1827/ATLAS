@@ -111,7 +111,7 @@
     return session && typeof session === "object" ? session : null;
   }
 
-  function notifyAuthChange(session = null) {
+  function notifyAuthChange(session = null, reason = "session") {
     const expiresAt = Number(session?.expires_at || 0);
     const signedIn = Boolean(session?.access_token) && (!expiresAt || expiresAt > Math.floor(Date.now() / 1000));
     if (authExpiryTimer) window.clearTimeout(authExpiryTimer);
@@ -122,7 +122,7 @@
     }
     try {
       window.dispatchEvent(new CustomEvent("atlas-central-auth-change", {
-        detail: { signedIn, expiresAt }
+        detail: { signedIn, expiresAt, reason }
       }));
     } catch {}
   }
@@ -160,6 +160,21 @@
     writeLocalStorageJson(PROFILE_STORAGE_KEY, profile);
     return profile;
   }
+
+  function getAccessContextKey() {
+    const session = getStoredSession(), profile = getStoredProfile(), config = getConfig();
+    if (!session?.user?.id || !session.access_token) return null;
+    return JSON.stringify([config.supabaseUrl,session.user.id,profile?.role,profile?.status,profile?.account_status,profile?.employee_id,
+      profile?.allowed_community_ids,profile?.allowed_market_values,profile?.allowed_region_values,
+      profile?.locked_tab_ids,profile?.locked_page_keys,profile?.bonus_permissions,profile?.community_access_records]);
+  }
+
+  window.addEventListener("storage", event => {
+    if (event.key === null || [SESSION_STORAGE_KEY, PROFILE_STORAGE_KEY, CONFIG_STORAGE_KEY].includes(event.key)) {
+      const reason = event.key === PROFILE_STORAGE_KEY ? "profile-storage" : event.key === CONFIG_STORAGE_KEY ? "config-storage" : event.key === null ? "storage-cleared" : "session-storage";
+      notifyAuthChange(getStoredSession(),reason);
+    }
+  });
 
   function getSession() {
     const session = getStoredSession();
@@ -529,16 +544,25 @@
 
   async function request(url, options = {}) {
     if (isAuthRequest(url)) return requestAuth(url, options);
+    const originAtStart = getConfig().supabaseUrl, actorAtStart = getSignedInUser()?.id;
+    const controller = new AbortController();
+    const abort = () => controller.abort(options.signal?.reason);
+    options.signal?.addEventListener("abort", abort, {once:true});
+    if (options.signal?.aborted) abort();
+    const boundedRead = String(options.method || "GET").toUpperCase() === "GET" || /\/rpc\/atlas_read_[a-z_]+(?:\?|$)/.test(url);
+    const deadline = boundedRead ? window.setTimeout(() => controller.abort(new DOMException("Central request timed out", "TimeoutError")), 20000) : null;
+    try {
     let response;
     try {
       response = await fetch(url, {
-        ...options,
+        ...options, signal: boundedRead ? controller.signal : options.signal,
         headers: {
           ...baseHeaders(getConfig(), options.auth !== false, options),
           ...(options.headers || {})
         }
       });
     } catch (error) {
+      if (controller.signal.aborted) throw controller.signal.reason || error;
       const method = String(options.method || "GET").toUpperCase();
       const target = String(url || "").replace(getConfig().supabaseUrl || "", "");
       throw new Error(`Central ${method} request could not reach Supabase${target ? ` (${target})` : ""}. ${error?.message || error || "The browser blocked or interrupted the request."}`);
@@ -554,7 +578,9 @@
         retryAfterSeconds
       });
     }
+    if (originAtStart !== getConfig().supabaseUrl || actorAtStart !== getSignedInUser()?.id) throw new DOMException("Session changed during request", "AbortError");
     return payload;
+    } finally { window.clearTimeout(deadline); options.signal?.removeEventListener("abort", abort); }
   }
 
   async function fetchJson(path, options = {}) {
@@ -851,31 +877,41 @@
     return payload;
   }
 
-  async function fetchProfile() {
+  async function fetchProfile({ claim = true, signal } = {}) {
     await refreshSession().catch(() => null);
     const user = getSignedInUser() || await fetchUser();
     const userId = user?.id;
     if (!userId) return null;
-    const query = `?user_id=eq.${encodeURIComponent(userId)}&select=user_id,email,display_name,profile_image_url,role,status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,bonus_permissions,access_notes,last_access_reviewed_at,updated_at&limit=1`;
+    const backend = getConfig().supabaseUrl;
+    const communities = readCommunitiesForAccess({signal});
+    // Attach rejection immediately while the independent profile read is pending.
+    const communityResult = Promise.allSettled([communities]);
+    const query = `?user_id=eq.${encodeURIComponent(userId)}&select=user_id,email,display_name,profile_image_url,role,status,account_status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,bonus_permissions,access_notes,last_access_reviewed_at,updated_at&limit=1`;
     let rows;
     try {
-      rows = await fetchJson(`/atlas_user_profiles${query}`);
+      rows = await fetchJson(`/atlas_user_profiles${query}`, {signal});
     } catch (error) {
       if (!isMissingProvisioningColumnError(error)) throw error;
-      const fallbackQuery = `?user_id=eq.${encodeURIComponent(userId)}&select=user_id,email,display_name,profile_image_url,role,status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,last_access_reviewed_at,updated_at&limit=1`;
-      rows = await fetchJson(`/atlas_user_profiles${fallbackQuery}`);
+      const fallbackQuery = `?user_id=eq.${encodeURIComponent(userId)}&select=user_id,email,display_name,profile_image_url,role,status,account_status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,last_access_reviewed_at,updated_at&limit=1`;
+      rows = await fetchJson(`/atlas_user_profiles${fallbackQuery}`, {signal});
       rows = (Array.isArray(rows) ? rows : []).map(row => ({ ...row, bonus_permissions: [] }));
     }
     let profile = Array.isArray(rows) ? rows[0] : null;
-    if (!profile) {
+    let claimed = false;
+    if (!profile && claim) {
       profile = await claimInvitedProfile().catch(() => null);
+      claimed = Boolean(profile);
     }
     if (profile) {
       // Read only the directory rows allowed by the existing community RLS policy.
       // Do not require access to the all-module shared graph document for navigation.
-      try { profile.community_access_records = await readCommunitiesForAccess(); }
-      catch { profile.community_access_records = []; }
+      const [result] = await communityResult;
+      if (result.status !== "fulfilled") throw result.reason;
+      profile.community_access_records = claimed ? await readCommunitiesForAccess({signal}) : result.value;
+      profile.access_verified_at = new Date().toISOString();
+      profile.access_backend = backend;
     }
+    if (getSignedInUser()?.id !== userId || getConfig().supabaseUrl !== backend || signal?.aborted) throw new DOMException("Session changed during access verification", "AbortError");
     saveProfile(profile || null);
     return profile || null;
   }
@@ -999,11 +1035,11 @@
     return `simple:${Math.abs(hash)}`;
   }
 
-  async function readDocument(documentKey = getConfig().documentKey) {
+  async function readDocument(documentKey = getConfig().documentKey, {signal} = {}) {
     await refreshSession().catch(() => null);
     const key = encodeURIComponent(documentKey);
-    const query = `?document_key=eq.${key}&deleted_at=is.null&select=document_id,document_key,module_key,payload,payload_hash,version,updated_at,updated_by&limit=1`;
-    const rows = await fetchJson(`/atlas_app_documents${query}`);
+    const query = `?document_key=eq.${key}&deleted_at=is.null&select=document_id,document_key,module_key,source_module,payload,payload_hash,version,updated_at,updated_by&limit=1`;
+    const rows = await fetchJson(`/atlas_app_documents${query}`, {signal});
     return Array.isArray(rows) ? (rows[0] || null) : null;
   }
 
@@ -1025,22 +1061,123 @@
     return rpc("atlas_update_app_document", args);
   }
 
-  async function readSharedPropertyGraph(documentKey = SHARED_PROPERTY_GRAPH_DOCUMENT_KEY) {
-    return readDocument(documentKey);
+  // A local graph is a draft. Only a successful scoped read establishes the
+  // version it can replace; conflicts never trigger a read-latest overwrite.
+  const sharedGraphStates = new Map();
+  let sharedGraphAccess = null;
+  const sharedGraphAbort = () => new DOMException("Shared graph access changed", "AbortError");
+  const sharedGraphError = () => Object.assign(new Error("Shared property changes remain in this browser. Pull and reconcile the central graph before saving it again."), {code:"SHARED_GRAPH_RECONCILE"});
+  function sharedGraphScope() {
+    const session=getStoredSession(),profile=getStoredProfile();
+    if (!session?.access_token || !session.user?.id || !profile || profile.status!=="active" || (profile.account_status ?? "active")!=="active") return null;
+    return JSON.stringify([getAccessContextKey(),getConfig().apiBaseUrl]);
   }
-
-  async function saveSharedPropertyGraph(payload = {}, options = {}) {
-    return saveDocument({
-      documentKey: options.documentKey || SHARED_PROPERTY_GRAPH_DOCUMENT_KEY,
-      moduleKey: options.moduleKey || "shared-data",
-      payload,
-      expectedVersion: options.expectedVersion,
-      sourceModule: options.sourceModule || "atlas_shared_data",
-      metadata: {
-        sharedDataType: "property_graph",
-        ...(options.metadata || {})
+  function syncSharedGraphScope() {
+    const scope=sharedGraphScope();
+    if(scope!==sharedGraphAccess){
+      for(const state of sharedGraphStates.values()){
+        state.controller.abort(sharedGraphAbort());
+        state.queued?.reject(sharedGraphAbort());state.queued=null;
       }
-    });
+      sharedGraphStates.clear();sharedGraphAccess=scope;
+    }
+    return scope;
+  }
+  window.addEventListener("atlas-central-auth-change",syncSharedGraphScope);
+  function sharedGraphState(key) {
+    const scope=syncSharedGraphScope();
+    if(!scope)throw sharedGraphAbort();
+    let state=sharedGraphStates.get(key);
+    if(!state){state={key,scope,base:null,blocked:false,reading:null,active:null,queued:null,drain:null,controller:new AbortController()};sharedGraphStates.set(key,state);}
+    return state;
+  }
+  function checkSharedGraph(state) {
+    if(state.controller.signal.aborted || syncSharedGraphScope()!==state.scope || sharedGraphStates.get(state.key)!==state)throw sharedGraphAbort();
+  }
+  function stableSharedGraph(value) {
+    if(Array.isArray(value))return '['+value.map(stableSharedGraph).join(',')+']';
+    if(value && typeof value==='object')return '{'+Object.keys(value).sort().map(key=>JSON.stringify(key)+':'+stableSharedGraph(value[key])).join(',')+'}';
+    return JSON.stringify(value);
+  }
+  function verifiedSharedGraph(row,key) {
+    if(row===null)return {row:null,version:null,text:null};
+    if(!row || row.document_key!==key || !Number.isSafeInteger(row.version) || row.version<1 || !row.payload || typeof row.payload!=='object' || Array.isArray(row.payload) || typeof row.payload_hash!=='string' || !row.payload_hash)throw sharedGraphError();
+    const copy=JSON.parse(JSON.stringify(row));
+    return {row:copy,version:row.version,text:stableSharedGraph(copy.payload)};
+  }
+  async function fetchSharedGraph(state) {
+    await refreshSession();checkSharedGraph(state);
+    const rows=await fetchJson(`/atlas_app_documents?document_key=eq.${encodeURIComponent(state.key)}&deleted_at=is.null&select=document_id,document_key,module_key,source_module,payload,payload_hash,version,updated_at,updated_by&limit=1`,{signal:state.controller.signal});
+    checkSharedGraph(state);
+    if(!Array.isArray(rows)||rows.length>1)throw sharedGraphError();
+    return verifiedSharedGraph(rows[0]??null,state.key);
+  }
+  async function readSharedPropertyGraph(documentKey = SHARED_PROPERTY_GRAPH_DOCUMENT_KEY) {
+    const state=sharedGraphState(String(documentKey));
+    // An explicit pull waits for this tab's writes, then checks the server anew.
+    while(state.drain){await state.drain;checkSharedGraph(state);}
+    checkSharedGraph(state);
+    if(!state.reading){
+      const reading=(async()=>{
+        try {const base=await fetchSharedGraph(state);checkSharedGraph(state);state.base=base;state.blocked=false;return base.row;}
+        catch(error){state.base=null;state.blocked=true;throw error;}
+      })();
+      state.reading=reading;
+      reading.finally(()=>{if(state.reading===reading)state.reading=null;}).catch(()=>{});
+    }
+    const row=await state.reading;checkSharedGraph(state);
+    return row===null?null:JSON.parse(JSON.stringify(row));
+  }
+  async function drainSharedGraph(state) {
+    while(state.queued){
+      const job=state.queued;state.queued=null;state.active=job;
+      try {
+        checkSharedGraph(state);
+        if(!state.base || state.blocked || getStoredProfile()?.role!=="admin")throw sharedGraphError();
+        await refreshSession();checkSharedGraph(state);
+        if(state.base.text===job.text){job.resolve({...state.base.row,status:"unchanged",saved:false});continue;}
+        const sourceHash=await computeSha256(job.payload);checkSharedGraph(state);
+        const expectedVersion=state.base.version;
+        const args={p_document_key:state.key,p_module_key:job.options.moduleKey||"shared-data",p_payload:job.payload,p_expected_version:expectedVersion,p_source_module:job.options.sourceModule||"atlas_shared_data",p_source_hash:sourceHash,p_metadata:{sharedDataType:"property_graph",...(job.options.metadata||{})}};
+        const response=await fetchJson('/rpc/atlas_update_app_document',{method:"POST",body:JSON.stringify(args),signal:state.controller.signal});
+        checkSharedGraph(state);
+        const result=Array.isArray(response)?response[0]:response;
+        if(!result || result.document_key!==state.key || result.version!==(expectedVersion??0)+1 || result.payload_hash!==sourceHash)throw sharedGraphError();
+        const base=await fetchSharedGraph(state);
+        if(base.version!==result.version || base.row?.payload_hash!==sourceHash || base.text!==job.text)throw sharedGraphError();
+        checkSharedGraph(state);state.base=base;
+        job.resolve({...result,status:"saved",saved:true});
+      } catch(error) {
+        // A timeout can be an ambiguous committed write. Retain the draft and
+        // stop the queue until an explicit pull verifies the resulting version.
+        state.base=null;state.blocked=true;
+        const failure=error?.name==='AbortError'?error:sharedGraphError();
+        job.reject(failure);state.queued?.reject(failure);state.queued=null;
+      } finally {state.active=null;}
+    }
+  }
+  function startSharedGraphDrain(state) {
+    if(state.drain)return;
+    const drain=Promise.resolve().then(()=>drainSharedGraph(state));state.drain=drain;
+    drain.finally(()=>{
+      if(state.drain===drain){state.drain=null;if(state.queued)startSharedGraphDrain(state);}
+    }).catch(()=>{});
+  }
+  async function saveSharedPropertyGraph(payload = {}, options = {}) {
+    const key=String(options.documentKey||SHARED_PROPERTY_GRAPH_DOCUMENT_KEY),state=sharedGraphState(key);
+    if(!state.base || state.blocked || state.reading || getStoredProfile()?.role!=="admin")throw sharedGraphError();
+    if(options.expectedVersion!==undefined && options.expectedVersion!==state.base.version)throw sharedGraphError();
+    const copy=JSON.parse(JSON.stringify(payload));
+    if(!copy || typeof copy!=='object' || Array.isArray(copy))throw sharedGraphError();
+    const text=stableSharedGraph(copy),existing=state.queued||state.active;
+    if(existing?.text===text)return existing.promise;
+    let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});
+    // Only the latest queued full draft is needed. Earlier callers receive an
+    // explicit superseded receipt, never a false claim that their draft saved.
+    state.queued?.resolve({status:"superseded",saved:false});
+    state.queued={payload:copy,text,options:JSON.parse(JSON.stringify(options)),promise,resolve,reject};
+    startSharedGraphDrain(state);
+    return promise;
   }
 
   async function readDashboardViews() {
@@ -1078,7 +1215,7 @@
     });
   }
 
-  async function readLiveSessions({ activeWithinSeconds = 180 } = {}) {
+  async function readLiveSessions({ activeWithinSeconds = 180, signal } = {}) {
     await refreshSession().catch(() => null);
     const cutoff = new Date(Date.now() - (Math.max(30, Number(activeWithinSeconds) || 180) * 1000)).toISOString();
     const query = [
@@ -1086,7 +1223,7 @@
       "select=session_id,user_id,email,display_name,profile_image_url,role,current_tab,current_page,current_community_id,current_community_name,signed_in_at,last_seen_at",
       "order=last_seen_at.desc"
     ].join("&");
-    const rows = await fetchJson(`/atlas_live_sessions?${query}`);
+    const rows = await fetchJson(`/atlas_live_sessions?${query}`, {signal});
     return Array.isArray(rows) ? rows : [];
   }
 
@@ -1105,16 +1242,16 @@
     return rpc("atlas_end_live_session", { p_session_id: String(sessionId || "").trim() });
   }
 
-  async function readAccessInvites() {
+  async function readAccessInvites({signal} = {}) {
     await refreshSession().catch(() => null);
     const query = "select=invite_id,email,employee_id,display_name,role,status,access_status,account_status,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,bonus_permissions,access_notes,auth_user_id,claimed_user_id,claimed_at,invitation_sent_at,invitation_expires_at,invitation_accepted_at,password_reset_sent_at,last_invite_error,updated_at&order=updated_at.desc";
     let rows;
     try {
-      rows = await fetchJson(`/atlas_user_access_invites?${query}`);
+      rows = await fetchJson(`/atlas_user_access_invites?${query}`, {signal});
     } catch (error) {
       if (!isMissingProvisioningColumnError(error)) throw error;
       const fallbackQuery = "select=invite_id,email,employee_id,display_name,role,status,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,claimed_user_id,claimed_at,updated_at&order=updated_at.desc";
-      rows = await fetchJson(`/atlas_user_access_invites?${fallbackQuery}`);
+      rows = await fetchJson(`/atlas_user_access_invites?${fallbackQuery}`, {signal});
       rows = (Array.isArray(rows) ? rows : []).map(row => ({
         ...row,
         access_status: ["suspended", "disabled", "revoked"].includes(String(row.status || "").toLowerCase()) ? "disabled" : "active",
@@ -1130,16 +1267,16 @@
     return Array.isArray(rows) ? rows : [];
   }
 
-  async function readUserProfiles() {
+  async function readUserProfiles({signal} = {}) {
     await refreshSession().catch(() => null);
     const query = "select=user_id,email,display_name,profile_image_url,role,status,account_status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,bonus_permissions,access_notes,last_access_reviewed_at,updated_at&order=display_name.asc";
     let rows;
     try {
-      rows = await fetchJson(`/atlas_user_profiles?${query}`);
+      rows = await fetchJson(`/atlas_user_profiles?${query}`, {signal});
     } catch (error) {
       if (!isMissingProvisioningColumnError(error)) throw error;
-      const fallbackQuery = "select=user_id,email,display_name,profile_image_url,role,status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,last_access_reviewed_at,updated_at&order=display_name.asc";
-      rows = await fetchJson(`/atlas_user_profiles?${fallbackQuery}`);
+      const fallbackQuery = "select=user_id,email,display_name,profile_image_url,role,status,account_status,employee_id,allowed_community_ids,allowed_market_values,allowed_region_values,locked_tab_ids,locked_page_keys,access_notes,last_access_reviewed_at,updated_at&order=display_name.asc";
+      rows = await fetchJson(`/atlas_user_profiles?${fallbackQuery}`, {signal});
       rows = (Array.isArray(rows) ? rows : []).map(row => ({
         ...row,
         account_status: "active"
@@ -1148,17 +1285,17 @@
     return Array.isArray(rows) ? rows : [];
   }
 
-  async function readCommunitiesForAccess() {
+  async function readCommunitiesForAccess({signal} = {}) {
     await refreshSession().catch(() => null);
     const query = "deleted_at=is.null&select=community_id,display_name,canonical_name,status,market,regional_grouping,property_type&order=display_name.asc";
-    const rows = await fetchJson(`/atlas_communities?${query}`);
+    const rows = await fetchJson(`/atlas_communities?${query}`, {signal});
     return Array.isArray(rows) ? rows : [];
   }
 
-  async function readEmployeesForAccess() {
+  async function readEmployeesForAccess({signal} = {}) {
     await refreshSession().catch(() => null);
     const query = "deleted_at=is.null&select=employee_id,employee_number,email,full_name,status,status_type,source_module,source_identifier,updated_at&order=full_name.asc";
-    const rows = await fetchJson(`/atlas_employees?${query}`);
+    const rows = await fetchJson(`/atlas_employees?${query}`, {signal});
     return Array.isArray(rows) ? rows : [];
   }
 
@@ -1171,7 +1308,7 @@
       "limit=100"
     ];
     if (recipientEmail) filters.push(`recipient_email=eq.${encodeURIComponent(recipientEmail)}`);
-    const rows = await fetchJson(`/atlas_employee_notifications?${filters.join("&")}`);
+    const rows = await fetchJson(`/atlas_employee_notifications?${filters.join("&")}`, {signal:options.signal});
     return Array.isArray(rows) ? rows : [];
   }
 
@@ -1444,39 +1581,141 @@
     }
   }
 
-  async function publishScreeningImport(upload) { return rpc("atlas_publish_screening_import", {p_upload:upload}); }
-  async function readScreeningImports() {
-    await refreshSession();
-    const rows=[];let after="";
-    for (;;) {
-      const page=await fetchJson(`/atlas_screening_imports?select=*&order=import_id.asc&limit=100${after?`&import_id=gt.${encodeURIComponent(after)}`:""}`);
-      if(!Array.isArray(page))throw new Error("Invalid screening response");
-      rows.push(...page);if(page.length<100)return rows;after=page.at(-1).import_id;
+  // Keep payloads only in memory and only within the current actor/access scope.
+  // Every read still obtains authorized metadata; a cached payload is never proof of access.
+  const importRowCaches = new Map();
+  let importRowScope = null;
+  const importAbort = () => new DOMException("Shared import read cancelled or access changed", "AbortError");
+  function importScope() {
+    const session = getStoredSession(), profile = getStoredProfile(), config = getConfig();
+    if (!session?.user?.id || !session.access_token || Number(session.expires_at) <= Date.now()/1000 || !Number.isFinite(Number(session.expires_at))) return null;
+    if (profile && (profile.status !== "active" || (profile.account_status ?? "active") !== "active")) return null;
+    return JSON.stringify([getAccessContextKey(), config.apiBaseUrl]);
+  }
+  function syncImportScope() {
+    const scope = importScope();
+    if (scope !== importRowScope) {
+      for (const cache of importRowCaches.values()) cache.pending?.controller.abort(importAbort());
+      importRowCaches.clear(); importRowScope = scope;
     }
+    return scope;
   }
-
-  async function publishApplicationImport(upload) {
-    return rpc("atlas_publish_application_import", { p_upload: upload });
+  window.addEventListener("atlas-central-auth-change", syncImportScope);
+  function cancelImportRead(table) {
+    const cache = importRowCaches.get(table);
+    cache?.pending?.controller.abort(importAbort());
+    if (cache) cache.pending = null;
   }
-
-  async function readApplicationImports() {
-    await refreshSession();
-    const rows = [];
-    // Keyset pagination avoids the REST row limit and never uses a privileged key.
-    let after = "";
-    for (;;) {
-      const page = await fetchJson(`/atlas_application_imports?select=*&order=import_id.asc&limit=100${after ? `&import_id=gt.${encodeURIComponent(after)}` : ""}`);
-      if (!Array.isArray(page)) throw new Error("Invalid shared application response");
-      rows.push(...page);
-      if (page.length < 100) return rows;
-      after = page[page.length - 1].import_id;
+  function freezeImportRow(value) {
+    if (value && typeof value === "object" && !Object.isFrozen(value)) {
+      for (const child of Object.values(value)) freezeImportRow(child);
+      Object.freeze(value);
     }
+    return value;
   }
-
-  async function reviseApplicationImport(importId, expectedVersion, action, reason) {
-    return rpc("atlas_revise_application_import", {
-      p_id: importId, p_expected_version: expectedVersion, p_action: action, p_reason: reason
+  async function readImportRows(table, fields, {signal} = {}) {
+    if (signal?.aborted) throw signal.reason || importAbort();
+    const actor = getSignedInUser()?.id, backend = getConfig().supabaseUrl, initialScope = syncImportScope();
+    // A cancelled reader must stop promptly without cancelling a shared Auth refresh.
+    await new Promise((resolve,reject)=>{
+      const abort=()=>reject(signal?.reason || importAbort());
+      signal?.addEventListener("abort",abort,{once:true});
+      refreshSession().then(resolve,reject).finally(()=>signal?.removeEventListener("abort",abort));
     });
+    if (actor !== getSignedInUser()?.id || backend !== getConfig().supabaseUrl || signal?.aborted) throw signal?.reason || importAbort();
+    const scope = syncImportScope();
+    if (!scope || initialScope && initialScope !== scope) throw importAbort();
+    let cache = importRowCaches.get(table);
+    if (!cache) { cache = {rows:new Map(), pending:null}; importRowCaches.set(table,cache); }
+    if (!cache.pending || cache.pending.controller.signal.aborted) {
+      const pending = {controller:new AbortController(),readers:0,promise:null};
+      cache.pending = pending;
+      const check = () => {
+        if (pending.controller.signal.aborted || syncImportScope() !== scope || importRowCaches.get(table) !== cache || cache.pending !== pending) throw pending.controller.signal.reason || importAbort();
+      };
+      const stamp = row => JSON.stringify(fields.map(field => row[field]));
+      const valid = row => row && typeof row.import_id === "string" && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(row.import_id) && fields.every(field => Object.hasOwn(row,field)) && typeof row.content_hash === "string" && row.content_hash.length > 0 && (!fields.includes("version") || Number.isSafeInteger(row.version) && row.version > 0);
+      const drift = () => Object.assign(new Error("Shared imports changed while refreshing. Retry the refresh."),{importDrift:true});
+      const metadata = async () => {
+        const rows=[]; let after="";
+        for (;;) {
+          check();
+          const page = await fetchJson(`/${table}?select=${fields.join(",")}&order=import_id.asc&limit=100${after?`&import_id=gt.${after}`:""}`,{signal:pending.controller.signal});
+          check();
+          if (!Array.isArray(page) || page.length > 100) throw new Error("Invalid shared import metadata response");
+          for (const row of page) {
+            if (!valid(row) || row.import_id <= after) throw new Error("Invalid shared import metadata ordering");
+            rows.push(row); after=row.import_id;
+          }
+          if (page.length < 100) return rows;
+        }
+      };
+      pending.promise = (async () => {
+        let candidates = cache.rows;
+        for (let attempt=0; attempt<2; attempt++) {
+          try {
+            const versions = await metadata(), next = new Map();
+            const changed = versions.filter(row => {
+              const previous=candidates.get(row.import_id);
+              if (previous && stamp(previous) === stamp(row)) {next.set(row.import_id,previous);return false;}
+              return true;
+            });
+            for (let offset=0; offset<changed.length; offset+=50) {
+              check();
+              const batch=changed.slice(offset,offset+50), expected=new Map(batch.map(row=>[row.import_id,row]));
+              const rows=await fetchJson(`/${table}?select=*&import_id=in.(${batch.map(row=>row.import_id).join(",")})&order=import_id.asc&limit=50`,{signal:pending.controller.signal});
+              check();
+              if (!Array.isArray(rows) || rows.length !== batch.length) throw drift();
+              const seen=new Set();
+              for (const row of rows) {
+                if (!valid(row) || seen.has(row.import_id) || !expected.has(row.import_id) || stamp(row) !== stamp(expected.get(row.import_id))) throw drift();
+                seen.add(row.import_id);next.set(row.import_id,freezeImportRow(row));
+              }
+            }
+            // A second small sweep detects revisions, deletions and access loss during paging.
+            const verified=await metadata();
+            if (JSON.stringify(verified.map(stamp)) !== JSON.stringify(versions.map(stamp))) {candidates=next;throw drift();}
+            check(); cache.rows=next;
+            return versions.map(row=>next.get(row.import_id));
+          } catch (error) {check();if (!error.importDrift || attempt === 1) throw error;}
+        }
+      })().catch(error=>{if(importRowCaches.get(table)===cache && cache.pending===pending)cache.rows=new Map();throw error;})
+        .finally(()=>{if(cache.pending===pending)cache.pending=null;});
+    }
+    const pending=cache.pending;
+    pending.readers++;
+    return new Promise((resolve,reject) => {
+      let finished=false;
+      const finish=(error,rows)=>{
+        if(finished)return; finished=true;signal?.removeEventListener("abort",abort);pending.readers--;
+        if (!pending.readers && error?.name === "AbortError") pending.controller.abort(error);
+        error?reject(error):resolve(rows.slice());
+      };
+      const abort=()=>{const error=signal?.reason || importAbort();finish(error);if(!pending.readers)pending.controller.abort(error);};
+      signal?.addEventListener("abort",abort,{once:true});
+      if(signal?.aborted)abort();
+      pending.promise.then(rows=>{if(pending.controller.signal.aborted || syncImportScope()!==scope)finish(importAbort());else finish(null,rows);},error=>finish(error));
+    });
+  }
+  async function publishScreeningImport(upload) {
+    const result=await rpc("atlas_publish_screening_import",{p_upload:upload});
+    cancelImportRead("atlas_screening_imports");return result;
+  }
+  async function readScreeningImports(options = {}) {
+    return readImportRows("atlas_screening_imports",["import_id","content_hash","created_at"],options);
+  }
+  async function publishApplicationImport(upload) {
+    const result=await rpc("atlas_publish_application_import",{p_upload:upload});
+    cancelImportRead("atlas_application_imports");return result;
+  }
+  async function readApplicationImports(options = {}) {
+    return readImportRows("atlas_application_imports",["import_id","version","updated_at","deleted_at","content_hash"],options);
+  }
+  async function reviseApplicationImport(importId, expectedVersion, action, reason) {
+    const result=await rpc("atlas_revise_application_import",{
+      p_id:importId,p_expected_version:expectedVersion,p_action:action,p_reason:reason
+    });
+    cancelImportRead("atlas_application_imports");return result;
   }
 
   async function upsertMarketingMetrics(metrics, options = {}) {
@@ -1588,6 +1827,7 @@
     getStatus,
     getSession,
     getStoredProfile,
+    getAccessContextKey,
     requireConfigured,
     fetchJson,
     rpc,

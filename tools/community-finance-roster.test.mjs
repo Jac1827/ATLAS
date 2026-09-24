@@ -16,5 +16,5 @@ assert.equal(cells.gpr.textContent,'Missing publication');
 assert.match(planCell.textContent,/3 tasks/);
 assert.equal(queries,2);
 await hydrate([{key:'sample',communityId,period:'2026-08',year:2026}],{fetchJson:async path=>path==='/rpc/atlas_read_finance'?[{community_id:communityId,period_key:'2026-08',fiscal_year:2026,summary:{registryVersion:'atlas-finance-v1',communityId,period:'2026-08',gpr:{actual:0,budget:null,status:'missing',label:'Missing approved budget'},expenses:{actual:-5,budget:null,status:'missing',label:'Missing approved budget'}}}]:[]});
-assert.match(cells.gpr.textContent,/Actual \$0.*Missing approved budget/);assert.match(cells.expenses.textContent,/Actual -\$5.*Missing approved budget/);
+assert.match(cells.gpr.textContent,/Actual \$0.*Effective baseline unavailable/);assert.match(cells.expenses.textContent,/Actual -\$5.*Effective baseline unavailable/);
 cancel();console.log('Portfolio roster plan count and missing publication hydration pass');

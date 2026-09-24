@@ -24,4 +24,4 @@ const pending=c.atlasBonusBuildRow({employeeId:'id',communityName:'A',bonusRole:
 assert.equal(pending.metricResults[0].earned,null);assert.equal(pending.metricResults[0].achievementPct,null);assert.equal(pending.finalPayout,null);
 c.atlasBonusMetricActual=()=>0;c.atlasBonusCurvePayoutPct=()=>({ratio:0,payoutPct:0,label:'Below threshold'});
 const zero=c.atlasBonusBuildRow({employeeId:'id',communityName:'A',bonusRole:'Manager'}, {periodKey:'2026-Q3'});
-assert.equal(zero.metricResults[0].earned,0);assert.equal(zero.metricResults[0].achievementPct,0);assert.equal(zero.finalPayout,0);
+assert.equal(zero.metricResults[0].earned,0);assert.equal(zero.metricResults[0].achievementPct,0);assert.equal(zero.projectedPayout,0);assert.equal(zero.proposedPayout,0);assert.equal(zero.finalPayout,null);assert.equal(zero.canonicalPayable,false);

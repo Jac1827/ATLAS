@@ -1,4 +1,4 @@
-import {readFinance,readApprovedBudget,financialSummary,bonusEvidence} from './canonical-finance.mjs?v=491d9382e664ca55';
+import {readFinance,readApprovedBudget,financialSummary,bonusEvidence} from './canonical-finance.mjs?v=bed590780060af51';
 // Shared closed-month reader. No browser ledger is authoritative.
 export const optionalNumber=v=>v===null||v===undefined||v===''?null:Number.isFinite(Number(v))?Number(v):null;
 export function contract(v){return v?{period:v.period_key,status:v.status,coverage:v.coverage,accountingBasis:v.accounting_basis,netRentalIncome:optionalNumber(v.metrics.netRentalIncome),grossPotentialRent:optionalNumber(v.metrics.grossPotentialRent),netCashFlow:optionalNumber(v.metrics.netCashFlow??v.metrics.sourceControls?.['Net Cash Flow']?.actual),source:v.source_file,sourceHash:v.source_hash,approvedBy:v.approved_by,approvedAt:v.approved_at,version:v.version_id,revision:v.revision}:null;}
@@ -10,10 +10,24 @@ export function coverage(versions,year){
  const missing=Array.from({length:Math.max(0,last-firstExpectedMonth+1)},(_,i)=>i+firstExpectedMonth).filter(m=>!months.has(m));
  return {first,last,missing,firstExpectedMonth,completeYtd:last>0&&missing.length===0};
 }
-export async function readYear(central,cid,year){
- const periods=Array.from({length:12},(_,i)=>year+'-'+String(i+1).padStart(2,'0'));
- const records=await readFinance(central,[cid],periods);
- return records.filter(r=>r.summary.close).map(r=>({...r.summary.close,financeEnvelope:r.summary})).sort((a,b)=>a.period_key.localeCompare(b.period_key));
+const closedRecords=records=>records.filter(r=>r.summary.close).map(r=>({...r.summary.close,financeEnvelope:r.summary})).sort((a,b)=>a.period_key.localeCompare(b.period_key));
+const readYearRecords=(central,cid,year)=>readFinance(central,[cid],Array.from({length:12},(_,i)=>year+'-'+String(i+1).padStart(2,'0')));
+export async function readYear(central,cid,year){return closedRecords(await readYearRecords(central,cid,year));}
+// Exact monthly baseline evidence for the legacy Budget variance surface.
+export function applyEffectiveBuilderTargets(row,c,year){
+ const sum=values=>values.length&&values.every(value=>typeof value==='number'&&Number.isFinite(value))?values.reduce((a,b)=>a+b,0):null;
+ const original=c.budget?.payload.rows.find(item=>String(item.glCode)===String(row.gl));
+ row.originalBudget=original?.monthly.slice()||Array(12).fill(null);row.baselineEvidence={};const natures=new Set();
+ row.budget=Array.from({length:12},(_,month)=>{const period=year+'-'+String(month+1).padStart(2,'0'),envelope=c.finance?.find(item=>item.period_key===period)?.summary||c.versions.find(item=>item.period_key===period)?.financeEnvelope,baseline=envelope?.effectiveBaseline;
+ if(baseline?.status!=='available'||baseline.verified!==true||baseline.approved!==true||baseline.locked!==true)return null;
+ const lines=baseline.lines?.filter(item=>String(item.accountCode)===String(row.gl));if(lines?.length!==1)return null;
+ const line=lines[0];row.baselineEvidence[period]={sourceType:baseline.sourceType,versionId:baseline.versionId,publicationId:baseline.publicationId||null,contentHash:baseline.contentHash};natures.add(line.identifier||line.nature);return optionalNumber(line.amount);
+ });
+ row.canonicalNature=natures.size===1?[...natures][0]:null;
+ row.ytdBudget=c.coverage.completeYtd?sum(row.budget.slice(c.coverage.firstExpectedMonth-1,c.coverage.last)):null;
+ row.fullYearBudget=sum(row.budget);row.remainingBudget=sum(row.budget.slice(c.coverage.last));
+ row.ytdOriginalBudget=c.coverage.completeYtd?sum(row.originalBudget.slice(c.coverage.firstExpectedMonth-1,c.coverage.last)):null;
+ return row;
 }
 export async function readRows(central,version){const out=[];for(let offset=0;offset<version.row_count;offset+=500){const rows=await central.fetchJson(`/atlas_financial_close_rows?version_id=eq.${version.version_id}&select=*&order=gl_code&limit=500&offset=${offset}`);out.push(...rows);if(!rows.length)break;}if(out.length!==version.row_count)throw Error('Closed GL readback is incomplete.');return out;}
 export async function closeReview(central,review,{expectedVersion=null,reason,accountingApproved=false,requestId=crypto.randomUUID()}={}){
@@ -40,7 +54,7 @@ export function createCache(central){
   get(name,period){return this.envelope(name,period)?.close||null;},
   envelope(name,period){return byName.get(name)?.find(s=>s.period===period)||null;},
   summary(name,period){return financialSummary(this.envelope(name,period));},
-  bonus(name,metric,periods){return bonusEvidence(byName.get(name)||[],metric,periods);},
+  bonus(name,metric,periods){return bonusEvidence(byName.get(name)||[],metric,periods,{requireEffectiveBaseline:true});},
   clear(){epoch++;byName.clear();pending.clear();refreshed.clear();this.status='Not loaded';},
   async refresh(year,force=false){
    if(!force&&Date.now()-(refreshed.get(year)||0)<60000)return false;
@@ -92,15 +106,16 @@ export function installBuilder(R,central,resolve){
  R.actuals.closedThrough=function(state,pid,year){const c=caches.get(pid+'|'+year);return c?c.coverage.last:0;};
  R.variance.compute=function(state,calc,pid,year){const c=caches.get(pid+'|'+year);const result=compute.call(this,c?projectBuilderActuals(state,pid,caches):state,calc,pid,year);if(!c)return result;
   const approved=R.engine.getScenario(state,calc.scenarioId).type==='approved';
-  for(const row of result.rows){if(approved){const br=c.budget?.payload.rows.find(r=>r.glCode===String(row.gl));row.budget=br?.monthly.slice()||Array(12).fill(null);row.ytdBudget=br&&row.budget.slice(0,c.coverage.last).every(v=>v!==null)?row.budget.slice(0,c.coverage.last).reduce((a,b)=>a+b,0):null;row.fullYearBudget=br&&row.budget.every(v=>v!==null)?row.budget.reduce((a,b)=>a+b,0):null;row.remainingBudget=row.fullYearBudget!==null&&row.ytdBudget!==null?row.fullYearBudget-row.ytdBudget:null;}const source=c.rows.get(String(row.gl));row.actual=source?.monthly.slice()||Array(12).fill(null);row.hasActual=!!source;row.canonicalSources=source?.sources||{};if(source?.name)row.name=source.name;row.variance=row.actual.map((n,i)=>n===null||row.budget[i]===null?null:n-row.budget[i]);row.variancePct=row.variance.map((n,i)=>n===null||!row.budget[i]?null:n/Math.abs(row.budget[i]));row.ytdActual=source?.ytd??null;row.ytdVar=row.ytdActual===null||row.ytdBudget===null?null:row.ytdActual-row.ytdBudget;row.ytdVarPct=row.ytdVar===null||!row.ytdBudget?null:row.ytdVar/Math.abs(row.ytdBudget);row.projection=row.ytdActual===null||row.remainingBudget===null?null:row.ytdActual+row.remainingBudget;row.runRate=null;row.favourable=row.ytdVar===null?null:row.favourable;row.monthExceptions=(row.monthExceptions||[]).filter(e=>row.actual[e.month]!==null);}
+  for(const row of result.rows){if(approved)applyEffectiveBuilderTargets(row,c,year);const source=c.rows.get(String(row.gl));row.actual=source?.monthly.slice()||Array(12).fill(null);row.hasActual=!!source;row.canonicalSources=source?.sources||{};if(source?.name)row.name=source.name;row.variance=row.actual.map((n,i)=>n===null||row.budget[i]===null?null:n-row.budget[i]);row.variancePct=row.variance.map((n,i)=>n===null||!row.budget[i]?null:n/Math.abs(row.budget[i]));row.ytdActual=source?.ytd??null;row.ytdVar=row.ytdActual===null||row.ytdBudget===null?null:row.ytdActual-row.ytdBudget;row.ytdVarPct=row.ytdVar===null||!row.ytdBudget?null:row.ytdVar/Math.abs(row.ytdBudget);row.projection=row.ytdActual===null||row.remainingBudget===null?null:row.ytdActual+row.remainingBudget;row.runRate=null;row.favourable=row.ytdVar===null?null:approved?(['income','contra_income'].includes(row.canonicalNature)?row.ytdVar>=0:['expense','capital','debt','below_noi'].includes(row.canonicalNature)?row.ytdVar<=0:null):row.favourable;row.monthExceptions=(row.monthExceptions||[]).filter(e=>row.actual[e.month]!==null);}
   result.exceptions=result.exceptions.filter(e=>{const row=result.rows.find(r=>r.gl===e.gl);return row?.ytdActual!==null&&(e.month===undefined||row.actual[e.month]!==null);});
   result.summary=R.variance.summary(result.rows,result.closedThrough);
   const total=key=>c.coverage.completeYtd&&c.versions.every(v=>optionalNumber(v.metrics[key])!==null)?c.versions.reduce((n,v)=>n+Number(v.metrics[key]),0):null;
   {const income=total('totalIncome'),noi=total('netOperatingIncome');for(const [key,value] of [['egi',income],['noi',noi],['expense',income===null||noi===null?null:income-noi]]){result.summary[key].actual=value;result.summary[key].variance=value===null?null:value-result.summary[key].budget;result.summary[key].pct=value===null||!result.summary[key].budget?null:result.summary[key].variance/Math.abs(result.summary[key].budget);}}
-  if(approved&&!c.budget){for(const row of result.rows){row.budget=Array(12).fill(null);row.variance=Array(12).fill(null);row.variancePct=Array(12).fill(null);row.ytdBudget=null;row.ytdVar=null;row.ytdVarPct=null;row.projection=null;row.favourable=null;}for(const item of Object.values(result.summary)){if(item&&typeof item==='object'){item.budget=null;item.fullYear=null;item.variance=null;item.pct=null;}}result.exceptions=[];}
   const envelope=c.versions.find(v=>Number(v.period_key.slice(5))===c.coverage.last)?.financeEnvelope;
-  if(approved&&envelope){for(const [target,key] of [['egi','revenue'],['expense','expenses'],['noi','noi']]){const metric=envelope.ytd?.[key],item=result.summary[target];if(item&&metric){item.actual=optionalNumber(metric.actual);item.budget=optionalNumber(metric.budget);item.variance=item.actual===null||item.budget===null?null:item.actual-item.budget;item.pct=item.variance===null||!item.budget?null:item.variance/Math.abs(item.budget);}}}
-  result.canonicalBudgetVersion=approved?envelope?.budgetVersion||null:null;result.canonicalBudgetVersions=approved?c.budget?.periodVersions||{}:{};result.canonicalCoverage=c.coverage;result.canonicalVersions=c.versions.map(v=>v.version_id);result.canonicalMonthlyFinance=Object.fromEntries(c.versions.map(v=>[v.period_key,v.financeEnvelope]));result.canonicalApprovedScenario=approved;result.canonicalCloseSources=c.versions.map(v=>({period:v.period_key,version:v.version_id,file:v.source_file,hash:v.source_hash}));return result;
+  if(approved){const months=Array.from({length:Math.max(0,c.coverage.last-c.coverage.firstExpectedMonth+1)},(_,i)=>year+'-'+String(c.coverage.firstExpectedMonth+i).padStart(2,'0')),envelopes=months.map(period=>c.finance?.find(r=>r.period_key===period)?.summary||c.versions.find(v=>v.period_key===period)?.financeEnvelope);
+   for(const [target,key] of [['egi','revenue'],['expense','expenses'],['noi','noi']]){const item=result.summary[target];if(!item)continue;for(const basis of ['actual','budget'])item[basis]=c.coverage.completeYtd&&envelopes.length&&envelopes.every(s=>optionalNumber(s?.[key]?.[basis])!==null)?envelopes.reduce((n,s)=>n+Number(s[key][basis]),0):null;item.variance=item.actual===null||item.budget===null?null:item.actual-item.budget;item.pct=item.variance===null||!item.budget?null:item.variance/Math.abs(item.budget);}
+  }
+  result.canonicalBudgetVersion=approved?envelope?.budgetVersion||null:null;result.canonicalBudgetVersions=approved?c.budget?.periodVersions||{}:{};result.canonicalCoverage=c.coverage;result.canonicalVersions=c.versions.map(v=>v.version_id);result.canonicalMonthlyFinance=Object.fromEntries((c.finance||c.versions.map(v=>({period_key:v.period_key,summary:v.financeEnvelope}))).map(r=>[r.period_key,r.summary]));result.effectiveBaselineVersions=Object.fromEntries(Object.entries(result.canonicalMonthlyFinance).map(([period,s])=>[period,s?.effectiveBaseline||null]));result.canonicalApprovedScenario=approved;result.canonicalCloseSources=c.versions.map(v=>({period:v.period_key,version:v.version_id,file:v.source_file,hash:v.source_hash}));return result;
  };
  const prepare=R.exporter?.reports?.prepare;
  if(prepare)R.exporter.reports.prepare=function(state,calc,opts={}){
@@ -114,16 +129,16 @@ export function installBuilder(R,central,resolve){
  const render=R.app.render;let selected='';
  R.app.render=function(){const p=R.app.prop(),year=R.app.year(),key=p.id+'|'+year;if(selected!==key){selected=key;
    if(!caches.has(key)){const c={rows:new Map(),versions:[],coverage:coverage([],year),status:'Loading canonical actuals'};caches.set(key,c);R.app.invalidate();
-    (async()=>{const run=generation;try{const cid=await resolve(p.name);if(!cid)throw Error('Community mapping unavailable');const versions=await readYear(central,cid,year);if(run!==generation)return;c.versions=versions;c.coverage=coverage(c.versions,year);c.budget=await readApprovedBudget(central,cid,year);if(run!==generation)return;
+    (async()=>{const run=generation;try{const cid=await resolve(p.name);if(!cid)throw Error('Community mapping unavailable');const finance=await readYearRecords(central,cid,year);if(run!==generation)return;c.finance=finance;c.versions=closedRecords(finance);c.coverage=coverage(c.versions,year);c.budget=await readApprovedBudget(central,cid,year);if(run!==generation)return;
      for(let i=0;i<c.versions.length;i+=3){const batch=c.versions.slice(i,i+3);const rows=await Promise.all(batch.map(v=>readRows(central,v)));if(run!==generation)return;batch.forEach((v,j)=>rows[j].forEach(r=>{let item=c.rows.get(r.gl_code);if(!item){item={monthly:Array(12).fill(null),ytd:null};c.rows.set(r.gl_code,item);}item.monthly[Number(v.period_key.slice(5))-1]=optionalNumber(r.actual);item.name=r.account_name;item.sources||={};item.sources[v.period_key]={version:v.version_id,file:v.source_file,hash:v.source_hash,location:r.source_location};if(Number(v.period_key.slice(5))===c.coverage.last)item.ytd=optionalNumber(r.ytd_actual);}));}
      for(const item of c.rows.values())item.ytd=c.coverage.completeYtd&&item.monthly.slice(c.coverage.firstExpectedMonth-1,c.coverage.last).every(v=>v!==null)?item.monthly.slice(c.coverage.firstExpectedMonth-1,c.coverage.last).reduce((a,b)=>a+b,0):null;
      c.status='Verified closed source';
-    }catch(e){c.rows.clear();c.budget=null;c.versions=[];c.coverage=coverage([],year);c.status=e.message;}if(selected===key){R.app.invalidate();R.app.render();}})();}
+    }catch(e){c.rows.clear();c.budget=null;c.finance=[];c.versions=[];c.coverage=coverage([],year);c.status=e.message;}if(selected===key){R.app.invalidate();R.app.render();}})();}
   }return render.apply(this,arguments);};
 }
 export async function primeBuilderYear(R,central,cid,pid,year){
  const actor=central.getSession?.()?.user?.id;
- const versions=await readYear(central,cid,year),c={rows:new Map(),versions,budget:await readApprovedBudget(central,cid,year),coverage:coverage(versions,year),status:'Verified closed source'};
+ const finance=await readYearRecords(central,cid,year),versions=closedRecords(finance),c={rows:new Map(),finance,versions,budget:await readApprovedBudget(central,cid,year),coverage:coverage(versions,year),status:'Verified closed source'};
  for(let i=0;i<versions.length;i+=3){const batch=versions.slice(i,i+3),sets=await Promise.all(batch.map(v=>readRows(central,v)));batch.forEach((v,j)=>sets[j].forEach(r=>{const item=c.rows.get(r.gl_code)||{monthly:Array(12).fill(null),ytd:null};item.monthly[Number(v.period_key.slice(5))-1]=optionalNumber(r.actual);item.name=r.account_name;item.sources||={};item.sources[v.period_key]={version:v.version_id,file:v.source_file,hash:v.source_hash,location:r.source_location};if(Number(v.period_key.slice(5))===c.coverage.last)item.ytd=optionalNumber(r.ytd_actual);c.rows.set(r.gl_code,item);}));}
  if(central.getSession&&central.getSession()?.user?.id!==actor)throw Error('Session changed while reading financial sources.');
  for(const item of c.rows.values())item.ytd=c.coverage.completeYtd&&item.monthly.slice(c.coverage.firstExpectedMonth-1,c.coverage.last).every(v=>v!==null)?item.monthly.slice(c.coverage.firstExpectedMonth-1,c.coverage.last).reduce((a,b)=>a+b,0):null;

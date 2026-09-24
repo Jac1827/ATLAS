@@ -83,6 +83,36 @@ jobs:
           node tools/utility-forecast-db.test.cjs
           node tools/utility-report-lineage.test.cjs
 
+      - name: Test governed forecast builder and baseline consumers
+        run: |
+          node tools/performance-assets.test.cjs
+          node tools/reforecast-builder-ui.test.mjs
+          node tools/reforecast-provider.test.mjs
+          node tools/reforecast-engine.test.mjs
+          node tools/reforecast-store.test.mjs
+          node tools/reforecast-ui.test.mjs
+          node tools/reforecast-report.test.mjs
+          node tools/reforecast-consumers.test.mjs
+          node tools/reforecast-utility.test.mjs
+          node tools/reforecast-bonus.test.mjs
+          node tools/bonus-export-security.test.cjs
+          node tools/reforecast-bonus-current-db.test.cjs
+          node tools/reforecast-bonus-receipts-db.test.cjs
+          node tools/reforecast-builder-db.test.cjs
+          node tools/reforecast-builder-upgrade-db.test.cjs
+          node tools/reforecast-original-baseline-db.test.cjs
+          node tools/reforecast-builder-integration-db.test.cjs
+          node tools/forecast-contract-workflow-db.test.cjs
+          node tools/reforecast-report-receipts-db.test.cjs
+          node tools/reforecast-utility-db.test.cjs
+          node tools/canonical-finance.test.mjs
+          node tools/canonical-budget-report.test.mjs
+          node tools/financial-close.test.mjs
+          node tools/financial-close-report.test.mjs
+          node tools/financial-snapshot-output.test.mjs
+          node tools/community-plan-email.test.mjs
+          node tools/community-finance-roster.test.mjs
+
       - name: Test eviction packet workflow
         run: node tools/eviction-attorney.test.mjs
 
@@ -157,6 +187,36 @@ jobs:
           node tools/utility-forecast.test.mjs
           node tools/utility-forecast-db.test.cjs
           node tools/utility-report-lineage.test.cjs
+
+      - name: Test governed forecast builder and baseline consumers
+        run: |
+          node tools/performance-assets.test.cjs
+          node tools/reforecast-builder-ui.test.mjs
+          node tools/reforecast-provider.test.mjs
+          node tools/reforecast-engine.test.mjs
+          node tools/reforecast-store.test.mjs
+          node tools/reforecast-ui.test.mjs
+          node tools/reforecast-report.test.mjs
+          node tools/reforecast-consumers.test.mjs
+          node tools/reforecast-utility.test.mjs
+          node tools/reforecast-bonus.test.mjs
+          node tools/bonus-export-security.test.cjs
+          node tools/reforecast-bonus-current-db.test.cjs
+          node tools/reforecast-bonus-receipts-db.test.cjs
+          node tools/reforecast-builder-db.test.cjs
+          node tools/reforecast-builder-upgrade-db.test.cjs
+          node tools/reforecast-original-baseline-db.test.cjs
+          node tools/reforecast-builder-integration-db.test.cjs
+          node tools/forecast-contract-workflow-db.test.cjs
+          node tools/reforecast-report-receipts-db.test.cjs
+          node tools/reforecast-utility-db.test.cjs
+          node tools/canonical-finance.test.mjs
+          node tools/canonical-budget-report.test.mjs
+          node tools/financial-close.test.mjs
+          node tools/financial-close-report.test.mjs
+          node tools/financial-snapshot-output.test.mjs
+          node tools/community-plan-email.test.mjs
+          node tools/community-finance-roster.test.mjs
 
       - name: Test eviction packet workflow
         run: node tools/eviction-attorney.test.mjs

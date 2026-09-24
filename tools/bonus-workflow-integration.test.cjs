@@ -121,6 +121,11 @@ const flush = async () => { await new Promise(setImmediate); await new Promise(s
   ui.window.ATLAS_CENTRAL = central; currentHost = makeHost(); importFailure = true;
   ui.atlasBonusMountSharedWorkflow(period); queued.shift()(); await flush();
   assert.match(currentHost.textContent, /Shared Bonus workflow unavailable: Synthetic module unavailable/);
+  assert.equal(currentHost.dataset.mounted, undefined, 'A failed import must not permanently mark the preserved host mounted');
+  importFailure = false;
+  ui.atlasBonusOpenSharedWorkflow(); queued.shift()(); await flush();
+  assert.equal(mounts.length, 2, 'An accessible preserved host retries its import after a temporary failure');
+  assert.equal(mounts[1].host, currentHost);
   const calculations = ui.renderBonusCalculationsSection([]);
   assert.match(calculations, /Create Shared Calculation/); assert.match(calculations, /Payroll Confirmations/);
   assert.doesNotMatch(calculations, /Period status:|Last calculation run:|Reopen Period|Paid \/ Finalized/);

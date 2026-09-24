@@ -32862,6 +32862,7 @@ function renderBonusEngineSection(section, rows) {
 
 function atlasBonusOpenSharedWorkflow() {
   document.getElementById("atlas-bonus-shared-workflow")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  atlasBonusMountSharedWorkflow(atlasBonusPeriodFromQuarter());
 }
 
 function atlasBonusSharedWorkflowContext(period = atlasBonusPeriodFromQuarter()) {
@@ -32901,7 +32902,12 @@ function atlasBonusMountSharedWorkflow(period) {
         central: window.ATLAS_CENTRAL, periodKey: period.periodKey,
         onChange: () => { atlasBonusRetainedRow.cache?.clear(); atlasBonusNavigationSnapshot = null; atlasBonusSectionCache.clear(); }
       });
-    }).catch(error => { if (host.isConnected && atlasBonusSharedWorkflowContext(period) === context) host.textContent = "Shared Bonus workflow unavailable: " + error.message; });
+    }).catch(error => {
+      if (host.isConnected && atlasBonusSharedWorkflowContext(period) === context) {
+        delete host.dataset.mounted;
+        host.textContent = "Shared Bonus workflow unavailable: " + error.message + ". Open shared approvals again to retry; reload the page if the module is still unavailable.";
+      }
+    });
   });
 }
 
@@ -32923,10 +32929,10 @@ function renderBonusTab() {
     <div class="bonus-engine-hero">
       <div class="bonus-engine-kicker">RISE ATLAS / Bonus & Incentives Engine</div>
       <h1>Performance, compensation, approval, and payroll readiness in one workspace.</h1>
-      <p>ATLAS now resolves eligibility, plan hierarchy, live metrics, projected payout, exceptions, overrides, approvals, HR exports, locked periods, and historical plan versions from the same compensation-engine surface.</p>
+      <p>Use shared approvals for verified plan terms, employee eligibility, calculations, review and payroll confirmations. The planning sections below retain draft projections and examples.</p>
       <div class="bonus-engine-toolbar">
         <span class="bonus-engine-pill good">${escapeHtml(period.periodKey)}</span>
-        <span class="bonus-engine-pill">${summary.employeeCount} eligible employees</span>
+        <span class="bonus-engine-pill">${summary.employeeCount} people in planning view</span>
         <span class="bonus-engine-pill ${summary.criticalExceptions ? "bad" : "good"}">${summary.criticalExceptions} critical exceptions</span>
         <span class="bonus-engine-pill info">Projected ${atlasBonusCurrency(summary.projected)}</span>
         ${atlasBonusCan("run_calculations") ? `<button type="button" class="btn btn-blue btn-sm" onclick="atlasBonusRunCalculations()">Run Calculations</button>` : ""}

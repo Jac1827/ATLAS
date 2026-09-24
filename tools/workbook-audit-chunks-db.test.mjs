@@ -64,6 +64,28 @@ try {
  assert.equal(fs.readFileSync(new URL('../docs/portfolio-operations-dashboard/centralization/workbook-audit-chunks.sql',import.meta.url),'utf8'),fs.readFileSync(new URL('../supabase/migrations/20260924232845_bounded_workbook_audit_transport.sql',import.meta.url),'utf8'));
  const readback=await readWorkbookAuditBytes(central,reference);assert.deepEqual(Buffer.from(readback.auditBytes),auditBytes);assert.deepEqual(Buffer.from(readback.sourceBytes),sourceBytes);assert.deepEqual(readback.evidence,JSON.parse(auditBytes));assert.deepEqual(await readWorkbookAudit(central,reference),JSON.parse(auditBytes));
  const retry=await persistWorkbookAudit(central,audit,{sourceBytes,sourceHash,requestId,communityId:cid});assert.equal(retry.auditId,reference.auditId);
+ // Repeat the actual import sequence: audit save/readback on every attempt, then
+ // envelope save under the same request ID. Attempt telemetry must not change it.
+ assert(reference.transport.requests.length>retry.transport.requests.length);
+ assert.equal(JSON.stringify(retry),JSON.stringify(reference));
+ assert.equal(Object.hasOwn(JSON.parse(JSON.stringify(reference)),'transport'),false);
+ assert.equal(Object.hasOwn({...reference},'transport'),false);
+ assert.equal(Object.hasOwn(structuredClone(reference),'transport'),false);
+ for(const lostResponse of ['begin','finalize']){
+  const intakeRequest=randomUUID(),interruptedIntake={...central,rpc:async(name,args)=>{
+   const result=await call(name,args);
+   if(name==='atlas_stage_reforecast_payload'&&args.p_action===lostResponse)throw Error('Injected lost '+lostResponse+' response');
+   return result;
+  }};
+  await assert.rejects(()=>saveUpload(interruptedIntake,{communityId:cid,requestId:intakeRequest,payload}),new RegExp('Injected lost '+lostResponse+' response'));
+  assert.equal((await db.query('select count(*)::int n from atlas_reforecast_uploads where request_id=$1',[intakeRequest])).rows[0].n,lostResponse==='finalize'?1:0);
+  const refreshedReference=await persistWorkbookAudit(central,audit,{sourceBytes,sourceHash,requestId,communityId:cid});
+  assert(refreshedReference.transport.requests.length>0);assert.equal(JSON.stringify(refreshedReference),JSON.stringify(reference));
+  const resumedIntake=await saveUpload(central,{communityId:cid,requestId:intakeRequest,payload:{...payload,integrity:refreshedReference}});
+  assert.deepEqual(resumedIntake.payload,JSON.parse(JSON.stringify(payload)));
+  assert.equal((await db.query('select count(*)::int n from atlas_reforecast_uploads where request_id=$1',[intakeRequest])).rows[0].n,1);
+ }
+
  // Inject a connection failure after durable begin, then import a fresh module
  // instance as a page reload. The derived UUID resumes the same reservation.
  let interruptedId;const interrupted={...central,rpc:async(name,args)=>{if(name==='atlas_put_workbook_audit_chunk')throw TypeError('Injected transport interruption');return call(name,args);}};
@@ -113,7 +135,7 @@ try {
  await db.exec('reset role');assert.equal((await db.query('select count(*)::int as n from atlas_workbook_audits')).rows[0].n,1);assert.equal((await db.query('select audit_id from atlas_private.workbook_audit_uploads where upload_id=$1',[pending.upload_id])).rows[0].audit_id,null);
  await assert.rejects(()=>db.query('update atlas_private.workbook_audit_chunks set payload=$1 where upload_id=$2',[new Uint8Array([1]),finalized.upload_id]),/immutable/);
  await assert.rejects(()=>db.query('update atlas_private.workbook_audit_uploads set manifest=$1 where upload_id=$2',[{},pending.upload_id]),/immutable/);
- const proof={scope:process.env.ATLAS_AUDIT_PROOF_SCOPE||(process.env.ATLAS_REAL_DORO_SOURCE?'Supplied Doro review report (not the original Vena source) in isolated PGlite; no production mutation':'Synthetic supplemental regression'),sourceHash,fingerprint:audit.fingerprint,manifestHash:reference.manifestHash,serializedAuditBytes:auditBytes.length,originalBytes:sourceBytes.length,maximumRequestBytes:Math.max(...calls.map(c=>c.bytes)),rpcCount:calls.length,elapsedMs:reference.transport.durationMs,inventory:audit.summary,exactAuditAndSourceReadback:true,boundedIntakeEnvelopeSaveAndReadback:true,providerPdfAndXlsxReceiptsRetainLegacyValidation:true,workbookAuditCannotBeBypassedByProviderLabel:true,duplicateRequestIsIdempotent:true,authorizedSessionsMatch:true,unauthorizedSessionRejected:true,incompleteFinalizeAtomic:true,changedChunkRejected:true,immutable:true,freshRoleAndCommunityRevocationEnforced:true,stagingCountAndByteQuotasEnforced:true,reloadResumesSameInterruptedRequest:true,cancelPendingReleasesQuotaAndRetainsTombstone:true,finalizedCancellationRejected:true,canceledRequestsHaveDurableRetryIdentity:true};
+ const proof={scope:process.env.ATLAS_AUDIT_PROOF_SCOPE||(process.env.ATLAS_REAL_DORO_SOURCE?'Supplied Doro review report (not the original Vena source) in isolated PGlite; no production mutation':'Synthetic supplemental regression'),sourceHash,fingerprint:audit.fingerprint,manifestHash:reference.manifestHash,serializedAuditBytes:auditBytes.length,originalBytes:sourceBytes.length,maximumRequestBytes:Math.max(...calls.map(c=>c.bytes)),rpcCount:calls.length,elapsedMs:reference.transport.durationMs,inventory:audit.summary,exactAuditAndSourceReadback:true,boundedIntakeEnvelopeSaveAndReadback:true,providerPdfAndXlsxReceiptsRetainLegacyValidation:true,workbookAuditCannotBeBypassedByProviderLabel:true,duplicateRequestIsIdempotent:true,repeatedAuditIntakeRetriesRecoverLostBeginAndFinalizeResponses:true,transientDiagnosticsExcludedFromImmutableEvidence:true,authorizedSessionsMatch:true,unauthorizedSessionRejected:true,incompleteFinalizeAtomic:true,changedChunkRejected:true,immutable:true,freshRoleAndCommunityRevocationEnforced:true,stagingCountAndByteQuotasEnforced:true,reloadResumesSameInterruptedRequest:true,cancelPendingReleasesQuotaAndRetainsTombstone:true,finalizedCancellationRejected:true,canceledRequestsHaveDurableRetryIdentity:true};
  if(process.env.ATLAS_AUDIT_PROOF_PATH)fs.writeFileSync(process.env.ATLAS_AUDIT_PROOF_PATH,JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof,null,2));
 }catch(error){console.error(error.message,error.where||'',error.position||'',error.internalPosition||'',error.internalQuery||'',error.stack);process.exitCode=1;}finally{await db.close();}

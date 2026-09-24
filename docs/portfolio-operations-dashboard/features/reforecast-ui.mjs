@@ -1,9 +1,9 @@
-import * as store from './reforecast-store.mjs?v=aff4d9987c2e3c5d';
+import * as store from './reforecast-store.mjs?v=4a72d5a04fe4fa2a';
 import {computeReforecast,recommendReforecast,applyRecommendations,undoRecommendationAction,fingerprint} from './reforecast-engine.mjs?v=3d3b7e538bd36581';
-import {safeSpreadsheetCell,esc,finite,money,reportHtml,reportPdf,exportRows,csv,download,snapshotLines,analyticalExportRows,communityForecastWorkbook,communityForecastPdf,pairedForecastReports,portfolioForecastDigest,portfolioForecastDigestWorkbook,portfolioForecastDigestPdf} from './reforecast-report.mjs?v=88c6bd1160c583c8';
+import {safeSpreadsheetCell,esc,finite,money,reportHtml,reportPdf,exportRows,csv,download,snapshotLines,analyticalExportRows,communityForecastWorkbook,communityForecastPdf,pairedForecastReports,portfolioForecastDigest,portfolioForecastDigestWorkbook,portfolioForecastDigestPdf} from './reforecast-report.mjs?v=414edcee834659f5';
 
 import {UTILITY_RELATIONSHIP_CANDIDATES,createContractOverride} from './reforecast-provider.mjs?v=b7cefe47481b6ebe';
-import {forecastPermissions,forecastSetupDialog,forecastSourceHtml,forecastGridHtml,utilityRecoveryHtml,strScheduleHtml,bindBuilderControls} from './reforecast-builder-ui.mjs?v=1be6c1f78c2295c6';
+import {forecastPermissions,forecastSetupDialog,forecastSourceHtml,forecastGridHtml,utilityRecoveryHtml,strScheduleHtml,bindBuilderControls} from './reforecast-builder-ui.mjs?v=c6c5d77ce60131a5';
 import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=4ac05e599b825844';
 import {validatePlanningCalendar} from './planning-governance.mjs?v=a4de8d3f5a50966c';
 const clone=v=>JSON.parse(JSON.stringify(v));
@@ -303,7 +303,7 @@ async function applyWorkbookImport(s,result){
  safeActor(s);
  const sameCommunity=s.cid===result.communityId;
  if(s.dirty&&!sameCommunity)throw Error('Save the current working draft before switching properties. The imported workbook is already saved and can be resumed.');
- const module=await import('./reforecast-import-ui.mjs?v=053124183ab998f3');
+ const module=await import('./reforecast-import-ui.mjs?v=d5d1d19548fda4fc');
  if(!sameCommunity){s.cid=result.communityId;await loadCommunity(s);if(s.error)throw Error(s.error);}
  if(!s.edit||!editable(s)){
   if(result.source)s.source=result.source;
@@ -317,7 +317,7 @@ async function applyWorkbookImport(s,result){
  render(s);
 }
 async function importWorkbook(s,file){
- try{safeActor(s);const m=await import('./reforecast-import-ui.mjs?v=053124183ab998f3');await m.importReforecastWorkbook({file,central:s.central,communities:s.communities,actor:s.actor,defaultPeriods:periodsFor(s.year),onSaved:result=>applyWorkbookImport(s,result)});}
+ try{safeActor(s);const m=await import('./reforecast-import-ui.mjs?v=d5d1d19548fda4fc');await m.importReforecastWorkbook({file,central:s.central,communities:s.communities,actor:s.actor,defaultPeriods:periodsFor(s.year),onSaved:result=>applyWorkbookImport(s,result)});}
  catch(e){s.error=e.message;render(s);}
 }
 async function resumeImportsDialog(s){
@@ -326,7 +326,7 @@ async function resumeImportsDialog(s){
  const renderPage=async()=>{
   if(busy)return;busy=true;status.textContent='Reading saved import metadata…';
   try{
-   safeActor(s);const m=await import('./reforecast-import-ui.mjs?v=053124183ab998f3'),cid=s.cid;
+   safeActor(s);const m=await import('./reforecast-import-ui.mjs?v=d5d1d19548fda4fc'),cid=s.cid;
    const page=await m.readReforecastImportPage(s.central,{communityId:cid,offset,limit:25});safeActor(s);
    if(s.cid!==cid)throw Error('The selected community changed. Reopen the import list.');
    body.innerHTML=`<p>Each import is immutable. Resume mapping to update the current editable working draft; existing drivers and unrelated edits are retained.</p><label>Saved workbook<select data-saved-upload>${options(page.rows.map(row=>({value:row.upload_id,label:(row.file_name||'Workbook')+' · '+row.created_at+' · '+row.source_hash.slice(0,12)})),'','Choose a saved import')}</select></label><button data-resume>Resume mapping</button><button data-prev ${offset?'':'disabled'}>Previous</button><button data-next ${page.hasMore?'':'disabled'}>Next</button>`;

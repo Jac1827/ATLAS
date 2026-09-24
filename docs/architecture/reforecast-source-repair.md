@@ -2,6 +2,8 @@
 
 Workbook evidence and the reforecast intake envelope transfer as bounded chunks with SHA-256 manifests. Finalize validates the complete payload and inserts through the existing governed save functions in one transaction. Exact original bytes and serialized audit bytes remain readable. Request IDs bind retries to the same actor, scope and content. Diagnostics retain byte counts, duration, transport outcome and sanitized gateway correlation without retaining credentials or payload text.
 
+Attempt diagnostics are excluded from immutable reference serialization. Retrying the audit-to-intake sequence after a lost begin or finalize response therefore preserves the same request manifest and returns the same saved import.
+
 The governed source bundle includes every eligible close version through the requested horizon. This detects corrections to actual months outside the selected forecast range. Selected forecast cells overlapping governed actual months are rejected. Original approved budgets remain immutable comparators.
 
 Verified local-image OOXML relationships are retained as evidence. An Excel error is classified as supporting media only when the entire local relationship resolves and the cell cannot feed financial authority. Missing relationships, financial selections and unresolved dependencies remain blocked; no cell address or numeric replacement is hard-coded.

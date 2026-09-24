@@ -1,9 +1,9 @@
 /* Guided forecast setup and reviewed source inputs. Authoritative writes use reforecast RPCs. */
-import * as store from './reforecast-store.mjs?v=aff4d9987c2e3c5d';
-import {readUtilityRecommendations,utilityRecoveryRows} from './reforecast-utility.mjs?v=4454d2c4e3e0c33f';
+import * as store from './reforecast-store.mjs?v=4a72d5a04fe4fa2a';
+import {readUtilityRecommendations,utilityRecoveryRows} from './reforecast-utility.mjs?v=f145763719203904';
 import {defaultForecastPeriods,validateForecastPeriods} from './reforecast-engine.mjs?v=3d3b7e538bd36581';
 import {assertRiseOverlay,riseReviewScope} from './reforecast-str-overlay.mjs?v=4ac05e599b825844';
-import {esc,money,finite} from './reforecast-report.mjs?v=88c6bd1160c583c8';
+import {esc,money,finite} from './reforecast-report.mjs?v=414edcee834659f5';
 import {calculateStrLeasingSchedule,mappedProviderStatement,inspectProviderStatement,providerStatementPublicSummary,recommendStrStatementBehavior,calculateContractDriver,createContractOverride} from './reforecast-provider.mjs?v=b7cefe47481b6ebe';
 
 const uuid=()=>crypto.randomUUID();

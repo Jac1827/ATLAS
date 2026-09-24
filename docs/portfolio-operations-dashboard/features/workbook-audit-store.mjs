@@ -52,7 +52,10 @@ export async function persistWorkbookAudit(central,audit,{communityId=null,sourc
  const ref=compactWorkbookAudit(audit,record);
  const retained=await readWorkbookAuditBytes(central,ref,{sourceHash});guard(central,actor);
  if(await sha(retained.auditBytes)!==manifest.audit.sha256||await sha(retained.sourceBytes)!==sourceHash)throw Error('Workbook exact readback failed.');
- ref.transport={requestId:id,serializedAuditBytes:auditBytes.length,originalBytes:original.length,manifestHash,durationMs:Math.round(performance.now()-started),requests:measurements};
+ // Transport observations belong to this attempt, not the immutable evidence.
+ // Keep them directly readable for diagnostics, but exclude them from JSON,
+ // object spread and structuredClone so re-saving the same audit has one hash.
+ Object.defineProperty(ref,'transport',{value:{requestId:id,serializedAuditBytes:auditBytes.length,originalBytes:original.length,manifestHash,durationMs:Math.round(performance.now()-started),requests:measurements},enumerable:false});
  return ref;
 }
 

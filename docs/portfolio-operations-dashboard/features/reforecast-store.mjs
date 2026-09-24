@@ -1,5 +1,5 @@
 /* Canonical reforecast transport: no browser-local financial fallback. */
-import {persistReforecastPayload} from './workbook-audit-store.mjs?v=3c7e49ea1b295e7d';
+import {persistReforecastPayload} from './workbook-audit-store.mjs?v=9e9116b68ad81b7a';
 import {effectiveActiveSnapshot as projectActive} from './reforecast-active.mjs?v=03b191a6926d70ca';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const period=/^20\d{2}-(0[1-9]|1[0-2])$/;

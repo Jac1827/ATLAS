@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
+import {fileURLToPath} from 'node:url';
 import {validateConfig, browserConfig, contentSecurityPolicy} from './isolated-forecast-host/policy.mjs';
 import {bootstrap} from './isolated-forecast-host/bootstrap.mjs';
 import {createWorker} from './isolated-forecast-host/worker.mjs';
@@ -78,8 +79,16 @@ assert(html.indexOf('data-atlas-isolated-test') < html.indexOf('src="central-cli
 
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'atlas-forecast-host-test-'));
 try {
+  const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   await assert.rejects(prepareTestHost({env: {}, out: path.join(temp, 'missing')}));
-  await assert.rejects(prepareTestHost({env, out: path.resolve('output/unsafe-test-host')}), /outside the repository/);
+  await assert.rejects(prepareTestHost({env, out: path.join(repository, 'output/unsafe-test-host')}), /outside the repository/);
+  const nonexistent = path.join(repository, 'output', path.basename(temp), 'nested', 'unsafe-test-host');
+  await assert.rejects(fs.access(path.dirname(nonexistent)), {code: 'ENOENT'});
+  await assert.rejects(prepareTestHost({env, out: nonexistent}), /outside the repository/);
+  await assert.rejects(prepareTestHost({env, out: path.dirname(nonexistent) + '/absent/../unsafe-test-host'}), /outside the repository/);
+  const repositoryLink = path.join(temp, 'repository-link');
+  await fs.symlink(repository, repositoryLink, 'dir');
+  await assert.rejects(prepareTestHost({env, out: path.join(repositoryLink, 'unsafe-test-host')}), /outside the repository/, 'canonical realpath rejects an outside symlink into the repository');
   const source = path.join(temp, 'source'); await fs.mkdir(source);
   await fs.writeFile(path.join(source, 'index.html'), '<html><head><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script></head><body></body></html>');
   await fs.writeFile(path.join(source, 'private.sql'), 'not an asset');

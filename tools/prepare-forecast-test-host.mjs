@@ -26,8 +26,10 @@ export function prepareHtml(html, config) {
 export async function prepareTestHost({env = process.env, out, sourceDirectory = path.join(repository, 'docs')} = {}) {
   const config = configFromEnvironment(env);
   if (!out || !path.isAbsolute(out)) throw new Error('--out must be a new absolute directory outside the repository');
-  const parent = await fs.realpath(path.dirname(out));
-  const target = path.join(parent, path.basename(out));
+  const normalized = path.resolve(out);
+  if (normalized === repository || normalized.startsWith(repository + path.sep)) throw new Error('Test output must stay outside the repository');
+  const parent = await fs.realpath(path.dirname(normalized));
+  const target = path.join(parent, path.basename(normalized));
   const repo = await fs.realpath(repository);
   if (target === repo || target.startsWith(repo + path.sep)) throw new Error('Test output must stay outside the repository');
   // No overwrite option: a bad path cannot erase an existing directory or prior test evidence.

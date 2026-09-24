@@ -1,16 +1,19 @@
 /* Source acceptance runs the production browser UI against an isolated, disposable PostgreSQL fixture. */
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import net from 'node:net';
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url),{chromium}=require(process.env.ATLAS_PLAYWRIGHT||'playwright');
 const {PDFDocument,StandardFonts}=await import('../docs/portfolio-operations-dashboard/vendor/pdf-lib-1.17.1.mjs');
-const cid='10000000-0000-0000-0000-000000000001',url=process.env.ATLAS_PROVIDER_TEST_URL||'http://127.0.0.1:8773';
-let server=null,serverOutput='';
+const cid='10000000-0000-0000-0000-000000000001';
+let url=process.env.ATLAS_PROVIDER_TEST_URL,server=null,serverOutput='';
 if(!process.env.ATLAS_PROVIDER_TEST_URL){
- server=spawn(process.execPath,['tools/reforecast-harness-server.cjs'],{cwd:process.cwd(),env:{...process.env,PORT:'8773'},stdio:['ignore','pipe','pipe']});
- await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Source fixture server did not become ready. '+serverOutput)),15000);server.once('exit',code=>{clearTimeout(timer);reject(Error('Source fixture server exited '+code+': '+serverOutput));});for(const stream of [server.stdout,server.stderr])stream.on('data',chunk=>{serverOutput+=chunk.toString();if(serverOutput.includes('acceptance http://127.0.0.1:8773')){clearTimeout(timer);resolve();}});});
+ const port=await new Promise((resolve,reject)=>{const listener=net.createServer();listener.once('error',reject);listener.listen(0,'127.0.0.1',()=>{const selected=listener.address().port;listener.close(error=>error?reject(error):resolve(selected));});});
+ url='http://127.0.0.1:'+port;
+ server=spawn(process.execPath,['tools/reforecast-harness-server.cjs'],{cwd:process.cwd(),env:{...process.env,PORT:String(port)},stdio:['ignore','pipe','pipe']});
+ await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Source fixture server did not become ready. '+serverOutput)),15000);server.once('exit',code=>{clearTimeout(timer);reject(Error('Source fixture server exited '+code+': '+serverOutput));});for(const stream of [server.stdout,server.stderr])stream.on('data',chunk=>{serverOutput+=chunk.toString();if(serverOutput.includes('Reforecast acceptance '+url)){clearTimeout(timer);resolve();}});});
 }
 const browser=await chromium.launch({headless:true}),context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[];
 page.setDefaultTimeout(12000);page.on('pageerror',error=>errors.push(error.message));

@@ -11,38 +11,73 @@
   ['reports','Reports',['reports','visuals','exports']],
   ['setup','Setup & Imports',['imports','saveload']]
  ];
+ const sharedViews=new Set(['dashboard','actuals','financialreview','vsactual','exceptions','commentary','reports','visuals','exports','reforecast','reforecastapprovals','reforecastgap']);
+ const renderBrowserTop=A.renderTop;
+ A.renderTop=function(){
+  if(!sharedViews.has(A.view))return renderBrowserTop?renderBrowserTop.call(this).replace('Effective gross income','Browser draft income').replace('<span class="k">NOI</span>','<span class="k">Browser draft NOI</span>').replace('<label>Scenario</label>','<label>Browser draft scenario</label>'):'';
+  const year=A.year(),properties=A.state?.properties||[];
+  return '<div class="brandbox"><img class="logo" src="assets/rise-logomark-white.png" alt="RISE"><div class="t">Budget Builder<small>Shared financial records</small></div></div>'+
+   '<div class="picker"><label>Workspace property</label><select onchange="RBB.app.setProperty(this.value)">'+properties.map(p=>'<option value="'+esc(p.id)+'"'+(p.id===A.state.activeProperty?' selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select></div>'+
+   '<div class="picker"><label>Reporting year</label><div class="yearsel">'+(R.YEARS||[year]).map(y=>'<button class="'+(y===year?'on':'')+'" onclick="RBB.app.setYear('+Number(y)+')">'+esc(y)+'</button>').join('')+'</div></div><div class="grow"></div>'+
+   '<span>Selected shared records and publication status are shown below.</span><button class="btn ghost sm" onclick="RBB.app.go(\'workspace\')">Edit browser working model</button><button class="btn ghost sm" onclick="RBB.app.go(\'reports\')">Published reports</button>';
+ };
  const known=()=>A.VIEWS.filter(v=>v.id);
  const section=view=>groups.find(g=>g[2].includes(view))||groups[6];
  const label=id=>known().find(v=>v.id===id)?.label||id;
  const link=(id,text,current)=>'<a href="#'+esc(id)+'"'+(current?' aria-current="page" class="on"':'')+' onclick="RBB.app.go(\''+esc(id)+'\');return false;">'+esc(text)+'</a>';
  A.renderNav=function(){
-  const group=section(A.view),sc=A.scenario(),vr=A.vr(),p=A.prop(),summary=A.c().summary;
+  const group=section(A.view),shared=sharedViews.has(A.view),p=A.prop();
+  const sc=shared?null:A.scenario(),summary=shared?null:A.c().summary;
   const secondary=known().filter(v=>section(v.id)===group);
-  const canonical=R.closedFinancial?.caches.get(p.id+'|'+A.year());
-  const closed=canonical ? (canonical.coverage.last ? 'Closed through '+R.MONTHS[canonical.coverage.last-1]+' · '+(canonical.coverage.completeYtd?'consecutive YTD':'incomplete YTD coverage; statement YTD reference') : canonical.status) : vr?.closedThrough ? R.MONTHS[vr.closedThrough-1]+' (local record; central close unverified)' : 'No closed actuals verified';
   const saved=R.persist.dirty?'Unsaved changes':R.persist.lastSavedAt?'Saved in this browser':'No browser save recorded';
   return '<div class="budget-workflow-nav"><div class="budget-nav-tools"><button class="btn sm" onclick="RBB.app.openCommandMenu()">Find a tool <kbd>Ctrl/⌘ K</kbd></button><button class="btn sm" onclick="RBB.app.continueWorkflow()">Continue where I left off</button></div>'+
    '<nav class="budget-primary" aria-label="Budget workflows">'+groups.map(g=>link(g[2][0],g[1],g===group)).join('')+'</nav>'+
-   '<div class="budget-context" aria-label="Financial context"><strong>Budget scenario: '+esc(p.name)+'</strong><span>Calendar '+esc(A.year())+' · Fiscal start '+esc(p.fiscalYearBegins||'Not recorded')+'</span><span>'+esc(sc.name)+' · Version '+esc(sc.version||'not recorded')+' · '+esc(sc.status||'Draft')+(sc.locked?' · Locked':'')+' (local scenario)</span><span>Close coverage for '+esc(p.name)+': '+esc(closed)+'</span><span>'+esc(saved)+'</span><span>Selected shared actuals and their coverage are shown in the comparison below. Original budget unchanged</span></div>'+
+   '<div class="budget-context" aria-label="Financial context"><strong>'+esc(shared?'Shared financial records: '+p.name:'Browser working model: '+p.name)+'</strong><span>Reporting year '+esc(A.year())+'</span>'+
+   (shared?'<span>Select the community and month below. Publication status, source versions and the snapshot fingerprint identify the official record.</span>':'<span>'+esc(sc.name)+' · Browser draft'+(sc.locked?' · Local editing lock':'')+'</span><span>This working model is not an approved shared financial version.</span><span>'+esc(saved)+'</span>')+'</div>'+
    '<nav class="budget-secondary" aria-label="'+esc(group[1])+' tools">'+secondary.map(v=>link(v.id,v.label,A.view===v.id)).join('')+'</nav>'+
-   '<div class="budget-breadcrumb" aria-label="Breadcrumb">Budget Builder / '+esc(group[1])+' / '+esc(label(A.view))+'<span>'+Number(summary?.high||0)+' high-priority budget checks</span></div></div>';
+   '<div class="budget-breadcrumb" aria-label="Breadcrumb">Budget Builder / '+esc(group[1])+' / '+esc(label(A.view))+(shared?'':'<span>'+Number(summary?.high||0)+' high-priority browser draft checks</span>')+'</div></div>';
  };
  const go=A.go;
  let packageReview;
- A.openFinancialPackageReview=async function(scope){try{packageReview=await import('./features/financial-package-review.mjs?v=38159c10031c6e97');await packageReview.openReview(scope);}catch(e){A.toast(e.message,'r');}};
- const actuals=R.views.actuals;
- function sharedActualsPanel(){
-  setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el)return;try{const m=await import('./features/financial-comparison.mjs?v=c1e8e7cb03a380e4');await m.mountComparison(el,{communityName:A.cp().property.name,year:A.year()});}catch(e){el.textContent=e.message;}},0);
-  return '<div class="panel"><button class="btn pri" onclick="RBB.app.openFinancialPackageReview()">Upload or read saved financial review</button><p>Upload → classify → confirm → map → reconcile → save review → Admin close → canonical publication → verified readback</p></div><section class="panel" id="shared-financial-comparison"><p>Loading shared actuals…</p></section>';
+ A.openFinancialPackageReview=async function(scope){try{packageReview=await import('./features/financial-package-review.mjs?v=8a09fc0eb136895f');await packageReview.openReview(scope);}catch(e){A.toast(e.message,'r');}};
+ let sharedViewSequence=0;
+ function sharedActualsPanel(title='Actuals & Close'){
+  const sequence=++sharedViewSequence,communityName=A.prop?.()?.name||A.cp?.()?.property?.name,year=A.year?.();
+  setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el||sequence!==sharedViewSequence)return;try{const m=await import('./features/financial-comparison.mjs?v=2bbfdeb9160fcf1c');if(!el.isConnected||sequence!==sharedViewSequence)return;await m.mountComparison(el,{communityName,year});}catch(e){if(el.isConnected&&sequence===sharedViewSequence){el.setAttribute('role','alert');el.textContent='Shared financial records could not load: '+e.message;}}},0);
+  return '<div class="panel"><h2>'+esc(title)+'</h2><p>Published monthly actuals and their approved original-budget comparison are read from shared financial versions. Screen, PDF, CSV and Excel cite the same retained snapshot fingerprint. Missing or open months are identified below.</p>'+
+   '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn pri" onclick="RBB.app.openFinancialPackageReview()">Upload or read saved financial review</button><button class="btn sec" onclick="RBB.app.go(\'reforecastgap\')">Reforecast reports</button><button class="btn sec" onclick="RBB.app.go(\'reforecast\')">Working reforecasts</button><button class="btn sec" onclick="RBB.app.go(\'reforecastapprovals\')">Approval Center</button></div>'+
+   '<p>Reforecast reports identify each saved version as a draft, locked version, or published active benchmark. Select a published active version for official forecast reporting.</p><p>Upload → classify → confirm → map → reconcile → save review → Admin close → canonical publication → verified readback</p></div><section class="panel" id="shared-financial-comparison"><p>Loading shared financial records…</p></section>';
  }
- R.views.actuals=function(){return sharedActualsPanel();};
+ const sharedTitles={dashboard:'Financial overview',actuals:'Actuals & Close',financialreview:'Financial review',vsactual:'Budget vs actual',exceptions:'Financial exceptions and missing coverage',commentary:'Financial source notes',reports:'Published financial reports',exports:'Published financial exports',visuals:'Published financial analysis'};
+ for(const [view,title] of Object.entries(sharedTitles))R.views[view]=()=>sharedActualsPanel(title);
+
+ // Retired browser reports cannot become official outputs through old buttons,
+ // direct links, or an inline CSV action on a working-model screen.
+ const exportMessage='Browser draft financial exports are disabled. Choose a shared month below for published actuals and approved-budget PDF, CSV or Excel, or open Reforecast reports for a saved version and its publication status.';
+ const redirectExport=function(){A.go('reports');A.toast(exportMessage,'r');return false;};
+ for(const name of ['exportOne','exportWorkbook','exportBudgetBook','previewBudgetBook','exportPropertyCsv','exportFinancialReview','exportSegment','exportSegmentComparison','exportCurrentCsv','exportSegmentCsv','strExport','downloadActualsShell','reportOpen','reportSave','reportOpenSegment','reportSaveSegment','reportOpenOne','reportSaveOne','reportOpenCustom','reportSaveCustom','printThisView','visualPrint'])if(typeof A[name]==='function')A[name]=redirectExport;
+ const refuseReport=()=>{throw Error(exportMessage);};
+ for(const name of ['reportHtml','reportCustomHtml','budgetBookHtml'])if(typeof A[name]==='function')A[name]=refuseReport;
+ for(const name of ['workbook','budgetBook'])if(typeof R.exporter?.[name]==='function')R.exporter[name]=refuseReport;
+ for(const name of ['build','buildOne'])if(typeof R.exporter?.reports?.[name]==='function')R.exporter.reports[name]=refuseReport;
+ const browserDownload=A.download;let downloadPurpose=null;
+ if(typeof browserDownload==='function'){
+  A.download=function(name,content,mime){
+   if(!downloadPurpose)return redirectExport();
+   return browserDownload.call(this,downloadPurpose==='source_evidence'?'SOURCE_EVIDENCE_'+name:name,content,mime);
+  };
+  // These synchronous handlers export user save files, empty input templates,
+  // or source evidence. They never export a calculated financial report.
+  for(const [name,purpose] of [['doSaveFile','backup'],['downloadTemplate','template'],['convertDownload','source_evidence'],['convertDownloadGlMap','source_evidence']]){
+   const original=A[name];if(typeof original!=='function')continue;
+   A[name]=function(){const previous=downloadPurpose;downloadPurpose=purpose;try{return original.apply(this,arguments);}finally{downloadPurpose=previous;}};
+  }
+ }
  const convertRead=A.convertReadFile,convertPanel=R.views._convertPanel;
  A.inspectSupportingOnly=false;
  R.views._convertPanel=function(){return '<div class="panel"><h3>Monthly actuals intake</h3><p>BCR is authoritative. Each selected month receives a separate review and close; T12 cannot create closes.</p><button class="btn pri" onclick="RBB.app.openFinancialPackageReview()">Review a monthly BCR package</button><label><input type="checkbox" '+(A.inspectSupportingOnly?'checked':'')+' onchange="RBB.app.inspectSupportingOnly=this.checked"> Inspect supporting or operational sources only</label></div>'+convertPanel.apply(this,arguments);};
  A.convertReadFile=function(file){if(!A.inspectSupportingOnly&&/\.(xlsx|pdf)$/i.test(file.name))return A.openFinancialPackageReview({file});return convertRead.call(this,file);};
  A.convertValidate=function(){A.toast('This converter is supporting evidence only. Use Review a monthly BCR package to save a governed actuals review.','r');};
- const vsactual=R.views.vsactual;
- if(vsactual)R.views.vsactual=function(){return sharedActualsPanel()+'<details><summary>Legacy scenario comparison — separate browser data</summary>'+vsactual.apply(this,arguments)+'</details>';};
  A.go=function(view,opts){
   if(!R.views[view])return;
   if(view!==A.view)packageReview?.dispose();

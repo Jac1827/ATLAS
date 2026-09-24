@@ -40,7 +40,13 @@ const packet=(amount=80,date='2026-09-16')=>({period:'2026-09',actuals:[{glCode:
  // Core Data Import commits community values and lineage in the same transaction.
  const main=fs.readFileSync(dir+'index.html','utf8'),core={window:{},Date,Map,Set,Promise,console,ATLAS_STATE_STORE_NAME:'records',ATLAS_STATE_COMMUNITY_KEY:'community_data',DATA_IMPORT_2_STATE_KEY:'imports',atlasStateWritePromise:Promise.resolve(),atlasPersistenceMeta:{},dashboardSharedSyncMeta:{}};
  vm.createContext(core);
- for(const name of ['withAtlasStateStore','queueAtlasStateWrite','persistDataImportPublication','persistSaved'])vm.runInContext(main.match(new RegExp('^(?:async )?function '+name+'\\([^\\n]*\\) \\{[\\s\\S]*?^\\}','m'))[0].replace('const {mergeHistory}=await import("./features/import-history-store.mjs");',''),core);
+ for(const name of ['withAtlasStateStore','queueAtlasStateWrite','persistDataImportPublication','persistSaved']){
+  const source=main.match(new RegExp('^(?:async )?function '+name+'\\([^\\n]*\\) \\{[\\s\\S]*?^\\}','m'))[0];
+  // Inject the real module below; browser cache identifiers are not VM loaders.
+  const fixtureSource=source.replace(/const \{mergeHistory\}=await import\("\.\/features\/import-history-store\.mjs(?:\?v=[^"]+)?"\);/,'');
+  if(name==='persistDataImportPublication')assert.notEqual(fixtureSource,source,'The harness must replace the browser module load with its real imported implementation');
+  vm.runInContext(fixtureSource,core);
+ }
  core.mergeHistory=(await import('../docs/portfolio-operations-dashboard/features/import-history-store.mjs')).mergeHistory;
  let snapshot=await read(),importSnapshot={lineage:[{field:'occupied_units'}]};
  Object.assign(core,{openAtlasStateDb:async()=>db,buildSerializedSavedDataPayload:()=>snapshot,serializeDataImport2State:()=>importSnapshot,removeLegacyCommunityStorageKeys(){},clearAtlasPersistenceError(){},persistAtlasPersistenceMeta(){},markAtlasPersistenceError(){},persistDashboardSharedSyncMeta(){}});

@@ -18,6 +18,16 @@ export async function applyControls(container,review,status){
  await mountCloseControls(container,central,review);
 }
 
+export function comparisonScope({communityName,communityId,period,year,url,now=new Date()}={}){
+ const context=new URL(url),savedPeriod=context.searchParams.get('comparisonPeriod');
+ const selected=communityId||(!communityName?context.searchParams.get('comparisonCommunity'):'')||'';
+ const validMonth=value=>/^20\d{2}-(0[1-9]|1[0-2])$/.test(value||'');
+ const reportYear=Number(year)||(validMonth(period)?Number(period.slice(0,4)):validMonth(savedPeriod)?Number(savedPeriod.slice(0,4)):now.getFullYear());
+ const retainedPeriod=validMonth(savedPeriod)&&Number(savedPeriod.slice(0,4))===reportYear?savedPeriod:'';
+ const defaultPeriod=reportYear+'-'+String(reportYear===now.getFullYear()?now.getMonth()+1:1).padStart(2,'0');
+ return {communityId:selected,year:reportYear,period:validMonth(period)?period:retainedPeriod,defaultPeriod};
+}
+
 export async function mountComparison(container,{communityName,period,year}={}){
  if(container.dataset.comparisonMounted)return;container.dataset.comparisonMounted='1';
  let epoch=0;const alive=()=>container.isConnected;
@@ -25,17 +35,19 @@ export async function mountComparison(container,{communityName,period,year}={}){
  try{
   const central=centralClient();
   const [communities,aliases]=await Promise.all([central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000')]);if(!alive())return;
-  const context=new URL(location.href),match=resolveCommunity(communityName,communities,aliases);
-  const selected=match.communityId||context.searchParams.get('comparisonCommunity')||'';
-  if(!period&&!context.searchParams.get('comparisonPeriod')&&selected){const y=Number(year)||new Date().getFullYear();const latest=await central.fetchJson(`/atlas_financial_comparison_heads?community_id=eq.${encodeURIComponent(selected)}&period_key=gte.${y}-01&period_key=lt.${y+1}-01&select=period_key&order=period_key.desc&limit=1`);if(!alive())return;period=latest[0]?.period_key;}
+  const match=resolveCommunity(communityName,communities,aliases),scope=comparisonScope({communityName,communityId:match.communityId,period,year,url:location.href}),selected=scope.communityId;
+  period=scope.period;
+  if(!period&&selected){const y=scope.year;const latest=await central.fetchJson(`/atlas_financial_comparison_heads?community_id=eq.${encodeURIComponent(selected)}&period_key=gte.${y}-01&period_key=lt.${y+1}-01&select=period_key&order=period_key.desc&limit=1`);if(!alive())return;period=latest[0]?.period_key;}
 
-  container.innerHTML=`<h3>Shared actuals comparison</h3><p>Select a month to view its saved actuals. The status below distinguishes reviewed records from Admin-closed actuals. Statement budgets are references; the original approved budget is unchanged.</p><label>Community <select data-community><option value="">Choose community</option>${communities.map(c=>`<option value="${esc(c.community_id)}" ${c.community_id===selected?'selected':''}>${esc(c.display_name)}</option>`).join('')}</select></label> <label>Period <input data-period type="month" value="${esc(period||context.searchParams.get('comparisonPeriod')||new Date().toISOString().slice(0,7))}"></label> <button data-load>Load saved comparison</button><p role="status"></p><div data-comparison></div>`;
+  container.innerHTML=`<h3>Shared actuals comparison</h3><p>Select a month to view its saved actuals. The status below distinguishes reviewed records from Admin-closed actuals. Statement budgets are references; the original approved budget is unchanged.</p><label>Community <select data-community><option value="">Choose community</option>${communities.map(c=>`<option value="${esc(c.community_id)}" ${c.community_id===selected?'selected':''}>${esc(c.display_name)}</option>`).join('')}</select></label> <label>Period <input data-period type="month" value="${esc(period||scope.defaultPeriod)}"></label> <button data-load>Load saved comparison</button><p role="status"></p><div data-comparison></div>`;
   const result=container.querySelector('[data-comparison]'),status=container.querySelector('[role=status]');
   async function load(){const token=++epoch;result.replaceChildren();const cid=container.querySelector('[data-community]').value,p=container.querySelector('[data-period]').value;
    if(!cid||!/^20\d{2}-(0[1-9]|1[0-2])$/.test(p)){status.textContent='Choose a community and period.';return;}
    status.textContent='Reading shared actuals…';
-   try{const [finance]=await readFinance(central,[cid],[p]);if(!alive()||token!==epoch)return;const policy=finance?.summary?.coveragePolicy;if(policy?.fullMonthAllowed===false){status.textContent=(policy.classification||'Unavailable')+' — '+policy.reason;result.innerHTML='<p>This period is excluded from authoritative full-month actuals. Its original source and any earlier versions remain retained as evidence.</p><p>Retained versions: '+esc((policy.retainedVersionIds||[]).join(', ')||'None')+'</p>';return;}const closedVersions=await readYear(central,cid,Number(p.slice(0,4)));const closed=closedVersions.find(v=>v.period_key===p);const closedCoverage=coverage(closedVersions,Number(p.slice(0,4)));const heads=await central.fetchJson(`/atlas_financial_comparison_heads?community_id=eq.${encodeURIComponent(cid)}&period_key=eq.${p}&select=version_id&limit=1`);if(!alive()||token!==epoch)return;
-    if(closed){status.textContent='Reading the published version for screen and exports…';const {mountCloseReport}=await import('./financial-close-report.mjs?v=a04ae8dd0e3cf8d2');await mountCloseReport(result,central,cid,p);if(!alive()||token!==epoch)return;status.textContent='Published full-month actuals. Screen, PDF, CSV and Excel use the same retained canonical snapshot.';return;}
+   try{const [finance]=await readFinance(central,[cid],[p]);if(!alive()||token!==epoch)return;const policy=finance?.summary?.coveragePolicy;
+    if(finance?.summary?.budgetVersion&&(!finance.summary.actualCloseVersion||policy?.fullMonthAllowed===false)){status.textContent='Reading the approved original budget for screen and exports…';const {mountBudgetReport}=await import('./canonical-budget-report.mjs?v=7ec2c59050dd86a5');await mountBudgetReport(result,central,cid,p,{isCurrent:()=>alive()&&token===epoch});if(!alive()||token!==epoch)return;status.textContent='Approved original budget. Actuals remain unavailable for this period; screen, PDF, CSV and Excel use the same retained canonical snapshot.';return;}
+    if(policy?.fullMonthAllowed===false){status.textContent=(policy.classification||'Unavailable')+' — '+policy.reason;result.innerHTML='<p>This period is excluded from authoritative full-month actuals. Its original source and any earlier versions remain retained as evidence.</p><p>Retained versions: '+esc((policy.retainedVersionIds||[]).join(', ')||'None')+'</p>';return;}const closedVersions=await readYear(central,cid,Number(p.slice(0,4)));const closed=closedVersions.find(v=>v.period_key===p);const closedCoverage=coverage(closedVersions,Number(p.slice(0,4)));const heads=await central.fetchJson(`/atlas_financial_comparison_heads?community_id=eq.${encodeURIComponent(cid)}&period_key=eq.${p}&select=version_id&limit=1`);if(!alive()||token!==epoch)return;
+    if(closed){status.textContent='Reading the published version for screen and exports…';const {mountCloseReport}=await import('./financial-close-report.mjs?v=b841a0bba5460120');await mountCloseReport(result,central,cid,p,{isCurrent:()=>alive()&&token===epoch});if(!alive()||token!==epoch)return;status.textContent='Published full-month actuals. Screen, PDF, CSV and Excel use the same retained canonical snapshot.';return;}
     if(closed)heads.splice(0,heads.length,{version_id:closed.comparison_version_id});
     if(!heads.length){status.textContent='Missing/Open: no actuals applied for this community and month. Open a saved import review; only Admin close makes it published actuals.';return;}
     const [version]=await central.fetchJson(`/atlas_financial_comparison_versions?version_id=eq.${heads[0].version_id}&select=*&limit=1`);if(!alive()||token!==epoch)return;if(!version)throw Error('The saved version is unavailable.');

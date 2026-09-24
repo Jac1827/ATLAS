@@ -124,8 +124,10 @@ jobs:
           node tools/data-import-health-performance.test.cjs
           node tools/contract-terms.test.cjs
           node tools/budget-navigation-governance.test.cjs
+          node tools/budget-official-output-routing.test.mjs
           node tools/staffing-turnover.test.cjs
           node tools/occupancy-replay-browser-performance.test.cjs
           node tools/archive-performance.test.cjs
           node tools/workbook-performance.test.cjs
           node tools/financial-close-report.test.mjs
+          node tools/canonical-budget-report.test.mjs

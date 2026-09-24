@@ -7,7 +7,8 @@ import {readFinance,bonusEvidence} from '../docs/portfolio-operations-dashboard/
 import {financialRows} from '../docs/portfolio-operations-dashboard/features/community-plan-report.mjs';
 import {closeReportPdf,closeReportRows,closeReportHtml,closeReportWorkbook} from '../docs/portfolio-operations-dashboard/features/financial-close-report.mjs';
 import {reportPdf,reportSnapshot,exportRows} from '../docs/portfolio-operations-dashboard/features/reforecast-report.mjs';
-const require=createRequire(import.meta.url),XLSX=require('xlsx'),{PDFDocument,PDFName,PDFDict,PDFArray,PDFRawStream,decodePDFRawStream}=require('pdf-lib');
+import {PDFDocument,PDFName,PDFDict,PDFArray,PDFRawStream,decodePDFRawStream} from '../docs/portfolio-operations-dashboard/vendor/pdf-lib-1.17.1.mjs';
+const require=createRequire(import.meta.url),XLSX=require('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js');
 for(const text of ['', 'abc', 'Unicode € 文書', 'x'.repeat(300000)])assert.equal(sha256(text),createHash('sha256').update(text).digest('hex'));
 const summary={communityId:'fixture-community',period:'2026-01',registryVersion:'atlas-finance-v1',accountingBasis:'accrual',currency:'USD',actualCloseVersion:'close-1',actualContentHash:'a'.repeat(64),budgetVersion:'budget-1',budgetContentHash:'b'.repeat(64),targetApprovalStatus:'approved',revenue:{actual:0,budget:100},expenses:{actual:-4.21,budget:20},noi:{actual:4.21,budget:80},cashFlow:{actual:null,budget:80}};
 const record={community_id:summary.communityId,period_key:summary.period,publication_id:'publication-1',summary},session=()=>({getSession:()=>({user:{id:'fixture-reader'}}),fetchJson:async()=>structuredClone([record])});

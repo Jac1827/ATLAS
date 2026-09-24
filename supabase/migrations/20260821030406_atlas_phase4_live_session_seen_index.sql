@@ -1,0 +1,1 @@
+create index if not exists idx_atlas_live_sessions_last_seen_at on public.atlas_live_sessions(last_seen_at);

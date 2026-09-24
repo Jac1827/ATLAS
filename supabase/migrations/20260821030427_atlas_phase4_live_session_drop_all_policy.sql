@@ -1,0 +1,1 @@
+drop policy if exists "atlas users manage own live session" on public.atlas_live_sessions;

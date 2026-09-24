@@ -1,0 +1,1 @@
+create index if not exists idx_atlas_live_sessions_user_id on public.atlas_live_sessions(user_id);

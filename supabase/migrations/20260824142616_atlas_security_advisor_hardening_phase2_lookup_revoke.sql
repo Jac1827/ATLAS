@@ -1,0 +1,1 @@
+revoke execute on function public.atlas_lookup_or_create_community(text, text, boolean) from authenticated;

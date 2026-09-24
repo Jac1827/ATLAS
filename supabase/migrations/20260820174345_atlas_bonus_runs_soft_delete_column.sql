@@ -1,0 +1,1 @@
+alter table atlas_bonus_calculation_runs add column if not exists deleted_at timestamptz;

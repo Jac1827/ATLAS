@@ -4,7 +4,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
  const call=async(name,args)=>(await db.query(`select to_jsonb(${name}(${args.map((_,index)=>'$'+(index+1)).join(',')})) result`,args)).rows[0].result;
  const user=n=>'00000000-0000-0000-0000-'+String(n).padStart(12,'0');
  await db.exec('reset role');await db.exec("create function atlas_private.resolve_workbook_audit(a jsonb,h text) returns jsonb language sql as $$select a$$");
- await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/20260924115615_planning_cell_governance.sql'),'utf8'));
+ await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/20260924121641_planning_cell_workbook_integrity_governance.sql'),'utf8'));
  await db.exec(sql('reforecast-builder.sql'));await db.exec(sql('reforecast-report-receipts.sql'));
  await db.exec("alter table atlas_communities add column display_name text;update atlas_communities set display_name='Synthetic report community';");
  await signIn(1);

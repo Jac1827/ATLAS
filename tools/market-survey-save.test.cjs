@@ -38,7 +38,7 @@ function context() {
   };
   ctx.authChanged = () => listeners.get('atlas-central-auth-change')();
   vm.createContext(ctx);
-  for (const name of ['awaitAtlasPersistenceResults', 'assertAtlasSaveContext', 'invalidateAtlasSaveContext', 'getAtlasSaveContextKey', 'captureAtlasSaveContext', 'updateMarketSurveyImportInputs', 'processMarketSurveyFiles']) vm.runInContext(extract(name), ctx);
+  for (const name of ['awaitAtlasPersistenceResults', 'assertAtlasSaveContext', 'invalidateAtlasSaveContext', 'getAtlasSaveContextKey', 'observeAtlasSaveContext', 'captureAtlasSaveContext', 'updateMarketSurveyImportInputs', 'processMarketSurveyFiles']) vm.runInContext(extract(name), ctx);
   vm.runInContext(source.match(/^window\.addEventListener\("atlas-central-auth-change", invalidateAtlasSaveContext\);$/m)[0], ctx);
   return ctx;
 }
@@ -403,4 +403,83 @@ test('classic guard asset loads before main state without eager access and retai
   assert.equal(events[0].name, 'atlas-central-auth-change');
   events[0].handler(); assert.equal(vm.runInContext('atlasSaveAuthRevision', ctx), 1);
   assert.throws(() => ctx.assertAtlasSaveContext(() => false), { name: 'AbortError' });
+});
+
+function installRealScopeNavigation(ctx) {
+  Object.assign(ctx, {
+    PROPERTIES: [{ name: 'A' }, { name: 'B' }], selectedPropIdx: 0, PORTFOLIO_SCOPE_VALUE: 'portfolio',
+    OPS_WORKSPACE_CONTEXT_KEY: 'workspace', localStorage: { setItem() {} },
+    currentMonth: 8, currentOccupied: 5, currentLeased: 6, importMonthOverride: 8, bonusQuarterManualOverride: true,
+    getProp: () => ctx.PROPERTIES[ctx.selectedPropIdx],
+    getSelectedDashboardPeriodKey: () => `2026-${String(ctx.currentMonth + 1).padStart(2, '0')}`,
+    matchPropertyName: name => ['A', 'B'].includes(name) ? name : null,
+    normalizeCommunityLookupName: name => String(name).toLowerCase(),
+    loadPropertyData() {}, buildOperationsWorkspaceContext: () => ({ community: ctx.workspaceScopeValue, month: ctx.currentMonth }),
+    storeCurrentMonthSnapshots() {}, restoreCurrentMonthSnapshots() {}, syncMonthlyTemplateImportTarget() {}, syncHeaderSubText() {},
+  });
+  for (const name of ['persistOperationsWorkspaceContext', 'selectProp', 'onWorkspaceCommunitySelect', 'openCommunityWorkspace', 'setPortfolioMonthScopeForPeriod']) vm.runInContext(extract(name), ctx);
+  const input = { dataset: { field: 'currentMonth' }, value: '8', addEventListener(_event, fn) { this.change = fn; } };
+  ctx.document = { querySelectorAll: selector => selector === '[data-field]' ? [input] : [] };
+  const start = source.indexOf('  document.querySelectorAll("[data-field]")');
+  const end = source.indexOf('  // File import (CSV or PDF)', start);
+  vm.runInContext(source.slice(start, end), ctx);
+  ctx.changeMonth = value => { input.value = String(value); input.change(); };
+}
+for (const [name, navigate] of [
+  ['community selector', ctx => { ctx.onWorkspaceCommunitySelect('B'); ctx.onWorkspaceCommunitySelect('A'); }],
+  ['portfolio selector', ctx => { ctx.onWorkspaceCommunitySelect('portfolio'); ctx.onWorkspaceCommunitySelect('A'); }],
+  ['community workspace', ctx => { ctx.openCommunityWorkspace('B'); ctx.openCommunityWorkspace('A'); }],
+  ['month input', ctx => { ctx.changeMonth(9); ctx.changeMonth(8); }],
+  ['portfolio month scope', ctx => { ctx.setPortfolioMonthScopeForPeriod('2026-09', ['B']); ctx.setPortfolioMonthScopeForPeriod('2026-09', []); }],
+]) {
+  test(`actual ${name} A-B-A transitions invalidate pending real PDF parse without intermediate predicate reads`, async () => {
+    const ctx = realHandlerContext(), read = deferred(); installRealScopeNavigation(ctx);
+    ctx.extractPdfTextFromFile = () => read.result.completion;
+    const before = ctx.getAtlasSaveContextKey();
+    const upload = ctx.processMarketSurveyFiles([{ name: 'survey.pdf' }]);
+    navigate(ctx);
+    assert.equal(ctx.getAtlasSaveContextKey(), before, 'Visible context returns to exactly A');
+    const grids = ctx.grids, renders = ctx.renders; read.succeed();
+    assert.equal(await upload, false); assert.equal(ctx.parses, 0);
+    assert.equal(ctx.savedData.A.marketSurveyData.compAverageRent, 1000);
+    assert.equal(ctx.marketSurveyImportLog.length, 0); assert.equal(ctx.grids, grids); assert.equal(ctx.renders, renders);
+  });
+}
+test('unchanged workspace persistence and unrelated period updates keep a valid pending save current', async () => {
+  const ctx = realHandlerContext(), read = deferred(); installRealScopeNavigation(ctx);
+  ctx.extractPdfTextFromFile = () => read.result.completion;
+  const upload = ctx.processMarketSurveyFiles([{ name: 'survey.pdf' }]);
+  ctx.persistOperationsWorkspaceContext(); ctx.persistOperationsWorkspaceContext();
+  ctx.setPortfolioMonthScopeForPeriod('2026-08', ['B']);
+  ctx.setPortfolioMonthScopeForPeriod('2026-09', []);
+  read.succeed(); assert.equal(await upload, true); assert.equal(ctx.parses, 1);
+  assert.equal(ctx.savedData.A.marketSurveyData.compAverageRent, 1500);
+});
+function installRealSettingsSave(ctx, write) {
+  Object.assign(ctx, {
+    applicationResidentDataState: { uploads: [] }, atlasStateWritePromise: Promise.resolve(), atlasPersistenceMeta: {},
+    serializeJacsTeamBonus: data => data,
+    applyOpsGlobalData: data => { ctx.opsGlobalData = data; },
+    writeOpsGlobalStorage: () => write,
+    clearAtlasPersistenceError() {}, persistAtlasPersistenceMeta() {}, markAtlasPersistenceError() {},
+  });
+  for (const name of ['atlasInvestorPacketState','bonusQuarter','bonusQuarterManualOverride','bonusEngineState','jacsTeamBonus','regionalAssignments','salarySecurity','monthlyPresentationCommunities','reportHubCommunityProgressCommunities','reportHubLvrCommunity','weeklyExecutiveEmail','portfolioReportSections','portfolioReportFilters','portfolioReportMode','atlasWorkbookImportMode','reportHubType','reportHubPerspective','reportHubMonth','reportHubYear','reportRecommendationOverrides','communityCommandState','windowshadeState','atlasSharedData']) ctx[name] = {};
+  for (const name of ['queueAtlasStateWrite', 'persistOpsGlobalSnapshot', 'persistOpsGlobalData']) vm.runInContext(extract(name), ctx);
+}
+for (const silent of [false, true]) {
+  test(`aggregate community save reports one delayed settings failure using real settings helpers and queue (silent=${silent})`, async () => {
+    const community = deferred(), settings = deferred(), ctx = saveContext(community.result, null);
+    installRealSettingsSave(ctx, settings.result.completion);
+    ctx.saveCommunityData(silent); await flush();
+    settings.reject(new Error('settings disk full')); await flush();
+    assert.equal(ctx.alerts.length, 0, 'The nested settings helper waits for aggregate reporting');
+    community.fail('community disk full'); await flush();
+    assert.equal(ctx.alerts.length, 1); assert.match(ctx.alerts[0], /settings disk full/); assert.match(ctx.alerts[0], /community disk full/);
+  });
+}
+test('standalone settings save retains its default single failure alert', async () => {
+  const settings = deferred(), ctx = saveContext({ ok: true }, null); installRealSettingsSave(ctx, settings.result.completion);
+  const result = ctx.persistOpsGlobalData(); await flush(); settings.reject(new Error('settings disk full')); await result.completion;
+  assert.equal(ctx.alerts.length, 1); assert.match(ctx.alerts[0], /ATLAS settings could not be saved.*settings disk full/);
+  assert.equal(result.ok, false); assert.equal(result.pending, false);
 });

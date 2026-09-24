@@ -1464,7 +1464,7 @@
 <script src="./application-performance-ui.js?v=76767fc8f24b44d6"></script>
 <script src="./reforecast-consumers.js?v=84cc6a1aa7c56d0b"></script>
 <script src="./community-goal-editor.js?v=5759e5235bdacc20"></script>
-<script src="./market-save-guards.js?v=ccab560e7bf3bf6e"></script>
+<script src="./market-save-guards.js?v=55488109cce1e7c7"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -8321,7 +8321,7 @@ async function hydrateOpsGlobalStorage() {
   }
 }
 
-function persistOpsGlobalSnapshot(payload, isCurrent = null) {
+function persistOpsGlobalSnapshot(payload, isCurrent = null, notifyFailure = true) {
   const snapshot = JSON.parse(JSON.stringify(payload));
   opsGlobalStorageCache = snapshot;
   const result = { ok: true, pending: true, completion: null, message: "" };
@@ -8332,7 +8332,7 @@ function persistOpsGlobalSnapshot(payload, isCurrent = null) {
     }
     catch (error) {
       result.ok = false; result.pending = false; result.message = error.message;
-      if (!isCurrent || isCurrent()) alert(`ATLAS settings could not be saved. Your changes remain in this tab. Keep it open and retry. ${error.message}`);
+      if (notifyFailure && (!isCurrent || isCurrent())) alert(`ATLAS settings could not be saved. Your changes remain in this tab. Keep it open and retry. ${error.message}`);
       throw error;
     }
   }, "global_settings_indexeddb", isCurrent);
@@ -8368,7 +8368,7 @@ function queuePersistedPhotoStorageCompaction() {
   });
 }
 
-function persistOpsGlobalData(isCurrent = null) {
+function persistOpsGlobalData(isCurrent = null, notifyFailure = true) {
   const currentApplicationState = applicationResidentDataState;
   applyOpsGlobalData({
     investorPacketState: atlasInvestorPacketState,
@@ -8404,7 +8404,7 @@ function persistOpsGlobalData(isCurrent = null) {
   });
   // Shared rows stay session-only, but saving unrelated settings must not erase them.
   applicationResidentDataState = currentApplicationState;
-  return persistOpsGlobalSnapshot(opsGlobalData, isCurrent);
+  return persistOpsGlobalSnapshot(opsGlobalData, isCurrent, notifyFailure);
 }
 
 function getBonusRoles() { return bonusRolesByQ[bonusQuarter]; }
@@ -10607,6 +10607,7 @@ function setPortfolioMonthScopeForPeriod(periodKey, names = []) {
     .filter(Boolean)));
   if (filtered.length === 0) delete portfolioMonthScopeByPeriod[String(periodKey)];
   else portfolioMonthScopeByPeriod[String(periodKey)] = filtered;
+  observeAtlasSaveContext();
 }
 
 function getPortfolioScopedCommunityNamesForPeriod(periodKey, recordMap = savedData) {
@@ -10629,6 +10630,7 @@ function buildOperationsWorkspaceContext() {
   };
 }
 function persistOperationsWorkspaceContext() {
+  observeAtlasSaveContext();
   try {
     localStorage.setItem(OPS_WORKSPACE_CONTEXT_KEY, JSON.stringify(buildOperationsWorkspaceContext()));
   } catch {}
@@ -15304,7 +15306,7 @@ function saveCommunityData(silent = false) {
   persistOpsPropertyCatalog();
   const savedResult = persistSaved(isCurrent);
   queueDailyBackupSnapshotWrite("save_community_data");
-  const globalResult = persistOpsGlobalData(isCurrent);
+  const globalResult = persistOpsGlobalData(isCurrent, false);
   renderPropGrid();
   if (activeTab === 9 && bonusCalcView === "jac") renderTab();
   const saveScopeLabel = isPortfolioWorkspaceSelected()

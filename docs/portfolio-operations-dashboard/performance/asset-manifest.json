@@ -1014,8 +1014,8 @@
     ]
   },
   "centralization/atlas-central-client.js": {
-    "sha256": "aaf34ed3eb7a47f1",
-    "bytes": 68425,
+    "sha256": "8c01ca31e870ff8c",
+    "bytes": 68131,
     "references": [
       [
         "index.html",
@@ -1132,6 +1132,26 @@
       [
         "index.html",
         "./performance/feature-loader.js"
+      ]
+    ]
+  },
+  "features/bonus-workflow-client.mjs": {
+    "sha256": "74c3a31ff88f9797",
+    "bytes": 3241,
+    "references": [
+      [
+        "features/bonus-workflow.mjs",
+        "./bonus-workflow-client.mjs"
+      ]
+    ]
+  },
+  "features/bonus-workflow.mjs": {
+    "sha256": "46d4a791fa3681d4",
+    "bytes": 21464,
+    "references": [
+      [
+        "index.html",
+        "./features/bonus-workflow.mjs"
       ]
     ]
   },

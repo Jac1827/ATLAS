@@ -1,6 +1,6 @@
 # Forecast approval transaction acceptance
 
-`reforecast-approval-rollback.sql` is a reviewable, single-call production-schema acceptance test. It has **not been executed against a hosted database** by its author. The paired `.test.cjs` runs that exact SQL locally with PGlite.
+`reforecast-approval-rollback.sql` is a reviewable, single-call production-schema acceptance test. The complete SQL passed against production on September 24, 2026 after review. All synthetic rows were rolled back and expected NOI was 900. The paired `.test.cjs` also runs that exact SQL locally with PGlite; the hosted run used the actual database roles, grants and application functions.
 
 Run locally:
 

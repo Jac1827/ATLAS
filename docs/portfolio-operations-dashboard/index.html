@@ -1426,7 +1426,7 @@
 
 <script src="./atlas_historical_restore_data.js"></script>
 <script src="./atlas-mounts.js?v=444f3a65a6d89140"></script>
-<script src="./centralization/atlas-central-client.js?v=aaf34ed3eb7a47f1" data-atlas-central-client="true"></script>
+<script src="./centralization/atlas-central-client.js?v=8c01ca31e870ff8c" data-atlas-central-client="true"></script>
 <script src="./atlas-dashboard-reskin.js?v=99ffd40a8970f8ef"></script>
 <script src="./central-services.js?v=20260919-renewal-period-review"></script>
 <script src="./eviction-attorney-ui.js?v=20260916-community-contacts"></script>
@@ -15459,7 +15459,7 @@ function defaultAtlasAccessFormDraft() {
 
 atlasAccessFormDraft = defaultAtlasAccessFormDraft();
 
-const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=aaf34ed3eb7a47f1";
+const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=8c01ca31e870ff8c";
 const ATLAS_AUTH_UI_STORAGE_KEY = "atlas_auth_ui_state_v1";
 const ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY = "atlas_dashboard_preferences_v1";
 let atlasCentralClientLoadPromise = null;
@@ -19494,20 +19494,8 @@ async function promoteAtlasCentralMaintenanceInspections(dryRun = true) {
 }
 
 async function recordAtlasCentralBonusCalculation() {
-  try {
-    const access = atlasCentralCanUseDatabase();
-    if (!access.ok) throw new Error(access.message);
-    const period = getMarketingBonusPeriodRange(bonusQuarter);
-    const payload = buildAtlasCentralBonusCalculationPayload();
-    const runId = await window.ATLAS_CENTRAL.recordBonusCalculation(payload, { period, status: "draft" });
-    atlasCentralRuntimeMeta.lastBonusRecordedAt = new Date().toISOString();
-    setAtlasCentralRuntimeMessage(`Bonus calculation draft recorded in central Atlas: ${runId}.`);
-    renderTab();
-  } catch (error) {
-    setAtlasCentralRuntimeMessage("", error?.message || String(error));
-    alert(`Bonus central calculation record failed: ${error?.message || error}`);
-    renderTab();
-  }
+  setTab(9);
+  requestAnimationFrame(atlasBonusOpenSharedWorkflow);
 }
 
 function saveAtlasCentralRuntimeConfigFromPanel() {
@@ -20877,7 +20865,7 @@ function renderAtlasCentralPlatformPanel() {
           <button class="btn btn-blue btn-sm" onclick="promoteAtlasCentralMarketingMetrics(false)" ${status.signedIn ? "" : "disabled"}>Apply Marketing Metrics</button>
           <button class="btn btn-gray btn-sm" onclick="promoteAtlasCentralMaintenanceInspections(true)" ${status.signedIn ? "" : "disabled"}>Dry Run MSOE/SOE</button>
           <button class="btn btn-blue btn-sm" onclick="promoteAtlasCentralMaintenanceInspections(false)" ${status.signedIn ? "" : "disabled"}>Apply MSOE/SOE</button>
-          <button class="btn btn-gray btn-sm" onclick="recordAtlasCentralBonusCalculation()" ${status.signedIn ? "" : "disabled"}>Record Bonus Draft</button>
+          <button class="btn btn-gray btn-sm" onclick="recordAtlasCentralBonusCalculation()" ${status.signedIn ? "" : "disabled"}>Open Shared Bonus Workflow</button>
         </div>
         <div style="font-size:0.62rem;color:var(--muted);margin-top:8px">People remains the source for employee identity/status/assignment. Marketing metrics and Moonrise MSOE/SOE imports promote only approved or reviewable source records and retain original identifiers.</div>
       </div>
@@ -32347,11 +32335,7 @@ function atlasBonusDuplicatePlan(planId = "") {
 }
 
 function atlasBonusRunCalculations() {
-  if (!atlasBonusCan("run_calculations")) return alert("This ATLAS role cannot run bonus calculations.");
-  const state = atlasBonusState();
-  state.lastRunAt = new Date().toISOString();
-  atlasBonusPersist("Calculation run", atlasBonusPeriodFromQuarter().periodKey, "", `${atlasBonusBuildCalculationRows().length} records`, "Manual calculation refresh");
-  renderTab();
+  atlasBonusOpenSharedWorkflow();
 }
 
 function atlasBonusResolveException(rowId = "", code = "", metricId = "") {
@@ -32362,68 +32346,26 @@ function atlasBonusResolveException(rowId = "", code = "", metricId = "") {
   renderTab();
 }
 
-function atlasBonusSetRowStatus(rowId = "", status = "Regional Approved") {
-  if (!atlasBonusCan("approve_bonuses")) return alert("This ATLAS role cannot approve bonuses.");
-  const row = atlasBonusBuildCalculationRows({ filters: defaultBonusEngineState().filters }).find(item => item.rowId === rowId);
-  if (!row || row.unresolvedCritical) return alert("Required source inputs must be verified before approval.");
-  atlasBonusState().approvalStatusByRowId[rowId] = status;
-  atlasBonusPersist(status === "Paid" ? "Payment finalized" : "Regional approval", rowId, "", status, "Approval workflow update");
-  renderTab();
+function atlasBonusSetRowStatus() {
+  atlasBonusOpenSharedWorkflow();
 }
 
 function atlasBonusApproveOverrides() {
-  if (!atlasBonusCan("override_calculations")) return alert("This ATLAS role cannot approve overrides.");
-  const state = atlasBonusState();
-  state.overrides = state.overrides.map(item => item.status === "pending_approval" ? { ...item, status: "approved", approvedBy: atlasUserDisplayName(getAtlasAccessProfile() || {}), approvedAt: new Date().toISOString() } : item);
-  atlasBonusPersist("Override approved", "Pending override queue", "Pending", "Approved", "Batch override approval");
-  renderTab();
+  alert("Planning adjustments cannot approve a shared payout. Review the shared calculation and approved plan terms.");
+  atlasBonusOpenSharedWorkflow();
 }
 
 function atlasBonusRegionalApprove() {
-  if (!atlasBonusCan("approve_bonuses")) return alert("This ATLAS role cannot approve bonuses.");
-  const rows = atlasBonusBuildCalculationRows().filter(row => row.approvalStatus === "Calculated");
-  if (!rows.length || rows.some(row => row.unresolvedCritical || row.canonicalPayable !== true)) return alert("An approved canonical calculation receipt is required before payment approval. Draft calculations remain projections.");
-  const signature = String(document.getElementById("atlas-bonus-signature")?.value || "").trim();
-  if (!signature) return alert("Enter your electronic signature before approving.");
-  const comments = String(document.getElementById("atlas-bonus-signature-comments")?.value || "").trim();
-  const state = atlasBonusState();
-  rows.forEach(row => { state.approvalStatusByRowId[row.rowId] = "Regional Approved"; });
-  state.regionalSignatures.unshift({
-    id: `sig_${simpleHash(`${signature}_${Date.now()}`)}`,
-    periodKey: atlasBonusPeriodFromQuarter().periodKey,
-    signature,
-    printedName: signature,
-    role: atlasBonusCurrentRole(),
-    approvedAt: new Date().toISOString(),
-    comments,
-    rowCount: rows.length,
-    auditMetadata: { userAgent: navigator.userAgent, path: location.pathname }
-  });
-  state.notifications.unshift({ id: `notice_${Date.now()}`, title: `${bonusQuarter} Bonus Review Ready`, audience: "HR / VP", at: new Date().toISOString(), message: "Regional-approved bonus report is ready for HR payroll review." });
-  atlasBonusPersist("Regional approval", atlasBonusPeriodFromQuarter().periodKey, "Calculated", "Regional Approved", "Electronic certification captured");
-  renderTab();
+  atlasBonusOpenSharedWorkflow();
 }
 
 function atlasBonusFinalizePeriod() {
-  if (!atlasBonusCan("finalize_period")) return alert("This ATLAS role cannot finalize bonus periods.");
-  const period = atlasBonusPeriodFromQuarter();
-  const rows = atlasBonusBuildCalculationRows();
-  if (!rows.length || rows.some(row => row.unresolvedCritical || row.canonicalPayable !== true || row.canonicalReceipt?.periodStatus !== "paid")) return alert("Payment finalization requires the canonical paid receipt for every included calculation. Draft or locally approved values cannot finalize payment.");
-  const state = atlasBonusState();
-  state.periodLocks[period.periodKey] = { status: "Paid / Finalized", lockedAt: new Date().toISOString(), lockedBy: atlasUserDisplayName(getAtlasAccessProfile() || {}) };
-  rows.forEach(row => { state.approvalStatusByRowId[row.rowId] = "Paid"; });
-  atlasBonusPersist("Payment finalized", period.periodKey, "Open", "Paid / Finalized", "HR finalized period");
-  renderTab();
+  atlasBonusOpenSharedWorkflow();
 }
 
 function atlasBonusReopenPeriod() {
-  if (!atlasBonusCan("reopen_period")) return alert("This ATLAS role cannot reopen finalized periods.");
-  const reason = prompt("Reason for reopening this finalized bonus period");
-  if (!reason) return;
-  const period = atlasBonusPeriodFromQuarter();
-  atlasBonusState().periodLocks[period.periodKey] = { status: "Reopened", reopenedAt: new Date().toISOString(), reopenedBy: atlasUserDisplayName(getAtlasAccessProfile() || {}), reason };
-  atlasBonusPersist("Period reopened", period.periodKey, "Paid / Finalized", "Reopened", reason);
-  renderTab();
+  alert("Locked and paid receipts cannot be reopened. Corrections require a separately authorized adjustment workflow.");
+  atlasBonusOpenSharedWorkflow();
 }
 
 function atlasBonusRunSimulation() {
@@ -32708,7 +32650,7 @@ function renderBonusPlanBuilderSection() {
   const canEdit = atlasBonusCan("edit_bonus_plans");
   return `<div class="bonus-engine-grid two">
     <div class="bonus-engine-card">
-      <div class="bonus-engine-section-head"><div><h3>Plan Library</h3><p>Create, duplicate, schedule, archive, and preserve historical plan versions.</p></div><button class="btn btn-blue btn-sm" onclick='atlasBonusDuplicatePlan(${atlasBonusJsArg(plan.id)})' ${canEdit ? "" : "disabled"}>Duplicate Plan</button></div>
+      <div class="bonus-engine-section-head"><div><h3>Planning plan library</h3><p>Explore plan assumptions here. Use shared plan setup above to save reviewed terms for the approval workflow.</p></div><button class="btn btn-blue btn-sm" onclick='atlasBonusDuplicatePlan(${atlasBonusJsArg(plan.id)})' ${canEdit ? "" : "disabled"}>Duplicate Plan</button></div>
       <div class="bonus-engine-small-list" style="margin-top:12px">${state.plans.map(item => `<button type="button" class="bonus-engine-small-row" style="width:100%;background:transparent;border:0;cursor:pointer" onclick='atlasBonusSetSelectedPlan(${atlasBonusJsArg(item.id)})'><span><strong>${escapeHtml(item.name)}</strong><br><span style="font-size:0.62rem;color:var(--muted)">Version ${escapeHtml(item.version)} · ${escapeHtml(item.effectiveStart)} to ${escapeHtml(item.effectiveEnd)}</span></span><span class="bonus-engine-pill ${item.status === "active" ? "good" : item.status === "draft" ? "warn" : "info"}">${escapeHtml(item.status)}</span></button>`).join("")}</div>
     </div>
     <div class="bonus-engine-card">
@@ -32783,13 +32725,9 @@ function renderBonusCalculationRows(rows, options = {}) {
 }
 
 function renderBonusCalculationsSection(rows) {
-  const period = atlasBonusPeriodFromQuarter();
-  const lock = atlasBonusState().periodLocks[period.periodKey];
   return `<div class="bonus-engine-card">
-    <div class="bonus-engine-section-head"><div><h3>Bonus Calculation Run</h3><p>Calculations use People eligibility, plan assignments, ATLAS operational metrics, proration, overrides, and approval status.</p></div><div class="bonus-engine-actions"><button class="btn btn-blue btn-sm" onclick="atlasBonusRunCalculations()" ${atlasBonusCan("run_calculations") ? "" : "disabled"}>Run Calculations</button><button class="btn btn-gray btn-sm" onclick="atlasBonusFinalizePeriod()" ${atlasBonusCan("finalize_period") ? "" : "disabled"}>Finalize Period</button><button class="btn btn-gray btn-sm" onclick="atlasBonusReopenPeriod()" ${atlasBonusCan("reopen_period") ? "" : "disabled"}>Reopen Period</button></div></div>
-    <div class="bonus-engine-secure-note" style="margin-top:12px">Period status: ${escapeHtml(lock?.status || "Open")} · Last calculation run: ${atlasBonusState().lastRunAt ? new Date(atlasBonusState().lastRunAt).toLocaleString() : "Not run in this browser yet"}.</div>
-  </div>
-  ${renderBonusCalculationRows(rows)}`;
+    <div class="bonus-engine-section-head"><div><h3>Bonus calculations</h3><p>The shared workflow above stores calculated amounts, review decisions, and payroll confirmations. Planning projections remain available below.</p></div><div class="bonus-engine-actions"><button class="btn btn-blue btn-sm" onclick="atlasBonusRunCalculations()" ${atlasBonusCan("run_calculations") ? "" : "disabled"}>Create Shared Calculation</button><button class="btn btn-gray btn-sm" onclick="atlasBonusFinalizePeriod()" ${atlasBonusCan("finalize_period") ? "" : "disabled"}>Payroll Confirmations</button></div></div>
+  </div>${renderBonusCalculationRows(rows)}`;
 }
 
 function renderBonusProjectedSection(rows) {
@@ -32806,19 +32744,7 @@ function renderBonusProjectedSection(rows) {
 }
 
 function renderBonusApprovalsSection(rows) {
-  const stages = ["Ready for Regional Review", "Regional Review In Progress", "Regional Approved", "Overrides Pending Approval", "HR Ready", "Paid", "Exceptions Blocking Approval"];
-  const mapStage = row => row.approvalStatus === "Calculated" ? "Ready for Regional Review" : row.approvalStatus;
-  return `<div class="bonus-engine-card">
-    <div class="bonus-engine-section-head"><div><h3>Regional Electronic Certification</h3><p>I certify that I have reviewed these bonus calculations and approve the payouts presented above.</p></div><div class="bonus-engine-actions"><button class="btn btn-blue btn-sm" onclick="atlasBonusRegionalApprove()" ${atlasBonusCan("approve_bonuses") ? "" : "disabled"}>Approve Ready Rows</button><button class="btn btn-gray btn-sm" onclick="atlasBonusApproveOverrides()" ${atlasBonusCan("override_calculations") ? "" : "disabled"}>Approve Overrides</button></div></div>
-    <div class="bonus-engine-approval-cert" style="margin-top:12px"><div class="bonus-engine-grid two"><div class="bonus-engine-field"><label>Electronic Signature</label><input id="atlas-bonus-signature" placeholder="Type your legal name"></div><div class="bonus-engine-field"><label>Comments</label><input id="atlas-bonus-signature-comments" placeholder="Optional approval comments"></div></div></div>
-  </div>
-  <div class="bonus-engine-pipeline">
-    ${stages.map(stage => {
-      const scoped = rows.filter(row => mapStage(row) === stage);
-      return `<div class="bonus-engine-stage"><div class="bonus-engine-stage-title">${escapeHtml(stage)}</div>${scoped.slice(0, 6).map(row => `<div class="bonus-engine-stage-row"><strong>${escapeHtml(atlasBonusEmployeeDisplayName(row.employee))}</strong><br>${escapeHtml(row.employee.communityName || "Portfolio / Central")}<br>${atlasBonusCurrency(row.finalPayout)}<div style="margin-top:6px"><button class="btn btn-gray btn-sm" onclick='atlasBonusSetRowStatus(${atlasBonusJsArg(row.rowId)},"${stage === "Regional Approved" ? "HR Ready" : "Regional Approved"}")'>Move</button></div></div>`).join("") || `<div class="bonus-engine-stage-row">No records</div>`}</div>`;
-    }).join("")}
-  </div>
-  <div class="bonus-engine-card"><h3>Sign-Off History</h3><div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Signature</th><th>Role</th><th>Date / Time</th><th>Rows</th><th>Comments</th></tr></thead><tbody>${atlasBonusState().regionalSignatures.map(sig => `<tr><td>${escapeHtml(sig.signature)}</td><td>${escapeHtml(sig.role)}</td><td>${new Date(sig.approvedAt).toLocaleString()}</td><td>${sig.rowCount}</td><td>${escapeHtml(sig.comments || "")}</td></tr>`).join("") || `<tr><td colspan="5">No electronic signatures captured yet.</td></tr>`}</tbody></table></div></div>`;
+  return `<div class="bonus-engine-card"><h3>Shared approval history</h3><p>Use Shared approvals and payroll confirmations above to review saved calculations, record approval, and lock verified amounts for payroll.</p><button type="button" class="btn btn-blue btn-sm" onclick="atlasBonusOpenSharedWorkflow()">Open shared workflow</button></div>${renderBonusCalculationRows(rows)}`;
 }
 
 function atlasBonusExceptionGroups(rows) {
@@ -32906,7 +32832,7 @@ function renderBonusSettingsSection() {
   const role = atlasBonusCurrentRole();
   return `<div class="bonus-engine-grid two">
     <div class="bonus-engine-card"><h3>Bonus Permissions</h3><p>Granular permissions are surfaced in People -> ATLAS User Setup -> Permissions. Salary is Admin/HR only by default.</p><div class="bonus-engine-table-wrap" style="margin-top:12px"><table class="bonus-engine-table"><thead><tr><th>Permission</th><th>This Role</th></tr></thead><tbody>${BONUS_ENGINE_PERMISSION_DEFS.map(([key,label]) => `<tr><td>${escapeHtml(label)}</td><td><span class="bonus-engine-pill ${atlasBonusCan(key) ? "good" : "bad"}">${atlasBonusCan(key) ? "On" : "Off"}</span></td></tr>`).join("")}</tbody></table></div></div>
-    <div class="bonus-engine-card"><h3>People Bonus Fields</h3><p>These fields are now part of the People roster contract and feed this engine when present.</p><div class="bonus-engine-small-list" style="margin-top:12px">${["Bonus Eligible - Yes / No","Bonus Plan","Effective Date","Target Bonus","Assigned Community","Assigned Region","Salary","Payroll / Employee ID","Bonus Role","Override Plan","Bonus Plan Status"].map(field => `<div class="bonus-engine-small-row"><span>${escapeHtml(field)}</span><strong>Ready</strong></div>`).join("")}</div></div>
+    <div class="bonus-engine-card"><h3>People Bonus Fields</h3><p>Use the shared eligibility setup above to record approved employee eligibility. Calculation readiness is checked against shared plans and source records.</p><div class="bonus-engine-small-list" style="margin-top:12px">${["Bonus Eligible - Yes / No","Bonus Plan","Effective Date","Target Bonus","Assigned Community","Assigned Region","Salary","Payroll / Employee ID","Bonus Role","Override Plan","Bonus Plan Status"].map(field => `<div class="bonus-engine-small-row"><span>${escapeHtml(field)}</span><strong>Verify source</strong></div>`).join("")}</div></div>
   </div>
   <div class="bonus-engine-secure-note">Current role: ${escapeHtml(role)}. View Salary = ${atlasBonusCanViewSalary() ? "ON" : "OFF"}. When off, salary values are not rendered in screens, tooltips, reports, exports, dashboard widgets, or calculation payloads sent from this module.</div>`;
 }
@@ -32928,6 +32854,23 @@ function renderBonusEngineSection(section, rows) {
   return renderBonusOverviewSection(rows);
 }
 
+function atlasBonusOpenSharedWorkflow() {
+  document.getElementById("atlas-bonus-shared-workflow")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function atlasBonusMountSharedWorkflow(period) {
+  if (typeof window === "undefined" || !window.ATLAS_CENTRAL) return;
+  requestAnimationFrame(() => {
+    const host = document.getElementById("atlas-bonus-shared-workflow");
+    if (!host || host.dataset.mounted) return;
+    host.dataset.mounted = "true";
+    import("./features/bonus-workflow.mjs?v=46d4a791fa3681d4").then(module => module.mountBonusWorkflow(host, {
+      central: window.ATLAS_CENTRAL, periodKey: period.periodKey,
+      onChange: () => { atlasBonusRetainedRow.cache?.clear(); atlasBonusNavigationSnapshot = null; atlasBonusSectionCache.clear(); }
+    })).catch(error => { if (host.isConnected) host.textContent = "Shared Bonus workflow unavailable: " + error.message; });
+  });
+}
+
 function renderBonusTab() {
   const state = atlasBonusState();
   const allRows = atlasBonusBuildCalculationRows({ filters: defaultBonusEngineState().filters });
@@ -32941,6 +32884,7 @@ function renderBonusTab() {
     return `<div class="card"><div class="card-title">Bonus & Incentives</div><div class="alert-red">This ATLAS account does not have Bonus & Incentives access.</div></div>`;
   }
   const activeSection = sections.some(([id]) => id === state.activeSection) ? state.activeSection : sections[0][0];
+  atlasBonusMountSharedWorkflow(period);
   return `<section class="bonus-engine-shell">
     <div class="bonus-engine-hero">
       <div class="bonus-engine-kicker">RISE ATLAS / Bonus & Incentives Engine</div>
@@ -32955,6 +32899,7 @@ function renderBonusTab() {
         ${atlasBonusSectionVisible("reports") ? `<button type="button" class="btn btn-gray btn-sm" onclick='atlasBonusSetSection("reports")'>Reports</button>` : ""}
       </div>
     </div>
+    <div id="atlas-bonus-shared-workflow" aria-live="polite"></div>
     <div class="bonus-engine-nav">
       ${sections.map(([id, label]) => `<button type="button" data-bonus-section="${escapeHtml(id)}" class="bonus-engine-tab ${activeSection === id ? "active" : ""}" onclick='atlasBonusSetSection(${atlasBonusJsArg(id)})'>${escapeHtml(label)}</button>`).join("")}
     </div>

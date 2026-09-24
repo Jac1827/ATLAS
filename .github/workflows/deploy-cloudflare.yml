@@ -101,6 +101,15 @@ jobs:
           node tools/bonus-export-security.test.cjs
           node tools/bonus-prerequisites.test.cjs
           node tools/bonus-financial-attainment.test.cjs
+          node tools/bonus-workflow-client.test.mjs
+          node tools/bonus-access-client.test.cjs
+          node tools/bonus-workflow-db.test.cjs
+          node tools/bonus-workflow-boundaries.test.cjs
+          node tools/bonus-workflow-rollback.test.cjs
+          node tools/profile-access-hardening-db.test.cjs
+          node tools/bonus-workflow-integration.test.cjs
+          node tools/reforecast-approval-rollback.test.cjs
+          node tools/migration-history-replay.test.cjs
           node tools/forecast-test-host.test.mjs
           node tools/reforecast-bonus-current-db.test.cjs
           node tools/reforecast-bonus-receipts-db.test.cjs
@@ -212,6 +221,15 @@ jobs:
           node tools/bonus-export-security.test.cjs
           node tools/bonus-prerequisites.test.cjs
           node tools/bonus-financial-attainment.test.cjs
+          node tools/bonus-workflow-client.test.mjs
+          node tools/bonus-access-client.test.cjs
+          node tools/bonus-workflow-db.test.cjs
+          node tools/bonus-workflow-boundaries.test.cjs
+          node tools/bonus-workflow-rollback.test.cjs
+          node tools/profile-access-hardening-db.test.cjs
+          node tools/bonus-workflow-integration.test.cjs
+          node tools/reforecast-approval-rollback.test.cjs
+          node tools/migration-history-replay.test.cjs
           node tools/forecast-test-host.test.mjs
           node tools/reforecast-bonus-current-db.test.cjs
           node tools/reforecast-bonus-receipts-db.test.cjs

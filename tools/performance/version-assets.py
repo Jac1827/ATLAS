@@ -80,7 +80,7 @@ entries=[
 # Discover imports of governed modules so a stale parent cannot keep an old
 # child after deployment. A topological pass versions every child first.
 tracked={asset: list(refs) for asset,refs in entries}
-for asset in ['features/reforecast-bonus.mjs','features/reforecast-provider.mjs','features/reforecast-builder-ui.mjs','features/reforecast-utility.mjs','features/workbook-integrity.mjs','features/planning-governance.mjs','features/workbook-audit-store.mjs','features/financial-workbook-governance.mjs','features/financial-snapshot.mjs','features/snapshot-pdf.mjs','features/canonical-budget-report.mjs','features/original-budget-intake.mjs','vendor/pdf-lib-1.17.1.mjs']:
+for asset in ['features/bonus-workflow-client.mjs','features/bonus-workflow.mjs','features/reforecast-bonus.mjs','features/reforecast-provider.mjs','features/reforecast-builder-ui.mjs','features/reforecast-utility.mjs','features/workbook-integrity.mjs','features/planning-governance.mjs','features/workbook-audit-store.mjs','features/financial-workbook-governance.mjs','features/financial-snapshot.mjs','features/snapshot-pdf.mjs','features/canonical-budget-report.mjs','features/original-budget-intake.mjs','vendor/pdf-lib-1.17.1.mjs']:
  tracked.setdefault(asset,[])
 for parent in root.rglob('*'):
  if parent.suffix not in ('.mjs','.js','.html'):continue

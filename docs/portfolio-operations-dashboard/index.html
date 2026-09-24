@@ -15087,6 +15087,8 @@ function setTab(i) {
 
 function renderTab() {
   if (typeof atlasCommunityGoalStore !== "undefined") hydrateCommunityCommandGoals().catch(() => {});
+  const retainedBonusWorkflow = atlasBonusPreservedSharedWorkflowHost();
+  const retainedBonusFocus = retainedBonusWorkflow?.contains(document.activeElement) ? document.activeElement : null;
   atlasBonusNavigationSnapshot = null;
   atlasBonusSectionCache.clear();
   destroyAtlasPortfolioMap();
@@ -15138,6 +15140,10 @@ function renderTab() {
         panel.innerHTML = renderAtlasAccessDeniedPanel(atlasAccessDecision(activeTab).reason);
       } else {
         panel.innerHTML = renderer();
+        if (activeTab === 9 && retainedBonusWorkflow) {
+          panel.querySelector("#atlas-bonus-shared-workflow")?.replaceWith(retainedBonusWorkflow);
+          if (retainedBonusFocus?.isConnected) retainedBonusFocus.focus({ preventScroll: true });
+        }
         if (activeTab === 11 || activeTab === 12 || activeTab === 13) panel.dataset.atlasStableMountMounted = "1";
         if (activeTab === 13) panel.dataset.atlasPeopleMounted = "1";
         queueAtlasCentralPeopleLoad();
@@ -32858,16 +32864,44 @@ function atlasBonusOpenSharedWorkflow() {
   document.getElementById("atlas-bonus-shared-workflow")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function atlasBonusSharedWorkflowContext(period = atlasBonusPeriodFromQuarter()) {
+  const central = window.ATLAS_CENTRAL;
+  const actor = central?.getSession?.()?.user?.id;
+  if (!actor || shouldBlockAtlasSensitiveAccess() || !atlasAccessDecision(9).ok) return "";
+  const profile = getAtlasAccessProfile() || {};
+  const config = central.getConfig?.() || {};
+  const list = value => Array.isArray(value) ? [...new Set(value.map(String))].sort() : [];
+  return JSON.stringify({
+    actor, period: period.periodKey, database: config.supabaseUrl || config.apiBaseUrl || "",
+    profile: profile.user_id || "", employee: profile.employee_id || "", role: profile.role || "", status: profile.status || "", accountStatus: profile.account_status || "",
+    communities: list(profile.allowed_community_ids), markets: list(profile.allowed_market_values), regions: list(profile.allowed_region_values),
+    lockedTabs: list(profile.locked_tab_ids), lockedPages: list(profile.locked_page_keys), bonusPermissions: list(profile.bonus_permissions || profile.bonusPermissions)
+  });
+}
+
+function atlasBonusPreservedSharedWorkflowHost() {
+  const host = document.getElementById("atlas-bonus-shared-workflow");
+  if (!host) return null;
+  const context = atlasBonusSharedWorkflowContext();
+  if (!context || host.dataset.workflowContext !== context) { host.remove(); return null; }
+  return host;
+}
+
 function atlasBonusMountSharedWorkflow(period) {
   if (typeof window === "undefined" || !window.ATLAS_CENTRAL) return;
+  const context = atlasBonusSharedWorkflowContext(period);
+  if (!context) return;
   requestAnimationFrame(() => {
     const host = document.getElementById("atlas-bonus-shared-workflow");
-    if (!host || host.dataset.mounted) return;
+    if (!host || host.dataset.mounted || host.dataset.workflowContext !== context || atlasBonusSharedWorkflowContext(period) !== context) return;
     host.dataset.mounted = "true";
-    import("./features/bonus-workflow.mjs?v=46d4a791fa3681d4").then(module => module.mountBonusWorkflow(host, {
-      central: window.ATLAS_CENTRAL, periodKey: period.periodKey,
-      onChange: () => { atlasBonusRetainedRow.cache?.clear(); atlasBonusNavigationSnapshot = null; atlasBonusSectionCache.clear(); }
-    })).catch(error => { if (host.isConnected) host.textContent = "Shared Bonus workflow unavailable: " + error.message; });
+    import("./features/bonus-workflow.mjs?v=46d4a791fa3681d4").then(module => {
+      if (!host.isConnected || atlasBonusSharedWorkflowContext(period) !== context) return;
+      return module.mountBonusWorkflow(host, {
+        central: window.ATLAS_CENTRAL, periodKey: period.periodKey,
+        onChange: () => { atlasBonusRetainedRow.cache?.clear(); atlasBonusNavigationSnapshot = null; atlasBonusSectionCache.clear(); }
+      });
+    }).catch(error => { if (host.isConnected && atlasBonusSharedWorkflowContext(period) === context) host.textContent = "Shared Bonus workflow unavailable: " + error.message; });
   });
 }
 
@@ -32899,7 +32933,7 @@ function renderBonusTab() {
         ${atlasBonusSectionVisible("reports") ? `<button type="button" class="btn btn-gray btn-sm" onclick='atlasBonusSetSection("reports")'>Reports</button>` : ""}
       </div>
     </div>
-    <div id="atlas-bonus-shared-workflow" aria-live="polite"></div>
+    <div id="atlas-bonus-shared-workflow" data-workflow-context="${escapeHtml(atlasBonusSharedWorkflowContext(period))}" aria-live="polite"></div>
     <div class="bonus-engine-nav">
       ${sections.map(([id, label]) => `<button type="button" data-bonus-section="${escapeHtml(id)}" class="bonus-engine-tab ${activeSection === id ? "active" : ""}" onclick='atlasBonusSetSection(${atlasBonusJsArg(id)})'>${escapeHtml(label)}</button>`).join("")}
     </div>

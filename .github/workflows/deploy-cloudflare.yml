@@ -37,6 +37,16 @@ jobs:
       - name: Install application dependencies
         run: npm ci --ignore-scripts
 
+      - name: Install pinned browser test runtime
+        run: |
+          npm install --no-save --package-lock=false --ignore-scripts playwright@1.62.1
+          npx playwright install --with-deps chromium
+
+      - name: Test shared Bonus browser workflow
+        run: |
+          node tools/bonus-workflow-ui.test.mjs
+          node tools/bonus-workflow-remount.test.mjs
+
       - name: Verify production migration history
         run: node tools/migration-history.test.mjs
 
@@ -156,6 +166,16 @@ jobs:
 
       - name: Install application dependencies
         run: npm ci --ignore-scripts
+
+      - name: Install pinned browser test runtime
+        run: |
+          npm install --no-save --package-lock=false --ignore-scripts playwright@1.62.1
+          npx playwright install --with-deps chromium
+
+      - name: Test shared Bonus browser workflow
+        run: |
+          node tools/bonus-workflow-ui.test.mjs
+          node tools/bonus-workflow-remount.test.mjs
 
       - name: Verify production migration history
         run: node tools/migration-history.test.mjs

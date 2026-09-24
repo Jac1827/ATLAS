@@ -72,10 +72,11 @@ const flush = async () => { await new Promise(setImmediate); await new Promise(s
   const mounts = [], imports = [], queued = [], clearEvents = [];
   let currentHost = null, importFailure = false, sections = [['calculations', 'Calculations']];
   const central = { getSession: () => ({ user: { id: 'synthetic-signed-in' } }) };
-  const makeHost = () => ({ dataset: {}, isConnected: true, textContent: '', scrollIntoView: value => clearEvents.push(value) });
+  const makeHost = () => ({ dataset: { workflowContext: ui.atlasBonusSharedWorkflowContext(period) }, isConnected: true, textContent: '', scrollIntoView: value => clearEvents.push(value) });
   const ui = {
     window: { ATLAS_CENTRAL: central }, document: { getElementById: id => id === 'atlas-bonus-shared-workflow' ? currentHost : null },
     requestAnimationFrame: callback => queued.push(callback), atlasBonusState: () => ({ activeSection: 'calculations' }),
+    shouldBlockAtlasSensitiveAccess: () => false, atlasAccessDecision: () => ({ ok: true }), getAtlasAccessProfile: () => ({ role: 'admin' }),
     atlasBonusBuildCalculationRows: () => [], defaultBonusEngineState: () => ({ filters: {} }),
     atlasBonusSummary: () => ({ employeeCount: 0, criticalExceptions: 0, projected: 0 }), atlasBonusPeriodFromQuarter: () => period,
     atlasBonusVisibleSections: () => sections, atlasBonusCan: () => false, atlasBonusSectionVisible: () => false,
@@ -86,7 +87,7 @@ const flush = async () => { await new Promise(setImmediate); await new Promise(s
     fetch: forbidden('network')
   };
   const context = vm.createContext(ui);
-  const script = new vm.Script(['atlasBonusOpenSharedWorkflow', 'atlasBonusMountSharedWorkflow', 'renderBonusTab', 'renderBonusCalculationsSection'].map(fn).join('\n'), {
+  const script = new vm.Script(['atlasBonusOpenSharedWorkflow', 'atlasBonusSharedWorkflowContext', 'atlasBonusMountSharedWorkflow', 'renderBonusTab', 'renderBonusCalculationsSection'].map(fn).join('\n'), {
     importModuleDynamically: async specifier => {
       imports.push(specifier);
       assert.match(specifier, /^\.\/features\/bonus-workflow\.mjs(?:\?v=[a-f\d]+)?$/);

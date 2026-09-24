@@ -1,0 +1,14 @@
+# Generated with Supabase CLI 2.117.0, then limited to migration configuration.
+# Production API/Auth settings stay managed in the dashboard.
+project_id = "atlas"
+
+[db]
+major_version = 17
+
+[db.migrations]
+enabled = true
+schema_paths = []
+
+[db.seed]
+enabled = false
+sql_paths = []

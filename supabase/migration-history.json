@@ -1,0 +1,687 @@
+{
+  "schemaVersion": 1,
+  "source": "Existing production supabase_migrations.schema_migrations statements, read-only capture",
+  "capturedAt": "2026-09-24",
+  "historicalCutoff": "20260924165549",
+  "statementJoin": "Each captured remote migration contains one exact statement string; no normalization or generated no-op entries",
+  "priorLocalAliases": [
+    {
+      "from": "20260924115615_planning_cell_governance.sql",
+      "to": "20260924121641_planning_cell_workbook_integrity_governance.sql"
+    },
+    {
+      "from": "20260924115649_financial_workbook_governance.sql",
+      "to": "20260924121647_immutable_workbook_audits_and_monthly_governance.sql"
+    },
+    {
+      "from": "20260924120907_original_budget_workbook_governance.sql",
+      "to": "20260924121653_original_budget_immutable_workbook_approval.sql"
+    },
+    {
+      "from": "20260924142623_reforecast_builder_governance.sql",
+      "to": "20260924165534_reforecast_builder_governance.sql"
+    },
+    {
+      "from": "20260924143330_reforecast_report_receipts.sql",
+      "to": "20260924165542_reforecast_report_receipts.sql"
+    },
+    {
+      "from": "20260924143611_forecast_contract_workflow.sql",
+      "to": "20260924165545_forecast_contract_workflow.sql"
+    },
+    {
+      "from": "20260924143650_reforecast_utility_drivers.sql",
+      "to": "20260924165549_reforecast_utility_drivers.sql"
+    }
+  ],
+  "records": [
+    {
+      "version": "20260820173443",
+      "name": "atlas_central_tables",
+      "statement_count": 1,
+      "bytes": 17295,
+      "md5": "7707725160abfe0085558f193801a47d",
+      "sha256": "bd896cf28a8c6fc19f492d6f9bf473e365287d643751e10e5e975d73d32ec75f",
+      "file": "20260820173443_atlas_central_tables.sql"
+    },
+    {
+      "version": "20260820173604",
+      "name": "atlas_central_auth_functions",
+      "statement_count": 1,
+      "bytes": 2818,
+      "md5": "515d9c51ca3e6ef5f1c24d4fbea55053",
+      "sha256": "7436f696913a9ddb86a47e0575897d8b76116dbeeb9c9724c3e5fca7b685a0b0",
+      "file": "20260820173604_atlas_central_auth_functions.sql"
+    },
+    {
+      "version": "20260820173637",
+      "name": "atlas_central_document_snapshot_functions",
+      "statement_count": 1,
+      "bytes": 6904,
+      "md5": "062aa9699a88f2df5569c1a317de8a87",
+      "sha256": "ba62c9bf34725d51bd222b814db464f0a1d235fe9dc7d0b95dfd09b3101114bd",
+      "file": "20260820173637_atlas_central_document_snapshot_functions.sql"
+    },
+    {
+      "version": "20260820173729",
+      "name": "atlas_central_people_promotion_functions",
+      "statement_count": 1,
+      "bytes": 12038,
+      "md5": "bffec6e8cc9b922f5ac3a597eef74ea1",
+      "sha256": "90c8beb1bbf63e86516a0d0bb400679b5d96be54f49e9ac52da119e37ae6d14b",
+      "file": "20260820173729_atlas_central_people_promotion_functions.sql"
+    },
+    {
+      "version": "20260820173829",
+      "name": "atlas_central_metric_inspection_bonus_functions",
+      "statement_count": 1,
+      "bytes": 13091,
+      "md5": "2936f2a336d92b089dff9b3a9f76fe03",
+      "sha256": "52fc1da9d3dfced02f0353b80793ac2e76a5361842a212224553b031efa8c1b3",
+      "file": "20260820173829_atlas_central_metric_inspection_bonus_functions.sql"
+    },
+    {
+      "version": "20260820173956",
+      "name": "atlas_central_access_helper_functions",
+      "statement_count": 1,
+      "bytes": 859,
+      "md5": "648d3993c82a4a5f2c000ab93af4990d",
+      "sha256": "49374132358df535600a7f561cf8534e59a5701087bbd228aafd9b6e769acadd",
+      "file": "20260820173956_atlas_central_access_helper_functions.sql"
+    },
+    {
+      "version": "20260820174215",
+      "name": "atlas_bonus_lines_soft_delete_column",
+      "statement_count": 1,
+      "bytes": 90,
+      "md5": "09f68772d2bc44d955207ec3b4799070",
+      "sha256": "155dd489b4485750b1178feb795f13e8a673151de20553a016f1a9e5bcfb6189",
+      "file": "20260820174215_atlas_bonus_lines_soft_delete_column.sql"
+    },
+    {
+      "version": "20260820174233",
+      "name": "atlas_scoped_rls_core",
+      "statement_count": 1,
+      "bytes": 3417,
+      "md5": "84a6a5a98588c9fce913bf29d0db4e0d",
+      "sha256": "b71996565d0c1f71a44445927617d4e8449adb9a8341651ed228c2b8b2c4eb5a",
+      "file": "20260820174233_atlas_scoped_rls_core.sql"
+    },
+    {
+      "version": "20260820174253",
+      "name": "atlas_scoped_rls_shared_finance",
+      "statement_count": 1,
+      "bytes": 3509,
+      "md5": "bb7cf82c8f52bd2d716f77f2675c07f0",
+      "sha256": "ec8a77c7010d2269559171e6c8aa1d3060c2c058a6ebba51237f2ba7b590a19b",
+      "file": "20260820174253_atlas_scoped_rls_shared_finance.sql"
+    },
+    {
+      "version": "20260820174309",
+      "name": "atlas_scoped_rls_marketing_maintenance",
+      "statement_count": 1,
+      "bytes": 3517,
+      "md5": "cac56cdfe4f20a0b651800dc1e1f60ff",
+      "sha256": "1d6d19a627a8aa778a59b6dae47740764572da0c4a5713ebc18563dbf1769921",
+      "file": "20260820174309_atlas_scoped_rls_marketing_maintenance.sql"
+    },
+    {
+      "version": "20260820174345",
+      "name": "atlas_bonus_runs_soft_delete_column",
+      "statement_count": 1,
+      "bytes": 89,
+      "md5": "8105303ce8bf28adfdfd5c6af1ab0f4a",
+      "sha256": "917960f5c72f780ee45ad9b6036adfe32d063502eb32d166dafb20ba45952a8f",
+      "file": "20260820174345_atlas_bonus_runs_soft_delete_column.sql"
+    },
+    {
+      "version": "20260820174406",
+      "name": "atlas_scoped_rls_bonus_migration_indexes",
+      "statement_count": 1,
+      "bytes": 4302,
+      "md5": "287eb5f372aa45c6afda4727e45e9167",
+      "sha256": "efe22deea88b43596a692705df21709f36b1269d156d22276015ad118a90b0c6",
+      "file": "20260820174406_atlas_scoped_rls_bonus_migration_indexes.sql"
+    },
+    {
+      "version": "20260820174601",
+      "name": "atlas_hash_payload_search_path",
+      "statement_count": 1,
+      "bytes": 214,
+      "md5": "8c96b8cf71b19644cf97f158de66a61c",
+      "sha256": "575b53c29adab14b7b6d5fce2da7a10b8f249fd478ca000dcc96dd959751caaf",
+      "file": "20260820174601_atlas_hash_payload_search_path.sql"
+    },
+    {
+      "version": "20260820175123",
+      "name": "atlas_shared_property_graph_foundation_safe",
+      "statement_count": 1,
+      "bytes": 4627,
+      "md5": "146345cd09bc7f3e1749079047211010",
+      "sha256": "26ccea424adae796016cfba75fbc3274818391f4e8f8192b3a32c5355ada7953",
+      "file": "20260820175123_atlas_shared_property_graph_foundation_safe.sql"
+    },
+    {
+      "version": "20260820175138",
+      "name": "atlas_mapping_review_queue_no_delete_policy",
+      "statement_count": 1,
+      "bytes": 760,
+      "md5": "ecd762f1151893f4b862ebd714053710",
+      "sha256": "8defbde2fa0d3d7adcfeb8a661e6fe3c7efec0e8f4d8fa327909584c917e2942",
+      "file": "20260820175138_atlas_mapping_review_queue_no_delete_policy.sql"
+    },
+    {
+      "version": "20260820175158",
+      "name": "atlas_function_execute_hardening",
+      "statement_count": 1,
+      "bytes": 3394,
+      "md5": "990b5fb00d969ae4a3eae78c21e86baf",
+      "sha256": "df3b0e437571598d0f6eefe1b27c91210c284b95fc98a38d63da1ca3bd7cc6a9",
+      "file": "20260820175158_atlas_function_execute_hardening.sql"
+    },
+    {
+      "version": "20260821025704",
+      "name": "atlas_phase4_access_tables",
+      "statement_count": 1,
+      "bytes": 3385,
+      "md5": "369fa2906bf1111d54537dc7323cc247",
+      "sha256": "ec25841316bf336f88eae15b61ac51b79aa2cb9442efa802685783e171057c19",
+      "file": "20260821025704_atlas_phase4_access_tables.sql"
+    },
+    {
+      "version": "20260821025749",
+      "name": "atlas_phase4_access_functions",
+      "statement_count": 1,
+      "bytes": 10963,
+      "md5": "356bbf8f9f485748ce0e3135d30c5d69",
+      "sha256": "58d426d6d5068e2ebcb7b8c38ef0dc776e11bee2e1122320b9bb8c5643c7c770",
+      "file": "20260821025749_atlas_phase4_access_functions.sql"
+    },
+    {
+      "version": "20260821025936",
+      "name": "atlas_phase4_live_presence_functions",
+      "statement_count": 1,
+      "bytes": 3257,
+      "md5": "9c840bd25a63958c89e912e945a9ffcf",
+      "sha256": "62eb72a7a1b9a982c39dc577713dfbd65d5d7342dec4f28ac2f413f72ffc1ad4",
+      "file": "20260821025936_atlas_phase4_live_presence_functions.sql"
+    },
+    {
+      "version": "20260821030358",
+      "name": "atlas_phase4_live_session_user_index",
+      "statement_count": 1,
+      "bytes": 98,
+      "md5": "c430417e7d42d02605f1ce1f1ed2fac9",
+      "sha256": "765e18ffd6e68479b8b3d2717bde962288eea131306cce5d4709dd9949acdf18",
+      "file": "20260821030358_atlas_phase4_live_session_user_index.sql"
+    },
+    {
+      "version": "20260821030406",
+      "name": "atlas_phase4_live_session_seen_index",
+      "statement_count": 1,
+      "bytes": 108,
+      "md5": "976a8b70c13d77e78f297c32f4006fa5",
+      "sha256": "12dcd52655e8c7e3a64b378fa31f22620e75043eb11513fe74b3c3178e319793",
+      "file": "20260821030406_atlas_phase4_live_session_seen_index.sql"
+    },
+    {
+      "version": "20260821030427",
+      "name": "atlas_phase4_live_session_drop_all_policy",
+      "statement_count": 1,
+      "bytes": 90,
+      "md5": "3f696407b6e717ddb9c9819792d86c4f",
+      "sha256": "c628106d67d777893411c785bcdf6053db2ab0814b35cf310806f6a6b1f3cf94",
+      "file": "20260821030427_atlas_phase4_live_session_drop_all_policy.sql"
+    },
+    {
+      "version": "20260821030437",
+      "name": "atlas_phase4_live_session_insert_policy",
+      "statement_count": 1,
+      "bytes": 152,
+      "md5": "7fd5ebcb379ba36d6ba4211b997a2669",
+      "sha256": "96769def255b72174833b996869d702627440f7882a66fbd671c3ffd13c994b6",
+      "file": "20260821030437_atlas_phase4_live_session_insert_policy.sql"
+    },
+    {
+      "version": "20260821030445",
+      "name": "atlas_phase4_live_session_update_policy",
+      "statement_count": 1,
+      "bytes": 183,
+      "md5": "0220e3a36186f4060eb6e8eefedfe485",
+      "sha256": "8d128bbd5368de8480f9bf15e3f04d1a557f3a07c2fe8c2ef8727a35f4ed02bb",
+      "file": "20260821030445_atlas_phase4_live_session_update_policy.sql"
+    },
+    {
+      "version": "20260821030454",
+      "name": "atlas_phase4_live_session_delete_policy",
+      "statement_count": 1,
+      "bytes": 147,
+      "md5": "4aff18319ffe4b215e9ab126bbc38d16",
+      "sha256": "b66dc0b06ad240ca21df5a1874741fc646dc91b6fc2755a2e3efa4aa3ac5883b",
+      "file": "20260821030454_atlas_phase4_live_session_delete_policy.sql"
+    },
+    {
+      "version": "20260821114729",
+      "name": "fix_atlas_access_role_ambiguity",
+      "statement_count": 1,
+      "bytes": 14072,
+      "md5": "c75be77600a5d8e8db66e1f999b097c6",
+      "sha256": "009ad412b0b12a6ad71811d4026dafa513a94c9d62c58b0c2022576f2213b4b1",
+      "file": "20260821114729_fix_atlas_access_role_ambiguity.sql"
+    },
+    {
+      "version": "20260824140820",
+      "name": "atlas_live_session_conflict_fix",
+      "statement_count": 1,
+      "bytes": 3202,
+      "md5": "711f4967cd4f011ac857f5d288b45ee3",
+      "sha256": "91652941b6e94eb9fcc490f506356749bb5ccc8d82cd782117d6a03ce7ba3978",
+      "file": "20260824140820_atlas_live_session_conflict_fix.sql"
+    },
+    {
+      "version": "20260824141549",
+      "name": "atlas_security_advisor_hardening_phase1",
+      "statement_count": 1,
+      "bytes": 7310,
+      "md5": "e1f633fd7334c8b3499fc1308eb38ad6",
+      "sha256": "8d76bf4bb4e2af3f386fb2bcb29e57f6849f737ece675f8280b0d8bc579cc4e0",
+      "file": "20260824141549_atlas_security_advisor_hardening_phase1.sql"
+    },
+    {
+      "version": "20260824142616",
+      "name": "atlas_security_advisor_hardening_phase2_lookup_revoke",
+      "statement_count": 1,
+      "bytes": 107,
+      "md5": "a7497fa5e5ce32f0b6dcb1a517cc0569",
+      "sha256": "0bb5ef2ce716ce1e3e1fda1f54b2c5dd264abe95e009ecb2be0a36368b2fdf4e",
+      "file": "20260824142616_atlas_security_advisor_hardening_phase2_lookup_revoke.sql"
+    },
+    {
+      "version": "20260824144537",
+      "name": "atlas_restore_policy_helper_exec",
+      "statement_count": 1,
+      "bytes": 393,
+      "md5": "c748dbd63c7cd9e99468d30e39346c25",
+      "sha256": "457dc8d42328e9a652632c106300cde0652df3e8f0e851726fc224a9a91faf44",
+      "file": "20260824144537_atlas_restore_policy_helper_exec.sql"
+    },
+    {
+      "version": "20260824155106",
+      "name": "atlas_people_profile_and_centra_updates",
+      "statement_count": 1,
+      "bytes": 11125,
+      "md5": "80ae4bb9e1479f861e8bdefa0bbad2d0",
+      "sha256": "1951c94ab9f94b5051b09ff71bcd1c1771b22fd023ba52440a7a60fcd30e8e10",
+      "file": "20260824155106_atlas_people_profile_and_centra_updates.sql"
+    },
+    {
+      "version": "20260825184054",
+      "name": "atlas_admin_roster_wide_provisioning",
+      "statement_count": 1,
+      "bytes": 22794,
+      "md5": "2da62df64f936fb70d16883beba84359",
+      "sha256": "7c2184771ceb1090d314d3c435b720de7db19df9ab7c77f90554e0a90125138d",
+      "file": "20260825184054_atlas_admin_roster_wide_provisioning.sql"
+    },
+    {
+      "version": "20260825190951",
+      "name": "atlas_user_dashboard_views_phase1",
+      "statement_count": 1,
+      "bytes": 9946,
+      "md5": "e61feec2149eeef55360c3536c9b011a",
+      "sha256": "e365d521466bd35460d49c18d819e3a0bc61d99b04e8c86ff12a6d0d944eb510",
+      "file": "20260825190951_atlas_user_dashboard_views_phase1.sql"
+    },
+    {
+      "version": "20260901140248",
+      "name": "atlas_dlr_automated_reporting",
+      "statement_count": 1,
+      "bytes": 7555,
+      "md5": "dcfe69d82c62f46d0fbc56bafcf6dcfe",
+      "sha256": "108890dab0f6ec89b2c90a1a3c3cdcae62f8b85e0be76a57f7256b7e7860a039",
+      "file": "20260901140248_atlas_dlr_automated_reporting.sql"
+    },
+    {
+      "version": "20260901143454",
+      "name": "atlas_dlr_reporting_policy_index_tune",
+      "statement_count": 1,
+      "bytes": 2987,
+      "md5": "8df94c60b5b253e5b54cc0dad64172e1",
+      "sha256": "b372119c89d267ac5997080f71ff03df85b3f7245f1ae42a30bff8364561eacc",
+      "file": "20260901143454_atlas_dlr_reporting_policy_index_tune.sql"
+    },
+    {
+      "version": "20260904173858",
+      "name": "fix_dashboard_view_user_id_ambiguity",
+      "statement_count": 1,
+      "bytes": 5698,
+      "md5": "9a71eefe5ccfc0d30773539db4a5319a",
+      "sha256": "fec63b9e5f7f1f09cbc4245d5a8c7d49a02654301b6c106e9e5040ce4144e57d",
+      "file": "20260904173858_fix_dashboard_view_user_id_ambiguity.sql"
+    },
+    {
+      "version": "20260910203651",
+      "name": "fix_dashboard_view_user_id_conflict_target",
+      "statement_count": 1,
+      "bytes": 3946,
+      "md5": "bde8a86e81065dcdc2672906a7580d3f",
+      "sha256": "82039c8eec74feea360b2c8668cd95ced5c7c4e7e51093fe844600324121d710",
+      "file": "20260910203651_fix_dashboard_view_user_id_conflict_target.sql"
+    },
+    {
+      "version": "20260917011814",
+      "name": "scoped_application_publication",
+      "statement_count": 1,
+      "bytes": 11128,
+      "md5": "9eb4f270ea02b1ccdcafdcc4e2470c18",
+      "sha256": "47aaabe9b6bd9be2951e356f91aab0d1db3778b8edf15de84ee5e720881e172a",
+      "file": "20260917011814_scoped_application_publication.sql"
+    },
+    {
+      "version": "20260917025810",
+      "name": "application_publication_community_resolution_cache",
+      "statement_count": 1,
+      "bytes": 5333,
+      "md5": "c51673bb3c91866923be42958e8cbb54",
+      "sha256": "14f6a56cd94aee5bcabdfaac82d12d19d9882e856b5083a07a5f800bd6fb27fc",
+      "file": "20260917025810_application_publication_community_resolution_cache.sql"
+    },
+    {
+      "version": "20260917025945",
+      "name": "application_publication_set_based_records",
+      "statement_count": 1,
+      "bytes": 5362,
+      "md5": "68bf5d5bb1edf9bcdf53771638bb01e0",
+      "sha256": "2af7a2084a4d5fbbcdac202d290b409705d3701ef9b08c97339dbf81bae1e662",
+      "file": "20260917025945_application_publication_set_based_records.sql"
+    },
+    {
+      "version": "20260918160719",
+      "name": "employee_notification_ticker_and_access_triggers",
+      "statement_count": 1,
+      "bytes": 9847,
+      "md5": "5f70c264089a919e7920350f2e126df4",
+      "sha256": "194619b9962bd5f3df171375642dacd3951a9ea8e5778cb8f87570a871b278f5",
+      "file": "20260918160719_employee_notification_ticker_and_access_triggers.sql"
+    },
+    {
+      "version": "20260921150406",
+      "name": "community_command_reviewed_publication_and_plans",
+      "statement_count": 1,
+      "bytes": 27819,
+      "md5": "26e921863f2ef386b26c90bf1a85a5ad",
+      "sha256": "4a6bcaed237f1067ac6a043e05ed8b93e71b6e9802b045e966fe0db8a15d0229",
+      "file": "20260921150406_community_command_reviewed_publication_and_plans.sql"
+    },
+    {
+      "version": "20260921150703",
+      "name": "community_command_scoped_plan_summary",
+      "statement_count": 1,
+      "bytes": 686,
+      "md5": "1cac742effcb000db95d2c8f83b6887f",
+      "sha256": "8224fd5926cb3c15222f1f59dac8a0714113fee017f57e895ac04af4e4955be7",
+      "file": "20260921150703_community_command_scoped_plan_summary.sql"
+    },
+    {
+      "version": "20260921152421",
+      "name": "community_command_fiscal_ytd_and_report_progress",
+      "statement_count": 1,
+      "bytes": 15403,
+      "md5": "1ae170813c03c993abf905dfbcb1963b",
+      "sha256": "bad1d1daabe1df775a77803b947f2be9493fdb352a076cb69483f169edd9fdf2",
+      "file": "20260921152421_community_command_fiscal_ytd_and_report_progress.sql"
+    },
+    {
+      "version": "20260921165618",
+      "name": "financial_package_review_intake",
+      "statement_count": 1,
+      "bytes": 6321,
+      "md5": "055740b447c2f1957fc8f9f06df95a86",
+      "sha256": "8d573f23420ab94f0e849b9f0918358fa3b52331b295e3e243f8745b96253969",
+      "file": "20260921165618_financial_package_review_intake.sql"
+    },
+    {
+      "version": "20260921165930",
+      "name": "financial_admin_publication_gate",
+      "statement_count": 1,
+      "bytes": 1218,
+      "md5": "198f5c93c0de475cea9507ce13b04694",
+      "sha256": "3a194e5a3a39e2acd3b8513743c26f6dbff664cc3649802f2ec47168f17623dc",
+      "file": "20260921165930_financial_admin_publication_gate.sql"
+    },
+    {
+      "version": "20260921182125",
+      "name": "financial_reviewed_comparison_apply",
+      "statement_count": 1,
+      "bytes": 8549,
+      "md5": "e83918445330554dfaedbbe4ed4ba17b",
+      "sha256": "d8d286ba173269aca20e4bd2e4e304806b1b4898807245073c5ef1a297d64b6d",
+      "file": "20260921182125_financial_reviewed_comparison_apply.sql"
+    },
+    {
+      "version": "20260921190404",
+      "name": "canonical_financial_close_versions",
+      "statement_count": 1,
+      "bytes": 10179,
+      "md5": "5248da20ca56c0080289e35d9067bb36",
+      "sha256": "c0718d5cb1b909696a20f77f5f5aa5eb91b438dd317c64da83e31e9343aa0d07",
+      "file": "20260921190404_canonical_financial_close_versions.sql"
+    },
+    {
+      "version": "20260921191246",
+      "name": "financial_close_cash_flow_reconciliation",
+      "statement_count": 1,
+      "bytes": 7233,
+      "md5": "112996c60032f1d113a48e7d8f322786",
+      "sha256": "94f3bbd48ce218770356583264541a2ffd3f05a75285b343c333d24f226bff10",
+      "file": "20260921191246_financial_close_cash_flow_reconciliation.sql"
+    },
+    {
+      "version": "20260921191740",
+      "name": "financial_close_source_location_lineage",
+      "statement_count": 1,
+      "bytes": 7305,
+      "md5": "6edb29b23122a86f2e6506c895f23cd6",
+      "sha256": "fd15b1f8b6beb843586446a1c14b2ca1358a99ce34d354b6c55a995dbb4e3043",
+      "file": "20260921191740_financial_close_source_location_lineage.sql"
+    },
+    {
+      "version": "20260921193949",
+      "name": "application_screening_lineage",
+      "statement_count": 1,
+      "bytes": 18911,
+      "md5": "523df84d2b081f232bcc4119ec6c5cbc",
+      "sha256": "075a81e7b1ba423acd179b93f862efe1759686aef95f0db38cc3c991c978d009",
+      "file": "20260921193949_application_screening_lineage.sql"
+    },
+    {
+      "version": "20260921194257",
+      "name": "preserve_canonical_application_start_fields",
+      "statement_count": 1,
+      "bytes": 6324,
+      "md5": "ced371f59227552de17be3f38eabd9dc",
+      "sha256": "8f1785902cd8da58c01712a2a559609dc40b59ce55a090ad565374dc1a8b3a80",
+      "file": "20260921194257_preserve_canonical_application_start_fields.sql"
+    },
+    {
+      "version": "20260921200041",
+      "name": "align_application_status_column_evidence",
+      "statement_count": 1,
+      "bytes": 4034,
+      "md5": "e7ac585b02a5c1a7008f9c1cb1c15314",
+      "sha256": "16a2d9619ba324609bd2fea7d055be22bd127a5073004610b51e8e85919da925",
+      "file": "20260921200041_align_application_status_column_evidence.sql"
+    },
+    {
+      "version": "20260922011054",
+      "name": "canonical_finance_reporting_and_shared_original_budget",
+      "statement_count": 1,
+      "bytes": 47216,
+      "md5": "ca44ae75edbbd5d26262ddba997ed578",
+      "sha256": "ad93645dac17f940f5f88fdedddb267abd42769e8e80d2d25d11ec6c59165806",
+      "file": "20260922011054_canonical_finance_reporting_and_shared_original_budget.sql"
+    },
+    {
+      "version": "20260922011335",
+      "name": "canonical_finance_reporting_advisor_tuning",
+      "statement_count": 1,
+      "bytes": 261,
+      "md5": "75476276db6c3d2394ca7ce2774953b1",
+      "sha256": "e4fba2411f087d3b97a941502750cde9a7ee5ad313efdbb5cecdc249f3acd818",
+      "file": "20260922011335_canonical_finance_reporting_advisor_tuning.sql"
+    },
+    {
+      "version": "20260922015029",
+      "name": "canonical_finance_budget_projection_performance",
+      "statement_count": 1,
+      "bytes": 902,
+      "md5": "07ac5f20e420bf57e9ecd5ac821b857e",
+      "sha256": "a99c418703c301ac0e87ad309aa2f94ab7d6b304e033dad0eee0ed62af458778",
+      "file": "20260922015029_canonical_finance_budget_projection_performance.sql"
+    },
+    {
+      "version": "20260922035357",
+      "name": "utility_forecast_vintages_and_draft_planning",
+      "statement_count": 1,
+      "bytes": 11513,
+      "md5": "5e4ba91eb91752fbe28230f7e36f6452",
+      "sha256": "6a1c85a0803f39d6372800782748907b1d56a5a585ba05e97dcf6937827359dd",
+      "file": "20260922035357_utility_forecast_vintages_and_draft_planning.sql"
+    },
+    {
+      "version": "20260922040433",
+      "name": "utility_forecast_validation_and_private_reconciliation",
+      "statement_count": 1,
+      "bytes": 4710,
+      "md5": "5a7fbb9438a04165e3be2994f1206d09",
+      "sha256": "7ea4621756bec10ffaea0e18364e3161ed9dcca0cd73f19687095163d07eef62",
+      "file": "20260922040433_utility_forecast_validation_and_private_reconciliation.sql"
+    },
+    {
+      "version": "20260922041029",
+      "name": "utility_forecast_reviewed_vintage_rollback",
+      "statement_count": 1,
+      "bytes": 1499,
+      "md5": "622213ebbe4d23c9b39e004eab469782",
+      "sha256": "5af0feb95bba04b711932119c649efe0007f96194428eb686a33fcf61a544cdb",
+      "file": "20260922041029_utility_forecast_reviewed_vintage_rollback.sql"
+    },
+    {
+      "version": "20260922180049",
+      "name": "financial_coverage_start",
+      "statement_count": 1,
+      "bytes": 6683,
+      "md5": "d4b0ee4171b60764c556e47ac1c3baab",
+      "sha256": "b51ab43915a649ed298d080648c2983eecfe05e53748de416f1b0863e8d4321a",
+      "file": "20260922180049_financial_coverage_start.sql"
+    },
+    {
+      "version": "20260922181042",
+      "name": "workforce_change_events",
+      "statement_count": 1,
+      "bytes": 2557,
+      "md5": "143e2a40de01c501573569a8e333ce38",
+      "sha256": "e4ca92a5a93fca9039733826af5334d0c00c83b658a6314a3ce450b257cb4182",
+      "file": "20260922181042_workforce_change_events.sql"
+    },
+    {
+      "version": "20260922184103",
+      "name": "community_goal_persistence",
+      "statement_count": 1,
+      "bytes": 17425,
+      "md5": "67a17d530215c0b5e9b66de80e3ce9b3",
+      "sha256": "ba6740065ab1f7b17ed93bc762a838ab21f34fa1d4ecbe8cdfc1d324f007faa3",
+      "file": "20260922184103_community_goal_persistence.sql"
+    },
+    {
+      "version": "20260923154119",
+      "name": "governed_reforecast_versions_and_publication",
+      "statement_count": 1,
+      "bytes": 68245,
+      "md5": "ccf5dac90054027507613638db9a1bcf",
+      "sha256": "b33ab770829bdca2a9e01e21041536a47a441d292ddffe0f6fd7cbc561b92337",
+      "file": "20260923154119_governed_reforecast_versions_and_publication.sql"
+    },
+    {
+      "version": "20260923154125",
+      "name": "community_plan_published_reforecast_snapshots",
+      "statement_count": 1,
+      "bytes": 5689,
+      "md5": "fc9f1d2199ac536074a80fcf0bcd0baf",
+      "sha256": "9571c5cd0bde8f227562ef135f7862da7814b7e0602bb93d2f7d732b10de4b6b",
+      "file": "20260923154125_community_plan_published_reforecast_snapshots.sql"
+    },
+    {
+      "version": "20260923192252",
+      "name": "financial_intake_governance_and_verified_publication",
+      "statement_count": 1,
+      "bytes": 77661,
+      "md5": "4a6ed53852ef86f118ed56a87823e28e",
+      "sha256": "8d80ed3ee4cd94eeed9d6bbae0e1ef704e4fc4fd199b96207bf23dc20f59846f",
+      "file": "20260923192252_financial_intake_governance_and_verified_publication.sql"
+    },
+    {
+      "version": "20260924121641",
+      "name": "planning_cell_workbook_integrity_governance",
+      "statement_count": 1,
+      "bytes": 35557,
+      "md5": "2a8800a48b4721b7110a3f408261e4f2",
+      "sha256": "a3595da44872940b011ffe86d6c75fbaf0e7ef3bc44331abb6c8aedf37c666a7",
+      "file": "20260924121641_planning_cell_workbook_integrity_governance.sql"
+    },
+    {
+      "version": "20260924121647",
+      "name": "immutable_workbook_audits_and_monthly_governance",
+      "statement_count": 1,
+      "bytes": 19411,
+      "md5": "387abdee5532838c38d41a75db7f347e",
+      "sha256": "840d20279b47fd813b8aff936ba7f25610facdef6752d3b6ba9216bfd58f057e",
+      "file": "20260924121647_immutable_workbook_audits_and_monthly_governance.sql"
+    },
+    {
+      "version": "20260924121653",
+      "name": "original_budget_immutable_workbook_approval",
+      "statement_count": 1,
+      "bytes": 6830,
+      "md5": "0887a793c677bdb3ee904eed76b8bbba",
+      "sha256": "2905116c31f6d19187b97da3344006e227f7594e54ce20c5919b6181f0dc5730",
+      "file": "20260924121653_original_budget_immutable_workbook_approval.sql"
+    },
+    {
+      "version": "20260924165534",
+      "name": "reforecast_builder_governance",
+      "statement_count": 1,
+      "bytes": 124885,
+      "md5": "67f761e90c336ea5d71c4b5298661317",
+      "sha256": "3b64b87d8bcb6469a5a4402627c40713d3029d1e4c96cc9a62384a0d854956e0",
+      "file": "20260924165534_reforecast_builder_governance.sql"
+    },
+    {
+      "version": "20260924165542",
+      "name": "reforecast_report_receipts",
+      "statement_count": 1,
+      "bytes": 19508,
+      "md5": "76372b886fd4d480459a3b9a5a7cc9ae",
+      "sha256": "0c3144b50b6118917e669764901f0c8b58210b6a8e776442d16ef9a5343bf4cd",
+      "file": "20260924165542_reforecast_report_receipts.sql"
+    },
+    {
+      "version": "20260924165545",
+      "name": "forecast_contract_workflow",
+      "statement_count": 1,
+      "bytes": 6824,
+      "md5": "676a378f5d1a44077d9aa5ff0479525a",
+      "sha256": "7c203c634f18b470c14af0bebd00e4884cff4c28a59e59360af235567ef62499",
+      "file": "20260924165545_forecast_contract_workflow.sql"
+    },
+    {
+      "version": "20260924165549",
+      "name": "reforecast_utility_drivers",
+      "statement_count": 1,
+      "bytes": 11999,
+      "md5": "975b758435fc9f626df1bb129b4d982a",
+      "sha256": "125db5defd9db14b6110d097195f304db6da08073f504b1b5258cb12363ab8f4",
+      "file": "20260924165549_reforecast_utility_drivers.sql"
+    }
+  ]
+}

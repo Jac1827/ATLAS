@@ -6,7 +6,7 @@ import {compactWorkbookAudit} from '../docs/portfolio-operations-dashboard/featu
 const require=createRequire(import.meta.url),XLSX=require('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js'),{fixture}=require('./financial-intake-fixture.cjs');
 const {db,cid,signIn}=await fixture(),actor='00000000-0000-0000-0000-000000000001';
 try{
- await db.exec('reset role');for(const name of ['20260924115615_planning_cell_governance.sql','20260924115649_financial_workbook_governance.sql'])await db.exec(fs.readFileSync(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));
+ await db.exec('reset role');for(const name of ['20260924121641_planning_cell_workbook_integrity_governance.sql','20260924121647_immutable_workbook_audits_and_monthly_governance.sql'])await db.exec(fs.readFileSync(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));
  let bytes,sourceFile;const real=process.env.ATLAS_REAL_BCR_SOURCE;
  if(real){bytes=fs.readFileSync(real);sourceFile=path.basename(real);}else{
   const values=n=>[n,n,0,0,n,n,0,0,n*12],matrix=[['Budget Comparison - Income Statement'],['Generic Community'],['Apr 2026'],['Accrual Basis'],[],[null,null,'Apr 2026',null,null,null,'YTD ( Jan 2026 - Apr 2026 )'],['Account','Account Name','Actual','Budget','$ Variance','% Variance','Actual','Budget','$ Variance','% Variance','Annual Budget'],['Income'],['8101','Gross Potential Rent',...values(100)],['','Net Rental Income',...values(100)],['','Total Income',...values(100)],['Expenses'],['9101','Operating expense',...values(0)],['','Total Expenses',...values(0)],['','Net Operating Income',...values(100)]];

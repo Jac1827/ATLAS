@@ -54,8 +54,17 @@ function getAtlasSaveContextKey() {
   });
 }
 
+function observeAtlasSaveContext() {
+  const key = getAtlasSaveContextKey();
+  if (observeAtlasSaveContext.key !== key) {
+    observeAtlasSaveContext.key = key;
+    observeAtlasSaveContext.revision = (observeAtlasSaveContext.revision || 0) + 1;
+  }
+  return observeAtlasSaveContext.revision;
+}
+
 function captureAtlasSaveContext() {
-  const context = getAtlasSaveContextKey();
-  let current = Boolean(context);
-  return () => current && (current = context === getAtlasSaveContextKey());
+  const revision = observeAtlasSaveContext();
+  let current = Boolean(observeAtlasSaveContext.key);
+  return () => current && (current = revision === observeAtlasSaveContext());
 }

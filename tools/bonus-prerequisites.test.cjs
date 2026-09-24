@@ -25,3 +25,24 @@ assert.equal(pending.metricResults[0].earned,null);assert.equal(pending.metricRe
 c.atlasBonusMetricActual=()=>0;c.atlasBonusCurvePayoutPct=()=>({ratio:0,payoutPct:0,label:'Below threshold'});
 const zero=c.atlasBonusBuildRow({employeeId:'id',communityName:'A',bonusRole:'Manager'}, {periodKey:'2026-Q3'});
 assert.equal(zero.metricResults[0].earned,0);assert.equal(zero.metricResults[0].achievementPct,0);assert.equal(zero.projectedPayout,0);assert.equal(zero.proposedPayout,0);assert.equal(zero.finalPayout,null);assert.equal(zero.canonicalPayable,false);
+
+// An explicit approved adjustment replaces the projection, including a real zero.
+c.atlasBonusMetricActual=()=>100;c.atlasBonusCurvePayoutPct=()=>({ratio:100,payoutPct:100,label:'Achieved'});
+const employee={employeeId:'id',communityName:'A',bonusRole:'Manager'},period={periodKey:'2026-Q3'};
+for(const amount of [0,50,-25,'0','50','-25']){
+ state.overrides=[{employeeId:'id',status:'approved',adjustedAmount:amount}];
+ const adjusted=c.atlasBonusBuildRow(employee,period);
+ assert.equal(adjusted.projectedPayout,100);assert.equal(adjusted.proposedPayout,Number(amount));
+ assert.equal(adjusted.unresolvedCritical,false);assert.equal(adjusted.finalPayout,null);assert.equal(adjusted.canonicalPayable,false);
+}
+for(const amount of [undefined,null,'','  ','invalid',NaN,Infinity,-Infinity,{},[],false]){
+ state.overrides=[{employeeId:'id',status:'approved',adjustedAmount:amount}];
+ const invalid=c.atlasBonusBuildRow(employee,period);
+ assert.equal(invalid.unresolvedCritical,true);assert.equal(invalid.proposedPayout,null);assert.equal(invalid.finalPayout,null);
+ assert(invalid.exceptions.some(item=>item.code==='invalid_override_amount'&&item.severity==='critical'));
+ assert.equal(invalid.approvalStatus,'Exceptions Blocking Approval');
+}
+state.overrides=[{employeeId:'id',status:'pending_approval',adjustedAmount:0}];
+const unapproved=c.atlasBonusBuildRow(employee,period);assert.equal(unapproved.proposedPayout,100);assert.equal(unapproved.approvalStatus,'Overrides Pending Approval');
+state.overrides=[];assert.equal(c.atlasBonusBuildRow(employee,period).proposedPayout,100);
+console.log('PASS approved zero/positive/negative overrides remain exact draft proposals; blank, missing and invalid approved adjustments fail closed; pending adjustments never replace earned values.');

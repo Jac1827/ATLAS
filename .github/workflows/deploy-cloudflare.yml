@@ -96,6 +96,8 @@ jobs:
           node tools/reforecast-utility.test.mjs
           node tools/reforecast-bonus.test.mjs
           node tools/bonus-export-security.test.cjs
+          node tools/bonus-prerequisites.test.cjs
+          node tools/bonus-financial-attainment.test.cjs
           node tools/reforecast-bonus-current-db.test.cjs
           node tools/reforecast-bonus-receipts-db.test.cjs
           node tools/reforecast-builder-db.test.cjs
@@ -201,6 +203,8 @@ jobs:
           node tools/reforecast-utility.test.mjs
           node tools/reforecast-bonus.test.mjs
           node tools/bonus-export-security.test.cjs
+          node tools/bonus-prerequisites.test.cjs
+          node tools/bonus-financial-attainment.test.cjs
           node tools/reforecast-bonus-current-db.test.cjs
           node tools/reforecast-bonus-receipts-db.test.cjs
           node tools/reforecast-builder-db.test.cjs

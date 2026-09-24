@@ -31946,8 +31946,9 @@ function atlasBonusPerformanceRatio(metric = {}, actual = 0) {
   return (value / goal) * 100;
 }
 
-function atlasBonusCurvePayoutPct(metric = {}, actual = 0) {
-  const ratio = atlasBonusPerformanceRatio(metric, actual);
+function atlasBonusCurvePayoutPct(metric = {}, actual = 0, { financialAttainment = false } = {}) {
+  // Governed financial attainment already applies the raw metric's favorability.
+  const ratio = atlasBonusPerformanceRatio(financialAttainment ? { ...metric, favorable: "higher" } : metric, actual);
   const curve = (Array.isArray(metric.thresholdCurve) ? metric.thresholdCurve : BONUS_ENGINE_DEFAULT_CURVE)
     .map(row => ({ thresholdPct: Number(row.thresholdPct) || 0, payoutPct: Number(row.payoutPct) || 0, label: row.label || "" }))
     .sort((a, b) => b.thresholdPct - a.thresholdPct);
@@ -32091,6 +32092,7 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
   const metricResults = (plan?.metrics || []).map(configuredMetric => {
     const governed = communityCommandBonusGoalResult(employee, configuredMetric, period);
     const metric = governed ? { ...configuredMetric, goal: governed.goal } : configuredMetric;
+    const financialEvidence = atlasBonusFinancialEvidence(employee, metric, period);
     const actual = governed ? governed.actual : atlasBonusMetricActual(employee, metric, period);
     if (governed?.reason) exceptions.push({ severity: "critical", code: "governed_goal_pending", message: governed.reason, metricId: metric.id });
     if (actual === null && !governed?.reason) {
@@ -32098,7 +32100,8 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
     }
     const potential = atlasBonusMetricPotential(employee, plan, metric);
     const metricPending = actual === null || governed?.reason || exceptions.some(item => item.code === "missing_salary");
-    const curve = metricPending ? { ratio: null, payoutPct: null, label: "Calculation Pending" } : atlasBonusCurvePayoutPct(metric, actual);
+    const financialAttainment = Boolean(financialEvidence && Number.isFinite(financialEvidence.attainment) && actual === financialEvidence.attainment);
+    const curve = metricPending ? { ratio: null, payoutPct: null, label: "Calculation Pending" } : atlasBonusCurvePayoutPct(metric, actual, { financialAttainment });
     let earned = metricPending ? null : potential * (curve.payoutPct / 100);
     if (["per_unit", "per_lease", "per_event"].includes(metric.payoutStructure) && !metricPending) {
       const unitEarned = Math.max(0, actual - Number(metric.goal || 0) + 1) * Number(metric.perUnitRate || 0);
@@ -32109,7 +32112,7 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
     return {
       metric,
       approvedGoalVersions: governed?.versions || [],
-      financialEvidence: atlasBonusFinancialEvidence(employee, metric, period),
+      financialEvidence,
       actual,
       potential,
       payoutPct: curve.payoutPct,
@@ -32121,12 +32124,14 @@ function atlasBonusBuildRow(employee = {}, period = atlasBonusPeriodFromQuarter(
   });
   const rowId = `bonus_${simpleHash([period.periodKey, employee.employeeId || "unmapped", employee.assignmentId || "unmapped-assignment", plan?.id || "none"].join("|"))}`;
   const state = atlasBonusState();
-  const unresolvedCritical = exceptions.some(exception => exception.severity === "critical");
   const proratedEarned = grossEarned * proration.factor;
   const proratedPotential = grossPotential * proration.factor;
   const override = state.overrides.find(item => (item.rowId && item.rowId === rowId) || (!item.rowId && item.employeeId === employee.employeeId));
   const approvedOverride = override && override.status === "approved";
-  const finalPayout = approvedOverride ? Number(override.adjustedAmount || proratedEarned) : proratedEarned;
+  const overrideAmount = typeof override?.adjustedAmount === "number" || typeof override?.adjustedAmount === "string" && override.adjustedAmount.trim() !== "" ? Number(override.adjustedAmount) : NaN;
+  if (approvedOverride && !Number.isFinite(overrideAmount)) exceptions.push({ severity: "critical", code: "invalid_override_amount", message: "The approved override needs an explicit finite payout amount." });
+  const unresolvedCritical = exceptions.some(exception => exception.severity === "critical");
+  const finalPayout = approvedOverride ? (Number.isFinite(overrideAmount) ? overrideAmount : null) : proratedEarned;
   const localStatus = state.approvalStatusByRowId[rowId];
   const storedStatus = ["Regional Approved", "HR Ready", "Paid", "Locked"].includes(localStatus) ? "Approval Receipt Required" : localStatus;
   const approvalStatus = unresolvedCritical

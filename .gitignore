@@ -12,3 +12,6 @@ tools/spreadsheet_staffing/
 
 # Local CLI cache; migrations are versioned.
 supabase/.temp/
+
+# Local manual market survey mailbox configuration.
+tools/market_survey_sync.config.json

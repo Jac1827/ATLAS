@@ -1,7 +1,7 @@
 import {financeSnapshot,lineageColumns} from './financial-snapshot.mjs?v=e84268921f32df41';
 import {snapshotPdf} from './snapshot-pdf.mjs?v=b614627cd7378375';
 import {readFinance} from './canonical-finance.mjs?v=491d9382e664ca55';
-import {readCanonicalBudgetVersion,assertBudgetReadback} from './canonical-budget-report.mjs?v=7ec2c59050dd86a5';
+import {readCanonicalBudgetVersion,assertBudgetReadback} from './canonical-budget-report.mjs?v=68826f23845738b1';
 import {readRows} from './financial-close.mjs?v=efa74b93df9c7e39';
 import {loadXlsx} from './reforecast-intake.mjs?v=dbd1802780d0939a';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

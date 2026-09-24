@@ -706,8 +706,8 @@
     ]
   },
   "features/canonical-budget-report.mjs": {
-    "sha256": "7ec2c59050dd86a5",
-    "bytes": 7934,
+    "sha256": "68826f23845738b1",
+    "bytes": 8090,
     "references": [
       [
         "features/financial-close-report.mjs",
@@ -720,7 +720,7 @@
     ]
   },
   "features/financial-close-report.mjs": {
-    "sha256": "b841a0bba5460120",
+    "sha256": "c48b1f036fc93b9e",
     "bytes": 8638,
     "references": [
       [
@@ -730,7 +730,7 @@
     ]
   },
   "features/financial-comparison.mjs": {
-    "sha256": "2bbfdeb9160fcf1c",
+    "sha256": "e67b2906c3d0cb67",
     "bytes": 11845,
     "references": [
       [
@@ -744,7 +744,7 @@
     ]
   },
   "features/financial-package-review.mjs": {
-    "sha256": "8a09fc0eb136895f",
+    "sha256": "4c4632ee56063b5d",
     "bytes": 19431,
     "references": [
       [
@@ -768,7 +768,7 @@
     ]
   },
   "budget-navigation.js": {
-    "sha256": "65b14a5474decb0e",
+    "sha256": "ec577832a6a30f0d",
     "bytes": 13206,
     "references": [
       [
@@ -878,7 +878,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "bc2cb0f51f57c2e6",
+    "sha256": "38a99e3f45a8b7a9",
     "bytes": 1888485,
     "references": [
       [
@@ -888,7 +888,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "3e131bd0bf7a5fba",
+    "sha256": "3b9f80ab54a9ee7e",
     "bytes": 22240,
     "references": [
       [

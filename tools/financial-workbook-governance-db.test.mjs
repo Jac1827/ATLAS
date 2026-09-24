@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import {createHash,randomUUID} from 'node:crypto';import {createRequire} from 'node:module';
+import {parseFinancialWorkbook} from '../docs/portfolio-operations-dashboard/features/financial-workbook-parser.mjs';
+import {finalizeFinancialPackageEvidence} from '../docs/portfolio-operations-dashboard/features/financial-package.mjs';
+import {suggestMonthlyMappings,confirmMonthlyGovernance} from '../docs/portfolio-operations-dashboard/features/financial-workbook-governance.mjs';
+import {compactWorkbookAudit} from '../docs/portfolio-operations-dashboard/features/workbook-audit-store.mjs';
+const require=createRequire(import.meta.url),XLSX=require('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js'),{fixture}=require('./financial-intake-fixture.cjs');
+const {db,cid,signIn}=await fixture(),actor='00000000-0000-0000-0000-000000000001';
+try{
+ await db.exec('reset role');for(const name of ['20260924115615_planning_cell_governance.sql','20260924115649_financial_workbook_governance.sql'])await db.exec(fs.readFileSync(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));
+ let bytes,sourceFile;const real=process.env.ATLAS_REAL_BCR_SOURCE;
+ if(real){bytes=fs.readFileSync(real);sourceFile=path.basename(real);}else{
+  const values=n=>[n,n,0,0,n,n,0,0,n*12],matrix=[['Budget Comparison - Income Statement'],['Generic Community'],['Apr 2026'],['Accrual Basis'],[],[null,null,'Apr 2026',null,null,null,'YTD ( Jan 2026 - Apr 2026 )'],['Account','Account Name','Actual','Budget','$ Variance','% Variance','Actual','Budget','$ Variance','% Variance','Annual Budget'],['Income'],['8101','Gross Potential Rent',...values(100)],['','Net Rental Income',...values(100)],['','Total Income',...values(100)],['Expenses'],['9101','Operating expense',...values(0)],['','Total Expenses',...values(0)],['','Net Operating Income',...values(100)]];
+  const workbook=XLSX.utils.book_new(),sheet=XLSX.utils.aoa_to_sheet(matrix);sheet.C10.f='C9';sheet.C11.f='C9';sheet.C14.f='C13';sheet.C15.f='C11-C14';XLSX.utils.book_append_sheet(workbook,sheet,'BCR');bytes=XLSX.write(workbook,{type:'buffer',bookType:'xlsx'});sourceFile='Generic BCR.xlsx';
+ }
+ const sourceHash=createHash('sha256').update(bytes).digest('hex');let c=await parseFinancialWorkbook(bytes,{XLSX,sourceHash,sourceFile});
+ const audit=c.intakeEvidence.workbookAudit;assert.equal(audit.summary.blocking,0,JSON.stringify(audit.findings));
+ await db.query('insert into atlas_community_aliases values($1,$2,true,$3)',[cid,c.metadata.sourceProperty,'isolated-acceptance']);await signIn(1);
+ const call=async(name,args)=>(await db.query(`select to_jsonb(${name}(${args.map((_,i)=>'$'+(i+1)).join(',')})) result`,args)).rows[0].result;
+ const requestId=randomUUID(),stored=await call('atlas_save_workbook_audit',[null,sourceHash,audit,requestId]);assert.equal((await call('atlas_save_workbook_audit',[null,sourceHash,audit,requestId])).audit_id,stored.audit_id);
+ await call('atlas_bind_workbook_audit',[stored.audit_id,cid]);c.intakeEvidence.workbookAudit=compactWorkbookAudit(audit,stored);
+ const governance=confirmMonthlyGovernance(c,{reportingBasis:'calendar',fiscalStartMonth:1,currency:'USD',reason:'Isolated acceptance reviewed every source mapping and dependency',mappings:suggestMonthlyMappings(c),findingsReviewed:true,actor});
+ c=await finalizeFinancialPackageEvidence(c,{communityId:cid,period:c.metadata.period,actor,exclusionsReviewed:true,governance});assert.equal(c.safeToImport,true,JSON.stringify(c.safetyIssues));
+ await db.exec('reset role');const validated=(await db.query('select atlas_private.finance_intake_validation($1,$2) v',[c,cid])).rows[0].v;assert.equal(validated.reconciled,true,JSON.stringify(validated.issues));
+ for(const mutate of [x=>delete x.intakeEvidence.governance,x=>x.intakeEvidence.governance.reportingBasis='',x=>x.intakeEvidence.governance.mappings[0].signMultiplier=0,x=>x.intakeEvidence.governance.mappings[0].signMultiplier*=-1,x=>x.intakeEvidence.governance.review.owner='other',x=>x.intakeEvidence.governance.review.effectivePeriod='2025-12',x=>x.intakeEvidence.governance.mappings[0].source.address='C9999']){let bad=structuredClone(c);mutate(bad);bad=await finalizeFinancialPackageEvidence(bad);const result=(await db.query('select atlas_private.finance_intake_validation($1,$2) v',[bad,cid])).rows[0].v;assert.equal(result.reconciled,false);}
+ await signIn(1);let current;for(const stage of ['uploaded','classified','community_period_confirmed','fully_mapped','reconciled'])current=await call('atlas_record_financial_intake',[current?.workflow.workflow_id||null,randomUUID(),current?.receipt.receipt_id||null,stage,['uploaded','classified'].includes(stage)?null:cid,{sourceHash,sourceFile,certificate:c}]);
+ const saved=await call('atlas_save_financial_review_governed',[current.workflow.workflow_id,current.receipt.receipt_id,randomUUID(),c]);
+ const closeId=randomUUID(),closed=await call('atlas_close_financial_review_governed',[saved.review.review_id,null,closeId,'Isolated complete workbook evidence acceptance',true]);
+ assert.equal((await call('atlas_close_financial_review_governed',[saved.review.review_id,null,closeId,'Isolated complete workbook evidence acceptance',true])).close.version_id,closed.close.version_id);
+ const receipt=await call('atlas_verify_finance_receipt',[closed.receipt.receipt_id,closed.close.version_id,closed.close.content_hash]);assert.equal(receipt.status,'readback_verified');
+ const first=(await db.query('select * from atlas_read_finance($1,$2)',[[cid],[c.metadata.period]])).rows;assert.equal(first[0].summary.actualContentHash,closed.close.content_hash);
+ await signIn(2);const second=(await db.query('select * from atlas_read_finance($1,$2)',[[cid],[c.metadata.period]])).rows;assert.deepEqual(first,second);assert.equal((await db.query('select fingerprint from atlas_workbook_audits where audit_id=$1',[stored.audit_id])).rows[0].fingerprint,audit.fingerprint);
+ await signIn(3);assert.equal((await db.query('select audit_id from atlas_workbook_audits where audit_id=$1',[stored.audit_id])).rows.length,0);
+ await db.exec('reset role');await assert.rejects(()=>db.query('update atlas_workbook_audits set source_hash=$1 where audit_id=$2',['b'.repeat(64),stored.audit_id]),/immutable/i);
+ if(process.env.ATLAS_WORKBOOK_PROOF_PATH)fs.writeFileSync(process.env.ATLAS_WORKBOOK_PROOF_PATH,JSON.stringify({scope:real?'Real private BCR in isolated database; no production close':'Synthetic supplemental regression',sourceHash,inventory:audit.summary,rowCoverage:audit.rowCoverage,blocking:0,reviewId:saved.review.review_id,closeVersion:closed.close.version_id,contentHash:closed.close.content_hash,receiptId:receipt.receipt_id,auditId:stored.audit_id,readbackVerified:true,secondAuthorizedFixtureRoleMatched:true,immutable:true,idempotent:true},null,2));
+ console.log('PASS complete workbook immutable storage, scoped readback, monthly interpretation, database approval blockers, atomic close, retry, immutable history and two authorized fixture roles'+(real?' using real private source':''));
+}catch(error){console.error(error.message,error.where||'',error.stack?.split('\n').slice(-4).join('\n'));process.exitCode=1;}finally{await db.close();}

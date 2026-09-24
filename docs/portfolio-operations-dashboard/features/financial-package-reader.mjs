@@ -1,4 +1,4 @@
-import {pdfItemsToText,parseComparisonLines,reconcileComparison,classifyStatement,finalizeFinancialPackageEvidence} from './financial-package.mjs?v=b43f129095c7fac2';
+import {pdfItemsToText,parseComparisonLines,reconcileComparison,classifyStatement,finalizeFinancialPackageEvidence} from './financial-package.mjs?v=a378a0cb25083758';
 const abort=signal=>{if(signal?.aborted)throw new DOMException('Review canceled','AbortError');};
 export async function readPackage(file,{signal,onProgress=()=>{}}={}) {
  if(!file||file.size>50*1024*1024)throw Error('Choose a financial package up to 50 MB. Larger packages need a statement-only copy.');
@@ -24,6 +24,7 @@ export async function readPackage(file,{signal,onProgress=()=>{}}={}) {
    await new Promise(resolve=>setTimeout(resolve,0));
   }
   const result=reconcileComparison(parts);
+  result.intakeEvidence.governanceRequired=true;
   if(classifications.some(p=>p.needsOcr&&p.type==='budget_comparison'))result.exceptions.push({code:'ocr_review_required',description:'OCR was used. Verify extracted numbers and source pages before closing.'});
   result.technicalReconciled=result.technicalReconciled&&!classifications.some(p=>p.needsOcr&&p.type==='budget_comparison');
   if(pdf.numPages>classifications.length)result.exceptions.push({code:'unexamined_source_pages',description:'The package exceeds 128 pages. Use an approved statement-only copy so all selected evidence can be inventoried.'});
@@ -32,7 +33,7 @@ export async function readPackage(file,{signal,onProgress=()=>{}}={}) {
 }
 function readWorkbook(buffer,file,hash,{signal,onProgress}) {
  return new Promise((resolve,reject)=>{
-  const worker=new Worker(new URL('./financial-workbook-worker.mjs?v=5337e204154ace77',import.meta.url),{type:'module'});
+  const worker=new Worker(new URL('./financial-workbook-worker.mjs?v=ec67cb90671aee0b',import.meta.url),{type:'module'});
   let settled=false;const timer=setTimeout(()=>finish(Error('Workbook processing exceeded 60 seconds. Retry with a statement-only workbook.')),60000);
   const finish=(error,result)=>{if(settled)return;settled=true;clearTimeout(timer);worker.terminate();signal?.removeEventListener('abort',cancel);error?reject(error):resolve(result);};
   const cancel=()=>finish(new DOMException('Review canceled','AbortError'));

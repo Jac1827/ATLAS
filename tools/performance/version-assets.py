@@ -1,6 +1,6 @@
 """Refresh content-derived cache keys; children are versioned before their parents."""
 from pathlib import Path
-import hashlib, json, re
+import hashlib, json, re, posixpath
 root=Path(__file__).resolve().parents[2]/'docs/portfolio-operations-dashboard'
 entries=[
  ('workforce-sync.js',[('index.html','./workforce-sync.js')]),
@@ -77,8 +77,32 @@ entries=[
  ('performance/feature-loader.js',[('index.html','./performance/feature-loader.js')]),
  ('investor-packet-ui.js',[('index.html','./investor-packet-ui.js')]),
 ]
+# Discover imports of governed modules so a stale parent cannot keep an old
+# child after deployment. A topological pass versions every child first.
+tracked={asset: list(refs) for asset,refs in entries}
+for asset in ['features/workbook-integrity.mjs','features/planning-governance.mjs','features/workbook-audit-store.mjs','features/financial-workbook-governance.mjs','features/financial-snapshot.mjs','features/snapshot-pdf.mjs','features/original-budget-intake.mjs','vendor/pdf-lib-1.17.1.mjs']:
+ tracked.setdefault(asset,[])
+for parent in root.rglob('*'):
+ if parent.suffix not in ('.mjs','.js','.html'):continue
+ relative=parent.relative_to(root).as_posix()
+ for match in re.finditer(r"[\"']((?:\.\.?/)[^\"'?#\s]+)(?:\?v=[^\"'\s]+)?[\"']",parent.read_text()):
+  if re.search(r'require\s*\(\s*$',parent.read_text()[:match.start()]):continue
+  ref=match.group(1);target=posixpath.normpath(posixpath.join(posixpath.dirname(relative),ref))
+  if target in tracked and (relative,ref) not in tracked[target]:tracked[target].append((relative,ref))
+children={asset:set() for asset in tracked}
+for child,refs in tracked.items():
+ for parent,ref in refs:
+  if parent in tracked:children[parent].add(child)
+ordered=[];visiting=set();done=set()
+def visit(asset):
+ if asset in done:return
+ if asset in visiting:raise RuntimeError('Circular versioned asset dependency: '+asset)
+ visiting.add(asset)
+ for child in sorted(children[asset]):visit(child)
+ visiting.remove(asset);done.add(asset);ordered.append((asset,tracked[asset]))
+for asset in tracked:visit(asset)
 manifest={}
-for asset,refs in entries:
+for asset,refs in ordered:
  data=(root/asset).read_bytes(); digest=hashlib.sha256(data).hexdigest()[:16]
  manifest[asset]={'sha256':digest,'bytes':len(data),'references':refs}
  for parent,ref in refs:

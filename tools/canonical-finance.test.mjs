@@ -12,7 +12,7 @@ assert.equal(bonusEvidence(envelopes.map(s=>({...s,budgetVersion:null})),'revenu
 assert.equal(bonusEvidence(envelopes.map(s=>({...s,revenue:{actual:1,budget:0}})),'revenue',periods),null);
 assert.equal(bonusEvidence(envelopes,'revenue',['2025-05','2025-06','2025-07']),null);
 const rows=envelopes.map(s=>({community_id:cid,period_key:s.period,summary:s}));
-assert.deepEqual(await readFinance({rpc:async()=>{throw Error('Single-row helper must not serve a table read');},fetchJson:async(path,opts)=>{assert.equal(path,'/rpc/atlas_read_finance');assert.equal(opts.method,'POST');assert.deepEqual(JSON.parse(opts.body),{p_community_ids:[cid],p_periods:periods});return rows;}},[cid],periods),rows);
+assert.deepEqual((await readFinance({rpc:async()=>{throw Error('Single-row helper must not serve a table read');},fetchJson:async(path,opts)=>{assert.equal(path,'/rpc/atlas_read_finance');assert.equal(opts.method,'POST');assert.deepEqual(JSON.parse(opts.body),{p_community_ids:[cid],p_periods:periods});return rows;}},[cid],periods)).map(row=>({...row,summary:Object.fromEntries(Object.entries(row.summary).filter(([key])=>!['financialSnapshot','snapshotFingerprint','publicationId'].includes(key)))})),rows);
 await assert.rejects(()=>readFinance({fetchJson:async()=>rows[0]},[cid],periods),/row array/);
 await assert.rejects(()=>readFinance({fetchJson:async()=>[{...rows[0],community_id:'other'}]},[cid],periods),/scope/);
 let actor='a';await assert.rejects(()=>readFinance({getSession:()=>({user:{id:actor}}),fetchJson:async()=>{actor='b';return rows;}},[cid],periods),/Session changed/);

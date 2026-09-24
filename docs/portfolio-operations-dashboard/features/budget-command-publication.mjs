@@ -1,5 +1,5 @@
-import {reviewOriginalBudget,budgetPublicationStatus} from './approved-budget.mjs?v=ca4e8f29a77b24ca';
-import {readDetail} from './canonical-finance.mjs?v=60c13a0342f297e2';
+import {reviewOriginalBudget,budgetPublicationStatus} from './approved-budget.mjs?v=3c9b256a8092fb3a';
+import {readDetail} from './canonical-finance.mjs?v=491d9382e664ca55';
 /* Explicit, reviewed publication from Budget Builder; never runs in dashboard startup. */
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const numeric=v=>typeof v==='number'&&Number.isFinite(v);
@@ -11,14 +11,14 @@ function showPublicationStatus(value){const A=window.RBB?.app;if(A){A.budgetPubl
 export async function review(options={}){
  const shell=host(),central=shell.ATLAS_CENTRAL,R=window.RBB,state=R.app.state,prop=state.properties.find(p=>p.id===(options.propertyId||state.activeProperty)),year=Number(options.year||state.budgetYear);
  if(!prop||!Number.isInteger(year))throw Error('Select a community and calendar year before reviewing a budget.');
- const module=await import('./financial-package.mjs?v=b43f129095c7fac2');
+ const module=await import('./financial-package.mjs?v=a378a0cb25083758');
  const [authorized,aliases]=await Promise.all([central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000')]);
  const cid=module.resolveCommunity(prop.name,authorized,aliases).communityId;if(!cid)throw Error('Canonical community mapping required');
  return reviewOriginalBudget({R,central,cid,prop,year,onStatus:showPublicationStatus});
 }
 export async function reviewStaged(){
  const R=window.RBB,pending=Object.values(R.app.state.approvedBudgetImports||{}).filter(s=>s.rows?.length&&s.stage!=='readback_verified'&&!s.canonicalVersionId);
- if(!pending.length)return showPublicationStatus(budgetPublicationStatus('nothing_eligible','No staged budget source is eligible here. Accepted import-log entries do not contain approval authority. Import the complete source for review, or use the central approved budget already shown in financial reports.'));
+ if(!pending.length)return showPublicationStatus(budgetPublicationStatus('nothing_eligible','No staged budget source is eligible here. Accepted import-log entries do not contain approval authority. A new approval requires immutable workbook intake, populated-cell review and a canonical GL registry. Import the complete source for review, or use the central approved budget already shown in financial reports.'));
  host();
  if(pending.length===1)return review({propertyId:pending[0].propertyId,year:pending[0].year});
  showPublicationStatus(budgetPublicationStatus('blocked','Select one staged community/year below for explicit Admin review. No approval has been submitted.'));

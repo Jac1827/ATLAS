@@ -1425,7 +1425,7 @@
 </div>
 
 <script src="./atlas_historical_restore_data.js"></script>
-<script src="./atlas-mounts.js?v=f40562bfc03986d9"></script>
+<script src="./atlas-mounts.js?v=3ac04f55225a5385"></script>
 <script src="./centralization/atlas-central-client.js?v=aaf34ed3eb7a47f1" data-atlas-central-client="true"></script>
 <script src="./atlas-dashboard-reskin.js?v=99ffd40a8970f8ef"></script>
 <script src="./central-services.js?v=20260919-renewal-period-review"></script>
@@ -1450,7 +1450,7 @@
 <script src="./workforce-assignment.js?v=86fb414cbe269a8a"></script>
 <script src="./application-aging.js?v=4091f111fe289027"></script>
 <script src="./application-performance-ui.js?v=76767fc8f24b44d6"></script>
-<script src="./reforecast-consumers.js?v=08f4663147070da3"></script>
+<script src="./reforecast-consumers.js?v=eba6ae3cad15e2eb"></script>
 <script src="./community-goal-editor.js?v=5759e5235bdacc20"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -24114,7 +24114,7 @@ function getAtlasClosedFinancialVersion(record, period) {
 
 async function refreshAtlasClosedFinancials(year = new Date().getFullYear(), force = false) {
   if (!window.ATLAS_CENTRAL?.getSession()?.user) return;
-  const module = await import("./features/financial-close.mjs?v=4ea0aa4203c6eab0");
+  const module = await import("./features/financial-close.mjs?v=efa74b93df9c7e39");
   window.AtlasClosedFinancialCache ||= module.createCache(window.ATLAS_CENTRAL);
   const changed = await window.AtlasClosedFinancialCache.refresh(year, force);
   if (changed) scheduleAtlasSharedRender(false);
@@ -24654,7 +24654,7 @@ async function openSharedCommunityPlan() {
   const communityId = access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId;
   if (!communityId || !window.ATLAS_CENTRAL) { alert("Shared plans require an authorized canonical community record."); return false; }
   try {
-    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=d0e2fce19e70d77e");
+    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=36dd6a2b752ccc2f");
     if (epoch !== atlasNavigationEpoch || !atlasAccessDecision(2).ok) return false;
     const entry=model.monthEntry, provenance=entry.metricProvenance?.occupiedSnapshot, period=buildPeriodKey(model.monthIdx,model.year);
     const occupancy=provenance?.revisionKey && provenance.period===period && (!provenance.communityId||provenance.communityId===communityId) && entry.occupiedSnapshot!=null && Number(entry.rentableUnits)>0
@@ -24987,7 +24987,7 @@ function queueCommunityRosterFinancials(items) {
     return {key:encodeURIComponent(item.detail.name),hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
   });
   setTimeout(async()=>{try {
-    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=770abc0301e334bd");
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=1bdb1b3dc16e5d29");
     if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
     await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
   } catch {}},0);
@@ -48509,7 +48509,7 @@ function persistDataImport2State() {
 async function persistDataImportPublication() {
   const communitySnapshot=buildSerializedSavedDataPayload();
   const importSnapshot=serializeDataImport2State();
-  const {mergeHistory}=await import("./features/import-history-store.mjs");
+  const {mergeHistory}=await import("./features/import-history-store.mjs?v=4d1d50d553719464");
   if(!await openAtlasStateDb())throw new Error("Canonical ATLAS storage is unavailable.");
   let failure=null;
   await queueAtlasStateWrite(async()=>{

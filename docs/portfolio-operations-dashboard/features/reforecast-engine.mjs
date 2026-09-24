@@ -1,3 +1,4 @@
+import {validatePlanningCalendar,planningOverrideIssues} from './planning-governance.mjs?v=a4de8d3f5a50966c';
 /* Pure, deterministic reforecast calculations. This module never reads browser state or publishes. */
 export const ENGINE_VERSION='atlas-reforecast-v1';
 export const DRIVER_OPERATIONS=Object.freeze(['percent_change','amount','add','percent_of_account','occupancy_vacancy']);
@@ -39,6 +40,7 @@ export function computeReforecast(input){
  const notApplicable=new Set(actuals.notApplicablePeriods||[]),controls=new Map((actuals.monthly||[]).map(row=>[row.period,row]));
  if(cutoff&&!periodPattern.test(cutoff))throw Error('Invalid actual close cutoff period.');
  const diagnostics=[],issue=(code,message,extra={},severity='blocking')=>diagnostics.push({code,message,severity,...extra});
+ if(scenario.governanceSchemaVersion===2)diagnostics.push(...validatePlanningCalendar(scenario.calendar,periods,scenario.calendar?.scenario===scenario.name?scenario.name:scenario.importMapping?.sourceScenario).map(d=>({...d,severity:'blocking'})));
  const accounts=new Map();
  for(const item of registry.accounts||[]){const key=String(item.accountCode||'');if(!key||accounts.has(key))throw Error('The account registry requires unique canonical account codes.');accounts.set(key,item);}
  const sourceMap=(values,label)=>{const result=new Map();for(const row of values||[]){const accountCode=String(row.accountCode??row.glCode??'');if(!periods.includes(row.period))continue;const key=compound(row.period,accountCode);if(result.has(key))throw Error(`${label} has duplicate community/period/account rows: ${key}`);if(row.communityId&&row.communityId!==communityId)throw Error(`${label} belongs to another community.`);result.set(key,row);}return result;};
@@ -98,6 +100,7 @@ export function computeReforecast(input){
   if(!row){issue('invalid_override','The override does not reference a reporting account and period.',{period:override.period,accountCode:override.accountCode});continue;}
   if(row.sourceKind!=='forecast'||row.retired){issue('protected_override','The override was not applied to a closed or non-applicable period.',{period:override.period,accountCode:override.accountCode},'advisory');continue;}
   row.forecast=money(override.amount);row.driverIds.push('override-'+index);row.driverSources.push({driverId:'override-'+index,operation:'amount',value:override.amount,source:clone(override.source||null),reason:override.reason||''});
+  if(scenario.governanceSchemaVersion===2)diagnostics.push(...planningOverrideIssues(override).map(d=>({...d,severity:'blocking'})));
   if(!override.reason)issue('override_reason','A manual override requires an adjustment reason.',{period:override.period,accountCode:override.accountCode});
  }
  for(const row of lines)if(row.sourceKind==='forecast'&&row.forecast===null)issue('missing_forecast','An open-period original budget or explicit forecast amount is required.',{period:row.period,accountCode:row.accountCode});

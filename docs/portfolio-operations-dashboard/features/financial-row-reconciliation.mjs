@@ -1,3 +1,4 @@
+import {monthlyGovernanceIssues} from './financial-workbook-governance.mjs?v=ce3982266f91118e';
 /* Pure source-evidence reconciliation. Workbook formulas are parsed as a small,
    explicit dependency grammar; no workbook code or arbitrary expression is executed. */
 export const FINANCIAL_MAPPING_VERSION='atlas-bcr-row-disposition/2';
@@ -102,6 +103,7 @@ export function evaluateFinancialPackageSafety(certificate){
  fail('extraction_exceptions',(certificate.exceptions||[]).length>0);
  fail('period_column_ambiguous',e.selectedActualColumn?.type!=='monthly_actual'||e.selectedActualColumn?.period!==certificate.metadata?.period);
  const technicalReconciled=issues.length===0;
+ if(e.governanceRequired)issues.push(...monthlyGovernanceIssues(certificate));
  fail('community_confirmation_required',e.communityConfirmed!==true||!e.communityId);
  fail('period_confirmation_required',e.periodConfirmed!==true);
  fail('exclusion_review_required',e.exclusionsReviewed!==true);
@@ -118,6 +120,7 @@ export async function finalizeFinancialPackageEvidence(certificate,options={}){
  if(options.exclusionsReviewed!==undefined)e.exclusionsReviewed=options.exclusionsReviewed===true;
  if(options.coverage)e.coverage=structuredClone(options.coverage);
  if(options.mappingVersion)e.mappingVersion=options.mappingVersion;
+ if(options.governance)e.governance=structuredClone(options.governance);
  if(options.actor){e.confirmedBy=options.actor;e.confirmedAt=options.timestamp||new Date().toISOString();}
  for(const item of e.rowInventory){item.sourceHash=result.sourceHash;item.mappingVersion=e.mappingVersion;}
  if(e.exclusionsReviewed)for(const item of [...e.columnExclusions,...e.rowInventory.filter(row=>['supporting','memo_statistical','excluded'].includes(row.disposition))]){item.reviewedBy=options.actor||e.confirmedBy;item.reviewedAt=options.timestamp||e.confirmedAt;}

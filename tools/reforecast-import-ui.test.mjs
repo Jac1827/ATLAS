@@ -1,14 +1,17 @@
 import assert from 'node:assert/strict';
+import {reviewPlanningInputs} from '../docs/portfolio-operations-dashboard/features/planning-governance.mjs';
 import {reforecastImportPeriods,reforecastImportGroups,reforecastMappingFromReview,evaluateReforecastImportReview,mergeReforecastImportIntoDraft,readReforecastImportPage} from '../docs/portfolio-operations-dashboard/features/reforecast-import-ui.mjs';
 const A='10000000-0000-0000-0000-000000000001';
 const assignment={communityId:A,confirmed:true,explicit:true,actorId:'00000000-0000-0000-0000-000000000001',assignedAt:'2026-09-23T10:00:00Z',reason:'Reviewed explicit property selection',sourceEntities:['304 (Source)']};
 const row=(id,period,amount,scenario='Plan')=>({id,sheet:'Input',accountCode:'5120',accountName:'Rent',department:null,amount,period,scenario,sourceKind:scenario==='Actual'?'workbook_actual_evidence':'workbook_forecast_evidence',formula:null,cachedValue:null,cellType:'n',address:id.slice(6)});
 const evidence={parserVersion:'test',source:{sha256:'0'.repeat(64)},metadata:{entities:['304 (Source)']},issues:[],lines:[row('Input!F10','2026-07',0),row('Input!G10','2026-08',100),row('Input!F11','2026-07',200),row('Input!F12','2026-07',999,'Actual')],sheets:[]};
+evidence.integrity={fingerprint:'a'.repeat(64),inventory:{sheets:[]},findings:[]};
 const source={registry:{version:'reviewed-version',accounts:[{accountCode:'5120',name:'Rent',category:'Rent',nature:'income',placement:'above_noi',effectiveFrom:'2026-01'}]},actuals:{cutoffPeriod:'2026-06'}};
 const periods=['2026-07','2026-08'],groups=reforecastImportGroups(evidence,'Plan',periods);
 assert.equal(groups.length,1);assert.equal(groups[0].lines.length,3);assert.ok(groups[0].lines.every(line=>line.scenario==='Plan'));
 assert.deepEqual(reforecastImportPeriods(evidence,periods),periods);assert.deepEqual(reforecastImportPeriods(evidence,[]),periods);
 const base={evidence,source,assignment,scenario:'Plan',currency:'USD',periods,accountChoices:{[groups[0].key]:{accountCode:'5120',signMultiplier:'1'}},selectedLineIds:['Input!F10','Input!G10'],reason:'Use reviewed source; exclude duplicate F11',confirmed:true};
+base.calendar={basis:'calendar',startMonth:1,confirmed:true,periods,scenario:'Plan',reviewedBy:assignment.actorId,reviewedAt:assignment.assignedAt};base.inputReviews=reviewPlanningInputs(evidence,base.selectedLineIds,{reason:'Explicitly reviewed source inputs',ownerId:assignment.actorId});
 const accepted=evaluateReforecastImportReview(base,[A]);assert.equal(accepted.ready,true);assert.deepEqual(accepted.lines.map(line=>line.amount),[0,100]);assert.equal(accepted.mapping.version,'reviewed-version');assert.equal(accepted.mapping.reviewedBy,assignment.actorId);
 const unconfirmed=evaluateReforecastImportReview({...base,confirmed:false},[A]);assert.equal(unconfirmed.ready,false);assert.ok(unconfirmed.issues.some(issue=>issue.code==='mapping_confirmation_required'));
 const duplicate=evaluateReforecastImportReview({...base,selectedLineIds:['Input!F10','Input!F11']},[A]);assert.equal(duplicate.ready,false);assert.ok(duplicate.issues.some(issue=>issue.code==='duplicate_mapped_line'));

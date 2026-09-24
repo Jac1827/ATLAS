@@ -1,4 +1,4 @@
-import {finalizeFinancialPackageEvidence,evaluateFinancialPackageSafety} from './financial-package.mjs?v=b43f129095c7fac2';
+import {finalizeFinancialPackageEvidence,evaluateFinancialPackageSafety} from './financial-package.mjs?v=a378a0cb25083758';
 export const INTAKE_STATES=['uploaded','classified','community_period_confirmed','fully_mapped','reconciled','review_saved','admin_closed','canonically_published','readback_verified'];
 export const INTAKE_LABELS=['Uploaded','Classified','Community/Period Confirmed','Fully Mapped','Reconciled','Review Saved','Admin Closed','Canonically Published','Readback Verified'];
 const one=value=>Array.isArray(value)?value[0]:value;
@@ -32,12 +32,12 @@ export async function verifyIntakeReceipt(central,receipt){
  for(const field of ['receipt_id','workflow_id','source_hash','status','previous_receipt_id','version_id','content_hash','community_id','actor_id','mapping_version','inventory_count','leaf_count','control_count','exception_count','created_at'])if((stored?.[field]??null)!==(receipt[field]??null))throw Error('Durable intake receipt readback failed: '+field);
  if(!stored.actor_id||!stored.created_at)throw Error('Durable receipt lacks actor or timestamp.');return stored;
 }
-export async function prepareReview(central,certificate,{communityId,period,exclusionsReviewed,coverage,intake,onState}={}){
+export async function prepareReview(central,certificate,{communityId,period,exclusionsReviewed,coverage,governance,intake,onState}={}){
  const flow=intake||createIntake(central,{onState});
  const retained=flow.certificate?.intakeEvidence?.communityConfirmed&&flow.certificate;
  if(retained&&(retained.sourceHash!==certificate.sourceHash||retained.intakeEvidence.communityId!==communityId||retained.metadata.period!==period))throw Error('This saved workflow is bound to another source or scope. Start a new source review.');
- const changed=retained&&(retained.intakeEvidence.exclusionsReviewed!==exclusionsReviewed||(coverage&&JSON.stringify(retained.intakeEvidence.coverage)!==JSON.stringify(coverage)));
- const finalized=retained&&!changed?retained:await finalizeFinancialPackageEvidence(certificate,{communityId,period,actor:flow.guard.actor,exclusionsReviewed,coverage});
+ const changed=retained&&(retained.intakeEvidence.exclusionsReviewed!==exclusionsReviewed||(coverage&&JSON.stringify(retained.intakeEvidence.coverage)!==JSON.stringify(coverage))||(governance&&JSON.stringify(retained.intakeEvidence.governance)!==JSON.stringify(governance)));
+ const finalized=retained&&!changed?retained:await finalizeFinancialPackageEvidence(certificate,{communityId,period,actor:flow.guard.actor,exclusionsReviewed,coverage,governance});
  const safety=evaluateFinancialPackageSafety(finalized);
  if(!flow.receipt)await flow.stage('uploaded',certificate);
  if(flow.receipt.status==='uploaded')await flow.stage('classified',certificate);

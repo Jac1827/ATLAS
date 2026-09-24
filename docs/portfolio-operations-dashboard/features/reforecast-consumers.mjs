@@ -1,5 +1,5 @@
-import {readActive,effectiveActiveSnapshot} from './reforecast-store.mjs?v=50949947b3848714';
-import {esc,money,reportHtml,exportRows,csv,download} from './reforecast-report.mjs?v=99ee4126571c1988';
+import {readActive,effectiveActiveSnapshot} from './reforecast-store.mjs?v=da9a2923e4b2392f';
+import {esc,money,reportHtml,exportRows,csv,download} from './reforecast-report.mjs?v=6f346883122d31e7';
 const finitePercent=value=>typeof value==='number'&&Number.isFinite(value)?(value*100).toFixed(2)+'%':'Unavailable';
 // One publication reader shared by operating screens, plan/report evidence and Scout.
 export function createActiveReforecastCache(central){
@@ -18,7 +18,7 @@ export function createActiveReforecastCache(central){
 }
 export function activeBenchmark(publication,period){
  if(!publication||!(publication.activePeriods||publication.periods||publication.snapshot?.identity?.periods||[]).includes(period))return null;const operating=effectiveActiveSnapshot(publication);const monthly=operating?.monthly?.find(row=>row.period===period);if(!monthly)return null;
- return {type:'active_reforecast',communityId:publication.communityId,period,publicationId:publication.publicationId,version:publication.version,revisionId:publication.revisionId,publishedAt:publication.publishedAt,cutoff:operating.identity?.actualCutoff,metrics:monthly.reforecast,leasing:operating.leasing?.find(row=>row.period===period)||null,sourceVersions:operating.identity,fingerprint:operating.fingerprint};
+ return {type:'active_reforecast',communityId:publication.communityId,period,publicationId:publication.publicationId,version:publication.version,revisionId:publication.revisionId,publishedAt:publication.publishedAt,cutoff:operating.identity?.actualCutoff,metrics:monthly.reforecast,leasing:operating.leasing?.find(row=>row.period===period)||null,sourceVersions:operating.identity,fingerprint:operating.fingerprint,financialSnapshot:operating.outputSnapshot,publishedFingerprint:publication.snapshot.fingerprint,projectionKind:operating.isActiveReadProjection?'current_actuals_projection':'published_vintage'};
 }
 export async function mountActiveBenchmark(container,{central,communityId,communityName,period,cache,openWorkspace}={}){
  const token=Symbol();container._reforecastToken=token;container.innerHTML='<p>Reading active operating reforecast…</p>';

@@ -30,7 +30,7 @@ const capitalAccuracy=forecastAccuracyByVintage(vintages,latest,{account:'1500',
 const html=reportHtml(snapshot,latest,{communityName:'A <review>',vintages,latestSource:latest,cumulative:true});
 for(const text of ['A &lt;review&gt;','NOI and margin bridges','contribution heatmap','Forecast accuracy by published vintage','frozen-v1','baseline-v1','Unavailable'])assert(html.includes(text));
 assert(!html.includes('UNRELATED-NEW-BUDGET'));
-const detail=analyticalExportRows(snapshot,latest,{vintages,latestSource:latest});assert.deepEqual(detail.accuracy,accuracy.rows);assert.deepEqual(detail.monthly,trend);
+const detail=analyticalExportRows(snapshot,latest,{vintages,latestSource:latest});const withoutLineage=rows=>rows.map(row=>Object.fromEntries(Object.entries(row).filter(([key])=>!['Snapshot','Snapshot_schema','Snapshot_kind','Source_versions'].includes(key))));assert.deepEqual(withoutLineage(detail.accuracy),accuracy.rows);assert.deepEqual(withoutLineage(detail.monthly),trend);assert(detail.monthly.every(row=>row.Snapshot===exports[0].Snapshot));assert.notEqual(explicitLatest[0].snapshotVersion,rows[0].snapshotVersion,'latest-actual comparison has its own bound source snapshot');
 const csvOutput=csv(exports);assert(csvOutput.includes('"0"'));assert(csvOutput.includes('""'));assert(csv([{Label:'=bad()',Value:-1}]).includes('"\'=bad()","-1"'));
 assert.equal(JSON.stringify(snapshot),frozen,'reports/analytics/exports never mutate frozen versions');
 console.log('PASS immutable three-way snapshot/table/export parity; community-period-GL-category-placement filters; monthly/quarter/year null-safe ratios; NOI/margin bridges; contribution heatmaps; cumulative gaps; published-vintage accuracy and actual-version lineage');

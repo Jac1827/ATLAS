@@ -8,7 +8,7 @@ const rows=[{gl_code:'4110',account_name:'Rent',actual:0,ytd_actual:null},{gl_co
 // atlas_read_finance projects selected fields and omits content_hash. The
 // immutable version endpoint is the authority for the report/export lineage.
 const {content_hash:omittedHash,...projection}=close;
-const record={community_id:cid,period_key:period,publication_id:pub,summary:{registryVersion:'atlas-finance-v1',communityId:cid,period,actualCloseVersion:version,close:projection}};
+const record={community_id:cid,period_key:period,publication_id:pub,summary:{registryVersion:'atlas-finance-v1',communityId:cid,period,actualCloseVersion:version,actualContentHash:hash,close:projection}};
 const session=({finance=()=>record,versions=[close],detail=rows}={})=>({getSession:()=>({user:{id:'reader'}}),fetchJson:async path=>{
  if(path.includes('/rpc/'))return structuredClone([finance()]);
  if(path.startsWith('/atlas_financial_close_versions?'))return structuredClone(versions);
@@ -18,7 +18,7 @@ const session=({finance=()=>record,versions=[close],detail=rows}={})=>({getSessi
 const first=await readCloseSnapshot(session(),cid,period),second=await readCloseSnapshot(session(),cid,period);assert.deepEqual(first,second);assert.ok(Object.isFrozen(first.rows[0]));
 const data=closeReportRows(first);assert.equal(data[0].Actual,0);assert.equal(data[0].Source_YTD,null);assert.equal(data[1].Actual,-25);assert.ok(data.every(r=>r.Close_version===version&&r.Content_hash===hash&&r.Publication===pub));
 const html=closeReportHtml(first),csv=closeReportCsv(first);assert.ok(html.includes(version)&&html.includes(hash)&&html.includes('Unavailable'));assert.ok(csv.includes('"0",""')&&csv.includes('"-25"'));
-const wb=closeReportWorkbook(first,XLSX),bytes=XLSX.write(wb,{type:'buffer',bookType:'xlsx'}),read=XLSX.read(bytes,{type:'buffer'}),excel=XLSX.utils.sheet_to_json(read.Sheets['Canonical actuals'],{defval:null});assert.deepEqual(excel,data);assert.equal(read.Sheets['Canonical actuals'].C2.v,'4110');
+const wb=closeReportWorkbook(first,XLSX),bytes=XLSX.write(wb,{type:'buffer',bookType:'xlsx'}),read=XLSX.read(bytes,{type:'buffer'}),excel=XLSX.utils.sheet_to_json(read.Sheets['Canonical actuals'],{defval:null});assert.deepEqual(excel,data);assert.equal(read.Sheets['Canonical actuals'].G2.v,'4110');
 assert.equal(record.summary.close.content_hash,undefined);assert.equal(first.contentHash,hash,'Missing projected hash must come from the immutable close');
 assert.deepEqual(await readCloseSnapshot(session({finance:()=>({...record,summary:{...record.summary,close}})}),cid,period),first,'Projection with a hash must produce the same snapshot');
 let reads=0;await assert.rejects(readCloseSnapshot(session({finance:()=>({...record,publication_id:++reads===1?pub:'replaced'})}),cid,period),/version changed/);

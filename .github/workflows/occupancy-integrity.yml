@@ -62,9 +62,16 @@ jobs:
           node tools/community-report-progress.test.mjs
           node tools/financial-package.test.mjs
           node tools/financial-row-reconciliation.test.mjs
+          node tools/workbook-integrity.test.mjs
+          node tools/financial-workbook-governance.test.mjs
+          node tools/financial-workbook-governance-db.test.mjs
+          node tools/planning-governance.test.mjs
+          node tools/planning-governance-db.test.cjs
+          node tools/financial-snapshot-output.test.mjs
           node tools/financial-intake-store.test.mjs
           node tools/financial-intake-governance-db.test.cjs
           node tools/approved-budget-governance.test.mjs
+          node tools/original-budget-workbook-governance-db.test.mjs
           node tools/financial-review-db.test.cjs
           node tools/financial-package-batch.test.mjs
           node tools/workforce-events-db.test.cjs

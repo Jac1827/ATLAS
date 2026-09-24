@@ -1,3 +1,4 @@
+import {financeSnapshot,retainedSnapshot,lineageColumns} from './financial-snapshot.mjs?v=e84268921f32df41';
 // Shared, period-specific finance adapter. No browser-state fallback.
 export const number = value => value === null || value === undefined || String(value).trim() === '' ? null : Number.isFinite(Number(value)) ? Number(value) : null;
 export async function readFinance(central, communityIds, periods, {signal} = {}) {
@@ -17,7 +18,8 @@ export async function readFinance(central, communityIds, periods, {signal} = {})
   if(central.getSession&&actor!==central.getSession()?.user?.id)throw Error('Session changed while reading financial evidence.');
   for(const row of rows||[]){
    if(!ids.slice(i,i+batchSize).includes(row.community_id)||!months.includes(row.period_key)||row.summary?.registryVersion!=='atlas-finance-v1'||row.summary.communityId!==row.community_id||row.summary.period!==row.period_key)throw Error('Financial readback scope or registry mismatch.');
-   result.push(row);
+   const snapshot=financeSnapshot(row.summary,row.publication_id||null);
+   result.push({...row,summary:{...row.summary,publicationId:row.publication_id||null,snapshotFingerprint:snapshot.fingerprint,financialSnapshot:snapshot}});
   }
  }
  return result;
@@ -31,6 +33,7 @@ export function financialSummary(envelope) {
   revenueActual,expenseActual,noiActual,revenueBudget,expenseBudget,noiBudget,annualBudget:null,
   cashFlowActual:value('cashFlow','actual'),cashFlowBudget:value('cashFlow','budget'),
   revenueVariance:difference(revenueActual,revenueBudget),expenseVariance:difference(expenseActual,expenseBudget),noiVariance:difference(noiActual,noiBudget),
+  snapshotFingerprint:s.snapshotFingerprint||financeSnapshot(s).fingerprint,financialSnapshot:s.financialSnapshot||financeSnapshot(s),
   coverage:{latestClosedPeriod:s.latestClosedPeriod||null,completeYtd:s.completeYtd===true,missingPeriods:s.missingPeriods||[]},metrics:s};
 }
 export function bonusEvidence(envelopes,metric,periods) {
@@ -43,12 +46,13 @@ export function bonusEvidence(envelopes,metric,periods) {
  if(rows.some(s=>s.communityId!==rows[0].communityId||s.accountingBasis!==rows[0].accountingBasis||s.currency!==rows[0].currency))return null;
  const actual=rows.reduce((n,s)=>n+number(s[metric].actual),0),budget=rows.reduce((n,s)=>n+number(s[metric].budget),0);
  if(budget===0)return null;
- return {actual,budget,approvedTargetVersion:rows.map(s=>s.budgetVersion),targetApprovalStatus:'approved',actualCloseVersions:rows.map(s=>s.actualCloseVersion),periods,registryVersion:'atlas-finance-v1',attainment:100+(metric==='expenses'||metric==='capital'||metric==='debt'?-1:1)*(actual-budget)/Math.abs(budget)*100};
+ const inputs=rows.map(s=>s.financialSnapshot||financeSnapshot(s)),retained=retainedSnapshot({kind:'bonus_financial_evidence',identity:{communityId:rows[0].communityId,metric,periods,sourceSnapshots:inputs.map(s=>s.fingerprint)},values:{actual,budget}});
+ return {actual,budget,snapshotFingerprint:retained.fingerprint,sourceSnapshots:inputs.map(s=>({period:s.identity.period,...lineageColumns(s)})),financialSnapshot:retained,approvedTargetVersion:rows.map(s=>s.budgetVersion),targetApprovalStatus:'approved',actualCloseVersions:rows.map(s=>s.actualCloseVersion),periods,registryVersion:'atlas-finance-v1',attainment:100+(metric==='expenses'||metric==='capital'||metric==='debt'?-1:1)*(actual-budget)/Math.abs(budget)*100};
 }
 export async function readApprovedBudgets(central,cid,year){
  const rows=await central.fetchJson(`/atlas_approved_budget_versions?community_id=eq.${encodeURIComponent(cid)}&calendar_year=eq.${year}&select=*&limit=12`);
  if(rows.some(b=>b.community_id!==cid||b.calendar_year!==Number(year)||b.status!=='locked'))throw Error('Approved budget scope mismatch.');
- return rows;
+ return rows.map(row=>{const snapshot=retainedSnapshot({kind:'approved_original_budget',identity:{communityId:cid,calendarYear:Number(year),versionId:row.version_id,contentHash:row.content_hash||null,mappingVersion:row.payload?.mappingVersion||null,sourceHash:row.source_hash||row.payload?.sourceHash||null},values:row.payload});return {...row,snapshotFingerprint:snapshot.fingerprint,financialSnapshot:snapshot};});
 }
 export async function readApprovedBudget(central,cid,year){
  const versions=await readApprovedBudgets(central,cid,year);if(!versions.length)return null;

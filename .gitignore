@@ -9,3 +9,6 @@ outputs/*
 !outputs/.gitkeep
 tools/wrangler-cli/node_modules/
 tools/spreadsheet_staffing/
+
+# Local CLI cache; migrations are versioned.
+supabase/.temp/

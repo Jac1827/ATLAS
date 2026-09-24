@@ -6,7 +6,7 @@ const cells={units:cell(),gpr:cell(),expenses:cell()};
 const planCell=cell();
 globalThis.window=globalThis;
 globalThis.AtlasCommunityCommandContract=(await import('../docs/portfolio-operations-dashboard/community-command-contract.js')).default;
-globalThis.document={querySelector(selector){return selector==='[data-shared-plan-count]'?count:{querySelector(s){return s==='[data-shared-plan]'?planCell:cells[s.match(/data-metric="(.*?)"/)[1]];},querySelectorAll(){return Object.values(cells);}};},createElement(tag){return {tagName:tag.toUpperCase(),style:{}};}};
+globalThis.document={querySelector(selector){return selector==='[data-shared-plan-count]'?count:{dataset:{},querySelector(s){return s==='[data-shared-plan]'?planCell:cells[s.match(/data-metric="(.*?)"/)[1]];},querySelectorAll(){return Object.values(cells);}};},createElement(tag){return {tagName:tag.toUpperCase(),style:{}};}};
 const {hydrate,cancel}=await import('../docs/portfolio-operations-dashboard/features/community-finance.mjs');
 let queries=0;
 const communityId='10000000-0000-0000-0000-000000000001';

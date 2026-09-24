@@ -1,4 +1,4 @@
-import {readFinance,readApprovedBudget,financialSummary,bonusEvidence} from './canonical-finance.mjs?v=60c13a0342f297e2';
+import {readFinance,readApprovedBudget,financialSummary,bonusEvidence} from './canonical-finance.mjs?v=491d9382e664ca55';
 // Shared closed-month reader. No browser ledger is authoritative.
 export const optionalNumber=v=>v===null||v===undefined||v===''?null:Number.isFinite(Number(v))?Number(v):null;
 export function contract(v){return v?{period:v.period_key,status:v.status,coverage:v.coverage,accountingBasis:v.accounting_basis,netRentalIncome:optionalNumber(v.metrics.netRentalIncome),grossPotentialRent:optionalNumber(v.metrics.grossPotentialRent),netCashFlow:optionalNumber(v.metrics.netCashFlow??v.metrics.sourceControls?.['Net Cash Flow']?.actual),source:v.source_file,sourceHash:v.source_hash,approvedBy:v.approved_by,approvedAt:v.approved_at,version:v.version_id,revision:v.revision}:null;}
@@ -30,7 +30,7 @@ export async function closeReview(central,review,{expectedVersion=null,reason,ac
  const verified=await central.rpc('atlas_verify_finance_receipt',{p_receipt_id:receipt.receipt_id,p_version_id:v.version_id,p_content_hash:v.content_hash});guard();
  const finalReceipt=Array.isArray(verified)?verified[0]:verified;
  if(finalReceipt?.status!=='readback_verified'||finalReceipt.version_id!==v.version_id||finalReceipt.content_hash!==v.content_hash)throw Error('Close readback receipt could not be verified.');
- const {verifyIntakeReceipt}=await import('./financial-intake-store.mjs?v=1e43f74af8243a75');await verifyIntakeReceipt(central,finalReceipt);guard();
+ const {verifyIntakeReceipt}=await import('./financial-intake-store.mjs?v=e7ba2e324c419b26');await verifyIntakeReceipt(central,finalReceipt);guard();
  return {...stored,intakeReceipt:finalReceipt,publicationId:report.publication_id};
 }
 export function createCache(central){
@@ -67,7 +67,7 @@ export async function mountCloseControls(container,central,review){
  const label=document.createElement('label'),check=document.createElement('input');check.type='checkbox';label.append(check,' I confirm this is the Accounting-approved package and have reviewed community, period, GL mapping and reconciliation.');panel.append(label);
  const reason=document.createElement('textarea');reason.placeholder='Close or replacement reason';reason.setAttribute('aria-label','Close or replacement reason');panel.append(reason);
  const button=document.createElement('button');button.textContent=heads.length?'Replace closed version':'Close and publish actuals';const status=document.createElement('p');status.setAttribute('role','status');panel.append(button,status);container.append(panel);
- if(!review.certificate?.intakeEvidence){button.disabled=true;status.textContent='This older review lacks the complete source-row evidence required for a new close. Re-upload the source. Existing verified closes remain available.';}
+ if(!review.certificate?.intakeEvidence?.governance){button.disabled=true;status.textContent='This older review lacks the complete workbook and interpretation evidence required for a new close. Re-upload the source. Existing verified closes remain available.';}
  if(review.period_key>=new Date().toISOString().slice(0,7)){button.disabled=true;status.textContent='This accounting month is still open. Close becomes available after month-end.';}
  button.onclick=async()=>{if(!check.checked||reason.value.trim().length<5){status.textContent='Confirm the review and enter a reason first.';return;}button.disabled=true;try{const v=await closeReview(central,review,{expectedVersion:heads[0]?.version_id||null,reason:reason.value.trim(),accountingApproved:check.checked,requestId});status.textContent=`Readback Verified: ${v.period_key} · revision ${v.revision} · ${v.row_count} GLs · version ${v.version_id} · hash ${v.content_hash} · publication ${v.publicationId} · receipt ${v.intakeReceipt.receipt_id}`;container.dispatchEvent(new CustomEvent('atlas-financial-intake-state',{bubbles:true,detail:v.intakeReceipt}));await window.parent.refreshAtlasClosedFinancials?.(Number(v.period_key.slice(0,4)),true);}catch(e){status.textContent=e.message;button.disabled=false;}};
 }

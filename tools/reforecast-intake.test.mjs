@@ -46,7 +46,7 @@ assert.ok(evidence.lines.every(line=>!line.period.startsWith('2035')),'filename 
 const assignment={explicit:true,communityId:A,actorId:'fixture-admin',assignedAt:'2026-09-23T12:00:00Z',reason:'Reviewed explicit mapping',sourceEntities:['304 (Source Property)']};
 const mapping={version:'reviewed-v1',sourceScenario:'Plan',currency:'USD',propertyAssignment:assignment,selectedLineIds:['Input!F36','Input!G36','Input!F37','Input!G37'],accountMappings:[{sourceAccountCode:'5120',accountCode:'5120',category:'Rent',nature:'income',placement:'above_noi',signMultiplier:1},{sourceAccountCode:'6500',accountCode:'6500',category:'Utilities',nature:'expense',placement:'above_noi',signMultiplier:1}]};
 const mapped=mapReforecastIntake(evidence,mapping,{authorizedCommunityIds:[A],cutoffPeriod:'2026-06'});
-assert.equal(mapped.ready,true);assert.equal(mapped.lines.length,4);assert.equal(mapped.lines[0].amount,0);assert.equal(mapped.lines[0].communityId,A);assert.equal(mapped.lines[0].sourceHash,evidence.source.sha256);
+assert.equal(mapped.ready,false,'An unreviewed workbook with broken supporting formulas cannot be approved as a planning workbook');assert.equal(mapped.lines.length,4);assert.equal(mapped.lines[0].amount,0);assert.equal(mapped.lines[0].communityId,A);assert.equal(mapped.lines[0].sourceHash,evidence.source.sha256);
 assert.equal(validateReforecastPropertyAssignment({...assignment,explicit:false},[A]).valid,false);
 assert.equal(mapReforecastIntake(evidence,mapping,{authorizedCommunityIds:[],cutoffPeriod:'2026-06'}).ready,false);
 assert.equal(mapReforecastIntake(evidence,{...mapping,accountMappings:[...mapping.accountMappings,mapping.accountMappings[0]]},{authorizedCommunityIds:[A],cutoffPeriod:'2026-06'}).ready,false);

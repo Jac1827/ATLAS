@@ -3,6 +3,7 @@ import {approveOriginalBudget,readBudgetVersion,requiredBudgetCoverage} from '..
 import {readApprovedBudget} from '../docs/portfolio-operations-dashboard/features/canonical-finance.mjs';
 const cid='10000000-0000-4000-8000-000000000001',versionId='20000000-0000-4000-8000-000000000001',receiptId='30000000-0000-4000-8000-000000000001',verifiedId='30000000-0000-4000-8000-000000000002',requestId='40000000-0000-4000-8000-000000000001';
 const payload={communityId:cid,year:2026,fiscalYear:2026,fiscalStartMonth:1,coverage:Array.from({length:12},(_,i)=>i),effectiveDate:'2026-01-01',sourceFile:'sanitized-budget.xlsx',sourceHash:'a'.repeat(64),mappingVersion:'reviewed-mapping-1',approvedLocked:true,reviewConfirmed:true,rows:[{glCode:'income',monthly:[0,-10,...Array(10).fill(100)]},{glCode:'expense',monthly:Array(12).fill(0)}],metricMappings:{revenue:[{glCode:'income',factor:1}],expenses:[{glCode:'expense',factor:1}]}};
+payload.sourceHashKind='workbook_bytes';payload.governance={schemaVersion:'atlas-original-budget-workbook/1',uploadId:'50000000-0000-4000-8000-000000000001',mapping:{confirmed:true}};
 const database={budget:null,requests:new Map(),approvals:0,verifications:0};
 function session(){
  let actor='admin-one';const api={role:'admin',corrupt:false,failRead:false,failVerify:false,changeActor:false,getStoredProfile:()=>({role:api.role}),getSession:()=>({user:{id:actor}}),

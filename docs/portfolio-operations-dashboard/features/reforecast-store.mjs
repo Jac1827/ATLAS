@@ -1,5 +1,5 @@
 /* Canonical reforecast transport: no browser-local financial fallback. */
-import {effectiveActiveSnapshot as projectActive} from './reforecast-active.mjs?v=5663085258d69c22';
+import {effectiveActiveSnapshot as projectActive} from './reforecast-active.mjs?v=635614a08ad92b40';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const period=/^20\d{2}-(0[1-9]|1[0-2])$/;
 const canonical=v=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;

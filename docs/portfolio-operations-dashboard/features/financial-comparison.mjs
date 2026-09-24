@@ -1,6 +1,6 @@
-import {readFinance} from './canonical-finance.mjs?v=60c13a0342f297e2';
-import {mountCloseControls,readYear,coverage,readRows} from './financial-close.mjs?v=4ea0aa4203c6eab0';
-import {resolveCommunity} from './financial-package.mjs?v=b43f129095c7fac2';
+import {readFinance} from './canonical-finance.mjs?v=491d9382e664ca55';
+import {mountCloseControls,readYear,coverage,readRows} from './financial-close.mjs?v=efa74b93df9c7e39';
+import {resolveCommunity} from './financial-package.mjs?v=a378a0cb25083758';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>n===null||n===undefined?'Missing':Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 export function centralClient(){const host=window.parent;if(host===window||host.location.origin!==location.origin||!host.atlasAccessDecision?.(12)?.ok)throw Error('Open Budget Builder in your signed-in ATLAS workspace.');return host.ATLAS_CENTRAL;}
@@ -35,7 +35,7 @@ export async function mountComparison(container,{communityName,period,year}={}){
    if(!cid||!/^20\d{2}-(0[1-9]|1[0-2])$/.test(p)){status.textContent='Choose a community and period.';return;}
    status.textContent='Reading shared actuals…';
    try{const [finance]=await readFinance(central,[cid],[p]);if(!alive()||token!==epoch)return;const policy=finance?.summary?.coveragePolicy;if(policy?.fullMonthAllowed===false){status.textContent=(policy.classification||'Unavailable')+' — '+policy.reason;result.innerHTML='<p>This period is excluded from authoritative full-month actuals. Its original source and any earlier versions remain retained as evidence.</p><p>Retained versions: '+esc((policy.retainedVersionIds||[]).join(', ')||'None')+'</p>';return;}const closedVersions=await readYear(central,cid,Number(p.slice(0,4)));const closed=closedVersions.find(v=>v.period_key===p);const closedCoverage=coverage(closedVersions,Number(p.slice(0,4)));const heads=await central.fetchJson(`/atlas_financial_comparison_heads?community_id=eq.${encodeURIComponent(cid)}&period_key=eq.${p}&select=version_id&limit=1`);if(!alive()||token!==epoch)return;
-    if(closed){status.textContent='Reading the published version for screen and exports…';const {mountCloseReport}=await import('./financial-close-report.mjs?v=6eea03791ec74aa5');await mountCloseReport(result,central,cid,p);if(!alive()||token!==epoch)return;status.textContent='Published full-month actuals. Screen, PDF, CSV and Excel use the same retained canonical snapshot.';return;}
+    if(closed){status.textContent='Reading the published version for screen and exports…';const {mountCloseReport}=await import('./financial-close-report.mjs?v=a04ae8dd0e3cf8d2');await mountCloseReport(result,central,cid,p);if(!alive()||token!==epoch)return;status.textContent='Published full-month actuals. Screen, PDF, CSV and Excel use the same retained canonical snapshot.';return;}
     if(closed)heads.splice(0,heads.length,{version_id:closed.comparison_version_id});
     if(!heads.length){status.textContent='Missing/Open: no actuals applied for this community and month. Open a saved import review; only Admin close makes it published actuals.';return;}
     const [version]=await central.fetchJson(`/atlas_financial_comparison_versions?version_id=eq.${heads[0].version_id}&select=*&limit=1`);if(!alive()||token!==epoch)return;if(!version)throw Error('The saved version is unavailable.');

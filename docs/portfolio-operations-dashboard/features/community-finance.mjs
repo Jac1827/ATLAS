@@ -1,4 +1,4 @@
-import {readFinance} from './canonical-finance.mjs?v=60c13a0342f297e2';
+import {readFinance} from './canonical-finance.mjs?v=491d9382e664ca55';
 import '../community-command-contract.js?v=e6064665e1d6e271';
 const money=v=>Number(v).toLocaleString('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1});
 let operation;
@@ -17,6 +17,7 @@ export async function hydrate(entries,central){
   for(const plan of plans)window.AtlasCommandPlanSummaries[plan.community_id+'|'+plan.period_key]=plan;
   const map=new Map(rows.map(r=>[r.community_id+'|'+r.period_key,r]));
   for(const e of entries){if(abort.signal.aborted)return;const tr=document.querySelector(`[data-command-finance="${e.key}"]`);if(!tr)continue;const source=map.get(e.communityId+'|'+e.period),summary=source?.summary;
+   if(summary?.snapshotFingerprint){tr.dataset.financialSnapshot=summary.snapshotFingerprint;tr.title='Canonical snapshot '+summary.snapshotFingerprint;}
    const plan=window.AtlasCommandPlanSummaries[e.communityId+'|'+e.period],planCell=tr.querySelector('[data-shared-plan]');
    if(plan&&planCell){planCell.textContent=`${plan.stage||'Draft'} · ${plan.task_count} tasks · ${plan.verified_count} verified`;planCell.title=`Shared plan, updated ${plan.updated_at}`;}
    const count=document.querySelector('[data-shared-plan-count]');if(count)count.textContent=String(scope.filter(e=>{const p=window.AtlasCommandPlanSummaries[e.communityId+'|'+e.period];return p?p.stage!=='Closed':e.hasLegacyPlan;}).length);
@@ -30,6 +31,7 @@ export async function hydrate(entries,central){
     cell.replaceChildren();const status=result?.status||'missing',text=result?(metric==='units'?result.label:status==='missing'?(typeof result.actual==='number'&&Number.isFinite(result.actual)?'Actual '+money(result.actual)+' · ':'')+result.label:result.label+' '+(result.variance>0?'+':'')+money(Math.abs(result.variance))):'Missing publication';
     const node=document.createElement(source&&metric!=='units'&&typeof result?.actual==='number'&&Number.isFinite(result.actual)?'button':'span');node.textContent=text;node.style.color=status==='unfavorable'?'#c0392b':status==='favorable'?'#16713b':'var(--muted,#64748b)';node.title=`${e.period} · ${metric==='units'?'Actual occupied units − ceiling(approved occupancy % × period rentable units)':metric==='expenses'?'Approved budget − actual expenses':'Actual GPR − approved budget'}${summary?.sourceTimestamp?' · Source '+summary.sourceTimestamp:''}`;
     if(node.tagName==='BUTTON'){node.type='button';node.className='btn btn-gray btn-sm';node.onclick=()=>window.openCommunityFinancialDrilldown(source.publication_id,metric);}
+    if(metric!=='units'&&summary?.snapshotFingerprint)node.title+=' · Snapshot '+summary.snapshotFingerprint;
     cell.append(node);
    }
   }

@@ -29,10 +29,10 @@
  };
  const go=A.go;
  let packageReview;
- A.openFinancialPackageReview=async function(scope){try{packageReview=await import('./features/financial-package-review.mjs?v=cb857aa20bcf6f46');await packageReview.openReview(scope);}catch(e){A.toast(e.message,'r');}};
+ A.openFinancialPackageReview=async function(scope){try{packageReview=await import('./features/financial-package-review.mjs?v=38159c10031c6e97');await packageReview.openReview(scope);}catch(e){A.toast(e.message,'r');}};
  const actuals=R.views.actuals;
  function sharedActualsPanel(){
-  setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el)return;try{const m=await import('./features/financial-comparison.mjs?v=5127bc4004d974a9');await m.mountComparison(el,{communityName:A.cp().property.name,year:A.year()});}catch(e){el.textContent=e.message;}},0);
+  setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el)return;try{const m=await import('./features/financial-comparison.mjs?v=c1e8e7cb03a380e4');await m.mountComparison(el,{communityName:A.cp().property.name,year:A.year()});}catch(e){el.textContent=e.message;}},0);
   return '<div class="panel"><button class="btn pri" onclick="RBB.app.openFinancialPackageReview()">Upload or read saved financial review</button><p>Upload → classify → confirm → map → reconcile → save review → Admin close → canonical publication → verified readback</p></div><section class="panel" id="shared-financial-comparison"><p>Loading shared actuals…</p></section>';
  }
  R.views.actuals=function(){return sharedActualsPanel();};
@@ -62,9 +62,9 @@
   dialog.addEventListener('close',()=>dialog.remove(),{once:true});document.body.append(dialog);render();dialog.showModal();input.focus();
  };
  document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();A.openCommandMenu();}});
- if(typeof window!=='undefined'&&window.parent!==window&&new URLSearchParams(location.search).get('investorReader')!=='1')import('./features/financial-close.mjs?v=4ea0aa4203c6eab0').then(async m=>{
+ if(typeof window!=='undefined'&&window.parent!==window&&new URLSearchParams(location.search).get('investorReader')!=='1')import('./features/financial-close.mjs?v=efa74b93df9c7e39').then(async m=>{
    const central=window.parent.ATLAS_CENTRAL;if(!central||!window.parent.atlasAccessDecision?.(12)?.ok)return;
-   const [communities,aliases,matcher]=await Promise.all([central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000'),import('./features/financial-package.mjs?v=b43f129095c7fac2')]);
+   const [communities,aliases,matcher]=await Promise.all([central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000'),import('./features/financial-package.mjs?v=a378a0cb25083758')]);
    const resolve=name=>matcher.resolveCommunity(name,communities,aliases).communityId;
    m.installBuilder(R,central,resolve);
    const utility=await import('./features/utility-forecast-ui.mjs');

@@ -1,6 +1,8 @@
+import {auditWorkbook} from './workbook-integrity.mjs?v=c0a7997612845f22';
+import {validatePlanningCalendar, classifyPlanningCells, reviewPlanningIntegrity} from './planning-governance.mjs?v=a4de8d3f5a50966c';
 /* Workbook evidence only. Formulas are retained, never executed or promoted to actuals. */
-export const REFORECAST_PARSER_VERSION = 'atlas-reforecast-xlsx/1';
-export const REFORECAST_EVIDENCE_SCHEMA = 1;
+export const REFORECAST_PARSER_VERSION = 'atlas-reforecast-xlsx/2';
+export const REFORECAST_EVIDENCE_SCHEMA = 2;
 const ADDRESS = /^[A-Z]+[1-9][0-9]*$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PERIOD = /^20\d{2}-(0[1-9]|1[0-2])$/;
@@ -286,12 +288,14 @@ export async function parseReforecastWorkbook(input, options={}) {
  const seen=new Map();
  for(const line of lines){const key=JSON.stringify([line.sheet,line.entity,line.department,line.scenario,line.period,line.accountCode]);if(seen.has(key))issues.push(issue('duplicate_gl_period','Multiple source rows match this GL, department, scenario and month. Choose an explicit aggregation or row mapping.',{sourceLineIds:[seen.get(key),line.id],accountCode:line.accountCode,period:line.period,sheet:line.sheet}));else seen.set(key,line.id);}
  const reconciliation=reconcileRows(sheets,lines,issues);
+ const integrity=auditWorkbook(workbook,{sourceHash:sha256,modelFamily:options.modelFamily||'reforecast',previousEvidence:options.previousEvidence});
+ const planningCells=classifyPlanningCells({sheets,lines,reconciliation});
  if(!lines.length)issues.push(issue('no_gl_lines','No populated GL identifiers with explicit monthly headers were found. The workbook is retained as evidence; complete or map the source rows.'));
  if(metadata.entities.length!==1)issues.push(issue('entity_assignment_required','Workbook entity selection is missing or ambiguous. Assign source entities to an authorized canonical community.',{entities:metadata.entities}));
  if(!metadata.lastClosedMonth)issues.push(issue('workbook_cutoff_unavailable','Workbook LastClosedMonth is missing or ambiguous. The canonical close remains the authority.'));
  if(metadata.currencies.length!==1||metadata.currencies[0]==='Local')issues.push(issue('currency_mapping_required','Confirm the reporting currency explicitly; Local is not an ISO currency code.',{currencies:metadata.currencies}));
  return {schemaVersion:REFORECAST_EVIDENCE_SCHEMA,parserVersion:REFORECAST_PARSER_VERSION,sourceHash:sha256,source:{fileName,sha256,byteLength:bytes.length,format:'xlsx',...(options.includeOriginalBytes?{originalFile:encodeOriginalWorkbook(bytes)}:{})},metadata,
-  sheets:sheets.map(({cellsByRow,...sheet})=>sheet),lines,schedules,drivers,reconciliation,issues,
+  sheets:sheets.map(({cellsByRow,...sheet})=>sheet),lines,schedules,drivers,reconciliation,issues,integrity,planningCells,
   mapping:{version:null,propertyAssignments:[]},
   summary:{sheets:sheets.length,cells:totalCells,formulas:sheets.reduce((sum,sheet)=>sum+sheet.cells.filter(cell=>cell.formula).length,0),lines:lines.length,periods:[...new Set(lines.map(line=>line.period))].sort(),sourceScenarios:[...new Set(lines.map(line=>line.scenario))],issues:issues.length},
   actualsAuthority:false};
@@ -304,7 +308,7 @@ export function validateReforecastPropertyAssignment(assignment,authorizedCommun
  return {valid:issues.length===0,issues};
 }
 export function mapReforecastIntake(evidence,mapping,{authorizedCommunityIds=[],cutoffPeriod,noClosedPeriodsConfirmed=false}={}) {
- const property=validateReforecastPropertyAssignment(mapping?.propertyAssignment,authorizedCommunityIds),issues=[...property.issues],lines=[];
+ const property=validateReforecastPropertyAssignment(mapping?.propertyAssignment,authorizedCommunityIds),issues=[...property.issues,...validatePlanningCalendar(mapping?.calendar,mapping?.periods,mapping?.sourceScenario),...reviewPlanningIntegrity(evidence,mapping)],lines=[];
  if(!text(mapping?.version))issues.push(issue('mapping_version_required','Select an effective, reviewed GL mapping version.',{},'error'));
  if(!text(mapping?.sourceScenario))issues.push(issue('scenario_selection_required','Select the exact source scenario. ATLAS will not guess among Actual, Plan and budget columns.',{},'error'));
  if(!/^[A-Z]{3}$/.test(mapping?.currency||''))issues.push(issue('currency_mapping_required','Select an ISO reporting currency.',{},'error'));
@@ -326,10 +330,11 @@ export function mapReforecastIntake(evidence,mapping,{authorizedCommunityIds=[],
   const sourceProblems=(evidence.issues||[]).filter(problem=>problem.sheet===source.sheet&&problem.address===source.address&&['excel_error','broken_formula_reference','external_formula_reference','missing_formula_sheet','broken_named_formula_reference'].includes(problem.code));
   if(sourceProblems.length){issues.push(issue('untrusted_formula_result','The selected value depends on a broken or external formula. Repair the source before using its cached result.',{sourceLineId:source.id,problems:sourceProblems.map(problem=>problem.code)},'error'));continue;}
   if((evidence.reconciliation||[]).some(check=>check.sheet===source.sheet&&check.row===source.row&&check.periods.includes(source.period)&&check.status==='mismatch')){issues.push(issue('source_reconciliation_failed','The selected source row has a monthly-to-annual reconciliation mismatch.',{sourceLineId:source.id,period:source.period},'error'));continue;}
+  if(!source.sheet||!ADDRESS.test(source.address||'')||source.id!==`${source.sheet}!${source.address}`){issues.push(issue('source_coordinates_required','Each mapped cell requires exact source worksheet and coordinates.',{sourceLineId:source.id},'error'));continue;}
   const amount=source.amount*account.signMultiplier;
   if((account.nature==='contra_income'&&amount>0)||(['income','expense','capital','debt'].includes(account.nature)&&amount<0))issues.push(issue('sign_review_required','The mapped amount does not match the approved sign convention. Review the sign mapping or explicitly authorize a reversal.',{sourceLineId:source.id,amount,nature:account.nature},account.allowReversal?'warning':'error'));
   const line={period:source.period,accountCode:account.accountCode,amount,category:account.category,nature:account.nature,placement:account.placement,department:source.department,
-   communityId:mapping?.propertyAssignment?.communityId,currency:mapping.currency,sourceLineId:source.id,sourceHash:evidence.source.sha256,sourceScenario:source.scenario,mappingVersion:mapping.version};
+   communityId:mapping?.propertyAssignment?.communityId,currency:mapping.currency,sourceLineId:source.id,sourceHash:evidence.source.sha256,sourceScenario:source.scenario,mappingVersion:mapping.version,sourceCoordinates:{sheet:source.sheet,address:source.address,row:source.row,column:source.column},signMultiplier:account.signMultiplier};
   const key=JSON.stringify([line.period,line.accountCode,line.department]);
   if(seen.has(key)){issues.push(issue('duplicate_mapped_line','The same mapped GL and month has more than one source row. Select source rows or approve a separate aggregation.',{sourceLineIds:[seen.get(key),source.id],period:line.period,accountCode:line.accountCode},'error'));continue;}
   seen.set(key,source.id);lines.push(line);

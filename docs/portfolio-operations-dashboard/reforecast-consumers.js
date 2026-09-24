@@ -1,6 +1,6 @@
 (function(){
  'use strict';let modulePromise,cache,epoch=0;
- const load=()=>modulePromise ||= import('./features/reforecast-consumers.mjs?v=e1bf6c78ffaaf1eb');
+ const load=()=>modulePromise ||= import('./features/reforecast-consumers.mjs?v=42a0ef77c16ff270');
  function clear(){epoch++;cache?.clear();document.querySelectorAll('[data-active-reforecast]').forEach(el=>el.remove());}
  window.addEventListener('atlas-central-auth-change',clear);
  window.addEventListener('atlas-reforecast-updated',()=>{clear();window.renderTab?.();});

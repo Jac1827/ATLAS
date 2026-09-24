@@ -1914,6 +1914,8 @@ let renewalImportSourceLabel = "";
 let renewalDetailRowsByMonth = defaultRenewalDetailRowsByMonth();
 let marketSurveyImportLog = [];
 let marketSurveyImportOperation = null;
+let atlasSaveContextSignature = null;
+let atlasSaveContextRevision = 0;
 let marketSurveyImportSourceLabel = "";
 let historicalImportTarget = defaultHistoricalImportTarget();
 let latestDlrSummary = defaultDlrSummary();
@@ -6943,7 +6945,7 @@ async function hydrateOpsGlobalStorage() {
   }
 }
 
-function persistOpsGlobalSnapshot(payload) {
+function persistOpsGlobalSnapshot(payload, options = {}) {
   const snapshot = JSON.parse(JSON.stringify(payload));
   opsGlobalStorageCache = snapshot;
   const result = { ok: true, pending: true, completion: null, message: "" };
@@ -6951,7 +6953,7 @@ function persistOpsGlobalSnapshot(payload) {
     try { await writeOpsGlobalStorage(snapshot); result.pending = false; }
     catch (error) {
       result.ok = false; result.pending = false; result.message = error.message;
-      alert(`ATLAS settings could not be saved. Your changes remain in this tab. Keep it open and retry. ${error.message}`);
+      if (options.reportFailure !== false) alert(`ATLAS settings could not be saved. Your changes remain in this tab. Keep it open and retry. ${error.message}`);
       throw error;
     }
   }, "global_settings_indexeddb");
@@ -6987,7 +6989,7 @@ function queuePersistedPhotoStorageCompaction() {
   });
 }
 
-function persistOpsGlobalData() {
+function persistOpsGlobalData(options = {}) {
   const currentApplicationState = applicationResidentDataState;
   applyOpsGlobalData({
     investorPacketState: atlasInvestorPacketState,
@@ -7023,7 +7025,7 @@ function persistOpsGlobalData() {
   });
   // Shared rows stay session-only, but saving unrelated settings must not erase them.
   applicationResidentDataState = currentApplicationState;
-  return persistOpsGlobalSnapshot(opsGlobalData);
+  return persistOpsGlobalSnapshot(opsGlobalData, options);
 }
 
 function getBonusRoles() { return bonusRolesByQ[bonusQuarter]; }
@@ -9293,6 +9295,7 @@ function setPortfolioMonthScopeForPeriod(periodKey, names = []) {
     .filter(Boolean)));
   if (filtered.length === 0) delete portfolioMonthScopeByPeriod[String(periodKey)];
   else portfolioMonthScopeByPeriod[String(periodKey)] = filtered;
+  observeAtlasSaveContext();
 }
 
 function getPortfolioScopedCommunityNamesForPeriod(periodKey, recordMap = savedData) {
@@ -9315,6 +9318,7 @@ function buildOperationsWorkspaceContext() {
   };
 }
 function persistOperationsWorkspaceContext() {
+  observeAtlasSaveContext();
   const key = atlasOperationalLocalKey(OPS_WORKSPACE_CONTEXT_KEY);
   if (!key) return;
   try {
@@ -14033,8 +14037,7 @@ function carryForwardMonthlyData(fromMonth) {
 
 function saveCommunityData(silent = false) {
   if (activeTab === 1 && !isCommunitySettingsAdmin()) return false;
-  const context = getAtlasRenderContextKey(), database = ATLAS_STATE_DB_NAME, epoch = atlasWorkspaceAccess.epoch;
-  const isCurrent = () => context === getAtlasRenderContextKey() && database === ATLAS_STATE_DB_NAME && epoch === atlasWorkspaceAccess.epoch;
+  const isCurrent = captureAtlasSaveContext();
   const scopeCommunityName = isPortfolioWorkspaceSelected()
     ? getProp().name
     : (matchPropertyName(workspaceScopeValue, { fallbackToCurrent: false }) || getProp().name);
@@ -14057,7 +14060,7 @@ function saveCommunityData(silent = false) {
   persistOpsPropertyCatalog();
   const savedResult = persistSaved();
   queueDailyBackupSnapshotWrite("save_community_data");
-  const globalResult = persistOpsGlobalData();
+  const globalResult = persistOpsGlobalData({ reportFailure: false });
   renderPropGrid();
   if (activeTab === 9 && bonusCalcView === "jac") renderTab();
   const saveScopeLabel = isPortfolioWorkspaceSelected()
@@ -20391,12 +20394,12 @@ function attachEventListeners() {
     marketSurveyInput.addEventListener("change", async function(e) {
       const files = Array.from(e.target.files || []);
       if (files.length === 0 || marketSurveyInput.disabled) return;
-      const context = getAtlasRenderContextKey(), database = ATLAS_STATE_DB_NAME, epoch = atlasWorkspaceAccess.epoch;
+      const isCurrent = captureAtlasSaveContext();
       marketSurveyInput.disabled = true;
       try {
         await processMarketSurveyFiles(files);
       } catch (error) {
-        if (context === getAtlasRenderContextKey() && database === ATLAS_STATE_DB_NAME && epoch === atlasWorkspaceAccess.epoch) {
+        if (isCurrent()) {
           marketSurveyImportSourceLabel = "";
           marketSurveyImportLog = [`⚠️ Market survey upload failed: ${error?.message || "Unknown error"}`];
           renderTab();
@@ -27620,12 +27623,24 @@ function updateMarketSurveyImportInputs() {
   });
 }
 
-function captureAtlasMarketSurveyContext() {
-  const context = getAtlasRenderContextKey(), database = ATLAS_STATE_DB_NAME, epoch = atlasWorkspaceAccess.epoch;
-  return () => context === getAtlasRenderContextKey() && database === ATLAS_STATE_DB_NAME && epoch === atlasWorkspaceAccess.epoch;
+function observeAtlasSaveContext() {
+  const period = getSelectedDashboardPeriodKey();
+  const signature = JSON.stringify([getAtlasRenderContextKey(), ATLAS_STATE_DB_NAME,
+    atlasWorkspaceAccess.epoch, portfolioMonthScopeByPeriod[period] || null]);
+  if (signature !== atlasSaveContextSignature) {
+    atlasSaveContextSignature = signature;
+    atlasSaveContextRevision += 1;
+  }
+  return atlasSaveContextRevision;
 }
 
-async function handleMarketSurveyWorkbook(file, isCurrent = captureAtlasMarketSurveyContext()) {
+function captureAtlasSaveContext() {
+  const revision = observeAtlasSaveContext();
+  let current = true;
+  return () => current && (current = revision === observeAtlasSaveContext());
+}
+
+async function handleMarketSurveyWorkbook(file, isCurrent = captureAtlasSaveContext()) {
   if (!isCurrent()) return null;
   if (typeof XLSX === "undefined") await window.AtlasFeatures.load("xlsx");
   if (!isCurrent()) return null;
@@ -27655,7 +27670,7 @@ async function handleMarketSurveyWorkbook(file, isCurrent = captureAtlasMarketSu
   return applied.matchedName;
 }
 
-async function handleMarketSurveyPdf(file, isCurrent = captureAtlasMarketSurveyContext()) {
+async function handleMarketSurveyPdf(file, isCurrent = captureAtlasSaveContext()) {
   if (!isCurrent()) return null;
   const fullText = await extractPdfTextFromFile(file, { preserveLines: true });
   if (!isCurrent()) return null;
@@ -27840,7 +27855,7 @@ function clearCurrentCommunityMarketSurvey() {
 
 async function processMarketSurveyFiles(files) {
   if (marketSurveyImportOperation?.isCurrent()) return false;
-  const isCurrent = captureAtlasMarketSurveyContext();
+  const isCurrent = captureAtlasSaveContext();
   const operation = { isCurrent };
   marketSurveyImportOperation = operation;
   updateMarketSurveyImportInputs();

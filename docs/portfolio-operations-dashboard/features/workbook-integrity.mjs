@@ -1,3 +1,4 @@
+import {verifiedWorkbookLocalImages} from './workbook-rich-images.mjs?v=d70140a2393d0b36';
 /**
  * Static, deterministic workbook evidence. No Excel formula is evaluated here.
  * SheetJS must be opened with bookFiles, cellFormula, cellNF and sheetStubs to
@@ -14,7 +15,7 @@ const serialize=value=>typeof value==='number'?decimalNumber(value):Array.isArra
 export const canonicalWorkbookEvidence = value => serialize(clean(value));
 // Synchronous SHA-256 permits the same certificate in a browser worker and Node.
 export function workbookEvidenceHash(value) {
-  const bytes = new TextEncoder().encode(typeof value === 'string' ? value : canonicalWorkbookEvidence(value));
+  const bytes = value instanceof Uint8Array ? value : value instanceof ArrayBuffer ? new Uint8Array(value) : new TextEncoder().encode(typeof value === 'string' ? value : canonicalWorkbookEvidence(value));
   const constants = [], initial = [];
   for (let n = 2; constants.length < 64; n++) {
     let prime = true; for (let i = 2; i * i <= n; i++) if (n % i === 0) { prime = false; break; }
@@ -53,6 +54,7 @@ export function auditWorkbook(workbook, options = {}) {
   const addFinding = (code, severity, sheet, address, reason, evidence = {}) => { const identity = {code,sheet:sheet || null,address:address || null,evidence:clean(evidence)}, id = workbookEvidenceHash(identity); if (!findingIds.has(id)) { findingIds.add(id); findings.push({id,...identity,severity,reason}); } };
   const parts = Object.entries(workbook.files || {}).map(([path, content]) => ({path:path.replace(/^\//,''),text:xmlText(content)})).filter(part => part.text);
   const packageAvailable = parts.length > 0, sheetInfos = workbook.Workbook?.Sheets || [];
+  const localImages = verifiedWorkbookLocalImages(workbook, workbookEvidenceHash);
   const inventory = {modelFamily:options.modelFamily || null,sourceHash:options.sourceHash || null,packageMetadataAvailable:packageAvailable,packageParts:parts.map(part => ({path:part.path,hash:workbookEvidenceHash(part.text)})).sort((a,b)=>a.path.localeCompare(b.path)),sheets:[],definedNames:[],tables:[],connections:[],externalLinks:[],entities:[],currencies:[],departments:[],periodHeaders:[],scenarioHeaders:[],outputTabs:[],workbookProperties:clean(workbook.Props || {}),calculationProperties:clean(workbook.Workbook?.CalcPr || {}),dateSystem:workbook.Workbook?.WBProps?.date1904 ? '1904' : '1900'};
   if (!packageAvailable && options.requirePackageMetadata !== false) addFinding('package_metadata_unavailable','blocking',null,null,'The original workbook package was not retained. Re-read the original file with bookFiles enabled to inventory tables, connections, links and defined names.');
   for (const part of parts) {
@@ -78,6 +80,7 @@ export function auditWorkbook(workbook, options = {}) {
       const source=raw[address]; if(!populated(source))continue; totalCells++; if(totalCells>maxCells) {addFinding('inventory_limit_exceeded','blocking',name,address,'The workbook exceeds the configured complete-evidence limit. No truncated inventory may be approved.',{maxCells});break;}
       const coordinate=decodeAddress(address),formula=typeof source.f==='string'&&source.f.length?source.f:null,hasValue=has(source,'v')&&source.v!==null&&source.v!==undefined;
       const cell={id:idFor(name,address.toUpperCase()),sheet:name,address:address.toUpperCase(),...coordinate,type:source.t || (typeof source.v==='number'?'n':typeof source.v==='boolean'?'b':'s'),populated:true,value:hasValue?clean(source.v):null,...(formula?{formula,cachedValue:hasValue?clean(source.v):null,cachePresent:hasValue}:{}),...(source.w!==undefined?{formattedValue:source.w}:{}),...(source.z!==undefined?{numberFormat:source.z}:{}),...(source.F?{arrayRange:source.F}:{}),...(source.D?{dynamicArray:true}:{}),...(source.l?{hyperlink:clean(source.l)}:{}),...(source.c?.length?{comments:clean(source.c)}:{})};
+      if(localImages.has(cell.id))cell.mediaEvidence=localImages.get(cell.id);
       sheet.cells.push(cell);nodes.set(cell.id,{id:cell.id,kind:formula?'formula':'constant',sheet:name,address:cell.address,...(formula?{formula}:{})});if(!rows.has(cell.row))rows.set(cell.row,[]);rows.get(cell.row).push(cell);
       if(cell.type==='e'||/^#(?:REF!|DIV\/0!|VALUE!|NAME\?|N\/A|NUM!|NULL!|SPILL!|CALC!)/.test(String(cell.value)))addFinding('cell_error','blocking',name,cell.address,'The source cell contains an Excel error.',{value:cell.value,formula});
       if(formula&&!cell.cachePresent)addFinding('missing_formula_cache','blocking',name,cell.address,'The formula has no cached source result. Recalculate and save the source workbook; ATLAS will not execute it.',{formula});
@@ -141,6 +144,22 @@ export function auditWorkbook(workbook, options = {}) {
   // cells. Problems elsewhere remain visible supporting-evidence reviews.
   // Dependency ancestors are always in scope, including cross-sheet names.
   let authorityScope=null;if(Array.isArray(options.authoritativeCells)){const selected=[...new Set(options.authoritativeCells)].sort(),required=new Set(selected),queue=[...selected];for(let cursor=0;cursor<queue.length;cursor++)for(const target of adjacency.get(queue[cursor])||[])if(!required.has(target)){required.add(target);queue.push(target);}authorityScope={type:'selected_cells_and_dependencies',selectedCells:selected,requiredNodes:[...required].sort()};if(!selected.length)addFinding('empty_authority_scope','blocking',null,null,'No source cells were designated as authoritative; a monthly close cannot use an empty evidence scope.');for(const id of selected)if(!currentCells.has(id))addFinding('missing_authoritative_cell','blocking',null,null,'A designated source cell is absent from the populated workbook inventory.',{id});for(const finding of findings){const cycleNodes=['circular_reference','conditional_dependency_cycle'].includes(finding.code)?finding.evidence.cycle:null,namedId=`@name:${finding.sheet||'*'}!${finding.address}`,named=nodes.has(namedId),location=named?namedId:finding.sheet&&finding.address?idFor(finding.sheet,finding.address):null;const inScope=cycleNodes?cycleNodes.some(id=>required.has(id)):location?required.has(location):true;finding.scope=inScope?'authoritative':'supporting';if(!inScope&&finding.severity==='blocking'){finding.originalSeverity='blocking';finding.severity='review';}}}
+  // A verified image may be supporting evidence only after proving it cannot
+  // supply an authoritative value. Unknown dependencies fail closed. The raw
+  // Excel error, its metadata and original package remain immutable evidence.
+  const requiredMediaNodes=authorityScope?new Set(authorityScope.requiredNodes):null;
+  const unresolvedDependencyCodes=new Set(['dynamic_dependency','external_dependency','unsupported_function','undefined_name','unresolved_reference','unresolved_table_reference','broken_table_column','unresolved_formula_syntax','dependency_limit_exceeded','inventory_limit_exceeded','broken_formula_reference','broken_sheet_reference']);
+  const unresolvedAuthority=findings.some(finding=>unresolvedDependencyCodes.has(finding.code)&&finding.scope!=='supporting');
+  for(const [id,media] of localImages){
+    const cell=currentCells.get(id);if(!cell)continue;
+    const dependency=requiredMediaNodes?requiredMediaNodes.has(id):edges.some(edge=>edge.to===id);
+    if(dependency||unresolvedAuthority){cell.mediaAuthority='unresolved_or_authoritative';continue;}
+    cell.mediaAuthority='supporting_image';
+    const errorIndex=findings.findIndex(finding=>finding.code==='cell_error'&&finding.sheet===cell.sheet&&finding.address===cell.address);
+    if(errorIndex>=0)findings.splice(errorIndex,1);
+    addFinding('embedded_image_evidence','review',cell.sheet,cell.address,'The cached #VALUE! is a verified local image fallback outside all authoritative values and dependencies. Retain the original image, cell and relationship evidence.',{...media,rawError:cell.value,authorityBasis:authorityScope?'excluded_from_selected_cells_and_proven_dependencies':'no_formula_dependents_or_unresolved_dependencies'});
+    findings.find(finding=>finding.code==='embedded_image_evidence'&&finding.sheet===cell.sheet&&finding.address===cell.address).scope='supporting';
+  }
   for(const item of inventory.externalLinks)addFinding('external_link_inventory','review',null,null,'The workbook contains an external-link definition. Confirm it is supporting evidence only; formula dependencies on it remain blocked.',{sourcePart:item.sourcePart,target:item.Target??null});
   for(const item of inventory.connections)addFinding('connection_inventory','review',null,null,'The workbook contains a data connection. Document its source and refresh basis; it does not grant authority to ATLAS actuals.',{sourcePart:item.sourcePart,id:item.id??null,name:item.name??null});
   const rowDispositions=inventory.sheets.flatMap(sheet=>sheet.rowInventory),counts={};for(const row of rowDispositions)counts[row.disposition]=(counts[row.disposition]||0)+1;

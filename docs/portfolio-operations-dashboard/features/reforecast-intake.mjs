@@ -1,4 +1,4 @@
-import {auditWorkbook} from './workbook-integrity.mjs?v=c0a7997612845f22';
+import {auditWorkbook} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
 import {validatePlanningCalendar, classifyPlanningCells, reviewPlanningIntegrity} from './planning-governance.mjs?v=a4de8d3f5a50966c';
 /* Workbook evidence only. Formulas are retained, never executed or promoted to actuals. */
 export const REFORECAST_PARSER_VERSION = 'atlas-reforecast-xlsx/2';
@@ -19,7 +19,7 @@ export async function loadXlsx(provided) {
  if (typeof document === 'undefined') throw Error('Supply the vendored XLSX reader as options.xlsx.');
  xlsxLoading ||= new Promise((resolve,reject) => {
   const script = document.createElement('script');
-  script.src = new URL('../assets/xlsx.full.min.js',import.meta.url).href;
+  script.src = new URL('../assets/xlsx.full.min.js?v=c9506197caf809a0',import.meta.url).href;
   script.onload = () => globalThis.XLSX?.read ? resolve(globalThis.XLSX) : reject(Error('Workbook reader did not load.'));
   script.onerror = () => {xlsxLoading = null;reject(Error('Workbook reader could not be loaded. Try again.'));};
   document.head.appendChild(script);
@@ -288,7 +288,12 @@ export async function parseReforecastWorkbook(input, options={}) {
  const seen=new Map();
  for(const line of lines){const key=JSON.stringify([line.sheet,line.entity,line.department,line.scenario,line.period,line.accountCode]);if(seen.has(key))issues.push(issue('duplicate_gl_period','Multiple source rows match this GL, department, scenario and month. Choose an explicit aggregation or row mapping.',{sourceLineIds:[seen.get(key),line.id],accountCode:line.accountCode,period:line.period,sheet:line.sheet}));else seen.set(key,line.id);}
  const reconciliation=reconcileRows(sheets,lines,issues);
- const integrity=auditWorkbook(workbook,{sourceHash:sha256,modelFamily:options.modelFamily||'reforecast',previousEvidence:options.previousEvidence});
+ const integrity=auditWorkbook(workbook,{sourceHash:sha256,modelFamily:options.modelFamily||'reforecast',previousEvidence:options.previousEvidence,...(Array.isArray(options.authoritativeCells)?{authoritativeCells:options.authoritativeCells}:{})});
+ for(const finding of integrity.findings.filter(item=>item.code==='embedded_image_evidence')){
+  const errorIndex=issues.findIndex(item=>item.code==='excel_error'&&item.sheet===finding.sheet&&item.address===finding.address);
+  if(errorIndex>=0)issues.splice(errorIndex,1);
+  issues.push(issue('embedded_image_evidence',finding.reason,{sheet:finding.sheet,address:finding.address,scope:'supporting',evidence:finding.evidence}));
+ }
  const planningCells=classifyPlanningCells({sheets,lines,reconciliation});
  if(!lines.length)issues.push(issue('no_gl_lines','No populated GL identifiers with explicit monthly headers were found. The workbook is retained as evidence; complete or map the source rows.'));
  if(metadata.entities.length!==1)issues.push(issue('entity_assignment_required','Workbook entity selection is missing or ambiguous. Assign source entities to an authorized canonical community.',{entities:metadata.entities}));
@@ -320,7 +325,8 @@ export function mapReforecastIntake(evidence,mapping,{authorizedCommunityIds=[],
  const accounts=mapping?.accountMappings||[],seen=new Map();
  for(const source of evidence.lines||[]){
   if(source.scenario!==mapping?.sourceScenario||(selectedIds&&!selectedIds.has(source.id))||(mapping?.periods&&!mapping.periods.includes(source.period)))continue;
-  if(source.sourceKind==='workbook_actual_evidence'||source.period<=cutoffPeriod){issues.push(issue('closed_month_evidence_only','Workbook actuals and closed months remain source evidence. Governed close values will supply history.',{sourceLineId:source.id,period:source.period}));continue;}
+  if(source.sourceKind==='workbook_actual_evidence'){issues.push(issue('closed_month_evidence_only','Workbook actuals remain source evidence. Governed close values supply history.',{sourceLineId:source.id,period:source.period}));continue;}
+  if(source.period<=cutoffPeriod){issues.push(issue('governed_forecast_overlap','A selected workbook forecast cell overlaps governed actuals. Remove this cell from the forecast authority scope.',{sourceLineId:source.id,period:source.period,cutoffPeriod},'error'));continue;}
   if(source.periodBasis==='unconfirmed_period'){issues.push(issue('ambiguous_period_basis','Resolve whether this source column is monthly or annual before applying its value.',{sourceLineId:source.id,period:source.period},'error'));continue;}
   const matches=accounts.filter(account=>account.sourceAccountCode===source.accountCode&&(!account.sheet||account.sheet===source.sheet)&&(!Object.prototype.hasOwnProperty.call(account,'department')||account.department===source.department));
   if(matches.length!==1){issues.push(issue(matches.length?'ambiguous_gl_mapping':'missing_gl_mapping',matches.length?'Multiple mappings match the source account.':'No reviewed GL mapping matches the source account.',{sourceLineId:source.id,accountCode:source.accountCode},'error'));continue;}

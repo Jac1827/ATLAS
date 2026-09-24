@@ -1,4 +1,4 @@
-import {parseFinancialWorkbook} from './financial-workbook-parser.mjs?v=af4617b79129bd97';
+import {parseFinancialWorkbook} from './financial-workbook-parser.mjs?v=435714b67fba7feb';
 self.onmessage=async({data})=>{
  try{
   // This version-pinned reader is loaded only for an explicitly chosen workbook.

@@ -1,5 +1,5 @@
-import {readActive,effectiveActiveSnapshot} from './reforecast-store.mjs?v=8a0011d1c194257e';
-import {esc,money,reportHtml,exportRows,csv,download} from './reforecast-report.mjs?v=8912b44852a6eda5';
+import {readActive,effectiveActiveSnapshot} from './reforecast-store.mjs?v=4a72d5a04fe4fa2a';
+import {esc,money,reportHtml,exportRows,csv,download} from './reforecast-report.mjs?v=414edcee834659f5';
 const finitePercent=value=>typeof value==='number'&&Number.isFinite(value)?(value*100).toFixed(2)+'%':'Unavailable';
 // One publication reader shared by operating screens, plan/report evidence and Scout.
 export function createActiveReforecastCache(central){

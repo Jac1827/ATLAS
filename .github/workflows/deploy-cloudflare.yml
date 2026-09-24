@@ -14,6 +14,16 @@ on:
         options:
           - preview
           - production
+      client_rollback_ref:
+        description: Optional production-only client recovery; exact reviewed full 40-character commit. Requires independently verified release hash below. Leave both empty for normal releases.
+        type: string
+        required: false
+        default: ""
+      client_rollback_release:
+        description: Independently reviewed full 64-character asset release hash for the selected recovery commit; mismatch stops publication.
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -30,8 +40,14 @@ jobs:
       ATLAS_ASSET_RELEASE_MODE: preview
       ATLAS_XLSX: ${{ github.workspace }}/docs/portfolio-operations-dashboard/assets/xlsx.full.min.js
     steps:
+      - name: Reject a rollback on the preview target
+        if: github.event_name == 'workflow_dispatch' && (inputs.client_rollback_ref != '' || inputs.client_rollback_release != '')
+        run: echo 'Client rollback requires the production target.' && exit 1
+
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v6
@@ -68,7 +84,7 @@ jobs:
           command: versions upload
 
   production:
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.target == 'production')
+    if: ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.target == 'production')) && (vars.ATLAS_SCOPED_WORKSPACE_READY == 'true' || (github.event_name == 'workflow_dispatch' && inputs.target == 'production' && inputs.client_rollback_ref != '' && inputs.client_rollback_release != ''))
     concurrency:
       group: atlas-production-publisher
       cancel-in-progress: false
@@ -83,15 +99,22 @@ jobs:
       url: ${{ steps.pages.outputs.page_url }}
     env:
       ATLAS_ASSET_RELEASE_MODE: publish
+      ATLAS_CLIENT_ROLLBACK_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.client_rollback_ref || '' }}
+      ATLAS_CLIENT_ROLLBACK_RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.client_rollback_release || '' }}
       ATLAS_XLSX: ${{ github.workspace }}/docs/portfolio-operations-dashboard/assets/xlsx.full.min.js
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v6
         with:
           node-version: 24
+
+      - name: Validate explicit current or reviewed-client selection
+        run: node tools/build-atlas-client-rollback.mjs --validate
 
       - name: Install application dependencies
         run: npm ci --ignore-scripts
@@ -103,6 +126,10 @@ jobs:
 
       - name: Run complete discovered test suite
         run: node tools/test-all.mjs --output output/test-all/ci
+
+      - name: Verify explicit client rollback packaging
+        if: env.ATLAS_CLIENT_ROLLBACK_REF != ''
+        run: node tools/client-rollback.test.mjs
 
       - name: Retain sanitized test results
         if: always()
@@ -122,14 +149,31 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Build and retain one artifact for both hosts
+        if: env.ATLAS_CLIENT_ROLLBACK_REF == ''
         run: node tools/build-atlas-site.mjs
+
+      - name: Package the reviewed prior client and retain every release
+        if: env.ATLAS_CLIENT_ROLLBACK_REF != ''
+        run: node tools/build-atlas-client-rollback.mjs
 
       - name: Deploy production Worker
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           wranglerVersion: "4.72.0"
-          command: deploy --keep-vars
+          command: deploy --keep-vars ${{ env.ATLAS_CLIENT_ROLLBACK_REF != '' && '--config output/atlas-rollback-wrangler.json' || '' }}
+
+      - name: Verify the rollback artifact is unchanged before Pages
+        if: env.ATLAS_CLIENT_ROLLBACK_REF != ''
+        run: node tools/build-atlas-client-rollback.mjs --verify
+
+      - name: Retain client recovery evidence
+        if: env.ATLAS_CLIENT_ROLLBACK_REF != '' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-rollback-evidence
+          path: output/atlas-client-rollback.json
+          if-no-files-found: warn
 
       - name: Upload the same artifact to GitHub Pages
         uses: actions/upload-pages-artifact@v3

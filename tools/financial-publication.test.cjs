@@ -1,5 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const {indexedDB}=require('fake-indexeddb');
+const {readDashboardSource}=require('./dashboard-source.cjs');
 const dir=__dirname+'/../docs/portfolio-operations-dashboard/';
 const F=require(dir+'financial-publication.js');
 const packet=(amount=80,date='2026-09-16')=>({period:'2026-09',actuals:[{glCode:'4000',section:'Operating Income',actual:amount}],budgets:[{glCode:'4000',section:'Operating Income',budget:100}],source:{id:'hash-'+date,file:'fixture.xlsx',effectiveAt:date}});
@@ -38,9 +39,9 @@ const packet=(amount=80,date='2026-09-16')=>({period:'2026-09',actuals:[{glCode:
  const payload={locked:true,property:{name:'A'},year:2026,coverage:[8],scenario:{id:'s',name:'Approved'},budgetByPeriod:{'2026-09':[{gl:'4000',budget:100}]},actualsByPeriod:{'2026-09':[{gl:'4000',actual:0}]},effectiveDate:'2026-09-17'};
  const result=parent.publishBudgetToAtlas(payload);assert.equal(result.ok,false);assert.equal(result.published,false);assert.equal(result.status,'blocked');assert.equal(result.receiptId,null);assert.deepEqual(JSON.parse(JSON.stringify(parent.savedData)),{A:{}});
  // Core Data Import commits community values and lineage in the same transaction.
- const main=fs.readFileSync(dir+'index.html','utf8'),core={window:{},Date,Map,Set,Promise,console,ATLAS_STATE_STORE_NAME:'records',ATLAS_STATE_COMMUNITY_KEY:'community_data',DATA_IMPORT_2_STATE_KEY:'imports',atlasStateWritePromise:Promise.resolve(),atlasPersistenceMeta:{},dashboardSharedSyncMeta:{}};
+ const main=readDashboardSource(dir+'index.html'),core={window:{},Date,Map,Set,Promise,console,ATLAS_STATE_STORE_NAME:'records',ATLAS_STATE_COMMUNITY_KEY:'community_data',DATA_IMPORT_2_STATE_KEY:'imports',atlasStateWritePromise:Promise.resolve(),atlasPersistenceMeta:{},dashboardSharedSyncMeta:{}};
  vm.createContext(core);
- for(const name of ['withAtlasStateStore','queueAtlasStateWrite','persistDataImportPublication','persistSaved']){
+ for(const name of ['assertAtlasSaveContext','withAtlasStateStore','queueAtlasStateWrite','persistDataImportPublication','persistSaved']){
   const source=main.match(new RegExp('^(?:async )?function '+name+'\\([^\\n]*\\) \\{[\\s\\S]*?^\\}','m'))[0];
   // Inject the real module below; browser cache identifiers are not VM loaders.
   const fixtureSource=source.replace(/const \{mergeHistory\}=await import\("\.\/features\/import-history-store\.mjs(?:\?v=[^"]+)?"\);/,'');

@@ -1,0 +1,19 @@
+{
+  "tenant_id_env": "MS365_TENANT_ID",
+  "client_id_env": "MS365_CLIENT_ID",
+  "client_secret_env": "MS365_CLIENT_SECRET",
+  "mailbox_user": "your.name@example.com",
+  "mail_folder": "Inbox",
+  "rules": [
+    {
+      "name": "aptiq-market-surveys",
+      "sender_contains": "report@apartmentiq.io",
+      "subject_contains": "Real-Time Market Surveys",
+      "attachment_name_regex": "^\\d{4}_\\d{2}_\\d{2}_\\d{2}_\\d{2}_RISE_[A-Za-z0-9_ -]+_Market\\.xlsx$",
+      "download_dir": "outputs/market_surveys/current_cycle",
+      "overwrite": true,
+      "latest_only": false
+    }
+  ],
+  "post_update_commands": []
+}

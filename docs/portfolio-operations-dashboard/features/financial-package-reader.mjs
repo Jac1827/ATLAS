@@ -33,7 +33,7 @@ export async function readPackage(file,{signal,onProgress=()=>{}}={}) {
 }
 function readWorkbook(buffer,file,hash,{signal,onProgress}) {
  return new Promise((resolve,reject)=>{
-  const worker=new Worker(new URL('./financial-workbook-worker.mjs?v=ec67cb90671aee0b',import.meta.url),{type:'module'});
+  const worker=new Worker(new URL('./financial-workbook-worker.mjs?v=ac5c763bfd72fabf',import.meta.url),{type:'module'});
   let settled=false;const timer=setTimeout(()=>finish(Error('Workbook processing exceeded 60 seconds. Retry with a statement-only workbook.')),60000);
   const finish=(error,result)=>{if(settled)return;settled=true;clearTimeout(timer);worker.terminate();signal?.removeEventListener('abort',cancel);error?reject(error):resolve(result);};
   const cancel=()=>finish(new DOMException('Review canceled','AbortError'));

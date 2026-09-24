@@ -1,9 +1,9 @@
-import {compareWorkbookEvidence} from './workbook-integrity.mjs?v=c0a7997612845f22';
-import {persistWorkbookAudit,readWorkbookAudit} from './workbook-audit-store.mjs?v=3b255eaf49ebba74';
+import {compareWorkbookEvidence} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
+import {persistWorkbookAudit,readWorkbookAudit} from './workbook-audit-store.mjs?v=3c7e49ea1b295e7d';
 import {monthlyGovernanceForm,readMonthlyGovernanceForm} from './financial-workbook-governance.mjs?v=ce3982266f91118e';
-import {readFinance} from './canonical-finance.mjs?v=6fd3f2a1967abe60';
-import {applyControls,centralClient} from './financial-comparison.mjs?v=97349f120a3d1c7c';
-import {readPackage} from './financial-package-reader.mjs?v=ef94485922674de9';
+import {readFinance} from './canonical-finance.mjs?v=7fbb041e230c8e3a';
+import {applyControls,centralClient} from './financial-comparison.mjs?v=e1d0ddee3784d74d';
+import {readPackage} from './financial-package-reader.mjs?v=311d5c4092dde6d1';
 import {resolveCommunity,evaluateFinancialPackageSafety,finalizeFinancialPackageEvidence} from './financial-package.mjs?v=a378a0cb25083758';
 import {createIntake,prepareReview,INTAKE_STATES,INTAKE_LABELS} from './financial-intake-store.mjs?v=e7ba2e324c419b26';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -32,7 +32,7 @@ export async function openReview({communityId=null,period:requestedPeriod=null,f
  function state(receipt){const index=INTAKE_STATES.indexOf(receipt?.status);dialog.querySelector('[data-workflow]').innerHTML=INTAKE_LABELS.map((label,i)=>`<li ${i===index?'aria-current="step"':''}>${i<=index?'✓ ':''}${label}</li>`).join('');dialog.querySelector('[data-receipt]').textContent=receipt?`${receipt.state||receipt.status} · receipt ${receipt.receipt_id} · ${receipt.created_at} · user ${receipt.actor_id}`:'No durable intake saved yet.';}state();
  const cancel=()=>{epoch++;operation?.abort();operation=null;certificate=null;flow=null;result.replaceChildren();state();};
  dialog.onclose=()=>{cancel();dialog.remove();if(active===dialog)active=null;};dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.querySelector('[data-cancel]').onclick=()=>{cancel();status.textContent='Processing canceled. Completed receipts remain available in shared intake.';};
- async function showCertificate(parsed,resume=null){
+ async function showCertificate(parsed,resume=null,sourceBytes=null){
   const token=epoch,match=resolveCommunity(parsed.metadata?.sourceProperty,communities,aliases);
   if(communityId&&match.communityId!==communityId)throw Error('This source does not match the selected community. Open its matching community review.');
   if(requestedPeriod&&parsed.metadata?.period!==requestedPeriod)throw Error('The BCR monthly actual period is '+(parsed.metadata?.period||'unidentified')+', not '+requestedPeriod+'.');
@@ -50,7 +50,7 @@ export async function openReview({communityId=null,period:requestedPeriod=null,f
      parsed.intakeEvidence.previousWorkbookReview={reviewId:prior.review_id,sourceHash:prior.source_hash,fingerprint:previous.fingerprint,communityId:picked,period:parsed.metadata.period};
     }
    }
-   const retained=await persistWorkbookAudit(central,parsed.intakeEvidence.workbookAudit,{sourceHash:parsed.sourceHash});guard();if(token!==epoch||!dialog.isConnected)return;
+   const retained=await persistWorkbookAudit(central,parsed.intakeEvidence.workbookAudit,{sourceHash:parsed.sourceHash,sourceBytes});guard();if(token!==epoch||!dialog.isConnected)return;
    parsed.intakeEvidence.workbookAudit=retained;parsed=await finalizeFinancialPackageEvidence(parsed);
   }
   certificate=parsed;flow=createIntake(central,{...(resume||{}),onState:receipt=>{if(token===epoch&&dialog.isConnected)state(receipt);}});const reviewFlow=flow;
@@ -93,7 +93,7 @@ export async function openReview({communityId=null,period:requestedPeriod=null,f
 
   await loadCoverage();
  }
- async function read(file){cancel();if(!file)return;const token=epoch;operation=new AbortController();status.textContent='Reading and inventorying the source…';try{const parsed=await readPackage(file,{signal:operation.signal,onProgress:text=>{if(token===epoch)status.textContent=text;}});guard();if(token===epoch)await showCertificate(parsed);}catch(error){if(token===epoch)status.textContent=error.message;}}
+ async function read(file){cancel();if(!file)return;const token=epoch;operation=new AbortController();status.textContent='Reading and inventorying the source…';try{const parsed=await readPackage(file,{signal:operation.signal,onProgress:text=>{if(token===epoch)status.textContent=text;}});guard();if(token===epoch)await showCertificate(parsed,null,await file.arrayBuffer());}catch(error){if(token===epoch)status.textContent=error.message;}}
  dialog.querySelector('[data-file]').onchange=async event=>{await read(event.target.files[0]);event.target.value='';};
  dialog.querySelector('[data-load]').onclick=async()=>{
   const list=dialog.querySelector('[data-history-list]'),period=periodInput.value,filter=communityId?'&community_id=eq.'+communityId:'';list.textContent='Loading central records…';

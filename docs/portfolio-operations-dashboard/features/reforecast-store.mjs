@@ -1,4 +1,5 @@
 /* Canonical reforecast transport: no browser-local financial fallback. */
+import {persistReforecastPayload} from './workbook-audit-store.mjs?v=3c7e49ea1b295e7d';
 import {effectiveActiveSnapshot as projectActive} from './reforecast-active.mjs?v=03b191a6926d70ca';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const period=/^20\d{2}-(0[1-9]|1[0-2])$/;
@@ -17,8 +18,7 @@ async function exactRecord(central,table,column,saved){
 }
 export async function saveUpload(central,{communityId,requestId,payload}){
  scope(communityId);request(requestId);const actor=identity(central);
- const saved=await rpc(central,'atlas_save_reforecast_upload',{p_community_id:communityId,p_request_id:requestId,p_payload:payload});
- const result=await exactRecord(central,'atlas_reforecast_uploads','upload_id',saved);actorGuard(central,actor);return result;
+ const result=await persistReforecastPayload(central,{communityId,requestId,payload});actorGuard(central,actor);return result;
 }
 export async function saveRegistry(central,{communityId,expectedVersionId=null,requestId,payload}){
  scope(communityId);request(requestId);const actor=identity(central);
@@ -77,10 +77,16 @@ export async function saveScenario(central,{communityId,scenarioId,expectedRevis
  actorGuard(central,actor);return result;
 }
 export async function approveAndLock(central,options){
+ const overlay=options.payload?.scenarioPurpose==='str_overlay',priorActive=overlay?await readActive(central,{communityIds:[options.communityId],periods:options.payload.periods}):null;
  const result=await saveScenario(central,{...options,action:'approve_lock'}),saved=result.publication;
  if(!saved?.publication_id)throw Error('Approval was not verified. Keep this revision open and retry the same request.');
  await exactRecord(central,'atlas_reforecast_publications','publication_id',saved);
  const active=await readActive(central,{communityIds:[options.communityId],periods:saved.periods});
+ if(overlay){
+  const receipt=await readPublication(central,{communityId:options.communityId,publicationId:saved.publication_id});
+  if(receipt.snapshot?.identity?.parentPublication?.publicationId!==options.payload.parentPublication?.publicationId||active.some(row=>row.publicationId===saved.publication_id)||!equal(active,priorActive))throw Error('STR approval readback did not preserve the Conventional active baseline.');
+  return {...result,active,overlayPublication:receipt};
+ }
  const publication=active.find(row=>row.publicationId===saved.publication_id);
  const inherited=new Set(result.source?.lockedPeriods||[]);
  if(saved.periods.some(p=>!inherited.has(p)&&(!publication||publication.verified!==true||!publication.activePeriods?.includes(p))))throw Error('Approval was saved but active baseline readback is unavailable. Retry this same request to verify it.');

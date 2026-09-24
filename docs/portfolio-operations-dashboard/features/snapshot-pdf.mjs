@@ -58,7 +58,7 @@ async function sectionedSnapshotPdf({title,subtitle,snapshot,rows,sections}){
   if(typeof value==='number'){
    if(!Number.isFinite(value))return 'Unavailable';
    if(type==='percent')return value.toLocaleString('en-US',{maximumFractionDigits:2})+'%';
-   if(type==='money')return value.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+   if(type==='money')return value.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:20});
    return value.toLocaleString('en-US',{maximumFractionDigits:2});
   }
   return value;

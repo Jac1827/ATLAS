@@ -1,4 +1,4 @@
-import {resolveEffectiveBaseline,effectiveBaselineMetric,readEffectiveBaselines} from './reforecast-consumers.mjs?v=900b97252a7554c0';
+import {resolveEffectiveBaseline,effectiveBaselineMetric,readEffectiveBaselines} from './reforecast-consumers.mjs?v=7458d59c6249fbb0';
 import {financeSnapshot,retainedSnapshot,lineageColumns} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 // Shared, period-specific finance adapter. No browser-state fallback.
 export const number = value => value === null || value === undefined || String(value).trim() === '' ? null : Number.isFinite(Number(value)) ? Number(value) : null;

@@ -325,9 +325,9 @@
   }
 
   async function parseJsonResponse(response) {
-    const text = await response.text().catch(() => "");
+    const text = await response.text();
     if (!text) return null;
-    try { return JSON.parse(text); } catch { return text; }
+    try { return JSON.parse(text); } catch { if (response.ok) throw new Error("Central response was not valid JSON."); return text; }
   }
 
   function errorFromPayload(payload, fallback) {
@@ -545,17 +545,24 @@
   async function request(url, options = {}) {
     if (isAuthRequest(url)) return requestAuth(url, options);
     const originAtStart = getConfig().supabaseUrl, actorAtStart = getSignedInUser()?.id;
+    const transportStart = performance.now();
+    const requestId = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(options.requestId || "") ? options.requestId : null;
+    const requestBytes = typeof options.body === "string" ? new TextEncoder().encode(options.body).length : 0;
+    let transport = {requestId, requestBytes, status: 0, classification: "transport_no_response", gateway: {}};
+    const correlation = value => /^[a-z0-9][a-z0-9._:-]{0,127}$/i.test(value || "") ? value : null;
+    const {onTransport, requestId: ignoredRequestId, timeoutMs, ...fetchOptions} = options;
     const controller = new AbortController();
     const abort = () => controller.abort(options.signal?.reason);
     options.signal?.addEventListener("abort", abort, {once:true});
     if (options.signal?.aborted) abort();
     const boundedRead = String(options.method || "GET").toUpperCase() === "GET" || /\/rpc\/atlas_read_[a-z_]+(?:\?|$)/.test(url);
-    const deadline = boundedRead ? window.setTimeout(() => controller.abort(new DOMException("Central request timed out", "TimeoutError")), 20000) : null;
+    const bounded = boundedRead || Number.isFinite(timeoutMs);
+    const deadline = bounded ? window.setTimeout(() => controller.abort(new DOMException("Central request timed out", "TimeoutError")), Number.isFinite(timeoutMs) ? Math.min(60000, Math.max(1000, timeoutMs)) : 20000) : null;
     try {
     let response;
     try {
       response = await fetch(url, {
-        ...options, signal: boundedRead ? controller.signal : options.signal,
+        ...fetchOptions, signal: bounded ? controller.signal : options.signal,
         headers: {
           ...baseHeaders(getConfig(), options.auth !== false, options),
           ...(options.headers || {})
@@ -567,6 +574,11 @@
       const target = String(url || "").replace(getConfig().supabaseUrl || "", "");
       throw new Error(`Central ${method} request could not reach Supabase${target ? ` (${target})` : ""}. ${error?.message || error || "The browser blocked or interrupted the request."}`);
     }
+    transport = {...transport, status: Number(response.status) || 0, classification: response.ok ? "http_success" : "http_error", gateway: {
+      supabaseRequestId: correlation(response.headers?.get("sb-request-id")),
+      requestId: correlation(response.headers?.get("x-request-id")),
+      cloudflareRay: correlation(response.headers?.get("cf-ray"))
+    }};
     const payload = await parseJsonResponse(response);
     if (!response.ok) {
       const retryAfterSeconds = getRetryAfterSeconds(response);
@@ -580,7 +592,19 @@
     }
     if (originAtStart !== getConfig().supabaseUrl || actorAtStart !== getSignedInUser()?.id) throw new DOMException("Session changed during request", "AbortError");
     return payload;
-    } finally { window.clearTimeout(deadline); options.signal?.removeEventListener("abort", abort); }
+    } catch (error) {
+      if (controller.signal.aborted) error = controller.signal.reason || error;
+      if (error?.name === "TimeoutError") transport.classification = "timeout";
+      else if (error?.name === "AbortError") transport.classification = "aborted";
+      else if (transport.status && transport.classification === "http_success") transport.classification = "response_read_error";
+      transport.durationMs = Math.round(performance.now() - transportStart);
+      error.transport = transport;
+      throw error;
+    } finally {
+      window.clearTimeout(deadline); options.signal?.removeEventListener("abort", abort);
+      transport.durationMs = Math.round(performance.now() - transportStart);
+      try { onTransport?.(transport); } catch { /* Diagnostics cannot change a request outcome. */ }
+    }
   }
 
   async function fetchJson(path, options = {}) {
@@ -989,9 +1013,12 @@
     });
   }
 
-  async function rpc(functionName, args = {}) {
+  async function rpc(functionName, args = {}, options = {}) {
+    const actorAtStart = getSignedInUser()?.id;
     await refreshSession().catch(() => null);
+    if (actorAtStart !== getSignedInUser()?.id) throw new DOMException("Session changed before request", "AbortError");
     const result = await fetchJson(`/rpc/${encodeURIComponent(functionName)}`, {
+      ...options,
       method: "POST",
       body: JSON.stringify(args && typeof args === "object" ? args : {})
     });

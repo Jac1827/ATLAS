@@ -63,6 +63,9 @@ jobs:
           node tools/financial-package.test.mjs
           node tools/financial-row-reconciliation.test.mjs
           node tools/workbook-integrity.test.mjs
+          node tools/workbook-rich-images.test.mjs
+          node tools/workbook-audit-chunks-db.test.mjs
+          node tools/workbook-transport-diagnostics.test.cjs
           node tools/financial-workbook-governance.test.mjs
           node tools/financial-workbook-governance-db.test.mjs
           node tools/planning-governance.test.mjs
@@ -82,6 +85,8 @@ jobs:
           node tools/reforecast-mapped-budget.test.mjs
           node tools/reforecast-intake.test.mjs
           node tools/reforecast-import-ui.test.mjs
+          node tools/reforecast-close-scope-db.test.cjs
+          node tools/reforecast-str-overlay-db.test.cjs
           node tools/reforecast-governance-db.test.cjs
           node tools/reforecast-review-db.test.cjs
           node tools/reforecast-parity.test.cjs

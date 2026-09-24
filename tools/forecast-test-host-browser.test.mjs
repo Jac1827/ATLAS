@@ -16,7 +16,8 @@ const contentTypes = {'.html': 'text/html', '.js': 'text/javascript', '.mjs': 't
 let browser;
 try {
   const prepared = await prepareTestHost({env, out: path.join(temp, 'host')});
-  const worker = createWorker(configFromEnvironment(env)), requests = [], unexpected = [], violations = [];
+  const worker = createWorker(configFromEnvironment(env)), requests = [], unexpected = [], violations = [], saveGuardLoads = [];
+  const manifest = JSON.parse(await fs.readFile(new URL('../docs/portfolio-operations-dashboard/performance/asset-manifest.json', import.meta.url), 'utf8'));
   const bindings = {ASSETS: {async fetch(request) {
     const relative = decodeURIComponent(new URL(request.url).pathname).replace(/^\/+/, '');
     const file = path.resolve(prepared.directory, 'assets', relative);
@@ -30,6 +31,7 @@ try {
     const request = route.request(), url = new URL(request.url());
     if (url.origin === origin) {
       const response = await worker.fetch(new Request(request.url(), {method: request.method()}), bindings);
+      if (url.pathname.endsWith('/market-save-guards.js')) saveGuardLoads.push({status: response.status, version: url.searchParams.get('v')});
       await route.fulfill({status: response.status, headers: Object.fromEntries(response.headers), body: Buffer.from(await response.arrayBuffer())});
     } else if (url.origin === database) {
       requests.push(url.pathname);
@@ -72,6 +74,20 @@ try {
   assert.equal(readback.source.syntheticWiringReceipt, true);
   await page.reload();
   await page.waitForFunction(() => window.ATLAS_CENTRAL?.getSession()?.access_token === 'synthetic-test-token');
+  await page.waitForFunction(() => typeof getAtlasSaveContextKey === 'function' && getAtlasSaveContextKey());
+  assert(saveGuardLoads.length >= 2, 'The real classic guard asset must load on startup and reload');
+  assert(saveGuardLoads.every(load => load.status === 200 && load.version === manifest['market-save-guards.js'].sha256), 'The browser must receive the content-keyed guard asset successfully');
+  const saveGuard = await page.evaluate(() => {
+    const key = JSON.parse(getAtlasSaveContextKey()), captured = captureAtlasSaveContext();
+    const currentBeforeAuthEvent = captured();
+    window.dispatchEvent(new CustomEvent('atlas-central-auth-change'));
+    return {actor: key.actor, service: key.service, currentBeforeAuthEvent, oldCurrentAfterAuthEvent: captured(), freshCurrentAfterAuthEvent: captureAtlasSaveContext()()};
+  });
+  assert.equal(saveGuard.actor, actor, 'The loaded guard reads the actual main-script session actor');
+  assert.equal(saveGuard.service, database, 'The loaded guard reads the isolated source configuration');
+  assert.equal(saveGuard.currentBeforeAuthEvent, true);
+  assert.equal(saveGuard.oldCurrentAfterAuthEvent, false, 'The real inline auth listener invalidates the prior capture');
+  assert.equal(saveGuard.freshCurrentAfterAuthEvent, true, 'A valid fresh capture retains same-context saves');
   const libraries = await page.evaluate(async () => {
     const {PDFDocument} = await import('./vendor/pdf-lib-1.17.1.mjs');
     const document = await PDFDocument.create(); document.addPage().drawText('Synthetic statement smoke test');

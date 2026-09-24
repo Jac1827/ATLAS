@@ -47,6 +47,9 @@ jobs:
           node tools/bonus-workflow-ui.test.mjs
           node tools/bonus-workflow-remount.test.mjs
 
+      - name: Test authentication outage recovery
+        run: node tools/auth-resilience.test.cjs
+
       - name: Verify production migration history
         run: node tools/migration-history.test.mjs
 
@@ -176,6 +179,9 @@ jobs:
         run: |
           node tools/bonus-workflow-ui.test.mjs
           node tools/bonus-workflow-remount.test.mjs
+
+      - name: Test authentication outage recovery
+        run: node tools/auth-resilience.test.cjs
 
       - name: Verify production migration history
         run: node tools/migration-history.test.mjs

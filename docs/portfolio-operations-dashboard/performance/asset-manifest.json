@@ -1014,8 +1014,8 @@
     ]
   },
   "centralization/atlas-central-client.js": {
-    "sha256": "8c01ca31e870ff8c",
-    "bytes": 68131,
+    "sha256": "c6613e4b47296475",
+    "bytes": 73150,
     "references": [
       [
         "index.html",

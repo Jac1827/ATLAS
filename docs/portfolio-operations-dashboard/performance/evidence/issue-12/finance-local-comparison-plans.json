@@ -1,0 +1,330 @@
+{
+  "syntheticOnly": true,
+  "engine": "PGlite PostgreSQL-compatible WASM, not production latency",
+  "migrations": 76,
+  "shape": {
+    "communities": 28,
+    "summaryrows": 336,
+    "registrymetrics": 91
+  },
+  "query": "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT count(*),sum(octet_length(r.summary::text)) FROM public.atlas_read_finance($1::uuid[],$2::text[])r",
+  "plans": [
+    {
+      "label": "previous",
+      "scope": "one-month",
+      "status": "completed",
+      "wallMs": 70.91083299999991,
+      "plan": [
+        {
+          "Plan": {
+            "Node Type": "Aggregate",
+            "Strategy": "Plain",
+            "Partial Mode": "Simple",
+            "Parallel Aware": false,
+            "Async Capable": false,
+            "Startup Cost": 22.75,
+            "Total Cost": 22.76,
+            "Plan Rows": 1,
+            "Plan Width": 16,
+            "Actual Startup Time": 68.86,
+            "Actual Total Time": 68.861,
+            "Actual Rows": 1,
+            "Actual Loops": 1,
+            "Shared Hit Blocks": 1725,
+            "Shared Read Blocks": 15,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0,
+            "Plans": [
+              {
+                "Node Type": "Function Scan",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Function Name": "atlas_read_finance",
+                "Alias": "r",
+                "Startup Cost": 0.25,
+                "Total Cost": 10.25,
+                "Plan Rows": 1000,
+                "Plan Width": 32,
+                "Actual Startup Time": 68.64,
+                "Actual Total Time": 68.641,
+                "Actual Rows": 1,
+                "Actual Loops": 1,
+                "Shared Hit Blocks": 1725,
+                "Shared Read Blocks": 15,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              }
+            ]
+          },
+          "Planning": {
+            "Shared Hit Blocks": 3,
+            "Shared Read Blocks": 0,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0
+          },
+          "Planning Time": 0.079,
+          "Triggers": [],
+          "Execution Time": 68.912
+        }
+      ]
+    },
+    {
+      "label": "previous",
+      "scope": "portfolio-year",
+      "status": "completed",
+      "wallMs": 13183.581208,
+      "plan": [
+        {
+          "Plan": {
+            "Node Type": "Aggregate",
+            "Strategy": "Plain",
+            "Partial Mode": "Simple",
+            "Parallel Aware": false,
+            "Async Capable": false,
+            "Startup Cost": 22.75,
+            "Total Cost": 22.76,
+            "Plan Rows": 1,
+            "Plan Width": 16,
+            "Actual Startup Time": 13182.151,
+            "Actual Total Time": 13182.153,
+            "Actual Rows": 1,
+            "Actual Loops": 1,
+            "Shared Hit Blocks": 249413,
+            "Shared Read Blocks": 0,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 2932,
+            "Temp Written Blocks": 2932,
+            "Plans": [
+              {
+                "Node Type": "Function Scan",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Function Name": "atlas_read_finance",
+                "Alias": "r",
+                "Startup Cost": 0.25,
+                "Total Cost": 10.25,
+                "Plan Rows": 1000,
+                "Plan Width": 32,
+                "Actual Startup Time": 13112.568,
+                "Actual Total Time": 13116.201,
+                "Actual Rows": 336,
+                "Actual Loops": 1,
+                "Shared Hit Blocks": 249413,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 2932,
+                "Temp Written Blocks": 2932
+              }
+            ]
+          },
+          "Planning": {
+            "Shared Hit Blocks": 0,
+            "Shared Read Blocks": 0,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0
+          },
+          "Planning Time": 0.042,
+          "Triggers": [],
+          "Execution Time": 13182.25
+        }
+      ]
+    },
+    {
+      "label": "candidate",
+      "scope": "one-month",
+      "status": "completed",
+      "wallMs": 79.04291699999885,
+      "plan": [
+        {
+          "Plan": {
+            "Node Type": "Aggregate",
+            "Strategy": "Plain",
+            "Partial Mode": "Simple",
+            "Parallel Aware": false,
+            "Async Capable": false,
+            "Startup Cost": 22.75,
+            "Total Cost": 22.76,
+            "Plan Rows": 1,
+            "Plan Width": 16,
+            "Actual Startup Time": 78.199,
+            "Actual Total Time": 78.2,
+            "Actual Rows": 1,
+            "Actual Loops": 1,
+            "Shared Hit Blocks": 528,
+            "Shared Read Blocks": 0,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0,
+            "Plans": [
+              {
+                "Node Type": "Function Scan",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Function Name": "atlas_read_finance",
+                "Alias": "r",
+                "Startup Cost": 0.25,
+                "Total Cost": 10.25,
+                "Plan Rows": 1000,
+                "Plan Width": 32,
+                "Actual Startup Time": 77.941,
+                "Actual Total Time": 77.943,
+                "Actual Rows": 1,
+                "Actual Loops": 1,
+                "Shared Hit Blocks": 528,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              }
+            ]
+          },
+          "Planning": {
+            "Shared Hit Blocks": 0,
+            "Shared Read Blocks": 0,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0
+          },
+          "Planning Time": 0.041,
+          "Triggers": [],
+          "Execution Time": 78.218
+        }
+      ]
+    },
+    {
+      "label": "candidate",
+      "scope": "portfolio-year",
+      "status": "completed",
+      "wallMs": 7816.215207999998,
+      "plan": [
+        {
+          "Plan": {
+            "Node Type": "Aggregate",
+            "Strategy": "Plain",
+            "Partial Mode": "Simple",
+            "Parallel Aware": false,
+            "Async Capable": false,
+            "Startup Cost": 22.75,
+            "Total Cost": 22.76,
+            "Plan Rows": 1,
+            "Plan Width": 16,
+            "Actual Startup Time": 7815.253,
+            "Actual Total Time": 7815.254,
+            "Actual Rows": 1,
+            "Actual Loops": 1,
+            "Shared Hit Blocks": 22610,
+            "Shared Read Blocks": 0,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 8248,
+            "Temp Written Blocks": 8248,
+            "Plans": [
+              {
+                "Node Type": "Function Scan",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Function Name": "atlas_read_finance",
+                "Alias": "r",
+                "Startup Cost": 0.25,
+                "Total Cost": 10.25,
+                "Plan Rows": 1000,
+                "Plan Width": 32,
+                "Actual Startup Time": 7751.499,
+                "Actual Total Time": 7754.198,
+                "Actual Rows": 336,
+                "Actual Loops": 1,
+                "Shared Hit Blocks": 22610,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 8248,
+                "Temp Written Blocks": 8248
+              }
+            ]
+          },
+          "Planning": {
+            "Shared Hit Blocks": 0,
+            "Shared Read Blocks": 0,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0
+          },
+          "Planning Time": 0.034,
+          "Triggers": [],
+          "Execution Time": 7815.345
+        }
+      ]
+    }
+  ],
+  "publishedArtifact": {
+    "originalSha256": "3f18e9c6a4fcc97f70c1651635594bc2e51e2fae8c53d84dd6823e91a10600b2",
+    "classification": "Synthetic local WASM comparison, not production performance",
+    "identityAndValuePayloadsExcluded": true
+  }
+}

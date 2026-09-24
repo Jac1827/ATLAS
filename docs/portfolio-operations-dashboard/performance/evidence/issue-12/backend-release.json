@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "kind": "backend-preparation-release-not-performance-acceptance",
+  "kind": "backend-release-production-incident-and-verified-client-recovery-not-performance-acceptance",
   "mergedCommit": "9ef02ff08e3c424be52d6bc3d05f90559dbbad37",
   "automaticDatabaseDeployment": true,
   "migrationVerification": {
@@ -147,14 +147,131 @@
   },
   "projectionPublication": {
     "status": "unavailable",
-    "attemptStarted": "2026-09-24T22:13:36.896Z",
-    "elapsedMs": 59243,
-    "result": "statement timeout before source lock or writes",
-    "verifiedAt": "2026-09-24T22:16:44.314Z",
+    "attemptStarted": "2026-09-24T23:08:28.241Z",
+    "elapsedMs": 76576,
+    "result": "statement timeout during delegated document writer call",
+    "databaseCancellationAt": "2026-09-24T23:09:31.031000Z",
+    "databaseErrorCode": "57014",
+    "publisherFunctionLine": 84,
+    "gateway": {
+      "status": 500,
+      "originElapsedMs": 46651,
+      "requestBytes": 6999514
+    },
+    "verifiedAt": "2026-09-24T23:11:13.883115Z",
     "derivedCurrentRows": 0,
     "derivedVersionRows": 0,
     "derivedAuditRows": 0,
-    "sourceParentUnchanged": true
+    "sourceParentUnchanged": true,
+    "sourceParent": {
+      "version": 1,
+      "updatedAt": "2026-09-19T02:36:25.886387+00:00",
+      "archiveHash": "44fff7341af4fe69f97dffe49736f7d6b81c1c465a59ac1477cdc745443d261f",
+      "payloadHash": "05c889b5561ad4b74ac0440891e6e5600b0371aa40c1662792106c07ed59ea92"
+    },
+    "retryBasis": "One guarded retry followed improved small-read latency and no observed database blockers at 23:06 UTC; this did not establish large-write capacity.",
+    "operationLimit": "The cancellation identifies the delegated writer call, without nested context identifying hashing, current-row, version-row or audit work.",
+    "deadlineLimit": "The reviewed outer function declares 30 seconds; browser and gateway elapsed times span different work and do not independently prove the effective database timer or a CPU, memory or I/O cause.",
+    "pendingPublicationWrite": false,
+    "queuedRetry": false,
+    "globalTimeoutChanged": false,
+    "computeChanged": false,
+    "priorDedicatedAttempt": {
+      "status": "unavailable",
+      "attemptStarted": "2026-09-24T22:13:36.896Z",
+      "elapsedMs": 59243,
+      "result": "statement timeout before source lock or writes",
+      "verifiedAt": "2026-09-24T22:16:44.314Z",
+      "derivedCurrentRows": 0,
+      "derivedVersionRows": 0,
+      "derivedAuditRows": 0,
+      "sourceParentUnchanged": true
+    }
   },
-  "acceptancePassed": false
+  "acceptancePassed": false,
+  "inactiveFrontendPreview": {
+    "commit": "a31c7e8e46fd847e510dadac1e74e02ef322d8cd",
+    "pullRequest": "https://github.com/Jac1827/ATLAS/pull/32",
+    "draft": true,
+    "runId": 36070906618,
+    "jobId": 107871377759,
+    "conclusion": "success",
+    "versionId": "9fa702d8-cd07-459d-a2d4-f6566156d7e7",
+    "uploadedAt": "2026-09-24T23:08:28.868Z",
+    "productionActivated": false,
+    "credentialsChanged": false
+  },
+  "currentProductionIncident": {
+    "status": "prior-client-functionally-restored",
+    "mergedAt": "2026-09-24T23:19:51Z",
+    "mergeOrigin": "PR32 merged externally to this release task",
+    "pullRequest": "https://github.com/Jac1827/ATLAS/pull/32",
+    "candidateCommit": "a31c7e8e46fd847e510dadac1e74e02ef322d8cd",
+    "production": {
+      "commit": "0ae43c47d3a216e480d01abf14036e97cb2dcd70",
+      "runId": 36072173981,
+      "jobId": 107875394264,
+      "conclusion": "success",
+      "worker": {
+        "loggedVersionId": "9f1a463a-bca9-4b3c-82b1-725e8b81c197",
+        "activeVersionId": "9f1a463a-bca9-4b3c-82b1-725e8b81c197",
+        "percentage": 100,
+        "deploymentId": "452a2850-81ca-4bf8-a45b-b1474e7f11aa",
+        "deployedAt": "2026-09-24T23:22:17.452212Z"
+      },
+      "pages": {
+        "deploymentId": "0ae43c47d3a216e480d01abf14036e97cb2dcd70",
+        "artifactId": 10838448086,
+        "jobStepConclusion": "success"
+      },
+      "retention": {
+        "releaseId": "75f860f6da674427159a5ba8c5c2ecb0d7e208c49a35d168dcd16877dcf6a370",
+        "releaseCount": 2,
+        "branch": "atlas-asset-releases",
+        "commit": "09f271122e2436bc642deddabe1dfc7f8cecf93e"
+      },
+      "backendProbeLimit": "The successful deployment probe checks endpoint presence and anonymous denial, not required projection availability."
+    },
+    "project": {
+      "status": "ACTIVE_HEALTHY",
+      "postgresVersion": "17.6.1.127",
+      "computeSize": "not exposed by project read API; not independently verified"
+    },
+    "readiness": {
+      "parent": {
+        "version": 1,
+        "unchanged": true,
+        "updatedAt": "2026-09-19T02:36:25.886387+00:00",
+        "archiveHash": "44fff7341af4fe69f97dffe49736f7d6b81c1c465a59ac1477cdc745443d261f",
+        "payloadHash": "05c889b5561ad4b74ac0440891e6e5600b0371aa40c1662792106c07ed59ea92"
+      },
+      "observedAt": "2026-09-24T23:28:13.959171+00:00",
+      "projectionCurrentRows": 0,
+      "projectionVersionRows": 0,
+      "projectionAuditRowsAll": 0
+    },
+    "signedInObservation": {
+      "observedAtApproximate": "2026-09-24T23:30:00Z",
+      "host": "Pages",
+      "source": "release coordinator live browser observation",
+      "messages": [
+        "Workspace source unavailable",
+        "Source projection is not ready."
+      ],
+      "startupUsable": false,
+      "originalBudgetTabTouched": false
+    },
+    "recovery": {
+      "status": "deployed and functionally verified",
+      "receipt": "client-recovery.json",
+      "sourceCommit": "3d80173de32f227410663662a523932c50ecaa2b",
+      "releaseId": "92989f640671df582527300a54b79cc80d46f0c4300564528c333d72cdbae540",
+      "workflowRunId": 36073964558,
+      "preservedMigrationCountAtVerification": 80,
+      "preserveOperationalSourceAndHistory": true,
+      "publicationRetryQueued": false,
+      "computeChanged": false,
+      "normalCurrentClientActivationGate": "closed"
+    }
+  }
 }

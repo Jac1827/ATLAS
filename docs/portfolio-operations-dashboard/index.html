@@ -1464,6 +1464,7 @@
 <script src="./application-performance-ui.js?v=76767fc8f24b44d6"></script>
 <script src="./reforecast-consumers.js?v=4455e5ad00727654"></script>
 <script src="./community-goal-editor.js?v=5759e5235bdacc20"></script>
+<script src="./market-save-guards.js?v=ccab560e7bf3bf6e"></script>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -3350,6 +3351,9 @@ let renewalImportLog = [];
 let renewalImportSourceLabel = "";
 let renewalDetailRowsByMonth = defaultRenewalDetailRowsByMonth();
 let marketSurveyImportLog = [];
+let marketSurveyImportOperation = null;
+let atlasSaveAuthRevision = 0;
+window.addEventListener("atlas-central-auth-change", invalidateAtlasSaveContext);
 let marketSurveyImportSourceLabel = "";
 let historicalImportTarget = defaultHistoricalImportTarget();
 let latestDlrSummary = defaultDlrSummary();
@@ -5696,15 +5700,16 @@ function openAtlasStateDb() {
   return atlasStateDbPromise;
 }
 
-async function withAtlasStateStore(mode, action) {
+async function withAtlasStateStore(mode, action, isCurrent = null) {
   const db = await openAtlasStateDb();
+  assertAtlasSaveContext(isCurrent);
   if (!db) { if(mode === "readwrite")throw new Error("Canonical ATLAS storage is unavailable."); return null; }
   return await new Promise((resolve, reject) => {
     const tx = db.transaction(ATLAS_STATE_STORE_NAME, mode);
     const store = tx.objectStore(ATLAS_STATE_STORE_NAME);
     let request = null;
     try {
-      request = action(store);
+      request = action(store, tx);
     } catch (error) {
       tx.abort();
       reject(error);
@@ -5721,37 +5726,41 @@ async function atlasStateGetValue(key) {
   return record?.value ?? null;
 }
 
-async function atlasStateSetValue(key, value) {
+async function atlasStateSetValue(key, value, isCurrent = null) {
   if (String(key) === ATLAS_STATE_COMMUNITY_KEY && window.AtlasOccupancyReplay?.protectCommittedOccupancy) {
-    await withAtlasStateStore("readwrite", store => {
+    await withAtlasStateStore("readwrite", (store, tx) => {
       const request = store.get(String(key));
-      request.onsuccess = () => store.put({key:String(key), value:window.AtlasOccupancyReplay.protectCommittedOccupancy(value,request.result?.value), updatedAt:new Date().toISOString()});
+      request.onsuccess = () => {
+        if (isCurrent && !isCurrent()) { tx.abort(); return; }
+        store.put({key:String(key), value:window.AtlasOccupancyReplay.protectCommittedOccupancy(value,request.result?.value), updatedAt:new Date().toISOString()});
+      };
       return request;
-    });
+    }, isCurrent);
     return;
   }
   await withAtlasStateStore("readwrite", store => store.put({
     key: String(key),
     value,
     updatedAt: new Date().toISOString()
-  }));
+  }), isCurrent);
 }
 
 async function atlasStateDeleteValue(key) {
   await withAtlasStateStore("readwrite", store => store.delete(String(key)));
 }
 
-function queueAtlasStateWrite(task, source = "atlas_state_write") {
+function queueAtlasStateWrite(task, source = "atlas_state_write", isCurrent = null) {
   atlasStateWritePromise = atlasStateWritePromise
     .then(async () => {
       await task();
+      if (isCurrent && !isCurrent()) return;
       atlasPersistenceMeta.lastSavedAt = new Date().toISOString();
       atlasPersistenceMeta.source = source;
       clearAtlasPersistenceError();
       persistAtlasPersistenceMeta();
     })
     .catch(error => {
-      markAtlasPersistenceError(error, `ATLAS data write failed for ${source}.`);
+      if (!isCurrent || isCurrent()) markAtlasPersistenceError(error, `ATLAS data write failed for ${source}.`);
       return null;
     });
   return atlasStateWritePromise;
@@ -8285,10 +8294,11 @@ function readOpsGlobalStorageRaw() {
   return opsGlobalStorageCache === null ? localStorage.getItem(OPS_GLOBAL_STORAGE_KEY) : JSON.stringify(opsGlobalStorageCache);
 }
 
-async function writeOpsGlobalStorage(payload) {
+async function writeOpsGlobalStorage(payload, isCurrent = null) {
   if (!await openAtlasStateDb()) throw new Error("ATLAS browser database is unavailable. Keep this tab open and retry saving.");
-  await atlasStateSetValue(OPS_GLOBAL_STORAGE_KEY, payload);
+  await atlasStateSetValue(OPS_GLOBAL_STORAGE_KEY, payload, isCurrent);
   const verified = await atlasStateGetValue(OPS_GLOBAL_STORAGE_KEY);
+  assertAtlasSaveContext(isCurrent);
   if (JSON.stringify(verified) !== JSON.stringify(payload)) throw new Error("ATLAS settings storage verification failed. Keep this tab open.");
   // Remove only the duplicate small-store copy, after the larger-store transaction is verified.
   try { localStorage.removeItem(OPS_GLOBAL_STORAGE_KEY); } catch {}
@@ -8311,18 +8321,21 @@ async function hydrateOpsGlobalStorage() {
   }
 }
 
-function persistOpsGlobalSnapshot(payload) {
+function persistOpsGlobalSnapshot(payload, isCurrent = null) {
   const snapshot = JSON.parse(JSON.stringify(payload));
   opsGlobalStorageCache = snapshot;
   const result = { ok: true, pending: true, completion: null, message: "" };
   result.completion = queueAtlasStateWrite(async () => {
-    try { await writeOpsGlobalStorage(snapshot); result.pending = false; }
+    try {
+      assertAtlasSaveContext(isCurrent);
+      await writeOpsGlobalStorage(snapshot, isCurrent); result.pending = false;
+    }
     catch (error) {
       result.ok = false; result.pending = false; result.message = error.message;
-      alert(`ATLAS settings could not be saved. Your changes remain in this tab. Keep it open and retry. ${error.message}`);
+      if (!isCurrent || isCurrent()) alert(`ATLAS settings could not be saved. Your changes remain in this tab. Keep it open and retry. ${error.message}`);
       throw error;
     }
-  }, "global_settings_indexeddb");
+  }, "global_settings_indexeddb", isCurrent);
   return result;
 }
 
@@ -8355,7 +8368,7 @@ function queuePersistedPhotoStorageCompaction() {
   });
 }
 
-function persistOpsGlobalData() {
+function persistOpsGlobalData(isCurrent = null) {
   const currentApplicationState = applicationResidentDataState;
   applyOpsGlobalData({
     investorPacketState: atlasInvestorPacketState,
@@ -8391,7 +8404,7 @@ function persistOpsGlobalData() {
   });
   // Shared rows stay session-only, but saving unrelated settings must not erase them.
   applicationResidentDataState = currentApplicationState;
-  return persistOpsGlobalSnapshot(opsGlobalData);
+  return persistOpsGlobalSnapshot(opsGlobalData, isCurrent);
 }
 
 function getBonusRoles() { return bonusRolesByQ[bonusQuarter]; }
@@ -10233,19 +10246,21 @@ window.addEventListener("storage", async event => {
   renderTab();
 });
 
-function persistSaved() {
+function persistSaved(isCurrent = null) {
   const serialized = buildSerializedSavedDataPayload();
   const result = { ok: true, pending: true, completion: null, message: "" };
   result.completion = queueAtlasStateWrite(async () => {
     try {
-      await atlasStateSetValue(ATLAS_STATE_COMMUNITY_KEY, serialized);
+      assertAtlasSaveContext(isCurrent);
+      await atlasStateSetValue(ATLAS_STATE_COMMUNITY_KEY, serialized, isCurrent);
+      assertAtlasSaveContext(isCurrent);
       removeLegacyCommunityStorageKeys();
       result.pending = false;
     } catch (error) {
       result.ok = false; result.pending = false; result.message = error.message;
       throw error;
     }
-  }, "community_data");
+  }, "community_data", isCurrent);
   dashboardSharedSyncMeta.lastAppliedAt = new Date().toISOString();
   dashboardSharedSyncMeta.lastError = "";
   persistDashboardSharedSyncMeta();
@@ -15265,6 +15280,8 @@ function carryForwardMonthlyData(fromMonth) {
 
 function saveCommunityData(silent = false) {
   if (activeTab === 1 && !isCommunitySettingsAdmin()) return false;
+  const isCurrent = captureAtlasSaveContext();
+  if (!isCurrent()) return false;
   const scopeCommunityName = isPortfolioWorkspaceSelected()
     ? getProp().name
     : (matchPropertyName(workspaceScopeValue, { fallbackToCurrent: false }) || getProp().name);
@@ -15285,24 +15302,24 @@ function saveCommunityData(silent = false) {
   savedData[key] = getCurrentCommunityRecord();
   syncSharedPropertyFromPortfolioRecord(key, savedData[key], { source: "portfolio_community_save", persist: true });
   persistOpsPropertyCatalog();
-  const savedResult = persistSaved();
+  const savedResult = persistSaved(isCurrent);
   queueDailyBackupSnapshotWrite("save_community_data");
-  const globalResult = persistOpsGlobalData();
+  const globalResult = persistOpsGlobalData(isCurrent);
   renderPropGrid();
   if (activeTab === 9 && bonusCalcView === "jac") renderTab();
-  const failures = [savedResult, globalResult].filter(result => result && result.ok === false).map(result => result.message);
-  if (failures.length > 0) {
-    alert(`⚠️ ${failures.join(" ")}`);
-    return;
-  }
-  if (!silent) {
-    const saveScopeLabel = isPortfolioWorkspaceSelected()
-      ? `${PORTFOLIO_SCOPE_LABEL} (active community saved: ${key})`
-      : key;
-    Promise.resolve(globalResult.completion).then(() => {
-      if (globalResult.ok) alert(`✅ Saved data for ${saveScopeLabel}`);
-    });
-  }
+  const saveScopeLabel = isPortfolioWorkspaceSelected()
+    ? `${PORTFOLIO_SCOPE_LABEL} (active community saved: ${key})`
+    : key;
+  void awaitAtlasPersistenceResults([
+    { result: savedResult, label: "Community data" },
+    { result: globalResult, label: "Settings" }
+  ]).then(() => {
+    if (!silent && isCurrent()) alert(`✅ Saved data for ${saveScopeLabel}`);
+    return true;
+  }).catch(error => {
+    if (isCurrent()) alert(`⚠️ ${error.message}`);
+    return false;
+  });
   if (!suppressDashboardSharedSyncPush && !atlasCentralLegacyBundleDisabled()) {
     queueDashboardSharedSyncPush("dashboard_save");
   }
@@ -22033,13 +22050,27 @@ function attachEventListeners() {
     });
   }
   document.querySelectorAll("#market-survey-input").forEach(marketSurveyInput => {
+    marketSurveyInput.disabled = Boolean(marketSurveyImportOperation?.isCurrent());
     if (marketSurveyInput.dataset.atlasBoundChange === "1") return;
     marketSurveyInput.dataset.atlasBoundChange = "1";
-    marketSurveyInput.addEventListener("change", function(e) {
+    marketSurveyInput.addEventListener("change", async function(e) {
       const files = Array.from(e.target.files || []);
-      if (files.length === 0) return;
-      processMarketSurveyFiles(files);
-      e.target.value = "";
+      if (files.length === 0 || marketSurveyInput.disabled) return;
+      const isCurrent = captureAtlasSaveContext();
+      if (!isCurrent()) return;
+      marketSurveyInput.disabled = true;
+      try {
+        await processMarketSurveyFiles(files);
+      } catch (error) {
+        if (isCurrent()) {
+          marketSurveyImportSourceLabel = "";
+          marketSurveyImportLog = [`⚠️ Market survey upload failed: ${error?.message || "Unknown error"}`];
+          renderTab();
+        }
+      } finally {
+        marketSurveyInput.disabled = Boolean(marketSurveyImportOperation?.isCurrent());
+        e.target.value = "";
+      }
     });
   });
   document.querySelectorAll("#dlr-box-score-input, .dlr-box-score-input").forEach(dlrBoxScoreInput => {
@@ -29176,13 +29207,17 @@ function applyBudgetWorkbookFloorPlanRatesToProperty(propName, budgetInput, file
   return { matchedName, floorPlans: record.communityFloorPlans, survey: nextSurvey };
 }
 
-async function handleMarketSurveyWorkbook(file) {
+async function handleMarketSurveyWorkbook(file, isCurrent = captureAtlasSaveContext()) {
+  if (!isCurrent()) return null;
   if (typeof XLSX === "undefined") {
     marketSurveyImportLog.push("❌ Market survey parser is unavailable because the XLSX library did not load.");
     return null;
   }
-  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const buffer = await file.arrayBuffer();
+  if (!isCurrent()) return null;
+  const workbook = XLSX.read(buffer, { type: "array" });
   const parsed = extractMarketSurveyWorkbookData(workbook, file.name);
+  if (!isCurrent()) return null;
   if (!parsed.communityName) {
     marketSurveyImportLog.push(`⚠️ ${file.name} could not be matched to a community. Update the workbook title or file name and try again.`);
     return null;
@@ -29200,9 +29235,12 @@ async function handleMarketSurveyWorkbook(file) {
   return applied.matchedName;
 }
 
-async function handleMarketSurveyPdf(file) {
+async function handleMarketSurveyPdf(file, isCurrent = captureAtlasSaveContext()) {
+  if (!isCurrent()) return null;
   const fullText = await extractPdfTextFromFile(file, { preserveLines: true });
+  if (!isCurrent()) return null;
   const parsed = parseAptiqMarketSurveyPdfText(fullText, file.name);
+  if (!isCurrent()) return null;
   if (!parsed || !parsed.communityName) {
     marketSurveyImportLog.push(`⚠️ ${file.name} did not contain a recognizable APTIQ market survey layout.`);
     return null;
@@ -29381,30 +29419,56 @@ function clearCurrentCommunityMarketSurvey() {
 }
 
 async function processMarketSurveyFiles(files) {
-  marketSurveyImportLog = [];
-  const touchedProps = new Set();
-  for (const file of files) {
-    const lowerName = String(file.name || "").toLowerCase();
-    if (lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls") || lowerName.endsWith(".xlsm")) {
-      const matchedName = await handleMarketSurveyWorkbook(file);
-      if (matchedName) touchedProps.add(matchedName);
-    } else if (lowerName.endsWith(".pdf")) {
-      const matchedName = await handleMarketSurveyPdf(file);
-      if (matchedName) touchedProps.add(matchedName);
-    } else {
-      marketSurveyImportLog.push(`⚠️ ${file.name} is not a supported market survey upload. Use XLSX, XLSM, XLS, or PDF.`);
+  if (marketSurveyImportOperation?.isCurrent()) return false;
+  const isCurrent = captureAtlasSaveContext();
+  if (!isCurrent()) return false;
+  const operation = { isCurrent };
+  marketSurveyImportOperation = operation;
+  updateMarketSurveyImportInputs();
+  try {
+    marketSurveyImportLog = [];
+    marketSurveyImportSourceLabel = "";
+    const touchedProps = new Set();
+    for (const file of files) {
+      if (!isCurrent()) return false;
+      const lowerName = String(file.name || "").toLowerCase();
+      if (lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls") || lowerName.endsWith(".xlsm")) {
+        const matchedName = await handleMarketSurveyWorkbook(file, isCurrent);
+        if (matchedName) touchedProps.add(matchedName);
+      } else if (lowerName.endsWith(".pdf")) {
+        const matchedName = await handleMarketSurveyPdf(file, isCurrent);
+        if (matchedName) touchedProps.add(matchedName);
+      } else {
+        marketSurveyImportLog.push(`⚠️ ${file.name} is not a supported market survey upload. Use XLSX, XLSM, XLS, or PDF.`);
+      }
+    }
+    if (!isCurrent()) return false;
+    if (touchedProps.size > 0) {
+      try {
+        const savedResult = persistSaved(isCurrent);
+        await awaitAtlasPersistenceResults([{ result: savedResult, label: "Market survey data" }]);
+      } catch (error) {
+        if (isCurrent()) {
+          marketSurveyImportSourceLabel = "";
+          marketSurveyImportLog = [`⚠️ ${error?.message || "Market survey data could not be saved. Keep this tab open and retry."}`];
+          renderTab();
+        }
+        return false;
+      }
+      if (!isCurrent()) return false;
+      marketSurveyImportSourceLabel = touchedProps.size === 1
+        ? `${[...touchedProps][0]} market survey updated`
+        : `${touchedProps.size} community market surveys updated`;
+      renderPropGrid();
+    }
+    renderTab();
+    return touchedProps.size > 0;
+  } finally {
+    if (marketSurveyImportOperation === operation) {
+      marketSurveyImportOperation = null;
+      updateMarketSurveyImportInputs();
     }
   }
-  if (touchedProps.size > 0) {
-    marketSurveyImportSourceLabel = touchedProps.size === 1
-      ? `${[...touchedProps][0]} market survey updated`
-      : `${touchedProps.size} community market surveys updated`;
-    persistSaved();
-    renderPropGrid();
-  } else {
-    marketSurveyImportSourceLabel = "";
-  }
-  renderTab();
 }
 
 function renderRenewalsTab() {

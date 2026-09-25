@@ -39,11 +39,11 @@
  };
  const go=A.go;
  let packageReview;
- A.openFinancialPackageReview=async function(scope){try{packageReview=await import('./features/financial-package-review.mjs?v=38bc242196bb9395');await packageReview.openReview(scope);}catch(e){A.toast(e.message,'r');}};
+ A.openFinancialPackageReview=async function(scope){try{packageReview=await import('./features/financial-package-review.mjs?v=30c91b687eb1213c');await packageReview.openReview(scope);}catch(e){A.toast(e.message,'r');}};
  let sharedViewSequence=0;
  function sharedActualsPanel(title='Actuals & Close'){
   const sequence=++sharedViewSequence,communityName=A.prop?.()?.name||A.cp?.()?.property?.name,year=A.year?.();
-  setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el||sequence!==sharedViewSequence)return;try{const m=await import('./features/financial-comparison.mjs?v=a83501c3eacb9204');if(!el.isConnected||sequence!==sharedViewSequence)return;await m.mountComparison(el,{communityName,year});}catch(e){if(el.isConnected&&sequence===sharedViewSequence){el.setAttribute('role','alert');el.textContent='Shared financial records could not load: '+e.message;}}},0);
+  setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el||sequence!==sharedViewSequence)return;try{const m=await import('./features/financial-comparison.mjs?v=7e3427a60c3abae2');if(!el.isConnected||sequence!==sharedViewSequence)return;await m.mountComparison(el,{communityName,year});}catch(e){if(el.isConnected&&sequence===sharedViewSequence){el.setAttribute('role','alert');el.textContent='Shared financial records could not load: '+e.message;}}},0);
   return '<div class="panel"><h2>'+esc(title)+'</h2><p>Published monthly actuals and their approved original-budget comparison are read from shared financial versions. Screen, PDF, CSV and Excel cite the same retained snapshot fingerprint. Missing or open months are identified below.</p>'+
    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn pri" onclick="RBB.app.openFinancialPackageReview()">Upload or read saved financial review</button><button class="btn sec" onclick="RBB.app.go(\'reforecastgap\')">Reforecast reports</button><button class="btn sec" onclick="RBB.app.go(\'reforecast\')">Working reforecasts</button><button class="btn sec" onclick="RBB.app.go(\'reforecastapprovals\')">Approval Center</button></div>'+
    '<p>Reforecast reports identify each saved version as a draft, locked version, or published active benchmark. Select a published active version for official forecast reporting.</p><p>Upload → classify → confirm → map → reconcile → save review → Admin close → canonical publication → verified readback</p></div><section class="panel" id="shared-financial-comparison"><p>Loading shared financial records…</p></section>';
@@ -97,7 +97,7 @@
   dialog.addEventListener('close',()=>dialog.remove(),{once:true});document.body.append(dialog);render();dialog.showModal();input.focus();
  };
  document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();A.openCommandMenu();}});
- if(typeof window!=='undefined'&&window.parent!==window&&new URLSearchParams(location.search).get('investorReader')!=='1')import('./features/financial-close.mjs?v=11fb3f7dc122e6b3').then(async m=>{
+ if(typeof window!=='undefined'&&window.parent!==window&&new URLSearchParams(location.search).get('investorReader')!=='1')import('./features/financial-close.mjs?v=224bea19c4501bce').then(async m=>{
    const central=window.parent.ATLAS_CENTRAL;if(!central||!window.parent.atlasAccessDecision?.(12)?.ok)return;
    const [communities,aliases,matcher]=await Promise.all([central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000'),import('./features/financial-package.mjs?v=a378a0cb25083758')]);
    const resolve=name=>matcher.resolveCommunity(name,communities,aliases).communityId;

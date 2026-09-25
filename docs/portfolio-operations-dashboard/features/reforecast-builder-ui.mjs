@@ -1,10 +1,10 @@
-import {savedStrProgrammeHtml} from './reforecast-str-saved-programme-ui.mjs?v=b59b360435a0cff9';
+import {savedStrProgrammeHtml} from './reforecast-str-saved-programme-ui.mjs?v=4880c26317beb437';
 /* Guided forecast setup and reviewed source inputs. Authoritative writes use reforecast RPCs. */
-import * as store from './reforecast-store.mjs?v=a31fb99b0826a753';
-import {readUtilityRecommendations,utilityRecoveryRows} from './reforecast-utility.mjs?v=a9964c0939b8a890';
+import * as store from './reforecast-store.mjs?v=687b772cb423649c';
+import {readUtilityRecommendations,utilityRecoveryRows} from './reforecast-utility.mjs?v=cef9d4672d252137';
 import {defaultForecastPeriods,validateForecastPeriods} from './reforecast-engine.mjs?v=addea678a6fc086d';
 import {assertRiseOverlay,riseReviewScope} from './reforecast-str-overlay.mjs?v=ecc60c5b054f76d1';
-import {esc,money,finite} from './reforecast-report.mjs?v=255e3fd3cc5aa869';
+import {esc,money,finite} from './reforecast-report.mjs?v=ccc7913627b8e2e0';
 import {calculateStrLeasingSchedule,mappedProviderStatement,inspectProviderStatement,providerStatementPublicSummary,recommendStrStatementBehavior,calculateContractDriver,createContractOverride} from './reforecast-provider.mjs?v=a98ef0ea03564c4a';
 
 const uuid=()=>crypto.randomUUID();

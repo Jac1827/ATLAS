@@ -1,4 +1,4 @@
-import {parseReforecastWorkbook,hashReforecastWorkbook} from './reforecast-intake.mjs?v=1f8bae00926f1f93';
+import {parseReforecastWorkbook,hashReforecastWorkbook} from './reforecast-intake.mjs?v=87e68da483f77228';
 import {canonicalWorkbookEvidence,workbookEvidenceHash,compareWorkbookEvidence} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
 
 const PERIOD=/^20\d{2}-(0[1-9]|1[0-2])$/;

@@ -1,4 +1,4 @@
-import {REFORECAST_PARSER_VERSION,parseReforecastWorkbook,hashReforecastWorkbook} from './reforecast-intake.mjs';
+import {REFORECAST_PARSER_VERSION,parseReforecastWorkbook,hashReforecastWorkbook} from './reforecast-intake.mjs?v=87e68da483f77228';
 export const currentReforecastParserVersion=REFORECAST_PARSER_VERSION;
 export function needsReforecastParserRecovery(evidence){return evidence?.parserVersion!==REFORECAST_PARSER_VERSION;}
 export async function upgradeReforecastParserEvidence(evidence,{xlsx,sourceBytes,previousUploadId=null,previousAuditId=null}={}){

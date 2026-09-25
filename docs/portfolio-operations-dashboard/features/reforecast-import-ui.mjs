@@ -1,11 +1,11 @@
-import {currentReforecastParserVersion,needsReforecastParserRecovery,upgradeReforecastParserEvidence} from './reforecast-parser-recovery.mjs';
+import {currentReforecastParserVersion,needsReforecastParserRecovery,upgradeReforecastParserEvidence} from './reforecast-parser-recovery.mjs?v=962f6c9558c4700f';
 import {persistWorkbookAudit,readWorkbookAudit,readWorkbookAuditBytes,listPendingWorkbookUploads,cancelWorkbookStaging} from './workbook-audit-store.mjs?v=3f5ee248a90b8d0e';
 import {compareWorkbookEvidence} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
 import {reviewPlanningInputs,planningMappingDispositions} from './planning-governance.mjs?v=a4de8d3f5a50966c';
-import {parseReforecastWorkbook,mapReforecastIntake,validateReforecastPropertyAssignment} from './reforecast-intake.mjs?v=1f8bae00926f1f93';
+import {parseReforecastWorkbook,mapReforecastIntake,validateReforecastPropertyAssignment} from './reforecast-intake.mjs?v=87e68da483f77228';
 import {saveUpload,readSourceBundle} from './reforecast-store.mjs?v=a31fb99b0826a753';
 import {saveForecastRecovery,readForecastRecovery,listForecastRecovery,removeForecastRecovery} from './reforecast-recovery.mjs?v=33b82bf4c03a6af8';
-import {prepareScopedReforecastEvidence,reforecastAuthoritySelectionKey} from './reforecast-authority.mjs?v=c513b460fd9506b7';
+import {prepareScopedReforecastEvidence,reforecastAuthoritySelectionKey} from './reforecast-authority.mjs?v=f6c72da26c9add9c';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=()=>crypto.randomUUID();

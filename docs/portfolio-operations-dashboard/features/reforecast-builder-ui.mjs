@@ -1,11 +1,11 @@
-import {savedStrProgrammeHtml} from './reforecast-str-saved-programme-ui.mjs';
+import {savedStrProgrammeHtml} from './reforecast-str-saved-programme-ui.mjs?v=6ef1322ce4a7f3d7';
 /* Guided forecast setup and reviewed source inputs. Authoritative writes use reforecast RPCs. */
 import * as store from './reforecast-store.mjs?v=a31fb99b0826a753';
-import {readUtilityRecommendations,utilityRecoveryRows} from './reforecast-utility.mjs?v=887b56d28357e4a7';
-import {defaultForecastPeriods,validateForecastPeriods} from './reforecast-engine.mjs?v=a3963515accfd259';
-import {assertRiseOverlay,riseReviewScope} from './reforecast-str-overlay.mjs?v=7ea313b5a28ccc4f';
-import {esc,money,finite} from './reforecast-report.mjs?v=882dbbd6781f93e6';
-import {calculateStrLeasingSchedule,mappedProviderStatement,inspectProviderStatement,providerStatementPublicSummary,recommendStrStatementBehavior,calculateContractDriver,createContractOverride} from './reforecast-provider.mjs?v=b7cefe47481b6ebe';
+import {readUtilityRecommendations,utilityRecoveryRows} from './reforecast-utility.mjs?v=a9964c0939b8a890';
+import {defaultForecastPeriods,validateForecastPeriods} from './reforecast-engine.mjs?v=addea678a6fc086d';
+import {assertRiseOverlay,riseReviewScope} from './reforecast-str-overlay.mjs?v=ecc60c5b054f76d1';
+import {esc,money,finite} from './reforecast-report.mjs?v=255e3fd3cc5aa869';
+import {calculateStrLeasingSchedule,mappedProviderStatement,inspectProviderStatement,providerStatementPublicSummary,recommendStrStatementBehavior,calculateContractDriver,createContractOverride} from './reforecast-provider.mjs?v=a98ef0ea03564c4a';
 
 const uuid=()=>crypto.randomUUID();
 const clone=value=>structuredClone(value);
@@ -170,7 +170,7 @@ export async function sourceDialog(s,{dialog,render,mark}){
     if(epoch!==inspectionEpoch||!el.isConnected)return;
     body.querySelector('[data-source-preview]').innerHTML=`<h3>Reconciliation review</h3><pre>${esc(JSON.stringify(providerStatementPublicSummary(statement),null,2))}</pre>`;
    }else{
-    const {encodeOriginalWorkbook}=await import('./reforecast-intake.mjs?v=1f8bae00926f1f93');
+    const {encodeOriginalWorkbook}=await import('./reforecast-intake.mjs?v=87e68da483f77228');
     const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(value=>value.toString(16).padStart(2,'0')).join(''),contract=sourceType==='contract'?Object.fromEntries([...body.querySelectorAll('[data-contract]')].map(input=>[input.dataset.contract,input.type==='number'?optionalNumber(input.value):input.value||null])):null;
     nextCandidate={sourceType,source:{...metadata,fileName:file.name,sha256:hash,originalFile:encodeOriginalWorkbook(bytes)},propertyAssignment:{communityId:s.cid,confirmed:true},summary:{periods:[period]},contract,reviewState:'needs_review'};
     if(['rise_str','monthly_property_statement'].includes(sourceType)){

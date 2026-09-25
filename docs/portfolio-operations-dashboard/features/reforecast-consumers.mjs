@@ -1,5 +1,5 @@
 import {readActive,effectiveActiveSnapshot} from './reforecast-store.mjs?v=a31fb99b0826a753';
-import {esc,money,reportHtml,exportRows,csv,download} from './reforecast-report.mjs?v=882dbbd6781f93e6';
+import {esc,money,reportHtml,exportRows,csv,download} from './reforecast-report.mjs?v=255e3fd3cc5aa869';
 const finitePercent=value=>typeof value==='number'&&Number.isFinite(value)?(value*100).toFixed(2)+'%':'Unavailable';
 // One publication reader shared by operating screens, plan/report evidence and Scout.
 export function createActiveReforecastCache(central){

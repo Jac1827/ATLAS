@@ -14,6 +14,10 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
  await db.exec(read('20260924121647_immutable_workbook_audits_and_monthly_governance.sql').split('alter function atlas_private.finance_intake_validation')[0]);
  for(const name of ['20260924165534_reforecast_builder_governance.sql','20260924165542_reforecast_report_receipts.sql','20260924232842_reforecast_governed_close_scope.sql','20260924232853_reforecast_str_overlay_isolation.sql','20260924235553_reforecast_active_import_close_scope.sql','20260925012933_reforecast_atomic_create_from_import.sql','20260925020220_reforecast_import_source_relationships.sql'])await db.exec(read(name));
  await db.exec(read('20260925011545_workbook_audit_validation_performance.sql').split('-- Read committed upload status')[0]+'commit;');
+ // Exercise the deployed transaction, including its single-pass source index.
+ // Otherwise this optional actual-file test silently measures the retired
+ // correlated guard instead of the production import implementation.
+ await db.exec(read('20260925020226_reforecast_import_source_occurrence_index.sql'));
  const periods=['2026-09','2026-10','2026-11','2026-12'],selected=evidence.lines.filter(l=>l.scenario==='Plan'&&periods.includes(l.period)&&l.amount!==null);
  // Independent source oracle reads vendor GL labels and month headers directly;
  // it never calls the production account normalizer or derives values from rows

@@ -1,3 +1,4 @@
+import {verifyImportReadback} from './reforecast-store.mjs?v=a31fb99b0826a753';
 // Recovery copies are never calculation authority. Shared server receipts decide
 // whether a write committed; browser records retain the exact request for retry.
 const DB='atlas-reforecast-recovery-v1',STORE='recovery';
@@ -15,6 +16,43 @@ export async function saveForecastRecovery(central,id,value){
  await access(central,'readwrite',(store,actor)=>store.put({...structuredClone(value),key:actor+':'+id,id,actor,updatedAt:new Date().toISOString()}));
  return id;
 }
+export async function saveForecastRecoveryEntries(central,entries){
+ if(!Array.isArray(entries)||!entries.length||entries.some(row=>!row.id||!row.value?.kind||row.ifAbsent&&row.value.kind!=='workbook-evidence')||new Set(entries.map(row=>row.id)).size!==entries.length)throw Error('Distinct recovery identities and kinds are required.');
+ // Immutable workbook evidence is only cloned by IndexedDB if its shared copy
+ // is missing; editing a field must not rewrite the complete workbook each time.
+ const retained=entries.map(row=>row.ifAbsent?{...row}:structuredClone(row)),updatedAt=new Date().toISOString();
+ await access(central,'readwrite',(store,actor)=>{for(const {id,value,ifAbsent} of retained){const put=()=>store.put({...value,key:actor+':'+id,id,actor,updatedAt});if(ifAbsent){const read=store.get(actor+':'+id);read.onsuccess=()=>{if(!read.result)put();};}else put();}});
+}
 export async function readForecastRecovery(central,id){return await access(central,'readonly',(store,actor)=>store.get(actor+':'+id))||null;}
-export async function listForecastRecovery(central){const actor=scope(central),rows=await access(central,'readonly',store=>store.getAll());return rows.filter(row=>row.actor===actor&&!['workbook-evidence','import-complete'].includes(row.kind)).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));}
+export async function listForecastRecovery(central){const actor=scope(central),rows=await access(central,'readonly',store=>store.getAll());return rows.filter(row=>row.actor===actor&&row.kind!=='workbook-evidence').sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));}
 export async function removeForecastRecovery(central,id){await access(central,'readwrite',(store,actor)=>store.delete(actor+':'+id));}
+
+// Delete an import's linked recovery records in one transaction, only after its
+// exact committed cells have been verified. Another review of the same file can
+// still own the shared workbook bytes; actor namespaces never share ownership.
+export async function completeForecastImportRecovery(central,{recoveryId,result}){
+ if(!recoveryId)throw Error('Keep the import recovery identity until exact readback is verified.');
+ await access(central,'readwrite',(store,actor)=>{
+  const scan=store.getAll();scan.onsuccess=()=>{
+   try{
+    if(identity(central)!==actor)throw Error('The signed-in account changed.');
+    const rows=scan.result.filter(row=>row.actor===actor),pending=rows.find(row=>row.id===recoveryId);
+    if(!pending)return;
+    if(!['import-write','import-complete'].includes(pending.kind)||!pending.request)throw Error('A retained import request is required before releasing its recovery copy.');
+    verifyImportReadback(result,pending.request);
+    const review=rows.find(row=>row.id===pending.reviewId&&row.kind==='import-review'),byId=new Map(rows.map(row=>[row.id,row]));
+    const evidenceId=row=>{
+     if(row.evidenceId)return row.evidenceId;
+     if(row.reviewId&&byId.get(row.reviewId)?.evidenceId)return byId.get(row.reviewId).evidenceId;
+     const hashes=[...new Set((row.request?.expectedLines||[]).map(line=>line.sourceHash).filter(Boolean))];
+     return hashes.length===1&&row.request?.parserVersion?'workbook:'+hashes[0]+':'+row.request.parserVersion:null;
+    };
+    const remove=new Set([pending.id]);
+    if(review&&pending.reviewVersion&&review.reviewVersion===pending.reviewVersion&&!rows.some(row=>row.id!==pending.id&&row.reviewId===review.id))remove.add(review.id);
+    const evidenceIds=new Set([evidenceId(pending),review?.evidenceId].filter(Boolean)),remaining=rows.filter(row=>!remove.has(row.id)),sourceHashes=[...new Set((pending.request.expectedLines||[]).map(line=>line.sourceHash).filter(Boolean))],sourceHash=result.receipt.sourceHash||(sourceHashes.length===1?sourceHashes[0]:null);
+    for(const id of evidenceIds){const evidence=byId.get(id);if(sourceHash&&evidence?.kind==='workbook-evidence'&&evidence.evidence?.source?.sha256===sourceHash&&!remaining.some(row=>row.id!==id&&evidenceId(row)===id))remove.add(id);}
+    for(const id of remove)store.delete(actor+':'+id);
+   }catch{store.transaction.abort();}
+  };
+ });
+}

@@ -1,6 +1,24 @@
 // Local read-only replay. Fixture files and results stay in ignored output/.
 import os from 'node:os';import fs from 'node:fs';import http from 'node:http';import path from 'node:path';import crypto from 'node:crypto';import {createRequire} from 'node:module';
 import {pathToFileURL} from 'node:url';
+// These observations do not make a loading card or disabled navigation usable.
+function readReplayShellObservation() {
+ const entry=performance.getEntriesByName('atlas:time-to-authenticated-shell').at(-1);
+ return {authenticatedShellMs:entry?.duration??null,authenticatedShellUnavailableReason:entry?null:'This build did not record a verified interactive authenticated-shell paint.'};
+}
+async function resetIsolatedReplayStorage(expectedOrigin) {
+ if(location.origin!==expectedOrigin || location.hostname!=='127.0.0.1')throw Error('Refusing to reset storage outside the isolated replay origin');
+ if(typeof indexedDB.databases!=='function')throw Error('Cannot prove empty replay storage in this browser');
+ const databases=await indexedDB.databases();
+ for(const database of databases)await new Promise((resolve,reject)=>{
+  const request=indexedDB.deleteDatabase(database.name);
+  request.onsuccess=resolve;request.onerror=()=>reject(request.error);request.onblocked=()=>reject(Error('Replay database still has an open connection'));
+ });
+ localStorage.clear();sessionStorage.clear();
+ const remaining=await indexedDB.databases();
+ if(remaining.length)throw Error('Replay storage was not completely cleared');
+ return {storageInitiallyEmpty:true,initialDatabaseCount:remaining.length};
+}
 if(process.argv.includes('--help')||!process.argv[2]){console.log('Usage: node tools/performance/workspace-replay-benchmark.mjs CONFIG.json');process.exit(process.argv.includes('--help')?0:1);}
 const config=JSON.parse(fs.readFileSync(path.resolve(process.argv[2]),'utf8'));
 for(const key of ['fixtureDirectory','outputDirectory','builds'])if(!config[key])throw Error('Missing replay config: '+key);
@@ -73,9 +91,11 @@ try{for(const build of buildList)for(const device of devices){
  cdp.on('Network.loadingFinished',event=>{const row=apiByRequest.get(event.requestId);if(row){row.finishedAt=event.timestamp;row.durationMs=(event.timestamp-row.startedAt)*1000;row.encodedBytes=event.encodedDataLength;row.outcome='completed';}});
  cdp.on('Network.loadingFailed',event=>{const row=apiByRequest.get(event.requestId);if(row){row.finishedAt=event.timestamp;row.durationMs=(event.timestamp-row.startedAt)*1000;row.outcome=event.canceled?'cancelled':'failed';row.error=event.errorText;}});let cacheHits=0,requestsStarted=0,requestsFailed=0;await cdp.send('Network.enable');cdp.on('Network.requestServedFromCache',()=>cacheHits++);page.on('request',()=>requestsStarted++);page.on('requestfailed',()=>requestsFailed++);
  page.on('pageerror',error=>errors.push(error.message.slice(0,180)));if(mobile)await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});
+ await page.addInitScript({content:'window.__replayShellObservation='+readReplayShellObservation.toString()});
  await page.addInitScript(()=>{window.__replayLong=[];try{new PerformanceObserver(list=>{for(const entry of list.getEntries())__replayLong.push({start:entry.startTime,duration:entry.duration});}).observe({type:'longtask',buffered:true});}catch{}});
  await page.goto(origin+'/seed.html');
- await page.evaluate(async({profile,namespace,projection,binding,repaired,syntheticAuth,backend})=>{
+ const seedPage=async(seedData=true)=>page.evaluate(async({profile,namespace,projection,binding,repaired,syntheticAuth,backend,seedData})=>{
+  if(seedData){
   const bundle=await(await fetch('/fixture/bundle.json')).json();const dbName=repaired?namespace:'atlas_rise_state_v1';
   const open=indexedDB.open(dbName,1);open.onupgradeneeded=()=>open.result.createObjectStore('records',{keyPath:'key'});const db=await new Promise((resolve,reject)=>{open.onsuccess=()=>resolve(open.result);open.onerror=()=>reject(open.error);});
   const records=[{key:'community_data',value:bundle.indexedDb.communityData},{key:'rise_ops_global_v1',value:JSON.parse(bundle.keys.rise_ops_global_v1)}];
@@ -83,10 +103,12 @@ try{for(const build of buildList)for(const device of devices){
   else records.push(await(await fetch('/fixture/history-record.json')).json());
   await new Promise((resolve,reject)=>{const tx=db.transaction('records','readwrite');for(const record of records)tx.objectStore('records').put(record);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});db.close();
   for(const key of ['rise_ops_workspace_context_v1','rise_ops_property_catalog_v1','atlas_shared_property_graph_v1'])if(bundle.keys[key])localStorage.setItem(key,typeof bundle.keys[key]==='string'?bundle.keys[key]:JSON.stringify(bundle.keys[key]));
+  }
   localStorage.setItem('atlas_central_runtime_config_v1',JSON.stringify({supabaseUrl:backend,supabaseAnonKey:syntheticAuth.accessToken,accessApiBaseUrl:backend,appBaseUrl:location.origin,autosave:false,realtime:false,autoPullOnStartup:false}));
   localStorage.setItem('atlas_central_auth_session_v1',JSON.stringify({access_token:syntheticAuth.accessToken,refresh_token:syntheticAuth.refreshToken,expires_at:Math.floor(Date.now()/1000)+86400,user:{id:profile.user_id,email:profile.email}}));localStorage.setItem('atlas_central_profile_v1',JSON.stringify(profile));
   const prefs=JSON.stringify({hasSeenWelcome:true});localStorage.setItem('atlas_dashboard_preferences_v1',prefs);localStorage.setItem(namespace+':atlas_dashboard_preferences_v1',prefs);
- },{profile,namespace,projection,binding,repaired:build==='repaired',syntheticAuth,backend});
+ },{profile,namespace,projection,binding,repaired:build==='repaired',syntheticAuth,backend,seedData});
+ await seedPage();
  await cdp.send('HeapProfiler.collectGarbage');
  const group={kind:'REPLAY',build,device,source:summary.parentVersion,sourceHash:summary.archiveSha256,htmlHash:sha(fs.readFileSync(roots[build]+'/index.html')),reportsHash:fs.existsSync(roots[build]+'/features/reports-workspace.js')?sha(fs.readFileSync(roots[build]+'/features/reports-workspace.js')):null,coreHash:fs.existsSync(roots[build]+'/workspace-core.js')?sha(fs.readFileSync(roots[build]+'/workspace-core.js')):null,startup:[],navigation:[],errors};
  results.push(group);console.log('READY',build,device);
@@ -97,7 +119,7 @@ try{for(const build of buildList)for(const device of devices){
   await page.goto(origin+'/index.html?atlasPerf=1',{waitUntil:'domcontentloaded',timeout:120000});await ready();await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));const readyElapsed=Date.now()-start;
   await page.waitForTimeout(settleMs);
   if(config.startupProfile){const cpu=await cdp.send('Profiler.stop');fs.writeFileSync(out+'/'+build+'-'+device+'-startup-'+cache+'-'+i+'.cpuprofile',JSON.stringify(cpu.profile));}
-  const metrics=await page.evaluate(()=>({workspaceMs:performance.getEntriesByName('atlas:time-to-workspace').at(-1)?.duration??null,longTasks:__replayLong,longestTask:Math.max(0,...__replayLong.map(x=>x.duration)),blockingTime:__replayLong.reduce((n,x)=>n+Math.max(0,x.duration-50),0),renderCount:window.AtlasPerformance?.report?.().counters?.render??null,heap:performance.memory?.usedJSHeapSize??null,requestCount:performance.getEntriesByType('resource').length,cachedResourceCount:performance.getEntriesByType('resource').filter(x=>x.transferSize===0&&x.decodedBodySize>0).length,resourceTransferBytes:performance.getEntriesByType('resource').reduce((n,x)=>n+x.transferSize,0),communities:Object.keys(savedData).length,batches:dataImport2State.batches.length,sourceVersion:typeof atlasWorkspaceAccess==='undefined'?null:atlasWorkspaceAccess.source?.version,paint:performance.getEntriesByType('paint').map(x=>({name:x.name,at:x.startTime})),renderDurations:window.AtlasPerformance?.report?.().events?.filter(x=>x.name==='render').map(x=>x.duration)||[],scope:isPortfolioWorkspaceSelected()?'portfolio':'community'}));
+  const metrics=await page.evaluate(()=>({...__replayShellObservation(),workspaceMs:performance.getEntriesByName('atlas:time-to-workspace').at(-1)?.duration??null,longTasks:__replayLong,longestTask:Math.max(0,...__replayLong.map(x=>x.duration)),blockingTime:__replayLong.reduce((n,x)=>n+Math.max(0,x.duration-50),0),renderCount:window.AtlasPerformance?.report?.().counters?.render??null,heap:performance.memory?.usedJSHeapSize??null,requestCount:performance.getEntriesByType('resource').length,cachedResourceCount:performance.getEntriesByType('resource').filter(x=>x.transferSize===0&&x.decodedBodySize>0).length,resourceTransferBytes:performance.getEntriesByType('resource').reduce((n,x)=>n+x.transferSize,0),communities:Object.keys(savedData).length,batches:dataImport2State.batches.length,sourceVersion:typeof atlasWorkspaceAccess==='undefined'?null:atlasWorkspaceAccess.source?.version,paint:performance.getEntriesByType('paint').map(x=>({name:x.name,at:x.startTime})),renderDurations:window.AtlasPerformance?.report?.().events?.filter(x=>x.name==='render').map(x=>x.duration)||[],scope:isPortfolioWorkspaceSelected()?'portfolio':'community'}));
   group.startup.push({cache,index:i+1,cdpCacheHits:cacheHits-firstCacheHit,requestsStarted:requestsStarted-firstStarted,requestsFailed:requestsFailed-firstFailed,readyElapsed,observationMs:Date.now()-start,apiRequests:api.length-firstApi,...metrics});fs.writeFileSync(out+'/results.partial.json',JSON.stringify({results,api,clientApi,blocked},null,2));console.log('START',build,device,cache,i+1,readyElapsed,metrics.longestTask);
  }
  await cdp.send('HeapProfiler.collectGarbage');let memoryBefore=await cdp.send('Runtime.getHeapUsage'),domBefore=await cdp.send('Memory.getDOMCounters');
@@ -120,14 +142,42 @@ try{for(const build of buildList)for(const device of devices){
   await cdp.send('Network.setCacheDisabled',{cacheDisabled:false});
   await cdp.send('Network.emulateNetworkConditions',{offline:false,latency:scenario==='slow'?150:0,downloadThroughput:scenario==='slow'?200000:-1,uploadThroughput:scenario==='slow'?93750:-1,connectionType:scenario==='slow'?'cellular3g':'wifi'});
   const start=Date.now(),firstApi=api.length;await page.goto(origin+'/index.html?atlasPerf=1',{waitUntil:'domcontentloaded',timeout:120000});await ready();await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));const readyElapsed=Date.now()-start;
-  await page.waitForTimeout(10000);const detail=await page.evaluate(()=>({hasData:typeof atlasWorkspaceAccess==='undefined'?null:atlasWorkspaceAccess.hasData,validated:typeof atlasWorkspaceAccess==='undefined'?null:atlasWorkspaceAccess.validated,cached:typeof atlasWorkspaceAccess==='undefined'?null:atlasWorkspaceAccess.source?.cached,error:typeof atlasWorkspaceAccess==='undefined'?null:atlasWorkspaceAccess.error,longTasks:__replayLong,longestTask:Math.max(0,...__replayLong.map(x=>x.duration)),blockingTime:__replayLong.reduce((n,x)=>n+Math.max(0,x.duration-50),0),value:buildAtlasDashboardWidgetSnapshot({widgetKey:'portfolio_overview',metric:'Physical Occupancy',scope:{type:'all_properties'}}).value}));
+  await page.waitForTimeout(10000);const detail=await page.evaluate(()=>({...__replayShellObservation(),hasData:typeof atlasWorkspaceAccess==='undefined'?null:atlasWorkspaceAccess.hasData,validated:typeof atlasWorkspaceAccess==='undefined'?null:atlasWorkspaceAccess.validated,cached:typeof atlasWorkspaceAccess==='undefined'?null:atlasWorkspaceAccess.source?.cached,error:typeof atlasWorkspaceAccess==='undefined'?null:atlasWorkspaceAccess.error,longTasks:__replayLong,longestTask:Math.max(0,...__replayLong.map(x=>x.duration)),blockingTime:__replayLong.reduce((n,x)=>n+Math.max(0,x.duration-50),0),value:buildAtlasDashboardWidgetSnapshot({widgetKey:'portfolio_overview',metric:'Physical Occupancy',scope:{type:'all_properties'}}).value}));
   group.variants.push({scenario,readyElapsed,observationMs:Date.now()-start,apiRequests:api.length-firstApi,...detail});console.log('VARIANT',build,device,scenario,readyElapsed,detail.value);
  }
  sourceUnavailable=false;await cdp.send('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1,connectionType:'wifi'});
  }
+ if(config.freshAuthorized && build==='repaired'){
+  activeStage='variant-fresh-authorized-empty-idb';sourceUnavailable=false;
+  await cdp.send('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1,connectionType:'wifi'});
+  // This page/context was created by this runner and has only synthetic state.
+  // Existing samples are already captured; no control build or user tab is reset.
+  await page.goto(origin+'/seed.html');
+  const storage=await page.evaluate(resetIsolatedReplayStorage,origin);
+  await seedPage(false);
+  await cdp.send('Network.setCacheDisabled',{cacheDisabled:true});
+  const start=Date.now(),firstApi=api.length;
+  await page.goto(origin+'/index.html?atlasPerf=1',{waitUntil:'domcontentloaded',timeout:120000});await ready();
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  const readyElapsed=Date.now()-start;
+  await page.waitForTimeout(settleMs);
+  const detail=await page.evaluate(async expectedSource=>{
+    const stored=await atlasStateGetValue('atlas_workspace_source_v2');
+    return {...__replayShellObservation(),workspaceMs:performance.getEntriesByName('atlas:time-to-workspace').at(-1)?.duration??null,
+      centralWorkspaceMs:performance.getEntriesByName('atlas:central-workspace').at(-1)?.duration??null,
+      projectionPhases:(window.AtlasPerformance?.report?.().events||[]).filter(event=>['workspace-projection-read','workspace-projection-verify'].includes(event.name)).map(({name,duration})=>({name,duration})),
+      hasData:atlasWorkspaceAccess.hasData,validated:atlasWorkspaceAccess.validated,
+      sourceIdentityMatches:!!stored&&['documentKey','version','archiveHash','effectiveAt'].every(key=>stored.identity?.[key]===expectedSource[key]&&atlasWorkspaceAccess.source?.[key]===expectedSource[key]),
+      longTasks:__replayLong,longestTask:Math.max(0,...__replayLong.map(x=>x.duration)),blockingTime:__replayLong.reduce((n,x)=>n+Math.max(0,x.duration-50),0),heap:performance.memory?.usedJSHeapSize??null,
+      renderIssue:/render issue|did not finish loading|could not finish loading/.test(document.getElementById('tab-panel-0').innerText)};
+  },projection.source);
+  if(!detail.hasData||!detail.validated||!detail.sourceIdentityMatches||detail.renderIssue)throw Error('Fresh authorized replay did not retain the exact verified source');
+  (group.variants||=[]).push({scenario:'fresh-authorized-empty-idb',httpCache:'disabled',...storage,readyElapsed,observationMs:Date.now()-start,apiRequests:api.length-firstApi,...detail});
+  console.log('VARIANT',build,device,'fresh-authorized-empty-idb',readyElapsed,detail.longestTask);
+ }
  if(config.debugParity)fs.writeFileSync(out+'/'+build+'-community-report.json',JSON.stringify(await page.evaluate(()=>{reportHubType='community_progress';return JSON.parse(JSON.stringify(buildCommunityProgressReportData({silent:true}),(key,value)=>key==='generatedAt'?undefined:value));})));
  fs.writeFileSync(out+'/results.partial.json',JSON.stringify({results,api,clientApi,blocked},null,2));group.externalResponseCount=externalResponses;if(externalResponses)throw Error('Replay isolation failed: external network response observed');await context.close();
 }
- const final={kind:'READ-ONLY ISOLATED REPLAY',browser:browser.version(),platform:process.platform,architecture:process.arch,hardware:{cpu:os.cpus()[0]?.model,cpuCount:os.cpus().length,totalMemoryBytes:os.totalmem()},date:new Date().toISOString(),fixture:{...summary,privatePathsOmitted:true},configuration:{buildOrder:buildList,buildRevisions:Object.fromEntries(Object.entries(config.builds).map(([name,value])=>[name,value.revision||null])),reportingPeriod:period,samples,cycles,firstLoopAlsoRecorded:true,settleMs,devices,slowNetwork:config.variants?'150 ms RTT;200,000 B/s down;93,750 B/s up;cached assets':null,desktop:'1440x900 DPR1 no throttle',mobile:'390x844 DPR3 touch 4xCPU',externalAssets:'CSP blocks all external network; API fetches use a same-origin synthetic transport, pinned XLSX served locally, external fonts/map dependencies unavailable'},limits:['Not independently authenticated production acceptance','Historical 4263a58 predates AtlasReskin.history; that unavailable probe is null, not fabricated. Other diagnostic counters are retained when available. Home-history parity compares baseline and repaired only.','Old builds use full retained177MB history; repaired uses its exact derived current projection while full immutable history remains available in local fixture','Canonical archive13batches differs from original Chrome29batch state','HTTP cache disabled for cold and enabled for warm; verified cached-resource counts retained. Startup and navigation have no artificial network latency; separate slow variants use the recorded network profile. Heap growth is measured after the first complete module-loading loop, then ten repeated loops. Main-page CDP heap excludes workers and browser processes. CDP CPU slowdown applies to the page, not workers; background freshness may remain pending after the ten-second slow-source observation.', 'Community report data hash omits internal sourceRecord and generatedAt; exact rendered HTML hash fixes generation clock. Baseline overwrites one canonical manager identity with a local ID, repaired preserves canonical ID; no visible report field differs.', 'Metrics use isolated reads and blocked mutation endpoints; denied writes may alter old-build fallback work'],results,api,clientApi,blocked};
+ const final={kind:'READ-ONLY ISOLATED REPLAY',browser:browser.version(),platform:process.platform,architecture:process.arch,hardware:{cpu:os.cpus()[0]?.model,cpuCount:os.cpus().length,totalMemoryBytes:os.totalmem()},date:new Date().toISOString(),fixture:{...summary,privatePathsOmitted:true},configuration:{buildOrder:buildList,buildRevisions:Object.fromEntries(Object.entries(config.builds).map(([name,value])=>[name,value.revision||null])),reportingPeriod:period,samples,cycles,firstLoopAlsoRecorded:true,settleMs,devices,freshAuthorized:Boolean(config.freshAuthorized),authenticatedShellBasis:'Navigation timeOrigin to post-authorization interactive-shell paint; current product enables navigation only with the usable workspace',slowNetwork:config.variants?'150 ms RTT;200,000 B/s down;93,750 B/s up;cached assets':null,desktop:'1440x900 DPR1 no throttle',mobile:'390x844 DPR3 touch 4xCPU',externalAssets:'CSP blocks all external network; API fetches use a same-origin synthetic transport, pinned XLSX served locally, external fonts/map dependencies unavailable'},limits:['Not independently authenticated production acceptance','Historical 4263a58 predates AtlasReskin.history; that unavailable probe is null, not fabricated. Other diagnostic counters are retained when available. Home-history parity compares baseline and repaired only.','Old builds use full retained177MB history; repaired uses its exact derived current projection while full immutable history remains available in local fixture','Canonical archive13batches differs from original Chrome29batch state','HTTP cache disabled for cold and enabled for warm; verified cached-resource counts retained. Startup and navigation have no artificial network latency; separate slow variants use the recorded network profile. Heap growth is measured after the first complete module-loading loop, then ten repeated loops. Main-page CDP heap excludes workers and browser processes. CDP CPU slowdown applies to the page, not workers; background freshness may remain pending after the ten-second slow-source observation.', 'Community report data hash omits internal sourceRecord and generatedAt; exact rendered HTML hash fixes generation clock. Baseline overwrites one canonical manager identity with a local ID, repaired preserves canonical ID; no visible report field differs.', 'Metrics use isolated reads and blocked mutation endpoints; denied writes may alter old-build fallback work'],results,api,clientApi,blocked};
  fs.writeFileSync(out+'/results.json',JSON.stringify(final,null,2));console.log('COMPLETE',results.length,'groups; blocked writes',blocked.length);
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

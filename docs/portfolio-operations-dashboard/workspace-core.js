@@ -53325,6 +53325,35 @@ function finishAtlasStartupLoadingState() {
   document.body.classList.remove("atlas-is-initializing");
 }
 
+// A loading card and disabled navigation are not an authenticated shell.
+// Observe a real paint only after the existing startup flow makes it interactive.
+function recordAtlasAuthenticatedShellPaint(epoch) {
+  const actor=atlasWorkspaceActorKey(), access=window.ATLAS_CENTRAL?.getAccessContextKey?.(), database=ATLAS_STATE_DB_NAME;
+  const current=()=>{
+    const status=getAtlasCentralStatus();
+    return epoch===atlasWorkspaceAccess.epoch && actor===atlasWorkspaceActorKey()
+      && access===window.ATLAS_CENTRAL?.getAccessContextKey?.() && database===ATLAS_STATE_DB_NAME
+      && !atlasWorkspaceAccess.controller?.signal.aborted && status.configured && status.signedIn
+      && !status.clientUnavailable && atlasWorkspaceAccess.validated && atlasWorkspaceAccess.hasData
+      && !document.body.classList.contains("atlas-is-initializing");
+  };
+  if(!current())return;
+  requestAnimationFrame(()=>{
+    if(!current())return;
+    requestAnimationFrame(()=>{
+      if(!current())return;
+      const navigation=document.getElementById("tabs");
+      if(!navigation || !navigation.getClientRects().length)return;
+      const style=getComputedStyle(navigation);
+      if(style.pointerEvents==="none" || style.visibility==="hidden" || style.display==="none")return;
+      performance.clearMarks("atlas:authenticated-shell:ready");
+      performance.clearMeasures("atlas:time-to-authenticated-shell");
+      performance.mark("atlas:authenticated-shell:ready");
+      performance.measure("atlas:time-to-authenticated-shell",{start:0,end:"atlas:authenticated-shell:ready"});
+    });
+  });
+}
+
 function runAtlasStartupStep(label, step) {
   const finish = window.AtlasPerformance?.start("startup-step", { reason: label });
   try {
@@ -53565,6 +53594,7 @@ async function ensureAtlasCanonicalImportEvidence({signal:externalSignal} = {}) 
 
 async function initializeAtlasDashboard() {
   performance.mark("atlas:startup:start");
+  performance.clearMeasures("atlas:time-to-authenticated-shell");
   atlasWorkspaceAccess.controller?.abort();
   resetAtlasAuxiliaryContext();
   const epoch = ++atlasWorkspaceAccess.epoch;
@@ -53573,7 +53603,7 @@ async function initializeAtlasDashboard() {
   sideNavCollapsed = loadSideNavCollapsed(); applySideNavState();
   currentMonth = DEFAULT_CURRENT_MONTH; workspaceMonthOverride = null;
   renderAtlasStartupLoadingState();
-  performance.mark("atlas:shell:ready");
+  performance.mark("atlas:startup-placeholder");
   applyAtlasAuthEntryFromLocation(); applyAtlasAuthRedirectEvent();
   try {
     const central = window.ATLAS_CENTRAL;
@@ -53616,6 +53646,7 @@ async function initializeAtlasDashboard() {
     const initialRenderActor=atlasWorkspaceActorKey(),initialRenderDatabase=ATLAS_STATE_DB_NAME;
     if(!await runAtlasInitialRenderPassYielding(()=>epoch===atlasWorkspaceAccess.epoch && initialRenderActor===atlasWorkspaceActorKey() && initialRenderDatabase===ATLAS_STATE_DB_NAME))return;
     performance.mark("atlas:workspace:ready"); performance.measure("atlas:time-to-workspace","atlas:startup:start","atlas:workspace:ready");
+    recordAtlasAuthenticatedShellPaint(epoch);
     // A frame is committed before optional reads or background services are started.
     requestAnimationFrame(()=>setTimeout(async()=>{
       if (epoch !== atlasWorkspaceAccess.epoch) return;

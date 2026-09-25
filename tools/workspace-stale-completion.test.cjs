@@ -39,7 +39,7 @@ function startupFixture(configured = true) {
   const held = deferred(); let importEntered = false;
   const ctx = {
     AbortController, DOMException,
-    performance: {mark() {}, measure() {}},
+    performance: {mark() {}, measure() {}, clearMeasures() {}},
     window: {ATLAS_CENTRAL: {refreshSession: async () => {}, getSession: () => ({user: {id: ctx.actor}}),
       fetchProfile: async () => ({user_id: ctx.actor}), getAccessContextKey: () => ctx.actor}},
     atlasWorkspaceAccess: {epoch: 0, controller: new AbortController(), source: null, hasData: false},
@@ -61,7 +61,7 @@ function startupFixture(configured = true) {
     hydrateDataImport2State: async () => { importEntered = true; return held.promise; },
     applyIncomingWorkspaceNavigation() { ctx.navigations = (ctx.navigations || 0) + 1; },
     runAtlasInitialRenderPassYielding: async current => { assert(current()); ctx.renders = (ctx.renders || 0) + 1; return true; },
-    requestAnimationFrame() {}, finishAtlasStartupLoadingState() {}, renderTab() {}
+    requestAnimationFrame() {}, recordAtlasAuthenticatedShellPaint() {}, finishAtlasStartupLoadingState() {}, renderTab() {}
   };
   vm.createContext(ctx); vm.runInContext(startupCode, ctx);
   return {ctx, held, entered: () => importEntered};

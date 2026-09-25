@@ -58,8 +58,16 @@ try{
   localStorage.setItem('atlas_central_profile_v1',JSON.stringify(profile));
   localStorage.setItem(namespace+':atlas_dashboard_preferences_v1',JSON.stringify({hasSeenWelcome:true}));
  },{actor,profile,namespace});
+ profileGate={};profileGate.promise=new Promise(resolve=>profileGate.resolve=resolve);
  await page.goto(origin+'/index.html?atlasPerf=1');
+ await page.waitForFunction(()=>performance.getEntriesByName('atlas:startup-placeholder').length>0);
+ assert.equal(await page.evaluate(()=>performance.getEntriesByName('atlas:time-to-authenticated-shell').length),0,'A loading shell before current authorization is not interactive');
+ profileGate.resolve();profileGate=null;
  await page.waitForFunction(()=>atlasDashboardInitializationComplete&&atlasWorkspaceAccess.hasData,{},{timeout:15000}).catch(async error=>{console.log('DEBUG',await page.evaluate(()=>({state:typeof atlasWorkspaceAccess==='undefined'?null:atlasWorkspaceAccess,error:document.body.innerText.slice(-2000)})),errors);throw error;});
+ await page.waitForFunction(()=>performance.getEntriesByName('atlas:time-to-authenticated-shell').length===1);
+ const shell=await page.evaluate(()=>({ms:performance.getEntriesByName('atlas:time-to-authenticated-shell').at(-1).duration,readyAt:performance.getEntriesByName('atlas:workspace:ready').at(-1)?.startTime,loading:document.body.classList.contains('atlas-is-initializing'),navigationEnabled:getComputedStyle(document.getElementById('tabs')).pointerEvents!=='none',validated:atlasWorkspaceAccess.validated}));
+ assert(shell.ms>=shell.readyAt&&shell.ms>0,'Real shell paint follows the completed workspace, not its loading placeholder');
+ assert.deepEqual({loading:shell.loading,navigationEnabled:shell.navigationEnabled,validated:shell.validated},{loading:false,navigationEnabled:true,validated:true});
  const cold=await page.evaluate(()=>({ready:performance.getEntriesByName('atlas:time-to-workspace').at(-1)?.duration,names:Object.keys(savedData),source:atlasWorkspaceAccess.source,history:dataImport2State.historyStorage}));
  assert.deepEqual(cold.names,['Doro'],'canonical community membership does not union bundled seeds');assert.equal(cold.source.version,7);assert.equal(cold.history.view,'remote');
  assert(!requests.some(x=>/reports-workspace|import-workspace|bonus-workspace|admin-workspace|xlsx.full|central-services\.js|historical_restore/.test(x)),'inactive feature modules stay unloaded');
@@ -160,9 +168,11 @@ try{
  assert.equal(await page.evaluate(()=>atlasWorkspaceAccess.epoch),sameActorEpoch);
  assert.equal(requests.filter(x=>x.endsWith('/atlas_user_profiles')).length,profileReads);
  profile={...profile,locked_tab_ids:[8]};profileGate={};profileGate.promise=new Promise(resolve=>profileGate.resolve=resolve);
- await page.evaluate(()=>{const next={...JSON.parse(localStorage.getItem('atlas_central_profile_v1')),locked_tab_ids:[8]};localStorage.setItem('atlas_central_profile_v1',JSON.stringify(next));dispatchEvent(new StorageEvent('storage',{key:'atlas_central_profile_v1'}));});
+ await page.evaluate(()=>{performance.clearMeasures('atlas:time-to-authenticated-shell');recordAtlasAuthenticatedShellPaint(atlasWorkspaceAccess.epoch);const next={...JSON.parse(localStorage.getItem('atlas_central_profile_v1')),locked_tab_ids:[8]};localStorage.setItem('atlas_central_profile_v1',JSON.stringify(next));dispatchEvent(new StorageEvent('storage',{key:'atlas_central_profile_v1'}));});
  assert.equal(await page.evaluate(()=>atlasWorkspaceAccess.validated),false,'Same-actor cross-tab scope changes conceal cached panels before the server read');
  assert.equal(await page.evaluate(()=>atlasWorkspaceAccess.hasData),false);
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ assert.equal(await page.evaluate(()=>performance.getEntriesByName('atlas:time-to-authenticated-shell').length),0,'A queued paint cannot declare the shell usable after access invalidation');
  profileGate.resolve();profileGate=null;await page.waitForFunction(()=>atlasWorkspaceAccess.validated&&atlasWorkspaceAccess.hasData&&atlasDashboardInitializationComplete&&!atlasAccessVerificationPromise);
  assert.equal(await page.evaluate(()=>atlasAccessDecision(8).ok),false,'New page lock is server-verified before rendering');
  // A failed current access read hides data, even when that actor has a valid cache.

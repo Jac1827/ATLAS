@@ -7,7 +7,7 @@ import {inspectActualWorkbook} from './doro-workbook-acceptance.mjs';
 const require=createRequire(import.meta.url),{fixture}=require('./financial-intake-fixture.cjs');
 const {db,cid,other,signIn}=await fixture();
 const hash=v=>createHash('sha256').update(v).digest('hex'),source=Buffer.from('Exact source fixture'),sourceHash=hash(source);
-const migrations=['20260924121641_planning_cell_workbook_integrity_governance.sql','20260924121647_immutable_workbook_audits_and_monthly_governance.sql','20260924232845_bounded_workbook_audit_transport.sql','20260925011545_workbook_audit_validation_performance.sql','20260925032350_workbook_raw_json_canonical.sql','20260925033844_workbook_raw_evidence_projections.sql','20260925032731_workbook_activate_raw_evidence_projection.sql'];
+const migrations=['20260924121641_planning_cell_workbook_integrity_governance.sql','20260924121647_immutable_workbook_audits_and_monthly_governance.sql','20260924232845_bounded_workbook_audit_transport.sql','20260925011545_workbook_audit_validation_performance.sql','20260925032350_workbook_raw_json_canonical.sql','20260925033844_workbook_raw_evidence_projections.sql','20260925035358_workbook_typed_raw_validation.sql'];
 const call=async(name,args)=>(await db.query(`select public.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')}) result`,args)).rows[0].result;
 const seal=a=>{delete a.fingerprint;a.fingerprint=workbookEvidenceHash(a);return a;};
 const cell=(address,value,extra={})=>({id:'Input!'+address,sheet:'Input',address,row:Number(address.match(/\d+/)[0]),column:address.charCodeAt(0)-64,type:typeof value==='number'?'n':'s',value,...extra});
@@ -24,10 +24,11 @@ const rawRead=async(receipt,s)=>{for(const stream of ['audit','source']){const c
 const ref=(receipt)=>({auditId:receipt.audit_id,fingerprint:receipt.fingerprint,manifestHash:receipt.manifest_hash});
 const adversaries=[];let actualProof=null;
 try{
- await db.exec('reset role');for(const name of migrations.slice(0,-1))await db.exec(fs.readFileSync(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));
+ await db.exec('reset role');for(const name of migrations)await db.exec(fs.readFileSync(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));
  const unchanged=(await db.query("select pg_get_functiondef('atlas_private.finalize_workbook_audit_upload(uuid,uuid,text)'::regprocedure) f,pg_get_functiondef('atlas_private.resolve_workbook_audit(jsonb,text)'::regprocedure) r")).rows[0];assert(!unchanged.f.includes('finalize_workbook_audit_upload_projected'));assert(!unchanged.r.includes('resolve_workbook_audit_projected'));
  await db.exec("alter function public.atlas_finalize_workbook_audit_upload(uuid,uuid,text) set statement_timeout='45s'");
- await db.exec(fs.readFileSync(new URL('../supabase/migrations/'+migrations.at(-1),import.meta.url),'utf8'));
+ // This explicit test fixture is intentionally absent from deployable migrations.
+ await db.exec(fs.readFileSync(new URL('./fixtures/workbook-raw-evidence-projection-activation.sql',import.meta.url),'utf8'));
  const grants=(await db.query("select p.proname,n.nspname,p.proconfig,has_function_privilege('anon',p.oid,'EXECUTE') anon,has_function_privilege('authenticated',p.oid,'EXECUTE') authenticated from pg_proc p join pg_namespace n on n.oid=p.pronamespace where p.proname in ('atlas_finalize_workbook_audit_upload','atlas_save_workbook_audit','finalize_workbook_audit_upload_projected','prepare_workbook_projection_raw','resolve_workbook_audit_projected','save_workbook_audit_before_projection')")).rows;for(const g of grants){assert.equal(g.anon,false);assert.equal(g.authenticated,g.nspname==='public');if(g.nspname==='public')assert(g.proconfig.includes('statement_timeout=45s'));}
  const base=makeAudit(),prepared=await prepare(base);assert.deepEqual(prepared.issues,[]);assert.equal(prepared.state,'validated');assert.equal(prepared.runtime.schemaVersion,'atlas.workbook-runtime-projection.v1');assert(!('graph' in prepared.runtime));assert.deepEqual(prepared.runtime.inventory.sheets[0].cells,base.inventory.sheets[0].cells);assert.equal(prepared.runtime.inventory.dateSystem,'1900');
  const attacks=[

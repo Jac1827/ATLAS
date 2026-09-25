@@ -796,6 +796,14 @@
       "bytes": 3091,
       "md5": "b3e30502f637cf44304e18621f790468",
       "sha256": "d29b37a36932bd07c2b46575942a83f4c1e3fff0f03e261fa063686fdef1e841"
+    },
+    {
+      "version": "20260925033844",
+      "name": "workbook_raw_evidence_projections",
+      "file": "20260925033844_workbook_raw_evidence_projections.sql",
+      "bytes": 22144,
+      "md5": "06b267328d1c927f8a46e3899b7cfde1",
+      "sha256": "1a82f55aae5d339ce60199af8491cd153cc369511266ce4fa73379d417a4f4be"
     }
   ]
 }

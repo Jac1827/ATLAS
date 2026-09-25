@@ -22,9 +22,10 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  const registry=await call('atlas_save_reforecast_registry',[A,null,randomUUID(),{accounts,driverMappings:{},reason:'Reviewed exact import registry',effectiveDate:'2026-01-01'}]);
  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Scenario','Plan','Currency','Local'],['GL','Account','Feb 2026','Mar 2026'],['5120','Rent',1001.25,1002.501234],['6100','Payroll',0,210],['6200','Utilities',null,55],['5120','duplicate rent',999,998]]),'Plan');
  const bytes=XLSX.write(wb,{type:'buffer',bookType:'xlsx'}),evidence=await parseReforecastWorkbook(bytes,{xlsx:XLSX,fileName:'Synthetic.xlsx'});
- const audit=await call('atlas_save_workbook_audit',[A,evidence.source.sha256,evidence.integrity,randomUUID()]);
+ if(process.env.ATLAS_PROJECTED_AUDIT){await (await import('./workbook-projection-fixture.mjs')).installProjectionFixture(db);await signIn(1);}
+ const audit=process.env.ATLAS_PROJECTED_AUDIT?await (await import('./workbook-projection-fixture.mjs')).saveProjectedAudit(db,A,evidence.integrity,bytes):await call('atlas_save_workbook_audit',[A,evidence.source.sha256,evidence.integrity,randomUUID()]);
  const assignment={communityId:A,confirmed:true,sourceEntities:[],actorId:owner,reason:'Reviewed community'};
- const uploadPayload={...evidence,source:{...evidence.source,originalFile:{encoding:'base64',data:Buffer.from(bytes).toString('base64')}},integrity:{auditId:audit.audit_id,fingerprint:audit.fingerprint},propertyAssignment:assignment};
+ const uploadPayload={...evidence,source:{...evidence.source,originalFile:{encoding:'base64',data:Buffer.from(bytes).toString('base64')}},integrity:{auditId:audit.audit_id,fingerprint:audit.fingerprint,...(audit.manifest_hash?{manifestHash:audit.manifest_hash}:{})},propertyAssignment:assignment};
  const upload=await call('atlas_save_reforecast_upload',[A,randomUUID(),uploadPayload]);
  const periods=['2026-02','2026-03'],reviewedAt='2026-09-25T00:00:00Z',sourceScenario=evidence.lines[0].scenario;
  assert.equal(sourceScenario,'Plan');

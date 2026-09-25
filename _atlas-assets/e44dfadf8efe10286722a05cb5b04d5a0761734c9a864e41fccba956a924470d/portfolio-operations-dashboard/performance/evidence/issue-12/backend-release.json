@@ -1,0 +1,160 @@
+{
+  "format": 1,
+  "kind": "backend-preparation-release-not-performance-acceptance",
+  "mergedCommit": "9ef02ff08e3c424be52d6bc3d05f90559dbbad37",
+  "automaticDatabaseDeployment": true,
+  "migrationVerification": {
+    "migration_count": 77,
+    "latest": [
+      {
+        "name": "workspace_projection_publisher",
+        "version": "20260924220418"
+      }
+    ],
+    "publisher": {
+      "body_md5": "6315aea283cbecdcabc816846a9e814d",
+      "settings": [
+        "search_path=\"\"",
+        "statement_timeout=30s"
+      ],
+      "volatility": "v",
+      "anon_execute": false,
+      "security_definer": false,
+      "authenticated_execute": true
+    },
+    "general_writer_settings": [
+      "search_path=public"
+    ],
+    "role_deadlines": [
+      {
+        "role": "anon",
+        "timeout": "statement_timeout=3s"
+      },
+      {
+        "role": "authenticated",
+        "timeout": "statement_timeout=8s"
+      },
+      {
+        "role": "authenticator",
+        "timeout": "statement_timeout=8s"
+      }
+    ]
+  },
+  "publisherBodyMatchesReviewedMigration": true,
+  "hostingReview": {
+    "reviewedAt": "2026-09-24T22:26:41.568Z",
+    "commit": "9ef02ff08e3c424be52d6bc3d05f90559dbbad37",
+    "checks": [
+      {
+        "name": "Supabase Preview",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/Jac1827/ATLAS/runs/107856158757"
+      },
+      {
+        "name": "preview",
+        "status": "completed",
+        "conclusion": "skipped",
+        "url": "https://github.com/Jac1827/ATLAS/actions/runs/36065959088/job/107855654899"
+      },
+      {
+        "name": "production",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/Jac1827/ATLAS/actions/runs/36065959088/job/107855653315"
+      },
+      {
+        "name": "performance-boundaries",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/Jac1827/ATLAS/actions/runs/36065959085/job/107855652791"
+      },
+      {
+        "name": "community-command",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/Jac1827/ATLAS/actions/runs/36065959085/job/107855652691"
+      },
+      {
+        "name": "occupancy",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/Jac1827/ATLAS/actions/runs/36065959085/job/107855652361"
+      }
+    ],
+    "issue": {
+      "number": 12,
+      "title": "[ATLAS DATA DEFECT] \u2014 Dashboard startup and workbook preview block responsiveness",
+      "state": "open",
+      "url": "https://github.com/Jac1827/ATLAS/issues/12"
+    },
+    "worker": {
+      "runId": 36065959088,
+      "jobId": 107855653315,
+      "url": "https://github.com/Jac1827/ATLAS/actions/runs/36065959088/job/107855653315",
+      "loggedVersionId": "dd5ebd5d-24f5-443c-96a1-87c81353ff8d",
+      "deployment": {
+        "id": "62c33985-66e1-4600-ba1d-e9f7c08a1a69",
+        "created_on": "2026-09-24T22:12:34.936018Z",
+        "source": "wrangler",
+        "strategy": "percentage",
+        "versions": [
+          {
+            "version_id": "dd5ebd5d-24f5-443c-96a1-87c81353ff8d",
+            "percentage": 100
+          }
+        ]
+      },
+      "loggedVersionMatchesActive": true
+    },
+    "pages": {
+      "lastRunId": 36064320062,
+      "deployJobId": 107850450250,
+      "artifactId": 10835647827,
+      "deploymentId": "0c1ac0e584419e721d8ec70f899436738a3d1585",
+      "commit": "0c1ac0e584419e721d8ec70f899436738a3d1585",
+      "conclusion": "success",
+      "url": "https://github.com/Jac1827/ATLAS/actions/runs/36064320062",
+      "noPagesRunForPR31": true
+    },
+    "candidateWorkflow": {
+      "status": "reviewed; no deployment performed",
+      "productionGroup": "atlas-production-publisher",
+      "previewGroup": "atlas-preview-${{ github.ref }}",
+      "crossBranchProductionRace": "fixed by parent; independently inspected",
+      "backendProbeLimit": "Proves endpoint availability and anonymous denial only. Verified projection materialization and authenticated acceptance remain a separate activation gate."
+    }
+  },
+  "publicHtml": {
+    "checkedAt": "2026-09-24T22:24:35.646Z",
+    "responses": [
+      {
+        "url": "https://rise-performance-platform-site.jacquelyn-heflin.workers.dev/portfolio-operations-dashboard/index.html",
+        "status": 200,
+        "bytes": 3384230,
+        "sha256": "c1fde41a7d1cdcdddd71a6e21aff1d8d7ca47b06d7b9bea06a98891ff918525a",
+        "hasFrozenBase": false
+      },
+      {
+        "url": "https://jac1827.github.io/ATLAS/portfolio-operations-dashboard/index.html",
+        "status": 200,
+        "bytes": 3384230,
+        "sha256": "c1fde41a7d1cdcdddd71a6e21aff1d8d7ca47b06d7b9bea06a98891ff918525a",
+        "hasFrozenBase": false
+      }
+    ],
+    "identical": true
+  },
+  "projectionPublication": {
+    "status": "unavailable",
+    "attemptStarted": "2026-09-24T22:13:36.896Z",
+    "elapsedMs": 59243,
+    "result": "statement timeout before source lock or writes",
+    "verifiedAt": "2026-09-24T22:16:44.314Z",
+    "derivedCurrentRows": 0,
+    "derivedVersionRows": 0,
+    "derivedAuditRows": 0,
+    "sourceParentUnchanged": true
+  },
+  "acceptancePassed": false
+}

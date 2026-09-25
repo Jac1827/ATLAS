@@ -17,9 +17,10 @@ export function validateMigrationHistory(files, history) {
     assert(!versions.has(parsed[1]), `Duplicate migration version: ${parsed[1]}`);
     versions.add(parsed[1]);
   }
-  const pinned = new Map(history.records.map(record => [record.file, record]));
-  assert.equal(pinned.size, history.records.length, 'Manifest contains duplicate filenames');
-  for (const record of history.records) {
+  const records = [...history.records, ...(history.appliedAdditions || [])];
+  const pinned = new Map(records.map(record => [record.file, record]));
+  assert.equal(pinned.size, records.length, 'Manifest contains duplicate filenames');
+  for (const record of records) {
     assert(files[record.file] !== undefined, `Applied migration missing or renamed: ${record.file}`);
     assert.equal(record.file, `${record.version}_${record.name}.sql`, 'Manifest identity mismatch');
     const bytes = Buffer.from(files[record.file]);
@@ -29,13 +30,18 @@ export function validateMigrationHistory(files, history) {
   for (const [file] of entries) {
     if (!pinned.has(file)) assert(file.slice(0, 14) > history.historicalCutoff, `Unrecognized migration before applied-history cutoff: ${file}`);
   }
-  return {pinned: history.records.length, additional: entries.length - history.records.length};
+  return {pinned: records.length, additional: entries.length - records.length};
 }
 
 const files = Object.fromEntries(fs.readdirSync(path.join(root, 'supabase/migrations')).filter(file => file.endsWith('.sql')).map(file => [file, fs.readFileSync(path.join(root, 'supabase/migrations', file))]));
 const result = validateMigrationHistory(files, manifest);
 const first = manifest.records[0].file;
 assert.throws(() => validateMigrationHistory({...files, [first]: Buffer.concat([files[first], Buffer.from('\n-- drift')])}, manifest), /changed/);
+for (const record of manifest.appliedAdditions || []) {
+  assert.throws(() => validateMigrationHistory({...files, [record.file]: Buffer.concat([files[record.file], Buffer.from('\n-- drift')])}, manifest), /changed/);
+  const withoutAddition = {...files}; delete withoutAddition[record.file];
+  assert.throws(() => validateMigrationHistory(withoutAddition, manifest), /missing or renamed/);
+}
 const missing = {...files}; delete missing[first];
 assert.throws(() => validateMigrationHistory(missing, manifest), /missing or renamed/);
 assert.throws(() => validateMigrationHistory({...files, '20200101000000_unrecorded_baseline.sql': Buffer.from('select 1;')}, manifest), /cutoff/);

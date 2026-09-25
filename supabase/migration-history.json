@@ -32,6 +32,18 @@
     {
       "from": "20260924143650_reforecast_utility_drivers.sql",
       "to": "20260924165549_reforecast_utility_drivers.sql"
+    },
+    {
+      "from": "20260925005521_workbook_audit_validation_performance.sql",
+      "to": "20260925011545_workbook_audit_validation_performance.sql"
+    },
+    {
+      "from": "20260925012008_reforecast_payload_receipt_recovery.sql",
+      "to": "20260925012234_reforecast_payload_receipt_recovery.sql"
+    },
+    {
+      "from": "20260925004921_reforecast_atomic_create_from_import.sql",
+      "to": "20260925012933_reforecast_atomic_create_from_import.sql"
     }
   ],
   "records": [
@@ -682,6 +694,32 @@
       "md5": "975b758435fc9f626df1bb129b4d982a",
       "sha256": "125db5defd9db14b6110d097195f304db6da08073f504b1b5258cb12363ab8f4",
       "file": "20260924165549_reforecast_utility_drivers.sql"
+    }
+  ],
+  "appliedAdditions": [
+    {
+      "version": "20260925011545",
+      "name": "workbook_audit_validation_performance",
+      "file": "20260925011545_workbook_audit_validation_performance.sql",
+      "bytes": 26834,
+      "md5": "0040e7cbdb8d8eb90e7459d0d5af60c2",
+      "sha256": "6dfcbb1cda9623e8f0d31d7f454aa568840a22f2ddf875eb34b1383d93733b0e"
+    },
+    {
+      "version": "20260925012234",
+      "name": "reforecast_payload_receipt_recovery",
+      "file": "20260925012234_reforecast_payload_receipt_recovery.sql",
+      "bytes": 2597,
+      "md5": "56e818137b74308085ee252a3deec8c0",
+      "sha256": "2d91561039e1670dcdce1832acac19a0c4f200181ad20fa64a36f34e24b5fb44"
+    },
+    {
+      "version": "20260925012933",
+      "name": "reforecast_atomic_create_from_import",
+      "file": "20260925012933_reforecast_atomic_create_from_import.sql",
+      "bytes": 80295,
+      "md5": "b2ecaf71c3b2ac784bc62716ff6db6bc",
+      "sha256": "428bcd907ca0428ad185f09480e6621405cc1ce73069ce8ee06f19604d8d0789"
     }
   ]
 }

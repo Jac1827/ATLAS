@@ -14,7 +14,7 @@ try{
  const original=migration('20260924121641_planning_cell_workbook_integrity_governance.sql');
  for(const name of ['20260924121641_planning_cell_workbook_integrity_governance.sql','20260924121647_immutable_workbook_audits_and_monthly_governance.sql','20260924232845_bounded_workbook_audit_transport.sql'])await db.exec(migration(name));
  const old=original.match(/create or replace function atlas_private.workbook_canonical_json\([\s\S]*?\$\$;/)[0].replaceAll('workbook_canonical_json','workbook_canonical_json_previous');await db.exec(old);
- await db.exec(migration('20260925005521_workbook_audit_validation_performance.sql'));
+ await db.exec(migration('20260925011545_workbook_audit_validation_performance.sql'));
  const examples=[null,true,false,0,-0,1.2,-100.001,1e-8,'  =SUM(A1)\n"quoted"\\escape 日本 é 😀',[],{},[1,null,[true,0]],{'z':1,'a':{'zero':0,'blank':null,'spaced':'a, b: c'},'short':[]},...Array.from({length:50},(_,i)=>({b:[i,-i,0,null,'x'.repeat(i)],a:{last:i/100,empty:{},values:[{},[],false]}}))];
  for(const value of examples){const r=(await db.query('select atlas_private.workbook_canonical_json($1::jsonb) current,atlas_private.workbook_canonical_json_previous($1::jsonb) previous',[JSON.stringify(value)])).rows[0];assert.equal(r.current,r.previous);}
  const serializedValueSql="select encode(sha256(convert_to(atlas_private.workbook_canonical_json($1::jsonb-'fingerprint'),'UTF8')),'hex') fingerprint";

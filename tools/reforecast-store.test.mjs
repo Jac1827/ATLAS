@@ -17,7 +17,7 @@ await db.exec(planning.slice(0,planning.indexOf('create or replace function atla
 const audits=fs.readFileSync(new URL('../supabase/migrations/20260924121647_immutable_workbook_audits_and_monthly_governance.sql',import.meta.url),'utf8');
 await db.exec(audits.slice(0,audits.indexOf('alter function atlas_private.finance_intake_validation')));
 await db.exec(fs.readFileSync(new URL('../docs/portfolio-operations-dashboard/centralization/workbook-audit-chunks.sql',import.meta.url),'utf8'));
-for(const name of ['20260925005521_workbook_audit_validation_performance.sql','20260925012008_reforecast_payload_receipt_recovery.sql'])await db.exec(fs.readFileSync(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));await signIn(1);
+for(const name of ['20260925011545_workbook_audit_validation_performance.sql','20260925012234_reforecast_payload_receipt_recovery.sql'])await db.exec(fs.readFileSync(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));await signIn(1);
 central.rpc=(name,args,options={})=>central.fetchJson('/rpc/'+name,{...options,method:'POST',body:JSON.stringify(args)});
 const accounts=[['5120','Rent','income','above_noi'],['5220','Vacancy','contra_income','above_noi'],['6100','Payroll','expense','above_noi'],['6200','Utilities','expense','above_noi'],['8100','Capital','capital','below_noi']].map(([accountCode,category,nature,placement])=>({accountCode,category,nature,placement,effectiveFrom:'2026-01'}));
 const registry=await store.saveRegistry(central,{communityId:A,requestId:randomUUID(),payload:{accounts,driverMappings:{payroll:['6100']},reason:'Reviewed source classification',effectiveDate:'2026-01-01'}});

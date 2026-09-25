@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ATLAS RISE Ops Dashboard</title>
+<link rel="icon" type="image/png" href="./assets/atlas-icon.png"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css"/>
+<script src="./performance/diagnostics.js?v=bd950e3f2737ceb2"></script>
+<script src="./performance/feature-loader.js?v=ff08c79421e3c4d0"></script>
+<script src="financial-publication.js?v=de79892b03f508fe"></script>
+<link rel="stylesheet" href="./investor-packet.css"/>
+<script src="./investor-packet-core.js?v=3fd71e27dc71368f"></script>
+<script src="./investor-packet-sources.js?v=e40335d46730bec3"></script>
+<script src="./investor-packet-ui.js?v=20359d3bbf365807"></script>
+<link rel="stylesheet" href="./atlas-core.css?v=40a4fd206ac48ef8"/>
+<!-- ATLAS Redesign v2 presentation layer — loaded last so it overrides the base
+     styles above. Presentation only; no dashboard logic depends on it. -->
+<link rel="stylesheet" href="atlas-redesign.css?v=990747fca50c0a57"/>
+<link rel="stylesheet" href="central-services.css?v=20260911-renewal-tracker"/>
+</head>
+<body>
+<div class="ticker" id="ticker" role="region" aria-label="RISE live updates">
+  <div class="ticker-brand"><img class="ticker-logo" src="assets/rise-logomark-white.png" alt="RISE"><span class="ticker-live"><span class="ticker-dot"></span>Live</span></div>
+  <div class="ticker-viewport" tabindex="0" aria-label="Latest announcements, activity, and news"><div class="ticker-track" id="atlas-ticker-track"></div></div>
+  <div class="ticker-actions"><button class="ticker-btn" id="atlas-ticker-compose" hidden onclick="AtlasReskin.openSheet()" aria-label="Post announcement"><i class="ph ph-plus"></i></button><button class="ticker-btn" id="atlas-ticker-pause" onclick="AtlasReskin.pause(this)" aria-label="Pause updates" aria-pressed="false"><i class="ph ph-pause"></i></button></div>
+</div>
+<div class="atlas-reskin" id="atlas-reskin-overlays"><div class="tip" id="tip" role="tooltip"></div><dialog id="atlas-announcement-dialog" class="sheet"><form id="atlas-announcement-form" onsubmit="event.preventDefault();AtlasReskin.saveAnnouncement()"></form></dialog></div>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header" aria-hidden="true"></div>
+  <div class="app-shell">
+    <aside class="side-nav" aria-label="Dashboard navigation">
+      <div class="side-nav-brand">
+        <img class="side-nav-brand-mark" src="assets/atlas-icon.png" alt="ATLAS">
+        <div class="side-nav-brand-text">
+          <div class="side-nav-brand-word">ATLAS</div>
+          <div class="side-nav-brand-eyebrow">Portfolio · Tracker · Reports</div>
+        </div>
+      </div>
+      <div class="side-nav-head">
+        <div class="side-nav-title">Navigation</div>
+        <button type="button" class="side-nav-toggle" id="side-nav-toggle" onclick="return toggleSideNav()" aria-label="Collapse navigation" title="Collapse navigation">‹</button>
+      </div>
+      <div class="side-nav-date" id="workspace-current-date">Loading date…</div>
+      <div class="side-nav-context">
+        <label class="side-nav-context-field">
+          <span>Community</span>
+          <select id="workspace-community-select" onchange="onWorkspaceCommunitySelect(this.value)"></select>
+        </label>
+        <label class="side-nav-context-field">
+          <span>Current Month</span>
+          <select data-field="currentMonth" id="workspace-current-month">
+            <option value="0">January</option>
+            <option value="1">February</option>
+            <option value="2">March</option>
+            <option value="3">April</option>
+            <option value="4">May</option>
+            <option value="5">June</option>
+            <option value="6">July</option>
+            <option value="7">August</option>
+            <option value="8">September</option>
+            <option value="9">October</option>
+            <option value="10">November</option>
+            <option value="11">December</option>
+          </select>
+        </label>
+      </div>
+      <!-- Merged navigation: the redesign's flow and grouping, carrying every
+           destination from the live dashboard plus the four embedded RISE
+           platforms. Active state is keyed off data-tab, not DOM order, so the
+           nav can be reordered freely without touching the tab router. -->
+      <div class="tabs" id="tabs">
+        <div class="nav-group-label">Portfolio</div>
+        <button class="tab active" data-tab="0" onclick="setTab(0)" aria-label="Portfolio Home"><i class="tab-icon ph ph-chart-line-up" aria-hidden="true"></i><span class="tab-label">Portfolio Home</span></button>
+        <button class="tab" data-tab="2" onclick="setTab(2)" aria-label="Community Command"><i class="tab-icon ph ph-squares-four" aria-hidden="true"></i><span class="tab-label">Community Command</span></button>
+        <button class="tab" style="display:none" data-tab="1" onclick="setTab(1)" aria-label="Community Settings"><i class="tab-icon ph ph-buildings" aria-hidden="true"></i><span class="tab-label">Community Settings</span></button>
+
+        <div class="nav-group-label">Operations</div>
+        <button class="tab" data-tab="15" onclick="setTab(15)" aria-label="Central Services"><i class="tab-icon ph ph-command" aria-hidden="true"></i><span class="tab-label">Central Services</span></button>
+        <button class="tab" data-tab="3" onclick="setTab(3)" aria-label="Traffic and Funnel"><i class="tab-icon ph ph-funnel" aria-hidden="true"></i><span class="tab-label">Traffic &amp; Funnel</span></button>
+        <button class="tab" data-tab="16" onclick="setTab(16)" aria-label="Application Performance"><i class="tab-icon ph ph-chart-bar" aria-hidden="true"></i><span class="tab-label">Application Performance</span></button>
+        <button class="tab" data-tab="4" onclick="setTab(4)" aria-label="Comp Calculator"><i class="tab-icon ph ph-calculator" aria-hidden="true"></i><span class="tab-label">Comp Calculator</span></button>
+        <button class="tab" data-tab="5" onclick="setTab(5)" aria-label="Renewals"><i class="tab-icon ph ph-arrows-clockwise" aria-hidden="true"></i><span class="tab-label">Renewals</span></button>
+        <button class="tab" data-tab="6" onclick="setTab(6)" aria-label="Reputation"><i class="tab-icon ph ph-star" aria-hidden="true"></i><span class="tab-label">Reputation</span></button>
+        <button class="tab" data-tab="10" onclick="setTab(10)" aria-label="Maintenance"><i class="tab-icon ph ph-wrench" aria-hidden="true"></i><span class="tab-label">Maintenance</span></button>
+        <button class="tab" data-tab="11" onclick="setTab(11)" aria-label="Marketing"><i class="tab-icon ph ph-megaphone" aria-hidden="true"></i><span class="tab-label">Marketing</span></button>
+
+        <div class="nav-group-label">Finance &amp; People</div>
+        <button class="tab" data-tab="12" onclick="setTab(12)" aria-label="Budget Builder"><i class="tab-icon ph ph-calculator" aria-hidden="true"></i><span class="tab-label">Budget Builder</span></button>
+        <button class="tab" data-tab="9" onclick="setTab(9)" aria-label="Bonus and Incentives"><i class="tab-icon ph ph-medal" aria-hidden="true"></i><span class="tab-label">Bonus &amp; Incentives</span></button>
+        <button class="tab" data-tab="13" onclick="setTab(13)" aria-label="People"><i class="tab-icon ph ph-users-three" aria-hidden="true"></i><span class="tab-label">People</span></button>
+
+        <div class="nav-group-label">Output</div>
+        <button class="tab" data-tab="14" onclick="setTab(14)" aria-label="ATLAS Settings"><i class="tab-icon ph ph-sliders-horizontal" aria-hidden="true"></i><span class="tab-label">ATLAS Settings</span></button>
+        <button class="tab" data-tab="8" onclick="setTab(8)" aria-label="Reports and Presentations"><i class="tab-icon ph ph-presentation-chart" aria-hidden="true"></i><span class="tab-label">Reports &amp; Presentations</span></button>
+        <button class="tab" data-tab="7" onclick="setTab(7)" aria-label="Data Import"><i class="tab-icon ph ph-download-simple" aria-hidden="true"></i><span class="tab-label">Data Import</span></button>
+      </div>
+      <div class="side-nav-footer">
+        <div id="side-nav-role-label">Role view · Portfolio manager</div>
+        <div id="side-nav-scope-summary">All communities</div>
+      </div>
+    </aside>
+    <main class="content-shell">
+
+  <!-- Sticky context header: the sidebar owns community and reporting-month selection. -->
+  <header class="atlas-topbar" id="atlas-topbar">
+    <div class="atlas-topbar-brand" aria-label="ATLAS Portfolio Tracker Reports">
+      <img src="assets/atlas-icon.png" alt="" aria-hidden="true">
+      <div>
+        <div class="atlas-topbar-brand-word">ATLAS</div>
+        <div class="atlas-topbar-brand-subtitle">Portfolio · Tracker · Reports</div>
+      </div>
+    </div>
+    <div class="atlas-topbar-chips">
+      <span class="atlas-chip is-accent" id="atlas-chip-budget"><i class="ph ph-file-text" aria-hidden="true"></i><span>Monthly upload</span></span>
+      <span class="atlas-chip" id="atlas-chip-freshness"><i class="ph ph-database" aria-hidden="true"></i><span>Viewing data</span></span>
+      <button class="btn save-data-button atlas-topbar-save-button" onclick="saveCommunityData()" aria-label="Save Data"><img class="save-data-icon" src="assets/atlas-icon.png" alt=""><span>Save Data</span></button>
+    </div>
+    <div class="atlas-live-users is-muted" id="atlas-live-users" title="Signed-in ATLAS users active in the last few minutes">
+      <i class="ph ph-broadcast" aria-hidden="true"></i>
+      <div class="atlas-live-users-main">
+        <div class="atlas-live-users-avatars" id="atlas-live-users-avatars"></div>
+        <span class="atlas-live-user-label">Live users unavailable</span>
+      </div>
+    </div>
+    <div class="atlas-employee-notices" id="atlas-employee-notices" role="region" aria-live="polite" aria-label="ATLAS updates"></div>
+  </header>
+
+  <section class="card mb4 application-tracker-card" id="application-tracking-section" aria-label="Application tracking">
+    <div id="application-tracking-content"></div>
+  </section>
+
+  <!-- TAB CONTENT -->
+  <div id="tab-panel-0" class="tab-panel"></div>
+  <div id="tab-panel-1" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-2" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-3" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-4" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-5" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-6" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-7" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-8" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-9" class="tab-panel" style="display:none"></div>
+  <!-- Embedded RISE platforms — each renders its tool inline, no click-to-open -->
+  <div id="tab-panel-10" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-11" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-12" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-13" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-14" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-15" class="tab-panel" style="display:none"></div>
+  <div id="tab-panel-16" class="tab-panel" style="display:none"></div>
+
+    </main>
+  </div>
+
+</div>
+
+<script src="./atlas-mounts.js?v=3e4e803deadcd4f0"></script>
+<script src="./centralization/atlas-central-client.js?v=83deeb18a155f022" data-atlas-central-client="true"></script>
+<script src="./atlas-dashboard-reskin.js?v=43d8e2283733d898"></script>
+<script src="./eviction-attorney-ui.js?v=20260916-community-contacts"></script>
+<link rel="stylesheet" href="./application-performance.css?v=20260916-no-data-status">
+<script src="./application-lineage.js?v=fa2f0b92fa3bd9ea"></script>
+<script src="./screening-summary.js?v=d574557677e6a93a"></script>
+<script src="./lead-source-contract.js?v=03b9ce80d867a771"></script>
+<script src="./lead-source-mapping-store.js?v=eab2a74620808693"></script>
+<script src="./lead-source-review.js?v=78da736d5dd0e942"></script>
+<script src="./application-source-bridge.js?v=0aaee5561d38a89b"></script>
+<script src="./occupancy-replay.js?v=2"></script>
+<script src="./application-performance.js?v=20260917-weekly-report"></script>
+<link rel="stylesheet" href="./concession-insights.css?v=20260917-1">
+<script src="./property-intelligence.js?v=20260917-1"></script>
+<script src="./box-score-floor-plans.js?v=20260917-1"></script>
+<script src="./floor-plan-settings.js?v=20260917-1"></script>
+<script src="./property-organization.js?v=20260917-floorplans"></script>
+<script src="./concession-insights.js?v=20260917-1"></script>
+<script src="./weekly-leasing-report.js?v=20260917-aging"></script>
+<script src="./workforce-sync.js?v=4da6e2edc0b496e4"></script>
+<script src="./workforce-assignment.js?v=86fb414cbe269a8a"></script>
+<script src="./application-aging.js?v=4091f111fe289027"></script>
+<script src="./application-performance-ui.js?v=11c923f616cf5362"></script>
+<script src="./reforecast-consumers.js?v=699ade7026abc21b"></script>
+<script src="./community-goal-editor.js?v=98c28b6c7e9197d1"></script>
+<script defer src="./workspace-core.js?v=6eee3b9c8df5f952"></script>
+
+</body>
+</html>

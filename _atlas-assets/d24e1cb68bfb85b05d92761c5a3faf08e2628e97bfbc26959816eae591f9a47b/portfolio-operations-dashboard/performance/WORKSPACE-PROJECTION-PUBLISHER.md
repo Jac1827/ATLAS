@@ -1,0 +1,28 @@
+# Source-bound workspace projection publication
+
+The dedicated `atlas_publish_workspace_projection(p_projection jsonb)` RPC publishes the derived startup document. It is an active-admin-only, security-invoker function with an empty search path and a fixed 30-second function deadline. General document writes and role/global timeouts remain unchanged. Its JSON receipt contains the existing document identity/version/hash/timestamp fields, `source_module`, and `status` (`published` or `existing`). The caller still verifies the exact saved payload and parent through readback.
+
+The previous 7 MB publication failed with PostgreSQL `57014` at the immutable-version insert under the authenticated role's eight-second deadline. This is evidence of the enforced deadline and write stage, not proof of a specific CPU, memory or disk bottleneck. Retaining current, version and audit copies remains intentional. A longer deadline does not guarantee completion under every workload.
+
+PostgREST hoists settings from the addressed RPC before its main query. `statement_timeout` is included by default; this capability exists from version 12.2. Supabase documents function-level timeouts for REST RPCs. The declaration belongs on the outer publisher, not inside the body or only on its nested document writer. See [Supabase timeouts](https://supabase.com/docs/guides/database/postgres/timeouts#function-level), [the Supabase 12.2 announcement](https://supabase.com/blog/postgrest-12-2#hoisted-function-settings), and [PostgREST transaction settings](https://postgrest.org/en/stable/references/transactions.html#hoisted-function-settings).
+
+Read-only preflight observed deployed PostgREST 14.5 and no `pgrst.db_hoisted_tx_settings` override in role/database catalogs. An environment-only override cannot be ruled out through those catalogs. PR #31 automatically deployed this function; its body, invoker security, grants and 30-second declaration match the reviewed SQL. Authenticated and authenticator role limits remain eight seconds. Local tests and catalog checks validate the declaration; actual HTTP elapsed time alone does not independently verify the effective database timer.
+
+## Preserved boundaries
+
+- The profile must be admin with active status and active account status. It is locked for the transaction, preventing authorization changes while a queued publication proceeds.
+- The only parent is the active dashboard document `atlas_dashboard_state_v1`. A parent row lock binds its exact version, archive hash and effective timestamp through publication and serializes concurrent publishers.
+- The key is derived internally from that parent. Module and source module are fixed. The payload must have format 1, the exact source shape, object sections, valid hash fields and at most 16 MiB of serialized UTF-8 JSONB. The size limit does not depend on TOAST compression.
+- A matching retained document returns its existing receipt without another version/audit entry. A different, deleted or incorrectly bound document at the same key fails. The publisher never updates or replaces a projection.
+- The existing `atlas_update_app_document` performs the insert with null expected version and no caller-supplied server hash. Its RLS, immutable version and audit writes remain atomic. Any failure rolls back all three writes.
+- The projection's browser `contentHash` retains its established stable-JSON format. The existing writer independently computes the PostgreSQL JSONB receipt hash. These formats must not be compared as interchangeable hashes. The authorized materializer verifies derivation and browser hash before publishing; the RPC validates source binding and hash format, not ZIP derivation.
+
+The migration adds one RPC and its grants, requests schema-cache reload, and changes no stored operational rows, table policies, role deadlines or general writer. Rollback can remove execution access or route the explicit materializer back to its previous writer; preserve any published document/version/audit history. Do not drop retained data.
+
+## Verification and release
+
+Run `node tools/workspace-projection-publisher-db.test.cjs` and `node tools/scoped-workspace-projection-db.test.cjs`. The publisher test replays the complete migration chain and uses synthetic users and payloads. It covers authentication, role/status/account denial, malformed/oversized inputs, missing/stale source, existing-document conflicts, idempotency, the ordinary server hash, exact null/zero values, a 7 MB payload retained in all three locations, and atomic rollback when the final audit insert fails. It also verifies security-invoker, the 30-second declaration and that the general writer has no deadline override.
+
+Local success is not production acceptance. After automatic deployment, a single authorized HTTP materialization started at 22:13:36.896 UTC on September 24 and failed after 59,243 ms. PostgreSQL logged cancellation at 22:14:27.161 UTC in the serialized size check, before the parent lock or any write. Other requests also showed degraded latency. Readback at 22:16:44.314 UTC found no projection, version or audit rows and the unchanged parent. The logged location is where cancellation was observed, not a timing measurement of that expression or proof of a specific resource bottleneck.
+
+Further identical retries are withheld until service conditions change meaningfully. A subsequent controlled materialization must verify exact readback before client activation. An ambiguous HTTP outcome must be resolved by reading the exact source-bound key before retrying. No automatic retry loop or general timeout increase is part of this change.

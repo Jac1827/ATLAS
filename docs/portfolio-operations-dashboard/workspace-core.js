@@ -43326,7 +43326,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
     if (!silent) alert("Save community data first, then the Community Progress report can build from the selected community.");
     return null;
   }
-  const detail = buildCommunityDetailForMonth(communityName, record, monthIdx, year);
+  const detail = buildCommunityDetailForMonth(communityName, record, monthIdx, year, COMMUNITY_PROGRESS_TREND_DETAIL_OPTIONS);
   if (!detail) {
     if (!silent) alert("Save community data first, then the Community Progress report can build from the selected community.");
     return null;
@@ -43614,7 +43614,7 @@ function buildCommunityProgressReportData(options = {}) {
   const occupancyPct = getSummaryOccPct(aggregateSummary);
   const leasedPct = getSummaryLeasedPct(aggregateSummary);
   const marketDetails = communityReports
-    .map(item => buildCommunityDetailForMonth(item.communityName, item.sourceRecord, monthIdx, year))
+    .map(item => buildCommunityDetailForMonth(item.communityName, item.sourceRecord, monthIdx, year, COMMUNITY_PROGRESS_TREND_DETAIL_OPTIONS))
     .filter(Boolean);
   const marketPerformance = buildCommunityProgressMarketPerformance(marketDetails, monthIdx, year);
   const floorPlanRentComparisonRows = aggregateCommunityProgressBedroomRentComparisonRows(communityReports);
@@ -43658,7 +43658,7 @@ function buildCommunityProgressReportData(options = {}) {
     .filter(idx => idx >= monthIdx)
     .slice(0, 4)
     .map(idx => {
-      const monthlyDetails = communityReports.map(item => buildCommunityDetailForMonth(item.communityName, item.sourceRecord, idx, year)).filter(Boolean);
+      const monthlyDetails = communityReports.map(item => buildCommunityDetailForMonth(item.communityName, item.sourceRecord, idx, year, COMMUNITY_PROGRESS_TREND_DETAIL_OPTIONS)).filter(Boolean);
       const monthlySummary = aggregateCommunitySummaries(monthlyDetails.map(item => item.summary));
       const renewal = {
         expirations: monthlySummary.renewalExpirations,

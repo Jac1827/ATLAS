@@ -17,10 +17,14 @@ const atlasReportMemoResult = Symbol("report synchronous result");
 // matters: different records, periods, or names must never reuse one another.
 // The context is discarded before returning to the event loop, so edits and
 // actor/access/source changes always start with fresh values on the next render.
-for (const name of ["getAtlasAccessProfile", "getAtlasCentralStatus", "getAtlasCommunityAccessRecord", "normalizeCommunityLookupName", "matchPropertyName", "getPropertyByName", "normalizeSavedCommunityRecord", "buildCommunityDetailForMonth", "getCommunityCommandApprovedGoal", "communityCommandSharedGoalScope", "getRecordSavedBudgetOccPct", "getRenewalMonthEntryForRecord", "getImportReadinessStatus", "buildCommunityProgressTrendRows"]) {
+for (const name of ["getAtlasAccessProfile", "getAtlasCentralStatus", "getAtlasCommunityAccessRecord", "normalizeCommunityLookupName", "matchPropertyName", "getPropertyByName", "defaultSavedCommunityRecord", "normalizeSavedCommunityRecord", "buildCommunityDetailForMonth", "getCommunityCommandApprovedGoal", "communityCommandSharedGoalScope", "getRecordSavedBudgetOccPct", "getRenewalMonthEntryForRecord", "getImportReadinessStatus", "buildCommunityProgressTrendRows"]) {
   const original = window[name];
   if (typeof original === "function") window[name] = (...args) => atlasReportMemoizedCall(original, args);
 }
+// The record default factory is used only by normalizeSavedCommunityRecord,
+// which spreads its top level and does not mutate the default tree. Reports read
+// the retained nested defaults; outside this synchronous context the factory
+// still produces a fresh mutable tree for every call.
 // Month selectors read exactly these three source fields. Report builders make
 // shallow record copies for each month; those copies still share the same source
 // arrays. Reuse that work within this synchronous render, without retaining any

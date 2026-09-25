@@ -42550,13 +42550,11 @@ function buildCommunityProgressYoyApplicationsSummary(report) {
         .map(item => ({
           communityName: item.communityName,
           record: item.sourceRecord,
-          detail: buildCommunityDetailForMonth(item.communityName, item.sourceRecord, monthIdx, year)
         }))
         .filter(item => item.record)
     : [{
         communityName: report.communityName,
         record: report.sourceRecord,
-        detail: buildCommunityDetailForMonth(report.communityName, report.sourceRecord, monthIdx, year)
       }].filter(item => item.record);
   const summarizeDelta = (currentValue, previousValue) => ({
     currentValue: Math.max(0, Number(currentValue) || 0),

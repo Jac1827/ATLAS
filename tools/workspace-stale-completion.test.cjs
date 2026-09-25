@@ -61,7 +61,7 @@ function startupFixture(configured = true) {
     hydrateDataImport2State: async () => { importEntered = true; return held.promise; },
     applyIncomingWorkspaceNavigation() { ctx.navigations = (ctx.navigations || 0) + 1; },
     runAtlasInitialRenderPassYielding: async current => { assert(current()); ctx.renders = (ctx.renders || 0) + 1; return true; },
-    requestAnimationFrame() {}, recordAtlasAuthenticatedShellPaint() {}, finishAtlasStartupLoadingState() {}, renderTab() {}
+    requestAnimationFrame() {}, recordAtlasAuthenticatedShellPaint() {}, clearAtlasAuthenticatedShellObservation() {}, finishAtlasStartupLoadingState() {}, renderTab() {}
   };
   vm.createContext(ctx); vm.runInContext(startupCode, ctx);
   return {ctx, held, entered: () => importEntered};

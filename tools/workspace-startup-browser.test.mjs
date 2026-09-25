@@ -176,7 +176,9 @@ try{
  profileGate.resolve();profileGate=null;await page.waitForFunction(()=>atlasWorkspaceAccess.validated&&atlasWorkspaceAccess.hasData&&atlasDashboardInitializationComplete&&!atlasAccessVerificationPromise);
  assert.equal(await page.evaluate(()=>atlasAccessDecision(8).ok),false,'New page lock is server-verified before rendering');
  // A failed current access read hides data, even when that actor has a valid cache.
+ await page.waitForFunction(()=>performance.getEntriesByName('atlas:time-to-authenticated-shell').length===1);
  profileUnavailable=true;await page.evaluate(()=>verifyAtlasWorkspaceAccess());
+ assert.deepEqual(await page.evaluate(()=>({marks:performance.getEntriesByName('atlas:authenticated-shell:ready').length,measures:performance.getEntriesByName('atlas:time-to-authenticated-shell').length})),{marks:0,measures:0},'Completed shell observations are cleared when current access fails');
  assert.equal(await page.evaluate(()=>atlasWorkspaceAccess.validated),false);
  assert.match(await page.locator('#tab-panel-0').innerText(),/Workspace source unavailable/);
  await page.evaluate(()=>setTab(14));

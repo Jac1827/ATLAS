@@ -53325,6 +53325,11 @@ function finishAtlasStartupLoadingState() {
   document.body.classList.remove("atlas-is-initializing");
 }
 
+function clearAtlasAuthenticatedShellObservation() {
+  performance.clearMarks("atlas:authenticated-shell:ready");
+  performance.clearMeasures("atlas:time-to-authenticated-shell");
+}
+
 // A loading card and disabled navigation are not an authenticated shell.
 // Observe a real paint only after the existing startup flow makes it interactive.
 function recordAtlasAuthenticatedShellPaint(epoch) {
@@ -53346,8 +53351,7 @@ function recordAtlasAuthenticatedShellPaint(epoch) {
       if(!navigation || !navigation.getClientRects().length)return;
       const style=getComputedStyle(navigation);
       if(style.pointerEvents==="none" || style.visibility==="hidden" || style.display==="none")return;
-      performance.clearMarks("atlas:authenticated-shell:ready");
-      performance.clearMeasures("atlas:time-to-authenticated-shell");
+      clearAtlasAuthenticatedShellObservation();
       performance.mark("atlas:authenticated-shell:ready");
       performance.measure("atlas:time-to-authenticated-shell",{start:0,end:"atlas:authenticated-shell:ready"});
     });
@@ -53594,7 +53598,7 @@ async function ensureAtlasCanonicalImportEvidence({signal:externalSignal} = {}) 
 
 async function initializeAtlasDashboard() {
   performance.mark("atlas:startup:start");
-  performance.clearMeasures("atlas:time-to-authenticated-shell");
+  clearAtlasAuthenticatedShellObservation();
   atlasWorkspaceAccess.controller?.abort();
   resetAtlasAuxiliaryContext();
   const epoch = ++atlasWorkspaceAccess.epoch;
@@ -53674,6 +53678,7 @@ window.addEventListener("atlas-central-auth-change", () => {
   if (actor === atlasLastWorkspaceActor && access === atlasLastWorkspaceAccess) return; // Token rotation preserves evidence; access changes require a fresh server check.
   atlasLastWorkspaceActor = actor; atlasLastWorkspaceAccess = access;
   resetAtlasAuxiliaryContext();
+  clearAtlasAuthenticatedShellObservation();
   atlasWorkspaceAccess.controller?.abort(); atlasWorkspaceAccess.validated=false; atlasWorkspaceAccess.hasData=false; atlasWorkspaceAccess.epoch++;
   atlasFinanceRequestController?.abort(); atlasFinanceScopeQueue.clear();
   window.AtlasClosedFinancialCache?.clear(); window.AtlasCommandPlanSummaries = {};
@@ -53700,6 +53705,7 @@ async function verifyAtlasWorkspaceAccess() {
     const namespace=await module.accessNamespace(window.ATLAS_CENTRAL,profile);
     if(epoch!==atlasWorkspaceAccess.epoch)return;
     if(namespace!==ATLAS_STATE_DB_NAME){
+      clearAtlasAuthenticatedShellObservation();
       atlasWorkspaceAccess.controller?.abort();atlasWorkspaceAccess.validated=false;atlasWorkspaceAccess.hasData=false;
       atlasFinanceRequestController?.abort();window.AtlasClosedFinancialCache?.clear();
       document.querySelectorAll(".tab-panel").forEach(panel=>{panel.replaceChildren();delete panel.dataset.atlasStableMountMounted;});
@@ -53707,7 +53713,7 @@ async function verifyAtlasWorkspaceAccess() {
     }
   })();
   try{await atlasAccessVerificationPromise;}
-  catch(error){if(epoch===atlasWorkspaceAccess.epoch){atlasWorkspaceAccess.validated=false;atlasWorkspaceAccess.error=error.message;atlasWorkspaceAccess.controller?.abort();atlasFinanceRequestController?.abort();document.querySelectorAll(".tab-panel").forEach(panel=>panel.replaceChildren());renderTab();}}
+  catch(error){if(epoch===atlasWorkspaceAccess.epoch){clearAtlasAuthenticatedShellObservation();atlasWorkspaceAccess.validated=false;atlasWorkspaceAccess.error=error.message;atlasWorkspaceAccess.controller?.abort();atlasFinanceRequestController?.abort();document.querySelectorAll(".tab-panel").forEach(panel=>panel.replaceChildren());renderTab();}}
   finally{atlasAccessVerificationPromise=null;}
 }
 window.addEventListener("focus",verifyAtlasWorkspaceAccess);

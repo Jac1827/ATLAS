@@ -1,4 +1,5 @@
-import {persistWorkbookAudit,readWorkbookAudit,listPendingWorkbookUploads,cancelWorkbookStaging} from './workbook-audit-store.mjs?v=3f5ee248a90b8d0e';
+import {currentReforecastParserVersion,needsReforecastParserRecovery,upgradeReforecastParserEvidence} from './reforecast-parser-recovery.mjs';
+import {persistWorkbookAudit,readWorkbookAudit,readWorkbookAuditBytes,listPendingWorkbookUploads,cancelWorkbookStaging} from './workbook-audit-store.mjs?v=3f5ee248a90b8d0e';
 import {compareWorkbookEvidence} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
 import {reviewPlanningInputs,planningMappingDispositions} from './planning-governance.mjs?v=a4de8d3f5a50966c';
 import {parseReforecastWorkbook,mapReforecastIntake,validateReforecastPropertyAssignment} from './reforecast-intake.mjs?v=1f8bae00926f1f93';
@@ -74,7 +75,7 @@ function guard(state){if(!state.actor||currentActor(state.central)!==state.actor
 function selectOptions(items,value,placeholder='Choose explicitly'){return `<option value="">${esc(placeholder)}</option>`+items.map(item=>`<option value="${esc(item.value)}" ${item.value===value?'selected':''}>${esc(item.label)}</option>`).join('');}
 function reportFindings(evidence){
  const counts=(evidence.issues||[]).reduce((all,item)=>(all[item.code]=(all[item.code]||0)+1,all),{});
- return `<details><summary>${evidence.issues?.length||0} workbook findings and retained source evidence</summary><p>File ${esc(evidence.source?.fileName)} · SHA-256 ${esc(evidence.sourceHash||evidence.source?.sha256)}</p><p>${evidence.sheets?.length||0} sheets · ${evidence.summary?.formulas||0} formulas retained without execution. Source Actual columns are evidence only.</p><pre>${esc(JSON.stringify({entities:evidence.metadata?.entities,currencies:evidence.metadata?.currencies,workbookLastClosedMonth:evidence.metadata?.lastClosedMonth,findings:counts,integrityFingerprint:evidence.integrity?.fingerprint,integrityFindingCount:evidence.integrity?.findings?.length||0,integrityFindings:evidence.integrity?.findings?.slice(0,100),planningCellClassifications:(evidence.planningCells||[]).reduce((all,c)=>(all[c.classification]=(all[c.classification]||0)+1,all),{})},null,2))}</pre><details><summary>Finding details</summary><pre>${esc(JSON.stringify(evidence.issues||[],null,2))}</pre></details></details>`;
+ return `<details><summary>${evidence.issues?.length||0} workbook findings and retained source evidence</summary><p>File ${esc(evidence.source?.fileName)} · SHA-256 ${esc(evidence.sourceHash||evidence.source?.sha256)}</p><p>${evidence.sheets?.length||0} sheets · ${evidence.summary?.formulas||0} formulas retained without execution. Source Actual columns are evidence only.</p><pre>${esc(JSON.stringify({entities:evidence.metadata?.entities,currencies:evidence.metadata?.currencies,workbookLastClosedMonth:evidence.metadata?.lastClosedMonth,findings:counts,parserVersion:evidence.parserVersion,parserUpgrade:evidence.parserUpgrade,integrityFingerprint:evidence.integrity?.fingerprint,integrityFindingCount:evidence.integrity?.findings?.length||0,integrityFindings:evidence.integrity?.findings?.slice(0,100),planningCellClassifications:(evidence.planningCells||[]).reduce((all,c)=>(all[c.classification]=(all[c.classification]||0)+1,all),{})},null,2))}</pre><details><summary>Finding details</summary><pre>${esc(JSON.stringify(evidence.issues||[],null,2))}</pre></details></details>`;
 }
 function shell(title){
  const el=document.createElement('dialog');el.className='rfi';el.setAttribute('aria-label',title);
@@ -91,9 +92,9 @@ function retainReview(state){
  state.recoveryPromise.catch(error=>showStatus(state,'Recovery could not be saved: '+error.message,true));return state.recoveryPromise;
 }
 async function prepareRecovery(state){
- state.evidenceId='workbook:'+state.evidence.source.sha256;
+ state.evidenceId='workbook:'+state.evidence.source.sha256+':'+state.evidence.parserVersion;
  const reviews=await listForecastRecovery(state.central),prior=reviews.find(row=>row.kind==='import-review'&&row.evidenceId===state.evidenceId&&row.purpose===(state.purpose||'reforecast')&&(!state.upload||row.uploadId===state.upload.upload_id));
- if(prior){Object.assign(state,prior.fields);state.selected=new Set(prior.selected);state.reviewId=prior.id;const retained=await readForecastRecovery(state.central,state.evidenceId);if(retained?.evidence?.integrity?.fingerprint===state.scopedFingerprint)state.evidence=retained.evidence;else state.scopeSelectionKey=null;}
+ if(prior){Object.assign(state,prior.fields);state.selected=new Set(prior.selected);state.reviewId=prior.id;const retained=await readForecastRecovery(state.central,state.evidenceId);if(retained?.evidence?.parserVersion===currentReforecastParserVersion&&retained?.evidence?.integrity?.fingerprint===state.scopedFingerprint)state.evidence=retained.evidence;else state.scopeSelectionKey=null;}
  else state.reviewId='import-review:'+uid();
  await saveForecastRecovery(state.central,state.evidenceId,{kind:'workbook-evidence',evidence:state.evidence});await retainReview(state);guard(state);
  state.el.addEventListener('input',()=>{if(state.busy)return;if(state.el.querySelector('[data-scenario]'))readReviewFields(state);retainReview(state);});
@@ -171,6 +172,7 @@ function readReviewFields(state){
  for(const input of root.querySelectorAll('[data-line-index]')){const line=state.visibleLines[Number(input.dataset.lineIndex)];if(input.checked)state.selected.add(line.id);else state.selected.delete(line.id);}
 }
 function previewReview(state){
+ if(needsReforecastParserRecovery(state.evidence))return {ready:false,lines:[],mapping:{},issues:[{code:'parser_review_required',severity:'error',message:'This retained evidence used an older workbook parser. Reopen the saved import to reparse its exact original workbook and review newly recognized cells.'}]};
  const result=evaluateReforecastImportReview({purpose:state.purpose,evidence:state.evidence,source:state.source,assignment:state.assignment,scenario:state.scenario,currency:state.currency,periods:state.periods,accountChoices:state.accountChoices,selectedLineIds:[...state.selected],reason:state.reason,confirmed:state.confirmed,reviewerId:state.actor,calendar:state.calendar,inputReviews:state.inputReviews,integrityReviews:state.integrityReviews,currencyAliasConfirmed:state.currencyAliasConfirmed},state.communities.map(communityId));
  if(state.purpose!=='original_budget'){let current=false;try{current=state.scopeSelectionKey===reforecastAuthoritySelectionKey(state.evidence,result.mapping);}catch{}if(!current){result.ready=false;result.issues.unshift({code:'forecast_authority_scope_required',severity:'error',message:'Review the selected forecast scope and its retained workbook findings before applying values.'});}}
  return result;
@@ -243,7 +245,10 @@ export async function importReforecastWorkbook(options){
 export async function resumeReforecastImport({upload,uploadId,...options}) {
  if(!upload){if(!UUID.test(uploadId||''))throw Error('Select a saved workbook import.');const rows=await options.central.fetchJson(`/atlas_reforecast_uploads?upload_id=eq.${uploadId}&select=*&limit=1`);upload=rows?.[0];}
  if(!upload?.payload?.source||!upload?.payload?.propertyAssignment)throw Error('The saved workbook evidence or property assignment is unavailable.');
- const evidence={...upload.payload};if(evidence.integrity?.auditId)evidence.integrity=await readWorkbookAudit(options.central,evidence.integrity,{sourceHash:evidence.source.sha256});
+ let evidence={...upload.payload};const auditReference=evidence.integrity;let sourceBytes;
+ if(needsReforecastParserRecovery(evidence)&&!evidence.source.originalFile&&auditReference?.manifestHash){const retained=await readWorkbookAuditBytes(options.central,auditReference,{sourceHash:evidence.source.sha256});evidence.integrity=retained.evidence;sourceBytes=retained.sourceBytes;}else if(evidence.integrity?.auditId)evidence.integrity=await readWorkbookAudit(options.central,evidence.integrity,{sourceHash:evidence.source.sha256});
+ const upgraded=await upgradeReforecastParserEvidence(evidence,{sourceBytes,previousUploadId:upload.upload_id,previousAuditId:auditReference?.auditId});evidence=upgraded.evidence;
+ if(upgraded.changed){const state=createState(options,evidence);state.assignment={...upload.payload.propertyAssignment,confirmed:false,explicit:false,actorId:state.actor};state.priorImports=[upload];await prepareRecovery(state);renderProperty(state);showStatus(state,`Workbook parser updated from ${upgraded.upgrade.fromParserVersion} to ${currentReforecastParserVersion}. ${upgraded.upgrade.addedLineIds.length} newly recognized source cells require a new immutable evidence version and complete mapping review. The previous upload and receipt remain unchanged.`);return state.el;}
  const state=createState(options,evidence,upload);
  await prepareRecovery(state);
  state.assignment={...upload.payload.propertyAssignment,explicit:true,actorId:upload.payload.propertyAssignment.actorId||upload.created_by,sourceEntities:upload.payload.propertyAssignment.sourceEntities||upload.payload.propertyAssignment.entities||[]};
@@ -255,7 +260,7 @@ export async function resumeLocalReforecastImport({recoveryId,...options}){
  const recovery=await readForecastRecovery(options.central,recoveryId);if(recovery?.kind!=='import-review')throw Error('This unfinished import could not be recovered.');
  if(recovery.uploadId)return resumeReforecastImport({...options,uploadId:recovery.uploadId});
  const saved=await readForecastRecovery(options.central,recovery.evidenceId);if(!saved?.evidence)throw Error('Retained workbook bytes are unavailable. Choose the original workbook again.');
- const state=createState(options,saved.evidence);await prepareRecovery(state);renderProperty(state);showStatus(state,'UNSAVED — workbook and mapping recovered from this browser. Save immutable evidence, then create and verify the working forecast.');return state.el;
+ const upgraded=await upgradeReforecastParserEvidence(saved.evidence),state=createState(options,upgraded.evidence);if(upgraded.changed&&recovery.fields?.assignment)state.assignment={...recovery.fields.assignment,confirmed:false,explicit:false,actorId:state.actor};await prepareRecovery(state);renderProperty(state);showStatus(state,upgraded.changed?`UNSAVED — parser ${currentReforecastParserVersion} reread the exact retained workbook and recognized ${upgraded.upgrade.addedLineIds.length} additional source cells. Prior selections and approvals remain retained separately. Review the new evidence and mapping before applying.`:'UNSAVED — workbook and mapping recovered from this browser. Save immutable evidence, then create and verify the working forecast.');return state.el;
 }
 
 export function mergeReforecastImportIntoDraft(draft,result,{actor,timestamp=new Date().toISOString()}={}) {

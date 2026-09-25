@@ -1,4 +1,5 @@
-import {reviewOriginalWorkbook} from './original-budget-intake.mjs?v=56d6ccd2cfcfc890';
+import {completeOriginalBudgetRecovery} from './reforecast-recovery.mjs?v=0aa8ab94767bff86';
+import {reviewOriginalWorkbook} from './original-budget-intake.mjs?v=e001a171597efc58';
 import {readApprovedBudgets} from './canonical-finance.mjs?v=74da135760e0bbd5';
 const finite=v=>typeof v==='number'&&Number.isFinite(v);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -30,7 +31,7 @@ export async function readBudgetVersion(central,{versionId,contentHash,cid,year}
  return row;
 }
 // This is the only frontend publication path. A receipt is verified after exact-ID readback.
-export async function approveOriginalBudget({central,cid,payload,requestId,onStatus=()=>{}}){
+export async function approveOriginalBudget({central,cid,payload,requestId,importRecovery,onStatus=()=>{}}){
  let committed=null,phase='blocked';const actor=central.getSession?.()?.user?.id;
  const session=()=>{if(central.getSession&&actor!==central.getSession()?.user?.id)throw Error('Session changed during budget approval.');};
  try{
@@ -47,7 +48,7 @@ export async function approveOriginalBudget({central,cid,payload,requestId,onSta
   const verified=await central.rpc('atlas_verify_finance_receipt',{p_receipt_id:receipt.receipt_id,p_version_id:read.version_id,p_content_hash:read.content_hash});session();
   const proof=Array.isArray(verified)?verified[0]:verified;
   if(proof?.status!=='readback_verified'||proof.version_id!==read.version_id||proof.content_hash!==read.content_hash||!uuid(proof.receipt_id)||proof.source_hash!==payload.sourceHash||proof.mapping_version!==payload.mappingVersion||!proof.actor_id||!proof.created_at)throw Error('Central readback verification receipt is incomplete or unavailable. Retry verification with the same request.');
-  const outcome=budgetPublicationStatus('readback_verified','Original budget and central reporting projections verified.',{...committed,receiptId:proof.receipt_id,receipt:proof,requestId,budget:read});onStatus(outcome);return outcome;
+  const outcome=budgetPublicationStatus('readback_verified','Original budget and central reporting projections verified.',{...committed,receiptId:proof.receipt_id,receipt:proof,requestId,budget:read});if(importRecovery)await completeOriginalBudgetRecovery(central,{recovery:importRecovery,payload,result:outcome});session();onStatus(outcome);return outcome;
  }catch(error){
   const conflict=/conflict|already.*(?:approved|locked)|overlap|idempotency|immutable|request ID reused/i.test(error.message),status=conflict?'conflict':phase==='blocked'?'blocked':'failed';
   error.publication=budgetPublicationStatus(status,error.message,{...committed,requestId,committed:!!committed});onStatus(error.publication);throw error;
@@ -71,7 +72,7 @@ export async function reviewOriginalBudget({R,central,cid,prop,year,onStatus=()=
  const coverage=baseline.coverage||Array.from({length:12},(_,i)=>i);
  const existing=(await readApprovedBudgets(central,cid,year)).find(b=>(b.covered_months||Array.from({length:12},(_,i)=>i)).some(m=>coverage.includes(m)));
  if(existing&&!baseline.approvalAttempt){const message=`The central original budget is already locked: ${existing.source_file} · version ${existing.version_id} · hash ${existing.content_hash}. Revisions cannot replace the original baseline.`;onStatus(budgetPublicationStatus('conflict',message,{versionId:existing.version_id,contentHash:existing.content_hash}));throw Error(message);}
- if(!baseline.governance&&baseline.approvalAttempt?.committed){const outcome=await approveOriginalBudget({central,cid,payload:baseline.approvalAttempt.payload,requestId:baseline.approvalAttempt.requestId,onStatus});baseline.publishedAt=outcome.receipt.created_at;baseline.canonicalVersionId=outcome.versionId;baseline.canonicalContentHash=outcome.contentHash;baseline.publicationReceipt=outcome.receipt;baseline.stage='readback_verified';R.persist?.autosave?.();return outcome;}
+ if(!baseline.governance&&baseline.approvalAttempt?.committed){const outcome=await approveOriginalBudget({central,cid,payload:baseline.approvalAttempt.payload,requestId:baseline.approvalAttempt.requestId,importRecovery:baseline.importRecovery,onStatus});baseline.publishedAt=outcome.receipt.created_at;baseline.canonicalVersionId=outcome.versionId;baseline.canonicalContentHash=outcome.contentHash;baseline.publicationReceipt=outcome.receipt;baseline.stage='readback_verified';R.persist?.autosave?.();return outcome;}
  if(baseline.governance?.schemaVersion!=='atlas-original-budget-workbook/1'||baseline.sourceHashKind!=='workbook_bytes')return reviewOriginalWorkbook({central,cid,propertyId:prop.id,year,effectiveDate:baseline.effectiveDate,onReviewed:async reviewed=>{state.approvedBudgetImports[prop.id+'|'+year]=reviewed;R.persist?.autosave?.();await reviewOriginalBudget({R,central,cid,prop,year,onStatus});}});
  const rows=baseline.rows.map(r=>({glCode:String(r.gl),name:r.name,monthly:r.monthly.slice(),sourceRow:r.sourceRow??null,sourceCells:r.sourceCells,nature:r.nature,group:r.group,placement:r.placement}));
  if(rows.some(r=>r.monthly.length!==12||coverage.some(m=>!finite(r.monthly[m]))))throw Error('All approved GLs require explicit amounts in every covered month. Missing amounts cannot become zero.');
@@ -100,7 +101,7 @@ export async function reviewOriginalBudget({R,central,cid,prop,year,onStatus=()=
    const attempt=prior?.fingerprint===fingerprint?prior:{requestId:crypto.randomUUID(),fingerprint,payload};baseline.approvalAttempt=attempt;
    // Save the stable request before issuing the RPC so an uncertain response is safely retryable.
    R.persist?.autosave?.();
-   const outcome=await approveOriginalBudget({central,cid,payload,requestId:attempt.requestId,onStatus:value=>{if(value.versionId){attempt.committed=true;attempt.versionId=value.versionId;attempt.contentHash=value.contentHash;}emit(value);}});
+   const outcome=await approveOriginalBudget({central,cid,payload,requestId:attempt.requestId,importRecovery:baseline.importRecovery,onStatus:value=>{if(value.versionId){attempt.committed=true;attempt.versionId=value.versionId;attempt.contentHash=value.contentHash;}emit(value);}});
    baseline.publishedAt=outcome.receipt.created_at;baseline.canonicalVersionId=outcome.versionId;baseline.canonicalContentHash=outcome.contentHash;baseline.publicationReceipt=outcome.receipt;baseline.stage='readback_verified';R.persist?.autosave?.();
    button.textContent='Readback verified';
    try{await window.parent.refreshAtlasClosedFinancials?.(year,true);}catch(e){status.textContent+=' · Reporting refresh failed; reload to read the verified central version. '+e.message;}

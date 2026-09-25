@@ -4,11 +4,11 @@ import {computeReforecast,recommendReforecast,applyRecommendations,undoRecommend
 import {safeSpreadsheetCell,esc,finite,money,reportHtml,reportPdf,exportRows,csv,download,snapshotLines,analyticalExportRows,communityForecastWorkbook,communityForecastPdf,pairedForecastReports,portfolioForecastDigest,portfolioForecastDigestWorkbook,portfolioForecastDigestPdf} from './reforecast-report.mjs?v=255e3fd3cc5aa869';
 
 import {UTILITY_RELATIONSHIP_CANDIDATES,createContractOverride} from './reforecast-provider.mjs?v=a98ef0ea03564c4a';
-import {forecastPermissions,forecastSetupDialog,forecastSourceHtml,forecastGridHtml,utilityRecoveryHtml,strScheduleHtml,bindBuilderControls} from './reforecast-builder-ui.mjs?v=bee8be44e8a4a842';
+import {forecastPermissions,forecastSetupDialog,forecastSourceHtml,forecastGridHtml,utilityRecoveryHtml,strScheduleHtml,bindBuilderControls} from './reforecast-builder-ui.mjs?v=c14dc8c71c732725';
 import {createStrOverlayDraft,validateRiseOverlay} from './reforecast-str-overlay.mjs?v=ecc60c5b054f76d1';
 import {validatePlanningCalendar} from './planning-governance.mjs?v=a4de8d3f5a50966c';
-import {forecastSetupPayload} from './reforecast-builder-ui.mjs?v=bee8be44e8a4a842';
-import {saveForecastRecovery,readForecastRecovery,listForecastRecovery,removeForecastRecovery} from './reforecast-recovery.mjs?v=33b82bf4c03a6af8';
+import {forecastSetupPayload} from './reforecast-builder-ui.mjs?v=c14dc8c71c732725';
+import {saveForecastRecovery,readForecastRecovery,listForecastRecovery,removeForecastRecovery,completeForecastImportRecovery} from './reforecast-recovery.mjs?v=0aa8ab94767bff86';
 import {initialForecastRegistryProposal} from './reforecast-registry-proposal.mjs?v=aece27c1f35ec212';
 const clone=v=>JSON.parse(JSON.stringify(v));
 const uuid=()=>crypto.randomUUID();
@@ -153,7 +153,7 @@ export async function readRecoveredDraftSource(central,{communityId,payload:p}){
  const actor=central.getSession()?.user?.id,check=()=>{if(!actor||central.getSession()?.user?.id!==actor)throw Error('The signed-in account changed. Reopen working draft recovery.');};check();
  let receipt;const saved=(p.strStreams||[]).filter(stream=>stream.type==='saved_json_monthly_programme');
  if(saved.length){
-  const evidence=p.strRecoveryEvidence,retained=evidence?.sourceReceipt,module=await import('./reforecast-str-saved-programme-ui.mjs?v=f8c3003664a5e51f');check();
+  const evidence=p.strRecoveryEvidence,retained=evidence?.sourceReceipt,module=await import('./reforecast-str-saved-programme-ui.mjs?v=b59b360435a0cff9');check();
   if(saved.length!==1||!retained?.request_id||!evidence.review)throw Error('The exact saved programme source request is unavailable. Keep these working edits and restore the approved source receipt.');
   receipt=await module.readSavedStrSourceReceipt(central,{communityId,requestId:retained.request_id});check();
   if(!receipt)throw Error('The saved programme receipt is unavailable. Working edits remain retained; verify the source before restoring its preview.');
@@ -367,18 +367,16 @@ async function openImportReadback(s,result,recoveryId){
  safeActor(s);s.cid=result.head.community_id;s.mode='workspace';s.year=Number(result.revision.payload.periods[0].slice(0,4));s.entries=s.entries.filter(e=>e.head.community_id===s.cid&&headId(e)!==headId(result)).concat(result);
  s.record=result;s.scenarioId=headId(result);s.edit=clone(result.revision.payload);s.source=result.source;s.latestActualsSource=actualsProjection(result.source);s.latestActualsError='';s.dirty=false;s.preview=null;s.pendingRequest=null;s.pendingCells={};s.utilityUndo=null;s.strRateUndo={};s.glFilters={};s.reportFrom='';s.reportTo='';s.importReceipt=result.receipt;s.error='';
  s.message=`Working forecast saved and exact server readback verified. ${result.receipt.importedCells.length} imported GL/month values · revision ${result.head.revision}. Continue editing below.`;
- // The completed request remains a recovery marker until the review is removed,
- // closing the crash window between server commit and opening the saved draft.
- const pending=await readForecastRecovery(s.central,recoveryId);if(pending)await saveForecastRecovery(s.central,recoveryId,{...pending,kind:'import-complete'});
  if(result.currentHead&&result.currentHead.revision_id!==result.revision.revision_id){const entries=await store.readWorkspace(s.central,{communityIds:[s.cid]});safeActor(s);s.entries=entries;await selectScenario(s,result.head.scenario_id);s.message='The import receipt is verified. A later revision exists; the latest working forecast is open.';}
  else {s.active=await store.readActive(s.central,{communityIds:[s.cid],periods:s.edit.periods});safeActor(s);}
- render(s);
+ await completeForecastImportRecovery(s.central,{recoveryId,result});safeActor(s);render(s);
 }
 async function applyWorkbookImport(s,result){
  safeActor(s);
  if(!result.ready){s.message='Immutable workbook evidence and unfinished mapping are retained. Resume saved imports to continue.';render(s);return;}
  if(s.dirty)throw Error('Save your current working edits before creating or updating an imported forecast. This reviewed import is retained.');
  const recoveryId='import-write:'+result.recoveryId,prior=await readForecastRecovery(s.central,recoveryId);let request=prior?.request;
+ if(prior?.kind==='import-complete'){const receipt=await store.readImportReceipt(s.central,request);safeActor(s);if(!receipt)throw Error('The completed import receipt is unavailable. Its retained review cannot authorize another write.');await openImportReadback(s,store.verifyImportReadback(receipt,request),recoveryId);return;}
  const intent=value=>JSON.stringify(value,(_key,item)=>item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.keys(item).filter(key=>!['reviewedAt','assignedAt'].includes(key)).sort().map(key=>[key,item[key]])):item);
  if(request&&(intent(request.mapping)!==intent(result.mapping)||intent(request.expectedLines)!==intent(result.lines)||prior.destination!==result.destination||prior.forecastName!==result.forecastName)){
   const receipt=await store.readImportReceipt(s.central,request);safeActor(s);
@@ -394,14 +392,14 @@ async function applyWorkbookImport(s,result){
   const source=await store.readBuilderSource(s.central,{communityId:result.communityId,periods,baselineType:update?s.edit.baselineType:'original_budget',baselinePublicationIds:update?s.edit.baselinePublicationIds:[],baselineVersionIds:update?s.edit.baselineVersionIds:result.source?.baseline?.versionIds,registryVersionId:result.mapping.version});safeActor(s);
   const config=update?{...clone(s.edit),periods,registryVersionId:result.mapping.version,calendar:{...clone(result.mapping.calendar),periods,scenario:s.edit.name,confirmed:periods.length===result.mapping.periods.length}}:newForecastFromImport(result,source,s.actor);
   request={parserVersion:currentReforecastParserVersion,communityId:result.communityId,scenarioId:update?headId(s.record):uuid(),expectedRevision:update?s.record.head.revision:0,requestId:uuid(),uploadId:result.upload.upload_id,mapping:clone(result.mapping),payload:config,expectedLines:clone(result.lines)};
-  await saveForecastRecovery(s.central,recoveryId,{kind:'import-write',communityId:result.communityId,reviewId:result.recoveryId,name:request.payload.name,destination:result.destination,forecastName:result.forecastName,request});
+  await saveForecastRecovery(s.central,recoveryId,{kind:'import-write',communityId:result.communityId,reviewId:result.recoveryId,reviewVersion:result.reviewVersion,evidenceId:result.evidenceId,name:request.payload.name,destination:result.destination,forecastName:result.forecastName,request});
  }
  s.message='UNSAVED — checking the import receipt, saving all reviewed values atomically, and verifying exact server readback…';render(s);
  const saved=await store.createFromImport(s.central,request);safeActor(s);await openImportReadback(s,saved,recoveryId);
 }
 function workbookImportOptions(s){return {central:s.central,communities:s.communities,actor:s.actor,defaultPeriods:periodsFor(s.year),currentDraft:s.record&&editable(s)&&s.edit?.model==='conventional'&&s.edit?.scenarioPurpose!=='str_overlay'?{name:s.edit.name,scenarioId:headId(s.record)}:null,onReviewRegistry:async({communityId,source,evidence})=>{safeActor(s);if(s.dirty)throw Error('Save the open draft before reviewing another import registry.');if(s.cid!==communityId){s.record=null;s.edit=null;s.entries=[];s.scenarioId=null;}s.cid=communityId;s.source=source;await mappingDialog(s,source.registry?.version?clone(source.registry):initialForecastRegistryProposal(source,evidence));},onSaved:result=>applyWorkbookImport(s,result)};}
 async function importWorkbook(s,file){
- try{safeActor(s);if(s.dirty)throw Error('Save your current working draft before importing another forecast.');const m=await import('./reforecast-import-ui.mjs?v=0ac659a847c1d1e9');await m.importReforecastWorkbook({file,...workbookImportOptions(s)});}
+ try{safeActor(s);if(s.dirty)throw Error('Save your current working draft before importing another forecast.');const m=await import('./reforecast-import-ui.mjs?v=0860beaa417e5735');await m.importReforecastWorkbook({file,...workbookImportOptions(s)});}
  catch(e){s.error=e.message;render(s);}
 }
 async function resumeImportsDialog(s){
@@ -410,7 +408,7 @@ async function resumeImportsDialog(s){
  const renderPage=async()=>{
   if(busy)return;busy=true;status.textContent='Reading saved import metadata…';
   try{
-   safeActor(s);const m=await import('./reforecast-import-ui.mjs?v=0ac659a847c1d1e9'),cid=s.cid;
+   safeActor(s);const m=await import('./reforecast-import-ui.mjs?v=0860beaa417e5735'),cid=s.cid;
    const page=await m.readReforecastImportPage(s.central,{communityId:cid,offset,limit:25});safeActor(s);
    if(s.cid!==cid)throw Error('The selected community changed. Reopen the import list.');
    body.innerHTML=`<p>Each import is immutable. Resume your retained mapping, then create a new Conventional forecast or explicitly update the selected working forecast. Save and exact server readback complete together.</p><label>Saved workbook<select data-saved-upload>${options(page.rows.map(row=>({value:row.upload_id,label:(row.file_name||'Workbook')+' · '+row.created_at+' · '+row.source_hash.slice(0,12)})),'','Choose a saved import')}</select></label><button data-resume>Resume mapping</button><button data-prev ${offset?'':'disabled'}>Previous</button><button data-next ${page.hasMore?'':'disabled'}>Next</button>`;
@@ -430,14 +428,15 @@ async function resumeImportsDialog(s){
 }
 async function recoveryDialog(s){
  const el=dialog('Recover unfinished imports and working saves'),body=el.querySelector('[data-body]'),status=el.querySelector('[data-status]');
- try{safeActor(s);const all=await listForecastRecovery(s.central),pending=all.filter(row=>row.kind==='import-write'||['draft-write','draft-edit','str-json-source-write','str-json-review'].includes(row.kind)),rows=all.filter(row=>row.kind==='import-review'&&!pending.some(write=>write.reviewId===row.id)).concat(pending).filter(row=>!row.communityId||s.communities.some(c=>c.community_id===row.communityId));
-  body.innerHTML='<p>These recovery copies belong to your signed-in account. A pending save checks its server receipt before sending the same request again.</p>'+rows.map((row,index)=>`<p>${esc(row.fileName||row.name||'Working forecast')} · ${esc(row.updatedAt)} · ${['import-review','str-json-review'].includes(row.kind)?'UNSAVED review':'Save awaiting verified readback'} <button data-recover="${index}">Recover and verify</button></p>`).join('');
+ try{safeActor(s);const all=await listForecastRecovery(s.central),pending=all.filter(row=>['import-write','import-complete'].includes(row.kind)||['draft-write','draft-edit','str-json-source-write','str-json-review'].includes(row.kind)),rows=all.filter(row=>row.kind==='import-review'&&!pending.some(write=>write.reviewId===row.id)).concat(pending).filter(row=>!row.communityId||s.communities.some(c=>c.community_id===row.communityId));
+  body.innerHTML='<p>These recovery copies belong to your signed-in account. A pending save checks its server receipt before sending the same request again.</p>'+rows.map((row,index)=>`<p>${esc(row.fileName||row.name||'Working forecast')} · ${esc(row.updatedAt)} · ${['import-review','str-json-review'].includes(row.kind)?'UNSAVED review':row.kind==='import-complete'?(row.reviewOwnership==='unproven'?'Saved import — receipt only; older review retained':'Saved import — verify and release recovery copy'):'Save awaiting verified readback'} <button data-recover="${index}">Recover and verify</button></p>`).join('');
   if(!rows.length)status.textContent='No unfinished imports or saves on this browser.';
   body.querySelectorAll('[data-recover]').forEach(button=>button.onclick=async()=>{try{if(s.dirty)throw Error('Save the open working edits before recovering another request.');button.disabled=true;const row=rows[Number(button.dataset.recover)];safeActor(s);
-   if(row.kind==='import-write'){if(row.request.parserVersion!==currentReforecastParserVersion){const receipt=await store.readImportReceipt(s.central,row.request);safeActor(s);if(receipt){await openImportReadback(s,store.verifyImportReadback(receipt,row.request),row.id);if(row.reviewId)await removeForecastRecovery(s.central,row.reviewId);s.message='The historical import receipt is verified and unchanged. Its older parser requires a fresh review of the original workbook and newly recognized GL cells before acceptance. Resume the saved import to continue.';render(s);}else{const m=await import('./reforecast-import-ui.mjs?v=0ac659a847c1d1e9');await m.resumeReforecastImport({uploadId:row.request.uploadId,...workbookImportOptions(s)});await saveForecastRecovery(s.central,row.id,{...row,kind:'import-parser-superseded',supersededByParserVersion:currentReforecastParserVersion});}}else{const result=await store.createFromImport(s.central,row.request);await openImportReadback(s,result,row.id);if(row.reviewId)await removeForecastRecovery(s.central,row.reviewId);}}
+   if(row.kind==='import-complete'){const receipt=await store.readImportReceipt(s.central,row.request);safeActor(s);if(!receipt)throw Error('The completed import receipt is unavailable. Its recovery copy is retained.');await openImportReadback(s,store.verifyImportReadback(receipt,row.request),row.id);}
+   else if(row.kind==='import-write'){if(row.request.parserVersion!==currentReforecastParserVersion){const receipt=await store.readImportReceipt(s.central,row.request);safeActor(s);if(receipt){await openImportReadback(s,store.verifyImportReadback(receipt,row.request),row.id);s.message='The historical import receipt is verified and unchanged. Its older parser requires a fresh review of the original workbook and newly recognized GL cells before acceptance. Resume the saved import to continue.';render(s);}else{const m=await import('./reforecast-import-ui.mjs?v=0860beaa417e5735');await m.resumeReforecastImport({uploadId:row.request.uploadId,...workbookImportOptions(s)});await saveForecastRecovery(s.central,row.id,{...row,kind:'import-parser-superseded',supersededByParserVersion:currentReforecastParserVersion});}}else{const result=await store.createFromImport(s.central,row.request);await openImportReadback(s,result,row.id);}}
    else if(['draft-write','draft-edit'].includes(row.kind))await recoverDraftWrite(s,row);
    else if(['str-json-source-write','str-json-review'].includes(row.kind)){if(s.cid!==row.communityId)throw Error('Select this recovery’s community before continuing.');await recoverSavedStrJson(s,{publicationId:row.parentPublicationId});}
-   else {const m=await import('./reforecast-import-ui.mjs?v=0ac659a847c1d1e9');await m.resumeLocalReforecastImport({recoveryId:row.id,...workbookImportOptions(s)});}
+   else {const m=await import('./reforecast-import-ui.mjs?v=0860beaa417e5735');await m.resumeLocalReforecastImport({recoveryId:row.id,...workbookImportOptions(s)});}
    el.close();
   }catch(error){status.textContent=error.message;button.disabled=false;}});
  }catch(error){status.textContent=error.message;}
@@ -447,7 +446,7 @@ async function recoverSavedStrJson(s,{publicationId:recoveryPublicationId}={}){
   const guard=()=>{safeActor(s);if(s.cid!==context.cid||headId(s.record||{})!==context.scenarioId||s.epoch!==context.epoch)throw Error('The selected forecast changed. Reopen saved STR recovery.');};
   const history=overlay?[]:await store.readPublicationHistory(s.central,{communityId:s.cid}),publicationId=recoveryPublicationId||(overlay?s.edit.parentPublication?.publicationId:history.find(row=>row.revisionId===s.record?.revision?.revision_id)?.publicationId);
   if(!publicationId)throw Error('Approve and lock the exact Conventional parent before recovering a governed STR overlay.');
-  const publication=await store.readPublication(s.central,{communityId:s.cid,publicationId}),module=await import('./reforecast-str-saved-programme-ui.mjs?v=f8c3003664a5e51f');guard();
+  const publication=await store.readPublication(s.central,{communityId:s.cid,publicationId}),module=await import('./reforecast-str-saved-programme-ui.mjs?v=b59b360435a0cff9');guard();
   const parentSource=await store.readBuilderSource(s.central,{communityId:s.cid,periods:publication.periods,baselineType:'approved_reforecast',baselinePublicationIds:[publication.publicationId],baselineVersionIds:publication.snapshot.identity.baselineVersionIds,registryVersionId:publication.snapshot.identity.mappingRegistryVersion});guard();
   const mappingContext=await module.readStrMappingContext(s.central,{communityId:s.cid,parentPublicationId:publication.publicationId});guard();if(mappingContext.parentRegistry.version!==parentSource.registry.version)throw Error('The exact Conventional registry could not be verified for STR review.');
   await module.savedStrMonthlyProgrammeDialog({publication,registry:mappingContext.parentRegistry,accountEvidence:mappingContext.workbookAccountEvidence,currentSource:parentSource,loadRegistry:async(registryVersionId,expectedContentHash)=>{guard();const registry=await readStrRegistryExtension(s.central,{communityId:s.cid,versionId:registryVersionId,parentRegistryVersion:mappingContext.parentRegistry.version,parentPublicationId:publication.publicationId,expectedContentHash});guard();return registry;},central:s.central,actor:s.actor,dialog,guard,onApply:async(draft,receipt)=>{guard();const source=await store.readBuilderSource(s.central,{communityId:s.cid,periods:draft.periods,baselineType:'approved_reforecast',baselinePublicationIds:draft.baselinePublicationIds,baselineVersionIds:draft.baselineVersionIds,registryVersionId:draft.registryVersionId});guard();source.savedStrSourceReceipts=[...(source.savedStrSourceReceipts||[]).filter(row=>row.source_receipt_id!==receipt.source_receipt_id),receipt];if(!overlay){s.record=null;s.scenarioId=uuid();}s.edit=draft;s.source=source;s.latestActualsSource=actualsProjection(source);s.pendingCells={};s.importReceipt=null;mark(s);await s.recoveryQueue;s.message='UNSAVED — exact saved STR monthly contributions applied to this separate overlay. Source approval and readback succeeded. Save Working Draft retains the forecast before approval and export.';render(s);}});

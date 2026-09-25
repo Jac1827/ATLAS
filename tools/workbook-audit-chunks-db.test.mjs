@@ -23,10 +23,14 @@ try {
  else {const workbook=XLSX.utils.book_new();XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet([['Doro'],['GL','Account','Sep 2026','Oct 2026','Nov 2026','Dec 2026'],['5144','Hello Landing',1,2,3,4],...Array.from({length:12},(_,i)=>[String(5145+i),'Unicode retained é € 日本 '.repeat(1000),0,0,0,0])]),'Input');sourceBytes=XLSX.write(workbook,{type:'buffer',bookType:'xlsx'});}
  sourceBytes=Buffer.from(sourceBytes);
  const evidence=await parseReforecastWorkbook(sourceBytes,{xlsx:XLSX,fileName:process.env.ATLAS_REAL_DORO_SOURCE?path.basename(process.env.ATLAS_REAL_DORO_SOURCE):'private-fixture.xlsx'}),audit=evidence.integrity,sourceHash=sha(sourceBytes),requestId=randomUUID();
- const reference=await persistWorkbookAudit(central,audit,{sourceBytes,sourceHash,requestId,communityId:cid});
+ const diagnostics=[],reference=await persistWorkbookAudit(central,audit,{sourceBytes,sourceHash,requestId,communityId:cid,onDiagnostic:value=>diagnostics.push(value)});
+ assert(diagnostics.some(row=>row.operation==='atlas_finalize_workbook_audit_upload'&&row.classification==='pending'));
+ assert(diagnostics.some(row=>row.operation==='atlas_read_workbook_audit_manifest'&&row.classification==='http_success'));
+ for(const stream of ['audit','source']){const rows=diagnostics.filter(row=>row.operation==='atlas_read_workbook_audit_chunk'&&row.stream===stream&&row.classification==='http_success');assert(rows.length>0);assert.equal(rows.length,rows[0].chunkCount);assert.deepEqual(rows.map(row=>row.chunkIndex),Array.from({length:rows.length},(_,i)=>i));}
  const auditBytes=Buffer.from(JSON.stringify(audit));assert.equal(reference.transport.serializedAuditBytes,auditBytes.length);assert(calls.every(c=>c.bytes<WORKBOOK_AUDIT_CHUNK_BYTES*4/3+1024));
  const payload={...evidence,source:{...evidence.source,originalFile:{encoding:'base64',data:sourceBytes.toString('base64')}},integrity:reference,propertyAssignment:{communityId:cid,confirmed:true,explicit:true,actorId:central.getSession().user.id,assignedAt:'2026-09-24T23:00:00Z',reason:'Isolated bounded transport acceptance',sourceEntities:[]}};
- const uploadRequest=randomUUID(),saved=await saveUpload(central,{communityId:cid,requestId:uploadRequest,payload});
+ const uploadRequest=randomUUID(),payloadDiagnostics=[],saved=await saveUpload(central,{communityId:cid,requestId:uploadRequest,payload,onDiagnostic:value=>payloadDiagnostics.push(value)});
+ assert(payloadDiagnostics.some(row=>row.operation==='atlas_read_reforecast_payload_receipt'&&row.classification==='pending'));assert(payloadDiagnostics.some(row=>row.operation==='atlas_stage_reforecast_payload'&&row.phase==='finalize'&&row.classification==='pending'));assert(payloadDiagnostics.some(row=>row.operation==='atlas_read_reforecast_payload_chunk'&&row.classification==='http_success'&&row.chunkIndex===0));
  assert.deepEqual(saved.payload,JSON.parse(JSON.stringify(payload)));assert.equal((await saveUpload(central,{communityId:cid,requestId:uploadRequest,payload})).upload_id,saved.upload_id);
  // Provider receipts deliberately have no workbook graph or audit, including XLSX
  // statements. Verify the unchanged authoritative save accepts each receipt first.

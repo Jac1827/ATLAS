@@ -1,3 +1,4 @@
+import {RISE_REPORT_LOGO} from './rise-report-brand.mjs?v=9b39c5ad8eca1edd';
 import {canonicalJson} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 // An actual downloadable document, not a second calculation or print preview.
 // The complete retained snapshot and export rows are also embedded as evidence.
@@ -6,11 +7,12 @@ export async function snapshotPdf({title,subtitle='',snapshot,rows,columns,secti
  const {PDFDocument,StandardFonts,rgb}=await import('../vendor/pdf-lib-1.17.1.mjs?v=72c052d97b4d5d9f');
  const pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold),blue=rgb(.07,.23,.31),grey=rgb(.32,.38,.42);
  pdf.setTitle(title);pdf.setSubject(snapshot.fingerprint);pdf.setProducer('ATLAS retained financial snapshot');
+ const logo=await pdf.embedPng(RISE_REPORT_LOGO);
  const printable=value=>{const raw=value===null||value===undefined?'Unavailable':typeof value==='object'?canonicalJson(value):String(value);return [...raw].map(c=>{try{font.encodeText(c);return c;}catch{return [...c].map(x=>'\\u{'+x.codePointAt(0).toString(16)+'}').join('');}}).join('').replace(/[\r\n\t]/g,' ');};
  const wrap=(text,width,size)=>{const out=[];let line='';for(const c of printable(text)){if(line&&font.widthOfTextAtSize(line+c,size)>width){out.push(line);line=c;}else line+=c;}out.push(line);return out;};
  let page,y,pageNo=0;const width=842,height=595,margin=34;
  const text=(value,x,at,size=9,weight=font,color=grey)=>page.drawText(printable(value),{x,y:at,size,font:weight,color});
- const newPage=()=>{page=pdf.addPage([width,height]);pageNo++;y=height-margin;text(title,margin,y,15,bold,blue);y-=19;text(subtitle,margin,y,9);y-=19;for(const line of wrap('Snapshot '+snapshot.fingerprint,width-margin*2,8)){text(line,margin,y,8);y-=11;}y-=8;text('Page '+pageNo,width-margin-45,18,8);};
+ const newPage=()=>{page=pdf.addPage([width,height]);pageNo++;y=height-margin;page.drawImage(logo,{x:margin,y:y-24,width:72,height:25});y-=43;text(title,margin,y,15,bold,blue);y-=19;text(subtitle,margin,y,9);y-=19;for(const line of wrap('Snapshot '+snapshot.fingerprint,width-margin*2,8)){text(line,margin,y,8);y-=11;}y-=8;text('Page '+pageNo,width-margin-45,18,8);};
  const ensure=heightNeeded=>{if(y-heightNeeded<35)newPage();};
  const paragraph=(value,size=8)=>{for(const line of wrap(value,width-margin*2,size)){ensure(size+5);text(line,margin,y,size);y-=size+4;}};
  newPage();paragraph('Values and source versions are retained together. Unavailable means missing; numeric zero is populated. Full precision and source evidence are preserved in the embedded JSON attachment.');y-=6;
@@ -31,6 +33,7 @@ export async function snapshotPdf({title,subtitle='',snapshot,rows,columns,secti
 async function sectionedSnapshotPdf({title,subtitle,snapshot,rows,sections}){
  const {PDFDocument,StandardFonts,rgb}=await import('../vendor/pdf-lib-1.17.1.mjs?v=72c052d97b4d5d9f');
  const pdf=await PDFDocument.create(),regular=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold);
+ const logo=await pdf.embedPng(RISE_REPORT_LOGO);
  const colors={ink:rgb(.08,.18,.22),muted:rgb(.31,.39,.42),teal:rgb(.04,.32,.37),orange:rgb(.93,.44,.21),line:rgb(.82,.88,.89),wash:rgb(.95,.97,.97),white:rgb(1,1,1)};
  const width=842,height=595,margin=34,bodyWidth=width-margin*2,bottom=45,pages=[];
  let page,y;
@@ -47,7 +50,7 @@ async function sectionedSnapshotPdf({title,subtitle,snapshot,rows,sections}){
  const draw=(value,x,at,size=8.5,font=regular,color=colors.ink)=>page.drawText(printable(value),{x,y:at,size,font,color});
  const newPage=()=>{
   page=pdf.addPage([width,height]);pages.push(page);y=height-margin;
-  page.drawRectangle({x:margin,y:y-3,width:25,height:4,color:colors.orange});draw('RISE  /  PORTFOLIO OPERATIONS',margin+35,y-3,9,bold,colors.teal);y-=31;
+  page.drawImage(logo,{x:margin,y:y-21,width:72,height:25});draw('PORTFOLIO OPERATIONS',margin+86,y-7,9,bold,colors.teal);y-=43;
   for(const line of wrap(title,bodyWidth,20,bold)){draw(line,margin,y,20,bold,colors.teal);y-=24;}
   for(const line of wrap(subtitle,bodyWidth,9)){draw(line,margin,y,9,regular,colors.muted);y-=13;}
   y-=5;page.drawLine({start:{x:margin,y},end:{x:width-margin,y},thickness:1,color:colors.line});y-=21;

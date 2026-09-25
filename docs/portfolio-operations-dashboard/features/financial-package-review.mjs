@@ -1,11 +1,12 @@
+import {resolveImportCommunity,fiscalYtdPeriods} from './community-budget-identity.mjs?v=8f9f97a61a90cd4b';
 import {compareWorkbookEvidence} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
 import {persistWorkbookAudit,readWorkbookAudit} from './workbook-audit-store.mjs?v=26dfb75ca99d6b52';
 import {monthlyGovernanceForm,readMonthlyGovernanceForm} from './financial-workbook-governance.mjs?v=ce3982266f91118e';
-import {readFinance} from './canonical-finance.mjs?v=aaf7ab487e3250de';
-import {applyControls,centralClient} from './financial-comparison.mjs?v=4a02dcb80d439353';
-import {readPackage} from './financial-package-reader.mjs?v=311d5c4092dde6d1';
-import {resolveCommunity,evaluateFinancialPackageSafety,finalizeFinancialPackageEvidence} from './financial-package.mjs?v=a378a0cb25083758';
-import {createIntake,prepareReview,INTAKE_STATES,INTAKE_LABELS} from './financial-intake-store.mjs?v=e7ba2e324c419b26';
+import {readFinance} from './canonical-finance.mjs?v=4a0ab39278f685cd';
+import {applyControls,centralClient} from './financial-comparison.mjs?v=d19884ef66ce8183';
+import {readPackage} from './financial-package-reader.mjs?v=45fd3a7b4d9f6932';
+import {evaluateFinancialPackageSafety,finalizeFinancialPackageEvidence} from './financial-package.mjs?v=fb2b9dde0a554114';
+import {createIntake,prepareReview,INTAKE_STATES,INTAKE_LABELS} from './financial-intake-store.mjs?v=b5031e6db96935a2';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>v===null||v===undefined?'Missing':Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 let active;
@@ -16,9 +17,10 @@ export function evidenceHtml(c){
  const detail=value=>esc(JSON.stringify(value,null,2));
  return `<h3>Source reconciliation</h3><p>${esc(c.metadata?.sourceProperty||'Unidentified property')} · ${esc(c.metadata?.period||'Unidentified period')} · ${esc(c.metadata?.basis||'Unidentified basis')}</p><p>${esc(c.sourceFile)}<br>Source SHA-256: <code>${esc(c.sourceHash)}</code><br>Mapping: ${esc(e.mappingVersion||'Missing')}</p><p>${inventory.length} source rows inventoried · ${leaves.filter(x=>x.checked).length}/${(c.rows||[]).filter(x=>x.kind==='posting').length} account rows checked · ${controls.filter(x=>x.passed).length}/${controls.length} controls reconciled · ${(c.exceptions||[]).length} exceptions</p><p>${Object.entries(counts).map(([name,n])=>esc(name)+': '+n).join(' · ')}</p><p>Monthly actual column: ${detail(e.selectedActualColumn||{})}. T12 and other reporting columns remain supporting evidence.</p><div class="financial-review-scroll"><table><thead><tr><th>Control</th><th>Source</th><th>Calculated</th><th>Difference</th><th>Tolerance</th><th>Contributors</th><th>Result</th></tr></thead><tbody>${controls.map(x=>`<tr><th>${esc(x.label)}</th><td>${money(x.sourceTotal)}</td><td>${money(x.calculatedTotal)}</td><td>${money(x.difference)}</td><td>${money(x.tolerance)}</td><td><details><summary>${x.childRowIds?.length||0} rows</summary>${esc(x.childRowIds?.join(', '))}</details></td><td>${x.passed?'Pass':'Blocked'}</td></tr>`).join('')}</tbody></table></div><details><summary>Every row and disposition (${inventory.length})</summary><div class="financial-review-scroll"><table><thead><tr><th>Source row</th><th>Label / GL</th><th>Disposition</th><th>Evidence and reason</th></tr></thead><tbody>${inventory.map(x=>`<tr><td>${esc(x.id||x.sheet+'!'+x.row)}</td><td>${esc(x.rawLabel)} ${esc(x.glCode)}</td><td>${esc(x.disposition)}</td><td><details><summary>${esc(x.reason||'Source evidence')}</summary><pre>${detail(x)}</pre></details></td></tr>`).join('')}</tbody></table></div></details><details><summary>Excluded columns and coverage effects — review required</summary><pre style="white-space:pre-wrap">${detail(e.columnExclusions||[])}</pre></details><details><summary>Account validation (${leaves.length})</summary><pre style="white-space:pre-wrap">${detail(leaves)}</pre></details><details ${(c.exceptions||[]).length?'open':''}><summary>Blocking exceptions</summary><pre style="white-space:pre-wrap">${detail(c.exceptions||[])}</pre></details>`;
 }
-export async function openReview({communityId=null,period:requestedPeriod=null,file:initialFile=null}={}){
+export async function openReview({communityId=null,period:requestedPeriod=null,reviewId=null,file:initialFile=null}={}){
  if(communityId&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(communityId))throw Error('Choose an authorized community.');
  if(requestedPeriod&&!/^20\d{2}-(0[1-9]|1[0-2])$/.test(requestedPeriod))throw Error('Choose a valid reporting month.');
+ if(reviewId&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(reviewId))throw Error('Choose a saved month-end review.');
  const central=centralClient(),actor=central.getSession?.()?.user?.id;
  const guard=()=>{if(!actor||actor!==central.getSession?.()?.user?.id)throw Error('The signed-in account changed. Reopen the review.');};
  const [communities,aliases]=await Promise.all([central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000')]);guard();
@@ -33,8 +35,7 @@ export async function openReview({communityId=null,period:requestedPeriod=null,f
  const cancel=()=>{epoch++;operation?.abort();operation=null;certificate=null;flow=null;result.replaceChildren();state();};
  dialog.onclose=()=>{cancel();dialog.remove();if(active===dialog)active=null;};dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.querySelector('[data-cancel]').onclick=()=>{cancel();status.textContent='Processing canceled. Completed receipts remain available in shared intake.';};
  async function showCertificate(parsed,resume=null,sourceBytes=null){
-  const token=epoch,match=resolveCommunity(parsed.metadata?.sourceProperty,communities,aliases);
-  if(communityId&&match.communityId!==communityId)throw Error('This source does not match the selected community. Open its matching community review.');
+  const token=epoch,match=resolveImportCommunity({fileName:parsed.sourceFile,embeddedNames:[parsed.metadata?.sourceProperty],selectedCommunityId:communityId},communities,aliases);
   if(requestedPeriod&&parsed.metadata?.period!==requestedPeriod)throw Error('The BCR monthly actual period is '+(parsed.metadata?.period||'unidentified')+', not '+requestedPeriod+'.');
   if(!requestedPeriod)periodInput.value=parsed.metadata?.period||periodInput.value;
   const picked=communityId||resume?.workflow?.community_id||match.communityId||'';
@@ -54,19 +55,22 @@ export async function openReview({communityId=null,period:requestedPeriod=null,f
    parsed.intakeEvidence.workbookAudit=retained;parsed=await finalizeFinancialPackageEvidence(parsed);
   }
   certificate=parsed;flow=createIntake(central,{...(resume||{}),onState:receipt=>{if(token===epoch&&dialog.isConnected)state(receipt);}});const reviewFlow=flow;
-  result.innerHTML=evidenceHtml(parsed)+monthlyGovernanceForm(parsed,actor)+`<label>Canonical community <select data-community><option value="">Choose the authorized community</option>${communities.map(c=>`<option value="${esc(c.community_id)}" ${c.community_id===picked?'selected':''}>${esc(c.display_name)}</option>`).join('')}</select></label><p>Source property: ${esc(parsed.metadata?.sourceProperty)}. A suggested match becomes authoritative only when you confirm it.</p><p data-coverage-policy></p><label><input type="checkbox" data-confirm> I confirm this canonical community and the BCR monthly period ${esc(parsed.metadata?.period)}.</label><label><input type="checkbox" data-exclusions> I reviewed every row disposition, excluded column and coverage effect above.</label><button data-download>Download full evidence</button><button data-save>Validate and save review</button><p data-saved>Saving a review does not close or publish actuals.</p><div data-controls></div>`;
+  result.innerHTML=evidenceHtml(parsed)+monthlyGovernanceForm(parsed,actor)+`<label>Canonical community <select data-community><option value="">Choose the authorized community</option>${communities.map(c=>`<option value="${esc(c.community_id)}" ${c.community_id===picked?'selected':''}>${esc(c.display_name)}</option>`).join('')}</select></label><p>Source property: ${esc(parsed.metadata?.sourceProperty)}. A suggested match becomes authoritative only when you confirm it.</p><label>Identity mapping reason (required for conflicting or unknown names)<textarea data-identity-reason></textarea></label><p data-coverage-policy></p><label><input type="checkbox" data-confirm> I confirm this canonical community and the BCR monthly period ${esc(parsed.metadata?.period)}.</label><label><input type="checkbox" data-exclusions> I reviewed every row disposition, excluded column and coverage effect above.</label><button data-download>Download full evidence</button><button data-save>Validate and save review</button><p data-saved>Saving a review does not close or publish actuals.</p><div data-controls></div>`;
   const select=result.querySelector('[data-community]');select.disabled=Boolean(communityId||resume?.workflow?.community_id);
   result.querySelector('[data-download]').onclick=async()=>{try{guard();const full=structuredClone(certificate);if(full.intakeEvidence.workbookAudit?.auditId)full.intakeEvidence.workbookAudit=await readWorkbookAudit(central,full.intakeEvidence.workbookAudit,{sourceHash:full.sourceHash});guard();download(full);}catch(error){status.textContent=error.message;}};
   const save=result.querySelector('[data-save]'),message=result.querySelector('[data-saved]');
   if(!parsed.intakeEvidence){save.disabled=true;message.textContent='This older certificate lacks the complete row inventory. Re-upload its original source for governed close.';return;}
-  let coveragePolicy=null,coverageScope='',coverageEpoch=0;
+  let coveragePolicy=null,coverageScope='',coverageEpoch=0,verifiedCalendar=null;
   const coveragePanel=result.querySelector('[data-coverage-policy]');
   const loadCoverage=async()=>{
    const run=++coverageEpoch,selected=select.value;coveragePolicy=null;coverageScope='';save.disabled=true;result.querySelector('[data-confirm]').checked=false;result.querySelector('[data-exclusions]').checked=false;
    coveragePanel.textContent='Reading authoritative coverage for this community and month…';
    try{
     guard();if(!communities.some(c=>c.community_id===selected))throw Error('Choose an authorized community before reading its coverage.');
-    const records=await readFinance(central,[selected],[parsed.metadata.period]);guard();
+    const [records,calendarResponse]=await Promise.all([readFinance(central,[selected],[parsed.metadata.period]),central.rpc('atlas_read_budget_calendar',{p_community_id:selected})]);guard();if(run!==coverageEpoch||token!==epoch||!dialog.isConnected)return;
+    verifiedCalendar=Array.isArray(calendarResponse)?calendarResponse[0]:calendarResponse;if(!verifiedCalendar?.verified)throw Error('Verify the financial classification in Community Settings before importing.');
+    if(parsed.metadata.ytdStart!==fiscalYtdPeriods(parsed.metadata.period,verifiedCalendar)[0])throw Error('Source YTD period conflicts with the verified community calendar.');
+    const mappingForm=result.querySelector('[data-monthly-governance]');mappingForm.querySelector('[data-basis]').value=verifiedCalendar.basis;mappingForm.querySelector('[data-fiscal]').value=String(verifiedCalendar.startMonth);mappingForm.querySelector('[data-basis]').disabled=true;mappingForm.querySelector('[data-fiscal]').disabled=true;
     if(run!==coverageEpoch||token!==epoch||!dialog.isConnected)return;
     const row=records?.[0];if(records?.length!==1||row.community_id!==selected||row.period_key!==parsed.metadata.period||row.summary?.communityId!==selected||row.summary?.period!==parsed.metadata.period)throw Error('Financial coverage scope mismatch.');
     const policy=row.summary.coveragePolicy;if(!policy||typeof policy.fullMonthAllowed!=='boolean'||!policy.classification)throw Error('Authoritative coverage policy is unavailable. Retain this source and retry before confirming.');
@@ -79,6 +83,7 @@ export async function openReview({communityId=null,period:requestedPeriod=null,f
   select.onchange=loadCoverage;
   save.onclick=async()=>{save.disabled=true;try{guard();if(!select.value||!result.querySelector('[data-confirm]').checked||!result.querySelector('[data-exclusions]').checked)throw Error('Confirm the community, monthly period and exclusion review first.');
    if(coverageScope!==select.value+'|'+certificate.metadata.period||coveragePolicy?.fullMonthAllowed!==true)throw Error('Read the authoritative community/month coverage before saving a full-month review.');
+   const identity=resolveImportCommunity({fileName:certificate.sourceFile,embeddedNames:[certificate.metadata?.sourceProperty],selectedCommunityId:select.value,confirmed:true,reason:result.querySelector('[data-identity-reason]').value},communities,aliases);if(identity.status!=='resolved')throw Error(identity.reason);certificate.intakeEvidence.identityResolution=identity;certificate.intakeEvidence.verifiedCalendar=verifiedCalendar;
    message.textContent='Saving reconciliation and reading back the shared review…';
    if(certificate.intakeEvidence.workbookAudit?.auditId)await persistWorkbookAudit(central,certificate.intakeEvidence.workbookAudit,{sourceHash:certificate.sourceHash,communityId:select.value});
    const saved=await prepareReview(central,certificate,{communityId:select.value,period:certificate.metadata.period,exclusionsReviewed:true,coverage:coveragePolicy,governance:readMonthlyGovernanceForm(result,certificate,actor),intake:reviewFlow});guard();if(token!==epoch)return;certificate=saved.certificate;
@@ -104,5 +109,6 @@ export async function openReview({communityId=null,period:requestedPeriod=null,f
    for(const review of reviews){const p=document.createElement('p'),button=document.createElement('button');p.textContent=`${review.source_property} · ${review.source_file} · ${review.status} · review ${review.review_id} `;button.textContent='Read review and close controls';p.append(button);list.append(p);button.onclick=async()=>{try{guard();const [stored]=await central.fetchJson(`/atlas_financial_package_reviews?review_id=eq.${review.review_id}&period_key=eq.${period}${filter}&select=*&limit=1`);guard();if(stored?.review_id!==review.review_id||stored.community_id!==review.community_id||stored.period_key!==period)throw Error('Saved financial review scope mismatch.');cancel();certificate=stored.certificate;result.innerHTML=evidenceHtml(certificate);const controls=document.createElement('div');result.append(controls);await applyControls(controls,stored,status);}catch(error){status.textContent=error.message;}};}
   }catch(error){list.textContent=error.message;}
  };
- if(initialFile)await read(initialFile);else await dialog.querySelector('[data-load]').onclick();
+ if(reviewId){const [stored]=await central.fetchJson(`/atlas_financial_package_reviews?review_id=eq.${reviewId}&select=*&limit=1`);guard();if(stored?.review_id!==reviewId||(communityId&&stored.community_id!==communityId)||(requestedPeriod&&stored.period_key!==requestedPeriod)||!communities.some(c=>c.community_id===stored.community_id))throw Error('Saved financial review is outside the requested scope.');periodInput.value=stored.period_key;certificate=stored.certificate;result.innerHTML=evidenceHtml(certificate);const controls=document.createElement('div');result.append(controls);await applyControls(controls,stored,status);}
+ else if(initialFile)await read(initialFile);else await dialog.querySelector('[data-load]').onclick();
 }

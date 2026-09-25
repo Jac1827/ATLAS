@@ -1,4 +1,4 @@
-import {FINANCIAL_MAPPING_VERSION,FINANCIAL_PARSER_VERSION,normalizeFinancialLabel,buildFinancialHierarchy,auditFinancialLeaves,evaluateFinancialPackageSafety,finalizeFinancialPackageEvidence} from './financial-row-reconciliation.mjs?v=3ce78f4de3fe8982';
+import {FINANCIAL_MAPPING_VERSION,FINANCIAL_PARSER_VERSION,normalizeFinancialLabel,buildFinancialHierarchy,auditFinancialLeaves,evaluateFinancialPackageSafety,finalizeFinancialPackageEvidence} from './financial-row-reconciliation.mjs?v=da3d2c759e7c76df';
 export {evaluateFinancialPackageSafety,finalizeFinancialPackageEvidence};
 /* Statement extraction is a review candidate, never a publication or approval. */
 export const SCHEMA_VERSION = 1;
@@ -85,6 +85,7 @@ export function parseComparisonSheet(matrix,sheet,options={}) {
   if(classification!==CLOSE_SOURCE){disposition='supporting';reason=classification==='t12'?'T12 supports historical review; normal monthly intake creates no closes from this sheet.':'This '+classification+' sheet is retained as supporting evidence, not monthly actual authority.';}
   else if((column.headerIndex>=0?index<=column.headerIndex:index<8&&!code&&!fields.some(field=>hasValue(values[mapped[field].index])))||sectionBoundary){disposition='header_or_section';reason=sectionBoundary?'Explicit printed section boundary.':'Statement identity, period or column header.';if(sectionBoundary)section=rawCode;}
   else if(/^(?:memo|statistical|statistics|occupancy|unit count|square footage|units\b|per unit\b|per sq\b)/i.test(name||rawCode)||/^(?:memo|statistical|statistics)\b/i.test(section||'')){disposition='memo_statistical';reason='Explicitly labeled memo/statistical evidence; excluded from financial posting sums.';}
+  else if(code&&!fields.some(field=>hasValue(values[mapped[field].index]))&&!fields.some(field=>cells?.[mapped[field].column+row]?.f)){disposition='supporting';reason='Legitimate blank GL: all financial source cells are blank; retained as missing, never zero.';}
   else if(code){disposition='mapped_leaf';reason='Source GL account mapped to the selected monthly actual column.';}
   else if(!rawCode&&name&&(hasValue(values[mapped.actual.index])||fields.some(field=>hasValue(values[mapped[field].index])))){disposition='mapped_control';reason='Printed financial subtotal or total; requires bounded child-row reconciliation.';}
   else if(!values.slice(Math.max(accountIndex,nameIndex)+1).some(hasValue)&&/^(?:generated|page\s+\d|data as of|report filters|accounting basis)/i.test(rawLabel)){disposition='header_or_section';reason='Printed report footer or generation metadata.';}
@@ -94,7 +95,7 @@ export function parseComparisonSheet(matrix,sheet,options={}) {
   }else if(disposition==='unresolved')exceptions.push({code:'unresolved_source_row',sourceRowId:item.id,description:rawLabel||'Unlabeled data-bearing row'});
  }
  const rowsByAddress=new Map(rows.map(row=>[row.source.cells.actual,row]));
- return {classification,metadata,rows,exceptions,inventory,columnExclusions:classification===CLOSE_SOURCE?column.exclusions:[],selectedActualColumn:classification===CLOSE_SOURCE?column.selectedActualColumn:null,context:{cells:options.cells||{},actualColumn:column.selectedActualColumn?.column,headerByColumn:Object.fromEntries(column.columns.map(column=>[column.column,column.rawHeader])),rowsByAddress},sourceSheet:{sheet,classification,inventoryCount:inventory.length,columns:column.columns,sourceHash},mappingVersion};
+ return {classification,metadata,rows,exceptions,inventory,columnExclusions:classification===CLOSE_SOURCE?column.exclusions:[],selectedActualColumn:classification===CLOSE_SOURCE?column.selectedActualColumn:null,context:{cells:options.cells||{},actualColumn:column.selectedActualColumn?.column,headerByColumn:Object.fromEntries(column.columns.map(column=>[column.column,column.rawHeader])),rowsByAddress,blankLeafAddresses:new Set(inventory.filter(item=>item.reason?.startsWith('Legitimate blank GL:')).map(item=>mapped.actual.column+item.row))},sourceSheet:{sheet,classification,inventoryCount:inventory.length,columns:column.columns,sourceHash},mappingVersion};
 }
 export function parseComparisonLines(text,source={}) {
  const classification=classifyStatement(text),sheet=source.sheet||'PDF page '+(source.page||1),metadata=classification===CLOSE_SOURCE?statementMetadata(text):null,rows=[],exceptions=[],inventory=[],mappingVersion=source.mappingVersion||FINANCIAL_MAPPING_VERSION;let section=null;

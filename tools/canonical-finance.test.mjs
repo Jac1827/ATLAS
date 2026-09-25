@@ -60,3 +60,14 @@ console.log('PASS YTD effective target requires every exact monthly lineage and 
 const originalRead=await readFinance({fetchJson:async()=>effective.map(row=>({...row,summary:{...row.summary,expenses:{...row.summary.expenses,originalBudget:null},ytd:{gpr:{actual:100,budget:90,originalBudget:70,activeBaseline:90,variance:10}}}}))},[cid],periods,{baselineMode:'original_budget'});
 assert.equal(originalRead[0].summary.revenue.budget,10);assert.equal(originalRead[0].summary.revenue.variance,-20);assert.equal(originalRead[0].summary.expenses.budget,null);assert.equal(originalRead[0].summary.expenses.variance,null);assert.equal(originalRead[0].summary.ytdGpr.variance,30);assert.equal(originalRead[0].summary.financialSnapshot.identity.comparisonBasis,'original_budget');assert.equal(originalRead[0].summary.effectiveBaseline.publicationId,'forecast-publication');
 console.log('PASS explicit original-budget comparison keeps its own mathematical variance and nulls while retaining active lineage separately');
+// Delivery audit failure is nonblocking, but it must not allow a financial read
+// started by a prior signed-in account to resolve after an account switch.
+const observed={...active(periods[0]),versionId:'10000000-0000-0000-0000-000000000001',publicationId:'10000000-0000-0000-0000-000000000002',contentHash:'a'.repeat(64)};
+actor='prior-user';let receiptCalls=0;
+await assert.rejects(()=>readFinance({getSession:()=>({user:{id:actor}}),fetchJson:async path=>{
+ if(path==='/rpc/atlas_read_finance')return [{...rows[0],summary:{...rows[0].summary,effectiveBaseline:observed}}];
+ assert.equal(path,'/rpc/atlas_verify_budget_consumer');receiptCalls++;actor='next-user';
+ return {publication_id:observed.publicationId,consumer_key:'finance_summary',content_fingerprint:observed.contentHash,delivery_status:'verified'};
+}},[cid],[periods[0]]),/Session changed/);
+assert.equal(receiptCalls,1);
+console.log('PASS signed-in account is checked after consumer receipt verification');

@@ -1,4 +1,4 @@
-import {verifyImportReadback} from './reforecast-store.mjs?v=db3c5c6712ef7c55';
+import {verifyImportReadback} from './reforecast-store.mjs?v=116417158a586ff4';
 // Recovery copies are never calculation authority. Shared server receipts decide
 // whether a write committed; browser records retain the exact request for retry.
 const DB='atlas-reforecast-recovery-v1',STORE='recovery';
@@ -106,7 +106,7 @@ export async function completeForecastDraftRecovery(central,{recoveryId,result})
  try{await access(central,'readwrite',(store,actor)=>{const scan=store.getAll();scan.onsuccess=()=>{try{
   const rows=scan.result.filter(row=>row.actor===actor),pending=rows.find(row=>row.id===recoveryId);if(!pending)return;
   const request=pending.request,revision=result?.revision,publication=result?.publication;
-  if(pending.kind!=='draft-write'||!request||result?.head?.community_id!==request.communityId||result.head.scenario_id!==request.scenarioId||revision?.community_id!==request.communityId||revision.scenario_id!==request.scenarioId||!revision.revision_id||!(revision.request_id===request.requestId||request.action==='approve_lock'&&publication?.request_id===request.requestId))throw Error('Keep the pending save until its exact request and revision are verified.');
+  if(pending.kind!=='draft-write'||!request||result?.head?.community_id!==request.communityId||result.head.scenario_id!==request.scenarioId||revision?.community_id!==request.communityId||revision.scenario_id!==request.scenarioId||!revision.revision_id||!(revision.request_id===request.requestId||['approve_lock','vp_approve'].includes(request.action)&&publication?.request_id===request.requestId))throw Error('Keep the pending save until its exact request and revision are verified.');
   store.delete(actor+':'+pending.id);
   const edit=rows.find(row=>row.id===pending.editId);
   if(edit?.kind==='draft-edit'&&pending.editVersion&&edit.editVersion===pending.editVersion&&edit.scenarioId===request.scenarioId&&edit.communityId===request.communityId)store.delete(actor+':'+edit.id);

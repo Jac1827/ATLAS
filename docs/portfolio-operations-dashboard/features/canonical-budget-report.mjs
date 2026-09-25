@@ -1,6 +1,6 @@
-import {readFinance,number} from './canonical-finance.mjs?v=aaf7ab487e3250de';
+import {readFinance,number} from './canonical-finance.mjs?v=4a0ab39278f685cd';
 import {freezeSnapshot,lineageColumns} from './financial-snapshot.mjs?v=848d058bdec07b4e';
-import {snapshotPdf} from './snapshot-pdf.mjs?v=e6a58eadc065a877';
+import {snapshotPdf} from './snapshot-pdf.mjs?v=cda1d9683b4dd270';
 import {loadXlsx} from './reforecast-intake.mjs?v=87e68da483f77228';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const hash=value=>/^[a-f0-9]{64}$/i.test(value||'');

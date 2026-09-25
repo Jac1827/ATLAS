@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
-import {forecastPermissions,selectedPublicationIds,forecastSetupPayload,applyStrSchedules,forecastGridHtml} from '../docs/portfolio-operations-dashboard/features/reforecast-builder-ui.mjs';
+import {forecastPermissions,forecastSourceReviewAllowed,selectedPublicationIds,forecastSetupPayload,applyStrSchedules,forecastGridHtml} from '../docs/portfolio-operations-dashboard/features/reforecast-builder-ui.mjs';
 const communityId='10000000-0000-0000-0000-000000000001',periods=['2026-10','2026-11'];
 const source={communityId,periods,baseline:{sourceType:'approved_reforecast',versionIds:['original'],periodVersions:periods.map(period=>({period,publicationId:'publication'})),lines:periods.flatMap(period=>[{period,accountCode:'4110',amount:1000},{period,accountCode:'4190',amount:-100}])},registry:{version:'mapping',accounts:[{accountCode:'4110',nature:'income'},{accountCode:'4190',nature:'contra_income'}]},actuals:{closeVersions:[]}};
-for(const role of ['admin','executive'])assert.deepEqual(forecastPermissions(role),{edit:true,approve:true});
-for(const role of ['regional','centra','community_manager'])assert.deepEqual(forecastPermissions(role),{edit:true,approve:false});
-for(const role of ['VP','Central Services','finance','viewer',''])assert.deepEqual(forecastPermissions(role),{edit:false,approve:false});
+for(const role of ['executive','vp','vice_president'])assert.deepEqual(forecastPermissions(role),{edit:true,approve:true});
+for(const role of ['admin','regional','finance','centra','community_manager'])assert.deepEqual(forecastPermissions(role),{edit:true,approve:false});
+for(const role of ['VP','Central Services','viewer',''])assert.deepEqual(forecastPermissions(role),{edit:false,approve:false});
+assert(forecastSourceReviewAllowed('admin'),'Admin source mapping review is distinct from VP financial publication');
+assert(forecastSourceReviewAllowed('executive'));
+for(const role of ['regional','finance','community_manager','viewer',''])assert.equal(forecastSourceReviewAllowed(role),false);
 assert.deepEqual(selectedPublicationIds([{communityId,verified:true,approved:true,locked:true,publicationId:'v1',activePeriods:['2026-10']},{communityId,verified:true,approved:true,locked:true,publicationId:'v2',activePeriods:['2026-11']}],communityId,periods),['v1','v2']);
 assert.deepEqual(selectedPublicationIds([{communityId,verified:true,approved:true,locked:true,publicationId:'v1',activePeriods:['2026-10']}],communityId,periods),[]);
 assert.deepEqual(selectedPublicationIds([{communityId,verified:false,approved:true,locked:true,publicationId:'v1',activePeriods:periods}],communityId,periods),[]);

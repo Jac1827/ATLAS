@@ -13939,6 +13939,15 @@ function renderTab() {
     const idx = Number(String(p.id).replace("tab-panel-", ""));
     p.style.display = idx === activeTab ? "" : "none";
   });
+  if (activeTab === 0 && !shouldBlockAtlasSensitiveAccess()) void window.AtlasBudgetApprovalTasks?.mount(panel);
+  if (activeTab === 1 && !shouldBlockAtlasSensitiveAccess() && atlasAccessDecision(1).ok) {
+    const calendarContext=getAtlasRenderContextKey(),calendarName=isPortfolioWorkspaceSelected()?getPortfolioSetupCommunityName():getProp().name;
+    const calendarRecord=isPortfolioWorkspaceSelected()?getPortfolioSetupCommunityRecord(calendarName):getCurrentCommunityRecord();
+    void import('./features/community-budget-settings.mjs?v=44f5aed973d86786').then(module=>{
+      const current=()=>activeTab===1&&calendarContext===getAtlasRenderContextKey()&&calendarName===(isPortfolioWorkspaceSelected()?getPortfolioSetupCommunityName():getProp().name)&&!shouldBlockAtlasSensitiveAccess()&&atlasAccessDecision(1).ok;
+      if(current())return module.mountCommunityBudgetSettings(panel,{central:window.ATLAS_CENTRAL,communityName:calendarName,communityId:calendarRecord?.atlasCommunityId||calendarRecord?.sourceIds?.atlasCommunityId||calendarRecord?.communityId,isCurrent:current});
+    }).catch(error=>console.warn('Financial calendar settings unavailable',error));
+  }
   if (!isPortfolioWorkspaceSelected()) window.AtlasActiveReforecast?.mount(panel, {tab:activeTab,communityName:getProp().name,communityId:getCurrentCommunityRecord()?.communityId,period:buildPeriodKey(getSelectedDashboardMonthIndex(),Number(getCurrentCommunityRecord()?.reportYear)||new Date().getFullYear())});
   window.AtlasMounts?.reconcile?.();
   syncAtlasWorkspaceCardVisibility();
@@ -22564,7 +22573,7 @@ function getAtlasClosedFinancialVersion(record, period) {
 async function refreshAtlasClosedFinancials(year, force = false, requested = new Map()) {
   if (!window.ATLAS_CENTRAL?.getSession()?.user || !requested.size || !atlasAccessDecision(activeTab).ok) return false;
   const context = getAtlasRenderContextKey();
-  const module = await import("./features/financial-close.mjs?v=4abdb8c01f27f8d6");
+  const module = await import("./features/financial-close.mjs?v=d32bf8c81790548d");
   if (context !== getAtlasRenderContextKey()) return false;
   window.AtlasClosedFinancialCache ||= module.createCache(window.ATLAS_CENTRAL);
   const roster = getAtlasAccessProfile()?.community_access_records || [];
@@ -23119,7 +23128,7 @@ async function openSharedCommunityPlan() {
   const communityId = access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId;
   if (!communityId || !window.ATLAS_CENTRAL) { alert("Shared plans require an authorized canonical community record."); return false; }
   try {
-    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=9118bbf179a12835");
+    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=2c10063e1b5d74e1");
     if (epoch !== atlasNavigationEpoch || !atlasAccessDecision(2).ok) return false;
     const entry=model.monthEntry, provenance=entry.metricProvenance?.occupiedSnapshot, period=buildPeriodKey(model.monthIdx,model.year);
     const occupancy=provenance?.revisionKey && provenance.period===period && (!provenance.communityId||provenance.communityId===communityId) && entry.occupiedSnapshot!=null && Number(entry.rentableUnits)>0
@@ -23452,7 +23461,7 @@ function queueCommunityRosterFinancials(items) {
     return {key:encodeURIComponent(item.detail.name),hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
   });
   setTimeout(async()=>{try {
-    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=b6f06ee355621e68");
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=bf237e952bce7d14");
     if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
     await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
   } catch {}},0);

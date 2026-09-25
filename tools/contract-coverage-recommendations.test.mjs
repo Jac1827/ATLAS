@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {calculateContractDriver} from '../docs/portfolio-operations-dashboard/features/reforecast-provider.mjs';
+const contract={reviewState:'approved',sourceHash:'retained-contract-hash',effectiveFrom:'2026-01',effectiveTo:'2026-08',effectiveDate:'2026-01-01',endDate:'2026-08-31',monthlyAmount:1000,escalation:{rate:.1,effectiveMonth:'2026-06',clauseReference:'Signed schedule page 2'}};
+const inflation={confirmed:true,communityId:'a',location:'Florida',percentage:3,source:'Approved property assumptions',ownerId:'reviewer',effectiveDate:'2026-09-01'};
+const rows=calculateContractDriver({contract,periods:['2026-05','2026-08','2026-09','2026-12'],communityId:'a',location:'Florida',inflation});
+assert.deepEqual(rows.map(r=>r.amount),[1000,1100,1133,1133]);
+assert.deepEqual(rows.map(r=>r.contractBacked),[true,true,false,false]);
+assert.equal(rows[2].coverage,'Out of Contract - Estimated');assert.equal(rows[2].priorRate,1100);assert.equal(rows[2].inflationPercentage,3);
+assert.deepEqual(rows[2].assumption,inflation);
+for(const broken of [{...inflation,communityId:'b'},{...inflation,location:'Elsewhere'},{...inflation,source:''},{...inflation,ownerId:null},{...inflation,percentage:null}])assert.equal(calculateContractDriver({contract,periods:['2026-09'],communityId:'a',location:'Florida',inflation:broken})[0].amount,null);
+assert.equal(calculateContractDriver({contract:{...contract,endDate:'2026-08-15'},periods:['2026-08']})[0].coverage,'Partial Contract - Review Proration');
+assert.equal(calculateContractDriver({contract,periods:['2025-12'],communityId:'a',location:'Florida',inflation})[0].amount,null);
+assert.equal(calculateContractDriver({contract,periods:['2026-08'],userRate:{monthlyAmount:0,reviewState:'approved',reason:'Reviewed adjustment',actor:'a'}})[0].contractBacked,false);
+assert.equal(contract.monthlyAmount,1000,'Recommendations do not mutate signed contract');
+console.log('PASS active rates, effective escalations, last-known rate inflation, property/location provenance, unavailable assumptions, partial-month review and explicit overrides');

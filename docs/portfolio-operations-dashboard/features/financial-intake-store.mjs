@@ -1,4 +1,4 @@
-import {finalizeFinancialPackageEvidence,evaluateFinancialPackageSafety} from './financial-package.mjs?v=a378a0cb25083758';
+import {finalizeFinancialPackageEvidence,evaluateFinancialPackageSafety} from './financial-package.mjs?v=fb2b9dde0a554114';
 export const INTAKE_STATES=['uploaded','classified','community_period_confirmed','fully_mapped','reconciled','review_saved','admin_closed','canonically_published','readback_verified'];
 export const INTAKE_LABELS=['Uploaded','Classified','Community/Period Confirmed','Fully Mapped','Reconciled','Review Saved','Admin Closed','Canonically Published','Readback Verified'];
 const one=value=>Array.isArray(value)?value[0]:value;

@@ -1,7 +1,7 @@
-import {readBudgetVersion,requiredBudgetCoverage} from './approved-budget.mjs?v=6ba64c08da466d86';
-import {financeAccessKey} from './canonical-finance.mjs?v=aaf7ab487e3250de';
+import {readBudgetVersion,requiredBudgetCoverage} from './approved-budget.mjs?v=943c83d5ae8ad656';
+import {financeAccessKey} from './canonical-finance.mjs?v=4a0ab39278f685cd';
 import {canonicalJson,freezeSnapshot,retainedSnapshot} from './financial-snapshot.mjs?v=848d058bdec07b4e';
-import {snapshotPdf} from './snapshot-pdf.mjs?v=e6a58eadc065a877';
+import {snapshotPdf} from './snapshot-pdf.mjs?v=cda1d9683b4dd270';
 
 const uuid=value=>/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value||'');
 const hash=value=>/^[a-f0-9]{64}$/i.test(value||'');

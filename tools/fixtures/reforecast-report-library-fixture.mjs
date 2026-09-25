@@ -22,7 +22,7 @@ export function reportLibraryFixture(){
  const publications=[parent,str],requests=[],profile={user_id:ids.actor,status:'active',role:'admin',allowed_community_ids:[ids.community]},config={enabled:true,supabaseUrl:'https://synthetic.test'};let actor=ids.actor,onRead=null;
  const central={isEnabled:()=>config.enabled,getConfig:()=>config,getStoredProfile:()=>profile,isAuthenticated:()=>!!actor,getSession:()=>actor?{user:{id:actor}}:null,refreshSession:async()=>{},fetchJson:async(url,options={})=>{
   const request={url,options};requests.push(request);const parsed=new URL(url,'http://local'),filter=key=>parsed.searchParams.get(key)?.replace(/^eq\./,'');let result;
-  if(parsed.pathname==='/rpc/atlas_read_reforecast_publication'){
+  if(parsed.pathname==='/rpc/atlas_verify_budget_consumer'){const body=JSON.parse(options.body),publication=publications.find(row=>row.publicationId===body.p_publication_id);if(!publication||body.p_observed_revision_id!==publication.revisionId||body.p_observed_fingerprint!==publication.reportContentHash)throw Error('Export receipt identity mismatch');result={delivery_id:body.p_request_id,publication_id:publication.publicationId,consumer_key:body.p_consumer_key,delivery_status:'verified'};}else if(parsed.pathname==='/rpc/atlas_read_reforecast_publication'){
    if(options.method!=='POST')throw Error('Publication receipt is a read RPC');const body=JSON.parse(options.body);result=publications.find(row=>row.publicationId===body.p_publication_id);
   }else{
    if(options.method&&options.method!=='GET')throw Error('The report library cannot write financial state');

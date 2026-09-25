@@ -1,4 +1,5 @@
-import {resolveEffectiveBaseline,effectiveBaselineMetric,readEffectiveBaselines} from './reforecast-consumers.mjs?v=b97bed42695951f1';
+import {acknowledgeBudgetConsumer} from './budget-consumer-delivery.mjs?v=f5342574d4b39aa2';
+import {resolveEffectiveBaseline,effectiveBaselineMetric,readEffectiveBaselines} from './reforecast-consumers.mjs?v=3e9f60e836c0e2cf';
 import {financeSnapshot,retainedSnapshot,lineageColumns} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 // Shared, period-specific finance adapter. No browser-state fallback.
 export const number = value => value === null || value === undefined || String(value).trim() === '' ? null : Number.isFinite(Number(value)) ? Number(value) : null;
@@ -71,6 +72,9 @@ async function readFinanceFresh(central, communityIds, periods, {signal,baseline
  }else if(baselineMode==='original_budget'){
   for(const row of result){if(!row.summary.effectiveBaseline)continue;const summary=withOriginalBudget(row.summary),snapshot=financeSnapshot(summary,row.publication_id||null);row.summary={...summary,snapshotFingerprint:snapshot.fingerprint,financialSnapshot:snapshot};}
  }else throw Error('Choose an explicit effective or original-budget reporting baseline.');
+ if(baselineMode==='effective')await Promise.all([...new Map(result.map(row=>row.summary?.effectiveBaseline).filter(row=>row?.sourceType==='approved_reforecast'&&row.status==='available').map(row=>[row.publicationId,row])).values()].map(row=>acknowledgeBudgetConsumer(central,row,'finance_summary')));
+ if(signal?.aborted)throw cancelled();
+ if(central.getSession&&actor!==central.getSession()?.user?.id)throw Error('Session changed while verifying financial consumer evidence.');
  return result;
 }
 function withOriginalBudget(summary){

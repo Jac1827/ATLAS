@@ -37,17 +37,36 @@ export async function persistWorkbookAudit(central,audit,{communityId=null,sourc
    const failure=Error(`Workbook evidence save failed (${diagnostic.classification}; request ${id}). Your workbook is retained. Retry uses the same request ID.`);failure.diagnostics=diagnostic;failure.cause=error;throw failure;
   }
  };
+ const readReceipt=()=>call('atlas_read_workbook_audit_upload_receipt',{p_community_id:communityId,p_request_id:id,p_manifest_hash:manifestHash});
  let upload;for(let attempts=0;attempts<16;attempts++){
-  upload=await call('atlas_begin_workbook_audit_upload',{p_community_id:communityId,p_request_id:id,p_manifest:manifest,p_manifest_hash:manifestHash});
+  // A read is mandatory before another write after a refresh or uncertain
+  // response. Immutable chunks already acknowledged by the server need not
+  // cross the gateway again; their hashes are still checked below.
+  upload=await readReceipt();
+  if(!upload)upload=await call('atlas_begin_workbook_audit_upload',{p_community_id:communityId,p_request_id:id,p_manifest:manifest,p_manifest_hash:manifestHash});
   if(!upload?.canceled)break;
   if(!UUID.test(upload.retry_request_id||''))throw Error('Canceled workbook retry identity is unavailable.');id=upload.retry_request_id;
  }
- if(!UUID.test(upload?.upload_id||'')||upload.manifest_hash!==manifestHash)throw Error('Workbook upload manifest could not be verified.');
- if(!upload.audit_id)for(const [stream,data]of [['audit',auditBytes],['source',original]])for(let offset=0,index=0;offset<data.length;offset+=WORKBOOK_AUDIT_CHUNK_BYTES,index++){
-  const chunk=data.subarray(offset,offset+WORKBOOK_AUDIT_CHUNK_BYTES);
-  await call('atlas_put_workbook_audit_chunk',{p_upload_id:upload.upload_id,p_stream:stream,p_index:index,p_chunk:base64(chunk),p_chunk_hash:await sha(chunk)});
+ if(upload?.canceled||!UUID.test(upload?.upload_id||'')||upload.manifest_hash!==manifestHash)throw Error('Workbook upload manifest could not be verified.');
+ const received=new Map();for(const part of upload.chunks||[]){
+  const spec=manifest[part.stream],key=part.stream+':'+part.chunk_index;
+  if(!spec||!Number.isInteger(part.chunk_index)||part.chunk_index<0||part.chunk_index>=spec.chunkCount||received.has(key)||!SHA.test(part.sha256||'')||part.byte_length!==Math.min(WORKBOOK_AUDIT_CHUNK_BYTES,spec.byteLength-part.chunk_index*WORKBOOK_AUDIT_CHUNK_BYTES))throw Error('Retained workbook chunk receipt is invalid.');
+  received.set(key,part);
  }
- const record=await call('atlas_finalize_workbook_audit_upload',{p_upload_id:upload.upload_id,p_request_id:id,p_manifest_hash:manifestHash});
+ if(!upload.audit_id)for(const [stream,data]of [['audit',auditBytes],['source',original]])for(let offset=0,index=0;offset<data.length;offset+=WORKBOOK_AUDIT_CHUNK_BYTES,index++){
+  const chunk=data.subarray(offset,offset+WORKBOOK_AUDIT_CHUNK_BYTES),hash=await sha(chunk),prior=received.get(stream+':'+index);
+  if(prior){if(prior.sha256!==hash)throw Error('Retained workbook chunk differs from the selected original evidence.');continue;}
+  await call('atlas_put_workbook_audit_chunk',{p_upload_id:upload.upload_id,p_stream:stream,p_index:index,p_chunk:base64(chunk),p_chunk_hash:hash});
+ }
+ let record=upload.receipt;
+ if(!record)try{record=await call('atlas_finalize_workbook_audit_upload',{p_upload_id:upload.upload_id,p_request_id:id,p_manifest_hash:manifestHash});}
+ catch(error){
+  // Finalize may have committed after the response was lost. The same request
+  // must be read before any retry; an unavailable read never permits a write.
+  let retained;try{retained=await readReceipt();}catch(receiptError){error.receiptError=receiptError;throw error;}
+  if(!retained?.audit_id||!retained.receipt)throw error;
+  record=retained.receipt;
+ }
  if(!record?.audit_id||record.source_hash!==sourceHash||record.fingerprint!==audit.fingerprint||record.manifest_hash!==manifestHash)throw Error('Workbook audit persistence could not be verified. Your edits are retained.');
  const ref=compactWorkbookAudit(audit,record);
  const retained=await readWorkbookAuditBytes(central,ref,{sourceHash});guard(central,actor);

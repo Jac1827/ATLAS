@@ -16,7 +16,8 @@ const central={getSession:()=>({user:{id:'00000000-0000-0000-0000-'+String(actor
 const login=async n=>{actor=n;await signIn(n);};
 try {
  await db.exec('reset role');for(const name of ['20260924121641_planning_cell_workbook_integrity_governance.sql','20260924121647_immutable_workbook_audits_and_monthly_governance.sql'])await db.exec(fs.readFileSync(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));
- await db.exec(fs.readFileSync(new URL('../docs/portfolio-operations-dashboard/centralization/workbook-audit-chunks.sql',import.meta.url),'utf8'));await login(1);
+ await db.exec(fs.readFileSync(new URL('../docs/portfolio-operations-dashboard/centralization/workbook-audit-chunks.sql',import.meta.url),'utf8'));
+ await db.exec(fs.readFileSync(new URL('../supabase/migrations/20260925005521_workbook_audit_validation_performance.sql',import.meta.url),'utf8'));await login(1);
  let sourceBytes;
  if(process.env.ATLAS_REAL_DORO_SOURCE)sourceBytes=fs.readFileSync(process.env.ATLAS_REAL_DORO_SOURCE);
  else {const workbook=XLSX.utils.book_new();XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet([['Doro'],['GL','Account','Sep 2026','Oct 2026','Nov 2026','Dec 2026'],['5144','Hello Landing',1,2,3,4],...Array.from({length:12},(_,i)=>[String(5145+i),'Unicode retained é € 日本 '.repeat(1000),0,0,0,0])]),'Input');sourceBytes=XLSX.write(workbook,{type:'buffer',bookType:'xlsx'});}
@@ -64,6 +65,9 @@ try {
  assert.equal(fs.readFileSync(new URL('../docs/portfolio-operations-dashboard/centralization/workbook-audit-chunks.sql',import.meta.url),'utf8'),fs.readFileSync(new URL('../supabase/migrations/20260924232845_bounded_workbook_audit_transport.sql',import.meta.url),'utf8'));
  const readback=await readWorkbookAuditBytes(central,reference);assert.deepEqual(Buffer.from(readback.auditBytes),auditBytes);assert.deepEqual(Buffer.from(readback.sourceBytes),sourceBytes);assert.deepEqual(readback.evidence,JSON.parse(auditBytes));assert.deepEqual(await readWorkbookAudit(central,reference),JSON.parse(auditBytes));
  const retry=await persistWorkbookAudit(central,audit,{sourceBytes,sourceHash,requestId,communityId:cid});assert.equal(retry.auditId,reference.auditId);
+ assert(!retry.transport.requests.some(row=>row.operation==='atlas_finalize_workbook_audit_upload'||row.operation==='atlas_put_workbook_audit_chunk'),'Completed receipt recovery performs no repeat write');
+ const lostFinalizeId=randomUUID(),lostFinalize={...central,rpc:async(name,args)=>{const result=await call(name,args);if(name==='atlas_finalize_workbook_audit_upload')throw TypeError('Injected lost finalization response');return result;}};
+ const recoveredFinalize=await persistWorkbookAudit(lostFinalize,audit,{sourceBytes,sourceHash,requestId:lostFinalizeId,communityId:cid});assert.equal(recoveredFinalize.auditId,reference.auditId,'Uncertain finalization reads its committed receipt without a duplicate write');
  // Repeat the actual import sequence: audit save/readback on every attempt, then
  // envelope save under the same request ID. Attempt telemetry must not change it.
  assert(reference.transport.requests.length>retry.transport.requests.length);

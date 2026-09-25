@@ -1,10 +1,10 @@
-import {safeSpreadsheetCell} from './reforecast-report.mjs?v=882dbbd6781f93e6';
+import {safeSpreadsheetCell} from './reforecast-report.mjs?v=255e3fd3cc5aa869';
 import {financeSnapshot,lineageColumns} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 import {snapshotPdf} from './snapshot-pdf.mjs?v=e6a58eadc065a877';
-import {readFinance} from './canonical-finance.mjs?v=c1aab1edf2b89a6b';
-import {readCanonicalBudgetVersion,assertBudgetReadback} from './canonical-budget-report.mjs?v=df11e37bb99a5d38';
-import {readRows} from './financial-close.mjs?v=54a0f1d9ffaf7fad';
-import {loadXlsx} from './reforecast-intake.mjs?v=1f8bae00926f1f93';
+import {readFinance} from './canonical-finance.mjs?v=a5d92a10ce5c448c';
+import {readCanonicalBudgetVersion,assertBudgetReadback} from './canonical-budget-report.mjs?v=b4cf85f29c8ad66b';
+import {readRows} from './financial-close.mjs?v=823a6aa513af4eb1';
+import {loadXlsx} from './reforecast-intake.mjs?v=87e68da483f77228';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const freeze=o=>{if(o&&typeof o==='object'){Object.values(o).forEach(freeze);Object.freeze(o);}return o;};
 export async function readCloseSnapshot(central,cid,period){

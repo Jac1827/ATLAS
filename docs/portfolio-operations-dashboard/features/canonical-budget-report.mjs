@@ -1,7 +1,7 @@
-import {readFinance,number} from './canonical-finance.mjs?v=c1aab1edf2b89a6b';
+import {readFinance,number} from './canonical-finance.mjs?v=a5d92a10ce5c448c';
 import {freezeSnapshot,lineageColumns} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 import {snapshotPdf} from './snapshot-pdf.mjs?v=e6a58eadc065a877';
-import {loadXlsx} from './reforecast-intake.mjs?v=1f8bae00926f1f93';
+import {loadXlsx} from './reforecast-intake.mjs?v=87e68da483f77228';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const hash=value=>/^[a-f0-9]{64}$/i.test(value||'');
 // The adapter selects the version. Never select a local baseline, a statement

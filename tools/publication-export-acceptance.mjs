@@ -30,7 +30,7 @@ export async function verifyOfficialExports({publication,xlsxBytes,pdfBytes,scre
  const report=communityForecastReport(publication,options),monthlyChecks=reconcilePublicationTotals(publication);
  assert(xlsxBytes?.length>4&&xlsxBytes[0]===0x50&&xlsxBytes[1]===0x4b,'Official Excel must be a real XLSX ZIP');
  const book=XLSX.read(xlsxBytes,{type:'array',cellFormula:true});
- const sheetMap={'Monthly summary':'monthly','GL detail':'rows','STR contribution bridge':'bridge','STR schedule':'schedules','Utility recovery':'utilities','Drivers':'drivers','Overrides':'overrides','Baseline by month':'baselines','Risks':'risks','Source appendix':'appendix'};
+ const sheetMap={'Monthly summary':'monthly','GL detail':'rows','STR contribution bridge':'bridge','STR schedule':'schedules','Saved STR reconciliation':'sourceReconciliation','Utility recovery':'utilities','Drivers':'drivers','Overrides':'overrides','Baseline by month':'baselines','Risks':'risks','Source appendix':'appendix'};
  assert.deepEqual(book.SheetNames,Object.keys(sheetMap),'Official workbook must retain every report section');
  for(const [sheet,property] of Object.entries(sheetMap)){
   const expected=report[property].map(row=>Object.fromEntries(Object.entries(row).map(([key,value])=>[safeSpreadsheetCell(key),safeSpreadsheetCell(value)])));
@@ -42,7 +42,7 @@ export async function verifyOfficialExports({publication,xlsxBytes,pdfBytes,scre
  assert.equal(names.size(),2,'Exactly one immutable financial evidence attachment is required');
  const stream=names.lookup(1,PDFDict).lookup(PDFName.of('EF'),PDFDict).lookup(PDFName.of('F'),PDFRawStream),attached=JSON.parse(new TextDecoder().decode(decodePDFRawStream(stream).decode()));
  assert.deepEqual(attached.snapshot,clean(report.snapshot),'PDF receipt does not match publication snapshot');
- assert.deepEqual(attached.rows,clean([...report.rows,...report.monthly,...report.schedules,...report.utilities,...report.drivers,...report.overrides,...report.baselines,...report.risks,...report.bridge,...report.appendix]),'PDF detail does not match publication');
+ assert.deepEqual(attached.rows,clean([...report.rows,...report.monthly,...report.schedules,...report.sourceReconciliation,...report.utilities,...report.drivers,...report.overrides,...report.baselines,...report.risks,...report.bridge,...report.appendix]),'PDF detail does not match publication');
  if(screenRows!==undefined)assert.deepEqual(screenRows,report.rows,'Screen GL cells differ from publication');
  if(screenMonthly!==undefined)assert.deepEqual(screenMonthly,report.monthly,'Screen monthly values differ from publication');
  return {status:'matched',publicationId:publication.publicationId,publicationHash:publication.contentHash,reportFingerprint:report.snapshot.fingerprint,xlsxHash:hash(xlsxBytes),pdfHash:hash(pdfBytes),monthlyChecks,glCells:report.rows.length,xlsxSheets:Object.keys(sheetMap).length,pdfPages:pdf.getPageCount(),screenGLReadbackVerified:screenRows!==undefined,screenMonthlyReadbackVerified:screenMonthly!==undefined,pdfVisualReview:'required_separately'};

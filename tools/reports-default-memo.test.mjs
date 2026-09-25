@@ -63,10 +63,10 @@ try{
  await page.waitForFunction(()=>atlasDashboardInitializationComplete&&atlasWorkspaceAccess.hasData,{},{timeout:15000}).catch(async error=>{console.log('DEBUG',await page.evaluate(()=>({state:typeof atlasWorkspaceAccess==='undefined'?null:atlasWorkspaceAccess,error:document.body.innerText.slice(-2000)})),errors);throw error;});
 
  await page.evaluate(()=>{
-  window.__defaultFactoryCalls=0;window.__defaultWrites=[];
+  window.__defaultFactoryCalls=0;window.__defaultWrites=[];window.__guardReturnedTrees=true;
   const factory=window.defaultSavedCommunityRecord;
   const readonly=value=>{
-   if(!value||typeof value!=='object')return value;
+   if(!__guardReturnedTrees||!value||typeof value!=='object')return value;
    const children=new Map();
    return new Proxy(value,{
     get(target,key,receiver){const item=Reflect.get(target,key,receiver);if(!item||typeof item!=='object')return item;if(!children.has(key))children.set(key,readonly(item));return children.get(key);},
@@ -76,6 +76,7 @@ try{
    });
   };
   window.__guardedDefaultFactory=(...args)=>{__defaultFactoryCalls++;return readonly(factory(...args));};
+  window.__leafOriginals={};window.__leafFresh={};window.__leafMemoFunctions={};for(const name of ['normalizePropertyTeamConfig','rebuildBonusRolesByQuarter']){const original=window[name];window.__leafFresh[name]=original;window.__leafOriginals[name]=(...args)=>readonly(original(...args));window[name]=__leafOriginals[name];}
   window.defaultSavedCommunityRecord=__guardedDefaultFactory;
   window.__freshDefaultFactory=factory;
  });
@@ -86,13 +87,13 @@ try{
   const NativeDate=Date,fixedNow=NativeDate.now();
   window.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[fixedNow]));}static now(){return fixedNow;}};
   const plain=value=>JSON.stringify(value);
-  const memoFactory=window.defaultSavedCommunityRecord;
+  const memoFactory=window.defaultSavedCommunityRecord;for(const name of Object.keys(__leafOriginals))__leafMemoFunctions[name]=window[name];
   const scenarios=[
    {year:2026,month:8,patch:{}},
    {year:2025,month:0,patch:{monthlyData:[null,{applications:0,tours:null}],monthlyHistoryByPeriod:{'2025-01':{applications:0,tours:null,occupiedSnapshot:0,leasedSnapshot:0},'2026-01':{applications:7,tours:9}},corporateLeaseUnits:12}},
    {year:2027,month:1,patch:{monthlyData:Array.from({length:12},()=>({applications:null,tours:0})),monthlyHistoryByPeriod:{'2025-01':{applications:0,tours:1}},bonusPayouts:null,seasonal:null}}
   ];
-  const builders=[['community_progress',()=>buildCommunityProgressReportData({silent:true})],['market_comparison',()=>buildMarketComparisonReportData({silent:true})],['portfolio_performance_report',()=>buildPortfolioReportData()],['weekly',()=>buildWeeklyExecutiveReportData()],['rise_portfolio_leasing_weekly',()=>buildRisePortfolioLeasingWeeklyReportData({silent:true})]];
+  const builders=[['community_progress',()=>buildCommunityProgressReportData({silent:true})],['market_comparison',()=>buildMarketComparisonReportData({silent:true})],['portfolio_performance_report',()=>buildPortfolioReportData()],['quarterly_bonus_roles',()=>getCommunityQuarterlyBonusRoles('Doro',savedData.Doro,'Q3')],['weekly',()=>buildWeeklyExecutiveReportData()],['rise_portfolio_leasing_weekly',()=>buildRisePortfolioLeasingWeeklyReportData({silent:true})]];
   const results=[];
   const initial=structuredClone(savedData.Doro);
   for(const scenario of scenarios){
@@ -101,9 +102,9 @@ try{
    for(const [type,build] of builders){
     reportHubType=type;
     const run=useMemo=>{
-     window.defaultSavedCommunityRecord=useMemo?memoFactory:__guardedDefaultFactory;
-     __defaultFactoryCalls=0;const previous=AtlasReports.beginRender();
-     try{return {value:plain(build()),calls:__defaultFactoryCalls};}
+     window.defaultSavedCommunityRecord=useMemo?memoFactory:__guardedDefaultFactory;for(const name of Object.keys(__leafOriginals))window[name]=useMemo?__leafMemoFunctions[name]:__leafOriginals[name];
+     __defaultFactoryCalls=0;const beforeSource=plain(savedData);const previous=AtlasReports.beginRender();
+     try{const value=plain(build());if(beforeSource!==plain(savedData))throw Error('Report mutated its retained source input');return {value,calls:__defaultFactoryCalls};}
      finally{AtlasReports.endRender(previous);}
     };
     const before=run(false),after=run(true);
@@ -116,21 +117,36 @@ try{
   atlasWorkspaceAccess.source={...atlasWorkspaceAccess.source,version:8};atlasSharedData={...atlasSharedData,employees:[{id:'synthetic-updated-employee'}]};
   previous=AtlasReports.beginRender();const second=defaultSavedCommunityRecord('Doro');AtlasReports.endRender(previous);
   const sourceFresh=first!==second;
+  // Exact source identity is reusable only for the duration of one render.
+  for(const name of Object.keys(__leafMemoFunctions))window[name]=__leafMemoFunctions[name];
+  const teamInput=defaultPropertyTeamConfig(),bonusInput=JSON.parse(plain(__freshDefaultFactory('Doro').bonusRolesByQ));
+  previous=AtlasReports.beginRender();
+  const teamA=normalizePropertyTeamConfig(teamInput),teamAgain=normalizePropertyTeamConfig(teamInput),otherTeam=normalizePropertyTeamConfig({...teamInput});
+  const quarterA=rebuildBonusRolesByQuarter(bonusInput,teamA),quarterAgain=rebuildBonusRolesByQuarter(bonusInput,teamA),otherQuarter=rebuildBonusRolesByQuarter(bonusInput,otherTeam);
+  const exactTupleReuse=teamA===teamAgain&&quarterA===quarterAgain&&teamA!==otherTeam&&quarterA!==otherQuarter;
+  AtlasReports.endRender(previous);
+  const roleType=PROPERTY_TEAM_ROLE_ORDER[0];teamInput[roleType]+=1;bonusInput.Q1[0].metrics[0].target=0;
+  previous=AtlasReports.beginRender();const nextTeam=normalizePropertyTeamConfig(teamInput),nextQuarter=rebuildBonusRolesByQuarter(bonusInput,nextTeam);AtlasReports.endRender(previous);
+  const editedInputFresh=nextTeam!==teamA&&nextTeam[roleType]===teamInput[roleType]&&nextQuarter!==quarterA&&nextQuarter.Q1[0].metrics[0].target===0;
+  __guardReturnedTrees=false;
+  const outsideTeamA=normalizePropertyTeamConfig(teamInput),outsideTeamB=normalizePropertyTeamConfig(teamInput),outsideQuarterA=rebuildBonusRolesByQuarter(bonusInput,outsideTeamA),outsideQuarterB=rebuildBonusRolesByQuarter(bonusInput,outsideTeamA);
+  outsideTeamA[roleType]=991;outsideQuarterA.Q1[0].metrics[0].target=991;
+  const externalLeafFresh=outsideTeamB[roleType]!==991&&outsideQuarterB.Q1[0].metrics[0].target!==991;
   // Outside Reports, the public factory still returns independent mutable trees.
-  window.defaultSavedCommunityRecord=__freshDefaultFactory;
+  window.defaultSavedCommunityRecord=__freshDefaultFactory;for(const name of Object.keys(__leafFresh))window[name]=__leafFresh[name];
   const outsideA=defaultSavedCommunityRecord('Doro'),outsideB=defaultSavedCommunityRecord('Doro');
   outsideA.seasonal[0]=991;outsideA.bonusRolesByQ.Q1[0].metrics[0].target=991;
   const externalFresh=outsideB.seasonal[0]!==991&&outsideB.bonusRolesByQ.Q1[0].metrics[0].target!==991;
   window.defaultSavedCommunityRecord=memoFactory;
   const wrappedA=defaultSavedCommunityRecord('Doro'),wrappedB=defaultSavedCommunityRecord('Doro');
   window.Date=NativeDate;
-  return {results,sourceFresh,externalFresh,outsideWrappedFresh:wrappedA!==wrappedB,writes:__defaultWrites};
+  return {results,sourceFresh,externalFresh,outsideWrappedFresh:wrappedA!==wrappedB,exactTupleReuse,editedInputFresh,externalLeafFresh,writes:__defaultWrites};
  });
- assert.equal(checks.results.length,15);
+ assert.equal(checks.results.length,18);
  for(const result of checks.results){assert(result.equal,JSON.stringify(result));assert(result.afterCalls<=result.beforeCalls,JSON.stringify(result));}
  assert(checks.results.some(result=>result.beforeCalls>result.afterCalls),'Actual report graph must eliminate repeated default construction');
  assert.deepEqual(checks.writes,[],'Actual report consumers never attempt nested default mutation');
- assert(checks.sourceFresh);assert(checks.externalFresh);assert(checks.outsideWrappedFresh);
+ assert(checks.sourceFresh);assert(checks.externalFresh);assert(checks.outsideWrappedFresh);assert(checks.exactTupleReuse);assert(checks.editedInputFresh);assert(checks.externalLeafFresh);
  assert.deepEqual(errors,[]);
- console.log('PASS actual Reports default factory memo: 15 full report payload comparisons across five report types/current/prior/sparse years; mutation traps, source/People refresh, and independent external factory results.',JSON.stringify(checks.results.map(({type,year,beforeCalls,afterCalls})=>({type,year,beforeCalls,afterCalls}))));
+ console.log('PASS actual Reports default/staffing/quarter-template memo: 18 full report payload comparisons across six report types/current/prior/sparse years; mutation traps, source/People refresh, and independent external factory results.',JSON.stringify(checks.results.map(({type,year,beforeCalls,afterCalls})=>({type,year,beforeCalls,afterCalls}))));
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

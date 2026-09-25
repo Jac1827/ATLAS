@@ -1,3 +1,4 @@
+import {strRegistryExtensionIssues} from './reforecast-str-registry-extension.mjs';
 import {hashReforecastWorkbook,encodeOriginalWorkbook} from './reforecast-intake.mjs?v=1f8bae00926f1f93';
 import {workbookEvidenceHash} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
 import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=7ea313b5a28ccc4f';
@@ -58,18 +59,20 @@ export async function parseSavedStrMonthlyProgramme(input,{fileName='Saved STR.r
 
 /** Reviewable additive contribution. The caller must persist and approve its
  * source receipt before the server applies it to the separate STR overlay. */
-export async function prepareSavedStrMonthlyContribution(source,{publication,registry,mappings=[],actor,reason,reviewedAt=new Date().toISOString(),allowHelloLandingGl5144=false,rollupReview}={}){
+export async function prepareSavedStrMonthlyContribution(source,{publication,registry,parentRegistry=registry,mappings=[],actor,reason,reviewedAt=new Date().toISOString(),allowHelloLandingGl5144=false,rollupReview}={}){
  if(source?.schemaVersion!==SCHEMA||contentFingerprint(source)!==source.fingerprint)throw Error('Saved STR evidence changed. Reopen the exact source before reviewing.');
  const reread=await parseSavedStrMonthlyProgramme(source.originalFile,{fileName:source.fileName,propertyId:source.sourcePropertyId,programmeId:source.programmeId,periods:source.periods});
  if(reread.fingerprint!==source.fingerprint)throw Error('Saved STR evidence does not reproduce the retained original JSON.');
  const base=createStrOverlayDraft(publication,{actor,timestamp:reviewedAt}),blockers=clone(source.blockers),cells=[],seen=new Set();
  if(typeof reason!=='string'||reason.trim().length<3)blockers.push(issue('saved_str_review_reason','Record the reason for using this exact saved programme.'));
- if(registry?.version!==base.registryVersionId)blockers.push(issue('saved_str_mapping_version','Review mappings against the exact Conventional publication registry version.'));
+ if(parentRegistry?.version!==base.registryVersionId)blockers.push(issue('saved_str_mapping_version','Read the exact Conventional parent registry before reviewing an STR extension.'));
+ blockers.push(...strRegistryExtensionIssues(parentRegistry,registry,mappings));
  if(source.periods.some(period=>!base.periods.includes(period)))blockers.push(issue('saved_str_parent_months','Saved contribution months must belong to the exact Conventional publication.'));
  if(source.sourceRollupDifferences.length&&!(rollupReview?.confirmed===true&&rollupReview.sourceHash===source.sourceHash&&rollupReview.authority==='saved_monthly_gl_cells'&&String(rollupReview.reason||'').trim().length>=3))blockers.push(issue('saved_str_rollup_reconciliation','Review the difference between saved monthly GL cells and saved programme summaries; keep the exact monthly cells.',{differences:clone(source.sourceRollupDifferences)}));
  for(const cell of source.cells){
   const matches=mappings.filter(m=>m.sourceLineId===cell.sourceLineId&&m.sourceGL===cell.sourceGL),mapping=matches.length===1?matches[0]:null,accounts=(registry?.accounts||[]).filter(a=>a.accountCode===mapping?.accountCode),account=accounts.length===1?accounts[0]:null;
   if(!mapping?.confirmed||!account){blockers.push(issue('saved_str_gl_mapping','Confirm exactly one canonical GL mapping for every saved source line.',{sourceLineId:cell.sourceLineId,sourceGL:cell.sourceGL,period:cell.period}));continue;}
+  if(String(mapping.reason||'').trim().length<3)blockers.push(issue('saved_str_mapping_reason','Record why this source GL and label belong to the selected canonical account, including any displaced Conventional income component.',{sourceLineId:cell.sourceLineId,sourceGL:cell.sourceGL,accountCode:account.accountCode}));
   if(mapping.signMultiplier!==undefined&&mapping.signMultiplier!==1)blockers.push(issue('saved_str_signed_source','Saved monthly contributions retain their exact source sign; review another source instead of reversing the saved amount.',{sourceLineId:cell.sourceLineId}));
   if(account.accountCode==='5144'&&!allowHelloLandingGl5144)blockers.push(issue('saved_str_protected_gl','GL 5144 requires explicit approval for this RISE source so existing Hello Landing values remain separate.',{period:cell.period}));
   if((cell.nature==='capital')!==(account.nature==='capital'))blockers.push(issue('saved_str_capital_mapping','Keep saved capital contributions separate from operating income and expenses.',{sourceLineId:cell.sourceLineId}));

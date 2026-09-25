@@ -17,7 +17,7 @@ const login=async n=>{actor=n;await signIn(n);};
 try {
  await db.exec('reset role');for(const name of ['20260924121641_planning_cell_workbook_integrity_governance.sql','20260924121647_immutable_workbook_audits_and_monthly_governance.sql'])await db.exec(fs.readFileSync(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));
  await db.exec(fs.readFileSync(new URL('../docs/portfolio-operations-dashboard/centralization/workbook-audit-chunks.sql',import.meta.url),'utf8'));
- for(const name of ['20260925005521_workbook_audit_validation_performance.sql','20260925012008_reforecast_payload_receipt_recovery.sql'])await db.exec(fs.readFileSync(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));await login(1);
+ for(const name of ['20260925011545_workbook_audit_validation_performance.sql','20260925012234_reforecast_payload_receipt_recovery.sql'])await db.exec(fs.readFileSync(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));await login(1);
  let sourceBytes;
  if(process.env.ATLAS_REAL_DORO_SOURCE)sourceBytes=fs.readFileSync(process.env.ATLAS_REAL_DORO_SOURCE);
  else {const workbook=XLSX.utils.book_new();XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet([['Doro'],['GL','Account','Sep 2026','Oct 2026','Nov 2026','Dec 2026'],['5144','Hello Landing',1,2,3,4],...Array.from({length:12},(_,i)=>[String(5145+i),'Unicode retained é € 日本 '.repeat(1000),0,0,0,0])]),'Input');sourceBytes=XLSX.write(workbook,{type:'buffer',bookType:'xlsx'});}

@@ -15,9 +15,11 @@ const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),
  const receiptSql=path.join(root,'docs/portfolio-operations-dashboard/centralization/reforecast-report-receipts.sql');if(fs.existsSync(receiptSql))await db.exec(fs.readFileSync(receiptSql,'utf8'));
  await db.exec(fs.readFileSync(path.join(root,'docs/portfolio-operations-dashboard/centralization/forecast-contract-workflow.sql'),'utf8'));
  for(const file of ['reforecast-governed-close-scope.sql','reforecast-active-import-close-scope.sql','workbook-audit-chunks.sql','reforecast-str-overlay.sql'])await db.exec(fs.readFileSync(path.join(root,'docs/portfolio-operations-dashboard/centralization',file),'utf8'));
- await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20260925004921_reforecast_atomic_create_from_import.sql'),'utf8'));
- await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20260925005521_workbook_audit_validation_performance.sql'),'utf8'));
- await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20260925012008_reforecast_payload_receipt_recovery.sql'),'utf8'));
+ await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20260925012933_reforecast_atomic_create_from_import.sql'),'utf8'));
+ await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20260925011545_workbook_audit_validation_performance.sql'),'utf8'));
+ await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20260925012234_reforecast_payload_receipt_recovery.sql'),'utf8'));
+ await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20260925013918_reforecast_import_source_relationships.sql'),'utf8'));
+ await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20260925015334_reforecast_bounded_request_timeouts.sql'),'utf8'));
  await signIn(1);
  const accounts=[['5120','Rent','income','above_noi'],['5220','Vacancy','contra_income','above_noi'],['6100','Payroll','expense','above_noi'],['6200','Utilities','expense','above_noi'],['8100','Capital','capital','below_noi']].map(([accountCode,category,nature,placement])=>({accountCode,category,nature,placement,effectiveFrom:'2026-01'}));
  if(process.env.ATLAS_FIXTURE_SKIP_REGISTRY!=='1')await db.query('select atlas_save_reforecast_registry($1,null,gen_random_uuid(),$2)',[A,JSON.stringify({accounts,driverMappings:{},reason:'Synthetic browser mapping review',effectiveDate:'2026-01-01'})]);

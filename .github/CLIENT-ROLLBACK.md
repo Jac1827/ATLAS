@@ -11,10 +11,12 @@ readiness. This variable is a release gate, not a secret or an access grant.
 Recovery uses the existing **Deploy Cloudflare Worker** workflow, with target
 `production`, and both explicit inputs:
 
-| Input | Reviewed September 24 recovery value |
+| Input | Current reviewed stable client (September 25 UTC) |
 | --- | --- |
-| `client_rollback_ref` | `3d80173de32f227410663662a523932c50ecaa2b` |
-| `client_rollback_release` | `92989f640671df582527300a54b79cc80d46f0c4300564528c333d72cdbae540` |
+| `client_rollback_ref` | `2fab61de2627b7c8753f2ca8ebe7b0b879a67d25` |
+| `client_rollback_release` | `d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d` |
+
+This pair was deployed by run `36075816912` and verified on both hosts. It preserves the reviewed market/save and reforecast fixes. The earlier September 24 incident pair (`3d80173de32f227410663662a523932c50ecaa2b` / `92989f640671df582527300a54b79cc80d46f0c4300564528c333d72cdbae540`) remains retained, but selecting it now would also revert those newer client fixes. See [exact stable-release evidence](../docs/portfolio-operations-dashboard/performance/evidence/issue-12/stable-production-release.json).
 
 That deliberate pair can enter production while the readiness variable is
 closed. Branch names, abbreviated commits, missing hashes, malformed pairs and

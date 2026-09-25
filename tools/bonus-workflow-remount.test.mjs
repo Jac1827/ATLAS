@@ -9,11 +9,13 @@ const require=createRequire(import.meta.url),{chromium}=require(process.env.ATLA
 const root=path.resolve(import.meta.dirname,'..'),base='/docs/portfolio-operations-dashboard/';
 const source=(await readDashboardSource(path.join(root,base,'index.html')))+'\n'+(await fs.readFile(path.join(root,base,'features/bonus-workspace.js'),'utf8'));
 const fn=name=>{const match=source.match(new RegExp('^(?:async )?function '+name+'\\([^]*?^\\}','m'));assert(match,name);return match[0];};
-const functions=['atlasWorkspaceFeature','renderTab','atlasBonusOpenSharedWorkflow','atlasBonusSharedWorkflowContext','atlasBonusPreservedSharedWorkflowHost','atlasBonusMountSharedWorkflow','renderBonusTab'].map(fn).join('\n');
+const scopeInitializer=source.match(/^let atlasSynchronousReadScope = null;$/m);
+assert(scopeInitializer,'Real synchronous-read scope initializer');
+const functions=scopeInitializer[0]+'\n'+['withAtlasSynchronousReadScope','atlasSynchronousReadValue','atlasWorkspaceFeature','renderTab','atlasBonusOpenSharedWorkflow','atlasBonusSharedWorkflowContext','atlasBonusPreservedSharedWorkflowHost','atlasBonusMountSharedWorkflow','renderBonusTab'].map(fn).join('\n');
 const fixtureScript=`
 const ATLAS_SELF_SERVICE_TAB_IDS=["14"];
 let activeTab=9, MOUNT_TABS=[], atlasBonusNavigationSnapshot=null, atlasBonusSectionCache=new Map();
-let atlasWorkspaceAccess={validated:true,hasData:true},atlasActiveFeatureRequest=null,atlasCanonicalImportEvidencePromise=null;
+let atlasWorkspaceAccess={validated:true,hasData:true},atlasActiveFeatureRequest=null,atlasCanonicalImportEvidencePromise=null,atlasHomeRenderPreparation=null;
 window.AtlasFeatures={ready:()=>true};
 window.getAtlasCentralStatus=()=>({configured:true,signedIn:!!actor});window.getAtlasRenderContextKey=()=>JSON.stringify([actor,profile,quarter,activeTab,accessAllowed]);
 let actor='10000000-0000-4000-8000-000000000001',quarter='2026-Q1',accessAllowed=true;

@@ -1,0 +1,2960 @@
+{
+  "metadataErrata": [],
+  "comparison": {
+    "sharedOperatingDataAllBuilds": null,
+    "baselineRepairedComplete": null,
+    "baselineRepaired": {
+      "homeHistoryHash": null,
+      "homeValue": null,
+      "monthlyNormalizationMatchesBaseline": null,
+      "communityProgressHash": null,
+      "communityDocumentHash": null,
+      "operatingDataHash": null,
+      "reportAggregateHash": null,
+      "exportRowsHash": null,
+      "reportDetailCount": null,
+      "exportRowCount": null,
+      "period": null
+    },
+    "postMeasurementSameOriginParity": {
+      "kind": "Separate post-measurement same-origin parity; no control timings used",
+      "sourceSha256": "091e53efcaed38cee85687aa9bc102d96e909b69cc3b6a248b82de48fb6e8cdc",
+      "checks": {
+        "homeHistoryHash": {
+          "equal": true,
+          "baseline": "600c286517f363d7b469080c211e435e810a94c7bcbe3afb5023b074bd98d24b",
+          "candidate": "600c286517f363d7b469080c211e435e810a94c7bcbe3afb5023b074bd98d24b"
+        },
+        "homeValue": {
+          "equal": true,
+          "displayedOperatingValueOmitted": true
+        },
+        "monthlyNormalizationMatchesBaseline": {
+          "equal": true,
+          "baseline": true,
+          "candidate": true
+        },
+        "communityProgressHash": {
+          "equal": true,
+          "baseline": "255a7cc1d0638f45234f5101c7d92606b0b4fec63e29341691fcc3c097c60697",
+          "candidate": "255a7cc1d0638f45234f5101c7d92606b0b4fec63e29341691fcc3c097c60697"
+        },
+        "communityDocumentHash": {
+          "equal": true,
+          "baseline": "aba6504aece60144a604258d616a17cbe21328950b3b20bce21fff720de422d9",
+          "candidate": "aba6504aece60144a604258d616a17cbe21328950b3b20bce21fff720de422d9"
+        },
+        "operatingDataHash": {
+          "equal": true,
+          "baseline": "b06a6b293fdd1ca2d3a8199959d46ffd12ae87ecae854805e51903ef4a218e76",
+          "candidate": "b06a6b293fdd1ca2d3a8199959d46ffd12ae87ecae854805e51903ef4a218e76"
+        },
+        "reportAggregateHash": {
+          "equal": true,
+          "baseline": "61f534f50d09084366556e8db0676b59c1df155217cdddd2847c4e3ff50f8433",
+          "candidate": "61f534f50d09084366556e8db0676b59c1df155217cdddd2847c4e3ff50f8433"
+        },
+        "exportRowsHash": {
+          "equal": true,
+          "baseline": "8beb6579ca5e0bf51e82070c00c83f4bc227b4aa267e8a152ab49ef9a753b6c7",
+          "candidate": "8beb6579ca5e0bf51e82070c00c83f4bc227b4aa267e8a152ab49ef9a753b6c7"
+        },
+        "reportDetailCount": {
+          "equal": true,
+          "baseline": 14,
+          "candidate": 14
+        },
+        "exportRowCount": {
+          "equal": true,
+          "baseline": 40,
+          "candidate": 40
+        },
+        "period": {
+          "equal": true,
+          "baseline": {
+            "year": 2026,
+            "month": 8
+          },
+          "candidate": {
+            "year": 2026,
+            "month": 8
+          }
+        }
+      },
+      "errors": [
+        [],
+        []
+      ]
+    },
+    "inRunComparisonStatus": "unavailable",
+    "inRunComparisonReason": "Unavailable within this candidate-only timing run: no baseline or historical control samples are included. The separate post-measurement same-origin baseline/current probe below passes all 11 checks."
+  },
+  "quality": {
+    "monthlyNormalizationPass": true,
+    "noPageErrors": true,
+    "noRenderIssues": true,
+    "noExternalResponses": true,
+    "repairedOperationalWriteAttempts": []
+  },
+  "apiRequests": [
+    {
+      "build": "repaired",
+      "device": "desktop",
+      "method": "GET",
+      "endpoint": "/rest/v1/atlas_user_profiles",
+      "count": 12,
+      "statuses": {
+        "200": 12
+      },
+      "outcomes": {
+        "completed": 12
+      },
+      "durationMs": {
+        "samples": [
+          1.3289999915286899,
+          1.8179999897256494,
+          0.9459999855607748,
+          0.9679999784566462,
+          0.9340000106021762,
+          1.0239999974146485,
+          2.4809999740682542,
+          1.0530000436119735,
+          3.564000013284385,
+          1.9249999895691872,
+          213.77099998062477,
+          1.5799999819137156
+        ],
+        "median": 1.4544999867212027,
+        "max": 213.77099998062477
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "desktop",
+      "method": "GET",
+      "endpoint": "/rest/v1/atlas_communities",
+      "count": 12,
+      "statuses": {
+        "200": 12
+      },
+      "outcomes": {
+        "completed": 12
+      },
+      "durationMs": {
+        "samples": [
+          1.2470000074245036,
+          2.062999992631376,
+          1.2710000155493617,
+          1.0889999684877694,
+          1.0660000261850655,
+          1.0130000300705433,
+          2.3930000024847686,
+          1.0689999908208847,
+          3.5260000149719417,
+          1.8360000103712082,
+          220.51299997838214,
+          1.588999992236495
+        ],
+        "median": 1.4300000038929284,
+        "max": 220.51299997838214
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "desktop",
+      "method": "GET",
+      "endpoint": "/rest/v1/atlas_screening_imports",
+      "count": 24,
+      "statuses": {
+        "200": 24
+      },
+      "outcomes": {
+        "completed": 24
+      },
+      "durationMs": {
+        "samples": [
+          0.9830000344663858,
+          1.2080000014975667,
+          2.18400004087016,
+          1.5920000150799751,
+          0.838999985717237,
+          1.9329999922774732,
+          0.8440000237897038,
+          1.1180000146850944,
+          0.9599999757483602,
+          0.5200000014156103,
+          2.1169999963603914,
+          0.5949999904260039,
+          1.1030000168830156,
+          1.0429999674670398,
+          1.0170000023208559,
+          0.7430000114254653,
+          4.228999954648316,
+          1.408000010997057,
+          1.8029999919235706,
+          0.985999999102205,
+          173.14700002316386,
+          155.67000000737607,
+          1.3170000165700912,
+          1.2529999949038029
+        ],
+        "median": 1.1630000080913305,
+        "max": 173.14700002316386
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "desktop",
+      "method": "GET",
+      "endpoint": "/rest/v1/atlas_app_documents",
+      "count": 12,
+      "statuses": {
+        "200": 11,
+        "503": 1
+      },
+      "outcomes": {
+        "completed": 12
+      },
+      "durationMs": {
+        "samples": [
+          1.1110000195913017,
+          0.9510000236332417,
+          64.03899996075779,
+          1.3390000094659626,
+          1.0089999996125698,
+          1.0609999881125987,
+          2.4930000072345138,
+          1.0439999750815332,
+          0.8999999845400453,
+          0.9180000051856041,
+          158.65700005088001,
+          1.0860000038519502
+        ],
+        "median": 1.0734999959822744,
+        "max": 158.65700005088001
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "desktop",
+      "method": "POST",
+      "endpoint": "/rest/v1/rpc/atlas_read_dashboard_views",
+      "count": 12,
+      "statuses": {
+        "200": 12
+      },
+      "outcomes": {
+        "completed": 12
+      },
+      "durationMs": {
+        "samples": [
+          1.2889999779872596,
+          0.9379999828524888,
+          2.546000003349036,
+          1.2069999938830733,
+          0.8819999638944864,
+          1.0469999979250133,
+          2.0179999992251396,
+          0.9840000420808792,
+          0.5629999795928597,
+          0.9880000143311918,
+          165.98300001351163,
+          1.1389999999664724
+        ],
+        "median": 1.0929999989457428,
+        "max": 165.98300001351163
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "desktop",
+      "method": "POST",
+      "endpoint": "/rest/v1/rpc/atlas_read_workspace_projection",
+      "count": 12,
+      "statuses": {
+        "200": 11,
+        "503": 1
+      },
+      "outcomes": {
+        "completed": 11,
+        "pending_at_capture": 1
+      },
+      "durationMs": {
+        "samples": [
+          48.35399996954948,
+          63.69899999117479,
+          69.675000035204,
+          42.24300000350922,
+          50.321999995503575,
+          48.29899995820597,
+          75.54699998581782,
+          50.476000003982335,
+          46.458000026177615,
+          52.96699999598786,
+          1.3509999844245613
+        ],
+        "median": 50.321999995503575,
+        "max": 75.54699998581782
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "desktop",
+      "method": "GET",
+      "endpoint": "/rest/v1/atlas_employee_notifications",
+      "count": 11,
+      "statuses": {
+        "200": 11
+      },
+      "outcomes": {
+        "completed": 11
+      },
+      "durationMs": {
+        "samples": [
+          0.7859999896027148,
+          0.8580000139772892,
+          14.430999988690019,
+          0.7859999896027148,
+          0.8370000286959112,
+          1.1449999874457717,
+          0.9089999948628247,
+          0.9040000149980187,
+          0.8069999748840928,
+          0.9849999914877117,
+          0.7869999972172081
+        ],
+        "median": 0.8580000139772892,
+        "max": 14.430999988690019
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "desktop",
+      "method": "POST",
+      "endpoint": "/rest/v1/rpc/atlas_upsert_live_session",
+      "count": 66,
+      "statuses": {
+        "403": 66
+      },
+      "outcomes": {
+        "completed": 66
+      },
+      "durationMs": {
+        "samples": [
+          0.9190000128000975,
+          0.8209999650716782,
+          17.017000005580485,
+          0.9320000535808504,
+          1.0209999745711684,
+          2.3819999769330025,
+          1.273999980185181,
+          0.6639999919570982,
+          0.644999963697046,
+          0.7360000163316727,
+          0.9940000018104911,
+          0.7770000374875963,
+          1.0379999876022339,
+          2.2769999923184514,
+          1.1389999999664724,
+          0.8229999803006649,
+          1.2700000079348683,
+          0.8559999987483025,
+          0.8169999928213656,
+          1.0630000033415854,
+          1.0580000234767795,
+          0.9239999926649034,
+          0.7779999868944287,
+          0.8019999950192869,
+          1.109000004362315,
+          0.6939999875612557,
+          0.9410000056959689,
+          0.9040000149980187,
+          0.8070000330917537,
+          1.0270000202581286,
+          1.2049999786540866,
+          1.053999993018806,
+          0.8629999938420951,
+          0.8089999901130795,
+          0.8989999769255519,
+          0.8350000134669244,
+          0.8610000368207693,
+          0.9830000344663858,
+          0.7719999994151294,
+          1.0210000327788293,
+          1.0370000381954014,
+          1.1950000189244747,
+          0.8110000053420663,
+          0.8319999906234443,
+          1.9319999846629798,
+          0.8559999987483025,
+          0.9789999458007514,
+          1.1340000201016665,
+          0.9380000410601497,
+          1.17200001841411,
+          1.0040000197477639,
+          0.923000043258071,
+          0.7069999701343477,
+          1.6659999964758754,
+          1.0630000033415854,
+          0.8800000068731606,
+          1.5790000325068831,
+          1.188000023830682,
+          0.9880000143311918,
+          1.1819999781437218,
+          0.754999986384064,
+          0.8650000090710819,
+          0.9649999556131661,
+          0.7140000234358013,
+          0.9890000219456851,
+          0.9710000013001263
+        ],
+        "median": 0.9529999806545675,
+        "max": 17.017000005580485
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "desktop",
+      "method": "POST",
+      "endpoint": "/rest/v1/rpc/atlas_end_live_session",
+      "count": 10,
+      "statuses": {
+        "unavailable": 6,
+        "403": 4
+      },
+      "outcomes": {
+        "pending_at_capture": 6,
+        "completed": 4
+      },
+      "durationMs": {
+        "samples": [
+          1.0049999691545963,
+          1.1149999918416142,
+          1.0030000121332705,
+          0.9589999681338668
+        ],
+        "median": 1.0039999906439334,
+        "max": 1.1149999918416142
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "desktop",
+      "method": "GET",
+      "endpoint": "/rest/v1/atlas_community_goal_heads",
+      "count": 1,
+      "statuses": {
+        "200": 1
+      },
+      "outcomes": {
+        "completed": 1
+      },
+      "durationMs": {
+        "samples": [
+          1.3129999861121178
+        ],
+        "median": 1.3129999861121178,
+        "max": 1.3129999861121178
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "desktop",
+      "method": "POST",
+      "endpoint": "/rest/v1/rpc/atlas_read_finance",
+      "count": 12,
+      "statuses": {
+        "200": 12
+      },
+      "outcomes": {
+        "completed": 12
+      },
+      "durationMs": {
+        "samples": [
+          1.3829999952577055,
+          1.3580000377260149,
+          0.9210000280290842,
+          0.6399999838322401,
+          1.484000007621944,
+          0.6460000295192003,
+          0.7590000168420374,
+          1.4229999505914748,
+          0.7329999934881926,
+          1.227000029757619,
+          0.632000039331615,
+          0.6649999995715916
+        ],
+        "median": 0.8400000224355608,
+        "max": 1.484000007621944
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "desktop",
+      "method": "GET",
+      "endpoint": "/rest/v1/atlas_command_plan_summaries",
+      "count": 11,
+      "statuses": {
+        "200": 11
+      },
+      "outcomes": {
+        "cancelled": 1,
+        "completed": 10
+      },
+      "durationMs": {
+        "samples": [
+          50.396000035107136,
+          0.5789999850094318,
+          0.8909999742172658,
+          0.7399999885819852,
+          0.6040000007487833,
+          0.56900002527982,
+          0.7130000158213079,
+          0.48700004117563367,
+          0.8350000134669244,
+          1.0020000045187771,
+          0.5469999741762877
+        ],
+        "median": 0.7130000158213079,
+        "max": 50.396000035107136
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "desktop",
+      "method": "GET",
+      "endpoint": "/rest/v1/atlas_employee_assignments",
+      "count": 1,
+      "statuses": {
+        "200": 1
+      },
+      "outcomes": {
+        "completed": 1
+      },
+      "durationMs": {
+        "samples": [
+          0.6600000197067857
+        ],
+        "median": 0.6600000197067857,
+        "max": 0.6600000197067857
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "desktop",
+      "method": "POST",
+      "endpoint": "/rest/v1/rpc/atlas_read_bonus_receipts",
+      "count": 1,
+      "statuses": {
+        "200": 1
+      },
+      "outcomes": {
+        "completed": 1
+      },
+      "durationMs": {
+        "samples": [
+          1.0139999794773757
+        ],
+        "median": 1.0139999794773757,
+        "max": 1.0139999794773757
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "desktop",
+      "method": "POST",
+      "endpoint": "/rest/v1/rpc/atlas_bonus_workspace",
+      "count": 1,
+      "statuses": {
+        "200": 1
+      },
+      "outcomes": {
+        "completed": 1
+      },
+      "durationMs": {
+        "samples": [
+          0.7939999923110008
+        ],
+        "median": 0.7939999923110008,
+        "max": 0.7939999923110008
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "desktop",
+      "method": "GET",
+      "endpoint": "/rest/v1/atlas_workforce_heads",
+      "count": 1,
+      "statuses": {
+        "unavailable": 1
+      },
+      "outcomes": {
+        "pending_at_capture": 1
+      },
+      "durationMs": {
+        "samples": [],
+        "median": null,
+        "max": null
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "mobile",
+      "method": "GET",
+      "endpoint": "/rest/v1/atlas_user_profiles",
+      "count": 12,
+      "statuses": {
+        "200": 12
+      },
+      "outcomes": {
+        "completed": 12
+      },
+      "durationMs": {
+        "samples": [
+          0.8349999552592635,
+          3.3890000195242465,
+          0.7190000033006072,
+          0.8420000085607171,
+          0.8870000019669533,
+          2.363000006880611,
+          11.06900000013411,
+          0.914999982342124,
+          0.9689999860711396,
+          1.7319999751634896,
+          212.33999996911734,
+          0.893999997060746
+        ],
+        "median": 0.9419999842066318,
+        "max": 212.33999996911734
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "mobile",
+      "method": "GET",
+      "endpoint": "/rest/v1/atlas_communities",
+      "count": 12,
+      "statuses": {
+        "200": 12
+      },
+      "outcomes": {
+        "completed": 12
+      },
+      "durationMs": {
+        "samples": [
+          1.0919999913312495,
+          2.4790000170469284,
+          0.8669999660924077,
+          0.9439999703317881,
+          0.4959999932907522,
+          1.4100000262260437,
+          10.4750000173226,
+          1.145999995060265,
+          1.087999960873276,
+          0.7789999945089221,
+          217.85499999532476,
+          0.9599999757483602
+        ],
+        "median": 1.0899999761022627,
+        "max": 217.85499999532476
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "mobile",
+      "method": "GET",
+      "endpoint": "/rest/v1/atlas_screening_imports",
+      "count": 24,
+      "statuses": {
+        "200": 24
+      },
+      "outcomes": {
+        "completed": 24
+      },
+      "durationMs": {
+        "samples": [
+          1.6199999954551458,
+          0.6259999936446548,
+          1.9540000357665122,
+          1.8450000206939876,
+          1.2519999872893095,
+          0.45200000749900937,
+          1.3299999991431832,
+          1.226999971549958,
+          1.1969999759458005,
+          2.0210000220686197,
+          5.1120000425726175,
+          2.546000003349036,
+          19.14699998451397,
+          1.344999996945262,
+          0.8600000292062759,
+          0.5440000095404685,
+          0.6600000197067857,
+          0.7340000011026859,
+          1.3959999778307974,
+          0.522000016644597,
+          166.9980000006035,
+          162.93799999402836,
+          0.7249999907799065,
+          0.5090000340715051
+        ],
+        "median": 1.2909999932162464,
+        "max": 166.9980000006035
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "mobile",
+      "method": "GET",
+      "endpoint": "/rest/v1/atlas_app_documents",
+      "count": 12,
+      "statuses": {
+        "200": 11,
+        "503": 1
+      },
+      "outcomes": {
+        "completed": 12
+      },
+      "durationMs": {
+        "samples": [
+          1.0480000055395067,
+          1.4889999874867499,
+          1.584000012371689,
+          1.1180000146850944,
+          1.281999982893467,
+          1.1740000336430967,
+          1.470999966841191,
+          1.1389999999664724,
+          1.0350000229664147,
+          1.3010000111535192,
+          159.6129999961704,
+          1.5079999575391412
+        ],
+        "median": 1.291499997023493,
+        "max": 159.6129999961704
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "mobile",
+      "method": "POST",
+      "endpoint": "/rest/v1/rpc/atlas_read_dashboard_views",
+      "count": 12,
+      "statuses": {
+        "200": 12
+      },
+      "outcomes": {
+        "completed": 12
+      },
+      "durationMs": {
+        "samples": [
+          0.7510000141337514,
+          0.48500002594664693,
+          0.5649999948218465,
+          1.248000015038997,
+          0.5430000019259751,
+          0.5249999812804163,
+          0.6859999848529696,
+          0.6730000022798777,
+          0.4820000031031668,
+          2.1699999924749136,
+          167.22100001061335,
+          0.7410000544041395
+        ],
+        "median": 0.6794999935664237,
+        "max": 167.22100001061335
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "mobile",
+      "method": "POST",
+      "endpoint": "/rest/v1/rpc/atlas_read_workspace_projection",
+      "count": 12,
+      "statuses": {
+        "200": 11,
+        "503": 1
+      },
+      "outcomes": {
+        "completed": 11,
+        "pending_at_capture": 1
+      },
+      "durationMs": {
+        "samples": [
+          68.28200002200902,
+          70.65800001146272,
+          50.257999973837286,
+          61.69100000988692,
+          66.07199995778501,
+          58.33199998596683,
+          70.525000046473,
+          59.29100001230836,
+          68.68600001325831,
+          75.089999998454,
+          0.4990000161342323
+        ],
+        "median": 66.07199995778501,
+        "max": 75.089999998454
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "mobile",
+      "method": "GET",
+      "endpoint": "/rest/v1/atlas_employee_notifications",
+      "count": 11,
+      "statuses": {
+        "200": 11
+      },
+      "outcomes": {
+        "completed": 11
+      },
+      "durationMs": {
+        "samples": [
+          0.9399999980814755,
+          1.1839999933727086,
+          0.9190000128000975,
+          0.8149999775923789,
+          0.7510000141337514,
+          1.3920000055804849,
+          0.893999997060746,
+          1.2410000199452043,
+          0.9079999872483313,
+          0.8700000471435487,
+          1.0520000359974802
+        ],
+        "median": 0.9190000128000975,
+        "max": 1.3920000055804849
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "mobile",
+      "method": "POST",
+      "endpoint": "/rest/v1/rpc/atlas_upsert_live_session",
+      "count": 66,
+      "statuses": {
+        "403": 66
+      },
+      "outcomes": {
+        "completed": 66
+      },
+      "durationMs": {
+        "samples": [
+          0.7610000320710242,
+          0.7679999689571559,
+          1.2110000243410468,
+          0.72900002123788,
+          0.8820000221021473,
+          1.2639999622479081,
+          1.1139999842271209,
+          1.109000004362315,
+          0.7409999961964786,
+          0.876000034622848,
+          1.2280000373721123,
+          0.7409999961964786,
+          0.9150000405497849,
+          1.2050000368617475,
+          0.7880000048317015,
+          0.7919999770820141,
+          1.2160000042058527,
+          1.5150000108405948,
+          1.1529999901540577,
+          1.1909999884665012,
+          0.7550000445917249,
+          1.0860000038519502,
+          0.9270000155083835,
+          1.5070000081323087,
+          1.129999989643693,
+          1.4430000446736813,
+          0.881000014487654,
+          1.4990000054240227,
+          1.0229999898001552,
+          1.572999986819923,
+          0.8779999916441739,
+          0.9959999588318169,
+          1.109000004362315,
+          1.2080000014975667,
+          1.1070000473409891,
+          1.5649999841116369,
+          0.7040000054985285,
+          0.7869999972172081,
+          1.1220000451430678,
+          0.7830000249668956,
+          0.8079999824985862,
+          1.6370000084862113,
+          1.6189999878406525,
+          1.454999961424619,
+          0.8549999911338091,
+          1.2180000194348395,
+          1.3460000045597553,
+          0.9999999892897904,
+          0.7880000048317015,
+          1.1289999820291996,
+          0.7689999765716493,
+          1.167000038549304,
+          1.2259999639354646,
+          1.1840000515803695,
+          1.3100000214762986,
+          0.6600000197067857,
+          1.3909999979659915,
+          0.7399999885819852,
+          1.0760000441223383,
+          0.8430000161752105,
+          0.7310000364668667,
+          1.1280000326223671,
+          0.7600000244565308,
+          1.496999990195036,
+          1.2970000389032066,
+          1.3490000274032354
+        ],
+        "median": 1.109000004362315,
+        "max": 1.6370000084862113
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "mobile",
+      "method": "POST",
+      "endpoint": "/rest/v1/rpc/atlas_end_live_session",
+      "count": 10,
+      "statuses": {
+        "unavailable": 10
+      },
+      "outcomes": {
+        "pending_at_capture": 10
+      },
+      "durationMs": {
+        "samples": [],
+        "median": null,
+        "max": null
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "mobile",
+      "method": "GET",
+      "endpoint": "/rest/v1/atlas_community_goal_heads",
+      "count": 1,
+      "statuses": {
+        "200": 1
+      },
+      "outcomes": {
+        "completed": 1
+      },
+      "durationMs": {
+        "samples": [
+          0.7099999929778278
+        ],
+        "median": 0.7099999929778278,
+        "max": 0.7099999929778278
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "mobile",
+      "method": "POST",
+      "endpoint": "/rest/v1/rpc/atlas_read_finance",
+      "count": 14,
+      "statuses": {
+        "200": 13,
+        "unavailable": 1
+      },
+      "outcomes": {
+        "cancelled": 3,
+        "completed": 11
+      },
+      "durationMs": {
+        "samples": [
+          16.34199998807162,
+          14.230000029783696,
+          1.698999956715852,
+          0.9580000187270343,
+          30.31500003999099,
+          0.5970000056549907,
+          1.1190000222995877,
+          1.4180000289343297,
+          0.5259999888949096,
+          1.5610000118613243,
+          0.5569999921135604,
+          0.526999996509403,
+          0.6730000022798777,
+          0.5890000029467046
+        ],
+        "median": 1.038500020513311,
+        "max": 30.31500003999099
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "mobile",
+      "method": "GET",
+      "endpoint": "/rest/v1/atlas_employee_assignments",
+      "count": 1,
+      "statuses": {
+        "200": 1
+      },
+      "outcomes": {
+        "completed": 1
+      },
+      "durationMs": {
+        "samples": [
+          0.9720000089146197
+        ],
+        "median": 0.9720000089146197,
+        "max": 0.9720000089146197
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "mobile",
+      "method": "POST",
+      "endpoint": "/rest/v1/rpc/atlas_read_bonus_receipts",
+      "count": 1,
+      "statuses": {
+        "200": 1
+      },
+      "outcomes": {
+        "completed": 1
+      },
+      "durationMs": {
+        "samples": [
+          0.8159999852068722
+        ],
+        "median": 0.8159999852068722,
+        "max": 0.8159999852068722
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "mobile",
+      "method": "POST",
+      "endpoint": "/rest/v1/rpc/atlas_bonus_workspace",
+      "count": 1,
+      "statuses": {
+        "200": 1
+      },
+      "outcomes": {
+        "completed": 1
+      },
+      "durationMs": {
+        "samples": [
+          1.0060000349767506
+        ],
+        "median": 1.0060000349767506,
+        "max": 1.0060000349767506
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "mobile",
+      "method": "GET",
+      "endpoint": "/rest/v1/atlas_command_plan_summaries",
+      "count": 9,
+      "statuses": {
+        "200": 9
+      },
+      "outcomes": {
+        "completed": 9
+      },
+      "durationMs": {
+        "samples": [
+          0.43100002221763134,
+          0.506000011228025,
+          0.7630000473000109,
+          0.4450000124052167,
+          0.5249999812804163,
+          0.5249999812804163,
+          0.4099999787285924,
+          0.4360000020824373,
+          0.4410000401549041
+        ],
+        "median": 0.4450000124052167,
+        "max": 0.7630000473000109
+      }
+    },
+    {
+      "build": "repaired",
+      "device": "mobile",
+      "method": "GET",
+      "endpoint": "/rest/v1/atlas_workforce_heads",
+      "count": 1,
+      "statuses": {
+        "200": 1
+      },
+      "outcomes": {
+        "completed": 1
+      },
+      "durationMs": {
+        "samples": [
+          1.766999950632453
+        ],
+        "median": 1.766999950632453,
+        "max": 1.766999950632453
+      }
+    }
+  ],
+  "kind": "READ-ONLY ISOLATED REPLAY",
+  "browser": "151.0.7922.34",
+  "date": "2026-09-25T00:23:12.513Z",
+  "fixture": {
+    "documentKey": "atlas_workspace_projection_v1:44fff7341af4fe69f97dffe49736f7d6b81c1c465a59ac1477cdc745443d261f:1",
+    "parentDocument": "atlas_dashboard_state_v1",
+    "parentVersion": 1,
+    "sourceEffectiveAt": "2026-09-19T02:36:25.886387+00:00",
+    "archiveSha256": "44fff7341af4fe69f97dffe49736f7d6b81c1c465a59ac1477cdc745443d261f",
+    "archiveBytes": 39781393,
+    "partCount": 102,
+    "entryCount": 28,
+    "projectionHash": "fb94a03fa014e508107ab3c4fa6722e5e0605824101de78a7c2242d386bde3b0",
+    "projectionBytes": 6999497,
+    "projectionGzipBytes": 506029,
+    "communityCount": 28,
+    "sourceCounts": {
+      "batches": 13,
+      "sourceArchive": 21,
+      "canonicalRecords": 5003,
+      "lineage": 12299,
+      "reconciliationLog": 270
+    },
+    "projectionCounts": {
+      "batches": 13,
+      "sourceArchive": 13,
+      "canonicalRecords": 65,
+      "lineage": 26,
+      "reconciliationLog": 0
+    },
+    "exactCommunityValues": true,
+    "exactGlobalValues": true,
+    "zeroLeaves": 31084,
+    "nullLeaves": 4055,
+    "credentialFindingCount": 0,
+    "authContainerCount": 0,
+    "expectedProfileComparison": {
+      "expectedBatches": 29,
+      "expectedCommunities": 14,
+      "batchesMatch": false,
+      "communitiesMatch": false
+    },
+    "privatePathsOmitted": true
+  },
+  "configuration": {
+    "buildOrder": [
+      "repaired"
+    ],
+    "buildRevisions": {
+      "historical": "4263a58cca7319d8d69563bc9e91e7bf6e64a3a5",
+      "baseline": "3d80173de32f227410663662a523932c50ecaa2b",
+      "repaired": "c586cbe22e1fc363458bf338be053d80ecb07185"
+    },
+    "reportingPeriod": "2026-09",
+    "samples": 5,
+    "cycles": 10,
+    "firstLoopAlsoRecorded": true,
+    "settleMs": 10000,
+    "devices": [
+      "desktop",
+      "mobile"
+    ],
+    "slowNetwork": "150 ms RTT;200,000 B/s down;93,750 B/s up;cached assets",
+    "desktop": "1440x900 DPR1 no throttle",
+    "mobile": "390x844 DPR3 touch 4xCPU",
+    "externalAssets": "CSP blocks all external network; API fetches use a same-origin synthetic transport, pinned XLSX served locally, external fonts/map dependencies unavailable"
+  },
+  "limits": [
+    "Not independently authenticated production acceptance",
+    "Historical 4263a58 predates AtlasReskin.history; that unavailable probe is null, not fabricated. Other diagnostic counters are retained when available. Home-history parity compares baseline and repaired only.",
+    "Old builds use full retained177MB history; repaired uses its exact derived current projection while full immutable history remains available in local fixture",
+    "Canonical archive13batches differs from original Chrome29batch state",
+    "HTTP cache disabled for cold and enabled for warm; verified cached-resource counts retained. Startup and navigation have no artificial network latency; separate slow variants use the recorded network profile. Heap growth is measured after the first complete module-loading loop, then ten repeated loops. Main-page CDP heap excludes workers and browser processes. CDP CPU slowdown applies to the page, not workers; background freshness may remain pending after the ten-second slow-source observation.",
+    "Community report data hash omits internal sourceRecord and generatedAt; exact rendered HTML hash fixes generation clock. Baseline overwrites one canonical manager identity with a local ID, repaired preserves canonical ID; no visible report field differs.",
+    "Metrics use isolated reads and blocked mutation endpoints; denied writes may alter old-build fallback work",
+    "Candidate-only rerun at c586cbe. Original historical4263a58 and baseline3d80173 samples remain unchanged in candidate-435a478; those controls retain the previously reported cross-task contention. They were not rerun or replaced by these results.",
+    "Root reported all coordinated heavy suites stopped before candidate sampling. Existing user browser tabs and unrelated OS processes were uncontrolled; root could perform lightweight documents, UI and metadata work. This is not a pristine idle-machine claim.",
+    "Heap values are startup/navigation and forced-GC snapshots. The250MiB check is sampled heap only; transient peak memory was not measured. Page heap excludes worker heaps and browser-process memory.",
+    "The replay uses synthetic authenticated responses, including empty live-finance RPC responses. It validates retained operational data/report/export parity, not live financial RPC contents, production permission enforcement or live forecast-source parity.",
+    "Account/access/source cancellation and refresh regressions are synthetic. Two independently authenticated production sessions showing the same canonical source and values remain outstanding.",
+    "Canonical source has13 retained import batches and28 community records, distinct from the original29-batch browser profile.",
+    "The separate baseline/current parity probe runs after the measurements, with a fixed report clock and one shared origin. Its timings are excluded from acceptance samples. Exact HTML hashes from different server origins are not compared as output regressions."
+  ],
+  "groups": [
+    {
+      "build": "repaired",
+      "device": "desktop",
+      "startup": {
+        "cold": {
+          "usableMs": {
+            "samples": [
+              489,
+              551,
+              559,
+              463,
+              499
+            ],
+            "median": 499,
+            "max": 559,
+            "limit": 3000,
+            "allSamplesPass": true
+          },
+          "longestTaskMs": {
+            "samples": [
+              57,
+              51,
+              50,
+              0,
+              53
+            ],
+            "median": 51,
+            "max": 57,
+            "limit": 100,
+            "allSamplesPass": true
+          },
+          "blockingTimeThroughObservationMs": {
+            "samples": [
+              7,
+              1,
+              0,
+              0,
+              3
+            ],
+            "median": 1,
+            "max": 7,
+            "limit": 300,
+            "allSamplesPass": true
+          },
+          "firstTenSecondsBlockingTimeMs": {
+            "samples": [
+              7,
+              1,
+              0,
+              0,
+              3
+            ],
+            "median": 1,
+            "max": 7,
+            "limit": 300,
+            "allSamplesPass": true
+          },
+          "renderCount": {
+            "samples": [
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "median": 1,
+            "max": 1
+          },
+          "apiRequests": {
+            "samples": [
+              8,
+              8,
+              8,
+              8,
+              8
+            ],
+            "median": 8,
+            "max": 8
+          },
+          "cdpCacheHits": {
+            "samples": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "max": 0
+          }
+        },
+        "warm": {
+          "usableMs": {
+            "samples": [
+              447,
+              473,
+              441,
+              441,
+              384
+            ],
+            "median": 441,
+            "max": 473,
+            "limit": 1000,
+            "allSamplesPass": true
+          },
+          "longestTaskMs": {
+            "samples": [
+              0,
+              0,
+              54,
+              50,
+              50
+            ],
+            "median": 50,
+            "max": 54,
+            "limit": 100,
+            "allSamplesPass": true
+          },
+          "blockingTimeThroughObservationMs": {
+            "samples": [
+              0,
+              0,
+              4,
+              0,
+              0
+            ],
+            "median": 0,
+            "max": 4,
+            "limit": 300,
+            "allSamplesPass": true
+          },
+          "firstTenSecondsBlockingTimeMs": {
+            "samples": [
+              0,
+              0,
+              4,
+              0,
+              0
+            ],
+            "median": 0,
+            "max": 4,
+            "limit": 300,
+            "allSamplesPass": true
+          },
+          "renderCount": {
+            "samples": [
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "median": 1,
+            "max": 1
+          },
+          "apiRequests": {
+            "samples": [
+              8,
+              8,
+              8,
+              8,
+              8
+            ],
+            "median": 8,
+            "max": 8
+          },
+          "cdpCacheHits": {
+            "samples": [
+              43,
+              43,
+              43,
+              43,
+              43
+            ],
+            "median": 43,
+            "max": 43
+          }
+        }
+      },
+      "navigation": {
+        "Home": {
+          "firstLoopMs": {
+            "samples": [
+              289
+            ],
+            "median": 289,
+            "max": 289,
+            "limit": 500,
+            "allSamplesPass": true
+          },
+          "repeatedMs": {
+            "samples": [
+              76,
+              67,
+              55,
+              58,
+              67,
+              56,
+              66,
+              58,
+              59,
+              59
+            ],
+            "median": 59.0,
+            "max": 76,
+            "limit": 200,
+            "allSamplesPass": true
+          },
+          "repeatedLongestTaskMs": {
+            "samples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0.0,
+            "max": 0,
+            "limit": 100,
+            "allSamplesPass": true
+          },
+          "repeatedRenderCount": {
+            "samples": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "median": 1.0,
+            "max": 1
+          },
+          "apiRequests": {
+            "samples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0.0,
+            "max": 0
+          },
+          "firstLoopLongestTaskMs": {
+            "samples": [
+              50
+            ],
+            "median": 50,
+            "max": 50,
+            "limit": 100,
+            "allSamplesPass": true
+          }
+        },
+        "Reports": {
+          "firstLoopMs": {
+            "samples": [
+              210
+            ],
+            "median": 210,
+            "max": 210,
+            "limit": 500,
+            "allSamplesPass": true
+          },
+          "repeatedMs": {
+            "samples": [
+              125,
+              74,
+              78,
+              67,
+              70,
+              70,
+              75,
+              71,
+              77,
+              66
+            ],
+            "median": 72.5,
+            "max": 125,
+            "limit": 200,
+            "allSamplesPass": true
+          },
+          "repeatedLongestTaskMs": {
+            "samples": [
+              78,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0.0,
+            "max": 78,
+            "limit": 100,
+            "allSamplesPass": true
+          },
+          "repeatedRenderCount": {
+            "samples": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "median": 1.0,
+            "max": 1
+          },
+          "apiRequests": {
+            "samples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0.0,
+            "max": 0
+          },
+          "firstLoopLongestTaskMs": {
+            "samples": [
+              88
+            ],
+            "median": 88,
+            "max": 88,
+            "limit": 100,
+            "allSamplesPass": true
+          }
+        },
+        "Import": {
+          "firstLoopMs": {
+            "samples": [
+              64
+            ],
+            "median": 64,
+            "max": 64,
+            "limit": 500,
+            "allSamplesPass": true
+          },
+          "repeatedMs": {
+            "samples": [
+              59,
+              52,
+              58,
+              50,
+              55,
+              58,
+              58,
+              54,
+              60,
+              50
+            ],
+            "median": 56.5,
+            "max": 60,
+            "limit": 200,
+            "allSamplesPass": true
+          },
+          "repeatedLongestTaskMs": {
+            "samples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0.0,
+            "max": 0,
+            "limit": 100,
+            "allSamplesPass": true
+          },
+          "repeatedRenderCount": {
+            "samples": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "median": 1.0,
+            "max": 1
+          },
+          "apiRequests": {
+            "samples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0.0,
+            "max": 0
+          },
+          "firstLoopLongestTaskMs": {
+            "samples": [
+              0
+            ],
+            "median": 0,
+            "max": 0,
+            "limit": 100,
+            "allSamplesPass": true
+          }
+        },
+        "Command": {
+          "firstLoopMs": {
+            "samples": [
+              77
+            ],
+            "median": 77,
+            "max": 77,
+            "limit": 500,
+            "allSamplesPass": true
+          },
+          "repeatedMs": {
+            "samples": [
+              66,
+              66,
+              67,
+              67,
+              59,
+              67,
+              66,
+              66,
+              67,
+              68
+            ],
+            "median": 66.5,
+            "max": 68,
+            "limit": 200,
+            "allSamplesPass": true
+          },
+          "repeatedLongestTaskMs": {
+            "samples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0.0,
+            "max": 0,
+            "limit": 100,
+            "allSamplesPass": true
+          },
+          "repeatedRenderCount": {
+            "samples": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "median": 1.0,
+            "max": 1
+          },
+          "apiRequests": {
+            "samples": [
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2
+            ],
+            "median": 2.0,
+            "max": 2
+          },
+          "firstLoopLongestTaskMs": {
+            "samples": [
+              51
+            ],
+            "median": 51,
+            "max": 51,
+            "limit": 100,
+            "allSamplesPass": true
+          }
+        },
+        "Bonus": {
+          "firstLoopMs": {
+            "samples": [
+              157
+            ],
+            "median": 157,
+            "max": 157,
+            "limit": 500,
+            "allSamplesPass": true
+          },
+          "repeatedMs": {
+            "samples": [
+              25,
+              25,
+              25,
+              24,
+              24,
+              25,
+              29,
+              30,
+              25,
+              24
+            ],
+            "median": 25.0,
+            "max": 30,
+            "limit": 200,
+            "allSamplesPass": true
+          },
+          "repeatedLongestTaskMs": {
+            "samples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0.0,
+            "max": 0,
+            "limit": 100,
+            "allSamplesPass": true
+          },
+          "repeatedRenderCount": {
+            "samples": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "median": 1.0,
+            "max": 1
+          },
+          "apiRequests": {
+            "samples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0.0,
+            "max": 0
+          },
+          "firstLoopLongestTaskMs": {
+            "samples": [
+              0
+            ],
+            "median": 0,
+            "max": 0,
+            "limit": 100,
+            "allSamplesPass": true
+          }
+        }
+      },
+      "parity": {
+        "homeHistoryUnavailableReason": null,
+        "diagnosticCounters": {
+          "memory": 112,
+          "navigation-entry": 2,
+          "session": 1,
+          "central-api": 91,
+          "authorization": 1,
+          "indexeddb-open": 9,
+          "indexeddb-read": 6,
+          "global-storage": 1,
+          "dashboard-storage": 1,
+          "first-paint": 1,
+          "first-contentful-paint": 1,
+          "import-storage": 1,
+          "startup-step": 5,
+          "staffing-sync": 3,
+          "home-history-prepared": 2,
+          "home-history-cache-hit": 25,
+          "bonus-calculation": 77,
+          "render": 64,
+          "long-task": 5,
+          "central-property-graph": 1,
+          "dashboard-preferences": 1,
+          "navigation": 55,
+          "feature-load": 4,
+          "report-preview-cache-miss": 2,
+          "workforce-hydration": 1,
+          "indexeddb-write": 1,
+          "report-preview-cache-hit": 9
+        },
+        "homeHistoryHash": "600c286517f363d7b469080c211e435e810a94c7bcbe3afb5023b074bd98d24b",
+        "monthlyNormalizationMatchesBaseline": true,
+        "communityProgressHash": "255a7cc1d0638f45234f5101c7d92606b0b4fec63e29341691fcc3c097c60697",
+        "communityDocumentHash": "ac40a6c0832a164cad2e08927760c77dda75ae500be4ec68f603026e4c5b2ca4",
+        "operatingDataHash": "b06a6b293fdd1ca2d3a8199959d46ffd12ae87ecae854805e51903ef4a218e76",
+        "reportAggregateHash": "61f534f50d09084366556e8db0676b59c1df155217cdddd2847c4e3ff50f8433",
+        "exportRowsHash": "8beb6579ca5e0bf51e82070c00c83f4bc227b4aa267e8a152ab49ef9a753b6c7",
+        "reportDetailCount": 14,
+        "exportRowCount": 40,
+        "period": {
+          "year": 2026,
+          "month": 8
+        }
+      },
+      "errors": [],
+      "memory": {
+        "beforeRepeatedLoopsMiB": 36.623992919921875,
+        "afterRepeatedLoopsMiB": 40.06517028808594,
+        "retainedGrowthMiB": 3.4411773681640625,
+        "retainedGrowthPass": true,
+        "steadyPass": true,
+        "peakSampledMiB": 134.38932991027832,
+        "domBefore": {
+          "documents": 16,
+          "nodes": 29723,
+          "jsEventListeners": 226
+        },
+        "domAfter": {
+          "documents": 16,
+          "nodes": 29763,
+          "jsEventListeners": 217
+        },
+        "sampledHeapPass": true,
+        "sampledHeapLimitMiB": 250,
+        "transientPeakMeasured": false
+      },
+      "variants": [
+        {
+          "scenario": "slow",
+          "readyElapsed": 736,
+          "observationMs": 10765,
+          "apiRequests": 8,
+          "hasData": true,
+          "validated": true,
+          "cached": true,
+          "error": "",
+          "longTasks": [],
+          "longestTask": 0,
+          "blockingTime": 0
+        },
+        {
+          "scenario": "unavailable",
+          "readyElapsed": 412,
+          "observationMs": 10445,
+          "apiRequests": 8,
+          "hasData": true,
+          "validated": true,
+          "cached": true,
+          "error": "Synthetic source unavailable",
+          "longTasks": [],
+          "longestTask": 0,
+          "blockingTime": 0
+        }
+      ],
+      "renderIssues": []
+    },
+    {
+      "build": "repaired",
+      "device": "mobile",
+      "startup": {
+        "cold": {
+          "usableMs": {
+            "samples": [
+              1515,
+              1655,
+              1492,
+              1520,
+              1639
+            ],
+            "median": 1520,
+            "max": 1655,
+            "limit": 5000,
+            "allSamplesPass": true
+          },
+          "longestTaskMs": {
+            "samples": [
+              207,
+              184,
+              183,
+              186,
+              201
+            ],
+            "median": 186,
+            "max": 207,
+            "limit": 200,
+            "allSamplesPass": false
+          },
+          "blockingTimeThroughObservationMs": {
+            "samples": [
+              416,
+              447,
+              369,
+              382,
+              428
+            ],
+            "median": 416,
+            "max": 447,
+            "limit": 600,
+            "allSamplesPass": true
+          },
+          "firstTenSecondsBlockingTimeMs": {
+            "samples": [
+              416,
+              447,
+              369,
+              382,
+              428
+            ],
+            "median": 416,
+            "max": 447,
+            "limit": 600,
+            "allSamplesPass": true
+          },
+          "renderCount": {
+            "samples": [
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "median": 1,
+            "max": 1
+          },
+          "apiRequests": {
+            "samples": [
+              8,
+              8,
+              8,
+              8,
+              8
+            ],
+            "median": 8,
+            "max": 8
+          },
+          "cdpCacheHits": {
+            "samples": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "max": 0
+          }
+        },
+        "warm": {
+          "usableMs": {
+            "samples": [
+              1566,
+              1518,
+              1444,
+              1467,
+              1503
+            ],
+            "median": 1503,
+            "max": 1566,
+            "limit": 2000,
+            "allSamplesPass": true
+          },
+          "longestTaskMs": {
+            "samples": [
+              199,
+              192,
+              184,
+              185,
+              184
+            ],
+            "median": 185,
+            "max": 199,
+            "limit": 200,
+            "allSamplesPass": true
+          },
+          "blockingTimeThroughObservationMs": {
+            "samples": [
+              410,
+              419,
+              383,
+              375,
+              413
+            ],
+            "median": 410,
+            "max": 419,
+            "limit": 600,
+            "allSamplesPass": true
+          },
+          "firstTenSecondsBlockingTimeMs": {
+            "samples": [
+              410,
+              419,
+              383,
+              375,
+              413
+            ],
+            "median": 410,
+            "max": 419,
+            "limit": 600,
+            "allSamplesPass": true
+          },
+          "renderCount": {
+            "samples": [
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "median": 1,
+            "max": 1
+          },
+          "apiRequests": {
+            "samples": [
+              8,
+              8,
+              8,
+              8,
+              8
+            ],
+            "median": 8,
+            "max": 8
+          },
+          "cdpCacheHits": {
+            "samples": [
+              43,
+              43,
+              43,
+              43,
+              43
+            ],
+            "median": 43,
+            "max": 43
+          }
+        }
+      },
+      "navigation": {
+        "Home": {
+          "firstLoopMs": {
+            "samples": [
+              1066
+            ],
+            "median": 1066,
+            "max": 1066,
+            "limit": 1000,
+            "allSamplesPass": false
+          },
+          "repeatedMs": {
+            "samples": [
+              277,
+              167,
+              175,
+              185,
+              166,
+              165,
+              164,
+              168,
+              166,
+              166
+            ],
+            "median": 166.5,
+            "max": 277,
+            "limit": 400,
+            "allSamplesPass": true
+          },
+          "repeatedLongestTaskMs": {
+            "samples": [
+              183,
+              142,
+              143,
+              143,
+              138,
+              138,
+              132,
+              136,
+              143,
+              137
+            ],
+            "median": 140.0,
+            "max": 183,
+            "limit": 200,
+            "allSamplesPass": true
+          },
+          "repeatedRenderCount": {
+            "samples": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "median": 1.0,
+            "max": 1
+          },
+          "apiRequests": {
+            "samples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0.0,
+            "max": 0
+          },
+          "firstLoopLongestTaskMs": {
+            "samples": [
+              217
+            ],
+            "median": 217,
+            "max": 217,
+            "limit": 200,
+            "allSamplesPass": false
+          }
+        },
+        "Reports": {
+          "firstLoopMs": {
+            "samples": [
+              813
+            ],
+            "median": 813,
+            "max": 813,
+            "limit": 1000,
+            "allSamplesPass": true
+          },
+          "repeatedMs": {
+            "samples": [
+              467,
+              259,
+              277,
+              283,
+              245,
+              242,
+              243,
+              255,
+              241,
+              244
+            ],
+            "median": 250.0,
+            "max": 467,
+            "limit": 400,
+            "allSamplesPass": false
+          },
+          "repeatedLongestTaskMs": {
+            "samples": [
+              303,
+              109,
+              113,
+              128,
+              111,
+              100,
+              100,
+              105,
+              107,
+              104
+            ],
+            "median": 108.0,
+            "max": 303,
+            "limit": 200,
+            "allSamplesPass": false
+          },
+          "repeatedRenderCount": {
+            "samples": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "median": 1.0,
+            "max": 1
+          },
+          "apiRequests": {
+            "samples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0.0,
+            "max": 0
+          },
+          "firstLoopLongestTaskMs": {
+            "samples": [
+              362
+            ],
+            "median": 362,
+            "max": 362,
+            "limit": 200,
+            "allSamplesPass": false
+          }
+        },
+        "Import": {
+          "firstLoopMs": {
+            "samples": [
+              243
+            ],
+            "median": 243,
+            "max": 243,
+            "limit": 1000,
+            "allSamplesPass": true
+          },
+          "repeatedMs": {
+            "samples": [
+              182,
+              174,
+              176,
+              180,
+              165,
+              159,
+              165,
+              203,
+              159,
+              164
+            ],
+            "median": 169.5,
+            "max": 203,
+            "limit": 400,
+            "allSamplesPass": true
+          },
+          "repeatedLongestTaskMs": {
+            "samples": [
+              141,
+              131,
+              135,
+              140,
+              125,
+              122,
+              123,
+              138,
+              126,
+              121
+            ],
+            "median": 128.5,
+            "max": 141,
+            "limit": 200,
+            "allSamplesPass": true
+          },
+          "repeatedRenderCount": {
+            "samples": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "median": 1.0,
+            "max": 1
+          },
+          "apiRequests": {
+            "samples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0.0,
+            "max": 0
+          },
+          "firstLoopLongestTaskMs": {
+            "samples": [
+              147
+            ],
+            "median": 147,
+            "max": 147,
+            "limit": 200,
+            "allSamplesPass": true
+          }
+        },
+        "Command": {
+          "firstLoopMs": {
+            "samples": [
+              269
+            ],
+            "median": 269,
+            "max": 269,
+            "limit": 1000,
+            "allSamplesPass": true
+          },
+          "repeatedMs": {
+            "samples": [
+              385,
+              220,
+              222,
+              221,
+              211,
+              204,
+              202,
+              223,
+              211,
+              195
+            ],
+            "median": 215.5,
+            "max": 385,
+            "limit": 400,
+            "allSamplesPass": true
+          },
+          "repeatedLongestTaskMs": {
+            "samples": [
+              182,
+              182,
+              188,
+              188,
+              176,
+              170,
+              169,
+              182,
+              180,
+              166
+            ],
+            "median": 181.0,
+            "max": 188,
+            "limit": 200,
+            "allSamplesPass": true
+          },
+          "repeatedRenderCount": {
+            "samples": [
+              2,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "median": 1.0,
+            "max": 2
+          },
+          "apiRequests": {
+            "samples": [
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2
+            ],
+            "median": 2.0,
+            "max": 2
+          },
+          "firstLoopLongestTaskMs": {
+            "samples": [
+              214
+            ],
+            "median": 214,
+            "max": 214,
+            "limit": 200,
+            "allSamplesPass": false
+          }
+        },
+        "Bonus": {
+          "firstLoopMs": {
+            "samples": [
+              333
+            ],
+            "median": 333,
+            "max": 333,
+            "limit": 1000,
+            "allSamplesPass": true
+          },
+          "repeatedMs": {
+            "samples": [
+              57,
+              55,
+              63,
+              55,
+              55,
+              57,
+              56,
+              57,
+              56,
+              57
+            ],
+            "median": 56.5,
+            "max": 63,
+            "limit": 400,
+            "allSamplesPass": true
+          },
+          "repeatedLongestTaskMs": {
+            "samples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0.0,
+            "max": 0,
+            "limit": 200,
+            "allSamplesPass": true
+          },
+          "repeatedRenderCount": {
+            "samples": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "median": 1.0,
+            "max": 1
+          },
+          "apiRequests": {
+            "samples": [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0.0,
+            "max": 1
+          },
+          "firstLoopLongestTaskMs": {
+            "samples": [
+              164
+            ],
+            "median": 164,
+            "max": 164,
+            "limit": 200,
+            "allSamplesPass": true
+          }
+        }
+      },
+      "parity": {
+        "homeHistoryUnavailableReason": null,
+        "diagnosticCounters": {
+          "memory": 112,
+          "navigation-entry": 2,
+          "session": 1,
+          "central-api": 91,
+          "authorization": 1,
+          "first-paint": 1,
+          "first-contentful-paint": 1,
+          "indexeddb-open": 9,
+          "indexeddb-read": 6,
+          "global-storage": 1,
+          "dashboard-storage": 1,
+          "long-task": 59,
+          "import-storage": 1,
+          "startup-step": 5,
+          "staffing-sync": 3,
+          "home-history-prepared": 2,
+          "home-history-cache-hit": 25,
+          "bonus-calculation": 77,
+          "render": 64,
+          "central-property-graph": 1,
+          "dashboard-preferences": 1,
+          "navigation": 55,
+          "feature-load": 4,
+          "report-preview-cache-miss": 2,
+          "workforce-hydration": 1,
+          "indexeddb-write": 1,
+          "report-preview-cache-hit": 9
+        },
+        "homeHistoryHash": "600c286517f363d7b469080c211e435e810a94c7bcbe3afb5023b074bd98d24b",
+        "monthlyNormalizationMatchesBaseline": true,
+        "communityProgressHash": "255a7cc1d0638f45234f5101c7d92606b0b4fec63e29341691fcc3c097c60697",
+        "communityDocumentHash": "ac40a6c0832a164cad2e08927760c77dda75ae500be4ec68f603026e4c5b2ca4",
+        "operatingDataHash": "b06a6b293fdd1ca2d3a8199959d46ffd12ae87ecae854805e51903ef4a218e76",
+        "reportAggregateHash": "61f534f50d09084366556e8db0676b59c1df155217cdddd2847c4e3ff50f8433",
+        "exportRowsHash": "8beb6579ca5e0bf51e82070c00c83f4bc227b4aa267e8a152ab49ef9a753b6c7",
+        "reportDetailCount": 14,
+        "exportRowCount": 40,
+        "period": {
+          "year": 2026,
+          "month": 8
+        }
+      },
+      "errors": [],
+      "memory": {
+        "beforeRepeatedLoopsMiB": 39.84043884277344,
+        "afterRepeatedLoopsMiB": 40.52907180786133,
+        "retainedGrowthMiB": 0.6886329650878906,
+        "retainedGrowthPass": true,
+        "steadyPass": true,
+        "peakSampledMiB": 140.10519981384277,
+        "domBefore": {
+          "documents": 16,
+          "nodes": 30342,
+          "jsEventListeners": 260
+        },
+        "domAfter": {
+          "documents": 16,
+          "nodes": 29763,
+          "jsEventListeners": 217
+        },
+        "sampledHeapPass": true,
+        "sampledHeapLimitMiB": 250,
+        "transientPeakMeasured": false
+      },
+      "variants": [
+        {
+          "scenario": "slow",
+          "readyElapsed": 1741,
+          "observationMs": 11872,
+          "apiRequests": 7,
+          "hasData": true,
+          "validated": true,
+          "cached": true,
+          "error": "",
+          "longTasks": [
+            {
+              "start": 521.1999999880791,
+              "duration": 96
+            },
+            {
+              "start": 681.1999999880791,
+              "duration": 166
+            },
+            {
+              "start": 849.6999999880791,
+              "duration": 96
+            },
+            {
+              "start": 1501.699999988079,
+              "duration": 71
+            },
+            {
+              "start": 1573.5,
+              "duration": 141
+            }
+          ],
+          "longestTask": 166,
+          "blockingTime": 320
+        },
+        {
+          "scenario": "unavailable",
+          "readyElapsed": 1543,
+          "observationMs": 11675,
+          "apiRequests": 9,
+          "hasData": true,
+          "validated": true,
+          "cached": true,
+          "error": "Synthetic source unavailable",
+          "longTasks": [
+            {
+              "start": 143,
+              "duration": 100
+            },
+            {
+              "start": 264.2999999523163,
+              "duration": 189
+            },
+            {
+              "start": 454.69999998807907,
+              "duration": 109
+            },
+            {
+              "start": 1269.5999999642372,
+              "duration": 81
+            },
+            {
+              "start": 1351.5,
+              "duration": 169
+            }
+          ],
+          "longestTask": 189,
+          "blockingTime": 398
+        }
+      ],
+      "renderIssues": []
+    }
+  ],
+  "parity": {
+    "homeHistoryHash": {
+      "allEqual": true,
+      "availableCount": 2,
+      "unavailableCount": 0,
+      "values": [
+        {
+          "build": "repaired",
+          "device": "desktop",
+          "value": "600c286517f363d7b469080c211e435e810a94c7bcbe3afb5023b074bd98d24b"
+        },
+        {
+          "build": "repaired",
+          "device": "mobile",
+          "value": "600c286517f363d7b469080c211e435e810a94c7bcbe3afb5023b074bd98d24b"
+        }
+      ]
+    },
+    "homeValue": {
+      "allEqual": true,
+      "availableCount": 2,
+      "unavailableCount": 0,
+      "values": [
+        {
+          "build": "repaired",
+          "device": "desktop"
+        },
+        {
+          "build": "repaired",
+          "device": "mobile"
+        }
+      ],
+      "displayedOperatingValueOmitted": true
+    },
+    "monthlyNormalizationMatchesBaseline": {
+      "allEqual": true,
+      "availableCount": 2,
+      "unavailableCount": 0,
+      "values": [
+        {
+          "build": "repaired",
+          "device": "desktop",
+          "value": true
+        },
+        {
+          "build": "repaired",
+          "device": "mobile",
+          "value": true
+        }
+      ]
+    },
+    "communityProgressHash": {
+      "allEqual": true,
+      "availableCount": 2,
+      "unavailableCount": 0,
+      "values": [
+        {
+          "build": "repaired",
+          "device": "desktop",
+          "value": "255a7cc1d0638f45234f5101c7d92606b0b4fec63e29341691fcc3c097c60697"
+        },
+        {
+          "build": "repaired",
+          "device": "mobile",
+          "value": "255a7cc1d0638f45234f5101c7d92606b0b4fec63e29341691fcc3c097c60697"
+        }
+      ]
+    },
+    "communityDocumentHash": {
+      "allEqual": true,
+      "availableCount": 2,
+      "unavailableCount": 0,
+      "values": [
+        {
+          "build": "repaired",
+          "device": "desktop",
+          "value": "ac40a6c0832a164cad2e08927760c77dda75ae500be4ec68f603026e4c5b2ca4"
+        },
+        {
+          "build": "repaired",
+          "device": "mobile",
+          "value": "ac40a6c0832a164cad2e08927760c77dda75ae500be4ec68f603026e4c5b2ca4"
+        }
+      ]
+    },
+    "operatingDataHash": {
+      "allEqual": true,
+      "availableCount": 2,
+      "unavailableCount": 0,
+      "values": [
+        {
+          "build": "repaired",
+          "device": "desktop",
+          "value": "b06a6b293fdd1ca2d3a8199959d46ffd12ae87ecae854805e51903ef4a218e76"
+        },
+        {
+          "build": "repaired",
+          "device": "mobile",
+          "value": "b06a6b293fdd1ca2d3a8199959d46ffd12ae87ecae854805e51903ef4a218e76"
+        }
+      ]
+    },
+    "reportAggregateHash": {
+      "allEqual": true,
+      "availableCount": 2,
+      "unavailableCount": 0,
+      "values": [
+        {
+          "build": "repaired",
+          "device": "desktop",
+          "value": "61f534f50d09084366556e8db0676b59c1df155217cdddd2847c4e3ff50f8433"
+        },
+        {
+          "build": "repaired",
+          "device": "mobile",
+          "value": "61f534f50d09084366556e8db0676b59c1df155217cdddd2847c4e3ff50f8433"
+        }
+      ]
+    },
+    "exportRowsHash": {
+      "allEqual": true,
+      "availableCount": 2,
+      "unavailableCount": 0,
+      "values": [
+        {
+          "build": "repaired",
+          "device": "desktop",
+          "value": "8beb6579ca5e0bf51e82070c00c83f4bc227b4aa267e8a152ab49ef9a753b6c7"
+        },
+        {
+          "build": "repaired",
+          "device": "mobile",
+          "value": "8beb6579ca5e0bf51e82070c00c83f4bc227b4aa267e8a152ab49ef9a753b6c7"
+        }
+      ]
+    },
+    "reportDetailCount": {
+      "allEqual": true,
+      "availableCount": 2,
+      "unavailableCount": 0,
+      "values": [
+        {
+          "build": "repaired",
+          "device": "desktop",
+          "value": 14
+        },
+        {
+          "build": "repaired",
+          "device": "mobile",
+          "value": 14
+        }
+      ]
+    },
+    "exportRowCount": {
+      "allEqual": true,
+      "availableCount": 2,
+      "unavailableCount": 0,
+      "values": [
+        {
+          "build": "repaired",
+          "device": "desktop",
+          "value": 40
+        },
+        {
+          "build": "repaired",
+          "device": "mobile",
+          "value": 40
+        }
+      ]
+    },
+    "period": {
+      "allEqual": true,
+      "availableCount": 2,
+      "unavailableCount": 0,
+      "values": [
+        {
+          "build": "repaired",
+          "device": "desktop",
+          "value": {
+            "year": 2026,
+            "month": 8
+          }
+        },
+        {
+          "build": "repaired",
+          "device": "mobile",
+          "value": {
+            "year": 2026,
+            "month": 8
+          }
+        }
+      ]
+    }
+  },
+  "blockedWrites": [
+    {
+      "build": "repaired",
+      "device": "desktop",
+      "method": "POST",
+      "endpoint": "/rest/v1/rpc/atlas_upsert_live_session",
+      "count": 66
+    },
+    {
+      "build": "repaired",
+      "device": "desktop",
+      "method": "POST",
+      "endpoint": "/rest/v1/rpc/atlas_end_live_session",
+      "count": 10
+    },
+    {
+      "build": "repaired",
+      "device": "mobile",
+      "method": "POST",
+      "endpoint": "/rest/v1/rpc/atlas_upsert_live_session",
+      "count": 66
+    },
+    {
+      "build": "repaired",
+      "device": "mobile",
+      "method": "POST",
+      "endpoint": "/rest/v1/rpc/atlas_end_live_session",
+      "count": 10
+    }
+  ],
+  "environmentNotes": {
+    "coordination": "Root reported208-test suite finished and all other task heavy jobs stopped before GO. Root plans light documents/UI/metadata only during sampling.",
+    "limits": [
+      "Existing user browser tabs and unrelated OS processes remain uncontrolled; not a pristine idle-machine claim.",
+      "Original435 control measurements are unchanged and retain their previously recorded cross-task contention limitations."
+    ],
+    "samplingEndedAt": "2026-09-25T00:23:12.513Z",
+    "postMeasurementParityEndedAt": "2026-09-25T00:23:52.411Z",
+    "runInvocationAt": "2026-09-25T00:18:23.258061+00:00",
+    "samplingProcessExitObservedAt": "2026-09-25T00:23:29.503957+00:00",
+    "postMeasurementParityRequestedAt": "2026-09-25T00:23:29.503957+00:00",
+    "postMeasurementParityProcessExitObservedAt": "2026-09-25T00:24:27.106145+00:00"
+  },
+  "acceptanceStatus": "Recorded candidate replay with remaining budget misses",
+  "controlsRetained": {
+    "sha256": "ddaa7588ffde0b4e47523d0d5598ead045119656b89088a771e574631e54a914",
+    "samples": [
+      {
+        "build": "historical",
+        "device": "desktop",
+        "startup": {
+          "cold": {
+            "median": 783,
+            "max": 843
+          },
+          "warm": {
+            "median": 725,
+            "max": 1209
+          }
+        }
+      },
+      {
+        "build": "historical",
+        "device": "mobile",
+        "startup": {
+          "cold": {
+            "median": 1991,
+            "max": 2066
+          },
+          "warm": {
+            "median": 1957,
+            "max": 2182
+          }
+        }
+      },
+      {
+        "build": "baseline",
+        "device": "desktop",
+        "startup": {
+          "cold": {
+            "median": 1678,
+            "max": 1796
+          },
+          "warm": {
+            "median": 1541,
+            "max": 1589
+          }
+        }
+      },
+      {
+        "build": "baseline",
+        "device": "mobile",
+        "startup": {
+          "cold": {
+            "median": 3466,
+            "max": 3591
+          },
+          "warm": {
+            "median": 2936,
+            "max": 3604
+          }
+        }
+      }
+    ]
+  },
+  "displayedOperatingValuesOmitted": true
+}

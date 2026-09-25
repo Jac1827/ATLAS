@@ -4,6 +4,12 @@ if len(sys.argv)!=2:
 result_path=pathlib.Path(sys.argv[1]).resolve()
 root=result_path.parent
 x=json.loads(result_path.read_text())
+metadata_errata=[]
+old_limit='Historical 4263a58 predates AtlasReskin history and performance diagnostics; those unavailable probes are null, not fabricated. Home-history parity compares baseline and repaired only.'
+new_limit='Historical 4263a58 predates AtlasReskin.history; only that optional probe is unavailable. Historical performance diagnostic counters are present and retained. Home-history parity compares baseline and repaired only.'
+if old_limit in x['limits']:
+    x['limits']=[new_limit if item==old_limit else item for item in x['limits']]
+    metadata_errata.append('Corrected the overly broad historical-diagnostics limitation. Raw measurements are unchanged; diagnostic counters were recorded correctly.')
 MiB=1024**2
 
 def stats(values):
@@ -40,7 +46,7 @@ for r in x.get('clientApi',[]):
     api_groups[(r['build'],r['device'],r['method'],r['path'])].append(r)
 api_summary=[dict(zip(['build','device','method','endpoint'],key),count=len(rows),statuses=dict(collections.Counter(str(r.get('status','unavailable'))for r in rows)),outcomes=dict(collections.Counter(r.get('outcome','pending_at_capture')for r in rows)),durationMs=stats([r.get('durationMs')for r in rows]))for key,rows in api_groups.items()]
 quality={'monthlyNormalizationPass':all(g['parity']['monthlyNormalizationMatchesBaseline']is True for g in x['results']),'noPageErrors':all(not g['errors']for g in x['results']),'noRenderIssues':all(not r['renderIssue']for g in x['results']for r in g['navigation']),'noExternalResponses':all(g.get('externalResponseCount',0)==0 for g in x['results']),'repairedOperationalWriteAttempts':[r for r in x['blocked']if r['build']=='repaired' and not r['path'].endswith(('/atlas_upsert_live_session','/atlas_end_live_session'))]}
-summary={'comparison':comparison,'quality':quality,'apiRequests':api_summary,'kind':x['kind'],'browser':x['browser'],'date':x['date'],'fixture':x['fixture'],'configuration':x['configuration'],'limits':x['limits'],'groups':groups,'parity':parity,'blockedWrites':[dict(zip(['build','device','method','endpoint'],k),count=v)for k,v in blocked.items()]}
+summary={'metadataErrata':metadata_errata,'comparison':comparison,'quality':quality,'apiRequests':api_summary,'kind':x['kind'],'browser':x['browser'],'date':x['date'],'fixture':x['fixture'],'configuration':x['configuration'],'limits':x['limits'],'groups':groups,'parity':parity,'blockedWrites':[dict(zip(['build','device','method','endpoint'],k),count=v)for k,v in blocked.items()]}
 (root/'summary.json').write_text(json.dumps(summary,indent=2)+'\n')
 lines=['# Isolated three-build replay','',f"Browser: {x['browser']}. This is local read-only replay, not authenticated production acceptance.",'', 'All metrics are milliseconds unless marked otherwise; median / maximum.']
 lines+=['','| Build / device | Cold usable | Warm usable | Home repeated | Reports repeated | Import repeated | Command repeated | Bonus repeated | Heap growth MiB |','|---|---:|---:|---:|---:|---:|---:|---:|---:|']

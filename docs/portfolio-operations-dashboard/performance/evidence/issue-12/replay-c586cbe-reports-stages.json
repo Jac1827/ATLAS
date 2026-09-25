@@ -1,0 +1,360 @@
+{
+  "kind": "Final candidate Reports render-stage evidence; no CPU profile captured",
+  "revision": "c586cbe22e1fc363458bf338be053d80ecb07185",
+  "groups": [
+    {
+      "device": "desktop",
+      "navigation": [
+        {
+          "stage": "first-loop",
+          "cycle": 0,
+          "tab": 8,
+          "ms": 210,
+          "apiRequests": 0,
+          "longestTask": 88,
+          "blockingTime": 38,
+          "renderDurations": [
+            0.2999999523162842,
+            88.30000001192093
+          ],
+          "renders": 2,
+          "heap": 39320107,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 1,
+          "tab": 8,
+          "ms": 125,
+          "apiRequests": 0,
+          "longestTask": 78,
+          "blockingTime": 28,
+          "renderDurations": [
+            72.79999995231628
+          ],
+          "renders": 1,
+          "heap": 106537623,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 2,
+          "tab": 8,
+          "ms": 74,
+          "apiRequests": 0,
+          "longestTask": 0,
+          "blockingTime": 0,
+          "renderDurations": [
+            24.700000047683716
+          ],
+          "renders": 1,
+          "heap": 140917426,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 3,
+          "tab": 8,
+          "ms": 78,
+          "apiRequests": 0,
+          "longestTask": 0,
+          "blockingTime": 0,
+          "renderDurations": [
+            22.700000047683716
+          ],
+          "renders": 1,
+          "heap": 46646777,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 4,
+          "tab": 8,
+          "ms": 67,
+          "apiRequests": 0,
+          "longestTask": 0,
+          "blockingTime": 0,
+          "renderDurations": [
+            23.19999998807907
+          ],
+          "renders": 1,
+          "heap": 85260507,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 5,
+          "tab": 8,
+          "ms": 70,
+          "apiRequests": 0,
+          "longestTask": 0,
+          "blockingTime": 0,
+          "renderDurations": [
+            22.5
+          ],
+          "renders": 1,
+          "heap": 51006031,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 6,
+          "tab": 8,
+          "ms": 70,
+          "apiRequests": 0,
+          "longestTask": 0,
+          "blockingTime": 0,
+          "renderDurations": [
+            20.80000001192093
+          ],
+          "renders": 1,
+          "heap": 90305987,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 7,
+          "tab": 8,
+          "ms": 75,
+          "apiRequests": 0,
+          "longestTask": 0,
+          "blockingTime": 0,
+          "renderDurations": [
+            21.80000001192093
+          ],
+          "renders": 1,
+          "heap": 109637003,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 8,
+          "tab": 8,
+          "ms": 71,
+          "apiRequests": 0,
+          "longestTask": 0,
+          "blockingTime": 0,
+          "renderDurations": [
+            22.19999998807907
+          ],
+          "renders": 1,
+          "heap": 69942191,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 9,
+          "tab": 8,
+          "ms": 77,
+          "apiRequests": 0,
+          "longestTask": 0,
+          "blockingTime": 0,
+          "renderDurations": [
+            20.69999998807907
+          ],
+          "renders": 1,
+          "heap": 47265023,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 10,
+          "tab": 8,
+          "ms": 66,
+          "apiRequests": 0,
+          "longestTask": 0,
+          "blockingTime": 0,
+          "renderDurations": [
+            21.899999976158142
+          ],
+          "renders": 1,
+          "heap": 85632003,
+          "renderIssue": false
+        }
+      ],
+      "cacheCounters": {
+        "report-preview-cache-miss": 2,
+        "report-preview-cache-hit": 9
+      }
+    },
+    {
+      "device": "mobile",
+      "navigation": [
+        {
+          "stage": "first-loop",
+          "cycle": 0,
+          "tab": 8,
+          "ms": 813,
+          "apiRequests": 0,
+          "longestTask": 362,
+          "blockingTime": 397,
+          "renderDurations": [
+            1.699999988079071,
+            362.30000001192093
+          ],
+          "renders": 2,
+          "heap": 113279054,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 1,
+          "tab": 8,
+          "ms": 467,
+          "apiRequests": 0,
+          "longestTask": 303,
+          "blockingTime": 253,
+          "renderDurations": [
+            281.30000001192093
+          ],
+          "renders": 1,
+          "heap": 113786501,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 2,
+          "tab": 8,
+          "ms": 259,
+          "apiRequests": 0,
+          "longestTask": 109,
+          "blockingTime": 59,
+          "renderDurations": [
+            89.30000001192093
+          ],
+          "renders": 1,
+          "heap": 109435451,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 3,
+          "tab": 8,
+          "ms": 277,
+          "apiRequests": 0,
+          "longestTask": 113,
+          "blockingTime": 63,
+          "renderDurations": [
+            91.30000001192093
+          ],
+          "renders": 1,
+          "heap": 146910950,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 4,
+          "tab": 8,
+          "ms": 283,
+          "apiRequests": 0,
+          "longestTask": 128,
+          "blockingTime": 78,
+          "renderDurations": [
+            103.90000003576279
+          ],
+          "renders": 1,
+          "heap": 84247679,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 5,
+          "tab": 8,
+          "ms": 245,
+          "apiRequests": 0,
+          "longestTask": 111,
+          "blockingTime": 61,
+          "renderDurations": [
+            90.59999996423721
+          ],
+          "renders": 1,
+          "heap": 55637741,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 6,
+          "tab": 8,
+          "ms": 242,
+          "apiRequests": 0,
+          "longestTask": 100,
+          "blockingTime": 50,
+          "renderDurations": [
+            81.89999997615814
+          ],
+          "renders": 1,
+          "heap": 91022597,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 7,
+          "tab": 8,
+          "ms": 243,
+          "apiRequests": 0,
+          "longestTask": 100,
+          "blockingTime": 50,
+          "renderDurations": [
+            81.79999995231628
+          ],
+          "renders": 1,
+          "heap": 110863157,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 8,
+          "tab": 8,
+          "ms": 255,
+          "apiRequests": 0,
+          "longestTask": 105,
+          "blockingTime": 55,
+          "renderDurations": [
+            85.10000002384186
+          ],
+          "renders": 1,
+          "heap": 71321933,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 9,
+          "tab": 8,
+          "ms": 241,
+          "apiRequests": 0,
+          "longestTask": 107,
+          "blockingTime": 57,
+          "renderDurations": [
+            86.89999997615814
+          ],
+          "renders": 1,
+          "heap": 85624501,
+          "renderIssue": false
+        },
+        {
+          "stage": "repeated",
+          "cycle": 10,
+          "tab": 8,
+          "ms": 244,
+          "apiRequests": 0,
+          "longestTask": 104,
+          "blockingTime": 54,
+          "renderDurations": [
+            85.90000003576279
+          ],
+          "renders": 1,
+          "heap": 53070229,
+          "renderIssue": false
+        }
+      ],
+      "cacheCounters": {
+        "report-preview-cache-miss": 2,
+        "report-preview-cache-hit": 9
+      }
+    }
+  ],
+  "limits": [
+    "Navigation/API/render durations support stage attribution only; no final-run per-function CPU attribution.",
+    "Synthetic read-only API replies are not live financial workload/permission acceptance."
+  ]
+}

@@ -1,16 +1,16 @@
 {
   "format": 1,
-  "startedAt": "2026-09-25T00:16:34.934Z",
+  "startedAt": "2026-09-24T23:25:32.596Z",
   "node": "v24.19.0",
-  "head": "c586cbe22e1fc363458bf338be053d80ecb07185",
-  "inputFingerprint": "0b2a296e210d087dad55894a0dccd282e6e96a4553db2ea804dc64f94f40d62f",
-  "discovered": 208,
+  "head": "435a478601f89a9c4028de8104c9e9e5cf74cf1b",
+  "inputFingerprint": "6fd2836ca1ef597922daa3f5c7faf227033bc0e47c3fff6d57ac9f1956ad8369",
+  "discovered": 197,
   "strictFixtures": true,
   "tests": [
     {
       "test": "tools/application-access.test.cjs",
       "status": "passed",
-      "elapsedMs": 103,
+      "elapsedMs": 96,
       "exitCode": 0,
       "signal": null,
       "log": "001-application-access.test.cjs.log"
@@ -18,7 +18,7 @@
     {
       "test": "tools/application-aging.test.cjs",
       "status": "passed",
-      "elapsedMs": 69,
+      "elapsedMs": 62,
       "exitCode": 0,
       "signal": null,
       "log": "002-application-aging.test.cjs.log"
@@ -26,7 +26,7 @@
     {
       "test": "tools/application-lineage-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 939,
+      "elapsedMs": 1255,
       "exitCode": 0,
       "signal": null,
       "log": "003-application-lineage-db.test.cjs.log"
@@ -34,7 +34,7 @@
     {
       "test": "tools/application-lineage.test.cjs",
       "status": "passed",
-      "elapsedMs": 114,
+      "elapsedMs": 124,
       "exitCode": 0,
       "signal": null,
       "log": "004-application-lineage.test.cjs.log"
@@ -42,7 +42,7 @@
     {
       "test": "tools/application-propagation.test.cjs",
       "status": "passed",
-      "elapsedMs": 134,
+      "elapsedMs": 144,
       "exitCode": 0,
       "signal": null,
       "log": "005-application-propagation.test.cjs.log"
@@ -50,7 +50,7 @@
     {
       "test": "tools/application-publication-client.test.cjs",
       "status": "passed",
-      "elapsedMs": 44,
+      "elapsedMs": 46,
       "exitCode": 0,
       "signal": null,
       "log": "006-application-publication-client.test.cjs.log"
@@ -58,7 +58,7 @@
     {
       "test": "tools/application-publication-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 665,
+      "elapsedMs": 685,
       "exitCode": 0,
       "signal": null,
       "log": "007-application-publication-db.test.cjs.log"
@@ -66,7 +66,7 @@
     {
       "test": "tools/approved-budget-governance.test.mjs",
       "status": "passed",
-      "elapsedMs": 33,
+      "elapsedMs": 30,
       "exitCode": 0,
       "signal": null,
       "log": "008-approved-budget-governance.test.mjs.log"
@@ -74,7 +74,7 @@
     {
       "test": "tools/archive-performance.test.cjs",
       "status": "passed",
-      "elapsedMs": 39,
+      "elapsedMs": 38,
       "exitCode": 0,
       "signal": null,
       "log": "009-archive-performance.test.cjs.log"
@@ -82,7 +82,7 @@
     {
       "test": "tools/archive-replay.test.cjs",
       "status": "passed",
-      "elapsedMs": 30,
+      "elapsedMs": 29,
       "exitCode": 0,
       "signal": null,
       "log": "010-archive-replay.test.cjs.log"
@@ -90,7 +90,7 @@
     {
       "test": "tools/auth-resilience.test.cjs",
       "status": "passed",
-      "elapsedMs": 36,
+      "elapsedMs": 38,
       "exitCode": 0,
       "signal": null,
       "log": "011-auth-resilience.test.cjs.log"
@@ -106,7 +106,7 @@
     {
       "test": "tools/bonus-access-client.test.cjs",
       "status": "passed",
-      "elapsedMs": 29,
+      "elapsedMs": 30,
       "exitCode": 0,
       "signal": null,
       "log": "013-bonus-access-client.test.cjs.log"
@@ -114,7 +114,7 @@
     {
       "test": "tools/bonus-export-security.test.cjs",
       "status": "passed",
-      "elapsedMs": 32,
+      "elapsedMs": 33,
       "exitCode": 0,
       "signal": null,
       "log": "014-bonus-export-security.test.cjs.log"
@@ -122,7 +122,7 @@
     {
       "test": "tools/bonus-fanout-performance.test.mjs",
       "status": "passed",
-      "elapsedMs": 35,
+      "elapsedMs": 42,
       "exitCode": 0,
       "signal": null,
       "log": "015-bonus-fanout-performance.test.mjs.log"
@@ -130,7 +130,7 @@
     {
       "test": "tools/bonus-financial-attainment.test.cjs",
       "status": "passed",
-      "elapsedMs": 39,
+      "elapsedMs": 47,
       "exitCode": 0,
       "signal": null,
       "log": "016-bonus-financial-attainment.test.cjs.log"
@@ -146,7 +146,7 @@
     {
       "test": "tools/bonus-workflow-boundaries.test.cjs",
       "status": "passed",
-      "elapsedMs": 642,
+      "elapsedMs": 683,
       "exitCode": 0,
       "signal": null,
       "log": "018-bonus-workflow-boundaries.test.cjs.log"
@@ -154,7 +154,7 @@
     {
       "test": "tools/bonus-workflow-client.test.mjs",
       "status": "passed",
-      "elapsedMs": 26,
+      "elapsedMs": 28,
       "exitCode": 0,
       "signal": null,
       "log": "019-bonus-workflow-client.test.mjs.log"
@@ -162,7 +162,7 @@
     {
       "test": "tools/bonus-workflow-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 693,
+      "elapsedMs": 715,
       "exitCode": 0,
       "signal": null,
       "log": "020-bonus-workflow-db.test.cjs.log"
@@ -170,7 +170,7 @@
     {
       "test": "tools/bonus-workflow-integration.test.cjs",
       "status": "passed",
-      "elapsedMs": 66,
+      "elapsedMs": 71,
       "exitCode": 0,
       "signal": null,
       "log": "021-bonus-workflow-integration.test.cjs.log"
@@ -178,7 +178,7 @@
     {
       "test": "tools/bonus-workflow-remount.test.mjs",
       "status": "passed",
-      "elapsedMs": 669,
+      "elapsedMs": 698,
       "exitCode": 0,
       "signal": null,
       "log": "022-bonus-workflow-remount.test.mjs.log"
@@ -186,7 +186,7 @@
     {
       "test": "tools/bonus-workflow-rollback.test.cjs",
       "status": "passed",
-      "elapsedMs": 1299,
+      "elapsedMs": 1313,
       "exitCode": 0,
       "signal": null,
       "log": "023-bonus-workflow-rollback.test.cjs.log"
@@ -194,7 +194,7 @@
     {
       "test": "tools/bonus-workflow-ui.test.mjs",
       "status": "passed",
-      "elapsedMs": 709,
+      "elapsedMs": 746,
       "exitCode": 0,
       "signal": null,
       "log": "024-bonus-workflow-ui.test.mjs.log"
@@ -202,7 +202,7 @@
     {
       "test": "tools/box-score-floor-plans.test.cjs",
       "status": "passed",
-      "elapsedMs": 47,
+      "elapsedMs": 54,
       "exitCode": 0,
       "signal": null,
       "log": "025-box-score-floor-plans.test.cjs.log"
@@ -218,7 +218,7 @@
     {
       "test": "tools/budget-mapped-import.test.cjs",
       "status": "passed",
-      "elapsedMs": 160,
+      "elapsedMs": 164,
       "exitCode": 0,
       "signal": null,
       "log": "027-budget-mapped-import.test.cjs.log"
@@ -226,7 +226,7 @@
     {
       "test": "tools/budget-navigation-governance.test.cjs",
       "status": "passed",
-      "elapsedMs": 25,
+      "elapsedMs": 27,
       "exitCode": 0,
       "signal": null,
       "log": "028-budget-navigation-governance.test.cjs.log"
@@ -234,7 +234,7 @@
     {
       "test": "tools/budget-official-output-routing.test.mjs",
       "status": "passed",
-      "elapsedMs": 43,
+      "elapsedMs": 42,
       "exitCode": 0,
       "signal": null,
       "log": "029-budget-official-output-routing.test.mjs.log"
@@ -242,7 +242,7 @@
     {
       "test": "tools/budget-two-year-import.test.cjs",
       "status": "passed",
-      "elapsedMs": 42,
+      "elapsedMs": 45,
       "exitCode": 0,
       "signal": null,
       "log": "030-budget-two-year-import.test.cjs.log"
@@ -250,7 +250,7 @@
     {
       "test": "tools/budget-workbook-import.test.cjs",
       "status": "passed",
-      "elapsedMs": 842,
+      "elapsedMs": 845,
       "exitCode": 0,
       "signal": null,
       "log": "031-budget-workbook-import.test.cjs.log"
@@ -258,7 +258,7 @@
     {
       "test": "tools/build-atlas-site.test.mjs",
       "status": "passed",
-      "elapsedMs": 571,
+      "elapsedMs": 598,
       "exitCode": 0,
       "signal": null,
       "log": "032-build-atlas-site.test.mjs.log"
@@ -266,7 +266,7 @@
     {
       "test": "tools/canonical-budget-report.test.mjs",
       "status": "passed",
-      "elapsedMs": 150,
+      "elapsedMs": 154,
       "exitCode": 0,
       "signal": null,
       "log": "033-canonical-budget-report.test.mjs.log"
@@ -274,7 +274,7 @@
     {
       "test": "tools/canonical-finance-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 6119,
+      "elapsedMs": 5721,
       "exitCode": 0,
       "signal": null,
       "log": "034-canonical-finance-db.test.cjs.log"
@@ -282,7 +282,7 @@
     {
       "test": "tools/canonical-finance.test.mjs",
       "status": "passed",
-      "elapsedMs": 88,
+      "elapsedMs": 69,
       "exitCode": 0,
       "signal": null,
       "log": "035-canonical-finance.test.mjs.log"
@@ -290,7 +290,7 @@
     {
       "test": "tools/canonical-report-data.test.cjs",
       "status": "passed",
-      "elapsedMs": 140,
+      "elapsedMs": 96,
       "exitCode": 0,
       "signal": null,
       "log": "036-canonical-report-data.test.cjs.log"
@@ -298,7 +298,7 @@
     {
       "test": "tools/central-api-performance.test.cjs",
       "status": "passed",
-      "elapsedMs": 32,
+      "elapsedMs": 27,
       "exitCode": 0,
       "signal": null,
       "log": "037-central-api-performance.test.cjs.log"
@@ -306,18 +306,10 @@
     {
       "test": "tools/central-services-people-scope.test.cjs",
       "status": "passed",
-      "elapsedMs": 34,
+      "elapsedMs": 36,
       "exitCode": 0,
       "signal": null,
       "log": "038-central-services-people-scope.test.cjs.log"
-    },
-    {
-      "test": "tools/client-rollback.test.mjs",
-      "status": "passed",
-      "elapsedMs": 6438,
-      "exitCode": 0,
-      "signal": null,
-      "log": "039-client-rollback.test.mjs.log"
     },
     {
       "test": "tools/cloudflare-deploy-config.test.mjs",
@@ -325,111 +317,111 @@
       "elapsedMs": 46,
       "exitCode": 0,
       "signal": null,
-      "log": "040-cloudflare-deploy-config.test.mjs.log"
+      "log": "039-cloudflare-deploy-config.test.mjs.log"
     },
     {
       "test": "tools/collections-import.test.cjs",
       "status": "passed",
-      "elapsedMs": 125,
+      "elapsedMs": 119,
       "exitCode": 0,
       "signal": null,
-      "log": "041-collections-import.test.cjs.log"
+      "log": "040-collections-import.test.cjs.log"
     },
     {
       "test": "tools/community-command-contract.test.cjs",
       "status": "passed",
-      "elapsedMs": 25,
+      "elapsedMs": 26,
       "exitCode": 0,
       "signal": null,
-      "log": "042-community-command-contract.test.cjs.log"
+      "log": "041-community-command-contract.test.cjs.log"
     },
     {
       "test": "tools/community-command-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 596,
+      "elapsedMs": 694,
       "exitCode": 0,
       "signal": null,
-      "log": "043-community-command-db.test.cjs.log"
+      "log": "042-community-command-db.test.cjs.log"
     },
     {
       "test": "tools/community-finance-roster.test.mjs",
       "status": "passed",
-      "elapsedMs": 43,
+      "elapsedMs": 39,
       "exitCode": 0,
       "signal": null,
-      "log": "044-community-finance-roster.test.mjs.log"
+      "log": "043-community-finance-roster.test.mjs.log"
     },
     {
       "test": "tools/community-goal-consumers.test.cjs",
       "status": "passed",
-      "elapsedMs": 68,
+      "elapsedMs": 66,
       "exitCode": 0,
       "signal": null,
-      "log": "045-community-goal-consumers.test.cjs.log"
+      "log": "044-community-goal-consumers.test.cjs.log"
     },
     {
       "test": "tools/community-goals-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 579,
+      "elapsedMs": 654,
       "exitCode": 0,
       "signal": null,
-      "log": "046-community-goals-db.test.cjs.log"
+      "log": "045-community-goals-db.test.cjs.log"
     },
     {
       "test": "tools/community-goals-scope.test.cjs",
       "status": "passed",
-      "elapsedMs": 47,
+      "elapsedMs": 38,
       "exitCode": 0,
       "signal": null,
-      "log": "047-community-goals-scope.test.cjs.log"
+      "log": "046-community-goals-scope.test.cjs.log"
     },
     {
       "test": "tools/community-goals.test.mjs",
       "status": "passed",
-      "elapsedMs": 975,
+      "elapsedMs": 641,
       "exitCode": 0,
       "signal": null,
-      "log": "048-community-goals.test.mjs.log"
+      "log": "047-community-goals.test.mjs.log"
     },
     {
       "test": "tools/community-governed-planning.test.cjs",
       "status": "passed",
-      "elapsedMs": 77,
+      "elapsedMs": 78,
       "exitCode": 0,
       "signal": null,
-      "log": "049-community-governed-planning.test.cjs.log"
+      "log": "048-community-governed-planning.test.cjs.log"
     },
     {
       "test": "tools/community-plan-email.test.mjs",
       "status": "passed",
-      "elapsedMs": 61,
+      "elapsedMs": 47,
       "exitCode": 0,
       "signal": null,
-      "log": "050-community-plan-email.test.mjs.log"
+      "log": "049-community-plan-email.test.mjs.log"
     },
     {
       "test": "tools/community-report-progress.test.mjs",
       "status": "passed",
-      "elapsedMs": 32,
+      "elapsedMs": 33,
       "exitCode": 0,
       "signal": null,
-      "log": "051-community-report-progress.test.mjs.log"
+      "log": "050-community-report-progress.test.mjs.log"
     },
     {
       "test": "tools/concession-insights.test.cjs",
       "status": "passed",
-      "elapsedMs": 43,
+      "elapsedMs": 44,
       "exitCode": 0,
       "signal": null,
-      "log": "052-concession-insights.test.cjs.log"
+      "log": "051-concession-insights.test.cjs.log"
     },
     {
       "test": "tools/contract-terms.test.cjs",
       "status": "passed",
-      "elapsedMs": 28,
+      "elapsedMs": 29,
       "exitCode": 0,
       "signal": null,
-      "log": "053-contract-terms.test.cjs.log"
+      "log": "052-contract-terms.test.cjs.log"
     },
     {
       "test": "tools/dashboard-reskin.test.cjs",
@@ -437,31 +429,31 @@
       "elapsedMs": 34,
       "exitCode": 0,
       "signal": null,
-      "log": "054-dashboard-reskin.test.cjs.log"
+      "log": "053-dashboard-reskin.test.cjs.log"
     },
     {
       "test": "tools/data-import-health-performance.test.cjs",
       "status": "passed",
-      "elapsedMs": 32,
+      "elapsedMs": 34,
       "exitCode": 0,
       "signal": null,
-      "log": "055-data-import-health-performance.test.cjs.log"
+      "log": "054-data-import-health-performance.test.cjs.log"
     },
     {
       "test": "tools/delinquency-mapping.test.cjs",
       "status": "passed",
-      "elapsedMs": 67,
+      "elapsedMs": 79,
       "exitCode": 0,
       "signal": null,
-      "log": "056-delinquency-mapping.test.cjs.log"
+      "log": "055-delinquency-mapping.test.cjs.log"
     },
     {
       "test": "tools/eviction-attorney.test.mjs",
       "status": "passed",
-      "elapsedMs": 399,
+      "elapsedMs": 430,
       "exitCode": 0,
       "signal": null,
-      "log": "057-eviction-attorney.test.mjs.log"
+      "log": "056-eviction-attorney.test.mjs.log"
     },
     {
       "test": "tools/feature-loader.test.cjs",
@@ -469,23 +461,23 @@
       "elapsedMs": 24,
       "exitCode": 0,
       "signal": null,
-      "log": "058-feature-loader.test.cjs.log"
+      "log": "057-feature-loader.test.cjs.log"
     },
     {
       "test": "tools/feed-requirements.test.cjs",
       "status": "passed",
-      "elapsedMs": 61,
+      "elapsedMs": 65,
       "exitCode": 0,
       "signal": null,
-      "log": "059-feed-requirements.test.cjs.log"
+      "log": "058-feed-requirements.test.cjs.log"
     },
     {
       "test": "tools/finance-request-context-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 2278,
+      "elapsedMs": 2286,
       "exitCode": 0,
       "signal": null,
-      "log": "060-finance-request-context-db.test.cjs.log"
+      "log": "059-finance-request-context-db.test.cjs.log"
     },
     {
       "test": "tools/finance-scoped-reads.test.mjs",
@@ -493,487 +485,471 @@
       "elapsedMs": 43,
       "exitCode": 0,
       "signal": null,
-      "log": "061-finance-scoped-reads.test.mjs.log"
+      "log": "060-finance-scoped-reads.test.mjs.log"
     },
     {
       "test": "tools/financial-close-report.test.mjs",
       "status": "passed",
-      "elapsedMs": 91,
+      "elapsedMs": 81,
       "exitCode": 0,
       "signal": null,
-      "log": "062-financial-close-report.test.mjs.log"
+      "log": "061-financial-close-report.test.mjs.log"
     },
     {
       "test": "tools/financial-close.test.mjs",
       "status": "passed",
-      "elapsedMs": 31,
+      "elapsedMs": 28,
       "exitCode": 0,
       "signal": null,
-      "log": "063-financial-close.test.mjs.log"
+      "log": "062-financial-close.test.mjs.log"
     },
     {
       "test": "tools/financial-intake-governance-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 1086,
+      "elapsedMs": 990,
       "exitCode": 0,
       "signal": null,
-      "log": "064-financial-intake-governance-db.test.cjs.log"
+      "log": "063-financial-intake-governance-db.test.cjs.log"
     },
     {
       "test": "tools/financial-intake-store.test.mjs",
       "status": "passed",
-      "elapsedMs": 49,
+      "elapsedMs": 43,
       "exitCode": 0,
       "signal": null,
-      "log": "065-financial-intake-store.test.mjs.log"
+      "log": "064-financial-intake-store.test.mjs.log"
     },
     {
       "test": "tools/financial-package-batch.test.mjs",
       "status": "passed",
-      "elapsedMs": 29,
+      "elapsedMs": 25,
       "exitCode": 0,
       "signal": null,
-      "log": "066-financial-package-batch.test.mjs.log"
+      "log": "065-financial-package-batch.test.mjs.log"
     },
     {
       "test": "tools/financial-package.test.mjs",
       "status": "passed",
-      "elapsedMs": 29,
+      "elapsedMs": 25,
       "exitCode": 0,
       "signal": null,
-      "log": "067-financial-package.test.mjs.log"
+      "log": "066-financial-package.test.mjs.log"
     },
     {
       "test": "tools/financial-publication.test.cjs",
       "status": "passed",
-      "elapsedMs": 64,
+      "elapsedMs": 61,
       "exitCode": 0,
       "signal": null,
-      "log": "068-financial-publication.test.cjs.log"
+      "log": "067-financial-publication.test.cjs.log"
     },
     {
       "test": "tools/financial-review-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 564,
+      "elapsedMs": 507,
       "exitCode": 0,
       "signal": null,
-      "log": "069-financial-review-db.test.cjs.log"
+      "log": "068-financial-review-db.test.cjs.log"
     },
     {
       "test": "tools/financial-row-reconciliation.test.mjs",
       "status": "passed",
-      "elapsedMs": 47,
+      "elapsedMs": 45,
       "exitCode": 0,
       "signal": null,
-      "log": "070-financial-row-reconciliation.test.mjs.log"
+      "log": "069-financial-row-reconciliation.test.mjs.log"
     },
     {
       "test": "tools/financial-snapshot-output.test.mjs",
       "status": "passed",
-      "elapsedMs": 150,
+      "elapsedMs": 135,
       "exitCode": 0,
       "signal": null,
-      "log": "071-financial-snapshot-output.test.mjs.log"
+      "log": "070-financial-snapshot-output.test.mjs.log"
     },
     {
       "test": "tools/financial-workbook-governance-db.test.mjs",
       "status": "passed",
-      "elapsedMs": 976,
+      "elapsedMs": 916,
       "exitCode": 0,
       "signal": null,
-      "log": "072-financial-workbook-governance-db.test.mjs.log"
+      "log": "071-financial-workbook-governance-db.test.mjs.log"
     },
     {
       "test": "tools/financial-workbook-governance.test.mjs",
       "status": "passed",
-      "elapsedMs": 26,
+      "elapsedMs": 25,
       "exitCode": 0,
       "signal": null,
-      "log": "073-financial-workbook-governance.test.mjs.log"
+      "log": "072-financial-workbook-governance.test.mjs.log"
     },
     {
       "test": "tools/fiscal-ytd.test.mjs",
       "status": "passed",
-      "elapsedMs": 24,
+      "elapsedMs": 27,
       "exitCode": 0,
       "signal": null,
-      "log": "074-fiscal-ytd.test.mjs.log"
+      "log": "073-fiscal-ytd.test.mjs.log"
     },
     {
       "test": "tools/forecast-contract-workflow-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 649,
+      "elapsedMs": 540,
       "exitCode": 0,
       "signal": null,
-      "log": "075-forecast-contract-workflow-db.test.cjs.log"
+      "log": "074-forecast-contract-workflow-db.test.cjs.log"
     },
     {
       "test": "tools/forecast-test-host-browser.test.mjs",
       "status": "passed",
-      "elapsedMs": 911,
+      "elapsedMs": 797,
       "exitCode": 0,
       "signal": null,
-      "log": "076-forecast-test-host-browser.test.mjs.log"
+      "log": "075-forecast-test-host-browser.test.mjs.log"
     },
     {
       "test": "tools/forecast-test-host.test.mjs",
       "status": "passed",
-      "elapsedMs": 44,
+      "elapsedMs": 42,
       "exitCode": 0,
       "signal": null,
-      "log": "077-forecast-test-host.test.mjs.log"
+      "log": "076-forecast-test-host.test.mjs.log"
     },
     {
       "test": "tools/home-bonus-performance.test.cjs",
       "status": "passed",
-      "elapsedMs": 35,
+      "elapsedMs": 31,
       "exitCode": 0,
       "signal": null,
-      "log": "078-home-bonus-performance.test.cjs.log"
+      "log": "077-home-bonus-performance.test.cjs.log"
     },
     {
       "test": "tools/home-history-performance.test.cjs",
       "status": "passed",
-      "elapsedMs": 39,
+      "elapsedMs": 38,
       "exitCode": 0,
       "signal": null,
-      "log": "079-home-history-performance.test.cjs.log"
+      "log": "078-home-history-performance.test.cjs.log"
     },
     {
       "test": "tools/home-navigation-yield.test.cjs",
       "status": "passed",
-      "elapsedMs": 85,
+      "elapsedMs": 83,
       "exitCode": 0,
       "signal": null,
-      "log": "080-home-navigation-yield.test.cjs.log"
+      "log": "079-home-navigation-yield.test.cjs.log"
     },
     {
       "test": "tools/home-startup-yield.test.cjs",
       "status": "passed",
-      "elapsedMs": 40,
+      "elapsedMs": 34,
       "exitCode": 0,
       "signal": null,
-      "log": "081-home-startup-yield.test.cjs.log"
+      "log": "080-home-startup-yield.test.cjs.log"
     },
     {
       "test": "tools/import-evidence-context.test.cjs",
       "status": "passed",
-      "elapsedMs": 32,
+      "elapsedMs": 28,
       "exitCode": 0,
       "signal": null,
-      "log": "082-import-evidence-context.test.cjs.log"
+      "log": "081-import-evidence-context.test.cjs.log"
     },
     {
       "test": "tools/import-history-browser.test.mjs",
       "status": "passed",
-      "elapsedMs": 910,
+      "elapsedMs": 955,
       "exitCode": 0,
       "signal": null,
-      "log": "083-import-history-browser.test.mjs.log"
+      "log": "082-import-history-browser.test.mjs.log"
     },
     {
       "test": "tools/import-history-integration.test.cjs",
       "status": "passed",
-      "elapsedMs": 37,
+      "elapsedMs": 36,
       "exitCode": 0,
       "signal": null,
-      "log": "084-import-history-integration.test.cjs.log"
+      "log": "083-import-history-integration.test.cjs.log"
     },
     {
       "test": "tools/import-history-storage.test.mjs",
       "status": "passed",
-      "elapsedMs": 4376,
+      "elapsedMs": 4303,
       "exitCode": 0,
       "signal": null,
-      "log": "085-import-history-storage.test.mjs.log"
+      "log": "084-import-history-storage.test.mjs.log"
     },
     {
       "test": "tools/import-history.test.mjs",
       "status": "passed",
-      "elapsedMs": 30,
+      "elapsedMs": 28,
       "exitCode": 0,
       "signal": null,
-      "log": "086-import-history.test.mjs.log"
+      "log": "085-import-history.test.mjs.log"
     },
     {
       "test": "tools/import-learning-mapping.test.cjs",
       "status": "passed",
-      "elapsedMs": 67,
+      "elapsedMs": 70,
       "exitCode": 0,
       "signal": null,
-      "log": "087-import-learning-mapping.test.cjs.log"
+      "log": "086-import-learning-mapping.test.cjs.log"
     },
     {
       "test": "tools/import-period-selection.test.cjs",
       "status": "passed",
-      "elapsedMs": 58,
+      "elapsedMs": 57,
       "exitCode": 0,
       "signal": null,
-      "log": "088-import-period-selection.test.cjs.log"
+      "log": "087-import-period-selection.test.cjs.log"
     },
     {
       "test": "tools/investor-active-reforecast.test.cjs",
       "status": "passed",
-      "elapsedMs": 93,
+      "elapsedMs": 83,
       "exitCode": 0,
       "signal": null,
-      "log": "089-investor-active-reforecast.test.cjs.log"
+      "log": "088-investor-active-reforecast.test.cjs.log"
     },
     {
       "test": "tools/investor-budget-bridge.test.cjs",
       "status": "passed",
-      "elapsedMs": 209,
+      "elapsedMs": 175,
       "exitCode": 0,
       "signal": null,
-      "log": "090-investor-budget-bridge.test.cjs.log"
+      "log": "089-investor-budget-bridge.test.cjs.log"
     },
     {
       "test": "tools/investor-packet-sources.test.cjs",
       "status": "passed",
-      "elapsedMs": 47,
+      "elapsedMs": 37,
       "exitCode": 0,
       "signal": null,
-      "log": "091-investor-packet-sources.test.cjs.log"
+      "log": "090-investor-packet-sources.test.cjs.log"
     },
     {
       "test": "tools/investor-packet-ui.test.cjs",
       "status": "passed",
-      "elapsedMs": 60,
+      "elapsedMs": 57,
       "exitCode": 0,
       "signal": null,
-      "log": "092-investor-packet-ui.test.cjs.log"
+      "log": "091-investor-packet-ui.test.cjs.log"
     },
     {
       "test": "tools/investor-packet.test.cjs",
       "status": "passed",
-      "elapsedMs": 116,
+      "elapsedMs": 94,
       "exitCode": 0,
       "signal": null,
-      "log": "093-investor-packet.test.cjs.log"
+      "log": "092-investor-packet.test.cjs.log"
     },
     {
       "test": "tools/lazy-workbook-consumers.test.cjs",
       "status": "passed",
-      "elapsedMs": 33,
+      "elapsedMs": 26,
       "exitCode": 0,
       "signal": null,
-      "log": "094-lazy-workbook-consumers.test.cjs.log"
+      "log": "093-lazy-workbook-consumers.test.cjs.log"
     },
     {
       "test": "tools/lead-source-contract.test.cjs",
       "status": "passed",
-      "elapsedMs": 31,
+      "elapsedMs": 25,
       "exitCode": 0,
       "signal": null,
-      "log": "095-lead-source-contract.test.cjs.log"
+      "log": "094-lead-source-contract.test.cjs.log"
     },
     {
       "test": "tools/lead-source-history.test.cjs",
       "status": "passed",
-      "elapsedMs": 27,
+      "elapsedMs": 23,
       "exitCode": 0,
       "signal": null,
-      "log": "096-lead-source-history.test.cjs.log"
+      "log": "095-lead-source-history.test.cjs.log"
     },
     {
       "test": "tools/lead-source-integration.test.cjs",
       "status": "passed",
-      "elapsedMs": 63,
+      "elapsedMs": 59,
       "exitCode": 0,
       "signal": null,
-      "log": "097-lead-source-integration.test.cjs.log"
+      "log": "096-lead-source-integration.test.cjs.log"
     },
     {
       "test": "tools/lead-source-mapping-store.test.cjs",
       "status": "passed",
-      "elapsedMs": 24,
+      "elapsedMs": 23,
       "exitCode": 0,
       "signal": null,
-      "log": "098-lead-source-mapping-store.test.cjs.log"
+      "log": "097-lead-source-mapping-store.test.cjs.log"
     },
     {
       "test": "tools/lead-source-report-parity.test.cjs",
       "status": "passed",
-      "elapsedMs": 68,
+      "elapsedMs": 60,
       "exitCode": 0,
       "signal": null,
-      "log": "099-lead-source-report-parity.test.cjs.log"
+      "log": "098-lead-source-report-parity.test.cjs.log"
     },
     {
       "test": "tools/mapping-review-actions.test.cjs",
       "status": "passed",
-      "elapsedMs": 65,
+      "elapsedMs": 60,
       "exitCode": 0,
       "signal": null,
-      "log": "100-mapping-review-actions.test.cjs.log"
-    },
-    {
-      "test": "tools/market-survey-save.test.cjs",
-      "status": "passed",
-      "elapsedMs": 221,
-      "exitCode": 0,
-      "signal": null,
-      "log": "101-market-survey-save.test.cjs.log"
-    },
-    {
-      "test": "tools/market-survey-sync.test.cjs",
-      "status": "passed",
-      "elapsedMs": 95,
-      "exitCode": 0,
-      "signal": null,
-      "log": "102-market-survey-sync.test.cjs.log"
+      "log": "099-mapping-review-actions.test.cjs.log"
     },
     {
       "test": "tools/marketing-cache-scope.test.cjs",
       "status": "passed",
-      "elapsedMs": 37,
+      "elapsedMs": 39,
       "exitCode": 0,
       "signal": null,
-      "log": "103-marketing-cache-scope.test.cjs.log"
+      "log": "100-marketing-cache-scope.test.cjs.log"
     },
     {
       "test": "tools/migration-archive.test.cjs",
       "status": "passed",
-      "elapsedMs": 39,
+      "elapsedMs": 36,
       "exitCode": 0,
       "signal": null,
-      "log": "104-migration-archive.test.cjs.log"
+      "log": "101-migration-archive.test.cjs.log"
     },
     {
       "test": "tools/migration-history-replay.test.cjs",
       "status": "passed",
-      "elapsedMs": 1069,
+      "elapsedMs": 1101,
       "exitCode": 0,
       "signal": null,
-      "log": "105-migration-history-replay.test.cjs.log"
+      "log": "102-migration-history-replay.test.cjs.log"
     },
     {
       "test": "tools/migration-history.test.mjs",
       "status": "passed",
-      "elapsedMs": 33,
+      "elapsedMs": 32,
       "exitCode": 0,
       "signal": null,
-      "log": "106-migration-history.test.mjs.log"
+      "log": "103-migration-history.test.mjs.log"
     },
     {
       "test": "tools/migration-restore.test.cjs",
       "status": "passed",
-      "elapsedMs": 52,
+      "elapsedMs": 50,
       "exitCode": 0,
       "signal": null,
-      "log": "107-migration-restore.test.cjs.log"
+      "log": "104-migration-restore.test.cjs.log"
     },
     {
       "test": "tools/missing-central-client-browser.test.mjs",
       "status": "passed",
-      "elapsedMs": 492,
+      "elapsedMs": 518,
       "exitCode": 0,
       "signal": null,
-      "log": "108-missing-central-client-browser.test.mjs.log"
+      "log": "105-missing-central-client-browser.test.mjs.log"
     },
     {
       "test": "tools/monthly-source-performance.test.cjs",
       "status": "passed",
-      "elapsedMs": 36,
+      "elapsedMs": 40,
       "exitCode": 0,
       "signal": null,
-      "log": "109-monthly-source-performance.test.cjs.log"
+      "log": "106-monthly-source-performance.test.cjs.log"
     },
     {
       "test": "tools/occupancy-contract.test.cjs",
       "status": "passed",
-      "elapsedMs": 76,
+      "elapsedMs": 81,
       "exitCode": 0,
       "signal": null,
-      "log": "110-occupancy-contract.test.cjs.log"
+      "log": "107-occupancy-contract.test.cjs.log"
     },
     {
       "test": "tools/occupancy-financial-import.test.cjs",
       "status": "passed",
-      "elapsedMs": 69,
+      "elapsedMs": 72,
       "exitCode": 0,
       "signal": null,
-      "log": "111-occupancy-financial-import.test.cjs.log"
+      "log": "108-occupancy-financial-import.test.cjs.log"
     },
     {
       "test": "tools/occupancy-history-stabilization.test.cjs",
       "status": "passed",
-      "elapsedMs": 68,
+      "elapsedMs": 74,
       "exitCode": 0,
       "signal": null,
-      "log": "112-occupancy-history-stabilization.test.cjs.log"
+      "log": "109-occupancy-history-stabilization.test.cjs.log"
     },
     {
       "test": "tools/occupancy-publication-safety.test.cjs",
       "status": "passed",
-      "elapsedMs": 62,
+      "elapsedMs": 69,
       "exitCode": 0,
       "signal": null,
-      "log": "113-occupancy-publication-safety.test.cjs.log"
+      "log": "110-occupancy-publication-safety.test.cjs.log"
     },
     {
       "test": "tools/occupancy-recommendations.test.cjs",
       "status": "passed",
-      "elapsedMs": 64,
+      "elapsedMs": 70,
       "exitCode": 0,
       "signal": null,
-      "log": "114-occupancy-recommendations.test.cjs.log"
+      "log": "111-occupancy-recommendations.test.cjs.log"
     },
     {
       "test": "tools/occupancy-replay-browser-performance.test.cjs",
       "status": "passed",
-      "elapsedMs": 35,
+      "elapsedMs": 36,
       "exitCode": 0,
       "signal": null,
-      "log": "115-occupancy-replay-browser-performance.test.cjs.log"
+      "log": "112-occupancy-replay-browser-performance.test.cjs.log"
     },
     {
       "test": "tools/occupancy-scoped-replay.test.cjs",
       "status": "passed",
-      "elapsedMs": 32,
+      "elapsedMs": 33,
       "exitCode": 0,
       "signal": null,
-      "log": "116-occupancy-scoped-replay.test.cjs.log"
+      "log": "113-occupancy-scoped-replay.test.cjs.log"
     },
     {
       "test": "tools/operational-cache-scope.test.cjs",
       "status": "passed",
-      "elapsedMs": 41,
+      "elapsedMs": 39,
       "exitCode": 0,
       "signal": null,
-      "log": "117-operational-cache-scope.test.cjs.log"
+      "log": "114-operational-cache-scope.test.cjs.log"
     },
     {
       "test": "tools/original-budget-workbook-governance-db.test.mjs",
       "status": "passed",
-      "elapsedMs": 1716,
+      "elapsedMs": 1764,
       "exitCode": 0,
       "signal": null,
-      "log": "118-original-budget-workbook-governance-db.test.mjs.log"
+      "log": "115-original-budget-workbook-governance-db.test.mjs.log"
     },
     {
       "test": "tools/package-atlas-assets.test.mjs",
       "status": "passed",
-      "elapsedMs": 524,
+      "elapsedMs": 553,
       "exitCode": 0,
       "signal": null,
-      "log": "119-package-atlas-assets.test.mjs.log"
+      "log": "116-package-atlas-assets.test.mjs.log"
     },
     {
       "test": "tools/people-employee-access.test.cjs",
       "status": "passed",
-      "elapsedMs": 60,
+      "elapsedMs": 64,
       "exitCode": 0,
       "signal": null,
-      "log": "120-people-employee-access.test.cjs.log"
+      "log": "117-people-employee-access.test.cjs.log"
     },
     {
       "test": "tools/performance-assets.test.cjs",
       "status": "passed",
-      "elapsedMs": 112,
+      "elapsedMs": 100,
       "exitCode": 0,
       "signal": null,
-      "log": "121-performance-assets.test.cjs.log"
+      "log": "118-performance-assets.test.cjs.log"
     },
     {
       "test": "tools/performance-diagnostics.test.cjs",
@@ -981,71 +957,71 @@
       "elapsedMs": 28,
       "exitCode": 0,
       "signal": null,
-      "log": "122-performance-diagnostics.test.cjs.log"
+      "log": "119-performance-diagnostics.test.cjs.log"
     },
     {
       "test": "tools/planning-governance-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 2203,
+      "elapsedMs": 827,
       "exitCode": 0,
       "signal": null,
-      "log": "123-planning-governance-db.test.cjs.log"
+      "log": "120-planning-governance-db.test.cjs.log"
     },
     {
       "test": "tools/planning-governance.test.mjs",
       "status": "passed",
-      "elapsedMs": 42,
+      "elapsedMs": 24,
       "exitCode": 0,
       "signal": null,
-      "log": "124-planning-governance.test.mjs.log"
+      "log": "121-planning-governance.test.mjs.log"
     },
     {
       "test": "tools/presentation-input-cache.test.cjs",
       "status": "passed",
-      "elapsedMs": 90,
+      "elapsedMs": 62,
       "exitCode": 0,
       "signal": null,
-      "log": "125-presentation-input-cache.test.cjs.log"
+      "log": "122-presentation-input-cache.test.cjs.log"
     },
     {
       "test": "tools/profile-access-hardening-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 1134,
+      "elapsedMs": 739,
       "exitCode": 0,
       "signal": null,
-      "log": "126-profile-access-hardening-db.test.cjs.log"
+      "log": "123-profile-access-hardening-db.test.cjs.log"
     },
     {
       "test": "tools/property-intelligence.test.cjs",
       "status": "passed",
-      "elapsedMs": 67,
+      "elapsedMs": 51,
       "exitCode": 0,
       "signal": null,
-      "log": "127-property-intelligence.test.cjs.log"
+      "log": "124-property-intelligence.test.cjs.log"
     },
     {
       "test": "tools/property-organization.test.cjs",
       "status": "passed",
-      "elapsedMs": 37,
+      "elapsedMs": 26,
       "exitCode": 0,
       "signal": null,
-      "log": "128-property-organization.test.cjs.log"
+      "log": "125-property-organization.test.cjs.log"
     },
     {
       "test": "tools/property-specials-api.test.mjs",
       "status": "passed",
-      "elapsedMs": 56,
+      "elapsedMs": 44,
       "exitCode": 0,
       "signal": null,
-      "log": "129-property-specials-api.test.mjs.log"
+      "log": "126-property-specials-api.test.mjs.log"
     },
     {
       "test": "tools/property-specials-store.test.mjs",
       "status": "passed",
-      "elapsedMs": 382,
+      "elapsedMs": 314,
       "exitCode": 0,
       "signal": null,
-      "log": "130-property-specials-store.test.mjs.log"
+      "log": "127-property-specials-store.test.mjs.log"
     },
     {
       "test": "tools/property-specials.test.mjs",
@@ -1053,7 +1029,7 @@
       "elapsedMs": 28,
       "exitCode": 0,
       "signal": null,
-      "log": "131-property-specials.test.mjs.log"
+      "log": "128-property-specials.test.mjs.log"
     },
     {
       "test": "tools/reforecast-actuals-navigation.test.cjs",
@@ -1061,621 +1037,557 @@
       "elapsedMs": 29,
       "exitCode": 0,
       "signal": null,
-      "log": "132-reforecast-actuals-navigation.test.cjs.log"
+      "log": "129-reforecast-actuals-navigation.test.cjs.log"
     },
     {
       "test": "tools/reforecast-approval-rollback.test.cjs",
       "status": "passed",
-      "elapsedMs": 1860,
+      "elapsedMs": 935,
       "exitCode": 0,
       "signal": null,
-      "log": "133-reforecast-approval-rollback.test.cjs.log"
+      "log": "130-reforecast-approval-rollback.test.cjs.log"
     },
     {
       "test": "tools/reforecast-bonus-current-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 2296,
+      "elapsedMs": 996,
       "exitCode": 0,
       "signal": null,
-      "log": "134-reforecast-bonus-current-db.test.cjs.log"
+      "log": "131-reforecast-bonus-current-db.test.cjs.log"
     },
     {
       "test": "tools/reforecast-bonus-receipts-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 717,
+      "elapsedMs": 517,
       "exitCode": 0,
       "signal": null,
-      "log": "135-reforecast-bonus-receipts-db.test.cjs.log"
+      "log": "132-reforecast-bonus-receipts-db.test.cjs.log"
     },
     {
       "test": "tools/reforecast-bonus.test.mjs",
       "status": "passed",
-      "elapsedMs": 37,
+      "elapsedMs": 33,
       "exitCode": 0,
       "signal": null,
-      "log": "136-reforecast-bonus.test.mjs.log"
+      "log": "133-reforecast-bonus.test.mjs.log"
     },
     {
       "test": "tools/reforecast-builder-browser.test.mjs",
       "status": "passed",
-      "elapsedMs": 2879,
+      "elapsedMs": 2586,
       "exitCode": 0,
       "signal": null,
-      "log": "137-reforecast-builder-browser.test.mjs.log"
+      "log": "134-reforecast-builder-browser.test.mjs.log"
     },
     {
       "test": "tools/reforecast-builder-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 1153,
+      "elapsedMs": 1151,
       "exitCode": 0,
       "signal": null,
-      "log": "138-reforecast-builder-db.test.cjs.log"
+      "log": "135-reforecast-builder-db.test.cjs.log"
     },
     {
       "test": "tools/reforecast-builder-integration-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 1283,
+      "elapsedMs": 1538,
       "exitCode": 0,
       "signal": null,
-      "log": "139-reforecast-builder-integration-db.test.cjs.log"
+      "log": "136-reforecast-builder-integration-db.test.cjs.log"
     },
     {
       "test": "tools/reforecast-builder-ui.test.mjs",
       "status": "passed",
-      "elapsedMs": 46,
+      "elapsedMs": 72,
       "exitCode": 0,
       "signal": null,
-      "log": "140-reforecast-builder-ui.test.mjs.log"
+      "log": "137-reforecast-builder-ui.test.mjs.log"
     },
     {
       "test": "tools/reforecast-builder-upgrade-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 802,
+      "elapsedMs": 1491,
       "exitCode": 0,
       "signal": null,
-      "log": "141-reforecast-builder-upgrade-db.test.cjs.log"
-    },
-    {
-      "test": "tools/reforecast-close-scope-db.test.cjs",
-      "status": "passed",
-      "elapsedMs": 692,
-      "exitCode": 0,
-      "signal": null,
-      "log": "142-reforecast-close-scope-db.test.cjs.log"
+      "log": "138-reforecast-builder-upgrade-db.test.cjs.log"
     },
     {
       "test": "tools/reforecast-community-reports-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 1022,
+      "elapsedMs": 620,
       "exitCode": 0,
       "signal": null,
-      "log": "143-reforecast-community-reports-db.test.cjs.log"
+      "log": "139-reforecast-community-reports-db.test.cjs.log"
     },
     {
       "test": "tools/reforecast-consumers.test.mjs",
       "status": "passed",
-      "elapsedMs": 74,
+      "elapsedMs": 50,
       "exitCode": 0,
       "signal": null,
-      "log": "144-reforecast-consumers.test.mjs.log"
+      "log": "140-reforecast-consumers.test.mjs.log"
     },
     {
       "test": "tools/reforecast-engine.test.mjs",
       "status": "passed",
-      "elapsedMs": 351,
+      "elapsedMs": 201,
       "exitCode": 0,
       "signal": null,
-      "log": "145-reforecast-engine.test.mjs.log"
+      "log": "141-reforecast-engine.test.mjs.log"
     },
     {
       "test": "tools/reforecast-governance-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 907,
+      "elapsedMs": 669,
       "exitCode": 0,
       "signal": null,
-      "log": "146-reforecast-governance-db.test.cjs.log"
+      "log": "142-reforecast-governance-db.test.cjs.log"
     },
     {
       "test": "tools/reforecast-import-ui.test.mjs",
       "status": "passed",
-      "elapsedMs": 32,
+      "elapsedMs": 35,
       "exitCode": 0,
       "signal": null,
-      "log": "147-reforecast-import-ui.test.mjs.log"
+      "log": "143-reforecast-import-ui.test.mjs.log"
     },
     {
       "test": "tools/reforecast-intake.test.mjs",
       "status": "passed",
-      "elapsedMs": 111,
+      "elapsedMs": 103,
       "exitCode": 0,
       "signal": null,
-      "log": "148-reforecast-intake.test.mjs.log"
+      "log": "144-reforecast-intake.test.mjs.log"
     },
     {
       "test": "tools/reforecast-mapped-budget.test.mjs",
       "status": "passed",
-      "elapsedMs": 415,
+      "elapsedMs": 431,
       "exitCode": 0,
       "signal": null,
-      "log": "149-reforecast-mapped-budget.test.mjs.log"
+      "log": "145-reforecast-mapped-budget.test.mjs.log"
     },
     {
       "test": "tools/reforecast-original-baseline-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 573,
+      "elapsedMs": 837,
       "exitCode": 0,
       "signal": null,
-      "log": "150-reforecast-original-baseline-db.test.cjs.log"
+      "log": "146-reforecast-original-baseline-db.test.cjs.log"
     },
     {
       "test": "tools/reforecast-parity.test.cjs",
       "status": "passed",
-      "elapsedMs": 820,
+      "elapsedMs": 804,
       "exitCode": 0,
       "signal": null,
-      "log": "151-reforecast-parity.test.cjs.log"
+      "log": "147-reforecast-parity.test.cjs.log"
     },
     {
       "test": "tools/reforecast-provider-browser.test.mjs",
       "status": "passed",
-      "elapsedMs": 2972,
+      "elapsedMs": 2641,
       "exitCode": 0,
       "signal": null,
-      "log": "152-reforecast-provider-browser.test.mjs.log"
+      "log": "148-reforecast-provider-browser.test.mjs.log"
     },
     {
       "test": "tools/reforecast-provider.test.mjs",
       "status": "passed",
-      "elapsedMs": 115,
+      "elapsedMs": 112,
       "exitCode": 0,
       "signal": null,
-      "log": "153-reforecast-provider.test.mjs.log"
+      "log": "149-reforecast-provider.test.mjs.log"
     },
     {
       "test": "tools/reforecast-publication-history.test.mjs",
       "status": "passed",
-      "elapsedMs": 40,
+      "elapsedMs": 37,
       "exitCode": 0,
       "signal": null,
-      "log": "154-reforecast-publication-history.test.mjs.log"
+      "log": "150-reforecast-publication-history.test.mjs.log"
     },
     {
       "test": "tools/reforecast-report-receipts-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 908,
+      "elapsedMs": 754,
       "exitCode": 0,
       "signal": null,
-      "log": "155-reforecast-report-receipts-db.test.cjs.log"
+      "log": "151-reforecast-report-receipts-db.test.cjs.log"
     },
     {
       "test": "tools/reforecast-report.test.mjs",
       "status": "passed",
-      "elapsedMs": 225,
+      "elapsedMs": 241,
       "exitCode": 0,
       "signal": null,
-      "log": "156-reforecast-report.test.mjs.log"
+      "log": "152-reforecast-report.test.mjs.log"
     },
     {
       "test": "tools/reforecast-review-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 748,
+      "elapsedMs": 832,
       "exitCode": 0,
       "signal": null,
-      "log": "157-reforecast-review-db.test.cjs.log"
+      "log": "153-reforecast-review-db.test.cjs.log"
     },
     {
       "test": "tools/reforecast-store.test.mjs",
       "status": "passed",
-      "elapsedMs": 771,
+      "elapsedMs": 731,
       "exitCode": 0,
       "signal": null,
-      "log": "158-reforecast-store.test.mjs.log"
-    },
-    {
-      "test": "tools/reforecast-str-overlay-db.test.cjs",
-      "status": "passed",
-      "elapsedMs": 1709,
-      "exitCode": 0,
-      "signal": null,
-      "log": "159-reforecast-str-overlay-db.test.cjs.log"
+      "log": "154-reforecast-store.test.mjs.log"
     },
     {
       "test": "tools/reforecast-ui-browser.test.mjs",
       "status": "passed",
-      "elapsedMs": 3616,
+      "elapsedMs": 3122,
       "exitCode": 0,
       "signal": null,
-      "log": "160-reforecast-ui-browser.test.mjs.log"
+      "log": "155-reforecast-ui-browser.test.mjs.log"
     },
     {
       "test": "tools/reforecast-ui.test.mjs",
       "status": "passed",
-      "elapsedMs": 47,
+      "elapsedMs": 44,
       "exitCode": 0,
       "signal": null,
-      "log": "161-reforecast-ui.test.mjs.log"
+      "log": "156-reforecast-ui.test.mjs.log"
     },
     {
       "test": "tools/reforecast-utility-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 758,
+      "elapsedMs": 655,
       "exitCode": 0,
       "signal": null,
-      "log": "162-reforecast-utility-db.test.cjs.log"
+      "log": "157-reforecast-utility-db.test.cjs.log"
     },
     {
       "test": "tools/reforecast-utility.test.mjs",
       "status": "passed",
-      "elapsedMs": 30,
+      "elapsedMs": 32,
       "exitCode": 0,
       "signal": null,
-      "log": "163-reforecast-utility.test.mjs.log"
+      "log": "158-reforecast-utility.test.mjs.log"
     },
     {
       "test": "tools/renewal-multiperiod.test.cjs",
       "status": "passed",
-      "elapsedMs": 79,
+      "elapsedMs": 77,
       "exitCode": 0,
       "signal": null,
-      "log": "164-renewal-multiperiod.test.cjs.log"
+      "log": "159-renewal-multiperiod.test.cjs.log"
     },
     {
       "test": "tools/reporting-repair.test.cjs",
       "status": "passed",
-      "elapsedMs": 56,
+      "elapsedMs": 53,
       "exitCode": 0,
       "signal": null,
-      "log": "165-reporting-repair.test.cjs.log"
-    },
-    {
-      "test": "tools/reports-default-memo.test.mjs",
-      "status": "passed",
-      "elapsedMs": 746,
-      "exitCode": 0,
-      "signal": null,
-      "log": "166-reports-default-memo.test.mjs.log"
-    },
-    {
-      "test": "tools/reports-detail-recommendations.test.cjs",
-      "status": "passed",
-      "elapsedMs": 35,
-      "exitCode": 0,
-      "signal": null,
-      "log": "167-reports-detail-recommendations.test.cjs.log"
+      "log": "160-reporting-repair.test.cjs.log"
     },
     {
       "test": "tools/reports-monthly-memo.test.cjs",
       "status": "passed",
-      "elapsedMs": 44,
+      "elapsedMs": 38,
       "exitCode": 0,
       "signal": null,
-      "log": "168-reports-monthly-memo.test.cjs.log"
+      "log": "161-reports-monthly-memo.test.cjs.log"
     },
     {
       "test": "tools/reports-mount-performance.test.mjs",
       "status": "passed",
-      "elapsedMs": 403,
+      "elapsedMs": 618,
       "exitCode": 0,
       "signal": null,
-      "log": "169-reports-mount-performance.test.mjs.log"
-    },
-    {
-      "test": "tools/reports-yoy-source.test.cjs",
-      "status": "passed",
-      "elapsedMs": 30,
-      "exitCode": 0,
-      "signal": null,
-      "log": "170-reports-yoy-source.test.cjs.log"
+      "log": "162-reports-mount-performance.test.mjs.log"
     },
     {
       "test": "tools/scoped-workspace-projection-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 945,
+      "elapsedMs": 1202,
       "exitCode": 0,
       "signal": null,
-      "log": "171-scoped-workspace-projection-db.test.cjs.log"
+      "log": "163-scoped-workspace-projection-db.test.cjs.log"
     },
     {
       "test": "tools/scout-reforecast.test.mjs",
       "status": "passed",
-      "elapsedMs": 50,
+      "elapsedMs": 67,
       "exitCode": 0,
       "signal": null,
-      "log": "172-scout-reforecast.test.mjs.log"
+      "log": "164-scout-reforecast.test.mjs.log"
     },
     {
       "test": "tools/screening-client.test.cjs",
       "status": "passed",
-      "elapsedMs": 66,
+      "elapsedMs": 89,
       "exitCode": 0,
       "signal": null,
-      "log": "173-screening-client.test.cjs.log"
+      "log": "165-screening-client.test.cjs.log"
     },
     {
       "test": "tools/shared-graph-cas.test.cjs",
       "status": "passed",
-      "elapsedMs": 44,
+      "elapsedMs": 68,
       "exitCode": 0,
       "signal": null,
-      "log": "174-shared-graph-cas.test.cjs.log"
+      "log": "166-shared-graph-cas.test.cjs.log"
     },
     {
       "test": "tools/shared-import-cache.test.cjs",
       "status": "passed",
-      "elapsedMs": 58,
+      "elapsedMs": 61,
       "exitCode": 0,
       "signal": null,
-      "log": "175-shared-import-cache.test.cjs.log"
+      "log": "167-shared-import-cache.test.cjs.log"
     },
     {
       "test": "tools/source-reconciliation.test.cjs",
       "status": "passed",
-      "elapsedMs": 108,
+      "elapsedMs": 135,
       "exitCode": 0,
       "signal": null,
-      "log": "176-source-reconciliation.test.cjs.log"
+      "log": "168-source-reconciliation.test.cjs.log"
     },
     {
       "test": "tools/staffing-performance.test.cjs",
       "status": "passed",
-      "elapsedMs": 31,
+      "elapsedMs": 60,
       "exitCode": 0,
       "signal": null,
-      "log": "177-staffing-performance.test.cjs.log"
+      "log": "169-staffing-performance.test.cjs.log"
     },
     {
       "test": "tools/staffing-turnover.test.cjs",
       "status": "passed",
-      "elapsedMs": 32,
+      "elapsedMs": 96,
       "exitCode": 0,
       "signal": null,
-      "log": "178-staffing-turnover.test.cjs.log"
+      "log": "170-staffing-turnover.test.cjs.log"
     },
     {
       "test": "tools/startup-performance.test.cjs",
       "status": "passed",
-      "elapsedMs": 64,
+      "elapsedMs": 101,
       "exitCode": 0,
       "signal": null,
-      "log": "179-startup-performance.test.cjs.log"
+      "log": "171-startup-performance.test.cjs.log"
     },
     {
       "test": "tools/storage-capacity.test.cjs",
       "status": "passed",
-      "elapsedMs": 63,
+      "elapsedMs": 92,
       "exitCode": 0,
       "signal": null,
-      "log": "180-storage-capacity.test.cjs.log"
+      "log": "172-storage-capacity.test.cjs.log"
     },
     {
       "test": "tools/student-occupancy-basis.test.cjs",
       "status": "passed",
-      "elapsedMs": 62,
+      "elapsedMs": 91,
       "exitCode": 0,
       "signal": null,
-      "log": "181-student-occupancy-basis.test.cjs.log"
+      "log": "173-student-occupancy-basis.test.cjs.log"
     },
     {
       "test": "tools/synchronous-render-access.test.cjs",
       "status": "passed",
-      "elapsedMs": 29,
+      "elapsedMs": 41,
       "exitCode": 0,
       "signal": null,
-      "log": "182-synchronous-render-access.test.cjs.log"
+      "log": "174-synchronous-render-access.test.cjs.log"
     },
     {
       "test": "tools/trending-boundaries.test.cjs",
       "status": "passed",
-      "elapsedMs": 60,
+      "elapsedMs": 91,
       "exitCode": 0,
       "signal": null,
-      "log": "183-trending-boundaries.test.cjs.log"
+      "log": "175-trending-boundaries.test.cjs.log"
     },
     {
       "test": "tools/utility-forecast-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 539,
+      "elapsedMs": 733,
       "exitCode": 0,
       "signal": null,
-      "log": "184-utility-forecast-db.test.cjs.log"
+      "log": "176-utility-forecast-db.test.cjs.log"
     },
     {
       "test": "tools/utility-forecast.test.mjs",
       "status": "passed",
-      "elapsedMs": 32,
+      "elapsedMs": 30,
       "exitCode": 0,
       "signal": null,
-      "log": "185-utility-forecast.test.mjs.log"
+      "log": "177-utility-forecast.test.mjs.log"
     },
     {
       "test": "tools/utility-report-lineage.test.cjs",
       "status": "passed",
-      "elapsedMs": 68,
+      "elapsedMs": 65,
       "exitCode": 0,
       "signal": null,
-      "log": "186-utility-report-lineage.test.cjs.log"
+      "log": "178-utility-report-lineage.test.cjs.log"
     },
     {
       "test": "tools/weekly-funnel.test.cjs",
       "status": "passed",
-      "elapsedMs": 31,
+      "elapsedMs": 36,
       "exitCode": 0,
       "signal": null,
-      "log": "187-weekly-funnel.test.cjs.log"
-    },
-    {
-      "test": "tools/workbook-audit-chunks-db.test.mjs",
-      "status": "passed",
-      "elapsedMs": 4819,
-      "exitCode": 0,
-      "signal": null,
-      "log": "188-workbook-audit-chunks-db.test.mjs.log"
+      "log": "179-weekly-funnel.test.cjs.log"
     },
     {
       "test": "tools/workbook-integrity.test.mjs",
       "status": "passed",
-      "elapsedMs": 66,
+      "elapsedMs": 70,
       "exitCode": 0,
       "signal": null,
-      "log": "189-workbook-integrity.test.mjs.log"
+      "log": "180-workbook-integrity.test.mjs.log"
     },
     {
       "test": "tools/workbook-performance.test.cjs",
       "status": "passed",
-      "elapsedMs": 246,
+      "elapsedMs": 251,
       "exitCode": 0,
       "signal": null,
-      "log": "190-workbook-performance.test.cjs.log"
-    },
-    {
-      "test": "tools/workbook-rich-images.test.mjs",
-      "status": "passed",
-      "elapsedMs": 49,
-      "exitCode": 0,
-      "signal": null,
-      "log": "191-workbook-rich-images.test.mjs.log"
-    },
-    {
-      "test": "tools/workbook-transport-diagnostics.test.cjs",
-      "status": "passed",
-      "elapsedMs": 2062,
-      "exitCode": 0,
-      "signal": null,
-      "log": "192-workbook-transport-diagnostics.test.cjs.log"
+      "log": "181-workbook-performance.test.cjs.log"
     },
     {
       "test": "tools/workforce-assignment.test.cjs",
       "status": "passed",
-      "elapsedMs": 30,
+      "elapsedMs": 32,
       "exitCode": 0,
       "signal": null,
-      "log": "193-workforce-assignment.test.cjs.log"
+      "log": "182-workforce-assignment.test.cjs.log"
     },
     {
       "test": "tools/workforce-events-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 546,
+      "elapsedMs": 559,
       "exitCode": 0,
       "signal": null,
-      "log": "194-workforce-events-db.test.cjs.log"
+      "log": "183-workforce-events-db.test.cjs.log"
     },
     {
       "test": "tools/workforce-sync.test.cjs",
       "status": "passed",
-      "elapsedMs": 25,
+      "elapsedMs": 24,
       "exitCode": 0,
       "signal": null,
-      "log": "195-workforce-sync.test.cjs.log"
+      "log": "184-workforce-sync.test.cjs.log"
     },
     {
       "test": "tools/workspace-bootstrap.test.mjs",
       "status": "passed",
-      "elapsedMs": 26,
+      "elapsedMs": 27,
       "exitCode": 0,
       "signal": null,
-      "log": "196-workspace-bootstrap.test.mjs.log"
+      "log": "185-workspace-bootstrap.test.mjs.log"
     },
     {
       "test": "tools/workspace-extraction.test.cjs",
       "status": "passed",
-      "elapsedMs": 186,
+      "elapsedMs": 182,
       "exitCode": 0,
       "signal": null,
-      "log": "197-workspace-extraction.test.cjs.log"
+      "log": "186-workspace-extraction.test.cjs.log"
     },
     {
       "test": "tools/workspace-integrity-browser.test.mjs",
       "status": "passed",
-      "elapsedMs": 627,
+      "elapsedMs": 677,
       "exitCode": 0,
       "signal": null,
-      "log": "198-workspace-integrity-browser.test.mjs.log"
+      "log": "187-workspace-integrity-browser.test.mjs.log"
     },
     {
       "test": "tools/workspace-loader-scope.test.cjs",
       "status": "passed",
-      "elapsedMs": 32,
+      "elapsedMs": 36,
       "exitCode": 0,
       "signal": null,
-      "log": "199-workspace-loader-scope.test.cjs.log"
+      "log": "188-workspace-loader-scope.test.cjs.log"
     },
     {
       "test": "tools/workspace-metadata-performance.test.cjs",
       "status": "passed",
-      "elapsedMs": 31,
+      "elapsedMs": 32,
       "exitCode": 0,
       "signal": null,
-      "log": "200-workspace-metadata-performance.test.cjs.log"
+      "log": "189-workspace-metadata-performance.test.cjs.log"
     },
     {
       "test": "tools/workspace-projection-browser.test.mjs",
       "status": "passed",
-      "elapsedMs": 302,
+      "elapsedMs": 343,
       "exitCode": 0,
       "signal": null,
-      "log": "201-workspace-projection-browser.test.mjs.log"
+      "log": "190-workspace-projection-browser.test.mjs.log"
     },
     {
       "test": "tools/workspace-projection-publisher-db.test.cjs",
       "status": "passed",
-      "elapsedMs": 1188,
+      "elapsedMs": 1150,
       "exitCode": 0,
       "signal": null,
-      "log": "202-workspace-projection-publisher-db.test.cjs.log"
+      "log": "191-workspace-projection-publisher-db.test.cjs.log"
     },
     {
       "test": "tools/workspace-publication.test.mjs",
       "status": "passed",
-      "elapsedMs": 38,
+      "elapsedMs": 35,
       "exitCode": 0,
       "signal": null,
-      "log": "203-workspace-publication.test.mjs.log"
+      "log": "192-workspace-publication.test.mjs.log"
     },
     {
       "test": "tools/workspace-restore.test.cjs",
       "status": "passed",
-      "elapsedMs": 73,
+      "elapsedMs": 59,
       "exitCode": 0,
       "signal": null,
-      "log": "204-workspace-restore.test.cjs.log"
+      "log": "193-workspace-restore.test.cjs.log"
     },
     {
       "test": "tools/workspace-save-flow.test.cjs",
       "status": "passed",
-      "elapsedMs": 42,
+      "elapsedMs": 37,
       "exitCode": 0,
       "signal": null,
-      "log": "205-workspace-save-flow.test.cjs.log"
+      "log": "194-workspace-save-flow.test.cjs.log"
     },
     {
       "test": "tools/workspace-stale-completion.test.cjs",
       "status": "passed",
-      "elapsedMs": 36,
+      "elapsedMs": 31,
       "exitCode": 0,
       "signal": null,
-      "log": "206-workspace-stale-completion.test.cjs.log"
+      "log": "195-workspace-stale-completion.test.cjs.log"
     },
     {
       "test": "tools/workspace-startup-browser.test.mjs",
       "status": "passed",
-      "elapsedMs": 1072,
+      "elapsedMs": 1130,
       "exitCode": 0,
       "signal": null,
-      "log": "207-workspace-startup-browser.test.mjs.log"
+      "log": "196-workspace-startup-browser.test.mjs.log"
     },
     {
       "test": "test-ticker.mjs",
       "status": "passed",
-      "elapsedMs": 45,
+      "elapsedMs": 49,
       "exitCode": 0,
       "signal": null,
-      "log": "208-test-ticker.mjs.log"
+      "log": "197-test-ticker.mjs.log"
     }
   ],
-  "passed": 208,
+  "passed": 197,
   "failed": 0,
   "skipped": 0,
-  "finishedAt": "2026-09-25T00:18:05.685Z",
-  "finalInputFingerprint": "0b2a296e210d087dad55894a0dccd282e6e96a4553db2ea804dc64f94f40d62f",
+  "finishedAt": "2026-09-24T23:26:41.759Z",
+  "finalInputFingerprint": "6fd2836ca1ef597922daa3f5c7faf227033bc0e47c3fff6d57ac9f1956ad8369",
   "sourceChangedDuringRun": false
 }

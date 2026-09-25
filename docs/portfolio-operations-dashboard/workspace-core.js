@@ -9189,8 +9189,8 @@ function buildCommunityDetailForMonth(name, sourceRecord, monthIdx, year = new D
     currentOccupied: Math.min(Math.max(0, scopedOccupiedComparable + corporateUnits), totalUnits || scopedOccupiedComparable + corporateUnits),
     currentLeased: Math.min(Math.max(0, scopedLeasedComparable + corporateUnits), totalUnits || scopedLeasedComparable + corporateUnits)
   };
-  const summary = getCommunitySummary(name, scopedRecord);
-  return summary ? {
+  const summary = options.includeSummary === false ? null : getCommunitySummary(name, scopedRecord);
+  return summary || options.includeSummary === false ? {
     name,
     record: scopedRecord,
     summary,
@@ -13830,7 +13830,69 @@ function setTab(i) {
   window.AtlasPerformance?.memory("after-navigation");
 }
 
+// Access/source events cannot interleave with a synchronous render. Reuse only
+// read-only decisions inside this stack; never retain them across an await,
+// user action, subsequent render, or error.
+let atlasSynchronousReadScope = null;
+function withAtlasSynchronousReadScope(callback) {
+  const previous = atlasSynchronousReadScope;
+  atlasSynchronousReadScope ||= new Map();
+  try { return callback(); }
+  finally { atlasSynchronousReadScope = previous; }
+}
+function atlasSynchronousReadValue(key, callback) {
+  if (!atlasSynchronousReadScope) return callback();
+  if (!atlasSynchronousReadScope.has(key)) atlasSynchronousReadScope.set(key, callback());
+  return atlasSynchronousReadScope.get(key);
+}
+
+let atlasHomeRenderPreparation = null;
+function renderAtlasHomePreparationError(panel, error) {
+  delete panel.dataset.atlasHomePreparing;
+  panel.removeAttribute("aria-busy");
+  panel.dataset.atlasHomeError = "1";
+  const retry = atlasDashboardInitializationComplete && !document.body.classList.contains("atlas-is-initializing") ? "renderTab()" : "initializeAtlasDashboard()";
+  panel.innerHTML = `<div class="card" role="alert">The dashboard could not finish loading. ${escapeHtml(error?.message || error)} <button class="btn" onclick="${retry}">Retry</button></div>`;
+}
+function prepareAtlasHomeRender(panel) {
+  const context = getAtlasRenderContextKey(), epoch = atlasWorkspaceAccess.epoch;
+  panel.dataset.atlasHomePreparing = "1";
+  delete panel.dataset.atlasHomeError;
+  panel.setAttribute("aria-busy", "true");
+  panel.innerHTML = '<div class="card" role="status">Loading your dashboard…</div>';
+  if (atlasHomeRenderPreparation?.context === context && atlasHomeRenderPreparation.epoch === epoch) return;
+  const request = {context, epoch};
+  atlasHomeRenderPreparation = request;
+  const current = () => atlasHomeRenderPreparation === request && context === getAtlasRenderContextKey()
+    && epoch === atlasWorkspaceAccess.epoch && shouldRenderAtlasWelcomeDashboard()
+    && !shouldBlockAtlasSensitiveAccess() && atlasAccessDecision(activeTab).ok
+    && (!getAtlasCentralStatus().configured || atlasWorkspaceAccess.validated && atlasWorkspaceAccess.hasData);
+  const yieldTask = () => {
+    if (typeof window.scheduler?.yield === "function") return window.scheduler.yield();
+    if (typeof MessageChannel === "function") return new Promise(resolve => {
+      const channel = new MessageChannel();
+      channel.port1.onmessage = () => { channel.port1.close(); channel.port2.close(); resolve(); };
+      channel.port2.postMessage(null);
+    });
+    return new Promise(resolve => setTimeout(resolve, 0));
+  };
+  request.task = window.AtlasReskin.prepareInitialHome({current, yieldTask}).then(() => {
+    if (!current()) return;
+    atlasHomeRenderPreparation = null;
+    // No async boundary between the final context check and the fresh render.
+    // If an input changed during preparation, the exact key requests new work.
+    renderTab();
+    return true;
+  }).catch(error => {
+    if (!current()) return false;
+    atlasHomeRenderPreparation = null;
+    renderAtlasHomePreparationError(panel, error);
+    return false;
+  }).finally(() => { if (atlasHomeRenderPreparation === request) atlasHomeRenderPreparation = null; });
+}
+
 function renderTab() {
+  if (atlasHomeRenderPreparation && (atlasHomeRenderPreparation.context !== getAtlasRenderContextKey() || atlasHomeRenderPreparation.epoch !== atlasWorkspaceAccess.epoch)) atlasHomeRenderPreparation = null;
   if (typeof hydrateAtlasSharedApplications === "function" && hydrateAtlasSharedApplications.pending && hydrateAtlasSharedApplications.pending.context !== getAtlasRenderContextKey()) hydrateAtlasSharedApplications.pending.controller.abort();
   if (atlasCanonicalImportEvidencePromise && atlasCanonicalImportEvidencePromise.context !== getAtlasRenderContextKey()) atlasCanonicalImportEvidencePromise.controller.abort();
   const centralStatus = getAtlasCentralStatus();
@@ -13905,7 +13967,10 @@ function renderTab() {
       } else if (shouldRenderAtlasWelcomeDashboard()) {
         if (activeTab === 13) delete panel.dataset.atlasPeopleMounted;
         delete panel.dataset.atlasStableMountMounted;
-        panel.innerHTML = renderAtlasWelcomeDashboard();
+        panel.innerHTML = withAtlasSynchronousReadScope(() => renderAtlasWelcomeDashboard());
+        delete panel.dataset.atlasHomePreparing;
+        delete panel.dataset.atlasHomeError;
+        panel.removeAttribute("aria-busy");
       } else if (shouldBlockAtlasSensitiveAccess()) {
         if (activeTab === 13) delete panel.dataset.atlasPeopleMounted;
         delete panel.dataset.atlasStableMountMounted;
@@ -13915,8 +13980,8 @@ function renderTab() {
         delete panel.dataset.atlasStableMountMounted;
         panel.innerHTML = renderAtlasAccessDeniedPanel(atlasAccessDecision(activeTab).reason);
       } else {
-        if (activeTab === 8 && window.AtlasReports) window.AtlasReports.renderInto(panel, renderer());
-        else panel.innerHTML = renderer();
+        if (activeTab === 8 && window.AtlasReports) window.AtlasReports.renderInto(panel, withAtlasSynchronousReadScope(renderer));
+        else panel.innerHTML = withAtlasSynchronousReadScope(renderer);
         if (activeTab === 9 && retainedBonusWorkflow) {
           panel.querySelector("#atlas-bonus-shared-workflow")?.replaceWith(retainedBonusWorkflow);
           if (retainedBonusFocus?.isConnected) retainedBonusFocus.focus({ preventScroll: true });
@@ -13926,6 +13991,11 @@ function renderTab() {
         queueAtlasCentralPeopleLoad();
       }
     } catch (error) {
+      if (error?.code === "ATLAS_HOME_PREPARATION_REQUIRED" && shouldRenderAtlasWelcomeDashboard()) {
+        prepareAtlasHomeRender(panel);
+      } else {
+      delete panel.dataset.atlasHomePreparing;
+      panel.removeAttribute("aria-busy");
       console.error("Tab failed to render", { activeTab, error });
       const activeLabel = document.querySelector(`.tab[data-tab="${activeTab}"]`)?.textContent?.trim() || `Tab ${activeTab}`;
       const errorDetail = String(error?.message || error || "Unknown render error");
@@ -13933,6 +14003,7 @@ function renderTab() {
         <div class="card-title" style="margin-bottom:8px">${escapeHtml(activeLabel)}</div>
         <div class="alert-red">This section hit a render issue and did not finish loading. ${escapeHtml(errorDetail)}</div>
       </div>`;
+      }
     }
   }
   document.querySelectorAll(".tab-panel").forEach(p => {
@@ -15648,41 +15719,60 @@ function atlasDashboardUserCanSeeCommunityName(name = "", profile = getAtlasAcce
 
 function atlasExactPresentationInputString(input) {
   const paths = new WeakMap(), exceptional = [];
+  const inputPath = (holder, key) => {
+    let link = paths.get(holder);
+    if (!link) return [];
+    const path = [key];
+    while (link.parent) { path.push(link.key); link = link.parent; }
+    return path.reverse();
+  };
   const text = JSON.stringify(input, function(key, value) {
     const raw = this[key];
-    if (raw && typeof raw === "object" && (typeof raw.toJSON === "function" ||
-        (!Array.isArray(raw) && ![Object.prototype, null].includes(Object.getPrototypeOf(raw))))) throw new Error("Non-plain report input");
+    // Reject toJSON conversion (and unstable getters) without checking every
+    // ordinary object's prototype twice.
+    if (raw && typeof raw === "object" && raw !== value) throw new Error("Non-plain report input");
     if (value && typeof value === "object") {
       const prototype = Object.getPrototypeOf(value);
-      if (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null) throw new Error("Non-plain report input");
-      paths.set(value, paths.has(this) ? [...paths.get(this), key] : []);
+      if (typeof value.toJSON === "function" || (prototype !== null &&
+          prototype !== (Array.isArray(value) ? Array.prototype : Object.prototype))) throw new Error("Non-plain report input");
+      // Paths are only materialized for exceptional leaves. Retaining parent
+      // links also handles an aliased subtree at each of its actual locations.
+      paths.set(value, { parent: paths.get(this) || null, key });
     }
     if (typeof value === "function" || typeof value === "symbol" || typeof value === "bigint") throw new Error("Unsupported report input");
+    const hole = Array.isArray(this) && !Object.prototype.hasOwnProperty.call(this, key);
+    if (hole) exceptional.push([inputPath(this, key), "hole"]);
     if (value === undefined || (typeof value === "number" && (!Number.isFinite(value) || Object.is(value, -0)))) {
-      exceptional.push([paths.has(this) ? [...paths.get(this), key] : [], value === undefined ? "undefined" : Object.is(value, -0) ? "-0" : String(value)]);
+      if (!hole || value !== undefined) exceptional.push([inputPath(this, key), value === undefined ? "undefined" : Object.is(value, -0) ? "-0" : String(value)]);
       return null;
     }
     return value;
   });
-  return JSON.stringify([text, exceptional]);
+  // The length makes the boundary unambiguous without escaping/copying the
+  // complete JSON text a second time. Cache keys are never persisted.
+  return text.length + ":" + text + JSON.stringify(exceptional);
 }
 
 let atlasHomeRenderDetails = null;
-function atlasHomePortfolioDetails(month) {
-  if (!atlasHomeRenderDetails) return buildPortfolioDetailsForMonth(month,savedData,new Date().getFullYear(),{includeRecommendations:false});
-  if (!atlasHomeRenderDetails.has(month)) atlasHomeRenderDetails.set(month, buildPortfolioDetailsForMonth(month,savedData,new Date().getFullYear(),{includeRecommendations:false}));
-  return atlasHomeRenderDetails.get(month);
+function atlasHomePortfolioDetails(month, options = {}) {
+  const key = options.includeSummary === false ? `metadata:${month}` : month;
+  const build = () => buildPortfolioDetailsForMonth(month, savedData, new Date().getFullYear(), {includeRecommendations:false, includeSummary:options.includeSummary !== false});
+  if (!atlasHomeRenderDetails) return build();
+  if (!atlasHomeRenderDetails.has(key)) atlasHomeRenderDetails.set(key, build());
+  return atlasHomeRenderDetails.get(key);
 }
 
 function getAtlasDashboardAuthorizedCommunityOptions() {
   if (atlasHomeRenderDetails?.has("authorized")) return atlasHomeRenderDetails.get("authorized");
-  const detailNames = new Set(atlasHomePortfolioDetails(getSelectedDashboardMonthIndex()).map(detail => detail.name));
+  // A portfolio detail can only come from a truthy saved record. This selector
+  // needs names and access metadata, so calculating every community's financial
+  // summary adds no authorized names to the result.
   const options = getCommunityNamesByStatusScope({
       communityStatusMode: "active",
       includeCurrentSelection: true,
       includeDraft: true
     })
-    .filter(name => detailNames.has(name) || savedData?.[name] || name === getProp().name)
+    .filter(name => savedData?.[name] || name === getProp().name)
     .filter(name => atlasDashboardUserCanSeeCommunityName(name))
     .map(name => {
       const property = getAtlasSharedPropertyByName(name) || {};
@@ -15705,13 +15795,13 @@ function atlasDashboardDistinctOptionValues(field = "") {
   return Array.from(new Set(getAtlasDashboardAuthorizedCommunityOptions().map(item => String(item[field] || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
 }
 
-function buildAtlasDashboardScopedDetails(instance = {}) {
+function buildAtlasDashboardScopedDetails(instance = {}, options = {}) {
   const monthIdx = getSelectedDashboardMonthIndex();
   const scope = normalizeAtlasDashboardScopeConfig(instance.scope);
   const authorized = getAtlasDashboardAuthorizedCommunityOptions();
   const authorizedNames = new Set(authorized.map(item => item.name));
   const metaByName = new Map(authorized.map(item => [item.name, item]));
-  let details = atlasHomePortfolioDetails(monthIdx)
+  let details = atlasHomePortfolioDetails(monthIdx, options)
     .filter(detail => isCommunityStatusActive(detail.record))
     .filter(detail => authorizedNames.has(detail.name));
   if (scope.type === "single_property") {
@@ -17802,7 +17892,7 @@ function getAtlasDashboardDataContext(monthIdx = getSelectedDashboardMonthIndex(
 function renderAtlasWelcomeDashboard() {
   const previous = atlasHomeRenderDetails;
   atlasHomeRenderDetails = new Map();
-  try { return window.AtlasReskin.home(); }
+  try { return window.AtlasReskin.home({preparedOnly:true}); }
   finally { atlasHomeRenderDetails = previous; }
 }
 
@@ -22349,7 +22439,9 @@ function communityCommandGoalScope(propName, monthIdx, year) {
 }
 
 function communityCommandSharedGoalScope(propName, monthIdx, year) {
-  if (!syncCommunityCommandGoalContext().current()) return undefined;
+  const validate = () => syncCommunityCommandGoalContext().current();
+  if (!(typeof atlasSynchronousReadValue === "function"
+    ? atlasSynchronousReadValue("community-goal-access", validate) : validate())) return undefined;
   return atlasCommunityGoalStore.scopes.get(communityCommandGoalScope(propName, monthIdx, year).key);
 }
 
@@ -23439,7 +23531,9 @@ function queueCommunityRosterFinancials(items) {
 }
 
 function renderPortfolioScopedCommunityCommandTab() {
-  const details = getWorkspaceScopedDetails(getSelectedDashboardMonthIndex())
+  // Roster models consume records, not detail recommendations. Preserve the
+  // selected period's normalized snapshots while omitting unused advice.
+  const details = getWorkspaceScopedDetails(getSelectedDashboardMonthIndex(), {includeRecommendations:false,includeSummary:false})
     .filter(detail => isCommunityStatusActive(detail.record))
     .filter(detail => atlasDashboardUserCanSeeCommunityName(detail.name));
   const rosterItems = buildCommunityCommandPortfolioRosterItems(details);
@@ -42189,6 +42283,7 @@ function buildDlrInvestorOverviewDocument(report) {
   </body></html>`;
 }
 
+const COMMUNITY_PROGRESS_TREND_DETAIL_OPTIONS = Object.freeze({includeRecommendations:false});
 function buildCommunityProgressTrendRows(report) {
   const getMonthEndComparableUnits = (record, totalUnits, monthIdx, snapshotKey) => {
     const monthEntries = getRecordMonthlyDataForYear(record, report?.reportYear);
@@ -42220,7 +42315,7 @@ function buildCommunityProgressTrendRows(report) {
       record: entry.sourceRecord
     }));
     const rows = MONTHS.slice(0, selectedMonthIdx + 1).map((monthLabel, monthIdx) => {
-      const details = communityRecords.map(({ name, record }) => buildCommunityDetailForMonth(name, record, monthIdx, report.reportYear)).filter(Boolean);
+      const details = communityRecords.map(({ name, record }) => buildCommunityDetailForMonth(name, record, monthIdx, report.reportYear, COMMUNITY_PROGRESS_TREND_DETAIL_OPTIONS)).filter(Boolean);
       const summaries = details.map(detail => detail.summary);
       const aggregate = aggregateCommunitySummaries(summaries);
       const budgetOccPct = aggregate.budgetOccPct > 0 ? aggregate.budgetOccPct : null;
@@ -42273,7 +42368,7 @@ function buildCommunityProgressTrendRows(report) {
   const communityName = report.communityName || getCommunityProgressReportCommunityName();
   const selectedMonthIdx = Number.isInteger(report.reportMonthIdx) ? clampNumber(report.reportMonthIdx, 0, 11) : getReportHubMonthIndex();
   const rows = MONTHS.slice(0, selectedMonthIdx + 1).map((monthLabel, monthIdx) => {
-    const detail = buildCommunityDetailForMonth(communityName, record, monthIdx, report.reportYear) || {};
+    const detail = buildCommunityDetailForMonth(communityName, record, monthIdx, report.reportYear, COMMUNITY_PROGRESS_TREND_DETAIL_OPTIONS) || {};
     const summary = detail.summary || {};
     const monthEntry = monthEntries[monthIdx] ?? {};
     const budgetOccPct = getRecordSavedBudgetOccPct(record, monthIdx, report.reportYear);
@@ -42455,13 +42550,11 @@ function buildCommunityProgressYoyApplicationsSummary(report) {
         .map(item => ({
           communityName: item.communityName,
           record: item.sourceRecord,
-          detail: buildCommunityDetailForMonth(item.communityName, item.sourceRecord, monthIdx, year)
         }))
         .filter(item => item.record)
     : [{
         communityName: report.communityName,
         record: report.sourceRecord,
-        detail: buildCommunityDetailForMonth(report.communityName, report.sourceRecord, monthIdx, year)
       }].filter(item => item.record);
   const summarizeDelta = (currentValue, previousValue) => ({
     currentValue: Math.max(0, Number(currentValue) || 0),
@@ -43319,7 +43412,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
     if (!silent) alert("Save community data first, then the Community Progress report can build from the selected community.");
     return null;
   }
-  const detail = buildCommunityDetailForMonth(communityName, record, monthIdx, year);
+  const detail = buildCommunityDetailForMonth(communityName, record, monthIdx, year, COMMUNITY_PROGRESS_TREND_DETAIL_OPTIONS);
   if (!detail) {
     if (!silent) alert("Save community data first, then the Community Progress report can build from the selected community.");
     return null;
@@ -43607,7 +43700,7 @@ function buildCommunityProgressReportData(options = {}) {
   const occupancyPct = getSummaryOccPct(aggregateSummary);
   const leasedPct = getSummaryLeasedPct(aggregateSummary);
   const marketDetails = communityReports
-    .map(item => buildCommunityDetailForMonth(item.communityName, item.sourceRecord, monthIdx, year))
+    .map(item => buildCommunityDetailForMonth(item.communityName, item.sourceRecord, monthIdx, year, COMMUNITY_PROGRESS_TREND_DETAIL_OPTIONS))
     .filter(Boolean);
   const marketPerformance = buildCommunityProgressMarketPerformance(marketDetails, monthIdx, year);
   const floorPlanRentComparisonRows = aggregateCommunityProgressBedroomRentComparisonRows(communityReports);
@@ -43651,7 +43744,7 @@ function buildCommunityProgressReportData(options = {}) {
     .filter(idx => idx >= monthIdx)
     .slice(0, 4)
     .map(idx => {
-      const monthlyDetails = communityReports.map(item => buildCommunityDetailForMonth(item.communityName, item.sourceRecord, idx, year)).filter(Boolean);
+      const monthlyDetails = communityReports.map(item => buildCommunityDetailForMonth(item.communityName, item.sourceRecord, idx, year, COMMUNITY_PROGRESS_TREND_DETAIL_OPTIONS)).filter(Boolean);
       const monthlySummary = aggregateCommunitySummaries(monthlyDetails.map(item => item.summary));
       const renewal = {
         expirations: monthlySummary.renewalExpirations,
@@ -53212,6 +53305,7 @@ function renderAtlasStartupLoadingState() {
     panel.style.display = index === 0 ? "block" : "none";
   });
   const homePanel = document.getElementById("tab-panel-0");
+  if (homePanel) { delete homePanel.dataset.atlasHomePreparing; delete homePanel.dataset.atlasHomeError; homePanel.removeAttribute("aria-busy"); }
   if (homePanel) homePanel.innerHTML = '<div class="card atlas-startup-card"><div><i class="ph ph-circle-notch" aria-hidden="true"></i><strong>Loading ATLAS workspace</strong><span>Checking your session, reporting period, and saved community scope.</span></div></div>';
 }
 
@@ -53299,12 +53393,24 @@ async function runAtlasInitialRenderPassYielding(current) {
   await yieldTask();if(!current())return false;
   if(shouldRenderAtlasWelcomeDashboard() && window.AtlasReskin?.prepareInitialHome) {
     const context=getAtlasRenderContextKey();
-    await window.AtlasReskin.prepareInitialHome({current:()=>current() && context===getAtlasRenderContextKey(),yieldTask});
+    try {
+      await window.AtlasReskin.prepareInitialHome({current:()=>current() && context===getAtlasRenderContextKey(),yieldTask});
+    } catch (error) {
+      if(current() && context===getAtlasRenderContextKey()) {
+        const panel=document.getElementById("tab-panel-0");
+        if(panel)renderAtlasHomePreparationError(panel,error);
+      }
+      return false;
+    }
     if(!current())return false;
   }
   await yieldTask();if(!current())return false;
-  finishAtlasStartupLoadingState();
   runAtlasStartupStep("render active tab",()=>renderTab());
+  while (atlasHomeRenderPreparation) {
+    if (await atlasHomeRenderPreparation.task === false || !current()) return false;
+  }
+  if(!current())return false;
+  finishAtlasStartupLoadingState();
   return true;
 }
 

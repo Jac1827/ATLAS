@@ -60,6 +60,10 @@
     {
       "from": "20260925015549_reforecast_import_source_occurrence_index.sql",
       "to": "20260925020226_reforecast_import_source_occurrence_index.sql"
+    },
+    {
+      "from": "20260925033500_workbook_raw_json_canonical.sql",
+      "to": "20260925032350_workbook_raw_json_canonical.sql"
     }
   ],
   "records": [
@@ -784,6 +788,14 @@
       "bytes": 4899,
       "md5": "5b758d7da59cf676d2dc286781142fe8",
       "sha256": "e029365512f2d1b3069d841653f85ec39b115d5bf63552f5dcd2dbf477626a91"
+    },
+    {
+      "version": "20260925032350",
+      "name": "workbook_raw_json_canonical",
+      "file": "20260925032350_workbook_raw_json_canonical.sql",
+      "bytes": 3091,
+      "md5": "b3e30502f637cf44304e18621f790468",
+      "sha256": "d29b37a36932bd07c2b46575942a83f4c1e3fff0f03e261fa063686fdef1e841"
     }
   ]
 }

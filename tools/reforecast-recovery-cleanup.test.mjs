@@ -22,6 +22,13 @@ await seed();const unrelatedId='workbook:'+'b'.repeat(64)+':'+parserVersion;awai
 // A second tab may reuse the review ID and persist newer mapping fields. The
 // completed request owns only its frozen review version, never those new edits.
 await seed();await saveForecastRecoveryEntries(central,[{id:evidenceId,value:{kind:'workbook-evidence',evidence:evidenceBefore.evidence},ifAbsent:true},{id:'review-one',value:{kind:'import-review',reviewVersion:'newer-version',evidenceId,fields:{reason:'Newer unsaved mapping from another tab'}}}]);await completeForecastImportRecovery(central,{recoveryId:'write-one',result});assert.equal((await readForecastRecovery(central,'review-one')).fields.reason,'Newer unsaved mapping from another tab');assert(await readForecastRecovery(central,evidenceId));
+// A versionless legacy pair cannot prove which review fields were submitted.
+// Keep its verified request as receipt-only ownership instead of exposing that
+// review as an unfinished import which could create a duplicate forecast.
+for(const missing of ['request','review','both']){
+ await seed();const pending=await readForecastRecovery(central,'write-one'),review=await readForecastRecovery(central,'review-one');if(missing!=='review')delete pending.reviewVersion;if(missing!=='request')delete review.reviewVersion;review.fields={reason:'Unknown legacy or newer review'};await saveForecastRecovery(central,'write-one',pending);await saveForecastRecovery(central,'review-one',review);
+ for(let replay=0;replay<2;replay++){await completeForecastImportRecovery(central,{recoveryId:'write-one',result});const retained=await readForecastRecovery(central,'write-one');assert.equal(retained.kind,'import-complete');assert.equal(retained.reviewOwnership,'unproven');assert.equal(retained.verifiedRevisionId,result.revision.revision_id);assert.deepEqual(retained.request,request);assert.equal((await readForecastRecovery(central,'review-one')).fields.reason,review.fields.reason);assert(await readForecastRecovery(central,evidenceId));}
+}
 // A still-open tab can edit after cleanup. Conditional acquisition restores the
 // shared bytes atomically with its newly persisted review, without an orphan.
 await seed();await completeForecastImportRecovery(central,{recoveryId:'write-one',result});assert.equal(await readForecastRecovery(central,evidenceId),null);await saveForecastRecoveryEntries(central,[{id:evidenceId,value:{kind:'workbook-evidence',evidence:evidenceBefore.evidence},ifAbsent:true},{id:'review-one',value:{kind:'import-review',reviewVersion:'late-version',evidenceId}}]);assert.deepEqual((await readForecastRecovery(central,evidenceId)).evidence,evidenceBefore.evidence);assert.equal((await readForecastRecovery(central,'review-one')).reviewVersion,'late-version');

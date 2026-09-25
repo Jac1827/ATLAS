@@ -91,10 +91,11 @@ function retainReview(state,includeEvidence=false){
  state.recoveryPromise=(state.recoveryPromise||Promise.resolve()).catch(()=>{}).then(()=>{guard(state);return saveForecastRecoveryEntries(state.central,[{id:state.evidenceId,value:{kind:'workbook-evidence',evidence:state.evidence},ifAbsent:!includeEvidence},{id:state.reviewId,value}]);});
  state.recoveryPromise.catch(error=>showStatus(state,'Recovery could not be saved: '+error.message,true));return state.recoveryPromise;
 }
+function assertReviewNotCompleted(rows,reviewId){if(rows.some(row=>row.kind==='import-complete'&&row.reviewId===reviewId&&row.reviewOwnership==='unproven'))throw Error('This older review belongs to a saved import. Open its receipt-only recovery to read the saved forecast; the retained review cannot authorize another import.');}
 async function prepareRecovery(state){
  state.evidenceId='workbook:'+state.evidence.source.sha256+':'+state.evidence.parserVersion;
  const reviews=await listForecastRecovery(state.central),prior=reviews.find(row=>row.kind==='import-review'&&row.evidenceId===state.evidenceId&&row.purpose===(state.purpose||'reforecast')&&(!state.upload||row.uploadId===state.upload.upload_id));
- if(prior){Object.assign(state,prior.fields);state.selected=new Set(prior.selected);state.reviewId=prior.id;const retained=await readForecastRecovery(state.central,state.evidenceId);if(retained?.evidence?.parserVersion===currentReforecastParserVersion&&retained?.evidence?.integrity?.fingerprint===state.scopedFingerprint)state.evidence=retained.evidence;else state.scopeSelectionKey=null;}
+ if(prior){try{assertReviewNotCompleted(reviews,prior.id);}catch(error){state.el.close();throw error;}Object.assign(state,prior.fields);state.selected=new Set(prior.selected);state.reviewId=prior.id;const retained=await readForecastRecovery(state.central,state.evidenceId);if(retained?.evidence?.parserVersion===currentReforecastParserVersion&&retained?.evidence?.integrity?.fingerprint===state.scopedFingerprint)state.evidence=retained.evidence;else state.scopeSelectionKey=null;}
  else state.reviewId='import-review:'+uid();
  await retainReview(state,true);guard(state);
  state.el.addEventListener('input',()=>{if(state.busy)return;if(state.el.querySelector('[data-scenario]'))readReviewFields(state);retainReview(state);});
@@ -258,6 +259,7 @@ export async function resumeReforecastImport({upload,uploadId,...options}) {
 }
 export async function resumeLocalReforecastImport({recoveryId,...options}){
  const recovery=await readForecastRecovery(options.central,recoveryId);if(recovery?.kind!=='import-review')throw Error('This unfinished import could not be recovered.');
+ assertReviewNotCompleted(await listForecastRecovery(options.central),recoveryId);
  if(recovery.uploadId)return resumeReforecastImport({...options,uploadId:recovery.uploadId});
  const saved=await readForecastRecovery(options.central,recovery.evidenceId);if(!saved?.evidence)throw Error('Retained workbook bytes are unavailable. Choose the original workbook again.');
  const upgraded=await upgradeReforecastParserEvidence(saved.evidence),state=createState(options,upgraded.evidence);if(upgraded.changed&&recovery.fields?.assignment)state.assignment={...recovery.fields.assignment,confirmed:false,explicit:false,actorId:state.actor};await prepareRecovery(state);renderProperty(state);showStatus(state,upgraded.changed?`UNSAVED — parser ${currentReforecastParserVersion} reread the exact retained workbook and recognized ${upgraded.upgrade.addedLineIds.length} additional source cells. Prior selections and approvals remain retained separately. Review the new evidence and mapping before applying.`:'UNSAVED — workbook and mapping recovered from this browser. Save immutable evidence, then create and verify the working forecast.');return state.el;

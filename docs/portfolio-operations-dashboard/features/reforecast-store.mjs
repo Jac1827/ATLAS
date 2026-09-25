@@ -9,7 +9,7 @@ const identity=central=>central.getSession?.()?.user?.id;
 function scope(id){if(!uuid.test(id))throw Error('Explicitly select an authorized ATLAS community.');}
 function request(id){if(!uuid.test(id))throw Error('A stable request ID is required to save safely.');}
 function actorGuard(central,actor){if(central.getSession&&identity(central)!==actor)throw Error('The signed-in account changed. Reopen this workspace before continuing.');}
-async function rpc(central,name,args){const actor=identity(central);await central.refreshSession?.();actorGuard(central,actor);const data=await central.fetchJson('/rpc/'+name,{method:'POST',body:JSON.stringify(args)});actorGuard(central,actor);return ['atlas_save_reforecast_upload','atlas_save_reforecast_registry','atlas_publish_reforecast','atlas_review_reforecast_source','atlas_save_forecast_contract'].includes(name)&&Array.isArray(data)?data[0]:data;}
+async function rpc(central,name,args,beforeRequest){const actor=identity(central);await central.refreshSession?.();actorGuard(central,actor);beforeRequest?.();const data=await central.fetchJson('/rpc/'+name,{method:'POST',body:JSON.stringify(args)});actorGuard(central,actor);return ['atlas_save_reforecast_upload','atlas_save_reforecast_registry','atlas_publish_reforecast','atlas_review_reforecast_source','atlas_save_forecast_contract'].includes(name)&&Array.isArray(data)?data[0]:data;}
 async function exactRecord(central,table,column,saved){
  if(!saved||!uuid.test(saved[column]))throw Error('Save was not confirmed. Your working edits are retained.');
  const rows=await central.fetchJson(`/${table}?${column}=eq.${saved[column]}&select=*&limit=1`);
@@ -42,10 +42,10 @@ export async function createFromImport(central,options){
  if(!Number.isInteger(expectedRevision)||expectedRevision<0||!mapping?.confirmed||!mapping.version)throw Error('A reviewed mapping and expected working revision are required.');
  // Always consult the receipt, including the first retry after a browser restart.
  // Failure to read is not evidence that the earlier write failed.
- const prior=await readImportReceipt(central,options);actorGuard(central,actor);
+ const prior=await readImportReceipt(central,options);actorGuard(central,actor);options.beforeWrite?.();
  if(prior)return verifyImportReadback(prior,options);
  let write;
- try{write=await rpc(central,'atlas_create_reforecast_from_import',{p_community_id:communityId,p_scenario_id:scenarioId,p_expected_revision:expectedRevision,p_request_id:requestId,p_upload_id:uploadId,p_mapping:mapping,p_payload:payload});}
+ try{write=await rpc(central,'atlas_create_reforecast_from_import',{p_community_id:communityId,p_scenario_id:scenarioId,p_expected_revision:expectedRevision,p_request_id:requestId,p_upload_id:uploadId,p_mapping:mapping,p_payload:payload},options.beforeWrite);}
  catch(error){
   let committed;try{committed=await readImportReceipt(central,options);}catch{throw Error('The import response is uncertain and its receipt is unavailable. Keep this request; check its receipt before retrying.');}
   actorGuard(central,actor);if(committed)return verifyImportReadback(committed,options);
@@ -56,11 +56,11 @@ export async function createFromImport(central,options){
  if(!readback||!equal(readback,write))throw Error('The import was sent, but exact server readback is not confirmed. Keep this request and check its receipt.');
  return verifyImportReadback(readback,options);
 }
-export async function saveRegistry(central,{communityId,expectedVersionId=null,requestId,payload}){
+export async function saveRegistry(central,{communityId,expectedVersionId=null,requestId,payload,beforeWrite}){
  scope(communityId);request(requestId);const actor=identity(central);
  const receipt=async()=>{const rows=await central.fetchJson(`/atlas_reforecast_registries?request_id=eq.${requestId}&community_id=eq.${communityId}&select=*&limit=1`);actorGuard(central,actor);if(!Array.isArray(rows)||rows.length>1)throw Error('The mapping save receipt is unavailable.');if(!rows.length)return null;const row=rows[0];if(row.community_id!==communityId||row.request_id!==requestId||row.created_by!==actor||(row.previous_version_id||null)!==expectedVersionId||!equal(row.payload,payload))throw Error('The mapping receipt differs from the retained reviewed request.');return row;};
  const prior=await receipt();if(prior)return prior;
- let saved;try{saved=await rpc(central,'atlas_save_reforecast_registry',{p_community_id:communityId,p_expected_version_id:expectedVersionId,p_request_id:requestId,p_payload:payload});}catch(error){const committed=await receipt();if(committed)return committed;throw error;}
+ let saved;try{saved=await rpc(central,'atlas_save_reforecast_registry',{p_community_id:communityId,p_expected_version_id:expectedVersionId,p_request_id:requestId,p_payload:payload},beforeWrite);}catch(error){const committed=await receipt();if(committed)return committed;throw error;}
  const result=await exactRecord(central,'atlas_reforecast_registries','version_id',saved);actorGuard(central,actor);return result;
 }
 export async function readSourceBundle(central,{communityId,periods,baselineVersionIds=null,registryVersionId=null}){
@@ -106,9 +106,9 @@ export async function reviewSource(central,{communityId,uploadId,requestId,revie
  const rows=await readSources(central,{communityId});actorGuard(central,actor);const receipt=rows.find(row=>(row.uploadId||row.upload_id)===uploadId);
  if(!receipt||receipt.reviewId!==saved?.review_id||receipt.reviewHash!==saved?.content_hash||receipt.review?.status!==review.status)throw Error('The source review was saved but its receipt is unavailable. Retry with the same request ID.');return {saved,receipt};
 }
-export async function saveScenario(central,{communityId,scenarioId,expectedRevision=0,requestId,action='save_draft',payload}){
+export async function saveScenario(central,{communityId,scenarioId,expectedRevision=0,requestId,action='save_draft',payload,beforeWrite}){
  scope(communityId);request(requestId);if(!uuid.test(scenarioId))throw Error('Keep a stable scenario ID across saves and retries.');const actor=identity(central);
- const result=await rpc(central,'atlas_save_reforecast_scenario',{p_community_id:communityId,p_scenario_id:scenarioId,p_expected_revision:expectedRevision,p_request_id:requestId,p_action:action,p_payload:payload});
+ const result=await rpc(central,'atlas_save_reforecast_scenario',{p_community_id:communityId,p_scenario_id:scenarioId,p_expected_revision:expectedRevision,p_request_id:requestId,p_action:action,p_payload:payload},beforeWrite);
  await exactRecord(central,'atlas_reforecast_revisions','revision_id',result?.revision);actorGuard(central,actor);
  const heads=await central.fetchJson(`/atlas_reforecast_heads?scenario_id=eq.${scenarioId}&select=*&limit=1`);
  if(heads?.[0]?.revision_id!==result.revision.revision_id)throw Error('Your changes were saved but a newer revision already exists. Keep your edits and reload the current scenario.');

@@ -1,5 +1,5 @@
 import {parseComparisonSheet,reconcileComparison,finalizeFinancialPackageEvidence} from './financial-package.mjs?v=a378a0cb25083758';
-import {auditWorkbook} from './workbook-integrity.mjs?v=c0a7997612845f22';
+import {auditWorkbook} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
 /* One normal-close candidate from the explicitly typed BCR column. Every other
    worksheet remains inventoried evidence; T12 is never a backfill instruction. */
 export async function parseFinancialWorkbook(buffer,{XLSX,sourceHash,sourceFile='',sourceBytes=buffer.byteLength,onProgress=()=>{},previousEvidence}={}){

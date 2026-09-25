@@ -1,16 +1,30 @@
 import assert from 'node:assert/strict';import fs from 'node:fs';import {randomUUID,createHash} from 'node:crypto';import {createRequire} from 'node:module';
+import {parseReforecastWorkbook} from '../docs/portfolio-operations-dashboard/features/reforecast-intake.mjs';
+import {persistWorkbookAudit} from '../docs/portfolio-operations-dashboard/features/workbook-audit-store.mjs';
 import * as store from '../docs/portfolio-operations-dashboard/features/reforecast-store.mjs';
 const require=createRequire(import.meta.url),{fixture}=require('./reforecast-fixture.cjs');
 const {db,A,B,BUDGET,signIn}=await fixture();let failAfterCommit=false,tamper=false,actor='00000000-0000-0000-0000-000000000001';
 const central={getSession:()=>({user:{id:actor}}),async fetchJson(path,options={}){
- if(path.startsWith('/rpc/')){const name=path.slice(5);assert(/^atlas_[a-z_]+$/.test(name));const args=Object.values(JSON.parse(options.body));const result=(await db.query(`select to_jsonb(${name}(${args.map((_,i)=>'$'+(i+1)).join(',')})) as result`,args.map(v=>v&&typeof v==='object'&&!Array.isArray(v)?JSON.stringify(v):v))).rows[0].result;if(failAfterCommit){failAfterCommit=false;throw Error('Connection lost after commit');}return ['atlas_save_reforecast_upload','atlas_save_reforecast_registry','atlas_publish_reforecast'].includes(name)?[result]:result;}
+ if(path.startsWith('/rpc/')){const name=path.slice(5);assert(/^atlas_[a-z_]+$/.test(name));const params=JSON.parse(options.body),args=Object.values(params),names=Object.keys(params);assert(names.every(name=>/^p_[a-z_]+$/.test(name)));const result=(await db.query(`select to_jsonb(${name}(${names.map((key,i)=>key+' => $'+(i+1)).join(',')})) as result`,args.map(v=>v&&typeof v==='object'&&!Array.isArray(v)?JSON.stringify(v):v))).rows[0].result;if(failAfterCommit){failAfterCommit=false;throw Error('Connection lost after commit');}return ['atlas_save_reforecast_upload','atlas_save_reforecast_registry','atlas_publish_reforecast'].includes(name)?[result]:result;}
  const url=new URL(path,'http://fixture'),table=url.pathname.slice(1);assert(/^atlas_reforecast_[a-z_]+$/.test(table));const filter=[...url.searchParams].find(([k,v])=>v.startsWith('eq.'));assert(filter);assert(['scenario_id','revision_id','upload_id','version_id','publication_id'].includes(filter[0]));const rows=(await db.query(`select to_jsonb(t) as row from ${table} t where ${filter[0]}=$1`,[filter[1].slice(3)])).rows.map(r=>r.row);
  if(tamper&&table==='atlas_reforecast_revisions'){tamper=false;rows[0].snapshot.fingerprint='tampered';}return rows;
 }};
+// Install the production workbook transport dependencies without upgrading the
+// legacy scenario engine that this test deliberately exercises before/after.
+await db.exec('reset role');
+const planning=fs.readFileSync(new URL('../supabase/migrations/20260924121641_planning_cell_workbook_integrity_governance.sql',import.meta.url),'utf8');
+await db.exec(planning.slice(0,planning.indexOf('create or replace function atlas_private.reforecast_planning_issues'))+'commit;');
+const audits=fs.readFileSync(new URL('../supabase/migrations/20260924121647_immutable_workbook_audits_and_monthly_governance.sql',import.meta.url),'utf8');
+await db.exec(audits.slice(0,audits.indexOf('alter function atlas_private.finance_intake_validation')));
+await db.exec(fs.readFileSync(new URL('../docs/portfolio-operations-dashboard/centralization/workbook-audit-chunks.sql',import.meta.url),'utf8'));await signIn(1);
+central.rpc=(name,args,options={})=>central.fetchJson('/rpc/'+name,{...options,method:'POST',body:JSON.stringify(args)});
 const accounts=[['5120','Rent','income','above_noi'],['5220','Vacancy','contra_income','above_noi'],['6100','Payroll','expense','above_noi'],['6200','Utilities','expense','above_noi'],['8100','Capital','capital','below_noi']].map(([accountCode,category,nature,placement])=>({accountCode,category,nature,placement,effectiveFrom:'2026-01'}));
 const registry=await store.saveRegistry(central,{communityId:A,requestId:randomUUID(),payload:{accounts,driverMappings:{payroll:['6100']},reason:'Reviewed source classification',effectiveDate:'2026-01-01'}});
 let source=await store.readSourceBundle(central,{communityId:A,periods:['2026-01','2026-02','2026-03']});assert.equal(source.registry.version,registry.version_id);
-const bytes=Buffer.from('PK fixture bytes');const upload=await store.saveUpload(central,{communityId:A,requestId:randomUUID(),payload:{source:{fileName:'Test.xlsx',sha256:createHash('sha256').update(bytes).digest('hex'),originalFile:{encoding:'base64',data:bytes.toString('base64')}},propertyAssignment:{communityId:A,confirmed:true},sheets:[{cells:[{value:0,formula:'1-1'}]}]}});assert.equal(upload.payload.sheets[0].cells[0].value,0);
+const XLSX=require('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js'),workbook=XLSX.utils.book_new();XLSX.utils.book_append_sheet(workbook,{A1:{t:'n',v:0,f:'1-1'},'!ref':'A1'},'Input');
+const bytes=Buffer.from(XLSX.write(workbook,{type:'buffer',bookType:'xlsx'})),sourceHash=createHash('sha256').update(bytes).digest('hex'),evidence=await parseReforecastWorkbook(bytes,{xlsx:XLSX,fileName:'Test.xlsx',includeOriginalBytes:true});
+const integrity=await persistWorkbookAudit(central,evidence.integrity,{communityId:A,sourceHash,sourceBytes:bytes});
+const upload=await store.saveUpload(central,{communityId:A,requestId:randomUUID(),payload:{...evidence,integrity,propertyAssignment:{communityId:A,confirmed:true}}});assert.equal(upload.payload.sheets[0].cells[0].value,0);
 let payload={name:'Governed working',model:'conventional',periods:source.periods,baselineVersionIds:[BUDGET],registryVersionId:registry.version_id,ownerId:actor,reviewerId:actor,drivers:[{id:'payroll',type:'payroll',operation:'percent_change',value:.1}],overrides:[],reason:'Budget variance review'};
 const scenarioId=randomUUID(),request={communityId:A,scenarioId,expectedRevision:0,requestId:randomUUID(),payload};
 failAfterCommit=true;await assert.rejects(()=>store.saveScenario(central,request),/lost/);let r=await store.saveScenario(central,request);assert.equal(r.head.revision,1);

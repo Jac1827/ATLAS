@@ -11,7 +11,7 @@ function fixture(initial=doc()){
  const localStorage={getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,String(v)),removeItem:k=>storage.delete(k)};
  const w={location:{origin:'https://fixture.invalid',pathname:'/',search:'',hash:''},history:{replaceState(){}},setTimeout:(...a)=>{const t=setTimeout(...a);t.unref();return t;},clearTimeout,addEventListener:(k,fn)=>{if(!events.has(k))events.set(k,[]);events.get(k).push(fn);},dispatchEvent:e=>{for(const f of events.get(e.type)||[])f(e);}};
  const response=(body,status=200)=>({ok:status===200,status,headers:{get:()=>null},text:async()=>JSON.stringify(body)});
- const c={window:w,document:{title:'Fixture'},localStorage,sessionStorage:localStorage,URL,URLSearchParams,Date,AbortController,DOMException,console,CustomEvent:class {constructor(type){this.type=type;}},fetch:async(url,options)=>{
+ const c={window:w,document:{title:'Fixture'},localStorage,sessionStorage:localStorage,URL,URLSearchParams,Date,AbortController,DOMException,performance,TextEncoder,console,CustomEvent:class {constructor(type){this.type=type;}},fetch:async(url,options)=>{
   const call={url,options,kind:String(url).includes('/rpc/')?'write':String(url).includes('/auth/')?'auth':'read',body:options.body?JSON.parse(options.body):null};calls.push(call);
   await h.before?.(call);
   if(options.signal?.aborted && !h.ignoreAbort)throw options.signal.reason;

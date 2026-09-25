@@ -1,8 +1,8 @@
-import {persistWorkbookAudit,readWorkbookAudit} from './workbook-audit-store.mjs?v=3b255eaf49ebba74';
-import {compareWorkbookEvidence} from './workbook-integrity.mjs?v=c0a7997612845f22';
+import {persistWorkbookAudit,readWorkbookAudit,listPendingWorkbookUploads,cancelWorkbookStaging} from './workbook-audit-store.mjs?v=9e9116b68ad81b7a';
+import {compareWorkbookEvidence} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
 import {reviewPlanningInputs,planningMappingDispositions} from './planning-governance.mjs?v=a4de8d3f5a50966c';
-import {parseReforecastWorkbook,mapReforecastIntake,validateReforecastPropertyAssignment} from './reforecast-intake.mjs?v=5e96161a61d477c1';
-import {saveUpload,readSourceBundle} from './reforecast-store.mjs?v=8a0011d1c194257e';
+import {parseReforecastWorkbook,mapReforecastIntake,validateReforecastPropertyAssignment} from './reforecast-intake.mjs?v=1f8bae00926f1f93';
+import {saveUpload,readSourceBundle} from './reforecast-store.mjs?v=4a72d5a04fe4fa2a';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=()=>crypto.randomUUID();
@@ -29,6 +29,10 @@ export function reforecastImportGroups(evidence,scenario,periods) {
  return [...groups.values()].sort((a,b)=>a.sheet.localeCompare(b.sheet)||a.sourceAccountCode.localeCompare(b.sourceAccountCode));
 }
 export function reforecastMappingFromReview({evidence,source,assignment,scenario,currency,periods,accountChoices={},selectedLineIds=[],reason,confirmed=false,reviewerId,calendar,inputReviews=[],integrityReviews=[]}) {
+ // Checkbox state survives scenario/month changes. Only the explicitly visible
+ // source scenario and reporting months may enter this authority selection.
+ const selected=new Set(selectedLineIds);
+ selectedLineIds=(evidence.lines||[]).filter(line=>selected.has(line.id)&&line.scenario===scenario&&periods.includes(line.period)).map(line=>line.id);
  const registry=source?.registry||{},groups=reforecastImportGroups(evidence,scenario,periods),accountMappings=[],reviewIssues=[];
  if(!confirmed)reviewIssues.push({code:'mapping_confirmation_required',severity:'error',message:'Confirm the source selection, GL mappings and signed amounts before applying values.'});
  if(!String(reason||'').trim())reviewIssues.push({code:'mapping_reason_required',severity:'error',message:'Enter the reason for using these workbook values.'});
@@ -59,11 +63,25 @@ function reportFindings(evidence){
 }
 function shell(title){
  const el=document.createElement('dialog');el.className='rfi';el.setAttribute('aria-label',title);
- el.innerHTML=`<style>${style}</style><h2>${esc(title)}</h2><p data-status role="status" aria-live="polite"></p><div data-body></div><button data-close>Close</button>`;
+ el.innerHTML=`<style>${style}</style><h2>${esc(title)}</h2><p data-status role="status" aria-live="polite"></p><div data-body></div><div data-transfer-recovery></div><button data-close>Close</button>`;
  document.body.appendChild(el);el.querySelector('[data-close]').onclick=()=>el.close();
  el.addEventListener('close',()=>el.remove());el.showModal();return el;
 }
 function showStatus(state,message,error=false){const el=state.el.querySelector('[data-status]');el.className=error?'error':message?'success':'';el.textContent=message;}
+async function showTransferRecovery(state){
+ const root=state.el.querySelector('[data-transfer-recovery]');
+ try{
+  guard(state);const rows=await listPendingWorkbookUploads(state.central);guard(state);
+  if(!state.el.open)return;
+  root.innerHTML=`<details open><summary>Unfinished workbook saves (${rows.length})</summary><p>Retry saving to resume the selected workbook. Discard an abandoned transfer to free save capacity. Saved imports and the selected workbook are retained.</p>${rows.map((row,index)=>{const community=state.communities.find(c=>communityId(c)===row.community_id);return `<p>${esc(community?.display_name||community?.name||'Workbook evidence')} · ${esc(row.kind==='audit'?'Source audit':'Import details')} · ${esc(row.created_at)} · ${esc(Math.ceil(row.declaredBytes/1024))} KB <button data-discard-transfer="${index}">Discard unfinished transfer</button></p>`;}).join('')||'<p>No unfinished saves.</p>'}<p data-recovery-status role="status"></p></details>`;
+  for(const button of root.querySelectorAll('[data-discard-transfer]'))button.onclick=async()=>{
+   if(state.busy)return;state.busy=true;for(const item of root.querySelectorAll('button'))item.disabled=true;
+   try{guard(state);await cancelWorkbookStaging(state.central,rows[Number(button.dataset.discardTransfer)]);guard(state);await showTransferRecovery(state);}
+   catch(error){root.querySelector('[data-recovery-status]').textContent=error.message;}
+   finally{state.busy=false;for(const item of root.querySelectorAll('button'))item.disabled=false;}
+  };
+ }catch(error){root.textContent='Unfinished saves could not be loaded: '+error.message;}
+}
 function periodList(state){return [...new Set([...state.periods,...(state.evidence.lines||[]).filter(line=>line.scenario===state.scenario).map(line=>line.period)])].filter(period=>PERIOD.test(period)).sort();}
 function renderProperty(state){
  const body=state.el.querySelector('[data-body]');
@@ -80,11 +98,11 @@ function renderProperty(state){
    if(priorId!=='none'&&state.priorVersionId!==priorId){const rows=await state.central.fetchJson(`/atlas_reforecast_uploads?upload_id=eq.${encodeURIComponent(priorId)}&community_id=eq.${selected}&select=upload_id,payload&limit=1`);guard(state);const prior=rows?.[0]?.payload;if(!prior)throw Error('The selected prior workbook version could not be read.');const priorAudit=prior.integrity?.auditId?await readWorkbookAudit(state.central,prior.integrity,{sourceHash:prior.source.sha256}):prior.integrity;if(!priorAudit?.inventory?.sheets)throw Error('Re-import the earlier workbook with the current inventory before using it as comparison evidence.');state.evidence.integrity=compareWorkbookEvidence(state.originalIntegrity,priorAudit);}
    else if(priorId==='none')state.evidence.integrity=state.originalIntegrity;if(state.priorVersionId!==priorId)state.requestId=uid();state.priorVersionId=priorId;
    state.busy=true;body.querySelector('[data-save-evidence]').disabled=true;showStatus(state,'Saving and verifying the immutable workbook…');
-   const auditRef=await persistWorkbookAudit(state.central,state.evidence.integrity,{communityId:selected,sourceHash:state.evidence.source.sha256});guard(state);
+   const auditRef=await persistWorkbookAudit(state.central,state.evidence.integrity,{communityId:selected,sourceHash:state.evidence.source.sha256,sourceBytes:state.evidence.source.originalFile});guard(state);
    state.upload=await saveUpload(state.central,{communityId:selected,requestId:state.requestId,payload:{...state.evidence,integrity:auditRef,comparison:{priorUploadId:priorId==='none'?null:priorId,firstVersionConfirmed:priorId==='none',confirmedBy:state.actor,confirmedAt:state.assignment.assignedAt},propertyAssignment:state.assignment}});guard(state);
    showStatus(state,'Workbook import saved and read back. Review the mapped values before applying them.');
    await loadSource(state);renderMapping(state);
-  }catch(error){showStatus(state,error.message+' Your selected workbook and edits are retained.',true);if(state.upload)renderMapping(state);}
+  }catch(error){showStatus(state,error.message+' Your selected workbook and edits are retained.',true);if(state.upload)renderMapping(state);await showTransferRecovery(state);}
   finally{state.busy=false;const button=state.el.querySelector('[data-save-evidence]');if(button)button.disabled=false;}
  };
 }
@@ -93,6 +111,14 @@ async function loadSource(state){
  if(!state.periods.length)throw Error('The workbook has no unambiguous reporting months. Evidence is saved; choose reporting months in the reforecast workspace before resuming mapping.');
  if(state.periods.length>24)throw Error('Select at most 24 reporting months.');
  state.source=await readSourceBundle(state.central,{communityId:state.assignment.communityId,periods:state.periods});guard(state);if(state.purpose==='original_budget')state.source={...state.source,actuals:{...state.source.actuals,cutoffPeriod:null},intakePurpose:'original_budget'};
+ if(state.purpose!=='original_budget'){
+  const cutoff=state.source.actuals?.cutoffPeriod;
+  if(cutoff){
+   state.periods=state.periods.filter(period=>period>cutoff);
+   state.selected=new Set([...state.selected].filter(id=>state.evidence.lines.some(line=>line.id===id&&line.period>cutoff&&line.sourceKind!=='workbook_actual_evidence')));
+   if(!state.periods.length)throw Error('All selected months are governed actuals. Choose forecast months after '+cutoff+'.');
+  }
+ }
 }
 function readReviewFields(state){
  const root=state.el;

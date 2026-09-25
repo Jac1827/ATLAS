@@ -992,8 +992,10 @@
     const actorAtStart = getSignedInUser()?.id;
     await refreshSession().catch(() => null);
     if (actorAtStart !== getSignedInUser()?.id) throw new DOMException("Session changed before request", "AbortError");
+    const {beforeWrite, ...requestOptions} = options;
+    beforeWrite?.();
     const result = await fetchJson(`/rpc/${encodeURIComponent(functionName)}`, {
-      ...options,
+      ...requestOptions,
       method: "POST",
       body: JSON.stringify(args && typeof args === "object" ? args : {})
     });
@@ -1046,11 +1048,23 @@
   }
 
   async function saveDocument(options = {}) {
+    const actorAtStart = getSignedInUser()?.id, accessAtStart = getAccessContextKey();
+    const target = () => { const config = getConfig(); return JSON.stringify([config.supabaseUrl, config.apiBaseUrl, config.documentKey]); };
+    const targetAtStart = target();
+    let current = true;
+    const check = () => {
+      current = current && actorAtStart === getSignedInUser()?.id && accessAtStart === getAccessContextKey()
+        && targetAtStart === target() && !options.signal?.aborted && options.isCurrent?.() !== false;
+      if (!current) throw new DOMException("Save context changed before document verification", "AbortError");
+    };
+    check();
     await refreshSession().catch(() => null);
+    check();
     const config = getConfig();
     const documentKey = String(options.documentKey || config.documentKey).trim() || DEFAULT_CONFIG.documentKey;
     const payload = options.payload && typeof options.payload === "object" ? options.payload : {};
     const sourceHash = options.sourceHash || await computeSha256(payload);
+    check();
     const args = {
       p_document_key: documentKey,
       p_module_key: String(options.moduleKey || "dashboard"),
@@ -1060,7 +1074,9 @@
       p_source_hash: sourceHash,
       p_metadata: options.metadata && typeof options.metadata === "object" ? options.metadata : {}
     };
-    return rpc("atlas_update_app_document", args);
+    const result = await rpc("atlas_update_app_document", args, {signal:options.signal, beforeWrite:() => {check();options.beforeWrite?.();}});
+    check();
+    return result;
   }
 
   async function readSharedPropertyGraph(documentKey = SHARED_PROPERTY_GRAPH_DOCUMENT_KEY) {

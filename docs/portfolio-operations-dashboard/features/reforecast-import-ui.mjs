@@ -103,10 +103,11 @@ async function prepareRecovery(state){
  state.el.addEventListener('click',()=>{if(!state.busy)retainReview(state);});
 }
 async function showTransferRecovery(state){
- const root=state.el.querySelector('[data-transfer-recovery]');
+ const root=state.el.querySelector('[data-transfer-recovery]'),attempt=state.transferAttempt,sequence=state.transferRecoverySequence=(state.transferRecoverySequence||0)+1;
+ const current=()=>state.el.open&&state.transferAttempt===attempt&&state.transferRecoverySequence===sequence&&currentActor(state.central)===state.actor;
  try{
   guard(state);const rows=await listPendingWorkbookUploads(state.central);guard(state);
-  if(!state.el.open)return;
+  if(!current())return;
   root.innerHTML=`<details open><summary>Unfinished workbook saves (${rows.length})</summary><p>Retry saving to resume the selected workbook. Discard an abandoned transfer to free save capacity. Saved imports and the selected workbook are retained.</p>${rows.map((row,index)=>{const community=state.communities.find(c=>communityId(c)===row.community_id);return `<p>${esc(community?.display_name||community?.name||'Workbook evidence')} · ${esc(row.kind==='audit'?'Source audit':'Import details')} · ${esc(row.created_at)} · ${esc(Math.ceil(row.declaredBytes/1024))} KB <button data-discard-transfer="${index}">Discard unfinished transfer</button></p>`;}).join('')||'<p>No unfinished saves.</p>'}<p data-recovery-status role="status"></p></details>`;
   for(const button of root.querySelectorAll('[data-discard-transfer]'))button.onclick=async()=>{
    if(state.busy)return;state.busy=true;for(const item of root.querySelectorAll('button'))item.disabled=true;
@@ -114,7 +115,13 @@ async function showTransferRecovery(state){
    catch(error){root.querySelector('[data-recovery-status]').textContent=error.message;}
    finally{state.busy=false;for(const item of root.querySelectorAll('button'))item.disabled=false;}
   };
- }catch(error){root.textContent='Unfinished saves could not be loaded: '+error.message;}
+ }catch(error){if(current())root.textContent='Unfinished saves could not be loaded: '+error.message;}
+}
+function transferProgress(state,attempt,diagnostic){
+ if(!state.busy||!state.el.open||state.transferAttempt!==attempt||currentActor(state.central)!==state.actor)return;
+ const labels={atlas_read_workbook_audit_upload_receipt:'Checking saved evidence receipt',atlas_begin_workbook_audit_upload:'Starting immutable evidence save',atlas_put_workbook_audit_chunk:'Saving workbook evidence',atlas_finalize_workbook_audit_upload:'Finalizing immutable evidence',atlas_read_workbook_audit_manifest:'Checking saved evidence manifest',atlas_read_workbook_audit_chunk:'Reading back workbook evidence',atlas_read_reforecast_payload_receipt:'Checking saved import receipt',atlas_stage_reforecast_payload:'Saving import details',atlas_read_reforecast_payload_chunk:'Reading back import details'};
+ const progress=Number.isInteger(diagnostic.chunkIndex)?` · ${diagnostic.stream||'import'} chunk ${diagnostic.chunkIndex+1} of ${diagnostic.chunkCount}`:'';
+ showStatus(state,`${labels[diagnostic.operation]||'Verifying workbook'}${progress} · ${diagnostic.classification==='pending'?'In progress':diagnostic.classification==='http_success'?'Response received':diagnostic.classification} · ${(diagnostic.durationMs/1000).toFixed(1)} seconds. Your workbook is retained for recovery.`);
 }
 function periodList(state){return [...new Set([...state.periods,...(state.evidence.lines||[]).filter(line=>line.scenario===state.scenario).map(line=>line.period)])].filter(period=>PERIOD.test(period)).sort();}
 function renderProperty(state){
@@ -123,6 +130,9 @@ function renderProperty(state){
  body.querySelector('[data-property]').onchange=async()=>{try{const selected=body.querySelector('[data-property]').value;if(!UUID.test(selected))return;const page=await readReforecastImportPage(state.central,{communityId:selected,limit:100});state.priorImports=page.rows;const select=body.querySelector('[data-prior-version]');select.innerHTML=selectOptions([{value:'none',label:'First source version; no prior workbook to compare'},...page.rows.map(r=>({value:r.upload_id,label:(r.file_name||'Workbook')+' · '+r.created_at}))],'','Choose prior import or confirm first source version');}catch(error){showStatus(state,error.message,true);}};
  body.querySelector('[data-save-evidence]').onclick=async()=>{
   if(state.busy)return;
+  const attempt=state.transferAttempt=(state.transferAttempt||0)+1;let recoveryNeeded=false;
+  state.busy=true;body.querySelector('[data-save-evidence]').disabled=true;
+  state.el.querySelector('[data-transfer-recovery]').replaceChildren();
   try{
    guard(state);const selected=body.querySelector('[data-property]').value,reason=body.querySelector('[data-assignment-reason]').value.trim(),confirmed=body.querySelector('[data-confirm-property]').checked;
    const previous=state.assignment;
@@ -131,14 +141,15 @@ function renderProperty(state){
    const priorId=body.querySelector('[data-prior-version]').value;if(!priorId)throw Error('Choose an earlier workbook version for comparison, or explicitly confirm this is the first source version.');
    if(priorId!=='none'&&state.priorVersionId!==priorId){const rows=await state.central.fetchJson(`/atlas_reforecast_uploads?upload_id=eq.${encodeURIComponent(priorId)}&community_id=eq.${selected}&select=upload_id,payload&limit=1`);guard(state);const prior=rows?.[0]?.payload;if(!prior)throw Error('The selected prior workbook version could not be read.');const priorAudit=prior.integrity?.auditId?await readWorkbookAudit(state.central,prior.integrity,{sourceHash:prior.source.sha256}):prior.integrity;if(!priorAudit?.inventory?.sheets)throw Error('Re-import the earlier workbook with the current inventory before using it as comparison evidence.');state.evidence.integrity=compareWorkbookEvidence(state.originalIntegrity,priorAudit);}
    else if(priorId==='none')state.evidence.integrity=state.originalIntegrity;if(state.priorVersionId!==priorId)state.requestId=uid();state.priorVersionId=priorId;
-   state.busy=true;body.querySelector('[data-save-evidence]').disabled=true;showStatus(state,'Saving and verifying the immutable workbook…');
+   showStatus(state,'Saving and verifying the immutable workbook…');
    await retainReview(state);
-   const auditRef=await persistWorkbookAudit(state.central,state.evidence.integrity,{communityId:selected,sourceHash:state.evidence.source.sha256,sourceBytes:state.evidence.source.originalFile,onDiagnostic:diagnostic=>showStatus(state,`Saving immutable evidence: ${diagnostic.operation} · ${Math.ceil((diagnostic.requestBytes||0)/1024)} KB · ${(diagnostic.durationMs/1000).toFixed(1)} seconds · ${diagnostic.classification}. Your workbook is retained for recovery.`)});guard(state);
-   await retainReview(state);state.upload=await saveUpload(state.central,{communityId:selected,requestId:state.requestId,payload:{...state.evidence,integrity:auditRef,comparison:{priorUploadId:priorId==='none'?null:priorId,firstVersionConfirmed:priorId==='none',confirmedBy:state.actor,confirmedAt:state.assignment.assignedAt},propertyAssignment:state.assignment}});guard(state);await retainReview(state);
+   const onDiagnostic=diagnostic=>transferProgress(state,attempt,diagnostic);
+   const auditRef=await persistWorkbookAudit(state.central,state.evidence.integrity,{communityId:selected,sourceHash:state.evidence.source.sha256,sourceBytes:state.evidence.source.originalFile,onDiagnostic});guard(state);
+   await retainReview(state);state.upload=await saveUpload(state.central,{communityId:selected,requestId:state.requestId,payload:{...state.evidence,integrity:auditRef,comparison:{priorUploadId:priorId==='none'?null:priorId,firstVersionConfirmed:priorId==='none',confirmedBy:state.actor,confirmedAt:state.assignment.assignedAt},propertyAssignment:state.assignment},onDiagnostic});guard(state);await retainReview(state);
    showStatus(state,'Workbook import saved and read back. Review the mapped values before applying them.');
    await loadSource(state);renderMapping(state);
-  }catch(error){showStatus(state,error.message+' Your selected workbook and edits are retained.',true);if(state.upload)renderMapping(state);await showTransferRecovery(state);}
-  finally{state.busy=false;const button=state.el.querySelector('[data-save-evidence]');if(button)button.disabled=false;}
+  }catch(error){if(state.el.open&&state.transferAttempt===attempt&&currentActor(state.central)===state.actor){showStatus(state,error.message+' Your selected workbook and edits are retained.',true);if(state.upload)renderMapping(state);recoveryNeeded=true;}}
+  finally{if(state.transferAttempt===attempt){state.busy=false;const button=state.el.querySelector('[data-save-evidence]');if(button)button.disabled=false;if(recoveryNeeded)void showTransferRecovery(state);}}
  };
 }
 async function loadSource(state){

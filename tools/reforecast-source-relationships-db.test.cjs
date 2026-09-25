@@ -6,7 +6,7 @@ const relationship=originalRead.call(fs,path.join(__dirname,'../supabase/migrati
 fs.readFileSync=function(file,...args){const value=originalRead.call(this,file,...args);return String(file).endsWith('/20260925012933_reforecast_atomic_create_from_import.sql')?value+relationship:value;};
 fixtures.fixture=async(...args)=>{const context=await originalFixture(...args),close=context.db.close.bind(context.db);context.db.close=async()=>{
  await context.db.exec('reset role');const u=(await context.db.query('select payload from atlas_reforecast_uploads order by created_at limit 1')).rows[0].payload,r=(await context.db.query("select payload from atlas_reforecast_revisions where payload->>'uploadId' is not null order by created_at limit 1")).rows[0].payload;
- const audit=(await context.db.query('select evidence from atlas_workbook_audits where audit_id=$1',[u.integrity.auditId])).rows[0].evidence,mapping=r.importMapping;
+ const audit=(await context.db.query('select atlas_private.resolve_workbook_audit($1,$2) evidence',[u.integrity,u.source.sha256])).rows[0].evidence,mapping=r.importMapping;
  const validate=(upload,review=mapping)=>context.db.query('select atlas_private.validate_reforecast_source_relationships($1,$2,$3)',[upload,audit,review]);
  const changedGL=structuredClone(u);changedGL.lines.find(l=>l.id===mapping.selectedLineIds[0]).accountCode='6100';await assert.rejects(()=>validate(changedGL),/Source GL relationship/);
  const changedMonth=structuredClone(u);changedMonth.lines.find(l=>l.id===mapping.selectedLineIds[0]).period='2026-03';await assert.rejects(()=>validate(changedMonth),/period or scenario/);

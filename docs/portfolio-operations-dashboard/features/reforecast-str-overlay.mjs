@@ -1,4 +1,5 @@
-import {stableStringify,validateForecastPeriods} from './reforecast-engine.mjs?v=3d3b7e538bd36581';
+import {validateSavedStrProgrammeStream} from './reforecast-str-saved-programme-runtime.mjs?v=27f10719aebd413e';
+import {stableStringify,validateForecastPeriods} from './reforecast-engine.mjs?v=addea678a6fc086d';
 
 const clone=value=>structuredClone(value);
 const finite=value=>typeof value==='number'&&Number.isFinite(value);
@@ -29,6 +30,7 @@ export function validateRiseOverlay(draft,source){
  if((draft.drivers||[]).length||(draft.overrides||[]).some(row=>row.source?.kind!=='str_schedule'))add('str_overlay_only','An STR overlay may contain only its reviewed STR contribution.');
  const periods=(draft.periods||[]).filter(period=>!source.lockedPeriods?.includes(period)&&!(source.actuals?.latestFullClosePeriod&&period<=source.actuals.latestFullClosePeriod));
  for(const stream of streams){
+  if(stream.type==='saved_json_monthly_programme'){issues.push(...validateSavedStrProgrammeStream(draft,source,stream));continue;}
   if(!stream.reviewed||!stream.reviewedBy||!stream.reviewedAt||!stream.assumptionReason?.trim())add('str_review_required','Accept the roster, rates, signed fees and application reason before applying RISE STR.');
   if(stream.mappingVersion!==source.registry?.version||draft.registryVersionId!==source.registry?.version)add('str_mapping_version','RISE STR must use the exact reviewed GL mapping version.');
   if(!['gross','net'].includes(stream.incomeBasis)||!['add','replace'].includes(stream.application))add('str_method_required','Choose the reviewed gross/net basis and add/replace application.');

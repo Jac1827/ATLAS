@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import 'fake-indexeddb/auto';
+import {createFromImport,verifyImportReadback} from '../docs/portfolio-operations-dashboard/features/reforecast-store.mjs';
+import {saveForecastRecovery,readForecastRecovery,listForecastRecovery,removeForecastRecovery} from '../docs/portfolio-operations-dashboard/features/reforecast-recovery.mjs';
+import {newForecastFromImport,importReceiptHtml} from '../docs/portfolio-operations-dashboard/features/reforecast-ui.mjs';
+import {reforecastImportReconciliation} from '../docs/portfolio-operations-dashboard/features/reforecast-import-ui.mjs';
+const id=n=>'10000000-0000-0000-0000-'+String(n).padStart(12,'0'),communityId=id(1),scenarioId=id(2),requestId=id(3),uploadId=id(4),version=id(5),revisionId=id(6),actor=id(7);
+const expectedLines=[{period:'2026-09',accountCode:'5120',amount:0,sourceLineId:'Plan!AW1',sourceCoordinates:{sheet:'Plan',address:'AW1',row:1,column:49}},{period:'2026-10',accountCode:'5220',amount:-35,sourceLineId:'Plan!AX2',sourceCoordinates:{sheet:'Plan',address:'AX2',row:2,column:50}}];
+const mapping={version,confirmed:true,sourceScenario:'Plan',selectedLineIds:expectedLines.map(r=>r.sourceLineId),periods:['2026-09','2026-10'],reason:'Reviewed workbook cells',calendar:{basis:'calendar',startMonth:1,confirmed:true}};
+const options={communityId,scenarioId,requestId,uploadId,mapping,expectedLines,expectedRevision:0,payload:{name:'Conventional',model:'conventional',overrides:[]}};
+const snapshot={lines:expectedLines.map(row=>({...row,forecast:row.amount}))},receipt={verified:true,request_id:requestId,upload_id:uploadId,mapping_version:version,revision_id:revisionId,revision:1,importedCells:expectedLines.map(r=>({...r,sourceAmount:r.amount,sourceAccountCode:r.accountCode,disposition:'included'})),excludedRows:[{period:'2026-11',sourceAmount:null,amount:null,disposition:'blank_or_unavailable'}],reconciliation:{zeroCellCount:1,blankExcludedCount:1,importedTotal:-35,readbackTotal:-35}};
+const saved={head:{scenario_id:scenarioId,community_id:communityId,revision_id:revisionId,revision:1,status:'working_draft'},revision:{revision_id:revisionId,community_id:communityId,scenario_id:scenarioId,payload:{...options.payload,overrides:expectedLines}},snapshot,source:{},receipt};
+let writes=0,reads=0,committed=false,loseResponse=true,activeActor=actor,failRead=false;
+const central={getSession:()=>({user:{id:activeActor}}),async fetchJson(path,{body}={}){const p=JSON.parse(body);assert.equal(p.p_community_id,communityId);if(path==='/rpc/atlas_read_reforecast_import_receipt'){reads++;if(failRead)throw Error('Receipt offline');return committed?structuredClone(saved):null;}assert.equal(path,'/rpc/atlas_create_reforecast_from_import');assert.equal(p.p_request_id,requestId);writes++;committed=true;if(loseResponse){loseResponse=false;throw Error('Connection lost after commit');}return structuredClone(saved);}};
+await saveForecastRecovery(central,'pending',{kind:'import-write',request:options});
+assert.equal((await createFromImport(central,options)).revision.revision_id,revisionId);assert.equal(writes,1);assert.equal(reads,2,'uncertain response must consult committed receipt');
+// A fresh reader models a browser restart: the stable request and exact values
+// survive closing the IDB connection and use the receipt, without another write.
+const recovered=await readForecastRecovery(central,'pending');await createFromImport(central,recovered.request);assert.equal(writes,1);
+activeActor=id(8);assert.equal(await readForecastRecovery(central,'pending'),null);assert.equal((await listForecastRecovery(central)).length,0);activeActor=actor;
+failRead=true;await assert.rejects(()=>createFromImport(central,options),/Receipt offline/);assert.equal(writes,1,'unknown receipt must never trigger a write');failRead=false;
+const tampered=structuredClone(saved);tampered.snapshot.lines[0].forecast=null;assert.throws(()=>verifyImportReadback(tampered,options),/differs/,'zero must not become blank');
+const coordinates=structuredClone(saved);coordinates.receipt.importedCells[0].sourceCoordinates.address='AW9';assert.throws(()=>verifyImportReadback(coordinates,options),/differs/,'correct amount at wrong cell is not accepted');
+const duplicate=structuredClone(saved);duplicate.receipt.importedCells.push(duplicate.receipt.importedCells[0]);assert.throws(()=>verifyImportReadback(duplicate,options),/number/);
+const forged=structuredClone(saved);forged.receipt.mapping_version=id(99);assert.throws(()=>verifyImportReadback(forged,options),/receipt/);
+await removeForecastRecovery(central,'pending');assert.equal(await readForecastRecovery(central,'pending'),null);
+const source={communityId,registry:{version},baseline:{sourceType:'original_budget',versionIds:[id(9)]}},draft=newForecastFromImport({communityId,mapping,forecastName:'Conventional reforecast'},source,actor);
+assert.equal(draft.model,'conventional');assert.equal(draft.scenarioPurpose,'conventional');assert.equal(draft.calendar.scenario,draft.name);assert.equal(draft.calendar.confirmed,true);assert.deepEqual(draft.strStreams,[]);assert.deepEqual(draft.baselineVersionIds,[id(9)]);
+const evidence={lines:[...expectedLines.map(row=>({...row,id:row.sourceLineId,scenario:'Plan',sheet:'Plan',address:row.sourceCoordinates.address})),{id:'Plan!AY3',scenario:'Plan',period:'2026-11',amount:null},{id:'Actual!AW1',scenario:'Actual',period:'2026-09',amount:900,sourceKind:'workbook_actual_evidence'}]};
+const reconciliation=reforecastImportReconciliation(evidence,{lines:expectedLines,mapping});assert.equal(reconciliation.total,-35);assert.equal(reconciliation.zeroCount,1);assert.equal(reconciliation.excludedCount,2);assert.equal(reconciliation.rows[2].sourceAmount,null);
+const html=importReceiptHtml(receipt,snapshot);assert.match(html,/Every imported GL\/month value matches/);assert.match(html,/Blank \/ unavailable/);assert.match(html,/explicit zeros/);
+console.log('PASS atomic import client: lost-response receipt recovery, restart persistence, no duplicate write, unknown-receipt write prevention, actor isolation, exact GL/month/source-cell matching, zero versus blank, separate Conventional scenario and visible reconciliation.');

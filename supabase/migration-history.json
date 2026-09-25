@@ -32,6 +32,34 @@
     {
       "from": "20260924143650_reforecast_utility_drivers.sql",
       "to": "20260924165549_reforecast_utility_drivers.sql"
+    },
+    {
+      "from": "20260925005521_workbook_audit_validation_performance.sql",
+      "to": "20260925011545_workbook_audit_validation_performance.sql"
+    },
+    {
+      "from": "20260925012008_reforecast_payload_receipt_recovery.sql",
+      "to": "20260925012234_reforecast_payload_receipt_recovery.sql"
+    },
+    {
+      "from": "20260925004921_reforecast_atomic_create_from_import.sql",
+      "to": "20260925012933_reforecast_atomic_create_from_import.sql"
+    },
+    {
+      "from": "20260925013918_reforecast_import_source_relationships.sql",
+      "to": "20260925020220_reforecast_import_source_relationships.sql"
+    },
+    {
+      "from": "20260925015307_reforecast_saved_json_str_programme.sql",
+      "to": "20260925020222_reforecast_saved_json_str_programme.sql"
+    },
+    {
+      "from": "20260925015334_reforecast_bounded_request_timeouts.sql",
+      "to": "20260925020224_reforecast_bounded_request_timeouts.sql"
+    },
+    {
+      "from": "20260925015549_reforecast_import_source_occurrence_index.sql",
+      "to": "20260925020226_reforecast_import_source_occurrence_index.sql"
     }
   ],
   "records": [
@@ -682,6 +710,64 @@
       "md5": "975b758435fc9f626df1bb129b4d982a",
       "sha256": "125db5defd9db14b6110d097195f304db6da08073f504b1b5258cb12363ab8f4",
       "file": "20260924165549_reforecast_utility_drivers.sql"
+    }
+  ],
+  "appliedAdditions": [
+    {
+      "version": "20260925011545",
+      "name": "workbook_audit_validation_performance",
+      "file": "20260925011545_workbook_audit_validation_performance.sql",
+      "bytes": 26834,
+      "md5": "0040e7cbdb8d8eb90e7459d0d5af60c2",
+      "sha256": "6dfcbb1cda9623e8f0d31d7f454aa568840a22f2ddf875eb34b1383d93733b0e"
+    },
+    {
+      "version": "20260925012234",
+      "name": "reforecast_payload_receipt_recovery",
+      "file": "20260925012234_reforecast_payload_receipt_recovery.sql",
+      "bytes": 2597,
+      "md5": "56e818137b74308085ee252a3deec8c0",
+      "sha256": "2d91561039e1670dcdce1832acac19a0c4f200181ad20fa64a36f34e24b5fb44"
+    },
+    {
+      "version": "20260925012933",
+      "name": "reforecast_atomic_create_from_import",
+      "file": "20260925012933_reforecast_atomic_create_from_import.sql",
+      "bytes": 80295,
+      "md5": "b2ecaf71c3b2ac784bc62716ff6db6bc",
+      "sha256": "428bcd907ca0428ad185f09480e6621405cc1ce73069ce8ee06f19604d8d0789"
+    },
+    {
+      "version": "20260925020220",
+      "name": "reforecast_import_source_relationships",
+      "file": "20260925020220_reforecast_import_source_relationships.sql",
+      "bytes": 14017,
+      "md5": "fb6d1a4b793a5217e24d602b28649405",
+      "sha256": "b41e884a3e49ebb929f9718882fb1962ca6658de69104052477f1547ab738b41"
+    },
+    {
+      "version": "20260925020222",
+      "name": "reforecast_saved_json_str_programme",
+      "file": "20260925020222_reforecast_saved_json_str_programme.sql",
+      "bytes": 58194,
+      "md5": "1535c7946215ddc73007ea4cd996d9dc",
+      "sha256": "8a89a1b8da804bff036c25cfd75e198863491219a636f7518dc09476d8121399"
+    },
+    {
+      "version": "20260925020224",
+      "name": "reforecast_bounded_request_timeouts",
+      "file": "20260925020224_reforecast_bounded_request_timeouts.sql",
+      "bytes": 1067,
+      "md5": "5976f712aee3ead1ee28b65a0cd9b028",
+      "sha256": "562b8d74e4407d8c5be952e493ec23d41756f27eb140d9cc5ac92090973f0a8a"
+    },
+    {
+      "version": "20260925020226",
+      "name": "reforecast_import_source_occurrence_index",
+      "file": "20260925020226_reforecast_import_source_occurrence_index.sql",
+      "bytes": 1846,
+      "md5": "dde9371c0e94517ba1dcc46d9f014e14",
+      "sha256": "84b4a108f402332b93d06dc037e77b9effe8252fb93bb710e0af6432dc833b94"
     }
   ]
 }

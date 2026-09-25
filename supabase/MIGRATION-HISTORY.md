@@ -25,3 +25,11 @@ One additional prerequisite predates the recorded history: the legacy `atlas.sta
 For a future empty environment, provision and review the legacy prerequisite before replay, or design a separately reviewed baseline/adoption procedure. Do not edit history, invent applied entries, or copy production users/financial data merely to make branch creation pass. Seed only explicit synthetic acceptance data after schema replay.
 
 References: [Supabase environment management](https://supabase.com/docs/guides/deployment/managing-environments), [working with branches](https://supabase.com/docs/guides/deployment/branching/working-with-branches).
+
+## Atomic import repair deployment identities
+
+The three September 25 audit, receipt-recovery, and atomic-import additions were applied through Supabase with production-assigned versions `20260925011545`, `20260925012234`, and `20260925012933`. Their original CLI-created local files were renamed to these recorded identities; all three SQL bodies match the read-only production byte counts and hashes exactly and are now pinned in the manifest. No production history or applied SQL was rewritten. The prior historical cutoff remains unchanged so other later migrations retain their existing treatment.
+
+The `appliedAdditions` list pins these later deployments separately from the original 72-record replay boundary. The historical replay fixture still exercises the exact captured history; repair-specific database tests exercise the additive dependencies.
+
+The source-relationship, saved STR programme, bounded RPC timeout and source occurrence-index additions are recorded under production versions `20260925020220`, `20260925020222`, `20260925020224` and `20260925020226`. Their exact production bodies are also pinned in `appliedAdditions`, with the original local aliases retained.

@@ -11,12 +11,13 @@ const require=createRequire(import.meta.url),XLSX=require('../docs/portfolio-ope
 const {db,cid,signIn}=await fixture();let actor=1;
 const sha=value=>createHash('sha256').update(value).digest('hex');
 const calls=[];
-const call=async(name,args)=>{calls.push({name,bytes:Buffer.byteLength(JSON.stringify(args))});return (await db.query(`select public.${name}(${Object.keys(args).map((key,i)=>`${key} => $${i+1}`).join(',')}) as result`,Object.values(args))).rows[0].result;};
+const call=async(name,args)=>{calls.push({name,action:args.p_action,index:args.p_index,bytes:Buffer.byteLength(JSON.stringify(args))});return (await db.query(`select public.${name}(${Object.keys(args).map((key,i)=>`${key} => $${i+1}`).join(',')}) as result`,Object.values(args))).rows[0].result;};
 const central={getSession:()=>({user:{id:'00000000-0000-0000-0000-'+String(actor).padStart(12,'0')}}),rpc:call};
 const login=async n=>{actor=n;await signIn(n);};
 try {
  await db.exec('reset role');for(const name of ['20260924121641_planning_cell_workbook_integrity_governance.sql','20260924121647_immutable_workbook_audits_and_monthly_governance.sql'])await db.exec(fs.readFileSync(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));
- await db.exec(fs.readFileSync(new URL('../docs/portfolio-operations-dashboard/centralization/workbook-audit-chunks.sql',import.meta.url),'utf8'));await login(1);
+ await db.exec(fs.readFileSync(new URL('../docs/portfolio-operations-dashboard/centralization/workbook-audit-chunks.sql',import.meta.url),'utf8'));
+ for(const name of ['20260925011545_workbook_audit_validation_performance.sql','20260925012234_reforecast_payload_receipt_recovery.sql'])await db.exec(fs.readFileSync(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));await login(1);
  let sourceBytes;
  if(process.env.ATLAS_REAL_DORO_SOURCE)sourceBytes=fs.readFileSync(process.env.ATLAS_REAL_DORO_SOURCE);
  else {const workbook=XLSX.utils.book_new();XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet([['Doro'],['GL','Account','Sep 2026','Oct 2026','Nov 2026','Dec 2026'],['5144','Hello Landing',1,2,3,4],...Array.from({length:12},(_,i)=>[String(5145+i),'Unicode retained é € 日本 '.repeat(1000),0,0,0,0])]),'Input');sourceBytes=XLSX.write(workbook,{type:'buffer',bookType:'xlsx'});}
@@ -64,6 +65,9 @@ try {
  assert.equal(fs.readFileSync(new URL('../docs/portfolio-operations-dashboard/centralization/workbook-audit-chunks.sql',import.meta.url),'utf8'),fs.readFileSync(new URL('../supabase/migrations/20260924232845_bounded_workbook_audit_transport.sql',import.meta.url),'utf8'));
  const readback=await readWorkbookAuditBytes(central,reference);assert.deepEqual(Buffer.from(readback.auditBytes),auditBytes);assert.deepEqual(Buffer.from(readback.sourceBytes),sourceBytes);assert.deepEqual(readback.evidence,JSON.parse(auditBytes));assert.deepEqual(await readWorkbookAudit(central,reference),JSON.parse(auditBytes));
  const retry=await persistWorkbookAudit(central,audit,{sourceBytes,sourceHash,requestId,communityId:cid});assert.equal(retry.auditId,reference.auditId);
+ assert(!retry.transport.requests.some(row=>row.operation==='atlas_finalize_workbook_audit_upload'||row.operation==='atlas_put_workbook_audit_chunk'),'Completed receipt recovery performs no repeat write');
+ const lostFinalizeId=randomUUID(),lostFinalize={...central,rpc:async(name,args)=>{const result=await call(name,args);if(name==='atlas_finalize_workbook_audit_upload')throw TypeError('Injected lost finalization response');return result;}};
+ const recoveredFinalize=await persistWorkbookAudit(lostFinalize,audit,{sourceBytes,sourceHash,requestId:lostFinalizeId,communityId:cid});assert.equal(recoveredFinalize.auditId,reference.auditId,'Uncertain finalization reads its committed receipt without a duplicate write');
  // Repeat the actual import sequence: audit save/readback on every attempt, then
  // envelope save under the same request ID. Attempt telemetry must not change it.
  assert(reference.transport.requests.length>retry.transport.requests.length);
@@ -77,11 +81,14 @@ try {
    if(name==='atlas_stage_reforecast_payload'&&args.p_action===lostResponse)throw Error('Injected lost '+lostResponse+' response');
    return result;
   }};
-  await assert.rejects(()=>saveUpload(interruptedIntake,{communityId:cid,requestId:intakeRequest,payload}),new RegExp('Injected lost '+lostResponse+' response'));
+  if(lostResponse==='begin')await assert.rejects(()=>saveUpload(interruptedIntake,{communityId:cid,requestId:intakeRequest,payload}),/Injected lost begin response/);
+  else assert.equal((await saveUpload(interruptedIntake,{communityId:cid,requestId:intakeRequest,payload})).request_id,intakeRequest,'Lost finalize response recovers from a read-only receipt');
   assert.equal((await db.query('select count(*)::int n from atlas_reforecast_uploads where request_id=$1',[intakeRequest])).rows[0].n,lostResponse==='finalize'?1:0);
   const refreshedReference=await persistWorkbookAudit(central,audit,{sourceBytes,sourceHash,requestId,communityId:cid});
   assert(refreshedReference.transport.requests.length>0);assert.equal(JSON.stringify(refreshedReference),JSON.stringify(reference));
-  const resumedIntake=await saveUpload(central,{communityId:cid,requestId:intakeRequest,payload:{...payload,integrity:refreshedReference}});
+  const beforeRetry=calls.length,resumedIntake=await saveUpload(central,{communityId:cid,requestId:intakeRequest,payload:{...payload,integrity:refreshedReference}});
+  assert.equal(calls[beforeRetry].name,'atlas_read_reforecast_payload_receipt');
+  if(lostResponse==='finalize')assert(!calls.slice(beforeRetry).some(row=>row.name==='atlas_stage_reforecast_payload'),'Completed envelope retry performs no repeat write');
   assert.deepEqual(resumedIntake.payload,JSON.parse(JSON.stringify(payload)));
   assert.equal((await db.query('select count(*)::int n from atlas_reforecast_uploads where request_id=$1',[intakeRequest])).rows[0].n,1);
  }
@@ -92,6 +99,24 @@ try {
  await assert.rejects(()=>persistWorkbookAudit(interrupted,audit,{sourceBytes,sourceHash,communityId:cid}),error=>{interruptedId=error.diagnostics?.requestId;return error.diagnostics?.classification==='transport_no_response';});
  const fresh=await import('../docs/portfolio-operations-dashboard/features/workbook-audit-store.mjs?reload='+randomUUID());
  const resumed=await fresh.persistWorkbookAudit(central,audit,{sourceBytes,sourceHash,communityId:cid});assert.equal(resumed.transport.requestId,interruptedId);assert.equal(resumed.auditId,reference.auditId);
+
+ // A committed first chunk survives a lost response and is not uploaded again.
+ const partialRequest=randomUUID(),partial={...central,rpc:async(name,args)=>{const result=await call(name,args);if(name==='atlas_stage_reforecast_payload'&&args.p_action==='put'&&args.p_index===0)throw Error('Lost first chunk response');return result;}};
+ await assert.rejects(()=>saveUpload(partial,{communityId:cid,requestId:partialRequest,payload}),/Lost first chunk response/);
+ const beforeCorruptRetry=calls.length,corruptReceipt={...central,rpc:async(name,args)=>{const result=await call(name,args);if(name==='atlas_read_reforecast_payload_receipt')result.chunks[0].sha256='f'.repeat(64);return result;}};
+ await assert.rejects(()=>saveUpload(corruptReceipt,{communityId:cid,requestId:partialRequest,payload}),/Retained reforecast source chunk differs/);
+ assert(!calls.slice(beforeCorruptRetry).some(row=>row.name==='atlas_stage_reforecast_payload'),'Changed retained chunk fails before any write');
+ const beforePartialRetry=calls.length;
+ const partialSaved=await saveUpload(central,{communityId:cid,requestId:partialRequest,payload});
+ assert.equal(partialSaved.request_id,partialRequest);
+ assert.equal(calls[beforePartialRetry].name,'atlas_read_reforecast_payload_receipt');
+ assert(!calls.slice(beforePartialRetry).some(row=>row.name==='atlas_stage_reforecast_payload'&&(row.action==='begin'||row.action==='put'&&row.index===0)),'Receipt recovery skips the retained reservation and first chunk');
+ const sourceManifest=(await call('atlas_read_reforecast_payload_chunk',{p_upload_id:partialSaved.upload_id,p_index:null})).manifest_hash;
+ const sourceReceiptArgs={p_community_id:cid,p_request_id:partialRequest,p_manifest_hash:sourceManifest};
+ assert.equal((await call('atlas_read_reforecast_payload_receipt',sourceReceiptArgs)).upload_id,partialSaved.upload_id);
+ await assert.rejects(()=>call('atlas_read_reforecast_payload_receipt',{...sourceReceiptArgs,p_manifest_hash:'f'.repeat(64)}),/manifest or scope mismatch/);
+ await login(2);assert.equal(await call('atlas_read_reforecast_payload_receipt',sourceReceiptArgs),null,'Another authorized actor cannot read uploader staging');
+ await login(3);await assert.rejects(()=>call('atlas_read_reforecast_payload_receipt',sourceReceiptArgs),/Authorized reforecast editor/);await login(1);
  
  await login(2);assert.deepEqual(await readWorkbookAudit(central,reference),JSON.parse(auditBytes));assert.deepEqual(Buffer.from((await readWorkbookAuditBytes(central,reference)).sourceBytes),sourceBytes);
  await login(3);await assert.rejects(()=>readWorkbookAuditBytes(central,reference),/outside authorized scope/);await assert.rejects(()=>db.query('select * from atlas_private.workbook_audit_chunks'),/permission denied/);

@@ -1,7 +1,7 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync(__dirname+'/../docs/portfolio-operations-dashboard/workspace-core.js','utf8');
 const extract=name=>source.match(new RegExp('^function '+name+'\\([^]*?^\\}','m'))[0];
-const builders=['buildCommunityProgressSingleReportData','buildCommunityProgressReportData'].map(extract).join('\n');
+const builders=['buildCommunityProgressSingleReportData','buildCommunityProgressReportData','assembleCommunityProgressReportData'].map(extract).join('\n');
 function fixture(previous){
  const c={};vm.createContext(c);vm.runInContext(`
  let recommendationBuilds=0,selected=['Synthetic A','Synthetic B'];

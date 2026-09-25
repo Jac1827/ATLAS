@@ -13892,6 +13892,7 @@ function prepareAtlasHomeRender(panel) {
 }
 
 function renderTab() {
+  window.AtlasReports?.cancelStale?.();
   if (atlasHomeRenderPreparation && (atlasHomeRenderPreparation.context !== getAtlasRenderContextKey() || atlasHomeRenderPreparation.epoch !== atlasWorkspaceAccess.epoch)) atlasHomeRenderPreparation = null;
   if (typeof hydrateAtlasSharedApplications === "function" && hydrateAtlasSharedApplications.pending && hydrateAtlasSharedApplications.pending.context !== getAtlasRenderContextKey()) hydrateAtlasSharedApplications.pending.controller.abort();
   if (atlasCanonicalImportEvidencePromise && atlasCanonicalImportEvidencePromise.context !== getAtlasRenderContextKey()) atlasCanonicalImportEvidencePromise.controller.abort();
@@ -13980,7 +13981,7 @@ function renderTab() {
         delete panel.dataset.atlasStableMountMounted;
         panel.innerHTML = renderAtlasAccessDeniedPanel(atlasAccessDecision(activeTab).reason);
       } else {
-        if (activeTab === 8 && window.AtlasReports) window.AtlasReports.renderInto(panel, withAtlasSynchronousReadScope(renderer));
+        if (activeTab === 8 && window.AtlasReports) window.AtlasReports.renderInto(panel, withAtlasSynchronousReadScope(() => window.AtlasReports.renderVisible(renderer)));
         else panel.innerHTML = withAtlasSynchronousReadScope(renderer);
         if (activeTab === 9 && retainedBonusWorkflow) {
           panel.querySelector("#atlas-bonus-shared-workflow")?.replaceWith(retainedBonusWorkflow);
@@ -43582,7 +43583,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
     reportYear: year,
     reportMonthLabel: formatDlrMonthYear(monthIdx, year),
     reportPeriodLabel: `${formatDlrMonthYear(monthIdx, year)} month-to-date community progress`,
-    generatedAt: new Date(),
+    generatedAt: options.generatedAt || new Date(),
     totalUnits,
     occupiedUnits,
     leasedUnits,
@@ -43666,6 +43667,16 @@ function buildCommunityProgressReportData(options = {}) {
       record: getPersistedCommunityRecordForScope(name, { allowCurrentFallback: true })
     }))
     .filter(Boolean);
+  return assembleCommunityProgressReportData(communityReports, { ...options, selectedCommunityNames, monthIdx, year });
+}
+
+// Shared by synchronous exports and the visible, cancellable preview. Prepared
+// children retain their original sourceRecord and monthly-source semantics.
+function assembleCommunityProgressReportData(communityReports, options = {}) {
+  const silent = options.silent === true;
+  const monthIdx = options.monthIdx ?? getReportHubMonthIndex();
+  const year = options.year ?? getReportHubYear();
+  const selectedCommunityNames = options.selectedCommunityNames ?? getCommunityProgressReportCommunityNames();
   if (communityReports.length === 0) {
     if (!silent) alert("Save community data first, then the Community Progress report can build from the selected community or communities.");
     return null;
@@ -43789,7 +43800,7 @@ function buildCommunityProgressReportData(options = {}) {
     reportYear: year,
     reportMonthLabel: formatDlrMonthYear(monthIdx, year),
     reportPeriodLabel: `${formatDlrMonthYear(monthIdx, year)} month-to-date portfolio community progress`,
-    generatedAt: new Date(),
+    generatedAt: options.generatedAt || new Date(),
     totalUnits,
     occupiedUnits,
     leasedUnits,
@@ -43949,7 +43960,10 @@ async function hydrateCommunityProgressReportAssets(report) {
 
 
 function renderCommunityProgressReportingWorkspace() {
-  const report = buildCommunityProgressReportData({ silent: true });
+  return renderCommunityProgressWorkspaceFromReport(buildCommunityProgressReportData({ silent: true }));
+}
+
+function renderCommunityProgressWorkspaceFromReport(report) {
   if (!report) {
     const selectedCommunityNames = getCommunityProgressReportCommunityNames();
     return `<div id="reporting-community-progress-workspace" class="report-hub-card" style="margin-top:14px">

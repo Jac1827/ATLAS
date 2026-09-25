@@ -81,7 +81,7 @@ try{
   window.__freshDefaultFactory=factory;
  });
  await page.evaluate(()=>setTab(8));
- await page.waitForFunction(()=>!!window.AtlasReports&&!document.querySelector('#tab-panel-8').innerText.includes('Loading this workspace'));
+ await page.waitForFunction(()=>{const panel=document.querySelector('#tab-panel-8');if(panel?.dataset.atlasReportsError==='1')throw Error('Report preparation failed');return !!window.AtlasReports&&!panel.innerText.includes('Loading this workspace')&&panel.dataset.atlasReportsPreparing!=='1';});
  assert.doesNotMatch(await page.locator('#tab-panel-8').innerText(),/render issue|did not finish loading/);
  const checks=await page.evaluate(()=>{
   const NativeDate=Date,fixedNow=NativeDate.now();

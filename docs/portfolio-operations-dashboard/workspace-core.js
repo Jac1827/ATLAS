@@ -18753,7 +18753,10 @@ async function buildAtlasCentralAppStatePayload() {
 }
 
 async function saveAtlasCentralAppState({ silent = false, source = "manual_central_save" } = {}) {
-  if (saveAtlasCentralAppState.inFlight) return saveAtlasCentralAppState.inFlight;
+  if (saveAtlasCentralAppState.inFlight) {
+    if (!silent) alert("A Central Save is already running. Newer edits remain in this browser; save again after it finishes.");
+    return false;
+  }
   const operation = (async () => {
   const knownVersion = Number(atlasCentralRuntimeMeta.lastDocumentVersion || 0);
   const saveContext = captureAtlasSaveContext();
@@ -18822,6 +18825,7 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
     if (remote && !knownVersion) throw new Error(`Central Atlas already has version ${remote.version}. Pull and reconcile it before saving from this browser.`);
     if (remote && knownVersion !== Number(remote.version || 0)) throw new Error(`Central Atlas changed from version ${knownVersion} to ${remote.version}. Pull and reconcile before saving so no one else's work is overwritten.`);
     const result = await window.ATLAS_CENTRAL.saveDocument({
+      isCurrent: current, signal: atlasWorkspaceAccess.controller?.signal,
       documentKey, moduleKey: "dashboard", payload: localPayload,
       expectedVersion: remote ? Number(remote.version) : null,
       sourceModule: "atlas_dashboard", sourceHash: localHash,

@@ -16,7 +16,7 @@ function fixture(){
 (async()=>{
  const a=fixture();let release;const gate=new Promise(r=>release=r);a.c.afterBuild=()=>gate;
  const first=a.c.saveAtlasCentralAppState({silent:true}),second=a.c.saveAtlasCentralAppState({silent:true});
- await new Promise(setImmediate);assert.equal(a.calls.build,1,'Overlapping saves must share one snapshot operation');release();assert.deepEqual(await Promise.all([first,second]),[true,true]);assert.equal(a.calls.parent,1);assert.equal(a.calls.parts,1);
+ await new Promise(setImmediate);assert.equal(a.calls.build,1,'Overlapping saves must not start another snapshot operation');release();assert.deepEqual(await Promise.all([first,second]),[true,false]);assert.equal(a.calls.parent,1);assert.equal(a.calls.parts,1);
  const b=fixture();b.c.afterBuild=()=>{b.c.atlasCentralRuntimeMeta.lastDocumentVersion=2;b.setParent({version:2,payload_hash:'other',payload:{bundle:{sha256:'other'}}});};
  assert.equal(await b.c.saveAtlasCentralAppState({silent:true}),false,'A late older snapshot must not overwrite a newly observed version');assert.equal(b.calls.parent,0);assert.match(b.messages.at(-1).error,/changed from version 1 to 2/);
  const d=fixture();d.c.afterBuild=()=>{d.c.contextEpoch++;};assert.equal(await d.c.saveAtlasCentralAppState({silent:true}),false);assert.equal(d.calls.parts,0);assert.equal(d.calls.parent,0);assert.equal(d.messages.length,0,'Obsolete completion cannot repaint a different workspace');

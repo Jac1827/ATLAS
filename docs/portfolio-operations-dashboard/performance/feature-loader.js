@@ -11,7 +11,7 @@
     centralServices: { src: new URL('central-services.js?v=7af4914b44711a72', base).href, ready: () => typeof root.renderCentralServicesTab === 'function' },
     historyRestore: { src: new URL('atlas_historical_restore_data.js?v=43f55dab14d794f6', base).href, ready: () => !!root.ATLAS_HISTORICAL_RESTORE_COMMUNITY_DATA },
     xlsx: { src: new URL('assets/xlsx.full.min.js?v=c9506197caf809a0', base).href, ready: () => !!root.XLSX?.utils },
-    migrationArchive: { src: new URL("migration-archive.js?v=d60716102a8a8d9e", base).href, ready: () => !!root.AtlasMigrationArchive },
+    migrationArchive: { src: new URL("migration-archive.js?v=a3653101fc89c80a", base).href, ready: () => !!root.AtlasMigrationArchive },
     occupancyReplay: { src: new URL("occupancy-replay-browser.js?v=b98bb123a37917de", base).href, ready: () => !!root.AtlasOccupancyReplayBrowser },
     leaflet: { src: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', css: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', ready: () => !!root.L },
     pdf: { src: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', ready: () => !!root.pdfjsLib },

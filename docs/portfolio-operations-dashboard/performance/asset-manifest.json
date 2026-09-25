@@ -588,8 +588,8 @@
     ]
   },
   "features/reforecast-str-saved-programme-ui.mjs": {
-    "sha256": "6ef1322ce4a7f3d7",
-    "bytes": 28500,
+    "sha256": "f8c3003664a5e51f",
+    "bytes": 28560,
     "references": [
       [
         "features/reforecast-ui.mjs",
@@ -602,7 +602,7 @@
     ]
   },
   "features/reforecast-builder-ui.mjs": {
-    "sha256": "aba2eb5461298baa",
+    "sha256": "bee8be44e8a4a842",
     "bytes": 64490,
     "references": [
       [
@@ -622,8 +622,8 @@
     ]
   },
   "features/reforecast-ui.mjs": {
-    "sha256": "e6ab08eebd13d509",
-    "bytes": 110077,
+    "sha256": "85781c6ec193985c",
+    "bytes": 112978,
     "references": [
       [
         "reforecast-navigation.js",
@@ -720,7 +720,7 @@
     ]
   },
   "reforecast-navigation.js": {
-    "sha256": "c3bd2de9aaeb9a16",
+    "sha256": "14d63ae8670a59d5",
     "bytes": 2057,
     "references": [
       [
@@ -1152,7 +1152,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "01e281bb88b7ac14",
+    "sha256": "bf25dbab848ab0ca",
     "bytes": 1888839,
     "references": [
       [
@@ -1162,7 +1162,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "fca0a82030531bfd",
+    "sha256": "e8e3d3a4be5d9393",
     "bytes": 22240,
     "references": [
       [

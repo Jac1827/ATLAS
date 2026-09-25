@@ -1,4 +1,4 @@
-import {pdfItemsToText,parseComparisonLines,reconcileComparison,classifyStatement,finalizeFinancialPackageEvidence} from './financial-package.mjs?v=fb2b9dde0a554114';
+import {pdfItemsToText,parseComparisonLines,reconcileComparison,classifyStatement,finalizeFinancialPackageEvidence} from './financial-package.mjs?v=9e34c3c633e9477e';
 const abort=signal=>{if(signal?.aborted)throw new DOMException('Review canceled','AbortError');};
 export async function readPackage(file,{signal,onProgress=()=>{}}={}) {
  if(!file||file.size>50*1024*1024)throw Error('Choose a financial package up to 50 MB. Larger packages need a statement-only copy.');
@@ -33,7 +33,7 @@ export async function readPackage(file,{signal,onProgress=()=>{}}={}) {
 }
 function readWorkbook(buffer,file,hash,{signal,onProgress}) {
  return new Promise((resolve,reject)=>{
-  const worker=new Worker(new URL('./financial-workbook-worker.mjs?v=20f55a631d41f5bd',import.meta.url),{type:'module'});
+  const worker=new Worker(new URL('./financial-workbook-worker.mjs?v=0a69a416d41aa182',import.meta.url),{type:'module'});
   let settled=false;const timer=setTimeout(()=>finish(Error('Workbook processing exceeded 60 seconds. Retry with a statement-only workbook.')),60000);
   const finish=(error,result)=>{if(settled)return;settled=true;clearTimeout(timer);worker.terminate();signal?.removeEventListener('abort',cancel);error?reject(error):resolve(result);};
   const cancel=()=>finish(new DOMException('Review canceled','AbortError'));

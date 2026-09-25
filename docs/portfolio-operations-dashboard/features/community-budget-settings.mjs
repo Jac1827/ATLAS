@@ -1,4 +1,4 @@
-import {resolveCommunity} from './financial-package.mjs?v=fb2b9dde0a554114';
+import {resolveCommunity} from './financial-package.mjs?v=9e34c3c633e9477e';
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CLASSES=['Multifamily','Student Housing'];

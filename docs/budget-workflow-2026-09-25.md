@@ -20,6 +20,8 @@ Read-only production inspection found one retained Doro workbook upload with no 
 
 ## Month-end controls
 
+PDF reconciliation preserves one complete printed statement across pages, recognizes totals that repeat their section headings, and verifies explicit composite and cash-flow dependencies. Parser and mapping version 3 retain the entire source inventory and every comparison column; prior package versions remain unchanged. Real earlier-month Doro and Preserve PDFs pass the browser reader and isolated server validation, including their different report sections. This does not approve their Accounting close or replace August production acceptance.
+
 An upload is not an Accounting close. The reviewer must record verified Accounting close and source-generation times before the reconciled package can appear as eligible for review. The server compares normalized expense actuals with the latest VP baseline over the verified fiscal YTD, preserving missing/blank values. Source-statement budget and forecast columns remain comparison evidence.
 
 The implemented thresholds distinguish a concern from an approval blocker:

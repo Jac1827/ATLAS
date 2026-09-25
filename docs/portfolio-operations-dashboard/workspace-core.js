@@ -13943,7 +13943,7 @@ function renderTab() {
   if (activeTab === 1 && !shouldBlockAtlasSensitiveAccess() && atlasAccessDecision(1).ok) {
     const calendarContext=getAtlasRenderContextKey(),calendarName=isPortfolioWorkspaceSelected()?getPortfolioSetupCommunityName():getProp().name;
     const calendarRecord=isPortfolioWorkspaceSelected()?getPortfolioSetupCommunityRecord(calendarName):getCurrentCommunityRecord();
-    void import('./features/community-budget-settings.mjs?v=44f5aed973d86786').then(module=>{
+    void import('./features/community-budget-settings.mjs?v=2d4075ab31e9010d').then(module=>{
       const current=()=>activeTab===1&&calendarContext===getAtlasRenderContextKey()&&calendarName===(isPortfolioWorkspaceSelected()?getPortfolioSetupCommunityName():getProp().name)&&!shouldBlockAtlasSensitiveAccess()&&atlasAccessDecision(1).ok;
       if(current())return module.mountCommunityBudgetSettings(panel,{central:window.ATLAS_CENTRAL,communityName:calendarName,communityId:calendarRecord?.atlasCommunityId||calendarRecord?.sourceIds?.atlasCommunityId||calendarRecord?.communityId,isCurrent:current});
     }).catch(error=>console.warn('Financial calendar settings unavailable',error));
@@ -22573,7 +22573,7 @@ function getAtlasClosedFinancialVersion(record, period) {
 async function refreshAtlasClosedFinancials(year, force = false, requested = new Map()) {
   if (!window.ATLAS_CENTRAL?.getSession()?.user || !requested.size || !atlasAccessDecision(activeTab).ok) return false;
   const context = getAtlasRenderContextKey();
-  const module = await import("./features/financial-close.mjs?v=a58b122d87e5654c");
+  const module = await import("./features/financial-close.mjs?v=7ab8f42a2210b00e");
   if (context !== getAtlasRenderContextKey()) return false;
   window.AtlasClosedFinancialCache ||= module.createCache(window.ATLAS_CENTRAL);
   const roster = getAtlasAccessProfile()?.community_access_records || [];

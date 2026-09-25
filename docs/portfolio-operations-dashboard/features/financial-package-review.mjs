@@ -3,10 +3,10 @@ import {compareWorkbookEvidence} from './workbook-integrity.mjs?v=612a2cdba3c9db
 import {persistWorkbookAudit,readWorkbookAudit} from './workbook-audit-store.mjs?v=26dfb75ca99d6b52';
 import {monthlyGovernanceForm,readMonthlyGovernanceForm} from './financial-workbook-governance.mjs?v=ce3982266f91118e';
 import {readFinance} from './canonical-finance.mjs?v=4a0ab39278f685cd';
-import {applyControls,centralClient} from './financial-comparison.mjs?v=2b089c5b5beecc38';
-import {readPackage} from './financial-package-reader.mjs?v=45fd3a7b4d9f6932';
-import {evaluateFinancialPackageSafety,finalizeFinancialPackageEvidence} from './financial-package.mjs?v=fb2b9dde0a554114';
-import {createIntake,prepareReview,INTAKE_STATES,INTAKE_LABELS} from './financial-intake-store.mjs?v=b5031e6db96935a2';
+import {applyControls,centralClient} from './financial-comparison.mjs?v=9588f1bb88782b71';
+import {readPackage} from './financial-package-reader.mjs?v=743336d0550ffb11';
+import {evaluateFinancialPackageSafety,finalizeFinancialPackageEvidence} from './financial-package.mjs?v=9e34c3c633e9477e';
+import {createIntake,prepareReview,INTAKE_STATES,INTAKE_LABELS} from './financial-intake-store.mjs?v=826d61446c72329e';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>v===null||v===undefined?'Missing':Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 let active;

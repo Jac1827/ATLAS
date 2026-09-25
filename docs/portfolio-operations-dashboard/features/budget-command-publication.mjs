@@ -11,7 +11,7 @@ function showPublicationStatus(value){const A=window.RBB?.app;if(A){A.budgetPubl
 export async function review(options={}){
  const shell=host(),central=shell.ATLAS_CENTRAL,R=window.RBB,state=R.app.state,prop=state.properties.find(p=>p.id===(options.propertyId||state.activeProperty)),year=Number(options.year||state.budgetYear);
  if(!prop||!Number.isInteger(year))throw Error('Select a community and calendar year before reviewing a budget.');
- const module=await import('./financial-package.mjs?v=fb2b9dde0a554114');
+ const module=await import('./financial-package.mjs?v=9e34c3c633e9477e');
  const [authorized,aliases]=await Promise.all([central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000')]);
  const cid=module.resolveCommunity(prop.name,authorized,aliases).communityId;if(!cid)throw Error('Canonical community mapping required');
  return reviewOriginalBudget({R,central,cid,prop,year,onStatus:showPublicationStatus});

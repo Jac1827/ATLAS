@@ -6,7 +6,7 @@ import {readUtilityRecommendations,utilityRecoveryRows} from './reforecast-utili
 import {defaultForecastPeriods,validateForecastPeriods} from './reforecast-engine.mjs?v=b9680c5190e80214';
 import {assertRiseOverlay,riseReviewScope} from './reforecast-str-overlay.mjs?v=720ca2356994bdc1';
 import {esc,money,finite} from './reforecast-report.mjs?v=17298028335ec1f6';
-import {calculateStrLeasingSchedule,mappedProviderStatement,inspectProviderStatement,providerStatementPublicSummary,recommendStrStatementBehavior,calculateContractDriver,createContractOverride} from './reforecast-provider.mjs?v=b28024c9756c5dad';
+import {calculateStrLeasingSchedule,mappedProviderStatement,inspectProviderStatement,providerStatementPublicSummary,recommendStrStatementBehavior,calculateContractDriver,createContractOverride} from './reforecast-provider.mjs?v=4dde3e1809c4ceab';
 
 const uuid=()=>crypto.randomUUID();
 const clone=value=>structuredClone(value);
@@ -122,7 +122,7 @@ export function bindBuilderControls(s,{render,mark,editable,dialog,updateCell}){
 
 async function statementText(bytes){
  const pdf=await import('../vendor/pdfjs-5.6.205/pdf.min.mjs');pdf.GlobalWorkerOptions.workerSrc=new URL('../vendor/pdfjs-5.6.205/pdf.worker.min.mjs',import.meta.url).href;
- const {pdfItemsToText}=await import('./financial-package.mjs?v=fb2b9dde0a554114'),loading=pdf.getDocument({data:new Uint8Array(bytes.slice(0)),isEvalSupported:false,useSystemFonts:true});
+ const {pdfItemsToText}=await import('./financial-package.mjs?v=9e34c3c633e9477e'),loading=pdf.getDocument({data:new Uint8Array(bytes.slice(0)),isEvalSupported:false,useSystemFonts:true});
  try{const doc=await loading.promise;if(doc.numPages>128)throw Error('Choose a statement with at most 128 pages.');const pages=[];for(let page=1;page<=doc.numPages;page++){const part=await doc.getPage(page);pages.push(pdfItemsToText((await part.getTextContent()).items));part.cleanup();}return pages.join('\n');}finally{await loading.destroy();}
 }
 function contractForecastDialog(s,receipt,{dialog,render,mark}){

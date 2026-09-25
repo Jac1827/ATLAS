@@ -82,8 +82,8 @@
     ]
   },
   "features/financial-row-reconciliation.mjs": {
-    "sha256": "da3d2c759e7c76df",
-    "bytes": 18514,
+    "sha256": "016caa7d1b0de253",
+    "bytes": 21589,
     "references": [
       [
         "features/financial-package.mjs",
@@ -92,8 +92,8 @@
     ]
   },
   "features/financial-package.mjs": {
-    "sha256": "fb2b9dde0a554114",
-    "bytes": 22112,
+    "sha256": "9e34c3c633e9477e",
+    "bytes": 25788,
     "references": [
       [
         "features/financial-intake-store.mjs",
@@ -146,7 +146,7 @@
     ]
   },
   "features/community-budget-settings.mjs": {
-    "sha256": "44f5aed973d86786",
+    "sha256": "2d4075ab31e9010d",
     "bytes": 7104,
     "references": [
       [
@@ -634,7 +634,7 @@
     ]
   },
   "features/financial-intake-store.mjs": {
-    "sha256": "b5031e6db96935a2",
+    "sha256": "826d61446c72329e",
     "bytes": 6673,
     "references": [
       [
@@ -666,7 +666,7 @@
     ]
   },
   "features/financial-close.mjs": {
-    "sha256": "a58b122d87e5654c",
+    "sha256": "7ab8f42a2210b00e",
     "bytes": 26410,
     "references": [
       [
@@ -868,7 +868,7 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "baac2230d51b7e42",
+    "sha256": "e42add82a2622102",
     "bytes": 3008737,
     "references": [
       [
@@ -1110,7 +1110,7 @@
     ]
   },
   "features/reforecast-provider.mjs": {
-    "sha256": "b28024c9756c5dad",
+    "sha256": "4dde3e1809c4ceab",
     "bytes": 37280,
     "references": [
       [
@@ -1212,7 +1212,7 @@
     ]
   },
   "features/reforecast-builder-ui.mjs": {
-    "sha256": "48e227383ca37e72",
+    "sha256": "107500d3c0036875",
     "bytes": 66671,
     "references": [
       [
@@ -1298,7 +1298,7 @@
     ]
   },
   "features/reforecast-ui.mjs": {
-    "sha256": "018b2b0c44363ea5",
+    "sha256": "de1c05ee14dbfd94",
     "bytes": 151473,
     "references": [
       [
@@ -1342,7 +1342,7 @@
     ]
   },
   "reforecast-navigation.js": {
-    "sha256": "ea4c453603d16b57",
+    "sha256": "698b2419dc6a983a",
     "bytes": 3352,
     "references": [
       [
@@ -1462,7 +1462,7 @@
     ]
   },
   "features/financial-workbook-parser.mjs": {
-    "sha256": "baff1bd1a4894c8b",
+    "sha256": "15976e1411cf79fb",
     "bytes": 3058,
     "references": [
       [
@@ -1472,7 +1472,7 @@
     ]
   },
   "features/financial-workbook-worker.mjs": {
-    "sha256": "20f55a631d41f5bd",
+    "sha256": "0a69a416d41aa182",
     "bytes": 599,
     "references": [
       [
@@ -1482,7 +1482,7 @@
     ]
   },
   "features/financial-package-reader.mjs": {
-    "sha256": "45fd3a7b4d9f6932",
+    "sha256": "743336d0550ffb11",
     "bytes": 4372,
     "references": [
       [
@@ -1510,7 +1510,7 @@
     ]
   },
   "features/financial-close-report.mjs": {
-    "sha256": "30632cd9515730cc",
+    "sha256": "e6b44de99a36cc65",
     "bytes": 10629,
     "references": [
       [
@@ -1520,7 +1520,7 @@
     ]
   },
   "features/financial-comparison.mjs": {
-    "sha256": "2b089c5b5beecc38",
+    "sha256": "9588f1bb88782b71",
     "bytes": 11845,
     "references": [
       [
@@ -1534,7 +1534,7 @@
     ]
   },
   "features/financial-package-review.mjs": {
-    "sha256": "18459bb23128410b",
+    "sha256": "e40df4ec4f306fab",
     "bytes": 21788,
     "references": [
       [
@@ -1558,7 +1558,7 @@
     ]
   },
   "budget-navigation.js": {
-    "sha256": "661b1b9179dc7588",
+    "sha256": "b9aff83c362489c3",
     "bytes": 13345,
     "references": [
       [
@@ -1588,7 +1588,7 @@
     ]
   },
   "features/budget-command-publication.mjs": {
-    "sha256": "75ed148a5468a79f",
+    "sha256": "c91484e1bc58d1d4",
     "bytes": 8948,
     "references": [
       [
@@ -1628,7 +1628,7 @@
     ]
   },
   "investor-budget-bridge.js": {
-    "sha256": "0bcd94bcd542aa16",
+    "sha256": "a89cfc725ac6f434",
     "bytes": 19735,
     "references": [
       [
@@ -1638,7 +1638,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "6efac0330d50b81d",
+    "sha256": "6e2b69ad8d05807c",
     "bytes": 1888839,
     "references": [
       [
@@ -1648,7 +1648,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "080aadfb87951b73",
+    "sha256": "33a563dfa187e17c",
     "bytes": 26638,
     "references": [
       [

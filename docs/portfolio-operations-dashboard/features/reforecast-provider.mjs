@@ -1,5 +1,5 @@
 import {hashReforecastWorkbook,encodeOriginalWorkbook,normalizeReforecastNumber,normalizeReforecastPeriod,loadXlsx} from './reforecast-intake.mjs?v=87e68da483f77228';
-import {pdfItemsToText} from './financial-package.mjs?v=fb2b9dde0a554114';
+import {pdfItemsToText} from './financial-package.mjs?v=9e34c3c633e9477e';
 
 // Provider evidence is never a financial close or an approval. Restricted detail stays in the source bundle.
 export const PROVIDER_PARSER_VERSION='atlas-provider-statement/1';

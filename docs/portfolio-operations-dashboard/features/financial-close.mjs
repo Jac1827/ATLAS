@@ -45,7 +45,7 @@ export async function closeReview(central,review,{expectedVersion=null,reason,ac
  const verified=await central.rpc('atlas_verify_finance_receipt',{p_receipt_id:receipt.receipt_id,p_version_id:v.version_id,p_content_hash:v.content_hash});guard();
  const finalReceipt=Array.isArray(verified)?verified[0]:verified;
  if(finalReceipt?.status!=='readback_verified'||finalReceipt.version_id!==v.version_id||finalReceipt.content_hash!==v.content_hash)throw Error('Close readback receipt could not be verified.');
- const {verifyIntakeReceipt}=await import('./financial-intake-store.mjs?v=b5031e6db96935a2');await verifyIntakeReceipt(central,finalReceipt);guard();
+ const {verifyIntakeReceipt}=await import('./financial-intake-store.mjs?v=826d61446c72329e');await verifyIntakeReceipt(central,finalReceipt);guard();
  return {...stored,intakeReceipt:finalReceipt,publicationId:report.publication_id};
 }
 export function createCache(central){

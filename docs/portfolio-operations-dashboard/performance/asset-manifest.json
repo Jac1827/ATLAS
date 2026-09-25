@@ -184,6 +184,10 @@
         "./workbook-integrity.mjs"
       ],
       [
+        "features/reforecast-str-saved-programme.mjs",
+        "./workbook-integrity.mjs"
+      ],
+      [
         "features/financial-package-review.mjs",
         "./workbook-integrity.mjs"
       ]
@@ -335,6 +339,10 @@
       ],
       [
         "features/reforecast-authority.mjs",
+        "./reforecast-intake.mjs"
+      ],
+      [
+        "features/reforecast-str-saved-programme.mjs",
         "./reforecast-intake.mjs"
       ],
       [
@@ -497,6 +505,10 @@
       ],
       [
         "features/reforecast-str-json-recovery.mjs",
+        "./reforecast-str-overlay.mjs"
+      ],
+      [
+        "features/reforecast-str-saved-programme.mjs",
         "./reforecast-str-overlay.mjs"
       ]
     ]

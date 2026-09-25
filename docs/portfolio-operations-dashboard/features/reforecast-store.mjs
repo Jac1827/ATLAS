@@ -1,5 +1,5 @@
 /* Canonical reforecast transport: no browser-local financial fallback. */
-import {persistReforecastPayload} from './workbook-audit-store.mjs?v=3f5ee248a90b8d0e';
+import {persistReforecastPayload} from './workbook-audit-store.mjs?v=26dfb75ca99d6b52';
 import {effectiveActiveSnapshot as projectActive} from './reforecast-active.mjs?v=03b191a6926d70ca';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const period=/^20\d{2}-(0[1-9]|1[0-2])$/;
@@ -16,9 +16,9 @@ async function exactRecord(central,table,column,saved){
  const norm=r=>r&&Object.fromEntries(Object.entries(r).map(([k,v])=>[k,['created_at','published_at'].includes(k)&&v?new Date(v).toISOString():v]));
  if(!rows?.[0]||!equal(norm(rows[0]),norm(saved)))throw Error('The committed record could not be verified. Your edits are retained; retry the same save.');return rows[0];
 }
-export async function saveUpload(central,{communityId,requestId,payload}){
+export async function saveUpload(central,{communityId,requestId,payload,onDiagnostic}){
  scope(communityId);request(requestId);const actor=identity(central);
- const result=await persistReforecastPayload(central,{communityId,requestId,payload});actorGuard(central,actor);return result;
+ const result=await persistReforecastPayload(central,{communityId,requestId,payload,onDiagnostic});actorGuard(central,actor);return result;
 }
 export function verifyImportReadback(result,{communityId,scenarioId,requestId,uploadId,mapping,expectedLines}){
  const receipt=result?.receipt,revision=result?.revision;

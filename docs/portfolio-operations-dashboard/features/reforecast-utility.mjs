@@ -1,5 +1,5 @@
 /* Reviewed utility rate evidence. No property-name match, peer proxy, or default rate. */
-import {readSourceBundle} from './reforecast-store.mjs?v=a31fb99b0826a753';
+import {readSourceBundle} from './reforecast-store.mjs?v=687b772cb423649c';
 import {validateForecastPeriods,fingerprint} from './reforecast-engine.mjs?v=addea678a6fc086d';
 const finite=value=>typeof value==='number'&&Number.isFinite(value);
 const money=value=>Math.sign(value)*Math.round((Math.abs(value)+Number.EPSILON)*100)/100;

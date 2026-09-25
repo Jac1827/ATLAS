@@ -768,6 +768,22 @@
       "bytes": 1846,
       "md5": "dde9371c0e94517ba1dcc46d9f014e14",
       "sha256": "84b4a108f402332b93d06dc037e77b9effe8252fb93bb710e0af6432dc833b94"
+    },
+    {
+      "version": "20260925030334",
+      "name": "workbook_bounded_jsonb_decoder",
+      "file": "20260925030334_workbook_bounded_jsonb_decoder.sql",
+      "bytes": 3813,
+      "md5": "7c8082d97163c03e877eedcf4e93ce66",
+      "sha256": "2fa15cf87595dd86471897c7ca9f1c5843e3afdd65519db1d3ef06785c7505c6"
+    },
+    {
+      "version": "20260925031013",
+      "name": "workbook_balanced_jsonb_decoder",
+      "file": "20260925031013_workbook_balanced_jsonb_decoder.sql",
+      "bytes": 4899,
+      "md5": "5b758d7da59cf676d2dc286781142fe8",
+      "sha256": "e029365512f2d1b3069d841653f85ec39b115d5bf63552f5dcd2dbf477626a91"
     }
   ]
 }

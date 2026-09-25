@@ -13,10 +13,12 @@ const bytes=value=>value?.encoding==='base64'?Uint8Array.from(atob(value.data),c
 const sha=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',value)),n=>n.toString(16).padStart(2,'0')).join('');
 const base64=value=>{let text='';for(let i=0;i<value.length;i+=24576)text+=String.fromCharCode(...value.subarray(i,i+24576));return btoa(text);};
 const guard=(central,actor)=>{if(!actor||central.getSession?.()?.user?.id!==actor)throw Error('The signed-in account changed. Reopen the source before saving evidence.');};
+const notify=(callback,value)=>{try{callback?.(value);}catch{}};
+const failureClass=error=>error?.name==='TimeoutError'?'timeout':error?.name==='AbortError'?'aborted':error?.status?'http_error':'transport_no_response';
 export function compactWorkbookAudit(audit,record){return {schemaVersion:audit.schemaVersion,auditId:record.audit_id,sourceHash:record.source_hash,fingerprint:record.fingerprint,summary:audit.summary,rowCoverage:audit.rowCoverage,authorityScope:audit.authorityScope||null,previousFingerprint:audit.previousFingerprint||null,findings:audit.findings,safeToApprove:audit.safeToApprove,inventory:{retained:true,sheetCount:audit.inventory.sheets.length},...(record.manifest_hash?{manifestHash:record.manifest_hash}:{} )};}
 
 export async function persistWorkbookAudit(central,audit,{communityId=null,sourceHash,requestId,sourceBytes,onDiagnostic}={}){
- if(audit?.auditId){await readWorkbookAudit(central,audit,{sourceHash});if(communityId)await central.rpc('atlas_bind_workbook_audit',{p_audit_id:audit.auditId,p_community_id:communityId});return audit;}
+ if(audit?.auditId){await readWorkbookAudit(central,audit,{sourceHash,onDiagnostic});if(communityId)await central.rpc('atlas_bind_workbook_audit',{p_audit_id:audit.auditId,p_community_id:communityId});return audit;}
  const actor=central.getSession?.()?.user?.id;guard(central,actor);
  if(!audit?.fingerprint||!SHA.test(sourceHash||''))throw Error('Workbook source and audit hashes are required.');
  const original=bytes(sourceBytes);if(!original?.length)throw Error('Reopen the original workbook to retain its exact source bytes before saving evidence.');
@@ -29,9 +31,11 @@ export async function persistWorkbookAudit(central,audit,{communityId=null,sourc
  let id=requestId||workbookAuditRequestId(actor,communityId,manifestHash);const started=performance.now(),measurements=[];
  const call=async(name,args)=>{
   guard(central,actor);const start=performance.now();let details;
+  const progress=Number.isInteger(args.p_index)?{stream:args.p_stream,chunkIndex:args.p_index,chunkCount:manifest[args.p_stream]?.chunkCount}:{};
+  notify(onDiagnostic,{requestId:id,operation:name,durationMs:0,classification:'pending',...progress});
   try{
    const result=one(await central.rpc(name,args,{requestId:id,timeoutMs:45000,onTransport:value=>{details=value;}}));guard(central,actor);
-   const diagnostic={requestId:id,operation:name,requestBytes:new TextEncoder().encode(JSON.stringify(args)).length,durationMs:Math.round(performance.now()-start),classification:'http_success',...details};measurements.push(diagnostic);try{onDiagnostic?.(diagnostic);}catch{}return result;
+   const diagnostic={requestId:id,operation:name,requestBytes:new TextEncoder().encode(JSON.stringify(args)).length,durationMs:Math.round(performance.now()-start),classification:'http_success',...progress,...details};measurements.push(diagnostic);notify(onDiagnostic,diagnostic);return result;
   }catch(error){
    const diagnostic={requestId:id,operation:name,requestBytes:new TextEncoder().encode(JSON.stringify(args)).length,durationMs:Math.round(performance.now()-start),classification:error?.name==='TimeoutError'?'timeout':error?.name==='AbortError'?'aborted':error?.status?'http_error':'transport_no_response',...(error?.transport||details||{})};measurements.push(diagnostic);try{onDiagnostic?.(diagnostic);}catch{}
    const failure=Error(`Workbook evidence save failed (${diagnostic.classification}; request ${id}). Your workbook is retained. Retry uses the same request ID.`);failure.diagnostics=diagnostic;failure.cause=error;throw failure;
@@ -69,7 +73,7 @@ export async function persistWorkbookAudit(central,audit,{communityId=null,sourc
  }
  if(!record?.audit_id||record.source_hash!==sourceHash||record.fingerprint!==audit.fingerprint||record.manifest_hash!==manifestHash)throw Error('Workbook audit persistence could not be verified. Your edits are retained.');
  const ref=compactWorkbookAudit(audit,record);
- const retained=await readWorkbookAuditBytes(central,ref,{sourceHash});guard(central,actor);
+ const retained=await readWorkbookAuditBytes(central,ref,{sourceHash,onDiagnostic,requestId:id});guard(central,actor);
  if(await sha(retained.auditBytes)!==manifest.audit.sha256||await sha(retained.sourceBytes)!==sourceHash)throw Error('Workbook exact readback failed.');
  // Transport observations belong to this attempt, not the immutable evidence.
  // Keep them directly readable for diagnostics, but exclude them from JSON,
@@ -78,10 +82,15 @@ export async function persistWorkbookAudit(central,audit,{communityId=null,sourc
  return ref;
 }
 
-export async function readWorkbookAuditBytes(central,reference,{sourceHash=reference?.sourceHash}={}){
+export async function readWorkbookAuditBytes(central,reference,{sourceHash=reference?.sourceHash,onDiagnostic,requestId}={}){
  const actor=central.getSession?.()?.user?.id;guard(central,actor);
  if(!UUID.test(reference?.auditId||''))throw Error('A saved workbook audit is required.');
- const record=one(await central.rpc('atlas_read_workbook_audit_manifest',{p_audit_id:reference.auditId,p_manifest_hash:reference.manifestHash||null}));guard(central,actor);
+ const read=async(name,args,progress={})=>{
+  guard(central,actor);const start=performance.now(),diagnostic={requestId,operation:name,requestBytes:new TextEncoder().encode(JSON.stringify(args)).length,...progress};notify(onDiagnostic,{...diagnostic,durationMs:0,classification:'pending'});
+  try{const value=one(await central.rpc(name,args,{requestId,timeoutMs:20000}));guard(central,actor);notify(onDiagnostic,{...diagnostic,durationMs:Math.round(performance.now()-start),classification:'http_success'});return value;}
+  catch(error){notify(onDiagnostic,{...diagnostic,durationMs:Math.round(performance.now()-start),classification:failureClass(error)});throw error;}
+ };
+ const record=await read('atlas_read_workbook_audit_manifest',{p_audit_id:reference.auditId,p_manifest_hash:reference.manifestHash||null});
  if(!record||record.audit_id!==reference.auditId||record.source_hash!==sourceHash||record.fingerprint!==reference.fingerprint||!record.manifest||record.manifest_hash!==workbookEvidenceHash(record.manifest)||(reference.manifestHash&&record.manifest_hash!==reference.manifestHash))throw Error('The saved workbook manifest does not match this source version.');
  const output={};
  for(const stream of ['audit','source']){
@@ -89,7 +98,7 @@ export async function readWorkbookAuditBytes(central,reference,{sourceHash=refer
   if(!Number.isInteger(spec?.byteLength)||spec.byteLength<1||spec.byteLength>max||record.manifest.chunkBytes!==WORKBOOK_AUDIT_CHUNK_BYTES||spec.chunkCount!==Math.ceil(spec.byteLength/WORKBOOK_AUDIT_CHUNK_BYTES))throw Error('Invalid saved workbook manifest bounds.');
   const data=new Uint8Array(spec.byteLength);let offset=0;
   for(let index=0;index<spec.chunkCount;index++){
-   const chunk=one(await central.rpc('atlas_read_workbook_audit_chunk',{p_audit_id:reference.auditId,p_stream:stream,p_index:index,p_manifest_hash:reference.manifestHash||null}));guard(central,actor);
+   const chunk=await read('atlas_read_workbook_audit_chunk',{p_audit_id:reference.auditId,p_stream:stream,p_index:index,p_manifest_hash:reference.manifestHash||null},{stream,chunkIndex:index,chunkCount:spec.chunkCount});
    const payload=bytes({encoding:'base64',data:chunk?.data||''});
    if(chunk?.chunk_index!==index||chunk?.stream!==stream||payload.length!==Math.min(WORKBOOK_AUDIT_CHUNK_BYTES,spec.byteLength-offset)||await sha(payload)!==chunk.sha256)throw Error('Workbook chunk readback is incomplete or changed.');
    data.set(payload,offset);offset+=payload.length;
@@ -101,8 +110,8 @@ export async function readWorkbookAuditBytes(central,reference,{sourceHash=refer
  verifyEvidence(output.evidence,reference.fingerprint);return output;
 }
 function verifyEvidence(evidence,fingerprint){const copy=structuredClone(evidence);delete copy.fingerprint;if(evidence.fingerprint!==fingerprint||workbookEvidenceHash(copy)!==fingerprint)throw Error('Workbook audit content hash mismatch.');}
-export async function readWorkbookAudit(central,reference,{sourceHash=reference?.sourceHash}={}){
- if(reference?.manifestHash)return (await readWorkbookAuditBytes(central,reference,{sourceHash})).evidence;
+export async function readWorkbookAudit(central,reference,{sourceHash=reference?.sourceHash,onDiagnostic}={}){
+ if(reference?.manifestHash)return (await readWorkbookAuditBytes(central,reference,{sourceHash,onDiagnostic})).evidence;
  // Historical references predate retained byte manifests and remain readable.
  const actor=central.getSession?.()?.user?.id;guard(central,actor);
  if(!UUID.test(reference?.auditId||''))throw Error('A saved workbook audit is required.');
@@ -113,13 +122,17 @@ export async function readWorkbookAudit(central,reference,{sourceHash=reference?
 
 // The intake envelope also contains cell/row inventories. Persist it through
 // bounded requests and read back the committed envelope through bounded reads.
-export async function persistReforecastPayload(central,{communityId,requestId,payload}){
+export async function persistReforecastPayload(central,{communityId,requestId,payload,onDiagnostic}){
  const actor=central.getSession?.()?.user?.id;guard(central,actor);await central.refreshSession?.();guard(central,actor);
  if(!UUID.test(requestId||''))throw Error('A stable request ID is required.');
  const data=new TextEncoder().encode(JSON.stringify(payload));
  if(data.length>32*1024*1024)throw Error('Reforecast source envelope exceeds the 32 MB limit.');
  const manifest={schemaVersion:'atlas.reforecast-payload.v1',chunkBytes:WORKBOOK_AUDIT_CHUNK_BYTES,byteLength:data.length,sha256:await sha(data),chunkCount:Math.ceil(data.length/WORKBOOK_AUDIT_CHUNK_BYTES)},manifestHash=workbookEvidenceHash(manifest);
- const call=async(name,args)=>{guard(central,actor);const options={requestId,timeoutMs:45000};const result=one(central.rpc?await central.rpc(name,args,options):await central.fetchJson('/rpc/'+name,{...options,method:'POST',body:JSON.stringify(args)}));guard(central,actor);return result;};
+ const call=async(name,args)=>{
+  guard(central,actor);const start=performance.now(),options={requestId,timeoutMs:45000},diagnostic={requestId,operation:name,phase:args.p_action||null,requestBytes:new TextEncoder().encode(JSON.stringify(args)).length,...(Number.isInteger(args.p_index)?{stream:'import',chunkIndex:args.p_index,chunkCount:manifest.chunkCount}:{})};notify(onDiagnostic,{...diagnostic,durationMs:0,classification:'pending'});
+  try{const result=one(central.rpc?await central.rpc(name,args,options):await central.fetchJson('/rpc/'+name,{...options,method:'POST',body:JSON.stringify(args)}));guard(central,actor);notify(onDiagnostic,{...diagnostic,durationMs:Math.round(performance.now()-start),classification:'http_success'});return result;}
+  catch(error){notify(onDiagnostic,{...diagnostic,durationMs:Math.round(performance.now()-start),classification:failureClass(error)});throw error;}
+ };
  const args={p_community_id:communityId,p_request_id:requestId,p_manifest:manifest,p_manifest_hash:manifestHash};
  const readReceipt=()=>call('atlas_read_reforecast_payload_receipt',{p_community_id:communityId,p_request_id:requestId,p_manifest_hash:manifestHash});
  let staged;for(let attempts=0;attempts<16;attempts++){
@@ -158,7 +171,7 @@ export async function persistReforecastPayload(central,{communityId,requestId,pa
 
 export async function listPendingWorkbookUploads(central){
  const actor=central.getSession?.()?.user?.id;guard(central,actor);
- const rows=one(await central.rpc('atlas_list_workbook_staging',{}))?.uploads;guard(central,actor);
+ const rows=one(await central.rpc('atlas_list_workbook_staging',{},{timeoutMs:20000}))?.uploads;guard(central,actor);
  if(!Array.isArray(rows)||rows.some(row=>!['audit','intake'].includes(row.kind)||!UUID.test(row.requestId||'')||!SHA.test(row.manifestHash||'')))throw Error('Unfinished save list could not be verified.');return rows;
 }
 export async function cancelWorkbookStaging(central,{kind,requestId,manifestHash}){

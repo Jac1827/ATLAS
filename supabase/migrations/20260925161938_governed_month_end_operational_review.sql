@@ -34,14 +34,14 @@ begin
   delta:=case when a is not null and b is not null then a-b end;
   pct:=case when b<>0 then delta/abs(b) end;
   required:=coalesce(r->>'nature'='expense' and not verification and delta>500 and pct>0.05,false);
-  note:=case when verification then 'See Accounting for verification. Explanation not required for approval.' when unbudgeted then 'Unbudgeted Expense. Review classification within the mapped expense category; the approved category materiality/offset policy has not been configured.' end;
-  rows:=rows||jsonb_build_array(r||jsonb_build_object('variance',delta,'percentageVariance',pct,'unbudgetedExpense',coalesce(unbudgeted,false),'requiresExplanation',required,'concernFlag',coalesce(r->>'nature'='expense' and (delta>500 or pct>0.05 or unbudgeted and a>500),false),'accountingVerification',verification,'systemNote',note,'systemNoteType',case when note is not null then 'system' end));
+  note:=case when verification then 'See Accounting for verification. Explanation not required for approval.' when unbudgeted then 'Unbudgeted Expense. Review classification within the mapped expense category. Any concern remains visible regardless of category savings. No offset or reclassification exception is applied by default.' end;
+  rows:=rows||jsonb_build_array(r||jsonb_build_object('variance',delta,'percentageVariance',pct,'unbudgetedExpense',coalesce(unbudgeted,false),'requiresExplanation',required,'concernFlag',coalesce(r->>'nature'='expense' and (delta>500 or pct>0.05 or unbudgeted and a>=500),false),'accountingVerification',verification,'systemNote',note,'systemNoteType',case when note is not null then 'system' end));
   if r->>'nature'='expense' then
    if a is null or (b is null and not unbudgeted) then complete:=false;end if;
    atotal:=atotal+coalesce(a,0);btotal:=btotal+coalesce(b,0);
   end if;
  end loop;
- return p_input||jsonb_build_object('rows',rows,'exceptionCount',(select count(*) from jsonb_array_elements(rows)x where x->>'requiresExplanation'='true'),'expenseActual',case when complete then atotal end,'expenseBudget',case when complete then btotal end,'expenseVariancePct',case when complete and btotal<>0 then (atotal-btotal)/abs(btotal) end,'reforecastRecommended',complete and btotal>0 and (atotal-btotal)/abs(btotal)>0.35,'categoryPolicyStatus','not_configured');
+ return p_input||jsonb_build_object('rows',rows,'exceptionCount',(select count(*) from jsonb_array_elements(rows)x where x->>'requiresExplanation'='true'),'expenseActual',case when complete then atotal end,'expenseBudget',case when complete then btotal end,'expenseVariancePct',case when complete and btotal<>0 then (atotal-btotal)/abs(btotal) end,'reforecastRecommended',complete and btotal>0 and (atotal-btotal)/abs(btotal)>0.35,'categoryPolicyStatus','concern_preserved_no_category_offset');
 end;$$;
 revoke all on function atlas_private.month_end_calculate(jsonb) from public,anon,authenticated;
 

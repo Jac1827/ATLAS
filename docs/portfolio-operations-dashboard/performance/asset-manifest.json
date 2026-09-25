@@ -192,6 +192,10 @@
         "./financial-snapshot.mjs"
       ],
       [
+        "features/saved-str-programmes.mjs",
+        "./financial-snapshot.mjs"
+      ],
+      [
         "features/reforecast-report.mjs",
         "./financial-snapshot.mjs"
       ],
@@ -418,6 +422,10 @@
     "bytes": 5683,
     "references": [
       [
+        "features/saved-str-programmes.mjs",
+        "./rise-report-brand.mjs"
+      ],
+      [
         "features/rise-workbook-export.mjs",
         "./rise-report-brand.mjs"
       ],
@@ -447,6 +455,10 @@
     "references": [
       [
         "features/original-budget-version-report.mjs",
+        "./snapshot-pdf.mjs"
+      ],
+      [
+        "features/saved-str-programmes.mjs",
         "./snapshot-pdf.mjs"
       ],
       [
@@ -640,8 +652,8 @@
     ]
   },
   "features/month-end-governance.mjs": {
-    "sha256": "f3b203da7ebaf90b",
-    "bytes": 6731,
+    "sha256": "8fac1ff02ff4c31c",
+    "bytes": 6943,
     "references": [
       [
         "features/reforecast-ui.mjs",
@@ -654,7 +666,7 @@
     ]
   },
   "features/financial-close.mjs": {
-    "sha256": "d32bf8c81790548d",
+    "sha256": "a58b122d87e5654c",
     "bytes": 26410,
     "references": [
       [
@@ -856,7 +868,7 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "6eee3b9c8df5f952",
+    "sha256": "baac2230d51b7e42",
     "bytes": 3008737,
     "references": [
       [
@@ -940,6 +952,10 @@
         "./reforecast-intake.mjs"
       ],
       [
+        "features/saved-str-programmes.mjs",
+        "./reforecast-intake.mjs"
+      ],
+      [
         "features/reforecast-builder-ui.mjs",
         "./reforecast-intake.mjs"
       ],
@@ -967,6 +983,10 @@
     "references": [
       [
         "features/reforecast-ui.mjs",
+        "./community-budget-identity.mjs"
+      ],
+      [
+        "features/saved-str-programmes.mjs",
         "./community-budget-identity.mjs"
       ],
       [
@@ -1013,6 +1033,10 @@
     "references": [
       [
         "features/reforecast-ui.mjs",
+        "./reforecast-recovery.mjs"
+      ],
+      [
+        "features/saved-str-programmes.mjs",
         "./reforecast-recovery.mjs"
       ],
       [
@@ -1250,6 +1274,10 @@
         "./rise-workbook-export.mjs"
       ],
       [
+        "features/saved-str-programmes.mjs",
+        "./rise-workbook-export.mjs"
+      ],
+      [
         "features/reforecast-report-library.mjs",
         "./rise-workbook-export.mjs"
       ],
@@ -1270,12 +1298,16 @@
     ]
   },
   "features/reforecast-ui.mjs": {
-    "sha256": "11666d231850c3cf",
-    "bytes": 150494,
+    "sha256": "018b2b0c44363ea5",
+    "bytes": 151473,
     "references": [
       [
         "reforecast-navigation.js",
         "./features/reforecast-ui.mjs"
+      ],
+      [
+        "features/saved-str-programmes.mjs",
+        "./reforecast-ui.mjs"
       ]
     ]
   },
@@ -1310,8 +1342,8 @@
     ]
   },
   "reforecast-navigation.js": {
-    "sha256": "3a20f18ca87e4884",
-    "bytes": 3191,
+    "sha256": "ea4c453603d16b57",
+    "bytes": 3352,
     "references": [
       [
         "RISE-Budget-Builder.html",
@@ -1478,7 +1510,7 @@
     ]
   },
   "features/financial-close-report.mjs": {
-    "sha256": "331d404fe64cec2a",
+    "sha256": "30632cd9515730cc",
     "bytes": 10629,
     "references": [
       [
@@ -1488,7 +1520,7 @@
     ]
   },
   "features/financial-comparison.mjs": {
-    "sha256": "d19884ef66ce8183",
+    "sha256": "2b089c5b5beecc38",
     "bytes": 11845,
     "references": [
       [
@@ -1502,7 +1534,7 @@
     ]
   },
   "features/financial-package-review.mjs": {
-    "sha256": "06ca10069febb80e",
+    "sha256": "18459bb23128410b",
     "bytes": 21788,
     "references": [
       [
@@ -1526,7 +1558,7 @@
     ]
   },
   "budget-navigation.js": {
-    "sha256": "bd9c60a96fefefdb",
+    "sha256": "661b1b9179dc7588",
     "bytes": 13345,
     "references": [
       [
@@ -1606,7 +1638,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "e84eb2f046eb501a",
+    "sha256": "6efac0330d50b81d",
     "bytes": 1888839,
     "references": [
       [
@@ -1616,7 +1648,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "05d6752ec2384751",
+    "sha256": "080aadfb87951b73",
     "bytes": 26638,
     "references": [
       [

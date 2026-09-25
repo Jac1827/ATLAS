@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {sumMoney,differenceMoney} from '../docs/portfolio-operations-dashboard/features/decimal-money.mjs';
+assert.equal(sumMoney([1.005]),1.01);assert.equal(sumMoney([-10.005]),-10.01);
+assert.equal(sumMoney([0.1,0.2]),0.3);assert.equal(sumMoney([1.004,0.001]),1.01);
+assert.equal(sumMoney([1.005,-1.005]),0);assert.equal(sumMoney([0.004,0.004]),0.01,'Round after exact decimal aggregation, not each source cell');
+assert.equal(sumMoney([1e-7,0.0049999]),0.01);assert.equal(sumMoney([-1e-7,-0.0049999]),-0.01);
+assert.equal(sumMoney([1e20,2e20]),3e20);assert.equal(sumMoney([]),0);assert.equal(sumMoney([0]),0);
+assert.equal(sumMoney([null,0]),null);assert.equal(sumMoney([undefined]),null);assert.equal(sumMoney([Infinity]),null);assert.equal(sumMoney(['0']),null);
+assert.equal(differenceMoney(1.01,0.01,0.1),0.9);assert.equal(differenceMoney(0,10.005),-10.01);assert.equal(differenceMoney(0,null),null);assert.equal(differenceMoney(),null);
+const source=[1.005,null,0];sumMoney(source);assert.deepEqual(source,[1.005,null,0]);
+console.log('PASS decimal money: PostgreSQL numeric half-away rounding; exact decimal summation/cancellation/exponents; missing vs zero; source precision unchanged.');

@@ -1,6 +1,18 @@
 -- Governed draft, VP publication and investor final approval lifecycle.
 -- Existing immutable snapshots and source relationships are preserved.
 begin;
+-- Abort this transaction when the installed prerequisite differs from an expected
+-- rewrite anchor. Never silently skip a governance or report-evidence change.
+create function atlas_private.budget_required_rewrite(definition text,anchor text,replacement text)
+returns text language plpgsql immutable security invoker set search_path='' as $$
+begin
+ if definition is null or anchor is null or anchor='' or replacement is null or position(anchor in definition)=0 then
+  raise exception 'Required Budget Builder migration rewrite missing from %',split_part(definition,E'\n',1)
+   using detail='Expected anchor: '||coalesce(anchor,'<null>'),hint='Compare the installed prerequisite function with the repository migration before retrying.';
+ end if;
+ return replace(definition,anchor,replacement);
+end;$$;
+revoke all on function atlas_private.budget_required_rewrite(text,text,text) from public,anon,authenticated;
 create table atlas_private.budget_vp_designations (
  user_id uuid primary key references auth.users(id),
  assigned_by uuid not null references auth.users(id), assigned_at timestamptz not null default now(),
@@ -29,7 +41,7 @@ $$;
 -- Administrative mapping governance remains distinct from financial publication approval.
 do $$declare definition text;begin
  definition:=pg_get_functiondef('public.atlas_save_reforecast_registry(uuid,uuid,uuid,jsonb)'::regprocedure);
- definition:=replace(definition,$a$atlas_private.reforecast_access(p_community_id,'approve')$a$,$a$atlas_private.reforecast_access(p_community_id,'review')$a$);
+ definition:=atlas_private.budget_required_rewrite(definition,$a$atlas_private.reforecast_access(p_community_id,'approve')$a$,$a$atlas_private.reforecast_access(p_community_id,'review')$a$);
  execute definition;
 end;$$;
 alter table public.atlas_reforecast_revisions drop constraint atlas_reforecast_revisions_status_check;
@@ -317,8 +329,8 @@ end;$$;
 -- Update the established official snapshot reader in place; retain its allowlist.
 do $$declare definition text;begin
  definition:=pg_get_functiondef('public.atlas_read_reforecast_publication(uuid)'::regprocedure);
- definition:=replace(definition,$a$rec.status<>'locked'$a$,$b$rec.status not in ('locked','pending_investor_approval','investor_approved')$b$);
- definition:=replace(definition,$a$'status','approved_locked',$a$,$b$'status',coalesce((select v.status from public.atlas_reforecast_revisions v where v.payload->>'investorPublicationId'=pub.publication_id::text and v.status='investor_approved' order by v.revision desc limit 1),'pending_investor_approval'),
+ definition:=atlas_private.budget_required_rewrite(definition,$a$rec.status<>'locked'$a$,$b$rec.status not in ('locked','pending_investor_approval','investor_approved')$b$);
+ definition:=atlas_private.budget_required_rewrite(definition,$a$'status','approved_locked',$a$,$b$'status',coalesce((select v.status from public.atlas_reforecast_revisions v where v.payload->>'investorPublicationId'=pub.publication_id::text and v.status='investor_approved' order by v.revision desc limit 1),'pending_investor_approval'),
  'investorStatus',coalesce((select v.status from public.atlas_reforecast_revisions v where v.payload->>'investorPublicationId'=pub.publication_id::text and v.status='investor_approved' order by v.revision desc limit 1),'pending_investor_approval'),
  'investorApprovedBy',(select v.payload->>'investorApprovedBy' from public.atlas_reforecast_revisions v where v.payload->>'investorPublicationId'=pub.publication_id::text and v.status='investor_approved' order by v.revision desc limit 1),
  'investorApprovedAt',(select v.payload->>'investorApprovedAt' from public.atlas_reforecast_revisions v where v.payload->>'investorPublicationId'=pub.publication_id::text and v.status='investor_approved' order by v.revision desc limit 1),
@@ -331,10 +343,10 @@ end;$$;
 -- Add shared permissions and publication linkage for investor governance receipts.
 do $$declare definition text;begin
  definition:=pg_get_functiondef('atlas_private.read_reforecast_save_receipt(uuid,uuid)'::regprocedure);
- definition:=replace(definition,$a$select * into head from public.atlas_reforecast_heads where scenario_id=r.scenario_id;$a$,$b$
+ definition:=atlas_private.budget_required_rewrite(definition,$a$select * into head from public.atlas_reforecast_heads where scenario_id=r.scenario_id;$a$,$b$
  if pub.publication_id is null and r.status='investor_approved' then select * into pub from public.atlas_reforecast_publications where publication_id::text=r.payload->>'investorPublicationId';end if;
  select * into head from public.atlas_reforecast_heads where scenario_id=r.scenario_id;$b$);
- definition:=replace(definition,$a$'currentHead',to_jsonb(head),'revision'$a$,$b$'currentHead',to_jsonb(head),'permissions',atlas_private.budget_permissions(p_community_id),'revision'$b$);
+ definition:=atlas_private.budget_required_rewrite(definition,$a$'currentHead',to_jsonb(head),'revision'$a$,$b$'currentHead',to_jsonb(head),'permissions',atlas_private.budget_permissions(p_community_id),'revision'$b$);
  execute definition;
 end;$$;
 revoke all on function atlas_private.save_reforecast_builder(uuid,uuid,integer,uuid,text,jsonb) from public,anon,authenticated;
@@ -342,7 +354,11 @@ revoke all on function atlas_private.save_reforecast_builder(uuid,uuid,integer,u
 do $$declare signature text;definition text;begin
  foreach signature in array array['atlas_private.save_reforecast_registry_pre_builder(uuid,uuid,uuid,jsonb)','public.atlas_review_reforecast_source(uuid,uuid,jsonb)'] loop
  definition:=pg_get_functiondef(signature::regprocedure);
- definition:=replace(replace(definition,$a$reforecast_access(p_community_id,'approve')$a$,$b$reforecast_access(p_community_id,'review')$b$),$a$reforecast_access(u.community_id,'approve')$a$,$b$reforecast_access(u.community_id,'review')$b$);
+ if signature='atlas_private.save_reforecast_registry_pre_builder(uuid,uuid,uuid,jsonb)' then
+ definition:=atlas_private.budget_required_rewrite(definition,$a$reforecast_access(p_community_id,'approve')$a$,$b$reforecast_access(p_community_id,'review')$b$);
+ else
+ definition:=atlas_private.budget_required_rewrite(definition,$a$reforecast_access(u.community_id,'approve')$a$,$b$reforecast_access(u.community_id,'review')$b$);
+ end if;
  execute definition;end loop;
 end;$$;
 -- A consumer submits the immutable identity it actually read. The server
@@ -475,18 +491,28 @@ end;$$;
 revoke all on function atlas_private.reforecast_source_before_initial_budget(uuid,jsonb),atlas_private.reforecast_source_for_config(uuid,jsonb) from public,anon,authenticated;
 do $$declare definition text;begin
  definition:=pg_get_functiondef('atlas_private.create_reforecast_from_import(uuid,uuid,integer,uuid,uuid,jsonb,jsonb)'::regprocedure);
- definition:=replace(definition,$a$if coalesce(p_payload->>'baselineType','original_budget') not in ('original_budget','approved_reforecast') or jsonb_array_length(coalesce(p_payload->'baselineVersionIds','[]'))=0 then$a$,
+ definition:=atlas_private.budget_required_rewrite(definition,$a$if coalesce(p_payload->>'baselineType','original_budget') not in ('original_budget','approved_reforecast') or jsonb_array_length(coalesce(p_payload->'baselineVersionIds','[]'))=0 then$a$,
  $b$if not(p_payload->>'recordType'='initial_budget' and p_payload->>'baselineType'='initial_workbook') and (coalesce(p_payload->>'baselineType','original_budget') not in ('original_budget','approved_reforecast') or jsonb_array_length(coalesce(p_payload->'baselineVersionIds','[]'))=0) then$b$);
  execute definition;
+ -- Saved JSON STR installs an outer receipt/precision wrapper. Rewrite its
+ -- retained core calculator, and require the known forwarding call so an
+ -- unrelated wrapper can never hide a skipped financial-control change.
+ if to_regprocedure('atlas_private.calculate_reforecast_before_saved_str(jsonb,jsonb)') is not null then
+ perform atlas_private.budget_required_rewrite(pg_get_functiondef('atlas_private.calculate_reforecast(jsonb,jsonb)'::regprocedure),
+ $a$return atlas_private.calculate_reforecast_before_saved_str(source,calculation);$a$,
+ $a$return atlas_private.calculate_reforecast_before_saved_str(source,calculation);$a$);
+ definition:=pg_get_functiondef('atlas_private.calculate_reforecast_before_saved_str(jsonb,jsonb)'::regprocedure);
+ else
  definition:=pg_get_functiondef('atlas_private.calculate_reforecast(jsonb,jsonb)'::regprocedure);
- definition:=replace(definition,$a$if jsonb_array_length(source->'baseline'->'versionIds')=0 then$a$,$b$if jsonb_array_length(source->'baseline'->'versionIds')=0 and source->'baseline'->>'sourceType' is distinct from 'initial_workbook' then$b$);
- definition:=replace(definition,$a$'selectedBaseline',base,'baselineDisposition'$a$,$b$'selectedBaseline',base,'legitimateBlank',coalesce((b->>'legitimateBlank')::boolean,false),'baselineDisposition'$b$);
- definition:=replace(definition,$a$line->>'sourceKind'='forecast' and line->>'forecast' is null then$a$,$b$line->>'sourceKind'='forecast' and line->>'forecast' is null and line->>'legitimateBlank' is distinct from 'true' then$b$);
+ end if;
+ definition:=atlas_private.budget_required_rewrite(definition,$a$if jsonb_array_length(source->'baseline'->'versionIds')=0 then$a$,$b$if jsonb_array_length(source->'baseline'->'versionIds')=0 and source->'baseline'->>'sourceType' is distinct from 'initial_workbook' then$b$);
+ definition:=atlas_private.budget_required_rewrite(definition,$a$'selectedBaseline',base,'baselineDisposition'$a$,$b$'selectedBaseline',base,'legitimateBlank',coalesce((b->>'legitimateBlank')::boolean,false),'baselineDisposition'$b$);
+ definition:=atlas_private.budget_required_rewrite(definition,$a$line->>'sourceKind'='forecast' and line->>'forecast' is null then$a$,$b$line->>'sourceKind'='forecast' and line->>'forecast' is null and line->>'legitimateBlank' is distinct from 'true' then$b$);
  execute definition;
  definition:=pg_get_functiondef('atlas_private.reforecast_metric(jsonb,text)'::regprocedure);
- definition:=replace(definition,$a$count(*) filter(where v->>field is null)$a$,$b$count(*) filter(where v->>field is null and (v->>'legitimateBlank' is distinct from 'true' or field='originalBudget'))$b$);execute definition;
+ definition:=atlas_private.budget_required_rewrite(definition,$a$count(*) filter(where v->>field is null)$a$,$b$count(*) filter(where v->>field is null and (v->>'legitimateBlank' is distinct from 'true' or field='originalBudget'))$b$);execute definition;
  definition:=pg_get_functiondef('public.atlas_reforecast_effective_baseline(uuid[],text[])'::regprocedure);
- definition:=replace(definition,$a$jsonb_typeof(v->'amount') is distinct from 'number' or v->>'mappingValid'$a$,$b$(jsonb_typeof(v->'amount') is distinct from 'number' and v->>'legitimateBlank' is distinct from 'true') or v->>'mappingValid'$b$);execute definition;
+ definition:=atlas_private.budget_required_rewrite(definition,$a$jsonb_typeof(v->'amount') is distinct from 'number' or v->>'mappingValid'$a$,$b$(jsonb_typeof(v->'amount') is distinct from 'number' and v->>'legitimateBlank' is distinct from 'true') or v->>'mappingValid'$b$);execute definition;
 end;$$;
 create function atlas_private.publish_initial_budget(pub public.atlas_reforecast_publications) returns void language plpgsql security definer set search_path='' as $$
 declare rec public.atlas_reforecast_revisions;u public.atlas_reforecast_uploads;segment integer;months integer[];rows jsonb;payload jsonb;metric_mappings jsonb;fiscal_start integer;fiscal_year integer;first_period text;
@@ -515,7 +541,7 @@ end;$$;
 revoke all on function atlas_private.publish_initial_budget(public.atlas_reforecast_publications) from public,anon,authenticated;
 do $$declare definition text;begin
  definition:=pg_get_functiondef('atlas_private.save_budget_workflow(uuid,uuid,integer,uuid,text,jsonb)'::regprocedure);
- definition:=replace(definition,$a$deliveries:=atlas_private.budget_publication_readback(pub.publication_id,p_request_id);$a$,$b$perform atlas_private.publish_initial_budget(pub);deliveries:=atlas_private.budget_publication_readback(pub.publication_id,p_request_id);$b$);
+ definition:=atlas_private.budget_required_rewrite(definition,$a$deliveries:=atlas_private.budget_publication_readback(pub.publication_id,p_request_id);$a$,$b$perform atlas_private.publish_initial_budget(pub);deliveries:=atlas_private.budget_publication_readback(pub.publication_id,p_request_id);$b$);
  execute definition;
 end;$$;
 
@@ -527,10 +553,8 @@ do $$declare definition text;anchor text;begin
  if position(anchor in definition)=0 then
  anchor:=$a$atlas_private.reforecast_report_fields(v,array['period','accountCode','originalValue','amount','overrideValue','reason','actor','actorId','timestamp','createdAt'])$a$;
  end if;
- if position(anchor in definition)>0 then
- definition:=replace(definition,anchor,$b$atlas_private.reforecast_report_fields(v,array['period','accountCode','originalValue','originalCalculatedValue','amount','overrideValue','reason','actor','actorId','ownerId','timestamp','createdAt','reviewedAt'])||jsonb_build_object('source',atlas_private.reforecast_report_fields(v->'source',array['kind','coverage','recommendationCoverage','contractBacked','priorRate','inflationPercentage','calculation'])||jsonb_build_object('assumption',atlas_private.reforecast_report_fields(v->'source'->'assumption',array['source','effectiveDate','percentage','location','ownerId'])))$b$);
+ definition:=atlas_private.budget_required_rewrite(definition,anchor,$b$atlas_private.reforecast_report_fields(v,array['period','accountCode','originalValue','originalCalculatedValue','amount','overrideValue','reason','actor','actorId','ownerId','timestamp','createdAt','reviewedAt'])||jsonb_build_object('source',atlas_private.reforecast_report_fields(v->'source',array['kind','coverage','recommendationCoverage','contractBacked','priorRate','inflationPercentage','calculation'])||jsonb_build_object('assumption',atlas_private.reforecast_report_fields(v->'source'->'assumption',array['source','effectiveDate','percentage','location','ownerId'])))$b$);
  execute definition;
- end if;
 end;$$;
 
 
@@ -543,4 +567,5 @@ do $migration$begin
  end if;
 end;$migration$;
 
+drop function atlas_private.budget_required_rewrite(text,text,text);
 commit;

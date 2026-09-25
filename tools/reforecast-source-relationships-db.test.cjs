@@ -2,7 +2,7 @@
 // additional focused cases tamper the immutable upload's normalized metadata.
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
 const originalRead=fs.readFileSync,fixtures=require('./reforecast-fixture.cjs'),originalFixture=fixtures.fixture;
-const relationship=originalRead.call(fs,path.join(__dirname,'../supabase/migrations/20260925013918_reforecast_import_source_relationships.sql'),'utf8');
+const relationship=originalRead.call(fs,path.join(__dirname,'../supabase/migrations/20260925020220_reforecast_import_source_relationships.sql'),'utf8');
 fs.readFileSync=function(file,...args){const value=originalRead.call(this,file,...args);return String(file).endsWith('/20260925012933_reforecast_atomic_create_from_import.sql')?value+relationship:value;};
 fixtures.fixture=async(...args)=>{const context=await originalFixture(...args),close=context.db.close.bind(context.db);context.db.close=async()=>{
  await context.db.exec('reset role');const u=(await context.db.query('select payload from atlas_reforecast_uploads order by created_at limit 1')).rows[0].payload,r=(await context.db.query("select payload from atlas_reforecast_revisions where payload->>'uploadId' is not null order by created_at limit 1")).rows[0].payload;

@@ -12,7 +12,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
  const call=async(name,args)=>(await db.query(`select to_jsonb(public.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')})) result`,args)).rows[0].result;
  await db.exec('reset role');await db.exec(read('20260924121641_planning_cell_workbook_integrity_governance.sql'));
  await db.exec(read('20260924121647_immutable_workbook_audits_and_monthly_governance.sql').split('alter function atlas_private.finance_intake_validation')[0]);
- for(const name of ['20260924165534_reforecast_builder_governance.sql','20260924165542_reforecast_report_receipts.sql','20260924232842_reforecast_governed_close_scope.sql','20260924232853_reforecast_str_overlay_isolation.sql','20260924235553_reforecast_active_import_close_scope.sql','20260925012933_reforecast_atomic_create_from_import.sql','20260925013918_reforecast_import_source_relationships.sql'])await db.exec(read(name));
+ for(const name of ['20260924165534_reforecast_builder_governance.sql','20260924165542_reforecast_report_receipts.sql','20260924232842_reforecast_governed_close_scope.sql','20260924232853_reforecast_str_overlay_isolation.sql','20260924235553_reforecast_active_import_close_scope.sql','20260925012933_reforecast_atomic_create_from_import.sql','20260925020220_reforecast_import_source_relationships.sql'])await db.exec(read(name));
  await db.exec(read('20260925011545_workbook_audit_validation_performance.sql').split('-- Read committed upload status')[0]+'commit;');
  const periods=['2026-09','2026-10','2026-11','2026-12'],selected=evidence.lines.filter(l=>l.scenario==='Plan'&&periods.includes(l.period)&&l.amount!==null);
  // Independent source oracle reads vendor GL labels and month headers directly;

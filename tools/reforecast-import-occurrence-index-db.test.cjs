@@ -2,7 +2,7 @@
 // fixture; validate duplicate/missing retained IDs and preserved function settings.
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
 const originalRead=fs.readFileSync,fixtures=require('./reforecast-fixture.cjs'),originalFixture=fixtures.fixture;
-const indexMigration=originalRead.call(fs,path.join(__dirname,'../supabase/migrations/20260925015549_reforecast_import_source_occurrence_index.sql'),'utf8');
+const indexMigration=originalRead.call(fs,path.join(__dirname,'../supabase/migrations/20260925020226_reforecast_import_source_occurrence_index.sql'),'utf8');
 fs.readFileSync=function(file,...args){const value=originalRead.call(this,file,...args);return String(file).endsWith('/20260925012933_reforecast_atomic_create_from_import.sql')?value+"\nalter function atlas_private.create_reforecast_from_import(uuid,uuid,integer,uuid,uuid,jsonb,jsonb) set statement_timeout='45s';\n"+indexMigration:value;};
 fixtures.fixture=async(...args)=>{const context=await originalFixture(...args),close=context.db.close.bind(context.db);context.db.close=async()=>{
  await context.db.exec('reset role');

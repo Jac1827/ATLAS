@@ -70,7 +70,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tests-${{ github.job }}
-          path: output/test-all/ci/results.json
+          path: |
+            output/test-all/ci/results.json
+            output/test-all/ci/*-reforecast-report-library-browser.test.mjs.log
           if-no-files-found: warn
 
       - name: Install Wrangler
@@ -136,7 +138,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tests-${{ github.job }}
-          path: output/test-all/ci/results.json
+          path: |
+            output/test-all/ci/results.json
+            output/test-all/ci/*-reforecast-report-library-browser.test.mjs.log
           if-no-files-found: warn
 
       - name: Install Wrangler

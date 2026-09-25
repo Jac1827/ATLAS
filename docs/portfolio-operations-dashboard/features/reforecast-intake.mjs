@@ -1,7 +1,7 @@
 import {auditWorkbook} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
 import {validatePlanningCalendar, classifyPlanningCells, reviewPlanningIntegrity} from './planning-governance.mjs?v=a4de8d3f5a50966c';
 /* Workbook evidence only. Formulas are retained, never executed or promoted to actuals. */
-export const REFORECAST_PARSER_VERSION = 'atlas-reforecast-xlsx/2';
+export const REFORECAST_PARSER_VERSION = 'atlas-reforecast-xlsx/3';
 export const REFORECAST_EVIDENCE_SCHEMA = 2;
 const ADDRESS = /^[A-Z]+[1-9][0-9]*$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -58,8 +58,23 @@ export function normalizeReforecastNumber(value) {
 }
 export function normalizeReforecastAccount(value) {
  const source=text(value);
- const match=source.match(/^([0-9]{3,}(?:[-.][0-9]+)*)(?:\s*\(([^)]+)\)|\s+[-–]\s+(.+))?$/);
- return match?{accountCode:match[1],accountName:text(match[2]||match[3]),raw:source}:null;
+ const match=source.match(/^([0-9]{3,}(?:[-.][0-9]+)*)(.*)$/);
+ if(!match)return null;
+ const suffix=match[2],label=suffix.trim();let name='';
+ if(label){
+  if(label.startsWith('(')){
+   // The outer pair encloses the account label; inner pairs belong to the
+   // label itself, e.g. Gross Potential Rent (GPR) or a department qualifier.
+   let depth=0;
+   for(let index=0;index<label.length;index++){
+    if(label[index]==='(')depth++;else if(label[index]===')')depth--;
+    if(depth<0||depth===0&&index!==label.length-1)return null;
+   }
+   if(depth!==0||!label.endsWith(')')||!label.slice(1,-1).trim())return null;
+   name=label.slice(1,-1).trim();
+  }else{const dashed=suffix.match(/^\s+[-–]\s+(.+)$/);if(!dashed)return null;name=text(dashed[1]);}
+ }
+ return {accountCode:match[1],accountName:name,raw:source};
 }
 export function normalizeReforecastPeriod(value, {year, date1904=false, isDate=false}={}) {
  if(value instanceof Date&&!Number.isNaN(value.valueOf()))return value.toISOString().slice(0,7);

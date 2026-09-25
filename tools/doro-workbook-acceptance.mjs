@@ -7,7 +7,7 @@ import {createRequire} from 'node:module';
 import {pathToFileURL} from 'node:url';
 import assert from 'node:assert/strict';
 import {parseReforecastWorkbook} from '../docs/portfolio-operations-dashboard/features/reforecast-intake.mjs';
-import {auditWorkbook} from '../docs/portfolio-operations-dashboard/features/workbook-integrity.mjs';
+import {prepareScopedReforecastEvidence} from '../docs/portfolio-operations-dashboard/features/reforecast-authority.mjs';
 
 const require=createRequire(import.meta.url),XLSX=require('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js');
 const hash=value=>createHash('sha256').update(value).digest('hex');
@@ -21,9 +21,7 @@ export async function inspectActualWorkbook(bytes,{fileName,periods,sourceScenar
  const selected=evidence.lines.filter(row=>row.scenario===sourceScenario&&periods.includes(row.period));
  const numeric=selected.filter(row=>Number.isFinite(row.amount));
  assert(numeric.length,'Selected source scope has no numeric values');
- const authority=[...new Set(numeric.flatMap(row=>[row.id,...row.headerAddresses.map(a=>row.sheet+'!'+a),...row.identifiers.map(c=>row.sheet+'!'+c.address)]))].sort();
- const workbook=XLSX.read(bytes,{type:'array',bookFiles:true,cellFormula:true,cellStyles:true,cellNF:true,sheetStubs:true});
- const audit=auditWorkbook(workbook,{sourceHash:evidence.source.sha256,modelFamily:'reforecast',authoritativeCells:authority});
+ const scoped=await prepareScopedReforecastEvidence(evidence,{sourceScenario,periods,selectedLineIds:numeric.map(row=>row.id)},{xlsx:XLSX,sourceBytes:bytes}),authority=scoped.authoritativeCells,audit=scoped.evidence.integrity;
  const cells=selected.map(row=>({sourceLineId:row.id,sheet:row.sheet,cell:row.address,row:row.row,sourceGL:row.accountCode,department:row.department,period:row.period,sourceScenario:row.scenario,sourceSignedAmount:row.amount,blank:row.blank,formula:row.formula,cachedValue:row.cachedValue,canonicalGL:null,mappingVersion:null,disposition:row.blank?'excluded_blank_pending_review':Number.isFinite(row.amount)?'numeric_candidate_pending_mapping':'excluded_unavailable_pending_review',actor:null,reviewedAt:null}));
  const duplicates=counts(cells,key),duplicateKeys=Object.entries(duplicates).filter(([,n])=>n>1).map(([k,n])=>({key:JSON.parse(k),count:n}));
  const grouped=new Map();for(const cell of cells){const k=JSON.stringify([cell.sourceGL,cell.department]);if(!grouped.has(k))grouped.set(k,[]);grouped.get(k).push(cell);}

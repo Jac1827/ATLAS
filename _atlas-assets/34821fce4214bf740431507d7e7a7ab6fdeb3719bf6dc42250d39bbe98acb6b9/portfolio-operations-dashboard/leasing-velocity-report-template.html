@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leasing Velocity Report (LVR)</title>
+<!--
+  ============================================================================
+  LEASING VELOCITY REPORT (LVR) — ATLAS TEMPLATE
+  ============================================================================
+  Standalone, dependency-free. Drop into the ATLAS reporting section.
+
+  HOW ATLAS FILLS IT
+  ------------------
+  1. Build a data object matching the LVR_DATA shape below (one block per
+     variation). Inject it before render in any of these ways:
+        window.LVR_DATA = { stabilized: {...}, leaseup: {...} };   // override all
+     ...or replace the LVR_DATA literal in this file server-side.
+
+  2. Pick the variation with the ATLAS filter — any of:
+        window.LVR_MODE = 'leaseup';            // set before script runs
+        <page>?mode=leaseup                     // query string
+        the on-screen "Variation" dropdown      // demo / manual
+     Accepted values: 'stabilized' | 'leaseup'.
+
+  3. Optional theme accent:  window.LVR_THEME = 'institutional'|'editorial'|'dashboard'
+
+  4. Images: put URLs on data.images { hero, feature, g1..g4 }. Empty = labeled
+     placeholder. Swap these for your ATLAS asset picker / <img> upload control.
+
+  EVERYTHING below the "DATA" block is presentation — safe to restyle. The
+  DATA shape is the contract ATLAS populates. All values are display strings
+  (already formatted) except `status` (drives the variance color) and the
+  numeric-ish fields you may compute. Status vocabulary: ahead | watch | behind | ok.
+  Funnel/severity/priority colors are derived; you only supply `status`/`severity`/`priority`.
+  ============================================================================
+-->
+<style>
+  :root{
+    --accent:#0f6e70; --accent-soft:#e3f0f0;
+    --ink:#1c2230; --ink-2:#3c4654; --ink-3:#5b6471; --mut:#8a93a3; --mut-2:#9aa1ad;
+    --line:#e4e7ec; --line-2:#eef0f3; --hair:#cfd4dc;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);background:#e9ebef;-webkit-font-smoothing:antialiased;}
+  h1,h2,h3,h4{text-wrap:balance;margin:0;}
+  p,li{text-wrap:pretty;}
+  table{border-collapse:collapse;}
+  .mono{font-family:'IBM Plex Mono','SFMono-Regular',Consolas,monospace;}
+
+  /* page shell */
+  .doc{max-width:8.5in;margin:0 auto;background:#fff;padding:54px clamp(20px,5vw,0.75in) 96px;box-shadow:0 1px 24px rgba(20,26,38,.10);}
+  .doc-frame{width:100%;}
+  .hdr-space,.ftr-space{display:none;}
+
+  /* toolbar (screen only) */
+  .bar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 18px;background:rgba(247,248,250,.92);backdrop-filter:blur(6px);border-bottom:1px solid #dfe2e8;}
+  .bar .lbl{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#6b7280;}
+  .bar .ctl{display:flex;align-items:center;gap:10px;}
+  .bar select{font:inherit;font-size:12px;padding:6px 8px;border:1px solid #cfd4dc;border-radius:7px;background:#fff;color:var(--ink);}
+  .bar button{font:inherit;font-size:12px;font-weight:600;color:#fff;background:var(--accent);border:none;border-radius:7px;padding:8px 14px;cursor:pointer;}
+
+  /* primitives */
+  .kicker{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:500;}
+  .sec{margin-top:42px;}
+  .sec-head{display:flex;align-items:baseline;gap:14px;border-bottom:2px solid var(--accent);padding-bottom:9px;margin-bottom:18px;}
+  .sec-num{font-size:13px;font-weight:500;color:var(--accent);}
+  .sec-title{font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--ink);}
+  .sec-meta{margin-left:auto;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut-2);}
+  .chip{font-size:11px;letter-spacing:.04em;padding:4px 10px;border:1px solid #d9dee6;border-radius:999px;color:var(--ink-3);}
+  .tile{border:1px solid var(--line);border-radius:10px;padding:15px 15px 13px;background:#fff;}
+  .tile.soft{background:var(--accent-soft);padding:14px 16px;}
+  .tile-lbl{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);}
+  .tile-val{font-size:29px;font-weight:600;letter-spacing:-.02em;color:var(--ink);margin-top:7px;}
+  .tile-val.acc{font-size:27px;color:var(--accent);margin-top:5px;}
+  .tile-foot{display:flex;align-items:center;gap:8px;margin-top:11px;}
+  .pill{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;}
+  .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  .card{border:1px solid var(--line);border-radius:12px;background:#fff;}
+  .nb{display:flex;gap:10px;margin-top:14px;padding:13px 16px;border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:0 8px 8px 0;}
+  .nb .tag{font-size:10px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);flex:none;padding-top:1px;}
+  .nb p{margin:0;font-size:13px;line-height:1.55;color:var(--ink-2);}
+  .num{font-variant-numeric:tabular-nums;}
+
+  th{text-align:left;padding:8px 10px;font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);}
+  thead tr{border-bottom:1.5px solid var(--hair);}
+  td{padding:11px 10px;}
+  tbody tr{border-bottom:1px solid var(--line-2);}
+
+  /* image slots */
+  .slot{width:100%;display:block;border-radius:12px;overflow:hidden;background:repeating-linear-gradient(135deg,#f1f3f6 0 14px,#eaedf1 14px 28px);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;}
+  .slot .ph{font-size:11px;letter-spacing:.04em;color:#9aa1ad;text-align:center;padding:0 12px;}
+  .slot img{width:100%;height:100%;object-fit:cover;display:block;}
+
+  @page{size:letter;margin:0;}
+  @media print{
+    html{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    html,body{margin:0;padding:0;background:#fff;}
+    .bar{display:none !important;}
+    .doc{max-width:none !important;margin:0 !important;padding:0 .7in !important;box-shadow:none !important;}
+    .hdr-space,.ftr-space{display:table-cell !important;height:.6in;}
+    .pb{break-before:page;}
+    .tile,.card,tr,figure,.nb{break-inside:avoid;}
+    h2,h3{break-after:avoid;}
+    p,li{orphans:3;widows:3;}
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <span class="lbl" id="bar-label">ATLAS · Leasing Velocity Report</span>
+  <div class="ctl">
+    <label class="lbl" for="mode-select">Variation</label>
+    <select id="mode-select">
+      <option value="stabilized">Stabilized</option>
+      <option value="leaseup">Lease-up</option>
+    </select>
+    <button id="print-btn" type="button">Print / Save PDF</button>
+  </div>
+</div>
+
+<main class="doc">
+  <table class="doc-frame" role="presentation">
+    <thead><tr><td class="hdr-space"></td></tr></thead>
+    <tbody><tr><td style="padding:0">
+      <div id="lvr-root"><!-- rendered by JS --></div>
+    </td></tr></tbody>
+    <tfoot><tr><td class="ftr-space"></td></tr></tfoot>
+  </table>
+</main>
+
+<script>
+/* ============================================================================
+   DATA  —  ATLAS POPULATES THIS.  Two variations: stabilized + leaseup.
+   ============================================================================ */
+const LVR_DATA_DEFAULT = {
+  stabilized: {
+    meta: {
+      label:'Stabilized', community:'Maple Crossing',
+      address:'4820 Maple Crossing Blvd · Charlotte, NC',
+      units:'276 units', type:'Garden · Stabilized',
+      period:'Week of Jun 16 – 22, 2026', trailing:'Trailing 30 / 60 day',
+      prepared:'ATLAS Asset Management',
+      leasedLabel:'Leased', leasedValue:'94.2%',
+      occupiedLabel:'Occupied', occupiedValue:'93.5%',
+      netLabel:'Net leases / wk', netValue:'+3'
+    },
+    summary:'Maple Crossing is holding at 93.5% occupancy against a 95.0% target, with trailing-30 net leases (14) running below the 18-lease goal as the community enters peak leasing season. Bottom-of-funnel performance is healthy — application-to-lease is near benchmark — but the community is losing qualified demand at the top: lead-to-tour conversion is just 31% against a 40% benchmark. Compounding this, the 2BR concession (6 weeks) is the deepest in the comp set yet is not translating into velocity, which points to an execution and follow-up problem rather than a pricing one. The action plan prioritizes lead-response speed, concession discipline, and reallocating spend toward the highest-converting sources.',
+    kpis:[
+      {label:'Occupancy', value:'93.5%', target:'Target 95.0%', note:'−1.5 pts', status:'behind'},
+      {label:'Net leases / wk', value:'+3', target:'Target +5', note:'−2', status:'behind'},
+      {label:'Trailing-30 leases', value:'14', target:'Target 18', note:'−4', status:'behind'},
+      {label:'Lead → Lease', value:'8.3%', target:'Benchmark 10%', note:'Watch', status:'watch'}
+    ],
+    funnel:[
+      {name:'Traffic / Leads', sub:'Qualified leads, weekly', count:'84', barPct:'100%', convLabel:'Lead → Tour', conv:'31%', benchmark:'Benchmark 40%', convNote:'−9 pts', convStatus:'behind'},
+      {name:'Tours', sub:'Completed tours', count:'26', barPct:'31%', convLabel:'Tour → App', conv:'38%', benchmark:'Benchmark 35%', convNote:'+3 pts', convStatus:'ahead'},
+      {name:'Applications', sub:'Submitted', count:'10', barPct:'12%', convLabel:'App → Lease', conv:'70%', benchmark:'Benchmark 75%', convNote:'−5 pts', convStatus:'watch'},
+      {name:'Signed leases', sub:'Executed this week', count:'7', barPct:'8%'}
+    ],
+    funnelNote:'The funnel narrows fastest at <strong>Lead&nbsp;→&nbsp;Tour</strong> — this is the single largest leak. The bottom of the funnel (Application&nbsp;→&nbsp;Lease) is at or near benchmark, so closing technique is not the issue. Recover demand by tightening lead-response speed and tour-setting, not by discounting deeper.',
+    sources:[
+      {source:'Apartments.com (ILS)', leads:'96', tourRate:'28%', leases:'5', cpl:'$640', note:'High volume, soft tours', status:'watch'},
+      {source:'Google PPC', leads:'71', tourRate:'22%', leases:'3', cpl:'$410', note:'Low quality', status:'behind'},
+      {source:'Property website', leads:'58', tourRate:'41%', leases:'4', cpl:'Organic', note:'Best converting', status:'ahead'},
+      {source:'Drive-by / Walk-in', leads:'22', tourRate:'64%', leases:'2', cpl:'—', note:'High intent', status:'ahead'},
+      {source:'Resident referral', leads:'9', tourRate:'78%', leases:'2', cpl:'$300', note:'Underused, strong', status:'ahead'},
+      {source:'Zillow (ILS)', leads:'40', tourRate:'19%', leases:'1', cpl:'$520', note:'Reallocate spend', status:'behind'}
+    ],
+    sourcesNote:'Tour rate — not lead volume — separates good sources from bad. The organic website and referral channels convert at 2–3× the paid ILS rate at a fraction of the cost. Paid spend is concentrated in the lowest-converting sources; rebalancing toward what converts is the fastest lever on cost-per-lease.',
+    occTiles:[
+      {label:'Occupancy', value:'93.5%', target:'Target 95.0%', note:'−1.5 pts', status:'behind'},
+      {label:'Leased', value:'94.2%', target:'Target 96.0%', note:'−1.8 pts', status:'watch'},
+      {label:'Exposure', value:'6.5%', target:'Target ≤5.0%', note:'+1.5 pts', status:'behind'},
+      {label:'Available to rent', value:'18', target:'of 276 units', note:'Watch', status:'watch'}
+    ],
+    occBar:[
+      {label:'Occupied', count:'258', pct:'93.5%', color:'#2f4660'},
+      {label:'Vacant – pre-leased', count:'5', pct:'1.8%', color:'#7c97b3'},
+      {label:'Vacant – available', count:'13', pct:'4.7%', color:'#dadfe7'}
+    ],
+    comps:[
+      {property:'Maple Crossing', isSubject:true, type:'2BR / 2BA', marketRent:'$1,685', concession:'6 wks free', effectiveRent:'$1,490'},
+      {property:'Riverview', type:'2BR / 2BA', marketRent:'$1,725', concession:'4 wks free', effectiveRent:'$1,580'},
+      {property:'The Quill', type:'2BR / 2BA', marketRent:'$1,640', concession:'1 mo free', effectiveRent:'$1,503'},
+      {property:'Hadley Park', type:'2BR / 2BA', marketRent:'$1,710', concession:'None', effectiveRent:'$1,710'},
+      {property:'Stonebridge', type:'2BR / 2BA', marketRent:'$1,660', concession:'6 wks free', effectiveRent:'$1,468'}
+    ],
+    concessionNote:'Subject concession (6 weeks) is the deepest in the comp set alongside Stonebridge, yet trailing-30 velocity still lags. Effective rent ($1,490) sits $13–$90 below three comps. The data shows depth is not buying velocity — the leak is lead-to-tour, not price. Recommendation: step the concession to 4 weeks and hold street rent.',
+    diag:[
+      {severity:'HIGH', area:'Lead → Tour conversion', finding:'31% vs 40% benchmark (−9 pts). ILS leads (Apartments.com, Zillow) convert to tours at just 19–28%. This is a response-time and follow-up problem, not a traffic-volume problem.', status:'behind'},
+      {severity:'HIGH', area:'Concession depth', finding:'The 6-week concession is the deepest in the comp set, yet velocity trails. Over-concessing is eroding effective rent (~$1,490) without buying leases.', status:'behind'},
+      {severity:'MED', area:'Source mix & spend', finding:'Zillow and Google PPC carry the lowest tour rates (19–22%) at $410–$520 CPL. Spend is mis-allocated away from website and referral — the best converters.', status:'watch'},
+      {severity:'MED', area:'Pace vs target', finding:'Trailing-30 net leases (14) trail the target (18) and exposure is at 6.5% heading into peak season.', status:'watch'},
+      {severity:'LOW', area:'Bottom of funnel', finding:'Application-to-lease at 70% is near benchmark — screening and close are healthy. The problem is concentrated at the top and middle of the funnel.', status:'ahead'}
+    ],
+    recs:[
+      {priority:'P1', action:'Implement a sub-15-minute lead-response SLA and a 5-touch follow-up cadence across all ILS leads. Target lead-to-tour of 40%.', owner:'Leasing Manager', due:'7 days'},
+      {priority:'P1', action:'Step the 2BR concession from 6 to 4 weeks; hold street rent. Reallocate the savings to a look-and-lease incentive.', owner:'Asset Mgr + Regional', due:'Next pricing call'},
+      {priority:'P2', action:'Shift ~30% of Zillow/PPC budget to website SEO and a relaunched resident-referral program.', owner:'Marketing', due:'14 days'},
+      {priority:'P2', action:'Mystery-shop the leasing team and coach tour-to-application close technique.', owner:'Regional', due:'14 days'},
+      {priority:'P3', action:'Pre-lease notice units within 48 hours of notice-to-vacate to cut down-time.', owner:'Leasing', due:'Ongoing'}
+    ],
+    images:{ hero:'', feature:'', g1:'', g2:'', g3:'', g4:'' }
+  },
+
+  leaseup: {
+    meta: {
+      label:'Lease-up', community:'The Foundry at Eastline',
+      address:'1100 Eastline Ave · Nashville, TN',
+      units:'320 units', type:'Mid-rise · Lease-up',
+      period:'Week of Jun 16 – 22, 2026', trailing:'Trailing 30 / 60 day',
+      prepared:'ATLAS Asset Management',
+      leasedLabel:'Leased', leasedValue:'61.6%',
+      occupiedLabel:'Occupied', occupiedValue:'48.1%',
+      netLabel:'Net leases / wk', netValue:'+11'
+    },
+    summary:'The Foundry at Eastline is 61.6% leased against a 64.0% target, absorbing roughly 46 leases over the trailing 30 days versus a 52-lease pro forma pace. Demand is strong — weekly traffic of 168 leads is ample — but appointment capacity is the constraint: lead-to-tour conversion of 35% trails the 42% target as peak traffic outruns leasing coverage. Concessions (8 weeks) are at-market for the lease-up comp set but lack a defined burn-off schedule, creating stabilized-rent risk down the line. The plan focuses on expanding tour capacity, scheduling the concession step-down, and tightening paid-social efficiency.',
+    kpis:[
+      {label:'Leased', value:'61.6%', target:'Target 64.0%', note:'−2.4 pts', status:'watch'},
+      {label:'Net leases / wk', value:'+11', target:'Target +12', note:'−1', status:'watch'},
+      {label:'Trailing-30 leases', value:'46', target:'Pro forma 52', note:'−6', status:'behind'},
+      {label:'Lead → Lease', value:'7.7%', target:'Benchmark 9%', note:'Watch', status:'watch'}
+    ],
+    funnel:[
+      {name:'Traffic / Leads', sub:'Qualified leads, weekly', count:'168', barPct:'100%', convLabel:'Lead → Tour', conv:'35%', benchmark:'Target 42%', convNote:'−7 pts', convStatus:'behind'},
+      {name:'Tours', sub:'Completed tours', count:'58', barPct:'35%', convLabel:'Tour → App', conv:'33%', benchmark:'Target 32%', convNote:'+1 pt', convStatus:'ahead'},
+      {name:'Applications', sub:'Submitted', count:'19', barPct:'11%', convLabel:'App → Lease', conv:'68%', benchmark:'Target 72%', convNote:'−4 pts', convStatus:'watch'},
+      {name:'Signed leases', sub:'Executed this week', count:'13', barPct:'8%'}
+    ],
+    funnelNote:'The funnel narrows fastest at <strong>Lead&nbsp;→&nbsp;Tour</strong> — this is the single largest leak. The bottom of the funnel (Application&nbsp;→&nbsp;Lease) is at or near target, so closing technique is not the issue. With strong traffic during delivery, recover absorption by adding tour capacity and instant scheduling, not by discounting deeper.',
+    sources:[
+      {source:'Apartments.com (ILS)', leads:'210', tourRate:'30%', leases:'18', cpl:'$390', note:'Volume engine', status:'watch'},
+      {source:'Google PPC', leads:'130', tourRate:'27%', leases:'9', cpl:'$360', note:'Steady', status:'watch'},
+      {source:'Meta / Instagram', leads:'96', tourRate:'24%', leases:'7', cpl:'$510', note:'High CPL, weak tours', status:'behind'},
+      {source:'Property website', leads:'88', tourRate:'44%', leases:'8', cpl:'Organic', note:'Top converter', status:'ahead'},
+      {source:'Signage / Drive-by', leads:'41', tourRate:'58%', leases:'4', cpl:'—', note:'Location working', status:'ahead'},
+      {source:'Broker / Locator', leads:'18', tourRate:'61%', leases:'3', cpl:'$600', note:'Corporate relo', status:'ahead'}
+    ],
+    sourcesNote:'Tour rate — not lead volume — separates good sources from bad. The organic website and walk-in/signage channels convert well above paid social at a fraction of the cost. Meta is the weakest paid channel by tour rate and CPL; tighten creative and reallocate toward what converts.',
+    occTiles:[
+      {label:'Leased', value:'61.6%', target:'Target 64.0%', note:'−2.4 pts', status:'watch'},
+      {label:'Occupied (physical)', value:'48.1%', target:'Tracking', note:'On plan', status:'ahead'},
+      {label:'Remaining to lease', value:'123', target:'of 320 units', note:'Watch', status:'watch'},
+      {label:'Weekly net', value:'+11', target:'Target +12', note:'−1', status:'watch'}
+    ],
+    occBar:[
+      {label:'Occupied', count:'154', pct:'48.1%', color:'#2f4660'},
+      {label:'Leased – not occupied', count:'43', pct:'13.4%', color:'#7c97b3'},
+      {label:'Available to lease', count:'123', pct:'38.4%', color:'#dadfe7'}
+    ],
+    comps:[
+      {property:'The Foundry', isSubject:true, type:'1BR / 1BA', marketRent:'$1,520', concession:'8 wks free', effectiveRent:'$1,267'},
+      {property:'Eastline Yards (lease-up)', type:'1BR / 1BA', marketRent:'$1,495', concession:'10 wks free', effectiveRent:'$1,207'},
+      {property:'The Cooper (stabilized)', type:'1BR / 1BA', marketRent:'$1,480', concession:'4 wks free', effectiveRent:'$1,357'},
+      {property:'Maxwell Flats', type:'1BR / 1BA', marketRent:'$1,540', concession:'6 wks free', effectiveRent:'$1,363'}
+    ],
+    concessionNote:'At 8 weeks the subject sits mid-pack among lease-up comps (4–10 weeks) and above stabilized product (4 weeks). Concession depth is defensible to drive absorption now, but the burn-off must be scheduled: step to 6 weeks at 75% leased to protect stabilized effective rent and the eventual trade-out basis.',
+    diag:[
+      {severity:'HIGH', area:'Lead → Tour conversion', finding:'35% vs 42% target (−7 pts). High lead volume during delivery is outrunning appointment capacity — weekend coverage and instant scheduling are the gap.', status:'behind'},
+      {severity:'MED', area:'Absorption pace', finding:'Trailing-30 of 46 leases vs 52 pro forma. Slightly behind plan; monitor closely against the remaining floor deliveries.', status:'watch'},
+      {severity:'MED', area:'Meta / Instagram efficiency', finding:'CPL of $510 with a 24% tour rate — creative and targeting are underperforming the rest of the channel mix.', status:'watch'},
+      {severity:'MED', area:'Concession burn-off', finding:'At 8 weeks the concession is at-market for lease-ups but unscheduled. Without a step-down plan it will compress stabilized effective rent.', status:'watch'},
+      {severity:'LOW', area:'Screening / close', finding:'Application-to-lease at 68% is acceptable given lease-up application volume and screening throughput.', status:'ahead'}
+    ],
+    recs:[
+      {priority:'P1', action:'Add weekend leasing coverage and instant-tour scheduling to lift lead-to-tour to 42%.', owner:'Leasing Manager', due:'7 days'},
+      {priority:'P1', action:'Hold the 8-week concession through the next 60 units, then step to 6 weeks at 75% leased to protect stabilized rents.', owner:'Asset Manager', due:'Next pricing call'},
+      {priority:'P2', action:'Rework Meta creative (unit tours, amenity reels) and cap CPL at $400.', owner:'Marketing', due:'14 days'},
+      {priority:'P2', action:'Stand up broker/locator outreach for corporate relocation demand.', owner:'Business Dev', due:'21 days'},
+      {priority:'P3', action:'Track weekly absorption against the pro forma and report variance.', owner:'Asset Manager', due:'Ongoing'}
+    ],
+    images:{ hero:'', feature:'', g1:'', g2:'', g3:'', g4:'' }
+  }
+};
+
+/* ============================================================================
+   THEME + STATUS TOKENS  (derived — ATLAS does not supply colors)
+   ============================================================================ */
+const THEMES = {
+  institutional:{accent:'#233044', soft:'#eef1f5'},
+  editorial:    {accent:'#6b3d2e', soft:'#f4ede6'},
+  dashboard:    {accent:'#0f6e70', soft:'#e3f0f0'}
+};
+const STATUS = {
+  ahead: {color:'#1f7a4d', bg:'#e7f3ec', dot:'#2e9e63'},
+  watch: {color:'#946200', bg:'#fbf1d9', dot:'#c79212'},
+  behind:{color:'#a3372b', bg:'#f7e4e0', dot:'#c0533f'},
+  ok:    {color:'#475569', bg:'#eef1f5', dot:'#94a3b8'}
+};
+const PRIORITY = {
+  P1:{color:'#fff', bg:'#1c2230'},
+  P2:{color:'#1c2230', bg:'#e4e7ec'},
+  P3:{color:'#6b7280', bg:'#f1f3f6'}
+};
+
+/* ============================================================================
+   RENDER
+   ============================================================================ */
+const E = s => String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const st = k => STATUS[k] || STATUS.ok;
+
+function imgSlot(url, ph, height){
+  const h = `height:${height}px`;
+  if (url) return `<div class="slot" style="${h}"><img src="${E(url)}" alt="${E(ph)}"></div>`;
+  return `<div class="slot" style="${h}"><span class="ph mono">${E(ph)}</span></div>`;
+}
+
+function secHead(num, title, meta){
+  return `<div class="sec-head"><span class="sec-num mono">${num}</span>`
+    + `<h2 class="sec-title">${E(title)}</h2>`
+    + `<span class="sec-meta mono">${E(meta)}</span></div>`;
+}
+
+function renderReport(d){
+  const m = d.meta, img = d.images || {};
+
+  const kpis = d.kpis.map(k=>{const c=st(k.status);return `
+    <div class="tile">
+      <div class="tile-lbl mono">${E(k.label)}</div>
+      <div class="tile-val">${E(k.value)}</div>
+      <div class="tile-foot"><span style="font-size:11px;color:var(--ink-3)">${E(k.target)}</span>
+      <span class="pill" style="margin-left:auto;color:${c.color};background:${c.bg}">${E(k.note)}</span></div>
+    </div>`;}).join('');
+
+  const funnel = d.funnel.map(s=>{
+    let row = `<div style="display:flex;align-items:center;gap:16px;padding:14px 0 10px">
+      <div style="width:140px;flex:none"><div style="font-size:14px;font-weight:600;color:var(--ink)">${E(s.name)}</div>
+      <div style="font-size:11px;color:var(--mut-2);margin-top:1px">${E(s.sub)}</div></div>
+      <div style="flex:1;min-width:0"><div style="position:relative;height:28px;border-radius:6px;background:#f0f2f5;overflow:hidden">
+      <div style="height:100%;width:${E(s.barPct)};min-width:40px;background:var(--accent);border-radius:6px"></div></div></div>
+      <div style="width:58px;text-align:right;font-size:22px;font-weight:600;letter-spacing:-.02em;color:var(--ink)">${E(s.count)}</div></div>`;
+    if (s.conv){const c=st(s.convStatus);row += `<div style="display:flex;align-items:center;gap:10px;padding:0 0 4px 156px;flex-wrap:wrap">
+      <span class="mono" style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);min-width:96px">${E(s.convLabel)}</span>
+      <span style="font-size:15px;font-weight:600;color:${c.color}">${E(s.conv)}</span>
+      <span style="font-size:11px;color:var(--mut-2)">${E(s.benchmark)}</span>
+      <span class="pill" style="color:${c.color};background:${c.bg}">${E(s.convNote)}</span></div>`;}
+    return row;
+  }).join('');
+
+  const sources = d.sources.map(r=>{const c=st(r.status);return `
+    <tr><td style="padding-left:0;font-weight:600;color:var(--ink)">${E(r.source)}</td>
+    <td class="num" style="text-align:right;color:var(--ink-2)">${E(r.leads)}</td>
+    <td class="num" style="text-align:right;font-weight:600;color:${c.color}">${E(r.tourRate)}</td>
+    <td class="num" style="text-align:right;color:var(--ink-2)">${E(r.leases)}</td>
+    <td class="num" style="text-align:right;color:var(--ink-2)">${E(r.cpl)}</td>
+    <td style="padding-left:14px"><span style="display:inline-flex;align-items:center;gap:7px">
+    <span style="width:7px;height:7px;border-radius:50%;background:${c.dot};flex:none"></span>
+    <span style="font-size:12px;color:var(--ink-3)">${E(r.note)}</span></span></td></tr>`;}).join('');
+
+  const occTiles = d.occTiles.map(t=>{const c=st(t.status);return `
+    <div class="tile"><div class="tile-lbl mono">${E(t.label)}</div>
+    <div class="tile-val" style="font-size:27px;margin-top:7px">${E(t.value)}</div>
+    <div class="tile-foot" style="margin-top:10px"><span style="font-size:11px;color:var(--ink-3)">${E(t.target)}</span>
+    <span class="pill" style="margin-left:auto;color:${c.color};background:${c.bg}">${E(t.note)}</span></div></div>`;}).join('');
+
+  const occSegs = d.occBar.map(s=>`<div style="width:${E(s.pct)};background:${E(s.color)}"></div>`).join('');
+  const occLegend = d.occBar.map(s=>`<span style="display:inline-flex;align-items:center;gap:8px">
+    <span style="width:11px;height:11px;border-radius:3px;background:${E(s.color)};flex:none"></span>
+    <span style="font-size:13px;color:var(--ink)"><strong style="font-weight:600">${E(s.count)}</strong> &nbsp;${E(s.label)} &nbsp;<span style="color:var(--mut-2)">${E(s.pct)}</span></span></span>`).join('');
+
+  const comps = d.comps.map(c=>{
+    const sub = c.isSubject;
+    return `<tr style="background:${sub?'var(--accent-soft)':'#fff'};border-left:3px solid ${sub?'var(--accent)':'transparent'}">
+      <td style="padding-left:12px;font-weight:${sub?700:500};color:${sub?'var(--accent)':'var(--ink)'}">${E(c.property)}${sub?'<span class="mono" style="font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--accent)">  · Subject</span>':''}</td>
+      <td style="color:var(--ink-3)">${E(c.type)}</td>
+      <td class="num" style="text-align:right;color:var(--ink-2)">${E(c.marketRent)}</td>
+      <td style="color:var(--ink-2)">${E(c.concession)}</td>
+      <td class="num" style="text-align:right;padding-right:12px;font-weight:600;color:var(--ink)">${E(c.effectiveRent)}</td></tr>`;
+  }).join('');
+
+  const diag = d.diag.map(g=>{const c=st(g.status);return `
+    <div class="card" style="display:flex;gap:14px;align-items:flex-start;padding:14px 16px">
+    <span class="mono" style="font-size:10px;font-weight:600;letter-spacing:.06em;padding:3px 9px;border-radius:6px;color:${c.color};background:${c.bg};flex:none;min-width:46px;text-align:center">${E(g.severity)}</span>
+    <div style="min-width:0"><div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:3px">${E(g.area)}</div>
+    <p style="margin:0;font-size:13px;line-height:1.55;color:#4a5462">${E(g.finding)}</p></div></div>`;}).join('');
+
+  const recs = d.recs.map(r=>{const p=PRIORITY[r.priority]||PRIORITY.P3;return `
+    <tr><td style="padding-left:0;vertical-align:top"><span class="mono pill" style="font-size:11px;color:${p.color};background:${p.bg}">${E(r.priority)}</span></td>
+    <td style="color:#2b3340;line-height:1.5">${E(r.action)}</td>
+    <td style="color:var(--ink-3);vertical-align:top">${E(r.owner)}</td>
+    <td class="num" style="padding-right:0;color:var(--ink-3);vertical-align:top">${E(r.due)}</td></tr>`;}).join('');
+
+  const thStyle = '';
+  return `
+  <header style="margin-bottom:6px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:24px">
+      <div style="min-width:0">
+        <div class="kicker mono">Marketing &amp; Leasing Velocity Report</div>
+        <h1 style="font-family:'Source Serif 4',Georgia,serif;font-size:39px;line-height:1.04;font-weight:600;letter-spacing:-.012em;margin:11px 0 7px;color:#141821">${E(m.community)}</h1>
+        <div style="font-size:14px;color:var(--ink-3)">${E(m.address)}</div>
+        <div style="display:flex;gap:8px;margin-top:13px;flex-wrap:wrap">
+          <span class="chip mono">${E(m.units)}</span><span class="chip mono">${E(m.type)}</span></div>
+      </div>
+      <div style="text-align:right;flex:none">
+        <div style="font-size:13px;font-weight:600;color:var(--ink)">${E(m.period)}</div>
+        <div style="font-size:12px;color:var(--mut);margin-top:2px">${E(m.trailing)}</div>
+        <div class="mono" style="margin-top:14px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut-2)">Prepared by</div>
+        <div style="font-size:13px;font-weight:600;color:var(--ink);margin-top:2px">${E(m.prepared)}</div>
+      </div>
+    </div>
+    <figure style="margin:18px 0 0">${imgSlot(img.hero, 'Drop community hero — exterior / signage / aerial', 288)}</figure>
+    <div class="grid-3" style="margin-top:14px">
+      <div class="tile soft"><div class="tile-lbl mono">${E(m.leasedLabel)}</div><div class="tile-val acc">${E(m.leasedValue)}</div></div>
+      <div class="tile soft"><div class="tile-lbl mono">${E(m.occupiedLabel)}</div><div class="tile-val acc">${E(m.occupiedValue)}</div></div>
+      <div class="tile soft"><div class="tile-lbl mono">${E(m.netLabel)}</div><div class="tile-val acc">${E(m.netValue)}</div></div>
+    </div>
+  </header>
+
+  <section class="sec">${secHead('01','Executive Summary', m.period)}
+    <p style="font-size:15px;line-height:1.62;color:#333c49;margin:0 0 20px">${E(d.summary)}</p>
+    <div class="grid-4">${kpis}</div>
+  </section>
+
+  <section class="sec">${secHead('02','Leasing Funnel & Closing Ratios','Weekly · conversion vs benchmark')}
+    <div class="card" style="padding:8px 20px 16px">${funnel}</div>
+    <div class="nb"><span class="tag mono">Read</span><p>${d.funnelNote}</p></div>
+  </section>
+
+  <section class="sec">${secHead('03','Traffic by Source','Trailing 30 day')}
+    <table style="width:100%;font-size:13px"><thead><tr>
+      <th style="padding-left:0">Source</th><th style="text-align:right">Leads</th><th style="text-align:right">Tour&nbsp;rate</th>
+      <th style="text-align:right">Leases</th><th style="text-align:right">Cost / lead</th><th style="padding-left:14px">Read</th>
+    </tr></thead><tbody>${sources}</tbody></table>
+    <div class="nb"><span class="tag mono">Read</span><p>${E(d.sourcesNote)}</p></div>
+  </section>
+
+  <section class="sec">${secHead('04','Occupancy & Exposure', m.units)}
+    <div class="grid-4" style="margin-bottom:20px">${occTiles}</div>
+    <div class="card" style="padding:18px 20px">
+      <div class="mono" style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin-bottom:12px">Unit status — physical breakdown</div>
+      <div style="display:flex;height:38px;border-radius:8px;overflow:hidden;border:1px solid var(--line)">${occSegs}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:18px;margin-top:14px">${occLegend}</div>
+    </div>
+  </section>
+
+  <section class="sec pb">${secHead('05','Pricing & Concessions vs Comps','Subject vs market')}
+    <table style="width:100%;font-size:13px"><thead><tr>
+      <th style="padding-left:12px">Property</th><th>Floorplan</th><th style="text-align:right">Market rent</th>
+      <th>Concession</th><th style="text-align:right;padding-right:12px">Effective rent</th>
+    </tr></thead><tbody>${comps}</tbody></table>
+    <div class="nb"><span class="tag mono">Concession control</span><p>${E(d.concessionNote)}</p></div>
+  </section>
+
+  <section class="sec">${secHead('06','Diagnosis — Where Leasing Is Leaking','Ranked by severity')}
+    <div style="display:flex;flex-direction:column;gap:10px">${diag}</div>
+  </section>
+
+  <section class="sec pb">${secHead('07','Recommendations & Action Plan','Owner · timeframe')}
+    <table style="width:100%;font-size:13px"><thead><tr>
+      <th style="padding-left:0;width:54px">Pri</th><th>Action</th><th style="width:130px">Owner</th><th style="padding-right:0;width:110px">By</th>
+    </tr></thead><tbody>${recs}</tbody></table>
+  </section>
+
+  <section class="sec pb">${secHead('08','The Community','Images')}
+    <figure style="margin:0 0 12px">${imgSlot(img.feature, 'Signature shot — clubhouse / amenity / leasing office', 240)}</figure>
+    <div class="grid-4">
+      ${imgSlot(img.g1,'Exterior',150)}${imgSlot(img.g2,'Model unit',150)}
+      ${imgSlot(img.g3,'Amenity / pool',150)}${imgSlot(img.g4,'Fitness / co-work',150)}
+    </div>
+    <p class="mono" style="margin:16px 0 0;font-size:11px;line-height:1.5;color:var(--mut-2)">Report generated by ATLAS · ${E(m.community)} · ${E(m.period)} · Confidential — for internal asset-management use.</p>
+  </section>`;
+}
+
+/* ============================================================================
+   BOOT  —  resolve data, theme, mode; wire filter + print
+   ============================================================================ */
+function resolveMode(){
+  let v = (window.LVR_MODE || new URLSearchParams(location.search).get('mode') || 'stabilized');
+  v = String(v).toLowerCase().replace(/[^a-z]/g,'');           // 'lease-up' -> 'leaseup'
+  return (v === 'leaseup' || v === 'leasup') ? 'leaseup' : 'stabilized';
+}
+function readAtlasPayload(){
+  const params = new URLSearchParams(location.search);
+  const key = params.get('atlasStorageKey') || 'atlas_lvr_data_v1';
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const payload = JSON.parse(raw);
+    return payload && typeof payload === 'object' ? payload : null;
+  } catch (error) {
+    console.warn('ATLAS LVR payload could not be read.', error);
+    return null;
+  }
+}
+function applyTheme(name){
+  const t = THEMES[String(name||'').toLowerCase()] || THEMES.dashboard;
+  document.documentElement.style.setProperty('--accent', t.accent);
+  document.documentElement.style.setProperty('--accent-soft', t.soft);
+}
+function render(){
+  const atlasPayload = readAtlasPayload();
+  const DATA = window.LVR_DATA || atlasPayload?.data || atlasPayload || LVR_DATA_DEFAULT;
+  const mode = resolveMode();
+  const d = DATA[mode] || DATA.stabilized;
+  applyTheme(window.LVR_THEME || new URLSearchParams(location.search).get('theme') || atlasPayload?.theme || 'dashboard');
+  document.getElementById('lvr-root').innerHTML = renderReport(d);
+  document.getElementById('bar-label').textContent = 'ATLAS · Leasing Velocity Report — ' + (d.meta.label || mode);
+  const sel = document.getElementById('mode-select'); if (sel) sel.value = mode;
+}
+document.getElementById('mode-select').addEventListener('change', e=>{
+  window.LVR_MODE = e.target.value;
+  const u = new URL(location); u.searchParams.set('mode', e.target.value); history.replaceState(null,'',u);
+  render();
+});
+document.getElementById('print-btn').addEventListener('click', ()=>window.print());
+render();
+if (new URLSearchParams(location.search).get('print') === '1') {
+  setTimeout(()=>window.print(), 250);
+}
+</script>
+</body>
+</html>

@@ -40,7 +40,7 @@ if(process.env.ATLAS_DORO_WORKBOOK){
  const bytes=fs.readFileSync(process.env.ATLAS_DORO_WORKBOOK),actual=await parseReforecastWorkbook(bytes,{xlsx:XLSX,fileName:path.basename(process.env.ATLAS_DORO_WORKBOOK),includeOriginalBytes:true});
  const periods=['2026-09','2026-10','2026-11','2026-12'],selectedLineIds=actual.lines.filter(l=>l.scenario==='Plan'&&periods.includes(l.period)&&Number.isFinite(l.amount)).map(l=>l.id);
  const result=await prepareScopedReforecastEvidence(actual,{sourceScenario:'Plan',periods,selectedLineIds},{xlsx:XLSX});
- assert.equal(result.selectedLineIds.length,451);assert.equal(result.evidence.integrity.summary.blocking,0);assert.equal(result.evidence.integrity.summary.review,48);
+ assert.equal(result.selectedLineIds.length,455);assert.equal(result.evidence.integrity.summary.blocking,0);assert.equal(result.evidence.integrity.summary.review,48);
  assert.deepEqual(result.evidence.sheets,actual.sheets);assert.deepEqual(result.evidence.lines,actual.lines);assert.deepEqual(result.evidence.source.originalFile,actual.source.originalFile);
  assert(result.evidence.integrity.findings.some(f=>f.code==='embedded_image_evidence'&&f.sheet==='Input'&&f.address==='G29'&&f.scope==='supporting'));
  assert.equal(result.evidence.lines.filter(l=>selectedLineIds.includes(l.id)&&l.amount===0).length,97);

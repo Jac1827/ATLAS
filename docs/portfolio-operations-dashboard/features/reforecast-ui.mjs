@@ -4,10 +4,10 @@ import {computeReforecast,recommendReforecast,applyRecommendations,undoRecommend
 import {safeSpreadsheetCell,esc,finite,money,reportHtml,reportPdf,exportRows,csv,download,snapshotLines,analyticalExportRows,communityForecastWorkbook,communityForecastPdf,pairedForecastReports,portfolioForecastDigest,portfolioForecastDigestWorkbook,portfolioForecastDigestPdf} from './reforecast-report.mjs?v=255e3fd3cc5aa869';
 
 import {UTILITY_RELATIONSHIP_CANDIDATES,createContractOverride} from './reforecast-provider.mjs?v=a98ef0ea03564c4a';
-import {forecastPermissions,forecastSetupDialog,forecastSourceHtml,forecastGridHtml,utilityRecoveryHtml,strScheduleHtml,bindBuilderControls} from './reforecast-builder-ui.mjs?v=aba2eb5461298baa';
+import {forecastPermissions,forecastSetupDialog,forecastSourceHtml,forecastGridHtml,utilityRecoveryHtml,strScheduleHtml,bindBuilderControls} from './reforecast-builder-ui.mjs?v=bee8be44e8a4a842';
 import {createStrOverlayDraft,validateRiseOverlay} from './reforecast-str-overlay.mjs?v=ecc60c5b054f76d1';
 import {validatePlanningCalendar} from './planning-governance.mjs?v=a4de8d3f5a50966c';
-import {forecastSetupPayload} from './reforecast-builder-ui.mjs?v=aba2eb5461298baa';
+import {forecastSetupPayload} from './reforecast-builder-ui.mjs?v=bee8be44e8a4a842';
 import {saveForecastRecovery,readForecastRecovery,listForecastRecovery,removeForecastRecovery} from './reforecast-recovery.mjs?v=33b82bf4c03a6af8';
 import {initialForecastRegistryProposal} from './reforecast-registry-proposal.mjs?v=aece27c1f35ec212';
 const clone=v=>JSON.parse(JSON.stringify(v));
@@ -153,7 +153,7 @@ export async function readRecoveredDraftSource(central,{communityId,payload:p}){
  const actor=central.getSession()?.user?.id,check=()=>{if(!actor||central.getSession()?.user?.id!==actor)throw Error('The signed-in account changed. Reopen working draft recovery.');};check();
  let receipt;const saved=(p.strStreams||[]).filter(stream=>stream.type==='saved_json_monthly_programme');
  if(saved.length){
-  const evidence=p.strRecoveryEvidence,retained=evidence?.sourceReceipt,module=await import('./reforecast-str-saved-programme-ui.mjs?v=6ef1322ce4a7f3d7');check();
+  const evidence=p.strRecoveryEvidence,retained=evidence?.sourceReceipt,module=await import('./reforecast-str-saved-programme-ui.mjs?v=f8c3003664a5e51f');check();
   if(saved.length!==1||!retained?.request_id||!evidence.review)throw Error('The exact saved programme source request is unavailable. Keep these working edits and restore the approved source receipt.');
   receipt=await module.readSavedStrSourceReceipt(central,{communityId,requestId:retained.request_id});check();
   if(!receipt)throw Error('The saved programme receipt is unavailable. Working edits remain retained; verify the source before restoring its preview.');
@@ -447,7 +447,7 @@ async function recoverSavedStrJson(s,{publicationId:recoveryPublicationId}={}){
   const guard=()=>{safeActor(s);if(s.cid!==context.cid||headId(s.record||{})!==context.scenarioId||s.epoch!==context.epoch)throw Error('The selected forecast changed. Reopen saved STR recovery.');};
   const history=overlay?[]:await store.readPublicationHistory(s.central,{communityId:s.cid}),publicationId=recoveryPublicationId||(overlay?s.edit.parentPublication?.publicationId:history.find(row=>row.revisionId===s.record?.revision?.revision_id)?.publicationId);
   if(!publicationId)throw Error('Approve and lock the exact Conventional parent before recovering a governed STR overlay.');
-  const publication=await store.readPublication(s.central,{communityId:s.cid,publicationId}),module=await import('./reforecast-str-saved-programme-ui.mjs?v=6ef1322ce4a7f3d7');guard();
+  const publication=await store.readPublication(s.central,{communityId:s.cid,publicationId}),module=await import('./reforecast-str-saved-programme-ui.mjs?v=f8c3003664a5e51f');guard();
   const parentSource=await store.readBuilderSource(s.central,{communityId:s.cid,periods:publication.periods,baselineType:'approved_reforecast',baselinePublicationIds:[publication.publicationId],baselineVersionIds:publication.snapshot.identity.baselineVersionIds,registryVersionId:publication.snapshot.identity.mappingRegistryVersion});guard();
   const mappingContext=await module.readStrMappingContext(s.central,{communityId:s.cid,parentPublicationId:publication.publicationId});guard();if(mappingContext.parentRegistry.version!==parentSource.registry.version)throw Error('The exact Conventional registry could not be verified for STR review.');
   await module.savedStrMonthlyProgrammeDialog({publication,registry:mappingContext.parentRegistry,accountEvidence:mappingContext.workbookAccountEvidence,currentSource:parentSource,loadRegistry:async(registryVersionId,expectedContentHash)=>{guard();const registry=await readStrRegistryExtension(s.central,{communityId:s.cid,versionId:registryVersionId,parentRegistryVersion:mappingContext.parentRegistry.version,parentPublicationId:publication.publicationId,expectedContentHash});guard();return registry;},central:s.central,actor:s.actor,dialog,guard,onApply:async(draft,receipt)=>{guard();const source=await store.readBuilderSource(s.central,{communityId:s.cid,periods:draft.periods,baselineType:'approved_reforecast',baselinePublicationIds:draft.baselinePublicationIds,baselineVersionIds:draft.baselineVersionIds,registryVersionId:draft.registryVersionId});guard();source.savedStrSourceReceipts=[...(source.savedStrSourceReceipts||[]).filter(row=>row.source_receipt_id!==receipt.source_receipt_id),receipt];if(!overlay){s.record=null;s.scenarioId=uuid();}s.edit=draft;s.source=source;s.latestActualsSource=actualsProjection(source);s.pendingCells={};s.importReceipt=null;mark(s);await s.recoveryQueue;s.message='UNSAVED — exact saved STR monthly contributions applied to this separate overlay. Source approval and readback succeeded. Save Working Draft retains the forecast before approval and export.';render(s);}});

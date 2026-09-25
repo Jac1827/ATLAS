@@ -1,4 +1,4 @@
-import {varianceFavorability,stableStringify} from './reforecast-engine.mjs?v=addea678a6fc086d';
+import {varianceFavorability,stableStringify,roundMoney,sumMoney,aggregateForecastLines} from './reforecast-engine.mjs?v=addea678a6fc086d';
 import {forecastSnapshot,retainedSnapshot,lineageColumns} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 import {snapshotPdf} from './snapshot-pdf.mjs?v=e6a58eadc065a877';
 import {utilityRecoveryRows} from './reforecast-utility.mjs?v=cef9d4672d252137';
@@ -6,11 +6,13 @@ import {utilityRecoveryRows} from './reforecast-utility.mjs?v=cef9d4672d252137';
 export const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const finite=v=>typeof v==='number'&&Number.isFinite(v);
 export const money=v=>finite(v)?v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:20}):'Unavailable';
-const round=v=>finite(v)?Math.sign(v)*Math.round((Math.abs(v)+Number.EPSILON)*100)/100:null;
-export const sum=values=>values.length&&values.every(finite)?round(values.reduce((a,b)=>a+b,0)):null;
-const difference=(a,b)=>finite(a)&&finite(b)?round(a-b):null;
-// Compare immutable decimal money without rounding imported sub-cent precision.
-const exactDifference=(a,b)=>{if(!finite(a)||!finite(b))return null;const parts=value=>{const [significand,exponent='0']=String(value).split('e'),[whole,fraction='']=significand.split('.');return {integer:BigInt(whole+fraction),scale:fraction.length-Number(exponent)};},left=parts(a),right=parts(b),scale=Math.max(0,left.scale,right.scale),value=left.integer*10n**BigInt(scale-left.scale)-right.integer*10n**BigInt(scale-right.scale);return Number(value)/10**scale;};
+const round=roundMoney;
+export const sum=values=>values.length?sumMoney(values):null;
+const difference=(a,b)=>finite(a)&&finite(b)?sumMoney([a,-b]):null;
+// Retained GL amounts keep their decimal precision, including scientific notation.
+// Money control totals still use the separately rounded sum above.
+const exactSum=values=>{if(!values.length||!values.every(finite))return null;const parts=values.map(value=>{const [significand,exponent='0']=String(value).split('e'),[whole,fraction='']=significand.split('.');return {integer:BigInt(whole+fraction),scale:fraction.length-Number(exponent)};}),scale=Math.max(0,...parts.map(part=>part.scale)),value=parts.reduce((total,part)=>total+part.integer*10n**BigInt(scale-part.scale),0n),digits=(value<0n?-value:value).toString().padStart(scale+1,'0'),result=Number((value<0n?'-':'')+(scale?digits.slice(0,-scale)+'.'+digits.slice(-scale):digits));return finite(result)?result:null;};
+const exactDifference=(a,b)=>finite(a)&&finite(b)?exactSum([a,-b]):null;
 const has=(object,key)=>Object.prototype.hasOwnProperty.call(object||{},key);
 const groupPeriod=(period,grain)=>grain==='year'?period.slice(0,4):grain==='quarter'?period.slice(0,4)+' Q'+Math.ceil(Number(period.slice(5))/3):period;
 const reportPeriods=(snapshot,options)=>options.periods?.length?options.periods:snapshot?.identity?.periods||snapshot?.periods||[];
@@ -38,7 +40,7 @@ export function gapRows(snapshot,source,options={}){
   for(const key of ['budget','forecast','actual'])g[key].push(row[key]);g.periods.push(row.period);
   if(row.actualCloseVersionId)g.closeVersions.push({period:row.period,versionId:row.actualCloseVersionId});groups.set(id,g);
  }
- return [...groups.values()].map(g=>{const budget=sum(g.budget),forecast=sum(g.forecast),actual=sum(g.actual);return {...g,budget,forecast,actual,budgetToForecast:difference(forecast,budget),forecastToActual:difference(actual,forecast),snapshotVersion,actualCutoff:options.actualsMode==='latest'?source?.actuals?.cutoffPeriod||null:snapshot.identity?.actualCutoff||null,actualsMode:options.actualsMode||'snapshot'};}).sort((a,b)=>a.period.localeCompare(b.period)||a.accountCode.localeCompare(b.accountCode));
+ return [...groups.values()].map(g=>{const budget=exactSum(g.budget),forecast=exactSum(g.forecast),actual=exactSum(g.actual);return {...g,budget,forecast,actual,budgetToForecast:exactDifference(forecast,budget),forecastToActual:exactDifference(actual,forecast),snapshotVersion,actualCutoff:options.actualsMode==='latest'?source?.actuals?.cutoffPeriod||null:snapshot.identity?.actualCutoff||null,actualsMode:options.actualsMode||'snapshot'};}).sort((a,b)=>a.period.localeCompare(b.period)||a.accountCode.localeCompare(b.accountCode));
 }
 function factor(row,metric){
  const income=['income','contra_income'].includes(row.nature),above=row.placement==='above_noi',expense=row.nature==='expense';
@@ -49,11 +51,7 @@ function factor(row,metric){
  return 1;
 }
 function glMetric(rows,field,metric){
- const selected=rows.filter(row=>factor(row,metric)!==0);
- if(!selected.length)return 0;
- const value=sum(selected.map(row=>finite(row[field])?row[field]*factor(row,metric):null));
- if(metric!=='margin')return value;
- const revenue=glMetric(rows,field,'revenue');return finite(value)&&finite(revenue)&&revenue!==0?value/revenue:null;
+ return aggregateForecastLines(rows.map(row=>({...row,mappingValid:row.mappingValid!==false,...(field==='budget'?{originalBudget:row.budget}:{})})),field==='budget'?'originalBudget':field)[metric]??null;
 }
 export function trendRows(snapshot,source,options={}){
  const {metric='noi',grain='month'}=options,selected=reportPeriods(snapshot,options),filtered=Boolean(options.account||options.category||options.placement),evidence=options.actualsMode==='latest'?latestEvidence(source):null;

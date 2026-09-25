@@ -8,20 +8,28 @@ import {PDFDocument,PDFName,PDFDict,PDFArray,PDFRawStream,decodePDFRawStream} fr
 const require=createRequire(import.meta.url),XLSX=require('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js');
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const clean=value=>JSON.parse(JSON.stringify(value));
-const strictSum=values=>values.some(value=>!Number.isFinite(value))?null:Math.round((values.reduce((sum,value)=>sum+value,0)+Number.EPSILON)*100)/100;
-const subtract=(a,b)=>a===null||b===null?null:Math.round((a-b+Number.EPSILON)*100)/100;
+// Independent decimal oracle: PostgreSQL numeric rounds half away from zero.
+const strictSum=values=>{if(values.some(value=>typeof value!=='number'||!Number.isFinite(value)))return null;const parts=values.map(value=>{const [coefficient,exponent='0']=String(value).split('e'),[whole,fraction='']=coefficient.split('.');return {units:BigInt(whole+fraction),scale:fraction.length-Number(exponent)};}),scale=Math.max(2,...parts.map(part=>part.scale)),units=parts.reduce((sum,part)=>sum+part.units*10n**BigInt(scale-part.scale),0n),divisor=10n**BigInt(scale-2),absolute=units<0n?-units:units,cents=absolute/divisor+(absolute%divisor*2n>=divisor?1n:0n);return Number(units<0n?-cents:cents)/100;};
+const subtract=(a,b)=>a===null||b===null?null:strictSum([a,-b]);
 
 export function reconcilePublicationTotals(publication){
  const snapshot=publication.snapshot,periods=publication.periods||snapshot.identity.periods,seen=new Set(),result=[];
  for(const line of snapshot.lines){const key=JSON.stringify([line.period,line.accountCode]);assert(!seen.has(key),'Publication has duplicate GL/month values');seen.add(key);}
- for(const period of periods){const lines=snapshot.lines.filter(row=>row.period===period),monthly=snapshot.monthly.filter(row=>row.period===period);assert.equal(monthly.length,1,'One monthly receipt is required per period');
+ for(const period of periods){const lines=snapshot.lines.filter(row=>row.period===period),monthly=snapshot.monthly.filter(row=>row.period===period);assert.equal(monthly.length,1,'One monthly receipt is required per period');const month=monthly[0],basisChecks=[];
   for(const [basis,field] of [['reforecast','forecast'],['originalBudget','originalBudget'],['actuals','actual']]){
-   const part=predicate=>strictSum(lines.filter(predicate).filter(row=>!(field==='originalBudget'&&row[field]===null&&row.baselineDisposition?.kind==='no_original_budget_row')).map(row=>row[field]??null));
-   const invalid=lines.some(row=>row.mappingValid===false),nature=row=>row.nature||row.identifier;
-   const income=part(row=>nature(row)==='income'&&row.placement==='above_noi'),contra=part(row=>nature(row)==='contra_income'&&row.placement==='above_noi'),expense=part(row=>nature(row)==='expense'&&row.placement==='above_noi'),capital=part(row=>nature(row)==='capital'),noi=subtract(strictSum([income,contra]),expense);
-   for(const [metric,value] of Object.entries({grossIncome:income,contraRevenue:contra,expenses:expense,capital,noi})){assert.equal(monthly[0][basis]?.[metric]??null,invalid?null:value,`${period} ${basis} ${metric} differs from its complete GL detail`);}
+   const selected=lines.filter(row=>!(field==='originalBudget'&&row[field]===null&&row.baselineDisposition?.kind==='no_original_budget_row')),part=predicate=>strictSum(selected.filter(predicate).map(row=>row[field]??null)),nature=row=>row.nature||row.identifier;
+   const invalid=!selected.length||selected.some(row=>row.mappingValid===false),income=part(row=>nature(row)==='income'&&row.placement==='above_noi'),contra=part(row=>nature(row)==='contra_income'&&row.placement==='above_noi'),expense=part(row=>nature(row)==='expense'&&row.placement==='above_noi'),capital=part(row=>nature(row)==='capital'),debt=part(row=>nature(row)==='debt'),belowNoi=strictSum(selected.filter(row=>row.placement==='below_noi'&&!['capital','debt'].includes(nature(row))).map(row=>row[field]===null||row[field]===undefined?null:row[field]*(['income','contra_income'].includes(nature(row))?-1:1))),revenue=strictSum([income,contra]),noi=subtract(revenue,expense);
+   const expected={grossIncome:income,contraRevenue:contra,expenses:expense,capital,noi,revenue,opex:expense,belowNoi,debt,cashFlow:subtract(subtract(subtract(noi,belowNoi),debt),capital),margin:noi!==null&&revenue!==null&&revenue!==0?noi/revenue:null},unavailable=(basis==='actuals'&&month.closed===false)||(basis!=='originalBudget'&&month.applicable===false),controlled=month.closed===true&&month.controlSource==='governed_close_controls'&&(basis==='actuals'||basis==='reforecast'&&!lines.every(row=>row.immutable===true));
+   if(controlled){assert(month.closeVersionId&&snapshot.identity.actualCloseVersions?.some(row=>row.period===period&&row.versionId===month.closeVersionId),'Governed control totals need the retained exact close version');basisChecks.push({basis,mode:'governed_close_controls',closeVersionId:month.closeVersionId,independentGLReconciliation:false});continue;}
+   let metrics=0;for(const [metric,value] of Object.entries(expected)){if(!['grossIncome','contraRevenue','expenses','capital','noi'].includes(metric)&&!Object.hasOwn(month[basis]||{},metric))continue;const actual=month[basis]?.[metric]??null,wanted=invalid||unavailable?null:value;if(metric==='margin'&&actual!==null&&wanted!==null)assert(Math.abs(actual-wanted)<1e-12,`${period} ${basis} margin differs from its complete GL detail`);else assert.equal(actual,wanted,`${period} ${basis} ${metric} differs from its complete GL detail`);metrics++;}
+   basisChecks.push({basis,mode:unavailable?'unavailable_period':'complete_gl_detail',metrics,independentGLReconciliation:true});
   }
-  result.push({period,glCells:lines.length,forecastSignedTotal:strictSum(lines.map(row=>row.forecast??null))});
+  result.push({period,glCells:lines.length,forecastSignedTotal:strictSum(lines.map(row=>row.forecast??null)),basisChecks});
+ }
+ for(const [basis,totals] of Object.entries(snapshot.totals||{})){
+  if(!['originalBudget','reforecast','actuals','actualsThroughCutoff'].includes(basis))continue;
+  const field=basis==='actualsThroughCutoff'?'actuals':basis,months=snapshot.monthly.filter(row=>periods.includes(row.period)&&(basis==='originalBudget'||row.applicable!==false)&&(basis!=='actualsThroughCutoff'||row.closed)),unavailable=(basis==='actuals'&&months.some(row=>!row.closed))||!months.length;
+  for(const [metric,actual] of Object.entries(totals)){const numerator=strictSum(months.map(row=>row[field]?.noi??null)),denominator=strictSum(months.map(row=>row[field]?.revenue??null)),expected=unavailable?null:metric==='margin'?numerator!==null&&denominator!==null&&denominator!==0?numerator/denominator:null:strictSum(months.map(row=>row[field]?.[metric]??null));if(metric==='margin'&&actual!==null&&expected!==null)assert(Math.abs(actual-expected)<1e-12,`${basis} total margin differs from its monthly values`);else assert.equal(actual,expected,`${basis} total ${metric} differs from its monthly values`);}
  }
  return result;
 }
@@ -45,5 +53,5 @@ export async function verifyOfficialExports({publication,xlsxBytes,pdfBytes,scre
  assert.deepEqual(attached.rows,clean([...report.rows,...report.monthly,...report.schedules,...report.sourceReconciliation,...report.utilities,...report.drivers,...report.overrides,...report.baselines,...report.risks,...report.bridge,...report.appendix]),'PDF detail does not match publication');
  if(screenRows!==undefined)assert.deepEqual(screenRows,report.rows,'Screen GL cells differ from publication');
  if(screenMonthly!==undefined)assert.deepEqual(screenMonthly,report.monthly,'Screen monthly values differ from publication');
- return {status:'matched',publicationId:publication.publicationId,publicationHash:publication.contentHash,reportFingerprint:report.snapshot.fingerprint,xlsxHash:hash(xlsxBytes),pdfHash:hash(pdfBytes),monthlyChecks,glCells:report.rows.length,xlsxSheets:Object.keys(sheetMap).length,pdfPages:pdf.getPageCount(),screenGLReadbackVerified:screenRows!==undefined,screenMonthlyReadbackVerified:screenMonthly!==undefined,pdfVisualReview:'required_separately'};
+ return {status:'matched',publicationId:publication.publicationId,publicationHash:publication.contentHash,reportFingerprint:report.snapshot.fingerprint,xlsxHash:hash(xlsxBytes),pdfHash:hash(pdfBytes),monthlyChecks,monthlyGLReconciliationComplete:monthlyChecks.every(month=>month.basisChecks.every(check=>check.independentGLReconciliation)),glCells:report.rows.length,xlsxSheets:Object.keys(sheetMap).length,pdfPages:pdf.getPageCount(),screenGLReadbackVerified:screenRows!==undefined,screenMonthlyReadbackVerified:screenMonthly!==undefined,pdfVisualReview:'required_separately'};
 }

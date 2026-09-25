@@ -736,8 +736,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "566b89bbbfa835e5",
-    "bytes": 3012555,
+    "sha256": "9f24d2f270003931",
+    "bytes": 3013411,
     "references": [
       [
         "index.html",
@@ -1318,8 +1318,8 @@
     ]
   },
   "features/reports-workspace.js": {
-    "sha256": "bcce172b61dd8132",
-    "bytes": 126887,
+    "sha256": "db08e46d109ff0e9",
+    "bytes": 139393,
     "references": [
       [
         "performance/feature-loader.js",
@@ -1378,7 +1378,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "b4220f0e140b5e8b",
+    "sha256": "fde76fee1eed71ae",
     "bytes": 3714,
     "references": [
       [

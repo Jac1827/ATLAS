@@ -1,5 +1,5 @@
 import {hashReforecastWorkbook,encodeOriginalWorkbook,normalizeReforecastNumber,normalizeReforecastPeriod,loadXlsx} from './reforecast-intake.mjs?v=87e68da483f77228';
-import {pdfItemsToText} from './financial-package.mjs?v=a378a0cb25083758';
+import {pdfItemsToText} from './financial-package.mjs?v=9e34c3c633e9477e';
 
 // Provider evidence is never a financial close or an approval. Restricted detail stays in the source bundle.
 export const PROVIDER_PARSER_VERSION='atlas-provider-statement/1';
@@ -250,16 +250,27 @@ export function recommendStrStatementBehavior({statements=[],communityId,provide
  return {status:'proposed',basis:'trailing_three_approved_statements',sampleCount:3,grossPerOccupiedNight:weighted('grossPerOccupiedNight'),netPerOccupiedNight:weighted('netPerOccupiedNight'),evidence,weights:[...weights],requiresAcceptance:true};
 }
 
-export function calculateContractDriver({contract,periods=[],userRate=null}={}){
+export function calculateContractDriver({contract,periods=[],userRate=null,inflation=null,communityId=null,location=null}={}){
  if(!periods.length||periods.some(period=>!PERIOD.test(period)))throw Error('Contract drivers require full calendar months.');
  const assumption=userRate?.reviewState==='approved'&&userRate.reason&&userRate.actor&&finite(userRate.monthlyAmount)?userRate:null;
  const reviewed=contract?.reviewState==='approved'&&contract?.sourceHash&&contract?.effectiveFrom&&contract?.effectiveTo&&finite(contract?.monthlyAmount);
+ const escalation=contract?.escalation;
+ const invalidEscalation=escalation&&(!escalation.clauseReference||!PERIOD.test(escalation.effectiveMonth||'')||!finite(escalation.rate));
+ const rateAt=period=>money(contract.monthlyAmount*(escalation&&period>=escalation.effectiveMonth?1+escalation.rate:1));
+ const inflationReady=inflation?.confirmed===true&&inflation.communityId===communityId&&communityId&&location&&inflation.location===location&&finite(inflation.percentage)&&inflation.percentage>=-100&&inflation.source&&inflation.ownerId&&/^20\d{2}-\d{2}-\d{2}$/.test(inflation.effectiveDate||'');
  return periods.map(period=>{
-  if(assumption)return {period,status:'available',amount:money(assumption.monthlyAmount),method:'user_entered',assumption:clone(assumption),sourceHash:contract?.sourceHash||null};
-  if(!reviewed||period<contract.effectiveFrom||period>contract.effectiveTo)return {period,status:'unavailable',amount:null,reason:'missing_or_unreviewed_contract_terms'};
-  const escalation=contract.escalation;
-  if(escalation&&(!escalation.clauseReference||!PERIOD.test(escalation.effectiveMonth||'')||!finite(escalation.rate)))return {period,status:'unavailable',amount:null,reason:'unreviewed_escalation'};
-  return {period,status:'available',amount:money(contract.monthlyAmount*(escalation&&period>=escalation.effectiveMonth?1+escalation.rate:1)),method:'contract_clause',sourceHash:contract.sourceHash,clauseReference:escalation?.clauseReference||null};
+  const inside=reviewed&&period>=contract.effectiveFrom&&period<=contract.effectiveTo;
+  const partial=inside&&(contract.effectiveDate?.slice(0,7)===period&&!contract.effectiveDate.endsWith('-01')||contract.endDate?.slice(0,7)===period&&Number(contract.endDate.slice(-2))!==days(period));
+  if(assumption)return {period,status:'available',amount:money(assumption.monthlyAmount),method:'user_entered',coverage:'User Override',contractBacked:false,assumption:clone(assumption),sourceHash:contract?.sourceHash||null};
+  if(!reviewed)return {period,status:'unavailable',amount:null,contractBacked:false,reason:'missing_or_unreviewed_contract_terms'};
+  if(invalidEscalation)return {period,status:'unavailable',amount:null,contractBacked:false,reason:'unreviewed_escalation'};
+  if(partial)return {period,status:'unavailable',amount:null,coverage:'Partial Contract - Review Proration',contractBacked:false,reason:'Review the contractual billing or proration rule for the partial month.',sourceHash:contract.sourceHash};
+  if(inside)return {period,status:'available',amount:rateAt(period),method:'contract_clause',coverage:'Contract Backed',contractBacked:true,sourceHash:contract.sourceHash,clauseReference:escalation?.clauseReference||null,calculation:'Applicable signed monthly rate and effective escalation clause'};
+  if(period>contract.effectiveTo&&inflationReady&&period>=inflation.effectiveDate.slice(0,7)){
+   const priorRate=rateAt(contract.effectiveTo),amount=money(priorRate*(1+inflation.percentage/100));
+   return {period,status:'available',amount,method:'out_of_contract_estimate',coverage:'Out of Contract - Estimated',contractBacked:false,priorRate,inflationPercentage:inflation.percentage,calculation:`${priorRate} × (1 + ${inflation.percentage} / 100)`,confidence:'estimated',assumption:clone(inflation),sourceHash:contract.sourceHash};
+  }
+  return {period,status:'unavailable',amount:null,coverage:'Out of Contract - Estimated',contractBacked:false,reason:period<contract.effectiveFrom?'No prior applicable contract rate exists for this month.':'A property and location specific inflation assumption with source, effective date and owner is required.'};
  });
 }
 

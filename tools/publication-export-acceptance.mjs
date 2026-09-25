@@ -39,7 +39,7 @@ export async function verifyOfficialExports({publication,xlsxBytes,pdfBytes,scre
  assert(xlsxBytes?.length>4&&xlsxBytes[0]===0x50&&xlsxBytes[1]===0x4b,'Official Excel must be a real XLSX ZIP');
  const book=XLSX.read(xlsxBytes,{type:'array',cellFormula:true});
  const sheetMap={'Monthly summary':'monthly','GL detail':'rows','STR contribution bridge':'bridge','STR schedule':'schedules','Saved STR reconciliation':'sourceReconciliation','Utility recovery':'utilities','Drivers':'drivers','Overrides':'overrides','Baseline by month':'baselines','Risks':'risks','Source appendix':'appendix'};
- assert.deepEqual(book.SheetNames,Object.keys(sheetMap),'Official workbook must retain every report section');
+ assert.deepEqual(book.SheetNames.filter(name=>name!=='RISE Report'),Object.keys(sheetMap),'Official workbook must retain every report section');if(book.SheetNames.includes('RISE Report'))assert.equal(book.SheetNames[0],'RISE Report','RISE cover must precede financial detail');
  for(const [sheet,property] of Object.entries(sheetMap)){
   const expected=report[property].map(row=>Object.fromEntries(Object.entries(row).map(([key,value])=>[safeSpreadsheetCell(key),safeSpreadsheetCell(value)])));
   assert.deepEqual(XLSX.utils.sheet_to_json(book.Sheets[sheet],{defval:null}),expected,`${sheet} does not exactly match the immutable publication`);

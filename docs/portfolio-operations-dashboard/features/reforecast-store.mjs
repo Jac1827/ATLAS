@@ -1,3 +1,4 @@
+import {acknowledgeBudgetConsumer} from './budget-consumer-delivery.mjs?v=f5342574d4b39aa2';
 /* Canonical reforecast transport: no browser-local financial fallback. */
 import {persistReforecastPayload} from './workbook-audit-store.mjs?v=26dfb75ca99d6b52';
 import {effectiveActiveSnapshot as projectActive} from './reforecast-active.mjs?v=03b191a6926d70ca';
@@ -73,7 +74,7 @@ export async function readBuilderSource(central,{communityId,periods,baselineVer
  scope(communityId);if(!Array.isArray(periods)||!periods.length||periods.length>24||new Set(periods).size!==periods.length||periods.some(p=>!period.test(p)))throw Error('Choose distinct full calendar months.');
  if(!['original_budget','approved_reforecast'].includes(baselineType))throw Error('Select an approved baseline.');
  const actor=identity(central),result=await rpc(central,'atlas_read_reforecast_builder_source',{p_community_id:communityId,p_periods:periods,p_baseline_version_ids:baselineVersionIds?.length?baselineVersionIds:null,p_registry_version_id:registryVersionId,p_baseline_type:baselineType,p_baseline_publication_ids:baselinePublicationIds?.length?baselinePublicationIds:null});
- actorGuard(central,actor);if(result?.communityId!==communityId||!Array.isArray(result.periods)||!equal([...result.periods].sort(),[...periods].sort())||!result.baseline)throw Error('Forecast baseline readback did not match the selected community and months.');return result;
+ actorGuard(central,actor);if(result?.communityId!==communityId||!Array.isArray(result.periods)||!equal([...result.periods].sort(),[...periods].sort())||!result.baseline)throw Error('Forecast baseline readback did not match the selected community and months.');for(const row of [...new Map((result.baseline.periodVersions||[]).filter(row=>row.sourceType==='approved_reforecast').map(row=>[row.publicationId,row])).values()])await acknowledgeBudgetConsumer(central,row,'recommendations');actorGuard(central,actor);return result;
 }
 export async function readSources(central,{communityId}){
  scope(communityId);const actor=identity(central),rows=await rpc(central,'atlas_read_reforecast_sources',{p_community_id:communityId});actorGuard(central,actor);
@@ -137,7 +138,7 @@ export async function readSaveReceipt(central,{communityId,scenarioId,requestId}
 }
 export async function approveAndLock(central,options){
  const overlay=options.payload?.scenarioPurpose==='str_overlay',priorActive=overlay?await readActive(central,{communityIds:[options.communityId],periods:options.payload.periods}):null;
- const result=await saveScenario(central,{...options,action:'approve_lock'}),saved=result.publication;
+ const result=await saveScenario(central,{...options,action:options.action==='vp_approve'?'vp_approve':'approve_lock'}),saved=result.publication;
  if(!saved?.publication_id)throw Error('Approval was not verified. Keep this revision open and retry the same request.');
  await exactRecord(central,'atlas_reforecast_publications','publication_id',saved);
  const active=await readActive(central,{communityIds:[options.communityId],periods:saved.periods});

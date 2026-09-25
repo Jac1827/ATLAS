@@ -11,7 +11,7 @@
   ['reports','Reports',['reports','visuals','exports']],
   ['setup','Setup & Imports',['imports','saveload']]
  ];
- const sharedViews=new Set(['dashboard','actuals','financialreview','vsactual','exceptions','commentary','reports','visuals','exports','reforecast','reforecastapprovals','reforecastgap']);
+ const sharedViews=new Set(['dashboard','actuals','financialreview','vsactual','exceptions','commentary','reports','visuals','exports','reforecast','reforecastapprovals','reforecasthistory','reforecaststatus','reforecastgap']);
  const renderBrowserTop=A.renderTop;
  A.renderTop=function(){
   if(!sharedViews.has(A.view))return renderBrowserTop?renderBrowserTop.call(this).replace('Effective gross income','Browser draft income').replace('<span class="k">NOI</span>','<span class="k">Browser draft NOI</span>').replace('<label>Scenario</label>','<label>Browser draft scenario</label>'):'';
@@ -39,13 +39,13 @@
  };
  const go=A.go;
  let packageReview;
- A.openFinancialPackageReview=async function(scope){try{packageReview=await import('./features/financial-package-review.mjs?v=1abe60085a558c7d');await packageReview.openReview(scope);}catch(e){A.toast(e.message,'r');}};
+ A.openFinancialPackageReview=async function(scope){try{packageReview=await import('./features/financial-package-review.mjs?v=e40df4ec4f306fab');await packageReview.openReview(scope);}catch(e){A.toast(e.message,'r');}};
  let sharedViewSequence=0;
  function sharedActualsPanel(title='Actuals & Close'){
   const sequence=++sharedViewSequence,communityName=A.prop?.()?.name||A.cp?.()?.property?.name,year=A.year?.();
-  setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el||sequence!==sharedViewSequence)return;try{const m=await import('./features/financial-comparison.mjs?v=4a02dcb80d439353');if(!el.isConnected||sequence!==sharedViewSequence)return;await m.mountComparison(el,{communityName,year});}catch(e){if(el.isConnected&&sequence===sharedViewSequence){el.setAttribute('role','alert');el.textContent='Shared financial records could not load: '+e.message;}}},0);
+  setTimeout(async()=>{const el=document.getElementById('shared-financial-comparison');if(!el||sequence!==sharedViewSequence)return;try{const m=await import('./features/financial-comparison.mjs?v=9588f1bb88782b71');if(!el.isConnected||sequence!==sharedViewSequence)return;await m.mountComparison(el,{communityName,year});}catch(e){if(el.isConnected&&sequence===sharedViewSequence){el.setAttribute('role','alert');el.textContent='Shared financial records could not load: '+e.message;}}},0);
   return '<div class="panel"><h2>'+esc(title)+'</h2><p>Published monthly actuals and their approved original-budget comparison are read from shared financial versions. Screen, PDF, CSV and Excel cite the same retained snapshot fingerprint. Missing or open months are identified below.</p>'+
-   '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn pri" onclick="RBB.app.openFinancialPackageReview()">Upload or read saved financial review</button><button class="btn sec" onclick="RBB.app.go(\'reforecastgap\')">Budget reports &amp; print</button><button class="btn sec" onclick="RBB.app.go(\'reforecast\')">Working reforecasts</button><button class="btn sec" onclick="RBB.app.go(\'reforecastapprovals\')">Approval Center</button></div>'+
+   '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn pri" onclick="RBB.app.openFinancialPackageReview()">Upload or read saved financial review</button><button class="btn sec" onclick="RBB.app.go(\'reforecastgap\')">Budget reports &amp; print</button><button class="btn sec" onclick="RBB.app.go(\'reforecast\')">Working Drafts</button><button class="btn sec" onclick="RBB.app.go(\'reforecastapprovals\')">Ready for Review and Approval</button></div>'+
    '<p>Choose a saved budget version to download a PDF for email or printing, or an Excel workbook. Approved reports retain the exact approved version, including earlier versions. Saved working revisions are clearly marked as drafts.</p><p>Upload → classify → confirm → map → reconcile → save review → Admin close → canonical publication → verified readback</p></div><section class="panel" id="shared-financial-comparison"><p>Loading shared financial records…</p></section>';
  }
  const sharedTitles={dashboard:'Financial overview',actuals:'Actuals & Close',financialreview:'Financial review',vsactual:'Budget vs actual',exceptions:'Financial exceptions and missing coverage',commentary:'Financial source notes',reports:'Published financial reports',exports:'Published financial exports',visuals:'Published financial analysis'};
@@ -97,9 +97,9 @@
   dialog.addEventListener('close',()=>dialog.remove(),{once:true});document.body.append(dialog);render();dialog.showModal();input.focus();
  };
  document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();A.openCommandMenu();}});
- if(typeof window!=='undefined'&&window.parent!==window&&new URLSearchParams(location.search).get('investorReader')!=='1')import('./features/financial-close.mjs?v=4abdb8c01f27f8d6').then(async m=>{
+ if(typeof window!=='undefined'&&window.parent!==window&&new URLSearchParams(location.search).get('investorReader')!=='1')import('./features/financial-close.mjs?v=7ab8f42a2210b00e').then(async m=>{
    const central=window.parent.ATLAS_CENTRAL;if(!central||!window.parent.atlasAccessDecision?.(12)?.ok)return;
-   const [communities,aliases,matcher]=await Promise.all([central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000'),import('./features/financial-package.mjs?v=a378a0cb25083758')]);
+   const [communities,aliases,matcher]=await Promise.all([central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000'),import('./features/financial-package.mjs?v=9e34c3c633e9477e')]);
    const resolve=name=>matcher.resolveCommunity(name,communities,aliases).communityId;
    m.installBuilder(R,central,resolve);
    const utility=await import('./features/utility-forecast-ui.mjs');

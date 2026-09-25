@@ -122,7 +122,15 @@ export async function readSaveReceipt(central,{communityId,scenarioId,requestId}
  if(result.publication){
   await exactRecord(central,'atlas_reforecast_publications','publication_id',result.publication);const active=await readActive(central,{communityIds:[communityId],periods:result.publication.periods});actorGuard(central,actor);
   if(result.revision.payload?.scenarioPurpose==='str_overlay'){const publication=await readPublication(central,{communityId,publicationId:result.publication.publication_id});if(active.some(row=>row.publicationId===publication.publicationId)||publication.snapshot?.identity?.parentPublication?.publicationId!==result.revision.payload.parentPublication?.publicationId)throw Error('Recovered STR approval did not preserve its separate Conventional parent.');}
-  else {const current=active.find(row=>row.publicationId===result.publication.publication_id),inherited=new Set(result.source?.lockedPeriods||[]);if(result.publication.periods.some(period=>!inherited.has(period)&&!current?.activePeriods?.includes(period)))throw Error('Recovered approval requires active publication readback before completion.');}
+  else {
+   const current=active.find(row=>row.publicationId===result.publication.publication_id),inherited=new Set(result.source?.lockedPeriods||[]);
+   const superseded=result.publication.periods.filter(period=>!inherited.has(period)&&!current?.activePeriods?.includes(period));
+   // A lost-response receipt remains immutable after a later approved vintage
+   // becomes active. Verify that replacement for every affected month; absence
+   // or an unverified active baseline still cannot complete approval recovery.
+   if(superseded.some(period=>!active.some(row=>row.publicationId!==result.publication.publication_id&&row.activePeriods.includes(period))))throw Error('Recovered approval requires active publication readback before completion.');
+   result.supersededPeriods=superseded;
+  }
   result.active=active;
  }
  return result;

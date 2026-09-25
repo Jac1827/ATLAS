@@ -3,7 +3,7 @@ import {esc,money,download,safeSpreadsheetCell,communityForecastReport,community
 import {freezeSnapshot,retainedSnapshot} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 import {financeAccessKey} from './canonical-finance.mjs?v=fd8a20e264fb5c1b';
 import {snapshotPdf} from './snapshot-pdf.mjs?v=e6a58eadc065a877';
-import {listOriginalBudgetReportVersions,readOriginalBudgetVersionReport,originalBudgetVersionWorkbook,originalBudgetVersionPdf} from './original-budget-version-report.mjs?v=ffecf8321c8e2b09';
+import {listOriginalBudgetReportVersions,readOriginalBudgetVersionReport,originalBudgetVersionWorkbook,originalBudgetVersionPdf} from './original-budget-version-report.mjs?v=f8a2761a52794bca';
 
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const verifiedSelections=new WeakSet(),selectionGuards=new WeakMap();
@@ -33,8 +33,12 @@ export async function listReportVersions(central,{communityId,scenarioId,guard}=
  const drafts=revisions.filter(row=>!published.has(row.revision_id)).map(row=>({kind:'saved_revision',communityId,scenarioId:row.scenario_id,revisionId:row.revision_id,version:row.revision,scenarioName:row.scenario_name||'Working forecast',periods:row.periods,status:'DRAFT · '+workflow(row.status)+' · no verified publication',workflowStatus:row.status,recordedAt:row.created_at,snapshotFingerprint:row.snapshot_fingerprint}));
  return freezeSnapshot([...originals.map(row=>({...row,kind:'original_budget',communityId,scenarioName:'Approved original budget',status:'Approved and locked · original budget'})),...approved,...drafts]);
 }
+function validatePublicationProjection(receipt){
+ if(!receipt.reportContentHash||receipt.reportContentHash!==receipt.snapshot?.fingerprint||!receipt.contentHash||receipt.snapshot?.originalPublicationFingerprint!==receipt.contentHash)throw Error('The immutable publication report projection hash does not match its receipt.');
+}
 function validatePublication(receipt,entry){
- if(receipt.communityId!==entry.communityId||receipt.publicationId!==entry.publicationId||receipt.scenarioId!==entry.scenarioId||receipt.revisionId!==entry.revisionId||receipt.verified!==true||receipt.approved!==true||receipt.locked!==true||!receipt.contentHash||!equalPeriods(receipt.periods,entry.periods)||receipt.snapshot?.identity?.communityId!==entry.communityId||entry.snapshotFingerprint&&receipt.snapshot.fingerprint!==entry.snapshotFingerprint||entry.contentHash&&receipt.contentHash!==entry.contentHash)throw Error('The immutable publication does not match the selected report version.');
+ validatePublicationProjection(receipt);
+ if(receipt.communityId!==entry.communityId||receipt.publicationId!==entry.publicationId||receipt.scenarioId!==entry.scenarioId||receipt.revisionId!==entry.revisionId||receipt.version!==entry.version||receipt.verified!==true||receipt.approved!==true||receipt.locked!==true||!receipt.contentHash||!equalPeriods(receipt.periods,entry.periods)||receipt.snapshot?.identity?.communityId!==entry.communityId||!entry.snapshotFingerprint||receipt.contentHash!==entry.snapshotFingerprint||entry.contentHash&&receipt.contentHash!==entry.contentHash)throw Error('The immutable publication does not match the selected report version.');
 }
 export async function readReportVersion(central,entry,{guard,communityName}={}){
  const check=access(central,entry?.communityId,guard);check();let result;
@@ -42,7 +46,7 @@ export async function readReportVersion(central,entry,{guard,communityName}={}){
   const originalBudget=await readOriginalBudgetVersionReport(central,{cid:entry.communityId,versionId:entry.versionId,contentHash:entry.contentHash,year:entry.year,communityName});check();if(originalBudget.communityId!==entry.communityId||originalBudget.versionId!==entry.versionId||originalBudget.contentHash!==entry.contentHash||!equalPeriods(originalBudget.periods,entry.periods))throw Error('The original budget does not match the selected report version.');result={entry,originalBudget};
  }else if(entry.kind==='approved_forecast'){
   const publication=await store.readPublication(central,{communityId:entry.communityId,publicationId:entry.publicationId});check();validatePublication(publication,entry);
-  let parentPublication;const parent=publication.snapshot.identity.parentPublication;if(parent){parentPublication=await store.readPublication(central,{communityId:entry.communityId,publicationId:parent.publicationId});check();pairedForecastReports(parentPublication,publication,{communityName});}
+  let parentPublication;const parent=publication.snapshot.identity.parentPublication;if(parent){parentPublication=await store.readPublication(central,{communityId:entry.communityId,publicationId:parent.publicationId});check();validatePublicationProjection(parentPublication);pairedForecastReports(parentPublication,publication,{communityName});}
   result={entry,publication,parentPublication};
  }else if(entry.kind==='saved_revision'){
   if(!uuid.test(entry.revisionId)||!uuid.test(entry.scenarioId))throw Error('Invalid saved revision selection.');

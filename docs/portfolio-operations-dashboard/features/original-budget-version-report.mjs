@@ -48,7 +48,7 @@ export async function readOriginalBudgetVersionReport(central,{cid,versionId,con
   if(typeof row.glCode!=='string'||!row.glCode.trim()||byGl.has(row.glCode)||!Array.isArray(row.monthly)||row.monthly.length!==12)throw Error('Saved budget contains a duplicate GL or incomplete monthly detail.');
   for(let month=0;month<12;month++){const value=row.monthly[month];if(months.includes(month)?typeof value!=='number'||!Number.isFinite(value):value!==null)throw Error('Every covered GL/month needs an exact numeric amount; blanks and uncovered months cannot become zero.');}
   byGl.set(row.glCode,row);
-  return {GL:row.glCode,Account:String(row.name||row.accountName||row.glCode),...Object.fromEntries(months.map(m=>[period(year,m),row.monthly[m]])),Covered_total:total(months.map(m=>row.monthly[m])),Source_sheet:payload.sourceSheet||null,Source_row:row.sourceRow??null,Source_cells:row.sourceCells?canonicalJson(row.sourceCells):null};
+  return {GL:row.glCode,Account:String(row.name||row.accountName||row.glCode),...Object.fromEntries(months.map(m=>[period(year,m),row.monthly[m]])),Covered_total:total(months.map(m=>row.monthly[m])),Source_sheet:payload.sourceSheet||null,Source_row:row.sourceRow&&typeof row.sourceRow==='object'?canonicalJson(row.sourceRow):row.sourceRow??null,Source_cells:row.sourceCells?canonicalJson(row.sourceCells):null};
  });
  if(!payload.metricMappings||typeof payload.metricMappings!=='object'||Array.isArray(payload.metricMappings))throw Error('Approved metric mappings are unavailable.');
  const mappingRows=[];

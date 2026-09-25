@@ -47,6 +47,10 @@ repaired_reference=[g for g in x['results']if g['build']in ['baseline','repaired
 reference_complete={g['build']for g in repaired_reference}=={'baseline','repaired'}
 reference_parity={k:(len({json.dumps(g['parity'][k],sort_keys=True)for g in repaired_reference})==1 if reference_complete else None) for k in keys}
 comparison={'sharedOperatingDataAllBuilds':all(parity[k]['allEqual']for k in shared_keys),'baselineRepairedComplete':reference_complete,'baselineRepaired':reference_parity}
+stable_reference=[g for g in x['results']if g['build']in ['stable','repaired']]
+stable_complete={g['build']for g in stable_reference}=={'stable','repaired'}
+comparison['stableRepairedComplete']=stable_complete
+comparison['stableRepaired']={k:(len({json.dumps(g['parity'][k],sort_keys=True)for g in stable_reference})==1 if stable_complete else None) for k in keys}
 blocked=collections.Counter((r['build'],r['device'],r['method'],r['path'])for r in x['blocked'])
 api_groups=collections.defaultdict(list)
 for r in x.get('clientApi',[]):
@@ -61,5 +65,6 @@ def pair(s):return 'unavailable' if s['median']is None else f"{s['median']:g} / 
 for g in groups:lines.append('| '+g['build']+' / '+g['device']+' | '+' | '.join([pair(g['startup']['cold']['usableMs']),pair(g['startup']['warm']['usableMs'])]+[pair(g['navigation'][t]['repeatedMs'])for t in ['Home','Reports','Import','Command','Bonus']]+[f"{g['memory']['retainedGrowthMiB']:.2f}"])+' |')
 reference_status=str(all(reference_parity.values())) if reference_complete else 'unavailable (both control and candidate were not measured in this run)'
 lines+=['','Shared operating-data parity across measured groups: '+str(comparison['sharedOperatingDataAllBuilds'])+'. Baseline/repaired report and data parity: '+reference_status+'. Historical Community Progress differences remain separately recorded when measured in summary.json.','','Heap maxima are sampled checkpoints; transient peak acceptance remains unmeasured.','','Limits:']+['- '+v for v in x['limits']]
+if stable_complete:lines+=['','Current stable/repaired report and data parity: '+str(all(comparison['stableRepaired'].values()))+'. Exact current stable revision is recorded in configuration.buildRevisions.']
 (root/'summary.md').write_text('\n'.join(lines)+'\n')
 print(json.dumps({'groups':len(groups),'parityAllEqual':all(r['allEqual']for r in parity.values()),'output':str(root/'summary.json')}))

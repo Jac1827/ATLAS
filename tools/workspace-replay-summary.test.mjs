@@ -42,5 +42,12 @@ try {
  assert.equal(shell.json.groups[0].startup.warm.authenticatedShellMs.availableCount,1);
  assert.equal(shell.json.groups[0].startup.warm.authenticatedShellMs.limit,600);
  assert.equal(Object.hasOwn(shell.json.groups[0].startup.cold.authenticatedShellMs,'allSamplesPass'),false);
+ assert.equal(solo.json.comparison.stableRepairedComplete,false);
+ assert(Object.values(solo.json.comparison.stableRepaired).every(value=>value===null));
+ const stable=group('stable');stable.parity={...parity,communityProgressHash:'stable-change'};
+ const current=await summarize([group('baseline'),stable,group('repaired')]);
+ assert.equal(current.json.comparison.stableRepairedComplete,true);
+ assert.equal(current.json.comparison.stableRepaired.communityProgressHash,false);
+ assert.equal(current.json.comparison.baselineRepaired.communityProgressHash,true);
  console.log('Replay evidence availability, first-visit task budgets, and sampled heap semantics passed.');
 } finally {await fs.rm(directory,{recursive:true,force:true});}

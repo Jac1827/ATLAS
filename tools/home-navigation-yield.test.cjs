@@ -12,7 +12,7 @@ function fixture(){
  const panel={dataset:{},attributes:{},style:{},innerHTML:'previous private content',setAttribute(key,value){this.attributes[key]=value;},removeAttribute(key){delete this.attributes[key];}};
  const bodyClasses=new Set();const document={body:{classList:{contains:key=>bodyClasses.has(key),add:key=>bodyClasses.add(key),remove:key=>bodyClasses.delete(key)}},getElementById:key=>key==='tab-panel-0'?panel:null,querySelector:()=>null,querySelectorAll:()=>[panel]};const DEFAULT_CURRENT_MONTH=8,FULL_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep'];
  function renderTab(){renders++;delete panel.dataset.atlasHomePreparing;panel.removeAttribute('aria-busy');panel.innerHTML='Complete fresh Home';}
- `,c);vm.runInContext(extract('renderAtlasHomePreparationError')+'\n'+extract('prepareAtlasHomeRender'),c);return c;
+ `,c);vm.runInContext('let atlasSynchronousReadScope=null;'+extract('withAtlasSynchronousReadScope')+'\n'+extract('renderAtlasHomePreparationError')+'\n'+extract('prepareAtlasHomeRender'),c);return c;
 }
 (async()=>{
  let c=fixture(),run=code=>vm.runInContext(code,c);
@@ -22,6 +22,12 @@ function fixture(){
  assert.match(run('panel.innerHTML'),/Loading/);assert.doesNotMatch(run('panel.innerHTML'),/private/);assert.equal(run('renders'),0,'Placeholder is not a completed Home render');
  await run('deferred[0].resolve(true);atlasHomeRenderPreparation.task');
  assert.equal(run('renders'),1);assert.equal(run('panel.dataset.atlasHomePreparing'),undefined);assert.equal(run('panel.attributes["aria-busy"]'),undefined);
+ // Final exact-input validation and visible render are separate tasks; a
+ // context change at this new scheduling boundary must still prevent painting.
+ c=fixture();run('let resumePaint;window.scheduler={yield:()=>new Promise(resolve=>resumePaint=resolve)};prepareAtlasHomeRender(panel)');
+ const pendingPaint=run('atlasHomeRenderPreparation.task');run('deferred[0].resolve(true)');await Promise.resolve();
+ assert.equal(run('renders'),0,'Preparation completion does not synchronously paint in the same task');
+ run('allowed=false;resumePaint()');await pendingPaint;assert.equal(run('renders'),0,'Access loss at the final yield prevents painting');
  for(const mutation of ['context="actor-b|Home"','activeTab=8','atlasWorkspaceAccess.epoch++','atlasWorkspaceAccess.validated=false','atlasWorkspaceAccess.hasData=false','blocked=true','allowed=false']){
   c=fixture();run('prepareAtlasHomeRender(panel)');run(mutation);assert.equal(run('deferred[0].options.current()'),false,mutation);
   await run('deferred[0].resolve(true);atlasHomeRenderPreparation.task');assert.equal(run('renders'),0,'Stale work cannot paint: '+mutation);assert.equal(run('atlasHomeRenderPreparation'),null,'Cancelled pending slot is released');

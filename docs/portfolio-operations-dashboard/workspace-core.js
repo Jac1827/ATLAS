@@ -13876,7 +13876,10 @@ function prepareAtlasHomeRender(panel) {
     });
     return new Promise(resolve => setTimeout(resolve, 0));
   };
-  request.task = window.AtlasReskin.prepareInitialHome({current, yieldTask}).then(() => {
+  request.task = window.AtlasReskin.prepareInitialHome({current, yieldTask}).then(async () => {
+    // The final exact-input validation is real work. Let the browser finish that
+    // task before the fresh render, and recheck every request/access guard.
+    await yieldTask();
     if (!current()) return;
     atlasHomeRenderPreparation = null;
     // No async boundary between the final context check and the fresh render.
@@ -22527,16 +22530,24 @@ async function hydrateCommunityCommandGoals({force = false} = {}) {
 }
 
 function getCommunityCommandApprovedGoal(propName, monthIdx, year = new Date().getFullYear()) {
-  const key = communityCommandGoalKey(propName, monthIdx, year);
   const period = buildPeriodKey(monthIdx, year);
   const first = `${period}-01`;
   const last = `${period}-${new Date(year, monthIdx + 1, 0).getDate()}`;
   const today = getAtlasTodayISODate();
   const effectiveAsOf = today < first ? first : today > last ? last : today;
   const shared = communityCommandSharedGoalScope(propName, monthIdx, year);
-  const candidates = getAtlasCentralStatus().configured
-    ? (shared?.approvedHistory || (shared?.approved ? [shared.approved] : [])).map(goal => ({...goal, propName, monthIdx, year}))
-    : normalizeCommunityCommandState(communityCommandState).approvedGoals.filter(goal => communityCommandGoalKey(goal.propName, goal.monthIdx, goal.year) === key);
+  const configured = typeof atlasSynchronousReadValue === "function"
+    ? atlasSynchronousReadValue("community-goal-configured", () => getAtlasCentralStatus().configured)
+    : getAtlasCentralStatus().configured;
+  let candidates;
+  if (configured) {
+    candidates = (shared?.approvedHistory || (shared?.approved ? [shared.approved] : [])).map(goal => ({...goal, propName, monthIdx, year}));
+  } else {
+    // Only the local legacy store uses name-based keys. Shared goals retain the
+    // freshly checked canonical community/period scope above.
+    const key = communityCommandGoalKey(propName, monthIdx, year);
+    candidates = normalizeCommunityCommandState(communityCommandState).approvedGoals.filter(goal => communityCommandGoalKey(goal.propName, goal.monthIdx, goal.year) === key);
+  }
   return candidates.filter(goal => goal.status === "Approved" && goal.approvedAt && (!goal.effectiveDate || goal.effectiveDate.slice(0,10) <= effectiveAsOf))
     .sort((a,b) => b.version - a.version || b.approvedAt.localeCompare(a.approvedAt))[0] || null;
 }
@@ -53369,7 +53380,7 @@ function runAtlasInitialRenderPass() {
   runAtlasStartupStep("sync shared people assignments", () => syncSharedPeopleAssignments({ persist: false }));
   runAtlasStartupStep("sync community staffing from People roster", () => syncAllCommunityStaffingFromPeopleRoster({ persist: false }));
   runAtlasStartupStep("load property data", () => loadPropertyData(getProp().name));
-  runAtlasStartupStep("render property workspace", () => renderPropGrid());
+  runAtlasStartupStep("render property workspace", () => withAtlasSynchronousReadScope(() => renderPropGrid()));
   runAtlasStartupStep("render active tab", () => renderTab());
 
 }
@@ -53389,7 +53400,7 @@ async function runAtlasInitialRenderPassYielding(current) {
   runAtlasStartupStep("sync community staffing from People roster",()=>syncAllCommunityStaffingFromPeopleRoster({persist:false}));
   runAtlasStartupStep("load property data",()=>loadPropertyData(getProp().name));
   await yieldTask();if(!current())return false;
-  runAtlasStartupStep("render property workspace",()=>renderPropGrid());
+  runAtlasStartupStep("render property workspace",()=>withAtlasSynchronousReadScope(()=>renderPropGrid()));
   await yieldTask();if(!current())return false;
   if(shouldRenderAtlasWelcomeDashboard() && window.AtlasReskin?.prepareInitialHome) {
     const context=getAtlasRenderContextKey();

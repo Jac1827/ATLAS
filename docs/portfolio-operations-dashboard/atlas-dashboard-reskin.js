@@ -221,9 +221,17 @@ async function prepareInitialHome({current=()=>true,yieldTask=()=>new Promise(re
     for(let month=start;month<=end;month++) {
       await yieldTask();if(!current())return false;
       const eligible=sourceDetails.filter(detail=>dashboardMonthlyEntryHasData(monthly.get(detail)[month])),details=[];
-      for(let index=0;index<eligible.length;index++) {
-        if(index>0 && index%3===0){await yieldTask();if(!current())return false;}
-        const detail=historyMonthDetail(eligible[index],month,detailsCache);if(detail)details.push(detail);
+      for(let index=0;index<eligible.length;index+=3) {
+        if(index>0){await yieldTask();if(!current())return false;}
+        const buildChunk=()=>{
+          for(let offset=index;offset<Math.min(index+3,eligible.length);offset++) {
+            const detail=historyMonthDetail(eligible[offset],month,detailsCache);if(detail)details.push(detail);
+          }
+        };
+        // Reuse access reads only within this existing synchronous batch. The
+        // scope closes before every yield; the next batch validates afresh.
+        if(typeof withAtlasSynchronousReadScope==='function')withAtlasSynchronousReadScope(buildChunk);
+        else buildChunk();
       }
       rows.push({label:MONTHS[month],available:details.length>0,summary:aggregateCommunitySummaries(details.map(detail=>detail.summary))});
     }

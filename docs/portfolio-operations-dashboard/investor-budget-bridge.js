@@ -140,7 +140,7 @@
       try {
         const central=window.parent.ATLAS_CENTRAL,actor=central?.getSession()?.user?.id;
         if(!actor||!window.parent.atlasAccessDecision?.(12)?.ok)throw Error('Authorized canonical financial access required');
-        const [adapter,matcher,communities,aliases,forecastStore]=await Promise.all([import('./features/canonical-finance.mjs?v=6a8f03db20819b8c'),import('./features/financial-package.mjs?v=a378a0cb25083758'),central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000'),import('./features/reforecast-store.mjs?v=687b772cb423649c')]);
+        const [adapter,matcher,communities,aliases,forecastStore]=await Promise.all([import('./features/canonical-finance.mjs?v=fd8a20e264fb5c1b'),import('./features/financial-package.mjs?v=a378a0cb25083758'),central.readCommunitiesForAccess(),central.fetchJson('/atlas_community_aliases?active=eq.true&select=community_id,alias,active&limit=1000'),import('./features/reforecast-store.mjs?v=687b772cb423649c')]);
         const year=Number(event.data.year)||new Date().getFullYear(),sources={schemaVersion:3,savedAt:new Date().toISOString(),properties:{}},seen=new Set();
         const selected=[];for(const name of event.data.names||[]){const cid=matcher.resolveCommunity(name,communities,aliases).communityId;if(cid&&!seen.has(cid)){seen.add(cid);selected.push(communities.find(c=>c.community_id===cid));}}
         const periods=Array.from({length:12},(_,m)=>year+'-'+String(m+1).padStart(2,'0'));

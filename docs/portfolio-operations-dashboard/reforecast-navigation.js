@@ -2,10 +2,10 @@
 (function(R){
  'use strict';if(!R?.app)return;const A=R.app;
  const routes=[['reforecast','Working Reforecast','workspace'],['reforecastapprovals','Approval Center','approvals'],['reforecastgap','Reforecast Target Gap','gap']];
- for(const [id,label,mode] of routes){A.VIEWS.push({id,label});R.views[id]=()=>{setTimeout(async()=>{const el=document.getElementById('atlas-reforecast-workspace');if(!el)return;try{const m=await import('./features/reforecast-ui.mjs?v=9f38dcdd7d4a5141');if(el.isConnected)await m.mountReforecast(el,{R,mode});}catch(e){el.textContent='Reforecast workspace could not load: '+e.message;}},0);return '<div id="atlas-reforecast-workspace" role="region" aria-label="Governed reforecast"><p>Loading shared reforecast workspace…</p></div>';};}
+ for(const [id,label,mode] of routes){A.VIEWS.push({id,label});R.views[id]=()=>{setTimeout(async()=>{const el=document.getElementById('atlas-reforecast-workspace');if(!el)return;try{const m=await import('./features/reforecast-ui.mjs?v=b17973a6208cfe81');if(el.isConnected)await m.mountReforecast(el,{R,mode});}catch(e){el.textContent='Reforecast workspace could not load: '+e.message;}},0);return '<div id="atlas-reforecast-workspace" role="region" aria-label="Governed reforecast"><p>Loading shared reforecast workspace…</p></div>';};}
  R.budgetNavigation?.groups.find(g=>g[0]==='forecast')?.[2].push(...routes.map(r=>r[0]));
  import('./features/reforecast-legacy-bridge.mjs?v=0dbab913e5e81690').then(m=>m.installLegacyReforecastBridge(R)).catch(e=>A.toast('Scenario calculator failed: '+e.message,'r'));
- const clearScope=()=>{delete R.reforecastSources;delete R.reforecastPropertyAssignments;import('./features/reforecast-legacy-bridge.mjs?v=0dbab913e5e81690').then(m=>m.clearLegacyReforecastCache());import('./features/reforecast-ui.mjs?v=9f38dcdd7d4a5141').then(m=>m.clearReforecastSession());};
+ const clearScope=()=>{delete R.reforecastSources;delete R.reforecastPropertyAssignments;import('./features/reforecast-legacy-bridge.mjs?v=0dbab913e5e81690').then(m=>m.clearLegacyReforecastCache());import('./features/reforecast-ui.mjs?v=b17973a6208cfe81').then(m=>m.clearReforecastSession());};
  window.parent.addEventListener('atlas-central-auth-change',clearScope);
  const originalPublish=A.publishToAtlas;
  A.publishToAtlas=function(){if(A.scenario().type!=='approved'){A.go('reforecast');A.toast('Select the shared locked reforecast and designate it Active after review.');return;}return originalPublish.apply(this,arguments);};

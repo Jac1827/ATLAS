@@ -1,5 +1,5 @@
-import {reviewOriginalWorkbook} from './original-budget-intake.mjs?v=5f71bb6cfccd388a';
-import {readApprovedBudgets} from './canonical-finance.mjs?v=6fd3f2a1967abe60';
+import {reviewOriginalWorkbook} from './original-budget-intake.mjs?v=5c836a664f6b8bc3';
+import {readApprovedBudgets} from './canonical-finance.mjs?v=57c407b902ccd923';
 const finite=v=>typeof v==='number'&&Number.isFinite(v);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const digest=async v=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(v)))),b=>b.toString(16).padStart(2,'0')).join('');

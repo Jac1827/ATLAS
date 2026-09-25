@@ -12,7 +12,7 @@ function fixture(rows=[row(1)]){
  const w={location:{origin:'https://local.example.invalid',pathname:'/',search:'',hash:''},history:{replaceState(){}},setTimeout:(...args)=>{const timer=setTimeout(...args);timer.unref();return timer;},clearTimeout,addEventListener:(name,handler)=>{if(!events.has(name))events.set(name,[]);events.get(name).push(handler);},dispatchEvent:event=>{for(const handler of events.get(event.type)||[])handler(event);}};
  const h={rows:copy(rows),calls,storage,before:null};
  const response=value=>({ok:true,status:200,headers:{get:()=>null},text:async()=>JSON.stringify(value)});
- const context={window:w,localStorage,sessionStorage:localStorage,Date,URL,URLSearchParams,AbortController,DOMException,CustomEvent:class{constructor(type,options){this.type=type;this.detail=options?.detail;}},document:{title:'Local'},console,fetch:async(url,options)=>{
+ const context={window:w,localStorage,sessionStorage:localStorage,Date,URL,URLSearchParams,AbortController,DOMException,performance,TextEncoder,CustomEvent:class{constructor(type,options){this.type=type;this.detail=options?.detail;}},document:{title:'Local'},console,fetch:async(url,options)=>{
    const parsed=new URL(url),params=parsed.searchParams,table=parsed.pathname.split('/').at(-1),kind=params.get('select')==='*'?'payload':'metadata';
    const call={table,kind,params,options};calls.push(call);await h.before?.(call);
    if(options.signal?.aborted)throw options.signal.reason;

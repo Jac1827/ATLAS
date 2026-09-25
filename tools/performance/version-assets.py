@@ -95,6 +95,8 @@ entries=[
 # Discover imports of governed modules so a stale parent cannot keep an old
 # child after deployment. A topological pass versions every child first.
 tracked={asset: list(refs) for asset,refs in entries}
+for asset in ['features/workbook-rich-images.mjs','features/reforecast-str-overlay.mjs']:
+ tracked.setdefault(asset,[])
 # The former inline shell now lives in a classic external script. Keep static
 # HTML references in index, and migrate only references extracted with the core.
 core_path=root/'workspace-core.js'

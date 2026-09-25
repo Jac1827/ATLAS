@@ -1,4 +1,4 @@
-import {hashReforecastWorkbook,encodeOriginalWorkbook,normalizeReforecastNumber,normalizeReforecastPeriod,loadXlsx} from './reforecast-intake.mjs?v=5e96161a61d477c1';
+import {hashReforecastWorkbook,encodeOriginalWorkbook,normalizeReforecastNumber,normalizeReforecastPeriod,loadXlsx} from './reforecast-intake.mjs?v=1f8bae00926f1f93';
 import {pdfItemsToText} from './financial-package.mjs?v=a378a0cb25083758';
 
 // Provider evidence is never a financial close or an approval. Restricted detail stays in the source bundle.
@@ -222,7 +222,7 @@ export function calculateStrLeasingSchedule({periods=[],streams=[]}={}){
    const occupiedUnitNights=finite(availableUnitNights)&&finite(occupancyPercent)&&occupancyPercent>=0&&occupancyPercent<=100?availableUnitNights*occupancyPercent/100:null;
    const grossIncome=finite(occupiedUnitNights)&&finite(grossRate)&&grossRate>=0?money(occupiedUnitNights*grossRate):null;
    const grossPotentialIncome=finite(availableUnitNights)&&finite(grossRate)&&grossRate>=0?money(availableUnitNights*grossRate):null;
-   const vacancyLoss=finite(grossIncome)?money(-(availableUnitNights-occupiedUnitNights)*grossRate):null;
+   const vacancyLoss=finite(grossIncome)?money(grossIncome-grossPotentialIncome):null;
    const fees=finite(availableUnits)&&finite(feeRate)?money(availableUnits*feeRate):null;
    const netMethod=input.netMethod||(finite(netRate)?'per_occupied_night':null);
    const netIncome=netMethod==='gross_plus_signed_fees'?(finite(grossIncome)&&finite(fees)?money(grossIncome+fees):null):netMethod==='per_occupied_night'&&finite(occupiedUnitNights)&&finite(netRate)?money(occupiedUnitNights*netRate):null;

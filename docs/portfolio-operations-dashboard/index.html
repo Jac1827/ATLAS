@@ -19914,6 +19914,11 @@ async function buildAtlasCentralAppStatePayload() {
 }
 
 async function saveAtlasCentralAppState({ silent = false, source = "manual_central_save" } = {}) {
+  if (saveAtlasCentralAppState.inFlight) return saveAtlasCentralAppState.inFlight;
+  const operation = (async () => {
+  const knownVersion = Number(atlasCentralRuntimeMeta.lastDocumentVersion || 0);
+  const current = captureAtlasSaveContext();
+  const check = () => { if (!current()) throw new DOMException("Workspace changed during Central Save", "AbortError"); };
   try {
     const access = atlasCentralCanUseDatabase();
     if (!access.ok) throw new Error(access.message);
@@ -19922,10 +19927,13 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
     }
     const documentKey = getAtlasCentralDocumentKey();
     const localPayload = await buildAtlasCentralAppStatePayload();
-    localPayload.bundle = await window.AtlasMigrationArchive.publish(localPayload.bundle, window.ATLAS_CENTRAL);
+    check();
+    localPayload.bundle = await window.AtlasMigrationArchive.publish(localPayload.bundle, window.ATLAS_CENTRAL, undefined, {isCurrent:current});
+    check();
     const localHash = await window.ATLAS_CENTRAL.computeSha256(localPayload);
+    check();
     const remote = await window.ATLAS_CENTRAL.readDocument(documentKey);
-    const knownVersion = Number(atlasCentralRuntimeMeta.lastDocumentVersion || 0);
+    check();
     if (remote && remote.payload_hash === localHash) {
       atlasCentralRuntimeMeta.lastDocumentVersion = Number(remote.version || 0);
       atlasCentralRuntimeMeta.lastDocumentHash = String(remote.payload_hash || "");
@@ -19956,6 +19964,10 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
         exceptions: localPayload.exceptions
       }
     });
+    check();
+    const readback = await window.ATLAS_CENTRAL.readDocument(documentKey);
+    check();
+    if (readback?.version !== Number(result?.version) || readback?.payload_hash !== localHash) throw new Error("Central save readback changed or is unavailable. Pull and reconcile before saving again.");
     atlasCentralRuntimeMeta.lastSavedAt = new Date().toISOString();
     atlasCentralRuntimeMeta.lastDocumentVersion = Number(result?.version || 0);
     atlasCentralRuntimeMeta.lastDocumentHash = String(result?.payload_hash || localHash);
@@ -19966,11 +19978,16 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
     renderTab();
     return true;
   } catch (error) {
+    if (!current()) return false;
     setAtlasCentralRuntimeMessage("", error?.message || String(error));
     if (!silent) alert(`Central Atlas save failed: ${error?.message || error}`);
     renderTab();
     return false;
   }
+  })();
+  saveAtlasCentralAppState.inFlight = operation;
+  try { return await operation; }
+  finally { if (saveAtlasCentralAppState.inFlight === operation) saveAtlasCentralAppState.inFlight = null; }
 }
 
 async function inspectAtlasOccupancyReadback() {
@@ -20080,7 +20097,16 @@ function queueAtlasCentralDocumentPush(source = "autosave") {
   const status = getAtlasCentralStatus();
   if (!status.configured || !status.signedIn || !status.autosave) return;
   if (atlasCentralDocumentPushTimer) clearTimeout(atlasCentralDocumentPushTimer);
+  const current = captureAtlasSaveContext();
   atlasCentralDocumentPushTimer = setTimeout(() => {
+    if (!current()) return;
+    const pending = saveAtlasCentralAppState.inFlight;
+    if (pending) {
+      // Edits during a successful save schedule one fresh snapshot afterwards.
+      // A failed or uncertain save requires review, never an automatic rewrite.
+      pending.then(saved => { if (saved && current()) queueAtlasCentralDocumentPush(source); });
+      return;
+    }
     saveAtlasCentralAppState({ silent: true, source });
   }, 1800);
 }

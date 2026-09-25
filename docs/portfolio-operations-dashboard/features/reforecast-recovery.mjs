@@ -41,6 +41,11 @@ export async function completeForecastImportRecovery(central,{recoveryId,result}
     if(!['import-write','import-complete'].includes(pending.kind)||!pending.request)throw Error('A retained import request is required before releasing its recovery copy.');
     verifyImportReadback(result,pending.request);
     const review=rows.find(row=>row.id===pending.reviewId&&row.kind==='import-review'),byId=new Map(rows.map(row=>[row.id,row]));
+    // Legacy records cannot prove whether this review is the saved snapshot or
+    // newer edits. Keep receipt-only ownership so it cannot become a fresh write.
+    if(review&&(!pending.reviewVersion||!review.reviewVersion)){
+     store.put({...pending,kind:'import-complete',reviewOwnership:'unproven',verifiedRevisionId:result.revision.revision_id,updatedAt:new Date().toISOString()});return;
+    }
     const evidenceId=row=>{
      if(row.evidenceId)return row.evidenceId;
      if(row.reviewId&&byId.get(row.reviewId)?.evidenceId)return byId.get(row.reviewId).evidenceId;
@@ -52,6 +57,30 @@ export async function completeForecastImportRecovery(central,{recoveryId,result}
     const evidenceIds=new Set([evidenceId(pending),review?.evidenceId].filter(Boolean)),remaining=rows.filter(row=>!remove.has(row.id)),sourceHashes=[...new Set((pending.request.expectedLines||[]).map(line=>line.sourceHash).filter(Boolean))],sourceHash=result.receipt.sourceHash||(sourceHashes.length===1?sourceHashes[0]:null);
     for(const id of evidenceIds){const evidence=byId.get(id);if(sourceHash&&evidence?.kind==='workbook-evidence'&&evidence.evidence?.source?.sha256===sourceHash&&!remaining.some(row=>row.id!==id&&evidenceId(row)===id))remove.add(id);}
     for(const id of remove)store.delete(actor+':'+id);
+   }catch{store.transaction.abort();}
+  };
+ });
+}
+
+const canonical=value=>JSON.stringify(value,(_key,item)=>item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])):item);
+// Original-budget intake only stages a review. Its local copy can be released
+// after the locked version and central verification receipt agree exactly.
+export async function completeOriginalBudgetRecovery(central,{recovery,payload,result}){
+ const actor=scope(central),budget=result?.budget,receipt=result?.receipt;
+ if(!recovery?.reviewId||!recovery.reviewVersion||!recovery.evidenceId||recovery.communityId!==payload?.communityId||recovery.uploadId!==payload.governance?.uploadId||recovery.sourceHash!==payload.sourceHash||recovery.mappingVersion!==payload.governance?.mapping?.version||
+  result?.status!=='readback_verified'||budget?.status!=='locked'||budget.community_id!==payload.communityId||budget.calendar_year!==payload.year||budget.version_id!==result.versionId||budget.content_hash!==result.contentHash||canonical(budget.payload)!==canonical(payload)||
+  receipt?.status!=='readback_verified'||receipt.version_id!==budget.version_id||receipt.content_hash!==budget.content_hash||receipt.source_hash!==payload.sourceHash||receipt.mapping_version!==payload.mappingVersion||receipt.actor_id!==actor||!receipt.receipt_id||!receipt.created_at)throw Error('Keep the original-budget recovery copy until its exact locked source and verification receipt agree.');
+ await access(central,'readwrite',(store,currentActor)=>{
+  const scan=store.getAll();scan.onsuccess=()=>{
+   try{
+    if(identity(central)!==actor||currentActor!==actor)throw Error('The signed-in account changed.');
+    const rows=scan.result.filter(row=>row.actor===actor),review=rows.find(row=>row.id===recovery.reviewId);
+    if(!review)return;
+    if(review.kind!=='import-review'||review.purpose!=='original_budget'||review.communityId!==recovery.communityId||review.uploadId!==recovery.uploadId||review.evidenceId!==recovery.evidenceId)throw Error('Original-budget recovery identity changed.');
+    if(review.reviewVersion!==recovery.reviewVersion||rows.some(row=>row.reviewId===review.id))return;
+    store.delete(actor+':'+review.id);
+    const evidence=rows.find(row=>row.id===recovery.evidenceId),byId=new Map(rows.map(row=>[row.id,row]));
+    if(evidence?.kind==='workbook-evidence'&&evidence.evidence?.source?.sha256===payload.sourceHash&&!rows.some(row=>row.id!==review.id&&row.id!==evidence.id&&(row.evidenceId===evidence.id||row.reviewId&&byId.get(row.reviewId)?.evidenceId===evidence.id)))store.delete(actor+':'+evidence.id);
    }catch{store.transaction.abort();}
   };
  });

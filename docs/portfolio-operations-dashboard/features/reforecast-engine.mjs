@@ -4,7 +4,24 @@ export const ENGINE_VERSION='atlas-reforecast-v1';
 export const DRIVER_OPERATIONS=Object.freeze(['percent_change','amount','add','percent_of_account','occupancy_vacancy']);
 const finite=v=>typeof v==='number'&&Number.isFinite(v);
 const amount=v=>finite(v)?v:null;
-const money=v=>finite(v)?Math.sign(v)*Math.round((Math.abs(v)+Number.EPSILON)*100)/100:null;
+// Match PostgreSQL numeric: operate on the retained decimal spelling and round
+// once, half away from zero. Binary multiplication cannot decide a money tie.
+const decimal=value=>{const [coefficient,exponent='0']=String(value).split('e'),[whole,fraction='']=coefficient.split('.');return {units:BigInt(whole+fraction),scale:fraction.length-Number(exponent)};};
+const decimalSum=parts=>{const scale=Math.max(0,...parts.map(part=>part.scale));return {units:parts.reduce((total,part)=>total+part.units*10n**BigInt(scale-part.scale),0n),scale};};
+const decimalProduct=(a,b)=>({units:a.units*b.units,scale:a.scale+b.scale});
+const roundedDecimal=part=>{const scale=Math.max(2,part.scale),units=part.units*10n**BigInt(scale-part.scale),divisor=10n**BigInt(scale-2),absolute=units<0n?-units:units,cents=absolute/divisor+(absolute%divisor*2n>=divisor?1n:0n);if(cents===0n)return 0;const digits=cents.toString().padStart(3,'0'),result=Number((units<0n?'-':'')+digits.slice(0,-2)+'.'+digits.slice(-2));return finite(result)?result:null;};
+export const roundMoney=value=>finite(value)?roundedDecimal(decimal(value)):null;
+export const sumMoney=values=>values.every(finite)?roundedDecimal(decimalSum(values.map(decimal))):null;
+export function moneyDriverAmount(operation,before,value,base){
+ if(!finite(value))return null;
+ if(operation==='amount')return roundMoney(value);
+ if(operation==='add')return finite(before)?sumMoney([before,value]):null;
+ if(operation==='percent_change')return finite(before)?roundedDecimal(decimalProduct(decimal(before),decimalSum([decimal(1),decimal(value)]))):null;
+ if(operation==='percent_of_account')return finite(base)?roundedDecimal(decimalProduct(decimal(base),decimal(value))):null;
+ if(operation==='occupancy_vacancy')return finite(base)?roundedDecimal(decimalProduct(decimal(-Math.abs(base)),decimalSum([decimal(1),decimal(-value)]))):null;
+ return null;
+}
+const money=roundMoney;
 const periodPattern=/^20\d{2}-(0[1-9]|1[0-2])$/;
 const compound=(period,account)=>`${period}|${account}`;
 export const stableStringify=value=>JSON.stringify(canonical(value));
@@ -12,23 +29,22 @@ function canonical(value){return Array.isArray(value)?value.map(canonical):value
 export function fingerprint(value){const text=stableStringify(value);let a=2166136261,b=2246822519;for(let i=0;i<text.length;i++){a=Math.imul(a^text.charCodeAt(i),16777619);b=Math.imul(b^text.charCodeAt(i),3266489917);}return `${ENGINE_VERSION}:${(a>>>0).toString(16).padStart(8,'0')}${(b>>>0).toString(16).padStart(8,'0')}:${text.length}`;}
 const clone=value=>JSON.parse(JSON.stringify(value));
 function freeze(value){if(value&&typeof value==='object'&&!Object.isFrozen(value)){Object.freeze(value);for(const child of Object.values(value))freeze(child);}return value;}
-const strictSum=values=>values.some(value=>!finite(value))?null:money(values.reduce((sum,value)=>sum+value,0));
-const subtract=(a,b)=>finite(a)&&finite(b)?money(a-b):null;
+const strictSum=sumMoney;
+const subtract=(a,b)=>finite(a)&&finite(b)?sumMoney([a,-b]):null;
 const selectedAmount=row=>Object.hasOwn(row,'selectedBaseline')?row.selectedBaseline:row.originalBudget;
-function aggregate(lines,field){
- const selected=predicate=>lines.filter(row=>predicate(row)&&!(['originalBudget','selectedBaseline'].includes(field)&&row[field]===null&&row.baselineDisposition?.kind==='no_original_budget_row')).map(row=>row[field]);
+export function aggregateForecastLines(lines,field){
+ const selected=(predicate,factor=()=>1)=>lines.filter(row=>predicate(row)&&!(['originalBudget','selectedBaseline'].includes(field)&&row[field]===null&&row.baselineDisposition?.kind==='no_original_budget_row')).map(row=>finite(row[field])?row[field]*factor(row):row[field]);
  const grossIncome=strictSum(selected(row=>row.nature==='income'&&row.placement==='above_noi'));
  const contraRevenue=strictSum(selected(row=>row.nature==='contra_income'&&row.placement==='above_noi'));
  const revenue=strictSum([grossIncome,contraRevenue]);
  const opex=strictSum(selected(row=>row.nature==='expense'&&row.placement==='above_noi'));
- const belowExpenses=strictSum(selected(row=>row.nature==='below_noi'||row.nature==='expense'&&row.placement==='below_noi'));
- const belowIncome=strictSum(selected(row=>['income','contra_income'].includes(row.nature)&&row.placement==='below_noi'));
- const belowNoi=subtract(belowExpenses,belowIncome);
+ const belowNoi=strictSum(selected(row=>row.placement==='below_noi'&&!['capital','debt'].includes(row.nature),row=>['income','contra_income'].includes(row.nature)?-1:1));
  const capital=strictSum(selected(row=>row.nature==='capital')),debt=strictSum(selected(row=>row.nature==='debt'));
  const noi=subtract(revenue,opex),cashFlow=subtract(subtract(subtract(noi,belowNoi),debt),capital);
  const invalid=lines.some(row=>!row.mappingValid);
  return {grossIncome:invalid?null:grossIncome,contraRevenue:invalid?null:contraRevenue,revenue:invalid?null:revenue,opex:invalid?null:opex,expenses:invalid?null:opex,belowNoi:invalid?null:belowNoi,capital:invalid?null:capital,debt:invalid?null:debt,noi:invalid?null:noi,cashFlow:invalid?null:cashFlow,margin:!invalid&&finite(noi)&&finite(revenue)&&revenue!==0?noi/revenue:null};
 }
+const aggregate=aggregateForecastLines;
 function emptyMetrics(){return Object.fromEntries(['grossIncome','contraRevenue','revenue','opex','expenses','belowNoi','capital','debt','noi','cashFlow','margin'].map(key=>[key,null]));}
 const validNature=new Set(['income','contra_income','expense','capital','debt','below_noi']);
 // Full months are identities, never dates coerced to a month.
@@ -134,8 +150,8 @@ export function computeReforecast(input){
    if(!row?.mappingValid){impact.unavailable.push({period,accountCode,reason:'Missing effective account mapping'});continue;}
    const before=row.forecast,base=driver.baseAccountCode?byKey.get(compound(period,String(driver.baseAccountCode)))?.forecast:null;
    let next=null;
-   switch(driver.operation){case 'amount':next=driver.value;break;case 'add':next=finite(before)?before+driver.value:null;break;case 'percent_change':next=finite(before)?before*(1+driver.value):null;break;case 'percent_of_account':next=finite(base)?base*driver.value:null;break;case 'occupancy_vacancy':next=finite(base)?-Math.abs(base)*(1-driver.value):null;break;}
-   row.forecast=money(next);row.driverIds.push(id);row.driverSources.push({driverId:id,operation:driver.operation,value:driver.value,source:clone(driver.source||null),reason:driver.reason||''});
+   next=moneyDriverAmount(driver.operation,before,driver.value,base);
+   row.forecast=next;row.driverIds.push(id);row.driverSources.push({driverId:id,operation:driver.operation,value:driver.value,source:clone(driver.source||null),reason:driver.reason||''});
    if(row.forecast===null){impact.unavailable.push({period,accountCode,reason:'Missing required source amount'});issue('missing_driver_source','A driver cannot calculate without its source amount.',{driverId:id,period,accountCode});}
    if(before!==row.forecast)impact.changed.push({period,accountCode,before,after:row.forecast,delta:subtract(row.forecast,before)});
   }

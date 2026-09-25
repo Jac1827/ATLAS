@@ -242,6 +242,10 @@
       [
         "features/reforecast-utility.mjs",
         "./reforecast-store.mjs"
+      ],
+      [
+        "features/reforecast-recovery.mjs",
+        "./reforecast-store.mjs"
       ]
     ]
   },
@@ -380,8 +384,8 @@
     ]
   },
   "features/reforecast-recovery.mjs": {
-    "sha256": "33b82bf4c03a6af8",
-    "bytes": 2235,
+    "sha256": "f516f9412e7a91b3",
+    "bytes": 5551,
     "references": [
       [
         "features/reforecast-ui.mjs",
@@ -398,8 +402,8 @@
     ]
   },
   "features/reforecast-import-ui.mjs": {
-    "sha256": "0ac659a847c1d1e9",
-    "bytes": 55979,
+    "sha256": "3d50db82a1a01fd8",
+    "bytes": 55942,
     "references": [
       [
         "features/reforecast-ui.mjs",
@@ -588,7 +592,7 @@
     ]
   },
   "features/reforecast-str-saved-programme-ui.mjs": {
-    "sha256": "f8c3003664a5e51f",
+    "sha256": "5ff51a00eaa65834",
     "bytes": 28560,
     "references": [
       [
@@ -602,7 +606,7 @@
     ]
   },
   "features/reforecast-builder-ui.mjs": {
-    "sha256": "bee8be44e8a4a842",
+    "sha256": "01e6d1e7fbf9e3b5",
     "bytes": 64490,
     "references": [
       [
@@ -622,8 +626,8 @@
     ]
   },
   "features/reforecast-ui.mjs": {
-    "sha256": "85781c6ec193985c",
-    "bytes": 112978,
+    "sha256": "3ea65e8b875629c5",
+    "bytes": 113112,
     "references": [
       [
         "reforecast-navigation.js",
@@ -720,7 +724,7 @@
     ]
   },
   "reforecast-navigation.js": {
-    "sha256": "14d63ae8670a59d5",
+    "sha256": "ef819e6317b9267f",
     "bytes": 2057,
     "references": [
       [
@@ -730,7 +734,7 @@
     ]
   },
   "features/original-budget-intake.mjs": {
-    "sha256": "56d6ccd2cfcfc890",
+    "sha256": "ece3b9dc598de359",
     "bytes": 5321,
     "references": [
       [
@@ -740,7 +744,7 @@
     ]
   },
   "features/approved-budget.mjs": {
-    "sha256": "adefe9bd69adaf59",
+    "sha256": "e4a7e6576986536b",
     "bytes": 20078,
     "references": [
       [
@@ -1102,7 +1106,7 @@
     ]
   },
   "features/budget-command-publication.mjs": {
-    "sha256": "38791a2ac593ee8b",
+    "sha256": "418e73865cd8d621",
     "bytes": 8948,
     "references": [
       [
@@ -1152,7 +1156,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "bf25dbab848ab0ca",
+    "sha256": "1b259440b8c4fd6c",
     "bytes": 1888839,
     "references": [
       [
@@ -1162,7 +1166,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "e8e3d3a4be5d9393",
+    "sha256": "25c9974c8b321980",
     "bytes": 22240,
     "references": [
       [

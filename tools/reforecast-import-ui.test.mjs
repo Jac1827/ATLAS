@@ -47,3 +47,6 @@ await assert.rejects(()=>readReforecastImportPage({...central,async fetchJson(){
 await assert.rejects(()=>readReforecastImportPage({...central,async fetchJson(){sessionActor='another-user';return[];}},{communityId:A}),/signed-in account changed/);
 console.log('PASS import mapping review: explicit property authorization, registry-only targets, sign confirmation, source scenario isolation, duplicate row selection, zero values, effective dates, actual authority and retained evidence.');
 console.log('PASS resumable imports: scoped metadata pagination, actor guard, preserve draft edits/drivers, immutable source versions, versioned before/after history, duplicate aggregation gate and evidence-only blockers.');
+const localCurrency={...base,evidence:{...evidence,metadata:{...evidence.metadata,currencies:['Local']}}};
+assert.equal(evaluateReforecastImportReview(localCurrency,[A]).ready,false,'a workbook-local label is not silently treated as USD');
+const reviewedCurrency=evaluateReforecastImportReview({...localCurrency,currencyAliasConfirmed:true},[A]);assert.equal(reviewedCurrency.ready,true);assert.equal(reviewedCurrency.mapping.currencyMapping.sourceCurrency,'Local');assert.equal(reviewedCurrency.mapping.currencyMapping.reportingCurrency,'USD');assert.equal(reviewedCurrency.mapping.currencyMapping.method,'identity');

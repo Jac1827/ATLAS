@@ -1,6 +1,6 @@
 /* Reviewed utility rate evidence. No property-name match, peer proxy, or default rate. */
-import {readSourceBundle} from './reforecast-store.mjs?v=4a72d5a04fe4fa2a';
-import {validateForecastPeriods,fingerprint} from './reforecast-engine.mjs?v=3d3b7e538bd36581';
+import {readSourceBundle} from './reforecast-store.mjs?v=a31fb99b0826a753';
+import {validateForecastPeriods,fingerprint} from './reforecast-engine.mjs?v=a3963515accfd259';
 const finite=value=>typeof value==='number'&&Number.isFinite(value);
 const money=value=>Math.sign(value)*Math.round((Math.abs(value)+Number.EPSILON)*100)/100;
 const priorYear=period=>(Number(period.slice(0,4))-1)+period.slice(4);

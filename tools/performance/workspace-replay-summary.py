@@ -25,6 +25,13 @@ for g in x['results']:
     for cache in ['cold','warm']:
         rows=[r for r in g['startup'] if r['cache']==cache]
         d['startup'][cache]={'usableMs':budget(stats([r['readyElapsed'] for r in rows]),(5000 if mobile else 3000) if cache=='cold' else (2000 if mobile else 1000)), 'longestTaskMs':budget(stats([r['longestTask'] for r in rows]),200 if mobile else 100),'blockingTimeThroughObservationMs':budget(stats([r['blockingTime'] for r in rows]),600 if mobile else 300),'firstTenSecondsBlockingTimeMs':budget(stats([sum(max(0,min(t['duration'],10000-t['start'])-50)for t in r['longTasks'] if t['start']<10000)for r in rows]),600 if mobile else 300),'renderCount':stats([r.get('renderCount')for r in rows]),'apiRequests':stats([r['apiRequests'] for r in rows]),'cdpCacheHits':stats([r['cdpCacheHits'] for r in rows])}
+        shell=stats([r.get('authenticatedShellMs') for r in rows])
+        shell['availableCount']=len(shell['samples']);shell['unavailableCount']=len(rows)-len(shell['samples'])
+        shell['basis']='Navigation timeOrigin to post-authorization interactive-shell paint; loading placeholders are excluded'
+        if cache=='warm':
+            shell['limit']=600 if mobile else 300
+            shell['allSamplesPass']=(shell['max']<=shell['limit'] if shell['samples'] and not shell['unavailableCount'] else None)
+        d['startup'][cache]['authenticatedShellMs']=shell
     for tab,label in [(0,'Home'),(8,'Reports'),(7,'Import'),(2,'Command'),(9,'Bonus')]:
         first=[r for r in g['navigation'] if r['tab']==tab and r['stage']=='first-loop'];repeated=[r for r in g['navigation'] if r['tab']==tab and r['stage']=='repeated']
         d['navigation'][label]={'firstLoopMs':budget(stats([r['ms'] for r in first]),1000 if mobile else 500),'firstLoopLongestTaskMs':budget(stats([r['longestTask'] for r in first]),200 if mobile else 100),'repeatedMs':budget(stats([r['ms'] for r in repeated]),400 if mobile else 200),'repeatedLongestTaskMs':budget(stats([r['longestTask'] for r in repeated]),200 if mobile else 100),'repeatedRenderCount':stats([r['renders'] for r in repeated]),'apiRequests':stats([r['apiRequests'] for r in repeated])}

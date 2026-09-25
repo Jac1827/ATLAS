@@ -20,6 +20,8 @@ try {
  assert.equal(solo.json.comparison.baselineRepairedComplete,false);
  assert(Object.values(solo.json.comparison.baselineRepaired).every(value=>value===null));
  assert.match(solo.markdown,/Baseline\/repaired report and data parity: unavailable/);
+ assert.equal(solo.json.groups[0].startup.warm.authenticatedShellMs.allSamplesPass,null);
+ assert.equal(solo.json.groups[0].startup.warm.authenticatedShellMs.unavailableCount,1);
  const reports=solo.json.groups[0].navigation.Reports;
  assert.equal(reports.firstLoopLongestTaskMs.allSamplesPass,false);
  assert.equal(reports.firstLoopLongestTaskMs.max,201);
@@ -34,5 +36,11 @@ try {
  const mismatch=await summarize([group('baseline'),changed]);
  assert.equal(mismatch.json.comparison.baselineRepaired.communityDocumentHash,false);
  assert.equal(mismatch.json.comparison.baselineRepaired.exportRowsHash,true);
+ const instrumented=group('repaired');for(const row of instrumented.startup)row.authenticatedShellMs=601;
+ const shell=await summarize([instrumented]);
+ assert.equal(shell.json.groups[0].startup.warm.authenticatedShellMs.allSamplesPass,false);
+ assert.equal(shell.json.groups[0].startup.warm.authenticatedShellMs.availableCount,1);
+ assert.equal(shell.json.groups[0].startup.warm.authenticatedShellMs.limit,600);
+ assert.equal(Object.hasOwn(shell.json.groups[0].startup.cold.authenticatedShellMs,'allSamplesPass'),false);
  console.log('Replay evidence availability, first-visit task budgets, and sampled heap semantics passed.');
 } finally {await fs.rm(directory,{recursive:true,force:true});}

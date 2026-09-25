@@ -1,6 +1,6 @@
 (function(){
  'use strict';let modulePromise,cache,epoch=0;
- const load=()=>modulePromise ||= import('./features/reforecast-consumers.mjs?v=42aba35c99c5d2c5');
+ const load=()=>modulePromise ||= import('./features/reforecast-consumers.mjs?v=b97bed42695951f1');
  function clear(){epoch++;cache?.clear();document.querySelectorAll('[data-active-reforecast]').forEach(el=>el.remove());}
  const accessKey=()=>window.ATLAS_CENTRAL?.getAccessContextKey?.() ?? window.ATLAS_CENTRAL?.getSession?.()?.user?.id;
  let access=accessKey();

@@ -1,7 +1,7 @@
 import {strRegistryExtensionIssues} from './reforecast-str-registry-extension.mjs?v=e029a084505a92e0';
 import {hashReforecastWorkbook,encodeOriginalWorkbook} from './reforecast-intake.mjs?v=87e68da483f77228';
 import {workbookEvidenceHash} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
-import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=ecc60c5b054f76d1';
+import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=720ca2356994bdc1';
 
 const SCHEMA='atlas.saved-str-monthly-programme.v1',PERIOD=/^20\d{2}-(0[1-9]|1[0-2])$/;
 const finite=value=>typeof value==='number'&&Number.isFinite(value),clone=structuredClone;

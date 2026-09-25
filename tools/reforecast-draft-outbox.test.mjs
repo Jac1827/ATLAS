@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+const require=createRequire(import.meta.url);require('fake-indexeddb/auto');
+import {saveForecastRecovery,readForecastRecovery,retainForecastDraftWrite,completeForecastDraftRecovery,listForecastRecovery} from '../docs/portfolio-operations-dashboard/features/reforecast-recovery.mjs';
+import {saveScenario,saveRegistry,createFromImport} from '../docs/portfolio-operations-dashboard/features/reforecast-store.mjs';
+const id=n=>'30000000-0000-0000-0000-'+String(n).padStart(12,'0');let actor=id(1);const central={getSession:()=>({user:{id:actor}})},request={communityId:id(2),scenarioId:id(3),requestId:id(4),expectedRevision:0,action:'save_draft',payload:{name:'Retained edit',ownerId:actor}},result={head:{community_id:id(2),scenario_id:id(3)},revision:{revision_id:id(5),request_id:id(4),community_id:id(2),scenario_id:id(3)}};
+await saveForecastRecovery(central,'edit',{kind:'draft-edit',communityId:id(2),scenarioId:id(3),editVersion:'v1',payload:request.payload});const recoveryId=await retainForecastDraftWrite(central,{request,editId:'edit',editVersion:'v1'});
+await assert.rejects(()=>retainForecastDraftWrite(central,{request:{...request,requestId:id(6)},editId:'other-edit',replaceAbsentRequestId:request.requestId}),/Another save/);
+await saveForecastRecovery(central,'edit',{kind:'draft-edit',communityId:id(2),scenarioId:id(3),editVersion:'v2',payload:{name:'Newer edit'}});
+await assert.rejects(()=>completeForecastDraftRecovery(central,{recoveryId,result:{...result,revision:{...result.revision,request_id:id(99)}}}),/exact request/);assert(await readForecastRecovery(central,recoveryId));
+await completeForecastDraftRecovery(central,{recoveryId,result});assert.equal((await readForecastRecovery(central,'edit')).payload.name,'Newer edit','Exact completion cannot delete a newer version even under the same edit ID');
+await saveForecastRecovery(central,'legacy',{kind:'draft-write',request});assert.equal(await retainForecastDraftWrite(central,{request}),'legacy','Legacy request ownership remains the actual existing key');await completeForecastDraftRecovery(central,{recoveryId:'legacy',result});assert.equal(await readForecastRecovery(central,'legacy'),null);
+// The same editor may correct an explicitly absent rejected intent. Other editor
+// claims remain blocked, and the transaction replaces only the exact old request.
+const old=await retainForecastDraftWrite(central,{request,editId:'edit',editVersion:'v2'});const corrected={...request,requestId:id(7),payload:{...request.payload,name:'Reviewed correction'}};const next=await retainForecastDraftWrite(central,{request:corrected,editId:'edit',editVersion:'v3',replaceAbsentRequestId:request.requestId});assert.equal(await readForecastRecovery(central,old),null);assert.deepEqual((await readForecastRecovery(central,next)).request,corrected);
+actor=id(8);assert.deepEqual(await listForecastRecovery(central),[]);actor=id(1);assert(await readForecastRecovery(central,next));
+// Role/navigation guards must be checked after session refresh, immediately
+// before issuing the mutation; the caller's first guard is insufficient.
+for(const write of [saveScenario,saveRegistry,createFromImport]){let current=true,mutations=0;const api={getSession:central.getSession,refreshSession:async()=>{current=false;},fetchJson:async path=>{if(path.includes('/rpc/atlas_read_reforecast_import_receipt'))return null;if(path.startsWith('/atlas_reforecast_registries?'))return [];mutations++;throw Error('Unexpected write '+path);}};await assert.rejects(()=>write(api,{...request,uploadId:id(9),mapping:{version:id(10),confirmed:true},expectedLines:[],beforeWrite(){if(!current)throw Error('Context changed during refresh');}}),/Context changed/);assert.equal(mutations,0,write.name+' must not write after the retained context changes');}
+console.log('PASS draft recovery ownership and post-refresh write guards: exact receipt, newer edit preservation, pending claim isolation, actor scope, legacy keys and reviewed absent-request correction.');

@@ -1,8 +1,7 @@
 /* Reviewed utility rate evidence. No property-name match, peer proxy, or default rate. */
-import {readSourceBundle} from './reforecast-store.mjs?v=687b772cb423649c';
-import {validateForecastPeriods,fingerprint} from './reforecast-engine.mjs?v=addea678a6fc086d';
+import {readSourceBundle} from './reforecast-store.mjs?v=db3c5c6712ef7c55';
+import {validateForecastPeriods,fingerprint,sumMoney,moneyDriverAmount} from './reforecast-engine.mjs?v=b9680c5190e80214';
 const finite=value=>typeof value==='number'&&Number.isFinite(value);
-const money=value=>Math.sign(value)*Math.round((Math.abs(value)+Number.EPSILON)*100)/100;
 const priorYear=period=>(Number(period.slice(0,4))-1)+period.slice(4);
 const utilities=value=>value==='gas'?['natural_gas']:value==='water_sewer'?['water','sewer']:['electricity','natural_gas','water','sewer'].includes(value)?[value]:[];
 export function utilityTargets(registry){
@@ -14,7 +13,7 @@ export function utilityTargets(registry){
 export function utilityRecoveryRows(snapshot,relationships=[]){
  const lines=snapshot.lines||snapshot.gl||[],periods=snapshot.identity?.periods||snapshot.periods||[...new Set(lines.map(row=>row.period))].sort();validateForecastPeriods(periods);
  const pairs=relationships.filter(row=>row.relationship==='usage_recovery'&&row.expenseAccount&&row.incomeAccount&&row.expenseAccount!==row.incomeAccount&&![row.expenseAccount,row.incomeAccount].map(String).includes('5956'));
- const difference=(income,expense)=>finite(income)&&finite(expense)?money(income-expense):null;
+ const difference=(income,expense)=>finite(income)&&finite(expense)?sumMoney([income,-expense]):null;
  return Object.freeze(periods.flatMap(period=>pairs.map(pair=>{
   const expenseAccount=String(pair.expenseAccount),incomeAccount=String(pair.incomeAccount),ambiguous=pairs.filter(row=>String(row.expenseAccount)===expenseAccount||String(row.incomeAccount)===incomeAccount).length!==1;
   const detail=code=>{const matches=lines.filter(row=>row.period===period&&String(row.accountCode||row.glCode)===code);return !ambiguous&&matches.length===1?matches[0]:null;},expense=detail(expenseAccount),income=detail(incomeAccount),value=(row,key)=>finite(row?.[key])?row[key]:null;
@@ -47,7 +46,7 @@ export function utilityRecommendations({communityId,periods,registry,vintages=[]
   const actuals=history.actuals.lines.filter(row=>row.period===sourcePeriod&&row.accountCode===accountCode&&row.closeVersionId===close.version_id);if(actuals.length!==1||!finite(actuals[0].amount)){missing(period,accountCode,'Same-month prior-year GL actual is unavailable.');continue;}
   const totalWeight=components.reduce((n,row)=>n+row.weight,0),rate=components.reduce((n,row)=>n+row.monthlyRate*row.weight,0)/totalWeight;
   const source={kind:'utility_forecast',vintageId:vintage.id,sheet:components[0].sheet,row:components[0].row,sourceHash:vintage.source_hash,type:types.join('_'),monthlyRate:rate,sourcePeriod,closeVersionId:close.version_id,closeSourceHash:close.source_hash,historicalAmount:actuals[0].amount,registryVersionId:registry.version,components,currency:close.currency||close.metrics?.currency||registry.currency||null};
-  proposals.push({id:fingerprint({period,accountCode,source}),period,accountCode,amount:money(actuals[0].amount*(1+rate)),source,reason:'Same-month prior-year governed actual × (1 + reviewed monthly provider rate); the original seasonal month is retained.'});
+  proposals.push({id:fingerprint({period,accountCode,source}),period,accountCode,amount:moneyDriverAmount('percent_change',actuals[0].amount,rate),source,reason:'Same-month prior-year governed actual × (1 + reviewed monthly provider rate); the original seasonal month is retained.'});
  }
  return {proposals,unavailable,registryVersionId:registry.version};
 }

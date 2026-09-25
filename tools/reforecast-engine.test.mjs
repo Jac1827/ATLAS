@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {computeReforecast,applyRecommendations,undoRecommendationAction} from '../docs/portfolio-operations-dashboard/features/reforecast-engine.mjs';
+import {computeReforecast,applyRecommendations,undoRecommendationAction,roundMoney,sumMoney,moneyDriverAmount} from '../docs/portfolio-operations-dashboard/features/reforecast-engine.mjs';
 import {installLegacyReforecastBridge} from '../docs/portfolio-operations-dashboard/features/reforecast-legacy-bridge.mjs';
+for(const [value,expected] of [[10.075,10.08],[-10.075,-10.08],[1.005,1.01],[-1.005,-1.01],[.005,.01],[-.005,-.01],[10.074999999999998,10.07],[10.075000000000001,10.08],[Number.MIN_VALUE,0],[-Number.MIN_VALUE,0],[Number.MAX_VALUE,Number.MAX_VALUE],[0,0],[-0,0]])assert.equal(roundMoney(value),expected,'Decimal half-away rounding: '+value);
+for(const missing of [null,undefined,NaN,Infinity,-Infinity,'10.075']){assert.equal(roundMoney(missing),null);assert.equal(sumMoney([1,missing]),null);assert.equal(moneyDriverAmount('amount',0,missing),null);}
+assert.equal(sumMoney([.06,.045]),.11);assert.equal(sumMoney([-.06,-.045]),-.11);assert.equal(sumMoney([1e20,-1e20,.105]),.11);assert.equal(sumMoney([]),0);assert.equal(sumMoney([Number.MAX_VALUE,Number.MAX_VALUE]),null);
+assert.equal(moneyDriverAmount('add',50,-39.925),10.08);assert.equal(moneyDriverAmount('percent_change',200,-.949625),10.08);assert.equal(moneyDriverAmount('percent_of_account',null,.010075,1000),10.08);assert.equal(moneyDriverAmount('occupancy_vacancy',null,.989925,1000),-10.08);
 const periods=['2026-07','2026-08','2026-09'],accounts=[['5120','income','RENTAL INCOME'],['5220','contra_income','VACANCY'],['5250','contra_income','CONCESSIONS'],['6300','expense','PAYROLL'],['6400','expense','UTILITIES'],['6500','expense','GENERAL'],['6600','expense','INSURANCE'],['6700','expense','TAX'],['6800','expense','CONTRACTS'],['1500','capital','CAPITAL'],['8000','debt','DEBT']].map(([accountCode,nature,category])=>({accountCode,nature,category,placement:['capital','debt'].includes(nature)?'below_noi':'above_noi'}));
 const values={'5120':10000,'5220':-1000,'5250':-500,'6300':1000,'6400':200,'6500':100,'6600':100,'6700':100,'6800':100,'1500':0,'8000':100};
 const baseline={versionId:'budget-1',lines:periods.flatMap(period=>accounts.map(row=>({period,accountCode:row.accountCode,amount:values[row.accountCode]}))),leasing:periods.map(period=>({period,units:100,occupiedUnits:90,moveIns:10,moveOuts:2,marketRent:100}))};

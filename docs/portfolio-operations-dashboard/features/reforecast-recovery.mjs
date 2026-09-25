@@ -1,4 +1,4 @@
-import {verifyImportReadback} from './reforecast-store.mjs?v=687b772cb423649c';
+import {verifyImportReadback} from './reforecast-store.mjs?v=db3c5c6712ef7c55';
 // Recovery copies are never calculation authority. Shared server receipts decide
 // whether a write committed; browser records retain the exact request for retry.
 const DB='atlas-reforecast-recovery-v1',STORE='recovery';
@@ -84,4 +84,31 @@ export async function completeOriginalBudgetRecovery(central,{recovery,payload,r
    }catch{store.transaction.abort();}
   };
  });
+}
+
+// Each submitted request owns a separate outbox slot. Acquiring a scenario's
+// slot atomically prevents another tab from replacing an uncertain request.
+export async function retainForecastDraftWrite(central,{request,editId,editVersion,replaceAbsentRequestId}){
+ let id='draft-write:'+request.requestId,failure;
+ try{await access(central,'readwrite',(store,actor)=>{const scan=store.getAll();scan.onsuccess=()=>{try{
+  const pending=scan.result.filter(row=>row.actor===actor&&row.kind==='draft-write'&&row.request?.communityId===request.communityId&&row.request?.scenarioId===request.scenarioId);
+  const previous=editId&&pending.find(row=>row.request.requestId===replaceAbsentRequestId&&row.editId===editId);
+  if(pending.some(row=>row.request.requestId!==request.requestId&&row!==previous))throw Error('Another save for this forecast is awaiting readback. Recover and verify that retained request before saving again.');
+  if(pending.some(row=>row!==previous&&canonical(row.request)!==canonical(request)))throw Error('The retained save request changed. Recover its exact receipt before continuing.');
+  const existing=pending.find(row=>row!==previous);if(existing){id=existing.id;return;}
+  if(previous)store.delete(actor+':'+previous.id);
+  store.put({key:actor+':'+id,id,actor,kind:'draft-write',communityId:request.communityId,name:request.payload.name,request:structuredClone(request),editId,editVersion,updatedAt:new Date().toISOString()});
+ }catch(error){failure=error;store.transaction.abort();}};});}catch(error){throw failure||error;}
+ return id;
+}
+export async function completeForecastDraftRecovery(central,{recoveryId,result}){
+ let failure;
+ try{await access(central,'readwrite',(store,actor)=>{const scan=store.getAll();scan.onsuccess=()=>{try{
+  const rows=scan.result.filter(row=>row.actor===actor),pending=rows.find(row=>row.id===recoveryId);if(!pending)return;
+  const request=pending.request,revision=result?.revision,publication=result?.publication;
+  if(pending.kind!=='draft-write'||!request||result?.head?.community_id!==request.communityId||result.head.scenario_id!==request.scenarioId||revision?.community_id!==request.communityId||revision.scenario_id!==request.scenarioId||!revision.revision_id||!(revision.request_id===request.requestId||request.action==='approve_lock'&&publication?.request_id===request.requestId))throw Error('Keep the pending save until its exact request and revision are verified.');
+  store.delete(actor+':'+pending.id);
+  const edit=rows.find(row=>row.id===pending.editId);
+  if(edit?.kind==='draft-edit'&&pending.editVersion&&edit.editVersion===pending.editVersion&&edit.scenarioId===request.scenarioId&&edit.communityId===request.communityId)store.delete(actor+':'+edit.id);
+ }catch(error){failure=error;store.transaction.abort();}};});}catch(error){throw failure||error;}
 }

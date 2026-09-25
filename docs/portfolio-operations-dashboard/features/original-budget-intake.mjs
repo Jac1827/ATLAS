@@ -1,4 +1,4 @@
-import {importReforecastWorkbook,resumeReforecastImport,readReforecastImportPage} from './reforecast-import-ui.mjs?v=530749f683eae362';
+import {importReforecastWorkbook,resumeReforecastImport,readReforecastImportPage} from './reforecast-import-ui.mjs?v=080cf321da502c29';
 export function reviewedOriginalBudgetStage(result,{propertyId,year,effectiveDate}={}){
  if(!result?.ready||!result.upload?.upload_id||result.upload.community_id!==result.communityId||!result.mapping?.confirmed||!result.lines?.length)throw Error('Complete the original workbook source, cell and mapping review before continuing.');
  const periods=result.mapping.periods||[];if(!periods.length||periods.some(p=>Number(p.slice(0,4))!==year))throw Error('Review one calendar-year segment of the approved fiscal budget at a time.');

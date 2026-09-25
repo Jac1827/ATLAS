@@ -59,7 +59,7 @@
       let existing=await client.readDocument(documentKey,{signal});
       check();
       if(!existing){
-        await client.saveDocument({documentKey,moduleKey:'dashboard',payload:{documentType:'atlas_migration_part_v1',sha256,data},expectedVersion:null,sourceModule:'atlas_dashboard',sourceHash:sha256,metadata:{purpose:'Verified migration archive part'}});
+        await client.saveDocument({signal,isCurrent,documentKey,moduleKey:'dashboard',payload:{documentType:'atlas_migration_part_v1',sha256,data},expectedVersion:null,sourceModule:'atlas_dashboard',sourceHash:sha256,metadata:{purpose:'Verified migration archive part'}});
         check();
         existing=await client.readDocument(documentKey,{signal});
         check();

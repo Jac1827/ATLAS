@@ -1,5 +1,5 @@
 import {validateSavedStrProgrammeStream} from './reforecast-str-saved-programme-runtime.mjs?v=27f10719aebd413e';
-import {stableStringify,validateForecastPeriods} from './reforecast-engine.mjs?v=addea678a6fc086d';
+import {stableStringify,validateForecastPeriods} from './reforecast-engine.mjs?v=b9680c5190e80214';
 
 const clone=value=>structuredClone(value);
 const finite=value=>typeof value==='number'&&Number.isFinite(value);

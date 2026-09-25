@@ -14271,7 +14271,7 @@ function defaultAtlasAccessFormDraft() {
 
 atlasAccessFormDraft = defaultAtlasAccessFormDraft();
 
-const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=ab1760e47a4b7c45";
+const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=83deeb18a155f022";
 const ATLAS_AUTH_UI_STORAGE_KEY = "atlas_auth_ui_state_v1";
 const ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY = "atlas_dashboard_preferences_v1";
 let atlasCentralClientLoadPromise = null;
@@ -18753,8 +18753,15 @@ async function buildAtlasCentralAppStatePayload() {
 }
 
 async function saveAtlasCentralAppState({ silent = false, source = "manual_central_save" } = {}) {
+  if (saveAtlasCentralAppState.inFlight) {
+    if (!silent) alert("A Central Save is already running. Newer edits remain in this browser; save again after it finishes.");
+    return false;
+  }
+  const operation = (async () => {
+  const knownVersion = Number(atlasCentralRuntimeMeta.lastDocumentVersion || 0);
+  const saveContext = captureAtlasSaveContext();
   const actor = atlasWorkspaceActorKey(), database = ATLAS_STATE_DB_NAME;
-  const current = () => actor === atlasWorkspaceActorKey() && database === ATLAS_STATE_DB_NAME;
+  const current = () => saveContext() && actor === atlasWorkspaceActorKey() && database === ATLAS_STATE_DB_NAME;
   const pendingKey = "atlas_workspace_projection_pending_v1";
   let committedParent = null;
   try {
@@ -18814,11 +18821,11 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
     if (!current()) throw new DOMException("Workspace changed", "AbortError");
     const remote = await window.ATLAS_CENTRAL.readDocument(documentKey);
     if (!current()) throw new DOMException("Workspace changed", "AbortError");
-    const knownVersion = Number(atlasCentralRuntimeMeta.lastDocumentVersion || 0);
     if (remote && remote.payload_hash === localHash) return await finishProjection(remote,preparedArchive);
     if (remote && !knownVersion) throw new Error(`Central Atlas already has version ${remote.version}. Pull and reconcile it before saving from this browser.`);
     if (remote && knownVersion !== Number(remote.version || 0)) throw new Error(`Central Atlas changed from version ${knownVersion} to ${remote.version}. Pull and reconcile before saving so no one else's work is overwritten.`);
     const result = await window.ATLAS_CENTRAL.saveDocument({
+      isCurrent: current, signal: atlasWorkspaceAccess.controller?.signal,
       documentKey, moduleKey: "dashboard", payload: localPayload,
       expectedVersion: remote ? Number(remote.version) : null,
       sourceModule: "atlas_dashboard", sourceHash: localHash,
@@ -18842,6 +18849,10 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
     if (!silent) alert(message);
     renderTab(); return false;
   }
+  })();
+  saveAtlasCentralAppState.inFlight = operation;
+  try { return await operation; }
+  finally { if (saveAtlasCentralAppState.inFlight === operation) saveAtlasCentralAppState.inFlight = null; }
 }
 
 async function inspectAtlasOccupancyReadback() {
@@ -18958,7 +18969,16 @@ function queueAtlasCentralDocumentPush(source = "autosave") {
   const status = getAtlasCentralStatus();
   if (!status.configured || !status.signedIn || !status.autosave) return;
   if (atlasCentralDocumentPushTimer) clearTimeout(atlasCentralDocumentPushTimer);
+  const current = captureAtlasSaveContext();
   atlasCentralDocumentPushTimer = setTimeout(() => {
+    if (!current()) return;
+    const pending = saveAtlasCentralAppState.inFlight;
+    if (pending) {
+      // Edits during a successful save schedule one fresh snapshot afterwards.
+      // A failed or uncertain save requires review, never an automatic rewrite.
+      pending.then(saved => { if (saved && current()) queueAtlasCentralDocumentPush(source); });
+      return;
+    }
     saveAtlasCentralAppState({ silent: true, source });
   }, 1800);
 }
@@ -22544,7 +22564,7 @@ function getAtlasClosedFinancialVersion(record, period) {
 async function refreshAtlasClosedFinancials(year, force = false, requested = new Map()) {
   if (!window.ATLAS_CENTRAL?.getSession()?.user || !requested.size || !atlasAccessDecision(activeTab).ok) return false;
   const context = getAtlasRenderContextKey();
-  const module = await import("./features/financial-close.mjs?v=3b3afe82628743df");
+  const module = await import("./features/financial-close.mjs?v=4abdb8c01f27f8d6");
   if (context !== getAtlasRenderContextKey()) return false;
   window.AtlasClosedFinancialCache ||= module.createCache(window.ATLAS_CENTRAL);
   const roster = getAtlasAccessProfile()?.community_access_records || [];
@@ -23099,7 +23119,7 @@ async function openSharedCommunityPlan() {
   const communityId = access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId;
   if (!communityId || !window.ATLAS_CENTRAL) { alert("Shared plans require an authorized canonical community record."); return false; }
   try {
-    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=0ea87a1b1120e2a1");
+    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=9118bbf179a12835");
     if (epoch !== atlasNavigationEpoch || !atlasAccessDecision(2).ok) return false;
     const entry=model.monthEntry, provenance=entry.metricProvenance?.occupiedSnapshot, period=buildPeriodKey(model.monthIdx,model.year);
     const occupancy=provenance?.revisionKey && provenance.period===period && (!provenance.communityId||provenance.communityId===communityId) && entry.occupiedSnapshot!=null && Number(entry.rentableUnits)>0
@@ -23432,7 +23452,7 @@ function queueCommunityRosterFinancials(items) {
     return {key:encodeURIComponent(item.detail.name),hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
   });
   setTimeout(async()=>{try {
-    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=9b2898e4e181082a");
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=b6f06ee355621e68");
     if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
     await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
   } catch {}},0);

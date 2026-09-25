@@ -1441,7 +1441,6 @@
           "navigation": 55
         },
         "homeHistoryHash": null,
-        "homeValue": "82.4%",
         "monthlyNormalizationMatchesBaseline": true,
         "communityProgressHash": "1161269f1485e6da8f83287b7c8511aeb274d8cfcc6dab2db1a000ed7d844d7e",
         "communityDocumentHash": "33113b6cf348ac4a52ab7a4c17fd155b61dbb8f17adab63e5ed51e5b36214386",
@@ -1453,7 +1452,8 @@
         "period": {
           "year": 2026,
           "month": 8
-        }
+        },
+        "homeValueWithheld": true
       },
       "variants": [
         {
@@ -1477,7 +1477,7 @@
           ],
           "longestTask": 231,
           "blockingTime": 247,
-          "value": "82.4%"
+          "operatingValueWithheld": true
         },
         {
           "scenario": "unavailable",
@@ -1500,7 +1500,7 @@
           ],
           "longestTask": 199,
           "blockingTime": 200,
-          "value": "82.4%"
+          "operatingValueWithheld": true
         }
       ],
       "externalResponseCount": 0
@@ -3025,7 +3025,6 @@
           "navigation": 55
         },
         "homeHistoryHash": null,
-        "homeValue": "82.4%",
         "monthlyNormalizationMatchesBaseline": true,
         "communityProgressHash": "1161269f1485e6da8f83287b7c8511aeb274d8cfcc6dab2db1a000ed7d844d7e",
         "communityDocumentHash": "33113b6cf348ac4a52ab7a4c17fd155b61dbb8f17adab63e5ed51e5b36214386",
@@ -3037,7 +3036,8 @@
         "period": {
           "year": 2026,
           "month": 8
-        }
+        },
+        "homeValueWithheld": true
       },
       "variants": [
         {
@@ -3085,7 +3085,7 @@
           ],
           "longestTask": 920,
           "blockingTime": 1643,
-          "value": "82.4%"
+          "operatingValueWithheld": true
         },
         {
           "scenario": "unavailable",
@@ -3124,7 +3124,7 @@
           ],
           "longestTask": 855,
           "blockingTime": 1382,
-          "value": "82.4%"
+          "operatingValueWithheld": true
         }
       ],
       "externalResponseCount": 0
@@ -4544,7 +4544,6 @@
           "workforce-hydration": 1
         },
         "homeHistoryHash": "600c286517f363d7b469080c211e435e810a94c7bcbe3afb5023b074bd98d24b",
-        "homeValue": "82.4%",
         "monthlyNormalizationMatchesBaseline": true,
         "communityProgressHash": "255a7cc1d0638f45234f5101c7d92606b0b4fec63e29341691fcc3c097c60697",
         "communityDocumentHash": "d45ec3911029a5e41957ff3a56d52c22c4b213020438ffe8ca60aa9d69371e1a",
@@ -4556,7 +4555,8 @@
         "period": {
           "year": 2026,
           "month": 8
-        }
+        },
+        "homeValueWithheld": true
       },
       "variants": [
         {
@@ -4584,7 +4584,7 @@
           ],
           "longestTask": 555,
           "blockingTime": 1184,
-          "value": "82.4%"
+          "operatingValueWithheld": true
         },
         {
           "scenario": "unavailable",
@@ -4611,7 +4611,7 @@
           ],
           "longestTask": 702,
           "blockingTime": 1279,
-          "value": "82.4%"
+          "operatingValueWithheld": true
         }
       ],
       "externalResponseCount": 0
@@ -6178,7 +6178,6 @@
           "workforce-hydration": 2
         },
         "homeHistoryHash": "600c286517f363d7b469080c211e435e810a94c7bcbe3afb5023b074bd98d24b",
-        "homeValue": "82.4%",
         "monthlyNormalizationMatchesBaseline": true,
         "communityProgressHash": "255a7cc1d0638f45234f5101c7d92606b0b4fec63e29341691fcc3c097c60697",
         "communityDocumentHash": "d45ec3911029a5e41957ff3a56d52c22c4b213020438ffe8ca60aa9d69371e1a",
@@ -6190,7 +6189,8 @@
         "period": {
           "year": 2026,
           "month": 8
-        }
+        },
+        "homeValueWithheld": true
       },
       "variants": [
         {
@@ -6242,7 +6242,7 @@
           ],
           "longestTask": 1969,
           "blockingTime": 4976,
-          "value": "82.4%"
+          "operatingValueWithheld": true
         },
         {
           "scenario": "unavailable",
@@ -6285,7 +6285,7 @@
           ],
           "longestTask": 2024,
           "blockingTime": 4947,
-          "value": "82.4%"
+          "operatingValueWithheld": true
         }
       ],
       "externalResponseCount": 0
@@ -7587,7 +7587,6 @@
           "report-preview-cache-hit": 9
         },
         "homeHistoryHash": "600c286517f363d7b469080c211e435e810a94c7bcbe3afb5023b074bd98d24b",
-        "homeValue": "82.4%",
         "monthlyNormalizationMatchesBaseline": true,
         "communityProgressHash": "255a7cc1d0638f45234f5101c7d92606b0b4fec63e29341691fcc3c097c60697",
         "communityDocumentHash": "d45ec3911029a5e41957ff3a56d52c22c4b213020438ffe8ca60aa9d69371e1a",
@@ -7599,7 +7598,8 @@
         "period": {
           "year": 2026,
           "month": 8
-        }
+        },
+        "homeValueWithheld": true
       },
       "variants": [
         {
@@ -7614,7 +7614,7 @@
           "longTasks": [],
           "longestTask": 0,
           "blockingTime": 0,
-          "value": "82.4%"
+          "operatingValueWithheld": true
         },
         {
           "scenario": "unavailable",
@@ -7633,7 +7633,7 @@
           ],
           "longestTask": 51,
           "blockingTime": 1,
-          "value": "82.4%"
+          "operatingValueWithheld": true
         }
       ],
       "externalResponseCount": 0
@@ -9194,7 +9194,6 @@
           "report-preview-cache-hit": 9
         },
         "homeHistoryHash": "600c286517f363d7b469080c211e435e810a94c7bcbe3afb5023b074bd98d24b",
-        "homeValue": "82.4%",
         "monthlyNormalizationMatchesBaseline": true,
         "communityProgressHash": "255a7cc1d0638f45234f5101c7d92606b0b4fec63e29341691fcc3c097c60697",
         "communityDocumentHash": "d45ec3911029a5e41957ff3a56d52c22c4b213020438ffe8ca60aa9d69371e1a",
@@ -9206,7 +9205,8 @@
         "period": {
           "year": 2026,
           "month": 8
-        }
+        },
+        "homeValueWithheld": true
       },
       "variants": [
         {
@@ -9242,7 +9242,7 @@
           ],
           "longestTask": 167,
           "blockingTime": 282,
-          "value": "82.4%"
+          "operatingValueWithheld": true
         },
         {
           "scenario": "unavailable",
@@ -9277,7 +9277,7 @@
           ],
           "longestTask": 191,
           "blockingTime": 402,
-          "value": "82.4%"
+          "operatingValueWithheld": true
         }
       ],
       "externalResponseCount": 0
@@ -43378,5 +43378,6 @@
     "runnerSha256": "bc173871c2442e366b89147d9e54c6d7e95bc3bef17374c26e43d9cf28c0e868",
     "assetArchiveSha256": "8f8eb75cf9887b0f3c8e183b181fe5f21354bbb222d039c38e560c3a7b749b27"
   },
-  "acceptanceStatus": "Recorded candidate replay with remaining budget misses"
+  "acceptanceStatus": "Recorded candidate replay with remaining budget misses",
+  "publicValueRedaction": "Displayed operational values are omitted; private raw observations, timing controls, hashes, comparison conclusions and budgets are unchanged."
 }

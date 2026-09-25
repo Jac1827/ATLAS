@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "kind": "backend-release-production-incident-and-verified-client-recovery-not-performance-acceptance",
+  "kind": "backend-release-incident-recovery-and-stable-followup-not-performance-acceptance",
   "mergedCommit": "9ef02ff08e3c424be52d6bc3d05f90559dbbad37",
   "automaticDatabaseDeployment": true,
   "migrationVerification": {
@@ -273,5 +273,16 @@
       "computeChanged": false,
       "normalCurrentClientActivationGate": "closed"
     }
+  },
+  "currentStableRelease": {
+    "sourceCommit": "2fab61de2627b7c8753f2ca8ebe7b0b879a67d25",
+    "releaseId": "d1905d842d9fb2f80f4b12d6a6484c05dc9b1afdb1c2f9c80ed7372a3d8bee3d",
+    "workflowRunId": 36075816912,
+    "workerVersion": "d160e697-510a-4746-8b07-e54b569b9b5d",
+    "evidence": "stable-production-release.json",
+    "sourcePreservationEvidence": "source-preservation-after-stable-release.json",
+    "currentClientReadinessGate": "unset; automatic activation blocked",
+    "projectionReady": false,
+    "performanceAcceptancePassed": false
   }
 }

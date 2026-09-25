@@ -1,4 +1,4 @@
-import {stableStringify,validateForecastPeriods} from './reforecast-engine.mjs?v=3d3b7e538bd36581';
+import {stableStringify,validateForecastPeriods} from './reforecast-engine.mjs?v=a3963515accfd259';
 
 const clone=value=>structuredClone(value);
 const finite=value=>typeof value==='number'&&Number.isFinite(value);

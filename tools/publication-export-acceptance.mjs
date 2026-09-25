@@ -16,7 +16,7 @@ export function reconcilePublicationTotals(publication){
  for(const line of snapshot.lines){const key=JSON.stringify([line.period,line.accountCode]);assert(!seen.has(key),'Publication has duplicate GL/month values');seen.add(key);}
  for(const period of periods){const lines=snapshot.lines.filter(row=>row.period===period),monthly=snapshot.monthly.filter(row=>row.period===period);assert.equal(monthly.length,1,'One monthly receipt is required per period');
   for(const [basis,field] of [['reforecast','forecast'],['originalBudget','originalBudget'],['actuals','actual']]){
-   const part=predicate=>strictSum(lines.filter(predicate).map(row=>row[field]??null));
+   const part=predicate=>strictSum(lines.filter(predicate).filter(row=>!(field==='originalBudget'&&row[field]===null&&row.baselineDisposition?.kind==='no_original_budget_row')).map(row=>row[field]??null));
    const invalid=lines.some(row=>row.mappingValid===false),nature=row=>row.nature||row.identifier;
    const income=part(row=>nature(row)==='income'&&row.placement==='above_noi'),contra=part(row=>nature(row)==='contra_income'&&row.placement==='above_noi'),expense=part(row=>nature(row)==='expense'&&row.placement==='above_noi'),capital=part(row=>nature(row)==='capital'),noi=subtract(strictSum([income,contra]),expense);
    for(const [metric,value] of Object.entries({grossIncome:income,contraRevenue:contra,expenses:expense,capital,noi})){assert.equal(monthly[0][basis]?.[metric]??null,invalid?null:value,`${period} ${basis} ${metric} differs from its complete GL detail`);}

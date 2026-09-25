@@ -1,7 +1,7 @@
-import {varianceFavorability,stableStringify} from './reforecast-engine.mjs?v=3d3b7e538bd36581';
+import {varianceFavorability,stableStringify} from './reforecast-engine.mjs?v=a3963515accfd259';
 import {forecastSnapshot,retainedSnapshot,lineageColumns} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 import {snapshotPdf} from './snapshot-pdf.mjs?v=e6a58eadc065a877';
-import {utilityRecoveryRows} from './reforecast-utility.mjs?v=f145763719203904';
+import {utilityRecoveryRows} from './reforecast-utility.mjs?v=887b56d28357e4a7';
 // Every screen/export projection starts from a retained calculation snapshot.
 export const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const finite=v=>typeof v==='number'&&Number.isFinite(v);

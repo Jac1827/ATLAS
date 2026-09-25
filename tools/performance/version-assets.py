@@ -95,7 +95,7 @@ entries=[
 # Discover imports of governed modules so a stale parent cannot keep an old
 # child after deployment. A topological pass versions every child first.
 tracked={asset: list(refs) for asset,refs in entries}
-for asset in ['features/workbook-rich-images.mjs','features/reforecast-str-overlay.mjs']:
+for asset in ['features/workbook-rich-images.mjs','features/reforecast-str-overlay.mjs','features/reforecast-authority.mjs','features/reforecast-recovery.mjs','features/reforecast-registry-proposal.mjs','features/reforecast-str-json-recovery.mjs']:
  tracked.setdefault(asset,[])
 # The former inline shell now lives in a classic external script. Keep static
 # HTML references in index, and migrate only references extracted with the core.

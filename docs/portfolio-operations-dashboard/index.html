@@ -19914,7 +19914,10 @@ async function buildAtlasCentralAppStatePayload() {
 }
 
 async function saveAtlasCentralAppState({ silent = false, source = "manual_central_save" } = {}) {
-  if (saveAtlasCentralAppState.inFlight) return saveAtlasCentralAppState.inFlight;
+  if (saveAtlasCentralAppState.inFlight) {
+    if (!silent) alert("A Central Save is already running. Newer edits remain in this browser; save again after it finishes.");
+    return false;
+  }
   const operation = (async () => {
   const knownVersion = Number(atlasCentralRuntimeMeta.lastDocumentVersion || 0);
   const current = captureAtlasSaveContext();
@@ -19952,6 +19955,7 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
       throw new Error(`Central Atlas changed from version ${knownVersion} to ${remote.version}. Pull and reconcile before saving so no one else's work is overwritten.`);
     }
     const result = await window.ATLAS_CENTRAL.saveDocument({
+      isCurrent: current,
       documentKey,
       moduleKey: "dashboard",
       payload: localPayload,
@@ -19973,8 +19977,8 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
     atlasCentralRuntimeMeta.lastDocumentHash = String(result?.payload_hash || localHash);
     atlasCentralRuntimeMeta.lastRemoteVersion = atlasCentralRuntimeMeta.lastDocumentVersion;
     atlasCentralRuntimeMeta.lastRemoteHash = atlasCentralRuntimeMeta.lastDocumentHash;
-    setAtlasCentralRuntimeMessage(`Central Atlas saved at version ${atlasCentralRuntimeMeta.lastDocumentVersion}.`);
-    if (!silent) alert(`Saved to central Atlas version ${atlasCentralRuntimeMeta.lastDocumentVersion}.`);
+    setAtlasCentralRuntimeMessage(`Central snapshot saved and verified at version ${atlasCentralRuntimeMeta.lastDocumentVersion}. Newer edits remain local until the next save.`);
+    if (!silent) alert(`Snapshot saved to central Atlas version ${atlasCentralRuntimeMeta.lastDocumentVersion}. Newer edits remain in this browser; save again to include them.`);
     renderTab();
     return true;
   } catch (error) {

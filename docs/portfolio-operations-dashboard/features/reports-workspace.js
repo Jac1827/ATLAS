@@ -42,6 +42,21 @@ for (const name of ["normalizeCommunityMonthlySources", "getRecordMonthlyDataFor
     : atlasReportMemoizedCall(select, [record.monthlyData, record.monthlyHistoryByPeriod, record.savedBudgetTargets, ...rest]);
 }
 let atlasCommunityProgressPreview = null;
+let atlasReportVisibleRender = false;
+let atlasReportPreparation = null;
+let atlasReportPreparationSequence = 0;
+const atlasReportInputForStack = Symbol("exact report inputs in this synchronous stack");
+function atlasReportMeasure(phase, callback, count = 0) {
+  const started = performance.now();
+  try { return callback(); }
+  finally { window.AtlasPerformance?.record?.("report-preparation-phase", performance.now() - started, {scope: phase, rows: typeof count === "function" ? count() : count}); }
+}
+function atlasReportCurrentInputs() {
+  const read = () => atlasReportMeasure("exact-key", atlasCommunityProgressPreviewInputs);
+  return typeof atlasSynchronousReadValue === "function"
+    ? atlasSynchronousReadValue(atlasReportInputForStack, read)
+    : read();
+}
 function atlasExactReportInputString(input) { return atlasExactPresentationInputString(input); }
 
 function atlasCommunityProgressPreviewInputs() {
@@ -71,16 +86,193 @@ function atlasCommunityProgressPreviewInputs() {
 }
 const atlasBuildCommunityProgressPreview = window.renderCommunityProgressReportingWorkspace;
 if (typeof atlasBuildCommunityProgressPreview === "function") window.renderCommunityProgressReportingWorkspace = (...args) => {
-  const inputs = atlasCommunityProgressPreviewInputs();
+  const inputs = atlasReportCurrentInputs();
   if (inputs !== null && atlasCommunityProgressPreview?.inputs === inputs) {
     window.AtlasPerformance?.record?.("report-preview-cache-hit");
     return atlasCommunityProgressPreview.html;
   }
   window.AtlasPerformance?.record?.("report-preview-cache-miss", 0, { reason: inputs === null ? "unavailable-input" : "changed-input" });
+  if (atlasReportVisibleRender && inputs !== null && activeTab === 8 && reportHubType === "community_progress") {
+    let request = atlasReportPreparation;
+    if (!request || !atlasReportPreparationCurrent(request) || request.inputs !== inputs) {
+      atlasCancelReportPreparation();
+      request = {
+        inputs, context: getAtlasRenderContextKey(), reportContext: atlasReportPreviewContext(),
+        database: ATLAS_STATE_DB_NAME, epoch: atlasWorkspaceAccess.epoch,
+        selectedCommunityNames: getCommunityProgressReportCommunityNames(), monthIdx: getReportHubMonthIndex(), year: getReportHubYear(),
+        generatedAt: new Date(), children: [], index: 0, task: null, panel: null,
+        placeholder: `<div data-atlas-report-placeholder="${++atlasReportPreparationSequence}" role="status">Preparing your current report…</div>`
+      };
+      atlasReportPreparation = request;
+      window.AtlasPerformance?.record?.("report-preparation-start", 0, {rows: request.selectedCommunityNames.length});
+      // Reuse the current synchronous key and memo for the first bounded batch.
+      // The remaining work starts in a later task, after the busy view can paint.
+      try { atlasBuildReportChildBatch(request, 20); } catch (error) { request.initialError = error; }
+    }
+    return request.placeholder;
+  }
   const html = atlasBuildCommunityProgressPreview(...args);
   atlasCommunityProgressPreview = inputs === null ? null : { inputs, html };
   return html;
 };
+
+function atlasReportPreparationCurrent(request) {
+  const status = getAtlasCentralStatus();
+  return atlasReportPreparation === request && !request.cancelled && activeTab === 8 && reportHubType === "community_progress"
+    && request.context === getAtlasRenderContextKey() && request.reportContext === atlasReportPreviewContext()
+    && request.database === ATLAS_STATE_DB_NAME && request.epoch === atlasWorkspaceAccess.epoch
+    && !status.clientUnavailable && !shouldBlockAtlasSensitiveAccess() && atlasAccessDecision(8).ok
+    && (!status.configured || atlasWorkspaceAccess.validated && atlasWorkspaceAccess.hasData);
+}
+function atlasClearReportBusy(request) {
+  if (!request.panel) return;
+  delete request.panel.dataset.atlasReportsPreparing;
+  request.panel.removeAttribute("aria-busy");
+}
+function atlasCancelReportPreparation() {
+  const request = atlasReportPreparation;
+  if (!request) return;
+  request.cancelled = true;
+  atlasDiscardRetainedReport(request);
+  atlasClearReportBusy(request);
+  atlasReportPreparation = null;
+}
+function atlasCancelStaleReportPreparation() {
+  if (atlasReportPreparation && !atlasReportPreparationCurrent(atlasReportPreparation)) atlasCancelReportPreparation();
+}
+function atlasReportYieldTask() {
+  if (typeof window.scheduler?.yield === "function") return window.scheduler.yield();
+  if (typeof MessageChannel === "function") return new Promise(resolve => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => { channel.port1.close(); channel.port2.close(); resolve(); };
+    channel.port2.postMessage(null);
+  });
+  return new Promise(resolve => setTimeout(resolve, 0));
+}
+function atlasReportReadChunk(request, callback) {
+  return withAtlasSynchronousReadScope(() => {
+    const previous = atlasReportRenderContext;
+    atlasReportRenderContext = new Map();
+    try {
+      if (!atlasReportPreparationCurrent(request)) throw new DOMException("Report context changed", "AbortError");
+      // Every resumed computation checks the entire live input, including in-place
+      // changes. Start/end alone would admit a mixed A→B→A result between yields.
+      if (atlasReportCurrentInputs() !== request.inputs) throw Object.assign(new Error("Report inputs changed"), {code: "ATLAS_REPORT_INPUT_CHANGED"});
+      return callback();
+    } finally { atlasReportRenderContext = previous; }
+  });
+}
+function atlasBuildReportChildBatch(request, budget = 120) {
+  const firstIndex = request.index;
+  return atlasReportMeasure("children", () => {
+  const started = performance.now();
+  do {
+    const name = request.selectedCommunityNames[request.index++];
+    if (name === undefined) break;
+    const child = buildCommunityProgressSingleReportData({silent: true, communityName: name,
+      record: getPersistedCommunityRecordForScope(name, {allowCurrentFallback: true}), generatedAt: request.generatedAt});
+    if (child) {
+      request.children.push(child);
+
+    }
+  } while (request.index < request.selectedCommunityNames.length && performance.now() - started < budget);
+  }, () => request.index - firstIndex);
+}
+function atlasPrepareVisibleReport(panel, error) {
+  const request = error.request;
+  if (!request || !atlasReportPreparationCurrent(request)) {
+    if (request && atlasReportPreparation === request) atlasCancelReportPreparation();
+    return;
+  }
+  request.panel = panel;
+  panel.dataset.atlasReportsPreparing = "1";
+  delete panel.dataset.atlasReportsError;
+  panel.setAttribute("aria-busy", "true");
+  if (request.task) return;
+  request.task = (async () => {
+    if (request.initialError) throw request.initialError;
+    while (request.index < request.selectedCommunityNames.length) {
+      await atlasReportYieldTask();
+      atlasReportReadChunk(request, () => atlasBuildReportChildBatch(request));
+    }
+    await atlasReportYieldTask();
+    const report = atlasReportReadChunk(request, () => atlasReportMeasure("aggregate", () => assembleCommunityProgressReportData(request.children,
+        {silent: true, selectedCommunityNames: request.selectedCommunityNames, monthIdx: request.monthIdx, year: request.year, generatedAt: request.generatedAt}), request.children.length));
+    await atlasReportYieldTask();
+    return atlasReportReadChunk(request, () => {
+      const html = atlasReportMeasure("html", () => renderCommunityProgressWorkspaceFromReport(report), request.children.length);
+      if (!atlasReportPreparationCurrent(request)) throw new DOMException("Report context changed", "AbortError");
+      atlasCommunityProgressPreview = {inputs: request.inputs, html};
+      // No yield between the exact check above and mounting. The normal renderer
+      // reuses that key only in this same synchronous read scope.
+      atlasReportMeasure("final-mount", () => atlasCommitPreparedReport(request, html), request.children.length);
+      atlasReportPreparation = null;
+      return true;
+    });
+  })().catch(async failure => {
+    if (!atlasReportPreparationCurrent(request)) return false;
+    if (failure?.code === "ATLAS_REPORT_INPUT_CHANGED") {
+      await atlasReportYieldTask();
+      if (!atlasReportPreparationCurrent(request)) return false;
+      atlasCancelReportPreparation();
+      renderTab();
+      return false;
+    }
+    atlasDiscardRetainedReport(request);
+    atlasClearReportBusy(request);
+    atlasReportPreparation = null;
+    panel.dataset.atlasReportsError = "1";
+    const target = panel.querySelector?.("[data-atlas-report-placeholder]") || panel;
+    target.innerHTML = '<div class="card" role="alert">The report could not finish loading. <button class="btn" onclick="renderTab()">Retry</button></div>';
+    return false;
+  }).finally(() => {
+    // A stale completion must neither paint nor clear a newer context's busy UI.
+    if (atlasReportPreparation === request) { request.cancelled = true; atlasDiscardRetainedReport(request); atlasReportPreparation = null; }
+    request.children = null;
+  });
+}
+function atlasDiscardRetainedReport(request) {
+  const retained = request?.retainedPreview;
+  if (!retained) return;
+  // Never reveal a previous source after cancellation, failed preparation or
+  // lost access. Keep the busy/error placeholder separate from private content.
+  const mounted = request.panel && atlasReportRenderedMarkup.get(request.panel);
+  if (mounted?.html === request.shellHtml && mounted.children.includes(retained.node)) atlasReportRenderedMarkup.delete(request.panel);
+  retained.node.replaceChildren();
+  retained.node.hidden = false;
+  retained.node.inert = false;
+  request.retainedPreview = null;
+}
+function atlasCommitPreparedReport(request, html) {
+  if (!request.shellHtml?.includes(request.placeholder)) throw Error("The report preview shell is unavailable");
+  const panel = request.panel, context = atlasReportPreviewContext();
+  const mounted = atlasReportRenderedMarkup.get(panel);
+  const previous = panel.querySelector("#reporting-inline-preview");
+  if (mounted?.html === request.shellHtml && mounted.context === context && previous &&
+      mounted.children.length === panel.childNodes.length && mounted.children.every((node, index) => node === panel.childNodes[index])) {
+    const retained = request.retainedPreview;
+    if (!retained || retained.node !== previous || retained.html !== html) {
+      const template = document.createElement("template");
+      template.innerHTML = html;
+      previous.replaceChildren(template.content);
+    }
+    request.loadingNode?.remove();
+    previous.hidden = false;
+    previous.inert = false;
+    request.retainedPreview = null;
+    atlasClearReportBusy(request);
+    delete panel.dataset.atlasReportsError;
+    atlasReportRenderedMarkup.set(panel, {html: request.shellHtml.replace(request.placeholder, () => html),
+      previewHtml: html, chromeHtml: mounted.chromeHtml, context, children: [...panel.childNodes]});
+  } else {
+    atlasDiscardRetainedReport(request);
+    atlasRenderReportsInto(panel, request.shellHtml.replace(request.placeholder, () => html));
+  }
+  // All new preview controls use the same binding pass as a synchronous render;
+  // existing header controls remain connected and retain unfinished input.
+  attachEventListeners();
+}
+
 function atlasReportPortfolioDetails(month, records = savedData, year = new Date().getFullYear()) {
   if (!atlasReportRenderContext) return buildPortfolioDetailsForMonth(month, records, year);
   let periods = atlasReportRenderContext.get(records);
@@ -113,6 +305,20 @@ function atlasReportPreviewContext() {
 }
 const atlasReportRenderedMarkup = new WeakMap();
 function atlasRenderReportsInto(panel, html) {
+  delete panel.dataset.atlasReportsPreparing;
+  delete panel.dataset.atlasReportsError;
+  panel.removeAttribute("aria-busy");
+  const request = atlasReportPreparation;
+  if (request && atlasReportPreparationCurrent(request) && html.includes(request.placeholder)) {
+    request.shellHtml = html;
+    request.panel = panel;
+    panel.dataset.atlasReportsPreparing = "1";
+    panel.setAttribute("aria-busy", "true");
+    if (!request.queued) {
+      request.queued = true;
+      Promise.resolve().then(() => atlasPrepareVisibleReport(panel, {request}));
+    }
+  }
   const context = atlasReportPreviewContext();
   const retained = atlasReportRenderedMarkup.get(panel);
   // Equal computed output and access/source context need no DOM replacement.
@@ -124,7 +330,27 @@ function atlasRenderReportsInto(panel, html) {
   template.innerHTML = html;
   const previous = panel.querySelector("#reporting-inline-preview");
   const next = template.content.querySelector("#reporting-inline-preview");
-  if (previous?.parentNode === panel && next?.parentNode === template.content &&
+  const chromeHtml = [...template.content.childNodes].filter(node => node !== next).map(node => node.outerHTML ?? node.textContent).join("");
+  const preparing = request && html.includes(request.placeholder) && atlasReportPreparationCurrent(request);
+  const preservePending = preparing && retained?.context === context && typeof retained.previewHtml === "string" &&
+    previous?.parentNode === panel && next?.parentNode === template.content && !request.retainedPreview;
+  if (preservePending) {
+    request.retainedPreview = {node: previous, html: retained.previewHtml};
+    previous.hidden = true;
+    previous.inert = true;
+    // Keep the iframe nodes connected and inaccessible while their replacement
+    // is checked. The current header still comes from this render's live inputs.
+    if (retained.chromeHtml !== chromeHtml) {
+      for (const child of [...panel.childNodes]) if (child !== previous) child.remove();
+      let before = true;
+      for (const child of [...template.content.childNodes]) {
+        if (child === next) { before = false; continue; }
+        if (before) panel.insertBefore(child, previous); else panel.appendChild(child);
+      }
+    }
+    request.loadingNode = next.firstElementChild;
+    if (request.loadingNode) panel.insertBefore(request.loadingNode, previous);
+  } else if (previous?.parentNode === panel && next?.parentNode === template.content &&
       panel.dataset.reportPreviewContext === context && previous.outerHTML === next.outerHTML) {
     // Keep the iframe connected: moving it through a fragment would reload its document.
     for (const child of [...panel.childNodes]) if (child !== previous) child.remove();
@@ -135,10 +361,16 @@ function atlasRenderReportsInto(panel, html) {
     }
   } else panel.replaceChildren(template.content);
   panel.dataset.reportPreviewContext = context;
-  atlasReportRenderedMarkup.set(panel, { html, context, children: [...panel.childNodes] });
+  atlasReportRenderedMarkup.set(panel, {html, context, chromeHtml, previewHtml: preparing ? (preservePending ? retained.previewHtml : null) : next?.innerHTML ?? null, children: [...panel.childNodes]});
 }
 window.AtlasReports = Object.freeze({
   details: atlasReportPortfolioDetails, renderInto: atlasRenderReportsInto,
+  prepare: atlasPrepareVisibleReport, cancelStale: atlasCancelStaleReportPreparation,
+  renderVisible(renderer) {
+    const previous = atlasReportVisibleRender;
+    atlasReportVisibleRender = true;
+    try { return renderer(); } finally { atlasReportVisibleRender = previous; }
+  },
   beginRender() { const previous = atlasReportRenderContext; atlasReportRenderContext ||= new Map(); return previous; },
   endRender(previous) { atlasReportRenderContext = previous; }
 });

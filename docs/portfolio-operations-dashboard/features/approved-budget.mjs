@@ -1,6 +1,6 @@
 import {completeOriginalBudgetRecovery} from './reforecast-recovery.mjs?v=2108f875928a5b22';
 import {reviewOriginalWorkbook} from './original-budget-intake.mjs?v=e2b7d53f93e3b44f';
-import {readApprovedBudgets} from './canonical-finance.mjs?v=6a8f03db20819b8c';
+import {readApprovedBudgets} from './canonical-finance.mjs?v=fd8a20e264fb5c1b';
 const finite=v=>typeof v==='number'&&Number.isFinite(v);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const digest=async v=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(v)))),b=>b.toString(16).padStart(2,'0')).join('');

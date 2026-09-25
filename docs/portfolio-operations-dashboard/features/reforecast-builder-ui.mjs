@@ -1,4 +1,4 @@
-import {savedStrProgrammeHtml} from './reforecast-str-saved-programme-ui.mjs?v=f8c3003664a5e51f';
+import {savedStrProgrammeHtml} from './reforecast-str-saved-programme-ui.mjs?v=5ff51a00eaa65834';
 /* Guided forecast setup and reviewed source inputs. Authoritative writes use reforecast RPCs. */
 import * as store from './reforecast-store.mjs?v=a31fb99b0826a753';
 import {readUtilityRecommendations,utilityRecoveryRows} from './reforecast-utility.mjs?v=a9964c0939b8a890';

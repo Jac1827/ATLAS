@@ -121,17 +121,27 @@ export async function persistReforecastPayload(central,{communityId,requestId,pa
  const manifest={schemaVersion:'atlas.reforecast-payload.v1',chunkBytes:WORKBOOK_AUDIT_CHUNK_BYTES,byteLength:data.length,sha256:await sha(data),chunkCount:Math.ceil(data.length/WORKBOOK_AUDIT_CHUNK_BYTES)},manifestHash=workbookEvidenceHash(manifest);
  const call=async(name,args)=>{guard(central,actor);const options={requestId,timeoutMs:45000};const result=one(central.rpc?await central.rpc(name,args,options):await central.fetchJson('/rpc/'+name,{...options,method:'POST',body:JSON.stringify(args)}));guard(central,actor);return result;};
  const args={p_community_id:communityId,p_request_id:requestId,p_manifest:manifest,p_manifest_hash:manifestHash};
+ const readReceipt=()=>call('atlas_read_reforecast_payload_receipt',{p_community_id:communityId,p_request_id:requestId,p_manifest_hash:manifestHash});
  let staged;for(let attempts=0;attempts<16;attempts++){
-  staged=await call('atlas_stage_reforecast_payload',{...args,p_action:'begin'});if(!staged?.canceled)break;
+  staged=await readReceipt();
+  if(!staged)staged=await call('atlas_stage_reforecast_payload',{...args,p_action:'begin'});if(!staged?.canceled)break;
   if(!UUID.test(staged.retry_request_id||''))throw Error('Canceled intake retry identity is unavailable.');requestId=staged.retry_request_id;args.p_request_id=requestId;
  }
  if(staged?.canceled)throw Error('Too many canceled retries; start a new intake request.');
  if(staged.manifest_hash!==manifestHash)throw Error('Reforecast source manifest mismatch.');
+ const existing=new Map();
+ for(const row of staged.chunks||[]){if(!Number.isInteger(row.chunk_index)||row.chunk_index<0||row.chunk_index>=manifest.chunkCount||existing.has(row.chunk_index)||!SHA.test(row.sha256||''))throw Error('Reforecast retained chunk receipt is invalid.');existing.set(row.chunk_index,row);}
  if(!staged.upload_id)for(let offset=0,index=0;offset<data.length;offset+=WORKBOOK_AUDIT_CHUNK_BYTES,index++){
   const chunk=data.subarray(offset,offset+WORKBOOK_AUDIT_CHUNK_BYTES);
-  await call('atlas_stage_reforecast_payload',{...args,p_manifest:null,p_action:'put',p_index:index,p_chunk:base64(chunk),p_chunk_hash:await sha(chunk)});
+  const chunkHash=await sha(chunk),retained=existing.get(index);
+  if(retained){if(retained.sha256!==chunkHash||retained.byte_length!==chunk.length)throw Error('Retained reforecast source chunk differs from this request.');continue;}
+  await call('atlas_stage_reforecast_payload',{...args,p_manifest:null,p_action:'put',p_index:index,p_chunk:base64(chunk),p_chunk_hash:chunkHash});
  }
- const saved=await call('atlas_stage_reforecast_payload',{...args,p_manifest:null,p_action:'finalize'});
+ let saved=staged.upload_id?staged:null;
+ if(!saved)try{saved=await call('atlas_stage_reforecast_payload',{...args,p_manifest:null,p_action:'finalize'});}catch(error){
+  let committed;try{committed=await readReceipt();}catch{throw Error('The source save response is uncertain and its receipt is unavailable. Keep this request and check its receipt before retrying.');}
+  if(!committed?.upload_id)throw error;saved=committed;
+ }
  if(!UUID.test(saved.upload_id||'')||saved.manifest_hash!==manifestHash)throw Error('Reforecast source finalize could not be verified.');
  const retained=await call('atlas_read_reforecast_payload_chunk',{p_upload_id:saved.upload_id,p_index:null});
  if(retained.manifest_hash!==manifestHash||workbookEvidenceHash(retained.manifest)!==manifestHash||retained.record.upload_id!==saved.upload_id||retained.record.community_id!==communityId)throw Error('Reforecast source readback identity mismatch.');

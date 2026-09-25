@@ -81,6 +81,8 @@ entries=[
 # Discover imports of governed modules so a stale parent cannot keep an old
 # child after deployment. A topological pass versions every child first.
 tracked={asset: list(refs) for asset,refs in entries}
+for asset in ['features/reforecast-report-library.mjs','features/original-budget-version-report.mjs']:
+ tracked.setdefault(asset,[])
 for asset in ['features/workbook-rich-images.mjs','features/reforecast-str-overlay.mjs','features/reforecast-authority.mjs','features/reforecast-recovery.mjs','features/reforecast-registry-proposal.mjs','features/reforecast-str-json-recovery.mjs','features/reforecast-parser-recovery.mjs','features/reforecast-str-saved-programme.mjs','features/reforecast-str-saved-programme-runtime.mjs','features/reforecast-str-saved-programme-ui.mjs','features/reforecast-str-registry-extension.mjs']:
  tracked.setdefault(asset,[])
 for asset in ['features/bonus-workflow-client.mjs','features/bonus-workflow.mjs','features/reforecast-bonus.mjs','features/reforecast-provider.mjs','features/reforecast-builder-ui.mjs','features/reforecast-utility.mjs','features/workbook-integrity.mjs','features/planning-governance.mjs','features/workbook-audit-store.mjs','features/financial-workbook-governance.mjs','features/financial-snapshot.mjs','features/snapshot-pdf.mjs','features/canonical-budget-report.mjs','features/original-budget-intake.mjs','vendor/pdf-lib-1.17.1.mjs']:

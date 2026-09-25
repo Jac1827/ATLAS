@@ -1,4 +1,4 @@
-import {readFinance} from './canonical-finance.mjs?v=2e4f3b31d7b75ca2';
+import {readFinance} from './canonical-finance.mjs?v=c74aa79c6d9efbbe';
 import '../community-command-contract.js?v=e6064665e1d6e271';
 const money=v=>Number(v).toLocaleString('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1});
 let operation;

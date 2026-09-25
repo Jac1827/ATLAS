@@ -1,7 +1,12 @@
-import {resolveEffectiveBaseline,effectiveBaselineMetric,readEffectiveBaselines} from './reforecast-consumers.mjs?v=fa7df31269bd63fd';
+import {resolveEffectiveBaseline,effectiveBaselineMetric,readEffectiveBaselines} from './reforecast-consumers.mjs?v=42aba35c99c5d2c5';
 import {financeSnapshot,retainedSnapshot,lineageColumns} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 // Shared, period-specific finance adapter. No browser-state fallback.
 export const number = value => value === null || value === undefined || String(value).trim() === '' ? null : Number.isFinite(Number(value)) ? Number(value) : null;
+const sorted=value=>Array.isArray(value)?[...value].map(String).sort():[];
+export function financeAccessKey(central){
+ const session=central.getSession?.(),profile=central.getStoredProfile?.(),config=central.getConfig?.();
+ return JSON.stringify({actor:session?.user?.id||null,backend:config?.supabaseUrl||null,enabled:config?.enabled??null,profileUser:profile?.user_id||null,role:profile?.role||null,status:profile?.status||null,scope:sorted(profile?.allowed_community_ids),markets:sorted(profile?.allowed_market_values),regions:sorted(profile?.allowed_region_values),communityRecords:sorted(profile?.community_access_records?.map(row=>row.community_id||row.atlasCommunityId||row.sourceIds?.atlasCommunityId).filter(Boolean)),accountStatus:profile?.account_status||null,tabs:sorted(profile?.locked_tab_ids),pages:sorted(profile?.locked_page_keys),permissions:sorted(profile?.bonus_permissions),profileVersion:profile?.version??null,profileUpdatedAt:profile?.updated_at||null});
+}
 export async function readFinance(central, communityIds, periods, {signal,baselineMode='effective'} = {}) {
  const ids=[...new Set(communityIds)], months=[...new Set(periods)];
  if(!ids.length||!months.length)return [];

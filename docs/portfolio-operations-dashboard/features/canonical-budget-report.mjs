@@ -1,4 +1,4 @@
-import {readFinance,number} from './canonical-finance.mjs?v=2e4f3b31d7b75ca2';
+import {readFinance,number} from './canonical-finance.mjs?v=c74aa79c6d9efbbe';
 import {freezeSnapshot,lineageColumns} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 import {snapshotPdf} from './snapshot-pdf.mjs?v=e6a58eadc065a877';
 import {loadXlsx} from './reforecast-intake.mjs?v=87e68da483f77228';

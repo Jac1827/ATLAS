@@ -1,0 +1,127 @@
+import * as store from './reforecast-store.mjs?v=687b772cb423649c';
+import {esc,money,download,safeSpreadsheetCell,communityForecastReport,communityForecastWorkbook,communityForecastPdf,pairedForecastReports} from './reforecast-report.mjs?v=56effecdb1d3b365';
+import {freezeSnapshot,retainedSnapshot} from './financial-snapshot.mjs?v=848d058bdec07b4e';
+import {financeAccessKey} from './canonical-finance.mjs?v=c74aa79c6d9efbbe';
+import {snapshotPdf} from './snapshot-pdf.mjs?v=e6a58eadc065a877';
+import {listOriginalBudgetReportVersions,readOriginalBudgetVersionReport,originalBudgetVersionWorkbook,originalBudgetVersionPdf} from './original-budget-version-report.mjs?v=39612a8dc5692c4d';
+
+const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const verifiedSelections=new WeakSet(),selectionGuards=new WeakMap();
+const periods=value=>Array.isArray(value)&&value.length>0&&new Set(value).size===value.length&&value.every(p=>/^20\d{2}-(0[1-9]|1[0-2])$/.test(p));
+const equalPeriods=(a,b)=>periods(a)&&periods(b)&&JSON.stringify([...a].sort())===JSON.stringify([...b].sort());
+const workflow=value=>String(value||'working_draft').replaceAll('_',' ');
+function access(central,communityId,guard=()=>{}){
+ const actor=central.getSession()?.user?.id,key=financeAccessKey(central);if(!actor||central.isAuthenticated?.()===false||central.isEnabled?.()===false||!uuid.test(communityId))throw Error('Select an authorized property before reading saved reports.');
+ return ()=>{if(central.getSession()?.user?.id!==actor||central.isAuthenticated?.()===false||central.isEnabled?.()===false||financeAccessKey(central)!==key)throw Error('The signed-in account or financial access changed. Reopen saved reports.');guard();};
+}
+async function pages(central,path,check){const rows=[],seen=new Set();for(let offset=0;;offset+=100){check();const page=await central.fetchJson(path+'&limit=100&offset='+offset);check();if(!Array.isArray(page))throw Error('Saved report versions are unavailable.');for(const row of page){const id=row.publication_id||row.revision_id;if(seen.has(id))throw Error('Saved report history changed during the read. Reopen the report library.');seen.add(id);rows.push(row);}if(page.length<100)return rows;}}
+const publicationSelect='publication_id,community_id,scenario_id,revision_id,version,periods,published_at,snapshot_fingerprint:snapshot->>fingerprint,parent_publication:snapshot->identity->parentPublication';
+function publicationEntry(row,communityId,names=new Map()){
+ if(row.community_id!==communityId||![row.publication_id,row.scenario_id,row.revision_id].every(id=>uuid.test(id))||!Number.isInteger(row.version)||row.version<1||!periods(row.periods))throw Error('Saved publication history scope mismatch.');
+ return {kind:'approved_forecast',communityId,scenarioId:row.scenario_id,revisionId:row.revision_id,publicationId:row.publication_id,version:row.version,periods:row.periods,recordedAt:row.published_at,snapshotFingerprint:row.snapshot_fingerprint,scenarioName:names.get(row.revision_id)||(row.parent_publication?'Conventional + RISE STR':'Conventional reforecast'),status:'Approved and locked · retained publication'};
+}
+export async function listReportVersions(central,{communityId,scenarioId,guard}={}){
+ const check=access(central,communityId,guard);if(scenarioId&&!uuid.test(scenarioId))throw Error('Invalid forecast selection.');check();
+ const filter='?community_id=eq.'+communityId+(scenarioId?'&scenario_id=eq.'+scenarioId:'');
+ const [publications,revisions,originals]=await Promise.all([
+  pages(central,'/atlas_reforecast_publications'+filter+'&select='+publicationSelect+'&order=published_at.desc,publication_id.desc',check),
+  pages(central,'/atlas_reforecast_revisions'+filter+'&select=revision_id,community_id,scenario_id,revision,status,created_at,scenario_name:payload->>name,periods:payload->periods,snapshot_fingerprint:snapshot->>fingerprint&order=created_at.desc,revision_id.desc',check),
+  scenarioId?[]:listOriginalBudgetReportVersions(central,{cid:communityId})
+ ]);check();
+ const names=new Map();for(const row of revisions){if(row.community_id!==communityId||!uuid.test(row.revision_id)||!uuid.test(row.scenario_id)||scenarioId&&row.scenario_id!==scenarioId||!Number.isInteger(row.revision)||row.revision<1||!periods(row.periods))throw Error('Saved revision history scope mismatch.');names.set(row.revision_id,row.scenario_name||'Working forecast');}
+ const approved=publications.map(row=>{if(scenarioId&&row.scenario_id!==scenarioId)throw Error('Publication scenario mismatch.');return publicationEntry(row,communityId,names);}),published=new Set(approved.map(row=>row.revisionId));
+ const drafts=revisions.filter(row=>!published.has(row.revision_id)).map(row=>({kind:'saved_revision',communityId,scenarioId:row.scenario_id,revisionId:row.revision_id,version:row.revision,scenarioName:row.scenario_name||'Working forecast',periods:row.periods,status:'DRAFT · '+workflow(row.status)+' · no verified publication',workflowStatus:row.status,recordedAt:row.created_at,snapshotFingerprint:row.snapshot_fingerprint}));
+ return freezeSnapshot([...originals.map(row=>({...row,kind:'original_budget',communityId,scenarioName:'Approved original budget',status:'Approved and locked · original budget'})),...approved,...drafts]);
+}
+function validatePublicationProjection(receipt){
+ if(!receipt.reportContentHash||receipt.reportContentHash!==receipt.snapshot?.fingerprint||!receipt.contentHash||receipt.snapshot?.originalPublicationFingerprint!==receipt.contentHash)throw Error('The immutable publication report projection hash does not match its receipt.');
+}
+function validatePublication(receipt,entry){
+ validatePublicationProjection(receipt);
+ if(receipt.communityId!==entry.communityId||receipt.publicationId!==entry.publicationId||receipt.scenarioId!==entry.scenarioId||receipt.revisionId!==entry.revisionId||receipt.version!==entry.version||receipt.verified!==true||receipt.approved!==true||receipt.locked!==true||!receipt.contentHash||!equalPeriods(receipt.periods,entry.periods)||receipt.snapshot?.identity?.communityId!==entry.communityId||!entry.snapshotFingerprint||receipt.contentHash!==entry.snapshotFingerprint||entry.contentHash&&receipt.contentHash!==entry.contentHash)throw Error('The immutable publication does not match the selected report version.');
+}
+export async function readReportVersion(central,entry,{guard,communityName}={}){
+ const check=access(central,entry?.communityId,guard);check();let result;
+ if(entry.kind==='original_budget'){
+  const originalBudget=await readOriginalBudgetVersionReport(central,{cid:entry.communityId,versionId:entry.versionId,contentHash:entry.contentHash,year:entry.year,communityName});check();if(originalBudget.communityId!==entry.communityId||originalBudget.versionId!==entry.versionId||originalBudget.contentHash!==entry.contentHash||!equalPeriods(originalBudget.periods,entry.periods))throw Error('The original budget does not match the selected report version.');result={entry,originalBudget};
+ }else if(entry.kind==='approved_forecast'){
+  const publication=await store.readPublication(central,{communityId:entry.communityId,publicationId:entry.publicationId});check();validatePublication(publication,entry);
+  let parentPublication;const parent=publication.snapshot.identity.parentPublication;if(parent){parentPublication=await store.readPublication(central,{communityId:entry.communityId,publicationId:parent.publicationId});check();validatePublicationProjection(parentPublication);pairedForecastReports(parentPublication,publication,{communityName});}
+  result={entry,publication,parentPublication};
+ }else if(entry.kind==='saved_revision'){
+  if(!uuid.test(entry.revisionId)||!uuid.test(entry.scenarioId))throw Error('Invalid saved revision selection.');
+  const published=await central.fetchJson('/atlas_reforecast_publications?community_id=eq.'+entry.communityId+'&revision_id=eq.'+entry.revisionId+'&select='+publicationSelect+'&limit=2');check();if(!Array.isArray(published)||published.length>1)throw Error('Publication readback is ambiguous.');
+  if(published.length)return readReportVersion(central,publicationEntry(published[0],entry.communityId,new Map([[entry.revisionId,entry.scenarioName]])),{guard:check,communityName});
+  const rows=await central.fetchJson('/atlas_reforecast_revisions?community_id=eq.'+entry.communityId+'&scenario_id=eq.'+entry.scenarioId+'&revision_id=eq.'+entry.revisionId+'&select=*&limit=1');check();const row=rows?.[0];
+  if(!Array.isArray(rows)||rows.length!==1||row.revision_id!==entry.revisionId||row.scenario_id!==entry.scenarioId||row.community_id!==entry.communityId||row.revision!==entry.version||row.status!==entry.workflowStatus||!row.snapshot||row.snapshot.identity?.communityId!==entry.communityId||!equalPeriods(row.payload?.periods,entry.periods)||!equalPeriods(row.snapshot.identity?.periods,entry.periods)||entry.snapshotFingerprint&&row.snapshot.fingerprint!==entry.snapshotFingerprint||!row.snapshot.fingerprint||!entry.snapshotFingerprint||row.source?.communityId!==entry.communityId)throw Error('The saved revision does not match the selected report version.');
+  result={entry,revision:row};
+ }else throw Error('Choose a retained budget version.');
+ check();result=freezeSnapshot({...result,entry:structuredClone(result.entry)});verifiedSelections.add(result);selectionGuards.set(result,check);return result;
+}
+const filenamePart=value=>String(value||'').normalize('NFKD').replace(/[^a-zA-Z0-9._-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,90)||'budget';
+export function reportVersionFilename(entry,{communityName,format='pdf',scenarioName}={}){
+ const scope=[...(entry.periods||[])].sort(),month=scope.length?scope[0]+(scope.at(-1)!==scope[0]?'_to_'+scope.at(-1):''):'months';
+ return [filenamePart(communityName||entry.communityId),filenamePart(scenarioName||entry.scenarioName),entry.kind==='saved_revision'?'DRAFT':'APPROVED',month,'v'+filenamePart(entry.version??entry.year??''),filenamePart(entry.publicationId||entry.revisionId||entry.versionId)].join('_')+'.'+format;
+}
+export function savedRevisionReport(selection,{communityName}={}){
+ if(!verifiedSelections.has(selection)||!selection.revision)throw Error('Read back the exact saved revision before creating a draft report.');selectionGuards.get(selection)();
+ const {entry,revision}=selection,snapshot=revision.snapshot,identity={Status:'DRAFT — saved revision, not an approved publication',Saved_workflow_state:workflow(revision.status),Community:communityName||entry.communityId,Community_ID:entry.communityId,Scenario:entry.scenarioName,Scenario_ID:entry.scenarioId,Revision_ID:entry.revisionId,Revision:entry.version,Recorded_at:revision.created_at,Periods:entry.periods.join(', '),Source_snapshot:snapshot.fingerprint||null,Baseline_versions:(snapshot.identity.baselineVersionIds||[]).join(';'),Mapping_version:snapshot.identity.mappingRegistryVersion||null,Actual_cutoff:snapshot.identity.actualCutoff||null};
+ const rows=(snapshot.lines||snapshot.gl||[]).filter(row=>entry.periods.includes(row.period)).map(row=>({...identity,Period:row.period,GL:row.accountCode,Account:row.accountName||row.name||'',Department:row.department||'',Original_budget:row.originalBudget??null,Selected_baseline:row.selectedBaseline??null,Forecast:row.forecast??null,Governed_actuals:row.actual??null}));
+ const monthly=(snapshot.monthly||[]).filter(row=>entry.periods.includes(row.period)).map(row=>({...identity,Period:row.period,Income:row.reforecast?.grossIncome??null,Contra_income:row.reforecast?.contraRevenue??null,Expenses:row.reforecast?.expenses??null,NOI:row.reforecast?.noi??null,Capital:row.reforecast?.capital??null,Cash_flow:row.reforecast?.cashFlow??null}));
+ const diagnostics=(snapshot.diagnostics||[]).map(row=>({Code:row.code,Severity:row.severity,Period:row.period||'',GL:row.accountCode||'',Message:row.message}));
+ return freezeSnapshot({rows,monthly,metadata:[identity],diagnostics,snapshot:retainedSnapshot({kind:'saved_reforecast_draft_report',identity,values:{rows,monthly,diagnostics}})});
+}
+function draftWorkbook(report,XLSX){
+ const wb=XLSX.utils.book_new();
+ for(const [name,rows] of Object.entries({'DRAFT report details':Object.entries(report.metadata[0]).map(([Field,Value])=>({Field,Value})),'Monthly summary':report.monthly,'GL detail':report.rows,'Saved diagnostics':report.diagnostics})){
+  const safe=rows.map(row=>Object.fromEntries(Object.entries(row).map(([key,value])=>[safeSpreadsheetCell(key),safeSpreadsheetCell(value)]))),sheet=XLSX.utils.json_to_sheet(safe),keys=Object.keys(safe[0]||{});
+  sheet['!cols']=keys.map(key=>({wch:key==='Value'?85:key==='Account'||key==='Message'?42:key.endsWith('_ID')||key==='Source_snapshot'?42:Math.min(36,Math.max(16,key.length+2))}));
+  sheet['!rows']=[{hpt:28}];if(sheet['!ref'])sheet['!autofilter']={ref:sheet['!ref']};
+  for(const [address,cell] of Object.entries(sheet)){if(address.startsWith('!'))continue;if(typeof cell.v==='string'){cell.t='s';delete cell.f;delete cell.l;}else if(typeof cell.v==='number')cell.z='#,##0.00############;[Red](#,##0.00############);0.00';}
+  XLSX.utils.book_append_sheet(wb,sheet,name);
+ }
+ return wb;
+}
+function draftPdf(report){return snapshotPdf({title:'DRAFT — Saved Budget Forecast',subtitle:report.metadata[0].Community+' / '+report.metadata[0].Scenario+' / Revision '+report.metadata[0].Revision,snapshot:report.snapshot,rows:[...report.rows,...report.monthly,...report.metadata,...report.diagnostics],sections:[
+ {title:'Monthly summary',rows:report.monthly,columns:[['Period','Month',65],['Income','Income',115,'money'],['Contra_income','Contra income',115,'money'],['Expenses','Expenses',115,'money'],['NOI','NOI',115,'money'],['Capital','Capital',115,'money'],['Cash_flow','Cash flow',115,'money']],note:'DRAFT — this saved revision has no verified approved publication. Unsaved browser edits and later actuals are excluded.'},
+ {title:'GL detail',rows:report.rows,columns:[['Period','Month',60],['GL','GL',55],['Account','Account',210],['Original_budget','Original budget',110,'money'],['Selected_baseline','Selected baseline',110,'money'],['Forecast','Forecast',110,'money'],['Governed_actuals','Actuals',110,'money']]},
+ {title:'Saved diagnostics',rows:report.diagnostics,columns:[['Severity','Severity',70],['Period','Month',60],['GL','GL',50],['Message','Finding',590]],emptyMessage:'No diagnostics were retained in this saved snapshot.'},
+ {title:'Saved version and source · DRAFT',pageBreak:true,rows:Object.entries(report.metadata[0]).map(([Field,Value])=>({Field:Field.replaceAll('_',' '),Value})),columns:[['Field','Version detail',170],['Value','Saved value',600]]}
+ ]});}
+export function reportVersionPreview(selection,{communityName}={}){
+ if(!verifiedSelections.has(selection))throw Error('Verify a saved version before viewing its figures.');selectionGuards.get(selection)();
+ if(selection.originalBudget)return selection.originalBudget;
+ if(selection.revision)return savedRevisionReport(selection,{communityName});
+ if(selection.parentPublication)return pairedForecastReports(selection.parentPublication,selection.publication,{communityName}).withStr;
+ return communityForecastReport(selection.publication,{communityName,scenarioName:selection.publication.scenarioName||selection.entry.scenarioName});
+}
+function reportTable(rows,columns,kind){
+ const labels={Active_baseline:'Forecast',Original_budget_NOI:'Original budget NOI',Governed_actual_NOI:'Governed actual NOI',Covered_total:'Covered total'},value=raw=>raw===null||raw===undefined?'Unavailable':typeof raw==='number'?money(raw):String(raw);
+ return '<div class="rf-scroll"><table data-report-table="'+kind+'"><thead><tr>'+columns.map(key=>'<th>'+esc(labels[key]||key.replaceAll('_',' '))+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+columns.map(key=>{const period=/^20\d{2}-\d{2}$/.test(key)?key:row.Period||'',raw=row[key]??null;return '<td data-report-cell data-period="'+esc(period)+'" data-gl="'+esc(row.GL||'')+'" data-column="'+esc(key)+'" data-raw-value="'+esc(JSON.stringify(raw))+'">'+esc(value(raw))+'</td>';}).join('')+'</tr>').join('')+'</tbody></table></div>';
+}
+export function reportVersionPreviewHtml(selection,{communityName}={}){
+ const report=reportVersionPreview(selection,{communityName}),monthlyColumns=selection.originalBudget?Object.keys(report.monthly[0]||{}):['Period','Income','Contra_income','Expenses','NOI','Capital',...(selection.revision?['Cash_flow']:['Original_budget_NOI','Governed_actual_NOI'])],glColumns=selection.originalBudget?['GL','Account',...selection.entry.periods,'Covered_total']:['Period','GL','Account',...(selection.revision?['Department']:[]),'Original_budget','Selected_baseline',selection.revision?'Forecast':'Active_baseline','Governed_actuals'];
+ return '<h3>Saved monthly summary</h3><p>These figures and downloaded reports use the same retained version. Unavailable is distinct from numeric zero.</p>'+reportTable(report.monthly,monthlyColumns,'monthly')+'<details><summary>All saved GL / month values ('+report.rows.length+' rows)</summary>'+reportTable(report.rows,glColumns,'gl')+'</details>'+(report.bridge?.length?'<details><summary>Conventional and RISE STR contribution bridge</summary>'+reportTable(report.bridge,['Period','GL','Conventional','STR_contribution','With_STR','Parent_disposition'],'bridge')+'</details>':'');
+}
+export async function buildReportFiles(selection,{format='pdf',XLSX,communityName,guard=()=>{}}={}){
+ if(!verifiedSelections.has(selection))throw Error('Verify a saved report version before exporting.');const suppliedGuard=guard;guard=()=>{selectionGuards.get(selection)();suppliedGuard();};if(!['pdf','xlsx','json'].includes(format))throw Error('Choose PDF or Excel for a report.');if(format==='xlsx'&&!XLSX?.write)throw Error('Excel export library is unavailable.');guard();const {entry}=selection,files=[];
+ const add=async(record,options={})=>{let data;if(format==='json')data=JSON.stringify(selection.originalBudget||selection.revision?record:communityForecastReport(record,options),null,2);else if(selection.originalBudget)data=format==='pdf'?await originalBudgetVersionPdf(record):XLSX.write(originalBudgetVersionWorkbook(record,XLSX),{type:'array',bookType:'xlsx'});else if(selection.revision)data=format==='pdf'?await draftPdf(record):XLSX.write(draftWorkbook(record,XLSX),{type:'array',bookType:'xlsx'});else data=format==='pdf'?await communityForecastPdf(record,options):XLSX.write(communityForecastWorkbook(record,XLSX,options),{type:'array',bookType:'xlsx'});guard();const fileEntry=record.publicationId?{...entry,publicationId:record.publicationId,revisionId:record.revisionId,version:record.version??entry.version,periods:record.periods,scenarioName:record.scenarioName||(record.snapshot.identity.parentPublication?'Conventional + RISE STR':'Conventional reforecast')}:entry;files.push({name:reportVersionFilename(fileEntry,{communityName,format}),type:format==='pdf'?'application/pdf':format==='xlsx'?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'application/json',data});};
+ if(selection.originalBudget)await add(selection.originalBudget);
+ else if(selection.revision)await add(savedRevisionReport(selection,{communityName}));
+ else if(selection.parentPublication){const pair=pairedForecastReports(selection.parentPublication,selection.publication,{communityName});await add(selection.parentPublication,{...pair.reportOptions,scenarioName:selection.parentPublication.scenarioName||'Conventional reforecast'});await add(selection.publication,{...pair.reportOptions,scenarioName:selection.publication.scenarioName||'Conventional + RISE STR'});}
+ else await add(selection.publication,{communityName,scenarioName:selection.publication.scenarioName||entry.scenarioName});
+ guard();return files;
+}
+const entryKey=entry=>entry.kind+':'+(entry.publicationId||entry.revisionId||entry.versionId);
+export async function reportLibraryDialog({central,communityId,communityName,scenarioId,selectedRevisionId,dialog,guard=()=>{}}){
+ const el=dialog('Budget reports & print'),body=el.querySelector('[data-body]'),status=el.querySelector('[data-status]'),check=access(central,communityId,()=>{guard();if(!el.isConnected||!el.open)throw Error('The report dialog was closed.');});let sequence=0,selection=null,entries=[];
+ status.textContent='Reading saved budget versions…';
+ try{entries=await listReportVersions(central,{communityId,scenarioId,guard:check});check();
+  body.innerHTML='<p>Choose a saved version below. Download its PDF to attach to email or open and print. Excel contains the same retained values. Saved versions remain separate from current working edits.</p><p><strong>'+esc(communityName||communityId)+'</strong></p><label>Saved budget version<select data-report-version><option value="">Choose a version</option>'+[['original_budget','Approved original budgets'],['approved_forecast','Approved Conventional and RISE STR publications'],['saved_revision','Saved draft revisions']].map(([kind,title])=>{const rows=entries.filter(row=>row.kind===kind);return rows.length?'<optgroup label="'+esc(title)+'">'+rows.map(row=>'<option value="'+esc(entryKey(row))+'">'+esc(row.scenarioName+' · '+row.status+' · v'+(row.version??row.year??'')+' · '+row.periods.join(', ')+' · '+(row.recordedAt||'date unavailable'))+'</option>').join('')+'</optgroup>':'';}).join('')+'</select></label><div data-report-details></div><div class="rf-toolbar"><button data-library-export="pdf" disabled>Download PDF for email / print</button><button data-library-export="xlsx" disabled>Download Excel</button><button data-library-export="json" disabled>Technical JSON backup</button></div><p>Approved reports use immutable publications, including superseded vintages. Retained status does not designate the current operating baseline. RISE STR exports include its exact Conventional parent as a separate report.</p>';
+  const select=body.querySelector('[data-report-version]'),detail=body.querySelector('[data-report-details]'),buttons=[...body.querySelectorAll('[data-library-export]')];
+  const choose=async()=>{const token=++sequence;selection=null;buttons.forEach(button=>button.disabled=true);detail.innerHTML='';const entry=entries.find(row=>entryKey(row)===select.value);if(!entry){status.textContent=entries.length?'Choose a saved version.':'No saved budget versions are available for this property.';return;}status.textContent='Verifying the selected immutable version…';const selectedGuard=()=>{check();if(token!==sequence||select.value!==entryKey(entry))throw Error('The report selection changed.');};try{const read=await readReportVersion(central,entry,{guard:selectedGuard,communityName});selectedGuard();selection=read;const verified=read.entry;detail.innerHTML='<p class="rf-state">'+esc(verified.status)+'</p><p>'+esc(verified.scenarioName)+' · Version '+esc(verified.version??verified.year)+' · '+esc(verified.periods.join(', '))+'</p><p>Recorded '+esc(verified.recordedAt||'date unavailable')+' · '+esc(verified.publicationId||verified.revisionId||verified.versionId)+'</p>'+(read.parentPublication?'<p>Includes separate Conventional parent '+esc(read.parentPublication.publicationId)+' and RISE STR reports.</p>':'')+reportVersionPreviewHtml(read,{communityName});buttons.forEach(button=>button.disabled=false);status.textContent='Saved version verified. Choose PDF for email / print or Excel.';}catch(error){if(token===sequence&&el.isConnected&&el.open)status.textContent=error.message;}};
+  select.onchange=choose;buttons.forEach(button=>button.onclick=async()=>{const current=selection,token=sequence,key=select.value,selectedGuard=()=>{check();if(!current||current!==selection||token!==sequence||select.value!==key)throw Error('The report selection changed.');};try{selectedGuard();buttons.forEach(item=>item.disabled=true);status.textContent='Preparing the selected saved report…';const format=button.dataset.libraryExport,XLSX=format==='xlsx'?(await import('./reforecast-intake.mjs?v=87e68da483f77228')).loadXlsx:null,library=XLSX?await XLSX():undefined;selectedGuard();const files=await buildReportFiles(current,{format,XLSX:library,communityName,guard:selectedGuard});selectedGuard();for(const file of files){selectedGuard();download(file.data,file.name,file.type);}status.textContent=files.length+' file'+(files.length===1?'':'s')+' downloaded. '+(format==='pdf'?'Open the PDF to print, or attach it to your email.':format==='json'?'Technical backup; use PDF or Excel for sharing.':'Excel contains this exact saved version.');}catch(error){if(token===sequence&&el.isConnected&&el.open)status.textContent=error.message;}finally{if(token===sequence&&current===selection&&el.isConnected&&el.open)buttons.forEach(item=>item.disabled=!selection);}});
+  if(selectedRevisionId){const selected=entries.find(row=>row.revisionId===selectedRevisionId);if(selected)select.value=entryKey(selected);}if(!select.value&&entries.length)select.value=entryKey(entries[0]);await choose();
+ }catch(error){if(el.isConnected&&el.open)status.textContent=error.message;}
+ return el;
+}

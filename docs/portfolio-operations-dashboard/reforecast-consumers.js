@@ -1,6 +1,6 @@
 (function(){
  'use strict';let modulePromise,cache,epoch=0;
- const load=()=>modulePromise ||= import('./features/reforecast-consumers.mjs?v=fa7df31269bd63fd');
+ const load=()=>modulePromise ||= import('./features/reforecast-consumers.mjs?v=42aba35c99c5d2c5');
  function clear(){epoch++;cache?.clear();document.querySelectorAll('[data-active-reforecast]').forEach(el=>el.remove());}
  window.addEventListener('atlas-central-auth-change',clear);
  window.addEventListener('atlas-reforecast-updated',()=>{window.AtlasClosedFinancialCache?.clear();window.dispatchEvent(new Event('atlas-finance-updated'));window.renderTab?.();});

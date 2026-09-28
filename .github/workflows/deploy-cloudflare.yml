@@ -78,6 +78,7 @@ jobs:
           path: |
             output/test-all/ci/results.json
             output/test-all/ci/*-reforecast-report-library-browser.test.mjs.log
+            output/test-all/ci/*-finance-compat-browser.test.mjs.log
           if-no-files-found: warn
 
       - name: Install Wrangler
@@ -150,6 +151,7 @@ jobs:
           path: |
             output/test-all/ci/results.json
             output/test-all/ci/*-reforecast-report-library-browser.test.mjs.log
+            output/test-all/ci/*-finance-compat-browser.test.mjs.log
           if-no-files-found: warn
 
       - name: Install Wrangler

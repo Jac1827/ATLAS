@@ -16911,11 +16911,14 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
 
   // Save updates the same checkpoint restored when the builder is reopened.
   // Named snapshots remain available separately in Save & restore.
-  A.quickSave = function () {
+  A.commitFocusedEditor = function () {
     // Commit a focused editor before taking the checkpoint. The Save button
     // keeps focus until click so a change-triggered render cannot swallow it.
     var focused = typeof document !== 'undefined' && document.activeElement;
     if (focused && focused.closest && focused.closest('.main') && focused.blur) focused.blur();
+  };
+  A.quickSave = function () {
+    A.commitFocusedEditor();
     var P = R.persist;
     if (P.autosave()) {
       A.toast('Working model saved in this browser. It will reopen with these changes.');
@@ -17129,6 +17132,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     // show their own confirmation.
     if (typeof window !== 'undefined' && window.addEventListener) {
       window.addEventListener('beforeunload', function (e) {
+        A.commitFocusedEditor();
         if (!R.persist.dirty) return undefined;
         R.persist.autosave();       // last-gasp attempt
         if (!R.persist.dirty) return undefined;   // saved successfully, let them go
@@ -17685,7 +17689,9 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     var line = null;
     A.state.lines.forEach(function (l) { if (l.id === lineId) line = l; });
     if (!line) return;
-    var n = Number(String(val).replace(/[$,\s]/g, ''));
+    var normalized = String(val).replace(/[$,\s]/g, '');
+    if (normalized === '') { A.toast('Blank was not saved. Enter an amount, or enter 0 for an intentional zero.'); A.render(); return; }
+    var n = Number(normalized);
     if (isNaN(n)) { A.toast('Not a number — ignored'); A.render(); return; }
     if (!Number.isFinite(n) || monthIdx < 0 || monthIdx > 11) { A.toast('Not a valid monthly amount — ignored'); A.render(); return; }
     // Base lines belong to every scenario. Store edits on this scenario/year so

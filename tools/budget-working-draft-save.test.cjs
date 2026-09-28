@@ -18,6 +18,7 @@ const value=(id,year=2026)=>R.engine.computeProperty(A.state,'DORO',id,year).res
 const original=value('SC-APPROVED'),other=value('SC-SLOW'),nextYear=value('SC-WORK',2027);
 A.setScenario('SC-WORK');A.setOverride(line.id,0,'499,999.25');
 assert.equal(value('SC-WORK'),499999.25);assert.equal(value('SC-APPROVED'),original);assert.equal(value('SC-SLOW'),other);
+const beforeBlank=JSON.stringify(A.state);for(const empty of ['', '   ', '$ , ']){A.setOverride(line.id,0,empty);assert.equal(JSON.stringify(A.state),beforeBlank,'Blank amounts must not silently become zero');}
 assert.equal(value('SC-WORK',2027),nextYear);assert.equal(JSON.stringify(A.state.lines),base);assert.equal(JSON.stringify(A.state.actuals),actuals);
 assert(P.dirty);assert.equal(nodes.get('browser-draft-save-status').textContent,'Unsaved changes');
 assert(P.autosave());assert(!P.dirty);assert.match(nodes.get('savestat').innerHTML,/Saved/);assert.equal(nodes.get('browser-draft-save-status').textContent,'Saved in this browser');

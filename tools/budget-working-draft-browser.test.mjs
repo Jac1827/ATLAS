@@ -27,7 +27,7 @@ const server=createServer(async(req,res)=>{
 });
 
 let browser,page,stage='start';
-const errors=[],remoteRequests=[];
+const errors=[],remoteRequests=[],dialogs=[];
 try{
   await fs.mkdir(output,{recursive:true});
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -36,6 +36,10 @@ try{
   const context=await browser.newContext({viewport:{width:1600,height:1050}});
   page=await context.newPage();page.setDefaultTimeout(15000);
   page.on('pageerror',error=>errors.push(error.message));
+  page.on('dialog',async dialog=>{
+    dialogs.push(dialog.type());
+    if(dialog.type()==='beforeunload')await dialog.accept();else await dialog.dismiss();
+  });
   await context.route('**/*',route=>{
     if(new URL(route.request().url()).origin===origin)return route.continue();
     remoteRequests.push(route.request().url());return route.abort();
@@ -117,6 +121,16 @@ try{
   await edit('5120',2,-123.45);await saved();
   assert.deepEqual(await sourceEvidence(),baseline,'Grid edits do not change source lines, approved imports, history or another draft');
 
+  stage='blank amount does not silently save zero';
+  const checkpointBeforeBlank=await page.evaluate(()=>localStorage.getItem(RBB.persist.AUTOSAVE_KEY));
+  await cell('5120',0).fill('');
+  await cell('5120',0).press('Tab');
+  assert.equal(await cell('5120',0).inputValue(),'499999.25','Clearing a cell restores its previous amount instead of converting blank to zero');
+  assert.match(await page.locator('#toast').innerText(),/blank.*(?:not saved|ignored|unchanged)|(?:not saved|ignored|unchanged).*blank/i,'The user receives an explanation that the blank edit was not saved');
+  await saved();
+  assert.equal(await page.evaluate(()=>localStorage.getItem(RBB.persist.AUTOSAVE_KEY)),checkpointBeforeBlank,'Rejected blank input leaves the saved checkpoint unchanged');
+  assert.equal(await cell('5120',1).inputValue(),'0','An explicitly entered zero remains valid');
+
   stage='year and scenario isolation';
   await page.locator('.yearsel').getByRole('button',{name:'2027',exact:true}).click();
   assert.equal(await cell('5120',0).inputValue(),'2340','2026 edit does not leak into 2027');
@@ -173,6 +187,11 @@ try{
   await page.reload();await ready();await saved();
   assert.equal(await cell('5120',0).inputValue(),'600001.75','Immediate Save refresh restores the newest amount');
   assert.deepEqual(await sourceEvidence(),baseline);
+  stage='reload commits the focused unfinished cell';
+  await cell('5120',0).fill('700002.5');
+  await page.reload();await ready();await saved();
+  assert.equal(await cell('5120',0).inputValue(),'700002.5','Reload saves and restores the focused cell without requiring Tab or Save');
+  assert.deepEqual(await sourceEvidence(),baseline);
   stage='independent page reopens the same browser checkpoint';
   const second=await context.newPage();
   second.on('pageerror',error=>errors.push(error.message));
@@ -180,12 +199,13 @@ try{
   await second.waitForFunction(()=>window.RBB?.engine?._reforecastBridge&&RBB.app.state?.activeScenario==='SC-WORK');
   const secondReceipt=await second.evaluate(()=>({year:RBB.app.year(),scenario:RBB.app.scenario().id,values:RBB.app.cp().results['synthetic-line-0'].monthly,status:document.querySelector('#savestat .l')?.textContent,context:document.querySelector('#browser-draft-save-status')?.textContent}));
   assert.equal(secondReceipt.year,2026);assert.equal(secondReceipt.scenario,'SC-WORK');
-  assert.deepEqual(secondReceipt.values.slice(0,3),[600001.75,0,-123.45]);
+  assert.deepEqual(secondReceipt.values.slice(0,3),[700002.5,0,-123.45]);
   assert.equal(secondReceipt.status,'Saved');assert.equal(secondReceipt.context,'Saved in this browser');
   await second.close();
-  assert.deepEqual(errors,[]);assert.deepEqual(remoteRequests,[],'Fixture never contacts production or external services');
+  assert.deepEqual(errors,[]);assert.deepEqual(dialogs,[],'Valid focused edits save during reload without an unsaved-changes prompt');
+  assert.deepEqual(remoteRequests,[],'Fixture never contacts production or external services');
   await page.screenshot({path:path.join(output,'saved-working-draft.png'),fullPage:true});
-  console.log('PASS real Property budget browser: mapped approved snapshot; typed positive/zero/negative cells; autosave and both save indicators; scenario/year isolation; Conventional/STR equality; reload; navigate away/reopen; focused-cell header Save immediately updates checkpoint; independent page readback; immutable approved/source/history evidence; no remote requests.');
+  console.log('PASS real Property budget browser: mapped approved snapshot; typed positive/zero/negative cells; blank input preserves saved amount; autosave and both save indicators; scenario/year isolation; Conventional/STR equality; reload; navigate away/reopen; focused-cell Save and reload retain the newest value; independent page readback; immutable approved/source/history evidence; no remote requests.');
 }catch(error){
   console.error('BUDGET_DRAFT_BROWSER_FAILURE',JSON.stringify({stage,error:error.stack,errors,remoteRequests}));
   if(page&&!page.isClosed()){

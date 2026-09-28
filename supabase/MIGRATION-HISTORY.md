@@ -33,3 +33,9 @@ The three September 25 audit, receipt-recovery, and atomic-import additions were
 The `appliedAdditions` list pins these later deployments separately from the original 72-record replay boundary. The historical replay fixture still exercises the exact captured history; repair-specific database tests exercise the additive dependencies.
 
 The source-relationship, saved STR programme, bounded RPC timeout and source occurrence-index additions are recorded under production versions `20260925020220`, `20260925020222`, `20260925020224` and `20260925020226`. Their exact production bodies are also pinned in `appliedAdditions`, with the original local aliases retained.
+
+## Governed financial reader repairs
+
+The September 28 indexed report and finance-reader repair is recorded in production as `20260928162637_indexed_governed_report_and_finance_reads.sql`. Its CLI-created local version was `20260928161645`; the file was renamed to the actual applied identity without changing SQL. A scoped read-only capture of `schema_migrations` confirmed one statement, 4,452 bytes, MD5 `0c28432a12733a8eee4e3b9fd5a4b293`, and SHA-256 `343e23df588aa7910a69dda8a82ca7fbf71a57475b08cf3509e2a136dcd02c3f`. The exact deployed body is pinned in `appliedAdditions`. Production history was not modified.
+
+The same day's baseline-attachment deferral is recorded as `20260928164258_defer_finance_baseline_attachment.sql` (original CLI version `20260928163616`). Read-only production metadata confirmed one statement, 2,195 bytes, MD5 `65f734334e258186ada1600504af8487`, and SHA-256 `c21fabdc131b6f772558fc2194db6008787ca0320d4a02825f4cb63dd34d8c37`. Its exact body is also pinned. Both optimizations preserve published financial snapshots and existing function permissions and timeouts; subsequent changes require a new migration.

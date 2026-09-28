@@ -29,8 +29,8 @@ const entry={head:{scenario_id:scenario,community_id:cid,revision:1,revision_id:
 const strPayload={schemaVersion:'atlas.str-programme-draft.v1',name:'Synthetic retained STR programme',sourcePropertyId:'source-doro',sourceProgrammeId:'str-retained',config:null,property:{id:'source-doro',name:'RISE Doro',units:[]},groups:[],programme:{id:'str-retained',propertyId:'source-doro',name:'Synthetic retained STR programme',applied:false,lineIds:[]},lines:[],years:[2026],reportSnapshot:null,reportUnavailableReason:'Synthetic incomplete retained configuration',targetBudget:null,reason:'Synthetic retained draft'};
 const strHead={programme_id:'40000000-0000-0000-0000-000000000001',community_id:cid,revision:1,revision_id:'50000000-0000-0000-0000-000000000001'};
 const strRecord={verified:true,head:strHead,revision:{...strHead,payload:strPayload,actor_id:actor,created_at:'2026-09-25T12:00:00Z',content_hash:'a'.repeat(64)}};
-let server,browser,page,stage="compose";
-const requests=[],writes=[],errors=[],unreviewedRpcs=[];
+let server,browser,page,stage='compose-source';
+const requests=[],writes=[],errors=[],unreviewedRpcs=[],failedRequests=[];
 try{
  const old=path.join(tmp,'old'),out=path.join(tmp,'composed');await fs.mkdir(old);
  execFileSync('git',['archive','--format=tar','--output='+path.join(tmp,'old.tar'),'origin/atlas-asset-releases:_atlas-assets/'+OPERATIONAL_RELEASE],{cwd:repo});
@@ -41,7 +41,7 @@ try{
  const allowedRpcs=new Set(['atlas_read_reforecast_workspace','atlas_month_end_queue','atlas_read_budget_calendar','atlas_read_active_reforecast','atlas_read_reforecast_builder_source','atlas_read_reforecast_source','atlas_read_reforecast_sources','atlas_read_str_programme_drafts','atlas_read_str_programme_history','atlas_read_finance','atlas_read_dashboard_views','atlas_reforecast_effective_baseline','atlas_verify_budget_consumer','atlas_verify_finance_receipt','atlas_read_employee_notifications','atlas_read_people_directory','atlas_read_community_goals','atlas_read_shared_property_graph','atlas_upsert_live_session','atlas_end_live_session','atlas_save_dashboard_view']);
  server=createServer(async(req,res)=>{try{const url=new URL(req.url,'http://local');if(url.pathname==='/blank'){res.setHeader('content-type','text/html');res.end('<!doctype html><title>Synthetic source setup</title>');return;}const file=path.resolve(out,'.'+decodeURIComponent(url.pathname));if(!file.startsWith(out+path.sep))throw Error();res.setHeader('content-type',file.endsWith('.html')?'text/html':/\.(mjs|js)$/.test(file)?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.svg')?'image/svg+xml':'application/octet-stream');res.end(await fs.readFile(file));}catch{res.writeHead(404);res.end();}});
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+server.address().port;
- browser=await chromium.launch({headless:true,...(process.env.ATLAS_BROWSER_CHANNEL?{channel:process.env.ATLAS_BROWSER_CHANNEL}:{})});page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(20000);page.on('pageerror',error=>errors.push(error.message));
+ stage='launch-browser';browser=await chromium.launch({headless:true,...(process.env.ATLAS_BROWSER_CHANNEL?{channel:process.env.ATLAS_BROWSER_CHANNEL}:{})});page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(20000);page.on('pageerror',error=>errors.push(error.message));page.on('requestfailed',request=>failedRequests.push({path:new URL(request.url()).pathname,error:request.failure()?.errorText}));
  await page.route('**/*',async route=>{
   const req=route.request(),url=new URL(req.url());if(url.origin===origin){requests.push(url.pathname);return route.continue();}
   if(url.pathname.startsWith('/rest/v1/')){
@@ -71,49 +71,50 @@ try{
   await new Promise((resolve,reject)=>{const request=indexedDB.open('atlas_rise_state_v1',1);request.onupgradeneeded=()=>request.result.createObjectStore('records',{keyPath:'key'});request.onerror=()=>reject(request.error);request.onsuccess=()=>{const db=request.result,tx=db.transaction('records','readwrite'),store=tx.objectStore('records');for(const[key,value]of [['community_data',{'RISE Doro':community}],['atlas_data_import_2_state_v1',history],['rise_ops_global_v1',{portfolioMonthScopeByPeriod:{'2026-09':['RISE Doro']}}]])store.put({key,value,updatedAt:'2026-09-25T12:00:00Z'});store.put({key:'atlas_data_import_source_file:retained-source',fileName:'synthetic.csv',blob:new Blob(['community,occupied\nRISE Doro,183\n']),updatedAt:'2026-09-25T12:00:00Z'});tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};});
  },{actor,profile:profile(actor),community:retainedCommunity,history:retainedHistory});
  await fs.mkdir(path.join(repo,'output/playwright/finance-compat'),{recursive:true});
- stage='retained startup';
+ stage='retained-startup';
  await page.goto(origin+'/portfolio-operations-dashboard/index.html');await page.waitForFunction(()=>typeof atlasDashboardInitializationComplete!=='undefined'&&atlasDashboardInitializationComplete&&typeof dataImport2State!=='undefined'&&dataImport2State.batches?.length===32).catch(async error=>{console.log('STARTUP',await page.evaluate(()=>({body:document.body.innerText.slice(-2000),complete:typeof atlasDashboardInitializationComplete==='undefined'?null:atlasDashboardInitializationComplete,batches:typeof dataImport2State==='undefined'?null:dataImport2State.batches?.length})),errors);throw error;});
  const operational=()=>page.evaluate(()=>({communityId:savedData['RISE Doro'].communityId,months:savedData['RISE Doro'].monthlyData,batches:dataImport2State.batches.map(row=>row.id),database:ATLAS_STATE_DB_NAME}));
  const evidence=()=>page.evaluate(async()=>{const names=['atlas_data_import_2_state_v1','atlas_data_import_source_file:retained-source'],rows=[];for(const name of names){const row=await withAtlasStateStore('readonly',store=>store.get(name));if(row?.blob)row.blob=await row.blob.text();rows.push(row);}return rows;});
  const sourceEvidence=await evidence();assert.equal(sourceEvidence[1].blob,'community,occupied\nRISE Doro,183\n');assert(sourceEvidence[0].value.batches[0].beforeSnapshot);
  const before=await operational();assert.equal(before.communityId,cid);assert.equal(before.database,'atlas_rise_state_v1');assert.equal(before.months[8].occupiedSnapshot,183);assert.equal(before.batches.length,32);
- stage='load planning module';
+ stage='goal-module-ready';
  await page.waitForFunction(()=>window.AtlasCommunityGoalPlanning);
- stage='navigate occupancy';
+ stage='goal-navigation';
  await page.evaluate(()=>{getAtlasTodayISODate=()=> '2026-09-28';queueWorkspaceNavigation('RISE Doro',2);});
  await page.locator('[data-occupancy-goal-planning]').waitFor().catch(async error=>{console.log('OCCUPANCY',await page.evaluate(()=>({body:document.body.innerText.slice(-3500),tab:activeTab,scope:workspaceScopeValue,model:buildCommunityCommandModel(getProp().name,getCurrentCommunityRecord()).goalPlanning})),errors);throw error;});
- stage='occupancy source values';
+ stage='minimum-applications';
  await page.waitForFunction(()=>document.querySelector('[data-minimum-applications]')?.textContent==='45');
  assert.equal(await page.locator('[data-current-leased]').innerText(),'46.56%');assert.equal(await page.locator('[data-leased-target]').innerText(),'47.60%');assert.equal(await page.locator('[data-signed-lease-gap]').innerText(),'3');
  assert.match(await page.locator('[data-occupancy-goal-planning]').innerText(),/Signed units with unavailable timing: 34/);assert.match(await page.locator('[data-occupancy-goal-planning]').innerText(),/Physical move-ins required: Unavailable/);
  assert(requests.some(r=>r.endsWith('/finance/portfolio-operations-dashboard/features/community-goal-planning.mjs')),'Retained goal editor loads only the scoped current planning module');
  assert.deepEqual(await evidence(),sourceEvidence,'Advisory planning preserves complete original source evidence and history');
  await page.screenshot({path:path.join(repo,'output/playwright/finance-compat/occupancy-source-goals.png'),fullPage:true});
- stage='dashboard review shortcut';
+ stage='home-review-task';
  await page.evaluate(()=>setTab(0));await page.locator('[data-budget-review]').waitFor();await page.locator('[data-budget-review]').click();
- stage='budget mount';
+ stage='budget-iframe-mount';
  const iframe=page.frameLocator('iframe[src*="finance/portfolio-operations-dashboard/RISE-Budget-Builder"]');await iframe.locator('#app').waitFor().catch(async error=>{console.log('BUDGET MOUNT',await page.locator('#tab-panel-12').innerHTML(),page.frames().map(row=>row.url()),errors,requests.filter(x=>x.includes('RISE-Budget')));throw error;});
- stage='exact submitted revision';
+ stage='exact-submitted-record';
  await iframe.locator('[data-edit="name"]').waitFor();assert.equal(await iframe.locator('[data-edit="name"]').inputValue(),payload.name,'Dashboard Review selects exact submitted record');
  const frame=page.frames().find(frame=>frame.url().includes('/finance/portfolio-operations-dashboard/RISE-Budget-Builder'));
  assert.equal(await frame.evaluate(()=>parent.ATLAS_CENTRAL===window.parent.ATLAS_CENTRAL&&parent.atlasAccessDecision(12).ok),true);
  const header=page.locator('.atlas-budget-workspace-actions');assert.equal(await header.getByRole('button',{name:'Approve Shared Original Budget',exact:true}).count(),0);assert.match(await page.locator('.atlas-budget-workspace-note').innerText(),/VP approval publishes.*Investor approval locks/);assert.doesNotMatch(await page.locator('.atlas-budget-workspace-note').innerText(),/Admin approval/);
- stage='approval queue';
+ stage='approval-queue';
  await header.getByRole('button',{name:'Ready for Review and Approval',exact:true}).click();await iframe.getByRole('heading',{name:'Ready for Review and Approval',exact:true}).waitFor();
  await frame.waitForFunction(()=>!document.querySelector('[data-refresh]')?.disabled);
  assert(requests.includes('atlas_month_end_queue'),'Approval view reads closed-package eligibility through retained Central transport');
  assert.doesNotMatch(await iframe.locator('body').innerText(),/Month-end approval eligibility could not be read|Month-end approval queue scope mismatch/,'A valid empty month-end queue remains usable on the actual retained operational host');
  assert.equal(await iframe.locator('[data-open="'+scenario+'"]').count(),1,'The submitted budget remains actionable with no eligible month-end packages');
- stage='working drafts and saved STR';
+ stage='working-drafts';
  await header.getByRole('button',{name:'Working Drafts',exact:true}).click();await iframe.getByRole('heading',{name:'Working Drafts',exact:true}).waitFor();
+ stage='saved-str-list';
  await header.getByRole('button',{name:'Saved STR programmes',exact:true}).click();await iframe.locator('[data-str-resume]').waitFor();assert.match(await iframe.locator('[data-str-list]').innerText(),/Synthetic retained STR programme/);await page.screenshot({path:path.join(repo,'output/playwright/finance-compat/saved-str-mixed-host.png'),fullPage:true});
  // A captured row must not cross an authenticated account change.
- stage='account change';
+ stage='account-change';
  await page.evaluate(({second,profile})=>{localStorage.setItem('atlas_central_auth_session_v1',JSON.stringify({access_token:'synthetic-second',refresh_token:'synthetic-second',expires_at:Math.floor(Date.now()/1000)+3600,user:{id:second,email:profile.email}}));localStorage.setItem('atlas_central_profile_v1',JSON.stringify(profile));},{second,profile:profile(second)});
  await iframe.locator('[data-str-resume]').click();assert.match(await iframe.locator('[data-str-list-status]').innerText(),/account changed/);
  await frame.evaluate(()=>{parent.dispatchEvent(new Event('atlas-central-auth-change'));RBB.app.go('savedstr');});await iframe.locator('[data-str-list-status]').waitFor({state:'attached'});await iframe.locator('[data-str-resume]').waitFor({state:'detached'});
  assert.doesNotMatch(await iframe.locator('body').innerText(),/Synthetic retained STR programme/);assert.deepEqual(await operational(),before,'Finance navigation/account changes preserve operational data and import history');
- stage='retained reload';
+ stage='retained-reload';
  await page.reload();await page.waitForFunction(()=>typeof atlasDashboardInitializationComplete!=='undefined'&&atlasDashboardInitializationComplete&&dataImport2State.batches?.length===32);assert.deepEqual(await operational(),before,'Reload preserves exact operational evidence');
  assert.deepEqual(await evidence(),sourceEvidence,'Full retained history, rollback snapshots, lineage and original Blob survive finance navigation and reload');assert.deepEqual([...new Set(unreviewedRpcs)],[],'Every RPC must be a reviewed read/readback, presence or own-dashboard-layout operation');
  assert(!requests.some(value=>/workspace-bootstrap|workspace-projection|workspace-core/.test(value)));assert(!writes.some(value=>/atlas_app_documents|atlas_reforecast|str_programme/.test(value)),'Read-only UI acceptance does not publish or save financial/source values');
@@ -122,10 +123,16 @@ try{
  await fs.mkdir(path.join(repo,'output/playwright/finance-compat'),{recursive:true});await page.screenshot({path:path.join(repo,'output/playwright/finance-compat/operational-preserved.png'),fullPage:true});
  console.log('PASS exact retained operational startup and32 imports; isolated current Budget Builder; canonical parent authorization; home exact-record Review; Working Drafts; Saved STR; account-change guard; reload unchanged; no projection/source publication.');
 }catch(error){
- const diagnostic={stage,error:String(error?.stack||error),requests:requests.slice(-40),pageErrors:errors.slice(-20)};
- // This browser fixture contains synthetic source data and no credentials.
- // Keep bounded frame text to locate an exact failed wait; never dump storage.
- try{diagnostic.frames=await Promise.all((page?.frames()||[]).slice(0,3).map(async frame=>({url:frame.url(),body:await frame.locator('body').innerText({timeout:2000}).then(text=>text.slice(-3500),()=>'<unavailable>')})));}catch{}
- console.error('FINANCE_COMPAT_FAILURE '+JSON.stringify(diagnostic));
- throw error;
+ // Synthetic fixture only: record the exact failed condition without tokens or
+ // unbounded browser state. Keep the original assertion and 20-second timeout.
+ const diagnostics={stage,error:String(error?.stack||error),runtime:{node:process.version,platform:process.platform,timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone,now:new Date().toISOString()},pageErrors:errors.slice(-20),failedRequests:failedRequests.slice(-20),requestNames:[...new Set(requests)].slice(-80)};
+ if(page&&!page.isClosed()){
+  diagnostics.frames=await Promise.all(page.frames().slice(0,3).map(async frame=>({path:new URL(frame.url()).pathname,body:await frame.locator('body').innerText({timeout:2000}).then(text=>text.slice(-3500),()=>'<unavailable>')})));
+  diagnostics.dom=await page.evaluate(()=>{
+   const text=selector=>document.querySelector(selector)?.textContent?.trim()||null;
+   let model=null;try{model=typeof buildCommunityCommandModel==='function'?buildCommunityCommandModel(getProp().name,getCurrentCommunityRecord()).goalPlanning:null;}catch(e){model={error:e.message};}
+   return{timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone,now:new Date().toISOString(),today:typeof getAtlasTodayISODate==='function'?getAtlasTodayISODate():null,tab:typeof activeTab==='undefined'?null:activeTab,scope:typeof workspaceScopeValue==='undefined'?null:workspaceScopeValue,currentMonth:typeof getProp==='function'?getProp()?.currentMonth:null,currentYear:typeof getProp==='function'?getProp()?.reportYear:null,minimumApplications:text('[data-minimum-applications]'),currentLeased:text('[data-current-leased]'),leasedTarget:text('[data-leased-target]'),goalText:text('[data-occupancy-goal-planning]'),model,body:document.body.innerText.slice(-6000)};
+  }).catch(e=>({error:e.message}));
+ }
+ console.error('FINANCE_COMPAT_FAILURE '+JSON.stringify(diagnostics));throw error;
 }finally{await browser?.close();if(server)await new Promise(resolve=>server.close(resolve));await fs.rm(tmp,{recursive:true,force:true});}

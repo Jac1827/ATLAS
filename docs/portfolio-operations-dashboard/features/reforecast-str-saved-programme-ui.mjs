@@ -1,8 +1,8 @@
 import {prepareStrRegistryExtension,readStrMappingContext,saveStrRegistryExtension} from './reforecast-str-registry-extension.mjs?v=e029a084505a92e0';
 export {readStrMappingContext} from './reforecast-str-registry-extension.mjs?v=e029a084505a92e0';
-import {parseSavedStrJson,savedStrJsonBytes} from './reforecast-str-json-recovery.mjs?v=1d69b975c51e177d';
-import {parseSavedStrMonthlyProgramme,prepareSavedStrMonthlyContribution} from './reforecast-str-saved-programme.mjs?v=de53439c75a78379';
-import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=720ca2356994bdc1';
+import {parseSavedStrJson,savedStrJsonBytes} from './reforecast-str-json-recovery.mjs?v=055ec6f663db28b9';
+import {parseSavedStrMonthlyProgramme,prepareSavedStrMonthlyContribution} from './reforecast-str-saved-programme.mjs?v=e35f9515395c913e';
+import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=4dd09c523f87a9ce';
 import {saveForecastRecovery,readForecastRecovery,removeForecastRecovery} from './reforecast-recovery.mjs?v=817ef5abdfe62bc9';
 const clone=structuredClone,finite=value=>typeof value==='number'&&Number.isFinite(value),uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

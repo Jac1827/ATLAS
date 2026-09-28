@@ -1,5 +1,5 @@
-import {reviewOriginalBudget,budgetPublicationStatus} from './approved-budget.mjs?v=832f32c2dc348ef9';
-import {readDetail} from './canonical-finance.mjs?v=f6dbd3f27dd7608e';
+import {reviewOriginalBudget,budgetPublicationStatus} from './approved-budget.mjs?v=639044759b69f41c';
+import {readDetail} from './canonical-finance.mjs?v=b02fad23c8c69769';
 /* Explicit, reviewed publication from Budget Builder; never runs in dashboard startup. */
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const numeric=v=>typeof v==='number'&&Number.isFinite(v);

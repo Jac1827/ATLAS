@@ -1,6 +1,7 @@
+import {aggregateForecastLines,NONCASH_METRIC_KEYS} from './reforecast-engine.mjs?v=fbc60bc50d89f5ee';
 import {acknowledgeBudgetConsumer} from './budget-consumer-delivery.mjs?v=f5342574d4b39aa2';
 import {readActive,effectiveActiveSnapshot} from './reforecast-store.mjs?v=116417158a586ff4';
-import {esc,money,reportHtml,exportRows,csv,download} from './reforecast-report.mjs?v=17298028335ec1f6';
+import {esc,money,reportHtml,exportRows,csv,download} from './reforecast-report.mjs?v=65b85e23a8cb315f';
 const finitePercent=value=>typeof value==='number'&&Number.isFinite(value)?(value*100).toFixed(2)+'%':'Unavailable';
 // One publication reader shared by operating screens, plan/report evidence and Scout.
 export function createActiveReforecastCache(central){
@@ -63,6 +64,7 @@ export async function readEffectiveBaselines(central,{communityIds,periods}={}){
 }
 export function effectiveBaselineMetric(baseline,metric,{accountCodes=null}={}){
  if(baseline?.status!=='available')return null;
+ if(NONCASH_METRIC_KEYS.includes(metric)){const rows=baseline.lines.filter(row=>!accountCodes||accountCodes.includes(row.accountCode));if(accountCodes?.some(code=>!rows.some(row=>row.accountCode===code)))return null;return aggregateForecastLines(rows.map(row=>({...row,mappingValid:row.mappingValid!==false&&Boolean(row.nature&&row.placement)})),'amount')[metric]??null;}
  const factors={revenue:row=>['income','contra_income'].includes(row.nature)&&row.placement==='above_noi'?1:0,expenses:row=>row.nature==='expense'&&row.placement==='above_noi'?1:0,capital:row=>row.nature==='capital'?1:0,debt:row=>row.nature==='debt'||row.accountRole==='debt'?1:0,noi:row=>row.placement==='above_noi'?['income','contra_income'].includes(row.nature)?1:row.nature==='expense'?-1:0:0,cashFlow:row=>['income','contra_income'].includes(row.nature)?1:['expense','capital','debt','below_noi'].includes(row.nature)?-1:0};
  if(metric==='margin'){const revenue=effectiveBaselineMetric(baseline,'revenue',{accountCodes}),noi=effectiveBaselineMetric(baseline,'noi',{accountCodes});return revenue&&noi!==null?noi/revenue:null;}
  const factor=factors[metric==='opex'?'expenses':metric];if(!factor)return null;

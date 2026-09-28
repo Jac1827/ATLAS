@@ -32,7 +32,7 @@ function freeze(value){if(value&&typeof value==='object'&&!Object.isFrozen(value
 const strictSum=sumMoney;
 const subtract=(a,b)=>finite(a)&&finite(b)?sumMoney([a,-b]):null;
 const selectedAmount=row=>Object.hasOwn(row,'selectedBaseline')?row.selectedBaseline:row.originalBudget;
-export function aggregateForecastLines(lines,field){
+export function aggregateForecastLines(lines,field,options={}){
  const selected=(predicate,factor=()=>1)=>lines.filter(row=>predicate(row)&&!(['originalBudget','selectedBaseline'].includes(field)&&row[field]===null&&row.baselineDisposition?.kind==='no_original_budget_row')).map(row=>finite(row[field])?row[field]*factor(row):row[field]);
  const grossIncome=strictSum(selected(row=>row.nature==='income'&&row.placement==='above_noi'));
  const contraRevenue=strictSum(selected(row=>row.nature==='contra_income'&&row.placement==='above_noi'));
@@ -42,7 +42,36 @@ export function aggregateForecastLines(lines,field){
  const capital=strictSum(selected(row=>row.nature==='capital')),debt=strictSum(selected(row=>row.nature==='debt'));
  const noi=subtract(revenue,opex),cashFlow=subtract(subtract(subtract(noi,belowNoi),debt),capital);
  const invalid=lines.some(row=>!row.mappingValid);
- return {grossIncome:invalid?null:grossIncome,contraRevenue:invalid?null:contraRevenue,revenue:invalid?null:revenue,opex:invalid?null:opex,expenses:invalid?null:opex,belowNoi:invalid?null:belowNoi,capital:invalid?null:capital,debt:invalid?null:debt,noi:invalid?null:noi,cashFlow:invalid?null:cashFlow,margin:!invalid&&finite(noi)&&finite(revenue)&&revenue!==0?noi/revenue:null};
+ const metrics={grossIncome:invalid?null:grossIncome,contraRevenue:invalid?null:contraRevenue,revenue:invalid?null:revenue,opex:invalid?null:opex,expenses:invalid?null:opex,belowNoi:invalid?null:belowNoi,capital:invalid?null:capital,debt:invalid?null:debt,noi:invalid?null:noi,cashFlow:invalid?null:cashFlow,margin:!invalid&&finite(noi)&&finite(revenue)&&revenue!==0?noi/revenue:null};
+ return withNoncashMetrics(metrics,lines,field,options);
+}
+// A reviewed false flag is evidence; a missing flag is not a zero charge.
+export const NONCASH_METRIC_KEYS=Object.freeze(['nonCashDepreciationAmortization','cashFlowBeforeNoncash','cashFlowAfterNoncash']);
+export function withNoncashMetrics(metrics,lines,field,{nonCashPresentation=false,unavailable=false}={}){
+ if(!nonCashPresentation&&!lines.some(row=>row.nonCashClassificationVersion===1))return metrics;
+ if(unavailable)return {...metrics,...Object.fromEntries(NONCASH_METRIC_KEYS.map(key=>[key,null]))};
+ const selected=lines.filter(row=>!(['originalBudget','selectedBaseline'].includes(field)&&row[field]===null&&row.baselineDisposition?.kind==='no_original_budget_row'));
+ if(lines.length&&!selected.length)return {...metrics,...Object.fromEntries(NONCASH_METRIC_KEYS.map(key=>[key,null]))};
+ const reviewed=selected.every(row=>row.mappingValid===true&&row.nonCashClassificationVersion===1&&typeof row.nonCash==='boolean'&&(!row.nonCash||row.nature==='below_noi'&&row.placement==='below_noi'));
+ const charge=reviewed?sumMoney(selected.filter(row=>row.nonCash).map(row=>row[field])):null;
+ return {...metrics,nonCashDepreciationAmortization:charge,cashFlowBeforeNoncash:sumMoney([metrics.cashFlow,charge]),cashFlowAfterNoncash:metrics.cashFlow};
+}
+function presentNoncashSnapshot(snapshot,registry){
+ if(registry.nonCashClassificationVersion!==1)return snapshot;
+ const result=clone(snapshot),accounts=new Map((registry.accounts||[]).map(row=>[row.accountCode,row]));
+ for(const line of result.lines){const source=line.immutable?line.inheritedDetail:accounts.get(line.accountCode),reviewed=line.immutable?source?.nonCashClassificationVersion===1:true;
+  line.nonCash=reviewed&&typeof source?.nonCash==='boolean'?source.nonCash:null;line.nonCashClassificationVersion=reviewed&&typeof source?.nonCash==='boolean'?1:null;
+ }
+ result.identity.nonCashPresentation={schemaVersion:1,classificationVersion:1,cashFlowBasis:'after_noncash_depreciation_amortization'};
+ for(const month of result.monthly){const rows=result.lines.filter(row=>row.period===month.period);
+  for(const [phase,field]of Object.entries({originalBudget:'originalBudget',selectedBaseline:'selectedBaseline',reforecast:month.closed&&!rows.some(row=>row.immutable)?'actual':'forecast',actuals:'actual'}))if(month[phase])month[phase]=withNoncashMetrics(month[phase],rows,field,{nonCashPresentation:true,unavailable:phase==='actuals'&&!month.closed||phase==='reforecast'&&month.applicable===false});
+ }
+ for(const [phase,metrics]of Object.entries(result.totals)){const selected=result.monthly.filter(row=>(phase==='originalBudget'||row.applicable!==false)&&(phase!=='actualsThroughCutoff'||row.closed));
+  const sourcePhase=phase==='actualsThroughCutoff'?'actuals':phase;
+  for(const key of NONCASH_METRIC_KEYS)metrics[key]=selected.length?sumMoney(selected.map(row=>row[sourcePhase]?.[key])):null;
+  metrics.cashFlowBeforeNoncash=sumMoney([metrics.cashFlowAfterNoncash,metrics.nonCashDepreciationAmortization]);
+ }
+ result.fingerprint=fingerprint({...result,fingerprint:undefined});return freeze(result);
 }
 const aggregate=aggregateForecastLines;
 function emptyMetrics(){return Object.fromEntries(['grossIncome','contraRevenue','revenue','opex','expenses','belowNoi','capital','debt','noi','cashFlow','margin'].map(key=>[key,null]));}
@@ -88,7 +117,8 @@ export function validateSunsetDisposition(account){
  if(!account.successorAccountCode&&account.successorDisposition!=='no_successor')issues.push({code:'sunset_disposition',message:'Specify the approved GL for new activity or explicitly choose no successor.'});
  if(account.successorAccountCode===account.accountCode)issues.push({code:'sunset_cycle',message:'A sunset GL cannot be its own successor.'});return issues;
 }
-export function computeReforecast(input){
+export function computeReforecast(input){return presentNoncashSnapshot(computeReforecastBeforeNoncash(input),input.registry||{});}
+function computeReforecastBeforeNoncash(input){
  const {communityId,baseline={},actuals={},scenario={},registry={}}=input;
  const periods=validateForecastPeriods(input.periods,{periodEvidence:actuals.closeVersions||[]});
  if(!communityId||!periods.length||periods.some(period=>!periodPattern.test(period)))throw Error('Community identity and explicit reporting periods are required.');

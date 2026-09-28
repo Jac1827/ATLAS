@@ -97,7 +97,7 @@ entries=[
 tracked={asset: list(refs) for asset,refs in entries}
 for asset in ['features/community-budget-identity.mjs','features/community-budget-settings.mjs','features/governed-budget-workspace.mjs','features/month-end-governance.mjs','features/rise-report-brand.mjs','features/rise-workbook-export.mjs','features/budget-dashboard-tasks.mjs','features/budget-consumer-delivery.mjs','features/budget-export-delivery.mjs']:
  tracked.setdefault(asset,[])
-for asset in ['features/reforecast-report-library.mjs','features/original-budget-version-report.mjs']:
+for asset in ['features/reforecast-report-library.mjs','features/original-budget-version-report.mjs','features/reforecast-noncash.mjs']:
  tracked.setdefault(asset,[])
 for asset in ['features/workbook-rich-images.mjs','features/reforecast-str-overlay.mjs','features/reforecast-authority.mjs','features/reforecast-recovery.mjs','features/reforecast-registry-proposal.mjs','features/reforecast-str-json-recovery.mjs','features/reforecast-parser-recovery.mjs','features/reforecast-str-saved-programme.mjs','features/reforecast-str-saved-programme-runtime.mjs','features/reforecast-str-saved-programme-ui.mjs','features/reforecast-str-registry-extension.mjs']:
  tracked.setdefault(asset,[])

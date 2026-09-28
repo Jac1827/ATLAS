@@ -1,0 +1,53 @@
+/** Exact optional replay boundaries; no retained startup or storage replacement. */
+export const REPLAY_CHECKPOINT_BOUNDARY_COUNT=36;
+function fn(source,name){const match=source.match(new RegExp('^(?:async )?function '+name+'\\([^\\n]*\\) \\{[\\s\\S]*?^\\}','m'));if(!match)throw Error('Missing replay boundary: '+name);return match[0];}
+export function patchReplayCheckpointBoundary(source,current){
+ const original=source,undo=[];
+ const replace=(name,before,after)=>{const body=fn(source,name);if(body.split(before).length!==2)throw Error('Ambiguous replay checkpoint boundary: '+name);source=source.replace(body,body.replace(before,after));undo.push([name,after,before]);};
+ const coreReplay=fn(current,'reprocessDataImportBoxScore');
+ const block=(a,b)=>{if(coreReplay.split(a).length!==2||coreReplay.split(b).length!==2)throw Error('Current replay checkpoint anchors changed');return coreReplay.slice(coreReplay.indexOf(a),coreReplay.indexOf(b,coreReplay.indexOf(a))+b.length);};
+ const helper=fn(current,'dataImportCreateReplayCheckpoint')+'\n\n',anchor='function dataImportSupersedeRentRollPeriods(plan, entry, result) {';
+ if(source.split(anchor).length!==2||source.includes('function dataImportCreateReplayCheckpoint('))throw Error('Replay checkpoint helper boundary changed');source=source.replace(anchor,helper+anchor);undo.push([null,helper+anchor,anchor]);
+ replace('reprocessDataImportBoxScore','  const beforeSaved = JSON.stringify(savedData);\n  const beforeImport = JSON.stringify(dataImport2State);\n  try {',block('  let checkpoint=null,beforeSaved=null,beforeImport=null,published=false;','    else {beforeSaved=JSON.stringify(savedData);beforeImport=JSON.stringify(dataImport2State);}'));
+ for(const [before,after] of [
+  ['    if (!stored?.blob)','    checkpoint?.assertCurrent();\n    if (!stored?.blob)'],
+  ['    if (!entry.fileHash || plan.fileHash','    checkpoint?.assertCurrent();\n    if (checkpoint) plan.assertReplayCurrent=checkpoint.assertCurrent;\n    if (!entry.fileHash || plan.fileHash'],
+  ['    Object.assign(entry, {communities:plan.communities, metadata:plan.metadata, dataDateIso:plan.dataDateIso, dataDateLabel:plan.dataDateLabel, reportingMonthIdx:plan.reportingMonthIdx, reportingYear:plan.reportingYear, reportingPeriodLabel:plan.reportingPeriodLabel});',block('    checkpoint?.assertCurrent();\n    const entryUpdate=','    if(checkpoint)checkpoint.updateEntry(entryUpdate);else Object.assign(entry,entryUpdate);')],
+  ['    await persistDataImportPublication();','    checkpoint?.assertCurrent();\n    await persistDataImportPublication(checkpoint || {});\n    published=true;\n    await checkpoint?.committed();'],
+  ['    savedData = JSON.parse(beforeSaved);\n    dataImport2State = JSON.parse(beforeImport);\n    persistSaved();\n    persistDataImport2State();\n    alert(`Source recovery stopped: ${error.message || error}`);',block('    if(error?.publicationCommitted){published=true;checkpoint?.retain();}','    if (!checkpoint || checkpoint.mayRender()) alert(`${published ? "The source replay committed, but its completion display stopped" : "Source recovery stopped"}: ${error.message || error}${recovery}`);')],
+  ['  } finally {\n    dataImportFinishApprovalRuntime();','  } finally {\n    if (checkpoint && !published) dataImportRuntimeLineageBuffer=null;\n    dataImportFinishApprovalRuntime();']])replace('reprocessDataImportBoxScore',before,after);
+ replace('reprocessDataImportBoxScore','    loadPropertyData(getProp().name);\n    alert(`Reprocessed','    if (!checkpoint || checkpoint.mayRender()) loadPropertyData(getProp().name);\n    if (!checkpoint || checkpoint.mayRender()) alert(`Reprocessed');
+ replace('reprocessDataImportBoxScore','    renderTab();','    if (!checkpoint || checkpoint.mayRender()) renderTab();');
+ replace('dataImportRouteStructuredFile','  const actualRowsReviewed =','  plan.assertReplayCurrent?.();\n  const actualRowsReviewed =');
+ replace('dataImportRouteStructuredFile','        await dataImportYieldToBrowser();','        await dataImportYieldToBrowser();\n        plan.assertReplayCurrent?.();');
+ replace('dataImportRouteStructuredFile','  if (result.communities.includes(getProp().name)) loadPropertyData(getProp().name);','  if (!plan.assertReplayCurrent && result.communities.includes(getProp().name)) loadPropertyData(getProp().name);');
+ replace('persistDataImportPublication','async function persistDataImportPublication() {','async function persistDataImportPublication(replay = {}) {\n  replay.assertCurrent?.();');
+ replace('persistDataImportPublication','  let failure=null;','  replay.assertCurrent?.();\n  let failure=null,publicationCommitted=false;');
+ replace('persistDataImportPublication','  await queueAtlasStateWrite(async()=>{','  const write=queueAtlasStateWrite(async()=>{');
+ replace('persistDataImportPublication','      removeLegacyCommunityStorageKeys();','      publicationCommitted=true;\n      removeLegacyCommunityStorageKeys();');
+ replace('persistDataImportPublication','  if(failure)throw failure;','  if(failure){if(publicationCommitted)failure.publicationCommitted=true;throw failure;}\n  if(!publicationCommitted)throw new Error("Import publication did not commit. Its queue or context guard stopped the write.");');
+ replace('persistDataImportPublication','    try {\n      await withAtlasStateStore','    try {\n      replay.assertCurrent?.();\n      await replay.assertRecords?.();\n      await withAtlasStateStore');
+ replace('persistDataImportPublication','        const communityRequest=store.get(ATLAS_STATE_COMMUNITY_KEY);','        if(replay.sourceKey){const sourceRequest=store.get(replay.sourceKey);sourceRequest.onsuccess=()=>{try{replay.assertRecord(replay.sourceKey,sourceRequest.result);}catch(error){failure=error;store.transaction.abort();}};}\n        const communityRequest=store.get(ATLAS_STATE_COMMUNITY_KEY);');
+ for(const [before,after] of [
+  ['          try {\n            const protect=', '          try {\n            replay.assertRecord?.(ATLAS_STATE_COMMUNITY_KEY,communityRequest.result);\n            const protect='],
+  ['          try { store.put({key:DATA_IMPORT_2_STATE_KEY','          try { replay.assertRecord?.(DATA_IMPORT_2_STATE_KEY,request.result);store.put({key:DATA_IMPORT_2_STATE_KEY'],
+  ['  },"community_and_import_publication");','  },"community_and_import_publication",null,replay);\n  replay.ownWrite?.(write);\n  await write;']])replace('persistDataImportPublication',before,after);
+ replace('queueAtlasStateWrite','function queueAtlasStateWrite(task, source = "atlas_state_write", isCurrent = null) {','function queueAtlasStateWrite(task, source = "atlas_state_write", isCurrent = null, replay = null) {\n  const replayFenceAtQueue=window.AtlasReplayWriteFence;');
+ replace('queueAtlasStateWrite','    .then(async () => {\n      await task();','    .then(async () => {\n      replayFenceAtQueue?.assert(replay);\n      window.AtlasReplayWriteFence?.assert(replay);\n      await task();');
+ for(const [name,args,guard] of [
+  ['saveCommunityData','silent = false','  if(window.AtlasReplayWriteFence){alert("Saving is paused during source replay or checkpoint recovery. Reload if recovery is pending.");return false;}'],
+  ['saveBudgetCurve','','  if(window.AtlasReplayWriteFence){alert("Saving is paused during source replay or checkpoint recovery. Reload if recovery is pending.");return false;}'],
+  ['saveAtlasCentralAppState','{ silent = false, source = "manual_central_save" } = {}','  if(window.AtlasReplayWriteFence){const message="Central Save is paused during source replay or checkpoint recovery. Reload if recovery is pending.";setAtlasCentralRuntimeMessage("",message);if(!silent)alert(message);return false;}'],
+  ['buildDashboardStorageBundle','','  const replayGeneration=Number(window.AtlasReplayGeneration||0);\n  window.AtlasReplayWriteFence?.assert(null);']
+ ]){const body=fn(source,name),line=body.split('\n')[0];replace(name,line,line+'\n'+guard);}
+ replace('buildDashboardStorageBundle','  return {\n    app:','  const indexedDb=await buildAtlasIndexedDbBundlePayload();\n  window.AtlasReplayWriteFence?.assert(null);\n  if(replayGeneration!==Number(window.AtlasReplayGeneration||0))throw new Error("Source replay changed the workspace during bundle preparation. Reload before exporting or saving this snapshot.");\n  return {\n    app:');
+ replace('buildDashboardStorageBundle','    indexedDb: await buildAtlasIndexedDbBundlePayload()','    indexedDb');
+ replace('pushDashboardSharedState','  try {\n    const localBundle = await buildDashboardStorageBundle();','  const replayGeneration=Number(window.AtlasReplayGeneration||0);\n  const checkReplay=()=>{window.AtlasReplayWriteFence?.assert(null);if(replayGeneration!==Number(window.AtlasReplayGeneration||0))throw new Error("Source replay changed the workspace while cloud save was being prepared. Reload and save a verified snapshot.");};\n  try {\n    checkReplay();\n    const localBundle = await buildDashboardStorageBundle();');
+ replace('pushDashboardSharedState','    const response = await fetch(`${DASHBOARD_SHARED_SYNC_ENDPOINT}?scope=${encodeURIComponent(DASHBOARD_SHARED_SYNC_SCOPE)}`, {\n      method: "POST",','    checkReplay();\n    const response = await fetch(`${DASHBOARD_SHARED_SYNC_ENDPOINT}?scope=${encodeURIComponent(DASHBOARD_SHARED_SYNC_SCOPE)}`, {\n      method: "POST",');
+ replace('buildAtlasCentralAppStatePayload','async function buildAtlasCentralAppStatePayload() {','async function buildAtlasCentralAppStatePayload() {\n  const replayGeneration=Number(window.AtlasReplayGeneration||0);\n  window.AtlasReplayWriteFence?.assert(null);');
+ replace('buildAtlasCentralAppStatePayload','  return {\n    app:','  const migrationSnapshotHash=await hashAtlasMigrationPayload(migrationSnapshot);\n  window.AtlasReplayWriteFence?.assert(null);\n  if(replayGeneration!==Number(window.AtlasReplayGeneration||0))throw new Error("Source replay changed the workspace during archive preparation. Reload before using this archive.");\n  return {\n    app:');
+ replace('buildAtlasCentralAppStatePayload','    migrationSnapshotHash: await hashAtlasMigrationPayload(migrationSnapshot)','    migrationSnapshotHash');
+ if(undo.length!==REPLAY_CHECKPOINT_BOUNDARY_COUNT)throw Error("Replay checkpoint boundary count requires review: "+undo.length);
+ let proof=source;for(const [name,after,before] of undo.reverse()){const body=name?fn(proof,name):proof;if(body.split(after).length!==2)throw Error('Ambiguous replay reverse proof: '+name);proof=name?proof.replace(body,body.replace(after,before)):proof.replace(after,before);}if(proof!==original)throw Error('Replay patch changed unrelated operational bytes');
+ return source;
+}

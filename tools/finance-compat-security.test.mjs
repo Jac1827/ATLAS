@@ -9,6 +9,7 @@ import {pathToFileURL} from 'node:url';
 import vm from 'node:vm';
 import {composeFinanceCompatSource,OPERATIONAL_RELEASE} from './compose-finance-compat-source.mjs';
 import {patchOccupancyImportBoundary} from './occupancy-compat-boundary.mjs';
+import {patchReplayCheckpointBoundary} from './replay-checkpoint-compat.mjs';
 import {patchOccupancyGoalEditor} from './occupancy-goal-editor-compat.mjs';
 
 const repo=path.resolve(import.meta.dirname,'..'),tmp=await fs.mkdtemp(path.join(os.tmpdir(),'atlas-finance-security-'));
@@ -25,7 +26,7 @@ try{
  assert.equal(receipt.changedOperationalFiles.length,15);assert.equal(receipt.unchangedOperationalFileCount,240);
  for(const name of ['migration-archive.js'])assert.deepEqual(await fs.readFile(path.join(out,'portfolio-operations-dashboard',name)),await fs.readFile(path.join(repo,'docs/portfolio-operations-dashboard',name)),'Only the exact reviewed archive transport is activated');
  for(const name of ['performance/feature-loader.js','centralization/atlas-central-client.js'])assert.deepEqual(await fs.readFile(path.join(out,'portfolio-operations-dashboard',name)),await fs.readFile(path.join(old,'portfolio-operations-dashboard',name)),'Archive activation preserves loader and authorization bytes');
- assert.equal(await fs.readFile(path.join(out,'portfolio-operations-dashboard/index.html'),'utf8'),patchOccupancyImportBoundary(oldIndex,await fs.readFile(path.join(repo,'docs/portfolio-operations-dashboard/workspace-core.js'),'utf8'),await fs.readFile(path.join(repo,'docs/portfolio-operations-dashboard/features/import-workspace.js'),'utf8')),'Only eleven reviewed evidence, reporting-period and replay boundaries change the retained inline index');
+ assert.equal(await fs.readFile(path.join(out,'portfolio-operations-dashboard/index.html'),'utf8'),patchReplayCheckpointBoundary(patchOccupancyImportBoundary(oldIndex,await fs.readFile(path.join(repo,'docs/portfolio-operations-dashboard/workspace-core.js'),'utf8'),await fs.readFile(path.join(repo,'docs/portfolio-operations-dashboard/features/import-workspace.js'),'utf8')),await fs.readFile(path.join(repo,'docs/portfolio-operations-dashboard/workspace-core.js'),'utf8')),'Only reviewed source and checkpoint reviewed evidence, reporting-period and replay boundaries change the retained inline index');
  assert.equal(await fs.readFile(path.join(out,'portfolio-operations-dashboard/community-goal-editor.js'),'utf8'),patchOccupancyGoalEditor(await fs.readFile(path.join(old,'portfolio-operations-dashboard/community-goal-editor.js'),'utf8'),await fs.readFile(path.join(repo,'docs/portfolio-operations-dashboard/community-goal-editor.js'),'utf8')));
  assert.deepEqual(receipt.addedOperationalFiles,['portfolio-operations-dashboard/features/occupancy-source-evidence.mjs']);
  const manifest=JSON.parse(await fs.readFile(path.join(old,'.atlas-release.json'),'utf8'));

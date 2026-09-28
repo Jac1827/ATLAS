@@ -97,6 +97,7 @@ try{
   },{mode,surface});
   assert.equal(proof.busy,false,mode+' releases busy flag');
   for(const metadata of proof.checkpointMetadata){assert.equal(metadata.actor,'original-actor');assert.equal(metadata.source.archiveId,'source');assert.equal(metadata.database,'synthetic-workspace');assert.equal(metadata.schemaVersion,1);assert(metadata.stamps.communities);assert(!Object.hasOwn(metadata,'imports'));}
+  if(surface==='retained'&&mode==='success'){assert.equal(proof.checkpoints,0);assert(proof.alerts.some(message=>message.includes('Local receipt checkpoint: '+proof.atomicReceipts[0].value.checkpoint)),'Successful replay exposes the exact committed receipt identifier after temporary checkpoint disposal');}
   if(mode==='receipt_duplicate'){assert(proof.existingReceipt.value.existingReceiptMustRemain);assert(proof.alerts.some(x=>x.includes('receipt already exists')));}
   if(surface==='retained'){assert.equal(proof.atomicReceipts.length,['success','projected_history','unrelated_during_replay','pending_during_replay','commit_readback_failure'].includes(mode)?1:0,'atomic local receipt exists exactly with native publication');if(proof.atomicReceipts.length){const receipt=proof.atomicReceipts[0].value;assert.equal(receipt.status,'committed');assert.equal(receipt.source.archiveId,'source');assert.equal(receipt.source.fileHash,'verified-hash');assert.equal(receipt.actor,'original-actor');assert.equal(receipt.database,'synthetic-workspace');assert(!Object.hasOwn(receipt,'imports'));}}
   if(mode.startsWith('normalization_')){

@@ -48489,6 +48489,7 @@ async function inspectDataImportReplayReceipt(archiveId) {
   if(!dataImportCanManageArchitecture()||!atlasAccessDecision(7).ok)return;
   const entry=(dataImport2State.sourceArchive||[]).find(row=>row.id===archiveId);
   if(!entry)throw new Error("The selected source is not loaded.");
+  if(!["rent_roll","trending_occupancy"].includes(entry.reportType)){alert("Replay receipts are available only for Rent Roll and Trending Occupancy sources.");return;}
   const name=String(prompt("Enter the checkpoint identifier from the replay message. This only reads its small receipt; it will not restore, save or delete anything.","")||"").trim();
   if(!name)return;
   if(!/^atlas_replay_checkpoint_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(name)){alert("Enter the complete checkpoint identifier from the replay message.");return;}
@@ -48830,7 +48831,7 @@ async function reprocessDataImportBoxScore(archiveId) {
     published=true;
     await checkpoint?.committed();
     if (!checkpoint || checkpoint.mayRender()) loadPropertyData(getProp().name);
-    if (!checkpoint || checkpoint.mayRender()) alert(`Reprocessed ${result.communities.length} communities from the approved original source. ${result.rowsHeld} rows held; ${result.issues.length} review items.${result.sharedRecords ? ` Published ${result.sharedRecords} Resident Data records for authorized shared access.` : ""} Newer sources and closed periods remain protected.`);
+    if (!checkpoint || checkpoint.mayRender()) alert(`Reprocessed ${result.communities.length} communities from the approved original source. ${result.rowsHeld} rows held; ${result.issues.length} review items.${result.sharedRecords ? ` Published ${result.sharedRecords} Resident Data records for authorized shared access.` : ""} Newer sources and closed periods remain protected.${checkpoint ? ` Local receipt checkpoint: ${checkpoint.name}` : ""}`);
   } catch (error) {
     if(error?.publicationCommitted){published=true;checkpoint?.retain();}
     let recovery="";

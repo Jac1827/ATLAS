@@ -96,3 +96,48 @@ test('synchronous token traversal preserves every ordered token byte without per
  try{await api.pack({},[{when:new Date('2026-09-28T00:00:00Z'),history:Array.from({length:10000},(_,i)=>i)}],Zip);}finally{hook.disable();}
  assert(promises<5000,'Primitive traversal must not allocate promises per value; observed '+promises);
 });
+
+test('rollback verification decodes, commits and verifies one logical record before opening the next',async()=>{
+ const source=fixture();source.bundle={unchanged:true};source.records.unshift({key:'small-v1',value:{zero:0,missing:null}});
+ const archive=await api.pack(source.bundle,source.records,Zip,{segmentBytes:512}),events=[];
+ const {IDBObjectStore}=require('fake-indexeddb'),originalPut=IDBObjectStore.prototype.put,originalGet=IDBObjectStore.prototype.get;
+ const TrackedZip={loadAsync:async bytes=>{const zip=await Zip.loadAsync(bytes),file=zip.file;zip.file=function(name){const item=file.apply(this,arguments);if(item&&name!=='manifest.json')events.push('decode:'+name);return item;};return zip;}};
+ IDBObjectStore.prototype.put=function(value,key){events.push('put:'+key);return originalPut.call(this,value,key);};
+ IDBObjectStore.prototype.get=function(key){events.push('get:'+key);return originalGet.call(this,key);};
+ let result;try{result=await api.verifyRestore(archive,TrackedZip);}finally{IDBObjectStore.prototype.put=originalPut;IDBObjectStore.prototype.get=originalGet;}
+ assert.equal(result.recordsRestored,source.records.length+1);
+ for(let i=0;i<source.records.length;i++){
+  const next=events.findIndex(e=>e==='decode:record-'+i+'.json'||e.startsWith('decode:record-'+i+'.json.segment-'));
+  assert(next>events.indexOf('get:'+i),'No next logical record may decode before the previous native readback');
+  assert(events.indexOf('get:'+i)>events.indexOf('put:'+i),'Native readback follows committed write');
+ }
+ assert.equal((await indexedDB.databases()).filter(d=>d.name.startsWith('atlas_migration_rollback_test_')).length,0,'Successful verification deletes isolated storage');
+});
+
+test('sequential rollback rejects all archive corruption and cleans isolated storage after read/write failures',async()=>{
+ const {bundle,records}=fixture(),archive=await api.pack(bundle,records,Zip,{segmentBytes:512});
+ for(const kind of ['fingerprint','missing','corrupt','name','count']){
+  let changed=archive;
+  if(kind==='fingerprint')changed={...archive,sha256:'0'.repeat(64)};
+  else {const zip=await unpackZip(archive),manifest=JSON.parse(await zip.file('manifest.json').async('string')),entry=manifest.entries[2];
+   if(kind==='missing')zip.remove(entry.segments[0].name);
+   if(kind==='corrupt')zip.file(entry.segments[0].name,'changed');
+   if(kind==='name')manifest.entries[2].name='record-100.json';
+   if(kind==='count')manifest.entries.pop();
+   zip.file('manifest.json',JSON.stringify(manifest));changed=await rebuild(zip,archive);
+  }
+  await assert.rejects(()=>api.verifyRestore(changed,Zip),/Migration|migration/,kind);
+  assert.equal((await indexedDB.databases()).filter(d=>d.name.startsWith('atlas_migration_rollback_test_')).length,0,kind+' cleanup');
+ }
+ const small=await api.pack({},[{key:'preserve',value:{zero:0,missing:null}}],Zip),{IDBObjectStore}=require('fake-indexeddb'),put=IDBObjectStore.prototype.put,get=IDBObjectStore.prototype.get;
+ try{
+  IDBObjectStore.prototype.put=function(value,key){if(key===1)throw Error('isolated write failure');return put.call(this,value,key);};
+  await assert.rejects(()=>api.verifyRestore(small,Zip),/isolated write failure/);
+ }finally{IDBObjectStore.prototype.put=put;}
+ assert.equal((await indexedDB.databases()).filter(d=>d.name.startsWith('atlas_migration_rollback_test_')).length,0);
+ try{
+  IDBObjectStore.prototype.get=function(key){const request=get.call(this,key);if(key===1)request.addEventListener('success',()=>{request.result.value.missing=0;});return request;};
+  await assert.rejects(()=>api.verifyRestore(small,Zip),/readback failed \(record 1\).*differs/,'Missing versus zero corruption must fail native readback');
+ }finally{IDBObjectStore.prototype.get=get;}
+ assert.equal((await indexedDB.databases()).filter(d=>d.name.startsWith('atlas_migration_rollback_test_')).length,0);
+});

@@ -176,31 +176,46 @@
     return {bundleType:TYPE,encoding:'zip+base64',sha256:await digest(bytes),bytes:bytes.length,recordCount:records.length,data:btoa(s)};
     }catch(error){throw new Error('Migration archive pack failed ('+phase+'): '+error.message,{cause:error});}
   }
-  async function unpack(archive,Zip){
-    if(archive?.bundleType!==TYPE)return {bundle:archive,records:[]};
+  async function openArchive(archive,Zip){
     let phase='archive fingerprint';
     try{
-    const raw=atob(archive.data),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
-    if(bytes.length!==archive.bytes||await digest(bytes)!==archive.sha256)throw Error('Migration archive fingerprint mismatch');
-    phase='manifest';const zip=await Zip.loadAsync(bytes),manifest=JSON.parse(await zip.file('manifest.json').async('string'));
-    if(manifest.format!==TYPE||!Array.isArray(manifest.entries)||!Number.isSafeInteger(archive.recordCount)||archive.recordCount<0||manifest.entries.length!==archive.recordCount+1)throw Error('Migration manifest is incomplete');
-    const values=[];
-    for(let i=0;i<manifest.entries.length;i++){const entry=manifest.entries[i],expected=i===0?'bundle.json':`record-${i-1}.json`;if(entry.name!==expected)throw Error('Migration record order or name is invalid');phase='record '+entry.name;values.push(await readRecord(zip,entry));}
-    return {bundle:values[0],records:values.slice(1),manifest};
+      const raw=atob(archive.data),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
+      if(bytes.length!==archive.bytes||await digest(bytes)!==archive.sha256)throw Error('Migration archive fingerprint mismatch');
+      phase='manifest';const zip=await Zip.loadAsync(bytes),manifest=JSON.parse(await zip.file('manifest.json').async('string'));
+      if(manifest.format!==TYPE||!Array.isArray(manifest.entries)||!Number.isSafeInteger(archive.recordCount)||archive.recordCount<0||manifest.entries.length!==archive.recordCount+1)throw Error('Migration manifest is incomplete');
+      for(let i=0;i<manifest.entries.length;i++)if(manifest.entries[i].name!==(i===0?'bundle.json':`record-${i-1}.json`))throw Error('Migration record order or name is invalid');
+      return {zip,manifest};
     }catch(error){throw new Error('Migration archive unpack failed ('+phase+'): '+error.message,{cause:error});}
   }
+  async function readArchiveRecord(zip,entry){
+    try{return await readRecord(zip,entry);}catch(error){throw new Error('Migration archive unpack failed (record '+entry.name+'): '+error.message,{cause:error});}
+  }
+  async function unpack(archive,Zip){
+    if(archive?.bundleType!==TYPE)return {bundle:archive,records:[]};
+    const {zip,manifest}=await openArchive(archive,Zip),values=[];
+    for(const entry of manifest.entries)values.push(await readArchiveRecord(zip,entry));
+    return {bundle:values[0],records:values.slice(1),manifest};
+  }
   async function verifyRestore(archive,Zip){
-    const restored=await unpack(archive,Zip),name='atlas_migration_rollback_test_'+crypto.randomUUID();
+    if(archive?.bundleType!==TYPE)throw Error('Unsupported migration archive for rollback verification');
+    const {zip,manifest}=await openArchive(archive,Zip),name='atlas_migration_rollback_test_'+crypto.randomUUID();
     const db=await new Promise((resolve,reject)=>{const r=indexedDB.open(name,1);r.onupgradeneeded=()=>r.result.createObjectStore('records');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
     try {
-      const values=[restored.bundle,...restored.records];
-      await new Promise((resolve,reject)=>{const tx=db.transaction('records','readwrite'),s=tx.objectStore('records');values.forEach((v,i)=>s.put(v,i));tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});
-      for(let i=0;i<values.length;i++){
-        const value=await new Promise((resolve,reject)=>{const r=db.transaction('records').objectStore('records').get(i);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
-        try{await verifyRecord(value,restored.manifest.entries[i]);}catch(error){throw new Error('Migration rollback readback failed (record '+i+'): '+error.message,{cause:error});}
+      for(let i=0;i<manifest.entries.length;i++){
+        // Keep only one decoded logical record alive. Its verified storage copy
+        // is read after the write commits and the source reference is released.
+        let value=await readArchiveRecord(zip,manifest.entries[i]);
+        await new Promise((resolve,reject)=>{const tx=db.transaction('records','readwrite');tx.objectStore('records').put(value,i);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});
+        value=null;
+        let readback=await new Promise((resolve,reject)=>{const r=db.transaction('records').objectStore('records').get(i);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
+        try{await verifyRecord(readback,manifest.entries[i]);}catch(error){throw new Error('Migration rollback readback failed (record '+i+'): '+error.message,{cause:error});}
+        readback=null;
       }
-      return {passed:true,archiveSha256:archive.sha256,recordsRestored:values.length,testedAt:new Date().toISOString()};
-    } finally {db.close();indexedDB.deleteDatabase(name);}
+      return {passed:true,archiveSha256:archive.sha256,recordsRestored:manifest.entries.length,testedAt:new Date().toISOString()};
+    } finally {
+      db.close();
+      await new Promise((resolve,reject)=>{const request=indexedDB.deleteDatabase(name);request.onsuccess=()=>resolve();request.onerror=()=>reject(request.error);});
+    }
   }
   async function publish(archive,client,chunkSize=524288,{signal,isCurrent=()=>true}={}) {
     const check=()=>{if(signal?.aborted||!isCurrent())throw new DOMException('Workspace changed during archive publication','AbortError');};

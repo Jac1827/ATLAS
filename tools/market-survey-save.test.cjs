@@ -21,6 +21,7 @@ function context() {
     renderTab() { ctx.renders++; }, renderPropGrid() { ctx.grids++; },
     handleMarketSurveyWorkbook: async () => 'A', handleMarketSurveyPdf: async () => 'A',
   };
+  ctx.window = ctx; // Browser globals and window refer to the same scope.
   vm.createContext(ctx);
   for (const name of ['awaitAtlasPersistenceResults', 'observeAtlasSaveContext', 'captureAtlasSaveContext', 'updateMarketSurveyImportInputs', 'processMarketSurveyFiles']) vm.runInContext(extract(name), ctx);
   return ctx;
@@ -49,6 +50,16 @@ test('community save waits for BOTH durable writes before success', async () => 
   assert.equal(ctx.alerts.length, 0);
   local.succeed(); await flush();
   assert.equal(ctx.alerts.length, 1); assert.match(ctx.alerts[0], /Saved data for A/);
+});
+test('active replay recovery blocks ordinary save before mutation or persistence', () => {
+  const ctx = saveContext({ ok: true }, { ok: true });
+  ctx.AtlasReplayWriteFence = { assert() { throw new Error('Replay recovery requires a coherent reload'); } };
+  ctx.persistSaved = ctx.persistOpsGlobalData = () => assert.fail('A blocked replay save must not persist');
+  ctx.storeCurrentMonthSnapshots = ctx.syncSharedPropertyFromPortfolioRecord = () => assert.fail('A blocked replay save must not mutate source state');
+  assert.equal(ctx.saveCommunityData(), false);
+  assert.deepEqual(ctx.savedData, {});
+  assert.deepEqual(ctx.monthlyData, []);
+  assert.deepEqual(ctx.alerts, ['Saving is paused during source replay or checkpoint recovery. Reload if recovery is pending.']);
 });
 for (const destination of ['community', 'settings']) {
   test(`${destination} async failure cannot display save success`, async () => {
@@ -183,7 +194,7 @@ for (const format of ['xlsx', 'pdf']) {
 }
 test('real workbook library load cannot resume after a workspace switch', async () => {
   const ctx = realHandlerContext(), library = deferred(); delete ctx.XLSX;
-  ctx.window = { AtlasFeatures: { load: () => library.result.completion } };
+  ctx.AtlasFeatures = { load: () => library.result.completion };
   const upload = ctx.handleMarketSurveyWorkbook({ name: 'survey.xlsx', arrayBuffer: () => assert.fail('stale library must not read the file') });
   ctx.ATLAS_STATE_DB_NAME = 'db-b'; library.succeed();
   assert.equal(await upload, null); assert.equal(ctx.marketSurveyImportLog.length, 0);

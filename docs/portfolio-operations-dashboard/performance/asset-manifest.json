@@ -924,8 +924,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "9c120e7da1cc625b",
-    "bytes": 3018622,
+    "sha256": "82bd3283eafbb21f",
+    "bytes": 3033898,
     "references": [
       [
         "index.html",
@@ -1398,8 +1398,8 @@
     ]
   },
   "reforecast-navigation.js": {
-    "sha256": "d335ff86a8bd0cba",
-    "bytes": 3352,
+    "sha256": "739c5c8b2a84113e",
+    "bytes": 5351,
     "references": [
       [
         "RISE-Budget-Builder.html",
@@ -1694,7 +1694,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "a2e50a2a4b75b7eb",
+    "sha256": "8c1081819ebb5b10",
     "bytes": 1888839,
     "references": [
       [
@@ -1704,7 +1704,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "7fccf8c04913647d",
+    "sha256": "1a3c7c4afc21fe1d",
     "bytes": 26893,
     "references": [
       [
@@ -1784,8 +1784,8 @@
     ]
   },
   "migration-archive.js": {
-    "sha256": "a3653101fc89c80a",
-    "bytes": 7224,
+    "sha256": "9a069e14752d4add",
+    "bytes": 21793,
     "references": [
       [
         "performance/feature-loader.js",
@@ -1854,7 +1854,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "52fcc86749896eb8",
+    "sha256": "350e4387af6fbec1",
     "bytes": 3714,
     "references": [
       [

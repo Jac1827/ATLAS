@@ -4355,10 +4355,14 @@ async function atlasStateDeleteValue(key) {
   await withAtlasStateStore("readwrite", store => store.delete(String(key)));
 }
 
-function queueAtlasStateWrite(task, source = "atlas_state_write") {
+// The third argument is retained for the operational host's existing callback contract.
+function queueAtlasStateWrite(task, source = "atlas_state_write", isCurrent = null, replay = null) {
+  const replayFenceAtQueue=window.AtlasReplayWriteFence;
   const databaseAtQueue = ATLAS_STATE_DB_NAME;
   atlasStateWritePromise = atlasStateWritePromise
     .then(async () => {
+      replayFenceAtQueue?.assert(replay);
+      window.AtlasReplayWriteFence?.assert(replay);
       if (databaseAtQueue !== ATLAS_STATE_DB_NAME) throw new DOMException("Workspace changed before the queued write", "AbortError");
       await task();
       atlasPersistenceMeta.lastSavedAt = new Date().toISOString();
@@ -14000,6 +14004,7 @@ function syncAtlasTopbar() {
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
 function saveBudgetCurve() {
+  if(window.AtlasReplayWriteFence){alert("Saving is paused during source replay or checkpoint recovery. Reload if recovery is pending.");return false;}
   savedBudgetTargets = deriveSavedBudgetTargetsFromMonthlyData(monthlyData, savedBudgetTargets);
   monthlyData = repairMonthlyBudgetTargets(monthlyData, savedBudgetTargets);
   visibleCurves.budget = true;
@@ -14045,6 +14050,7 @@ function carryForwardMonthlyData(fromMonth) {
 }
 
 function saveCommunityData(silent = false) {
+  if(window.AtlasReplayWriteFence){alert("Saving is paused during source replay or checkpoint recovery. Reload if recovery is pending.");return false;}
   if (activeTab === 1 && !isCommunitySettingsAdmin()) return false;
   const isCurrent = captureAtlasSaveContext();
   const scopeCommunityName = isPortfolioWorkspaceSelected()
@@ -16170,7 +16176,10 @@ async function pullDashboardSharedState({ silent = false, applyRemoteIfNewer = t
 }
 
 async function pushDashboardSharedState({ silent = false, source = "manual" } = {}) {
+  const replayGeneration=Number(window.AtlasReplayGeneration||0);
+  const checkReplay=()=>{window.AtlasReplayWriteFence?.assert(null);if(replayGeneration!==Number(window.AtlasReplayGeneration||0))throw new Error("Source replay changed the workspace while cloud save was being prepared. Reload and save a verified snapshot.");};
   try {
+    checkReplay();
     const localBundle = await buildDashboardStorageBundle();
     let bundle = localBundle;
     try {
@@ -16190,6 +16199,7 @@ async function pushDashboardSharedState({ silent = false, source = "manual" } = 
       if (!silent) alert(`Cloud push unavailable: ${dashboardSharedSyncMeta.lastError}`);
       return false;
     }
+    checkReplay();
     const response = await fetch(`${DASHBOARD_SHARED_SYNC_ENDPOINT}?scope=${encodeURIComponent(DASHBOARD_SHARED_SYNC_SCOPE)}`, {
       method: "POST",
       headers: {
@@ -16262,6 +16272,8 @@ async function buildAtlasIndexedDbBundlePayload() {
 }
 
 async function buildDashboardStorageBundle() {
+  const replayGeneration=Number(window.AtlasReplayGeneration||0);
+  window.AtlasReplayWriteFence?.assert(null);
   suppressDashboardSharedSyncPush = true;
   suppressAtlasCentralAutosave = true;
   try {
@@ -16279,13 +16291,16 @@ async function buildDashboardStorageBundle() {
       if (raw !== null) storage[key] = raw;
     } catch {}
   });
+  const indexedDb=await buildAtlasIndexedDbBundlePayload();
+  window.AtlasReplayWriteFence?.assert(null);
+  if(replayGeneration!==Number(window.AtlasReplayGeneration||0))throw new Error("Source replay changed the workspace during bundle preparation. Reload before exporting or saving this snapshot.");
   return {
     app: "atlas-rise-ops-dashboard",
     bundleType: "atlas_browser_storage_bundle_v2",
     exportedAt: new Date().toISOString(),
     sourceLabel: "ATLAS RISE Ops Dashboard",
     keys: storage,
-    indexedDb: await buildAtlasIndexedDbBundlePayload()
+    indexedDb
   };
 }
 
@@ -18711,6 +18726,8 @@ function redactAtlasCentralStorageBundle(bundle = {}) {
 }
 
 async function buildAtlasCentralAppStatePayload() {
+  const replayGeneration=Number(window.AtlasReplayGeneration||0);
+  window.AtlasReplayWriteFence?.assert(null);
   await Promise.all([window.AtlasFeatures?.load("zip"), window.AtlasFeatures?.load("migrationArchive")]);
   const migrationSnapshot = await collectAtlasCentralMigrationSnapshot();
   const bundle = redactAtlasCentralStorageBundle(await buildDashboardStorageBundle());
@@ -18740,6 +18757,9 @@ async function buildAtlasCentralAppStatePayload() {
   const restoredStorage = Object.fromEntries(Object.entries(restored.bundle.keys || {}).map(([key,value]) => [key,{parsed:parseAtlasMigrationJson(value)}]));
   const restoredSummary = buildAtlasMigrationReconciliationSummary(restored.bundle.indexedDb.communityData, restoredStorage, restored.bundle.indexedDb);
   if (JSON.stringify(restoredSummary) !== JSON.stringify(migrationSnapshot.reconciliation)) throw new Error("Migration round-trip reconciliation differs from the source. No central publication was performed.");
+  const migrationSnapshotHash=await hashAtlasMigrationPayload(migrationSnapshot);
+  window.AtlasReplayWriteFence?.assert(null);
+  if(replayGeneration!==Number(window.AtlasReplayGeneration||0))throw new Error("Source replay changed the workspace during archive preparation. Reload before using this archive.");
   return {
     app: "atlas-rise-ops-dashboard",
     documentType: "atlas_central_app_state_v1",
@@ -18757,11 +18777,12 @@ async function buildAtlasCentralAppStatePayload() {
     sharedData: normalizeAtlasSharedData(atlasSharedData),
     reconciliation: migrationSnapshot.reconciliation,
     exceptions: migrationSnapshot.exceptions,
-    migrationSnapshotHash: await hashAtlasMigrationPayload(migrationSnapshot)
+    migrationSnapshotHash
   };
 }
 
 async function saveAtlasCentralAppState({ silent = false, source = "manual_central_save" } = {}) {
+  if(window.AtlasReplayWriteFence){const message="Central Save is paused during source replay or checkpoint recovery. Reload if recovery is pending.";setAtlasCentralRuntimeMessage("",message);if(!silent)alert(message);return false;}
   if (saveAtlasCentralAppState.inFlight) {
     if (!silent) alert("A Central Save is already running. Newer edits remain in this browser; save again after it finishes.");
     return false;
@@ -45324,22 +45345,30 @@ function persistDataImport2State() {
     dataImportHistoryBase={...value,historyStorage:{...value.historyStorage,revision:dataImportHistoryRevision}};
   },'data_import_2_state');
 }
-async function persistDataImportPublication() {
+async function persistDataImportPublication(replay = {}) {
+  replay.assertCurrent?.();
   const communitySnapshot=buildSerializedSavedDataPayload(),importSnapshot=serializeDataImport2State(),context=getAtlasRenderContextKey();
   if(importSnapshot.historyStorage?.view!=='full')throw new Error('Complete canonical import evidence is required before publication.');
-  let failure=null;
-  await queueAtlasStateWrite(async()=>{
+  let failure=null,publicationCommitted=false;
+  const write=queueAtlasStateWrite(async()=>{
     try{
+      replay.assertCurrent?.();
       if(context!==getAtlasRenderContextKey())throw new Error('Workspace changed before import publication.');
       const captured=await dataImportHistoryOperation('records',{keys:[ATLAS_STATE_COMMUNITY_KEY]});
+      await replay.assertRecords?.();
+      replay.assertCurrent?.();
       const prior=captured.records[0],protect=window.AtlasOccupancyReplay?.protectCommittedOccupancy;
       const value=protect?protect(communitySnapshot,prior.value):communitySnapshot;
       const receipt=await dataImportHistoryOperation('publish',{value:importSnapshot,expectedRevision:dataImportHistoryRevision,records:[{key:ATLAS_STATE_COMMUNITY_KEY,value,expectedHash:prior.hash}]});
+      publicationCommitted=true;
       if(context!==getAtlasRenderContextKey())return;
       dataImport2State=normalizeDataImport2State(receipt.state);rememberDataImportHistoryState();removeLegacyCommunityStorageKeys();
     }catch(error){failure=error;throw error;}
-  },'community_and_import_publication');
-  if(failure)throw failure;
+  },'community_and_import_publication',null,replay);
+  replay.ownWrite?.(write);
+  await write;
+  if(failure){if(publicationCommitted)failure.publicationCommitted=true;throw failure;}
+  if(!publicationCommitted)throw new Error("Import publication did not commit. Its queue or context guard stopped the write.");
 }
 async function setDataImport2View(view) {
   for(const page of Object.values(dataImportHistoryPages))page.controller?.abort();
@@ -47610,6 +47639,7 @@ function openDataImportExceptionMapping(issueId) {
 async function dataImportRouteStructuredFile(file, plan, batchId) {
   if (plan.reportType === "box_score") await refreshDataImportSharedLeadMappings();
   const sheets = await dataImportReadStructuredRows(file, plan);
+  plan.assertReplayCurrent?.();
   const actualRowsReviewed = sheets.reduce((total, sheet) => total + sheet.rows.length, 0);
   const previewRowsReviewed = Number(plan.rowCount || 0);
   if (dataImportApprovalInProgress && actualRowsReviewed !== previewRowsReviewed) {
@@ -47668,6 +47698,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
           fileName: plan.name
         });
         await dataImportYieldToBrowser();
+        plan.assertReplayCurrent?.();
       }
       if (plan.reportType === "delinquency" && Object.values(sourceRow.values || {}).slice(0, 2).some(value => /^(?:grand\s+)?(?:sub)?total\s*:?$/i.test(String(value || "").trim()))) continue;
       const { mapped, sourceFields, unmappedFields } = dataImportMapSourceRow(sourceRow, plan, mappingCache);
@@ -47804,7 +47835,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
   } else {
     persistSaved();
   }
-  if (result.communities.includes(getProp().name)) loadPropertyData(getProp().name);
+  if (!plan.assertReplayCurrent && result.communities.includes(getProp().name)) loadPropertyData(getProp().name);
   dataImportRecordPlanLearningUsage(plan);
   return result;
 }
@@ -48230,6 +48261,145 @@ function dataImportResolveReplayedDelinquencyExceptions(entry, result) {
   return resolved;
 }
 
+async function dataImportCreateReplayCheckpoint(entry) {
+  // Native IndexedDB cloning retains nulls, Blobs and the complete loaded
+  // history without one giant JSON string. Native reads still require memory.
+  const central=window.ATLAS_CENTRAL, actor=central?.getSession?.()?.user?.id || "";
+  const authScope=()=>central?.getAccessContextKey?.() ?? JSON.stringify([central?.getConfig?.()?.supabaseUrl,central?.getStoredProfile?.()]);
+  const access=authScope(), database=ATLAS_STATE_DB_NAME;
+  const epoch=typeof atlasWorkspaceAccess === "undefined" ? null : atlasWorkspaceAccess.epoch;
+  const signal=typeof atlasWorkspaceAccess === "undefined" ? null : atlasWorkspaceAccess.controller?.signal;
+  const contextKey=()=>typeof getAtlasRenderContextKey === "function" ? getAtlasRenderContextKey() : JSON.stringify([
+    typeof activeTab === "undefined" ? null : activeTab,typeof workspaceScopeValue === "undefined" ? null : workspaceScopeValue,
+    getProp()?.name,getSelectedDashboardMonthIndex(),savedData?.[getProp()?.name]?.reportYear,central?.getStoredProfile?.()]);
+  const context=contextKey();
+  const roots={saved:savedData,imports:dataImport2State};
+  const sourceIdentity=()=>JSON.stringify([entry.id,entry.fileHash,entry.importStatus,entry.reportType,entry.communities]);
+  const identity=sourceIdentity();let currentIdentity=identity;
+  let writeQueue=atlasStateWritePromise, db=null, captured=false,checkpoint=null,fence=null;
+  const name="atlas_replay_checkpoint_"+crypto.randomUUID();
+  const mayRender=()=>central===window.ATLAS_CENTRAL && actor===(central?.getSession?.()?.user?.id || "")
+    && access===authScope() && database===ATLAS_STATE_DB_NAME && !signal?.aborted
+    && (typeof atlasWorkspaceAccess === "undefined" || epoch===atlasWorkspaceAccess.epoch) && dataImportCanManageArchitecture();
+  const assertCurrent=(allowNavigation=false)=>{
+    if (!mayRender() || (!allowNavigation && context!==contextKey())
+        || roots.saved!==savedData || roots.imports!==dataImport2State
+        || writeQueue!==atlasStateWritePromise
+        || !(dataImport2State.sourceArchive || []).includes(entry)
+        || currentIdentity!==sourceIdentity()) {
+      throw new Error("The account, workspace, approved source or saved data changed during replay. The checkpoint was retained; reload before recovering it.");
+    }
+  };
+  const keys=[ATLAS_STATE_COMMUNITY_KEY,DATA_IMPORT_2_STATE_KEY,DATA_IMPORT_FILE_ARCHIVE_PREFIX+entry.id],stamps=new Map();
+  const stamp=row=>row ? JSON.stringify([true,row.updatedAt]) : JSON.stringify([false]);
+  const sameValue=async(left,right)=>{
+    function* pairs(a,b){
+      if(Object.is(a,b))return;
+      if(a===null||b===null||typeof a!==typeof b||typeof a!=="object"){yield [a,b,false];return;}
+      if(a instanceof Blob || b instanceof Blob){yield [a,b,"blob"];return;}
+      if(a instanceof Date || b instanceof Date){yield [a,b,"date"];return;}
+      if(Array.isArray(a)!==Array.isArray(b)){yield [a,b,false];return;}
+      if(Array.isArray(a)){if(a.length!==b.length){yield [a,b,false];return;}for(let i=0;i<a.length;i++)yield* pairs(a[i],b[i]);return;}
+      if(Object.prototype.toString.call(a)!=="[object Object]"||Object.prototype.toString.call(b)!=="[object Object]"){yield [a,b,false];return;}
+      const keys=Object.keys(a);if(keys.length!==Object.keys(b).length){yield [a,b,false];return;}
+      for(const key of keys){if(!Object.hasOwn(b,key)){yield [a,b,false];return;}yield* pairs(a[key],b[key]);}
+    }
+    for(const [a,b,type] of pairs(left,right)){
+      if(type==="date"){if(!(a instanceof Date)||!(b instanceof Date)||!Object.is(a.getTime(),b.getTime()))return false;continue;}
+      if(type!=="blob"||!(a instanceof Blob)||!(b instanceof Blob)||a.size!==b.size||a.type!==b.type)return false;
+      for(let offset=0;offset<a.size;offset+=65536){const [aa,bb]=await Promise.all([a.slice(offset,offset+65536).arrayBuffer(),b.slice(offset,offset+65536).arrayBuffer()]);assertCurrent();const av=new Uint8Array(aa),bv=new Uint8Array(bb);for(let i=0;i<av.length;i++)if(av[i]!==bv[i])return false;}
+    }
+    return true;
+  };
+  const importValues=value=>{
+    const preferences=new Set(["updatedAt","historyStorage","pendingBatch","activeView","selectedMappingIds","selectedMappingPreviewId","mappingReviewFilter","mappingSourceFilter","mappingReportFilter","mappingBatchFilter","mappingSearch","selectedIssueKey","activeQuestionReviewKey","activeQuestionId","selectedQuestionIds","expandedQuestionSampleIds","questionReviewFilter","activeCustomFieldContext","pendingIgnoreAllKey"]);
+    return Object.fromEntries(Object.entries(value||{}).filter(([key])=>!preferences.has(key)));
+  };
+  const comparisonImportValues=async value=>{
+    // Older loaders inject raw default rules before a later normalization adds
+    // their metadata. Compare a verified fixed point on both sides, without
+    // changing either source or copying/stringifying the retained history.
+    let current=importValues(normalizeDataImport2State(value));
+    for(let pass=0;pass<3;pass++){
+      const next=importValues(normalizeDataImport2State(current));
+      const stable=await sameValue(current,next);assertCurrent();
+      if(stable)return next;
+      current=next;
+    }
+    throw new Error("Import history normalization did not stabilize. Reload and review the retained mappings before replaying.");
+  };
+  const readStamps=async(allowNavigation=false,verifyInitial=false)=>{
+    const out=new Map();
+    for (const key of keys) {
+      const row=await withAtlasStateStore("readonly",store=>store.get(key));assertCurrent(allowNavigation);
+      if (row && !row.updatedAt) throw new Error("Replay requires a versioned local storage record before replacing it.");
+      if(verifyInitial && key===ATLAS_STATE_COMMUNITY_KEY){
+        if(!row || !await sameValue(buildSerializedSavedDataPayload(),row.value))throw new Error("The loaded community data differs from local storage. Reload before replaying the retained source.");
+      }
+      if(verifyInitial && key===DATA_IMPORT_2_STATE_KEY){
+        const split=row?.value?.__atlasImportHistory===2;
+        let verified=split && dataImport2State.historyStorage?.view==="full" && dataImport2State.historyStorage?.revision===row.value.revision;
+        if(!split && row){
+          const loaded=await comparisonImportValues(dataImport2State),stored=await comparisonImportValues(row.value);
+          const snapshots=new Map();for(const batch of stored.batches||[]){if(snapshots.has(batch.id))snapshots.set(batch.id,null);else snapshots.set(batch.id,batch);}
+          loaded.batches=(loaded.batches||[]).map(batch=>{
+            if(!batch.beforeSnapshotRef)return batch;
+            const prior=snapshots.get(batch.id),ref=batch.beforeSnapshotRef;
+            if(!prior?.beforeSnapshot || ref.batchId!==batch.id || String(prior.beforeSnapshot.capturedAt||"")!==String(ref.capturedAt||""))throw new Error("Retained rollback evidence is missing or has changed. Reload before replaying.");
+            const {beforeSnapshotRef,...summary}=batch;return {...summary,beforeSnapshot:prior.beforeSnapshot};
+          });
+          verified=await sameValue(loaded,stored);
+        }
+        if(!verified)throw new Error("The loaded import history differs from local storage. Reload its complete evidence before replaying.");
+      }
+      out.set(key,stamp(row));
+    }
+    return out;
+  };
+  const assertRecord=(key,row)=>{assertCurrent();if(stamps.has(key)&&stamps.get(key)!==stamp(row))throw new Error("A newer local record was saved during replay. Reload before recovering the retained checkpoint.");};
+  const assertRecords=async(allowNavigation=false)=>{const next=await readStamps(allowNavigation);for(const key of keys)if(next.get(key)!==stamps.get(key))throw new Error("A newer local record was saved during replay. Reload before recovering the retained checkpoint.");};
+  const transact=(mode,action)=>new Promise((resolve,reject)=>{
+    const tx=db.transaction("checkpoint",mode);let request;
+    try {request=action(tx.objectStore("checkpoint"));} catch(error){tx.abort();reject(error);return;}
+    tx.oncomplete=()=>resolve(request?.result);tx.onerror=tx.onabort=()=>reject(tx.error || request?.error || new Error("Replay checkpoint transaction failed."));
+  });
+  const dispose=async()=>{
+    db?.close();db=null;
+    await new Promise((resolve,reject)=>{const request=indexedDB.deleteDatabase(name);request.onsuccess=resolve;request.onerror=()=>reject(request.error);request.onblocked=()=>reject(new Error("Replay checkpoint cleanup is blocked; checkpoint retained."));});
+  };
+  try {
+    assertCurrent();await writeQueue;assertCurrent();
+    if(typeof saveAtlasCentralAppState === "function" && saveAtlasCentralAppState.inFlight)throw new Error("A Central Save is in progress. Wait for its verified completion before replaying the source.");
+    window.AtlasReplayWriteFence?.assert(null);
+    window.AtlasReplayGeneration=Number(window.AtlasReplayGeneration||0)+1;
+    fence={assert(request){if(request!==checkpoint || !checkpoint || !mayRender())throw new Error("Saving is paused while source replay or checkpoint recovery is active. Reload this workspace before saving unrelated changes.");}};
+    window.AtlasReplayWriteFence=fence;
+    for(const [key,value] of await readStamps(false,true))stamps.set(key,value);
+    db=await new Promise((resolve,reject)=>{const request=indexedDB.open(name,1);request.onupgradeneeded=()=>request.result.createObjectStore("checkpoint");request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
+    assertCurrent();
+    await transact("readwrite",store=>store.put({schemaVersion:1,actor,access,database,identity,createdAt:new Date().toISOString(),saved:savedData,imports:dataImport2State},"before"));
+    captured=true;assertCurrent();
+    checkpoint={name,mayRender,assertCurrent,assertRecord,assertRecords,sourceKey:keys[2],ownWrite:promise=>{writeQueue=promise;},
+      updateEntry(value){assertCurrent();Object.assign(entry,value);currentIdentity=sourceIdentity();},
+      async restore(){
+        assertCurrent(true);await assertRecords(true);const prior=await transact("readonly",store=>store.get("before"));assertCurrent(true);
+        if (!prior || prior.schemaVersion!==1 || prior.actor!==actor || prior.access!==access || prior.database!==database || prior.identity!==identity) throw new Error("Replay checkpoint identity could not be verified.");
+        savedData=prior.saved;dataImport2State=prior.imports;
+        loadPropertyData(getProp().name);
+        // Failed publication is atomic. Never overwrite disk with a compensating
+        // save that might replace a newer version from another tab or account.
+        await dispose();if(window.AtlasReplayWriteFence===fence)delete window.AtlasReplayWriteFence;
+      },
+      async committed(){await dispose();if(window.AtlasReplayWriteFence===fence)delete window.AtlasReplayWriteFence;},
+      retain(){db?.close();db=null;}
+    };
+    return checkpoint;
+  } catch(error) {
+    if (captured) {db?.close();error.message+=` Checkpoint retained: ${name}`;}else {await dispose().catch(()=>{});if(window.AtlasReplayWriteFence===fence)delete window.AtlasReplayWriteFence;}
+    throw error;
+  }
+}
+
 function dataImportSupersedeRentRollPeriods(plan, entry, result) {
   const period = dataImportRowPeriod({}, {}, plan);
   const communities = new Set((plan.selectedCommunities || []).map(dataImportNormalizeText));
@@ -48330,13 +48500,17 @@ async function reprocessDataImportBoxScore(archiveId) {
   const entry = (dataImport2State.sourceArchive || []).find(item => item.id === archiveId);
   if (!entry || !["box_score", "trending_occupancy", "delinquency", "leasing_resident_data", "rent_roll"].includes(entry.reportType) || entry.importStatus !== "Approved") return;
   dataImportApprovalInProgress = true;
-  const beforeSaved = JSON.stringify(savedData);
-  const beforeImport = JSON.stringify(dataImport2State);
+  let checkpoint=null,beforeSaved=null,beforeImport=null,published=false;
   try {
+    if (["rent_roll","trending_occupancy"].includes(entry.reportType)) checkpoint=await dataImportCreateReplayCheckpoint(entry);
+    else {beforeSaved=JSON.stringify(savedData);beforeImport=JSON.stringify(dataImport2State);}
     const stored = await atlasStateGetValue(`${DATA_IMPORT_FILE_ARCHIVE_PREFIX}${archiveId}`);
+    checkpoint?.assertCurrent();
     if (!stored?.blob) throw new Error("The original source is unavailable in this browser archive.");
     const file = new File([stored.blob], stored.fileName || entry.fileName, {type:stored.type});
     const plan = await dataImportBuildFilePlan(file,{forceReportType:entry.reportType});
+    checkpoint?.assertCurrent();
+    if (checkpoint) plan.assertReplayCurrent=checkpoint.assertCurrent;
     if (!entry.fileHash || plan.fileHash !== entry.fileHash) throw new Error("The retained source hash does not match its approved archive entry.");
     plan.metadata = {...entry.metadata,...plan.metadata,receivedAt:entry.uploadedAt || entry.metadata?.receivedAt || "",dataAsOf:plan.metadata?.dataAsOf || entry.metadata?.dataAsOf || ""};
     plan.dataDateIso = plan.metadata?.dataAsOf || plan.dataDateIso || entry.dataDateIso;
@@ -48376,26 +48550,37 @@ async function reprocessDataImportBoxScore(archiveId) {
       result = {communities:shared.map(item => item.records[0]?.atlasName).filter(Boolean),rowsHeld:0,issues:[],sharedRecords:shared.reduce((sum,item)=>sum+item.records.length,0)};
       plan.communities = result.communities;
     }
-    Object.assign(entry, {communities:plan.communities, metadata:plan.metadata, dataDateIso:plan.dataDateIso, dataDateLabel:plan.dataDateLabel, reportingMonthIdx:plan.reportingMonthIdx, reportingYear:plan.reportingYear, reportingPeriodLabel:plan.reportingPeriodLabel});
+    checkpoint?.assertCurrent();
+    const entryUpdate={communities:plan.communities, metadata:plan.metadata, dataDateIso:plan.dataDateIso, dataDateLabel:plan.dataDateLabel, reportingMonthIdx:plan.reportingMonthIdx, reportingYear:plan.reportingYear, reportingPeriodLabel:plan.reportingPeriodLabel};
+    if(checkpoint)checkpoint.updateEntry(entryUpdate);else Object.assign(entry,entryUpdate);
     dataImportFinishApprovalRuntime();
     if (entry.reportType === "rent_roll") result.periodCorrection = dataImportSupersedeRentRollPeriods(plan, entry, result);
     entry.reprocessedAt = new Date().toISOString();
     result.mappingExceptionsResolved = dataImportResolveReplayedDelinquencyExceptions(entry, result);
     entry.reprocessResult = result;
     dataImport2State.reconciliationLog.unshift({id:dataImportMakeId("reprocess"),batchId:entry.batchId,reportType:entry.reportType,fileName:entry.fileName,formula:"Approved archived source reconciled with section-qualified mapping and report-level dates; source file unchanged.",createdAt:entry.reprocessedAt});
-    await persistDataImportPublication();
-    loadPropertyData(getProp().name);
-    alert(`Reprocessed ${result.communities.length} communities from the approved original source. ${result.rowsHeld} rows held; ${result.issues.length} review items.${result.sharedRecords ? ` Published ${result.sharedRecords} Resident Data records for authorized shared access.` : ""} Newer sources and closed periods remain protected.`);
+    checkpoint?.assertCurrent();
+    await persistDataImportPublication(checkpoint || {});
+    published=true;
+    await checkpoint?.committed();
+    if (!checkpoint || checkpoint.mayRender()) loadPropertyData(getProp().name);
+    if (!checkpoint || checkpoint.mayRender()) alert(`Reprocessed ${result.communities.length} communities from the approved original source. ${result.rowsHeld} rows held; ${result.issues.length} review items.${result.sharedRecords ? ` Published ${result.sharedRecords} Resident Data records for authorized shared access.` : ""} Newer sources and closed periods remain protected.`);
   } catch (error) {
-    savedData = JSON.parse(beforeSaved);
-    dataImport2State = JSON.parse(beforeImport);
-    persistSaved();
-    persistDataImport2State();
-    alert(`Source recovery stopped: ${error.message || error}`);
+    if(error?.publicationCommitted){published=true;checkpoint?.retain();}
+    let recovery="";
+    if (checkpoint && !published) {
+      try {await checkpoint.restore();} catch(restoreError) {checkpoint.retain();recovery=` No rollback was applied. Publication may have committed or newer data may exist; reload to verify the outcome. ${restoreError.message} Checkpoint: ${checkpoint.name}`;}
+    } else if (!checkpoint && beforeSaved!==null && beforeImport!==null && !published) {
+      savedData=JSON.parse(beforeSaved);dataImport2State=JSON.parse(beforeImport);
+      persistSaved();persistDataImport2State();
+    }
+    if (checkpoint && !checkpoint.mayRender()) alert("Source replay was interrupted by an access or workspace change. Reload this workspace before saving; its recovery checkpoint remains retained.");
+    if (!checkpoint || checkpoint.mayRender()) alert(`${published ? "The source replay committed, but its completion display stopped" : "Source recovery stopped"}: ${error.message || error}${recovery}`);
   } finally {
+    if (checkpoint && !published) dataImportRuntimeLineageBuffer=null;
     dataImportFinishApprovalRuntime();
     dataImportApprovalInProgress = false;
-    renderTab();
+    if (!checkpoint || checkpoint.mayRender()) renderTab();
   }
 }
 

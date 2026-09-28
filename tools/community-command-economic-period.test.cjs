@@ -101,6 +101,29 @@ function envelope(communityId,period,netRentalIncome=75,grossPotentialRent=100){
  assert.equal(noPrior.read(alpha).priorPct,null);assert.equal(noPrior.read(alpha).variance,null,'Missing exact preceding month does not become zero variance');
  assert.equal(noPrior.read(alpha,7).state,'closed_exact');
  assert.equal(noPrior.read(alpha,6).state,'missing_historical_close');
+ const freshHistorical=fixture();freshHistorical.set(alpha,'2026-08',75);await freshHistorical.load(freshHistorical.scope(7).requestedPeriods,[alpha]);
+ const historicalFresh=freshHistorical.read(alpha,7),historicalWarm=f.read(alpha,7);
+ assert.equal(freshHistorical.cache.envelope(alpha.community_id,'2026-07'),null);
+ assert.equal(f.cache.get(alpha.community_id,'2026-07').metrics.netRentalIncome,70,'The warm fixture retains an actual July close');
+ for(const economic of [historicalFresh,historicalWarm]){
+  assert.equal(economic.closedPct,75);assert.equal(economic.displayedClosePeriod,'2026-08');
+  assert.equal(economic.priorPct,null,'Historical August cannot compare to July outside its exact requested scope');
+  assert.equal(economic.priorClosePeriod,null);assert.equal(economic.variance,null,'Historical variance is independent of previous navigation');
+ }
+ assert.deepEqual(freshHistorical.queued.at(-1).periods,['2026-08']);assert.deepEqual(f.queued.at(-1).periods,['2026-08']);
+ const boundary=fixture(),boundaryScope=boundary.scope(),oldestPeriod=boundaryScope.requestedPeriods.at(-1),outsidePeriod=boundary.ctx.shiftAccountingPeriod(oldestPeriod,-1);
+ boundary.set(alpha,oldestPeriod,20);boundary.set(alpha,outsidePeriod,10);await boundary.load(boundaryScope.requestedPeriods,[alpha]);
+ const boundaryFresh=boundary.read(alpha);
+ await boundary.load([outsidePeriod],[alpha]);
+ assert.equal(boundary.cache.get(alpha.community_id,outsidePeriod).metrics.netRentalIncome,10,'An earlier visit has warmed the month outside the window');
+ const boundaryWarm=boundary.read(alpha);
+ for(const economic of [boundaryFresh,boundaryWarm]){
+  assert.equal(economic.displayedClosePeriod,oldestPeriod);assert.equal(economic.closedPct,20);
+  assert.equal(economic.priorPct,null,'The oldest eligible close cannot compare beyond the 12-month requested window');
+  assert.equal(economic.priorClosePeriod,null);assert.equal(economic.variance,null);
+ }
+ assert.deepEqual(boundary.queued.at(-1).periods,boundaryScope.requestedPeriods);assert.equal(boundaryScope.requestedPeriods.length,12);assert(!boundaryScope.requestedPeriods.includes(outsidePeriod));
+ console.log('PASS historical and 12-month-boundary comparisons are identical with fresh and previously warmed caches');
  const january=fixture('2026-01-12');january.set(alpha,'2025-12',33);january.set(alpha,'2025-11',30);
  assert.equal(january.scope(0).eligibleThrough,'2025-12');assert(january.scope(0).requestedPeriods.includes('2025-12'));
  await january.load(january.scope(0).requestedPeriods,[alpha]);

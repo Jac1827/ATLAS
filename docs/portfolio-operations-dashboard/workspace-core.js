@@ -22974,7 +22974,9 @@ function getCommunityCommandEconomicOccupancyData(record = {}, monthIdx = getSel
   const grossPotentialRent = close ? normalizeOptionalNumber(close.metrics.grossPotentialRent) : null;
   const closedPct = close ? netRentalIncome / grossPotentialRent * 100 : null;
   const priorPeriod = close ? shiftAccountingPeriod(close.period_key, -1) : null;
-  const prior = priorPeriod ? cache.envelope(name, priorPeriod) : null;
+  // Compare only ready cells in this requested scope, so previously visited
+  // months cannot change historical or boundary-window results.
+  const prior = priorPeriod && scope.requestedPeriods.includes(priorPeriod) && cache.scopeState(name, [priorPeriod]) === "ready" ? cache.envelope(name, priorPeriod) : null;
   const priorPct = prior && cache.isGovernedEconomicClose(prior) ? Number(prior.close.metrics.netRentalIncome) / Number(prior.close.metrics.grossPotentialRent) * 100 : null;
   const result = {selectedPeriod:scope.selectedPeriod,currentPeriod:scope.currentPeriod,displayedClosePeriod:close?.period_key || null,state,closedPct,
     // Compatibility only: this is a governed closed-month percentage, never an MTD proxy.

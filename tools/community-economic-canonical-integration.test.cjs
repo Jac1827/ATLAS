@@ -7,7 +7,7 @@ const {migrationHistoryFixture}=require('./migration-history-fixture.cjs');
 (async()=>{
  const {db,migrations}=await migrationHistoryFixture({includeLater:true});
  try{
-  assert(migrations.includes('20260928213956_community_plan_governed_economic_occupancy.sql'));
+  assert(migrations.includes('20260928215716_community_plan_governed_economic_occupancy.sql'));
   const admin=randomUUID(),authorized=randomUUID(),outside=randomUUID(),community=randomUUID(),other=randomUUID();
   for(const [id,name]of [[community,'Synthetic Accounting Community'],[other,'Synthetic Separate Community']])
    await db.query("insert into atlas_communities(community_id,canonical_name,display_name,status) values($1,$2,$2,'active')",[id,name]);

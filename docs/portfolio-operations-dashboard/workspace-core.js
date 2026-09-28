@@ -46743,9 +46743,22 @@ async function dataImportReadStructuredRows(file, plan = {}) {
   if (typeof XLSX === "undefined") throw new Error("The spreadsheet reader is unavailable in this ATLAS session.");
   const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false });
   const sheets = [];
+  const occupancySourceParser = ["box_score", "rent_roll", "delinquency"].includes(plan.reportType)
+    ? (await import("./features/occupancy-source-evidence.mjs")).parseOccupancySheet : null;
+  plan.occupancyEvidenceBySheet = {};
+  const occupancyParameterSheet = (workbook.SheetNames || []).find(name => /^report parameters$/i.test(name.trim()));
+  const occupancyReportParameters = occupancySourceParser && occupancyParameterSheet
+    ? XLSX.utils.sheet_to_json(workbook.Sheets[occupancyParameterSheet], {header:1,defval:null,raw:true,range:0}) : [];
   (workbook.SheetNames || []).forEach(sheetName => {
     if (dataImportIsMetadataSheetName(sheetName)) return;
     const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false, blankrows: true });
+    if (occupancySourceParser) {
+      // Keep cached source precision for aggregate evidence; formatted display values may round cents.
+      const evidenceRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {header:1,defval:null,raw:true,blankrows:true,range:0});
+      const evidence = occupancySourceParser({rows:evidenceRows,reportType:plan.reportType,sourceSheet:sheetName,
+        metadata:plan.metadata || {},fileHash:plan.fileHash || "",sourceFile:plan.name || file.name,reportParameters:occupancyReportParameters});
+      if (evidence) plan.occupancyEvidenceBySheet[sheetName] = evidence;
+    }
     if (plan.reportType === "renewal_tracker" && window.atlasCsPreviewRenewalSheetRows) {
       const prepared = window.atlasCsPreviewRenewalSheetRows(annotateRenewalRowsWithWorkbookVisualStatus(rawRows,workbook.Sheets[sheetName]), {
         propertyName:(plan.selectedCommunities || plan.communities || [])[0] || "", monthIdx:parseMonthIndexValue(sheetName) ?? 0,
@@ -47636,6 +47649,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
     result.issues.push({ type: "held", severity: "high", title: "Stale feed held from downstream use", detail: `${plan.reportTypeLabel} is ${freshnessAge} ${freshness.businessDays ? "business " : ""}days old; this source is configured to block and hold after ${freshness.days} days.` });
   }
   const grouped = new Map();
+  const occupancyEvidenceAttached = new Set();
   for (const sheet of sheets) {
     for (const sourceRow of sheet.rows) {
       processedRows += 1;
@@ -47694,6 +47708,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
         values: Object.fromEntries(Object.entries(mapped).filter(([field])=>field !== "__leadSourceMix")),
         leadSourceReconciliation: mapped.__leadSourceMix || null,
         originalValues: sourceRow.values,
+        occupancyEvidence: occupancyEvidenceAttached.has(sheet.sheetName) ? undefined : plan.occupancyEvidenceBySheet?.[sheet.sheetName],
         leadSourceEvidence: sourceRow.leadComponents || [],
         leadSourceControls: sourceRow.leadControls || [],
         leadSourceReview: sourceRow.leadReview || [],
@@ -47713,6 +47728,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
       };
       const upsert = dataImportUpsertCanonicalRecord(canonicalRecord, result, {reprocess: plan.reprocessArchivedSource === true});
       if (["held", "older", "duplicate"].includes(upsert.disposition)) continue;
+      if (canonicalRecord.occupancyEvidence) occupancyEvidenceAttached.add(sheet.sheetName);
       result.communities.add(communityName);
       dataImportAddLineage(plan, batchId, canonicalRecord, sourceFields, false);
       if (unmappedFields.length) {

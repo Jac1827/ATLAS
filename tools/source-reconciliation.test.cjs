@@ -4,7 +4,9 @@ const path=require('node:path'),root=path.join(__dirname,'../docs/portfolio-oper
 const html=readDashboardSource(path.join(root,'index.html'));
 const XLSX=require(process.env.ATLAS_XLSX||'xlsx'),bridge=require(path.join(root,'application-source-bridge.js'));
 const c={console,Date,Map,Set,XLSX,window:{AtlasApplicationSources:bridge},DATA_IMPORT_MAX_SAMPLE_CHARS:180000,savedData:{},PROPERTIES:[],MONTHS:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']};vm.createContext(c);
-for(const f of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm))vm.runInContext(f[0],c);
+// The VM harness delegates the browser's ESM load to the real source module.
+c.loadOccupancyEvidenceModule=()=>import('../docs/portfolio-operations-dashboard/features/occupancy-source-evidence.mjs');
+for(const f of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm))vm.runInContext(f[0].replace(/import\((["'])\.\/features\/occupancy-source-evidence\.mjs(?:\?[^"']*)?\1\)/g,'loadOccupancyEvidenceModule()'),c);
 vm.runInContext(html.slice(html.indexOf('const DATA_IMPORT_FIELD_ALIASES ='),html.indexOf('const DATA_IMPORT_DESTINATION_GROUPS =')),c);
 assert.equal(c.dataImportExtractMetadata({sampleText:'New Lead Created On | 08/07/2026',metadataText:'Resident Data 3.1 generated | 09/16/2026 12:20 PM EDT\ndata as of | 09/16/2026 12:20 PM EDT'}).dataAsOf,'2026-09-16T16:20:00.000Z');
 c.buildPeriodKey=(m,y)=>`${y}-${String(m+1).padStart(2,'0')}`;

@@ -40,7 +40,7 @@ async function approveCommunityCommandMonthlyGoals(monthIdx = getSelectedDashboa
   const row = buildCommunityCommandLeasingPlanRows(model)[clampNumber(monthIdx,0,11)] || {};
   const scope = communityCommandGoalScope(model.propName,row.monthIdx,model.year);
   if (!scope.communityId) {alert("This community is missing its shared identity. Goals were not changed.");return;}
-  const recommendation = {applicationGoal:row.recommendedApps,grossLeaseGoal:row.recommendedGrossLeases,netLeaseGoal:row.netLeaseGoal,requiredMoveIns:row.requiredMoveIns,occupancyGoal:row.budgetPct,leasedGoal:null,economicGoal:null,renewalGoal:null};
+  const recommendation = {applicationGoal:row.recommendedApps,grossLeaseGoal:row.recommendedGrossLeases,netLeaseGoal:row.netLeaseGoal,requiredMoveIns:row.requiredMoveIns,occupancyGoal:row.budgetPct,leasedGoal:row.leasedGoal??null,economicGoal:null,renewalGoal:null,...(row.planningRecommendation?{recommendationEvidence:{algorithm:'atlas.occupancy-goals.v1',...row.planningRecommendation}}:{})};
   const pending = communityCommandGoalBuffers.get(scope.key);
   const editor = pending?.dirty ? pending : { ...scope, propName:model.propName,monthIdx:row.monthIdx,year:model.year,values:{},reason:"",effectiveDate:`${scope.period}-01`,recommended:recommendation,revision:0,dirty:false };
   editor.viewMonthIdx=model.monthIdx; editor.loading=true; editor.loadFailed=false; editor.error=""; editor.recommendationError="";
@@ -65,7 +65,7 @@ async function approveCommunityCommandMonthlyGoals(monthIdx = getSelectedDashboa
     editor.recommended=recommendation;
     // Recommendation history is independent: it never changes the human goal revision.
     const api=atlasCommunityGoalStore.module;
-    const changed=!saved?.recommended || COMMUNITY_GOAL_FIELDS.some(key=>saved.recommended[key]!==recommendation[key]);
+    const changed=!saved?.recommended || COMMUNITY_GOAL_FIELDS.some(key=>saved.recommended[key]!==recommendation[key]) || JSON.stringify(saved.recommended.recommendationEvidence??null)!==JSON.stringify(recommendation.recommendationEvidence??null);
     if (changed) {
       try {
         const result=await api.saveGoals(context.central,{communityId:scope.communityId,period:scope.period,kind:"recommended",expectedRevision:saved?.recommendationRevision||0,requestId:crypto.randomUUID(),payload:{...recommendation,reason:"ATLAS recommendation recalculated",effectiveDate:`${scope.period}-01`},signal:context.signal});
@@ -115,7 +115,7 @@ async function saveCommunityCommandGoalEditor(approve) {
     for(const key of ["applicationGoal","grossLeaseGoal","netLeaseGoal"]){const edited=editor.values.weeklyGoals?.map(w=>w[key])||[];if(edited.length!==count||edited.some(v=>!Number.isInteger(v)||v<0)||edited.reduce((sum,v)=>sum+v,0)!==values[key]){fail("Each weekly breakdown must total exactly to its monthly goal.");return;}}
     weekly.splice(0,weekly.length,...editor.values.weeklyGoals);
   }
-  const payload={...values,weeklyGoals:weekly,customWeeks:editor.customWeeks,reason,effectiveDate,recommended:editor.recommended,sourceVersion:JSON.stringify({beginning:row.occupancy.lineage,inputs:row.occupancy.inputs})};
+  const payload={...values,weeklyGoals:weekly,customWeeks:editor.customWeeks,reason,effectiveDate,recommended:editor.recommended,sourceVersion:JSON.stringify({beginning:row.occupancy.lineage,inputs:row.occupancy.inputs,...(editor.recommended.recommendationEvidence?{recommendation:editor.recommended.recommendationEvidence}:{})})};
   const kind=approve?"approved":"draft",fingerprint=JSON.stringify({kind,payload});
   if(editor.requestFingerprint!==fingerprint){editor.requestId=crypto.randomUUID();editor.requestFingerprint=fingerprint;}
   editor.requestId ||= crypto.randomUUID();editor.saving=true;editor.error="";renderTab();
@@ -135,3 +135,13 @@ async function saveCommunityCommandGoalEditor(approve) {
   }catch(error){if(current()){editor.error=`${approve?"Approval":"Draft save"} failed: ${error.message||error}`;editor.message="";editor.dirty=true;if(!communityCommandGoalBuffers.has(editor.key)||communityCommandGoalBuffers.get(editor.key)===editor)communityCommandGoalBuffers.set(editor.key,editor);}}
   finally{if(current()){editor.saving=false;if(communityCommandGoalEditor===editor)renderTab();}}
 }
+
+/* Scoped occupancy planning hook. This also runs on the retained operational shell. */
+(function(){
+  if(typeof window==='undefined'||typeof document==='undefined'||!document.currentScript?.src)return;
+  const source=new URL('./features/community-goal-planning.mjs',document.currentScript.src);
+  const openGoals=window.approveCommunityCommandMonthlyGoals;
+  const ready=new Promise(resolve=>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',resolve,{once:true}):resolve()).then(()=>import(source.href)).then(module=>module.installCommunityGoalPlanning({host:window,openGoals,getImportState:()=>typeof dataImport2State==='object'?dataImport2State:null}));
+  window.approveCommunityCommandMonthlyGoals=async function(){try{await ready;return window.approveCommunityCommandMonthlyGoals.apply(this,arguments);}catch(error){window.alert('Source-aware goals could not load: '+error.message);}};
+  ready.then(()=>{if(typeof activeTab!=='undefined'&&activeTab===2)window.renderTab?.();}).catch(error=>{console.error('Source-aware occupancy goals unavailable',error);});
+})();

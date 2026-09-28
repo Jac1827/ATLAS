@@ -224,6 +224,10 @@
         "./financial-snapshot.mjs"
       ],
       [
+        "features/community-goal-planning.mjs",
+        "./financial-snapshot.mjs"
+      ],
+      [
         "features/canonical-budget-report.mjs",
         "./financial-snapshot.mjs"
       ],
@@ -424,6 +428,10 @@
         "./reforecast-store.mjs"
       ],
       [
+        "features/community-goal-planning.mjs",
+        "./reforecast-store.mjs"
+      ],
+      [
         "features/reforecast-recovery.mjs",
         "./reforecast-store.mjs"
       ]
@@ -618,6 +626,10 @@
         "./canonical-finance.mjs"
       ],
       [
+        "features/community-goal-planning.mjs",
+        "./canonical-finance.mjs"
+      ],
+      [
         "features/canonical-budget-report.mjs",
         "./canonical-finance.mjs"
       ]
@@ -771,6 +783,20 @@
       ]
     ]
   },
+  "features/occupancy-source-evidence.mjs": {
+    "sha256": "8f6ac469f513c709",
+    "bytes": 20501,
+    "references": [
+      [
+        "workspace-core.js",
+        "./features/occupancy-source-evidence.mjs"
+      ],
+      [
+        "features/community-goal-planning.mjs",
+        "./occupancy-source-evidence.mjs"
+      ]
+    ]
+  },
   "features/portfolio-map.mjs": {
     "sha256": "bbe032b73d99159d",
     "bytes": 2570,
@@ -898,8 +924,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "1775ed97f86b7858",
-    "bytes": 3008737,
+    "sha256": "14f7935a03d7c3a5",
+    "bytes": 3010201,
     "references": [
       [
         "index.html",
@@ -1328,8 +1354,8 @@
     ]
   },
   "features/reforecast-ui.mjs": {
-    "sha256": "ebe8d8e0acb30385",
-    "bytes": 152311,
+    "sha256": "6d3c5a20b96dea03",
+    "bytes": 154950,
     "references": [
       [
         "reforecast-navigation.js",
@@ -1372,7 +1398,7 @@
     ]
   },
   "reforecast-navigation.js": {
-    "sha256": "56026dd1cc31b4eb",
+    "sha256": "ddfbb1dbbc3b8d80",
     "bytes": 3352,
     "references": [
       [
@@ -1668,7 +1694,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "2cfe055fbad02187",
+    "sha256": "8ed0f0618bb1725d",
     "bytes": 1888839,
     "references": [
       [
@@ -1678,7 +1704,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "bef2bc6c71709b3a",
+    "sha256": "2c1039f682c519df",
     "bytes": 26893,
     "references": [
       [
@@ -1687,9 +1713,29 @@
       ]
     ]
   },
+  "features/occupancy-goal-recommendations.mjs": {
+    "sha256": "a4ee2c9ccf3c92a8",
+    "bytes": 8348,
+    "references": [
+      [
+        "features/community-goal-planning.mjs",
+        "./occupancy-goal-recommendations.mjs"
+      ]
+    ]
+  },
+  "features/community-goal-planning.mjs": {
+    "sha256": "34e7099b11a5114a",
+    "bytes": 17928,
+    "references": [
+      [
+        "community-goal-editor.js",
+        "./features/community-goal-planning.mjs"
+      ]
+    ]
+  },
   "community-goal-editor.js": {
-    "sha256": "98c28b6c7e9197d1",
-    "bytes": 15250,
+    "sha256": "a53240ddb6b4bdf1",
+    "bytes": 16749,
     "references": [
       [
         "index.html",

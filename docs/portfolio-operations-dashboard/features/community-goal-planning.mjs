@@ -1,8 +1,8 @@
-import {readFinance,financeAccessKey} from './canonical-finance.mjs';
-import {readActive} from './reforecast-store.mjs';
-import {readOccupancySourceEvidence} from './occupancy-source-evidence.mjs';
-import {recommendOccupancyGoals,applyOccupancyRecommendation} from './occupancy-goal-recommendations.mjs';
-import {sha256,canonicalJson} from './financial-snapshot.mjs';
+import {readFinance,financeAccessKey} from './canonical-finance.mjs?v=b02fad23c8c69769';
+import {readActive} from './reforecast-store.mjs?v=116417158a586ff4';
+import {readOccupancySourceEvidence} from './occupancy-source-evidence.mjs?v=8f6ac469f513c709';
+import {recommendOccupancyGoals,applyOccupancyRecommendation} from './occupancy-goal-recommendations.mjs?v=a4ee2c9ccf3c92a8';
+import {sha256,canonicalJson} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 
 const finite=value=>typeof value==='number'&&Number.isFinite(value);
 const periodFor=(year,idx)=>`${year}-${String(idx+1).padStart(2,'0')}`;

@@ -1,14 +1,14 @@
 import {resolveImportCommunity} from './community-budget-identity.mjs?v=8f9f97a61a90cd4b';
-import {currentReforecastParserVersion,needsReforecastParserRecovery,upgradeReforecastParserEvidence} from './reforecast-parser-recovery.mjs?v=962f6c9558c4700f';
+import {currentReforecastParserVersion,needsReforecastParserRecovery,upgradeReforecastParserEvidence} from './reforecast-parser-recovery.mjs?v=f51d46da20c0efb7';
 import {persistWorkbookAudit,readWorkbookAudit,readWorkbookAuditBytes,listPendingWorkbookUploads,cancelWorkbookStaging} from './workbook-audit-store.mjs?v=26dfb75ca99d6b52';
 import {compareWorkbookEvidence} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
 import {reviewPlanningInputs,planningMappingDispositions} from './planning-governance.mjs?v=a4de8d3f5a50966c';
-import {parseReforecastWorkbook,mapReforecastIntake,validateReforecastPropertyAssignment} from './reforecast-intake.mjs?v=87e68da483f77228';
-import {saveUpload,readSourceBundle} from './reforecast-store.mjs?v=89302fd431288798';
-import {saveForecastRecovery,readForecastRecovery,listForecastRecovery,saveForecastRecoveryEntries} from './reforecast-recovery.mjs?v=5a26ffaf554cc142';
-import {prepareScopedReforecastEvidence,reforecastAuthoritySelectionKey} from './reforecast-authority.mjs?v=f6c72da26c9add9c';
-import {reviewReforecastImportInheritance} from './reforecast-import-inheritance.mjs';
-import {explicitWorkbookBlankSource,retainedWorkbookBlank} from './reforecast-workbook-source-policy.mjs';
+import {parseReforecastWorkbook,mapReforecastIntake,validateReforecastPropertyAssignment} from './reforecast-intake.mjs?v=b0fa5b5fe892d268';
+import {saveUpload,readSourceBundle} from './reforecast-store.mjs?v=0723c58881a1ac21';
+import {saveForecastRecovery,readForecastRecovery,listForecastRecovery,saveForecastRecoveryEntries} from './reforecast-recovery.mjs?v=c801f63a8000ced0';
+import {prepareScopedReforecastEvidence,reforecastAuthoritySelectionKey} from './reforecast-authority.mjs?v=31982dfd280e4e7f';
+import {reviewReforecastImportInheritance} from './reforecast-import-inheritance.mjs?v=4b1a8469a4f8dff6';
+import {explicitWorkbookBlankSource,retainedWorkbookBlank} from './reforecast-workbook-source-policy.mjs?v=be424108c7ddcacc';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=()=>crypto.randomUUID();

@@ -1,4 +1,4 @@
-import {reviewedWorkbookSourcePolicy,retainedWorkbookBlank,confirmedForecastBlank,compactWorkbookBlankReference,excludedForecastScope,resolveReviewedWorkbookBlankReference} from './reforecast-workbook-source-policy.mjs';
+import {reviewedWorkbookSourcePolicy,retainedWorkbookBlank,confirmedForecastBlank,compactWorkbookBlankReference,excludedForecastScope,resolveReviewedWorkbookBlankReference} from './reforecast-workbook-source-policy.mjs?v=be424108c7ddcacc';
 import {validatePlanningCalendar,planningOverrideIssues,validPlanningReview} from './planning-governance.mjs?v=a4de8d3f5a50966c';
 /* Pure, deterministic reforecast calculations. This module never reads browser state or publishes. */
 export const ENGINE_VERSION='atlas-reforecast-v1';

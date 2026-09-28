@@ -1,6 +1,6 @@
 /* Import review only: missing source values cannot authorize inherited numbers.
  * This does not change baseline values, saved revisions, or server approval. */
-import {retainedWorkbookBlank,explicitWorkbookBlankSource,reviewedWorkbookSourcePolicy} from './reforecast-workbook-source-policy.mjs';
+import {retainedWorkbookBlank,explicitWorkbookBlankSource,reviewedWorkbookSourcePolicy} from './reforecast-workbook-source-policy.mjs?v=be424108c7ddcacc';
 const keyOf = (period, accountCode) => JSON.stringify([period, String(accountCode)]);
 const groupKey = line => JSON.stringify([line.sheet, line.accountCode, line.department]);
 const hasNumber = value => typeof value === 'number' && Number.isFinite(value);

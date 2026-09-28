@@ -1784,8 +1784,8 @@
     ]
   },
   "migration-archive.js": {
-    "sha256": "8318248c5475f9a0",
-    "bytes": 20718,
+    "sha256": "a7aa066f6260de3d",
+    "bytes": 20982,
     "references": [
       [
         "performance/feature-loader.js",
@@ -1854,7 +1854,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "8a917197df2c8ce3",
+    "sha256": "e0f005668a0409e9",
     "bytes": 3714,
     "references": [
       [

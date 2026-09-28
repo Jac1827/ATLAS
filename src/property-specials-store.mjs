@@ -45,6 +45,12 @@ function sourceUpdatedAt(settings) {
   if(value && !Number.isFinite(Date.parse(value)))throw fail('Website settings have an invalid update time.',400,'configuration','WEBSITE_CONFIGURATION_INVALID');
   return value;
 }
+function expectedRevision(settings) {
+  if(!has(settings,'expectedRevision'))return undefined;
+  if(typeof settings.expectedRevision!=='string')throw fail('Website settings have an invalid revision.',400,'configuration','WEBSITE_CONFIGURATION_INVALID');
+  return settings.expectedRevision;
+}
+const staleSettings=()=>fail('Website URLs changed after this edit began. Reload Community Settings and review the saved URLs before retrying.',409,'configuration','STALE_WEBSITE_SETTINGS');
 function domainFailure(error,stage='configuration',code='WEBSITE_CONFIGURATION_INVALID') {
   // RPC exceptions do not retain custom Error fields. Return domain failures as
   // plain data; let unexpected storage failures cross the RPC boundary as errors.
@@ -71,9 +77,11 @@ export class PropertySpecialsState extends DurableObject {
     const existing=this.get('settings','current')||{};
     this.checkCommunity(settings,existing);
     const sourceTime=sourceUpdatedAt(settings);
-    if(sourceTime && existing.sourceUpdatedAt && Date.parse(sourceTime)<Date.parse(existing.sourceUpdatedAt))throw fail('Website URLs changed after this save. Reload Community Settings and retry.',409,'configuration','STALE_WEBSITE_SETTINGS');
+    const expected=expectedRevision(settings);
+    if(expected!==undefined && expected!==(existing.revision||''))throw staleSettings();
     const urls=urlsFrom(settings,existing);
-    const next={...existing,...settings,...urls,communityWebsiteUrl:urls.website,floorPlanRatesPageUrl:urls.floorplan,authoritativeSettings:true,sourceUpdatedAt:sourceTime||existing.sourceUpdatedAt||'',updatedAt:new Date().toISOString(),revision:crypto.randomUUID()};
+    const {expectedRevision:ignored,...input}=settings;
+    const next={...existing,...input,...urls,communityWebsiteUrl:urls.website,floorPlanRatesPageUrl:urls.floorplan,authoritativeSettings:true,sourceUpdatedAt:sourceTime||existing.sourceUpdatedAt||'',updatedAt:new Date().toISOString(),revision:crypto.randomUUID()};
     this.ctx.storage.transactionSync(()=>{this.put('settings','current',next);this.audit('Website settings saved',actor,next);});
     if(next.website||next.floorplan) await this.ctx.storage.setAlarm(nextCollection()); else await this.ctx.storage.deleteAlarm();
     return this.read();
@@ -81,25 +89,32 @@ export class PropertySpecialsState extends DurableObject {
   }
   async reconcileSettings(settings,actor) {
     try {
-    // Only the authenticated Worker supplies the canonical community record.
-    // Recovery fills missing URLs and repairs scheduling without modifying offers or history.
+    // The authenticated Worker supplies the resolved community identity. Recovery
+    // fills legacy gaps or applies a pending edit against its saved server revision.
     const existing=this.get('settings','current')||{};
     this.checkCommunity(settings,existing);
     const sourceTime=sourceUpdatedAt(settings);
-    // A persisted source revision can supersede a previously configured URL. An
-    // unknown or older source cannot re-enable an intentionally removed website.
-    const newer=!!(sourceTime&&existing.sourceUpdatedAt&&Date.parse(sourceTime)>Date.parse(existing.sourceUpdatedAt));
-    const source=existing.authoritativeSettings&&!newer?{website:'',floorplan:''}:urlsFrom(settings,existing),website=newer?source.website:existing.website||source.website,floorplan=newer?source.floorplan:existing.floorplan||source.floorplan;
-    const changed=newer||website!==(existing.website||'')||floorplan!==(existing.floorplan||'')||(!existing.communityId&&settings.communityId&&(website||floorplan));
+    // Browser timestamps are descriptive metadata, never concurrency authority.
+    const expected=expectedRevision(settings),matches=expected!==undefined&&expected===(existing.revision||'');
+    const source=existing.authoritativeSettings&&expected===undefined?{website:existing.website||'',floorplan:existing.floorplan||''}:urlsFrom(settings,existing);
+    const sourceDiffers=source.website!==(existing.website||'')||source.floorplan!==(existing.floorplan||'');
+    // A lost response can be acknowledged without replaying its already-applied
+    // write. Omitted fields inherit the current value, rather than clearing it.
+    const conflict=expected!==undefined&&!matches&&sourceDiffers;
+    const website=conflict?(existing.website||''):matches?source.website:existing.website||source.website;
+    const floorplan=conflict?(existing.floorplan||''):matches?source.floorplan:existing.floorplan||source.floorplan;
+    const hasUrls=['communityWebsiteUrl','floorPlanRatesPageUrl','website','floorplan'].some(key=>has(settings,key)&&settings[key]!==undefined);
+    const authoritative=existing.authoritativeSettings||(matches&&hasUrls);
+    const changed=website!==(existing.website||'')||floorplan!==(existing.floorplan||'')||(!existing.communityId&&settings.communityId&&(website||floorplan))||(!existing.authoritativeSettings&&authoritative);
     if(changed){
-      const latestSourceTime=Date.parse(existing.sourceUpdatedAt)>Date.parse(sourceTime)?existing.sourceUpdatedAt:sourceTime||existing.sourceUpdatedAt||'';
-      const next={...existing,communityId:existing.communityId||settings.communityId,communityName:existing.communityName||settings.communityName,website,floorplan,communityWebsiteUrl:website,floorPlanRatesPageUrl:floorplan,authoritativeSettings:existing.authoritativeSettings||false,sourceUpdatedAt:latestSourceTime,updatedAt:new Date().toISOString(),revision:crypto.randomUUID()};
+      const next={...existing,communityId:existing.communityId||settings.communityId,communityName:existing.communityName||settings.communityName,website,floorplan,communityWebsiteUrl:website,floorPlanRatesPageUrl:floorplan,authoritativeSettings:!!authoritative,sourceUpdatedAt:sourceTime||existing.sourceUpdatedAt||'',updatedAt:new Date().toISOString(),revision:crypto.randomUUID()};
       this.ctx.storage.transactionSync(()=>{this.put('settings','current',next);this.audit('Website settings reconciled',actor,{before:existing,after:next});});
     }
     const alarm=await this.ctx.storage.getAlarm();
     const alarmRepaired=(website||floorplan)?alarm===null:alarm!==null;
     if(alarmRepaired){if(website||floorplan)await this.ctx.storage.setAlarm(nextCollection());else await this.ctx.storage.deleteAlarm();}
-    return {...await this.read(),reconciliation:{settingsChanged:!!changed,alarmRepaired}};
+    const failure=conflict?staleSettings():null;
+    return {...await this.read(),reconciliation:{settingsChanged:!!changed,alarmRepaired,...(failure?{conflict:{code:failure.code,stage:failure.stage,error:failure.message}}:{})}};
     }catch(error){return domainFailure(error);}
   }
   async saveOffer(input,actor,admin) {

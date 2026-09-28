@@ -613,15 +613,26 @@ async function propertySpecialsCommunity(access, body) {
     const rows = await supabaseRequest(access.config, `/rest/v1/atlas_communities?${column}=eq.${encodeURIComponent(value)}&deleted_at=is.null&select=community_id,display_name,canonical_name,source_identifier&limit=2`, {service:true});
     for (const row of rows || []) matches.set(row.community_id, row);
   }
+  let aliases = [];
+  const directNameMatch = id && [...matches.values()].some(row => [row.display_name, row.canonical_name, row.source_identifier].some(value => cleanText(value).toLowerCase() === name.toLowerCase()));
+  if (name && (!id || !directNameMatch)) {
+    const rows = await supabaseRequest(access.config, `/rest/v1/atlas_community_aliases?active=eq.true&alias=ilike.${encodeURIComponent(name)}${id ? `&community_id=eq.${id}` : ''}&select=community_id,alias&limit=100`, {service:true});
+    if ((rows || []).length >= 100) throw propertySpecialsError('ATLAS could not uniquely match this community alias.', 409, 'community_mapping', 'COMMUNITY_ALIAS_AMBIGUOUS');
+    aliases = (rows || []).filter(row => cleanText(row.alias).toLowerCase() === name.toLowerCase());
+    if (!id) for (const aliasId of new Set(aliases.map(row => row.community_id))) {
+      const communities = await supabaseRequest(access.config, `/rest/v1/atlas_communities?community_id=eq.${encodeURIComponent(aliasId)}&deleted_at=is.null&select=community_id,display_name,canonical_name,source_identifier&limit=2`, {service:true});
+      for (const row of communities || []) matches.set(row.community_id, row);
+    }
+  }
   if (matches.size !== 1) throw propertySpecialsError('ATLAS could not uniquely match this community to a central record.', 404, 'community_mapping', 'COMMUNITY_NOT_RESOLVED');
   const community = [...matches.values()][0];
-  if (id && name && ![community.display_name, community.canonical_name, community.source_identifier].some(value => cleanText(value).toLowerCase() === name.toLowerCase())) {
+  if (id && name && !directNameMatch && !aliases.some(row => row.community_id === community.community_id)) {
     throw propertySpecialsError('The community name and canonical ID do not match. Reload Community Settings.', 409, 'community_mapping', 'COMMUNITY_ID_MISMATCH');
   }
   if (!ATLAS_DLR_BROAD_ACCESS_ROLES.has(access.role) && !atlasProfileAllowedCommunityIds(access.profile).includes(community.community_id.toLowerCase())) {
     throw propertySpecialsError('Your ATLAS access does not include this community.', 403, 'authorization', 'COMMUNITY_ACCESS_DENIED');
   }
-  return community;
+  return {...community, requestedName:name};
 }
 
 async function savedPropertySpecialsSettings(access, community) {
@@ -635,13 +646,14 @@ async function savedPropertySpecialsSettings(access, community) {
     if (!value || typeof value !== 'object') return false;
     const ids = [value.atlasCommunityId, value.sourceIds?.atlasCommunityId, isUuid(value.communityId) ? value.communityId : ''].filter(Boolean).map(value => String(value).toLowerCase());
     if (ids.length) return ids.every(id => id === community.community_id.toLowerCase());
-    return [community.display_name, community.canonical_name, community.source_identifier].some(value => cleanText(value).toLowerCase() === name.toLowerCase());
+    return [community.display_name, community.canonical_name, community.source_identifier, community.requestedName].some(value => cleanText(value).toLowerCase() === name.toLowerCase());
   });
   if (matches.length > 1) throw propertySpecialsError('Saved website settings match more than one community record.', 409, 'community_mapping', 'SAVED_SETTINGS_AMBIGUOUS');
   const data = matches[0]?.[1] || {};
   return {communityId:community.community_id, communityName:community.display_name,
     communityWebsiteUrl:data.communityWebsiteUrl, floorPlanRatesPageUrl:data.floorPlanRatesPageUrl,
-    sourceUpdatedAt:data.websiteSettingsUpdatedAt || ''};
+    sourceUpdatedAt:data.websiteSettingsUpdatedAt || '',
+    ...(Object.hasOwn(data, 'websiteSettingsExpectedRevision') ? {expectedRevision:data.websiteSettingsExpectedRevision} : {})};
 }
 
 async function handlePropertySpecials(request, env) {
@@ -660,7 +672,9 @@ async function handlePropertySpecials(request, env) {
     if (!env.PROPERTY_SPECIALS) throw propertySpecialsError('Website special storage is not deployed.', 503, stage, 'SPECIALS_STORAGE_UNAVAILABLE');
     const store = env.PROPERTY_SPECIALS.getByName(community.community_id);
     let result;
-    if (['read', 'collect', 'reconcile'].includes(body.action)) {
+    if (body.action === 'read' && body.settingsOnly === true) {
+      result = await store.read();
+    } else if (['read', 'collect', 'reconcile'].includes(body.action)) {
       result = await store.read();
       const settings = result.settings;
       const needsRecovery = body.action === 'reconcile' || (!settings?.authoritativeSettings && (!settings?.website || !settings?.floorplan));
@@ -674,15 +688,21 @@ async function handlePropertySpecials(request, env) {
       if (input && typeof input === 'object' && !Array.isArray(input)) {
         saved = {...identity, sourceUpdatedAt:input.websiteSettingsUpdatedAt || '', configurationSource:'saved_community_data'};
         for (const key of ['communityWebsiteUrl', 'floorPlanRatesPageUrl']) if (Object.hasOwn(input, key)) saved[key] = input[key];
+        if (Object.hasOwn(input, 'expectedRevision')) saved.expectedRevision = input.expectedRevision;
       } else if (needsRecovery) saved = await savedPropertySpecialsSettings(access, community);
       result = await store.reconcileSettings(saved, actor);
       if (result?.ok === false) throw propertySpecialsError(result.error, result.status || 400, result.stage, result.code);
+      if (body.action === 'collect' && result?.reconciliation?.conflict) {
+        const conflict = result.reconciliation.conflict;
+        throw propertySpecialsError(conflict.error, 409, conflict.stage || 'configuration', conflict.code || 'STALE_WEBSITE_SETTINGS');
+      }
       if (body.action === 'collect') result = await store.collect();
     } else if (body.action === 'configure') {
       result = await store.configure({
         communityWebsiteUrl:body.communityWebsiteUrl ?? body.website,
         floorPlanRatesPageUrl:body.floorPlanRatesPageUrl ?? body.floorplan,
         sourceUpdatedAt:body.websiteSettingsUpdatedAt || '',
+        ...(Object.hasOwn(body, 'expectedRevision') ? {expectedRevision:body.expectedRevision} : {}),
         communityId:community.community_id, communityName:community.display_name
       }, actor);
     } else if (body.action === 'saveOffer') result = await store.saveOffer(body.offer, actor, admin);

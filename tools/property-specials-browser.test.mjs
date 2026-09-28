@@ -30,6 +30,13 @@ const communities = [
   {community_id:'33333333-3333-4333-8333-333333333333', display_name:'Outside Scope', canonical_name:'Outside Scope'}
 ];
 const [bartram, cedar, outside] = communities;
+const aliases = [
+  {community_id:bartram.community_id,alias:'Bartram Park East',active:true},
+  {community_id:cedar.community_id,alias:'Cedar Landing',active:true},
+  {community_id:bartram.community_id,alias:'Retired Bartram',active:false},
+  {community_id:bartram.community_id,alias:'Shared Leasing Office',active:true},
+  {community_id:cedar.community_id,alias:'Shared Leasing Office',active:true}
+];
 const urls = {
   bartram:['https://bartram.example/', 'https://bartram.example/floorplans'],
   cedar:['https://cedar.example/', 'https://cedar.example/rates']
@@ -79,6 +86,12 @@ async function databaseFixture(request) {
     const filter = filters.find(key => url.searchParams.has(key));
     const value = filter && url.searchParams.get(filter).replace(/^eq\./, '');
     return jsonResponse(filter ? communities.filter(item => item[filter] === value) : communities.filter(item => user && profileFor(user).allowed_community_ids.includes(item.community_id)));
+  }
+  if (url.pathname === '/rest/v1/atlas_community_aliases') {
+    const alias = url.searchParams.get('alias')?.replace(/^ilike\./,'').toLowerCase();
+    const id = url.searchParams.get('community_id')?.replace(/^eq\./,'');
+    assert.equal(url.searchParams.get('active'),'eq.true','Only registered active aliases may resolve a community');
+    return jsonResponse(aliases.filter(item => item.active && item.alias.toLowerCase() === alias && (!id || item.community_id === id)));
   }
   if (url.pathname === '/rest/v1/rpc/atlas_read_workspace_projection') {
     assert(user, 'Reconciliation must read the authenticated user projection');
@@ -148,8 +161,8 @@ function fixtureHtml() {
       const app=document.getElementById('app');
       if(fixture.view==='insights'){app.innerHTML=AtlasConcessionInsights.render();return;}
       app.innerHTML='<h1>Community Settings</h1><label>Community website URL<input id="website" value="'+communityWebsiteUrl+'"></label><label>Floor plan / rates page URL<input id="floorplan" value="'+floorPlanRatesPageUrl+'"></label>'+atlasWebsiteSaveStatus();
-      document.getElementById('website').onchange=e=>atlasSaveWebsiteField('communityWebsiteUrl',e.target.value);
-      document.getElementById('floorplan').onchange=e=>atlasSaveWebsiteField('floorPlanRatesPageUrl',e.target.value);
+      document.getElementById('website').onchange=e=>fixture.lastSave=atlasSaveWebsiteField('communityWebsiteUrl',e.target.value);
+      document.getElementById('floorplan').onchange=e=>fixture.lastSave=atlasSaveWebsiteField('floorPlanRatesPageUrl',e.target.value);
     };
   </script>
   ${scriptNames.map(name => `<script src="/${name}"></script>`).join('\n')}
@@ -246,11 +259,20 @@ async function login(context, email = 'manager@risere.com') {
 async function saveField(page, label, value) {
   await page.getByLabel(label, {exact:true}).fill(value);
   await page.getByLabel(label, {exact:true}).press('Tab');
+  await page.evaluate(() => fixture.lastSave);
   await page.waitForFunction(() => {
     const status = document.querySelector('[role=status]')?.textContent || '';
     return !/Connecting|automatically/.test(status);
   });
   await page.evaluate(() => fixture.graphWrite);
+}
+async function communitySettings(page, community) {
+  await page.evaluate(name => {
+    fixture.name = name;fixture.view = 'settings';
+    communityWebsiteUrl = savedData[name].communityWebsiteUrl;
+    floorPlanRatesPageUrl = savedData[name].floorPlanRatesPageUrl;
+    renderTab();
+  }, community.display_name);
 }
 async function showInsights(page) {
   await page.getByRole('button', {name:'Comp Calculator',exact:true}).click();
@@ -466,6 +488,97 @@ try {
   const missing = await apiCall(page, 'read', {...bartram, community_id:'44444444-4444-4444-8444-444444444444'});
   assert.equal(missing.stage, 'community_mapping', 'An unknown canonical ID must not fall back to a valid name');
 
+  const aliasById = await apiCall(page, 'read', {...bartram,display_name:'Bartram Park East'});
+  assert.equal(aliasById.communityId, bartram.community_id);
+  assert.equal(aliasById.current.offerId, secondOffer);
+  assert.deepEqual(aliasById.offers, stable.offers, 'A registered alias with the canonical ID reaches the same verified history');
+  const aliasOnly = await apiCall(page, 'read', {display_name:'bartram park east'});
+  assert.equal(aliasOnly.communityId, bartram.community_id);
+  assert.deepEqual(aliasOnly.observations, stable.observations);
+  const wrongAliasId = await apiCall(page, 'read', {...cedar,display_name:'Bartram Park East'});
+  assert.equal(wrongAliasId.stage, 'community_mapping', 'A registered alias for another community cannot override the supplied ID');
+  for (const name of ['Retired Bartram','Shared Leasing Office']) {
+    const unresolved = await apiCall(page, 'read', {display_name:name});
+    assert.equal(unresolved.stage, 'community_mapping', 'Inactive or ambiguous aliases fail closed: '+name);
+  }
+  console.log('PASS registered alias+ID and alias-only access, with inactive/ambiguous/mismatched aliases rejected.');
+
+  // Real browser clock skew changes audit metadata, never the ordering token.
+  // A subsequent correct-clock edit using the current server revision must work.
+  await communitySettings(page, cedar);
+  const beforeSkew = await apiCall(page, 'read', cedar);
+  const futureUrl = 'https://cedar.example/clock-ahead';
+  const correctClockUrl = 'https://cedar.example/clock-corrected';
+  await page.clock.setSystemTime(new Date(Date.now() + 10 * 60 * 1000));
+  await saveField(page, 'Community website URL', futureUrl);
+  await page.waitForFunction(() => document.querySelector('[role=status]')?.textContent.includes('saved centrally'));
+  const futureSave = await apiCall(page, 'read', cedar);
+  assert.equal(futureSave.settings.website, futureUrl);
+  assert(Date.parse(futureSave.settings.sourceUpdatedAt) > Date.now() + 9 * 60 * 1000, 'Fixture browser clock is actually ahead of the server');
+  assert.notEqual(futureSave.settings.revision, beforeSkew.settings.revision);
+  await page.clock.setSystemTime(new Date());
+  const correctStart = transport.length;
+  await saveField(page, 'Community website URL', correctClockUrl);
+  await page.waitForFunction(() => document.querySelector('[role=status]')?.textContent.includes('saved centrally'));
+  const correctSave = await apiCall(page, 'read', cedar);
+  assert.equal(correctSave.settings.website, correctClockUrl);
+  assert(Date.parse(correctSave.settings.sourceUpdatedAt) < Date.parse(futureSave.settings.sourceUpdatedAt), 'A correct-clock save can follow a future-dated browser save');
+  assert.equal(transport.slice(correctStart).find(row => row.body?.action === 'configure').body.expectedRevision, futureSave.settings.revision, 'The real settings handler uses the last server revision as its concurrency baseline');
+  assert.notEqual(correctSave.settings.revision, futureSave.settings.revision);
+  assert.deepEqual(correctSave.offers, beforeSkew.offers);
+  assert.deepEqual(correctSave.observations, beforeSkew.observations);
+
+  const staleSavedSettings = {
+    communityWebsiteUrl:'https://cedar.example/stale-draft',floorPlanRatesPageUrl:urls.cedar[1],
+    websiteSettingsUpdatedAt:'2099-01-01T00:00:00.000Z',expectedRevision:futureSave.settings.revision
+  };
+  const staleRecovery = await apiCall(page, 'read', cedar, {savedSettings:staleSavedSettings});
+  assert.equal(staleRecovery.reconciliation.conflict.code, 'STALE_WEBSITE_SETTINGS');
+  assert.equal(staleRecovery.settings.revision, correctSave.settings.revision);
+  assert.equal(staleRecovery.settings.website, correctClockUrl, 'A future timestamp cannot authorize recovery against a stale server baseline');
+  assert.deepEqual(staleRecovery.offers, correctSave.offers);
+  assert.deepEqual(staleRecovery.observations, correctSave.observations);
+  const staleConfigure = await apiCall(page, 'configure', cedar, staleSavedSettings);
+  assert.equal(staleConfigure.status, 409);
+  assert.equal(staleConfigure.code, 'STALE_WEBSITE_SETTINGS');
+  const beforeStaleCollect = outboundRequests.length;
+  const staleCollect = await apiCall(page, 'collect', cedar, {savedSettings:staleSavedSettings});
+  assert.equal(staleCollect.status, 409);
+  assert.equal(staleCollect.code, 'STALE_WEBSITE_SETTINGS');
+  assert.equal(outboundRequests.slice(beforeStaleCollect).filter(row => row.url.startsWith('https://cedar.example/')).length, 0, 'A conflicting pending configuration cannot collect using another URL revision');
+  const lostResponseRetry = await apiCall(page, 'read', cedar, {savedSettings:{...staleSavedSettings,communityWebsiteUrl:correctClockUrl}});
+  assert.equal(lostResponseRetry.reconciliation.conflict, undefined);
+  assert.equal(lostResponseRetry.settings.revision, correctSave.settings.revision, 'An already-applied URL pair recovers idempotently after a lost response');
+
+  // Restore a persisted pending edit from the older revision, as a stale browser
+  // would. The real service/retry handlers must retain it until the user chooses
+  // the explicit central-URL reload, without silently rebasing its token.
+  const pendingConflict = await page.evaluate(async ({name,stale,futureSettings}) => {
+    const record = {...savedData[name],communityWebsiteUrl:stale.communityWebsiteUrl,floorPlanRatesPageUrl:stale.floorPlanRatesPageUrl,
+      websiteSettingsUpdatedAt:stale.websiteSettingsUpdatedAt,websiteSettingsSyncPending:true,
+      websiteSettingsRevision:stale.expectedRevision,websiteSettingsExpectedRevision:stale.expectedRevision,
+      websiteSettingsBaseUrls:{communityWebsiteUrl:futureSettings.website,floorPlanRatesPageUrl:futureSettings.floorplan}};
+    savedData[name] = record;communityWebsiteUrl = record.communityWebsiteUrl;floorPlanRatesPageUrl = record.floorPlanRatesPageUrl;persistSaved();
+    const result = await AtlasPropertyService.load({name,record},true);renderTab();return result;
+  }, {name:cedar.display_name,stale:staleSavedSettings,futureSettings:futureSave.settings});
+  assert.equal(pendingConflict.code, 'STALE_WEBSITE_SETTINGS');
+  assert.equal(await page.getByLabel('Community website URL',{exact:true}).inputValue(), staleSavedSettings.communityWebsiteUrl);
+  assert.equal(await page.evaluate(name => savedData[name].websiteSettingsExpectedRevision, cedar.display_name), futureSave.settings.revision);
+  const staleRetryStart = transport.length;
+  await page.getByRole('button',{name:'Retry website settings',exact:true}).click();
+  await page.waitForFunction(() => document.querySelector('[role=status]')?.textContent.includes('central website checks are not confirmed'));
+  assert.equal(transport.slice(staleRetryStart).find(row => row.body?.action === 'configure').body.expectedRevision, futureSave.settings.revision, 'Retry cannot silently rebase the stale draft onto the latest settings');
+  assert.equal((await apiCall(page,'read',cedar)).settings.revision, correctSave.settings.revision);
+  assert.equal(await page.getByLabel('Community website URL',{exact:true}).inputValue(), staleSavedSettings.communityWebsiteUrl);
+  await page.getByRole('button',{name:'Reload central URLs (discard local edit)',exact:true}).click();
+  await page.waitForFunction(url => document.getElementById('website')?.value === url, correctClockUrl);
+  const resolvedLocal = await page.evaluate(name => savedData[name], cedar.display_name);
+  assert.equal(resolvedLocal.websiteSettingsRevision, correctSave.settings.revision);
+  assert.equal(resolvedLocal.websiteSettingsSyncPending, false);
+  assert.equal(resolvedLocal.websiteSettingsExpectedRevision, undefined);
+  assert.deepEqual((await apiCall(page,'read',cedar)).offers, correctSave.offers);
+  console.log('PASS skewed-browser save then correct-clock save, stale recovery/configure rejection and idempotent lost-response recovery using server revisions.');
+
   await context.close();
   const secondContext = await browser.newContext();
   const freshPage = await login(secondContext);
@@ -487,6 +600,10 @@ try {
   assert.equal(excluded.stage, 'authorization');
   assert.equal(excluded.settings, undefined);
   assert.equal(excluded.offers, undefined);
+  const excludedAlias = await apiCall(restrictedPage, 'read', {display_name:'Cedar Landing'});
+  assert.equal(excludedAlias.status, 403);
+  assert.equal(excludedAlias.stage, 'authorization', 'Alias resolution still enforces the canonical community access scope');
+  assert.equal(excludedAlias.offers, undefined);
   await restrictedContext.close();
   assert.deepEqual(pageErrors, []);
   console.log('PASS idempotent authorized backfill/alarm, strict community mapping, restricted-account isolation and a fresh login in a second browser session.');

@@ -14,6 +14,15 @@ export function patchPropertySpecialsClient(retained, current) {
   return retained.replace(methodBoundary, () => after[0][0]);
 }
 
+// Persist only the URL draft's concurrency metadata in the retained normalizer.
+// Unknown revisions stay absent; an explicit empty revision means no prior value.
+const settingsBoundary = /^    websiteSettingsUpdatedAt: String\(input\.websiteSettingsUpdatedAt \|\| ""\),\n(?:    (?:\.\.\.|websiteSettingsSyncPending:)[^\n]*\n)*(?=    generalManagerName: String\(input\.generalManagerName)/gm;
+export function patchPropertySpecialsSettings(retained, current) {
+  const before = [...retained.matchAll(settingsBoundary)], after = [...current.matchAll(settingsBoundary)];
+  if (before.length !== 1 || after.length !== 1 || after[0][0].split('\n').length !== 6 || !['websiteSettingsRevision','websiteSettingsExpectedRevision','websiteSettingsSyncPending','websiteSettingsBaseUrls'].every(key => after[0][0].includes(key))) throw Error('The reviewed website settings normalizer boundary changed.');
+  return retained.replace(settingsBoundary, () => after[0][0]);
+}
+
 export function patchPropertySpecialsReferences(index, sources) {
   let result = index;
   for (const name of PROPERTY_SPECIALS_ASSETS) {

@@ -12,7 +12,7 @@
     if(Array.isArray(v))return v.map(decode);
     if(v&&typeof v==='object'){const o={};for(const[k,x]of Object.entries(v))o[k]=decode(x);return o;}return v;
   }
-  const SEGMENTED='segmented-json-v1',DEFAULT_SEGMENT_BYTES=1048576;
+  const SEGMENTED='segmented-json-v1',DEFAULT_SEGMENT_BYTES=1048576,BLOB_FRAGMENT=Symbol('migrationBlobFragment');
   const utf8=new TextEncoder();
   const supportedLayout=entry=>{if(entry.layout!==undefined&&entry.layout!==SEGMENTED)throw Error('Unsupported migration record layout');};
   // Conservative sizing stops before allocating a whole oversized JSON string.
@@ -35,12 +35,12 @@
   }
   // Tokens never contain an entire object/array, or an unbounded text/blob.
   // Their order is the source property/array order, including null versus zero.
-  async function* recordTokens(value,limit,ancestors=new Set()){
+  function* recordTokens(value,limit,ancestors=new Set()){
     const chunkChars=Math.max(1,Math.floor((limit-128)/12));
     if(value instanceof Blob){
       yield ['blob'];yield* recordTokens(value.type,limit,ancestors);
       const size=Math.max(1,Math.floor((limit-128)*3/8));
-      for(let offset=0;offset<value.size;offset+=size){const bytes=new Uint8Array(await value.slice(offset,offset+size).arrayBuffer());let text='';for(let i=0;i<bytes.length;i+=32768)text+=String.fromCharCode(...bytes.subarray(i,i+32768));yield ['bytes',btoa(text)];}
+      for(let offset=0;offset<value.size;offset+=size)yield {[BLOB_FRAGMENT]:value.slice(offset,offset+size)};
       yield ['endBlob'];return;
     }
     if(value instanceof Date){if(!Number.isFinite(value.getTime()))throw Error('Invalid date in migration record');yield ['date',value.toISOString()];return;}
@@ -56,7 +56,10 @@
   }
   async function* recordSegments(value,limit){
     let tokens=[],size=2;
-    for await(const token of recordTokens(value,limit)){
+    // Synchronous traversal avoids a Promise for every primitive/history field.
+    // Only Blob chunks and completed segment I/O cross an async boundary.
+    for(let token of recordTokens(value,limit)){
+      if(token[BLOB_FRAGMENT]){const bytes=new Uint8Array(await token[BLOB_FRAGMENT].arrayBuffer());let text='';for(let i=0;i<bytes.length;i+=32768)text+=String.fromCharCode(...bytes.subarray(i,i+32768));token=['bytes',btoa(text)];}
       const text=JSON.stringify(token),bytes=utf8.encode(text).length;
       if(bytes+2>limit)throw Error('Migration token exceeds the segment limit');
       if(tokens.length&&size+bytes+1>limit){yield utf8.encode('['+tokens.join(',')+']');tokens=[];size=2;}

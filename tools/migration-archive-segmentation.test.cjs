@@ -85,3 +85,14 @@ test('declared segment byte limits stop bounded decompression even when an alter
  entry.sha256=hash(Buffer.from(JSON.stringify({layout:entry.layout,name:entry.name,segmentBytes:entry.segmentBytes,segments:entry.segments})));zip.file('manifest.json',JSON.stringify(manifest));
  const changed=await rebuild(zip,packed);await assert.rejects(()=>api.unpack(changed,Zip),/exceeds its verified byte limit/);
 });
+
+// These raw segment fingerprints were recorded from the reviewed asynchronous
+// traversal. Compression metadata is excluded because native codecs can vary.
+test('synchronous token traversal preserves every ordered token byte without per-value promises',async()=>{
+ const value={key:'exact-token-order',value:{string:'Ω🧭\ud800\n'.repeat(99),empty:'',zero:0,negative:-1.005,missing:null,notFinite:Infinity,when:new Date('2026-09-28T15:01:02.003Z'),blob:new Blob([Uint8Array.from({length:777},(_,i)=>i%256)],{type:'application/vnd.test'}),array:[undefined,,null,false],history:Array.from({length:13},(_,i)=>({id:i,beforeSnapshot:{rows:[{amount:0,absent:null,text:'before'}]}})),own:JSON.parse('{"__proto__":{"retained":true},"constructor":"original"}')}};
+ const expected=[{limit:512,bytes:10087,segments:21,sha:'31efc7c343801ac57f782587f67cd666d28148b5fed0ad3a1b54842f4da8fea9'},{limit:4096,bytes:9812,segments:3,sha:'6e1fbd284bc11bab0c3eeaed928927eda01462b3a80e6e2f95208d43f7c72649'},{limit:1048576,bytes:9798,segments:1,sha:'5187b8e89df6db6e7e12cf7e788c1e3051b0f90c448d2b566c0c21d2f6a7fc2a'}];
+ for(const proof of expected){const archive=await api.pack({},[value],Zip,{segmentBytes:proof.limit}),zip=await unpackZip(archive),manifest=JSON.parse(await zip.file('manifest.json').async('string')),entry=manifest.entries[1],raw=entry.segments.map(p=>({name:p.name,bytes:p.bytes,sha256:p.sha256}));assert.equal(entry.bytes,proof.bytes);assert.equal(raw.length,proof.segments);assert.equal(hash(Buffer.from(JSON.stringify(raw))),proof.sha);}
+ let promises=0;const hook=require('node:async_hooks').createHook({init(_id,type){if(type==='PROMISE')promises++;}});hook.enable();
+ try{await api.pack({},[{when:new Date('2026-09-28T00:00:00Z'),history:Array.from({length:10000},(_,i)=>i)}],Zip);}finally{hook.disable();}
+ assert(promises<5000,'Primitive traversal must not allocate promises per value; observed '+promises);
+});

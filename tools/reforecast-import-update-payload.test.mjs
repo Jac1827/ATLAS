@@ -1,0 +1,33 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import vm from 'node:vm';
+import {projectImportUpdatePayload} from '../docs/portfolio-operations-dashboard/features/reforecast-store.mjs';
+const uploadId='00000000-0000-0000-0000-000000000001',other='00000000-0000-0000-0000-000000000002';
+const lines=[{period:'2026-09',accountCode:'5120',sourceLineId:'Input!A1',amount:0},{period:'2026-10',accountCode:'5120',sourceLineId:'Input!B1',amount:1.005}];
+const mapping={version:'new',confirmed:true,reason:'Reviewed current mapping',periods:['2026-09','2026-10'],calendar:{},selectedLineIds:lines.map(l=>l.sourceLineId)};
+function payload(){return {uploadId,registryVersionId:'new',importMapping:{version:'old',retainedEvidence:'x'.repeat(1_120_000)},importIssues:[{old:true}],importHistory:[{uploadId,requestId:'old-event'},{uploadId:other,mapping:{old:true}}],history:[{action:'manual_edit'}],drivers:[{value:0}],assumptions:{missing:null},overrides:[...lines.map(l=>({...l,uploadId})),{period:'2026-11',accountCode:'5120',amount:null,source:{kind:'manual_revision'}},{period:'2026-11',accountCode:'8000',amount:0},{period:'2026-12',accountCode:'5145',amount:-1.005,uploadId:other,sourceLineId:'Other!B2'}]};}
+test('only server-replaced fields are omitted; outside signed/null/zero values and all other evidence remain exact',()=>{
+ const p=payload(),before=structuredClone(p),result=projectImportUpdatePayload(p,{uploadId,mapping,expectedLines:lines});assert.deepEqual(p,before);assert.equal(result.importMapping,undefined);assert.equal(result.importIssues,undefined);assert.deepEqual(result.overrides,before.overrides.slice(2));assert.deepEqual(result.importHistory,[before.importHistory[1]]);for(const key of ['history','drivers','assumptions','uploadId','registryVersionId'])assert.deepEqual(result[key],before[key]);assert(JSON.stringify(result).length<2000);
+ const different=projectImportUpdatePayload(p,{uploadId:other,mapping,expectedLines:[...lines,{period:'2026-12',accountCode:'5145',amount:-1.005,sourceLineId:'Other!B2'}].map(x=>x),...{mapping:{...mapping,selectedLineIds:[...mapping.selectedLineIds,'Other!B2']}}});assert.deepEqual(different.importMapping,p.importMapping,'Prior different-upload mapping is necessary audit evidence');assert.deepEqual(different.importIssues,p.importIssues);
+});
+test('partial same-upload source cells fail closed instead of silently disappearing; invalid authority never filters edits',()=>{
+ const p=payload();p.overrides.push({period:'2026-12',accountCode:'5120',amount:12,uploadId,sourceLineId:'Input!C1'});const before=structuredClone(p);assert.throws(()=>projectImportUpdatePayload(p,{uploadId,mapping,expectedLines:lines}),/outside the reviewed selection/);assert.deepEqual(p,before);
+ for(const expectedLines of [[],[lines[0],lines[0]],[{...lines[0],sourceLineId:'unreviewed'},lines[1]],[{...lines[0],amount:null},lines[1]]])assert.throws(()=>projectImportUpdatePayload(payload(),{uploadId,mapping,expectedLines}),/review|Review/);
+});
+const ui=await fs.readFile(new URL('../docs/portfolio-operations-dashboard/features/reforecast-ui.mjs',import.meta.url),'utf8');
+function recoveryFixture({receipt=null,receiptError=null,changeReview=true}={}){
+ const oldMapping={...mapping,reason:changeReview?'Old explicitly reviewed reason':mapping.reason},old={kind:'import-write',destination:'current',forecastName:'Forecast',request:{communityId:'community',scenarioId:'scenario',expectedRevision:3,requestId:'original-failed-request',uploadId,mapping:oldMapping,payload:payload(),expectedLines:lines}};
+ const retained=structuredClone(old),calls=[],s={cid:'community',actor:'actor',record:{head:{scenario_id:'scenario',revision:3}},edit:{...payload(),name:'Forecast',baselineType:'original_budget',periods:mapping.periods,calendar:{}},dirty:false,central:{}},result={ready:true,recoveryId:'review-id',reviewVersion:'new-review',communityId:'community',upload:{upload_id:uploadId},mapping,lines,destination:'current',forecastName:'Forecast',source:{communityId:'community'}};
+ const ctx=vm.createContext({s,result,currentReforecastParserVersion:'test-current',guard:()=>{},clone:structuredClone,uuid:()=> 'new-reviewed-request',headId:record=>record.head.scenario_id,editable:()=>true,render:()=>{},readForecastRecovery:async()=>old,saveForecastRecovery:async(_c,id,value)=>calls.push({kind:'retained',id,value}),openImportReadback:async(_s,value)=>calls.push({kind:'readback',value}),store:{projectImportUpdatePayload,verifyImportReadback:value=>value,async readImportReceipt(){calls.push({kind:'receipt'});if(receiptError)throw Error(receiptError);return receipt;},async readBuilderSource(){return {communityId:'community'};},async createFromImport(_c,request){calls.push({kind:'write',request});return {verified:true};}}});
+ vm.runInContext(ui.match(/async function applyWorkbookImportRequest\(s,result,guard\)\{[\s\S]*?(?=\nfunction workbookImportOptions)/)[0],ctx);
+ return {calls,old,retained,run:()=>vm.runInContext('applyWorkbookImportRequest(s,result,guard)',ctx)};
+}
+test('explicit re-review checks old receipt before retaining a new compact identity; unchanged retries keep original body',async()=>{
+ const f=recoveryFixture();await f.run();assert.deepEqual(f.old,f.retained);assert.deepEqual(f.calls.map(c=>c.kind),['receipt','retained','write','readback']);const request=f.calls.find(c=>c.kind==='write').request;assert.equal(request.requestId,'new-reviewed-request');assert.equal(request.payload.importMapping,undefined);assert.deepEqual(request.payload.overrides,f.retained.request.payload.overrides.slice(2));
+ const same=recoveryFixture({changeReview:false});await same.run();assert.deepEqual(same.calls.map(c=>c.kind),['write','readback']);assert.deepEqual(JSON.parse(JSON.stringify(same.calls[0].request)),same.retained.request,'No body normalization under an existing request ID');
+});
+test('unreadable receipt never means absent; committed original opens readback without a new write',async()=>{
+ const unavailable=recoveryFixture({receiptError:'Receipt unavailable'});await assert.rejects(unavailable.run,/Receipt unavailable/);assert.deepEqual(unavailable.calls.map(c=>c.kind),['receipt']);assert.deepEqual(unavailable.old,unavailable.retained);
+ const committed=recoveryFixture({receipt:{verified:true}});await committed.run();assert.deepEqual(committed.calls.map(c=>c.kind),['receipt','readback']);assert.deepEqual(committed.old,committed.retained);
+});

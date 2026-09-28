@@ -1,4 +1,4 @@
-import {FINANCIAL_MAPPING_VERSION,FINANCIAL_PARSER_VERSION,normalizeFinancialLabel,buildFinancialHierarchy,auditFinancialLeaves,evaluateFinancialPackageSafety,finalizeFinancialPackageEvidence} from './financial-row-reconciliation.mjs?v=3ce78f4de3fe8982';
+import {FINANCIAL_MAPPING_VERSION,FINANCIAL_PARSER_VERSION,normalizeFinancialLabel,buildFinancialHierarchy,auditFinancialLeaves,evaluateFinancialPackageSafety,finalizeFinancialPackageEvidence} from './financial-row-reconciliation.mjs?v=016caa7d1b0de253';
 export {evaluateFinancialPackageSafety,finalizeFinancialPackageEvidence};
 /* Statement extraction is a review candidate, never a publication or approval. */
 export const SCHEMA_VERSION = 1;
@@ -85,6 +85,7 @@ export function parseComparisonSheet(matrix,sheet,options={}) {
   if(classification!==CLOSE_SOURCE){disposition='supporting';reason=classification==='t12'?'T12 supports historical review; normal monthly intake creates no closes from this sheet.':'This '+classification+' sheet is retained as supporting evidence, not monthly actual authority.';}
   else if((column.headerIndex>=0?index<=column.headerIndex:index<8&&!code&&!fields.some(field=>hasValue(values[mapped[field].index])))||sectionBoundary){disposition='header_or_section';reason=sectionBoundary?'Explicit printed section boundary.':'Statement identity, period or column header.';if(sectionBoundary)section=rawCode;}
   else if(/^(?:memo|statistical|statistics|occupancy|unit count|square footage|units\b|per unit\b|per sq\b)/i.test(name||rawCode)||/^(?:memo|statistical|statistics)\b/i.test(section||'')){disposition='memo_statistical';reason='Explicitly labeled memo/statistical evidence; excluded from financial posting sums.';}
+  else if(code&&!fields.some(field=>hasValue(values[mapped[field].index]))&&!fields.some(field=>cells?.[mapped[field].column+row]?.f)){disposition='supporting';reason='Legitimate blank GL: all financial source cells are blank; retained as missing, never zero.';}
   else if(code){disposition='mapped_leaf';reason='Source GL account mapped to the selected monthly actual column.';}
   else if(!rawCode&&name&&(hasValue(values[mapped.actual.index])||fields.some(field=>hasValue(values[mapped[field].index])))){disposition='mapped_control';reason='Printed financial subtotal or total; requires bounded child-row reconciliation.';}
   else if(!values.slice(Math.max(accountIndex,nameIndex)+1).some(hasValue)&&/^(?:generated|page\s+\d|data as of|report filters|accounting basis)/i.test(rawLabel)){disposition='header_or_section';reason='Printed report footer or generation metadata.';}
@@ -94,28 +95,54 @@ export function parseComparisonSheet(matrix,sheet,options={}) {
   }else if(disposition==='unresolved')exceptions.push({code:'unresolved_source_row',sourceRowId:item.id,description:rawLabel||'Unlabeled data-bearing row'});
  }
  const rowsByAddress=new Map(rows.map(row=>[row.source.cells.actual,row]));
- return {classification,metadata,rows,exceptions,inventory,columnExclusions:classification===CLOSE_SOURCE?column.exclusions:[],selectedActualColumn:classification===CLOSE_SOURCE?column.selectedActualColumn:null,context:{cells:options.cells||{},actualColumn:column.selectedActualColumn?.column,headerByColumn:Object.fromEntries(column.columns.map(column=>[column.column,column.rawHeader])),rowsByAddress},sourceSheet:{sheet,classification,inventoryCount:inventory.length,columns:column.columns,sourceHash},mappingVersion};
+ return {classification,metadata,rows,exceptions,inventory,columnExclusions:classification===CLOSE_SOURCE?column.exclusions:[],selectedActualColumn:classification===CLOSE_SOURCE?column.selectedActualColumn:null,context:{cells:options.cells||{},actualColumn:column.selectedActualColumn?.column,headerByColumn:Object.fromEntries(column.columns.map(column=>[column.column,column.rawHeader])),rowsByAddress,blankLeafAddresses:new Set(inventory.filter(item=>item.reason?.startsWith('Legitimate blank GL:')).map(item=>mapped.actual.column+item.row))},sourceSheet:{sheet,classification,inventoryCount:inventory.length,columns:column.columns,sourceHash},mappingVersion};
 }
 export function parseComparisonLines(text,source={}) {
  const classification=classifyStatement(text),sheet=source.sheet||'PDF page '+(source.page||1),metadata=classification===CLOSE_SOURCE?statementMetadata(text):null,rows=[],exceptions=[],inventory=[],mappingVersion=source.mappingVersion||FINANCIAL_MAPPING_VERSION;let section=null;
  const mapped=Object.fromEntries(fields.map((field,index)=>[field,{sheet,column:'text-column-'+(index+1),index,type:index===0?'monthly_actual':index===1?'monthly_budget':index>=4&&index<=7?'ytd_supporting':index===8?'annual_budget':'variance',header:field,period:index<4?metadata?.period:null,method:'printed_nine_column_budget_comparison'}]));
  for(const [index,line]of String(text).split(/\r?\n/).entries()){
   const trimmed=line.trim();if(!trimmed)continue;const number=index+1,numbers=[...trimmed.matchAll(/(?:^|\s)(\(?-?\d[\d,]*\.\d{2}\)?%?|N\/A|—|–)(?=\s|$)/g)],prefix=numbers.length?trimmed.slice(0,numbers[0].index).trim():trimmed,gl=prefix.match(/^(\d{4,8}(?:[-.]\d+)?)\s+(.+)$/),code=gl?.[1]||null,name=normalizeFinancialLabel(gl?.[2]||prefix),parts=numbers.map(match=>match[1]),control=!code&&/^(?:Total\b|Net\b|Cash Flow\b|Controllable Cash Flow\b)/i.test(name);let disposition='header_or_section',reason='Printed identity, header, footer or section boundary.';
-  const sectionBoundary=!numbers.length&& !/budget|comparison|income statement|accrual basis|cash basis|^property:|20\d{2}|generated|^page |^account\b|variance|^YTD/i.test(trimmed)&&trimmed!==metadata?.sourceProperty;
+  const printedHeader=/budget|comparison|income statement|accrual basis|cash basis|^property:|generated|^page |^account\b|variance|^YTD|^(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+20\d{2}/i.test(trimmed)||trimmed===metadata?.sourceProperty;
+  const ambiguousNumericSuffix=!numbers.length&&!printedHeader&&/(?:^|\s)\(?-?\$?\d[\d,]*(?:\.\d+)?\)?%?$/.test(trimmed);
+  const blankGL=code&&!ambiguousNumericSuffix&&(!parts.length||parts.length===9&&parts.every(value=>financialValue(value.replace(/%$/,'')).value===null));
+  const sectionBoundary=!numbers.length&&!code&&!ambiguousNumericSuffix&&!printedHeader;
   if(sectionBoundary)section=trimmed;
   if(classification!==CLOSE_SOURCE){disposition='supporting';reason='Supporting '+classification+' page; never monthly actual authority.';}
+  else if(blankGL){disposition='supporting';reason='Legitimate blank GL: every printed financial cell is blank or unavailable; retained as missing, never zero.';}
+  else if(ambiguousNumericSuffix){disposition='unresolved';reason='A numeric source value does not follow the confirmed nine-column comparison format.';}
   else if(numbers.length&&(code||control)){disposition=parts.length===9?(code?'mapped_leaf':'mapped_control'):'unresolved';reason=parts.length===9?'Nine printed comparison columns retain monthly, YTD and budget roles.':'Expected nine unambiguous comparison columns.';}
   else if(numbers.length){disposition=/^(?:memo|statistical|occupancy|unit count|units\b)/i.test(name)?'memo_statistical':'unresolved';reason='Numeric source line is not mapped to a posting or bounded total.';}
   const item={id:sheet+'!'+number,sheet,row:number,rawLabel:prefix,normalizedLabel:name,rawText:line,rawCells:parts.map((value,i)=>({address:'text-column-'+(i+1)+'-line-'+number,column:'text-column-'+(i+1),value,type:'s'})),glCode:code,disposition,reason,included:['mapped_leaf','mapped_control'].includes(disposition),sectionBoundary:disposition==='header_or_section'&&sectionBoundary,sourceHash:source.sourceHash||null,mappingVersion,columnMapping:mapped,actual:{...financialValue(parts[0]),type:typeof parts[0],blank:!hasValue(parts[0]),column:'text-column-1',period:metadata?.period}};inventory.push(item);
+  // Some printed reports repeat a section name for its total without a
+  // "Total" prefix. Keep it unresolved until the complete report proves the
+  // earlier matching heading and bounded posting rows, including across pages.
+  if(disposition==='unresolved'&&!code&&parts.length===9)item.sectionTotalCandidate={values:parts,source:{...source,sheet,row:number,line:number,rowId:item.id,cells:Object.fromEntries(fields.map((field,i)=>[field,'text-column-'+(i+1)+'-line-'+number]))}};
   if(['mapped_leaf','mapped_control'].includes(disposition)){const record=makeRow(code,name,parts,{...source,sheet,row:number,line:number,rowId:item.id,cells:Object.fromEntries(fields.map((field,i)=>[field,'text-column-'+(i+1)+'-line-'+number]))},section);record.columnMapping=mapped;record.sourceHash=source.sourceHash||null;record.mappingVersion=mappingVersion;rows.push(record);}
   if(disposition==='unresolved')exceptions.push({code:'unresolved_source_row',sourceRowId:item.id,page:source.page,line:number,glCode:code,description:reason});
  }
- return {classification,rows,metadata,exceptions,inventory,columnExclusions:fields.slice(1).map(field=>({...mapped[field],included:false,reason:'Supporting comparison column, not monthly actuals.',affectedPeriod:metadata?.period,rowCount:rows.length,coverageEffect:'No additional actuals or closes.'})),selectedActualColumn:classification===CLOSE_SOURCE?{...mapped.actual,header:metadata?.period+' / Actual'}:null,sourceSheet:{sheet,classification,inventoryCount:inventory.length,sourceHash:source.sourceHash||null},mappingVersion};
+ const pagination=String(text).match(/\bPage\s+(\d+)\s+of\s+(\d+)\s*$/im);
+ return {classification,rows,metadata,exceptions,inventory,columnExclusions:fields.slice(1).map(field=>({...mapped[field],included:false,reason:'Supporting comparison column, not monthly actuals.',affectedPeriod:metadata?.period,rowCount:rows.length,coverageEffect:'No additional actuals or closes.'})),selectedActualColumn:classification===CLOSE_SOURCE?{...mapped.actual,header:metadata?.period+' / Actual'}:null,sourceSheet:{sheet,classification,inventoryCount:inventory.length,sourceHash:source.sourceHash||null,format:'pdf_text',...(pagination?{reportPage:Number(pagination[1]),reportPages:Number(pagination[2])}:{})},mappingVersion};
 }
 export function reconcileComparison(parts) {
- const candidates=parts.filter(part=>part.classification===CLOSE_SOURCE),rows=candidates.flatMap(part=>part.rows),exceptions=candidates.flatMap(part=>part.exceptions),inventory=parts.flatMap(part=>part.inventory||[]).map(item=>structuredClone(item)),identities=candidates.map(part=>part.metadata).filter(Boolean),metadata=identities[0]||null;
+ const candidates=parts.filter(part=>part.classification===CLOSE_SOURCE),rows=structuredClone(candidates.flatMap(part=>part.rows)),exceptions=structuredClone(candidates.flatMap(part=>part.exceptions)),inventory=parts.flatMap(part=>part.inventory||[]).map(item=>structuredClone(item)),identities=candidates.map(part=>part.metadata).filter(Boolean),metadata=identities[0]||null;
  if(!identities.length||metadata?.basis!=='accrual'||identities.some(item=>!item.sourceProperty||!item.period))exceptions.push({code:'missing_identity_period_or_basis'});
  if(new Set(identities.map(item=>`${item.sourceProperty}|${item.period}|${item.basis||metadata.basis}|${item.ytdStart}`)).size>1)exceptions.push({code:'conflicting_source_scope'});
+ const printed=candidates.filter(part=>part.sourceSheet?.format==='pdf_text'),paginated=printed.filter(part=>part.sourceSheet.reportPage);
+ if(paginated.length&&(paginated.length!==printed.length||new Set(paginated.map(part=>part.sourceSheet.reportPages)).size!==1||paginated[0].sourceSheet.reportPages!==paginated.length||paginated.some((part,index)=>part.sourceSheet.reportPage!==index+1)))exceptions.push({code:'incomplete_statement_pages',description:'Printed comparison pages must contain one complete, ordered Page 1 through Page N sequence.'});
+ const sameScope=!exceptions.some(item=>['conflicting_source_scope','missing_identity_period_or_basis','incomplete_statement_pages'].includes(item.code)),printedSheets=new Set(printed.map(part=>part.sourceSheet.sheet));
+ for(const item of inventory)item.statementScope=sameScope&&printedSheets.has(item.sheet)?'printed-budget-comparison':item.sheet;
+ const byId=new Map(inventory.map(item=>[item.id,item]));
+ for(const row of rows)row.source.statementScope=byId.get(row.source.rowId)?.statementScope||row.source.sheet;
+ for(let index=0;index<inventory.length;index++){
+  const item=inventory[index],candidate=item.sectionTotalCandidate;
+  if(!candidate||!printedSheets.has(item.sheet))continue;
+  const heading=inventory.slice(0,index).findLast(prior=>prior.statementScope===item.statementScope&&prior.disposition==='header_or_section'&&prior.sectionBoundary&&normalizeFinancialLabel(prior.rawLabel).toLowerCase()===item.normalizedLabel.toLowerCase());
+  if(!heading)continue;
+  item.disposition='mapped_control';item.included=true;item.reason='Printed total repeats an earlier explicit section heading; bounded account reconciliation is required.';
+  const record=makeRow(null,item.normalizedLabel,candidate.values,{...candidate.source,statementScope:item.statementScope},null);record.columnMapping=item.columnMapping;record.sourceHash=item.sourceHash;record.mappingVersion=item.mappingVersion;rows.push(record);
+  const error=exceptions.findIndex(entry=>entry.code==='unresolved_source_row'&&entry.sourceRowId===item.id);if(error>=0)exceptions.splice(error,1);
+ }
+ const order=new Map(inventory.map((item,index)=>[item.id,index]));rows.sort((a,b)=>order.get(a.source.rowId)-order.get(b.source.rowId));
  const contexts=Object.fromEntries(candidates.filter(part=>part.context).map(part=>[part.sourceSheet.sheet,part.context])),hierarchy=buildFinancialHierarchy(rows,inventory,contexts),leaf=auditFinancialLeaves(rows,inventory,metadata);exceptions.push(...hierarchy.exceptions,...leaf.exceptions);
  for(const row of rows)for(const [a,b,v]of [['actual','budget','displayedVariance'],['ytdActual','ytdBudget','displayedYtdVariance']])if([a,b,v].every(key=>row.values[key]!==null)&&Math.abs(Math.abs(cents(row.values[a])-cents(row.values[b]))-Math.abs(cents(row.values[v])))>1)exceptions.push({code:'variance_mismatch',glCode:row.glCode,source:row.source,field:v});
  const actualColumns=candidates.map(part=>part.selectedActualColumn).filter(Boolean),counts=Object.fromEntries(['mapped_leaf','mapped_control','header_or_section','memo_statistical','supporting','duplicate','excluded','unresolved'].map(disposition=>[disposition,inventory.filter(item=>item.disposition===disposition).length]));

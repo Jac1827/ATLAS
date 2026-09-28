@@ -4,7 +4,24 @@ export const ENGINE_VERSION='atlas-reforecast-v1';
 export const DRIVER_OPERATIONS=Object.freeze(['percent_change','amount','add','percent_of_account','occupancy_vacancy']);
 const finite=v=>typeof v==='number'&&Number.isFinite(v);
 const amount=v=>finite(v)?v:null;
-const money=v=>finite(v)?Math.sign(v)*Math.round((Math.abs(v)+Number.EPSILON)*100)/100:null;
+// Match PostgreSQL numeric: operate on the retained decimal spelling and round
+// once, half away from zero. Binary multiplication cannot decide a money tie.
+const decimal=value=>{const [coefficient,exponent='0']=String(value).split('e'),[whole,fraction='']=coefficient.split('.');return {units:BigInt(whole+fraction),scale:fraction.length-Number(exponent)};};
+const decimalSum=parts=>{const scale=Math.max(0,...parts.map(part=>part.scale));return {units:parts.reduce((total,part)=>total+part.units*10n**BigInt(scale-part.scale),0n),scale};};
+const decimalProduct=(a,b)=>({units:a.units*b.units,scale:a.scale+b.scale});
+const roundedDecimal=part=>{const scale=Math.max(2,part.scale),units=part.units*10n**BigInt(scale-part.scale),divisor=10n**BigInt(scale-2),absolute=units<0n?-units:units,cents=absolute/divisor+(absolute%divisor*2n>=divisor?1n:0n);if(cents===0n)return 0;const digits=cents.toString().padStart(3,'0'),result=Number((units<0n?'-':'')+digits.slice(0,-2)+'.'+digits.slice(-2));return finite(result)?result:null;};
+export const roundMoney=value=>finite(value)?roundedDecimal(decimal(value)):null;
+export const sumMoney=values=>values.every(finite)?roundedDecimal(decimalSum(values.map(decimal))):null;
+export function moneyDriverAmount(operation,before,value,base){
+ if(!finite(value))return null;
+ if(operation==='amount')return roundMoney(value);
+ if(operation==='add')return finite(before)?sumMoney([before,value]):null;
+ if(operation==='percent_change')return finite(before)?roundedDecimal(decimalProduct(decimal(before),decimalSum([decimal(1),decimal(value)]))):null;
+ if(operation==='percent_of_account')return finite(base)?roundedDecimal(decimalProduct(decimal(base),decimal(value))):null;
+ if(operation==='occupancy_vacancy')return finite(base)?roundedDecimal(decimalProduct(decimal(-Math.abs(base)),decimalSum([decimal(1),decimal(-value)]))):null;
+ return null;
+}
+const money=roundMoney;
 const periodPattern=/^20\d{2}-(0[1-9]|1[0-2])$/;
 const compound=(period,account)=>`${period}|${account}`;
 export const stableStringify=value=>JSON.stringify(canonical(value));
@@ -12,23 +29,51 @@ function canonical(value){return Array.isArray(value)?value.map(canonical):value
 export function fingerprint(value){const text=stableStringify(value);let a=2166136261,b=2246822519;for(let i=0;i<text.length;i++){a=Math.imul(a^text.charCodeAt(i),16777619);b=Math.imul(b^text.charCodeAt(i),3266489917);}return `${ENGINE_VERSION}:${(a>>>0).toString(16).padStart(8,'0')}${(b>>>0).toString(16).padStart(8,'0')}:${text.length}`;}
 const clone=value=>JSON.parse(JSON.stringify(value));
 function freeze(value){if(value&&typeof value==='object'&&!Object.isFrozen(value)){Object.freeze(value);for(const child of Object.values(value))freeze(child);}return value;}
-const strictSum=values=>values.some(value=>!finite(value))?null:money(values.reduce((sum,value)=>sum+value,0));
-const subtract=(a,b)=>finite(a)&&finite(b)?money(a-b):null;
+const strictSum=sumMoney;
+const subtract=(a,b)=>finite(a)&&finite(b)?sumMoney([a,-b]):null;
 const selectedAmount=row=>Object.hasOwn(row,'selectedBaseline')?row.selectedBaseline:row.originalBudget;
-function aggregate(lines,field){
- const selected=predicate=>lines.filter(predicate).map(row=>row[field]);
+export function aggregateForecastLines(lines,field,options={}){
+ const selected=(predicate,factor=()=>1)=>lines.filter(row=>predicate(row)&&!(['originalBudget','selectedBaseline'].includes(field)&&row[field]===null&&row.baselineDisposition?.kind==='no_original_budget_row')).map(row=>finite(row[field])?row[field]*factor(row):row[field]);
  const grossIncome=strictSum(selected(row=>row.nature==='income'&&row.placement==='above_noi'));
  const contraRevenue=strictSum(selected(row=>row.nature==='contra_income'&&row.placement==='above_noi'));
  const revenue=strictSum([grossIncome,contraRevenue]);
  const opex=strictSum(selected(row=>row.nature==='expense'&&row.placement==='above_noi'));
- const belowExpenses=strictSum(selected(row=>row.nature==='below_noi'||row.nature==='expense'&&row.placement==='below_noi'));
- const belowIncome=strictSum(selected(row=>['income','contra_income'].includes(row.nature)&&row.placement==='below_noi'));
- const belowNoi=subtract(belowExpenses,belowIncome);
+ const belowNoi=strictSum(selected(row=>row.placement==='below_noi'&&!['capital','debt'].includes(row.nature),row=>['income','contra_income'].includes(row.nature)?-1:1));
  const capital=strictSum(selected(row=>row.nature==='capital')),debt=strictSum(selected(row=>row.nature==='debt'));
  const noi=subtract(revenue,opex),cashFlow=subtract(subtract(subtract(noi,belowNoi),debt),capital);
  const invalid=lines.some(row=>!row.mappingValid);
- return {grossIncome:invalid?null:grossIncome,contraRevenue:invalid?null:contraRevenue,revenue:invalid?null:revenue,opex:invalid?null:opex,expenses:invalid?null:opex,belowNoi:invalid?null:belowNoi,capital:invalid?null:capital,debt:invalid?null:debt,noi:invalid?null:noi,cashFlow:invalid?null:cashFlow,margin:!invalid&&finite(noi)&&finite(revenue)&&revenue!==0?noi/revenue:null};
+ const metrics={grossIncome:invalid?null:grossIncome,contraRevenue:invalid?null:contraRevenue,revenue:invalid?null:revenue,opex:invalid?null:opex,expenses:invalid?null:opex,belowNoi:invalid?null:belowNoi,capital:invalid?null:capital,debt:invalid?null:debt,noi:invalid?null:noi,cashFlow:invalid?null:cashFlow,margin:!invalid&&finite(noi)&&finite(revenue)&&revenue!==0?noi/revenue:null};
+ return withNoncashMetrics(metrics,lines,field,options);
 }
+// A reviewed false flag is evidence; a missing flag is not a zero charge.
+export const NONCASH_METRIC_KEYS=Object.freeze(['nonCashDepreciationAmortization','cashFlowBeforeNoncash','cashFlowAfterNoncash']);
+export function withNoncashMetrics(metrics,lines,field,{nonCashPresentation=false,unavailable=false}={}){
+ if(!nonCashPresentation&&!lines.some(row=>row.nonCashClassificationVersion===1))return metrics;
+ if(unavailable)return {...metrics,...Object.fromEntries(NONCASH_METRIC_KEYS.map(key=>[key,null]))};
+ const selected=lines.filter(row=>!(['originalBudget','selectedBaseline'].includes(field)&&row[field]===null&&row.baselineDisposition?.kind==='no_original_budget_row'));
+ if(lines.length&&!selected.length)return {...metrics,...Object.fromEntries(NONCASH_METRIC_KEYS.map(key=>[key,null]))};
+ const reviewed=selected.every(row=>row.mappingValid===true&&row.nonCashClassificationVersion===1&&typeof row.nonCash==='boolean'&&(!row.nonCash||row.nature==='below_noi'&&row.placement==='below_noi'));
+ const charge=reviewed?sumMoney(selected.filter(row=>row.nonCash).map(row=>row[field])):null;
+ return {...metrics,nonCashDepreciationAmortization:charge,cashFlowBeforeNoncash:sumMoney([metrics.cashFlow,charge]),cashFlowAfterNoncash:metrics.cashFlow};
+}
+function presentNoncashSnapshot(snapshot,registry){
+ if(registry.nonCashClassificationVersion!==1)return snapshot;
+ const result=clone(snapshot),accounts=new Map((registry.accounts||[]).map(row=>[row.accountCode,row]));
+ for(const line of result.lines){const source=line.immutable?line.inheritedDetail:accounts.get(line.accountCode),reviewed=line.immutable?source?.nonCashClassificationVersion===1:true;
+  line.nonCash=reviewed&&typeof source?.nonCash==='boolean'?source.nonCash:null;line.nonCashClassificationVersion=reviewed&&typeof source?.nonCash==='boolean'?1:null;
+ }
+ result.identity.nonCashPresentation={schemaVersion:1,classificationVersion:1,cashFlowBasis:'after_noncash_depreciation_amortization'};
+ for(const month of result.monthly){const rows=result.lines.filter(row=>row.period===month.period);
+  for(const [phase,field]of Object.entries({originalBudget:'originalBudget',selectedBaseline:'selectedBaseline',reforecast:month.closed&&!rows.some(row=>row.immutable)?'actual':'forecast',actuals:'actual'}))if(month[phase])month[phase]=withNoncashMetrics(month[phase],rows,field,{nonCashPresentation:true,unavailable:phase==='actuals'&&!month.closed||phase==='reforecast'&&month.applicable===false});
+ }
+ for(const [phase,metrics]of Object.entries(result.totals)){const selected=result.monthly.filter(row=>(phase==='originalBudget'||row.applicable!==false)&&(phase!=='actualsThroughCutoff'||row.closed));
+  const sourcePhase=phase==='actualsThroughCutoff'?'actuals':phase;
+  for(const key of NONCASH_METRIC_KEYS)metrics[key]=selected.length?sumMoney(selected.map(row=>row[sourcePhase]?.[key])):null;
+  metrics.cashFlowBeforeNoncash=sumMoney([metrics.cashFlowAfterNoncash,metrics.nonCashDepreciationAmortization]);
+ }
+ result.fingerprint=fingerprint({...result,fingerprint:undefined});return freeze(result);
+}
+const aggregate=aggregateForecastLines;
 function emptyMetrics(){return Object.fromEntries(['grossIncome','contraRevenue','revenue','opex','expenses','belowNoi','capital','debt','noi','cashFlow','margin'].map(key=>[key,null]));}
 const validNature=new Set(['income','contra_income','expense','capital','debt','below_noi']);
 // Full months are identities, never dates coerced to a month.
@@ -72,7 +117,8 @@ export function validateSunsetDisposition(account){
  if(!account.successorAccountCode&&account.successorDisposition!=='no_successor')issues.push({code:'sunset_disposition',message:'Specify the approved GL for new activity or explicitly choose no successor.'});
  if(account.successorAccountCode===account.accountCode)issues.push({code:'sunset_cycle',message:'A sunset GL cannot be its own successor.'});return issues;
 }
-export function computeReforecast(input){
+export function computeReforecast(input){return presentNoncashSnapshot(computeReforecastBeforeNoncash(input),input.registry||{});}
+function computeReforecastBeforeNoncash(input){
  const {communityId,baseline={},actuals={},scenario={},registry={}}=input;
  const periods=validateForecastPeriods(input.periods,{periodEvidence:actuals.closeVersions||[]});
  if(!communityId||!periods.length||periods.some(period=>!periodPattern.test(period)))throw Error('Community identity and explicit reporting periods are required.');
@@ -113,6 +159,9 @@ export function computeReforecast(input){
    if(immutable&&!inheritedLine)issue('missing_locked_inheritance','A locked month requires its exact baseline and lineage.',{period,accountCode});
    const row={period,accountCode,identifier:['income','contra_income','expense','capital'].includes(mapping?.identifier||mapping?.nature)?mapping.identifier||mapping.nature:['debt','below_noi'].includes(mapping?.nature)?'expense':null,accountRole:mapping?.accountRole||(mapping?.isDebt?'debt':['debt','below_noi'].includes(mapping?.nature)?mapping.nature:null),isDebt:mapping?.isDebt===true||mapping?.nature==='debt',noncontrollable:mapping?.noncontrollable===true,intercompany:mapping?.intercompany===true,accountName:mapping?.name||budget?.accountName||actual?.accountName||accountCode,originalBudget,selectedBaseline,baselineLineage:clone(budget?.baselineLineage||baseline.periodVersions?.find(item=>item.period===period)||{sourceType:baseline.sourceType||'original_budget',versionId:baseline.versionId||baseline.versionIds?.[0]||null}),actual:actualAmount,forecast:notApplicable.has(period)?null:immutable?amount(inheritedLine&&Object.hasOwn(inheritedLine,'forecast')?inheritedLine.forecast:inheritedLine?.amount):isClosed?actualAmount:retired?0:selectedBaseline,sourceKind:notApplicable.has(period)?'not_applicable':immutable?'inherited_locked':isClosed?'closed_actual':'forecast',immutable,inheritedDetail:immutable?clone(inheritedLine||null):null,historyEligible:Boolean(isClosed&&eligibleClose),sourceHash:closeEvidence?.sourceHash||actual?.source?.hash||null,retired,applicable:!notApplicable.has(period),closeVersionId:isClosed?closeVersionId:null,category:mapping?.category||null,nature:mapping?.nature||null,placement:mapping?.placement||null,mappingValid:Boolean(mappingValid||historicalValid),driverIds:[],driverSources:[],source:clone((isClosed?actual:budget)?.source||null)};
    if(immutable&&inheritedLine){for(const field of ['originalBudget','selectedBaseline','baselineLineage','source','nature','identifier','accountRole','isDebt','intercompany','noncontrollable','placement','category','mappingValid','driverIds','driverSources'])if(Object.hasOwn(inheritedLine,field))row[field]=clone(inheritedLine[field]);row.source=clone(inheritedLine.source||null);}
+   const importedMappings=[scenario.importMapping,...(scenario.importHistory||[]).map(entry=>entry.mapping)].filter(Boolean),reviewedAbsence=importedMappings.filter(review=>review.periods?.includes(period)).flatMap(review=>review.accountMappings||[]).find(item=>item.accountCode===accountCode&&item.baselineDisposition?.kind==='no_original_budget_row'&&item.baselineDisposition.confirmed===true)?.baselineDisposition;
+   if(originalBudget===null&&!originalBudgets.has(key)&&(reviewedAbsence||budget?.baselineDisposition?.kind==='no_original_budget_row'))row.baselineDisposition=clone(reviewedAbsence||budget.baselineDisposition);
+   if(originalBudget===null&&!originalBudgets.has(key)&&!row.baselineDisposition){const savedStream=scenario.strStreams?.find(stream=>stream.type==='saved_json_monthly_programme'),receipt=input.savedStrSourceReceipts?.find(item=>item.source_receipt_id===savedStream?.sourceReceiptId&&item.status==='approved'),cell=receipt?.review?.cells?.find(item=>item.period===period&&item.accountCode===accountCode&&item.parentDisposition==='no_parent_publication_row');if(cell&&!budgets.has(key))row.baselineDisposition={kind:'no_original_budget_row',confirmed:true,reviewedBy:receipt.actor_id,reviewedAt:receipt.review.reviewedAt,reason:receipt.review.reason,originalBudgetVersionIds:clone(baseline.versionIds||[]),parentDisposition:'no_parent_publication_row',sourceReceiptId:receipt.source_receipt_id};}
    lines.push(row);byKey.set(key,row);
   }
  }
@@ -131,8 +180,8 @@ export function computeReforecast(input){
    if(!row?.mappingValid){impact.unavailable.push({period,accountCode,reason:'Missing effective account mapping'});continue;}
    const before=row.forecast,base=driver.baseAccountCode?byKey.get(compound(period,String(driver.baseAccountCode)))?.forecast:null;
    let next=null;
-   switch(driver.operation){case 'amount':next=driver.value;break;case 'add':next=finite(before)?before+driver.value:null;break;case 'percent_change':next=finite(before)?before*(1+driver.value):null;break;case 'percent_of_account':next=finite(base)?base*driver.value:null;break;case 'occupancy_vacancy':next=finite(base)?-Math.abs(base)*(1-driver.value):null;break;}
-   row.forecast=money(next);row.driverIds.push(id);row.driverSources.push({driverId:id,operation:driver.operation,value:driver.value,source:clone(driver.source||null),reason:driver.reason||''});
+   next=moneyDriverAmount(driver.operation,before,driver.value,base);
+   row.forecast=next;row.driverIds.push(id);row.driverSources.push({driverId:id,operation:driver.operation,value:driver.value,source:clone(driver.source||null),reason:driver.reason||''});
    if(row.forecast===null){impact.unavailable.push({period,accountCode,reason:'Missing required source amount'});issue('missing_driver_source','A driver cannot calculate without its source amount.',{driverId:id,period,accountCode});}
    if(before!==row.forecast)impact.changed.push({period,accountCode,before,after:row.forecast,delta:subtract(row.forecast,before)});
   }
@@ -145,7 +194,7 @@ export function computeReforecast(input){
   const row=byKey.get(compound(override.period,String(override.accountCode)));
   if(!row){issue('invalid_override','The override does not reference a reporting account and period.',{period:override.period,accountCode:override.accountCode});continue;}
   if(row.sourceKind!=='forecast'||row.retired){issue('protected_override','The override was not applied to a closed or non-applicable period.',{period:override.period,accountCode:override.accountCode},'advisory');continue;}
-  row.forecast=money(override.amount);row.driverIds.push('override-'+index);row.driverSources.push({driverId:'override-'+index,operation:'amount',value:override.amount,source:clone(override.source||null),reason:override.reason||''});
+  row.forecast=(override.sourceLineId||override.source?.sourceKind==='saved_json_monthly_programme')&&finite(override.amount)?override.amount:money(override.amount);row.driverIds.push('override-'+index);row.driverSources.push({driverId:'override-'+index,operation:'amount',value:override.amount,source:clone(override.source||null),reason:override.reason||''});
   if(scenario.governanceSchemaVersion===2)diagnostics.push(...planningOverrideIssues(override).map(d=>({...d,severity:'blocking'})));
   if(!override.reason)issue('override_reason','A manual override requires an adjustment reason.',{period:override.period,accountCode:override.accountCode});
  }
@@ -163,7 +212,7 @@ export function computeReforecast(input){
  });
  const budgetLeasing=new Map((baseline.leasing||[]).map(row=>[row.period,row])),actualLeasing=new Map((actuals.leasing||[]).map(row=>[row.period,row]));
  const leasing=periods.map(period=>{const isClosed=Boolean(cutoff&&period<=cutoff&&!notApplicable.has(period)),source=isClosed?actualLeasing.get(period):budgetLeasing.get(period);const row={period,sourceKind:notApplicable.has(period)?'not_applicable':isClosed?'closed_actual':'forecast',units:amount(source?.units),occupiedUnits:amount(source?.occupiedUnits),moveIns:amount(source?.moveIns),moveOuts:amount(source?.moveOuts),marketRent:amount(source?.marketRent),source:source?.source||null};for(const driver of scenario.drivers||[])if(!isClosed&&!notApplicable.has(period)&&driver.operation==='occupancy_vacancy'&&(!driver.periods||driver.periods.includes(period))&&finite(driver.value)&&finite(row.units)&&lines.some(line=>line.period===period&&line.mappingValid&&!line.retired&&finite(line.forecast)&&line.driverIds.includes(driver.id||`driver-${(scenario.drivers||[]).indexOf(driver)+1}`)))row.occupiedUnits=row.units*driver.value;row.occupancy=finite(row.units)&&row.units>0&&finite(row.occupiedUnits)?row.occupiedUnits/row.units:null;return row;});
- const categories=[...new Set(lines.map(row=>row.category))].filter(Boolean).sort().map(category=>({category,monthly:periods.map(period=>{const rows=lines.filter(row=>row.period===period&&row.category===category);return {period,originalBudget:strictSum(rows.map(row=>row.originalBudget)),forecast:strictSum(rows.map(row=>row.forecast)),actual:cutoff&&period<=cutoff?strictSum(rows.map(row=>row.actual)):null};})}));
+ const categories=[...new Set(lines.map(row=>row.category))].filter(Boolean).sort().map(category=>({category,monthly:periods.map(period=>{const rows=lines.filter(row=>row.period===period&&row.category===category);return {period,originalBudget:strictSum(rows.filter(row=>!(row.originalBudget===null&&row.baselineDisposition?.kind==='no_original_budget_row')).map(row=>row.originalBudget)),forecast:strictSum(rows.map(row=>row.forecast)),actual:cutoff&&period<=cutoff?strictSum(rows.map(row=>row.actual)):null};})}));
  const identity={engineVersion:ENGINE_VERSION,communityId,periods,baselineVersionId:baseline.versionId||null,baselineVersionIds:baseline.versionIds||[],baselineSourceType:baseline.sourceType||'original_budget',baselinePeriodVersions:clone(baseline.periodVersions||[]),priorPublicationIds:[...new Set((baseline.periodVersions||[]).map(row=>row.publicationId).filter(Boolean))],lockedPeriods:[...lockedPeriods].sort(),sourceHashes:clone(input.sourceHashes||[]),actualCloseVersions:(actuals.closeVersions||[]).filter(row=>periods.includes(row.period)).slice().sort((a,b)=>a.period.localeCompare(b.period)),actualCutoff:cutoff,reforecastVersion:scenario.versionId,driverVersion:scenario.driverVersion,mappingRegistryVersion:registry.version};
  const totalMetrics=(kind,selected=monthly.filter(row=>row.applicable))=>{const result=Object.fromEntries(Object.keys(emptyMetrics()).map(key=>[key,strictSum(selected.map(row=>row[kind][key]))]));result.margin=finite(result.revenue)&&result.revenue!==0&&finite(result.noi)?result.noi/result.revenue:null;return result;};
  const totals={originalBudget:totalMetrics('originalBudget',monthly),...(baseline.sourceType?{selectedBaseline:totalMetrics('selectedBaseline',monthly)}:{}),reforecast:totalMetrics('reforecast'),actuals:monthly.filter(row=>row.applicable).every(row=>row.closed)?totalMetrics('actuals'):emptyMetrics(),actualsThroughCutoff:monthly.some(row=>row.closed)?totalMetrics('actuals',monthly.filter(row=>row.closed)):emptyMetrics()};

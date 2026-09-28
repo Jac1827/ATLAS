@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {communityForecastReport,communityForecastWorkbook,communityForecastPdf} from '../docs/portfolio-operations-dashboard/features/reforecast-report.mjs';
+import {reportLibraryFixture} from './fixtures/reforecast-report-library-fixture.mjs';
+import {createRequire} from 'node:module';
+import {PDFDocument,PDFName,PDFDict,PDFArray,PDFRawStream,decodePDFRawStream} from '../docs/portfolio-operations-dashboard/vendor/pdf-lib-1.17.1.mjs';
+const XLSX=createRequire(import.meta.url)('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js');
+const fixture=reportLibraryFixture(),pending={...fixture.parent,status:'pending_investor_approval',investorStatus:'pending_investor_approval',investorApprovalDate:null},final={...pending,status:'investor_approved',investorStatus:'investor_approved',investorApprovalDate:'2026-09-25',finalRevisionId:'final-retained-version'};
+const options={communityName:'Synthetic Community'},a=communityForecastReport(pending,options),b=communityForecastReport(final,options);
+assert.equal(a.appendix[0].Status,'Pending Investor Approval');assert.equal(a.appendix[0].Investor_approval_date,null);
+assert.equal(b.appendix[0].Status,'Investor Approved');assert.equal(b.appendix[0].Investor_approval_date,'2026-09-25');assert.equal(b.appendix[0].Final_version,'final-retained-version');
+assert.deepEqual(a.rows,b.rows,'Investor governance does not change financial values');
+assert.notEqual(a.snapshot.fingerprint,b.snapshot.fingerprint,'Report identity binds the governance state captured at export');
+const workbook=communityForecastWorkbook(final,XLSX,options),roundtrip=XLSX.read(XLSX.write(workbook,{type:'array',bookType:'xlsx'}),{type:'array'}),appendix=XLSX.utils.sheet_to_json(roundtrip.Sheets['Source appendix']);assert.equal(appendix[0].Investor_approval_date,'2026-09-25');
+const bytes=await communityForecastPdf(final,options),pdf=await PDFDocument.load(bytes),attachment=pdf.catalog.lookup(PDFName.of('Names'),PDFDict).lookup(PDFName.of('EmbeddedFiles'),PDFDict).lookup(PDFName.of('Names'),PDFArray).lookup(1,PDFDict).lookup(PDFName.of('EF'),PDFDict).lookup(PDFName.of('F'),PDFRawStream),evidence=JSON.parse(new TextDecoder().decode(decodePDFRawStream(attachment).decode()));
+assert.equal(evidence.snapshot.fingerprint,b.snapshot.fingerprint);assert.equal(evidence.snapshot.values.appendix[0].Investor_approval_date,appendix[0].Investor_approval_date);
+assert(pdf.getPages()[0].node.lookup(PDFName.of('Resources'),PDFDict).lookup(PDFName.of('XObject'),PDFDict).keys().length>0,'Repository RISE logo embedded');
+console.log('PASS investor status/date/final version captured in report identity, unchanged financial values, exact PDF/Excel governance parity and embedded RISE artwork');

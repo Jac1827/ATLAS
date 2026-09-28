@@ -1,5 +1,7 @@
-import {readActive,effectiveActiveSnapshot} from './reforecast-store.mjs?v=4a72d5a04fe4fa2a';
-import {esc,money,reportHtml,exportRows,csv,download} from './reforecast-report.mjs?v=414edcee834659f5';
+import {aggregateForecastLines,NONCASH_METRIC_KEYS} from './reforecast-engine.mjs?v=fbc60bc50d89f5ee';
+import {acknowledgeBudgetConsumer} from './budget-consumer-delivery.mjs?v=f5342574d4b39aa2';
+import {readActive,effectiveActiveSnapshot} from './reforecast-store.mjs?v=89302fd431288798';
+import {esc,money,reportHtml,exportRows,csv,download} from './reforecast-report.mjs?v=46c2b39fb807dfdc';
 const finitePercent=value=>typeof value==='number'&&Number.isFinite(value)?(value*100).toFixed(2)+'%':'Unavailable';
 // One publication reader shared by operating screens, plan/report evidence and Scout.
 export function createActiveReforecastCache(central){
@@ -21,9 +23,10 @@ export function activeBenchmark(publication,period){
  return {type:'active_reforecast',communityId:publication.communityId,period,publicationId:publication.publicationId,version:publication.version,revisionId:publication.revisionId,publishedAt:publication.publishedAt,cutoff:operating.identity?.actualCutoff,metrics:monthly.reforecast,leasing:operating.leasing?.find(row=>row.period===period)||null,sourceVersions:operating.identity,fingerprint:operating.fingerprint,financialSnapshot:operating.outputSnapshot,publishedFingerprint:publication.snapshot.fingerprint,projectionKind:operating.isActiveReadProjection?'current_actuals_projection':'published_vintage'};
 }
 export async function mountActiveBenchmark(container,{central,communityId,communityName,period,cache,openWorkspace}={}){
- const token=Symbol();container._reforecastToken=token;container.innerHTML='<p>Reading active operating reforecast…</p>';
- const alive=()=>container.isConnected&&container._reforecastToken===token;
+ const token=Symbol(),actor=central.getSession?.()?.user?.id;container._reforecastToken=token;container.innerHTML='<p>Reading active operating reforecast…</p>';
+ const alive=()=>container.isConnected&&container._reforecastToken===token&&central.getSession?.()?.user?.id===actor;
  try{const records=await cache.refresh([communityId],[period]);if(!alive())return;const publication=records.find(r=>r.communityId===communityId&&(r.activePeriods||r.periods).includes(period)),benchmark=activeBenchmark(publication,period),operating=publication?effectiveActiveSnapshot(publication):null;
+  if(benchmark)await acknowledgeBudgetConsumer(central,publication,'dashboard');if(!alive())return;
   if(!benchmark){container.innerHTML='<h3>Active operating reforecast</h3><p>No locked reforecast has been published for this property and period.</p>';if(openWorkspace){const b=document.createElement('button');b.textContent='Open Reforecast Approval Center';b.onclick=openWorkspace;container.append(b);}return;}
   container.innerHTML=`<h3>Active operating reforecast · ${esc(communityName||communityId)} · ${esc(period)}</h3><p>Published version ${esc(benchmark.version)} · ${esc(benchmark.publishedAt)} · Actual cutoff ${esc(benchmark.cutoff||'None')}</p><table><thead><tr><th>Income</th><th>OPEX</th><th>NOI</th><th>Cash flow</th></tr></thead><tbody><tr>${['revenue','expenses','noi','cashFlow'].map(k=>`<td>${money(benchmark.metrics?.[k])}</td>`).join('')}</tr></tbody></table><details><summary>Leasing and occupancy forecast</summary><p>Physical occupancy: ${finitePercent(benchmark.leasing?.occupancy)} · Occupied units: ${money(benchmark.leasing?.occupiedUnits)} · Move-ins: ${money(benchmark.leasing?.moveIns)} · Move-outs: ${money(benchmark.leasing?.moveOuts)}</p><p>Physical occupancy changes require move-ins and move-outs. A lease alone does not change physical occupancy. Missing schedule inputs stay unavailable.</p></details><p>Original-budget and approved leasing targets remain separately identified. Eligible Bonus targets use each full month’s verified effective baseline; paid and locked evidence is retained.</p><details><summary>Reforecast, original budget and actuals</summary>${reportHtml(operating,publication.source,{communityName,status:'Published / Active',periods:[period]})}</details><button data-export>Export active forecast evidence</button><p>Closed months use the governed actuals shown in this snapshot. Open months retain the locked published forecast.</p><p>Publication ${esc(benchmark.publicationId)} · Snapshot ${esc(benchmark.fingerprint)}</p>`;
   container.querySelector('[data-export]').onclick=()=>download(csv(exportRows(operating,publication.source,{periods:[period]})),`active-reforecast-${period}.csv`);
@@ -61,6 +64,7 @@ export async function readEffectiveBaselines(central,{communityIds,periods}={}){
 }
 export function effectiveBaselineMetric(baseline,metric,{accountCodes=null}={}){
  if(baseline?.status!=='available')return null;
+ if(NONCASH_METRIC_KEYS.includes(metric)){const rows=baseline.lines.filter(row=>!accountCodes||accountCodes.includes(row.accountCode));if(accountCodes?.some(code=>!rows.some(row=>row.accountCode===code)))return null;return aggregateForecastLines(rows.map(row=>({...row,mappingValid:row.mappingValid!==false&&Boolean(row.nature&&row.placement)})),'amount')[metric]??null;}
  const factors={revenue:row=>['income','contra_income'].includes(row.nature)&&row.placement==='above_noi'?1:0,expenses:row=>row.nature==='expense'&&row.placement==='above_noi'?1:0,capital:row=>row.nature==='capital'?1:0,debt:row=>row.nature==='debt'||row.accountRole==='debt'?1:0,noi:row=>row.placement==='above_noi'?['income','contra_income'].includes(row.nature)?1:row.nature==='expense'?-1:0:0,cashFlow:row=>['income','contra_income'].includes(row.nature)?1:['expense','capital','debt','below_noi'].includes(row.nature)?-1:0};
  if(metric==='margin'){const revenue=effectiveBaselineMetric(baseline,'revenue',{accountCodes}),noi=effectiveBaselineMetric(baseline,'noi',{accountCodes});return revenue&&noi!==null?noi/revenue:null;}
  const factor=factors[metric==='opex'?'expenses':metric];if(!factor)return null;

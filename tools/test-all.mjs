@@ -65,7 +65,7 @@ async function runOne(file,index,{env,directory,timeoutMs,strictFixtures}) {
     const childEnv={...env};
     // Browser tests either create their own disposable fixture or use this owned one.
     for(const key of ['ATLAS_FORECAST_TEST_URL','ATLAS_PROVIDER_TEST_URL','ATLAS_UI_TEST_URL'])delete childEnv[key];
-    if(file==='tools/reforecast-builder-browser.test.mjs'){fixture=await isolatedBuilder(childEnv,log);childEnv.ATLAS_FORECAST_TEST_URL=fixture.url;}
+    if(file==='tools/reforecast-builder-browser.test.mjs'){childEnv.ATLAS_GOVERNED_WORKFLOW_TEST='1';fixture=await isolatedBuilder(childEnv,log);childEnv.ATLAS_FORECAST_TEST_URL=fixture.url;}
     child=spawn(process.execPath,[file],{cwd:root,env:childEnv,detached:process.platform!=='win32',stdio:['ignore','pipe','pipe']});
     for(const stream of [child.stdout,child.stderr])stream.on('data',chunk=>log.write(chunk));
     const outcome=await new Promise(resolve=>{

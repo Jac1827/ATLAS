@@ -1,5 +1,5 @@
-import {readFinance} from './canonical-finance.mjs?v=57c407b902ccd923';
-import {reportHtml,reportSummary,reportGoalRows,activeReforecastRows,financialRows} from './community-plan-report.mjs?v=c6ed23274bb47b6f';
+import {readFinance} from './canonical-finance.mjs?v=b15cbd051f547970';
+import {reportHtml,reportSummary,reportGoalRows,activeReforecastRows,financialRows} from './community-plan-report.mjs?v=810c4a70868a99c3';
 /* Community-scoped, versioned plans. Loaded only when the plan editor opens. */
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const stages = ['Suggested','Accepted/Open','In Progress','Completed','Verified','Cancelled'];

@@ -1,8 +1,8 @@
 import {monthlyGovernanceIssues} from './financial-workbook-governance.mjs?v=ce3982266f91118e';
 /* Pure source-evidence reconciliation. Workbook formulas are parsed as a small,
    explicit dependency grammar; no workbook code or arbitrary expression is executed. */
-export const FINANCIAL_MAPPING_VERSION='atlas-bcr-row-disposition/2';
-export const FINANCIAL_PARSER_VERSION='atlas-financial-package/2';
+export const FINANCIAL_MAPPING_VERSION='atlas-bcr-row-disposition/3';
+export const FINANCIAL_PARSER_VERSION='atlas-financial-package/3';
 export const DISPOSITIONS=['mapped_leaf','mapped_control','header_or_section','memo_statistical','supporting','duplicate','excluded','unresolved'];
 // PostgreSQL jsonb emits numbers as decimal text. Expand JSON's scientific form
 // without rounding again so browser and server hash the identical evidence bytes.
@@ -24,7 +24,7 @@ function terms(formula){const result=[];let depth=0,start=0;for(let i=0;i<formul
 function rangeCells(text){const match=text.match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/);if(!match||match[1]!==match[3]||+match[2]>+match[4]||+match[4]-+match[2]>10000)throw Error('Only bounded single-column source ranges are supported');return Array.from({length:+match[4]-+match[2]+1},(_,i)=>match[1]+(+match[2]+i));}
 function formulaHierarchy(control,context){
  const {cells,actualColumn,rowsByAddress,headerByColumn}=context,visited=new Set(),trace=[];
- function ref(raw){const cellAddress=address(raw);if(visited.has(cellAddress))throw Error('Cyclic roll-up formula');const cell=cells[cellAddress],sourceRow=rowsByAddress.get(cellAddress);if(sourceRow?.kind==='posting')return new Map([[sourceRow.source.rowId,1]]);if(!cell?.f)throw Error('Roll-up reference does not resolve to monthly actual leaf accounts: '+cellAddress);visited.add(cellAddress);trace.push({address:cellAddress,formula:cell.f,cachedValue:cell.v??null});const result=expression(cell.f);visited.delete(cellAddress);return result;}
+ function ref(raw){const cellAddress=address(raw);if(context.blankLeafAddresses?.has(cellAddress))return new Map();if(visited.has(cellAddress))throw Error('Cyclic roll-up formula');const cell=cells[cellAddress],sourceRow=rowsByAddress.get(cellAddress);if(sourceRow?.kind==='posting')return new Map([[sourceRow.source.rowId,1]]);if(!cell?.f)throw Error('Roll-up reference does not resolve to monthly actual leaf accounts: '+cellAddress);visited.add(cellAddress);trace.push({address:cellAddress,formula:cell.f,cachedValue:cell.v??null});const result=expression(cell.f);visited.delete(cellAddress);return result;}
  function expression(raw){const f=String(raw).replace(/^=/,'').replace(/\s/g,'').replace(/\$/g,'').toUpperCase();if(/[!\[\]#]/.test(f))throw Error('External, cross-sheet or broken roll-up reference');
   // This standard sign wrapper selects a static account-type sign; it never executes Excel IF.
   const wrapper=f.match(/^IF\((-?\d+)=([A-Z]+\d+),([A-Z]+\d+)\*-1,\3\)$/);
@@ -39,27 +39,60 @@ function formulaHierarchy(control,context){
  }
  const factors=ref(control.source.cells.actual);if(!factors.size||[...factors.values()].some(factor=>factor!==1&&factor!==-1))throw Error('Roll-up contains duplicate, canceled or unsupported leaf contributions');return {factors,method:'source_formula_dependencies',formulaEvidence:trace};
 }
-function structuralHierarchy(control,rows,inventory){
- const index=rows.indexOf(control),prior=rows.slice(0,index),normalized=key(control.accountName),headers=inventory.filter(item=>item.disposition==='header_or_section'&&item.sectionBoundary&&item.sheet===control.source.sheet&&item.row<control.source.row);
+function structuralHierarchy(control,rows,inventory,resolved){
+ const position=new Map(inventory.map((item,index)=>[item.id,index])),at=row=>position.get(row.source.rowId),scope=control.source.statementScope||control.source.sheet,inScope=row=>(row.source.statementScope||row.source.sheet)===scope;
+ const index=rows.indexOf(control),prior=rows.slice(0,index).filter(inScope),normalized=key(control.accountName),headers=inventory.filter(item=>item.disposition==='header_or_section'&&item.sectionBoundary&&(item.statementScope||item.sheet)===scope&&position.get(item.id)<at(control));
  const heading=[...headers].reverse().find(item=>key(item.rawLabel)===normalized);
- if(heading){const members=prior.filter(row=>row.kind==='posting'&&row.source.sheet===control.source.sheet&&row.source.row>heading.row);if(members.length)return {factors:new Map(members.map(row=>[row.source.rowId,1])),method:'explicit_section_boundary',boundaryRowId:heading.id};}
- // Standard income-statement NOI is income less posting expenses between the
- // independently bounded income total and NOI, never the sum of the whole report.
- if(metricKeyForLabel(control.accountName)==='noi'){
-  const income=prior.find(row=>metricKeyForLabel(row.accountName)==='revenue');
-  const start=income&&headers.find(item=>key(item.rawLabel)==='income'&&item.row<income.source.row);
-  if(start){const incomeLeaves=prior.filter(row=>row.kind==='posting'&&row.source.row>start.row&&row.source.row<income.source.row),expenses=prior.filter(row=>row.kind==='posting'&&row.source.row>income.source.row);if(incomeLeaves.length&&expenses.length)return{factors:new Map([...incomeLeaves.map(row=>[row.source.rowId,1]),...expenses.map(row=>[row.source.rowId,-1])]),method:'income_statement_noi',boundaryRowId:start.id};}
+ if(heading){const members=prior.filter(row=>row.kind==='posting'&&at(row)>position.get(heading.id));if(members.length)return {factors:new Map(members.map(row=>[row.source.rowId,1])),method:'explicit_section_boundary',boundaryRowId:heading.id};}
+ const checked=row=>{const result=row&&resolved.get(row.source.rowId);if(!result?.passed)throw Error('A preceding statement control is missing or unreconciled');return result;};
+ const previous=matches=>{const found=prior.filter(row=>row.kind==='control'&&matches(normalizeFinancialLabel(row.accountName).toLowerCase()));if(found.length!==1)throw Error('Expected one unambiguous preceding statement control');return found[0];};
+ // Printed income/cash-flow stages use their labeled preceding control and
+ // every intervening posting leaf. Negative source expenses stay negative;
+ // no matching total or source value is used to choose the dependency graph.
+ const stage=normalizeFinancialLabel(control.accountName).toLowerCase(),stageBases={
+  'controllable cash flow':name=>/^(?:total )?(?:operating )?(?:income|revenue)$/.test(name),
+  'net operating income':name=>/^(?:total )?(?:operating )?(?:income|revenue)$/.test(name),
+  'net operating income (noi)':name=>/^(?:total )?(?:operating )?(?:income|revenue)$/.test(name),
+  'cash flow before debt service':name=>/^net operating income(?: \(noi\))?$/.test(name),
+  'cash flow after debt service':name=>name==='cash flow before debt service',
+  'cash flow before deprec/amort':name=>name==='cash flow after debt service',
+  'cash flow after deprec/amort and other exp.':name=>name==='cash flow before deprec/amort',
+  'net cash flow':name=>name==='cash flow after deprec/amort and other exp.'
+ };
+ if(stageBases[stage]){
+  const base=previous(stageBases[stage]),baseNode=checked(base),members=prior.filter(row=>row.kind==='posting'&&at(row)>at(base)),factors=new Map(Object.entries(baseNode.factors));
+  for(const row of members){if(factors.has(row.source.rowId))throw Error('A cash-flow leaf is counted more than once');factors.set(row.source.rowId,-1);}
+  return {factors,method:'printed_statement_control_bridge',componentControlIds:[base.source.rowId],boundaryRowId:base.source.rowId};
+ }
+ if(stage==='total non-controllable expenses'){
+  const base=previous(name=>/^net operating income(?: \(noi\))?$/.test(name));checked(base);const members=prior.filter(row=>row.kind==='posting'&&at(row)>at(base));
+  if(members.length)return {factors:new Map(members.map(row=>[row.source.rowId,1])),method:'printed_post_noi_expense_section',boundaryRowId:base.source.rowId};
+ }
+ // Parent totals such as Payroll and Utilities close consecutive explicitly
+ // named child sections. Require complete, disjoint coverage of all posting
+ // rows since the first child boundary; never search combinations by amount.
+ const children=[];
+ for(const row of prior.filter(row=>row.kind==='control').reverse()){
+  const name=key(row.accountName);if(!(name.startsWith(normalized+' ')||name.endsWith(' '+normalized)))break;
+  const node=checked(row);if(!node.boundaryRowId||node.method!=='explicit_section_boundary')break;children.unshift(node);
+ }
+ if(children.length>1){
+  const factors=new Map(),boundary=children[0].boundaryRowId;
+  for(const node of children)for(const[id,factor]of Object.entries(node.factors)){if(factors.has(id))throw Error('Child sections overlap');factors.set(id,factor);}
+  const members=prior.filter(row=>row.kind==='posting'&&at(row)>position.get(boundary));
+  if(members.length!==factors.size||members.some(row=>!factors.has(row.source.rowId)))throw Error('Child sections do not cover the full printed parent section');
+  return {factors,method:'consecutive_named_section_totals',boundaryRowId:boundary,componentControlIds:children.map(node=>node.sourceRowId)};
  }
  throw Error('No explicit bounded section or supported formula defines this printed roll-up');
 }
 export function buildFinancialHierarchy(rows,inventory,contexts={}){
- const hierarchy=[],exceptions=[],checks=[],byId=new Map(rows.map(row=>[row.source.rowId,row]));
+ const hierarchy=[],exceptions=[],checks=[],byId=new Map(rows.map(row=>[row.source.rowId,row])),resolved=new Map();
  for(const control of rows.filter(row=>row.kind==='control'||metricKeyForLabel(row.accountName)==='gpr')){
   const id=control.source.rowId,context=contexts[control.source.sheet];let mapping;
-  try{mapping=control.kind==='posting'?{factors:new Map([[id,1]]),method:'source_leaf_control'}:context?.cells?.[control.source.cells?.actual]?.f?formulaHierarchy(control,context):structuralHierarchy(control,rows,inventory);}
+  try{mapping=control.kind==='posting'?{factors:new Map([[id,1]]),method:'source_leaf_control'}:context?.cells?.[control.source.cells?.actual]?.f?formulaHierarchy(control,context):structuralHierarchy(control,rows,inventory,resolved);}
   catch(error){exceptions.push({code:'unresolved_rollup',sourceRowId:id,source:control.source,description:control.accountName+': '+error.message});hierarchy.push({id:'control:'+id,sourceRowId:id,label:control.accountName,metricKey:metricKeyForLabel(control.accountName),kind:'rollup',childRowIds:[],factors:{},sourceTotal:control.values.actual,tolerance:0.01,passed:false,method:'unresolved'});continue;}
   const ids=[...mapping.factors.keys()],contributors=ids.map(id=>byId.get(id));
-  const node={id:'control:'+id,sourceRowId:id,label:control.accountName,metricKey:metricKeyForLabel(control.accountName),kind:control.kind==='posting'?'leaf_control':'rollup',childRowIds:ids,factors:Object.fromEntries(mapping.factors),sourceTotal:control.values.actual,tolerance:0.01,method:mapping.method,...(mapping.formulaEvidence?{formulaEvidence:mapping.formulaEvidence}:{}),...(mapping.boundaryRowId?{boundaryRowId:mapping.boundaryRowId}:{})};
+  const node={id:'control:'+id,sourceRowId:id,label:control.accountName,metricKey:metricKeyForLabel(control.accountName),kind:control.kind==='posting'?'leaf_control':'rollup',childRowIds:ids,factors:Object.fromEntries(mapping.factors),sourceTotal:control.values.actual,tolerance:0.01,method:mapping.method,...(mapping.formulaEvidence?{formulaEvidence:mapping.formulaEvidence}:{}),...(mapping.boundaryRowId?{boundaryRowId:mapping.boundaryRowId}:{}),...(mapping.componentControlIds?{componentControlIds:mapping.componentControlIds}:{})};
   for(const field of ['actual','budget','ytdActual','ytdBudget','annualBudget']){
    const source=control.values[field];if(field!=='actual'&&source===null)continue;
    const calculated=contributors.length&&contributors.every(row=>finite(row?.values[field]))?contributors.reduce((total,row)=>total+cents(row.values[field])*mapping.factors.get(row.source.rowId),0)/100:null,difference=finite(source)&&finite(calculated)?(cents(calculated)-cents(source))/100:null;
@@ -67,7 +100,7 @@ export function buildFinancialHierarchy(rows,inventory,contexts={}){
    checks.push({label:control.accountName,field,source,calculated,difference,tolerance:0.01,sourceLocation:control.source,sourceRowId:id,contributingRows:ids,factors:node.factors,passed,method:node.method,required:field==='actual'});
    if(field==='actual'){node.calculatedTotal=calculated;node.difference=difference;node.passed=passed;}
   }
-  hierarchy.push(node);
+  hierarchy.push(node);resolved.set(id,node);
  }
  return {hierarchy,checks,exceptions};
 }

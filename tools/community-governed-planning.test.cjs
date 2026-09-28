@@ -91,14 +91,14 @@ console.log('PASS historical date/community/denominator checks, January boundary
     dataImport2State:{exceptions:[]}
   });
   ctx.syncCommunityCommandGoalContext();
-  const editor={propName:'Doro',communityId:'synthetic-community',monthIdx:8,year:2026,period:'2026-09',key:'synthetic-community|2026-09',revision:0,values:{},recommended:{applicationGoal:18,grossLeaseGoal:9,netLeaseGoal:7},reason:'',effectiveDate:'2026-09-18'};
+  const editor={propName:'Doro',communityId:'synthetic-community',monthIdx:8,year:2026,period:'2026-09',key:'synthetic-community|2026-09',revision:0,values:{},recommended:{applicationGoal:18,grossLeaseGoal:9,netLeaseGoal:7,recommendationEvidence:{algorithm:'atlas.occupancy-goals.v1',source:{snapshot:{sourceFingerprint:'source-hash',asOf:'2026-09-18'},closing:{applications:15,leases:1}}}},reason:'',effectiveDate:'2026-09-18'};
   ctx.communityCommandGoalEditor=editor;
   const pending=ctx.saveCommunityCommandGoalEditor(false);
   assert.equal(editor.saving,true);
   assert(!editor.message?.includes('Draft saved'),'success waits for committed persistence/readback');
   assert.equal(ctx.atlasCommunityGoalStore.scopes.size,0);
   releaseSave();await pending;
-  assert.equal(writes[0].kind,'draft');assert.equal(editor.values.applicationGoal,20);
+  assert.equal(JSON.parse(writes[0].payload.sourceVersion).recommendation.source.closing.applications,15);assert.equal(writes[0].payload.recommended.recommendationEvidence.source.snapshot.sourceFingerprint,'source-hash');assert.equal(writes[0].kind,'draft');assert.equal(editor.values.applicationGoal,20);
   assert.equal(editor.values.status,'Draft');assert(editor.message.startsWith('Draft saved'));
   assert.equal(ctx.communityCommandState.goalDrafts.length,0,'canonical saves never mutate browser workspace goal records');
   await ctx.saveCommunityCommandGoalEditor(true);

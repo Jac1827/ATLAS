@@ -44,3 +44,10 @@ console.log('PASS an old active RPC cannot supply an unverified baseline or subs
 const oldReport={...record,snapshot:{...record.snapshot,activeReforecast:{...current,verified:undefined,approved:undefined,locked:undefined,contentHash:undefined}}};
 assert.equal(activeReforecastRows(oldReport).find(row=>row.Metric==='noi').Active_reforecast,780,'A previously saved immutable report remains its historical vintage, never a current active claim');
 assert(activeReforecastReport(oldReport).includes('$780.00'));
+
+const observedPublication={...current,publicationId:'10000000-0000-0000-0000-000000000006',revisionId:'10000000-0000-0000-0000-000000000007',contentHash:'a'.repeat(64)},lateContainer={isConnected:true,innerHTML:'',querySelector:()=>({})};
+actor='prior-user';let deliveryCalls=0;
+const switchingCentral={getSession:()=>({user:{id:actor}}),fetchJson:async()=>{deliveryCalls++;actor='next-user';return {publication_id:observedPublication.publicationId,consumer_key:'dashboard',content_fingerprint:observedPublication.contentHash,delivery_status:'verified'};}};
+await mountActiveBenchmark(lateContainer,{central:switchingCentral,communityId:A,period:'2026-01',cache:{refresh:async()=>[observedPublication]}});
+assert.equal(deliveryCalls,1);assert(!lateContainer.innerHTML.includes('780.00'),'late receipt cannot render old-session financial values');
+console.log('PASS dashboard prevents stale-session rendering after delivery readback');

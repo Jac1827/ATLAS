@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import {acknowledgeBudgetConsumer} from '../docs/portfolio-operations-dashboard/features/budget-consumer-delivery.mjs';
+const id=n=>'10000000-0000-0000-0000-'+String(n).padStart(12,'0');
+const publication={publicationId:id(1),revisionId:id(2),contentHash:'a'.repeat(64)};
+let actor=id(3),calls=0,fail=false,wrong=false;
+const central={getSession:()=>({user:{id:actor}}),async fetchJson(url,options){
+ calls++;assert.equal(url,'/rpc/atlas_verify_budget_consumer');const body=JSON.parse(options.body);
+ assert.equal(body.p_observed_revision_id,publication.revisionId);assert.equal(body.p_observed_fingerprint,publication.contentHash);
+ if(fail)throw Error('temporarily unavailable');
+ return {publication_id:body.p_publication_id,consumer_key:body.p_consumer_key,content_fingerprint:wrong?'b'.repeat(64):publication.contentHash,delivery_status:'verified'};
+}};
+const results=await Promise.all(Array.from({length:8},()=>acknowledgeBudgetConsumer(central,publication,'finance_summary')));
+assert(results.every(r=>r.status==='verified'));assert.equal(calls,1,'concurrent readers share a receipt');
+await acknowledgeBudgetConsumer(central,publication,'finance_summary');assert.equal(calls,1);
+actor=id(4);await acknowledgeBudgetConsumer(central,publication,'finance_summary');assert.equal(calls,2,'receipt cannot cross sessions');
+fail=true;assert.equal((await acknowledgeBudgetConsumer(central,publication,'dashboard')).status,'pending');
+fail=false;assert.equal((await acknowledgeBudgetConsumer(central,publication,'dashboard')).status,'verified');assert.equal(calls,4,'failed receipts may retry');
+wrong=true;assert.equal((await acknowledgeBudgetConsumer(central,publication,'recommendations')).status,'pending');
+wrong=false;assert.equal((await acknowledgeBudgetConsumer(central,publication,'recommendations')).status,'verified');
+assert.equal((await acknowledgeBudgetConsumer(central,{...publication,contentHash:null},'dashboard')).status,'unavailable');
+let finish;const delayed={getSession:()=>({user:{id:actor}}),fetchJson:()=>new Promise(resolve=>finish=resolve)};
+const waiting=acknowledgeBudgetConsumer(delayed,publication,'finance_summary');actor=id(5);finish({publication_id:publication.publicationId,consumer_key:'finance_summary',content_fingerprint:publication.contentHash,delivery_status:'verified'});
+assert.equal((await waiting).status,'pending','session changes cannot claim readback');
+console.log('budget consumer delivery: exact identity, concurrent deduplication, session scope, retry and mismatched readback passed');

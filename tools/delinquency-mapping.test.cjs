@@ -3,7 +3,9 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const html=readDashboardSource('docs/portfolio-operations-dashboard/index.html');
 const cs=fs.readFileSync('docs/portfolio-operations-dashboard/central-services.js','utf8');
 const c={console,Date,Map,Set,window:{},dataImport2State:{exceptions:[]}};vm.createContext(c);
-for(const f of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm))vm.runInContext(f[0],c);
+// The VM harness delegates the browser's ESM load to the real source module.
+c.loadOccupancyEvidenceModule=()=>import('../docs/portfolio-operations-dashboard/features/occupancy-source-evidence.mjs');
+for(const f of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm))vm.runInContext(f[0].replace(/import\((["'])\.\/features\/occupancy-source-evidence\.mjs(?:\?[^"']*)?\1\)/g,'loadOccupancyEvidenceModule()'),c);
 c.dataImportFindSavedRuleForHeader=()=>({canonicalField:'physical_occupancy',locked:true});
 for(const [header,field] of Object.entries({'61-90 Days':'aging_61_90','90+ Days':'aging_90_plus','Pre-Payments':'prepayments','Last Delinquency Note':'last_delinquency_note'}))assert.equal(c.dataImportSuggestDestinationForHeader(header,{reportType:'delinquency'}).field,field,'Source contract beats obsolete learned guesses');
 const issue={status:'Open',batchId:'b',fileName:'source.xlsx',reportType:'delinquency',communityName:'Doro',type:'unmapped',title:'Source fields retained without a destination'};

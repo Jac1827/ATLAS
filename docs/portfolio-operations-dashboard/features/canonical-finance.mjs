@@ -1,4 +1,5 @@
-import {resolveEffectiveBaseline,effectiveBaselineMetric,readEffectiveBaselines} from './reforecast-consumers.mjs?v=3e2dfc363e74a233';
+import {acknowledgeBudgetConsumer} from './budget-consumer-delivery.mjs?v=f5342574d4b39aa2';
+import {resolveEffectiveBaseline,effectiveBaselineMetric,readEffectiveBaselines} from './reforecast-consumers.mjs?v=02b5fa58a6bd26bc';
 import {financeSnapshot,retainedSnapshot,lineageColumns} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 // Shared, period-specific finance adapter. No browser-state fallback.
 export const number = value => value === null || value === undefined || String(value).trim() === '' ? null : Number.isFinite(Number(value)) ? Number(value) : null;
@@ -45,18 +46,21 @@ async function readFinanceFresh(central, communityIds, periods, {signal,baseline
  const ids=[...new Set(communityIds)], months=[...new Set(periods)];
  if(!ids.length||!months.length)return [];
  if(months.length>24||months.some(p=>!/^20\d{2}-(0[1-9]|1[0-2])$/.test(p)))throw Error('Invalid finance reporting periods.');
- const actor=central.getSession?.()?.user?.id, result=[];
- const batchSize=Math.min(100,Math.floor(1200/months.length));
+ const actor=central.getSession?.()?.user?.id,access=financeAccessKey(central),result=[];
+ const guard=()=>{if(signal?.aborted)throw cancelled();if(central.getSession&&central.getSession()?.user?.id!==actor)throw Error('Session changed while reading financial evidence.');if(financeAccessKey(central)!==access)throw Error('Session or financial access changed while reading financial evidence.');};
+ // Each community carries its full monthly/YTD evidence and immutable baseline.
+ // Bound statement work to one community; publish no partial result or consumer
+ // acknowledgment until every requested chunk has passed the same scope guards.
+ const batchSize=1;
  for(let i=0;i<ids.length;i+=batchSize){
   if(signal?.aborted)throw new DOMException('Cancelled','AbortError');
   // rpc() intentionally unwraps the first row for single-record mutations.
   // A table-returning read must retain the full REST response.
   await central.refreshSession?.();
-  if(signal?.aborted)throw cancelled();
+  guard();
   const rows=await central.fetchJson('/rpc/atlas_read_finance',{method:'POST',body:JSON.stringify({p_community_ids:ids.slice(i,i+batchSize),p_periods:months}),signal});
   if(!Array.isArray(rows))throw Error('Financial readback must be a row array.');
-  if(signal?.aborted)throw new DOMException('Cancelled','AbortError');
-  if(central.getSession&&actor!==central.getSession()?.user?.id)throw Error('Session changed while reading financial evidence.');
+  guard();
   for(const row of rows||[]){
    if(!ids.slice(i,i+batchSize).includes(row.community_id)||!months.includes(row.period_key)||row.summary?.registryVersion!=='atlas-finance-v1'||row.summary.communityId!==row.community_id||row.summary.period!==row.period_key)throw Error('Financial readback scope or registry mismatch.');
    const snapshot=financeSnapshot(row.summary,row.publication_id||null);
@@ -66,11 +70,14 @@ async function readFinanceFresh(central, communityIds, periods, {signal,baseline
  if(baselineMode==='effective'){
   let baselines=result.map(row=>row.summary.effectiveBaseline).filter(Boolean);
   if(result.some(row=>!Object.hasOwn(row.summary,'effectiveBaseline'))){try{baselines=await readEffectiveBaselines(central,{communityIds:ids,periods:months});}catch(error){baselines=ids.flatMap(communityId=>months.map(period=>({status:'unavailable',communityId,period,reason:'effective_baseline_read_failed: '+error.message})));}}
-  if(central.getSession&&actor!==central.getSession()?.user?.id)throw Error('Session changed while reading financial baseline evidence.');
+  guard();
   for(const row of result){const baseline=resolveEffectiveBaseline(baselines,{communityId:row.community_id,period:row.period_key}),summary=withEffectiveBaseline(row.summary,baseline),snapshot=financeSnapshot(summary,row.publication_id||null);row.summary={...summary,snapshotFingerprint:snapshot.fingerprint,financialSnapshot:snapshot};}
  }else if(baselineMode==='original_budget'){
   for(const row of result){if(!row.summary.effectiveBaseline)continue;const summary=withOriginalBudget(row.summary),snapshot=financeSnapshot(summary,row.publication_id||null);row.summary={...summary,snapshotFingerprint:snapshot.fingerprint,financialSnapshot:snapshot};}
  }else throw Error('Choose an explicit effective or original-budget reporting baseline.');
+ guard();
+ if(baselineMode==='effective')await Promise.all([...new Map(result.map(row=>row.summary?.effectiveBaseline).filter(row=>row?.sourceType==='approved_reforecast'&&row.status==='available').map(row=>[row.publicationId,row])).values()].map(row=>acknowledgeBudgetConsumer(central,row,'finance_summary')));
+ guard();
  return result;
 }
 function withOriginalBudget(summary){

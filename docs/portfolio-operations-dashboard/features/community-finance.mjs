@@ -1,22 +1,24 @@
-import {readFinance} from './canonical-finance.mjs?v=57c407b902ccd923';
+import {readFinance,financeAccessKey} from './canonical-finance.mjs?v=b15cbd051f547970';
 import '../community-command-contract.js?v=e6064665e1d6e271';
 const money=v=>Number(v).toLocaleString('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1});
 let operation;
 export function cancel(){operation?.abort();operation=null;}
 export async function hydrate(entries,central){
  cancel();const abort=operation=new AbortController();
+ const access=financeAccessKey(central),current=()=>!abort.signal.aborted&&access===financeAccessKey(central);
  const scope=entries.filter(e=>e.communityId&&/^20\d{2}-(0[1-9]|1[0-2])$/.test(e.period));
  const periods=[...new Set(scope.map(e=>e.period))],ids=[...new Set(scope.map(e=>e.communityId))];
  if(!periods.length||!ids.length)return;
  const rows=[],plans=[];
  try{
   // Bounded bulk reads, not one request per community or account.
-  for(let i=0;i<ids.length;i+=100){const data=await readFinance(central,ids.slice(i,i+100),periods,{signal:abort.signal});rows.push(...data);if(abort.signal.aborted)return;plans.push(...await central.fetchJson(`/atlas_command_plan_summaries?community_id=in.(${ids.slice(i,i+100).join(',')})&period_key=in.(${periods.join(',')})&select=*&limit=1200`,{signal:abort.signal}));if(abort.signal.aborted)return;}
+  for(let i=0;i<ids.length;i+=100){const data=await readFinance(central,ids.slice(i,i+100),periods,{signal:abort.signal});if(!current())return;rows.push(...data);plans.push(...await central.fetchJson(`/atlas_command_plan_summaries?community_id=in.(${ids.slice(i,i+100).join(',')})&period_key=in.(${periods.join(',')})&select=*&limit=1200`,{signal:abort.signal}));if(!current())return;}
   window.AtlasCommandPlanSummaries ||= {};
   for(const e of scope)delete window.AtlasCommandPlanSummaries[e.communityId+'|'+e.period];
   for(const plan of plans)window.AtlasCommandPlanSummaries[plan.community_id+'|'+plan.period_key]=plan;
   const map=new Map(rows.map(r=>[r.community_id+'|'+r.period_key,r]));
-  for(const e of entries){if(abort.signal.aborted)return;const tr=document.querySelector(`[data-command-finance="${e.key}"]`);if(!tr)continue;const source=map.get(e.communityId+'|'+e.period),summary=source?.summary;
+  for(const e of entries){if(!current())return;const tr=document.querySelector(`[data-command-finance="${e.key}"]`);if(!tr)continue;const source=map.get(e.communityId+'|'+e.period),summary=source?.summary;
+   tr.querySelectorAll('[data-financial-period-warning]').forEach(node=>node.remove());
    if(summary?.snapshotFingerprint){tr.dataset.financialSnapshot=summary.snapshotFingerprint;tr.title='Canonical snapshot '+summary.snapshotFingerprint;}
    const plan=window.AtlasCommandPlanSummaries[e.communityId+'|'+e.period],planCell=tr.querySelector('[data-shared-plan]');
    if(plan&&planCell){planCell.textContent=`${plan.stage||'Draft'} · ${plan.task_count} tasks · ${plan.verified_count} verified`;planCell.title=`Shared plan, updated ${plan.updated_at}`;}
@@ -33,7 +35,8 @@ export async function hydrate(entries,central){
     if(node.tagName==='BUTTON'){node.type='button';node.className='btn btn-gray btn-sm';node.onclick=()=>window.openCommunityFinancialDrilldown(source.publication_id,metric);}
     if(metric!=='units'&&summary?.snapshotFingerprint)node.title+=' · Snapshot '+summary.snapshotFingerprint;
     cell.append(node);
+    if(metric==='expenses'&&summary?.periodWarning){const warning=document.createElement('p');warning.dataset.financialPeriodWarning='1';warning.setAttribute('role','alert');warning.textContent=summary.periodWarning;cell.append(warning);}
    }
   }
- }catch(error){if(abort.signal.aborted)return;for(const e of entries){const tr=document.querySelector(`[data-command-finance="${e.key}"]`);tr?.querySelectorAll('[data-metric]').forEach(cell=>{cell.textContent='Source unavailable';cell.title=error.message;});}}
+ }catch(error){if(!current())return;for(const e of entries){const tr=document.querySelector(`[data-command-finance="${e.key}"]`);tr?.querySelectorAll('[data-metric]').forEach(cell=>{cell.textContent='Source unavailable';cell.title=error.message;});}}
 }

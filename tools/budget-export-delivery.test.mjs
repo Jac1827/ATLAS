@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';import {createRequire} from 'node:module';
+import {verifyBudgetExportDelivery,exportDeliveryNotice} from '../docs/portfolio-operations-dashboard/features/budget-export-delivery.mjs';
+import {communityForecastWorkbook,communityForecastPdf} from '../docs/portfolio-operations-dashboard/features/reforecast-report.mjs';
+import {riseWorkbookBytes} from '../docs/portfolio-operations-dashboard/features/rise-workbook-export.mjs';
+import {reportLibraryFixture} from './fixtures/reforecast-report-library-fixture.mjs';
+const XLSX=createRequire(import.meta.url)('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js'),fixture=reportLibraryFixture(),publication=fixture.parent,options={communityName:'Synthetic Community'},book=communityForecastWorkbook(publication,XLSX,options),bytes=riseWorkbookBytes(book,XLSX,options);
+const args={format:'xlsx',bytes,XLSX,reportOptions:options};const first=await verifyBudgetExportDelivery(fixture.central,publication,args),second=await verifyBudgetExportDelivery(fixture.central,publication,args);assert.equal(first.delivery_id,second.delivery_id,'Retry uses exact idempotency key');assert.equal(first.delivery_status,'verified');
+const before=fixture.requests.length,bad=structuredClone(book);bad.Sheets['GL detail'].A2.v='tampered';await assert.rejects(()=>verifyBudgetExportDelivery(fixture.central,publication,{...args,bytes:riseWorkbookBytes(bad,XLSX,options)}),/differs/);assert.equal(fixture.requests.length,before,'Failed financial readback never records success');
+fixture.onRead((request,result)=>{if(request.url==='/rpc/atlas_verify_budget_consumer')throw Error('Synthetic operational outage');return result;});const pending=await verifyBudgetExportDelivery(fixture.central,publication,args);assert.equal(pending.delivery_status,'pending');assert.match(exportDeliveryNotice([pending]),/pending.*outage/);fixture.onRead(null);
+const pdf=await communityForecastPdf(publication,options);assert.equal((await verifyBudgetExportDelivery(fixture.central,publication,{format:'pdf',bytes:pdf,reportOptions:options})).delivery_status,'verified');
+const different={...publication,snapshot:structuredClone(publication.snapshot)};different.snapshot.lines[0].forecast++;await assert.rejects(()=>verifyBudgetExportDelivery(fixture.central,different,{format:'pdf',bytes:pdf,reportOptions:options}),/differs/);
+console.log('PASS PDF/Excel readback delivery receipts, exact retained values, altered artifact rejection, idempotent retry and visible pending operational failure.');

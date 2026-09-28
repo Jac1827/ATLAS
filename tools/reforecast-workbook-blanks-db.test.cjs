@@ -23,8 +23,8 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  const relationshipOriginalDefinition=(await db.query("select pg_get_functiondef('atlas_private.validate_reforecast_source_relationships(jsonb,jsonb,jsonb)'::regprocedure) d")).rows[0].d;
  const coreDefinition=(await db.query("select pg_get_functiondef('atlas_private.calculate_reforecast_before_saved_str(jsonb,jsonb)'::regprocedure) d")).rows[0].d;
  const changedCore=coreDefinition.replace("   state:=jsonb_set(state,array[p||'|'||code],line,true);","   state :=jsonb_set(state,array[p||'|'||code],line,true);");
- assert.notEqual(changedCore,coreDefinition);await db.exec(changedCore);await db.exec('begin');await assert.rejects(()=>db.exec(migration('20260928192500_verified_workbook_blank_forecast_semantics.sql')),/prerequisite differs/i);await db.exec('rollback');assert.equal((await db.query("select to_regprocedure('atlas_private.reforecast_workbook_policy(jsonb)') p")).rows[0].p,null);await db.exec(coreDefinition);
- await db.exec(migration('20260928192500_verified_workbook_blank_forecast_semantics.sql'));
+ assert.notEqual(changedCore,coreDefinition);await db.exec(changedCore);await db.exec('begin');await assert.rejects(()=>db.exec(migration('20260928210158_verified_workbook_blank_forecast_semantics.sql')),/prerequisite differs/i);await db.exec('rollback');assert.equal((await db.query("select to_regprocedure('atlas_private.reforecast_workbook_policy(jsonb)') p")).rows[0].p,null);await db.exec(coreDefinition);
+ await db.exec(migration('20260928210158_verified_workbook_blank_forecast_semantics.sql'));
  const approvedMetricMappings={revenue:[{glCode:'5120',factor:1},{glCode:'5220',factor:1}],expenses:[{glCode:'6100',factor:1},{glCode:'6200',factor:1}],capital:[{glCode:'8100',factor:1}]};
  await db.query("update atlas_approved_budget_versions set payload=payload||jsonb_build_object('metricMappings',$1::jsonb,'mappingVersion','approved-fixture-v1') where version_id=$2",[approvedMetricMappings,BUDGET]);
  await signIn(1);

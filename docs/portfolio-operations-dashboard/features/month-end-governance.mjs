@@ -1,11 +1,20 @@
+import {financeAccessKey} from './canonical-finance.mjs?v=f6dbd3f27dd7608e';
 // This UI renders the server's version-bound fiscal YTD decision. Statement budgets are evidence only.
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>v===null||v===undefined?'Blank / unavailable':Number(v).toLocaleString('en-US',{style:'currency',currency:'USD'});
 const result=v=>Array.isArray(v)?v[0]:v;
 export const REOPENED_PERIOD_WARNING='This period has been reopened and its financial data is under revision. Related dashboards and reports may change until the period is re-approved and locked.';
 export async function readEligibleMonthEndQueue(central,{communityIds,year=null}={}){
- const rows=await central.rpc('atlas_month_end_queue',{p_community_ids:communityIds,p_year:year});
- if(!Array.isArray(rows)||rows.some(r=>!communityIds.includes(r.communityId)||r.recordType!=='month_end_actuals'||r.state!=='ready_for_review'))throw Error('Month-end approval queue scope mismatch.');return rows;
+ if(!Array.isArray(communityIds)||communityIds.length>100||communityIds.some(id=>typeof id!=='string'||!id))throw Error('Month-end approval queue scope mismatch.');
+ const ids=[...communityIds],actor=central.getSession?.()?.user?.id,access=financeAccessKey(central);
+ if(!actor)throw Error('Sign in to read month-end approval eligibility.');
+ const guard=()=>{if(actor!==central.getSession?.()?.user?.id||access!==financeAccessKey(central))throw Error('Session or financial access changed while reading month-end approval eligibility.');};
+ await central.refreshSession?.();guard();
+ // rpc() unwraps arrays for single-record actions. This read returns the whole queue,
+ // including a valid empty array when no closed package is eligible.
+ const rows=await central.fetchJson('/rpc/atlas_month_end_queue',{method:'POST',body:JSON.stringify({p_community_ids:ids,p_year:year}),timeoutMs:20000});
+ guard();
+ if(!Array.isArray(rows)||rows.some(r=>!r||!ids.includes(r.communityId)||r.recordType!=='month_end_actuals'||r.state!=='ready_for_review'))throw Error('Month-end approval queue scope mismatch.');return rows;
 }
 export function monthEndReviewHtml(e,{admin=false}={}){
  return `<h3>Fiscal YTD operational review</h3><p>${esc(e.periods?.[0])} – ${esc(e.period)} · Latest VP-approved baseline · ${esc(e.calendar?.classification)}</p>${e.blockers?.length?`<p role="alert">${e.blockers.map(esc).join('<br>')}</p>`:''}<p>Expense overruns greater than $500 or greater than 5% are flagged for review. Written explanations are required when both tests are exceeded. Unbudgeted expenses of $500 or more are flagged; percentage variance is unavailable and does not itself block approval. Category savings do not clear an unbudgeted concern; reclassification review remains advisory. Source-statement comparison budgets do not change the approved baseline.</p><div class="financial-review-scroll"><table><thead><tr><th>GL / Category</th><th>YTD actual</th><th>Approved YTD budget</th><th>Unfavorable expense variance</th><th>Review</th></tr></thead><tbody>${(e.rows||[]).map(r=>`<tr><th>${esc(r.glCode)} · ${esc(r.accountName)}<br>${esc(r.category||'Category mapping unavailable')}</th><td>${money(r.actual)}</td><td>${money(r.budget)}</td><td>${r.concernFlag?'<strong>Variance concern</strong><br>':''}${money(r.variance)} · ${r.percentageVariance===null?'Percentage unavailable':(r.percentageVariance*100).toFixed(2)+'%'}</td><td>${r.unbudgetedExpense?'<strong>Unbudgeted Expense</strong><br>':''}${r.systemNote?`<span data-system-note>System note: ${esc(r.systemNote)}</span>`:''}${r.requiresExplanation?`<label>Required explanation<textarea data-explanation="${esc(r.glCode)}"></textarea></label>${admin?`<label>Explicit Admin override reason (optional)<textarea data-override="${esc(r.glCode)}"></textarea></label>`:''}`:''}</td></tr>`).join('')}</tbody></table></div><p>Total expenses: ${money(e.expenseActual)} actual / ${money(e.expenseBudget)} approved budget.</p>${e.reforecastRecommended?'<p><strong>Reforecast Recommended</strong> — property YTD expenses exceed the approved budget by more than 35%.</p><button type="button" data-create-reforecast>Create reforecast from approved baseline</button>':''}<button type="button" data-save-decision>Save review evidence</button><p data-review-status role="status"></p>`;

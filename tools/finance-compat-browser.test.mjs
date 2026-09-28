@@ -75,6 +75,11 @@ try{
  const frame=page.frames().find(frame=>frame.url().includes('/finance/portfolio-operations-dashboard/RISE-Budget-Builder'));
  assert.equal(await frame.evaluate(()=>parent.ATLAS_CENTRAL===window.parent.ATLAS_CENTRAL&&parent.atlasAccessDecision(12).ok),true);
  const header=page.locator('.atlas-budget-workspace-actions');assert.equal(await header.getByRole('button',{name:'Approve Shared Original Budget',exact:true}).count(),0);assert.match(await page.locator('.atlas-budget-workspace-note').innerText(),/VP approval publishes.*Investor approval locks/);assert.doesNotMatch(await page.locator('.atlas-budget-workspace-note').innerText(),/Admin approval/);
+ await header.getByRole('button',{name:'Ready for Review and Approval',exact:true}).click();await iframe.getByRole('heading',{name:'Ready for Review and Approval',exact:true}).waitFor();
+ await frame.waitForFunction(()=>!document.querySelector('[data-refresh]')?.disabled);
+ assert(requests.includes('atlas_month_end_queue'),'Approval view reads closed-package eligibility through retained Central transport');
+ assert.doesNotMatch(await iframe.locator('body').innerText(),/Month-end approval eligibility could not be read|Month-end approval queue scope mismatch/,'A valid empty month-end queue remains usable on the actual retained operational host');
+ assert.equal(await iframe.locator('[data-open="'+scenario+'"]').count(),1,'The submitted budget remains actionable with no eligible month-end packages');
  await header.getByRole('button',{name:'Working Drafts',exact:true}).click();await iframe.getByRole('heading',{name:'Working Drafts',exact:true}).waitFor();
  await header.getByRole('button',{name:'Saved STR programmes',exact:true}).click();await iframe.locator('[data-str-resume]').waitFor();assert.match(await iframe.locator('[data-str-list]').innerText(),/Synthetic retained STR programme/);await page.screenshot({path:path.join(repo,'output/playwright/finance-compat/saved-str-mixed-host.png'),fullPage:true});
  // A captured row must not cross an authenticated account change.

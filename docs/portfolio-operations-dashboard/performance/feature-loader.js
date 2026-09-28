@@ -4,14 +4,14 @@
   const base = new URL('../', document.currentScript.src);
   const pending = new Map();
   const definitions = {
-    reports: { src: new URL('features/reports-workspace.js?v=45fbf5d064edfa86', base).href, ready: () => !!root.AtlasReports },
+    reports: { src: new URL('features/reports-workspace.js?v=bcce172b61dd8132', base).href, ready: () => !!root.AtlasReports },
     importWorkspace: { src: new URL('features/import-workspace.js?v=e644b17b311d229d', base).href, ready: () => !!root.AtlasImportWorkspace },
     bonusWorkspace: { src: new URL('features/bonus-workspace.js?v=077cf554254699a4', base).href, ready: () => !!root.AtlasBonusWorkspace },
     adminWorkspace: { src: new URL('features/admin-workspace.js?v=ffee801ee359c2d3', base).href, ready: () => !!root.AtlasAdminWorkspace },
     centralServices: { src: new URL('central-services.js?v=7af4914b44711a72', base).href, ready: () => typeof root.renderCentralServicesTab === 'function' },
     historyRestore: { src: new URL('atlas_historical_restore_data.js?v=43f55dab14d794f6', base).href, ready: () => !!root.ATLAS_HISTORICAL_RESTORE_COMMUNITY_DATA },
     xlsx: { src: new URL('assets/xlsx.full.min.js?v=c9506197caf809a0', base).href, ready: () => !!root.XLSX?.utils },
-    migrationArchive: { src: new URL("migration-archive.js?v=9a069e14752d4add", base).href, ready: () => !!root.AtlasMigrationArchive },
+    migrationArchive: { src: new URL("migration-archive.js?v=aac407097feb28cc", base).href, ready: () => !!root.AtlasMigrationArchive },
     occupancyReplay: { src: new URL("occupancy-replay-browser.js?v=b98bb123a37917de", base).href, ready: () => !!root.AtlasOccupancyReplayBrowser },
     leaflet: { src: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', css: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', ready: () => !!root.L },
     pdf: { src: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', ready: () => !!root.pdfjsLib },

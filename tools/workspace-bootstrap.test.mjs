@@ -8,7 +8,9 @@ let response=envelope,calls=[];
 const central={fetchJson:async(...args)=>{calls.push(args);return response;},getSession:()=>({user:{id:'actor-one'}}),getConfig:()=>({supabaseUrl:'https://example.invalid'})};
 const nativeDigest=crypto.subtle.digest;let digestCalls=0;
 crypto.subtle.digest=function(...args){digestCalls++;return nativeDigest.apply(this,args);};
+const phases=[];globalThis.AtlasPerformance={start:name=>{phases.push(['start',name]);return ()=>phases.push(['end',name]);}};
 const full=await readWorkspace(central);
+assert.deepEqual(phases,[['start','workspace-projection-read'],['end','workspace-projection-read'],['start','workspace-projection-verify'],['end','workspace-projection-verify']]);
 assert.equal(digestCalls,1,"Full projection integrity is checked once before its validated digest is retained");
 assert.equal(calls[0][0],'/rpc/atlas_read_workspace_projection');assert.equal(calls[0][1].body,'{}');
 assert.deepEqual(full.projection,projection);assert.equal(full.binding.projectionContentHash,envelope.projectionContentHash);
@@ -32,4 +34,5 @@ assert.notEqual(await accessNamespace(central,{...profile,allowed_community_ids:
 await assert.rejects(accessNamespace(central,{...profile,user_id:'actor-two'}),/current access/);
 await assert.rejects(accessNamespace(central,{...profile,status:'disabled'}),/current access/);
 await assert.rejects(accessNamespace(central,{...profile,account_status:'password_reset_required'}),/current access/);
+delete globalThis.AtlasPerformance;
 console.log('PASS scoped RPC receipts, full/filtered integrity, source mismatch, no unfiltered fallback, abort, actor/scope/account cache isolation');

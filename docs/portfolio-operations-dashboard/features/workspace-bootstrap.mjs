@@ -36,18 +36,22 @@ export async function readProjection(central, document, {signal} = {}) {
 }
 // The server resolves the current source and authorization scope in one snapshot.
 // Never fall back to the unfiltered archive when a scoped read is unavailable.
+async function measureWorkspaceProjectionPhase(name, read) {
+  const finish=globalThis.AtlasPerformance?.start?.(name);
+  try { return await read(); } finally { finish?.(); }
+}
 export async function readWorkspace(central, {signal} = {}) {
-  const result = await central.fetchJson('/rpc/atlas_read_workspace_projection', {method:'POST',body:'{}',signal});
+  const result = await measureWorkspaceProjectionPhase('workspace-projection-read',()=>central.fetchJson('/rpc/atlas_read_workspace_projection', {method:'POST',body:'{}',signal}));
   if (signal?.aborted) throw signal.reason || new DOMException('Cancelled','AbortError');
   if (result?.status !== 'available') throw new Error('The verified central workspace is temporarily unavailable. Retry after its source projection is ready.');
   const {source,projection,scopeFingerprint,projectionVersion,projectionContentHash,projectionHashFormat,fullProjection} = result;
   const hash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
   if (source?.documentKey !== 'atlas_dashboard_state_v1' || !Number.isSafeInteger(source.version) || !hash(source.archiveHash) || !Number.isFinite(Date.parse(source.effectiveAt)) || !hash(scopeFingerprint) || !Number.isSafeInteger(projectionVersion) || !hash(projectionContentHash) || projectionHashFormat !== 'postgres-jsonb-sha256' || typeof fullProjection !== 'boolean') throw new Error('Invalid workspace source or authorization receipt.');
   if (projection?.format !== 1 || stableJson(projection.source) !== stableJson(source) || !projection.communityData || !projection.opsGlobalData || !projection.importState) throw new Error('Workspace projection does not match its source receipt.');
-  if (fullProjection) await verifyProjection(projection,source,{signal,worker:true});
+  if (fullProjection) await measureWorkspaceProjectionPhase('workspace-projection-verify',()=>verifyProjection(projection,source,{signal,worker:true}));
   // A filtered response has its own integrity digest. It is not the full archive's digest.
   const {contentHash:ignored,...body} = projection;
-  const contentHash = fullProjection ? projection.contentHash : await digestWorkspaceBody(body,{signal});
+  const contentHash = fullProjection ? projection.contentHash : await measureWorkspaceProjectionPhase('workspace-projection-verify',()=>digestWorkspaceBody(body,{signal}));
   if (signal?.aborted) throw signal.reason || new DOMException('Cancelled','AbortError');
   return {source,projection:{...body,contentHash},binding:{scopeFingerprint,projectionVersion,projectionContentHash,projectionHashFormat,fullProjection}};
 }

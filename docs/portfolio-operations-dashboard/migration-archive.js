@@ -162,24 +162,36 @@
     }
     if(count!==entry.segments.length||total!==entry.bytes||await entryFingerprint(entry)!==entry.sha256)throw Error('Rollback segmented record differs from its source');
   }
-  async function pack(bundle,records,Zip,{segmentBytes=DEFAULT_SEGMENT_BYTES}={}){
+  async function packRecords(bundle,source,Zip,{segmentBytes=DEFAULT_SEGMENT_BYTES}={}){
     let phase='initialization';
     try{
+    if(!source||!Number.isSafeInteger(source.count)||source.count<0||typeof source.readRecord!=='function')throw Error('Invalid migration record source');
     const zip=new Zip(),manifest={format:TYPE,entries:[]};
     const limit=segmentLimit(segmentBytes);
     const add=async(name,value)=>{phase='record '+name;return addRecord(zip,manifest,name,value,limit);};
     await add('bundle.json',bundle);
-    for(let i=0;i<records.length;i++)await add(`record-${i}.json`,records[i]);
+    const addNext=async i=>{
+      phase='source record '+i;
+      let value=await source.readRecord(i);
+      try{await add(`record-${i}.json`,value);}finally{value=null;}
+    };
+    for(let i=0;i<source.count;i++)await addNext(i);
     phase='manifest';zip.file('manifest.json',JSON.stringify(manifest));
     phase='archive compression';const bytes=await zip.generateAsync({type:'uint8array',compression:'DEFLATE',compressionOptions:{level:6}});
     phase='archive encoding';let s='';for(let i=0;i<bytes.length;i+=32768)s+=String.fromCharCode(...bytes.subarray(i,i+32768));
-    return {bundleType:TYPE,encoding:'zip+base64',sha256:await digest(bytes),bytes:bytes.length,recordCount:records.length,data:btoa(s)};
+    return {bundleType:TYPE,encoding:'zip+base64',sha256:await digest(bytes),bytes:bytes.length,recordCount:source.count,data:btoa(s)};
     }catch(error){throw new Error('Migration archive pack failed ('+phase+'): '+error.message,{cause:error});}
+  }
+  async function pack(bundle,records,Zip,options){
+    return packRecords(bundle,{count:records.length,readRecord:i=>records[i]},Zip,options);
   }
   async function openArchive(archive,Zip){
     let phase='archive fingerprint';
     try{
-      const raw=atob(archive.data),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
+      // A byte string is already indexed. Avoid Uint8Array.from's iterable
+      // staging allocation for the complete archive before its hash is checked.
+      const raw=atob(archive.data),bytes=new Uint8Array(raw.length);
+      for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
       if(bytes.length!==archive.bytes||await digest(bytes)!==archive.sha256)throw Error('Migration archive fingerprint mismatch');
       phase='manifest';const zip=await Zip.loadAsync(bytes),manifest=JSON.parse(await zip.file('manifest.json').async('string'));
       if(manifest.format!==TYPE||!Array.isArray(manifest.entries)||!Number.isSafeInteger(archive.recordCount)||archive.recordCount<0||manifest.entries.length!==archive.recordCount+1)throw Error('Migration manifest is incomplete');
@@ -195,6 +207,19 @@
     const {zip,manifest}=await openArchive(archive,Zip),values=[];
     for(const entry of manifest.entries)values.push(await readArchiveRecord(zip,entry));
     return {bundle:values[0],records:values.slice(1),manifest};
+  }
+  async function verifyBundle(archive,Zip){
+    if(archive?.bundleType!==TYPE)throw Error('Unsupported migration archive for bundle verification');
+    const {zip,manifest}=await openArchive(archive,Zip);
+    let bundle;
+    for(let i=0;i<manifest.entries.length;i++){
+      // Every retained member is decoded and fingerprint-checked. Only the
+      // bundle needed for reconciliation survives this iteration.
+      let value=await readArchiveRecord(zip,manifest.entries[i]);
+      if(i===0)bundle=value;
+      value=null;
+    }
+    return {bundle,manifest,recordsVerified:manifest.entries.length};
   }
   async function verifyRestore(archive,Zip){
     if(archive?.bundleType!==TYPE)throw Error('Unsupported migration archive for rollback verification');
@@ -268,5 +293,5 @@
       return {...archive,data:pieces.join('')};
     } finally {pieces.length=0;finish?.({failed:!!failure});}
   }
-  return {TYPE,pack,unpack,verifyRestore,publish,hydrate};
+  return {TYPE,pack,packRecords,unpack,verifyBundle,verifyRestore,publish,hydrate};
 });

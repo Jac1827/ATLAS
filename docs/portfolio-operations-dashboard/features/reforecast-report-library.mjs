@@ -4,9 +4,9 @@ import {riseWorkbookBytes} from './rise-workbook-export.mjs?v=d08dd1e8d4aadf30';
 import * as store from './reforecast-store.mjs?v=89302fd431288798';
 import {workbookCoverageHtml,workbookReportEvidence,workbookReportSections,workbookReportRows,workbookReportSheets,workbookCellFields,esc,money,download,safeSpreadsheetCell,publicationApprovalLabel,communityForecastReport,communityForecastWorkbook,communityForecastPdf,pairedForecastReports} from './reforecast-report.mjs?v=46c2b39fb807dfdc';
 import {freezeSnapshot,retainedSnapshot} from './financial-snapshot.mjs?v=848d058bdec07b4e';
-import {financeAccessKey} from './canonical-finance.mjs?v=bc2709c0e3b81885';
+import {financeAccessKey} from './canonical-finance.mjs?v=b15cbd051f547970';
 import {snapshotPdf} from './snapshot-pdf.mjs?v=cda1d9683b4dd270';
-import {listOriginalBudgetReportVersions,readOriginalBudgetVersionReport,originalBudgetVersionWorkbook,originalBudgetVersionPdf} from './original-budget-version-report.mjs?v=1e2de6e82ab670f5';
+import {listOriginalBudgetReportVersions,readOriginalBudgetVersionReport,originalBudgetVersionWorkbook,originalBudgetVersionPdf} from './original-budget-version-report.mjs?v=98197cc3d2e8da6f';
 
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const verifiedSelections=new WeakSet(),selectionGuards=new WeakMap(),selectionClients=new WeakMap();

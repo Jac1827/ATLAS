@@ -2,7 +2,7 @@ import {NONCASH_METRICS,hasNoncashMetrics,noncashReportFields,noncashReportSecti
 import {varianceFavorability,stableStringify,roundMoney,sumMoney,aggregateForecastLines} from './reforecast-engine.mjs?v=fbc60bc50d89f5ee';
 import {forecastSnapshot,retainedSnapshot,lineageColumns} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 import {snapshotPdf} from './snapshot-pdf.mjs?v=cda1d9683b4dd270';
-import {utilityRecoveryRows} from './reforecast-utility.mjs?v=011ee45b74201694';
+import {utilityRecoveryRows} from './reforecast-utility.mjs?v=8a5c02eac055a396';
 // Every screen/export projection starts from a retained calculation snapshot.
 export const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const finite=v=>typeof v==='number'&&Number.isFinite(v);

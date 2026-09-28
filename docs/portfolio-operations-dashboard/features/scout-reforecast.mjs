@@ -1,8 +1,8 @@
-import {readFinance} from './canonical-finance.mjs?v=b02fad23c8c69769';
+import {readFinance} from './canonical-finance.mjs?v=bc2709c0e3b81885';
 /* Scout's prototype can inspect published financial evidence without an AI service. */
-import {createActiveReforecastCache,scoutForecastEvidence} from './reforecast-consumers.mjs?v=b992c31fcd8604a1';
-import {effectiveActiveSnapshot} from './reforecast-store.mjs?v=116417158a586ff4';
-import {esc,money} from './reforecast-report.mjs?v=65b85e23a8cb315f';
+import {createActiveReforecastCache,scoutForecastEvidence} from './reforecast-consumers.mjs?v=02b5fa58a6bd26bc';
+import {effectiveActiveSnapshot} from './reforecast-store.mjs?v=89302fd431288798';
+import {esc,money} from './reforecast-report.mjs?v=46c2b39fb807dfdc';
 const validPeriod=value=>/^20\d{2}-(0[1-9]|1[0-2])$/.test(value||'');
 const actor=central=>central?.getSession?.()?.user?.id ? central.getAccessContextKey?.() ?? central.getSession().user.id : null;
 const numeric=value=>typeof value==='number'&&Number.isFinite(value);

@@ -18,8 +18,8 @@
     ]
   },
   "centralization/atlas-central-client.js": {
-    "sha256": "83deeb18a155f022",
-    "bytes": 92675,
+    "sha256": "3b6ae81392c2ebd9",
+    "bytes": 94178,
     "references": [
       [
         "index.html",
@@ -924,7 +924,7 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "82bd3283eafbb21f",
+    "sha256": "0a7ec9b820749aa0",
     "bytes": 3033898,
     "references": [
       [
@@ -970,6 +970,26 @@
       [
         "index.html",
         "./application-aging.js"
+      ]
+    ]
+  },
+  "property-organization.js": {
+    "sha256": "143060afcc87be2b",
+    "bytes": 19749,
+    "references": [
+      [
+        "index.html",
+        "./property-organization.js"
+      ]
+    ]
+  },
+  "concession-insights.js": {
+    "sha256": "c108fadfbec241b1",
+    "bytes": 20949,
+    "references": [
+      [
+        "index.html",
+        "./concession-insights.js"
       ]
     ]
   },

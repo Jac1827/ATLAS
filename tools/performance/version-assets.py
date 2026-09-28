@@ -9,6 +9,8 @@ entries=[
  ('workforce-sync.js',[('index.html','./workforce-sync.js')]),
  ('workforce-assignment.js',[('index.html','./workforce-assignment.js')]),
  ('application-aging.js',[('index.html','./application-aging.js')]),
+ ('property-organization.js',[('index.html','./property-organization.js')]),
+ ('concession-insights.js',[('index.html','./concession-insights.js')]),
  ('budget-workbook-import.js',[('RISE-Budget-Builder.html','./budget-workbook-import.js')]),
  ('features/reforecast-engine.mjs', [('features/reforecast-legacy-bridge.mjs', './reforecast-engine.mjs'), ('features/reforecast-ui.mjs', './reforecast-engine.mjs')]),
  ('features/reforecast-active.mjs', [('features/reforecast-store.mjs', './reforecast-active.mjs'), ('features/community-plan-report.mjs', './reforecast-active.mjs')]),

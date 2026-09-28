@@ -12,6 +12,12 @@ assert.equal(reconcilePages([a,b]).status,'conflict');assert.equal(reconcilePage
 assert.equal(reconcilePages([extractPage(padding+'No current specials','https://example.com','2026-09-17')]).status,'none');
 assert.equal(extractPage('Checking your browser','https://example.com','2026-09-17').status,'failed');
 assert.equal(extractPage(padding+'Contact us about our special offer','https://example.com','2026-09-17').status,'failed');
+assert.equal(extractPage('Checking your browser','https://example.com','2026-09-17').stage,'blocked_dynamic_website');
+assert.equal(extractPage(padding+'Contact us about our special offer','https://example.com','2026-09-17').stage,'extraction');
+assert.match(extractPage('Checking your browser','https://example.com','2026-09-17').evidence,/Checking/);
+assert.equal(reconcilePages([a,b]).stage,'conflicting_offers');
+assert.equal(reconcilePages([a,{status:'failed',stage:'website_retrieval',code:'WEBSITE_HTTP_ERROR',error:'Website returned HTTP 503.'}]).code,'WEBSITE_HTTP_ERROR');
+assert.equal(reconcilePages([]).stage,'configuration');
 assert.equal(manualOffer({text:'Two months free + free parking',start:'2026-09-01',end:'2026-09-30'},'2026-09-17','admin').components.length,2);
 assert.throws(()=>manualOffer({text:'Offer',start:'2026-02-31'},'',''));
 console.log('PASS fixed EST schedule, URL restrictions, layered offer extraction, conflict/failure/no-offer separation and manual dates.');

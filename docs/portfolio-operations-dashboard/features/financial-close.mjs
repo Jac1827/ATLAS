@@ -1,5 +1,5 @@
 import {mountMonthEndReview,REOPENED_PERIOD_WARNING} from './month-end-governance.mjs?v=8fac1ff02ff4c31c';
-import {readFinance,readApprovedBudget,financialSummary,bonusEvidence,financeAccessKey,invalidateFinanceReads} from './canonical-finance.mjs?v=4a0ab39278f685cd';
+import {readFinance,readApprovedBudget,financialSummary,bonusEvidence,financeAccessKey,invalidateFinanceReads} from './canonical-finance.mjs?v=f6dbd3f27dd7608e';
 // Shared closed-month reader. No browser ledger is authoritative.
 export const optionalNumber=v=>v===null||v===undefined||v===''?null:Number.isFinite(Number(v))?Number(v):null;
 export function contract(v){return v?{period:v.period_key,status:v.status,coverage:v.coverage,accountingBasis:v.accounting_basis,netRentalIncome:optionalNumber(v.metrics.netRentalIncome),grossPotentialRent:optionalNumber(v.metrics.grossPotentialRent),netCashFlow:optionalNumber(v.metrics.netCashFlow??v.metrics.sourceControls?.['Net Cash Flow']?.actual),source:v.source_file,sourceHash:v.source_hash,approvedBy:v.approved_by,approvedAt:v.approved_at,version:v.version_id,revision:v.revision}:null;}

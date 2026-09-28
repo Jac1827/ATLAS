@@ -3,9 +3,9 @@ import {riseWorkbookBytes} from './rise-workbook-export.mjs?v=d08dd1e8d4aadf30';
 import * as store from './reforecast-store.mjs?v=116417158a586ff4';
 import {esc,money,download,safeSpreadsheetCell,publicationApprovalLabel,communityForecastReport,communityForecastWorkbook,communityForecastPdf,pairedForecastReports} from './reforecast-report.mjs?v=17298028335ec1f6';
 import {freezeSnapshot,retainedSnapshot} from './financial-snapshot.mjs?v=848d058bdec07b4e';
-import {financeAccessKey} from './canonical-finance.mjs?v=4a0ab39278f685cd';
+import {financeAccessKey} from './canonical-finance.mjs?v=f6dbd3f27dd7608e';
 import {snapshotPdf} from './snapshot-pdf.mjs?v=cda1d9683b4dd270';
-import {listOriginalBudgetReportVersions,readOriginalBudgetVersionReport,originalBudgetVersionWorkbook,originalBudgetVersionPdf} from './original-budget-version-report.mjs?v=86c81218acae5d59';
+import {listOriginalBudgetReportVersions,readOriginalBudgetVersionReport,originalBudgetVersionWorkbook,originalBudgetVersionPdf} from './original-budget-version-report.mjs?v=eaa768647ae09661';
 
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const verifiedSelections=new WeakSet(),selectionGuards=new WeakMap(),selectionClients=new WeakMap();

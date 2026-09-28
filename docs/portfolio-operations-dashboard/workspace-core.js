@@ -48315,6 +48315,19 @@ async function dataImportCreateReplayCheckpoint(entry) {
     const preferences=new Set(["updatedAt","historyStorage","pendingBatch","activeView","selectedMappingIds","selectedMappingPreviewId","mappingReviewFilter","mappingSourceFilter","mappingReportFilter","mappingBatchFilter","mappingSearch","selectedIssueKey","activeQuestionReviewKey","activeQuestionId","selectedQuestionIds","expandedQuestionSampleIds","questionReviewFilter","activeCustomFieldContext","pendingIgnoreAllKey"]);
     return Object.fromEntries(Object.entries(value||{}).filter(([key])=>!preferences.has(key)));
   };
+  const comparisonImportValues=async value=>{
+    // Older loaders inject raw default rules before a later normalization adds
+    // their metadata. Compare a verified fixed point on both sides, without
+    // changing either source or copying/stringifying the retained history.
+    let current=importValues(normalizeDataImport2State(value));
+    for(let pass=0;pass<3;pass++){
+      const next=importValues(normalizeDataImport2State(current));
+      const stable=await sameValue(current,next);assertCurrent();
+      if(stable)return next;
+      current=next;
+    }
+    throw new Error("Import history normalization did not stabilize. Reload and review the retained mappings before replaying.");
+  };
   const readStamps=async(allowNavigation=false,verifyInitial=false)=>{
     const out=new Map();
     for (const key of keys) {
@@ -48327,7 +48340,7 @@ async function dataImportCreateReplayCheckpoint(entry) {
         const split=row?.value?.__atlasImportHistory===2;
         let verified=split && dataImport2State.historyStorage?.view==="full" && dataImport2State.historyStorage?.revision===row.value.revision;
         if(!split && row){
-          const loaded=importValues(normalizeDataImport2State(dataImport2State)),stored=importValues(normalizeDataImport2State(row.value));
+          const loaded=await comparisonImportValues(dataImport2State),stored=await comparisonImportValues(row.value);
           const snapshots=new Map();for(const batch of stored.batches||[]){if(snapshots.has(batch.id))snapshots.set(batch.id,null);else snapshots.set(batch.id,batch);}
           loaded.batches=(loaded.batches||[]).map(batch=>{
             if(!batch.beforeSnapshotRef)return batch;

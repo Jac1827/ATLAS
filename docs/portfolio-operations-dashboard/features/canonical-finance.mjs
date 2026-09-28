@@ -48,7 +48,10 @@ async function readFinanceFresh(central, communityIds, periods, {signal,baseline
  if(months.length>24||months.some(p=>!/^20\d{2}-(0[1-9]|1[0-2])$/.test(p)))throw Error('Invalid finance reporting periods.');
  const actor=central.getSession?.()?.user?.id,access=financeAccessKey(central),result=[];
  const guard=()=>{if(signal?.aborted)throw cancelled();if(central.getSession&&central.getSession()?.user?.id!==actor)throw Error('Session changed while reading financial evidence.');if(financeAccessKey(central)!==access)throw Error('Session or financial access changed while reading financial evidence.');};
- const batchSize=Math.min(100,Math.floor(1200/months.length));
+ // Each community carries its full monthly/YTD evidence and immutable baseline.
+ // Bound statement work to one community; publish no partial result or consumer
+ // acknowledgment until every requested chunk has passed the same scope guards.
+ const batchSize=1;
  for(let i=0;i<ids.length;i+=batchSize){
   if(signal?.aborted)throw new DOMException('Cancelled','AbortError');
   // rpc() intentionally unwraps the first row for single-record mutations.

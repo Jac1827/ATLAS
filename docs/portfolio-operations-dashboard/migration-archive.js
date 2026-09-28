@@ -12,25 +12,179 @@
     if(Array.isArray(v))return v.map(decode);
     if(v&&typeof v==='object'){const o={};for(const[k,x]of Object.entries(v))o[k]=decode(x);return o;}return v;
   }
-  async function pack(bundle,records,Zip){
+  const SEGMENTED='segmented-json-v1',DEFAULT_SEGMENT_BYTES=1048576;
+  const utf8=new TextEncoder();
+  const supportedLayout=entry=>{if(entry.layout!==undefined&&entry.layout!==SEGMENTED)throw Error('Unsupported migration record layout');};
+  // Conservative sizing stops before allocating a whole oversized JSON string.
+  // Small ordinary records retain the exact original v1 encoding and hashes.
+  function legacyFits(value,limit){
+    let remaining=limit;const ancestors=new Set();
+    const visit=v=>{
+      if(remaining<0)return false;
+      if(v instanceof Date)return false;
+      if(v instanceof Blob){remaining-=Math.ceil(v.size/3)*4+String(v.type).length*6+96;return remaining>=0;}
+      if(typeof v==='bigint')throw Error('BigInt is unsupported in migration JSON');
+      if(v===null||typeof v!=='object'){remaining-=typeof v==='string'?v.length*6+2:32;return remaining>=0;}
+      if(ancestors.has(v))throw Error('Cyclic migration records are unsupported');
+      ancestors.add(v);remaining-=2;
+      if(Array.isArray(v)){for(let i=0;i<v.length;i++){remaining--;if(!visit(v[i])){ancestors.delete(v);return false;}}}
+      else for(const [key,item]of Object.entries(v)){if(key==='__proto__'){ancestors.delete(v);return false;}remaining-=key.length*6+4;if(!visit(item)){ancestors.delete(v);return false;}}
+      ancestors.delete(v);return remaining>=0;
+    };
+    return visit(value);
+  }
+  // Tokens never contain an entire object/array, or an unbounded text/blob.
+  // Their order is the source property/array order, including null versus zero.
+  async function* recordTokens(value,limit,ancestors=new Set()){
+    const chunkChars=Math.max(1,Math.floor((limit-128)/12));
+    if(value instanceof Blob){
+      yield ['blob'];yield* recordTokens(value.type,limit,ancestors);
+      const size=Math.max(1,Math.floor((limit-128)*3/8));
+      for(let offset=0;offset<value.size;offset+=size){const bytes=new Uint8Array(await value.slice(offset,offset+size).arrayBuffer());let text='';for(let i=0;i<bytes.length;i+=32768)text+=String.fromCharCode(...bytes.subarray(i,i+32768));yield ['bytes',btoa(text)];}
+      yield ['endBlob'];return;
+    }
+    if(value instanceof Date){if(!Number.isFinite(value.getTime()))throw Error('Invalid date in migration record');yield ['date',value.toISOString()];return;}
+    if(typeof value==='string'){yield ['string'];for(let i=0;i<value.length;i+=chunkChars)yield ['text',value.slice(i,i+chunkChars)];yield ['endString'];return;}
+    if(value===null||typeof value!=='object'){
+      if(typeof value==='bigint')throw Error('BigInt is unsupported in migration JSON');
+      yield ['value',typeof value==='number'&&!Number.isFinite(value)||value===undefined||typeof value==='function'||typeof value==='symbol'?null:value];return;
+    }
+    if(ancestors.has(value))throw Error('Cyclic migration records are unsupported');ancestors.add(value);
+    if(Array.isArray(value)){yield ['array'];for(let i=0;i<value.length;i++)yield* recordTokens(value[i],limit,ancestors);}
+    else{yield ['object'];for(const [key,item]of Object.entries(value)){if(item===undefined||typeof item==='function'||typeof item==='symbol')continue;yield ['key'];yield* recordTokens(key,limit,ancestors);yield* recordTokens(item,limit,ancestors);}}
+    yield ['end'];ancestors.delete(value);
+  }
+  async function* recordSegments(value,limit){
+    let tokens=[],size=2;
+    for await(const token of recordTokens(value,limit)){
+      const text=JSON.stringify(token),bytes=utf8.encode(text).length;
+      if(bytes+2>limit)throw Error('Migration token exceeds the segment limit');
+      if(tokens.length&&size+bytes+1>limit){yield utf8.encode('['+tokens.join(',')+']');tokens=[];size=2;}
+      tokens.push(text);size+=bytes+(tokens.length>1?1:0);
+    }
+    if(tokens.length)yield utf8.encode('['+tokens.join(',')+']');
+  }
+  const segmentName=(name,index)=>name+'.segment-'+String(index).padStart(8,'0');
+  const entryFingerprint=entry=>digest(utf8.encode(JSON.stringify({layout:entry.layout,name:entry.name,segmentBytes:entry.segmentBytes,segments:entry.segments})));
+  function segmentLimit(value){if(!Number.isSafeInteger(value)||value<512||value>DEFAULT_SEGMENT_BYTES)throw Error('Invalid migration segment limit');return value;}
+  const joinBytes=(parts,total)=>{const bytes=new Uint8Array(total);let offset=0;for(const part of parts){bytes.set(part,offset);offset+=part.length;}return bytes;};
+  async function boundedTransform(bytes,kind,limit){
+    const Transform=kind==='compress'?globalThis.CompressionStream:globalThis.DecompressionStream;
+    if(typeof Transform!=='function')throw Error('This browser does not support bounded migration compression.');
+    const reader=new Blob([bytes]).stream().pipeThrough(new Transform('deflate')).getReader(),parts=[];let total=0;
+    try{while(true){const next=await reader.read();if(next.done)break;total+=next.value.length;if(total>limit){await reader.cancel().catch(()=>{});throw Error('Migration segment exceeds its verified byte limit');}parts.push(next.value);}return joinBytes(parts,total);}
+    finally{reader.releaseLock();}
+  }
+  // JSZip's documented StreamHelper API permits a byte limit before retaining
+  // the complete ZIP member. No private JSZip fields or compression internals.
+  function boundedZipMember(file,limit){
+    return new Promise((resolve,reject)=>{
+      const parts=[];let total=0,failed=false;const stream=file.internalStream('uint8array');
+      stream.on('data',bytes=>{if(failed)return;total+=bytes.length;if(total>limit){failed=true;parts.length=0;stream.pause();reject(Error('Migration stored segment exceeds its verified byte limit'));return;}parts.push(bytes);});
+      stream.on('error',error=>{if(!failed){failed=true;parts.length=0;reject(error);}});
+      stream.on('end',()=>{if(!failed)resolve(joinBytes(parts,total));});stream.resume();
+    });
+  }
+  async function addRecord(zip,manifest,name,value,limit){
+    if(legacyFits(value,limit)){
+      const text=JSON.stringify(await encode(value));if(text===undefined)throw Error('Undefined migration record');const bytes=utf8.encode(text);
+      if(bytes.length>limit)throw Error('Migration record exceeded its verified size');
+      manifest.entries.push({name,sha256:await digest(bytes),bytes:bytes.length});zip.file(name,bytes);return;
+    }
+    // Deliberately omit the logical name: v1-only readers must fail before
+    // applying any record, rather than misinterpreting a descriptor as data.
+    const entry={name,layout:SEGMENTED,segmentBytes:limit,segments:[],bytes:0};
+    for await(const bytes of recordSegments(value,limit)){
+      const stored=await boundedTransform(bytes,'compress',limit+65536);
+      const part={name:segmentName(name,entry.segments.length),encoding:'deflate',bytes:bytes.length,sha256:await digest(bytes),storedBytes:stored.length,storedSha256:await digest(stored)};
+      zip.file(part.name,stored,{compression:'STORE'});entry.segments.push(part);entry.bytes+=bytes.length;
+    }
+    entry.sha256=await entryFingerprint(entry);manifest.entries.push(entry);
+  }
+  function tokenReader(){
+    const stack=[];let result,complete=false;
+    const attach=value=>{
+      if(!stack.length){if(complete)throw Error('Multiple migration record roots');result=value;complete=true;return;}
+      const top=stack.at(-1);
+      if(top.type==='array')top.value.push(value);
+      else if(top.type==='object'){
+        if(top.expectKey){if(typeof value!=='string')throw Error('Invalid migration object key');top.key=value;top.expectKey=false;top.hasKey=true;}
+        else{if(!top.hasKey||Object.hasOwn(top.value,top.key))throw Error('Missing or duplicate migration object key');Object.defineProperty(top.value,top.key,{value,writable:true,enumerable:true,configurable:true});top.hasKey=false;top.key=null;}
+      }else if(top.type==='blob'&&top.mime===undefined){if(typeof value!=='string')throw Error('Invalid migration blob type');top.mime=value;}
+      else throw Error('Unexpected migration record value');
+    };
+    return {
+      accept(token){
+        if(!Array.isArray(token)||typeof token[0]!=='string')throw Error('Invalid migration record token');
+        const [type,value]=token,top=stack.at(-1),arity=['value','text','bytes','date'].includes(type)?2:1;
+        if(token.length!==arity)throw Error('Invalid migration token arity');
+        if(type==='object'||type==='array'){const value=type==='array'?[]:{};attach(value);stack.push({type,value});}
+        else if(type==='key'){if(top?.type!=='object'||top.hasKey||top.expectKey)throw Error('Unexpected migration object key');top.expectKey=true;}
+        else if(type==='end'){if(!top||!['object','array'].includes(top.type)||top.hasKey||top.expectKey)throw Error('Incomplete migration container');stack.pop();}
+        else if(type==='value'){if(value!==null&&!['boolean','number'].includes(typeof value)||typeof value==='number'&&!Number.isFinite(value))throw Error('Invalid migration primitive');attach(value);}
+        else if(type==='date'){if(typeof value!=='string'||!Number.isFinite(Date.parse(value))||new Date(value).toISOString()!==value)throw Error('Invalid migration date');attach(new Date(value));}
+        else if(type==='string')stack.push({type:'string',parts:[]});
+        else if(type==='text'){if(top?.type!=='string'||typeof value!=='string')throw Error('Unexpected migration string fragment');top.parts.push(value);}
+        else if(type==='endString'){if(top?.type!=='string')throw Error('Incomplete migration string');stack.pop();attach(top.parts.join(''));}
+        else if(type==='blob')stack.push({type:'blob',parts:[]});
+        else if(type==='bytes'){if(top?.type!=='blob'||typeof top.mime!=='string'||typeof value!=='string'||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value))throw Error('Invalid migration blob fragment');const raw=atob(value);top.parts.push(Uint8Array.from(raw,c=>c.charCodeAt(0)));}
+        else if(type==='endBlob'){if(top?.type!=='blob'||typeof top.mime!=='string')throw Error('Incomplete migration blob');stack.pop();attach(new Blob(top.parts,{type:top.mime}));}
+        else throw Error('Unsupported migration token');
+      },
+      finish(){if(stack.length||!complete)throw Error('Incomplete migration record');return result;}
+    };
+  }
+  async function readRecord(zip,entry){
+    supportedLayout(entry);
+    if(entry.layout===undefined){const file=zip.file(entry.name);if(!file)throw Error('Migration record is missing');const bytes=await file.async('uint8array');if(bytes.length!==entry.bytes||await digest(bytes)!==entry.sha256)throw Error('Migration record fingerprint mismatch');return decode(JSON.parse(new TextDecoder().decode(bytes)));}
+    segmentLimit(entry.segmentBytes);
+    if(zip.file(entry.name)||!Array.isArray(entry.segments)||!entry.segments.length||await entryFingerprint(entry)!==entry.sha256)throw Error('Migration segment manifest fingerprint mismatch');
+    const reader=tokenReader();let total=0;
+    for(let i=0;i<entry.segments.length;i++){
+      const part=entry.segments[i];if(part.name!==segmentName(entry.name,i)||!Number.isSafeInteger(part.bytes)||part.bytes<1||part.bytes>entry.segmentBytes)throw Error('Invalid migration segment manifest');
+      if(part.encoding!=='deflate'||!Number.isSafeInteger(part.storedBytes)||part.storedBytes<1||part.storedBytes>entry.segmentBytes+65536)throw Error('Unsupported migration segment encoding or size');
+      const file=zip.file(part.name);if(!file)throw Error('Migration segment is missing');
+      const stored=await boundedZipMember(file,part.storedBytes);if(stored.length!==part.storedBytes||await digest(stored)!==part.storedSha256)throw Error('Migration stored segment fingerprint mismatch');
+      const bytes=await boundedTransform(stored,'decompress',part.bytes);if(bytes.length!==part.bytes||await digest(bytes)!==part.sha256)throw Error('Migration segment fingerprint mismatch');
+      const tokens=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));if(!Array.isArray(tokens))throw Error('Invalid migration segment tokens');for(const token of tokens)reader.accept(token);total+=bytes.length;
+    }
+    if(total!==entry.bytes)throw Error('Migration record byte count mismatch');return reader.finish();
+  }
+  async function verifyRecord(value,entry){
+    supportedLayout(entry);
+    if(entry.layout===undefined){const bytes=utf8.encode(JSON.stringify(await encode(value)));if(bytes.length!==entry.bytes||await digest(bytes)!==entry.sha256)throw Error('Rollback storage readback differs from its source');return;}
+    segmentLimit(entry.segmentBytes);let count=0,total=0;
+    for await(const bytes of recordSegments(value,entry.segmentBytes)){
+      const expected=entry.segments[count++];if(!expected||bytes.length!==expected.bytes||await digest(bytes)!==expected.sha256)throw Error('Rollback segment readback differs from its source');total+=bytes.length;
+    }
+    if(count!==entry.segments.length||total!==entry.bytes||await entryFingerprint(entry)!==entry.sha256)throw Error('Rollback segmented record differs from its source');
+  }
+  async function pack(bundle,records,Zip,{segmentBytes=DEFAULT_SEGMENT_BYTES}={}){
+    let phase='initialization';
+    try{
     const zip=new Zip(),manifest={format:TYPE,entries:[]};
-    const add=async(name,value)=>{const text=JSON.stringify(await encode(value));const bytes=new TextEncoder().encode(text);manifest.entries.push({name,sha256:await digest(bytes),bytes:bytes.length});zip.file(name,bytes);};
+    const limit=segmentLimit(segmentBytes);
+    const add=async(name,value)=>{phase='record '+name;return addRecord(zip,manifest,name,value,limit);};
     await add('bundle.json',bundle);
     for(let i=0;i<records.length;i++)await add(`record-${i}.json`,records[i]);
-    zip.file('manifest.json',JSON.stringify(manifest));
-    const bytes=await zip.generateAsync({type:'uint8array',compression:'DEFLATE',compressionOptions:{level:6}});
-    let s='';for(let i=0;i<bytes.length;i+=32768)s+=String.fromCharCode(...bytes.subarray(i,i+32768));
+    phase='manifest';zip.file('manifest.json',JSON.stringify(manifest));
+    phase='archive compression';const bytes=await zip.generateAsync({type:'uint8array',compression:'DEFLATE',compressionOptions:{level:6}});
+    phase='archive encoding';let s='';for(let i=0;i<bytes.length;i+=32768)s+=String.fromCharCode(...bytes.subarray(i,i+32768));
     return {bundleType:TYPE,encoding:'zip+base64',sha256:await digest(bytes),bytes:bytes.length,recordCount:records.length,data:btoa(s)};
+    }catch(error){throw new Error('Migration archive pack failed ('+phase+'): '+error.message,{cause:error});}
   }
   async function unpack(archive,Zip){
     if(archive?.bundleType!==TYPE)return {bundle:archive,records:[]};
+    let phase='archive fingerprint';
+    try{
     const raw=atob(archive.data),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
     if(bytes.length!==archive.bytes||await digest(bytes)!==archive.sha256)throw Error('Migration archive fingerprint mismatch');
-    const zip=await Zip.loadAsync(bytes),manifest=JSON.parse(await zip.file('manifest.json').async('string'));
-    if(manifest.format!==TYPE||manifest.entries.length!==archive.recordCount+1)throw Error('Migration manifest is incomplete');
+    phase='manifest';const zip=await Zip.loadAsync(bytes),manifest=JSON.parse(await zip.file('manifest.json').async('string'));
+    if(manifest.format!==TYPE||!Array.isArray(manifest.entries)||!Number.isSafeInteger(archive.recordCount)||archive.recordCount<0||manifest.entries.length!==archive.recordCount+1)throw Error('Migration manifest is incomplete');
     const values=[];
-    for(const entry of manifest.entries){const b=await zip.file(entry.name).async('uint8array');if(b.length!==entry.bytes||await digest(b)!==entry.sha256)throw Error('Migration record fingerprint mismatch');values.push(decode(JSON.parse(new TextDecoder().decode(b))));}
+    for(let i=0;i<manifest.entries.length;i++){const entry=manifest.entries[i],expected=i===0?'bundle.json':`record-${i-1}.json`;if(entry.name!==expected)throw Error('Migration record order or name is invalid');phase='record '+entry.name;values.push(await readRecord(zip,entry));}
     return {bundle:values[0],records:values.slice(1),manifest};
+    }catch(error){throw new Error('Migration archive unpack failed ('+phase+'): '+error.message,{cause:error});}
   }
   async function verifyRestore(archive,Zip){
     const restored=await unpack(archive,Zip),name='atlas_migration_rollback_test_'+crypto.randomUUID();
@@ -40,8 +194,7 @@
       await new Promise((resolve,reject)=>{const tx=db.transaction('records','readwrite'),s=tx.objectStore('records');values.forEach((v,i)=>s.put(v,i));tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});
       for(let i=0;i<values.length;i++){
         const value=await new Promise((resolve,reject)=>{const r=db.transaction('records').objectStore('records').get(i);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
-        const bytes=new TextEncoder().encode(JSON.stringify(await encode(value)));
-        if(await digest(bytes)!==restored.manifest.entries[i].sha256)throw Error('Rollback storage readback differs from its source');
+        try{await verifyRecord(value,restored.manifest.entries[i]);}catch(error){throw new Error('Migration rollback readback failed (record '+i+'): '+error.message,{cause:error});}
       }
       return {passed:true,archiveSha256:archive.sha256,recordsRestored:values.length,testedAt:new Date().toISOString()};
     } finally {db.close();indexedDB.deleteDatabase(name);}

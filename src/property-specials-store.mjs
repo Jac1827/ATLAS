@@ -1,5 +1,5 @@
 import {DurableObject} from 'cloudflare:workers';
-import {fail,nextCollection,publicUrl,extractPage,reconcilePages,signature,manualOffer} from './property-specials-core.mjs';
+import {fail,nextCollection,publicUrl,extractHtmlPage,reconcilePages,signature,manualOffer} from './property-specials-core.mjs';
 
 async function readPage(address, at) {
   let url=address,stage='website_retrieval',httpStatus,contentType;
@@ -21,13 +21,8 @@ async function readPage(address, at) {
       const reader=response.body.getReader(),chunks=[];let length=0;
       try {while(true){const {done,value}=await reader.read();if(done)break;length+=value.length;if(length>2000000)throw fail('Website exceeds the collection size limit.',502,stage,'WEBSITE_SIZE_LIMIT');chunks.push(value);}}finally{await reader.cancel();}
       stage='extraction';
-      let text='';
-      const rewritten=new HTMLRewriter().on('script,style,noscript,svg', {element(e){e.remove();}})
-        .on('body',{text(t){text+=t.text;}}).on('p,div,li,h1,h2,h3,br',{element(){text+='\n';}})
-        .on('img',{element(e){const alt=e.getAttribute('alt');if(alt)text+='\n'+alt+'\n';}})
-        .transform(new Response(new Blob(chunks),{headers:{'content-type':'text/html'}}));
-      await rewritten.text();
-      return {...extractPage(text,url,at),requestedUrl:address,httpStatus,contentType};
+      const page=await extractHtmlPage(new Response(new Blob(chunks),{headers:{'content-type':'text/html'}}),url,at);
+      return {...page,requestedUrl:address,httpStatus,contentType};
     }
     throw fail('Too many website redirects.',502,stage,'WEBSITE_REDIRECT_FAILED');
   } catch(e) {return {url,requestedUrl:address,at,status:'failed',stage:e.stage||stage,code:e.code||(stage==='extraction'?'OFFER_EXTRACTION_FAILED':'WEBSITE_RETRIEVAL_FAILED'),error:e.message,httpStatus,contentType,evidence:typeof httpStatus==='number'?`HTTP ${httpStatus}${contentType?' · '+contentType:''}`:e.message};}

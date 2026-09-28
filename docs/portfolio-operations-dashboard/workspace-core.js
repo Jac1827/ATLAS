@@ -8609,6 +8609,10 @@ function normalizeSavedCommunityRecord(propName, data) {
     regionalManagerEmployeeId: String(input.regionalManagerEmployeeId || ""),
     boxScoreHistory: Array.isArray(input.boxScoreHistory) ? input.boxScoreHistory : [],
     websiteSettingsUpdatedAt: String(input.websiteSettingsUpdatedAt || ""),
+    ...(Object.prototype.hasOwnProperty.call(input, "websiteSettingsRevision") ? {websiteSettingsRevision: String(input.websiteSettingsRevision || "")} : {}),
+    ...(Object.prototype.hasOwnProperty.call(input, "websiteSettingsExpectedRevision") ? {websiteSettingsExpectedRevision: String(input.websiteSettingsExpectedRevision || "")} : {}),
+    websiteSettingsSyncPending: input.websiteSettingsSyncPending === true,
+    ...(input.websiteSettingsBaseUrls && typeof input.websiteSettingsBaseUrls === "object" ? {websiteSettingsBaseUrls: {communityWebsiteUrl: String(input.websiteSettingsBaseUrls.communityWebsiteUrl || ""), floorPlanRatesPageUrl: String(input.websiteSettingsBaseUrls.floorPlanRatesPageUrl || "")}} : {}),
     generalManagerName: String(input.generalManagerName ?? defaults.generalManagerName).trim(),
     generalManagerEmail: atlasNormalizeSharedEmail(input.generalManagerEmail ?? defaults.generalManagerEmail),
     generalManagerUserId: String(input.generalManagerUserId ?? defaults.generalManagerUserId).trim(),
@@ -14286,7 +14290,7 @@ function defaultAtlasAccessFormDraft() {
 
 atlasAccessFormDraft = defaultAtlasAccessFormDraft();
 
-const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=83deeb18a155f022";
+const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=3b6ae81392c2ebd9";
 const ATLAS_AUTH_UI_STORAGE_KEY = "atlas_auth_ui_state_v1";
 const ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY = "atlas_dashboard_preferences_v1";
 let atlasCentralClientLoadPromise = null;
@@ -22697,7 +22701,7 @@ function getAtlasClosedFinancialVersion(record, period) {
 async function refreshAtlasClosedFinancials(year, force = false, requested = new Map()) {
   if (!window.ATLAS_CENTRAL?.getSession()?.user || !requested.size || !atlasAccessDecision(activeTab).ok) return false;
   const context = getAtlasRenderContextKey();
-  const module = await import("./features/financial-close.mjs?v=88eade5abbdc2569");
+  const module = await import("./features/financial-close.mjs?v=3bad61f955b97c78");
   if (context !== getAtlasRenderContextKey()) return false;
   window.AtlasClosedFinancialCache ||= module.createCache(window.ATLAS_CENTRAL);
   const roster = getAtlasAccessProfile()?.community_access_records || [];
@@ -23252,7 +23256,7 @@ async function openSharedCommunityPlan() {
   const communityId = access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId;
   if (!communityId || !window.ATLAS_CENTRAL) { alert("Shared plans require an authorized canonical community record."); return false; }
   try {
-    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=8530b0b98b3607ea");
+    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=6ca5accf62da7270");
     if (epoch !== atlasNavigationEpoch || !atlasAccessDecision(2).ok) return false;
     const entry=model.monthEntry, provenance=entry.metricProvenance?.occupiedSnapshot, period=buildPeriodKey(model.monthIdx,model.year);
     const occupancy=provenance?.revisionKey && provenance.period===period && (!provenance.communityId||provenance.communityId===communityId) && entry.occupiedSnapshot!=null && Number(entry.rentableUnits)>0
@@ -23585,7 +23589,7 @@ function queueCommunityRosterFinancials(items) {
     return {key:encodeURIComponent(item.detail.name),hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
   });
   setTimeout(async()=>{try {
-    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=e359c23c73670c66");
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=3e1b81c325ede078");
     if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
     await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
   } catch {}},0);

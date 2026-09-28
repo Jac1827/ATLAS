@@ -1,5 +1,5 @@
 // Pure validation and collection rules, shared by the service and its tests.
-export const fail = (message, status = 400) => Object.assign(new Error(message), {status});
+export const fail = (message, status = 400, stage, code) => Object.assign(new Error(message), {status,...(stage?{stage}:{}),...(code?{code}:{})});
 export const nextCollection = (now = Date.now()) => {
   const d = new Date(now); d.setUTCHours(11, 0, 0, 0);
   if (d.getTime() <= now) d.setUTCDate(d.getUTCDate() + 1);
@@ -21,10 +21,10 @@ export function components(text) {
 }
 export function extractPage(text, url, at) {
   const body = String(text || '');
-  if (body.length < 150 || /verify you are human|checking your browser|access denied|enable javascript to (?:continue|run)|just a moment/i.test(body)) return {url,at,status:'failed',error:'Website blocked or did not provide readable content.'};
+  if (body.length < 150 || /verify you are human|checking your browser|access denied|enable javascript to (?:continue|run)|just a moment/i.test(body)) return {url,at,status:'failed',stage:'blocked_dynamic_website',code:'WEBSITE_BLOCKED_OR_DYNAMIC',error:'Website blocked or did not provide readable content.',evidence:body.slice(0,3000)};
   const lines = body.split(/\n+/).map(clean).filter(Boolean);
   const offers = lines.flatMap((line,i) => components(line).length ? [clean([lines[i-1] || '',line,lines[i+1] || ''].join(' ')).slice(0,2500)] : []);
-  if (!offers.length && /special|concession|limited.time|leasing.offer/i.test(body) && !/no (?:current |active )?(?:specials?|offers?)/i.test(body)) return {url,at,status:'failed',error:'Offer language requires review; no reliable offer terms were extracted.',text:body.slice(0,3000)};
+  if (!offers.length && /special|concession|limited.time|leasing.offer/i.test(body) && !/no (?:current |active )?(?:specials?|offers?)/i.test(body)) return {url,at,status:'failed',stage:'extraction',code:'OFFER_EXTRACTION_FAILED',error:'Offer language requires review; no reliable offer terms were extracted.',text:body.slice(0,3000),evidence:body.slice(0,3000)};
   const offer = [...new Set(offers)].join('\n').slice(0,12000);
   const publishedDates=[...offer.matchAll(/\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})\b/g)].map(m=>m[0]);
   const eligibility=[...offer.matchAll(/\b(?:studios?|one[- ]bed(?:room)?|two[- ]bed(?:room)?|three[- ]bed(?:room)?|[123][- ]bed(?:room)?|[A-D]\d(?:-\d)?\s*(?:floor\s*plans?)?)\b/gi)].map(m=>signature(m[0]).replace(/one/g,'1').replace(/two/g,'2').replace(/three/g,'3').replace(/bedroom/g,'bed').replace(/[ -]/g,'').replace(/^studios$/,'studio'));
@@ -32,7 +32,9 @@ export function extractPage(text, url, at) {
   return {url,at,status:offer?'found':'none',text:offer,components:components(offer),publishedDates,leaseTerms,eligibility:[...new Set(eligibility)],evidence:offer || body.slice(0,3000)};
 }
 export function reconcilePages(pages) {
-  if (!pages.length || pages.some(p=>p.status==='failed')) return {status:'failed',pages,error:pages.find(p=>p.error)?.error || 'No website URL configured.'};
+  if (!pages.length) return {status:'failed',pages,stage:'configuration',code:'WEBSITE_URL_MISSING',error:'No website URL configured.'};
+  const failed=pages.find(p=>p.status==='failed');
+  if (failed) return {status:'failed',pages,stage:failed.stage||'website_retrieval',code:failed.code||'WEBSITE_RETRIEVAL_FAILED',error:failed.error||'Website retrieval failed.'};
   const found = pages.filter(p=>p.status==='found');
   if (!found.length) return {status:'none',text:'No special listed',components:[],pages};
   // An offer on a main page and no offer on a pricing page is not contradictory.
@@ -45,7 +47,7 @@ export function reconcilePages(pages) {
     const leaseWindows=p=>(p.leaseTerms||[]).flatMap(term=>{const [lo,hi=lo]=term.split('-').map(Number);return Array.from({length:Math.max(0,hi-lo+1)},(_,i)=>lo+i);});
     const al=leaseWindows(a),bl=leaseWindows(b),leaseTermsDiffer=al.length&&bl.length&&!al.some(v=>bl.includes(v));
     const distinctEligibility=floorplansDiffer||leaseTermsDiffer;
-    if (!distinctEligibility && (differing || (signature(a.text)!==signature(b.text) && /restrictions?|lease terms?|select (?:units|floor)|only|move.in by/i.test(a.text+b.text)))) return {status:'conflict',pages,error:'Conflicting website offers—review required.'};
+    if (!distinctEligibility && (differing || (signature(a.text)!==signature(b.text) && /restrictions?|lease terms?|select (?:units|floor)|only|move.in by/i.test(a.text+b.text)))) return {status:'conflict',pages,stage:'conflicting_offers',code:'CONFLICTING_OFFERS',error:'Conflicting website offers—review required.'};
   }
   return {status:'found',text:[...new Set(found.map(p=>p.text))].join('\n'),components:[...new Map(found.flatMap(p=>p.components.map(c=>({...c,eligibility:[...(p.eligibility||[]),...(p.leaseTerms||[]).map(t=>t+' month lease')].join(', '),terms:p.text}))).map(c=>[signature(c.text+' '+c.eligibility),c])).values()],pages};
 }

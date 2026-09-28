@@ -48291,15 +48291,14 @@ function dataImportSupersedeRentRollPeriods(plan, entry, result) {
           hadValue:Object.hasOwn(month,field),before:month[field],beforeProvenance:JSON.parse(JSON.stringify(provenance)),after:null,month});
       }
       if (Object.hasOwn(month,"economicOccupancyPct") && changes.some(change => change.month === month && ["actualCharges","grossPotentialRent"].includes(change.field))) {
-        // A legacy cached ratio must not survive removal of its source inputs.
-        // The current definition reads only governed closed NRI / GPR; it never
-        // substitutes operational charges or invents a measured zero.
-        const governed = getCommunityCommandEconomicOccupancyData(record,scope.monthIdx,scope.year);
-        const after = typeof governed.mtdPct === "number" && Number.isFinite(governed.mtdPct) ? governed.mtdPct : null;
+        // A cached ratio must not survive removal of its source inputs.
+        // Preserve unavailable status; this correction does not choose a new
+        // economic occupancy definition or substitute another financial ratio.
+        const after = null;
         if (month.economicOccupancyPct !== after) changes.push({communityName:scope.communityName,periodKey:scope.periodKey,path,
           field:"economicOccupancyPct",provenanceKey:"economicOccupancyPct",hadValue:true,before:month.economicOccupancyPct,
           beforeProvenance:month.metricProvenance?.economicOccupancyPct,after,month,
-          derivation:{basis:"governed_closed_net_rental_income_over_gpr",sourceLabel:governed.sourceLabel || null}});
+          derivation:{basis:"source_inputs_superseded",reason:"Prior rent-roll charge inputs belonged to another reporting period."}});
       }
     }
   }

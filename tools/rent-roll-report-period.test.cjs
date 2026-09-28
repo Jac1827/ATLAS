@@ -71,12 +71,12 @@ test('retained host retires the same wrong-period facts without changing other s
  const patched=patchOccupancyImportBoundary(fs.readFileSync(__dirname+'/fixtures/occupancy-retained-import-boundary.js','utf8'),fs.readFileSync(root+'workspace-core.js','utf8'),fs.readFileSync(root+'features/import-workspace.js','utf8'));
  await assertCorrection(patched);
 });
-test('owned charge-input retirement invalidates stale economic cache while retaining the governed close definition',async()=>{
- for(const governedPercent of [null,0,55]){
-  const {c,calls,archive,period,p}=correctionFixture();c.getCommunityCommandEconomicOccupancyData=()=>({mtdPct:governedPercent,sourceLabel:governedPercent===null?'Missing closed financial package':'Verified closed NRI / GPR'});
+test('owned charge-input retirement invalidates stale economic cache without substituting another ratio',async()=>{
+ for(const priorCachedPercent of [0,50,55]){
+  const {c,calls,archive,period,p}=correctionFixture();c.getCommunityCommandEconomicOccupancyData=()=>{throw Error('Correction must not choose another economic occupancy definition');};
   Object.assign(c.dataImport2State.lineage.find(r=>r.id==='other-current'),{reportType:'rent_roll',fileHash:p.fileHash,importedValue:1000});c.dataImport2State.lineage.push({id:'owned-gpr',reportType:'rent_roll',fileHash:p.fileHash,communityName:'Example',periodKey:period,atlasField:'gross_potential_rent',importedValue:2000,currentState:true});
-  for(const month of [c.savedData.Example.monthlyHistoryByPeriod[period],c.savedData.Example.monthlyData[6]])Object.assign(month,{actualCharges:1000,grossPotentialRent:2000,economicOccupancyPct:50,metricProvenance:{...month.metricProvenance,actual_charges:{source:p.fileHash,field:'actual_charges'},gross_potential_rent:{source:p.fileHash,field:'gross_potential_rent'}}});
-  await c.reprocessDataImportBoxScore(archive.id);assert.equal(calls.shared,1,JSON.stringify(calls.alerts));const month=c.savedData.Example.monthlyHistoryByPeriod[period];assert.equal(month.actualCharges,null);assert.equal(month.grossPotentialRent,null);assert.equal(month.economicOccupancyPct,governedPercent);const audit=c.dataImport2State.reconciliationLog.find(r=>r.action==='rent_roll_reporting_period_supersession');assert(audit.metricChanges.some(r=>r.field==='economicOccupancyPct'&&r.before===50&&r.after===governedPercent&&r.derivation.basis==='governed_closed_net_rental_income_over_gpr'));
+  for(const month of [c.savedData.Example.monthlyHistoryByPeriod[period],c.savedData.Example.monthlyData[6]])Object.assign(month,{actualCharges:1000,grossPotentialRent:2000,economicOccupancyPct:priorCachedPercent,metricProvenance:{...month.metricProvenance,actual_charges:{source:p.fileHash,field:'actual_charges'},gross_potential_rent:{source:p.fileHash,field:'gross_potential_rent'}}});
+  await c.reprocessDataImportBoxScore(archive.id);assert.equal(calls.shared,1,JSON.stringify(calls.alerts));const month=c.savedData.Example.monthlyHistoryByPeriod[period];assert.equal(month.actualCharges,null);assert.equal(month.grossPotentialRent,null);assert.equal(month.economicOccupancyPct,null);const audit=c.dataImport2State.reconciliationLog.find(r=>r.action==='rent_roll_reporting_period_supersession');assert(audit.metricChanges.some(r=>r.field==='economicOccupancyPct'&&r.before===priorCachedPercent&&r.after===null&&r.derivation.basis==='source_inputs_superseded'));
  }
 });
 test('future-year correction changes period history without touching current calendar-year monthlyData',async()=>{

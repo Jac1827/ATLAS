@@ -18725,6 +18725,126 @@ function redactAtlasCentralStorageBundle(bundle = {}) {
   return next;
 }
 
+async function packAtlasCentralRetainedRecords(bundle, { expandImportHistory = false } = {}) {
+  const prefix = '__atlas_archive_capture_v1:', captureId = crypto.randomUUID(), inventory = [];
+  const central = window.ATLAS_CENTRAL, actor = central?.getSession?.()?.user?.id ?? null;
+  const access = central?.getAccessContextKey?.() ?? null, profile = JSON.stringify(central?.getStoredProfile?.() ?? null);
+  const generation = Number(window.AtlasReplayGeneration || 0);
+  const databaseName = typeof ATLAS_STATE_DB_NAME === 'undefined' ? null : ATLAS_STATE_DB_NAME;
+  const storeName = typeof ATLAS_STATE_STORE_NAME === 'undefined' ? null : ATLAS_STATE_STORE_NAME;
+  const hasLoadedHistory = typeof dataImport2State !== 'undefined' && ['batches','sourceArchive','canonicalRecords','lineage'].some(key => Array.isArray(dataImport2State?.[key]) && dataImport2State[key].length);
+  const assertCurrent = () => {
+    window.AtlasReplayWriteFence?.assert(null);
+    if (window.ATLAS_CENTRAL !== central || (central?.getSession?.()?.user?.id ?? null) !== actor
+        || (central?.getAccessContextKey?.() ?? null) !== access || JSON.stringify(central?.getStoredProfile?.() ?? null) !== profile
+        || Number(window.AtlasReplayGeneration || 0) !== generation
+        || (typeof ATLAS_STATE_DB_NAME === 'undefined' ? null : ATLAS_STATE_DB_NAME) !== databaseName
+        || (typeof ATLAS_STATE_STORE_NAME === 'undefined' ? null : ATLAS_STATE_STORE_NAME) !== storeName) throw new Error('The account, storage or source replay changed during archive preparation. No archive was created.');
+  };
+  let nativeDb = null, nativeStore = null, started = false, hasCanonical = false, failure = null;
+  const nativeIO = (mode, action) => new Promise((resolve, reject) => {
+    const tx = nativeDb.transaction(nativeStore, mode); let request;
+    try { request = action(tx.objectStore(nativeStore)); } catch (error) { tx.abort(); reject(error); return; }
+    tx.oncomplete = () => resolve(request?.result);
+    tx.onerror = tx.onabort = () => reject(tx.error || request?.error || new Error('Archive snapshot storage transaction failed.'));
+  });
+  const owns = (row, item) => row?.format === 'atlas_archive_capture_v1' && row.captureId === captureId && row.key === item.key && row.sourceKey === item.sourceKey;
+  try {
+    assertCurrent();
+    // Capture one coherent source view into disjoint temporary native records.
+    // Serial native callbacks retain no array of the full source values.
+    let captureError = null;
+    try {
+      await withAtlasStateStore('readwrite', store => {
+        started = true; nativeDb = store.transaction.db; nativeStore = store.name;
+        const tx = store.transaction, request = store.openKeyCursor();
+        const abort = error => { captureError = error; try { tx.abort(); } catch {} };
+        request.onsuccess = () => {
+          try {
+            assertCurrent();
+            const cursor = request.result;
+            if (!cursor) return;
+            const key = String(cursor.key);
+            if (key.startsWith(prefix) || !(key === DATA_IMPORT_2_STATE_KEY || key.startsWith(DATA_IMPORT_FILE_ARCHIVE_PREFIX) || key.startsWith('occupancy_replay_backup:'))) { cursor.continue(); return; }
+            const read = store.get(cursor.key);
+            read.onsuccess = () => {
+              try {
+                assertCurrent();
+                let record = read.result;
+                if (!record || record.key !== key) throw new Error('A retained source record is unavailable. No archive was created.');
+                if (key === DATA_IMPORT_2_STATE_KEY) hasCanonical = record.value != null;
+                const item = {key:prefix + captureId + ':' + inventory.length, sourceKey:key};
+                const write = store.add({key:item.key, format:'atlas_archive_capture_v1', captureId, sourceKey:key, record});
+                record = null;
+                write.onsuccess = () => {
+                  try { assertCurrent(); inventory.push(item); read.onsuccess = null; write.onsuccess = null; cursor.continue(); }
+                  catch (error) { abort(error); }
+                };
+              } catch (error) { abort(error); }
+            };
+          } catch (error) { abort(error); }
+        };
+        return request;
+      });
+    } catch (error) { throw captureError || error; }
+    if (!started) throw new Error('Canonical ATLAS storage is unavailable. No archive was created.');
+    assertCurrent();
+    if (!hasCanonical && hasLoadedHistory) throw new Error('Loaded import history has no retained canonical record. No archive was created.');
+    const readRecord = async index => {
+      assertCurrent();
+      const item = inventory[index];
+      let captured = await nativeIO('readonly', store => store.get(item.key));
+      assertCurrent();
+      if (!owns(captured, item) || captured.record?.key !== item.sourceKey) throw new Error('A captured archive record is missing or changed. No archive was created.');
+      const record = captured.record; captured = null;
+      if (record.key === DATA_IMPORT_2_STATE_KEY) {
+        if (record.value?.__atlasImportHistory === 2) {
+          if (!expandImportHistory) throw new Error('Complete portable import history requires its verified history reader. No archive was created.');
+          const capturedHead = record.value;
+          const exported = await dataImportHistoryOperation('export');
+          const latest = await nativeIO('readonly', store => store.get(DATA_IMPORT_2_STATE_KEY));
+          assertCurrent();
+          if (JSON.stringify(latest?.value) !== JSON.stringify(capturedHead)) throw new Error('Import history changed during archive preparation. Reload before creating an archive.');
+          record.value = exported;
+        }
+        if (record.value?.__atlasImportHistory === 2 || record.value?.historyStorage?.view) throw new Error('The archive requires complete portable import evidence.');
+        for (const batch of record.value?.batches || []) {
+          const ref = batch?.beforeSnapshotRef;
+          if (ref && (ref.batchId !== batch.id || !batch.beforeSnapshot || String(batch.beforeSnapshot.capturedAt || '') !== ref.capturedAt)) throw new Error('Retained rollback evidence is incomplete. No archive was created.');
+        }
+      }
+      return record;
+    };
+    const archive = await window.AtlasMigrationArchive.packRecords(bundle, {count:inventory.length, readRecord}, JSZip);
+    assertCurrent();
+    return archive;
+  } catch (error) { failure = error; throw error; }
+  finally {
+    if (nativeDb && inventory.length) {
+      try {
+        // Clean only this capture's exact inventory, even after an account change.
+        // Never sweep an orphan namespace or touch an original source record.
+        // Inventory keys were added successfully by this unique capture. Read
+        // only keys here: reading the envelopes would clone the large source again.
+        await nativeIO('readwrite', store => {
+          for (const item of inventory) store.delete(item.key);
+        });
+        let remained = false;
+        await nativeIO('readonly', store => {
+          for (const item of inventory) {
+            const request = store.getKey(item.key);
+            request.onsuccess = () => { if (request.result !== undefined) remained = true; };
+          }
+        });
+        if (remained) throw new Error('Temporary archive snapshot cleanup could not be verified.');
+      } catch (error) {
+        throw new Error((failure ? failure.message + ' ' : '') + 'Archive temporary snapshot cleanup failed; no archive is complete. Retained capture: ' + captureId, {cause:error});
+      }
+    }
+    if (!failure) assertCurrent();
+  }
+}
+
 async function buildAtlasCentralAppStatePayload() {
   const replayGeneration=Number(window.AtlasReplayGeneration||0);
   window.AtlasReplayWriteFence?.assert(null);
@@ -18735,25 +18855,8 @@ async function buildAtlasCentralAppStatePayload() {
   // Full evidence is read only for an explicit export/publication. Do not clone
   // unrelated daily backups or immutable history chunks into the main thread.
   if (typeof ensureAtlasCanonicalImportEvidence === 'function') await ensureAtlasCanonicalImportEvidence();
-  const retainedRecords = [];
-  await withAtlasStateStore("readonly", store => {
-    const request = store.openKeyCursor();
-    request.onsuccess = () => {
-      const cursor = request.result;
-      if (!cursor) return;
-      const key = String(cursor.key);
-      if (key === DATA_IMPORT_2_STATE_KEY || key.startsWith(DATA_IMPORT_FILE_ARCHIVE_PREFIX) || key.startsWith("occupancy_replay_backup:")) {
-        const row = store.get(key);
-        row.onsuccess = () => retainedRecords.push(row.result);
-      }
-      cursor.continue();
-    };
-    return request;
-  });
-  const importRecord = retainedRecords.find(record => record.key === DATA_IMPORT_2_STATE_KEY);
-  if (importRecord?.value?.__atlasImportHistory === 2) importRecord.value = await dataImportHistoryOperation('export');
-  const portableBundle = await window.AtlasMigrationArchive.pack(bundle, retainedRecords, JSZip);
-  const restored = await window.AtlasMigrationArchive.unpack(portableBundle, JSZip);
+  const portableBundle = await packAtlasCentralRetainedRecords(bundle, { expandImportHistory: true });
+  const restored = await window.AtlasMigrationArchive.verifyBundle(portableBundle, JSZip);
   const restoredStorage = Object.fromEntries(Object.entries(restored.bundle.keys || {}).map(([key,value]) => [key,{parsed:parseAtlasMigrationJson(value)}]));
   const restoredSummary = buildAtlasMigrationReconciliationSummary(restored.bundle.indexedDb.communityData, restoredStorage, restored.bundle.indexedDb);
   if (JSON.stringify(restoredSummary) !== JSON.stringify(migrationSnapshot.reconciliation)) throw new Error("Migration round-trip reconciliation differs from the source. No central publication was performed.");

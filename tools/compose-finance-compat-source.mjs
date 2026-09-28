@@ -7,6 +7,7 @@ import {fileURLToPath} from 'node:url';
 import {verifyRelease} from './package-atlas-assets.mjs';
 import {patchOccupancyGoalEditor} from './occupancy-goal-editor-compat.mjs';
 import {patchOccupancyImportBoundary} from './occupancy-compat-boundary.mjs';
+import {patchArchiveBuilderBoundary,ARCHIVE_BUILDER_BOUNDARY_COUNT} from './archive-builder-compat.mjs';
 import {patchReplayCheckpointBoundary,REPLAY_CHECKPOINT_BOUNDARY_COUNT} from './replay-checkpoint-compat.mjs';
 
 export const OPERATIONAL_RELEASE='774663d5c700ea5d00a0b13a627f965f78173d7a4700f6728ed6a6620adbf8df';
@@ -68,7 +69,7 @@ export async function composeFinanceCompatSource({operationalSource,financeSourc
  const updatedConsumers=currentConsumers.replace(/import\('\.\/features\//g,"import('"+financePrefix+'features/')+homeHook;
  const indexPath='portfolio-operations-dashboard/index.html',editorPath='portfolio-operations-dashboard/community-goal-editor.js';
  const oldIndex=await fs.readFile(path.join(operationalSource,indexPath),'utf8'),currentCore=await fs.readFile(path.join(financeSource,'portfolio-operations-dashboard/workspace-core.js'),'utf8');
- const updatedIndex=patchReplayCheckpointBoundary(patchOccupancyImportBoundary(oldIndex,currentCore,await fs.readFile(path.join(financeSource,'portfolio-operations-dashboard/features/import-workspace.js'),'utf8')),currentCore);
+ const updatedIndex=patchArchiveBuilderBoundary(patchReplayCheckpointBoundary(patchOccupancyImportBoundary(oldIndex,currentCore,await fs.readFile(path.join(financeSource,'portfolio-operations-dashboard/features/import-workspace.js'),'utf8')),currentCore),currentCore);
  const updatedEditor=patchOccupancyGoalEditor(await fs.readFile(path.join(operationalSource,editorPath),'utf8'),await fs.readFile(path.join(financeSource,editorPath),'utf8'));
  await fs.mkdir(out);
  try{
@@ -81,8 +82,8 @@ export async function composeFinanceCompatSource({operationalSource,financeSourc
   const budgetPath='portfolio-operations-dashboard/RISE-Budget-Builder.html';
   await fs.writeFile(path.join(out,budgetPath),`<!doctype html><html><head><meta charset="utf-8"><title>RISE Budget Builder</title><script>const target=new URL('../finance/portfolio-operations-dashboard/RISE-Budget-Builder.html',document.baseURI);target.search=location.search;target.hash=location.hash;location.replace(target.href);</script></head><body><a href="../finance/portfolio-operations-dashboard/RISE-Budget-Builder.html">Open Budget Builder</a></body></html>\n`);
   await fs.writeFile(path.join(out,indexPath),updatedIndex);await fs.writeFile(path.join(out,editorPath),updatedEditor);
-  // Keep the retained lazy loader and its callers unchanged. The new release
-  // namespace supplies only the reviewed, API-compatible archive transport.
+  // Keep the retained lazy loader unchanged. Only the reviewed archive builder
+  // uses bounded verification; public unpack and restore contracts are retained.
   const archivePath='portfolio-operations-dashboard/migration-archive.js';
   if(!operationalFiles.some(row=>row.path===archivePath)||!financeFiles.some(row=>row.path===archivePath))throw Error('The reviewed migration archive boundary is missing.');
   await fs.copyFile(path.join(financeSource,archivePath),path.join(out,archivePath));
@@ -100,9 +101,9 @@ export async function composeFinanceCompatSource({operationalSource,financeSourc
   for(const row of financeFiles)if(sha(await fs.readFile(path.join(out,'finance',row.path)))!==row.sha256)throw Error('Finance source changed during composition: '+row.path);
   const sourceFiles=await inventory(out);
   return {schemaVersion:1,mode:'preserve_operational_startup',out,operationalReleaseId:OPERATIONAL_RELEASE,financeSourceId:currentFinanceId,composedSourceId:sourceId(sourceFiles),operationalFileCount:operationalFiles.length,unchangedOperationalFileCount:operationalFiles.length-changed.length,financeFileCount:financeFiles.length,changedOperationalFiles:changed,financePrefix:'finance/',sourceFiles,
-   preserved:['Operational startup/bootstrap and all index content outside eleven import boundaries and 36 reviewed checkpoint/save guards','Operational IndexedDB/local-storage keys and hydration','Existing operational source records and import history','Parent authentication client and normal Budget Builder access decision'],
-   updated:['Budget Builder iframe, current governed header/navigation and direct document links use the complete isolated finance tree','Investor-packet hidden reader uses the same isolated current Budget Builder','Eight explicitly listed canonical financial roots forwarded to current finance adapters','Active-reforecast consumer adapter including publication delivery readbacks','Home approval tasks with direct exact-record Review links','Source-aware advisory occupancy planning with original goal persistence and approved history','Eleven guarded import boundaries retain source evidence and audited rent-roll period corrections; 36 checkpoint/save boundaries use native IndexedDB rollback for Rent Roll and Trending, protect queued/local/shared writes, and retain unresolved recovery evidence','Lossless bounded archive transport loaded by the unchanged retained lazy loader; no startup or authorization change'],
-   replayCheckpoint:{boundaryCount:REPLAY_CHECKPOINT_BOUNDARY_COUNT,routes:['rent_roll','trending_occupancy'],storage:'temporary_native_indexeddb',unresolvedRecovery:'writes_blocked_until_coherent_reload'},financialForwarders:forwarded,occupancyForwarders:occupancyForwarded,archiveTransport:archivePath,addedOperationalFiles:occupancyForwarded,
+   preserved:['Operational startup/bootstrap and all index content outside eleven import boundaries,36 reviewed checkpoint/save guards and three archive-builder boundaries','Operational IndexedDB/local-storage keys and hydration','Existing operational source records and import history','Parent authentication client and normal Budget Builder access decision'],
+   updated:['Budget Builder iframe, current governed header/navigation and direct document links use the complete isolated finance tree','Investor-packet hidden reader uses the same isolated current Budget Builder','Eight explicitly listed canonical financial roots forwarded to current finance adapters','Active-reforecast consumer adapter including publication delivery readbacks','Home approval tasks with direct exact-record Review links','Source-aware advisory occupancy planning with original goal persistence and approved history','Eleven guarded import boundaries retain source evidence and audited rent-roll period corrections; 36 checkpoint/save boundaries use native IndexedDB rollback for Rent Roll and Trending, protect queued/local/shared writes, and retain unresolved recovery evidence','Lossless bounded archive transport and three guarded builder boundaries; every member verified sequentially with selected records in a separate packing frame; no startup or authorization change'],
+   replayCheckpoint:{boundaryCount:REPLAY_CHECKPOINT_BOUNDARY_COUNT,routes:['rent_roll','trending_occupancy'],storage:'temporary_native_indexeddb',unresolvedRecovery:'writes_blocked_until_coherent_reload'},financialForwarders:forwarded,occupancyForwarders:occupancyForwarded,archiveTransport:archivePath,archiveBuilder:{boundaryCount:ARCHIVE_BUILDER_BOUNDARY_COUNT,retainedRead:"selected_keys_single_transaction",verification:"all_members_sequential_bundle_only"},addedOperationalFiles:occupancyForwarded,
    limits:['Does not activate the new operational workspace/core or publish a startup projection.','Nonfinancial operational readers and investor-packet presentation remain at the reviewed operational release.','Delivery status remains pending until each authorized consumer performs its actual verified readback.']};
  }catch(error){await fs.rm(out,{recursive:true,force:true});throw error;}
 }

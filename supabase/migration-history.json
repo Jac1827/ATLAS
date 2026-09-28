@@ -72,6 +72,10 @@
     {
       "from": "20260928163616_defer_finance_baseline_attachment.sql",
       "to": "20260928164258_defer_finance_baseline_attachment.sql"
+    },
+    {
+      "from": "20260928212731_investor_approval_source_validation.sql",
+      "to": "20260928213333_investor_approval_source_validation.sql"
     }
   ],
   "records": [
@@ -836,6 +840,14 @@
       "md5": "65f734334e258186ada1600504af8487",
       "sha256": "c21fabdc131b6f772558fc2194db6008787ca0320d4a02825f4cb63dd34d8c37",
       "file": "20260928164258_defer_finance_baseline_attachment.sql"
+    },
+    {
+      "version": "20260928213333",
+      "name": "investor_approval_source_validation",
+      "file": "20260928213333_investor_approval_source_validation.sql",
+      "bytes": 4323,
+      "md5": "4d14f7b427a6f0090b66a52960a47845",
+      "sha256": "a9ee4ffb4e0702e30bb9f5b8b3c8025bf1f27d69698b921b92470883d2c208de"
     }
   ]
 }

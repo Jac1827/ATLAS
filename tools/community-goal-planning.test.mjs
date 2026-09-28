@@ -55,3 +55,27 @@ test('current goal alerts use explicit approved zeroes and cannot revive old con
  let model=f.host.buildCommunityCommandModel();assert.equal(model.plan.currentAppNeed,0);assert.equal(model.plan.currentGrossLeaseNeed,0);assert.equal(model.plan.currentMoveInNeed,0);assert.equal(model.plan.currentGuestCardNeed,null);assert(!f.host.buildCommunityCommandAlerts(model).some(r=>r.id==='traffic_volume_watch'));
  f.host.getCommunityCommandApprovedGoal=()=>null;model=f.host.buildCommunityCommandModel();assert.equal(model.plan.currentAppNeed,null);assert.equal(model.plan.currentGrossLeaseNeed,null);assert.equal(model.plan.currentMoveInNeed,null);assert.deepEqual(f.host.buildCommunityCommandAlerts(model),[{id:'other'}]);assert.equal(f.model.plan.currentAppNeed,65,'Legacy source record is not modified');
 });
+test('trend uses the same exact-period approved targets as current and future plan rows without changing actuals or approved goals',async()=>{
+ const f=hostFixture(),periods=['2026-09','2026-10','2026-11','2026-12'],targets=[56.085994,55.099174,60.383123,64.294217];
+ const rows=[7,8,9,10,11].map((idx,i)=>({idx,budget:[34.3,47.6,56.1,55.1,60.4][i],physical:i===1?0:40,leased:42,beginning:38,endingActual:40,endingForecast:null,variance:99,occupancy:{approved:{version:3,occupancyGoal:0},status:'Verified Actual'}}));
+ const before=structuredClone(rows);f.host.getCommunityCommandTrendPoints=()=>rows;
+ const api=installCommunityGoalPlanning({host:f.host,readSources:sources,readBudgets:async()=>periods.map(period=>({...budget(),period_key:period})),readPublications:async()=>[{...active(),activePeriods:periods,snapshot:{leasing:periods.map((period,i)=>({period,sourceKind:'forecast',occupancy:targets[i]/100,units:247}))}}]});
+ await api.hydrate(f.model);const model=f.host.buildCommunityCommandModel(),trend=f.host.getCommunityCommandTrendPoints(model),plan=f.host.buildCommunityCommandLeasingPlanRows(model);
+ assert.equal(trend[0],rows[0],'Prior historical row is preserved');
+ for(const row of trend.slice(1)){
+  assert.equal(row.budget,plan[row.idx].budgetPct,'Chart and plan use the same approved month');
+  assert.equal(row.budget,targets[row.idx-8]/100*100);assert.equal(row.variance,row.physical-row.budget);
+  const prior=rows.find(old=>old.idx===row.idx);for(const key of ['physical','beginning','endingActual','endingForecast','occupancy'])assert.deepEqual(row[key],prior[key]);
+  assert.equal(row.leased,row.idx===8?115/247*100:prior.leased);
+ }
+ assert.deepEqual(rows,before,'No legacy source or approved-goal mutation');
+});
+test('trend keeps explicit approved zero, shows unavailable for missing months, and cannot reuse targets after access changes',async()=>{
+ for(const change of ['changeActor','changeScope','deny']){
+  const f=hostFixture();f.host.getCommunityCommandTrendPoints=()=>[8,9,10,11].map(idx=>({idx,budget:95,physical:0,leased:33,variance:-95,occupancy:{approved:{occupancyGoal:0}}}));
+  const api=installCommunityGoalPlanning({host:f.host,readSources:sources,readBudgets:async()=>[budget(),{...budget(),period_key:'2026-10',summary:{...budget().summary,occupancyPct:0}}],readPublications:async()=>[]});
+  await api.hydrate(f.model);const model=f.host.buildCommunityCommandModel();let rows=f.host.getCommunityCommandTrendPoints(model);
+  assert.deepEqual(rows.map(row=>row.budget),[47.6,0,null,null]);assert.deepEqual(rows.map(row=>row.variance),[-47.6,0,null,null]);
+  f[change]();rows=f.host.getCommunityCommandTrendPoints(model);assert.deepEqual(rows.map(row=>row.budget),[null,null,null,null]);assert(rows.every(row=>row.variance===null));assert(rows.every(row=>row.occupancy.approved.occupancyGoal===0));
+ }
+});

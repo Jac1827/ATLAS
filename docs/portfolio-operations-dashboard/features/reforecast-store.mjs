@@ -1,3 +1,4 @@
+import {retainedWorkbookBlank,confirmedForecastBlank,compactWorkbookBlankReference} from './reforecast-workbook-source-policy.mjs';
 import {acknowledgeBudgetConsumer} from './budget-consumer-delivery.mjs?v=f5342574d4b39aa2';
 /* Canonical reforecast transport: no browser-local financial fallback. */
 import {persistReforecastPayload} from './workbook-audit-store.mjs?v=26dfb75ca99d6b52';
@@ -30,7 +31,8 @@ export function verifyImportReadback(result,{communityId,scenarioId,requestId,up
  for(const expected of expectedLines){
   const key=JSON.stringify([expected.period,expected.accountCode]);if(seen.has(key))throw Error('Import readback requires one reviewed source value per GL and month.');seen.add(key);
   const matches=cells.filter(row=>row.period===expected.period&&row.accountCode===expected.accountCode),saved=(revision.payload?.overrides||[]).filter(row=>row.period===expected.period&&row.accountCode===expected.accountCode),screen=(result.snapshot?.lines||revision.snapshot?.lines||[]).filter(row=>row.period===expected.period&&row.accountCode===expected.accountCode);
-  if(matches.length!==1||saved.length!==1||screen.length!==1||!Number.isFinite(expected.amount)||matches[0].amount!==expected.amount||saved[0].amount!==expected.amount||screen[0].forecast!==expected.amount||matches[0].sourceLineId!==expected.sourceLineId||saved[0].sourceLineId!==expected.sourceLineId||!equal(matches[0].sourceCoordinates,expected.sourceCoordinates))throw Error(`Import readback differs from the reviewed workbook at ${expected.accountCode} / ${expected.period}.`);
+  const blank=retainedWorkbookBlank(expected,mapping);
+  if(matches.length!==1||saved.length!==1||screen.length!==1||(!Number.isFinite(expected.amount)&&!blank)||matches[0].amount!==expected.amount||saved[0].amount!==expected.amount||screen[0].forecast!==expected.amount||matches[0].sourceLineId!==expected.sourceLineId||saved[0].sourceLineId!==expected.sourceLineId||!equal(matches[0].sourceCoordinates,expected.sourceCoordinates)||(blank&&(!retainedWorkbookBlank(matches[0],mapping)||!compactWorkbookBlankReference(saved[0],{...expected,uploadId})||!confirmedForecastBlank(screen[0],'forecast'))))throw Error(`Import readback differs from the reviewed workbook at ${expected.accountCode} / ${expected.period}.`);
  }
  return result;
 }
@@ -43,7 +45,7 @@ export function projectImportUpdatePayload(payload,{uploadId,mapping,expectedLin
  request(uploadId);
  if(!payload||typeof payload!=='object'||Array.isArray(payload)||!Array.isArray(expectedLines)||!expectedLines.length||!Array.isArray(mapping?.selectedLineIds)||mapping.selectedLineIds.length!==expectedLines.length)throw Error('Review the exact workbook cells before preparing an update.');
  const selected=new Set(),sourceIds=new Set();
- for(const line of expectedLines){const key=JSON.stringify([line.period,line.accountCode]);if(!period.test(line.period)||typeof line.accountCode!=='string'||!line.accountCode||!Number.isFinite(line.amount)||!mapping.selectedLineIds.includes(line.sourceLineId)||selected.has(key)||sourceIds.has(line.sourceLineId))throw Error('Review one exact source cell for each updated GL and month.');selected.add(key);sourceIds.add(line.sourceLineId);}
+ for(const line of expectedLines){const key=JSON.stringify([line.period,line.accountCode]);if(!period.test(line.period)||typeof line.accountCode!=='string'||!line.accountCode||(!Number.isFinite(line.amount)&&!retainedWorkbookBlank(line,mapping))||!mapping.selectedLineIds.includes(line.sourceLineId)||selected.has(key)||sourceIds.has(line.sourceLineId))throw Error('Review one exact source cell for each updated GL and month.');selected.add(key);sourceIds.add(line.sourceLineId);}
  const next=structuredClone(payload),overrides=next.overrides||[];
  if(!Array.isArray(overrides))throw Error('Working overrides must be reviewed before updating the import.');
  const retained=overrides.filter(row=>!selected.has(JSON.stringify([row.period,row.accountCode])));
@@ -52,6 +54,16 @@ export function projectImportUpdatePayload(payload,{uploadId,mapping,expectedLin
  if(retained.some(row=>row.uploadId===uploadId))throw Error('This workbook has retained cells outside the reviewed selection. Include those cells in the reviewed update, or choose Create New Draft to preserve the existing draft.');
  next.overrides=retained;
  if(next.uploadId===uploadId){delete next.importMapping;delete next.importIssues;}
+ else if(next.uploadId&&next.importMapping&&!retained.some(row=>row.uploadId===next.uploadId)){
+  const prior=(next.importHistory||[]).filter(row=>row.uploadId===next.uploadId&&row.mappingVersion===next.importMapping.version&&uuid.test(row.requestId||''));
+  if(prior.length===1){
+   // The old upload/mapping stays in its immutable import receipt and prior
+   // revision. Only its redundant active copy leaves this NEW request.
+   const reference={kind:'immutable_import_receipt',requestId:prior[0].requestId,mappingVersion:prior[0].mappingVersion};
+   next.importHistory=next.importHistory.map(row=>{if(row!==prior[0])return row;const {mapping:redundantMapping,issues:redundantIssues,...retainedReference}=row;return {...retainedReference,mappingReference:reference};});
+   delete next.importMapping;delete next.importIssues;
+  }
+ }
  if(Array.isArray(next.importHistory))next.importHistory=next.importHistory.filter(row=>row.uploadId!==uploadId);
  return next;
 }

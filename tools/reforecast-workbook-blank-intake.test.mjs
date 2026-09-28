@@ -1,0 +1,103 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {parseReforecastWorkbook,mapReforecastIntake} from '../docs/portfolio-operations-dashboard/features/reforecast-intake.mjs';
+import {prepareScopedReforecastEvidence} from '../docs/portfolio-operations-dashboard/features/reforecast-authority.mjs';
+import {reviewPlanningInputs,planningMappingDispositions} from '../docs/portfolio-operations-dashboard/features/planning-governance.mjs';
+import {reviewReforecastImportInheritance} from '../docs/portfolio-operations-dashboard/features/reforecast-import-inheritance.mjs';
+import {reforecastMappingFromReview,mappedWorkbookBlankSelection,reforecastImportReconciliation,mergeReforecastImportIntoDraft} from '../docs/portfolio-operations-dashboard/features/reforecast-import-ui.mjs';
+const require=createRequire(import.meta.url),XLSX=require('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js');
+const actor='00000000-0000-0000-0000-000000000001',community='10000000-0000-0000-0000-000000000001',timestamp='2026-09-28T19:00:00Z';
+const sheet={'!ref':'A1:G38'},put=(address,value)=>sheet[address]={t:typeof value==='number'?'n':'s',v:value};
+put('B19','Entity');put('D19','Source community');put('B20','Department');put('D20','Operations');put('B21','Currency');put('D21','USD');
+for(const [column,month] of [['F',9],['G',10]]){put(column+'14',2026);put(column+'15',month);put(column+'16','Plan');put(column+'17','Value');}
+put('B36','5120 (Rent)');put('F36',0);sheet.G36={t:'z',v:null};
+put('B37','6500 (Service)');sheet.F37={t:'z',v:null};sheet.G37={t:'z',v:null};
+const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,sheet,'Input');
+const bytes=XLSX.write(book,{type:'array',bookType:'xlsx'}),evidence=await parseReforecastWorkbook(bytes,{xlsx:XLSX,includeOriginalBytes:true});
+const periods=['2026-09','2026-10'],selectedLineIds=['Input!F36','Input!G36','Input!F37','Input!G37'];
+const mapping={version:'reviewed-registry',sourceScenario:'Plan',currency:'USD',periods,selectedLineIds,confirmed:true,reviewedBy:actor,reviewedAt:timestamp,reason:'Use the exact reviewed workbook and preserve its blanks',
+ propertyAssignment:{explicit:true,communityId:community,actorId:actor,assignedAt:timestamp,reason:'Reviewed source community',sourceEntities:['Source community']},
+ calendar:{basis:'calendar',startMonth:1,periods,scenario:'Plan',confirmed:true,reviewedBy:actor,reviewedAt:timestamp},
+ accountMappings:[{sourceAccountCode:'5120',accountCode:'5120',category:'Rent',nature:'income',placement:'above_noi',signMultiplier:1},{sourceAccountCode:'6500',accountCode:'6500',category:'Services',nature:'expense',placement:'above_noi',signMultiplier:1}],
+ workbookSourcePolicy:{schemaVersion:1,mode:'workbook_exact',blankDisposition:'preserve_null',confirmed:true,reviewedBy:actor,reviewedAt:timestamp,reason:'Owner selected workbook control and preservation of blanks'}};
+const scoped=await prepareScopedReforecastEvidence(evidence,mapping,{xlsx:XLSX});
+assert.equal(scoped.evidence.integrity.summary.blocking,0,JSON.stringify(scoped.evidence.integrity.findings.filter(f=>f.severity==='blocking')));
+assert.deepEqual(scoped.evidence.lines,evidence.lines,'Authority review retains exact source nulls and zero');
+assert(scoped.authoritativeCells.includes('Input!F36'));
+assert.deepEqual(scoped.blankSourceCells,['Input!F37','Input!G36','Input!G37']);
+assert.deepEqual(scoped.evidence.integrity.authorityScope.verifiedBlankCells.map(c=>c.id),scoped.blankSourceCells);
+assert(scoped.authoritativeCells.includes('Input!B36')&&scoped.authoritativeCells.includes('Input!B37'));
+mapping.inputReviews=reviewPlanningInputs(scoped.evidence,selectedLineIds,{reason:'Reviewed the populated source input',ownerId:actor,timestamp});
+mapping.integrityReviews=scoped.evidence.integrity.findings.filter(f=>f.severity==='review').map(f=>({findingId:f.id,confirmed:true,reason:'Reviewed supporting source evidence',ownerId:actor,effectivePeriod:periods[0],reviewedAt:timestamp,integrityFingerprint:scoped.evidence.integrity.fingerprint,before:f.evidence??null,after:f.evidence??null}));
+Object.assign(mapping,planningMappingDispositions(scoped.evidence,mapping));
+const run=(source=scoped.evidence,review=mapping)=>mapReforecastIntake(source,review,{authorizedCommunityIds:[community],cutoffPeriod:'2026-08'});
+const mapped=run();assert.equal(mapped.ready,true,JSON.stringify(mapped.issues));assert.equal(mapped.lines.length,4);
+assert.equal(mapped.lines.filter(l=>l.amount===0).length,1);
+const blanks=mapped.lines.filter(l=>l.amount===null);assert.equal(blanks.length,3);assert(blanks.every(l=>l.disposition==='workbook_blank'&&l.isBlank&&l.legitimateBlank&&l.sourceAmount===null));
+const source={actuals:{cutoffPeriod:'2026-08'},registry:{accounts:mapping.accountMappings},baseline:{lines:periods.flatMap(period=>mapping.accountMappings.map(account=>({period,accountCode:account.accountCode,amount:account.nature==='income'?0:50})))}};
+const inheritance=lines=>reviewReforecastImportInheritance({evidence:scoped.evidence,source,mapping,lines});
+assert.equal(inheritance(mapped.lines).issues.length,0,'Exact reviewed source blanks replace both zero and nonzero fallback');
+assert.equal(inheritance(mapped.lines.map(line=>line.amount===null?{...line,sourceHash:'forged'}:line)).issues.length,3,'A policy flag or unsupported null alone cannot bypass the inherited-value guard');
+for(const patch of [{workbookSourcePolicy:undefined},{workbookSourcePolicy:{...mapping.workbookSourcePolicy,confirmed:false}},{workbookSourcePolicy:{...mapping.workbookSourcePolicy,reviewedBy:'another-user'}}]){const result=run(undefined,{...mapping,...patch});assert.equal(result.ready,false);assert(result.issues.some(i=>i.code==='missing_mapped_value'));}
+for(const patch of [{blank:false},{formula:'Missing!A1',cachedValue:null},{cellType:'e'},{cachedValue:'unusable'}]){const changed=structuredClone(scoped.evidence);Object.assign(changed.lines.find(l=>l.id==='Input!G36'),patch);const result=run(changed);assert.equal(result.ready,false);assert(!result.lines.some(l=>l.sourceLineId==='Input!G36'));}
+const forged=structuredClone(scoped.evidence);forged.lines.find(l=>l.id==='Input!G36').amount=100;
+await assert.rejects(prepareScopedReforecastEvidence(forged,mapping,{xlsx:XLSX}),/original workbook relationship/);
+await assert.rejects(prepareScopedReforecastEvidence(scoped.evidence,{...mapping,workbookSourcePolicy:undefined},{xlsx:XLSX}),/explicitly reviewed workbook blanks/);
+const duplicate={...mapping,accountMappings:[...mapping.accountMappings,mapping.accountMappings[0]]};assert.equal(run(undefined,duplicate).ready,false);
+assert.equal(mapReforecastIntake(scoped.evidence,mapping,{authorizedCommunityIds:[],cutoffPeriod:'2026-08'}).ready,false);
+assert.equal(mapReforecastIntake(scoped.evidence,mapping,{authorizedCommunityIds:[community],cutoffPeriod:'2026-09'}).ready,false);
+const accountChoices=Object.fromEntries(scoped.evidence.lines.filter(l=>selectedLineIds.includes(l.id)).map(l=>[JSON.stringify([l.sheet,l.accountCode,l.department]),{accountCode:l.accountCode,signMultiplier:'1'}]));
+assert.deepEqual(mappedWorkbookBlankSelection({evidence:scoped.evidence,source,scenario:'Plan',periods,accountChoices}).sort(),scoped.blankSourceCells);
+assert.deepEqual(mappedWorkbookBlankSelection({evidence:scoped.evidence,source,scenario:'Plan',periods,accountChoices:{}}),[],'Blank bulk selection requires reviewed unique targets');
+assert.deepEqual(mappedWorkbookBlankSelection({evidence:scoped.evidence,source:{...source,actuals:{cutoffPeriod:'2026-10'}},scenario:'Plan',periods,accountChoices}),[],'Closed actuals cannot be selected');
+assert.deepEqual(mappedWorkbookBlankSelection({evidence:scoped.evidence,source:{...source,actuals:{...source.actuals,notApplicablePeriods:periods}},scenario:'Plan',periods,accountChoices}),[],'Explicitly not-applicable periods cannot receive workbook blanks');
+const review=reforecastMappingFromReview({evidence:scoped.evidence,source:{...source,registry:{...source.registry,version:mapping.version}},assignment:mapping.propertyAssignment,scenario:'Plan',currency:'USD',periods,accountChoices,selectedLineIds,reason:mapping.reason,confirmed:true,reviewerId:actor,preserveWorkbookBlanks:true});
+assert.equal(review.mapping.workbookSourcePolicy.mode,'workbook_exact');assert.equal(review.mapping.workbookSourcePolicy.reviewedBy,actor);
+const summary=reforecastImportReconciliation(scoped.evidence,mapped);assert.equal(summary.blankCount,3);assert.equal(summary.zeroCount,1);assert.equal(summary.total,0);assert.equal(summary.rows.filter(r=>r.disposition==='workbook_blank').length,3);
+const uploadId='20000000-0000-0000-0000-000000000001';
+const merged=mergeReforecastImportIntoDraft({overrides:[],history:[]},{...mapped,communityId:community,upload:{upload_id:uploadId,community_id:community},mapping},{actor,timestamp});
+assert(merged.overrides.filter(row=>row.amount===null).every(row=>row.disposition==='workbook_blank'&&row.legitimateBlank&&row.uploadId===uploadId));
+assert(merged.overrides.filter(row=>row.amount===null).every(row=>!Object.hasOwn(row,'sourceCoordinates')),'Blank source details remain in immutable receipt, compact payload references it');
+const absentSource={...source,baseline:{lines:[...source.baseline.lines,{period:'2026-09',accountCode:'6999',amount:0}]}};
+const scopePolicy={...mapping,workbookSourcePolicy:{...mapping.workbookSourcePolicy,outsideForecastScope:[{period:'2026-09',accountCode:'6999',confirmed:true,reviewedBy:actor,reviewedAt:timestamp,reason:'Account is outside the reviewed workbook scope'}]}};
+const exactScope=reviewReforecastImportInheritance({evidence:scoped.evidence,source:absentSource,mapping:scopePolicy,lines:mapped.lines});assert.equal(exactScope.issues.length,0);assert.equal(exactScope.scopeExclusions.length,1);
+assert(reviewReforecastImportInheritance({evidence:scoped.evidence,source:absentSource,mapping,lines:mapped.lines}).issues.some(row=>row.accountCode==='6999'),'Absent zero still requires its own explicit scope decision');
+const badScope=structuredClone(scopePolicy);badScope.workbookSourcePolicy.outsideForecastScope[0].reviewedBy='another-user';assert(reviewReforecastImportInheritance({evidence:scoped.evidence,source:absentSource,mapping:badScope,lines:mapped.lines}).issues.some(row=>row.accountCode==='6999'));
+const pendingScope=reviewReforecastImportInheritance({evidence:scoped.evidence,source:absentSource,mapping,lines:mapped.lines});
+assert(pendingScope.issues.every(row=>row.severity==='warning'&&row.pendingSourceReview));assert.equal(pendingScope.cells[0].inheritedAmount,null);assert.equal(pendingScope.cells[0].baselineAmount,0);assert.deepEqual(pendingScope.scopeExclusions,[]);
+const pendingSummary=reforecastImportReconciliation(scoped.evidence,{...mapped,inheritance:pendingScope});
+assert.equal(pendingSummary.rows.find(row=>row.canonicalGL==='6999').disposition,'source_absent_pending_review');
+assert(reviewReforecastImportInheritance({evidence:scoped.evidence,source:absentSource,mapping:badScope,lines:mapped.lines}).issues.some(row=>row.severity==='error'),'Malformed scope reviews remain import blockers');
+const legacyAbsence=reviewReforecastImportInheritance({evidence:scoped.evidence,source:absentSource,mapping:{...mapping,workbookSourcePolicy:undefined},lines:mapped.lines});
+assert(legacyAbsence.issues.some(row=>row.accountCode==='6999'&&row.severity==='error'),'No-policy imports cannot inherit absent zero values');
+console.log('PASS exact-policy drafts retain unresolved absent accounts without granting scope approval; malformed reviews and legacy inheritance remain blocked');
+console.log('PASS exact workbook blank authority, null/zero separation, explicit policy, preserved evidence, malformed/formula/error rejection, mapping and authorization boundaries.');
+
+const priorNullSource=structuredClone(absentSource);priorNullSource.baseline.lines.at(-1).amount=null;
+const nullAbsence=reviewReforecastImportInheritance({evidence:scoped.evidence,source:priorNullSource,mapping,lines:mapped.lines,destination:'existing'});
+assert.equal(nullAbsence.cells.length,1,'A future workbook still needs explicit scope for an absent GL whose approved baseline is blank');
+assert.equal(nullAbsence.cells[0].baselineAmount,null);assert.equal(nullAbsence.nonzeroCount,0);assert.deepEqual(nullAbsence.totals,{revenue:0,opex:0,noi:0});
+const resolvedNullAbsence=reviewReforecastImportInheritance({evidence:scoped.evidence,source:priorNullSource,mapping:scopePolicy,lines:mapped.lines,destination:'existing'});
+assert.equal(resolvedNullAbsence.issues.length,0);assert.equal(resolvedNullAbsence.scopeExclusions[0].baselineAmount,null);
+console.log('PASS null approved baselines retain explicit source-absence review with no null-to-zero inheritance totals');
+
+const {workbookAbsentScopeCandidates}=await import('../docs/portfolio-operations-dashboard/features/reforecast-import-ui.mjs');
+const absentUiState={evidence:scoped.evidence,source:priorNullSource,assignment:mapping.propertyAssignment,scenario:'Plan',currency:'USD',periods,accountChoices,selected:new Set(selectedLineIds),reason:'',confirmed:false,actor,preserveWorkbookBlanks:true,outsideForecastScope:[]};
+assert.equal(workbookAbsentScopeCandidates(absentUiState).find(row=>row.accountCode==='6999')?.baselineAmount,null,'The rendered candidate path exposes a missing GL even before mapping confirmation and with a blank approved baseline');
+assert.equal(absentUiState.confirmed,false);assert.deepEqual(absentUiState.outsideForecastScope,[],'Discovery never approves or selects exclusions');
+assert.deepEqual(workbookAbsentScopeCandidates({...absentUiState,preserveWorkbookBlanks:false}),[]);
+console.log('PASS read-only UI scope discovery exposes prior-null source absence without fabricating confirmation');
+const {sourceRowExclusionIssues}=await import('../docs/portfolio-operations-dashboard/features/reforecast-workbook-source-policy.mjs');
+const sourceOnlyRow={...scoped.evidence.lines.find(row=>Number.isFinite(row.amount)),id:'Input!G999',accountCode:'5999',amount:700},sourceOnlyEvidence={...scoped.evidence,lines:[...scoped.evidence.lines,sourceOnlyRow]};
+const sourceOnlyIssues=sourceRowExclusionIssues(sourceOnlyEvidence,mapping,{cutoffPeriod:'2026-08'});
+assert(sourceOnlyIssues.some(row=>row.sourceLineId===sourceOnlyRow.id),'An unmapped numeric business GL absent from both registry and baseline cannot silently disappear');
+assert.equal(mapReforecastIntake(sourceOnlyEvidence,mapping,{authorizedCommunityIds:[community],cutoffPeriod:'2026-08'}).ready,false);
+const sourceExclusion={sourceLineId:sourceOnlyRow.id,confirmed:true,reviewedBy:actor,reviewedAt:timestamp,reason:'Explicitly reviewed source-only amount outside this forecast scope'};
+assert.equal(sourceRowExclusionIssues(sourceOnlyEvidence,{...mapping,sourceRowExclusions:[sourceExclusion]},{cutoffPeriod:'2026-08'}).length,0);
+assert.equal(sourceRowExclusionIssues(sourceOnlyEvidence,{...mapping,sourceRowExclusions:[sourceExclusion]},{cutoffPeriod:'2026-12'}).length,0,'Historical exclusion evidence survives closure of its source month');
+assert(sourceRowExclusionIssues(sourceOnlyEvidence,{...mapping,periods:[],sourceRowExclusions:[sourceExclusion]},{cutoffPeriod:'2026-12'}).some(row=>row.code==='invalid_source_exclusion'),'Closed evidence still cannot identify an out-of-scope source');
+assert(sourceRowExclusionIssues({...sourceOnlyEvidence,lines:[...scoped.evidence.lines,{...sourceOnlyRow,sourceKind:'workbook_actual_evidence'}]},mapping,{cutoffPeriod:'2026-08'}).some(row=>row.sourceLineId===sourceOnlyRow.id),'A forged Actual marker cannot hide an eligible Plan amount');
+for(const change of [{confirmed:false},{reason:''},{reviewedBy:'different-user'},{sourceLineId:'not-the-source'}])assert(sourceRowExclusionIssues(sourceOnlyEvidence,{...mapping,sourceRowExclusions:[{...sourceExclusion,...change}]},{cutoffPeriod:'2026-08'}).length>0);
+assert(sourceRowExclusionIssues(sourceOnlyEvidence,{...mapping,sourceRowExclusions:[sourceExclusion,sourceExclusion]},{cutoffPeriod:'2026-08'}).length>0);
+assert.equal(sourceRowExclusionIssues({...sourceOnlyEvidence,lines:[...scoped.evidence.lines,{...sourceOnlyRow,period:'2026-08'}]},mapping,{cutoffPeriod:'2026-08'}).length,0,'Closed comparison periods do not enter open forecast scope');
+console.log('PASS full numeric source-side coverage, explicit individual exclusions, wrong-owner/duplicate/unconfirmed rejection and closed-period separation');

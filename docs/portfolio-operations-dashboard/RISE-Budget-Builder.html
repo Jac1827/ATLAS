@@ -21494,9 +21494,14 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
   var u = R.u, P = {};
   R.persist = P;
 
-  P.FORMAT_VERSION = 1;
+  // Version 2 adds scenario/year cell overrides. Older builders must reject
+  // these saves instead of silently calculating without the edited amounts.
+  P.FORMAT_VERSION = 2;
   P.STORE_PREFIX = 'rise.budget.';
-  P.AUTOSAVE_KEY = P.STORE_PREFIX + 'autosave';
+  P.AUTOSAVE_KEY = P.STORE_PREFIX + 'autosave.v2';
+  // Keep the original checkpoint readable, but never overwrite it. A cached
+  // format-1 tab cannot replace the current builder's version-2 checkpoint.
+  P.LEGACY_AUTOSAVE_KEY = P.STORE_PREFIX + 'autosave';
   P.UNDO_KEY = P.STORE_PREFIX + 'undo';
   P.SLOT_INDEX_KEY = P.STORE_PREFIX + 'index';
   P.AUTOSAVE_DEBOUNCE_MS = 1500;
@@ -21621,10 +21626,9 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     return payload;
   };
 
-  // Forward-migration hook. Nothing to do at version 1; future format changes
-  // add a step here so old save files keep opening.
+  // Version 1 remains readable without rewriting its values. Version 2 only
+  // adds optional scenario/year overrides, so existing saves need no migration.
   P.migrate = function (payload) {
-    // if (payload.formatVersion < 2) { ...; payload.formatVersion = 2; }
     return payload;
   };
 
@@ -21722,16 +21726,19 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     }
   };
 
+  P.readAutosave = function (storage) {
+    return storage.getItem(P.AUTOSAVE_KEY) || storage.getItem(P.LEGACY_AUTOSAVE_KEY);
+  };
   P.hasAutosave = function () {
     var s = P.storage();
     if (!s) return false;
-    try { return !!s.getItem(P.AUTOSAVE_KEY); } catch (e) { return false; }
+    try { return !!P.readAutosave(s); } catch (e) { return false; }
   };
   P.autosaveInfo = function () {
     var s = P.storage();
     if (!s) return null;
     try {
-      var raw = s.getItem(P.AUTOSAVE_KEY);
+      var raw = P.readAutosave(s);
       if (!raw) return null;
       var p = JSON.parse(raw);
       return { savedAt:p.savedAt, savedAtLocal:p.savedAtLocal, summary:p.summary,
@@ -21741,13 +21748,13 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
   P.restoreAutosave = function () {
     var s = P.storage();
     if (!s) throw new Error('Browser storage is not available.');
-    var raw = s.getItem(P.AUTOSAVE_KEY);
+    var raw = P.readAutosave(s);
     if (!raw) throw new Error('There is no autosave to restore.');
     return P.apply(P.parse(raw));
   };
   P.discardAutosave = function () {
     var s = P.storage();
-    if (s) { try { s.removeItem(P.AUTOSAVE_KEY); } catch (e) {} }
+    if (s) { try { s.removeItem(P.AUTOSAVE_KEY); s.removeItem(P.LEGACY_AUTOSAVE_KEY); } catch (e) {} }
   };
 
   /* ---------------------------------------------------------- save points - */

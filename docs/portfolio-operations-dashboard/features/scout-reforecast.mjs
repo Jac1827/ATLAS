@@ -1,4 +1,4 @@
-import {readFinance} from './canonical-finance.mjs?v=4a0ab39278f685cd';
+import {readFinance} from './canonical-finance.mjs?v=f6dbd3f27dd7608e';
 /* Scout's prototype can inspect published financial evidence without an AI service. */
 import {createActiveReforecastCache,scoutForecastEvidence} from './reforecast-consumers.mjs?v=3e9f60e836c0e2cf';
 import {effectiveActiveSnapshot} from './reforecast-store.mjs?v=116417158a586ff4';

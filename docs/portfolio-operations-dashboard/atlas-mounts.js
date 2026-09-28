@@ -114,7 +114,7 @@
       note: "Property budget, monthly view, GL detail, actuals, financial review and exception reporting all run in Budget Builder itself — ATLAS reads the published scenario.",
       barTitle: "RISE Budget Builder",
       barSub: "Standalone finance tool — central Budget and actuals migration required",
-      src: "RISE-Budget-Builder.html?v=6e2b69ad8d05807c",
+      src: "RISE-Budget-Builder.html?v=5bf9852339185b3e",
       background: "#F1F4F6",
       icon: "ph-calculator"
     },
@@ -394,7 +394,10 @@
   window.navigateAtlasBudgetMount = function (view) {
     var iframe = document.querySelector('iframe[data-atlas-mount-key="budget"]');
     if (!iframe || !iframe.contentWindow) return;
-    iframe.contentWindow.postMessage({ type: "atlas-budget-navigate", view: String(view || "dashboard") }, "*");
+    var mode = {reforecast:"workspace",reforecastapprovals:"approvals",reforecasthistory:"history"}[view];
+    var control = mode && iframe.contentDocument && iframe.contentDocument.querySelector('[data-workspace-view="' + mode + '"]');
+    if (control) { control.click(); return; }
+    iframe.contentWindow.postMessage({ type: "atlas-budget-navigate", view: String(view || "reforecast") }, window.location.origin);
   };
 
   window.addEventListener("message", async function (event) {
@@ -460,14 +463,14 @@
         '  <div class="atlas-budget-workspace-bar">',
         '    <div><span class="atlas-budget-eyebrow">Finance workspace</span><h1>Budget Builder</h1></div>',
         '    <div class="atlas-budget-workspace-actions">',
-        '      <button type="button" onclick="window.navigateAtlasBudgetMount(\'dashboard\')">Dashboard</button>',
-        '      <button type="button" onclick="window.navigateAtlasBudgetMount(\'actuals\')">Actuals</button>',
-        '      <button type="button" onclick="window.navigateAtlasBudgetMount(\'financialreview\')">Financial review</button>',
-        '      <button type="button" onclick="window.navigateAtlasBudgetMount(\'exports\')">Reports</button>',
-        '      <button type="button" onclick="document.querySelector(\'iframe[data-atlas-mount-key=budget]\')?.contentWindow.AtlasBudgetCommand?.review()">Approve Shared Original Budget</button>',
+        '      <button type="button" onclick="window.navigateAtlasBudgetMount(\'reforecast\')">Working Drafts</button>',
+        '      <button type="button" onclick="window.navigateAtlasBudgetMount(\'reforecastapprovals\')">Ready for Review and Approval</button>',
+        '      <button type="button" onclick="window.navigateAtlasBudgetMount(\'reforecasthistory\')">Approved History</button>',
+        '      <button type="button" onclick="window.navigateAtlasBudgetMount(\'savedstr\')">Saved STR programmes</button>',
+        '      <button type="button" onclick="window.navigateAtlasBudgetMount(\'reforecastgap\')">Reports</button>',
         '    </div>',
         '  </div>',
-        '  <p class="atlas-budget-workspace-note">Admin approval publishes the shared original budget. Closing a completed accounting month automatically refreshes financial reporting. The workspace stays open while you move through ATLAS.</p>',
+        '  <p class="atlas-budget-workspace-note">VP approval publishes the approved revision. Investor approval locks the final version. Working drafts remain editable and separate from published financial records.</p>',
         '  <div class="atlas-mount-frame atlas-budget-frame">',
         '    <iframe src="' + esc(embeddedSrc) + '" title="' + esc(m.barTitle) + '" data-atlas-mount-key="budget" data-atlas-mount-context="' + contextKey + '" onload="window.handleAtlasMountLoad && window.handleAtlasMountLoad(this, \'budget\')" loading="lazy" style="background:' + esc(m.background) + '"></iframe>',
         '  </div>',

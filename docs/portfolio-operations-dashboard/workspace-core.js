@@ -8609,6 +8609,10 @@ function normalizeSavedCommunityRecord(propName, data) {
     regionalManagerEmployeeId: String(input.regionalManagerEmployeeId || ""),
     boxScoreHistory: Array.isArray(input.boxScoreHistory) ? input.boxScoreHistory : [],
     websiteSettingsUpdatedAt: String(input.websiteSettingsUpdatedAt || ""),
+    ...(Object.prototype.hasOwnProperty.call(input, "websiteSettingsRevision") ? {websiteSettingsRevision: String(input.websiteSettingsRevision || "")} : {}),
+    ...(Object.prototype.hasOwnProperty.call(input, "websiteSettingsExpectedRevision") ? {websiteSettingsExpectedRevision: String(input.websiteSettingsExpectedRevision || "")} : {}),
+    websiteSettingsSyncPending: input.websiteSettingsSyncPending === true,
+    ...(input.websiteSettingsBaseUrls && typeof input.websiteSettingsBaseUrls === "object" ? {websiteSettingsBaseUrls: {communityWebsiteUrl: String(input.websiteSettingsBaseUrls.communityWebsiteUrl || ""), floorPlanRatesPageUrl: String(input.websiteSettingsBaseUrls.floorPlanRatesPageUrl || "")}} : {}),
     generalManagerName: String(input.generalManagerName ?? defaults.generalManagerName).trim(),
     generalManagerEmail: atlasNormalizeSharedEmail(input.generalManagerEmail ?? defaults.generalManagerEmail),
     generalManagerUserId: String(input.generalManagerUserId ?? defaults.generalManagerUserId).trim(),
@@ -14286,7 +14290,7 @@ function defaultAtlasAccessFormDraft() {
 
 atlasAccessFormDraft = defaultAtlasAccessFormDraft();
 
-const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=83deeb18a155f022";
+const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=3b6ae81392c2ebd9";
 const ATLAS_AUTH_UI_STORAGE_KEY = "atlas_auth_ui_state_v1";
 const ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY = "atlas_dashboard_preferences_v1";
 let atlasCentralClientLoadPromise = null;

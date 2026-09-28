@@ -36,7 +36,7 @@ try{
  assert.equal(git(['status','--porcelain'],repo),status,'Composition cannot alter checked-out source');
  assert(receipt.retainedReleaseIds.includes(OPERATIONAL_RELEASE));
  await verifyFinanceArtifact({repo,expectedReleaseId:receipt.releaseId});
- assert.equal(receipt.composition.changedOperationalFiles.length,15);assert.equal(receipt.composition.unchangedOperationalFileCount,240);
+ assert.equal(receipt.composition.changedOperationalFiles.length,18);assert.equal(receipt.composition.unchangedOperationalFileCount,237);
  const archiveFile=path.join(receipt.out,'portfolio-operations-dashboard/migration-archive.js'),archiveBytes=await fs.readFile(archiveFile);
  await fs.writeFile(archiveFile,Buffer.concat([archiveBytes,Buffer.from('archive-tamper')]));await assert.rejects(verifyFinanceArtifact({repo,expectedReleaseId:receipt.releaseId}),/Canonical finance asset changed/);await fs.writeFile(archiveFile,archiveBytes);
  const config=JSON.parse(await fs.readFile(receipt.configPath,'utf8')),sourceConfig=JSON.parse(await fs.readFile(path.join(repo,'wrangler.jsonc'),'utf8'));

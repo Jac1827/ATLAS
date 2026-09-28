@@ -1850,9 +1850,25 @@
       return result;
     },
     async propertySpecials(action, body = {}) {
-      const response=await fetch(accessApiUrl("/api/atlas/property-specials"),{method:"POST",headers:baseHeaders(getConfig(),true,{supabasePublicHeaders:false}),body:JSON.stringify({...body,action})});
-      const result=await response.json();
-      if(!response.ok || !result.ok)throw new Error(result.error || "Property specials service unavailable.");
+      const failure=(stage,detail,status=0,result={})=>{
+        const labels={configuration_transport:`Website ${action==='configure'?'configuration':action==='read'?'history':'collection'} transport failure`,authorization:"Website access authorization failure",community_mapping:"Website community mapping failure",storage_unavailable:"Website history storage unavailable",website_retrieval:"Website retrieval failure",blocked_dynamic_website:"Website blocked or requires browser rendering",extraction:"Website offer extraction failure",conflicting_offers:"Conflicting website offers",configuration:"Website configuration failure"};
+        return Object.assign(new Error(`${labels[stage]||'Website specials request failed'}. ${detail||'Retry the request.'}`),{stage,code:result.code||stage,status,action,result});
+      };
+      let response;
+      try {
+        response=await fetch(accessApiUrl("/api/atlas/property-specials"),{method:"POST",headers:baseHeaders(getConfig(),true,{supabasePublicHeaders:false}),body:JSON.stringify({...body,action})});
+      } catch(cause) {
+        throw Object.assign(failure('configuration_transport','No central response was received. Check the connection and retry; browser access or preflight may be blocked.'),{cause});
+      }
+      let result;
+      try {result=await response.json();} catch {
+        const stage=[401,403].includes(response.status)?'authorization':'configuration_transport';
+        throw failure(stage,'The central service returned an unreadable response.',response.status);
+      }
+      if(!response.ok || !result?.ok){
+        const stage=result?.stage||([401,403].includes(response.status)?'authorization':response.status===404?'community_mapping':response.status===503?'storage_unavailable':'configuration');
+        throw failure(stage,result?.error,response.status,result||{});
+      }
       return result;
     },
     async evictionCase(action, body = {}, binary = false) {

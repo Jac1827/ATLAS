@@ -1,7 +1,7 @@
 // Isolated old/new reader parity, including a full 292 GL x 4 month report.
 // Optional private production evidence is never committed or sent anywhere.
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{randomUUID}=require('node:crypto'),{fixture}=require('./reforecast-fixture.cjs');
-const root=path.join(__dirname,'..'),read=name=>fs.readFileSync(path.join(root,'supabase/migrations',name),'utf8'),change=read('20260928161645_indexed_governed_report_and_finance_reads.sql');
+const root=path.join(__dirname,'..'),read=name=>fs.readFileSync(path.join(root,'supabase/migrations',name),'utf8'),change=read('20260928162637_indexed_governed_report_and_finance_reads.sql');
 (async()=>{
  const {db,A,B,BUDGET,signIn}=await fixture();await db.exec('reset role');
  await db.exec(String.raw`create table fixture_financial_summaries(community_id uuid,period_key text,fiscal_year integer,publication_id uuid,summary jsonb);

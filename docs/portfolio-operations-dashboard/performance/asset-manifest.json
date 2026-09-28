@@ -1192,8 +1192,8 @@
     ]
   },
   "features/reforecast-legacy-bridge.mjs": {
-    "sha256": "6e2693423d7656fe",
-    "bytes": 15538,
+    "sha256": "f5597e7b01496e6d",
+    "bytes": 17009,
     "references": [
       [
         "reforecast-navigation.js",
@@ -1422,7 +1422,7 @@
     ]
   },
   "features/reforecast-ui.mjs": {
-    "sha256": "6149abc3f76dfa4f",
+    "sha256": "2e3599f1c4aa1fdf",
     "bytes": 155468,
     "references": [
       [
@@ -1466,7 +1466,7 @@
     ]
   },
   "reforecast-navigation.js": {
-    "sha256": "9c7c3882970dc9bc",
+    "sha256": "b47770e07a3ebaf8",
     "bytes": 5351,
     "references": [
       [
@@ -1682,8 +1682,8 @@
     ]
   },
   "budget-navigation.js": {
-    "sha256": "c3eb861428350bf0",
-    "bytes": 13345,
+    "sha256": "d81c7280bfc56e5d",
+    "bytes": 13575,
     "references": [
       [
         "RISE-Budget-Builder.html",
@@ -1742,8 +1742,8 @@
     ]
   },
   "investor-packet-ui.js": {
-    "sha256": "20359d3bbf365807",
-    "bytes": 36533,
+    "sha256": "fad2de016820f2b9",
+    "bytes": 36781,
     "references": [
       [
         "index.html",
@@ -1762,8 +1762,8 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "7777c62672bc8d79",
-    "bytes": 1888839,
+    "sha256": "095bade90d5a74ca",
+    "bytes": 1892175,
     "references": [
       [
         "atlas-mounts.js",
@@ -1772,7 +1772,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "a3bef56768ce8bf5",
+    "sha256": "1077931b98179e89",
     "bytes": 26893,
     "references": [
       [

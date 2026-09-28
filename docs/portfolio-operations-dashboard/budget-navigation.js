@@ -25,15 +25,16 @@
  const section=view=>groups.find(g=>g[2].includes(view))||groups[6];
  const label=id=>known().find(v=>v.id===id)?.label||id;
  const link=(id,text,current)=>'<a href="#'+esc(id)+'"'+(current?' aria-current="page" class="on"':'')+' onclick="RBB.app.go(\''+esc(id)+'\');return false;">'+esc(text)+'</a>';
+ A.browserDraftSaveText=()=>R.persist.lastError?'Browser save failed — changes need attention':R.persist.dirty?'Unsaved changes':R.persist.lastSavedAt?(R.persist.lastSaveKind==='file'?'Downloaded save file':'Saved in this browser'):'No browser save recorded';
  A.renderNav=function(){
   const group=section(A.view),shared=sharedViews.has(A.view),p=A.prop();
   const sc=shared?null:A.scenario(),summary=shared?null:A.c().summary;
   const secondary=known().filter(v=>section(v.id)===group);
-  const saved=R.persist.dirty?'Unsaved changes':R.persist.lastSavedAt?'Saved in this browser':'No browser save recorded';
+  const saved=A.browserDraftSaveText();
   return '<div class="budget-workflow-nav"><div class="budget-nav-tools"><button class="btn sm" onclick="RBB.app.openCommandMenu()">Find a tool <kbd>Ctrl/⌘ K</kbd></button><button class="btn sm" onclick="RBB.app.continueWorkflow()">Continue where I left off</button></div>'+
    '<nav class="budget-primary" aria-label="Budget workflows">'+groups.map(g=>link(g[2][0],g[1],g===group)).join('')+'</nav>'+
    '<div class="budget-context" aria-label="Financial context"><strong>'+esc(shared?'Shared financial records: '+p.name:'Browser working model: '+p.name)+'</strong><span>Reporting year '+esc(A.year())+'</span>'+
-   (shared?'<span>Select the community and month below. Publication status, source versions and the snapshot fingerprint identify the official record.</span>':'<span>'+esc(sc.name)+' · Browser draft'+(sc.locked?' · Local editing lock':'')+'</span><span>This working model is not an approved shared financial version.</span><span>'+esc(saved)+'</span>')+'</div>'+
+   (shared?'<span>Select the community and month below. Publication status, source versions and the snapshot fingerprint identify the official record.</span>':'<span>'+esc(sc.name)+' · Browser draft'+(sc.locked?' · Local editing lock':'')+'</span><span>This working model is not an approved shared financial version.</span><span id="browser-draft-save-status" aria-live="polite">'+esc(saved)+'</span>')+'</div>'+
    '<nav class="budget-secondary" aria-label="'+esc(group[1])+' tools">'+secondary.map(v=>link(v.id,v.label,A.view===v.id)).join('')+'</nav>'+
    '<div class="budget-breadcrumb" aria-label="Breadcrumb">Budget Builder / '+esc(group[1])+' / '+esc(label(A.view))+(shared?'':'<span>'+Number(summary?.high||0)+' high-priority browser draft checks</span>')+'</div></div>';
  };

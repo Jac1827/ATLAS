@@ -39,13 +39,29 @@ export function legacyScenarioDraftInput({R,state,propertyId,year,scenario,basel
   if(key==='inflation_general')return accounts.get(code)?.nature==='expense'&&related.some(row=>row.line.behavior==='fixed_noncontract'||row.line.behavior==='fixed'&&importedLine(row.line))&&!['payroll_increase','utility_rate_increase','insurance_increase','re_tax_increase','contract_escalation'].some(special=>resolveCodes(special).includes(code));
   return false;
  });resolvedCodes.set(key,codes);return codes;};
- // Preserve scenario-specific manual/formula/line overrides as explicit amounts before assumption overlays.
+ // A browser grid edit belongs to its scenario and year, even when approved
+ // workbook rows use different IDs from the editable lines. Keep these explicit
+ // cells after assumption drivers so recalculation cannot replace what was typed.
+ const monthlyOverrides=new Map(),scenarioResults=Object.values(scenarioCalc.results);
+ for(const result of scenarioResults){
+  const edited=scenario.lineOverrides?.[result.line.id]?.monthlyOverridesByYear?.[year];
+  for(const [month,value] of Object.entries(edited||{})){
+   const index=Number(month),code=String(result.line.gl);
+   if(!Number.isInteger(index)||index<0||index>11||!finite(value))continue;
+   const related=scenarioResults.filter(row=>String(row.line.gl)===code);
+   const amount=sum(related.map(row=>row.monthly[index]));
+   monthlyOverrides.set(periods[index]+'|'+code,{period:periods[index],accountCode:code,amount,
+    reason:'Explicit month amount entered in the browser working draft.',
+    source:{scenarioId:scenario.id,year,sourceKind:'browser_monthly_edit',lineIds:related.map(row=>row.line.id)}});
+  }
+ }
+ // Preserve other scenario-specific manual/formula/line overrides as explicit amounts before assumption overlays.
  for(const result of Object.values(scenarioCalc.results)){
   const original=baselineCalc.results[result.line.id];
   if(!original)continue;
   if(result.line.method==='imported'&&!scenario.lineOverrides?.[result.line.id])continue;
   if(baseResults.filter(row=>row.line.gl===result.line.gl).length!==1)continue;
-  for(let month=0;month<12;month++)if(result.monthly[month]!==original.monthly[month])add('line_override','amount',result.monthly[month],[String(result.line.gl)],{periods:[periods[month]],source:{scenarioId:scenario.id,lineId:result.line.id,method:result.line.method}});
+  for(let month=0;month<12;month++)if(!monthlyOverrides.has(periods[month]+'|'+String(result.line.gl))&&result.monthly[month]!==original.monthly[month])add('line_override','amount',result.monthly[month],[String(result.line.gl)],{periods:[periods[month]],source:{scenarioId:scenario.id,lineId:result.line.id,method:result.line.method}});
  }
  for(const [rawKey,rawValue] of Object.entries(scenario.assumptionOverrides||{})){
   if(rawKey.includes('.')&&!rawKey.startsWith(propertyId+'.'))continue;
@@ -62,7 +78,11 @@ export function legacyScenarioDraftInput({R,state,propertyId,year,scenario,basel
  }
  const baseline={versionId:fingerprint({propertyId,year,lines:[...allLines.values()]}),lines:[...allLines.values()],leasing:periods.map((p,m)=>({period:p,units:baselineCalc.ctx.occTotals.revUnits,occupiedUnits:baselineCalc.ctx.occTotals.occUnitsAll[m],moveOuts:baselineCalc.ctx.occTotals.turnsAll[m],moveIns:null,marketRent:null,source:'Legacy budget occupancy schedule'}))};
  const identityVersion=fingerprint({scenario,propertyId,year});
- const input={communityId:sources?.communityId||propertyId,periods,baseline:sources?.baseline||baseline,actuals:sources?.actuals||{},registry:sources?.registry||{version:'legacy-coa-draft-'+fingerprint([...accounts.values()]),accounts:[...accounts.values()]},scenario:{versionId:identityVersion,driverVersion:fingerprint(drivers),drivers,overrides:scenario.forecastOverrides||[]}};
+ // A browser working budget plans all twelve months. Loading shared reforecast
+ // sources elsewhere must not silently substitute closed actuals into this grid.
+ // Reforecast scenarios retain their closed-period protection and source ledger.
+ const actuals=scenario.type==='working'?{}:sources?.actuals||{};
+ const input={communityId:sources?.communityId||propertyId,periods,baseline:sources?.baseline||baseline,actuals,registry:sources?.registry||{version:'legacy-coa-draft-'+fingerprint([...accounts.values()]),accounts:[...accounts.values()]},scenario:{versionId:identityVersion,driverVersion:fingerprint(drivers),drivers,overrides:[...(scenario.forecastOverrides||[]),...monthlyOverrides.values()]}};
  return input;
 }
 export function bridgeLegacyScenario(options){

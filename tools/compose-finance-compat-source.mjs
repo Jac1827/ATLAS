@@ -28,6 +28,25 @@ async function inventory(root,prefix=''){
 }
 const sourceId=files=>sha(JSON.stringify({schemaVersion:1,packagerVersion:1,files}));
 const financePrefix='../finance/portfolio-operations-dashboard/';
+// Only the persisted-budget read boundary moves forward. Keep every other byte
+// of the retained investor presentation, transport and approval flow unchanged.
+export function patchInvestorBudgetReaderCompatibility(source){
+ const stored="  function stored(key){try{return JSON.parse(localStorage.getItem(key)||'null');}catch(error){return null;}}";
+ const helper="\n  const budgetAutosaveKeys=['rise.budget.autosave.v2','rise.budget.autosave'];\n  function storedBudget(){try{const current=localStorage.getItem(budgetAutosaveKeys[0]);return current!==null?JSON.parse(current||'null'):stored(budgetAutosaveKeys[1]);}catch(error){return null;}}";
+ const changes=[
+  [stored,stored+helper],
+  ["event.key==='rise.budget.autosave'&&budgetReader","budgetAutosaveKeys.includes(event.key)&&budgetReader"],
+  ["stored('rise.budget.autosave')?.investorPacketSources?.properties","storedBudget()?.investorPacketSources?.properties"],
+  ["stored('rise.budget.autosave')?.state?.properties","storedBudget()?.state?.properties"],
+  ["budgetReader.src='./RISE-Budget-Builder.html?investorReader=1'","budgetReader.src='"+financePrefix+"RISE-Budget-Builder.html?investorReader=1'"]
+ ];
+ let updated=source;
+ for(const [before,after] of changes){
+  if(source.split(before).length!==2||source.includes(after)&&after!==before)throw Error('The retained investor budget-reader boundary changed: '+before);
+  updated=updated.replace(before,after);
+ }
+ return updated;
+}
 // A wrapper around rendering adds one independently authorized task list. It
 // does not call a save, hydration, source replacement or operational data API.
 const homeHook=`
@@ -79,9 +98,8 @@ export async function composeFinanceCompatSource({operationalSource,financeSourc
   for(const row of operationalFiles){const destination=path.join(out,row.path);await fs.mkdir(path.dirname(destination),{recursive:true});await fs.copyFile(path.join(operationalSource,row.path),destination);}
   for(const row of financeFiles){const destination=path.join(out,'finance',row.path);await fs.mkdir(path.dirname(destination),{recursive:true});await fs.copyFile(path.join(financeSource,row.path),destination);}
   await fs.writeFile(path.join(out,mountsPath),updatedMounts);await fs.writeFile(path.join(out,consumersPath),updatedConsumers);
-  const investorPath='portfolio-operations-dashboard/investor-packet-ui.js',investor=await fs.readFile(path.join(operationalSource,investorPath),'utf8'),investorTarget="budgetReader.src='./RISE-Budget-Builder.html?investorReader=1'";
-  if(investor.split(investorTarget).length!==2)throw Error('The retained investor reader boundary changed.');
-  await fs.writeFile(path.join(out,investorPath),investor.replace(investorTarget,"budgetReader.src='"+financePrefix+"RISE-Budget-Builder.html?investorReader=1'"));
+  const investorPath='portfolio-operations-dashboard/investor-packet-ui.js',investor=await fs.readFile(path.join(operationalSource,investorPath),'utf8');
+  await fs.writeFile(path.join(out,investorPath),patchInvestorBudgetReaderCompatibility(investor));
   const budgetPath='portfolio-operations-dashboard/RISE-Budget-Builder.html';
   await fs.writeFile(path.join(out,budgetPath),`<!doctype html><html><head><meta charset="utf-8"><title>RISE Budget Builder</title><script>const target=new URL('../finance/portfolio-operations-dashboard/RISE-Budget-Builder.html',document.baseURI);target.search=location.search;target.hash=location.hash;location.replace(target.href);</script></head><body><a href="../finance/portfolio-operations-dashboard/RISE-Budget-Builder.html">Open Budget Builder</a></body></html>\n`);
   await fs.writeFile(path.join(out,indexPath),updatedIndex);await fs.writeFile(path.join(out,editorPath),updatedEditor);

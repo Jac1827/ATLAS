@@ -5,7 +5,7 @@ function fixture(records=new Map()){
  const nodes=new Map([['savestat',{innerHTML:''}],['browser-draft-save-status',{textContent:''}]]),timers=new Map();let tick=0,failure=null;
  const context={console,Date,URL,URLSearchParams,structuredClone,setTimeout:fn=>{timers.set(++tick,fn);return tick;},clearTimeout:id=>timers.delete(id),setInterval:()=>0,
   location:{search:'',hash:'#workspace'},document:{addEventListener(){},querySelectorAll(){return [];},getElementById:id=>nodes.get(id)||null},addEventListener(){},navigator:{},
-  localStorage:{getItem:key=>records.get(key)||null,setItem(key,value){if(failure&&key==='rise.budget.autosave.v2')throw failure;records.set(key,value);},removeItem:key=>records.delete(key)}};
+  localStorage:{getItem:key=>records.get(key)??null,setItem(key,value){if(failure&&key==='rise.budget.autosave.v2')throw failure;records.set(key,value);},removeItem:key=>records.delete(key)}};
  context.window=context;context.parent=context;vm.createContext(context);
  for(const m of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))if(m[1].trim()&&!m[1].includes('RBB.app.boot()'))vm.runInContext(m[1],context);
  vm.runInContext(fs.readFileSync(root+'budget-navigation.js','utf8'),context);
@@ -30,9 +30,12 @@ legacyPayload.savedAt=new Date(Date.now()+60000).toISOString();
 legacyRecords.set(P.LEGACY_AUTOSAVE_KEY,JSON.stringify(legacyPayload));
 assert.equal(fixture(legacyRecords).A.cp().results[line.id].monthly[0],222222,'A later stale-tab write cannot replace the version-2 draft');
 assert.equal(legacyRecords.get(P.AUTOSAVE_KEY),protectedCheckpoint);
-legacyRecords.set(P.AUTOSAVE_KEY,'{broken');
-assert.throws(()=>legacyReopened.R.persist.restoreAutosave(),/not valid JSON/,'A corrupt current checkpoint must not silently restore stale legacy amounts');
-assert.equal(legacyRecords.get(P.AUTOSAVE_KEY),'{broken','A failed restore leaves the checkpoint available for recovery');
+for(const invalid of ['', 'null', '{broken']){
+ legacyRecords.set(P.AUTOSAVE_KEY,invalid);
+ assert.equal(legacyReopened.R.persist.hasAutosave(),true,'An unreadable current checkpoint must remain visible to restore handling');
+ assert.throws(()=>legacyReopened.R.persist.restoreAutosave(),/not valid JSON|empty/,'An unreadable current checkpoint must not silently restore stale legacy amounts');
+ assert.equal(legacyRecords.get(P.AUTOSAVE_KEY),invalid,'A failed restore leaves the checkpoint available for recovery');
+}
 legacyRecords.set(P.AUTOSAVE_KEY,protectedCheckpoint);
 A.setScenario('SC-WORK');A.setOverride(line.id,0,'499,999.25');
 assert.equal(value('SC-WORK'),499999.25);assert.equal(value('SC-APPROVED'),original);assert.equal(value('SC-SLOW'),other);

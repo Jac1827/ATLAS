@@ -21727,12 +21727,13 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
   };
 
   P.readAutosave = function (storage) {
-    return storage.getItem(P.AUTOSAVE_KEY) || storage.getItem(P.LEGACY_AUTOSAVE_KEY);
+    var current = storage.getItem(P.AUTOSAVE_KEY);
+    return current !== null ? current : storage.getItem(P.LEGACY_AUTOSAVE_KEY);
   };
   P.hasAutosave = function () {
     var s = P.storage();
     if (!s) return false;
-    try { return !!P.readAutosave(s); } catch (e) { return false; }
+    try { return P.readAutosave(s) !== null; } catch (e) { return false; }
   };
   P.autosaveInfo = function () {
     var s = P.storage();
@@ -21749,7 +21750,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     var s = P.storage();
     if (!s) throw new Error('Browser storage is not available.');
     var raw = P.readAutosave(s);
-    if (!raw) throw new Error('There is no autosave to restore.');
+    if (raw === null) throw new Error('There is no autosave to restore.');
     return P.apply(P.parse(raw));
   };
   P.discardAutosave = function () {

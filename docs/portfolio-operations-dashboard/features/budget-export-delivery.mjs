@@ -1,4 +1,4 @@
-import {communityForecastReport,safeSpreadsheetCell} from './reforecast-report.mjs?v=17298028335ec1f6';
+import {communityForecastReport,safeSpreadsheetCell} from './reforecast-report.mjs?v=824ffccb2fbeec92';
 import {canonicalJson} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 const requests=new Map();
 const sections={'Monthly summary':'monthly','GL detail':'rows','STR contribution bridge':'bridge','STR schedule':'schedules','Saved STR reconciliation':'sourceReconciliation','Utility recovery':'utilities','Drivers':'drivers','Overrides':'overrides','Baseline by month':'baselines','Risks':'risks','Source appendix':'appendix'};

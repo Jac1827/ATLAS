@@ -1,4 +1,4 @@
-import {computeReforecast,fingerprint} from './reforecast-engine.mjs?v=b9680c5190e80214';
+import {computeReforecast,fingerprint} from './reforecast-engine.mjs?v=fbc60bc50d89f5ee';
 const finite=value=>typeof value==='number'&&Number.isFinite(value);
 const sum=values=>values.some(value=>!finite(value))?null:values.reduce((a,b)=>a+b,0);
 const period=(year,month)=>`${year}-${String(month+1).padStart(2,'0')}`;

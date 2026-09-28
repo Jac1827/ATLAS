@@ -1,0 +1,21 @@
+import {communityForecastReport,safeSpreadsheetCell} from './reforecast-report.mjs?v=17298028335ec1f6';
+import {canonicalJson} from './financial-snapshot.mjs?v=848d058bdec07b4e';
+const requests=new Map();
+const sections={'Monthly summary':'monthly','GL detail':'rows','STR contribution bridge':'bridge','STR schedule':'schedules','Saved STR reconciliation':'sourceReconciliation','Utility recovery':'utilities','Drivers':'drivers','Overrides':'overrides','Baseline by month':'baselines','Risks':'risks','Source appendix':'appendix'};
+export async function verifyBudgetExportDelivery(central,publication,{format,bytes,XLSX,reportOptions={},guard=()=>{}}={}){
+ guard();if(!['xlsx','pdf'].includes(format)||!publication?.publicationId||!publication.revisionId||!publication.reportContentHash)throw Error('Exact approved publication and report identity are required for export readback.');
+ const report=communityForecastReport(publication,reportOptions);
+ if(format==='xlsx'){
+  if(!XLSX?.read)throw Error('Excel readback runtime is unavailable.');const book=XLSX.read(bytes,{type:'array',cellFormula:true});
+  for(const [name,key]of Object.entries(sections)){if(!book.Sheets[name])throw Error('Excel readback is missing '+name);const expected=report[key].map(row=>Object.fromEntries(Object.entries(row).map(([k,v])=>[safeSpreadsheetCell(k),safeSpreadsheetCell(v)]))),observed=XLSX.utils.sheet_to_json(book.Sheets[name],{defval:null});if(canonicalJson(observed)!==canonicalJson(expected)||Object.entries(book.Sheets[name]).some(([k,c])=>!k.startsWith('!')&&c.f))throw Error('Excel readback differs from the retained '+name+' snapshot.');}
+ }else{
+  const {PDFDocument,PDFName,PDFDict,PDFArray,PDFRawStream,decodePDFRawStream}=await import('../vendor/pdf-lib-1.17.1.mjs?v=72c052d97b4d5d9f');
+  const pdf=await PDFDocument.load(bytes),names=pdf.catalog.lookup(PDFName.of('Names'),PDFDict).lookup(PDFName.of('EmbeddedFiles'),PDFDict).lookup(PDFName.of('Names'),PDFArray);if(names.size()!==2)throw Error('PDF must retain exactly one financial evidence attachment.');
+  const stream=names.lookup(1,PDFDict).lookup(PDFName.of('EF'),PDFDict).lookup(PDFName.of('F'),PDFRawStream),observed=JSON.parse(new TextDecoder().decode(decodePDFRawStream(stream).decode())),rows=[...report.rows,...report.monthly,...report.schedules,...report.sourceReconciliation,...report.utilities,...report.drivers,...report.overrides,...report.baselines,...report.risks,...report.bridge,...report.appendix];
+  if(canonicalJson(observed.snapshot)!==canonicalJson(report.snapshot)||canonicalJson(observed.rows)!==canonicalJson(rows))throw Error('PDF readback differs from the retained financial snapshot.');
+ }
+ guard();const key=[central.getSession?.()?.user?.id,publication.publicationId,format,publication.reportContentHash].join('|');if(!requests.has(key))requests.set(key,crypto.randomUUID());const args={p_publication_id:publication.publicationId,p_consumer_key:format==='xlsx'?'excel_export':'pdf_export',p_request_id:requests.get(key),p_observed_revision_id:publication.revisionId,p_observed_fingerprint:publication.reportContentHash};
+ let receipt;try{const response=central.rpc?await central.rpc('atlas_verify_budget_consumer',args):await central.fetchJson('/rpc/atlas_verify_budget_consumer',{method:'POST',body:JSON.stringify(args)});receipt=Array.isArray(response)?response[0]:response;if(receipt?.publication_id!==publication.publicationId||receipt?.consumer_key!==args.p_consumer_key||!['verified','failed','superseded'].includes(receipt?.delivery_status))throw Error('Export delivery receipt scope mismatch.');}catch(error){guard();return {delivery_status:'pending',publication_id:publication.publicationId,consumer_key:args.p_consumer_key,error:error.message};}
+ guard();return receipt;
+}
+export function exportDeliveryNotice(deliveries=[]){const pending=deliveries.filter(d=>d&& !['verified','superseded'].includes(d.delivery_status));if(pending.length)return 'Export created and reconciled. Delivery verification is pending: '+pending.map(d=>d.error||d.detail?.reason||d.delivery_status).join('; ')+'. Retry the export to verify the same retained version.';return deliveries.some(d=>d?.delivery_status==='superseded')?'This is a verified retained historical report; a newer publication is now the live baseline.':'';}

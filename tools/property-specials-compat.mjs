@@ -8,6 +8,7 @@ export const PROPERTY_SPECIALS_ASSETS = [PROPERTY_SPECIALS_CLIENT, ...PROPERTY_S
 // configuration, profile loading and every other service method remain its own.
 const methodBoundary = /^    async propertySpecials\(action, body = \{\}\) \{\n(?:(?!^    \},)[\s\S])*^    \},(?=\n    async evictionCase\(action, body = \{\}, binary = false\) \{)/gm;
 export function patchPropertySpecialsClient(retained, current) {
+  for (const source of [retained,current]) if ([...source.matchAll(/^    async propertySpecials\(/gm)].length !== 1) throw Error('The reviewed propertySpecials client method boundary changed.');
   const before = [...retained.matchAll(methodBoundary)], after = [...current.matchAll(methodBoundary)];
   if (before.length !== 1 || after.length !== 1) throw Error('The reviewed propertySpecials client method boundary changed.');
   return retained.replace(methodBoundary, () => after[0][0]);

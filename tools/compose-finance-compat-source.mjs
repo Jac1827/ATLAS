@@ -1,5 +1,5 @@
 // An explicit compatibility source, never a projection publisher. The retained
-// operational application stays intact; the current finance tree is isolated.
+// operational startup stays intact; the current finance tree is isolated.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
@@ -108,7 +108,7 @@ export async function composeFinanceCompatSource({operationalSource,financeSourc
    preserved:['Operational startup/bootstrap and all index content outside eleven import boundaries, 36 reviewed checkpoint/save guards and four website-special asset version references','Operational IndexedDB/local-storage keys and hydration','Existing operational source records and import history','Parent authentication client outside the isolated propertySpecials request method, and normal Budget Builder access decision'],
    updated:['Budget Builder iframe, current governed header/navigation and direct document links use the complete isolated finance tree','Investor-packet hidden reader uses the same isolated current Budget Builder','Eight explicitly listed canonical financial roots forwarded to current finance adapters','Active-reforecast consumer adapter including publication delivery readbacks','Home approval tasks with direct exact-record Review links','Source-aware advisory occupancy planning with original goal persistence and approved history','Eleven guarded import boundaries retain source evidence and audited rent-roll period corrections; 36 checkpoint/save boundaries use native IndexedDB rollback for Rent Roll and Trending, protect queued/local/shared writes, and retain unresolved recovery evidence','Lossless bounded archive transport loaded by the unchanged retained lazy loader; no startup or authorization change','Website settings recovery/retry and concession evidence diagnostics; only propertySpecials is patched in the retained central client, with three versioned assets refreshed'],
    replayCheckpoint:{boundaryCount:REPLAY_CHECKPOINT_BOUNDARY_COUNT,routes:['rent_roll','trending_occupancy'],storage:'temporary_native_indexeddb',unresolvedRecovery:'writes_blocked_until_coherent_reload'},financialForwarders:forwarded,occupancyForwarders:occupancyForwarded,archiveTransport:archivePath,websiteSpecials:{assets:websitePaths,clientMethod:'propertySpecials',scriptReferenceCount:4},addedOperationalFiles:occupancyForwarded,
-   limits:['Does not activate the new operational workspace/core or publish a startup projection.','Nonfinancial operational readers and investor-packet presentation remain at the reviewed operational release.','Delivery status remains pending until each authorized consumer performs its actual verified readback.']};
+   limits:['Does not activate the new operational workspace/core or publish a startup projection.','Other nonfinancial operational readers and investor-packet presentation remain at the reviewed operational release.','Delivery status remains pending until each authorized consumer performs its actual verified readback.']};
  }catch(error){await fs.rm(out,{recursive:true,force:true});throw error;}
 }
 

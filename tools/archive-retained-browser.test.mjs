@@ -16,7 +16,7 @@ try{
  const old=path.join(tmp,'old'),out=path.join(tmp,'composed'),site=path.join(tmp,'site');await fs.mkdir(old);
  execFileSync('git',['archive','--format=tar','--output='+path.join(tmp,'old.tar'),'origin/atlas-asset-releases:_atlas-assets/'+OPERATIONAL_RELEASE],{cwd:repo});execFileSync('tar',['-xf',path.join(tmp,'old.tar'),'-C',old]);
  const receipt=await composeFinanceCompatSource({operationalSource:old,financeSource:path.join(repo,'docs'),out});
- assert.equal(receipt.changedOperationalFiles.length,15);assert.equal(receipt.unchangedOperationalFileCount,240);
+ assert.equal(receipt.changedOperationalFiles.length,18);assert.equal(receipt.unchangedOperationalFileCount,237);
  const loader='portfolio-operations-dashboard/performance/feature-loader.js',archive='portfolio-operations-dashboard/migration-archive.js';
  assert.deepEqual(await fs.readFile(path.join(out,loader)),await fs.readFile(path.join(old,loader)),'Actual old lazy loader is byte-identical');
  assert.deepEqual(await fs.readFile(path.join(out,archive)),await fs.readFile(path.join(repo,'docs',archive)),'Only the reviewed archive implementation is activated');

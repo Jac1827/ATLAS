@@ -598,6 +598,124 @@ async function requireAtlasDlrCommunityAccess(access, communityName = "", commun
   return community;
 }
 
+function propertySpecialsError(message, status, stage, code) {
+  return Object.assign(new Error(message), {status, stage, code});
+}
+
+// Unlike report lookup, a supplied canonical ID must never fall back to a name.
+async function propertySpecialsCommunity(access, body) {
+  const id = cleanText(body.communityId).toLowerCase(), name = cleanText(body.communityName);
+  if (id && !isUuid(id)) throw propertySpecialsError('The community ID is not a canonical ATLAS ID.', 400, 'community_mapping', 'INVALID_COMMUNITY_ID');
+  const matches = new Map();
+  for (const column of id ? ['community_id'] : ['display_name', 'canonical_name', 'source_identifier']) {
+    const value = id || name;
+    if (!value) break;
+    const rows = await supabaseRequest(access.config, `/rest/v1/atlas_communities?${column}=eq.${encodeURIComponent(value)}&deleted_at=is.null&select=community_id,display_name,canonical_name,source_identifier&limit=2`, {service:true});
+    for (const row of rows || []) matches.set(row.community_id, row);
+  }
+  let aliases = [];
+  const directNameMatch = id && [...matches.values()].some(row => [row.display_name, row.canonical_name, row.source_identifier].some(value => cleanText(value).toLowerCase() === name.toLowerCase()));
+  if (name && (!id || !directNameMatch)) {
+    const rows = await supabaseRequest(access.config, `/rest/v1/atlas_community_aliases?active=eq.true&alias=ilike.${encodeURIComponent(name)}${id ? `&community_id=eq.${id}` : ''}&select=community_id,alias&limit=100`, {service:true});
+    if ((rows || []).length >= 100) throw propertySpecialsError('ATLAS could not uniquely match this community alias.', 409, 'community_mapping', 'COMMUNITY_ALIAS_AMBIGUOUS');
+    aliases = (rows || []).filter(row => cleanText(row.alias).toLowerCase() === name.toLowerCase());
+    if (!id) for (const aliasId of new Set(aliases.map(row => row.community_id))) {
+      const communities = await supabaseRequest(access.config, `/rest/v1/atlas_communities?community_id=eq.${encodeURIComponent(aliasId)}&deleted_at=is.null&select=community_id,display_name,canonical_name,source_identifier&limit=2`, {service:true});
+      for (const row of communities || []) matches.set(row.community_id, row);
+    }
+  }
+  if (matches.size !== 1) throw propertySpecialsError('ATLAS could not uniquely match this community to a central record.', 404, 'community_mapping', 'COMMUNITY_NOT_RESOLVED');
+  const community = [...matches.values()][0];
+  if (id && name && !directNameMatch && !aliases.some(row => row.community_id === community.community_id)) {
+    throw propertySpecialsError('The community name and canonical ID do not match. Reload Community Settings.', 409, 'community_mapping', 'COMMUNITY_ID_MISMATCH');
+  }
+  if (!ATLAS_DLR_BROAD_ACCESS_ROLES.has(access.role) && !atlasProfileAllowedCommunityIds(access.profile).includes(community.community_id.toLowerCase())) {
+    throw propertySpecialsError('Your ATLAS access does not include this community.', 403, 'authorization', 'COMMUNITY_ACCESS_DENIED');
+  }
+  return {...community, requestedName:name};
+}
+
+async function savedPropertySpecialsSettings(access, community) {
+  // The scoped reader validates the current saved archive and the caller's scope.
+  // No raw portfolio archive or other community's data crosses the API response.
+  const source = await callAtlasRpcAsUser(access.config, access.token, 'atlas_read_workspace_projection');
+  if (source?.status !== 'available' || !source.projection?.communityData) {
+    throw propertySpecialsError('Saved community settings are unavailable for website configuration recovery.', 503, 'storage_unavailable', 'SAVED_SETTINGS_UNAVAILABLE');
+  }
+  const matches = Object.entries(source.projection.communityData).filter(([name, value]) => {
+    if (!value || typeof value !== 'object') return false;
+    const ids = [value.atlasCommunityId, value.sourceIds?.atlasCommunityId, isUuid(value.communityId) ? value.communityId : ''].filter(Boolean).map(value => String(value).toLowerCase());
+    if (ids.length) return ids.every(id => id === community.community_id.toLowerCase());
+    return [community.display_name, community.canonical_name, community.source_identifier, community.requestedName].some(value => cleanText(value).toLowerCase() === name.toLowerCase());
+  });
+  if (matches.length > 1) throw propertySpecialsError('Saved website settings match more than one community record.', 409, 'community_mapping', 'SAVED_SETTINGS_AMBIGUOUS');
+  const data = matches[0]?.[1] || {};
+  return {communityId:community.community_id, communityName:community.display_name,
+    communityWebsiteUrl:data.communityWebsiteUrl, floorPlanRatesPageUrl:data.floorPlanRatesPageUrl,
+    sourceUpdatedAt:data.websiteSettingsUpdatedAt || '',
+    ...(Object.hasOwn(data, 'websiteSettingsExpectedRevision') ? {expectedRevision:data.websiteSettingsExpectedRevision} : {})};
+}
+
+async function handlePropertySpecials(request, env) {
+  let stage = 'authorization';
+  try {
+    const access = await requireAtlasAccessUser(request, env);
+    stage = 'configuration';
+    const body = await readJsonBody(request);
+    if (!body || Array.isArray(body) || JSON.stringify(body).length > 50000) throw propertySpecialsError('Invalid or oversized request.', 400, stage, 'INVALID_REQUEST');
+    if (!['read', 'configure', 'reconcile', 'collect', 'saveOffer', 'removeOffer'].includes(body.action)) throw propertySpecialsError('Unknown website-special action.', 400, stage, 'INVALID_ACTION');
+    stage = 'community_mapping';
+    const community = await propertySpecialsCommunity(access, body);
+    const admin = access.role === 'admin', actor = access.user.id;
+    if (['saveOffer', 'removeOffer'].includes(body.action) && !admin) throw propertySpecialsError('Only an active ATLAS admin may change offers.', 403, 'authorization', 'OFFER_MANAGEMENT_DENIED');
+    stage = 'storage_unavailable';
+    if (!env.PROPERTY_SPECIALS) throw propertySpecialsError('Website special storage is not deployed.', 503, stage, 'SPECIALS_STORAGE_UNAVAILABLE');
+    const store = env.PROPERTY_SPECIALS.getByName(community.community_id);
+    let result;
+    if (body.action === 'read' && body.settingsOnly === true) {
+      result = await store.read();
+    } else if (['read', 'collect', 'reconcile'].includes(body.action)) {
+      result = await store.read();
+      const settings = result.settings;
+      const needsRecovery = body.action === 'reconcile' || (!settings?.authoritativeSettings && (!settings?.website || !settings?.floorplan));
+      const identity = {communityId:community.community_id, communityName:community.display_name};
+      // Retained operational clients persist these fields in community data before
+      // configure. Accept the same authorized URL input here to repair that split
+      // save even when a newer workspace projection has not been deployed.
+      // The resolved registry identity above, never a submitted settings ID, keys DO.
+      const input = body.savedSettings;
+      let saved = identity;
+      if (input && typeof input === 'object' && !Array.isArray(input)) {
+        saved = {...identity, sourceUpdatedAt:input.websiteSettingsUpdatedAt || '', configurationSource:'saved_community_data'};
+        for (const key of ['communityWebsiteUrl', 'floorPlanRatesPageUrl']) if (Object.hasOwn(input, key)) saved[key] = input[key];
+        if (Object.hasOwn(input, 'expectedRevision')) saved.expectedRevision = input.expectedRevision;
+      } else if (needsRecovery) saved = await savedPropertySpecialsSettings(access, community);
+      result = await store.reconcileSettings(saved, actor);
+      if (result?.ok === false) throw propertySpecialsError(result.error, result.status || 400, result.stage, result.code);
+      if (body.action === 'collect' && result?.reconciliation?.conflict) {
+        const conflict = result.reconciliation.conflict;
+        throw propertySpecialsError(conflict.error, 409, conflict.stage || 'configuration', conflict.code || 'STALE_WEBSITE_SETTINGS');
+      }
+      if (body.action === 'collect') result = await store.collect();
+    } else if (body.action === 'configure') {
+      result = await store.configure({
+        communityWebsiteUrl:body.communityWebsiteUrl ?? body.website,
+        floorPlanRatesPageUrl:body.floorPlanRatesPageUrl ?? body.floorplan,
+        sourceUpdatedAt:body.websiteSettingsUpdatedAt || '',
+        ...(Object.hasOwn(body, 'expectedRevision') ? {expectedRevision:body.expectedRevision} : {}),
+        communityId:community.community_id, communityName:community.display_name
+      }, actor);
+    } else if (body.action === 'saveOffer') result = await store.saveOffer(body.offer, actor, admin);
+    else result = await store.removeOffer(body.id, actor, admin);
+    if (result?.ok === false) throw propertySpecialsError(result.error, result.status || 400, result.stage, result.code);
+    return apiResponse({...result, communityId:community.community_id, communityName:community.display_name, canManage:admin});
+  } catch (error) {
+    const status = error.status || (stage === 'storage_unavailable' ? 503 : 500);
+    const failedStage = error.stage || ([401,403].includes(status) ? 'authorization' : stage);
+    return apiResponse({ok:false, error:jsonSafeError(error), stage:failedStage, code:error.code || `${failedStage.toUpperCase()}_FAILED`}, {status});
+  }
+}
+
 async function findExistingDlrSnapshot(config, communityName, reportingDate, reportHash) {
   const rows = await supabaseRequest(
     config,
@@ -2098,27 +2216,9 @@ export default {
     }
 
     if (url.pathname === "/api/atlas/property-specials") {
-      try {
-        if (request.method !== "POST") return apiResponse({ok:false,error:"Use POST."},{status:405});
-        const access = await requireAtlasAccessUser(request, env);
-        const body = await readJsonBody(request);
-        if (!body || JSON.stringify(body).length > 50000) return apiResponse({ok:false,error:"Invalid or oversized request."},{status:400});
-        const community = await requireAtlasDlrCommunityAccess(access, body.communityName, body.communityId);
-        if (!community) return apiResponse({ok:false,error:"Community is not registered in ATLAS."},{status:404});
-        const admin = access.role === "admin";
-        if (["saveOffer","removeOffer"].includes(body.action) && !admin) return apiResponse({ok:false,error:"Only an active ATLAS admin may change offers."},{status:403});
-        if (!env.PROPERTY_SPECIALS) return apiResponse({ok:false,error:"Website special storage is not deployed."},{status:503});
-        const store = env.PROPERTY_SPECIALS.getByName(community.community_id);
-        const actor = access.user.id;
-        let result;
-        if (body.action === "read") result = await store.read();
-        else if (body.action === "configure") result = await store.configure({website:body.website,floorplan:body.floorplan,communityId:community.community_id,communityName:community.display_name},actor);
-        else if (body.action === "collect") result = await store.collect();
-        else if (body.action === "saveOffer") result = await store.saveOffer(body.offer,actor,admin);
-        else if (body.action === "removeOffer") result = await store.removeOffer(body.id,actor,admin);
-        else return apiResponse({ok:false,error:"Unknown action."},{status:400});
-        return apiResponse({...result,canManage:admin});
-      } catch(error) { return apiResponse({ok:false,error:jsonSafeError(error)},{status:error.status || 400}); }
+      if (request.method === "OPTIONS") return noContent();
+      if (request.method !== "POST") return apiResponse({ok:false,error:"Use POST.",stage:"configuration",code:"METHOD_NOT_ALLOWED"},{status:405,headers:{allow:"POST, OPTIONS"}});
+      return handlePropertySpecials(request, env);
     }
 
     if (url.pathname === "/api/atlas/evictions/case") {

@@ -1,5 +1,5 @@
 // An explicit compatibility source, never a projection publisher. The retained
-// operational application stays intact; the current finance tree is isolated.
+// operational startup stays intact; the current finance tree is isolated.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
@@ -8,6 +8,7 @@ import {verifyRelease} from './package-atlas-assets.mjs';
 import {patchOccupancyGoalEditor} from './occupancy-goal-editor-compat.mjs';
 import {patchOccupancyImportBoundary} from './occupancy-compat-boundary.mjs';
 import {patchReplayCheckpointBoundary,REPLAY_CHECKPOINT_BOUNDARY_COUNT} from './replay-checkpoint-compat.mjs';
+import {patchPropertySpecialsClient,patchPropertySpecialsReferences,patchPropertySpecialsSettings,PROPERTY_SPECIALS_CLIENT,PROPERTY_SPECIALS_ASSETS} from './property-specials-compat.mjs';
 
 export const OPERATIONAL_RELEASE='774663d5c700ea5d00a0b13a627f965f78173d7a4700f6728ed6a6620adbf8df';
 export const OCCUPANCY_FORWARDERS=['occupancy-source-evidence.mjs'];
@@ -68,7 +69,9 @@ export async function composeFinanceCompatSource({operationalSource,financeSourc
  const updatedConsumers=currentConsumers.replace(/import\('\.\/features\//g,"import('"+financePrefix+'features/')+homeHook;
  const indexPath='portfolio-operations-dashboard/index.html',editorPath='portfolio-operations-dashboard/community-goal-editor.js';
  const oldIndex=await fs.readFile(path.join(operationalSource,indexPath),'utf8'),currentCore=await fs.readFile(path.join(financeSource,'portfolio-operations-dashboard/workspace-core.js'),'utf8');
- const updatedIndex=patchReplayCheckpointBoundary(patchOccupancyImportBoundary(oldIndex,currentCore,await fs.readFile(path.join(financeSource,'portfolio-operations-dashboard/features/import-workspace.js'),'utf8')),currentCore);
+ const websiteSources=Object.fromEntries(await Promise.all(PROPERTY_SPECIALS_ASSETS.map(async name=>[name,await fs.readFile(path.join(financeSource,'portfolio-operations-dashboard',name),'utf8')])));
+ websiteSources[PROPERTY_SPECIALS_CLIENT]=patchPropertySpecialsClient(await fs.readFile(path.join(operationalSource,'portfolio-operations-dashboard',PROPERTY_SPECIALS_CLIENT),'utf8'),websiteSources[PROPERTY_SPECIALS_CLIENT]);
+ const updatedIndex=patchPropertySpecialsReferences(patchPropertySpecialsSettings(patchReplayCheckpointBoundary(patchOccupancyImportBoundary(oldIndex,currentCore,await fs.readFile(path.join(financeSource,'portfolio-operations-dashboard/features/import-workspace.js'),'utf8')),currentCore),currentCore),websiteSources);
  const updatedEditor=patchOccupancyGoalEditor(await fs.readFile(path.join(operationalSource,editorPath),'utf8'),await fs.readFile(path.join(financeSource,editorPath),'utf8'));
  await fs.mkdir(out);
  try{
@@ -81,6 +84,8 @@ export async function composeFinanceCompatSource({operationalSource,financeSourc
   const budgetPath='portfolio-operations-dashboard/RISE-Budget-Builder.html';
   await fs.writeFile(path.join(out,budgetPath),`<!doctype html><html><head><meta charset="utf-8"><title>RISE Budget Builder</title><script>const target=new URL('../finance/portfolio-operations-dashboard/RISE-Budget-Builder.html',document.baseURI);target.search=location.search;target.hash=location.hash;location.replace(target.href);</script></head><body><a href="../finance/portfolio-operations-dashboard/RISE-Budget-Builder.html">Open Budget Builder</a></body></html>\n`);
   await fs.writeFile(path.join(out,indexPath),updatedIndex);await fs.writeFile(path.join(out,editorPath),updatedEditor);
+  const websitePaths=PROPERTY_SPECIALS_ASSETS.map(name=>'portfolio-operations-dashboard/'+name);
+  for(const name of PROPERTY_SPECIALS_ASSETS)await fs.writeFile(path.join(out,'portfolio-operations-dashboard',name),websiteSources[name]);
   // Keep the retained lazy loader and its callers unchanged. The new release
   // namespace supplies only the reviewed, API-compatible archive transport.
   const archivePath='portfolio-operations-dashboard/migration-archive.js';
@@ -96,14 +101,14 @@ export async function composeFinanceCompatSource({operationalSource,financeSourc
   }
   const changed=[];
   for(const row of operationalFiles){const hash=sha(await fs.readFile(path.join(out,row.path)));if(hash!==row.sha256)changed.push({path:row.path,beforeSha256:row.sha256,afterSha256:hash});}
-  if(JSON.stringify(changed.map(row=>row.path).sort())!==JSON.stringify([mountsPath,consumersPath,investorPath,budgetPath,indexPath,editorPath,archivePath,...forwarded].sort()))throw Error('An unapproved operational source changed.');
+  if(JSON.stringify(changed.map(row=>row.path).sort())!==JSON.stringify([mountsPath,consumersPath,investorPath,budgetPath,indexPath,editorPath,archivePath,...forwarded,...websitePaths].sort()))throw Error('An unapproved operational source changed.');
   for(const row of financeFiles)if(sha(await fs.readFile(path.join(out,'finance',row.path)))!==row.sha256)throw Error('Finance source changed during composition: '+row.path);
   const sourceFiles=await inventory(out);
   return {schemaVersion:1,mode:'preserve_operational_startup',out,operationalReleaseId:OPERATIONAL_RELEASE,financeSourceId:currentFinanceId,composedSourceId:sourceId(sourceFiles),operationalFileCount:operationalFiles.length,unchangedOperationalFileCount:operationalFiles.length-changed.length,financeFileCount:financeFiles.length,changedOperationalFiles:changed,financePrefix:'finance/',sourceFiles,
-   preserved:['Operational startup/bootstrap and all index content outside eleven import boundaries and 36 reviewed checkpoint/save guards','Operational IndexedDB/local-storage keys and hydration','Existing operational source records and import history','Parent authentication client and normal Budget Builder access decision'],
-   updated:['Budget Builder iframe, current governed header/navigation and direct document links use the complete isolated finance tree','Investor-packet hidden reader uses the same isolated current Budget Builder','Eight explicitly listed canonical financial roots forwarded to current finance adapters','Active-reforecast consumer adapter including publication delivery readbacks','Home approval tasks with direct exact-record Review links','Source-aware advisory occupancy planning with original goal persistence and approved history','Eleven guarded import boundaries retain source evidence and audited rent-roll period corrections; 36 checkpoint/save boundaries use native IndexedDB rollback for Rent Roll and Trending, protect queued/local/shared writes, and retain unresolved recovery evidence','Lossless bounded archive transport loaded by the unchanged retained lazy loader; no startup or authorization change'],
-   replayCheckpoint:{boundaryCount:REPLAY_CHECKPOINT_BOUNDARY_COUNT,routes:['rent_roll','trending_occupancy'],storage:'temporary_native_indexeddb',unresolvedRecovery:'writes_blocked_until_coherent_reload'},financialForwarders:forwarded,occupancyForwarders:occupancyForwarded,archiveTransport:archivePath,addedOperationalFiles:occupancyForwarded,
-   limits:['Does not activate the new operational workspace/core or publish a startup projection.','Nonfinancial operational readers and investor-packet presentation remain at the reviewed operational release.','Delivery status remains pending until each authorized consumer performs its actual verified readback.']};
+   preserved:['Operational startup/bootstrap and all index content outside eleven import boundaries, 36 reviewed checkpoint/save guards and four website-special asset version references plus the URL draft revision fields','Operational IndexedDB/local-storage keys and hydration','Existing operational source records and import history','Parent authentication client outside the isolated propertySpecials request method, and normal Budget Builder access decision'],
+   updated:['Budget Builder iframe, current governed header/navigation and direct document links use the complete isolated finance tree','Investor-packet hidden reader uses the same isolated current Budget Builder','Eight explicitly listed canonical financial roots forwarded to current finance adapters','Active-reforecast consumer adapter including publication delivery readbacks','Home approval tasks with direct exact-record Review links','Source-aware advisory occupancy planning with original goal persistence and approved history','Eleven guarded import boundaries retain source evidence and audited rent-roll period corrections; 36 checkpoint/save boundaries use native IndexedDB rollback for Rent Roll and Trending, protect queued/local/shared writes, and retain unresolved recovery evidence','Lossless bounded archive transport loaded by the unchanged retained lazy loader; no startup or authorization change','Website settings recovery/retry and concession evidence diagnostics; only propertySpecials is patched in the retained central client, with three versioned assets refreshed'],
+   replayCheckpoint:{boundaryCount:REPLAY_CHECKPOINT_BOUNDARY_COUNT,routes:['rent_roll','trending_occupancy'],storage:'temporary_native_indexeddb',unresolvedRecovery:'writes_blocked_until_coherent_reload'},financialForwarders:forwarded,occupancyForwarders:occupancyForwarded,archiveTransport:archivePath,websiteSpecials:{assets:websitePaths,clientMethod:'propertySpecials',scriptReferenceCount:4,settingsRevisionFields:4},addedOperationalFiles:occupancyForwarded,
+   limits:['Does not activate the new operational workspace/core or publish a startup projection.','Other nonfinancial operational readers and investor-packet presentation remain at the reviewed operational release.','Delivery status remains pending until each authorized consumer performs its actual verified readback.']};
  }catch(error){await fs.rm(out,{recursive:true,force:true});throw error;}
 }
 

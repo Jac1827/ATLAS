@@ -5,8 +5,11 @@ import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {verifyRelease} from './package-atlas-assets.mjs';
+import {patchOccupancyGoalEditor} from './occupancy-goal-editor-compat.mjs';
+import {patchOccupancyImportBoundary} from './occupancy-compat-boundary.mjs';
 
 export const OPERATIONAL_RELEASE='774663d5c700ea5d00a0b13a627f965f78173d7a4700f6728ed6a6620adbf8df';
+export const OCCUPANCY_FORWARDERS=['occupancy-source-evidence.mjs'];
 export const FINANCIAL_FORWARDERS=['canonical-finance.mjs','community-finance.mjs','financial-close.mjs','financial-comparison.mjs','reforecast-consumers.mjs','reforecast-store.mjs','financial-close-report.mjs','canonical-budget-report.mjs'];
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const inside=(parent,child)=>child===parent||child.startsWith(parent+path.sep);
@@ -62,6 +65,10 @@ export async function composeFinanceCompatSource({operationalSource,financeSourc
  const imports=[...currentConsumers.matchAll(/import\('\.\/features\/([^']+)'\)/g)];
  if(imports.length!==2||!currentConsumers.includes('window.AtlasBudgetApprovalTasks=')||!currentConsumers.includes('window.AtlasActiveReforecast='))throw Error('Review the current finance consumer integration boundary.');
  const updatedConsumers=currentConsumers.replace(/import\('\.\/features\//g,"import('"+financePrefix+'features/')+homeHook;
+ const indexPath='portfolio-operations-dashboard/index.html',editorPath='portfolio-operations-dashboard/community-goal-editor.js';
+ const oldIndex=await fs.readFile(path.join(operationalSource,indexPath),'utf8'),currentCore=await fs.readFile(path.join(financeSource,'portfolio-operations-dashboard/workspace-core.js'),'utf8');
+ const updatedIndex=patchOccupancyImportBoundary(oldIndex,currentCore);
+ const updatedEditor=patchOccupancyGoalEditor(await fs.readFile(path.join(operationalSource,editorPath),'utf8'),await fs.readFile(path.join(financeSource,editorPath),'utf8'));
  await fs.mkdir(out);
  try{
   for(const row of operationalFiles){const destination=path.join(out,row.path);await fs.mkdir(path.dirname(destination),{recursive:true});await fs.copyFile(path.join(operationalSource,row.path),destination);}
@@ -72,6 +79,9 @@ export async function composeFinanceCompatSource({operationalSource,financeSourc
   await fs.writeFile(path.join(out,investorPath),investor.replace(investorTarget,"budgetReader.src='"+financePrefix+"RISE-Budget-Builder.html?investorReader=1'"));
   const budgetPath='portfolio-operations-dashboard/RISE-Budget-Builder.html';
   await fs.writeFile(path.join(out,budgetPath),`<!doctype html><html><head><meta charset="utf-8"><title>RISE Budget Builder</title><script>const target=new URL('../finance/portfolio-operations-dashboard/RISE-Budget-Builder.html',document.baseURI);target.search=location.search;target.hash=location.hash;location.replace(target.href);</script></head><body><a href="../finance/portfolio-operations-dashboard/RISE-Budget-Builder.html">Open Budget Builder</a></body></html>\n`);
+  await fs.writeFile(path.join(out,indexPath),updatedIndex);await fs.writeFile(path.join(out,editorPath),updatedEditor);
+  const occupancyForwarded=OCCUPANCY_FORWARDERS.map(name=>'portfolio-operations-dashboard/features/'+name);
+  for(const relative of occupancyForwarded){await fs.mkdir(path.dirname(path.join(out,relative)),{recursive:true});await fs.writeFile(path.join(out,relative),`// Reviewed source evidence parser; no storage or publication side effects.\nexport * from '../../finance/${relative}';\n`);}
   const forwarded=FINANCIAL_FORWARDERS.map(name=>'portfolio-operations-dashboard/features/'+name);
   for(const relative of forwarded){
    const previous=await fs.readFile(path.join(operationalSource,relative),'utf8'),current=await fs.readFile(path.join(financeSource,relative),'utf8');
@@ -80,13 +90,13 @@ export async function composeFinanceCompatSource({operationalSource,financeSourc
   }
   const changed=[];
   for(const row of operationalFiles){const hash=sha(await fs.readFile(path.join(out,row.path)));if(hash!==row.sha256)changed.push({path:row.path,beforeSha256:row.sha256,afterSha256:hash});}
-  if(JSON.stringify(changed.map(row=>row.path).sort())!==JSON.stringify([mountsPath,consumersPath,investorPath,budgetPath,...forwarded].sort()))throw Error('An unapproved operational source changed.');
+  if(JSON.stringify(changed.map(row=>row.path).sort())!==JSON.stringify([mountsPath,consumersPath,investorPath,budgetPath,indexPath,editorPath,...forwarded].sort()))throw Error('An unapproved operational source changed.');
   for(const row of financeFiles)if(sha(await fs.readFile(path.join(out,'finance',row.path)))!==row.sha256)throw Error('Finance source changed during composition: '+row.path);
   const sourceFiles=await inventory(out);
   return {schemaVersion:1,mode:'preserve_operational_startup',out,operationalReleaseId:OPERATIONAL_RELEASE,financeSourceId:currentFinanceId,composedSourceId:sourceId(sourceFiles),operationalFileCount:operationalFiles.length,unchangedOperationalFileCount:operationalFiles.length-changed.length,financeFileCount:financeFiles.length,changedOperationalFiles:changed,financePrefix:'finance/',sourceFiles,
-   preserved:['Operational index.html and startup','Operational IndexedDB/local-storage keys and hydration','Operational source and import-history readers','Parent authentication client and normal Budget Builder access decision'],
-   updated:['Budget Builder iframe, current governed header/navigation and direct document links use the complete isolated finance tree','Investor-packet hidden reader uses the same isolated current Budget Builder','Eight explicitly listed canonical financial roots forwarded to current finance adapters','Active-reforecast consumer adapter including publication delivery readbacks','Home approval tasks with direct exact-record Review links'],
-   financialForwarders:forwarded,
+   preserved:['Operational startup/bootstrap and all index content outside five guarded source-evidence insertions','Operational IndexedDB/local-storage keys and hydration','Existing operational source records and import history','Parent authentication client and normal Budget Builder access decision'],
+   updated:['Budget Builder iframe, current governed header/navigation and direct document links use the complete isolated finance tree','Investor-packet hidden reader uses the same isolated current Budget Builder','Eight explicitly listed canonical financial roots forwarded to current finance adapters','Active-reforecast consumer adapter including publication delivery readbacks','Home approval tasks with direct exact-record Review links','Source-aware advisory occupancy planning with original goal persistence and approved history','Five bounded import-parser additions retain aggregate source evidence for future uploads'],
+   financialForwarders:forwarded,occupancyForwarders:occupancyForwarded,addedOperationalFiles:occupancyForwarded,
    limits:['Does not activate the new operational workspace/core or publish a startup projection.','Nonfinancial operational readers and investor-packet presentation remain at the reviewed operational release.','Delivery status remains pending until each authorized consumer performs its actual verified readback.']};
  }catch(error){await fs.rm(out,{recursive:true,force:true});throw error;}
 }

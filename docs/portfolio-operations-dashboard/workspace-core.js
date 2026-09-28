@@ -22573,7 +22573,7 @@ function getAtlasClosedFinancialVersion(record, period) {
 async function refreshAtlasClosedFinancials(year, force = false, requested = new Map()) {
   if (!window.ATLAS_CENTRAL?.getSession()?.user || !requested.size || !atlasAccessDecision(activeTab).ok) return false;
   const context = getAtlasRenderContextKey();
-  const module = await import("./features/financial-close.mjs?v=f4d058631f380cac");
+  const module = await import("./features/financial-close.mjs?v=88eade5abbdc2569");
   if (context !== getAtlasRenderContextKey()) return false;
   window.AtlasClosedFinancialCache ||= module.createCache(window.ATLAS_CENTRAL);
   const roster = getAtlasAccessProfile()?.community_access_records || [];
@@ -23128,7 +23128,7 @@ async function openSharedCommunityPlan() {
   const communityId = access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId;
   if (!communityId || !window.ATLAS_CENTRAL) { alert("Shared plans require an authorized canonical community record."); return false; }
   try {
-    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=bab2fc96bea43804");
+    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=8530b0b98b3607ea");
     if (epoch !== atlasNavigationEpoch || !atlasAccessDecision(2).ok) return false;
     const entry=model.monthEntry, provenance=entry.metricProvenance?.occupiedSnapshot, period=buildPeriodKey(model.monthIdx,model.year);
     const occupancy=provenance?.revisionKey && provenance.period===period && (!provenance.communityId||provenance.communityId===communityId) && entry.occupiedSnapshot!=null && Number(entry.rentableUnits)>0
@@ -23461,7 +23461,7 @@ function queueCommunityRosterFinancials(items) {
     return {key:encodeURIComponent(item.detail.name),hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
   });
   setTimeout(async()=>{try {
-    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=afd96b35ff1b7cfe");
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=e359c23c73670c66");
     if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
     await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
   } catch {}},0);
@@ -46743,9 +46743,22 @@ async function dataImportReadStructuredRows(file, plan = {}) {
   if (typeof XLSX === "undefined") throw new Error("The spreadsheet reader is unavailable in this ATLAS session.");
   const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false });
   const sheets = [];
+  const occupancySourceParser = ["box_score", "rent_roll", "delinquency"].includes(plan.reportType)
+    ? (await import("./features/occupancy-source-evidence.mjs?v=012daa540aac0f2c")).parseOccupancySheet : null;
+  plan.occupancyEvidenceBySheet = {};
+  const occupancyParameterSheet = (workbook.SheetNames || []).find(name => /^report parameters$/i.test(name.trim()));
+  const occupancyReportParameters = occupancySourceParser && occupancyParameterSheet
+    ? XLSX.utils.sheet_to_json(workbook.Sheets[occupancyParameterSheet], {header:1,defval:null,raw:true,range:0}) : [];
   (workbook.SheetNames || []).forEach(sheetName => {
     if (dataImportIsMetadataSheetName(sheetName)) return;
     const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: false, blankrows: true });
+    if (occupancySourceParser) {
+      // Keep cached source precision for aggregate evidence; formatted display values may round cents.
+      const evidenceRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {header:1,defval:null,raw:true,blankrows:true,range:0});
+      const evidence = occupancySourceParser({rows:evidenceRows,reportType:plan.reportType,sourceSheet:sheetName,
+        metadata:plan.metadata || {},fileHash:plan.fileHash || "",sourceFile:plan.name || file.name,reportParameters:occupancyReportParameters});
+      if (evidence) plan.occupancyEvidenceBySheet[sheetName] = evidence;
+    }
     if (plan.reportType === "renewal_tracker" && window.atlasCsPreviewRenewalSheetRows) {
       const prepared = window.atlasCsPreviewRenewalSheetRows(annotateRenewalRowsWithWorkbookVisualStatus(rawRows,workbook.Sheets[sheetName]), {
         propertyName:(plan.selectedCommunities || plan.communities || [])[0] || "", monthIdx:parseMonthIndexValue(sheetName) ?? 0,
@@ -47636,6 +47649,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
     result.issues.push({ type: "held", severity: "high", title: "Stale feed held from downstream use", detail: `${plan.reportTypeLabel} is ${freshnessAge} ${freshness.businessDays ? "business " : ""}days old; this source is configured to block and hold after ${freshness.days} days.` });
   }
   const grouped = new Map();
+  const occupancyEvidenceAttached = new Set();
   for (const sheet of sheets) {
     for (const sourceRow of sheet.rows) {
       processedRows += 1;
@@ -47694,6 +47708,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
         values: Object.fromEntries(Object.entries(mapped).filter(([field])=>field !== "__leadSourceMix")),
         leadSourceReconciliation: mapped.__leadSourceMix || null,
         originalValues: sourceRow.values,
+        occupancyEvidence: occupancyEvidenceAttached.has(sheet.sheetName) ? undefined : plan.occupancyEvidenceBySheet?.[sheet.sheetName],
         leadSourceEvidence: sourceRow.leadComponents || [],
         leadSourceControls: sourceRow.leadControls || [],
         leadSourceReview: sourceRow.leadReview || [],
@@ -47713,6 +47728,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
       };
       const upsert = dataImportUpsertCanonicalRecord(canonicalRecord, result, {reprocess: plan.reprocessArchivedSource === true});
       if (["held", "older", "duplicate"].includes(upsert.disposition)) continue;
+      if (canonicalRecord.occupancyEvidence) occupancyEvidenceAttached.add(sheet.sheetName);
       result.communities.add(communityName);
       dataImportAddLineage(plan, batchId, canonicalRecord, sourceFields, false);
       if (unmappedFields.length) {

@@ -1,5 +1,5 @@
-import {readBudgetVersion,requiredBudgetCoverage} from './approved-budget.mjs?v=639044759b69f41c';
-import {financeAccessKey} from './canonical-finance.mjs?v=b02fad23c8c69769';
+import {readBudgetVersion,requiredBudgetCoverage} from './approved-budget.mjs?v=5a05f4f18e15ba7e';
+import {financeAccessKey} from './canonical-finance.mjs?v=bc2709c0e3b81885';
 import {canonicalJson,freezeSnapshot,retainedSnapshot} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 import {snapshotPdf} from './snapshot-pdf.mjs?v=cda1d9683b4dd270';
 

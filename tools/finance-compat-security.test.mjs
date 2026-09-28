@@ -8,6 +8,8 @@ import {execFileSync} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 import vm from 'node:vm';
 import {composeFinanceCompatSource,OPERATIONAL_RELEASE} from './compose-finance-compat-source.mjs';
+import {patchOccupancyImportBoundary} from './occupancy-compat-boundary.mjs';
+import {patchOccupancyGoalEditor} from './occupancy-goal-editor-compat.mjs';
 
 const repo=path.resolve(import.meta.dirname,'..'),tmp=await fs.mkdtemp(path.join(os.tmpdir(),'atlas-finance-security-'));
 const roots=['canonical-finance.mjs','community-finance.mjs','financial-close.mjs','financial-comparison.mjs','reforecast-consumers.mjs','reforecast-store.mjs','financial-close-report.mjs','canonical-budget-report.mjs'];
@@ -17,8 +19,12 @@ try{
  execFileSync('git',['archive','--format=tar','--output='+path.join(tmp,'old.tar'),'origin/atlas-asset-releases:_atlas-assets/'+OPERATIONAL_RELEASE],{cwd:repo});
  execFileSync('tar',['-xf',path.join(tmp,'old.tar'),'-C',old]);
  const receipt=await composeFinanceCompatSource({operationalSource:old,financeSource:path.join(repo,'docs'),out});
- const allow=new Set(['portfolio-operations-dashboard/RISE-Budget-Builder.html','portfolio-operations-dashboard/atlas-mounts.js','portfolio-operations-dashboard/reforecast-consumers.js','portfolio-operations-dashboard/investor-packet-ui.js',...roots.map(n=>'portfolio-operations-dashboard/features/'+n)]);
+ const allow=new Set(['portfolio-operations-dashboard/index.html','portfolio-operations-dashboard/community-goal-editor.js','portfolio-operations-dashboard/RISE-Budget-Builder.html','portfolio-operations-dashboard/atlas-mounts.js','portfolio-operations-dashboard/reforecast-consumers.js','portfolio-operations-dashboard/investor-packet-ui.js',...roots.map(n=>'portfolio-operations-dashboard/features/'+n)]);
  assert.deepEqual(receipt.changedOperationalFiles.map(r=>r.path).sort(),[...allow].sort());
+ const oldIndex=await fs.readFile(path.join(old,'portfolio-operations-dashboard/index.html'),'utf8');
+ assert.equal(await fs.readFile(path.join(out,'portfolio-operations-dashboard/index.html'),'utf8'),patchOccupancyImportBoundary(oldIndex,await fs.readFile(path.join(repo,'docs/portfolio-operations-dashboard/workspace-core.js'),'utf8')),'Only five bounded source-evidence insertions change the retained inline index');
+ assert.equal(await fs.readFile(path.join(out,'portfolio-operations-dashboard/community-goal-editor.js'),'utf8'),patchOccupancyGoalEditor(await fs.readFile(path.join(old,'portfolio-operations-dashboard/community-goal-editor.js'),'utf8'),await fs.readFile(path.join(repo,'docs/portfolio-operations-dashboard/community-goal-editor.js'),'utf8')));
+ assert.deepEqual(receipt.addedOperationalFiles,['portfolio-operations-dashboard/features/occupancy-source-evidence.mjs']);
  const manifest=JSON.parse(await fs.readFile(path.join(old,'.atlas-release.json'),'utf8'));
  for(const row of manifest.files)if(!allow.has(row.path))assert.deepEqual(await fs.readFile(path.join(out,row.path)),await fs.readFile(path.join(old,row.path)),row.path+' retains reviewed operational bytes');
  for(const root of roots){const relative='portfolio-operations-dashboard/features/'+root;assert.equal(await fs.readFile(path.join(out,relative),'utf8'),`// Reviewed financial-only compatibility route. Operational storage is untouched.\nexport * from '../../finance/${relative}';\n`);}

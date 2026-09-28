@@ -11,6 +11,8 @@ var atlasInvestorPacketState = { selectedCommunity:'', communities:{} };
   function draft() { return scope().drafts?.[period()]||{}; }
   let budgetCache=null,budgetReader=null,budgetStatus='Not yet checked',budgetPending=null,budgetResolve=null,budgetTimer=null,budgetRequestScope='';
   function stored(key){try{return JSON.parse(localStorage.getItem(key)||'null');}catch(error){return null;}}
+  const budgetAutosaveKeys=['rise.budget.autosave.v2','rise.budget.autosave'];
+  function storedBudget(){try{const current=localStorage.getItem(budgetAutosaveKeys[0]);return current!==null?JSON.parse(current||'null'):stored(budgetAutosaveKeys[1]);}catch(error){return null;}}
   function budgetReadRequest(){const name=selected(),explicit=scope().config?.budgetCommunityName;const map=typeof APPLICATION_RESIDENT_DATA_PROPERTY_MAP==='undefined'?{}:APPLICATION_RESIDENT_DATA_PROPERTY_MAP;return {type:'atlas-investor-read-budget',year:getReportHubYear(),period:period(),names:explicit?[explicit]:[name,...Object.keys(map).filter(k=>map[k]?.atlasName===name)]};}
   function refreshSources(){
     if(typeof document==='undefined'||!selected())return;
@@ -35,10 +37,10 @@ var atlasInvestorPacketState = { selectedCommunity:'', communities:{} };
       budgetCache=event.data.sources||null;budgetStatus=event.data.error?'Budget source unavailable: '+event.data.error:Object.keys(budgetCache?.properties||{}).length?'Financial sources connected':'No matching approved budget or closed financial source available';
       if(typeof reportHubType!=='undefined'&&reportHubType==='investor_community_packet')renderTab();
     });
-    window.addEventListener('storage',event=>{if(event.key==='rise.budget.autosave'&&budgetReader)refreshSources();});
+    window.addEventListener('storage',event=>{if(budgetAutosaveKeys.includes(event.key)&&budgetReader)refreshSources();});
   }
   function budgetProperty(name,rec){
-    const pool=budgetCache?.properties||(window.ATLAS_CENTRAL?{}:stored('rise.budget.autosave')?.investorPacketSources?.properties)||{};
+    const pool=budgetCache?.properties||(window.ATLAS_CENTRAL?{}:storedBudget()?.investorPacketSources?.properties)||{};
     const explicit=atlasInvestorPacketState.communities?.[name]?.config?.budgetCommunityName;
     if(explicit)return pool[explicit]||null;
     if(pool[name])return pool[name];
@@ -92,7 +94,7 @@ var atlasInvestorPacketState = { selectedCommunity:'', communities:{} };
     const community=selected(), config=scope().config||{},packet=build(),d=packet?.draft||draft();
     const review=scope().reviews?.[period()];
     const status=review&&review.draft?.updatedAt===draft().updatedAt?'Saved review available':'Draft';
-    let budgetNames=[];try{budgetNames=(stored('rise.budget.autosave')?.state?.properties||[]).map(p=>p.name);if(!budgetNames.length)budgetNames=Object.keys(budgetCache?.properties||{});}catch(error){}
+    let budgetNames=[];try{budgetNames=(storedBudget()?.state?.properties||[]).map(p=>p.name);if(!budgetNames.length)budgetNames=Object.keys(budgetCache?.properties||{});}catch(error){}
     const metricSelect=P.metrics.map(m=>`<option value="${m.id}">${e(m.groupTitle+' / '+m.label)}</option>`).join('');
     return `<div class="card ip-builder"><div class="ip-heading"><div><h2>Investor Community Packet</h2><p>Performance. Drivers. Management action. Investment plan.</p></div><span>Investor facing · ${e(status)}</span></div>
       <div class="ip-fields"><label>Community<select onchange="AtlasPacketUI.select(this.value)"><option value="">Select a community</option>${names().map(n=>`<option ${n===community?'selected':''}>${e(n)}</option>`).join('')}</select></label><label>Reporting month<input type="month" value="${period()}" onchange="AtlasPacketUI.period(this.value)"></label></div>

@@ -7,7 +7,7 @@ import os from 'node:os';
 import {execFileSync} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 import vm from 'node:vm';
-import {composeFinanceCompatSource,OPERATIONAL_RELEASE} from './compose-finance-compat-source.mjs';
+import {composeFinanceCompatSource,OPERATIONAL_RELEASE,patchInvestorBudgetReaderCompatibility} from './compose-finance-compat-source.mjs';
 import {patchOccupancyImportBoundary} from './occupancy-compat-boundary.mjs';
 import {patchArchiveBuilderBoundary} from './archive-builder-compat.mjs';
 import {patchReplayCheckpointBoundary} from './replay-checkpoint-compat.mjs';
@@ -38,7 +38,32 @@ try{
  const manifest=JSON.parse(await fs.readFile(path.join(old,'.atlas-release.json'),'utf8'));
  for(const row of manifest.files)if(!allow.has(row.path))assert.deepEqual(await fs.readFile(path.join(out,row.path)),await fs.readFile(path.join(old,row.path)),row.path+' retains reviewed operational bytes');
  for(const root of roots){const relative='portfolio-operations-dashboard/features/'+root;assert.equal(await fs.readFile(path.join(out,relative),'utf8'),`// Reviewed financial-only compatibility route. Operational storage is untouched.\nexport * from '../../finance/${relative}';\n`);}
- const investorPath='portfolio-operations-dashboard/investor-packet-ui.js';assert.equal(await fs.readFile(path.join(out,investorPath),'utf8'),(await fs.readFile(path.join(old,investorPath),'utf8')).replace("budgetReader.src='./RISE-Budget-Builder.html?investorReader=1'","budgetReader.src='../finance/portfolio-operations-dashboard/RISE-Budget-Builder.html?investorReader=1'"),'Only the exact hidden financial reader route changes');
+ const investorPath='portfolio-operations-dashboard/investor-packet-ui.js';
+ const retainedInvestor=await fs.readFile(path.join(old,investorPath),'utf8'),updatedInvestor=await fs.readFile(path.join(out,investorPath),'utf8');
+ const budgetHelper="\n  const budgetAutosaveKeys=['rise.budget.autosave.v2','rise.budget.autosave'];\n  function storedBudget(){try{const current=localStorage.getItem(budgetAutosaveKeys[0]);return current!==null?JSON.parse(current||'null'):stored(budgetAutosaveKeys[1]);}catch(error){return null;}}";
+ const investorChanges=[
+  ['',budgetHelper],
+  ["event.key==='rise.budget.autosave'&&budgetReader","budgetAutosaveKeys.includes(event.key)&&budgetReader"],
+  ["stored('rise.budget.autosave')?.investorPacketSources?.properties","storedBudget()?.investorPacketSources?.properties"],
+  ["stored('rise.budget.autosave')?.state?.properties","storedBudget()?.state?.properties"],
+  ["budgetReader.src='./RISE-Budget-Builder.html?investorReader=1'","budgetReader.src='../finance/portfolio-operations-dashboard/RISE-Budget-Builder.html?investorReader=1'"]
+ ];
+ let reversedInvestor=updatedInvestor;
+ for(const [before,after] of investorChanges){assert.equal(reversedInvestor.split(after).length,2,'Exactly one allowed investor compatibility change: '+after);reversedInvestor=reversedInvestor.replace(after,before);}
+ assert.equal(reversedInvestor,retainedInvestor,'Reversing only the helper, storage listener, two reads and existing iframe route restores every retained investor byte');
+ assert((await fs.readFile(path.join(repo,'docs',investorPath),'utf8')).includes(budgetHelper),'Finance and retained investor UI use the identical reviewed storage helper');
+ const storedAnchor="  function stored(key){try{return JSON.parse(localStorage.getItem(key)||'null');}catch(error){return null;}}";
+ for(const anchor of [storedAnchor,...investorChanges.slice(1).map(([before])=>before)]){
+  assert.throws(()=>patchInvestorBudgetReaderCompatibility(retainedInvestor.replace(anchor,'')),/boundary changed/,'Missing compatibility anchors fail closed');
+  assert.throws(()=>patchInvestorBudgetReaderCompatibility(retainedInvestor+'\n'+anchor),/boundary changed/,'Duplicate compatibility anchors fail closed');
+ }
+ assert.throws(()=>patchInvestorBudgetReaderCompatibility(updatedInvestor),/boundary changed/,'Already composed input cannot acquire a second compatibility patch');
+ const budgetStorage=new Map(),budgetContext={localStorage:{getItem:key=>budgetStorage.get(key)??null}};
+ vm.createContext(budgetContext);vm.runInContext(storedAnchor+budgetHelper+'\nthis.readStoredBudget=storedBudget;',budgetContext);
+ budgetStorage.set('rise.budget.autosave',JSON.stringify({kind:'legacy'}));assert.equal(budgetContext.readStoredBudget().kind,'legacy');
+ budgetStorage.set('rise.budget.autosave.v2',JSON.stringify({kind:'current'}));assert.equal(budgetContext.readStoredBudget().kind,'current');
+ for(const invalid of ['{','null','']){budgetStorage.set('rise.budget.autosave.v2',invalid);assert.equal(budgetContext.readStoredBudget(),null,'Unreadable current checkpoint cannot expose the older financial source');}
+ assert.equal(budgetStorage.get('rise.budget.autosave'),JSON.stringify({kind:'legacy'}),'Compatibility reads preserve original browser data');
  const redirect=await fs.readFile(path.join(out,'portfolio-operations-dashboard/RISE-Budget-Builder.html'),'utf8');let destination;
  vm.runInNewContext(redirect.match(/<script>([\s\S]*?)<\/script>/)[1],{URL,document:{baseURI:'https://atlas.invalid/portfolio-operations-dashboard/RISE-Budget-Builder.html'},location:{search:'?investorReader=1&next=https%3A%2F%2Funtrusted.invalid',hash:'#reforecast',replace:href=>destination=href}});
  assert.equal(destination,'https://atlas.invalid/finance/portfolio-operations-dashboard/RISE-Budget-Builder.html?investorReader=1&next=https%3A%2F%2Funtrusted.invalid#reforecast','Query/hash cannot change the same-origin financial destination');

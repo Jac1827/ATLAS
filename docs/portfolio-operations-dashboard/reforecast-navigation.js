@@ -20,7 +20,7 @@
    mountQueue=mountQueue.catch(()=>{}).then(async()=>{
     if(!current())return;
     try{
-     const m=await import('./features/reforecast-ui.mjs?v=24cc9669e908896e');if(!current())return;
+     const m=await import('./features/reforecast-ui.mjs?v=e190229de14010fc');if(!current())return;
      const selected=request===intent&&request?.completed&&(request.kind==='create'||request.detail.scenarioId);
      await m.mountReforecast(el,{R,mode:selected?'workspace':mode});if(!current())return;
      if(request&&request===intent&&!request.completed&&sameScope(request.scope)){
@@ -35,9 +35,9 @@
  };}
  R.budgetNavigation?.groups.find(g=>g[0]==='forecast')?.[2].push('reforecast','reforecastapprovals','reforecasthistory','reforecaststatus');
  R.budgetNavigation?.groups.find(g=>g[0]==='reports')?.[2].push('reforecastgap');
- import('./features/reforecast-legacy-bridge.mjs?v=983308f7dee5cef5').then(m=>m.installLegacyReforecastBridge(R)).catch(e=>A.toast('Scenario calculator failed: '+e.message,'r'));
+ import('./features/reforecast-legacy-bridge.mjs?v=160bc8cb82b32974').then(m=>m.installLegacyReforecastBridge(R)).catch(e=>A.toast('Scenario calculator failed: '+e.message,'r'));
  import('./features/saved-str-programmes.mjs').then(m=>m.installSavedStrProgrammes(R)).catch(e=>A.toast('Saved STR programmes could not load: '+e.message,'r'));
- const clearScope=()=>{navigation++;renderGeneration++;intent=null;delete R.reforecastSources;delete R.reforecastPropertyAssignments;const el=document.getElementById('atlas-reforecast-workspace');if(el){const replacement=el.cloneNode(false);replacement.textContent='The signed-in workspace changed. Reopen the intended financial view.';el.replaceWith(replacement);}import('./features/reforecast-legacy-bridge.mjs?v=983308f7dee5cef5').then(m=>m.clearLegacyReforecastCache());mountQueue=mountQueue.catch(()=>{}).then(async()=>{const m=await import('./features/reforecast-ui.mjs?v=24cc9669e908896e');m.clearReforecastSession();});};
+ const clearScope=()=>{navigation++;renderGeneration++;intent=null;delete R.reforecastSources;delete R.reforecastPropertyAssignments;const el=document.getElementById('atlas-reforecast-workspace');if(el){const replacement=el.cloneNode(false);replacement.textContent='The signed-in workspace changed. Reopen the intended financial view.';el.replaceWith(replacement);}import('./features/reforecast-legacy-bridge.mjs?v=160bc8cb82b32974').then(m=>m.clearLegacyReforecastCache());mountQueue=mountQueue.catch(()=>{}).then(async()=>{const m=await import('./features/reforecast-ui.mjs?v=e190229de14010fc');m.clearReforecastSession();});};
  window.parent.addEventListener('atlas-central-auth-change',clearScope);
  const originalPublish=A.publishToAtlas;
  A.publishToAtlas=function(){if(A.scenario().type!=='approved'){A.go('reforecast');A.toast('Submit a shared draft for VP review and publication.');return;}return originalPublish.apply(this,arguments);};

@@ -4,6 +4,9 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const html = readDashboardSource('docs/portfolio-operations-dashboard/index.html') + '\n' + fs.readFileSync('docs/portfolio-operations-dashboard/community-goal-editor.js', 'utf8');
 const ctx = vm.createContext({ console, Date, Map, Set, window: {} });
+const scopeInitializer = html.match(/^let atlasSynchronousReadScope = null;$/m);
+assert(scopeInitializer, 'Real synchronous-read scope initializer');
+vm.runInContext(scopeInitializer[0], ctx);
 for (const match of html.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm)) vm.runInContext(match[0], ctx);
 const plain = value => JSON.parse(JSON.stringify(value));
 Object.assign(ctx, {

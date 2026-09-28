@@ -1,4 +1,5 @@
-import {validatePlanningCalendar,planningOverrideIssues} from './planning-governance.mjs?v=a4de8d3f5a50966c';
+import {reviewedWorkbookSourcePolicy,retainedWorkbookBlank,confirmedForecastBlank,compactWorkbookBlankReference,excludedForecastScope,resolveReviewedWorkbookBlankReference} from './reforecast-workbook-source-policy.mjs?v=be424108c7ddcacc';
+import {validatePlanningCalendar,planningOverrideIssues,validPlanningReview} from './planning-governance.mjs?v=a4de8d3f5a50966c';
 /* Pure, deterministic reforecast calculations. This module never reads browser state or publishes. */
 export const ENGINE_VERSION='atlas-reforecast-v1';
 export const DRIVER_OPERATIONS=Object.freeze(['percent_change','amount','add','percent_of_account','occupancy_vacancy']);
@@ -33,7 +34,7 @@ const strictSum=sumMoney;
 const subtract=(a,b)=>finite(a)&&finite(b)?sumMoney([a,-b]):null;
 const selectedAmount=row=>Object.hasOwn(row,'selectedBaseline')?row.selectedBaseline:row.originalBudget;
 export function aggregateForecastLines(lines,field,options={}){
- const selected=(predicate,factor=()=>1)=>lines.filter(row=>predicate(row)&&!(['originalBudget','selectedBaseline'].includes(field)&&row[field]===null&&row.baselineDisposition?.kind==='no_original_budget_row')).map(row=>finite(row[field])?row[field]*factor(row):row[field]);
+ const selected=(predicate,factor=()=>1)=>lines.filter(row=>predicate(row)&&!confirmedForecastBlank(row,field)&&!excludedForecastScope(row,field)&&!(['originalBudget','selectedBaseline'].includes(field)&&row[field]===null&&row.baselineDisposition?.kind==='no_original_budget_row')).map(row=>finite(row[field])?row[field]*factor(row):row[field]);
  const grossIncome=strictSum(selected(row=>row.nature==='income'&&row.placement==='above_noi'));
  const contraRevenue=strictSum(selected(row=>row.nature==='contra_income'&&row.placement==='above_noi'));
  const revenue=strictSum([grossIncome,contraRevenue]);
@@ -50,9 +51,10 @@ export const NONCASH_METRIC_KEYS=Object.freeze(['nonCashDepreciationAmortization
 export function withNoncashMetrics(metrics,lines,field,{nonCashPresentation=false,unavailable=false}={}){
  if(!nonCashPresentation&&!lines.some(row=>row.nonCashClassificationVersion===1))return metrics;
  if(unavailable)return {...metrics,...Object.fromEntries(NONCASH_METRIC_KEYS.map(key=>[key,null]))};
- const selected=lines.filter(row=>!(['originalBudget','selectedBaseline'].includes(field)&&row[field]===null&&row.baselineDisposition?.kind==='no_original_budget_row'));
- if(lines.length&&!selected.length)return {...metrics,...Object.fromEntries(NONCASH_METRIC_KEYS.map(key=>[key,null]))};
- const reviewed=selected.every(row=>row.mappingValid===true&&row.nonCashClassificationVersion===1&&typeof row.nonCash==='boolean'&&(!row.nonCash||row.nature==='below_noi'&&row.placement==='below_noi'));
+ const selected=lines.filter(row=>!confirmedForecastBlank(row,field)&&!excludedForecastScope(row,field)&&!(['originalBudget','selectedBaseline'].includes(field)&&row[field]===null&&row.baselineDisposition?.kind==='no_original_budget_row'));
+ if(['originalBudget','selectedBaseline'].includes(field)&&lines.length&&!selected.length)return {...metrics,...Object.fromEntries(NONCASH_METRIC_KEYS.map(key=>[key,null]))};
+ const classified=lines.filter(row=>!(['originalBudget','selectedBaseline'].includes(field)&&row[field]===null&&row.baselineDisposition?.kind==='no_original_budget_row'));
+ const reviewed=classified.every(row=>row.mappingValid===true&&row.nonCashClassificationVersion===1&&typeof row.nonCash==='boolean'&&(!row.nonCash||row.nature==='below_noi'&&row.placement==='below_noi'));
  const charge=reviewed?sumMoney(selected.filter(row=>row.nonCash).map(row=>row[field])):null;
  return {...metrics,nonCashDepreciationAmortization:charge,cashFlowBeforeNoncash:sumMoney([metrics.cashFlow,charge]),cashFlowAfterNoncash:metrics.cashFlow};
 }
@@ -117,7 +119,102 @@ export function validateSunsetDisposition(account){
  if(!account.successorAccountCode&&account.successorDisposition!=='no_successor')issues.push({code:'sunset_disposition',message:'Specify the approved GL for new activity or explicitly choose no successor.'});
  if(account.successorAccountCode===account.accountCode)issues.push({code:'sunset_cycle',message:'A sunset GL cannot be its own successor.'});return issues;
 }
-export function computeReforecast(input){return presentNoncashSnapshot(computeReforecastBeforeNoncash(input),input.registry||{});}
+function workbookBound(cell,scenario){const mapping=scenario.importMapping;return Boolean(cell&&reviewedWorkbookSourcePolicy(mapping)&&cell.uploadId===scenario.uploadId&&cell.mappingVersion===mapping.version&&cell.sourceScenario===mapping.sourceScenario&&mapping.selectedLineIds.includes(cell.sourceLineId)&&cell.sourceHash&&cell.source?.auditId&&(finite(cell.amount)||retainedWorkbookBlank(cell,mapping)));}
+function workbookBaseIndex(scenario,source){
+ const index=new Map();
+ for(const cell of [...(source.workbookImportedCells||[]),...(scenario.overrides||[])])if(workbookBound(cell,scenario))index.set(compound(cell.period,cell.accountCode),cell);
+ for(const cell of source.workbookOutsideScopeCells||[])if(cell.sourceScopeExclusionConfirmed===true&&cell.source?.uploadId===scenario.uploadId&&cell.source?.auditId&&cell.source?.sourceHash&&scenario.importMapping?.workbookSourcePolicy?.outsideForecastScope?.some(r=>r.period===cell.period&&r.accountCode===cell.accountCode&&r.confirmed===true))index.set(compound(cell.period,cell.accountCode),{...cell,amount:null});
+ return index;
+}
+function presentWorkbookSnapshot(snapshot,scenario,source={}){
+ const mapping=scenario.importMapping;
+ if(!mapping?.workbookSourcePolicy)return snapshot;
+ if(!reviewedWorkbookSourcePolicy(mapping))throw Error('Review the exact workbook value and blank policy before calculating.');
+ const result=clone(snapshot),scope=new Set(mapping.periods),overrides=new Map(),bases=workbookBaseIndex(scenario,source);
+ for(const cell of scenario.overrides||[]){const key=compound(cell.period,cell.accountCode);if(overrides.has(key))throw Error('Exact workbook source has duplicate GL/month overrides.');overrides.set(key,cell);}
+ for(const row of result.lines){
+  if(!scope.has(row.period)||row.sourceKind!=='forecast'||row.immutable||row.retired)continue;
+  const cell=overrides.get(compound(row.period,row.accountCode)),base=bases.get(compound(row.period,row.accountCode)),manual=cell&&!workbookBound(cell,scenario)&&!cell.uploadId&&!cell.sourceLineId&&finite(cell.amount)&&validPlanningReview(cell,{value:cell.amount,period:cell.period});
+  const driven=row.driverIds?.some(id=>!id.startsWith('override-'))&&finite(row.forecast);
+  if(base){
+   row.workbookSourceAmount=base.amount;row.workbookSourceDisposition=base.disposition||'included';row.workbookSource=clone(base.source);
+  }
+  if(base&&(manual||driven)){
+   row.disposition='reviewer_override';row.isBlank=false;row.legitimateBlank=false;row.sourceScopeExclusionConfirmed=false;
+   if(manual)row.source=clone(cell.source||{kind:'reviewed_manual_override',ownerId:cell.ownerId,reviewedAt:cell.reviewedAt,reason:cell.reason});
+  }else if(base&&finite(base.amount)){
+   row.forecast=base.amount;row.disposition='included';row.isBlank=false;row.legitimateBlank=false;row.source=clone(base.source);
+  }else if(base&&retainedWorkbookBlank(base,mapping)){
+   row.forecast=null;row.disposition='workbook_blank';row.isBlank=true;row.legitimateBlank=true;row.source=clone(base.source);
+  }else if(base?.disposition==='outside_forecast_scope'){
+   row.forecast=null;row.disposition='outside_forecast_scope';row.isBlank=false;row.legitimateBlank=false;row.sourceScopeExclusionConfirmed=true;row.source=clone(base.source);
+  }else{
+   row.forecast=null;row.disposition='source_absent';row.isBlank=false;row.legitimateBlank=false;
+   row.source={kind:'workbook_missing',uploadId:scenario.uploadId,sourceScenario:mapping.sourceScenario,mappingVersion:mapping.version};
+  }
+  row.forecastVariance=varianceFavorability({value:row.forecast,baseline:row.selectedBaseline,nature:row.identifier||row.nature}).variance;
+  row.forecastFavorability=varianceFavorability({value:row.forecast,baseline:row.selectedBaseline,nature:row.identifier||row.nature}).favorability;
+ }
+ const byKey=new Map(result.lines.map(row=>[compound(row.period,row.accountCode),row]));
+ result.diagnostics=result.diagnostics.filter(item=>!(item.code==='missing_forecast'&&(confirmedForecastBlank(byKey.get(compound(item.period,item.accountCode))||{},'forecast')||excludedForecastScope(byKey.get(compound(item.period,item.accountCode))||{},'forecast'))));
+ for(const row of result.lines.filter(row=>scope.has(row.period)&&row.disposition==='source_absent'))result.diagnostics.push({code:'workbook_source_absent',severity:'blocking',message:'No reviewed workbook value or verified blank covers this GL and month.',period:row.period,accountCode:row.accountCode});
+ const counts=rows=>({reviewerEditedCellCount:rows.filter(row=>row.disposition==='reviewer_override').length,numericCellCount:rows.filter(row=>row.disposition==='included'&&finite(row.forecast)).length,workbookBlankCellCount:rows.filter(row=>row.disposition==='workbook_blank').length,sourceAbsentCellCount:rows.filter(row=>row.disposition==='source_absent').length,outsideForecastScopeCellCount:rows.filter(row=>excludedForecastScope(row,'forecast')).length});
+ const nonCashPresentation=Boolean(result.identity.nonCashPresentation),monthly=[];
+ for(const month of result.monthly){
+  if(!scope.has(month.period)||month.closed||month.applicable===false)continue;
+  const rows=result.lines.filter(row=>row.period===month.period);
+  month.reforecast=aggregate(rows,'forecast',{nonCashPresentation});
+  const coverage=counts(rows),knownValueTotals=aggregate(rows.map(row=>finite(row.forecast)?row:{...row,legitimateBlank:true,disposition:'workbook_blank'}),'forecast',{nonCashPresentation});
+  month.workbookCoverage={...coverage,complete:coverage.sourceAbsentCellCount===0};month.knownValueTotals=knownValueTotals;
+  month.workbookSourceTotals=aggregate(rows.map(row=>({...row,forecast:row.workbookSourceAmount??null,legitimateBlank:!finite(row.workbookSourceAmount),disposition:finite(row.workbookSourceAmount)?'included':'workbook_blank'})),'forecast',{nonCashPresentation});
+  monthly.push({period:month.period,...month.workbookCoverage,knownValueTotals,workbookSourceTotals:month.workbookSourceTotals});
+ }
+ const total=metrics=>{const keys=[...new Set(metrics.flatMap(Object.keys))],out=Object.fromEntries(keys.map(key=>[key,sumMoney(metrics.map(row=>row[key]))]));out.margin=finite(out.noi)&&finite(out.revenue)&&out.revenue!==0?out.noi/out.revenue:null;return out;};
+ result.totals.reforecast=total(result.monthly.filter(row=>row.applicable!==false).map(row=>row.reforecast));
+ for(const category of result.categories||[])for(const month of category.monthly||[])if(scope.has(month.period)){const rows=result.lines.filter(row=>row.period===month.period&&row.category===category.category);month.forecast=sumMoney(rows.filter(row=>!confirmedForecastBlank(row,'forecast')&&!excludedForecastScope(row,'forecast')).map(row=>row.forecast));}
+ const coverage=counts(result.lines.filter(row=>scope.has(row.period)));
+ result.workbookCoverage={schemaVersion:1,...coverage,complete:coverage.sourceAbsentCellCount===0,totalsBasis:'known_forecast_values',monthly};
+ result.knownValueTotals=total(monthly.map(row=>row.knownValueTotals));result.workbookSourceTotals=total(monthly.map(row=>row.workbookSourceTotals));
+ result.identity.workbookSourcePolicy=clone(mapping.workbookSourcePolicy);
+ result.status=result.diagnostics.some(row=>['blocking','error'].includes(row.severity))?'action_required':'ready';
+ result.fingerprint=fingerprint({...result,fingerprint:undefined});return freeze(result);
+}
+function presentWorkbookSourceCoverage(snapshot,scenario,source){
+ if(!scenario.uploadId)return snapshot;
+ const result=clone(snapshot),coverage=source.workbookSourceCoverage,mapping=scenario.importMapping;
+ result.diagnostics.push(...clone(coverage?.issues||[]));
+ if(!reviewedWorkbookSourcePolicy(mapping)||result.lines.some(row=>row.sourceKind==='forecast'&&!row.immutable&&!row.retired&&!mapping.periods.includes(row.period))){
+  const numeric=new Map(),overrides=new Map((scenario.overrides||[]).map(cell=>[compound(cell.period,cell.accountCode),cell])),receipts=new Set((source.workbookImportedCells||[]).map(cell=>compound(cell.period,cell.accountCode)));
+  for(const cell of coverage?.numericCells||[]){const key=compound(cell.period,cell.accountCode);numeric.set(key,[...(numeric.get(key)||[]),cell]);}
+  for(const row of result.lines){
+   if(row.sourceKind!=='forecast'||row.immutable||row.retired)continue;
+   if(reviewedWorkbookSourcePolicy(mapping)&&mapping.periods.includes(row.period))continue;
+   const key=compound(row.period,row.accountCode),cells=numeric.get(key)||[],over=overrides.get(key);
+   let qualified=cells.length===1&&finite(over?.amount)&&((over.uploadId===scenario.uploadId&&over.sourceLineId===cells[0].sourceLineId&&over.mappingVersion===mapping?.version)||(receipts.has(key)&&validPlanningReview(over,{value:over.amount,period:row.period})));
+   if(reviewedWorkbookSourcePolicy(mapping)&&over?.uploadId&&over.uploadId!==scenario.uploadId&&over.sourceLineId&&over.sourceHash&&over.source?.auditId&&(finite(over.amount)||(over.disposition==='workbook_blank'&&over.legitimateBlank===true)))qualified=true;
+   if(!qualified)result.diagnostics.push({code:'workbook_source_policy_required',severity:'blocking',period:row.period,accountCode:row.accountCode,message:'This workbook does not provide a reviewed numeric source for the open GL/month. Review exact workbook blanks and source scope before publication.'});
+  }
+ }
+ if(result.workbookCoverage&&coverage?.issues?.length){
+  result.workbookCoverage.complete=false;result.workbookCoverage.unreviewedSourceCellCount=coverage.issues.length;
+  const mark=(row,period)=>{const count=coverage.issues.filter(issue=>!issue.period||issue.period===period).length;if(row&&count){row.complete=false;row.unreviewedSourceCellCount=count;}};
+  for(const row of result.workbookCoverage.monthly||[])mark(row,row.period);
+  for(const row of result.monthly||[])mark(row.workbookCoverage,row.period);
+ }
+ result.workbookSourceExclusions=clone(coverage?.exclusions||[]);
+ result.status=result.diagnostics.some(row=>['blocking','error'].includes(row.severity))?'action_required':'ready';
+ if(result.completeness)result.completeness.blockerCount=result.diagnostics.filter(row=>['blocking','error'].includes(row.severity)).length;
+ result.fingerprint=fingerprint({...result,fingerprint:undefined});return freeze(result);
+}
+export function computeReforecast(input){
+ const scenario=input.scenario||{},mapping=scenario.importMapping;
+ const overrides=(scenario.overrides||[]).map(cell=>{
+  if(cell.disposition!=='workbook_blank')return cell;
+  return resolveReviewedWorkbookBlankReference(cell,scenario,input)||cell;
+ });
+ const calculation={...input,scenario:{...scenario,overrides}};
+ return presentWorkbookSourceCoverage(presentWorkbookSnapshot(presentNoncashSnapshot(computeReforecastBeforeNoncash(calculation),input.registry||{}),calculation.scenario,input),calculation.scenario,input);
+}
 function computeReforecastBeforeNoncash(input){
  const {communityId,baseline={},actuals={},scenario={},registry={}}=input;
  const periods=validateForecastPeriods(input.periods,{periodEvidence:actuals.closeVersions||[]});
@@ -139,7 +236,7 @@ function computeReforecastBeforeNoncash(input){
  const codes=[...new Set([...accounts.keys(),...[...budgets.values(),...closed.values()].map(row=>String(row.accountCode??row.glCode))])].sort();
  for(const driver of [...(scenario.drivers||[]),...(scenario.overrides||[]).map(row=>({accountCodes:[row.accountCode]}))])for(const code of driver.accountCodes||registry.driverMappings?.[driver.type]||[])if(!codes.includes(String(code)))codes.push(String(code));
  codes.sort();
- const lines=[],byKey=new Map();
+ const lines=[],byKey=new Map(),workbookBases=workbookBaseIndex(scenario,input);
  for(const period of periods){
   const isClosed=Boolean(cutoff&&period<=cutoff&&!notApplicable.has(period)),closeVersionId=closes.get(period)||null;
   if(isClosed&&!closeVersionId)issue('missing_close','A historical reporting month has no governed close version.',{period});
@@ -158,10 +255,15 @@ function computeReforecastBeforeNoncash(input){
    const originalBudget=amount(originalBudgets.get(key)?.amount),selectedBaseline=amount(budget?.amount),inheritedLine=inherited.get(key),immutable=lockedPeriods.has(period);
    if(immutable&&!inheritedLine)issue('missing_locked_inheritance','A locked month requires its exact baseline and lineage.',{period,accountCode});
    const row={period,accountCode,identifier:['income','contra_income','expense','capital'].includes(mapping?.identifier||mapping?.nature)?mapping.identifier||mapping.nature:['debt','below_noi'].includes(mapping?.nature)?'expense':null,accountRole:mapping?.accountRole||(mapping?.isDebt?'debt':['debt','below_noi'].includes(mapping?.nature)?mapping.nature:null),isDebt:mapping?.isDebt===true||mapping?.nature==='debt',noncontrollable:mapping?.noncontrollable===true,intercompany:mapping?.intercompany===true,accountName:mapping?.name||budget?.accountName||actual?.accountName||accountCode,originalBudget,selectedBaseline,baselineLineage:clone(budget?.baselineLineage||baseline.periodVersions?.find(item=>item.period===period)||{sourceType:baseline.sourceType||'original_budget',versionId:baseline.versionId||baseline.versionIds?.[0]||null}),actual:actualAmount,forecast:notApplicable.has(period)?null:immutable?amount(inheritedLine&&Object.hasOwn(inheritedLine,'forecast')?inheritedLine.forecast:inheritedLine?.amount):isClosed?actualAmount:retired?0:selectedBaseline,sourceKind:notApplicable.has(period)?'not_applicable':immutable?'inherited_locked':isClosed?'closed_actual':'forecast',immutable,inheritedDetail:immutable?clone(inheritedLine||null):null,historyEligible:Boolean(isClosed&&eligibleClose),sourceHash:closeEvidence?.sourceHash||actual?.source?.hash||null,retired,applicable:!notApplicable.has(period),closeVersionId:isClosed?closeVersionId:null,category:mapping?.category||null,nature:mapping?.nature||null,placement:mapping?.placement||null,mappingValid:Boolean(mappingValid||historicalValid),driverIds:[],driverSources:[],source:clone((isClosed?actual:budget)?.source||null)};
-   if(immutable&&inheritedLine){for(const field of ['originalBudget','selectedBaseline','baselineLineage','source','nature','identifier','accountRole','isDebt','intercompany','noncontrollable','placement','category','mappingValid','driverIds','driverSources'])if(Object.hasOwn(inheritedLine,field))row[field]=clone(inheritedLine[field]);row.source=clone(inheritedLine.source||null);}
+   if(budget?.legitimateBlank===true&&budget?.disposition==='workbook_blank'&&row.forecast===null){row.legitimateBlank=true;row.disposition='workbook_blank';row.isBlank=true;}
+   if(budget?.sourceScopeExclusionConfirmed===true&&budget?.disposition==='outside_forecast_scope'&&row.forecast===null){row.legitimateBlank=false;row.disposition='outside_forecast_scope';row.sourceScopeExclusionConfirmed=true;row.isBlank=false;}
+   if(immutable&&inheritedLine){for(const field of ['originalBudget','selectedBaseline','baselineLineage','source','nature','identifier','accountRole','isDebt','intercompany','noncontrollable','placement','category','mappingValid','driverIds','driverSources','disposition','legitimateBlank','isBlank','sourceScopeExclusionConfirmed','workbookSourceAmount','workbookSourceDisposition','workbookSource'])if(Object.hasOwn(inheritedLine,field))row[field]=clone(inheritedLine[field]);row.source=clone(inheritedLine.source||null);}
    const importedMappings=[scenario.importMapping,...(scenario.importHistory||[]).map(entry=>entry.mapping)].filter(Boolean),reviewedAbsence=importedMappings.filter(review=>review.periods?.includes(period)).flatMap(review=>review.accountMappings||[]).find(item=>item.accountCode===accountCode&&item.baselineDisposition?.kind==='no_original_budget_row'&&item.baselineDisposition.confirmed===true)?.baselineDisposition;
    if(originalBudget===null&&!originalBudgets.has(key)&&(reviewedAbsence||budget?.baselineDisposition?.kind==='no_original_budget_row'))row.baselineDisposition=clone(reviewedAbsence||budget.baselineDisposition);
    if(originalBudget===null&&!originalBudgets.has(key)&&!row.baselineDisposition){const savedStream=scenario.strStreams?.find(stream=>stream.type==='saved_json_monthly_programme'),receipt=input.savedStrSourceReceipts?.find(item=>item.source_receipt_id===savedStream?.sourceReceiptId&&item.status==='approved'),cell=receipt?.review?.cells?.find(item=>item.period===period&&item.accountCode===accountCode&&item.parentDisposition==='no_parent_publication_row');if(cell&&!budgets.has(key))row.baselineDisposition={kind:'no_original_budget_row',confirmed:true,reviewedBy:receipt.actor_id,reviewedAt:receipt.review.reviewedAt,reason:receipt.review.reason,originalBudgetVersionIds:clone(baseline.versionIds||[]),parentDisposition:'no_parent_publication_row',sourceReceiptId:receipt.source_receipt_id};}
+   if(reviewedWorkbookSourcePolicy(scenario.importMapping)&&scenario.importMapping.periods.includes(period)&&row.sourceKind==='forecast'&&!row.retired){
+    const sourceCell=workbookBases.get(key);row.forecast=sourceCell?.amount??null;row.legitimateBlank=sourceCell?.disposition==='workbook_blank';row.disposition=sourceCell?.disposition||'source_absent';row.sourceScopeExclusionConfirmed=sourceCell?.sourceScopeExclusionConfirmed===true;
+   }
    lines.push(row);byKey.set(key,row);
   }
  }
@@ -194,11 +296,14 @@ function computeReforecastBeforeNoncash(input){
   const row=byKey.get(compound(override.period,String(override.accountCode)));
   if(!row){issue('invalid_override','The override does not reference a reporting account and period.',{period:override.period,accountCode:override.accountCode});continue;}
   if(row.sourceKind!=='forecast'||row.retired){issue('protected_override','The override was not applied to a closed or non-applicable period.',{period:override.period,accountCode:override.accountCode},'advisory');continue;}
+  if(workbookBound(override,scenario))continue;
   row.forecast=(override.sourceLineId||override.source?.sourceKind==='saved_json_monthly_programme')&&finite(override.amount)?override.amount:money(override.amount);row.driverIds.push('override-'+index);row.driverSources.push({driverId:'override-'+index,operation:'amount',value:override.amount,source:clone(override.source||null),reason:override.reason||''});
+  const retainedMapping=override.uploadId===scenario.uploadId?scenario.importMapping:(scenario.importHistory||[]).find(entry=>entry.uploadId===override.uploadId&&entry.mapping)?.mapping;
+  if(retainedWorkbookBlank(override,retainedMapping)){row.legitimateBlank=true;row.disposition='workbook_blank';row.isBlank=true;row.source=clone(override.source);}
   if(scenario.governanceSchemaVersion===2)diagnostics.push(...planningOverrideIssues(override).map(d=>({...d,severity:'blocking'})));
   if(!override.reason)issue('override_reason','A manual override requires an adjustment reason.',{period:override.period,accountCode:override.accountCode});
  }
- for(const row of lines)if(row.sourceKind==='forecast'&&row.forecast===null)issue('missing_forecast','An open-period original budget or explicit forecast amount is required.',{period:row.period,accountCode:row.accountCode});
+ for(const row of lines)if(row.sourceKind==='forecast'&&row.forecast===null&&!confirmedForecastBlank(row,'forecast')&&!excludedForecastScope(row,'forecast'))issue('missing_forecast','An open-period original budget or explicit forecast amount is required.',{period:row.period,accountCode:row.accountCode});
  for(const row of lines){const forecastVariance=varianceFavorability({value:row.forecast,baseline:row.selectedBaseline,nature:row.identifier||row.nature}),actualVariance=varianceFavorability({value:row.actual,baseline:row.immutable?row.forecast:row.selectedBaseline,nature:row.identifier||row.nature});row.forecastVariance=forecastVariance.variance;row.forecastFavorability=forecastVariance.favorability;row.actualVariance=actualVariance.variance;row.actualFavorability=actualVariance.favorability;}
  const monthly=periods.map(period=>{
   const rows=lines.filter(row=>row.period===period),isClosed=Boolean(cutoff&&period<=cutoff&&!notApplicable.has(period));
@@ -212,7 +317,7 @@ function computeReforecastBeforeNoncash(input){
  });
  const budgetLeasing=new Map((baseline.leasing||[]).map(row=>[row.period,row])),actualLeasing=new Map((actuals.leasing||[]).map(row=>[row.period,row]));
  const leasing=periods.map(period=>{const isClosed=Boolean(cutoff&&period<=cutoff&&!notApplicable.has(period)),source=isClosed?actualLeasing.get(period):budgetLeasing.get(period);const row={period,sourceKind:notApplicable.has(period)?'not_applicable':isClosed?'closed_actual':'forecast',units:amount(source?.units),occupiedUnits:amount(source?.occupiedUnits),moveIns:amount(source?.moveIns),moveOuts:amount(source?.moveOuts),marketRent:amount(source?.marketRent),source:source?.source||null};for(const driver of scenario.drivers||[])if(!isClosed&&!notApplicable.has(period)&&driver.operation==='occupancy_vacancy'&&(!driver.periods||driver.periods.includes(period))&&finite(driver.value)&&finite(row.units)&&lines.some(line=>line.period===period&&line.mappingValid&&!line.retired&&finite(line.forecast)&&line.driverIds.includes(driver.id||`driver-${(scenario.drivers||[]).indexOf(driver)+1}`)))row.occupiedUnits=row.units*driver.value;row.occupancy=finite(row.units)&&row.units>0&&finite(row.occupiedUnits)?row.occupiedUnits/row.units:null;return row;});
- const categories=[...new Set(lines.map(row=>row.category))].filter(Boolean).sort().map(category=>({category,monthly:periods.map(period=>{const rows=lines.filter(row=>row.period===period&&row.category===category);return {period,originalBudget:strictSum(rows.filter(row=>!(row.originalBudget===null&&row.baselineDisposition?.kind==='no_original_budget_row')).map(row=>row.originalBudget)),forecast:strictSum(rows.map(row=>row.forecast)),actual:cutoff&&period<=cutoff?strictSum(rows.map(row=>row.actual)):null};})}));
+ const categories=[...new Set(lines.map(row=>row.category))].filter(Boolean).sort().map(category=>({category,monthly:periods.map(period=>{const rows=lines.filter(row=>row.period===period&&row.category===category);return {period,originalBudget:strictSum(rows.filter(row=>!(row.originalBudget===null&&row.baselineDisposition?.kind==='no_original_budget_row')).map(row=>row.originalBudget)),forecast:strictSum(rows.filter(row=>!confirmedForecastBlank(row,'forecast')&&!excludedForecastScope(row,'forecast')).map(row=>row.forecast)),actual:cutoff&&period<=cutoff?strictSum(rows.map(row=>row.actual)):null};})}));
  const identity={engineVersion:ENGINE_VERSION,communityId,periods,baselineVersionId:baseline.versionId||null,baselineVersionIds:baseline.versionIds||[],baselineSourceType:baseline.sourceType||'original_budget',baselinePeriodVersions:clone(baseline.periodVersions||[]),priorPublicationIds:[...new Set((baseline.periodVersions||[]).map(row=>row.publicationId).filter(Boolean))],lockedPeriods:[...lockedPeriods].sort(),sourceHashes:clone(input.sourceHashes||[]),actualCloseVersions:(actuals.closeVersions||[]).filter(row=>periods.includes(row.period)).slice().sort((a,b)=>a.period.localeCompare(b.period)),actualCutoff:cutoff,reforecastVersion:scenario.versionId,driverVersion:scenario.driverVersion,mappingRegistryVersion:registry.version};
  const totalMetrics=(kind,selected=monthly.filter(row=>row.applicable))=>{const result=Object.fromEntries(Object.keys(emptyMetrics()).map(key=>[key,strictSum(selected.map(row=>row[kind][key]))]));result.margin=finite(result.revenue)&&result.revenue!==0&&finite(result.noi)?result.noi/result.revenue:null;return result;};
  const totals={originalBudget:totalMetrics('originalBudget',monthly),...(baseline.sourceType?{selectedBaseline:totalMetrics('selectedBaseline',monthly)}:{}),reforecast:totalMetrics('reforecast'),actuals:monthly.filter(row=>row.applicable).every(row=>row.closed)?totalMetrics('actuals'):emptyMetrics(),actualsThroughCutoff:monthly.some(row=>row.closed)?totalMetrics('actuals',monthly.filter(row=>row.closed)):emptyMetrics()};

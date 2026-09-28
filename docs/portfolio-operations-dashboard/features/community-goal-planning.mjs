@@ -1,5 +1,5 @@
-import {readFinance,financeAccessKey} from './canonical-finance.mjs?v=b15cbd051f547970';
-import {readActive} from './reforecast-store.mjs?v=89302fd431288798';
+import {readFinance,financeAccessKey} from './canonical-finance.mjs?v=20e703f375677104';
+import {readActive} from './reforecast-store.mjs?v=0723c58881a1ac21';
 import {readOccupancySourceEvidence} from './occupancy-source-evidence.mjs?v=012daa540aac0f2c';
 import {recommendOccupancyGoals,applyOccupancyRecommendation} from './occupancy-goal-recommendations.mjs?v=a4ee2c9ccf3c92a8';
 import {sha256,canonicalJson} from './financial-snapshot.mjs?v=848d058bdec07b4e';
@@ -80,7 +80,11 @@ export function installCommunityGoalPlanning({host=window,getImportState=()=>nul
   if(model.goalPlanning&&field==='applications_mtd'&&!finite(model.plan.currentAppNeed)||model.goalPlanning&&field==='net_leases_mtd'&&!finite(model.plan.currentMoveInNeed))tone='info';
   return originalKpi.call(this,model,field,label,value,formatter,sub,tone,tabIdx);
  };
- if(typeof originalTrend==='function')host.getCommunityCommandTrendPoints=function(model){return originalTrend.call(this,model).map(row=>row.idx===model.monthIdx&&model.goalPlanning?{...row,leased:model.goalPlanning.actualLeasedPct,budget:model.goalPlanning.budgetPct}:row);};
+ if(typeof originalTrend==='function')host.getCommunityCommandTrendPoints=function(model){return originalTrend.call(this,model).map(row=>{
+  if(row.idx<model.monthIdx)return row;
+  const recommendation=evidence(model,row.idx),budget=recommendation.budgetPct;
+  return {...row,budget,variance:finite(budget)&&finite(row.physical)?row.physical-budget:null,...(row.idx===model.monthIdx?{leased:recommendation.actualLeasedPct}:{})};
+ });};
  if(typeof originalAlerts==='function')host.buildCommunityCommandAlerts=function(model){return originalAlerts.call(this,model).filter(row=>!model.goalPlanning||!(row.id==='lease_pace_risk'&&!finite(model.plan.currentGrossLeaseNeed)||row.id==='traffic_volume_watch'&&!finite(model.plan.currentGuestCardNeed)));};
  host.buildCommunityCommandLeasingPlanRows=function(model){return originalRows.call(this,model).map((row,idx)=>idx<model.monthIdx?row:applyOccupancyRecommendation(row,evidence(model,idx)));};
  host.renderCommunityCommandLeasingPlan=function(model){

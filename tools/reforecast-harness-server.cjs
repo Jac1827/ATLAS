@@ -21,13 +21,16 @@ const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),
  await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20260925020220_reforecast_import_source_relationships.sql'),'utf8'));
  await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20260925020224_reforecast_bounded_request_timeouts.sql'),'utf8'));
  await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20260925020226_reforecast_import_source_occurrence_index.sql'),'utf8'));
- if(process.env.ATLAS_GOVERNED_WORKFLOW_TEST==='1'){
+ if(process.env.ATLAS_GOVERNED_WORKFLOW_TEST==='1'||process.env.ATLAS_WORKBOOK_BLANK_TEST==='1'){
   await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20260925071533_reforecast_request_identity_consistency.sql'),'utf8'));
   await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20260925162050_budget_governed_draft_investor_lifecycle.sql'),'utf8'));
  }
  // Verified community settings are required by intake and setup in every UI fixture.
  await db.exec(`create function atlas_private.budget_calendar(cid uuid) returns jsonb language sql as $$select '{"verified":true,"basis":"calendar","classification":"Multifamily","startMonth":1,"source":"Synthetic fixture community settings"}'::jsonb$$;
   create function atlas_read_budget_calendar(p_community_id uuid) returns jsonb language sql security definer set search_path=public as $$select atlas_private.budget_calendar(p_community_id) where atlas_can_access_community(p_community_id)$$;grant execute on function atlas_read_budget_calendar(uuid) to authenticated;`);
+ if(process.env.ATLAS_WORKBOOK_BLANK_TEST==='1'){
+  for(const file of ['20260925020222_reforecast_saved_json_str_programme.sql','20260928141143_reviewed_noncash_forecast_presentation.sql','20260928142628_indexed_import_validation_evidence.sql','20260928144620_bounded_reforecast_validation_memory.sql','20260928210158_verified_workbook_blank_forecast_semantics.sql'])await db.exec(fs.readFileSync(path.join(root,'supabase/migrations',file),'utf8'));
+ }
  await signIn(1);
  const accounts=[['5120','Rent','income','above_noi'],['5220','Vacancy','contra_income','above_noi'],['6100','Payroll','expense','above_noi'],['6200','Utilities','expense','above_noi'],['8100','Capital','capital','below_noi']].map(([accountCode,category,nature,placement])=>({accountCode,category,nature,placement,effectiveFrom:'2026-01'}));
  if(process.env.ATLAS_FIXTURE_SKIP_REGISTRY!=='1')await db.query('select atlas_save_reforecast_registry($1,null,gen_random_uuid(),$2)',[A,JSON.stringify({accounts,driverMappings:{},reason:'Synthetic browser mapping review',effectiveDate:'2026-01-01'})]);

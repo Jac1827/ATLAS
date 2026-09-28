@@ -1,12 +1,12 @@
 import {budgetYearPeriods} from './community-budget-identity.mjs?v=8f9f97a61a90cd4b';
-import {savedStrProgrammeHtml} from './reforecast-str-saved-programme-ui.mjs?v=0214d4e005c2ed46';
+import {savedStrProgrammeHtml} from './reforecast-str-saved-programme-ui.mjs?v=f1f8299bcea6fe28';
 /* Guided forecast setup and reviewed source inputs. Authoritative writes use reforecast RPCs. */
-import * as store from './reforecast-store.mjs?v=89302fd431288798';
-import {readUtilityRecommendations,utilityRecoveryRows} from './reforecast-utility.mjs?v=8a5c02eac055a396';
-import {defaultForecastPeriods,validateForecastPeriods} from './reforecast-engine.mjs?v=fbc60bc50d89f5ee';
-import {assertRiseOverlay,riseReviewScope} from './reforecast-str-overlay.mjs?v=4dd09c523f87a9ce';
-import {esc,money,finite} from './reforecast-report.mjs?v=46c2b39fb807dfdc';
-import {calculateStrLeasingSchedule,mappedProviderStatement,inspectProviderStatement,providerStatementPublicSummary,recommendStrStatementBehavior,calculateContractDriver,createContractOverride} from './reforecast-provider.mjs?v=4dde3e1809c4ceab';
+import * as store from './reforecast-store.mjs?v=0723c58881a1ac21';
+import {readUtilityRecommendations,utilityRecoveryRows} from './reforecast-utility.mjs?v=c330f04b723efcde';
+import {defaultForecastPeriods,validateForecastPeriods} from './reforecast-engine.mjs?v=01a3484ea138f6e9';
+import {assertRiseOverlay,riseReviewScope} from './reforecast-str-overlay.mjs?v=5300c10a55542336';
+import {esc,money,finite} from './reforecast-report.mjs?v=220f71276fb7e363';
+import {calculateStrLeasingSchedule,mappedProviderStatement,inspectProviderStatement,providerStatementPublicSummary,recommendStrStatementBehavior,calculateContractDriver,createContractOverride} from './reforecast-provider.mjs?v=48587a62eec1890b';
 
 const uuid=()=>crypto.randomUUID();
 const clone=value=>structuredClone(value);
@@ -174,7 +174,7 @@ export async function sourceDialog(s,{dialog,render,mark}){
     if(epoch!==inspectionEpoch||!el.isConnected)return;
     body.querySelector('[data-source-preview]').innerHTML=`<h3>Reconciliation review</h3><pre>${esc(JSON.stringify(providerStatementPublicSummary(statement),null,2))}</pre>`;
    }else{
-    const {encodeOriginalWorkbook}=await import('./reforecast-intake.mjs?v=87e68da483f77228');
+    const {encodeOriginalWorkbook}=await import('./reforecast-intake.mjs?v=b0fa5b5fe892d268');
     const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(value=>value.toString(16).padStart(2,'0')).join(''),contract=sourceType==='contract'?Object.fromEntries([...body.querySelectorAll('[data-contract]')].map(input=>[input.dataset.contract,input.type==='number'?optionalNumber(input.value):input.value||null])):null;
     nextCandidate={sourceType,source:{...metadata,fileName:file.name,sha256:hash,originalFile:encodeOriginalWorkbook(bytes)},propertyAssignment:{communityId:s.cid,confirmed:true},summary:{periods:[period]},contract,reviewState:'needs_review'};
     if(['rise_str','monthly_property_statement'].includes(sourceType)){

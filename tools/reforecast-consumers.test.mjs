@@ -51,3 +51,33 @@ const switchingCentral={getSession:()=>({user:{id:actor}}),fetchJson:async()=>{d
 await mountActiveBenchmark(lateContainer,{central:switchingCentral,communityId:A,period:'2026-01',cache:{refresh:async()=>[observedPublication]}});
 assert.equal(deliveryCalls,1);assert(!lateContainer.innerHTML.includes('780.00'),'late receipt cannot render old-session financial values');
 console.log('PASS dashboard prevents stale-session rendering after delivery readback');
+
+const {effectiveBaselineMetric}=await import('../docs/portfolio-operations-dashboard/features/reforecast-consumers.mjs');
+const nullEnvelope={...baselineRows[1],lines:[
+ {accountCode:'5120',nature:'income',placement:'above_noi',amount:1000.005},
+ {accountCode:'6100',nature:'expense',placement:'above_noi',amount:200},
+ {accountCode:'6200',nature:'expense',placement:'above_noi',amount:null,disposition:'workbook_blank',legitimateBlank:true},
+ {accountCode:'6300',nature:'expense',placement:'above_noi',amount:null,disposition:'outside_forecast_scope',sourceScopeExclusionConfirmed:true},
+ {accountCode:'6400',nature:'expense',placement:'above_noi',amount:0}
+]},nullBefore=JSON.stringify(nullEnvelope),nullBaseline=resolveEffectiveBaseline([nullEnvelope],{communityId:A,period:'2026-02'});
+assert.equal(nullBaseline.status,'available');assert.equal(nullBaseline.lines[2].amount,null);assert.equal(nullBaseline.lines[3].amount,null);
+assert.equal(effectiveBaselineMetric(nullBaseline,'revenue'),1000.01);assert.equal(effectiveBaselineMetric(nullBaseline,'expenses'),200);assert.equal(effectiveBaselineMetric(nullBaseline,'noi'),800.01);
+assert.equal(effectiveBaselineMetric(nullBaseline,'expenses',{accountCodes:['6200']}),null,'A retained blank is not a zero GL budget');
+assert.equal(effectiveBaselineMetric(nullBaseline,'expenses',{accountCodes:['6300']}),null,'Out-of-scope is not a zero GL budget');
+assert.equal(effectiveBaselineMetric(nullBaseline,'expenses',{accountCodes:['6400']}),0,'An explicit numeric zero stays zero');
+assert.equal(effectiveBaselineMetric(nullBaseline,'expenses',{accountCodes:['6100','6200']}),200);
+for(const patch of [{disposition:'missing',legitimateBlank:true},{disposition:'workbook_blank',legitimateBlank:false},{disposition:'outside_forecast_scope',sourceScopeExclusionConfirmed:false}]){
+ const bad={...nullEnvelope,lines:[{...nullEnvelope.lines[2],...patch}]};
+ assert.equal(resolveEffectiveBaseline([bad],{communityId:A,period:'2026-02'}).reason,'missing_baseline_amount');
+ assert.equal(effectiveBaselineMetric(bad,'expenses'),null);
+}
+assert.equal(resolveEffectiveBaseline([{...nullEnvelope,sourceType:'original_budget'}],{communityId:A,period:'2026-02'}).reason,'missing_baseline_amount');
+assert.equal(resolveEffectiveBaseline([{...nullEnvelope,verified:false}],{communityId:A,period:'2026-02'}).reason,'unverified_baseline');
+assert.equal(composeBonusQuarter({...bonusInput,baselines:baselineRows.map(row=>row.period==='2026-02'?{...row,lines:[{...row.lines[0],amount:null,disposition:'workbook_blank',legitimateBlank:true}]}:row)}).reason,'missing_bonus_baseline_amount','Blank forecast cannot silently create a zero bonus target');
+assert.equal(JSON.stringify(nullEnvelope),nullBefore);assert(Object.isFrozen(nullBaseline.lines));
+console.log('PASS verified workbook nulls preserve available aggregate baseline and raw null detail, strict unknown/original null rejection, decimal sums, and numeric-only bonus targets');
+
+for(const patch of [{verified:false},{approved:false},{locked:false},{stale:true},{reopened:true},{reconciled:false},{versionId:null},{publicationId:null},{contentHash:null}])assert.equal(effectiveBaselineMetric({...nullBaseline,...patch},'expenses'),null,'Direct metric callers cannot bypass publication verification');
+const decimalBaseline={...nullBaseline,lines:nullBaseline.lines.map(row=>row.accountCode==='6100'?{...row,amount:200.004}:row)};
+assert.equal(effectiveBaselineMetric(decimalBaseline,'noi'),800.01,'Known-value consumer totals use rounded revenue less rounded expense, exactly like the immutable report');
+console.log('PASS direct null metrics require verified publication identity and immutable staged-rounding parity');

@@ -1,5 +1,6 @@
 import {auditWorkbook} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
 import {validatePlanningCalendar, classifyPlanningCells, reviewPlanningIntegrity} from './planning-governance.mjs?v=a4de8d3f5a50966c';
+import {sourceRowExclusionIssues,reviewedWorkbookSourcePolicy,explicitWorkbookBlankSource} from './reforecast-workbook-source-policy.mjs?v=be424108c7ddcacc';
 /* Workbook evidence only. Formulas are retained, never executed or promoted to actuals. */
 export const REFORECAST_PARSER_VERSION = 'atlas-reforecast-xlsx/3';
 export const REFORECAST_EVIDENCE_SCHEMA = 2;
@@ -328,7 +329,7 @@ export function validateReforecastPropertyAssignment(assignment,authorizedCommun
  return {valid:issues.length===0,issues};
 }
 export function mapReforecastIntake(evidence,mapping,{authorizedCommunityIds=[],cutoffPeriod,noClosedPeriodsConfirmed=false}={}) {
- const property=validateReforecastPropertyAssignment(mapping?.propertyAssignment,authorizedCommunityIds),issues=[...property.issues,...validatePlanningCalendar(mapping?.calendar,mapping?.periods,mapping?.sourceScenario),...reviewPlanningIntegrity(evidence,mapping)],lines=[];
+ const property=validateReforecastPropertyAssignment(mapping?.propertyAssignment,authorizedCommunityIds),issues=[...property.issues,...validatePlanningCalendar(mapping?.calendar,mapping?.periods,mapping?.sourceScenario),...reviewPlanningIntegrity(evidence,mapping),...sourceRowExclusionIssues(evidence,mapping,{cutoffPeriod})],lines=[];
  if(!text(mapping?.version))issues.push(issue('mapping_version_required','Select an effective, reviewed GL mapping version.',{},'error'));
  if(!text(mapping?.sourceScenario))issues.push(issue('scenario_selection_required','Select the exact source scenario. ATLAS will not guess among Actual, Plan and budget columns.',{},'error'));
  if(!/^[A-Z]{3}$/.test(mapping?.currency||''))issues.push(issue('currency_mapping_required','Select an ISO reporting currency.',{},'error'));
@@ -347,15 +348,16 @@ export function mapReforecastIntake(evidence,mapping,{authorizedCommunityIds=[],
   if(matches.length!==1){issues.push(issue(matches.length?'ambiguous_gl_mapping':'missing_gl_mapping',matches.length?'Multiple mappings match the source account.':'No reviewed GL mapping matches the source account.',{sourceLineId:source.id,accountCode:source.accountCode},'error'));continue;}
   const account=matches[0];
   if(!text(account.accountCode)||!text(account.category)||!NATURES.has(account.nature)||!['above_noi','below_noi'].includes(account.placement)||![1,-1].includes(account.signMultiplier)){issues.push(issue('incomplete_gl_mapping','Account code, category, nature, statement placement and explicit sign multiplier are required.',{accountCode:source.accountCode},'error'));continue;}
-  if(source.amount===null||!Number.isFinite(source.amount)||source.cellType==='e'||(source.formula&&(source.cachedValue===null||source.cachedValue===''))){issues.push(issue('missing_mapped_value','A selected forecast GL amount is unavailable. Correct the source or explicitly provide an audited forecast input.',{sourceLineId:source.id,period:source.period},'error'));continue;}
+  const workbookBlank=reviewedWorkbookSourcePolicy(mapping)&&explicitWorkbookBlankSource(source);
+  if(!workbookBlank&&(source.amount===null||!Number.isFinite(source.amount)||source.cellType==='e'||(source.formula&&(source.cachedValue===null||source.cachedValue==='')))){issues.push(issue('missing_mapped_value','A selected forecast GL amount is unavailable. Correct the source or explicitly review preservation of a verified workbook blank.',{sourceLineId:source.id,period:source.period},'error'));continue;}
   const sourceProblems=(evidence.issues||[]).filter(problem=>problem.sheet===source.sheet&&problem.address===source.address&&['excel_error','broken_formula_reference','external_formula_reference','missing_formula_sheet','broken_named_formula_reference'].includes(problem.code));
   if(sourceProblems.length){issues.push(issue('untrusted_formula_result','The selected value depends on a broken or external formula. Repair the source before using its cached result.',{sourceLineId:source.id,problems:sourceProblems.map(problem=>problem.code)},'error'));continue;}
   if((evidence.reconciliation||[]).some(check=>check.sheet===source.sheet&&check.row===source.row&&check.periods.includes(source.period)&&check.status==='mismatch')){issues.push(issue('source_reconciliation_failed','The selected source row has a monthly-to-annual reconciliation mismatch.',{sourceLineId:source.id,period:source.period},'error'));continue;}
   if(!source.sheet||!ADDRESS.test(source.address||'')||source.id!==`${source.sheet}!${source.address}`){issues.push(issue('source_coordinates_required','Each mapped cell requires exact source worksheet and coordinates.',{sourceLineId:source.id},'error'));continue;}
-  const amount=source.amount*account.signMultiplier;
+  const amount=workbookBlank?null:source.amount*account.signMultiplier;
   if((account.nature==='contra_income'&&amount>0)||(['income','expense','capital','debt'].includes(account.nature)&&amount<0))issues.push(issue('sign_review_required','The mapped amount does not match the approved sign convention. Review the sign mapping or explicitly authorize a reversal.',{sourceLineId:source.id,amount,nature:account.nature},account.allowReversal?'warning':'error'));
   const line={period:source.period,accountCode:account.accountCode,amount,category:account.category,nature:account.nature,placement:account.placement,department:source.department,
-   communityId:mapping?.propertyAssignment?.communityId,currency:mapping.currency,sourceLineId:source.id,sourceHash:evidence.source.sha256,sourceScenario:source.scenario,mappingVersion:mapping.version,sourceCoordinates:{sheet:source.sheet,address:source.address,row:source.row,column:source.column},signMultiplier:account.signMultiplier};
+   communityId:mapping?.propertyAssignment?.communityId,currency:mapping.currency,sourceLineId:source.id,sourceHash:evidence.source.sha256,sourceScenario:source.scenario,mappingVersion:mapping.version,sourceCoordinates:{sheet:source.sheet,address:source.address,row:source.row,column:source.column},signMultiplier:account.signMultiplier,...(workbookBlank?{sourceAmount:null,disposition:'workbook_blank',isBlank:true,legitimateBlank:true}:{})};
   const key=JSON.stringify([line.period,line.accountCode,line.department]);
   if(seen.has(key)){issues.push(issue('duplicate_mapped_line','The same mapped GL and month has more than one source row. Select source rows or approve a separate aggregation.',{sourceLineIds:[seen.get(key),source.id],period:line.period,accountCode:line.accountCode},'error'));continue;}
   seen.set(key,source.id);lines.push(line);

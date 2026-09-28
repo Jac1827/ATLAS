@@ -1,7 +1,8 @@
-import {aggregateForecastLines,NONCASH_METRIC_KEYS} from './reforecast-engine.mjs?v=fbc60bc50d89f5ee';
+import {confirmedForecastBlank,excludedForecastScope} from './reforecast-workbook-source-policy.mjs?v=be424108c7ddcacc';
+import {aggregateForecastLines,NONCASH_METRIC_KEYS} from './reforecast-engine.mjs?v=01a3484ea138f6e9';
 import {acknowledgeBudgetConsumer} from './budget-consumer-delivery.mjs?v=f5342574d4b39aa2';
-import {readActive,effectiveActiveSnapshot} from './reforecast-store.mjs?v=89302fd431288798';
-import {esc,money,reportHtml,exportRows,csv,download} from './reforecast-report.mjs?v=46c2b39fb807dfdc';
+import {readActive,effectiveActiveSnapshot} from './reforecast-store.mjs?v=0723c58881a1ac21';
+import {esc,money,reportHtml,exportRows,csv,download} from './reforecast-report.mjs?v=220f71276fb7e363';
 const finitePercent=value=>typeof value==='number'&&Number.isFinite(value)?(value*100).toFixed(2)+'%':'Unavailable';
 // One publication reader shared by operating screens, plan/report evidence and Scout.
 export function createActiveReforecastCache(central){
@@ -35,6 +36,10 @@ export async function mountActiveBenchmark(container,{central,communityId,commun
 export function scoutForecastEvidence(publication,period){const evidence=activeBenchmark(publication,period);return evidence?{...evidence,authority:'locked_published_reforecast',instruction:'Compare this operating benchmark separately from the immutable original budget and governed actuals.'}:null;}
 
 const finiteAmount=value=>typeof value==='number'&&Number.isFinite(value);
+// Only a verified approved forecast can carry these server-proven null dispositions.
+const verifiedForecastBaseline=baseline=>baseline.sourceType==='approved_reforecast'&&baseline.verified===true&&baseline.approved===true&&baseline.locked===true&&!baseline.stale&&!baseline.reopened&&baseline.reconciled!==false&&Boolean(baseline.versionId&&baseline.contentHash&&baseline.publicationId);
+const retainedForecastNull=(baseline,line)=>verifiedForecastBaseline(baseline)&&(confirmedForecastBlank(line,'amount')||excludedForecastScope(line,'amount'));
+const validBaselineAmount=(baseline,line)=>finiteAmount(line.amount)||retainedForecastNull(baseline,line);
 const fullMonth=/^20\d{2}-(0[1-9]|1[0-2])$/;
 const frozenCopy=value=>{const copy=structuredClone(value);const freeze=value=>{if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value);}return value;};return freeze(copy);};
 export function resolveEffectiveBaseline(envelopes,{communityId,period,accountCodes=null}={}){
@@ -49,7 +54,7 @@ export function resolveEffectiveBaseline(envelopes,{communityId,period,accountCo
  const seen=new Set();
  for(const line of row.lines){if(!line.accountCode||seen.has(line.accountCode)||line.period&&line.period!==period||line.communityId&&line.communityId!==communityId)return unavailable('invalid_baseline_detail');seen.add(line.accountCode);}
  const selected=accountCodes?row.lines.filter(line=>accountCodes.includes(line.accountCode)):row.lines;
- if(accountCodes?.some(code=>!seen.has(code))||selected.some(line=>!finiteAmount(line.amount)))return unavailable('missing_baseline_amount');
+ if(accountCodes?.some(code=>!seen.has(code))||selected.some(line=>!validBaselineAmount(row,line)))return unavailable('missing_baseline_amount');
  return frozenCopy({...row,lines:selected});
 }
 export async function readEffectiveBaselines(central,{communityIds,periods}={}){
@@ -64,12 +69,19 @@ export async function readEffectiveBaselines(central,{communityIds,periods}={}){
 }
 export function effectiveBaselineMetric(baseline,metric,{accountCodes=null}={}){
  if(baseline?.status!=='available')return null;
+ const selected=baseline.lines.filter(row=>!accountCodes||accountCodes.includes(row.accountCode));
+ if(accountCodes?.some(code=>!selected.some(row=>row.accountCode===code))||selected.some(row=>!validBaselineAmount(baseline,row))||accountCodes&&selected.length&&!selected.some(row=>finiteAmount(row.amount)))return null;
+ // Workbook-policy vintages use the same staged money aggregation as their immutable report.
+ if(baseline.lines.some(row=>retainedForecastNull(baseline,row)||Object.hasOwn(row,'workbookSourceAmount'))){
+  if(!verifiedForecastBaseline(baseline))return null;
+  return aggregateForecastLines(selected.map(row=>({...row,mappingValid:row.mappingValid!==false&&Boolean(row.nature&&row.placement)})),'amount')[metric==='opex'?'expenses':metric]??null;
+ }
  if(NONCASH_METRIC_KEYS.includes(metric)){const rows=baseline.lines.filter(row=>!accountCodes||accountCodes.includes(row.accountCode));if(accountCodes?.some(code=>!rows.some(row=>row.accountCode===code)))return null;return aggregateForecastLines(rows.map(row=>({...row,mappingValid:row.mappingValid!==false&&Boolean(row.nature&&row.placement)})),'amount')[metric]??null;}
  const factors={revenue:row=>['income','contra_income'].includes(row.nature)&&row.placement==='above_noi'?1:0,expenses:row=>row.nature==='expense'&&row.placement==='above_noi'?1:0,capital:row=>row.nature==='capital'?1:0,debt:row=>row.nature==='debt'||row.accountRole==='debt'?1:0,noi:row=>row.placement==='above_noi'?['income','contra_income'].includes(row.nature)?1:row.nature==='expense'?-1:0:0,cashFlow:row=>['income','contra_income'].includes(row.nature)?1:['expense','capital','debt','below_noi'].includes(row.nature)?-1:0};
  if(metric==='margin'){const revenue=effectiveBaselineMetric(baseline,'revenue',{accountCodes}),noi=effectiveBaselineMetric(baseline,'noi',{accountCodes});return revenue&&noi!==null?noi/revenue:null;}
  const factor=factors[metric==='opex'?'expenses':metric];if(!factor)return null;
  const rows=baseline.lines.filter(row=>!accountCodes||accountCodes.includes(row.accountCode));
- if(accountCodes?.some(code=>!rows.some(row=>row.accountCode===code))||rows.some(row=>!row.nature||!row.placement||!finiteAmount(row.amount)))return null;
+ if(accountCodes?.some(code=>!rows.some(row=>row.accountCode===code))||rows.some(row=>!row.nature||!row.placement||!validBaselineAmount(baseline,row)))return null;
  return Math.round(rows.reduce((total,row)=>total+row.amount*factor(row),0)*100)/100;
 }
 // Paid/locked month evidence is supplied by the governed bonus ledger and is never recalculated here.
@@ -84,6 +96,7 @@ export function composeBonusQuarter({communityId,periods,baselines=[],actuals=[]
   const retained=retainedResults.filter(row=>row.communityId===communityId&&row.period===period&&row.employeeId===assignment.employeeId&&row.planId===plan.id&&(row.paid===true||row.locked===true));
   if(retained.length){if(retained.length!==1||retained[0].verified!==true||!retained[0].calculationVersion||!retained[0].baselineEvidence||!retained[0].actualCloseVersionId)return unavailable('invalid_retained_bonus_evidence');months.push(frozenCopy(retained[0]));continue;}
   const baseline=resolveEffectiveBaseline(baselines,{communityId,period,accountCodes:plan.accountCodes});if(baseline.status!=='available')return unavailable(baseline.reason);
+  if(baseline.lines.some(row=>!finiteAmount(row.amount)))return unavailable('missing_bonus_baseline_amount');
   const candidates=actuals.filter(row=>row.communityId===communityId&&row.period===period);
   if(candidates.length!==1)return unavailable('missing_or_ambiguous_governed_actuals');const actual=candidates[0];
   if(actual.status!=='closed'||actual.fullMonth!==true||!actual.verified||!actual.versionId||!actual.contentHash||actual.stale||actual.reopened)return unavailable('unverified_closed_actuals');

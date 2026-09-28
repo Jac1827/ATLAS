@@ -37,6 +37,24 @@ export function verifyImportReadback(result,{communityId,scenarioId,requestId,up
 export async function readImportReceipt(central,{communityId,requestId}){
  scope(communityId);request(requestId);return rpc(central,'atlas_read_reforecast_import_receipt',{p_community_id:communityId,p_request_id:requestId});
 }
+// Compact only a newly reviewed update request. Retained requests are replayed
+// byte-for-byte; immutable prior revisions and receipts remain the audit source.
+export function projectImportUpdatePayload(payload,{uploadId,mapping,expectedLines}){
+ request(uploadId);
+ if(!payload||typeof payload!=='object'||Array.isArray(payload)||!Array.isArray(expectedLines)||!expectedLines.length||!Array.isArray(mapping?.selectedLineIds)||mapping.selectedLineIds.length!==expectedLines.length)throw Error('Review the exact workbook cells before preparing an update.');
+ const selected=new Set(),sourceIds=new Set();
+ for(const line of expectedLines){const key=JSON.stringify([line.period,line.accountCode]);if(!period.test(line.period)||typeof line.accountCode!=='string'||!line.accountCode||!Number.isFinite(line.amount)||!mapping.selectedLineIds.includes(line.sourceLineId)||selected.has(key)||sourceIds.has(line.sourceLineId))throw Error('Review one exact source cell for each updated GL and month.');selected.add(key);sourceIds.add(line.sourceLineId);}
+ const next=structuredClone(payload),overrides=next.overrides||[];
+ if(!Array.isArray(overrides))throw Error('Working overrides must be reviewed before updating the import.');
+ const retained=overrides.filter(row=>!selected.has(JSON.stringify([row.period,row.accountCode])));
+ // The existing atomic writer replaces its selected cells and discards old
+// overrides for this upload. Never let a partial selection silently lose them.
+ if(retained.some(row=>row.uploadId===uploadId))throw Error('This workbook has retained cells outside the reviewed selection. Include those cells in the reviewed update, or choose Create New Draft to preserve the existing draft.');
+ next.overrides=retained;
+ if(next.uploadId===uploadId){delete next.importMapping;delete next.importIssues;}
+ if(Array.isArray(next.importHistory))next.importHistory=next.importHistory.filter(row=>row.uploadId!==uploadId);
+ return next;
+}
 export async function createFromImport(central,options){
  const {communityId,scenarioId,expectedRevision=0,requestId,uploadId,mapping,payload}=options;
  scope(communityId);request(scenarioId);request(requestId);request(uploadId);const actor=identity(central);

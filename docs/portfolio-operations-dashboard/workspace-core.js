@@ -48230,6 +48230,98 @@ function dataImportResolveReplayedDelinquencyExceptions(entry, result) {
   return resolved;
 }
 
+function dataImportSupersedeRentRollPeriods(plan, entry, result) {
+  const period = dataImportRowPeriod({}, {}, plan);
+  const communities = new Set((plan.selectedCommunities || []).map(dataImportNormalizeText));
+  const sourceMatches = row => row?.reportType === "rent_roll" && row.fileHash === entry.fileHash
+    && communities.has(dataImportNormalizeText(row.communityName)) && row.periodKey !== period.periodKey;
+  const stale = (dataImport2State.canonicalRecords || []).filter(sourceMatches);
+  const allLineage = (dataImport2State.lineage || []).filter(sourceMatches);
+  if (!stale.length && !allLineage.some(row => row.currentState)) return {supersededRows:0, clearedMetrics:0};
+  if (!entry.fileHash || plan.fileHash !== entry.fileHash || !period.periodKey || !communities.size
+      || !result.rowsReviewed || result.rowsHeld || result.rowsRejected) {
+    throw new Error("Rent roll period correction requires a complete, successful replay of the approved source; prior periods were retained.");
+  }
+  const scopes = new Map();
+  [...stale, ...allLineage.filter(row => row.currentState)].forEach(row => {
+    const parsed = parsePeriodKey(row.periodKey);
+    if (!parsed || (dataImport2State.closedPeriods || []).includes(row.periodKey)) {
+      throw new Error("Rent roll period correction includes a closed or unresolved period. Reopen and review that period before replaying this source.");
+    }
+    scopes.set(JSON.stringify([row.communityName,row.periodKey]), {communityName:row.communityName,periodKey:row.periodKey,...parsed});
+  });
+  const lineage = allLineage.filter(row => scopes.has(JSON.stringify([row.communityName,row.periodKey])));
+  const actor = window.ATLAS_CENTRAL?.getSession?.()?.user?.id;
+  if (!actor || !dataImportCanManageArchitecture()) throw new Error("Sign in with authorized import access before correcting retained rent roll reporting periods.");
+  // Require the same physical source row to have reached the corrected period.
+  // Ambiguous changed mappings cannot silently retire their prior evidence.
+  const correctedRows = new Set((dataImport2State.canonicalRecords || []).filter(row => row.reportType === "rent_roll"
+    && row.fileHash === entry.fileHash && row.periodKey === period.periodKey)
+    .map(row => JSON.stringify([row.communityName,row.sourceSheet,row.sourceRow])));
+  for (const row of stale) {
+    if (!Number.isInteger(row.sourceRow) || row.sourceRow <= 0
+        || !correctedRows.has(JSON.stringify([row.communityName,row.sourceSheet,row.sourceRow]))) {
+      throw new Error("A prior rent roll source row could not be verified in the corrected reporting period. Prior records remain unchanged.");
+    }
+  }
+  const changes = [], fields = {scheduledCharges:"scheduled_charges",actualCharges:"actual_charges",grossPotentialRent:"gross_potential_rent",rentRollTotal:"rent_roll_total"};
+  const currentMetrics = new Map();
+  (dataImport2State.lineage || []).filter(row => row.currentState).forEach(row => {
+    const key = JSON.stringify([row.communityName,row.periodKey,row.atlasField]);
+    const rows = currentMetrics.get(key) || [];rows.push(row);currentMetrics.set(key,rows);
+  });
+  for (const scope of scopes.values()) {
+    const record = savedData[scope.communityName];
+    const locations = [{path:"monthlyHistoryByPeriod."+scope.periodKey,month:record?.monthlyHistoryByPeriod?.[scope.periodKey]}];
+    if (scope.year === new Date().getFullYear()) locations.push({path:"monthlyData."+scope.monthIdx,month:record?.monthlyData?.[scope.monthIdx]});
+    for (const {path,month} of locations) {
+      if (!month) continue;
+      for (const [field,provenanceKey] of Object.entries(fields)) {
+        const provenance = month.metricProvenance?.[provenanceKey];
+        const metric = field === "rentRollTotal" ? provenance?.field : provenanceKey;
+        const controlling = currentMetrics.get(JSON.stringify([scope.communityName,scope.periodKey,metric])) || [];
+        const owned = controlling.filter(row => row.reportType === "rent_roll" && row.fileHash === entry.fileHash);
+        if (provenance?.source !== entry.fileHash && !owned.length) continue;
+        if (provenance?.source !== entry.fileHash || owned.length !== 1 || controlling.length !== 1
+            || !["scheduled_charges","actual_charges","gross_potential_rent"].includes(metric)
+            || Object.hasOwn(month,field) && month[field] !== null && month[field] !== owned[0].importedValue) {
+          throw new Error("Rent roll period correction found changed or ambiguous metric ownership. Review the retained source lineage before replaying; no values were changed.");
+        }
+        changes.push({communityName:scope.communityName,periodKey:scope.periodKey,path,field,provenanceKey,
+          hadValue:Object.hasOwn(month,field),before:month[field],beforeProvenance:JSON.parse(JSON.stringify(provenance)),after:null,month});
+      }
+      if (Object.hasOwn(month,"economicOccupancyPct") && changes.some(change => change.month === month && ["actualCharges","grossPotentialRent"].includes(change.field))) {
+        // A legacy cached ratio must not survive removal of its source inputs.
+        // The current definition reads only governed closed NRI / GPR; it never
+        // substitutes operational charges or invents a measured zero.
+        const governed = getCommunityCommandEconomicOccupancyData(record,scope.monthIdx,scope.year);
+        const after = typeof governed.mtdPct === "number" && Number.isFinite(governed.mtdPct) ? governed.mtdPct : null;
+        if (month.economicOccupancyPct !== after) changes.push({communityName:scope.communityName,periodKey:scope.periodKey,path,
+          field:"economicOccupancyPct",provenanceKey:"economicOccupancyPct",hadValue:true,before:month.economicOccupancyPct,
+          beforeProvenance:month.metricProvenance?.economicOccupancyPct,after,month,
+          derivation:{basis:"governed_closed_net_rental_income_over_gpr",sourceLabel:governed.sourceLabel || null}});
+      }
+    }
+  }
+  const id = dataImportMakeId("rent_roll_period_correction"), at = new Date().toISOString();
+  const reason = "Exact approved rent-roll source replay: report month supersedes lease-date attribution; unsupported old-period amounts are unavailable, not zero.";
+  const audit = {id,action:"rent_roll_reporting_period_supersession",batchId:entry.batchId,archiveId:entry.id,
+    reportType:"rent_roll",fileName:entry.fileName,fileHash:entry.fileHash,reportingPeriod:period.periodKey,
+    createdAt:at,actor,role:window.ATLAS_CENTRAL?.getStoredProfile?.()?.role || null,reason,formula:reason,
+    supersededCanonicalRecords:JSON.parse(JSON.stringify(stale)),
+    priorLineage:JSON.parse(JSON.stringify(lineage)),
+    metricChanges:changes.map(({month,...change}) => change)};
+  changes.forEach(change => {
+    if (change.hadValue) change.month[change.field] = change.after;
+    const provenance = {...change.month.metricProvenance};delete provenance[change.provenanceKey];change.month.metricProvenance = provenance;
+  });
+  const retired = new Set(stale);
+  dataImport2State.canonicalRecords = (dataImport2State.canonicalRecords || []).filter(row => !retired.has(row));
+  lineage.forEach(row => Object.assign(row,{currentState:false,supersededAt:at,supersededBy:id,supersededPeriod:period.periodKey,supersededReason:reason}));
+  dataImport2State.reconciliationLog.unshift(audit);
+  return {supersededRows:stale.length,clearedMetrics:changes.filter(row=>row.hadValue&&row.before!==null&&row.after===null).length,auditId:id};
+}
+
 async function reprocessDataImportBoxScore(archiveId) {
   if (!window.atlasCsPreviewRenewalSheetRows) await window.AtlasFeatures.load("centralServices");
   if (typeof XLSX === "undefined") await window.AtlasFeatures.load("xlsx");
@@ -48287,6 +48379,7 @@ async function reprocessDataImportBoxScore(archiveId) {
     }
     Object.assign(entry, {communities:plan.communities, metadata:plan.metadata, dataDateIso:plan.dataDateIso, dataDateLabel:plan.dataDateLabel, reportingMonthIdx:plan.reportingMonthIdx, reportingYear:plan.reportingYear, reportingPeriodLabel:plan.reportingPeriodLabel});
     dataImportFinishApprovalRuntime();
+    if (entry.reportType === "rent_roll") result.periodCorrection = dataImportSupersedeRentRollPeriods(plan, entry, result);
     entry.reprocessedAt = new Date().toISOString();
     result.mappingExceptionsResolved = dataImportResolveReplayedDelinquencyExceptions(entry, result);
     entry.reprocessResult = result;

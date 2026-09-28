@@ -10,14 +10,16 @@ const oldTypes='["box_score", "trending_occupancy", "delinquency", "leasing_resi
 const newTypes='["box_score", "trending_occupancy", "delinquency", "leasing_resident_data", "rent_roll"].includes(entry.reportType)';
 const oldIndex='<html>retained startup and storage bytes\n'+old+'\nuntouched operational footer</html>';
 const patch=(source=oldIndex,core=current,ui=archiveUi)=>patchOccupancyImportBoundary(source,core,ui);
-test('nine exact boundaries preserve all other retained operational bytes',()=>{
+test('eleven exact boundaries preserve all other retained operational bytes',()=>{
  const patched=patch();
  assert.equal(functionText(patched,'dataImportRowPeriod'),functionText(current,'dataImportRowPeriod'));
  assert(patched.includes('occupancyEvidence:'));
  assert(patched.includes('Rent roll reporting period is missing'));
+ assert.equal(functionText(patched,'dataImportSupersedeRentRollPeriods'),functionText(current,'dataImportSupersedeRentRollPeriods'));
  for(const name of ['reprocessDataImportBoxScore','renderDataImportArchiveView']){
   const pattern=new RegExp(`^(?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?^\\}`,'m');
-  assert.equal(patched.match(pattern)[0],oldIndex.match(pattern)[0].replace(oldTypes,newTypes),'Only allowlist changes in '+name);
+  const expected=oldIndex.match(pattern)[0].replace(oldTypes,newTypes).replace('    dataImportFinishApprovalRuntime();','    dataImportFinishApprovalRuntime();'+(name==='reprocessDataImportBoxScore'?'\n    if (entry.reportType === "rent_roll") result.periodCorrection = dataImportSupersedeRentRollPeriods(plan, entry, result);':''));
+  assert.equal(patched.match(pattern)[0],expected,'Only reviewed allowlist/correction call changes in '+name);
  }
  // Removing the two precise allowlist changes leaves an insertion-only patch.
  const insertionOnly=patched.replaceAll(newTypes,oldTypes);
@@ -35,4 +37,6 @@ test('changed or missing retained anchors fail closed instead of replacing opera
  assert.throws(()=>patch(oldIndex.replaceAll(oldTypes,oldTypes.replace('"box_score"','"unapproved_type"'))),/anchor changed/);
  assert.throws(()=>patch(oldIndex,current,archiveUi.replace(newTypes,oldTypes)),/replay boundary changed/);
  assert.throws(()=>patch(oldIndex,current.replace('Rent roll reporting period is missing','Ignore missing report month')),/period boundary is incomplete/);
+ assert.throws(()=>patch(oldIndex,current.replace('result.periodCorrection = dataImportSupersedeRentRollPeriods(plan, entry, result)','result.periodCorrection = skipCorrection()')),/anchors are missing or ambiguous|correction call is incomplete/);
+ assert.throws(()=>patch(oldIndex,current.replace('function dataImportSupersedeRentRollPeriods','function unreviewedCorrection')),/function missing/);
 });

@@ -9,7 +9,7 @@ const rows=entries.map(row=>workspaceRow(row,meta)),saved=rows.find(row=>row.sta
 assert.equal(saved.creatorName,'Originator');assert.equal(saved.lastEditorName,'Last Editor');assert.equal(saved.submitterName,'Submitted User');assert.equal(saved.submittedAt,'2026-09-20T10:00:00Z','history metadata never borrows a later submission');assert.equal(saved.year,'2026–2027');assert.deepEqual(saved.aliases,['Ruston']);
 assert.deepEqual(filterWorkspaceRows(rows,{view:'working'}).map(row=>row.state),['working_draft','withdrawn','rejected','reopened']);
 assert.deepEqual(filterWorkspaceRows(rows,{view:'approvals'}).map(row=>row.state),['submitted','pending_investor_approval']);
-assert.deepEqual(filterWorkspaceRows(rows,{view:'history'}).map(row=>row.state),['investor_approved','locked','superseded']);
+assert.deepEqual(filterWorkspaceRows(rows,{view:'history'}).map(row=>row.state),['pending_investor_approval','investor_approved','locked','superseded']);
 for(const query of ['Ruston','preserve','Last Editor','Originator','2027'])assert(filterWorkspaceRows(rows,{view:'working',query}).length);
 for(const filters of [{communityId:other},{year:2025},{creator:'unknown'},{lastEditor:'unknown'},{submitter:'unknown'},{from:'2026-09-26'},{to:'2026-09-24'},{type:'reforecast'}])assert.equal(filterWorkspaceRows(rows,{view:'working',...filters}).length,0);
 const actual={id:'actual',communityId:cid,communityName:'The Preserve at Tech',recordType:'month_end_actuals',year:2026,periods:['2026-08'],state:'ready_for_review',reviewAction:true,submittedAt:'2026-09-20T10:00:00Z'};
@@ -18,6 +18,9 @@ assert.equal(approvalTaskRows([actual],Date.parse('2026-09-25T10:00:00Z'))[0].ag
 assert.equal(similarOpenDrafts(entries,{communityId:cid,periods:['2026-08']}).length,4);assert.equal(similarOpenDrafts(entries,{communityId:other,periods:['2026-08']}).length,0);
 const s={...meta,year:2026,approvalYear:2026,entries,cid:'',approvalEvidence:{entries,actualQueue:[actual],uploads:[{upload_id:'orphan',community_id:other,file_name:'RISE Doro Conventional.xlsx',periods:['2026-08'],created_at:'2026-09-24'}]}};
 const queue=workspaceListHtml(s,'approvals');assert.doesNotMatch(queue,/Monthly evidence status|No governed close|data-open="working_draft"|data-open="locked"/);assert.match(queue,/data-review-actual/);assert.match(queue,/data-open="submitted"/);
+const retained=entry('pending_investor_approval','published-budget',7),edited=entry('working_draft','published-budget',8);retained.revision.revision_id='published-revision-7';edited.revision.revision_id='editable-revision-8';
+const history=workspaceListHtml({...s,approvalEvidence:{...s.approvalEvidence,entries:[edited],history:[retained,edited]}},'history');
+assert.match(history,/1 retained approved versions/);assert.match(history,/v7 · Pending Investor Approval/);assert.match(history,/data-open-revision="published-revision-7"/);assert.doesNotMatch(history,/editable-revision-8|Investor date/,'later edits and absent investor approval dates must not alter the VP-approved history');
 const imported=orphanImportHtml(s);assert.match(imported,/RISE Doro Conventional.xlsx/);assert.match(imported,/data-resume-orphan="orphan"/);s.workspaceFilters={query:'Doro'};assert.match(orphanImportHtml(s),/Resume imported draft/);s.workspaceFilters={query:'Unknown property'};assert.doesNotMatch(orphanImportHtml(s),/data-resume-orphan=/);
 s.workspaceFilters={};s.approvalEvidence.entries=[{...entry('working_draft'),revision:{payload:{sourceUploadIds:['orphan']}}}];assert.doesNotMatch(orphanImportHtml(s),/data-resume-orphan=/,'source relationship, not filename, controls missing-draft recovery');
 assert.equal(workflowLabel('submitted'),'Ready for Review and Approval');assert(WORKING_STATES.has('rejected'));

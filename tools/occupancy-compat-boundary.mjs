@@ -17,6 +17,10 @@ function changes(currentCore,currentImportWorkspace) {
   const reader=(start,end)=>({name:'dataImportReadStructuredRows',before:start+'\n'+end,after:block(read,start,end)});
   const router=(start,end)=>({name:'dataImportRouteStructuredFile',before:start+'\n'+end,after:block(route,start,end)});
   const period=functionRange(currentCore,'dataImportRowPeriod').text;
+  const correction=functionRange(currentCore,'dataImportSupersedeRentRollPeriods').text;
+  const replay=functionRange(currentCore,'reprocessDataImportBoxScore').text;
+  const replayAnchor='async function reprocessDataImportBoxScore(archiveId) {';
+  if(!currentCore.includes(correction+'\n\n'+replayAnchor))throw new Error('Current rent roll correction helper boundary changed.');
   const oldTypes='["box_score", "trending_occupancy", "delinquency", "leasing_resident_data"].includes(entry.reportType)';
   const newTypes='["box_score", "trending_occupancy", "delinquency", "leasing_resident_data", "rent_roll"].includes(entry.reportType)';
   const allowlist=(source,name)=>{
@@ -33,14 +37,18 @@ function changes(currentCore,currentImportWorkspace) {
     {name:'dataImportRowPeriod',before:'function dataImportRowPeriod(mapped = {}, sourceRow = {}, plan = {}) {\n  const sectionDate = sourceRow.period?.start || sourceRow.period?.asOf;',after:block(period,'function dataImportRowPeriod(mapped = {}, sourceRow = {}, plan = {}) {','  const sectionDate = sourceRow.period?.start || sourceRow.period?.asOf;')},
     router('      const period = dataImportRowPeriod(mapped, sourceRow, plan);','      if (plan.reportType === "renewal_tracker" && !period.periodKey) {'),
     allowlist(currentCore,'reprocessDataImportBoxScore'),
-    allowlist(currentImportWorkspace,'renderDataImportArchiveView')
+    allowlist(currentImportWorkspace,'renderDataImportArchiveView'),
+    {name:'reprocessDataImportBoxScore',prefix:true,before:replayAnchor,after:correction+'\n\n'+replayAnchor},
+    {name:'reprocessDataImportBoxScore',before:'    dataImportFinishApprovalRuntime();\n    entry.reprocessedAt = new Date().toISOString();',after:block(replay,'    dataImportFinishApprovalRuntime();\n    if (entry.reportType === "rent_roll") result.periodCorrection = dataImportSupersedeRentRollPeriods(plan, entry, result);','    entry.reprocessedAt = new Date().toISOString();')}
   ];
   if(edits.some(edit=>edit.before===edit.after))throw new Error('Current occupancy evidence boundary is incomplete.');
   if(!edits[0].after.includes('parseOccupancySheet')||!edits[1].after.includes('raw:true')||!edits[3].after.includes('occupancyEvidence:'))throw new Error('Current occupancy evidence boundary no longer matches the reviewed aggregate contract.');
   if(!edits[5].after.includes('return {monthIdx:null, year:null, periodKey:""};')||!edits[6].after.includes('Rent roll reporting period is missing'))throw new Error('Current rent roll period boundary is incomplete.');
+  if(!edits[10].after.includes('result.periodCorrection = dataImportSupersedeRentRollPeriods(plan, entry, result)'))throw new Error('Current rent roll correction call is incomplete.');
   return edits;
 }
 function apply(source,edit,reverse=false) {
+  if(edit.prefix){const before=reverse?edit.after:edit.before,after=reverse?edit.before:edit.after;if(source.split(before).length!==2||!reverse&&source.includes('function dataImportSupersedeRentRollPeriods('))throw new Error('Retained occupancy boundary anchor changed: correction helper');return source.replace(before,after);}
   const range=functionRange(source,edit.name),before=reverse?edit.after:edit.before,after=reverse?edit.before:edit.after;
   if(range.text.split(before).length!==2)throw new Error(`Retained occupancy boundary anchor changed: ${edit.name}`);
   return source.slice(0,range.start)+range.text.replace(before,after)+source.slice(range.start+range.text.length);

@@ -42,6 +42,62 @@ test('composed retained operational host executes the same safe source replay',a
  const patched=patchOccupancyImportBoundary(fs.readFileSync(__dirname+'/fixtures/occupancy-retained-import-boundary.js','utf8'),fs.readFileSync(root+'workspace-core.js','utf8'),fs.readFileSync(root+'features/import-workspace.js','utf8'));
  await assertRetainedReplay(patched);
 });
+function correctionFixture(overlay=""){
+ const f=routeFixture(overlay),{c,rows}=f,p=plan(),bytes=Buffer.from('exact correction source');p.fileHash=crypto.createHash('sha256').update(bytes).digest('hex');p.occupancyEvidenceBySheet.Example.sourceFingerprint=p.fileHash;
+ const period=new Date().getFullYear()+'-07',archive={id:'correction-source',fileName:p.name,fileHash:p.fileHash,reportType:'rent_roll',importStatus:'Approved',batchId:'original-batch',communities:['Example'],metadata:p.metadata};
+ c.window.ATLAS_CENTRAL={getSession:()=>({user:{id:'authorized-actor'}}),getStoredProfile:()=>({role:'admin'})};
+ c.atlasStateGetValue=async()=>({fileName:p.name,blob:new Blob([bytes])});c.dataImportBuildFilePlan=async()=>structuredClone(p);
+ c.dataImport2State.sourceArchive=[archive];
+ const old={key:'old-period-key',reportType:'rent_roll',communityName:'Example',periodKey:period,fileHash:p.fileHash,sourceSheet:'Example',sourceRow:8,values:structuredClone(rows[0].values),originalValues:{retained:'full original evidence'},revisions:[{values:{scheduled_charges:-1.005},fileHash:'prior-version'}]};
+ const other={...structuredClone(old),key:'another-source',fileHash:'newer-source',sourceRow:99},outside={...structuredClone(old),key:'outside-scope',communityName:'Other'},history={id:'prior-history',reportType:'rent_roll',fileHash:p.fileHash,communityName:'Example',periodKey:'2024-04',currentState:false,importedValue:9};
+ c.dataImport2State.canonicalRecords=[old,other,outside];
+ c.dataImport2State.lineage=[{id:'owned',reportType:'rent_roll',fileHash:p.fileHash,communityName:'Example',periodKey:period,atlasField:'scheduled_charges',importedValue:0,currentState:true},{id:'other-current',reportType:'approved_accounting',fileHash:'newer-source',communityName:'Example',periodKey:period,atlasField:'actual_charges',importedValue:99,currentState:true},history];
+ const month={scheduledCharges:0,rentRollTotal:0,actualCharges:99,economicOccupancyPct:88,manualNote:'retained',metricProvenance:{scheduled_charges:{source:p.fileHash,field:'scheduled_charges'},rent_roll_total:{source:p.fileHash,field:'scheduled_charges'},actual_charges:{source:'newer-source',field:'actual_charges'}}};
+ c.savedData={Example:{monthlyHistoryByPeriod:{[period]:structuredClone(month)},monthlyData:Array.from({length:12},(_,i)=>i===6?structuredClone(month):{})}};
+ c.dataImport2State.closedPeriods=['2024-04'];
+ return {...f,p,archive,period,old,other,outside,history};
+}
+async function assertCorrection(overlay=""){
+ const {c,calls,archive,period,old,other,outside,history}=correctionFixture(overlay),beforeOld=structuredClone(old),beforeOthers=plain([other,outside,history]);
+ await c.reprocessDataImportBoxScore(archive.id);assert.equal(calls.shared,1,JSON.stringify(calls.alerts));
+ assert.equal(c.dataImport2State.canonicalRecords.some(r=>r.key===old.key),false);assert.deepEqual(plain([c.dataImport2State.canonicalRecords.find(r=>r.key===other.key),c.dataImport2State.canonicalRecords.find(r=>r.key===outside.key),c.dataImport2State.lineage.find(r=>r.id===history.id)]),beforeOthers);
+ for(const month of [c.savedData.Example.monthlyHistoryByPeriod[period],c.savedData.Example.monthlyData[6]]){assert.equal(month.scheduledCharges,null);assert.equal(month.rentRollTotal,null);assert.equal(month.actualCharges,99);assert.equal(month.economicOccupancyPct,88);assert.equal(month.manualNote,'retained');assert.equal(Object.hasOwn(month,'grossPotentialRent'),false);assert.equal(Object.hasOwn(month.metricProvenance,'scheduled_charges'),false);assert.equal(month.metricProvenance.actual_charges.source,'newer-source');}
+ const audit=c.dataImport2State.reconciliationLog.find(r=>r.action==='rent_roll_reporting_period_supersession');assert.deepEqual(plain(audit.supersededCanonicalRecords),[beforeOld]);assert.equal(audit.priorLineage.find(r=>r.id==='owned').currentState,true);assert(audit.metricChanges.every(r=>r.hadValue&&r.before===0&&r.after===null));assert.equal(audit.actor,'authorized-actor');assert.equal(c.dataImport2State.lineage.find(r=>r.id==='owned').currentState,false);assert.equal(c.dataImport2State.lineage.find(r=>r.id==='owned').supersededBy,audit.id);assert.equal(c.dataImport2State.lineage.find(r=>r.id==='other-current').currentState,true);
+ const savedAudit=JSON.stringify(audit);await c.reprocessDataImportBoxScore(archive.id);assert.equal(calls.shared,2);assert.equal(c.dataImport2State.reconciliationLog.filter(r=>r.action==='rent_roll_reporting_period_supersession').length,1);assert.equal(JSON.stringify(c.dataImport2State.reconciliationLog.find(r=>r.id===audit.id)),savedAudit);assert.equal(c.dataImport2State.sourceArchive.length,1);
+}
+test('wrong-period source facts retire into reversible evidence and only proven owned metrics become unavailable',()=>assertCorrection());
+test('retained host retires the same wrong-period facts without changing other source effects',async()=>{
+ const {patchOccupancyImportBoundary}=await import('./occupancy-compat-boundary.mjs'),root=__dirname+'/../docs/portfolio-operations-dashboard/';
+ const patched=patchOccupancyImportBoundary(fs.readFileSync(__dirname+'/fixtures/occupancy-retained-import-boundary.js','utf8'),fs.readFileSync(root+'workspace-core.js','utf8'),fs.readFileSync(root+'features/import-workspace.js','utf8'));
+ await assertCorrection(patched);
+});
+test('owned charge-input retirement invalidates stale economic cache while retaining the governed close definition',async()=>{
+ for(const governedPercent of [null,0,55]){
+  const {c,calls,archive,period,p}=correctionFixture();c.getCommunityCommandEconomicOccupancyData=()=>({mtdPct:governedPercent,sourceLabel:governedPercent===null?'Missing closed financial package':'Verified closed NRI / GPR'});
+  Object.assign(c.dataImport2State.lineage.find(r=>r.id==='other-current'),{reportType:'rent_roll',fileHash:p.fileHash,importedValue:1000});c.dataImport2State.lineage.push({id:'owned-gpr',reportType:'rent_roll',fileHash:p.fileHash,communityName:'Example',periodKey:period,atlasField:'gross_potential_rent',importedValue:2000,currentState:true});
+  for(const month of [c.savedData.Example.monthlyHistoryByPeriod[period],c.savedData.Example.monthlyData[6]])Object.assign(month,{actualCharges:1000,grossPotentialRent:2000,economicOccupancyPct:50,metricProvenance:{...month.metricProvenance,actual_charges:{source:p.fileHash,field:'actual_charges'},gross_potential_rent:{source:p.fileHash,field:'gross_potential_rent'}}});
+  await c.reprocessDataImportBoxScore(archive.id);assert.equal(calls.shared,1,JSON.stringify(calls.alerts));const month=c.savedData.Example.monthlyHistoryByPeriod[period];assert.equal(month.actualCharges,null);assert.equal(month.grossPotentialRent,null);assert.equal(month.economicOccupancyPct,governedPercent);const audit=c.dataImport2State.reconciliationLog.find(r=>r.action==='rent_roll_reporting_period_supersession');assert(audit.metricChanges.some(r=>r.field==='economicOccupancyPct'&&r.before===50&&r.after===governedPercent&&r.derivation.basis==='governed_closed_net_rental_income_over_gpr'));
+ }
+});
+test('future-year correction changes period history without touching current calendar-year monthlyData',async()=>{
+ const {c,calls,archive,period}=correctionFixture(),future=(new Date().getFullYear()+1)+'-07';for(const row of c.dataImport2State.canonicalRecords)if(row.key==='old-period-key')row.periodKey=future;for(const row of c.dataImport2State.lineage)if(row.periodKey===period)row.periodKey=future;
+ c.savedData.Example.monthlyHistoryByPeriod[future]=c.savedData.Example.monthlyHistoryByPeriod[period];delete c.savedData.Example.monthlyHistoryByPeriod[period];const beforeLive=JSON.stringify(c.savedData.Example.monthlyData);
+ await c.reprocessDataImportBoxScore(archive.id);assert.equal(calls.shared,1,JSON.stringify(calls.alerts));assert.equal(c.savedData.Example.monthlyHistoryByPeriod[future].scheduledCharges,null);assert.equal(JSON.stringify(c.savedData.Example.monthlyData),beforeLive);
+});
+test('closed periods, changed/manual ownership and incomplete corrected-source coverage abort the whole replay',async()=>{
+ for(const failure of ['closed','manual','mixed','missing_provenance','missing_source_row','unsigned','persistence']){
+  const {c,calls,archive,period}=correctionFixture();
+  if(failure==='closed')c.dataImport2State.closedPeriods.push(period);
+  if(failure==='manual')c.savedData.Example.monthlyHistoryByPeriod[period].scheduledCharges=17;
+  if(failure==='mixed')c.dataImport2State.lineage.push({id:'conflict',reportType:'approved_accounting',fileHash:'another',communityName:'Example',periodKey:period,atlasField:'scheduled_charges',currentState:true,importedValue:0});
+  if(failure==='missing_provenance')delete c.savedData.Example.monthlyHistoryByPeriod[period].metricProvenance.scheduled_charges;
+  if(failure==='missing_source_row')c.dataImport2State.canonicalRecords[0].sourceRow=888;
+  if(failure==='unsigned')c.window.ATLAS_CENTRAL.getSession=()=>null;
+  if(failure==='persistence')c.persistDataImportPublication=async()=>{throw Error('Synthetic persistence failure');};
+  const before=JSON.stringify({saved:c.savedData,imports:c.dataImport2State});await c.reprocessDataImportBoxScore(archive.id);
+  assert.equal(calls.shared,0,failure);assert.equal(JSON.stringify({saved:c.savedData,imports:c.dataImport2State}),before,failure+' must preserve the complete earlier state');assert.match(calls.alerts.at(-1),/Source recovery stopped/);
+ }
+});
 test('supplied portfolio rent roll retains its declared month across future lease dates and exact Doro pipeline',{skip:!process.env.ATLAS_OCCUPANCY_SOURCE_DIR},async()=>{
  const c=context(),XLSX=require('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js'),file=process.env.ATLAS_OCCUPANCY_SOURCE_DIR+'/03 - RISE - Rent Roll (3).xlsx',bytes=fs.readFileSync(file),hash=crypto.createHash('sha256').update(bytes).digest('hex'),book=XLSX.read(bytes,{type:'buffer',cellDates:true,raw:false});
  const {parseOccupancySheet}=await import('../docs/portfolio-operations-dashboard/features/occupancy-source-evidence.mjs');let datedOutside=0;

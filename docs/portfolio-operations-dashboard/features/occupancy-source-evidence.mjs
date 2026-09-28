@@ -134,9 +134,16 @@ function selectSource(importState,type,communityName,communityId,period,asOf) {
   if(approved.some(r=>sourceTime(r)===null))return {rows:[],...unavailable('An approved source has no effective date; its precedence requires review.')};
   const eligible=approved.filter(r=>!Number.isFinite(cut)||sourceTime(r)<=cut);
   if(!eligible.length)return {rows:[],...unavailable('No scoped approved source with an effective date is available.')};
-  const latest=Math.max(...eligible.map(sourceTime)), rows=eligible.filter(r=>sourceTime(r)===latest);
+  const latest=Math.max(...eligible.map(sourceTime));let rows=eligible.filter(r=>sourceTime(r)===latest);
   if(rows.some(r=>r.downstreamEligible===false))return {rows:[],...unavailable('The latest approved source is held from downstream use; no older fallback is selected.')};
-  if(new Set(rows.map(r=>`${r.fileHash}|${r.periodKey}`)).size!==1)return {rows:[],...unavailable('Latest source versions conflict; choose the approved controlling source.')};
+  const sourceKey=row=>`${row.fileHash}|${row.periodKey}`;
+  if(new Set(rows.map(sourceKey)).size!==1){
+    // Approved archives preserve historical source files. Only explicit current
+    // metric lineage can resolve equal effective dates; import order cannot.
+    const controlling=new Set(rows.filter(row=>(importState.lineage||[]).some(l=>l.currentState===true && sameCommunity(l,row.communityName,communityId) && l.periodKey===row.periodKey && l.reportType===type && l.fileHash===row.fileHash)).map(sourceKey));
+    if(controlling.size===1)rows=rows.filter(row=>controlling.has(sourceKey(row)));
+    else return {rows:[],...unavailable('Latest source versions conflict; choose the approved controlling source.')};
+  }
   const first=rows[0];return {rows,status:'valid',sourceFingerprint:first.fileHash,sourceFile:first.sourceFile,asOf:new Date(latest).toISOString(),period:first.periodKey};
 }
 function field(rows,key,parser=numeric) {

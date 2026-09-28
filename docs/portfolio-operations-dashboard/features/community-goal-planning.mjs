@@ -1,6 +1,6 @@
 import {readFinance,financeAccessKey} from './canonical-finance.mjs?v=bc2709c0e3b81885';
 import {readActive} from './reforecast-store.mjs?v=89302fd431288798';
-import {readOccupancySourceEvidence} from './occupancy-source-evidence.mjs?v=8f6ac469f513c709';
+import {readOccupancySourceEvidence} from './occupancy-source-evidence.mjs?v=012daa540aac0f2c';
 import {recommendOccupancyGoals,applyOccupancyRecommendation} from './occupancy-goal-recommendations.mjs?v=a4ee2c9ccf3c92a8';
 import {sha256,canonicalJson} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 

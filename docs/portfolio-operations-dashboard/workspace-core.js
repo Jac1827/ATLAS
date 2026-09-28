@@ -46744,7 +46744,7 @@ async function dataImportReadStructuredRows(file, plan = {}) {
   const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false });
   const sheets = [];
   const occupancySourceParser = ["box_score", "rent_roll", "delinquency"].includes(plan.reportType)
-    ? (await import("./features/occupancy-source-evidence.mjs?v=8f6ac469f513c709")).parseOccupancySheet : null;
+    ? (await import("./features/occupancy-source-evidence.mjs?v=012daa540aac0f2c")).parseOccupancySheet : null;
   plan.occupancyEvidenceBySheet = {};
   const occupancyParameterSheet = (workbook.SheetNames || []).find(name => /^report parameters$/i.test(name.trim()));
   const occupancyReportParameters = occupancySourceParser && occupancyParameterSheet

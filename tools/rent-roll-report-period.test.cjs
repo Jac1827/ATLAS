@@ -1,0 +1,55 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),crypto=require('node:crypto');
+const {readDashboardSource}=require('./dashboard-source.cjs');
+const source=readDashboardSource('docs/portfolio-operations-dashboard/index.html');
+const plain=value=>JSON.parse(JSON.stringify(value));
+function context(overlay=""){
+ const c=vm.createContext({Date,Map,Set,File,Blob,console,MONTHS:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']});
+ for(const f of (source+"\n"+overlay).matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm))vm.runInContext(f[0],c);
+ return c;
+}
+const plan=()=>({reportType:'rent_roll',reportTypeLabel:'Rent Roll',name:'September rent roll.xlsx',fileHash:'source-hash',sourceSystem:'Entrata',reportingMonthIdx:8,reportingYear:2026,reportingPeriodLabel:'Sep 2026',communities:['Example'],selectedCommunities:['Example'],periodSelection:{requested:{monthIdx:8,year:2026},detected:{monthIdx:8,year:2026},basis:'source_verified'},metadata:{dataAsOf:'2026-09-28T14:03:00Z'},occupancyEvidenceBySheet:{Example:{sourceFingerprint:'source-hash',period:'2026-09',pipeline:{signedVacantUnits:1,datedMoveIns:[{date:'2026-10-27',count:1}]}}}});
+test('rent-roll reporting month controls all rows while lease and move-in attributes remain exact',()=>{
+ const c=context(),p=plan(),row={lease_end:'2027-07-31',lease_start:'2026-08-01',move_in_date:'2026-10-27'},before=JSON.stringify(row);
+ assert.deepEqual(plain(c.dataImportRowPeriod(row,{sourceSheet:'Example'},p)),{monthIdx:8,year:2026,periodKey:'2026-09'});assert.equal(JSON.stringify(row),before);
+ assert.equal(c.dataImportRowPeriod(row,{sourceSheet:'Example'},{...p,reportType:'renewal_tracker'}).periodKey,'2027-07','Renewal cohorts still use expiration dates');
+ assert.equal(c.dataImportRowPeriod(row,{}, {...p,reportingMonthIdx:null,reportingYear:null}).periodKey,'','Missing report context cannot come from a lease date');
+ const mismatch=c.dataImportApplySelectedPeriod({...p,status:'ready',selected:true,issues:[]},{monthIdx:7,year:2026});assert.equal(mismatch.status,'blocked');assert.equal(mismatch.reportingMonthIdx,8);
+});
+function routeFixture(overlay=""){
+ const c=context(overlay),calls={persist:0,shared:0,alerts:[],groups:[]},rows=[{sourceSheet:'Example',sourceRow:8,values:{unit:'synthetic-1',lease_end:'2027-07-31',move_in_date:'2026-10-27',scheduled_charges:0}},{sourceSheet:'Example',sourceRow:9,values:{unit:'synthetic-2',lease_end:'2028-01-31',move_in_date:'2026-12-01',scheduled_charges:1250.005}}];
+ Object.assign(c,{window:{atlasCsPreviewRenewalSheetRows:()=>{},AtlasFeatures:{load:async()=>{}}},XLSX:{},savedData:{Example:{}},dataImport2State:{canonicalRecords:[],sourceArchive:[],lineage:[],reconciliationLog:[],exceptions:[],closedPeriods:[]},dataImportRuntimeCanonicalIndex:null,dataImportRuntimeCurrentLineageIndex:null,dataImportRuntimeLineageBuffer:null,dataImportApprovalInProgress:false,dataImportApprovalPreflight:false,dataImportApprovalProgress:{rowsDone:0},dataImportUpdateApprovalProgress:()=>{},DATA_IMPORT_FILE_ARCHIVE_PREFIX:'archive:',dataImportReadStructuredRows:async()=>[{sheetName:'Example',rows}],dataImportBuildAliasLookup:()=>new Map(),dataImportBuildInternalCommunityLookup:()=>new Map(),dataImportEffectiveFreshness:()=>({action:'warn',days:3650}),dataImportMapSourceRow:r=>({mapped:r.values,sourceFields:{},unmappedFields:[]}),dataImportResolveRowCommunity:()=> 'Example',dataImportCommunitySupportsReport:()=>true,dataImportGetReportDef:()=>null,dataImportApplyGroupedSnapshot:g=>calls.groups.push(plain(g)),dataImportRecordPlanLearningUsage:()=>{},persistSaved:()=>calls.persist++,persistDataImport2State:()=>{},getProp:()=>({name:'Example'}),loadPropertyData:()=>{},renderTab:()=>{},dataImportCanManageArchitecture:()=>true,ensureDataImportFullState:async()=>{},persistDataImportPublication:async()=>calls.shared++,alert:text=>calls.alerts.push(text)});
+ return {c,calls,rows};
+}
+test('scoped route accepts future lease dates in September and holds missing/mismatched report months',async()=>{
+ const {c,rows}=routeFixture(),p=plan(),before=JSON.stringify(rows),r=await c.dataImportRouteStructuredFile({},p,'batch');assert.equal(r.rowsHeld,0);assert.equal(r.rowsInserted,2);assert.equal(JSON.stringify(rows),before);assert(c.dataImport2State.canonicalRecords.every(r=>r.periodKey==='2026-09'));assert.deepEqual(plain(c.dataImport2State.canonicalRecords.map(r=>r.values)),rows.map(r=>r.values));assert.deepEqual(plain(c.dataImport2State.canonicalRecords[0].occupancyEvidence),p.occupancyEvidenceBySheet.Example);
+ const held=routeFixture();const missing=await held.c.dataImportRouteStructuredFile({}, {...plan(),reportingMonthIdx:null,reportingYear:null},'missing');assert.equal(missing.rowsHeld,2);assert.equal(held.c.dataImport2State.canonicalRecords.length,0);assert(missing.issues.every(i=>i.title==='Rent roll reporting period is missing'));
+ const mismatch=routeFixture();const m=await mismatch.c.dataImportRouteStructuredFile({}, {...plan(),periodSelection:{requested:{monthIdx:7,year:2026}}},'mismatch');assert.equal(m.rowsHeld,2);assert.equal(mismatch.c.dataImport2State.canonicalRecords.length,0);assert(m.issues.every(i=>i.title==='Source section is outside the selected period'));
+ const closed=routeFixture();closed.c.dataImport2State.closedPeriods=['2026-09'];const locked=await closed.c.dataImportRouteStructuredFile({},plan(),'closed');assert.equal(locked.rowsHeld,2);assert.equal(closed.c.dataImport2State.canonicalRecords.length,0);
+});
+async function assertRetainedReplay(overlay=""){
+ const {c,calls}=routeFixture(overlay),p=plan(),bytes=Buffer.from('synthetic immutable source'),hash=crypto.createHash('sha256').update(bytes).digest('hex');p.fileHash=hash;p.occupancyEvidenceBySheet.Example.sourceFingerprint=hash;
+ const archive={id:'archive-id',fileName:p.name,fileHash:hash,reportType:'rent_roll',importStatus:'Approved',batchId:'original-batch',communities:['Example'],sourceSystem:'Entrata',metadata:p.metadata};c.dataImport2State.sourceArchive=[archive];const historical={key:'untouched-prior-period',communityName:'Example',periodKey:'2026-08',values:{scheduled_charges:0},fileHash:'prior-hash'};c.dataImport2State.canonicalRecords=[historical];c.dataImport2State.lineage=[{id:'original-history',currentState:false}];
+ c.atlasStateGetValue=async()=>({fileName:p.name,blob:new Blob([bytes]),type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});c.dataImportBuildFilePlan=async file=>({...structuredClone(p),fileHash:crypto.createHash('sha256').update(Buffer.from(await file.arrayBuffer())).digest('hex')});
+ await c.reprocessDataImportBoxScore(archive.id);assert.equal(calls.shared,1,JSON.stringify(calls.alerts));assert.equal(c.dataImport2State.canonicalRecords.length,3);assert.deepEqual(plain(c.dataImport2State.canonicalRecords[0]),historical);assert(c.dataImport2State.lineage.some(r=>r.id==='original-history'));assert.equal(archive.fileHash,hash);assert.equal(archive.importStatus,'Approved');assert.equal(archive.reprocessResult.rowsInserted,2);assert.equal(archive.reprocessResult.rowsHeld,0);
+ const facts=()=>plain(c.dataImport2State.canonicalRecords.map(r=>({key:r.key,period:r.periodKey,values:r.values,originalValues:r.originalValues,sourceHash:r.fileHash,occupancyEvidence:r.occupancyEvidence,revisions:r.revisions||[]})));const beforeFacts=facts();await c.reprocessDataImportBoxScore(archive.id);assert.equal(calls.shared,2);assert.equal(archive.reprocessResult.rowsInserted,0);assert.equal(archive.reprocessResult.rowsUnchanged,2);assert.deepEqual(facts(),beforeFacts,'Replaying unchanged source must not duplicate canonical facts or erase revisions');assert.equal(c.dataImport2State.sourceArchive.length,1);
+ const before=JSON.stringify(c.dataImport2State);c.dataImportBuildFilePlan=async()=>({...p,fileHash:'tampered'});await c.reprocessDataImportBoxScore(archive.id);assert.equal(calls.shared,2);assert.equal(JSON.stringify(c.dataImport2State),before);assert.match(calls.alerts.at(-1),/hash does not match/);
+ c.dataImportCanManageArchitecture=()=>false;c.atlasStateGetValue=async()=>{throw Error('Unauthorized replay must not read archived bytes');};await c.reprocessDataImportBoxScore(archive.id);assert.equal(calls.shared,2);
+}
+test('explicit retained rent-roll replay verifies exact source, persists once, remains idempotent and preserves prior history',()=>assertRetainedReplay());
+test('composed retained operational host executes the same safe source replay',async()=>{
+ const {patchOccupancyImportBoundary}=await import('./occupancy-compat-boundary.mjs');
+ const root=__dirname+'/../docs/portfolio-operations-dashboard/';
+ const patched=patchOccupancyImportBoundary(fs.readFileSync(__dirname+'/fixtures/occupancy-retained-import-boundary.js','utf8'),fs.readFileSync(root+'workspace-core.js','utf8'),fs.readFileSync(root+'features/import-workspace.js','utf8'));
+ await assertRetainedReplay(patched);
+});
+test('supplied portfolio rent roll retains its declared month across future lease dates and exact Doro pipeline',{skip:!process.env.ATLAS_OCCUPANCY_SOURCE_DIR},async()=>{
+ const c=context(),XLSX=require('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js'),file=process.env.ATLAS_OCCUPANCY_SOURCE_DIR+'/03 - RISE - Rent Roll (3).xlsx',bytes=fs.readFileSync(file),hash=crypto.createHash('sha256').update(bytes).digest('hex'),book=XLSX.read(bytes,{type:'buffer',cellDates:true,raw:false});
+ const {parseOccupancySheet}=await import('../docs/portfolio-operations-dashboard/features/occupancy-source-evidence.mjs');let datedOutside=0;
+ for(const name of book.SheetNames.filter(n=>n!=='Report Parameters')){
+  const raw=XLSX.utils.sheet_to_json(book.Sheets[name],{header:1,defval:null,raw:true,range:0}),e=parseOccupancySheet({rows:raw,reportType:'rent_roll',sourceSheet:name,fileHash:hash,sourceFile:'Rent Roll',metadata:{dataAsOf:'2026-09-28T14:03:00Z'}});assert.equal(e.period,'2026-09',name);
+  const rows=XLSX.utils.sheet_to_json(book.Sheets[name],{header:1,defval:'',raw:false}),header=rows.findIndex(r=>r.includes('Lease End')&&r.includes('Bldg-Unit'));if(header<0)continue;const col=rows[header].indexOf('Lease End');
+  for(const row of rows.slice(header+1)){const value=String(row[col]??'').trim(),date=new Date(value);if(!Number.isFinite(date.getTime())||date.getFullYear()<1991)continue;const mapped={lease_end:value},before=JSON.stringify(mapped);assert.equal(c.dataImportRowPeriod(mapped,{sourceSheet:name},plan()).periodKey,'2026-09');assert.equal(JSON.stringify(mapped),before);if(date.getFullYear()!==2026||date.getMonth()!==8)datedOutside++;}
+  if(name==='RISE Doro'){assert.equal(e.pipeline.signedVacantUnits,37);assert.equal(e.pipeline.undatedUnits,34);assert.deepEqual(e.pipeline.datedMoveIns,[{date:'2026-10-27',count:1},{date:'2026-12-01',count:2}]);}
+ }
+ assert.equal(datedOutside,3527,'Source counts corroborate the lease-end/report-month defect without exporting resident data');
+});

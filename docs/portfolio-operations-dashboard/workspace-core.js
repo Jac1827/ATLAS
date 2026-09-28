@@ -46987,6 +46987,14 @@ function dataImportCommunitySupportsReport(communityName, reportType) {
 }
 
 function dataImportRowPeriod(mapped = {}, sourceRow = {}, plan = {}) {
+  // A rent roll is a reporting-month snapshot. Lease and move-in dates are
+  // attributes of its rows, not the month in which those rows were reported.
+  if (plan.reportType === "rent_roll") {
+    if (Number.isInteger(plan.reportingMonthIdx) && plan.reportingMonthIdx >= 0 && plan.reportingMonthIdx < 12 && Number.isInteger(plan.reportingYear)) {
+      return {monthIdx:plan.reportingMonthIdx, year:plan.reportingYear, periodKey:buildPeriodKey(plan.reportingMonthIdx, plan.reportingYear)};
+    }
+    return {monthIdx:null, year:null, periodKey:""};
+  }
   const sectionDate = sourceRow.period?.start || sourceRow.period?.asOf;
   if (["box_score", "trending_occupancy"].includes(plan.reportType) && sectionDate) {
     return {monthIdx:Number(sectionDate.slice(5,7))-1,year:Number(sectionDate.slice(0,4)),periodKey:sectionDate.slice(0,7)};
@@ -47689,6 +47697,11 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
         plan.qualifiedLocators[communityName] = {...plan.qualifiedLocators[communityName], ...sourceFields};
       }
       const period = dataImportRowPeriod(mapped, sourceRow, plan);
+      if (plan.reportType === "rent_roll" && !period.periodKey) {
+        result.rowsHeld += 1;
+        result.issues.push({type:"held",severity:"high",title:"Rent roll reporting period is missing",detail:`${sheet.sheetName} row ${sourceRow.sourceRow} needs a confirmed reporting month. Lease and move-in dates were retained without assigning a report period.`,communityName});
+        continue;
+      }
       if (plan.reportType === "renewal_tracker" && !period.periodKey) {
         result.rowsHeld += 1;
         result.issues.push({type:"held",severity:"high",title:"Renewal expiration period is missing",detail:`${sheet.sheetName} row ${sourceRow.sourceRow} needs an expiration date or a dated month tab. It was not assigned to the upload month.`,communityName});
@@ -48224,7 +48237,7 @@ async function reprocessDataImportBoxScore(archiveId) {
   dataImportApprovalPreflight = true;
   try { await ensureDataImportFullState(); } catch(error) { alert(error.message); return; } finally { dataImportApprovalPreflight = false; }
   const entry = (dataImport2State.sourceArchive || []).find(item => item.id === archiveId);
-  if (!entry || !["box_score", "trending_occupancy", "delinquency", "leasing_resident_data"].includes(entry.reportType) || entry.importStatus !== "Approved") return;
+  if (!entry || !["box_score", "trending_occupancy", "delinquency", "leasing_resident_data", "rent_roll"].includes(entry.reportType) || entry.importStatus !== "Approved") return;
   dataImportApprovalInProgress = true;
   const beforeSaved = JSON.stringify(savedData);
   const beforeImport = JSON.stringify(dataImport2State);

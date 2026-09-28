@@ -8,12 +8,13 @@ import {execFileSync} from 'node:child_process';
 import {patchOccupancyImportBoundary} from './occupancy-compat-boundary.mjs';
 import {patchReplayCheckpointBoundary} from './replay-checkpoint-compat.mjs';
 import {patchArchiveBuilderBoundary} from './archive-builder-compat.mjs';
+import {patchReplayRefreshBoundary} from './replay-refresh-compat.mjs';
 const require=createRequire(import.meta.url),{chromium}=require(process.env.ATLAS_PLAYWRIGHT||'playwright');
 const root=path.resolve(import.meta.dirname,'..'),source=await fs.readFile(path.join(root,'docs/portfolio-operations-dashboard/workspace-core.js'),'utf8');
 const fn=(name,body=source)=>{const found=body.match(new RegExp('^(?:async )?function '+name+'\\([^\\n]*\\) \\{[\\s\\S]*?^\\}','m'));assert(found,name);return found[0];};
 const script=['queueAtlasStateWrite','dataImportCreateReplayCheckpoint','reprocessDataImportBoxScore','saveCommunityData','saveBudgetCurve','saveAtlasCentralAppState','pushDashboardSharedState','buildDashboardStorageBundle','packAtlasCentralRetainedRecords','buildAtlasCentralAppStatePayload'].map(name=>fn(name)).join('\n');
 const old=execFileSync('git',['show','origin/atlas-asset-releases:_atlas-assets/774663d5c700ea5d00a0b13a627f965f78173d7a4700f6728ed6a6620adbf8df/portfolio-operations-dashboard/index.html'],{encoding:'utf8',maxBuffer:10*1024*1024});
-const retained=patchArchiveBuilderBoundary(patchReplayCheckpointBoundary(patchOccupancyImportBoundary(old,source,await fs.readFile(path.join(root,'docs/portfolio-operations-dashboard/features/import-workspace.js'),'utf8')),source),source);
+const retained=patchReplayRefreshBoundary(patchArchiveBuilderBoundary(patchReplayCheckpointBoundary(patchOccupancyImportBoundary(old,source,await fs.readFile(path.join(root,'docs/portfolio-operations-dashboard/features/import-workspace.js'),'utf8')),source),source),source,await fs.readFile(path.join(root,'docs/portfolio-operations-dashboard/features/import-workspace.js'),'utf8'));
 const retainedHistory=execFileSync('git',['show','origin/atlas-asset-releases:_atlas-assets/774663d5c700ea5d00a0b13a627f965f78173d7a4700f6728ed6a6620adbf8df/portfolio-operations-dashboard/features/import-history-store.mjs'],{encoding:'utf8'});
 const retainedScript=['queueAtlasStateWrite','dataImportCreateReplayCheckpoint','reprocessDataImportBoxScore','saveCommunityData','saveBudgetCurve','saveAtlasCentralAppState','pushDashboardSharedState','buildDashboardStorageBundle','packAtlasCentralRetainedRecords','buildAtlasCentralAppStatePayload','persistDataImportPublication'].map(name=>fn(name,retained)).join('\n');
 const normalizerScript=body=>['DATA_IMPORT_REPORT_ORDER','DATA_IMPORT_REPORT_TYPES','DATA_IMPORT_FIELD_ALIASES'].map(name=>{
@@ -28,8 +29,9 @@ const server=createServer(async(req,res)=>{try{const pathname=new URL(req.url,'h
 let browser;
 try{
  await new Promise(r=>server.listen(0,'127.0.0.1',r));browser=await chromium.launch({headless:true});
- const cases=['success','publication_failure','capture_failure','navigation','actor','root_replacement','queued_write','stored_version','source_change','profile_change','legacy_capture_failure','capture_abort','restore_read_failure','unrelated_during_replay','pending_during_replay','stale_roots','projected_history','bad_snapshot_reference','commit_readback_failure','pre_dispatch_guard','central_inflight','normalization_defaults','normalization_mapping_edit','normalization_metadata_edit','normalization_null_zero','normalization_unstable'];
+ const cases=['success','publication_failure','capture_failure','navigation','actor','root_replacement','queued_write','stored_version','source_change','profile_change','legacy_capture_failure','capture_abort','restore_read_failure','unrelated_during_replay','pending_during_replay','stale_roots','projected_history','bad_snapshot_reference','commit_readback_failure','pre_dispatch_guard','central_inflight','normalization_defaults','normalization_mapping_edit','normalization_metadata_edit','normalization_null_zero','normalization_unstable','receipt_duplicate'];
  for(const surface of ['current','retained'])for(const mode of cases){
+  if(surface==='current'&&mode==='receipt_duplicate')continue;
   const page=await browser.newPage();await page.goto('http://127.0.0.1:'+server.address().port+'/?'+surface);
   if(mode.startsWith('normalization_'))await page.addScriptTag({url:'/'+(surface==='retained'?'retained-':'')+'normalizer.js'});
   const proof=await page.evaluate(async ({mode,surface})=>{
@@ -60,6 +62,7 @@ try{
    if(mode==='central_inflight')g.saveAtlasCentralAppState.inFlight=new Promise(()=>{});
    if(mode==='stale_roots')await io('readwrite',store=>store.put({key:'communities',updatedAt:'newer-before-replay',value:{Example:{value:777}}}));
    g.dataImportRouteStructuredFile=async(_file,plan)=>{
+    if(mode==='receipt_duplicate')await io('readwrite',store=>store.put({key:lastCheckpoint.receiptKey,value:{existingReceiptMustRemain:true},updatedAt:'original'}));
     routeCount++;plan.assertReplayCurrent?.();g.savedData.Example.value=99;g.dataImport2State.canonicalRecords.push({source:'replay',value:0,missing:null});g.dataImportRuntimeLineageBuffer.push({id:'partial'});
     if(mode==='navigation'){g.workspaceScopeValue='Other';g.activeTab=2;}
     if(mode==='actor'){actor='different-actor';scope='different-scope';g.savedData={New:{value:888}};g.dataImport2State={sourceArchive:[],lineage:[],marker:'new-user'};}
@@ -84,12 +87,18 @@ try{
    try{await g.reprocessDataImportBoxScore('source');}finally{JSON.stringify=stringify;indexedDB.open=open;IDBObjectStore.prototype.put=put;IDBObjectStore.prototype.get=get;}
    if(mode==='success'){await lastCheckpoint.committed();await lastCheckpoint.committed();}
    const records=await io('readonly',store=>store.getAll()),checkpoints=(await indexedDB.databases()).filter(x=>x.name.startsWith('atlas_replay_checkpoint_'));
+   const atomicReceipts=records.filter(row=>row.key.startsWith('atlas_replay_receipt_v1:')&&row.value?.status==='committed');
+   const existingReceipt=records.find(row=>row.value?.existingReceiptMustRemain===true);
+   const checkpointMetadata=[];for(const item of checkpoints){const checkpointDb=await new Promise((resolve,reject)=>{const request=indexedDB.open(item.name);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});try{const metadata=await new Promise((resolve,reject)=>{const tx=checkpointDb.transaction('checkpoint','readonly'),r=tx.objectStore('checkpoint').get('metadata');tx.oncomplete=()=>resolve(r.result);tx.onerror=()=>reject(tx.error);});checkpointMetadata.push(metadata);}finally{checkpointDb.close();}}
    const restored=JSON.stringify({saved:g.savedData,imports:g.dataImport2State})===before;
    const retainedBlob=g.dataImport2State.batches?.[0].beforeSnapshot?.blob;const blobExact=retainedBlob instanceof Blob&&retainedBlob.type===blob.type&&JSON.stringify([...new Uint8Array(await retainedBlob.arrayBuffer())])===JSON.stringify([...new Uint8Array(await blob.arrayBuffer())]);
    let blockedAfter=false;if(g.AtlasReplayWriteFence){await g.queueAtlasStateWrite(async()=>{unrelatedWrites++;},'later ordinary save');blockedAfter=unrelatedWrites===0;}
-   return {mode,normalizationEvidence,storedImportsUnchanged:JSON.stringify(records.find(x=>x.key==='imports').value)===storedImportsBefore,unrelatedWrites,blockedAfter,publishCount,routeCount,restored,blobExact,busy:g.dataImportApprovalInProgress,checkpoints:checkpoints.length,alerts,loads,current:g.savedData,disk:records.find(x=>x.key==='communities').value,historyRows:g.dataImport2State.batches?.length};
+   return {mode,atomicReceipts,checkpointMetadata,existingReceipt,normalizationEvidence,storedImportsUnchanged:JSON.stringify(records.find(x=>x.key==='imports').value)===storedImportsBefore,unrelatedWrites,blockedAfter,publishCount,routeCount,restored,blobExact,busy:g.dataImportApprovalInProgress,checkpoints:checkpoints.length,alerts,loads,current:g.savedData,disk:records.find(x=>x.key==='communities').value,historyRows:g.dataImport2State.batches?.length};
   },{mode,surface});
   assert.equal(proof.busy,false,mode+' releases busy flag');
+  for(const metadata of proof.checkpointMetadata){assert.equal(metadata.actor,'original-actor');assert.equal(metadata.source.archiveId,'source');assert.equal(metadata.database,'synthetic-workspace');assert.equal(metadata.schemaVersion,1);assert(metadata.stamps.communities);assert(!Object.hasOwn(metadata,'imports'));}
+  if(mode==='receipt_duplicate'){assert(proof.existingReceipt.value.existingReceiptMustRemain);assert(proof.alerts.some(x=>x.includes('receipt already exists')));}
+  if(surface==='retained'){assert.equal(proof.atomicReceipts.length,['success','projected_history','unrelated_during_replay','pending_during_replay','commit_readback_failure'].includes(mode)?1:0,'atomic local receipt exists exactly with native publication');if(proof.atomicReceipts.length){const receipt=proof.atomicReceipts[0].value;assert.equal(receipt.status,'committed');assert.equal(receipt.source.archiveId,'source');assert.equal(receipt.source.fileHash,'verified-hash');assert.equal(receipt.actor,'original-actor');assert.equal(receipt.database,'synthetic-workspace');assert(!Object.hasOwn(receipt,'imports'));}}
   if(mode.startsWith('normalization_')){
    assert(proof.normalizationEvidence.injected>200);assert.deepEqual({...proof.normalizationEvidence,injected:undefined},{injected:undefined,firstHasConfidence:false,secondConfidence:null,thirdConfidence:0,fixedPoint:true});
    assert(proof.storedImportsUnchanged,'Comparison and rejected/rolled-back replay preserve exact stored history');assert(proof.restored,'Comparison does not rewrite loaded source/mapping state');assert.equal(proof.publishCount,0);assert.equal(proof.checkpoints,0);assert.equal(proof.disk.Example.value,0);
@@ -98,10 +107,10 @@ try{
    console.log('PASS',surface,mode);await page.close();continue;
   }
   if(mode==='commit_readback_failure')assert(proof.alerts.some(message=>message.includes('No rollback was applied. Publication may have committed or newer data may exist; reload to verify the outcome.')),'Uncertain committed/readback outcome is explicit');
-  if(['success','projected_history'].includes(mode)){assert.equal(proof.publishCount,1);assert.equal(proof.checkpoints,0);assert.equal(proof.current.Example.value,99);assert.equal(proof.historyRows,32);if(mode==='success')assert(proof.blobExact);}
+  if(['success','projected_history','unrelated_during_replay','pending_during_replay'].includes(mode)){assert.equal(proof.publishCount,1);assert.equal(proof.checkpoints,0);assert.equal(proof.current.Example.value,99);assert.equal(proof.historyRows,32);if(mode==='success')assert(proof.blobExact);}
   else if(mode==='bad_snapshot_reference'){assert.equal(proof.routeCount,0);assert.equal(proof.publishCount,0);assert.equal(proof.checkpoints,0);assert.equal(proof.restored,true);assert.equal(proof.disk.Example.value,0);}
   else if(mode==='stale_roots'){assert.equal(proof.routeCount,0);assert.equal(proof.publishCount,0);assert.equal(proof.checkpoints,0);assert.equal(proof.restored,true);assert.equal(proof.disk.Example.value,777);}
-  else if(['publication_failure','capture_failure','navigation','legacy_capture_failure','capture_abort','pre_dispatch_guard','central_inflight'].includes(mode)){assert.equal(proof.publishCount,0);assert.equal(proof.restored,true,mode);assert.equal(proof.checkpoints,0,mode);assert.equal(proof.disk.Example.value,0);assert(proof.blobExact);if(mode==='navigation')assert.deepEqual(proof.loads.at(-1),{name:'Other',value:42});}
+  else if(['publication_failure','capture_failure','navigation','legacy_capture_failure','capture_abort','pre_dispatch_guard','central_inflight','receipt_duplicate'].includes(mode)){assert.equal(proof.publishCount,0);assert.equal(proof.restored,true,mode);assert.equal(proof.checkpoints,0,mode);assert.equal(proof.disk.Example.value,0);assert(proof.blobExact);if(mode==='navigation')assert.deepEqual(proof.loads.at(-1),{name:'Other',value:42});}
   else {assert.equal(proof.publishCount,mode==='commit_readback_failure'?1:0);assert.equal(proof.unrelatedWrites,0);assert.equal(proof.blockedAfter,true,mode+' refuses later stale writes');assert.equal(proof.checkpoints,1,mode+' retains recoverable checkpoint');if(mode==='actor')assert.deepEqual(proof.current,{New:{value:888}});if(mode==='root_replacement')assert.equal(proof.current.Example.value,777);if(mode==='stored_version')assert.equal(proof.disk.Example.value,777);}
   console.log('PASS',surface,mode);await page.close();
  }

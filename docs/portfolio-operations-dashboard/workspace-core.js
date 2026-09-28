@@ -22760,7 +22760,7 @@ function communityCommandFormatPct(value, decimals = 1) {
 }
 
 function communityCommandMetricValue(model, field, sourceValue, formatter = value => String(value ?? "")) {
-  const override = getCommunityCommandDashboardOverride(model.propName, field, model.monthIdx, model.year);
+  const override = field === "economic_occupancy" ? null : getCommunityCommandDashboardOverride(model.propName, field, model.monthIdx, model.year);
   const effective = override ? override.overrideValue : sourceValue;
   return {
     value: effective,
@@ -22792,67 +22792,199 @@ function communityCommandSumFinancialRows(rows = [], keys = []) {
 let atlasFinanceRequestController = null;
 let atlasFinanceScopeQueue = new Map();
 let atlasFinanceScopeTimer = null;
+let atlasFinanceScopeQueueContext = null;
+let atlasFinanceModuleFailure = null;
+function getAtlasFinancialContextKey() {
+  if (typeof getAtlasRenderContextKey === "function") {
+    try { return getAtlasRenderContextKey(); } catch (error) { /* Retained hosts use the financial context below. */ }
+  }
+  const read = fn => { try { return fn(); } catch (error) { return null; } };
+  const client = window.ATLAS_CENTRAL, profile = read(() => client?.getStoredProfile?.());
+  const property = read(() => getProp()?.name);
+  return JSON.stringify([read(() => client?.getConfig?.().supabaseUrl),read(() => client?.getSession?.()?.user?.id),
+    read(() => client?.getAccessContextKey?.()),profile?.status,profile?.account_status,profile?.role,
+    profile?.allowed_community_ids,profile?.allowed_market_values,profile?.allowed_region_values,
+    profile?.locked_tab_ids,profile?.locked_page_keys,profile?.community_access_records,
+    typeof activeTab === "undefined" ? null : activeTab,typeof workspaceScopeValue === "undefined" ? null : workspaceScopeValue,
+    property,read(() => getSelectedDashboardMonthIndex()),read(() => savedData?.[property]?.reportYear)]);
+}
+
+function getAtlasFinancialLoadFailure() {
+  return typeof atlasFinanceModuleFailure !== "undefined" && atlasFinanceModuleFailure?.context === getAtlasFinancialContextKey() ? atlasFinanceModuleFailure : null;
+}
+
+function resolveAtlasFinancialCommunityId(name, record = {}) {
+  let profile = null, mapped = null;
+  try { profile = typeof getAtlasAccessProfile === "function" ? getAtlasAccessProfile() : window.ATLAS_CENTRAL?.getStoredProfile?.(); } catch (error) {}
+  const roster = Array.isArray(profile?.community_access_records) ? profile.community_access_records : [];
+  try { mapped = typeof getAtlasCommunityAccessRecord === "function" ? getAtlasCommunityAccessRecord(name, profile) : null; } catch (error) {}
+  const suppliedId = record.communityId || mapped?.atlasCommunityId || mapped?.sourceIds?.atlasCommunityId;
+  const normalize = value => String(value || "").toLowerCase().replace(/[^a-z0-9]/g, ""), wanted = normalize(name);
+  const matches = roster.filter(row => row.community_id === name || suppliedId && row.community_id === suppliedId
+    || wanted && [row.display_name,row.displayName,row.name,row.canonical_name].some(value => normalize(value) === wanted));
+  return matches.length === 1 ? matches[0].community_id || null : null;
+}
+
 function queueAtlasFinancialScope(communityName, periods) {
   if (!window.ATLAS_CENTRAL?.getSession()?.user || !atlasAccessDecision(activeTab).ok) return;
+  const id = resolveAtlasFinancialCommunityId(communityName), failure = getAtlasFinancialLoadFailure();
+  if (!id || failure && Date.now() - failure.failedAt < 5000) return;
+  const context = getAtlasFinancialContextKey();
+  if (atlasFinanceScopeQueueContext !== context) {
+    if (atlasFinanceScopeTimer !== null) clearTimeout(atlasFinanceScopeTimer);
+    atlasFinanceScopeTimer = null;
+    atlasFinanceScopeQueue = new Map();
+    atlasFinanceScopeQueueContext = context;
+  }
   for (const period of periods) if (/^20\d{2}-(0[1-9]|1[0-2])$/.test(period)) {
-    if (!atlasFinanceScopeQueue.has(communityName)) atlasFinanceScopeQueue.set(communityName, new Set());
-    atlasFinanceScopeQueue.get(communityName).add(period);
+    if (!atlasFinanceScopeQueue.has(id)) atlasFinanceScopeQueue.set(id, new Set());
+    atlasFinanceScopeQueue.get(id).add(period);
   }
   if (atlasFinanceScopeTimer !== null) return;
-  const context = getAtlasRenderContextKey();
-  atlasFinanceScopeTimer = setTimeout(() => {
+  const timer = setTimeout(() => {
+    if (atlasFinanceScopeTimer !== timer || atlasFinanceScopeQueueContext !== context) return;
     atlasFinanceScopeTimer = null;
     const requested = atlasFinanceScopeQueue; atlasFinanceScopeQueue = new Map();
-    if (context !== getAtlasRenderContextKey()) return;
+    atlasFinanceScopeQueueContext = null;
+    if (context !== getAtlasFinancialContextKey()) return;
     refreshAtlasClosedFinancials(undefined, false, requested).catch(() => {});
   }, 0);
+  atlasFinanceScopeTimer = timer;
 }
 function getAtlasClosedFinancialVersion(record, period) {
-  queueAtlasFinancialScope(record.propertyName || record.communityId || "", [period]);
-  return window.AtlasClosedFinancialCache?.get(record.propertyName || record.communityId || "", period) || null;
+  const id = resolveAtlasFinancialCommunityId(record.propertyName || record.communityId || "", record);
+  if (!id) return null;
+  queueAtlasFinancialScope(id, [period]);
+  return window.AtlasClosedFinancialCache?.get(id, period) || null;
 }
 async function refreshAtlasClosedFinancials(year, force = false, requested = new Map()) {
-  if (!window.ATLAS_CENTRAL?.getSession()?.user || !requested.size || !atlasAccessDecision(activeTab).ok) return false;
-  const context = getAtlasRenderContextKey();
-  const module = await import("./features/financial-close.mjs?v=78933582df1f6c31");
-  if (context !== getAtlasRenderContextKey()) return false;
-  window.AtlasClosedFinancialCache ||= module.createCache(window.ATLAS_CENTRAL);
+  if (!window.ATLAS_CENTRAL?.getSession()?.user || !atlasAccessDecision(activeTab).ok) return false;
+  const context = getAtlasFinancialContextKey(), failure = getAtlasFinancialLoadFailure();
+  if (!force && failure && Date.now() - failure.failedAt < 5000) return false;
   const roster = getAtlasAccessProfile()?.community_access_records || [];
-  const norm = value => String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-  const ids = new Set(), periods = new Set();
-  for (const [name, selectedPeriods] of requested) {
-    const mapped = getAtlasCommunityAccessRecord(name, getAtlasAccessProfile());
-    const matches = roster.filter(row => row.community_id === name || row.community_id === (mapped?.atlasCommunityId || mapped?.sourceIds?.atlasCommunityId)
-      || [row.display_name,row.canonical_name].some(value => norm(value) === norm(name)));
-    if (matches.length !== 1) continue;
-    ids.add(matches[0].community_id); selectedPeriods.forEach(period => periods.add(period));
+  if (!requested.size && force) {
+    const reportingYear = Number(year) || new Date().getUTCFullYear();
+    const periods = Array.from({length:12}, (_, index) => buildPeriodKey(index, reportingYear));
+    requested = new Map(roster.filter(row => row.community_id).map(row => [row.community_id, new Set(periods)]));
   }
-  if (!ids.size || !periods.size) return false;
+  if (!requested.size) return false;
+  let module;
+  try { module = await import("./features/financial-close.mjs?v=b1fc61a9bd34612c"); }
+  catch (error) {
+    if (context === getAtlasFinancialContextKey()) {
+      const priorFailure = getAtlasFinancialLoadFailure();
+      atlasFinanceModuleFailure = {context,failedAt:Date.now(),message:error.message || String(error)};
+      if (!priorFailure) scheduleAtlasSharedRender();
+    }
+    throw error;
+  }
+  if (context !== getAtlasFinancialContextKey()) return false;
+  atlasFinanceModuleFailure = null;
+  window.AtlasClosedFinancialCache ||= module.createCache(window.ATLAS_CENTRAL);
+  // Keep each community's bounded period selection together. A mixed portfolio
+  // must not turn unrelated historical selections into a cross-product read.
+  const groups = new Map(), scoped = new Map();
+  for (const [name, selectedPeriods] of requested) {
+    const id = resolveAtlasFinancialCommunityId(name);
+    if (!id) continue;
+    if (!scoped.has(id)) scoped.set(id, new Set());
+    for (const period of selectedPeriods) if (/^20\d{2}-(0[1-9]|1[0-2])$/.test(period)) scoped.get(id).add(period);
+  }
+  for (const [id, selectedPeriods] of scoped) {
+    const periods = [...selectedPeriods].sort();
+    for (let offset = 0; offset < periods.length; offset += 24) {
+      const chunk = periods.slice(offset, offset + 24), key = JSON.stringify(chunk);
+      if (!groups.has(key)) groups.set(key, {communityIds:new Set(), periods:chunk});
+      groups.get(key).communityIds.add(id);
+    }
+  }
+  if (!groups.size) return false;
   if (!atlasFinanceRequestController || atlasFinanceRequestController.signal.aborted) atlasFinanceRequestController = new AbortController();
-  const changed = await window.AtlasClosedFinancialCache.refreshScope({communityIds:[...ids], periods:[...periods], communities:roster, force, signal:atlasFinanceRequestController.signal});
-  if (context !== getAtlasRenderContextKey()) return false;
-  if (changed) scheduleAtlasSharedRender();
+  const refresh = group => window.AtlasClosedFinancialCache.refreshScope({communityIds:[...group.communityIds], periods:group.periods, communities:roster, force, signal:atlasFinanceRequestController.signal});
+  const results = [];
+  if (force) {
+    // Each forced scope invalidates shared presentation reads. Complete one
+    // before beginning the next so it cannot invalidate a sibling request.
+    for (const group of groups.values()) {
+      if (context !== getAtlasFinancialContextKey()) return false;
+      try { results.push({status:"fulfilled",value:await refresh(group)}); }
+      catch (reason) { results.push({status:"rejected",reason}); }
+    }
+  } else results.push(...await Promise.allSettled([...groups.values()].map(refresh)));
+  if (context !== getAtlasFinancialContextKey()) return false;
+  const changed = results.some(result => result.status === "fulfilled" && result.value);
+  const rejected = results.find(result => result.status === "rejected");
+  if (changed || rejected) scheduleAtlasSharedRender();
   if (force && changed) window.dispatchEvent(new Event('atlas-finance-updated'));
+  if (rejected) throw rejected.reason;
   return changed;
 }
 
+function shiftAccountingPeriod(period, delta) {
+  const [year, month] = period.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1 + delta, 1));
+  return date.getUTCFullYear() + "-" + String(date.getUTCMonth() + 1).padStart(2, "0");
+}
+
+function priorAccountingPeriods(throughPeriod, count = 12) {
+  return Array.from({length:count}, (_, index) => shiftAccountingPeriod(throughPeriod, -index));
+}
+
+function resolveCommunityCommandCloseScope(monthIdx, year) {
+  const selectedPeriod = buildPeriodKey(monthIdx, year);
+  const today = typeof getAtlasTodayISODate === "function" ? getAtlasTodayISODate() : new Date().toISOString().slice(0, 10);
+  const currentPeriod = today.slice(0, 7);
+  const isOpenSelection = selectedPeriod >= currentPeriod;
+  const eligibleThrough = isOpenSelection ? shiftAccountingPeriod(currentPeriod, -1) : selectedPeriod;
+  return {selectedPeriod, currentPeriod, eligibleThrough, isOpenSelection,
+    requestedPeriods:isOpenSelection ? priorAccountingPeriods(eligibleThrough, 12) : [selectedPeriod]};
+}
+
+function communityCommandEconomicOccupancyLabel(economic) {
+  if (economic.closedPct !== null && economic.displayedClosePeriod) return `Closed ${economic.displayedClosePeriod} · selected ${economic.selectedPeriod}`;
+  const labels = {loading:"Loading closed financial actuals",failed:"Closed financial actuals could not be loaded",
+    open_month_no_prior_close:"No eligible prior closed month",missing_historical_close:"Missing exact historical close",
+    reopened_or_superseded:"Close reopened or superseded"};
+  return `${labels[economic.state] || "Closed financial actuals unavailable"} · selected ${economic.selectedPeriod}`;
+}
+
 function getCommunityCommandEconomicOccupancyData(record = {}, monthIdx = getSelectedDashboardMonthIndex(), year = new Date().getFullYear()) {
-  const read = (month, reportingYear) => {
-    const entry = getRecordMonthlyDataForYear(record, reportingYear)[month] || {};
-    const period = buildPeriodKey(month, reportingYear);
-    const version = getAtlasClosedFinancialVersion(record, period);
-    const closed = version ? { ...version.metrics, period:version.period_key, status:version.status, coverage:version.coverage, source:version.source_file, approvedBy:version.approved_by, approvedAt:version.approved_at } : {};
-    const actual = normalizeOptionalNumber(closed.netRentalIncome);
-    const gpr = normalizeOptionalNumber(closed.grossPotentialRent);
-    const valid = closed.status === "closed" && closed.period === period && closed.coverage === "full_month" && closed.source && closed.approvedBy && closed.approvedAt;
-    return { actual, gpr, pct: valid && actual !== null && gpr > 0 ? actual / gpr * 100 : null, source: closed.source || "" };
-  };
-  const current = read(monthIdx, year);
-  const previous = read(monthIdx > 0 ? monthIdx - 1 : 11, monthIdx > 0 ? year : year - 1);
-  return { mtdPct: current.pct, priorPct: previous.pct,
-    variance: current.pct !== null && previous.pct !== null ? current.pct - previous.pct : null,
-    collected: current.actual, grossCharges: current.gpr, rowCount: current.pct === null ? 0 : 1,
-    sourceLabel: current.pct === null ? "Missing closed financial package: same-month Net Rental Income and GPR" : `Closed Net Rental Income after concessions and leasing costs / GPR · ${current.source}` };
+  const scope = resolveCommunityCommandCloseScope(monthIdx, year);
+  const name = resolveAtlasFinancialCommunityId(record.propertyName || record.communityId || "", record);
+  if (name) queueAtlasFinancialScope(name, scope.requestedPeriods);
+  const cache = window.AtlasClosedFinancialCache;
+  const readiness = name ? getAtlasFinancialLoadFailure() ? "failed" : cache?.scopeState(name, scope.requestedPeriods) || "loading" : "failed";
+  let state = readiness === "ready" ? (scope.isOpenSelection ? "open_month_no_prior_close" : "missing_historical_close") : readiness;
+  let close = null, envelope = null;
+  if (readiness === "ready") {
+    const candidate = scope.isOpenSelection ? cache.latestClosed(name, scope.eligibleThrough) : cache.get(name, scope.selectedPeriod);
+    const period = candidate?.period_key;
+    const exact = period && scope.requestedPeriods.includes(period) && period <= scope.eligibleThrough && (scope.isOpenSelection || period === scope.selectedPeriod);
+    envelope = exact ? cache.envelope(name, period) : null;
+    if (exact && cache.isGovernedEconomicClose(envelope) && envelope.close.version_id === candidate.version_id) {
+      close = envelope.close;
+      state = scope.isOpenSelection ? "open_month_latest_close" : "closed_exact";
+    } else if (scope.requestedPeriods.some(period => {
+      const row = cache.envelope(name, period);
+      return [row?.periodState,row?.status,row?.close?.status].some(value => ["reopened","superseded"].includes(value))
+        || row?.actualCloseVersion !== undefined && row?.close?.version_id !== undefined && row.actualCloseVersion !== row.close.version_id;
+    })) state = "reopened_or_superseded";
+  }
+  const netRentalIncome = close ? normalizeOptionalNumber(close.metrics.netRentalIncome) : null;
+  const grossPotentialRent = close ? normalizeOptionalNumber(close.metrics.grossPotentialRent) : null;
+  const closedPct = close ? netRentalIncome / grossPotentialRent * 100 : null;
+  const priorPeriod = close ? shiftAccountingPeriod(close.period_key, -1) : null;
+  const prior = priorPeriod ? cache.envelope(name, priorPeriod) : null;
+  const priorPct = prior && cache.isGovernedEconomicClose(prior) ? Number(prior.close.metrics.netRentalIncome) / Number(prior.close.metrics.grossPotentialRent) * 100 : null;
+  const result = {selectedPeriod:scope.selectedPeriod,currentPeriod:scope.currentPeriod,displayedClosePeriod:close?.period_key || null,state,closedPct,
+    // Compatibility only: this is a governed closed-month percentage, never an MTD proxy.
+    mtdPct:closedPct,priorPct,priorClosePeriod:priorPct === null ? null : priorPeriod,
+    variance:closedPct !== null && priorPct !== null ? closedPct - priorPct : null,
+    netRentalIncome,grossPotentialRent,collected:netRentalIncome,grossCharges:grossPotentialRent,rowCount:close ? 1 : 0,
+    version:close?.version_id || null,closeVersionId:close?.version_id || null,source:close?.source_file || "",sourceHash:close?.source_hash || null,
+    approvedBy:close?.approved_by || null,approvedAt:close?.approved_at || null};
+  result.sourceLabel = communityCommandEconomicOccupancyLabel(result) + (close ? ` · Net Rental Income / same-month GPR × 100 · ${result.source} · Close ${result.closeVersionId || "version unavailable"} · Approved ${result.approvedAt}` : " · Governed full-month Net Rental Income and positive GPR required.");
+  return result;
 }
 
 function getCommunityCommandSourceLabel(record = {}, fallback = "Report source unavailable", propName = "", monthIdx = getSelectedDashboardMonthIndex(), year = new Date().getFullYear(), fields = []) {
@@ -22993,10 +23125,10 @@ function buildCommunityCommandAlerts(model) {
   if (model.renewal.expirations > 0 && Number(model.renewal.retentionRate || 0) < 60) {
     add("renewal_retention_watch", "watch", "Renewal retention pressure", `${model.monthLabel} retention is below the default 60% save line.`, communityCommandFormatPct(model.renewal.retentionRate || 0, 0), "60%", "Renewals", 5, "Escalate undecided renewals and review renewal pricing.");
   }
-  if (model.economic.mtdPct === null) {
-    add("economic_missing", "watch", "Economic occupancy needs closed financial actuals", "The selected month requires approved closed-package Net Rental Income and GPR.", "Missing", "Closed Net Rental Income / GPR", "Community Command", 7, "Record the closed financial package and approval evidence.");
+  if (model.economic.closedPct === null) {
+    add("economic_missing", "watch", "Economic occupancy needs closed financial actuals", model.economic.sourceLabel, "Unavailable", "Closed Net Rental Income / GPR", "Community Command", 7, "Record the closed financial package and approval evidence.");
   } else if (model.economic.variance !== null && model.economic.variance < -2) {
-    add("economic_deterioration", "critical", "Economic occupancy deterioration", `MTD economic occupancy is down ${Math.abs(model.economic.variance).toFixed(1)} points from the prior month.`, communityCommandFormatPct(model.economic.mtdPct), communityCommandFormatPct(model.economic.priorPct), "Central Services", 15, "Review delinquency and collections exceptions.");
+    add("economic_deterioration", "critical", "Economic occupancy deterioration", `Closed ${model.economic.displayedClosePeriod} economic occupancy is down ${Math.abs(model.economic.variance).toFixed(1)} points from ${model.economic.priorClosePeriod}.`, communityCommandFormatPct(model.economic.closedPct), communityCommandFormatPct(model.economic.priorPct), "Central Services", 15, "Review delinquency and collections exceptions.");
   }
   return alerts.sort((a, b) => ({ critical: 0, watch: 1, opportunity: 2 }[a.severity] ?? 9) - ({ critical: 0, watch: 1, opportunity: 2 }[b.severity] ?? 9));
 }
@@ -23263,7 +23395,7 @@ function renderCommunityCommandTrendSvg(points = []) {
 
 function renderCommunityCommandKpi(model, field, label, sourceValue, formatter, sub, tone = "info", tabIdx = 2) {
   const metric = communityCommandMetricValue(model, field, sourceValue, formatter);
-  const canOverride = communityCommandCanOverrideDashboard();
+  const canOverride = field !== "economic_occupancy" && communityCommandCanOverrideDashboard();
   return `<button type="button" class="community-command-kpi" data-tone="${tone}" onmousedown="return queueWorkspaceNavigation(${JSON.stringify(model.propName)}, ${tabIdx})">
     <div class="community-command-label">${escapeHtml(label)}</div>
     <div class="community-command-value">${escapeHtml(metric.display)}</div>
@@ -23285,10 +23417,7 @@ async function saveCommunityCommandClosedFinancials() {
 }
 
 function renderCommunityCommandHealthSnapshot(model) {
-  const economicDisplay = model.economic.mtdPct === null ? "Missing" : communityCommandFormatPct(model.economic.mtdPct);
-  const economicSub = model.economic.mtdPct === null
-    ? "Closed-package Net Rental Income and GPR required."
-    : `Prior ${model.economic.priorPct === null ? "Missing" : communityCommandFormatPct(model.economic.priorPct)} · ${model.economic.variance === null ? "variance pending" : formatSignedDisplay(model.economic.variance, 1, "%")} variance`;
+  const economicSub = communityCommandEconomicOccupancyLabel(model.economic) + (model.economic.priorPct === null ? "" : ` · Prior ${model.economic.priorClosePeriod}: ${communityCommandFormatPct(model.economic.priorPct)}`);
   const outcomesTotal = model.appMetrics.approvals + model.appMetrics.denials + model.appMetrics.cancelled;
   const approvedPct = outcomesTotal > 0 ? (model.appMetrics.approvals / outcomesTotal) * 100 : 0;
   const deniedPct = outcomesTotal > 0 ? (model.appMetrics.denials / outcomesTotal) * 100 : 0;
@@ -23300,7 +23429,7 @@ function renderCommunityCommandHealthSnapshot(model) {
   return `<div class="community-command-grid-4">
     ${renderCommunityCommandKpi(model, "physical_occupancy", "Physical Occupancy", model.physicalPct, value => communityCommandFormatPct(value), `${Math.round(model.occupied)} occupied of ${Math.round(model.occupancyBaseUnits || model.totalUnits)} comparable units`, model.budgetOccPct > 0 && model.physicalPct < model.budgetOccPct ? "critical" : "good", 2)}
     ${renderCommunityCommandKpi(model, "leased_occupancy", "Leased Occupancy", model.leasedPct, value => communityCommandFormatPct(value), `${Math.round(model.leased)} leased units in the current snapshot`, model.budgetLeasedPct > 0 && model.leasedPct < model.budgetLeasedPct ? "watch" : "good", 2)}
-    ${renderCommunityCommandKpi(model, "economic_occupancy", "Closed-Month Economic Occupancy", model.economic.mtdPct, value => value === null || value === undefined || value === "" ? "Missing" : communityCommandFormatPct(value), economicSub, model.economic.mtdPct === null ? "watch" : "info", 15)}
+    ${renderCommunityCommandKpi(model, "economic_occupancy", "Closed-Month Economic Occupancy", model.economic.closedPct, value => value === null || value === undefined || value === "" ? "Missing" : communityCommandFormatPct(value), economicSub, model.economic.closedPct === null ? "watch" : "info", 15)}
     ${renderCommunityCommandKpi(model, "trending_occupancy", "Trending Occupancy", model.trendingPct, value => value === null ? "Missing" : communityCommandFormatPct(value), model.trendingLabel, model.trendingPct !== null && model.budgetOccPct > 0 && model.trendingPct < model.budgetOccPct ? "watch" : "good", 2)}
     ${renderCommunityCommandKpi(model, "budget_occupancy", "Budget Occupancy", model.budgetOccPct || null, value => value ? communityCommandFormatPct(value) : "Missing", "Locked Budget Builder or approved reforecast source.", model.budgetOccPct ? "info" : "watch", 12)}
     ${renderCommunityCommandKpi(model, "applications_mtd", "Applications MTD", model.appMetrics.applications, value => communityCommandFormatNumber(value), `${getApplicationApprovalCohortDisplay(model.appMetrics.applications, model.appMetrics.approvals).subtext} · ${model.appMetrics.pendingDecision} pending`, model.appMetrics.applications >= Number(model.plan.currentAppNeed || 0) ? "good" : "watch", 3)}
@@ -23369,7 +23498,7 @@ async function openSharedCommunityPlan() {
   const communityId = access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId;
   if (!communityId || !window.ATLAS_CENTRAL) { alert("Shared plans require an authorized canonical community record."); return false; }
   try {
-    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=3fa45ad7f097a153");
+    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=51c3aa95f8e6fc09");
     if (epoch !== atlasNavigationEpoch || !atlasAccessDecision(2).ok) return false;
     const entry=model.monthEntry, provenance=entry.metricProvenance?.occupiedSnapshot, period=buildPeriodKey(model.monthIdx,model.year);
     const occupancy=provenance?.revisionKey && provenance.period===period && (!provenance.communityId||provenance.communityId===communityId) && entry.occupiedSnapshot!=null && Number(entry.rentableUnits)>0
@@ -23758,6 +23887,7 @@ function renderPortfolioScopedCommunityCommandTab() {
         <td class="l" style="font-weight:800">${item.hasActivePlan ? `<span class="community-command-star" title="Active Community Performance Plan">★</span> ` : ""}${escapeHtml(detail.name)}</td>
         <td>${communityCommandFormatPct(model.physicalPct)}</td>
         <td>${communityCommandFormatPct(model.leasedPct)}</td>
+        <td data-closed-economic-state="${escapeHtml(model.economic.state)}">${communityCommandFormatPct(model.economic.closedPct)}<br><small>${escapeHtml(communityCommandEconomicOccupancyLabel(model.economic))}</small></td>
         <td>${model.budgetOccPct ? communityCommandFormatPct(model.budgetOccPct) : "Missing"}</td>
         <td>${gap === null ? "Missing" : formatSignedDisplay(gap, 1, "%")}</td>
         <td data-metric="units">Loading…</td><td data-metric="gpr">Loading…</td><td data-metric="expenses">Loading…</td>
@@ -23770,8 +23900,8 @@ function renderPortfolioScopedCommunityCommandTab() {
   const bodyHtml = `<div class="tbl-wrap" id="community-command-roster" style="margin-top:12px">
     <div class="tbl-header"><h2>Community Command roster</h2><p>Choose one active community to open the command dashboard. Inactive communities remain available to Admin users through Community Settings.</p>${toolbarHtml}</div>
     <table>
-      <thead><tr><th class="l">Community</th><th>Physical</th><th>Leased</th><th>Budget</th><th>Variance</th><th>Units vs Budget</th><th>GPR</th><th>Expenses</th><th>Apps MTD</th><th>Leases MTD</th><th>Plan</th><th></th></tr></thead>
-      <tbody>${rows || `<tr><td colspan="12" class="l">${communityCommandPortfolioRosterFilter === "suggested_plans" ? "No communities currently need a suggested performance plan." : communityCommandPortfolioRosterFilter === "active_plans" ? "No active performance plans are currently open." : "No active communities are available to this role."}</td></tr>`}</tbody>
+      <thead><tr><th class="l">Community</th><th>Physical</th><th>Leased</th><th>Closed economic occupancy</th><th>Budget</th><th>Variance</th><th>Units vs Budget</th><th>GPR</th><th>Expenses</th><th>Apps MTD</th><th>Leases MTD</th><th>Plan</th><th></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="13" class="l">${communityCommandPortfolioRosterFilter === "suggested_plans" ? "No communities currently need a suggested performance plan." : communityCommandPortfolioRosterFilter === "active_plans" ? "No active performance plans are currently open." : "No active communities are available to this role."}</td></tr>`}</tbody>
     </table>
   </div>`;
   return renderPortfolioScopePanel("Community Command", "Single-community operational command center. Select a community to review health, alerts, goals, plans, and source-linked metrics.", cardsHtml, bodyHtml);
@@ -23811,7 +23941,6 @@ function addCommunityCommandDashboardOverride(field) {
   const sourceMap = {
     physical_occupancy: model.physicalPct,
     leased_occupancy: model.leasedPct,
-    economic_occupancy: model.economic.mtdPct,
     trending_occupancy: model.trendingPct,
     budget_occupancy: model.budgetOccPct,
     applications_mtd: model.appMetrics.applications,
@@ -30747,7 +30876,10 @@ function communityCommandBonusGoalResult(employee, metric, period) {
     let actual = normalizeOptionalNumber(entry[config[1]]);
     if (!goal || target === null) return result;
     if (!["occupancyGoal", "economicGoal"].includes(config[0]) && (!provenance?.source || provenance.community !== name || provenance.period !== key)) return result;
-    if (config[0] === "economicGoal") actual = getCommunityCommandEconomicOccupancyData(record, month, year).mtdPct;
+    if (config[0] === "economicGoal") {
+      const economic = getCommunityCommandEconomicOccupancyData(record, month, year);
+      actual = economic.displayedClosePeriod === key ? economic.closedPct : null;
+    }
     if (config[0] === "occupancyGoal") {
       const last = `${key}-${new Date(year,month + 1,0).getDate()}`;
       const base = normalizeOptionalNumber(entry.rentableUnits) ?? normalizeOptionalNumber(entry.trendSource?.base);
@@ -47773,10 +47905,8 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
       dataImportApplyMetric(record, plan, result, communityName, period, field, value, field);
     }
     dataImportApplyMetric(record, plan, result, communityName, period, "rent_roll_total", scheduled ?? actual, scheduled !== null ? "scheduled_charges" : "actual_charges");
-    const periodEntries = getWritableMonthlyPeriodEntries(record, period.monthIdx, period.year);
-    [periodEntries?.historyEntry, periodEntries?.liveEntry].filter(Boolean).forEach(month => {
-      month.economicOccupancyPct = getCommunityCommandEconomicOccupancyData(record, period.monthIdx, period.year).mtdPct;
-    });
+    // Economic occupancy is read from the governed close cache at presentation
+    // time. An operating import cannot store a prior close under this month.
     result.formulas.push(`${communityName} ${period.periodKey}: Economic Occupancy requires approved closed-package Net Rental Income / GPR. Operational charges remain separate.`);
     if (plan.reportType === "approved_accounting" && rows.some(row => row.monthly_actual !== undefined || row.monthly_budget !== undefined)) {
       const sourceTime=plan.metadata?.dataAsOf||plan.dataDateIso||"";

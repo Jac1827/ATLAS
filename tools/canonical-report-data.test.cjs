@@ -51,13 +51,26 @@ const corrected=F.apply(record,{period:'2026-09',rows:[{...financialRows[0],actu
 assert.equal(c.getFinancialSummaryForMonth(record,8,2026).noiActual,70);assert.equal(c.getFinancialSummaryForMonth(record,8,2026).noiBudget,80);
 assert.equal(c.getFinancialSummaryForMonth(record,7,2026).hasData,false);
 assert.equal(c.summarizeFinancialLedgerRows([{actual:0,budget:0,glCode:'4000'}]).hasData,true);
+(async()=>{
+const {isGovernedEconomicClose}=await import('../docs/portfolio-operations-dashboard/features/financial-close.mjs');
+const economicCommunity={community_id:'doro-id',display_name:'Doro',canonical_name:'doro'};
+Object.assign(c,{getAtlasTodayISODate:()=> '2026-10-06',getAtlasAccessProfile:()=>({community_access_records:[economicCommunity]}),getAtlasCommunityAccessRecord:()=>({atlasCommunityId:'doro-id'})});
 record.monthlyData=Array.from({length:12},()=>({}));record.monthlyData[8]={actualCharges:0,grossPotentialRent:100,financialSource:'Rent September'};
 assert.equal(c.getCommunityCommandEconomicOccupancyData(record,8,2026).mtdPct,null,'Unverified financial coverage is not a matched period');
 Object.assign(record.monthlyData[8],{closedFinancialActuals:{period:'2026-09',coverage:'full_month',status:'closed',netRentalIncome:0,grossPotentialRent:100,source:'closed package',approvedBy:'Reviewer',approvedAt:'2026-10-05'}});
 assert.equal(c.getCommunityCommandEconomicOccupancyData(record,8,2026).mtdPct,null,'A browser-only closed flag is not canonical authority');
-c.window.AtlasClosedFinancialCache={get:()=>{const x=record.monthlyData[8].closedFinancialActuals;return x?{metrics:x,period_key:x.period,status:x.status,coverage:x.coverage,source_file:x.source,approved_by:x.approvedBy,approved_at:x.approvedAt}:null;}};
-assert.equal(c.getCommunityCommandEconomicOccupancyData(record,8,2026).mtdPct,0);
-record.monthlyData[8].closedFinancialActuals.netRentalIncome=-5;assert.equal(c.getCommunityCommandEconomicOccupancyData(record,8,2026).mtdPct,-5);
+let economicEnvelope={communityId:'doro-id',period:'2026-09',periodState:'locked',actualCloseVersion:'close-september',close:{community_id:'doro-id',version_id:'close-september',period_key:'2026-09',status:'closed',coverage:'full_month',source_file:'closed package',approved_by:'Reviewer',approved_at:'2026-10-05',metrics:{netRentalIncome:0,grossPotentialRent:100}}};
+c.window.AtlasClosedFinancialCache={
+ scopeState:(id,periods)=>id==='doro-id'&&periods.length===1&&periods[0]==='2026-09'?'ready':'loading',
+ envelope:(id,period)=>id==='doro-id'&&period==='2026-09'?economicEnvelope:null,
+ get(id,period){return this.envelope(id,period)?.close||null;},
+ latestClosed(id,through){return id==='doro-id'&&economicEnvelope?.period<=through&&isGovernedEconomicClose(economicEnvelope)?economicEnvelope.close:null;},
+ isGovernedEconomicClose
+};
+let economic=c.getCommunityCommandEconomicOccupancyData(record,8,2026);
+assert.equal(economic.closedPct,0);assert.equal(economic.mtdPct,0);assert.equal(economic.state,'closed_exact');assert.equal(economic.displayedClosePeriod,'2026-09');
+economicEnvelope.close.metrics.netRentalIncome=-5;economic=c.getCommunityCommandEconomicOccupancyData(record,8,2026);assert.equal(economic.closedPct,-5);assert.equal(economic.mtdPct,-5);
+economicEnvelope=null;
 record.monthlyData[8]={delinquencyBalance:10};assert.equal(c.getCommunityCommandEconomicOccupancyData(record,8,2026).mtdPct,null);
 record.monthlyData[8]={actualCharges:20};assert.equal(c.getCommunityCommandEconomicOccupancyData(record,8,2026).mtdPct,null);
 const fc={AtlasFinancialPublication:F};vm.createContext(fc);vm.runInContext(finance.match(/^function buildFinancialLedgerRows\([^\n]*\)\{[\s\S]*?^\}/m)[0],fc);
@@ -113,3 +126,4 @@ console.log('PASS actual DLR builder: selected community, counts/card/chart pari
 Object.assign(c,{currentOccupied:78,currentLeased:108,currentMonth:8,monthlyData:[],corporateLeaseUnits:0,savedBudgetTargets:[],seasonal:[],getMonthsToStabilization:()=>({months:null,targetUnits:235,reason:'Verified history required'}),renderWindowshadeCard:o=>o.bodyHtml});
 const stabilizationMarkup=c.renderCommunityCommandStabilization({propName:'Doro',year:2026,monthIdx:8,record:{},traffic:{},appMetrics:{},renewal:{}});
 assert(stabilizationMarkup.includes('Range Needed'));assert(!stabilizationMarkup.includes('September 2026'));console.log('PASS unavailable stabilization does not become the current calendar month.');
+})().catch(error=>{console.error(error);process.exitCode=1;});

@@ -4,7 +4,7 @@ import {financeSnapshot,lineageColumns} from './financial-snapshot.mjs?v=848d058
 import {snapshotPdf} from './snapshot-pdf.mjs?v=cda1d9683b4dd270';
 import {readFinance} from './canonical-finance.mjs?v=625be3eaa641cbeb';
 import {readCanonicalBudgetVersion,assertBudgetReadback} from './canonical-budget-report.mjs?v=fe14cd98adacbe36';
-import {readRows} from './financial-close.mjs?v=78933582df1f6c31';
+import {readRows} from './financial-close.mjs?v=b1fc61a9bd34612c';
 import {loadXlsx} from './reforecast-intake.mjs?v=b0fa5b5fe892d268';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const freeze=o=>{if(o&&typeof o==='object'){Object.values(o).forEach(freeze);Object.freeze(o);}return o;};

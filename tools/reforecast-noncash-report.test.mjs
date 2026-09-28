@@ -44,6 +44,7 @@ for(const kind of ['approved_forecast','saved_revision']){
  if(kind==='approved_forecast'){assert.equal(xlsx.delivery.delivery_status,'verified');assert.equal(pdf.delivery.delivery_status,'verified');}
  output.push({...pdf,name:kind+'-noncash.pdf'},{...xlsx,name:kind+'-noncash.xlsx'});
 }
+assert(reportHtml(f.parent.snapshot,f.parent.source,{metric:'cashFlow'}).includes('Trend: Cash flow after noncash charges.'),'Classified after-noncash cash-flow meaning is explicit in analysis');
 const analysis=cashFlowComparisonRows(f.parent.snapshot,f.parent.source);assert.equal(analysis.find(row=>row.Basis==='Original budget').Cash_flow_before_noncash,null);assert.equal(analysis.find(row=>row.Basis==='Original budget').Cash_flow_after_noncash,50);assert(analysis.filter(row=>row.Basis==='Governed actuals').every(row=>row.Cash_flow_after_noncash===null));
 assert.deepEqual(analyticalExportRows(f.parent.snapshot,f.parent.source).cash_flow.map(({Period,Basis,Cash_flow_before_noncash,Noncash_depreciation_amortization,Cash_flow_after_noncash})=>({Period,Basis,Cash_flow_before_noncash,Noncash_depreciation_amortization,Cash_flow_after_noncash})),analysis);
 const wb=reportWorkbook(f.parent.snapshot,f.parent.source,XLSX),analysisPDF=await evidence(await reportPdf(f.parent.snapshot,f.parent.source));assert.deepEqual(XLSX.utils.sheet_to_json(wb.Sheets['Cash flow and noncash'],{defval:null}),analysis);assert.deepEqual(analysisPDF.data.sections[0].rows,analysis);

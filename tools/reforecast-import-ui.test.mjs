@@ -6,7 +6,7 @@ const assignment={communityId:A,confirmed:true,explicit:true,actorId:'00000000-0
 const row=(id,period,amount,scenario='Plan')=>({id,sheet:'Input',accountCode:'5120',accountName:'Rent',department:null,amount,period,scenario,sourceKind:scenario==='Actual'?'workbook_actual_evidence':'workbook_forecast_evidence',formula:null,cachedValue:null,cellType:'n',address:id.slice(6)});
 const evidence={parserVersion:'test',source:{sha256:'0'.repeat(64)},metadata:{entities:['304 (Source)']},issues:[],lines:[row('Input!F10','2026-07',0),row('Input!G10','2026-08',100),row('Input!F11','2026-07',200),row('Input!F12','2026-07',999,'Actual')],sheets:[]};
 evidence.integrity={fingerprint:'a'.repeat(64),inventory:{sheets:[]},findings:[]};
-const source={registry:{version:'reviewed-version',accounts:[{accountCode:'5120',name:'Rent',category:'Rent',nature:'income',placement:'above_noi',effectiveFrom:'2026-01'}]},actuals:{cutoffPeriod:'2026-06'}};
+const source={registry:{version:'reviewed-version',accounts:[{accountCode:'5120',name:'Rent',category:'Rent',nature:'income',placement:'above_noi',effectiveFrom:'2026-01'}]},actuals:{cutoffPeriod:'2026-06'},baseline:{lines:[{period:'2026-07',accountCode:'5120',amount:900},{period:'2026-08',accountCode:'5120',amount:950}]}};
 const periods=['2026-07','2026-08'],groups=reforecastImportGroups(evidence,'Plan',periods);
 assert.equal(groups.length,1);assert.equal(groups[0].lines.length,3);assert.ok(groups[0].lines.every(line=>line.scenario==='Plan'));
 assert.deepEqual(reforecastImportPeriods(evidence,periods),periods);assert.deepEqual(reforecastImportPeriods(evidence,[]),periods);

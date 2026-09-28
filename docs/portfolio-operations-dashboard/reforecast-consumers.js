@@ -10,7 +10,7 @@
  window.AtlasBudgetApprovalTasks={async mount(panel){
   if(!panel||!window.ATLAS_CENTRAL?.getSession()?.user||!window.atlasAccessDecision?.(12)?.ok)return;
   panel.querySelector('[data-budget-approval-tasks]')?.remove();const el=document.createElement('section');el.dataset.budgetApprovalTasks='1';el.className='card mb4';el.style.cssText='padding:20px;overflow:auto';panel.prepend(el);
-  const {mountBudgetApprovalTasks}=await import('./features/budget-dashboard-tasks.mjs?v=e717d2b3e0d0c4b7');
+  const {mountBudgetApprovalTasks}=await import('./features/budget-dashboard-tasks.mjs?v=48863dfb1f02df2d');
   await mountBudgetApprovalTasks(el,{central:window.ATLAS_CENTRAL,openReview:row=>{window.setTab?.(12);const frame=document.querySelector('iframe[src*="RISE-Budget-Builder"]');if(frame){const open=()=>frame.contentWindow.postMessage({type:'atlas-reforecast-navigate',view:'reforecastapprovals',communityId:row.communityId,...(row.recordType==='month_end_actuals'?{reviewId:row.reviewId||row.id}:{scenarioId:row.id})},location.origin);frame.addEventListener('load',open,{once:true});open();}}});
  }};
  window.AtlasActiveReforecast={

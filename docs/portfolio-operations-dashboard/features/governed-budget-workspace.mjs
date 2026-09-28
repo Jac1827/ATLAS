@@ -1,7 +1,8 @@
 /* View models for the shared governed budget workflow. No financial writes or name inference. */
 export const WORKING_STATES=new Set(['working_draft','uploaded','property_required','mapping_required','reconciled','ready_for_review','withdrawn','rejected','reopened']);
 export const APPROVAL_STATES=new Set(['submitted','pending_investor_approval']);
-export const HISTORY_STATES=new Set(['approved','locked','published','investor_approved','superseded']);
+// VP publication is already an approved financial version before investor lock.
+export const HISTORY_STATES=new Set(['approved','locked','published','pending_investor_approval','investor_approved','superseded']);
 export const workflowLabel=state=>({submitted:'Ready for Review and Approval',pending_investor_approval:'Pending Investor Approval',investor_approved:'Investor Approved',ready_for_review:'Working Draft — review prepared',deleted:'Deleted'}[state]||String(state||'working_draft').replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase()));
 export function workflowState(record){return record?.head?.status||record?.state||'working_draft';}
 export function draftType(payload={}){return ['initial_budget','revised_budget','reforecast'].includes(payload.recordType)?payload.recordType:'reforecast';}

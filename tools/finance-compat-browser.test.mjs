@@ -36,7 +36,7 @@ try{
  execFileSync('git',['archive','--format=tar','--output='+path.join(tmp,'old.tar'),'origin/atlas-asset-releases:_atlas-assets/'+OPERATIONAL_RELEASE],{cwd:repo});
  execFileSync('tar',['-xf',path.join(tmp,'old.tar'),'-C',old]);
  const receipt=await composeFinanceCompatSource({operationalSource:old,financeSource:path.join(repo,'docs'),out});
- assert.equal(receipt.changedOperationalFiles.length,14);assert.equal(await fs.readFile(path.join(out,'portfolio-operations-dashboard/index.html'),'utf8'),patchOccupancyImportBoundary(await fs.readFile(path.join(old,'portfolio-operations-dashboard/index.html'),'utf8'),await fs.readFile(path.join(repo,'docs/portfolio-operations-dashboard/workspace-core.js'),'utf8')));
+ assert.equal(receipt.changedOperationalFiles.length,14);assert.equal(await fs.readFile(path.join(out,'portfolio-operations-dashboard/index.html'),'utf8'),patchOccupancyImportBoundary(await fs.readFile(path.join(old,'portfolio-operations-dashboard/index.html'),'utf8'),await fs.readFile(path.join(repo,'docs/portfolio-operations-dashboard/workspace-core.js'),'utf8'),await fs.readFile(path.join(repo,'docs/portfolio-operations-dashboard/features/import-workspace.js'),'utf8')));
  await assert.rejects(composeFinanceCompatSource({operationalSource:old,financeSource:path.join(repo,'docs'),out}),/already exist/);
  const allowedRpcs=new Set(['atlas_read_reforecast_workspace','atlas_month_end_queue','atlas_read_budget_calendar','atlas_read_active_reforecast','atlas_read_reforecast_builder_source','atlas_read_reforecast_source','atlas_read_reforecast_sources','atlas_read_str_programme_drafts','atlas_read_str_programme_history','atlas_read_finance','atlas_read_dashboard_views','atlas_reforecast_effective_baseline','atlas_verify_budget_consumer','atlas_verify_finance_receipt','atlas_read_employee_notifications','atlas_read_people_directory','atlas_read_community_goals','atlas_read_shared_property_graph','atlas_upsert_live_session','atlas_end_live_session','atlas_save_dashboard_view']);
  server=createServer(async(req,res)=>{try{const url=new URL(req.url,'http://local');if(url.pathname==='/blank'){res.setHeader('content-type','text/html');res.end('<!doctype html><title>Synthetic source setup</title>');return;}const file=path.resolve(out,'.'+decodeURIComponent(url.pathname));if(!file.startsWith(out+path.sep))throw Error();res.setHeader('content-type',file.endsWith('.html')?'text/html':/\.(mjs|js)$/.test(file)?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.svg')?'image/svg+xml':'application/octet-stream');res.end(await fs.readFile(file));}catch{res.writeHead(404);res.end();}});
@@ -64,6 +64,7 @@ try{
   // Offline fixture: external fonts, analytics, map tiles and optional services.
   return route.fulfill({body:'',status:200});
  });
+ stage='seed retained evidence';
  await page.goto(origin+'/blank');await page.evaluate(async({actor,profile,community,history})=>{
   localStorage.setItem('atlas_central_auth_session_v1',JSON.stringify({access_token:'synthetic-primary',refresh_token:'synthetic-primary',expires_at:Math.floor(Date.now()/1000)+3600,user:{id:actor,email:profile.email}}));localStorage.setItem('atlas_central_profile_v1',JSON.stringify(profile));
   localStorage.setItem('atlas_dashboard_preferences_v1',JSON.stringify({hasSeenWelcome:true}));
@@ -124,9 +125,9 @@ try{
 }catch(error){
  // Synthetic fixture only: record the exact failed condition without tokens or
  // unbounded browser state. Keep the original assertion and 20-second timeout.
- const diagnostics={stage,error:String(error?.message||error),runtime:{node:process.version,platform:process.platform,timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone,now:new Date().toISOString()},pageErrors:errors.slice(-20),failedRequests:failedRequests.slice(-20),requestNames:[...new Set(requests)].slice(-80)};
+ const diagnostics={stage,error:String(error?.stack||error),runtime:{node:process.version,platform:process.platform,timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone,now:new Date().toISOString()},pageErrors:errors.slice(-20),failedRequests:failedRequests.slice(-20),requestNames:[...new Set(requests)].slice(-80)};
  if(page&&!page.isClosed()){
-  diagnostics.frames=page.frames().map(frame=>new URL(frame.url()).pathname);
+  diagnostics.frames=await Promise.all(page.frames().slice(0,3).map(async frame=>({path:new URL(frame.url()).pathname,body:await frame.locator('body').innerText({timeout:2000}).then(text=>text.slice(-3500),()=>'<unavailable>')})));
   diagnostics.dom=await page.evaluate(()=>{
    const text=selector=>document.querySelector(selector)?.textContent?.trim()||null;
    let model=null;try{model=typeof buildCommunityCommandModel==='function'?buildCommunityCommandModel(getProp().name,getCurrentCommunityRecord()).goalPlanning:null;}catch(e){model={error:e.message};}

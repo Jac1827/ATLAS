@@ -184,4 +184,35 @@ function envelope(communityId,period,netRentalIncome=75,grossPotentialRent=100){
  assert.equal(row.Close_version_ID,result.closeVersionId);assert.equal(row.Source,result.source);assert.equal(row.Source_hash,result.sourceHash);assert.equal(row.Approved_by,result.approvedBy);assert.equal(row.Approved_at,result.approvedAt);assert.equal(row.Net_rental_income,result.netRentalIncome);assert.equal(row.Gross_potential_rent,result.grossPotentialRent);
  const html=reportHtml(report);assert(html.includes('75.0%'));assert(html.includes('2026-08'));assert(html.includes('2026-09'));assert(html.includes(result.source));assert(html.includes(result.closeVersionId));
  console.log('PASS explicit closedPct screen/HTML/PDF/XLSX model parity, selected-vs-displayed period labels and approval/source/version evidence');
+
+ // Render the actual mixed-community roster from independent governed closes.
+ const portfolio=fixture(),portfolioModels=new Map();
+ const expectedPortfolio=[{community:alpha,period:'2026-08',pct:75},{community:beta,period:'2026-07',pct:40},{community:gamma,period:'2026-06',pct:0}];
+ for(const item of expectedPortfolio)portfolio.set(item.community,item.period,item.pct);
+ await portfolio.load(portfolio.scope().requestedPeriods);
+ Object.assign(portfolio.ctx,{
+  communityCommandPortfolioRosterFilter:'all',getSelectedDashboardMonthIndex:()=>8,
+  getWorkspaceScopedDetails:(month,options)=>{assert.equal(month,8);assert.equal(options.includeRecommendations,false);assert.equal(options.includeSummary,false);return [...communities].reverse().map(community=>({name:community.display_name,record:portfolio.record(community)}));},
+  isCommunityStatusActive:()=>true,atlasDashboardUserCanSeeCommunityName:()=>true,
+  buildCommunityCommandModel:(propName,record)=>{const economic=portfolio.ctx.getCommunityCommandEconomicOccupancyData(record,8,2026);portfolioModels.set(propName,economic);return {...model,propName,record,economic:{...economic,mtdPct:999},grossLeasesMtd:0};},
+  buildCommunityCommandAlerts:()=>[],getCommunityCommandPlanSuggestion:()=>null,
+  queueCommunityRosterFinancials:()=>{},renderCommunityCommandPlanSummaryStat:()=>'',statBox:()=>'',
+  renderPortfolioScopePanel:(title,description,cards,body)=>cards+body
+ });
+ const portfolioHtml=portfolio.ctx.renderPortfolioScopedCommunityCommandTab();
+ const renderedRows=new Map([...portfolioHtml.matchAll(/<tr data-command-finance="([^"]+)"[^>]*>([\s\S]*?)<\/tr>/g)].map(match=>[decodeURIComponent(match[1]),match[2]]));
+ assert.equal(renderedRows.size,3,'All three arbitrary communities appear in the actual portfolio table');
+ for(const item of expectedPortfolio){
+  const name=item.community.display_name,economic=portfolioModels.get(name),renderedRow=renderedRows.get(name);
+  assert(renderedRow,name+' has its own portfolio row');
+  const cell=renderedRow.match(/<td data-closed-economic-state="([^"]+)">([\s\S]*?)<\/td>/);
+  assert(cell,name+' exposes the machine-readable economic state');
+  assert.equal(cell[1],economic.state);assert.equal(cell[1],'open_month_latest_close');
+  assert.equal(cell[2],item.pct.toFixed(1)+'%<br><small>Closed '+item.period+' · selected 2026-09</small>',name+' retains its own percentage and selected/displayed periods');
+  assert.equal(economic.closedPct,item.pct);assert.equal(economic.displayedClosePeriod,item.period);
+  const exportRow=closedEconomicOccupancyRows({...report,snapshot:{...report.snapshot,community:name,closedEconomicOccupancy:economic}})[0];
+  assert.equal(exportRow.Closed_economic_occupancy_pct,item.pct);assert.equal(exportRow.Displayed_close_period,item.period);assert.equal(exportRow.Selected_period,'2026-09');assert.equal(exportRow.State,cell[1]);
+ }
+ assert(!portfolioHtml.includes('999.0%'),'The portfolio renderer ignores the poisoned MTD compatibility alias');
+ console.log('PASS actual mixed-community portfolio rows preserve independent closed percentages, zero, machine states, selected/displayed periods and export parity');
 })().catch(error=>{console.error(error);process.exitCode=1;});

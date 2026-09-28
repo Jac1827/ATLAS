@@ -900,8 +900,8 @@
     ]
   },
   "features/workspace-bootstrap.mjs": {
-    "sha256": "7f35bab039d795e3",
-    "bytes": 8554,
+    "sha256": "565a4933bd9ac913",
+    "bytes": 8930,
     "references": [
       [
         "workspace-core.js",
@@ -914,7 +914,7 @@
     ]
   },
   "features/workspace-publication.mjs": {
-    "sha256": "a79eeeecf97c0b00",
+    "sha256": "a78eecf53204f1f7",
     "bytes": 959,
     "references": [
       [
@@ -924,8 +924,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "7bbaf21c5b30cb1f",
-    "bytes": 3041524,
+    "sha256": "976715432fc1cea6",
+    "bytes": 3050071,
     "references": [
       [
         "index.html",
@@ -1498,8 +1498,8 @@
     ]
   },
   "atlas-dashboard-reskin.js": {
-    "sha256": "43d8e2283733d898",
-    "bytes": 40764,
+    "sha256": "b4bd1248a4d19c2b",
+    "bytes": 42275,
     "references": [
       [
         "index.html",
@@ -1814,8 +1814,8 @@
     ]
   },
   "features/reports-workspace.js": {
-    "sha256": "45fbf5d064edfa86",
-    "bytes": 124738,
+    "sha256": "bcce172b61dd8132",
+    "bytes": 126887,
     "references": [
       [
         "performance/feature-loader.js",
@@ -1874,7 +1874,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "211e191cef3dde7f",
+    "sha256": "5957ae5818ad530f",
     "bytes": 3714,
     "references": [
       [

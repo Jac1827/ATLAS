@@ -1,7 +1,7 @@
 import {retainedWorkbookBlank,confirmedForecastBlank,compactWorkbookBlankReference} from './reforecast-workbook-source-policy.mjs?v=be424108c7ddcacc';
 import {acknowledgeBudgetConsumer} from './budget-consumer-delivery.mjs?v=f5342574d4b39aa2';
 /* Canonical reforecast transport: no browser-local financial fallback. */
-import {persistReforecastPayload} from './workbook-audit-store.mjs?v=89a1ef89e80c078f';
+import {persistReforecastPayload} from './workbook-audit-store.mjs?v=da818ddb04840b36';
 import {effectiveActiveSnapshot as projectActive} from './reforecast-active.mjs?v=03b191a6926d70ca';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const period=/^20\d{2}-(0[1-9]|1[0-2])$/;

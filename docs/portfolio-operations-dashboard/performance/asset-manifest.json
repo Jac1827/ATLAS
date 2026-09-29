@@ -412,8 +412,8 @@
     ]
   },
   "features/workbook-audit-store.mjs": {
-    "sha256": "89a1ef89e80c078f",
-    "bytes": 20199,
+    "sha256": "da818ddb04840b36",
+    "bytes": 20611,
     "references": [
       [
         "features/reforecast-import-ui.mjs",
@@ -430,7 +430,7 @@
     ]
   },
   "features/reforecast-store.mjs": {
-    "sha256": "3a4c55ebfeb16a80",
+    "sha256": "27506e81707171d5",
     "bytes": 25787,
     "references": [
       [
@@ -476,7 +476,7 @@
     ]
   },
   "features/reforecast-utility.mjs": {
-    "sha256": "d82f74cccab67ea3",
+    "sha256": "b89df885ff47592d",
     "bytes": 10133,
     "references": [
       [
@@ -552,7 +552,7 @@
     ]
   },
   "features/reforecast-report.mjs": {
-    "sha256": "949a30555802efde",
+    "sha256": "fb4a7a601d454159",
     "bytes": 71991,
     "references": [
       [
@@ -586,7 +586,7 @@
     ]
   },
   "features/reforecast-consumers.mjs": {
-    "sha256": "7294a58606238c86",
+    "sha256": "3d19ee1e576407cf",
     "bytes": 16747,
     "references": [
       [
@@ -604,7 +604,7 @@
     ]
   },
   "features/canonical-finance.mjs": {
-    "sha256": "bf14cf8d8fae700f",
+    "sha256": "625be3eaa641cbeb",
     "bytes": 18540,
     "references": [
       [
@@ -674,7 +674,7 @@
     ]
   },
   "features/community-finance.mjs": {
-    "sha256": "e46e699c03437cd6",
+    "sha256": "a9100de0ba62f974",
     "bytes": 4956,
     "references": [
       [
@@ -704,7 +704,7 @@
     ]
   },
   "features/community-plan.mjs": {
-    "sha256": "cdd631e379ed5dd3",
+    "sha256": "3fa45ad7f097a153",
     "bytes": 18545,
     "references": [
       [
@@ -732,7 +732,7 @@
     ]
   },
   "features/month-end-governance.mjs": {
-    "sha256": "bd35c6b772ac00ac",
+    "sha256": "cd8f3e2baa5bd319",
     "bytes": 7820,
     "references": [
       [
@@ -746,7 +746,7 @@
     ]
   },
   "features/financial-close.mjs": {
-    "sha256": "cf2dfd40696cfe60",
+    "sha256": "78933582df1f6c31",
     "bytes": 26410,
     "references": [
       [
@@ -962,7 +962,7 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "1b015d6df4c663c9",
+    "sha256": "bd9b4f711f10cc06",
     "bytes": 3058025,
     "references": [
       [
@@ -1152,7 +1152,7 @@
     ]
   },
   "features/reforecast-recovery.mjs": {
-    "sha256": "388ef15208117733",
+    "sha256": "065541d595c0a890",
     "bytes": 11460,
     "references": [
       [
@@ -1192,8 +1192,8 @@
     ]
   },
   "features/reforecast-import-ui.mjs": {
-    "sha256": "433a16d36ece8894",
-    "bytes": 71938,
+    "sha256": "68f05e992d5ecd7b",
+    "bytes": 72040,
     "references": [
       [
         "features/reforecast-ui.mjs",
@@ -1220,7 +1220,7 @@
     ]
   },
   "features/budget-export-delivery.mjs": {
-    "sha256": "4a2614bb874c4bc9",
+    "sha256": "34f14b3a6e58b18e",
     "bytes": 4807,
     "references": [
       [
@@ -1336,7 +1336,7 @@
     ]
   },
   "features/reforecast-str-saved-programme-ui.mjs": {
-    "sha256": "2f69099696fb577f",
+    "sha256": "691f267ee43481ec",
     "bytes": 28560,
     "references": [
       [
@@ -1350,7 +1350,7 @@
     ]
   },
   "features/reforecast-builder-ui.mjs": {
-    "sha256": "152a16de88b9b8ed",
+    "sha256": "22619922cff8d183",
     "bytes": 66671,
     "references": [
       [
@@ -1370,7 +1370,7 @@
     ]
   },
   "features/original-budget-intake.mjs": {
-    "sha256": "c6c4b8df56291064",
+    "sha256": "3eb2847498010eae",
     "bytes": 5630,
     "references": [
       [
@@ -1380,7 +1380,7 @@
     ]
   },
   "features/approved-budget.mjs": {
-    "sha256": "409df5fdca93ca95",
+    "sha256": "e4ffb46ed6886a99",
     "bytes": 20387,
     "references": [
       [
@@ -1394,7 +1394,7 @@
     ]
   },
   "features/original-budget-version-report.mjs": {
-    "sha256": "8b3020e52a5d4b36",
+    "sha256": "eac40805f453c1aa",
     "bytes": 11320,
     "references": [
       [
@@ -1426,7 +1426,7 @@
     ]
   },
   "features/reforecast-report-library.mjs": {
-    "sha256": "a20294942f4b2022",
+    "sha256": "8f6683d99707f482",
     "bytes": 28197,
     "references": [
       [
@@ -1436,7 +1436,7 @@
     ]
   },
   "features/reforecast-ui.mjs": {
-    "sha256": "d101d914fdfd549d",
+    "sha256": "9899aacb19563451",
     "bytes": 157006,
     "references": [
       [
@@ -1450,7 +1450,7 @@
     ]
   },
   "features/scout-reforecast.mjs": {
-    "sha256": "048dd95160c9b95e",
+    "sha256": "21b1c0377aafc4bd",
     "bytes": 8219,
     "references": [
       [
@@ -1470,7 +1470,7 @@
     ]
   },
   "reforecast-consumers.js": {
-    "sha256": "eefb4c0e4fe9b692",
+    "sha256": "b82fd739fa1e6717",
     "bytes": 4172,
     "references": [
       [
@@ -1480,7 +1480,7 @@
     ]
   },
   "reforecast-navigation.js": {
-    "sha256": "497a679a80d9ccb6",
+    "sha256": "203f8d2ea6874a3a",
     "bytes": 6069,
     "references": [
       [
@@ -1634,7 +1634,7 @@
     ]
   },
   "features/canonical-budget-report.mjs": {
-    "sha256": "0f578a8c7b9ad2c7",
+    "sha256": "fe14cd98adacbe36",
     "bytes": 8090,
     "references": [
       [
@@ -1648,7 +1648,7 @@
     ]
   },
   "features/financial-close-report.mjs": {
-    "sha256": "af1eb31379df0555",
+    "sha256": "50d058ed5388d7d7",
     "bytes": 10629,
     "references": [
       [
@@ -1658,7 +1658,7 @@
     ]
   },
   "features/financial-comparison.mjs": {
-    "sha256": "31f366ebf9bee243",
+    "sha256": "8f5da36265207f93",
     "bytes": 11845,
     "references": [
       [
@@ -1672,7 +1672,7 @@
     ]
   },
   "features/financial-package-review.mjs": {
-    "sha256": "ea9d88e7a05cde44",
+    "sha256": "25ef091aeebfdba3",
     "bytes": 21788,
     "references": [
       [
@@ -1696,7 +1696,7 @@
     ]
   },
   "budget-navigation.js": {
-    "sha256": "58a82c535a27ccd5",
+    "sha256": "98b667be40474c88",
     "bytes": 13575,
     "references": [
       [
@@ -1726,7 +1726,7 @@
     ]
   },
   "features/budget-command-publication.mjs": {
-    "sha256": "1c8736c8f6db5a84",
+    "sha256": "6b9911b26976a4cb",
     "bytes": 8948,
     "references": [
       [
@@ -1766,7 +1766,7 @@
     ]
   },
   "investor-budget-bridge.js": {
-    "sha256": "87749f2e0191518f",
+    "sha256": "8aa1512c36fc2949",
     "bytes": 19735,
     "references": [
       [
@@ -1776,7 +1776,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "24b7850b9edf737e",
+    "sha256": "d95601eba3449482",
     "bytes": 1892175,
     "references": [
       [
@@ -1786,7 +1786,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "ba6547ee6e5fa79a",
+    "sha256": "a0ec0cd5ed3257ba",
     "bytes": 26893,
     "references": [
       [
@@ -1806,7 +1806,7 @@
     ]
   },
   "features/community-goal-planning.mjs": {
-    "sha256": "bddf1e39f2e1ce8a",
+    "sha256": "52c871f0a6fad53f",
     "bytes": 18087,
     "references": [
       [
@@ -1816,7 +1816,7 @@
     ]
   },
   "community-goal-editor.js": {
-    "sha256": "7639c997f91ecfba",
+    "sha256": "8e9013a45588256b",
     "bytes": 16749,
     "references": [
       [

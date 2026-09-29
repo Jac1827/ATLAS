@@ -5,6 +5,8 @@ const code=source.slice(source.indexOf('  async function request(url,'),source.i
  const server=http.createServer((req,res)=>{
   if(req.url==='/slow')return;
   if(req.url==='/slow-body'){res.setHeader('sb-request-id','9cdbd5a5-92c3-4c40-95bc-b21fbd0335ad');res.writeHead(200);res.flushHeaders();res.write('{');return;}
+  if(req.url==='/structured'){res.statusCode=400;res.end(JSON.stringify({message:'Size limit',code:'P0001',details:'{"code":"reforecast_payload_too_large","private":"do not log details"}',hint:'Preserve retained reviews'}));return;}
+  if(req.url==='/invalid-metadata'){res.statusCode=400;res.end(JSON.stringify({message:'Invalid metadata',code:1,details:{private:'do not log object'},hint:['private']}));return;}
   res.setHeader('sb-request-id','9cdbd5a5-92c3-4c40-95bc-b21fbd0335ad');
   res.setHeader('cf-ray','untrusted private data');
   res.statusCode=req.url==='/failure'?503:200;
@@ -17,6 +19,9 @@ const code=source.slice(source.indexOf('  async function request(url,'),source.i
  assert.equal((await context.request(origin+'/ok',options)).ok,true);
  assert.equal(events[0].requestBytes,Buffer.byteLength(options.body));assert.equal(events[0].classification,'http_success');assert.equal(events[0].requestId,requestId);assert.equal(events[0].gateway.supabaseRequestId,'9cdbd5a5-92c3-4c40-95bc-b21fbd0335ad');assert.equal(events[0].gateway.cloudflareRay,null);assert(events[0].durationMs>=0);assert(!JSON.stringify(events).includes('secret'));assert(!JSON.stringify(events).includes('do not log'));
  await assert.rejects(()=>context.request(origin+'/failure',options),e=>e.status===503&&e.transport.classification==='http_error');
+ await assert.rejects(()=>context.request(origin+'/structured',options),e=>e.status===400&&e.code==='P0001'&&e.details==='{"code":"reforecast_payload_too_large","private":"do not log details"}'&&e.hint==='Preserve retained reviews');
+ await assert.rejects(()=>context.request(origin+'/invalid-metadata',options),e=>!Object.hasOwn(e,'code')&&!Object.hasOwn(e,'details')&&!Object.hasOwn(e,'hint'));
+ assert(!JSON.stringify(events).includes('do not log details'));assert(!JSON.stringify(events).includes('Preserve retained reviews'));assert(!JSON.stringify(events).includes('do not log object'));
  await assert.rejects(()=>context.request(origin+'/invalid',options),e=>e.transport.classification==='response_read_error');
  await assert.rejects(()=>context.request(origin+'/slow',{...options,timeoutMs:1000}),e=>e.transport.classification==='timeout');
  await assert.rejects(()=>context.request(origin+'/slow-body',{...options,timeoutMs:1000}),e=>e.transport.classification==='timeout'&&e.transport.status===200&&e.transport.gateway.supabaseRequestId==='9cdbd5a5-92c3-4c40-95bc-b21fbd0335ad');

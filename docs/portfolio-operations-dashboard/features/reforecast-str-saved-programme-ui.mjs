@@ -3,7 +3,7 @@ export {readStrMappingContext} from './reforecast-str-registry-extension.mjs?v=e
 import {parseSavedStrJson,savedStrJsonBytes} from './reforecast-str-json-recovery.mjs?v=8e59b661f0adbf5e';
 import {parseSavedStrMonthlyProgramme,prepareSavedStrMonthlyContribution} from './reforecast-str-saved-programme.mjs?v=2b6356eb8cb947bb';
 import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=aba4565f9c5c9e98';
-import {saveForecastRecovery,readForecastRecovery,removeForecastRecovery} from './reforecast-recovery.mjs?v=a9e90f515ca31a7a';
+import {saveForecastRecovery,readForecastRecovery,removeForecastRecovery} from './reforecast-recovery.mjs?v=86606f2d8a961cca';
 const clone=structuredClone,finite=value=>typeof value==='number'&&Number.isFinite(value),uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const canonical=value=>Array.isArray(value)?value.map(canonical):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;

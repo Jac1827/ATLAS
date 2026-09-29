@@ -24,9 +24,31 @@ begin
  return isfinite(value::timestamptz) and value::timestamptz<=now()+interval '5 minutes';
  exception when others then return false;
 end;$$;
+-- Keep the original, fully fingerprinted mapping when validating either kind
+-- of source absence. Reclassifying review rows must not invalidate its already
+-- verified immutable relationship proof or repeat validation of the full upload.
+do $absence$
+declare d text;body text;shared_body text;
+begin
+ d:=atlas_private.forecast_blank_required_definition('atlas_private.resolve_reforecast_workbook_scope(jsonb,jsonb)','5ee9dff904ce1c7dfbeaa04ea1b7af189b64f169f1906e0ac332d59a6ca53ea5');
+ select prosrc into body from pg_proc where oid='atlas_private.resolve_reforecast_workbook_scope(jsonb,jsonb)'::regprocedure;
+ shared_body:=atlas_private.forecast_blank_required_rewrite(body,$before$ if not coalesce(mapping->'workbookSourcePolicy' ? 'outsideForecastScope',false) then return result;end if;$before$,$after$ if absence_disposition not in ('outside_forecast_scope','reviewed_forecast_blank') or absence_disposition is null then raise exception 'Unknown workbook source absence disposition';end if;$after$);
+ -- All four occurrences address only the review list, not the mapping passed
+ -- to immutable relationship validation or its exact full-mapping fingerprint.
+ if (length(shared_body)-length(replace(shared_body,$key$mapping->'workbookSourcePolicy'->'outsideForecastScope'$key$,'')))/length($key$mapping->'workbookSourcePolicy'->'outsideForecastScope'$key$)<>4 then raise exception 'Workbook source absence review-list prerequisite differs';end if;
+ shared_body:=replace(shared_body,$key$mapping->'workbookSourcePolicy'->'outsideForecastScope'$key$,'reviews');
+ shared_body:=atlas_private.forecast_blank_required_rewrite(shared_body,$before$  result:=result||jsonb_build_array(review||jsonb_build_object('disposition','outside_forecast_scope','sourceScopeExclusionConfirmed',true,'source',jsonb_build_object('kind','workbook_scope_exclusion','uploadId',config->'uploadId','sourceHash',source_hash,'auditId',upload->'integrity'->'auditId','mappingVersion',mapping->'version','sourceScenario',mapping->'sourceScenario','review',review)));$before$,$after$  result:=result||jsonb_build_array(review||jsonb_build_object('disposition',absence_disposition,'sourceScopeExclusionConfirmed',absence_disposition='outside_forecast_scope','source',jsonb_build_object('kind',case when absence_disposition='reviewed_forecast_blank' then 'reviewed_forecast_blank' else 'workbook_scope_exclusion' end,'uploadId',config->'uploadId','sourceHash',source_hash,'auditId',upload->'integrity'->'auditId','mappingVersion',mapping->'version','sourceScenario',mapping->'sourceScenario','review',review)||case when absence_disposition='reviewed_forecast_blank' then jsonb_build_object('workbookSourceAbsent',true) else '{}'::jsonb end)||case when absence_disposition='reviewed_forecast_blank' then jsonb_build_object('amount',null,'isBlank',true,'legitimateBlank',true,'reviewedForecastBlankConfirmed',true) else '{}'::jsonb end);$after$);
+ execute format('create function atlas_private.resolve_reforecast_workbook_absence(source jsonb,config jsonb,reviews jsonb,absence_disposition text) returns jsonb language plpgsql stable security invoker set search_path='''' set plan_cache_mode=''force_generic_plan'' as %L',shared_body);
+ execute atlas_private.forecast_blank_required_rewrite(d,body,$wrapper$
+begin
+ if not coalesce(config->'importMapping'->'workbookSourcePolicy' ? 'outsideForecastScope',false) then return '[]'::jsonb;end if;
+ return atlas_private.resolve_reforecast_workbook_absence(source,config,config->'importMapping'->'workbookSourcePolicy'->'outsideForecastScope','outside_forecast_scope');
+end;$wrapper$);
+end;$absence$;
+revoke all on function atlas_private.resolve_reforecast_workbook_absence(jsonb,jsonb,jsonb,text) from public,anon,authenticated;
 create function atlas_private.resolve_reforecast_reviewed_forecast_blanks(source jsonb,config jsonb)
 returns jsonb language plpgsql stable security invoker set search_path='' set plan_cache_mode='force_generic_plan' as $$
-declare policy jsonb:=config->'importMapping'->'workbookSourcePolicy';reviews jsonb:=policy->'reviewedForecastBlanks';review jsonb;temporary_config jsonb;cells jsonb;result jsonb:='[]';cell jsonb;
+declare policy jsonb:=config->'importMapping'->'workbookSourcePolicy';reviews jsonb:=policy->'reviewedForecastBlanks';review jsonb;result jsonb:='[]';
 begin
  if not coalesce(policy ? 'reviewedForecastBlanks',false) then return result;end if;
  if jsonb_typeof(reviews) is distinct from 'array' then raise exception 'Reviewed forecast blanks must be explicit GL/month reviews';end if;
@@ -34,16 +56,8 @@ begin
   if jsonb_typeof(review) is distinct from 'object' or not atlas_private.forecast_blank_review_time(review->>'reviewedAt') or review->>'reviewedBy' is distinct from config->'importMapping'->>'reviewedBy' then raise exception 'Every reviewed forecast blank needs a valid authorized actor and timestamp';end if;
   if exists(select 1 from jsonb_array_elements(coalesce(policy->'outsideForecastScope','[]'))v where v->>'period'=review->>'period' and v->>'accountCode'=review->>'accountCode') then raise exception 'A reviewed forecast blank remains in scope and cannot also be outside forecast scope';end if;
  end loop;
- -- Reuse the pinned immutable upload/audit/registry/selected-header and actual
- -- source-row-absence checks. This temporary argument never becomes a payload
- -- or exclusion projection. No synthetic source cell coordinates are created.
- temporary_config:=jsonb_set(config,'{importMapping,workbookSourcePolicy,outsideForecastScope}',reviews);
- cells:=atlas_private.resolve_reforecast_workbook_scope(source,temporary_config);
- for cell in select value from jsonb_array_elements(cells) loop
-  cell:=cell||jsonb_build_object('amount',null,'disposition','reviewed_forecast_blank','isBlank',true,'legitimateBlank',true,'reviewedForecastBlankConfirmed',true,'sourceScopeExclusionConfirmed',false,'source',cell->'source'||jsonb_build_object('kind','reviewed_forecast_blank','workbookSourceAbsent',true));
-  result:=result||jsonb_build_array(cell);
- end loop;
- return result;
+ -- Original mapping stays intact for exact immutable relationship proof reuse.
+ return atlas_private.resolve_reforecast_workbook_absence(source,config,reviews,'reviewed_forecast_blank');
 end;$$;
 create function atlas_private.reviewed_forecast_user_override(over jsonb,cell jsonb,cid uuid)
 returns boolean language sql stable set search_path='' as $$
@@ -68,12 +82,18 @@ $$;
 revoke all on function atlas_private.reviewed_forecast_recommendation_ids(jsonb) from public,anon,authenticated;
 create function atlas_private.validate_reviewed_forecast_blank_edit(source jsonb,config jsonb,previous_config jsonb,previous_snapshot jsonb)
 returns void language plpgsql stable security invoker set search_path='' as $$
-declare review jsonb;prior_review jsonb;over jsonb;old_over jsonb;before_value jsonb;cell jsonb;driver jsonb;old_driver jsonb;event jsonb;baseline_cell jsonb;reviews jsonb;inherited boolean;decision jsonb;historical_ids jsonb;cid uuid:=(source->>'communityId')::uuid;p text;code text;
+declare review jsonb;prior_review jsonb;over jsonb;old_over jsonb;before_value jsonb;cell jsonb;driver jsonb;old_driver jsonb;event jsonb;baseline_cell jsonb;reviews jsonb;inherited boolean;decision jsonb;historical_ids jsonb;override_index jsonb;prior_override_index jsonb;cid uuid:=(source->>'communityId')::uuid;p text;code text;
 begin
  historical_ids:=atlas_private.reviewed_forecast_recommendation_ids(previous_config)||atlas_private.reviewed_forecast_recommendation_ids(config);
  reviews:=coalesce(config->'importMapping'->'workbookSourcePolicy'->'reviewedForecastBlanks','[]');
  if config->>'uploadId' is not distinct from previous_config->>'uploadId' and exists(select 1 from jsonb_array_elements(coalesce(previous_config->'importMapping'->'workbookSourcePolicy'->'reviewedForecastBlanks','[]'))old where not exists(select 1 from jsonb_array_elements(reviews)r where r->>'period'=old->>'period' and r->>'accountCode'=old->>'accountCode')) then raise exception 'Retain the reviewed source-absence policy and lineage when editing this workbook forecast';end if;
  select reviews||coalesce(jsonb_agg(coalesce(b->'workbookSource',b->'source')->'review'),'[]') into reviews from jsonb_array_elements(coalesce(source->'baseline'->'lines','[]'))b where coalesce(b->'workbookSource',b->'source')->>'kind'='reviewed_forecast_blank' and not exists(select 1 from jsonb_array_elements(reviews)r where r->>'period'=b->>'period' and r->>'accountCode'=b->>'accountCode');
+ -- SELECT INTO formerly chose the first matching array element. Index once
+ -- with the same ordinal winner; SQL-null identities never matched before.
+ if jsonb_array_length(reviews)>0 then
+  select coalesce(jsonb_object_agg(k,v),'{}') into override_index from (select distinct on(k) k,v from (select jsonb_build_array(v->>'period',v->>'accountCode')::text k,v,n from jsonb_array_elements(coalesce(config->'overrides','[]')) with ordinality q(v,n) where v->>'period' is not null and v->>'accountCode' is not null)s order by k,n)first_match;
+  select coalesce(jsonb_object_agg(k,v),'{}') into prior_override_index from (select distinct on(k) k,v from (select jsonb_build_array(v->>'period',v->>'accountCode')::text k,v,n from jsonb_array_elements(coalesce(previous_config->'overrides','[]')) with ordinality q(v,n) where v->>'period' is not null and v->>'accountCode' is not null)s order by k,n)first_match;
+ end if;
  for review in select value from jsonb_array_elements(reviews) loop
   p:=review->>'period';code:=review->>'accountCode';
   select value into baseline_cell from jsonb_array_elements(coalesce(source->'baseline'->'lines','[]'))b where b->>'period'=p and b->>'accountCode'=code;
@@ -85,8 +105,8 @@ begin
    if source->'lockedPeriods' ? p or source->'actuals'->'notApplicablePeriods' ? p or p<=source->'actuals'->>'cutoffPeriod' or not coalesce(source->'periods' ? p,false) then raise exception 'New forecast blank reviews require an eligible open forecast month';end if;
   end if;
   if source->'lockedPeriods' ? p or source->'actuals'->'notApplicablePeriods' ? p or p<=source->'actuals'->>'cutoffPeriod' then continue;end if;
-  select value into over from jsonb_array_elements(coalesce(config->'overrides','[]'))v where v->>'period'=p and v->>'accountCode'=code;
-  select value into old_over from jsonb_array_elements(coalesce(previous_config->'overrides','[]'))v where v->>'period'=p and v->>'accountCode'=code;
+  over:=case when p is not null and code is not null then override_index->jsonb_build_array(p,code)::text end;
+  old_over:=case when p is not null and code is not null then prior_override_index->jsonb_build_array(p,code)::text end;
   if over->'source'->>'kind'='str_schedule' and config->>'scenarioPurpose'='str_overlay' and config->'strStreams'->0->>'type'='saved_json_monthly_programme' then perform atlas_private.reforecast_saved_str_receipt(source,config);continue;end if;
   if over is distinct from old_over and over is not null then
    select value into cell from jsonb_array_elements(coalesce(source->'workbookReviewedForecastBlankCells','[]'))v where v->>'period'=p and v->>'accountCode'=code;
@@ -188,13 +208,15 @@ begin
  active_config:=config;
  if exists(select 1 from jsonb_array_elements(coalesce(config->'overrides','[]'))v) then
   select coalesce(array_agg(p),'{}') into locked from (select distinct v->>'period' p from jsonb_array_elements(coalesce(config->'overrides','[]'))v)s where atlas_private.reforecast_month_locked(cid,p);
-  mapping_hash:=encode(sha256(convert_to((config->'importMapping')::text,'UTF8')),'hex');
+  if cardinality(locked)>0 then mapping_hash:=encode(sha256(convert_to((config->'importMapping')::text,'UTF8')),'hex');end if;
   for over in select value from jsonb_array_elements(coalesce(config->'overrides','[]'))v where v->>'period'=any(locked) loop
    if ((config->'importMapping'->'workbookSourcePolicy' ? 'reviewedForecastBlanks' and config->'importMapping'=previous_config->'importMapping' and config->>'uploadId'=previous_config->>'uploadId' and over->>'uploadId'=config->>'uploadId' and nullif(over->>'sourceLineId','') is not null) or (over->'source'->>'kind'='user' and over->'source'->>'workbookSourceAbsent'='true' and over->'source'->'reviewedForecastBlank'->>'kind'='reviewed_forecast_blank')) and exists(select 1 from jsonb_array_elements(coalesce(previous_config->'overrides','[]'))old where old=over) then
     inert:=inert||jsonb_build_array(jsonb_build_object('uploadId',over->'uploadId','sourceLineId',over->'sourceLineId','period',over->'period','accountCode',over->'accountCode','mappingHash',mapping_hash));
    end if;
   end loop;
+  if jsonb_array_length(inert)>0 then
   select jsonb_set(active_config,'{overrides}',coalesce(jsonb_agg(v),'[]')) into active_config from jsonb_array_elements(coalesce(config->'overrides','[]'))v where not exists(select 1 from jsonb_array_elements(inert)i where i->>'accountCode'=v->>'accountCode' and i->>'period'=v->>'period');
+  end if;
  end if;
  -- Same pinned wrapper implementation, with the temporary active override view
  -- only for its locked-input check. Attach the complete original evidence once.
@@ -214,7 +236,6 @@ begin
  return source;
 end;$$;
 revoke all on function atlas_private.reviewed_forecast_save_source(uuid,jsonb,jsonb) from public,anon,authenticated;
-do $$begin perform atlas_private.forecast_blank_required_definition('atlas_private.resolve_reforecast_workbook_scope(jsonb,jsonb)','5ee9dff904ce1c7dfbeaa04ea1b7af189b64f169f1906e0ac332d59a6ca53ea5');end;$$;
 do $migration$
 declare d text;
 begin

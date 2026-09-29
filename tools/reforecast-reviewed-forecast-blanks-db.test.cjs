@@ -73,6 +73,40 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  assert.equal(result.snapshot.completeness.blockerCount,0,JSON.stringify(result.snapshot.diagnostics));
  assert.equal(result.snapshot.workbookCoverage.totalsBasis,'known_forecast_values');assert.equal(result.receipt.importedCells.length,8);
  assert.equal(result.source.workbookReviewedForecastBlankCells.length,2);
+ // Shared absence validation retains the exact original mapping fingerprint.
+ // Compare both projections to the prior implementation, then make a repeated
+ // full relationship scan fail: exact validated proofs must avoid that scan,
+ // while changed policy/mapping or source/audit bindings must not reuse it.
+ await db.exec('reset role');
+ const scopeConfig=structuredClone(result.revision.payload);
+ scopeConfig.importMapping=structuredClone(reviewed);
+ scopeConfig.importMapping.workbookSourcePolicy.outsideForecastScope=[scopeConfig.importMapping.workbookSourcePolicy.reviewedForecastBlanks.shift()];
+ const scopeSource=(await db.query('select atlas_private.attach_reforecast_workbook_context($1,$2) v',[result.source,scopeConfig])).rows[0].v;
+ const absenceCall=async(name,s=scopeSource,c=scopeConfig)=>(await db.query(`select atlas_private.${name}($1,$2) v`,[s,c])).rows[0].v;
+ await db.exec(scopeDefinition.replace('atlas_private.resolve_reforecast_workbook_scope(', 'atlas_private.scope_before_absence_optimization('));
+ const oldExcluded=await absenceCall('scope_before_absence_optimization');
+ const oldReviewedConfig=structuredClone(scopeConfig);oldReviewedConfig.importMapping.workbookSourcePolicy.outsideForecastScope=oldReviewedConfig.importMapping.workbookSourcePolicy.reviewedForecastBlanks;
+ const oldReviewed=(await absenceCall('scope_before_absence_optimization',scopeSource,oldReviewedConfig)).map(cell=>({...cell,amount:null,disposition:'reviewed_forecast_blank',isBlank:true,legitimateBlank:true,reviewedForecastBlankConfirmed:true,sourceScopeExclusionConfirmed:false,source:{...cell.source,kind:'reviewed_forecast_blank',workbookSourceAbsent:true}}));
+ assert.deepEqual(await absenceCall('resolve_reforecast_workbook_scope'),oldExcluded);
+ assert.deepEqual(await absenceCall('resolve_reforecast_reviewed_forecast_blanks'),oldReviewed);
+ const validationFunction=(await db.query("select pg_get_functiondef(oid) definition,prosrc body from pg_proc where oid='atlas_private.validate_reforecast_source_relationships(jsonb,jsonb,jsonb)'::regprocedure")).rows[0];
+ await db.exec(validationFunction.definition.replace(validationFunction.body,"\nbegin raise exception 'Full immutable relationship validation reached';end;\n"));
+ try {
+  assert.deepEqual(await absenceCall('resolve_reforecast_workbook_scope'),oldExcluded);
+  assert.deepEqual(await absenceCall('resolve_reforecast_reviewed_forecast_blanks'),oldReviewed);
+  await assert.rejects(()=>absenceCall('scope_before_absence_optimization',scopeSource,oldReviewedConfig),/Full immutable relationship validation reached/,'Old temporary exclusion mapping invalidated the full original fingerprint');
+  for(const change of [c=>c.importMapping.reason+=' changed',c=>c.importMapping.workbookSourcePolicy.reviewedForecastBlanks[0].reason+=' changed',c=>c.importMapping.workbookSourcePolicy.outsideForecastScope[0].reason+=' changed']){
+   const changed=structuredClone(scopeConfig);change(changed);
+   for(const resolver of ['resolve_reforecast_workbook_scope','resolve_reforecast_reviewed_forecast_blanks'])await assert.rejects(()=>absenceCall(resolver,scopeSource,changed),/Full immutable relationship validation reached/);
+  }
+  for(const field of ['sourceHash','auditId','mappingFingerprint']){
+   const changed=structuredClone(scopeSource);changed.workbookRelationshipProofs[upload.upload_id][field]='forged';
+   for(const resolver of ['resolve_reforecast_workbook_scope','resolve_reforecast_reviewed_forecast_blanks'])await assert.rejects(()=>absenceCall(resolver,changed),/Full immutable relationship validation reached/);
+  }
+ } finally {await db.exec(validationFunction.definition);await db.exec('drop function atlas_private.scope_before_absence_optimization(jsonb,jsonb)');}
+ const absencePrivileges=(await db.query("select p.prosecdef,has_function_privilege('anon',p.oid,'execute') anon_execute,has_function_privilege('authenticated',p.oid,'execute') authenticated_execute,exists(select 1 from aclexplode(p.proacl) a where a.grantee=0 and a.privilege_type='EXECUTE') public_execute from pg_proc p where oid='atlas_private.resolve_reforecast_workbook_absence(jsonb,jsonb,jsonb,text)'::regprocedure")).rows[0];
+ assert.deepEqual(absencePrivileges,{prosecdef:false,anon_execute:false,authenticated_execute:false,public_execute:false});
+ await signIn(1);
  for(const row of result.snapshot.lines.filter(l=>l.accountCode==='8100')){
   assert.equal(row.forecast,null);assert.equal(row.originalBudget,20);assert.equal(row.disposition,'reviewed_forecast_blank');assert.equal(row.legitimateBlank,true);assert.equal(row.reviewedForecastBlankConfirmed,true);assert.equal(row.sourceScopeExclusionConfirmed,false);
   assert.equal(row.workbookSourceAmount,null);assert.equal(row.workbookSourceDisposition,'source_absent');assert.equal(row.source.kind,'reviewed_forecast_blank');assert.equal(row.source.workbookSourceAbsent,true);assert.equal(row.source.uploadId,upload.upload_id);assert.equal(row.source.auditId,audit.audit_id);assert.equal(row.source.sourceHash,evidence.source.sha256);assert.ok(!('sourceLineId' in row.source));assert.ok(!('address' in row.source));
@@ -95,6 +129,21 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
   [m=>m.workbookSourcePolicy.reviewedForecastBlanks={},/explicit/i]
  ]){const m=structuredClone(reviewed);mutate(m);await rejectMapping(m,pattern);}
  const editValue=(r,amount)=>{const c=structuredClone(r.revision.payload),row=r.snapshot.lines.find(l=>l.period===periods[0]&&l.accountCode==='8100');c.overrides=c.overrides.filter(o=>!(o.period===periods[0]&&o.accountCode==='8100')).concat({period:periods[0],accountCode:'8100',amount,confirmed:true,reason:'User reviewed forecast adjustment',ownerId:owner,effectivePeriod:periods[0],reviewedAt,before:row.forecast,after:amount,source:{kind:'user',workbookSourceAbsent:true,reviewedForecastBlank:structuredClone(row.workbookSource)}});return c;};
+ // Override indexes preserve SELECT INTO's first matching row, ignore SQL-null
+ // identities, and keep tuple keys distinct even when fields contain delimiters.
+ await db.exec('reset role');
+ const checkEdit=async(c,old=result.revision.payload,s=result.source,snapshot=result.snapshot)=>db.query('select atlas_private.validate_reviewed_forecast_blank_edit($1,$2,$3,$4)',[s,c,old,snapshot]);
+ const firstEdit=editValue(result,17),validEdit=structuredClone(firstEdit.overrides.at(-1)),badEdit={...validEdit,ownerId:'00000000-0000-0000-0000-000000000002'};
+ const emptyIdentities=[null,{period:null,accountCode:'8100'},{period:periods[0],accountCode:null}];
+ firstEdit.overrides=[...emptyIdentities,...firstEdit.overrides,badEdit];await checkEdit(firstEdit);
+ const wrongFirst=structuredClone(firstEdit);wrongFirst.overrides=[badEdit,...wrongFirst.overrides];await assert.rejects(()=>checkEdit(wrongFirst),/signed-in/i);
+ const retainedOther=structuredClone(firstEdit);retainedOther.overrides=[badEdit];const priorOther=structuredClone(retainedOther);priorOther.overrides=[...emptyIdentities,badEdit,validEdit];await checkEdit(retainedOther,priorOther);
+ priorOther.overrides=[validEdit,badEdit];await assert.rejects(()=>checkEdit(retainedOther,priorOther),/signed-in/i);
+ const tupleSource=structuredClone(result.source),tupleConfig=structuredClone(result.revision.payload);tupleSource.periods=['a|b','a'];tupleSource.actuals.cutoffPeriod=null;tupleSource.actuals.notApplicablePeriods=[];tupleSource.lockedPeriods=[];
+ tupleConfig.importMapping.workbookSourcePolicy.reviewedForecastBlanks=[{...reviewed.workbookSourcePolicy.reviewedForecastBlanks[0],period:'a|b',accountCode:'c'},{...reviewed.workbookSourcePolicy.reviewedForecastBlanks[1],period:'a',accountCode:'b|c'}];
+ tupleConfig.overrides=tupleConfig.importMapping.workbookSourcePolicy.reviewedForecastBlanks.map((r,i)=>({period:r.period,accountCode:r.accountCode,amount:i,source:{kind:'user'}}));
+ await checkEdit(tupleConfig,structuredClone(tupleConfig),tupleSource,{lines:[]});
+ await signIn(1);
  for(const amount of [-15.25,0,42.5]){
   const c=editValue(result,amount);result=await save(result,c);const row=result.snapshot.lines.find(l=>l.period===periods[0]&&l.accountCode==='8100');
   assert.equal(row.forecast,amount);assert.equal(row.disposition,'reviewer_override');assert.equal(row.source.kind,'user');assert.equal(row.workbookSourceAmount,null);assert.equal(row.workbookSourceDisposition,'source_absent');assert.equal(row.workbookSource.kind,'reviewed_forecast_blank');assert.equal(result.snapshot.workbookCoverage.reviewedForecastBlankCellCount,1);
@@ -214,6 +263,6 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  const freshClosed=structuredClone(reviewed);freshClosed.workbookSourcePolicy.reviewedForecastBlanks[0].reason='A newly supplied closed review';await rejectMapping(freshClosed,/eligible open|closed|locked/i);
  assert.deepEqual((await call('atlas_read_reforecast_publication',[publication.publication_id])).snapshot,JSON.parse(parentFrozen).snapshot,'Original reviewed-null publication is immutable');
 
- console.log(JSON.stringify({pass:true,importedCells:8,reviewedBlankCells:2,sourceAbsent:0,knownTotals:result.snapshot.knownValueTotals,checks:['atomic import and idempotent receipt','reviewed null versus numeric zero and signed values','authorized manual edit and audited clear','unchanged historical decisions and same-ID reaccept','canonical historical recommendation evidence and decimal weights','public approved-parent wrapped source inheritance','saved-STR zero and negative contributions plus untouched nulls','first and second save after close with retained payload','VP and investor transitions','historical publication snapshot preservation','provenance removal and changed close evidence rejection','function metadata ACL and drift rollback']}));
+ console.log(JSON.stringify({pass:true,importedCells:8,reviewedBlankCells:2,sourceAbsent:0,knownTotals:result.snapshot.knownValueTotals,checks:['atomic import and idempotent receipt','reviewed null versus numeric zero and signed values','authorized manual edit and audited clear','unchanged historical decisions and same-ID reaccept','canonical historical recommendation evidence and decimal weights','public approved-parent wrapped source inheritance','saved-STR zero and negative contributions plus untouched nulls','first and second save after close with retained payload','VP and investor transitions','historical publication snapshot preservation','provenance removal and changed close evidence rejection','exact original-mapping proof reuse and changed-evidence revalidation','first-ordinal override index/null/tuple parity','function metadata ACL and drift rollback']}));
  await db.close();
 })().catch(error=>{console.error(error.stack||error);process.exitCode=1;});

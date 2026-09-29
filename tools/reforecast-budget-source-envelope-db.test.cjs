@@ -57,7 +57,7 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  assert.equal(original.snapshot.workbookCoverage.sourceAbsentCellCount,2);
  const originalJson=JSON.stringify(original.revision),receiptJson=JSON.stringify(original.receipt);
  await db.exec('reset role');
- for(const file of ['20260929145818_reviewed_forecast_blank_policy.sql','20260925174317_shared_str_programme_draft_versions.sql','20260929154018_budget_export_integrity_history.sql','20260929154033_budget_leasing_driver_authority.sql','20260929154111_verified_str_budget_application.sql','20260929155712_saved_str_v2_approval_authority.sql'])await db.exec(migration(file));
+ for(const file of ['20260929145818_reviewed_forecast_blank_policy.sql','20260925174317_shared_str_programme_draft_versions.sql','20260929154018_budget_export_integrity_history.sql','20260929154033_budget_leasing_driver_authority.sql','20260929154111_verified_str_budget_application.sql','20260929162311_saved_str_v2_approval_authority.sql'])await db.exec(migration(file));
  await db.query('update atlas_communities set budget_calendar=$1',[{verified:true,classification:'Multifamily',startMonth:1,source:'Test reviewed calendar'}]);await signIn(1);
  const {projectImportUpdatePayload}=await import('../docs/portfolio-operations-dashboard/features/reforecast-store.mjs');
  const reviewed=structuredClone(mapping);reviewed.workbookSourcePolicy.reviewedForecastBlanks=periods.map(period=>({period,accountCode:'8100',confirmed:true,reviewedBy:owner,reviewedAt,reason:'Forecast intentionally blank until reviewed user input'}));
@@ -78,7 +78,7 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  const functionEvidence=async()=>(await db.query("select oid::regprocedure::text signature,encode(sha256(convert_to(prosrc,'UTF8')),'hex') body_sha256,encode(sha256(convert_to(pg_get_functiondef(oid),'UTF8')),'hex') definition_sha256,pg_get_functiondef(oid) full_definition,prosecdef,provolatile,proconfig,proacl::text from pg_proc where oid=any($1::regprocedure[]) order by 1",[signatures])).rows;
  await db.exec('reset role');const beforeFunctions=await functionEvidence();assert.equal(beforeFunctions.length,signatures.length,'Every public/private signature resolves');
  await db.exec('create role service_role;alter default privileges in schema atlas_private grant execute on functions to service_role');
- const upgrade=migration('20260929161718_reviewed_budget_source_envelope.sql');
+ const upgrade=migration('20260929162702_reviewed_budget_source_envelope.sql');
  const originalSourceDefinition=(await db.query("select pg_get_functiondef('atlas_private.reviewed_forecast_save_source(uuid,jsonb,jsonb)'::regprocedure) d")).rows[0].d;
  await db.exec(originalSourceDefinition.replace(' return source;',' return  source;'));
  await assert.rejects(()=>db.exec(upgrade),/prerequisite differs/);await db.exec('rollback');

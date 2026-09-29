@@ -1,0 +1,806 @@
+{
+  "recordedAt": "2026-09-24T20:22:54Z",
+  "commit": "3d80173de32f227410663662a523932c50ecaa2b",
+  "mode": "READ ONLY; existing verified active administrator identity selected internally; authenticated PostgreSQL role; existing access/RLS applied",
+  "safeguards": {
+    "statementTimeout": "20s",
+    "lockTimeout": "2s",
+    "transactionsExplicitlyEnded": true,
+    "identityEmitted": false,
+    "financialValuesEmitted": false,
+    "credentialsEmitted": false,
+    "changes": "No code, schema, index, permissions, operational rows or persistent settings changed"
+  },
+  "scope": [
+    {
+      "observed_at": "2026-09-24 20:21:10.210207+00",
+      "authenticated_role": true,
+      "verified_admin": true,
+      "authorized_communities": 28,
+      "authorized_finance_rows": 72,
+      "august_finance_communities": 9
+    }
+  ],
+  "interpretation": [
+    "All-community/year input is derived from deployed source, not a captured authenticated browser request payload.",
+    "Single community is deterministically selected from an authorized existing August 2026 financial summary; no identifier emitted.",
+    "EXPLAIN without ANALYZE preceded each distinct measured query.",
+    "Plain PL/pgSQL EXPLAIN exposes a Function Scan, not nested plan costs.",
+    "Full portfolio/year read was canceled at the explicit 20s database statement limit; it was not retried.",
+    "Helper timing and base projection are distinct narrower calls, not a decomposition with additive guaranteed costs.",
+    "Measurements are one bounded observation each on a live shared database; they are not cold/warm statistical samples.",
+    "No nested auto_explain, privileged bypass, index changes or statistics reset was used.",
+    "track_io_timing was off in baseline; reported zero disk/temp read blocks only describes these successful plans.",
+    "No external access block for these role-scoped SQL diagnostics; complete authenticated browser trace remains pending login in the parent tracing profile."
+  ],
+  "measurements": {
+    "single": {
+      "query": "select count(*) as returned_rows,sum(octet_length(r.summary::text)) as payload_bytes from public.atlas_read_finance(\narray(select community_id from public.atlas_command_financial_summaries where period_key='2026-08' order by community_id limit 1),array['2026-08']) r",
+      "explain": [
+        {
+          "QUERY PLAN": [
+            {
+              "Plan": {
+                "Node Type": "Aggregate",
+                "Strategy": "Plain",
+                "Partial Mode": "Simple",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 24.76,
+                "Total Cost": 24.77,
+                "Plan Rows": 1,
+                "Plan Width": 16,
+                "Plans": [
+                  {
+                    "Node Type": "Limit",
+                    "Parent Relationship": "InitPlan",
+                    "Subplan Name": "InitPlan 1",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 0.14,
+                    "Total Cost": 2.01,
+                    "Plan Rows": 1,
+                    "Plan Width": 16,
+                    "Plans": [
+                      {
+                        "Node Type": "Index Only Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Scan Direction": "Forward",
+                        "Index Name": "command_financial_summary_period",
+                        "Relation Name": "atlas_command_financial_summaries",
+                        "Alias": "atlas_command_financial_summaries",
+                        "Startup Cost": 0.14,
+                        "Total Cost": 5.76,
+                        "Plan Rows": 3,
+                        "Plan Width": 16,
+                        "Index Cond": "(period_key = '2026-08'::text)",
+                        "Filter": "atlas_private.command_access(community_id, 'read'::text)"
+                      }
+                    ]
+                  },
+                  {
+                    "Node Type": "Function Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Function Name": "atlas_read_finance",
+                    "Alias": "r",
+                    "Startup Cost": 0.25,
+                    "Total Cost": 10.25,
+                    "Plan Rows": 1000,
+                    "Plan Width": 32
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "analyze": [
+        {
+          "QUERY PLAN": [
+            {
+              "Plan": {
+                "Node Type": "Aggregate",
+                "Strategy": "Plain",
+                "Partial Mode": "Simple",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 24.76,
+                "Total Cost": 24.77,
+                "Plan Rows": 1,
+                "Plan Width": 16,
+                "Actual Startup Time": 309.104,
+                "Actual Total Time": 309.105,
+                "Actual Rows": 1,
+                "Actual Loops": 1,
+                "Shared Hit Blocks": 3012,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Limit",
+                    "Parent Relationship": "InitPlan",
+                    "Subplan Name": "InitPlan 1",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 0.14,
+                    "Total Cost": 2.01,
+                    "Plan Rows": 1,
+                    "Plan Width": 16,
+                    "Actual Startup Time": 18.007,
+                    "Actual Total Time": 18.009,
+                    "Actual Rows": 1,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 354,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Index Only Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Scan Direction": "Forward",
+                        "Index Name": "command_financial_summary_period",
+                        "Relation Name": "atlas_command_financial_summaries",
+                        "Alias": "atlas_command_financial_summaries",
+                        "Startup Cost": 0.14,
+                        "Total Cost": 5.76,
+                        "Plan Rows": 3,
+                        "Plan Width": 16,
+                        "Actual Startup Time": 18.006,
+                        "Actual Total Time": 18.006,
+                        "Actual Rows": 1,
+                        "Actual Loops": 1,
+                        "Index Cond": "(period_key = '2026-08'::text)",
+                        "Rows Removed by Index Recheck": 0,
+                        "Filter": "atlas_private.command_access(community_id, 'read'::text)",
+                        "Rows Removed by Filter": 0,
+                        "Heap Fetches": 1,
+                        "Shared Hit Blocks": 354,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  },
+                  {
+                    "Node Type": "Function Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Function Name": "atlas_read_finance",
+                    "Alias": "r",
+                    "Startup Cost": 0.25,
+                    "Total Cost": 10.25,
+                    "Plan Rows": 1000,
+                    "Plan Width": 32,
+                    "Actual Startup Time": 308.83,
+                    "Actual Total Time": 308.83,
+                    "Actual Rows": 1,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 3012,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 67,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 1.951,
+              "Triggers": [],
+              "Execution Time": 309.272
+            }
+          ]
+        }
+      ],
+      "toolElapsedMs": 3486
+    },
+    "portfolioYear": {
+      "query": "select count(*) as returned_rows,sum(octet_length(r.summary::text)) as payload_bytes from public.atlas_read_finance(\narray(select community_id from public.atlas_communities where deleted_at is null order by display_name),\narray(select '2026-'||lpad(m::text,2,'0') from generate_series(1,12)m)) r",
+      "explain": [
+        {
+          "QUERY PLAN": [
+            {
+              "Plan": {
+                "Node Type": "Aggregate",
+                "Strategy": "Plain",
+                "Partial Mode": "Simple",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 84.01,
+                "Total Cost": 84.02,
+                "Plan Rows": 1,
+                "Plan Width": 16,
+                "Plans": [
+                  {
+                    "Node Type": "Sort",
+                    "Parent Relationship": "InitPlan",
+                    "Subplan Name": "InitPlan 1",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 61.01,
+                    "Total Cost": 61.02,
+                    "Plan Rows": 1,
+                    "Plan Width": 48,
+                    "Sort Key": [
+                      "atlas_communities.display_name"
+                    ],
+                    "Plans": [
+                      {
+                        "Node Type": "Seq Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Relation Name": "atlas_communities",
+                        "Alias": "atlas_communities",
+                        "Startup Cost": 0,
+                        "Total Cost": 61,
+                        "Plan Rows": 1,
+                        "Plan Width": 48,
+                        "Filter": "((deleted_at IS NULL) AND (deleted_at IS NULL) AND (atlas_has_role('{admin,executive,people}'::text[]) OR atlas_can_access_community(community_id)))"
+                      }
+                    ]
+                  },
+                  {
+                    "Node Type": "Function Scan",
+                    "Parent Relationship": "InitPlan",
+                    "Subplan Name": "InitPlan 2",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Function Name": "generate_series",
+                    "Alias": "m",
+                    "Startup Cost": 0,
+                    "Total Cost": 0.24,
+                    "Plan Rows": 12,
+                    "Plan Width": 32
+                  },
+                  {
+                    "Node Type": "Function Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Function Name": "atlas_read_finance",
+                    "Alias": "r",
+                    "Startup Cost": 0.25,
+                    "Total Cost": 10.25,
+                    "Plan Rows": 1000,
+                    "Plan Width": 32
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "analyze": {
+        "status": "statement_timeout",
+        "sqlState": "57014",
+        "statementLimitMs": 20000,
+        "contextFunctions": [
+          "atlas_private.reforecast_finance_summary(jsonb,jsonb) nested body line24",
+          "atlas_private.reforecast_finance_summary(jsonb,jsonb) outer body line30",
+          "public.atlas_read_finance(uuid[],text[]) body line5"
+        ]
+      },
+      "toolElapsedMs": 24880
+    },
+    "effectiveBaselineHelper": {
+      "query": "select jsonb_array_length(public.atlas_reforecast_effective_baseline(\narray(select community_id from public.atlas_communities where deleted_at is null order by display_name),\narray(select '2026-'||lpad(m::text,2,'0') from generate_series(1,12)m))) as envelope_count",
+      "explain": [
+        {
+          "QUERY PLAN": [
+            {
+              "Plan": {
+                "Node Type": "Result",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 61.26,
+                "Total Cost": 61.52,
+                "Plan Rows": 1,
+                "Plan Width": 4,
+                "Plans": [
+                  {
+                    "Node Type": "Sort",
+                    "Parent Relationship": "InitPlan",
+                    "Subplan Name": "InitPlan 1",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 61.01,
+                    "Total Cost": 61.02,
+                    "Plan Rows": 1,
+                    "Plan Width": 48,
+                    "Sort Key": [
+                      "atlas_communities.display_name"
+                    ],
+                    "Plans": [
+                      {
+                        "Node Type": "Seq Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Relation Name": "atlas_communities",
+                        "Alias": "atlas_communities",
+                        "Startup Cost": 0,
+                        "Total Cost": 61,
+                        "Plan Rows": 1,
+                        "Plan Width": 48,
+                        "Filter": "((deleted_at IS NULL) AND (deleted_at IS NULL) AND (atlas_has_role('{admin,executive,people}'::text[]) OR atlas_can_access_community(community_id)))"
+                      }
+                    ]
+                  },
+                  {
+                    "Node Type": "Function Scan",
+                    "Parent Relationship": "InitPlan",
+                    "Subplan Name": "InitPlan 2",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Function Name": "generate_series",
+                    "Alias": "m",
+                    "Startup Cost": 0,
+                    "Total Cost": 0.24,
+                    "Plan Rows": 12,
+                    "Plan Width": 32
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "analyze": [
+        {
+          "QUERY PLAN": [
+            {
+              "Plan": {
+                "Node Type": "Result",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 61.26,
+                "Total Cost": 61.52,
+                "Plan Rows": 1,
+                "Plan Width": 4,
+                "Actual Startup Time": 3093.995,
+                "Actual Total Time": 3093.998,
+                "Actual Rows": 1,
+                "Actual Loops": 1,
+                "Shared Hit Blocks": 14059,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Sort",
+                    "Parent Relationship": "InitPlan",
+                    "Subplan Name": "InitPlan 1",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 61.01,
+                    "Total Cost": 61.02,
+                    "Plan Rows": 1,
+                    "Plan Width": 48,
+                    "Actual Startup Time": 16.332,
+                    "Actual Total Time": 16.334,
+                    "Actual Rows": 28,
+                    "Actual Loops": 1,
+                    "Sort Key": [
+                      "atlas_communities.display_name"
+                    ],
+                    "Sort Method": "quicksort",
+                    "Sort Space Used": 26,
+                    "Sort Space Type": "Memory",
+                    "Shared Hit Blocks": 126,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Seq Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Relation Name": "atlas_communities",
+                        "Alias": "atlas_communities",
+                        "Startup Cost": 0,
+                        "Total Cost": 61,
+                        "Plan Rows": 1,
+                        "Plan Width": 48,
+                        "Actual Startup Time": 12.389,
+                        "Actual Total Time": 15.611,
+                        "Actual Rows": 28,
+                        "Actual Loops": 1,
+                        "Filter": "((deleted_at IS NULL) AND (deleted_at IS NULL) AND (atlas_has_role('{admin,executive,people}'::text[]) OR atlas_can_access_community(community_id)))",
+                        "Rows Removed by Filter": 1,
+                        "Shared Hit Blocks": 123,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  },
+                  {
+                    "Node Type": "Function Scan",
+                    "Parent Relationship": "InitPlan",
+                    "Subplan Name": "InitPlan 2",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Function Name": "generate_series",
+                    "Alias": "m",
+                    "Startup Cost": 0,
+                    "Total Cost": 0.24,
+                    "Plan Rows": 12,
+                    "Plan Width": 32,
+                    "Actual Startup Time": 0.018,
+                    "Actual Total Time": 0.022,
+                    "Actual Rows": 12,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 0,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 163,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 8.465,
+              "Triggers": [],
+              "Execution Time": 3094.077
+            }
+          ]
+        }
+      ],
+      "toolElapsedMs": 5147
+    },
+    "authorizedStoredSummaryProjection": {
+      "query": "select count(*) as returned_rows,sum(octet_length(f.summary::text)) as payload_bytes\nfrom public.atlas_command_financial_summaries f\nwhere f.community_id=any(array(select community_id from public.atlas_communities where deleted_at is null order by display_name))\nand f.period_key=any(array(select '2026-'||lpad(m::text,2,'0') from generate_series(1,12)m))\nand f.summary->>'registryVersion'='atlas-finance-v1'",
+      "explain": [
+        {
+          "QUERY PLAN": [
+            {
+              "Plan": {
+                "Node Type": "Aggregate",
+                "Strategy": "Plain",
+                "Partial Mode": "Simple",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 71.77,
+                "Total Cost": 71.78,
+                "Plan Rows": 1,
+                "Plan Width": 16,
+                "Plans": [
+                  {
+                    "Node Type": "Sort",
+                    "Parent Relationship": "InitPlan",
+                    "Subplan Name": "InitPlan 1",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 61.01,
+                    "Total Cost": 61.02,
+                    "Plan Rows": 1,
+                    "Plan Width": 48,
+                    "Sort Key": [
+                      "atlas_communities.display_name"
+                    ],
+                    "Plans": [
+                      {
+                        "Node Type": "Seq Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Relation Name": "atlas_communities",
+                        "Alias": "atlas_communities",
+                        "Startup Cost": 0,
+                        "Total Cost": 61,
+                        "Plan Rows": 1,
+                        "Plan Width": 48,
+                        "Filter": "((deleted_at IS NULL) AND (deleted_at IS NULL) AND (atlas_has_role('{admin,executive,people}'::text[]) OR atlas_can_access_community(community_id)))"
+                      }
+                    ]
+                  },
+                  {
+                    "Node Type": "Function Scan",
+                    "Parent Relationship": "InitPlan",
+                    "Subplan Name": "InitPlan 2",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Function Name": "generate_series",
+                    "Alias": "m",
+                    "Startup Cost": 0,
+                    "Total Cost": 0.24,
+                    "Plan Rows": 12,
+                    "Plan Width": 32
+                  },
+                  {
+                    "Node Type": "Index Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Scan Direction": "Forward",
+                    "Index Name": "command_financial_summary_period",
+                    "Relation Name": "atlas_command_financial_summaries",
+                    "Alias": "f",
+                    "Startup Cost": 0.14,
+                    "Total Cost": 10.5,
+                    "Plan Rows": 1,
+                    "Plan Width": 18,
+                    "Index Cond": "((period_key = ANY ((InitPlan 2).col1)) AND (community_id = ANY ((InitPlan 1).col1)))",
+                    "Filter": "(atlas_private.command_access(community_id, 'read'::text) AND ((summary ->> 'registryVersion'::text) = 'atlas-finance-v1'::text))"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "analyze": [
+        {
+          "QUERY PLAN": [
+            {
+              "Plan": {
+                "Node Type": "Aggregate",
+                "Strategy": "Plain",
+                "Partial Mode": "Simple",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 71.77,
+                "Total Cost": 71.78,
+                "Plan Rows": 1,
+                "Plan Width": 16,
+                "Actual Startup Time": 40.509,
+                "Actual Total Time": 40.512,
+                "Actual Rows": 1,
+                "Actual Loops": 1,
+                "Shared Hit Blocks": 916,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Sort",
+                    "Parent Relationship": "InitPlan",
+                    "Subplan Name": "InitPlan 1",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 61.01,
+                    "Total Cost": 61.02,
+                    "Plan Rows": 1,
+                    "Plan Width": 48,
+                    "Actual Startup Time": 6.139,
+                    "Actual Total Time": 6.143,
+                    "Actual Rows": 28,
+                    "Actual Loops": 1,
+                    "Sort Key": [
+                      "atlas_communities.display_name"
+                    ],
+                    "Sort Method": "quicksort",
+                    "Sort Space Used": 26,
+                    "Sort Space Type": "Memory",
+                    "Shared Hit Blocks": 101,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Seq Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Relation Name": "atlas_communities",
+                        "Alias": "atlas_communities",
+                        "Startup Cost": 0,
+                        "Total Cost": 61,
+                        "Plan Rows": 1,
+                        "Plan Width": 48,
+                        "Actual Startup Time": 0.713,
+                        "Actual Total Time": 4.11,
+                        "Actual Rows": 28,
+                        "Actual Loops": 1,
+                        "Filter": "((deleted_at IS NULL) AND (deleted_at IS NULL) AND (atlas_has_role('{admin,executive,people}'::text[]) OR atlas_can_access_community(community_id)))",
+                        "Rows Removed by Filter": 1,
+                        "Shared Hit Blocks": 98,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  },
+                  {
+                    "Node Type": "Function Scan",
+                    "Parent Relationship": "InitPlan",
+                    "Subplan Name": "InitPlan 2",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Function Name": "generate_series",
+                    "Alias": "m",
+                    "Startup Cost": 0,
+                    "Total Cost": 0.24,
+                    "Plan Rows": 12,
+                    "Plan Width": 32,
+                    "Actual Startup Time": 0.013,
+                    "Actual Total Time": 0.016,
+                    "Actual Rows": 12,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 0,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  },
+                  {
+                    "Node Type": "Index Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Scan Direction": "Forward",
+                    "Index Name": "command_financial_summary_period",
+                    "Relation Name": "atlas_command_financial_summaries",
+                    "Alias": "f",
+                    "Startup Cost": 0.14,
+                    "Total Cost": 10.5,
+                    "Plan Rows": 1,
+                    "Plan Width": 18,
+                    "Actual Startup Time": 7.624,
+                    "Actual Total Time": 27.549,
+                    "Actual Rows": 72,
+                    "Actual Loops": 1,
+                    "Index Cond": "((period_key = ANY ((InitPlan 2).col1)) AND (community_id = ANY ((InitPlan 1).col1)))",
+                    "Rows Removed by Index Recheck": 0,
+                    "Filter": "(atlas_private.command_access(community_id, 'read'::text) AND ((summary ->> 'registryVersion'::text) = 'atlas-finance-v1'::text))",
+                    "Rows Removed by Filter": 0,
+                    "Shared Hit Blocks": 761,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 270,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 0.878,
+              "Triggers": [],
+              "Execution Time": 40.641
+            }
+          ]
+        }
+      ]
+    },
+    "sourceDerivedRecursionCounts": {
+      "query": "select count(*) as authorized_summary_rows,\nsum(case when jsonb_typeof(summary->'fiscalPeriods')='array' then jsonb_array_length(summary->'fiscalPeriods') else 0 end) as repeated_ytd_monthly_baselines,\nsum((case when jsonb_typeof(summary->'fiscalPeriods')='array' then jsonb_array_length(summary->'fiscalPeriods') else 0 end) * (select count(*) from jsonb_object_keys(case when jsonb_typeof(summary->'ytd')='object' then summary->'ytd' else '{}'::jsonb end))) as recursive_metric_summary_calls\nfrom public.atlas_command_financial_summaries\nwhere community_id=any(array(select community_id from public.atlas_communities where deleted_at is null)) and period_key=any(array(select '2026-'||lpad(m::text,2,'0') from generate_series(1,12)m)) and summary->>'registryVersion'='atlas-finance-v1'",
+      "result": [
+        {
+          "authorized_summary_rows": 72,
+          "repeated_ytd_monthly_baselines": 329,
+          "recursive_metric_summary_calls": "10199"
+        }
+      ],
+      "note": "Counts combine current authorized summary JSON shape with existing PL/pgSQL loops. These are potential repeated invocations if the full call completes, not instrumented completed call counts."
+    }
+  },
+  "conclusions": [
+    "Single month/community read: 309.272ms database execution.",
+    "28 authorized communities x12 months: exceeds20s and cancellation stack is in recursive fiscal-YTD summary work.",
+    "Effective baseline helper for same28x12 scope:3094.077ms.",
+    "Existing summary table lookup/serialization for72 rows:40.641ms; existing command_financial_summary_period index used.",
+    "Current72 summary envelopes imply329 repeated fiscal-YTD monthly baseline envelopes and10199 recursive metric-summary invocations in existing code.",
+    "Evidence supports reducing repeated finance work and narrowing/coalescing consumers before adding indexes; no missing index established."
+  ],
+  "publishedArtifact": {
+    "originalSha256": "28b05bf511881583d4df8909c611cf37f9cbbba3bd086be5d3feeae55a117a77",
+    "classification": "Previously recorded read-only production baseline",
+    "identityAndValuePayloadsExcluded": true
+  }
+}

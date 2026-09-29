@@ -7,7 +7,7 @@ const original=fs.readFileSync(path.join(__dirname,'fixtures/reforecast-navigati
 const client=fs.readFileSync(path.join(__dirname,'../docs/portfolio-operations-dashboard/centralization/atlas-central-client.js'),'utf8');
 const SESSION='atlas_central_auth_session_v1',PROFILE='atlas_central_profile_v1',CONFIG='atlas_central_runtime_config_v1';
 const deferred=()=>{let resolve;const promise=new Promise(done=>resolve=done);return {promise,resolve};};
-async function harness({source=candidate,profileMissing=false,fallback=false}={}){
+async function harness({source=candidate,profileMissing=false,fallback=false,installError=false}={}){
  let now=Date.parse('2026-09-28T21:43:00Z'),timerId=0,workspace=null,hold=null;
  const listeners=new Map(),documentListeners=new Map(),storage=new Map(),timers=new Map();
  const metrics={mounts:0,reviews:[],clears:0,legacyClears:0,fetches:[],toasts:[]};
@@ -57,7 +57,7 @@ async function harness({source=candidate,profileMissing=false,fallback=false}={}
     async mountReforecast(el,{mode}){metrics.mounts++;if(hold){const pending=hold;hold=null;await pending.promise;}if(el.isConnected)el.textContent='Mounted '+mode;},
     async openBudgetReview(detail){metrics.reviews.push(detail);if(workspace?.isConnected)workspace.textContent='Opened '+(detail.scenarioId||detail.reviewId);},
     async createRecommendedReforecast(){},clearReforecastSession(){metrics.clears++;}
-   }:kind==='legacy'?{installLegacyReforecastBridge(){},clearLegacyReforecastCache(){metrics.legacyClears++;}}:{installSavedStrProgrammes(){}};
+   }:kind==='legacy'?{installLegacyReforecastBridge(){},clearLegacyReforecastCache(){metrics.legacyClears++;}}:{installSavedStrProgrammes(){if(installError)throw Error('Synthetic saved STR installation failed');}};
    const module=new vm.SyntheticModule(Object.keys(exports),function(){for(const[key,value]of Object.entries(exports))this.setExport(key,value);},{context});
    modules.set(kind,(async()=>{await module.link(()=>{});await module.evaluate();return module;})());
   }
@@ -124,3 +124,5 @@ test('an explicit unavailable access key is not replaced by a cached profile fal
  const h=await harness();await h.review();const before=h.el;
  h.central.getAccessContextKey=()=>null;h.event(PROFILE);await h.flush();assert.notEqual(h.el,before);assert.equal(h.metrics.clears,1);
 });
+
+test('actual asynchronous feature-install readiness rejects an installation failure',async()=>{const h=await harness({installError:true});await assert.rejects(h.R.reforecastNavigationReady,/Synthetic saved STR installation failed/);});

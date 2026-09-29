@@ -43,6 +43,68 @@
       throw fail('Your account or workspace changed. Download your open edits, then reload before saving.');
     }
   };
+  // iframe load can precede recovery and deferred feature installation. Buffer
+  // only parent read/navigation messages; never replay write/result protocols.
+  let integrationsReady = false;
+  const startupMessages = new Map(), investorRequests = [];
+  const startupTypes = new Map([['atlas-shell-context', 'context'], ['atlas-budget-catalog', 'catalog'], ['atlas-budget-navigate', 'navigation'], ['atlas-reforecast-navigate', 'navigation'], ['atlas-investor-read-budget', 'investor']]);
+  const sameContext = (a, b) => a.central === b.central && a.access === b.access && a.enabled === b.enabled && scopeOf(a) === scopeOf(b);
+  const investorFailure = (data, error) => window.parent.postMessage({ type: 'atlas-investor-budget-sources', ...(data.requestId === undefined ? {} : { requestId: data.requestId }), error }, window.location.origin);
+  function discardStartupMessages(reason) {
+    if (startupMessages.has('navigation')) P.startupNavigationIssue = reason;
+    startupMessages.clear();
+    for (const request of investorRequests.splice(0)) investorFailure(request.data, reason);
+  }
+  window.addEventListener('message', event => {
+    if (integrationsReady || window.parent === window || event.source !== window.parent || event.origin !== window.location.origin) return;
+    const slot = startupTypes.get(event.data?.type);
+    if (!slot) return;
+    event.stopImmediatePropagation();
+    try {
+      const captured = context(), data = structuredClone(event.data);
+      if (slot === 'investor') {
+        if (investorRequests.length >= 32) { investorFailure(data, 'Too many financial source requests arrived during startup. Retry this request.'); return; }
+        investorRequests.push({ data, captured });
+      } else { if (slot === 'navigation') P.startupNavigationIssue = null; startupMessages.set(slot, { data, captured }); }
+    } catch {
+      if (slot === 'investor') investorFailure(event.data, 'The account or workspace could not be verified. Reopen the financial report.');
+    }
+  }, true);
+  const invalidateStartupMessages = () => {
+    if (integrationsReady) return;
+    try {
+      const now = context();
+      if ([...startupMessages.values(), ...investorRequests].some(request => !sameContext(now, request.captured)))
+        discardStartupMessages('The account or workspace changed during startup. Reopen the financial report.');
+    } catch { discardStartupMessages('The account or workspace could not be verified. Reopen the financial report.'); }
+  };
+  window.addEventListener('storage', invalidateStartupMessages);
+  window.addEventListener('atlas-central-auth-change', invalidateStartupMessages);
+  if (window.parent !== window) window.parent.addEventListener('atlas-central-auth-change', invalidateStartupMessages);
+  P.completeIntegrationStartup = function () {
+    if (integrationsReady) return;
+    const investorReader = new URLSearchParams(window.location.search || '').get('investorReader') === '1';
+    if (!investorReader) { try { guard(); } catch (error) { discardStartupMessages(error.message); throw error; } }
+    integrationsReady = true;
+    if (P.startupNavigationIssue) A.toast(H.esc(P.startupNavigationIssue), 'r');
+    const requests = ['context', 'catalog', 'navigation'].map(slot => startupMessages.get(slot)).filter(Boolean).concat(investorRequests.splice(0));
+    startupMessages.clear();
+    for (const request of requests) {
+      try {
+        if (!investorReader) guard();
+        if (!sameContext(context(), request.captured)) throw fail('The account or workspace changed during startup. Reopen the requested financial view.');
+        window.dispatchEvent(new MessageEvent('message', { data: request.data, origin: window.location.origin, source: window.parent }));
+      } catch (error) {
+        if (request.data.type === 'atlas-investor-read-budget') investorFailure(request.data, error.message);
+        else A.toast(H.esc(error.message), 'r');
+        if (!investorReader) {
+          integrationsReady = false;
+          for (const pending of requests.slice(requests.indexOf(request) + 1)) if (pending.data.type === 'atlas-investor-read-budget') investorFailure(pending.data, error.message);
+          throw error;
+        }
+      }
+    }
+  };
   const identityMatches = payload => payload.browserDraftIdentity
     ? JSON.stringify(payload.browserDraftIdentity) === scopeOf(bound) : legacyAllowed;
   const nextRevision = () => (revision = Math.max(revision + 1, Date.now() * 1000));

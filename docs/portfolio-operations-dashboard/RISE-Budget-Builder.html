@@ -27549,6 +27549,8 @@ RBB.app.start = function () {
         document.body.appendChild(script);
       });
     }
+    await RBB.reforecastNavigationReady;
+    RBB.persist.completeIntegrationStartup();
     if (RBB.app.state) { RBB.persist.renderReady = true; RBB.app.render(); }
   } catch (e) {
     var el = document.getElementById('err');

@@ -48621,9 +48621,11 @@ function dataImportReplayRecoveryReader(entry) {
   const central=window.ATLAS_CENTRAL,actor=central?.getSession?.()?.user?.id||"",database=ATLAS_STATE_DB_NAME;
   const authScope=()=>central?.getAccessContextKey?.()??JSON.stringify([central?.getConfig?.()?.supabaseUrl,central?.getStoredProfile?.()]);
   const access=authScope(),source={archiveId:entry?.id,fileHash:entry?.fileHash,batchId:entry?.batchId,reportType:entry?.reportType};
+  let borrowedPrimaryPromise=null;
   const prefix="atlas_replay_receipt_v1:",namePattern=/^atlas_replay_checkpoint_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   const check=()=>{
     if(!actor||typeof source.archiveId!=="string"||!source.archiveId||typeof source.fileHash!=="string"||!source.fileHash||central!==window.ATLAS_CENTRAL||actor!==(central?.getSession?.()?.user?.id||"")||access!==authScope()||database!==ATLAS_STATE_DB_NAME
+      ||(borrowedPrimaryPromise&&borrowedPrimaryPromise!==(typeof atlasStateDbPromise==="undefined"?null:atlasStateDbPromise))
       ||!dataImportCanManageArchitecture()||!atlasAccessDecision(7).ok||!(dataImport2State.sourceArchive||[]).includes(entry)
       ||entry.importStatus!=="Approved"||!["rent_roll","trending_occupancy"].includes(entry.reportType)||!Array.isArray(entry.communities)||!entry.communities.length||!entry.communities.every(name=>atlasDashboardUserCanSeeCommunityName(name))
       ||entry.id!==source.archiveId||entry.fileHash!==source.fileHash||entry.batchId!==source.batchId||entry.reportType!==source.reportType)throw new Error("The authorized source or workspace changed. Reopen the intended source before inspecting.");
@@ -48698,20 +48700,27 @@ function dataImportReplayRecoveryReader(entry) {
     check();if(!namePattern.test(name))throw new Error("Enter the complete checkpoint identifier from the replay message.");
     const known=await names();check();let primary;
     try{
-      primary=await openExisting(database,known);check();const stored=await get(primary,ATLAS_STATE_STORE_NAME,prefix+name);check();
-      const metadata=await readMetadata(name,known);check();
+      if(known)primary=await openExisting(database,known);
+      else {
+        // Borrow only the app's already-open connection; never initialize storage.
+        borrowedPrimaryPromise=typeof atlasStateDbPromise==="undefined"?null:atlasStateDbPromise;
+        primary=borrowedPrimaryPromise?await borrowedPrimaryPromise:null;check();
+        if(primary&&primary.name!==database)throw new Error("The already-open receipt store belongs to another workspace.");
+      }
+      check();const stored=await get(primary,ATLAS_STATE_STORE_NAME,prefix+name);check();
+      const metadata=known?await readMetadata(name,known):{retained:null,value:null};check();
       if(metadata.value&&!matches(metadata.value,name)||stored&&(!matches(stored.value,name,true)||stored.key!==prefix+name))throw new Error("This receipt does not match the current authorized workspace and exact source. No checkpoint was changed.");
       const summary=rowSummary(name,metadata.value,stored?.value||null,metadata.retained);
       if(!primary){summary.outcome="receipt_storage_unavailable";summary.atomicCommitReceipt=null;}
-      return {schemaVersion:1,checkedAt:new Date().toISOString(),...summary,source:{...source},reportingPeriod:stored?.value?.reportingPeriod||null,limitations:"Read-only receipt inspection. Older checkpoint before envelopes are never read. This does not prove Central Save or cross-client persistence; no restore or deletion was performed."};
-    }finally{primary?.close();}
+      return {schemaVersion:1,checkedAt:new Date().toISOString(),checkpointDiscoveryAvailable:!!known,...summary,source:{...source},reportingPeriod:stored?.value?.reportingPeriod||null,limitations:"Read-only receipt inspection. Older checkpoint before envelopes are never read. This does not prove Central Save or cross-client persistence; no restore or deletion was performed."};
+    }finally{if(known)primary?.close();}
   }};
 }
 
 function showDataImportReplayCheckpoint(checkpoint) {
   if(!checkpoint?.mayRender()||typeof document==="undefined")return;
   document.getElementById("data-import-replay-checkpoint-status")?.atlasReplayDispose?.();
-  const panel=document.createElement("aside");panel.id="data-import-replay-checkpoint-status";panel.setAttribute("role","status");
+  const panel=document.createElement("aside");panel.id="data-import-replay-checkpoint-status";panel.dataset.checkpoint=checkpoint.name;panel.setAttribute("role","status");
   panel.style.cssText="position:fixed;bottom:16px;right:16px;max-width:min(660px,90vw);padding:16px;background:white;color:#172033;border:1px solid #8792a6;box-shadow:0 2px 12px #0002;z-index:10000;overflow-wrap:anywhere";
   const copy=document.createElement("p"),id=document.createElement("p"),close=document.createElement("button");
   copy.textContent="Source replay checkpoint captured. Keep this identifier for read-only inspection. This message does not confirm a commit.";
@@ -48719,6 +48728,11 @@ function showDataImportReplayCheckpoint(checkpoint) {
   const remove=()=>{window.removeEventListener("atlas-central-auth-change",changed);panel.remove();};
   const changed=()=>{if(!checkpoint.mayRender())remove();};
   panel.atlasReplayDispose=remove;close.onclick=remove;window.addEventListener("atlas-central-auth-change",changed);panel.append(copy,id,close);document.body.appendChild(panel);
+}
+
+function dismissDataImportReplayCheckpoint(name) {
+  const panel=typeof document==="undefined"?null:document.getElementById("data-import-replay-checkpoint-status");
+  if(panel?.dataset.checkpoint===name)panel.atlasReplayDispose?.();
 }
 
 async function selectDataImportReplayCheckpoint(entry,reader) {
@@ -49087,6 +49101,7 @@ async function reprocessDataImportBoxScore(archiveId) {
     }
     if (checkpoint && !checkpoint.mayRender()) alert("Source replay was interrupted by an access or workspace change. Reload this workspace before saving; its recovery checkpoint remains retained.");
     if (!checkpoint || checkpoint.mayRender()) alert(`${published ? "The source replay committed, but its completion display stopped" : "Source recovery stopped"}: ${error.message || error}${recovery}`);
+    if(checkpoint&&!published&&!recovery)window.dismissDataImportReplayCheckpoint?.(checkpoint.name);
   } finally {
     if (checkpoint && !published) dataImportRuntimeLineageBuffer=null;
     dataImportFinishApprovalRuntime();

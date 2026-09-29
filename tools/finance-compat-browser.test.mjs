@@ -92,8 +92,8 @@ try{
  await page.evaluate(()=>{getAtlasTodayISODate=()=> '2026-09-28';queueWorkspaceNavigation('RISE Doro',2);});
  await page.locator('[data-occupancy-goal-planning]').waitFor().catch(async error=>{console.log('OCCUPANCY',await page.evaluate(()=>({body:document.body.innerText.slice(-3500),tab:activeTab,scope:workspaceScopeValue,model:buildCommunityCommandModel(getProp().name,getCurrentCommunityRecord()).goalPlanning})),errors);throw error;});
  stage='governed-economic-close';
- await page.waitForFunction(()=>getCommunityCommandEconomicOccupancyData(getCurrentCommunityRecord(),8,2026).state==='open_month_latest_close');
- const economic=await page.evaluate(()=>getCommunityCommandEconomicOccupancyData(getCurrentCommunityRecord(),8,2026));
+ const economicReady=await page.waitForFunction(()=>{const model=getCommunityCommandEconomicOccupancyData(getCurrentCommunityRecord(),8,2026);return model.state==='open_month_latest_close'?model:null;});
+ const economic=await economicReady.jsonValue();await economicReady.dispose();
  assert.equal(economic.closedPct,75);assert.equal(economic.selectedPeriod,'2026-09');assert.equal(economic.displayedClosePeriod,'2026-08');assert.equal(economic.closeVersionId,'90000000-0000-0000-0000-000000000001');assert.equal(economic.source,'Synthetic governed August.xlsx');
  const economicCard=page.locator('.community-command-kpi').filter({hasText:'Closed-Month Economic Occupancy'});await economicCard.filter({hasText:'75.0%'}).waitFor();assert.match(await economicCard.innerText(),/Closed 2026-08.*selected 2026-09/);assert.doesNotMatch(await economicCard.innerText(),/MTD/);
  assert.equal(await page.evaluate(async()=>typeof(await import('./features/community-plan.mjs')).open),'function');

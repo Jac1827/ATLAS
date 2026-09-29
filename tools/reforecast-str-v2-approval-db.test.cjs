@@ -1,7 +1,7 @@
 // Isolated SQL approval lifecycle. No remote connection and no private fixture
 // bytes are copied into the repository. The optional fixture must be hash-bound.
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{randomUUID,createHash}=require('node:crypto'),{pathToFileURL}=require('node:url'),{fixture}=require('./reforecast-fixture.cjs');
-const migration='20260929155712_saved_str_v2_approval_authority.sql',read=name=>fs.readFileSync(path.join(__dirname,'../supabase/migrations',name),'utf8');
+const migration='20260929162311_saved_str_v2_approval_authority.sql',read=name=>fs.readFileSync(path.join(__dirname,'../supabase/migrations',name),'utf8');
 (async()=>{
  const legacy=await import('../docs/portfolio-operations-dashboard/features/reforecast-str-saved-programme.mjs');
  const actual=process.env.ATLAS_STR_V2_PARSER_PATH?await import(pathToFileURL(path.resolve(process.env.ATLAS_STR_V2_PARSER_PATH)).href):null;

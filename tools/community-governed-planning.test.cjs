@@ -47,17 +47,30 @@ for (let total = 0; total <= 31; total++) {
   assert(Math.max(...weekly) - Math.min(...weekly) <= 1);
 }
 assert.equal(ctx.communityCommandWeeklyAllocation(null, 3).length, 0);
+(async () => {
+const {isGovernedEconomicClose}=await import('../docs/portfolio-operations-dashboard/features/financial-close.mjs');
 const financial = { 8: { closedFinancialActuals: {netRentalIncome: 100, grossPotentialRent: 200, period: '2026-09', coverage: 'full_month', status:'closed', source:'closed package page 3', approvedBy:'Reviewer', approvedAt:'2026-10-05'} } };
 ctx.getRecordMonthlyDataForYear = () => financial;
-ctx.window={AtlasClosedFinancialCache:{get:()=>{const x=financial[8].closedFinancialActuals;return x?{metrics:x,period_key:x.period,status:x.status,coverage:x.coverage,source_file:x.source,approved_by:x.approvedBy,approved_at:x.approvedAt}:null;}}};
-assert.equal(ctx.getCommunityCommandEconomicOccupancyData({}, 8, 2026).mtdPct, 50);
-financial[8].closedFinancialActuals.coverage = 'mtd';
-assert.equal(ctx.getCommunityCommandEconomicOccupancyData({}, 8, 2026).mtdPct, null);
+const economicCommunity={community_id:'doro-id',display_name:'Doro',canonical_name:'doro'},economicRecord={propertyName:'Doro',communityId:'doro-id'};
+Object.assign(ctx,{getAtlasTodayISODate:()=> '2026-10-06',getAtlasAccessProfile:()=>({community_access_records:[economicCommunity]}),getAtlasCommunityAccessRecord:()=>({atlasCommunityId:'doro-id'})});
+let economicEnvelope={communityId:'doro-id',period:'2026-09',periodState:'locked',actualCloseVersion:'close-september',close:{community_id:'doro-id',version_id:'close-september',period_key:'2026-09',status:'closed',coverage:'full_month',source_file:'closed package page 3',approved_by:'Reviewer',approved_at:'2026-10-05',metrics:{netRentalIncome:100,grossPotentialRent:200}}};
+ctx.window={AtlasClosedFinancialCache:{
+ scopeState:(id,periods)=>id==='doro-id'&&periods.length===1&&periods[0]==='2026-09'?'ready':'loading',
+ envelope:(id,period)=>id==='doro-id'&&period==='2026-09'?economicEnvelope:null,
+ get(id,period){return this.envelope(id,period)?.close||null;},
+ latestClosed(id,through){return id==='doro-id'&&economicEnvelope?.period<=through&&isGovernedEconomicClose(economicEnvelope)?economicEnvelope.close:null;},
+ isGovernedEconomicClose
+}};
+const economic=ctx.getCommunityCommandEconomicOccupancyData(economicRecord,8,2026);
+assert.equal(economic.closedPct,50);assert.equal(economic.mtdPct,50);assert.equal(economic.state,'closed_exact');assert.equal(economic.displayedClosePeriod,'2026-09');
+economicEnvelope.close.coverage = 'mtd';
+assert.equal(ctx.getCommunityCommandEconomicOccupancyData(economicRecord, 8, 2026).closedPct, null);
+economicEnvelope=null;
 financial[8] = { unpaidRent: 100 };
-assert.equal(ctx.getCommunityCommandEconomicOccupancyData({}, 8, 2026).mtdPct, null);
+assert.equal(ctx.getCommunityCommandEconomicOccupancyData(economicRecord, 8, 2026).closedPct, null);
+ctx.getAtlasTodayISODate=()=> '2026-09-18';
 console.log('PASS historical date/community/denominator checks, January boundary, forecast roll-forward, missing values, weekly totals, financial coverage');
 // Exercise the actual asynchronous handlers at the canonical persistence boundary.
-(async () => {
   const fields = ["requiredMoveIns","applicationGoal","grossLeaseGoal","netLeaseGoal","occupancyGoal","leasedGoal","economicGoal","renewalGoal"];
   const form = { 'cc-goal-requiredMoveIns':'10','cc-goal-applicationGoal':'20','cc-goal-grossLeaseGoal':'10','cc-goal-netLeaseGoal':'8','cc-goal-occupancyGoal':'90','cc-goal-leasedGoal':'','cc-goal-economicGoal':'','cc-goal-renewalGoal':'','cc-goal-reason':'Approved staffing adjustment','cc-goal-effective':'2026-09-18' };
   let allowed=true,version=0,saved=null,releaseSave=null,failSave=false;

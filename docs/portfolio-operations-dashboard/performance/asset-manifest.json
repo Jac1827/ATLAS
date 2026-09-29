@@ -694,8 +694,8 @@
     ]
   },
   "features/community-plan-report.mjs": {
-    "sha256": "810c4a70868a99c3",
-    "bytes": 12440,
+    "sha256": "649b19de70728a8f",
+    "bytes": 14916,
     "references": [
       [
         "features/community-plan.mjs",
@@ -704,8 +704,8 @@
     ]
   },
   "features/community-plan.mjs": {
-    "sha256": "3fa45ad7f097a153",
-    "bytes": 18545,
+    "sha256": "51c3aa95f8e6fc09",
+    "bytes": 18716,
     "references": [
       [
         "workspace-core.js",
@@ -746,8 +746,8 @@
     ]
   },
   "features/financial-close.mjs": {
-    "sha256": "78933582df1f6c31",
-    "bytes": 26410,
+    "sha256": "b1fc61a9bd34612c",
+    "bytes": 30079,
     "references": [
       [
         "features/financial-close-report.mjs",
@@ -962,8 +962,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "bd9b4f711f10cc06",
-    "bytes": 3058025,
+    "sha256": "b0762e2aec552ffe",
+    "bytes": 3066674,
     "references": [
       [
         "index.html",
@@ -1648,7 +1648,7 @@
     ]
   },
   "features/financial-close-report.mjs": {
-    "sha256": "50d058ed5388d7d7",
+    "sha256": "7f78532b43b53476",
     "bytes": 10629,
     "references": [
       [
@@ -1658,7 +1658,7 @@
     ]
   },
   "features/financial-comparison.mjs": {
-    "sha256": "8f5da36265207f93",
+    "sha256": "5231a0cae1e13d4d",
     "bytes": 11845,
     "references": [
       [
@@ -1672,7 +1672,7 @@
     ]
   },
   "features/financial-package-review.mjs": {
-    "sha256": "25ef091aeebfdba3",
+    "sha256": "d4e86fa260d82c9d",
     "bytes": 21788,
     "references": [
       [
@@ -1696,7 +1696,7 @@
     ]
   },
   "budget-navigation.js": {
-    "sha256": "98b667be40474c88",
+    "sha256": "6ae488f0b550d83e",
     "bytes": 13575,
     "references": [
       [
@@ -1776,7 +1776,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "d95601eba3449482",
+    "sha256": "de91981274c6bc5a",
     "bytes": 1892175,
     "references": [
       [
@@ -1786,7 +1786,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "a0ec0cd5ed3257ba",
+    "sha256": "1263eb55056b5fee",
     "bytes": 26893,
     "references": [
       [

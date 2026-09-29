@@ -848,6 +848,15 @@
       "bytes": 4323,
       "md5": "4d14f7b427a6f0090b66a52960a47845",
       "sha256": "a9ee4ffb4e0702e30bb9f5b8b3c8025bf1f27d69698b921b92470883d2c208de"
+    },
+    {
+      "version": "20260928215716",
+      "name": "community_plan_governed_economic_occupancy",
+      "file": "20260928215716_community_plan_governed_economic_occupancy.sql",
+      "bytes": 10431,
+      "md5": "c2b5791cde4507f1a6cea4356e587446",
+      "sha256": "353cfa30985282f300b6bd2e24c7b9cb5bd952a90ffaf689710cf9d65f164a17",
+      "formerLocalFile": "20260928213956_community_plan_governed_economic_occupancy.sql"
     }
   ]
 }

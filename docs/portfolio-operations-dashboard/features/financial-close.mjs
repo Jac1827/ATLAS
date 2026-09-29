@@ -2,6 +2,30 @@ import {mountMonthEndReview,REOPENED_PERIOD_WARNING} from './month-end-governanc
 import {readFinance,readApprovedBudget,financialSummary,bonusEvidence,financeAccessKey,invalidateFinanceReads} from './canonical-finance.mjs?v=625be3eaa641cbeb';
 // Shared closed-month reader. No browser ledger is authoritative.
 export const optionalNumber=v=>v===null||v===undefined||v===''?null:Number.isFinite(Number(v))?Number(v):null;
+const financialPeriod=value=>typeof value==='string'&&/^20\d{2}-(0[1-9]|1[0-2])$/.test(value);
+const evidenceText=value=>typeof value==='string'&&value.trim().length>0;
+const economicAmount=value=>(typeof value==='number'||typeof value==='string'&&value.trim()!=='')&&Number.isFinite(Number(value))?Number(value):null;
+// A retained close row remains immutable after reopening. Its enclosing current
+// publication must still identify that exact approved, locked monthly version.
+export function isGovernedEconomicClose(envelope,{communityId,period}={}){
+ const e=envelope,c=e?.close;
+ if(!e||!c||!financialPeriod(c.period_key)||e.period!==c.period_key)return false;
+ if([e.periodState,e.status].some(value=>value==='reopened'||value==='superseded'))return false;
+ if(e.communityId!==undefined&&c.community_id!==undefined&&e.communityId!==c.community_id||e.actualCloseVersion!==undefined&&c.version_id!==undefined&&e.actualCloseVersion!==c.version_id)return false;
+ if(communityId!==undefined&&(e.communityId??c.community_id)!==communityId||period!==undefined&&c.period_key!==period)return false;
+ if(c.status!=='closed'||c.coverage!=='full_month')return false;
+ if(![c.source_file,c.approved_by,c.approved_at].every(evidenceText))return false;
+ const nri=economicAmount(c.metrics?.netRentalIncome),gpr=economicAmount(c.metrics?.grossPotentialRent);
+ return nri!==null&&gpr!==null&&gpr>0;
+}
+export function latestClosedEnvelope(envelopes,throughPeriod,{communityId}={}){
+ if(!Array.isArray(envelopes)||!financialPeriod(throughPeriod))return null;
+ const candidates=envelopes.filter(e=>isGovernedEconomicClose(e,{communityId})&&e.close.period_key<=throughPeriod);
+ if(new Set(candidates.map(e=>e.communityId??e.close.community_id).filter(Boolean)).size>1)return null;
+ const periods=[...new Set(candidates.map(e=>e.close.period_key))].sort().reverse();
+ const matches=candidates.filter(e=>e.close.period_key===periods[0]);
+ return matches.length===1?matches[0]:null;
+}
 export function contract(v){return v?{period:v.period_key,status:v.status,coverage:v.coverage,accountingBasis:v.accounting_basis,netRentalIncome:optionalNumber(v.metrics.netRentalIncome),grossPotentialRent:optionalNumber(v.metrics.grossPotentialRent),netCashFlow:optionalNumber(v.metrics.netCashFlow??v.metrics.sourceControls?.['Net Cash Flow']?.actual),source:v.source_file,sourceHash:v.source_hash,approvedBy:v.approved_by,approvedAt:v.approved_at,version:v.version_id,revision:v.revision}:null;}
 export function coverage(versions,year){
  const months=new Set(versions.filter(v=>v.period_key?.startsWith(year+'-')&&v.status==='closed'&&v.coverage==='full_month').map(v=>Number(v.period_key.slice(5))));
@@ -49,17 +73,21 @@ export async function closeReview(central,review,{expectedVersion=null,reason,ac
  return {...stored,intakeReceipt:finalReceipt,publicationId:report.publication_id};
 }
 export function createCache(central){
- const byName=new Map(),refreshed=new Map(),failed=new Map(),latestCells=new Map(),scopeTickets=new Map();let epoch=0,sequence=0,access=financeAccessKey(central),rosterTask=null,roster=null;
+ const byName=new Map(),refreshed=new Map(),failed=new Map(),latestCells=new Map(),scopeTickets=new Map(),cellStates=new Map(),idsByName=new Map();let epoch=0,sequence=0,access=financeAccessKey(central),rosterTask=null,roster=null;
  const waitFor=(promise,signal)=>{if(!signal)return promise;if(signal.aborted)return Promise.reject(new DOMException('Cancelled','AbortError'));return new Promise((resolve,reject)=>{const aborted=()=>{signal.removeEventListener('abort',aborted);reject(new DOMException('Cancelled','AbortError'));};signal.addEventListener('abort',aborted,{once:true});promise.then(value=>{signal.removeEventListener('abort',aborted);resolve(value);},error=>{signal.removeEventListener('abort',aborted);reject(error);});});};
  const ensureAccess=()=>{const next=financeAccessKey(central);if(next!==access){api.clear();access=next;}return next;};
  const rosterFor=async()=>{if(roster)return roster;if(!rosterTask){const token=epoch;rosterTask=Promise.resolve().then(()=>central.readCommunitiesForAccess()).then(rows=>{if(token!==epoch)throw Error('Session changed while reading community scope.');roster=rows;return rows;}).finally(()=>{if(token===epoch)rosterTask=null;});}return rosterTask;};
+ const bindNames=(ids,known)=>{for(const id of ids){const c=known.find(c=>(c.community_id||c.atlasCommunityId||c.sourceIds?.atlasCommunityId)===id);for(const name of new Set([id,c?.display_name,c?.displayName,c?.name,c?.canonical_name].filter(Boolean)))idsByName.set(name,idsByName.has(name)&&idsByName.get(name)!==id?null:id);}};
  const api={
   status:'Not loaded',
+  isGovernedEconomicClose,
   get(name,period){return this.envelope(name,period)?.close||null;},
   envelope(name,period){ensureAccess();return byName.get(name)?.find(s=>s.period===period)||null;},
+  latestClosed(name,throughPeriod){ensureAccess();return latestClosedEnvelope(byName.get(name)||[],throughPeriod)?.close||null;},
+  scopeState(name,periods){ensureAccess();const id=idsByName.get(name)||(!idsByName.has(name)?name:null),months=[...new Set(periods||[])];if(!id||!months.length||months.some(period=>!financialPeriod(period)))return 'loading';const states=months.map(period=>cellStates.get(id+'|'+period));return states.some(state=>!state||state==='loading')?'loading':states.includes('failed')?'failed':'ready';},
   summary(name,period){return financialSummary(this.envelope(name,period));},
   bonus(name,metric,periods){ensureAccess();return bonusEvidence(byName.get(name)||[],metric,periods,{requireEffectiveBaseline:true});},
-  clear(){epoch++;byName.clear();refreshed.clear();failed.clear();latestCells.clear();scopeTickets.clear();rosterTask=null;roster=null;invalidateFinanceReads(central);this.status='Not loaded';access=financeAccessKey(central);},
+  clear(){epoch++;byName.clear();refreshed.clear();failed.clear();latestCells.clear();scopeTickets.clear();cellStates.clear();idsByName.clear();rosterTask=null;roster=null;invalidateFinanceReads(central);this.status='Not loaded';access=financeAccessKey(central);},
   async refreshScope({communityIds,periods,communities,force=false,signal,versionKey=null}={}){
    const currentAccess=ensureAccess(),ids=[...new Set(communityIds||[])],months=[...new Set(periods||[])];
    if(signal?.aborted)throw new DOMException('Cancelled','AbortError');
@@ -68,11 +96,14 @@ export function createCache(central){
    const key=JSON.stringify([currentAccess,ids.slice().sort(),months.slice().sort(),versionKey]);
    if(!force&&(Date.now()-(refreshed.get(key)||0)<60000||Date.now()-(failed.get(key)||0)<5000))return false;
    if(force){invalidateFinanceReads(central);scopeTickets.clear();refreshed.clear();failed.delete(key);}
-   let group=!force&&scopeTickets.get(key);if(!group){group={ticket:++sequence,users:0};if(!force)scopeTickets.set(key,group);}group.users++;
+   let group=!force&&scopeTickets.get(key);if(!group){group={ticket:++sequence,users:0,previousStates:new Map(),settled:false};if(!force)scopeTickets.set(key,group);}group.users++;
    const token=epoch,ticket=group.ticket,cells=ids.flatMap(id=>months.map(month=>id+'|'+month));
-   for(const cell of cells)latestCells.set(cell,ticket);
+   for(const cell of cells){if(!group.previousStates.has(cell))group.previousStates.set(cell,cellStates.get(cell));latestCells.set(cell,ticket);cellStates.set(cell,'loading');}
+   if(communities)bindNames(ids,communities);
    try{
     const known=communities||await waitFor(rosterFor(),signal);
+    if(token!==epoch||financeAccessKey(central)!==currentAccess)throw Error('Session changed while reading scoped financial evidence.');
+    bindNames(ids,known);
     const rows=await readFinance(central,ids,months,{signal,readMode:force?'fresh':'presentation',versionKey});
     if(signal?.aborted)throw new DOMException('Cancelled','AbortError');
     if(token!==epoch||financeAccessKey(central)!==currentAccess)throw Error('Session changed while reading scoped financial evidence.');
@@ -82,15 +113,17 @@ export function createCache(central){
      const c=known.find(c=>(c.community_id||c.atlasCommunityId||c.sourceIds?.atlasCommunityId)===id),entries=rows.filter(r=>r.community_id===id).map(r=>r.summary);
      for(const name of new Set([id,c?.display_name,c?.displayName,c?.name,c?.canonical_name].filter(Boolean)))byName.set(name,[...(byName.get(name)||[]).filter(s=>!months.includes(s.period)),...entries]);
     }
+    for(const cell of cells)cellStates.set(cell,'ready');group.settled=true;
     this.status='Verified';failed.delete(key);refreshed.set(key,Date.now());return true;
    }catch(error){
     if(token===epoch&&cells.every(cell=>latestCells.get(cell)===ticket)&&error.name!=='AbortError'){
      // A failed refresh cannot leave apparently current evidence for the requested selection.
      for(const [name,values]of byName)byName.set(name,values.filter(s=>!ids.includes(s.communityId)||!months.includes(s.period)));
+     for(const cell of cells)cellStates.set(cell,'failed');group.settled=true;
      refreshed.clear();failed.set(key,Date.now());this.status=error.message;
     }
     throw error;
-   }finally{group.users--;if(!group.users&&scopeTickets.get(key)===group)scopeTickets.delete(key);}
+   }finally{group.users--;if(!group.users){if(!group.settled&&token===epoch)for(const cell of cells)if(latestCells.get(cell)===ticket){const previous=group.previousStates.get(cell);if(previous)cellStates.set(cell,previous);else cellStates.delete(cell);}if(scopeTickets.get(key)===group)scopeTickets.delete(key);}}
   },
   async refresh(year,force=false){
    ensureAccess();const communities=await rosterFor();

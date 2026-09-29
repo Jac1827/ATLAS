@@ -8,6 +8,7 @@ import {execFileSync} from 'node:child_process';
 import {createServer} from 'node:http';
 import {createRequire} from 'node:module';
 import {composeFinanceCompatSource,OPERATIONAL_RELEASE} from './compose-finance-compat-source.mjs';
+import {patchEconomicOccupancyBoundary} from './economic-occupancy-compat.mjs';
 import {patchOccupancyImportBoundary} from './occupancy-compat-boundary.mjs';
 import {patchArchiveBuilderBoundary} from './archive-builder-compat.mjs';
 import {patchReplayCheckpointBoundary} from './replay-checkpoint-compat.mjs';
@@ -42,7 +43,7 @@ try{
  const receipt=await composeFinanceCompatSource({operationalSource:old,financeSource:path.join(repo,'docs'),out});
  const currentCore=await fs.readFile(path.join(repo,'docs/portfolio-operations-dashboard/workspace-core.js'),'utf8');
  const websiteSources=Object.fromEntries(await Promise.all(PROPERTY_SPECIALS_ASSETS.map(async name=>[name,await fs.readFile(path.join(out,'portfolio-operations-dashboard',name),'utf8')])));
- assert.equal(receipt.changedOperationalFiles.length,18);assert.equal(await fs.readFile(path.join(out,'portfolio-operations-dashboard/index.html'),'utf8'),patchReplayRefreshBoundary(patchPropertySpecialsReferences(patchPropertySpecialsSettings(patchArchiveBuilderBoundary(patchReplayCheckpointBoundary(patchOccupancyImportBoundary(await fs.readFile(path.join(old,'portfolio-operations-dashboard/index.html'),'utf8'),currentCore,await fs.readFile(path.join(repo,'docs/portfolio-operations-dashboard/features/import-workspace.js'),'utf8')),currentCore),currentCore),currentCore),websiteSources),currentCore,await fs.readFile(path.join(repo,'docs/portfolio-operations-dashboard/features/import-workspace.js'),'utf8')));
+ assert.equal(receipt.changedOperationalFiles.length,19);assert.equal(await fs.readFile(path.join(out,'portfolio-operations-dashboard/index.html'),'utf8'),patchEconomicOccupancyBoundary(patchReplayRefreshBoundary(patchPropertySpecialsReferences(patchPropertySpecialsSettings(patchArchiveBuilderBoundary(patchReplayCheckpointBoundary(patchOccupancyImportBoundary(await fs.readFile(path.join(old,'portfolio-operations-dashboard/index.html'),'utf8'),currentCore,await fs.readFile(path.join(repo,'docs/portfolio-operations-dashboard/features/import-workspace.js'),'utf8')),currentCore),currentCore),currentCore),websiteSources),currentCore,await fs.readFile(path.join(repo,'docs/portfolio-operations-dashboard/features/import-workspace.js'),'utf8')),currentCore));
  await assert.rejects(composeFinanceCompatSource({operationalSource:old,financeSource:path.join(repo,'docs'),out}),/already exist/);
  const allowedRpcs=new Set(['atlas_read_reforecast_workspace','atlas_month_end_queue','atlas_read_budget_calendar','atlas_read_active_reforecast','atlas_read_reforecast_builder_source','atlas_read_reforecast_source','atlas_read_reforecast_sources','atlas_read_str_programme_drafts','atlas_read_str_programme_history','atlas_read_finance','atlas_read_dashboard_views','atlas_reforecast_effective_baseline','atlas_verify_budget_consumer','atlas_verify_finance_receipt','atlas_read_employee_notifications','atlas_read_people_directory','atlas_read_community_goals','atlas_read_shared_property_graph','atlas_upsert_live_session','atlas_end_live_session','atlas_save_dashboard_view']);
  server=createServer(async(req,res)=>{try{const url=new URL(req.url,'http://local');if(url.pathname==='/blank'){res.setHeader('content-type','text/html');res.end('<!doctype html><title>Synthetic source setup</title>');return;}const file=path.resolve(out,'.'+decodeURIComponent(url.pathname));if(!file.startsWith(out+path.sep))throw Error();res.setHeader('content-type',file.endsWith('.html')?'text/html':/\.(mjs|js)$/.test(file)?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.svg')?'image/svg+xml':'application/octet-stream');res.end(await fs.readFile(file));}catch{res.writeHead(404);res.end();}});
@@ -55,7 +56,8 @@ try{
    if(req.method()!=='GET'&&!url.pathname.includes('/rpc/'))writes.push(name);
    if(url.pathname.includes('/rpc/')&&!allowedRpcs.has(name)){unreviewedRpcs.push(name);if(/atlas_(save|publish|update|upload|close|reopen|delete|approve)/.test(name))return route.fulfill({status:403,json:{message:'Source and financial mutations forbidden in compatibility acceptance'}});}
    let value=[];
-   if(name==='atlas_read_finance')value=(args.p_periods||[]).map(period=>({community_id:cid,period_key:period,summary:{registryVersion:'atlas-finance-v1',communityId:cid,period,targetApprovalStatus:'approved',budgetVersion:'synthetic-approved-budget',budgetContentHash:'a'.repeat(64),occupancyPct:47.6}}));
+   if(name==='atlas_read_finance')value=(args.p_periods||[]).map(period=>({community_id:cid,period_key:period,summary:{registryVersion:'atlas-finance-v1',communityId:cid,period,targetApprovalStatus:'approved',budgetVersion:'synthetic-approved-budget',budgetContentHash:'a'.repeat(64),occupancyPct:47.6,
+    ...(period==='2026-08'?{periodState:'locked',actualCloseVersion:'90000000-0000-0000-0000-000000000001',close:{community_id:cid,period_key:period,version_id:'90000000-0000-0000-0000-000000000001',status:'closed',coverage:'full_month',source_file:'Synthetic governed August.xlsx',source_hash:'c'.repeat(64),approved_by:actor,approved_at:'2026-09-03T12:00:00Z',metrics:{netRentalIncome:750,grossPotentialRent:1000}}}:{})}}));
    if(name==='atlas_user_profiles')value=url.searchParams.has('user_id')?[profile(who)]:[profile(actor),profile(second)];
    if(name==='atlas_communities')value=roster;
    if(name==='atlas_read_budget_calendar')value={verified:true,classification:'Multifamily',basis:'calendar',startMonth:1};
@@ -88,6 +90,14 @@ try{
  stage='goal-navigation';
  await page.evaluate(()=>{getAtlasTodayISODate=()=> '2026-09-28';queueWorkspaceNavigation('RISE Doro',2);});
  await page.locator('[data-occupancy-goal-planning]').waitFor().catch(async error=>{console.log('OCCUPANCY',await page.evaluate(()=>({body:document.body.innerText.slice(-3500),tab:activeTab,scope:workspaceScopeValue,model:buildCommunityCommandModel(getProp().name,getCurrentCommunityRecord()).goalPlanning})),errors);throw error;});
+ stage='governed-economic-close';
+ await page.waitForFunction(()=>getCommunityCommandEconomicOccupancyData(getCurrentCommunityRecord(),8,2026).state==='open_month_latest_close');
+ const economic=await page.evaluate(()=>getCommunityCommandEconomicOccupancyData(getCurrentCommunityRecord(),8,2026));
+ assert.equal(economic.closedPct,75);assert.equal(economic.selectedPeriod,'2026-09');assert.equal(economic.displayedClosePeriod,'2026-08');assert.equal(economic.closeVersionId,'90000000-0000-0000-0000-000000000001');assert.equal(economic.source,'Synthetic governed August.xlsx');
+ const economicCard=page.locator('.community-command-kpi').filter({hasText:'Closed-Month Economic Occupancy'});await economicCard.filter({hasText:'75.0%'}).waitFor();assert.match(await economicCard.innerText(),/Closed 2026-08.*selected 2026-09/);assert.doesNotMatch(await economicCard.innerText(),/MTD/);
+ assert.equal(await page.evaluate(async()=>typeof(await import('./features/community-plan.mjs')).open),'function');
+ assert(requests.some(r=>r.endsWith('/finance/portfolio-operations-dashboard/features/community-plan.mjs')),'Retained Community Plan forwards to the isolated current financial module');
+ assert(requests.some(r=>r.endsWith('/finance/portfolio-operations-dashboard/features/community-plan-report.mjs')),'Forwarded plan imports the current immutable report renderer');
  stage='minimum-applications';
  await page.waitForFunction(()=>document.querySelector('[data-minimum-applications]')?.textContent==='45');
  assert.equal(await page.locator('[data-current-leased]').innerText(),'46.56%');assert.equal(await page.locator('[data-leased-target]').innerText(),'47.60%');assert.equal(await page.locator('[data-signed-lease-gap]').innerText(),'3');

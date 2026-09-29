@@ -125,6 +125,19 @@ try{
  await header.getByRole('button',{name:'Working Drafts',exact:true}).click();await iframe.getByRole('heading',{name:'Working Drafts',exact:true}).waitFor();
  stage='saved-str-list';
  await header.getByRole('button',{name:'Saved STR programmes',exact:true}).click();await iframe.locator('[data-str-resume]').waitFor();assert.match(await iframe.locator('[data-str-list]').innerText(),/Synthetic retained STR programme/);await page.screenshot({path:path.join(repo,'output/playwright/finance-compat/saved-str-mixed-host.png'),fullPage:true});
+ // The hidden reader receives its requests at iframe load, before deferred
+ // integrations may finish. Both identities must receive an exact response.
+ stage='investor-reader-startup';
+ await page.evaluate(()=>{
+  window.syntheticInvestorReplies=[];
+  const reader=document.createElement('iframe');reader.hidden=true;reader.dataset.syntheticInvestor='1';
+  window.addEventListener('message',event=>{if(event.source===reader.contentWindow&&event.origin===location.origin&&event.data?.type==='atlas-investor-budget-sources')window.syntheticInvestorReplies.push(event.data);});
+  reader.onload=()=>{for(const requestId of ['startup-investor-1','startup-investor-2'])reader.contentWindow.postMessage({type:'atlas-investor-read-budget',requestId,year:2026,period:'2026-09',names:['RISE Doro']},location.origin);};
+  reader.src='/finance/portfolio-operations-dashboard/RISE-Budget-Builder.html?investorReader=1';document.body.appendChild(reader);
+ });
+ await page.waitForFunction(()=>window.syntheticInvestorReplies?.length===2);
+ const investorReplies=await page.evaluate(()=>window.syntheticInvestorReplies);assert.deepEqual(investorReplies.map(row=>row.requestId).sort(),['startup-investor-1','startup-investor-2']);for(const reply of investorReplies){assert.equal(reply.error,undefined);assert(reply.sources.properties['RISE Doro']);}
+ const investorFrame=page.frames().find(row=>row.url().includes('investorReader=1'));assert.equal(await investorFrame.evaluate(()=>RBB.persist.storageAvailable()),false,'Read-only investor startup does not initialize browser draft storage');await page.evaluate(()=>document.querySelector('[data-synthetic-investor]').remove());
  // A captured row must not cross an authenticated account change.
  stage='account-change';
  await page.evaluate(({second,profile})=>{localStorage.setItem('atlas_central_auth_session_v1',JSON.stringify({access_token:'synthetic-second',refresh_token:'synthetic-second',expires_at:Math.floor(Date.now()/1000)+3600,user:{id:second,email:profile.email}}));localStorage.setItem('atlas_central_profile_v1',JSON.stringify(profile));},{second,profile:profile(second)});

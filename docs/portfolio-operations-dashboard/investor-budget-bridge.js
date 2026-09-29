@@ -166,8 +166,8 @@
           if(activeResult.error)for(const key of Object.keys(report.periods))report.issues.push(key+': Active Reforecast unavailable: '+activeResult.error);
         }
         if(central.getSession()?.user?.id!==actor)throw Error('Session changed while preparing the financial report');
-        window.parent.postMessage({type:'atlas-investor-budget-sources',sources},location.origin);
-      }catch(e){window.parent.postMessage({type:'atlas-investor-budget-sources',error:String(e.message||e)},location.origin);}
+        window.parent.postMessage({type:'atlas-investor-budget-sources',...(event.data.requestId===undefined?{}:{requestId:event.data.requestId}),sources},location.origin);
+      }catch(e){window.parent.postMessage({type:'atlas-investor-budget-sources',...(event.data.requestId===undefined?{}:{requestId:event.data.requestId}),error:String(e.message||e)},location.origin);}
     });
   }
 })();

@@ -36,8 +36,13 @@
  };}
  R.budgetNavigation?.groups.find(g=>g[0]==='forecast')?.[2].push('reforecast','reforecastapprovals','reforecasthistory','reforecaststatus');
  R.budgetNavigation?.groups.find(g=>g[0]==='reports')?.[2].push('reforecastgap');
- import('./features/reforecast-legacy-bridge.mjs?v=f5597e7b01496e6d').then(m=>m.installLegacyReforecastBridge(R)).catch(e=>A.toast('Scenario calculator failed: '+e.message,'r'));
- import('./features/saved-str-programmes.mjs').then(m=>m.installSavedStrProgrammes(R)).catch(e=>A.toast('Saved STR programmes could not load: '+e.message,'r'));
+ R.reforecastNavigationReady=Promise.all([
+  import('./features/reforecast-legacy-bridge.mjs?v=f5597e7b01496e6d').then(m=>m.installLegacyReforecastBridge(R)),
+  import('./features/saved-str-programmes.mjs?v=19f0ddeab3037f98').then(m=>m.installSavedStrProgrammes(R))
+ ]);
+ // The startup coordinator awaits this promise; attach a handler immediately
+ // so a failed async install stays a visible boot failure without a lost route.
+ R.reforecastNavigationReady.catch(()=>{});
  const clearScope=()=>{navigation++;renderGeneration++;intent=null;delete R.reforecastSources;delete R.reforecastPropertyAssignments;const el=document.getElementById('atlas-reforecast-workspace');if(el){const replacement=el.cloneNode(false);replacement.textContent='The signed-in workspace changed. Reopen the intended financial view.';el.replaceWith(replacement);}import('./features/reforecast-legacy-bridge.mjs?v=f5597e7b01496e6d').then(m=>m.clearLegacyReforecastCache());mountQueue=mountQueue.catch(()=>{}).then(async()=>{const m=await import('./features/reforecast-ui.mjs?v=9899aacb19563451');m.clearReforecastSession();});};
  // Token rotation and unchanged profile broadcasts retain the active draft.
  // Expiry is checked separately: an actor/access key can outlive its session.

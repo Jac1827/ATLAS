@@ -1,4 +1,5 @@
 // Immutable evidence is stored separately from the bounded views used by the UI.
+import {hashJson,jsonEqual} from './bounded-json-integrity.mjs?v=a4ea8821996c3b57';
 export const HISTORY_FORMAT = 2;
 export const HISTORY_PAGE_SIZE = 100;
 const COLLECTIONS = ['batches','sourceArchive','canonicalRecords','lineage','reconciliationLog','mappingAuditTrail','exceptions','leadSourceHistoricalRevisions','temporaryIgnoreHistory'];
@@ -11,9 +12,11 @@ const check = signal => { if (signal?.aborted) throw signal.reason || new DOMExc
 export const historyNamespace = key => `${key}:history:v2:`;
 export const isSplitHistory = value => value?.__atlasImportHistory === HISTORY_FORMAT;
 export async function historyHash(value) {
-  const bytes = new TextEncoder().encode(JSON.stringify(value === undefined ? null : value,(_key,item)=>{if(typeof item==='function'||typeof item==='symbol')throw fail('Import evidence must contain serializable values.','history_integrity');return item;}));
-  return [...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(n=>n.toString(16).padStart(2,'0')).join('');
+  return hashJson(value);
 }
+// Only values read from native IndexedDB, or copied directly from those values,
+// may use this path. Request-provided values keep the generic serializer.
+const hashStoredHistory=value=>hashJson(value,{trustedData:true});
 
 // Compatibility for existing in-memory callers. Split records must use the transaction API.
 export function projectHistory(state) {
@@ -67,7 +70,7 @@ async function readVerified(db,storeName,refs,signal){
   // Bounded fetches also keep explicit full exports from issuing unbounded IDB requests.
   for(let offset=0;offset<refs.length;offset+=16){
     check(signal);const subset=refs.slice(offset,offset+16),rows=await readMany(db,storeName,subset.map(r=>r.key),signal);
-    for(const ref of subset){const row=rows.get(ref.key);if(!row || row.sha256!==ref.hash || await historyHash(row.value)!==ref.hash)throw fail('Import evidence is missing or its fingerprint changed.','history_integrity');result.push(row.value);}
+    for(const ref of subset){const row=rows.get(ref.key);if(!row || row.sha256!==ref.hash || await hashStoredHistory(row.value)!==ref.hash)throw fail('Import evidence is missing or its fingerprint changed.','history_integrity');result.push(row.value);}
   }
   return result;
 }
@@ -120,27 +123,33 @@ export function historyChanges(value,base={}){
   return result;
 }
 const withoutMeta = value => {const {historyStorage,...rest}=value||{};return rest;};
-async function prepare(key,value,prior,revision){
+async function prepare(key,value,prior,revision,{trustedData=false}={}){
   const records=new Map(),prefix=historyNamespace(key),state={...withoutMeta(value)},oldBatches=new Map((prior?.batches||[]).map(b=>[b.id,b]));
-  const add=async(kind,v)=>{const hash=await historyHash(v),storageKey=prefix+kind+':'+hash;records.set(storageKey,{key:storageKey,value:v,sha256:hash,updatedAt:new Date().toISOString()});return {key:storageKey,hash};};
+  const add=async(kind,v)=>{const hash=await (trustedData?hashStoredHistory(v):historyHash(v)),storageKey=prefix+kind+':'+hash;records.set(storageKey,{key:storageKey,value:v,sha256:hash,updatedAt:new Date().toISOString()});return {key:storageKey,hash};};
   const unique=(rows,name)=>{const ids=new Set();for(const row of rows){if(!row?.id || ids.has(row.id))throw fail(`Import ${name} identity is missing or duplicated.`,'history_integrity');ids.add(row.id);}};
   unique(state.batches||[],'batch');unique(state.sourceArchive||[],'source');
   for(const collection of ['batches','sourceArchive']){
     const ids=new Set((state[collection]||[]).map(row=>row.id));
     if((prior?.[collection]||[]).some(row=>!ids.has(row.id)))throw fail('A history save cannot discard retained batches or source evidence.','history_integrity');
   }
-  if(Array.isArray(state.batches))state.batches=await Promise.all(state.batches.map(async batch=>{
+  // Each snapshot can contain the entire prior workspace. Hashing all of them
+  // at once retains a serialized string and UTF-8 buffer for every snapshot.
+  if(Array.isArray(state.batches)){
+   const batches=[];
+   for(const batch of state.batches){
     const old=oldBatches.get(batch.id),oldRef=old?.beforeSnapshotRef;
     if(batch.beforeSnapshot){
       const ref=await add('snapshot',batch.beforeSnapshot),snapshotRef={batchId:batch.id,capturedAt:String(batch.beforeSnapshot.capturedAt||''),storageKey:ref.key,sha256:ref.hash};
       if(oldRef?.sha256 && JSON.stringify(oldRef)!==JSON.stringify(snapshotRef))throw fail('An immutable rollback snapshot cannot be replaced.','history_integrity');
-      const {beforeSnapshot,beforeSnapshotRef,...rest}=batch;return {...rest,beforeSnapshotRef:snapshotRef};
+      const {beforeSnapshot,beforeSnapshotRef,...rest}=batch;batches.push({...rest,beforeSnapshotRef:snapshotRef});continue;
     }
     if(batch.beforeSnapshotRef){
       if(!oldRef?.sha256 || JSON.stringify(batch.beforeSnapshotRef)!==JSON.stringify(oldRef))throw fail('Import rollback evidence changed or is unavailable. Reload before saving.','history_integrity');
     }else if(oldRef)throw fail('A history save cannot remove rollback evidence.','history_integrity');
-    return batch;
-  }));
+    batches.push(batch);
+   }
+   state.batches=batches;
+  }
   const collections={};
   for(const name of COLLECTIONS)if(Array.isArray(state[name])){
     const rows=state[name],pages=[];
@@ -162,7 +171,7 @@ async function prepare(key,value,prior,revision){
 
 // Compare protected records and the root in the same transaction as all evidence writes.
 async function commit(db,storeName,key,expected,prepared,extras=[],original){
-  const expectedRoot=JSON.stringify(expected?.value??null);
+  const expectedRoot=expected?.value??null;
   if(extras.some(row=>typeof row.key!=='string'||row.key===key||(row.key.startsWith(historyNamespace(key))&&!(row.internalPreference&&row.key===historyNamespace(key)+'preferences'))))throw fail('Protected records cannot overwrite import evidence.');
   const keys=[key,...extras.map(row=>row.key)];
   if(new Set(keys).size!==keys.length)throw fail('Duplicate protected record key.');
@@ -174,8 +183,10 @@ async function commit(db,storeName,key,expected,prepared,extras=[],original){
       current.set(keys[index],read.result);
       if(--remaining)return;
       try{
-        if(JSON.stringify(current.get(key)?.value??null)!==expectedRoot)throw conflict();
-        for(const extra of extras)if(JSON.stringify(extra.record?(current.get(extra.key)??null):(current.get(extra.key)?.value??null))!==extra.expectedJson)throw conflict();
+        // The comparison remains synchronous inside this transaction. Compare
+        // exact JSON chunks without allocating a whole retained-history string.
+        if(!jsonEqual(current.get(key)?.value??null,expectedRoot,{trustedData:true}))throw conflict();
+        for(const extra of extras)if(!jsonEqual(extra.record?(current.get(extra.key)??null):(current.get(extra.key)?.value??null),extra.expectedValue,{trustedData:true}))throw conflict();
         if(original)store.put(original);
         if(expected?.value && isSplitHistory(expected.value))store.put({key:historyNamespace(key)+'revision:'+expected.value.revision,value:expected.value,updatedAt:expected.updatedAt});
         for(const record of prepared.records){const exists=store.getKey(record.key);exists.onsuccess=()=>{try{if(exists.result===undefined)store.add(record);}catch(e){abort(e);}};}
@@ -186,13 +197,15 @@ async function commit(db,storeName,key,expected,prepared,extras=[],original){
     tx.oncomplete=()=>resolve(prepared.head);tx.onerror=tx.onabort=()=>reject(failure||tx.error||fail('Import history transaction failed.'));
   });
 }
-async function headFor(db,storeName,key,signal){
-  const record=await readOne(db,storeName,key,signal);
+async function headFor(db,storeName,key,signal,read){
+  // The wrapper also represents an already-read missing row. Avoid another
+  // structured clone of the complete legacy root before the atomic comparison.
+  const record=read ? read.record : await readOne(db,storeName,key,signal);
   if(isSplitHistory(record?.value))return {record,head:record.value};
   if(['remote','current','page'].includes(record?.value?.historyStorage?.view))throw fail('Complete canonical import evidence has not been loaded.','history_full_required');
-  const legacy=record?.value||{},prepared=await prepare(key,legacy,null,1);
+  const legacy=record?.value||{},prepared=await prepare(key,legacy,null,1,{trustedData:true});
   check(signal);
-  const hash=await historyHash(legacy),original={key:historyNamespace(key)+'legacy:'+hash,value:legacy,sha256:hash,updatedAt:record?.updatedAt||new Date().toISOString()};
+  const hash=await hashStoredHistory(legacy),original={key:historyNamespace(key)+'legacy:'+hash,value:legacy,sha256:hash,updatedAt:record?.updatedAt||new Date().toISOString()};
   await commit(db,storeName,key,record,prepared,[],original);
   return {record:{key,value:prepared.head,updatedAt:prepared.head.updatedAt},head:prepared.head};
 }
@@ -214,7 +227,7 @@ async function snapshotFor(db,storeName,head,batch,signal){
 }
 async function protectedExtras(db,storeName,records,signal){
   const rows=await readMany(db,storeName,records.map(r=>r.key),signal),out=[];
-  for(const row of records){const current=row.record?(rows.get(row.key)??null):(rows.get(row.key)?.value??null);if(row.record&&row.record.key!==row.key)throw fail('Protected record identity changed.');if(!row.expectedHash || await historyHash(current)!==row.expectedHash)throw conflict();out.push({...row,expectedJson:JSON.stringify(current)});}
+  for(const row of records){const current=row.record?(rows.get(row.key)??null):(rows.get(row.key)?.value??null);if(row.record&&row.record.key!==row.key)throw fail('Protected record identity changed.');if(!row.expectedHash || await hashStoredHistory(current)!==row.expectedHash)throw conflict();out.push({...row,expectedValue:current});}
   return out;
 }
 function expectedRevision(request,head){
@@ -251,7 +264,7 @@ export async function executeHistory(request) {
       return {verified:true,revision:isSplitHistory(existing?.value)?existing.value.revision:null,preferencesRevision:next.revision};
     }
     if(operation==='save'&&!existing){assertFull(request.value);const prepared=await prepare(key,request.value,null,1);await commit(db,storeName,key,existing,prepared);return {revision:1,verified:true,historyStorage:meta(prepared.head,'full')};}
-    const {record,head}=await headFor(db,storeName,key,signal);
+    const {record,head}=await headFor(db,storeName,key,signal,{record:existing});
     if(operation==='current')return await currentState(db,storeName,key,head,request.scope,signal);
     if(operation==='load'||operation==='export'){
       const value=await fullState(db,storeName,head,signal);

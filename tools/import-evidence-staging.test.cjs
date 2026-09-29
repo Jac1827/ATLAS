@@ -1,0 +1,28 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+require('fake-indexeddb/auto');
+const source=fs.readFileSync(require.resolve('../docs/portfolio-operations-dashboard/workspace-core.js'),'utf8');
+const begin=source.indexOf('let atlasCanonicalImportEvidencePromise = null;'),end=source.indexOf('\nasync function initializeAtlasDashboard()',begin);
+const script=source.slice(begin,end)
+  .replace(/await import\('\.\/features\/workspace-bootstrap\.mjs(?:\?v=[^']+)?'\)/g,'await Promise.resolve(bootstrapFixture)')
+  .replace(/await import\('\.\/features\/import-history\.mjs(?:\?v=[^']+)?'\)/g,'await Promise.resolve(historyFixture)');
+async function fixture(){
+  const dbName='synthetic-evidence-'+crypto.randomUUID(),db=await new Promise((resolve,reject)=>{const r=indexedDB.open(dbName,1);r.onupgradeneeded=()=>r.result.createObjectStore('state',{keyPath:'key'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
+  const io=(mode,action)=>new Promise((resolve,reject)=>{const tx=db.transaction('state',mode);let request;try{request=action(tx.objectStore('state'));}catch(error){tx.abort();reject(error);return;}tx.oncomplete=()=>resolve(request?.result);tx.onabort=tx.onerror=()=>reject(tx.error||request?.error||Error('Aborted'));});
+  const identity={documentKey:'synthetic-source',version:2,archiveHash:'synthetic-hash'},records=[{key:'imports',value:{batches:[{id:'one',beforeSnapshot:{zero:0,missing:null}}],sourceArchive:[{id:'source'}]}},{key:'file:source',value:{blob:new Blob(['source bytes'])}},{key:'occupancy_replay_backup:old',value:{kept:true}}];
+  await io('readwrite',store=>store.put({key:'atlas_workspace_source_v2',value:{identity}}));
+  const stats={unpack:0,history:0,remember:0};
+  const c={AbortController,DOMException,structuredClone,Date,JSON,JSZip:{},ATLAS_STATE_DB_NAME:dbName,ATLAS_STATE_STORE_NAME:'state',DATA_IMPORT_2_STATE_KEY:'imports',DATA_IMPORT_FILE_ARCHIVE_PREFIX:'file:',atlasWorkspaceAccess:{epoch:1,controller:new AbortController()},context:'same',dataImport2State:{historyStorage:{view:'remote'}},bootstrapFixture:{sourceIdentity:()=>identity,stableJson:JSON.stringify},withAtlasStateStore:io,atlasStateGetValue:async key=>{assert.notEqual(key,'imports','Do not clone full retained history for existence');return (await io('readonly',store=>store.get(key)))?.value;},openAtlasStateDb:async()=>db,getAtlasRenderContextKey:()=>c.context,getAtlasCentralDocumentKey:()=>identity.documentKey,normalizeDataImport2State:value=>value,rememberDataImportHistoryState:()=>stats.remember++};
+  c.window={AtlasStartupImportProjection:{historyStorage:{view:'remote',archiveHash:identity.archiveHash}},ATLAS_CENTRAL:{readDocument:async()=>({payload:{bundle:{}}})},AtlasFeatures:{load:async()=>{}},AtlasMigrationArchive:{hydrate:async archive=>archive,unpack:async()=>{stats.unpack++;await c.beforeUnpackComplete?.();return {records};}}};
+  c.historyFixture={historyOperation:async()=>{stats.history++;const rows=await io('readonly',store=>store.getAll());assert.equal(rows.length,5,'Complete source and receipt must commit before worker migration');assert.equal(rows.find(row=>row.key==='imports').value.batches[0].beforeSnapshot.zero,0);assert.equal(rows.find(row=>row.key==='imports').value.batches[0].beforeSnapshot.missing,null);return {historyStorage:{view:'current'}};}};
+  vm.createContext(c);vm.runInContext(script,c);
+  return {c,db,io,stats,identity,records,close:async()=>{db.close();await new Promise((resolve,reject)=>{const r=indexedDB.deleteDatabase(dbName);r.onsuccess=resolve;r.onerror=()=>reject(r.error);});}};
+}
+test('atomic evidence staging retains source records and receipt before the history worker runs',async()=>{
+  const f=await fixture();try{await f.c.ensureAtlasCanonicalImportEvidence();assert.equal(f.stats.history,1);assert.equal(f.stats.remember,1);assert.equal(f.c.window.AtlasStartupImportProjection,null);const receipt=(await f.io('readonly',store=>store.get('atlas_import_archive_receipt_v2'))).value;assert.equal(receipt.records,3);assert.equal(receipt.archiveHash,f.identity.archiveHash);assert.equal(await (await f.io('readonly',store=>store.get('file:source'))).value.blob.text(),'source bytes');}finally{await f.close();}
+});
+test('cancellation or damaged archive evidence never stages a partial source',async()=>{
+  for(const mode of ['actor','corrupt']){const f=await fixture();try{f.c.beforeUnpackComplete=()=>{if(mode==='actor')f.c.atlasWorkspaceAccess.epoch++;else throw Error('Archive fingerprint mismatch');};await assert.rejects(f.c.ensureAtlasCanonicalImportEvidence(),mode==='actor'?{name:'AbortError'}:/fingerprint mismatch/);assert.equal((await f.io('readonly',store=>store.getAllKeys())).length,1);assert.equal(f.stats.history,0);assert.equal(f.stats.remember,0);}finally{await f.close();}}
+});
+test('transaction source and prior-evidence checks still refuse changes during decode',async()=>{
+  for(const mode of ['source','prior-root']){const f=await fixture();try{f.c.beforeUnpackComplete=async()=>f.io('readwrite',store=>mode==='source'?store.put({key:'atlas_workspace_source_v2',value:{identity:{...f.identity,version:3}}}):store.put({key:'imports',value:{newer:true}}));await assert.rejects(f.c.ensureAtlasCanonicalImportEvidence(),/Retained import evidence or its source changed/);const keys=await f.io('readonly',store=>store.getAllKeys());assert(!keys.includes('atlas_import_archive_receipt_v2'));assert(!keys.includes('file:source'));if(mode==='prior-root')assert.equal((await f.io('readonly',store=>store.get('imports'))).value.newer,true);assert.equal(f.stats.history,0);}finally{await f.close();}}
+});

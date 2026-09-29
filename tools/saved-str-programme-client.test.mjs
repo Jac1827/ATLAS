@@ -1,8 +1,8 @@
 /* Independent transport and source-retention checks; no production connection. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {IDBFactory} from 'fake-indexeddb';
-import {buildStrProgrammeReport,captureStrProgramme,saveStrProgramme,readStrProgrammes,strProgrammeSourceFile,strProgrammeReport,applyRetainedStrProgramme,installSavedStrProgrammes} from '../docs/portfolio-operations-dashboard/features/saved-str-programmes.mjs';
+import {IDBFactory,IDBObjectStore} from 'fake-indexeddb';
+import {buildStrProgrammeReport,captureStrProgramme,saveStrProgramme,readStrProgrammes,strProgrammeSourceFile,strProgrammeReport,applyRetainedStrProgramme,installSavedStrProgrammes,parseStrProgrammeBackup,strProgrammeReadiness,boundStrProgrammeSource} from '../docs/portfolio-operations-dashboard/features/saved-str-programmes.mjs';
 
 const id=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0'),cid=id(1),pid=id(2),rid=id(3),actor=id(4),revisionId=id(5);
 const config={propertyId:'source-property',programmeId:'source-programme',name:'Retained STR',adr:null,occupancy:0},property={id:'source-property',name:'Community',units:[]},line={id:'source-line',propertyId:'source-property',strProgramId:'source-programme',gl:'5144',name:'Revenue',nature:'income',yearData:{2026:[null,0,...Array(10).fill(1.123456)]}};
@@ -52,7 +52,7 @@ test('Save-and-apply waits for verified persistence and cancels apply after a sc
   for(const mode of ['fail','switch','success']){
    globalThis.indexedDB=new IDBFactory();const p=payload();let committed=null,undos=0;
    const A={state:{properties:[structuredClone(property)],lines:[structuredClone(line)],strPrograms:[structuredClone(p.programme)],activeProperty:property.id,activeScenario:'SC-WORK'},strCfg:structuredClone(config),VIEWS:[],view:'strbuild',year:()=>2026,scenario:()=>({id:A.state.activeScenario}),isLocked:()=>false,touch:()=>{},render:()=>{},invalidate:()=>{},go:view=>A.view=view,toast:()=>{}};
-   const R={YEARS:[2026],app:A,views:{strbuild:()=>''},persist:{serialize:()=>({libraries:{}}),snapshotUndo:()=>undos++},strBuilder:{apply:()=>{throw Error('Retained apply must not recalculate');}}};
+   const R={YEARS:[2026],app:A,views:{strbuild:()=>''},persist:{serialize:()=>({libraries:{}}),snapshotUndo:()=>undos++},strBuilder:{apply:(state,cfg)=>{const lines=state.lines.filter(row=>row.strProgramId===cfg.programmeId);const programme=state.strPrograms.find(row=>row.id===cfg.programmeId);programme.lineIds=lines.map(row=>row.id);programme.applied=true;return {lines,programme};}}};
    const before=structuredClone(A.state),{central}=api(async(route,body)=>{if(route.endsWith('receipt'))return committed;assert.deepEqual(A.state,before,'No financial mutation before the server commits');if(mode==='fail')throw Error('Synthetic server save rejected');committed=record(body.p_payload);committed.revision.request_id=body.p_request_id;if(mode==='switch')A.state.activeScenario='SC-OTHER';return committed;});
    const installed=installSavedStrProgrammes(R,{central}),operation=()=>installed.persistCurrent({communityId:cid,communityName:'Community',name:config.name,programmeId:pid,expectedRevision:0,reason:'Retain and apply exact saved programme',apply:true});
    if(mode==='success'){await operation();assert.equal(undos,1);assert.deepEqual(A.state.lines,committed.revision.payload.lines);}
@@ -85,4 +85,50 @@ test('A driver edit made during an in-flight save is preserved and autosaved in 
   await Promise.race([finished,new Promise((_resolve,reject)=>timeout=setTimeout(()=>reject(Error('Newer driver edit was not automatically saved after the first write finished')),5000))]);
   assert.equal(writes.length,2);assert.equal(writes[1].revision.revision,2);assert.equal(writes[1].revision.payload.config.adr,200);assert.deepEqual(writes[1].revision.payload.lines,p.lines,'Autosaving proposed drivers never silently recalculates saved financial values');
  }finally{clearTimeout(timeout);globalThis.indexedDB=oldDb;globalThis.location=oldLocation;}
+});
+
+
+test('Failed recalculation cannot save old rows with new assumptions or mutate its source',()=>{
+ const p=payload(),state={properties:[structuredClone(property)],strPrograms:[structuredClone(p.programme)],lines:structuredClone(p.lines)},before=structuredClone(state);
+ const R={YEARS:[2026],app:{state,strCfg:{...structuredClone(config),adr:200},year:()=>2026},strBuilder:{apply:state=>{state.lines=[];state.properties[0].name='Partial calculation';throw Error('Synthetic missing required driver');}}};
+ assert.throws(()=>captureStrProgramme(R,{communityName:'Community',recalculate:true}),/calculation did not complete/);assert.deepEqual(state,before);
+});
+test('Incomplete and mismatched applied metadata remain recovery-only, with exact source evidence retained',()=>{
+ const p=payload(),state={properties:[structuredClone(property)],strPrograms:[{...structuredClone(p.programme),applied:true,lineIds:[]}],lines:[]},R={YEARS:[2026],app:{state,strCfg:structuredClone(config),year:()=>2026}};
+ const result=captureStrProgramme(R,{communityName:'Community'});assert.equal(result.programme.applied,false);assert.equal(result.reportSnapshot,null);assert.equal(result.browserTarget,null);assert.equal(strProgrammeReadiness(record(result)).ready,false);
+ state.lines=structuredClone(p.lines);const mismatch=captureStrProgramme(R,{communityName:'Community'});assert.equal(mismatch.programme.applied,false);assert.equal(mismatch.browserTarget,null);assert.equal(strProgrammeReadiness(record(mismatch)).ready,true);
+ delete state.lines[0].yearData[2026][2];assert.equal(captureStrProgramme(R,{communityName:'Community'}).reportSnapshot,null,'Sparse month cells cannot become a complete report');
+});
+test('Saved STR backups accept current format 2 and legacy format 1 only',()=>{
+ const original=strProgrammeSourceFile(record());assert.equal(original.formatVersion,2);
+ for(const version of [1,2])assert.deepEqual(parseStrProgrammeBackup(JSON.stringify({...original,formatVersion:version})).state.lines,original.state.lines);
+ for(const version of [0,3,'2',null])assert.throws(()=>parseStrProgrammeBackup(JSON.stringify({...original,formatVersion:version})),/saved file/);
+});
+test('STR reads stop after a backend or authorization-scope change',async()=>{
+ for(const change of ['backend','api','context','scope']){let url='https://first.invalid',apiUrl='https://first-api.invalid',accessContext='first-context',allowed=['community'];const {central}=api(async()=>{if(change==='backend')url='https://second.invalid';else if(change==='api')apiUrl='https://second-api.invalid';else if(change==='context')accessContext='new-context';else allowed=[];return [record()];});central.getConfig=()=>({supabaseUrl:url,apiBaseUrl:apiUrl});central.getAccessContextKey=()=>accessContext;central.getStoredProfile=()=>({role:'admin',allowed_community_ids:allowed});await assert.rejects(()=>readStrProgrammes(central,[cid]),/access scope changed/);}
+});
+
+test('Scoped portable recovery preserves source rows, siblings and scenario for recalculation',()=>{
+ const p=payload(),base={id:'base',propertyId:property.id,gl:'5100',yearData:{2026:Array(12).fill(400)}},sibling={id:'sibling',propertyId:property.id,name:'Unchanged sibling',applied:false,config:null,lineIds:[]};p.sourceContext.lines.unshift(base);p.sourceContext.programmes=[sibling,p.programme];p.sourceContext.scenario={id:'SC-APPROVED',name:'Approved',status:'approved',locked:true};p.sourceContext.year=2026;
+ const r=record(p),before=structuredClone(r),backup=strProgrammeSourceFile(r);assert.deepEqual(backup.state.lines,[base,...p.lines]);assert.deepEqual(backup.state.strPrograms,[sibling,p.programme]);assert.deepEqual(backup.state.properties,[p.property]);assert.deepEqual(backup.state.scenarios,[p.sourceContext.scenario]);assert.equal(backup.state.activeScenario,'SC-APPROVED');assert.equal(backup.state.budgetYear,2026);assert.deepEqual(backup.strProgrammeSourceContext,p.sourceContext);assert.deepEqual(r,before);
+ const incomplete=structuredClone(p);incomplete.lines=[];incomplete.programme.applied=false;incomplete.reportSnapshot=null;assert.deepEqual(strProgrammeSourceFile(record(incomplete)).state.lines,[base],'Zero programme rows must not erase underlying budget rows');
+});
+test('Standalone unsaved STR touch works without an account or saved binding',()=>{
+ const oldLocation=globalThis.location;try{globalThis.location={hash:''};let touched=0;const A={state:{properties:[],lines:[]},strCfg:{propertyId:'DORO',programmeId:'unsaved'},VIEWS:[],render(){},touch(){touched++;}},R={app:A,views:{strbuild:()=>''},YEARS:[2026]};installSavedStrProgrammes(R,{central:undefined});assert.doesNotThrow(()=>A.touch());assert.equal(touched,1);}finally{globalThis.location=oldLocation;}
+});
+test('Unavailable outbox preserves exact prepared recovery in memory and never writes or applies',async()=>{
+ const oldLocation=globalThis.location,oldDb=globalThis.indexedDB;try{globalThis.location={hash:''};globalThis.indexedDB=undefined;const p=payload(),state={properties:[structuredClone(property)],lines:structuredClone(p.lines),strPrograms:[structuredClone(p.programme)],activeScenario:'SC-WORK'},before=structuredClone(state),A={state,strCfg:structuredClone(config),VIEWS:[],view:'strbuild',year:()=>2026,scenario:()=>({id:'SC-WORK'}),render(){},touch(){},toast(){}},R={app:A,YEARS:[2026],views:{strbuild:()=>''}},transport=api(()=>{throw Error('No shared write permitted without retained request');});const installed=installSavedStrProgrammes(R,{central:transport.central});await assert.rejects(()=>installed.persistCurrent({communityId:cid,communityName:'Community',programmeId:pid,name:'Exact recovery',expectedRevision:0}),/draft remains in memory/);assert.deepEqual(state,before);assert.equal(transport.calls.length,0);assert.deepEqual(installed.preparedRecovery.payload.lines,p.lines);const portable=strProgrammeSourceFile({revision:{payload:installed.preparedRecovery.payload}});assert.deepEqual(portable.state.lines,p.lines);assert.equal(portable.ui.strCfg.name,'Exact recovery');}finally{globalThis.location=oldLocation;globalThis.indexedDB=oldDb;}
+});
+
+test('Report and apply reject a internally consistent report that omits a retained year',()=>{
+ const p=payload();p.years.push(2027);p.lines[0].yearData[2027]=Array(12).fill(300);assert.throws(()=>strProgrammeReport(record(p)),/year coverage/);const state={properties:[structuredClone(property)],lines:structuredClone(p.sourceContext.lines),strPrograms:[structuredClone(p.programme)]},before=structuredClone(state);assert.throws(()=>applyRetainedStrProgramme({app:{state}},p),/year coverage/);assert.deepEqual(state,before);
+});
+
+
+test('Outbox write quota failure retains the exact request and portable source without a server write',async()=>{
+ const oldLocation=globalThis.location,oldDb=globalThis.indexedDB,put=IDBObjectStore.prototype.put;try{globalThis.location={hash:''};globalThis.indexedDB=new IDBFactory();IDBObjectStore.prototype.put=function(){throw new DOMException('Synthetic quota exceeded','QuotaExceededError');};const p=payload(),state={properties:[structuredClone(property)],lines:structuredClone(p.lines),strPrograms:[structuredClone(p.programme)],activeScenario:'SC-WORK'},before=structuredClone(state),A={state,strCfg:structuredClone(config),VIEWS:[],view:'strbuild',year:()=>2026,scenario:()=>({id:'SC-WORK'}),render(){},touch(){},toast(){}},R={app:A,YEARS:[2026],views:{strbuild:()=>''}},transport=api(()=>{throw Error('No shared write before outbox success');}),installed=installSavedStrProgrammes(R,{central:transport.central});await assert.rejects(()=>installed.persistCurrent({communityId:cid,communityName:'Community',programmeId:pid,name:'Quota recovery',expectedRevision:0}),/exact save request remains in memory/);assert.deepEqual(state,before);assert.equal(transport.calls.length,0);assert(installed.pending.requestId);assert.deepEqual(installed.pending.payload,installed.preparedRecovery.payload);assert.deepEqual(strProgrammeSourceFile({revision:{payload:installed.pending.payload}}).state.lines,p.lines);}finally{globalThis.location=oldLocation;globalThis.indexedDB=oldDb;IDBObjectStore.prototype.put=put;}
+});
+
+test('Bound autosave pairs exact materialized rows with saved post-calculation allocations and siblings',()=>{
+ const p=payload();p.property.units=[{id:'source-group',units:5},{id:p.sourceProgrammeId,cat:'str',units:15,taken:[{groupId:'source-group',units:15}]}];p.sourceContext.property.units=[{id:'source-group',units:20}];const sibling={id:'other',propertyId:property.id,config:{name:'Original sibling'}};p.sourceContext.programmes=[sibling,p.programme];const live={properties:[structuredClone(p.sourceContext.property)],lines:[{id:'new-live-row',propertyId:property.id}],strPrograms:[{...sibling,config:{name:'Different current sibling'}}]},R={app:{state:live,strCfg:structuredClone(config)},YEARS:[2026]};const bound=boundStrProgrammeSource(R,record(p));assert.deepEqual(bound.app.state.properties,[p.property]);assert.deepEqual(bound.app.state.lines,p.lines);assert.deepEqual(bound.app.state.strPrograms,[sibling,p.programme]);const again=captureStrProgramme(bound,{name:p.name,communityName:'Community'});assert.deepEqual(again.property,p.property);assert.deepEqual(again.lines,p.lines);assert.deepEqual(live.lines,[{id:'new-live-row',propertyId:property.id}]);
 });

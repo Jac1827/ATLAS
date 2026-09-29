@@ -57,6 +57,12 @@ for(const make of [
 }
 for(const value of [()=>0,Symbol('value'),{nested:()=>0},[Symbol('item')],{toJSON(){return Symbol('result')}}])await assert.rejects(hashJson(value),error=>error.code==='history_integrity');
 for(const value of [1n,Object(1n),{nested:1n}]){assert.throws(()=>[...jsonChunks(value)],TypeError);await assert.rejects(hashJson(value),TypeError);}
+const priorBigIntToJSON=Object.getOwnPropertyDescriptor(BigInt.prototype,'toJSON');let bigIntCalls=0;
+try{
+ Object.defineProperty(BigInt.prototype,'toJSON',{configurable:true,value(){bigIntCalls++;return this.valueOf();}});
+ assert.throws(()=>[...jsonChunks(1n)],TypeError);assert.equal(bigIntCalls,1,'BigInt toJSON returning BigInt is not invoked twice');
+ bigIntCalls=0;await assert.rejects(hashJson(1n),TypeError);assert.equal(bigIntCalls,1);
+}finally{if(priorBigIntToJSON)Object.defineProperty(BigInt.prototype,'toJSON',priorBigIntToJSON);else delete BigInt.prototype.toJSON;}
 const cycle={};cycle.self=cycle;assert.throws(()=>[...jsonChunks(cycle)],/circular/);await assert.rejects(hashJson(cycle),/circular/);
 assert(jsonEqual({a:undefined,b:0},{b:0}));assert(jsonEqual([undefined,,NaN],[null,null,null]));assert(jsonEqual(undefined,()=>{}));
 assert(!jsonEqual({a:1,b:2},{b:2,a:1}),'Object key order remains part of exact JSON comparison');

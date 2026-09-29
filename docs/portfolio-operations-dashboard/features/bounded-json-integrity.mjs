@@ -30,7 +30,9 @@ function prepare(holder,key,strict){
   if(strict&&(typeof value==='function'||typeof value==='symbol'))throw unsupported();
   if(value!==null&&typeof value==='object')value=unbox(value);
   if(['undefined','function','symbol'].includes(typeof value))return OMIT;
-  if(typeof value==='bigint')JSON.stringify(value); // Preserve native rejection.
+  // toJSON was already applied. Calling native stringify here could invoke a
+  // BigInt prototype's toJSON a second time instead of rejecting its result.
+  if(typeof value==='bigint')throw new TypeError('Do not know how to serialize a BigInt');
   return value;
 }
 const pairAt=(text,end)=>end>0&&end<text.length&&text.charCodeAt(end-1)>=0xd800&&text.charCodeAt(end-1)<=0xdbff&&text.charCodeAt(end)>=0xdc00&&text.charCodeAt(end)<=0xdfff;

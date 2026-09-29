@@ -32,7 +32,38 @@ try{
  const priorRows=(await db.query('select to_jsonb(v) value from atlas_financial_close_rows v order by to_jsonb(v)::text')).rows;
  const pending=await build(801);assert((await call('atlas_read_month_end_review',[pending.review_id])).blockers.some(b=>b.includes('Accounting')));
  await db.exec('reset role');const preciseBody=(await db.query("select prosrc from pg_proc where oid='public.atlas_confirm_month_end_close(uuid,timestamptz,timestamptz,text)'::regprocedure")).rows[0].prosrc;
+ // Reproduce the production public-schema default that survived the original
+ // manual RPC's explicit PUBLIC/anon/authenticated grant normalization.
+ await db.exec('alter default privileges in schema public grant execute on functions to service_role');
  await db.exec(migration('20260929151742_manual_accounting_close_confirmation.sql'));
+ const target='public.atlas_confirm_month_end_close_manually(uuid,timestamptz,boolean,text)';
+ const correction=migration('20260929162041_manual_close_confirmation_execute_scope.sql');
+ const canExecute=async role=>(await db.query("select has_function_privilege($1,$2,'EXECUTE') allowed",[role,target])).rows[0].allowed;
+ const functionCatalog=async()=>(await db.query("select n.nspname schema,p.proname name,pg_get_function_identity_arguments(p.oid) args,to_jsonb(p)-'oid' metadata from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','atlas_private') order by n.nspname,p.proname,args")).rows;
+ const correctionHistory=async()=>(await db.query("select 'attestations' kind,coalesce(jsonb_agg(to_jsonb(t) order by attestation_id),'[]') rows from atlas_month_end_attestations t union all select 'decisions',coalesce(jsonb_agg(to_jsonb(t) order by to_jsonb(t)::text),'[]') from atlas_month_end_decisions t union all select 'close_versions',coalesce(jsonb_agg(to_jsonb(t) order by version_id),'[]') from atlas_financial_close_versions t union all select 'close_rows',coalesce(jsonb_agg(to_jsonb(t) order by to_jsonb(t)::text),'[]') from atlas_financial_close_rows t")).rows;
+ assert.equal(await canExecute('service_role'),true,'Actual schema default is reproduced');
+ await db.exec('alter function public.atlas_confirm_month_end_close_manually(uuid,timestamptz,boolean,text) rename to acl_fixture_hidden_manual');
+ await assert.rejects(()=>db.exec(correction),/Audited manual month-end confirmation function differs or is missing/);await db.exec('rollback');
+ await db.exec('alter function public.acl_fixture_hidden_manual(uuid,timestamptz,boolean,text) rename to atlas_confirm_month_end_close_manually');
+ assert.equal(await canExecute('service_role'),true,'Missing target rejection does not touch any other function');
+ const originalDefinition=(await db.query('select pg_get_functiondef($1::regprocedure) definition',[target])).rows[0].definition;
+ await db.exec(originalDefinition.replace('declare r public.atlas_financial_package_reviews;', 'declare r public.atlas_financial_package_reviews; /* deliberate drift */'));
+ await assert.rejects(()=>db.exec(correction),/Audited manual month-end confirmation function differs/);await db.exec('rollback');
+ assert.equal(await canExecute('service_role'),true,'Failed body guard cannot revoke a drifted function');
+ await db.exec(originalDefinition);
+ const catalogBefore=await functionCatalog(),historyBefore=await correctionHistory();
+ const defaultsBefore=(await db.query('select to_jsonb(d) value from pg_default_acl d order by oid')).rows;
+ await db.exec(correction);
+ assert.equal(await canExecute('service_role'),false);assert.equal(await canExecute('authenticated'),true);assert.equal(await canExecute('anon'),false);
+ const catalogAfter=await functionCatalog();
+ const withoutTargetAcl=rows=>rows.map(row=>row.schema==='public'&&row.name==='atlas_confirm_month_end_close_manually'?{...row,metadata:{...row.metadata,proacl:null}}:row);
+ assert.deepEqual(withoutTargetAcl(catalogAfter),withoutTargetAcl(catalogBefore),'Only the exact target function ACL changes; existing RPC bodies, metadata and ACL remain exact');
+ const targetRow=catalogAfter.find(row=>row.schema==='public'&&row.name==='atlas_confirm_month_end_close_manually');
+ assert.deepEqual([...targetRow.metadata.proacl].sort(),['authenticated=X/postgres','postgres=X/postgres'],'Only owner and authenticated execute remain');
+ assert.deepEqual(await correctionHistory(),historyBefore,'Permission correction changes no financial/attestation history');
+ assert.deepEqual((await db.query('select to_jsonb(d) value from pg_default_acl d order by oid')).rows,defaultsBefore,'Existing schema default privileges remain unchanged');
+ await db.exec(correction);assert.deepEqual(await functionCatalog(),catalogAfter,'A reviewed repeat has no additional effect');
+
  const updatedOld=(await db.query('select to_jsonb(t) value from atlas_month_end_attestations t where review_id=$1',[old.review_id])).rows[0].value;
  assert.equal(updatedOld.confirmation_mode,'verified_close_time');assert.equal(updatedOld.manual_closed_confirmed,null);delete updatedOld.confirmation_mode;delete updatedOld.manual_closed_confirmed;assert.deepEqual(updatedOld,oldAttestation,'All prior precise attestation values stay exact');
  assert.equal((await db.query("select prosrc from pg_proc where oid='public.atlas_confirm_month_end_close(uuid,timestamptz,timestamptz,text)'::regprocedure")).rows[0].prosrc,preciseBody);
@@ -58,5 +89,5 @@ try{
  assert.equal((await db.query("select has_function_privilege('anon','public.atlas_confirm_month_end_close_manually(uuid,timestamptz,boolean,text)','EXECUTE') allowed")).rows[0].allowed,false);
  assert.equal((await db.query("select attnotnull from pg_attribute where attrelid='public.atlas_month_end_attestations'::regclass and attname='source_generated_at'")).rows[0].attnotnull,true);
  assert.deepEqual((await db.query('select to_jsonb(v) value from atlas_financial_close_versions v order by version_id')).rows,priorVersions);assert.deepEqual((await db.query('select to_jsonb(v) value from atlas_financial_close_rows v order by to_jsonb(v)::text')).rows,priorRows,'No historical monthly actuals synthesized or modified');
- console.log('PASS manual month-close checkbox, required source generation, actor/source/server timestamp binding, access, idempotency, immutable precise/history preservation, and unchanged queue/publication gates.');
+ console.log('PASS production default service-role grant reproduction, pinned missing/drift rejection, exact target-only ACL correction, unchanged RPCs/defaults/history, repeat parity; manual month-close checkbox, required source generation, actor/source/server timestamp binding, access, idempotency, immutable precise/history preservation, and unchanged queue/publication gates.');
 }finally{await db.close();}

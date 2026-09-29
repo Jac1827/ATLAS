@@ -107,7 +107,7 @@ export async function standardBudgetPdfBytes(input,{charts=[]}={}){
  const draw=(value,x,at,size=9,weight=font,c=colors.navy)=>page.drawText(printable(value),{x,y:at,size,font:weight,color:c});
  const wrap=(value,width,size=9,weight=font)=>{const lines=[];let current='';for(const word of printable(value).split(/\s+/)){if(current&&weight.widthOfTextAtSize(current+' '+word,size)>width){lines.push(current);current='';}for(const letter of (current?' ':'')+word){if(current&&weight.widthOfTextAtSize(current+letter,size)>width){lines.push(current);current='';}current+=letter;}}if(current||!lines.length)lines.push(current);return lines;};
  const newPage=title=>{page=pdf.addPage([w,h]);pages.push(page);page.drawImage(logo,{x:margin,y:h-63,width:78,height:37});draw(model.metadata.community,margin+95,h-42,15,bold);draw(model.metadata.periodLabel+' | '+model.metadata.status+' | Version '+model.metadata.version,margin+95,h-59,9);y=h-91;draw(title,margin,y,17,bold);y-=19;page.drawLine({start:{x:margin,y},end:{x:w-margin,y},thickness:1.3,color:colors.blue});y-=21;};
- const paragraph=(value,size=9)=>{for(const line of wrap(value,body,size)){if(y<bottom+size+6)newPage('Notes (continued)');draw(line,margin,y,size,font,colors.muted);y-=size+5;}y-=5;};
+ const paragraph=(value,size=9,continuePage=()=>newPage('Notes (continued)'))=>{for(const line of wrap(value,body,size)){if(y<bottom+size+6)continuePage();draw(line,margin,y,size,font,colors.muted);y-=size+5;}y-=5;};
  pdf.setTitle(model.metadata.community+' '+model.metadata.periodLabel+' Budget');pdf.setSubject(String(model.metadata.snapshotFingerprint||''));pdf.setAuthor(String(model.metadata.generatedBy||'ATLAS'));pdf.setProducer('ATLAS standardized retained budget export');
  newPage('BUDGET PACKAGE');y=h-190;draw(model.metadata.community,margin,y,32,bold);y-=45;draw(model.metadata.periodLabel,margin,y,26,bold);y-=38;draw(model.metadata.status+' | Version '+model.metadata.version,margin,y,18,bold,colors.blue);y-=43;
  for(const [key,value] of metadataLines(model.metadata)){for(const line of wrap(key+': '+value,body,11)){draw(line,margin,y,11);y-=19;}}
@@ -131,10 +131,10 @@ export async function standardBudgetPdfBytes(input,{charts=[]}={}){
   for(const row of section.rows){const labels=wrap(row.label,widths[0]-12,8.4,row.kind==='total'?bold:font),height=Math.max(25,labels.length*11+10);if(y-height<bottom){newPage(section.title+' (continued)');header();}const total=row.kind==='total',background=total?colors.navy:row.kind==='override'?colors.override:row.kind==='assumption'?colors.assumption:colors.white;
    page.drawRectangle({x:margin,y:y-height,width:body,height,color:background});const ink=total?colors.white:colors.navy,weight=total?bold:font;labels.forEach((line,i)=>draw(line,margin+6,y-15-i*11,8.4,weight,ink));draw(row.accountCode||'',margin+widths[0]+4,y-15,7.5,weight,ink);let x=margin+widths[0]+widths[1];
    [...row.values.slice(offset,offset+12),row.annual].forEach((v,i)=>{const text=formatted(v,row.format),max=widths[i+2]-8;let size=8;while(size>6.25&&weight.widthOfTextAtSize(text,size)>max)size-=.25;draw(text,x+widths[i+2]-4-weight.widthOfTextAtSize(text,size),y-15,size,weight,ink);x+=widths[i+2];});y-=height;page.drawLine({start:{x:margin,y},end:{x:w-margin,y},thickness:.3,color:colors.line});
-   if(row.note){y-=12;paragraph(row.note,8);}
+   if(row.note){y-=12;paragraph(row.note,8,()=>{newPage(section.title+' (continued)');header();});}
   }
   }
-  y-=18;for(const note of section.notes||[])paragraph(note,8.5);for(const spec of selectedCharts(section,charts))chart(spec,section);
+  y-=18;for(const note of section.notes||[])paragraph(note,8.5,()=>newPage(section.title+' (continued)'));for(const spec of selectedCharts(section,charts))chart(spec,section);
  }
 
  pages.forEach((p,i)=>{page=p;draw('RISE | '+model.metadata.community,margin,22,8,font,colors.muted);const right='Page '+(i+1)+' of '+pages.length;draw(right,w-margin-font.widthOfTextAtSize(right,8),22,8,font,colors.muted);const snapshot='Snapshot '+model.metadata.snapshotFingerprint;draw(snapshot,margin,10,6,font,colors.muted);});

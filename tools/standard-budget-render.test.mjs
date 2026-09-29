@@ -33,4 +33,14 @@ const bad=structuredClone(model);bad.sections[0].rows[0].values[0]=NaN;assert.th
 const badPeriod=structuredClone(model);badPeriod.periods[5]='2028-01';assert.throws(()=>standardBudgetWorkbookBytes(badPeriod,XLSX),/chronological/);
 const later=structuredClone(model);later.metadata.version='v5';later.metadata.snapshotFingerprint='retained-v5-hash';assert.notDeepEqual(standardBudgetWorkbookBytes(later,XLSX),standardBudgetWorkbookBytes(model,XLSX),'Different versions produce distinct exports');
 const lengthy=structuredClone(model);lengthy.sections[0].rows=Array.from({length:130},(_,i)=>({...model.sections[0].rows[0],label:'Extended detailed account '+i}));const longPdf=await PDFDocument.load(await standardBudgetPdfBytes(lengthy));assert(longPdf.getPageCount()>5,'Long schedules paginate instead of truncating detail');
-console.log('PASS standard budget Excel/PDF exact snapshot parity, selected sections, fiscal order, precise formula caches, weighted rates, unavailable/zero, branding, chart toggle, override/assumption styles, long-schedule pagination, version identity and immutable inputs.');
+const noted=structuredClone(model);noted.sections=[{...noted.sections[0],rows:Array.from({length:40},(_,i)=>({...model.sections[0].rows[0],label:'Long note account '+i,note:'Preserved workbook account category.'})),notes:Array(100).fill('Retained validation evidence for this supporting schedule.') }];
+const notePdf=await PDFDocument.load(await standardBudgetPdfBytes(noted));let continuedTables=0;
+for(const p of notePdf.getPages().slice(1)){
+ const contents=p.node.lookup(PDFName.of('Contents')),streams=contents instanceof PDFArray?Array.from({length:contents.size()},(_,i)=>contents.lookup(i,PDFRawStream)):[contents];
+ const text=streams.map(s=>new TextDecoder().decode(decodePDFRawStream(s).decode())).flatMap(s=>[...s.matchAll(/<([0-9a-f]+)>\s*Tj/gi)].map(m=>Buffer.from(m[1],'hex').toString('latin1'))).join('\n');
+ assert(text.includes('SUMMARY'),'Continued notes retain their supporting schedule title');
+ assert(!text.includes('Notes (continued)'),'A generic note page must not lose the schedule context');
+ if(text.includes('Long note account')){assert(text.includes('ACCOUNT / METRIC')&&text.includes('Aug 26')&&text.includes('Jul 27'),'Every continued table page repeats identifiers and fiscal month headers');continuedTables++;}
+}
+assert(continuedTables>2,'The note regression exercises several table continuation pages');
+console.log('PASS standard budget Excel/PDF exact snapshot parity, selected sections, fiscal order, precise formula caches, weighted rates, unavailable/zero, branding, chart toggle, override/assumption styles, long-schedule and note pagination, version identity and immutable inputs.');

@@ -1,4 +1,4 @@
-import {mountMonthEndReview,REOPENED_PERIOD_WARNING} from './month-end-governance.mjs?v=feddfe25b1d57b61';
+import {mountMonthEndReview,REOPENED_PERIOD_WARNING} from './month-end-governance.mjs?v=25f88490f298e271';
 import {readFinance,readApprovedBudget,financialSummary,bonusEvidence,financeAccessKey,invalidateFinanceReads} from './canonical-finance.mjs?v=a51b74e79a07eec1';
 // Shared closed-month reader. No browser ledger is authoritative.
 export const optionalNumber=v=>v===null||v===undefined||v===''?null:Number.isFinite(Number(v))?Number(v):null;

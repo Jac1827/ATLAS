@@ -748,8 +748,8 @@
     ]
   },
   "features/month-end-governance.mjs": {
-    "sha256": "feddfe25b1d57b61",
-    "bytes": 7820,
+    "sha256": "25f88490f298e271",
+    "bytes": 8806,
     "references": [
       [
         "features/reforecast-ui.mjs",
@@ -762,7 +762,7 @@
     ]
   },
   "features/financial-close.mjs": {
-    "sha256": "04b5641fb22c02ea",
+    "sha256": "df614731a8a9ff3b",
     "bytes": 30079,
     "references": [
       [
@@ -1010,7 +1010,7 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "5db801961a02d6e1",
+    "sha256": "1d2d22a9587e95db",
     "bytes": 3079046,
     "references": [
       [
@@ -1355,9 +1355,23 @@
       ]
     ]
   },
+  "features/reforecast-str-source-validation.mjs": {
+    "sha256": "de7f8e807a17cdca",
+    "bytes": 3106,
+    "references": [
+      [
+        "features/reforecast-str-json-recovery.mjs",
+        "./reforecast-str-source-validation.mjs"
+      ],
+      [
+        "features/reforecast-str-saved-programme.mjs",
+        "./reforecast-str-source-validation.mjs"
+      ]
+    ]
+  },
   "features/reforecast-str-json-recovery.mjs": {
-    "sha256": "8e59b661f0adbf5e",
-    "bytes": 13200,
+    "sha256": "19555fff5cf63a09",
+    "bytes": 13287,
     "references": [
       [
         "features/reforecast-ui.mjs",
@@ -1384,8 +1398,8 @@
     ]
   },
   "features/reforecast-str-saved-programme.mjs": {
-    "sha256": "2b6356eb8cb947bb",
-    "bytes": 15391,
+    "sha256": "5296b57a39a17dec",
+    "bytes": 15214,
     "references": [
       [
         "features/reforecast-str-saved-programme-ui.mjs",
@@ -1394,7 +1408,7 @@
     ]
   },
   "features/reforecast-str-saved-programme-ui.mjs": {
-    "sha256": "ca6f8efd8f6bd3b6",
+    "sha256": "46fac45c6bf5cfb0",
     "bytes": 28703,
     "references": [
       [
@@ -1408,7 +1422,7 @@
     ]
   },
   "features/reforecast-builder-ui.mjs": {
-    "sha256": "1733aa8df12eeab7",
+    "sha256": "b87ea7e75d31d31e",
     "bytes": 67187,
     "references": [
       [
@@ -1470,7 +1484,7 @@
         "./rise-workbook-export.mjs"
       ],
       [
-        "features/saved-str-programmes.mjs",
+        "features/str-programme-workbook.mjs",
         "./rise-workbook-export.mjs"
       ],
       [
@@ -1494,7 +1508,7 @@
     ]
   },
   "features/reforecast-ui.mjs": {
-    "sha256": "cbcf65bf64c78ad6",
+    "sha256": "6211b6eb4fb5101e",
     "bytes": 170422,
     "references": [
       [
@@ -1507,9 +1521,19 @@
       ]
     ]
   },
+  "features/str-programme-workbook.mjs": {
+    "sha256": "1d5c8f98b77731be",
+    "bytes": 8748,
+    "references": [
+      [
+        "features/saved-str-programmes.mjs",
+        "./str-programme-workbook.mjs"
+      ]
+    ]
+  },
   "features/saved-str-programmes.mjs": {
-    "sha256": "5a6fa4e1eadcd758",
-    "bytes": 57795,
+    "sha256": "942f7118fb0d5f65",
+    "bytes": 57441,
     "references": [
       [
         "reforecast-navigation.js",
@@ -1548,7 +1572,7 @@
     ]
   },
   "reforecast-navigation.js": {
-    "sha256": "4c3baf9f67713f32",
+    "sha256": "f7ff46e854f0b1b0",
     "bytes": 6203,
     "references": [
       [
@@ -1668,8 +1692,8 @@
     ]
   },
   "features/financial-workbook-parser.mjs": {
-    "sha256": "15976e1411cf79fb",
-    "bytes": 3058,
+    "sha256": "29cb61eac28b4e68",
+    "bytes": 3455,
     "references": [
       [
         "features/financial-workbook-worker.mjs",
@@ -1678,7 +1702,7 @@
     ]
   },
   "features/financial-workbook-worker.mjs": {
-    "sha256": "0a69a416d41aa182",
+    "sha256": "51a55ff23f15bb8d",
     "bytes": 599,
     "references": [
       [
@@ -1688,7 +1712,7 @@
     ]
   },
   "features/financial-package-reader.mjs": {
-    "sha256": "743336d0550ffb11",
+    "sha256": "1365dd237e0e1605",
     "bytes": 4372,
     "references": [
       [
@@ -1716,7 +1740,7 @@
     ]
   },
   "features/financial-close-report.mjs": {
-    "sha256": "3b009f1e6ce9cccf",
+    "sha256": "f0297b8c7428677d",
     "bytes": 10629,
     "references": [
       [
@@ -1726,7 +1750,7 @@
     ]
   },
   "features/financial-comparison.mjs": {
-    "sha256": "ef1ea5f776e65a24",
+    "sha256": "96e3e31b46f55f07",
     "bytes": 11845,
     "references": [
       [
@@ -1740,7 +1764,7 @@
     ]
   },
   "features/financial-package-review.mjs": {
-    "sha256": "ec330a0702044318",
+    "sha256": "66d195b350d3fa37",
     "bytes": 21788,
     "references": [
       [
@@ -1764,7 +1788,7 @@
     ]
   },
   "budget-navigation.js": {
-    "sha256": "0f5077e0fbe21cd6",
+    "sha256": "c23cb4611f342879",
     "bytes": 13575,
     "references": [
       [
@@ -1844,7 +1868,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "f119cabf79d684b3",
+    "sha256": "092d3e054a75a1e0",
     "bytes": 1895409,
     "references": [
       [
@@ -1854,7 +1878,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "97247a76fc7c1014",
+    "sha256": "92c9281b6f6533d0",
     "bytes": 26893,
     "references": [
       [

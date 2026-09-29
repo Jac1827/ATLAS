@@ -22869,7 +22869,7 @@ async function refreshAtlasClosedFinancials(year, force = false, requested = new
   }
   if (!requested.size) return false;
   let module;
-  try { module = await import("./features/financial-close.mjs?v=04b5641fb22c02ea"); }
+  try { module = await import("./features/financial-close.mjs?v=df614731a8a9ff3b"); }
   catch (error) {
     if (context === getAtlasFinancialContextKey()) {
       const priorFailure = getAtlasFinancialLoadFailure();

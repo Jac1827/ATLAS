@@ -102,7 +102,7 @@ function shell(title,sessionScope){
  el.addEventListener('close',()=>el.remove());el.showModal();sessionScope?.own(el);return el;
 }
 function showStatus(state,message,error=false){try{guard(state);}catch{return;}const el=state.el.querySelector('[data-status]');el.className=error?'error':message?'success':'';el.textContent=message;}
-const reviewFields=['assignment','periods','scenario','currency','accountChoices','reason','confirmed','calendar','inputReviews','integrityReviews','inputReason','requestId','priorVersionId','destination','forecastName','recordType','reviewId','currencyAliasConfirmed','scopeSelectionKey','scopedFingerprint','scopedUploadRequestId','preserveWorkbookBlanks','outsideForecastScope','reviewedForecastBlanks','reviewedForecastBlankReason','absentDecisionScopeKey','sourceRowExclusions'];
+const reviewFields=['assignment','periods','scenario','currency','accountChoices','reason','confirmed','calendar','inputReviews','integrityReviews','inputReason','requestId','priorVersionId','destination','currentDraft','forecastName','recordType','reviewId','currencyAliasConfirmed','scopeSelectionKey','scopedFingerprint','scopedUploadRequestId','preserveWorkbookBlanks','outsideForecastScope','reviewedForecastBlanks','reviewedForecastBlankReason','absentDecisionScopeKey','sourceRowExclusions'];
 function retainReview(state,includeEvidence=false){
  const fields=Object.fromEntries(reviewFields.map(key=>[key,state[key]??null]));
  const value={kind:'import-review',reviewVersion:state.reviewVersion=uid(),communityId:state.assignment?.communityId||null,fileName:state.evidence.source.fileName,evidenceId:state.evidenceId,uploadId:state.upload?.upload_id||null,purpose:state.purpose||'reforecast',fields,selected:[...state.selected]};
@@ -305,10 +305,19 @@ function renderMapping(state){guard(state);
  body.querySelector('[data-apply]').onclick=async()=>{readReviewFields(state);try{guard(state);const result=previewReview(state);showReview(state,result);if(!result.ready){body.querySelector('[data-mapping-findings]').textContent=JSON.stringify(result.issues,null,2);throw Error(result.issues.filter(issue=>issue.severity==='error').slice(0,5).map(issue=>issue.message).join('\n'));}await finish(state,result);}catch(error){showStatus(state,error.message+' Your mapping edits are retained.',true);}};
  body.querySelector('[data-evidence-only]').onclick=async()=>{readReviewFields(state);try{guard(state);const result=previewReview(state);await finish(state,{...result,ready:false,lines:[],issues:[...result.issues,{code:'mapping_deferred',severity:'error',message:'Workbook evidence retained; no source amounts have been applied.'}]});}catch(error){showStatus(state,error.message,true);}};
 }
+async function retainImportDestination(state,selection){
+ guard(state);
+ if(!['new','current'].includes(selection.destination)||selection.destination==='current'&&!selection.scenarioId)throw Error('Choose the working forecast destination explicitly.');
+ state.destination=selection.destination;
+ if(selection.destination==='current')state.currentDraft={scenarioId:selection.scenarioId,name:selection.draftName||state.currentDraft?.name||'Working Draft'};
+ const select=state.el.querySelector('[data-destination]');
+ if(select){if(selection.destination==='current'){let option=select.querySelector('option[value="current"]');if(!option){option=document.createElement('option');option.value='current';select.appendChild(option);}option.textContent='Update Existing Draft: '+state.currentDraft.name;}select.value=selection.destination;}
+ await retainReview(state);guard(state);return {reviewVersion:state.reviewVersion};
+}
 async function finish(state,result){
  if(state.busy)return;state.busy=true;
  for(const button of state.el.querySelectorAll('button'))button.disabled=true;
- try{guard(state);await retainReview(state);showStatus(state,result.ready?'UNSAVED — saving the reviewed GL/month values and verifying the server receipt…':'Workbook evidence retained. Mapping can be resumed.');if(result.ready)await saveScopedEvidence(state);guard(state);await state.onSaved?.({communityId:state.assignment.communityId,upload:state.upload,lines:result.ready?result.lines:[],mapping:result.mapping,issues:result.issues,ready:result.ready,source:state.source,destination:state.destination,recordType:state.recordType,forecastName:state.forecastName,recoveryId:state.reviewId,reviewVersion:state.reviewVersion,evidenceId:state.evidenceId});guard(state);state.el.close();}
+ try{guard(state);await retainReview(state);showStatus(state,result.ready?'UNSAVED — saving the reviewed GL/month values and verifying the server receipt…':'Workbook evidence retained. Mapping can be resumed.');if(result.ready)await saveScopedEvidence(state);guard(state);await state.onSaved?.({communityId:state.assignment.communityId,upload:state.upload,lines:result.ready?result.lines:[],mapping:result.mapping,issues:result.issues,ready:result.ready,source:state.source,destination:state.destination,scenarioId:state.destination==='current'?state.currentDraft?.scenarioId:null,onDestinationSelected:selection=>retainImportDestination(state,selection),recordType:state.recordType,forecastName:state.forecastName,recoveryId:state.reviewId,reviewVersion:state.reviewVersion,evidenceId:state.evidenceId});guard(state);state.el.close();}
  finally{state.busy=false;for(const button of state.el.querySelectorAll('button'))button.disabled=false;}
 }
 function createState(options,evidence,upload=null){

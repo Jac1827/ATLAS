@@ -2,15 +2,15 @@ import assert from 'node:assert/strict';
 import {readCommunityBudgetSettings,saveCommunityBudgetSettings} from '../docs/portfolio-operations-dashboard/features/community-budget-settings.mjs';
 const cid='10000000-0000-0000-0000-000000000001',admin='20000000-0000-0000-0000-000000000001',other='20000000-0000-0000-0000-000000000002';
 function fixture(){
- let actor=admin,role='admin',version=7,settingsVersion=2,classification='Multifamily',mismatch=false,readHook=()=>{},refreshHook=()=>{},saveHook=()=>{};
- const calls=[],calendar=()=>({verified:true,classification,startMonth:classification==='Student Housing'?8:1,source:'Community Settings review',settingsVersion});
+ let actor=admin,role='admin',version=7,settingsVersion=2,classification='Multifamily',explicitStartMonth=null,mismatch=false,readHook=()=>{},refreshHook=()=>{},saveHook=()=>{};
+ const calls=[],calendar=()=>({verified:true,classification,startMonth:explicitStartMonth??(classification==='Student Housing'?8:1),source:'Community Settings review',settingsVersion});
  const central={getSession:()=>({user:{id:actor}}),getStoredProfile:()=>({user_id:actor,role,status:'active'}),async refreshSession(){refreshHook();},async fetchJson(url,options){
   calls.push({url,body:options?.body?JSON.parse(options.body):null});
   if(url.startsWith('/atlas_communities?')){readHook();return [{community_id:cid,display_name:'Authorized Community',version}];}
   if(url==='/rpc/atlas_read_budget_calendar'){const value=calendar();return mismatch?{...value,classification:'Multifamily',startMonth:1}:value;}
-  if(url==='/rpc/atlas_set_budget_calendar'){
+  if(url==='/rpc/atlas_set_budget_calendar'||url==='/rpc/atlas_set_budget_fiscal_calendar'){
    const body=JSON.parse(options.body);assert.equal(body.p_community_id,cid);assert.equal(body.p_expected_version,version,'save uses canonical community version');
-   classification=body.p_classification;version++;settingsVersion++;const value=calendar();saveHook();return value;
+   classification=body.p_classification;explicitStartMonth=body.p_start_month??null;version++;settingsVersion++;const value=calendar();saveHook();return value;
   }
   throw Error('Unexpected endpoint '+url);
  }};
@@ -29,4 +29,6 @@ f=fixture();f.onRead(()=>f.setActor(other));await assert.rejects(()=>readCommuni
 f=fixture();f.onSave(()=>f.setActor(other));await assert.rejects(()=>saveCommunityBudgetSettings(f.central,input),/session changed/);assert.equal(f.calls.length,1,'a switched session cannot confirm the prior user save');
 f=fixture();f.setMismatch(true);await assert.rejects(()=>saveCommunityBudgetSettings(f.central,input),/could not be confirmed/,'calendar readback must match the actual saved classification');
 f=fixture();await assert.rejects(()=>saveCommunityBudgetSettings(f.central,{...input,classification:'Conventional'}),/classification/);await assert.rejects(()=>saveCommunityBudgetSettings(f.central,{...input,reason:''}),/reason/);assert.equal(f.calls.length,0);
+f=fixture();const september=await saveCommunityBudgetSettings(f.central,{...input,startMonth:9});assert.equal(september.calendar.startMonth,9);assert.equal(f.calls.find(c=>c.url.endsWith('atlas_set_budget_fiscal_calendar')).body.p_start_month,9);
+f=fixture();await assert.rejects(()=>saveCommunityBudgetSettings(f.central,{...input,startMonth:13}),/fiscal start month/);assert.equal(f.calls.length,0);
 console.log('PASS Community Settings financial calendar: canonical versions, Admin-only save, shared readback, session changes and conflict rejection');

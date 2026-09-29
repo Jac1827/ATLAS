@@ -3611,6 +3611,15 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
   };
   S._appliedMap = {};
 
+  // One opening inventory source for the operating schedule and one-time
+  // conversion costs. A new calendar year does not itself convert existing units.
+  S.openingStrUnits = function (cfg, year) {
+    var declared = cfg.beginningStrUnits && cfg.beginningStrUnits[year];
+    if (typeof declared === 'number' && isFinite(declared) && declared >= 0) return declared;
+    var prior = cfg.unitRamp && cfg.unitRamp[Number(year) - 1];
+    return Array.isArray(prior) && prior.length === 12 ? Math.max(0, +prior[11] || 0) : 0;
+  };
+
   /* --------------------------------------------------------------- preview */
   // Model the programme without writing anything to state, so the UI can show
   // the numbers before the user commits.
@@ -3729,7 +3738,8 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     }
 
     var booked = u.mul(rentable, occ);
-    var stays = booked.map(function (n) { return alos > 0 ? n / alos : 0; });
+    var alosMonthly = monthly('alosMonthly', cfg.alosMode, u.arr12(alos)).v;
+    var stays = booked.map(function (n, mm) { return alosMonthly[mm] > 0 ? n / alosMonthly[mm] : 0; });
     var gross = u.mul(booked, adr);
 
     /* ---- channel mix, and what is collectable on which channel */
@@ -3817,7 +3827,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     var utilities = S.utilityModel(prop, cfg, year, ramp, booked, available, A);
 
     /* ---- one-time cost at conversion */
-    var furnish = u.z12(), listingSetup = u.z12(), prev = 0;
+    var furnish = u.z12(), listingSetup = u.z12(), prev = S.openingStrUnits(cfg, year);
     for (var mm2 = 0; mm2 < 12; mm2++) {
       var added = Math.max(0, ramp[mm2] - prev);
       furnish[mm2] = added * A('furnishCapexPerUnit');
@@ -3869,7 +3879,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
 
     var annBooked = u.sum(booked), annStays = u.sum(stays), annRev = u.sum(totalStrRevenue);
 
-    return {
+    var result = {
       propertyId: prop.id, propertyName: prop.name, year: year,
       unitRamp: ramp, peakUnits: peakUnits, avgUnits: u.r2(avgUnits),
       pickDetail: pickDetail, pickedTotal: pickedTotal, avgLtRent: u.r2(avgLtRent),
@@ -3913,7 +3923,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
       ancillaryShare: Math.round(ancShare * 1e6) / 1e6,
       ancillaryFeePct: Math.round(ancFeePct * 1e6) / 1e6,
       taxRate: taxRate,
-      adr:adr, occ:occ, available:available, blocked:blocked, rentable:rentable,
+      adr:adr, occ:occ, alosMonthly:alosMonthly, available:available, blocked:blocked, rentable:rentable,
       booked:booked, stays:stays, gross:gross, platformFees:platformFees,
       roomFees:roomFees, cleanFeeCommission:cleanFeeCommission,
       ancillaryFees:u.add(u.add(commissionOnResort, commissionOnOptional), cleanFeeCommission),
@@ -3951,6 +3961,66 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
         trevpar: u.sum(available) ? annRev / u.sum(available) : 0
       }
     };
+    // The schedule retains the exact arrays driving revenue, housekeeping, fees,
+    // utilities and displacement above. It is not a second STR calculator.
+    result.leasingSchedule = S.leasingScheduleFromPreview(result, cfg);
+    return result;
+  };
+
+  S.leasingScheduleFromPreview = function (pv, cfg) {
+    var rows = pv.unitRamp.map(function (units, i) {
+      var previous = i ? pv.unitRamp[i - 1] : S.openingStrUnits(cfg, pv.year);
+      return {period:pv.year + '-' + String(i + 1).padStart(2, '0'),
+        beginningAvailableUnits:previous, unitsEntering:Math.max(0, units - previous),
+        unitsLeaving:Math.max(0, previous - units), endingUnits:units, availableUnits:units,
+        availableNights:pv.available[i], blockedNights:pv.blocked[i],
+        permitCappedNights:pv.permitCapped[i], rentableNights:pv.rentable[i],
+        budgetedOccupancy:pv.occ[i], bookedNights:pv.booked[i], occupiedNights:pv.booked[i],
+        adr:pv.adr[i], revpar:pv.revpar[i], stays:pv.stays[i], checkouts:pv.stays[i],
+        averageLengthOfStay:pv.alosMonthly[i], grossRentalRevenue:pv.gross[i],
+        budgetedRevenue:pv.totalStrRevenue[i] - pv.revenueDeductions[i],
+        operatingExpenses:pv.totalStrExpense[i], strNoi:pv.strNoi[i],
+        conventionalUnitsDisplaced:units, conventionalRentDisplaced:pv.displacedNet[i],
+        conventionalIncomeDisplaced:pv.displacedTotal[i], strUplift:pv.upliftVsLt[i],
+        taxableRevenue:pv.taxable[i], sourceKind:'str_builder'};
+    });
+    return {schemaVersion:1,kind:'str',programmeId:cfg.programmeId || null,
+      periods:rows.map(function (row) { return row.period; }),monthly:rows,totals:S.leasingScheduleTotals(rows),issues:[]};
+  };
+
+  S.leasingScheduleTotals = function (rows) {
+    var out = {}, total = function (key) { return rows.reduce(function (sum,row) { return sum + row[key]; },0); };
+    ['unitsEntering','unitsLeaving','availableNights','blockedNights','permitCappedNights','rentableNights','bookedNights','occupiedNights','stays','checkouts','grossRentalRevenue','budgetedRevenue','operatingExpenses','strNoi','conventionalRentDisplaced','conventionalIncomeDisplaced','strUplift','taxableRevenue'].forEach(function(key) {out[key]=total(key);});
+    if (rows.length && rows.every(function(row) { return row.financialAmountBasis === 'materialized_budget_line_cents'; })) {
+      ['grossRentalRevenue','budgetedRevenue','operatingExpenses','strNoi','conventionalRentDisplaced','conventionalIncomeDisplaced','strUplift','startupCapital'].forEach(function(key) {
+        out[key] = rows.reduce(function(sum,row) { return sum + Math.round(row[key] * 100); },0) / 100;
+      });
+    }
+    ['endingUnits','availableUnits','conventionalUnitsDisplaced'].forEach(function(key) {out[key]=rows.length?rows[rows.length-1][key]:null;});
+    out.beginningAvailableUnits=rows.length?rows[0].beginningAvailableUnits:null;
+    out.adr=out.bookedNights?out.grossRentalRevenue/out.bookedNights:0;
+    out.revpar=out.availableNights?out.grossRentalRevenue/out.availableNights:0;
+    out.budgetedOccupancy=out.rentableNights?out.bookedNights/out.rentableNights:0;
+    out.averageLengthOfStay=out.stays?out.bookedNights/out.stays:0;
+    return out;
+  };
+
+  S.fiscalLeasingSchedule = function (state, cfg, year) {
+    var prop = state.properties.filter(function (p) { return p.id === cfg.propertyId; })[0] || {};
+    var calendar = prop.budget_calendar || cfg.fiscalCalendar || {}, names = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    var start = +calendar.startMonth || names.indexOf(String(prop.fiscalYearBegins || '').slice(0,3).toLowerCase()) + 1 || 1;
+    var cache = {}, rows = [];
+    for (var i = 0; i < 12; i++) {
+      var date = new Date(Date.UTC(year, start - 1 + i, 1)), y = date.getUTCFullYear(), month = date.getUTCMonth();
+      if (!cache[y]) cache[y] = S.preview(state, cfg, y);
+      var row = u.clone(cache[y].leasingSchedule.monthly[month]);
+      if (i) { row.beginningAvailableUnits = rows[i-1].endingUnits;
+        row.unitsEntering = Math.max(0, row.endingUnits - row.beginningAvailableUnits);
+        row.unitsLeaving = Math.max(0, row.beginningAvailableUnits - row.endingUnits); }
+      rows.push(row);
+    }
+    return {schemaVersion:1,kind:'str',programmeId:cfg.programmeId || null,startMonth:start,
+      periods:rows.map(function (row) { return row.period; }),monthly:rows,totals:S.leasingScheduleTotals(rows),issues:[]};
   };
 
   /* ----------------------------------------------------------------- apply */
@@ -4002,7 +4072,9 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     });
 
     var previews = {};
-    years.forEach(function (y) { previews[y] = S.preview(state, cfg, y); });
+    var supportingSensitivities = {};
+    years.forEach(function (y) { previews[y] = S.preview(state, cfg, y);
+      supportingSensitivities[y] = S.drivers && S.drivers.sensitivity ? S.drivers.sensitivity(state,cfg,y,0.10) : []; });
     var p0 = previews[years[0]];
     var pLast = previews[years[years.length - 1]];
 
@@ -4327,9 +4399,46 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     prog.peakUnits = strGroup.units;
     prog.lineIds = added.map(function (l) { return l.id; });
     prog.byYear = {};
+    prog.supportingSchedules = {};
     var programme = prog;
     years.forEach(function (y) {
       var a = previews[y].annual;
+      var retainedSchedule = u.clone(previews[y].leasingSchedule);
+      // Budget lines are materialized at cents by yd(). Retain those exact
+      // financial totals, while keeping the original driver result as evidence.
+      // Summing integer cents avoids a second, subtly different rounding model.
+      retainedSchedule.monthly.forEach(function (row, month) {
+        var cents = { revenue:0, expense:0, displaced:0, displacedRent:0, gross:0, capital:0 };
+        added.forEach(function (budgetLine) {
+          var value = Math.round(budgetLine.yearData[String(y)][month] * 100);
+          if (budgetLine.nature === 'income' || budgetLine.nature === 'contra_income') cents.revenue += value;
+          if (budgetLine.nature === 'expense') cents.expense += value;
+          if (budgetLine.nature === 'capital') cents.capital += value;
+          if (budgetLine.displacement) cents.displaced -= value;
+          if (budgetLine.displacement && String(budgetLine.gl) === '5220') cents.displacedRent -= value;
+          if (String(budgetLine.gl) === '5144' && budgetLine.nature === 'income') cents.gross += value;
+        });
+        row.driverCalculatedFinancials = {
+          grossRentalRevenue:row.grossRentalRevenue,budgetedRevenue:row.budgetedRevenue,
+          operatingExpenses:row.operatingExpenses,strNoi:row.strNoi,
+          conventionalRentDisplaced:row.conventionalRentDisplaced,
+          conventionalIncomeDisplaced:row.conventionalIncomeDisplaced,strUplift:row.strUplift
+        };
+        row.grossRentalRevenue = cents.gross / 100;
+        row.budgetedRevenue = (cents.revenue + cents.displaced) / 100;
+        row.operatingExpenses = cents.expense / 100;
+        row.strNoi = (cents.revenue + cents.displaced - cents.expense) / 100;
+        row.conventionalRentDisplaced = cents.displacedRent / 100;
+        row.conventionalIncomeDisplaced = cents.displaced / 100;
+        row.strUplift = (cents.revenue - cents.expense) / 100;
+        row.startupCapital = cents.capital / 100;
+        row.financialAmountBasis = 'materialized_budget_line_cents';
+      });
+      retainedSchedule.totals = S.leasingScheduleTotals(retainedSchedule.monthly);
+      programme.supportingSchedules[y] = {schemaVersion:1,sourceKind:'str_builder',
+        leasingSchedule:retainedSchedule,channels:u.clone(previews[y].channelMix),
+        utilities:u.clone(previews[y].utilities),assumptions:u.clone(previews[y].resolved),
+        sensitivities:u.clone(supportingSensitivities[y])};
       programme.byYear[y] = {
         grossRevenue: u.r2(a.gross), netRevenue: u.r2(a.net),
         ancillaryRevenue: u.r2(a.ancillaryRev), totalRevenue: u.r2(a.totalRevenue),
@@ -22358,6 +22467,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
   var TABS = [
     { id:'drivers',     label:'Drivers' },
     { id:'units',       label:'Units & ramp' },
+    { id:'leasing',     label:'Leasing schedule' },
     { id:'revenue',     label:'Revenue' },
     { id:'expenses',    label:'Expenses' },
     { id:'utilities',   label:'Utilities' },
@@ -22501,6 +22611,7 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
     }
     else if (A.strTab === 'drivers')          out += driversTab(pv, cfg, p, yr, met);
     else if (A.strTab === 'units')       out += unitsTab(pv, cfg, p, yr);
+    else if (A.strTab === 'leasing')     out += leasingScheduleTab(pv, cfg, p, yr);
     else if (A.strTab === 'revenue')     out += revenueTab(pv, cfg, yr, met);
     else if (A.strTab === 'expenses')    out += expensesTab(pv, cfg, yr, met);
     else if (A.strTab === 'utilities')   out += utilitiesTab(pv, cfg, p, yr, met);
@@ -22513,6 +22624,45 @@ RBB.COA = [{"gl":"1422","name":"Building Improvements","group":"CAPITAL EXPENDIT
   };
 
   A.strTabGo = function (t) { A.strTab = t; A.render(); };
+
+  function leasingScheduleTab(pv, cfg, prop, year) {
+    var schedule = S.fiscalLeasingSchedule(A.state, cfg, year), months = schedule.monthly;
+    var specs = [['Beginning STR units','beginningAvailableUnits'],['Units entering','unitsEntering'],['Units leaving','unitsLeaving'],
+      ['Ending STR units','endingUnits','units'],['Available nights','availableNights'],['Blocked nights','blockedNights'],
+      ['Permit-limited nights','permitCappedNights'],['Rentable nights','rentableNights'],['Budgeted occupancy','budgetedOccupancy','occ'],
+      ['Booked nights','bookedNights'],['ADR','adr','adr'],['RevPAR','revpar'],['Stays / checkouts','stays'],
+      ['Average length of stay','averageLengthOfStay','alos'],['Budgeted STR revenue','budgetedRevenue'],
+      ['Conventional units displaced','conventionalUnitsDisplaced'],['Conventional rent displaced','conventionalRentDisplaced'],
+      ['STR NOI','strNoi'],['STR uplift / downside','strUplift']];
+    var out = '<div class="note b">This schedule drives the programme. Edit units, occupancy, ADR and length of stay here; blocked-night assumptions remain in Drivers. Revenue, checkouts, utilities and displaced conventional income recalculate together. The month order follows the parent community fiscal calendar.</div>' +
+      '<div class="scroll"><table><thead><tr><th>Leasing / occupancy</th>' + months.map(function(row) {return '<th class="n">'+H.esc(row.period)+'</th>';}).join('') + '<th class="n">Annual / weighted</th></tr></thead><tbody>';
+    specs.forEach(function(spec) {
+      var key=spec[1], currency=/Revenue|RentDisplaced|Noi|Uplift/.test(key)||key==='adr'||key==='revpar';
+      out += '<tr><td>'+H.esc(spec[0])+'</td>' + months.map(function(row) {
+        var value=row[key];
+        if (spec[2]) return '<td class="n"><input class="n" style="width:74px" type="number" min="0" step="'+(spec[2]==='units'?'1':'0.01')+'" value="'+u.r2(spec[2]==='occ'?value*100:value)+'" onchange="RBB.app.strScheduleCell(\''+spec[2]+'\',\''+row.period+'\',this.value)"></td>';
+        return '<td class="n">'+(currency?u.money(value,2):u.r2(value))+'</td>';
+      }).join('');
+      var total=months.reduce(function(t,row){return t+row[key];},0);
+      if(key==='adr')total=months.reduce(function(t,row){return t+row.grossRentalRevenue;},0)/Math.max(1,months.reduce(function(t,row){return t+row.bookedNights;},0));
+      if(key==='revpar')total=months.reduce(function(t,row){return t+row.grossRentalRevenue;},0)/Math.max(1,months.reduce(function(t,row){return t+row.availableNights;},0));
+      if(key==='budgetedOccupancy')total=months.reduce(function(t,row){return t+row.bookedNights;},0)/Math.max(1,months.reduce(function(t,row){return t+row.rentableNights;},0));
+      if(key==='averageLengthOfStay')total=months.reduce(function(t,row){return t+row.bookedNights;},0)/Math.max(1,months.reduce(function(t,row){return t+row.stays;},0));
+      if(['beginningAvailableUnits','endingUnits','conventionalUnitsDisplaced'].indexOf(key)!==-1)total=key==='beginningAvailableUnits'?months[0][key]:months[months.length-1][key];
+      out+='<td class="n b">'+(key==='budgetedOccupancy'?u.pct(total):currency?u.money(total,2):u.r2(total))+'</td></tr>';
+    });
+    return out+'</tbody></table></div>';
+  }
+  A.strScheduleCell = function (which, period, value) {
+    var numeric=Number(value),year=+period.slice(0,4),index=+period.slice(5)-1;
+    if(value===''||!isFinite(numeric)||numeric<0||(which==='occ'&&numeric>100)||(which==='alos'&&numeric<=0)||(which==='units'&&!Number.isInteger(numeric))) { A.toast('Enter a valid nonnegative schedule assumption. Occupancy is 0–100%; length of stay must be positive.'); A.render(); return; }
+    var key=which==='units'?'unitRamp':which+'Monthly',pv=S.preview(A.state,A.strCfg,year);
+    A.strCfg[key]=A.strCfg[key]||{};
+    if(!A.strCfg[key][year])A.strCfg[key][year]=u.clone(which==='units'?pv.unitRamp:which==='occ'?pv.occ:which==='alos'?pv.alosMonthly:pv.adr);
+    A.strCfg[key][year][index]=which==='occ'?numeric/100:numeric;
+    if(which!=='units')A.strCfg[which+'Mode']='monthly';
+    A.touch(); A.render();
+  };
 
   /* ============================================================== drivers ==
      Every driver with its value, where the value came from, and whether it is
@@ -27562,11 +27712,11 @@ RBB.app.start = function () {
 };
 document.addEventListener('DOMContentLoaded', RBB.app.start, { once: true });
 </script>
-<script type="application/atlas-deferred" data-after-draft-boot="classic" src="./budget-navigation.js?v=0f5077e0fbe21cd6"></script>
+<script type="application/atlas-deferred" data-after-draft-boot="classic" src="./budget-navigation.js?v=dcd07b3c02710539"></script>
 <script type="application/atlas-deferred" data-after-draft-boot="classic" src="./budget-mapped-import.js?v=25643e22d1a1f074"></script>
-<script type="application/atlas-deferred" data-after-draft-boot="classic" src="./investor-budget-bridge.js?v=29c6640338782ba9"></script>
+<script type="application/atlas-deferred" data-after-draft-boot="classic" src="./investor-budget-bridge.js?v=84413946499b1246"></script>
 <script type="application/atlas-deferred" data-after-draft-boot="classic" src="./budget-workbook-import.js?v=8098c7bd0617834f"></script>
-<script type="application/atlas-deferred" data-after-draft-boot="classic" src="./reforecast-navigation.js?v=4c3baf9f67713f32"></script>
-<script type="application/atlas-deferred" data-after-draft-boot="module" src="./features/budget-command-publication.mjs?v=a6f888bc51629349"></script>
+<script type="application/atlas-deferred" data-after-draft-boot="classic" src="./reforecast-navigation.js?v=d92eb20b7dae2fdf"></script>
+<script type="application/atlas-deferred" data-after-draft-boot="module" src="./features/budget-command-publication.mjs?v=610fdd9cc78bf818"></script>
 </body>
 </html>

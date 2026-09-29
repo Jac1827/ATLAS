@@ -1,5 +1,5 @@
 import {captureReforecastSession} from './reforecast-session-scope.mjs?v=52a794f18760cf23';
-import {resolveImportCommunity} from './community-budget-identity.mjs?v=8f9f97a61a90cd4b';
+import {resolveImportCommunity} from './community-budget-identity.mjs?v=789e1cbad26c5366';
 import {currentReforecastParserVersion,needsReforecastParserRecovery,upgradeReforecastParserEvidence} from './reforecast-parser-recovery.mjs?v=4b16539d0f673b5e';
 import {persistWorkbookAudit,readWorkbookAudit,readWorkbookAuditBytes,listPendingWorkbookUploads,cancelWorkbookStaging} from './workbook-audit-store.mjs?v=da818ddb04840b36';
 import {compareWorkbookEvidence} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';

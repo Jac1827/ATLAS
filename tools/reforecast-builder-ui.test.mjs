@@ -11,8 +11,8 @@ for(const role of ['regional','finance','community_manager','viewer',''])assert.
 assert.deepEqual(selectedPublicationIds([{communityId,verified:true,approved:true,locked:true,publicationId:'v1',activePeriods:['2026-10']},{communityId,verified:true,approved:true,locked:true,publicationId:'v2',activePeriods:['2026-11']}],communityId,periods),['v1','v2']);
 assert.deepEqual(selectedPublicationIds([{communityId,verified:true,approved:true,locked:true,publicationId:'v1',activePeriods:['2026-10']}],communityId,periods),[]);
 assert.deepEqual(selectedPublicationIds([{communityId,verified:false,approved:true,locked:true,publicationId:'v1',activePeriods:periods}],communityId,periods),[]);
-const draft=forecastSetupPayload({communityId,periods,model:'mixed',name:'Mixed community',calendar:{basis:'calendar',startMonth:1,confirmed:true},source,streams:['hello_landing','rise_str'],actor:'editor'});
-assert.deepEqual(draft.baselinePublicationIds,['publication']);assert.equal(draft.strStreams.length,2);assert.equal(draft.strStreams[0].monthly[0].occupancyPercent,null);assert.equal(draft.calendar.scenario,'Mixed community');
+const draft=forecastSetupPayload({communityId,periods,model:'mixed',name:'Mixed community',calendar:{basis:'calendar',startMonth:1,confirmed:true},source,actor:'editor'});
+assert.deepEqual(draft.baselinePublicationIds,['publication']);assert.equal(draft.strStreams.length,0);assert.throws(()=>forecastSetupPayload({communityId,periods,source,streams:['rise_str']}),/STR Builder/);assert.equal(draft.calendar.scenario,'Mixed community');
 assert.throws(()=>forecastSetupPayload({communityId,periods:['2026-10-15'],source}),/full calendar/);
 assert.throws(()=>forecastSetupPayload({communityId:'other',periods,source}),/canonical community/);
 const stream={id:'hello_landing',incomeAccountCode:'4110',vacancyAccountCode:'4190',incomeBasis:'gross',application:'replace',assumptionReason:'Reviewed starter assumptions',reviewed:true,units:[{id:'SYNTHETIC-A'},{id:'SYNTHETIC-B',takeBackMonth:'2026-11'}],monthly:periods.map(period=>({period,occupancyPercent:50,grossPerOccupiedNight:100,netPerOccupiedNight:60}))};
@@ -28,4 +28,4 @@ assert.throws(()=>applyStrSchedules({...edited,overrides:[{period:'2026-10',acco
 assert.throws(()=>applyStrSchedules({...edited,strStreams:[{...stream,monthly:[{period:'2026-10',occupancyPercent:null}]}]},source,{actor:'editor'}),/Missing history/);
 const html=forecastGridHtml({glFilters:{},edit:{}},{lines:[{period:'2026-10',accountCode:'4110',selectedBaseline:null,originalBudget:100,forecast:90,sourceKind:'inherited_locked',immutable:true}]});
 assert.match(html,/disabled/);assert.match(html,/<td>100.00<\/td><td>Unavailable<\/td>/,'missing selected baseline never substitutes original');
-console.log('PASS forecast setup roles, verified exact coverage, mixed streams, potential/earned/net accounting, unit takebacks, explicit additive baseline, inherited locks and missing-value preservation');
+console.log('PASS forecast setup roles, verified exact coverage, prohibited new manual STR streams, historical mixed streams, potential/earned/net accounting, unit takebacks, explicit additive baseline, inherited locks and missing-value preservation');

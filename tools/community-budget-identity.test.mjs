@@ -17,4 +17,5 @@ assert.equal(resolveImportCommunity({fileName:'Doro.xlsx',embeddedNames:['Ruston
 assert.equal(resolveImportCommunity({fileName:'Unknown.xlsx',embeddedNames:['Unknown']},communities,aliases).communityId,null);
 assert.equal(resolveImportCommunity({fileName:'Doro.xlsx',embeddedNames:['Ruston'],selectedCommunityId:'p',confirmed:true,reason:'Reviewed embedded property against approved alias'},communities,aliases).communityId,'p');
 assert.equal(resolveImportCommunity({fileName:'Conventional only Doro.xlsx',embeddedNames:['300 (RISE Doro)']},communities,aliases).communityId,'d');
+const custom=readBudgetCalendar({budget_calendar:{verified:true,source:'Admin review',classification:'Student Housing',startMonth:9}});assert.equal(custom.startMonth,9);assert.equal(budgetYearPeriods(2026,custom).at(-1),'2027-08');assert.deepEqual(fiscalYtdPeriods('2026-10',custom),['2026-09','2026-10']);assert.equal(readBudgetCalendar({budget_calendar:{verified:true,source:'Admin review',classification:'Student Housing',startMonth:13}}).verified,false);
 console.log('PASS verified financial calendars, school-year YTD, approved aliases, filename corroboration and conflict blocking');

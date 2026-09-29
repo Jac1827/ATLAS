@@ -14373,7 +14373,7 @@ function defaultAtlasAccessFormDraft() {
 
 atlasAccessFormDraft = defaultAtlasAccessFormDraft();
 
-const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=3b6ae81392c2ebd9";
+const ATLAS_CENTRAL_CLIENT_SRC = "./centralization/atlas-central-client.js?v=148f1a19501de55f";
 const ATLAS_AUTH_UI_STORAGE_KEY = "atlas_auth_ui_state_v1";
 const ATLAS_DASHBOARD_PREFERENCES_STORAGE_KEY = "atlas_dashboard_preferences_v1";
 let atlasCentralClientLoadPromise = null;
@@ -22869,7 +22869,7 @@ async function refreshAtlasClosedFinancials(year, force = false, requested = new
   }
   if (!requested.size) return false;
   let module;
-  try { module = await import("./features/financial-close.mjs?v=0b8d850ea7e92772"); }
+  try { module = await import("./features/financial-close.mjs?v=245ac4b9cd3c81c5"); }
   catch (error) {
     if (context === getAtlasFinancialContextKey()) {
       const priorFailure = getAtlasFinancialLoadFailure();
@@ -23500,7 +23500,7 @@ async function openSharedCommunityPlan() {
   const communityId = access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId;
   if (!communityId || !window.ATLAS_CENTRAL) { alert("Shared plans require an authorized canonical community record."); return false; }
   try {
-    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=d3f62c9abe8c8e66");
+    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=879ba8ff42bfc5c7");
     if (epoch !== atlasNavigationEpoch || !atlasAccessDecision(2).ok) return false;
     const entry=model.monthEntry, provenance=entry.metricProvenance?.occupiedSnapshot, period=buildPeriodKey(model.monthIdx,model.year);
     const occupancy=provenance?.revisionKey && provenance.period===period && (!provenance.communityId||provenance.communityId===communityId) && entry.occupiedSnapshot!=null && Number(entry.rentableUnits)>0
@@ -23833,7 +23833,7 @@ function queueCommunityRosterFinancials(items) {
     return {key:encodeURIComponent(item.detail.name),hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
   });
   setTimeout(async()=>{try {
-    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=45490f00b932afef");
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=12aa542e4a7c825d");
     if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
     await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
   } catch {}},0);

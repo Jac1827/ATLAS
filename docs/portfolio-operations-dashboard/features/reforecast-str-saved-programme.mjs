@@ -1,7 +1,7 @@
 import {strRegistryExtensionIssues} from './reforecast-str-registry-extension.mjs?v=e029a084505a92e0';
 import {hashReforecastWorkbook,encodeOriginalWorkbook} from './reforecast-intake.mjs?v=74bbd52d93a197cc';
 import {workbookEvidenceHash} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
-import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=09f928e62d236d7a';
+import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=f4e03cd7b6e9e9ce';
 import {confirmedForecastBlank} from './reforecast-workbook-source-policy.mjs?v=a930b680fb3c7265';
 import {validateSavedStrSource,selectSavedStrSource} from './reforecast-str-source-validation.mjs?v=de7f8e807a17cdca';
 

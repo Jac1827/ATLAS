@@ -1,12 +1,12 @@
 import {confirmedReviewedForecastBlank} from './reforecast-workbook-source-policy.mjs?v=a930b680fb3c7265';
 import {budgetYearPeriods} from './community-budget-identity.mjs?v=789e1cbad26c5366';
-import {savedStrProgrammeHtml} from './reforecast-str-saved-programme-ui.mjs?v=afa022aaaeb821de';
+import {savedStrProgrammeHtml} from './reforecast-str-saved-programme-ui.mjs?v=cb2573534fc94638';
 /* Guided forecast setup and reviewed source inputs. Authoritative writes use reforecast RPCs. */
-import * as store from './reforecast-store.mjs?v=aa266355de44abc4';
-import {readUtilityRecommendations,utilityRecoveryRows} from './reforecast-utility.mjs?v=a2abce84f9ba904e';
-import {defaultForecastPeriods,validateForecastPeriods} from './reforecast-engine.mjs?v=2ce39f25f9cf9547';
-import {assertRiseOverlay,riseReviewScope} from './reforecast-str-overlay.mjs?v=09f928e62d236d7a';
-import {esc,money,finite} from './reforecast-report.mjs?v=a3a48cdae1e4a863';
+import * as store from './reforecast-store.mjs?v=b59fd4df88ff8fe3';
+import {readUtilityRecommendations,utilityRecoveryRows} from './reforecast-utility.mjs?v=081307bdc90e97ff';
+import {defaultForecastPeriods,validateForecastPeriods} from './reforecast-engine.mjs?v=87a893fbc5f86997';
+import {assertRiseOverlay,riseReviewScope} from './reforecast-str-overlay.mjs?v=f4e03cd7b6e9e9ce';
+import {esc,money,finite} from './reforecast-report.mjs?v=0eba1b9d20462432';
 import {calculateStrLeasingSchedule,mappedProviderStatement,inspectProviderStatement,providerStatementPublicSummary,recommendStrStatementBehavior,calculateContractDriver,createContractOverride} from './reforecast-provider.mjs?v=c87f076d7e82d0ed';
 
 const uuid=()=>crypto.randomUUID();

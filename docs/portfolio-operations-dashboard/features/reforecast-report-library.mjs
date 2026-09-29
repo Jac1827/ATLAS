@@ -1,13 +1,13 @@
 import {NONCASH_METRICS,hasNoncashReportRows,noncashReportFields,noncashReportSections} from './reforecast-noncash.mjs?v=9d197be13878cfe3';
-import {standardBudgetExportDialog} from './standard-budget-export-ui.mjs?v=eaebbde13dc66a63';
-import {verifyBudgetExportDelivery,exportDeliveryNotice} from './budget-export-delivery.mjs?v=88ac31d3818b1784';
+import {standardBudgetExportDialog} from './standard-budget-export-ui.mjs?v=8005981b831a3ace';
+import {verifyBudgetExportDelivery,exportDeliveryNotice} from './budget-export-delivery.mjs?v=7fa53ba63295f7f9';
 import {riseWorkbookBytes} from './rise-workbook-export.mjs?v=d08dd1e8d4aadf30';
-import * as store from './reforecast-store.mjs?v=aa266355de44abc4';
-import {workbookCoverageHtml,workbookReportEvidence,workbookReportSections,workbookReportRows,workbookReportSheets,workbookCellFields,esc,money,download,safeSpreadsheetCell,publicationApprovalLabel,communityForecastReport,communityForecastWorkbook,communityForecastPdf,pairedForecastReports} from './reforecast-report.mjs?v=a3a48cdae1e4a863';
+import * as store from './reforecast-store.mjs?v=b59fd4df88ff8fe3';
+import {workbookCoverageHtml,workbookReportEvidence,workbookReportSections,workbookReportRows,workbookReportSheets,workbookCellFields,esc,money,download,safeSpreadsheetCell,publicationApprovalLabel,communityForecastReport,communityForecastWorkbook,communityForecastPdf,pairedForecastReports} from './reforecast-report.mjs?v=0eba1b9d20462432';
 import {freezeSnapshot,retainedSnapshot} from './financial-snapshot.mjs?v=848d058bdec07b4e';
-import {financeAccessKey} from './canonical-finance.mjs?v=aa93891480ac90d4';
+import {financeAccessKey} from './canonical-finance.mjs?v=6df033262d302564';
 import {snapshotPdf} from './snapshot-pdf.mjs?v=cda1d9683b4dd270';
-import {listOriginalBudgetReportVersions,readOriginalBudgetVersionReport,originalBudgetVersionWorkbook,originalBudgetVersionPdf} from './original-budget-version-report.mjs?v=6d52c090c5633c53';
+import {listOriginalBudgetReportVersions,readOriginalBudgetVersionReport,originalBudgetVersionWorkbook,originalBudgetVersionPdf} from './original-budget-version-report.mjs?v=beb6700a5a557bd6';
 
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const verifiedSelections=new WeakSet(),selectionGuards=new WeakMap(),selectionClients=new WeakMap();

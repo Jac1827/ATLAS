@@ -1,0 +1,62 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {createHash,randomUUID} from 'node:crypto';
+import {createRequire} from 'node:module';
+import {parseComparisonSheet,reconcileComparison,finalizeFinancialPackageEvidence} from '../docs/portfolio-operations-dashboard/features/financial-package.mjs';
+import {suggestMonthlyMappings,confirmMonthlyGovernance} from '../docs/portfolio-operations-dashboard/features/financial-workbook-governance.mjs';
+const require=createRequire(import.meta.url),{fixture}=require('./financial-intake-fixture.cjs');
+const {db,cid,signIn}=await fixture(),actor='00000000-0000-0000-0000-000000000001';
+const migration=name=>fs.readFileSync(new URL('../supabase/migrations/'+name,import.meta.url),'utf8');
+const call=async(name,args)=>(await db.query(`select to_jsonb(${name}(${args.map((_,i)=>'$'+(i+1)).join(',')})) result`,args)).rows[0].result;
+async function build(expense,period="2026-01"){
+ const monthLabel=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][Number(period.slice(5))-1]+" "+period.slice(0,4);
+ const values=(a,b)=>[a,b,a-b,b?(a-b)/b:null,a,b,a-b,b?(a-b)/b:null,b*12];
+ const matrix=[['Budget Comparison - Income Statement'],['Doro'],[monthLabel],['Accrual Basis'],[],[null,null,monthLabel,null,null,null,`YTD ( Jan ${period.slice(0,4)} - ${monthLabel} )`],['Account','Account Name','Actual','Budget','$ Variance','% Variance','Actual','Budget','$ Variance','% Variance','Annual Budget'],['Income'],['5120','Gross Potential Rent',...values(10000,99999)],['','Net Rental Income',...values(10000,99999)],['','Total Income',...values(10000,99999)],['Expenses'],['6100','Maintenance',...values(expense,99999)],['','Total Expenses',...values(expense,99999)],['','Net Operating Income',...values(10000-expense,0)]];
+ const sourceHash=createHash('sha256').update(JSON.stringify(matrix)).digest('hex'),cells={C9:{v:10000},C10:{v:10000,f:'C9'},C11:{v:10000,f:'C9'},C13:{v:expense},C14:{v:expense,f:'C13'},C15:{v:10000-expense,f:'C11-C14'}};
+ let c=reconcileComparison([parseComparisonSheet(matrix,'BCR',{cells,sourceHash})]);Object.assign(c,{sourceFile:'Synthetic January.pdf',sourceHash});
+ for(const row of c.rows){const inv=c.intakeEvidence.rowInventory.find(i=>i.id===row.source.rowId),raw=inv.rawCells.find(v=>v.address===row.source.cells.ytdActual),mapping={sheet:'BCR',column:'text-column-5',index:4,type:'ytd_supporting',header:'ytdActual',period:null,method:'printed_nine_column_budget_comparison'};row.columnMapping.ytdActual=mapping;inv.columnMapping.ytdActual=structuredClone(mapping);row.source.cells.ytdActual=`text-column-5-line-${row.source.row}`;raw.address=row.source.cells.ytdActual;raw.column='text-column-5';}
+ const governance=confirmMonthlyGovernance(c,{reportingBasis:'calendar',fiscalStartMonth:1,currency:'USD',reason:'Exact synthetic source interpretation reviewed',mappings:suggestMonthlyMappings(c).map(m=>({...m,category:m.nature==='expense'?'Maintenance':'Rent'})),actor});
+ c=await finalizeFinancialPackageEvidence(c,{communityId:cid,period,actor,exclusionsReviewed:true,governance});assert.equal(c.safeToImport,true);
+ let stage;for(const state of ['uploaded','classified','community_period_confirmed','fully_mapped','reconciled'])stage=await call('atlas_record_financial_intake',[stage?.workflow.workflow_id||null,randomUUID(),stage?.receipt.receipt_id||null,state,['uploaded','classified'].includes(state)?null:cid,{sourceHash,sourceFile:c.sourceFile,certificate:c}]);
+ return (await call('atlas_save_financial_review_governed',[stage.workflow.workflow_id,stage.receipt.receipt_id,randomUUID(),c])).review;
+}
+try{
+ await db.exec(`reset role;create function atlas_private.budget_calendar(uuid) returns jsonb language sql as $$select '{"basis":"calendar","startMonth":1,"classification":"Multifamily","verified":true}'::jsonb$$;
+ create function public.atlas_reforecast_effective_baseline(uuid[],text[]) returns jsonb language sql as $$select jsonb_agg(jsonb_build_object('communityId',$1[1],'period',p,'status','available','verified',true,'approved',true,'locked',true,'sourceType','approved_budget','versionId','baseline-fixture','contentHash','fixture-hash','lines','[{"accountCode":"5120","amount":10000,"nature":"income","placement":"above_noi","category":"Rent","mappingValid":true},{"accountCode":"6100","amount":1000,"nature":"expense","placement":"above_noi","category":"Maintenance","mappingValid":true}]'::jsonb)) from unnest($2)p$$;`);
+ await db.exec(migration('20260925161938_governed_month_end_operational_review.sql'));
+ await db.exec(migration('20260929145201_month_end_accounting_source_fiscal_ytd.sql'));
+ await signIn(1);const old=await build(800),oldAttestation=await call('atlas_confirm_month_end_close',[old.review_id,'2026-02-12T10:00:00Z','2026-02-12T09:00:00Z','Existing precise Accounting verification']);
+ const oldEvidence=await call('atlas_read_month_end_review',[old.review_id]);assert.deepEqual(oldEvidence.blockers,[]);
+ await call('atlas_save_month_end_decision',[old.review_id,oldEvidence.fingerprint,{},{},randomUUID()]);const oldClosed=await call('atlas_close_financial_review_governed',[old.review_id,null,randomUUID(),'Existing approved close remains immutable',true]);
+ const priorVersions=(await db.query('select to_jsonb(v) value from atlas_financial_close_versions v order by version_id')).rows;
+ const priorRows=(await db.query('select to_jsonb(v) value from atlas_financial_close_rows v order by to_jsonb(v)::text')).rows;
+ const pending=await build(801);assert((await call('atlas_read_month_end_review',[pending.review_id])).blockers.some(b=>b.includes('Accounting')));
+ await db.exec('reset role');const preciseBody=(await db.query("select prosrc from pg_proc where oid='public.atlas_confirm_month_end_close(uuid,timestamptz,timestamptz,text)'::regprocedure")).rows[0].prosrc;
+ await db.exec(migration('20260929151742_manual_accounting_close_confirmation.sql'));
+ const updatedOld=(await db.query('select to_jsonb(t) value from atlas_month_end_attestations t where review_id=$1',[old.review_id])).rows[0].value;
+ assert.equal(updatedOld.confirmation_mode,'verified_close_time');assert.equal(updatedOld.manual_closed_confirmed,null);delete updatedOld.confirmation_mode;delete updatedOld.manual_closed_confirmed;assert.deepEqual(updatedOld,oldAttestation,'All prior precise attestation values stay exact');
+ assert.equal((await db.query("select prosrc from pg_proc where oid='public.atlas_confirm_month_end_close(uuid,timestamptz,timestamptz,text)'::regprocedure")).rows[0].prosrc,preciseBody);
+ await signIn(1);const reason='Manual upload after Accounting confirmed the month is closed',generated='2026-02-20T09:00:00Z';
+ const confirm=(id= pending.review_id,time=generated,checked=true,why=reason)=>call('atlas_confirm_month_end_close_manually',[id,time,checked,why]);
+ for(const [time,checked,why] of [[null,true,reason],[generated,false,reason],[generated,null,reason],[generated,true,''],['2099-01-01T00:00:00Z',true,reason]])await assert.rejects(()=>confirm(pending.review_id,time,checked,why),/Explicitly confirm/);
+ await assert.rejects(()=>confirm(randomUUID()),/Scoped/);
+ const currentPeriod=(await db.query("select to_char(current_date,'YYYY-MM') period")).rows[0].period,current=await build(802,currentPeriod);
+ await assert.rejects(()=>confirm(current.review_id,generated,true,reason),/Explicitly confirm/);
+ await db.exec("reset role;set request.jwt.claim.sub='';set role authenticated");await assert.rejects(()=>confirm(),/Scoped/);await signIn(1);
+ await signIn(2);await assert.rejects(()=>confirm(),/Scoped/);
+ await db.exec("reset role;update atlas_user_profiles set role='finance' where user_id='00000000-0000-0000-0000-000000000003'");await signIn(3);await assert.rejects(()=>confirm(),/Scoped/);await signIn(1);
+ assert.equal((await db.query('select count(*)::int n from atlas_month_end_attestations where review_id=$1',[pending.review_id])).rows[0].n,0);
+ await assert.rejects(()=>call('atlas_close_financial_review_governed',[pending.review_id,oldClosed.close.version_id,randomUUID(),'Upload alone is never eligible',true]),/operational review/);
+ const before=(await db.query('select now() t')).rows[0].t,manual=await confirm(),after=(await db.query('select now() t')).rows[0].t;
+ assert.equal(manual.confirmation_mode,'manual_closed_confirmation');assert.equal(manual.manual_closed_confirmed,true);assert.equal(manual.accounting_closed_at,null);assert.equal(manual.source_generated_at,'2026-02-20T09:00:00+00:00');assert.equal(manual.actor_id,actor);assert.equal(manual.actor_role,'admin');assert.equal(manual.community_id,cid);assert.equal(manual.source_hash,pending.source_hash);assert(Date.parse(manual.created_at)>=new Date(before).getTime()&&Date.parse(manual.created_at)<=new Date(after).getTime());
+ assert.deepEqual(await confirm(),manual,'Retry preserves original actor and server confirmation time');assert.equal((await call('atlas_read_month_end_review',[pending.review_id])).blockers.length,0,'Explicit confirmation works outside advisory 10th–15th window');
+ const queue=await call('atlas_month_end_queue',[[cid],2026]);assert(queue.some(r=>r.reviewId===pending.review_id));assert(!queue.some(r=>r.reviewId===old.review_id),'Existing closed history does not reenter queue');
+ for(const args of [[pending.review_id,'2026-02-21T09:00:00Z',true,reason],[pending.review_id,generated,true,'Different confirmation reason'],[old.review_id,generated,true,reason]])await assert.rejects(()=>confirm(...args),/immutable/);
+ await assert.rejects(()=>call('atlas_confirm_month_end_close',[pending.review_id,'2026-02-20T10:00:00Z',generated,reason]),/immutable/);
+ await assert.rejects(()=>db.query('update atlas_month_end_attestations set reason=$1 where review_id=$2',['replacement',pending.review_id]),/permission denied/);
+ await db.exec('reset role');await assert.rejects(()=>db.query('delete from atlas_month_end_attestations where review_id=$1',[pending.review_id]),/immutable/);
+ assert.equal((await db.query("select has_function_privilege('anon','public.atlas_confirm_month_end_close_manually(uuid,timestamptz,boolean,text)','EXECUTE') allowed")).rows[0].allowed,false);
+ assert.equal((await db.query("select attnotnull from pg_attribute where attrelid='public.atlas_month_end_attestations'::regclass and attname='source_generated_at'")).rows[0].attnotnull,true);
+ assert.deepEqual((await db.query('select to_jsonb(v) value from atlas_financial_close_versions v order by version_id')).rows,priorVersions);assert.deepEqual((await db.query('select to_jsonb(v) value from atlas_financial_close_rows v order by to_jsonb(v)::text')).rows,priorRows,'No historical monthly actuals synthesized or modified');
+ console.log('PASS manual month-close checkbox, required source generation, actor/source/server timestamp binding, access, idempotency, immutable precise/history preservation, and unchanged queue/publication gates.');
+}finally{await db.close();}

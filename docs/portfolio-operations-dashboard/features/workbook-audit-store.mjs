@@ -3,6 +3,7 @@ import {workbookEvidenceHash} from './workbook-integrity.mjs?v=612a2cdba3c9dba2'
 // Raw bytes are split before base64 encoding, so every request is bounded even
 // when cell graphs or original OOXML parts contain multi-byte UTF-8 text.
 export const WORKBOOK_AUDIT_CHUNK_BYTES=192*1024;
+export const WORKBOOK_AUDIT_READ_CONCURRENCY=4;
 const one=value=>Array.isArray(value)?value[0]:value;
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const SHA=/^[a-f0-9]{64}$/;
@@ -82,42 +83,54 @@ export async function persistWorkbookAudit(central,audit,{communityId=null,sourc
  return ref;
 }
 
-export async function readWorkbookAuditBytes(central,reference,{sourceHash=reference?.sourceHash,onDiagnostic,requestId}={}){
- const actor=central.getSession?.()?.user?.id;guard(central,actor);
+export async function readWorkbookAuditBytes(central,reference,{sourceHash=reference?.sourceHash,onDiagnostic,requestId,assertCurrent}={}){
+ const actor=central.getSession?.()?.user?.id;let invalid=false,invalidation;
+ const check=()=>{if(invalid)throw invalidation;try{guard(central,actor);assertCurrent?.();}catch(error){invalid=true;invalidation=error;throw error;}};check();
  if(!UUID.test(reference?.auditId||''))throw Error('A saved workbook audit is required.');
  const read=async(name,args,progress={})=>{
-  guard(central,actor);const start=performance.now(),diagnostic={requestId,operation:name,requestBytes:new TextEncoder().encode(JSON.stringify(args)).length,...progress};notify(onDiagnostic,{...diagnostic,durationMs:0,classification:'pending'});
-  try{const value=one(await central.rpc(name,args,{requestId,timeoutMs:20000}));guard(central,actor);notify(onDiagnostic,{...diagnostic,durationMs:Math.round(performance.now()-start),classification:'http_success'});return value;}
+  check();const start=performance.now(),diagnostic={requestId,operation:name,requestBytes:new TextEncoder().encode(JSON.stringify(args)).length,...progress};notify(onDiagnostic,{...diagnostic,durationMs:0,classification:'pending'});
+  try{check();const value=one(await central.rpc(name,args,{requestId,timeoutMs:20000}));check();notify(onDiagnostic,{...diagnostic,durationMs:Math.round(performance.now()-start),classification:'http_success'});return value;}
   catch(error){notify(onDiagnostic,{...diagnostic,durationMs:Math.round(performance.now()-start),classification:failureClass(error)});throw error;}
  };
- const record=await read('atlas_read_workbook_audit_manifest',{p_audit_id:reference.auditId,p_manifest_hash:reference.manifestHash||null});
+ const record=await read('atlas_read_workbook_audit_manifest',{p_audit_id:reference.auditId,p_manifest_hash:reference.manifestHash||null});check();
  if(!record||record.audit_id!==reference.auditId||record.source_hash!==sourceHash||record.fingerprint!==reference.fingerprint||!record.manifest||record.manifest_hash!==workbookEvidenceHash(record.manifest)||(reference.manifestHash&&record.manifest_hash!==reference.manifestHash))throw Error('The saved workbook manifest does not match this source version.');
- const output={};
+ check();const output={};
  for(const stream of ['audit','source']){
-  const spec=record.manifest[stream],max=stream==='audit'?128*1024*1024:32*1024*1024;
+  check();const spec=record.manifest[stream],max=stream==='audit'?128*1024*1024:32*1024*1024;
   if(!Number.isInteger(spec?.byteLength)||spec.byteLength<1||spec.byteLength>max||record.manifest.chunkBytes!==WORKBOOK_AUDIT_CHUNK_BYTES||spec.chunkCount!==Math.ceil(spec.byteLength/WORKBOOK_AUDIT_CHUNK_BYTES))throw Error('Invalid saved workbook manifest bounds.');
-  const data=new Uint8Array(spec.byteLength);let offset=0;
-  for(let index=0;index<spec.chunkCount;index++){
-   const chunk=await read('atlas_read_workbook_audit_chunk',{p_audit_id:reference.auditId,p_stream:stream,p_index:index,p_manifest_hash:reference.manifestHash||null},{stream,chunkIndex:index,chunkCount:spec.chunkCount});
-   const payload=bytes({encoding:'base64',data:chunk?.data||''});
-   if(chunk?.chunk_index!==index||chunk?.stream!==stream||payload.length!==Math.min(WORKBOOK_AUDIT_CHUNK_BYTES,spec.byteLength-offset)||await sha(payload)!==chunk.sha256)throw Error('Workbook chunk readback is incomplete or changed.');
-   data.set(payload,offset);offset+=payload.length;
-  }
-  if(offset!==spec.byteLength||await sha(data)!==spec.sha256)throw Error('Workbook exact byte readback hash mismatch.');output[stream+'Bytes']=data;
+  const data=new Uint8Array(spec.byteLength);let nextIndex=0,receivedBytes=0,failed=false,failure;
+  // Validity is an explicit authority check, independent of diagnostics. Keep
+  // checks inside the worker catch so cancellation drains already-started reads.
+  const worker=async()=>{
+   while(!failed&&nextIndex<spec.chunkCount){
+    try{
+     check();const index=nextIndex++,offset=index*WORKBOOK_AUDIT_CHUNK_BYTES;
+     const chunk=await read('atlas_read_workbook_audit_chunk',{p_audit_id:reference.auditId,p_stream:stream,p_index:index,p_manifest_hash:reference.manifestHash||null},{stream,chunkIndex:index,chunkCount:spec.chunkCount});check();
+     const payload=bytes({encoding:'base64',data:chunk?.data||''});
+     if(chunk?.chunk_index!==index||chunk?.stream!==stream||payload.length!==Math.min(WORKBOOK_AUDIT_CHUNK_BYTES,spec.byteLength-offset))throw Error('Workbook chunk readback is incomplete or changed.');
+     const hash=await sha(payload);check();if(hash!==chunk.sha256)throw Error('Workbook chunk readback is incomplete or changed.');
+     data.set(payload,offset);receivedBytes+=payload.length;
+    }catch(error){if(!failed){failed=true;failure=error;}}
+   }
+  };
+  await Promise.all(Array.from({length:Math.min(WORKBOOK_AUDIT_READ_CONCURRENCY,spec.chunkCount)},worker));
+  if(failed)throw failure;
+  check();const hash=await sha(data);check();
+  if(receivedBytes!==spec.byteLength||hash!==spec.sha256)throw Error('Workbook exact byte readback hash mismatch.');output[stream+'Bytes']=data;
  }
  if(record.manifest.source.sha256!==sourceHash)throw Error('Workbook original source hash mismatch.');
- output.evidence=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(output.auditBytes));
- verifyEvidence(output.evidence,reference.fingerprint);return output;
+ check();output.evidence=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(output.auditBytes));
+ verifyEvidence(output.evidence,reference.fingerprint);check();return output;
 }
 function verifyEvidence(evidence,fingerprint){const copy=structuredClone(evidence);delete copy.fingerprint;if(evidence.fingerprint!==fingerprint||workbookEvidenceHash(copy)!==fingerprint)throw Error('Workbook audit content hash mismatch.');}
-export async function readWorkbookAudit(central,reference,{sourceHash=reference?.sourceHash,onDiagnostic}={}){
- if(reference?.manifestHash)return (await readWorkbookAuditBytes(central,reference,{sourceHash,onDiagnostic})).evidence;
+export async function readWorkbookAudit(central,reference,{sourceHash=reference?.sourceHash,onDiagnostic,assertCurrent}={}){
+ if(reference?.manifestHash)return (await readWorkbookAuditBytes(central,reference,{sourceHash,onDiagnostic,assertCurrent})).evidence;
  // Historical references predate retained byte manifests and remain readable.
- const actor=central.getSession?.()?.user?.id;guard(central,actor);
+ const actor=central.getSession?.()?.user?.id,check=()=>{guard(central,actor);assertCurrent?.();};check();
  if(!UUID.test(reference?.auditId||''))throw Error('A saved workbook audit is required.');
- const rows=await central.fetchJson(`/atlas_workbook_audits?audit_id=eq.${encodeURIComponent(reference.auditId)}&select=audit_id,source_hash,fingerprint,evidence&limit=1`),record=rows?.[0];guard(central,actor);
+ const rows=await central.fetchJson(`/atlas_workbook_audits?audit_id=eq.${encodeURIComponent(reference.auditId)}&select=audit_id,source_hash,fingerprint,evidence&limit=1`),record=rows?.[0];check();
  if(rows?.length!==1||record.audit_id!==reference.auditId||record.source_hash!==sourceHash||record.fingerprint!==reference.fingerprint)throw Error('The saved workbook audit does not match this source version.');
- verifyEvidence(record.evidence,record.fingerprint);return record.evidence;
+ verifyEvidence(record.evidence,record.fingerprint);check();return record.evidence;
 }
 
 // The intake envelope also contains cell/row inventories. Persist it through

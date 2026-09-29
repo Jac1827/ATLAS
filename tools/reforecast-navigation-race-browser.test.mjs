@@ -16,7 +16,7 @@ export function clearReforecastSession(){instance=null;window.test.clears++;}`;
 const html=`<!doctype html><div id="app"></div><script>
 window.test={mounts:0,active:0,maxActive:0,reviews:[],creates:[],clears:0,holdMount:false,holdCreate:false};
 window.actor='actor-a';window.profile={role:'executive',allowed_community_ids:['community-a']};
-window.ATLAS_CENTRAL={getSession:()=>({user:{id:actor}}),getStoredProfile:()=>profile};
+window.ATLAS_CENTRAL={getSession:()=>({user:{id:actor},access_token:'synthetic-session',expires_at:Math.floor(Date.now()/1000)+3600}),getStoredProfile:()=>profile};
 window.RBB={views:{dashboard:()=>'<h2>dashboard</h2>'},budgetNavigation:{groups:[['forecast','Forecast',[]],['reports','Reports',[]]]}};
 RBB.app={VIEWS:[],state:{activeProperty:'property-a',budgetYear:2026},view:'dashboard',go(view){this.view=view;this.render();},setProperty(id){this.state.activeProperty=id;this.render();},setYear(year){this.state.budgetYear=year;this.render();},render(){document.getElementById('app').innerHTML=RBB.views[this.view]?.()||'';},toast(message){test.lastToast=message;},scenario:()=>({type:'draft'}),publishToAtlas(){}};
 </script><script src="/reforecast-navigation.js"></script>`;

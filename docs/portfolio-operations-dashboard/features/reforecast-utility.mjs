@@ -1,5 +1,5 @@
 /* Reviewed utility rate evidence. No property-name match, peer proxy, or default rate. */
-import {readSourceBundle} from './reforecast-store.mjs?v=0723c58881a1ac21';
+import {readSourceBundle} from './reforecast-store.mjs?v=27506e81707171d5';
 import {validateForecastPeriods,fingerprint,sumMoney,moneyDriverAmount} from './reforecast-engine.mjs?v=01a3484ea138f6e9';
 const finite=value=>typeof value==='number'&&Number.isFinite(value);
 const priorYear=period=>(Number(period.slice(0,4))-1)+period.slice(4);

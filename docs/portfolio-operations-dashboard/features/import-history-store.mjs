@@ -1,5 +1,5 @@
 // Immutable evidence is stored separately from the bounded views used by the UI.
-import {hashJson,jsonEqual} from './bounded-json-integrity.mjs';
+import {hashJson,jsonEqual} from './bounded-json-integrity.mjs?v=a4ea8821996c3b57';
 export const HISTORY_FORMAT = 2;
 export const HISTORY_PAGE_SIZE = 100;
 const COLLECTIONS = ['batches','sourceArchive','canonicalRecords','lineage','reconciliationLog','mappingAuditTrail','exceptions','leadSourceHistoricalRevisions','temporaryIgnoreHistory'];
@@ -14,6 +14,9 @@ export const isSplitHistory = value => value?.__atlasImportHistory === HISTORY_F
 export async function historyHash(value) {
   return hashJson(value);
 }
+// Only values read from native IndexedDB, or copied directly from those values,
+// may use this path. Request-provided values keep the generic serializer.
+const hashStoredHistory=value=>hashJson(value,{trustedData:true});
 
 // Compatibility for existing in-memory callers. Split records must use the transaction API.
 export function projectHistory(state) {
@@ -67,7 +70,7 @@ async function readVerified(db,storeName,refs,signal){
   // Bounded fetches also keep explicit full exports from issuing unbounded IDB requests.
   for(let offset=0;offset<refs.length;offset+=16){
     check(signal);const subset=refs.slice(offset,offset+16),rows=await readMany(db,storeName,subset.map(r=>r.key),signal);
-    for(const ref of subset){const row=rows.get(ref.key);if(!row || row.sha256!==ref.hash || await historyHash(row.value)!==ref.hash)throw fail('Import evidence is missing or its fingerprint changed.','history_integrity');result.push(row.value);}
+    for(const ref of subset){const row=rows.get(ref.key);if(!row || row.sha256!==ref.hash || await hashStoredHistory(row.value)!==ref.hash)throw fail('Import evidence is missing or its fingerprint changed.','history_integrity');result.push(row.value);}
   }
   return result;
 }
@@ -120,9 +123,9 @@ export function historyChanges(value,base={}){
   return result;
 }
 const withoutMeta = value => {const {historyStorage,...rest}=value||{};return rest;};
-async function prepare(key,value,prior,revision){
+async function prepare(key,value,prior,revision,{trustedData=false}={}){
   const records=new Map(),prefix=historyNamespace(key),state={...withoutMeta(value)},oldBatches=new Map((prior?.batches||[]).map(b=>[b.id,b]));
-  const add=async(kind,v)=>{const hash=await historyHash(v),storageKey=prefix+kind+':'+hash;records.set(storageKey,{key:storageKey,value:v,sha256:hash,updatedAt:new Date().toISOString()});return {key:storageKey,hash};};
+  const add=async(kind,v)=>{const hash=await (trustedData?hashStoredHistory(v):historyHash(v)),storageKey=prefix+kind+':'+hash;records.set(storageKey,{key:storageKey,value:v,sha256:hash,updatedAt:new Date().toISOString()});return {key:storageKey,hash};};
   const unique=(rows,name)=>{const ids=new Set();for(const row of rows){if(!row?.id || ids.has(row.id))throw fail(`Import ${name} identity is missing or duplicated.`,'history_integrity');ids.add(row.id);}};
   unique(state.batches||[],'batch');unique(state.sourceArchive||[],'source');
   for(const collection of ['batches','sourceArchive']){
@@ -182,8 +185,8 @@ async function commit(db,storeName,key,expected,prepared,extras=[],original){
       try{
         // The comparison remains synchronous inside this transaction. Compare
         // exact JSON chunks without allocating a whole retained-history string.
-        if(!jsonEqual(current.get(key)?.value??null,expectedRoot))throw conflict();
-        for(const extra of extras)if(!jsonEqual(extra.record?(current.get(extra.key)??null):(current.get(extra.key)?.value??null),extra.expectedValue))throw conflict();
+        if(!jsonEqual(current.get(key)?.value??null,expectedRoot,{trustedData:true}))throw conflict();
+        for(const extra of extras)if(!jsonEqual(extra.record?(current.get(extra.key)??null):(current.get(extra.key)?.value??null),extra.expectedValue,{trustedData:true}))throw conflict();
         if(original)store.put(original);
         if(expected?.value && isSplitHistory(expected.value))store.put({key:historyNamespace(key)+'revision:'+expected.value.revision,value:expected.value,updatedAt:expected.updatedAt});
         for(const record of prepared.records){const exists=store.getKey(record.key);exists.onsuccess=()=>{try{if(exists.result===undefined)store.add(record);}catch(e){abort(e);}};}
@@ -200,9 +203,9 @@ async function headFor(db,storeName,key,signal,read){
   const record=read ? read.record : await readOne(db,storeName,key,signal);
   if(isSplitHistory(record?.value))return {record,head:record.value};
   if(['remote','current','page'].includes(record?.value?.historyStorage?.view))throw fail('Complete canonical import evidence has not been loaded.','history_full_required');
-  const legacy=record?.value||{},prepared=await prepare(key,legacy,null,1);
+  const legacy=record?.value||{},prepared=await prepare(key,legacy,null,1,{trustedData:true});
   check(signal);
-  const hash=await historyHash(legacy),original={key:historyNamespace(key)+'legacy:'+hash,value:legacy,sha256:hash,updatedAt:record?.updatedAt||new Date().toISOString()};
+  const hash=await hashStoredHistory(legacy),original={key:historyNamespace(key)+'legacy:'+hash,value:legacy,sha256:hash,updatedAt:record?.updatedAt||new Date().toISOString()};
   await commit(db,storeName,key,record,prepared,[],original);
   return {record:{key,value:prepared.head,updatedAt:prepared.head.updatedAt},head:prepared.head};
 }
@@ -224,7 +227,7 @@ async function snapshotFor(db,storeName,head,batch,signal){
 }
 async function protectedExtras(db,storeName,records,signal){
   const rows=await readMany(db,storeName,records.map(r=>r.key),signal),out=[];
-  for(const row of records){const current=row.record?(rows.get(row.key)??null):(rows.get(row.key)?.value??null);if(row.record&&row.record.key!==row.key)throw fail('Protected record identity changed.');if(!row.expectedHash || await historyHash(current)!==row.expectedHash)throw conflict();out.push({...row,expectedValue:current});}
+  for(const row of records){const current=row.record?(rows.get(row.key)??null):(rows.get(row.key)?.value??null);if(row.record&&row.record.key!==row.key)throw fail('Protected record identity changed.');if(!row.expectedHash || await hashStoredHistory(current)!==row.expectedHash)throw conflict();out.push({...row,expectedValue:current});}
   return out;
 }
 function expectedRevision(request,head){

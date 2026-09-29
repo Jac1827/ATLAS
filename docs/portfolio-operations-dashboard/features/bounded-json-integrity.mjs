@@ -23,13 +23,15 @@ function unbox(value){
 }
 function prepare(holder,key,strict){
   let value=holder[key];
-  if(value!==null&&['object','function','bigint'].includes(typeof value)){
+  const initialType=typeof value;
+  if(value!==null&&(initialType==='object'||initialType==='function'||initialType==='bigint')){
     const toJSON=value.toJSON;
     if(typeof toJSON==='function')value=toJSON.call(value,key);
   }
   if(strict&&(typeof value==='function'||typeof value==='symbol'))throw unsupported();
   if(value!==null&&typeof value==='object')value=unbox(value);
-  if(['undefined','function','symbol'].includes(typeof value))return OMIT;
+  const type=typeof value;
+  if(type==='undefined'||type==='function'||type==='symbol')return OMIT;
   // toJSON was already applied. Calling native stringify here could invoke a
   // BigInt prototype's toJSON a second time instead of rejecting its result.
   if(typeof value==='bigint')throw new TypeError('Do not know how to serialize a BigInt');
@@ -37,6 +39,9 @@ function prepare(holder,key,strict){
 }
 const pairAt=(text,end)=>end>0&&end<text.length&&text.charCodeAt(end-1)>=0xd800&&text.charCodeAt(end-1)<=0xdbff&&text.charCodeAt(end)>=0xdc00&&text.charCodeAt(end)<=0xdfff;
 function* stringTokens(value,chunkSize){
+  // Even when every code unit needs a six-character escape, this native call
+  // stays bounded. Most property keys and scalar strings fit in one token.
+  if(value.length*6+2<=chunkSize){yield JSON.stringify(value);return;}
   yield '"';
   const size=Math.max(2,Math.floor(chunkSize/6));
   for(let offset=0;offset<value.length;){
@@ -46,11 +51,56 @@ function* stringTokens(value,chunkSize){
   }
   yield '"';
 }
-function* tokens(value,strict,chunkSize,ancestors){
+// Only callers with structured-clone/IndexedDB provenance may opt in: JavaScript
+// cannot detect a Proxy without potentially invoking its traps. Descriptor-only
+// preflight permits one small native serialization, never a whole large graph.
+function boundedDataText(value,chunkSize,ancestors){
+  const budget={chars:Math.min(chunkSize,65536),nodes:256},path=new Set();
+  const spend=chars=>{budget.chars-=chars;return budget.chars>=0;};
+  function visit(item,depth){
+    if(--budget.nodes<0||depth>16)return false;
+    if(item===null)return spend(4);
+    switch(typeof item){
+      case 'string':return spend(item.length*6+2);
+      case 'number':return spend(32);
+      case 'boolean':return spend(item?4:5);
+      case 'object':break;
+      default:return false;
+    }
+    const array=Array.isArray(item),prototype=Object.getPrototypeOf(item);
+    if(array?prototype!==Array.prototype:prototype!==Object.prototype&&prototype!==null)return false;
+    if('toJSON' in item||ancestors.has(item)||path.has(item)||!spend(2))return false;
+    path.add(item);
+    try{
+      if(array){
+        const length=item.length;if(length>budget.nodes)return false;
+        for(let i=0;i<length;i++){
+          const descriptor=Object.getOwnPropertyDescriptor(item,String(i));
+          // A hole could read an inherited index accessor during stringify.
+          if(!descriptor||!('value' in descriptor)||(i&&!spend(1))||!visit(descriptor.value,depth+1))return false;
+        }
+      }else{
+        let first=true,scanned=0;
+        // Avoid allocating an unbounded key/descriptor array just to reject it.
+        for(const key in item){
+          if(++scanned>256||budget.nodes===0)return false;
+          const descriptor=Object.getOwnPropertyDescriptor(item,key);
+          if(!descriptor)continue;
+          if(!('value' in descriptor)||!spend((first?0:1)+key.length*6+3)||!visit(descriptor.value,depth+1))return false;
+          first=false;
+        }
+      }
+      return true;
+    }finally{path.delete(item);}
+  }
+  return visit(value,0)?JSON.stringify(value):undefined;
+}
+function* tokens(value,strict,chunkSize,ancestors,trustedData){
   if(value===OMIT)return;
   if(typeof value==='string'){yield* stringTokens(value,chunkSize);return;}
   if(value===null||typeof value!=='object'){yield JSON.stringify(value);return;}
   if(ancestors.has(value))throw new TypeError('Converting circular structure to JSON');
+  if(trustedData){const text=boundedDataText(value,chunkSize,ancestors);if(text!==undefined){yield text;return;}}
   ancestors.add(value);
   try{
     if(Array.isArray(value)){
@@ -58,7 +108,7 @@ function* tokens(value,strict,chunkSize,ancestors){
       for(let i=0;i<length;i++){
         if(i)yield ',';
         const child=prepare(value,String(i),strict);
-        yield* tokens(child===OMIT?null:child,strict,chunkSize,ancestors);
+        yield* tokens(child===OMIT?null:child,strict,chunkSize,ancestors,trustedData);
       }
       yield ']';
     }else{
@@ -67,16 +117,16 @@ function* tokens(value,strict,chunkSize,ancestors){
         const child=prepare(value,key,strict);if(child===OMIT)continue;
         if(!first)yield ',';first=false;
         yield* stringTokens(key,chunkSize);yield ':';
-        yield* tokens(child,strict,chunkSize,ancestors);
+        yield* tokens(child,strict,chunkSize,ancestors,trustedData);
       }
       yield '}';
     }
   }finally{ancestors.delete(value);}
 }
-export function* jsonChunks(value,{chunkSize=65536,rejectUnsupported=false}={}){
+export function* jsonChunks(value,{chunkSize=65536,rejectUnsupported=false,trustedData=false}={}){
   if(!Number.isSafeInteger(chunkSize)||chunkSize<16)throw new RangeError('JSON chunkSize must be an integer of at least 16');
   let pending='';
-  for(const token of tokens(prepare({'':value},'',rejectUnsupported),rejectUnsupported,chunkSize,new Set())){
+  for(const token of tokens(prepare({'':value},'',rejectUnsupported),rejectUnsupported,chunkSize,new Set(),trustedData===true)){
     for(let offset=0;offset<token.length;){
       let end=Math.min(token.length,offset+chunkSize-pending.length);
       if(pairAt(token,end))end--;
@@ -119,10 +169,10 @@ export class Sha256{
     return [...this.h].map(n=>n.toString(16).padStart(8,'0')).join('');
   }
 }
-export async function hashJson(value,{chunkSize=65536,smallBytes=1048576}={}){
+export async function hashJson(value,{chunkSize=65536,smallBytes=1048576,trustedData=false}={}){
   if(!Number.isSafeInteger(smallBytes)||smallBytes<0)throw new RangeError('Invalid small JSON digest bound');
   let parts=[],length=0,stream=null;
-  for(const text of jsonChunks(value===undefined?null:value,{chunkSize,rejectUnsupported:true})){
+  for(const text of jsonChunks(value===undefined?null:value,{chunkSize,rejectUnsupported:true,trustedData})){
     const bytes=encoder.encode(text);
     if(!stream&&length+bytes.length<=smallBytes){parts.push(bytes);length+=bytes.length;continue;}
     if(!stream){stream=new Sha256();for(const part of parts)stream.update(part);parts=null;}
@@ -132,8 +182,8 @@ export async function hashJson(value,{chunkSize=65536,smallBytes=1048576}={}){
   const bytes=new Uint8Array(length);let offset=0;for(const part of parts){bytes.set(part,offset);offset+=part.length;}
   return [...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(n=>n.toString(16).padStart(2,'0')).join('');
 }
-export function jsonEqual(left,right,{chunkSize=65536}={}){
-  const a=jsonChunks(left,{chunkSize}),b=jsonChunks(right,{chunkSize});
+export function jsonEqual(left,right,{chunkSize=65536,trustedData=false}={}){
+  const a=jsonChunks(left,{chunkSize,trustedData}),b=jsonChunks(right,{chunkSize,trustedData});
   try{
     while(true){const aa=a.next(),bb=b.next();if(aa.done||bb.done)return aa.done===bb.done;if(aa.value!==bb.value)return false;}
   }finally{a.return();b.return();}

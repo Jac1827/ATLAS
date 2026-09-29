@@ -1,5 +1,5 @@
-import {ensureWorkspaceProjection} from './workspace-publication.mjs?v=19c656fa112d9b6a';
-import {sourceIdentity,projectionKey,stableJson,verifyProjection} from './workspace-bootstrap.mjs?v=36662b19758a7fa9';
+import {ensureWorkspaceProjection} from './workspace-publication.mjs?v=27ab8274fc094bb6';
+import {sourceIdentity,projectionKey,stableJson,verifyProjection} from './workspace-bootstrap.mjs?v=b437ecd24364344e';
 
 const PARENT='atlas_dashboard_state_v1';
 const stopped=()=>new DOMException('Preparation stopped. Check the saved source again.','AbortError');

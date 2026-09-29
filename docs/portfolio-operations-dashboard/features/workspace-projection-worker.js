@@ -8,7 +8,7 @@ const FILE_FIELDS=new Set(['fileName','reportType','reportTypeLabel']);
 self.onmessage=async({data:{archive,source}})=>{
   try{
     if(archive?.bundleType!==AtlasMigrationArchive.TYPE||archive.sha256!==source?.archiveHash)throw Error('Central archive fingerprint mismatch.');
-    const {projectCurrentHistory}=await import('./import-history-store.mjs?v=a6b66788f0869de9');
+    const {projectCurrentHistory}=await import('./import-history-store.mjs?v=a5aa94c91809b279');
     let bundle=null,history=null,historyCounts=null;
     const recordKeys=new Map(),counts=new Map(),unidentifiedValues=new Set();
     await AtlasMigrationArchive.visitSelectedRecords(archive,JSZip,{

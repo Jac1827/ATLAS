@@ -12,7 +12,7 @@ const originalJson=JSON.stringify,expectedHash=createHash('sha256').update(origi
 const originalGet=IDBObjectStore.prototype.get,originalDigest=crypto.subtle.digest;let rootComparisons=0;
 try{
   await io('readwrite',store=>store.put({key,value:source,updatedAt:'before'}));
-  JSON.stringify=function(value,...args){if(value&&typeof value==='object'&&(Array.isArray(value.batches)||value.savedData||Object.hasOwn(value,'amount')))throw Error('Whole evidence object serialization is forbidden by this regression');return originalJson.call(this,value,...args);};
+  JSON.stringify=function(value,...args){if(value&&typeof value==='object'&&(Array.isArray(value.batches)&&value.batches.some(batch=>batch.beforeSnapshot)||value.savedData?.A?.notes?.length>65536))throw Error('Oversized evidence object serialization is forbidden by this regression');return originalJson.call(this,value,...args);};
   IDBObjectStore.prototype.get=function(name){if(name===key&&this.transaction.mode==='readwrite')rootComparisons++;return originalGet.call(this,name);};
   assert.equal(await historyHash(source),expectedHash,'The existing SHA-256(JSON.stringify) fingerprint is unchanged');
   const current=await run('current');assert.equal(current.historyStorage.counts.batches,4);assert.equal(rootComparisons,1);
@@ -37,5 +37,5 @@ try{
   assert.equal((await io('readonly',store=>store.get(key))).value.revision,1);
   await assert.rejects(historyHash({unsupported:()=>{}}),error=>error.code==='history_integrity');
   await assert.rejects(historyHash({unsupported:Symbol('unsupported')}),error=>error.code==='history_integrity');
-  console.log('PASS bounded history integration: unchanged legacy fingerprint, no whole-object stringify, exact retained original/snapshot refs, synchronous protected-record null/zero conflict, unsupported values fail closed.');
+  console.log('PASS bounded history integration: unchanged legacy fingerprint, no oversized-object stringify, exact retained original/snapshot refs, synchronous protected-record null/zero conflict, unsupported values fail closed.');
 }finally{JSON.stringify=originalJson;IDBObjectStore.prototype.get=originalGet;crypto.subtle.digest=originalDigest;db.close();indexedDB.deleteDatabase(dbName);}

@@ -779,9 +779,19 @@
       ]
     ]
   },
+  "features/bounded-json-integrity.mjs": {
+    "sha256": "a4ea8821996c3b57",
+    "bytes": 11077,
+    "references": [
+      [
+        "features/import-history-store.mjs",
+        "./bounded-json-integrity.mjs"
+      ]
+    ]
+  },
   "features/import-history-store.mjs": {
-    "sha256": "a6b66788f0869de9",
-    "bytes": 27842,
+    "sha256": "a5aa94c91809b279",
+    "bytes": 28217,
     "references": [
       [
         "features/import-history.mjs",
@@ -802,7 +812,7 @@
     ]
   },
   "features/import-history-worker.mjs": {
-    "sha256": "6db9721730e5cc6b",
+    "sha256": "9b208c2d23d6bf4e",
     "bytes": 288,
     "references": [
       [
@@ -812,7 +822,7 @@
     ]
   },
   "features/import-history.mjs": {
-    "sha256": "18586ad84a184c84",
+    "sha256": "679acb56a1c82d33",
     "bytes": 1932,
     "references": [
       [
@@ -946,7 +956,7 @@
     ]
   },
   "features/workspace-projection-worker.js": {
-    "sha256": "9e33ea01f07f6b83",
+    "sha256": "3b421adf94c3f94e",
     "bytes": 4227,
     "references": [
       [
@@ -956,7 +966,7 @@
     ]
   },
   "features/workspace-bootstrap.mjs": {
-    "sha256": "36662b19758a7fa9",
+    "sha256": "b437ecd24364344e",
     "bytes": 8930,
     "references": [
       [
@@ -974,7 +984,7 @@
     ]
   },
   "features/workspace-publication.mjs": {
-    "sha256": "19c656fa112d9b6a",
+    "sha256": "27ab8274fc094bb6",
     "bytes": 959,
     "references": [
       [
@@ -988,7 +998,7 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "0a6704a5c8c8ae42",
+    "sha256": "132d0313f25f5452",
     "bytes": 3079046,
     "references": [
       [
@@ -1872,7 +1882,7 @@
     ]
   },
   "occupancy-replay-browser.js": {
-    "sha256": "b393f54271f81b86",
+    "sha256": "5477f7830ed551e9",
     "bytes": 14553,
     "references": [
       [
@@ -1952,7 +1962,7 @@
     ]
   },
   "features/workspace-activation.mjs": {
-    "sha256": "527e5ddcac3da995",
+    "sha256": "30ef6d5a6bd60582",
     "bytes": 12828,
     "references": [
       [
@@ -1962,7 +1972,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "c3682eb824b842e6",
+    "sha256": "8c740c7b0467d07e",
     "bytes": 3714,
     "references": [
       [

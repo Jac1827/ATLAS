@@ -38,6 +38,7 @@ entries=[
  ('atlas-dashboard-reskin.js',[('index.html','./atlas-dashboard-reskin.js')]),
  ('atlas-redesign.css',[('index.html','atlas-redesign.css')]),
  ('contract-terms.js',[('RISE-Budget-Builder.html','./contract-terms.js')]),
+ ('features/bounded-json-integrity.mjs',[('features/import-history-store.mjs','./bounded-json-integrity.mjs')]),
  ('features/import-history-store.mjs',[('features/import-history.mjs','./import-history-store.mjs'),('features/import-history-worker.mjs','./import-history-store.mjs')]),
  ('features/import-history-worker.mjs',[('features/import-history.mjs','./import-history-worker.mjs')]),
  ('features/import-history.mjs',[('index.html','./features/import-history.mjs')]),

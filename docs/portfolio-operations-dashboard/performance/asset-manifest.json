@@ -38,6 +38,10 @@
         "./centralization/atlas-central-client.js"
       ],
       [
+        "workspace-activation.html",
+        "./centralization/atlas-central-client.js"
+      ],
+      [
         "workspace-core.js",
         "./centralization/atlas-central-client.js"
       ],
@@ -913,6 +917,20 @@
       ]
     ]
   },
+  "migration-archive.js": {
+    "sha256": "ae74ccbf0a527f62",
+    "bytes": 31547,
+    "references": [
+      [
+        "performance/feature-loader.js",
+        "migration-archive.js"
+      ],
+      [
+        "features/workspace-projection-worker.js",
+        "../migration-archive.js"
+      ]
+    ]
+  },
   "vendor/jszip.min.js": {
     "sha256": "acc7e41455a80765",
     "bytes": 97630,
@@ -928,8 +946,8 @@
     ]
   },
   "features/workspace-projection-worker.js": {
-    "sha256": "e228063be4020b0b",
-    "bytes": 2470,
+    "sha256": "33cc798b4207a17c",
+    "bytes": 4227,
     "references": [
       [
         "features/workspace-bootstrap.mjs",
@@ -938,7 +956,7 @@
     ]
   },
   "features/workspace-bootstrap.mjs": {
-    "sha256": "565a4933bd9ac913",
+    "sha256": "ba96a7d2c448577c",
     "bytes": 8930,
     "references": [
       [
@@ -948,22 +966,30 @@
       [
         "features/workspace-publication.mjs",
         "./workspace-bootstrap.mjs"
+      ],
+      [
+        "features/workspace-activation.mjs",
+        "./workspace-bootstrap.mjs"
       ]
     ]
   },
   "features/workspace-publication.mjs": {
-    "sha256": "a78eecf53204f1f7",
+    "sha256": "7ce3efd61965d880",
     "bytes": 959,
     "references": [
       [
         "workspace-core.js",
         "./features/workspace-publication.mjs"
+      ],
+      [
+        "features/workspace-activation.mjs",
+        "./workspace-publication.mjs"
       ]
     ]
   },
   "workspace-core.js": {
-    "sha256": "b0762e2aec552ffe",
-    "bytes": 3066674,
+    "sha256": "82e7afde5e99d7ce",
+    "bytes": 3066965,
     "references": [
       [
         "index.html",
@@ -1865,16 +1891,6 @@
       ]
     ]
   },
-  "migration-archive.js": {
-    "sha256": "aac407097feb28cc",
-    "bytes": 23090,
-    "references": [
-      [
-        "performance/feature-loader.js",
-        "migration-archive.js"
-      ]
-    ]
-  },
   "features/reports-workspace.js": {
     "sha256": "bcce172b61dd8132",
     "bytes": 126887,
@@ -1935,12 +1951,26 @@
       ]
     ]
   },
+  "features/workspace-activation.mjs": {
+    "sha256": "56d0f42280b8dc3d",
+    "bytes": 9562,
+    "references": [
+      [
+        "workspace-activation.html",
+        "./features/workspace-activation.mjs"
+      ]
+    ]
+  },
   "performance/feature-loader.js": {
-    "sha256": "84c3c925e1002f3a",
+    "sha256": "cc82c730625fc810",
     "bytes": 3714,
     "references": [
       [
         "index.html",
+        "./performance/feature-loader.js"
+      ],
+      [
+        "workspace-activation.html",
         "./performance/feature-loader.js"
       ]
     ]

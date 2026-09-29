@@ -5,8 +5,9 @@ import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {packageAssets} from './package-atlas-assets.mjs';
+import {stageFinanceEntryAliases} from './finance-entry-aliases.mjs';
 
-export async function buildSite({repo=process.cwd(),source='docs',out='output/atlas-site',remote='origin',branch='atlas-asset-releases',mode='publish',bootstrap=false,expectedReleaseId=null}={}) {
+export async function buildSite({repo=process.cwd(),source='docs',out='output/atlas-site',remote='origin',branch='atlas-asset-releases',mode='publish',bootstrap=false,expectedReleaseId=null,preserveFinanceEntryAliases=false}={}) {
   if (!['publish','preview'].includes(mode)) throw Error('Invalid asset release mode');
   if (expectedReleaseId !== null && !/^[a-f0-9]{64}$/.test(expectedReleaseId)) throw Error('Invalid expected asset release hash');
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_/-]*$/.test(branch)) throw Error('Invalid retention branch');
@@ -26,7 +27,12 @@ export async function buildSite({repo=process.cwd(),source='docs',out='output/at
     const env={GIT_INDEX_FILE:path.join(temp,'index'),GIT_WORK_TREE:retained};
     git(['read-tree',parent||'--empty'],env);
     if(parent)git(['checkout-index','--all',`--prefix=${retained}${path.sep}`],env);
-    const result=await packageAssets({source:path.resolve(repo,source),out:path.resolve(repo,out),retained,allowEmptyRetained:!parent&&bootstrap});
+    // Only the normal current-client CLI opts in. Reviewed rollback and finance
+    // composition callers keep their exact existing source and release hashes.
+    const entryAliases=preserveFinanceEntryAliases
+      ? await stageFinanceEntryAliases({source:path.resolve(repo,source),out:path.join(temp,'current-source')}) : null;
+    const result=await packageAssets({source:entryAliases?.source||path.resolve(repo,source),out:path.resolve(repo,out),retained,allowEmptyRetained:!parent&&bootstrap});
+    if(entryAliases)result.financeEntryAliases={aliases:entryAliases.aliases,originalSourceFiles:entryAliases.originalSourceFiles,originalSourceInventoryHash:entryAliases.originalSourceInventoryHash};
     if(expectedReleaseId !== null && result.releaseId !== expectedReleaseId)throw Error('Client archive does not match the independently reviewed expected release hash; publication stopped');
     if(mode==='publish') {
       await fs.cp(path.join(result.out,'_atlas-assets'),path.join(retained,'_atlas-assets'),{recursive:true});
@@ -50,5 +56,5 @@ export async function buildSite({repo=process.cwd(),source='docs',out='output/at
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   const bootstrap=process.argv.includes('--bootstrap');
   const mode=process.env.ATLAS_ASSET_RELEASE_MODE||'publish';
-  buildSite({bootstrap,mode}).then(result=>console.log(JSON.stringify(result,null,2))).catch(error=>{console.error(error.message);process.exitCode=1;});
+  buildSite({bootstrap,mode,preserveFinanceEntryAliases:true}).then(result=>console.log(JSON.stringify(result,null,2))).catch(error=>{console.error(error.message);process.exitCode=1;});
 }

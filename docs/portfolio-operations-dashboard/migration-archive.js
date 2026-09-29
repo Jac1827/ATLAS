@@ -137,21 +137,113 @@
       finish(){if(stack.length||!complete)throw Error('Incomplete migration record');return result;}
     };
   }
-  async function readRecord(zip,entry){
-    supportedLayout(entry);
-    if(entry.layout===undefined){const file=zip.file(entry.name);if(!file)throw Error('Migration record is missing');const bytes=await file.async('uint8array');if(bytes.length!==entry.bytes||await digest(bytes)!==entry.sha256)throw Error('Migration record fingerprint mismatch');return decode(JSON.parse(new TextDecoder().decode(bytes)));}
+  async function visitSegmentTokens(zip,entry,accept){
     segmentLimit(entry.segmentBytes);
     if(zip.file(entry.name)||!Array.isArray(entry.segments)||!entry.segments.length||await entryFingerprint(entry)!==entry.sha256)throw Error('Migration segment manifest fingerprint mismatch');
-    const reader=tokenReader();let total=0;
+    let total=0;
     for(let i=0;i<entry.segments.length;i++){
       const part=entry.segments[i];if(part.name!==segmentName(entry.name,i)||!Number.isSafeInteger(part.bytes)||part.bytes<1||part.bytes>entry.segmentBytes)throw Error('Invalid migration segment manifest');
       if(part.encoding!=='deflate'||!Number.isSafeInteger(part.storedBytes)||part.storedBytes<1||part.storedBytes>entry.segmentBytes+65536)throw Error('Unsupported migration segment encoding or size');
       const file=zip.file(part.name);if(!file)throw Error('Migration segment is missing');
       const stored=await boundedZipMember(file,part.storedBytes);if(stored.length!==part.storedBytes||await digest(stored)!==part.storedSha256)throw Error('Migration stored segment fingerprint mismatch');
       const bytes=await boundedTransform(stored,'decompress',part.bytes);if(bytes.length!==part.bytes||await digest(bytes)!==part.sha256)throw Error('Migration segment fingerprint mismatch');
-      const tokens=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));if(!Array.isArray(tokens))throw Error('Invalid migration segment tokens');for(const token of tokens)reader.accept(token);total+=bytes.length;
+      const tokens=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));if(!Array.isArray(tokens))throw Error('Invalid migration segment tokens');for(const token of tokens)accept(token);total+=bytes.length;
     }
-    if(total!==entry.bytes)throw Error('Migration record byte count mismatch');return reader.finish();
+    if(total!==entry.bytes)throw Error('Migration record byte count mismatch');
+  }
+  async function readRecord(zip,entry){
+    supportedLayout(entry);
+    if(entry.layout===undefined){const file=zip.file(entry.name);if(!file)throw Error('Migration record is missing');const bytes=await file.async('uint8array');if(bytes.length!==entry.bytes||await digest(bytes)!==entry.sha256)throw Error('Migration record fingerprint mismatch');return decode(JSON.parse(new TextDecoder().decode(bytes)));}
+    const reader=tokenReader();await visitSegmentTokens(zip,entry,token=>reader.accept(token));return reader.finish();
+  }
+  // Projection readers visit every token, including omitted subtrees, without
+  // constructing those subtrees. Grammar and segment integrity stay mandatory.
+  // A false selection prunes that subtree; container counts remain available at
+  // its boundary. Paths below a pruned container are deliberately not allocated.
+  function selectedTokenReader(select,onContainer,onScalar){
+    const stack=[];let result,complete=false;
+    const location=()=>{
+      const top=stack.at(-1);
+      if(!top){if(complete)throw Error('Multiple migration record roots');return {path:[]};}
+      if(top.type==='array')return {path:top.keep?top.path.concat(top.count):null};
+      if(top.type==='object'){
+        if(top.expectKey)return {path:null,isKey:true};
+        if(!top.hasKey)throw Error('Missing migration object key');
+        return {path:top.keep?top.path.concat(top.key):null};
+      }
+      if(top.type==='blob'&&top.mime===undefined)return {path:null,isMime:true};
+      throw Error('Unexpected migration record value');
+    };
+    const attach=(frame,value)=>{
+      const top=stack.at(-1);
+      if(frame.isKey){
+        if(top?.type!=='object'||typeof value!=='string'||top.keys.has(value))throw Error('Missing or duplicate migration object key');
+        top.keys.add(value);top.key=value;top.hasKey=true;top.expectKey=false;return;
+      }
+      if(frame.isMime){if(top?.type!=='blob'||typeof value!=='string')throw Error('Invalid migration blob type');top.mime=value;return;}
+      if(!top){if(complete)throw Error('Multiple migration record roots');result=value;complete=true;}
+      else if(top.type==='array'){if(frame.keep)top.value.push(value);top.count++;}
+      else if(top.type==='object'){
+        if(!top.hasKey||top.expectKey)throw Error('Missing migration object key');
+        if(frame.keep)Object.defineProperty(top.value,top.key,{value,writable:true,enumerable:true,configurable:true});
+        top.hasKey=false;top.key=null;top.count++;
+      }else throw Error('Unexpected migration record value');
+      if(frame.path!==null&&['object','array'].includes(frame.type))onContainer?.(frame.path,frame.type,frame.count);
+      else if(frame.path!==null&&frame.keep&&frame.type!=='blob')onScalar?.(frame.path,frame.type,value);
+    };
+    return {
+      accept(token){
+        if(!Array.isArray(token)||typeof token[0]!=='string')throw Error('Invalid migration record token');
+        const [type,value]=token,top=stack.at(-1),arity=['value','text','bytes','date'].includes(type)?2:1;
+        if(token.length!==arity)throw Error('Invalid migration token arity');
+        let frame;
+        if(['object','array','string','blob','value','date'].includes(type)){
+          const where=location();
+          if((where.isKey||where.isMime)&&type!=='string')throw Error('Invalid migration object key or blob type');
+          frame={...where,type,keep:!!(where.isKey||where.isMime||where.path!==null&&select(where.path,type)),count:0};
+        }
+        if(type==='object'||type==='array')stack.push({...frame,value:frame.keep?(type==='array'?[]:{}):undefined,keys:type==='object'?new Set():null,key:null,hasKey:false,expectKey:false});
+        else if(type==='key'){if(top?.type!=='object'||top.hasKey||top.expectKey)throw Error('Unexpected migration object key');top.expectKey=true;}
+        else if(type==='end'){if(!top||!['object','array'].includes(top.type)||top.hasKey||top.expectKey)throw Error('Incomplete migration container');stack.pop();attach(top,top.value);}
+        else if(type==='value'){if(value!==null&&!['boolean','number'].includes(typeof value)||typeof value==='number'&&!Number.isFinite(value))throw Error('Invalid migration primitive');attach(frame,frame.keep?value:undefined);}
+        else if(type==='date'){if(typeof value!=='string'||!Number.isFinite(Date.parse(value))||new Date(value).toISOString()!==value)throw Error('Invalid migration date');attach(frame,frame.keep?new Date(value):undefined);}
+        else if(type==='string')stack.push({...frame,parts:frame.keep?[]:null});
+        else if(type==='text'){if(top?.type!=='string'||typeof value!=='string')throw Error('Unexpected migration string fragment');if(top.keep)top.parts.push(value);}
+        else if(type==='endString'){if(top?.type!=='string')throw Error('Incomplete migration string');stack.pop();attach(top,top.keep?top.parts.join(''):undefined);}
+        else if(type==='blob')stack.push({...frame,parts:frame.keep?[]:null});
+        else if(type==='bytes'){
+          if(top?.type!=='blob'||typeof top.mime!=='string'||typeof value!=='string'||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value))throw Error('Invalid migration blob fragment');
+          if(top.keep){const raw=atob(value);top.parts.push(Uint8Array.from(raw,c=>c.charCodeAt(0)));}
+        }
+        else if(type==='endBlob'){if(top?.type!=='blob'||typeof top.mime!=='string')throw Error('Incomplete migration blob');stack.pop();attach(top,top.keep?new Blob(top.parts,{type:top.mime}):undefined);}
+        else throw Error('Unsupported migration token');
+      },
+      finish(){if(stack.length||!complete)throw Error('Incomplete migration record');return result;}
+    };
+  }
+  function selectLegacyRecord(value,select,onContainer,onScalar,path=[]){
+    const type=value?.__atlasMigrationBlob===true?'blob':Array.isArray(value)?'array':value&&typeof value==='object'?'object':typeof value==='string'?'string':'value';
+    const keep=select(path,type);
+    if(['object','array'].includes(type))onContainer?.(path,type,type==='array'?value.length:Object.keys(value).length);
+    if(!keep)return undefined;
+    if(type==='blob')return decode(value);
+    if(type==='array'){
+      let target=0;for(let index=0;index<value.length;index++){const item=selectLegacyRecord(value[index],select,onContainer,onScalar,path.concat(index));if(item!==undefined)value[target++]=item;}
+      value.length=target;return value;
+    }
+    if(type==='object')for(const key of Object.keys(value)){
+      const item=selectLegacyRecord(value[key],select,onContainer,onScalar,path.concat(key));
+      if(item===undefined)delete value[key];else Object.defineProperty(value,key,{value:item,writable:true,enumerable:true,configurable:true});
+    }
+    if(!['object','array','blob'].includes(type))onScalar?.(path,type,value);
+    return value;
+  }
+  function validateLegacyBlobs(value){
+    // JSON syntax is already validated. Match the complete legacy decoder's
+    // Blob validation even when a projection omits the containing subtree.
+    if(value?.__atlasMigrationBlob===true){atob(value.base64);return;}
+    if(Array.isArray(value)){for(const item of value)validateLegacyBlobs(item);}
+    else if(value&&typeof value==='object')for(const item of Object.values(value))validateLegacyBlobs(item);
   }
   async function verifyRecord(value,entry){
     supportedLayout(entry);
@@ -207,6 +299,28 @@
     const {zip,manifest}=await openArchive(archive,Zip),values=[];
     for(const entry of manifest.entries)values.push(await readArchiveRecord(zip,entry));
     return {bundle:values[0],records:values.slice(1),manifest};
+  }
+  // Additive read-only API: each verified reduced record is consumed before the
+  // next one. Existing unpack/restore callers keep their complete-record API.
+  async function visitSelectedRecords(archive,Zip,{select,onContainer,onScalar,onRecord}={}){
+    if(archive?.bundleType!==TYPE||typeof select!=='function'||typeof onRecord!=='function')throw Error('Invalid migration projection reader');
+    const {zip,manifest}=await openArchive(archive,Zip);
+    for(const entry of manifest.entries){
+      supportedLayout(entry);
+      const selected=(path,type)=>select(entry.name,path,type),container=(path,type,count)=>onContainer?.(entry.name,path,type,count),scalar=(path,type,value)=>onScalar?.(entry.name,path,type,value);
+      let value;
+      if(entry.layout===undefined){
+        const file=zip.file(entry.name);if(!file)throw Error('Migration record is missing');
+        const bytes=await file.async('uint8array');
+        if(bytes.length!==entry.bytes||await digest(bytes)!==entry.sha256)throw Error('Migration record fingerprint mismatch');
+        const parsed=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));validateLegacyBlobs(parsed);
+        value=selectLegacyRecord(parsed,selected,container,scalar);
+      }else{
+        const reader=selectedTokenReader(selected,container,scalar);await visitSegmentTokens(zip,entry,token=>reader.accept(token));value=reader.finish();
+      }
+      await onRecord(entry.name,value);value=null;
+    }
+    return {manifest,recordsVerified:manifest.entries.length};
   }
   async function verifyBundle(archive,Zip){
     if(archive?.bundleType!==TYPE)throw Error('Unsupported migration archive for bundle verification');
@@ -293,5 +407,5 @@
       return {...archive,data:pieces.join('')};
     } finally {pieces.length=0;finish?.({failed:!!failure});}
   }
-  return {TYPE,pack,packRecords,unpack,verifyBundle,verifyRestore,publish,hydrate};
+  return {TYPE,pack,packRecords,unpack,verifyBundle,verifyRestore,visitSelectedRecords,publish,hydrate};
 });

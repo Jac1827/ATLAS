@@ -1,5 +1,5 @@
-import {mountMonthEndReview,REOPENED_PERIOD_WARNING} from './month-end-governance.mjs?v=cd8f3e2baa5bd319';
-import {readFinance,readApprovedBudget,financialSummary,bonusEvidence,financeAccessKey,invalidateFinanceReads} from './canonical-finance.mjs?v=625be3eaa641cbeb';
+import {mountMonthEndReview,REOPENED_PERIOD_WARNING} from './month-end-governance.mjs?v=feddfe25b1d57b61';
+import {readFinance,readApprovedBudget,financialSummary,bonusEvidence,financeAccessKey,invalidateFinanceReads} from './canonical-finance.mjs?v=a51b74e79a07eec1';
 // Shared closed-month reader. No browser ledger is authoritative.
 export const optionalNumber=v=>v===null||v===undefined||v===''?null:Number.isFinite(Number(v))?Number(v):null;
 const financialPeriod=value=>typeof value==='string'&&/^20\d{2}-(0[1-9]|1[0-2])$/.test(value);

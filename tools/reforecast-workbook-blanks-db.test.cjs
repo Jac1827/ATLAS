@@ -1,6 +1,15 @@
 // Current governed atomic workflow regression for bounded private validation memory.
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{randomUUID}=require('node:crypto'),{fixture}=require('./reforecast-fixture.cjs');
 const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(root,'supabase/migrations',name),'utf8');
+// This fixture intentionally installs only the original workbook-blank SQL.
+// The newer client adds an intentional-blank count, which must be exactly zero
+// at the root and every month here; every other legacy coverage field still
+// participates in the unchanged deep comparison.
+function expectedLegacyWorkbookCoverage(coverage){
+ const withZero=row=>{assert.equal(Object.hasOwn(row,'reviewedForecastBlankCellCount'),false,'The pinned legacy SQL fixture must not include the new coverage field');return {...row,reviewedForecastBlankCellCount:0};};
+ assert.ok(Array.isArray(coverage.monthly));return {...withZero(coverage),monthly:coverage.monthly.map(withZero)};
+}
+
 (async()=>{
  const {parseReforecastWorkbook}=await import('../docs/portfolio-operations-dashboard/features/reforecast-intake.mjs');
  const {planningMappingDispositions}=await import('../docs/portfolio-operations-dashboard/features/planning-governance.mjs');
@@ -55,7 +64,7 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  for(const cell of result.receipt.importedCells){const line=result.snapshot.lines.find(l=>l.period===cell.period&&l.accountCode===cell.accountCode);assert.equal(line.forecast,cell.amount);if(cell.isBlank){assert.equal(line.disposition,'workbook_blank');assert.equal(line.legitimateBlank,true);assert.equal(line.selectedBaseline,cell.accountCode==='6100'?200:50);const compact=result.revision.payload.overrides.find(o=>o.sourceLineId===cell.sourceLineId);assert.deepEqual(Object.keys(compact).sort(),['accountCode','amount','disposition','isBlank','legitimateBlank','period','sourceLineId','uploadId'].sort());}}
  const {computeReforecast,roundMoney}=await import('../docs/portfolio-operations-dashboard/features/reforecast-engine.mjs');
  const js=computeReforecast({...result.source,scenario:{...result.revision.payload,versionId:result.revision.revision_id,driverVersion:result.revision.payload.driverVersion||'fixture-driver'}});
- assert.deepEqual(js.knownValueTotals,result.snapshot.knownValueTotals);assert.deepEqual(js.totals.reforecast,result.snapshot.totals.reforecast);assert.deepEqual(js.workbookCoverage,result.snapshot.workbookCoverage);
+ assert.deepEqual(js.knownValueTotals,result.snapshot.knownValueTotals);assert.deepEqual(js.totals.reforecast,result.snapshot.totals.reforecast);assert.deepEqual(js.workbookCoverage,expectedLegacyWorkbookCoverage(result.snapshot.workbookCoverage));
  // Private attestations bind an exact immutable context; public payloads cannot
  // supply one, and each ordinary save rebuilds it before validation.
  await db.exec('reset role');
@@ -151,7 +160,7 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  const spoofedUpload=await call('atlas_save_reforecast_upload',[A,randomUUID(),{...spoofedEvidence,integrity:{auditId:fullAudit.audit_id,fingerprint:fullAudit.fingerprint},propertyAssignment:assignment}]);
  const spoofed=await call('atlas_create_reforecast_from_import',[A,randomUUID(),0,randomUUID(),spoofedUpload.upload_id,missingReview,payload]);assert.equal(spoofed.snapshot.diagnostics.filter(d=>d.code==='numeric_source_exclusion_review_required').length,2);
  const incomplete=await call('atlas_create_reforecast_from_import',[A,randomUUID(),0,randomUUID(),fullUpload.upload_id,missingReview,payload]);assert.equal(incomplete.snapshot.diagnostics.filter(d=>d.code==='numeric_source_exclusion_review_required').length,2);assert.equal(incomplete.snapshot.status,'action_required');assert.ok(!incomplete.snapshot.lines.some(l=>l.accountCode==='5999'));
- const exactMissingReview={...missingReview,workbookSourcePolicy:policy};const exactIncomplete=await call('atlas_create_reforecast_from_import',[A,randomUUID(),0,randomUUID(),fullUpload.upload_id,exactMissingReview,payload]);assert.equal(exactIncomplete.snapshot.workbookCoverage.complete,false);assert.equal(exactIncomplete.snapshot.workbookCoverage.unreviewedSourceCellCount,2);assert.ok(exactIncomplete.snapshot.workbookCoverage.monthly.every(m=>m.complete===false&&m.unreviewedSourceCellCount===1));const exactIncompleteJs=computeReforecast({...exactIncomplete.source,scenario:{...exactIncomplete.revision.payload,versionId:exactIncomplete.revision.revision_id,driverVersion:'fixture'}});assert.deepEqual(exactIncompleteJs.workbookCoverage,exactIncomplete.snapshot.workbookCoverage);
+ const exactMissingReview={...missingReview,workbookSourcePolicy:policy};const exactIncomplete=await call('atlas_create_reforecast_from_import',[A,randomUUID(),0,randomUUID(),fullUpload.upload_id,exactMissingReview,payload]);assert.equal(exactIncomplete.snapshot.workbookCoverage.complete,false);assert.equal(exactIncomplete.snapshot.workbookCoverage.unreviewedSourceCellCount,2);assert.ok(exactIncomplete.snapshot.workbookCoverage.monthly.every(m=>m.complete===false&&m.unreviewedSourceCellCount===1));const exactIncompleteJs=computeReforecast({...exactIncomplete.source,scenario:{...exactIncomplete.revision.payload,versionId:exactIncomplete.revision.revision_id,driverVersion:'fixture'}});assert.deepEqual(exactIncompleteJs.workbookCoverage,expectedLegacyWorkbookCoverage(exactIncomplete.snapshot.workbookCoverage));
  const fullyNumeric=await call('atlas_create_reforecast_from_import',[A,randomUUID(),0,randomUUID(),fullUpload.upload_id,fullMapping,payload]);assert.equal(fullyNumeric.snapshot.completeness.blockerCount,0,JSON.stringify(fullyNumeric.snapshot.diagnostics));assert.equal(fullyNumeric.snapshot.workbookCoverage,undefined);assert.equal(fullyNumeric.snapshot.workbookSourceExclusions.length,2);assert.deepEqual(fullyNumeric.snapshot.workbookSourceExclusions.map(r=>r.sourceAmount),[700,701]);
  assert.deepEqual(fullyNumeric.source.workbookRelationshipProofs,{},'no proof is stamped for a resolver early return');
  const fullJs=computeReforecast({...fullyNumeric.source,scenario:{...fullyNumeric.revision.payload,versionId:fullyNumeric.revision.revision_id,driverVersion:'fixture'}});assert.deepEqual(fullJs.workbookSourceExclusions,fullyNumeric.snapshot.workbookSourceExclusions);assert.equal(fullJs.status,'ready');

@@ -1,0 +1,337 @@
+// Reviewed source-absent forecast policy through the installed public lifecycle.
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{randomUUID}=require('node:crypto'),{fixture}=require('./reforecast-fixture.cjs');
+const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(root,'supabase/migrations',name),'utf8');
+(async()=>{
+ const {parseReforecastWorkbook}=await import('../docs/portfolio-operations-dashboard/features/reforecast-intake.mjs');
+ const {planningMappingDispositions}=await import('../docs/portfolio-operations-dashboard/features/planning-governance.mjs');
+ const {prepareScopedReforecastEvidence}=await import('../docs/portfolio-operations-dashboard/features/reforecast-authority.mjs');
+ const XLSX=require('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js');
+ const {db,A,B,BUDGET,CLOSE,signIn}=await fixture(),owner='00000000-0000-0000-0000-000000000001';
+ const call=async(name,args)=>{const vp=name==='atlas_save_reforecast_scenario'&&args[4]==='vp_approve';if(vp)await signIn(5);try{return (await db.query(`select to_jsonb(public.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')})) result`,args)).rows[0].result}finally{if(vp)await signIn(1)}};
+ await db.exec('reset role');
+ await db.exec(migration('20260924121641_planning_cell_workbook_integrity_governance.sql'));
+ // Install the exact immutable audit storage/resolution functions; the remainder
+ // of this migration concerns financial close ingestion outside this fixture.
+ await db.exec(migration('20260924121647_immutable_workbook_audits_and_monthly_governance.sql').split('alter function atlas_private.finance_intake_validation')[0]);
+ for(const file of ['20260924165534_reforecast_builder_governance.sql','20260924165542_reforecast_report_receipts.sql','20260924232842_reforecast_governed_close_scope.sql','20260924232853_reforecast_str_overlay_isolation.sql','20260924235553_reforecast_active_import_close_scope.sql','20260925012933_reforecast_atomic_create_from_import.sql','20260925020220_reforecast_import_source_relationships.sql','20260925020222_reforecast_saved_json_str_programme.sql','20260925020226_reforecast_import_source_occurrence_index.sql','20260925071533_reforecast_request_identity_consistency.sql','20260925162050_budget_governed_draft_investor_lifecycle.sql'])await db.exec(migration(file));
+
+ await db.exec("create function atlas_private.budget_calendar(cid uuid) returns jsonb language sql as $$select '{\"verified\":true,\"basis\":\"calendar\",\"startMonth\":1}'::jsonb$$");
+ await db.exec(migration('20260928141143_reviewed_noncash_forecast_presentation.sql'));
+ await db.exec(migration('20260928142628_indexed_import_validation_evidence.sql'));
+ const memoryMigration=migration('20260928144620_bounded_reforecast_validation_memory.sql');
+ await db.exec(memoryMigration);
+ const relationshipOriginalDefinition=(await db.query("select pg_get_functiondef('atlas_private.validate_reforecast_source_relationships(jsonb,jsonb,jsonb)'::regprocedure) d")).rows[0].d;
+ const coreDefinition=(await db.query("select pg_get_functiondef('atlas_private.calculate_reforecast_before_saved_str(jsonb,jsonb)'::regprocedure) d")).rows[0].d;
+ const changedCore=coreDefinition.replace("   state:=jsonb_set(state,array[p||'|'||code],line,true);","   state :=jsonb_set(state,array[p||'|'||code],line,true);");
+ assert.notEqual(changedCore,coreDefinition);await db.exec(changedCore);await db.exec('begin');await assert.rejects(()=>db.exec(migration('20260928210158_verified_workbook_blank_forecast_semantics.sql')),/prerequisite differs/i);await db.exec('rollback');assert.equal((await db.query("select to_regprocedure('atlas_private.reforecast_workbook_policy(jsonb)') p")).rows[0].p,null);await db.exec(coreDefinition);
+ await db.exec(migration('20260928210158_verified_workbook_blank_forecast_semantics.sql'));
+ await db.exec(migration('20260928150652_governed_reforecast_save_timeout.sql'));
+ await db.exec(migration('20260928213333_investor_approval_source_validation.sql'));
+ const approvedMetricMappings={revenue:[{glCode:'5120',factor:1},{glCode:'5220',factor:1}],expenses:[{glCode:'6100',factor:1},{glCode:'6200',factor:1}],capital:[{glCode:'8100',factor:1}]};
+ await db.query("update atlas_approved_budget_versions set payload=payload||jsonb_build_object('metricMappings',$1::jsonb,'mappingVersion','approved-fixture-v1') where version_id=$2",[approvedMetricMappings,BUDGET]);
+ await signIn(1);
+ const initialSource=await call('atlas_read_reforecast_builder_source',[A,['2026-02'],[BUDGET],null,'original_budget',null]);
+ assert.equal(initialSource.registry.version,null);assert.equal(initialSource.baseline.approvedMetricMappings[0].versionId,BUDGET);assert.deepEqual(initialSource.baseline.approvedMetricMappings[0].metricMappings,approvedMetricMappings);
+ assert.equal((await db.query('select count(*)::int n from atlas_reforecast_registries')).rows[0].n,0,'published metric evidence never creates a registry implicitly');
+ const accounts=[['5120','Rent','income'],['5220','Vacancy','contra_income'],['6100','Payroll','expense'],['6200','Noncash','below_noi'],['8100','Capital','capital']].map(([accountCode,category,nature])=>({accountCode,category,nature,placement:['capital','below_noi'].includes(nature)?'below_noi':'above_noi',nonCash:nature==='below_noi',effectiveFrom:'2026-01'}));
+ const registry=await call('atlas_save_reforecast_registry',[A,null,randomUUID(),{accounts,nonCashClassificationVersion:1,driverMappings:{},reason:'Reviewed exact import registry',effectiveDate:'2026-01-01'}]);
+ const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Scenario','Plan','Currency','Local'],['GL','Account','Apr 2026','May 2026'],['5120','Rent',1001.005,1002.5],['5220','Vacancy',0,-1.005],['6100','Payroll',null,null],['6200','Noncash',null,null]]),'Plan');
+ const bytes=XLSX.write(wb,{type:'buffer',bookType:'xlsx'});let evidence=await parseReforecastWorkbook(bytes,{xlsx:XLSX,fileName:'Blank-source.xlsx',includeOriginalBytes:true});
+ const periods=['2026-04','2026-05'],reviewedAt='2026-09-28T00:00:00Z',assignment={communityId:A,confirmed:true,sourceEntities:[],actorId:owner,reason:'Reviewed community'};
+ const policy={schemaVersion:1,mode:'workbook_exact',blankDisposition:'preserve_null',confirmed:true,reviewedBy:owner,reviewedAt,reason:'Preserve source blanks and exact numeric values'};
+ const mapping={confirmed:true,version:registry.version_id,propertyAssignment:assignment,sourceScenario:'Plan',currency:'USD',periods,selectedLineIds:evidence.lines.map(l=>l.id),accountMappings:accounts.map(a=>({...a,sourceAccountCode:a.accountCode,sheet:'Plan',department:null,signMultiplier:1,allowReversal:false})),reason:'Import exact reviewed forecast values',reviewedBy:owner,reviewedAt,workbookSourcePolicy:policy,calendar:{basis:'calendar',startMonth:1,confirmed:true,periods,scenario:'Plan',reviewedBy:owner,reviewedAt},integrityReviews:[]};
+ evidence=(await prepareScopedReforecastEvidence(evidence,mapping,{xlsx:XLSX,sourceBytes:bytes})).evidence;
+ const audit=await call('atlas_save_workbook_audit',[A,evidence.source.sha256,evidence.integrity,randomUUID()]);
+ mapping.inputReviews=evidence.lines.filter(l=>l.amount!==null).map(l=>({cellId:l.id,confirmed:true,ownerId:owner,effectivePeriod:l.period,before:l.amount,after:l.amount,reason:'Reviewed input value',reviewedAt,integrityFingerprint:audit.fingerprint}));Object.assign(mapping,planningMappingDispositions(evidence,mapping));
+ // A reviewed cell blank is separate from its source row's legacy disposition.
+ mapping.rowDispositions=mapping.rowDispositions.map(row=>row.row>=5?{...row,disposition:'subtotal_control'}:row);
+ mapping.currencyMapping={sourceCurrency:'Local',reportingCurrency:'USD',method:'identity',confirmed:true,reviewedBy:owner,reviewedAt,reason:'Reviewed Local as USD'};
+ const upload=await call('atlas_save_reforecast_upload',[A,randomUUID(),{...evidence,integrity:{auditId:audit.audit_id,fingerprint:audit.fingerprint},propertyAssignment:assignment}]);
+ const payload={name:'Reviewed workbook blanks',model:'conventional',scenarioPurpose:'conventional',governanceSchemaVersion:2,calendar:{...mapping.calendar,scenario:'Reviewed workbook blanks'},periods,baselineType:'original_budget',baselineVersionIds:[BUDGET],registryVersionId:registry.version_id,ownerId:owner,reviewerId:owner,drivers:[],overrides:[],reason:'Review exact workbook blank semantics'};
+ const scenario=randomUUID(),request=randomUUID();
+ const addClose=async(period,capital)=>{await db.exec('reset role');const id=randomUUID();await db.query('insert into atlas_financial_close_versions select $1,community_id,$2,$3,approved_at,metrics from atlas_financial_close_versions where version_id=$4',[id,period,'close-'+period,CLOSE]);await db.query("insert into atlas_financial_close_heads values($1,$2,'accrual',$3)",[A,period,id]);await db.query("insert into atlas_financial_close_rows select $1,gl_code,case when gl_code='8100' then $2::numeric else actual end,source_location from atlas_financial_close_rows where version_id=$3",[id,capital,CLOSE]);await signIn(1);};
+ await addClose('2026-02',0);await addClose('2026-03',-30);
+ let original=await call('atlas_create_reforecast_from_import',[A,scenario,0,request,upload.upload_id,mapping,payload]);
+ assert.equal(original.snapshot.workbookCoverage.sourceAbsentCellCount,2);
+ const originalJson=JSON.stringify(original.revision),receiptJson=JSON.stringify(original.receipt);
+ const newMigration=fs.readdirSync(path.join(root,'supabase/migrations')).find(f=>f.endsWith('_reviewed_forecast_blank_policy.sql'));
+ await db.exec('reset role');
+ const metadata=async()=>(await db.query("select proname,prosecdef,provolatile,proconfig,proacl::text from pg_proc where oid in ('atlas_private.save_reforecast_builder(uuid,uuid,integer,uuid,text,jsonb)'::regprocedure,'public.atlas_save_reforecast_scenario(uuid,uuid,integer,uuid,text,jsonb)'::regprocedure,'public.atlas_publish_reforecast(uuid,integer,uuid,text)'::regprocedure,'atlas_private.calculate_reforecast(jsonb,jsonb)'::regprocedure,'atlas_private.attach_reforecast_workbook_context(jsonb,jsonb)'::regprocedure,'atlas_private.create_reforecast_from_import(uuid,uuid,integer,uuid,uuid,jsonb,jsonb)'::regprocedure,'public.atlas_create_reforecast_from_import(uuid,uuid,integer,uuid,uuid,jsonb,jsonb)'::regprocedure) order by proname")).rows;
+ const beforeMetadata=await metadata();
+ const atomicDefinition=(await db.query("select pg_get_functiondef('atlas_private.create_reforecast_from_import(uuid,uuid,integer,uuid,uuid,jsonb,jsonb)'::regprocedure) d")).rows[0].d;
+ const scopeDefinition=(await db.query("select pg_get_functiondef('atlas_private.resolve_reforecast_workbook_scope(jsonb,jsonb)'::regprocedure) d")).rows[0].d;
+ await db.exec(scopeDefinition.replace('begin'+String.fromCharCode(10),'begin '+String.fromCharCode(10)));await assert.rejects(()=>db.exec(migration(newMigration)),/prerequisite differs/i);await db.exec('rollback');assert.equal((await db.query("select to_regprocedure('atlas_private.resolve_reforecast_reviewed_forecast_blanks(jsonb,jsonb)') p")).rows[0].p,null);await db.exec(scopeDefinition);
+ await db.exec(migration(newMigration));assert.deepEqual(await metadata(),beforeMetadata);
+ assert.equal((await db.query("select has_function_privilege('authenticated','atlas_private.resolve_reforecast_reviewed_forecast_blanks(jsonb,jsonb)','execute') allowed")).rows[0].allowed,false);
+ await signIn(1);
+ const {projectImportUpdatePayload}=await import('../docs/portfolio-operations-dashboard/features/reforecast-store.mjs');
+ const reviewed=structuredClone(mapping);reviewed.workbookSourcePolicy.reviewedForecastBlanks=periods.map(period=>({period,accountCode:'8100',confirmed:true,reviewedBy:owner,reviewedAt,reason:'Forecast intentionally blank until reviewed user input'}));
+ const compact=projectImportUpdatePayload(original.revision.payload,{uploadId:upload.upload_id,mapping:reviewed,expectedLines:original.receipt.importedCells});
+ const updateRequest=randomUUID();
+ let result=await call('atlas_create_reforecast_from_import',[A,scenario,original.head.revision,updateRequest,upload.upload_id,reviewed,compact]);
+ assert.equal(result.snapshot.workbookCoverage.reviewedForecastBlankCellCount,2);
+ assert.equal(result.snapshot.workbookCoverage.sourceAbsentCellCount,0);assert.equal(result.snapshot.workbookCoverage.outsideForecastScopeCellCount,0);
+ assert.equal(result.snapshot.completeness.blockerCount,0,JSON.stringify(result.snapshot.diagnostics));
+ assert.equal(result.snapshot.workbookCoverage.totalsBasis,'known_forecast_values');assert.equal(result.receipt.importedCells.length,8);
+ assert.equal(result.source.workbookReviewedForecastBlankCells.length,2);
+ // Shared absence validation retains the exact original mapping fingerprint.
+ // Compare both projections to the prior implementation, then make a repeated
+ // full relationship scan fail: exact validated proofs must avoid that scan,
+ // while changed policy/mapping or source/audit bindings must not reuse it.
+ await db.exec('reset role');
+ const scopeConfig=structuredClone(result.revision.payload);
+ scopeConfig.importMapping=structuredClone(reviewed);
+ scopeConfig.importMapping.workbookSourcePolicy.outsideForecastScope=[scopeConfig.importMapping.workbookSourcePolicy.reviewedForecastBlanks.shift()];
+ const scopeSource=(await db.query('select atlas_private.attach_reforecast_workbook_context($1,$2) v',[result.source,scopeConfig])).rows[0].v;
+ const absenceCall=async(name,s=scopeSource,c=scopeConfig)=>(await db.query(`select atlas_private.${name}($1,$2) v`,[s,c])).rows[0].v;
+ await db.exec(scopeDefinition.replace('atlas_private.resolve_reforecast_workbook_scope(', 'atlas_private.scope_before_absence_optimization('));
+ const oldExcluded=await absenceCall('scope_before_absence_optimization');
+ const oldReviewedConfig=structuredClone(scopeConfig);oldReviewedConfig.importMapping.workbookSourcePolicy.outsideForecastScope=oldReviewedConfig.importMapping.workbookSourcePolicy.reviewedForecastBlanks;
+ const oldReviewed=(await absenceCall('scope_before_absence_optimization',scopeSource,oldReviewedConfig)).map(cell=>({...cell,amount:null,disposition:'reviewed_forecast_blank',isBlank:true,legitimateBlank:true,reviewedForecastBlankConfirmed:true,sourceScopeExclusionConfirmed:false,source:{...cell.source,kind:'reviewed_forecast_blank',workbookSourceAbsent:true}}));
+ assert.deepEqual(await absenceCall('resolve_reforecast_workbook_scope'),oldExcluded);
+ assert.deepEqual(await absenceCall('resolve_reforecast_reviewed_forecast_blanks'),oldReviewed);
+ const validationFunction=(await db.query("select pg_get_functiondef(oid) definition,prosrc body from pg_proc where oid='atlas_private.validate_reforecast_source_relationships(jsonb,jsonb,jsonb)'::regprocedure")).rows[0];
+ await db.exec(validationFunction.definition.replace(validationFunction.body,"\nbegin raise exception 'Full immutable relationship validation reached';end;\n"));
+ try {
+  assert.deepEqual(await absenceCall('resolve_reforecast_workbook_scope'),oldExcluded);
+  assert.deepEqual(await absenceCall('resolve_reforecast_reviewed_forecast_blanks'),oldReviewed);
+  await assert.rejects(()=>absenceCall('scope_before_absence_optimization',scopeSource,oldReviewedConfig),/Full immutable relationship validation reached/,'Old temporary exclusion mapping invalidated the full original fingerprint');
+  for(const change of [c=>c.importMapping.reason+=' changed',c=>c.importMapping.workbookSourcePolicy.reviewedForecastBlanks[0].reason+=' changed',c=>c.importMapping.workbookSourcePolicy.outsideForecastScope[0].reason+=' changed']){
+   const changed=structuredClone(scopeConfig);change(changed);
+   for(const resolver of ['resolve_reforecast_workbook_scope','resolve_reforecast_reviewed_forecast_blanks'])await assert.rejects(()=>absenceCall(resolver,scopeSource,changed),/Full immutable relationship validation reached/);
+  }
+  for(const field of ['sourceHash','auditId','mappingFingerprint']){
+   const changed=structuredClone(scopeSource);changed.workbookRelationshipProofs[upload.upload_id][field]='forged';
+   for(const resolver of ['resolve_reforecast_workbook_scope','resolve_reforecast_reviewed_forecast_blanks'])await assert.rejects(()=>absenceCall(resolver,changed),/Full immutable relationship validation reached/);
+  }
+ } finally {await db.exec(validationFunction.definition);await db.exec('drop function atlas_private.scope_before_absence_optimization(jsonb,jsonb)');}
+ const absencePrivileges=(await db.query("select p.prosecdef,has_function_privilege('anon',p.oid,'execute') anon_execute,has_function_privilege('authenticated',p.oid,'execute') authenticated_execute,exists(select 1 from aclexplode(p.proacl) a where a.grantee=0 and a.privilege_type='EXECUTE') public_execute from pg_proc p where oid='atlas_private.resolve_reforecast_workbook_absence(jsonb,jsonb,jsonb,text)'::regprocedure")).rows[0];
+ assert.deepEqual(absencePrivileges,{prosecdef:false,anon_execute:false,authenticated_execute:false,public_execute:false});
+ await signIn(1);
+ for(const row of result.snapshot.lines.filter(l=>l.accountCode==='8100')){
+  assert.equal(row.forecast,null);assert.equal(row.originalBudget,20);assert.equal(row.disposition,'reviewed_forecast_blank');assert.equal(row.legitimateBlank,true);assert.equal(row.reviewedForecastBlankConfirmed,true);assert.equal(row.sourceScopeExclusionConfirmed,false);
+  assert.equal(row.workbookSourceAmount,null);assert.equal(row.workbookSourceDisposition,'source_absent');assert.equal(row.source.kind,'reviewed_forecast_blank');assert.equal(row.source.workbookSourceAbsent,true);assert.equal(row.source.uploadId,upload.upload_id);assert.equal(row.source.auditId,audit.audit_id);assert.equal(row.source.sourceHash,evidence.source.sha256);assert.ok(!('sourceLineId' in row.source));assert.ok(!('address' in row.source));
+ }
+ const save=(r,body=r.revision.payload,action='save_draft',id=randomUUID())=>call('atlas_save_reforecast_scenario',[A,scenario,r.head.revision,id,action,body]);
+ const preserved=(await call('atlas_read_reforecast_import_receipt',[A,request]));assert.equal(JSON.stringify(preserved.receipt),receiptJson);
+ assert.deepEqual((await db.query('select to_jsonb(r) row from atlas_reforecast_revisions r where revision_id=$1',[original.revision.revision_id])).rows[0].row,JSON.parse(originalJson));
+ // Compare the real public atomic route before/after the gate relocation. Each
+ // branch rolls back, so identical scenario/request/upload/config inputs are
+ // used. Only generated timestamps, revision IDs and their derived hashes are
+ // normalized; financial values, diagnostics and all source evidence compare.
+ await db.exec('reset role');
+ const atomicSignature='atlas_private.create_reforecast_from_import(uuid,uuid,integer,uuid,uuid,jsonb,jsonb)';
+ const atomicOptimized=(await db.query(`select pg_get_functiondef('${atomicSignature}'::regprocedure) d`)).rows[0].d;
+ const validator=(await db.query("select pg_get_functiondef(oid) definition,prosrc body from pg_proc where oid='atlas_private.validate_reforecast_source_relationships(jsonb,jsonb,jsonb)'::regprocedure")).rows[0];
+ await db.exec('create sequence atlas_private.test_relationship_validation_calls');
+ await db.exec(validator.definition.replace(validator.body,()=>validator.body.replace('begin\n',"begin\n perform nextval('atlas_private.test_relationship_validation_calls'::regclass);\n")));
+ const validations=async()=>(await db.query('select last_value::int n,is_called from atlas_private.test_relationship_validation_calls')).rows[0];
+ const counterValue=v=>v.is_called?v.n:0;
+ const normalizedSnapshot=r=>{
+  const generated=new Map([[r.revision.revision_id,'<generated-revision>'],[r.snapshot.fingerprint,'<snapshot-fingerprint>'],[r.source.sourceVersion,'<source-version>'],[r.receipt.created_at,'<generated-import-time>'],[r.revision.created_at,'<generated-revision-time>']]);
+  const walk=x=>typeof x==='string'?(generated.get(x)||x):Array.isArray(x)?x.map(walk):x&&typeof x==='object'?Object.fromEntries(Object.entries(x).map(([k,v])=>[k,walk(v)])):x;
+  return walk({source:r.source,snapshot:r.snapshot,payload:r.revision.payload,status:r.revision.status,receipt:{importedCells:r.receipt.importedCells,excludedRows:r.receipt.excludedRows,blockers:r.receipt.blockers,reconciliation:r.receipt.reconciliation}});
+ };
+ const preservationTables=['public.atlas_reforecast_events','public.atlas_reforecast_source_reviews','public.atlas_reforecast_heads','public.atlas_reforecast_revisions','public.atlas_reforecast_import_receipts','public.atlas_reforecast_uploads','public.atlas_budget_workflow_audit','public.atlas_reforecast_publications','atlas_private.reforecast_write_requests'];
+ const captureAtomicState=async()=>{await db.exec('reset role');const state={};for(const name of preservationTables)state[name]=(await db.query(`select count(*)::int count,md5(coalesce(jsonb_agg(to_jsonb(t) order by to_jsonb(t)::text),'[]')::text) hash from ${name} t`)).rows[0];await signIn(1);return state;};
+ const runAtomicVersion=async(definition,args)=>{
+  await db.exec('reset role');await db.exec(definition);const before=counterValue(await validations());await signIn(1);await db.exec('begin');
+  let output;try{output=await call('atlas_create_reforecast_from_import',args);}finally{await db.exec('rollback');}
+  await db.exec('reset role');return {output,validations:counterValue(await validations())-before};
+ };
+ try{
+  for(const [m,update] of [[mapping,false],[reviewed,false],[reviewed,true]]){
+   const body=update?projectImportUpdatePayload(result.revision.payload,{uploadId:upload.upload_id,mapping:reviewed,expectedLines:result.receipt.importedCells}):payload;
+   const args=[A,update?scenario:randomUUID(),update?result.head.revision:0,randomUUID(),upload.upload_id,m,body];
+   const old=await runAtomicVersion(atomicDefinition,args),current=await runAtomicVersion(atomicOptimized,args);
+   assert.deepEqual(normalizedSnapshot(current.output),normalizedSnapshot(old.output),'Atomic deferral must preserve source, payload, financial snapshot and diagnostics');
+   assert.equal(current.validations,1,'One complete immutable relationship validation remains mandatory');assert.equal(old.validations,current.validations+1,'Only the redundant full relationship validation is removed');
+   assert.equal(current.output.snapshot.workbookCoverage.sourceAbsentCellCount,m===mapping?2:0);
+   assert.equal(current.output.snapshot.completeness.blockerCount,m===mapping?4:0);
+  }
+  for(const mutate of [m=>m.accountMappings[0].signMultiplier=0,m=>{m.currency='EUR';}]){
+   const bad=structuredClone(reviewed);mutate(bad);const args=[A,randomUUID(),0,randomUUID(),upload.upload_id,bad,payload],before=await captureAtomicState();
+   for(const definition of [atomicDefinition,atomicOptimized]){
+    await db.exec('reset role');await db.exec(definition);await signIn(1);await db.exec('begin');
+    try{await assert.rejects(()=>call('atlas_create_reforecast_from_import',args),/mapping|numeric|currency|review|integrity/i);}finally{await db.exec('rollback');}
+    assert.deepEqual(await captureAtomicState(),before,'Both old/new invalid public calls must roll back every retained row');
+   }
+  }
+ }finally{await db.exec('reset role');await db.exec(atomicOptimized);await db.exec(validator.definition);await db.exec('drop sequence atlas_private.test_relationship_validation_calls');await signIn(1);}
+ // Force an import issue only AFTER the inner lifecycle has inserted its
+ // revision/head/audit. Both create and update must throw and roll every row
+ // back; upload evidence and every existing record remain byte-identical.
+
+ const issuesFunction=(await db.query("select pg_get_functiondef(oid) definition,prosrc body from pg_proc where oid='atlas_private.reforecast_import_issues(jsonb,jsonb)'::regprocedure")).rows[0];
+ for(const update of [false,true]){
+  const requestId=randomUUID(),scenarioId=update?scenario:randomUUID(),rev=update?result.head.revision:0,body=update?projectImportUpdatePayload(result.revision.payload,{uploadId:upload.upload_id,mapping:reviewed,expectedLines:result.receipt.importedCells}):payload;
+  const before=await captureAtomicState();await db.exec('reset role');
+  await db.exec(issuesFunction.definition.replace(issuesFunction.body,()=>issuesFunction.body.replace('begin\n',`begin\n if exists(select 1 from public.atlas_reforecast_revisions where request_id='${requestId}'::uuid) then return '[{"code":"post_save_gate_fixture","severity":"error","message":"Reject after lifecycle insert"}]'::jsonb;end if;\n`)));
+  try{await signIn(1);await assert.rejects(()=>call('atlas_create_reforecast_from_import',[A,scenarioId,rev,requestId,upload.upload_id,reviewed,body]),/Workbook mapping validation failed.*post_save_gate_fixture/);assert.deepEqual(await captureAtomicState(),before,'Atomic rejected create/update left a scenario, revision, head, audit, receipt or changed upload');}
+  finally{await db.exec('reset role');await db.exec(issuesFunction.definition);await signIn(1);}
+  // The rejected request leaves no identity reservation: an exact valid retry
+  // after the test-only issue is removed still works, then is rolled back.
+  await db.exec('begin');try{const retry=await call('atlas_create_reforecast_from_import',[A,scenarioId,rev,requestId,upload.upload_id,reviewed,body]);assert.equal(retry.head.revision,rev+1);assert.equal(retry.receipt.request_id,requestId);}finally{await db.exec('rollback');}
+  assert.deepEqual(await captureAtomicState(),before);
+  const invalid=structuredClone(reviewed);invalid.accountMappings[0].signMultiplier=0;
+  await assert.rejects(()=>call('atlas_create_reforecast_from_import',[A,scenarioId,rev,randomUUID(),upload.upload_id,invalid,body]),/mapping|numeric|source/i);
+  assert.deepEqual(await captureAtomicState(),before,'An invalid create/update changed retained atomic state');
+ }
+ const identityBefore=await captureAtomicState();
+ await assert.rejects(()=>call('atlas_create_reforecast_from_import',[A,scenario,original.head.revision,updateRequest,upload.upload_id,{...reviewed,reason:reviewed.reason+' changed'},compact]),/request ID reused/i);
+ await signIn(2);await assert.rejects(()=>call('atlas_create_reforecast_from_import',[A,scenario,original.head.revision,updateRequest,upload.upload_id,reviewed,compact]),/request ID reused/i);await signIn(1);
+ await assert.rejects(()=>call('atlas_create_reforecast_from_import',[B,randomUUID(),0,randomUUID(),upload.upload_id,reviewed,payload]),/access|community/i);
+ assert.deepEqual(await captureAtomicState(),identityBefore);
+ const exactRetry=await call('atlas_create_reforecast_from_import',[A,scenario,original.head.revision,updateRequest,upload.upload_id,reviewed,compact]);assert.deepEqual(exactRetry,result,'Same authorized atomic request returns its exact immutable receipt');
+ const countRows=async()=>(await db.query('select (select count(*) from atlas_reforecast_revisions)::int revisions,(select count(*) from atlas_reforecast_import_receipts)::int receipts,(select count(*) from atlas_reforecast_publications)::int publications')).rows[0];
+ const rejectMapping=async(m,pattern)=>{const before=await countRows();await assert.rejects(()=>call('atlas_create_reforecast_from_import',[A,randomUUID(),0,randomUUID(),upload.upload_id,m,payload]),pattern);assert.deepEqual(await countRows(),before);};
+ for(const [mutate,pattern] of [
+  [m=>m.workbookSourcePolicy.reviewedForecastBlanks.push({...m.workbookSourcePolicy.reviewedForecastBlanks[0]}),/duplicate/i],
+  [m=>m.workbookSourcePolicy.reviewedForecastBlanks[0].accountCode='6100',/source row exists/i],
+  [m=>{m.selectedLineIds=m.selectedLineIds.filter(id=>!id.startsWith('Plan!C3'));m.workbookSourcePolicy.reviewedForecastBlanks[0].accountCode='5120';},/source row exists|selected|source/i],
+  [m=>m.workbookSourcePolicy.reviewedForecastBlanks[0].accountCode='UNKNOWN',/registry/i],
+  [m=>m.workbookSourcePolicy.reviewedForecastBlanks[0].confirmed=false,/explicit/i],
+  [m=>m.workbookSourcePolicy.reviewedForecastBlanks[0].reason='',/explicit/i],
+  [m=>m.workbookSourcePolicy.reviewedForecastBlanks[0].reviewedAt='2026-99-99T00:00:00Z',/timestamp/i],
+  [m=>m.workbookSourcePolicy.reviewedForecastBlanks[0].reviewedBy='00000000-0000-0000-0000-000000000002',/actor/i],
+  [m=>m.workbookSourcePolicy.outsideForecastScope=[{...m.workbookSourcePolicy.reviewedForecastBlanks[0]}],/cannot also/i],
+  [m=>m.workbookSourcePolicy.reviewedForecastBlanks={},/explicit/i]
+ ]){const m=structuredClone(reviewed);mutate(m);await rejectMapping(m,pattern);}
+ const editValue=(r,amount)=>{const c=structuredClone(r.revision.payload),row=r.snapshot.lines.find(l=>l.period===periods[0]&&l.accountCode==='8100');c.overrides=c.overrides.filter(o=>!(o.period===periods[0]&&o.accountCode==='8100')).concat({period:periods[0],accountCode:'8100',amount,confirmed:true,reason:'User reviewed forecast adjustment',ownerId:owner,effectivePeriod:periods[0],reviewedAt,before:row.forecast,after:amount,source:{kind:'user',workbookSourceAbsent:true,reviewedForecastBlank:structuredClone(row.workbookSource)}});return c;};
+ // Override indexes preserve SELECT INTO's first matching row, ignore SQL-null
+ // identities, and keep tuple keys distinct even when fields contain delimiters.
+ await db.exec('reset role');
+ const checkEdit=async(c,old=result.revision.payload,s=result.source,snapshot=result.snapshot)=>db.query('select atlas_private.validate_reviewed_forecast_blank_edit($1,$2,$3,$4)',[s,c,old,snapshot]);
+ const firstEdit=editValue(result,17),validEdit=structuredClone(firstEdit.overrides.at(-1)),badEdit={...validEdit,ownerId:'00000000-0000-0000-0000-000000000002'};
+ const emptyIdentities=[null,{period:null,accountCode:'8100'},{period:periods[0],accountCode:null}];
+ firstEdit.overrides=[...emptyIdentities,...firstEdit.overrides,badEdit];await checkEdit(firstEdit);
+ const wrongFirst=structuredClone(firstEdit);wrongFirst.overrides=[badEdit,...wrongFirst.overrides];await assert.rejects(()=>checkEdit(wrongFirst),/signed-in/i);
+ const retainedOther=structuredClone(firstEdit);retainedOther.overrides=[badEdit];const priorOther=structuredClone(retainedOther);priorOther.overrides=[...emptyIdentities,badEdit,validEdit];await checkEdit(retainedOther,priorOther);
+ priorOther.overrides=[validEdit,badEdit];await assert.rejects(()=>checkEdit(retainedOther,priorOther),/signed-in/i);
+ const tupleSource=structuredClone(result.source),tupleConfig=structuredClone(result.revision.payload);tupleSource.periods=['a|b','a'];tupleSource.actuals.cutoffPeriod=null;tupleSource.actuals.notApplicablePeriods=[];tupleSource.lockedPeriods=[];
+ tupleConfig.importMapping.workbookSourcePolicy.reviewedForecastBlanks=[{...reviewed.workbookSourcePolicy.reviewedForecastBlanks[0],period:'a|b',accountCode:'c'},{...reviewed.workbookSourcePolicy.reviewedForecastBlanks[1],period:'a',accountCode:'b|c'}];
+ tupleConfig.overrides=tupleConfig.importMapping.workbookSourcePolicy.reviewedForecastBlanks.map((r,i)=>({period:r.period,accountCode:r.accountCode,amount:i,source:{kind:'user'}}));
+ await checkEdit(tupleConfig,structuredClone(tupleConfig),tupleSource,{lines:[]});
+ await signIn(1);
+ for(const amount of [-15.25,0,42.5]){
+  const c=editValue(result,amount);result=await save(result,c);const row=result.snapshot.lines.find(l=>l.period===periods[0]&&l.accountCode==='8100');
+  assert.equal(row.forecast,amount);assert.equal(row.disposition,'reviewer_override');assert.equal(row.source.kind,'user');assert.equal(row.workbookSourceAmount,null);assert.equal(row.workbookSourceDisposition,'source_absent');assert.equal(row.workbookSource.kind,'reviewed_forecast_blank');assert.equal(result.snapshot.workbookCoverage.reviewedForecastBlankCellCount,1);
+ }
+ for(const mutate of [c=>c.overrides.at(-1).source.kind='workbook_import',c=>c.overrides.at(-1).source.reviewedForecastBlank.uploadId=randomUUID(),c=>c.overrides.at(-1).ownerId='00000000-0000-0000-0000-000000000002',c=>c.overrides.at(-1).before=999,c=>c.overrides.at(-1).after=999,c=>c.overrides.at(-1).confirmed=false,c=>c.overrides.at(-1).reviewedAt='bad']){
+  const c=editValue(result,9);mutate(c);const before=await countRows();await assert.rejects(()=>save(result,c),/review|signed-in|origin/i);assert.deepEqual(await countRows(),before);
+ }
+ // Explicit removal is an audited save and restores the reviewed null policy.
+ const clear=structuredClone(result.revision.payload);clear.reason='User cleared forecast back to intentional blank';clear.history=[...(clear.history||[]),{action:'clear_reviewed_forecast_blank',actor:owner,timestamp:reviewedAt,period:periods[0],accountCode:'8100',before:42.5,after:null,reason:clear.reason}];clear.overrides=clear.overrides.filter(o=>!(o.period===periods[0]&&o.accountCode==='8100'));result=await save(result,clear);
+ assert.equal(result.snapshot.lines.find(l=>l.period===periods[0]&&l.accountCode==='8100').forecast,null);assert.equal(result.snapshot.workbookCoverage.reviewedForecastBlankCellCount,2);
+ for(const mutate of [c=>delete c.importMapping.workbookSourcePolicy,c=>c.importMapping.workbookSourcePolicy.reviewedForecastBlanks=[],c=>delete c.importMapping,c=>delete c.uploadId]){const c=structuredClone(result.revision.payload);mutate(c);const n=await countRows();await assert.rejects(()=>save(result,c),/Retain.*(provenance|policy)|Reviewed workbook blank policy/i);assert.deepEqual(await countRows(),n);}
+ // A stored review survives another authorized actor without impersonating them.
+ await signIn(2);const retained=await save(result);assert.equal(retained.snapshot.workbookCoverage.reviewedForecastBlankCellCount,2);result=retained;await signIn(1);
+ const forged=structuredClone(result.revision.payload);forged.importMapping.workbookSourcePolicy.reviewedForecastBlanks[0].reason+=' changed';await signIn(2);await assert.rejects(()=>save(result,forged),/signed-in/i);await signIn(1);
+ const driver=structuredClone(result.revision.payload);driver.drivers=[{id:'unaccepted',operation:'amount',value:77,periods,accountCodes:['8100'],reason:'Unaccepted proposed amount'}];await assert.rejects(()=>save(result,driver),/recommendation/i);
+ // The complete original request replay remains byte-identical after the policy.
+ const originalReplay=await call('atlas_create_reforecast_from_import',[A,scenario,0,request,upload.upload_id,mapping,payload]);assert.equal(JSON.stringify(originalReplay.receipt),receiptJson);assert.equal(JSON.stringify(originalReplay.revision),originalJson);
+ // Existing ordinary ratio acceptance/undo remains a valid public save path.
+ const ratioBefore=structuredClone(result.revision.payload),ratioAccepted=structuredClone(ratioBefore),ratioId='ordinary-ratio';ratioAccepted.drivers=[{id:'ratio-rent',type:'historical_ratio',operation:'percent_change',accountCodes:['5120'],periods,value:.1,reason:'Explicit ordinary ratio review',recommendationId:ratioId}];ratioAccepted.suggestionDecisions=[...(ratioBefore.suggestionDecisions||[]),{id:ratioId,status:'accepted',actor:owner,timestamp:reviewedAt,reason:'Explicit ordinary ratio review',proposedValue:.1,appliedValue:.1}];ratioAccepted.history=[...(ratioBefore.history||[]),{action:'accept',actor:owner,timestamp:reviewedAt,recommendationIds:[ratioId],before:ratioBefore.drivers,after:ratioAccepted.drivers}];result=await save(result,ratioAccepted);assert.equal(result.revision.payload.suggestionDecisions.at(-1).id,ratioId);
+ const ratioUndone=structuredClone(result.revision.payload);ratioUndone.drivers=ratioBefore.drivers;ratioUndone.suggestionDecisions=ratioBefore.suggestionDecisions||[];ratioUndone.history.push({action:'undo',actor:owner,timestamp:reviewedAt,before:ratioAccepted.drivers,after:ratioBefore.drivers});result=await save(result,ratioUndone);assert.ok(!result.revision.payload.suggestionDecisions.some(d=>d.id===ratioId));
+ const ratioRejected=structuredClone(result.revision.payload);ratioRejected.suggestionDecisions.push({id:'ordinary-ratio-rejected',status:'rejected',actor:owner,timestamp:reviewedAt,reason:'Retain current assumption',proposedValue:.2,appliedValue:null});ratioRejected.history.push({action:'reject',actor:owner,timestamp:reviewedAt,recommendationIds:['ordinary-ratio-rejected'],before:[],after:[]});result=await save(result,ratioRejected);const rejectionUndo=structuredClone(result.revision.payload);rejectionUndo.suggestionDecisions=rejectionUndo.suggestionDecisions.filter(d=>d.id!=='ordinary-ratio-rejected');rejectionUndo.history.push({action:'undo',actor:owner,timestamp:reviewedAt,before:[],after:[]});result=await save(result,rejectionUndo);
+ // Server-resolved recommendation history and public save path, not supplied mocks.
+ const history=result.source.recommendationHistory.filter(h=>h.eligible&&h.lines.some(l=>l.accountCode==='8100'));
+ assert.equal(history.length,3);
+ const makeRecommendation=(r,{weights={},value=55}={})=>{
+  const c=structuredClone(r.revision.payload),observations=r.source.recommendationHistory.filter(h=>h.eligible).sort((a,b)=>a.period.localeCompare(b.period)).map((h,index)=>{const row=h.lines.find(l=>l.accountCode==='8100'),b=h.baseline.lines.find(l=>l.accountCode==='8100');return {period:h.period,actual:row.actual,weight:weights[h.period]??index+1,sourceRows:[{accountCode:'8100',actual:row.actual,baseline:b.amount,baselineLineage:{sourceType:h.baseline.sourceType,versionId:h.baseline.versionId,publicationId:h.baseline.publicationId||null,contentHash:h.baseline.contentHash},versionId:h.closeVersionId,sourceHash:h.sourceHash}]};}).filter(o=>o.weight>0);
+  const proposed=weights['2026-01']===.1?-11.67:-11.67,evidence={method:'weighted_governed_actual_amount',sampleCount:observations.length,totalWeight:weights['2026-01']===.1?.6:6,observations,seasonality:'historical_monthly_amount_estimate',successorRelationships:[]};
+  const id='synthetic-reviewed-history-'+randomUUID(),source=r.snapshot.fingerprint,review={confirmed:true,reviewedBy:owner,reviewedAt,reason:'Accept reviewed estimate with explicitly edited amount',proposedValue:proposed,appliedValue:value};
+  c.recommendationWeights=weights;c.drivers=[{id:'historical-blank-8100',type:'historical_weighted_amount',operation:'amount',accountCodes:['8100'],periods,value,source,evidence,reason:review.reason,recommendationId:id,ownerId:owner,reviewedAt,recommendationReview:review}];c.suggestionDecisions=[...(c.suggestionDecisions||[]),{id,status:'accepted',actor:owner,timestamp:reviewedAt,reason:review.reason,source,cutoff:r.source.actuals.cutoffPeriod,proposedValue:proposed,appliedValue:value}];c.history=[...(c.history||[]),{action:'accept',actor:owner,timestamp:reviewedAt,recommendationIds:[id],before:structuredClone(r.revision.payload.drivers||[]),after:structuredClone(c.drivers)}];return c;
+ };
+ const clientEnginePath=process.env.ATLAS_REVIEWED_BLANK_CLIENT_ENGINE||path.join(root,'docs/portfolio-operations-dashboard/features/reforecast-engine.mjs'),clientEngine=await import(require('node:url').pathToFileURL(clientEnginePath).href);
+ const clientSnapshot=clientEngine.computeReforecast({...result.source,scenario:{...result.revision.payload,versionId:result.revision.revision_id,driverVersion:'public-source-fixture'}}),clientProposal=clientEngine.recommendReforecast({snapshot:clientSnapshot}).find(r=>r.driver.type==='historical_weighted_amount'&&r.accountCodes.includes('8100'));assert.ok(clientProposal,'Integrated client must propose from the real governed source history');assert.equal(clientProposal.proposedValue,-11.67);
+ const proposal=clientEngine.applyRecommendations(result.revision.payload,[clientProposal],{ids:[clientProposal.id],actor:owner,timestamp:reviewedAt,versionId:'accepted-public-source',driverVersion:'accepted-driver',edits:{[clientProposal.id]:55},reason:'Accept reviewed estimate with explicitly edited amount'}),beforeRecommendation=result;
+
+ for(const mutate of [c=>c.drivers[0].evidence.observations[0].actual=999,c=>c.drivers[0].evidence.observations[0].sourceRows[0].sourceHash='forged',c=>c.drivers[0].evidence.observations[0].sourceRows[0].versionId=randomUUID(),c=>c.drivers[0].evidence.observations[0].sourceRows[0].baselineLineage.contentHash='forged',c=>c.drivers[0].evidence.observations[1].period=c.drivers[0].evidence.observations[0].period,c=>c.drivers[0].evidence.observations.pop(),c=>c.drivers[0].evidence.observations[0].weight=7,c=>c.drivers[0].recommendationReview.proposedValue=100,c=>c.suggestionDecisions[0].status='rejected',c=>c.drivers[0].evidence.successorRelationships=[{accountCode:'other'}],c=>c.recommendationWeights={'2026-01':-1},c=>c.drivers[0].recommendationReview.appliedValue=999,c=>c.suggestionDecisions[0].reason='Different review reason']){
+  const c=structuredClone(proposal);mutate(c);const before=await countRows();await assert.rejects(()=>save(result,c),/recommendation/i);assert.deepEqual(await countRows(),before);
+ }
+ result=await save(result,proposal);assert.ok(result.snapshot.lines.filter(l=>l.accountCode==='8100').every(l=>l.forecast===55&&l.disposition==='reviewer_override'&&l.reviewedForecastBlankConfirmed===false&&l.source.kind==='user'&&l.workbookSourceAmount===null),JSON.stringify(result.snapshot.lines.filter(l=>l.accountCode==='8100')));
+ assert.equal(result.snapshot.workbookCoverage.reviewedForecastBlankCellCount,0);
+ const sourceVersionAfterAccept=result.source.sourceVersion;result=await save(result,result.revision.payload,'ready');assert.equal(result.source.sourceVersion,sourceVersionAfterAccept);result=await save(result,result.revision.payload,'edit');
+ const futureWeights=structuredClone(result.revision.payload);futureWeights.recommendationWeights={'2026-01':3,'2026-02':2,'2026-03':1};futureWeights.history.push({action:'recommendation_weights_changed',actor:owner,timestamp:reviewedAt,before:{},after:futureWeights.recommendationWeights});result=await save(result,futureWeights);assert.equal(result.snapshot.lines.find(l=>l.accountCode==='8100').forecast,55);assert.deepEqual(result.revision.payload.drivers[0].evidence.observations.map(o=>o.weight),[1,2,3]);const changedAcceptedEvidence=structuredClone(result.revision.payload);changedAcceptedEvidence.drivers[0].evidence.observations[0].weight=3;await assert.rejects(()=>save(result,changedAcceptedEvidence),/recommendation/i);const originalWeights=structuredClone(result.revision.payload);originalWeights.recommendationWeights={};originalWeights.history.push({action:'recommendation_weights_changed',actor:owner,timestamp:reviewedAt,before:futureWeights.recommendationWeights,after:{}});result=await save(result,originalWeights);
+
+ const noClear=structuredClone(result.revision.payload);noClear.drivers[0].periods=[periods[1]];await signIn(2);await assert.rejects(()=>save(result,noClear),/signed-in|Clearing/i);await signIn(1);
+ const changedDecision=structuredClone(result.revision.payload);changedDecision.suggestionDecisions[0].reason+=' changed';await assert.rejects(()=>save(result,changedDecision),/Retain the original/i);
+ const droppedDecision=structuredClone(result.revision.payload);droppedDecision.suggestionDecisions=[];await assert.rejects(()=>save(result,droppedDecision),/Retain the original/i);
+ // Another authorized reviewer can clear one target, preserving the original
+ // reviewer and decision for the remaining month rather than impersonating them.
+ const partial=structuredClone(result.revision.payload);partial.drivers[0].periods=[periods[1]];partial.history.push({action:'clear_reviewed_forecast_blank',actor:'00000000-0000-0000-0000-000000000002',timestamp:reviewedAt,period:periods[0],accountCode:'8100',before:55,after:null,recommendationIds:[proposal.drivers[0].recommendationId],reason:'Clear only this reviewed forecast month'});
+ await signIn(2);result=await save(result,partial);assert.equal(result.snapshot.lines.find(l=>l.accountCode==='8100'&&l.period===periods[0]).forecast,null);assert.equal(result.snapshot.lines.find(l=>l.accountCode==='8100'&&l.period===periods[1]).forecast,55);assert.equal(result.revision.payload.drivers[0].ownerId,owner);await signIn(1);
+ const allClear=structuredClone(result.revision.payload);allClear.drivers=[];allClear.history.push({action:'clear_reviewed_forecast_blank',actor:owner,timestamp:reviewedAt,period:periods[1],accountCode:'8100',before:55,after:null,recommendationIds:[proposal.drivers[0].recommendationId],reason:'Keep forecast blank until accepted input'});result=await save(result,allClear);
+ assert.equal(result.snapshot.workbookCoverage.reviewedForecastBlankCellCount,2);assert.equal(result.revision.payload.suggestionDecisions.length,1);
+ const erasedClear=structuredClone(result.revision.payload);erasedClear.history=[];await assert.rejects(()=>save(result,erasedClear),/Retain.*clear history/i);
+ // Same proposal can be reaccepted only after its explicit clear. Append the
+ // fresh decision, and bind the active driver to that unique review event.
+ const reaccept=structuredClone(result.revision.payload),freshAt=new Date(Date.parse(reviewedAt)+2000).toISOString(),oldDecision=structuredClone(proposal.suggestionDecisions.at(-1));
+ reaccept.drivers=structuredClone(proposal.drivers);reaccept.drivers[0].reviewedAt=freshAt;reaccept.drivers[0].recommendationReview.reviewedAt=freshAt;reaccept.suggestionDecisions.push({...oldDecision,timestamp:freshAt});
+ result=await save(result,reaccept);assert.equal(result.revision.payload.suggestionDecisions.length,2);assert.deepEqual(result.revision.payload.suggestionDecisions[0],oldDecision);assert.equal(result.snapshot.lines.find(l=>l.accountCode==='8100').forecast,55);
+ const activeReaccept=structuredClone(result.revision.payload),thirdAt=new Date(Date.parse(reviewedAt)+3000).toISOString();activeReaccept.drivers[0].reviewedAt=thirdAt;activeReaccept.drivers[0].recommendationReview.reviewedAt=thirdAt;activeReaccept.suggestionDecisions.push({...oldDecision,timestamp:thirdAt});await assert.rejects(()=>save(result,activeReaccept),/Reaccepting/i);
+ const clearReaccept=structuredClone(result.revision.payload);clearReaccept.drivers=[];for(const period of periods)clearReaccept.history.push({action:'clear_reviewed_forecast_blank',actor:owner,timestamp:thirdAt,period,accountCode:'8100',before:55,after:null,recommendationIds:[oldDecision.id],reason:'Clear reaccepted estimate while retaining both decisions'});result=await save(result,clearReaccept);
+ // Decimal weights are an existing reviewed input; zero excludes an observation.
+ const weighted=makeRecommendation(result,{weights:{'2026-01':.1,'2026-02':.2,'2026-03':.3},value:-12.5});
+ const weightedSaved=await save(result,weighted);assert.equal(weightedSaved.snapshot.lines.find(l=>l.accountCode==='8100').forecast,-12.5);
+ const zeroWeight=makeRecommendation(weightedSaved,{weights:{'2026-01':0}});await assert.rejects(()=>save(weightedSaved,zeroWeight),/recommendation/i);
+ // Restore both nulls explicitly, retaining all prior accepted decisions.
+ const clearWeighted=structuredClone(weightedSaved.revision.payload);clearWeighted.drivers=[];for(const period of periods)clearWeighted.history.push({action:'clear_reviewed_forecast_blank',actor:owner,timestamp:reviewedAt,period,accountCode:'8100',before:-12.5,after:null,reason:'Clear explicitly reviewed weighted estimate'});result=await save(weightedSaved,clearWeighted);
+ // Publish and use the actual wrapped approved baseline in a source-free draft.
+ for(const action of ['reconcile','ready','submit','vp_approve'])result=await save(result,result.revision.payload,action);
+ const publication=result.publication,parent=await call('atlas_read_reforecast_publication',[publication.publication_id]),parentFrozen=JSON.stringify(parent);
+ assert.equal(parent.snapshot.workbookCoverage.reviewedForecastBlankCellCount,2);
+ const descendantPayload={...payload,name:'Inherited reviewed blanks',calendar:{...payload.calendar,scenario:'Inherited reviewed blanks'},baselineType:'approved_reforecast',baselinePublicationIds:[publication.publication_id],uploadId:null,importMapping:null,importHistory:[]};
+ let descendant=await call('atlas_save_reforecast_scenario',[A,randomUUID(),0,randomUUID(),'save_draft',descendantPayload]);
+ assert.equal(descendant.snapshot.completeness.blockerCount,0,JSON.stringify(descendant.snapshot.diagnostics));
+ const wrapped=descendant.source.baseline.lines.find(l=>l.accountCode==='8100');assert.equal(wrapped.source.sourceType,'approved_reforecast');assert.equal(wrapped.source.priorSource.kind,'reviewed_forecast_blank');
+ for(const line of descendant.snapshot.lines.filter(l=>l.accountCode==='8100')){assert.equal(line.forecast,null);assert.equal(line.source.kind,'reviewed_forecast_blank');assert.equal(line.baselineLineage.publicationId,publication.publication_id);assert.equal(line.workbookSourceAmount,null);}
+ const descendantManual=structuredClone(descendant.revision.payload);descendantManual.overrides=[{period:periods[0],accountCode:'8100',amount:-8,confirmed:true,reason:'Edit inherited reviewed blank',ownerId:owner,effectivePeriod:periods[0],reviewedAt,before:null,after:-8,source:{kind:'user',workbookSourceAbsent:true,reviewedForecastBlank:structuredClone(descendant.snapshot.lines.find(l=>l.accountCode==='8100').source)}}];descendant=await call('atlas_save_reforecast_scenario',[A,descendant.head.scenario_id,descendant.head.revision,randomUUID(),'save_draft',descendantManual]);assert.equal(descendant.snapshot.lines.find(l=>l.accountCode==='8100'&&l.period===periods[0]).forecast,-8);
+ await signIn(5);const strActor='00000000-0000-0000-0000-000000000005';
+ // Independently construct the exact reviewed STR source contract. No fake
+ // workbook coordinates and no null-to-zero parent conversion are involved.
+ const {parseSavedStrMonthlyProgramme}=await import('../docs/portfolio-operations-dashboard/features/reforecast-str-saved-programme.mjs');
+ const {savedStrProgrammeDraft}=await import('../docs/portfolio-operations-dashboard/features/reforecast-str-saved-programme-ui.mjs');
+ const {createStrOverlayDraft}=await import('../docs/portfolio-operations-dashboard/features/reforecast-str-overlay.mjs');
+ const {workbookEvidenceHash}=await import('../docs/portfolio-operations-dashboard/features/workbook-integrity.mjs');
+ const programme='test-str',property='test-property',annual=Array(12).fill(0);annual[4]=-10.25;
+ const saved={formatVersion:1,savedAt:reviewedAt,state:{properties:[{id:property,units:[{id:'group'}]}],strPrograms:[{id:programme,propertyId:property,operatorId:'rise_internal',config:{propertyId:property,programmeId:programme,unitPicks:[{groupId:'group',units:1}],unitRamp:{2026:Array(12).fill(1)}}}],lines:[{id:'capital',gl:'8100',name:'Capital',nature:'capital',propertyId:property,strProgramId:programme,yearData:{2026:annual}}]}};
+ const strSource=await parseSavedStrMonthlyProgramme(JSON.stringify(saved),{fileName:'Synthetic intentional blank STR.json',propertyId:property,programmeId:programme,periods});
+ const overlayBase=createStrOverlayDraft(parent,{actor:strActor,timestamp:reviewedAt}),strReason='Review exact signed STR addition to retained intentional null parent';
+ const review={schemaVersion:'atlas.saved-str-monthly-programme.v1',sourceKind:'saved_json_monthly_programme',sourceHash:strSource.sourceHash,sourceFingerprint:strSource.fingerprint,sourcePropertyId:property,programmeId:programme,parentPublication:overlayBase.parentPublication,mappingVersion:registry.version_id,periods,application:'add',groupAllocations:strSource.groupAllocations,unitRamp:strSource.unitRamp,cells:strSource.cells.map(c=>({...c,accountCode:'8100',mappingVersion:registry.version_id,amount:c.sourceAmount,application:'add',parentAmount:null,parentDisposition:'reviewed_forecast_blank',combinedForecast:c.sourceAmount,actorId:strActor,reviewedAt,reason:strReason})),mappings:[{sourceLineId:'capital',sourceGL:'8100',accountCode:'8100',confirmed:true,reason:'Preserve exact capital classification'}],allowHelloLandingGl5144:false,rollupReview:null,actorId:strActor,reviewedAt,reason:strReason,blockers:[],ready:true};review.fingerprint=workbookEvidenceHash(review);
+ const strRequest=randomUUID(),strReceipt=await call('atlas_save_reforecast_str_json_source',[A,strRequest,strSource,review]);assert.deepEqual(strReceipt.review,review);
+ const strDraft=savedStrProgrammeDraft(strSource,review,strReceipt,{publication:parent,actor:strActor});strDraft.reviewerId=owner;
+ let overlay=await call('atlas_save_reforecast_scenario',[A,randomUUID(),0,randomUUID(),'save_draft',strDraft]);assert.equal(overlay.snapshot.completeness.blockerCount,0,JSON.stringify(overlay.snapshot.diagnostics));
+ overlay=await call('atlas_read_reforecast_save_receipt',[A,overlay.revision.request_id]);
+ const strBridge=overlay.snapshot.strBridge.filter(l=>l.accountCode==='8100');assert.deepEqual(strBridge.map(l=>[l.conventional,l.strContribution,l.withStr,l.parentDisposition]),[[null,0,0,'reviewed_forecast_blank'],[null,-10.25,-10.25,'reviewed_forecast_blank']]);
+ const noStr=overlay.snapshot.strBridge.filter(l=>l.accountCode==='6100');assert.deepEqual(noStr.map(l=>[l.conventional,l.strContribution,l.withStr]),[[null,0,null],[null,0,null]]);
+ for(const l of overlay.snapshot.lines.filter(l=>l.accountCode==='8100')){assert.equal(l.workbookSourceAmount,null);assert.equal(l.workbookSourceDisposition,'source_absent');assert.equal(l.source.kind,'str_schedule');assert.equal(l.isBlank,false);}
+ const badStr=structuredClone(strDraft);badStr.overrides[0].amount=1;await assert.rejects(()=>call('atlas_save_reforecast_scenario',[A,overlay.head.scenario_id,overlay.head.revision,randomUUID(),'save_draft',badStr]),/override differs/i);
+ const badReview=structuredClone(review);badReview.cells[0].parentDisposition='existing_parent_cell';badReview.fingerprint=workbookEvidenceHash(badReview);await assert.rejects(()=>call('atlas_save_reforecast_str_json_source',[A,randomUUID(),strSource,badReview]),/independently reconstructed/i);
+ for(const action of ['reconcile','ready','submit','vp_approve'])overlay=await call('atlas_save_reforecast_scenario',[A,overlay.head.scenario_id,overlay.head.revision,randomUUID(),action,overlay.revision.payload]);
+ const overlayReport=await call('atlas_read_reforecast_publication',[overlay.publication.publication_id]);assert.deepEqual(overlayReport.snapshot.strBridge.filter(l=>l.accountCode==='8100').map(l=>[l.conventional,l.strContribution,l.withStr]),[[null,0,0],[null,-10.25,-10.25]]);
+ assert.equal(JSON.stringify(await call('atlas_read_reforecast_publication',[publication.publication_id])),parentFrozen);
+
+ await signIn(1);
+
+ // Later close authority wins on first and subsequent saves. Retained blank
+ // reviews never request a fictitious manual-clear event for a governed actual.
+ const beforeCloseAcceptance=makeRecommendation(result);result=await save(result,beforeCloseAcceptance,'edit');result=await save(result,editValue(result,17));const retainedOverrides=structuredClone(result.revision.payload.overrides),retainedDecisions=structuredClone(result.revision.payload.suggestionDecisions);
+ await addClose(periods[0],123);await signIn(1);
+ descendant=await call('atlas_save_reforecast_scenario',[A,descendant.head.scenario_id,descendant.head.revision,randomUUID(),'save_draft',descendant.revision.payload]);assert.equal(descendant.snapshot.lines.find(l=>l.accountCode==='8100'&&l.period===periods[0]).actual,123);assert.equal(descendant.snapshot.lines.find(l=>l.accountCode==='8100'&&l.period===periods[0]).forecast,null);assert.deepEqual(descendant.revision.payload.overrides,descendantManual.overrides);
+ result=await save(result);const closedLine=result.snapshot.lines.find(l=>l.accountCode==='8100'&&l.period===periods[0]);assert.equal(closedLine.actual,123);assert.equal(closedLine.forecast,null);assert.equal(closedLine.sourceKind,'inherited_locked');assert.equal(result.snapshot.lines.find(l=>l.accountCode==='8100'&&l.period===periods[1]).forecast,55);assert.deepEqual(result.revision.payload.overrides,retainedOverrides);assert.deepEqual(result.revision.payload.suggestionDecisions,retainedDecisions);assert.equal(result.snapshot.completeness.blockerCount,0,JSON.stringify(result.snapshot.diagnostics));
+ result=await save(result);assert.equal(result.snapshot.lines.find(l=>l.accountCode==='8100'&&l.period===periods[0]).sourceKind,'inherited_locked');assert.equal(result.snapshot.lines.find(l=>l.accountCode==='8100'&&l.period===periods[0]).actual,123);
+ const changedLocked=structuredClone(result.revision.payload);changedLocked.overrides.find(o=>o.period===periods[0]).amount=999;await assert.rejects(()=>save(result,changedLocked),/Locked month inputs/i);
+ const changedAfterClose=makeRecommendation(result);await assert.rejects(()=>save(result,changedAfterClose),/recommendation/i);
+ // A corrected older governed close changes authoritative evidence and cannot
+ // silently preserve the old acceptance, despite unchanged client decisions.
+ await db.exec('reset role');const priorJanuary=(await db.query("select version_id from atlas_financial_close_heads where community_id=$1 and period_key='2026-01'",[A])).rows[0].version_id,correctedJanuary=randomUUID();await db.query("insert into atlas_financial_close_versions select $1,community_id,period_key,'corrected-close-hash',approved_at,metrics from atlas_financial_close_versions where version_id=$2",[correctedJanuary,priorJanuary]);await db.query("insert into atlas_financial_close_rows select $1,gl_code,actual,source_location from atlas_financial_close_rows where version_id=$2",[correctedJanuary,priorJanuary]);await db.query("update atlas_financial_close_heads set version_id=$1 where community_id=$2 and period_key='2026-01'",[correctedJanuary,A]);await signIn(1);await assert.rejects(()=>save(result),/recommendation/i);await db.exec('reset role');await db.query("update atlas_financial_close_heads set version_id=$1 where community_id=$2 and period_key='2026-01'",[priorJanuary,A]);await signIn(1);
+ for(const action of ['reconcile','ready','submit','vp_approve'])result=await save(result,result.revision.payload,action);
+ await signIn(5);result=await save(result,{...result.revision.payload,investorApprovalDate:'2026-09-28'},'investor_approve');await signIn(1);assert.equal(result.head.status,'investor_approved');
+ const freshClosed=structuredClone(reviewed);freshClosed.workbookSourcePolicy.reviewedForecastBlanks[0].reason='A newly supplied closed review';await rejectMapping(freshClosed,/eligible open|closed|locked/i);
+ assert.deepEqual((await call('atlas_read_reforecast_publication',[publication.publication_id])).snapshot,JSON.parse(parentFrozen).snapshot,'Original reviewed-null publication is immutable');
+
+ console.log(JSON.stringify({pass:true,importedCells:8,reviewedBlankCells:2,sourceAbsent:0,knownTotals:result.snapshot.knownValueTotals,checks:['atomic import and idempotent receipt','reviewed null versus numeric zero and signed values','authorized manual edit and audited clear','unchanged historical decisions and same-ID reaccept','canonical historical recommendation evidence and decimal weights','public approved-parent wrapped source inheritance','saved-STR zero and negative contributions plus untouched nulls','first and second save after close with retained payload','VP and investor transitions','historical publication snapshot preservation','provenance removal and changed close evidence rejection','exact original-mapping proof reuse and changed-evidence revalidation','first-ordinal override index/null/tuple parity','old/new public atomic source/snapshot/diagnostic parity and full relationship validation2to1','late create/update failure rolls back all heads, revisions, audit, request identity and receipts','function metadata ACL and drift rollback']}));
+ await db.close();
+})().catch(error=>{console.error(error.stack||error);console.error(JSON.stringify({position:error.position,queryExcerpt:error.query?.slice(Math.max(0,Number(error.position)-160),Number(error.position)+160),internalPosition:error.internalPosition,where:error.where,internalQuery:error.internalQuery}));process.exitCode=1;});

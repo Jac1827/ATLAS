@@ -21,7 +21,36 @@ export function resolveReviewedWorkbookBlankReference(cell,scenario,source){
  const mapping=mappings.get(cell?.uploadId),matches=(source?.workbookBlankCells||[]).filter(row=>compactWorkbookBlankReference(cell,row)&&retainedWorkbookBlank(row,mapping));
  return matches.length===1?matches[0]:null;
 }
-export const confirmedForecastBlank=(row,field)=>['forecast','amount'].includes(field)&&row[field]===null&&row.legitimateBlank===true&&row.disposition==='workbook_blank';
+const reviewEqual=(a,b)=>a&&b&&Object.keys(a).length===Object.keys(b).length&&Object.keys(a).every(key=>a[key]===b[key]);
+// A reviewer may keep an absent source account in the forecast as an intentional
+// blank. This is a separate server-verified decision, never a workbook cell.
+export function retainedReviewedForecastBlank(cell,mapping,{uploadId}={}){
+ const policy=mapping?.workbookSourcePolicy,source=cell?.source;
+ if(!reviewedWorkbookSourcePolicy(mapping)||!uploadId||!cell||cell.amount!==null||cell.disposition!=='reviewed_forecast_blank'||cell.isBlank!==true||cell.legitimateBlank!==true||cell.reviewedForecastBlankConfirmed!==true||cell.sourceScopeExclusionConfirmed!==false||!mapping.periods.includes(cell.period)||!cell.accountCode)return false;
+ if(!Array.isArray(policy.reviewedForecastBlanks)||policy.outsideForecastScope!==undefined&&!Array.isArray(policy.outsideForecastScope))return false;
+ const reviews=policy.reviewedForecastBlanks.filter(review=>review.period===cell.period&&review.accountCode===cell.accountCode);
+ if(reviews.length!==1||(policy.outsideForecastScope||[]).some(review=>review.period===cell.period&&review.accountCode===cell.accountCode))return false;
+ const review=reviews[0];
+ return review.confirmed===true&&review.reviewedBy===mapping.reviewedBy&&Boolean(review.reviewedAt)&&String(review.reason||'').trim().length>=3&&source?.kind==='reviewed_forecast_blank'&&source.workbookSourceAbsent===true&&source.uploadId===uploadId&&Boolean(source.auditId)&&Boolean(source.sourceHash)&&source.sourceScenario===mapping.sourceScenario&&source.mappingVersion===mapping.version&&reviewEqual(source.review,review);
+}
+export const confirmedReviewedForecastBlank=(row,field='forecast')=>['forecast','amount'].includes(field)&&row[field]===null&&row.isBlank===true&&row.legitimateBlank===true&&row.disposition==='reviewed_forecast_blank'&&row.reviewedForecastBlankConfirmed===true&&row.sourceScopeExclusionConfirmed===false&&row.source?.kind==='reviewed_forecast_blank'&&row.source.workbookSourceAbsent===true&&row.source.review?.confirmed===true&&row.source.review.accountCode===row.accountCode&&row.source.review.period===row.period&&Boolean(row.source.uploadId&&row.source.auditId&&row.source.sourceHash&&row.source.mappingVersion&&row.source.sourceScenario)&&Boolean(row.source.review.reviewedBy)&&Boolean(row.source.review.reviewedAt)&&String(row.source.review.reason||'').trim().length>=3;
+export function resolveInheritedReviewedForecastBlank(row,baseline,{communityId,publicationIds}={}){
+ if(!row||!communityId||baseline?.sourceType!=='approved_reforecast'||baseline.communityId&&baseline.communityId!==communityId||!Array.isArray(publicationIds)||!Array.isArray(baseline.lines)||!Array.isArray(baseline.periodVersions))return null;
+ const matches=baseline.lines.filter(line=>line.period===row.period&&String(line.accountCode??line.glCode)===String(row.accountCode??row.glCode)),versions=baseline.periodVersions.filter(version=>version.period===row.period);
+ if(matches.length!==1||versions.length!==1)return null;
+ const original=matches[0],version=versions[0];
+ if(version.sourceType!=='approved_reforecast'||!version.publicationId||!version.versionId||!version.contentHash||!publicationIds.includes(version.publicationId))return null;
+ const wrapper=original.source,ancestry=wrapper?.sourceType==='approved_reforecast'?wrapper:original.baselineLineage;
+ if(!ancestry||ancestry.publicationId!==version.publicationId||ancestry.versionId!==version.versionId||ancestry.contentHash!==version.contentHash||ancestry.revisionId&&ancestry.revisionId!==version.versionId)return null;
+ const source=wrapper?.sourceType==='approved_reforecast'?wrapper.priorSource:wrapper;
+ const normalized={...original,accountCode:String(original.accountCode??original.glCode),source};
+ if(!confirmedReviewedForecastBlank(normalized,'amount')||!Number.isFinite(Date.parse(source.review.reviewedAt))||['sourceLineId','sheet','address','sourceCoordinates','sourceAmount'].some(key=>source[key]!=null))return null;
+ if(original.workbookSourceAmount!==null||original.workbookSourceDisposition!=='source_absent')return null;
+ const retained=original.workbookSource;
+ if(!retained||['kind','workbookSourceAbsent','uploadId','auditId','sourceHash','sourceScenario','mappingVersion'].some(key=>retained[key]!==source[key])||!reviewEqual(retained.review,source.review))return null;
+ return {...structuredClone(normalized),baselineLineage:{period:row.period,sourceType:'approved_reforecast',publicationId:version.publicationId,versionId:version.versionId,contentHash:version.contentHash},workbookSource:structuredClone(retained)};
+}
+export const confirmedForecastBlank=(row,field)=>['forecast','amount'].includes(field)&&row[field]===null&&row.legitimateBlank===true&&(row.disposition==='workbook_blank'||confirmedReviewedForecastBlank(row,field));
 export const excludedForecastScope=(row,field)=>['forecast','amount'].includes(field)&&row[field]===null&&row.disposition==='outside_forecast_scope'&&row.sourceScopeExclusionConfirmed===true;
 
 // Source completeness is separate from generated destination lines: an unmapped

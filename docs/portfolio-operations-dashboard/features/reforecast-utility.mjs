@@ -1,6 +1,6 @@
 /* Reviewed utility rate evidence. No property-name match, peer proxy, or default rate. */
-import {readSourceBundle} from './reforecast-store.mjs?v=27506e81707171d5';
-import {validateForecastPeriods,fingerprint,sumMoney,moneyDriverAmount} from './reforecast-engine.mjs?v=01a3484ea138f6e9';
+import {readSourceBundle} from './reforecast-store.mjs?v=aa266355de44abc4';
+import {validateForecastPeriods,fingerprint,sumMoney,moneyDriverAmount} from './reforecast-engine.mjs?v=66275e06b8571094';
 const finite=value=>typeof value==='number'&&Number.isFinite(value);
 const priorYear=period=>(Number(period.slice(0,4))-1)+period.slice(4);
 const utilities=value=>value==='gas'?['natural_gas']:value==='water_sewer'?['water','sewer']:['electricity','natural_gas','water','sewer'].includes(value)?[value]:[];

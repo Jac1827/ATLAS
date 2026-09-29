@@ -1,6 +1,6 @@
 /* Import review only: missing source values cannot authorize inherited numbers.
  * This does not change baseline values, saved revisions, or server approval. */
-import {retainedWorkbookBlank,explicitWorkbookBlankSource,reviewedWorkbookSourcePolicy} from './reforecast-workbook-source-policy.mjs?v=be424108c7ddcacc';
+import {retainedWorkbookBlank,explicitWorkbookBlankSource,reviewedWorkbookSourcePolicy} from './reforecast-workbook-source-policy.mjs?v=a930b680fb3c7265';
 const keyOf = (period, accountCode) => JSON.stringify([period, String(accountCode)]);
 const groupKey = line => JSON.stringify([line.sheet, line.accountCode, line.department]);
 const hasNumber = value => typeof value === 'number' && Number.isFinite(value);
@@ -33,11 +33,18 @@ export function reviewReforecastImportInheritance({evidence, source, mapping, li
   if (!mappedSources.has(key)) mappedSources.set(key, []);
   mappedSources.get(key).push(line);
  }
- const issues = [], cells = [], scopeExclusions = [];
+ const issues = [], cells = [], scopeExclusions = [], reviewedForecastBlanks = [];
  if (!Array.isArray(source?.baseline?.lines)) {
   if (destination === 'new'||reviewedWorkbookSourcePolicy(mapping)) issues.push({code: 'source_baseline_unavailable', severity: 'error', message: 'Reload the approved baseline before creating a workbook forecast. The complete GL/month scope, including accounts absent from the workbook, cannot be verified without baseline readback.'});
   else if ([...mappedSources.values()].some(rows => rows.some(row => !hasNumber(row.amount)))) issues.push({code: 'source_blank_baseline_unavailable', severity: 'error', message: 'Reload the approved baseline before reviewing missing workbook values. Their inherited GL/month amounts cannot be verified.'});
   return {issues, cells, totals: {revenue: 0, opex: 0, noi: 0}, nonzeroCount: 0};
+ }
+ const intentionalReviews=mapping?.workbookSourcePolicy?.reviewedForecastBlanks??[],validIntentional=new Set();
+ if(!Array.isArray(intentionalReviews))issues.push({code:'invalid_reviewed_forecast_blank',severity:'error',message:'Intentional forecast blank reviews must be a list of eligible GL/month decisions.'});
+ for(const review of Array.isArray(intentionalReviews)?intentionalReviews:[]){
+  const key=keyOf(review?.period,review?.accountCode),account=registry.find(row=>row.accountCode===review?.accountCode),duplicate=intentionalReviews.filter(row=>row?.period===review?.period&&row?.accountCode===review?.accountCode).length!==1,overlap=(mapping?.workbookSourcePolicy?.outsideForecastScope||[]).some(row=>row?.period===review?.period&&row?.accountCode===review?.accountCode);
+  const valid=reviewedWorkbookSourcePolicy(mapping)&&review?.confirmed===true&&review.reviewedBy===mapping.reviewedBy&&typeof review.reviewedAt==='string'&&Number.isFinite(Date.parse(review.reviewedAt))&&String(review.reason||'').trim().length>=3&&eligible(review.period)&&account&&(!account.effectiveFrom||review.period>=account.effectiveFrom)&&(!account.retiredAfter||review.period<=account.retiredAfter)&&source.baseline.lines.some(row=>row.period===review.period&&String(row.accountCode??row.glCode)===review.accountCode)&&!mappedSources.has(key)&&!incoming.has(key)&&!duplicate&&!overlap;
+  if(valid)validIntentional.add(key);else issues.push({code:'invalid_reviewed_forecast_blank',severity:'error',period:review?.period,accountCode:review?.accountCode,message:'An intentional blank requires one eligible absent GL/month and the current reviewer, time and reason; conflicting, duplicate, sourced or closed-month decisions cannot be accepted.'});
  }
  for (const baseline of source.baseline.lines) {
   const accountCode = String(baseline.accountCode ?? baseline.glCode), key = keyOf(baseline.period, accountCode);
@@ -48,7 +55,9 @@ export function reviewReforecastImportInheritance({evidence, source, mapping, li
   const absent = rows.length === 0;
   if (!unavailable.length && !((destination === 'new'||reviewedWorkbookSourcePolicy(mapping)) && absent)) continue;
   const exclusions=(mapping?.workbookSourcePolicy?.outsideForecastScope||[]).filter(row=>row.period===baseline.period&&row.accountCode===accountCode);
-  if(absent&&reviewedWorkbookSourcePolicy(mapping)&&exclusions.length===1&&exclusions[0].confirmed===true&&exclusions[0].reviewedBy===mapping.reviewedBy&&exclusions[0].reviewedAt&&String(exclusions[0].reason||'').trim().length>=3){scopeExclusions.push({period:baseline.period,accountCode,baselineAmount:baseline.amount,disposition:'outside_forecast_scope'});continue;}
+  const intentional=(Array.isArray(intentionalReviews)?intentionalReviews:[]).filter(row=>row?.period===baseline.period&&row?.accountCode===accountCode);
+  if(absent&&validIntentional.has(key)){reviewedForecastBlanks.push({period:baseline.period,accountCode,baselineAmount:baseline.amount,amount:null,disposition:'reviewed_forecast_blank',review:intentional[0]});continue;}
+  if(absent&&intentional.length===0&&reviewedWorkbookSourcePolicy(mapping)&&exclusions.length===1&&exclusions[0].confirmed===true&&exclusions[0].reviewedBy===mapping.reviewedBy&&exclusions[0].reviewedAt&&String(exclusions[0].reason||'').trim().length>=3){scopeExclusions.push({period:baseline.period,accountCode,baselineAmount:baseline.amount,disposition:'outside_forecast_scope'});continue;}
   const account = registry.find(item => item.accountCode === accountCode);
   // Exact-workbook drafts already calculate absent accounts as unresolved nulls.
   // They can be resumed without inventing a scope decision; the server blocks
@@ -65,5 +74,5 @@ export function reviewReforecastImportInheritance({evidence, source, mapping, li
   return sum;
  }, {revenue: 0, opex: 0, noi: 0});
  totals.noi = totals.revenue - totals.opex;
- return {issues, cells, scopeExclusions, totals, nonzeroCount: cells.filter(cell => hasNumber(cell.inheritedAmount)&&cell.inheritedAmount !== 0).length};
+ return {issues, cells, scopeExclusions, reviewedForecastBlanks, totals, nonzeroCount: cells.filter(cell => hasNumber(cell.inheritedAmount)&&cell.inheritedAmount !== 0).length};
 }

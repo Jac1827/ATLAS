@@ -2,8 +2,8 @@ import {resolveImportCommunity,fiscalYtdPeriods} from './community-budget-identi
 import {compareWorkbookEvidence} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
 import {persistWorkbookAudit,readWorkbookAudit} from './workbook-audit-store.mjs?v=da818ddb04840b36';
 import {monthlyGovernanceForm,readMonthlyGovernanceForm} from './financial-workbook-governance.mjs?v=ce3982266f91118e';
-import {readFinance} from './canonical-finance.mjs?v=625be3eaa641cbeb';
-import {applyControls,centralClient} from './financial-comparison.mjs?v=5231a0cae1e13d4d';
+import {readFinance} from './canonical-finance.mjs?v=a51b74e79a07eec1';
+import {applyControls,centralClient} from './financial-comparison.mjs?v=ef1ea5f776e65a24';
 import {readPackage} from './financial-package-reader.mjs?v=743336d0550ffb11';
 import {evaluateFinancialPackageSafety,finalizeFinancialPackageEvidence} from './financial-package.mjs?v=9e34c3c633e9477e';
 import {createIntake,prepareReview,INTAKE_STATES,INTAKE_LABELS} from './financial-intake-store.mjs?v=826d61446c72329e';

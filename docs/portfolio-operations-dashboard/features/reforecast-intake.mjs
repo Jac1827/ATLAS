@@ -1,6 +1,6 @@
 import {auditWorkbook} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
 import {validatePlanningCalendar, classifyPlanningCells, reviewPlanningIntegrity} from './planning-governance.mjs?v=a4de8d3f5a50966c';
-import {sourceRowExclusionIssues,reviewedWorkbookSourcePolicy,explicitWorkbookBlankSource} from './reforecast-workbook-source-policy.mjs?v=be424108c7ddcacc';
+import {sourceRowExclusionIssues,reviewedWorkbookSourcePolicy,explicitWorkbookBlankSource} from './reforecast-workbook-source-policy.mjs?v=a930b680fb3c7265';
 /* Workbook evidence only. Formulas are retained, never executed or promoted to actuals. */
 export const REFORECAST_PARSER_VERSION = 'atlas-reforecast-xlsx/3';
 export const REFORECAST_EVIDENCE_SCHEMA = 2;

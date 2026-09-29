@@ -1,4 +1,4 @@
-import {financeAccessKey} from './canonical-finance.mjs?v=625be3eaa641cbeb';
+import {financeAccessKey} from './canonical-finance.mjs?v=a51b74e79a07eec1';
 // This UI renders the server's version-bound fiscal YTD decision. Statement budgets are evidence only.
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>v===null||v===undefined?'Blank / unavailable':Number(v).toLocaleString('en-US',{style:'currency',currency:'USD'});

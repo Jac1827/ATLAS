@@ -1,7 +1,8 @@
 import {strRegistryExtensionIssues} from './reforecast-str-registry-extension.mjs?v=e029a084505a92e0';
-import {hashReforecastWorkbook,encodeOriginalWorkbook} from './reforecast-intake.mjs?v=b0fa5b5fe892d268';
+import {hashReforecastWorkbook,encodeOriginalWorkbook} from './reforecast-intake.mjs?v=74bbd52d93a197cc';
 import {workbookEvidenceHash} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
-import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=5300c10a55542336';
+import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=aba4565f9c5c9e98';
+import {confirmedForecastBlank} from './reforecast-workbook-source-policy.mjs?v=a930b680fb3c7265';
 
 const SCHEMA='atlas.saved-str-monthly-programme.v1',PERIOD=/^20\d{2}-(0[1-9]|1[0-2])$/;
 const finite=value=>typeof value==='number'&&Number.isFinite(value),clone=structuredClone;
@@ -79,12 +80,12 @@ export async function prepareSavedStrMonthlyContribution(source,{publication,reg
   if(cell.nature==='contra_income'?!['income','contra_income'].includes(account.nature):cell.nature!==account.nature)blockers.push(issue('saved_str_financial_classification','The canonical GL must preserve the financial effect of the saved signed contribution.',{sourceLineId:cell.sourceLineId,sourceNature:cell.nature,canonicalNature:account.nature}));
   if(account.effectiveFrom&&cell.period<account.effectiveFrom||account.retiredAfter&&cell.period>account.retiredAfter)blockers.push(issue('saved_str_mapping_period','The canonical mapping is not effective for this saved source month.',{accountCode:account.accountCode,period:cell.period}));
   const key=JSON.stringify([account.accountCode,cell.period]);if(seen.has(key))blockers.push(issue('saved_str_duplicate_target','Reviewed source lines collide on one canonical GL/month; no implicit aggregation is allowed.',{accountCode:account.accountCode,period:cell.period}));seen.add(key);
-  const parent=(publication.snapshot.lines||[]).filter(row=>row.accountCode===account.accountCode&&row.period===cell.period),absent=parent.length===0;
+  const parent=(publication.snapshot.lines||[]).filter(row=>row.accountCode===account.accountCode&&row.period===cell.period),absent=parent.length===0,reviewedBlank=parent.length===1&&confirmedForecastBlank(parent[0],'forecast');
   if(parent.some(row=>row.closed===true)||publication.source?.actuals?.cutoffPeriod&&cell.period<=publication.source.actuals.cutoffPeriod)blockers.push(issue('saved_str_closed_month','Apply saved STR contributions only to eligible open months; governed actuals remain unchanged.',{period:cell.period}));
-  if(parent.length>1||parent.length===1&&!finite(parent[0].forecast))blockers.push(issue('saved_str_parent_value','The Conventional parent must contain one exact numeric GL/month amount; blank is not zero.',{accountCode:account.accountCode,period:cell.period}));
+  if(parent.length>1||parent.length===1&&!finite(parent[0].forecast)&&!reviewedBlank)blockers.push(issue('saved_str_parent_value','The Conventional parent must contain an exact amount or a reviewed forecast blank. Unresolved missing values cannot receive an STR addition.',{accountCode:account.accountCode,period:cell.period}));
   if(absent&&mapping.parentDisposition!=='no_parent_publication_row')blockers.push(issue('saved_str_parent_absence','Explicitly review this prospective GL absent from the exact Conventional publication.',{accountCode:account.accountCode,period:cell.period}));
   const parentAmount=parent.length===1&&finite(parent[0].forecast)?parent[0].forecast:null;
-  cells.push({...clone(cell),accountCode:account.accountCode,mappingVersion:registry.version,amount:cell.sourceAmount,application:'add',parentAmount,parentDisposition:absent?'no_parent_publication_row':'existing_parent_cell',combinedForecast:finite(cell.sourceAmount)&&(absent||parentAmount!==null)?sum([parentAmount??0,cell.sourceAmount]):null,actorId:actor,reviewedAt,reason:String(reason||'').trim()});
+  cells.push({...clone(cell),accountCode:account.accountCode,mappingVersion:registry.version,amount:cell.sourceAmount,application:'add',parentAmount,parentDisposition:absent?'no_parent_publication_row':reviewedBlank?parent[0].disposition:'existing_parent_cell',combinedForecast:finite(cell.sourceAmount)&&(absent||reviewedBlank||parentAmount!==null)?sum([parentAmount??0,cell.sourceAmount]):null,actorId:actor,reviewedAt,reason:String(reason||'').trim()});
  }
  const result={schemaVersion:SCHEMA,sourceKind:'saved_json_monthly_programme',sourceHash:source.sourceHash,sourceFingerprint:source.fingerprint,sourcePropertyId:source.sourcePropertyId,programmeId:source.programmeId,parentPublication:clone(base.parentPublication),mappingVersion:registry?.version||null,periods:clone(source.periods),application:'add',groupAllocations:clone(source.groupAllocations),unitRamp:clone(source.unitRamp),cells,mappings:clone(mappings),allowHelloLandingGl5144,rollupReview:clone(rollupReview||null),actorId:actor,reviewedAt,reason:String(reason||'').trim(),blockers,ready:blockers.length===0};
  result.fingerprint=contentFingerprint(result);return result;

@@ -1334,8 +1334,8 @@
     ]
   },
   "features/reforecast-import-ui.mjs": {
-    "sha256": "ed8e9badb7fd9087",
-    "bytes": 78389,
+    "sha256": "03b1d74617e488a5",
+    "bytes": 79475,
     "references": [
       [
         "features/reforecast-ui.mjs",
@@ -1546,7 +1546,7 @@
     ]
   },
   "features/original-budget-intake.mjs": {
-    "sha256": "e33cb20dc1c148a2",
+    "sha256": "630f67a6bf48922e",
     "bytes": 5630,
     "references": [
       [
@@ -1556,7 +1556,7 @@
     ]
   },
   "features/approved-budget.mjs": {
-    "sha256": "c02118bf7c2b282a",
+    "sha256": "0a10ae2a05cf0433",
     "bytes": 20387,
     "references": [
       [
@@ -1570,7 +1570,7 @@
     ]
   },
   "features/original-budget-version-report.mjs": {
-    "sha256": "3dec4df99dba31fe",
+    "sha256": "6d52c090c5633c53",
     "bytes": 11320,
     "references": [
       [
@@ -1642,7 +1642,7 @@
     ]
   },
   "features/reforecast-report-library.mjs": {
-    "sha256": "1f03ec853d4723fc",
+    "sha256": "b52ab49bc217e023",
     "bytes": 29396,
     "references": [
       [
@@ -1652,8 +1652,8 @@
     ]
   },
   "features/reforecast-ui.mjs": {
-    "sha256": "22af74c6cc37db68",
-    "bytes": 172068,
+    "sha256": "77f8b63589b68a93",
+    "bytes": 172738,
     "references": [
       [
         "reforecast-navigation.js",
@@ -1686,7 +1686,7 @@
     ]
   },
   "features/saved-str-programmes.mjs": {
-    "sha256": "0f13309205991e28",
+    "sha256": "bbf452231a5cf35e",
     "bytes": 59413,
     "references": [
       [
@@ -1726,7 +1726,7 @@
     ]
   },
   "reforecast-navigation.js": {
-    "sha256": "e1e1a9578c21bbd5",
+    "sha256": "4ee962235cfacec5",
     "bytes": 6203,
     "references": [
       [
@@ -1972,7 +1972,7 @@
     ]
   },
   "features/budget-command-publication.mjs": {
-    "sha256": "610fdd9cc78bf818",
+    "sha256": "fe3c777a995613fe",
     "bytes": 8948,
     "references": [
       [
@@ -2022,7 +2022,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "f23a84adf13f5c89",
+    "sha256": "bad139e8c02c23f3",
     "bytes": 1907457,
     "references": [
       [
@@ -2032,7 +2032,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "21cf3e86336d3ec3",
+    "sha256": "1850ca2a94fac2da",
     "bytes": 26893,
     "references": [
       [

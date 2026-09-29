@@ -780,8 +780,8 @@
     ]
   },
   "features/import-history-store.mjs": {
-    "sha256": "1b4de46ef620566c",
-    "bytes": 27610,
+    "sha256": "a6b66788f0869de9",
+    "bytes": 27842,
     "references": [
       [
         "features/import-history.mjs",
@@ -802,7 +802,7 @@
     ]
   },
   "features/import-history-worker.mjs": {
-    "sha256": "cc60d969bd5c4820",
+    "sha256": "6db9721730e5cc6b",
     "bytes": 288,
     "references": [
       [
@@ -812,7 +812,7 @@
     ]
   },
   "features/import-history.mjs": {
-    "sha256": "a589f3709b941d92",
+    "sha256": "18586ad84a184c84",
     "bytes": 1932,
     "references": [
       [
@@ -946,7 +946,7 @@
     ]
   },
   "features/workspace-projection-worker.js": {
-    "sha256": "33cc798b4207a17c",
+    "sha256": "9e33ea01f07f6b83",
     "bytes": 4227,
     "references": [
       [
@@ -956,7 +956,7 @@
     ]
   },
   "features/workspace-bootstrap.mjs": {
-    "sha256": "ba96a7d2c448577c",
+    "sha256": "36662b19758a7fa9",
     "bytes": 8930,
     "references": [
       [
@@ -974,7 +974,7 @@
     ]
   },
   "features/workspace-publication.mjs": {
-    "sha256": "7ce3efd61965d880",
+    "sha256": "19c656fa112d9b6a",
     "bytes": 959,
     "references": [
       [
@@ -988,8 +988,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "63b74dae5e2f26e0",
-    "bytes": 3078705,
+    "sha256": "0a6704a5c8c8ae42",
+    "bytes": 3079046,
     "references": [
       [
         "index.html",
@@ -1872,7 +1872,7 @@
     ]
   },
   "occupancy-replay-browser.js": {
-    "sha256": "b98bb123a37917de",
+    "sha256": "b393f54271f81b86",
     "bytes": 14553,
     "references": [
       [
@@ -1952,8 +1952,8 @@
     ]
   },
   "features/workspace-activation.mjs": {
-    "sha256": "56d0f42280b8dc3d",
-    "bytes": 9562,
+    "sha256": "527e5ddcac3da995",
+    "bytes": 12828,
     "references": [
       [
         "workspace-activation.html",
@@ -1962,7 +1962,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "cc82c730625fc810",
+    "sha256": "c3682eb824b842e6",
     "bytes": 3714,
     "references": [
       [

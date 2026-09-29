@@ -61,7 +61,7 @@ export async function buildProjection(central, document, {signal,archive:inlineA
   if (inlineArchive && (inlineArchive.sha256 !== source.archiveHash || inlineArchive.bytes !== document.payload.bundle.bytes || typeof inlineArchive.data !== 'string')) throw new Error('Prepared archive does not match the saved central source.');
   const archive = inlineArchive || await window.AtlasMigrationArchive.hydrate(document.payload.bundle, central, {signal});
   if (signal?.aborted) throw signal.reason;
-  const worker = new Worker(new URL('./workspace-projection-worker.js?v=33cc798b4207a17c', import.meta.url));
+  const worker = new Worker(new URL('./workspace-projection-worker.js?v=9e33ea01f07f6b83', import.meta.url));
   try {
     const body = await new Promise((resolve,reject) => {
       const abort = () => {worker.terminate(); reject(signal.reason || new DOMException('Cancelled','AbortError'));};

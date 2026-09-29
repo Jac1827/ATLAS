@@ -4,7 +4,7 @@ import path from 'node:path';
 import http from 'node:http';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url),{chromium}=require(process.env.ATLAS_PLAYWRIGHT||'playwright'),Archive=require('../docs/portfolio-operations-dashboard/migration-archive.js'),Zip=require('../docs/portfolio-operations-dashboard/vendor/jszip.min.js');
-const archive=await Archive.pack({keys:{rise_ops_global_v1:'{}'},indexedDb:{communityData:{Example:{zero:0,missing:null}}}},[{key:'atlas_data_import_2_state_v1',value:{batches:[],lineage:[],canonicalRecords:[],sourceArchive:[]}}],Zip);
+const archive=await Archive.pack({keys:{rise_ops_global_v1:'{}'},indexedDb:{communityData:{Example:{zero:0,missing:null,disabled:false}}}},[{key:'atlas_data_import_2_state_v1',value:{batches:[],lineage:[],canonicalRecords:[],sourceArchive:[]}}],Zip);
 const root=path.resolve('docs/portfolio-operations-dashboard'),actor='00000000-0000-0000-0000-000000000001';
 const parent={document_key:'atlas_dashboard_state_v1',module_key:'dashboard',version:2,updated_at:'2026-09-29T12:00:00Z',payload:{bundle:archive}};
 let documents,role,mode,profileReads,writes,hold,requests=[];
@@ -32,14 +32,18 @@ try{
    localStorage.setItem('atlas_central_auth_session_v1',JSON.stringify({access_token:'synthetic-only',user:{id:actor},expires_at:Date.now()/1000+3600}));
    window.idbCalls=0;indexedDB.open=indexedDB.deleteDatabase=()=>{window.idbCalls++;throw Error('Operational IndexedDB is forbidden');};
  },{origin,actor});
- const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
+ const page=await context.newPage(),errors=[];let downloads=0;page.on('download',()=>downloads++);page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
  let scenario=0;const open=async(fragment=`version=2&archiveHash=${archive.sha256}`)=>{await page.goto(origin+'/workspace-activation.html?scenario='+(++scenario)+'#'+fragment);await page.waitForFunction(()=>typeof ATLAS_CENTRAL==='object');};
  const phase=expected=>page.waitForFunction(expected=>document.querySelector('#activation-status').dataset.phase===expected,expected);
  const inspect=async()=>{await page.getByRole('button',{name:'Check saved source'}).click();};
  const prepare=()=>page.getByRole('button',{name:'Prepare verified workspace'}).click();
- await open();assert.equal(profileReads,0);assert.equal(writes,0);assert(await page.getByRole('button',{name:'Prepare verified workspace'}).isDisabled());
+ await open();assert.equal(profileReads,0);assert.equal(writes,0);assert.equal(downloads,0);assert(await page.getByRole('button',{name:'Prepare verified workspace'}).isDisabled());assert(await page.getByRole('button',{name:'Download verification copy'}).isDisabled());
  await inspect();await phase('ready');assert.equal(writes,0);assert.match(await page.locator('#activation-source').textContent(),/Saved version 2/);
- await prepare();await phase('complete');assert.equal(writes,1);assert.equal(profileReads,4);await inspect();await phase('ready');await prepare();await phase('complete');assert.equal(writes,1);
+ await prepare();await phase('complete');assert.equal(writes,1);assert.equal(profileReads,4);
+ const requestStart=requests.length,downloadPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Download verification copy'}).click();const download=await downloadPromise,copy=JSON.parse(fs.readFileSync(await download.path(),'utf8'));
+ assert.match(download.suggestedFilename(),/^atlas_current_source_verification_v2_.*\.json$/);assert.equal(copy.format,'atlas_workspace_verification_v1');assert.equal(copy.sourceCurrentAtCapture,true);assert.deepEqual(copy.projection.communityData.Example,{zero:0,missing:null,disabled:false});assert.equal(copy.projection.contentHash,copy.verification.projectionContentHash);assert.deepEqual(copy.projection,documents.get(copy.verification.projectionKey).payload);assert.equal(copy.parent.version,parent.version);assert.equal(copy.parent.updated_at,parent.updated_at);assert.equal(copy.source.archiveHash,archive.sha256);const {data:archiveBody,...descriptor}=archive;assert.deepEqual(copy.parent.archive,descriptor);assert.equal(copy.verification.archiveBodyIncluded,false);assert(!JSON.stringify(copy).includes('synthetic-only'));assert(requests.slice(requestStart).every(r=>r.method==='GET'));assert.equal(writes,1);assert.equal(profileReads,6);await phase('complete');
+ await inspect();await phase('ready');assert(await page.getByRole('button',{name:'Download verification copy'}).isDisabled());await prepare();await phase('complete');assert.equal(writes,1);
+ documents.get(parent.document_key).version=3;await page.getByRole('button',{name:'Download verification copy'}).click();await phase('pending');assert.equal(downloads,1);assert(await page.getByRole('button',{name:'Download verification copy'}).isDisabled());
  reset();await open('version=1&archiveHash='+archive.sha256);await inspect();await phase('error');assert.equal(writes,0);assert(await page.getByRole('button',{name:'Prepare verified workspace'}).isDisabled());
  reset();role='viewer';await open();await inspect();await phase('error');assert.equal(writes,0,'Cached admin from prior run cannot replace fresh server authorization');
  reset();await open();await inspect();await phase('ready');documents.get(parent.document_key).version=3;await prepare();await phase('pending');assert.equal(writes,0);
@@ -54,5 +58,6 @@ try{
  assert.equal(await page.evaluate(()=>idbCalls),0);assert.deepEqual(errors,[]);assert(!requests.some(r=>r.path.includes('workspace-core')));
  assert(requests.every(r=>r.method==='GET'||r.method==='POST'&&r.path==='/rest/v1/rpc/atlas_publish_workspace_projection'));
  const keys=await page.evaluate(()=>Object.keys(localStorage));assert(keys.every(key=>['atlas_central_auth_session_v1','atlas_central_profile_v1'].includes(key)));
- console.log('PASS standalone activation browser: actual central client/server access, explicit source check and prepare, worker/readback, no auto-write, stale/unauthorized denial, input/auth/user cancellation, ambiguous idempotent retry, tamper pending, no operational IndexedDB/core or other write.');
+ assert.equal(downloads,1,'No download on load, pending, cancelled or failed operations');
+ console.log('PASS standalone activation browser: actual central client/server access, explicit source check and prepare, worker/readback, no auto-write, stale/unauthorized denial, input/auth/user cancellation, ambiguous idempotent retry, tamper pending, no operational IndexedDB/core or other write; explicit exact read-only verification download with fresh source/admin recheck.');
 }finally{hold?.();await browser.close();server.closeAllConnections();await new Promise(r=>server.close(r));}

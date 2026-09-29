@@ -40,6 +40,12 @@ The page does not load the operational core, read or replace operational browser
 storage, save a parent archive, or change authorization. An actor or source
 change, cancellation, or pending result is not success.
 
+After successful preparation, **Download verification copy** rereads the current
+parent and verified immutable projection under the same active admin scope. It
+downloads the exact projection and source receipt for isolated acceptance. The
+copy attests to the capture time; recheck the parent before live activation.
+Keep this operational data in private local output, outside source control.
+
 The projection publisher retains its existing PostgreSQL JSONB UTF-8 limit of
 16,777,216 bytes, including `contentHash`. Measure a fresh projection when its
 source grows; compact JavaScript JSON size does not establish this limit. A

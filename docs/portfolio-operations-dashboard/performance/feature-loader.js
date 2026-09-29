@@ -12,7 +12,7 @@
     historyRestore: { src: new URL('atlas_historical_restore_data.js?v=43f55dab14d794f6', base).href, ready: () => !!root.ATLAS_HISTORICAL_RESTORE_COMMUNITY_DATA },
     xlsx: { src: new URL('assets/xlsx.full.min.js?v=c9506197caf809a0', base).href, ready: () => !!root.XLSX?.utils },
     migrationArchive: { src: new URL("migration-archive.js?v=ae74ccbf0a527f62", base).href, ready: () => !!root.AtlasMigrationArchive },
-    occupancyReplay: { src: new URL("occupancy-replay-browser.js?v=b98bb123a37917de", base).href, ready: () => !!root.AtlasOccupancyReplayBrowser },
+    occupancyReplay: { src: new URL("occupancy-replay-browser.js?v=b393f54271f81b86", base).href, ready: () => !!root.AtlasOccupancyReplayBrowser },
     leaflet: { src: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', css: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', ready: () => !!root.L },
     pdf: { src: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', ready: () => !!root.pdfjsLib },
     zip: { src: new URL('vendor/jszip.min.js?v=acc7e41455a80765', base).href, ready: () => !!root.JSZip },

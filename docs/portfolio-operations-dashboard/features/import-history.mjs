@@ -1,11 +1,11 @@
-import {executeHistory} from './import-history-store.mjs?v=1b4de46ef620566c';
+import {executeHistory} from './import-history-store.mjs?v=a6b66788f0869de9';
 const READS=new Set(['load','current','page','snapshot','records','export','preferenceValues']);
 export async function historyOperation(request) {
   const {signal,...payload}=request;
   if(signal?.aborted)throw signal.reason||new DOMException('Import history read cancelled','AbortError');
   if(typeof Worker==='undefined')return executeHistory(request);
   let worker;
-  try {worker=new Worker(new URL('./import-history-worker.mjs?v=cc60d969bd5c4820',import.meta.url),{type:'module'});}
+  try {worker=new Worker(new URL('./import-history-worker.mjs?v=6db9721730e5cc6b',import.meta.url),{type:'module'});}
   catch {return executeHistory(request);}
   return new Promise((resolve,reject)=>{
     let settled=false;

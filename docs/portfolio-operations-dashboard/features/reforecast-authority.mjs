@@ -1,6 +1,6 @@
-import {parseReforecastWorkbook,hashReforecastWorkbook} from './reforecast-intake.mjs?v=b0fa5b5fe892d268';
+import {parseReforecastWorkbook,hashReforecastWorkbook} from './reforecast-intake.mjs?v=74bbd52d93a197cc';
 import {canonicalWorkbookEvidence,workbookEvidenceHash,compareWorkbookEvidence} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
-import {reviewedWorkbookSourcePolicy,explicitWorkbookBlankSource} from './reforecast-workbook-source-policy.mjs?v=be424108c7ddcacc';
+import {reviewedWorkbookSourcePolicy,explicitWorkbookBlankSource} from './reforecast-workbook-source-policy.mjs?v=a930b680fb3c7265';
 
 const PERIOD=/^20\d{2}-(0[1-9]|1[0-2])$/;
 function selection(evidence,mapping){

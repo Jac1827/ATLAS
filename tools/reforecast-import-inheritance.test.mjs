@@ -84,3 +84,14 @@ if(process.argv[2]){
  assert.equal(bridge.sourceCellComparison.matched,numeric.length);
  console.log(JSON.stringify({status:'PASS',sourceHash:bridge.sourceHash,publicationId:bridge.publicationId,exactNumericCells:numeric.length,blankInheritanceCount:629,blankToZeroCount:611,absentGLInheritanceCount:84,nonzeroCount:review.nonzeroCount,impact:review.totals,monthlySourceToPublicationBridge:'all four months reconciled'}));
 }
+
+const reviewedAbsent=evaluateReforecastImportReview({...input,evidence:{...evidence,lines:imported},source:{...source,baseline:{lines:source.baseline.lines.filter(row=>['4000','4001','4900'].includes(row.accountCode))}},preserveWorkbookBlanks:true,reviewedForecastBlanks:[{period,accountCode:'4900'}],reviewedForecastBlankReason:'Leave this account in the forecast for later planning'},[cid]);
+assert.equal(reviewedAbsent.ready,true);assert.equal(reviewedAbsent.inheritance.cells.length,0);assert.equal(reviewedAbsent.inheritance.reviewedForecastBlanks.length,1);assert.equal(reviewedAbsent.inheritance.reviewedForecastBlanks[0].amount,null);assert.equal(reviewedAbsent.mapping.workbookSourcePolicy.outsideForecastScope.length,0);assert.equal(reviewedAbsent.mapping.workbookSourcePolicy.reviewedForecastBlanks[0].reviewedBy,actor);
+const absInput={evidence:{...evidence,lines:imported},source:{...source,baseline:{lines:source.baseline.lines.filter(row=>['4000','4001','4900'].includes(row.accountCode))}},mapping:reviewedAbsent.mapping,lines:reviewedAbsent.lines};
+assert.equal(reforecastImportReconciliation(absInput.evidence,reviewedAbsent).reviewedForecastBlankCount,1);
+const policy=reviewedAbsent.mapping.workbookSourcePolicy,review=policy.reviewedForecastBlanks[0];
+for(const change of [{reviewedForecastBlanks:[review,review]},{outsideForecastScope:[review]},{reviewedForecastBlanks:[{...review,reviewedBy:'other'}]},{reviewedForecastBlanks:[{...review,reason:''}]},{reviewedForecastBlanks:[{...review,reviewedAt:'invalid'}]},{reviewedForecastBlanks:[{...review,accountCode:'4000'}]},{reviewedForecastBlanks:[{...review,period:'2026-08'}]},{reviewedForecastBlanks:{period,accountCode:'4900'}}]){
+ const bad=reviewReforecastImportInheritance({...absInput,mapping:{...reviewedAbsent.mapping,workbookSourcePolicy:{...policy,...change}}});assert(bad.issues.some(row=>row.code==='invalid_reviewed_forecast_blank'),JSON.stringify(change));assert.equal(bad.reviewedForecastBlanks.length,0);
+}
+for(const actualScope of [{actuals:{cutoffPeriod:period}},{lockedPeriods:[period]},{actuals:{notApplicablePeriods:[period]}}])assert(reviewReforecastImportInheritance({...absInput,source:{...absInput.source,...actualScope}}).issues.some(row=>row.code==='invalid_reviewed_forecast_blank'));
+console.log('PASS intentional absent-account forecast review: null stays in scope, actual reviewer/reason, separate reconciliation, malformed/duplicate/conflicting/sourced/closed/locked decisions blocked.');

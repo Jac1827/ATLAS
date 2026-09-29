@@ -16,6 +16,21 @@ const rollupReview={confirmed:true,sourceHash:source.sourceHash,authority:'saved
 review=await prepareSavedStrMonthlyContribution(source,approvedOptions);assert.equal(review.ready,true);assert.deepEqual(review.parentPublication.publicationId,publication.publicationId);assert.equal(review.application,'add');
 assert.equal(review.cells.find(c=>c.sourceLineId==='displaced'&&c.period==='2026-10').combinedForecast,95);assert.equal(review.cells.find(c=>c.sourceLineId==='income'&&c.period==='2026-09').sourceAmount,0);assert.equal(review.cells.find(c=>c.sourceLineId==='capital'&&c.period==='2026-10').nature,'capital');assert(!('units' in review),'Grouped allocations do not become invented physical units');
 for(const patch of [{locked:false},{verified:false}])await assert.rejects(prepareSavedStrMonthlyContribution(source,{...approvedOptions,publication:{...publication,...patch}}),/Conventional publication/);
+for(const disposition of ['workbook_blank','reviewed_forecast_blank']){
+ const blankParent=structuredClone(publication),blankRows=blankParent.snapshot.lines.filter(row=>row.accountCode==='6500');
+ for(const row of blankRows)Object.assign(row,{forecast:null,disposition,isBlank:true,legitimateBlank:true,sourceScopeExclusionConfirmed:false,...(disposition==='reviewed_forecast_blank'?{reviewedForecastBlankConfirmed:true,source:{kind:'reviewed_forecast_blank',workbookSourceAbsent:true,uploadId:'retained-upload',auditId:'retained-audit',sourceHash:'retained-source-hash',mappingVersion:version,sourceScenario:'Plan',review:{period:row.period,accountCode:row.accountCode,confirmed:true,reviewedBy:actor,reviewedAt:at,reason:'Keep this forecast account intentionally blank and editable'}}}:{source:{kind:'workbook_import',sourceLineId:'Plan!C5'}})});
+ const before=structuredClone(blankParent),blankReview=await prepareSavedStrMonthlyContribution(source,{...approvedOptions,publication:blankParent});
+ assert.equal(blankReview.ready,true,JSON.stringify(blankReview.blockers));assert.deepEqual(blankParent,before,'STR review must never alter its Conventional publication');
+ for(const cell of blankReview.cells.filter(row=>row.accountCode==='6500')){assert.equal(cell.parentAmount,null);assert.equal(cell.parentDisposition,disposition);assert.equal(cell.combinedForecast,cell.sourceAmount,'Only the actual saved STR amount contributes, including its explicit zeros');}
+ if(disposition==='reviewed_forecast_blank'){
+  for(const mutate of [row=>row.reviewedForecastBlankConfirmed=false,row=>row.source.review.confirmed=false,row=>row.sourceScopeExclusionConfirmed=true,row=>row.source.workbookSourceAbsent=false]){
+   const invalid=structuredClone(blankParent);mutate(invalid.snapshot.lines.find(row=>row.accountCode==='6500'));
+   assert((await prepareSavedStrMonthlyContribution(source,{...approvedOptions,publication:invalid})).blockers.some(row=>row.code==='saved_str_parent_value'),'Unverified blank provenance must block an STR addition');
+  }
+ }
+}
+const unresolvedParent=structuredClone(publication);Object.assign(unresolvedParent.snapshot.lines.find(row=>row.accountCode==='6500'),{forecast:null,disposition:'source_absent',isBlank:false,legitimateBlank:false});
+assert((await prepareSavedStrMonthlyContribution(source,{...approvedOptions,publication:unresolvedParent})).blockers.some(row=>row.code==='saved_str_parent_value'));
 const reverse=structuredClone(mappings);reverse[1].signMultiplier=-1;assert((await prepareSavedStrMonthlyContribution(source,{...approvedOptions,mappings:reverse})).blockers.some(b=>b.code==='saved_str_signed_source'));
 const changed=structuredClone(source);changed.cells[0].sourceAmount=999;await assert.rejects(prepareSavedStrMonthlyContribution(changed,approvedOptions),/evidence changed/);delete changed.fingerprint;changed.fingerprint=workbookEvidenceHash(changed);await assert.rejects(prepareSavedStrMonthlyContribution(changed,approvedOptions),/original JSON/);
 const blank=structuredClone(payload);blank.state.lines[0].yearData[2026][8]=null;assert((await parse(blank)).blockers.some(b=>b.code==='saved_str_monthly_value'));

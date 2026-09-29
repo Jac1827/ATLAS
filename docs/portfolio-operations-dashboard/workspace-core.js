@@ -22869,7 +22869,7 @@ async function refreshAtlasClosedFinancials(year, force = false, requested = new
   }
   if (!requested.size) return false;
   let module;
-  try { module = await import("./features/financial-close.mjs?v=b1fc61a9bd34612c"); }
+  try { module = await import("./features/financial-close.mjs?v=5d803fa96956d719"); }
   catch (error) {
     if (context === getAtlasFinancialContextKey()) {
       const priorFailure = getAtlasFinancialLoadFailure();
@@ -23500,7 +23500,7 @@ async function openSharedCommunityPlan() {
   const communityId = access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId;
   if (!communityId || !window.ATLAS_CENTRAL) { alert("Shared plans require an authorized canonical community record."); return false; }
   try {
-    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=51c3aa95f8e6fc09");
+    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=f03c519e853b4523");
     if (epoch !== atlasNavigationEpoch || !atlasAccessDecision(2).ok) return false;
     const entry=model.monthEntry, provenance=entry.metricProvenance?.occupiedSnapshot, period=buildPeriodKey(model.monthIdx,model.year);
     const occupancy=provenance?.revisionKey && provenance.period===period && (!provenance.communityId||provenance.communityId===communityId) && entry.occupiedSnapshot!=null && Number(entry.rentableUnits)>0
@@ -23833,7 +23833,7 @@ function queueCommunityRosterFinancials(items) {
     return {key:encodeURIComponent(item.detail.name),hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
   });
   setTimeout(async()=>{try {
-    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=a9100de0ba62f974");
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=0dbaeec20b26d5ce");
     if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
     await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
   } catch {}},0);

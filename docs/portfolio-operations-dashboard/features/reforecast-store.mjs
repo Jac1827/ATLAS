@@ -1,4 +1,4 @@
-import {retainedWorkbookBlank,confirmedForecastBlank,compactWorkbookBlankReference} from './reforecast-workbook-source-policy.mjs?v=be424108c7ddcacc';
+import {retainedWorkbookBlank,confirmedForecastBlank,compactWorkbookBlankReference} from './reforecast-workbook-source-policy.mjs?v=a930b680fb3c7265';
 import {acknowledgeBudgetConsumer} from './budget-consumer-delivery.mjs?v=f5342574d4b39aa2';
 /* Canonical reforecast transport: no browser-local financial fallback. */
 import {persistReforecastPayload} from './workbook-audit-store.mjs?v=da818ddb04840b36';

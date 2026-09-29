@@ -81,3 +81,21 @@ for(const patch of [{verified:false},{approved:false},{locked:false},{stale:true
 const decimalBaseline={...nullBaseline,lines:nullBaseline.lines.map(row=>row.accountCode==='6100'?{...row,amount:200.004}:row)};
 assert.equal(effectiveBaselineMetric(decimalBaseline,'noi'),800.01,'Known-value consumer totals use rounded revenue less rounded expense, exactly like the immutable report');
 console.log('PASS direct null metrics require verified publication identity and immutable staged-rounding parity');
+
+// A compact notice next to the active metrics uses exact retained cells in the
+// selected month, not a stale whole-workbook count or a converted zero amount.
+assert(!container.innerHTML.includes('data-reviewed-forecast-blank-summary'),'Historical publications keep their existing summary');
+const blankPublication=structuredClone(published),blankSnapshot=blankPublication.snapshot;
+blankSnapshot.workbookCoverage={schemaVersion:1,reviewedForecastBlankCellCount:999,monthly:[]};
+for(const line of blankSnapshot.lines.filter(row=>row.accountCode==='6100'))Object.assign(line,{forecast:null,disposition:'reviewed_forecast_blank',isBlank:true,legitimateBlank:true,reviewedForecastBlankConfirmed:true,sourceScopeExclusionConfirmed:false,source:{kind:'reviewed_forecast_blank',workbookSourceAbsent:true,uploadId:'retained-upload',auditId:'retained-audit',sourceHash:'retained-source',mappingVersion:'retained-map',sourceScenario:'Plan',review:{period:line.period,accountCode:line.accountCode,confirmed:true,reviewedBy:'reviewer',reviewedAt:'2026-01-01T00:00:00Z',reason:'Retain the future account as an editable forecast blank.'}}});
+for(const month of blankSnapshot.monthly)Object.assign(month.reforecast,{expenses:0,noi:1000,cashFlow:1000});
+const renderBlankPublication=async publication=>{const target={isConnected:true,innerHTML:'',querySelector:()=>({})};await mountActiveBenchmark(target,{central:{getSession:()=>({user:{id:'reader'}})},communityId:A,period:'2026-01',cache:{refresh:async()=>[publication]}});return target.innerHTML;};
+const blankBefore=JSON.stringify(blankPublication),blankHtml=await renderBlankPublication(blankPublication),notice=blankHtml.match(/<p data-reviewed-forecast-blank-summary>[\s\S]*?<\/p>/)?.[0];
+assert(notice);assert.match(notice,/1 reviewed intentional forecast blank in this month/);assert.match(notice,/Totals cover entered forecast values/);assert.match(notice,/Blank cells are not zeros/);assert.match(notice,/Governed actuals are loaded separately/);
+assert(blankHtml.indexOf(notice)>blankHtml.indexOf('<th>Cash flow</th>')&&blankHtml.indexOf(notice)<blankHtml.indexOf('<details>'),'Coverage is visible next to the headline totals, outside collapsed detail');
+assert.equal(activeBenchmark(blankPublication,'2026-01').metrics.noi,1000,'The explanatory notice does not change immutable metric amounts');assert.equal(JSON.stringify(blankPublication),blankBefore);
+const filledPublication=structuredClone(blankPublication),filled=filledPublication.snapshot.lines.find(row=>row.period==='2026-01'&&row.accountCode==='6100');Object.assign(filled,{forecast:50,disposition:'reviewer_override',isBlank:false,legitimateBlank:false,reviewedForecastBlankConfirmed:false,workbookSource:structuredClone(filled.source),source:{kind:'reviewed_manual_override'}});
+Object.assign(filledPublication.snapshot.monthly.find(row=>row.period==='2026-01').reforecast,{expenses:50,noi:950,cashFlow:950});
+const filledHtml=await renderBlankPublication(filledPublication);assert.match(filledHtml,/<p data-reviewed-forecast-blank-summary><strong>0 reviewed intentional forecast blanks in this month/,'A later entered amount removes that cell from the blank count');assert.equal(filled.forecast,50);assert(filledHtml.includes('950.00'));
+const inheritedPublication=structuredClone(filledPublication);delete inheritedPublication.snapshot.workbookCoverage;assert.match(await renderBlankPublication(inheritedPublication),/0 reviewed intentional forecast blanks in this month/,'Inherited source provenance keeps the explanation after all selected blanks are filled');
+console.log('PASS active headline coverage for reviewed forecast blanks: selected-month exact null count, visible known-value basis, manual-fill decrease, inherited provenance, no metric or publication mutation, and unchanged legacy output');

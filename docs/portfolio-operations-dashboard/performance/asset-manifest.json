@@ -1078,8 +1078,8 @@
     ]
   },
   "budget-draft-storage.js": {
-    "sha256": "71a8f1ea03bb9cec",
-    "bytes": 22117,
+    "sha256": "805c88105fc08455",
+    "bytes": 26331,
     "references": [
       [
         "RISE-Budget-Builder.html",
@@ -1536,8 +1536,8 @@
     ]
   },
   "reforecast-navigation.js": {
-    "sha256": "2faeaa7607c91b02",
-    "bytes": 6088,
+    "sha256": "5064ea1700b6869b",
+    "bytes": 6203,
     "references": [
       [
         "RISE-Budget-Builder.html",
@@ -1822,8 +1822,8 @@
     ]
   },
   "investor-budget-bridge.js": {
-    "sha256": "8aa1512c36fc2949",
-    "bytes": 19735,
+    "sha256": "bc7ed6133b0c2544",
+    "bytes": 19883,
     "references": [
       [
         "RISE-Budget-Builder.html",
@@ -1832,8 +1832,8 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "5b83a064ef97f1ae",
-    "bytes": 1895322,
+    "sha256": "0c4884cc526f1d36",
+    "bytes": 1895409,
     "references": [
       [
         "atlas-mounts.js",
@@ -1842,7 +1842,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "10dd5f9d284eb5ac",
+    "sha256": "fd6c488701aca406",
     "bytes": 26893,
     "references": [
       [

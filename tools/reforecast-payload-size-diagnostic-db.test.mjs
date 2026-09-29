@@ -7,7 +7,7 @@ import {PGlite} from '@electric-sql/pglite';
 
 const db=new PGlite(),limit=2097152,signature='atlas_private.save_reforecast_builder(uuid,uuid,integer,uuid,text,jsonb)';
 const fixture=await fs.readFile(new URL('./fixtures/reforecast-save-before-size-diagnostic.sql',import.meta.url),'utf8');
-const migration=await fs.readFile(new URL('../supabase/migrations/20260929161120_reforecast_payload_size_diagnostic.sql',import.meta.url),'utf8');
+const migration=await fs.readFile(new URL('../supabase/migrations/20260929162353_reforecast_payload_size_diagnostic.sql',import.meta.url),'utf8');
 const oldGuard=migration.match(/old_guard text:=\$old\$([\s\S]*?)\$old\$/)[1],newGuard=migration.match(/new_guard text:=\$new\$([\s\S]*?)\$new\$/)[1];
 const cid=randomUUID(),scenario=randomUUID(),actor=randomUUID(),request=randomUUID(),revision=randomUUID();
 const metadata=async()=>(await db.query('select proowner,prosecdef,provolatile,proconfig,proacl::text,prorettype,proargtypes::text from pg_proc where oid=$1::regprocedure',[signature])).rows[0];

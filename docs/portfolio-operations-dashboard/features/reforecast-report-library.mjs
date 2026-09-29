@@ -1,12 +1,12 @@
 import {NONCASH_METRICS,hasNoncashReportRows,noncashReportFields,noncashReportSections} from './reforecast-noncash.mjs?v=9d197be13878cfe3';
-import {verifyBudgetExportDelivery,exportDeliveryNotice} from './budget-export-delivery.mjs?v=04d75a63884265d7';
+import {verifyBudgetExportDelivery,exportDeliveryNotice} from './budget-export-delivery.mjs?v=4a2614bb874c4bc9';
 import {riseWorkbookBytes} from './rise-workbook-export.mjs?v=d08dd1e8d4aadf30';
-import * as store from './reforecast-store.mjs?v=0723c58881a1ac21';
-import {workbookCoverageHtml,workbookReportEvidence,workbookReportSections,workbookReportRows,workbookReportSheets,workbookCellFields,esc,money,download,safeSpreadsheetCell,publicationApprovalLabel,communityForecastReport,communityForecastWorkbook,communityForecastPdf,pairedForecastReports} from './reforecast-report.mjs?v=220f71276fb7e363';
+import * as store from './reforecast-store.mjs?v=3a4c55ebfeb16a80';
+import {workbookCoverageHtml,workbookReportEvidence,workbookReportSections,workbookReportRows,workbookReportSheets,workbookCellFields,esc,money,download,safeSpreadsheetCell,publicationApprovalLabel,communityForecastReport,communityForecastWorkbook,communityForecastPdf,pairedForecastReports} from './reforecast-report.mjs?v=949a30555802efde';
 import {freezeSnapshot,retainedSnapshot} from './financial-snapshot.mjs?v=848d058bdec07b4e';
-import {financeAccessKey} from './canonical-finance.mjs?v=20e703f375677104';
+import {financeAccessKey} from './canonical-finance.mjs?v=bf14cf8d8fae700f';
 import {snapshotPdf} from './snapshot-pdf.mjs?v=cda1d9683b4dd270';
-import {listOriginalBudgetReportVersions,readOriginalBudgetVersionReport,originalBudgetVersionWorkbook,originalBudgetVersionPdf} from './original-budget-version-report.mjs?v=9bbde6761bad1dbe';
+import {listOriginalBudgetReportVersions,readOriginalBudgetVersionReport,originalBudgetVersionWorkbook,originalBudgetVersionPdf} from './original-budget-version-report.mjs?v=8b3020e52a5d4b36';
 
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const verifiedSelections=new WeakSet(),selectionGuards=new WeakMap(),selectionClients=new WeakMap();

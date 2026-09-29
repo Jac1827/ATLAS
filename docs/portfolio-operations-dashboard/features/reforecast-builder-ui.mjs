@@ -1,11 +1,11 @@
 import {budgetYearPeriods} from './community-budget-identity.mjs?v=8f9f97a61a90cd4b';
-import {savedStrProgrammeHtml} from './reforecast-str-saved-programme-ui.mjs?v=f1f8299bcea6fe28';
+import {savedStrProgrammeHtml} from './reforecast-str-saved-programme-ui.mjs?v=2f69099696fb577f';
 /* Guided forecast setup and reviewed source inputs. Authoritative writes use reforecast RPCs. */
-import * as store from './reforecast-store.mjs?v=0723c58881a1ac21';
-import {readUtilityRecommendations,utilityRecoveryRows} from './reforecast-utility.mjs?v=c330f04b723efcde';
+import * as store from './reforecast-store.mjs?v=3a4c55ebfeb16a80';
+import {readUtilityRecommendations,utilityRecoveryRows} from './reforecast-utility.mjs?v=d82f74cccab67ea3';
 import {defaultForecastPeriods,validateForecastPeriods} from './reforecast-engine.mjs?v=01a3484ea138f6e9';
 import {assertRiseOverlay,riseReviewScope} from './reforecast-str-overlay.mjs?v=5300c10a55542336';
-import {esc,money,finite} from './reforecast-report.mjs?v=220f71276fb7e363';
+import {esc,money,finite} from './reforecast-report.mjs?v=949a30555802efde';
 import {calculateStrLeasingSchedule,mappedProviderStatement,inspectProviderStatement,providerStatementPublicSummary,recommendStrStatementBehavior,calculateContractDriver,createContractOverride} from './reforecast-provider.mjs?v=48587a62eec1890b';
 
 const uuid=()=>crypto.randomUUID();

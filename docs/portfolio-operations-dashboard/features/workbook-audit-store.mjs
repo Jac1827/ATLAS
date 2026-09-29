@@ -3,6 +3,7 @@ import {workbookEvidenceHash} from './workbook-integrity.mjs?v=612a2cdba3c9dba2'
 // Raw bytes are split before base64 encoding, so every request is bounded even
 // when cell graphs or original OOXML parts contain multi-byte UTF-8 text.
 export const WORKBOOK_AUDIT_CHUNK_BYTES=192*1024;
+export const WORKBOOK_AUDIT_READ_CONCURRENCY=4;
 const one=value=>Array.isArray(value)?value[0]:value;
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const SHA=/^[a-f0-9]{64}$/;
@@ -96,14 +97,23 @@ export async function readWorkbookAuditBytes(central,reference,{sourceHash=refer
  for(const stream of ['audit','source']){
   const spec=record.manifest[stream],max=stream==='audit'?128*1024*1024:32*1024*1024;
   if(!Number.isInteger(spec?.byteLength)||spec.byteLength<1||spec.byteLength>max||record.manifest.chunkBytes!==WORKBOOK_AUDIT_CHUNK_BYTES||spec.chunkCount!==Math.ceil(spec.byteLength/WORKBOOK_AUDIT_CHUNK_BYTES))throw Error('Invalid saved workbook manifest bounds.');
-  const data=new Uint8Array(spec.byteLength);let offset=0;
-  for(let index=0;index<spec.chunkCount;index++){
-   const chunk=await read('atlas_read_workbook_audit_chunk',{p_audit_id:reference.auditId,p_stream:stream,p_index:index,p_manifest_hash:reference.manifestHash||null},{stream,chunkIndex:index,chunkCount:spec.chunkCount});
-   const payload=bytes({encoding:'base64',data:chunk?.data||''});
-   if(chunk?.chunk_index!==index||chunk?.stream!==stream||payload.length!==Math.min(WORKBOOK_AUDIT_CHUNK_BYTES,spec.byteLength-offset)||await sha(payload)!==chunk.sha256)throw Error('Workbook chunk readback is incomplete or changed.');
-   data.set(payload,offset);offset+=payload.length;
-  }
-  if(offset!==spec.byteLength||await sha(data)!==spec.sha256)throw Error('Workbook exact byte readback hash mismatch.');output[stream+'Bytes']=data;
+  const data=new Uint8Array(spec.byteLength);let nextIndex=0,receivedBytes=0,failure;
+  // Read a bounded number of immutable chunks concurrently. Completion order
+  // never chooses placement, and a failed read stops new work before returning.
+  const worker=async()=>{
+   while(!failure&&nextIndex<spec.chunkCount){
+    const index=nextIndex++,offset=index*WORKBOOK_AUDIT_CHUNK_BYTES;
+    try{
+     const chunk=await read('atlas_read_workbook_audit_chunk',{p_audit_id:reference.auditId,p_stream:stream,p_index:index,p_manifest_hash:reference.manifestHash||null},{stream,chunkIndex:index,chunkCount:spec.chunkCount});
+     const payload=bytes({encoding:'base64',data:chunk?.data||''});
+     if(chunk?.chunk_index!==index||chunk?.stream!==stream||payload.length!==Math.min(WORKBOOK_AUDIT_CHUNK_BYTES,spec.byteLength-offset)||await sha(payload)!==chunk.sha256)throw Error('Workbook chunk readback is incomplete or changed.');
+     guard(central,actor);data.set(payload,offset);receivedBytes+=payload.length;
+    }catch(error){failure||=error;}
+   }
+  };
+  await Promise.all(Array.from({length:Math.min(WORKBOOK_AUDIT_READ_CONCURRENCY,spec.chunkCount)},worker));
+  if(failure)throw failure;
+  if(receivedBytes!==spec.byteLength||await sha(data)!==spec.sha256)throw Error('Workbook exact byte readback hash mismatch.');guard(central,actor);output[stream+'Bytes']=data;
  }
  if(record.manifest.source.sha256!==sourceHash)throw Error('Workbook original source hash mismatch.');
  output.evidence=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(output.auditBytes));

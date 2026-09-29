@@ -56,8 +56,9 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  const originalJson=JSON.stringify(original.revision),receiptJson=JSON.stringify(original.receipt);
  const newMigration=fs.readdirSync(path.join(root,'supabase/migrations')).find(f=>f.endsWith('_reviewed_forecast_blank_policy.sql'));
  await db.exec('reset role');
- const metadata=async()=>(await db.query("select proname,prosecdef,provolatile,proconfig,proacl::text from pg_proc where oid in ('atlas_private.save_reforecast_builder(uuid,uuid,integer,uuid,text,jsonb)'::regprocedure,'public.atlas_save_reforecast_scenario(uuid,uuid,integer,uuid,text,jsonb)'::regprocedure,'public.atlas_publish_reforecast(uuid,integer,uuid,text)'::regprocedure,'atlas_private.calculate_reforecast(jsonb,jsonb)'::regprocedure,'atlas_private.attach_reforecast_workbook_context(jsonb,jsonb)'::regprocedure) order by proname")).rows;
+ const metadata=async()=>(await db.query("select proname,prosecdef,provolatile,proconfig,proacl::text from pg_proc where oid in ('atlas_private.save_reforecast_builder(uuid,uuid,integer,uuid,text,jsonb)'::regprocedure,'public.atlas_save_reforecast_scenario(uuid,uuid,integer,uuid,text,jsonb)'::regprocedure,'public.atlas_publish_reforecast(uuid,integer,uuid,text)'::regprocedure,'atlas_private.calculate_reforecast(jsonb,jsonb)'::regprocedure,'atlas_private.attach_reforecast_workbook_context(jsonb,jsonb)'::regprocedure,'atlas_private.create_reforecast_from_import(uuid,uuid,integer,uuid,uuid,jsonb,jsonb)'::regprocedure,'public.atlas_create_reforecast_from_import(uuid,uuid,integer,uuid,uuid,jsonb,jsonb)'::regprocedure) order by proname")).rows;
  const beforeMetadata=await metadata();
+ const atomicDefinition=(await db.query("select pg_get_functiondef('atlas_private.create_reforecast_from_import(uuid,uuid,integer,uuid,uuid,jsonb,jsonb)'::regprocedure) d")).rows[0].d;
  const scopeDefinition=(await db.query("select pg_get_functiondef('atlas_private.resolve_reforecast_workbook_scope(jsonb,jsonb)'::regprocedure) d")).rows[0].d;
  await db.exec(scopeDefinition.replace('begin'+String.fromCharCode(10),'begin '+String.fromCharCode(10)));await assert.rejects(()=>db.exec(migration(newMigration)),/prerequisite differs/i);await db.exec('rollback');assert.equal((await db.query("select to_regprocedure('atlas_private.resolve_reforecast_reviewed_forecast_blanks(jsonb,jsonb)') p")).rows[0].p,null);await db.exec(scopeDefinition);
  await db.exec(migration(newMigration));assert.deepEqual(await metadata(),beforeMetadata);
@@ -114,6 +115,74 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  const save=(r,body=r.revision.payload,action='save_draft',id=randomUUID())=>call('atlas_save_reforecast_scenario',[A,scenario,r.head.revision,id,action,body]);
  const preserved=(await call('atlas_read_reforecast_import_receipt',[A,request]));assert.equal(JSON.stringify(preserved.receipt),receiptJson);
  assert.deepEqual((await db.query('select to_jsonb(r) row from atlas_reforecast_revisions r where revision_id=$1',[original.revision.revision_id])).rows[0].row,JSON.parse(originalJson));
+ // Compare the real public atomic route before/after the gate relocation. Each
+ // branch rolls back, so identical scenario/request/upload/config inputs are
+ // used. Only generated timestamps, revision IDs and their derived hashes are
+ // normalized; financial values, diagnostics and all source evidence compare.
+ await db.exec('reset role');
+ const atomicSignature='atlas_private.create_reforecast_from_import(uuid,uuid,integer,uuid,uuid,jsonb,jsonb)';
+ const atomicOptimized=(await db.query(`select pg_get_functiondef('${atomicSignature}'::regprocedure) d`)).rows[0].d;
+ const validator=(await db.query("select pg_get_functiondef(oid) definition,prosrc body from pg_proc where oid='atlas_private.validate_reforecast_source_relationships(jsonb,jsonb,jsonb)'::regprocedure")).rows[0];
+ await db.exec('create sequence atlas_private.test_relationship_validation_calls');
+ await db.exec(validator.definition.replace(validator.body,()=>validator.body.replace('begin\n',"begin\n perform nextval('atlas_private.test_relationship_validation_calls'::regclass);\n")));
+ const validations=async()=>(await db.query('select last_value::int n,is_called from atlas_private.test_relationship_validation_calls')).rows[0];
+ const counterValue=v=>v.is_called?v.n:0;
+ const normalizedSnapshot=r=>{
+  const generated=new Map([[r.revision.revision_id,'<generated-revision>'],[r.snapshot.fingerprint,'<snapshot-fingerprint>'],[r.source.sourceVersion,'<source-version>'],[r.receipt.created_at,'<generated-import-time>'],[r.revision.created_at,'<generated-revision-time>']]);
+  const walk=x=>typeof x==='string'?(generated.get(x)||x):Array.isArray(x)?x.map(walk):x&&typeof x==='object'?Object.fromEntries(Object.entries(x).map(([k,v])=>[k,walk(v)])):x;
+  return walk({source:r.source,snapshot:r.snapshot,payload:r.revision.payload,status:r.revision.status,receipt:{importedCells:r.receipt.importedCells,excludedRows:r.receipt.excludedRows,blockers:r.receipt.blockers,reconciliation:r.receipt.reconciliation}});
+ };
+ const preservationTables=['public.atlas_reforecast_events','public.atlas_reforecast_source_reviews','public.atlas_reforecast_heads','public.atlas_reforecast_revisions','public.atlas_reforecast_import_receipts','public.atlas_reforecast_uploads','public.atlas_budget_workflow_audit','public.atlas_reforecast_publications','atlas_private.reforecast_write_requests'];
+ const captureAtomicState=async()=>{await db.exec('reset role');const state={};for(const name of preservationTables)state[name]=(await db.query(`select count(*)::int count,md5(coalesce(jsonb_agg(to_jsonb(t) order by to_jsonb(t)::text),'[]')::text) hash from ${name} t`)).rows[0];await signIn(1);return state;};
+ const runAtomicVersion=async(definition,args)=>{
+  await db.exec('reset role');await db.exec(definition);const before=counterValue(await validations());await signIn(1);await db.exec('begin');
+  let output;try{output=await call('atlas_create_reforecast_from_import',args);}finally{await db.exec('rollback');}
+  await db.exec('reset role');return {output,validations:counterValue(await validations())-before};
+ };
+ try{
+  for(const [m,update] of [[mapping,false],[reviewed,false],[reviewed,true]]){
+   const body=update?projectImportUpdatePayload(result.revision.payload,{uploadId:upload.upload_id,mapping:reviewed,expectedLines:result.receipt.importedCells}):payload;
+   const args=[A,update?scenario:randomUUID(),update?result.head.revision:0,randomUUID(),upload.upload_id,m,body];
+   const old=await runAtomicVersion(atomicDefinition,args),current=await runAtomicVersion(atomicOptimized,args);
+   assert.deepEqual(normalizedSnapshot(current.output),normalizedSnapshot(old.output),'Atomic deferral must preserve source, payload, financial snapshot and diagnostics');
+   assert.equal(current.validations,1,'One complete immutable relationship validation remains mandatory');assert.equal(old.validations,current.validations+1,'Only the redundant full relationship validation is removed');
+   assert.equal(current.output.snapshot.workbookCoverage.sourceAbsentCellCount,m===mapping?2:0);
+   assert.equal(current.output.snapshot.completeness.blockerCount,m===mapping?4:0);
+  }
+  for(const mutate of [m=>m.accountMappings[0].signMultiplier=0,m=>{m.currency='EUR';}]){
+   const bad=structuredClone(reviewed);mutate(bad);const args=[A,randomUUID(),0,randomUUID(),upload.upload_id,bad,payload],before=await captureAtomicState();
+   for(const definition of [atomicDefinition,atomicOptimized]){
+    await db.exec('reset role');await db.exec(definition);await signIn(1);await db.exec('begin');
+    try{await assert.rejects(()=>call('atlas_create_reforecast_from_import',args),/mapping|numeric|currency|review|integrity/i);}finally{await db.exec('rollback');}
+    assert.deepEqual(await captureAtomicState(),before,'Both old/new invalid public calls must roll back every retained row');
+   }
+  }
+ }finally{await db.exec('reset role');await db.exec(atomicOptimized);await db.exec(validator.definition);await db.exec('drop sequence atlas_private.test_relationship_validation_calls');await signIn(1);}
+ // Force an import issue only AFTER the inner lifecycle has inserted its
+ // revision/head/audit. Both create and update must throw and roll every row
+ // back; upload evidence and every existing record remain byte-identical.
+
+ const issuesFunction=(await db.query("select pg_get_functiondef(oid) definition,prosrc body from pg_proc where oid='atlas_private.reforecast_import_issues(jsonb,jsonb)'::regprocedure")).rows[0];
+ for(const update of [false,true]){
+  const requestId=randomUUID(),scenarioId=update?scenario:randomUUID(),rev=update?result.head.revision:0,body=update?projectImportUpdatePayload(result.revision.payload,{uploadId:upload.upload_id,mapping:reviewed,expectedLines:result.receipt.importedCells}):payload;
+  const before=await captureAtomicState();await db.exec('reset role');
+  await db.exec(issuesFunction.definition.replace(issuesFunction.body,()=>issuesFunction.body.replace('begin\n',`begin\n if exists(select 1 from public.atlas_reforecast_revisions where request_id='${requestId}'::uuid) then return '[{"code":"post_save_gate_fixture","severity":"error","message":"Reject after lifecycle insert"}]'::jsonb;end if;\n`)));
+  try{await signIn(1);await assert.rejects(()=>call('atlas_create_reforecast_from_import',[A,scenarioId,rev,requestId,upload.upload_id,reviewed,body]),/Workbook mapping validation failed.*post_save_gate_fixture/);assert.deepEqual(await captureAtomicState(),before,'Atomic rejected create/update left a scenario, revision, head, audit, receipt or changed upload');}
+  finally{await db.exec('reset role');await db.exec(issuesFunction.definition);await signIn(1);}
+  // The rejected request leaves no identity reservation: an exact valid retry
+  // after the test-only issue is removed still works, then is rolled back.
+  await db.exec('begin');try{const retry=await call('atlas_create_reforecast_from_import',[A,scenarioId,rev,requestId,upload.upload_id,reviewed,body]);assert.equal(retry.head.revision,rev+1);assert.equal(retry.receipt.request_id,requestId);}finally{await db.exec('rollback');}
+  assert.deepEqual(await captureAtomicState(),before);
+  const invalid=structuredClone(reviewed);invalid.accountMappings[0].signMultiplier=0;
+  await assert.rejects(()=>call('atlas_create_reforecast_from_import',[A,scenarioId,rev,randomUUID(),upload.upload_id,invalid,body]),/mapping|numeric|source/i);
+  assert.deepEqual(await captureAtomicState(),before,'An invalid create/update changed retained atomic state');
+ }
+ const identityBefore=await captureAtomicState();
+ await assert.rejects(()=>call('atlas_create_reforecast_from_import',[A,scenario,original.head.revision,updateRequest,upload.upload_id,{...reviewed,reason:reviewed.reason+' changed'},compact]),/request ID reused/i);
+ await signIn(2);await assert.rejects(()=>call('atlas_create_reforecast_from_import',[A,scenario,original.head.revision,updateRequest,upload.upload_id,reviewed,compact]),/request ID reused/i);await signIn(1);
+ await assert.rejects(()=>call('atlas_create_reforecast_from_import',[B,randomUUID(),0,randomUUID(),upload.upload_id,reviewed,payload]),/access|community/i);
+ assert.deepEqual(await captureAtomicState(),identityBefore);
+ const exactRetry=await call('atlas_create_reforecast_from_import',[A,scenario,original.head.revision,updateRequest,upload.upload_id,reviewed,compact]);assert.deepEqual(exactRetry,result,'Same authorized atomic request returns its exact immutable receipt');
  const countRows=async()=>(await db.query('select (select count(*) from atlas_reforecast_revisions)::int revisions,(select count(*) from atlas_reforecast_import_receipts)::int receipts,(select count(*) from atlas_reforecast_publications)::int publications')).rows[0];
  const rejectMapping=async(m,pattern)=>{const before=await countRows();await assert.rejects(()=>call('atlas_create_reforecast_from_import',[A,randomUUID(),0,randomUUID(),upload.upload_id,m,payload]),pattern);assert.deepEqual(await countRows(),before);};
  for(const [mutate,pattern] of [
@@ -263,6 +332,6 @@ const root=path.join(__dirname,'..'),migration=name=>fs.readFileSync(path.join(r
  const freshClosed=structuredClone(reviewed);freshClosed.workbookSourcePolicy.reviewedForecastBlanks[0].reason='A newly supplied closed review';await rejectMapping(freshClosed,/eligible open|closed|locked/i);
  assert.deepEqual((await call('atlas_read_reforecast_publication',[publication.publication_id])).snapshot,JSON.parse(parentFrozen).snapshot,'Original reviewed-null publication is immutable');
 
- console.log(JSON.stringify({pass:true,importedCells:8,reviewedBlankCells:2,sourceAbsent:0,knownTotals:result.snapshot.knownValueTotals,checks:['atomic import and idempotent receipt','reviewed null versus numeric zero and signed values','authorized manual edit and audited clear','unchanged historical decisions and same-ID reaccept','canonical historical recommendation evidence and decimal weights','public approved-parent wrapped source inheritance','saved-STR zero and negative contributions plus untouched nulls','first and second save after close with retained payload','VP and investor transitions','historical publication snapshot preservation','provenance removal and changed close evidence rejection','exact original-mapping proof reuse and changed-evidence revalidation','first-ordinal override index/null/tuple parity','function metadata ACL and drift rollback']}));
+ console.log(JSON.stringify({pass:true,importedCells:8,reviewedBlankCells:2,sourceAbsent:0,knownTotals:result.snapshot.knownValueTotals,checks:['atomic import and idempotent receipt','reviewed null versus numeric zero and signed values','authorized manual edit and audited clear','unchanged historical decisions and same-ID reaccept','canonical historical recommendation evidence and decimal weights','public approved-parent wrapped source inheritance','saved-STR zero and negative contributions plus untouched nulls','first and second save after close with retained payload','VP and investor transitions','historical publication snapshot preservation','provenance removal and changed close evidence rejection','exact original-mapping proof reuse and changed-evidence revalidation','first-ordinal override index/null/tuple parity','old/new public atomic source/snapshot/diagnostic parity and full relationship validation2to1','late create/update failure rolls back all heads, revisions, audit, request identity and receipts','function metadata ACL and drift rollback']}));
  await db.close();
-})().catch(error=>{console.error(error.stack||error);process.exitCode=1;});
+})().catch(error=>{console.error(error.stack||error);console.error(JSON.stringify({position:error.position,queryExcerpt:error.query?.slice(Math.max(0,Number(error.position)-160),Number(error.position)+160),internalPosition:error.internalPosition,where:error.where,internalQuery:error.internalQuery}));process.exitCode=1;});

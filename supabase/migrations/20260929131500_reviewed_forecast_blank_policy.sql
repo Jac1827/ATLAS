@@ -81,7 +81,7 @@ returns jsonb language sql immutable security invoker set search_path='' as $$
 $$;
 revoke all on function atlas_private.reviewed_forecast_recommendation_ids(jsonb) from public,anon,authenticated;
 create function atlas_private.validate_reviewed_forecast_blank_edit(source jsonb,config jsonb,previous_config jsonb,previous_snapshot jsonb)
-returns void language plpgsql stable security invoker set search_path='' as $$
+returns void language plpgsql stable security invoker set search_path='' set plan_cache_mode='force_generic_plan' as $$
 declare review jsonb;prior_review jsonb;over jsonb;old_over jsonb;before_value jsonb;cell jsonb;driver jsonb;old_driver jsonb;event jsonb;baseline_cell jsonb;reviews jsonb;inherited boolean;decision jsonb;historical_ids jsonb;override_index jsonb;prior_override_index jsonb;cid uuid:=(source->>'communityId')::uuid;p text;code text;
 begin
  historical_ids:=atlas_private.reviewed_forecast_recommendation_ids(previous_config)||atlas_private.reviewed_forecast_recommendation_ids(config);
@@ -96,8 +96,11 @@ begin
  end if;
  for review in select value from jsonb_array_elements(reviews) loop
   p:=review->>'period';code:=review->>'accountCode';
-  select value into baseline_cell from jsonb_array_elements(coalesce(source->'baseline'->'lines','[]'))b where b->>'period'=p and b->>'accountCode'=code;
   inherited:=not exists(select 1 from jsonb_array_elements(coalesce(config->'importMapping'->'workbookSourcePolicy'->'reviewedForecastBlanks','[]'))r where r->>'period'=p and r->>'accountCode'=code);
+  baseline_cell:=null;
+  if inherited then
+  select value into baseline_cell from jsonb_array_elements(coalesce(source->'baseline'->'lines','[]'))b where b->>'period'=p and b->>'accountCode'=code;
+  end if;
   select value into prior_review from jsonb_array_elements(coalesce(previous_config->'importMapping'->'workbookSourcePolicy'->'reviewedForecastBlanks','[]'))v where v->>'period'=p and v->>'accountCode'=code;
   if inherited then prior_review:=review;end if;
   if not inherited and (review is distinct from prior_review or config->>'uploadId' is distinct from previous_config->>'uploadId') then
@@ -118,10 +121,12 @@ begin
    select value into old_driver from jsonb_array_elements(coalesce(previous_config->'drivers','[]'))v where v->>'id'=driver->>'id';
    if driver is distinct from old_driver and not coalesce(driver-'periods'=old_driver-'periods' and jsonb_typeof(driver->'periods')='array' and not exists(select 1 from jsonb_array_elements_text(driver->'periods')v where not(old_driver->'periods' ? v)) and not exists(select 1 from jsonb_array_elements_text(old_driver->'periods')removed where not(driver->'periods' ? removed) and not(source->'lockedPeriods' ? removed) and (source->'actuals'->>'cutoffPeriod' is null or removed>source->'actuals'->>'cutoffPeriod') and (exists(select 1 from jsonb_array_elements(coalesce(config->'overrides','[]'))o where o->>'period'=removed and o->>'accountCode'=code) or not exists(select 1 from jsonb_array_elements(coalesce(config->'history','[]'))e where e->>'action'='clear_reviewed_forecast_blank' and e->>'period'=removed and e->>'accountCode'=code and e->>'actor'=auth.uid()::text and atlas_private.forecast_blank_review_time(e->>'timestamp') and e->'before'=(select l->'forecast' from jsonb_array_elements(coalesce(previous_snapshot->'lines','[]'))l where l->>'period'=removed and l->>'accountCode'=code) and e->'after'='null'::jsonb and length(trim(coalesce(e->>'reason','')))>=3 and not exists(select 1 from jsonb_array_elements(coalesce(previous_config->'history','[]'))h where h=e)))),false) and (driver->>'ownerId' is distinct from auth.uid()::text or driver->'recommendationReview'->>'reviewedBy' is distinct from auth.uid()::text) then raise exception 'New recommendation acceptance must belong to the signed-in authorized reviewer';end if;
   end loop;
-  select v->'forecast' into before_value from jsonb_array_elements(coalesce(previous_snapshot->'lines','[]'))v where v->>'period'=p and v->>'accountCode'=code;
-  if review is not distinct from prior_review and config->>'uploadId' is not distinct from previous_config->>'uploadId' and jsonb_typeof(before_value)='number' and over is null and not exists(select 1 from jsonb_array_elements(coalesce(config->'drivers','[]'))v where v->'accountCodes' ? code and v->'periods' ? p) then
+  if review is not distinct from prior_review and config->>'uploadId' is not distinct from previous_config->>'uploadId' and over is null and not exists(select 1 from jsonb_array_elements(coalesce(config->'drivers','[]'))v where v->'accountCodes' ? code and v->'periods' ? p) then
+   select v->'forecast' into before_value from jsonb_array_elements(coalesce(previous_snapshot->'lines','[]'))v where v->>'period'=p and v->>'accountCode'=code;
+   if jsonb_typeof(before_value)='number' then
    select value into event from jsonb_array_elements(coalesce(config->'history','[]'))v where v->>'action'='clear_reviewed_forecast_blank' and v->>'period'=p and v->>'accountCode'=code and v->'before'=before_value and v->'after'='null'::jsonb and v->>'actor'=auth.uid()::text and atlas_private.forecast_blank_review_time(v->>'timestamp') and length(trim(coalesce(v->>'reason','')))>=3 and not exists(select 1 from jsonb_array_elements(coalesce(previous_config->'history','[]'))old where old=v);
    if event is null then raise exception 'Clearing a reviewed forecast value requires an explicit signed-in cell review with the exact prior value';end if;
+   end if;
   end if;
  end loop;
  for event in select value from jsonb_array_elements(coalesce(previous_config->'history','[]'))v where v->>'action'='clear_reviewed_forecast_blank' or exists(select 1 from jsonb_array_elements(case when jsonb_typeof(v->'before')='array' then v->'before' else '[]'::jsonb end||case when jsonb_typeof(v->'after')='array' then v->'after' else '[]'::jsonb end)d where d->>'type'='historical_weighted_amount' and d->'evidence'->>'method'='weighted_governed_actual_amount') loop
@@ -208,12 +213,14 @@ begin
  active_config:=config;
  if exists(select 1 from jsonb_array_elements(coalesce(config->'overrides','[]'))v) then
   select coalesce(array_agg(p),'{}') into locked from (select distinct v->>'period' p from jsonb_array_elements(coalesce(config->'overrides','[]'))v)s where atlas_private.reforecast_month_locked(cid,p);
-  if cardinality(locked)>0 then mapping_hash:=encode(sha256(convert_to((config->'importMapping')::text,'UTF8')),'hex');end if;
+  if cardinality(locked)>0 then
+  mapping_hash:=encode(sha256(convert_to((config->'importMapping')::text,'UTF8')),'hex');
   for over in select value from jsonb_array_elements(coalesce(config->'overrides','[]'))v where v->>'period'=any(locked) loop
    if ((config->'importMapping'->'workbookSourcePolicy' ? 'reviewedForecastBlanks' and config->'importMapping'=previous_config->'importMapping' and config->>'uploadId'=previous_config->>'uploadId' and over->>'uploadId'=config->>'uploadId' and nullif(over->>'sourceLineId','') is not null) or (over->'source'->>'kind'='user' and over->'source'->>'workbookSourceAbsent'='true' and over->'source'->'reviewedForecastBlank'->>'kind'='reviewed_forecast_blank')) and exists(select 1 from jsonb_array_elements(coalesce(previous_config->'overrides','[]'))old where old=over) then
     inert:=inert||jsonb_build_array(jsonb_build_object('uploadId',over->'uploadId','sourceLineId',over->'sourceLineId','period',over->'period','accountCode',over->'accountCode','mappingHash',mapping_hash));
    end if;
   end loop;
+  end if;
   if jsonb_array_length(inert)>0 then
   select jsonb_set(active_config,'{overrides}',coalesce(jsonb_agg(v),'[]')) into active_config from jsonb_array_elements(coalesce(config->'overrides','[]'))v where not exists(select 1 from jsonb_array_elements(inert)i where i->>'accountCode'=v->>'accountCode' and i->>'period'=v->>'period');
   end if;
@@ -378,6 +385,25 @@ begin
 end;$migration$;
 do $migration$declare d text;begin d:=atlas_private.forecast_blank_required_definition('public.atlas_publish_reforecast(uuid,integer,uuid,text)','9618801e1856067cb4d60706e639434dced7975c4fa04a84541056097ffd91bf');
 d:=atlas_private.forecast_blank_required_rewrite(d,$before$ source:=atlas_private.reforecast_source_for_config(rec.community_id,rec.payload);$before$,$after$ source:=atlas_private.reviewed_forecast_save_source(rec.community_id,rec.payload,rec.payload);$after$);execute d;end;$migration$;
+-- The lifecycle constructs and validates the complete workbook context. Reuse
+-- that stored authoritative source for the identical atomic import gate before
+-- receipt/return. A late rejection rolls back its revision/head/audit too; no
+-- client proof marker or optional validation path is introduced.
+do $atomic_gate$
+declare d text;
+begin
+ d:=atlas_private.forecast_blank_required_definition('atlas_private.create_reforecast_from_import(uuid,uuid,integer,uuid,uuid,jsonb,jsonb)','e0940049e3480d4908d3817ebb8909aa188c2945b324e42f2a5e79cabeb5e070');
+ d:=atlas_private.forecast_blank_required_rewrite(d,$before$ source:=atlas_private.attach_reforecast_workbook_context(source,config);
+ issues:=atlas_private.reforecast_import_issues(source,config);
+ if exists(select 1 from jsonb_array_elements(issues)i where i->>'severity' in ('error','blocking')) then raise exception 'Workbook mapping validation failed: %',issues::text;end if;
+$before$,$after$ -- Full workbook context is produced once by the governed lifecycle below.
+$after$);
+ d:=atlas_private.forecast_blank_required_rewrite(d,$before$ select * into r from public.atlas_reforecast_revisions where revision_id=(result->'revision'->>'revision_id')::uuid;$before$,$after$ select * into r from public.atlas_reforecast_revisions where revision_id=(result->'revision'->>'revision_id')::uuid;
+ source:=r.source;
+ issues:=atlas_private.reforecast_import_issues(source,config);
+ if exists(select 1 from jsonb_array_elements(issues)i where i->>'severity' in ('error','blocking')) then raise exception 'Workbook mapping validation failed: %',issues::text;end if;$after$);
+ execute d;
+end;$atomic_gate$;
 drop function atlas_private.forecast_blank_required_rewrite(text,text,text);
 drop function atlas_private.forecast_blank_required_definition(text,text);
 commit;

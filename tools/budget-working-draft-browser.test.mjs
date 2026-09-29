@@ -44,7 +44,7 @@ try{
     if(new URL(route.request().url()).origin===origin)return route.continue();
     remoteRequests.push(route.request().url());return route.abort();
   });
-  const ready=()=>page.waitForFunction(()=>window.RBB?.engine?._reforecastBridge&&RBB.app.state&&document.querySelector('.main .h1'));
+  const ready=()=>page.waitForFunction(()=>window.RBB?.engine?._reforecastBridge&&RBB.persist.renderReady&&RBB.app.state&&document.querySelector('.main .h1'));
   const row=gl=>page.locator('.main tbody tr').filter({has:page.locator('td.mono',{hasText:new RegExp('^'+gl+'$')})});
   const cell=(gl,month)=>row(gl).locator('input').nth(month);
   const scenario=()=>page.locator('.topbar select[onchange*="setScenario"]');
@@ -196,7 +196,7 @@ try{
   const second=await context.newPage();
   second.on('pageerror',error=>errors.push(error.message));
   await second.goto(origin+'/RISE-Budget-Builder.html#workspace');
-  await second.waitForFunction(()=>window.RBB?.engine?._reforecastBridge&&RBB.app.state?.activeScenario==='SC-WORK');
+  await second.waitForFunction(()=>window.RBB?.engine?._reforecastBridge&&RBB.persist.renderReady&&RBB.app.state?.activeScenario==='SC-WORK');
   const secondReceipt=await second.evaluate(()=>({year:RBB.app.year(),scenario:RBB.app.scenario().id,values:RBB.app.cp().results['synthetic-line-0'].monthly,status:document.querySelector('#savestat .l')?.textContent,context:document.querySelector('#browser-draft-save-status')?.textContent}));
   assert.equal(secondReceipt.year,2026);assert.equal(secondReceipt.scenario,'SC-WORK');
   assert.deepEqual(secondReceipt.values.slice(0,3),[700002.5,0,-123.45]);

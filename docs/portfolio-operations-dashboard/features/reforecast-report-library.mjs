@@ -1,12 +1,12 @@
 import {NONCASH_METRICS,hasNoncashReportRows,noncashReportFields,noncashReportSections} from './reforecast-noncash.mjs?v=9d197be13878cfe3';
-import {verifyBudgetExportDelivery,exportDeliveryNotice} from './budget-export-delivery.mjs?v=6e2f0ba90efef923';
+import {verifyBudgetExportDelivery,exportDeliveryNotice} from './budget-export-delivery.mjs?v=3643fbf59cb8cd46';
 import {riseWorkbookBytes} from './rise-workbook-export.mjs?v=d08dd1e8d4aadf30';
 import * as store from './reforecast-store.mjs?v=aa266355de44abc4';
-import {workbookCoverageHtml,workbookReportEvidence,workbookReportSections,workbookReportRows,workbookReportSheets,workbookCellFields,esc,money,download,safeSpreadsheetCell,publicationApprovalLabel,communityForecastReport,communityForecastWorkbook,communityForecastPdf,pairedForecastReports} from './reforecast-report.mjs?v=4b9b3d0631f29ffd';
+import {workbookCoverageHtml,workbookReportEvidence,workbookReportSections,workbookReportRows,workbookReportSheets,workbookCellFields,esc,money,download,safeSpreadsheetCell,publicationApprovalLabel,communityForecastReport,communityForecastWorkbook,communityForecastPdf,pairedForecastReports} from './reforecast-report.mjs?v=bf195d99ac4d9b69';
 import {freezeSnapshot,retainedSnapshot} from './financial-snapshot.mjs?v=848d058bdec07b4e';
-import {financeAccessKey} from './canonical-finance.mjs?v=88c2b0b47e514a10';
+import {financeAccessKey} from './canonical-finance.mjs?v=a51b74e79a07eec1';
 import {snapshotPdf} from './snapshot-pdf.mjs?v=cda1d9683b4dd270';
-import {listOriginalBudgetReportVersions,readOriginalBudgetVersionReport,originalBudgetVersionWorkbook,originalBudgetVersionPdf} from './original-budget-version-report.mjs?v=a3268305e39d197a';
+import {listOriginalBudgetReportVersions,readOriginalBudgetVersionReport,originalBudgetVersionWorkbook,originalBudgetVersionPdf} from './original-budget-version-report.mjs?v=1f0e48558153d498';
 
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const verifiedSelections=new WeakSet(),selectionGuards=new WeakMap(),selectionClients=new WeakMap();

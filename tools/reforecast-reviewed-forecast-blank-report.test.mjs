@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {reportLibraryFixture,ids} from './fixtures/reforecast-report-library-fixture.mjs';
+import {computeReforecast} from '../docs/portfolio-operations-dashboard/features/reforecast-engine.mjs';
 import {workbookReportEvidence,workbookCellFields,reportSnapshot,reportHtml,reportPdf,reportWorkbook,communityForecastReport,communityForecastWorkbook,pairedForecastReports} from '../docs/portfolio-operations-dashboard/features/reforecast-report.mjs';
 import {listReportVersions,readReportVersion,reportVersionPreview,reportVersionPreviewHtml,buildReportFiles} from '../docs/portfolio-operations-dashboard/features/reforecast-report-library.mjs';
 import {resolveEffectiveBaseline,effectiveBaselineMetric} from '../docs/portfolio-operations-dashboard/features/reforecast-consumers.mjs';
@@ -22,6 +23,8 @@ for(const row of snapshot.lines){
  if(row.accountCode==='5120')Object.assign(row,{forecast:row.period==='2026-09'?100.125:0,disposition:'included',isBlank:false,legitimateBlank:false,workbookSourceAmount:row.period==='2026-09'?100.125:0,workbookSourceDisposition:'included'});
  else if(row.accountCode==='6100')Object.assign(row,{forecast:null,disposition:'workbook_blank',isBlank:true,legitimateBlank:true,workbookSourceAmount:null,workbookSourceDisposition:'workbook_blank'});
  else Object.assign(row,{forecast:null,disposition:'reviewed_forecast_blank',isBlank:true,legitimateBlank:true,reviewedForecastBlankConfirmed:true,sourceScopeExclusionConfirmed:false,workbookSourceAmount:null,workbookSourceDisposition:'source_absent',source:{kind:'reviewed_forecast_blank',workbookSourceAbsent:true,uploadId:'retained-upload',sourceHash:'c'.repeat(64),auditId:'retained-audit',mappingVersion:'reviewed-mapping',sourceScenario:'Plan',review:{period:row.period,accountCode:row.accountCode,confirmed:true,reviewedBy:ids.actor,reviewedAt:'2026-09-01T12:00:00Z',reason:'Keep this account in forecast scope and leave its amount blank until reviewed.'}}});
+ if(row.accountCode==='5250')Object.assign(row,{selectedBaseline:20,closeVersionId:null,workbookSource:structuredClone(row.source)});
+ if(row.accountCode==='6100'){row.source={kind:'upload',uploadId:'retained-upload',auditId:'retained-audit',sourceHash:'c'.repeat(64),sourceLineId:row.period+'-6100'};Object.assign(row,{closeVersionId:null,workbookSource:structuredClone(row.source)});}
 }
 snapshot.workbookCoverage={schemaVersion:1,numericCellCount:2,workbookBlankCellCount:2,reviewedForecastBlankCellCount:2,sourceAbsentCellCount:0,outsideForecastScopeCellCount:0,reviewerEditedCellCount:0,complete:true,totalsBasis:'known_forecast_values',monthly:snapshot.monthly.map((month,index)=>({period:month.period,numericCellCount:1,workbookBlankCellCount:1,reviewedForecastBlankCellCount:1,sourceAbsentCellCount:0,outsideForecastScopeCellCount:0,reviewerEditedCellCount:0,complete:true,knownValueTotals:metrics(index?0:100.13),workbookSourceTotals:metrics(index?0:100.13)}))};
 snapshot.knownValueTotals=metrics(100.13);snapshot.workbookSourceTotals=metrics(100.13);
@@ -46,7 +49,7 @@ const entries=await listReportVersions(f.central,options);
 for(const [kind,id]of [['approved_forecast',ids.publication],['saved_revision',ids.draftRevision]]){
  const entry=entries.find(row=>row.kind===kind&&(row.publicationId||row.revisionId)===id),selection=await readReportVersion(f.central,entry,options),model=reportVersionPreview(selection,options),html=reportVersionPreviewHtml(selection,options);
  const [excel]=await buildReportFiles(selection,{format:'xlsx',XLSX,...options}),[pdf]=await buildReportFiles(selection,{format:'pdf',...options}),book=XLSX.read(excel.data,{type:'array'}),document=await pdfEvidence(pdf.data),detail=XLSX.utils.sheet_to_json(book.Sheets['GL detail'],{defval:null}),field=kind==='saved_revision'?'Forecast':'Active_baseline';
- const retained=detail.find(row=>row.GL==='5250');assert.equal(retained[field],null);assert.equal(retained.Original_budget,-1);assert.equal(retained.Selected_baseline,-1);assert.equal(retained.Workbook_source_amount,null);assert.equal(retained.Workbook_source_disposition,'source_absent');assert.equal(retained.Workbook_disposition,'Reviewed forecast blank (null)');assert.equal(detail.find(row=>row.GL==='5120'&&row.Period==='2026-10')[field],0);
+ const retained=detail.find(row=>row.GL==='5250');assert.equal(retained[field],null);assert.equal(retained.Original_budget,-1);assert.equal(retained.Selected_baseline,20);assert.equal(retained.Workbook_source_amount,null);assert.equal(retained.Workbook_source_disposition,'source_absent');assert.equal(retained.Workbook_disposition,'Reviewed forecast blank (null)');assert.equal(detail.find(row=>row.GL==='5120'&&row.Period==='2026-10')[field],0);
  assert.deepEqual(XLSX.utils.sheet_to_json(book.Sheets['Workbook coverage'],{defval:null}),model.workbook.coverage);assert.deepEqual(document.data.sections.find(row=>row.title==='Workbook source coverage').rows,model.workbook.coverage);assert.deepEqual(document.data.snapshot,model.snapshot);assert(html.includes('Reviewed forecast blanks'));assert(document.text.includes('Reviewed forecast blank (null)'));assert(document.text.includes('100.125'));
  if(kind==='approved_forecast'){
   assert.equal((await verifyOfficialExports({publication:selection.publication,xlsxBytes:new Uint8Array(excel.data),pdfBytes:pdf.data,screenRows:model.rows,screenMonthly:model.monthly,options})).status,'matched');
@@ -65,10 +68,26 @@ assert.equal(workbookReportEvidence(inherited),null);assert.match(reportHtml(inh
 // An STR overlay preserves the exact Conventional null and source evidence. A
 // reviewed source contribution may add a number, including explicit source zero,
 // only to the derived forecast. Unaffected workbook blanks stay null in both.
+// Use the real calculator and canonical approved-publication wrapper: the
+// parent's historical comparator remains 20, but its forecast null is the new
+// selected baseline. Copying the parent report would conceal that distinction.
+const parentLineage=period=>({period,sourceType:'approved_reforecast',publicationId:f.parent.publicationId,versionId:f.parent.revisionId,contentHash:f.parent.contentHash});
+const approvedBlankLines=snapshot.lines.filter(row=>row.forecast===null);
+const inheritedBlankInput={communityId:ids.community,periods:snapshot.identity.periods,
+ baseline:{communityId:ids.community,sourceType:'approved_reforecast',versionId:f.parent.revisionId,versionIds:snapshot.identity.baselineVersionIds,periodVersions:snapshot.identity.periods.map(parentLineage),
+  lines:approvedBlankLines.map(row=>({...structuredClone(row),amount:row.forecast,source:{...parentLineage(row.period),revisionId:f.parent.revisionId,priorSource:structuredClone(row.source)}})),
+  originalBudgetLines:approvedBlankLines.map(row=>({period:row.period,accountCode:row.accountCode,amount:row.originalBudget}))},
+ actuals:{cutoffPeriod:snapshot.identity.actualCutoff},registry:{version:ids.mapping,accounts:[{accountCode:'5250',name:'Retained concessions',category:'Revenue',nature:'contra_income',placement:'above_noi'},{accountCode:'6100',name:'Retained expense',category:'Expenses',nature:'expense',placement:'above_noi'}]},
+ scenario:{versionId:ids.strRevision,driverVersion:'retained-str-drivers',baselineType:'approved_reforecast',baselinePublicationIds:[f.parent.publicationId],drivers:[],overrides:[]}};
+const inheritedInputBefore=JSON.stringify(inheritedBlankInput),inheritedBlanks=computeReforecast(inheritedBlankInput);
+assert.equal(inheritedBlanks.status,'ready',JSON.stringify(inheritedBlanks.diagnostics));
+for(const row of inheritedBlanks.lines){const parent=approvedBlankLines.find(prior=>prior.period===row.period&&prior.accountCode===row.accountCode);assert.equal(row.forecast,null);assert.equal(row.selectedBaseline,null);assert.equal(row.originalBudget,parent.originalBudget);assert.deepEqual(row.baselineLineage,parentLineage(row.period));if(row.accountCode==='5250')assert.equal(parent.selectedBaseline,20);else{assert.equal(row.source.sourceType,'approved_reforecast');assert.deepEqual(row.source.priorSource,parent.source);}}
+assert.equal(JSON.stringify(inheritedBlankInput),inheritedInputBefore,'Inheritance does not rewrite the original parent comparator or source');
 const derived=structuredClone(f.parent);Object.assign(derived,{publicationId:ids.strPublication,revisionId:ids.strRevision,scenarioId:ids.strScenario,contentHash:'b'.repeat(64)});
 derived.snapshot.identity.parentPublication={publicationId:f.parent.publicationId,revisionId:f.parent.revisionId,contentHash:f.parent.contentHash};
 delete derived.snapshot.workbookCoverage;delete derived.snapshot.knownValueTotals;delete derived.snapshot.workbookSourceTotals;
 derived.snapshot.savedStrProgramme={sourceReceiptId:'retained-str-source',sourceHash:'d'.repeat(64),contentHash:'e'.repeat(64),sourceFingerprint:'f'.repeat(64),cells:[]};
+for(const row of derived.snapshot.lines){const inherited=inheritedBlanks.lines.find(line=>line.period===row.period&&line.accountCode===row.accountCode);Object.assign(row,{selectedBaseline:row.forecast,baselineLineage:parentLineage(row.period)});if(inherited)Object.assign(row,structuredClone(inherited));}
 for(const row of derived.snapshot.lines.filter(row=>row.accountCode==='5250')){
  const amount=row.period==='2026-09'?7.25:0;
  derived.snapshot.savedStrProgramme.cells.push({period:row.period,accountCode:row.accountCode,sourceAmount:amount,application:'add',parentAmount:null,parentDisposition:'reviewed_forecast_blank',combinedForecast:amount});
@@ -76,6 +95,9 @@ for(const row of derived.snapshot.lines.filter(row=>row.accountCode==='5250')){
 }
 derived.snapshot.strBridge=derived.snapshot.lines.map(row=>{const prior=snapshot.lines.find(line=>line.accountCode===row.accountCode&&line.period===row.period);return {period:row.period,accountCode:row.accountCode,conventional:prior.forecast,strContribution:row.forecast===null?0:prior.forecast===null?row.forecast:row.forecast-prior.forecast,withStr:row.forecast,parentDisposition:prior.forecast===null?prior.disposition:'existing_parent_cell'};});
 const pair=pairedForecastReports(f.parent,derived,options);assert.equal(pair.conventional.rows.find(row=>row.GL==='5250').Active_baseline,null);assert.equal(pair.withStr.rows.find(row=>row.GL==='5250').Active_baseline,7.25);assert.equal(pair.withStr.rows.find(row=>row.GL==='5250'&&row.Period==='2026-10').Active_baseline,0);assert.equal(pair.withStr.rows.find(row=>row.GL==='6100').Active_baseline,null);assert.equal(pair.withStr.bridge.find(row=>row.GL==='5250').Conventional,null);assert.equal(pair.withStr.bridge.find(row=>row.GL==='6100').STR_contribution,0);
+assert.equal(pair.conventional.rows.find(row=>row.GL==='5250').Selected_baseline,20);assert.equal(pair.withStr.rows.find(row=>row.GL==='5250').Selected_baseline,null);assert.equal(pair.withStr.rows.find(row=>row.GL==='5250').Prior_publication,f.parent.publicationId);
+const sqlLineage=structuredClone(derived);for(const row of sqlLineage.snapshot.lines){delete row.baselineLineage.period;row.baselineLineage.revisionId=f.parent.revisionId;}assert.doesNotThrow(()=>pairedForecastReports(f.parent,sqlLineage,options),'The canonical SQL lineage may omit its redundant period');
+const directSource=structuredClone(derived);for(const row of directSource.snapshot.lines.filter(row=>row.accountCode==='6100'))row.source=structuredClone(snapshot.lines.find(prior=>prior.period===row.period&&prior.accountCode===row.accountCode).source);assert.doesNotThrow(()=>pairedForecastReports(f.parent,directSource,options),'Exact retained source remains valid without a wrapper');
 for(const mutate of [
  value=>value.snapshot.strBridge.find(row=>row.accountCode==='5250').conventional=0,
  value=>value.snapshot.strBridge.find(row=>row.accountCode==='5250').parentDisposition='existing_parent_cell',
@@ -89,8 +111,23 @@ for(const mutate of [
  value=>value.snapshot.lines.find(row=>row.accountCode==='6100').forecast=0,
  value=>value.snapshot.lines.find(row=>row.accountCode==='6100').legitimateBlank=false,
  value=>value.snapshot.lines.find(row=>row.accountCode==='6100').source={kind:'invented'},
- value=>value.snapshot.lines.find(row=>row.accountCode==='5250').selectedBaseline=0
+ value=>value.snapshot.lines.find(row=>row.accountCode==='6100').source.priorSource.sourceLineId='other-cell',
+ value=>delete value.snapshot.lines.find(row=>row.accountCode==='6100').source.priorSource,
+ value=>value.snapshot.lines.find(row=>row.accountCode==='6100').source.publicationId=ids.strPublication,
+ value=>value.snapshot.lines.find(row=>row.accountCode==='6100').source.versionId=ids.strRevision,
+ value=>value.snapshot.lines.find(row=>row.accountCode==='6100').source.contentHash='b'.repeat(64),
+ value=>value.snapshot.lines.find(row=>row.accountCode==='6100').source.revisionId=ids.strRevision,
+ value=>value.snapshot.lines.find(row=>row.accountCode==='6100').source.period='2026-12',
+ value=>value.snapshot.lines.find(row=>row.accountCode==='5250').selectedBaseline=0,
+ value=>value.snapshot.lines.find(row=>row.accountCode==='5250').selectedBaseline=20,
+ value=>delete value.snapshot.lines.find(row=>row.accountCode==='5250').baselineLineage,
+ value=>value.snapshot.lines.find(row=>row.accountCode==='5250').baselineLineage.sourceType='original_budget',
+ value=>value.snapshot.lines.find(row=>row.accountCode==='5250').baselineLineage.publicationId=ids.strPublication,
+ value=>value.snapshot.lines.find(row=>row.accountCode==='5250').baselineLineage.versionId=ids.strRevision,
+ value=>value.snapshot.lines.find(row=>row.accountCode==='5250').baselineLineage.contentHash='b'.repeat(64),
+ value=>value.snapshot.lines.find(row=>row.accountCode==='5250').baselineLineage.revisionId=ids.strRevision,
+ value=>value.snapshot.lines.find(row=>row.accountCode==='5250').baselineLineage.period='2026-12'
 ]){const invalid=structuredClone(derived);mutate(invalid);assert.throws(()=>pairedForecastReports(f.parent,invalid,options));}
-const noContribution=structuredClone(derived),nullLine=noContribution.snapshot.lines.find(row=>row.accountCode==='5250'&&row.period==='2026-09'),parentLine=snapshot.lines.find(row=>row.accountCode===nullLine.accountCode&&row.period===nullLine.period);Object.assign(nullLine,structuredClone(parentLine));const nullBridge=noContribution.snapshot.strBridge.find(row=>row.accountCode===nullLine.accountCode&&row.period===nullLine.period);Object.assign(nullBridge,{withStr:null,strContribution:0});noContribution.snapshot.savedStrProgramme.cells=noContribution.snapshot.savedStrProgramme.cells.filter(row=>row.period!==nullLine.period);assert.equal(pairedForecastReports(f.parent,noContribution,options).withStr.rows.find(row=>row.GL==='5250').Active_baseline,null);
+const noContribution=structuredClone(derived),nullLine=noContribution.snapshot.lines.find(row=>row.accountCode==='5250'&&row.period==='2026-09');Object.assign(nullLine,structuredClone(inheritedBlanks.lines.find(row=>row.period===nullLine.period&&row.accountCode===nullLine.accountCode)));const nullBridge=noContribution.snapshot.strBridge.find(row=>row.accountCode===nullLine.accountCode&&row.period===nullLine.period);Object.assign(nullBridge,{withStr:null,strContribution:0});noContribution.snapshot.savedStrProgramme.cells=noContribution.snapshot.savedStrProgramme.cells.filter(row=>row.period!==nullLine.period);const unchangedPair=pairedForecastReports(f.parent,noContribution,options);assert.equal(unchangedPair.withStr.rows.find(row=>row.GL==='5250').Active_baseline,null);assert.equal(unchangedPair.withStr.rows.find(row=>row.GL==='5250').Selected_baseline,null);assert.equal(unchangedPair.conventional.rows.find(row=>row.GL==='5250').Selected_baseline,20);
 assert.equal(JSON.stringify({parent:f.parent,revision:f.revisions[0]}),before,'Reports and consumers preserve retained nulls, numeric zero, source absence, baselines and immutable history');
 console.log('PASS reviewed in-scope forecast blanks: distinct source absence and null, complete coverage evidence, saved/approved screen/PDF/XLSX parity, exact known totals, strict reconciliation, tamper rejection, approved-baseline consumers, source-proven STR additions with unchanged Conventional nulls, and immutable history.');

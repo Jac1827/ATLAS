@@ -2,7 +2,7 @@ import {confirmedForecastBlank,confirmedReviewedForecastBlank,excludedForecastSc
 import {aggregateForecastLines,NONCASH_METRIC_KEYS} from './reforecast-engine.mjs?v=66275e06b8571094';
 import {acknowledgeBudgetConsumer} from './budget-consumer-delivery.mjs?v=f5342574d4b39aa2';
 import {readActive,effectiveActiveSnapshot} from './reforecast-store.mjs?v=aa266355de44abc4';
-import {esc,money,reportHtml,exportRows,csv,download} from './reforecast-report.mjs?v=4b9b3d0631f29ffd';
+import {esc,money,reportHtml,exportRows,csv,download} from './reforecast-report.mjs?v=bf195d99ac4d9b69';
 const finitePercent=value=>typeof value==='number'&&Number.isFinite(value)?(value*100).toFixed(2)+'%':'Unavailable';
 // One publication reader shared by operating screens, plan/report evidence and Scout.
 export function createActiveReforecastCache(central){

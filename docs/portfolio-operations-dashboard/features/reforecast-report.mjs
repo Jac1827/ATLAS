@@ -268,15 +268,19 @@ export function pairedForecastReports(conventional,withStr,options={}){
  const bridge=withStr.snapshot.strBridge;
  if(!Array.isArray(bridge)||withStr.snapshot.lines.length!==bridge.length)throw Error('The complete immutable STR contribution bridge is required.');
  const indexed=(lines,label)=>{const result=new Map();for(const line of lines){const key=amountKey(line);if(result.has(key))throw Error(label+' contains duplicate GL/month values.');result.set(key,line);}return result;},parents=indexed(conventional.snapshot.lines,'Conventional publication'),derived=indexed(withStr.snapshot.lines,'STR publication'),seen=new Set(),programme=withStr.snapshot.savedStrProgramme;
+ const exactParentLineage=(lineage,period)=>lineage?.sourceType==='approved_reforecast'&&lineage.publicationId===conventional.publicationId&&lineage.versionId===conventional.revisionId&&lineage.contentHash===conventional.contentHash&&(!has(lineage,'revisionId')||lineage.revisionId===conventional.revisionId)&&(!has(lineage,'period')||lineage.period===period);
  for(const row of bridge){
   const key=amountKey(row),a=parents.get(key),b=derived.get(key);
   if(seen.has(key)||!b||row.withStr!==b.forecast)throw Error('The STR bridge does not reconcile to both immutable publications.');
   if(a&&a.isBlank===true&&confirmedForecastBlank(a,'forecast')){
-   if(row.parentDisposition!==a.disposition||row.conventional!==null||a.actual!==b.actual||a.originalBudget!==b.originalBudget||a.selectedBaseline!==b.selectedBaseline||a.closeVersionId!==b.closeVersionId)throw Error('The STR bridge does not preserve the reviewed Conventional parent blank.');
+   if(row.parentDisposition!==a.disposition||row.conventional!==null||a.actual!==b.actual||a.originalBudget!==b.originalBudget||b.selectedBaseline!==a.forecast||a.closeVersionId!==b.closeVersionId)throw Error('The STR bridge does not preserve the reviewed Conventional parent blank.');
+   if(!exactParentLineage(b.baselineLineage,row.period))throw Error('The STR selected baseline must reference the exact Conventional parent publication.');
    for(const field of ['workbookSourceAmount','workbookSourceDisposition','workbookSource'])if(stableStringify(a[field])!==stableStringify(b[field]))throw Error('The STR bridge changed the Conventional workbook source evidence.');
    if(b.forecast===null){
     if(row.strContribution!==0||b.isBlank!==true||!confirmedForecastBlank(b,'forecast'))throw Error('An unchanged reviewed Conventional blank must stay null without an STR contribution.');
-    for(const field of ['disposition','isBlank','legitimateBlank','reviewedForecastBlankConfirmed','sourceScopeExclusionConfirmed','source'])if(stableStringify(a[field])!==stableStringify(b[field]))throw Error('The STR bridge changed the retained Conventional blank review.');
+    for(const field of ['disposition','isBlank','legitimateBlank','reviewedForecastBlankConfirmed','sourceScopeExclusionConfirmed'])if(stableStringify(a[field])!==stableStringify(b[field]))throw Error('The STR bridge changed the retained Conventional blank review.');
+    const sameSource=stableStringify(a.source)===stableStringify(b.source);
+    if(!sameSource&&(!exactParentLineage(b.source,row.period)||!has(b.source,'priorSource')||stableStringify(a.source)!==stableStringify(b.source.priorSource)))throw Error('The STR bridge changed the retained Conventional blank source.');
    }else{
     const cells=(programme?.cells||[]).filter(cell=>cell.period===row.period&&cell.accountCode===row.accountCode),cell=cells.length===1?cells[0]:null;
     if(!programme?.sourceReceiptId||!finite(b.forecast)||!finite(row.strContribution)||b.forecast!==row.strContribution||!cell||cell.application!=='add'||cell.parentAmount!==null||cell.parentDisposition!==a.disposition||cell.sourceAmount!==row.strContribution||cell.combinedForecast!==b.forecast)throw Error('An STR contribution to a reviewed parent blank requires its exact retained source cell.');

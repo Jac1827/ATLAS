@@ -3,7 +3,7 @@ import {hashReforecastWorkbook,encodeOriginalWorkbook} from './reforecast-intake
 import {workbookEvidenceHash} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
 import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=aba4565f9c5c9e98';
 import {confirmedForecastBlank} from './reforecast-workbook-source-policy.mjs?v=a930b680fb3c7265';
-import {validateSavedStrSource,selectSavedStrSource} from './reforecast-str-source-validation.mjs';
+import {validateSavedStrSource,selectSavedStrSource} from './reforecast-str-source-validation.mjs?v=de7f8e807a17cdca';
 
 const SCHEMA='atlas.saved-str-monthly-programme.v1',PERIOD=/^20\d{2}-(0[1-9]|1[0-2])$/;
 const finite=value=>typeof value==='number'&&Number.isFinite(value),clone=structuredClone;

@@ -101,6 +101,8 @@ entries=[
 # Discover imports of governed modules so a stale parent cannot keep an old
 # child after deployment. A topological pass versions every child first.
 tracked={asset: list(refs) for asset,refs in entries}
+for asset in ['features/str-programme-workbook.mjs','features/reforecast-str-source-validation.mjs']:
+ tracked.setdefault(asset,[])
 for asset in ['features/occupancy-goal-recommendations.mjs','features/occupancy-source-evidence.mjs','features/community-goal-planning.mjs']:
  tracked.setdefault(asset,[])
 for asset in ['features/community-budget-identity.mjs','features/community-budget-settings.mjs','features/governed-budget-workspace.mjs','features/month-end-governance.mjs','features/rise-report-brand.mjs','features/rise-workbook-export.mjs','features/budget-dashboard-tasks.mjs','features/budget-consumer-delivery.mjs','features/budget-export-delivery.mjs']:

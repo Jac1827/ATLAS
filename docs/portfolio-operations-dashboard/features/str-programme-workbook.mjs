@@ -1,4 +1,4 @@
-import {riseWorkbookBytes} from './rise-workbook-export.mjs';
+import {riseWorkbookBytes} from './rise-workbook-export.mjs?v=d08dd1e8d4aadf30';
 
 // Presentation only. Existing report sheets remain an exact retained-data API.
 const encoder=new TextEncoder(),decoder=new TextDecoder();

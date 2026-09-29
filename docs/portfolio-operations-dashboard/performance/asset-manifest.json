@@ -1355,9 +1355,23 @@
       ]
     ]
   },
+  "features/reforecast-str-source-validation.mjs": {
+    "sha256": "de7f8e807a17cdca",
+    "bytes": 3106,
+    "references": [
+      [
+        "features/reforecast-str-json-recovery.mjs",
+        "./reforecast-str-source-validation.mjs"
+      ],
+      [
+        "features/reforecast-str-saved-programme.mjs",
+        "./reforecast-str-source-validation.mjs"
+      ]
+    ]
+  },
   "features/reforecast-str-json-recovery.mjs": {
-    "sha256": "8e59b661f0adbf5e",
-    "bytes": 13200,
+    "sha256": "19555fff5cf63a09",
+    "bytes": 13287,
     "references": [
       [
         "features/reforecast-ui.mjs",
@@ -1384,8 +1398,8 @@
     ]
   },
   "features/reforecast-str-saved-programme.mjs": {
-    "sha256": "2b6356eb8cb947bb",
-    "bytes": 15391,
+    "sha256": "5296b57a39a17dec",
+    "bytes": 15214,
     "references": [
       [
         "features/reforecast-str-saved-programme-ui.mjs",
@@ -1394,7 +1408,7 @@
     ]
   },
   "features/reforecast-str-saved-programme-ui.mjs": {
-    "sha256": "ca6f8efd8f6bd3b6",
+    "sha256": "46fac45c6bf5cfb0",
     "bytes": 28703,
     "references": [
       [
@@ -1408,7 +1422,7 @@
     ]
   },
   "features/reforecast-builder-ui.mjs": {
-    "sha256": "1733aa8df12eeab7",
+    "sha256": "b87ea7e75d31d31e",
     "bytes": 67187,
     "references": [
       [
@@ -1470,7 +1484,7 @@
         "./rise-workbook-export.mjs"
       ],
       [
-        "features/saved-str-programmes.mjs",
+        "features/str-programme-workbook.mjs",
         "./rise-workbook-export.mjs"
       ],
       [
@@ -1494,7 +1508,7 @@
     ]
   },
   "features/reforecast-ui.mjs": {
-    "sha256": "cbcf65bf64c78ad6",
+    "sha256": "56ad5f1eb5f6e212",
     "bytes": 170422,
     "references": [
       [
@@ -1507,9 +1521,19 @@
       ]
     ]
   },
+  "features/str-programme-workbook.mjs": {
+    "sha256": "1d5c8f98b77731be",
+    "bytes": 8748,
+    "references": [
+      [
+        "features/saved-str-programmes.mjs",
+        "./str-programme-workbook.mjs"
+      ]
+    ]
+  },
   "features/saved-str-programmes.mjs": {
-    "sha256": "5a6fa4e1eadcd758",
-    "bytes": 57795,
+    "sha256": "af3a8b8819244bd6",
+    "bytes": 57441,
     "references": [
       [
         "reforecast-navigation.js",
@@ -1548,7 +1572,7 @@
     ]
   },
   "reforecast-navigation.js": {
-    "sha256": "4c3baf9f67713f32",
+    "sha256": "6df7c7908b5b42b9",
     "bytes": 6203,
     "references": [
       [
@@ -1844,7 +1868,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "f119cabf79d684b3",
+    "sha256": "fcc58b1c677c65e4",
     "bytes": 1895409,
     "references": [
       [
@@ -1854,7 +1878,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "97247a76fc7c1014",
+    "sha256": "7cc1f38cc43f75b8",
     "bytes": 26893,
     "references": [
       [

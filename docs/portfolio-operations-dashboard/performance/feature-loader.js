@@ -5,7 +5,7 @@
   const pending = new Map();
   const definitions = {
     reports: { src: new URL('features/reports-workspace.js?v=bcce172b61dd8132', base).href, ready: () => !!root.AtlasReports },
-    importWorkspace: { src: new URL('features/import-workspace.js?v=e644b17b311d229d', base).href, ready: () => !!root.AtlasImportWorkspace },
+    importWorkspace: { src: new URL('features/import-workspace.js?v=91590ef7285d447a', base).href, ready: () => !!root.AtlasImportWorkspace },
     bonusWorkspace: { src: new URL('features/bonus-workspace.js?v=077cf554254699a4', base).href, ready: () => !!root.AtlasBonusWorkspace },
     adminWorkspace: { src: new URL('features/admin-workspace.js?v=ffee801ee359c2d3', base).href, ready: () => !!root.AtlasAdminWorkspace },
     centralServices: { src: new URL('central-services.js?v=7af4914b44711a72', base).href, ready: () => typeof root.renderCentralServicesTab === 'function' },

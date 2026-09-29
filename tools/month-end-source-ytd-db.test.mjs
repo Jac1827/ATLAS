@@ -10,7 +10,7 @@ import {suggestMonthlyMappings,confirmMonthlyGovernance} from '../docs/portfolio
 const require=createRequire(import.meta.url),{fixture}=require('./financial-intake-fixture.cjs'),XLSX=require('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js');
 const {db,cid,signIn}=await fixture(),actor='00000000-0000-0000-0000-000000000001';
 const migration=name=>fs.readFileSync(new URL('../supabase/migrations/'+name,import.meta.url),'utf8');
-const nextMigration='20260929145201_month_end_accounting_source_fiscal_ytd.sql';
+const nextMigration='20260929160951_month_end_accounting_source_fiscal_ytd.sql';
 const call=async(name,args)=>(await db.query(`select to_jsonb(${name}(${args.map((_,i)=>'$'+(i+1)).join(',')})) result`,args)).rows[0].result;
 const values=(a,b,y=a,yb=b)=>[a,b,a-b,b?(a-b)/b:null,y,yb,y-yb,yb?(y-yb)/yb:null,b*12];
 async function build({expense=800,ytdExpense=2500,ytdIncome=60000,extra=null,start=1,pdf=true}={}){

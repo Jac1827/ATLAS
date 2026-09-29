@@ -24,7 +24,7 @@ try{
  await db.exec(`reset role;create function atlas_private.budget_calendar(uuid) returns jsonb language sql as $$select '{"basis":"calendar","startMonth":1,"classification":"Multifamily","verified":true}'::jsonb$$;
  create function public.atlas_reforecast_effective_baseline(uuid[],text[]) returns jsonb language sql as $$select jsonb_agg(jsonb_build_object('communityId',$1[1],'period',p,'status','available','verified',true,'approved',true,'locked',true,'sourceType','approved_budget','versionId','baseline-fixture','contentHash','fixture-hash','lines','[{"accountCode":"5120","amount":10000,"nature":"income","placement":"above_noi","category":"Rent","mappingValid":true},{"accountCode":"6100","amount":1000,"nature":"expense","placement":"above_noi","category":"Maintenance","mappingValid":true}]'::jsonb)) from unnest($2)p$$;`);
  await db.exec(migration('20260925161938_governed_month_end_operational_review.sql'));
- await db.exec(migration('20260929145201_month_end_accounting_source_fiscal_ytd.sql'));
+ await db.exec(migration('20260929160951_month_end_accounting_source_fiscal_ytd.sql'));
  await signIn(1);const old=await build(800),oldAttestation=await call('atlas_confirm_month_end_close',[old.review_id,'2026-02-12T10:00:00Z','2026-02-12T09:00:00Z','Existing precise Accounting verification']);
  const oldEvidence=await call('atlas_read_month_end_review',[old.review_id]);assert.deepEqual(oldEvidence.blockers,[]);
  await call('atlas_save_month_end_decision',[old.review_id,oldEvidence.fingerprint,{},{},randomUUID()]);const oldClosed=await call('atlas_close_financial_review_governed',[old.review_id,null,randomUUID(),'Existing approved close remains immutable',true]);
@@ -35,7 +35,7 @@ try{
  // Reproduce the production public-schema default that survived the original
  // manual RPC's explicit PUBLIC/anon/authenticated grant normalization.
  await db.exec('alter default privileges in schema public grant execute on functions to service_role');
- await db.exec(migration('20260929151742_manual_accounting_close_confirmation.sql'));
+ await db.exec(migration('20260929161003_manual_accounting_close_confirmation.sql'));
  const target='public.atlas_confirm_month_end_close_manually(uuid,timestamptz,boolean,text)';
  const correction=migration('20260929162041_manual_close_confirmation_execute_scope.sql');
  const canExecute=async role=>(await db.query("select has_function_privilege($1,$2,'EXECUTE') allowed",[role,target])).rows[0].allowed;

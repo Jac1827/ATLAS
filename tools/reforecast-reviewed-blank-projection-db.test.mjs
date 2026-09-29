@@ -11,7 +11,7 @@ import {confirmedReviewedForecastBlank} from '../docs/portfolio-operations-dashb
 import {pairedForecastReports,communityForecastReport,communityForecastWorkbook,communityForecastPdf} from '../docs/portfolio-operations-dashboard/features/reforecast-report.mjs';
 import {reconcilePublicationTotals,verifyOfficialExports} from './publication-export-acceptance.mjs';
 const XLSX=createRequire(import.meta.url)('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js');
-const sql=fs.readFileSync(new URL('../supabase/migrations/20260929153104_reviewed_blank_report_projection.sql',import.meta.url),'utf8');
+const sql=fs.readFileSync(new URL('../supabase/migrations/20260929162149_reviewed_blank_report_projection.sql',import.meta.url),'utf8');
 const priorSql=fs.readFileSync(new URL('./fixtures/reforecast-report-projection-before-reviewed.sql',import.meta.url),'utf8');
 function totals(snapshot){
  for(const month of snapshot.monthly){month.closed=false;month.reforecast=aggregateForecastLines(snapshot.lines.filter(row=>row.period===month.period),'forecast');month.actuals={grossIncome:null,contraRevenue:null,expenses:null,capital:null,noi:null};}

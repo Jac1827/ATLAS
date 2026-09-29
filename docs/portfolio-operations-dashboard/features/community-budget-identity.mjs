@@ -6,8 +6,8 @@ export function readBudgetCalendar(community){
  const unverified=community?.review_status==='review_required'&&/market|property_type|classification|financial/i.test(JSON.stringify(community.review_flags||[]));
  const candidates=[classification(community?.market),classification(community?.property_type)].filter(Boolean);
  const kind=saved?.verified===true&&saved.source?classification(saved.classification):!unverified&&new Set(candidates).size===1?candidates[0]:null;
- const startMonth=kind==='Student Housing'?8:kind==='Multifamily'?1:null;
- if(!kind||saved?.verified===true&&Number(saved.startMonth)!==startMonth)return {verified:false,reason:'Verify the community financial classification in Community Settings before import.',startMonth:null,basis:null};
+ const startMonth=saved?.verified===true&&saved.source?Number(saved.startMonth):kind==='Student Housing'?8:kind==='Multifamily'?1:null;
+ if(!kind||!Number.isInteger(startMonth)||startMonth<1||startMonth>12)return {verified:false,reason:'Verify the community financial classification and fiscal start month in Community Settings before import.',startMonth:null,basis:null};
  return {verified:true,classification:kind,startMonth,basis:startMonth===1?'calendar':'fiscal',settingsVersion:saved?.version||community.version||null,source:saved?.source||'Community Settings',schoolYear:kind==='Student Housing',summerTurnMonths:kind==='Student Housing'?[6,7,8]:[]};
 }
 export function budgetYearPeriods(year,calendar){

@@ -1,7 +1,7 @@
 import {strRegistryExtensionIssues} from './reforecast-str-registry-extension.mjs?v=e029a084505a92e0';
 import {hashReforecastWorkbook,encodeOriginalWorkbook} from './reforecast-intake.mjs?v=74bbd52d93a197cc';
 import {workbookEvidenceHash} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
-import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=aba4565f9c5c9e98';
+import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=09f928e62d236d7a';
 import {confirmedForecastBlank} from './reforecast-workbook-source-policy.mjs?v=a930b680fb3c7265';
 import {validateSavedStrSource,selectSavedStrSource} from './reforecast-str-source-validation.mjs?v=de7f8e807a17cdca';
 
@@ -53,7 +53,7 @@ export async function parseSavedStrMonthlyProgramme(input,{fileName='Saved STR.r
   const income=totals(['income']),contra=totals(['contra_income']),expense=totals(['expense']);
   for(const [metric,computed]of Object.entries({totalRevenue:income,expense,furnishCapex:totals(['capital']),uplift:finite(income)&&finite(contra)&&finite(expense)?sum([income,contra,-expense]):null}))if(finite(saved[metric])&&computed!==saved[metric])sourceRollupDifferences.push({year,metric,savedProgrammeTotal:saved[metric],savedMonthlyGLTotal:computed,difference:difference(computed,saved[metric]),authority:'saved_monthly_gl_cells'});
  }
- const result={schemaVersion:SCHEMA,fileName,sourceHash:await hashReforecastWorkbook(bytes),byteLength:bytes.length,originalFile:encodeOriginalWorkbook(bytes),savedAt:payload.savedAt||null,sourcePropertyId:propertyId,programmeId,periods:[...periods].sort(),property:clone(property),programme:clone(programme),groupAllocations,allocatedUnits,unitRamp,lineEvidence,cells,sourceRollups:clone(programme.byYear||{}),sourceRollupDifferences,referenceDisposition:'Other operators and reference datasets remain retained in the original JSON and are not applied as RISE contributions.',blockers};
+ const result={schemaVersion:SCHEMA,fileName,sourceHash:await hashReforecastWorkbook(bytes),byteLength:bytes.length,originalFile:encodeOriginalWorkbook(bytes),savedAt:payload.savedAt||null,sourcePropertyId:propertyId,programmeId,periods:[...periods].sort(),property:clone(property),programme:clone(programme),groupAllocations,allocatedUnits,unitRamp,lineEvidence,cells,...(Object.keys(programme.supportingSchedules||{}).length?{supportingSchedules:clone(programme.supportingSchedules)}:{}),sourceRollups:clone(programme.byYear||{}),sourceRollupDifferences,referenceDisposition:'Other operators and reference datasets remain retained in the original JSON and are not applied as RISE contributions.',blockers};
  result.fingerprint=contentFingerprint(result);return result;
 }
 
@@ -86,6 +86,6 @@ export async function prepareSavedStrMonthlyContribution(source,{publication,reg
   const parentAmount=parent.length===1&&finite(parent[0].forecast)?parent[0].forecast:null;
   cells.push({...clone(cell),accountCode:account.accountCode,mappingVersion:registry.version,amount:cell.sourceAmount,application:'add',parentAmount,parentDisposition:absent?'no_parent_publication_row':reviewedBlank?parent[0].disposition:'existing_parent_cell',combinedForecast:finite(cell.sourceAmount)&&(absent||reviewedBlank||parentAmount!==null)?sum([parentAmount??0,cell.sourceAmount]):null,actorId:actor,reviewedAt,reason:String(reason||'').trim()});
  }
- const result={schemaVersion:SCHEMA,sourceKind:'saved_json_monthly_programme',sourceHash:source.sourceHash,sourceFingerprint:source.fingerprint,sourcePropertyId:source.sourcePropertyId,programmeId:source.programmeId,parentPublication:clone(base.parentPublication),mappingVersion:registry?.version||null,periods:clone(source.periods),application:'add',groupAllocations:clone(source.groupAllocations),unitRamp:clone(source.unitRamp),cells,mappings:clone(mappings),allowHelloLandingGl5144,rollupReview:clone(rollupReview||null),actorId:actor,reviewedAt,reason:String(reason||'').trim(),blockers,ready:blockers.length===0};
+ const result={schemaVersion:SCHEMA,sourceKind:'saved_json_monthly_programme',sourceHash:source.sourceHash,sourceFingerprint:source.fingerprint,sourcePropertyId:source.sourcePropertyId,programmeId:source.programmeId,parentPublication:clone(base.parentPublication),mappingVersion:registry?.version||null,periods:clone(source.periods),application:'add',groupAllocations:clone(source.groupAllocations),unitRamp:clone(source.unitRamp),...(Object.keys(source.supportingSchedules||{}).length?{supportingSchedules:clone(source.supportingSchedules)}:{}),cells,mappings:clone(mappings),allowHelloLandingGl5144,rollupReview:clone(rollupReview||null),actorId:actor,reviewedAt,reason:String(reason||'').trim(),blockers,ready:blockers.length===0};
  result.fingerprint=contentFingerprint(result);return result;
 }

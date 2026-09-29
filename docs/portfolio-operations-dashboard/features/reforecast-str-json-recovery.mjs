@@ -1,4 +1,4 @@
-import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=aba4565f9c5c9e98';
+import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=09f928e62d236d7a';
 import {validateSavedStrSource,selectSavedStrSource} from './reforecast-str-source-validation.mjs?v=de7f8e807a17cdca';
 const clone=value=>structuredClone(value),finite=value=>typeof value==='number'&&Number.isFinite(value),month=/^20\d{2}-(0[1-9]|1[0-2])$/;
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

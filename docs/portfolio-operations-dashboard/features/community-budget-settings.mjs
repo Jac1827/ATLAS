@@ -20,14 +20,15 @@ export async function readCommunityBudgetSettings(central,communityId){
  return {community:rows[0],calendar};
 }
 
-export async function saveCommunityBudgetSettings(central,{communityId,expectedVersion,classification,reason}){
+export async function saveCommunityBudgetSettings(central,{communityId,expectedVersion,classification,reason,startMonth}){
  const actor=actorOf(central);adminGuard(central,actor);
  if(!UUID.test(communityId||'')||!Number.isInteger(expectedVersion)||expectedVersion<1||!CLASSES.includes(classification)||String(reason||'').trim().length<3)throw Error('Choose a financial classification and enter a verification reason.');
+ if(startMonth!==undefined&&(!Number.isInteger(startMonth)||startMonth<1||startMonth>12))throw Error('Choose a fiscal start month from January through December.');
  await central.refreshSession?.();adminGuard(central,actor);
- const saved=await rpc(central,'atlas_set_budget_calendar',{p_community_id:communityId,p_expected_version:expectedVersion,p_classification:classification,p_reason:reason.trim()});
+ const saved=await rpc(central,startMonth===undefined?'atlas_set_budget_calendar':'atlas_set_budget_fiscal_calendar',{p_community_id:communityId,p_expected_version:expectedVersion,p_classification:classification,p_reason:reason.trim(),...(startMonth===undefined?{}:{p_start_month:startMonth})});
  adminGuard(central,actor);
  const readback=await readCommunityBudgetSettings(central,communityId);adminGuard(central,actor);
- if(saved?.verified!==true||readback.calendar?.verified!==true||readback.calendar.classification!==classification||readback.calendar.startMonth!==(classification==='Student Housing'?8:1)||readback.community.version<=expectedVersion||readback.calendar.settingsVersion!==saved.settingsVersion)throw Error('The saved calendar could not be confirmed against the latest community version. Reload Community Settings.');
+ if(saved?.verified!==true||readback.calendar?.verified!==true||readback.calendar.classification!==classification||readback.calendar.startMonth!==(startMonth??(classification==='Student Housing'?8:1))||readback.community.version<=expectedVersion||readback.calendar.settingsVersion!==saved.settingsVersion)throw Error('The saved calendar could not be confirmed against the latest community version. Reload Community Settings.');
  return readback;
 }
 
@@ -41,10 +42,11 @@ export async function mountCommunityBudgetSettings(panel,{central,communityId,co
  function render(message=''){
   if(!current())return;
   const {community,calendar}=state,profile=central.getStoredProfile?.(),admin=profile?.user_id===actor&&profile.role==='admin'&&profile.status==='active';
-  const verified=calendar?.verified===true,kind=calendar?.classification||community.budget_calendar?.classification||'',cycle=calendar?.startMonth===8?'August–July':calendar?.startMonth===1?'January–December':'Not verified';
+  const months=Array.from({length:12},(_,m)=>new Date(Date.UTC(2026,m,1)).toLocaleString('en-US',{month:'long',timeZone:'UTC'}));
+  const verified=calendar?.verified===true,kind=calendar?.classification||community.budget_calendar?.classification||'',cycle=verified?months[calendar.startMonth-1]+'–'+months[(calendar.startMonth+10)%12]:'Not verified';
   host.innerHTML='<h2>Financial calendar · '+escape(community.display_name||community.canonical_name)+'</h2><p><strong>'+escape(verified?'Verified':'Needs verification')+'</strong> · '+escape(cycle)+'</p><p>Source: '+escape(calendar?.source||community.budget_calendar?.source||'No verified source')+(calendar?.settingsVersion?' · Settings version '+escape(calendar.settingsVersion):'')+'</p>'+
    (calendar?.startMonth===8?'<p>Student Housing uses its school-year cycle, including the summer turn period.</p>':'')+
-   (admin?'<form data-calendar-form><label>Financial classification <select data-calendar-classification required><option value="">Choose classification</option>'+CLASSES.map(value=>'<option value="'+value+'"'+(value===kind?' selected':'')+'>'+value+'</option>').join('')+'</select></label> <label>Verification reason <input data-calendar-reason type="text" required minlength="3" placeholder="Source and reason for this classification"></label> <button class="btn btn-blue" type="submit">Verify and save calendar</button></form>':'<p>An Admin can verify or correct this calendar in Community Settings.</p>')+
+   (admin?'<form data-calendar-form><label>Financial classification <select data-calendar-classification required><option value="">Choose classification</option>'+CLASSES.map(value=>'<option value="'+value+'"'+(value===kind?' selected':'')+'>'+value+'</option>').join('')+'</select></label> <label>Fiscal year starts <select data-calendar-start-month>'+months.map((month,index)=>'<option value="'+(index+1)+'"'+(index+1===(calendar?.startMonth||1)?' selected':'')+'>'+month+'</option>').join('')+'</select></label> <label>Verification reason <input data-calendar-reason type="text" required minlength="3" placeholder="Source and reason for this calendar"></label> <button class="btn btn-blue" type="submit">Verify and save calendar</button></form>':'<p>An Admin can verify or correct this calendar in Community Settings.</p>')+
    '<p role="status" data-calendar-status>'+escape(message||calendar?.reason||'')+'</p>';
   const form=host.querySelector('[data-calendar-form]');if(!form)return;
   form.onsubmit=async event=>{
@@ -52,7 +54,7 @@ export async function mountCommunityBudgetSettings(panel,{central,communityId,co
    const classification=host.querySelector('[data-calendar-classification]').value,reason=host.querySelector('[data-calendar-reason]').value,button=form.querySelector('button'),status=host.querySelector('[data-calendar-status]');
    busy=true;button.disabled=true;status.textContent='Saving and checking the shared calendar…';
    try{
-    const saved=await saveCommunityBudgetSettings(central,{communityId:community.community_id,expectedVersion:community.version,classification,reason});
+    const saved=await saveCommunityBudgetSettings(central,{communityId:community.community_id,expectedVersion:community.version,classification,reason,startMonth:Number(host.querySelector('[data-calendar-start-month]').value)});
     if(!current())return;state=saved;render('Verified and saved. Budget Builder and month-end review now use this calendar.');
     panel.dispatchEvent(new CustomEvent('atlas-budget-calendar-updated',{bubbles:true,detail:{communityId:community.community_id}}));
    }catch(error){if(current()){status.textContent=error.message;button.disabled=false;}}

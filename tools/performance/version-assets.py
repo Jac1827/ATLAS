@@ -111,6 +111,8 @@ for asset in ['features/reforecast-session-scope.mjs','features/reforecast-repor
  tracked.setdefault(asset,[])
 for asset in ['features/workbook-rich-images.mjs','features/reforecast-str-overlay.mjs','features/reforecast-authority.mjs','features/reforecast-recovery.mjs','features/reforecast-registry-proposal.mjs','features/reforecast-str-json-recovery.mjs','features/reforecast-parser-recovery.mjs','features/reforecast-str-saved-programme.mjs','features/reforecast-str-saved-programme-runtime.mjs','features/reforecast-str-saved-programme-ui.mjs','features/reforecast-str-registry-extension.mjs']:
  tracked.setdefault(asset,[])
+for asset in ['features/budget-money.mjs','features/budget-leasing-drivers.mjs','features/budget-leasing-ui.mjs','features/budget-driver-warning-ui.mjs','features/budget-export-store.mjs','features/standard-budget-model.mjs','features/standard-budget-render.mjs','features/standard-budget-export-ui.mjs','features/str-budget-application.mjs']:
+ tracked.setdefault(asset,[])
 # The former inline shell now lives in a classic external script. Keep static
 # HTML references in index, and migrate only references extracted with the core.
 core_path=root/'workspace-core.js'

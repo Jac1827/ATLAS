@@ -139,7 +139,7 @@ async function saveCommunityCommandGoalEditor(approve) {
 /* Scoped occupancy planning hook. This also runs on the retained operational shell. */
 (function(){
   if(typeof window==='undefined'||typeof document==='undefined'||!document.currentScript?.src)return;
-  const source=new URL('./features/community-goal-planning.mjs?v=55c9f2f54d742ff7',document.currentScript.src);
+  const source=new URL('./features/community-goal-planning.mjs?v=396060b74a128ef8',document.currentScript.src);
   const openGoals=window.approveCommunityCommandMonthlyGoals;
   const ready=new Promise(resolve=>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',resolve,{once:true}):resolve()).then(()=>import(source.href)).then(module=>module.installCommunityGoalPlanning({host:window,openGoals,getImportState:()=>typeof dataImport2State==='object'?dataImport2State:null}));
   window.approveCommunityCommandMonthlyGoals=async function(){try{await ready;return window.approveCommunityCommandMonthlyGoals.apply(this,arguments);}catch(error){window.alert('Source-aware goals could not load: '+error.message);}};

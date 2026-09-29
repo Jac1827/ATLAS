@@ -1,4 +1,4 @@
-import {readFinance,financeAccessKey} from './canonical-finance.mjs?v=a51b74e79a07eec1';
+import {readFinance,financeAccessKey} from './canonical-finance.mjs?v=aa93891480ac90d4';
 import {readActive} from './reforecast-store.mjs?v=aa266355de44abc4';
 import {readOccupancySourceEvidence} from './occupancy-source-evidence.mjs?v=012daa540aac0f2c';
 import {recommendOccupancyGoals,applyOccupancyRecommendation} from './occupancy-goal-recommendations.mjs?v=a4ee2c9ccf3c92a8';

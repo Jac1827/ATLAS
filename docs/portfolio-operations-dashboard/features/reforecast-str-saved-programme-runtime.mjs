@@ -7,6 +7,7 @@ export function validateSavedStrProgrammeStream(draft,source,stream){
  if(stream.application!=='add'||review.application!=='add'||!equal(review.parentPublication,draft.parentPublication)||review.mappingVersion!==stream.mappingVersion||stream.mappingVersion!==source.registry?.version||!review.periods?.every(period=>draft.periods.includes(period)))add('saved_str_parent_or_mapping','Saved STR contribution must remain additive to its exact Conventional publication and mapping registry.');
  if(stream.reviewed!==true||stream.reviewedBy!==receipt.actor_id||stream.reviewedAt!==review.reviewedAt||stream.assumptionReason!==review.reason)add('saved_str_review_changed','Source review identity, time and reason must match its immutable receipt.');
  if(receipt.registry_extension&&!equal(draft.strRegistryExtension,receipt.registry_extension))add('saved_str_registry_receipt','The overlay must retain both immutable registry versions and hashes from its source receipt.');
+ if(Object.keys(review.supportingSchedules||{}).length&&!equal(stream.supportingSchedules,review.supportingSchedules))add('saved_str_schedule_changed','STR supporting schedules must match the immutable STR Builder source receipt.');
  const overrides=draft.overrides||[];
  if(overrides.length!==review.cells?.length)add('saved_str_cell_count','Saved programme cell count differs from its exact reviewed monthly contribution.');
  for(const cell of review.cells||[]){

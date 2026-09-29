@@ -21,7 +21,7 @@
    mountQueue=mountQueue.catch(()=>{}).then(async()=>{
     if(!current())return;
     try{
-     const m=await import('./features/reforecast-ui.mjs?v=6211b6eb4fb5101e');if(!current())return;
+     const m=await import('./features/reforecast-ui.mjs?v=22af74c6cc37db68');if(!current())return;
      const selected=request===intent&&request?.completed&&(request.kind==='create'||request.detail.scenarioId);
      await m.mountReforecast(el,{R,mode:selected?'workspace':mode});if(!current())return;
      if(request&&request===intent&&!request.completed&&sameScope(request.scope)){
@@ -37,13 +37,13 @@
  R.budgetNavigation?.groups.find(g=>g[0]==='forecast')?.[2].push('reforecast','reforecastapprovals','reforecasthistory','reforecaststatus');
  R.budgetNavigation?.groups.find(g=>g[0]==='reports')?.[2].push('reforecastgap');
  R.reforecastNavigationReady=Promise.all([
-  import('./features/reforecast-legacy-bridge.mjs?v=21a1917190ae8f6e').then(m=>m.installLegacyReforecastBridge(R)),
-  import('./features/saved-str-programmes.mjs?v=942f7118fb0d5f65').then(m=>m.installSavedStrProgrammes(R))
+  import('./features/reforecast-legacy-bridge.mjs?v=8b49326e339be05b').then(m=>m.installLegacyReforecastBridge(R)),
+  import('./features/saved-str-programmes.mjs?v=0f13309205991e28').then(m=>m.installSavedStrProgrammes(R))
  ]);
  // The startup coordinator awaits this promise; attach a handler immediately
  // so a failed async install stays a visible boot failure without a lost route.
  R.reforecastNavigationReady.catch(()=>{});
- const clearScope=()=>{navigation++;renderGeneration++;intent=null;delete R.reforecastSources;delete R.reforecastPropertyAssignments;const el=document.getElementById('atlas-reforecast-workspace');if(el){const replacement=el.cloneNode(false);replacement.textContent='The signed-in workspace changed. Reopen the intended financial view.';el.replaceWith(replacement);}import('./features/reforecast-legacy-bridge.mjs?v=21a1917190ae8f6e').then(m=>m.clearLegacyReforecastCache());mountQueue=mountQueue.catch(()=>{}).then(async()=>{const m=await import('./features/reforecast-ui.mjs?v=6211b6eb4fb5101e');m.clearReforecastSession();});};
+ const clearScope=()=>{navigation++;renderGeneration++;intent=null;delete R.reforecastSources;delete R.reforecastPropertyAssignments;const el=document.getElementById('atlas-reforecast-workspace');if(el){const replacement=el.cloneNode(false);replacement.textContent='The signed-in workspace changed. Reopen the intended financial view.';el.replaceWith(replacement);}import('./features/reforecast-legacy-bridge.mjs?v=8b49326e339be05b').then(m=>m.clearLegacyReforecastCache());mountQueue=mountQueue.catch(()=>{}).then(async()=>{const m=await import('./features/reforecast-ui.mjs?v=22af74c6cc37db68');m.clearReforecastSession();});};
  // Token rotation and unchanged profile broadcasts retain the active draft.
  // Expiry is checked separately: an actor/access key can outlive its session.
  let accessScope=scope();

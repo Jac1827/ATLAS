@@ -1,4 +1,4 @@
-import {verifyImportReadback} from './reforecast-store.mjs?v=aa266355de44abc4';
+import {verifyImportReadback} from './reforecast-store.mjs?v=b59fd4df88ff8fe3';
 // Recovery copies are never calculation authority. Shared server receipts decide
 // whether a write committed; browser records retain the exact request for retry.
 const DB='atlas-reforecast-recovery-v1',STORE='recovery';

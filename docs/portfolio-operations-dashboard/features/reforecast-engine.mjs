@@ -403,6 +403,7 @@ export function applyRecommendations(scenario,recommendations,{ids,action='accep
 }
 export function undoRecommendationAction(scenario,{actor,timestamp,versionId,driverVersion}={}){
  const event=scenario.history?.at(-1);if(!event||!actor||!timestamp||!versionId||!driverVersion)throw Error('An existing action and explicit undo metadata are required.');
+ if(!['accept','reject','undo'].includes(event.action)||event.cellHistory||!Array.isArray(event.before)||!Array.isArray(event.after))throw Error('Only a recommendation action can be undone here. Review cell adjustments in their forecast cells.');
  if(stableStringify(scenario.drivers||[])!==stableStringify(event.after))throw Error('Drivers changed after this action; review the changes before undoing.');
  return {...clone(scenario),versionId,driverVersion,drivers:clone(event.before),suggestionDecisions:clone(event.beforeDecisions||scenario.suggestionDecisions||[]),history:[...clone(scenario.history),{action:'undo',actor,timestamp,before:clone(event.after),after:clone(event.before),beforeDecisions:clone(scenario.suggestionDecisions||[]),afterDecisions:clone(event.beforeDecisions||scenario.suggestionDecisions||[]),undoes:event.timestamp}]};
 }

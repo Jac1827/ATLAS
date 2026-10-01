@@ -1,8 +1,9 @@
 import {strRegistryExtensionIssues} from './reforecast-str-registry-extension.mjs?v=e029a084505a92e0';
 import {hashReforecastWorkbook,encodeOriginalWorkbook} from './reforecast-intake.mjs?v=74bbd52d93a197cc';
 import {workbookEvidenceHash} from './workbook-integrity.mjs?v=612a2cdba3c9dba2';
-import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=09f928e62d236d7a';
+import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=f4e03cd7b6e9e9ce';
 import {confirmedForecastBlank} from './reforecast-workbook-source-policy.mjs?v=a930b680fb3c7265';
+import {validateSavedStrSource,selectSavedStrSource} from './reforecast-str-source-validation.mjs?v=de7f8e807a17cdca';
 
 const SCHEMA='atlas.saved-str-monthly-programme.v1',PERIOD=/^20\d{2}-(0[1-9]|1[0-2])$/;
 const finite=value=>typeof value==='number'&&Number.isFinite(value),clone=structuredClone;
@@ -18,15 +19,13 @@ const contentFingerprint=value=>{const {fingerprint,...content}=value;return wor
 export async function parseSavedStrMonthlyProgramme(input,{fileName='Saved STR.riseb.json',propertyId,programmeId,periods}={}){
  const bytes=bytesOf(input);if(!bytes?.length||bytes.length>1024*1024)throw Error('Choose a saved STR JSON of at most 1 MB.');
  let payload;try{payload=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));}catch{throw Error('The saved STR source must be valid UTF-8 JSON.');}
- const state=payload.state;
- if(payload.formatVersion!==1||!Array.isArray(state?.properties)||!Array.isArray(state.strPrograms)||!Array.isArray(state.lines))throw Error('A supported saved Budget Builder programme with retained GL lines is required.');
+ const state=validateSavedStrSource(payload);
  if(!Array.isArray(periods)||!periods.length||periods.length>24||periods.some(p=>!PERIOD.test(p))||new Set(periods).size!==periods.length)throw Error('Choose distinct complete forecast months for this saved programme.');
  periods=[...periods].sort();
- const properties=state.properties.filter(p=>p.id===propertyId),programmes=state.strPrograms.filter(p=>p.id===programmeId&&p.propertyId===propertyId);
- if(properties.length!==1||programmes.length!==1)throw Error('Select exactly one saved property and one of its programmes.');
- const property=properties[0],programme=programmes[0],config=programme.config,blockers=[];
+ const selected=selectSavedStrSource({properties:state.properties,programmes:state.strPrograms,lines:state.lines,formatVersion:payload.formatVersion},{propertyId,programmeId}),{property,programme}=selected,config=programme.config,blockers=clone(selected.blockers);
  if(!['rise_internal','rise_str'].includes(programme.operatorId))throw Error('Select an explicitly identified RISE programme; reference operators remain separate.');
  if(!config||config.propertyId!==propertyId||config.programmeId!==programmeId)blockers.push(issue('saved_str_configuration_identity','Saved configuration must identify this exact property and programme.'));
+ if(config?.unitPicks!=null&&!Array.isArray(config.unitPicks))throw Error('Saved group allocations must be a retained list.');
  const seenGroups=new Set(),groupAllocations=(config?.unitPicks||[]).map((pick,index)=>{
   const matches=(property.units||[]).filter(group=>group.id===pick.groupId);
   if(seenGroups.has(pick.groupId)||matches.length!==1||!Number.isInteger(pick.units)||pick.units<0)blockers.push(issue('saved_str_group_allocation','Each allocation requires a unique retained source group and a nonnegative integer count.',{sourceGroupId:pick.groupId}));seenGroups.add(pick.groupId);
@@ -34,7 +33,7 @@ export async function parseSavedStrMonthlyProgramme(input,{fileName='Saved STR.r
  });
  if(!groupAllocations.length)blockers.push(issue('saved_str_group_allocations_missing','Retain the saved programme group allocations before applying its monthly cells.'));
  const allocatedUnits=sum(groupAllocations.map(row=>row.units)),unitRamp=periods.map(period=>{const year=period.slice(0,4),index=Number(period.slice(5))-1,series=config?.unitRamp?.[year],units=Array.isArray(series)&&series.length===12?series[index]:null;if(!Number.isInteger(units)||units<0||!finite(allocatedUnits)||units>allocatedUnits)blockers.push(issue('saved_str_monthly_units','An exact saved monthly unit count within its group allocation is required; no default ramp is inferred.',{period}));return {period,units,sourcePath:`/state/strPrograms/${state.strPrograms.indexOf(programme)}/config/unitRamp/${year}/${index}`};});
- const lineEvidence=state.lines.flatMap((line,index)=>line.propertyId===propertyId&&line.strProgramId===programmeId?[{sourceLineIndex:index,line:clone(line)}]:[]),cells=[],seenIds=new Set(),seenKeys=new Set();
+ const lineEvidence=clone(selected.lineEvidence),cells=[],seenIds=new Set(),seenKeys=new Set();
  if(!lineEvidence.length)blockers.push(issue('saved_str_lines_missing','The saved programme has no retained monthly GL output.'));
  for(const {sourceLineIndex,line}of lineEvidence){
   if(!line.id||seenIds.has(line.id))blockers.push(issue('saved_str_line_identity','Source programme line identifiers must be unique.',{sourceLineId:line.id}));seenIds.add(line.id);

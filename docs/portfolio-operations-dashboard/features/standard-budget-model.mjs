@@ -1,6 +1,6 @@
 import {retainedStrLeasingSchedules} from './budget-leasing-drivers.mjs?v=8f59ae7406f56df7';
-import {sumMoney,aggregateForecastLines} from './reforecast-engine.mjs?v=2ce39f25f9cf9547';
-import {exactReportTotal} from './reforecast-report.mjs?v=a3a48cdae1e4a863';
+import {sumMoney,aggregateForecastLines} from './reforecast-engine.mjs?v=87a893fbc5f86997';
+import {exactReportTotal} from './reforecast-report.mjs?v=0eba1b9d20462432';
 import {confirmedForecastBlank,excludedForecastScope} from './reforecast-workbook-source-policy.mjs?v=a930b680fb3c7265';
 
 export const BUDGET_SECTIONS=Object.freeze({summary:'SUMMARY',leasing:'LEASING SCHEDULE',revenue:'REVENUE',expenses:'EXPENSES',drivers:'DRIVERS',utilities:'UTILITIES',channels:'CHANNELS',str:'STR PROGRAM',sensitivities:'SENSITIVITIES',assumptions:'ASSUMPTIONS',validation:'VARIANCE / VALIDATION'});

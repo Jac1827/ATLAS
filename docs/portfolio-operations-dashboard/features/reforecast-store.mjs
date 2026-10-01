@@ -67,6 +67,11 @@ export function projectImportUpdatePayload(payload,{uploadId,mapping,expectedLin
  if(Array.isArray(next.importHistory))next.importHistory=next.importHistory.filter(row=>row.uploadId!==uploadId);
  return next;
 }
+function importPayloadSizeDiagnostic(error){
+ if(error?.code!=='P0001'||typeof error.details!=='string')return null;
+ let detail;try{detail=JSON.parse(error.details);}catch{return null;}
+ return detail?.code==='reforecast_payload_too_large'&&detail.stage==='save_reforecast_builder'&&detail.measurement==='postgres_jsonb_text_utf8'&&detail.retainedReviewHistory==='preserve'&&Number.isSafeInteger(detail.payloadBytes)&&detail.limitBytes===2097152&&detail.payloadBytes>detail.limitBytes?detail:null;
+}
 export async function createFromImport(central,options){
  const {communityId,scenarioId,expectedRevision=0,requestId,uploadId,mapping,payload}=options;
  scope(communityId);request(scenarioId);request(requestId);request(uploadId);const actor=identity(central);
@@ -80,6 +85,8 @@ export async function createFromImport(central,options){
  catch(error){
   let committed;try{committed=await readImportReceipt(central,options);}catch{throw Error('The import response is uncertain and its receipt is unavailable. Keep this request; check its receipt before retrying.');}
   actorGuard(central,actor);if(committed)return verifyImportReadback(committed,options);
+  const size=importPayloadSizeDiagnostic(error);
+  if(size){error.message+=` Expanded save payload: ${size.payloadBytes} bytes; limit: ${size.limitBytes} bytes. No committed receipt was found. Keep all retained reviews and history. Repair the expanded save payload before retrying; sending it unchanged will exceed the same limit.`;throw error;}
   throw Error(error.message+' No committed receipt was found. Retry the retained request.');
  }
  verifyImportReadback(write,options);

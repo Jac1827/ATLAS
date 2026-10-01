@@ -1,9 +1,9 @@
 import {prepareStrRegistryExtension,readStrMappingContext,saveStrRegistryExtension} from './reforecast-str-registry-extension.mjs?v=e029a084505a92e0';
 export {readStrMappingContext} from './reforecast-str-registry-extension.mjs?v=e029a084505a92e0';
-import {parseSavedStrJson,savedStrJsonBytes} from './reforecast-str-json-recovery.mjs?v=ac1b99bc8f6b9a9a';
-import {parseSavedStrMonthlyProgramme,prepareSavedStrMonthlyContribution} from './reforecast-str-saved-programme.mjs?v=12abf3cc520d665f';
-import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=09f928e62d236d7a';
-import {saveForecastRecovery,readForecastRecovery,removeForecastRecovery} from './reforecast-recovery.mjs?v=86606f2d8a961cca';
+import {parseSavedStrJson,savedStrJsonBytes} from './reforecast-str-json-recovery.mjs?v=3912f3ac63170408';
+import {parseSavedStrMonthlyProgramme,prepareSavedStrMonthlyContribution} from './reforecast-str-saved-programme.mjs?v=7ad31a59841b9802';
+import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=f4e03cd7b6e9e9ce';
+import {saveForecastRecovery,readForecastRecovery,removeForecastRecovery} from './reforecast-recovery.mjs?v=98b465909c9db5ad';
 const clone=structuredClone,finite=value=>typeof value==='number'&&Number.isFinite(value),uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const canonical=value=>Array.isArray(value)?value.map(canonical):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;

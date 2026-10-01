@@ -1,4 +1,5 @@
-import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=09f928e62d236d7a';
+import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=f4e03cd7b6e9e9ce';
+import {validateSavedStrSource,selectSavedStrSource} from './reforecast-str-source-validation.mjs?v=de7f8e807a17cdca';
 const clone=value=>structuredClone(value),finite=value=>typeof value==='number'&&Number.isFinite(value),month=/^20\d{2}-(0[1-9]|1[0-2])$/;
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const base64=bytes=>{let value='';for(let i=0;i<bytes.length;i+=24576)value+=String.fromCharCode(...bytes.subarray(i,i+24576));return btoa(value);};
@@ -6,18 +7,18 @@ export async function parseSavedStrJson(input,{fileName='Saved STR.riseb.json'}=
  const bytes=typeof input==='string'?new TextEncoder().encode(input):input instanceof ArrayBuffer?new Uint8Array(input):ArrayBuffer.isView(input)?new Uint8Array(input.buffer,input.byteOffset,input.byteLength):null;
  if(!bytes?.length||bytes.length>1024*1024)throw Error('Choose a saved Budget Builder JSON of at most 1 MB for this recovery review.');
  let payload;try{payload=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));}catch{throw Error('The selected file is not valid UTF-8 JSON.');}
- if(payload.formatVersion!==1||!Array.isArray(payload.state?.properties)||!Array.isArray(payload.state?.lines)||!Array.isArray(payload.state?.strPrograms))throw Error('Choose a supported format 1 Budget Builder save containing its properties, lines and STR programmes.');
+ validateSavedStrSource(payload);
  const sourceHash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(n=>n.toString(16).padStart(2,'0')).join('');
  return {schemaVersion:'atlas.str-json-recovery.v1',fileName,sourceHash,byteLength:bytes.length,originalFile:{encoding:'base64',data:base64(bytes)},formatVersion:payload.formatVersion,savedAt:payload.savedAt||null,budgetYear:payload.state.budgetYear,properties:payload.state.properties.map(p=>({id:p.id,name:p.name,entity:p.entity||null})),programmes:clone(payload.state.strPrograms),lines:clone(payload.state.lines.filter(line=>line.strProgramId)),referenceEvidencePresent:Boolean(payload.state.strReference),referenceDisposition:'Hello Landing and other reference data remain in the original JSON and are never used as RISE inputs.'};
 }
 export function recoverStrOverlayFromJson(evidence,{publication,propertyId,programmeId,actor,reason,timestamp=new Date().toISOString()}={}){
  if(!actor||String(reason||'').trim().length<3)throw Error('Record why this saved programme belongs to the selected Conventional community.');
  if(!evidence?.sourceHash||!evidence.originalFile?.data)throw Error('Exact saved JSON bytes and hash are required.');
- const property=evidence.properties.find(row=>row.id===propertyId),programme=evidence.programmes.find(row=>row.id===programmeId&&row.propertyId===propertyId);
- if(!property||!programme)throw Error('Explicitly select a property and one of its saved programmes.');
+ const selected=selectSavedStrSource(evidence,{propertyId,programmeId}),{property,programme}=selected;
  if(!['rise_internal','rise_str'].includes(programme.operatorId))throw Error('Select an explicitly identified RISE programme. Hello Landing/reference programmes cannot become RISE inputs.');
- const draft=createStrOverlayDraft(publication,{actor,name:(property.name||'Community')+' Conventional + RISE STR',timestamp}),stream=draft.strStreams[0],config=programme.config,blockers=[],add=(code,message,detail={})=>blockers.push({code,severity:'blocking',message,...detail});
+ const draft=createStrOverlayDraft(publication,{actor,name:(property.name||'Community')+' Conventional + RISE STR',timestamp}),stream=draft.strStreams[0],config=programme.config,blockers=clone(selected.blockers),add=(code,message,detail={})=>blockers.push({code,severity:'blocking',message,...detail});
  if(!config||typeof config!=='object')add('saved_str_config_missing','The selected JSON contains a programme shell with no saved STR configuration.');
+ if(config&&(config.propertyId!==undefined&&config.propertyId!==propertyId||config.programmeId!==undefined&&config.programmeId!==programmeId||evidence.formatVersion===2&&(config.propertyId!==propertyId||config.programmeId!==programmeId)))add('saved_str_configuration_identity','Saved configuration must identify this exact property and programme. Proposed driver edits are not substituted.');
  const roster=Array.isArray(config?.units)?config.units:[];
  stream.units=roster.filter(unit=>typeof unit?.id==='string'&&unit.id.trim()&&month.test(unit.availableFrom||'')&&(!unit.takeBackMonth||month.test(unit.takeBackMonth))).map(unit=>({id:unit.id,availableFrom:unit.availableFrom,takeBackMonth:unit.takeBackMonth||null}));
  if(!stream.units.length||stream.units.length!==roster.length){if(Array.isArray(config?.unitPicks)&&config.unitPicks.length)add('saved_str_grouped_roster_requires_support','The complete saved grouped planning roster and monthly unit ramp are retained. This governed calculator requires an approved grouped-roster adapter or explicit units before calculation; no physical identifiers are invented.');else add('saved_str_unit_roster_missing','Provide a reviewed grouped planning roster or explicit unit identifiers and full-month availability.');}
@@ -38,7 +39,7 @@ export function recoverStrOverlayFromJson(evidence,{publication,propertyId,progr
  if(config?.application==='replace')add('saved_str_replace_requires_review','Saved replace behavior requires separate review against dedicated zero-balance accounts. Recovery remains an additive overlay.');
  stream.application='add';stream.reviewed=false;stream.sourceReviewId=null;stream.assumptionReason=reason.trim();
  add('saved_str_source_review_required','Approve the exact source, unit roster, monthly rates, signed fees and GL mapping before applying or publishing this STR contribution.');
- const selectedLines=evidence.lines.filter(line=>line.propertyId===propertyId&&line.strProgramId===programmeId);
+ const selectedLines=selected.lineEvidence.map(({line})=>line);
  draft.strRecoveryEvidence={schemaVersion:evidence.schemaVersion,fileName:evidence.fileName,sourceHash:evidence.sourceHash,byteLength:evidence.byteLength,originalFile:clone(evidence.originalFile),savedAt:evidence.savedAt,property:clone(property),programme:clone(programme),lineEvidence:clone(selectedLines),nativeMonthlyCandidates,referenceDisposition:evidence.referenceDisposition,assignment:{communityId:publication.communityId,sourcePropertyId:propertyId,programmeId,parentPublicationId:publication.publicationId,confirmed:true,actorId:actor,reviewedAt:timestamp,reason:reason.trim()},blockers};
  draft.history.push({action:'saved_str_json_recovered_unreviewed',actor,timestamp,sourceHash:evidence.sourceHash,fileName:evidence.fileName,sourcePropertyId:propertyId,programmeId,parentPublicationId:publication.publicationId,before:null,after:{rosterCount:stream.units.length,explicitMonthCount:explicitMonths.length,blockers:clone(blockers)}});draft.reason=reason.trim();
  if(new TextEncoder().encode(JSON.stringify(draft)).length>1800000)throw Error('This saved source exceeds the working-revision recovery size. Its original file is retained; review a smaller programme source.');

@@ -1,5 +1,5 @@
 import {canonicalJson} from './financial-snapshot.mjs?v=848d058bdec07b4e';
-import {saveForecastRecovery,removeForecastRecovery} from './reforecast-recovery.mjs?v=86606f2d8a961cca';
+import {saveForecastRecovery,removeForecastRecovery} from './reforecast-recovery.mjs?v=98b465909c9db5ad';
 
 const clone=structuredClone,finite=value=>typeof value==='number'&&Number.isFinite(value);
 const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));

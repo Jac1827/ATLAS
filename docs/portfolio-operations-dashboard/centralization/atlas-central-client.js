@@ -587,7 +587,8 @@
         : `Central request failed with HTTP ${response.status}`;
       throw createCentralError(errorFromPayload(payload, fallback), {
         status: Number(response.status) || 0,
-        retryAfterSeconds
+        retryAfterSeconds,
+        ...Object.fromEntries(["code", "details", "hint"].filter(key => typeof payload?.[key] === "string").map(key => [key, payload[key]]))
       });
     }
     if (originAtStart !== getConfig().supabaseUrl || actorAtStart !== getSignedInUser()?.id) throw new DOMException("Session changed during request", "AbortError");

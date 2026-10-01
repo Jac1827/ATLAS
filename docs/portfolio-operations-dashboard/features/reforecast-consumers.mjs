@@ -1,8 +1,8 @@
 import {confirmedForecastBlank,confirmedReviewedForecastBlank,excludedForecastScope} from './reforecast-workbook-source-policy.mjs?v=a930b680fb3c7265';
-import {aggregateForecastLines,NONCASH_METRIC_KEYS} from './reforecast-engine.mjs?v=2ce39f25f9cf9547';
+import {aggregateForecastLines,NONCASH_METRIC_KEYS} from './reforecast-engine.mjs?v=87a893fbc5f86997';
 import {acknowledgeBudgetConsumer} from './budget-consumer-delivery.mjs?v=f5342574d4b39aa2';
-import {readActive,effectiveActiveSnapshot} from './reforecast-store.mjs?v=aa266355de44abc4';
-import {esc,money,reportHtml,exportRows,csv,download} from './reforecast-report.mjs?v=a3a48cdae1e4a863';
+import {readActive,effectiveActiveSnapshot} from './reforecast-store.mjs?v=b59fd4df88ff8fe3';
+import {esc,money,reportHtml,exportRows,csv,download} from './reforecast-report.mjs?v=0eba1b9d20462432';
 const finitePercent=value=>typeof value==='number'&&Number.isFinite(value)?(value*100).toFixed(2)+'%':'Unavailable';
 // One publication reader shared by operating screens, plan/report evidence and Scout.
 export function createActiveReforecastCache(central){

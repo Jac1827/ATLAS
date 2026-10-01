@@ -136,3 +136,18 @@ jobs:
           node tools/workbook-performance.test.cjs
           node tools/financial-close-report.test.mjs
           node tools/canonical-budget-report.test.mjs
+
+  competitor-cancellation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate cancellation parser-to-renderer units
+        run: |
+          node tools/competitor-cancellation-display.test.cjs
+          node tools/concession-insights.test.cjs
+          node tools/property-intelligence.test.cjs
+          node tools/property-specials-compat.test.mjs
+          node tools/property-specials-client.test.cjs

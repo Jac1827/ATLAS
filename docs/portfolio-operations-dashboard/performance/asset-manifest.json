@@ -1116,8 +1116,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "0f329d648055fca6",
-    "bytes": 3079046,
+    "sha256": "7e321ae584a2924d",
+    "bytes": 3079902,
     "references": [
       [
         "index.html",
@@ -1636,8 +1636,8 @@
     ]
   },
   "features/standard-budget-render.mjs": {
-    "sha256": "b402404cada3f472",
-    "bytes": 25326,
+    "sha256": "73063ce715635aeb",
+    "bytes": 25454,
     "references": [
       [
         "features/standard-budget-export-ui.mjs",
@@ -1646,7 +1646,7 @@
     ]
   },
   "features/standard-budget-export-ui.mjs": {
-    "sha256": "8005981b831a3ace",
+    "sha256": "710b3a5184f3e6b2",
     "bytes": 16059,
     "references": [
       [
@@ -1656,7 +1656,7 @@
     ]
   },
   "features/reforecast-report-library.mjs": {
-    "sha256": "a601d9c3057bd6e8",
+    "sha256": "afd58bd9e1eb80de",
     "bytes": 29396,
     "references": [
       [
@@ -1666,7 +1666,7 @@
     ]
   },
   "features/reforecast-ui.mjs": {
-    "sha256": "31de77ccb88ed406",
+    "sha256": "fce884223eea2f1c",
     "bytes": 175745,
     "references": [
       [
@@ -1700,7 +1700,7 @@
     ]
   },
   "features/saved-str-programmes.mjs": {
-    "sha256": "11e81aec6cd1d1b6",
+    "sha256": "ec1450bf3f16b5bd",
     "bytes": 59413,
     "references": [
       [
@@ -1740,7 +1740,7 @@
     ]
   },
   "reforecast-navigation.js": {
-    "sha256": "e6c87683ccfc3c6c",
+    "sha256": "8a1d2063f1a9f98d",
     "bytes": 6203,
     "references": [
       [
@@ -2036,7 +2036,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "934d6fd4f38a57bc",
+    "sha256": "e0fd2c359714282a",
     "bytes": 1907457,
     "references": [
       [
@@ -2046,7 +2046,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "a9d8ebd37a1f7000",
+    "sha256": "c74728e59c41cacd",
     "bytes": 26893,
     "references": [
       [
@@ -2126,8 +2126,8 @@
     ]
   },
   "features/reports-workspace.js": {
-    "sha256": "bcce172b61dd8132",
-    "bytes": 126887,
+    "sha256": "db08e46d109ff0e9",
+    "bytes": 139393,
     "references": [
       [
         "performance/feature-loader.js",
@@ -2196,7 +2196,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "8c740c7b0467d07e",
+    "sha256": "41c84b2461e2972d",
     "bytes": 3714,
     "references": [
       [

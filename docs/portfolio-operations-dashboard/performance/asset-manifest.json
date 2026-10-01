@@ -1070,8 +1070,8 @@
     ]
   },
   "concession-insights.js": {
-    "sha256": "c108fadfbec241b1",
-    "bytes": 20949,
+    "sha256": "460a297410559c72",
+    "bytes": 21043,
     "references": [
       [
         "index.html",

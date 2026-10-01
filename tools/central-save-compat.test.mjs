@@ -27,6 +27,8 @@ for(const field of ['role','allowed_community_ids','locked_page_keys']){
  await assert.rejects(f.client.saveDocument({...options,isCurrent(){if(++calls===1)f.values.set('atlas_central_profile_v1',JSON.stringify({...f.profile,[field]:field==='role'?'viewer':['changed']}));return true;}}),/context changed/);
  assert.equal(f.writes.length,0,'Changed access cannot write: '+field);
 }
+const graph=fixture(patched);await assert.rejects(graph.client.saveSharedPropertyGraph({fixture:true}),/verified Central version/);assert.equal(graph.writes.length,0,'Startup shared graph without a verified version cannot write');
+assert.equal((await graph.client.saveSharedPropertyGraph({fixture:true},{expectedVersion:3})).version,2);assert.equal(JSON.parse(graph.writes[0].options.body).p_expected_version,3);
 for(const bad of [patched,retained.replace('  function getSession() {','  function movedSession() {'),retained+'\n  function getSession() {'])assert.throws(()=>patchCentralSaveAccessContext(bad,current),/boundary changed/);
-assert.equal(patched.replace(current.match(/^  function getAccessContextKey\(\) \{[\s\S]*?^  \}/m)[0]+'\n\n',''),retained,'Removing only the helper restores every retained byte');
-console.log('PASS actual retained Central save failure reproduced; full patched client saves and blocks changed roles/scopes/pages; exact helper-only boundary verified.');
+assert.equal(patched.replace('\n    if (!Number.isInteger(options.expectedVersion) || options.expectedVersion < 0) throw new Error("Shared property changes remain in this browser; a verified Central version is required before saving.");','').replace(current.match(/^  function getAccessContextKey\(\) \{[\s\S]*?^  \}/m)[0]+'\n\n',''),retained,'Removing only the helper and shared-graph version guard restores every retained byte');
+console.log('PASS actual retained Central save failure reproduced; full patched client saves and blocks changed roles/scopes/pages; shared graph requires an explicit version; exact compatibility boundary verified.');

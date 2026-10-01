@@ -50,6 +50,9 @@ try{
  server=createServer(async(req,res)=>{try{const url=new URL(req.url,'http://local');if(url.pathname==='/blank'){res.setHeader('content-type','text/html');res.end('<!doctype html><title>Synthetic source setup</title>');return;}const file=path.resolve(out,'.'+decodeURIComponent(url.pathname));if(!file.startsWith(out+path.sep))throw Error();res.setHeader('content-type',file.endsWith('.html')?'text/html':/\.(mjs|js)$/.test(file)?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.svg')?'image/svg+xml':'application/octet-stream');res.end(await fs.readFile(file));}catch{res.writeHead(404);res.end();}});
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+server.address().port;
  stage='launch-browser';browser=await chromium.launch({headless:true,...(process.env.ATLAS_BROWSER_CHANNEL?{channel:process.env.ATLAS_BROWSER_CHANNEL}:{})});page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(20000);page.on('pageerror',error=>errors.push(error.message));page.on('requestfailed',request=>failedRequests.push({path:new URL(request.url()).pathname,error:request.failure()?.errorText}));
+ // The approved source, selected reporting month and goal dates all describe September.
+ // Keep Date deterministic across month rollover while real timers continue to run.
+ await page.clock.setFixedTime(new Date('2026-09-28T12:00:00Z'));
  await page.route('**/*',async route=>{
   const req=route.request(),url=new URL(req.url());if(url.origin===origin){requests.push(url.pathname);return route.continue();}
   if(url.pathname.startsWith('/rest/v1/')){

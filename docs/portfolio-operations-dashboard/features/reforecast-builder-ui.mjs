@@ -1,6 +1,6 @@
 import {confirmedReviewedForecastBlank} from './reforecast-workbook-source-policy.mjs?v=a930b680fb3c7265';
 import {budgetYearPeriods} from './community-budget-identity.mjs?v=789e1cbad26c5366';
-import {savedStrProgrammeHtml} from './reforecast-str-saved-programme-ui.mjs?v=e130ceb5f793ca68';
+import {savedStrProgrammeHtml} from './reforecast-str-saved-programme-ui.mjs?v=f3bea6d106fc43fb';
 /* Guided forecast setup and reviewed source inputs. Authoritative writes use reforecast RPCs. */
 import * as store from './reforecast-store.mjs?v=aa266355de44abc4';
 import {readUtilityRecommendations,utilityRecoveryRows} from './reforecast-utility.mjs?v=a2abce84f9ba904e';

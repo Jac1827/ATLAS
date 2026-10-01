@@ -1,4 +1,4 @@
-import {reviewOriginalBudget,budgetPublicationStatus} from './approved-budget.mjs?v=c02118bf7c2b282a';
+import {reviewOriginalBudget,budgetPublicationStatus} from './approved-budget.mjs?v=2cd1b15aa36b3e09';
 import {readDetail} from './canonical-finance.mjs?v=aa93891480ac90d4';
 /* Explicit, reviewed publication from Budget Builder; never runs in dashboard startup. */
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

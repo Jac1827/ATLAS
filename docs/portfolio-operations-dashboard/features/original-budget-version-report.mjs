@@ -1,4 +1,4 @@
-import {readBudgetVersion,requiredBudgetCoverage} from './approved-budget.mjs?v=c02118bf7c2b282a';
+import {readBudgetVersion,requiredBudgetCoverage} from './approved-budget.mjs?v=2cd1b15aa36b3e09';
 import {financeAccessKey} from './canonical-finance.mjs?v=aa93891480ac90d4';
 import {canonicalJson,freezeSnapshot,retainedSnapshot} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 import {snapshotPdf} from './snapshot-pdf.mjs?v=cda1d9683b4dd270';

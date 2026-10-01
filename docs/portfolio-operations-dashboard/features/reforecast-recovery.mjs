@@ -4,10 +4,10 @@ import {verifyImportReadback} from './reforecast-store.mjs?v=aa266355de44abc4';
 const DB='atlas-reforecast-recovery-v1',STORE='recovery';
 const identity=central=>central.getSession?.()?.user?.id;
 function scope(central){const actor=identity(central);if(!actor)throw Error('Sign in before retaining forecast recovery.');return actor;}
-async function access(central,mode,operation){
+async function access(central,mode,operation,{existingOnly=false}={}){
  const actor=scope(central);
  if(!globalThis.indexedDB)throw Error('Browser recovery storage is unavailable. Enable browser storage before importing.');
- const db=await new Promise((resolve,reject)=>{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE,{keyPath:'key'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
+ const db=await new Promise((resolve,reject)=>{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>{if(existingOnly)r.transaction.abort();else r.result.createObjectStore(STORE,{keyPath:'key'});};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
  try{return await new Promise((resolve,reject)=>{if(identity(central)!==actor){reject(Error('Your signed-in account changed.'));return;}const tx=db.transaction(STORE,mode),store=tx.objectStore(STORE);let value;const req=operation(store,actor);if(req)req.onsuccess=()=>{value=req.result;};tx.oncomplete=()=>identity(central)===actor?resolve(value):reject(Error('Your signed-in account changed.'));tx.onerror=tx.onabort=()=>reject(tx.error||Error('Forecast recovery could not be retained.'));});}
  finally{db.close();}
 }
@@ -26,6 +26,32 @@ export async function saveForecastRecoveryEntries(central,entries){
 export async function readForecastRecovery(central,id){return await access(central,'readonly',(store,actor)=>store.get(actor+':'+id))||null;}
 export async function listForecastRecovery(central){const actor=scope(central),rows=await access(central,'readonly',store=>store.getAll());return rows.filter(row=>row.actor===actor&&row.kind!=='workbook-evidence').sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));}
 export async function removeForecastRecovery(central,id){await access(central,'readwrite',(store,actor)=>store.delete(actor+':'+id));}
+
+// This is a local diagnostic copy, never a receipt, import, or calculation input.
+// Compare the dialog's complete records with one coherent read-only snapshot.
+export async function readForecastDraftBackup(central,{selected,linkedEdit=null,guard}){
+ if(typeof guard!=='function')throw Error('Reopen recovery before downloading a save backup.');
+ guard();const actor=scope(central),request=selected?.kind==='draft-write'?selected.request:null;
+ const communityId=request?.communityId||selected?.communityId,scenarioId=request?.scenarioId||selected?.scenarioId;
+ if(!['draft-write','draft-edit'].includes(selected?.kind)||!communityId||!scenarioId||selected.kind==='draft-write'&&(!request?.payload||!request.requestId)||selected.kind==='draft-edit'&&!selected.payload||selected.communityId&&selected.communityId!==communityId)throw Error('This recovery does not identify an exact working draft.');
+ const expected=[selected];
+ if(selected.kind==='draft-write'&&selected.editId){
+  if(linkedEdit?.id!==selected.editId||linkedEdit.kind!=='draft-edit'||linkedEdit.communityId!==communityId||linkedEdit.scenarioId!==scenarioId)throw Error('The linked working edit is missing or changed. Reopen recovery.');
+  expected.push(linkedEdit);
+ }else if(linkedEdit)throw Error('The linked working edit does not belong to this save.');
+ const exactJson=value=>{const seen=new Set(),inspect=item=>{
+  if(item===undefined||['function','symbol','bigint'].includes(typeof item)||typeof item==='number'&&!Number.isFinite(item)||item&&typeof item==='object'&&!Array.isArray(item)&&Object.getPrototypeOf(item)!==Object.prototype)throw Error('This recovery contains a value that cannot be preserved in a JSON backup.');
+  if(!item||typeof item!=='object'||seen.has(item))return;seen.add(item);
+  if(Array.isArray(item)&&Object.keys(item).some((key,index)=>key!==String(index))||Array.isArray(item)&&Object.keys(item).length!==item.length)throw Error('This recovery contains a value that cannot be preserved in a JSON backup.');
+  for(const [key,child]of Object.entries(item)){if(/^(accesstoken|refreshtoken|authorization|apikey|servicerolekey|password|cookie)$/i.test(key.replace(/[_-]/g,'')))throw Error('This recovery contains authentication fields and cannot be downloaded.');inspect(child);}
+ };inspect(value);return JSON.stringify(value);};
+ const snapshots=expected.map(row=>{if(row.actor!==actor||!row.id||row.key!==actor+':'+row.id)throw Error('This recovery belongs to another signed-in account.');return exactJson(row);});
+ const records=[];await access(central,'readonly',(store,currentActor)=>{
+  for(const [index,row]of expected.entries()){const read=store.get(currentActor+':'+row.id);read.onsuccess=()=>{records[index]=read.result;};}
+ },{existingOnly:true});guard();
+ if(scope(central)!==actor||expected.some((_row,index)=>!records[index]||exactJson(records[index])!==snapshots[index]))throw Error('The retained save or linked edit changed. Reopen recovery before downloading.');
+ return {format:'atlas.reforecast-draft-recovery-backup',formatVersion:1,exportedAt:new Date().toISOString(),authority:'browser_recovery_only',actorId:actor,communityId,scenarioId,requestId:request?.requestId||null,expectedRevision:request?.expectedRevision??selected.expectedRevision??null,editVersion:selected.editVersion||null,linkedEdit:linkedEdit?{id:linkedEdit.id,editVersion:linkedEdit.editVersion||null,requestEditVersion:selected.editVersion||null,changedSinceRequest:Boolean(selected.editVersion&&linkedEdit.editVersion&&selected.editVersion!==linkedEdit.editVersion)}:null,records};
+}
 
 // Delete an import's linked recovery records in one transaction, only after its
 // exact committed cells have been verified. Another review of the same file can

@@ -48945,7 +48945,33 @@ function dataImportSupersedeRentRollPeriods(plan, entry, result) {
     && communities.has(dataImportNormalizeText(row.communityName)) && row.periodKey !== period.periodKey;
   const stale = (dataImport2State.canonicalRecords || []).filter(sourceMatches);
   const allLineage = (dataImport2State.lineage || []).filter(sourceMatches);
-  if (!stale.length && !allLineage.some(row => row.currentState)) return {supersededRows:0, clearedMetrics:0};
+  const resolveVerifiedPeriodExceptions = () => {
+    if (entry.importStatus !== "Approved" || !entry.fileHash || plan.fileHash !== entry.fileHash ||
+        !period.periodKey || !result.rowsReviewed || result.rowsHeld || result.rowsRejected || result.issues?.length) return 0;
+    if ((dataImport2State.sourceArchive || []).some(source => source.reportType === "rent_roll" &&
+        source.batchId === entry.batchId && source.fileName === entry.fileName && source.fileHash !== entry.fileHash)) return 0;
+    const correctedRows = new Set((dataImport2State.canonicalRecords || []).filter(row =>
+      row.reportType === "rent_roll" && row.fileHash === entry.fileHash && row.batchId === entry.batchId &&
+      row.periodKey === period.periodKey && communities.has(dataImportNormalizeText(row.communityName)))
+      .map(row => JSON.stringify([dataImportNormalizeText(row.communityName), row.sourceSheet, row.sourceRow])));
+    let resolved = 0;
+    for (const issue of dataImport2State.exceptions || []) {
+      if (issue.status === "Resolved" || issue.type !== "conflict" || issue.reportType !== "rent_roll" ||
+          issue.batchId !== entry.batchId || issue.fileName !== entry.fileName ||
+          (issue.fileHash && issue.fileHash !== entry.fileHash) ||
+          issue.title !== "Source section is outside the selected period") continue;
+      // Legacy issues retained the physical sheet and row only in this exact diagnostic.
+      const match = String(issue.detail || "").match(/^(.+) row (\d+) belongs to (\d{4}-\d{2}); it was held without changing that date or another month\.$/);
+      if (!match || !correctedRows.has(JSON.stringify([dataImportNormalizeText(issue.communityName), match[1], Number(match[2])]))) continue;
+      Object.assign(issue, {status:"Resolved", resolvedAt:new Date().toISOString(),
+        resolution:"Exact approved source row verified in the report month after a complete clean rent-roll replay.",
+        resolutionEvidence:{archiveId:entry.id, fileHash:entry.fileHash, batchId:entry.batchId,
+          sourceSheet:match[1], sourceRow:Number(match[2]), reportingPeriod:period.periodKey, priorPeriod:match[3]}});
+      resolved++;
+    }
+    return resolved;
+  };
+  if (!stale.length && !allLineage.some(row => row.currentState)) return {supersededRows:0, clearedMetrics:0, resolvedExceptions:resolveVerifiedPeriodExceptions()};
   if (!entry.fileHash || plan.fileHash !== entry.fileHash || !period.periodKey || !communities.size
       || !result.rowsReviewed || result.rowsHeld || result.rowsRejected) {
     throw new Error("Rent roll period correction requires a complete, successful replay of the approved source; prior periods were retained.");
@@ -49026,7 +49052,7 @@ function dataImportSupersedeRentRollPeriods(plan, entry, result) {
   dataImport2State.canonicalRecords = (dataImport2State.canonicalRecords || []).filter(row => !retired.has(row));
   lineage.forEach(row => Object.assign(row,{currentState:false,supersededAt:at,supersededBy:id,supersededPeriod:period.periodKey,supersededReason:reason}));
   dataImport2State.reconciliationLog.unshift(audit);
-  return {supersededRows:stale.length,clearedMetrics:changes.filter(row=>row.hadValue&&row.before!==null&&row.after===null).length,auditId:id};
+  return {supersededRows:stale.length,clearedMetrics:changes.filter(row=>row.hadValue&&row.before!==null&&row.after===null).length,auditId:id,resolvedExceptions:resolveVerifiedPeriodExceptions()};
 }
 
 async function reprocessDataImportBoxScore(archiveId) {
@@ -49199,8 +49225,18 @@ function dataImportBusinessDaysBetween(start, end = new Date()) {
   return days;
 }
 
+function dataImportArchiveFreshnessDate(entry) {
+  const multiPeriodRenewal = entry?.reportType === "renewal_tracker" &&
+    (entry.periodSelection?.mode === "multiple_months" || entry.metadata?.periodSelection?.mode === "multiple_months");
+  // Expiration dates identify cohorts, not when a multi-month tracker was current.
+  // Receipt and file-modification dates do not prove the source's effective date.
+  if (multiPeriodRenewal) return entry.metadata?.dataAsOf || entry.metadata?.generatedAt || "";
+  return entry?.metadata?.dataAsOf || entry?.dataDateIso || entry?.metadata?.generatedAt || entry?.uploadedAt || "";
+}
+
 function dataImportAgeForArchive(entry, def) {
-  const sourceDate = entry?.metadata?.dataAsOf || entry?.dataDateIso || entry?.metadata?.generatedAt || entry?.uploadedAt || "";
+  const sourceDate = dataImportArchiveFreshnessDate(entry);
+  if (!sourceDate && entry?.reportType === "renewal_tracker") return null;
   if (!sourceDate) return Infinity;
   return def?.freshness?.businessDays
     ? dataImportBusinessDaysBetween(sourceDate)
@@ -49223,7 +49259,7 @@ function dataImportEffectiveFreshness(reportType) {
 function dataImportNextDueLabel(entry, reportType) {
   if (!entry) return "No source received";
   const freshness = dataImportEffectiveFreshness(reportType);
-  const source = new Date(entry.metadata?.dataAsOf || entry.dataDateIso || entry.metadata?.generatedAt || entry.uploadedAt || "");
+  const source = new Date(dataImportArchiveFreshnessDate(entry));
   if (!Number.isFinite(source.getTime())) return "Not calculable";
   const due = new Date(source.getTime());
   if (freshness.businessDays) {
@@ -49238,9 +49274,34 @@ function dataImportNextDueLabel(entry, reportType) {
   return dataImportFormatDate(due);
 }
 
+let dataImportAccountingEvidence = null;
+async function refreshDataImportAccountingEvidence() {
+  const central=window.ATLAS_CENTRAL;
+  if (!central?.getSession?.()?.user?.id || !atlasAccessDecision(activeTab).ok) return;
+  const context=getAtlasFinancialContextKey();
+  if (dataImportAccountingEvidence?.context===context && Date.now()-dataImportAccountingEvidence.startedAt<60000) return;
+  const state={context,startedAt:Date.now(),rows:[],loading:true,error:""};
+  dataImportAccountingEvidence=state;
+  const current=()=>dataImportAccountingEvidence===state && getAtlasFinancialContextKey()===context && atlasAccessDecision(activeTab).ok;
+  try {
+    const module=await import("./features/data-health-accounting.mjs?v=50011e9e79cbde87");
+    if (!current()) return;
+    const communities=dataImportGetHealthCommunityNames().map(name=>({name,id:resolveAtlasFinancialCommunityId(name)}));
+    state.rows=await module.readAccountingEvidence(central,communities,{throughPeriod:buildPeriodKey(getSelectedDashboardMonthIndex(),new Date().getFullYear()),isCurrent:current});
+  } catch(error) { if(current()) state.error=String(error.message || error); }
+  finally { if(current()){state.loading=false;scheduleAtlasSharedRender();} }
+}
+
+function dataImportAccountingSourceFor(communityName) {
+  if (typeof dataImportAccountingEvidence === "undefined" || !dataImportAccountingEvidence ||
+      dataImportAccountingEvidence.context!==getAtlasFinancialContextKey()) return null;
+  return dataImportAccountingEvidence.rows.find(row=>dataImportNormalizeText(row.communityName)===dataImportNormalizeText(communityName)) || null;
+}
+
 function dataImportLatestArchiveFor(communityName, reportType) {
   const normalizedCommunity = dataImportNormalizeText(communityName);
-  return (dataImport2State.sourceArchive || [])
+  const accounting = reportType === "approved_accounting" ? dataImportAccountingSourceFor(communityName) : null;
+  return [...(dataImport2State.sourceArchive || []), ...(accounting ? [accounting] : [])]
     .filter(entry => entry.reportType === reportType && entry.importStatus !== "Rolled Back")
     .filter(entry => (entry.communities || []).some(name => dataImportNormalizeText(name) === normalizedCommunity))
     .sort((a, b) => new Date(b.dataDateIso || b.uploadedAt || 0) - new Date(a.dataDateIso || a.uploadedAt || 0))[0] || null;
@@ -49596,7 +49657,7 @@ function dataImportSummarizeDownstreamAudit(audits = []) {
 
 function dataImportBuildStatusDateLabel(status, archive, hasFallback, checkedAt) {
   if (archive) {
-    const sourceDate = archive.metadata?.dataAsOf || archive.dataDateIso || archive.metadata?.generatedAt || archive.uploadedAt || "";
+    const sourceDate = dataImportArchiveFreshnessDate(archive);
     return sourceDate ? `Data ${dataImportFormatDate(sourceDate)}` : "Date unavailable";
   }
   if (hasFallback) {
@@ -49650,9 +49711,9 @@ function dataImportBuildHealthModel() {
       if (required && archive) {
         const age = dataImportAgeForArchive(archive, { freshness });
         const stale = age > Number(freshness.days || 7);
-        status = stale ? "Stale" : "Fresh";
-        ageLabel = Number.isFinite(age) ? `${age} ${freshness.businessDays ? "business " : ""}day${age === 1 ? "" : "s"} old` : "Age unavailable";
-        detail = stale
+        status = age === null ? "Saved" : stale ? "Stale" : "Fresh";
+        ageLabel = age === null ? "Source date unverified" : Number.isFinite(age) ? `${age} ${freshness.businessDays ? "business " : ""}day${age === 1 ? "" : "s"} old` : "Age unavailable";
+        detail = age === null ? "The retained multi-month tracker has no verified effective date. Expiration months do not establish freshness." : stale
           ? `${def.label} is outside the ${freshness.label || "configured"} freshness expectation${freshness.action === "block_hold" ? " and is held from downstream send" : ""}.`
           : `${def.label} is current from ${archive.batchId}.`;
       } else if (required && hasFallback) {
@@ -49665,6 +49726,10 @@ function dataImportBuildHealthModel() {
         dataImportNormalizeText(issue.communityName) === dataImportNormalizeText(communityName) &&
         issue.reportType === reportType
       );
+      if (required && archive?.accountingReopened) {
+        status="Held";
+        detail="The approved accounting period was reopened and requires re-approval.";
+      }
       if (required && relatedExceptions.some(issue => issue.type === "conflict")) status = "Conflict";
       else if (required && relatedExceptions.some(issue => issue.type === "unmapped")) status = "Unmapped";
       else if (required && relatedExceptions.some(issue => issue.type === "held")) status = "Held";
@@ -49690,6 +49755,8 @@ function dataImportBuildHealthModel() {
           ? "No upload required; excluded from portfolio health."
           : status === "Fresh"
           ? "No upload needed."
+          : status === "Saved" && archive
+          ? "Verify the tracker's effective date or upload a current dated source."
           : `Upload a current ${def.label} for ${communityName}.`,
         modulesAffected: def.dependencies || []
       };

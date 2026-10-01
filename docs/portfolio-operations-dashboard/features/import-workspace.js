@@ -116,7 +116,7 @@ function renderDataImportHealthDetail(health) {
       <strong>${escapeHtml(cell.communityName)} · ${escapeHtml(cell.reportLabel)}</strong><br>
       Status: ${escapeHtml(cell.status)}<br>
       Most recent upload: ${archive ? escapeHtml(dataImportFormatTimestamp(archive.uploadedAt)) : "None"}<br>
-      Reporting date: ${archive ? escapeHtml(archive.metadata?.dataAsOf ? dataImportFormatTimestamp(archive.metadata.dataAsOf) : archive.dataDateLabel || archive.reportingPeriodLabel || "Not detected") : "Missing"}<br>
+      Source effective date: ${archive ? escapeHtml(dataImportArchiveFreshnessDate(archive) ? dataImportFormatTimestamp(dataImportArchiveFreshnessDate(archive)) : "Unverified; expiration months are not source dates") : "Missing"}<br>
       Generated: ${archive?.metadata?.generatedAt ? escapeHtml(dataImportFormatTimestamp(archive.metadata.generatedAt)) : "Not recorded"}<br>
       Received: ${archive?.metadata?.receivedAt ? escapeHtml(dataImportFormatTimestamp(archive.metadata.receivedAt)) : archive ? escapeHtml(dataImportFormatTimestamp(archive.uploadedAt)) : "Not recorded"}<br>
       Expected cadence: ${escapeHtml(dataImportEffectiveFreshness(cell.reportType).label)}<br>
@@ -124,7 +124,7 @@ function renderDataImportHealthDetail(health) {
       ${cell.requirementOverride ? `Requirement ${cell.requirementOverride.excluded ? "waived" : "restored"} by ${escapeHtml(cell.requirementOverride.updatedBy)} · ${escapeHtml(dataImportFormatTimestamp(cell.requirementOverride.updatedAt))}<br>` : ""}
       Status date: ${escapeHtml(cell.statusDateLabel || "Not recorded")}<br>
       Age: ${escapeHtml(cell.ageLabel)}<br>
-      Import batch: ${archive ? escapeHtml(archive.batchId) : "None"}<br>
+      ${archive?.evidenceOrigin === "central_close" ? `Approved Central close: ${escapeHtml(archive.reportingPeriodLabel)} · version ${escapeHtml(archive.closeVersionId)}<br>Freshness uses the accounting period end; approval time does not make older accounts current.<br>` : `Import batch: ${archive ? escapeHtml(archive.batchId) : "None"}<br>`}
       Mapping version: ${archive ? escapeHtml(archive.mappingVersion || "ATLAS-RRIM-1.0") : "None"}<br>
       File fingerprint: ${archive?.fileHash ? escapeHtml(`${archive.fileHash.slice(0, 16)}…`) : "Not recorded"}<br>
       Coverage: ${archive ? `${escapeHtml((archive.communities || []).length)}${archive.coverageExpected ? `/${escapeHtml(archive.coverageExpected)}` : ""} communities` : "None"}<br>
@@ -959,6 +959,7 @@ function renderDataImport2View(health) {
 function renderDataImport2Tab() {
   if(window.AtlasReplayWriteFence)return `<div class="alert-amber" role="status">Source replay or checkpoint recovery is active. Background refresh and unrelated saves are paused. Wait for the replay result; if recovery is pending, reload before inspecting the retained source.</div>`;
   dataImport2State = normalizeDataImport2State(dataImport2State);
+  if (typeof refreshDataImportAccountingEvidence === "function") refreshDataImportAccountingEvidence();
   const health = dataImportBuildHealthModel();
   const errorHTML = csvError ? `<div class="${getCsvAlertClass(csvError)} mb4">${escapeHtml(csvError)}</div>` : "";
   const logHTML = csvLog.length > 0 ? `<div class="alert-green mb4">${csvLog.map((l,i) => `<div style="${i===0?"color:#3fb950;font-weight:600":"color:var(--muted)"}">${escapeHtml(l)}</div>`).join("")}</div>` : "";
@@ -966,6 +967,7 @@ function renderDataImport2Tab() {
     ${dataImportPreviewController ? `<div id="atlas-import-preview-status" role="status" aria-live="polite">Inspecting workbook…</div>` : ""}
     ${renderDataImportHero(health)}
     ${renderDataImportTabs()}
+    ${typeof dataImportAccountingEvidence !== "undefined" && dataImportAccountingEvidence?.context === getAtlasFinancialContextKey() && (dataImportAccountingEvidence.loading || dataImportAccountingEvidence.error) ? `<div role="status">${dataImportAccountingEvidence.loading ? "Checking approved accounting sources in Central…" : `Approved accounting verification unavailable: ${escapeHtml(dataImportAccountingEvidence.error)}`}</div>` : ""}
     ${errorHTML}
     ${logHTML}
     ${renderDataImport2View(health)}

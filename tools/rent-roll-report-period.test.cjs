@@ -112,3 +112,20 @@ test('supplied portfolio rent roll retains its declared month across future leas
  }
  assert.equal(datedOutside,3527,'Source counts corroborate the lease-end/report-month defect without exporting resident data');
 });
+
+test('clean exact-source replay resolves only date conflicts whose physical rows reached the correct month',async()=>{
+ const {c,calls,archive}=correctionFixture();
+ const issue={id:'legacy-conflict',type:'conflict',status:'Open',reportType:'rent_roll',batchId:archive.batchId,fileName:archive.fileName,communityName:'Example',title:'Source section is outside the selected period',detail:'Example row 8 belongs to 2027-07; it was held without changing that date or another month.'};
+ const unrelated=[{...issue,id:'other-batch',batchId:'other'},{...issue,id:'other-file',fileName:'other.xlsx'},{...issue,id:'other-row',detail:issue.detail.replace('row 8','row 999')},{...issue,id:'other-conflict',title:'Conflicting value'},{...issue,id:'other-community',communityName:'Other'}];
+ c.dataImport2State.exceptions=[issue,...unrelated];const originals=plain(unrelated);
+ await c.reprocessDataImportBoxScore(archive.id);assert.equal(calls.shared,1,JSON.stringify(calls.alerts));
+ assert.equal(issue.status,'Resolved');assert.equal(issue.resolutionEvidence.fileHash,archive.fileHash);assert.equal(issue.resolutionEvidence.reportingPeriod,'2026-09');assert.equal(issue.detail,'Example row 8 belongs to 2027-07; it was held without changing that date or another month.');assert.deepEqual(plain(unrelated),originals);assert.equal(archive.reprocessResult.periodCorrection.resolvedExceptions,1);
+ const resolution=plain(issue);await c.reprocessDataImportBoxScore(archive.id);assert.deepEqual(plain(issue),resolution);assert.equal(archive.reprocessResult.periodCorrection.resolvedExceptions,0);
+});
+test('held or failed replay preserves the original date conflict',async()=>{
+ for(const mode of ['held','publication']){
+  const {c,calls,archive}=correctionFixture();const issue={id:'legacy-conflict',type:'conflict',status:'Open',reportType:'rent_roll',batchId:archive.batchId,fileName:archive.fileName,communityName:'Example',title:'Source section is outside the selected period',detail:'Example row 8 belongs to 2027-07; it was held without changing that date or another month.'};c.dataImport2State.exceptions=[issue];const before=plain(issue);
+  if(mode==='held')c.dataImport2State.closedPeriods.push('2026-09');else c.persistDataImportPublication=async()=>{throw Error('publication failed');};
+  await c.reprocessDataImportBoxScore(archive.id);assert.equal(calls.shared,0);assert.deepEqual(plain(c.dataImport2State.exceptions),[before]);
+ }
+});

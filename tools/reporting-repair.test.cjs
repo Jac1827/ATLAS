@@ -9,7 +9,7 @@ const data=W.model({records:[base,{...base,property:'Inactive'},{...base,newLead
 assert.equal(data.start,'2026-09-11');assert.equal(data.totals.leads,1);assert.equal(data.totals.completed,1);assert.equal(data.totals.overdue,1);assert.equal(data.agents[0].approvals,null);assert.equal(data.communityRows.length,1);
 assert(W.document(data).includes('Agent &lt;A&gt;'));assert(!W.document(data).includes('Inactive'));assert(W.rows(data).some(r=>r.value==='0'&&r.note==='Verified zero'));assert.equal(W.model({records:[base],communities:[],period:'2026-09',end:'2026-09-17'}).totals.records,0);
 const context={Date,Math,Number,FULL_MONTHS:['Jan'],DATA_IMPORT_REPORT_ORDER:['resident'],dataImport2State:{exceptions:[],batches:[]},dataImportGetHealthCommunityNames:()=>['Active'],dataImportGetMatrixCommunityNames:()=>['Active','Inactive'],dataImportIsActiveReportingCommunity:n=>n==='Active',dataImportGetReportDef:()=>({label:'Residents'}),dataImportEffectiveFreshness:()=>({days:7}),dataImportCommunitySupportsReport:()=>true,dataImportLatestArchiveFor:()=>null,dataImportHasSavedFallbackData:()=>true,dataImportNormalizeText:s=>s,dataImportFormatDate:s=>s};
-vm.createContext(context);vm.runInContext(extract('dataImportGetRequirementOverride')+'\n'+extract('dataImportBuildStatusDateLabel')+'\n'+extract('dataImportBuildHealthModel'),context);
+vm.createContext(context);vm.runInContext(extract('dataImportArchiveFreshnessDate')+'\n'+extract('dataImportGetRequirementOverride')+'\n'+extract('dataImportBuildStatusDateLabel')+'\n'+extract('dataImportBuildHealthModel'),context);
 let health=context.dataImportBuildHealthModel();assert.equal(health.rows[1].cells[0].status,'Historical');assert.equal(health.rows[1].cells[0].required,false);assert.equal(health.rows[0].cells[0].status,'Saved');assert(!health.rows[1].cells[0].statusDateLabel.includes('January'));
 context.dataImportLatestArchiveFor=()=>({batchId:'test',dataDateIso:'2026-09-16'});context.dataImportAgeForArchive=()=>1;health=context.dataImportBuildHealthModel();assert.equal(health.rows[0].cells[0].status,'Fresh');assert.equal(health.rows[1].cells[0].status,'Historical');
 vm.runInContext(extract('getTopLeadSourceFacts'),context);
@@ -22,3 +22,14 @@ const persist=extract('persistOpsGlobalData');const names=['atlasInvestorPacketS
 // Parse every inline script, including generated template content within JS strings.
 for(const match of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)){if(match[1].trim())new vm.Script(match[1]);}
 console.log('PASS weekly boundaries, empty authorization, missing-versus-zero, escaped output, inactive history, settings preserve shared records, inline syntax.');
+
+// A multi-month expiration cohort is not evidence of the source's freshness.
+vm.runInContext(extract('dataImportAgeForArchive')+'\n'+extract('dataImportNextDueLabel'),context);
+const tracker={reportType:'renewal_tracker',dataDateIso:'2026-04-03',uploadedAt:'2026-09-19',metadata:{periodSelection:{mode:'multiple_months',basis:'expiration_months'}}};
+context.dataImportLatestArchiveFor=()=>tracker;
+assert.equal(context.dataImportAgeForArchive(tracker,{}),null);
+assert.equal(context.dataImportNextDueLabel(tracker,'renewal_tracker'),'Not calculable');
+health=context.dataImportBuildHealthModel();assert.equal(health.staleFeeds,0);assert.equal(health.rows[0].cells[0].status,'Saved');assert.equal(health.rows[0].cells[0].ageLabel,'Source date unverified');assert.equal(health.fullyCurrentCommunities,0);
+assert.equal(context.dataImportArchiveFreshnessDate({...tracker,dataDateIso:'2028-12-01'}),'','Future expiration cannot make the report fresh');
+const verified={...tracker,metadata:{...tracker.metadata,dataAsOf:'2026-09-19'}};assert.equal(context.dataImportArchiveFreshnessDate(verified),'2026-09-19');assert.equal(typeof context.dataImportAgeForArchive(verified,{}),'number');
+assert.equal(context.dataImportArchiveFreshnessDate({...tracker,reportType:'rent_roll'}),'2026-04-03','Snapshot feeds retain their source date');

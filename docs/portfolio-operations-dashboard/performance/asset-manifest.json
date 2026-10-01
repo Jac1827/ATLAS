@@ -1,4 +1,14 @@
 {
+  "features/data-health-accounting.mjs": {
+    "sha256": "50011e9e79cbde87",
+    "bytes": 4039,
+    "references": [
+      [
+        "workspace-core.js",
+        "./features/data-health-accounting.mjs"
+      ]
+    ]
+  },
   "assets/xlsx.full.min.js": {
     "sha256": "c9506197caf809a0",
     "bytes": 881727,
@@ -1116,8 +1126,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "7e321ae584a2924d",
-    "bytes": 3079902,
+    "sha256": "a86b643d36d53260",
+    "bytes": 3084977,
     "references": [
       [
         "index.html",
@@ -2136,8 +2146,8 @@
     ]
   },
   "features/import-workspace.js": {
-    "sha256": "91590ef7285d447a",
-    "bytes": 102604,
+    "sha256": "9d8c64f3cbaeac63",
+    "bytes": 103439,
     "references": [
       [
         "performance/feature-loader.js",
@@ -2196,7 +2206,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "41c84b2461e2972d",
+    "sha256": "ed78e3106d75fc82",
     "bytes": 3714,
     "references": [
       [

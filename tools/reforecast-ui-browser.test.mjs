@@ -31,7 +31,17 @@ try{
  for(const [selector,routePattern] of [['[data-official-export=pdf]','**/__api/rpc/atlas_read_reforecast_publication'],['[data-official-export=xlsx]','**/__api/rpc/atlas_read_reforecast_publication'],['[data-export=csv]','**/__api/atlas_reforecast_revisions?*']]){
   if(selector==='[data-export=csv]'){await page.locator('#gap').click();await idle();}
   let release,intercepted;const gate=new Promise(resolve=>release=resolve),seen=new Promise(resolve=>intercepted=resolve);await page.route(routePattern,async route=>{const response=await route.fetch();intercepted();await gate;await route.fulfill({response});});
-  try{await page.locator(selector).click();await seen;await page.locator('[data-community]').selectOption('10000000-0000-0000-0000-000000000002');await idle();release();await page.waitForFunction(()=>[...document.querySelectorAll('[role=alert]')].some(el=>el.textContent.includes('forecast selection changed')));assert.equal(downloads.length,0,'Changing community cancels an in-flight immutable export before download');}
+  try{await page.locator(selector).click();await seen;await page.locator('[data-community]').selectOption('10000000-0000-0000-0000-000000000002');await idle();release();
+   if(selector==='[data-export=csv]')await page.waitForFunction(()=>[...document.querySelectorAll('[role=alert]')].some(el=>el.textContent.includes('forecast selection changed')));
+   else{
+    // Official PDF/Excel now enter the saved-version integrity preview. Its
+    // selection guard reports cancellation within the retained report dialog.
+    await page.waitForFunction(()=>[...document.querySelectorAll('dialog [data-status]')].some(el=>el.textContent.includes('The selected property changed. Reopen saved reports.')));
+    assert.equal(await page.locator('dialog [data-report-cell]').count(),0,'Delayed saved values never appear under the changed community');
+    assert(await page.locator('dialog [data-library-export=pdf]').isDisabled());assert(await page.locator('dialog [data-library-export=xlsx]').isDisabled());
+    await page.locator('dialog [data-close]').click();await page.waitForFunction(()=>document.querySelectorAll('dialog').length===0);
+   }
+   assert.equal(downloads.length,0,'Changing community cancels an in-flight immutable export before download');}
   finally{release();await page.unroute(routePattern);}
   await page.locator('[data-community]').selectOption(cid);await idle();await openApproved(approvedScenario);
  }

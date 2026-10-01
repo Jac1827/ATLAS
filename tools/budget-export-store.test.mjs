@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import {previewBudgetExport,captureBudgetExport,completeBudgetExport,readBudgetExport,readBudgetExportHistory,readBudgetExportTolerances,saveBudgetExportTolerances} from '../docs/portfolio-operations-dashboard/features/budget-export-store.mjs';
+const id=n=>'10000000-0000-0000-0000-'+String(n).padStart(12,'0');
+const communityId=id(1),revisionId=id(2),requestId=id(3),actor=id(4),exportId=id(5),options={formats:['xlsx'],sections:['summary'],preset:'executive',charts:[],includeCharts:false};
+const receipt={verified:true,communityId,revisionId,exportId,sourceFingerprint:'a'.repeat(64),contentHash:'b'.repeat(64),snapshot:{lines:[]},generatedBy:actor,generatedAt:'2026-09-29T10:00:00Z',options};
+let activeActor=actor,tamper=false,refreshAction=()=>{},writes=0;
+const rules={default:{dollar:100,percent:5,operator:'or'},accounts:{},categories:{}},files=[{format:'xlsx',name:'RISE.xlsx',size:123,sha256:'c'.repeat(64)}],fileRequest=id(6),fileRecordId=id(7),toleranceVersionId=id(8);
+const central={getSession:()=>({user:{id:activeActor}}),refreshSession:async()=>refreshAction(),async fetchJson(path,{body}={}){
+ const data=body?JSON.parse(body):null;
+ if(path==='/rpc/atlas_preview_budget_export')return {...structuredClone(receipt),config:{}};
+ if(path==='/rpc/atlas_capture_budget_export'){writes++;assert.deepEqual(data.p_selection,{revisionId});assert.equal(data.p_request_id,requestId);return structuredClone(receipt);}
+ if(path==='/rpc/atlas_read_budget_export')return {...structuredClone(receipt),...(tamper?{snapshot:{lines:[{forecast:9}]}}:{})};
+ if(path==='/rpc/atlas_complete_budget_export')return {verified:true,communityId,exportId,fileRecordId,files};
+ if(path.startsWith('/atlas_budget_export_files?'))return [{file_record_id:fileRecordId,request_id:fileRequest,files}];
+ if(path.startsWith('/atlas_budget_exports?'))return [{export_id:exportId,community_id:communityId}];
+ if(path==='/rpc/atlas_read_budget_export_tolerances')return {communityId,version:0,rules};
+ if(path==='/rpc/atlas_save_budget_export_tolerances')return {communityId,version:1,versionId:toleranceVersionId,rules};
+ if(path.startsWith('/atlas_budget_export_tolerances?'))return [{request_id:requestId,rules}];
+ throw Error('Unexpected call '+path);
+}};
+assert.equal((await previewBudgetExport(central,{communityId,revisionId})).revisionId,revisionId);
+assert.deepEqual(await captureBudgetExport(central,{communityId,revisionId,requestId,options}),receipt);
+assert.equal((await completeBudgetExport(central,{communityId,exportId,requestId:fileRequest,files})).verified,true);
+assert.equal((await readBudgetExportHistory(central,{communityId})).length,1);
+assert.equal((await readBudgetExportTolerances(central,{communityId})).version,0);
+assert.equal((await saveBudgetExportTolerances(central,{communityId,expectedVersion:0,requestId,rules,reason:'Reviewed thresholds'})).version,1);
+tamper=true;await assert.rejects(()=>captureBudgetExport(central,{communityId,revisionId,requestId,options}),/exact readback/);tamper=false;
+await assert.rejects(()=>captureBudgetExport(central,{communityId,revisionId,originalBudgetVersionId:id(9),requestId,options}),/one exact/);
+refreshAction=()=>activeActor=id(10);const before=writes;await assert.rejects(()=>captureBudgetExport(central,{communityId,revisionId,requestId,options}),/signed-in/);assert.equal(writes,before);
+activeActor=actor;refreshAction=()=>{};assert.deepEqual(await readBudgetExport(central,{communityId,exportId}),receipt);
+console.log('PASS immutable export client readback, wrong selection rejection, file/tolerance confirmations and session-switch write prevention.');

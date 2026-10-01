@@ -1,3 +1,5 @@
+import {prepareBudgetLeasingDrivers,buildBudgetDriverIntegrity} from './budget-leasing-drivers.mjs?v=8f59ae7406f56df7';
+import {decimal,decimalSum,decimalProduct,roundedDecimal,roundMoney,sumMoney} from './budget-money.mjs?v=c2a0e763406c2b63';
 import {reviewedWorkbookSourcePolicy,retainedWorkbookBlank,confirmedForecastBlank,compactWorkbookBlankReference,excludedForecastScope,resolveReviewedWorkbookBlankReference,retainedReviewedForecastBlank,confirmedReviewedForecastBlank,resolveInheritedReviewedForecastBlank} from './reforecast-workbook-source-policy.mjs?v=a930b680fb3c7265';
 import {validatePlanningCalendar,planningOverrideIssues,validPlanningReview} from './planning-governance.mjs?v=a4de8d3f5a50966c';
 /* Pure, deterministic reforecast calculations. This module never reads browser state or publishes. */
@@ -5,14 +7,7 @@ export const ENGINE_VERSION='atlas-reforecast-v1';
 export const DRIVER_OPERATIONS=Object.freeze(['percent_change','amount','add','percent_of_account','occupancy_vacancy']);
 const finite=v=>typeof v==='number'&&Number.isFinite(v);
 const amount=v=>finite(v)?v:null;
-// Match PostgreSQL numeric: operate on the retained decimal spelling and round
-// once, half away from zero. Binary multiplication cannot decide a money tie.
-const decimal=value=>{const [coefficient,exponent='0']=String(value).split('e'),[whole,fraction='']=coefficient.split('.');return {units:BigInt(whole+fraction),scale:fraction.length-Number(exponent)};};
-const decimalSum=parts=>{const scale=Math.max(0,...parts.map(part=>part.scale));return {units:parts.reduce((total,part)=>total+part.units*10n**BigInt(scale-part.scale),0n),scale};};
-const decimalProduct=(a,b)=>({units:a.units*b.units,scale:a.scale+b.scale});
-const roundedDecimal=part=>{const scale=Math.max(2,part.scale),units=part.units*10n**BigInt(scale-part.scale),divisor=10n**BigInt(scale-2),absolute=units<0n?-units:units,cents=absolute/divisor+(absolute%divisor*2n>=divisor?1n:0n);if(cents===0n)return 0;const digits=cents.toString().padStart(3,'0'),result=Number((units<0n?'-':'')+digits.slice(0,-2)+'.'+digits.slice(-2));return finite(result)?result:null;};
-export const roundMoney=value=>finite(value)?roundedDecimal(decimal(value)):null;
-export const sumMoney=values=>values.every(finite)?roundedDecimal(decimalSum(values.map(decimal))):null;
+export {roundMoney,sumMoney} from './budget-money.mjs?v=c2a0e763406c2b63';
 export function moneyDriverAmount(operation,before,value,base){
  if(!finite(value))return null;
  if(operation==='amount')return roundMoney(value);
@@ -225,8 +220,17 @@ export function computeReforecast(input){
   if(cell.disposition!=='workbook_blank')return cell;
   return resolveReviewedWorkbookBlankReference(cell,scenario,input)||cell;
  });
- const calculation={...input,scenario:{...scenario,overrides}};
- return presentWorkbookSourceCoverage(presentWorkbookSnapshot(presentNoncashSnapshot(computeReforecastBeforeNoncash(calculation),input.registry||{}),calculation.scenario,input),calculation.scenario,input);
+ const prepared=prepareBudgetLeasingDrivers({...input,scenario:{...scenario,overrides}}),calculation={...input,scenario:prepared.scenario};
+ const computed=presentWorkbookSourceCoverage(presentWorkbookSnapshot(presentNoncashSnapshot(computeReforecastBeforeNoncash(calculation),input.registry||{}),calculation.scenario,input),calculation.scenario,input),result=clone(computed);
+ result.leasingSchedule=prepared.leasingSchedule;result.strLeasingSchedules=prepared.strLeasingSchedules;
+ for(const value of prepared.amounts){const row=result.lines.find(line=>line.period===value.period&&line.accountCode===value.accountCode);if(row){const applied=(scenario.strBudgetApplications||[]).flatMap(application=>application.cells||[]).filter(cell=>cell.period===value.period&&String(cell.accountCode)===value.accountCode),expected=sumMoney([value.amount,...applied.map(cell=>cell.appliedDelta)]);row.driverCalculatedAmount=expected;row.expectedDriverAmount=expected;row.budgetDriverIds=[value.driverId];row.budgetDriverType=value.type;row.budgetDriverMetric=value.metric;}}
+ const strExpectations=new Map();for(const application of scenario.strBudgetApplications||[])for(const cell of application.cells||[])strExpectations.set(compound(cell.period,String(cell.accountCode)),{amount:cell.combinedAmount,driverId:'str-programme-'+application.programmeId});
+ for(const row of result.lines){const expected=strExpectations.get(compound(row.period,row.accountCode));if(expected&&row.sourceKind==='forecast'&&!row.immutable&&!Object.hasOwn(row,'driverCalculatedAmount')){row.driverCalculatedAmount=amount(expected.amount);row.expectedDriverAmount=amount(expected.amount);row.budgetDriverIds=[expected.driverId];}}
+ result.driverValidation=buildBudgetDriverIntegrity({snapshot:result,scenario:calculation.scenario,tolerances:input.driverToleranceSettings?.rules||input.driverToleranceSettings?.settings||input.driverToleranceSettings||scenario.driverToleranceSettings||{}});
+ result.diagnostics.push(...prepared.issues,...result.driverValidation.issues);
+ result.status=result.diagnostics.some(row=>['blocking','error'].includes(row.severity))?'action_required':'ready';
+ if(scenario.leasingSchedule||scenario.accountDrivers?.length||scenario.strBudgetApplications?.length)result.fingerprint=fingerprint({...result,fingerprint:undefined});
+ return freeze(result);
 }
 function computeReforecastBeforeNoncash(input){
  const {communityId,baseline={},actuals={},scenario={},registry={}}=input;

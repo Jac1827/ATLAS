@@ -1,8 +1,8 @@
 import {prepareStrRegistryExtension,readStrMappingContext,saveStrRegistryExtension} from './reforecast-str-registry-extension.mjs?v=e029a084505a92e0';
 export {readStrMappingContext} from './reforecast-str-registry-extension.mjs?v=e029a084505a92e0';
-import {parseSavedStrJson,savedStrJsonBytes} from './reforecast-str-json-recovery.mjs?v=8e59b661f0adbf5e';
-import {parseSavedStrMonthlyProgramme,prepareSavedStrMonthlyContribution} from './reforecast-str-saved-programme.mjs?v=2b6356eb8cb947bb';
-import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=aba4565f9c5c9e98';
+import {parseSavedStrJson,savedStrJsonBytes} from './reforecast-str-json-recovery.mjs?v=ac1b99bc8f6b9a9a';
+import {parseSavedStrMonthlyProgramme,prepareSavedStrMonthlyContribution} from './reforecast-str-saved-programme.mjs?v=12abf3cc520d665f';
+import {createStrOverlayDraft} from './reforecast-str-overlay.mjs?v=09f928e62d236d7a';
 import {saveForecastRecovery,readForecastRecovery,removeForecastRecovery} from './reforecast-recovery.mjs?v=a9e90f515ca31a7a';
 const clone=structuredClone,finite=value=>typeof value==='number'&&Number.isFinite(value),uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -33,7 +33,7 @@ export function savedStrProgrammeDraft(source,review,receipt,{publication,actor}
  if(review.mappingVersion!==draft.registryVersionId&&!receipt.registry_extension)throw Error('A verified immutable registry extension receipt is required.');
  draft.registryVersionId=review.mappingVersion;if(receipt.registry_extension)draft.strRegistryExtension=clone(receipt.registry_extension);
  if(!equal(draft.parentPublication,review.parentPublication))throw Error('The reviewed saved programme belongs to a different Conventional publication.');
- draft.strStreams=[{id:'rise_str',type:'saved_json_monthly_programme',sourceReceiptId:receipt.source_receipt_id,sourceHash:source.sourceHash,sourceFingerprint:source.fingerprint,contentHash:receipt.content_hash,mappingVersion:review.mappingVersion,application:'add',reviewed:true,reviewedBy:actor,reviewedAt:review.reviewedAt,assumptionReason:review.reason}];
+ draft.strStreams=[{id:'rise_str',type:'saved_json_monthly_programme',...(Object.keys(review.supportingSchedules||{}).length?{programmeId:source.programmeId,supportingSchedules:clone(review.supportingSchedules)}:{}),sourceReceiptId:receipt.source_receipt_id,sourceHash:source.sourceHash,sourceFingerprint:source.fingerprint,contentHash:receipt.content_hash,mappingVersion:review.mappingVersion,application:'add',reviewed:true,reviewedBy:actor,reviewedAt:review.reviewedAt,assumptionReason:review.reason}];
  draft.overrides=review.cells.map(cell=>({period:cell.period,accountCode:cell.accountCode,amount:cell.combinedForecast,reason:review.reason,confirmed:true,ownerId:actor,effectivePeriod:cell.period,reviewedAt:review.reviewedAt,before:cell.parentAmount,after:cell.combinedForecast,source:{kind:'str_schedule',sourceKind:'saved_json_monthly_programme',sourceReceiptId:receipt.source_receipt_id,sourceHash:source.sourceHash,sourceLineId:cell.sourceLineId,sourcePath:cell.sourcePath,sourceAmount:cell.amount,application:'add'}}));
  draft.strRecoveryEvidence={...clone(source),assignment:{communityId:publication.communityId,sourcePropertyId:source.sourcePropertyId,programmeId:source.programmeId,parentPublicationId:publication.publicationId,confirmed:true,actorId:actor,reviewedAt:review.reviewedAt,reason:review.reason},sourceReceipt:clone(receipt),blockers:[],review:clone(review)};
  draft.reason=review.reason;draft.history.push({action:'saved_str_monthly_programme_recovered',actor,timestamp:review.reviewedAt,sourceReceiptId:receipt.source_receipt_id,sourceHash:source.sourceHash,parentPublicationId:publication.publicationId,before:null,after:{sourceCells:review.cells.length,allocatedUnits:source.allocatedUnits,application:'add'}});return draft;

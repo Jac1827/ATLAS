@@ -2,7 +2,7 @@ const assert=require('node:assert/strict'),vm=require('node:vm');
 const {readDashboardSource}=require('./dashboard-source.cjs');
 const source=readDashboardSource('docs/portfolio-operations-dashboard/index.html');
 const start=source.indexOf('async function saveAtlasCentralAppState('),end=source.indexOf('\nasync function inspectAtlasOccupancyReadback',start);
-const fn=source.slice(start,end).replace(/const \{ensureWorkspaceProjection\} = await import\("\.\/features\/workspace-publication\.mjs(?:\?v=[^"]+)?"\);/g,'const {ensureWorkspaceProjection} = projectionFixture;');
+const fn=source.slice(start,end).replace(/const \{ensureWorkspaceProjection\} = await import\("\.\/features\/workspace-publication\.mjs(?:\?v=[^"]+)?"\);/g,'const {ensureWorkspaceProjection} = projectionFixture;').replace(/const cacheModule = await import\([^;]+;/,'const cacheModule = {};');
 function fixture(){
  const records=new Map(),calls={build:0,parts:0,parent:0,projection:0},messages=[];
  let parent={document_key:'atlas_dashboard_state_v1',version:1,payload_hash:'old',updated_at:'2026-09-24T12:00:00Z',payload:{bundle:{sha256:'old'}}};

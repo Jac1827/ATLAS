@@ -970,8 +970,8 @@
     ]
   },
   "migration-archive.js": {
-    "sha256": "51c0d9a49d4cbde9",
-    "bytes": 33713,
+    "sha256": "8cb6480f96dd3ca0",
+    "bytes": 33632,
     "references": [
       [
         "performance/feature-loader.js",
@@ -988,7 +988,7 @@
     ]
   },
   "features/import-history-store.mjs": {
-    "sha256": "fd9e51d939db13ed",
+    "sha256": "0ca84d5c090aa001",
     "bytes": 28814,
     "references": [
       [
@@ -1010,7 +1010,7 @@
     ]
   },
   "features/import-history-worker.mjs": {
-    "sha256": "c58de4c3bec4a1f3",
+    "sha256": "377e3b410ce8622d",
     "bytes": 479,
     "references": [
       [
@@ -1020,7 +1020,7 @@
     ]
   },
   "features/import-history.mjs": {
-    "sha256": "9f6761b868c0dfdc",
+    "sha256": "763abc10ad1c35a8",
     "bytes": 2613,
     "references": [
       [
@@ -1126,7 +1126,7 @@
     ]
   },
   "features/workspace-projection-worker.js": {
-    "sha256": "0431b1c55ad77f8e",
+    "sha256": "15fe109e592e5ba0",
     "bytes": 4227,
     "references": [
       [
@@ -1136,7 +1136,7 @@
     ]
   },
   "features/workspace-bootstrap.mjs": {
-    "sha256": "4d0dc8df103e7da5",
+    "sha256": "dc0f1662271fe2f2",
     "bytes": 8930,
     "references": [
       [
@@ -1154,7 +1154,7 @@
     ]
   },
   "features/workspace-publication.mjs": {
-    "sha256": "e824b254c98796cf",
+    "sha256": "c9b57d648d819930",
     "bytes": 959,
     "references": [
       [
@@ -1168,7 +1168,7 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "ad0882c8b21b711e",
+    "sha256": "cdc2eb392023a18a",
     "bytes": 3099473,
     "references": [
       [
@@ -2138,7 +2138,7 @@
     ]
   },
   "occupancy-replay-browser.js": {
-    "sha256": "ba40344d42108539",
+    "sha256": "94b6360cec84f1cf",
     "bytes": 14553,
     "references": [
       [
@@ -2218,7 +2218,7 @@
     ]
   },
   "features/workspace-activation.mjs": {
-    "sha256": "232e3f331648262c",
+    "sha256": "916c8a297617a0af",
     "bytes": 12828,
     "references": [
       [
@@ -2228,7 +2228,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "792c585272ddda17",
+    "sha256": "f82bfbd5a26027bd",
     "bytes": 3714,
     "references": [
       [

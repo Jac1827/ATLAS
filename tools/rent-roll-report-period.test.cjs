@@ -129,3 +129,34 @@ test('held or failed replay preserves the original date conflict',async()=>{
   await c.reprocessDataImportBoxScore(archive.id);assert.equal(calls.shared,0);assert.deepEqual(plain(c.dataImport2State.exceptions),[before]);
  }
 });
+
+function structuredReader(){
+ const c=context(),XLSX=require('../docs/portfolio-operations-dashboard/assets/xlsx.full.min.js');
+ Object.assign(c,{XLSX,window:{}});
+ vm.runInContext(source.match(/^const DATA_IMPORT_FIELD_ALIASES = \{[\s\S]*?^\};/m)[0],c);
+ // This test exercises the generic row reader; the separate aggregate parser
+ // is covered by the real-file occupancy tests and must not alter row counts.
+ const reader=source.match(/^async function dataImportReadStructuredRows\([^\n]*\) \{[\s\S]*?^\}/m)[0];
+ vm.runInContext(reader.replace(/\(await import\("\.\/features\/occupancy-source-evidence\.mjs\?v=[^"]+"\)\)\.parseOccupancySheet/,'(() => null)'),c);
+ return {c,XLSX};
+}
+test('rent-roll empty-section notices are excluded without dropping real values or other report types',async()=>{
+ const {c,XLSX}=structuredReader(),book=XLSX.utils.book_new();
+ XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([
+  ['Bldg-Unit','Resident','Actual Charges'],
+  ['Selected report filters returned no data','',''],
+  ['selected report filters returned no data','Selected report filters returned no data',''],
+  ['synthetic-unit','Synthetic resident',0],
+  ['Selected report filters returned no data','Synthetic resident',1]
+ ]),'Example');
+ const file=new File([XLSX.write(book,{type:'buffer',bookType:'xlsx'})],'source.xlsx');
+ const rent=await c.dataImportReadStructuredRows(file,{reportType:'rent_roll'});
+ assert.deepEqual(plain(rent[0].rows.map(row=>row.sourceRow)),[4,5]);
+ const other=await c.dataImportReadStructuredRows(file,{reportType:'other'});assert.equal(other[0].rows.length,4);
+});
+test('supplied rent roll has no Sutton Place records behind its empty-section notice',{skip:!process.env.ATLAS_OCCUPANCY_SOURCE_DIR},async()=>{
+ const {c}=structuredReader(),file=new File([fs.readFileSync(process.env.ATLAS_OCCUPANCY_SOURCE_DIR+'/03 - RISE - Rent Roll (3).xlsx')],'source.xlsx');
+ const sheets=await c.dataImportReadStructuredRows(file,{reportType:'rent_roll'});
+ assert.equal(sheets.length,13);assert.equal(sheets.some(sheet=>sheet.sheetName==='RISE Sutton Place'),false);
+ assert.equal(sheets.reduce((sum,sheet)=>sum+sheet.rows.length,0),4741,'Three retained empty-section notices are not rent-roll facts');
+});

@@ -47217,7 +47217,12 @@ async function dataImportReadStructuredRows(file, plan = {}) {
         sourceSheet: sheetName,
         sourceRow: headerIndex + rowOffset + 2
       };
-    }).filter(row => Object.values(row.values).some(value => String(value ?? "").trim()));
+    }).filter(row => {
+      const populated = Object.values(row.values).map(value => String(value ?? "").trim()).filter(Boolean);
+      // Entrata retains an empty section's headers and this message. It is
+      // source evidence of no rows, not a resident or an out-of-scope row.
+      return populated.length && !(plan.reportType === "rent_roll" && populated.every(value => /^selected report filters returned no data$/i.test(value)));
+    });
     if (rows.length) sheets.push({ sheetName, headerIndex, headers: headers.map(item => item.name), rows });
   });
   return sheets;

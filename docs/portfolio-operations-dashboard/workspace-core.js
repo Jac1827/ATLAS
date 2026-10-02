@@ -19012,12 +19012,15 @@ async function buildAtlasCentralAppStatePayload() {
   };
   // Fail before expanding retained history if the captured dashboard differs.
   reconcileBundle(bundle, "capture");
+  const capturedBundleJson = JSON.stringify(bundle);
+  const capturedSharedData = JSON.parse(JSON.stringify(migrationSnapshot.sharedData || normalizeAtlasSharedData(atlasSharedData)));
   // Full evidence is read only for an explicit export/publication. Do not clone
   // unrelated daily backups or immutable history chunks into the main thread.
   if (typeof ensureAtlasCanonicalImportEvidence === 'function') await ensureAtlasCanonicalImportEvidence();
   const portableBundle = await packAtlasCentralRetainedRecords(bundle, { expandImportHistory: true });
   const restored = await window.AtlasMigrationArchive.verifyBundle(portableBundle, JSZip);
-  reconcileBundle(restored.bundle, "round-trip");
+  // Compare the exact captured bytes, not a fresh summary of mutable live state.
+  if (JSON.stringify(restored.bundle) !== capturedBundleJson) throw new Error("Migration round-trip data differs from the captured source. No central publication was performed.");
   const migrationSnapshotHash=await hashAtlasMigrationPayload(migrationSnapshot);
   window.AtlasReplayWriteFence?.assert(null);
   if(replayGeneration!==Number(window.AtlasReplayGeneration||0))throw new Error("Source replay changed the workspace during archive preparation. Reload before using this archive.");
@@ -19035,7 +19038,7 @@ async function buildAtlasCentralAppStatePayload() {
     },
     workspace: buildOperationsWorkspaceContext(),
     bundle: portableBundle,
-    sharedData: normalizeAtlasSharedData(atlasSharedData),
+    sharedData: capturedSharedData,
     reconciliation: migrationSnapshot.reconciliation,
     exceptions: migrationSnapshot.exceptions,
     migrationSnapshotHash

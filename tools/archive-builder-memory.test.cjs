@@ -91,3 +91,11 @@ test('account, profile, access, storage and replay changes fail closed while cle
   await assert.rejects(g.packAtlasCentralRetainedRecords(bundle),/account, storage or source replay changed/);assert.deepEqual(await rowsOf(io),[...before].sort((a,b)=>a.key.localeCompare(b.key)));await remove(db);
  }
 });
+
+test('periodic access verification timestamp changes preserve an otherwise identical archive identity',async()=>{
+ const {db,io,g,bundle}=await context(),before=await seed(io);
+ let profile={user_id:'one',role:'Admin',status:'active',access_backend:'same',access_verified_at:'earlier',updated_at:'unchanged'};
+ g.ATLAS_CENTRAL={getSession:()=>({user:{id:'one'}}),getAccessContextKey:()=> 'same-access',getStoredProfile:()=>profile};
+ g.AtlasMigrationArchive={...api,packRecords:async(...args)=>{profile={...profile,access_verified_at:'later'};return api.packRecords(...args);}};
+ try {const archive=await g.packAtlasCentralRetainedRecords(bundle),restored=await api.unpack(archive,Zip);assert.deepEqual(restored.records,[...before].sort((a,b)=>a.key.localeCompare(b.key)));assert.deepEqual(await rowsOf(io),[...before].sort((a,b)=>a.key.localeCompare(b.key)));}finally{await remove(db);}
+});

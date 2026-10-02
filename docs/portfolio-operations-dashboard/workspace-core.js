@@ -18836,7 +18836,15 @@ function redactAtlasCentralStorageBundle(bundle = {}) {
 async function packAtlasCentralRetainedRecords(bundle, { expandImportHistory = false } = {}) {
   const prefix = '__atlas_archive_capture_v1:', captureId = crypto.randomUUID(), inventory = [];
   const central = window.ATLAS_CENTRAL, actor = central?.getSession?.()?.user?.id ?? null;
-  const access = central?.getAccessContextKey?.() ?? null, profile = JSON.stringify(central?.getStoredProfile?.() ?? null);
+  // Periodic authorization verification changes only this observation timestamp.
+  // Preserve every actual profile/access field in the capture identity.
+  const profileIdentity = () => {
+    const current = central?.getStoredProfile?.() ?? null;
+    if (!current) return JSON.stringify(current);
+    const {access_verified_at, ...identity} = current;
+    return JSON.stringify(identity);
+  };
+  const access = central?.getAccessContextKey?.() ?? null, profile = profileIdentity();
   const generation = Number(window.AtlasReplayGeneration || 0);
   const databaseName = typeof ATLAS_STATE_DB_NAME === 'undefined' ? null : ATLAS_STATE_DB_NAME;
   const storeName = typeof ATLAS_STATE_STORE_NAME === 'undefined' ? null : ATLAS_STATE_STORE_NAME;
@@ -18844,7 +18852,7 @@ async function packAtlasCentralRetainedRecords(bundle, { expandImportHistory = f
   const assertCurrent = () => {
     window.AtlasReplayWriteFence?.assert(null);
     if (window.ATLAS_CENTRAL !== central || (central?.getSession?.()?.user?.id ?? null) !== actor
-        || (central?.getAccessContextKey?.() ?? null) !== access || JSON.stringify(central?.getStoredProfile?.() ?? null) !== profile
+        || (central?.getAccessContextKey?.() ?? null) !== access || profileIdentity() !== profile
         || Number(window.AtlasReplayGeneration || 0) !== generation
         || (typeof ATLAS_STATE_DB_NAME === 'undefined' ? null : ATLAS_STATE_DB_NAME) !== databaseName
         || (typeof ATLAS_STATE_STORE_NAME === 'undefined' ? null : ATLAS_STATE_STORE_NAME) !== storeName) throw new Error('The account, storage or source replay changed during archive preparation. No archive was created.');

@@ -1,0 +1,87 @@
+[
+  {
+    "path": "mobile.startup.cold.longestTaskMs",
+    "limit": 200,
+    "median": 186,
+    "maximum": 207,
+    "samples": [
+      207,
+      184,
+      183,
+      186,
+      201
+    ]
+  },
+  {
+    "path": "mobile.navigation.Home.firstLoopMs",
+    "limit": 1000,
+    "median": 1066,
+    "maximum": 1066,
+    "samples": [
+      1066
+    ]
+  },
+  {
+    "path": "mobile.navigation.Home.firstLoopLongestTaskMs",
+    "limit": 200,
+    "median": 217,
+    "maximum": 217,
+    "samples": [
+      217
+    ]
+  },
+  {
+    "path": "mobile.navigation.Reports.repeatedMs",
+    "limit": 400,
+    "median": 250.0,
+    "maximum": 467,
+    "samples": [
+      467,
+      259,
+      277,
+      283,
+      245,
+      242,
+      243,
+      255,
+      241,
+      244
+    ]
+  },
+  {
+    "path": "mobile.navigation.Reports.repeatedLongestTaskMs",
+    "limit": 200,
+    "median": 108.0,
+    "maximum": 303,
+    "samples": [
+      303,
+      109,
+      113,
+      128,
+      111,
+      100,
+      100,
+      105,
+      107,
+      104
+    ]
+  },
+  {
+    "path": "mobile.navigation.Reports.firstLoopLongestTaskMs",
+    "limit": 200,
+    "median": 362,
+    "maximum": 362,
+    "samples": [
+      362
+    ]
+  },
+  {
+    "path": "mobile.navigation.Command.firstLoopLongestTaskMs",
+    "limit": 200,
+    "median": 214,
+    "maximum": 214,
+    "samples": [
+      214
+    ]
+  }
+]

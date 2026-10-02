@@ -1,4 +1,4 @@
-import {financeAccessKey} from './canonical-finance.mjs?v=6df033262d302564';
+import {financeAccessKey} from './canonical-finance.mjs?v=210b482c6f40c656';
 
 const uuid=/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const canonical=value=>Array.isArray(value)?value.map(canonical):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;

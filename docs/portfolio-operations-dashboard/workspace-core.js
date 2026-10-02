@@ -22891,7 +22891,7 @@ async function refreshAtlasClosedFinancials(year, force = false, requested = new
   }
   if (!requested.size) return false;
   let module;
-  try { module = await import("./features/financial-close.mjs?v=245ac4b9cd3c81c5"); }
+  try { module = await import("./features/financial-close.mjs?v=068d4b5b39e9a37e"); }
   catch (error) {
     if (context === getAtlasFinancialContextKey()) {
       const priorFailure = getAtlasFinancialLoadFailure();
@@ -23522,7 +23522,7 @@ async function openSharedCommunityPlan() {
   const communityId = access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId;
   if (!communityId || !window.ATLAS_CENTRAL) { alert("Shared plans require an authorized canonical community record."); return false; }
   try {
-    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=879ba8ff42bfc5c7");
+    atlasCommunityPlanModule = await import("./features/community-plan.mjs?v=4bc6124481616186");
     if (epoch !== atlasNavigationEpoch || !atlasAccessDecision(2).ok) return false;
     const entry=model.monthEntry, provenance=entry.metricProvenance?.occupiedSnapshot, period=buildPeriodKey(model.monthIdx,model.year);
     const occupancy=provenance?.revisionKey && provenance.period===period && (!provenance.communityId||provenance.communityId===communityId) && entry.occupiedSnapshot!=null && Number(entry.rentableUnits)>0
@@ -23855,7 +23855,7 @@ function queueCommunityRosterFinancials(items) {
     return {key:encodeURIComponent(item.detail.name),hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
   });
   setTimeout(async()=>{try {
-    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=12aa542e4a7c825d");
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=446e3a85aabc4a93");
     if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
     await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
   } catch {}},0);
@@ -23885,8 +23885,8 @@ function renderPortfolioScopedCommunityCommandTab() {
   const cardsHtml = `<div class="grid-4">
     ${statBox("Accessible Communities", details.length, "Active communities available to this role.", "#4493f8")}
     ${renderCommunityCommandPlanSummaryStat(rosterItems)}
-    ${statBox("Below Budget", belowBudgetCount, "Active communities trailing current budget occupancy.", "#f85149")}
-    ${statBox("On Track", onTrackCount, "Communities holding the current budget line.", "#3fb950")}
+    <div data-roster-budget-count="below">${statBox("Below Budget", belowBudgetCount, "Active communities trailing current budget occupancy.", "#f85149")}</div>
+    <div data-roster-budget-count="ontrack">${statBox("On Track", onTrackCount, "Communities holding the current budget line.", "#3fb950")}</div>
   </div>`;
   const filterLabel = communityCommandPortfolioRosterFilter === "suggested_plans"
     ? `${suggestedPlanCount} suggested performance plan ${suggestedPlanCount === 1 ? "community" : "communities"}`
@@ -23912,8 +23912,8 @@ function renderPortfolioScopedCommunityCommandTab() {
         <td>${communityCommandFormatPct(model.physicalPct)}</td>
         <td>${communityCommandFormatPct(model.leasedPct)}</td>
         <td data-closed-economic-state="${escapeHtml(model.economic.state)}">${communityCommandFormatPct(model.economic.closedPct)}<br><small>${escapeHtml(communityCommandEconomicOccupancyLabel(model.economic))}</small></td>
-        <td>${model.budgetOccPct ? communityCommandFormatPct(model.budgetOccPct) : "Missing"}</td>
-        <td>${gap === null ? "Missing" : formatSignedDisplay(gap, 1, "%")}</td>
+        <td data-metric="occupancy-budget">Loading…</td>
+        <td data-metric="occupancy-variance" data-physical-pct="${Number.isFinite(model.physicalPct) ? model.physicalPct : ''}">Loading…</td>
         <td data-metric="units">Loading…</td><td data-metric="gpr">Loading…</td><td data-metric="expenses">Loading…</td>
         <td>${Math.round(model.appMetrics.applications)}</td>
         <td>${Math.round(model.grossLeasesMtd)}</td>

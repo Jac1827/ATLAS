@@ -1,7 +1,7 @@
-import {readFinance,financeAccessKey} from './canonical-finance.mjs?v=6df033262d302564';
+import {readApprovedBudgets,financeAccessKey} from './canonical-finance.mjs?v=210b482c6f40c656';
 import {readActive} from './reforecast-store.mjs?v=b59fd4df88ff8fe3';
 import {readOccupancySourceEvidence} from './occupancy-source-evidence.mjs?v=012daa540aac0f2c';
-import {recommendOccupancyGoals,applyOccupancyRecommendation} from './occupancy-goal-recommendations.mjs?v=a4ee2c9ccf3c92a8';
+import {recommendOccupancyGoals,applyOccupancyRecommendation} from './occupancy-goal-recommendations.mjs?v=a1d919743e209f55';
 import {sha256,canonicalJson} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 
 const finite=value=>typeof value==='number'&&Number.isFinite(value);
@@ -24,6 +24,24 @@ export async function readCommunityGoalInventory(central,communityId){
  if(!Number.isInteger(row.units)||row.units<1||!Number.isInteger(row.version)||row.version<1||!Number.isFinite(Date.parse(row.updated_at))||!['clean','review_required'].includes(row.review_status)||row.review_status==='review_required'&&/unit|inventor|bed|capacity/i.test(JSON.stringify(row.review_flags||[])))throw Error('Community Settings inventory requires mapping review.');
  return {status:'available',communityId,units:row.units,measurementBasis:'units',version:row.version,updatedAt:row.updated_at,source:'Community Settings: atlas_communities.units',sourceFingerprint:sha256(canonicalJson(row))};
 }
+// Occupancy targets belong to the locked budget, independently of actual close availability.
+export async function readLockedOccupancyBudgets(central,communityIds,periods){
+ const access=financeAccessKey(central),rows=[];
+ const guard=()=>{if(access!==financeAccessKey(central))throw Error('Financial access changed while reading the locked budget.');};
+ await central.refreshSession?.();guard();
+ for(const cid of communityIds){
+  for(const year of [...new Set(periods.map(period=>Number(period.slice(0,4))))]){
+   const budgets=await readApprovedBudgets(central,cid,year);guard();
+   for(const period of periods.filter(period=>Number(period.slice(0,4))===year)){
+    const month=Number(period.slice(5))-1,candidates=budgets.filter(b=>b.covered_months?.includes(month));
+    if(candidates.length>1)throw Error('Locked original budget coverage overlaps for '+period+'.');
+    const b=candidates[0];
+    rows.push({community_id:cid,period_key:period,summary:b?{targetApprovalStatus:'approved',budgetVersion:b.version_id,budgetContentHash:b.content_hash,occupancyPct:b.payload?.occupancyPct?.[month]??null,budgetSource:b.source_file,budgetEffectiveDate:b.effective_date}:{}});
+   }
+  }
+ }
+ return rows;
+}
 export function occupancyBudgetForPeriod({communityId,period,finance=[],publications=[],inventory=null}){
  const missing=reason=>({status:'unavailable',communityId,period,reason});
  const rows=finance.filter(row=>row.community_id===communityId&&row.period_key===period);
@@ -41,7 +59,7 @@ export function occupancyBudgetForPeriod({communityId,period,finance=[],publicat
  return {status:'available',communityId,period,approvalStatus:'approved',versionId:summary.budgetVersion,contentHash:summary.budgetContentHash,sourceType:'original_budget',occupancyPct:summary.occupancyPct,rentableUnits:basis?.units??null,measurementBasis:basis?.measurementBasis??null,inventory:basis,source:summary.budgetSource,effectiveDate:summary.budgetEffectiveDate};
 }
 
-export function installCommunityGoalPlanning({host=window,getImportState=()=>null,openGoals=null,readSources=readOccupancySourceEvidence,readBudgets=readFinance,readPublications=readActive,readInventory=readCommunityGoalInventory}={}){
+export function installCommunityGoalPlanning({host=window,getImportState=()=>null,openGoals=null,readSources=readOccupancySourceEvidence,readBudgets=readLockedOccupancyBudgets,readPublications=readActive,readInventory=readCommunityGoalInventory}={}){
  if(host.AtlasCommunityGoalPlanning)return host.AtlasCommunityGoalPlanning;
  const cache=new Map(),pending=new Map();let generation=0;
  const access=()=>financeAccessKey(host.ATLAS_CENTRAL||{});
@@ -56,7 +74,7 @@ export function installCommunityGoalPlanning({host=window,getImportState=()=>nul
   const token=generation,auth=access(),periods=Array.from({length:12},(_,idx)=>periodFor(model.year,idx));
   const valid=()=>token===generation&&auth===access()&&current();
   const task=(async()=>{try{
-   const [finance,publications,inventory]=await Promise.all([readBudgets(central,[cid],periods,{baselineMode:'original_budget'}),readPublications(central,{communityIds:[cid],periods}),readInventory(central,cid).catch(error=>({status:'unavailable',reason:error.message}))]);
+   const [finance,publications,inventory]=await Promise.all([readBudgets(central,[cid],periods),readPublications(central,{communityIds:[cid],periods}),readInventory(central,cid).catch(error=>({status:'unavailable',reason:error.message}))]);
    if(!valid())return;
    const result={at:Date.now(),budgets:periods.map(period=>occupancyBudgetForPeriod({communityId:cid,period,finance,publications,inventory}))};cache.set(id,result);return result;
   }catch(error){if(valid()){const result={at:Date.now(),budgets:[],error:error.message};cache.set(id,result);return result;}}
@@ -81,7 +99,7 @@ export function installCommunityGoalPlanning({host=window,getImportState=()=>nul
   return originalKpi.call(this,model,field,label,value,formatter,sub,tone,tabIdx);
  };
  if(typeof originalTrend==='function')host.getCommunityCommandTrendPoints=function(model){return originalTrend.call(this,model).map(row=>{
-  if(row.idx<model.monthIdx)return row;
+  // Read every month's budget from the same approved version, including historical months.
   const recommendation=evidence(model,row.idx),budget=recommendation.budgetPct;
   return {...row,budget,variance:finite(budget)&&finite(row.physical)?row.physical-budget:null,...(row.idx===model.monthIdx?{leased:recommendation.actualLeasedPct}:{})};
  });};

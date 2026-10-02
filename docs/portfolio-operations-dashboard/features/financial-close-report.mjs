@@ -2,9 +2,9 @@ import {downloadRiseWorkbook} from './rise-workbook-export.mjs?v=d08dd1e8d4aadf3
 import {safeSpreadsheetCell} from './reforecast-report.mjs?v=0eba1b9d20462432';
 import {financeSnapshot,lineageColumns} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 import {snapshotPdf} from './snapshot-pdf.mjs?v=cda1d9683b4dd270';
-import {readFinance} from './canonical-finance.mjs?v=6df033262d302564';
-import {readCanonicalBudgetVersion,assertBudgetReadback} from './canonical-budget-report.mjs?v=fb541208191f2de6';
-import {readRows} from './financial-close.mjs?v=245ac4b9cd3c81c5';
+import {readFinance} from './canonical-finance.mjs?v=210b482c6f40c656';
+import {readCanonicalBudgetVersion,assertBudgetReadback} from './canonical-budget-report.mjs?v=7e348c86ea171e30';
+import {readRows} from './financial-close.mjs?v=068d4b5b39e9a37e';
 import {loadXlsx} from './reforecast-intake.mjs?v=74bbd52d93a197cc';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const freeze=o=>{if(o&&typeof o==='object'){Object.values(o).forEach(freeze);Object.freeze(o);}return o;};

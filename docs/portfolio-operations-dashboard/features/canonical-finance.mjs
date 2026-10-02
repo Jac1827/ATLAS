@@ -101,7 +101,7 @@ export function withEffectiveBaseline(summary,baseline){
   if(!summary[key])continue;const originalBudget=Object.hasOwn(summary[key],'originalBudget')?summary[key].originalBudget:summary[key].budget;
   const target=metricTarget(summary,baseline,key);
   const actual=number(summary[key].actual),variance=actual===null||target===null?null:actual-target,direction=['expenses','capital','debt','liabilities'].includes(key)?-1:1,favorability=variance===null?'unavailable':variance===0?'neutral':variance*direction>0?'favorable':'unfavorable';
-  next[key]={...summary[key],originalBudget,budget:target,activeBaseline:target,variance,favorability,status:favorability==='unavailable'?'missing':favorability,label:favorability==='unavailable'?'Effective baseline unavailable':favorability};
+  next[key]={...summary[key],originalBudget,budget:target,activeBaseline:target,variance,favorability,status:favorability==='unavailable'?'missing':favorability,label:target===null?'Effective baseline unavailable':actual===null?'Missing closed actual':favorability};
  }
  if(summary.ytd){
   const periods=summary.fiscalPeriods,evidence=summary.ytdBaselinePeriods,verified=Array.isArray(periods)&&periods.length>0&&new Set(periods).size===periods.length&&Array.isArray(evidence)&&evidence.length===periods.length&&periods.every(period=>evidence.filter(item=>item.period===period&&item.status==='available'&&item.versionId&&item.contentHash).length===1);

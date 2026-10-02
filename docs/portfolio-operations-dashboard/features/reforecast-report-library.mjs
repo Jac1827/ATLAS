@@ -1,13 +1,13 @@
 import {NONCASH_METRICS,hasNoncashReportRows,noncashReportFields,noncashReportSections} from './reforecast-noncash.mjs?v=9d197be13878cfe3';
-import {standardBudgetExportDialog} from './standard-budget-export-ui.mjs?v=710b3a5184f3e6b2';
+import {standardBudgetExportDialog} from './standard-budget-export-ui.mjs?v=356b3a3db119a568';
 import {verifyBudgetExportDelivery,exportDeliveryNotice} from './budget-export-delivery.mjs?v=7fa53ba63295f7f9';
 import {riseWorkbookBytes} from './rise-workbook-export.mjs?v=d08dd1e8d4aadf30';
 import * as store from './reforecast-store.mjs?v=b59fd4df88ff8fe3';
 import {workbookCoverageHtml,workbookReportEvidence,workbookReportSections,workbookReportRows,workbookReportSheets,workbookCellFields,esc,money,download,safeSpreadsheetCell,publicationApprovalLabel,communityForecastReport,communityForecastWorkbook,communityForecastPdf,pairedForecastReports} from './reforecast-report.mjs?v=0eba1b9d20462432';
 import {freezeSnapshot,retainedSnapshot} from './financial-snapshot.mjs?v=848d058bdec07b4e';
-import {financeAccessKey} from './canonical-finance.mjs?v=6df033262d302564';
+import {financeAccessKey} from './canonical-finance.mjs?v=210b482c6f40c656';
 import {snapshotPdf} from './snapshot-pdf.mjs?v=cda1d9683b4dd270';
-import {listOriginalBudgetReportVersions,readOriginalBudgetVersionReport,originalBudgetVersionWorkbook,originalBudgetVersionPdf} from './original-budget-version-report.mjs?v=cebbe9d0b8135c15';
+import {listOriginalBudgetReportVersions,readOriginalBudgetVersionReport,originalBudgetVersionWorkbook,originalBudgetVersionPdf} from './original-budget-version-report.mjs?v=2fd7c46884eaa64a';
 
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const verifiedSelections=new WeakSet(),selectionGuards=new WeakMap(),selectionClients=new WeakMap();

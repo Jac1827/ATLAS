@@ -1,6 +1,6 @@
 import {readDashboardSource} from './dashboard-source.cjs';
 import assert from 'node:assert/strict';
-import {readFinance,financialSummary,bonusEvidence,number,readDetail} from '../docs/portfolio-operations-dashboard/features/canonical-finance.mjs';
+import {withEffectiveBaseline,readFinance,financialSummary,bonusEvidence,number,readDetail} from '../docs/portfolio-operations-dashboard/features/canonical-finance.mjs';
 import {createCache,coverage} from '../docs/portfolio-operations-dashboard/features/financial-close.mjs';
 const cid='community',periods=['2025-04','2025-05','2025-06'];
 const envelopes=periods.map((period,i)=>({communityId:cid,period,registryVersion:'atlas-finance-v1',accountingBasis:'accrual',currency:'USD',actualCloseVersion:'c'+i,budgetVersion:'b',targetApprovalStatus:'approved',revenue:{actual:i===0?-10:20,budget:10},expenses:{actual:0,budget:10}}));
@@ -45,7 +45,7 @@ assert.equal(effective[0].summary.revenue.originalBudget,10);assert.equal(effect
 assert.equal(bonusEvidence(effective.map(row=>row.summary),'revenue',periods,{requireEffectiveBaseline:true}).budget,60);
 const missingEffective=await readFinance({fetchJson:async path=>path==='/rpc/atlas_read_finance'?structuredClone(rows):Promise.reject(Error('baseline service unavailable'))},[cid],periods);assert.equal(missingEffective[0].summary.revenue.actual,-10);assert.equal(missingEffective[0].summary.revenue.budget,null);assert.equal(missingEffective[0].summary.revenue.originalBudget,10);assert.equal(bonusEvidence(missingEffective.map(row=>row.summary),'revenue',periods,{requireEffectiveBaseline:true}),null);
 console.log('PASS shared server effective baseline for Home and Bonus, distinct original comparator, mathematical variances, snapshot ancestry, and unavailable target on read failure');
-const {withEffectiveBaseline}=await import('../docs/portfolio-operations-dashboard/features/canonical-finance.mjs');
+
 const mapped={...envelopes[0],gpr:{actual:42,budget:30,activeBaseline:40,baselineSourceType:'approved_reforecast',baselineVersion:'forecast-revision',baselinePublicationId:'forecast-publication'}};
 assert.equal(withEffectiveBaseline(mapped,active(periods[0])).gpr.budget,40);
 assert.equal(withEffectiveBaseline({...mapped,gpr:{...mapped.gpr,baselinePublicationId:'stale'}},active(periods[0])).gpr.budget,null);
@@ -71,3 +71,11 @@ await assert.rejects(()=>readFinance({getSession:()=>({user:{id:actor}}),fetchJs
 }},[cid],[periods[0]]),/Session changed/);
 assert.equal(receiptCalls,1);
 console.log('PASS signed-in account is checked after consumer receipt verification');
+
+// A missing close cannot mislabel a verified approved budget as unavailable.
+
+const lockedBaseline={status:'available',communityId:cid,period:'2026-09',sourceType:'original_budget',versionId:'locked-2026',lines:[]};
+const budgetOnly=withEffectiveBaseline({budgetVersion:'locked-2026',gpr:{actual:null,budget:467056},expenses:{actual:null,budget:20000}},lockedBaseline);
+assert.equal(budgetOnly.gpr.budget,467056);assert.equal(budgetOnly.gpr.originalBudget,467056);assert.equal(budgetOnly.gpr.variance,null);assert.equal(budgetOnly.gpr.label,'Missing closed actual');
+assert.equal(withEffectiveBaseline({budgetVersion:'locked-2026',gpr:{actual:0,budget:467056}},{status:'unavailable'}).gpr.label,'Effective baseline unavailable');
+console.log('PASS absent closed actuals preserve the locked budget and accurately identify the missing source');

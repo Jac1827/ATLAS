@@ -6,7 +6,7 @@ const cells={units:cell(),gpr:cell(),expenses:cell()};
 const planCell=cell();
 globalThis.window=globalThis;
 globalThis.AtlasCommunityCommandContract=(await import('../docs/portfolio-operations-dashboard/community-command-contract.js')).default;
-globalThis.document={querySelector(selector){return selector==='[data-shared-plan-count]'?count:{dataset:{},querySelector(s){return s==='[data-shared-plan]'?planCell:cells[s.match(/data-metric="(.*?)"/)[1]];},querySelectorAll(selector){return selector==='[data-financial-period-warning]'?[]:Object.values(cells);}};},createElement(tag){return {tagName:tag.toUpperCase(),style:{}};}};
+globalThis.document={querySelector(selector){if(selector.startsWith('[data-roster-budget-count='))return null;return selector==='[data-shared-plan-count]'?count:{dataset:{},querySelector(s){return s==='[data-shared-plan]'?planCell:cells[s.match(/data-metric="(.*?)"/)[1]];},querySelectorAll(selector){return selector==='[data-financial-period-warning]'?[]:Object.values(cells);}};},createElement(tag){return {tagName:tag.toUpperCase(),style:{}};}};
 const {hydrate,cancel}=await import('../docs/portfolio-operations-dashboard/features/community-finance.mjs');
 let queries=0;
 const communityId='10000000-0000-0000-0000-000000000001';
@@ -14,7 +14,7 @@ await hydrate([{key:'sample',communityId,period:'2026-09',year:2026}],{rpc:async
 assert.equal(count.textContent,'1');
 assert.equal(cells.gpr.textContent,'Missing publication');
 assert.match(planCell.textContent,/3 tasks/);
-assert.equal(queries,2);
+assert.equal(queries,3);
 await hydrate([{key:'sample',communityId,period:'2026-08',year:2026}],{fetchJson:async path=>path==='/rpc/atlas_read_finance'?[{community_id:communityId,period_key:'2026-08',fiscal_year:2026,summary:{registryVersion:'atlas-finance-v1',communityId,period:'2026-08',gpr:{actual:0,budget:null,status:'missing',label:'Missing approved budget'},expenses:{actual:-5,budget:null,status:'missing',label:'Missing approved budget'}}}]:[]});
 assert.match(cells.gpr.textContent,/Actual \$0.*Effective baseline unavailable/);assert.match(cells.expenses.textContent,/Actual -\$5.*Effective baseline unavailable/);
 cancel();console.log('Portfolio roster plan count and missing publication hydration pass');

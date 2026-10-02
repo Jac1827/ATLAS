@@ -27,7 +27,7 @@ const server=http.createServer((req,res)=>{try{const pathname=decodeURIComponent
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin=`http://127.0.0.1:${server.address().port}`;
 const browser=await chromium.launch({headless:true});
 try{
- const page=await browser.newPage(),errors=[],requests=[];
+ const page=await browser.newPage(),errors=[],requests=[],workspaceProfileReads=[];
  page.on('pageerror',e=>errors.push(e.stack||e.message));
  let sourceUnavailable=false,profileUnavailable=false,profileGate=null;
  await page.route('**/*',async route=>{
@@ -35,6 +35,7 @@ try{
   if(url.origin===origin){requests.push(url.pathname);return route.continue();}
   if(url.pathname.startsWith('/rest/v1/')){
    requests.push(url.pathname);
+   if(url.pathname.endsWith('/atlas_user_profiles')&&request.frame()===page.mainFrame())workspaceProfileReads.push(url.href);
    let value=[];
    if(url.pathname.endsWith('/atlas_user_profiles')){if(profileGate)await profileGate.promise;if(profileUnavailable)return route.fulfill({status:503,json:{message:'Synthetic access read unavailable'}});value=[profile];}
    if(url.pathname.endsWith('/atlas_communities'))value=roster;
@@ -163,10 +164,12 @@ try{
  assert.equal(await page.evaluate(()=>atlasWorkspaceAccess.source.version),7);
  // Token refresh preserves the workspace; a same-actor scope edit from another tab conceals it immediately.
  const sameActorEpoch=await page.evaluate(()=>atlasWorkspaceAccess.epoch);
- const profileReads=requests.filter(x=>x.endsWith('/atlas_user_profiles')).length;
+ // Embedded feature frames authorize independently and may finish loading here.
+ // Measure the workspace's requests when checking its token-rotation behavior.
+ const profileReads=workspaceProfileReads.length;
  await page.evaluate(()=>{const session=JSON.parse(localStorage.getItem('atlas_central_auth_session_v1'));session.access_token='synthetic-token-rotation';localStorage.setItem('atlas_central_auth_session_v1',JSON.stringify(session));dispatchEvent(new StorageEvent('storage',{key:'atlas_central_auth_session_v1'}));});
  assert.equal(await page.evaluate(()=>atlasWorkspaceAccess.epoch),sameActorEpoch);
- assert.equal(requests.filter(x=>x.endsWith('/atlas_user_profiles')).length,profileReads);
+ assert.equal(workspaceProfileReads.length,profileReads,'Token rotation does not reauthorize the main workspace');
  profile={...profile,locked_tab_ids:[8]};profileGate={};profileGate.promise=new Promise(resolve=>profileGate.resolve=resolve);
  await page.evaluate(()=>{performance.clearMeasures('atlas:time-to-authenticated-shell');recordAtlasAuthenticatedShellPaint(atlasWorkspaceAccess.epoch);const next={...JSON.parse(localStorage.getItem('atlas_central_profile_v1')),locked_tab_ids:[8]};localStorage.setItem('atlas_central_profile_v1',JSON.stringify(next));dispatchEvent(new StorageEvent('storage',{key:'atlas_central_profile_v1'}));});
  assert.equal(await page.evaluate(()=>atlasWorkspaceAccess.validated),false,'Same-actor cross-tab scope changes conceal cached panels before the server read');

@@ -18993,17 +18993,31 @@ async function buildAtlasCentralAppStatePayload() {
   const replayGeneration=Number(window.AtlasReplayGeneration||0);
   window.AtlasReplayWriteFence?.assert(null);
   await Promise.all([window.AtlasFeatures?.load("zip"), window.AtlasFeatures?.load("migrationArchive")]);
-  const migrationSnapshot = await collectAtlasCentralMigrationSnapshot();
+  // Flush the current form before taking either side of the reconciliation.
+  // buildDashboardStorageBundle saves the current community as part of capture.
   const bundle = redactAtlasCentralStorageBundle(await buildDashboardStorageBundle());
   await atlasStateWritePromise;
+  const migrationSnapshot = await collectAtlasCentralMigrationSnapshot();
+  const reconcileBundle = (candidate, stage) => {
+    const storage = Object.fromEntries(Object.entries(candidate.keys || {}).map(([key,value]) => [key,{parsed:parseAtlasMigrationJson(value)}]));
+    const summary = buildAtlasMigrationReconciliationSummary(candidate.indexedDb.communityData, storage, candidate.indexedDb);
+    const differences = [];
+    for (const [group, fields] of Object.entries(migrationSnapshot.reconciliation)) {
+      for (const [field, expected] of Object.entries(fields && typeof fields === "object" ? fields : {value:fields})) {
+        const actual = fields && typeof fields === "object" ? summary[group]?.[field] : summary[group];
+        if (JSON.stringify(actual) !== JSON.stringify(expected)) differences.push(`${group}.${field}: source ${JSON.stringify(expected)}, archive ${JSON.stringify(actual)}`);
+      }
+    }
+    if (JSON.stringify(summary) !== JSON.stringify(migrationSnapshot.reconciliation)) throw new Error(`Migration ${stage} reconciliation differs from the source (${differences.join("; ") || "summary structure changed"}). No central publication was performed.`);
+  };
+  // Fail before expanding retained history if the captured dashboard differs.
+  reconcileBundle(bundle, "capture");
   // Full evidence is read only for an explicit export/publication. Do not clone
   // unrelated daily backups or immutable history chunks into the main thread.
   if (typeof ensureAtlasCanonicalImportEvidence === 'function') await ensureAtlasCanonicalImportEvidence();
   const portableBundle = await packAtlasCentralRetainedRecords(bundle, { expandImportHistory: true });
   const restored = await window.AtlasMigrationArchive.verifyBundle(portableBundle, JSZip);
-  const restoredStorage = Object.fromEntries(Object.entries(restored.bundle.keys || {}).map(([key,value]) => [key,{parsed:parseAtlasMigrationJson(value)}]));
-  const restoredSummary = buildAtlasMigrationReconciliationSummary(restored.bundle.indexedDb.communityData, restoredStorage, restored.bundle.indexedDb);
-  if (JSON.stringify(restoredSummary) !== JSON.stringify(migrationSnapshot.reconciliation)) throw new Error("Migration round-trip reconciliation differs from the source. No central publication was performed.");
+  reconcileBundle(restored.bundle, "round-trip");
   const migrationSnapshotHash=await hashAtlasMigrationPayload(migrationSnapshot);
   window.AtlasReplayWriteFence?.assert(null);
   if(replayGeneration!==Number(window.AtlasReplayGeneration||0))throw new Error("Source replay changed the workspace during archive preparation. Reload before using this archive.");

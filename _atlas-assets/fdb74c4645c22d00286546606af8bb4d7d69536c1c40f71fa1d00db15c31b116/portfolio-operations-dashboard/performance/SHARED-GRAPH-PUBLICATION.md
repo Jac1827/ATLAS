@@ -1,0 +1,11 @@
+# Shared property graph publication
+
+Previously, the Dashboard and Marketing background writers omitted `expectedVersion`. Once the central graph existed, every write conflicted and the consumers silently ignored the error. This change preserves local drafts and requires `readSharedPropertyGraph()` to establish a scoped, verified base before `saveSharedPropertyGraph()` can publish.
+
+The in-memory state binds actor, backend, API origin and the current profile/access dimensions. Scope changes abort active transports, discard the base and reject queued drafts. Each document has one active save and at most one queued full draft. Identical drafts share a result; a newer queued draft supersedes the older one with `{status: 'superseded', saved: false}`. An unchanged draft returns `saved: false` without another write. Every changed draft uses the verified base version, and a successful save must pass exact payload/version/hash readback before establishing the next base.
+
+Conflicts, malformed receipts, unavailable readback and ambiguous network outcomes stop the queue. No automatic read-latest overwrite or retry follows. The user must pull and reconcile before another central save. A verified absent-document read permits creation with a null expected version. The general document RPC and its server authorization, version checks and audit history are unchanged.
+
+Both consumers retain their local graph and surface a deduplicated central-publication warning. Late failures from a different actor do not modify the new workspace's status. An already-open older application remains on its old code until a safe reload; deployment does not discard its draft or navigate it away.
+
+`node tools/shared-graph-cas.test.cjs` exercises verified bases and absence, semantic null/zero equality, coalescing, sequential versions, superseded receipts, conflicts, ambiguous committed-write readback, actor/scope/backend changes including queued work, Auth refresh races, caller mutation, non-admin rejection, local draft retention and visible errors. Related Auth, shared-import, canonical-finance, application-publication, property-organization and workspace-publication tests pass. These are local synthetic checks; no production write was made to validate this repair.

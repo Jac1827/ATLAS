@@ -49,7 +49,7 @@ export async function hydrate(entries,central){
    for(const metric of ['gpr','expenses']){
     const cell=tr.querySelector(`[data-metric="${metric}"]`);if(!cell)continue;cell.replaceChildren();
     const value=metric==='gpr'?rentRoll?.grossPotentialRent:expense?.amount;
-    const node=document.createElement('span');node.textContent=typeof value==='number'?money(value):metric==='gpr'?'Missing rent-roll GPR':'Missing closed expenses';cell.append(node);
+    const node=document.createElement(metric==='expenses'&&expense?.publicationId?'button':'span');if(node.tagName==='BUTTON'){node.type='button';node.className='btn btn-gray btn-sm';node.onclick=()=>window.openCommunityFinancialDrilldown(expense.publicationId,'expenses');}node.textContent=typeof value==='number'?money(value):metric==='gpr'?'Missing rent-roll GPR':'Missing closed expenses';cell.append(node);
     const note=document.createElement('small');note.style.display='block';
     note.textContent=metric==='gpr'?(rentRoll?`${rentRoll.period} · Rent roll`:`${e.period} · Source required`):(expense?`${expense.period} · Closed actual${expense.exact?'':` · ${e.period} close missing`}`:`${e.period} · No approved close`);cell.append(note);
     cell.title=metric==='gpr'?(rentRoll?`${rentRoll.sourceFile} · ${rentRoll.sourceSheet} · ${rentRoll.basis}`:'No reconciled rent-roll total for the selected community and month'):(expense?`${expense.close.source_file} · Version ${expense.close.version_id} · Monthly operating expenses`:'An uploaded accounting file must have an approved monthly close');

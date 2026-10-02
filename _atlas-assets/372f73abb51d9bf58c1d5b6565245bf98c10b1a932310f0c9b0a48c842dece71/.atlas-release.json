@@ -1,0 +1,1857 @@
+{
+  "schemaVersion": 1,
+  "packagerVersion": 1,
+  "files": [
+    {
+      "path": ".DS_Store",
+      "sha256": "82698d17089d23ed3459fa473ddff4c80ef6db1cfe73942f8be7855f7e7d9ae5",
+      "bytes": 10244
+    },
+    {
+      "path": ".nojekyll",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "bytes": 1
+    },
+    {
+      "path": "activate/index.html",
+      "sha256": "807efe8ba74577591bfaeb829e4d09209e2ddcff12f6f701a464843abbaedef3",
+      "bytes": 1126
+    },
+    {
+      "path": "architecture/budget-governance-review.md",
+      "sha256": "200b916c8163d27f7e7b7e6e3f189ac4ee3501c6381c900fdca6e2fbd69f5b8b",
+      "bytes": 19572
+    },
+    {
+      "path": "architecture/canonical-finance-reporting.md",
+      "sha256": "66fcd7da333a5ddd8d9e3a3a0d6756d66da4402a961c3ac88608a210313d8f34",
+      "bytes": 12875
+    },
+    {
+      "path": "architecture/community-command-budget-plans.md",
+      "sha256": "debb6ee9a4269805f1901990cfa4de6791237a51d8ef632bee6711c67bb1f547",
+      "bytes": 15554
+    },
+    {
+      "path": "architecture/financial-contract-v1.proposed.json",
+      "sha256": "a20434434a88b83d99453afc00e63eccbc5c7feca7491829b702c228cbaa1a28",
+      "bytes": 2878
+    },
+    {
+      "path": "architecture/financial-owner-decisions.md",
+      "sha256": "61865df92a9f6a2d2a2ddcfa50f0c68a4f236e8b2d318d80f4c4cb9de2741117",
+      "bytes": 4951
+    },
+    {
+      "path": "architecture/financial-package-release.md",
+      "sha256": "7b25de65fa2bb1d3f78a9efcdce62282b1b2c3620f367e5b5a39bed0c33e77d4",
+      "bytes": 6953
+    },
+    {
+      "path": "architecture/outstanding-branch-reconciliation.md",
+      "sha256": "239ff39f0dd2d5fdda20bd2eb3ac37cc627ff8fcc438a3892bcbb773cec1ff78",
+      "bytes": 4039
+    },
+    {
+      "path": "architecture/reforecast-source-repair.md",
+      "sha256": "2745d6b14d5e17b27c8c838c98993bf395e55c414013f819d69196a6f4a67727",
+      "bytes": 3268
+    },
+    {
+      "path": "architecture/utility-forecast-planning.md",
+      "sha256": "4f016ef5c8e73e34ce04327ec65868951b642e34a637c5934b848be92e95d6c5",
+      "bytes": 5524
+    },
+    {
+      "path": "assets/rise-logo.png",
+      "sha256": "c51fd2d1552f0953a058314e54e67cbdf1beea773ec01c290cec5106f922de87",
+      "bytes": 27824
+    },
+    {
+      "path": "assets/rise_logo.png",
+      "sha256": "43825f59d5abb2561e55910faf9f6dd064190fac73f8804099cbec133b961232",
+      "bytes": 4158
+    },
+    {
+      "path": "auth/callback/index.html",
+      "sha256": "807efe8ba74577591bfaeb829e4d09209e2ddcff12f6f701a464843abbaedef3",
+      "bytes": 1126
+    },
+    {
+      "path": "budget-data-chain-acceptance-2026-09-24.md",
+      "sha256": "f8dd13bc1d19aa59999b074cd2f80367adf47888f10bb994190a24c0abb9b7a9",
+      "bytes": 5540
+    },
+    {
+      "path": "budget-workflow-2026-09-25.md",
+      "sha256": "db87cfef775009e5b4b76418eac53fb78c6a1dab2e4c52691a84b5351959cfa4",
+      "bytes": 14131
+    },
+    {
+      "path": "company-active-employee-roster.xlsx",
+      "sha256": "9930687573ccb3000edb5b28af8a3dfa0864b7b9c11c8e893f1ff983dc44406f",
+      "bytes": 30847
+    },
+    {
+      "path": "finance/activate/index.html",
+      "sha256": "5b9295777b7fbbd67a866e08b407fcb795e6bd65ab3b9263fa4da14d1134e9e4",
+      "bytes": 443
+    },
+    {
+      "path": "finance/auth/callback/index.html",
+      "sha256": "e5f91d414398712d1b1476c244e6d3f7580282d4085079134ce1ecde87851966",
+      "bytes": 459
+    },
+    {
+      "path": "finance/index.html",
+      "sha256": "6e072cd9a30b67b21e20b15d025baeb2842d16ca19a85bde45f97021406f9ac0",
+      "bytes": 419
+    },
+    {
+      "path": "finance/invite/index.html",
+      "sha256": "981e09daeea54c96003399f768822a2363656f1e3ec91e256b588511d23b6b52",
+      "bytes": 439
+    },
+    {
+      "path": "finance/performance-platform.html",
+      "sha256": "bf73c89ffa6c63492b552fd310f0ed6ff243df1f5b725e54880108d88b8d7e28",
+      "bytes": 449
+    },
+    {
+      "path": "finance/portfolio-operations-dashboard/RISE-Budget-Builder.html",
+      "sha256": "78e3f20ea9d328348cabd26d621c952bd56690fa3fa5c1e2ab33e01f386be4e2",
+      "bytes": 515
+    },
+    {
+      "path": "finance/portfolio-operations-dashboard/RISE-Marketing-Command-Center.html",
+      "sha256": "eb84187ab23b0c4f5e249cefd5b608b1ca3efcf2464e7b778bb77a92ee4db276",
+      "bytes": 535
+    },
+    {
+      "path": "finance/portfolio-operations-dashboard/RISE-Performance-Platform.html",
+      "sha256": "8d6ce241e3c0dccef59a73f5c3eb9542b9c8ac45adebdd9ef1f4bef23aed1674",
+      "bytes": 527
+    },
+    {
+      "path": "finance/portfolio-operations-dashboard/RISE-Weekly-Maintenance-Report.html",
+      "sha256": "07e0623df16ea7162ff1c5f5c9dacebb3905ee95fc84fed2feb4bcdeb8f8e715",
+      "bytes": 537
+    },
+    {
+      "path": "finance/portfolio-operations-dashboard/activate/index.html",
+      "sha256": "84477e912ba69e4f583e16728422f9a95b5e662eea8abf1a77f2618449a5ea50",
+      "bytes": 511
+    },
+    {
+      "path": "finance/portfolio-operations-dashboard/auth/callback/index.html",
+      "sha256": "facda8ea674cbd0d2cb208109c659aa75e74e76c894400b674c44386a4747752",
+      "bytes": 527
+    },
+    {
+      "path": "finance/portfolio-operations-dashboard/budget-dashboard-review/executive-accountability-workbench.html",
+      "sha256": "1c870ce5047e8235bf18a45fa9b321505470642c7006b26d10cb60a88ffdd74a",
+      "bytes": 599
+    },
+    {
+      "path": "finance/portfolio-operations-dashboard/budget-dashboard-review/playground.html",
+      "sha256": "30df8003c487b06166c0f4b7d6f6a9510ee58379c7262bcac8b7abdbdaa3a2c3",
+      "bytes": 551
+    },
+    {
+      "path": "finance/portfolio-operations-dashboard/financial-accountability.html",
+      "sha256": "7cef16008959eb07f4de1b7ac25943549e7f69b07f77258461ffad9ba185763c",
+      "bytes": 525
+    },
+    {
+      "path": "finance/portfolio-operations-dashboard/index.html",
+      "sha256": "15443c63e7b8aefb844b4cac5a594659cd26bac005406915f8fce83f6773c295",
+      "bytes": 487
+    },
+    {
+      "path": "finance/portfolio-operations-dashboard/invite/index.html",
+      "sha256": "3616d117f3baf2062e6a197addb2247384c3e6885fc37f4f4c30b88c59d4ef87",
+      "bytes": 507
+    },
+    {
+      "path": "finance/portfolio-operations-dashboard/leasing-velocity-report-template.html",
+      "sha256": "d152d3222598fdb4a4e51525665076db0458e56e6a2c56953cf1e10823782e0f",
+      "bytes": 541
+    },
+    {
+      "path": "finance/portfolio-operations-dashboard/scout-visual-prototype.html",
+      "sha256": "0ba02b6c856f1a4edaa245a0c65439e0f37c0dea01bc0d5abe95557891dcc702",
+      "bytes": 521
+    },
+    {
+      "path": "finance/portfolio-operations-dashboard/set-password/index.html",
+      "sha256": "125cb3f5dc3218382ff93f5987654885bff99cd7be39a31b8e81651bdab82482",
+      "bytes": 519
+    },
+    {
+      "path": "finance/portfolio-operations-dashboard/workspace-activation.html",
+      "sha256": "2af07a0327c4915cabc7f5f661c5f3ed9e77d6a8212ed2d2651611d74542a63f",
+      "bytes": 517
+    },
+    {
+      "path": "finance/reit-management/index.html",
+      "sha256": "4d1c83f442ebfcf589951ef3602b232735f0c68d0b299cb82eacc7a182b51b79",
+      "bytes": 457
+    },
+    {
+      "path": "finance/reit-management/uploads/RISE-Budget-Builder.html",
+      "sha256": "50f9115d1d39888869a92c59dbb07226fc3c734ad99c8edc21b10c4511edb67b",
+      "bytes": 507
+    },
+    {
+      "path": "finance/reit-management/uploads/RISE-Marketing-Command-Center.html",
+      "sha256": "c6cbd8a334341d5fcbb1212c884b52496b0c70ed1556f1f4ca3888d353de2cb8",
+      "bytes": 527
+    },
+    {
+      "path": "finance/reit-management/uploads/RISE-Performance-Platform.html",
+      "sha256": "9b5df0638a4216768ad83d4f239d777c834ccd8af3af670f0711abb8490ccecf",
+      "bytes": 519
+    },
+    {
+      "path": "finance/reit-management/uploads/RISE-Weekly-Maintenance-Report.html",
+      "sha256": "793aa65dbeed9d7cdb1682b581fd1291a8e10fc8cc459eaa6816d215d706090a",
+      "bytes": 529
+    },
+    {
+      "path": "finance/set-password/index.html",
+      "sha256": "c56930eb25fb1c5b8c61170b3d13fc126a0aba63c61e8a7694b94b3f17f2e6f0",
+      "bytes": 451
+    },
+    {
+      "path": "index.html",
+      "sha256": "0d709810d0cf8e0e1757c40f8cb1cd0c1433dddd0d9051e2bd8d6fb4ecc7352e",
+      "bytes": 2079
+    },
+    {
+      "path": "invite/index.html",
+      "sha256": "807efe8ba74577591bfaeb829e4d09209e2ddcff12f6f701a464843abbaedef3",
+      "bytes": 1126
+    },
+    {
+      "path": "performance-platform.html",
+      "sha256": "6ea3fa2e08376461bf5d41e18ba6aec26186886c71c5504180a2e0d06507c42d",
+      "bytes": 508043
+    },
+    {
+      "path": "portfolio-operations-dashboard/.DS_Store",
+      "sha256": "99b9d696fcc87003b14a036a8766f2371041ab703621fb409a867b94b9a3c70e",
+      "bytes": 10244
+    },
+    {
+      "path": "portfolio-operations-dashboard/BONUS-WORKFLOW.md",
+      "sha256": "0981ce24c90fc8a327f4e647addae45981cc2f4e7666a6bce849f5a19266a9b6",
+      "bytes": 5018
+    },
+    {
+      "path": "portfolio-operations-dashboard/FORECAST-BUILDER-IMPLEMENTATION.md",
+      "sha256": "bfd0638668dbd19f022dbfb370b3579eef33ca6866b841e41ef0edbc7e3b9126",
+      "bytes": 18138
+    },
+    {
+      "path": "portfolio-operations-dashboard/RISE-Budget-Builder.html",
+      "sha256": "e0fd2c359714282a9fde60d344df0f2a41c0f20209d4d9eaed9f742eb777c7b4",
+      "bytes": 1907457
+    },
+    {
+      "path": "portfolio-operations-dashboard/RISE-Marketing-Command-Center.html",
+      "sha256": "9a46c4cacb274eb054db111a0d66541880edb3e4f52f63fd26248743cafb98de",
+      "bytes": 933850
+    },
+    {
+      "path": "portfolio-operations-dashboard/RISE-Performance-Platform.html",
+      "sha256": "b6b1ab217abc4bd2f52635e91c3727b761b628ab933af19ab1b107229ecbf7a8",
+      "bytes": 609252
+    },
+    {
+      "path": "portfolio-operations-dashboard/RISE-Weekly-Maintenance-Report.html",
+      "sha256": "e074217c6fa299f8dfe9e882280e70a217a9ec9a878b64419fa6ea6df2eddbdd",
+      "bytes": 252051
+    },
+    {
+      "path": "portfolio-operations-dashboard/activate/index.html",
+      "sha256": "807efe8ba74577591bfaeb829e4d09209e2ddcff12f6f701a464843abbaedef3",
+      "bytes": 1126
+    },
+    {
+      "path": "portfolio-operations-dashboard/application-aging.js",
+      "sha256": "4091f111fe289027c3e0cc840f9fcdb9a821bafde20376df4d684ca9d0309ba1",
+      "bytes": 5421
+    },
+    {
+      "path": "portfolio-operations-dashboard/application-lineage.js",
+      "sha256": "fa2f0b92fa3bd9eac652e739555ef6b43d4671616f2c4dd20141372355f95b7e",
+      "bytes": 8031
+    },
+    {
+      "path": "portfolio-operations-dashboard/application-performance-ui.js",
+      "sha256": "11c923f616cf53621203b00c7a06f0c374b836f7dbf0d53c74e59507ae4e0a21",
+      "bytes": 17601
+    },
+    {
+      "path": "portfolio-operations-dashboard/application-performance.css",
+      "sha256": "e9ac3ddfe48261c4b4f44bc38d83bf3a142b58718a1f588e0c3f93c595130df0",
+      "bytes": 15321
+    },
+    {
+      "path": "portfolio-operations-dashboard/application-performance.js",
+      "sha256": "f775a984f3eafb49d69053c605a0d9984d4134bc4100159a59b85c3c3eedefde",
+      "bytes": 31970
+    },
+    {
+      "path": "portfolio-operations-dashboard/application-source-bridge.js",
+      "sha256": "0aaee5561d38a89b55c60b1a25195263c25b0cc57f6ad610afd133111e53c670",
+      "bytes": 12582
+    },
+    {
+      "path": "portfolio-operations-dashboard/assets/atlas-icon.png",
+      "sha256": "c33b5a69c543464921dc37e6de2f60d9fa6c72e9f9e334702f1b38e56dfe54c1",
+      "bytes": 1055695
+    },
+    {
+      "path": "portfolio-operations-dashboard/assets/atlas-rise-logo-export.png",
+      "sha256": "299758e1cf68e943a4857f7c9ced92ac502679349d71e97f6bda6aba14cad686",
+      "bytes": 342351
+    },
+    {
+      "path": "portfolio-operations-dashboard/assets/atlas-rise-logo.png",
+      "sha256": "299758e1cf68e943a4857f7c9ced92ac502679349d71e97f6bda6aba14cad686",
+      "bytes": 342351
+    },
+    {
+      "path": "portfolio-operations-dashboard/assets/atlas-rise-tagline.png",
+      "sha256": "424942e61f484e9af480cf5cbe64dafff6e42b4df0da2c73377de6023aecf79b",
+      "bytes": 146741
+    },
+    {
+      "path": "portfolio-operations-dashboard/assets/portfolio-scope-backdrop.png",
+      "sha256": "349090d3a1346d575340ba2a1ad5959599dc93fef48c40d1a5bbe9eeb2a9909f",
+      "bytes": 6992477
+    },
+    {
+      "path": "portfolio-operations-dashboard/assets/rise-logomark-white.png",
+      "sha256": "66af75ce4bc7320862ca6aa8a68c33850a4d990d9ad24f07b316d46b6b6a8891",
+      "bytes": 25436
+    },
+    {
+      "path": "portfolio-operations-dashboard/assets/rise-wordmark-blue.png",
+      "sha256": "556ed4bcf2b6d4e92d66d059ee7a2ff2db6b46aa0e4392f4e644fd64488ed000",
+      "bytes": 16835
+    },
+    {
+      "path": "portfolio-operations-dashboard/assets/rise_logo.png",
+      "sha256": "43825f59d5abb2561e55910faf9f6dd064190fac73f8804099cbec133b961232",
+      "bytes": 4158
+    },
+    {
+      "path": "portfolio-operations-dashboard/assets/xlsx.full.min.js",
+      "sha256": "c9506197caf809a075b6dee1da0d36fb19da7158ffe8a88e7b0c96c5d8623c99",
+      "bytes": 881727
+    },
+    {
+      "path": "portfolio-operations-dashboard/atlas-core.css",
+      "sha256": "40a4fd206ac48ef8e5c50c58f057abc39376799d9e03c5231cf32e9a5c40bb38",
+      "bytes": 113350
+    },
+    {
+      "path": "portfolio-operations-dashboard/atlas-dashboard-reskin.js",
+      "sha256": "b4bd1248a4d19c2b8ffcfe70306c64fe373af7c062aac73ae4c4c99e2cdf4285",
+      "bytes": 42275
+    },
+    {
+      "path": "portfolio-operations-dashboard/atlas-mounts.js",
+      "sha256": "c74728e59c41cacd5815cd8c2d9eab2e24d4b34a585b6bb599fb78052b1e7280",
+      "bytes": 26893
+    },
+    {
+      "path": "portfolio-operations-dashboard/atlas-redesign.css",
+      "sha256": "990747fca50c0a571f08b437aed8cd5f9aa21d6abaa42cbd3772b471133b41ec",
+      "bytes": 57841
+    },
+    {
+      "path": "portfolio-operations-dashboard/atlas_historical_restore_data.js",
+      "sha256": "43f55dab14d794f68b8b8c9edb4c03fa0d1bccabe9279809c2047cbe58fa5f7c",
+      "bytes": 113484
+    },
+    {
+      "path": "portfolio-operations-dashboard/auth/callback/index.html",
+      "sha256": "807efe8ba74577591bfaeb829e4d09209e2ddcff12f6f701a464843abbaedef3",
+      "bytes": 1126
+    },
+    {
+      "path": "portfolio-operations-dashboard/box-score-floor-plans.js",
+      "sha256": "069f34bee53bdfa2f1ad17486335a4ce9b07190cdef78ffc32c439af1b76c10e",
+      "bytes": 5091
+    },
+    {
+      "path": "portfolio-operations-dashboard/budget-dashboard-review/BudgetDashboard.improved.tsx",
+      "sha256": "f45b382b7c61bc4acc1f7404fcac3604a8c8b455892b3180c256708eb0551b6b",
+      "bytes": 4997
+    },
+    {
+      "path": "portfolio-operations-dashboard/budget-dashboard-review/BudgetDashboard.original.tsx",
+      "sha256": "6a82fed00a910307aa37e07d59c473ad2eeb3aa9f7581d6d9b0e8216426942e8",
+      "bytes": 2901
+    },
+    {
+      "path": "portfolio-operations-dashboard/budget-dashboard-review/REVIEW.md",
+      "sha256": "002c47d2d4bf5f009b7a5a31cc0c11841394cccdc674831d58c4c4425d7b4dde",
+      "bytes": 2168
+    },
+    {
+      "path": "portfolio-operations-dashboard/budget-dashboard-review/executive-accountability-workbench.html",
+      "sha256": "4f5ccde0fa0b2082dacc86e283c00e1e87cedbc6d57c87bcde1e98988ef35380",
+      "bytes": 26670
+    },
+    {
+      "path": "portfolio-operations-dashboard/budget-dashboard-review/executive-accountability-workbench.js",
+      "sha256": "c02e46f7efefced93d1c3bd7ee138cd3ae64c0733cc9c2a51fb7b01c458ed893",
+      "bytes": 82728
+    },
+    {
+      "path": "portfolio-operations-dashboard/budget-dashboard-review/playground.html",
+      "sha256": "9fb78ee1d981ba50f4589ca1ecddd897c7970fd8f32b8b83a30391d590217e90",
+      "bytes": 22723
+    },
+    {
+      "path": "portfolio-operations-dashboard/budget-dashboard-review/sample-clean.csv",
+      "sha256": "1f434b4b7b1aa9f2cd707c5f16cb5c23fb66c1ab9b884dc443ed24b04472df0c",
+      "bytes": 184
+    },
+    {
+      "path": "portfolio-operations-dashboard/budget-dashboard-review/sample-formatted.csv",
+      "sha256": "137f1d2d9f5f6b4364b45734d7376bb2283cfbfb54334e587a67c5df669f0444",
+      "bytes": 208
+    },
+    {
+      "path": "portfolio-operations-dashboard/budget-draft-storage.js",
+      "sha256": "805c88105fc084559545f2a2503b74cd693ba6d335b21ad811ff330e6089d082",
+      "bytes": 26331
+    },
+    {
+      "path": "portfolio-operations-dashboard/budget-mapped-import.js",
+      "sha256": "25643e22d1a1f07460aa9d718460ed9ac45032427aa7b5a0e5fc2e2d47a481a3",
+      "bytes": 11317
+    },
+    {
+      "path": "portfolio-operations-dashboard/budget-navigation.css",
+      "sha256": "4d293dbdcd5371d657c1aeaf850b072acd3bacc31afcb57ec61d859d3bfab885",
+      "bytes": 2933
+    },
+    {
+      "path": "portfolio-operations-dashboard/budget-navigation.js",
+      "sha256": "3d71a9967059499ae9f94b05c081b09cbe24ed8d50608e6e75bc5e4b8e79fa1b",
+      "bytes": 13575
+    },
+    {
+      "path": "portfolio-operations-dashboard/budget-workbook-import.js",
+      "sha256": "8098c7bd0617834f6d0c4a5149f3cf90cc5ed8a2895392113f0950c24617f502",
+      "bytes": 16537
+    },
+    {
+      "path": "portfolio-operations-dashboard/central-services.css",
+      "sha256": "47b65ccf5e2f43cac3d79415c25516b87ea8b580836bd56cbe394b7b57f48923",
+      "bytes": 39260
+    },
+    {
+      "path": "portfolio-operations-dashboard/central-services.js",
+      "sha256": "7af4914b44711a72bed60dff89973fe205f3e406af235cebdf4afef5d0c53097",
+      "bytes": 768067
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/application-lineage.sql",
+      "sha256": "deaf861f8c64473f39cc1d07e148922270c873a2c62f868d1ed252bab97f1d6b",
+      "bytes": 19105
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/application-publication.sql",
+      "sha256": "e93b76c196ac29743990e1e407f2fb5edbfba196b3405f1b81fde63a0f2c3055",
+      "bytes": 11675
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/atlas-central-client.js",
+      "sha256": "148f1a19501de55feaf189f938138365e71caedd46d974f760ea982284c39e08",
+      "bytes": 94320
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/atlas-central-config.example.js",
+      "sha256": "b978d6ddeba28c5a4f99819357f22204cbcd820aeb8c8684e57c6529959f6d21",
+      "bytes": 962
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/atlas-central-migration-plan.md",
+      "sha256": "a56cf96c7d96409ba6e9a3cdbedee10246cd51ba880403252765c2d18e7bae0b",
+      "bytes": 11089
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/atlas-central-rollout-checklist.md",
+      "sha256": "1664b9774eba42884a0e6639b567283e5b10bb40dcba75bd6552341f26e8ad01",
+      "bytes": 3890
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/atlas-central-schema.sql",
+      "sha256": "20a49a41239347ab31b9d1f5bdc293037161a0e441f7a18cdd97e997ee1656ee",
+      "bytes": 137702
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/atlas-mobile-inspection-morf-architecture.md",
+      "sha256": "e96b4fc831955b816c2ddac7c6d0ef8f167ee68960adbbd3bf49c14e8d10368b",
+      "bytes": 10196
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/atlas-multi-user-uat.md",
+      "sha256": "984c212589fe0f6e5fcc10e1002cb51ea0104b3619d60715f4f48372afa76338",
+      "bytes": 7211
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/bonus-workflow.sql",
+      "sha256": "609469630fa905e28d5dca1e56d74434c966216f129435c3abbbc5e092a30917",
+      "bytes": 55056
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/budget-governed-lifecycle.sql",
+      "sha256": "fec322afbbe88f24f62cbd37076c5e4ddc796cd6b6e8d6f14350cee88a65808e",
+      "bytes": 71608
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/canonical-finance-budget-projection-performance.sql",
+      "sha256": "a99c418703c301ac0e87ad309aa2f94ab7d6b304e033dad0eee0ed62af458778",
+      "bytes": 902
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/canonical-finance-reporting-indexes.sql",
+      "sha256": "28ddcb0af6194c9531aa746fedf6a2fa19f70a312b10e2b8b508271d39df381c",
+      "bytes": 426
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/canonical-finance-reporting.sql",
+      "sha256": "ad93645dac17f940f5f88fdedddb267abd42769e8e80d2d25d11ec6c59165806",
+      "bytes": 47216
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/community-command-delivery.sql",
+      "sha256": "feb930f926540d700059b413c57c87683d5d2ebf3ae4d20b5e4872769f990b2a",
+      "bytes": 3147
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/community-command-finance.sql",
+      "sha256": "0435da105b2f3be60b28d8cbba012dce6b816321f645eba6cb162e8fdf2dae73",
+      "bytes": 10971
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/community-command-plan-summary.sql",
+      "sha256": "8224fd5926cb3c15222f1f59dac8a0714113fee017f57e895ac04af4e4955be7",
+      "bytes": 686
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/community-command-report-ytd.sql",
+      "sha256": "bad1d1daabe1df775a77803b947f2be9493fdb352a076cb69483f169edd9fdf2",
+      "bytes": 15403
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/community-command.sql",
+      "sha256": "3a31bde50adfe166177af4f74cb00ff0b58eda52575219da9ab62ac1e0c1a1f1",
+      "bytes": 13731
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/community-goals.sql",
+      "sha256": "ba6740065ab1f7b17ed93bc762a838ab21f34fa1d4ecbe8cdfc1d324f007faa3",
+      "bytes": 17425
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/employee-notifications.sql",
+      "sha256": "194619b9962bd5f3df171375642dacd3951a9ea8e5778cb8f87570a871b278f5",
+      "bytes": 9847
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/finance-request-context.rollback.sql",
+      "sha256": "832f1eda339b700be8243a1ddd473826dda74aa38b6375561f9fa7f5ec3b64e1",
+      "bytes": 6890
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/finance-request-context.sql",
+      "sha256": "e574b3123a3497caf37f31a2a599285c9730ee5c2fe2203d5b94923de332543b",
+      "bytes": 12237
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/financial-admin-publication.sql",
+      "sha256": "3a194e5a3a39e2acd3b8513743c26f6dbff664cc3649802f2ec47168f17623dc",
+      "bytes": 1218
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/financial-close-cash-flow.sql",
+      "sha256": "94f3bbd48ce218770356583264541a2ffd3f05a75285b343c333d24f226bff10",
+      "bytes": 7233
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/financial-close-source-lineage.sql",
+      "sha256": "fd15b1f8b6beb843586446a1c14b2ca1358a99ce34d354b6c55a995dbb4e3043",
+      "bytes": 7305
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/financial-close.sql",
+      "sha256": "f17e38f2c741a75bc6636e4fba4a4e1783d8a06c8be98eade80f775e753c7fb5",
+      "bytes": 11339
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/financial-comparisons.sql",
+      "sha256": "d8d286ba173269aca20e4bd2e4e304806b1b4898807245073c5ef1a297d64b6d",
+      "bytes": 8549
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/financial-coverage-start.sql",
+      "sha256": "b51ab43915a649ed298d080648c2983eecfe05e53748de416f1b0863e8d4321a",
+      "bytes": 6683
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/financial-intake-governance.sql",
+      "sha256": "8d80ed3ee4cd94eeed9d6bbae0e1ef704e4fc4fd199b96207bf23dc20f59846f",
+      "bytes": 77661
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/financial-package-review.sql",
+      "sha256": "8d573f23420ab94f0e849b9f0918358fa3b52331b295e3e243f8745b96253969",
+      "bytes": 6321
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/forecast-contract-workflow.sql",
+      "sha256": "7c203c634f18b470c14af0bebd00e4884cff4c28a59e59360af235567ef62499",
+      "bytes": 6824
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/marketing-shared-sync-columns.sql",
+      "sha256": "15da9e6482df24d1ca427e6a6c54a13e7566dcd1d109645d298a74ff7bdb0786",
+      "bytes": 5071
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/profile-access-hardening.sql",
+      "sha256": "03ba73f0a0ebcfb21fec00b836e499799836bc9e04ca91d6897b96787bc06b23",
+      "bytes": 10571
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/reforecast-active-import-close-scope.sql",
+      "sha256": "acea575361a1bd689635b58a767c07c811f9161cf200654115e7c7e46c9bb482",
+      "bytes": 3296
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/reforecast-builder.sql",
+      "sha256": "3b64b87d8bcb6469a5a4402627c40713d3029d1e4c96cc9a62384a0d854956e0",
+      "bytes": 124885
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/reforecast-community-reports.sql",
+      "sha256": "9571c5cd0bde8f227562ef135f7862da7814b7e0602bb93d2f7d732b10de4b6b",
+      "bytes": 5689
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/reforecast-governance.sql",
+      "sha256": "b33ab770829bdca2a9e01e21041536a47a441d292ddffe0f6fd7cbc561b92337",
+      "bytes": 68245
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/reforecast-governed-close-scope.sql",
+      "sha256": "231e1016b68889ab31d34ffb979e158b10d88917475d67c4c9d4b83c58adeca0",
+      "bytes": 4037
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/reforecast-report-receipts.sql",
+      "sha256": "0c3144b50b6118917e669764901f0c8b58210b6a8e776442d16ef9a5343bf4cd",
+      "bytes": 19508
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/reforecast-str-overlay.sql",
+      "sha256": "3ded3a578ffc14141319da8f284c164cc7fcd19656c9451222dbbe1cdfad9d9a",
+      "bytes": 45046
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/reforecast-utility-drivers.sql",
+      "sha256": "125db5defd9db14b6110d097195f304db6da08073f504b1b5258cb12363ab8f4",
+      "bytes": 11999
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/scoped-workspace-projection.sql",
+      "sha256": "2790d28e8278a9859fc204effd56ebf6720d5216511040653e35c377007a2090",
+      "bytes": 22332
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/shared-str-programme-drafts.sql",
+      "sha256": "10cdf9911367b81975642da68be8573cbd504c0749429689f882f31ee1390709",
+      "bytes": 19459
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/utility-forecast-rollback.sql",
+      "sha256": "5af0feb95bba04b711932119c649efe0007f96194428eb686a33fcf61a544cdb",
+      "bytes": 1499
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/utility-forecast-validation.sql",
+      "sha256": "7ea4621756bec10ffaea0e18364e3161ed9dcca0cd73f19687095163d07eef62",
+      "bytes": 4710
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/utility-forecasts.sql",
+      "sha256": "4216e49ec83b2b994858437c5025bbd4c2749eba55b584a197463e16bd194e74",
+      "bytes": 12020
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/workbook-audit-chunks.sql",
+      "sha256": "9217d7a5dd4cf8f49d60d890f8db3261e6c7ca4513122becff18af9e10081ff0",
+      "bytes": 35521
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/workbook-audit-transport.md",
+      "sha256": "8bd8b5511f1883c7fc37e2a71a54f1cb76f7bd80d3949dee53c4964bd590981c",
+      "bytes": 4097
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/workforce-change-events.sql",
+      "sha256": "e4ca92a5a93fca9039733826af5334d0c00c83b658a6314a3ce450b257cb4182",
+      "bytes": 2557
+    },
+    {
+      "path": "portfolio-operations-dashboard/centralization/workspace-projection-publisher.sql",
+      "sha256": "c05730dddf40cf29efd9c899f7bcf7ffbeab70cd02d019c4bb922fffc0557956",
+      "bytes": 6039
+    },
+    {
+      "path": "portfolio-operations-dashboard/community-command-contract.js",
+      "sha256": "e6064665e1d6e27117f18dab17fe03177d795f540838d24e0ded157b5674c002",
+      "bytes": 7242
+    },
+    {
+      "path": "portfolio-operations-dashboard/community-goal-editor.js",
+      "sha256": "0722e38fc5c872a900d1f28cea078b42fcd6baf0e0f8a05c5ebb0bbe916d1183",
+      "bytes": 16749
+    },
+    {
+      "path": "portfolio-operations-dashboard/company-active-employee-roster.xlsx",
+      "sha256": "9930687573ccb3000edb5b28af8a3dfa0864b7b9c11c8e893f1ff983dc44406f",
+      "bytes": 30847
+    },
+    {
+      "path": "portfolio-operations-dashboard/concession-insights.css",
+      "sha256": "e8e0286f2bf7aa942b842cd3e62d8049ba3ffa890ac936524a980422193c9cc5",
+      "bytes": 5851
+    },
+    {
+      "path": "portfolio-operations-dashboard/concession-insights.js",
+      "sha256": "460a297410559c728dabc625373abfeb480a1201c69ad2e5ccafb3170de6b3de",
+      "bytes": 21043
+    },
+    {
+      "path": "portfolio-operations-dashboard/config/community-command-gl-mapping.json",
+      "sha256": "a4cc48ec6d01ffebcb713cfbb5ea0823f09b85b06d071423f1eed3c5d84ab908",
+      "bytes": 909
+    },
+    {
+      "path": "portfolio-operations-dashboard/contract-terms.js",
+      "sha256": "a36b8270f5c4434dbca7edc5c14bf5c54a2cb8e24e0c94725869f89705c116ad",
+      "bytes": 1471
+    },
+    {
+      "path": "portfolio-operations-dashboard/eviction-attorney-ui.js",
+      "sha256": "668102fdfcf8a1e68825da21dbe9d7342f1eb1cd1718dd2ef5e61a5f51bc98fa",
+      "bytes": 13520
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/admin-workspace.js",
+      "sha256": "ffee801ee359c2d36a8d4df6b55b62395caa17380bbd12389f3f9a640375e97e",
+      "bytes": 57546
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/approved-budget.mjs",
+      "sha256": "b9a9484369120417f9c3f7d1fc10ff2666703089304fdb98d78a9235bc750d15",
+      "bytes": 20387
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/bonus-workflow-client.mjs",
+      "sha256": "74c3a31ff88f979798a46d4beb14d65b390e8711548f8d60e7b9a5171b21cecf",
+      "bytes": 3241
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/bonus-workflow.mjs",
+      "sha256": "46d4a791fa3681d4a4af0be8f89ed6ac038dd98d121f1bbd34e63080881a3b63",
+      "bytes": 21464
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/bonus-workspace.js",
+      "sha256": "077cf554254699a4bedb4570c2b23b72fbba22202deb87619481fea2b9ee8f15",
+      "bytes": 46947
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/bounded-json-integrity.mjs",
+      "sha256": "a4ea8821996c3b5750af5679e0a9c7c539aaa9798a9f7237fff68bd1ae4b0b34",
+      "bytes": 11077
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/budget-command-publication.mjs",
+      "sha256": "2d94c59caef875cc47dbb42bfb8c5d01c0ce0036e7b19193804be61a1972b151",
+      "bytes": 8948
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/budget-consumer-delivery.mjs",
+      "sha256": "f5342574d4b39aa2e0ead76ab6361e82fb88ccdc6d3fec2cab193643d69ccc34",
+      "bytes": 1817
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/budget-dashboard-tasks.mjs",
+      "sha256": "48863dfb1f02df2daecc412fa661f9a9ad629836ccc3d130e8bbee5b3e83e9d8",
+      "bytes": 2627
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/budget-driver-warning-ui.mjs",
+      "sha256": "b653a719527b5e7c1234518b94ae21d4221aa15a459ac3dc958417e79135e79e",
+      "bytes": 2106
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/budget-export-delivery.mjs",
+      "sha256": "7fa53ba63295f7f9bb1b548b15b72f9d740f5e829078f702cc87c6c42e730f2c",
+      "bytes": 4807
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/budget-export-store.mjs",
+      "sha256": "4b67adef981362094c1634263fd482e51a39c7c24b0a4db68e39c685d6c5c863",
+      "bytes": 7496
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/budget-leasing-drivers.mjs",
+      "sha256": "8f59ae7406f56df79c136745232924c10abb6e4f129a2ba8957077d7d6967f1f",
+      "bytes": 22058
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/budget-leasing-ui.mjs",
+      "sha256": "c0c532ef366ef21dc85a20d8660d6ee70bf67073ef581de34fcef6773d664e54",
+      "bytes": 8992
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/budget-money.mjs",
+      "sha256": "c2a0e763406c2b63ea18e7051417d7b18db019109765694eaa7271228269174c",
+      "bytes": 1807
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/canonical-budget-report.mjs",
+      "sha256": "fb541208191f2de63a88ef3c70999d1f8e5f27ddd8d9e64ac054a90d033b0b9c",
+      "bytes": 8090
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/canonical-finance.mjs",
+      "sha256": "6df033262d302564f2486b405f3fe3677939e135fdc961839fb143e87af84e5d",
+      "bytes": 18540
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/community-budget-identity.mjs",
+      "sha256": "789e1cbad26c5366fee528cceda8cfcd9853401be4ae39cfdc5cda5c67640348",
+      "bytes": 3917
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/community-budget-settings.mjs",
+      "sha256": "ade39de08c7ad73793e09f5e037415ca00dc0cdd587462c3f9e0bd8c851de2f8",
+      "bytes": 7826
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/community-finance.mjs",
+      "sha256": "12aa542e4a7c825d8bfe82d5dabd14ca68d0b0622d622003395a8aefc355855c",
+      "bytes": 4956
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/community-goal-planning.mjs",
+      "sha256": "5f4623f40dda0b06f762a23cca280feb88eeb509f60d2097c6303135911634f0",
+      "bytes": 18087
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/community-goals.mjs",
+      "sha256": "b67c76978959a877e10451c0e3f9656ed901f96bee8e870a6e43880ed6780d57",
+      "bytes": 6955
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/community-plan-report.mjs",
+      "sha256": "649b19de70728a8f3a1dc74260c7c48f5b22d5dfadbec921e31843fb487c7118",
+      "bytes": 14916
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/community-plan.mjs",
+      "sha256": "879ba8ff42bfc5c7980eecdcec28c1bb3d9c58779125bfeff372a85207c6119c",
+      "bytes": 18716
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/data-health-accounting.mjs",
+      "sha256": "50011e9e79cbde87279c60c29f7a888c89f96426147750b07c562a44e4f2f06d",
+      "bytes": 4039
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/decimal-money.mjs",
+      "sha256": "d77dba58c0c36a31d16e401367dc9da718bd19677ece8a1f0ece0857a16f9c1c",
+      "bytes": 1234
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/financial-close-report.mjs",
+      "sha256": "03b646b39375a4c867102cae88a3dabcc99d8853531b3138ad9399f2fec397a4",
+      "bytes": 10629
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/financial-close.mjs",
+      "sha256": "245ac4b9cd3c81c5993986dda868a85b5c2223d40a5c02c87ccac06516dfe5e3",
+      "bytes": 30079
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/financial-comparison.mjs",
+      "sha256": "47af2511da33f1c78081c0783e75392aa2aa6facfa1163b620488a605e7587a3",
+      "bytes": 11845
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/financial-intake-store.mjs",
+      "sha256": "826d61446c72329e4d2f1b61e92ce78ee7cec5e04af8c6726a5d6a04b0e5eba0",
+      "bytes": 6673
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/financial-ocr.mjs",
+      "sha256": "e434acd5170b2867013e83f4e61898bd789ff0f2a350a8a462063f696fc9d7d8",
+      "bytes": 2218
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/financial-package-batch.mjs",
+      "sha256": "c4d5ace1d3af7d0fe4d1658efe6a0d586262b3d1bf6e766e97ce0837b32bc070",
+      "bytes": 2034
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/financial-package-reader.mjs",
+      "sha256": "1365dd237e0e16050be9015385c6a0720840bdbecf38f8e0495f3245063584ee",
+      "bytes": 4372
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/financial-package-review.mjs",
+      "sha256": "17f3b132892f82206a7d6c4ba2be589d98449e96ef4b518654dc2947971c4c8f",
+      "bytes": 21788
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/financial-package.mjs",
+      "sha256": "9e34c3c633e9477eeb4657b5cdc863780d6aa43e4f8f459fcb24527e77a07cde",
+      "bytes": 25788
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/financial-row-reconciliation.mjs",
+      "sha256": "016caa7d1b0de253d8bb61fa3a897a5269da95aa22046d83a83270bef928021b",
+      "bytes": 21589
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/financial-snapshot.mjs",
+      "sha256": "848d058bdec07b4e56858b1c996464b3264a446b909dff69075abec5ab565b6a",
+      "bytes": 5440
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/financial-workbook-governance.mjs",
+      "sha256": "ce3982266f91118e39bfabfc9df25bd23bf8dcafd2a0d44baeb90f2b5973d1ae",
+      "bytes": 8713
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/financial-workbook-parser.mjs",
+      "sha256": "29cb61eac28b4e687cb190acc3d21df897828659c75f5c703f5ac899c1a8d2e9",
+      "bytes": 3455
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/financial-workbook-worker.mjs",
+      "sha256": "51a55ff23f15bb8d809bf69ffe91cd70565847a31e52a057ec02a12c623f28cd",
+      "bytes": 599
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/fiscal-ytd.mjs",
+      "sha256": "77e543c1c01f51026c4aa15669278774525eb3c4bae3ccad57ab28e3a7696924",
+      "bytes": 1895
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/governed-budget-workspace.mjs",
+      "sha256": "362e858f9cf2f7c33792fa8186630e5a4bdfc737ad8ab3cd60c9a0e65213be7c",
+      "bytes": 5082
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/import-history-store.mjs",
+      "sha256": "a5aa94c91809b2795be2c487e82828585b231845d623a5acfeaf103cf7febf97",
+      "bytes": 28217
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/import-history-worker.mjs",
+      "sha256": "9b208c2d23d6bf4ece2f6e19b0fd05312139d06af7c59cec962c459fad27c98c",
+      "bytes": 288
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/import-history.mjs",
+      "sha256": "679acb56a1c82d335ce4851dad2636a2e0d429541bc65c833014203be7ec1129",
+      "bytes": 1932
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/import-workspace.js",
+      "sha256": "9d8c64f3cbaeac63469578afe39c5a6016d5afb4431e41d60bd2d083dbfd1f47",
+      "bytes": 103439
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/legacy-finance-gate.js",
+      "sha256": "d334491ead41bb1f8252420c8ba0036d887cd25366c899c817e9fb44755b486e",
+      "bytes": 1402
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/month-end-governance.mjs",
+      "sha256": "512313fd55e83ec7a035808f481576b800aafe54e2b8df22d016a36a008eea5d",
+      "bytes": 8806
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/occupancy-goal-recommendations.mjs",
+      "sha256": "a4ee2c9ccf3c92a85010d86e8e34dab5a341625c7907311ccf81b654adcf97a8",
+      "bytes": 8348
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/occupancy-source-evidence.mjs",
+      "sha256": "012daa540aac0f2c9214e5264024a7cd11ca5cc5af4697b451665797f4bee489",
+      "bytes": 21052
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/original-budget-intake.mjs",
+      "sha256": "dc1342d62bb69dbe3cf181af63498e50e9f4ae747e7dadcc4a8374f061d8bd4d",
+      "bytes": 5630
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/original-budget-version-report.mjs",
+      "sha256": "cebbe9d0b8135c15490be7217eacfd1f4b8da38d0e2c97ccfc9a82d11d059f07",
+      "bytes": 11320
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/planning-governance.mjs",
+      "sha256": "a4de8d3f5a50966c77e4e5f39a308fd115c8e1856ae7b984ab634315cbab709c",
+      "bytes": 6476
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/portfolio-map.mjs",
+      "sha256": "bbe032b73d99159ded1765e407662def77aefc2975147b1b676a3d2cbec9a414",
+      "bytes": 2570
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/presentation-slides.mjs",
+      "sha256": "9dce07011bd94412edfb876e5557f0927be56c79aa3cfb2bd99151f077cdf679",
+      "bytes": 21188
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-active.mjs",
+      "sha256": "03b191a6926d70ca27f6b3cf656183c7d1e6289a6cd2b4784ca616cfa29fe437",
+      "bytes": 849
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-authority.mjs",
+      "sha256": "6a8dea424c8bf371df7778fac36d12c06102f572ea5fead35f7f88c0d6faf04c",
+      "bytes": 5961
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-bonus.mjs",
+      "sha256": "baad27658032a5bc1b3219b283f4238c5e85ff99786ccc6bb5fcec7c41f0cce2",
+      "bytes": 6143
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-builder-ui.mjs",
+      "sha256": "7fcffe9dca25de1a450490e7ea9a1d3b6ef27c8ac51576f1719a365f06e4732a",
+      "bytes": 67053
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-cell-history.mjs",
+      "sha256": "bc861090b36045f83a28a4652f0a267a30999cb998cf2085f80eb625878e1c14",
+      "bytes": 11110
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-consumers.mjs",
+      "sha256": "a9ef050bc1835c02b6e5f3d6d3722e70164f71110825b861dbafc66cf28c8fb1",
+      "bytes": 17557
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-engine.mjs",
+      "sha256": "87a893fbc5f8699774a473088bf0d43f04d4855b39c9b28fa1bde80a318fad6a",
+      "bytes": 64881
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-import-inheritance.mjs",
+      "sha256": "5f8d67aeb7c141d88f1f15271251a2600ea0bfc56812989d17e52147cad6cda5",
+      "bytes": 10084
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-import-ui.mjs",
+      "sha256": "a40a6850287e7c2f6d7e86c35c781a5f7f1309d0dacaf83921c5103658928205",
+      "bytes": 79475
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-intake.mjs",
+      "sha256": "74bbd52d93a197ccaad7d1ff9363b1b842ab57809c261234dc84c1f2fd62e380",
+      "bytes": 35247
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-legacy-bridge.mjs",
+      "sha256": "fda8456089dc802fa5ad5764316e690b98427f8b129c75be809335dfeb9e88e6",
+      "bytes": 17009
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-noncash.mjs",
+      "sha256": "9d197be13878cfe34895e5252a1d3d477b91f1991b3c2a6dffda06fa0a8d22f3",
+      "bytes": 2317
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-parser-recovery.mjs",
+      "sha256": "4b16539d0f673b5e27eeea194aa210c574d38731abe85bec0620d6fdabc99508",
+      "bytes": 2100
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-provider.mjs",
+      "sha256": "c87f076d7e82d0edc447b70e2882d5e554933a96de1f9a8915c012a3f8ccd019",
+      "bytes": 37280
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-recovery.mjs",
+      "sha256": "98b465909c9db5ad3737aeaf33f2bf7f20cb9e7d65664590ea0c66558bbf63a5",
+      "bytes": 15103
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-registry-proposal.mjs",
+      "sha256": "aece27c1f35ec212d1e2a59ff74074c3282719c5406f0cb6f3c04b7d50464713",
+      "bytes": 2641
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-report-library.mjs",
+      "sha256": "afd58bd9e1eb80de26fdf69c9ffde33378331842b139d238688ed551fe5ce32b",
+      "bytes": 29396
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-report.mjs",
+      "sha256": "0eba1b9d20462432b462bbb8b31d9364c8ab706d4ef4549849f5fb678132823a",
+      "bytes": 75895
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-session-scope.mjs",
+      "sha256": "52a794f18760cf231b7711d3d4525e2ff14c42d7c2e51ca8445a539a5cd499bb",
+      "bytes": 2920
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-store.mjs",
+      "sha256": "b59fd4df88ff8fe38ccdeec7d527987e44c0a7cd0a89afd67071dcbfd0890cb1",
+      "bytes": 26634
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-str-json-recovery.mjs",
+      "sha256": "3912f3ac631704083cc3c777a669a06e2975a30b9fab5d7501afb523ffe22a3a",
+      "bytes": 13287
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-str-overlay.mjs",
+      "sha256": "f4e03cd7b6e9e9ce4f67ac56672620e8a7a3861d6696dc526555667064b05a75",
+      "bytes": 8904
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-str-registry-extension.mjs",
+      "sha256": "e029a084505a92e087c5b337e9d09fee0df07e46d9e8677780ad1ba5d2035c53",
+      "bytes": 7490
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-str-saved-programme-runtime.mjs",
+      "sha256": "0b7bbd22e40b7c5b375b10d0dd3a0500028a2e224d187650c3ee4e40e93a315e",
+      "bytes": 3573
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-str-saved-programme-ui.mjs",
+      "sha256": "ae1bc5a5db84a3cfe7344bc0e48463dfda65849af4f2cc0991e591b665213355",
+      "bytes": 28849
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-str-saved-programme.mjs",
+      "sha256": "7ad31a59841b98027f37578f57592f1a4c108bc1408f7ae0f3143b0d07b2ece8",
+      "bytes": 15450
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-str-source-validation.mjs",
+      "sha256": "de7f8e807a17cdca1105cd66c983eb1e528f0e41c70d4ca8c1358d377aa2998a",
+      "bytes": 3106
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-ui.mjs",
+      "sha256": "fce884223eea2f1c2a0972e9353b701c06326894c363464ab613f8ad5313350c",
+      "bytes": 175745
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-utility.mjs",
+      "sha256": "081307bdc90e97ff13cb19c00bac54bb9b4330042bd32c96f7a4db499765cb80",
+      "bytes": 10133
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reforecast-workbook-source-policy.mjs",
+      "sha256": "a930b680fb3c726526cf8fb1242fdf816fd04d8f76715364e5889d008e8ee950",
+      "bytes": 9245
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/reports-workspace.js",
+      "sha256": "db08e46d109ff0e9895c3312688442cb93a80ae009f02fcf9a54608235ca5ad1",
+      "bytes": 139393
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/rise-report-brand.mjs",
+      "sha256": "9b39c5ad8eca1eddbd3b7fe712fedae6254543c4289c82778f0aa5c450980bc4",
+      "bytes": 5683
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/rise-workbook-export.mjs",
+      "sha256": "d08dd1e8d4aadf303a51c36916f17aa1d95dd3308b601863e4b5a33d5d6f370c",
+      "bytes": 7688
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/saved-str-programmes.mjs",
+      "sha256": "ec1450bf3f16b5bd78d46dc1dee281c6818768573facef5c39fc69016ca52066",
+      "bytes": 59413
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/scout-reforecast.mjs",
+      "sha256": "22b67247f2ba95c7e2fb6ffd91ebf1277cade8a29eee4dd618ae41e3dfcb93c1",
+      "bytes": 8219
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/snapshot-pdf.mjs",
+      "sha256": "cda1d9683b4dd270de0938a4717ec47dbc8beaa3700d58f1b656f42b9f5bca6a",
+      "bytes": 10532
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/standard-budget-export-ui.mjs",
+      "sha256": "710b3a5184f3e6b21f23e87857741c0d48730509e76034a31d1de27f6e0e9d9c",
+      "bytes": 16059
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/standard-budget-model.mjs",
+      "sha256": "d537361b596a019ade26a60d41625779d5da473af61c522abdfa7251a2abcf45",
+      "bytes": 24443
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/standard-budget-render.mjs",
+      "sha256": "73063ce715635aeb939ea85d82c3df32582e694d70e8b80ed43274631cc16d9c",
+      "bytes": 25454
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/str-budget-application.mjs",
+      "sha256": "4a11278ca513f8457054b84e8be31ceb485271b71b8bd667c4e06c0ed1c75ebf",
+      "bytes": 17349
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/str-programme-workbook.mjs",
+      "sha256": "1d5c8f98b77731bec5341c68010809df1d94713e950655cc85c63e8294c1f68e",
+      "bytes": 8748
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/utility-forecast-ui.mjs",
+      "sha256": "2973cd20224dc97313358cf2c5ac86588b828a036b72bf71ae7dae58600bd99f",
+      "bytes": 33802
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/utility-forecast.mjs",
+      "sha256": "834e955a0a6d9550d0db6c0bc80e92971236f948da25ee7f1404b0ad3b490e12",
+      "bytes": 12670
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/workbook-audit-store.mjs",
+      "sha256": "da818ddb04840b3689c6c96f5b6b6034db32d98eafe82f7b796a79b062b0c512",
+      "bytes": 20611
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/workbook-integrity.mjs",
+      "sha256": "612a2cdba3c9dba2265dbb09b48b84155a753b6bb165d49d0d9e3635be962a2b",
+      "bytes": 45556
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/workbook-rich-images.mjs",
+      "sha256": "d70140a2393d0b363c3df42cf9cfa6fbe3e1561d3f4a4d82db7704cb421cb52e",
+      "bytes": 6013
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/workbook-session.mjs",
+      "sha256": "d48120a0384d9026d203d7e7d14379d10a00fc4ebac73107e9987f4223269a76",
+      "bytes": 2171
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/workbook-worker.js",
+      "sha256": "9706fd7e18ac860635fd04ab9359349b1bf5ce88e20d1c665b64053ff12cc3f3",
+      "bytes": 1898
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/workspace-activation.mjs",
+      "sha256": "30ef6d5a6bd605826028956bc831a813f641b731d127dc5ddbe1b552dc85a6f1",
+      "bytes": 12828
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/workspace-bootstrap.mjs",
+      "sha256": "b437ecd24364344eb5df15d442637526ca9f52ff57263ec4b345008a06e0a5ea",
+      "bytes": 8930
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/workspace-canonical.mjs",
+      "sha256": "dbb5eb39e5af90c5a48390ffa25966e24db0c40743e1416bac99d921cd85fe4d",
+      "bytes": 672
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/workspace-integrity-worker.js",
+      "sha256": "54078411af51e7cdeb123793ce878f06893ed6433d4c4e578cff39c39bed660a",
+      "bytes": 366
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/workspace-projection-worker.js",
+      "sha256": "3b421adf94c3f94e47767e73583489f9769b0f1a0b29d1da43372c0bcdbad6b9",
+      "bytes": 4227
+    },
+    {
+      "path": "portfolio-operations-dashboard/features/workspace-publication.mjs",
+      "sha256": "27ab8274fc094bb69e19ef73373514c9f22dc22d032061bdff5eeab8edc6c488",
+      "bytes": 959
+    },
+    {
+      "path": "portfolio-operations-dashboard/financial-accountability.html",
+      "sha256": "2871057fe43e2c5ad233d3caa4b7ae16a15d88a257984a69ffdd1f369b9a68dd",
+      "bytes": 167462
+    },
+    {
+      "path": "portfolio-operations-dashboard/financial-accountability.js",
+      "sha256": "c1c205ab036e6264f51c2b607842de43d244daf8d9135d0f4bc2120d6db2e6d8",
+      "bytes": 271839
+    },
+    {
+      "path": "portfolio-operations-dashboard/financial-publication.js",
+      "sha256": "de79892b03f508fe53aca217adf8a7ec99812a8c0566445e035ed6ba3b8c81d2",
+      "bytes": 7121
+    },
+    {
+      "path": "portfolio-operations-dashboard/floor-plan-settings.js",
+      "sha256": "e3f548e55962bec824c66c0344aec83849cddeb70df3344ecf157d6c5d2f803f",
+      "bytes": 4917
+    },
+    {
+      "path": "portfolio-operations-dashboard/guides/standard-budget-export.md",
+      "sha256": "96a86a1ace2c4b8f13df53ccaa294ea829e6e10246f080e4a348e50375de2ea6",
+      "bytes": 4501
+    },
+    {
+      "path": "portfolio-operations-dashboard/index.html",
+      "sha256": "1bd8733795f023f0a64ae9141c48b2f68b4b1694aaad212fa19ee5c50f24692a",
+      "bytes": 13736
+    },
+    {
+      "path": "portfolio-operations-dashboard/investor-budget-bridge.js",
+      "sha256": "0588a70b4aceb9657401972056a2830ef2bb96d851c1310757f93f65cb30d963",
+      "bytes": 19883
+    },
+    {
+      "path": "portfolio-operations-dashboard/investor-packet-core.js",
+      "sha256": "3fd71e27dc71368fa5c3cd29a303fa8b0fc4088940b36a9c131b88b7cfe0b205",
+      "bytes": 37082
+    },
+    {
+      "path": "portfolio-operations-dashboard/investor-packet-sources.js",
+      "sha256": "e40335d46730bec3c561b79960fd2741e76ad77de15b88183f3b9e0e533b866d",
+      "bytes": 17543
+    },
+    {
+      "path": "portfolio-operations-dashboard/investor-packet-ui.js",
+      "sha256": "fad2de016820f2b954f9880ed97979b0f0aa6aa2fc3aaf276971a9c7111db229",
+      "bytes": 36781
+    },
+    {
+      "path": "portfolio-operations-dashboard/investor-packet.css",
+      "sha256": "6de09311cbbc54d832d53f341739a0a32c6fd383e68e1df414758263a4a58f64",
+      "bytes": 1439
+    },
+    {
+      "path": "portfolio-operations-dashboard/invite/index.html",
+      "sha256": "807efe8ba74577591bfaeb829e4d09209e2ddcff12f6f701a464843abbaedef3",
+      "bytes": 1126
+    },
+    {
+      "path": "portfolio-operations-dashboard/lead-source-contract.js",
+      "sha256": "03b9ce80d867a7711f58e970e8b560de1eaf5e94664970e86fbe0bb2ab63c945",
+      "bytes": 6685
+    },
+    {
+      "path": "portfolio-operations-dashboard/lead-source-mapping-store.js",
+      "sha256": "eab2a74620808693d75eb9a6426419a09287c64bff156096882f8ef8dd0103da",
+      "bytes": 1651
+    },
+    {
+      "path": "portfolio-operations-dashboard/lead-source-review.js",
+      "sha256": "78da736d5dd0e9420f9a616e311fa61778ea5dfe1daf9a73a15b1975a9d7703b",
+      "bytes": 34593
+    },
+    {
+      "path": "portfolio-operations-dashboard/leasing-velocity-report-template.html",
+      "sha256": "0ff2053e65d67004ed468cc220143d1f5398758b78882c7fbfd06c76095346d6",
+      "bytes": 38592
+    },
+    {
+      "path": "portfolio-operations-dashboard/lineage/application-cohorts.md",
+      "sha256": "2e3d25d1bd00d35a229354375e7fe8b2342e3b5ac15690b4712764ae3d9e84dd",
+      "bytes": 3888
+    },
+    {
+      "path": "portfolio-operations-dashboard/migration-archive.js",
+      "sha256": "ae74ccbf0a527f62ab17de3f2002255b9801eb506575b7ee27ba677caf0dc5f7",
+      "bytes": 31547
+    },
+    {
+      "path": "portfolio-operations-dashboard/occupancy-replay-browser.js",
+      "sha256": "5477f7830ed551e95b7c7c965f068e005611d21294c4831eded586a678706845",
+      "bytes": 14553
+    },
+    {
+      "path": "portfolio-operations-dashboard/occupancy-replay.js",
+      "sha256": "6359b85360e8121b30ad610c335a2f41f37ecb59e0126b1c780f61a572d6cbf1",
+      "bytes": 14759
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/FINANCE-REQUEST-PERFORMANCE.md",
+      "sha256": "7167574771346752f4a7387d94d6e421bde9df13a8318e1ff910cbb8601a8d73",
+      "bytes": 8702
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/IMMUTABLE-ASSET-PACKAGING.md",
+      "sha256": "ddfb330323f54547a9ae84645ac1adcb860be14bf9e9db0db9be076bb5ca19ea",
+      "bytes": 10192
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/ISSUE-12-REPAIR.md",
+      "sha256": "dec73b8bbf0a583c451db877ffd893361a9620852a449648ee72de2e04ab30ef",
+      "bytes": 39182
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/OPERATIONAL-CACHE-SCOPE.md",
+      "sha256": "0098f7fa7cd5b2124514af0ff1b33aa306eb13342f430989c3cbd9da0ecf67ab",
+      "bytes": 2564
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/PUBLISHER-TIMEOUT-INVESTIGATION.md",
+      "sha256": "217953808fdf37ef2db6a665df0149aa5a7ee88fc8258d908b52fe7b106ecc28",
+      "bytes": 6177
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/SCOPED-WORKSPACE-PROJECTION.md",
+      "sha256": "1d3f0f8de6da8ce5b907e2a1973217e8fa066ac057754389f83aa5e6936cf77b",
+      "bytes": 5393
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/SHARED-GRAPH-PUBLICATION.md",
+      "sha256": "d455c3c54ec5735a57772d2c063d7990a4d8ac2f5c075ed344a8ae46ea0ea8d0",
+      "bytes": 2268
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/WORKSPACE-PROJECTION-PUBLISHER.md",
+      "sha256": "b915ebca052ef7c78d3879e1ab1f5920ede423c5823acdc1f9a373dc316f744a",
+      "bytes": 6538
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/asset-manifest.json",
+      "sha256": "0c5141f7a344c7ceb898430f2abac1d4719b1a9e688d587c4c110d4c1cc3ed4e",
+      "bytes": 50398
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/diagnostics.js",
+      "sha256": "bd950e3f2737ceb220023fe3f14bad640d5a19107b4eb53c81643347d297c7cb",
+      "bytes": 4757
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/affected-files.json",
+      "sha256": "3de971646bb710f9b7f6b77773e543cc1006106c1e33097d4f51998cd149dfb5",
+      "bytes": 21218
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/backend-release.json",
+      "sha256": "d4e3cd8ba94931f5002cf66a8998e6db77d7646ec52274e40c0343a561cd53ef",
+      "bytes": 10785
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/client-recovery.json",
+      "sha256": "e46cfd8ce45dd2db500d01a3a41b10fa92cc61ede4f7054dd8f20f4781596247",
+      "bytes": 8429
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/finance-local-comparison-plans.json",
+      "sha256": "4e6dcf644c608345daf4dd0c1be873f4223a9e4cecdfd9d85d4df4fd8338a7a9",
+      "bytes": 11088
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/finance-production-baseline-plans.json",
+      "sha256": "abc39c34a3ac68dc874e49abceebff6272fcdd0b334ff2f2991feabb76e3fd7e",
+      "bytes": 35568
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/full-suite-integration-a631cb3.json",
+      "sha256": "d7b3dd914183dabead8f047251b52a9907dd535c57f28501a12bbc46784be749",
+      "bytes": 43133
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/full-suite-runtime-435a478.json",
+      "sha256": "a7e72f4db220c8ce1b98b127aa75f70be46865cf299bda4f3d82fdebaabc606f",
+      "bytes": 42897
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/full-suite-runtime-c586cbe.json",
+      "sha256": "9fa864c5a0515987f6b1f6e39b5b4588a6f4fc627714c9aca9c8f7162138a361",
+      "bytes": 45280
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/full-suite-runtime-d0d2bbc.json",
+      "sha256": "f892e9558fe7ecf9ef6ac0c829e2c0646c1c613e797e923dd121c11bb82f1ad9",
+      "bytes": 45094
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/full-suite.json",
+      "sha256": "9fa864c5a0515987f6b1f6e39b5b4588a6f4fc627714c9aca9c8f7162138a361",
+      "bytes": 45280
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/historical-report-differences.json",
+      "sha256": "bf34666812982902dc13ea339b1daab0a9f190eeaf914274c1fcdd88cdfc888e",
+      "bytes": 7221
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/replay-435a478-budget-misses.json",
+      "sha256": "3dbb4e0374ea638f8dd918d3556a2d05ccfd33aed6bd83cec4a941d1190a5b10",
+      "bytes": 1949
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/replay-435a478-summary.json",
+      "sha256": "c718724a706ddfc151157fcc2323f4cb8155ee8da97f16b238732a0e5cf52336",
+      "bytes": 203317
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/replay-435a478.json",
+      "sha256": "78e10bb94e5f8a1c088e490f53224b15e1f290a8a1d25067b0b3fd58228a7679",
+      "bytes": 1157305
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/replay-c586cbe-budget-misses.json",
+      "sha256": "a608630f8d4b1f6973aa05e57e08e17f7722561478bf7c98bfc1bfb55aedcb03",
+      "bytes": 1349
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/replay-c586cbe-parity.json",
+      "sha256": "fe874c012f28b3201fa9710c8ddecea5fb5eb9f9b5ba3a8b34c572a8e698ec9f",
+      "bytes": 2226
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/replay-c586cbe-reports-stages.json",
+      "sha256": "faf215d2577e48bc9c96e1803ce5b1ee9898f6e352b7dae01a4f58682c9ce166",
+      "bytes": 8704
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/replay-c586cbe-summary.json",
+      "sha256": "c65ddfb093dfcddc4c3fe941cab35db946d29e34180ce63830a205af61d3dfe1",
+      "bytes": 73730
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/replay-c586cbe.json",
+      "sha256": "3b3a6e2b67be568af659ec31129426cef4b082dff5670057ec680eee63fc461d",
+      "bytes": 337551
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/reports-bonus-leaf-diagnostic.json",
+      "sha256": "dda58191d5eed4ea667a050912f13733a058058c3f5662592b29bfe313d117a3",
+      "bytes": 17520
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/reports-default-diagnostic.json",
+      "sha256": "95880428f2a075b88a82982b6b1a2fc991f30858738a0f16463bd4ae2b680f78",
+      "bytes": 11418
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/reports-yoy-diagnostic.json",
+      "sha256": "a51be899ccb0ce8aad6599e8595391c57bad806e072b715fbf1518b080197eb3",
+      "bytes": 18078
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/signed-in-baseline.json",
+      "sha256": "dc4f693fa2070e175969299bee769f112717a8fe358e132c6e7d0f905f9c1cc7",
+      "bytes": 280215
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/source-preservation-after-recovery.json",
+      "sha256": "f70d6fab7afa522f1996735a5e4b1b0a14f2fdec215b39adec5c88bbece348bd",
+      "bytes": 1508
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/source-preservation-after-stable-release.json",
+      "sha256": "b0c0622e4c3602923acfaa48df98628e807f34a4e95514d66851d42e95066a23",
+      "bytes": 2580
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/stable-production-release.json",
+      "sha256": "79f94e145066a769b23532c45bc0925e8915b59ad6f326772c1ea5ab4f14a5e7",
+      "bytes": 28200
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/evidence/issue-12/workbook-comparison.json",
+      "sha256": "0533000d9362e939230206de95d8bfcab8b587d32184b0a7068523e3eb5b9fc9",
+      "bytes": 6154
+    },
+    {
+      "path": "portfolio-operations-dashboard/performance/feature-loader.js",
+      "sha256": "ed78e3106d75fc82873f39bf783fdf7eae90588ec8b248cd4a29dd390662ebc2",
+      "bytes": 3714
+    },
+    {
+      "path": "portfolio-operations-dashboard/property-intelligence.js",
+      "sha256": "24b961e99cc8bf59132487821fe03330a3baa45ba335c2336c81eb0c89add983",
+      "bytes": 5985
+    },
+    {
+      "path": "portfolio-operations-dashboard/property-organization.js",
+      "sha256": "0ca0d880fa5fc3270ff6062c6d9f70352870dca8b47f56d5e1a0271935e4e151",
+      "bytes": 26174
+    },
+    {
+      "path": "portfolio-operations-dashboard/reforecast-consumers.js",
+      "sha256": "bd5713c62124bc366d6db7ccdffb5216d5a59a3a91ea5f724dd00e3bff955ff5",
+      "bytes": 4172
+    },
+    {
+      "path": "portfolio-operations-dashboard/reforecast-navigation.js",
+      "sha256": "8a1d2063f1a9f98d3b8caba6c4d19b639928b144c9354e09ba6a2d967555d0ee",
+      "bytes": 6203
+    },
+    {
+      "path": "portfolio-operations-dashboard/rise-weekly-data.json",
+      "sha256": "cf999b1d1c519de754a1f9d57c9f3e1f1c150a6d659255594ff703468ee41f06",
+      "bytes": 114
+    },
+    {
+      "path": "portfolio-operations-dashboard/rise_logo.png",
+      "sha256": "43825f59d5abb2561e55910faf9f6dd064190fac73f8804099cbec133b961232",
+      "bytes": 4158
+    },
+    {
+      "path": "portfolio-operations-dashboard/scout-data-contract.md",
+      "sha256": "e16c33ad8565e8e7bf18a71b31544cd0ce15a5a98957dc0b1b10506bea80706b",
+      "bytes": 8380
+    },
+    {
+      "path": "portfolio-operations-dashboard/scout-ops-scoring-spec.md",
+      "sha256": "3851c51a5c3d199de58c0d2aeadee7794c4c5185a2b18e91cc21d4cd1c31eca9",
+      "bytes": 4485
+    },
+    {
+      "path": "portfolio-operations-dashboard/scout-personality-spec.md",
+      "sha256": "dfd6b439138ccc2e6218fb6f50e30d27e6b7043d4f50d0636564e561edc045d3",
+      "bytes": 11047
+    },
+    {
+      "path": "portfolio-operations-dashboard/scout-product-vision.md",
+      "sha256": "3cd7cf77447b0b53ddd5796993107e550d2019c76f112f7ab195e83a8d4451db",
+      "bytes": 5879
+    },
+    {
+      "path": "portfolio-operations-dashboard/scout-supported-question-types.md",
+      "sha256": "4f774416ec6c2a7a4f50b14e44f459f879953395f6c5a679988a6114baf948cc",
+      "bytes": 10090
+    },
+    {
+      "path": "portfolio-operations-dashboard/scout-system-prompt-draft.md",
+      "sha256": "84778f76d3ac428a43d5efd30b846d9b0ccea06ee7acbbc1fd0420a5cae770b5",
+      "bytes": 2592
+    },
+    {
+      "path": "portfolio-operations-dashboard/scout-ui-structure-draft.md",
+      "sha256": "609b8e410f71cb4620b3812543b12636d772736d284e8c722e05f64bd155400a",
+      "bytes": 3882
+    },
+    {
+      "path": "portfolio-operations-dashboard/scout-v1-decisions.md",
+      "sha256": "bf622e56024f2a793f21422c11815f61608c52e189a8336fbbfbb107496fd1f8",
+      "bytes": 3818
+    },
+    {
+      "path": "portfolio-operations-dashboard/scout-v1-regional-sample-state.md",
+      "sha256": "b934b27829dbc55415f376f6a7c9fefa673f7b58e67e297ac94ba52f2284e84e",
+      "bytes": 3978
+    },
+    {
+      "path": "portfolio-operations-dashboard/scout-v1-screen-spec.md",
+      "sha256": "eed83ad88e8d4b5e86b9dc183ac2b32a6847412fe27c79976e17e209975af30f",
+      "bytes": 8730
+    },
+    {
+      "path": "portfolio-operations-dashboard/scout-v1-vp-sample-state.md",
+      "sha256": "d307c7973cfeadcba307044913aeb38a38a79de5a6f7083a9effa03f6275126c",
+      "bytes": 3904
+    },
+    {
+      "path": "portfolio-operations-dashboard/scout-visual-prototype.html",
+      "sha256": "26d3bf689f30b1176940356aadfefcfd24b5818e9a64c535c60667715571e886",
+      "bytes": 39164
+    },
+    {
+      "path": "portfolio-operations-dashboard/screening-summary.js",
+      "sha256": "d574557677e6a93a82f31f421ef1da0491a84ff508938d0f7e7f2a807285fc33",
+      "bytes": 5775
+    },
+    {
+      "path": "portfolio-operations-dashboard/set-password/index.html",
+      "sha256": "807efe8ba74577591bfaeb829e4d09209e2ddcff12f6f701a464843abbaedef3",
+      "bytes": 1126
+    },
+    {
+      "path": "portfolio-operations-dashboard/templates/ATLAS_Short_Term_Rental_Planning.xlsx",
+      "sha256": "feff30042868d6fe4c7dd0d364718c5458d7369ea2b8c6837ffec1158e9addc9",
+      "bytes": 100443
+    },
+    {
+      "path": "portfolio-operations-dashboard/vendor/jszip.LICENSE.markdown",
+      "sha256": "566c953c6090b1218ca6217dd7359d45dde46581968586dc607d59a78af6a9c4",
+      "bytes": 33753
+    },
+    {
+      "path": "portfolio-operations-dashboard/vendor/jszip.min.js",
+      "sha256": "acc7e41455a80765b5fd9c7ee1b8078a6d160bbbca455aeae854de65c947d59e",
+      "bytes": 97630
+    },
+    {
+      "path": "portfolio-operations-dashboard/vendor/pdf-lib-1.17.1.LICENSE.md",
+      "sha256": "f2c9fc00fdb66eb99ac156ba52d734af66d8d309f65753ae809ad34ee2883bcb",
+      "bytes": 1070
+    },
+    {
+      "path": "portfolio-operations-dashboard/vendor/pdf-lib-1.17.1.mjs",
+      "sha256": "72c052d97b4d5d9fa6cdbdcb7ad709f03d4ddb1122390cb3afeba4d88651d969",
+      "bytes": 523417
+    },
+    {
+      "path": "portfolio-operations-dashboard/vendor/pdfjs-5.6.205/LICENSE",
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+      "bytes": 10174
+    },
+    {
+      "path": "portfolio-operations-dashboard/vendor/pdfjs-5.6.205/pdf.min.mjs",
+      "sha256": "2221020ea508479dcc1221f36f2731656339230097c69ba1f78802832c0ad685",
+      "bytes": 430304
+    },
+    {
+      "path": "portfolio-operations-dashboard/vendor/pdfjs-5.6.205/pdf.worker.min.mjs",
+      "sha256": "51a2fd1ea47f1a9b0814e65e0c336c739c54957795ee774e8f93cb81e8028dd1",
+      "bytes": 1244253
+    },
+    {
+      "path": "portfolio-operations-dashboard/vendor/pptxgen-4.0.1.js",
+      "sha256": "4fb9eac5cfefb213e2d8743c2b7151025f31bfb3f834c73c12062916daa0f3f8",
+      "bytes": 460889
+    },
+    {
+      "path": "portfolio-operations-dashboard/weekly-leasing-report.js",
+      "sha256": "c7c3c8a967ce81fb97aec70928dd9f94a10f734d34b0dd71eb6f79b99335844f",
+      "bytes": 15396
+    },
+    {
+      "path": "portfolio-operations-dashboard/workforce-assignment.js",
+      "sha256": "86fb414cbe269a8a763f77354d58368a7eb64f2bc690510ebdf2d53022d13e14",
+      "bytes": 1675
+    },
+    {
+      "path": "portfolio-operations-dashboard/workforce-sync.js",
+      "sha256": "4da6e2edc0b496e48bbcf22a0e821911cbff56bffe6d859206d6c4722fe12ccd",
+      "bytes": 1580
+    },
+    {
+      "path": "portfolio-operations-dashboard/workspace-activation.html",
+      "sha256": "ea7bf1e9e332780b2f885fc8351d5fa20766df5ec822fab00b199ec85cef4941",
+      "bytes": 3107
+    },
+    {
+      "path": "portfolio-operations-dashboard/workspace-core.js",
+      "sha256": "723001da318c8ecd6d92350d7cd8bb9bfdfddfe92c7020494d0f57a9d24db757",
+      "bytes": 3085333
+    },
+    {
+      "path": "reit-management/_ds/nocturne-3d37f00d-2152-48f0-b054-3b0e455a51c7/_ds_bundle.js",
+      "sha256": "aceb66bfea8c86f6ebf519525c4669e2d6bda22791fdf24db8f2cff09deabfb0",
+      "bytes": 300
+    },
+    {
+      "path": "reit-management/_ds/nocturne-3d37f00d-2152-48f0-b054-3b0e455a51c7/styles.css",
+      "sha256": "6fea354710ec4e3b2b979b723ed37d8e8959bb7d9137425d0d562b4ad8733cda",
+      "bytes": 13029
+    },
+    {
+      "path": "reit-management/index.html",
+      "sha256": "478ce6a78f93435a1e1834eeab0509291d76dcf32fe9df91d166f9cf9a797255",
+      "bytes": 167456
+    },
+    {
+      "path": "reit-management/support.js",
+      "sha256": "8fe7df74405f3c55f49b7249c74ea1397e65d07dea2b1bd3b4a489bec2e28cbe",
+      "bytes": 69150
+    },
+    {
+      "path": "reit-management/uploads/ATLAS_MonthlyUpload_2026-07_Community_Review.xlsx",
+      "sha256": "f903176dba0c4538d7fd982bab894a3f856f797627a226da795a0adb1bf034a4",
+      "bytes": 466063
+    },
+    {
+      "path": "reit-management/uploads/RISE-Budget-Builder.html",
+      "sha256": "c8db91a1361813aa54188ebdaa0809c658017aad9581e2c695832d94dc4eba5e",
+      "bytes": 1734143
+    },
+    {
+      "path": "reit-management/uploads/RISE-Marketing-Command-Center.html",
+      "sha256": "50aa4a38b8b24ea7421c72089fbda3f1466cc5ed48e97697f28ad6dbe7bf864d",
+      "bytes": 780162
+    },
+    {
+      "path": "reit-management/uploads/RISE-Performance-Platform.html",
+      "sha256": "25196de955bd9f89cc7b2388e9ddf9a78a28e57d3098fb3cc53ea7c941a7cfe5",
+      "bytes": 508587
+    },
+    {
+      "path": "reit-management/uploads/RISE-Weekly-Maintenance-Report.html",
+      "sha256": "a5d6580b77393cbd4f1a42192e48de2c49c79ead4613bbbe37a663f6b86a367d",
+      "bytes": 214664
+    },
+    {
+      "path": "reit-management/uploads/atlas-icon.png",
+      "sha256": "c33b5a69c543464921dc37e6de2f60d9fa6c72e9f9e334702f1b38e56dfe54c1",
+      "bytes": 1055695
+    },
+    {
+      "path": "reit-management/uploads/atlas-rise-logo-export-299758e1.png",
+      "sha256": "299758e1cf68e943a4857f7c9ced92ac502679349d71e97f6bda6aba14cad686",
+      "bytes": 342351
+    },
+    {
+      "path": "reit-management/uploads/atlas-rise-logo-export.png",
+      "sha256": "299758e1cf68e943a4857f7c9ced92ac502679349d71e97f6bda6aba14cad686",
+      "bytes": 342351
+    },
+    {
+      "path": "reit-management/uploads/atlas-rise-logo.png",
+      "sha256": "299758e1cf68e943a4857f7c9ced92ac502679349d71e97f6bda6aba14cad686",
+      "bytes": 342351
+    },
+    {
+      "path": "reit-management/uploads/atlas-rise-tagline.png",
+      "sha256": "424942e61f484e9af480cf5cbe64dafff6e42b4df0da2c73377de6023aecf79b",
+      "bytes": 146741
+    },
+    {
+      "path": "reit-management/uploads/communities-literal.txt",
+      "sha256": "84ca1be3f9c405b3996f4958788bb6e71324db767090ae2c012bccda8caed8bd",
+      "bytes": 10501
+    },
+    {
+      "path": "reit-management/uploads/pasted-1785768209589-0.png",
+      "sha256": "39a099fc518b75f10481da4e0d067cded07d573e0bd4471781c8d491acacae5c",
+      "bytes": 370873
+    },
+    {
+      "path": "reit-management/uploads/ronaldo-dump.json",
+      "sha256": "0518e21d6abd4e9cc742386c76a3bf7b63e192540e74226dce38d7480abd59fe",
+      "bytes": 143454
+    },
+    {
+      "path": "set-password/index.html",
+      "sha256": "807efe8ba74577591bfaeb829e4d09209e2ddcff12f6f701a464843abbaedef3",
+      "bytes": 1126
+    }
+  ],
+  "releaseId": "372f73abb51d9bf58c1d5b6565245bf98c10b1a932310f0c9b0a48c842dece71"
+}

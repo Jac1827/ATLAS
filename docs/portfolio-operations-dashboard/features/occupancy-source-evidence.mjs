@@ -134,7 +134,11 @@ export function parseOccupancySheet({rows=[],reportType,sourceSheet='',metadata=
   if(title<0)return null;
   const embeddedCommunity=text(rows[title+1]?.[0]);
   const identityMatches=!!embeddedCommunity && norm(embeddedCommunity)===norm(sourceSheet);
-  const sourcePeriod=periodFromRows(rows), empty=rows.some(row=>row.some(v=>/selected report filters returned no data/i.test(text(v))));
+  // An empty future-resident section does not invalidate populated current units.
+  // Keep the empty-source guard through the current unit total so genuinely
+  // empty current inventory still cannot become measured zero or valid GPR.
+  const currentUnits=reportType==='rent_roll' ? table(rows, /^unit details$/i, r=>r.some(v=>norm(v)==='bldg-unit'), r=>r.some(v=>/(?:^|\s)total:$/i.test(text(v)))) : null;
+  const sourcePeriod=periodFromRows(rows), empty=(currentUnits ? rows.slice(0,currentUnits.end+1) : rows).some(row=>row.some(v=>/selected report filters returned no data/i.test(text(v))));
   const parameterKeys=new Set(['calculate delinquency using','period','lease statuses','minimum unpaid balance','inter-company','unpaid deposits','lease occupancy types','lease terms (student)','unit status','future resident details includes','future residents not assigned a unit','consider proration for scheduled charges']);
   const reportScope=reportParameters.filter(row=>parameterKeys.has(norm(row?.[0]))).map(row=>({label:text(row[0]),value:text(row[1])}));
   const base={schemaVersion:1,reportType,reportScope,propertySource:embeddedCommunity,sourceSheet,period:sourcePeriod,sourceFile,sourceFingerprint:fileHash,sourceEffectiveAt:text(metadata.dataAsOf||metadata.generatedAt),status:identityMatches&&sourcePeriod&&!empty?'valid':'unavailable',reason:!identityMatches?'Embedded community and source sheet disagree.':!sourcePeriod?'Source period is unavailable.':empty?'Source reports no data; this is not zero.':null};

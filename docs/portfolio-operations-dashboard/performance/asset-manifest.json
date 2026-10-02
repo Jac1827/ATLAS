@@ -830,8 +830,8 @@
     ]
   },
   "features/occupancy-source-evidence.mjs": {
-    "sha256": "adb2a8d70c7c8530",
-    "bytes": 22638,
+    "sha256": "3aec7b2038711914",
+    "bytes": 23099,
     "references": [
       [
         "workspace-core.js",
@@ -844,7 +844,7 @@
     ]
   },
   "features/community-goal-planning.mjs": {
-    "sha256": "8584729f30a29afc",
+    "sha256": "37761d5459654f88",
     "bytes": 19333,
     "references": [
       [
@@ -858,7 +858,7 @@
     ]
   },
   "features/community-finance.mjs": {
-    "sha256": "b1cc5687285aa5d7",
+    "sha256": "a279d6ae52b5616c",
     "bytes": 8932,
     "references": [
       [
@@ -1168,7 +1168,7 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "5be68c4ad5409bf6",
+    "sha256": "213f2f4ba4ae67ee",
     "bytes": 3101811,
     "references": [
       [
@@ -2108,7 +2108,7 @@
     ]
   },
   "community-goal-editor.js": {
-    "sha256": "1ad3357307e55e64",
+    "sha256": "bf4eb7bd0eec8f8d",
     "bytes": 16749,
     "references": [
       [

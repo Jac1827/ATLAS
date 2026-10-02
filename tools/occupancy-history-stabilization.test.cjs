@@ -33,7 +33,7 @@ mismatch.monthlyData[0].occupiedSnapshot=80;mismatch.monthlyData[0].physicalOccu
 assert.equal(c.getObservedOccupiedSnapshot(mismatch,200,0,2026),null,'Count/percent disagreement requires review');
 assert.equal(c.getObservedOccupiedSnapshot(record,200,0,2025),null,'No cross-year live fallback');
 record.monthlyHistoryByPeriod['2026-01']={occupiedSnapshot:60,sourceTotalUnits:200,rentableUnits:180,physicalOccupancyPct:60/180*100};
-close(c.getObservedOccupiedSnapshot(record,200,0,2026).pct,58/178*100);
+close(c.getObservedOccupiedSnapshot(record,200,0,2026).pct,60/180*100);
 // No fabricated source/lineage: the date must remain absent, including null->0 regression.
 let estimate=c.getMonthsToStabilization(model);assert.equal(estimate.months,null);
 let markup=c.renderCommunityCommandStabilization(model);assert(markup.includes('Range Needed'));assert(!markup.includes('September 2026'));assert(!markup.includes('renewal exposure'));

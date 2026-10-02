@@ -8105,7 +8105,7 @@ function occupancyOptionalNumber(value) {
     ? null : (Number.isFinite(Number(value)) ? Number(value) : null);
 }
 
-function getObservedOccupiedSnapshot(record, totalUnits, monthIdx, year, propName = "") {
+function getObservedOccupiedSnapshot(record, totalUnits, monthIdx, year, propName = "", options = {}) {
   const savedEntry = getObservedOccupancyPeriod(record, monthIdx, year);
   const last = `${buildPeriodKey(monthIdx,year)}-${new Date(year,monthIdx+1,0).getDate()}`;
   const boundary = communityCommandBoundarySnapshot(savedEntry,last,totalUnits,propName,true);
@@ -8130,7 +8130,9 @@ function getObservedOccupiedSnapshot(record, totalUnits, monthIdx, year, propNam
     && occupancyOptionalNumber(item.importedValue) === 0);
   // Legacy defaults are zero. Only source-backed zeros are observations.
   if (occupied === 0 && !(pct === 0 && rentable !== null) && !documentedZero) return null;
-  const corporate = getCorporateLeaseUnitsForRecord(record, totalUnits);
+  // Charts retain the dated report's basis. Today's corporate configuration is
+  // only applicable when explicitly projecting from the current baseline.
+  const corporate = options.applyCurrentCorporateExclusion ? getCorporateLeaseUnitsForRecord(record, totalUnits) : 0;
   const baseUnits = getOccupancyBaseUnits(rawBase, corporate);
   if (baseUnits <= 0 || corporate > occupied) return null;
   const units = getComparableOccupancyUnits(occupied, corporate);
@@ -8152,7 +8154,7 @@ function getPortfolioObservedOccupancy(details, monthIdx, year = null) {
 }
 
 function getReconciledStabilizationInputs(record, totalUnits, monthIdx, year, propName) {
-  const baseline = getObservedOccupiedSnapshot(record, totalUnits, monthIdx, year, propName);
+  const baseline = getObservedOccupiedSnapshot(record, totalUnits, monthIdx, year, propName, {applyCurrentCorporateExclusion:true});
   const missing = reason => ({ baseline, documented: [], verified: false, reason });
   if (!baseline) return missing("Occupancy baseline is missing or requires reconciliation");
   const lineage = typeof dataImport2State === "object" ? dataImport2State.lineage || [] : [];

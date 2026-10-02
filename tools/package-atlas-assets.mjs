@@ -82,7 +82,9 @@ export function canonicalHtml(html, relative, releaseId) {
   return html.replace(/<head(?:\s[^>]*)?>/i, tag => `${tag}\n<base data-atlas-asset-release="${releaseId}" href="${escaped}">`);
 }
 
-export async function packageAssets({source = 'docs', out = 'output/atlas-site', retained, allowEmptyRetained = false, maxFiles = 19000} = {}) {
+// Workers Free supports 20,000 static assets per version; retain 100 files of headroom.
+// https://developers.cloudflare.com/workers/platform/limits/#static-assets
+export async function packageAssets({source = 'docs', out = 'output/atlas-site', retained, allowEmptyRetained = false, maxFiles = 19900} = {}) {
   source = await fs.realpath(path.resolve(source));
   out = await realDestination(out);
   if (contained(source,out) || contained(out,source)) throw Error('Source and output must be separate trees');

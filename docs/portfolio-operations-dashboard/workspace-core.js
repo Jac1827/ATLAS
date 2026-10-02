@@ -23950,7 +23950,7 @@ function queueCommunityRosterFinancials(items) {
       hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
   });
   setTimeout(async()=>{try {
-    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=79c5e0e60a03df48");
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=b1cc5687285aa5d7");
     if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
     await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
   } catch {}},0);

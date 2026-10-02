@@ -858,8 +858,8 @@
     ]
   },
   "features/community-finance.mjs": {
-    "sha256": "79c5e0e60a03df48",
-    "bytes": 8693,
+    "sha256": "b1cc5687285aa5d7",
+    "bytes": 8932,
     "references": [
       [
         "workspace-core.js",
@@ -1168,7 +1168,7 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "920646215ef8f613",
+    "sha256": "7d855f0dffc526cb",
     "bytes": 3097926,
     "references": [
       [

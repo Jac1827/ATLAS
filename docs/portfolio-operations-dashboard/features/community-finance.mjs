@@ -53,6 +53,7 @@ export async function hydrate(entries,central){
     const note=document.createElement('small');note.style.display='block';
     note.textContent=metric==='gpr'?(rentRoll?`${rentRoll.period} · Rent roll`:`${e.period} · Source required`):(expense?`${expense.period} · Closed actual${expense.exact?'':` · ${e.period} close missing`}`:`${e.period} · No approved close`);cell.append(note);
     cell.title=metric==='gpr'?(rentRoll?`${rentRoll.sourceFile} · ${rentRoll.sourceSheet} · ${rentRoll.basis}`:'No reconciled rent-roll total for the selected community and month'):(expense?`${expense.close.source_file} · Version ${expense.close.version_id} · Monthly operating expenses`:'An uploaded accounting file must have an approved monthly close');
+    if(metric==='expenses'&&summary?.periodWarning){const warning=document.createElement('p');warning.dataset.financialPeriodWarning='1';warning.setAttribute('role','alert');warning.textContent=summary.periodWarning;cell.append(warning);}
    }
    const metricScope={communityId:e.communityId,period:e.period,fiscalYear:source?.fiscal_year??e.year};
    const actual=e.actual?{...e.actual,...metricScope}:null;

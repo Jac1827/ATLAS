@@ -29,3 +29,12 @@ const {updateReforecastCell}=await import('../docs/portfolio-operations-dashboar
 const unfinished={actor:'originator',edit:{periods:['2026-09'],overrides:[]},source:{actuals:{cutoffPeriod:'2026-08'}}};
 updateReforecastCell(unfinished,'2026-09','6200','501');assert.equal(unfinished.edit.overrides[0].amount,501);assert.equal(unfinished.edit.overrides[0].confirmed,false);assert.equal(unfinished.pendingCells['["2026-09","6200"]'],'501');unfinished.cellReason='Reviewed monthly source amount';updateReforecastCell(unfinished,'2026-09','6200','501');assert.equal(unfinished.edit.overrides[0].confirmed,true);assert.deepEqual(unfinished.pendingCells,{});
 console.log('PASS unexplained numeric inputs enter editable draft immediately and retain a blocking unconfirmed disposition until reviewed');
+
+const reviewer={...s,workspaceFilters:{},approvalEvidence:{entries},central:{getStoredProfile:()=>({role:'admin'})}};
+assert.match(workspaceListHtml(reviewer),/data-row-lifecycle="delete" data-scenario-id="working_draft"/);
+assert.match(workspaceListHtml(reviewer,'approvals'),/data-row-lifecycle="reject" data-scenario-id="submitted"/);
+assert.doesNotMatch(workspaceListHtml(reviewer,'history'),/data-row-lifecycle/);
+const noisy=entry('working_draft');noisy.snapshot.diagnostics=Array.from({length:2000},()=>({severity:'error',message:'Review exact workbook blank'}));
+const compact=workspaceListHtml({...reviewer,approvalEvidence:{entries:[noisy]}});
+assert.equal((compact.match(/Review exact workbook blank/g)||[]).length,1);assert.match(compact,/2000 review items · 1 distinct messages/);assert(compact.length<10000);
+console.log('PASS visible permission-aware draft actions and bounded repeated warnings');

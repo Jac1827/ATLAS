@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {occupancyBudgetForPeriod,installCommunityGoalPlanning,readCommunityGoalInventory} from '../docs/portfolio-operations-dashboard/features/community-goal-planning.mjs';
+import {occupancyBudgetForPeriod,installCommunityGoalPlanning,readCommunityGoalInventory,readLockedOccupancyBudgets} from '../docs/portfolio-operations-dashboard/features/community-goal-planning.mjs';
 const cid='10000000-0000-0000-0000-000000000001',period='2026-09';
 const budget=()=>({community_id:cid,period_key:period,summary:{targetApprovalStatus:'approved',budgetVersion:'original',budgetContentHash:'original-hash',occupancyPct:47.6}});
 const active=()=>({communityId:cid,publicationId:'new-vp',revisionId:'new-vp-revision',contentHash:'vp-hash',activePeriods:[period],verified:true,approved:true,locked:true,investorStatus:'pending_investor_approval',snapshot:{leasing:[{period,sourceKind:'forecast',occupancy:0.6,units:247,source:{kind:'approved_occupancy'}}]}});
@@ -24,7 +24,7 @@ test('current UI reads canonical budget, shows source minimums, preserves human 
  const api=installCommunityGoalPlanning({host,readSources:sources,readBudgets:async(_c,ids,periods,options)=>{requests.push({ids,periods,options});return[budget()];},readPublications:async()=>[]});
  await api.hydrate(model);const m=host.buildCommunityCommandModel(),row=host.buildCommunityCommandLeasingPlanRows(m)[8];
  assert.equal(m.leasedPct,115/247*100);assert.equal(row.planningRecommendation.minimumApplications,45);assert.equal(row.approvedApps,0);assert.equal(row.recommendedApps,null);assert.equal(row.approvedNetLeases,0);assert.equal(row.leasedGoal,47.6);
- assert.deepEqual(requests[0].ids,[cid]);assert.equal(requests[0].periods.length,12);assert.equal(requests[0].options.baselineMode,'original_budget');
+ assert.deepEqual(requests[0].ids,[cid]);assert.equal(requests[0].periods.length,12);assert.equal(requests[0].options,undefined);
  const html=host.renderCommunityCommandLeasingPlan(m);assert.match(html,/46.56%/);assert.match(html,/47.60%/);assert.match(html,/data-minimum-applications>45/);assert.match(html,/2026-09-28/);assert.match(html,/34/);assert.doesNotMatch(html,/65%|seasonality/);
  const kpi=host.renderCommunityCommandKpi(m,'leased_occupancy','Leased',40,x=>x,'old','good',2);assert.match(kpi[5],/115 leased of 247 reported/);assert.equal(host.getCommunityCommandTrendPoints(m)[0].leased,115/247*100);
  assert.equal(await host.approveCommunityCommandMonthlyGoals(8),'opened');
@@ -61,7 +61,7 @@ test('trend uses the same exact-period approved targets as current and future pl
  const before=structuredClone(rows);f.host.getCommunityCommandTrendPoints=()=>rows;
  const api=installCommunityGoalPlanning({host:f.host,readSources:sources,readBudgets:async()=>periods.map(period=>({...budget(),period_key:period})),readPublications:async()=>[{...active(),activePeriods:periods,snapshot:{leasing:periods.map((period,i)=>({period,sourceKind:'forecast',occupancy:targets[i]/100,units:247}))}}]});
  await api.hydrate(f.model);const model=f.host.buildCommunityCommandModel(),trend=f.host.getCommunityCommandTrendPoints(model),plan=f.host.buildCommunityCommandLeasingPlanRows(model);
- assert.equal(trend[0],rows[0],'Prior historical row is preserved');
+ assert.equal(trend[0].budget,null,'Unverified historical browser target is not promoted to the approved baseline');assert.equal(trend[0].physical,rows[0].physical);
  for(const row of trend.slice(1)){
   assert.equal(row.budget,plan[row.idx].budgetPct,'Chart and plan use the same approved month');
   assert.equal(row.budget,targets[row.idx-8]/100*100);assert.equal(row.variance,row.physical-row.budget);
@@ -78,4 +78,18 @@ test('trend keeps explicit approved zero, shows unavailable for missing months, 
   assert.deepEqual(rows.map(row=>row.budget),[47.6,0,null,null]);assert.deepEqual(rows.map(row=>row.variance),[-47.6,0,null,null]);
   f[change]();rows=f.host.getCommunityCommandTrendPoints(model);assert.deepEqual(rows.map(row=>row.budget),[null,null,null,null]);assert(rows.every(row=>row.variance===null));assert(rows.every(row=>row.occupancy.approved.occupancyGoal===0));
  }
+});
+
+test('locked 2026 occupancy reads independently of missing financial closes and 2027 drafts',async()=>{
+ const locked={community_id:cid,calendar_year:2026,status:'locked',version_id:'locked-2026',content_hash:'verified-hash',covered_months:Array.from({length:12},(_,i)=>i),payload:{occupancyPct:[0,1,2,3,4,5,6,7,56.085994,55.099174,60.383123,64.294217]}};
+ const calls=[],central={getSession:()=>({user:{id:'actor'}}),fetchJson:async url=>{calls.push(url);return [locked];}};
+ const rows=await readLockedOccupancyBudgets(central,[cid],['2026-09','2026-10','2026-11','2026-12']);
+ assert.equal(calls.length,1);assert.match(calls[0],/atlas_approved_budget_versions/);assert.doesNotMatch(calls[0],/finance|draft/);
+ assert.deepEqual(rows.map(row=>occupancyBudgetForPeriod({communityId:cid,period:row.period_key,finance:rows,publications:[{communityId:cid,activePeriods:['2027-01']}]}).occupancyPct),[56.085994,55.099174,60.383123,64.294217]);
+ central.fetchJson=async()=>[locked,locked];await assert.rejects(readLockedOccupancyBudgets(central,[cid],['2026-09']),/overlaps/);
+});
+
+test('missing or conflicting Box Score cannot erase an approved occupancy target',async()=>{
+ const f=hostFixture(),api=installCommunityGoalPlanning({host:f.host,readSources:()=>({snapshot:{status:'unavailable',reason:'Conflicting source versions'}}),readBudgets:async()=>[budget()],readPublications:async()=>[]});
+ await api.hydrate(f.model);const m=f.host.buildCommunityCommandModel();assert.equal(m.budgetOccPct,47.6);assert.equal(m.leasedPct,null);assert.equal(m.goalPlanning.requiredMoveIns,null);assert.match(m.goalPlanning.warnings.join(' '),/Conflicting/);
 });

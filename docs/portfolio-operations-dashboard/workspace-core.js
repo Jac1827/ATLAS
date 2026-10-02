@@ -19067,6 +19067,7 @@ async function packAtlasCentralRetainedRecords(bundle, { expandImportHistory = f
 }
 
 async function buildAtlasCentralAppStatePayload() {
+  const {onCaptured} = arguments[0] || {};
   const replayGeneration=Number(window.AtlasReplayGeneration||0);
   window.AtlasReplayWriteFence?.assert(null);
   await Promise.all([window.AtlasFeatures?.load("zip"), window.AtlasFeatures?.load("migrationArchive")]);
@@ -19090,6 +19091,7 @@ async function buildAtlasCentralAppStatePayload() {
   // Fail before expanding retained history if the captured dashboard differs.
   reconcileBundle(bundle, "capture");
   const capturedBundleJson = JSON.stringify(bundle);
+  if (onCaptured) await onCaptured(bundle);
   const capturedSharedData = JSON.parse(JSON.stringify(migrationSnapshot.sharedData || normalizeAtlasSharedData(atlasSharedData)));
   // Full evidence is read only for an explicit export/publication. Do not clone
   // unrelated daily backups or immutable history chunks into the main thread.
@@ -19132,9 +19134,12 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
   const knownVersion = Number(atlasCentralRuntimeMeta.lastDocumentVersion || 0);
   const saveContext = captureAtlasSaveContext();
   const actor = atlasWorkspaceActorKey(), database = ATLAS_STATE_DB_NAME;
-  const current = () => saveContext() && actor === atlasWorkspaceActorKey() && database === ATLAS_STATE_DB_NAME;
+  const replayGeneration = Number(window.AtlasReplayGeneration || 0);
+  const current = () => saveContext() && actor === atlasWorkspaceActorKey() && database === ATLAS_STATE_DB_NAME
+    && !window.AtlasReplayWriteFence && replayGeneration === Number(window.AtlasReplayGeneration || 0);
   const pendingKey = "atlas_workspace_projection_pending_v1";
   let committedParent = null;
+  let publicationCacheCapture = null;
   try {
     const access = atlasCentralCanUseDatabase();
     if (!access.ok) throw new Error(access.message);
@@ -19143,6 +19148,7 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
     }
     const documentKey = getAtlasCentralDocumentKey();
     const {ensureWorkspaceProjection} = await import("./features/workspace-publication.mjs?v=e824b254c98796cf");
+    const cacheModule = await import("./features/workspace-publication-cache.mjs");
     const finishProjection = async (document, archive) => {
       if (!current()) throw new DOMException("Workspace changed", "AbortError");
       committedParent = document;
@@ -19166,6 +19172,22 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
       }
       await atlasStateSetValue(pendingKey,null);
       if (!current()) throw new DOMException("Workspace changed", "AbortError");
+      if (publicationCacheCapture) {
+        try {
+          const bootstrap = await import("./features/workspace-bootstrap.mjs?v=4d0dc8df103e7da5");
+          const workspace = await bootstrap.readWorkspace(window.ATLAS_CENTRAL,{signal:atlasWorkspaceAccess.controller?.signal});
+          if (await cacheModule.acknowledgePublicationCache(withAtlasStateStore,publicationCacheCapture,workspace,bootstrap.sourceIdentity(document),current,bootstrap.stableJson)) {
+            atlasWorkspaceAccess.source = {...workspace.source,verifiedAt:new Date().toISOString(),cached:false,localChanges:false};
+            atlasWorkspaceAccess.error = "";
+            syncAtlasTopbar();
+          }
+        } catch (error) {
+          // Publication remains successful. Retain the dirty receipt if the
+          // acknowledgement cannot be proved or authorization changed.
+          console.warn("Central publication cache acknowledgement deferred",error?.message);
+        }
+      }
+      if (!current()) throw new DOMException("Workspace changed", "AbortError");
       setAtlasCentralRuntimeMessage(`Central Atlas version ${document.version} and its startup projection are verified.`);
       if (!silent) alert(`Central Atlas version ${document.version} is saved and ready. Local changes made during publication remain in this browser.`);
       renderTab(); return true;
@@ -19183,7 +19205,18 @@ async function saveAtlasCentralAppState({ silent = false, source = "manual_centr
       }
       return await finishProjection(saved);
     }
-    const localPayload = await buildAtlasCentralAppStatePayload();
+    const localPayload = await buildAtlasCentralAppStatePayload({onCaptured:async bundle => {
+      const baseline = await cacheModule.capturePublicationCache(withAtlasStateStore,
+        [ATLAS_STATE_COMMUNITY_KEY,OPS_GLOBAL_STORAGE_KEY,DATA_IMPORT_2_STATE_KEY,"atlas_workspace_source_v2"],current);
+      if (!baseline) return;
+      const record = key => JSON.parse(baseline[key])?.value;
+      // Prove this baseline belongs to the actual frozen dashboard, and require
+      // a bounded native history revision (never a lossy summary of evidence).
+      if (record(DATA_IMPORT_2_STATE_KEY)?.__atlasImportHistory === 2
+          && record("atlas_workspace_source_v2")
+          && JSON.stringify(record(ATLAS_STATE_COMMUNITY_KEY)) === JSON.stringify(bundle.indexedDb.communityData)
+          && JSON.stringify(record(OPS_GLOBAL_STORAGE_KEY)) === JSON.stringify(parseAtlasMigrationJson(bundle.keys[OPS_GLOBAL_STORAGE_KEY]))) publicationCacheCapture = baseline;
+    }});
     if (!current()) throw new DOMException("Workspace changed", "AbortError");
     const preparedArchive = localPayload.bundle;
     localPayload.bundle = await window.AtlasMigrationArchive.publish(preparedArchive, window.ATLAS_CENTRAL,undefined,{signal:atlasWorkspaceAccess.controller?.signal,isCurrent:current});

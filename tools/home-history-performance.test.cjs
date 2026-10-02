@@ -22,13 +22,14 @@ function dashboardMonthlyEntryHasData(entry){return entry!==null;}
 function buildCommunityDetailForMonth(name,record,m,year,options){detailCalls++;if(options?.includeRecommendations!==false)throw Error('Charts must not calculate unused recommendations');return {summary:{occPct:record.monthlyData[m].occ,guestCards:m+1,budgetOccPct:record.monthlyData[m].budget,budgetOccCoverage:{complete:record.monthlyData[m].budget!==null}}};}
 function aggregateCommunitySummaries(rows){return rows[0]||{};}
 function atlasDashboardMetricChartValues(instance,model){return [instance.metric==='Guest Cards'?model.scopedDetails[0].summary.guestCards:model.scopedDetails[0].summary.occPct];}
+function getPortfolioObservedOccupancy(details,month){return {pct:details[0].record.monthlyData[month]?.occ ?? null};}
 function readHistory(target=instance){atlasHomeRenderDetails=new Map();return window.AtlasReskin.history(target,snapshot);}
 `,c);
 vm.runInContext(extract('atlasExactPresentationInputString'),c);vm.runInContext(source,c);
 const run=code=>vm.runInContext(code,c),plain=x=>JSON.parse(JSON.stringify(x));
-assert.deepEqual(plain(run('readHistory()')),{labels:['Jan','Feb','Mar'],data:[null,0,84.5],budget:[null,95,null]});
+assert.deepEqual(plain(run('readHistory()')),{labels:['Jan','Feb','Mar'],data:[null,0,84.5],budget:[null,95,null],coverage:[{pct:null},{pct:0},{pct:84.5}]});
 assert.equal(run('detailCalls'),2);assert.equal(run('monthlyCalls'),1,'One monthly-source read per record per calculation');
-assert.deepEqual(plain(run('readHistory()')),{labels:['Jan','Feb','Mar'],data:[null,0,84.5],budget:[null,95,null]});assert.equal(run('detailCalls'),2,'Unchanged navigation reuses history summaries');
+assert.deepEqual(plain(run('readHistory()')),{labels:['Jan','Feb','Mar'],data:[null,0,84.5],budget:[null,95,null],coverage:[{pct:null},{pct:0},{pct:84.5}]});assert.equal(run('detailCalls'),2,'Unchanged navigation reuses history summaries');
 assert.deepEqual(plain(run("readHistory({...instance,metric:'Guest Cards'}).data")),[null,2,3]);assert.equal(run('detailCalls'),2,'Different chart metrics reuse the same exact monthly summaries');
 for(const edit of [
  'snapshot.scopedDetails[0].record.monthlyData[1].occ=12',

@@ -11,6 +11,8 @@ const snapshot={scopedDetails:[{name:'Synthetic',record:{reportYear:2026,monthly
 function getRecordMonthlyDataForYear(record){return record.monthlyData;}
 function dashboardMonthlyEntryHasData(entry){return entry!==null;}
 function buildCommunityDetailForMonth(name,record,m){atlasSynchronousReadValue("synthetic-access",()=>{validations++;return true;});calls++;return {summary:{occPct:record.monthlyData[m].occ,budgetOccPct:record.monthlyData[m].budget,budgetOccCoverage:{complete:record.monthlyData[m].budget!==null}}};}
+function getPortfolioObservedOccupancy(details,month){return {pct:details[0].record.monthlyData[month]?.occ ?? null};}
+function getAtlasDashboardWidgetDefinition(){return {defaultMetric:'Physical Occupancy'};}
 function aggregateCommunitySummaries(rows){return rows[0]||{};}
 function atlasDashboardMetricChartValues(instance,model){return [model.scopedDetails[0].summary.occPct];}
 let widgets=[];const getAtlasDashboardViewWidgets=()=>widgets,getAtlasActiveDashboardView=()=>({});
@@ -25,7 +27,7 @@ const read=()=>window.AtlasReskin.history({widgetKey:'portfolio_overview'},snaps
  assert.equal(await run('window.AtlasReskin.prepareInitialHome({current:()=>valid,yieldTask:async()=>{yields++;}})'),true);
  assert.equal(run('yields'),5,'Preparation yields before work, between each month and before retained-result publication');
  assert.equal(run('visibleSnapshots'),0,'Preparation does not build/format a visible current summary');
- assert.equal(run('calls'),2);assert.deepEqual(plain(run('read()')),{data:[null,0,84.5],budget:[null,95,null],labels:['Jan','Feb','Mar']});assert.equal(run('calls'),2,'Rendered chart consumes exact prepared rows without recalculation');
+ assert.equal(run('calls'),2);assert.deepEqual(plain(run('read()')),{data:[null,0,84.5],budget:[null,95,null],labels:['Jan','Feb','Mar'],coverage:[{pct:null},{pct:0},{pct:84.5}]});assert.equal(run('calls'),2,'Rendered chart consumes exact prepared rows without recalculation');
  c=fixture();assert.throws(()=>run('window.AtlasReskin.home({preparedOnly:true})'),error=>error.code==='ATLAS_HOME_PREPARATION_REQUIRED');assert.equal(run('calls'),0,'Visible Home refuses a synchronous monthly cache miss');
  await run('window.AtlasReskin.prepareInitialHome({yieldTask:async()=>{}})');assert.match(run('window.AtlasReskin.home({preparedOnly:true})'),/atlas-home-dashboard/);assert.equal(run('calls'),2);
  run('atlasWorkspaceAccess.source.version++');assert.throws(()=>run('window.AtlasReskin.home({preparedOnly:true})'),error=>error.code==='ATLAS_HOME_PREPARATION_REQUIRED');assert.equal(run('calls'),2,'A changed source requests fresh preparation before rendering');

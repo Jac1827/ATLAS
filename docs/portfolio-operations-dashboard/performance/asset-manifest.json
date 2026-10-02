@@ -1,184 +1,4 @@
 {
-  "features/data-health-accounting.mjs": {
-    "sha256": "50011e9e79cbde87",
-    "bytes": 4039,
-    "references": [
-      [
-        "workspace-core.js",
-        "./features/data-health-accounting.mjs"
-      ]
-    ]
-  },
-  "assets/xlsx.full.min.js": {
-    "sha256": "c9506197caf809a0",
-    "bytes": 881727,
-    "references": [
-      [
-        "features/workbook-worker.js",
-        "../assets/xlsx.full.min.js"
-      ],
-      [
-        "performance/feature-loader.js",
-        "assets/xlsx.full.min.js"
-      ],
-      [
-        "features/reforecast-intake.mjs",
-        "../assets/xlsx.full.min.js"
-      ]
-    ]
-  },
-  "centralization/atlas-central-client.js": {
-    "sha256": "148f1a19501de55f",
-    "bytes": 94320,
-    "references": [
-      [
-        "index.html",
-        "./centralization/atlas-central-client.js"
-      ],
-      [
-        "scout-visual-prototype.html",
-        "./centralization/atlas-central-client.js"
-      ],
-      [
-        "leasing-velocity-report-template.html",
-        "./centralization/atlas-central-client.js"
-      ],
-      [
-        "financial-accountability.html",
-        "./centralization/atlas-central-client.js"
-      ],
-      [
-        "workspace-activation.html",
-        "./centralization/atlas-central-client.js"
-      ],
-      [
-        "workspace-core.js",
-        "./centralization/atlas-central-client.js"
-      ],
-      [
-        "RISE-Weekly-Maintenance-Report.html",
-        "./centralization/atlas-central-client.js"
-      ]
-    ]
-  },
-  "features/bonus-workflow-client.mjs": {
-    "sha256": "74c3a31ff88f9797",
-    "bytes": 3241,
-    "references": [
-      [
-        "features/bonus-workflow.mjs",
-        "./bonus-workflow-client.mjs"
-      ]
-    ]
-  },
-  "features/bonus-workflow.mjs": {
-    "sha256": "46d4a791fa3681d4",
-    "bytes": 21464,
-    "references": [
-      [
-        "workspace-core.js",
-        "./features/bonus-workflow.mjs"
-      ]
-    ]
-  },
-  "features/financial-workbook-governance.mjs": {
-    "sha256": "ce3982266f91118e",
-    "bytes": 8713,
-    "references": [
-      [
-        "features/financial-row-reconciliation.mjs",
-        "./financial-workbook-governance.mjs"
-      ],
-      [
-        "features/financial-package-review.mjs",
-        "./financial-workbook-governance.mjs"
-      ]
-    ]
-  },
-  "features/financial-row-reconciliation.mjs": {
-    "sha256": "016caa7d1b0de253",
-    "bytes": 21589,
-    "references": [
-      [
-        "features/financial-package.mjs",
-        "./financial-row-reconciliation.mjs"
-      ]
-    ]
-  },
-  "features/financial-package.mjs": {
-    "sha256": "9e34c3c633e9477e",
-    "bytes": 25788,
-    "references": [
-      [
-        "features/financial-intake-store.mjs",
-        "./financial-package.mjs"
-      ],
-      [
-        "features/financial-workbook-parser.mjs",
-        "./financial-package.mjs"
-      ],
-      [
-        "features/financial-package-reader.mjs",
-        "./financial-package.mjs"
-      ],
-      [
-        "features/financial-package-review.mjs",
-        "./financial-package.mjs"
-      ],
-      [
-        "features/financial-package-batch.mjs",
-        "./financial-package.mjs"
-      ],
-      [
-        "features/financial-comparison.mjs",
-        "./financial-package.mjs"
-      ],
-      [
-        "budget-navigation.js",
-        "./features/financial-package.mjs"
-      ],
-      [
-        "investor-budget-bridge.js",
-        "./features/financial-package.mjs"
-      ],
-      [
-        "features/budget-command-publication.mjs",
-        "./financial-package.mjs"
-      ],
-      [
-        "features/reforecast-provider.mjs",
-        "./financial-package.mjs"
-      ],
-      [
-        "features/reforecast-builder-ui.mjs",
-        "./financial-package.mjs"
-      ],
-      [
-        "features/community-budget-settings.mjs",
-        "./financial-package.mjs"
-      ]
-    ]
-  },
-  "features/community-budget-settings.mjs": {
-    "sha256": "ade39de08c7ad737",
-    "bytes": 7826,
-    "references": [
-      [
-        "workspace-core.js",
-        "./features/community-budget-settings.mjs"
-      ]
-    ]
-  },
-  "community-command-contract.js": {
-    "sha256": "e6064665e1d6e271",
-    "bytes": 7242,
-    "references": [
-      [
-        "features/community-finance.mjs",
-        "../community-command-contract.js"
-      ]
-    ]
-  },
   "features/budget-consumer-delivery.mjs": {
     "sha256": "f5342574d4b39aa2",
     "bytes": 1817,
@@ -784,6 +604,10 @@
         "./canonical-finance.mjs"
       ],
       [
+        "features/occupancy-budget-store.mjs",
+        "./canonical-finance.mjs"
+      ],
+      [
         "features/month-end-governance.mjs",
         "./canonical-finance.mjs"
       ],
@@ -802,6 +626,196 @@
       [
         "features/canonical-budget-report.mjs",
         "./canonical-finance.mjs"
+      ]
+    ]
+  },
+  "features/occupancy-budget-store.mjs": {
+    "sha256": "5c4c95d494d79eae",
+    "bytes": 2904,
+    "references": [
+      [
+        "workspace-core.js",
+        "./features/occupancy-budget-store.mjs"
+      ]
+    ]
+  },
+  "features/data-health-accounting.mjs": {
+    "sha256": "50011e9e79cbde87",
+    "bytes": 4039,
+    "references": [
+      [
+        "workspace-core.js",
+        "./features/data-health-accounting.mjs"
+      ]
+    ]
+  },
+  "assets/xlsx.full.min.js": {
+    "sha256": "c9506197caf809a0",
+    "bytes": 881727,
+    "references": [
+      [
+        "features/workbook-worker.js",
+        "../assets/xlsx.full.min.js"
+      ],
+      [
+        "performance/feature-loader.js",
+        "assets/xlsx.full.min.js"
+      ],
+      [
+        "features/reforecast-intake.mjs",
+        "../assets/xlsx.full.min.js"
+      ]
+    ]
+  },
+  "centralization/atlas-central-client.js": {
+    "sha256": "148f1a19501de55f",
+    "bytes": 94320,
+    "references": [
+      [
+        "index.html",
+        "./centralization/atlas-central-client.js"
+      ],
+      [
+        "scout-visual-prototype.html",
+        "./centralization/atlas-central-client.js"
+      ],
+      [
+        "leasing-velocity-report-template.html",
+        "./centralization/atlas-central-client.js"
+      ],
+      [
+        "financial-accountability.html",
+        "./centralization/atlas-central-client.js"
+      ],
+      [
+        "workspace-activation.html",
+        "./centralization/atlas-central-client.js"
+      ],
+      [
+        "workspace-core.js",
+        "./centralization/atlas-central-client.js"
+      ],
+      [
+        "RISE-Weekly-Maintenance-Report.html",
+        "./centralization/atlas-central-client.js"
+      ]
+    ]
+  },
+  "features/bonus-workflow-client.mjs": {
+    "sha256": "74c3a31ff88f9797",
+    "bytes": 3241,
+    "references": [
+      [
+        "features/bonus-workflow.mjs",
+        "./bonus-workflow-client.mjs"
+      ]
+    ]
+  },
+  "features/bonus-workflow.mjs": {
+    "sha256": "46d4a791fa3681d4",
+    "bytes": 21464,
+    "references": [
+      [
+        "workspace-core.js",
+        "./features/bonus-workflow.mjs"
+      ]
+    ]
+  },
+  "features/financial-workbook-governance.mjs": {
+    "sha256": "ce3982266f91118e",
+    "bytes": 8713,
+    "references": [
+      [
+        "features/financial-row-reconciliation.mjs",
+        "./financial-workbook-governance.mjs"
+      ],
+      [
+        "features/financial-package-review.mjs",
+        "./financial-workbook-governance.mjs"
+      ]
+    ]
+  },
+  "features/financial-row-reconciliation.mjs": {
+    "sha256": "016caa7d1b0de253",
+    "bytes": 21589,
+    "references": [
+      [
+        "features/financial-package.mjs",
+        "./financial-row-reconciliation.mjs"
+      ]
+    ]
+  },
+  "features/financial-package.mjs": {
+    "sha256": "9e34c3c633e9477e",
+    "bytes": 25788,
+    "references": [
+      [
+        "features/financial-intake-store.mjs",
+        "./financial-package.mjs"
+      ],
+      [
+        "features/financial-workbook-parser.mjs",
+        "./financial-package.mjs"
+      ],
+      [
+        "features/financial-package-reader.mjs",
+        "./financial-package.mjs"
+      ],
+      [
+        "features/financial-package-review.mjs",
+        "./financial-package.mjs"
+      ],
+      [
+        "features/financial-package-batch.mjs",
+        "./financial-package.mjs"
+      ],
+      [
+        "features/financial-comparison.mjs",
+        "./financial-package.mjs"
+      ],
+      [
+        "budget-navigation.js",
+        "./features/financial-package.mjs"
+      ],
+      [
+        "investor-budget-bridge.js",
+        "./features/financial-package.mjs"
+      ],
+      [
+        "features/budget-command-publication.mjs",
+        "./financial-package.mjs"
+      ],
+      [
+        "features/reforecast-provider.mjs",
+        "./financial-package.mjs"
+      ],
+      [
+        "features/reforecast-builder-ui.mjs",
+        "./financial-package.mjs"
+      ],
+      [
+        "features/community-budget-settings.mjs",
+        "./financial-package.mjs"
+      ]
+    ]
+  },
+  "features/community-budget-settings.mjs": {
+    "sha256": "ade39de08c7ad737",
+    "bytes": 7826,
+    "references": [
+      [
+        "workspace-core.js",
+        "./features/community-budget-settings.mjs"
+      ]
+    ]
+  },
+  "community-command-contract.js": {
+    "sha256": "e6064665e1d6e271",
+    "bytes": 7242,
+    "references": [
+      [
+        "features/community-finance.mjs",
+        "../community-command-contract.js"
       ]
     ]
   },
@@ -1154,8 +1168,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "a9cd0f7ee0d7ca8f",
-    "bytes": 3086902,
+    "sha256": "2942ee59e5722700",
+    "bytes": 3092015,
     "references": [
       [
         "index.html",
@@ -1608,8 +1622,8 @@
     ]
   },
   "features/approved-budget.mjs": {
-    "sha256": "4b47ed4f41099158",
-    "bytes": 20387,
+    "sha256": "7934faac114422c7",
+    "bytes": 20469,
     "references": [
       [
         "features/budget-command-publication.mjs",
@@ -1622,7 +1636,7 @@
     ]
   },
   "features/original-budget-version-report.mjs": {
-    "sha256": "2fd7c46884eaa64a",
+    "sha256": "ea65372bf1e45620",
     "bytes": 11320,
     "references": [
       [
@@ -1694,7 +1708,7 @@
     ]
   },
   "features/reforecast-report-library.mjs": {
-    "sha256": "73f206a15b2ec22b",
+    "sha256": "8311d5918d973f9f",
     "bytes": 29396,
     "references": [
       [
@@ -1704,7 +1718,7 @@
     ]
   },
   "features/reforecast-ui.mjs": {
-    "sha256": "eb7cc6cf3ba4370b",
+    "sha256": "10a6c5690c1fa124",
     "bytes": 177367,
     "references": [
       [
@@ -1738,7 +1752,7 @@
     ]
   },
   "features/saved-str-programmes.mjs": {
-    "sha256": "b70afe2be58de285",
+    "sha256": "356ee0c297bc30f7",
     "bytes": 59413,
     "references": [
       [
@@ -1778,7 +1792,7 @@
     ]
   },
   "reforecast-navigation.js": {
-    "sha256": "f7719882cf0c07ad",
+    "sha256": "ff39d85ccc998a31",
     "bytes": 6203,
     "references": [
       [
@@ -1858,8 +1872,8 @@
     ]
   },
   "atlas-dashboard-reskin.js": {
-    "sha256": "b4bd1248a4d19c2b",
-    "bytes": 42275,
+    "sha256": "72fb0c56f3b106df",
+    "bytes": 42012,
     "references": [
       [
         "index.html",
@@ -2024,7 +2038,7 @@
     ]
   },
   "features/budget-command-publication.mjs": {
-    "sha256": "a08c3e2299c0d4d0",
+    "sha256": "744d1f86d5fd02e0",
     "bytes": 8948,
     "references": [
       [
@@ -2074,7 +2088,7 @@
     ]
   },
   "RISE-Budget-Builder.html": {
-    "sha256": "485d8bc33be800c7",
+    "sha256": "5f477305fbb60ed0",
     "bytes": 1907457,
     "references": [
       [
@@ -2084,7 +2098,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "143fa2c2af1fb37d",
+    "sha256": "543114ecba4df375",
     "bytes": 26893,
     "references": [
       [
@@ -2144,8 +2158,8 @@
     ]
   },
   "features/reports-workspace.js": {
-    "sha256": "db08e46d109ff0e9",
-    "bytes": 139393,
+    "sha256": "d9575cefb6e74e0e",
+    "bytes": 139453,
     "references": [
       [
         "performance/feature-loader.js",
@@ -2214,7 +2228,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "beaaac6a648b2fdf",
+    "sha256": "65a9e92455ec33ca",
     "bytes": 3714,
     "references": [
       [

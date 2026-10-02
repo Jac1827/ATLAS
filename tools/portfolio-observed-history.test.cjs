@@ -1,0 +1,18 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const core=fs.readFileSync('docs/portfolio-operations-dashboard/workspace-core.js','utf8');
+const c=vm.createContext({console,Date});
+for(const f of core.matchAll(/^(?:async )?function [A-Za-z_$][\w$]*\([^\n]*\) \{[\s\S]*?^\}/gm))vm.runInContext(f[0],c);
+Object.assign(c,{getPropertyByName:()=>({units:388}),getResolvedTotalUnitsForRecord:()=>388});
+const record={reportYear:2026,currentMonth:8,currentOccupied:382,corporateLeaseUnits:0,monthlyData:Array.from({length:12},()=>({occupiedSnapshot:0}))};
+record.monthlyData[6]={occupiedSnapshot:167,sourceTotalUnits:388,rentableUnits:384};
+const details=[{name:'Pilots',record}];
+assert.equal(c.getPortfolioObservedOccupancy(details,5,2026).pct,null,'June cannot borrow current occupied count');
+assert.equal(c.getPortfolioObservedOccupancy(details,6,2026).pct,167/384*100,'July uses period rentable denominator');
+const mixed=[...details,{name:'Other',record:{...record,monthlyData:Array.from({length:12},()=>({occupiedSnapshot:0}))}}];
+assert.equal(c.getPortfolioObservedOccupancy(mixed,6,2026).pct,null,'incomplete portfolio cannot silently shrink denominator');
+assert.equal(c.getPortfolioObservedOccupancy(mixed,6,2026).missing[0],'Other');
+const before=JSON.stringify(details);c.getPortfolioObservedOccupancy(details,5,2026);assert.equal(JSON.stringify(details),before);
+assert.equal(c.getPortfolioObservedOccupancy(JSON.parse(before),5,2026).pct,null,'reload does not introduce backfill');
+record.monthlyData[5]={occupiedSnapshot:143,sourceTotalUnits:390,rentableUnits:390};assert.equal(c.getPortfolioObservedOccupancy(details,5,2026).pct,null,'mismatched inventory requires reconciliation');
+record.monthlyData[5]={occupiedSnapshot:0,sourceTotalUnits:388,rentableUnits:388,physicalOccupancyPct:0};assert.equal(c.getPortfolioObservedOccupancy(details,5,2026).pct,0,'verified empty property remains zero');
+console.log('PASS June missing vs current 382, July 167/384, stable portfolio scope, source inventory mismatch, verified zero, no mutation and JSON reload.');

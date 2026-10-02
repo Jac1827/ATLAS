@@ -300,6 +300,7 @@ function atlasReportPreviewContext() {
     filters: portfolioReportFilters, sections: portfolioReportSections,
     selectedCommunities: reportHubCommunityProgressCommunities, lvr: reportHubLvrCommunity,
     sourceEpoch: atlasReportSourceEpoch,
+    budgetRevision: window.AtlasOccupancyBudgets?.revision,
     documentVersion: typeof atlasCentralRuntimeMeta === "undefined" ? null : [atlasCentralRuntimeMeta.lastDocumentVersion, atlasCentralRuntimeMeta.lastDocumentHash]
   });
 }

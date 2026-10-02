@@ -18,18 +18,18 @@ function lineChart({ series, labels, height=150, yMin, yMax, unit="%", showAxis=
 
   let body = "";
   series.forEach(s => {
-    const d = s.data.map((v,i) => v===null ? null : `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).filter(Boolean);
-    if (s.dashed) {
-      body += `<polyline fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="5 4" opacity=".85" points="${d.join(" ")}"/>`;
-    } else {
-      // area wash at ~10% — never a saturated block
-      const first = s.data.findIndex(v=>v!==null);
-      const lastI = s.data.length - 1 - [...s.data].reverse().findIndex(v=>v!==null);
-      body += `<polygon fill="${s.color}" opacity=".10" points="${X(first).toFixed(1)},${(H-P.b).toFixed(1)} ${d.join(" ")} ${X(lastI).toFixed(1)},${(H-P.b).toFixed(1)}"/>`;
-      body += `<polyline fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${d.join(" ")}"/>`;
-      // end marker: ≥8px with a 2px surface ring
-      const li = lastI;
-      body += `<circle cx="${X(li).toFixed(1)}" cy="${Y(s.data[li]).toFixed(1)}" r="4.5" fill="${s.color}" stroke="${css('--surface-1')}" stroke-width="2"/>`;
+    const segments = [];
+    s.data.forEach((v,i) => {
+      if (v === null) return;
+      if (i === 0 || s.data[i-1] === null) segments.push([]);
+      segments.at(-1).push({i,v});
+    });
+    for (const segment of segments) {
+      const points = segment.map(({i,v})=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+      const first=segment[0], last=segment.at(-1);
+      if (!s.dashed) body += `<polygon fill="${s.color}" opacity=".10" points="${X(first.i).toFixed(1)},${H-P.b} ${points} ${X(last.i).toFixed(1)},${H-P.b}"/>`;
+      body += `<polyline fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" ${s.dashed?'stroke-dasharray="5 4" opacity=".85"':''} points="${points}"/>`;
+      if (!s.dashed) body += `<circle cx="${X(last.i).toFixed(1)}" cy="${Y(last.v).toFixed(1)}" r="4.5" fill="${s.color}" stroke="${css('--surface-1')}" stroke-width="2"/>`;
     }
   });
 
@@ -46,19 +46,7 @@ function lineChart({ series, labels, height=150, yMin, yMax, unit="%", showAxis=
 
 /* --- sparkline: single series, no legend (title names it) ---------------- */
 function sparkline(raw, color, h=40){
-  // trim trailing nulls — a sparkline should fill its box, not leave dead air
-  // where future months have no data yet
-  const data = raw.slice(0, raw.length - [...raw].reverse().findIndex(v=>v!==null));
-  const W=220, H=h, vals=data.filter(v=>v!==null);
-  const lo=Math.min(...vals), hi=Math.max(...vals);
-  const X=i=>(i/(Math.max(1,data.length-1)))*W, Y=v=>H-4-((v-lo)/((hi-lo)||1))*(H-10);
-  const d=data.map((v,i)=>v===null?null:`${X(i).toFixed(1)},${Y(v).toFixed(1)}`).filter(Boolean);
-  const li=data.length-1-[...data].reverse().findIndex(v=>v!==null);
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
-    <polygon fill="${color}" opacity=".10" points="0,${H} ${d.join(" ")} ${X(li).toFixed(1)},${H}"/>
-    <polyline fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="${d.join(" ")}"/>
-    <circle cx="${X(li).toFixed(1)}" cy="${Y(data[li]).toFixed(1)}" r="4" fill="${color}" stroke="${css('--surface-1')}" stroke-width="2"/>
-  </svg>`;
+  return lineChart({series:[{data:raw,color}],labels:[],height:h,showAxis:false}).svg;
 }
 
 /* --- funnel: ORDERED categories → sequential ramp, one hue -------------- */
@@ -119,7 +107,7 @@ function tableView(caption, head, rows){
 
 const color = key => `var(--series-${({traffic_funnel:2,move_in_risk:2,renewals_retention:3,reputation_pulse:3,vendor_scorecard:3,projected_bonus:4,central_services_command_center:5,maintenance_exceptions:6})[key] || 1})`;
 const arg = v => atlasDashboardJsArg(v);
-const round = v => Number.isFinite(Number(v)) ? Math.round(Number(v)*10)/10 : null;
+const round = v => v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v)) ? Math.round(Number(v)*10)/10 : null;
 const safeTable = (head, rows) => tableView('View data table', head.map(esc), rows.map(row=>row.map(v=>esc(v ?? '—'))));
 const chartTypes = new Set(['portfolio_overview','traffic_funnel','renewals_retention','reputation_pulse']);
 function metricValue(instance, summary) {
@@ -137,7 +125,7 @@ function historyInputs(snapshot, start, end) {
   try {
     const access = historyAccessKey();
     if (access !== historyCacheAccess) { historyCache = []; historyCacheAccess = access; }
-    const control={version:"home-history-v1",access,start,end,
+    const control={version:"home-history-v2",access,start,end,budgetRevision:window.AtlasOccupancyBudgets?.revision,
       today:getAtlasTodayISODate(),properties:PROPERTIES,currentProperty:getProp().name,
       goals:[...atlasCommunityGoalStore.scopes],goalActor:atlasCommunityGoalStore.actor,
       command:communityCommandState,quarter:bonusQuarter,
@@ -164,7 +152,7 @@ function historyMonthDetail(detail, month, detailsCache) {
 }
 function historyMonthRow(sourceDetails, monthly, month, detailsCache) {
   const details=sourceDetails.filter(detail=>dashboardMonthlyEntryHasData(monthly.get(detail)[month])).map(detail=>historyMonthDetail(detail,month,detailsCache)).filter(Boolean);
-  return {label:MONTHS[month],available:details.length>0,summary:aggregateCommunitySummaries(details.map(detail=>detail.summary))};
+  return {label:MONTHS[month],available:details.length>0,physical:getPortfolioObservedOccupancy(sourceDetails,month),summary:aggregateCommunitySummaries(details.map(detail=>detail.summary))};
 }
 
 function retainHistoryRows(key, rows) {
@@ -189,7 +177,8 @@ function history(instance, snapshot) {
     window.AtlasPerformance?.record?.("home-history-cache-miss");
   } else window.AtlasPerformance?.record?.("home-history-cache-hit");
   return {
-    data: rows.map(row=>row.available ? metricValue(instance,row.summary) : null),
+    data: rows.map(row=>/Physical Occupancy/.test(instance.metric||getAtlasDashboardWidgetDefinition(instance.widgetKey)?.defaultMetric||"") ? round(row.physical.pct) : row.available ? metricValue(instance,row.summary) : null),
+    coverage: rows.map(row=>row.physical),
     budget: rows.map(row=>row.available && row.summary.budgetOccCoverage?.complete ? round(row.summary.budgetOccPct) : null),
     labels: rows.map(row=>row.label)
   };
@@ -233,7 +222,7 @@ async function prepareInitialHome({current=()=>true,yieldTask=()=>new Promise(re
         if(typeof withAtlasSynchronousReadScope==='function')withAtlasSynchronousReadScope(buildChunk);
         else buildChunk();
       }
-      rows.push({label:MONTHS[month],available:details.length>0,summary:aggregateCommunitySummaries(details.map(detail=>detail.summary))});
+      rows.push({label:MONTHS[month],available:details.length>0,physical:getPortfolioObservedOccupancy(sourceDetails,month),summary:aggregateCommunitySummaries(details.map(detail=>detail.summary))});
     }
     await yieldTask();if(!current())return false;
     // A later edit or source completion invalidates all prepared rows before publication.
@@ -285,12 +274,13 @@ function visual(instance,snapshot,definition={}) {
     return `<div class="meter" style="background:color-mix(in srgb,${severity} 15%,var(--color-surface))"><span style="width:${Math.max(0,Math.min(100,value||0))}%;background:${severity}"></span></div><div class="meter-row"><span>Renewal conversion</span><span>${value===null?'No expirations loaded':value+'%'}</span></div>`+safeTable(['Signed','Expirations','Conversion'],[[summary.renewalsSigned,summary.renewalExpirations,value===null?'—':value+'%']]);
   }
   const h=history({...instance,metric},snapshot);
-  if(!h.data.some(v=>v!==null)) return '<p class="card-sub">No monthly history available.</p>'+safeTable(['Community',metric],details.slice(0,10).map((d,i)=>[d.name,rows[i].v]));
+  const coverageNote=/Physical Occupancy/.test(metric) && h.coverage.some(row=>!row.complete) ? '<p class="card-sub">Gaps indicate missing or unreconciled occupancy records. Historical months never use a later occupied count.</p>' : '';
+  if(!h.data.some(v=>v!==null)) return coverageNote+ '<p class="card-sub">No monthly history available.</p>'+safeTable(['Community',metric],details.slice(0,10).map((d,i)=>[d.name,rows[i].v]));
   const series=[{name:metric,color:color(instance.widgetKey),data:h.data}];
   if(instance.widgetKey==='portfolio_overview' && metric==='Physical Occupancy') series.push({name:'Budget',color:color('projected_bonus'),data:h.budget,dashed:true});
   const chart=lineChart({series,labels:h.labels,unit,height:160});
   const payload=esc(JSON.stringify({series,labels:h.labels,unit}));
-  return `<div class="chart-wrap" data-atlas-line="${payload}">${chart.svg}</div>`+(series.length>1?`<div class="legend">${series.map(s=>`<span class="legend-item"><span class="legend-key ${s.dashed?'is-dashed':''}" style="--key:${s.color};background:${s.dashed?'none':s.color}"></span>${esc(s.name)}</span>`).join('')}</div>`:'')+safeTable(['Month',...series.map(s=>s.name)],h.labels.map((m,i)=>[m,...series.map(s=>s.data[i]===null?'—':s.data[i]+unit)]));
+  return coverageNote+`<div class="chart-wrap" data-atlas-line="${payload}">${chart.svg}</div>`+(series.length>1?`<div class="legend">${series.map(s=>`<span class="legend-item"><span class="legend-key ${s.dashed?'is-dashed':''}" style="--key:${s.color};background:${s.dashed?'none':s.color}"></span>${esc(s.name)}</span>`).join('')}</div>`:'')+safeTable(['Month',...series.map(s=>s.name),...(/Physical Occupancy/.test(metric)?['Occupancy coverage']:[])],h.labels.map((m,i)=>[m,...series.map(s=>s.data[i]===null?'—':s.data[i]+unit),...(/Physical Occupancy/.test(metric)?[h.coverage[i].complete?'Complete':`Needs reconciliation: ${h.coverage[i].missing.join(', ')}`]:[])]));
 }
 function width(instance) { return instance.size==='compact'?4:instance.size==='expanded'?8:6; }
 function card(instance,editing=false) {

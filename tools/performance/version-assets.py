@@ -3,6 +3,7 @@ from pathlib import Path
 import hashlib, json, re, posixpath
 root=Path(__file__).resolve().parents[2]/'docs/portfolio-operations-dashboard'
 entries=[
+ ('features/occupancy-budget-store.mjs',[('workspace-core.js','./features/occupancy-budget-store.mjs')]),
  ('features/data-health-accounting.mjs',[('workspace-core.js','./features/data-health-accounting.mjs')]),
  ('assets/xlsx.full.min.js',[('features/workbook-worker.js','../assets/xlsx.full.min.js'),('performance/feature-loader.js','assets/xlsx.full.min.js')]),
  ('workspace-core.js',[('index.html','./workspace-core.js')]),

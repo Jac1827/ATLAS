@@ -31,7 +31,7 @@ const browser=await chromium.launch({headless:true});
 try{
  const page=await browser.newPage(),errors=[],requests=[];
  page.on('pageerror',e=>errors.push(e.stack||e.message));
- let sourceUnavailable=false,profileUnavailable=false,profileGate=null;
+ let sourceUnavailable=false,profileUnavailable=false,profileGate=null,budgetPct=56.085994;
  await page.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());
   if(url.origin===origin){requests.push(url.pathname);return route.continue();}
@@ -39,6 +39,7 @@ try{
    requests.push(url.pathname);
    if(request.method()!=='GET'&&!/\/rpc\/(atlas_read_|atlas_get_|atlas_directory|atlas_bonus_workspace)/.test(url.pathname))return route.fulfill({status:403,json:{message:'Synthetic test blocks writes'}});
    let value=[];
+   if(url.pathname.endsWith('/atlas_approved_budget_versions')&&url.searchParams.get('community_id')==='eq.'+community&&url.searchParams.get('calendar_year')==='eq.2026')value=[{community_id:community,calendar_year:2026,status:'locked',version_id:'budget-test',content_hash:'test-hash',covered_months:[0,8],payload:{occupancyPct:[0,null,null,null,null,null,null,null,budgetPct]}}];
    if(url.pathname.endsWith('/atlas_user_profiles')){if(profileGate)await profileGate.promise;if(profileUnavailable)return route.fulfill({status:503,json:{message:'Synthetic access read unavailable'}});value=[profile];}
    if(url.pathname.endsWith('/atlas_communities'))value=roster;
    if(url.pathname.endsWith('/rpc/atlas_read_workspace_projection')){
@@ -70,10 +71,18 @@ try{
   window.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[fixedNow]));}static now(){return fixedNow;}};
  });
  await page.evaluate(()=>setTab(8));
- const ready=()=>page.waitForFunction(()=>{const panel=document.getElementById('tab-panel-8');if(panel?.dataset.atlasReportsError==='1')throw Error('Preparation failed');return window.AtlasReports&&panel&&panel.dataset.atlasReportsPreparing!=='1'&&!panel.innerText.includes('Loading this workspace');});
+ const ready=()=>page.waitForFunction(()=>{const panel=document.getElementById('tab-panel-8');if(panel?.dataset.atlasReportsError==='1')throw Error('Preparation failed');return !prepareAtlasOccupancyBudgetView.pending&&window.AtlasReports&&panel&&panel.dataset.atlasReportsPreparing!=='1'&&!panel.innerText.includes('Loading this workspace')&&!panel.innerText.includes('Reading saved community budgets');});
  await ready();
+ await page.evaluate(()=>{reportHubType='community_progress';reportHubYear=2026;reportHubMonth=8;reportHubCommunityProgressCommunities=['Doro'];renderTab();});await ready();
+ const budget=await page.evaluate(()=>{const report=buildCommunityProgressReportData({silent:true});return {pct:report.budgetOccPct,has:report.hasBudgetOcc,preview:atlasCommunityProgressPreview.html};});
+
+ assert.equal(budget.pct,56.085994);assert(budget.has);assert(!budget.preview.includes('Budget occupancy is unavailable for the selected month'));
+ budgetPct=57;await page.evaluate(()=>window.dispatchEvent(new Event('atlas-finance-updated')));
+ await page.waitForFunction(()=>getRecordSavedBudgetOccPct(savedData.Doro,8,2026)===57);await ready();
+ assert.equal(await page.evaluate(()=>buildCommunityProgressReportData({silent:true}).budgetOccPct),57,'verified publication refreshes Reports even when financial actuals did not change');
  let count=0;
  for(const year of [2025,2026,2027])for(const selection of [[],['Doro'],['Doro','Anthem House']]){
+  await page.evaluate(year=>{reportHubYear=year;renderTab();},year);await ready();
   const expected=await page.evaluate(({year,selection})=>{
    for(const name of ['Doro','Anthem House'])savedData[name]={...savedData[name],monthlyData:Array.from({length:12},()=>({applications:null,tours:0,occupiedSnapshot:0,leasedSnapshot:0})),monthlyHistoryByPeriod:{'2025-01':{applications:0,tours:null,occupiedSnapshot:0},'2026-01':{applications:7,tours:9}},corporateLeaseUnits:12};
    reportHubType='community_progress';reportHubYear=year;reportHubMonth=0;reportHubCommunityProgressCommunities=selection;communityProgressViewMode='preview';
@@ -140,5 +149,5 @@ try{
  await page.evaluate(()=>Promise.resolve());
  assert.equal(await page.evaluate(()=>document.querySelectorAll('.progress-community-frame iframe').length),0);
  assert.deepEqual(errors,[]);
- console.log('PASS actual-page staged Reports: '+count+' exact full HTML/source/export comparisons, single/multiple/empty scopes, prior/current/future sparse months, null/zero/corporate units, in-place changes while yielded, connected iframe identity/load preservation, changed-output replacement, failure/retry, access loss and A→B→A retention discard.');
+ console.log('PASS canonical Doro budget in browser preview/export and actual-page staged Reports: '+count+' exact full HTML/source/export comparisons, single/multiple/empty scopes, prior/current/future sparse months, null/zero/corporate units, in-place changes while yielded, connected iframe identity/load preservation, changed-output replacement, failure/retry, access loss and A→B→A retention discard.');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

@@ -7832,11 +7832,22 @@ function getRecordBudgetOccPct(record, monthIdx) {
   return getBudgetOccPctForMonth(record?.monthlyData?.[monthIdx], record?.savedBudgetTargets, monthIdx);
 }
 
-function getRecordSavedBudgetOccPct(record, monthIdx, year = null) {
-  const historyEntry = year == null ? null : getRecordHistoryEntry(record, monthIdx, year);
+function getRecordBudgetOccupancyEvidence(record, monthIdx, year = null) {
+  const targetYear = Number(year ?? record?.reportYear) || new Date().getFullYear();
+  const governed = typeof window !== "undefined" ? window.AtlasOccupancyBudgets?.get(record, monthIdx, targetYear) : null;
+  if (governed && governed.status !== "absent") return governed;
+  const historyEntry = getRecordHistoryEntry(record, monthIdx, targetYear);
   const historyPct = normalizeBudgetOccupancyPct(historyEntry?.budgetOcc);
-  if (historyPct > 0) return historyPct;
-  return getSavedBudgetOccPct(record?.savedBudgetTargets, monthIdx);
+  const recordYear = Number(record?.reportYear) || new Date().getFullYear();
+  const savedPct = targetYear === recordYear ? getRecordBudgetOccPct(record, monthIdx) : 0;
+  const pct = historyPct > 0 ? historyPct : savedPct;
+  return pct > 0 ? {status:"available", pct, sourceType:"saved_curve", source:"Saved community budget curve"}
+    : {status:"missing", reason:"No saved occupancy budget for this community and month."};
+}
+
+function getRecordSavedBudgetOccPct(record, monthIdx, year = null) {
+  const evidence = getRecordBudgetOccupancyEvidence(record, monthIdx, year);
+  return evidence.status === "available" ? evidence.pct : null;
 }
 
 function setRecordBudgetOccPct(record, monthIdx, value, year = null) {
@@ -8103,6 +8114,19 @@ function getObservedOccupiedSnapshot(record, totalUnits, monthIdx, year, propNam
   if (baseUnits <= 0 || corporate > occupied) return null;
   const units = getComparableOccupancyUnits(occupied, corporate);
   return { units, baseUnits, pct: units / baseUnits * 100, entry, rawUnits: occupied };
+}
+
+function getPortfolioObservedOccupancy(details, monthIdx, year = null) {
+  let units = 0, baseUnits = 0;
+  const missing = [];
+  for (const detail of details) {
+    const total = getResolvedTotalUnitsForRecord(detail.name, detail.record, {prop:getPropertyByName(detail.name), summary:detail.summary});
+    const observed = getObservedOccupiedSnapshot(detail.record, total, monthIdx, year ?? detail.record.reportYear, detail.name);
+    if (!observed) missing.push(detail.name);
+    else { units += observed.units; baseUnits += observed.baseUnits; }
+  }
+  const complete = details.length > 0 && missing.length === 0 && baseUnits > 0;
+  return {pct:complete ? units / baseUnits * 100 : null, complete, missing, coveredCommunities:details.length-missing.length, totalCommunities:details.length};
 }
 
 function getReconciledStabilizationInputs(record, totalUnits, monthIdx, year, propName) {
@@ -10956,7 +10980,7 @@ function getCommunitySummary(propName, sourceData, rawSourceData = sourceData) {
     leased,
     currentMonth: scopeCurrentMonth,
     reportYear: record.reportYear,
-    hasBudgetOcc: budgetOccPct > 0,
+    hasBudgetOcc: budgetOccPct !== null && Number.isFinite(budgetOccPct),
     occPct,
     leasedPct,
     budgetOccPct,
@@ -11222,7 +11246,7 @@ function aggregateCommunitySummaries(summaries) {
   const occPct = totals.occupancyBaseUnits > 0 ? (totals.occupied / totals.occupancyBaseUnits) * 100 : 0;
   const leasedPct = totals.occupancyBaseUnits > 0 ? (totals.leased / totals.occupancyBaseUnits) * 100 : 0;
   const budgetOccPct = budgetOccCoverage.complete && totals.occupancyBaseUnits > 0
-    ? (totals.budgetOccUnits / totals.occupancyBaseUnits) * 100 : null;
+    ? summaries.reduce((sum, row) => sum + row.budgetOccPct * row.occupancyBaseUnits, 0) / totals.occupancyBaseUnits : null;
   const budgetLeasedPct = totals.occupancyBaseUnits > 0 ? (totals.budgetLeasedUnits / totals.occupancyBaseUnits) * 100 : 0;
   const avgActualNer = totals.nerWeightUnits > 0 ? totals.nerActualWeight / totals.nerWeightUnits : 0;
   const avgBudgetNer = totals.nerWeightUnits > 0 ? totals.nerBudgetWeight / totals.nerWeightUnits : 0;
@@ -13911,6 +13935,42 @@ function prepareAtlasHomeRender(panel) {
   }).finally(() => { if (atlasHomeRenderPreparation === request) atlasHomeRenderPreparation = null; });
 }
 
+function prepareAtlasOccupancyBudgetView() {
+  if (![0,2,8].includes(activeTab) || !getAtlasCentralStatus().configured) return true;
+  const central = window.ATLAS_CENTRAL;
+  const names = [...new Set([...getAtlasDashboardAuthorizedCommunityOptions().map(row => row.name), ...(activeTab === 8 ? getReportableCommunityNames(getReportHubMonthIndex()) : [])])];
+  const entries = names.flatMap(name => {
+    const record = savedData[name] || {}, access = getAtlasCommunityAccessRecord(name);
+    return [...new Set([Number(record.reportYear) || new Date().getFullYear(), getReportHubYear()])].map(year => ({name, recordId:record.communityId,
+      communityId:access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId, year}));
+  });
+  if (window.AtlasOccupancyBudgets?.ready(entries)) return true;
+  const panel = document.getElementById(`tab-panel-${activeTab}`);
+  if (panel) panel.innerHTML = '<div class="card" role="status">Reading saved community budgets…</div>';
+  if (!prepareAtlasOccupancyBudgetView.pending) {
+    prepareAtlasOccupancyBudgetView.pending = import('./features/occupancy-budget-store.mjs?v=5c4c95d494d79eae').then(async module => {
+      if (!window.AtlasOccupancyBudgets) {
+        window.AtlasOccupancyBudgets = module.createOccupancyBudgetStore(central);
+        const clear = () => { window.AtlasOccupancyBudgets.clear(); scheduleAtlasSharedRender(); };
+        window.addEventListener('atlas-finance-updated', clear);
+        let access = window.AtlasOccupancyBudgets.accessKey;
+        window.addEventListener('atlas-central-auth-change', () => {
+          const next = window.AtlasOccupancyBudgets.accessKey;
+          if (next !== access) { access = next; clear(); }
+        });
+      }
+      await window.AtlasOccupancyBudgets.hydrate(entries);
+    }).then(() => {
+      prepareAtlasOccupancyBudgetView.pending = null;
+      scheduleAtlasSharedRender();
+    }).catch(error => {
+      prepareAtlasOccupancyBudgetView.pending = null;
+      if (panel) panel.innerHTML = `<div class="card" role="alert">Saved budgets could not be loaded. ${escapeHtml(error.message)} <button class="btn" onclick="renderTab()">Retry</button></div>`;
+    });
+  }
+  return false;
+}
+
 function renderTab() {
   window.AtlasReports?.cancelStale?.();
   if (atlasHomeRenderPreparation && (atlasHomeRenderPreparation.context !== getAtlasRenderContextKey() || atlasHomeRenderPreparation.epoch !== atlasWorkspaceAccess.epoch)) atlasHomeRenderPreparation = null;
@@ -13943,6 +14003,7 @@ function renderTab() {
     }
     return;
   }
+  if (decision.ok && !shouldBlockAtlasSensitiveAccess() && !prepareAtlasOccupancyBudgetView()) return;
   if ([1,2,9].includes(activeTab) && decision.ok && typeof atlasCommunityGoalStore !== "undefined") hydrateCommunityCommandGoals().catch(() => {});
   const retainedBonusWorkflow = atlasBonusPreservedSharedWorkflowHost();
   const retainedBonusFocus = retainedBonusWorkflow?.contains(document.activeElement) ? document.activeElement : null;
@@ -14065,8 +14126,9 @@ function syncAtlasTopbar() {
 
     const budgetChip = document.getElementById("atlas-chip-budget");
     if (budgetChip) {
-      const monthLabel = FULL_MONTHS[Number(monthSelect?.value) || 0] || "";
-      budgetChip.lastElementChild.textContent = `Reporting period · ${monthLabel} ${new Date().getFullYear()}`;
+      const monthLabel = FULL_MONTHS[activeTab === 8 ? getReportHubMonthIndex() : Number(monthSelect?.value) || 0] || "";
+      const year = activeTab === 8 ? getReportHubYear() : new Date().getFullYear();
+      budgetChip.lastElementChild.textContent = `Reporting period · ${monthLabel} ${year}`;
     }
 
     const freshChip = document.getElementById("atlas-chip-freshness");
@@ -42633,6 +42695,7 @@ function buildCommunityProgressTrendRows(report) {
     if (!detail?.record) return null;
     const prop = getPropertyByName(detail.name);
     const totalUnits = getResolvedTotalUnitsForRecord(detail.name, detail.record, { prop, summary: detail.summary });
+    if (snapshotKey === "occupiedSnapshot") return getObservedOccupiedSnapshot(detail.record, totalUnits, monthIdx, report.reportYear, detail.name)?.pct ?? null;
     const corporateUnits = getCorporateLeaseUnitsForRecord(detail.record, totalUnits);
     const occupancyBaseUnits = getOccupancyBaseUnits(totalUnits, corporateUnits);
     if (occupancyBaseUnits <= 0) {
@@ -42652,7 +42715,7 @@ function buildCommunityProgressTrendRows(report) {
       const details = communityRecords.map(({ name, record }) => buildCommunityDetailForMonth(name, record, monthIdx, report.reportYear, COMMUNITY_PROGRESS_TREND_DETAIL_OPTIONS)).filter(Boolean);
       const summaries = details.map(detail => detail.summary);
       const aggregate = aggregateCommunitySummaries(summaries);
-      const budgetOccPct = aggregate.budgetOccPct > 0 ? aggregate.budgetOccPct : null;
+      const budgetOccPct = aggregate.budgetOccPct;
       const occupancyTotals = details.reduce((acc, detail) => {
         const prop = getPropertyByName(detail.name);
         const totalUnits = getResolvedTotalUnitsForRecord(detail.name, detail.record, { prop, summary: detail.summary });
@@ -42671,7 +42734,7 @@ function buildCommunityProgressTrendRows(report) {
         monthIdx,
         monthLabel,
         shortLabel: FULL_MONTHS[monthIdx].slice(0, 3),
-        occupancyPct: occupancyTotals.baseUnits > 0 ? (occupancyTotals.occupiedUnits / occupancyTotals.baseUnits) * 100 : getSummaryOccPct(aggregate),
+        occupancyPct: getPortfolioObservedOccupancy(communityRecords, monthIdx, report.reportYear).pct,
         leasedPct: occupancyTotals.baseUnits > 0 ? (occupancyTotals.leasedUnits / occupancyTotals.baseUnits) * 100 : getSummaryLeasedPct(aggregate),
         guestCards: aggregate.guestCards,
         tours: aggregate.tours,
@@ -42750,7 +42813,7 @@ function buildCommunityProgressTrendRows(report) {
       netAbsorption: moveIns - moveOuts,
       tourToLeasePct: tours > 0 ? calculateFunnelConversionPct(attributableLeases, tours) : null,
       renewalRetention,
-      budgetOccPct: Number.isFinite(Number(budgetOccPct)) && Number(budgetOccPct) > 0 ? Number(budgetOccPct) : null,
+      budgetOccPct: budgetOccPct !== null && Number.isFinite(budgetOccPct) ? budgetOccPct : null,
       marketLeasedPct: Number(marketPerformance.compAverageLeasedPct) || null,
       marketExposurePct: Number(marketPerformance.compAverageExposurePct) || null
     };
@@ -43321,6 +43384,7 @@ function buildCommunityProgressDualLineChart(points = [], options = {}) {
       const value = normalizeOptionalNumber(point?.[series.key]);
       if (value === null || !Number.isFinite(value)) return null;
       return {
+        index: idx,
         x: left + (stepX * idx),
         y: yForValue(value),
         value,
@@ -43348,9 +43412,14 @@ function buildCommunityProgressDualLineChart(points = [], options = {}) {
       y: top + chartHeight - ((idx / tickCount) * chartHeight)
     };
   });
-  const lineFor = series => series.points.length > 1
-    ? `<polyline fill="none" stroke="${series.lineColor}" stroke-width="3" ${series.dash ? `stroke-dasharray="${series.dash}"` : ""} points="${series.points.map(point => `${point.x},${point.y}`).join(" ")}"/>`
-    : "";
+  const lineFor = series => {
+    const segments = [];
+    for (const point of series.points) {
+      if (!segments.length || point.index !== segments.at(-1).at(-1).index + 1) segments.push([]);
+      segments.at(-1).push(point);
+    }
+    return segments.filter(segment => segment.length > 1).map(segment => `<polyline fill="none" stroke="${series.lineColor}" stroke-width="3" ${series.dash ? `stroke-dasharray="${series.dash}"` : ""} points="${segment.map(point => `${point.x},${point.y}`).join(" ")}"/>`).join("");
+  };
   const dotsFor = series => series.points.map(point => `
       <circle cx="${point.x}" cy="${point.y}" r="${point.projected ? 3.5 : 4.5}" fill="${series.dotColor || series.lineColor}" stroke="#ffffff" stroke-width="1.5">
         <title>${series.label} · ${point.monthLabel}: ${pointLabelFormatter(point.value)}</title>
@@ -43525,7 +43594,7 @@ function buildCommunityProgressNarrative({
       ? `${formatDlrPercent(renewalSummary.retentionRate, 0)} renewal retention across ${formatDlrMetricValue(renewalExpirations)} expirations is shaping the current forward look.`
       : "Renewal detail is not yet populated for the selected communities this month, so the forward-look narrative is waiting on updated retention entries.";
     return [
-      `${scopeLabel} is sitting at ${formatDlrPercent(occupancyPct, 1)} physical occupancy and ${formatDlrPercent(leasedPct, 1)} leased occupancy${Number.isFinite(Number(budgetOccPct)) ? ` against a saved budget line of ${formatDlrPercent(budgetOccPct, 1)}` : ""}.`,
+      `${scopeLabel} is sitting at ${formatDlrPercent(occupancyPct, 1)} physical occupancy and ${formatDlrPercent(leasedPct, 1)} leased occupancy${budgetOccPct != null && Number.isFinite(Number(budgetOccPct)) ? ` against a saved budget line of ${formatDlrPercent(budgetOccPct, 1)}` : ""}.`,
       trafficText,
       `${renewalText} ${leadSourceText}`.trim()
     ];
@@ -43540,7 +43609,7 @@ function buildCommunityProgressNarrative({
     ? `${formatDlrPercent(renewalSummary.retentionRate, 0)} renewal retention across ${formatDlrMetricValue(renewalExpirations)} expirations is shaping the current forward look.`
     : "Renewal detail is not yet populated for this month, so the forward-look narrative is waiting on updated retention entries.";
   return [
-    `${communityName} is sitting at ${formatDlrPercent(occupancyPct, 1)} physical occupancy and ${formatDlrPercent(leasedPct, 1)} leased occupancy${Number.isFinite(Number(budgetOccPct)) ? ` against a saved budget line of ${formatDlrPercent(budgetOccPct, 1)}` : ""}.`,
+    `${communityName} is sitting at ${formatDlrPercent(occupancyPct, 1)} physical occupancy and ${formatDlrPercent(leasedPct, 1)} leased occupancy${budgetOccPct != null && Number.isFinite(Number(budgetOccPct)) ? ` against a saved budget line of ${formatDlrPercent(budgetOccPct, 1)}` : ""}.`,
     trafficText,
     `${renewalText} ${leadSourceText}`.trim()
   ];
@@ -43611,8 +43680,10 @@ function buildCommunityProgressReportAlerts(report) {
   if (!report.hasBudgetOcc) {
     alerts.push({
       level: "critical",
-      title: "Budget occupancy is missing for the selected month",
-      body: "The report can still show occupancy and leased position, but it cannot pace against budget until the month has a saved budget occupancy percentage."
+      title: report.communityReports?.length > 1 ? "Portfolio budget coverage is incomplete" : "Budget occupancy is unavailable for the selected month",
+      body: report.communityReports?.length > 1
+        ? `${report.communityReports.filter(item => item.hasBudgetOcc).length} of ${report.communityReports.length} communities have a saved budget for this report period. Available: ${report.communityReports.filter(item => item.hasBudgetOcc).map(item => `${item.communityName} ${formatDlrPercent(item.budgetOccPct, 1)}`).join(", ") || "None"}. Missing: ${report.communityReports.filter(item => !item.hasBudgetOcc).map(item => item.communityName).join(", ")}. A full-portfolio comparison requires complete coverage.`
+        : (getRecordBudgetOccupancyEvidence(report.sourceRecord, report.reportMonthIdx, report.reportYear).reason || "No saved budget is available for this report period.")
     });
   }
   if (!Array.isArray(report.floorPlanVarianceRows) || report.floorPlanVarianceRows.length === 0) {
@@ -43792,7 +43863,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
         mtm: renewals.undecided,
         pendingMoveOuts: getEffectiveMoveOutsForMonth(idx, monthEntries).effective,
         pendingMoveIns: Number(entry.moveIns) || 0,
-        budgetedOccupancy: getRecordSavedBudgetOccPct(record, idx, year) || null,
+        budgetedOccupancy: getRecordSavedBudgetOccPct(record, idx, year),
         projectedOccupancy: Number(row.occPct) || 0,
         moveInsNeeded: getMoveInTargetFromScheduleRow(row)
       };
@@ -43809,7 +43880,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
   const hasPending = Object.prototype.hasOwnProperty.call(monthEntry, "pendingDecision");
   const hasDecisionBreakdown = hasApplications && hasApprovals && hasDenied && hasCancelled && hasPending;
   const budgetOccPct = getRecordSavedBudgetOccPct(record, monthIdx, year);
-  const hasBudgetOcc = Number.isFinite(Number(budgetOccPct)) && Number(budgetOccPct) > 0;
+  const hasBudgetOcc = budgetOccPct !== null && Number.isFinite(budgetOccPct);
   const occupiedUnits = Number.isFinite(Number(summary.occupied)) ? Number(summary.occupied) : getComparableOccupancyUnits(Number(record.currentOccupied) || 0, corporateUnits);
   const leasedUnits = Number.isFinite(Number(summary.leased)) ? Number(summary.leased) : getComparableOccupancyUnits(Number(record.currentLeased) || 0, corporateUnits);
   const occupancyPct = getOccupancyPctFromComparableUnitsOrFallback(occupiedUnits, summary.occupancyBaseUnits ?? getOccupancyBaseUnits(totalUnits, corporateUnits), 0, summary.occPct);
@@ -44023,7 +44094,7 @@ function assembleCommunityProgressReportData(communityReports, options = {}) {
   const allHaveTours = communityReports.every(item => item.hasTours);
   const leadSourceBreakdown = window.AtlasLeadSources.combine(communityReports.map(item=>item.leadSourceBreakdown || {}));
   const leadSourceBreakdownTotal = window.AtlasLeadSources.sum(Object.values(leadSourceBreakdown));
-  const budgetOccPct = allHaveBudgetOcc && aggregateSummary.budgetOccPct > 0
+  const budgetOccPct = allHaveBudgetOcc && aggregateSummary.budgetOccPct !== null
     ? aggregateSummary.budgetOccPct
     : null;
   const previousRetentionValues = communityReports

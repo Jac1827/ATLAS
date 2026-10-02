@@ -266,10 +266,16 @@ export async function executeHistory(request) {
     if(operation==='save'&&!existing){assertFull(request.value);const prepared=await prepare(key,request.value,null,1);await commit(db,storeName,key,existing,prepared);return {revision:1,verified:true,historyStorage:meta(prepared.head,'full')};}
     const {record,head}=await headFor(db,storeName,key,signal,{record:existing});
     if(operation==='current')return await currentState(db,storeName,key,head,request.scope,signal);
-    if(operation==='load'||operation==='export'){
+    if(operation==='load'||operation==='export'||operation==='exportPacked'){
       const value=await fullState(db,storeName,head,signal);
-      if(operation==='export'){
-        if(Array.isArray(value.batches))value.batches=await Promise.all(value.batches.map(async batch=>{if(!batch.beforeSnapshotRef)return batch;const {beforeSnapshotRef,...rest}=batch;return {...rest,beforeSnapshot:await snapshotFor(db,storeName,head,batch,signal)};}));return {...value,...(await preferences(db,storeName,key,signal)).values};
+      if(operation==='export'||operation==='exportPacked'){
+        if(Array.isArray(value.batches))value.batches=await Promise.all(value.batches.map(async batch=>{if(!batch.beforeSnapshotRef)return batch;const {beforeSnapshotRef,...rest}=batch;return {...rest,beforeSnapshot:await snapshotFor(db,storeName,head,batch,signal)};}));
+        const exported={...value,...(await preferences(db,storeName,key,signal)).values};
+        if(operation==='export')return exported;
+        if(request.archiveRecord?.key!==key||!/^record-\d+\.json$/.test(request.archiveName))throw fail('Invalid archive record request.');
+        const module=await import('../migration-archive.js?v=51c0d9a49d4cbde9');check(signal);
+        const archive=module.default||globalThis.AtlasMigrationArchive;
+        return await archive.packRecord(request.archiveName,{...request.archiveRecord,value:exported},{onProgress:()=>{check(signal);request.onArchiveProgress?.();}});
       }
       const prefs=await preferences(db,storeName,key,signal);
       return {...value,...prefs.values,historyStorage:{...meta(head,'full'),preferencesRevision:prefs.revision}};

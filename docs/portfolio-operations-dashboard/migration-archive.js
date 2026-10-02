@@ -104,6 +104,37 @@
     }
     entry.sha256=await entryFingerprint(entry);manifest.entries.push(entry);
   }
+  // Prepare in the history worker so expanded rollback objects never need to
+  // cross a structured-clone boundary. Only bounded compressed members leave it.
+  async function packRecord(name,value,{segmentBytes=DEFAULT_SEGMENT_BYTES,onProgress}={}){
+    const files=[],manifest={entries:[]};
+    await addRecord({file(name,bytes,options){files.push({name,bytes,compression:options?.compression});onProgress?.(files.length);}},manifest,name,value,segmentLimit(segmentBytes));
+    return {entry:manifest.entries[0],files};
+  }
+  async function addPackedRecord(zip,manifest,name,packed){
+    const entry=packed?.entry,files=packed?.files;
+    if(!entry||entry.name!==name||!Array.isArray(files))throw Error('Invalid prepared migration record');
+    supportedLayout(entry);
+    const expected=entry.layout===SEGMENTED?entry.segments:[entry];
+    if(!Array.isArray(expected)||files.length!==expected.length||!files.length)throw Error('Incomplete prepared migration record');
+    if(entry.layout===SEGMENTED){
+      segmentLimit(entry.segmentBytes);
+      if(await entryFingerprint(entry)!==entry.sha256)throw Error('Prepared migration record fingerprint mismatch');
+    }
+    let total=0;
+    for(let i=0;i<files.length;i++){
+      const file=files[i],part=expected[i],segmented=entry.layout===SEGMENTED;
+      const wantedName=segmented?segmentName(name,i):name;
+      if(file.name!==wantedName||part.name!==wantedName||!(file.bytes instanceof Uint8Array)
+        ||file.bytes.length!==(segmented?part.storedBytes:part.bytes)
+        ||await digest(file.bytes)!==(segmented?part.storedSha256:part.sha256)
+        ||segmented&&(part.encoding!=='deflate'||part.bytes>entry.segmentBytes||part.storedBytes>entry.segmentBytes+65536))throw Error('Prepared migration segment changed');
+      total+=part.bytes;
+      zip.file(file.name,file.bytes,segmented?{compression:'STORE'}:undefined);
+    }
+    if(total!==entry.bytes)throw Error('Prepared migration record length mismatch');
+    manifest.entries.push(entry);
+  }
   function tokenReader(){
     const stack=[];let result,complete=false;
     const attach=value=>{
@@ -264,8 +295,10 @@
     await add('bundle.json',bundle);
     const addNext=async i=>{
       phase='source record '+i;
+      const name=`record-${i}.json`,packed=await source.readPackedRecord?.(i,name);
+      if(packed){await addPackedRecord(zip,manifest,name,packed);return;}
       let value=await source.readRecord(i);
-      try{await add(`record-${i}.json`,value);}finally{value=null;}
+      try{await add(name,value);}finally{value=null;}
     };
     for(let i=0;i<source.count;i++)await addNext(i);
     phase='manifest';zip.file('manifest.json',JSON.stringify(manifest));
@@ -407,5 +440,5 @@
       return {...archive,data:pieces.join('')};
     } finally {pieces.length=0;finish?.({failed:!!failure});}
   }
-  return {TYPE,pack,packRecords,unpack,verifyBundle,verifyRestore,visitSelectedRecords,publish,hydrate};
+  return {TYPE,pack,packRecord,packRecords,unpack,verifyBundle,verifyRestore,visitSelectedRecords,publish,hydrate};
 });

@@ -917,9 +917,27 @@
       ]
     ]
   },
+  "migration-archive.js": {
+    "sha256": "51c0d9a49d4cbde9",
+    "bytes": 33713,
+    "references": [
+      [
+        "performance/feature-loader.js",
+        "migration-archive.js"
+      ],
+      [
+        "features/workspace-projection-worker.js",
+        "../migration-archive.js"
+      ],
+      [
+        "features/import-history-store.mjs",
+        "../migration-archive.js"
+      ]
+    ]
+  },
   "features/import-history-store.mjs": {
-    "sha256": "a5aa94c91809b279",
-    "bytes": 28217,
+    "sha256": "fd9e51d939db13ed",
+    "bytes": 28814,
     "references": [
       [
         "features/import-history.mjs",
@@ -940,8 +958,8 @@
     ]
   },
   "features/import-history-worker.mjs": {
-    "sha256": "9b208c2d23d6bf4e",
-    "bytes": 288,
+    "sha256": "c58de4c3bec4a1f3",
+    "bytes": 479,
     "references": [
       [
         "features/import-history.mjs",
@@ -950,8 +968,8 @@
     ]
   },
   "features/import-history.mjs": {
-    "sha256": "679acb56a1c82d33",
-    "bytes": 1932,
+    "sha256": "659f1b5b4ab29f87",
+    "bytes": 2116,
     "references": [
       [
         "workspace-core.js",
@@ -1055,20 +1073,6 @@
       ]
     ]
   },
-  "migration-archive.js": {
-    "sha256": "ae74ccbf0a527f62",
-    "bytes": 31547,
-    "references": [
-      [
-        "performance/feature-loader.js",
-        "migration-archive.js"
-      ],
-      [
-        "features/workspace-projection-worker.js",
-        "../migration-archive.js"
-      ]
-    ]
-  },
   "vendor/jszip.min.js": {
     "sha256": "acc7e41455a80765",
     "bytes": 97630,
@@ -1084,7 +1088,7 @@
     ]
   },
   "features/workspace-projection-worker.js": {
-    "sha256": "3b421adf94c3f94e",
+    "sha256": "0431b1c55ad77f8e",
     "bytes": 4227,
     "references": [
       [
@@ -1094,7 +1098,7 @@
     ]
   },
   "features/workspace-bootstrap.mjs": {
-    "sha256": "b437ecd24364344e",
+    "sha256": "4d0dc8df103e7da5",
     "bytes": 8930,
     "references": [
       [
@@ -1112,7 +1116,7 @@
     ]
   },
   "features/workspace-publication.mjs": {
-    "sha256": "27ab8274fc094bb6",
+    "sha256": "e824b254c98796cf",
     "bytes": 959,
     "references": [
       [
@@ -1126,8 +1130,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "723001da318c8ecd",
-    "bytes": 3085333,
+    "sha256": "4e21151f0c1f5115",
+    "bytes": 3086465,
     "references": [
       [
         "index.html",
@@ -2116,7 +2120,7 @@
     ]
   },
   "occupancy-replay-browser.js": {
-    "sha256": "5477f7830ed551e9",
+    "sha256": "963223419e1a8da0",
     "bytes": 14553,
     "references": [
       [
@@ -2196,7 +2200,7 @@
     ]
   },
   "features/workspace-activation.mjs": {
-    "sha256": "30ef6d5a6bd60582",
+    "sha256": "232e3f331648262c",
     "bytes": 12828,
     "references": [
       [
@@ -2206,7 +2210,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "ed78e3106d75fc82",
+    "sha256": "beaaac6a648b2fdf",
     "bytes": 3714,
     "references": [
       [

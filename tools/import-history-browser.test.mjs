@@ -24,6 +24,21 @@ try{
  // Cancelling an obsolete view terminates only its read; the next view is usable.
  assert.equal(await page.evaluate(async()=>{const c=new AbortController(),pending=run('export',{signal:c.signal});c.abort();try{await pending;return false;}catch(e){return e.name==='AbortError';}}),true);
  assert.equal((await page.evaluate(()=>run('current'))).historyStorage.revision,1);
+ await page.addScriptTag({url:origin+'/vendor/jszip.min.js'});
+ const packedProof=await page.evaluate(async()=>{
+   await import('/migration-archive.js');
+   const {historyHash}=await import('/features/import-history-store.mjs'),expected=await historyHash(await run('export'));
+   const packed=await run('exportPacked',{archiveName:'record-0.json',archiveRecord:{key:'imports',updatedAt:'synthetic-capture'}});
+   if(packed.value||packed.canonicalRecords||!packed.files.every(f=>f.bytes instanceof Uint8Array))throw Error('Expanded history crossed the worker boundary');
+   const archive=await AtlasMigrationArchive.packRecords({zero:0},{count:1,readPackedRecord:()=>packed,readRecord:()=>{throw Error('Expanded export must not reach the main thread');}},JSZip);
+   const restored=await AtlasMigrationArchive.unpack(archive,JSZip),history=restored.records[0].value;
+   const hash=await (await import('/features/import-history-store.mjs')).historyHash(history);
+   const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('synthetic-history');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
+   const head=await new Promise((resolve,reject)=>{const r=db.transaction('records').objectStore('records').get('imports');r.onsuccess=()=>resolve(r.result.value);r.onerror=()=>reject(r.error);});db.close();
+   return {hash,expected,revision:head.revision,recordKey:restored.records[0].key,stamp:restored.records[0].updatedAt,segments:packed.files.length};
+ });
+ assert.equal(packedProof.hash,packedProof.expected);assert.equal(packedProof.revision,1);assert.equal(packedProof.recordKey,'imports');assert.equal(packedProof.stamp,'synthetic-capture');assert(packedProof.segments>1);
+ assert.equal(await page.evaluate(async()=>{const c=new AbortController(),pending=run('exportPacked',{archiveName:'record-0.json',archiveRecord:{key:'imports'},signal:c.signal});c.abort();try{await pending;return false;}catch(e){return e.name==='AbortError';}}),true);
  const written=await page.evaluate(async()=>{const c=new AbortController(),pending=run('update',{expectedRevision:1,set:{newBusinessSetting:0},signal:c.signal});setTimeout(()=>c.abort(),1);return pending;});assert.equal(written.revision,2);
  await boot(); // A fresh page and fresh workers read the exact committed durable state.
  const reopened=await page.evaluate(()=>run('load'));assert.equal(reopened.newBusinessSetting,0);assert.equal(reopened.batches.length,66);assert.equal(reopened.lineage.length,12051);

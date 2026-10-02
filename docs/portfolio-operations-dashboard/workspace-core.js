@@ -20408,7 +20408,7 @@ async function applyDashboardStorageBundle(bundle, {canonicalSource = null} = {}
         if (record.value?.__atlasImportHistory === 2 || record.value?.historyStorage?.view) throw new Error("This archive does not contain complete portable import evidence.");
         let existing = await atlasStateGetValue(record.key);checkRestore();
         if (existing?.__atlasImportHistory === 2) {
-          const {historyOperation} = await import('./features/import-history.mjs?v=659f1b5b4ab29f87');
+          const {historyOperation} = await import('./features/import-history.mjs?v=9f6761b868c0dfdc');
           checkRestore();
           existing = await historyOperation({operation:'load',dbName:restoreDatabase,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,signal:restoreSignal});checkRestore();
         }
@@ -20480,7 +20480,7 @@ async function applyDashboardStorageBundle(bundle, {canonicalSource = null} = {}
   let committedCommunityData = intendedCommunityData;
   const importRecord = retainedRecords.find(record => record.key === DATA_IMPORT_2_STATE_KEY);
   if (importRecord) {
-    const {historyOperation} = await import('./features/import-history.mjs?v=659f1b5b4ab29f87');
+    const {historyOperation} = await import('./features/import-history.mjs?v=9f6761b868c0dfdc');
     checkRestore();
     const options = {dbName:restoreDatabase,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,signal:restoreSignal};
     const current = await historyOperation({...options,operation:'load'});checkRestore();
@@ -45764,7 +45764,7 @@ async function dataImportHistoryOperation(operation, extra = {}) {
   for(const sourceSignal of sourceSignals){if(sourceSignal.aborted)abort();else sourceSignal.addEventListener('abort',abort,{once:true});}
   try {
     check();
-    const {historyOperation} = await import("./features/import-history.mjs?v=659f1b5b4ab29f87");check();
+    const {historyOperation} = await import("./features/import-history.mjs?v=9f6761b868c0dfdc");check();
     if(dataImport2State.historyStorage?.view==='remote'&&!['preferences','preferenceValues','records'].includes(operation)){
       if(typeof ensureAtlasCanonicalImportEvidence!=='function')throw new Error('Complete canonical import evidence is not available yet.');
       await ensureAtlasCanonicalImportEvidence({signal});check();
@@ -54614,12 +54614,12 @@ async function ensureAtlasCanonicalImportEvidence({signal:externalSignal} = {}) 
     if(existing){
       const receipt=await atlasStateGetValue('atlas_import_archive_receipt_v2');check();
       if(receipt?.archiveHash!==projectionSource.archiveHash)throw new Error('This browser has retained import evidence from another source version. Reconcile before replacing it.');
-      const {historyOperation}=await import('./features/import-history.mjs?v=659f1b5b4ab29f87');check();
+      const {historyOperation}=await import('./features/import-history.mjs?v=9f6761b868c0dfdc');check();
       const state=await historyOperation({operation:'current',dbName,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,signal});check();
       window.AtlasStartupImportProjection=null;dataImport2State=normalizeDataImport2State(state);rememberDataImportHistoryState();return;
     }
     await stageAtlasCanonicalImportEvidence(signal,check);check();
-    const {historyOperation}=await import('./features/import-history.mjs?v=659f1b5b4ab29f87');check();
+    const {historyOperation}=await import('./features/import-history.mjs?v=9f6761b868c0dfdc');check();
     const state=await historyOperation({operation:'current',dbName,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,signal});check();
     window.AtlasStartupImportProjection=null;dataImport2State=normalizeDataImport2State(state);rememberDataImportHistoryState();
   })();

@@ -1020,8 +1020,8 @@
     ]
   },
   "features/import-history.mjs": {
-    "sha256": "659f1b5b4ab29f87",
-    "bytes": 2116,
+    "sha256": "9f6761b868c0dfdc",
+    "bytes": 2613,
     "references": [
       [
         "workspace-core.js",
@@ -1168,7 +1168,7 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "afda46f3a79d81e3",
+    "sha256": "b7d75362ec36cc66",
     "bytes": 3099473,
     "references": [
       [
@@ -2138,7 +2138,7 @@
     ]
   },
   "occupancy-replay-browser.js": {
-    "sha256": "963223419e1a8da0",
+    "sha256": "ba40344d42108539",
     "bytes": 14553,
     "references": [
       [
@@ -2228,7 +2228,7 @@
     ]
   },
   "performance/feature-loader.js": {
-    "sha256": "65a9e92455ec33ca",
+    "sha256": "792c585272ddda17",
     "bytes": 3714,
     "references": [
       [

@@ -9490,17 +9490,23 @@ function getReportedOccupancyBaseUnits(monthEntry, totalUnits, corporateUnits = 
   const rentable = Number(monthEntry?.rentableUnits);
   const sourceTotal = Number(monthEntry?.sourceTotalUnits);
   // Only the reconciled Box Score contract supplies both independent counts.
-  if (sourceTotal > 0 && rentable > 0 && rentable <= sourceTotal && sourceTotal === Number(totalUnits)) {
+  if (sourceTotal > 0 && rentable > 0 && rentable <= sourceTotal && (sourceTotal === Number(totalUnits) || hasHistoricalOccupancyInventory(monthEntry))) {
     return getOccupancyBaseUnits(rentable, corporateUnits);
   }
   return getOccupancyBaseUnits(totalUnits, corporateUnits);
+}
+
+function hasHistoricalOccupancyInventory(entry = {}) {
+  const evidence = entry.historicalInventoryEvidence, provenance = entry.metricProvenance?.occupiedSnapshot;
+  return !!(evidence?.source && evidence.corroboratingSource && evidence.period === provenance?.period && evidence.source === provenance.source
+    && evidence.totalUnits === Number(entry.sourceTotalUnits) && evidence.rentableUnits === Number(entry.rentableUnits));
 }
 
 // Reconciled report counts remain distinct from legacy total-minus-available counts.
 function getReportedOccupancySnapshot(monthEntry = {}, totalUnits, corporateUnits = 0) {
   const rentable = Number(monthEntry.rentableUnits);
   const total = Number(monthEntry.sourceTotalUnits);
-  if (!(rentable > 0 && total === Number(totalUnits) && rentable <= total)) return null;
+  if (!(rentable > 0 && (total === Number(totalUnits) || hasHistoricalOccupancyInventory(monthEntry)) && rentable <= total)) return null;
   const optional = value => value === null || value === undefined || value === "" ? null : (Number.isFinite(Number(value)) ? Number(value) : null);
   const sourceLeased = optional(monthEntry.sourceLeasedUnits);
   const legacyLeased = optional(monthEntry.leasedSnapshot);

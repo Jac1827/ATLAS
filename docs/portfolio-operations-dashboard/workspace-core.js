@@ -7869,14 +7869,23 @@ function setRecordBudgetOccPct(record, monthIdx, value, year = null) {
 }
 
 function getClosedOutRetentionAverageForMonths(monthEntries = monthlyData, monthIndexes = MONTHS.map((_, idx) => idx), closeThroughMonth = currentMonth) {
-  const summaries = monthIndexes
+  const closedMonths = monthIndexes
     .filter(idx => idx <= closeThroughMonth)
-    .map(idx => getRenewalSummaryForMonth(monthEntries[idx] ?? {}))
-    .filter(summary => summary.expirations > 0);
-  const totalExpirations = summaries.reduce((sum, summary) => sum + summary.expirations, 0);
-  const totalSigned = summaries.reduce((sum, summary) => sum + summary.signed, 0);
+    .map(idx => ({ idx, summary: getRenewalSummaryForMonth(monthEntries[idx] ?? {}) }));
+  const eligible = closedMonths.filter(({ summary }) => summary.expirations > 0);
+  const totalExpirations = eligible.reduce((sum, { summary }) => sum + summary.expirations, 0);
+  const totalSigned = eligible.reduce((sum, { summary }) => sum + summary.signed, 0);
+  const zeroExpirationMonthCount = closedMonths.filter(({ idx, summary }) =>
+    summary.expirations === 0 && normalizeOptionalNumber(monthEntries[idx]?.renewalExpirations) === 0
+  ).length;
   return {
-    closedMonthCount: summaries.length,
+    closedMonthCount: eligible.length,
+    eligibleMonthIndexes: eligible.map(({ idx }) => idx),
+    eligibleExpirations: totalExpirations,
+    eligibleSigned: totalSigned,
+    zeroExpirationMonthCount,
+    missingExpirationMonthCount: closedMonths.length - eligible.length - zeroExpirationMonthCount,
+    futureMonthCount: monthIndexes.filter(idx => idx > closeThroughMonth).length,
     avgRetentionRate: totalExpirations > 0
       ? (totalSigned / totalExpirations) * 100
       : 0
@@ -7992,7 +8001,13 @@ function getQuarterlyRenewalTotals(monthEntries = monthlyData, closeThroughMonth
       earlyTermination: totals.earlyTermination,
       retentionRate: totals.expirations > 0 ? (totals.signed / totals.expirations) * 100 : 0,
       averageClosedRetentionRate: closedAverage.avgRetentionRate,
-      closedMonthCount: closedAverage.closedMonthCount
+      closedMonthCount: closedAverage.closedMonthCount,
+      eligibleMonthIndexes: closedAverage.eligibleMonthIndexes,
+      eligibleExpirations: closedAverage.eligibleExpirations,
+      eligibleSigned: closedAverage.eligibleSigned,
+      zeroExpirationMonthCount: closedAverage.zeroExpirationMonthCount,
+      missingExpirationMonthCount: closedAverage.missingExpirationMonthCount,
+      futureMonthCount: closedAverage.futureMonthCount
     }];
   }));
 }
@@ -28394,9 +28409,15 @@ function renderRenewalsTab() {
     const avgRetention = Number(summary.averageClosedRetentionRate ?? 0);
     const hasClosedMonths = Number(summary.closedMonthCount ?? 0) > 0;
     const valueText = hasClosedMonths ? `${avgRetention.toFixed(1)}%` : "—";
-    const subtitle = hasClosedMonths
-      ? `${summary.closedMonthCount} closed month${summary.closedMonthCount === 1 ? "" : "s"} · ${summary.signed} signed of ${summary.expirations} expirations`
+    const cohortLabel = hasClosedMonths
+      ? `${summary.closedMonthCount} closed month${summary.closedMonthCount === 1 ? "" : "s"} · ${summary.eligibleSigned} signed of ${summary.eligibleExpirations} expirations`
       : "No closed-month retention yet";
+    const exclusions = [
+      summary.zeroExpirationMonthCount > 0 ? `${summary.zeroExpirationMonthCount} month${summary.zeroExpirationMonthCount === 1 ? "" : "s"} with zero expirations excluded` : "",
+      summary.missingExpirationMonthCount > 0 ? `${summary.missingExpirationMonthCount} month${summary.missingExpirationMonthCount === 1 ? "" : "s"} with missing expirations excluded` : "",
+      summary.futureMonthCount > 0 ? `${summary.futureMonthCount} future month${summary.futureMonthCount === 1 ? "" : "s"} excluded` : ""
+    ].filter(Boolean);
+    const subtitle = [cohortLabel, ...exclusions].join(" · ");
     const accent = hasClosedMonths
       ? (avgRetention >= 60 ? "#3fb950" : "#d29922")
       : "var(--muted)";

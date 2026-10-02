@@ -7832,11 +7832,22 @@ function getRecordBudgetOccPct(record, monthIdx) {
   return getBudgetOccPctForMonth(record?.monthlyData?.[monthIdx], record?.savedBudgetTargets, monthIdx);
 }
 
-function getRecordSavedBudgetOccPct(record, monthIdx, year = null) {
-  const historyEntry = year == null ? null : getRecordHistoryEntry(record, monthIdx, year);
+function getRecordBudgetOccupancyEvidence(record, monthIdx, year = null) {
+  const targetYear = Number(year ?? record?.reportYear) || new Date().getFullYear();
+  const governed = typeof window !== "undefined" ? window.AtlasOccupancyBudgets?.get(record, monthIdx, targetYear) : null;
+  if (governed && governed.status !== "absent") return governed;
+  const historyEntry = getRecordHistoryEntry(record, monthIdx, targetYear);
   const historyPct = normalizeBudgetOccupancyPct(historyEntry?.budgetOcc);
-  if (historyPct > 0) return historyPct;
-  return getSavedBudgetOccPct(record?.savedBudgetTargets, monthIdx);
+  const recordYear = Number(record?.reportYear) || new Date().getFullYear();
+  const savedPct = targetYear === recordYear ? getRecordBudgetOccPct(record, monthIdx) : 0;
+  const pct = historyPct > 0 ? historyPct : savedPct;
+  return pct > 0 ? {status:"available", pct, sourceType:"saved_curve", source:"Saved community budget curve"}
+    : {status:"missing", reason:"No saved occupancy budget for this community and month."};
+}
+
+function getRecordSavedBudgetOccPct(record, monthIdx, year = null) {
+  const evidence = getRecordBudgetOccupancyEvidence(record, monthIdx, year);
+  return evidence.status === "available" ? evidence.pct : null;
 }
 
 function setRecordBudgetOccPct(record, monthIdx, value, year = null) {
@@ -8094,14 +8105,20 @@ function occupancyOptionalNumber(value) {
     ? null : (Number.isFinite(Number(value)) ? Number(value) : null);
 }
 
-function getObservedOccupiedSnapshot(record, totalUnits, monthIdx, year, propName = "") {
-  const entry = getObservedOccupancyPeriod(record, monthIdx, year);
+function getObservedOccupiedSnapshot(record, totalUnits, monthIdx, year, propName = "", options = {}) {
+  const savedEntry = getObservedOccupancyPeriod(record, monthIdx, year);
+  const last = `${buildPeriodKey(monthIdx,year)}-${new Date(year,monthIdx+1,0).getDate()}`;
+  const boundary = communityCommandBoundarySnapshot(savedEntry,last,totalUnits,propName,true);
+  const entry = boundary ? {...savedEntry,occupiedSnapshot:boundary.units,rentableUnits:boundary.base,
+    sourceTotalUnits:Math.max(boundary.base,Number(savedEntry?.sourceTotalUnits)||0),physicalOccupancyPct:boundary.units/boundary.base*100} : savedEntry;
   const occupied = occupancyOptionalNumber(entry?.occupiedSnapshot);
   if (occupied === null || occupied < 0 || !Number.isInteger(occupied)) return null;
   const total = occupancyOptionalNumber(entry?.sourceTotalUnits);
   const rentable = occupancyOptionalNumber(entry?.rentableUnits);
   // A different inventory basis must be reconciled before comparing counts.
-  if (total !== null && total !== Number(totalUnits)) return null;
+  const historical = entry?.historicalInventoryEvidence;
+  if (!boundary && total !== null && total !== Number(totalUnits) && !(historical?.period === buildPeriodKey(monthIdx,year)
+      && historical.totalUnits === total && historical.rentableUnits === rentable && historical.source && historical.corroboratingSource)) return null;
   if (rentable !== null && (rentable <= 0 || total === null || rentable > total)) return null;
   const rawBase = rentable ?? Number(totalUnits);
   if (!(rawBase > 0) || occupied > rawBase) return null;
@@ -8113,15 +8130,31 @@ function getObservedOccupiedSnapshot(record, totalUnits, monthIdx, year, propNam
     && occupancyOptionalNumber(item.importedValue) === 0);
   // Legacy defaults are zero. Only source-backed zeros are observations.
   if (occupied === 0 && !(pct === 0 && rentable !== null) && !documentedZero) return null;
-  const corporate = getCorporateLeaseUnitsForRecord(record, totalUnits);
+  // Charts retain the dated report's basis. Today's corporate configuration is
+  // only applicable when explicitly projecting from the current baseline.
+  const corporate = options.applyCurrentCorporateExclusion ? getCorporateLeaseUnitsForRecord(record, totalUnits) : 0;
   const baseUnits = getOccupancyBaseUnits(rawBase, corporate);
   if (baseUnits <= 0 || corporate > occupied) return null;
   const units = getComparableOccupancyUnits(occupied, corporate);
   return { units, baseUnits, pct: units / baseUnits * 100, entry, rawUnits: occupied };
 }
 
+function getPortfolioObservedOccupancy(details, monthIdx, year = null) {
+  let units = 0, baseUnits = 0;
+  const missing = [], excluded = [];
+  for (const detail of details) {
+    const total = getResolvedTotalUnitsForRecord(detail.name, detail.record, {prop:getPropertyByName(detail.name), summary:detail.summary});
+    if (!(total > 0)) { excluded.push(detail.name); continue; }
+    const observed = getObservedOccupiedSnapshot(detail.record, total, monthIdx, year ?? detail.record.reportYear, detail.name);
+    if (!observed) missing.push(detail.name);
+    else { units += observed.units; baseUnits += observed.baseUnits; }
+  }
+  const complete = details.length > 0 && missing.length === 0 && baseUnits > 0;
+  return {pct:complete ? units / baseUnits * 100 : null, complete, missing, excluded, coveredCommunities:details.length-missing.length-excluded.length, totalCommunities:details.length};
+}
+
 function getReconciledStabilizationInputs(record, totalUnits, monthIdx, year, propName) {
-  const baseline = getObservedOccupiedSnapshot(record, totalUnits, monthIdx, year, propName);
+  const baseline = getObservedOccupiedSnapshot(record, totalUnits, monthIdx, year, propName, {applyCurrentCorporateExclusion:true});
   const missing = reason => ({ baseline, documented: [], verified: false, reason });
   if (!baseline) return missing("Occupancy baseline is missing or requires reconciliation");
   const lineage = typeof dataImport2State === "object" ? dataImport2State.lineage || [] : [];
@@ -9459,17 +9492,23 @@ function getReportedOccupancyBaseUnits(monthEntry, totalUnits, corporateUnits = 
   const rentable = Number(monthEntry?.rentableUnits);
   const sourceTotal = Number(monthEntry?.sourceTotalUnits);
   // Only the reconciled Box Score contract supplies both independent counts.
-  if (sourceTotal > 0 && rentable > 0 && rentable <= sourceTotal && sourceTotal === Number(totalUnits)) {
+  if (sourceTotal > 0 && rentable > 0 && rentable <= sourceTotal && (sourceTotal === Number(totalUnits) || hasHistoricalOccupancyInventory(monthEntry))) {
     return getOccupancyBaseUnits(rentable, corporateUnits);
   }
   return getOccupancyBaseUnits(totalUnits, corporateUnits);
+}
+
+function hasHistoricalOccupancyInventory(entry = {}) {
+  const evidence = entry.historicalInventoryEvidence, provenance = entry.metricProvenance?.occupiedSnapshot;
+  return !!(evidence?.source && evidence.corroboratingSource && evidence.period === provenance?.period && evidence.source === provenance.source
+    && evidence.totalUnits === Number(entry.sourceTotalUnits) && evidence.rentableUnits === Number(entry.rentableUnits));
 }
 
 // Reconciled report counts remain distinct from legacy total-minus-available counts.
 function getReportedOccupancySnapshot(monthEntry = {}, totalUnits, corporateUnits = 0) {
   const rentable = Number(monthEntry.rentableUnits);
   const total = Number(monthEntry.sourceTotalUnits);
-  if (!(rentable > 0 && total === Number(totalUnits) && rentable <= total)) return null;
+  if (!(rentable > 0 && (total === Number(totalUnits) || hasHistoricalOccupancyInventory(monthEntry)) && rentable <= total)) return null;
   const optional = value => value === null || value === undefined || value === "" ? null : (Number.isFinite(Number(value)) ? Number(value) : null);
   const sourceLeased = optional(monthEntry.sourceLeasedUnits);
   const legacyLeased = optional(monthEntry.leasedSnapshot);
@@ -10971,7 +11010,7 @@ function getCommunitySummary(propName, sourceData, rawSourceData = sourceData) {
     leased,
     currentMonth: scopeCurrentMonth,
     reportYear: record.reportYear,
-    hasBudgetOcc: budgetOccPct > 0,
+    hasBudgetOcc: budgetOccPct !== null && Number.isFinite(budgetOccPct),
     occPct,
     leasedPct,
     budgetOccPct,
@@ -11237,7 +11276,7 @@ function aggregateCommunitySummaries(summaries) {
   const occPct = totals.occupancyBaseUnits > 0 ? (totals.occupied / totals.occupancyBaseUnits) * 100 : 0;
   const leasedPct = totals.occupancyBaseUnits > 0 ? (totals.leased / totals.occupancyBaseUnits) * 100 : 0;
   const budgetOccPct = budgetOccCoverage.complete && totals.occupancyBaseUnits > 0
-    ? (totals.budgetOccUnits / totals.occupancyBaseUnits) * 100 : null;
+    ? summaries.reduce((sum, row) => sum + row.budgetOccPct * row.occupancyBaseUnits, 0) / totals.occupancyBaseUnits : null;
   const budgetLeasedPct = totals.occupancyBaseUnits > 0 ? (totals.budgetLeasedUnits / totals.occupancyBaseUnits) * 100 : 0;
   const avgActualNer = totals.nerWeightUnits > 0 ? totals.nerActualWeight / totals.nerWeightUnits : 0;
   const avgBudgetNer = totals.nerWeightUnits > 0 ? totals.nerBudgetWeight / totals.nerWeightUnits : 0;
@@ -13926,6 +13965,42 @@ function prepareAtlasHomeRender(panel) {
   }).finally(() => { if (atlasHomeRenderPreparation === request) atlasHomeRenderPreparation = null; });
 }
 
+function prepareAtlasOccupancyBudgetView() {
+  if (![0,2,8].includes(activeTab) || !getAtlasCentralStatus().configured) return true;
+  const central = window.ATLAS_CENTRAL;
+  const names = [...new Set([...getAtlasDashboardAuthorizedCommunityOptions().map(row => row.name), ...(activeTab === 8 ? getReportableCommunityNames(getReportHubMonthIndex()) : [])])];
+  const entries = names.flatMap(name => {
+    const record = savedData[name] || {}, access = getAtlasCommunityAccessRecord(name);
+    return [...new Set([Number(record.reportYear) || new Date().getFullYear(), getReportHubYear()])].map(year => ({name, recordId:record.communityId,
+      communityId:access?.atlasCommunityId || access?.sourceIds?.atlasCommunityId, year}));
+  });
+  if (window.AtlasOccupancyBudgets?.ready(entries)) return true;
+  const panel = document.getElementById(`tab-panel-${activeTab}`);
+  if (panel) panel.innerHTML = '<div class="card" role="status">Reading saved community budgets…</div>';
+  if (!prepareAtlasOccupancyBudgetView.pending) {
+    prepareAtlasOccupancyBudgetView.pending = import('./features/occupancy-budget-store.mjs?v=5c4c95d494d79eae').then(async module => {
+      if (!window.AtlasOccupancyBudgets) {
+        window.AtlasOccupancyBudgets = module.createOccupancyBudgetStore(central);
+        const clear = () => { window.AtlasOccupancyBudgets.clear(); scheduleAtlasSharedRender(); };
+        window.addEventListener('atlas-finance-updated', clear);
+        let access = window.AtlasOccupancyBudgets.accessKey;
+        window.addEventListener('atlas-central-auth-change', () => {
+          const next = window.AtlasOccupancyBudgets.accessKey;
+          if (next !== access) { access = next; clear(); }
+        });
+      }
+      await window.AtlasOccupancyBudgets.hydrate(entries);
+    }).then(() => {
+      prepareAtlasOccupancyBudgetView.pending = null;
+      scheduleAtlasSharedRender();
+    }).catch(error => {
+      prepareAtlasOccupancyBudgetView.pending = null;
+      if (panel) panel.innerHTML = `<div class="card" role="alert">Saved budgets could not be loaded. ${escapeHtml(error.message)} <button class="btn" onclick="renderTab()">Retry</button></div>`;
+    });
+  }
+  return false;
+}
+
 function renderTab() {
   window.AtlasReports?.cancelStale?.();
   if (atlasHomeRenderPreparation && (atlasHomeRenderPreparation.context !== getAtlasRenderContextKey() || atlasHomeRenderPreparation.epoch !== atlasWorkspaceAccess.epoch)) atlasHomeRenderPreparation = null;
@@ -13958,6 +14033,7 @@ function renderTab() {
     }
     return;
   }
+  if (decision.ok && !shouldBlockAtlasSensitiveAccess() && !prepareAtlasOccupancyBudgetView()) return;
   if ([1,2,9].includes(activeTab) && decision.ok && typeof atlasCommunityGoalStore !== "undefined") hydrateCommunityCommandGoals().catch(() => {});
   const retainedBonusWorkflow = atlasBonusPreservedSharedWorkflowHost();
   const retainedBonusFocus = retainedBonusWorkflow?.contains(document.activeElement) ? document.activeElement : null;
@@ -14080,8 +14156,9 @@ function syncAtlasTopbar() {
 
     const budgetChip = document.getElementById("atlas-chip-budget");
     if (budgetChip) {
-      const monthLabel = FULL_MONTHS[Number(monthSelect?.value) || 0] || "";
-      budgetChip.lastElementChild.textContent = `Reporting period · ${monthLabel} ${new Date().getFullYear()}`;
+      const monthLabel = FULL_MONTHS[activeTab === 8 ? getReportHubMonthIndex() : Number(monthSelect?.value) || 0] || "";
+      const year = activeTab === 8 ? getReportHubYear() : new Date().getFullYear();
+      budgetChip.lastElementChild.textContent = `Reporting period · ${monthLabel} ${year}`;
     }
 
     const freshChip = document.getElementById("atlas-chip-freshness");
@@ -23253,14 +23330,15 @@ function renderCommunityCommandPlanSummaryStat(rosterItems = []) {
   </div>`;
 }
 
-function communityCommandBoundarySnapshot(entry, date, baseUnits, communityName) {
+function communityCommandBoundarySnapshot(entry, date, baseUnits, communityName, sourceBasis = false) {
   if (entry?.physicalSnapshotHistory?.[date]) entry = entry.physicalSnapshotHistory[date];
   const provenance = entry?.metricProvenance?.occupiedSnapshot;
   const units = normalizeOptionalNumber(entry?.occupiedSnapshot);
   const denominator = normalizeOptionalNumber(entry?.rentableUnits);
   if (!provenance?.source || provenance.community !== communityName || String(provenance.dataAsOf || "").slice(0, 10) !== date ||
-      units === null || !Number.isInteger(units) || units < 0 || denominator !== baseUnits || units > baseUnits) return null;
-  return { units, provenance, status: "Verified Actual" };
+      units === null || !Number.isInteger(units) || units < 0 || !Number.isInteger(denominator) || denominator <= 0 ||
+      (!sourceBasis && denominator !== baseUnits) || units > denominator) return null;
+  return { units, base: denominator, provenance, status: "Verified Actual" };
 }
 
 function communityCommandOccupancyPeriods(model) {
@@ -23274,18 +23352,21 @@ function communityCommandOccupancyPeriods(model) {
     const entry = model.monthlyData[idx] || {};
     const trend = entry.trendSource;
     const previous = idx ? model.monthlyData[idx - 1] : model.record.monthlyHistoryByPeriod?.[`${model.year - 1}-12`];
-    const base = getReportedOccupancyBaseUnits(entry, model.totalUnits, model.corporateUnits);
-    let start = communityCommandBoundarySnapshot(entry, first, base, model.propName)
-      || communityCommandBoundarySnapshot(previous, priorDate, base, model.propName);
+    const configuredBase = getReportedOccupancyBaseUnits(entry, model.totalUnits, model.corporateUnits);
+    const end = communityCommandBoundarySnapshot(entry, last, configuredBase, model.propName, true);
+    let start = communityCommandBoundarySnapshot(entry, first, configuredBase, model.propName, true);
+    const base = end?.base ?? start?.base ?? configuredBase;
+    start ||= communityCommandBoundarySnapshot(previous, priorDate, base, model.propName);
     const override = getCommunityCommandDashboardOverride(model.propName, "beginning_occupied_units", idx, model.year);
     const overrideUnits = normalizeOptionalNumber(override?.overrideValue);
     if (!start && override && override.reason && Number.isInteger(overrideUnits) && overrideUnits >= 0 && overrideUnits <= base) {
       start = { units: overrideUnits, status: "Manual Override", provenance: { source: "Authorized manual override", field: "beginning_occupied_units", community: model.propName, dataAsOf: first, user: override.updatedBy, importedAt: override.updatedAt, reason: override.reason } };
     }
-    const end = communityCommandBoundarySnapshot(entry, last, base, model.propName);
     const prior = output[idx - 1];
     const approved = getCommunityCommandApprovedGoal(model.propName, idx, model.year);
     const warnings = [];
+    if (start?.base !== undefined && start.base !== base) warnings.push(`Source inventory differs at the boundaries: beginning ${start.base}, ending ${base}. Each percentage uses its own reported inventory.`);
+    if (model.corporateUnits > 0) warnings.push("Historical source counts retain the report's corporate-unit basis; today's corporate exclusion is not applied retroactively.");
     let beginningUnits = start?.units ?? null;
     let beginningStatus = start?.status || "Missing";
     if (beginningUnits === null && first > today && prior?.endingForecastUnits !== null && prior?.endingForecastUnits !== undefined && prior.base === base) {
@@ -23324,12 +23405,12 @@ function communityCommandOccupancyPeriods(model) {
     const endingActualUnits = end?.units ?? null;
     const endingForecastUnits = bounded(rawForecast);
     const pct = units => units === null || !(base > 0) ? null : units / base * 100;
-    output.push({ period, base, beginningUnits, beginningPct: pct(beginningUnits), beginningStatus,
+    output.push({ period, base, beginningBase: start?.base ?? base, beginningUnits, beginningPct: beginningUnits === null ? null : beginningUnits / (start?.base ?? base) * 100, beginningStatus,
       endingActualUnits, endingActualPct: pct(endingActualUnits), actualCalculatedUnits,
       endingForecastUnits, endingForecastPct: pct(endingForecastUnits), approved, warnings,
       lineage: start?.provenance || (trendValid ? trend.provenance : null), endingLineage: end?.provenance || (trendValid ? trend.provenance : null),
       inputs: { beginningUnits, comparableUnits: base, moveIns: complete ? ins : futureIns, moveOuts: complete ? outs : futureOuts, approvedGrossLeases: approved?.grossLeaseGoal ?? null, approvedNetLeases: approved?.netLeaseGoal ?? null },
-      status: complete ? (end ? "Verified Actual" : "Missing") : endingForecastUnits === null ? "Forecast Unavailable" : "Forecast" });
+      status: end ? "Verified Actual" : complete ? "Missing" : endingForecastUnits === null ? "Forecast Unavailable" : "Forecast" });
   }
   return output;
 }
@@ -23884,10 +23965,11 @@ function queueCommunityRosterFinancials(items) {
     const sourceDate=provenance?.dataAsOf || provenance?.generatedAt || provenance?.importedAt || provenance?.sourceTimestamp || provenance?.uploadedAt;
     const actual = provenance && sourceDate && provenance.period===buildPeriodKey(m.monthIdx,m.year) && (!provenance.communityId || provenance.communityId===(access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId)) && Number(entry.rentableUnits)>0 && Number(entry.sourceTotalUnits)>=Number(entry.rentableUnits) && entry.occupiedSnapshot!=null
       ? {occupiedUnits:Number(entry.occupiedSnapshot),rentableUnits:Number(entry.rentableUnits),source:provenance.sourceFile||provenance.sourceFileName||provenance.fileName||provenance.revisionKey,sourceTimestamp:sourceDate} : null;
-    return {key:encodeURIComponent(item.detail.name),hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
+    return {key:encodeURIComponent(item.detail.name),communityName:item.detail.name,rentRoll:entry.rentRollFinancialSnapshot,
+      hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
   });
   setTimeout(async()=>{try {
-    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=446e3a85aabc4a93");
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=b1cc5687285aa5d7");
     if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
     await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
   } catch {}},0);
@@ -42671,6 +42753,7 @@ function buildCommunityProgressTrendRows(report) {
     if (!detail?.record) return null;
     const prop = getPropertyByName(detail.name);
     const totalUnits = getResolvedTotalUnitsForRecord(detail.name, detail.record, { prop, summary: detail.summary });
+    if (snapshotKey === "occupiedSnapshot") return getObservedOccupiedSnapshot(detail.record, totalUnits, monthIdx, report.reportYear, detail.name)?.pct ?? null;
     const corporateUnits = getCorporateLeaseUnitsForRecord(detail.record, totalUnits);
     const occupancyBaseUnits = getOccupancyBaseUnits(totalUnits, corporateUnits);
     if (occupancyBaseUnits <= 0) {
@@ -42690,7 +42773,7 @@ function buildCommunityProgressTrendRows(report) {
       const details = communityRecords.map(({ name, record }) => buildCommunityDetailForMonth(name, record, monthIdx, report.reportYear, COMMUNITY_PROGRESS_TREND_DETAIL_OPTIONS)).filter(Boolean);
       const summaries = details.map(detail => detail.summary);
       const aggregate = aggregateCommunitySummaries(summaries);
-      const budgetOccPct = aggregate.budgetOccPct > 0 ? aggregate.budgetOccPct : null;
+      const budgetOccPct = aggregate.budgetOccPct;
       const occupancyTotals = details.reduce((acc, detail) => {
         const prop = getPropertyByName(detail.name);
         const totalUnits = getResolvedTotalUnitsForRecord(detail.name, detail.record, { prop, summary: detail.summary });
@@ -42709,7 +42792,7 @@ function buildCommunityProgressTrendRows(report) {
         monthIdx,
         monthLabel,
         shortLabel: FULL_MONTHS[monthIdx].slice(0, 3),
-        occupancyPct: occupancyTotals.baseUnits > 0 ? (occupancyTotals.occupiedUnits / occupancyTotals.baseUnits) * 100 : getSummaryOccPct(aggregate),
+        occupancyPct: getPortfolioObservedOccupancy(communityRecords, monthIdx, report.reportYear).pct,
         leasedPct: occupancyTotals.baseUnits > 0 ? (occupancyTotals.leasedUnits / occupancyTotals.baseUnits) * 100 : getSummaryLeasedPct(aggregate),
         guestCards: aggregate.guestCards,
         tours: aggregate.tours,
@@ -42788,7 +42871,7 @@ function buildCommunityProgressTrendRows(report) {
       netAbsorption: moveIns - moveOuts,
       tourToLeasePct: tours > 0 ? calculateFunnelConversionPct(attributableLeases, tours) : null,
       renewalRetention,
-      budgetOccPct: Number.isFinite(Number(budgetOccPct)) && Number(budgetOccPct) > 0 ? Number(budgetOccPct) : null,
+      budgetOccPct: budgetOccPct !== null && Number.isFinite(budgetOccPct) ? budgetOccPct : null,
       marketLeasedPct: Number(marketPerformance.compAverageLeasedPct) || null,
       marketExposurePct: Number(marketPerformance.compAverageExposurePct) || null
     };
@@ -43359,6 +43442,7 @@ function buildCommunityProgressDualLineChart(points = [], options = {}) {
       const value = normalizeOptionalNumber(point?.[series.key]);
       if (value === null || !Number.isFinite(value)) return null;
       return {
+        index: idx,
         x: left + (stepX * idx),
         y: yForValue(value),
         value,
@@ -43386,9 +43470,14 @@ function buildCommunityProgressDualLineChart(points = [], options = {}) {
       y: top + chartHeight - ((idx / tickCount) * chartHeight)
     };
   });
-  const lineFor = series => series.points.length > 1
-    ? `<polyline fill="none" stroke="${series.lineColor}" stroke-width="3" ${series.dash ? `stroke-dasharray="${series.dash}"` : ""} points="${series.points.map(point => `${point.x},${point.y}`).join(" ")}"/>`
-    : "";
+  const lineFor = series => {
+    const segments = [];
+    for (const point of series.points) {
+      if (!segments.length || point.index !== segments.at(-1).at(-1).index + 1) segments.push([]);
+      segments.at(-1).push(point);
+    }
+    return segments.filter(segment => segment.length > 1).map(segment => `<polyline fill="none" stroke="${series.lineColor}" stroke-width="3" ${series.dash ? `stroke-dasharray="${series.dash}"` : ""} points="${segment.map(point => `${point.x},${point.y}`).join(" ")}"/>`).join("");
+  };
   const dotsFor = series => series.points.map(point => `
       <circle cx="${point.x}" cy="${point.y}" r="${point.projected ? 3.5 : 4.5}" fill="${series.dotColor || series.lineColor}" stroke="#ffffff" stroke-width="1.5">
         <title>${series.label} · ${point.monthLabel}: ${pointLabelFormatter(point.value)}</title>
@@ -43563,7 +43652,7 @@ function buildCommunityProgressNarrative({
       ? `${formatDlrPercent(renewalSummary.retentionRate, 0)} renewal retention across ${formatDlrMetricValue(renewalExpirations)} expirations is shaping the current forward look.`
       : "Renewal detail is not yet populated for the selected communities this month, so the forward-look narrative is waiting on updated retention entries.";
     return [
-      `${scopeLabel} is sitting at ${formatDlrPercent(occupancyPct, 1)} physical occupancy and ${formatDlrPercent(leasedPct, 1)} leased occupancy${Number.isFinite(Number(budgetOccPct)) ? ` against a saved budget line of ${formatDlrPercent(budgetOccPct, 1)}` : ""}.`,
+      `${scopeLabel} is sitting at ${formatDlrPercent(occupancyPct, 1)} physical occupancy and ${formatDlrPercent(leasedPct, 1)} leased occupancy${budgetOccPct != null && Number.isFinite(Number(budgetOccPct)) ? ` against a saved budget line of ${formatDlrPercent(budgetOccPct, 1)}` : ""}.`,
       trafficText,
       `${renewalText} ${leadSourceText}`.trim()
     ];
@@ -43578,7 +43667,7 @@ function buildCommunityProgressNarrative({
     ? `${formatDlrPercent(renewalSummary.retentionRate, 0)} renewal retention across ${formatDlrMetricValue(renewalExpirations)} expirations is shaping the current forward look.`
     : "Renewal detail is not yet populated for this month, so the forward-look narrative is waiting on updated retention entries.";
   return [
-    `${communityName} is sitting at ${formatDlrPercent(occupancyPct, 1)} physical occupancy and ${formatDlrPercent(leasedPct, 1)} leased occupancy${Number.isFinite(Number(budgetOccPct)) ? ` against a saved budget line of ${formatDlrPercent(budgetOccPct, 1)}` : ""}.`,
+    `${communityName} is sitting at ${formatDlrPercent(occupancyPct, 1)} physical occupancy and ${formatDlrPercent(leasedPct, 1)} leased occupancy${budgetOccPct != null && Number.isFinite(Number(budgetOccPct)) ? ` against a saved budget line of ${formatDlrPercent(budgetOccPct, 1)}` : ""}.`,
     trafficText,
     `${renewalText} ${leadSourceText}`.trim()
   ];
@@ -43649,8 +43738,10 @@ function buildCommunityProgressReportAlerts(report) {
   if (!report.hasBudgetOcc) {
     alerts.push({
       level: "critical",
-      title: "Budget occupancy is missing for the selected month",
-      body: "The report can still show occupancy and leased position, but it cannot pace against budget until the month has a saved budget occupancy percentage."
+      title: report.communityReports?.length > 1 ? "Portfolio budget coverage is incomplete" : "Budget occupancy is unavailable for the selected month",
+      body: report.communityReports?.length > 1
+        ? `${report.communityReports.filter(item => item.hasBudgetOcc).length} of ${report.communityReports.length} communities have a saved budget for this report period. Available: ${report.communityReports.filter(item => item.hasBudgetOcc).map(item => `${item.communityName} ${formatDlrPercent(item.budgetOccPct, 1)}`).join(", ") || "None"}. Missing: ${report.communityReports.filter(item => !item.hasBudgetOcc).map(item => item.communityName).join(", ")}. A full-portfolio comparison requires complete coverage.`
+        : (getRecordBudgetOccupancyEvidence(report.sourceRecord, report.reportMonthIdx, report.reportYear).reason || "No saved budget is available for this report period.")
     });
   }
   if (!Array.isArray(report.floorPlanVarianceRows) || report.floorPlanVarianceRows.length === 0) {
@@ -43830,7 +43921,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
         mtm: renewals.undecided,
         pendingMoveOuts: getEffectiveMoveOutsForMonth(idx, monthEntries).effective,
         pendingMoveIns: Number(entry.moveIns) || 0,
-        budgetedOccupancy: getRecordSavedBudgetOccPct(record, idx, year) || null,
+        budgetedOccupancy: getRecordSavedBudgetOccPct(record, idx, year),
         projectedOccupancy: Number(row.occPct) || 0,
         moveInsNeeded: getMoveInTargetFromScheduleRow(row)
       };
@@ -43847,7 +43938,7 @@ function buildCommunityProgressSingleReportData(options = {}) {
   const hasPending = Object.prototype.hasOwnProperty.call(monthEntry, "pendingDecision");
   const hasDecisionBreakdown = hasApplications && hasApprovals && hasDenied && hasCancelled && hasPending;
   const budgetOccPct = getRecordSavedBudgetOccPct(record, monthIdx, year);
-  const hasBudgetOcc = Number.isFinite(Number(budgetOccPct)) && Number(budgetOccPct) > 0;
+  const hasBudgetOcc = budgetOccPct !== null && Number.isFinite(budgetOccPct);
   const occupiedUnits = Number.isFinite(Number(summary.occupied)) ? Number(summary.occupied) : getComparableOccupancyUnits(Number(record.currentOccupied) || 0, corporateUnits);
   const leasedUnits = Number.isFinite(Number(summary.leased)) ? Number(summary.leased) : getComparableOccupancyUnits(Number(record.currentLeased) || 0, corporateUnits);
   const occupancyPct = getOccupancyPctFromComparableUnitsOrFallback(occupiedUnits, summary.occupancyBaseUnits ?? getOccupancyBaseUnits(totalUnits, corporateUnits), 0, summary.occPct);
@@ -44061,7 +44152,7 @@ function assembleCommunityProgressReportData(communityReports, options = {}) {
   const allHaveTours = communityReports.every(item => item.hasTours);
   const leadSourceBreakdown = window.AtlasLeadSources.combine(communityReports.map(item=>item.leadSourceBreakdown || {}));
   const leadSourceBreakdownTotal = window.AtlasLeadSources.sum(Object.values(leadSourceBreakdown));
-  const budgetOccPct = allHaveBudgetOcc && aggregateSummary.budgetOccPct > 0
+  const budgetOccPct = allHaveBudgetOcc && aggregateSummary.budgetOccPct !== null
     ? aggregateSummary.budgetOccPct
     : null;
   const previousRetentionValues = communityReports
@@ -45839,7 +45930,9 @@ function dataImportBuildBatchId() {
   // Compact startup holds only recent summaries; the full count prevents its
   // next proposed identity from recycling a hidden batch number.
   const next = Math.max(Number(dataImport2State.historyStorage?.counts?.batches || 0),0,...retainedNumbers) + 1;
-  return `${prefix}${String(next).padStart(4, "0")}`;
+  // Separate tabs can have equally stale counters. Identity must remain unique
+  // before approval rehydrates the complete shared import history.
+  return `${prefix}${String(next).padStart(4, "0")}-${crypto.randomUUID()}`;
 }
 
 function dataImportGetReportDef(type) {
@@ -47204,7 +47297,7 @@ async function dataImportReadStructuredRows(file, plan = {}) {
   const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false });
   const sheets = [];
   const occupancySourceParser = ["box_score", "rent_roll", "delinquency"].includes(plan.reportType)
-    ? (await import("./features/occupancy-source-evidence.mjs?v=012daa540aac0f2c")).parseOccupancySheet : null;
+    ? (await import("./features/occupancy-source-evidence.mjs?v=adb2a8d70c7c8530")).parseOccupancySheet : null;
   plan.occupancyEvidenceBySheet = {};
   const occupancyParameterSheet = (workbook.SheetNames || []).find(name => /^report parameters$/i.test(name.trim()));
   const occupancyReportParameters = occupancySourceParser && occupancyParameterSheet
@@ -47822,8 +47915,13 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     const propertyType = directoryRecord?.property_type || record.communityPropertyType || record.propertyType || "";
     const measurementBasis = dataImportNormalizeText(first("measurement_basis"));
     const configuredUnits = getResolvedTotalUnitsForRecord(communityName, record);
+    const historicalTrend = record.monthlyHistoryByPeriod?.[period.periodKey]?.trendSource || record.monthlyData?.[period.monthIdx]?.trendSource;
+    const historicalInventory = historicalTrend?.end?.slice(0,7) === period.periodKey && historicalTrend.end < getAtlasTodayISODate()
+      && historicalTrend.provenance?.community === communityName && historicalTrend.provenance?.source
+      && historicalTrend.base === total && historicalTrend.endingUnits === occupied;
+    const validationUnits = historicalInventory ? total : configuredUnits;
     const sourceInventoryReconciles = total !== null && rentable > 0 && rentable <= total
-      && configuredUnits > 0 && total === configuredUnits
+      && validationUnits > 0 && total === validationUnits
       && (excluded === null || rentable + excluded === total);
     const studentBasisConflict = /student/i.test(propertyType) && measurementBasis !== "beds" && !sourceInventoryReconciles;
     if (studentBasisConflict) {
@@ -47835,7 +47933,7 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
     const leased = sourceLeased;
     const physicalPct = dataImportPercentValue(first("physical_occupancy")) ?? (rentable > 0 && occupied !== null ? occupied / rentable * 100 : null);
     const leasedPct = dataImportPercentValue(first("leased_occupancy")) ?? (rentable > 0 && leased !== null ? leased / rentable * 100 : null);
-    const occupancyErrors = dataImportValidateOccupancyCounts({ total, rentable, excluded, occupied, leased, available, vacant: sum("vacant_units"), physicalPct, leasedPct }, configuredUnits);
+    const occupancyErrors = dataImportValidateOccupancyCounts({ total, rentable, excluded, occupied, leased, available, vacant: sum("vacant_units"), physicalPct, leasedPct }, validationUnits);
     const countFields = ["total_units", "rentable_units", "excluded_units", "occupied_units", "source_leased_units", "leased_units", "vacant_units", "available_units", "occupied_no_notice", "notice_rented", "notice_unrented", "vacant_rented"];
     if (rows.some(row => countFields.some(field => String(row[field] ?? "").includes("%")))) occupancyErrors.push("A source count contains a percentage");
     const occupancyHeld = studentBasisConflict || occupancyErrors.length > 0;
@@ -47916,6 +48014,7 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
       if (rentable > 0 && sourceLeased !== null) month.leasedOccupancyPct = sourceLeased / rentable * 100;
       if (rentable > 0 && exposureAdjustedUnits !== null) month.exposureAdjustedOccupancyPct = exposureAdjustedUnits / rentable * 100;
       if (total > 0 && occupied !== null) month.legacyPhysicalOccupancyPct = occupied / total * 100;
+      if (acceptDerived && historicalInventory) month.historicalInventoryEvidence = {period:period.periodKey,totalUnits:total,rentableUnits:rentable,source:plan.fileHash || plan.name,corroboratingSource:historicalTrend.provenance.source};
     });
     result.formulas.push(`${communityName} ${period.periodKey}: Physical Occupancy = Occupied / Rentable; Leased Occupancy = Leased / Rentable; Exposure-adjusted Occupancy = (Rentable minus Available) / Rentable; source Leased = Occupied plus Vacant Rented. Exclusions are retained separately and applied once.`);
     result.destinations.add("Community Overview");
@@ -47942,7 +48041,7 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
             if (date > asOf || !Number.isInteger(units) || units < 0 || units > base) return;
             const old = month.physicalSnapshotHistory?.[date];
             if (old?.metricProvenance?.occupiedSnapshot?.sourceRank > 70) {
-              if (month === periodEntries.historyEntry && (old.occupiedSnapshot !== units || old.rentableUnits !== base)) result.issues.push({type:"reconciliation",severity:"high",title:"Occupancy sources disagree",detail:`${date}: Box Score and Trending Occupancy boundary counts differ. Box Score retained.`,communityName});
+              if (month === periodEntries.historyEntry && old.occupiedSnapshot !== units) result.issues.push({type:"reconciliation",severity:"high",title:"Occupancy sources disagree",detail:`${date}: Box Score and Trending Occupancy boundary counts differ. Box Score retained.`,communityName});
               return;
             }
             month.physicalSnapshotHistory = {...month.physicalSnapshotHistory, [date]: {occupiedSnapshot:units, rentableUnits:base, metricProvenance:{occupiedSnapshot:provenance(field,date)}}};
@@ -47978,13 +48077,26 @@ function dataImportApplyGroupedSnapshot(group, plan, result) {
       const values = rows.map(row => dataImportNumericValue(row[field]));
       return values.length && values.every(value => value !== null) ? values.reduce((a,b) => a+b,0) : null;
     };
-    const scheduled = completeSum("scheduled_charges");
-    const actual = completeSum("actual_charges");
-    const gpr = completeSum("gross_potential_rent");
+    const rentSources = [...new Set(entries.map(entry => entry.sourceRow.sourceSheet))].map(sheet => plan.occupancyEvidenceBySheet?.[sheet]).filter(Boolean);
+    const rentSource = plan.reportType === "rent_roll" && rentSources.length === 1 && rentSources[0].status === "valid"
+      && rentSources[0].period === period.periodKey && rentSources[0].sourceFingerprint === plan.fileHash ? rentSources[0] : null;
+    const rentFinancials = rentSource?.financials;
+    const scheduled = rentFinancials ? rentFinancials.scheduledCharges : completeSum("scheduled_charges");
+    const actual = rentFinancials ? rentFinancials.actualCharges : completeSum("actual_charges");
+    const gpr = rentFinancials ? rentFinancials.grossPotentialRent : completeSum("gross_potential_rent");
     for (const [field, value] of [["scheduled_charges",scheduled],["actual_charges",actual],["gross_potential_rent",gpr]]) {
       dataImportApplyMetric(record, plan, result, communityName, period, field, value, field);
     }
     dataImportApplyMetric(record, plan, result, communityName, period, "rent_roll_total", scheduled ?? actual, scheduled !== null ? "scheduled_charges" : "actual_charges");
+    if (rentFinancials?.status === "valid") {
+      const periodEntries = getWritableMonthlyPeriodEntries(record,period.monthIdx,period.year);
+      for (const month of [periodEntries?.historyEntry,periodEntries?.liveEntry].filter(Boolean)) {
+        if (month.metricProvenance?.gross_potential_rent?.source === (plan.fileHash || plan.name)) month.rentRollFinancialSnapshot = {
+          ...rentFinancials,period:period.periodKey,communityName,source:plan.fileHash,sourceFile:plan.name,
+          sourceSheet:rentSource.sourceSheet,asOf:rentSource.sourceEffectiveAt
+        };
+      }
+    }
     // Economic occupancy is read from the governed close cache at presentation
     // time. An operating import cannot store a prior close under this month.
     result.formulas.push(`${communityName} ${period.periodKey}: Economic Occupancy requires approved closed-package Net Rental Income / GPR. Operational charges remain separate.`);
@@ -48172,7 +48284,7 @@ async function dataImportRouteStructuredFile(file, plan, batchId) {
         result.issues.push({type:"held",severity:"high",title:"Renewal expiration period is missing",detail:`${sheet.sheetName} row ${sourceRow.sourceRow} needs an expiration date or a dated month tab. It was not assigned to the upload month.`,communityName});
         continue;
       }
-      if (plan.reportType !== "renewal_tracker" && dataImportPeriodConflict(plan.periodSelection?.requested, period)) {
+      if (!["renewal_tracker","trending_occupancy"].includes(plan.reportType) && dataImportPeriodConflict(plan.periodSelection?.requested, period)) {
         result.rowsHeld += 1;
         result.issues.push({ type: "conflict", severity: "high", title: "Source section is outside the selected period", detail: `${sheet.sheetName} row ${sourceRow.sourceRow} belongs to ${period.periodKey}; it was held without changing that date or another month.`, communityName, sourceSheet: sheet.sheetName, sourceRow: sourceRow.sourceRow });
         continue;

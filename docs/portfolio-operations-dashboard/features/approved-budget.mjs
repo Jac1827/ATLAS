@@ -104,6 +104,7 @@ export async function reviewOriginalBudget({R,central,cid,prop,year,onStatus=()=
    const outcome=await approveOriginalBudget({central,cid,payload,requestId:attempt.requestId,importRecovery:baseline.importRecovery,onStatus:value=>{if(value.versionId){attempt.committed=true;attempt.versionId=value.versionId;attempt.contentHash=value.contentHash;}emit(value);}});
    baseline.publishedAt=outcome.receipt.created_at;baseline.canonicalVersionId=outcome.versionId;baseline.canonicalContentHash=outcome.contentHash;baseline.publicationReceipt=outcome.receipt;baseline.stage='readback_verified';R.persist?.autosave?.();
    button.textContent='Readback verified';
+   window.parent.dispatchEvent(new window.parent.Event('atlas-finance-updated'));
    try{await window.parent.refreshAtlasClosedFinancials?.(year,true);}catch(e){status.textContent+=' · Reporting refresh failed; reload to read the verified central version. '+e.message;}
   }catch(e){if(!e.publication)emit(budgetPublicationStatus(/conflict|already.*locked/i.test(e.message)?'conflict':'blocked',e.message));button.disabled=false;}
  };

@@ -108,6 +108,24 @@ function rentEvidence(rows) {
   const list=m=>[...m].sort(([a],[b])=>a.localeCompare(b)).map(([date,count])=>({date,count}));
   return {status:duplicateUnits.size||ambiguous.size?'unavailable':'valid',signedVacantUnits:vacantRented.size,datedMoveIns:list(dates),datedLeaseStarts:list(starts),undatedUnits:vacantRented.size-dated,complete:dated===vacantRented.size && !duplicateUnits.size && !ambiguous.size,duplicateUnitCount:duplicateUnits.size,ambiguousFutureUnitCount:ambiguous.size,sourceRows:{currentHeader:header+1,currentTotal:end+1,futureHeader:futureHeader+1},reason:'Scheduled move-ins for unique currently vacant-rented units only; undated inventory is not assigned to a month.'};
 }
+export function rentRollFinancialEvidence(rows) {
+  const t = table(rows, /^unit details$/i, r => r.some(v => norm(v) === 'bldg-unit'), r => r.some(v => /(?:^|\s)total:$/i.test(text(v))));
+  if (!t) return {status:'unavailable',reason:'Current unit details and their total are required.'};
+  const unitColumn = t.headers.findIndex(h => norm(h) === 'bldg-unit');
+  const detail = t.detail.filter(r => text(r[unitColumn]));
+  const distinct = new Set(detail.map(r => text(r[unitColumn])));
+  if (!detail.length || distinct.size !== detail.length) return {status:'unavailable',reason:'Current unit detail is empty or contains duplicate units.'};
+  const controls = {}, values = {};
+  for (const [field,label] of [['grossPotentialRent','market rent (budgeted)'],['actualCharges','actual charges'],['scheduledCharges','in-place rents (scheduled)']]) {
+    const control = readControl(t,label), column = control.column === null ? -1 : control.column - 1;
+    const calculated = column < 0 ? null : sum(detail.map(r => numeric(r[column])));
+    const reconciled = control.value !== null && calculated !== null && Math.abs(control.value - calculated) <= .02;
+    controls[field] = {...control,calculated,reconciled};
+    values[field] = reconciled ? control.value : null;
+  }
+  return {status:values.grossPotentialRent === null?'unavailable':'valid',...values,unitCount:detail.length,controls,
+    basis:'Current Unit Details only; reported Market Rent (Budgeted) total, reconciled to each unit. Future residents and repeated summaries excluded.'};
+}
 /** Parses cached numeric totals by exact header meaning. PII never leaves this function. */
 export function parseOccupancySheet({rows=[],reportType,sourceSheet='',metadata={},fileHash='',sourceFile='',reportParameters=[]}={}) {
   if(!['box_score','rent_roll','delinquency'].includes(reportType))return null;
@@ -121,7 +139,7 @@ export function parseOccupancySheet({rows=[],reportType,sourceSheet='',metadata=
   const reportScope=reportParameters.filter(row=>parameterKeys.has(norm(row?.[0]))).map(row=>({label:text(row[0]),value:text(row[1])}));
   const base={schemaVersion:1,reportType,reportScope,propertySource:embeddedCommunity,sourceSheet,period:sourcePeriod,sourceFile,sourceFingerprint:fileHash,sourceEffectiveAt:text(metadata.dataAsOf||metadata.generatedAt),status:identityMatches&&sourcePeriod&&!empty?'valid':'unavailable',reason:!identityMatches?'Embedded community and source sheet disagree.':!sourcePeriod?'Source period is unavailable.':empty?'Source reports no data; this is not zero.':null};
   if(base.status!=='valid')return base;
-  return {...base,...(reportType==='box_score'?{snapshot:boxEvidence(rows)}:reportType==='rent_roll'?{pipeline:rentEvidence(rows)}:{aging:agingEvidence(rows)})};
+  return {...base,...(reportType==='box_score'?{snapshot:boxEvidence(rows)}:reportType==='rent_roll'?{pipeline:rentEvidence(rows),financials:rentRollFinancialEvidence(rows)}:{aging:agingEvidence(rows)})};
 }
 const unavailable = reason => ({status:'unavailable',reason});
 const sameCommunity=(row,name,id)=>row.communityId?row.communityId===id:row.communityName===name;

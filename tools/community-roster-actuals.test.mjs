@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {rentRollFinancialEvidence} from '../docs/portfolio-operations-dashboard/features/occupancy-source-evidence.mjs';
+import {commandExpenseActual,commandRentRollGpr} from '../docs/portfolio-operations-dashboard/features/community-finance.mjs';
+const sheet=[['Unit Details'],['Bldg-Unit','Market Rent (Budgeted)','Actual Charges','In-Place Rents (Scheduled)'],['A',100,0,0],['B',150,-10,130],['','Community Total:',0,0]];
+sheet[4]=['Community Total:',250,-10,130];
+sheet.push(['Future Resident Details'],['Bldg-Unit','Market Rent (Budgeted)','Actual Charges','In-Place Rents (Scheduled)'],['A',999,999,999],['Total:',999,999,999]);
+let evidence=rentRollFinancialEvidence(sheet);assert.equal(evidence.grossPotentialRent,250);assert.equal(evidence.actualCharges,-10);assert.equal(evidence.unitCount,2);
+const missing=structuredClone(sheet);missing[2][1]=null;assert.equal(rentRollFinancialEvidence(missing).grossPotentialRent,null);
+const duplicate=structuredClone(sheet);duplicate[3][0]='A';assert.equal(rentRollFinancialEvidence(duplicate).status,'unavailable');
+const zero=structuredClone(sheet);zero[2][1]=zero[3][1]=zero[4][1]=0;assert.equal(rentRollFinancialEvidence(zero).grossPotentialRent,0);
+const e={period:'2026-09',communityName:'Test',rentRoll:{...evidence,period:'2026-09',communityName:'Test',source:'hash',sourceFile:'rent.xlsx',asOf:'2026-09-28'}};
+assert.equal(commandRentRollGpr(e).grossPotentialRent,250);assert.equal(commandRentRollGpr({...e,period:'2026-08'}),null);assert.equal(commandRentRollGpr({...e,communityName:'Other'}),null);
+const row=(period,value)=>({community_id:'id',period_key:period,publication_id:'pub'+period,summary:{period,actualCloseVersion:'v'+period,periodState:'locked',close:{community_id:'id',period_key:period,version_id:'v'+period,status:'closed',coverage:'full_month',source_file:'actuals.xlsx',approved_at:'2026-09-05',approved_by:'reviewer',metrics:{operatingExpenses:value}}}});
+let records=[row('2026-07',120),row('2026-08',0),row('2026-10',999)];let actual=commandExpenseActual(records,'id','2026-09');assert.equal(actual.amount,0);assert.equal(actual.period,'2026-08');assert.equal(actual.exact,false);assert.equal(commandExpenseActual(records,'other','2026-09'),null);assert.equal(commandExpenseActual(records,'id','2026-08').exact,true);
+records[1].summary.periodState='reopened';assert.equal(commandExpenseActual(records,'id','2026-09').period,'2026-07');
+records[0].summary.actualCloseVersion='wrong';assert.equal(commandExpenseActual(records,'id','2026-09'),null);
+console.log('PASS actuals without budgets, latest close period labeling, zero expenses, rent-roll total reconciliation and community/period/version guards');

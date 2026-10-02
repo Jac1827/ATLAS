@@ -79,6 +79,8 @@ jobs:
             output/test-all/ci/results.json
             output/test-all/ci/*-reforecast-report-library-browser.test.mjs.log
             output/test-all/ci/*-finance-compat-browser.test.mjs.log
+            output/test-all/ci/*-workspace-startup-browser.test.mjs.log
+            output/test-all/ci/*-community-finance-period-warning.test.mjs.log
           if-no-files-found: warn
 
       - name: Install Wrangler
@@ -152,6 +154,8 @@ jobs:
             output/test-all/ci/results.json
             output/test-all/ci/*-reforecast-report-library-browser.test.mjs.log
             output/test-all/ci/*-finance-compat-browser.test.mjs.log
+            output/test-all/ci/*-workspace-startup-browser.test.mjs.log
+            output/test-all/ci/*-community-finance-period-warning.test.mjs.log
           if-no-files-found: warn
 
       - name: Install Wrangler

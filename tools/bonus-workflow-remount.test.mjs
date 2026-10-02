@@ -11,7 +11,7 @@ const source=(await readDashboardSource(path.join(root,base,'index.html')))+'\n'
 const fn=name=>{const match=source.match(new RegExp('^(?:async )?function '+name+'\\([^]*?^\\}','m'));assert(match,name);return match[0];};
 const scopeInitializer=source.match(/^let atlasSynchronousReadScope = null;$/m);
 assert(scopeInitializer,'Real synchronous-read scope initializer');
-const functions=scopeInitializer[0]+'\n'+['withAtlasSynchronousReadScope','atlasSynchronousReadValue','atlasWorkspaceFeature','renderTab','atlasBonusOpenSharedWorkflow','atlasBonusSharedWorkflowContext','atlasBonusPreservedSharedWorkflowHost','atlasBonusMountSharedWorkflow','renderBonusTab'].map(fn).join('\n');
+const functions=scopeInitializer[0]+'\n'+['withAtlasSynchronousReadScope','atlasSynchronousReadValue','atlasWorkspaceFeature','prepareAtlasOccupancyBudgetView','renderTab','atlasBonusOpenSharedWorkflow','atlasBonusSharedWorkflowContext','atlasBonusPreservedSharedWorkflowHost','atlasBonusMountSharedWorkflow','renderBonusTab'].map(fn).join('\n');
 const fixtureScript=`
 const ATLAS_SELF_SERVICE_TAB_IDS=["14"];
 let activeTab=9, MOUNT_TABS=[], atlasBonusNavigationSnapshot=null, atlasBonusSectionCache=new Map();

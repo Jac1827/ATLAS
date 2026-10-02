@@ -357,16 +357,14 @@
   }
   async function verifyBundle(archive,Zip){
     if(archive?.bundleType!==TYPE)throw Error('Unsupported migration archive for bundle verification');
-    const {zip,manifest}=await openArchive(archive,Zip);
     let bundle;
-    for(let i=0;i<manifest.entries.length;i++){
-      // Every retained member is decoded and fingerprint-checked. Only the
-      // bundle needed for reconciliation survives this iteration.
-      let value=await readArchiveRecord(zip,manifest.entries[i]);
-      if(i===0)bundle=value;
-      value=null;
-    }
-    return {bundle,manifest,recordsVerified:manifest.entries.length};
+    // Validate every retained member's bytes and token grammar without
+    // rebuilding the complete import history just to discard it afterward.
+    const verified=await visitSelectedRecords(archive,Zip,{
+      select:name=>name==='bundle.json',
+      onRecord(name,value){if(name==='bundle.json')bundle=value;}
+    });
+    return {bundle,...verified};
   }
   async function verifyRestore(archive,Zip){
     if(archive?.bundleType!==TYPE)throw Error('Unsupported migration archive for rollback verification');

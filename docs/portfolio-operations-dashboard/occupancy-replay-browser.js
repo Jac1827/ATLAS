@@ -3,7 +3,7 @@
   let pending=null, previewController=null, applying=false;
   const readRecord=key=>withAtlasStateStore('readonly',store=>store.get(key));
   const context=()=>typeof getAtlasRenderContextKey==='function'?getAtlasRenderContextKey():'';
-  const history=async(operation,extra={})=>{const dbName=ATLAS_STATE_DB_NAME;const {historyOperation}=await import('./features/import-history.mjs?v=659f1b5b4ab29f87');return historyOperation({operation,dbName,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,...extra});};
+  const history=async(operation,extra={})=>{const dbName=ATLAS_STATE_DB_NAME;const {historyOperation}=await import('./features/import-history.mjs?v=9f6761b868c0dfdc');return historyOperation({operation,dbName,storeName:ATLAS_STATE_STORE_NAME,key:DATA_IMPORT_2_STATE_KEY,...extra});};
   const withoutHistoryMeta=value=>{const {historyStorage,...rest}=value;return rest;};
   const ordered=value=>Array.isArray(value)?value.map(ordered):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(key=>[key,ordered(value[key])])):value;
   const same=(a,b)=>JSON.stringify(ordered(a))===JSON.stringify(ordered(b));

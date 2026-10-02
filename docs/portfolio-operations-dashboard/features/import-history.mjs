@@ -21,6 +21,14 @@ export async function historyOperation(request) {
     // Accepted writes must settle. Cancelling a view never cancels or retries its pending commit.
     worker.onerror=()=>finish(Object.assign(new Error(read?'Import history worker failed. Reload before retrying.':'Import history save could not be confirmed. Reload before making another change.'),{code:read?'history_read_failed':'history_write_uncertain',uncertain:!read}));
     if(read)signal?.addEventListener('abort',abort,{once:true});
-    try {worker.postMessage(payload);}catch(error){finish(error);}
+    try {worker.postMessage(payload);}catch(error){
+      // A synchronous clone failure means the worker never accepted the job.
+      // Large retained archives can exceed Chrome's transfer memory even when
+      // the existing bounded storage implementation can process them in place.
+      if(error?.name==='DataCloneError'&&/out of memory/i.test(error.message||'')){
+        settled=true;clearTimeout(timer);signal?.removeEventListener('abort',abort);worker.terminate();
+        executeHistory(request).then(resolve,reject);
+      }else finish(error);
+    }
   });
 }

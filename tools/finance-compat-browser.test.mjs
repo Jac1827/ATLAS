@@ -62,6 +62,7 @@ try{
    let value=[];
    if(name==='atlas_read_finance')value=(args.p_periods||[]).map(period=>({community_id:cid,period_key:period,summary:{registryVersion:'atlas-finance-v1',communityId:cid,period,targetApprovalStatus:'approved',budgetVersion:'synthetic-approved-budget',budgetContentHash:'a'.repeat(64),occupancyPct:47.6,
     ...(period==='2026-08'?{periodState:'locked',actualCloseVersion:'90000000-0000-0000-0000-000000000001',close:{community_id:cid,period_key:period,version_id:'90000000-0000-0000-0000-000000000001',status:'closed',coverage:'full_month',source_file:'Synthetic governed August.xlsx',source_hash:'c'.repeat(64),approved_by:actor,approved_at:'2026-09-03T12:00:00Z',metrics:{netRentalIncome:750,grossPotentialRent:1000}}}:{})}}));
+   if(name==='atlas_approved_budget_versions')value=[{community_id:cid,calendar_year:2026,status:'locked',version_id:'synthetic-approved-budget',content_hash:'a'.repeat(64),covered_months:Array.from({length:12},(_,i)=>i),source_file:'Synthetic approved budget.xlsx',payload:{occupancyPct:Array(12).fill(47.6)}}];
    if(name==='atlas_user_profiles')value=url.searchParams.has('user_id')?[profile(who)]:[profile(actor),profile(second)];
    if(name==='atlas_communities')value=roster;
    if(name==='atlas_read_budget_calendar')value={verified:true,classification:'Multifamily',basis:'calendar',startMonth:1};

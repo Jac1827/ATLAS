@@ -1,3 +1,4 @@
+import {readLockedOccupancyBudgets} from './community-goal-planning.mjs?v=3d00082f8c8e6a9b';
 import {readFinance,financeAccessKey} from './canonical-finance.mjs?v=210b482c6f40c656';
 import '../community-command-contract.js?v=e6064665e1d6e271';
 const money=v=>Number(v).toLocaleString('en-US',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1});
@@ -16,6 +17,8 @@ export async function hydrate(entries,central){
   window.AtlasCommandPlanSummaries ||= {};
   for(const e of scope)delete window.AtlasCommandPlanSummaries[e.communityId+'|'+e.period];
   for(const plan of plans)window.AtlasCommandPlanSummaries[plan.community_id+'|'+plan.period_key]=plan;
+  const targets=await readLockedOccupancyBudgets(central,ids,periods);if(!current())return;
+  const targetMap=new Map(targets.map(r=>[r.community_id+'|'+r.period_key,r.summary]));
   const map=new Map(rows.map(r=>[r.community_id+'|'+r.period_key,r]));
   for(const e of entries){if(!current())return;const tr=document.querySelector(`[data-command-finance="${e.key}"]`);if(!tr)continue;const source=map.get(e.communityId+'|'+e.period),summary=source?.summary;
    tr.querySelectorAll('[data-financial-period-warning]').forEach(node=>node.remove());
@@ -24,6 +27,11 @@ export async function hydrate(entries,central){
    if(plan&&planCell){planCell.textContent=`${plan.stage||'Draft'} · ${plan.task_count} tasks · ${plan.verified_count} verified`;planCell.title=`Shared plan, updated ${plan.updated_at}`;}
    const count=document.querySelector('[data-shared-plan-count]');if(count)count.textContent=String(scope.filter(e=>{const p=window.AtlasCommandPlanSummaries[e.communityId+'|'+e.period];return p?p.stage!=='Closed':e.hasLegacyPlan;}).length);
 
+   const target=targetMap.get(e.communityId+'|'+e.period),pct=target?.occupancyPct;
+   const validTarget=target?.targetApprovalStatus==='approved'&&target.budgetVersion&&typeof pct==='number'&&Number.isFinite(pct)&&pct>=0&&pct<=100;
+   const budgetCell=tr.querySelector('[data-metric="occupancy-budget"]'),varianceCell=tr.querySelector('[data-metric="occupancy-variance"]');
+   if(budgetCell){budgetCell.textContent=validTarget?pct.toFixed(1)+'%':'Missing budget';budgetCell.title=validTarget?`${e.period} · Locked approved budget · ${target.budgetSource||target.budgetVersion}`:'No locked budget for this community and month';}
+   if(varianceCell){const physical=varianceCell.dataset.physicalPct,actualPct=physical==null||physical===''?null:Number(physical),gap=validTarget&&Number.isFinite(actualPct)?actualPct-pct:null;varianceCell.textContent=gap===null?(validTarget?'Missing actual':'Missing budget'):(gap>0?'+':'')+gap.toFixed(1)+' pp';varianceCell.title='Physical occupancy − locked approved budget occupancy (percentage points)';varianceCell.dataset.budgetStatus=gap===null?'missing':gap<-.5?'below':'ontrack';}
    const metricScope={communityId:e.communityId,period:e.period,fiscalYear:source?.fiscal_year??e.year};
    const actual=e.actual?{...e.actual,...metricScope}:null;
    const budget=summary?.budgetVersion?{...metricScope,occupancyPct:summary.occupancyPct,approvalStatus:'approved',locked:true,scenarioId:summary.scenarioId,version:summary.scenarioVersion}:null;
@@ -38,5 +46,6 @@ export async function hydrate(entries,central){
     if(metric==='expenses'&&summary?.periodWarning){const warning=document.createElement('p');warning.dataset.financialPeriodWarning='1';warning.setAttribute('role','alert');warning.textContent=summary.periodWarning;cell.append(warning);}
    }
   }
+  for(const status of ['below','ontrack']){const card=document.querySelector(`[data-roster-budget-count="${status}"] .value`);if(card)card.textContent=String(document.querySelectorAll(`[data-budget-status="${status}"]`).length);}
  }catch(error){if(!current())return;for(const e of entries){const tr=document.querySelector(`[data-command-finance="${e.key}"]`);tr?.querySelectorAll('[data-metric]').forEach(cell=>{cell.textContent='Source unavailable';cell.title=error.message;});}}
 }

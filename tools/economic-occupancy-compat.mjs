@@ -21,6 +21,18 @@ export function patchEconomicOccupancyBoundary(source,current){
  const leased='        <td>${communityCommandFormatPct(model.leasedPct)}</td>';
  if(roster.split(leased).length!==2)throw Error('Economic occupancy roster boundary changed');
  roster=roster.replace(leased,leased+'\n'+cell).replace('<th>Leased</th><th>Budget</th>','<th>Leased</th><th>Closed economic occupancy</th><th>Budget</th>').replace('colspan="12"','colspan="13"');
+ // Forward only the approved-budget roster cells and count markers.
+ for(const key of ['occupancy-budget','occupancy-variance']){
+  const line=currentRoster.split('\n').find(line=>line.includes('data-metric="'+key+'"'));
+  const before=key==='occupancy-budget'?'        <td>${model.budgetOccPct ? communityCommandFormatPct(model.budgetOccPct) : "Missing"}</td>':'        <td>${gap === null ? "Missing" : formatSignedDisplay(gap, 1, "%")}</td>';
+  if(!line||roster.split(before).length!==2)throw Error('Approved budget roster boundary changed');
+  roster=roster.replace(before,line);
+ }
+ for(const label of ['Below Budget','On Track']){
+  const line=currentRoster.split('\n').find(line=>line.includes('statBox("'+label+'"'));
+  const before=roster.split('\n').find(line=>line.includes('statBox("'+label+'"'));
+  if(!line||!before)throw Error('Approved budget count boundary changed');roster=roster.replace(before,line);
+ }
  replace(rosterBefore,roster);
  const importBefore='    const periodEntries = getWritableMonthlyPeriodEntries(record, period.monthIdx, period.year);\n    [periodEntries?.historyEntry, periodEntries?.liveEntry].filter(Boolean).forEach(month => {\n      month.economicOccupancyPct = getCommunityCommandEconomicOccupancyData(record, period.monthIdx, period.year).mtdPct;\n    });';
  const importAfter='    // Economic occupancy is read from the governed close cache at presentation\n    // time. An operating import cannot store a prior close under this month.';

@@ -805,9 +805,47 @@
       ]
     ]
   },
+  "features/occupancy-goal-recommendations.mjs": {
+    "sha256": "a1d919743e209f55",
+    "bytes": 8485,
+    "references": [
+      [
+        "features/community-goal-planning.mjs",
+        "./occupancy-goal-recommendations.mjs"
+      ]
+    ]
+  },
+  "features/occupancy-source-evidence.mjs": {
+    "sha256": "012daa540aac0f2c",
+    "bytes": 21052,
+    "references": [
+      [
+        "workspace-core.js",
+        "./features/occupancy-source-evidence.mjs"
+      ],
+      [
+        "features/community-goal-planning.mjs",
+        "./occupancy-source-evidence.mjs"
+      ]
+    ]
+  },
+  "features/community-goal-planning.mjs": {
+    "sha256": "3d00082f8c8e6a9b",
+    "bytes": 19333,
+    "references": [
+      [
+        "community-goal-editor.js",
+        "./features/community-goal-planning.mjs"
+      ],
+      [
+        "features/community-finance.mjs",
+        "./community-goal-planning.mjs"
+      ]
+    ]
+  },
   "features/community-finance.mjs": {
-    "sha256": "22864bbdeff477f9",
-    "bytes": 5072,
+    "sha256": "446e3a85aabc4a93",
+    "bytes": 6699,
     "references": [
       [
         "workspace-core.js",
@@ -981,20 +1019,6 @@
       ]
     ]
   },
-  "features/occupancy-source-evidence.mjs": {
-    "sha256": "012daa540aac0f2c",
-    "bytes": 21052,
-    "references": [
-      [
-        "workspace-core.js",
-        "./features/occupancy-source-evidence.mjs"
-      ],
-      [
-        "features/community-goal-planning.mjs",
-        "./occupancy-source-evidence.mjs"
-      ]
-    ]
-  },
   "features/portfolio-map.mjs": {
     "sha256": "bbe032b73d99159d",
     "bytes": 2570,
@@ -1130,8 +1154,8 @@
     ]
   },
   "workspace-core.js": {
-    "sha256": "fbed50f817d55435",
-    "bytes": 3086465,
+    "sha256": "daa8fd32d03a6f6e",
+    "bytes": 3086579,
     "references": [
       [
         "index.html",
@@ -2066,26 +2090,6 @@
       [
         "index.html",
         "./atlas-mounts.js"
-      ]
-    ]
-  },
-  "features/occupancy-goal-recommendations.mjs": {
-    "sha256": "a1d919743e209f55",
-    "bytes": 8485,
-    "references": [
-      [
-        "features/community-goal-planning.mjs",
-        "./occupancy-goal-recommendations.mjs"
-      ]
-    ]
-  },
-  "features/community-goal-planning.mjs": {
-    "sha256": "3d00082f8c8e6a9b",
-    "bytes": 19333,
-    "references": [
-      [
-        "community-goal-editor.js",
-        "./features/community-goal-planning.mjs"
       ]
     ]
   },

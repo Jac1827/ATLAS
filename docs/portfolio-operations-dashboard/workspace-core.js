@@ -23847,7 +23847,7 @@ function queueCommunityRosterFinancials(items) {
     return {key:encodeURIComponent(item.detail.name),hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
   });
   setTimeout(async()=>{try {
-    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=22864bbdeff477f9");
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=446e3a85aabc4a93");
     if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
     await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
   } catch {}},0);
@@ -23877,8 +23877,8 @@ function renderPortfolioScopedCommunityCommandTab() {
   const cardsHtml = `<div class="grid-4">
     ${statBox("Accessible Communities", details.length, "Active communities available to this role.", "#4493f8")}
     ${renderCommunityCommandPlanSummaryStat(rosterItems)}
-    ${statBox("Below Budget", belowBudgetCount, "Active communities trailing current budget occupancy.", "#f85149")}
-    ${statBox("On Track", onTrackCount, "Communities holding the current budget line.", "#3fb950")}
+    <div data-roster-budget-count="below">${statBox("Below Budget", belowBudgetCount, "Active communities trailing current budget occupancy.", "#f85149")}</div>
+    <div data-roster-budget-count="ontrack">${statBox("On Track", onTrackCount, "Communities holding the current budget line.", "#3fb950")}</div>
   </div>`;
   const filterLabel = communityCommandPortfolioRosterFilter === "suggested_plans"
     ? `${suggestedPlanCount} suggested performance plan ${suggestedPlanCount === 1 ? "community" : "communities"}`
@@ -23904,8 +23904,8 @@ function renderPortfolioScopedCommunityCommandTab() {
         <td>${communityCommandFormatPct(model.physicalPct)}</td>
         <td>${communityCommandFormatPct(model.leasedPct)}</td>
         <td data-closed-economic-state="${escapeHtml(model.economic.state)}">${communityCommandFormatPct(model.economic.closedPct)}<br><small>${escapeHtml(communityCommandEconomicOccupancyLabel(model.economic))}</small></td>
-        <td>${model.budgetOccPct ? communityCommandFormatPct(model.budgetOccPct) : "Missing"}</td>
-        <td>${gap === null ? "Missing" : formatSignedDisplay(gap, 1, "%")}</td>
+        <td data-metric="occupancy-budget">Loading…</td>
+        <td data-metric="occupancy-variance" data-physical-pct="${Number.isFinite(model.physicalPct) ? model.physicalPct : ''}">Loading…</td>
         <td data-metric="units">Loading…</td><td data-metric="gpr">Loading…</td><td data-metric="expenses">Loading…</td>
         <td>${Math.round(model.appMetrics.applications)}</td>
         <td>${Math.round(model.grossLeasesMtd)}</td>

@@ -41,6 +41,8 @@ jobs:
         run: |
           node tools/occupancy-budget-readback.test.mjs
           node tools/portfolio-observed-history.test.cjs
+          node tools/community-source-backfill.test.cjs
+          node tools/community-roster-actuals.test.mjs
       - name: Validate semantic budget comparisons and coverage
         run: node tools/budget-comparison-integrity.test.cjs
 

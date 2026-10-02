@@ -16,3 +16,8 @@ assert.equal(c.getPortfolioObservedOccupancy(JSON.parse(before),5,2026).pct,null
 record.monthlyData[5]={occupiedSnapshot:143,sourceTotalUnits:390,rentableUnits:390};assert.equal(c.getPortfolioObservedOccupancy(details,5,2026).pct,null,'mismatched inventory requires reconciliation');
 record.monthlyData[5]={occupiedSnapshot:0,sourceTotalUnits:388,rentableUnits:388,physicalOccupancyPct:0};assert.equal(c.getPortfolioObservedOccupancy(details,5,2026).pct,0,'verified empty property remains zero');
 console.log('PASS June missing vs current 382, July 167/384, stable portfolio scope, source inventory mismatch, verified zero, no mutation and JSON reload.');
+
+record.monthlyData[5]={occupiedSnapshot:0,physicalSnapshotHistory:{'2026-06-30':{occupiedSnapshot:143,rentableUnits:386,metricProvenance:{occupiedSnapshot:{source:'box-score',community:'Pilots',dataAsOf:'2026-06-30'}}}}};
+assert.equal(c.getPortfolioObservedOccupancy(details,5,2026).pct,143/386*100,'Dated historical source keeps its actual inventory without borrowing current occupancy');
+c.getResolvedTotalUnitsForRecord=name=>name==='Unconfigured'?0:388;
+assert.equal(c.getPortfolioObservedOccupancy([...details,{name:'Unconfigured',record:{}}],5,2026).pct,143/386*100,'A community without inventory does not contribute an invented denominator');

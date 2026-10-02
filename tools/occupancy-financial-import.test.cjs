@@ -17,6 +17,10 @@ r=apply([{...row,occupied_units:0,physical_occupancy:'0%'}]);assert.equal(r.mont
 r=apply([row],'box_score',{communityPropertyType:'Student Housing',customUnits:200});assert.equal(r.month.occupiedSnapshot,10,'Unit inventory is not published as beds');
 r=apply([{...row,measurement_basis:'beds'}],'box_score',{communityPropertyType:'Student Housing'});assert.equal(r.month.occupiedSnapshot,45);
 r=apply([row],'box_score',{customUnits:200});assert.equal(r.month.occupiedSnapshot,10);
+// A dated, independent trend corroborates a historical inventory change only.
+const historicalRecord={communityPropertyType:'Student Housing',customUnits:200,monthlyHistoryByPeriod:{'2026-09':{trendSource:{end:'2026-09-30',base:100,endingUnits:45,provenance:{community:'Test',source:'independent-trend'}}}}};
+c.getAtlasTodayISODate=()=> '2026-10-02';r=apply([row],'box_score',historicalRecord);assert.equal(r.month.occupiedSnapshot,45);assert.equal(r.month.historicalInventoryEvidence.totalUnits,100);
+historicalRecord.monthlyHistoryByPeriod['2026-09'].trendSource.endingUnits=44;r=apply([row],'box_score',historicalRecord);assert.equal(r.month.occupiedSnapshot,10,'Conflicting independent count still holds the source');
 // Duplicate source headings remain separately located, including percentages below 1%.
 const sheet=[['Box Score'],['Availability (As of 09/16/2026)'],['Unit Type','Units','Rentable Units','Occupied','Occupied','Leased'],['Total',200,200,1,'0.5%','1%']];
 const parsed=B.boxScore(sheet)[0];assert.equal(parsed.values.occupied_units,1);assert.equal(parsed.values.physical_occupancy,'0.5%');assert.equal(parsed.locators.occupied_units.column,4);assert.equal(parsed.locators.physical_occupancy.column,5);

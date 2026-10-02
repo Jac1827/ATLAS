@@ -1,6 +1,6 @@
 import {readApprovedBudgets,financeAccessKey} from './canonical-finance.mjs?v=210b482c6f40c656';
 import {readActive} from './reforecast-store.mjs?v=b59fd4df88ff8fe3';
-import {readOccupancySourceEvidence} from './occupancy-source-evidence.mjs?v=012daa540aac0f2c';
+import {readOccupancySourceEvidence} from './occupancy-source-evidence.mjs?v=adb2a8d70c7c8530';
 import {recommendOccupancyGoals,applyOccupancyRecommendation} from './occupancy-goal-recommendations.mjs?v=a1d919743e209f55';
 import {sha256,canonicalJson} from './financial-snapshot.mjs?v=848d058bdec07b4e';
 

@@ -1,4 +1,4 @@
-import {readLockedOccupancyBudgets} from './community-goal-planning.mjs?v=8584729f30a29afc';
+import {readLockedOccupancyBudgets} from './community-goal-planning.mjs?v=37761d5459654f88';
 import {readFinance,financeAccessKey} from './canonical-finance.mjs?v=210b482c6f40c656';
 import '../community-command-contract.js?v=e6064665e1d6e271';
 const money=v=>Number(v).toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2});

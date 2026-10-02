@@ -23969,7 +23969,7 @@ function queueCommunityRosterFinancials(items) {
       hasLegacyPlan:Boolean(m.activePerformancePlan),communityId:access?.atlasCommunityId||access?.sourceIds?.atlasCommunityId,period:buildPeriodKey(m.monthIdx,m.year),year:m.year,actual};
   });
   setTimeout(async()=>{try {
-    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=b1cc5687285aa5d7");
+    atlasCommunityFinanceModule = await import("./features/community-finance.mjs?v=a279d6ae52b5616c");
     if(epoch!==atlasCommandRosterEpoch||activeTab!==2||!atlasAccessDecision(2).ok)return;
     await atlasCommunityFinanceModule.hydrate(entries,window.ATLAS_CENTRAL);
   } catch {}},0);
@@ -47297,7 +47297,7 @@ async function dataImportReadStructuredRows(file, plan = {}) {
   const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: false });
   const sheets = [];
   const occupancySourceParser = ["box_score", "rent_roll", "delinquency"].includes(plan.reportType)
-    ? (await import("./features/occupancy-source-evidence.mjs?v=adb2a8d70c7c8530")).parseOccupancySheet : null;
+    ? (await import("./features/occupancy-source-evidence.mjs?v=3aec7b2038711914")).parseOccupancySheet : null;
   plan.occupancyEvidenceBySheet = {};
   const occupancyParameterSheet = (workbook.SheetNames || []).find(name => /^report parameters$/i.test(name.trim()));
   const occupancyReportParameters = occupancySourceParser && occupancyParameterSheet

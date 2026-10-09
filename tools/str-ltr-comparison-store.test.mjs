@@ -126,6 +126,27 @@ test('source checks exclude read time and selected year already included in reta
  const check=await f.store.checkSources(record);assert.equal(check.changed,false);assert.equal(check.inputs.source.year,2027);assert.equal(check.inputs.sourceFingerprint,inputs.sourceFingerprint);await f.store.close();
 });
 
+test('approved source in one year does not suppress retained property budgets in another year',async()=>{
+ const f=fixture();f.payload.sourceContext.lines.push({id:'gas',propertyId:'DORO',gl:'6464',name:'Natural Gas',nature:'expense',method:'imported',behavior:'variable_occupancy',yearData:{2026:Array(12).fill(0),2027:Array(12).fill(0)}},{id:'payroll',propertyId:'DORO',gl:'6100',name:'Payroll',nature:'expense',method:'imported',yearData:{2026:Array(12).fill(1800),2027:Array(12).fill(2200)}});
+ f.R.engine={computeProperty:(state,propertyId,scenarioId,year)=>({results:Object.fromEntries(state.lines.map(line=>[line.id,{line,monthly:line.yearData?.[year]||Array(12).fill(0),audit:{}}]))})};
+ const input=await f.store.loadProgram('PROGRAM',f.property);assert.deepEqual(input.source.years,[2026,2027]);assert.equal(f.calls.find(c=>c.route==='/rpc/atlas_read_reforecast_source').body.p_periods.length,24);
+ const approved=input.source.budgetLines.find(row=>row.year===2026&&row.gl==='6100'),retained=input.source.budgetLines.find(row=>row.year===2027&&row.gl==='6100'),gas=input.source.budgetLines.find(row=>row.year===2027&&row.gl==='6464');assert.equal(approved.monthly[0],2000);assert.equal(approved.monthly[1],null);assert.match(approved.source,/approved/);assert.deepEqual(retained.monthly,Array(12).fill(2200));assert.match(retained.source,/retained/i);assert.deepEqual(gas.monthly,Array(12).fill(0));assert.equal(gas.behavior,'variable_occupancy');
+ const record=createComparisonRecord(input);record.scenario.year=2027;assert.equal((await f.store.checkSources(record)).changed,false);await f.store.close();
+});
+
+test('missing imported years and failed drivers cannot become budget engine zero defaults',async()=>{
+ const f=fixture();f.payload.sourceContext.lines.push({id:'payroll',propertyId:'DORO',gl:'6100',name:'Payroll',nature:'expense',method:'imported',yearData:{2026:Array(12).fill(1800)}},{id:'contract',propertyId:'DORO',gl:'6200',name:'Contract',nature:'expense',method:'contract'});
+ f.R.engine={computeProperty:(state)=>({results:Object.fromEntries(state.lines.map(line=>[line.id,{line,monthly:Array(12).fill(0),audit:line.method==='contract'?{error:'Contract source is missing'}:{}}]))})};
+ const input=await f.store.loadProgram('PROGRAM',f.property,{year:2027}),rows=input.source.budgetLines.filter(row=>row.year===2027);
+ assert.deepEqual(rows.find(row=>row.gl==='6100').monthly,Array(12).fill(null));assert.match(rows.find(row=>row.gl==='6100').source,/no imported values for 2027/);assert.deepEqual(rows.find(row=>row.gl==='6200').monthly,Array(12).fill(null));assert.equal(rows.find(row=>row.gl==='6200').sourceError,'Contract source is missing');assert.equal(input.source.budgetLines.find(row=>row.gl==='6100'&&row.year===2026).monthly[0],2000);await f.store.close();
+});
+
+test('approved budget normalization preserves existing typed account and blank-source evidence',async()=>{
+ const f=fixture();f.payload.sourceContext.lines.push({id:'known',propertyId:'DORO',gl:'6279',name:'Retained payroll account',nature:'expense',yearData:{2026:Array(12).fill(0)}});
+ f.bundle.baseline.lines.push({period:'2026-01',accountCode:'6279',amount:null,disposition:'workbook_blank',legitimateBlank:true,source:{kind:'approved_workbook',sourceLineId:'Budget!C20'}});
+ const input=await f.store.loadProgram('PROGRAM',f.property),row=input.source.budgetLines.find(row=>row.gl==='6279');assert.equal(row.nature,'expense');assert.equal(row.name,'Retained payroll account');assert.equal(row.monthly[0],null);assert.equal(row.sourceReferences[0].disposition,'workbook_blank');assert.equal(row.sourceReferences[0].legitimateBlank,true);assert.equal(row.sourceReferences[0].source.sourceLineId,'Budget!C20');await f.store.close();
+});
+
 test('comparison retains saved libraries rather than newer global assumptions',async()=>{
  const f=fixture();f.R.ASSUMPTIONS={global:{bad_debt_pct:{value:.09}}};f.R.CURVES={flat:{v:Array(12).fill(1)}};f.R.UTILITY_PROVIDERS=[];f.R.COA=[{gl:'5144',name:'STR income',nature:'income'}];f.payload.sourceContext.libraries={assumptions:{global:{bad_debt_pct:{value:.02}}},curves:{flat:{v:Array(12).fill(1)}},utilityProviders:[],utilityBenchmarks:{}};
  const original=f.R.ASSUMPTIONS,inputs=await f.store.loadProgram('PROGRAM',f.property);assert.equal(inputs.source.libraries.assumptions.global.bad_debt_pct.value,.02);assert.equal(f.R.ASSUMPTIONS,original);f.R.ASSUMPTIONS.global.bad_debt_pct.value=.15;assert.equal(inputs.source.libraries.assumptions.global.bad_debt_pct.value,.02);assert.equal((await f.store.checkSources(createComparisonRecord(inputs))).changed,false);await f.store.close();

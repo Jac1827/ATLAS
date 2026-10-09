@@ -3,7 +3,7 @@
  * at the report boundary, never while calculating fees, allocations or thresholds.
  */
 const clone = value => value == null ? value : JSON.parse(JSON.stringify(value));
-export const COMPARISON_ENGINE_VERSION = '1.0.0';
+export const COMPARISON_ENGINE_VERSION = '1.0.1';
 const num = value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)) ? Number(value) : null;
 const n = value => num(value) ?? 0;
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
@@ -27,6 +27,17 @@ function sectionOf(nature) { return nature === 'capital' ? 'capex' : /income/.te
 function monthlyValues(line, year) {
   const values = line.yearData?.[year] || (n(line.year) === year || !line.year ? line.monthly : null);
   return Array.isArray(values) ? Array.from({length:12}, (_, m) => num(values[m])) : null;
+}
+function retainedMonthlyConcession(lines,propertyId,year) {
+  const eligible=(lines||[]).filter(line=>(!line.propertyId||line.propertyId===propertyId)&&!line.strProgram&&!line.strProgramId);
+  const totals=code=>{
+    const rows=eligible.filter(line=>String(line.gl)===code).map(line=>monthlyValues(line,year)).filter(Boolean);
+    return rows.length?Array.from({length:12},(_,m)=>strictSum(rows.map(row=>row[m]))):null;
+  };
+  const credits=totals('5250'),gross=totals('5120');
+  if(!credits||!gross||credits.some(value=>value===null)||gross.some(value=>value===null)) return null;
+  const monthlyPct=gross.map((value,m)=>value>0?Math.abs(credits[m])/value:credits[m]===0?0:null);
+  return monthlyPct.some(value=>value===null)?null:monthlyPct;
 }
 function programConfig(program) { return program.config || program.revision?.payload?.config || program.record?.revision?.payload?.config; }
 
@@ -82,6 +93,10 @@ export function concessionSchedule({rent, ramp, occupancy, concession, openingUn
     const term=Math.max(1,n(cohort.leaseTermMonths)||12);
     for(let m=0;m<12;m++) if(m>=cohort.startMonth&&m<cohort.startMonth+term) result[m]+=cohort.amount/term;
   }
+  if(type==='source_monthly') {
+    for(let m=0;m<12;m++) result[m]+=ramp[m]*rent*n(c.monthlyPct?.[m]);
+    return result;
+  }
   if (type === 'none' || !value || rent === null) return result;
   if (c.timing === 'recurring' || type === 'source_rate') {
     const perUnit = type === 'weeks' ? rent * value * 12 / 52 : type === 'months' ? rent * value : type === 'credit' ? value : rent * value;
@@ -118,10 +133,11 @@ function solveThreshold(evaluate, target, high, hardMax) {
 }
 
 export function calculatePayback(monthly) {
+  if(!monthly.length) return {available:false,months:null,horizonMonths:0,reached:false,incrementalInvestment:null,incrementalCashFlow:null,reason:'Payback unavailable: there are no comparable recorded months in this period.',extrapolated:false};
   let cumulative = 0, invested = false, months = null;
   const investments = monthly.map(row => sub(row.str.capex, row.ltr.capex));
   const flows = monthly.map(row => sub(row.str.noi, row.ltr.noi));
-  if (investments.some(v => v === null) || flows.some(v => v === null)) return {months:null,horizonMonths:monthly.length,reached:false,incrementalInvestment:investments.some(v=>v===null)?null:round(sum(investments)),incrementalCashFlow:flows.some(v=>v===null)?null:round(sum(flows)),reason:'Payback unavailable: NOI or capital evidence is incomplete.',extrapolated:false};
+  if (investments.some(v => v === null) || flows.some(v => v === null)) return {available:false,months:null,horizonMonths:monthly.length,reached:false,incrementalInvestment:investments.some(v=>v===null)?null:round(sum(investments)),incrementalCashFlow:flows.some(v=>v===null)?null:round(sum(flows)),reason:'Payback unavailable: NOI or capital evidence is incomplete.',extrapolated:false};
   for (let i = 0; i < monthly.length; i++) {
     const investment = investments[i], flow = flows[i], before = cumulative;
     if (investment > 0) invested = true;
@@ -131,8 +147,8 @@ export function calculatePayback(monthly) {
     if (cumulative < 0) months = null;
   }
   const incrementalInvestment = sum(investments), incrementalCashFlow = sum(flows);
-  if (!invested && incrementalInvestment <= 0) return {months:incrementalCashFlow >= 0 ? 0 : null,horizonMonths:monthly.length,reached:incrementalCashFlow >= 0,incrementalInvestment:round(incrementalInvestment),incrementalCashFlow:round(incrementalCashFlow),reason:incrementalCashFlow >= 0 ? 'No positive incremental conversion investment in this reporting period.' : 'Incremental operating cash flow is nonpositive.',extrapolated:false};
-  return {months:months === null ? null : round(months),horizonMonths:monthly.length,reached:months !== null,incrementalInvestment:round(incrementalInvestment),incrementalCashFlow:round(incrementalCashFlow),reason:months !== null ? 'Conversion investment recovered within the modeled period.' : incrementalCashFlow <= 0 ? 'Incremental operating cash flow is nonpositive.' : 'Payback is not reached within the modeled horizon; no stabilized extrapolation is assumed.',extrapolated:false};
+  if (!invested && incrementalInvestment <= 0) return {available:true,months:incrementalCashFlow >= 0 ? 0 : null,horizonMonths:monthly.length,reached:incrementalCashFlow >= 0,incrementalInvestment:round(incrementalInvestment),incrementalCashFlow:round(incrementalCashFlow),reason:incrementalCashFlow >= 0 ? 'No positive incremental conversion investment in this reporting period.' : 'Incremental operating cash flow is nonpositive.',extrapolated:false};
+  return {available:true,months:months === null ? null : round(months),horizonMonths:monthly.length,reached:months !== null,incrementalInvestment:round(incrementalInvestment),incrementalCashFlow:round(incrementalCashFlow),reason:months !== null ? 'Conversion investment recovered within the modeled period.' : incrementalCashFlow <= 0 ? 'Incremental operating cash flow is nonpositive.' : 'Payback is not reached within the modeled horizon; no stabilized extrapolation is assumed.',extrapolated:false};
 }
 
 function normalizeActuals(state, source, property, year) {
@@ -225,11 +241,20 @@ function calculateRetainedComparison({RBB, state, property, program, scenario = 
   if (!activeIndices.length) warnings.push('No recorded actuals are available in the selected period. Performance and investment results remain unavailable.');
   if (picks.some(row => row.sourceLtRent === null)) warnings.push('One or more floor plans have no saved LT Rent. Enter a rent override to complete the LTR model.');
   if (picks.length > 1) warnings.push('Floor-plan ramp and STR financial results are allocated by selected unit count; no apartment-level actuals are implied.');
-  let concession = scenario.concession?.type && scenario.concession.type !== 'source' ? clone(scenario.concession) : clone(source.concessionsByYear?.[year] || source.concession);
+  const useSourceConcession=!scenario.concession?.type||scenario.concession.type==='source';
+  let concession = useSourceConcession ? clone(source.concessionsByYear?.[year] || source.concession) : clone(scenario.concession);
   if(source.years?.length&&!source.years.map(Number).includes(year)) warnings.push('This year is not retained in the frozen source. Refresh sources explicitly before relying on this period.');
   const concessionAssumption = sourceAssumption(RBB,property,'concession_pct');
-  if (!concession && num(concessionAssumption?.value) !== null) concession = {type:'source_rate',value:Number(concessionAssumption.value),timing:'recurring',source:sourceText(concessionAssumption),reviewedAt:concessionAssumption.date};
   const concessionEvidence = clone(concession);
+  const concessionOfferUnverified=useSourceConcession&&(!concession?.type||concession.available===false);
+  const retainedMonthlyConcessions=concessionOfferUnverified?retainedMonthlyConcession(source.budgetLines||state.lines,property.id,year):null;
+  if(retainedMonthlyConcessions) {
+    concession={type:'source_monthly',monthlyPct:retainedMonthlyConcessions,timing:'recurring',basis:'gross',source:`Retained FY${year} monthly concessions GL 5250 / gross potential rent GL 5120`,reviewedAt:concessionAssumption?.asOf||concessionAssumption?.date||null,currentOfferVerified:false};
+    warnings.push('Current website concession terms are unavailable or incomplete. LTR uses the retained monthly budget concession rates, including recorded burnoff; this is not a verified current offer.');
+  } else if(concessionOfferUnverified&&num(concessionAssumption?.value)!==null) {
+    concession={type:'source_rate',value:Number(concessionAssumption.value),timing:'recurring',basis:'gross',source:'Retained ATLAS budget concession assumption: '+sourceText(concessionAssumption),reviewedAt:concessionAssumption.asOf||concessionAssumption.date||null,currentOfferVerified:false};
+    warnings.push('Current website concession terms are unavailable or incomplete. LTR uses the retained budget concession percentage of gross potential rent; this is not a verified current offer.');
+  }
   const concessionMissing = !concession?.type || concession.available === false;
   if (concessionMissing) { concession = {...concession,type:'none',value:0,source:concession?.source || 'No recorded concession found; editable assumption'}; warnings.push('No complete recorded concession was found. LTR income currently assumes no concession; confirm or enter an explicit scenario.'); }
   const badDebtSource = sourceAssumption(RBB,property,'bad_debt_pct');
@@ -298,6 +323,20 @@ function calculateRetainedComparison({RBB, state, property, program, scenario = 
     if (!row.source.includes(sourceLabel)) row.source.push(sourceLabel);
     if (!row.allocationMethod.includes(`${side}: ${method}`)) row.allocationMethod.push(`${side}: ${method}`);
   }
+  function zeroUtilityEvidence(utility) {
+    // The existing STR builder treats an explicit zero unit-usage assumption as
+    // an unserved utility. Preserve that modeled zero when supported; absence of
+    // a provider, missing usage, or an unrelated zero LTR bill is not evidence.
+    const override=cfg.utilities?.[utility.key];
+    if(num(override?.perOccUsage)===0) return 'Explicit saved program zero per-unit usage assumption';
+    if(!utility.provider||num(utility.provider.perOccUnitKwh)!==0) return null;
+    const sourceLines=expenseSources.filter(line=>String(line.gl)===String(utility.gl));
+    if(!sourceLines.length||!sourceLines.every(line=>{
+      const monthly=monthlyValues(line,year);
+      return monthly&&monthly.every(value=>value!==null&&value===0);
+    })) return null;
+    return `Saved provider zero per-unit usage corroborated by the complete zero FY${year} GL ${utility.gl} budget`;
+  }
   function directSeries(model) {
     const result = [];
     for (const mapping of RBB.str.GL_MAP || []) {
@@ -308,7 +347,10 @@ function calculateRetainedComparison({RBB, state, property, program, scenario = 
     }
     for (const utility of model.utilities?.rows || []) {
       if (utility.present) result.push({code:utility.gl,name:utility.name,nature:'expense',values:utility.cost});
-      else if(!/Switched off/.test(utility.reason||'')) result.push({code:utility.gl,name:utility.name,nature:'expense',values:model.unitRamp.map(units=>units?null:0)});
+      else if(!/Switched off/.test(utility.reason||'')) {
+        const evidence=zeroUtilityEvidence(utility);
+        result.push({code:utility.gl,name:utility.name,nature:'expense',values:model.unitRamp.map(units=>evidence||!units?0:null),...(evidence?{method:evidence}:{})});
+      }
     }
     return result.map(row=>{
       const raw=scenario.allocations?.[String(row.code)]?.str;
@@ -323,7 +365,12 @@ function calculateRetainedComparison({RBB, state, property, program, scenario = 
     });
   }
   directSeries(pv).forEach(row=>add(row.code,row.nature,row.name,'str',row.values,row.method || 'Saved STR program preview',row.method||'direct'));
-  if ((pv.utilities?.rows || []).some(row=>!row.present && !/Switched off/.test(row.reason||'') && !['none','not_applicable'].includes(scenario.allocations?.[String(row.gl)]?.str?.method))) warnings.push('Some STR utility services have no provider or usage evidence. Enter an explicit not-applicable GL rule or provide the utility assumptions before relying on NOI.');
+  if ((pv.utilities?.rows || []).some(row=>!row.present && !/Switched off/.test(row.reason||'') && !zeroUtilityEvidence(row) && !['none','not_applicable'].includes(scenario.allocations?.[String(row.gl)]?.str?.method))) warnings.push('Some STR utility services have no provider or usage evidence. Enter an explicit not-applicable GL rule or provide the utility assumptions before relying on NOI.');
+  for(const utility of pv.utilities?.rows||[]) {
+    const evidence=!utility.present&&!/Switched off/.test(utility.reason||'')?zeroUtilityEvidence(utility):null;
+    if(evidence) assumptions.push({name:`${utility.label||utility.name} modeled zero`,value:0,source:evidence,note:utility.provider?.note||'This is a budget assumption, not observed zero actual expense.'});
+    if(evidence&&utility.provider?.note) warnings.push(`${utility.label||utility.name} uses a supported zero budget assumption. Source note: ${utility.provider.note}`);
+  }
   const gpr = arr(0), vacancy = arr(0), concessions = arr(0), collections = arr(0), leaseLoss = arr(0);
   for (let m=0;m<12;m++) {
     gpr[m] = strictSum(picks.map(row=>row.ramp[m]===0?0:row.ltRent===null?null:row.ramp[m]*row.ltRent));
@@ -398,9 +445,6 @@ function calculateRetainedComparison({RBB, state, property, program, scenario = 
     const month=Number(record.period?.slice(5))-1;
     if(month<0||month>11||record.amount===null) continue;
     const account=getAccount(RBB,record.gl), nature=record.nature||account.nature;
-    const existing=rows.find(row=>row.code===record.gl);
-    const row=existing || lineFor(record.gl,nature,record.name);
-    if(!existing) rows.push(row);
     let amount=record.amount, method='direct program record';
     if(record.groupId&&!record.programId&&record.scope!=='program') {
       const pick=picks.find(row=>row.id===record.groupId),group=property.units.find(row=>row.id===record.groupId);
@@ -416,6 +460,12 @@ function calculateRetainedComparison({RBB, state, property, program, scenario = 
       if(share===null) continue;
       amount*=share; method=`allocated property actuals: ${rule.method}`;
     }
+    // Create account rows only after attribution has been accepted. Unrelated
+    // property ledger accounts must not become comparison zeros or unmapped GL
+    // warnings merely because the property has loaded those records.
+    const existing=rows.find(row=>row.code===record.gl);
+    const row=existing || lineFor(record.gl,nature,record.name);
+    if(!existing) rows.push(row);
     if(nature==='contra_income') amount=-Math.abs(amount);
     row.actual[month]=(row.actual[month]??0)+amount;
     row.actualStatus[month]=record.status || 'preliminary';
@@ -482,8 +532,8 @@ function calculateRetainedComparison({RBB, state, property, program, scenario = 
     modelCache.set(cacheKey,result);return result;
   }
   const booked=sum(modelIndices.map(m=>pv.booked[m])),rentable=sum(modelIndices.map(m=>pv.rentable[m]));
-  const currentAdr=booked?sum(modelIndices.map(m=>pv.gross[m]))/booked:pv.adrBase;
-  const currentOccupancy=rentable?booked/rentable:0;
+  const currentAdr=modelIndices.length?(booked?sum(modelIndices.map(m=>pv.gross[m]))/booked:pv.adrBase):null;
+  const currentOccupancy=modelIndices.length?(rentable?booked/rentable:0):null;
   function breakEvenFor(target, share=1) {
     if(!rentable||share<=0) return {adr:null,occupancy:null,feasible:false,adrFeasible:false,occupancyFeasible:false,reason:'No eligible rentable nights in the selected exposure period.'};
     const adr=solveThreshold(factor=>modelNoi(strOccupancy,factor)===null?null:modelNoi(strOccupancy,factor)*share,target,2,64);
@@ -492,7 +542,13 @@ function calculateRetainedComparison({RBB, state, property, program, scenario = 
   }
   const breakEven={operating:breakEvenFor(0),ltrParity:breakEvenFor(totals.ltr.noi),currentAdr:round(currentAdr),currentOccupancy,
     assumptions:'Eligible rentable nights, saved ADR seasonality, stay length, channel mix, fee rates, fixed costs, allocation rules and reporting dates remain fixed. Occupancy thresholds use a flat eligible-night occupancy; ADR thresholds scale the saved monthly rate curve. Capital is excluded from operating thresholds.'};
-  const payback=calculatePayback(monthly.map(row=>({...row,str:row.budget})));
+  const priorInvestmentExcluded=opening>0||sum((pv.furnish||[]).slice(0,reportingStart-1))>0||sum((pv.listingSetup||[]).slice(0,reportingStart-1))>0;
+  function conversionPayback(rows) {
+    const result=calculatePayback(rows);
+    if(rows.length&&priorInvestmentExcluded) return {...result,available:false,months:null,reached:false,priorInvestmentExcluded:true,reason:'Conversion payback unavailable: initial conversion investment precedes the selected period. Prior investment and incremental cash flows are required to establish recovery; the displayed capital and cash flows cover only this period.'};
+    return result;
+  }
+  const payback=conversionPayback(monthly.map(row=>({...row,str:row.budget})));
   const floorPlans=picks.map(pick=>{
     const share=pick.units/inventory;
     const planMonths=monthly.map(row=>{
@@ -512,12 +568,12 @@ function calculateRetainedComparison({RBB, state, property, program, scenario = 
     });
     const sides=Object.fromEntries(['str','ltr','budget','actual'].map(side=>[side,planMonths.length?aggregateMetrics(planMonths.map(row=>row[side])):nullMetrics()]));
     const planExposure=sum(activeIndices.map(m=>pick.ramp[m]));
-    const planGross=pick.ltRent===null?null:pick.ltRent*planExposure;
-    const planConcessions=sum(activeIndices.map(m=>pick.concessions[m]));
+    const planGross=!activeIndices.length||pick.ltRent===null?null:pick.ltRent*planExposure;
+    const planConcessions=activeIndices.length?sum(activeIndices.map(m=>pick.concessions[m])):null;
     return {...pick,...sides,monthly:planMonths,difference:diffMetrics(sides.str,sides.ltr),exposureUnitMonths:planExposure,
-      ltrBridge:{grossPotentialRent:round(planGross),concessions:round(-planConcessions),netEffectiveRent:planGross===null||!planExposure?null:round((planGross-planConcessions)/planExposure),netEffectiveRentBasis:'Per active unit month in the selected period; concession recognition follows lease-term timing',leaseTermMonths:n(concession.leaseTermMonths)||12},
+      ltrBridge:{grossPotentialRent:round(planGross),concessions:planConcessions===null?null:round(-planConcessions),netEffectiveRent:planGross===null||!planExposure?null:round((planGross-planConcessions)/planExposure),netEffectiveRentBasis:'Per active unit month in the selected period; concession recognition follows lease-term timing',leaseTermMonths:n(concession.leaseTermMonths)||12},
       allocationMethod:'Selected unit count; LTR rent and concessions use this floor plan',actualMethod:actuals.status==='unavailable'?'Unavailable':'Allocated program actuals by selected unit count',
-      breakEven:{operating:breakEven.operating,ltrParity:breakEvenFor(sides.ltr.noi,share),currentAdr:breakEven.currentAdr,currentOccupancy},payback:calculatePayback(planMonths.map(row=>({...row,str:row.budget})))};
+      breakEven:{operating:breakEven.operating,ltrParity:breakEvenFor(sides.ltr.noi,share),currentAdr:breakEven.currentAdr,currentOccupancy},payback:conversionPayback(planMonths.map(row=>({...row,str:row.budget})))};
   });
   // Attribute residual rounding cents to the last plan rather than publish
   // floor-plan totals that differ from the program control total.
@@ -527,7 +583,7 @@ function calculateRetainedComparison({RBB, state, property, program, scenario = 
   }
   floorPlans.forEach(row=>{row.difference=diffMetrics(row.str,row.ltr);});
   const gl=rows.map(row=>{
-    const budget=round(strictSum(activeIndices.map(m=>row.str[m]))),ltr=round(strictSum(activeIndices.map(m=>row.ltr[m])));
+    const budget=activeIndices.length?round(strictSum(activeIndices.map(m=>row.str[m]))):null,ltr=activeIndices.length?round(strictSum(activeIndices.map(m=>row.ltr[m]))):null;
     const actual=activeIndices.length?round(strictSum(activeIndices.map(m=>row.actual[m]===null&&!row.strApplicable?0:row.actual[m]))):null;
     const str=mode==='investment'?actual:budget,difference=round(sub(str,ltr));
     return {code:row.code,name:row.name,section:row.section,nature:row.nature,str,ltr,budget,actual,difference,
@@ -560,11 +616,11 @@ function calculateRetainedComparison({RBB, state, property, program, scenario = 
     const strNoi=modelNoi(occ,factor);
     sensitivity.push({adr:round(sensitivityAdr*factor),occupancy:occ,strNoi:round(strNoi),ltrNoi:totals.ltr.noi,difference:round(sub(strNoi,totals.ltr.noi))});
   }
-  const incomplete=totals.difference.noi===null||concessionMissing||badDebt===null||!hasExpenseEvidence||(mode!=='budget'&&actualStatus!=='closed');
+  const incomplete=totals.difference.noi===null||concessionMissing||concessionOfferUnverified||badDebt===null||!hasExpenseEvidence||(mode!=='budget'&&actualStatus!=='closed');
   const positive=n(totals.difference.noi)>0;
   const action=incomplete?'Validate evidence':positive?(payback.reached?'Maintain; evaluate expansion':'Maintain and review conversion costs'):'Adjust or reconsider';
   const recommendation={action,text:incomplete?'The current evidence is incomplete. Resolve missing source assumptions and actual coverage before treating this scenario as an investment decision.':positive?`The model supports maintaining this inventory${payback.reached?' and evaluating a measured expansion':''}; STR produces higher NOI than the LTR alternative over the same dates.`:'The modeled LTR alternative produces equal or higher NOI. Review ADR, occupancy, operating fees and conversion investment before expanding the program.',
-    drivers:[`Incremental modeled NOI: ${round(sub(totals.budget.noi,totals.ltr.noi)) ?? 'unavailable'}.`,`Incremental conversion investment: ${payback.incrementalInvestment ?? 'unavailable'}.`,breakEven.ltrParity.occupancy===null?'LTR parity occupancy is infeasible or unavailable.':`LTR parity occupancy: ${(breakEven.ltrParity.occupancy*100).toFixed(1)}%.`,payback.reason],confidence:incomplete?'limited':'modeled'};
+    drivers:[`Incremental modeled NOI: ${round(sub(totals.budget.noi,totals.ltr.noi)) ?? 'unavailable'}.`,`Incremental capital in the selected period: ${payback.incrementalInvestment ?? 'unavailable'}.`,breakEven.ltrParity.occupancy===null?'LTR parity occupancy is infeasible or unavailable.':`LTR parity occupancy: ${(breakEven.ltrParity.occupancy*100).toFixed(1)}%.`,payback.reason],confidence:incomplete?'limited':'modeled'};
   for(const section of ['income','expenses']) {
     const top=gl.filter(row=>row.section===section&&row.difference!==null&&row.difference!==0).sort((a,b)=>Math.abs(b.difference)-Math.abs(a.difference)).slice(0,2);
     for(const row of top) recommendation.drivers.push(`${row.code} ${row.name}: STR minus LTR ${round(row.difference)} ${section==='expenses'?(row.difference>0?'additional cost':'cost reduction'):(row.difference>0?'additional income':'income reduction')}. Source: ${row.source||row.allocationMethod||'Retained GL evidence'}.`);
@@ -573,9 +629,10 @@ function calculateRetainedComparison({RBB, state, property, program, scenario = 
   if(unresolved.length) recommendation.drivers.push(`Missing amounts: ${unresolved.slice(0,6).map(row=>`${row.code} ${row.name}`).join('; ')}${unresolved.length>6?`; ${unresolved.length-6} more`:''}.`);
   if(breakEven.ltrParity.occupancy!==null) recommendation.drivers.push(`Occupancy headroom to LTR parity: ${((currentOccupancy-breakEven.ltrParity.occupancy)*100).toFixed(1)} percentage points at the current ADR.`);
   if(breakEven.ltrParity.adr!==null) recommendation.drivers.push(`ADR headroom to LTR parity: ${round(currentAdr-breakEven.ltrParity.adr)} at the current occupancy and saved monthly rate pattern.`);
+  const bridgeAmount=values=>activeIndices.length?round(strictSum(activeIndices.map(m=>values[m]))):null;
   const snapshot={schemaVersion:1,engineVersion:COMPARISON_ENGINE_VERSION,createdAt:source.loadedAt||program.savedAt||null,metadata:{propertyId:property.id,propertyName:property.name,programId,programName:program.name||cfg.name||'Saved STR program',programVersion:program.version||program.revision?.revision||null,programStatus:program.status||'proposed',scenarioName:scenario.name||'Comparison',year,startMonth:reportingStart,endMonth:end,requestedStartMonth:start,requestedEndMonth:requestedEnd,mode,view:scenario.view||'annual',inventoryUnits:inventory,inventoryLabel:'Floor-plan estimates',periodLabel:activeIndices.length?`${period(year,reportingStart)} – ${period(year,end)}`:'No comparable recorded period',actualsPeriod:actuals.period,partialYear:reportingStart!==1||end!==12||pv.unitRamp.some(units=>units!==inventory),sourceReferences:clone(source.references||[])},
     totals,monthly,floorPlans,gl,assumptions,allocations,capital:gl.filter(row=>row.section==='capex'),limitations:[...new Set(warnings)],actuals,breakEven,payback,recommendation,sensitivity,
     occupancy:{mode:occupancyMode,str:currentOccupancy,ltr:assumptions.find(row=>row.name==='LTR occupancy').value,strMonthly:pv.occ.slice(),ltrMonthly:ltrOcc.slice()},
-    ltrBridge:{grossPotentialRent:round(strictSum(activeIndices.map(m=>gpr[m]))),vacancyLoss:round(strictSum(activeIndices.map(m=>vacancy[m]))),concessions:round(sum(activeIndices.map(m=>concessions[m]))),badDebt:round(strictSum(activeIndices.map(m=>collections[m]))),effectiveIncome:totals.ltr.income,netEffectiveRent:strictSum(activeIndices.map(m=>gpr[m]))===null||!sum(activeIndices.map(m=>pv.unitRamp[m]))?null:round((sum(activeIndices.map(m=>gpr[m]))+sum(activeIndices.map(m=>concessions[m])))/sum(activeIndices.map(m=>pv.unitRamp[m]))),netEffectiveRentBasis:'Per active unit month in the selected period; concession recognition follows lease-term timing',leaseTermMonths:n(concession.leaseTermMonths)||12},scenario:clone(scenario)};
+    ltrBridge:{grossPotentialRent:bridgeAmount(gpr),vacancyLoss:bridgeAmount(vacancy),concessions:bridgeAmount(concessions),badDebt:bridgeAmount(collections),effectiveIncome:totals.ltr.income,netEffectiveRent:strictSum(activeIndices.map(m=>gpr[m]))===null||!sum(activeIndices.map(m=>pv.unitRamp[m]))?null:round((sum(activeIndices.map(m=>gpr[m]))+sum(activeIndices.map(m=>concessions[m])))/sum(activeIndices.map(m=>pv.unitRamp[m]))),netEffectiveRentBasis:'Per active unit month in the selected period; concession recognition follows lease-term timing',leaseTermMonths:n(concession.leaseTermMonths)||12},scenario:clone(scenario)};
   return snapshot;
 }

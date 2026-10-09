@@ -58,10 +58,23 @@ assert.deepEqual(recurring,[0,0,100,100,0,0,0,0,0,0,0,0],'Recurring modeled conc
 const priorProgram={...program,config:{...config,unitRamp:{2025:[0,0,0,0,0,0,0,0,0,0,3,3],2026:Array(12).fill(3)}}};
 const crossYear=calculateComparison({...input,program:priorProgram,scenario:{...scenario,concession:{type:'credit',value:1200,leaseTermMonths:12,timing:'amortized'}}});
 close(crossYear.ltrBridge.concessions,-2400,'Prior-year cohorts retain remaining ten months of concession deductions');
+assert.equal(crossYear.payback.available,false);assert.equal(crossYear.payback.months,null);assert.equal(crossYear.payback.reached,false);assert(crossYear.payback.reason.includes('initial conversion investment precedes'));
+assert(Number.isFinite(crossYear.payback.incrementalInvestment));assert(Number.isFinite(crossYear.payback.incrementalCashFlow));assert(crossYear.floorPlans.every(row=>row.payback.available===false&&row.payback.months===null),'Floor-plan conversion payback also needs the excluded initial investment history');
+const excludesLaunch=calculateComparison({...input,scenario:{...scenario,startMonth:4}});
+assert.equal(excludesLaunch.payback.available,false,'Selecting dates after initial furnishing cannot establish lifetime conversion payback');assert.equal(excludesLaunch.payback.months,null);assert(Number.isFinite(excludesLaunch.payback.incrementalInvestment));
 const conceded=calculateComparison({...input,scenario:{...scenario,concession:{type:'credit',value:500,eligiblePct:1,leaseTermMonths:12,timing:'upfront'}}});
 close(base.ltrBridge.grossPotentialRent,conceded.ltrBridge.grossPotentialRent,'Concessions leave GPR visible');
 close(base.totals.ltr.income-conceded.totals.ltr.income,1200,'One-time occupied cohort credits annual effect');
 assert.equal(conceded.monthly[5].ltrBridge.concessions,0,'Credit burns off');
+const offerUnavailable={type:null,value:null,available:false,source:'ATLAS website review',reason:'Current offer terms unavailable',reviewedAt:null};
+const savedBudgetAssumptions=JSON.parse(JSON.stringify(RBB.ASSUMPTIONS));savedBudgetAssumptions.TEST={concession_pct:{value:.05,source:'Retained approved FY2026 budget',asOf:'2026-05-26'}};
+const budgetConcessionFallback=calculateComparison({...input,source:{...source,concession:offerUnavailable,libraries:{assumptions:savedBudgetAssumptions}}});
+close(budgetConcessionFallback.ltrBridge.concessions,-base.ltrBridge.grossPotentialRent*.05,'Unavailable website evidence does not mask a valid retained budget concession');
+const retainedConcessionEvidence=budgetConcessionFallback.assumptions.find(row=>row.name==='Concessions');assert.equal(retainedConcessionEvidence.value.type,'source_rate');assert.equal(retainedConcessionEvidence.value.currentOfferVerified,false);assert.equal(retainedConcessionEvidence.evidence.available,false);assert(retainedConcessionEvidence.source.includes('Retained ATLAS budget concession assumption'));assert(budgetConcessionFallback.limitations.some(note=>note.includes('not a verified current offer')));assert.equal(budgetConcessionFallback.recommendation.confidence,'limited');
+const explicitNoConcession=calculateComparison({...input,source:{...source,concession:offerUnavailable,libraries:{assumptions:savedBudgetAssumptions}},scenario:{...scenario,concession:{type:'none',value:0}}});assert.equal(explicitNoConcession.ltrBridge.concessions,0,'An explicit scenario concession choice overrides the retained fallback');
+const monthlyConcessionFallback=calculateComparison({...input,program:{...program,config:{...config,unitRamp:{2026:Array(12).fill(3)}}},source:{...source,concession:offerUnavailable,libraries:{assumptions:savedBudgetAssumptions},budgetLines:[...source.budgetLines,{gl:'5120',nature:'income',year:2026,monthly:Array(12).fill(100000)},{gl:'5250',nature:'contra_income',year:2026,monthly:[-10000,-10000,-10000,-10000,...Array(8).fill(0)]}]}});
+assert.equal(monthlyConcessionFallback.assumptions.find(row=>row.name==='Concessions').value.type,'source_monthly');
+assert.deepEqual(monthlyConcessionFallback.monthly.map(row=>row.ltrBridge.concessions),[-520,-520,-520,-520,0,0,0,0,0,0,0,0],'Retained monthly budget evidence takes precedence over a scalar assumption and preserves burnoff');
 
 const taxes=base.gl.find(row=>row.code==='6810');close(taxes.str,310,'Property tax allocated once to active units');close(taxes.ltr,310,'Same tax basis in LTR');
 const custom=calculateComparison({...input,scenario:{...scenario,allocations:{6810:{str:{method:'custom',pct:.1},ltr:{method:'none'}}}}});
@@ -70,6 +83,25 @@ const missingExpense=calculateComparison({...input,source:{...source,budgetLines
 const missingRent=calculateComparison({...input,property:{...property,units:property.units.map(row=>row.id==='B'?{...row,marketRent:null}:row)}});assert.equal(missingRent.totals.ltr.income,null);
 const missingGasInput={...input,program:{...program,config:{...config,utilities:{...config.utilities,gas:{enabled:true}}}}};
 assert.equal(calculateComparison(missingGasInput).totals.str.noi,null,'Missing utility assumptions do not become fabricated zero');
+const gasZeroBudget={gl:'6464',name:'Natural gas',nature:'expense',year:2026,monthly:Array(12).fill(0),source:'Retained approved source'};
+const knownZeroGasInput={...missingGasInput,source:{...source,budgetLines:[...source.budgetLines,gasZeroBudget]}};
+const knownZeroGas=calculateComparison(knownZeroGasInput);
+assert.notEqual(knownZeroGas.totals.str.noi,null,'Explicit provider zero usage corroborated by a full zero budget remains a modeled zero');
+assert.equal(knownZeroGas.gl.find(row=>row.code==='6464').str,0);
+assert(knownZeroGas.gl.find(row=>row.code==='6464').source.includes('zero per-unit usage corroborated'));
+assert(knownZeroGas.assumptions.some(row=>row.name.includes('modeled zero')&&row.value===0));
+assert(knownZeroGas.limitations.some(row=>row.includes('confirm the building is all-electric')),'Retained source caveat stays visible');
+assert.equal(knownZeroGas.totals.actual.expenses,null,'A modeled zero does not certify observed zero actual expenses');
+assert(knownZeroGas.sensitivity.every(row=>Number.isFinite(row.strNoi)),'Supported utility zero restores dependent sensitivity calculations');
+assert(Number.isFinite(knownZeroGas.breakEven.operating.adr),'Supported utility zero restores numerical thresholds');
+const noGasProvider=calculateComparison({...knownZeroGasInput,source:{...knownZeroGasInput.source,libraries:{utilityProviders:JSON.parse(JSON.stringify(RBB.UTILITY_PROVIDERS)).filter(row=>row.utility!=='gas')}}});
+assert.equal(noGasProvider.totals.str.noi,null,'Zero property budget alone cannot establish an STR utility cost without a provider assumption');
+const undefinedGasUsage=calculateComparison({...knownZeroGasInput,source:{...knownZeroGasInput.source,libraries:{utilityProviders:JSON.parse(JSON.stringify(RBB.UTILITY_PROVIDERS)).map(row=>row.utility==='gas'?{...row,perOccUnitKwh:null}:row)}}});
+assert.equal(undefinedGasUsage.totals.str.noi,null,'Missing provider usage is distinct from an explicit numeric zero');
+const incompleteGasBudget=calculateComparison({...knownZeroGasInput,source:{...source,budgetLines:[...source.budgetLines,{...gasZeroBudget,monthly:[null,...Array(11).fill(0)]}]}});
+assert.equal(incompleteGasBudget.totals.str.noi,null,'Incomplete source monthly coverage cannot corroborate a full zero utility budget');
+const explicitZeroUsage=calculateComparison({...missingGasInput,program:{...program,config:{...config,utilities:{...config.utilities,gas:{enabled:true,perOccUsage:0}}}}});
+assert.notEqual(explicitZeroUsage.totals.str.noi,null,'Explicit retained program zero-usage override is authoritative for the model');
 const noGas=calculateComparison({...missingGasInput,scenario:{...scenario,allocations:{6464:{str:{method:'none'}}}}});
 assert.notEqual(noGas.totals.str.noi,null,'Explicit not applicable rule resolves unsupported gas cost');
 assert.equal(noGas.gl.find(row=>row.code==='6464').str,0);
@@ -93,6 +125,18 @@ const unallocated=calculateComparison({...input,source:{...source,actuals:actual
 assert.equal(unallocated.totals.str.income,null);assert.equal(unallocated.actuals.status,'unavailable');
 assert.equal(unallocated.actuals.latestMonth,null,'Latest month used is unavailable without program attribution');
 assert.equal(unallocated.actuals.latestPropertyMonth,'2026-03','Property latest available is disclosed separately');
+const foreignAccount={period:'2026-03',gl:'QA-UNMAPPED-GL',nature:'expense',amount:1000,status:'closed',scope:'property'};
+const unallocatedUnknown=calculateComparison({...input,source:{...source,actuals:[foreignAccount]}});
+assert(!unallocatedUnknown.gl.some(row=>row.code===foreignAccount.gl),'Unallocated property account does not pollute comparison rows');assert(!unallocatedUnknown.limitations.some(note=>note.includes(foreignAccount.gl)),'Unallocated property account does not create an unmapped warning');
+const allocatedUnknown=calculateComparison({...input,source:{...source,actuals:[foreignAccount]},scenario:{...scenario,allocations:{[foreignAccount.gl]:{actual:{method:'units'}}}}});
+assert(allocatedUnknown.gl.some(row=>row.code===foreignAccount.gl),'Explicitly allocated unknown actual account remains visible');assert(allocatedUnknown.limitations.some(note=>note.includes(foreignAccount.gl)),'Included unmapped actual account still warns');
+const absentActualYear=calculateComparison({...input,scenario:{...scenario,year:2027,mode:'investment'},source:{...source,year:2027,years:[2027],actuals:[],budgetLines:source.budgetLines.map(row=>({...row,year:2027}))}});
+assert.equal(absentActualYear.monthly.length,0);assert.equal(absentActualYear.payback.months,null);assert.equal(absentActualYear.payback.reached,false);assert.equal(absentActualYear.payback.horizonMonths,0);
+assert.equal(absentActualYear.payback.incrementalInvestment,null);assert.equal(absentActualYear.payback.incrementalCashFlow,null);
+for(const key of ['grossPotentialRent','vacancyLoss','concessions','badDebt','effectiveIncome','netEffectiveRent'])assert.equal(absentActualYear.ltrBridge[key],null,`No actual window means unavailable ${key}, not zero`);
+assert(absentActualYear.gl.every(row=>row.str===null&&row.ltr===null&&row.actual===null&&row.budget===null),'An empty comparison period cannot publish zero GL results');
+assert(absentActualYear.floorPlans.every(row=>row.ltrBridge.grossPotentialRent===null&&row.ltrBridge.concessions===null));
+assert.equal(absentActualYear.occupancy.str,null);assert.equal(absentActualYear.occupancy.ltr,null);assert.equal(absentActualYear.breakEven.currentOccupancy,null);assert.equal(absentActualYear.breakEven.currentAdr,null);
 
 assert(base.breakEven.operating.adr>0);assert(base.breakEven.operating.occupancy>0&&base.breakEven.operating.occupancy<=1);
 const atThreshold=calculateComparison({...input,scenario:{...scenario,strOverrides:{adr:base.breakEven.operating.adr}}});
@@ -125,4 +169,5 @@ assert.throws(()=>calculateComparison({...input,program:{...program,config:null}
 assert.equal(RBB.ASSUMPTIONS,identities.assumptions);assert.equal(RBB.CURVES,identities.curves);assert.equal(RBB.UTILITY_PROVIDERS,identities.providers);assert.equal(RBB.COA,identities.coa);assert.equal(RBB.glIndex,identities.index);
 
 if(process.env.ATLAS_COMPARISON_FIXTURE_OUT) fs.writeFileSync(process.env.ATLAS_COMPARISON_FIXTURE_OUT,JSON.stringify(base,null,2));
+if(process.env.ATLAS_COMPARISON_EMPTY_FIXTURE_OUT) fs.writeFileSync(process.env.ATLAS_COMPARISON_EMPTY_FIXTURE_OUT,JSON.stringify(absentActualYear,null,2));
 console.log('PASS direct saved inventory/rent/ramp, legacy STR model reuse, concessions timing, occupancy and permit controls, missing evidence, aligned closed actuals, fixed/shared costs, GL/floor-plan/monthly reconciliation, capital separation, numerical thresholds, payback and reproducible libraries.');

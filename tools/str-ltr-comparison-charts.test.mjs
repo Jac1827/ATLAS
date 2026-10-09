@@ -16,7 +16,7 @@ function inBounds(markup){
  for(const text of elements(markup,'text')) assert(Number(text.x)>=0&&Number(text.x)<=width&&Number(text.y)>=0&&Number(text.y)<=height,'Labels remain in the chart');
  assert(!/NaN|Infinity/.test(markup));
 }
-const comparison=(ltr,str)=>({mode:'budget',totals:{ltr,str}});
+const comparison=(ltr,str)=>({mode:'budget',monthly:[{period:'2026-10'}],totals:{ltr,str}});
 const peak=comparison({income:150000,expenses:50000,noi:100000},{income:250000,expenses:150000,noi:100000});
 const peakSvg=waterfall(peak);inBounds(peakSvg);
 const peakBars=rects(peakSvg);assert(peakBars[1].y<peakBars[0].y,'Income step reaches the cumulative 200k endpoint');assert(peakBars[1].y>=40,'Cumulative maximum leaves readable label margin');
@@ -32,10 +32,11 @@ const zeroX=Number(elements(barSvg,'line')[0].x1),barRects=rects(barSvg);assert.
 for(const index of [0,1,2,3,4,5]) assert.equal(barRects[index].x,zeroX,'Positive income and expense amounts extend right');
 for(const index of [6,7,8]){assert(barRects[index].x<zeroX,'Negative NOI extends left');assert(Math.abs(barRects[index].x+barRects[index].width-zeroX)<.001);}
 assert(elements(barSvg,'text').filter(row=>row.x==='590').every(row=>row['text-anchor']==='end'),'Values occupy a fixed label column outside bars');
-inBounds(bars(zero));inBounds(bars({totals:{str:{income:null,expenses:null,noi:null},ltr:{}}}));
+inBounds(bars(zero));inBounds(bars({monthly:[{period:'2026-10'}],totals:{str:{income:null,expenses:null,noi:null},ltr:{}}}));
 
-const floorSvg=floorChart({floorPlans:[{code:'A1',units:3,difference:{noi:-20000}},{code:'B1',units:2,difference:{noi:10000}},{code:'C1',units:1,difference:{noi:null}},{code:'D1',units:1,difference:{noi:0}}]});inBounds(floorSvg);
+const floorSvg=floorChart({monthly:[{period:'2026-10'}],floorPlans:[{code:'A1',units:3,difference:{noi:-20000}},{code:'B1',units:2,difference:{noi:10000}},{code:'C1',units:1,difference:{noi:null}},{code:'D1',units:1,difference:{noi:0}}]});inBounds(floorSvg);
 const floorZero=Number(elements(floorSvg,'line')[0].x1),floorRects=rects(floorSvg);assert(floorRects[0].x<floorZero);assert.equal(floorRects[1].x,floorZero);assert.equal(floorRects[2].width,0);assert.equal(floorRects[3].width,0);
 assert(floorSvg.includes('A1 · 3 units'));assert(floorSvg.includes('+$10,000'));assert(floorSvg.includes('-$20,000'));assert(floorSvg.includes('Unavailable'));assert(floorSvg.includes('selected quantities and dates'));
-inBounds(floorChart({floorPlans:[]}));
+inBounds(floorChart({monthly:[{period:'2026-10'}],floorPlans:[]}));
+assert(bars({monthly:[],totals:{}}).includes('No comparable recorded months'));assert(floorChart({monthly:[],floorPlans:[]}).includes('requires a comparable reporting period'));
 console.log('PASS signed chart scales, cumulative waterfall extremes, negative and zero NOI, positive/negative labels, fixed value columns, quantities, missing data and performance series.');

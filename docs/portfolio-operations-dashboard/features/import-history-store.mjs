@@ -273,7 +273,7 @@ export async function executeHistory(request) {
         const exported={...value,...(await preferences(db,storeName,key,signal)).values};
         if(operation==='export')return exported;
         if(request.archiveRecord?.key!==key||!/^record-\d+\.json$/.test(request.archiveName))throw fail('Invalid archive record request.');
-        const module=await import('../migration-archive.js?v=51c0d9a49d4cbde9');check(signal);
+        const module=await import('../migration-archive.js?v=8cb6480f96dd3ca0');check(signal);
         const archive=module.default||globalThis.AtlasMigrationArchive;
         return await archive.packRecord(request.archiveName,{...request.archiveRecord,value:exported},{onProgress:()=>{check(signal);request.onArchiveProgress?.();}});
       }

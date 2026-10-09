@@ -82,6 +82,7 @@ jobs:
             output/test-all/ci/*-workspace-startup-browser.test.mjs.log
             output/test-all/ci/*-community-finance-period-warning.test.mjs.log
             output/test-all/ci/*-str-ltr-comparison-browser.test.mjs.log
+            output/test-all/ci/*-saved-str-programme-browser.test.mjs.log
           if-no-files-found: warn
 
       - name: Install Wrangler
@@ -158,6 +159,7 @@ jobs:
             output/test-all/ci/*-workspace-startup-browser.test.mjs.log
             output/test-all/ci/*-community-finance-period-warning.test.mjs.log
             output/test-all/ci/*-str-ltr-comparison-browser.test.mjs.log
+            output/test-all/ci/*-saved-str-programme-browser.test.mjs.log
           if-no-files-found: warn
 
       - name: Install Wrangler

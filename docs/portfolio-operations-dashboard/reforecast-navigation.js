@@ -38,7 +38,7 @@
  R.budgetNavigation?.groups.find(g=>g[0]==='reports')?.[2].push('reforecastgap');
  R.reforecastNavigationReady=Promise.all([
   import('./features/reforecast-legacy-bridge.mjs?v=fda8456089dc802f').then(m=>m.installLegacyReforecastBridge(R)),
-  import('./features/saved-str-programmes.mjs?v=356ee0c297bc30f7').then(m=>m.installSavedStrProgrammes(R))
+  import('./features/saved-str-programmes.mjs?v=2746dd7fc3682982').then(m=>m.installSavedStrProgrammes(R))
  ]);
  // The startup coordinator awaits this promise; attach a handler immediately
  // so a failed async install stays a visible boot failure without a lost route.

@@ -1,4 +1,4 @@
-import {readStrProgrammes} from './saved-str-programmes.mjs?v=356ee0c297bc30f7';
+import {readStrProgrammes} from './saved-str-programmes.mjs?v=2746dd7fc3682982';
 import {readSourceBundle} from './reforecast-store.mjs?v=b59fd4df88ff8fe3';
 import {resolveImportCommunity} from './community-budget-identity.mjs?v=789e1cbad26c5366';
 import {canonicalJson,sha256} from './financial-snapshot.mjs?v=848d058bdec07b4e';

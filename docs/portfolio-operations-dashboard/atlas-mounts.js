@@ -114,7 +114,7 @@
       note: "Property budget, monthly view, GL detail, actuals, financial review and exception reporting all run in Budget Builder itself — ATLAS reads the published scenario.",
       barTitle: "RISE Budget Builder",
       barSub: "Standalone finance tool — central Budget and actuals migration required",
-      src: "RISE-Budget-Builder.html?v=3825d4b3ccb1591f",
+      src: "RISE-Budget-Builder.html?v=0be0f22e761ef775",
       background: "#F1F4F6",
       icon: "ph-calculator"
     },

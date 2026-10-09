@@ -172,7 +172,7 @@ try{
  await ready(host.frames()[1]);
  assert.equal(await host.frames()[1].evaluate(()=>RBB.app.state.currentMarker),'exact-undo');await host.close();
  const reader=await context.newPage();reader.on('pageerror',e=>errors.push(e.message));await reader.goto(origin+'/RISE-Budget-Builder.html?investorReader=1');
- await reader.waitForFunction(()=>document.querySelectorAll('script[data-after-draft-boot][data-loaded]').length===6);
+ await reader.waitForFunction(()=>document.querySelectorAll('script[data-after-draft-boot][data-loaded]').length===document.querySelectorAll('script[data-after-draft-boot]').length);
  assert.equal(await reader.evaluate(()=>RBB.app.state===null||RBB.app.state===undefined),true,'Investor reader does not restore browser working values');await reader.close();
  stage='account and workspace fences';
  const scoped=await browser.newContext();await scoped.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());

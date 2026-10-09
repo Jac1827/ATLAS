@@ -10,6 +10,7 @@
   ];
   const MODULES = [
     ["overview", "Overview", "squares-four"],
+    ["communications", "Resident Communications", "chats-circle"],
     ["renewals", "Renewals", "arrows-clockwise"],
     ["moveOuts", "Move-Outs", "door-open"],
     ["inspections", "Inspections", "clipboard-text"],
@@ -3784,7 +3785,7 @@
   function renderModuleNav(state) {
     const modules = MODULES.filter(([key]) => key !== "architecture" || currentUserCanUseAdministrativeView());
     return `<div class="cs-module-nav" role="tablist" aria-label="Central Services modules">
-      ${modules.map(([key, label, iconName]) => `<button type="button" class="cs-module-tab ${state.ui.module === key ? "is-active" : ""}" onclick="atlasCsSetModule('${key}')">${icon(iconName)} ${escapeHtml(label)}</button>`).join("")}
+      ${modules.map(([key, label, iconName]) => `<button type="button" class="cs-module-tab ${state.ui.module === key ? "is-active" : ""}" onclick="atlasCsSetModule('${key}')">${icon(iconName)} ${escapeHtml(label)}${key === "communications" ? ' <span data-rc-count aria-live="polite">0</span>' : ""}</button>`).join("")}
     </div>`;
   }
 
@@ -7757,6 +7758,13 @@
   }
 
   function renderModule(state, employees) {
+    if (state.ui.module === "communications") {
+      if (window.AtlasResidentCommunications) return window.AtlasResidentCommunications.render();
+      window.AtlasFeatures.load('residentCommunications').then(() => {
+        if (loadState().ui.module === 'communications') renderActiveTab();
+      }).catch(() => { const el=document.getElementById('rc-loading'); if(el)el.textContent='Resident Communications could not load. Reopen this module to retry.'; });
+      return '<div id="rc-loading" role="status">Loading Resident Communications…</div>';
+    }
     if (state.ui.module === "renewals") return renderRenewals(state, employees);
     if (state.ui.module === "moveOuts") return renderMoveOuts(state, employees);
     if (state.ui.module === "inspections") return renderInspections(state, employees);
@@ -7807,6 +7815,7 @@
           <button type="button" class="cs-btn cs-btn-primary" onclick="atlasCsSetModule('questions')">${icon("question")} Build Questions</button>
         </div>
       </div>
+      ${window.AtlasCommunicationAlerts?.render() || ""}
       ${renderModuleNav(state)}
       ${renderControls(state)}
       ${renderImportHistory(state)}

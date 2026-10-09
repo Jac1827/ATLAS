@@ -1,0 +1,28 @@
+{$CHATWOOT_DOMAIN} {
+ encode zstd gzip
+ header {
+  Strict-Transport-Security "max-age=31536000"
+  X-Content-Type-Options "nosniff"
+  Referrer-Policy "no-referrer"
+ }
+ # Provider requests remain verified by Chatwoot's provider controllers.
+ # Confirm paths against the pinned release and Twilio callback configuration.
+ @twilio {
+  method POST
+  path /twilio/callback /twilio/callback/* /twilio/delivery_status /twilio/delivery_status/*
+ }
+ handle @twilio { reverse_proxy web:3000 }
+ # Account API is reachable only through the authenticated ATLAS Worker.
+ @atlas {
+  path /api/v1/accounts/*
+  header X-Atlas-Origin-Token {$CHATWOOT_ORIGIN_TOKEN}
+ }
+ handle @atlas {
+  request_header -X-Atlas-Origin-Token
+  reverse_proxy web:3000
+ }
+ # No public Chatwoot dashboard or attachment URLs. Operator access uses a
+ # separate private administration ingress during approved maintenance.
+ handle { respond "Not available" 404 }
+ # Deliberately omit access logs: callback URLs may contain telephone identifiers.
+}

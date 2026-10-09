@@ -1,0 +1,16 @@
+-- Entrata monthly workbook identity contract (documentation, not executable seed data).
+-- Upload using existing Application / Resident Data Import with source-effective date.
+-- Preserve explicit Person ID or Resident ID, Lease ID, and Application ID source columns.
+-- Application ID MUST NOT substitute for an Entrata person/resident identity.
+-- Server-approved community mappings come from the existing scoped publication.
+-- Populate atlas_entrata_communication_identity_reviews ONLY through a trusted
+-- operator/server process after checking actual Entrata source and current lease.
+-- Review references the exact source_import_id/application_id/resident_id/lease_id
+-- and community_id; it stores no endpoint or resident display fields.
+-- Set explicit verified_at/valid_until and a reviewed evidence_reference.
+-- Hash exact source email bytes and verified E.164 source phone bytes with SHA-256.
+-- Missing verification remains blocked. An upload is not SMS consent evidence.
+-- The service-only view returns one current, reviewed canonical identity or none.
+-- New/deleted/conflicting/expired snapshots and conflicting person IDs fail closed.
+-- Keep PUBLIC/anon/authenticated access revoked for both view and review table.
+-- Validate the first actual monthly workbook and move-out/change behavior before pilot.

@@ -15,10 +15,16 @@ declare
 begin
  if to_regprocedure('public.atlas_bonus_workflow(uuid,text,integer,jsonb,uuid)') is null then raise exception 'Apply reviewed Bonus workflow migration before acceptance';end if;
  -- Reject unreviewed Auth/profile bootstrap or outbound behavior before the first fixture write.
+ -- The exact reviewed communication projection below is local SQL only. Its receipt
+ -- table name contains "webhook"; a body hash permits only this reviewed implementation,
+ -- without allowing a changed body, another overload, or any network-capable function.
  if exists(select 1 from pg_trigger t where not t.tgisinternal and t.tgenabled<>'D' and t.tgrelid='auth.users'::regclass) then raise exception 'Acceptance stopped: unreviewed Auth bootstrap trigger';end if;
  select t.tgname into trigger_name from pg_trigger t join pg_proc f on f.oid=t.tgfoid where not t.tgisinternal and t.tgenabled<>'D' and t.tgrelid=any(array['public.atlas_user_profiles'::regclass,'public.atlas_employees'::regclass,'public.atlas_employee_assignments'::regclass,'public.atlas_roles'::regclass,'public.atlas_communities'::regclass]) and f.proname not in ('workforce_changed','bonus_eligibility_guard','profile_access_guard') limit 1;
  if trigger_name is not null then raise exception 'Acceptance stopped: unreviewed identity/workforce trigger %',trigger_name;end if;
- if exists(select 1 from pg_proc f join pg_namespace n on n.oid=f.pronamespace where f.prokind='f' and (n.nspname='atlas_private' or n.nspname='public' and f.proname like 'atlas_%') and f.prosrc~* '(net[.]http|http_(get|post|put|delete)|pg_net|pg_notify|dblink|pg_background|send_email|webhook)') then raise exception 'Acceptance stopped: outbound-capable application function requires review';end if;
+ if exists(select 1 from pg_proc f join pg_namespace n on n.oid=f.pronamespace where f.prokind='f' and (n.nspname='atlas_private' or n.nspname='public' and f.proname like 'atlas_%') and f.prosrc~* '(net[.]http|http_(get|post|put|delete)|pg_net|pg_notify|dblink|pg_background|send_email|webhook)'
+ and not (n.nspname='public' and f.proname='atlas_communication_apply_event'
+ and f.oid=to_regprocedure('public.atlas_communication_apply_event(text,text,uuid,timestamptz,text,bigint,integer,boolean,boolean,boolean,boolean,boolean,bigint,text)')
+ and encode(sha256(convert_to(f.prosrc,'UTF8')),'hex')='24fe501918c6693850a6efdefa176f9250a891dc1c78c41244c2ce29e5843aea')) then raise exception 'Acceptance stopped: outbound-capable application function requires review';end if;
  period_key:=to_char(starts,'YYYY')||'-Q'||extract(quarter from starts)::int;yr:=extract(year from starts);
  begin
   insert into auth.users(id) values(admin_id),(calculator_id),(reviewer_id),(outside_id);

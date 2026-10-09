@@ -2693,6 +2693,8 @@ const APPLICATION_RESIDENT_FIELD_ALIASES = {
   firstVisitTourDate: ["First Visit/Tour Date", "First Visit", "Tour Date"],
   occupantType: ["Occupant Type"],
   leaseId: ["Lease ID", "Lease Id", "LeaseID"],
+  personId: ["Person ID", "Person Id", "PersonID"],
+  residentId: ["Resident ID", "Resident Id", "ResidentID"],
   leaseStatus: ["Lease Status"],
   scheduledRent: ["Scheduled Rent"],
   buildingUnit: ["Bldg-Unit", "Building Unit", "Unit", "Bldg Unit"],
@@ -2869,6 +2871,8 @@ function normalizeApplicationResidentRecord(record = {}, resolvedProperty = unde
     firstVisitTourDate: normalizeApplicationResidentDateInput(record.firstVisitTourDate),
     occupantType: normalizeApplicationResidentText(record.occupantType),
     leaseId: normalizeApplicationResidentIdentifier(record.leaseId),
+    personId: normalizeApplicationResidentIdentifier(record.personId),
+    residentId: normalizeApplicationResidentIdentifier(record.residentId),
     leaseStatus: normalizeApplicationResidentText(record.leaseStatus),
     scheduledRent: normalizeOptionalNumber(record.scheduledRent),
     buildingUnit: normalizeApplicationResidentText(record.buildingUnit),
@@ -3174,6 +3178,8 @@ function parseApplicationResidentDataWorkbook(workbook, file, options = {}) {
         firstVisitTourDate: getApplicationResidentCell(row, colIdx, "firstVisitTourDate"),
         occupantType: getApplicationResidentCell(row, colIdx, "occupantType"),
         leaseId: getApplicationResidentCell(row, colIdx, "leaseId"),
+        personId: getApplicationResidentCell(row, colIdx, "personId"),
+        residentId: getApplicationResidentCell(row, colIdx, "residentId"),
         leaseStatus: getApplicationResidentCell(row, colIdx, "leaseStatus"),
         scheduledRent: getApplicationResidentCell(row, colIdx, "scheduledRent"),
         buildingUnit: getApplicationResidentCell(row, colIdx, "buildingUnit"),
@@ -3778,6 +3784,7 @@ function renderApplicationResidentDataImportPanel() {
       <div>
         <div class="card-title" style="margin-bottom:6px">Application / Resident Data Import</div>
         <div style="font-size:0.7rem;color:var(--muted);line-height:1.55">Upload the Entrata Resident Data workbook separately from ATLAS Monthly Uploads. Resident records are keyed by Application ID, mapped only through confirmed community IDs, and used to validate lifecycle counts without overwriting monthly report totals.</div>
+        <div style="font-size:0.7rem;color:var(--muted);line-height:1.55">For Resident Communications, upload this report monthly with explicit Person ID or Resident ID and Lease ID columns. Missing or conflicting identity columns require review. Uploading a report does not grant SMS consent or verify delivery endpoints.</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
         <div>
@@ -24284,8 +24291,9 @@ function communityCommandRecordPayoutDecision(decision = "") {
 
 // ─── Overview Tab ─────────────────────────────────────────────────────────────
 function renderOverviewTab() {
-  if (isPortfolioWorkspaceSelected()) return renderPortfolioScopedCommunityCommandTab();
-  return renderCommunityCommandTab();
+  const communications = window.AtlasCommunicationAlerts?.render() || '';
+  if (isPortfolioWorkspaceSelected()) return communications + renderPortfolioScopedCommunityCommandTab();
+  return communications + renderCommunityCommandTab();
   const totalUnits = getTotalUnits();
   const occupancyBaseUnits = getOccupancyBaseUnits(totalUnits, corporateLeaseUnits);
   const oCPct = currentOccPct();

@@ -9,6 +9,11 @@
     "head_sampling_rate": 1
   },
   "vars": {
+    "ATLAS_COMMUNICATIONS_ENABLED": "false",
+    "ATLAS_COMMUNICATIONS_WRITE_ENABLED": "false",
+    "ATLAS_COMMUNICATIONS_OUTBOUND_ENABLED": "false",
+    "ATLAS_COMMUNICATIONS_COMPLIANCE_APPROVED": "false",
+    "CHATWOOT_DEPLOYMENT_VALIDATED": "false",
     "ATLAS_DLR_DELIVERY_TIMEZONE": "America/New_York",
     "ATLAS_DLR_SCHEDULE_WINDOW_MINUTES": "15",
     "ATLAS_DLR_EMAIL_PROVIDER": "cloudflare_email_service",
@@ -22,7 +27,8 @@
   },
   "triggers": {
     "crons": [
-      "*/15 * * * MON-FRI"
+      "*/15 * * * MON-FRI",
+      "* * * * *"
     ]
   },
   "send_email": [

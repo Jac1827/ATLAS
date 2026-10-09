@@ -101,7 +101,7 @@ begin
    cross join lateral (select resolved_properties->lower(trim(r->>'propertySource')) as mapping) resolved
    cross join lateral (
      select coalesce(jsonb_object_agg(key,value),'{}') as fields from jsonb_each(r)
-     where key=any(array['applicationId','propertySource','mappingStatus','sourceSheetName','sourceRowNumber',
+     where key=any(array['applicationId','personId','residentId','propertySource','mappingStatus','sourceSheetName','sourceRowNumber',
        'reportPeriodKey','reportMonth','residentName','applicationStatus','leasingAgent','leadSource',
        'newLeadCreatedOn','applicationPartiallyCompletedOn','applicationCompletedOn','firstVisitTourDate',
        'occupantType','leaseId','leaseStatus','scheduledRent','buildingUnit','primaryPhone','additionalPhoneNumbers',

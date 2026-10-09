@@ -1,3 +1,4 @@
+import {handleResidentCommunications, createCommunicationService} from './resident-communications.mjs';
 import {handleCommunityPlanEmail} from './community-plan-email.mjs';
 export { EvictionCaseState } from './eviction-store.mjs';
 export { PropertySpecialsState } from './property-specials-store.mjs';
@@ -2160,6 +2161,10 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
+    if (url.pathname.startsWith("/api/atlas/chatwoot/")) {
+      return handleResidentCommunications(request, env, {config:getAtlasSupabaseConfig, db:supabaseRequest});
+    }
+
     if (url.pathname === "/__health" || url.pathname === "/api/status") {
       return apiResponse({
         ok: true,
@@ -2305,6 +2310,11 @@ export default {
   },
 
   async scheduled(controller, env) {
+    if (controller?.cron === '* * * * *') {
+      try { await createCommunicationService(env, {config:getAtlasSupabaseConfig, db:supabaseRequest}).refreshReminders(); }
+      catch { console.log({event:'atlas_communication_reminder_error'}); }
+      return;
+    }
     try {
       await processDlrScheduledDeliveries(env, {
         source: "scheduled_worker",

@@ -1,0 +1,112 @@
+# Dedicated host only. Supply image digests and environment from an external secret manager.
+# Do not place its .env or backup data in ATLAS. No database/Redis port is published.
+name: atlas-resident-chatwoot
+x-chatwoot: &chatwoot
+  image: ${CHATWOOT_IMAGE:?Set approved Chatwoot image digest}
+  restart: unless-stopped
+  env_file: ${CHATWOOT_ENV_FILE:?Absolute external secret environment file required}
+  environment:
+    RAILS_ENV: production
+    NODE_ENV: production
+    INSTALLATION_ENV: docker
+    FRONTEND_URL: https://${CHATWOOT_DOMAIN:?Production domain required}
+    FORCE_SSL: "true"
+    ENABLE_ACCOUNT_SIGNUP: "false"
+    POSTGRES_HOST: postgres
+    POSTGRES_DATABASE: chatwoot
+    POSTGRES_USERNAME: chatwoot
+    ACTIVE_STORAGE_SERVICE: amazon
+    RAILS_LOG_TO_STDOUT: "true"
+    LOG_LEVEL: warn
+    VIPS_BLOCK_UNTRUSTED: "1"
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+  networks: [private]
+  volumes:
+    - "chatwoot_storage:/app/storage"
+    - "./communication-log-filter.rb:/app/config/initializers/atlas_communication_log_filter.rb:ro"
+  logging: { driver: json-file, options: { max-size: 10m, max-file: "3" } }
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:?Set approved pgvector PostgreSQL image digest}
+    restart: unless-stopped
+    env_file: ${POSTGRES_ENV_FILE:?Absolute external PostgreSQL secret file required}
+    environment: { POSTGRES_DB: chatwoot, POSTGRES_USER: chatwoot }
+    volumes: ["postgres_data:/var/lib/postgresql/data"]
+    networks: [private]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U chatwoot -d chatwoot"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+  redis:
+    image: ${REDIS_IMAGE:?Set approved Redis image digest}
+    restart: unless-stopped
+    env_file: ${REDIS_ENV_FILE:?Absolute external Redis secret file required}
+    command:
+      [
+        sh,
+        -c,
+        'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"',
+      ]
+    volumes: ["redis_data:/data"]
+    networks: [private]
+    healthcheck:
+      test:
+        [
+          CMD-SHELL,
+          'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+  web:
+    <<: *chatwoot
+    entrypoint: docker/entrypoints/rails.sh
+    command: [bundle, exec, rails, s, -p, "3000", -b, 0.0.0.0]
+    healthcheck:
+      test:
+        [
+          CMD-SHELL,
+          'ruby -rnet/http -e "exit(Net::HTTP.get_response(URI(\"http://127.0.0.1:3000/api\")).code.to_i < 500 ? 0 : 1)"',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+  worker:
+    <<: *chatwoot
+    command: [bundle, exec, sidekiq, -C, config/sidekiq.yml]
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bundle exec ruby -rsidekiq/api -e 'Sidekiq.configure_client { |c| c.redis = {url: ENV.fetch("REDIS_URL"), password: ENV.fetch("REDIS_PASSWORD")} }; exit(Sidekiq::ProcessSet.new.size.positive? ? 0 : 1)'
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+  proxy:
+    image: ${CADDY_IMAGE:?Set approved Caddy image digest}
+    restart: unless-stopped
+    env_file: ${PROXY_ENV_FILE:?Absolute external origin secret file required}
+    environment:
+      CHATWOOT_DOMAIN: ${CHATWOOT_DOMAIN:?}
+    ports: ["80:80", "443:443"]
+    volumes:
+      [
+        "./Caddyfile:/etc/caddy/Caddyfile:ro",
+        "caddy_data:/data",
+        "caddy_config:/config",
+      ]
+    networks: [private]
+    depends_on: { web: { condition: service_healthy } }
+networks:
+  private: {}
+volumes:
+  postgres_data: {}
+  redis_data: {}
+  chatwoot_storage: {}
+  caddy_data: {}
+  caddy_config: {}

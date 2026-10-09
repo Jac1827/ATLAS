@@ -105,6 +105,13 @@ const lostLater=calculatePayback([{str:{noi:100,capex:50},ltr:{noi:0,capex:0}},{
 assert.equal(calculatePayback([{str:{noi:null,capex:1},ltr:{noi:0,capex:0}}]).months,null);
 assert.equal(calculatePayback([{str:{noi:null,capex:1},ltr:{noi:0,capex:0}}]).incrementalInvestment,1,'Known investment survives incomplete operating NOI');
 assert.equal(base.sensitivity.length,25);
+const seasonalConfig={...config,curve:'str_jax'};
+const seasonal=calculateComparison({...input,program:{...program,config:seasonalConfig},scenario:{...scenario,occupancy:{mode:'source'}}});
+const uniform=RBB.strBuilder.preview(state,{...seasonalConfig,occMode:'monthly',occMonthly:{2026:Array(12).fill(.99)}},2026);
+const weightedUniformAdr=uniform.gross.reduce((a,b)=>a+b,0)/uniform.booked.reduce((a,b)=>a+b,0);
+const centerRates=seasonal.sensitivity.filter((_,index)=>index%5===2).map(row=>row.adr);
+assert.equal(new Set(centerRates).size,1,'All occupancy rows share the same uniform-occupancy ADR columns');
+close(centerRates[0],weightedUniformAdr,'Sensitivity labels use the actual weighted ADR of sampled uniform occupancy');
 assert(base.recommendation.drivers.some(row=>row.includes('headroom')));assert(base.recommendation.drivers.some(row=>row.includes('Source:')));
 const approvedOccupancy=calculateComparison({...input,scenario:{...scenario,occupancy:{mode:'source'}},source:{...source,budgetLeasing:Array.from({length:12},(_,m)=>({period:`2026-${String(m+1).padStart(2,'0')}`,units:100,occupiedUnits:40}))}});
 close(approvedOccupancy.occupancy.ltr,.4,'Approved retained leasing occupancy takes precedence over saved property schedule');

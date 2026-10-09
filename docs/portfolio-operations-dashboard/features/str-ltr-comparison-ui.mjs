@@ -1,6 +1,6 @@
-import {calculateComparison} from './str-ltr-comparison-engine.mjs?v=3e1a099572f83dc0';
+import {calculateComparison} from './str-ltr-comparison-engine.mjs?v=a77cf9315fee229c';
 import {createComparisonStore,createComparisonRecord} from './str-ltr-comparison-store.mjs?v=a45ad9d954ccc8cc';
-import {exportComparison} from './str-ltr-comparison-export.mjs?v=84aa3c8b9203d637';
+import {exportComparison} from './str-ltr-comparison-export.mjs?v=1f330129f43d501e';
 import {createComparisonRecovery} from './str-ltr-comparison-recovery.mjs?v=ed0ac34406c4b063';
 
 const clone=value=>structuredClone(value);
@@ -22,8 +22,8 @@ const legends=(actual=false)=>`<div class="cmp-legend"><span>STR ${actual?'actua
 
 function bars(result){
  const series=[['str','#006b70'],['ltr','#bc8535'],...(result.mode==='performance'?[['actual','#668ab0']]:[])],rows=[['Income','income'],['Operating expenses','expenses'],['NOI','noi']];
- const max=Math.max(1,...rows.flatMap(([,key])=>series.map(([side])=>Math.abs(result.totals?.[side]?.[key]||0)))),spacing=series.length===3?90:72;
- return `<svg viewBox="0 0 600 ${spacing*3+20}" role="img" aria-label="STR and modeled LTR income, operating expenses and NOI in dollars">${rows.map(([label,key],i)=>{const y=25+i*spacing;return `<text x="4" y="${y}">${label}</text>${series.map(([side,color],j)=>{const value=result.totals?.[side]?.[key];return `<rect x="135" y="${y-12+j*24}" width="${finite(value)?Math.abs(value)/max*315:0}" height="18" rx="3" fill="${color}"/><text x="${145+(finite(value)?Math.abs(value)/max*315:0)}" y="${y+2+j*24}">${esc(money(value))}</text>`;}).join('')}`;}).join('')}</svg>`;
+ const values=rows.flatMap(([,key])=>series.map(([side])=>result.totals?.[side]?.[key])).filter(finite),low=Math.min(0,...values),high=Math.max(0,...values),span=high-low||1,x=value=>150+(value-low)/span*295,zero=x(0),spacing=series.length===3?90:72,height=spacing*3+32;
+ return `<svg viewBox="0 0 600 ${height}" role="img" aria-label="STR and modeled LTR income, operating expenses and NOI in dollars; negative values extend left of zero"><line x1="${zero}" y1="24" x2="${zero}" y2="${height-8}" stroke="#aebfc4"/><text x="${zero}" y="14" text-anchor="middle">$0</text>${rows.map(([label,key],i)=>{const y=40+i*spacing;return `<text x="4" y="${y}">${label}</text>${series.map(([side,color],j)=>{const value=result.totals?.[side]?.[key],end=finite(value)?x(value):zero;return `<rect x="${Math.min(zero,end)}" y="${y-12+j*24}" width="${finite(value)?Math.abs(end-zero):0}" height="18" rx="3" fill="${color}"/><text x="590" y="${y+2+j*24}" text-anchor="end">${esc(money(value))}</text>`;}).join('')}`;}).join('')}</svg>`;
 }
 function trend(result){
  const rows=result.monthly||[],keys=result.mode==='performance'?['str','ltr','actual']:['str','ltr'],values=rows.flatMap(m=>keys.map(k=>metric(m,k).noi)).filter(finite),low=Math.min(0,...values),high=Math.max(1,...values),x=i=>50+i*480/Math.max(1,rows.length-1),y=v=>180-(v-low)/(high-low)*150;
@@ -33,12 +33,13 @@ function trend(result){
 function waterfall(result){
  const s=result.totals?.str||{},l=result.totals?.ltr||{};
  if(![s.noi,l.noi,s.income,l.income,s.expenses,l.expenses].every(finite))return '<p class="cmp-alert">NOI bridge is unavailable until income and operating expense coverage is complete.</p>';
- const rows=[['LTR NOI',l.noi,true],['Income',s.income-l.income,false],['Operating costs',l.expenses-s.expenses,false],['STR NOI',s.noi,true]],scale=Math.max(1,...rows.map(r=>Math.abs(r[1])),Math.abs(s.noi),Math.abs(l.noi));let run=0;
- return `<svg viewBox="0 0 600 240" role="img" aria-label="NOI waterfall from modeled LTR to STR in dollars">${rows.map(([label,value,total],i)=>{const start=total?0:run,end=total?value:run+value;run=end;const top=170-Math.max(start,end)/scale*115,bot=170-Math.min(start,end)/scale*115;return `<rect x="${35+i*142}" y="${top}" width="90" height="${Math.max(2,bot-top)}" fill="${total?'#123c48':value>=0?'#006b70':'#b35136'}"/><text x="${80+i*142}" y="${Math.max(16,top-9)}" text-anchor="middle">${esc(money(value))}</text><text x="${80+i*142}" y="224" text-anchor="middle">${label}</text>`;}).join('')}</svg>`;
+ let run=0;const rows=[['LTR NOI',l.noi,true],['Income',s.income-l.income,false],['Operating costs',l.expenses-s.expenses,false],['STR NOI',s.noi,true]].map(([label,value,total])=>{const start=total?0:run,end=total?value:run+value;run=end;return {label,value,total,start,end};});
+ const endpoints=rows.flatMap(row=>[row.start,row.end]),low=Math.min(0,...endpoints),high=Math.max(0,...endpoints),span=high-low||1,y=value=>42+(high-value)/span*150;
+ return `<svg viewBox="0 0 600 260" role="img" aria-label="NOI waterfall from modeled LTR to STR in dollars; each step uses cumulative endpoints"><line x1="24" y1="${y(0)}" x2="578" y2="${y(0)}" stroke="#aebfc4"/><text x="12" y="${y(0)-5}" text-anchor="start">$0</text>${rows.map(({label,value,total,start,end},i)=>{const top=y(Math.max(start,end)),bottom=y(Math.min(start,end)),amount=!total&&value>0?'+'+money(value):money(value);return `${i<rows.length-1?`<line x1="${125+i*142}" y1="${y(end)}" x2="${177+i*142}" y2="${y(end)}" stroke="#879ca3" stroke-dasharray="3 3"/>`:''}<rect x="${35+i*142}" y="${top}" width="90" height="${bottom-top}" fill="${total?'#123c48':value>=0?'#006b70':'#b35136'}"/><text x="${80+i*142}" y="22" text-anchor="middle">${esc(amount)}</text><text x="${80+i*142}" y="232" text-anchor="middle">${label}</text>`;}).join('')}</svg>`;
 }
 function floorChart(result){
- const rows=result.floorPlans||[],max=Math.max(1,...rows.map(r=>Math.abs(metric(r,'difference').noi||0))),height=Math.max(160,rows.length*42+25);
- return `<svg viewBox="0 0 600 ${height}" role="img" aria-label="Incremental NOI by floor plan, STR minus modeled LTR in dollars">${rows.map((r,i)=>{const v=metric(r,'difference').noi,y=20+i*42;return `<text x="0" y="${y+12}">${esc(r.code||r.name||r.groupId)}</text><rect x="100" y="${y}" width="${Math.abs(v||0)/max*330}" height="22" fill="${v>=0?'#006b70':'#b35136'}" rx="3"/><text x="${110+Math.abs(v||0)/max*330}" y="${y+15}">${esc(money(v))}</text>`;}).join('')}</svg>`;
+ const rows=result.floorPlans||[],values=rows.map(r=>metric(r,'difference').noi).filter(finite),low=Math.min(0,...values),high=Math.max(0,...values),span=high-low||1,x=value=>195+(value-low)/span*250,zero=x(0),height=Math.max(160,rows.length*42+60);
+ return `<svg viewBox="0 0 600 ${height}" role="img" aria-label="Total selected-period incremental NOI by floor plan, STR minus modeled LTR in dollars; negative values extend left of zero"><line x1="${zero}" y1="24" x2="${zero}" y2="${height-28}" stroke="#aebfc4"/><text x="${zero}" y="14" text-anchor="middle">$0</text>${rows.map((r,i)=>{const value=metric(r,'difference').noi,y=32+i*42,end=finite(value)?x(value):zero,label=(r.code||r.name||r.groupId)+' · '+number(r.units??r.quantity)+' units',amount=finite(value)&&value>0?'+'+money(value):money(value);return `<text x="4" y="${y+15}">${esc(label)}</text><rect x="${Math.min(zero,end)}" y="${y}" width="${finite(value)?Math.abs(end-zero):0}" height="22" fill="${value>=0?'#006b70':'#b35136'}" rx="3"/><text x="590" y="${y+15}" text-anchor="end">${esc(amount)}</text>`;}).join('')}<text x="4" y="${height-7}">Total NOI difference for selected quantities and dates</text></svg>`;
 }
 function sensitivity(result){
  const rows=result.sensitivity||[];if(!rows.length)return '<p class="cmp-note">Sensitivity requires complete modeled assumptions.</p>';

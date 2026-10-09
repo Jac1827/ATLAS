@@ -552,9 +552,13 @@ function calculateRetainedComparison({RBB, state, property, program, scenario = 
     {name:'Occupied nights',value:booked,source:'Modeled STR occupancy'},
     {name:'Capital presentation',value:'Furnishing, listing setup and FF&E replacement funding are separate from NOI.',source:'Existing STR model costs, reclassified for investment comparison'});
   const sensitivity=[];
+  // At uniform occupancy, each month's share of booked nights equals its share
+  // of eligible nights. This is the actual weighted ADR at full occupancy (and
+  // at every positive sampled occupancy), without another preview per cell.
+  const sensitivityAdr=rentable?sum(modelIndices.map(m=>pv.adr[m]*pv.rentable[m]))/rentable:currentAdr;
   if(modelIndices.length&&currentAdr>0) for(const occ of [.25,.5,.75,.9,1]) for(const factor of [.6,.8,1,1.2,1.4]) {
     const strNoi=modelNoi(occ,factor);
-    sensitivity.push({adr:round(currentAdr*factor),occupancy:occ,strNoi:round(strNoi),ltrNoi:totals.ltr.noi,difference:round(sub(strNoi,totals.ltr.noi))});
+    sensitivity.push({adr:round(sensitivityAdr*factor),occupancy:occ,strNoi:round(strNoi),ltrNoi:totals.ltr.noi,difference:round(sub(strNoi,totals.ltr.noi))});
   }
   const incomplete=totals.difference.noi===null||concessionMissing||badDebt===null||!hasExpenseEvidence||(mode!=='budget'&&actualStatus!=='closed');
   const positive=n(totals.difference.noi)>0;

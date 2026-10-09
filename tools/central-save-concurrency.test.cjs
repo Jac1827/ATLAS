@@ -4,7 +4,7 @@ const {readDashboardSource}=require('./dashboard-source.cjs');
 const source=process.env.ATLAS_CENTRAL_SAVE_SOURCE?fs.readFileSync(process.env.ATLAS_CENTRAL_SAVE_SOURCE,'utf8'):readDashboardSource('docs/portfolio-operations-dashboard/index.html');
 const start=source.indexOf('async function saveAtlasCentralAppState('),end=source.indexOf('\nasync function inspectAtlasOccupancyReadback',start);
 assert(start>=0&&end>start);
-const fn=source.slice(start,end).replace(/const \{ensureWorkspaceProjection\} = await import\("\.\/features\/workspace-publication\.mjs(?:\?v=[^"]+)?"\);/g,'const {ensureWorkspaceProjection} = projectionFixture;');
+const fn=source.slice(start,end).replace(/const \{ensureWorkspaceProjection\} = await import\("\.\/features\/workspace-publication\.mjs(?:\?v=[^"]+)?"\);/g,'const {ensureWorkspaceProjection} = projectionFixture;').replace(/const cacheModule = await import\([^;]+;/,'const cacheModule = {};');
 function fixture(){
  const calls={build:0,parts:0,parent:0},records=new Map(),messages=[];
  let parent={version:1,payload_hash:'old',payload:{bundle:{sha256:'old'}}};

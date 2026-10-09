@@ -1,6 +1,6 @@
 import {calculateComparison} from './str-ltr-comparison-engine.mjs?v=a77cf9315fee229c';
 import {createComparisonStore,createComparisonRecord} from './str-ltr-comparison-store.mjs?v=0a34e64736b6fe25';
-import {exportComparison} from './str-ltr-comparison-export.mjs?v=49b49627b237acf0';
+import {exportComparison} from './str-ltr-comparison-export.mjs?v=162142ef57026177';
 import {createComparisonRecovery} from './str-ltr-comparison-recovery.mjs?v=ed0ac34406c4b063';
 
 const clone=value=>structuredClone(value);

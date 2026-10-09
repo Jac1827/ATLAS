@@ -15,11 +15,12 @@ const readable=v=>v&&typeof v==='object'?Array.isArray(v)?v.map(readable).join('
 const clean=v=>String(v??'').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'');
 const xml=v=>clean(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 const chunks=(rows,n)=>rows.length?Array.from({length:Math.ceil(rows.length/n)},(_,i)=>rows.slice(i*n,i*n+n)):[[]];
-const splitText=(value,limit)=>{const words=plain(value).split(/\s+/),parts=[];let part='';for(const word of words){if(part&&part.length+word.length+1>limit){parts.push(part);part='';}for(let i=0;i<word.length;i+=limit){const bit=word.slice(i,i+limit);if(i||part.length+bit.length+1>limit){if(part)parts.push(part);part='';}part+=(part?' ':'')+bit;}}if(part)parts.push(part);return parts.length?parts:[''];};
+const brief=(value,max=190)=>{const s=readable(value);if(s.length<=max)return s;const head=s.slice(0,max-3),cut=head.lastIndexOf(' ');return head.slice(0,cut>max*.7?cut:head.length)+'...';};
 const modeName=m=>({budget:'Budget vs. budget',performance:'Performance',investment:'Investment comparison'}[m]||m||'Budget vs. budget');
 const metricRows=[['Effective income','income'],['Operating expenses','expenses'],['Direct contribution','directContribution'],['Allocated expenses','allocatedExpenses'],['NOI after allocations','noi'],['Capital expenditures','capex'],['Cash flow after CapEx','cashFlow']];
 const difference=(a,b)=>finite(a)&&finite(b)?a-b:null;
 const payback=p=>p?.reached&&finite(p.months)?p.months.toFixed(1)+' months':p?.reason||'Not reached in '+(p?.horizonMonths??'modeled')+' months';
+const shortPayback=p=>p?.reached&&finite(p.months)?p.months.toFixed(1)+' months':/unavailable|incomplete|missing/i.test(p?.reason||'')?'Unavailable':/nonpositive/i.test(p?.reason||'')?'Nonpositive cash flow':'Not reached ('+(p?.horizonMonths??'modeled')+' mo)';
 const threshold=(t,key)=>finite(t?.[key])?(key==='adr'?money(t[key]):pct(t[key]))+(key==='occupancy'&&t[key]>1?' (infeasible)':''):t?.[key+'Feasible']===false&&/Not reached|infeasible/i.test(t.reason||'')?'Infeasible':'Unavailable';
 
 export function retainComparisonExport(input,{exportedAt=new Date().toISOString()}={}){
@@ -45,6 +46,34 @@ function evidenceRows(s){
   ['Operating break-even status',s.breakEven?.operating?.reason],['LTR parity break-even status',s.breakEven?.ltrParity?.reason],['Break-even assumptions',s.breakEven?.assumptions],['Payback horizon',(s.payback?.horizonMonths??'Unavailable')+' months; '+(s.payback?.reason||'retained modeled cash flow')],
   ...(s.limitations||[]).map(v=>['Limitation',v])
  ].filter(([,v])=>v!==undefined&&v!==null&&v!=='');
+}
+
+// Investor summaries group large rule inventories. Exact rules, source records
+// and the full limitation log remain in Excel and every embedded snapshot.
+function evidenceSummary(s){
+ const m=s.metadata,a=s.actuals||{},assumptions=s.assumptions||[],find=pattern=>assumptions.find(row=>pattern.test(row.name)),occupancy=assumptions.filter(row=>/occupancy/i.test(row.name)).map(row=>row.name+': '+(finite(row.value)?pct(row.value):readable(row.value))).join('; '),concession=find(/concession/i),value=concession?.value;
+ const concessionText=value&&typeof value==='object'?(value.available===false?'Unconfirmed concession; provisional inputs: ':'')+Object.entries(value).filter(([key,v])=>['type','value','leaseTermMonths','eligiblePct','startMonth','endMonth','timing'].includes(key)&&v!==null&&v!==undefined).map(([key,v])=>key.replace(/([a-z])([A-Z])/g,'$1 $2')+': '+plain(v)).join('; '):readable(value);
+ const methods=new Map();for(const rule of s.allocations||[]){const method=String(rule.method||rule.allocationMethod||'Unspecified').replace(/^(str|ltr):\s*/i,'');methods.set(method,(methods.get(method)||0)+1);}
+ const ruleSummary=methods.size?`${s.allocations.length} retained rules: `+[...methods].sort((a,b)=>b[1]-a[1]).map(([method,count])=>method+' ('+count+')').join('; '):'No shared allocation rules retained. Direct program costs follow their GL evidence.';
+ const coverage=a.coverage&&typeof a.coverage==='object'?`Revenue ${a.coverage.revenueComplete?'complete':'incomplete'}; expenses ${(a.coverage.expensesComplete??a.coverage.expenseComplete)?'complete':'incomplete'}${a.coverage.missing?.length?'; itemized coverage gaps: '+a.coverage.missing.length:''}.`:'Coverage: '+readable(a.coverage)+'.';
+ const limitations=s.limitations||[],concessionSource=value?.source??concession?.source,reviewedAt=value?.reviewedAt??concession?.reviewedAt,source=[concessionSource?brief(concessionSource,65):null,reviewedAt?'reviewed '+reviewedAt:null].filter(Boolean).join(' | ');
+ const limitationText=limitations.map(readable).join(' '),topics=[];
+ if(/gas|utilit|6464/i.test(limitationText))topics.push('utility/gas evidence gaps');
+ if(/concession|offer|special/i.test(limitationText))topics.push('concession evidence gaps');
+ if(/actual|attribut|close status|recorded/i.test(limitationText))topics.push('actuals coverage/attribution gaps');
+ if(/occupancy|rent baseline|LT Rent/i.test(limitationText))topics.push('rent/occupancy inputs need review');
+ if(/source|expense|\bGL\b|mapping|mapped|allocat|service|unavailable/i.test(limitationText))topics.push('source/GL evidence gaps');
+ const limitationSummary=limitations.length?`${limitations.length} limitations: `+(topics.length?topics.join('; '):brief(limitations[0],150))+'.':'No additional limitations recorded. Results remain conditional on retained source assumptions.';
+ return [
+  ['Occupancy and eligible nights',brief((occupancy||'Occupancy assumptions unavailable')+'; eligible rentable nights: '+plain(find(/^eligible rentable nights$/i)?.value))],
+  ['LT rent and concessions','LT Rent per plan. '+brief(concessionText,145)+(source?' | '+source:'')],
+  ['Allocation methods',brief(ruleSummary)],
+  ['Actuals period and status',brief(`Latest: ${a.latestMonth||'Unavailable'}; compared: ${a.period||m.actualsPeriod||'Unavailable'}; status: ${a.status||'unavailable'}; updated: ${a.updatedAt||'Not recorded'}.`)],
+  ['Coverage and attribution',brief(coverage+' '+(a.allocationMethod||'Attribution unavailable.'))],
+  ['Source and scenario version',brief(`Program version ${m.programVersion??'Unavailable'}${s.scenario?.revision?'; comparison revision '+s.scenario.revision:''}. Source: ${s.sourceFingerprint||'retained program / assumption sources'}. LTR is a modeled counterfactual.`)],
+  ['Thresholds and conversion payback',brief((s.breakEven?.operating?.reason||'Thresholds reprice variable costs with other retained drivers fixed; CapEx is separate.')+' Payback horizon: '+(s.payback?.horizonMonths??'unavailable')+' months. '+shortPayback(s.payback))],
+  ['Material limitations',limitationSummary]
+ ];
 }
 
 function metaLines(s,exportedAt){const m=s.metadata;return [
@@ -73,16 +102,13 @@ export function comparisonReportPages(retained,{includeGl=false}={}){
  const floorChunks=chunks(s.floorPlans,9);
  floorChunks.forEach((rows,index)=>{
   b=page(index?'Floor-plan results (continued)':'Floor-plan results','Matched inventory and exposure dates | '+(s.metadata.inventoryLabel||'Floor-plan estimates'));
-  b.push({kind:'table',x:.55,y:1.53,w:12.15,h:Math.max(1.05,(rows.length+1)*.38),heads:['Floor plan / units','LT rent','STR NOI','LTR NOI','Difference','BE ADR / occ.','Payback'],widths:[.22,.10,.13,.13,.13,.15,.14],rows:rows.map(f=>[`${f.code||f.id} ${f.name||''} / ${f.units} units`,money(f.ltRent),money(f.str?.noi),money(f.ltr?.noi),money(f.difference?.noi),threshold(f.breakEven?.operating,'adr')+' / '+threshold(f.breakEven?.operating,'occupancy'),payback(f.payback)]),size:10.5});
+  b.push({kind:'table',x:.55,y:1.53,w:12.15,h:Math.max(1.05,(rows.length+1)*.38),heads:['Floor plan / units','LT rent','STR NOI','LTR NOI','Difference','BE ADR / occ.','Payback'],widths:[.22,.10,.13,.13,.13,.15,.14],rows:rows.map(f=>[`${f.code||f.id} ${f.name||''} / ${f.units} units`,money(f.ltRent),money(f.str?.noi),money(f.ltr?.noi),money(f.difference?.noi),threshold(f.breakEven?.operating,'adr')+' / '+threshold(f.breakEven?.operating,'occupancy'),shortPayback(f.payback)]),size:10.5});
   b.push(text('STR required to equal LTR NOI: ADR '+threshold(s.breakEven?.ltrParity,'adr')+' / occupancy '+threshold(s.breakEven?.ltrParity,'occupancy')+'. Other program assumptions remain fixed.',.55,5.68,12.15,.45,13));
   b.push(text('Payback uses incremental cash flow after conversion capital and recurring CapEx. Horizon: '+(s.payback?.horizonMonths??'unavailable')+' months. Detailed ramp and monthly amounts are retained in Excel and the snapshot.',.55,6.16,12.15,.5,11,C.muted));
  });
- // Evidence never disappears when there are many assumptions or limitations.
- const evidence=evidenceRows(s).filter(([k])=>!['Property','Program','Scenario','Saved program version','Reporting period','Compared inventory','Comparison mode'].includes(k)).flatMap(([k,v])=>splitText(v,190).map((text,i)=>[k+(i?' (continued)':''),text]));
- chunks(evidence,10).forEach((rows,index)=>{
-  b=page(index?'Assumptions and evidence (continued)':'Assumptions and evidence','Source dates, attribution and limitations are part of this retained scenario');
-  b.push({kind:'table',x:.55,y:1.53,w:12.15,h:4.8,heads:['Evidence / assumption','Retained value and source'],widths:[.24,.76],rows:rows.map(([k,v])=>[k,plain(v)]),size:10.5});
- });
+ b=page('Assumptions and evidence','Key assumptions, source dates, attribution and limitations for this retained scenario');
+ b.push({kind:'table',x:.55,y:1.53,w:12.15,h:4.65,heads:['Evidence / assumption','Summary of retained value and source'],widths:[.24,.76],rows:evidenceSummary(s),size:10.5});
+ b.push(text('Summarized for the investor report. Full assumptions, every allocation rule, source reference and limitation are retained in Excel and the embedded snapshot.',.55,6.35,12.15,.3,10,C.muted));
  if(includeGl)for(const [section,title] of [['income','Income'],['expenses','Operating Expenses'],['capex','Capital Expenditures']])chunks(s.gl.filter(r=>r.section===section),11).forEach((rows,index)=>{
   b=page(title+' - GL appendix'+(index?' (continued)':''),'USD | Positive expense and capital differences mean additional STR cost');
   b.push({kind:'table',x:.55,y:1.53,w:12.15,h:4.86,heads:['GL / account','STR','LTR','Difference','%','Source / allocation'],widths:[.26,.12,.12,.12,.08,.30],rows:rows.map(r=>[`${r.code||'Unmapped'} ${r.name||''}`,money(r.str),money(r.ltr),money(r.difference),pct(r.percent),[r.source,r.allocationMethod].filter(Boolean).map(plain).join(' / ')]),size:10.5});

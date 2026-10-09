@@ -20,7 +20,7 @@ const modeName=m=>({budget:'Budget vs. budget',performance:'Performance',investm
 const metricRows=[['Effective income','income'],['Operating expenses','expenses'],['Direct contribution','directContribution'],['Allocated expenses','allocatedExpenses'],['NOI after allocations','noi'],['Capital expenditures','capex'],['Cash flow after CapEx','cashFlow']];
 const difference=(a,b)=>finite(a)&&finite(b)?a-b:null;
 const payback=p=>p?.reached&&finite(p.months)?p.months.toFixed(1)+' months':p?.reason||'Not reached in '+(p?.horizonMonths??'modeled')+' months';
-const threshold=(t,key)=>finite(t?.[key])?(key==='adr'?money(t[key]):pct(t[key]))+(key==='occupancy'&&t[key]>1?' (infeasible)':''):t?.[key+'Feasible']===false?'Infeasible':'Unavailable';
+const threshold=(t,key)=>finite(t?.[key])?(key==='adr'?money(t[key]):pct(t[key]))+(key==='occupancy'&&t[key]>1?' (infeasible)':''):t?.[key+'Feasible']===false&&/Not reached|infeasible/i.test(t.reason||'')?'Infeasible':'Unavailable';
 
 export function retainComparisonExport(input,{exportedAt=new Date().toISOString()}={}){
  if(input?.schemaVersion!==1||!input?.metadata||!input?.totals||!Array.isArray(input.floorPlans)||!Array.isArray(input.monthly)||!Array.isArray(input.gl))throw Error('A calculated saved comparison snapshot is required for export.');
@@ -35,14 +35,14 @@ export function retainComparisonExport(input,{exportedAt=new Date().toISOString(
 
 function evidenceRows(s){
  const m=s.metadata,a=s.actuals||{};
- const coverage=a.coverage&&typeof a.coverage==='object'&&!Array.isArray(a.coverage)?`Revenue ${a.coverage.revenueComplete?'complete':'incomplete'}; expenses ${a.coverage.expenseComplete?'complete':'incomplete'}; ${a.coverage.records??'unavailable'} records${a.coverage.missing?.length?'; missing: '+readable(a.coverage.missing):''}`:readable(a.coverage);
+ const coverage=a.coverage&&typeof a.coverage==='object'&&!Array.isArray(a.coverage)?`Revenue ${a.coverage.revenueComplete?'complete':'incomplete'}; expenses ${(a.coverage.expensesComplete??a.coverage.expenseComplete)?'complete':'incomplete'}; ${a.coverage.records??'unavailable'} records${a.coverage.missing?.length?'; missing: '+readable(a.coverage.missing):''}`:readable(a.coverage);
  return [
   ['Property',m.propertyName],['Program',m.programName],['Saved program version',m.programVersion],['Program status',m.programStatus],['Scenario',m.scenarioName],['Comparison revision',s.scenario?.revision??m.comparisonRevision],['Source fingerprint',s.sourceFingerprint],['Reporting period',m.periodLabel],['Compared inventory',m.inventoryUnits+' units / '+(m.inventoryLabel||'floor-plan estimates')],['Comparison mode',modeName(m.mode)],
   ['Actuals status',a.status||'Unavailable'],['Latest actuals month',a.latestMonth||'Unavailable'],['Actual comparison period',a.period||m.actualsPeriod||'Unavailable'],['Data loaded / updated',a.updatedAt||'Not recorded'],['Actuals coverage',coverage],['Actuals attribution',a.allocationMethod||'Unavailable'],
   ...(s.assumptions||[]).map(a=>[a.name,(/occupancy|percentage/i.test(a.name)&&finite(a.value)?pct(a.value):readable(a.value))+(a.source?' | '+readable(a.source):'')+(a.reviewedAt?' | Reviewed '+a.reviewedAt:'')]),
   ...(s.allocations||[]).map(a=>['Allocation '+(a.code||a.glCode||''),[a.scenario||a.side,a.method||a.allocationMethod,finite(a.amount)?money(a.amount):null].filter(Boolean).join(' | ')]),
   ['LTR evidence','Modeled counterfactual; never observed LTR actuals.'],['Difference convention','STR minus LTR. Positive expense differences are additional costs.'],
-  ['Break-even assumptions',s.breakEven?.assumptions],['Payback horizon',(s.payback?.horizonMonths??'Unavailable')+' months; '+(s.payback?.reason||'retained modeled cash flow')],
+  ['Operating break-even status',s.breakEven?.operating?.reason],['LTR parity break-even status',s.breakEven?.ltrParity?.reason],['Break-even assumptions',s.breakEven?.assumptions],['Payback horizon',(s.payback?.horizonMonths??'Unavailable')+' months; '+(s.payback?.reason||'retained modeled cash flow')],
   ...(s.limitations||[]).map(v=>['Limitation',v])
  ].filter(([,v])=>v!==undefined&&v!==null&&v!=='');
 }

@@ -1,6 +1,6 @@
 import {calculateComparison} from './str-ltr-comparison-engine.mjs?v=a77cf9315fee229c';
 import {createComparisonStore,createComparisonRecord} from './str-ltr-comparison-store.mjs?v=a45ad9d954ccc8cc';
-import {exportComparison} from './str-ltr-comparison-export.mjs?v=1f330129f43d501e';
+import {exportComparison} from './str-ltr-comparison-export.mjs?v=49b49627b237acf0';
 import {createComparisonRecovery} from './str-ltr-comparison-recovery.mjs?v=ed0ac34406c4b063';
 
 const clone=value=>structuredClone(value);
@@ -48,7 +48,7 @@ function sensitivity(result){
 }
 function cards(r){
  const t=r.totals||{},s=t.str||{},l=t.ltr||{},d=t.difference||{},units=r.inventory?.units??(r.floorPlans||[]).reduce((n,f)=>n+(f.units||f.quantity||0),0),be=r.breakEven||{},pb=r.payback||{};
- const list=[['Compared inventory',`${number(units)} units`,(r.metadata?.periodLabel||r.period?.label||'Period unavailable')+(r.metadata?.partialYear?' · partial-year exposure':'')],['Effective income',money(s.income),`Modeled LTR ${money(l.income)}`],['Operating NOI',money(s.noi),`Modeled LTR ${money(l.noi)} · STR expenses ${money(s.expenses)}`],['Incremental NOI',money(d.noi),`${money(units&&finite(d.noi)?d.noi/units:null)} per selected unit`],['Conversion investment',money(pb.incrementalInvestment),`STR cash flow after CapEx ${money(s.cashFlow)}`],['Operating break-even',money(be.operating?.adr),`${pct(be.operating?.occupancy)} occupancy${finite(be.operating?.occupancy)&&be.operating?.occupancyFeasible===false?' · infeasible':''}`],['Equal LTR NOI',money(be.ltrParity?.adr),`${pct(be.ltrParity?.occupancy)} occupancy${finite(be.ltrParity?.occupancy)&&be.ltrParity?.occupancyFeasible===false?' · infeasible':''}`],['Conversion payback',pb.reached?`${number(pb.months)} months`:'Not reached',pb.reason||`${pb.horizonMonths||12}-month modeled horizon`]];
+ const list=[['Compared inventory',`${number(units)} units`,(r.metadata?.periodLabel||r.period?.label||'Period unavailable')+(r.metadata?.partialYear?' · partial-year exposure':'')],['Effective income',money(s.income),`Modeled LTR ${money(l.income)}`],['Operating NOI',money(s.noi),`Modeled LTR ${money(l.noi)} · STR expenses ${money(s.expenses)}`],['Incremental NOI',money(d.noi),`${money(units&&finite(d.noi)?d.noi/units:null)} per selected unit`],['Conversion investment',money(pb.incrementalInvestment),`STR cash flow after CapEx ${money(s.cashFlow)}`],['Operating break-even',money(be.operating?.adr),be.operating?.reason||`${pct(be.operating?.occupancy)} occupancy${be.operating?.occupancyFeasible===false?' · infeasible':''}`],['Equal LTR NOI',money(be.ltrParity?.adr),be.ltrParity?.reason||`${pct(be.ltrParity?.occupancy)} occupancy${be.ltrParity?.occupancyFeasible===false?' · infeasible':''}`],['Conversion payback',pb.reached?`${number(pb.months)} months`:'Not reached',pb.reason||`${pb.horizonMonths||12}-month modeled horizon`]];
  return `<div class="cmp-cards">${list.map(([label,value,detail])=>`<article class="cmp-card"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div><div class="detail">${esc(detail)}</div></article>`).join('')}</div>`;
 }
 function summaryTable(r){

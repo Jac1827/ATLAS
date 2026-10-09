@@ -29,6 +29,43 @@ test('direct shared loader retains exact floor plans, LT Rent and ramp without t
  await f.store.close();
 });
 
+test('distinct saved programmes sharing a builder ID load and reopen their exact saved record',async()=>{
+ const f=fixture(),before=clone(f.R.app.state),reads=[],fetch=f.central.fetchJson;
+ const records=['RISE STR 2026','RISE STR Re-Forecast 2026','Short-term rental programme'].map((name,index)=>{
+  const payload=clone(f.payload),programmeId=id(30+index),revisionId=id(40+index),version=index===2?11:1;
+  payload.name=name;payload.config.name=name;payload.config.adr=150+index*25;payload.config.unitPicks[0].units=6+index*2;
+  payload.property.units[0].marketRent=1875+index*100;payload.lines[0].yearData[2026].fill(20000+index*1000);
+  payload.programme.name=name;payload.programme.config=clone(payload.config);
+  return {verified:true,head:{community_id:cid,programme_id:programmeId,revision:version,revision_id:revisionId},revision:{community_id:cid,programme_id:programmeId,revision:version,revision_id:revisionId,content_hash:String(index+1).repeat(64),created_at:'2026-10-01',payload}};
+ });
+ f.central.fetchJson=async(route,args)=>{if(route!=='/rpc/atlas_read_str_programme_drafts')return fetch(route,args);const body=JSON.parse(args.body);reads.push(body);return clone(records.filter(row=>!body.p_programme_id||row.head.programme_id===body.p_programme_id));};
+ const listed=await f.store.listPrograms(f.property);assert.equal(listed.length,3);assert(listed.every(row=>row.id==='PROGRAM'));assert.equal(new Set(listed.map(row=>row.selectionKey)).size,3);
+ assert.deepEqual((await f.store.listPrograms(f.property)).map(row=>row.selectionKey),listed.map(row=>row.selectionKey));
+ await assert.rejects(()=>f.store.loadProgram('PROGRAM',f.property),/Select the exact saved programme/);
+ for(const original of records){
+  const descriptor=listed.find(row=>row.sharedId===original.head.programme_id),input=await f.store.loadProgram(descriptor.selectionKey,f.property);
+  assert.equal(input.program.id,'PROGRAM');assert.equal(input.program.selectionKey,'shared:'+original.head.programme_id);assert.equal(input.program.name,original.revision.payload.name);assert.equal(input.program.version,original.revision.revision);assert.deepEqual(input.program.config,original.revision.payload.config);assert.equal(input.property.units[0].marketRent,original.revision.payload.property.units[0].marketRent);
+  assert.equal(reads.at(-1).p_programme_id,original.head.programme_id);assert.equal(input.state.lines.filter(row=>row.strProgramId==='PROGRAM').length,1);assert.deepEqual(input.state.lines.find(row=>row.strProgramId==='PROGRAM'),original.revision.payload.lines[0]);
+  assert.equal((await f.store.loadProgram(original.head.programme_id,f.property)).program.selectionKey,descriptor.selectionKey);
+  const saved=await f.store.save(createComparisonRecord(input)),reopened=await f.store.read(saved.id);assert.equal(reopened.programmeId,'PROGRAM');assert.equal(reopened.inputs.program.sharedId,original.head.programme_id);assert.equal(reopened.inputs.program.selectionKey,descriptor.selectionKey);assert.equal((await f.store.checkSources(reopened)).changed,false);
+ }
+ assert.deepEqual(f.R.app.state,before);assert(f.calls.every(call=>!/(save|apply|publish)/.test(call.route)));await f.store.close();
+});
+
+test('legacy retained comparisons keep their fingerprint and refresh the exact shared identity',async()=>{
+ const f=fixture(),input=await f.store.loadProgram('PROGRAM',f.property),legacy=clone(input);delete legacy.program.selectionKey;
+ assert.equal(comparisonSourceFingerprint(legacy),input.sourceFingerprint);
+ const saved=await f.store.save(createComparisonRecord(legacy));assert.equal((await f.store.read(saved.id)).inputs.program.selectionKey,undefined);
+ const checked=await f.store.checkSources(saved);assert.equal(checked.changed,false);assert.equal(checked.inputs.program.selectionKey,'shared:'+shared);
+ f.nextVersion();const changed=await f.store.checkSources(saved);assert.equal(changed.changed,true);assert.equal(changed.inputs.program.selectionKey,checked.inputs.program.selectionKey);assert.equal(changed.inputs.program.version,2);await f.store.close();
+});
+
+test('browser programme selection has a stable property-scoped identity',async()=>{
+ const f=fixture(),store=createComparisonStore({R:f.R,central:null,indexedDB:f.factory}),listed=await store.listPrograms(f.property);
+ assert.equal(listed[0].id,'PROGRAM');assert.equal(listed[0].selectionKey,'browser:DORO:PROGRAM');assert.equal(listed[0].sharedId,null);
+ const input=await store.loadProgram(listed[0].selectionKey,f.property);assert.equal(input.program.selectionKey,listed[0].selectionKey);assert.equal(input.program.id,'PROGRAM');assert.deepEqual(input.program.config,f.payload.config);await store.close();await f.store.close();
+});
+
 test('named scenarios save, verify, reopen and duplicate without changing originals',async()=>{
  const f=fixture(),input=await f.store.loadProgram('PROGRAM',f.property),record=createComparisonRecord(input,{name:'Investor case'});record.scenario.rentOverrides.A1=1950;
  const saved=await f.store.save(record);assert.equal(saved.revision,1);assert.equal(saved.persistence,'browser');assert.deepEqual(f.states,['saving','saved']);

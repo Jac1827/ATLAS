@@ -12,7 +12,7 @@ const uuid=()=>crypto.randomUUID(),period=(year,index)=>`${year}-${String(index+
 const propertyId=p=>typeof p==='string'?p:p?.id;
 const fingerprint=value=>sha256(canonicalJson(value));
 const errorText=e=>e?.message||String(e);
-const withoutVolatile=value=>{const copy=clone(value);delete copy.loadedAt;delete copy.sourceFingerprint;if(copy.source){delete copy.source.loadedAt;delete copy.source.year;if(copy.source.concessionsByYear)delete copy.source.concession;}return copy;};
+const withoutVolatile=value=>{const copy=clone(value);delete copy.loadedAt;delete copy.sourceFingerprint;if(copy.program)delete copy.program.selectionKey;if(copy.source){delete copy.source.loadedAt;delete copy.source.year;if(copy.source.concessionsByYear)delete copy.source.concession;}return copy;};
 export const comparisonSourceFingerprint=inputs=>fingerprint(withoutVolatile(inputs));
 
 export function defaultComparisonScenario(year){
@@ -114,8 +114,11 @@ async function readComparisonSources(central,communityId,years){
  return {communityId,periods,sourceVersion:fingerprint(parts.map(part=>part.sourceVersion)),registry:parts[0].registry,baseline:{lines:parts.flatMap(part=>part.baseline?.lines||[]),leasing:parts.flatMap(part=>part.baseline?.leasing||[]),versionIds:[...new Set(parts.flatMap(part=>part.baseline?.versionIds||[]))]},actuals:{lines:parts.flatMap(part=>part.actuals?.lines||[]),closeVersions:parts.flatMap(part=>part.actuals?.closeVersions||[]),coveragePolicies:parts.flatMap(part=>part.actuals?.coveragePolicies||[])}};
 }
 function normalizeProgram(record,kind='shared'){
- const p=record.revision.payload;
- return {id:p.sourceProgrammeId||record.head.programme_id,sharedId:kind==='shared'?record.head.programme_id:null,name:p.name,version:record.revision.revision,revisionId:record.revision.revision_id||null,contentHash:record.revision.content_hash||fingerprint(p),communityId:record.head.community_id||null,propertyId:p.sourcePropertyId,status:p.programme?.status||p.config?.status||(p.programme?.applied?'Working draft · applied budget model':'Proposed / working draft'),kind,config:clone(p.config||p.programme?.config||{}),years:clone(p.years||[]),record:clone(record)};
+ const p=record.revision.payload,id=p.sourceProgrammeId||record.head.programme_id;
+ // Several saved records may share one builder programme ID. Keep that ID for
+ // GL attribution, and use the saved head identity for selection and refresh.
+ const selectionKey=kind==='shared'?`shared:${record.head.programme_id}`:`browser:${encodeURIComponent(p.sourcePropertyId)}:${encodeURIComponent(id)}`;
+ return {id,selectionKey,sharedId:kind==='shared'?record.head.programme_id:null,name:p.name,version:record.revision.revision,revisionId:record.revision.revision_id||null,contentHash:record.revision.content_hash||fingerprint(p),communityId:record.head.community_id||null,propertyId:p.sourcePropertyId,status:p.programme?.status||p.config?.status||(p.programme?.applied?'Working draft · applied budget model':'Proposed / working draft'),kind,config:clone(p.config||p.programme?.config||{}),years:clone(p.years||[]),record:clone(record)};
 }
 function localRecord(R,property,programme){
  const state=R.app.state,years=(R.YEARS||[R.app.year?.()]).map(Number).filter(Number.isInteger),config=clone(programme.config||{}),lines=state.lines.filter(row=>row.propertyId===property.id&&row.strProgramId===programme.id);
@@ -139,12 +142,13 @@ export function createComparisonStore({RBB,R=RBB,central=globalThis.parent?.ATLA
   if(central){try{cid=await communityFor(property);const saved=await readStrProgrammes(central,[cid]);guard();rows.push(...saved.map(row=>normalizeProgram(row)));}catch(error){guard();issues.push('Shared STR programmes unavailable: '+errorText(error));}}
   else issues.push('Standalone browser: shared STR programme service is unavailable.');
   for(const programme of R.app.state.strPrograms||[])if(programme.propertyId===property.id&&!rows.some(row=>row.id===programme.id))rows.push(normalizeProgram(localRecord(R,property,programme),'browser'));
-  rows.sort((a,b)=>a.name.localeCompare(b.name));for(const row of rows){row.selectedPropertyId=property.id;row.communityId||=cid;catalog.set(`${property.id}:${row.id}`,clone(row));}
+  for(const [key,row] of catalog)if(row.selectedPropertyId===property.id)catalog.delete(key);
+  rows.sort((a,b)=>a.name.localeCompare(b.name));for(const row of rows){row.selectedPropertyId=property.id;row.communityId||=cid;catalog.set(`${property.id}:${row.selectionKey}`,clone(row));}
   Object.defineProperty(rows,'issues',{value:issues,enumerable:false});return rows;
  }
  async function loadProgram(id,value,options={}){
-  guard();const selected=getProperty(value);let descriptor=typeof id==='object'?id:catalog.get(`${selected.id}:${id}`);
-  if(!descriptor)descriptor=(await listPrograms(selected)).find(row=>row.id===id||row.sharedId===id);
+  guard();const selected=getProperty(value);let descriptor=typeof id==='object'?id:catalog.get(`${selected.id}:${id}`)||catalog.get(`${selected.id}:shared:${id}`);
+  if(!descriptor){const rows=await listPrograms(selected),exact=rows.filter(row=>row.selectionKey===id||row.sharedId===id),matches=exact.length?exact:rows.filter(row=>row.id===id);if(matches.length>1)throw Error('Several saved STR programmes share this source identity. Select the exact saved programme.');descriptor=matches[0];}
   if(!descriptor)throw Error('This saved STR programme is unavailable for the selected property.');
   if(descriptor.selectedPropertyId&&descriptor.selectedPropertyId!==selected.id)throw Error('Select a programme belonging to this property.');
   let record=descriptor.record;

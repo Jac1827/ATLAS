@@ -22,11 +22,19 @@
     "bytes": 5440,
     "references": [
       [
+        "features/str-ltr-comparison-store.mjs",
+        "./financial-snapshot.mjs"
+      ],
+      [
         "features/str-budget-application.mjs",
         "./financial-snapshot.mjs"
       ],
       [
         "features/original-budget-version-report.mjs",
+        "./financial-snapshot.mjs"
+      ],
+      [
+        "features/str-ltr-comparison-recovery.mjs",
         "./financial-snapshot.mjs"
       ],
       [
@@ -99,6 +107,10 @@
     "references": [
       [
         "features/reforecast-ui.mjs",
+        "./community-budget-identity.mjs"
+      ],
+      [
+        "features/str-ltr-comparison-store.mjs",
         "./community-budget-identity.mjs"
       ],
       [
@@ -382,6 +394,10 @@
         "./features/reforecast-store.mjs"
       ],
       [
+        "features/str-ltr-comparison-store.mjs",
+        "./reforecast-store.mjs"
+      ],
+      [
         "features/reforecast-builder-ui.mjs",
         "./reforecast-store.mjs"
       ],
@@ -422,6 +438,10 @@
     "bytes": 5683,
     "references": [
       [
+        "features/str-ltr-comparison-export.mjs",
+        "./rise-report-brand.mjs"
+      ],
+      [
         "features/saved-str-programmes.mjs",
         "./rise-report-brand.mjs"
       ],
@@ -443,6 +463,10 @@
     "sha256": "72c052d97b4d5d9f",
     "bytes": 523417,
     "references": [
+      [
+        "features/str-ltr-comparison-export.mjs",
+        "../vendor/pdf-lib-1.17.1.mjs"
+      ],
       [
         "features/standard-budget-render.mjs",
         "../vendor/pdf-lib-1.17.1.mjs"
@@ -1278,6 +1302,10 @@
         "./reforecast-intake.mjs"
       ],
       [
+        "features/str-ltr-comparison-export.mjs",
+        "./reforecast-intake.mjs"
+      ],
+      [
         "features/reforecast-parser-recovery.mjs",
         "./reforecast-intake.mjs"
       ],
@@ -1758,6 +1786,10 @@
       [
         "reforecast-navigation.js",
         "./features/saved-str-programmes.mjs"
+      ],
+      [
+        "features/str-ltr-comparison-store.mjs",
+        "./saved-str-programmes.mjs"
       ]
     ]
   },
@@ -2087,9 +2119,83 @@
       ]
     ]
   },
+  "features/str-ltr-comparison-engine.mjs": {
+    "sha256": "3e1a099572f83dc0",
+    "bytes": 52344,
+    "references": [
+      [
+        "features/str-ltr-comparison-ui.mjs",
+        "./str-ltr-comparison-engine.mjs"
+      ]
+    ]
+  },
+  "vendor/pptxgen-4.0.1.js": {
+    "sha256": "4fb9eac5cfefb213",
+    "bytes": 460889,
+    "references": [
+      [
+        "performance/feature-loader.js",
+        "vendor/pptxgen-4.0.1.js"
+      ],
+      [
+        "features/str-ltr-comparison-export.mjs",
+        "../vendor/pptxgen-4.0.1.js"
+      ]
+    ]
+  },
+  "features/str-ltr-comparison-export.mjs": {
+    "sha256": "84aa3c8b9203d637",
+    "bytes": 33737,
+    "references": [
+      [
+        "features/str-ltr-comparison-ui.mjs",
+        "./str-ltr-comparison-export.mjs"
+      ]
+    ]
+  },
+  "features/str-ltr-comparison-recovery.mjs": {
+    "sha256": "ed0ac34406c4b063",
+    "bytes": 5969,
+    "references": [
+      [
+        "features/str-ltr-comparison-ui.mjs",
+        "./str-ltr-comparison-recovery.mjs"
+      ]
+    ]
+  },
+  "features/str-ltr-comparison-store.mjs": {
+    "sha256": "a45ad9d954ccc8cc",
+    "bytes": 32710,
+    "references": [
+      [
+        "features/str-ltr-comparison-ui.mjs",
+        "./str-ltr-comparison-store.mjs"
+      ]
+    ]
+  },
+  "features/str-ltr-comparison.css": {
+    "sha256": "5a9eb28a2b47baca",
+    "bytes": 5302,
+    "references": [
+      [
+        "features/str-ltr-comparison-ui.mjs",
+        "./str-ltr-comparison.css"
+      ]
+    ]
+  },
+  "features/str-ltr-comparison-ui.mjs": {
+    "sha256": "7ca912bb8f4361d8",
+    "bytes": 46021,
+    "references": [
+      [
+        "RISE-Budget-Builder.html",
+        "./features/str-ltr-comparison-ui.mjs"
+      ]
+    ]
+  },
   "RISE-Budget-Builder.html": {
-    "sha256": "5f477305fbb60ed0",
-    "bytes": 1907457,
+    "sha256": "585036103141eee1",
+    "bytes": 1907616,
     "references": [
       [
         "atlas-mounts.js",
@@ -2098,7 +2204,7 @@
     ]
   },
   "atlas-mounts.js": {
-    "sha256": "543114ecba4df375",
+    "sha256": "c4096264436ba7f6",
     "bytes": 26893,
     "references": [
       [
@@ -2124,16 +2230,6 @@
       [
         "financial-accountability.html",
         "./features/legacy-finance-gate.js"
-      ]
-    ]
-  },
-  "vendor/pptxgen-4.0.1.js": {
-    "sha256": "4fb9eac5cfefb213",
-    "bytes": 460889,
-    "references": [
-      [
-        "performance/feature-loader.js",
-        "vendor/pptxgen-4.0.1.js"
       ]
     ]
   },

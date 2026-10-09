@@ -151,7 +151,9 @@ try{
  const scripts=await page.evaluate(()=>document.querySelectorAll('script[data-after-draft-boot][data-loaded]').length);
  await page.evaluate(()=>Promise.all([RBB.app.start(),RBB.app.start()]));
  assert.equal(await page.evaluate(()=>document.querySelectorAll('script[src*="budget-mapped-import.js"]').length),2,'One inert declaration and exactly one real script');
- assert.equal(scripts,6);
+ const deferredDeclarations=await page.evaluate(()=>Array.from(document.querySelectorAll('script[data-after-draft-boot]'),script=>script.getAttribute('src')));
+ assert.equal(scripts,deferredDeclarations.length,'Every declared integration loads after verified recovery');
+ for(const src of deferredDeclarations) assert.equal(await page.evaluate(src=>Array.from(document.querySelectorAll('script[src]')).filter(script=>script.getAttribute('src')===src&&!script.hasAttribute('data-after-draft-boot')).length,src),1,'Each deferred integration executes exactly once: '+src);
  stage='Applied banner requires real complete matching rows';
  const banners=await page.evaluate(()=>{
   const A=RBB.app,R=RBB,property=A.state.activeProperty;
